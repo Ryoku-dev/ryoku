@@ -8,6 +8,8 @@
   a local or packaged bridge source, opt into its service, inspect live health,
   and set up or safely remove Spotify, Vesktop, and Zen independently. A typed
   `ryoku-hub palette-bridge` contract keeps service and file policy out of QML.
+  A second navigation row keeps the original Matugen controls and Palette
+  Bridge on separate, taller subpages instead of stacking them in one scroller.
 
 - **Kairos, a third built-in bar style: one dynamic island carrying the clock.**
   A single near-black pill floats at the top centre showing the time, and opens
