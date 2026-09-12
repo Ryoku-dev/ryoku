@@ -515,6 +515,9 @@ Item {
         item.colors = Qt.binding(function() { return settingsPanel.colors })
         item.saveConfigKey = function(k, v) { settingsPanel._saveConfigKey(k, v) }
         item.cloneIntegrations = function() { return settingsPanel._cloneIntegrations() }
+        item.notify = function(message, success) {
+          if (!success) settingsPanel._showWarning(I18n.tr("Palette Bridge"), message)
+        }
       }
     }
   }

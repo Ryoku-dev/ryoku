@@ -4,6 +4,11 @@
 
 ### Added
 
+- **The Win+W Matugen page now includes Ryoku Palette Bridge controls.** Build
+  a local or packaged bridge source, opt into its service, inspect live health,
+  and set up or safely remove Spotify, Vesktop, and Zen independently. A typed
+  `ryoku-hub palette-bridge` contract keeps service and file policy out of QML.
+
 - **Kairos, a third built-in bar style: one dynamic island carrying the clock.**
   A single near-black pill floats at the top centre showing the time, and opens
   on hover into that clock over a rolling date wheel: the centred day is the

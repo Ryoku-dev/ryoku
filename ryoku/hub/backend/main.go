@@ -95,6 +95,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
 			os.Exit(1)
 		}
+	case "palette-bridge":
+		if err := runPaletteBridge(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
+			os.Exit(1)
+		}
 	case "reload-cover":
 		if err := runReloadCover(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, "ryoku-hub:", err)
@@ -170,6 +175,11 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub fastfetch get|preview <json>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub fastfetch save <json>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub fastfetch import-logo <path>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge status [<source>]")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge install <source>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge service enable|disable|restart")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge integration install|remove <spotify|vesktop|zen> <source>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub palette-bridge doctor [<source>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub reload-cover import <path>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub reload-cover prune [<managed-path>]")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub import scan <path|url>")

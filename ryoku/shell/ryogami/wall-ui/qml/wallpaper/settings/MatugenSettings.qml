@@ -10,6 +10,7 @@ Column {
     property var colors
     property var saveConfigKey
     property var cloneIntegrations
+    property var notify
     property var _templates: ({})
     readonly property var _apps: Object.keys(root._templates).sort()
 
@@ -28,6 +29,12 @@ Column {
 
     width: parent ? parent.width : 0
     spacing: 8
+
+    PaletteBridgeSettings {
+        colors: root.colors
+        saveConfigKey: root.saveConfigKey
+        notify: root.notify
+    }
 
     SettingsCard {
         colors: root.colors

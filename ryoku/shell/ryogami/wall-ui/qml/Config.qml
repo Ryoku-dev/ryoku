@@ -197,6 +197,7 @@ QtObject {
     readonly property string matugenConfig: cacheDir + "/matugen-config.toml"
     readonly property string defaultMatugenConfig: _resolve(_data.defaultMatugenConfig ?? "~/.config/matugen/config.toml")
     readonly property string externalMatugenCommand: _data.externalMatugenCommand ?? "matugen -c %config% image %path% -t %scheme% -m %mode% --source-color-index %index%"
+    readonly property string paletteBridgeSource: _resolve(_data.paletteBridgeSource ?? "/usr/share/ryoku/palette-bridge")
     readonly property string matugenScheme: (_data.matugen && _data.matugen.schemeType) ? _data.matugen.schemeType : "scheme-fidelity"
     readonly property string matugenMode: (_data.matugen && _data.matugen.mode) ? _data.matugen.mode : "dark"
     readonly property int matugenColorIndex: (_data.matugen && typeof _data.matugen.colorIndex === "number") ? Math.max(0, Math.min(3, _data.matugen.colorIndex | 0)) : 0
