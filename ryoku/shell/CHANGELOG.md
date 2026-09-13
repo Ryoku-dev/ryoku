@@ -4,12 +4,10 @@
 
 ### Added
 
-- **The Win+W Matugen page now includes Ryoku Palette Bridge controls.** Build
-  a local or packaged bridge source, opt into its service, inspect live health,
-  and set up or safely remove Spotify, Vesktop, and Zen independently. A typed
-  `ryoku-hub palette-bridge` contract keeps service and file policy out of QML.
-  A second navigation row keeps the original Matugen controls and Palette
-  Bridge on separate, taller subpages instead of stacking them in one scroller.
+- **Palette Bridge settings now live in Win+W > Advanced > Matugen.** The
+  existing Matugen controls stay on their own page, while a second page handles
+  building the bridge, managing its service, checking its health, and setting up
+  or removing the Spotify, Vesktop, and Zen integrations.
 
 - **Kairos, a third built-in bar style: one dynamic island carrying the clock.**
   A single near-black pill floats at the top centre showing the time, and opens

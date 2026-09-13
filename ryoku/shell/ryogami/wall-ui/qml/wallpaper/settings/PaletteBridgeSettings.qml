@@ -5,9 +5,8 @@ import "../.."
 import "../../components"
 import Ryoku.Ui.Singletons
 
-// Native control surface for the optional Ryoku Palette Bridge. QML renders the
-// backend's versioned status and dispatches typed actions; source validation,
-// service policy, and integration ownership stay in ryoku-hub and the bridge.
+// Settings for the optional Ryoku Palette Bridge. The backend handles validation
+// and service policy; this page displays its status and sends actions.
 Column {
     id: root
     property var colors
