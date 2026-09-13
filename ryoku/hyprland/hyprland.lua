@@ -43,7 +43,6 @@ require("modules.record")
 require("modules.ryoshot")
 require("modules.lid")
 require("modules.window_rules")
-require("modules.fullscreen")
 require("modules.autostart")
 
 -- machine-state written by the hub (ryoku-hub), never shipped. after the base

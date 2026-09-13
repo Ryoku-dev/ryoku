@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **Maximize keybinds work again.**
+  Ryoku no longer resets every Hyprland mode-1 fullscreen state to normal.
+  The old handler worked around Hyprland #13322, which is fixed upstream in
+  Hyprland 0.56.0. Removing the workaround restores native maximize behavior
+  while leaving fullscreen handling to Hyprland (`hyprland.lua`; removed
+  `modules/fullscreen.lua`).
+
 - **Hiding the scratchpad no longer makes the next bar panel pop it open.**
   Super+Alt+H toggled the special workspace through Hyprland directly, which
   leaves keyboard focus on the window it just hid. Any surface that then takes
