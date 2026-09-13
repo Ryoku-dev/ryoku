@@ -10,12 +10,12 @@ const raw = JSON.parse(readFileSync(
   "utf8"
 ));
 
-test("real catalog exposes Main, Hero, and OkShell with the promised routing", () => {
+test("real catalog exposes the built-in variants with the promised routing", () => {
   const catalog = Catalog.normalize(raw);
 
   assert.deepEqual(
     catalog.variants.map(variant => variant.id),
-    ["main", "hero", "okshell"]
+    ["main", "hero", "okshell", "kairos"]
   );
   assert.equal(Catalog.defaultEntry(catalog).id, "hero");
   assert.equal(Catalog.fallbackEntry(catalog).id, "okshell");
