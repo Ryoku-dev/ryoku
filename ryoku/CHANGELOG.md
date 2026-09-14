@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- Saved window animation overrides using `snap` no longer report a missing
+  bezier after switching presets. The base loader supplies the Minimal curve;
+  active presets and custom curves can still override it.
+
 ### Added
 - **The bar stream can drift again when nothing is playing.** A new "Drift when
   silent" switch keeps the gap stream animating on any power profile, not only

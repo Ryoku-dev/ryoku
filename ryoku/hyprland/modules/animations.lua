@@ -51,6 +51,8 @@ end
 -- custom curve in settings.lua both load later, so last still wins.
 hl.curve("easeOutQuint", { type = "bezier", points = { { 0.23, 1 }, { 0.32, 1 } } })
 hl.curve("quick", { type = "bezier", points = { { 0.15, 0 }, { 0.1, 1 } } })
+-- Saved Minimal overrides can outlive the preset that supplied their curve.
+hl.curve("snap", { type = "bezier", points = { { 0.05, 0.9 }, { 0.1, 1.05 } } })
 hl.curve("almostLinear", { type = "bezier", points = { { 0.5, 0.5 }, { 0.75, 1 } } })
 hl.curve("ryokuBloom", { type = "bezier", points = { { 0.16, 1.12 }, { 0.24, 1 } } })
 hl.curve("ryokuSettle", { type = "bezier", points = { { 0.18, 0.86 }, { 0.24, 1 } } })
