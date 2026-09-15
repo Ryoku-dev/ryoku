@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- Settings rejects null desktop save and preview requests before they can
+  replace saved preferences. Empty JSON stores containing `null` now recover
+  as an editable empty store instead of crashing the next edit.
+
 ### Added
 - **The bar stream can drift again when nothing is playing.** A new "Drift when
   silent" switch keeps the gap stream animating on any power profile, not only

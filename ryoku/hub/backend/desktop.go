@@ -230,6 +230,9 @@ func saveDesktop(raw string) error {
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return fmt.Errorf("parse desktop JSON: %w", err)
 	}
+	if m == nil {
+		return fmt.Errorf("desktop settings must be a JSON object")
+	}
 	return withDesktopLock(func() error {
 		if err := atomicWrite(desktopStorePath(), mustJSON(m), 0o644); err != nil {
 			return err
@@ -244,6 +247,9 @@ func previewDesktop(raw string) error {
 	var m map[string]any
 	if err := json.Unmarshal([]byte(raw), &m); err != nil {
 		return fmt.Errorf("parse desktop JSON: %w", err)
+	}
+	if m == nil {
+		return fmt.Errorf("desktop settings must be a JSON object")
 	}
 	f, err := os.CreateTemp("", "ryoku-desktop-preview-*.json")
 	if err != nil {

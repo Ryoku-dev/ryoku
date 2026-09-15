@@ -106,7 +106,9 @@ var riceLauncherOmit = []string{"weatherUnit", "heroImage"}
 func readJSONMap(path string) map[string]any {
 	m := map[string]any{}
 	if b, err := os.ReadFile(path); err == nil {
-		_ = json.Unmarshal(b, &m)
+		if err := json.Unmarshal(b, &m); err != nil || m == nil {
+			return map[string]any{}
+		}
 	}
 	return m
 }
