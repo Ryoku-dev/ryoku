@@ -29,6 +29,9 @@
   normal install.
 
 ### Fixed
+- `cachyos`: **non-v3 CPUs keep compatible repositories after install.**
+  The target now enables the v3 core/extra rebuilds only when glibc reports
+  x86-64-v3 support; baseline x86-64 uses the generic `[cachyos]` repository.
 - `bootloader`: **a CachyOS install autoboots the CachyOS kernel.**
   `ryoku_limine_autoboot` pointed default_entry at the first kernel the menu listed
   (stock `linux`), so a fresh CachyOS box booted the Arch kernel; it now prefers the

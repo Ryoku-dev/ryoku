@@ -173,4 +173,32 @@ while IFS=: read -r file lineno _; do
   fail "unguarded in-chroot call to $helper (a target whose baked desktop set predates it dies here): $file:$lineno"
 done < <(grep -rnE '^[^#]*run arch-chroot /mnt ryoku-[a-z-]+' "$root/installation/backend/lib/" || true)
 
+# ---- 7. CachyOS update repositories match the CPU ISA ------------------------
+(
+  run() { "$@"; }
+  append_file() { cat >>"$1"; }
+  log() { :; }
+  # shellcheck source=/dev/null
+  source "$root/installation/backend/lib/cachyos.sh"
+
+  baseline="$tmp/cachyos-baseline.conf"
+  printf '[options]\nArchitecture = auto\n\n[core]\nInclude = /etc/pacman.d/mirrorlist\n' >"$baseline"
+  ryoku_cachyos_repos "$baseline" 0
+  headers=$(grep -oE '^\[[a-z0-9_-]+\]' "$baseline" | grep -v '^\[options\]$')
+  [[ $headers == $'[cachyos]\n[core]' ]] \
+    || fail "baseline CachyOS repo order is '$headers'"
+  ! grep -qF 'x86_64_v3' "$baseline" \
+    || fail "baseline CachyOS config enabled x86_64_v3 packages"
+
+  v3="$tmp/cachyos-v3.conf"
+  printf '[options]\nArchitecture = auto\n\n[core]\nInclude = /etc/pacman.d/mirrorlist\n' >"$v3"
+  ryoku_cachyos_arch "$v3"
+  ryoku_cachyos_repos "$v3" 1
+  headers=$(grep -oE '^\[[a-z0-9_-]+\]' "$v3" | grep -v '^\[options\]$')
+  [[ $headers == $'[cachyos-v3]\n[cachyos-core-v3]\n[cachyos-extra-v3]\n[cachyos]\n[core]' ]] \
+    || fail "v3 CachyOS repo order is '$headers'"
+  grep -qE '^Architecture[[:space:]]*=.*x86_64_v3' "$v3" \
+    || fail "v3 CachyOS config did not enable x86_64_v3 packages"
+)
+
 echo "install-offline: OK"
