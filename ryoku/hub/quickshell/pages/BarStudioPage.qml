@@ -93,6 +93,19 @@ Item {
         { id: "tray", label: I18n.tr("Tray"), desc: I18n.tr("System tray icons.") },
         { id: "weather", label: I18n.tr("Weather"), desc: I18n.tr("Current conditions.") }
     ]
+
+    readonly property var chromaWidgets: [
+        { id: "identity", label: I18n.tr("Launcher"), desc: I18n.tr("The Chroma identity button and app launcher.") },
+        { id: "workspaces", label: I18n.tr("Workspaces"), desc: I18n.tr("The numbered workspace rail.") },
+        { id: "media", label: I18n.tr("Media"), desc: I18n.tr("Now playing, progress and playback spectrum.") },
+        { id: "notifications", label: I18n.tr("Notifications"), desc: I18n.tr("Notification state and unread count.") },
+        { id: "wallpaper", label: I18n.tr("Wallpaper"), desc: I18n.tr("Shortcut to wallpaper and theme controls.") },
+        { id: "network", label: I18n.tr("Network"), desc: I18n.tr("Current wired or wireless network state.") },
+        { id: "audio", label: I18n.tr("Audio"), desc: I18n.tr("Output volume and scroll volume control.") },
+        { id: "battery", label: I18n.tr("Battery"), desc: I18n.tr("Battery state when a battery is present.") },
+        { id: "settings", label: I18n.tr("Quick settings"), desc: I18n.tr("Shortcut to the Ryoku quick-settings surface.") },
+        { id: "clock", label: I18n.tr("Clock"), desc: I18n.tr("Time and date block.") }
+    ]
     // The running bar style, default the built-in frame style. The frame, rails
     // and zone editors below are Sumi's; a folder style owns its own layout.
     readonly property string activeStyle: page.fval("barStyle", "sumi")
@@ -145,6 +158,30 @@ Item {
         const o = Object.assign({}, page.fval("obi", ({})));
         o[id] = on;
         page.fedit("obi", o);
+    }
+
+    function chromaConfig() {
+        return Object.assign({}, page.fval("chroma", ({})));
+    }
+    function chromaScale() {
+        const n = Number(page.chromaConfig().scale);
+        return isFinite(n) ? Math.max(0.6, Math.min(1.4, n)) : 1;
+    }
+    function chromaSetScale(value) {
+        const cfg = page.chromaConfig();
+        cfg.scale = Math.round(Math.max(0.6, Math.min(1.4, Number(value))) * 20) / 20;
+        page.fedit("chroma", cfg);
+    }
+    function chromaShown(id) {
+        const widgets = page.chromaConfig().widgets || ({});
+        return widgets[id] !== false;
+    }
+    function chromaSetWidget(id, on) {
+        const cfg = page.chromaConfig();
+        const widgets = Object.assign({}, cfg.widgets || ({}));
+        widgets[id] = on;
+        cfg.widgets = widgets;
+        page.fedit("chroma", cfg);
     }
 
     // ── QS Bar layout summary ─────────────────────────────────────────────────
@@ -398,12 +435,59 @@ Item {
                 }
             }
 
+            SettingCard {
+                id: chromaSect
+                width: col.colWidth
+                visible: page.activeStyle === "chroma"
+                title: I18n.tr("CHROMA")
+
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    label: I18n.tr("Size")
+                    desc: I18n.tr("Scale Chroma without changing the display scale.")
+                    source: "shell.json"
+                    unit: "%"
+                    value: String(Math.round(page.chromaScale() * 100))
+                    controlWidth: Math.min(240, Math.max(160, Math.round(chromaSect.width * 0.34)))
+                    Slid {
+                        anchors.fill: parent
+                        from: 0.6
+                        to: 1.4
+                        value: page.chromaScale()
+                        onModified: value => page.chromaSetScale(value)
+                    }
+                }
+
+                Repeater {
+                    model: page.chromaWidgets
+                    delegate: SettingRow {
+                        required property var modelData
+                        required property int index
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        divider: true
+                        controlWidth: 54
+                        label: I18n.tr(modelData.label)
+                        desc: I18n.tr(modelData.desc)
+                        source: "shell.json"
+                        Sw {
+                            objectName: "chroma-" + modelData.id
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            on: page.chromaShown(modelData.id)
+                            onToggled: value => page.chromaSetWidget(modelData.id, value)
+                        }
+                    }
+                }
+            }
+
             // A folder style owns its own frame, rails and widgets inside its
             // barstyles/<id>/ folder, so the Sumi editors below stand down.
             SettingCard {
                 id: folderNote
                 width: col.colWidth
-                visible: !page.sumiActive && page.activeStyle !== "qsbar"
+                visible: !page.sumiActive && page.activeStyle !== "qsbar" && page.activeStyle !== "chroma"
                 title: I18n.tr("LAYOUT")
 
                 Text {

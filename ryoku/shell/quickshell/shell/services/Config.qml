@@ -46,6 +46,7 @@ Singleton {
     property alias obi: adapter.obi
     property alias nacre: adapter.nacre
     property alias qsbar: adapter.qsbar
+    property alias chroma: adapter.chroma
     property alias kairos: adapter.kairos
 
     // dock: the first-class app dock surface (modules/dock). A top-level store,
@@ -55,6 +56,20 @@ Singleton {
     // through one place.
     property alias dock: adapter.dock
     readonly property var normalizedNacre: NacreConfig.normalize(nacre)
+
+    function chromaScale() {
+        const cfg = root.chroma || ({});
+        const value = Number(cfg.scale);
+        if (!isFinite(value))
+            return 1;
+        return Math.round(Math.max(0.6, Math.min(1.4, value)) * 20) / 20;
+    }
+
+    function chromaWidgetEnabled(id) {
+        const cfg = root.chroma || ({});
+        const widgets = cfg.widgets || ({});
+        return widgets[id] !== false;
+    }
 
     // typography: a scale that grows or shrinks the whole shell (the bar text
     // and the surfaces around it), keeping the readout legible without overflow.
@@ -190,6 +205,7 @@ Singleton {
             property var obi: ({})
             property var nacre: NacreConfig.defaultConfig()
             property var qsbar: ({})
+            property var chroma: ({})
             property var kairos: ({})
             property var dock: ({
                 "enabled": false,
