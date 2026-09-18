@@ -21,6 +21,7 @@ Item {
     property bool profilesLoaded: false
     property bool scanning: false
 
+
     function findDevice(type) {
         var devices = networkDevices || []
         for (var i = 0; i < devices.length; i++) {
@@ -279,6 +280,53 @@ Item {
         refreshAfterAction.restart()
     }
 
+
+    // Create and activate a hidden Wi-Fi profile through NetworkManager.
+    // security: "open", "wpa-psk", or "sae".
+    function connectHidden(connectionName, ssid, password, security) {
+        connectionName = (connectionName || "").trim()
+        ssid = (ssid || "").trim()
+        password = password || ""
+        security = security || "wpa-psk"
+
+        if (connectionName === "" || ssid === "" || hiddenCreate.running || hiddenActivate.running || hiddenCleanup.running)
+            return
+        if (security !== "open" && security !== "wpa-psk" && security !== "sae")
+            return
+        if (security !== "open" && password === "")
+            return
+
+        if (panel) {
+            panel.networkActionError = ""
+            panel.hiddenConnectionError = ""
+        }
+
+        hiddenCreate.connectionName = connectionName
+        hiddenCreate.hiddenSsid = ssid
+        hiddenCreate.hiddenPassword = password
+        hiddenCreate.hiddenSecurity = security
+
+        var args = [
+            "nmcli", "--wait", "20", "connection", "add",
+            "type", "wifi",
+            "ifname", "*",
+            "con-name", connectionName,
+            "ssid", ssid,
+            "802-11-wireless.hidden", "yes"
+        ]
+
+        if (security === "wpa-psk") {
+            args.push("wifi-sec.key-mgmt", "wpa-psk")
+            args.push("wifi-sec.psk", password)
+        } else if (security === "sae") {
+            args.push("wifi-sec.key-mgmt", "sae")
+            args.push("wifi-sec.psk", password)
+        }
+
+        hiddenCreate.command = args
+        hiddenCreate.running = true
+    }
+
     function refresh() {
         if (wifiDevice)
             wifiDevice.scannerEnabled = panelOpen && !wifiBlocked
@@ -300,6 +348,9 @@ Item {
             wifiDevice.scannerEnabled = false
         profileList.running = false
         profileAction.running = false
+        hiddenCreate.running = false
+        hiddenActivate.running = false
+        hiddenCleanup.running = false
     }
 
     Timer {
@@ -375,6 +426,88 @@ Item {
                 profileList.running = false
                 profileList.running = true
             }
+            refreshAfterAction.restart()
+        }
+    }
+
+
+    Process {
+        id: hiddenCreate
+        property string connectionName: ""
+        property string hiddenSsid: ""
+        property string hiddenPassword: ""
+        property string hiddenSecurity: "wpa-psk"
+
+        stdout: StdioCollector { id: hiddenCreateOut; waitForEnd: true }
+        stderr: StdioCollector { id: hiddenCreateErr; waitForEnd: true }
+
+        onExited: function(exitCode, exitStatus) {
+            if (exitCode !== 0) {
+                if (adapter.panel) {
+                    adapter.panel.hiddenConnecting = false
+                    var message = hiddenCreateErr.text.trim()
+                    adapter.panel.hiddenConnectionError = message !== ""
+                        ? message.split("\n")[0]
+                        : I18n.tr("Could not create hidden network")
+                }
+                return
+            }
+
+            // Activate the exact profile name supplied by the user.
+            hiddenActivate.connectionName = hiddenCreate.connectionName
+            hiddenActivate.command = [
+                "nmcli", "--wait", "25",
+                "connection", "up", "id", hiddenCreate.connectionName
+            ]
+            hiddenActivate.running = true
+        }
+    }
+
+    Process {
+        id: hiddenActivate
+        property string connectionName: ""
+
+        stdout: StdioCollector { id: hiddenActivateOut; waitForEnd: true }
+        stderr: StdioCollector { id: hiddenActivateErr; waitForEnd: true }
+
+        onExited: function(exitCode, exitStatus) {
+            if (adapter.panel) {
+                adapter.panel.hiddenConnecting = false
+
+                if (exitCode === 0) {
+                    if (typeof adapter.panel.clearHiddenNetwork === "function")
+                        adapter.panel.clearHiddenNetwork()
+                } else {
+                    var message = hiddenActivateErr.text.trim()
+                    adapter.panel.hiddenConnectionError = message !== ""
+                        ? message.split("\n")[0]
+                        : I18n.tr("Connection failed")
+
+                    // Do not leave a bad/typo hidden profile in Saved connections.
+                    hiddenCleanup.command = [
+                        "nmcli", "--wait", "10",
+                        "connection", "delete", "id", hiddenActivate.connectionName
+                    ]
+                    hiddenCleanup.running = true
+                }
+            }
+
+            if (adapter.panelOpen) {
+                profileList.running = false
+                profileList.running = true
+            }
+            refreshAfterAction.restart()
+        }
+    }
+
+    Process {
+        id: hiddenCleanup
+        stdout: StdioCollector { waitForEnd: true }
+        stderr: StdioCollector { waitForEnd: true }
+
+        onExited: function(exitCode, exitStatus) {
+            if (adapter.panelOpen && !profileList.running)
+                profileList.running = true
             refreshAfterAction.restart()
         }
     }
