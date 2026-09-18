@@ -91,6 +91,11 @@ the contract is: your `Scene.qml` loads once per screen, takes the screen throug
 a `modelData` property, and if it errors on load `BarProducts.fail` drops the shell
 back to Sumi. Everything else is yours.
 
+Ryoku Settings > Displays can suppress the active bar on any output. Sumi releases
+its rail reserve there, normal folder styles are not instantiated there, and QS
+Bar filters that output from its shared multi-monitor bar model. A missing
+per-display setting means enabled, so upgrades preserve the existing layout.
+
 **To add a built-in style, drop its folder under `barstyles/` and add one row to
 `BarProducts.builtins`.** A store style needs no shell edit: it installs into
 `~/.local/state/ryoku/store/barstyles.json` and resolves through the same

@@ -161,11 +161,24 @@ Singleton {
     // their own sizes by uiScaleFor(screen) so one monitor's chrome shrinks
     // without touching the compositor scale that apps depend on.
     property var uiScales: ({})
+    property var barVisibility: ({})
+    property var widgetVisibility: ({})
+
     function uiScaleFor(name) {
         var v = (name && uiScales) ? uiScales[name] : undefined;
         if (typeof v !== "number" || !(v > 0))
             return 1;
         return Math.max(0.5, Math.min(2, v));
+    }
+
+    function barEnabledFor(name) {
+        var v = (name && barVisibility) ? barVisibility[name] : undefined;
+        return v !== false;
+    }
+
+    function widgetsEnabledFor(name) {
+        var v = (name && widgetVisibility) ? widgetVisibility[name] : undefined;
+        return v !== false;
     }
 
     // A single-window process (the Hub) sets uiScale to scale its whole UI at
@@ -261,6 +274,8 @@ Singleton {
         var scale = 1.0;
         var reduce = false;
         var scales = ({});
+        var bars = ({});
+        var widgets = ({});
         var monoFont = "SpaceMono Nerd Font";
         var uiFont = "Space Grotesk";
         try {
@@ -275,9 +290,16 @@ Singleton {
                         scale = m.scale;
                     reduce = m.reduce === true;
                 }
-                const u = o && o.displays && o.displays.ui_scale;
+                const displays = o && o.displays;
+                const u = displays && displays.ui_scale;
                 if (u && typeof u === "object" && u !== null)
                     scales = u;
+                const b = displays && displays.bar;
+                if (b && typeof b === "object" && b !== null)
+                    bars = b;
+                const w = displays && displays.widgets;
+                if (w && typeof w === "object" && w !== null)
+                    widgets = w;
                 if (typeof o.fontFamily === "string" && o.fontFamily.length) { uiFont = o.fontFamily; monoFont = o.fontFamily; }
             }
         } catch (e) {
@@ -287,6 +309,8 @@ Singleton {
         t.motionScale = scale;
         t.reduceMotion = reduce;
         t.uiScales = scales;
+        t.barVisibility = bars;
+        t.widgetVisibility = widgets;
         t.ui = uiFont;
         t.mono = monoFont;
     }

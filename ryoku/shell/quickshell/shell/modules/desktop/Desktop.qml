@@ -32,6 +32,7 @@ Scope {
     property var screen
     // controller hook; the desktop layer defaults on.
     property bool active: true
+    property bool widgetsEnabled: true
     property string wallpaperUrl: ""
     property string wallpaperPath: ""
     property string wallpaperFit: "Cover"
@@ -416,8 +417,9 @@ Scope {
             asynchronous: true
             sourceSize.width: Math.ceil(width * backdrop.screenDpr)
             sourceSize.height: Math.ceil(height * backdrop.screenDpr)
-            visible: root.videoUrl === "" && ((Config.calendarEnabled && Config.calendarStyle === "glass")
-                || (Config.musicEnabled && Config.musicStyle === "glass"))
+            visible: root.widgetsEnabled && root.videoUrl === ""
+                && ((Config.calendarEnabled && Config.calendarStyle === "glass")
+                    || (Config.musicEnabled && Config.musicStyle === "glass"))
             fillMode: {
                 switch (root.wallpaperFit) {
                 case "Contain": return Image.PreserveAspectFit;
@@ -485,7 +487,7 @@ Scope {
             id: clockSlot
             widget: "clock"
             z: root.widgetZ("clock")
-            visible: root.reloadReady && Config.clockEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.clockEnabled
             anchor: Config.clockAnchor
             freeX: Config.clockX
             freeY: Config.clockY
@@ -505,7 +507,7 @@ Scope {
             id: calendarSlot
             widget: "calendar"
             z: root.widgetZ("calendar")
-            visible: root.reloadReady && Config.calendarEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.calendarEnabled
             anchor: Config.calendarAnchor
             freeX: Config.calendarX
             freeY: Config.calendarY
@@ -533,7 +535,7 @@ Scope {
             id: musicSlot
             widget: "music"
             z: root.widgetZ("music")
-            visible: root.reloadReady && Config.musicEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.musicEnabled
             anchor: Config.musicAnchor
             freeX: Config.musicX
             freeY: Config.musicY
@@ -564,7 +566,7 @@ Scope {
             id: aioSlot
             widget: "aio"
             z: root.widgetZ("aio")
-            visible: root.reloadReady && Config.aioEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.aioEnabled
             anchor: Config.aioAnchor
             freeX: Config.aioX
             freeY: Config.aioY
@@ -586,7 +588,7 @@ Scope {
             id: statsSlot
             widget: "stats"
             z: root.widgetZ("stats")
-            visible: root.reloadReady && Config.statsEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.statsEnabled
             anchor: Config.statsAnchor
             freeX: Config.statsX
             freeY: Config.statsY
@@ -607,7 +609,7 @@ Scope {
             id: weatherSlot
             widget: "weather"
             z: root.widgetZ("weather")
-            visible: root.reloadReady && Config.weatherEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.weatherEnabled
             anchor: Config.weatherAnchor
             freeX: Config.weatherX
             freeY: Config.weatherY
@@ -629,7 +631,7 @@ Scope {
             id: notesSlot
             widget: "notes"
             z: root.widgetZ("notes")
-            visible: root.reloadReady && Config.notesEnabled
+            visible: root.widgetsEnabled && root.reloadReady && Config.notesEnabled
             anchor: Config.notesAnchor
             freeX: Config.notesX
             freeY: Config.notesY
@@ -659,7 +661,7 @@ Scope {
         // Lock right after a drag can't stomp an in-flight write on
         // `persist`.
         Repeater {
-            model: win.desktopPluginIds
+            model: root.widgetsEnabled ? win.desktopPluginIds : []
             delegate: PluginDesktopSlot {
                 id: slot
                 required property string modelData
@@ -708,7 +710,7 @@ Scope {
                 // the wallpaper layer grabs the keyboard for as long as it
                 // stays true. the flag falls back to false if the content is
                 // ever torn down, so the grab can't leak.
-                readonly property bool editing: !!(item && item.editing)
+                readonly property bool editing: slot.visible && !!(item && item.editing)
                 onEditingChanged: win.kbWanted += editing ? 1 : -1
                 Component.onDestruction: if (editing) win.kbWanted -= 1
 

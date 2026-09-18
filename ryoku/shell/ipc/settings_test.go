@@ -187,6 +187,40 @@ func TestPatchPathResolution(t *testing.T) {
 // TestPassthroughMergePreservesKeys checks passthrough and schema writes leave
 // every unrelated key intact: the daemon merges one leaf at a time rather than
 // rewriting the file from its own schema view.
+func TestPatchPersistsPerDisplayShellVisibility(t *testing.T) {
+	s := newTestStore(t)
+
+	steps := []struct {
+		path string
+		val  string
+	}{
+		{"displays.bar.DP-1", `true`},
+		{"displays.bar.DP-2", `false`},
+		{"displays.widgets.DP-1", `true`},
+		{"displays.widgets.DP-2", `false`},
+	}
+
+	for _, step := range steps {
+		if err := s.patch(step.path, rm(step.val)); err != nil {
+			t.Fatalf("patch %s=%s: %v", step.path, step.val, err)
+		}
+	}
+
+	frame := s.frameLocked()
+
+	for path, want := range map[string]bool{
+		"displays.bar.DP-1":     true,
+		"displays.bar.DP-2":     false,
+		"displays.widgets.DP-1": true,
+		"displays.widgets.DP-2": false,
+	} {
+		got, ok := frameGet(t, frame, path).(bool)
+		if !ok || got != want {
+			t.Fatalf("%s = %v, want %v", path, got, want)
+		}
+	}
+}
+
 func TestPassthroughMergePreservesKeys(t *testing.T) {
 	s := newTestStore(t)
 	for _, st := range []struct{ path, val string }{
