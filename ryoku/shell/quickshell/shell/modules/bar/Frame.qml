@@ -38,6 +38,12 @@ Scope {
     // multiply by this one factor, so a scaled bar stays matched to its reserve
     // without touching the compositor scale apps depend on.
     readonly property real uiScale: Tokens.uiScaleFor(root.modelData ? root.modelData.name : "")
+    readonly property bool barEnabled: Tokens.barEnabledFor(
+        root.modelData ? root.modelData.name : "")
+    readonly property bool qsbarPrimaryHost: Config.barStyle === "qsbar"
+        && root.modelData
+        && ShellState.screens.length > 0
+        && ShellState.screens[0].name === root.modelData.name
 
     // The built-in Sumi frame scene draws only while the active bar style is the
     // built-in one; a receipt-owned style would load its own scene without rails.
@@ -94,6 +100,8 @@ Scope {
     // when the edge is revealed and holds widgets, else a 1px lip, so a hidden or
     // empty edge releases its screen space.
     function edgeReserve(edge) {
+        if (!root.barEnabled)
+            return 0;
         const rail = Config.normalizedFrameBars.rails[edge];
         if (!rail)
             return 0;
@@ -134,7 +142,9 @@ Scope {
         readonly property var rightRailRect: RailGeometry.edgeRect("right", overlay.railThickness("right"), width, height)
         function railRecord(edge) { return overlay.rails[edge] || ({ size: 0, enabled: false }); }
         function railThickness(edge) { return Math.max(0, root.edgeReserve(edge) - root.frameBorderPx); }
-        function railEnabled(edge) { return overlay.railRecord(edge).enabled === true; }
+        function railEnabled(edge) {
+            return root.barEnabled && overlay.railRecord(edge).enabled === true;
+        }
         // Clearance from the screen edge to the inside of each rail, per edge: the
         // reserve when the edge carries a bar, else the frame lip. Feeds the menu
         // manager (bodies clear their own rail) and the record island's dock.
@@ -312,7 +322,7 @@ Scope {
                 border.color: Theme.outline
                 opacity: Theme.windowOpacity * (frameMenus.chromeSide ? frameMenus.chromeOpacity : 1)
                 visible: !overlay.monFullscreen
-                    && Config.frameEnabled && root.sumiActive
+                    && root.barEnabled && Config.frameEnabled && root.sumiActive
                     && width > 0 && height > 0
             }
 
@@ -330,14 +340,15 @@ Scope {
                 outline: Theme.outline
                 strokeWidth: Theme.borderWidth
                 opacity: Theme.windowOpacity
-                visible: !overlay.monFullscreen && Config.frameEnabled && root.sumiActive
+                visible: !overlay.monFullscreen
+                    && root.barEnabled && Config.frameEnabled && root.sumiActive
             }
 
             Bar {
                 id: frameRails
                 anchors.fill: parent
                 z: 1
-                visible: !overlay.monFullscreen && root.sumiActive
+                visible: !overlay.monFullscreen && root.barEnabled && root.sumiActive
                 // The bar content scales by this monitor's uiScale and the reserve
                 // (edgeReserve) scales its band by the same factor, so the drawn
                 // bar and its reserved exclusive-zone thickness stay matched.
@@ -363,14 +374,18 @@ Scope {
                 monitorName: root.modelData ? root.modelData.name : ""
                 scale: overlay.s
                 group: blobGroup
-                topBar: !root.sumiActive
+                topBar: !root.sumiActive || !root.barEnabled
                 barEdge: overlay.qsBarEdge
-                railClearances: root.sumiActive ? ({
+                railClearances: !root.barEnabled ? ({
+                    top: 0, left: 0, bottom: 0, right: 0
+                }) : root.sumiActive ? ({
                     top: overlay.railClearance("top"),
                     left: overlay.railClearance("left"),
                     bottom: overlay.railClearance("bottom"),
                     right: overlay.railClearance("right")
-                }) : (overlay.qsBarEdge === "bottom" ? ({ top: 0, left: 0, bottom: 52, right: 0 }) : ({ top: 52, left: 0, bottom: 0, right: 0 }))
+                }) : (overlay.qsBarEdge === "bottom"
+                    ? ({ top: 0, left: 0, bottom: 52, right: 0 })
+                    : ({ top: 52, left: 0, bottom: 0, right: 0 }))
                 active: !overlay.monFullscreen
                 onSurfaceClosed: (id, context) => surfaceLifecycle.handleClosed(id, context)
 
@@ -422,7 +437,7 @@ Scope {
     // host still map (topBar mode) so menus and surfaces stay style-agnostic.
     Loader {
         id: barStyleLoader
-        active: !root.sumiActive
+        active: !root.sumiActive && (root.barEnabled || root.qsbarPrimaryHost)
         source: BarProducts.sceneUrl(Config.barStyle)
         onLoaded: {
             root.barStyleRetries = 0
@@ -448,7 +463,8 @@ Scope {
         interval: 800
         onTriggered: {
             barStyleLoader.active = false;
-            barStyleLoader.active = Qt.binding(() => !root.sumiActive);
+            barStyleLoader.active = Qt.binding(
+                () => !root.sumiActive && (root.barEnabled || root.qsbarPrimaryHost));
         }
     }
     Connections {

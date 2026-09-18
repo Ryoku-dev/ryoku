@@ -93,6 +93,40 @@ Item {
         pg.tick++;
     }
 
+    property var barLive: ({})
+    property var widgetLive: ({})
+
+    function displayFlag(name, kind) {
+        void pg.tick;
+        if (!name)
+            return true;
+        const live = kind === "bar" ? pg.barLive : pg.widgetLive;
+        if (typeof live[name] === "boolean")
+            return live[name];
+        return kind === "bar"
+            ? Tokens.barEnabledFor(name)
+            : Tokens.widgetsEnabledFor(name);
+    }
+
+    function setDisplayFlag(name, kind, enabled) {
+        if (!name)
+            return;
+
+        const source = kind === "bar" ? pg.barLive : pg.widgetLive;
+        const next = {};
+        for (var k in source)
+            next[k] = source[k];
+        next[name] = !!enabled;
+
+        if (kind === "bar")
+            pg.barLive = next;
+        else
+            pg.widgetLive = next;
+
+        Settings.patch("displays." + kind + "." + name, !!enabled);
+        pg.tick++;
+    }
+
     // ── data load: the seam's output list + saved profiles ──────────────────
     Process {
         id: listProc
@@ -960,6 +994,42 @@ Item {
                             from: 50; to: 200; stepBy: 5
                             value: { void pg.tick; return pg.sel ? pg.uiScalePct(pg.sel.name) : 100; }
                             onModified: (v) => pg.setUiScale(pg.sel ? pg.sel.name : "", v)
+                        }
+                    }
+                    SettingRow {
+                        anchors.left: parent.left; anchors.right: parent.right
+                        divider: true
+                        label: I18n.tr("SHOW BAR")
+                        desc: I18n.tr("Show the active Ryoku bar style on this display.")
+                        source: "shell.json"
+                        controlWidth: 54
+                        Sw {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            on: {
+                                void pg.tick;
+                                return pg.sel ? pg.displayFlag(pg.sel.name, "bar") : true;
+                            }
+                            onToggled: value => pg.setDisplayFlag(
+                                pg.sel ? pg.sel.name : "", "bar", value)
+                        }
+                    }
+                    SettingRow {
+                        anchors.left: parent.left; anchors.right: parent.right
+                        divider: true
+                        label: I18n.tr("DESKTOP WIDGETS")
+                        desc: I18n.tr("Show desktop widgets and desktop-widget plugins on this display.")
+                        source: "shell.json"
+                        controlWidth: 54
+                        Sw {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            on: {
+                                void pg.tick;
+                                return pg.sel ? pg.displayFlag(pg.sel.name, "widgets") : true;
+                            }
+                            onToggled: value => pg.setDisplayFlag(
+                                pg.sel ? pg.sel.name : "", "widgets", value)
                         }
                     }
                     SettingRow {

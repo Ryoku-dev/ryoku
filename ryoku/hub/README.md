@@ -56,8 +56,9 @@ changing a page's look.
 ## Sections
 
 - **Displays** detect every connected monitor and arrange them on a drag canvas
-  (edges snap), with per-monitor resolution, refresh, scale, rotation, adaptive
-  sync, mirroring, and enable/disable. Apply to the live session, or save a named
+  (edges snap), with per-monitor resolution, refresh, scale, Ryoku interface
+  scale, bar and desktop-widget visibility, rotation, adaptive sync, mirroring,
+  and enable/disable. Apply to the live session, or save a named
   profile keyed to the connected displays' hardware identity so it returns
   automatically when you plug them in again. Backed by `ryoku-monitor`.
 - **Appearance** window gaps, rounding and corner softness, border thickness,

@@ -171,6 +171,7 @@ ShellRoot {
                 id: desktop
                 screen: perScreen.modelData
                 active: true
+                widgetsEnabled: Tokens.widgetsEnabledFor(perScreen.modelData.name)
                 wallpaperUrl: wallpaper.wallpaperUrl
                 wallpaperPath: wallpaper.wallpaperPath
                 wallpaperFit: wallpaper.fit
