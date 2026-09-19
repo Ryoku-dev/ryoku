@@ -18,22 +18,13 @@ import (
 // A focus change emits straight from the event line with no compositor query,
 // because the shell daemon resolves a surface target on every keypress from it.
 //
-// Everything else is debounced into one resync, so a burst during a workspace
-// switch costs one query pass instead of a storm.
+// Other changes are debounced into a refresh of only the affected sections,
+// so a burst costs one query pass instead of a storm.
 
 // Half a 60 Hz frame: folds a burst, never a visible stale beat.
 const resyncDebounce = 8 * time.Millisecond
 
 const reconnectBackoff = 500 * time.Millisecond
-
-// Event prefixes that can change what a consumer sees. Anything else costs
-// nothing.
-var coverageEvents = []string{
-	"openwindow", "closewindow", "movewindow", "windowtitle", "activewindow",
-	"workspace", "createworkspace", "destroyworkspace", "moveworkspace",
-	"fullscreen", "changefloatingmode",
-	"monitoradded", "monitorremoved", "focusedmon",
-}
 
 // runWatch streams every frame kind, or only the ones named in args. A narrowed
 // watch skips the reads it does not need, which keeps a burst cheap for a
@@ -71,8 +62,6 @@ func streamWatch(wants func(wm.FrameKind) bool) error {
 		}
 		// focusedmon only fires on change, so a single-monitor session would
 		// never populate the cache from events alone.
-		resync(emit, wants)
-		emit(wm.Frame{Kind: wm.FrameReady})
 		consume(conn, emit, wants)
 		_ = conn.Close()
 		time.Sleep(reconnectBackoff)
@@ -80,22 +69,32 @@ func streamWatch(wants func(wm.FrameKind) bool) error {
 }
 
 func consume(conn net.Conn, emit func(wm.Frame), wants func(wm.FrameKind) bool) {
+	state := newWatchState(emit, wants)
+	state.refresh(refreshAll)
+	emit(wm.Frame{Kind: wm.FrameReady})
 	pending := time.NewTimer(time.Hour)
 	if !pending.Stop() {
 		<-pending.C
 	}
 	defer pending.Stop()
 
+	done := make(chan struct{})
+	defer close(done)
 	lines := make(chan string, 256)
 	go func() {
 		defer close(lines)
 		scan := bufio.NewScanner(conn)
 		for scan.Scan() {
-			lines <- scan.Text()
+			select {
+			case lines <- scan.Text():
+			case <-done:
+				return
+			}
 		}
 	}()
 
 	armed := false
+	var dirty refreshMask
 	for {
 		select {
 		case line, ok := <-lines:
@@ -110,7 +109,8 @@ func consume(conn net.Conn, emit func(wm.Frame), wants func(wm.FrameKind) bool) 
 				// keybind would target a dead monitor.
 				emit(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: focusedFallback(name)})
 			}
-			if !affectsCoverage(line) {
+			dirty |= state.event(line)
+			if dirty == 0 {
 				continue
 			}
 			if !armed {
@@ -119,64 +119,33 @@ func consume(conn net.Conn, emit func(wm.Frame), wants func(wm.FrameKind) bool) 
 			}
 		case <-pending.C:
 			armed = false
-			resync(emit, wants)
-		}
-	}
-}
-
-// Outputs first, so a consumer rebuilding all three sees them before anything
-// that references them.
-func resync(emit func(wm.Frame), wants func(wm.FrameKind) bool) {
-	mons, err := readMonitors()
-	if err != nil {
-		return
-	}
-	if wants(wm.FrameOutputs) {
-		emit(wm.Frame{Kind: wm.FrameOutputs, Outputs: monitorOutputs(mons, false)})
-	}
-	if wants(wm.FrameFocus) {
-		if focused := focusedName(mons); focused != "" {
-			emit(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: focused})
-		}
-	}
-	if wants(wm.FrameWorkspaces) {
-		if ws := readWorkspaces(mons); ws != nil {
-			emit(wm.Frame{Kind: wm.FrameWorkspaces, Workspaces: ws})
-		}
-	}
-	if wants(wm.FrameWindows) {
-		if wins := readWindows(mons); wins != nil {
-			emit(wm.Frame{Kind: wm.FrameWindows, Windows: wins})
-		}
-	}
-	if wants(wm.FrameKeyboard) {
-		if active, all := readKeyboard(); active != "" {
-			emit(wm.Frame{Kind: wm.FrameKeyboard, KeyboardLayout: active, KeyboardLayouts: all})
+			state.refresh(dirty)
+			dirty = 0
 		}
 	}
 }
 
 type hyprMonitor struct {
-	ID              int      `json:"id"`
-	Name            string   `json:"name"`
-	Width           int      `json:"width"`
-	Height          int      `json:"height"`
-	Scale           float64  `json:"scale"`
-	Focused         bool     `json:"focused"`
-	Make            string   `json:"make"`
-	Model           string   `json:"model"`
-	PhysicalWidth   int      `json:"physicalWidth"`
-	Disabled        bool     `json:"disabled"`
-	X               int      `json:"x"`
-	Y               int      `json:"y"`
-	RefreshRate     float64  `json:"refreshRate"`
-	Transform       int      `json:"transform"`
-	VRR             bool     `json:"vrr"`
-	AvailableModes  []string `json:"availableModes"`
-	MirrorOf              string  `json:"mirrorOf"`
-	ColorManagementPreset string  `json:"colorManagementPreset"`
-	SdrBrightness         float64 `json:"sdrBrightness"`
-	ActiveWorkspace struct {
+	ID                    int      `json:"id"`
+	Name                  string   `json:"name"`
+	Width                 int      `json:"width"`
+	Height                int      `json:"height"`
+	Scale                 float64  `json:"scale"`
+	Focused               bool     `json:"focused"`
+	Make                  string   `json:"make"`
+	Model                 string   `json:"model"`
+	PhysicalWidth         int      `json:"physicalWidth"`
+	Disabled              bool     `json:"disabled"`
+	X                     int      `json:"x"`
+	Y                     int      `json:"y"`
+	RefreshRate           float64  `json:"refreshRate"`
+	Transform             int      `json:"transform"`
+	VRR                   bool     `json:"vrr"`
+	AvailableModes        []string `json:"availableModes"`
+	MirrorOf              string   `json:"mirrorOf"`
+	ColorManagementPreset string   `json:"colorManagementPreset"`
+	SdrBrightness         float64  `json:"sdrBrightness"`
+	ActiveWorkspace       struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	} `json:"activeWorkspace"`
@@ -485,13 +454,4 @@ func parseMonitorRemoved(line string) (string, bool) {
 		return "", false
 	}
 	return name, true
-}
-
-func affectsCoverage(line string) bool {
-	for _, p := range coverageEvents {
-		if strings.HasPrefix(line, p) {
-			return true
-		}
-	}
-	return false
 }
