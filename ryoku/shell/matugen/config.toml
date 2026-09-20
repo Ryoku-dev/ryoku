@@ -31,12 +31,12 @@ output_path = "~/.cache/ryoku/share-picker.css"
 input_path = "~/.config/matugen/templates/qt6ct-colors.conf"
 output_path = "~/.config/qt6ct/colors/ryoku.conf"
     # Once the palette is fanned out, retint the file-manager folder icons to the
-    # same accent (ryoku-cmd-folders), then recolour the Material Bibata pointer
-    # to the same primary (ryoku-cursor-material-recolor, a no-op unless that
-    # cursor is selected). Riding matugen's post_hook fires both on every palette
+    # same accent (ryoku-cmd-folders), recolour the Material Bibata pointer
+    # (ryoku-cursor-material-recolor), and synchronize keyboard RGB backlights
+    # (ryoku-cmd-keyboard-rgb). Riding matugen's post_hook fires on every palette
     # change from either path (follow-wallpaper and fixed schemes), so they need
     # no wiring in the Go daemon.
-    post_hook = "command -v ryoku-cmd-folders >/dev/null && ryoku-cmd-folders; command -v ryoku-cursor-material-recolor >/dev/null && ryoku-cursor-material-recolor; true"
+    post_hook = "command -v ryoku-cmd-folders >/dev/null && ryoku-cmd-folders; command -v ryoku-cursor-material-recolor >/dev/null && ryoku-cursor-material-recolor; command -v ryoku-cmd-keyboard-rgb >/dev/null && ryoku-cmd-keyboard-rgb; true"
 
 # KDE apps resolve their colours through KColorScheme and ~/.config/kdeglobals,
 # which the qt6ct palette never reaches. This renders the same roles in KDE's

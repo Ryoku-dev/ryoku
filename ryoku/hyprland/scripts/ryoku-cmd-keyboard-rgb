@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# Synchronize laptop keyboard backlight (ASUS ROG, TUF, Zephyrus via asusctl /
+# sysfs, and OpenRGB devices) to the active wallpaper Material palette.
+#
+#   ryoku-cmd-keyboard-rgb            sync to current wallpaper accent
+#   ryoku-cmd-keyboard-rgb "#ff5500"  apply explicit hex color
+#
+# Runs on every palette change via matugen's post_hook, and at login via
+# autostart.lua. Exits cleanly with code 0 on machines without RGB keyboards.
+set -euo pipefail
+
+input="${1:-}"
+hex_color=""
+
+# 1. Check if direct hex color passed as argument
+if [[ -n "$input" ]]; then
+  clean="${input#"#"}"
+  if [[ "$clean" =~ ^[0-9a-fA-F]{6}$ ]]; then
+    hex_color="$clean"
+  fi
+fi
+
+# 2. Extract vibrant accent from Matugen cache if not explicitly provided
+if [[ -z "$hex_color" ]]; then
+  cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku"
+  tones_json="$cache_dir/tones.json"
+  colors_json="$cache_dir/colors.json"
+
+  if [[ -f "$tones_json" || -f "$colors_json" ]]; then
+    hex_color=$(python3 - <<'EOF' 2>/dev/null || true
+import json, os, colorsys
+
+cache_dir = os.path.expanduser(os.environ.get("XDG_CACHE_HOME", "~/.cache") + "/ryoku")
+
+# 1. Primary: Tones from Matugen analysis (tones 70/80 give vibrant LED highlights)
+tones_path = os.path.join(cache_dir, "tones.json")
+if os.path.isfile(tones_path):
+    try:
+        with open(tones_path) as f:
+            t = json.load(f)
+        raw = (t.get("primary", {}).get("70") or
+               t.get("primary", {}).get("80") or
+               t.get("primary", {}).get("60") or
+               t.get("tertiary", {}).get("70"))
+        if raw and len(raw.lstrip("#")) == 6:
+            c = raw.lstrip("#")
+            r, g, b = int(c[0:2], 16)/255.0, int(c[2:4], 16)/255.0, int(c[4:6], 16)/255.0
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            # Boost saturation slightly so LED hardware does not wash out to white
+            s_boost = min(1.0, max(0.80, s * 1.4))
+            v_boost = 1.0
+            br, bg, bb = colorsys.hsv_to_rgb(h, s_boost, v_boost)
+            print(f"{int(br*255):02x}{int(bg*255):02x}{int(bb*255):02x}")
+            exit(0)
+    except Exception:
+        pass
+
+# 2. Secondary: colors.json primary accent
+colors_path = os.path.join(cache_dir, "colors.json")
+if os.path.isfile(colors_path):
+    try:
+        with open(colors_path) as f:
+            cdata = json.load(f)
+        raw = (cdata.get("primary") or cdata.get("tertiary") or "").lstrip("#")
+        if len(raw) == 6:
+            r, g, b = int(raw[0:2], 16)/255.0, int(raw[2:4], 16)/255.0, int(raw[4:6], 16)/255.0
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            s_boost = min(1.0, max(0.80, s * 1.4))
+            br, bg, bb = colorsys.hsv_to_rgb(h, s_boost, 1.0)
+            print(f"{int(br*255):02x}{int(bg*255):02x}{int(bb*255):02x}")
+            exit(0)
+    except Exception:
+        pass
+EOF
+)
+  fi
+fi
+
+# Normalize hex format
+hex_color=$(echo "$hex_color" | tr -d '#' | tr '[:upper:]' '[:lower:]')
+
+# Fallback to Ryoku signature orange if color resolution is empty
+if [[ -z "$hex_color" || ! "$hex_color" =~ ^[0-9a-f]{6}$ ]]; then
+  hex_color="f25623"
+fi
+
+# 3. Apply to ASUS hardware via asusctl if present
+if command -v asusctl >/dev/null 2>&1; then
+  asusctl aura effect static -c "$hex_color" >/dev/null 2>&1 || true
+fi
+
+# 4. Direct kernel sysfs write for ASUS keyboard backlights (immediate response)
+kbd_sysfs="/sys/class/leds/asus::kbd_backlight/kbd_rgb_mode"
+if [[ -w "$kbd_sysfs" ]]; then
+  r=$((16#${hex_color:0:2}))
+  g=$((16#${hex_color:2:2}))
+  b=$((16#${hex_color:4:2}))
+  printf "1 0 %d %d %d 0\n" "$r" "$g" "$b" > "$kbd_sysfs" 2>/dev/null || true
+  printf "0 0 %d %d %d 0\n" "$r" "$g" "$b" > "$kbd_sysfs" 2>/dev/null || true
+fi
+
+# 5. Forward accent to Ryoku Hub lighting subsystem
+if command -v ryoku-hub >/dev/null 2>&1; then
+  ryoku-hub lighting accent "#${hex_color}" >/dev/null 2>&1 || true
+fi
+
+# 6. Cache the active backlight color
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku"
+mkdir -p "$cache_dir"
+echo "$hex_color" > "$cache_dir/keyboard-rgb.hex"
+
+exit 0

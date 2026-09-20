@@ -14,6 +14,7 @@ hl.on("hyprland.start", function()
     -- Papirus-Dark overlay under ~/.local/share/icons tinted to the palette and
     -- selects it. Rebuilt on every palette change by the shell's matugen hook.
     hl.exec_cmd("command -v ryoku-cmd-folders >/dev/null 2>&1 && ryoku-cmd-folders")
+    hl.exec_cmd("command -v ryoku-cmd-keyboard-rgb >/dev/null 2>&1 && ryoku-cmd-keyboard-rgb")
     -- ONE chained command: exec is fire-and-forget, so as separate lines the
     -- shell start races the env import, and losing means
     -- ConditionEnvironment=WAYLAND_DISPLAY skips the unit (a black desktop).
