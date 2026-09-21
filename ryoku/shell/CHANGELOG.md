@@ -273,6 +273,16 @@
   is a bounded band of five pitches on each side, materialising about ten
   delegates whatever the configured widths are
   (`ryogami/wall-ui/qml/wallpaper/WallpaperSelector.qml`, `SliceDelegate.qml`).
+- **The autohiding dock stays usable in Power Saver.** Hovering the bottom
+  (or opposite-bar) edge still revealed it, but moving from that peek onto an
+  app hid it at once whenever motion was reduced: Power Saver, low power mode,
+  Game Mode, or the Reduce motion toggle. The 3 px peek strip and the revealed
+  band did not meet, leaving a click-through gap the size of the edge margin
+  minus the peek. With the slide animation on, the band moved through that gap
+  under the cursor. With it off, the band jumped away and the pointer fell
+  through. The edge hover strip is now the full margin, so it meets the band.
+  Magnify, blur, shadows and the slide stay off
+  (`modules/dock/DockSurface.qml`).
 - **Closing the launcher no longer risks crashing the shell on niri.** Where the
   compositor has no focus-grab protocol the launcher tore its screen capture
   down on every close and unmapped its dismiss scrim from inside the press that
