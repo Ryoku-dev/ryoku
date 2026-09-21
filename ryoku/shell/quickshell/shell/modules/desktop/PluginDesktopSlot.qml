@@ -5,14 +5,18 @@ import Ryoku.PluginKit.Singletons
 
 // desktop placement frame for one plugin widget on the wallpaper layer.
 // measures the plugin's natural size, pads it, draws an optional card/glass
-// backing with a soft lift, and carries the same desktop interaction the
-// shipped WidgetSlot (the clock) uses: left-drag to move (grid-snapped,
-// clamped to the host), right-click for the menu, and a bottom-right resize
-// bracket that scrubs scale 0.5..2.5 with a live percent readout. free
-// position, scale, and lock state persist to plugins.json through the host.
-// the grip lives UNDER the content so chips/thumbs/search inside the plugin
-// still get their own clicks while empty card chrome reads as a drag/menu
-// surface.
+// backing with a soft lift, and carries the same desktop control the shipped
+// WidgetSlot (the clock) gives a built-in: left-drag to move (grid-snapped,
+// clamped to the host), right-click for the menu, Ctrl+wheel or a bottom-right
+// bracket to resize (scale 0.5..2.5), and a per-tile opacity. free position,
+// scale, opacity and lock persist to plugins.json through the host.
+//
+// interaction is pointer-handler based, not a MouseArea grip: a DragHandler
+// takes the grab only once the press travels past the drag threshold, so a
+// click or double-click that never moves stays with the plugin's own control
+// (a button, a style cycle, a slider) while a real drag moves the tile. A
+// MouseArea grip cannot do this -- laid over the content it eats every click,
+// laid under it never sees a press the plugin's own MouseArea already took.
 Item {
     id: slot
 
@@ -25,6 +29,7 @@ Item {
     property real radius: Theme.radius
     property real gridSize: 32
     property real scaleCfg: 1             // persisted scale, bound from the host
+    property real opacityCfg: 1          // persisted opacity, bound from the host
     // Keep the resize bracket present while an Edit widgets session is on: the
     // frame overlay above intercepts hover, so a hover-only bracket would never
     // reveal (see WidgetSlot).
@@ -102,7 +107,7 @@ Item {
     property real liveScale: 1
     onScaleCfgChanged: if (!slot.resizing) slot.liveScale = slot.scaleCfg
     Component.onCompleted: { slot.liveScale = slot.scaleCfg; _build(); }
-    readonly property real effectiveScale: (slot.resizing || guard.running) ? slot.liveScale : slot.scaleCfg
+    readonly property real effectiveScale: (slot.resizing || guard.running || scalePersist.running) ? slot.liveScale : slot.scaleCfg
 
     width: Math.max(1, slot.cw * slot.effectiveScale + slot.pad * 2)
     height: Math.max(1, slot.ch * slot.effectiveScale + slot.pad * 2)
@@ -110,6 +115,33 @@ Item {
     function clampX(v) { return Math.max(0, Math.min(v, (slot.parent ? slot.parent.width : v + slot.width) - slot.width)); }
     function clampY(v) { return Math.max(0, Math.min(v, (slot.parent ? slot.parent.height : v + slot.height) - slot.height)); }
     function snap(v) { return Math.round(v / slot.gridSize) * slot.gridSize; }
+
+    // A press that begins inside the plugin's own scroll area (a ListView or any
+    // Flickable) has to scroll that list, not drag the tile: the DragHandler
+    // declines the grab there (grabPermissions below) and steals everywhere else
+    // -- bare chrome, or a full-surface gimmick MouseArea. Walk the content tree
+    // once per press and test each Flickable's mapped bounds; mapToItem carries
+    // the tiles' own scale transforms, where childAt does not.
+    function _isFlickable(node) {
+        return !!node && typeof node.contentX === "number" && typeof node.contentY === "number"
+            && typeof node.flicking === "boolean";
+    }
+    function _walkScroll(node, x, y) {
+        if (!node)
+            return false;
+        if (slot._isFlickable(node)) {
+            const p = slot.mapToItem(node, x, y);
+            if (p.x >= 0 && p.y >= 0 && p.x <= node.width && p.y <= node.height)
+                return true;
+        }
+        const kids = node.children;
+        if (kids)
+            for (var i = 0; i < kids.length; i++)
+                if (slot._walkScroll(kids[i], x, y))
+                    return true;
+        return false;
+    }
+    function _scrollableAt(x, y) { return slot.item ? slot._walkScroll(slot.item, x, y) : false; }
 
     x: slot.holding ? slot.dragX : slot.clampX(slot.freeX)
     y: slot.holding ? slot.dragY : slot.clampY(slot.freeY)
@@ -120,6 +152,10 @@ Item {
     scale: slot.dragging ? 1.03 : 1.0
     transformOrigin: Item.Center
     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutExpo } }
+
+    // per-tile opacity (the menu and Ryoku Settings write desktopWidget.opacity),
+    // clamped so a tile can fade back but never vanish or lose its clicks.
+    opacity: Math.max(0.2, Math.min(1, slot.opacityCfg))
 
     Timer { id: guard; interval: 90 }
 
@@ -161,56 +197,60 @@ Item {
         }
     }
 
-    // drag/menu grip UNDER the content: left-drag on empty card chrome (the
-    // header eyebrow, padding, gaps) moves the tile and right-click opens
-    // the menu, while plugin chrome (chips, thumbs, search) keeps its own
-    // clicks on top. a grip above the content swallows every click (that
-    // was the reported "unresponsive to clicks").
-    MouseArea {
-        id: grip
-        anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        hoverEnabled: true
-        cursorShape: slot.locked ? Qt.ArrowCursor : (slot.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-
-        property bool leftDown: false
+    // left-drag anywhere moves the tile. a DragHandler (a passive pointer grab)
+    // shares the surface with the plugin's own controls: it only takes the grab
+    // once the press travels past the drag threshold, so a click or double-click
+    // that never moves stays with the plugin (a button, a style cycle) while a
+    // real drag moves the tile. persisted through moved() on release.
+    DragHandler {
+        id: dragger
+        target: null
+        enabled: !slot.locked
+        acceptedButtons: Qt.LeftButton
+        // decline to steal when the press began inside a plugin's own scroll
+        // area, so list scrolling stays with the list; steal freely otherwise.
+        grabPermissions: slot._scrollableAt(dragger.centroid.pressPosition.x, dragger.centroid.pressPosition.y)
+            ? PointerHandler.TakeOverForbidden
+            : (PointerHandler.CanTakeOverFromItems
+                | PointerHandler.CanTakeOverFromHandlersOfDifferentType
+                | PointerHandler.ApprovesTakeOverByHandlersOfSameType
+                | PointerHandler.ApprovesTakeOverByHandlersOfDifferentType
+                | PointerHandler.ApprovesTakeOverByItems
+                | PointerHandler.ApprovesCancellation)
         property real grabOX: 0
         property real grabOY: 0
-
-        onPressed: (mouse) => {
-            if (mouse.button === Qt.RightButton) {
-                const pr = slot.mapToItem(slot.parent, mouse.x, mouse.y);
-                slot.menuRequested(pr.x, pr.y, slot.pluginId);
-                return;
-            }
-            if (slot.locked)
-                return;
-            grip.leftDown = true;
-            const p = slot.mapToItem(slot.parent, mouse.x, mouse.y);
-            grip.grabOX = p.x - slot.x;
-            grip.grabOY = p.y - slot.y;
-        }
-        onPositionChanged: (mouse) => {
-            if (!grip.leftDown || slot.locked)
-                return;
-            const p = slot.mapToItem(slot.parent, mouse.x, mouse.y);
-            const nx = p.x - grip.grabOX;
-            const ny = p.y - grip.grabOY;
-            if (!slot.dragging) {
-                if (Math.abs(nx - slot.x) < 6 && Math.abs(ny - slot.y) < 6)
-                    return;
+        onActiveChanged: {
+            if (dragger.active) {
+                const p = slot.mapToItem(slot.parent, dragger.centroid.pressPosition.x, dragger.centroid.pressPosition.y);
+                dragger.grabOX = p.x - slot.x;
+                dragger.grabOY = p.y - slot.y;
+                slot.dragX = slot.x;
+                slot.dragY = slot.y;
                 slot.dragging = true;
-            }
-            slot.dragX = slot.clampX(slot.snap(nx));
-            slot.dragY = slot.clampY(slot.snap(ny));
-        }
-        onReleased: (mouse) => {
-            if (slot.dragging) {
+            } else if (slot.dragging) {
                 slot.moved(Math.round(slot.dragX), Math.round(slot.dragY));
                 slot.dragging = false;
                 guard.restart();
             }
-            grip.leftDown = false;
+        }
+        onCentroidChanged: {
+            if (!slot.dragging || slot.locked)
+                return;
+            const p = slot.mapToItem(slot.parent, dragger.centroid.position.x, dragger.centroid.position.y);
+            slot.dragX = slot.clampX(slot.snap(p.x - dragger.grabOX));
+            slot.dragY = slot.clampY(slot.snap(p.y - dragger.grabOY));
+        }
+    }
+
+    // right-click opens the tile menu. a separate handler because DragHandler is
+    // left-only; the plugin's own controls take LeftButton, so a right press
+    // always reaches here, over content or bare chrome alike.
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        gesturePolicy: TapHandler.ReleaseWithinBounds
+        onTapped: (eventPoint) => {
+            const pr = slot.mapToItem(slot.parent, eventPoint.position.x, eventPoint.position.y);
+            slot.menuRequested(pr.x, pr.y, slot.pluginId);
         }
     }
 
@@ -233,7 +273,31 @@ Item {
 
     // hover state for the slot and its children, so the resize handle stays
     // lit while you reach across to it.
-    HoverHandler { id: slotHover }
+    HoverHandler {
+        id: slotHover
+        cursorShape: slot.locked ? Qt.ArrowCursor : (slot.dragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+    }
+
+    // scroll to scale: Ctrl + wheel anywhere on the tile resizes it, an easier
+    // reach than the corner bracket. liveScale keeps the scrub smooth; the
+    // settle timer does the one persisting write, through resized(), once
+    // scrolling stops (plugins have no per-frame setLive fast path).
+    WheelHandler {
+        enabled: !slot.locked
+        acceptedModifiers: Qt.ControlModifier
+        onWheel: (event) => {
+            const step = event.angleDelta.y > 0 ? 1.06 : 1 / 1.06;
+            slot.liveScale = Math.max(0.5, Math.min(2.5, slot.effectiveScale * step));
+            slot.dragX = slot.x;
+            slot.dragY = slot.y;
+            scalePersist.restart();
+        }
+    }
+    Timer {
+        id: scalePersist
+        interval: 350
+        onTriggered: { slot.resized(slot.liveScale); guard.restart(); }
+    }
 
     // quick resize: drag the bottom-right bracket to scrub the widget's
     // scale. top-left is pinned during the resize so it grows toward the
@@ -272,6 +336,9 @@ Item {
             anchors.fill: parent
             enabled: !slot.locked
             acceptedButtons: Qt.LeftButton
+            // hold the grab so the tile DragHandler can't hijack a corner
+            // resize into a move.
+            preventStealing: true
             hoverEnabled: true
             cursorShape: Qt.SizeFDiagCursor
 
@@ -307,7 +374,7 @@ Item {
 
     // live size readout while resizing.
     Rectangle {
-        visible: slot.resizing
+        visible: slot.resizing || scalePersist.running
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.rightMargin: 26

@@ -193,6 +193,7 @@ Scope {
     property var _snapConfig: null
     property var _snapPlugins: null
     property var _resetQueue: []
+    property var _settingsQueue: []
     function _snapshot() {
         const c = {};
         const ks = root._widgetKeys;
@@ -204,7 +205,7 @@ Scope {
         for (var j = 0; j < dps.length; j++) {
             const p = dps[j];
             const dw = (p.placement && p.placement.desktopWidget) || {};
-            pl[p.id] = { x: dw.x, y: dw.y, scale: dw.scale, locked: dw.locked === true };
+            pl[p.id] = { x: dw.x, y: dw.y, scale: dw.scale, locked: dw.locked === true, opacity: dw.opacity };
         }
         root._snapPlugins = pl;
     }
@@ -230,8 +231,17 @@ Scope {
                 q.push([root.placeTool, pid, "enabled", "true"]);
             const cmd = [root.placeTool, pid, "desktopWidget",
                 "" + (s.x !== undefined ? s.x : 80), "" + (s.y !== undefined ? s.y : 80)];
-            if (s.scale !== undefined) cmd.push("" + s.scale);
-            if (s.locked !== undefined) cmd.push("" + (s.locked === true));
+            const hasScale = s.scale !== undefined;
+            const hasLocked = s.locked !== undefined;
+            const hasOpacity = s.opacity !== undefined;
+            // positional args: pad an earlier one with "" (= keep existing) when
+            // only a later one is present, so opacity lands in slot 5.
+            if (hasScale || hasLocked || hasOpacity)
+                cmd.push(hasScale ? "" + s.scale : "");
+            if (hasLocked || hasOpacity)
+                cmd.push(hasLocked ? "" + (s.locked === true) : "");
+            if (hasOpacity)
+                cmd.push("" + s.opacity);
             q.push(cmd);
         }
         root._resetQueue = q;
@@ -245,6 +255,14 @@ Scope {
         const next = root._resetQueue.shift();
         resetProc.command = next;
         resetProc.running = true;
+    }
+    function _runSettingsQueue() {
+        if (settingsProc.running)
+            return;
+        if (!root._settingsQueue || root._settingsQueue.length === 0)
+            return;
+        settingsProc.command = root._settingsQueue.shift();
+        settingsProc.running = true;
     }
     // Gate every widget's visibility on the layer being sized and Config +
     // Registry loaded, so nothing flashes at its default before the real
@@ -703,6 +721,21 @@ Scope {
                 // stable id list, not the per-write plugin array.
                 readonly property var entry: Registry.plugins.find(p => p.id === slot.pid) || null
                 readonly property var dw: (entry && entry.placement && entry.placement.desktopWidget) || ({})
+                // host-supplied accent (the matugen parity): a plugin that
+                // declares capabilities.colors gets an accent pushed in the way
+                // built-ins do -- Auto (the palette accent), a pinned hex, or off
+                // (its own palette). settings.colorAuto (default true) and
+                // settings.color ("" = auto) choose; the props land on the
+                // content by Binding, since a settings write reparses Registry
+                // without rebuilding the content.
+                readonly property var pset: (entry && entry.placement && entry.placement.settings) || ({})
+                readonly property bool colorsCap: !!(entry && entry.manifest && entry.manifest.capabilities
+                    && entry.manifest.capabilities.colors === true)
+                readonly property bool colorAuto: slot.pset.colorAuto !== false
+                readonly property string pinnedColor: (typeof slot.pset.color === "string") ? slot.pset.color : ""
+                readonly property color hostAccent: (!slot.colorAuto && slot.pinnedColor.length > 0)
+                    ? slot.pinnedColor : Scheme.accent
+                readonly property bool hostAccentOn: slot.colorsCap && (slot.colorAuto || slot.pinnedColor.length > 0)
                 readonly property string dir: entry ? entry.dir : ""
                 readonly property string versionQuery: entry && entry.version
                     ? "?v=" + encodeURIComponent(entry.version) : ""
@@ -712,6 +745,7 @@ Scope {
                 locked: root.stageComposing ? false : (slot.dw.locked === true)
                 composing: root.stageComposing
                 scaleCfg: slot.dw.scale || 0.85
+                opacityCfg: slot.dw.opacity !== undefined ? slot.dw.opacity : 1
                 freeX: slot.dw.x !== undefined ? slot.dw.x : 80
                 freeY: slot.dw.y !== undefined ? slot.dw.y : 80
                 bg: slot.dw.bg ? slot.dw.bg : ((entry && entry.manifest && entry.manifest.defaults && entry.manifest.defaults.desktopWidget && entry.manifest.defaults.desktopWidget.bg) || "card")
@@ -770,6 +804,23 @@ Scope {
                     it.s = 1;
                     it.widthBudget = 360;
                     it.active = true;
+                }
+
+                // push the host accent into the content live. accentColor is
+                // always a real colour (never ""), and accentFromHost gates
+                // whether the plugin honours it, so "off" = the plugin's own
+                // palette. both apply only to a content that declares the props.
+                Binding {
+                    target: slot.item
+                    property: "accentColor"
+                    value: slot.hostAccent
+                    when: slot.item !== null && slot.colorsCap && slot.item.accentColor !== undefined
+                }
+                Binding {
+                    target: slot.item
+                    property: "accentFromHost"
+                    value: slot.hostAccentOn
+                    when: slot.item !== null && slot.colorsCap && slot.item.accentFromHost !== undefined
                 }
 
                 // Edit-session frame, reparented to the overlay so it sits above
@@ -876,8 +927,30 @@ Scope {
             onSettingChanged: (id, key, value) => {
                 var obj = {};
                 obj[key] = value;
-                settingsProc.command = [root.placeTool, id, "settings", JSON.stringify(obj)];
-                settingsProc.running = true;
+                // queue so a two-key change (colour mode: colorAuto + color)
+                // can't stomp itself on the single settings Process.
+                root._settingsQueue.push([root.placeTool, id, "settings", JSON.stringify(obj)]);
+                root._runSettingsQueue();
+            }
+            onSizeChanged: (id, sc) => {
+                const dw = win.placementOf(id);
+                const x = (dw.x !== undefined) ? dw.x : 80;
+                const y = (dw.y !== undefined) ? dw.y : 80;
+                const lk = (dw.locked === true);
+                // scale only: opacity arg omitted -> ryoku-plugins-place keeps it.
+                sizeProc.command = [root.placeTool, id, "desktopWidget",
+                    "" + x, "" + y, "" + sc, "" + lk];
+                sizeProc.running = true;
+            }
+            onOpacityChanged: (id, op) => {
+                const dw = win.placementOf(id);
+                const x = (dw.x !== undefined) ? dw.x : 80;
+                const y = (dw.y !== undefined) ? dw.y : 80;
+                const lk = (dw.locked === true);
+                // opacity only: scale left "" so the tool keeps the current one.
+                opacityProc.command = [root.placeTool, id, "desktopWidget",
+                    "" + x, "" + y, "", "" + lk, "" + op];
+                opacityProc.running = true;
             }
         }
 
@@ -983,7 +1056,12 @@ Scope {
         Process { id: hide }
         Process { id: lockProc }
         // settings writeback from the right-click menu.
-        Process { id: settingsProc }
+        Process {
+            id: settingsProc
+            onRunningChanged: if (!settingsProc.running) root._runSettingsQueue()
+        }
+        Process { id: sizeProc }
+        Process { id: opacityProc }
         // Reset (docs/stage.md, "Edit widgets"): restore the snapshot taken when
         // the session opened. Config keys write directly; plugin re-place and
         // unplace commands run one at a time through this Process.

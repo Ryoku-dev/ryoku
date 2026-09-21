@@ -4,7 +4,7 @@
 # placement edit), and the installer (seed/forget a plugin's settings block).
 # Registry's file watch sees it and retunes every surface, no reload.
 #
-#   ryoku-plugins-place <id> desktopWidget <x> <y> [scale] [locked]
+#   ryoku-plugins-place <id> desktopWidget <x> <y> [scale] [locked] [opacity]
 #   ryoku-plugins-place <id> framePopout <edge> <align> <hoverW> <hoverH>
 #   ryoku-plugins-place <id> host <hostName>
 #   ryoku-plugins-place <id> enabled <true|false>
@@ -75,17 +75,18 @@ seed_entry() {
 
 case "$field" in
 desktopWidget)
-	x="${1:?x}"; y="${2:?y}"; scale="${3:-}"; locked="${4:-}"
-	# scale/locked optional: keep existing (or a sane default) when omitted,
-	# so a position-only write doesn't drop them.
+	x="${1:?x}"; y="${2:?y}"; scale="${3:-}"; locked="${4:-}"; opacity="${5:-}"
+	# scale/locked/opacity optional: keep existing (or a sane default) when
+	# omitted, so a position-only write doesn't drop them.
 	jq --arg id "$id" --argjson x "$x" --argjson y "$y" \
-		--arg scale "$scale" --arg locked "$locked" \
+		--arg scale "$scale" --arg locked "$locked" --arg opacity "$opacity" \
 		'.[$id] = ((.[$id] // {}) + {
 			enabled: ((.[$id].enabled) // true),
 			host: ((.[$id].host) // "desktopWidget"),
 			desktopWidget: (((.[$id].desktopWidget) // {}) + { x: $x, y: $y }
 				+ (if $scale == "" then {} else { scale: ($scale | tonumber) } end)
-				+ (if $locked == "" then {} else { locked: ($locked == "true") } end))
+				+ (if $locked == "" then {} else { locked: ($locked == "true") } end)
+				+ (if $opacity == "" then {} else { opacity: ($opacity | tonumber) } end))
 		})' "$f" >"$tmp" && mv "$tmp" "$f"
 	;;
 framePopout)

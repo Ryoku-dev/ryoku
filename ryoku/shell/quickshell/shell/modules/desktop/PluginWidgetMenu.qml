@@ -32,9 +32,26 @@ Item {
     readonly property var schema: (manifest && manifest.metadata && manifest.metadata.settings) || []
     readonly property bool hasImage: schema.some(function (f) { return f.type === "image"; })
 
+    // host-chrome (placement) values shown as menu controls: size and opacity
+    // live in the tile's desktopWidget block, not the plugin's settings schema,
+    // so every tile can resize and fade regardless of what it declares.
+    readonly property var dw: (menu.placement && menu.placement.desktopWidget) || ({})
+    property real sizeLive: 0.85
+    property real opacityLive: 1
+    // colour affordance, gated on the plugin declaring it honours a host accent.
+    // colorAuto (default true) = the palette accent; colorAuto false + empty
+    // colour = the plugin's own palette; a hex = a pinned colour.
+    readonly property bool colorsCap: !!(menu.manifest && menu.manifest.capabilities
+        && menu.manifest.capabilities.colors === true)
+    readonly property bool colorAutoOn: menu.vals.colorAuto !== false
+    readonly property string colorHex: (typeof menu.vals.color === "string") ? menu.vals.color : ""
+    readonly property string colorMode: menu.colorAutoOn ? "auto" : (menu.colorHex.length > 0 ? "custom" : "default")
+
     signal hideRequested(string id)
     signal lockToggled(string id)
     signal settingChanged(string id, string key, var value)
+    signal sizeChanged(string id, real scale)
+    signal opacityChanged(string id, real opacity)
 
     function openFor(id, locked, x, y, manifest, placement) {
         menu.scope = id;
@@ -44,6 +61,9 @@ Item {
         menu.manifest = manifest || ({});
         menu.placement = placement || ({});
         menu.vals = JSON.parse(JSON.stringify((placement && placement.settings) || {}));
+        const g = (placement && placement.desktopWidget) || ({});
+        menu.sizeLive = (g.scale !== undefined) ? g.scale : 0.85;
+        menu.opacityLive = (g.opacity !== undefined) ? g.opacity : 1;
         shell.open = true;
         if (menu.hasImage)
             picScan.running = true;
@@ -58,6 +78,29 @@ Item {
         n[key] = value;
         menu.vals = n;
         menu.settingChanged(menu.scope, key, value);
+    }
+    function hexOf(c) {
+        return "#" + [c.r, c.g, c.b].map(function (x) {
+            const s = Math.round(x * 255).toString(16);
+            return s.length === 1 ? "0" + s : s;
+        }).join("").toUpperCase();
+    }
+    // Auto clears the pin; Default drops it to the plugin's own palette; Custom
+    // pins a colour, seeding the palette accent when none is set yet so the
+    // picker opens on a real base (mirrors the built-in setColorMode).
+    function setColorMode(m) {
+        if (m === "auto") {
+            menu.set("colorAuto", true);
+            return;
+        }
+        if (m === "default") {
+            menu.set("colorAuto", false);
+            menu.set("color", "");
+            return;
+        }
+        menu.set("colorAuto", false);
+        if (menu.colorHex.length === 0)
+            menu.set("color", menu.hexOf(Scheme.accent));
     }
 
     // scan ~/Pictures (one level deep) for picker thumbnails.
@@ -89,6 +132,71 @@ Item {
         MenuRow {
             label: I18n.tr("Hide")
             onTriggered: menu.hideRequested(menu.scope)
+        }
+
+        // ── size + opacity (host chrome: placement, not the plugin's schema) ──
+        // The discoverable equivalents of the corner bracket / Ctrl+wheel and a
+        // tile fade; every tile can resize and fade. Both commit on release.
+        MenuSection { label: I18n.tr("Adjust"); gloss: "調整" }
+        MenuSlider {
+            id: sizeSlider
+            label: I18n.tr("Size")
+            from: 0.5
+            to: 2.5
+            step: 0.02
+            value: menu.sizeLive
+            valueText: Math.round(sizeSlider.value * 100) + "%"
+            onMoved: (v) => menu.sizeLive = v
+            onReleased: (v) => { menu.sizeLive = v; menu.sizeChanged(menu.scope, v); }
+        }
+        MenuSlider {
+            id: opacitySlider
+            label: I18n.tr("Opacity")
+            from: 0.2
+            to: 1.0
+            step: 0.01
+            value: menu.opacityLive
+            valueText: Math.round(opacitySlider.value * 100) + "%"
+            onMoved: (v) => menu.opacityLive = v
+            onReleased: (v) => { menu.opacityLive = v; menu.opacityChanged(menu.scope, v); }
+        }
+
+        // ── colour (only when the plugin declares it honours a host accent) ──
+        // Auto = the palette accent (matugen-derived), Default = the plugin's own
+        // palette, Custom = a pinned colour. Mirrors the built-in WidgetMenu's
+        // colour rows; the pin persists through settings (colorAuto + color).
+        MenuSection { visible: menu.colorsCap; label: I18n.tr("Colour"); gloss: "彩色" }
+        Column {
+            visible: menu.colorsCap
+            width: parent.width
+            spacing: Theme.s1
+            Row {
+                id: colorModeRow
+                width: parent.width
+                spacing: Theme.s1
+                readonly property real cw: (width - 2 * Theme.s1) / 3
+                MenuChip {
+                    width: colorModeRow.cw; height: Theme.ctlH
+                    label: I18n.tr("Auto"); selected: menu.colorMode === "auto"
+                    onClicked: menu.setColorMode("auto")
+                }
+                MenuChip {
+                    width: colorModeRow.cw; height: Theme.ctlH
+                    label: I18n.tr("Default"); selected: menu.colorMode === "default"
+                    onClicked: menu.setColorMode("default")
+                }
+                MenuChip {
+                    width: colorModeRow.cw; height: Theme.ctlH
+                    label: I18n.tr("Custom"); selected: menu.colorMode === "custom"
+                    onClicked: menu.setColorMode("custom")
+                }
+            }
+            PluginColorPicker {
+                width: parent.width
+                visible: menu.colorMode === "custom"
+                seed: menu.colorHex
+                onCommitted: (hex) => menu.set("color", hex)
+            }
         }
 
         // ── settings, rendered from the plugin's schema ────────────────
