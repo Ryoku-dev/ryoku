@@ -15,8 +15,8 @@ import shell.services
 // autohiding, or the pointer is on it, or nothing is focused, or a pin is being
 // dragged -- and is forced away under a fullscreen window unless the pointer is
 // in the peek strip. Hiding slides the band out by its own depth, leaving a 3 px
-// visible sliver. The input strip on the screen edge is the full edgeGap so it
-// meets the revealed band. Side and headroom margins stay click-through.
+// peek inside the input mask; the empty margins stay click-through because the
+// mask is only the band rect unioned with that strip.
 PanelWindow {
     id: dock
 
@@ -110,8 +110,9 @@ PanelWindow {
         Behavior on y { enabled: !Perf.reduceMotion; NumberAnimation { duration: Motion.menuSlide; easing.type: Motion.menuSlideCurve } }
     }
 
-    // Hover target on the screen edge. Thickness is edgeGap so this strip meets
-    // the revealed band. The visible sliver when hidden stays peek (3 px).
+    // The peek strip: a thin always-masked band at the very screen edge, so a
+    // hidden dock can still be revealed by pointer proximity. It tracks the band
+    // along the axis but stays pinned to the edge across it.
     Item {
         id: peekStrip
         x: dock.horizontal ? band.x : (dock.edge === "left" ? 0 : dock.width - dock.edgeGap)
@@ -120,7 +121,7 @@ PanelWindow {
         height: dock.horizontal ? dock.edgeGap : band.height
         HoverHandler { id: peekHover }
     }
-    // Input mask = band rect ∪ edge hover strip. Side margins and magnify
+    // Input mask = band rect ∪ peek strip, so the empty margins and the magnify
     // headroom stay click-through.
     mask: Region {
         Region {
