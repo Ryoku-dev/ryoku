@@ -79,6 +79,35 @@ func TestCatalogRevisionChangesOnRealContentChange(t *testing.T) {
 	}
 }
 
+// Provenance links are display-only, but they are the whole point of a catalogue
+// update that changes nothing else: an item that gains (or renames) its upstream,
+// or adds a community invite, must move the revision so a warm cache offers the
+// refresh instead of serving a snapshot with no links to show.
+func TestCatalogRevisionTracksProvenance(t *testing.T) {
+	const home = "https://github.com/neur0map/MJ-widgets"
+	bare := catalogRevision(Catalog{Items: []Item{
+		{Category: "plugins", ID: "awe-clock", Version: "1.0.0", ManifestSHA256: "x"},
+	}})
+	upstream := catalogRevision(Catalog{Items: []Item{
+		{Category: "plugins", ID: "awe-clock", Version: "1.0.0", ManifestSHA256: "x", Upstream: home},
+	}})
+	if upstream == bare {
+		t.Fatal("an item gaining an upstream must change the revision")
+	}
+	if catalogRevision(Catalog{Items: []Item{
+		{Category: "plugins", ID: "awe-clock", Version: "1.0.0", ManifestSHA256: "x",
+			Upstream: "https://github.com/other/MJ-widgets"},
+	}}) == upstream {
+		t.Fatal("a changed upstream must change the revision")
+	}
+	if catalogRevision(Catalog{Items: []Item{
+		{Category: "plugins", ID: "awe-clock", Version: "1.0.0", ManifestSHA256: "x", Upstream: home,
+			Discord: "https://discord.gg/8KjBmUEyKA"},
+	}}) == upstream {
+		t.Fatal("an item gaining a discord invite must change the revision")
+	}
+}
+
 func TestSeenRevisionRoundTrip(t *testing.T) {
 	t.Setenv("RYOKU_EXTRAS_BASE", "")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())

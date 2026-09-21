@@ -45,31 +45,36 @@ type Category struct {
 // Metadata carries category-specific facts and stays nil for a provider that has
 // none.
 type Item struct {
-	ID                  string   `json:"id"`
-	Category            string   `json:"category"`
-	Name                string   `json:"name"`
-	Summary             string   `json:"summary,omitempty"`
-	Description         string   `json:"description,omitempty"`
-	Art                 string   `json:"art,omitempty"`
-	ArtRaw              string   `json:"artRaw,omitempty"`
-	Author              string   `json:"author,omitempty"`
-	Version             string   `json:"version,omitempty"`
-	Manifest            string   `json:"manifest,omitempty"`
-	ManifestSHA256      string   `json:"manifestSha256,omitempty"`
-	InstalledVersion    string   `json:"installedVersion,omitempty"`
-	Compatibility       string   `json:"compatibility,omitempty"`
-	DownloadPauseReason string   `json:"downloadPauseReason,omitempty"`
-	Accent              string   `json:"accent,omitempty"`
-	Surface             string   `json:"surface,omitempty"`
-	Screenshots         []string `json:"screenshots,omitempty"`
-	Tags                []string `json:"tags,omitempty"`
-	Installed           bool     `json:"installed"`
-	Active              bool     `json:"active"`
-	Enabled             bool     `json:"enabled"`
-	InstalledCount      int      `json:"installedCount"`
-	TotalCount          int      `json:"totalCount"`
-	UpdateAvailable     bool     `json:"updateAvailable"`
-	DownloadPaused      bool     `json:"downloadPaused"`
+	ID                  string `json:"id"`
+	Category            string `json:"category"`
+	Name                string `json:"name"`
+	Summary             string `json:"summary,omitempty"`
+	Description         string `json:"description,omitempty"`
+	Art                 string `json:"art,omitempty"`
+	ArtRaw              string `json:"artRaw,omitempty"`
+	Author              string `json:"author,omitempty"`
+	Version             string `json:"version,omitempty"`
+	Manifest            string `json:"manifest,omitempty"`
+	ManifestSHA256      string `json:"manifestSha256,omitempty"`
+	InstalledVersion    string `json:"installedVersion,omitempty"`
+	Compatibility       string `json:"compatibility,omitempty"`
+	DownloadPauseReason string `json:"downloadPauseReason,omitempty"`
+	Accent              string `json:"accent,omitempty"`
+	Surface             string `json:"surface,omitempty"`
+	// Upstream and Discord carry the product's provenance links from the
+	// registry entry: the project's home (always present) and an optional
+	// community invite. The app renders them as icon actions on the detail page.
+	Upstream        string   `json:"upstream,omitempty"`
+	Discord         string   `json:"discord,omitempty"`
+	Screenshots     []string `json:"screenshots,omitempty"`
+	Tags            []string `json:"tags,omitempty"`
+	Installed       bool     `json:"installed"`
+	Active          bool     `json:"active"`
+	Enabled         bool     `json:"enabled"`
+	InstalledCount  int      `json:"installedCount"`
+	TotalCount      int      `json:"totalCount"`
+	UpdateAvailable bool     `json:"updateAvailable"`
+	DownloadPaused  bool     `json:"downloadPaused"`
 	// RequiredWindowManager is the window manager the product was authored for,
 	// empty when it runs on any; Unavailable says it is not the running one and
 	// UnavailableReason carries the catalogue's human note, if it wrote one.

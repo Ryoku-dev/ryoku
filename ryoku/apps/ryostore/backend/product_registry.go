@@ -59,6 +59,7 @@ func productEntryItem(base, category string, entry ProductEntry) (Item, error) {
 		Manifest: entry.Manifest, ManifestSHA256: entry.ManifestSHA256,
 		Screenshots: resolveAssets(base, entry.Path, entry.Screenshots),
 		Tags:        entry.Tags, Accent: entry.Accent, Surface: entry.Surface,
+		Upstream: entry.Upstream, Discord: entry.Discord,
 		DownloadPaused: entry.DownloadPaused, DownloadPauseReason: entry.DownloadPauseReason,
 		RequiredWindowManager: entry.WindowManager,
 	}

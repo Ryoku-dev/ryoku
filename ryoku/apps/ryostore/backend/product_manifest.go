@@ -52,6 +52,11 @@ type ProductEntry struct {
 	// the provider name `ryoku wm use <name>` takes. Empty means any.
 	WindowManager       string `json:"windowManager,omitempty"`
 	WindowManagerReason string `json:"windowManagerReason,omitempty"`
+	// Upstream is the https:// home of the project a product comes from
+	// (a registry entry always names one); Discord is an optional invite to
+	// that project's community. Both surface as links on the detail page.
+	Upstream string `json:"upstream"`
+	Discord  string `json:"discord,omitempty"`
 }
 
 // ProductFile is one manifest-owned source and its installed destination.

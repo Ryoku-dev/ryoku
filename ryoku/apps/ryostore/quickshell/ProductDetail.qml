@@ -20,7 +20,7 @@ FocusScope {
     readonly property bool hasDither: String(actionItem.artRaw || "") !== ""
     property real transitionProgress: open ? 1 : 0
     property int lightboxIndex: -1
-    readonly property bool lightboxOpen: lightboxIndex >= 0 && lightboxIndex < screenshotCount
+    readonly property bool lightboxOpen: lightboxIndex >= 0 && lightboxIndex < galleryCount
     onOpenChanged: if (!open) lightboxIndex = -1
 
     function focusInitialAction() {
@@ -37,6 +37,14 @@ FocusScope {
     readonly property string actionKey: StoreLogic.itemKey(actionItem)
     readonly property var screenshots: Array.isArray(actionItem.screenshots) ? actionItem.screenshots : []
     readonly property int screenshotCount: screenshots.length
+    // The gallery and lightbox present whatever previews the product ships:
+    // its screenshots, or — for a product that ships only cover art, like most
+    // bar styles — that single image, so the preview is still expandable.
+    readonly property var galleryShots: screenshotCount > 0
+            ? screenshots
+            : (String(actionItem.art || "") !== "" ? [String(actionItem.art)] : [])
+    readonly property int galleryCount: galleryShots.length
+    property int galleryIndex: 0
     readonly property var tags: Array.isArray(actionItem.tags) ? actionItem.tags : []
     readonly property color accentColor: actionItem.accent ? Qt.color(actionItem.accent) : Tokens.sun
     readonly property string errorText: installErrorKey === actionKey ? installError : ""
@@ -88,10 +96,19 @@ FocusScope {
     property var lastComponents: null
     readonly property var selectedNames: components.filter(c => sel[String(c.name)] === true).map(c => String(c.name))
     readonly property var allNames: components.map(c => String(c.name))
-    onItemChanged: rebuildSelection()
+    onItemChanged: { rebuildSelection(); galleryIndex = 0; }
     readonly property real targetX: Tokens.s6
     readonly property real targetY: Tokens.s6
-    readonly property real targetWidth: Math.min(430, width * 0.42)
+    // An art-only product's dossier carries only text, so the hero can take more
+    // of the page; a product with a gallery keeps the hero narrower so the dossier
+    // stays wide enough for the preview beside it.
+    readonly property real targetWidth: hasBodyContent
+            ? Math.min(430, width * 0.42)
+            : Math.round(Math.min(width * 0.5, 600))
+    // The body carries a gallery (real screenshots) or a bundle's component list.
+    // An art-only product has neither, so its dossier centres instead of pinning
+    // a foot below a void.
+    readonly property bool hasBodyContent: isBundle || screenshotCount > 0
     readonly property real targetHeight: Math.max(1, height - Tokens.s6 * 2)
     readonly property rect effectiveOrigin: originRect.width > 0 && originRect.height > 0
             ? originRect
@@ -173,20 +190,56 @@ FocusScope {
     }
 
     function openLightbox(i) {
-        if (i >= 0 && i < screenshotCount)
+        if (i >= 0 && i < galleryCount)
             lightboxIndex = i;
     }
     function closeLightbox() {
         lightboxIndex = -1;
     }
     function stepLightbox(delta) {
-        if (screenshotCount > 0)
-            lightboxIndex = (lightboxIndex + delta + screenshotCount) % screenshotCount;
+        if (galleryCount > 0)
+            lightboxIndex = (lightboxIndex + delta + galleryCount) % galleryCount;
     }
 
     Behavior on transitionProgress {
         enabled: !detail.reducedMotion
         NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease }
+    }
+
+    // A provenance link as a small icon action: a Nerd Font glyph in a hairline
+    // chip that opens the URL in the user's browser. Hidden when the product
+    // names no such link. Mirrors the header's account-action affordance.
+    component LinkChip: Rectangle {
+        property string glyph: ""
+        property string url: ""
+        property string label: ""
+        implicitWidth: 30
+        implicitHeight: 26
+        radius: Tokens.radius
+        color: activeFocus || linkHover.hovered ? Tokens.tint10 : "transparent"
+        border.width: Tokens.border
+        border.color: activeFocus ? Tokens.bone : (linkHover.hovered ? Tokens.lineStrong : Tokens.line)
+        activeFocusOnTab: visible
+        Behavior on color { ColorAnimation { duration: Tokens.snap } }
+        Accessible.role: Accessible.Button
+        Accessible.name: label
+        Accessible.onPressAction: openLink()
+        function openLink() { if (url !== "") Qt.openUrlExternally(url); }
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                openLink();
+                event.accepted = true;
+            }
+        }
+        Text {
+            anchors.centerIn: parent
+            text: glyph
+            color: parent.activeFocus ? Tokens.ink : Tokens.inkDim
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fBody
+        }
+        HoverHandler { id: linkHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: openLink() }
     }
 
     // Modal input sink: swallow every pointer event that misses an interactive
@@ -218,6 +271,10 @@ FocusScope {
         // the cover leads with the colour original, so the override is now the bake
         artOverride: detail.hasDither && detail.ditherOn ? String(detail.actionItem.art || "") : ""
         mode: "plate"
+        // The cover is the shared-element hero; tapping it opens the preview at
+        // full size, the same lightbox the gallery uses.
+        HoverHandler { enabled: detail.galleryCount > 0; cursorShape: Qt.PointingHandCursor }
+        TapHandler { enabled: detail.galleryCount > 0; onTapped: detail.openLightbox(detail.galleryIndex) }
     }
 
     Item {
@@ -229,6 +286,33 @@ FocusScope {
         height: detail.targetHeight
         opacity: detail.transitionProgress
         clip: true
+
+        // An art-only product's dossier holds only text; centre the head and foot
+        // as one panel so it reads as a framed hero beside balanced info rather
+        // than a top-loaded block above a void. Driven by AnchorChanges, not
+        // ternary anchors, so the sibling anchor rebinds cleanly.
+        states: State {
+            name: "centered"
+            when: !detail.hasBodyContent
+            AnchorChanges {
+                target: dossierHead
+                anchors.top: undefined
+                anchors.verticalCenter: dossier.verticalCenter
+            }
+            PropertyChanges {
+                target: dossierHead
+                anchors.verticalCenterOffset: -(dossierFoot.height + Tokens.s4) / 2
+            }
+            AnchorChanges {
+                target: dossierFoot
+                anchors.bottom: undefined
+                anchors.top: dossierHead.bottom
+            }
+            PropertyChanges {
+                target: dossierFoot
+                anchors.topMargin: Tokens.s4
+            }
+        }
 
         // Row delegate for the bundle component list (used by both tier repeaters).
         Component {
@@ -432,6 +516,32 @@ FocusScope {
                 font.pixelSize: Tokens.fMicro
                 font.letterSpacing: Tokens.trackLabel
                 wrapMode: Text.Wrap
+            }
+
+            // Provenance: the project's home (a github glyph) and, when it names
+            // one, its community (a discord glyph). Rendered only when present.
+            Row {
+                objectName: "ryostore-detail-links"
+                spacing: Tokens.s2
+                readonly property string upstreamUrl: String(detail.actionItem.upstream || "")
+                readonly property string discordUrl: String(detail.actionItem.discord || "")
+                visible: upstreamUrl !== "" || discordUrl !== ""
+
+                LinkChip {
+                    objectName: "ryostore-detail-upstream"
+                    glyph: "\uf09b"
+                    url: parent.upstreamUrl
+                    visible: url !== ""
+                    label: I18n.tr("Open the project page")
+                }
+
+                LinkChip {
+                    objectName: "ryostore-detail-discord"
+                    glyph: "\uf1ff"
+                    url: parent.discordUrl
+                    visible: url !== ""
+                    label: I18n.tr("Open the Discord community")
+                }
             }
 
             // A community plugin is unreviewed third-party code that runs in the
@@ -650,7 +760,7 @@ FocusScope {
 
         // BODY: fills the space between head and foot. Bundles get the scrollable
         // component list here (as tall as the window allows); everything else gets
-        // its screenshot strip.
+        // the preview gallery, which fills the same space.
         Item {
             id: dossierBody
             anchors {
@@ -716,53 +826,105 @@ FocusScope {
                 }
             }
 
-            Flickable {
+            // The gallery fills the body: a large main preview and, when the
+            // product ships more than one shot, a thumbnail rail beneath it.
+            // Tapping the preview opens the lightbox at full size.
+            Item {
+                id: gallery
                 objectName: "ryostore-detail-screenshots"
-                anchors { top: parent.top; left: parent.left; right: parent.right }
-                height: Math.min(200, parent.height)
+                anchors.fill: parent
                 visible: !detail.isBundle && detail.screenshotCount > 0
-                clip: true
-                contentWidth: screenshotRow.width
-                contentHeight: height
-                flickableDirection: Flickable.HorizontalFlick
-                boundsBehavior: Flickable.StopAtBounds
 
-                Row {
-                    id: screenshotRow
-                    height: parent.height
-                    spacing: Tokens.s2
+                readonly property bool hasRail: detail.galleryCount > 1
+                readonly property int railHeight: hasRail ? 72 : 0
 
-                    Repeater {
-                        model: detail.screenshots
+                ProductMedia {
+                    id: mainPreview
+                    anchors { top: parent.top; left: parent.left; right: parent.right }
+                    height: parent.height - gallery.railHeight - (gallery.hasRail ? Tokens.s2 : 0)
+                    source: detail.galleryShots[detail.galleryIndex] || ""
+                    mode: "plate"
+                    surface: detail.actionItem.surface || Tokens.paper
+                    active: detail.open
 
-                        delegate: Item {
-                            id: thumb
-                            required property var modelData
-                            required property int index
-                            width: Math.round(screenshotRow.height * 16 / 9)
-                            height: screenshotRow.height
-                            Accessible.role: Accessible.Button
-                            Accessible.name: I18n.tr("Screenshot %1 of %2").arg(index + 1).arg(detail.screenshotCount)
-                            Accessible.onPressAction: detail.openLightbox(thumb.index)
+                    HoverHandler { id: previewHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: detail.openLightbox(detail.galleryIndex) }
+                    Accessible.role: Accessible.Button
+                    Accessible.name: I18n.tr("Preview %1 of %2, expand").arg(detail.galleryIndex + 1).arg(detail.galleryCount)
+                    Accessible.onPressAction: detail.openLightbox(detail.galleryIndex)
 
-                            ProductMedia {
-                                anchors.fill: parent
-                                source: thumb.modelData
-                                mode: "cover"
-                                active: detail.open
+                    // An expand mark that brightens on hover, so the preview reads
+                    // as tappable rather than a flat picture.
+                    Rectangle {
+                        anchors { top: parent.top; right: parent.right; margins: Tokens.s3 }
+                        width: expandMark.implicitWidth + Tokens.s2 * 2
+                        height: expandMark.implicitHeight + Tokens.s1 * 2
+                        radius: Tokens.radius
+                        color: "#8c000000"
+                        border.width: Tokens.border
+                        border.color: previewHover.hovered
+                                ? Qt.rgba(detail.accentColor.r, detail.accentColor.g, detail.accentColor.b, 0.9)
+                                : "#33ffffff"
+                        Text {
+                            id: expandMark
+                            anchors.centerIn: parent
+                            text: "\uf065"
+                            color: "#e8ffffff"
+                            font.family: Tokens.mono
+                            font.pixelSize: Tokens.fMicro
+                        }
+                    }
+                }
+
+                Flickable {
+                    id: rail
+                    visible: gallery.hasRail
+                    anchors { bottom: parent.bottom; left: parent.left; right: parent.right }
+                    height: gallery.railHeight
+                    contentWidth: railRow.width
+                    contentHeight: height
+                    clip: true
+                    flickableDirection: Flickable.HorizontalFlick
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    Row {
+                        id: railRow
+                        height: parent.height
+                        spacing: Tokens.s2
+
+                        Repeater {
+                            model: detail.galleryShots
+
+                            delegate: Item {
+                                id: thumb
+                                required property var modelData
+                                required property int index
+                                readonly property bool current: detail.galleryIndex === thumb.index
+                                width: Math.round(rail.height * 16 / 9)
+                                height: rail.height
+                                Accessible.role: Accessible.Button
+                                Accessible.name: I18n.tr("Show preview %1 of %2").arg(index + 1).arg(detail.galleryCount)
+                                Accessible.onPressAction: detail.galleryIndex = thumb.index
+
+                                ProductMedia {
+                                    anchors.fill: parent
+                                    source: thumb.modelData
+                                    mode: "cover"
+                                    active: detail.open
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: "transparent"
+                                    border.width: (thumb.current || thumbHover.hovered) ? Tokens.border * 2 : Tokens.border
+                                    border.color: thumb.current
+                                            ? Qt.rgba(detail.accentColor.r, detail.accentColor.g, detail.accentColor.b, 0.9)
+                                            : (thumbHover.hovered ? "#66ffffff" : "#28ffffff")
+                                }
+
+                                HoverHandler { id: thumbHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler { onTapped: detail.galleryIndex = thumb.index }
                             }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "transparent"
-                                border.width: thumbHover.hovered ? Tokens.border * 2 : Tokens.border
-                                border.color: thumbHover.hovered
-                                        ? Qt.rgba(detail.accentColor.r, detail.accentColor.g, detail.accentColor.b, 0.9)
-                                        : "#28ffffff"
-                            }
-
-                            HoverHandler { id: thumbHover; cursorShape: Qt.PointingHandCursor }
-                            TapHandler { onTapped: detail.openLightbox(thumb.index) }
                         }
                     }
                 }
@@ -789,14 +951,14 @@ FocusScope {
         ProductMedia {
             anchors.fill: parent
             anchors.margins: Tokens.s7
-            source: detail.lightboxOpen ? detail.screenshots[detail.lightboxIndex] : ""
+            source: detail.lightboxOpen ? detail.galleryShots[detail.lightboxIndex] : ""
             mode: "plate"
             active: detail.lightboxOpen
         }
 
         Text {
             anchors { top: parent.top; horizontalCenter: parent.horizontalCenter; topMargin: Tokens.s5 }
-            text: String(detail.lightboxIndex + 1) + " / " + String(detail.screenshotCount)
+            text: String(detail.lightboxIndex + 1) + " / " + String(detail.galleryCount)
             color: Tokens.ink
             font.family: Tokens.mono
             font.pixelSize: Tokens.fMicro
@@ -806,7 +968,7 @@ FocusScope {
         Btn {
             anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Tokens.s4 }
             text: I18n.tr("PREV")
-            visible: detail.screenshotCount > 1
+            visible: detail.galleryCount > 1
             armed: visible
             onAct: detail.stepLightbox(-1)
             Accessible.role: Accessible.Button
@@ -817,7 +979,7 @@ FocusScope {
         Btn {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: Tokens.s4 }
             text: I18n.tr("NEXT")
-            visible: detail.screenshotCount > 1
+            visible: detail.galleryCount > 1
             armed: visible
             onAct: detail.stepLightbox(1)
             Accessible.role: Accessible.Button
