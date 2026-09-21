@@ -100,6 +100,10 @@ Item {
             return Image.PreserveAspectFit;
         case "Fill":
             return Image.Stretch;
+        case "Center":
+            return Image.Pad; // 1:1, centred, no scale
+        case "Tile":
+            return Image.Tile; // repeat the source across the surface
         case "ScaleDown":
             return (img.sourceSize.width <= view.width && img.sourceSize.height <= view.height) ? Image.Pad : Image.PreserveAspectFit;
         default:
@@ -107,13 +111,16 @@ Item {
         }
     }
 
-    // VideoOutput has no Pad and no Stretch-that-preserves; Contain maps to a
-    // letterboxed fit, Fill to a stretch, everything else covers. ScaleDown is
-    // Contain's behaviour here (a small clip plays 1:1, a large one fits).
+    // VideoOutput has no Pad and no Tile; Contain and Center both map to a
+    // letterboxed fit (a clip cannot repeat, so Tile covers, and Center's
+    // "no scale" is unrepresentable for a decoder that fills its output).
+    // Fill stretches, everything else covers. ScaleDown is Contain here (a
+    // small clip plays fit, a large one fits).
     function videoFill() {
         switch (view.fit) {
         case "Contain":
         case "ScaleDown":
+        case "Center":
             return VideoOutput.PreserveAspectFit;
         case "Fill":
             return VideoOutput.Stretch;

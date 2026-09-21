@@ -61,7 +61,7 @@ var (
 	notificationPosValues = []string{"Left", "Right", "Center"}
 	menuExpansionValues   = []string{"AlwaysExpanded", "ExpandBothWays", "ExpandUp", "ExpandDown"}
 	tempUnitValues        = []string{"Metric", "Imperial"}
-	contentFitValues      = []string{"Contain", "Cover", "Fill", "ScaleDown"}
+	contentFitValues      = []string{"Contain", "Cover", "Fill", "ScaleDown", "Center", "Tile"}
 	videoEngineValues     = []string{"ryogami", "in_shell"}
 	quickSettingsIconVals = []string{"Arch", "Fedora", "Hyprland", "Nix"}
 	matugenPrefValues     = []string{"Darkness", "Lightness", "Saturation", "LessSaturation", "Value"}

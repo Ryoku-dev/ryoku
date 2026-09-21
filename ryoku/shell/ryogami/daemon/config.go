@@ -201,7 +201,7 @@ func contentFit() string {
 	}
 	loadJSON(filepath.Join(ryokuConfigDir(), "shell.json"), &shell)
 	switch shell.Wallpaper.Fit {
-	case "Contain", "Cover", "Fill", "ScaleDown":
+	case "Contain", "Cover", "Fill", "ScaleDown", "Center", "Tile":
 		return shell.Wallpaper.Fit
 	}
 	return def

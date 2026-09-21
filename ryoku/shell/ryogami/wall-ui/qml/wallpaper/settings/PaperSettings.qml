@@ -94,18 +94,18 @@ Column {
                 spacing: 4
                 Repeater {
                     model: [
-                        { key: "fill",    label: I18n.tr("Fill") },
-                        { key: "fit",     label: I18n.tr("Fit") },
-                        { key: "stretch", label: I18n.tr("Stretch") },
-                        { key: "center",  label: I18n.tr("Center") },
-                        { key: "tile",    label: I18n.tr("Tile") }
+                        { key: "Cover",     label: I18n.tr("Fill") },
+                        { key: "Contain",   label: I18n.tr("Fit") },
+                        { key: "Fill",      label: I18n.tr("Stretch") },
+                        { key: "Center",    label: I18n.tr("Center") },
+                        { key: "Tile",      label: I18n.tr("Tile") }
                     ]
                     FilterButton {
                         colors: root.colors
                         label: I18n.tr(modelData.label)
                         skew: 8 * Config.uiScale; height: 26 * Config.uiScale
-                        isActive: Config.fillMode === modelData.key
-                        onClicked: Config.saveKey("display.fillMode", modelData.key)
+                        isActive: Config.contentFit === modelData.key
+                        onClicked: Config._shellSet("wallpaper.content_fit", modelData.key)
                     }
                 }
             }

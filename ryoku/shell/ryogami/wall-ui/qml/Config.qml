@@ -134,7 +134,9 @@ QtObject {
         if (typeof v !== "number") return 600
         return Math.max(50, Math.min(5000, Math.round(v)))
     }
-    readonly property string fillMode: _data.display?.fillMode ?? "fill"
+    // The live fill mode the daemon actually paints: capitalized content_fit in
+    // shell.json (Cover/Contain/Fill/ScaleDown/Center/Tile).
+    readonly property string contentFit: _shellGet("wallpaper.content_fit", "Cover")
     readonly property bool wallpaperMute: _data.wallpaperMute !== false
     readonly property int wallpaperVolume: {
         var v = _data.wallpaperVolume
