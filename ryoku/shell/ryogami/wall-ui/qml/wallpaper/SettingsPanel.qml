@@ -39,7 +39,7 @@ Item {
       return ["selector", "paper", "edit", "theme"].indexOf(key) >= 0
     var adv = ["general", "playlists", "paths", "comfort", "lighting", "performance", "postprocessing"]
     if (Config.matugenEnabled) adv.push("matugen")
-    if (Config.canOverviewBackdrop) adv.push("overview-backdrop")
+    if (Config.isNiri) adv.push("niri")
     if (Config.steamEnabled) adv.push("wallpaper-engine")
     return adv.indexOf(key) >= 0
   }
@@ -73,7 +73,7 @@ Item {
   }
 
   z: 102
-  width: Math.min(((settingsPanel.activeTab === "performance" ? 1080 : (settingsPanel.activeTab === "general" || settingsPanel.activeTab === "edit") ? 900 : 760) * Config.uiScale) + _keybindsColW + _s(24), Screen.width - _s(48))
+  width: Math.min((((settingsPanel.activeTab === "performance" || settingsPanel.activeTab === "matugen") ? 1080 : (settingsPanel.activeTab === "general" || settingsPanel.activeTab === "edit") ? 900 : 760) * Config.uiScale) + _keybindsColW + _s(24), Screen.width - _s(48))
   Behavior on width { NumberAnimation { duration: Style.animFast; easing.type: Easing.OutCubic } }
   height: tabRow.height + contentLoader.height + 36
 
@@ -257,7 +257,7 @@ Item {
           { key: "postprocessing", label: I18n.tr("EXTERNAL") }
         ]
         if (Config.matugenEnabled) tabs.push({ key: "matugen", label: I18n.tr("MATUGEN") })
-        if (Config.canOverviewBackdrop) tabs.push({ key: "overview-backdrop", label: I18n.tr("OVERVIEW BACKDROP") })
+        if (Config.isNiri) tabs.push({ key: "niri", label: I18n.tr("NIRI") })
         if (Config.steamEnabled) tabs.push({ key: "wallpaper-engine", label: I18n.tr("WALLPAPER ENGINE") })
         return tabs
       }
@@ -313,8 +313,8 @@ Item {
       if (settingsPanel.activeTab === "performance") return performanceContent.implicitHeight
       if (settingsPanel.activeTab === "postprocessing") return Math.min(postprocessingContent.implicitHeight, 360)
       if (settingsPanel.activeTab === "theme") return themeContent.implicitHeight
-      if (settingsPanel.activeTab === "matugen") return Math.min(matugenContent.implicitHeight, 360)
-      if (settingsPanel.activeTab === "overview-backdrop") return overviewBackdropContent.implicitHeight
+      if (settingsPanel.activeTab === "matugen") return Math.min(matugenContent.implicitHeight, Screen.height - settingsPanel._s(160))
+      if (settingsPanel.activeTab === "niri") return niriContent.implicitHeight
       return 0
     }
     Behavior on height { NumberAnimation { duration: Style.animFast; easing.type: Easing.OutCubic } }
@@ -437,12 +437,12 @@ Item {
     }
 
     Loader {
-      id: overviewBackdropContent
+      id: niriContent
       anchors.left: parent.left
       anchors.right: parent.right
-      active: settingsPanel.activeTab === "overview-backdrop"
+      active: settingsPanel.activeTab === "niri"
       visible: active
-      source: "settings/OverviewBackdropSettings.qml"
+      source: "settings/NiriSettings.qml"
       onLoaded: {
         item.colors = Qt.binding(function() { return settingsPanel.colors })
         item.saveConfigKey = function(k, v) { settingsPanel._saveConfigKey(k, v) }
@@ -515,6 +515,9 @@ Item {
         item.colors = Qt.binding(function() { return settingsPanel.colors })
         item.saveConfigKey = function(k, v) { settingsPanel._saveConfigKey(k, v) }
         item.cloneIntegrations = function() { return settingsPanel._cloneIntegrations() }
+        item.notify = function(message, success) {
+          if (!success) settingsPanel._showWarning(I18n.tr("Palette Bridge"), message)
+        }
       }
     }
   }
