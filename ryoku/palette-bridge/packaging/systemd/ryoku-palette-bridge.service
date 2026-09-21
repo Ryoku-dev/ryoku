@@ -1,0 +1,12 @@
+[Unit]
+Description=Ryoku wallpaper palette event bridge
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/ryoku-palette-bridge
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
