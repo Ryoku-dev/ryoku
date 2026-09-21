@@ -28,16 +28,20 @@ if ! command -v jq >/dev/null; then
   printf 'WARN jq is missing; the palette-diff check will be skipped\n'
 fi
 
-if jq -e '
-    type == "object" and
-    (.primary | test("^#[0-9a-fA-F]{6}$")) and
-    (.surface | test("^#[0-9a-fA-F]{6}$")) and
-    (.onSurface | test("^#[0-9a-fA-F]{6}$")) and
-    all(.[]; type == "string" and test("^#[0-9a-fA-F]{6}$"))
-  ' "$palette" >/dev/null 2>&1; then
-  ok "palette is valid: $palette"
+if $have_jq; then
+  if jq -e '
+      type == "object" and
+      (.primary | test("^#[0-9a-fA-F]{6}$")) and
+      (.surface | test("^#[0-9a-fA-F]{6}$")) and
+      (.onSurface | test("^#[0-9a-fA-F]{6}$")) and
+      all(.[]; type == "string" and test("^#[0-9a-fA-F]{6}$"))
+    ' "$palette" >/dev/null 2>&1; then
+    ok "palette is valid: $palette"
+  else
+    fail "palette is missing or invalid: $palette"
+  fi
 else
-  fail "palette is missing or invalid: $palette"
+  printf 'WARN jq is missing; palette validation skipped\n'
 fi
 
 if systemctl --user is-active --quiet ryoku-palette-bridge.service; then
