@@ -15,12 +15,18 @@ fail() {
   failed=1
 }
 
-for command_name in jq curl systemctl; do
+for command_name in curl systemctl; do
   if ! command -v "$command_name" >/dev/null; then
     fail "required command is missing: $command_name"
   fi
 done
 ((failed == 0)) || exit "$failed"
+
+have_jq=true
+if ! command -v jq >/dev/null; then
+  have_jq=false
+  printf 'WARN jq is missing; the palette-diff check will be skipped\n'
+fi
 
 if jq -e '
     type == "object" and
@@ -48,13 +54,17 @@ else
   fail "health endpoint is unavailable: $base_url/healthz"
 fi
 
-published=$(curl --connect-timeout 2 --max-time 5 -fsS "$base_url/v1/palette" 2>/dev/null || true)
-local_normalized=$(jq -cS . "$palette" 2>/dev/null || true)
-published_normalized=$(jq -cS . <<< "$published" 2>/dev/null || true)
-if [[ -n $local_normalized && $published_normalized == "$local_normalized" ]]; then
-  ok "published palette matches"
+if $have_jq; then
+  published=$(curl --connect-timeout 2 --max-time 5 -fsS "$base_url/v1/palette" 2>/dev/null || true)
+  local_normalized=$(jq -cS . "$palette" 2>/dev/null || true)
+  published_normalized=$(jq -cS . <<< "$published" 2>/dev/null || true)
+  if [[ -n $local_normalized && $published_normalized == "$local_normalized" ]]; then
+    ok "published palette matches"
+  else
+    fail "published palette differs from the active palette"
+  fi
 else
-  fail "published palette differs from the active palette"
+  printf 'WARN jq is missing; the published-palette check was skipped\n'
 fi
 
 if ((failed == 0)); then

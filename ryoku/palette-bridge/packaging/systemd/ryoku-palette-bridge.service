@@ -4,7 +4,7 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/ryoku-palette-bridge
+ExecStart=/usr/bin/ryoku-palette-bridge
 Restart=on-failure
 RestartSec=2
 
