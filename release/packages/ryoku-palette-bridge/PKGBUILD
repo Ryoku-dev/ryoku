@@ -21,7 +21,7 @@ build() {
   cd "$_repo/ryoku/palette-bridge"
   # no vendor tree is shipped with the bridge; GOFLAGS from the publish
   # container pin the proxy so the build stays offline and reproducible.
-  CGO_ENABLED=0 go build -trimpath -o "$srcdir/ryoku-palette-bridge" .
+  CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o "$srcdir/ryoku-palette-bridge" .
 }
 
 package() {
