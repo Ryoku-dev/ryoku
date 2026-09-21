@@ -1,0 +1,17 @@
+{
+  "manifest_version": 2,
+  "name": "Ryoku Zen Palette Bridge",
+  "version": "1.0.3",
+  "description": "Keeps Zen browser chrome synchronized with Ryoku's wallpaper palette.",
+  "permissions": ["theme", "http://127.0.0.1:47616/*"],
+  "background": {"scripts": ["palette.js", "background.js"]},
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ryoku-zen-palette@local",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}

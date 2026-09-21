@@ -1,0 +1,19 @@
+/**
+ * @name Midnight Ryoku
+ * @description Stable Midnight base; Ryoku palette variables live in QuickCSS.
+ * @author refact0r, Ryoku integration
+ * @version 1.0.0
+ */
+@import url("https://refact0r.github.io/midnight-discord/build/midnight.css");
+
+/* These compatibility rules remain loaded while palette variables swap. */
+.selected_f5eb4b,
+.selected_f6f816 .link_d8bfb3 {
+  color: var(--text-0) !important;
+  background: var(--accent-3) !important;
+}
+
+.selected_f6f816 .link_d8bfb3 * {
+  color: var(--text-0) !important;
+  fill: var(--text-0) !important;
+}
