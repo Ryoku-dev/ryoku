@@ -171,7 +171,7 @@ func (d *daemon) pickTransition() *pickedTransition {
 // onto a fresh backdrop at login, and live-reload, which relaunches the current
 // clip after a settings change. A user-driven switch follows the picker's
 // transition block (the skwd keys in ryogami-wall/config.json): off means a
-// plain cut, "random" is a no-repeat pick over the 38-shader skwd catalog, a
+// plain cut, "random" is a no-repeat pick over the 39-shader skwd catalog, a
 // catalog name pins that shader, and the "ryoku" sentinel (or an unknown value)
 // falls back to the shell's 22-preset reveal engine, which
 // wallpaper.transition_preset in shell.json can pin further.
@@ -313,16 +313,17 @@ func originForPreset(p transitionPreset) (x, y float64) {
 	return 0.5, 0.5
 }
 
-// The skwd shader catalog: the 38 GLSL transitions ported from skwd-paper,
+// The skwd shader catalog: the 39 GLSL transitions ported from skwd-paper,
 // compiled beside the shell's Backdrop (modules/wallpaper/skwd/<name>.frag.qsb).
-// Names match upstream's SHADER_CATALOG verbatim, so the picker's shader
-// dropdown and a config.json written for skwd both keep meaning.
+// Names match upstream's catalog verbatim, so the picker's shader dropdown and a
+// config.json written for skwd both keep meaning; crossfade is the clean cross
+// dissolve carried over from skwd-wall v2's transition.wgsl default branch.
 var skwdShaders = []string{
 	"pixelate", "iris", "liquid-ripple", "wave-warp", "glitch",
 	"voronoi-shatter", "heat-melt", "plasma-flow", "ink-splash", "smoke",
 	"chromatic-bloom", "inkwell-drop", "pixelfade-wave", "soft-warp-fade",
 	"zoom-blur-pull", "flyeye", "mosaic-tumble", "crosswarp", "morph",
-	"bounce", "circle-crop", "colour-distance", "crazy-parametric",
+	"bounce", "circle-crop", "colour-distance", "crossfade", "crazy-parametric",
 	"directional", "directional-scaled", "edge-transition", "glitch-displace",
 	"overexposure", "polka-dots-curtain", "puzzle-right", "static-fade",
 	"crosshatch", "directional-wipe", "fadecolor", "parametric-glitch",

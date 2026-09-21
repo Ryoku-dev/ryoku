@@ -10,12 +10,22 @@ Item {
     property string label: ""
     property string value: ""
     property var model: []
+    property var families: []
     property int skew: 10
     property real popupWidth: 240 * Config.uiScale
     property real popupMaxHeight: 280 * Config.uiScale
     property bool enabled: true
 
     signal selected(string key)
+
+    // Resolve a family key ("fade") to its display label ("Fade") from `families`;
+    // falls back to a Title-cased key so an unmapped family still reads sanely.
+    function familyLabel(key) {
+        for (var i = 0; i < families.length; i++) {
+            if (families[i].key === key) return I18n.tr(families[i].label)
+        }
+        return key ? key.charAt(0).toUpperCase() + key.slice(1) : ""
+    }
 
     readonly property string displayValue: {
         for (var i = 0; i < model.length; i++) {
@@ -146,58 +156,95 @@ Item {
                         Item {
                             id: _itemRoot
                             width: _itemsCol.width
-                            height: 24 * Config.uiScale
+                            height: (_showHeader ? _headerHeight : 0) + 24 * Config.uiScale
 
                             property bool _itemIsActive: picker.value === modelData.key
                             property bool _itemHovered: _itemMouse.containsMouse
 
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: 2
-                                color: _itemRoot._itemIsActive
-                                    ? (picker.colors ? Qt.rgba(picker.colors.primary.r, picker.colors.primary.g, picker.colors.primary.b, 0.28) : Qt.rgba(1, 1, 1, 0.18))
-                                    : (_itemRoot._itemHovered
-                                        ? (picker.colors ? Qt.rgba(picker.colors.surfaceVariant.r, picker.colors.surfaceVariant.g, picker.colors.surfaceVariant.b, 0.45) : Qt.rgba(1, 1, 1, 0.08))
-                                        : "transparent")
-                                Behavior on color { ColorAnimation { duration: Style.animVeryFast } }
-                            }
-
-                            Rectangle {
-                                visible: _itemRoot._itemIsActive
-                                width: 3
-                                height: parent.height - 8
-                                anchors.left: parent.left
-                                anchors.leftMargin: 2
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: picker.colors ? picker.colors.primary : Style.fallbackAccent
-                                radius: 1
-                            }
+                            // Draw a family header on the first entry of each family, so
+                            // the flat list reads as the Fade / Wipe / Warp / Break groups.
+                            readonly property string _family: modelData.family || ""
+                            readonly property bool _showHeader: _family !== ""
+                                && (index === 0 || (picker.model[index - 1].family || "") !== _family)
+                            readonly property real _headerHeight: 22 * Config.uiScale
+                            readonly property string _familyLabel: picker.familyLabel(_family)
 
                             Text {
-                                anchors.verticalCenter: parent.verticalCenter
+                                visible: _itemRoot._showHeader
+                                height: _itemRoot._showHeader ? _itemRoot._headerHeight : 0
                                 anchors.left: parent.left
-                                anchors.leftMargin: 14 * Config.uiScale
                                 anchors.right: parent.right
+                                anchors.leftMargin: 10 * Config.uiScale
                                 anchors.rightMargin: 10 * Config.uiScale
-                                text: I18n.tr(modelData.label)
+                                verticalAlignment: Text.AlignBottom
+                                bottomPadding: 3 * Config.uiScale
+                                text: _itemRoot._familyLabel
                                 elide: Text.ElideRight
                                 font.family: Style.fontFamily
-                                font.pixelSize: 11 * Config.uiScale
-                                font.weight: _itemRoot._itemIsActive ? Font.Bold : Font.Medium
-                                font.letterSpacing: 0.3
-                                color: _itemRoot._itemIsActive
-                                    ? (picker.colors ? picker.colors.primary : Style.fallbackAccent)
-                                    : (picker.colors ? picker.colors.surfaceText : "#e0e0e0")
+                                font.pixelSize: 9 * Config.uiScale
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1.5
+                                font.capitalization: Font.AllUppercase
+                                color: picker.colors
+                                    ? Qt.rgba(picker.colors.tertiary.r, picker.colors.tertiary.g, picker.colors.tertiary.b, 0.7)
+                                    : Qt.rgba(0.55, 0.8, 1, 0.7)
                             }
 
-                            MouseArea {
-                                id: _itemMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    picker.selected(modelData.key)
-                                    _popup.close()
+                            Item {
+                                id: _rowBody
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: 24 * Config.uiScale
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 2
+                                    color: _itemRoot._itemIsActive
+                                        ? (picker.colors ? Qt.rgba(picker.colors.primary.r, picker.colors.primary.g, picker.colors.primary.b, 0.28) : Qt.rgba(1, 1, 1, 0.18))
+                                        : (_itemRoot._itemHovered
+                                            ? (picker.colors ? Qt.rgba(picker.colors.surfaceVariant.r, picker.colors.surfaceVariant.g, picker.colors.surfaceVariant.b, 0.45) : Qt.rgba(1, 1, 1, 0.08))
+                                            : "transparent")
+                                    Behavior on color { ColorAnimation { duration: Style.animVeryFast } }
+                                }
+
+                                Rectangle {
+                                    visible: _itemRoot._itemIsActive
+                                    width: 3
+                                    height: parent.height - 8
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 2
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: picker.colors ? picker.colors.primary : Style.fallbackAccent
+                                    radius: 1
+                                }
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 14 * Config.uiScale
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 10 * Config.uiScale
+                                    text: I18n.tr(modelData.label)
+                                    elide: Text.ElideRight
+                                    font.family: Style.fontFamily
+                                    font.pixelSize: 11 * Config.uiScale
+                                    font.weight: _itemRoot._itemIsActive ? Font.Bold : Font.Medium
+                                    font.letterSpacing: 0.3
+                                    color: _itemRoot._itemIsActive
+                                        ? (picker.colors ? picker.colors.primary : Style.fallbackAccent)
+                                        : (picker.colors ? picker.colors.surfaceText : "#e0e0e0")
+                                }
+
+                                MouseArea {
+                                    id: _itemMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        picker.selected(modelData.key)
+                                        _popup.close()
+                                    }
                                 }
                             }
                         }
