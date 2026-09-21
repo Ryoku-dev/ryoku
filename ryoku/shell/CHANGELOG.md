@@ -4,19 +4,10 @@
 
 ### Added
 
-- **Upscaling runs in its own worker process and reports its progress.** The
-  waifu2x/ffmpeg enhance ran inside the daemon: a panicking job took the whole
-  daemon (and the picker with it) down, a crash mid-run wedged the job lock so
-  every later upscale answered "already running", and nothing showed a user
-  where their job had gone. The pipeline now lives in a child (`ryogami
-  upscale-worker`) the daemon supervises over its stdout: the child carries
-  its own process group, so a cancel or the failsafe ceiling kills waifu2x and
-  ffmpeg with it; a worker crash is just a failed verdict; and if the daemon
-  dies first the worker notices its stdin closing and tears the job down
-  instead of orphaning the GPU. The same phase/progress events reach the
-  picker's edit panel as before, and a terminal view lands beside them:
-  `ryogami upscale start <file> [scale]`, `ryogami upscale status`,
-  `ryogami upscale cancel` (`ryogami/daemon/upscale_worker.go`, `daemon/main.go`).
+- **Palette Bridge settings now live in Win+W > Advanced > Matugen.** The
+  existing Matugen controls stay on their own page, while a second page handles
+  building the bridge, managing its service, checking its health, and setting up
+  or removing the Spotify, Vesktop, and Zen integrations.
 
 - **Kairos, a third built-in bar style: one dynamic island carrying the clock.**
   A single near-black pill floats at the top centre showing the time, and opens
@@ -58,26 +49,6 @@
   underneath it, and the input mask is the pill rather than the window, so the
   desktop around the island stays usable. Select it as **Kairos** in Ryoku
   Settings' App Launcher (`modules/launcher/variants/kairos`, `catalog.json`).
-
-- **Kairos has its own island settings, opened from the gear in the clock pill.**
-  The top-right gear on the expanded clock island opens a surface that belongs to
-  the style alone -- a near-black plate styled like the island, with three routes:
-  Island (size, top offset), Clock (12-hour, seconds, date wheel) and Music (the
-  now-playing bubble and its hover peek). Every control writes the `kairos` key in
-  `shell.json` through the shell daemon and applies live; Ryoku Settings is
-  untouched (`barstyles/kairos/settings/`, `services/Config.qml`).
-
-- **Kairos quick settings grow out of the island itself.** A tune icon beside the
-  gear extends the expanded clock island into the style's own quick settings; one
-  surface, one pill, one `Motion.morph`, so open and close read as the island
-  stretching rather than another window appearing. It carries Wi-Fi and Bluetooth
-  tiles, a weather card (the music card's place), Display and Sound fader rows and
-  the notification list; each tile opens a page in place -- Wi-Fi networks with a
-  password prompt, Bluetooth connected/saved/nearby pairing, Sound output/input
-  volume and devices, and Display brightness, scale, resolution and Night Light.
-  Pages push in from the side rather than cutting. Dismiss by clicking outside,
-  moving the pointer away, Escape, or the tune icon; Ryoku Settings is untouched
-  (`barstyles/kairos/quicksettings/`, `components/Island.qml`).
 
 - **Rashin works with any coding agent now, not just Hermes.** The Hub's Rashin
   page and the dashboard both list your detected agents with a one-click Wire
@@ -174,22 +145,6 @@
   config migrates (`ryogami/wall-ui/qml/Config.qml`).
 
 ### Fixed
-- **Bluetooth devices no longer show as MAC addresses when BlueZ has no name
-  for them.** BlueZ leaves a device's alias equal to its own address (dashed,
-  such as `73-EC-EF-CD-48-8C`) until it learns a name, and Quickshell exposes
-  that alias as `name` while the device-reported name is `deviceName`. Every
-  surface read the name from the alias alone, so an unnamed device printed its
-  MAC even when `deviceName` held the real name. One shared resolver now skips
-  an address-shaped alias, prefers the device's own reported name, and falls
-  back to the address only when a device truly has no name: it covers the
-  Kairos and QS Bar Bluetooth panels, the Sumi Bluetooth menu, the launcher's
-  connection tiles, and the Hub's Connections page
-  (`ryoku/ui/lib/bluetooth.js`, `services/BtLink.qml`,
-  `barstyles/kairos/quicksettings/pages/{BluetoothPage,HomePage}.qml`,
-  `barstyles/qsbar/panels/BluetoothPanel.qml`,
-  `framebars/menus/MenuBluetooth.qml`,
-  `launcher/variants/main/BtConnections.qml`,
-  `ryoku/hub/quickshell/pages/ConnectionsPage.qml`).
 - **Turning on the Cobalt download engine no longer adds you to the `docker`
   group.** Docker group membership is passwordless root for every process in
   your session, so a GUI toggle should never grant it. The engine already does

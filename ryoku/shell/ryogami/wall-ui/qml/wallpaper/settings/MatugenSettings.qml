@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import ".."
 import "../.."
 import "../../components"
 import Ryoku.Ui.Singletons
@@ -10,6 +11,8 @@ Column {
     property var colors
     property var saveConfigKey
     property var cloneIntegrations
+    property var notify
+    property string activePage: "matugen"
     property var _templates: ({})
     readonly property var _apps: Object.keys(root._templates).sort()
 
@@ -27,9 +30,33 @@ Column {
     }
 
     width: parent ? parent.width : 0
-    spacing: 8
+    spacing: 12
+
+    Row {
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: Style.spacingSmall
+
+        FilterButton {
+            colors: root.colors
+            label: I18n.tr("MATUGEN")
+            register: false
+            height: 28
+            isActive: root.activePage === "matugen"
+            onClicked: root.activePage = "matugen"
+        }
+
+        FilterButton {
+            colors: root.colors
+            label: I18n.tr("PALETTE BRIDGE")
+            register: false
+            height: 28
+            isActive: root.activePage === "bridge"
+            onClicked: root.activePage = "bridge"
+        }
+    }
 
     SettingsCard {
+        visible: root.activePage === "matugen"
         colors: root.colors
         title: I18n.tr("External Matugen")
         subtitle: I18n.tr("Run Matugen alongside Ryogami-wall's internal configuration.")
@@ -54,6 +81,7 @@ Column {
     }
 
     SettingsCard {
+        visible: root.activePage === "matugen"
         colors: root.colors
         title: I18n.tr("Integrations")
         subtitle: I18n.tr("Each entry generates themed output from a template and optionally runs a reload command.")
@@ -104,6 +132,7 @@ Column {
     }
 
     SettingsCard {
+        visible: root.activePage === "matugen"
         colors: root.colors
         title: I18n.tr("App templates")
         subtitle: I18n.tr("Recolour each app's config from the generated palette.")
@@ -134,5 +163,12 @@ Column {
                 }
             }
         }
+    }
+
+    PaletteBridgeSettings {
+        visible: root.activePage === "bridge"
+        colors: root.colors
+        saveConfigKey: root.saveConfigKey
+        notify: root.notify
     }
 }

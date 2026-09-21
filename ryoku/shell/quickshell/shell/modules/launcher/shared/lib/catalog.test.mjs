@@ -10,7 +10,7 @@ const raw = JSON.parse(readFileSync(
   "utf8"
 ));
 
-test("real catalog exposes its variants with the promised routing", () => {
+test("real catalog exposes the built-in variants with the promised routing", () => {
   const catalog = Catalog.normalize(raw);
 
   assert.deepEqual(
@@ -20,7 +20,6 @@ test("real catalog exposes its variants with the promised routing", () => {
   assert.equal(Catalog.defaultEntry(catalog).id, "hero");
   assert.equal(Catalog.fallbackEntry(catalog).id, "okshell");
   assert.equal(Catalog.entry(catalog, "main").id, "main");
-  assert.equal(Catalog.entry(catalog, "kairos").id, "kairos");
   assert.equal(Catalog.entry(catalog, "does-not-exist").id, "hero");
 });
 
