@@ -12,6 +12,9 @@ Item {
     property var colors
     property var service
     property int hexRadius: 140
+    property string hexShape: "hexagon"
+    property int gridRow: 0
+    property int gridColumn: 0
     property var itemData
     property var applyRequest: null
     property bool isSelected: false
@@ -48,14 +51,25 @@ Item {
         onTriggered: hexItem._previewArmed = true
     }
 
-    width: hexRadius * 2
-    height: Math.ceil(hexRadius * 1.73205)
+    width: hexShape === "rhombus" ? hexRadius * 4 : hexRadius * 2
+    height: hexShape === "diamond" ? Math.ceil(hexRadius * 3.4641) : Math.ceil(hexRadius * 1.73205)
 
     readonly property real _r: hexRadius
-    readonly property real _cx: _r
+    readonly property real _cx: width / 2
     readonly property real _cy: height / 2
     readonly property real _cos30: 0.866025
     readonly property real _sin30: 0.5
+    readonly property string _tilePath: {
+        switch (hexShape) {
+        case "triangle":
+            return ((gridRow + gridColumn) % 2 === 0)
+                ? "M " + _cx + " 0 L " + width + " " + height + " L 0 " + height + " Z"
+                : "M 0 0 L " + width + " 0 L " + _cx + " " + height + " Z"
+        case "diamond": return "M " + _cx + " 0 L " + width + " " + _cy + " L " + _cx + " " + height + " L 0 " + _cy + " Z"
+        case "rhombus": return "M " + _cx + " 0 L " + width + " " + _cy + " L " + _cx + " " + height + " L 0 " + _cy + " Z"
+        default: return "M " + (_cx + _r) + " " + _cy + " L " + (_cx + _r * _sin30) + " " + (_cy - _r * _cos30) + " L " + (_cx - _r * _sin30) + " " + (_cy - _r * _cos30) + " L " + (_cx - _r) + " " + _cy + " L " + (_cx - _r * _sin30) + " " + (_cy + _r * _cos30) + " L " + (_cx + _r * _sin30) + " " + (_cy + _r * _cos30) + " Z"
+        }
+    }
 
     Item {
         id: hexMask
@@ -69,13 +83,7 @@ Item {
             ShapePath {
                 fillColor: "white"
                 strokeColor: "transparent"
-                startX: hexItem._cx + hexItem._r;                          startY: hexItem._cy
-                PathLine { x: hexItem._cx + hexItem._r * hexItem._sin30;  y: hexItem._cy - hexItem._r * hexItem._cos30 }
-                PathLine { x: hexItem._cx - hexItem._r * hexItem._sin30;  y: hexItem._cy - hexItem._r * hexItem._cos30 }
-                PathLine { x: hexItem._cx - hexItem._r;                   y: hexItem._cy }
-                PathLine { x: hexItem._cx - hexItem._r * hexItem._sin30;  y: hexItem._cy + hexItem._r * hexItem._cos30 }
-                PathLine { x: hexItem._cx + hexItem._r * hexItem._sin30;  y: hexItem._cy + hexItem._r * hexItem._cos30 }
-                PathLine { x: hexItem._cx + hexItem._r;                   y: hexItem._cy }
+                PathSvg { path: hexItem._tilePath }
             }
         }
     }
@@ -203,13 +211,7 @@ Item {
             strokeWidth: 2
             strokeStyle: ShapePath.DashLine
             dashPattern: [4, 4]
-            startX: hexItem._cx + hexItem._r;                          startY: hexItem._cy
-            PathLine { x: hexItem._cx + hexItem._r * hexItem._sin30;  y: hexItem._cy - hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx - hexItem._r * hexItem._sin30;  y: hexItem._cy - hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx - hexItem._r;                   y: hexItem._cy }
-            PathLine { x: hexItem._cx - hexItem._r * hexItem._sin30;  y: hexItem._cy + hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx + hexItem._r * hexItem._sin30;  y: hexItem._cy + hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx + hexItem._r;                   y: hexItem._cy }
+            PathSvg { path: hexItem._tilePath }
         }
     }
 
@@ -225,13 +227,7 @@ Item {
                 : Qt.rgba(0, 0, 0, 0.5)
             Behavior on strokeColor { ColorAnimation { duration: Style.animFast } }
             strokeWidth: hexItem.isSelected ? 3 : 1.5
-            startX: hexItem._cx + hexItem._r;                          startY: hexItem._cy
-            PathLine { x: hexItem._cx + hexItem._r * hexItem._sin30;  y: hexItem._cy - hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx - hexItem._r * hexItem._sin30;  y: hexItem._cy - hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx - hexItem._r;                   y: hexItem._cy }
-            PathLine { x: hexItem._cx - hexItem._r * hexItem._sin30;  y: hexItem._cy + hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx + hexItem._r * hexItem._sin30;  y: hexItem._cy + hexItem._r * hexItem._cos30 }
-            PathLine { x: hexItem._cx + hexItem._r;                   y: hexItem._cy }
+            PathSvg { path: hexItem._tilePath }
         }
     }
 
@@ -309,8 +305,19 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         cursorShape: Qt.PointingHandCursor
         function contains(point) {
-            var dx = Math.abs(point.x - hexItem._cx)
-            var dy = Math.abs(point.y - hexItem._cy)
+            var x = point.x
+            var y = point.y
+            if (x < 0 || y < 0 || x > width || y > height) return false
+            if (hexItem.hexShape === "triangle") {
+                var t = y / height
+                if ((hexItem.gridRow + hexItem.gridColumn) % 2 === 0)
+                    return x >= hexItem._cx * (1 - t) && x <= hexItem._cx * (1 + t)
+                return x >= hexItem._cx * t && x <= width - hexItem._cx * t
+            }
+            if (hexItem.hexShape === "diamond" || hexItem.hexShape === "rhombus")
+                return Math.abs(x - hexItem._cx) / hexItem._cx + Math.abs(y - hexItem._cy) / hexItem._cy <= 1
+            var dx = Math.abs(x - hexItem._cx)
+            var dy = Math.abs(y - hexItem._cy)
             return dy <= hexItem._cos30 * hexItem._r && dx <= hexItem._r - dy * 0.57735
         }
         onContainsMouseChanged: {

@@ -38,6 +38,13 @@ for finer detail.
   published GitHub changelog is posted verbatim in a branded embed (wordmark
   banner, logo mark, brand footer). The rolling `unstable` pre-release is not
   announced, to keep the channel quiet. See `CONTRIBUTING.md`.
+- **The wallpaper picker's hex layout gains geometric tile families and field
+  curves.** The picker can now lay its cards as hexagons, triangles, diamonds or
+  rhombi, and bend the column field into a plane, a bow, a ribbon or an S-sweep,
+  with adjustable bend strength and wave count. Tile geometry, hover hit-testing
+  and grid metrics follow the chosen shape, so cards line up and only their own
+  glass area responds to the pointer. Ported from skwd-wall v2. Set it in the
+  wallpaper picker's Selector settings (Field curve, Tile family).
 - **User edits live in a `user_edits` overlay, separate from Ryoku-owned config.**
   `~/.config/ryoku/user_edits` mirrors `~/.config` and is laid over the base on
   every `ryoku materialize`/deploy, so a file there wins while the base (the

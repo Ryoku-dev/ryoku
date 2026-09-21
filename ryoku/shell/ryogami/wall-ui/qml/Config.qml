@@ -324,6 +324,9 @@ QtObject {
     readonly property int hexScrollStep: _wallpaperSelector.hexScrollStep ?? 1
     readonly property bool hexArc: _wallpaperSelector.hexArc !== false
     readonly property real hexArcIntensity: _wallpaperSelector.hexArcIntensity ?? 1.2
+    readonly property string hexCurve: _wallpaperSelector.hexCurve ?? (hexArc ? "arc" : "flat")
+    readonly property string hexShape: _wallpaperSelector.hexShape ?? "hexagon"
+    readonly property real hexWaves: _wallpaperSelector.hexWaves ?? 1.0
 
     readonly property int gridColumns: _wallpaperSelector.gridColumns ?? (_isSmallScreen ? 4 : 6)
     readonly property int gridRows: _wallpaperSelector.gridRows ?? 3

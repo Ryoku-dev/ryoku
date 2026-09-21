@@ -536,8 +536,11 @@ Scope {
     var r = hexRadius
     var spacing = 6
     var hexH = Math.ceil(r * 1.73205)
-    var stepY = hexH + spacing
-    var contentH = (rows - 1) * stepY + hexH + hexH / 2
+    var shape = Config.hexShape
+    var tileH = shape === "diamond" ? hexH * 2 : hexH
+    var stepY = tileH + spacing
+    var staggerTail = shape === "triangle" ? 0 : stepY / 2
+    var contentH = (rows - 1) * stepY + tileH + staggerTail
     return contentH + topBarHeight + 90
   }
   Behavior on cardHeight { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
@@ -1156,15 +1159,15 @@ Scope {
       property bool contentMoving: false
       onContentXChanged: { hexListView.contentMoving = true; _hexScrollStop.restart() }
       Timer { id: _hexScrollStop; interval: 90; onTriggered: hexListView.contentMoving = false }
-
       property int _rows: wallpaperSelector.hexRows
       property real _r: wallpaperSelector.hexRadius
       property real _gridSpacing: 6
-      property real _hexW: _r * 2
-      property real _hexH: Math.ceil(_r * 1.73205)
-      property real _stepX: 1.5 * _r + _gridSpacing
+      property string _shape: Config.hexShape
+      property real _hexW: _shape === "rhombus" ? _r * 4 : _r * 2
+      property real _hexH: _shape === "diamond" ? Math.ceil(_r * 3.4641) : Math.ceil(_r * 1.73205)
+      property real _stepX: _shape === "triangle" ? _r + _gridSpacing : (_shape === "hexagon" ? 1.5 * _r + _gridSpacing : _hexW / 2 + _gridSpacing)
       property real _stepY: _hexH + _gridSpacing
-      property real _gridContentH: (_rows - 1) * _stepY + _hexH + _hexH / 2
+      property real _gridContentH: (_rows - 1) * _stepY + _hexH + (_shape === "triangle" ? 0 : _stepY / 2)
       property real _yOffset: Math.max(0, (height - _gridContentH) / 2)
       property real _visibleBand: (wallpaperSelector.hexCols - 1) * _stepX + _hexW
       property real _fadeZone: (width - _visibleBand) / 2
@@ -1322,15 +1325,21 @@ Scope {
         readonly property bool _visible: _insideView && !_nearEdge
         property real _colScale: _visible ? 1 : 0
         Behavior on _colScale { enabled: !hexListView._initialSnap; NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
-
-        property real _arcFactor: Config.hexArc ? Config.hexArcIntensity : 0
-        Behavior on _arcFactor { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
-
+        property real _curveFactor: Config.hexCurve === "flat" ? 0 : Config.hexArcIntensity
+        Behavior on _curveFactor { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
         readonly property real _arcOffset: {
-          if (_arcFactor === 0) return 0
+          if (_curveFactor === 0) return 0
           var viewCenterX = hexListView.width / 2
-          var normalized = (_colCenter - viewCenterX) / Math.max(1, viewCenterX)
-          return -normalized * normalized * hexListView._r * _arcFactor
+          var n = (_colCenter - viewCenterX) / Math.max(1, viewCenterX)
+          var r = hexListView._r
+          var shaped
+          switch (Config.hexCurve) {
+            case "wave": shaped = Math.sin(n * Math.PI * Config.hexWaves) * r; break
+            case "s": shaped = n * n * n * r; break
+            case "arc": shaped = -n * n * r; break
+            default: shaped = 0; break
+          }
+          return shaped * _curveFactor
         }
 
         Repeater {
@@ -1341,6 +1350,9 @@ Scope {
             property int flatIdx: hexCol.colIdx * hexListView._rows + rowIdx
 
             hexRadius: hexListView._r
+            hexShape: Config.hexShape
+            gridRow: rowIdx
+            gridColumn: hexCol.colIdx
             colors: wallpaperSelector.colors
             service: wallpaperSelector.selectorService
             itemData: wallpaperSelector._activeModel ? wallpaperSelector._activeModel.get(flatIdx) : null
@@ -1350,7 +1362,7 @@ Scope {
             applyRequest: function(item, forcePicker) { wallpaperSelector._applyItem(item, forcePicker) }
 
             x: 0
-            y: hexListView._yOffset + rowIdx * hexListView._stepY + (hexCol.colIdx % 2 !== 0 ? hexListView._hexH / 2 : 0) + hexCol._arcOffset
+            y: hexListView._yOffset + rowIdx * hexListView._stepY + (hexListView._shape === "triangle" || hexCol.colIdx % 2 === 0 ? 0 : hexListView._stepY / 2) + hexCol._arcOffset
 
             parallaxX: 0
             parallaxY: 0

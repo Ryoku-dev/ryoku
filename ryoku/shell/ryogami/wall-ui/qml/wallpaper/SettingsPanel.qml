@@ -145,7 +145,10 @@ Item {
         hexCols: Config.hexCols,
         hexScrollStep: Config.hexScrollStep,
         hexArc: Config.hexArc,
-        hexArcIntensity: Config.hexArcIntensity
+        hexArcIntensity: Config.hexArcIntensity,
+        hexCurve: Config.hexCurve,
+        hexShape: Config.hexShape,
+        hexWaves: Config.hexWaves
       }
     } else if (Config.displayMode === "wall") {
       preset = {
@@ -171,6 +174,9 @@ Item {
       if (p.hexScrollStep !== undefined) settingsPanel._saveField("hexScrollStep", p.hexScrollStep)
       if (p.hexArc !== undefined) settingsPanel._saveField("hexArc", p.hexArc)
       if (p.hexArcIntensity !== undefined) settingsPanel._saveField("hexArcIntensity", p.hexArcIntensity)
+      if (p.hexCurve !== undefined) settingsPanel._saveField("hexCurve", p.hexCurve)
+      if (p.hexShape !== undefined) settingsPanel._saveField("hexShape", p.hexShape)
+      if (p.hexWaves !== undefined) settingsPanel._saveField("hexWaves", p.hexWaves)
     } else if (Config.displayMode === "wall") {
       if (p.gridColumns !== undefined) settingsPanel._saveField("gridColumns", p.gridColumns)
       if (p.gridRows !== undefined) settingsPanel._saveField("gridRows", p.gridRows)

@@ -138,8 +138,56 @@ Flow {
         RowInput { visible: Config.displayMode === "hex"; colors: root.colors; title: I18n.tr("Rows"); value: Config.hexRows; min: 1; max: 8; onCommit: function(v) { if (root.saveField) root.saveField("hexRows", v) } }
         RowInput { visible: Config.displayMode === "hex"; colors: root.colors; title: I18n.tr("Columns"); value: Config.hexCols; min: 3; max: 20; onCommit: function(v) { if (root.saveField) root.saveField("hexCols", v) } }
         RowInput { visible: Config.displayMode === "hex"; colors: root.colors; title: I18n.tr("Scroll step"); value: Config.hexScrollStep; min: 1; max: 10; onCommit: function(v) { if (root.saveField) root.saveField("hexScrollStep", v) } }
-        RowToggle { visible: Config.displayMode === "hex"; colors: root.colors; title: I18n.tr("Arc layout"); checked: Config.hexArc; onToggle: function(v) { if (root.saveField) root.saveField("hexArc", v) } }
-        RowInput { visible: Config.displayMode === "hex" && Config.hexArc; colors: root.colors; title: I18n.tr("Arc intensity (×10)"); value: Math.round(Config.hexArcIntensity * 10); min: 1; max: 30; onCommit: function(v) { if (root.saveField) root.saveField("hexArcIntensity", v / 10) } }
+        SettingsRow {
+            visible: Config.displayMode === "hex"
+            colors: root.colors
+            title: I18n.tr("Field curve")
+            description: I18n.tr("Shape the columns across the picker.")
+            Row {
+                spacing: 4
+                Repeater {
+                    model: [
+                        { key: "flat", label: I18n.tr("Plane") },
+                        { key: "arc", label: I18n.tr("Bow") },
+                        { key: "wave", label: I18n.tr("Ribbon") },
+                        { key: "s", label: I18n.tr("S-sweep") }
+                    ]
+                    FilterButton {
+                        colors: root.colors
+                        label: modelData.label
+                        skew: 8 * Config.uiScale; height: 26 * Config.uiScale
+                        isActive: Config.hexCurve === modelData.key
+                        onClicked: if (root.saveField) root.saveField("hexCurve", modelData.key)
+                    }
+                }
+            }
+        }
+        SettingsRow {
+            visible: Config.displayMode === "hex"
+            colors: root.colors
+            title: I18n.tr("Tile family")
+            description: I18n.tr("Choose the geometry used for wallpaper cards.")
+            Row {
+                spacing: 4
+                Repeater {
+                    model: [
+                        { key: "hexagon", label: I18n.tr("Hexagon") },
+                        { key: "triangle", label: I18n.tr("Triangle") },
+                        { key: "diamond", label: I18n.tr("Diamond") },
+                        { key: "rhombus", label: I18n.tr("Rhombus") }
+                    ]
+                    FilterButton {
+                        colors: root.colors
+                        label: modelData.label
+                        skew: 8 * Config.uiScale; height: 26 * Config.uiScale
+                        isActive: Config.hexShape === modelData.key
+                        onClicked: if (root.saveField) root.saveField("hexShape", modelData.key)
+                    }
+                }
+            }
+        }
+        RowInput { visible: Config.displayMode === "hex" && Config.hexCurve !== "flat"; colors: root.colors; title: I18n.tr("Bend strength (×10)"); value: Math.round(Config.hexArcIntensity * 10); min: 1; max: 30; onCommit: function(v) { if (root.saveField) root.saveField("hexArcIntensity", v / 10) } }
+        RowInput { visible: Config.displayMode === "hex" && Config.hexCurve === "wave"; colors: root.colors; title: I18n.tr("Waves (×10)"); value: Math.round(Config.hexWaves * 10); min: 1; max: 50; onCommit: function(v) { if (root.saveField) root.saveField("hexWaves", v / 10) } }
 
         RowInput { visible: Config.displayMode === "wall"; colors: root.colors; title: I18n.tr("Columns"); value: Config.gridColumns; min: 2; max: 12; onCommit: function(v) { if (root.saveField) root.saveField("gridColumns", v) } }
         RowInput { visible: Config.displayMode === "wall"; colors: root.colors; title: I18n.tr("Rows"); value: Config.gridRows; min: 1; max: 8; onCommit: function(v) { if (root.saveField) root.saveField("gridRows", v) } }
