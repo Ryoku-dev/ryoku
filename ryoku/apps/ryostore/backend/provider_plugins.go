@@ -1,8 +1,9 @@
 // The plugins provider adapts the canonical external product registry into the
 // Store contract. Browse metadata comes from the registry; receipt ownership,
 // installed version, and update state come from the common product transaction
-// layer. Placement remains user state in plugins.json and installation never
-// enables a plugin.
+// layer. Placement remains user state in plugins.json: installing honours the
+// product's own defaults.desktopWidget.autoEnable declaration, otherwise the
+// plugin stays disabled until the user places it.
 package main
 
 import (
@@ -88,11 +89,42 @@ func snapshotPluginPlacement(id string) (json.RawMessage, bool, bool, error) {
 	return append(json.RawMessage(nil), entry...), present, true, nil
 }
 
-func disableFreshPlugin(id string) error {
-	if err := exec.Command("ryoku-plugins-place", id, "enabled", "false").Run(); err != nil {
-		return fmt.Errorf("disable fresh plugin placement: %w", err)
+func setPluginPlacementEnabled(id string, enabled bool) error {
+	if err := exec.Command("ryoku-plugins-place", id, "enabled", fmt.Sprintf("%t", enabled)).Run(); err != nil {
+		return fmt.Errorf("set fresh plugin placement: %w", err)
 	}
 	return nil
+}
+
+// pluginAutoEnable reports whether a freshly installed plugin ships a manifest
+// that asks to be placed on install. Only a desktop widget may auto-enable, so a
+// missing or unreadable manifest, or one without the desktopWidget host or with
+// the flag unset, leaves the plugin disabled.
+func pluginAutoEnable(installDir string) bool {
+	raw, err := os.ReadFile(filepath.Join(installDir, "manifest.json"))
+	if err != nil {
+		return false
+	}
+	var manifest struct {
+		Hosts    []string `json:"hosts"`
+		Defaults struct {
+			DesktopWidget struct {
+				AutoEnable bool `json:"autoEnable"`
+			} `json:"desktopWidget"`
+		} `json:"defaults"`
+	}
+	if decodeOneJSON(raw, &manifest) != nil {
+		return false
+	}
+	if !manifest.Defaults.DesktopWidget.AutoEnable {
+		return false
+	}
+	for _, host := range manifest.Hosts {
+		if host == "desktopWidget" {
+			return true
+		}
+	}
+	return false
 }
 
 func restorePluginPlacement(id string, entry json.RawMessage, present, filePresent bool) error {

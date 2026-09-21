@@ -81,14 +81,15 @@ esac
 }
 
 type pluginProductFixture struct {
-	testing *testing.T
-	server  *httptest.Server
-	cache   *Cache
-	mu      sync.Mutex
-	version string
-	marker  string
-	corrupt bool
-	paths   []string
+	testing    *testing.T
+	server     *httptest.Server
+	cache      *Cache
+	mu         sync.Mutex
+	version    string
+	marker     string
+	corrupt    bool
+	autoEnable bool
+	paths      []string
 }
 
 func newPluginProductFixture(t *testing.T) *pluginProductFixture {
@@ -115,6 +116,12 @@ func (fixture *pluginProductFixture) set(version, marker string, corrupt bool) {
 	fixture.corrupt = corrupt
 }
 
+func (fixture *pluginProductFixture) setAutoEnable(on bool) {
+	fixture.mu.Lock()
+	defer fixture.mu.Unlock()
+	fixture.autoEnable = on
+}
+
 func (fixture *pluginProductFixture) requests() []string {
 	fixture.mu.Lock()
 	defer fixture.mu.Unlock()
@@ -123,12 +130,15 @@ func (fixture *pluginProductFixture) requests() []string {
 
 func (fixture *pluginProductFixture) serve(w http.ResponseWriter, request *http.Request) {
 	fixture.mu.Lock()
-	version, marker, corrupt := fixture.version, fixture.marker, fixture.corrupt
+	version, marker, corrupt, autoEnable := fixture.version, fixture.marker, fixture.corrupt, fixture.autoEnable
 	fixture.paths = append(fixture.paths, request.URL.Path)
 	fixture.mu.Unlock()
 	content := []byte("import QtQuick\nItem { property string marker: \"" + marker + "\" }\n")
 	contentHash := sha256.Sum256(content)
 	pluginManifest := []byte(fmt.Sprintf(`{"id":"fixture","name":"Fixture","version":%q,"hosts":["desktopWidget"]}`, version))
+	if autoEnable {
+		pluginManifest = []byte(fmt.Sprintf(`{"id":"fixture","name":"Fixture","version":%q,"hosts":["desktopWidget"],"defaults":{"desktopWidget":{"autoEnable":true}}}`, version))
+	}
 	pluginManifestHash := sha256.Sum256(pluginManifest)
 	manifest := ProductManifest{
 		Schema: 1, ID: "fixture", Category: "plugins", Version: version,
@@ -358,6 +368,48 @@ func TestFreshPluginFailureRestoresPlacement(t *testing.T) {
 	if !strings.Contains(string(calls), "fixture enabled false\n") ||
 		!strings.Contains(string(calls), "fixture restore ") {
 		t.Fatalf("placement transaction calls = %q", calls)
+	}
+}
+
+func TestFreshPluginHonoursAutoEnable(t *testing.T) {
+	fixture := newPluginProductFixture(t)
+	fixture.setAutoEnable(true)
+	placeLog := stubPlaceTool(t)
+	provider := pluginProvider{cache: fixture.cache}
+	if err := provider.Install(context.Background(), "fixture"); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	placeCalls, err := os.ReadFile(placeLog)
+	if err != nil || string(placeCalls) != "fixture enabled true\n" {
+		t.Fatalf("auto-enable install placement calls = %q err=%v", placeCalls, err)
+	}
+}
+
+func TestPluginAutoEnable(t *testing.T) {
+	cases := []struct {
+		name     string
+		manifest string
+		write    bool
+		want     bool
+	}{
+		{name: "missing manifest", write: false, want: false},
+		{name: "malformed json", manifest: "{not json", write: true, want: false},
+		{name: "flag false", manifest: `{"hosts":["desktopWidget"],"defaults":{"desktopWidget":{"autoEnable":false}}}`, write: true, want: false},
+		{name: "host absent flag set", manifest: `{"hosts":["sidebarLeft"],"defaults":{"desktopWidget":{"autoEnable":true}}}`, write: true, want: false},
+		{name: "desktop widget auto enable", manifest: `{"hosts":["desktopWidget"],"defaults":{"desktopWidget":{"autoEnable":true}}}`, write: true, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tc.write {
+				if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(tc.manifest), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := pluginAutoEnable(dir); got != tc.want {
+				t.Fatalf("pluginAutoEnable = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

@@ -51,21 +51,26 @@ manifest_for() {
 }
 
 # fill a plugin's entry with its shipped presets (default host, default
-# settings) -- only the missing keys, so user edits survive. idempotent;
-# no manifest = nothing to seed.
+# settings, and the tile geometry the product declares for itself) -- only the
+# missing keys, so user edits survive. idempotent; no manifest = nothing to seed.
 seed_entry() {
-	local pid="$1" man defs host
+	local pid="$1" man defs host geo
 	man="$(manifest_for "$pid")" || return 0
 	# defaults come from the schema (metadata.settings[].default). older flat
 	# metadata.defaultSettings still works.
 	defs="$(jq -c 'if (.metadata.settings | type) == "array" then (.metadata.settings | map({(.key): .default}) | add // {}) else (.metadata.defaultSettings // {}) end' "$man")"
 	host="$(jq -r '.defaults.host // "desktopWidget"' "$man")"
-	jq --arg id "$pid" --argjson defs "$defs" --arg host "$host" \
+	# a product may ship the spot its tile opens at (a widget set composes a
+	# desktop layout this way); absent, the desktop's own default applies.
+	geo="$(jq -c 'if (.defaults.desktopWidget | type) == "object" then
+			(.defaults.desktopWidget | with_entries(select(.key == "x" or .key == "y" or .key == "scale" or .key == "locked") | with_entries(select(.value != null))))
+		else {} end' "$man")"
+	jq --arg id "$pid" --argjson defs "$defs" --arg host "$host" --argjson geo "$geo" \
 		'.[$id] = ((.[$id] // {}) + {
 			enabled: ((.[$id].enabled) // false),
 			host: ((.[$id].host) // $host),
 			settings: ($defs + ((.[$id].settings) // {}))
-		})' "$f" >"$tmp" && mv "$tmp" "$f"
+		} + (if ($geo == {}) or ((.[$id] // {}) | has("desktopWidget")) then {} else {desktopWidget: $geo} end))' "$f" >"$tmp" && mv "$tmp" "$f"
 }
 
 case "$field" in

@@ -79,24 +79,55 @@ Scope {
         return n[w] || w;
     }
     // The Add drop-down's model (docs/stage.md, "Edit widgets"): every widget
-    // with its current on/off state. Built-ins and the visualizer read their
-    // config flags; the plugins are the Registry's placed desktopWidgets.
+    // with its current on/off state and the group it belongs to. The built-ins
+    // and the visualizer are the shell's own widgets (group ""); store-installed
+    // plugin widgets carry the group from their manifest's `set`, so a whole
+    // installed suite lands under one caption and any future set groups itself
+    // with no change here. A plugin whose manifest names no set falls under a
+    // generic Plugins group. The array stays flat: built-ins first (visualizer
+    // last), then each set contiguously in the order its first widget appeared.
     readonly property var addItems: {
         const bi = [
-            { id: "clock", label: "Clock", icon: "schedule", enabled: Config.clockEnabled },
-            { id: "calendar", label: "Calendar", icon: "calendar_month", enabled: Config.calendarEnabled },
-            { id: "music", label: "Music", icon: "music_note", enabled: Config.musicEnabled },
-            { id: "aio", label: "All-in-one", icon: "dashboard", enabled: Config.aioEnabled },
-            { id: "stats", label: "System stats", icon: "monitor_heart", enabled: Config.statsEnabled },
-            { id: "weather", label: "Weather", icon: "partly_cloudy_day", enabled: Config.weatherEnabled },
-            { id: "notes", label: "Notes", icon: "sticky_note_2", enabled: Config.notesEnabled }
+            { id: "clock", label: "Clock", icon: "schedule", enabled: Config.clockEnabled, group: "" },
+            { id: "calendar", label: "Calendar", icon: "calendar_month", enabled: Config.calendarEnabled, group: "" },
+            { id: "music", label: "Music", icon: "music_note", enabled: Config.musicEnabled, group: "" },
+            { id: "aio", label: "All-in-one", icon: "dashboard", enabled: Config.aioEnabled, group: "" },
+            { id: "stats", label: "System stats", icon: "monitor_heart", enabled: Config.statsEnabled, group: "" },
+            { id: "weather", label: "Weather", icon: "partly_cloudy_day", enabled: Config.weatherEnabled, group: "" },
+            { id: "notes", label: "Notes", icon: "sticky_note_2", enabled: Config.notesEnabled, group: "" },
+            { id: "visualizer", label: "Visualizer", icon: "graphic_eq", enabled: VizCfg.Config.enabled, group: "" }
         ];
-        const pl = (win.desktopPluginIds || []).map(pid => {
+        // Fallback group name for a plugin whose manifest names no set. Plain
+        // like the built-in labels above; the Hub translates its own copy.
+        const other = "Plugins";
+        const order = [];
+        const byGroup = {};
+        const pids = win.desktopPluginIds || [];
+        for (var i = 0; i < pids.length; i++) {
+            const pid = pids[i];
             const e = Registry.plugins.find(p => p.id === pid);
-            return { id: "plugin:" + pid, label: (e && e.manifest && e.manifest.name) ? e.manifest.name : pid, icon: "widgets", enabled: true };
-        });
-        const viz = [{ id: "visualizer", label: "Visualizer", icon: "graphic_eq", enabled: VizCfg.Config.enabled }];
-        return bi.concat(pl).concat(viz);
+            const set = (e && e.manifest && typeof e.manifest.set === "string" && e.manifest.set.length > 0)
+                ? e.manifest.set : other;
+            if (!byGroup.hasOwnProperty(set)) {
+                byGroup[set] = [];
+                order.push(set);
+            }
+            byGroup[set].push({
+                id: "plugin:" + pid,
+                label: (e && e.manifest && e.manifest.name) ? e.manifest.name : pid,
+                icon: (e && e.manifest && e.manifest.defaults && e.manifest.defaults.icon)
+                    ? e.manifest.defaults.icon : "widgets",
+                enabled: true,
+                group: set
+            });
+        }
+        const out = bi.slice();
+        for (var g = 0; g < order.length; g++) {
+            const rows = byGroup[order[g]];
+            for (var r = 0; r < rows.length; r++)
+                out.push(rows[r]);
+        }
+        return out;
     }
     // Add-drop-down toggle: on enables (a built-in flag, a plugin placement, or
     // the visualizer), off runs the same Remove path. Every toggle marks the

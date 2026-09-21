@@ -52,7 +52,7 @@ func installProduct(ctx context.Context, cache *Cache, category string, entry Pr
 // manifest and every file from the cache; with local set it takes the manifest
 // and reads the file bytes from a local directory instead. Every other check is
 // identical either way: destination allowlist, symlink rejection, per-file hash
-// verification, receipt, journal, disableFreshPlugin, and syncProductDerivedState.
+// verification, receipt, journal, setPluginPlacementEnabled, and syncProductDerivedState.
 func installProductFrom(ctx context.Context, cache *Cache, category string, entry ProductEntry, local *localProductSource) error {
 	dst, expectedDestination, err := productDestination(category, entry.ID)
 	if err != nil {
@@ -279,7 +279,7 @@ func installProductFrom(ctx context.Context, cache *Cache, category string, entr
 		return rollback(err)
 	}
 	if category == "plugins" && operation == "install" {
-		if err := disableFreshPlugin(entry.ID); err != nil {
+		if err := setPluginPlacementEnabled(entry.ID, pluginAutoEnable(dst)); err != nil {
 			return rollback(err)
 		}
 		journal.Phase = "install-placement"

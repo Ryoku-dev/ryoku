@@ -463,6 +463,94 @@ Item {
         switch (tab) { case "aio": return aioPrevC; case "stats": return statsPrevC; case "calendar": return calPrevC; case "music": return musicPrevC; case "weather": return weatherPrevC; case "notes": return notesPrevC; default: return clockPrevC; }
     }
 
+    // ── store-installed desktop widgets ──────────────────────────────────────
+    // Plugins whose home is the wallpaper, discovered exactly as the Add-ons
+    // page does (discover.sh --all, then keep only the desktopWidget host).
+    // They live below the built-in grid, grouped by the set their manifest
+    // names, and toggle live through ryoku-plugins-place -- outside this page's
+    // draft/Save flow entirely.
+    property var storeRows: []
+
+    readonly property string shellDir: Quickshell.env("RYOKU_SHELL_DIR")
+    readonly property string discoverScript: (pg.shellDir && pg.shellDir.length > 0)
+        ? pg.shellDir + "/quickshell/plugins/discover.sh"
+        : (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/quickshell/plugins/discover.sh"
+
+    // group into sections in first-seen set order; plugins that name no set fall
+    // to a final "Plugins" section, so any future set slots in with no change.
+    readonly property var storeSections: {
+        var order = [];
+        var byKey = ({});
+        var loose = [];
+        for (var i = 0; i < pg.storeRows.length; i++) {
+            var r = pg.storeRows[i];
+            var s = r.set || "";
+            if (s === "") { loose.push(r); continue; }
+            if (byKey[s] === undefined) { byKey[s] = []; order.push(s); }
+            byKey[s].push(r);
+        }
+        var out = [];
+        for (var j = 0; j < order.length; j++)
+            out.push({ "name": order[j], "rows": byKey[order[j]] });
+        if (loose.length > 0)
+            out.push({ "name": I18n.tr("Plugins"), "rows": loose });
+        return out;
+    }
+
+    function refreshStore() { storeProc.running = false; storeProc.running = true; }
+    function placePlugin(id, enabled) {
+        if (!id)
+            return;
+        storePlaceProc.command = ["ryoku-plugins-place", id, "enabled", enabled ? "true" : "false"];
+        storePlaceProc.running = true;
+    }
+
+    Process {
+        id: storeProc
+        command: ["bash", pg.discoverScript, "--all"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var list = [];
+                try { list = JSON.parse(text || "[]"); } catch (e) { list = []; }
+                var rows = [];
+                for (var i = 0; i < list.length; i++) {
+                    var e = list[i];
+                    var man = e.manifest || ({});
+                    var place = e.placement || ({});
+                    var host = place.host
+                        ? place.host
+                        : ((man.defaults && man.defaults.host) ? man.defaults.host : "framePopout");
+                    if (host !== "desktopWidget")
+                        continue;
+                    rows.push({
+                        "id": e.id,
+                        "title": man.name || e.id,
+                        "set": man.set || "",
+                        "enabled": place.enabled === true,
+                        "icon": (man.defaults && man.defaults.icon) ? man.defaults.icon : "",
+                        "dir": e.dir || "",
+                        "settings": (place.settings && typeof place.settings === "object") ? place.settings : ({})
+                    });
+                }
+                pg.storeRows = rows;
+            }
+        }
+    }
+    // a placement toggle re-reads the truth, so the ON/OFF line and the switch
+    // settle on what actually landed on disk.
+    Process { id: storePlaceProc; onExited: pg.refreshStore() }
+
+    // installing a set from the store writes plugins.json; that write lights up
+    // this shelf without reopening the Hub.
+    FileView {
+        id: placementWatch
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/plugins.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: pg.refreshStore()
+    }
+
     Item {
         id: content
         anchors { left: parent.left; right: parent.right; top: head.bottom; bottom: bar.top }
@@ -473,7 +561,7 @@ Item {
         Flickable {
             id: gridFlick
             anchors.fill: parent
-            contentHeight: grid.height + Tokens.s5
+            contentHeight: (pg.storeSections.length > 0 ? storeStack.y + storeStack.height : grid.height) + Tokens.s5
             clip: true
             interactive: pg.selected === ""
             opacity: pg.selected === "" ? 1 : 0
@@ -554,6 +642,58 @@ Item {
                                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                                 on: wcard.on
                                 onToggled: (v) => pg.edit(wcard.modelData.enable, v)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── store-installed desktop widgets, grouped by set ───────────────
+            // A second shelf under the built-in grid: a divider, then a section
+            // per set. Nothing draws when none are installed, so a stock desktop
+            // reads exactly as before. These toggle live through the placement
+            // backend and stay clear of the Save bar's dirty state.
+            Column {
+                id: storeStack
+                anchors.top: grid.bottom
+                anchors.topMargin: Tokens.s5
+                width: gridFlick.width
+                spacing: Tokens.s5
+                visible: pg.storeSections.length > 0
+
+                Rectangle { width: parent.width; height: 1; color: Tokens.line }
+
+                Repeater {
+                    model: pg.storeSections
+                    delegate: Column {
+                        id: setSection
+                        required property var modelData
+                        width: storeStack.width
+                        spacing: Tokens.s4
+
+                        Text {
+                            text: setSection.modelData.name
+                            color: Tokens.inkMuted; font.family: Tokens.ui
+                            font.pixelSize: Tokens.fMicro; font.weight: Font.Medium
+                            font.letterSpacing: Tokens.trackMark
+                            font.capitalization: Font.AllUppercase
+                        }
+
+                        Flow {
+                            width: setSection.width
+                            spacing: Tokens.s4
+                            Repeater {
+                                model: setSection.modelData.rows
+                                delegate: StoreWidgetCard {
+                                    required property var modelData
+                                    width: Math.max(280, Math.min(360, (setSection.width - Tokens.s4 * 2) / 3))
+                                    title: modelData.title
+                                    on: modelData.enabled === true
+                                    icon: modelData.icon
+                                    dir: modelData.dir
+                                    settings: modelData.settings
+                                    onToggled: (v) => pg.placePlugin(modelData.id, v)
+                                }
                             }
                         }
                     }
