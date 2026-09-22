@@ -131,9 +131,12 @@ Item {
     // Island.trayMaxExtra) instead of resizing the surface live.
     readonly property real extraHeight: flyout.menuService !== "" ? flyout.menuExtra
         : (flyout.open ? flyout.listExtra : 0)
+    // The tallest this flyout can ever add, derived from the same constants so
+    // the island's fixed reserve cannot drift from it.
+    readonly property real maxExtra: flyout.topPad + flyout.headerH + flyout.headerGap
+        + flyout.maxVisibleRows * flyout.rowH + flyout.bottomPad
 
     implicitHeight: flyout.caretBand + flyout.extraHeight
-    visible: flyout.itemCount > 0
 
     // ── the caret ────────────────────────────────────────────────────────────
     Item {
@@ -142,6 +145,9 @@ Item {
         y: 0
         width: 32
         height: flyout.caretBand
+        // Island owns the instance's `visible` (hover gating), so an empty tray
+        // is folded from the inside: no caret until something is in the tray.
+        visible: flyout.itemCount > 0
 
         Pill.MaterialIcon {
             anchors.centerIn: parent
@@ -167,64 +173,77 @@ Item {
             }
         }
     }
-
     // ── the icon row ─────────────────────────────────────────────────────────
-    Row {
-        id: iconRow
+    // Bounded to the pill and scrollable: a dozen tray apps would otherwise
+    // overflow the clipping island and the edges would be unreachable. The row
+    // centres itself while it fits and drags when it does not.
+    Flickable {
+        id: iconStrip
         anchors.horizontalCenter: parent.horizontalCenter
         y: flyout.caretBand + flyout.topPad
+        width: Math.max(0, flyout.width - 24)
         height: flyout.rowH
-        spacing: 12
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
         visible: flyout.open && flyout.menuService === ""
         opacity: visible ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Motion.fast } }
 
-        Repeater {
-            model: Tray.items
+        contentWidth: Math.max(width, iconRow.implicitWidth)
+        contentHeight: height
 
-            delegate: Item {
-                id: trayIcon
-                required property var modelData
-                width: 22
-                height: 22
-                anchors.verticalCenter: parent.verticalCenter
+        Row {
+            id: iconRow
+            x: Math.max(0, (iconStrip.width - implicitWidth) / 2)
+            height: flyout.rowH
+            spacing: 12
+            Repeater {
+                model: Tray.items
 
-                Image {
-                    anchors.centerIn: parent
-                    source: flyout.iconSource(trayIcon.modelData)
-                    sourceSize.width: 16
-                    sourceSize.height: 16
-                    width: 16
-                    height: 16
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                }
+                delegate: Item {
+                    id: trayIcon
+                    required property var modelData
+                    width: 22
+                    height: 22
+                    anchors.verticalCenter: parent.verticalCenter
 
-                Rectangle {
-                    visible: trayIcon.modelData.status === "NeedsAttention"
-                    width: 6; height: 6; radius: 3
-                    color: flyout.accent
-                    anchors { right: parent.right; top: parent.top; margins: -1 }
-                }
+                    Image {
+                        anchors.centerIn: parent
+                        source: flyout.iconSource(trayIcon.modelData)
+                        sourceSize.width: 16
+                        sourceSize.height: 16
+                        width: 16
+                        height: 16
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                    }
 
-                HoverHandler { id: iconHover }
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 28; height: 28; radius: 8
-                    visible: iconHover.hovered
-                    color: flyout.dim(0.10)
-                }
+                    Rectangle {
+                        visible: trayIcon.modelData.status === "NeedsAttention"
+                        width: 6; height: 6; radius: 3
+                        color: flyout.accent
+                        anchors { right: parent.right; top: parent.top; margins: -1 }
+                    }
 
-                MouseArea {
-                    anchors.fill: parent
-                    anchors.margins: -4
-                    cursorShape: Qt.PointingHandCursor
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    onClicked: (e) => {
-                        if (e.button === Qt.RightButton && trayIcon.modelData.menu)
-                            flyout.openMenu(trayIcon.modelData.service);
-                        else
-                            Tray.activate(trayIcon.modelData.service);
+                    HoverHandler { id: iconHover }
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 28; height: 28; radius: 8
+                        visible: iconHover.hovered
+                        color: flyout.dim(0.10)
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -4
+                        cursorShape: Qt.PointingHandCursor
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        onClicked: (e) => {
+                            if (e.button === Qt.RightButton && trayIcon.modelData.menu)
+                                flyout.openMenu(trayIcon.modelData.service);
+                            else
+                                Tray.activate(trayIcon.modelData.service);
+                        }
                     }
                 }
             }

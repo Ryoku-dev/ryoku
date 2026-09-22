@@ -140,7 +140,7 @@ Item {
     // A fixed reserve for the window's own canvas (see Scene's `reach`-sized
     // PanelWindow): capped once at the flyout's own maximum, never live, so the
     // surface is created at its largest size and never resizes mid-morph.
-    readonly property real trayMaxExtra: 8 + 7 * 26
+    readonly property real trayMaxExtra: trayFlyout.maxExtra
     readonly property real hoverHeight: Math.round(island.restHeight
         + (cfg.hoverHeight + island.trayExtra - island.restHeight) * island.clockProgress)
     readonly property real baseRadius: cfg.restHeight / 2
