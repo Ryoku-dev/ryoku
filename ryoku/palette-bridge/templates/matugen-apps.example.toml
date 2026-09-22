@@ -1,0 +1,10 @@
+# Merge these sections into Ryoku's user-owned Matugen apps.toml overlay.
+# Replace <ZEN_PROFILE> with the active directory listed by about:profiles.
+
+[templates.vesktop]
+input_path = "~/.config/matugen/templates/vesktop-colors.css"
+output_path = "~/.config/vesktop/settings/quickCss.css"
+
+[templates.zen]
+input_path = "~/.config/matugen/templates/zen.css"
+output_path = "~/.config/zen/<ZEN_PROFILE>/chrome/ryoku-colors.css"

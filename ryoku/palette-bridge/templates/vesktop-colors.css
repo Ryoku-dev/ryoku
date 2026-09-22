@@ -1,0 +1,54 @@
+/* Generated palette only. Midnight remains loaded in a stable theme layer. */
+:root {
+  --font: "figtree";
+  --corner-text: "Midnight";
+
+  --online-indicator: {{colors.inverse_primary.default.hex}};
+  --dnd-indicator: {{colors.error.default.hex}};
+  --idle-indicator: {{colors.tertiary_container.default.hex}};
+  --streaming-indicator: {{colors.on_primary.default.hex}};
+
+  --accent-1: {{colors.tertiary.default.hex}};
+  --accent-2: {{colors.primary.default.hex}};
+  --accent-3: {{colors.primary.default.hex}};
+  --accent-4: {{colors.surface_bright.default.hex}};
+  --accent-5: {{colors.primary_fixed_dim.default.hex}};
+  --accent-new: {{colors.inverse_primary.default.hex}};
+  --mention: {{colors.surface.default.hex}};
+  --mention-hover: {{colors.surface_bright.default.hex}};
+
+  --text-0: {{colors.surface.default.hex}};
+  --text-1: {{colors.on_surface.default.hex}};
+  --text-2: {{colors.on_surface.default.hex}};
+  --text-3: {{colors.on_surface_variant.default.hex}};
+  --text-4: {{colors.on_surface_variant.default.hex}};
+  --text-5: {{colors.outline.default.hex}};
+
+  --bg-1: {{colors.surface_variant.default.hex}};
+  --bg-2: {{colors.surface_container_high.default.hex}};
+  --bg-3: {{colors.surface_container_low.default.hex}};
+  --bg-4: {{colors.surface.default.hex}};
+  --hover: {{colors.surface_bright.default.hex}};
+  --active: {{colors.surface_bright.default.hex}};
+  --message-hover: {{colors.surface_bright.default.hex}};
+
+  --spacing: 12px;
+  --list-item-transition: 0.2s ease;
+  --unread-bar-transition: 0.2s ease;
+  --moon-spin-transition: 0.4s ease;
+  --icon-spin-transition: 1s ease;
+  --roundness-xl: 22px;
+  --roundness-l: 20px;
+  --roundness-m: 16px;
+  --roundness-s: 12px;
+  --roundness-xs: 10px;
+  --roundness-xxs: 8px;
+
+  --discord-icon: none;
+  --moon-icon: block;
+  --moon-icon-url: url("https://upload.wikimedia.org/wikipedia/commons/c/c4/Font_Awesome_5_solid_moon.svg");
+  --moon-icon-size: auto;
+  --login-bg-filter: saturate(0.3) hue-rotate(-15deg) brightness(0.4);
+  --green-to-accent-3-filter: hue-rotate(56deg) saturate(1.43);
+  --blurple-to-accent-3-filter: hue-rotate(304deg) saturate(0.84) brightness(1.2);
+}
