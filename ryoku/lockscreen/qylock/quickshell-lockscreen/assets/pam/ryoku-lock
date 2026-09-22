@@ -1,40 +1,30 @@
 #%PAM-1.0
-# Ryoku in-session lock PAM service
+# Ryoku in-session lock — FINGERPRINT conversation
 #
-# This is the PAM stack for the Ryoku lock screen's fingerprint unlock.
-# It lives in the lock's own assets/pam/ directory and is loaded by
-# PamContext.configDirectory, so NO root edit of /etc/pam.d is needed.
+# One of the lock screen's TWO parallel PAM conversations (see
+# ryoku-lock-pw for the password one). Loaded by PamContext.configDirectory
+# from the lock's own assets/pam/, so NO root edit of /etc/pam.d is needed.
 #
-# HOW THE GROSSHACK WORKS:
-#   pam_fprintd_grosshack.so is a modified version of pam_fprintd that
-#   forks fprintd-verify at the START of the PAM conversation. This means:
+# WHY TWO FILES: pam_fprintd's man page is explicit — the PAM stack is
+# serialised by design, so parallel methods (fingerprint + password) must
+# run in separate conversations, "the way multiple authentication methods
+# are made available to users of gdm". In a single conversation the
+# password prompt starved the sensor: the default 30s scan timeout fell
+# through to pam_unix, the conversation stayed alive waiting for a typed
+# key, and the lock never re-armed the scan (touch stopped working).
 #
-#   1. The fingerprint sensor begins scanning immediately
-#   2. pam_unix.so simultaneously waits for a typed password
-#   3. The FIRST successful auth (touch OR type) wins
-#   4. Both paths race in the same PAM conversation
-#
-#   This is the same mechanism used in /etc/pam.d/sddm, so the behavior
-#   at the lock screen matches the sign-in screen exactly.
-#
-# WHY INLINE (not include):
-#   This file is loaded from the lock's assets/pam/ confdir, NOT from
-#   /etc/pam.d/. An `include system-login` would resolve against this
-#   confdir and fail. The inline tail mirrors the module list the
-#   bundled DMS lock ships for its lock services.
+# timeout=-1: keep scanning for the whole lock instead of giving up after
+# the default 30s; max-tries (default 3) still ends the conversation on
+# repeated misreads so the UI can flash "Not recognized" and re-arm.
 #
 # MODULE STACK:
-#   auth  sufficient  pam_fprintd_grosshack.so  <- touch-to-unlock
-#   auth  sufficient  pam_unix.so               <- typed password
-#   auth  required    pam_env.so                <- load env
-#   auth  required    pam_deny.so               <- deny if neither matched
-#   account required  pam_unix.so               <- account validation
-#   password required pam_deny.so               <- no password changes
-#   session required  pam_unix.so               <- session setup
+#   auth  sufficient  pam_fprintd.so timeout=-1   <- touch-to-unlock
+#   auth  required    pam_deny.so                 <- 3 misreads ⇒ fail ⇒ re-arm
+#   account required  pam_unix.so                 <- account validation
+#   password required pam_deny.so                 <- no password changes
+#   session required  pam_unix.so                 <- session setup
 
-auth        sufficient  pam_fprintd_grosshack.so
-auth        sufficient  pam_unix.so try_first_pass nullok
-auth        required    pam_env.so
+auth        sufficient  pam_fprintd.so timeout=-1
 auth        required    pam_deny.so
 account     required    pam_unix.so
 password    required    pam_deny.so

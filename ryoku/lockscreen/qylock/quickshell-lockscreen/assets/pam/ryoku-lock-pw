@@ -1,0 +1,20 @@
+#%PAM-1.0
+# Ryoku in-session lock — PASSWORD conversation
+#
+# Second of the lock screen's TWO parallel PAM conversations (see
+# ryoku-lock for the fingerprint one). pam_fprintd's man page requires
+# separate conversations for parallel methods; this one does nothing but
+# validate the typed password, and its prompt is pending from lock time
+# so a typed key is answered instantly instead of waiting out the scan.
+#
+# MODULE STACK:
+#   auth  required    pam_unix.so nullok  <- typed password (empty allowed
+#                                            only if the account has none)
+#   account required  pam_unix.so         <- account validation
+#   password required pam_deny.so         <- no password changes
+#   session required  pam_unix.so         <- session setup
+
+auth        required    pam_unix.so nullok
+account     required    pam_unix.so
+password    required    pam_deny.so
+session     required    pam_unix.so
