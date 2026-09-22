@@ -279,69 +279,97 @@ func (a *polkitAgent) converse(username, cookie string, p *polkitPrompt) (bool, 
 		return false, false, err
 	}
 
+	// Read the helper's stdout on its own goroutine so a prompt still on screen
+	// never stops us from noticing the helper finishing. A prompt-racing PAM
+	// module (pam-fprint-grosshack) leaves a password prompt pending while it
+	// verifies a fingerprint from a second thread; on a touch PAM returns
+	// PAM_SUCCESS and the helper exits 0 without ever reading that prompt. Reading
+	// in the background lets the loop act on SUCCESS (or the helper closing) the
+	// moment it arrives, instead of stalling until the user answers a prompt that
+	// success has already made unnecessary (issue #237).
+	lines := make(chan string)
+	scanErr := make(chan error, 1)
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		sc := bufio.NewScanner(h.r)
+		for sc.Scan() {
+			select {
+			case lines <- sc.Text():
+			case <-done:
+				return
+			}
+		}
+		scanErr <- sc.Err()
+		close(lines)
+	}()
+
 	gained := false
+	awaiting := false // a prompt is on screen, waiting for the QML response
 	a.setFingerprint("")
-	sc := bufio.NewScanner(h.r)
-	for sc.Scan() {
-		line := sc.Text()
-		switch {
-		case strings.HasPrefix(line, "PAM_PROMPT_ECHO_OFF "):
-			resp, ok := a.awaitResponse(p, unescapeGStr(strings.TrimPrefix(line, "PAM_PROMPT_ECHO_OFF ")), false)
+	for {
+		// Only accept a QML response while a prompt is actually pending, so a
+		// queued submit is never consumed before its prompt appears.
+		var respCh chan string
+		if awaiting {
+			respCh = p.respCh
+		}
+		select {
+		case line, ok := <-lines:
 			if !ok {
+				// The helper closed its stdout: exiting 0 after a SUCCESS is a
+				// fingerprint (or password) win even with a prompt left pending.
 				h.stop()
-				return false, true, nil
+				return gained, false, <-scanErr
 			}
-			_, _ = io.WriteString(stdin, resp+"\n")
-		case strings.HasPrefix(line, "PAM_PROMPT_ECHO_ON "):
-			resp, ok := a.awaitResponse(p, unescapeGStr(strings.TrimPrefix(line, "PAM_PROMPT_ECHO_ON ")), true)
-			if !ok {
-				h.stop()
-				return false, true, nil
+			switch {
+			case strings.HasPrefix(line, "PAM_PROMPT_ECHO_OFF "):
+				a.setPrompt(unescapeGStr(strings.TrimPrefix(line, "PAM_PROMPT_ECHO_OFF ")), false)
+				awaiting = true
+			case strings.HasPrefix(line, "PAM_PROMPT_ECHO_ON "):
+				a.setPrompt(unescapeGStr(strings.TrimPrefix(line, "PAM_PROMPT_ECHO_ON ")), true)
+				awaiting = true
+			case strings.HasPrefix(line, "PAM_TEXT_INFO "):
+				msg := unescapeGStr(strings.TrimPrefix(line, "PAM_TEXT_INFO "))
+				if mentionsFinger(msg) {
+					a.setFingerprint("scanning")
+				}
+				a.setInfo(msg)
+			case strings.HasPrefix(line, "PAM_ERROR_MSG "):
+				msg := unescapeGStr(strings.TrimPrefix(line, "PAM_ERROR_MSG "))
+				if mentionsFinger(msg) {
+					a.setFingerprint("fail")
+				}
+				a.setError(msg)
+			case line == "SUCCESS":
+				gained = true
+			case line == "FAILURE":
+				gained = false
+			default:
+				// Unrecognized lines are surfaced as info, matching the
+				// reference's tolerance, and logged for diagnosis.
+				log.Printf("ryoku-shell: polkit helper said %q", line)
+				a.setInfo(unescapeGStr(line))
 			}
-			_, _ = io.WriteString(stdin, resp+"\n")
-		case strings.HasPrefix(line, "PAM_TEXT_INFO "):
-			msg := unescapeGStr(strings.TrimPrefix(line, "PAM_TEXT_INFO "))
-			if mentionsFinger(msg) {
-				a.setFingerprint("scanning")
-			}
-			a.setInfo(msg)
-		case strings.HasPrefix(line, "PAM_ERROR_MSG "):
-			msg := unescapeGStr(strings.TrimPrefix(line, "PAM_ERROR_MSG "))
-			if mentionsFinger(msg) {
-				a.setFingerprint("fail")
-			}
-			a.setError(msg)
-		case line == "SUCCESS":
-			gained = true
-		case line == "FAILURE":
-			gained = false
-		default:
-			// Unrecognized lines are surfaced as info, matching the reference's
-			// tolerance, and logged for diagnosis.
-			log.Printf("ryoku-shell: polkit helper said %q", line)
-			a.setInfo(unescapeGStr(line))
+		case pw := <-respCh:
+			awaiting = false
+			// The helper may have already exited on a racing fingerprint win; a
+			// broken pipe here is harmless, the closed stdout ends the loop.
+			_, _ = io.WriteString(stdin, pw+"\n")
+		case <-p.cancelCh:
+			h.stop()
+			return false, true, nil
 		}
 	}
-	h.stop()
-	if serr := sc.Err(); serr != nil {
-		return gained, false, serr
-	}
-	return gained, false, nil
 }
 
-// awaitResponse publishes the prompt and blocks for the QML password or a cancel.
-func (a *polkitAgent) awaitResponse(p *polkitPrompt, prompt string, echo bool) (string, bool) {
+// setPrompt publishes the prompt QML must render and answer over polkit.submit.
+func (a *polkitAgent) setPrompt(prompt string, echo bool) {
 	a.mu.Lock()
 	a.state.Prompt = prompt
 	a.state.Echo = echo
 	a.mu.Unlock()
 	a.publish()
-	select {
-	case pw := <-p.respCh:
-		return pw, true
-	case <-p.cancelCh:
-		return "", false
-	}
 }
 
 func (a *polkitAgent) submit(pw string) {

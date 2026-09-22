@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -121,7 +122,7 @@ func TestPolkitConverseCancel(t *testing.T) {
 	d := &daemon{}
 	a := &polkitAgent{topic: d.registerTopic("polkit")}
 	p := &polkitPrompt{cookie: "C", respCh: make(chan string, 1), cancelCh: make(chan struct{})}
-	p.cancel() // pre-cancel: awaitResponse must pick the cancel
+	p.cancel() // pre-cancel: converse must pick the cancel over the pending prompt
 
 	gained, cancelled, err := a.converse("me", "C", p)
 	if err != nil {
@@ -167,6 +168,48 @@ func TestPolkitConverseFingerprintFail(t *testing.T) {
 	}
 	if a.state.Fingerprint != "fail" {
 		t.Errorf("fingerprint = %q, want %q", a.state.Fingerprint, "fail")
+	}
+}
+
+// A prompt-racing PAM module (pam-fprint-grosshack) leaves a password prompt on
+// screen while it verifies a fingerprint from a second thread; a touch makes PAM
+// return SUCCESS and the helper exit 0 without ever reading that prompt. The
+// agent must complete on the helper's exit rather than block until a QML submit
+// that success has already made unnecessary (issue #237). No response is ever
+// sent on respCh here, so the old blocking read would hang forever.
+func TestPolkitConverseFingerprintSuccessWithoutResponse(t *testing.T) {
+	useFakeHelper(t, fakePolkitHelper(t,
+		"read u\nread c\nprintf 'PAM_TEXT_INFO Place your finger on the reader\\n'\nprintf 'PAM_PROMPT_ECHO_OFF Password: \\n'\nprintf 'SUCCESS\\n'\n"))
+	d := &daemon{}
+	a := &polkitAgent{topic: d.registerTopic("polkit")}
+	p := &polkitPrompt{cookie: "C", respCh: make(chan string, 1), cancelCh: make(chan struct{})}
+
+	type result struct {
+		gained, cancelled bool
+		err               error
+	}
+	res := make(chan result, 1)
+	go func() {
+		g, c, err := a.converse("me", "C", p)
+		res <- result{g, c, err}
+	}()
+
+	select {
+	case r := <-res:
+		if r.err != nil {
+			t.Fatalf("converse err = %v", r.err)
+		}
+		if r.cancelled {
+			t.Fatal("fingerprint success reported cancelled")
+		}
+		if !r.gained {
+			t.Fatal("fingerprint success (helper exit 0) did not gain authorization")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("converse blocked on the pending prompt instead of completing on helper exit")
+	}
+	if a.state.Fingerprint != "scanning" {
+		t.Errorf("fingerprint = %q, want %q", a.state.Fingerprint, "scanning")
 	}
 }
 
