@@ -4,7 +4,12 @@
 // ships (brightnessctl, upower). Device detection is /sys-anchored so
 // Quickshell's working directory cannot affect the selected backlight.
 
-var backlightDeviceCmd = "BL=$(ls -1 /sys/class/backlight 2>/dev/null | head -n1); for C in /sys/class/backlight/amdgpu_bl* /sys/class/backlight/intel_backlight /sys/class/backlight/acpi_video*; do [ -e \"$C\" ] && { BL=\"${C##*/}\"; break; }; done; [ -n \"$BL\" ] || exit 0; "
+// Prefer ryoku-hw-backlight -- the ground-truth selector the media keys and the
+// OSD daemon also use, which names the backlight on the connected internal panel
+// rather than a phantom nvidia_*/acpi_video device an Intel+dGPU laptop exposes
+// (#221). Fall back to the /sys name list when the helper is off PATH (a dev
+// checkout), so behaviour there is unchanged.
+var backlightDeviceCmd = "BL=$(ryoku-hw-backlight 2>/dev/null); if [ -z \"$BL\" ]; then BL=$(ls -1 /sys/class/backlight 2>/dev/null | head -n1); for C in /sys/class/backlight/amdgpu_bl* /sys/class/backlight/intel_backlight /sys/class/backlight/acpi_video*; do [ -e \"$C\" ] && { BL=\"${C##*/}\"; break; }; done; fi; [ -n \"$BL\" ] || exit 0; "
 
 var backlightDetectCmd = backlightDeviceCmd + "echo \"$BL\""
 
