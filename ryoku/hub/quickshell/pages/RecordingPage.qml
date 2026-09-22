@@ -39,6 +39,7 @@ Item {
         "codec": "h264",
         "encoder": "gpu",
         "cursor": true,
+        "pickEachTime": false,
         "directory": ""
     })
     readonly property var keyFactory: ({
@@ -118,7 +119,8 @@ Item {
             "quality": cfgA.quality,
             "codec": cfgA.codec,
             "encoder": cfgA.encoder,
-            "cursor": cfgA.cursor
+            "cursor": cfgA.cursor,
+            "pickEachTime": cfgA.pickEachTime
         };
     }
 
@@ -180,6 +182,7 @@ Item {
         cfgA.codec = pg.draft.codec;
         cfgA.encoder = pg.draft.encoder;
         cfgA.cursor = pg.draft.cursor;
+        cfgA.pickEachTime = pg.draft.pickEachTime;
         cfg.writeAdapter();
         pg.committed = pg.clone(pg.draft);
         if (pg.keyDraft && pg.keyCommitted && pg.keyDirtyCount > 0) {
@@ -234,6 +237,7 @@ Item {
             property string codec: "h264"
             property string encoder: "gpu"
             property bool cursor: true
+            property bool pickEachTime: false
             // where every recording lands. empty means the default, so a box with
             // a custom XDG_VIDEOS_DIR keeps following it; the recorder script and
             // the deck's list resolve this same key.
@@ -368,6 +372,38 @@ Item {
     // a moment). Parse failures leave the readout on "Detecting...".
     property string infoBackend: ""
     property string infoEncoder: ""
+
+    // Whether apps can actually be offered a source to pick. Screen sharing can
+    // be entirely dead with nothing on screen to show for it, so ask the portal
+    // and say so; the repair lives in ryoku doctor.
+    property bool shareKnown: false
+    property bool shareReady: false
+    property string shareDetail: ""
+    property bool repairing: false
+    Process {
+        id: shareInfo
+        command: ["ryoku-hub", "share", "status"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var j = JSON.parse(this.text);
+                    pg.shareKnown = j.probeable === true;
+                    pg.shareReady = j.available === true;
+                    pg.shareDetail = j.detail || "";
+                } catch (e) {
+                    pg.shareKnown = false;
+                }
+            }
+        }
+    }
+    Process {
+        id: shareRepair
+        command: ["ryoku", "doctor"]
+        stdout: StdioCollector { onStreamFinished: shareInfo.running = true }
+        stderr: StdioCollector { onStreamFinished: shareInfo.running = true }
+        onExited: pg.repairing = false
+    }
     Process {
         id: info
         command: ["ryoku-cmd-screenrecord", "--info"]
@@ -697,6 +733,46 @@ Item {
                         placeholder: pg.defaultDir
                         text: pg.draft ? String(pg.draft.directory) : ""
                         onCommitted: (v) => pg.edit("directory", v.trim())
+                    }
+                }
+                SettingRow {
+                    anchors.left: parent.left; anchors.right: parent.right
+                    divider: true
+                    label: I18n.tr("Ask which screen each time")
+                    desc: I18n.tr("Portal recording reuses the last screen you chose; this asks again every time.")
+                    source: "recording.json"
+                    changed: pg.draft && pg.committed ? pg.draft.pickEachTime !== pg.committed.pickEachTime : false
+                    controlWidth: 54
+                    Sw {
+                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                        on: pg.draft ? !!pg.draft.pickEachTime : false
+                        onToggled: (v) => pg.edit("pickEachTime", v)
+                    }
+                }
+            }
+
+            // Screen sharing can fail with nothing on screen to show for it: an
+            // app simply never gets a picker. Say so here, and offer the one
+            // command that can fix it. Hidden when there is no session bus to ask.
+            SettingCard {
+                visible: pg.shareKnown
+                width: col.colWidth
+                title: I18n.tr("SCREEN PICKER")
+                SettingRow {
+                    anchors.left: parent.left; anchors.right: parent.right
+                    label: pg.shareReady ? I18n.tr("Picker ready") : I18n.tr("No source picker")
+                    desc: pg.shareDetail
+                    controlWidth: 96
+                    Btn {
+                        anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                        visible: !pg.shareReady
+                        text: pg.repairing ? I18n.tr("REPAIRING") : I18n.tr("REPAIR")
+                        armed: true
+                        enabled: !pg.repairing
+                        onAct: {
+                            pg.repairing = true;
+                            shareRepair.running = true;
+                        }
                     }
                 }
             }

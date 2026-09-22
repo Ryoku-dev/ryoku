@@ -20,6 +20,9 @@ which card scans out); it only falls back to wf-recorder if gpu-screen-recorder
 is missing.
 
 Override the backend with RYOKU_SCREENRECORD_BACKEND=auto|gsr|portal|wf.
+Portal capture reuses the last chosen screen; set pickEachTime true in the Hub's
+recording settings (or RYOKU_SCREENRECORD_PICK=1) to be asked which screen every
+time.
 USAGE
 }
 
@@ -616,7 +619,7 @@ start_portal() {
   local desktop_audio="$2"
   local microphone_audio="$3"
   local recorder_cmd="${RYOKU_SCREENRECORD_RECORDER:-gpu-screen-recorder}"
-  local fps fmode quality codec encoder cursor
+  local fps fmode quality codec encoder cursor pick_each_time
   local audio_source=""
   local output_dir output_path pid token ticks grant i
   local -a args
@@ -627,6 +630,12 @@ start_portal() {
   codec="${RYOKU_SCREENRECORD_CODEC:-$(cfg_get '.codec' h264)}"
   encoder="${RYOKU_SCREENRECORD_ENCODER:-$(cfg_get '.encoder' gpu)}"
   cursor="$(cfg_bool '.cursor' true)"
+  # The portal caches the chosen source in a restore token and gsr reuses it
+  # silently, so after the first recording every later one captures whatever
+  # screen was picked then -- black or empty once that monitor is gone. Asking
+  # each time is the user's call: recording.json pickEachTime, or the env.
+  pick_each_time="${RYOKU_SCREENRECORD_PICK:-}"
+  [[ -n $pick_each_time ]] || pick_each_time="$(cfg_bool '.pickEachTime' false)"
 
   require_command "$recorder_cmd" gpu-screen-recorder
 
@@ -644,7 +653,14 @@ start_portal() {
   mkdir -p "${RYOKU_STATE_PATH:-$HOME/.local/state/ryoku}" 2>/dev/null || true
   printf '%s\n' "$output_path" >"${RYOKU_STATE_PATH:-$HOME/.local/state/ryoku}/last-recording" 2>/dev/null || true
 
-  args=("$recorder_cmd" -w portal -restore-portal-session yes -f "$fps" -fm "$fmode" -q "$quality" -k "$codec" -encoder "$encoder" -c mp4 -cursor "$cursor")
+  token="${XDG_CONFIG_HOME:-$HOME/.config}/gpu-screen-recorder/restore_token"
+  args=("$recorder_cmd" -w portal)
+  if [[ $pick_each_time == yes ]]; then
+    rm -f "$token"
+  else
+    args+=(-restore-portal-session yes)
+  fi
+  args+=(-f "$fps" -fm "$fmode" -q "$quality" -k "$codec" -encoder "$encoder" -c mp4 -cursor "$cursor")
   [[ -n $audio_source ]] && args+=(-a "$audio_source")
   # portal picks its own PipeWire source, so there is no monitor to name here (a
   # --monitor request degrades to region/fullscreen upstream); -sc still fires the
@@ -659,8 +675,8 @@ start_portal() {
 
   # A stalled portal negotiation leaves gsr alive but capturing nothing (empty
   # file) and deaf to SIGINT/SIGTERM, so commit on real frames landing, not on
-  # liveness. With no saved grant a picker may be open, so wait longer for it.
-  token="${XDG_CONFIG_HOME:-$HOME/.config}/gpu-screen-recorder/restore_token"
+  # liveness. A restored grant means the picker is already answered, so commit
+  # sooner; being asked to choose needs the longer window.
   if [[ -s $token ]]; then ticks=10; grant=yes; else ticks=40; grant=no; fi
   for ((i = 0; i < ticks; i++)); do
     [[ -s $output_path ]] && { wait "$pid" 2>/dev/null || true; exit 0; }
