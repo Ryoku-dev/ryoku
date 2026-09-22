@@ -541,20 +541,33 @@ Scope {
   property int _gridTotalH: _gridCellH * Config.gridRows
   Behavior on _gridTotalH { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
 
-  // The fan's centre card is raised by the view's own anchor (_baseY sits at
-  // 56% of the stage height, the card hangs its full height below the lift), so
-  // the stage must be ~2.4x the card tall or the top card pokes above the view
-  // and over the filter bar. Width spans the half-window of cards at `spread`.
-  readonly property int _handStageH: Config.handCardHeight * 2.4 + Math.abs(Config.handArch) + 120
+  // The fan needs ~2.4x the card height of stage (the centre card is lifted and
+  // hangs below its anchor). cardHeight = stage + topBarHeight + 40, the
+  // container sits 48 above the bottom and the card is capped 48 short of the
+  // top, so on a short or scaled display the card size scales down to fit
+  // rather than the stage pushing the toolbar off the screen. The stage derives
+  // from the fitted card, so it can never exceed the panel.
+  readonly property real _handFit: Math.max(0.35, Math.min(1,
+      (selectorPanel.height - topBarHeight - 136 - 120 - Math.abs(Config.handArch))
+      / (Config.handCardHeight * 2.4)))
+  // Floor so rounding can never push the derived stage one pixel past the fit.
+  readonly property int _handCardHEff: Math.floor(Config.handCardHeight * _handFit)
+  readonly property int _handCardWEff: Math.floor(Config.handCardWidth * _handFit)
+  readonly property int _handStageH: _handCardHEff * 2.4 + Math.abs(Config.handArch) + 120
   readonly property int _handStageW: Math.min(selectorPanel.width - 60,
-      Config.handCardWidth * 2 + (Math.min(Config.handCount, 9) / 2) * Config.handSpread * 2)
+      _handCardWEff * 2 + (Math.min(Config.handCount, 9) / 2) * Config.handSpread * _handFit * 2)
   // The strand is centred vertically and arcs downward with `off`, so the stage
   // takes the slice height plus the arc/lane spread, capped to the panel.
   readonly property int _sandyStageH: Math.min(selectorPanel.height - 140, Config.sandySliceHeight * 2.6 + 120)
   readonly property int _sandyStageW: Math.min(selectorPanel.width - 60, 1500)
   readonly property int _gridStageH: (Config.gridThumbHeight + 14) * Config.gridRows + 40
   readonly property int _gridStageW: Math.min(selectorPanel.width - 80, (Config.gridThumbWidth + 14) * Config.gridColumns + 40)
-  property int cardHeight: browseOpen ? 0 : (isHexMode ? hexGridHeight : (isGridMode ? _gridTotalH + topBarHeight + 35 : (isMosaicMode ? Config.mosaicHeight + topBarHeight + 60 : (isHandMode ? _handStageH + topBarHeight + 40 : (isSandyMode ? _sandyStageH + topBarHeight + 40 : (isGridLayoutsMode ? _gridStageH + topBarHeight + 40 : sliceHeight + topBarHeight + 60))))))
+  // The toolbar strip lives inside the card at its top, so a card taller than
+  // the screen pushes that strip above the top edge and it becomes unreachable
+  // (the failure #235/#236 report). Every mode's natural height is honoured up
+  // to the panel height; beyond that the content clips and scrolls instead of
+  // taking the toolbar off-display.
+  property int cardHeight: browseOpen ? 0 : Math.min(selectorPanel.height - 96, (isHexMode ? hexGridHeight : (isGridMode ? _gridTotalH + topBarHeight + 35 : (isMosaicMode ? Config.mosaicHeight + topBarHeight + 60 : (isHandMode ? _handStageH + topBarHeight + 40 : (isSandyMode ? _sandyStageH + topBarHeight + 40 : (isGridLayoutsMode ? _gridStageH + topBarHeight + 40 : sliceHeight + topBarHeight + 60)))))))
   property int hexCardWidth: selectorPanel.width
   // The card tracks the image content: wide enough for the visible window of
   // slices, but never wider than the screen (a card past the screen edge pushes
@@ -989,6 +1002,7 @@ Scope {
       id: sliceListView
       property bool navLocked: wallpaperSelector._navLocked
       anchors.top: cardContainer.top
+      anchors.topMargin: wallpaperSelector.topBarHeight + 15
       anchors.bottom: cardContainer.bottom
       anchors.bottomMargin: 20
       anchors.left: cardContainer.left
@@ -1891,8 +1905,8 @@ Scope {
       visible: active
       focus: wallpaperSelector.showing && wallpaperSelector.isHandMode
       selectedIndex: wallpaperSelector.customViewIndex
-      cardWidth: Config.handCardWidth
-      cardHeight: Config.handCardHeight
+      cardWidth: wallpaperSelector._handCardWEff
+      cardHeight: wallpaperSelector._handCardHEff
       cardCount: Config.handCount
       fanAngle: Config.handFanAngle
       fanRoll: Config.handFanRoll

@@ -230,6 +230,17 @@
   `services/Keypresses.qml`, `ipc/keypress.go`).
 
 ### Fixed
+- **The picker toolbar stays on screen in every display mode.** The new
+  Hand/Sandy/Grid modes shipped with two layout faults a scaled or smaller
+  display hits hard: the Slices carousel lost the top margin that keeps it
+  below the toolbar strip, so the two overlapped at every size preset, and the
+  Hand stage was sized without any cap against the screen, so on a logical
+  800px-tall display the card (with the toolbar inside it) pushed the strip
+  204px above the top edge. The slice margin is restored, the fan now scales
+  its card size down to fit short screens instead of overflowing them (full
+  size on tall ones), and the card height is clamped to the panel for every
+  mode, since the toolbar lives inside the card's top
+  (`ryogami/wall-ui/qml/wallpaper/WallpaperSelector.qml`).
 - **The slice picker no longer collapses or stalls on extreme sizes.** The
   slice-width, gap, skew and visible-count controls were free ranges that the
   layout math could not survive: a gap more negative than the slice width made
