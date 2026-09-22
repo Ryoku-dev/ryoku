@@ -273,6 +273,9 @@
   is a bounded band of five pitches on each side, materialising about ten
   delegates whatever the configured widths are
   (`ryogami/wall-ui/qml/wallpaper/WallpaperSelector.qml`, `SliceDelegate.qml`).
+- **The autohiding dock stays up in Power Saver when you move onto an app.**
+  The edge hover strip was 3 px and the revealed dock sits 8 px in, so the
+  pointer fell through. The strip is now 8 px (`modules/dock/DockSurface.qml`).
 - **Closing the launcher no longer risks crashing the shell on niri.** Where the
   compositor has no focus-grab protocol the launcher tore its screen capture
   down on every close and unmapped its dismiss scrim from inside the press that

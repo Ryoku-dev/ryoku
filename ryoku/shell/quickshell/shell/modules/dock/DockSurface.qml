@@ -115,10 +115,10 @@ PanelWindow {
     // along the axis but stays pinned to the edge across it.
     Item {
         id: peekStrip
-        x: dock.horizontal ? band.x : (dock.edge === "left" ? 0 : dock.width - dock.peek)
-        y: dock.horizontal ? (dock.edge === "top" ? 0 : dock.height - dock.peek) : band.y
-        width: dock.horizontal ? band.width : dock.peek
-        height: dock.horizontal ? dock.peek : band.height
+        x: dock.horizontal ? band.x : (dock.edge === "left" ? 0 : dock.width - dock.edgeGap)
+        y: dock.horizontal ? (dock.edge === "top" ? 0 : dock.height - dock.edgeGap) : band.y
+        width: dock.horizontal ? band.width : dock.edgeGap
+        height: dock.horizontal ? dock.edgeGap : band.height
         HoverHandler { id: peekHover }
     }
     // Input mask = band rect ∪ peek strip, so the empty margins and the magnify
