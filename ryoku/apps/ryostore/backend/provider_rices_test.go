@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func riceFixtureServer(t *testing.T, missingWallpaper bool) *httptest.Server {
+func riceFixtureServer(t *testing.T, missing ...string) *httptest.Server {
 	t.Helper()
 	files := map[string]string{
 		"/rices/registry.json":            `{"version":1,"rices":[{"id":"demo","name":"Demo Rice","author":"Ryoku","blurb":"A deliberate desktop look","tags":["warm"],"createdWith":"0.19.4","color":"fixed","manifest":"rices/demo/rice.json","preview":"assets/preview.webp","screenshots":["assets/shot.png"],"palette":"rices/demo/palette.json","wallpaper":"rices/demo/wall.png","hero":"rices/demo/hero.png","accent":"#d75f5f","surface":"#101010","rounding":14}]}`,
@@ -21,8 +21,8 @@ func riceFixtureServer(t *testing.T, missingWallpaper bool) *httptest.Server {
 		"/rices/demo/wall.png":            "wallpaper",
 		"/rices/demo/hero.png":            "hero",
 	}
-	if missingWallpaper {
-		delete(files, "/rices/demo/wall.png")
+	for _, path := range missing {
+		delete(files, path)
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if body, ok := files[r.URL.Path]; ok {
@@ -54,7 +54,7 @@ func testRiceProvider(t *testing.T, srv *httptest.Server) riceProvider {
 }
 
 func TestRiceProviderNormalizesInstalledActiveAndAssets(t *testing.T) {
-	srv := riceFixtureServer(t, false)
+	srv := riceFixtureServer(t)
 	p := testRiceProvider(t, srv)
 	installed := filepath.Join(p.ricesDir, "demo")
 	if err := os.MkdirAll(installed, 0o755); err != nil {
@@ -86,7 +86,7 @@ func TestRiceProviderNormalizesInstalledActiveAndAssets(t *testing.T) {
 }
 
 func TestRiceInstallIsAtomicAndDoesNotActivate(t *testing.T) {
-	srv := riceFixtureServer(t, false)
+	srv := riceFixtureServer(t)
 	p := testRiceProvider(t, srv)
 	if err := os.MkdirAll(filepath.Dir(p.activePath), 0o755); err != nil {
 		t.Fatal(err)
@@ -114,11 +114,35 @@ func TestRiceInstallIsAtomicAndDoesNotActivate(t *testing.T) {
 	}
 }
 
-func TestRiceInstallMissingWallpaperLeavesNoManifest(t *testing.T) {
-	srv := riceFixtureServer(t, true)
+// The wallpaper and hero are display art: a 404 degrades to the apply-time
+// default (live wallpaper, no hero) and the rice still installs with its
+// substance -- the manifest and palette -- intact.
+func TestRiceInstallDegradesMissingDisplayArt(t *testing.T) {
+	srv := riceFixtureServer(t, "/rices/demo/wall.png", "/rices/demo/hero.png")
+	p := testRiceProvider(t, srv)
+	if err := p.Install(context.Background(), "demo"); err != nil {
+		t.Fatalf("missing display art failed the install: %v", err)
+	}
+	dir := filepath.Join(p.ricesDir, "demo")
+	for _, name := range []string{"rice.json", "palette.json"} {
+		if !isRegularFile(filepath.Join(dir, name)) {
+			t.Fatalf("%s did not land: install lost the rice substance", name)
+		}
+	}
+	for _, name := range []string{"wall.png", "hero.png"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("missing display art %s unexpectedly present: %v", name, err)
+		}
+	}
+}
+
+// The palette is substance: a manifest that names one the server will not
+// serve must fail the install and leave no half-written rice behind.
+func TestRiceInstallMissingPaletteLeavesNoManifest(t *testing.T) {
+	srv := riceFixtureServer(t, "/rices/demo/palette.json")
 	p := testRiceProvider(t, srv)
 	if err := p.Install(context.Background(), "demo"); err == nil {
-		t.Fatal("install succeeded without its required wallpaper")
+		t.Fatal("install succeeded without its required palette")
 	}
 	if _, err := os.Stat(filepath.Join(p.ricesDir, "demo", "rice.json")); !os.IsNotExist(err) {
 		t.Fatalf("failed install left rice.json: %v", err)

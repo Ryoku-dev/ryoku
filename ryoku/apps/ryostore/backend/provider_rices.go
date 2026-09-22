@@ -185,13 +185,19 @@ func (p riceProvider) Install(ctx context.Context, id string) error {
 	}
 
 	type asset struct {
-		name   string
-		remote string
-		local  string
+		name     string
+		remote   string
+		local    string
+		required bool
 	}
 	assets := []asset{}
+	// The palette is part of a rice's substance: a manifest that names one with
+	// no source, or a palette that will not download, fails the install. The
+	// wallpaper and hero are display art: a missing file degrades to the
+	// apply-time default (the live wallpaper, no hero) rather than refusing the
+	// whole rice, so a rice whose art was never published still installs.
 	for _, candidate := range []asset{
-		{name: "palette", remote: entry.Palette, local: manifest.Color.Palette},
+		{name: "palette", remote: entry.Palette, local: manifest.Color.Palette, required: true},
 		{name: "wallpaper", remote: entry.Wallpaper, local: manifest.Assets.Wallpaper},
 		{name: "hero", remote: entry.Hero, local: manifest.Assets.Hero},
 	} {
@@ -202,6 +208,9 @@ func (p riceProvider) Install(ctx context.Context, id string) error {
 			return fmt.Errorf("invalid %s path %q", candidate.name, candidate.local)
 		}
 		if candidate.remote == "" {
+			if !candidate.required {
+				continue
+			}
 			return fmt.Errorf("manifest requires %s %q but the registry has no source", candidate.name, candidate.local)
 		}
 		assets = append(assets, candidate)
@@ -223,6 +232,9 @@ func (p riceProvider) Install(ctx context.Context, id string) error {
 	defer os.RemoveAll(stage)
 	for _, asset := range assets {
 		if err := p.download(ctx, p.assetURL(asset.remote), filepath.Join(stage, asset.local)); err != nil {
+			if !asset.required {
+				continue
+			}
 			return fmt.Errorf("download %s: %w", asset.name, err)
 		}
 	}
