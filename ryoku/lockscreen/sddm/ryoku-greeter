@@ -48,20 +48,73 @@ for conn in /sys/class/drm/card*-eDP-* /sys/class/drm/card*-LVDS-* /sys/class/dr
   break
 done
 
-# weston reads no X11 keyboard config, so without this the greeter is on the
-# us map and an AZERTY password fails. The layout localectl recorded goes in
-# through the libxkbcommon defaults.
+# weston reads no X11 keyboard config, so without one the greeter comes up on
+# weston's built-in us map and a non-us password fails at the login field. Read
+# the layout the system records and hand it to weston through the libxkbcommon
+# defaults, which weston honours when its own config names no keymap.
+#
+# /etc/X11/xorg.conf.d/00-keyboard.conf is the richest source (layout, variant,
+# options) but localectl only writes it when a layout is applied system-wide;
+# many installs set only /etc/vconsole.conf. So fall back to the console keymap
+# -- the layout the box was installed with -- converting the console-keymap names
+# that differ from their xkb code (de-latin1 -> de, uk -> gb) so a de box shows
+# de at the login field even when the X11 file was never written (#224). Mirrors
+# consoleToXkb in ryoku/cli/internal/keyboard/keyboard.go.
+console_to_xkb() {
+  case "$1" in
+    uk | gb) printf '%s' gb ;;
+    fr-latin1 | fr-pc | azerty) printf '%s' fr ;;
+    be-latin1) printf '%s' be ;;
+    de-latin1) printf '%s' de ;;
+    de_CH-latin1 | sg | sf) printf '%s' ch ;;
+    es-cp850) printf '%s' es ;;
+    la-latin1) printf '%s' latam ;;
+    it2) printf '%s' it ;;
+    pt-latin1) printf '%s' pt ;;
+    br-abnt2) printf '%s' br ;;
+    no-latin1 | nb) printf '%s' no ;;
+    fi-latin1) printf '%s' 'fi' ;;
+    se-latin1) printf '%s' se ;;
+    dk-latin1) printf '%s' dk ;;
+    is-latin1) printf '%s' is ;;
+    pl2) printf '%s' pl ;;
+    cz-lat2) printf '%s' cz ;;
+    sk-qwertz) printf '%s' sk ;;
+    hu101) printf '%s' hu ;;
+    jp106) printf '%s' jp ;;
+    croat) printf '%s' hr ;;
+    slovene) printf '%s' si ;;
+    trq | trf) printf '%s' tr ;;
+    ua-utf) printf '%s' ua ;;
+    ruwin_alt-UTF-8) printf '%s' ru ;;
+    us-acentos | dvorak | colemak) printf '%s' us ;;
+    "") : ;;
+    *[-_]*) base=${1%%[-_]*}; [ "${#base}" -le 3 ] && printf '%s' "$base" ;;
+    *) [ "${#1}" -le 3 ] && printf '%s' "$1" ;;
+  esac
+}
+
+layout=""
+variant=""
+options=""
 kb_conf=/etc/X11/xorg.conf.d/00-keyboard.conf
 if [ -r "$kb_conf" ]; then
   xkb_opt() { sed -n "s/.*Option[[:space:]]*\"$1\"[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$kb_conf" | head -n1; }
   layout=$(xkb_opt XkbLayout); layout=${layout%%,*}
   if [ -n "$layout" ]; then
-    export XKB_DEFAULT_LAYOUT="$layout"
     variant=$(xkb_opt XkbVariant); variant=${variant%%,*}
-    [ -n "$variant" ] && export XKB_DEFAULT_VARIANT="$variant"
     options=$(xkb_opt XkbOptions)
-    [ -n "$options" ] && export XKB_DEFAULT_OPTIONS="$options"
   fi
+fi
+if [ -z "$layout" ] && [ -r /etc/vconsole.conf ]; then
+  keymap=$(sed -n 's/^[[:space:]]*KEYMAP[[:space:]]*=[[:space:]]*//p' /etc/vconsole.conf | tail -n1)
+  keymap=${keymap%\"}; keymap=${keymap#\"}
+  layout=$(console_to_xkb "$keymap")
+fi
+if [ -n "$layout" ]; then
+  export XKB_DEFAULT_LAYOUT="$layout"
+  [ -n "$variant" ] && export XKB_DEFAULT_VARIANT="$variant"
+  [ -n "$options" ] && export XKB_DEFAULT_OPTIONS="$options"
 fi
 
 # Operator config for where the login form lands. env wins over the file; the
@@ -92,12 +145,18 @@ choose_primary() {
 # hand it carries one; without it the login pointer never renders (issue #191).
 shell_ini() { printf '[shell]\ncursor-theme=%s\ncursor-size=%s\n\n' "${XCURSOR_THEME:-Bibata-Modern-Ice}" "${XCURSOR_SIZE:-24}"; }
 
+# Match the session's touchpad feel: Hyprland enables tap-to-click by default,
+# weston does not (enable-tap defaults off), so a clickpad that taps to click in
+# the session does nothing at the login field (#224). natural-scroll stays off to
+# match modules/input.lua; enable-tap only affects touchpad devices.
+libinput_ini() { printf '[libinput]\nenable-tap=true\nnatural-scroll=false\n\n'; }
+
 # exec plain weston (preferred mode); the login screen must always start. Hand it
 # a [core]+[shell] config too so the pointer has a theme even when no modes parse.
 weston_plain() {
   local pini
   pini="$(mktemp --tmpdir ryoku-greeter.XXXXXX.ini 2>/dev/null)" &&
-    { printf '[core]\nidle-time=0\n\n'; shell_ini; } >"$pini" &&
+    { printf '[core]\nidle-time=0\n\n'; shell_ini; libinput_ini; } >"$pini" &&
     exec weston --shell=kiosk $weston_args --config="$pini" "$@"
   exec weston --shell=kiosk $weston_args "$@"
 }
@@ -134,6 +193,7 @@ gen_ini() {
   # also carries app-ids so kiosk-shell drops the greeter window there.
   printf '[core]\nidle-time=0\n\n'
   shell_ini
+  libinput_ini
   while read -r name w h rr; do
     [ -n "$name" ] && [ "${w:-0}" -gt 0 ] && [ "${h:-0}" -gt 0 ] || continue
     printf '[output]\nname=%s\nmode=%sx%s@%s\n' "$name" "$w" "$h" "$rr"
