@@ -141,9 +141,15 @@ Singleton {
         // not here: try the next candidate directory, and only give up (empty
         // table, English UI) once the list is exhausted.
         onLoadFailed: {
-            if (i18n.dirIndex < i18n.catalogDirs.length - 1)
+            // The path rebind after stepping does not reliably re-emit
+            // loaded/loadFailed, so the next candidate has to force its own
+            // read once the binding settles. Without this the step never
+            // happens on a packaged install (no user drop), /usr/share/ryoku/
+            // i18n is never reached, and the picker lists only "Auto" (#241).
+            if (i18n.dirIndex < i18n.catalogDirs.length - 1) {
                 i18n.dirIndex = i18n.dirIndex + 1;
-            else
+                Qt.callLater(i18n._loadLangs);
+            } else
                 i18n.langs = [];
         }
     }
