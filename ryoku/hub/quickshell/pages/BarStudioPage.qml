@@ -65,13 +65,28 @@ Item {
             onStreamFinished: {
                 try {
                     const catalog = JSON.parse(this.text || "{}");
+                    // Every bar style the catalogue carries, not only the ones
+                    // already installed: a style you have yet to fetch still
+                    // belongs on the shelf so you can see it exists and how to
+                    // get it. The one style hidden here is one written for
+                    // another compositor that you have not installed -- it can
+                    // neither run nor be fetched, so it is not offered. Install
+                    // still lives in RyoStore; this page only shows state and
+                    // applies what is yours.
                     page.barStyles = (catalog.items || [])
-                        .filter(item => item.category === "barstyles" && item.installed === true)
+                        .filter(item => item.category === "barstyles"
+                            && !(item.unavailable === true && item.installed !== true))
                         .map(item => ({
                             id: item.id,
                             name: item.name || item.id,
                             desc: item.summary || item.description || "",
-                            active: item.active === true
+                            installed: item.installed === true,
+                            active: item.active === true,
+                            unavailable: item.unavailable === true,
+                            unavailableReason: item.unavailableReason || "",
+                            requiredWindowManager: item.requiredWindowManager || "",
+                            downloadPaused: item.downloadPaused === true,
+                            downloadPauseReason: item.downloadPauseReason || ""
                         }));
                 } catch (e) {
                     page.barStyles = [];
@@ -305,7 +320,33 @@ Item {
                                 delegate: Rectangle {
                                     id: styleCard
                                     required property var modelData
-                                    readonly property bool on: page.activeStyle === styleCard.modelData.id
+                                    // A style applies only when it is installed
+                                    // and can run on this compositor. A paused
+                                    // style stays applyable once installed (the
+                                    // pause blocks only new downloads); a
+                                    // not-installed or wm-gated one cannot.
+                                    readonly property bool applyable: styleCard.modelData.installed && !styleCard.modelData.unavailable
+                                    readonly property bool on: styleCard.applyable && page.activeStyle === styleCard.modelData.id
+                                    // The sub line reads the style's own blurb
+                                    // when it is yours to apply, otherwise the
+                                    // honest reason it is not: the compositor it
+                                    // wants, that it is under construction, or
+                                    // where to fetch it.
+                                    readonly property string subText: {
+                                        if (styleCard.applyable)
+                                            return I18n.tr(styleCard.modelData.desc);
+                                        if (styleCard.modelData.unavailable) {
+                                            const wm = ("" + styleCard.modelData.requiredWindowManager).toUpperCase();
+                                            const tag = wm.length > 0 ? I18n.tr("%1 only").arg(wm) : I18n.tr("Unavailable");
+                                            return styleCard.modelData.unavailableReason.length > 0
+                                                ? tag + " \u00b7 " + styleCard.modelData.unavailableReason : tag;
+                                        }
+                                        if (styleCard.modelData.downloadPaused)
+                                            return styleCard.modelData.downloadPauseReason.length > 0
+                                                ? I18n.tr("Under construction") + " \u00b7 " + styleCard.modelData.downloadPauseReason
+                                                : I18n.tr("Under construction");
+                                        return I18n.tr("Available \u00b7 install from RyoStore");
+                                    }
 
                                     objectName: "bar-style-" + styleCard.modelData.id
                                     // fill the row evenly: as many ~210px tiles as the
@@ -313,6 +354,8 @@ Item {
                                     width: Math.floor((styleRow.width - (styleRow.perRow - 1) * Tokens.s2) / styleRow.perRow)
                                     height: styleRow.tileH
                                     radius: Tokens.radius
+                                    // dim a style you cannot apply from here
+                                    opacity: styleCard.applyable ? 1.0 : 0.55
                                     color: styleCard.on ? Tokens.bone : (sma.containsMouse ? Tokens.tint5 : "transparent")
                                     border.width: Tokens.border
                                     border.color: styleCard.on ? Tokens.bone : Tokens.line
@@ -331,7 +374,7 @@ Item {
                                         }
                                         Text {
                                             width: parent.width
-                                            text: I18n.tr(styleCard.modelData.desc)
+                                            text: styleCard.subText
                                             color: styleCard.on ? Tokens.inkOnBoneDim : Tokens.inkFaint
                                             font.family: Tokens.ui
                                             font.pixelSize: Tokens.fTiny
@@ -344,7 +387,7 @@ Item {
                                         hoverEnabled: true
                                         preventStealing: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: page.fedit("barStyle", styleCard.modelData.id)
+                                        onClicked: styleCard.applyable ? page.fedit("barStyle", styleCard.modelData.id) : page.browseBarStyles()
                                     }
                                 }
                             }
