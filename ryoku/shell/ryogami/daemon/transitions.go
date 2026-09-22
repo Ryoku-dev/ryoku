@@ -185,13 +185,7 @@ func (d *daemon) transitionFor(mode string) *pickedTransition {
 	}
 	switch {
 	case prefs.Shader == transitionRandom:
-		return &pickedTransition{
-			Name:       "skwd",
-			Kind:       "skwd",
-			Shader:     d.pickSkwdShader(),
-			DurationMs: prefs.DurationMs,
-			Seed:       rand.Float64(),
-		}
+		return d.pickAnyTransition(prefs.DurationMs)
 	case knownSkwdShader(prefs.Shader):
 		return &pickedTransition{
 			Name:       "skwd",
@@ -201,10 +195,43 @@ func (d *daemon) transitionFor(mode string) *pickedTransition {
 			Seed:       rand.Float64(),
 		}
 	}
+	// A picker selection may name a reveal preset as well as a skwd shader: the
+	// two engines share one pool in the UI, so resolve a preset by that name here.
+	if p, okPreset := lookupTransitionPreset(prefs.Shader); okPreset {
+		return resolveTransition(p)
+	}
+	// Legacy path: shell.json wallpaper.transition_preset pins a reveal preset.
 	if p, okPreset := lookupTransitionPreset(wallpaperTransitionPreset()); okPreset {
 		return resolveTransition(p)
 	}
 	return d.pickTransition()
+}
+
+// pickAnyTransition is the no-repeat random pick over the merged pool: every skwd
+// shader and every reveal preset is one candidate, so "Random" rotates the whole
+// transition set the picker shows rather than only the shader half. The skwd
+// candidates carry the picker's duration; the reveal candidates keep the engine's
+// shared reveal duration, exactly as when each is pinned.
+func (d *daemon) pickAnyTransition(durationMs int) *pickedTransition {
+	total := len(skwdShaders) + len(transitionPresets)
+	if total == 0 {
+		return nil
+	}
+	i := rand.IntN(total)
+	if total > 1 && i == d.lastTransition {
+		i = (i + 1 + rand.IntN(total-1)) % total
+	}
+	d.lastTransition = i
+	if i < len(skwdShaders) {
+		return &pickedTransition{
+			Name:       "skwd",
+			Kind:       "skwd",
+			Shader:     skwdShaders[i],
+			DurationMs: durationMs,
+			Seed:       rand.Float64(),
+		}
+	}
+	return resolveTransition(transitionPresets[i-len(skwdShaders)])
 }
 
 // transitionRandom is the sentinel wallpaper.transition_preset value: a fresh
@@ -363,18 +390,6 @@ func readWallUITransition() wallUITransition {
 		out.DurationMs = m.Transition.DurationMs
 	}
 	return out
-}
-
-// pickSkwdShader is the no-repeat random pick over the skwd catalog, sharing
-// the daemon's last-index guard with the preset picker.
-func (d *daemon) pickSkwdShader() string {
-	n := len(skwdShaders)
-	i := rand.IntN(n)
-	if n > 1 && i == d.lastTransition {
-		i = (i + 1 + rand.IntN(n-1)) % n
-	}
-	d.lastTransition = i
-	return skwdShaders[i]
 }
 
 func knownSkwdShader(name string) bool {

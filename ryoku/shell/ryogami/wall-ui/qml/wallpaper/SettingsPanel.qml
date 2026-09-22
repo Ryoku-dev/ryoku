@@ -148,7 +148,13 @@ Item {
         hexArcIntensity: Config.hexArcIntensity,
         hexCurve: Config.hexCurve,
         hexShape: Config.hexShape,
-        hexWaves: Config.hexWaves
+        hexWaves: Config.hexWaves,
+        hexGapX: Config.hexGapX,
+        hexGapY: Config.hexGapY,
+        hexStagger: Config.hexStagger,
+        hexLens: Config.hexLens,
+        hexTwist: Config.hexTwist,
+        hexScatter: Config.hexScatter
       }
     } else if (Config.displayMode === "wall") {
       preset = {
@@ -156,6 +162,36 @@ Item {
         gridRows: Config.gridRows,
         gridThumbWidth: Config.gridThumbWidth,
         gridThumbHeight: Config.gridThumbHeight
+      }
+    } else if (Config.displayMode === "hand") {
+      preset = {
+        handCardWidth: Config.handCardWidth, handCardHeight: Config.handCardHeight,
+        handCount: Config.handCount, handFanAngle: Config.handFanAngle,
+        handFanRoll: Config.handFanRoll, handArch: Config.handArch,
+        handCornerRadius: Config.handCornerRadius, handSkew: Config.handSkew,
+        handSpread: Config.handSpread, handSpeed: Config.handSpeed,
+        handTilt: Config.handTilt, handPerspective: Config.handPerspective,
+        handGhosts: Config.handGhosts, handBob: Config.handBob, handBackdrop: Config.handBackdrop
+      }
+    } else if (Config.displayMode === "sandy") {
+      preset = {
+        sandyCenter: Config.sandyCenter, sandySliceWidth: Config.sandySliceWidth,
+        sandySliceHeight: Config.sandySliceHeight, sandySkew: Config.sandySkew,
+        sandySpacing: Config.sandySpacing, sandyDuration: Config.sandyDuration,
+        sandyStrands: Config.sandyStrands, sandyTwist: Config.sandyTwist,
+        sandyOrbit: Config.sandyOrbit, sandyTurbulence: Config.sandyTurbulence,
+        sandyWaist: Config.sandyWaist, sandyFront: Config.sandyFront,
+        sandyArc: Config.sandyArc, sandyEdgeSpeed: Config.sandyEdgeSpeed,
+        sandyGrain: Config.sandyGrain, sandyFan: Config.sandyFan
+      }
+    } else if (Config.displayMode === "grid") {
+      preset = {
+        gridLayout: Config.gridLayout, gridColumns: Config.gridColumns, gridRows: Config.gridRows,
+        gridThumbWidth: Config.gridThumbWidth, gridThumbHeight: Config.gridThumbHeight,
+        gridStagger: Config.gridStagger, gridSelectedScale: Config.gridSelectedScale,
+        gridFlowWave: Config.gridFlowWave, gridFlowFrequency: Config.gridFlowFrequency,
+        gridScatter: Config.gridScatter, gridScaleVariance: Config.gridScaleVariance,
+        gridCylinderBend: Config.gridCylinderBend, gridCylinderRadius: Config.gridCylinderRadius
       }
     }
     Config.saveKey("components.wallpaperSelector.customPresets." + key, preset)
@@ -167,21 +203,11 @@ Item {
     if (!p) return
     if (Config.displayMode === "slices") {
       _applyPreset(p.expandedWidth, p.sliceHeight, p.sliceWidth, p.visibleCount, p.sliceSpacing, p.skewOffset)
-    } else if (Config.displayMode === "hex") {
-      if (p.hexRadius !== undefined) settingsPanel._saveField("hexRadius", p.hexRadius)
-      if (p.hexRows !== undefined) settingsPanel._saveField("hexRows", p.hexRows)
-      if (p.hexCols !== undefined) settingsPanel._saveField("hexCols", p.hexCols)
-      if (p.hexScrollStep !== undefined) settingsPanel._saveField("hexScrollStep", p.hexScrollStep)
-      if (p.hexArc !== undefined) settingsPanel._saveField("hexArc", p.hexArc)
-      if (p.hexArcIntensity !== undefined) settingsPanel._saveField("hexArcIntensity", p.hexArcIntensity)
-      if (p.hexCurve !== undefined) settingsPanel._saveField("hexCurve", p.hexCurve)
-      if (p.hexShape !== undefined) settingsPanel._saveField("hexShape", p.hexShape)
-      if (p.hexWaves !== undefined) settingsPanel._saveField("hexWaves", p.hexWaves)
-    } else if (Config.displayMode === "wall") {
-      if (p.gridColumns !== undefined) settingsPanel._saveField("gridColumns", p.gridColumns)
-      if (p.gridRows !== undefined) settingsPanel._saveField("gridRows", p.gridRows)
-      if (p.gridThumbWidth !== undefined) settingsPanel._saveField("gridThumbWidth", p.gridThumbWidth)
-      if (p.gridThumbHeight !== undefined) settingsPanel._saveField("gridThumbHeight", p.gridThumbHeight)
+      return
+    }
+    // Every other mode persists a flat map of selector fields; replay each one.
+    for (var k in p) {
+      if (p[k] !== undefined) settingsPanel._saveField(k, p[k])
     }
   }
 

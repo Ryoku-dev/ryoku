@@ -11,18 +11,7 @@ Column {
     property var saveConfigKey
     property var notifyThemeChanged
     property var _theme: ({ themeApps: true, gtkTheme: "adw", gnomeAccent: false })
-    property string _reveal: "random"
     property var _mat: ({ lightnessDark: 0, lightnessLight: 0, prefer: "saturation", sourceColorIndex: 0 })
-    readonly property var _revealModel: [
-        "random", "silk_fade", "diagonal_silk", "dream_curtain", "liquid_ribbon",
-        "iris_open", "corner_bloom", "spotlight_rise", "wander_iris", "vignette_close",
-        "celeste_veil", "comet_streak", "aurora_ripple", "starfall_bloom",
-        "mosaic_swell", "ember_burn", "pond_wake", "glass_scatter", "signal_tear",
-        "cathode_wink", "shutter_sweep", "wax_descent", "page_turn"
-    ].map(function(p) {
-        return { mode: p, label: p === "random" ? I18n.tr("Random")
-            : p.replace(/_/g, " ").replace(/^./, function(c) { return c.toUpperCase() }) }
-    })
 
     function _runHub(args) { Quickshell.execDetached(["ryoku-hub"].concat(args)) }
     function _matugenSet(patch) { Quickshell.execDetached(["ryoku-hub", "desktop", "matugen", "set", JSON.stringify(patch)]) }
@@ -36,20 +25,6 @@ Column {
             try {
                 var d = JSON.parse(themeFile.text())
                 root._theme = { themeApps: d.themeApps !== false, gtkTheme: d.gtkTheme || "adw", gnomeAccent: !!d.gnomeAccent }
-            } catch (e) {}
-        }
-    }
-
-    FileView {
-        id: shellFile
-        path: Quickshell.env("HOME") + "/.config/ryoku/shell.json"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                var d = JSON.parse(shellFile.text())
-                var v = (d.wallpaper && d.wallpaper.transition_preset) || "random"
-                root._reveal = ("" + v).length ? ("" + v) : "random"
             } catch (e) {}
         }
     }
@@ -254,23 +229,4 @@ Column {
         }
     }
 
-    SettingsCard {
-        colors: root.colors
-        title: I18n.tr("Wallpaper")
-        kana: "壁"
-        width: parent.width
-
-        RowDropdown {
-            colors: root.colors
-            title: I18n.tr("Reveal")
-            description: I18n.tr("The transition played when the wallpaper changes.")
-            value: root._reveal
-            model: root._revealModel
-            onSelect: function(v) {
-                root._reveal = v
-                Quickshell.execDetached(["ryoku-shell", "call", "settings.patch",
-                    JSON.stringify({ path: "wallpaper.transition_preset", value: v })])
-            }
-        }
-    }
 }

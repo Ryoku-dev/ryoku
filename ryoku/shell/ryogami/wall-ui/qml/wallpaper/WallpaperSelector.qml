@@ -336,7 +336,6 @@ Scope {
       cardVisible = false
       settingsOpen = false
       if (gridBackOverlay.overlayOpen) { gridBackOverlay.overlayOpen = false; gridBackOverlay.visible = false; gridBackOverlay.overlayItemKey = "" }
-      sliceListView.cacheBuffer = 0
       sliceListView.model = null
       thumbGridView.cacheBuffer = 0
       thumbGridView.model = null
@@ -355,7 +354,7 @@ Scope {
 
       wallpaperSelector._preCommitIndex = sliceListView.currentIndex
 
-      if (service._skipCrossfade || service.filteredModel.count === 0 || !wallpaperSelector.cardVisible || wallpaperSelector.anyBrowserOpen || wallpaperSelector.isHexMode || wallpaperSelector.isGridMode || wallpaperSelector.isMosaicMode) {
+      if (service._skipCrossfade || service.filteredModel.count === 0 || !wallpaperSelector.cardVisible || wallpaperSelector.anyBrowserOpen || !wallpaperSelector.isSliceMode) {
         service._skipCrossfade = false
         service.filterTransitioning = false
         service.commitFilteredModel()
@@ -369,7 +368,6 @@ Scope {
         _snapshotImage.source = result.url
         _snapshotImage.visible = true
         _snapshotImage.opacity = 1.0
-        sliceListView.cacheBuffer = 0
         service.commitFilteredModel()
       })
     }
@@ -386,7 +384,6 @@ Scope {
       _snapshotImage.visible = false
       _snapshotImage.source = ""
       service.filterTransitioning = false
-      sliceListView.cacheBuffer = wallpaperSelector.expandedWidth
     }
   }
 
@@ -399,7 +396,6 @@ Scope {
         _snapshotImage.source = ""
         service.commitFilteredModel()
         service.filterTransitioning = false
-        sliceListView.cacheBuffer = wallpaperSelector.expandedWidth
       }
     }
   }
@@ -425,6 +421,9 @@ Scope {
   function _focusActiveList() {
     if (isHexMode) hexListView.forceActiveFocus()
     else if (isGridMode) thumbGridView.forceActiveFocus()
+    else if (isHandMode) handView.forceActiveFocus()
+    else if (isSandyMode) sandyView.forceActiveFocus()
+    else if (isGridLayoutsMode) gridLayoutsView.forceActiveFocus()
     else sliceListView.forceActiveFocus()
   }
 
@@ -443,6 +442,12 @@ Scope {
   Behavior on skewOffset { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
   property int sliceSpacing: Config.wallpaperSliceSpacing
   Behavior on sliceSpacing { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
+  // Negative spacing overlaps the slices (the stacked look); that is legitimate
+  // down to a pitch of one pixel. Beyond that the delegates stack on top of each
+  // other and the row collapses, so the effective spacing is floored at
+  // -(sliceWidth - 1) and the pitch stays positive.
+  readonly property int _sliceSpacingEff: sliceWidth > 1 ? Math.max(sliceSpacing, -(sliceWidth - 1)) : 0
+  readonly property int _slicePitch: Math.max(1, sliceWidth + _sliceSpacingEff)
   property bool suppressWidthAnim: false
   property int topBarHeight: 50 * Config.uiScale
   property bool _filterBarManuallyShown: Config.filterBarAlwaysVisible
@@ -463,7 +468,15 @@ Scope {
   property bool isHexMode: Config.displayMode === "hex"
   property bool isGridMode: Config.displayMode === "wall"
   property bool isMosaicMode: Config.displayMode === "mosaic"
-  property bool isSliceMode: !isHexMode && !isGridMode && !isMosaicMode
+  property bool isHandMode: Config.displayMode === "hand"
+  property bool isSandyMode: Config.displayMode === "sandy"
+  property bool isGridLayoutsMode: Config.displayMode === "grid"
+  property bool isSliceMode: !isHexMode && !isGridMode && !isMosaicMode && !isHandMode && !isSandyMode && !isGridLayoutsMode
+
+  // Hand, Sandy and the Grid layouts share one selection cursor: each view owns
+  // its own geometry but reports the focused catalogue row back through here.
+  property int customViewIndex: 0
+  property bool _isCustomView: isHandMode || isSandyMode || isGridLayoutsMode
 
   property var _focusedItem: {
     var m = _activeModel
@@ -472,6 +485,7 @@ Scope {
     if (isHexMode && hexListView) idx = hexListView._selectedCol * hexListView._rows + hexListView._selectedRow
     else if (isGridMode && thumbGridView) idx = thumbGridView.hoveredIdx
     else if (isMosaicMode && mosaicView) idx = mosaicView.hoveredIdx
+    else if (_isCustomView) idx = customViewIndex
     else idx = sliceListView.currentIndex
     if (idx < 0 || idx >= m.count) return null
     return m.get(idx)
@@ -482,20 +496,21 @@ Scope {
   onIsHexModeChanged: if (showing) _bindActiveViewModel()
   onIsGridModeChanged: if (showing) _bindActiveViewModel()
   onIsMosaicModeChanged: if (showing) _bindActiveViewModel()
+  onIsHandModeChanged: if (showing) _bindActiveViewModel()
+  onIsSandyModeChanged: if (showing) _bindActiveViewModel()
+  onIsGridLayoutsModeChanged: if (showing) _bindActiveViewModel()
 
   onThemesOpenChanged: { if (themesOpen) _loadThemes(); if (showing) _bindActiveViewModel() }
   onRicesOpenChanged: { if (ricesOpen) _loadRices(); if (showing) _bindActiveViewModel() }
 
   function _bindActiveViewModel() {
-    var _isSlice = !isHexMode && !isGridMode && !isMosaicMode
+    var _isSlice = isSliceMode
     if (_isSlice) {
       sliceListView.model = Qt.binding(function() { return wallpaperSelector._activeModel })
-      sliceListView.cacheBuffer = wallpaperSelector.expandedWidth
       _positionTimer.posIdx = Math.min(Math.max(0, sliceListView.currentIndex), Math.max(0, (_activeModel ? _activeModel.count : 1) - 1))
       _positionTimer.restart()
     } else {
       sliceListView.model = null
-      sliceListView.cacheBuffer = 0
     }
     if (isGridMode) {
       thumbGridView.model = Qt.binding(function() { return wallpaperSelector._activeModel })
@@ -526,10 +541,29 @@ Scope {
   property int _gridTotalH: _gridCellH * Config.gridRows
   Behavior on _gridTotalH { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
 
-  property int cardHeight: browseOpen ? 0 : (isHexMode ? hexGridHeight : (isGridMode ? _gridTotalH + topBarHeight + 35 : (isMosaicMode ? Config.mosaicHeight + topBarHeight + 60 : sliceHeight + topBarHeight + 60)))
+  // The fan's centre card is raised by the view's own anchor (_baseY sits at
+  // 56% of the stage height, the card hangs its full height below the lift), so
+  // the stage must be ~2.4x the card tall or the top card pokes above the view
+  // and over the filter bar. Width spans the half-window of cards at `spread`.
+  readonly property int _handStageH: Config.handCardHeight * 2.4 + Math.abs(Config.handArch) + 120
+  readonly property int _handStageW: Math.min(selectorPanel.width - 60,
+      Config.handCardWidth * 2 + (Math.min(Config.handCount, 9) / 2) * Config.handSpread * 2)
+  // The strand is centred vertically and arcs downward with `off`, so the stage
+  // takes the slice height plus the arc/lane spread, capped to the panel.
+  readonly property int _sandyStageH: Math.min(selectorPanel.height - 140, Config.sandySliceHeight * 2.6 + 120)
+  readonly property int _sandyStageW: Math.min(selectorPanel.width - 60, 1500)
+  readonly property int _gridStageH: (Config.gridThumbHeight + 14) * Config.gridRows + 40
+  readonly property int _gridStageW: Math.min(selectorPanel.width - 80, (Config.gridThumbWidth + 14) * Config.gridColumns + 40)
+  property int cardHeight: browseOpen ? 0 : (isHexMode ? hexGridHeight : (isGridMode ? _gridTotalH + topBarHeight + 35 : (isMosaicMode ? Config.mosaicHeight + topBarHeight + 60 : (isHandMode ? _handStageH + topBarHeight + 40 : (isSandyMode ? _sandyStageH + topBarHeight + 40 : (isGridLayoutsMode ? _gridStageH + topBarHeight + 40 : sliceHeight + topBarHeight + 60))))))
   property int hexCardWidth: selectorPanel.width
-  property int _sliceListW: Config.wallpaperExpandedWidth + (Config.wallpaperVisibleCount - 1) * (Config.wallpaperSliceWidth + Config.wallpaperSliceSpacing)
-  property int cardWidth: isHexMode ? hexCardWidth : (isGridMode ? _gridTotalW + 20 : (isMosaicMode ? Config.mosaicWidth + 20 : Math.max(_sliceListW + 40, 600)))
+  // The card tracks the image content: wide enough for the visible window of
+  // slices, but never wider than the screen (a card past the screen edge pushes
+  // its rounded corner and the filter bar off-display, so the two stop reading
+  // as one surface). The list then fills the card interior exactly, so the
+  // displayed image width and the card/bar width are the same number by
+  // construction rather than two formulas that can drift apart.
+  property int _sliceListW: Config.wallpaperExpandedWidth + (Config.wallpaperVisibleCount - 1) * _slicePitch
+  property int cardWidth: isHexMode ? hexCardWidth : (isGridMode ? _gridTotalW + 20 : (isMosaicMode ? Config.mosaicWidth + 20 : (isHandMode ? Math.max(_handStageW + 40, 600) : (isSandyMode ? _sandyStageW + 40 : (isGridLayoutsMode ? _gridStageW + 40 : Math.min(Math.max(_sliceListW + 40, 600), selectorPanel.width - 40))))))
   Behavior on cardWidth { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
   property int hexGridHeight: {
     var rows = hexRows
@@ -557,6 +591,7 @@ Scope {
                                               idx = thumbGridView.hoveredIdx
     else if (Config.displayMode === "mosaic" && mosaicView)
                                               idx = mosaicView.hoveredIdx
+    else if (_isCustomView)                   idx = customViewIndex
     if (idx < 0 || idx >= service.filteredModel.count) return ""
     var item = service.filteredModel.get(idx)
     return item ? (item.path || "") : ""
@@ -953,28 +988,38 @@ Scope {
     ListView {
       id: sliceListView
       property bool navLocked: wallpaperSelector._navLocked
-
       anchors.top: cardContainer.top
-      anchors.topMargin: wallpaperSelector.topBarHeight + 15
       anchors.bottom: cardContainer.bottom
       anchors.bottomMargin: 20
-
-      anchors.horizontalCenter: parent.horizontalCenter
-      property int visibleCount: Config.wallpaperVisibleCount
-      width: wallpaperSelector.expandedWidth + (visibleCount - 1) * (wallpaperSelector.sliceWidth + wallpaperSelector.sliceSpacing)
+      anchors.left: cardContainer.left
+      anchors.right: cardContainer.right
+      anchors.leftMargin: 20
+      anchors.rightMargin: 20
+      // The list fills the card interior, so the displayed image width equals the
+      // card width (which the filter bar is centred on) by construction; the
+      // card's own screen cap keeps both on-display together.
       Behavior on width { NumberAnimation { duration: Style.animExpand; easing.type: Easing.OutCubic } }
 
       orientation: ListView.Horizontal
       model: wallpaperSelector._activeModel
-      clip: false
-      spacing: wallpaperSelector.sliceSpacing
+      // Clip to the card interior: the cache materialises neighbours beyond the
+      // visible window, and uncipped they would paint past the rounded card edge
+      // and off the screen. Clipped, the strip ends exactly at the card.
+      clip: true
+      spacing: wallpaperSelector._sliceSpacingEff
 
       flickDeceleration: 1500
       maximumFlickVelocity: 3000
       boundsBehavior: Flickable.StopAtBounds
-      cacheBuffer: wallpaperSelector.expandedWidth
+      // Materialise a bounded band of slices around the viewport, not a raw pixel
+      // buffer: expandedWidth alone could be 1800px of cache, which at a small
+      // slice width pulls hundreds of full-height image + shader-effect delegates
+      // into memory at once and stalls the shell. Five pitches of lead and lag is
+      // enough to keep flicking smooth regardless of the configured widths. Zero
+      // when the picker shows another mode, so no offscreen slices materialise.
+      cacheBuffer: wallpaperSelector.isSliceMode ? wallpaperSelector._slicePitch * 5 : 0
 
-      visible: wallpaperSelector.cardVisible && !wallpaperSelector.anyBrowserOpen && !wallpaperSelector.isHexMode && !wallpaperSelector.isGridMode && !wallpaperSelector.isMosaicMode
+      visible: wallpaperSelector.cardVisible && !wallpaperSelector.anyBrowserOpen && wallpaperSelector.isSliceMode
 
       property bool keyboardNavActive: false
       property real lastMouseX: -1
@@ -1161,13 +1206,15 @@ Scope {
       Timer { id: _hexScrollStop; interval: 90; onTriggered: hexListView.contentMoving = false }
       property int _rows: wallpaperSelector.hexRows
       property real _r: wallpaperSelector.hexRadius
-      property real _gridSpacing: 6
+      property real _gridSpacingX: Config.hexGapX
+      property real _gridSpacingY: Config.hexGapY
+      property real _gridSpacing: Config.hexGapX
       property string _shape: Config.hexShape
       property real _hexW: _shape === "rhombus" ? _r * 4 : _r * 2
       property real _hexH: _shape === "diamond" ? Math.ceil(_r * 3.4641) : Math.ceil(_r * 1.73205)
-      property real _stepX: _shape === "triangle" ? _r + _gridSpacing : (_shape === "hexagon" ? 1.5 * _r + _gridSpacing : _hexW / 2 + _gridSpacing)
-      property real _stepY: _hexH + _gridSpacing
-      property real _gridContentH: (_rows - 1) * _stepY + _hexH + (_shape === "triangle" ? 0 : _stepY / 2)
+      property real _stepX: _shape === "triangle" ? _r + _gridSpacingX : (_shape === "hexagon" ? 1.5 * _r + _gridSpacingX : _hexW / 2 + _gridSpacingX)
+      property real _stepY: _hexH + _gridSpacingY
+      property real _gridContentH: (_rows - 1) * _stepY + _hexH + (_shape === "triangle" ? 0 : _stepY * Config.hexStagger)
       property real _yOffset: Math.max(0, (height - _gridContentH) / 2)
       property real _visibleBand: (wallpaperSelector.hexCols - 1) * _stepX + _hexW
       property real _fadeZone: (width - _visibleBand) / 2
@@ -1341,6 +1388,11 @@ Scope {
           }
           return shaped * _curveFactor
         }
+        readonly property real _norm: (_colCenter - hexListView.width / 2) / Math.max(1, hexListView.width / 2)
+        readonly property real _lensScale: Config.hexLens === 0 ? 1 : (1 + Config.hexLens * Math.max(0, 1 - Math.abs(_norm)))
+        readonly property real _twistAngle: Config.hexTwist * _norm
+        readonly property real _scatterY: Config.hexScatter === 0 ? 0 : ((((colIdx * 2654435761) % 1000) / 1000 - 0.5) * 2 * Config.hexScatter * hexListView._r)
+
 
         Repeater {
           model: Math.max(0, Math.min(hexListView._rows, (wallpaperSelector._activeModel ? wallpaperSelector._activeModel.count : 0) - hexCol.colIdx * hexListView._rows))
@@ -1362,12 +1414,13 @@ Scope {
             applyRequest: function(item, forcePicker) { wallpaperSelector._applyItem(item, forcePicker) }
 
             x: 0
-            y: hexListView._yOffset + rowIdx * hexListView._stepY + (hexListView._shape === "triangle" || hexCol.colIdx % 2 === 0 ? 0 : hexListView._stepY / 2) + hexCol._arcOffset
+            y: hexListView._yOffset + rowIdx * hexListView._stepY + (hexListView._shape === "triangle" || hexCol.colIdx % 2 === 0 ? 0 : hexListView._stepY * Config.hexStagger) + hexCol._arcOffset + hexCol._scatterY
 
             parallaxX: 0
             parallaxY: 0
 
-            scale: hexCol._colScale
+            scale: hexCol._colScale * hexCol._lensScale
+            rotation: hexCol._twistAngle
             transformOrigin: hexCol._nearLeft ? Item.Left : Item.Right
             opacity: hexCol._colScale < 0.01 ? 0 : 1
             pulledOut: hexBackOverlay.overlayItemKey !== "" && hexBackOverlay.overlayItemKey === ((itemData && ((itemData.weId || "") !== "")) ? itemData.weId : (itemData ? itemData.name : ""))
@@ -1822,6 +1875,113 @@ Scope {
       onItemActivated: function(item) {
         if (item) wallpaperSelector._applyItem(item)
       }
+    }
+
+    HandView {
+      id: handView
+      anchors.top: cardContainer.top
+      anchors.topMargin: wallpaperSelector.topBarHeight + 20
+      anchors.bottom: cardContainer.bottom
+      anchors.bottomMargin: 20
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: wallpaperSelector._handStageW
+      model: wallpaperSelector._activeModel
+      colors: wallpaperSelector.colors
+      active: wallpaperSelector.cardVisible && !wallpaperSelector.anyBrowserOpen && wallpaperSelector.isHandMode
+      visible: active
+      focus: wallpaperSelector.showing && wallpaperSelector.isHandMode
+      selectedIndex: wallpaperSelector.customViewIndex
+      cardWidth: Config.handCardWidth
+      cardHeight: Config.handCardHeight
+      cardCount: Config.handCount
+      fanAngle: Config.handFanAngle
+      fanRoll: Config.handFanRoll
+      arch: Config.handArch
+      spread: Config.handSpread
+      skew: Config.handSkew
+      cornerRadius: Config.handCornerRadius
+      tilt: Config.handTilt
+      perspective: Config.handPerspective
+      speed: Config.handSpeed
+      ghosts: Config.handGhosts ? 2 : 0
+      bob: Config.handBob ? 4 : 0
+      backdrop: Config.handBackdrop
+      onSelectionChanged: function(index) { wallpaperSelector.customViewIndex = index }
+      onItemActivated: function(item) { if (item) wallpaperSelector._applyItem(item) }
+      Keys.onEscapePressed: wallpaperSelector.showing = false
+    }
+
+    SandyView {
+      id: sandyView
+      anchors.top: cardContainer.top
+      anchors.topMargin: wallpaperSelector.topBarHeight + 20
+      anchors.bottom: cardContainer.bottom
+      anchors.bottomMargin: 20
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: wallpaperSelector._sandyStageW
+      model: wallpaperSelector._activeModel
+      colors: wallpaperSelector.colors
+      active: wallpaperSelector.cardVisible && !wallpaperSelector.anyBrowserOpen && wallpaperSelector.isSandyMode
+      visible: active
+      focus: wallpaperSelector.showing && wallpaperSelector.isSandyMode
+      selectedIndex: wallpaperSelector.customViewIndex
+      center: Config.sandyCenter
+      sliceWidth: Config.sandySliceWidth
+      sliceHeight: Config.sandySliceHeight
+      skew: Config.sandySkew
+      spacing: Config.sandySpacing / 100
+      duration: Config.sandyDuration * 4
+      strands: Config.sandyStrands
+      twist: Config.sandyTwist * 8
+      orbit: Config.sandyOrbit * 0.6
+      turbulence: Config.sandyTurbulence * 0.4
+      waist: Config.sandyWaist * 0.35
+      front: Config.sandyFront * 0.6
+      arc: Config.sandyArc * 0.6
+      edgeSpeed: Config.sandyEdgeSpeed / 28
+      ringSpin: Config.sandyRingSpin
+      ringSize: Config.sandyRingSize * 0.6
+      ringWave: Config.sandyRingWave * 0.15
+      ringSoft: Config.sandyRingSoft * 0.5
+      ringBlend: Config.sandyRingBlend
+      ringHold: Config.sandyRingHold
+      grain: Config.sandyGrain / 10
+      fan: Config.sandyFan * 10
+      onSelectionChanged: function(index) { wallpaperSelector.customViewIndex = index }
+      onItemActivated: function(item) { if (item) wallpaperSelector._applyItem(item) }
+      Keys.onEscapePressed: wallpaperSelector.showing = false
+    }
+
+    GridLayoutsView {
+      id: gridLayoutsView
+      anchors.top: cardContainer.top
+      anchors.topMargin: wallpaperSelector.topBarHeight + 20
+      anchors.bottom: cardContainer.bottom
+      anchors.bottomMargin: 20
+      anchors.horizontalCenter: parent.horizontalCenter
+      width: wallpaperSelector._gridStageW
+      model: wallpaperSelector._activeModel
+      colors: wallpaperSelector.colors
+      active: wallpaperSelector.cardVisible && !wallpaperSelector.anyBrowserOpen && wallpaperSelector.isGridLayoutsMode
+      visible: active
+      focus: wallpaperSelector.showing && wallpaperSelector.isGridLayoutsMode
+      selectedIndex: wallpaperSelector.customViewIndex
+      layoutKind: Config.gridLayout
+      columns: Config.gridColumns
+      rows: Config.gridRows
+      thumbWidth: Config.gridThumbWidth
+      thumbHeight: Config.gridThumbHeight
+      stagger: Config.gridStagger
+      selectedScale: Config.gridSelectedScale
+      flowWave: Config.gridFlowWave
+      flowFrequency: Config.gridFlowFrequency
+      scatter: Config.gridScatter
+      scaleVariance: Config.gridScaleVariance
+      cylinderBend: Config.gridCylinderBend
+      cylinderRadius: Config.gridCylinderRadius
+      onSelectionChanged: function(index) { wallpaperSelector.customViewIndex = index }
+      onItemActivated: function(item) { if (item) wallpaperSelector._applyItem(item) }
+      Keys.onEscapePressed: wallpaperSelector.showing = false
     }
 
     // Momentary-detour header: entering themes/rices is not a sticky mode, so a

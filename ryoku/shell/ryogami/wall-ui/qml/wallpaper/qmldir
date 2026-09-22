@@ -11,6 +11,9 @@ HexDelegate 1.0 HexDelegate.qml
 MonitorPickerPopup 1.0 MonitorPickerPopup.qml
 MosaicCell 1.0 MosaicCell.qml
 MosaicView 1.0 MosaicView.qml
+GridLayoutsView 1.0 GridLayoutsView.qml
+HandView 1.0 HandView.qml
+SandyView 1.0 SandyView.qml
 SettingsInput 1.0 SettingsInput.qml
 SettingsTextInput 1.0 SettingsTextInput.qml
 SettingsToggle 1.0 SettingsToggle.qml

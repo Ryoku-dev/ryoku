@@ -57,7 +57,10 @@ Item {
         }
     }
 
-    readonly property real _skAbs: Math.abs(skewOffset)
+    // A skew wider than the slice itself collapses the parallelogram's flat top to
+    // nothing, so the mask degenerates and the slice vanishes. Cap the shear at the
+    // narrower of the current and resting widths, leaving a hairline of flat edge.
+    readonly property real _skAbs: Math.min(Math.abs(skewOffset), Math.max(0, Math.min(width, sliceWidth) - 2))
     readonly property real _topLeft: skewOffset >= 0 ? _skAbs : 0
     readonly property real _topRight: skewOffset >= 0 ? width : width - _skAbs
     readonly property real _botRight: skewOffset >= 0 ? width - _skAbs : width

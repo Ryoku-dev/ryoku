@@ -30,15 +30,29 @@
   studio recording uses stays Hyprland payload, reached by capability
   (`scripts/ryoku-summon`, `scripts/ryoku-cmd-game-mode`,
   `scripts/ryoku-cmd-studiorecord`).
-- **The wallpaper crossfade transition, and a picker grouped by family.** skwd-wall
-  v2 ships a plain crossfade its earlier catalogue lacked: a clean dissolve
-  between the two frames on a smoothed progress. It rides the shell as a real
-  shader (`modules/wallpaper/skwd/crossfade.frag`, the daemon catalogue in
-  `ryogami/daemon/transitions.go`), so "random" rotates it and the picker pins
-  it like any other. The transition picker no longer reads as a flat list of 39
-  names: it draws them under the Fade, Wipe, Warp and Break up families v2
-  carries, each shader placed by what its math does
-  (`ryogami/wall-ui/qml/wallpaper/ShaderPicker.qml`, `settings/PaperSettings.qml`).
+- **The wallpaper crossfade transition, and one pool of every transition.**
+  skwd-wall v2 ships a plain crossfade its earlier catalogue lacked: a clean
+  dissolve between the two frames on a smoothed progress. It rides the shell as a
+  real shader (`modules/wallpaper/skwd/crossfade.frag`, the daemon catalogue in
+  `ryogami/daemon/transitions.go`), so "random" rotates it and the picker pins it
+  like any other. The transition picker no longer reads as a flat list: it groups
+  the 39 skwd shaders under the Fade, Wipe, Warp and Break up families v2 carries,
+  each placed by what its math does, and folds Ryogami's original 22 reveal presets
+  into the same list under a Reveal family. Both engines are now one selectable
+  pool and "random" rotates across all 61, where the reveal presets had been
+  stranded on a second, shadowed control the picker never read
+  (`ryogami/wall-ui/qml/wallpaper/ShaderPicker.qml`, `settings/PaperSettings.qml`,
+  `settings/ThemeSettings.qml`, `ryogami/daemon/transitions.go`).
+
+- **Three more wallpaper picker modes from skwd-wall v2: Hand, Sandy, Grid.**
+  The picker could fan cards (Slices), tile them (Wall, Hex, Mosaic); v2 carries
+  three layouts Ryogami lacked. Hand is a fanned deck of cards you scroll through,
+  Sandy a twisting strand carousel, and Grid six packing arrangements (uniform,
+  brick, masonry, justified, editorial and a curved cylinder). Each is a standalone
+  leaf view sharing the picker's one selection cursor, every geometry knob is a
+  live slider, and the whole set persists per-mode like the others
+  (`ryogami/wall-ui/qml/wallpaper/HandView.qml`, `SandyView.qml`,
+  `GridLayoutsView.qml`, `settings/SelectorSettings.qml`, `components/RowSlider.qml`).
 
 - **Upscaling runs in its own worker process and reports its progress.** The
   waifu2x/ffmpeg enhance ran inside the daemon: a panicking job took the whole
@@ -216,6 +230,19 @@
   `services/Keypresses.qml`, `ipc/keypress.go`).
 
 ### Fixed
+- **The slice picker no longer collapses or stalls on extreme sizes.** The
+  slice-width, gap, skew and visible-count controls were free ranges that the
+  layout math could not survive: a gap more negative than the slice width made
+  the row's pitch go negative so every delegate stacked on one point and the
+  images and videos vanished; a skew wider than the slice collapsed the
+  parallelogram mask to nothing and the slice disappeared too; and the offscreen
+  cache was sized in raw pixels (up to 1800), which at a small slice width pulled
+  hundreds of full-height image and shader-effect delegates into memory at once
+  and lagged the shell toward a crash. The effective gap is now floored at a
+  one-pixel pitch, the skew is capped at the narrower slice edge, and the cache
+  is a bounded band of five pitches on each side, materialising about ten
+  delegates whatever the configured widths are
+  (`ryogami/wall-ui/qml/wallpaper/WallpaperSelector.qml`, `SliceDelegate.qml`).
 - **Closing the launcher no longer risks crashing the shell on niri.** Where the
   compositor has no focus-grab protocol the launcher tore its screen capture
   down on every close and unmapped its dismiss scrim from inside the press that

@@ -9,6 +9,7 @@ SettingsToggle 1.0 SettingsToggle.qml
 SettingsInput 1.0 SettingsInput.qml
 RowToggle 1.0 RowToggle.qml
 RowInput 1.0 RowInput.qml
+RowSlider 1.0 RowSlider.qml
 RowTextInput 1.0 RowTextInput.qml
 RowDropdown 1.0 RowDropdown.qml
 RowAction 1.0 RowAction.qml
