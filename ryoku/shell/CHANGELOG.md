@@ -4,6 +4,15 @@
 
 ### Added
 
+- **Palette Bridge rides the wallpaper palette to your apps.** A small local
+  event server publishes the current matugen palette over HTTP so Spicetify,
+  Vesktop and Zen recolour with the wallpaper. The wallpaper settings' Matugen
+  tab grew a Palette Bridge page to build it, run it as a user service, and
+  install or remove each integration; the ryoku-palette-bridge package ships
+  the source tree and the unit
+  (`ryoku/palette-bridge/`, `ryoku/hub/backend/palettebridge.go`,
+  `settings/PaletteBridgeSettings.qml`).
+
 - **The Super+K cheatsheet reads the shared legend.** Short labels with the
   hint on hover or while searching, a "not here" tag on a shortcut the running
   compositor cannot do (the reason on hover), caps wide enough for "Num 1" and

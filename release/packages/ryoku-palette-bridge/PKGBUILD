@@ -1,0 +1,40 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Ryoku Palette Bridge: publishes the wallpaper palette via HTTP so Spotify,
+# Vesktop, and Zen Browser can consume it live. A single Go binary listens on
+# localhost and fans palette changes to connected clients; no systemd hard
+# dependency here—the service unit ships so the optional user-service path works.
+pkgname=ryoku-palette-bridge
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc="Ryoku wallpaper palette event bridge: exposes colours to SPA integrations"
+arch=('x86_64')
+url="https://ryoku.dev"
+license=('MIT')
+depends=()
+makedepends=('go')
+source=()
+
+_repo="$startdir/../../.."
+
+build() {
+  cd "$_repo/ryoku/palette-bridge"
+  # no vendor tree is shipped with the bridge; GOFLAGS from the publish
+  # container pin the proxy so the build stays offline and reproducible.
+  CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags='-s -w' -o "$srcdir/ryoku-palette-bridge" .
+}
+
+package() {
+  install -Dm755 "$srcdir/ryoku-palette-bridge" \
+    "$pkgdir/usr/bin/ryoku-palette-bridge"
+  install -Dm755 "$_repo/ryoku/palette-bridge/doctor.sh" \
+    "$pkgdir/usr/bin/ryoku-palette-bridge-doctor"
+  install -Dm755 "$_repo/ryoku/palette-bridge/remove-integrations.sh" \
+    "$pkgdir/usr/bin/ryoku-palette-bridge-remove-integrations"
+  install -Dm644 "$_repo/ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service" \
+    "$pkgdir/usr/lib/systemd/user/ryoku-palette-bridge.service"
+  install -dm755 "$pkgdir/usr/share/ryoku/palette-bridge"
+  cp -a "$_repo/ryoku/palette-bridge/." "$pkgdir/usr/share/ryoku/palette-bridge/"
+  install -Dm644 "$_repo/ryoku/palette-bridge/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
