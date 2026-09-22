@@ -2,28 +2,40 @@ import QtQuick
 import QtQuick.Effects
 import Ryoku.Ui.Singletons
 
-// Product artwork with three deliberate presentations:
+// Product artwork with four deliberate presentations:
 //   cover  a crop-filled tile (the browse grid, thumbnails)
 //   hero   a cinematic full-bleed frame that fades into the surface
 //   plate  the whole preview shown as a framed gallery plate, its own colour
 //          bled through a dark blur behind it so the art never floats as a
 //          hard rectangle
+//   view   the expanded lightbox: the artwork alone, on nothing, never
+//          enlarged past its own pixels -- a preview is a fixed raster, so
+//          stretching it to fill a big window only blurs it
 Item {
     id: media
 
     property url source: ""
-    property string mode: "cover"       // cover | hero | plate
+    property string mode: "cover"       // cover | hero | plate | view
     property bool active: true
     property color surface: Tokens.paper
 
     readonly property string cleanSource: String(source).split(/[?#]/)[0].toLowerCase()
     readonly property bool animated: cleanSource.endsWith(".gif")
     readonly property bool plate: mode === "plate"
-    readonly property bool bled: mode !== "cover"
-    readonly property int fit: plate ? Image.PreserveAspectFit : Image.PreserveAspectCrop
+    readonly property bool view: mode === "view"
+    readonly property bool framed: plate || view
+    readonly property bool bled: mode === "hero" || mode === "plate"
+    readonly property int fit: framed ? Image.PreserveAspectFit : Image.PreserveAspectCrop
     readonly property var front: media.animated ? moving : still
     readonly property real pw: front.paintedWidth
     readonly property real ph: front.paintedHeight
+
+    // the box framed art fits into: a plate keeps its inset margin, and the
+    // artwork is capped to its own pixels rather than stretched across a big
+    // window, which is what made an enlarged preview read as blurred.
+    readonly property real frontMargin: plate ? Math.round(Math.min(width, height) * 0.045) : 0
+    readonly property real innerW: Math.max(1, width - frontMargin * 2)
+    readonly property real innerH: Math.max(1, height - frontMargin * 2)
 
     clip: true
 
@@ -84,12 +96,18 @@ Item {
 
     Image {
         id: still
-        anchors.fill: parent
-        anchors.margins: media.plate
-                ? Math.round(Math.min(media.width, media.height) * 0.045) : 0
+        anchors.centerIn: parent
+        // A framed plate decodes at its own pixels and is then capped to the
+        // frame, so a small preview is never stretched across a big window --
+        // forcing sourceSize from the frame size would be circular (an Image's
+        // implicit size follows its sourceSize), so framed art simply leaves it
+        // native. A crop tile keeps its oversampled hidpi decode.
+        sourceSize: media.framed ? Qt.size(0, 0)
+                : Qt.size(Math.max(1, Math.ceil(media.width * 2)),
+                          Math.max(1, Math.ceil(media.height * 2)))
+        width: media.framed ? Math.min(media.innerW, Math.max(1, implicitWidth)) : media.width
+        height: media.framed ? Math.min(media.innerH, Math.max(1, implicitHeight)) : media.height
         source: !media.animated ? media.source : ""
-        sourceSize: Qt.size(Math.max(1, Math.ceil(media.width * 2)),
-                            Math.max(1, Math.ceil(media.height * 2)))
         fillMode: media.fit
         asynchronous: true
         cache: true
@@ -99,14 +117,14 @@ Item {
         visible: source !== "" && status === Image.Ready
         opacity: visible ? 1 : 0
 
-        Behavior on opacity { NumberAnimation { duration: 180 } }
+        Behavior on opacity { NumberAnimation { duration: media.view ? 0 : 180 } }
     }
 
     AnimatedImage {
         id: moving
-        anchors.fill: parent
-        anchors.margins: media.plate
-                ? Math.round(Math.min(media.width, media.height) * 0.045) : 0
+        anchors.centerIn: parent
+        width: media.framed ? Math.min(media.innerW, Math.max(1, implicitWidth)) : media.width
+        height: media.framed ? Math.min(media.innerH, Math.max(1, implicitHeight)) : media.height
         source: media.animated ? media.source : ""
         // No forced sourceSize: an AnimatedImage scales its movie to sourceSize
         // exactly (QMovie), which stretches gifs whose aspect differs from the
@@ -120,7 +138,7 @@ Item {
         visible: source !== "" && status === AnimatedImage.Ready
         opacity: visible ? 1 : 0
 
-        Behavior on opacity { NumberAnimation { duration: 180 } }
+        Behavior on opacity { NumberAnimation { duration: media.view ? 0 : 180 } }
     }
 
     // hairline frame drawn exactly around the fitted plate, so the preview

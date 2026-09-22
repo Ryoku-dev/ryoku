@@ -951,8 +951,11 @@ FocusScope {
         ProductMedia {
             anchors.fill: parent
             anchors.margins: Tokens.s7
-            source: detail.lightboxOpen ? detail.galleryShots[detail.lightboxIndex] : ""
-            mode: "plate"
+            // Held on a real shot even while closed: clearing the source on close
+            // throws the decode away, so every reopen repaints from blank and
+            // reads as a flicker. The parent's visibility is the gate.
+            source: detail.galleryShots[Math.max(0, detail.lightboxIndex)] || ""
+            mode: "view"
             active: detail.lightboxOpen
         }
 
