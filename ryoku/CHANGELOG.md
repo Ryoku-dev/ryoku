@@ -225,6 +225,14 @@
   show: it keeps a real user alias, otherwise takes the device-reported name,
   and skips a BlueZ alias that is only the device's own address
   (`ui/lib/bluetooth.js`).
+- **Niri screen sharing works with the GNOME portal again.** Ryoku's
+  `GDK_BACKEND=wayland,x11,*` preference was inherited by
+  `xdg-desktop-portal-gnome`, which then treated the Niri session as an
+  incompatible display server and exposed Settings only, leaving OBS,
+  browsers and Electron clients without a ScreenCast backend. The portal
+  service now drops only `GDK_BACKEND`, while normal GTK applications keep
+  Ryoku's Wayland-first preference
+  (`shell/systemd/user/xdg-desktop-portal-gnome.service.d/10-ryoku.conf`).
 - **The gap stream clears when it stops instead of freezing a frame.** A silent
   bar with no drift left the last shader frame stuck in the gaps; it now hides,
   so the stream reads as off, then on when audio returns
