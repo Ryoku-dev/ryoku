@@ -98,12 +98,16 @@ off() {
     require "$nmcli"
     require "$systemctl"
     lock_transitions
-    if firewall_present; then
-        "$nft" delete table inet "$table"
-    fi
+    # Drop the boot marker and disarm the units before touching live state: with
+    # the marker gone the guard cannot re-arm at boot, so a failure past this
+    # point can never leave the machine isolated across a reboot. The rest is
+    # best-effort -- off is the recovery path and must not abort half done.
     rm -f "$state"
     "$systemctl" disable --quiet ryoku-network-kill-guard.service ryoku-network-kill-disconnect.service || true
-    "$nmcli" networking on
+    if firewall_present; then
+        "$nft" delete table inet "$table" || true
+    fi
+    "$nmcli" networking on || true
 }
 
 status() {

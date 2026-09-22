@@ -31,7 +31,7 @@ fi
 grep -qF '_network_kill_units' <<<"$post_upgrade"
 
 grep -qF '["pkexec", "/usr/bin/ryoku-network-kill", "status"]' "$page"
-grep -qF 'killSetProc.target = killActive ? "off" : "on";' "$page"
+grep -qF 'killSetProc.target = killState === "off" ? "on" : "off";' "$page"
 grep -qF 'Blocks Wi-Fi, Ethernet, VPN, LAN and IPv4/IPv6. It also severs SSH.' "$page"
 
 grep -qF '"/usr/bin/ryoku-network-kill"' "$polkit"
