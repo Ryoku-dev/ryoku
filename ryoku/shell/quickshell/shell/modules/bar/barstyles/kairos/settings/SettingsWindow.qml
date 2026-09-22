@@ -261,6 +261,13 @@ PanelWindow {
                 value: cfg.dateWheel
                 onToggled: (v) => cfg.set("dateWheel", v)
             }
+            ToggleRow {
+                width: parent.width
+                title: I18n.tr("App tray")
+                subtitle: I18n.tr("A caret under the clock opens the system tray.")
+                value: cfg.tray
+                onToggled: (v) => cfg.set("tray", v)
+            }
         }
     }
 

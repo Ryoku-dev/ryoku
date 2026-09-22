@@ -46,7 +46,7 @@ Item {
     // Reserve the tallest state so the surface never resizes mid-morph: only the
     // pill grows.
     readonly property real reach: topGap
-        + Math.max(cfg.hoverHeight, Island.musicHeight, island.quickHeight)
+        + Math.max(cfg.hoverHeight + island.trayMaxExtra, Island.musicHeight, island.quickHeight)
         + Island.shadowBleed
 
     // ── the music island ─────────────────────────────────────────────────────
@@ -128,8 +128,21 @@ Item {
     readonly property real restWidth: Math.round(metrics.implicitWidth + 2 * cfg.restPadX)
     readonly property real hoverWidth: Math.round(island.restWidth
         + (cfg.hoverWidth - island.restWidth) * island.clockProgress)
+    // The tray caret already lives in the sliver left under the date wheel at
+    // rest; opening it (or an app's menu) grows the pill by exactly that much
+    // more, so the tray reads as one more thing the island opens into.
+    readonly property bool trayHostActive: island.clockHovered && !island.suspended && !island.quickOpen
+    property real trayExtra: trayFlyout.extraHeight
+    Behavior on trayExtra {
+        enabled: !Motion.reduce
+        NumberAnimation { duration: Motion.fast; easing.type: Motion.easeStandard }
+    }
+    // A fixed reserve for the window's own canvas (see Scene's `reach`-sized
+    // PanelWindow): capped once at the flyout's own maximum, never live, so the
+    // surface is created at its largest size and never resizes mid-morph.
+    readonly property real trayMaxExtra: trayFlyout.maxExtra
     readonly property real hoverHeight: Math.round(island.restHeight
-        + (cfg.hoverHeight - island.restHeight) * island.clockProgress)
+        + (cfg.hoverHeight + island.trayExtra - island.restHeight) * island.clockProgress)
     readonly property real baseRadius: cfg.restHeight / 2
         + (cfg.hoverRadius - cfg.restHeight / 2) * island.clockProgress
     readonly property real clockWidth: Math.round(island.hoverWidth
@@ -275,6 +288,20 @@ Item {
             opacity: Math.max(0, Math.min(1, (island.quickProgress - 0.35) / 0.5))
             enabled: island.quickProgress > 0.95
             host: island
+        }
+
+        // The system tray folds into the sliver already left under the date
+        // wheel; opening it (or an app's menu) is what grows the pill further.
+        C.TrayFlyout {
+            id: trayFlyout
+            anchors { bottom: parent.bottom; horizontalCenter: parent.horizontalCenter }
+            width: parent.width
+            ink: island.ink
+            accent: Theme.primary
+            hostActive: island.trayHostActive
+            visible: cfg.tray && island.clockProgress > 0.5 && !island.quickOpen
+            opacity: Math.max(0, Math.min(1, (island.clockProgress - 0.5) / 0.4))
+            enabled: island.clockProgress > 0.95
         }
 
         // Quick settings sit just left of the gear; both ride the expansion.

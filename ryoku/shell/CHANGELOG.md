@@ -138,6 +138,16 @@
   moving the pointer away, Escape, or the tune icon; Ryoku Settings is untouched
   (`barstyles/kairos/quicksettings/`, `components/Island.qml`).
 
+- **Kairos carries a system tray in the clock pill.** A caret in the sliver
+  under the date wheel opens the tray's icon row inside the same pill; the row
+  scrolls when more apps than fit show up, and right-clicking an icon swaps the
+  row for that app's own menu, rendered live off the tray daemon. Nothing
+  appears until a tray app is actually running, and the island's surface is
+  sized once for the tallest the tray can get, so opening it never resizes the
+  bar mid-morph. Toggle it from the island's Clock settings
+  (`barstyles/kairos/components/TrayFlyout.qml`, `components/Island.qml`,
+  `settings/IslandSettings.qml`).
+
 - **Rashin works with any coding agent now, not just Hermes.** The Hub's Rashin
   page and the dashboard both list your detected agents with a one-click Wire
   (it drops a pointer, the ryoku skill, and prowl-agent's code-intelligence
