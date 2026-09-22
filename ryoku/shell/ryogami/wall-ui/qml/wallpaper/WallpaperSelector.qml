@@ -793,6 +793,23 @@ Scope {
       }
     }
 
+    // The filter row is hidden by default now (#238 read the always-on bar as
+    // clutter): this is the one discrete control that reveals it, beside the
+    // top-edge hover zone and the Up-key toggle. It sits at the card's top edge
+    // and steps aside the moment the bar is up, so it never crowds the strip.
+    FilterButton {
+      id: filterRevealHandle
+      anchors.top: parent.top
+      anchors.topMargin: 6
+      anchors.horizontalCenter: parent.horizontalCenter
+      z: 11
+      visible: !wallpaperSelector.anyBrowserOpen && !wallpaperSelector._filterBarShown
+      colors: wallpaperSelector.colors
+      icon: "\u{f0233}"
+      tooltip: I18n.tr("Show filters")
+      onClicked: wallpaperSelector._filterBarManuallyShown = true
+    }
+
     }
 
     CacheProgressBar {

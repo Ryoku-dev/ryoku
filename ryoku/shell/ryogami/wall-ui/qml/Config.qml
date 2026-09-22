@@ -108,7 +108,7 @@ QtObject {
     readonly property string mainMonitor: _data.monitor ?? ""
 
     readonly property bool closeOnSelection: _data.general?.closeOnSelection !== false
-    readonly property bool filterBarAlwaysVisible: _data.general?.filterBarAlwaysVisible !== false
+    readonly property bool filterBarAlwaysVisible: _data.general?.filterBarAlwaysVisible === true
     readonly property int randomInterval: _data.general?.randomInterval ?? 300
     readonly property bool randomIncludeStatic: _data.general?.randomIncludeStatic !== false
     readonly property bool randomIncludeVideo: _data.general?.randomIncludeVideo !== false
