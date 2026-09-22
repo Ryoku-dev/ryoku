@@ -30,6 +30,7 @@ Scope {
     readonly property bool clockSeconds: s.bool("clockSeconds", false)
     readonly property bool dateWheel: s.bool("dateWheel", true)
     readonly property bool music: s.bool("music", true)
+    readonly property bool tray: s.bool("tray", true)
     readonly property real musicPeek: s.clamp(s.num("musicPeek", M.musicPeekHeight), 70, 140)
     readonly property bool showLocation: s.bool("showLocation", true)
 
@@ -53,6 +54,7 @@ Scope {
             clockSeconds: false,
             dateWheel: true,
             music: true,
+            tray: true,
             musicPeek: M.musicPeekHeight,
             showLocation: true
         };
