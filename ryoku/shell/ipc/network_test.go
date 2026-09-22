@@ -209,10 +209,32 @@ func TestSsidSaved(t *testing.T) {
 	}
 }
 
+// ssidAutoconnect returns a saved wifi profile's stored autoconnect and false
+// for anything that is not a saved wifi profile.
+func TestSsidAutoconnect(t *testing.T) {
+	saved := []savedConn{
+		{typ: "802-11-wireless", ssid: "home", autoconnect: true},
+		{typ: "802-11-wireless", ssid: "cafe", autoconnect: false},
+		{typ: "802-3-ethernet", ssid: "wired", autoconnect: true}, // wrong type
+	}
+	if !ssidAutoconnect("home", saved) {
+		t.Error("home autoconnect should be on")
+	}
+	if ssidAutoconnect("cafe", saved) {
+		t.Error("cafe autoconnect was turned off")
+	}
+	if ssidAutoconnect("wired", saved) {
+		t.Error("wired is ethernet, not a saved wifi profile")
+	}
+	if ssidAutoconnect("unknown", saved) {
+		t.Error("unknown is not saved")
+	}
+}
+
 // apFrame carries every field the reveal binds to.
 func TestApFrame(t *testing.T) {
-	f := apFrame(&apInfo{Ssid: "M", Strength: 50, Security: "Wpa2", Bssid: "D6:31:27:89:88:78", Frequency: 5280, Saved: true, Active: true})
-	for _, k := range []string{"ssid", "strength", "security", "bssid", "frequency", "saved", "active"} {
+	f := apFrame(&apInfo{Ssid: "M", Strength: 50, Security: "Wpa2", Bssid: "D6:31:27:89:88:78", Frequency: 5280, Saved: true, Active: true, Autoconnect: true})
+	for _, k := range []string{"ssid", "strength", "security", "bssid", "frequency", "saved", "active", "autoconnect"} {
 		if _, ok := f[k]; !ok {
 			t.Errorf("apFrame missing key %q", k)
 		}

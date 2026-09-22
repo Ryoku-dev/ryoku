@@ -50,7 +50,7 @@ Item {
     property string killState: "checking"
     property string killError: ""
     property bool killBusy: false
-    readonly property bool killActive: killState === "on"
+    readonly property bool killActive: killState === "on" || killState === "armed" || killState === "blocked"
 
     function refreshKillState() {
         if (!killStatus.running)
@@ -60,7 +60,7 @@ Item {
     function toggleKillSwitch() {
         killBusy = true;
         killError = "";
-        killSetProc.target = killActive ? "off" : "on";
+        killSetProc.target = killState === "off" ? "on" : "off";
         killSetProc.running = true;
     }
 
@@ -452,6 +452,13 @@ Item {
         property var securityMap: ({})
         property var knownProfiles: ({})
 
+        // per-saved-network autoconnect, read live from `nmcli`. a profile
+        // rejoins on its own by default; turning it off stops the machine
+        // associating with that SSID unprompted. autoBusy gates the toggle
+        // while nmcli rewrites the profile.
+        property var autoconnectMap: ({})
+        property bool autoBusy: false
+
         // dual and tri-band SSIDs expose one BSSID per band. bandMap keys each
         // SSID to its per-band BSSIDs so a join can pin a band; selectedBands is
         // the user's per-SSID pick ("" means let NM choose, which favours the
@@ -488,6 +495,17 @@ Item {
         function refresh() {
             secProc.running = true;
             profProc.running = true;
+        }
+
+        // flip a saved profile's autoconnect. the profile name equals the SSID
+        // for a network the row reads as saved (nmcli names it after the SSID),
+        // so the same key targets it. refresh re-reads the map on completion.
+        function setAutoconnect(ssid, enabled) {
+            if (wifi.autoBusy || !ssid.length)
+                return;
+            wifi.autoBusy = true;
+            autoProc.command = ["nmcli", "connection", "modify", ssid, "connection.autoconnect", enabled ? "yes" : "no"];
+            autoProc.running = true;
         }
 
         // flip the NM backend. no-op if unchanged or already switching; the
@@ -711,17 +729,21 @@ Item {
 
         Process {
             id: profProc
-            command: ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"]
+            command: ["nmcli", "-t", "-f", "NAME,TYPE,AUTOCONNECT", "connection", "show"]
             stdout: StdioCollector {
                 onStreamFinished: {
                     var set = {};
+                    var auto = {};
                     var lines = this.text.split("\n");
                     for (var i = 0; i < lines.length; i++) {
                         var f = wifi.terseFields(lines[i]);
-                        if (f.length >= 2 && f[0].length && f[1] === "802-11-wireless")
+                        if (f.length >= 3 && f[0].length && f[1] === "802-11-wireless") {
                             set[f[0]] = true;
+                            auto[f[0]] = f[2] === "yes";
+                        }
                     }
                     wifi.knownProfiles = set;
+                    wifi.autoconnectMap = auto;
                 }
             }
         }
@@ -759,6 +781,18 @@ Item {
         Process {
             id: cleanupProc
             onExited: wifi.refresh()
+        }
+
+        // apply an autoconnect flip, then re-read the profiles so the toggle
+        // reflects the stored state rather than the click.
+        Process {
+            id: autoProc
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
+            onExited: {
+                wifi.autoBusy = false;
+                wifi.refresh();
+            }
         }
 
         onNetsChanged: if (wifi.active) secRefresh.restart()
@@ -1088,6 +1122,44 @@ Item {
                                             onAct: wifi.selectBand(netItem.ssid,
                                                 wifi.selectedBands[netItem.ssid] === modelData.band ? "" : modelData.band)
                                         }
+                                    }
+                                }
+                            }
+
+                            // autoconnect toggle. a saved profile rejoins on its
+                            // own by default; turning it off stops the machine
+                            // associating with this SSID unprompted, so a spoofed
+                            // AP can no longer pull the device in. saved rows only.
+                            Item {
+                                id: autoRow
+                                readonly property bool on: wifi.autoconnectMap[netItem.ssid] !== false
+                                width: parent.width
+                                height: netItem.known ? 30 : 0
+                                clip: true
+                                visible: height > 0.5
+
+                                Row {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Tokens.s4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: Tokens.s2
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: I18n.tr("Auto-reconnect")
+                                        color: Tokens.inkMuted
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fMicro
+                                        font.weight: Font.Medium
+                                    }
+
+                                    Btn {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        compact: true
+                                        text: autoRow.on ? I18n.tr("On") : I18n.tr("Off")
+                                        primary: autoRow.on
+                                        armed: !wifi.autoBusy
+                                        onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
                                     }
                                 }
                             }
@@ -2124,7 +2196,7 @@ Item {
             MiniPill {
                 id: killAction
                 anchors { right: parent.right; rightMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                text: pg.killBusy ? I18n.tr("WORKING") : (pg.killActive ? I18n.tr("RESTORE") : I18n.tr("ISOLATE"))
+                text: pg.killBusy ? I18n.tr("WORKING") : (pg.killState === "off" ? I18n.tr("ISOLATE") : I18n.tr("RESTORE"))
                 armed: !pg.killBusy && pg.killState !== "checking"
                 onAct: pg.toggleKillSwitch()
             }
@@ -2133,7 +2205,7 @@ Item {
         Text {
             id: killWarning
             anchors { left: killSwitch.left; right: killSwitch.right; top: killSwitch.bottom; topMargin: Tokens.s1 }
-            visible: !pg.killActive
+            visible: pg.killState === "off"
             text: I18n.tr("Use ISOLATE from the physical machine; every remote connection is cut immediately.")
             color: Tokens.inkFaint
             font.family: Tokens.ui

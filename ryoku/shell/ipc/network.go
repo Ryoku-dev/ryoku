@@ -53,24 +53,26 @@ type networkState struct {
 
 // apInfo is one access point flattened to the fields the reveal renders.
 type apInfo struct {
-	Ssid      string
-	Strength  int
-	Security  string
-	Bssid     string
-	Frequency int
-	Saved     bool
-	Active    bool
+	Ssid        string
+	Strength    int
+	Security    string
+	Bssid       string
+	Frequency   int
+	Saved       bool
+	Active      bool
+	Autoconnect bool
 }
 
 // savedConn is one stored NetworkManager profile, used to mark an AP "saved"
 // (so the reveal knows whether to show a password field) and to enumerate the
 // WireGuard tunnels (which are saved profiles of type wireguard).
 type savedConn struct {
-	path dbus.ObjectPath
-	uuid string
-	id   string
-	typ  string
-	ssid string
+	path        dbus.ObjectPath
+	uuid        string
+	id          string
+	typ         string
+	ssid        string
+	autoconnect bool
 }
 
 // startNetwork brings the NetworkManager integration up, registers the topic
@@ -131,6 +133,16 @@ func (d *daemon) startNetwork() {
 			return nil, err
 		}
 		return nil, n.wifiForget(a.Ssid)
+	})
+	d.registerCall("network.wifiSetAutoconnect", func(raw json.RawMessage) (any, error) {
+		var a struct {
+			Ssid        string `json:"ssid"`
+			Autoconnect bool   `json:"autoconnect"`
+		}
+		if err := json.Unmarshal(raw, &a); err != nil {
+			return nil, err
+		}
+		return nil, n.wifiSetAutoconnect(a.Ssid, a.Autoconnect)
 	})
 	d.registerCall("network.dnsSet", func(raw json.RawMessage) (any, error) {
 		var a struct {
@@ -254,6 +266,7 @@ func (n *networkState) snapshot() map[string]any {
 			}
 			info.Active = ap == activeAp && activeAp != "/"
 			info.Saved = ssidSaved(info.Ssid, saved)
+			info.Autoconnect = ssidAutoconnect(info.Ssid, saved)
 			if info.Active {
 				wifi["ssid"] = info.Ssid
 				wifi["strength"] = info.Strength
@@ -340,11 +353,19 @@ func (n *networkState) savedConnections() []savedConn {
 		if n.obj(p).Call(nmSettConnIface+".GetSettings", 0).Store(&s) != nil {
 			continue
 		}
-		c := savedConn{path: p}
+		c := savedConn{path: p, autoconnect: true}
 		if conn := s["connection"]; conn != nil {
 			c.typ, _ = conn["type"].Value().(string)
 			c.id, _ = conn["id"].Value().(string)
 			c.uuid, _ = conn["uuid"].Value().(string)
+			// NetworkManager omits connection.autoconnect when it is on (its
+			// default), so an absent key means enabled; only an explicit false
+			// turns it off.
+			if v, ok := conn["autoconnect"]; ok {
+				if b, ok := v.Value().(bool); ok {
+					c.autoconnect = b
+				}
+			}
 		}
 		if w := s["802-11-wireless"]; w != nil {
 			if b, ok := w["ssid"].Value().([]byte); ok {
@@ -552,6 +573,23 @@ func (n *networkState) updateBand(conn dbus.ObjectPath, band string) error {
 	return n.obj(conn).Call(nmSettConnIface+".Update", 0, s).Err
 }
 
+// updateAutoconnect flips a saved wifi profile's autoconnect so the machine
+// stops (or resumes) rejoining that network on its own. Turning it off is what
+// stops a device from silently associating with an SSID a rogue AP could spoof.
+func (n *networkState) updateAutoconnect(conn dbus.ObjectPath, enabled bool) error {
+	s, err := n.editableSettings(conn)
+	if err != nil {
+		return err
+	}
+	c := s["connection"]
+	if c == nil {
+		c = map[string]dbus.Variant{}
+		s["connection"] = c
+	}
+	c["autoconnect"] = dbus.MakeVariant(enabled)
+	return n.obj(conn).Call(nmSettConnIface+".Update", 0, s).Err
+}
+
 // bestApForSsid resolves the access point a connection should bind to. With a
 // bssid it returns the AP whose HwAddress matches case-insensitively, so the
 // caller can pin an exact band; otherwise it returns the strongest matching AP,
@@ -593,6 +631,20 @@ func (n *networkState) wifiForget(ssid string) error {
 	for _, c := range n.savedConnections() {
 		if c.typ == "802-11-wireless" && c.ssid == ssid {
 			return n.obj(c.path).Call(nmSettConnIface+".Delete", 0).Err
+		}
+	}
+	return fmt.Errorf("no saved network: %s", ssid)
+}
+
+// wifiSetAutoconnect resolves the saved profile behind ssid and flips its
+// autoconnect, mirroring wifiForget's lookup by SSID.
+func (n *networkState) wifiSetAutoconnect(ssid string, enabled bool) error {
+	if ssid == "" {
+		return fmt.Errorf("empty ssid")
+	}
+	for _, c := range n.savedConnections() {
+		if c.typ == "802-11-wireless" && c.ssid == ssid {
+			return n.updateAutoconnect(c.path, enabled)
 		}
 	}
 	return fmt.Errorf("no saved network: %s", ssid)
@@ -895,14 +947,15 @@ func nmBandForFrequency(mhz int) string {
 // apFrame flattens an apInfo into the JSON object the QML reveal binds to.
 func apFrame(a *apInfo) map[string]any {
 	return map[string]any{
-		"ssid":      a.Ssid,
-		"strength":  a.Strength,
-		"security":  a.Security,
-		"bssid":     a.Bssid,
-		"frequency": a.Frequency,
-		"band":      bandForFrequency(a.Frequency),
-		"saved":     a.Saved,
-		"active":    a.Active,
+		"ssid":        a.Ssid,
+		"strength":    a.Strength,
+		"security":    a.Security,
+		"bssid":       a.Bssid,
+		"frequency":   a.Frequency,
+		"band":        bandForFrequency(a.Frequency),
+		"saved":       a.Saved,
+		"active":      a.Active,
+		"autoconnect": a.Autoconnect,
 	}
 }
 
@@ -911,6 +964,18 @@ func ssidSaved(ssid string, saved []savedConn) bool {
 	for _, c := range saved {
 		if c.typ == "802-11-wireless" && c.ssid == ssid {
 			return true
+		}
+	}
+	return false
+}
+
+// ssidAutoconnect reports the autoconnect state of the stored wifi profile that
+// matches ssid, defaulting to true (NetworkManager's own default) when the
+// profile leaves the key unset. It is meaningful only for a saved network.
+func ssidAutoconnect(ssid string, saved []savedConn) bool {
+	for _, c := range saved {
+		if c.typ == "802-11-wireless" && c.ssid == ssid {
+			return c.autoconnect
 		}
 	}
 	return false
