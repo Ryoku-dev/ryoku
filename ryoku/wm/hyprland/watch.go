@@ -350,8 +350,15 @@ func readWindows(mons []hyprMonitor) []wm.Window {
 }
 
 // readKeyboard returns the active layout and the loaded set. The main keyboard
-// is the first with a layout list; per-device layouts are not surfaced because
-// the bar shows one indicator.
+// is the first with a usable active keymap; per-device layouts are not surfaced
+// because the bar shows one indicator.
+//
+// Hyprland reports the transient sentinel "ERROR" as a keyboard's active_keymap
+// while its xkb state is mid-transition (a virtual device coming and going, as
+// dictation does), and no further activelayout event follows once it settles, so
+// publishing it latches the bar on "ERROR" forever. Treat it like an empty
+// keymap: skip that device, and if none resolves, return "" so the caller keeps
+// the last-good layout instead of a value the compositor never confirmed.
 func readKeyboard() (string, []string) {
 	out, err := ctl("devices", "-j")
 	if err != nil {
@@ -368,7 +375,7 @@ func readKeyboard() (string, []string) {
 		return "", nil
 	}
 	for _, k := range devs.Keyboards {
-		if !k.Main || k.ActiveKeymap == "" {
+		if !k.Main || !usableKeymap(k.ActiveKeymap) {
 			continue
 		}
 		var all []string
@@ -380,6 +387,13 @@ func readKeyboard() (string, []string) {
 		return k.ActiveKeymap, all
 	}
 	return "", nil
+}
+
+// usableKeymap reports whether an active_keymap is a real layout rather than the
+// empty string or Hyprland's transient "ERROR" transition sentinel.
+func usableKeymap(s string) bool {
+	s = strings.TrimSpace(s)
+	return s != "" && !strings.EqualFold(s, "error")
 }
 
 // runState is one snapshot for callers that ask once and exit.

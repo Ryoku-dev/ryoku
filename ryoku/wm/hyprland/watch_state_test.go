@@ -101,3 +101,21 @@ func TestKeyboardAndTopologyRefresh(t *testing.T) {
 		t.Fatal("prefix collision")
 	}
 }
+
+// Hyprland reports the transient "ERROR" active_keymap while a keyboard's xkb
+// state is mid-transition (a virtual device flapping, as dictation does), and no
+// further activelayout event follows once it settles. Publishing it would latch
+// the bar on "ERROR" forever, so a refresh that resolves only to the sentinel
+// must publish nothing and leave the last-good layout standing.
+func TestKeyboardErrorSentinelIsNotPublished(t *testing.T) {
+	restore := stubCtl(t, func(args ...string) ([]byte, error) {
+		return []byte(`{"keyboards":[{"main":true,"active_keymap":"ERROR","layout":"us"}]}`), nil
+	})
+	defer restore()
+	var frames []wm.Frame
+	s := newWatchState(func(f wm.Frame) { frames = append(frames, f) }, func(wm.FrameKind) bool { return true })
+	s.refresh(s.event("activelayout>>keyboard,ERROR"))
+	if len(frames) != 0 {
+		t.Fatalf("ERROR sentinel published: %+v", frames)
+	}
+}
