@@ -720,7 +720,11 @@ Scope {
       anchors.horizontalCenter: parent.horizontalCenter
       anchors.top: parent.top
       anchors.topMargin: 30
-      maxWidth: parent.width - 20
+      // The bar is a self-contained pill centred over the wallpaper, so it is
+      // capped to the panel, not the card: a narrow card (a small slice preset,
+      // or a localized label set that widens the row) would otherwise hide the
+      // chips after the colour picker behind an avoidable clip.
+      maxWidth: selectorPanel.width - 24
       z: 10
       colors: wallpaperSelector.colors
       service: service

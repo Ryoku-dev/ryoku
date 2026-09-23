@@ -68,6 +68,27 @@ Item {
         flickableDirection: Flickable.HorizontalFlick
         boundsBehavior: Flickable.StopAtBounds
 
+        // A Flickable ignores the wheel by default, so on a narrow card (or a
+        // localized label set that widens the row past it) the chips after the
+        // colour picker were clipped and unreachable: the natural scroll gesture
+        // did nothing. Drive contentX from the wheel -- vertical notch and a
+        // horizontal trackpad swipe alike -- clamped to the overflow. The audio
+        // button keeps its own WheelHandler (volume), which wins under it since
+        // handlers deliver to the deepest item first.
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function (ev) {
+                var dx = ev.angleDelta.x
+                if (dx === 0)
+                    dx = ev.angleDelta.y
+                if (dx === 0)
+                    return
+                var maxX = Math.max(0, filterFlick.contentWidth - filterFlick.width)
+                filterFlick.contentX = Math.max(0, Math.min(maxX, filterFlick.contentX - dx))
+                ev.accepted = true
+            }
+        }
+
         ScrollBar.horizontal: ScrollBar {
             id: filterScrollBar
             y: filterFlick.height + 4
