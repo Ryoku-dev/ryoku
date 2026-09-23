@@ -123,24 +123,29 @@ ShellRoot {
             readonly property var s: sddmShim.sddm
             readonly property string ph: !s.fingerprintReady ? "off"
                 : (s.fingerprintState === "idle" ? "ready" : s.fingerprintState)
+            readonly property bool unavailable: s.fingerprintState === "unavailable"
 
+            // When the sensor is parked (claim held, #243) the scan glyph is
+            // hidden and the message is neutral guidance, not the red "not
+            // recognized" a real misread earns: the user did nothing wrong.
             FingerprintScan {
                 id: fpScan
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: parent.height * 0.60
                 sizePx: Math.round(Math.min(parent.width, parent.height) * 0.10)
                 accent: shellRoot.fpAccent
-                phase: ov.ph
+                phase: ov.unavailable ? "off" : ov.ph
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.top: fpScan.bottom
                 anchors.topMargin: Math.round(fpScan.sizePx * 0.18)
                 font.pixelSize: Math.round(fpScan.sizePx * 0.18)
-                color: ov.ph === "fail" ? "#e0806f" : shellRoot.fpAccent
-                opacity: (ov.ph === "scanning" || ov.ph === "success" || ov.ph === "fail") ? 0.92 : 0
+                color: ov.unavailable ? shellRoot.fpAccent : (ov.ph === "fail" ? "#e0806f" : shellRoot.fpAccent)
+                opacity: (ov.unavailable || ov.ph === "scanning" || ov.ph === "success" || ov.ph === "fail") ? 0.92 : 0
                 Behavior on opacity { NumberAnimation { duration: 180 } }
-                text: ov.ph === "success" ? I18n.tr("Unlocked")
+                text: ov.unavailable ? I18n.tr("Fingerprint unavailable — use your password")
+                    : ov.ph === "success" ? I18n.tr("Unlocked")
                     : (ov.ph === "fail" ? I18n.tr("Not recognized") : I18n.tr("Reading\u2026"))
                 visible: opacity > 0.01
             }

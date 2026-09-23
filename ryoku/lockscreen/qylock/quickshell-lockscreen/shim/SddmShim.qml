@@ -39,12 +39,24 @@ Item {
     property bool fpEnabled: true            // from ~/.config/qylock/fingerprint
     property bool fpHasFingers: false        // fprintd-list reports >= 1 finger
     readonly property bool fingerprintReady: fpEnabled && fpHasFingers
-    property string fingerprintState: "idle" // idle | scanning | success | fail
+    property string fingerprintState: "idle" // idle | scanning | success | fail | unavailable
     property bool fingerprintUnlock: false   // true if sensor won (not typed)
     property bool armWhenReady: false        // lock surface is secured, arm now
     property bool armPending: false          // an armPrep run is in flight
     property bool fpTyped: false             // a key was fed to the conversation
     property bool unlocked: false            // a conversation already unlocked; guards double-fire
+
+    // Held-sensor backoff (#243). A scan that dies almost as soon as it started
+    // cannot be a misread — three real touches take seconds — it is fprintd
+    // refusing the Claim (a ghost claim after suspend/resume). Timing the
+    // failure is the only signal available without root, so it is the one used:
+    // instant failures accumulate toward an "unavailable" state that stops the
+    // per-second red loop and lets a backing-off probe wait for recovery.
+    property real fpArmTs: 0                 // ms epoch the last scan was armed
+    property int fpFastFails: 0              // consecutive instant (claim-held) failures
+    property bool fpUnavailable: false       // sensor paused: held/busy, password still works
+    property int fpBackoffMs: 5000           // re-probe gap while unavailable, doubling to a cap
+    readonly property real fpInstantFailMs: 1500  // a failure faster than this cannot be a touch
 
     // arm the moment the lock secures; probes alone race and lose it.
     onArmWhenReadyChanged: {
@@ -354,9 +366,10 @@ Item {
         configDirectory: Quickshell.shellDir + "/assets/pam"
 
         // Fingerprint conversation. timeout=-1 (in the service file) keeps
-        // it scanning for the whole lock; only 3 misreads or an error end
-        // it, and a failure re-arms after 1s. It never prompts, so it can
-        // never leave a pending response blocking the result.
+        // it scanning for the whole lock; only 3 misreads or an error end it.
+        // A genuine misread re-arms after 1s; a scan that dies instantly is a
+        // held claim (#243) and backs off instead of looping. It never prompts,
+        // so it can never leave a pending response blocking the result.
         onCompleted: (result) => {
             if (shim.unlocked)
                 return;
@@ -371,18 +384,13 @@ Item {
                 shim.sddm.loginSucceeded();
                 Quickshell.execDetached(["loginctl", "unlock-session"]);
             } else {
-                // Failed scan: flash "Not recognized" and re-arm in 1s.
-                // The password conversation keeps its prompt — typing,
-                // and even a later touch, still work throughout.
-                shim.fingerprintState = "fail";
-                rearmTimer.restart();
+                shim.noteFpFailure();
             }
         }
         onError: (error) => {
             if (!shim.armWhenReady || shim.unlocked)
                 return;
-            shim.fingerprintState = "fail";
-            rearmTimer.restart();
+            shim.noteFpFailure();
         }
     }
 
@@ -433,6 +441,35 @@ Item {
         }
     }
 
+    // A genuine misread (three touches) is re-armed after a short settle; a
+    // scan that dies almost instantly is fprintd refusing the Claim, so it is
+    // counted and, after three, the sensor is parked as "unavailable" with an
+    // exponential re-probe. The password conversation is untouched throughout,
+    // so unlocking is never blocked — only the misleading red loop stops.
+    function noteFpFailure() {
+        if (!shim.armWhenReady || shim.unlocked)
+            return;
+        var instant = shim.fpArmTs > 0 && (Date.now() - shim.fpArmTs) < shim.fpInstantFailMs;
+        if (!instant) {
+            shim.fpFastFails = 0;
+            shim.fingerprintState = "fail";
+            rearmTimer.restart();
+            return;
+        }
+        shim.fpFastFails++;
+        if (shim.fpFastFails < 3) {
+            // A couple of instant refusals can be a device still settling after
+            // resume; give it the normal 1s before concluding it is held.
+            shim.fingerprintState = "fail";
+            rearmTimer.restart();
+            return;
+        }
+        shim.fpUnavailable = true;
+        shim.fingerprintState = "unavailable";
+        console.warn("[fp] sensor claim held; parking fingerprint, backing off", shim.fpBackoffMs, "ms");
+        fpProbeTimer.restart();
+    }
+
     // settle before rescanning so the old verifier releases the claim.
     Timer {
         id: rearmTimer
@@ -446,8 +483,28 @@ Item {
         }
     }
 
+    // While the sensor is parked, re-probe on a doubling backoff (5s → 10s →
+    // 20s, capped at 60s) so a device that recovers on its own comes back
+    // without a per-second D-Bus/journal storm.
+    Timer {
+        id: fpProbeTimer
+        interval: shim.fpBackoffMs
+        onTriggered: {
+            if (!shim.armWhenReady || shim.unlocked || pamFp.active)
+                return;
+            shim.fpBackoffMs = Math.min(60000, shim.fpBackoffMs * 2);
+            // One instant failure re-parks (threshold is 3); a real touch resets
+            // the count in noteFpFailure, so a recovered device is not punished.
+            shim.fpFastFails = 2;
+            shim.fingerprintState = "idle";
+            if (shim.fingerprintReady)
+                shim.armFingerprint();
+        }
+    }
+
     // ── fingerprint control functions ───────────────────────────────────────
 
+    // Clear any orphaned verifier first (armPrepProc), then arm on its exit.
     function armFingerprint() {
         if (!shim.fingerprintReady || pamFp.active || shim.armPending)
             return;
@@ -461,6 +518,7 @@ Item {
         pamFp.user = Quickshell.env("USER") || "traveler";
         shim.fingerprintUnlock = false;
         shim.fingerprintState = "scanning";
+        shim.fpArmTs = Date.now();
         // start() returns false when the config dir/file or user cannot be
         // resolved; surface that instead of failing silently.
         var started = pamFp.start();
@@ -476,6 +534,12 @@ Item {
         shim.unlocked = false;
         shim.fingerprintUnlock = false;
         shim.fpTyped = false;
+        shim.fpFastFails = 0;
+        shim.fpUnavailable = false;
+        shim.fpBackoffMs = 5000;
+        shim.fpArmTs = 0;
+        fpProbeTimer.stop();
+        rearmTimer.stop();
         pamFp.abort();
         pamPw.abort();
         if (shim.fingerprintState !== "idle")
