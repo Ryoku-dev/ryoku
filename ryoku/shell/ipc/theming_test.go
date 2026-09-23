@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -91,5 +94,57 @@ func TestLiveFramePerClip(t *testing.T) {
 	}
 	if moved := liveFrame(one); moved == first {
 		t.Errorf("offset 4 reused the offset 1 still (%q)", moved)
+	}
+}
+
+// TestReadLivePreview: the marker survives while its Hub lives and is dropped
+// once it dies, so a palette reload keeps re-asserting an in-progress preview
+// but reverts an orphaned one to disk.
+func TestReadLivePreview(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".desktop-preview.json")
+	write := func(pid int) {
+		b, _ := json.Marshal(map[string]any{"pid": pid, "draft": map[string]any{"desktop": map[string]any{"input": map[string]any{"followMouse": 1}}}})
+		if err := os.WriteFile(path, b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A live Hub (this test process) keeps the draft.
+	write(os.Getpid())
+	draft, ok := readLivePreview(path)
+	if !ok || draft == nil {
+		t.Fatalf("a preview owned by a live pid must survive, got ok=%v", ok)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the marker must stay for the next reload: %v", err)
+	}
+
+	// A dead Hub drops it, so the next reload reverts to disk.
+	cmd := exec.Command("true")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	dead := cmd.Process.Pid
+	if err := cmd.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if syscall.Kill(dead, 0) == nil {
+		t.Skip("pid still live; cannot test the orphan path")
+	}
+	write(dead)
+	if _, ok := readLivePreview(path); ok {
+		t.Fatal("a preview owned by a dead pid must be dropped")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("the orphaned marker must be removed")
+	}
+
+	// A malformed marker is removed rather than trusted.
+	if err := os.WriteFile(path, []byte("not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := readLivePreview(path); ok {
+		t.Fatal("a malformed marker must not be treated as a live preview")
 	}
 }

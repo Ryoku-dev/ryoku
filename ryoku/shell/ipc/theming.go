@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	wm "ryoku-wm"
@@ -185,6 +186,7 @@ func (d *daemon) paintWorker() {
 				}
 				// A config reload drops the live border to its config value.
 				d.applyBorderColors()
+				d.reassertPreview()
 				select {
 				case d.ledsSig <- struct{}{}:
 				default:
@@ -214,11 +216,63 @@ func (d *daemon) paintWorker() {
 		}
 		// A config reload drops the live border to its config value.
 		d.applyBorderColors()
+		d.reassertPreview()
 		select {
 		case d.ledsSig <- struct{}{}:
 		default:
 		}
 	}
+}
+
+// reassertPreview lands the Hub's live desktop preview again after a config
+// reload. A preview is live-only: it writes no config, so the reload the
+// palette pipeline just ran re-reads disk and silently drops whatever the user
+// is previewing -- a focus-behaviour change snaps back mid-session while the
+// settings window is still open.
+func (d *daemon) reassertPreview() {
+	if !d.wmc.Can(wm.CapLiveConfigEval) {
+		return
+	}
+	draft, ok := readLivePreview(filepath.Join(ryokuConfigDir(), ".desktop-preview.json"))
+	if !ok {
+		return
+	}
+	f, err := os.CreateTemp("", "ryoku-desktop-preview-*.json")
+	if err != nil {
+		return
+	}
+	defer os.Remove(f.Name())
+	if json.NewEncoder(f).Encode(draft) != nil {
+		f.Close()
+		return
+	}
+	f.Close()
+	_, _ = d.wmc.Preview(f.Name())
+}
+
+// readLivePreview decodes the Hub's preview marker and reports whether it still
+// belongs to a live Hub. The marker carries the Hub's pid: while that process
+// lives the preview is the user's intent and survives reloads; once it dies
+// (closed without saving, or killed) the marker goes, so the next reload
+// reverts the orphaned preview to disk -- which is what an unsaved quit means.
+func readLivePreview(path string) (map[string]any, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+	var rec struct {
+		Pid   int            `json:"pid"`
+		Draft map[string]any `json:"draft"`
+	}
+	if json.Unmarshal(b, &rec) != nil || rec.Draft == nil {
+		_ = os.Remove(path)
+		return nil, false
+	}
+	if rec.Pid <= 0 || syscall.Kill(rec.Pid, 0) == syscall.ESRCH {
+		_ = os.Remove(path)
+		return nil, false
+	}
+	return rec.Draft, true
 }
 
 // themeAppsEnabled reports whether the palette should reach GTK / GUI apps.
