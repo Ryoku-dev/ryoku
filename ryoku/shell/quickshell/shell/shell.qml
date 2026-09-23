@@ -15,6 +15,7 @@ import "modules/visualizer/Singletons" as VizCfg
 import "modules/stage/Singletons" as StageCfg
 import "components"
 import "modules/wallpaper"
+import "modules/wallpaper/Singletons" as WallCfg
 import "modules/desktop"
 import "modules/visualizer"
 import "modules/bar"
@@ -52,6 +53,15 @@ import Ryoku.Ui.Singletons
  */
 ShellRoot {
     id: root
+    // One deferred-build wave for the cheap event-driven surfaces (the OSDs and
+    // the notification column), armed 1.5 s into boot so a keypress or an
+    // arriving toast never waits on a component build. Everything heavier is
+    // built on its own first open and torn down a grace period after every
+    // close, so nothing parses, instantiates or commits for a surface nobody
+    // asked for. The grace is what protects the animations: a surface is only
+    // ever destroyed while it sits closed.
+    property int warm: 0
+    Timer { interval: 1500; running: true; repeat: false; onTriggered: root.warm = 1 }
 
     // Construct the shared services (ShellState's per-monitor state now, heavier
     // providers as surfaces migrate) at load rather than on the first keybind.
@@ -185,117 +195,247 @@ ShellRoot {
 
             // A blurred copy of the wallpaper for the compositor's overview
             // backdrop, mapped below the desktop so it shows only in the
-            // overview. Gated on the capability, so nothing maps where a
-            // compositor cannot host it.
-            OverviewBackdrop {
-                screen: perScreen.modelData
-                available: Wm.caps.overviewBackdrop === true
-                overviewOpen: Wm.overviewOpen
-                wallpaperUrl: wallpaper.wallpaperUrl
+            // overview. Built only where the capability and the user's setting
+            // both ask for it; a box with the backdrop off never pays for it.
+            LazyLoader {
+                id: backdropLoader
+                activeAsync: Wm.caps.overviewBackdrop === true && WallCfg.OverviewBackdropConfig.enabled
+                OverviewBackdrop {
+                    screen: perScreen.modelData
+                    available: Wm.caps.overviewBackdrop === true
+                    overviewOpen: Wm.overviewOpen
+                    wallpaperUrl: wallpaper.wallpaperUrl
+                }
             }
 
             // Stage now renders entirely inside the desktop surface (one stack:
             // backdrop, layers, widgets), so there is no separate Background
-            // surface here (docs/stage.md).
-            Visualizer {
-                id: perScreenViz
-                screen: perScreen.modelData
-                mode: !VizCfg.Config.enabled ? "off"
-                    : (perScreen.st && perScreen.st.visualizerOverlay ? "overlay" : "desktop")
-                placing: perScreen.st ? perScreen.st.visualizerPlacing : false
-                // The desktop hosts the visualizer behind the cut-outs while the
-                // stage is on; this surface steps aside (cava keeps running).
-                suppressed: desktop.hostsVisualizer
-                onPlacingDone: if (perScreen.st) perScreen.st.visualizerPlacing = false
+            // surface here (docs/stage.md). Built on first enable or first
+            // placement; cava and its buffers never exist while the visualizer
+            // is off.
+            LazyLoader {
+                id: vizLoader
+                activeAsync: VizCfg.Config.enabled || (perScreen.st && perScreen.st.visualizerPlacing)
+                Visualizer {
+                    id: perScreenViz
+                    screen: perScreen.modelData
+                    mode: !VizCfg.Config.enabled ? "off"
+                        : (perScreen.st && perScreen.st.visualizerOverlay ? "overlay" : "desktop")
+                    placing: perScreen.st ? perScreen.st.visualizerPlacing : false
+                    // The desktop hosts the visualizer behind the cut-outs while the
+                    // stage is on; this surface steps aside (cava keeps running).
+                    suppressed: desktop.hostsVisualizer
+                    onPlacingDone: if (perScreen.st) perScreen.st.visualizerPlacing = false
+                }
             }
 
             // The frame bar (Phase 2): reads its own reveal from this slice.
             Frame {
                 modelData: perScreen.modelData
                 // park the record island flush beside this monitor's dock band
-                dockLaneEdge: perScreenDock.edge
-                dockLaneSize: perScreenDock.bandSize
-                dockLaneCenter: perScreenDock.bandCenter
+                dockLaneEdge: dockLoader.item ? dockLoader.item.edge : ""
+                dockLaneSize: dockLoader.item ? dockLoader.item.bandSize : 0
+                dockLaneCenter: dockLoader.item ? dockLoader.item.bandCenter : 0
             }
 
             // The dock: a resident per-monitor surface on the edge opposite the
             // bar. Style-agnostic, so it lives here rather than inside a bar style;
-            // it draws nothing until the user turns it on (Hub -> Bar Studio -> Dock).
-            DockSurface {
-                id: perScreenDock
-                screen: perScreen.modelData
-                // Edit widgets steps the dock back so the whole desktop is the canvas.
-                visible: Dock.cfg("enabled", false)
-                    && !(StageCfg.StageSession.widgets && StageCfg.StageSession.monitor === perScreen.modelData.name)
+            // it is not built until the user turns it on (Hub -> Bar Studio -> Dock).
+            LazyLoader {
+                id: dockLoader
+                activeAsync: Dock.cfg("enabled", false)
+                DockSurface {
+                    id: perScreenDock
+                    screen: perScreen.modelData
+                    // Edit widgets steps the dock back so the whole desktop is the canvas.
+                    visible: Dock.cfg("enabled", false)
+                        && !(StageCfg.StageSession.widgets && StageCfg.StageSession.monitor === perScreen.modelData.name)
+                }
             }
 
             // The dock's right-click context menu: a full-screen overlay on the
             // monitor that owns the open menu (the thin dock strip cannot host it).
-            DockMenuOverlay {
-                screen: perScreen.modelData
+            LazyLoader {
+                id: dockMenuLoader
+                property bool open: Dock.menuOpen && Dock.menuScreen === perScreen.modelData.name
+                activeAsync: open || dockMenuHold.running
+                onOpenChanged: if (!open && active) dockMenuHold.restart()
+                DockMenuOverlay {
+                    screen: perScreen.modelData
+                }
             }
+            Timer { id: dockMenuHold; interval: 2000 }
 
-            // Toggle-driven overlays, each bound to a ShellState flag.
-            Launcher {
-                screen: perScreen.modelData
-                active: perScreen.st ? perScreen.st.launcherOpen : false
-                onRequestClose: if (perScreen.st) perScreen.st.launcherOpen = false
+            // Toggle-driven overlays: built on first open (async, so the key
+            // press never blocks on a component build) and destroyed 15 s after
+            // every close, once the slide-out has long finished.
+            // The inner surface must be BORN closed and opened one tick later:
+            // its reveal is driven by an active-change, and an item created with
+            // the flag already true would never animate (or show) at all.
+            LazyLoader {
+                id: launcherLoader
+                property bool open: perScreen.st ? perScreen.st.launcherOpen : false
+                property bool showNow: false
+                activeAsync: open || launcherHold.running
+                onItemChanged: if (launcherLoader.item) Qt.callLater(function() { launcherLoader.showNow = launcherLoader.open; })
+                onOpenChanged: {
+                    if (launcherLoader.open) {
+                        if (launcherLoader.item) launcherLoader.showNow = true;
+                        return;
+                    }
+                    launcherLoader.showNow = false;
+                    if (launcherLoader.active) launcherHold.restart();
+                }
+                Launcher {
+                    screen: perScreen.modelData
+                    active: launcherLoader.showNow
+                    onRequestClose: if (perScreen.st) perScreen.st.launcherOpen = false
+                }
             }
-            OverviewSurface {
-                screen: perScreen.modelData
-                active: perScreen.st ? perScreen.st.overviewOpen : false
-                onRequestClose: if (perScreen.st) perScreen.st.overviewOpen = false
+            Timer { id: launcherHold; interval: 15000 }
+            LazyLoader {
+                id: overviewLoader
+                property bool open: perScreen.st ? perScreen.st.overviewOpen : false
+                property bool showNow: false
+                activeAsync: open || overviewHold.running
+                onItemChanged: if (overviewLoader.item) Qt.callLater(function() { overviewLoader.showNow = overviewLoader.open; })
+                onOpenChanged: {
+                    if (overviewLoader.open) {
+                        if (overviewLoader.item) overviewLoader.showNow = true;
+                        return;
+                    }
+                    overviewLoader.showNow = false;
+                    if (overviewLoader.active) overviewHold.restart();
+                }
+                OverviewSurface {
+                    screen: perScreen.modelData
+                    active: overviewLoader.showNow
+                    onRequestClose: if (perScreen.st) perScreen.st.overviewOpen = false
+                }
             }
-            ClipboardSurface {
-                screen: perScreen.modelData
-                active: perScreen.st ? perScreen.st.clipboardOpen : false
-                onRequestClose: if (perScreen.st) perScreen.st.clipboardOpen = false
+            Timer { id: overviewHold; interval: 15000 }
+            LazyLoader {
+                id: clipboardLoader
+                property bool open: perScreen.st ? perScreen.st.clipboardOpen : false
+                property bool showNow: false
+                activeAsync: open || clipboardHold.running
+                onItemChanged: if (clipboardLoader.item) Qt.callLater(function() { clipboardLoader.showNow = clipboardLoader.open; })
+                onOpenChanged: {
+                    if (clipboardLoader.open) {
+                        if (clipboardLoader.item) clipboardLoader.showNow = true;
+                        return;
+                    }
+                    clipboardLoader.showNow = false;
+                    if (clipboardLoader.active) clipboardHold.restart();
+                }
+                ClipboardSurface {
+                    screen: perScreen.modelData
+                    active: clipboardLoader.showNow
+                    onRequestClose: if (perScreen.st) perScreen.st.clipboardOpen = false
+                }
             }
-            // Shell-wide per-monitor surfaces: the three OSDs, the notification
-            // popup column, the capture/region/camera overlays, and the
-            // session-confirm dialog. Each binds this screen's modelData; the
-            // Wayland layer each maps on decides the real stacking.
-            OsdWindow {
-                modelData: perScreen.modelData
-                kind: "volume"
+            Timer { id: clipboardHold; interval: 15000 }
+            // Shell-wide per-monitor surfaces. The OSDs and the popup column are
+            // small and event-driven (a keypress or an arriving toast must never
+            // wait on a build), so they join the first wave and stay resident.
+            // The capture overlays are per-flow: built on the flow's first
+            // signal, kept across the flow's pauses, dropped 20 s after it ends.
+            LazyLoader {
+                id: osdVolumeLoader
+                activeAsync: root.warm >= 1
+                OsdWindow {
+                    modelData: perScreen.modelData
+                    kind: "volume"
+                }
             }
-            OsdWindow {
-                modelData: perScreen.modelData
-                kind: "mic"
+            LazyLoader {
+                id: osdMicLoader
+                activeAsync: root.warm >= 1
+                OsdWindow {
+                    modelData: perScreen.modelData
+                    kind: "mic"
+                }
             }
-            OsdWindow {
-                modelData: perScreen.modelData
-                kind: "brightness"
+            LazyLoader {
+                id: osdBrightnessLoader
+                activeAsync: root.warm >= 1
+                OsdWindow {
+                    modelData: perScreen.modelData
+                    kind: "brightness"
+                }
             }
-            KeyboardOsdWindow {
-                modelData: perScreen.modelData
+            LazyLoader {
+                id: osdKeyboardLoader
+                activeAsync: root.warm >= 1
+                KeyboardOsdWindow {
+                    modelData: perScreen.modelData
+                }
             }
-            NotificationPopups {
-                modelData: perScreen.modelData
+            LazyLoader {
+                id: notifsLoader
+                activeAsync: root.warm >= 1 || Notifs.popups.length > 0
+                NotificationPopups {
+                    modelData: perScreen.modelData
+                }
             }
-            RegionOverlay {
-                modelData: perScreen.modelData
+            LazyLoader {
+                id: regionLoader
+                property bool open: Recorder.anyActive || Recorder.chooserOpen
+                activeAsync: open || regionHold.running
+                onOpenChanged: if (!open && active) regionHold.restart()
+                RegionOverlay {
+                    modelData: perScreen.modelData
+                }
             }
-            CaptureOverlay {
-                modelData: perScreen.modelData
+            Timer { id: regionHold; interval: 20000 }
+            LazyLoader {
+                id: captureLoader
+                property bool open: Capture.selecting !== ""
+                activeAsync: open || captureHold.running
+                onOpenChanged: if (!open && active) captureHold.restart()
+                CaptureOverlay {
+                    modelData: perScreen.modelData
+                }
             }
-            CameraOverlay {
-                modelData: perScreen.modelData
+            Timer { id: captureHold; interval: 20000 }
+            LazyLoader {
+                id: cameraLoader
+                property bool open: Camera.active
+                activeAsync: open || cameraHold.running
+                onOpenChanged: if (!open && active) cameraHold.restart()
+                CameraOverlay {
+                    modelData: perScreen.modelData
+                }
             }
-            KeypressOverlay {
-                modelData: perScreen.modelData
+            Timer { id: cameraHold; interval: 20000 }
+            LazyLoader {
+                id: keypressLoader
+                property bool open: Keypresses.active
+                activeAsync: open || keypressHold.running
+                onOpenChanged: if (!open && active) keypressHold.restart()
+                KeypressOverlay {
+                    modelData: perScreen.modelData
+                }
             }
+            Timer { id: keypressHold; interval: 20000 }
             // Shown only on the monitor whose frame bar raised it; the positive
             // button runs the power action through the daemon, then clears.
-            RyokuConfirmationDialog {
-                modelData: perScreen.modelData
-                action: ShellState.sessionActionMonitor === perScreen.modelData.name ? ShellState.sessionAction : ""
-                message: ShellState.sessionMessage
-                positiveLabel: ShellState.sessionPositive
-                negativeLabel: I18n.tr("Cancel")
-                onConfirmed: a => { SessionActions.run(a); ShellState.clearSessionAction(); }
-                onCancelled: ShellState.clearSessionAction()
+            LazyLoader {
+                id: confirmLoader
+                property bool open: ShellState.sessionAction !== ""
+                activeAsync: open || confirmHold.running
+                onOpenChanged: if (!open && active) confirmHold.restart()
+                RyokuConfirmationDialog {
+                    modelData: perScreen.modelData
+                    action: ShellState.sessionActionMonitor === perScreen.modelData.name ? ShellState.sessionAction : ""
+                    message: ShellState.sessionMessage
+                    positiveLabel: ShellState.sessionPositive
+                    negativeLabel: I18n.tr("Cancel")
+                    onConfirmed: a => { SessionActions.run(a); ShellState.clearSessionAction(); }
+                    onCancelled: ShellState.clearSessionAction()
+                }
             }
+            Timer { id: confirmHold; interval: 5000 }
         }
     }
 

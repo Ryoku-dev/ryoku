@@ -107,7 +107,17 @@ Item {
         if (Recorder.anyActive) return (!hud.hidden || hud.revealHeld) ? 1 : hud.nubProg;
         return (Recorder.chooserOpen || hud.starting || Recorder.countingDown) ? 1 : 0;
     }
-    property real prog: hud.wantProg
+    // Starts tucked and binds one tick later: the island is now built on the
+    // first recording flow, and an item created with wantProg already 1 would
+    // pop in fully melted instead of sliding out of its edge. The layout seed
+    // rides the same single completion handler.
+    property real prog: 0
+    Component.onCompleted: {
+        hud.layoutVertical = hud.vertical;
+        Qt.callLater(function() {
+            hud.prog = Qt.binding(function() { return hud.wantProg; });
+        });
+    }
     Behavior on prog { NumberAnimation { duration: hud.meltDur; easing.type: Easing.InOutCubic } }
     readonly property bool live: hud.prog > 0.002
     visible: hud.live
@@ -217,7 +227,6 @@ Item {
             hud.reorientFade = 1;
         }
     }
-    Component.onCompleted: hud.layoutVertical = hud.vertical
 
     readonly property real curW: (Recorder.anyActive || hud.starting || Recorder.countingDown) ? grid.implicitWidth : chooserGrid.implicitWidth
     readonly property real curH: (Recorder.anyActive || hud.starting || Recorder.countingDown) ? grid.implicitHeight : chooserGrid.implicitHeight
