@@ -303,4 +303,57 @@ if [[ -n $luac_bin ]]; then
   "$luac_bin" -p "$tmp/evil.lua" 2>/dev/null || fail "a quoted monitor name produced invalid Lua in monitors.lua"
 fi
 
+# --- apply in the production shape (no id) must still record identity, so the
+# scale survives a relogin. The Hub sends layouts through the neutral seam,
+# which carries no hardware id; without stamping, resolve_layout aborts on the
+# null id, autoscale silently recomputes from DPI, and a hand-set 1.25 on a
+# >290dpi panel becomes 2 on the next login.
+cat >"$tmp/hidpi.json" <<'JSON'
+[{"name":"eDP-1","make":"Acme","model":"HiDPI","serial":"S1","width":3840,"height":2400,"refreshRate":60.0,"physicalWidth":310,"x":0,"y":0,"scale":1.25,"transform":0,"vrr":false,"disabled":false,"focused":true,"mirrorOf":"none","availableModes":["3840x2400@60.00Hz"]}]
+JSON
+hublayout='[{"output":"eDP-1","mode":"3840x2400@60","position":"0x0","scale":1.25,"transform":0,"vrr":0,"mirror":"none","cm":"srgb","bitdepth":8,"sdrbrightness":1}]'
+rcconf="$tmp/recall.lua"; rcapplied="$tmp/recall-applied.json"
+RYOKU_MONITOR_JSON="$tmp/hidpi.json" RYOKU_MONITORS_CONF="$rcconf" \
+  RYOKU_MONITORS_DIR="$tmp/none-rc" RYOKU_MONITORS_APPLIED="$rcapplied" RYOKU_MONITOR_VM=0 \
+  "$mon" apply "$hublayout" >/dev/null
+jq -e '.monitors[0].id == "Acme|HiDPI|S1"' "$rcapplied" >/dev/null \
+  || fail "apply did not stamp the hardware identity onto an id-less layout"
+rcout="$(RYOKU_MONITOR_JSON="$tmp/hidpi.json" RYOKU_MONITORS_CONF="$rcconf" \
+  RYOKU_MONITORS_DIR="$tmp/none-rc" RYOKU_MONITORS_APPLIED="$rcapplied" RYOKU_MONITOR_VM=0 \
+  "$mon" autoscale 2>&1)"
+grep -q 'recalled' <<<"$rcout" || fail "autoscale did not recall the applied layout: $rcout"
+grep -q 'eDP-1 -> scale' <<<"$rcout" && fail "autoscale recomputed the scale from DPI over a Hub choice: $rcout"
+has "$rcconf" 'scale = 1.25' "the recalled layout lost the hand-set scale"
+
+# --- the autoscale row must advance by the ROTATED footprint: a 90-degree
+# 3840x2160 panel at 1.5 occupies 1440 logical px, not 2560.
+cat >"$tmp/rot.json" <<'JSON'
+[{"name":"DP-1","make":"Dell","model":"U27","serial":"R1","width":3840,"height":2160,"refreshRate":60.0,"physicalWidth":600,"x":0,"y":0,"scale":1.5,"transform":1,"vrr":false,"disabled":false,"focused":true,"mirrorOf":"none","availableModes":["3840x2160@60.00Hz"]},
+ {"name":"eDP-1","make":"Acme","model":"HiDPI","serial":"S1","width":2560,"height":1600,"refreshRate":165.0,"physicalWidth":310,"x":2560,"y":0,"scale":1.6,"transform":0,"vrr":false,"disabled":false,"focused":false,"mirrorOf":"none","availableModes":["2560x1600@165.00Hz"]}]
+JSON
+rowout="$(RYOKU_MONITOR_JSON="$tmp/rot.json" RYOKU_MONITORS_APPLIED="$tmp/rot-none.json" RYOKU_MONITOR_VM=0 \
+  bash -c 'source "$1"; apply_monitor() { echo "EVAL: $1"; }; write_monitors_conf() { :; }; settle_modes() { :; }; sync_gdk_scale() { echo 1; }; cmd_autoscale' _ "$mon" 2>&1)"
+grep -q 'output = "eDP-1", position = "1440x0"' <<<"$rowout" \
+  || fail "the row pass advanced by the landscape footprint of a rotated panel: $rowout"
+grep -q 'position = "2560x0"' <<<"$rowout" \
+  && fail "the row left a 1120px dead gap after the rotated panel: $rowout"
+
+# --- the scale ladder floor applies to the ON-SCREEN rectangle: a rotated
+# 1920x1080 panel is 1080 wide, so scales past 1.6667 would drop the logical
+# desktop under 640px.
+cat >"$tmp/rot1080.json" <<'JSON'
+[{"name":"DP-9","make":"Vert","model":"P","serial":"V1","width":1920,"height":1080,"refreshRate":60.0,"physicalWidth":480,"x":0,"y":0,"scale":1.0,"transform":1,"vrr":false,"disabled":false,"focused":true,"mirrorOf":"none","availableModes":["1920x1080@60.00Hz"]}]
+JSON
+rotladder="$(RYOKU_MONITOR_JSON="$tmp/rot1080.json" RYOKU_MONITORS_CONF="$tmp/rotl.lua" \
+  RYOKU_MONITORS_DIR="$tmp/none-rotl" RYOKU_MONITORS_APPLIED="$tmp/rotl-applied.json" \
+  "$mon" list | jq -c '.[0].scaleLadders["1920x1080"]')"
+[[ $rotladder == '[1,1.2,1.25,1.3333,1.5,1.6,1.6667]' ]] \
+  || fail "rotated 1080p ladder must cap at 1.6667 (640px floor), got $rotladder"
+flatladder="$(sed 's/"transform":1/"transform":0/' "$tmp/rot1080.json" >"$tmp/flat1080.json"; \
+  RYOKU_MONITOR_JSON="$tmp/flat1080.json" RYOKU_MONITORS_CONF="$tmp/flatl.lua" \
+  RYOKU_MONITORS_DIR="$tmp/none-flatl" RYOKU_MONITORS_APPLIED="$tmp/flatl-applied.json" \
+  "$mon" list | jq -c '.[0].scaleLadders["1920x1080"]')"
+[[ $flatladder == '[1,1.2,1.25,1.3333,1.5,1.6,1.6667,1.875,2,2.4,2.5,2.6667,3]' ]] \
+  || fail "landscape 1080p ladder regressed, got $flatladder"
+
 echo "monitor-profiles: all checks passed"

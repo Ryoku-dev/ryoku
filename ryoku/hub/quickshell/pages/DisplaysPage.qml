@@ -307,17 +307,20 @@ Item {
     // for the selected mode, and a compositor that accepts a finer scale still
     // accepts every value it offers.
     function scaleLadder(m) {
-        return pg.computeLadder(m.width, m.height);
+        return pg.computeLadder(m.width, m.height, (m.transform & 1) ? 1 : 0);
     }
     // Whole-logical-pixel scales for a mode: k/120 (k in 30..720) dividing both
     // dimensions to whole logical pixels, floored at 1x and never shrinking the
-    // logical desktop below 640×360.
-    function computeLadder(w, h) {
+    // logical desktop below 640×360. The floor applies to the on-screen
+    // rectangle, so a rotated panel is capped by its (shorter) vertical width
+    // rather than being offered landscape-appropriate scales.
+    function computeLadder(w, h, tf) {
+        var lw = tf ? h : w, lh = tf ? w : h;
         var out = [];
         for (var k = 30; k <= 720; k++)
             if ((w * 120) % k === 0 && (h * 120) % k === 0) {
                 var s = Math.round(k / 120 * 10000) / 10000;
-                if (s >= 1 && s <= 3 && (w / s) >= 640 && (h / s) >= 360)
+                if (s >= 1 && s <= 3 && (lw / s) >= 640 && (lh / s) >= 360)
                     out.push(s);
             }
         return out.length ? out : [1];

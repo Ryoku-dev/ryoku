@@ -54,9 +54,10 @@ jq_scale_lib='
       | (. / 120 * 10000 | round) / 10000 ];
   def snap($w; $h; $target):
     valid_scales($w; $h) | min_by((. - $target) | if . < 0 then - . else . end);
-  def ladder($w; $h):
-    [ valid_scales($w; $h)[]
-      | select(. >= 1 and . <= 3 and ($w / .) >= 640 and ($h / .) >= 360) ]
+  def ladder($w; $h; $tf):
+    (if $tf then $h else $w end) as $lw | (if $tf then $w else $h end) as $lh
+    | [ valid_scales($w; $h)[]
+        | select(. >= 1 and . <= 3 and ($lw / .) >= 640 and ($lh / .) >= 360) ]
     | if length == 0 then [1] else . end;
 '
 
@@ -74,6 +75,25 @@ jq_id_lib='
     | if $mms == "||" then (.name // "") else $mms end;
   def id_mm($id): ($id | split("|") | .[0:2] | join("|"));
 '
+
+# Stamp the live hardware identity onto every layout entry that lacks one, so
+# the persisted applied/profile layouts are always identity-keyed. The Hub's
+# Displays page builds its payload from the neutral seam, which carries no id;
+# without this, resolve_layout aborts on the null id and every login/hotplug
+# silently recomputes the scale from DPI, overwriting the user's choice. The id
+# never reaches Hyprland: apply_specs and the writers select fields explicitly.
+with_ids() {
+  local layout live out
+  layout="$(cat)"
+  live="$(monitors_json 2>/dev/null)" || live='[]'
+  # shellcheck disable=SC2016  # jq program: $ids/$live are jq vars, not shell
+  out="$(printf '%s' "$layout" | jq -c --argjson live "$live" "$jq_id_lib"'
+    ($live | map({ key: .name, value: mon_id }) | from_entries) as $ids
+    | map(if (.id // null) == null
+          then . + { id: ($ids[.output // .name // ""] // (.output // .name // "")) }
+          else . end)' 2>/dev/null)" || out=""
+  if [[ -n $out ]]; then printf '%s' "$out"; else printf '%s' "$layout"; fi
+}
 
 # names pinned in monitors_user.lua, one per line. empty if none.
 pinned_outputs() {
@@ -385,7 +405,7 @@ cmd_autoscale() {
     newpos="${x}x0"
     [[ $newpos != "${curx}x${cury}" ]] && apply_monitor "output = \"$name\", position = \"$newpos\""
     x=$(awk -v X="$x" -v W="$w" -v S="$scale" 'BEGIN { printf "%d", X + int(W / S + 0.5) }')
-  done < <(monitors_json | jq -r '[ .[] | select(.disabled | not) ] | sort_by(.x) | .[] | "\(.name)|\(.width)|\(.scale)|\(.x)|\(.y)"')
+  done < <(monitors_json | jq -r '[ .[] | select(.disabled | not) ] | sort_by(.x) | .[] | "\(.name)|\(if ((.transform // 0) % 2) == 1 then .height else .width end)|\(.scale)|\(.x)|\(.y)"')
   settle_modes
   local gdk
   gdk="$(sync_gdk_scale)"
@@ -492,11 +512,12 @@ cmd_list() {
     sdrbrightness: (.sdrBrightness // 1.0),
     modes: (.availableModes // []),
     scaleLadders: (
-      ( [ (.availableModes // [])[] | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)")? ]
+      ((.transform // 0) % 2 == 1) as $tf
+      | ( [ (.availableModes // [])[] | capture("^(?<w>[0-9]+)x(?<h>[0-9]+)")? ]
         + [ { w: (.width | tostring), h: (.height | tostring) } ] )
       | map({ w: (.w | tonumber), h: (.h | tonumber) })
       | unique_by([.w, .h])
-      | map({ key: "\(.w)x\(.h)", value: ladder(.w; .h) })
+      | map({ key: "\(.w)x\(.h)", value: ladder(.w; .h; $tf) })
       | from_entries )
   } ]'
 }
@@ -655,6 +676,7 @@ cmd_apply() {
   [[ -n $json ]] || json="$(cat)"
   json="$(printf '%s' "$json" | sanitize_layout)"
   json="$(printf '%s' "$json" | expand_custom_modes)"
+  json="$(printf '%s' "$json" | with_ids)"
   printf '%s' "$json" | apply_specs
   printf '%s' "$json" | write_monitors_explicit
   mkdir -p "$(dirname "$applied_layout")"
@@ -673,6 +695,7 @@ cmd_save() {
   [[ -n $json ]] || json="$(cat)"
   json="$(printf '%s' "$json" | sanitize_layout)"
   json="$(printf '%s' "$json" | expand_custom_modes)"
+  json="$(printf '%s' "$json" | with_ids)"
   mkdir -p "$monitors_dir"
   printf '%s' "$json" | jq '{monitors: .}' >"$monitors_dir/$name.json"
   printf '%s' "$json" | apply_specs
