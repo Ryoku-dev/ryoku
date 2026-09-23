@@ -21,6 +21,7 @@ import "modules/bar"
 import "modules/dock"
 import "modules/launcher"
 import "modules/overview"
+import "modules/clipboard"
 import QtQuick
 import Quickshell.Io
 import Quickshell.Wayland
@@ -245,6 +246,11 @@ ShellRoot {
                 active: perScreen.st ? perScreen.st.overviewOpen : false
                 onRequestClose: if (perScreen.st) perScreen.st.overviewOpen = false
             }
+            ClipboardSurface {
+                screen: perScreen.modelData
+                active: perScreen.st ? perScreen.st.clipboardOpen : false
+                onRequestClose: if (perScreen.st) perScreen.st.clipboardOpen = false
+            }
             // Shell-wide per-monitor surfaces: the three OSDs, the notification
             // popup column, the capture/region/camera overlays, and the
             // session-confirm dialog. Each binds this screen's modelData; the
@@ -334,7 +340,8 @@ ShellRoot {
             ShellState.requestSurfaceActive("wallpaper", undefined);
             break;
         case "clipboard":
-            ShellState.requestSurfaceActive("quick-settings#clipboard", undefined);
+            if (st)
+                st.clipboardOpen = !st.clipboardOpen;
             break;
         case "stash":
             ShellState.requestSurfaceActive("stash", undefined);
@@ -365,6 +372,7 @@ ShellRoot {
             case "barToggle":
             case "launcher":
             case "overview":
+            case "clipboard":
             case "visualizer":
             case "visualizer-overlay":
             case "visualizer-place":

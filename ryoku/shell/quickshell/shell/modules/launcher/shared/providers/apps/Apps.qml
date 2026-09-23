@@ -3,7 +3,7 @@ import Quickshell
 import shell.services
 import Ryoku.Ui.Singletons
 import "../../Singletons"
-import "../../lib/fuzzy.js" as Fuzzy
+import "../../../../../utils/fuzzy.js" as Fuzzy
 import "appactions.js" as AppActions
 import ".."
 

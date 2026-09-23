@@ -537,7 +537,7 @@ and per-monitor visibility from `ShellState`.
 |**overview**|`Super+Tab`|the full-screen workspace expo|
 |**quick settings**|`Super+Escape`|the full-height control sidebar|
 |**feature sidebar**|`Super+S`|the framed card: chat, usage, tools|
-|**clipboard**|`Super+V`|clipboard history, a deep link into the sidebar|
+|**clipboard**|`Super+V`|clipboard history at the bottom edge, with fuzzy search and a starred pane|
 |**wallpaper and theme menu**|`Super+W`|the wallpaper carousel and theme picker|
 |**ryoshot**|`Super+Shift+S`|capture, annotate, pin|
 |**visualiser placement**|`Super+Alt+M`|grab the spectrum box and aim it|

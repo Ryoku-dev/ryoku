@@ -106,6 +106,7 @@ depends=(
   'mpv-mpris'
   'yt-dlp'
   'wl-clipboard'
+  'wl-clip-persist'
   'cliphist'
   'grim'
   'slurp'

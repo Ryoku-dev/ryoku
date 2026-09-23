@@ -118,11 +118,15 @@ recorder_running() {
   [[ -n "$(recording_gsr_pids)" ]] || proc_running "$wf_pattern"
 }
 
-# A live (video) wallpaper renders through ryoku-livewall on a background layer
-# that is not on the KMS scanout gsr captures, so a gsr recording drops it;
-# wf-recorder grabs the composited output (livewall included) instead.
+# A live (video) wallpaper can render two ways: through the C player
+# (ryogami-live, pre-rename ryoku-livewall) on a background layer that is not on
+# the KMS scanout gsr captures, or in-shell inside the wallpaper surface. The C
+# player defeats gsr's grab, so switch to wf-recorder, which grabs the
+# composited output (livewall included). Match both names: a box mid-rename
+# still runs the old binary.
 live_wallpaper_active() {
-  command -v pgrep >/dev/null 2>&1 && pgrep -x ryoku-livewall >/dev/null 2>&1
+  command -v pgrep >/dev/null 2>&1 || return 1
+  pgrep -x ryogami-live >/dev/null 2>&1 || pgrep -x ryoku-livewall >/dev/null 2>&1
 }
 
 # which backend owns the live recording right now, if any.
@@ -214,8 +218,10 @@ gsr_capture_probe() {
 gpu_topology_signature() {
   {
     # bump this tag when the selection logic changes, so a stale cached verdict
-    # (e.g. a "gsr" written by the old webcam-fooled probe) is dropped and re-run.
-    printf 'recorder-select-v2\n'
+    # (e.g. a "gsr" written by the old webcam-fooled probe, or a "wf" stranded
+    # by a portal that only stalled while the picker waited on a person) is
+    # dropped and re-run.
+    printf 'recorder-select-v3\n'
     printf '%s\n' /dev/dri/card*
     cat /sys/class/drm/card*/status 2>/dev/null
   } 2>/dev/null | md5sum 2>/dev/null | cut -d' ' -f1
@@ -226,7 +232,8 @@ backend_cache_file() {
 }
 
 # persist the chosen backend for the current GPU/monitor topology so the next
-# capture skips the probe; a run-time fallback (portal -> wf) sticks until it changes.
+# capture skips the probe. A run-time fallback must not strand a box: call this
+# only for a considered choice, and forget_backend for an ambiguous failure.
 remember_backend() {
   local chosen="$1" cache sig
   case "$chosen" in gsr | portal | wf) ;; *) return 0 ;; esac
@@ -235,6 +242,14 @@ remember_backend() {
   [[ -n $sig ]] || return 0
   mkdir -p "$(dirname "$cache")" 2>/dev/null || true
   printf '%s\t%s\n' "$sig" "$chosen" >"$cache" 2>/dev/null || true
+}
+
+# drop a cached backend so the next capture re-probes from scratch. used when a
+# recording fell through for a reason that says nothing about the machine (the
+# portal picker timed out because nobody answered it, e.g.): caching "wf" for
+# that strands a box on CPU encoding until the GPU topology changes.
+forget_backend() {
+  rm -f "$(backend_cache_file)" 2>/dev/null || true
 }
 
 select_backend() {
@@ -394,14 +409,22 @@ render_node_for_card() {
 }
 
 # pick the render node for wf-recorder's VAAPI encoder: explicit override, the
-# primary GPU pinned by ryoku-gpu (AQ_DRM_DEVICES), else the first render node.
+# primary GPU pinned by ryoku-gpu (AQ_DRM_DEVICES), else the card that actually
+# drives a connected display, else the first render node.
+#
+# The display-owning card matters on a hybrid laptop: the compositor scans out
+# from the card wired to the panel, and VAAPI has to encode frames produced
+# there. Picking the bare first render node grabs the discrete GPU on an AMD-
+# iGPU laptop, whose VA driver cannot ingest the AMD compositor's buffers, the
+# hw encode dies inside its probe window, and every recording silently drops to
+# CPU libx264.
 wf_vaapi_node() {
   if [[ -n ${RYOKU_SCREENRECORD_WF_DEVICE:-} ]]; then
     printf '%s' "$RYOKU_SCREENRECORD_WF_DEVICE"
     return 0
   fi
 
-  local first node n
+  local first node n conn
   if [[ -n ${AQ_DRM_DEVICES:-} ]]; then
     first="${AQ_DRM_DEVICES%%:*}"
     if node="$(render_node_for_card "$first")"; then
@@ -409,6 +432,15 @@ wf_vaapi_node() {
       return 0
     fi
   fi
+
+  for conn in /sys/class/drm/card*-*; do
+    [[ "$(cat "$conn/status" 2>/dev/null)" == connected ]] || continue
+    [[ ${conn##*/} == *Writeback* ]] && continue
+    if node="$(render_node_for_card "${conn%%-*}")"; then
+      printf '%s' "$node"
+      return 0
+    fi
+  done
 
   for n in /dev/dri/renderD*; do
     [[ -e $n ]] || continue
@@ -621,7 +653,7 @@ start_portal() {
   local recorder_cmd="${RYOKU_SCREENRECORD_RECORDER:-gpu-screen-recorder}"
   local fps fmode quality codec encoder cursor pick_each_time
   local audio_source=""
-  local output_dir output_path pid token ticks grant i
+  local output_dir output_path pid token ticks i
   local -a args
 
   fps="${RYOKU_SCREENRECORD_FPS:-$(cfg_get '.fps' 60)}"
@@ -677,7 +709,7 @@ start_portal() {
   # file) and deaf to SIGINT/SIGTERM, so commit on real frames landing, not on
   # liveness. A restored grant means the picker is already answered, so commit
   # sooner; being asked to choose needs the longer window.
-  if [[ -s $token ]]; then ticks=10; grant=yes; else ticks=40; grant=no; fi
+  if [[ -s $token ]]; then ticks=10; else ticks=40; fi
   for ((i = 0; i < ticks; i++)); do
     [[ -s $output_path ]] && { wait "$pid" 2>/dev/null || true; exit 0; }
     kill -0 "$pid" 2>/dev/null || break
@@ -685,11 +717,15 @@ start_portal() {
   done
   [[ -s $output_path ]] && { wait "$pid" 2>/dev/null || true; exit 0; }
 
-  # Nothing captured: SIGKILL the signal-deaf gsr and record through wf instead.
-  # A restored-grant stall also caches wf so the next capture skips portal.
+  # Nothing captured: SIGKILL the signal-deaf gsr and record through wf for
+  # this run. Do not cache the demotion: the common stall cause is a portal
+  # with no ScreenCast implementation (a missing backend package) or a grant
+  # that went stale, both of which the next run can recover from. Pinning wf
+  # here once stranded a hybrid laptop on CPU x264 encoding permanently, which
+  # is the difference between a smooth desktop and a stuttering one while
+  # recording.
   kill -KILL "$pid" 2>/dev/null || true
   for ((i = 0; i < 20; i++)); do kill -0 "$pid" 2>/dev/null || break; sleep 0.1; done
-  [[ $grant == yes ]] && remember_backend wf
   rm -f "$output_path"
   output_path="$(next_recording_path "$output_dir")"
   printf '%s\n' "$output_path" >"${RYOKU_STATE_PATH:-$HOME/.local/state/ryoku}/last-recording" 2>/dev/null || true

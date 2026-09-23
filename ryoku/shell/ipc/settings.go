@@ -636,6 +636,20 @@ func getByPath(m map[string]any, segs []string) (any, error) {
 	return cur, nil
 }
 
+// boolAt reads a boolean leaf ("clipboard.pruneWeekly") out of the loaded file --
+// schema keys and passthrough alike, since a key the daemon carries verbatim is
+// still a key it has to act on. A missing or non-boolean value is false.
+func (s *settingsStore) boolAt(path string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, err := getByPath(s.raw, strings.Split(path, "."))
+	if err != nil {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
+}
+
 // deepCopyMap clones a decoded JSON object so a patch can be validated on a copy
 // and only committed if it holds together.
 func deepCopyMap(m map[string]any) map[string]any {

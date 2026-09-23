@@ -184,7 +184,7 @@ func TestDispatchSurfaceVerbs(t *testing.T) {
 		"visualizer-place":   "openSurface DP-1 visualizer-place",
 		"quicksettings":      "openSurface DP-1 quick-settings",
 		"wallpaper-menu":     "openSurface DP-1 wallpaper",
-		"clipboard":          "openSurface DP-1 quick-settings#clipboard",
+		"clipboard":          "openSurface DP-1 clipboard",
 		"stash":              "openSurface DP-1 stash",
 		"screenshot":         "openSurface DP-1 quick-settings#capture",
 		"compress":           "openSurface DP-1 stash#compress",

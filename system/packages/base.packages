@@ -153,6 +153,7 @@ grim
 playerctl
 slurp
 wl-clipboard
+wl-clip-persist
 
 # Applications
 chromium

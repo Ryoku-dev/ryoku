@@ -106,6 +106,7 @@ Singleton {
             // becomes an in-process flip:
             property bool launcherOpen: false           // launcher
             property bool overviewOpen: false           // overview (Super+Tab expo)
+            property bool clipboardOpen: false          // clipboard overlay (Super+V)
 
             // The frame bar's master reveal for this monitor. Resting policy is
             // revealed: each edge then follows its Config reveal flag, and the

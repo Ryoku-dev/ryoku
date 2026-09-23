@@ -892,7 +892,7 @@ var surfaceCommands = map[string]string{
 	"visualizer-place":   "visualizer-place",
 	"quicksettings":      "quick-settings",
 	"wallpaper-menu":     "wallpaper",
-	"clipboard":          "quick-settings#clipboard",
+	"clipboard":          "clipboard",
 	"stash":              "stash",
 	"screenshot":         "quick-settings#capture",
 	"compress":           "stash#compress",

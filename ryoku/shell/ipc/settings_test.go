@@ -702,3 +702,39 @@ func TestFlattenLeavesCountsListsAsKeys(t *testing.T) {
 		t.Errorf("descended into a list: %v", got)
 	}
 }
+
+// boolAt is how a subsystem reads a switch the daemon does not model. The
+// clipboard's weekly sweep is the caller: a passthrough key has to be readable
+// as a boolean, and anything missing or of the wrong type must read as off
+// rather than as an error.
+func TestSettingsBoolAt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "shell.json")
+	body := `{"clipboard":{"pruneWeekly":true,"widthPercent":65},"weatherLocation":"Berlin"}`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	s := newSettingsStore(path)
+	cases := []struct {
+		path string
+		want bool
+	}{
+		{"clipboard.pruneWeekly", true},   // a passthrough boolean
+		{"clipboard.missing", false},      // absent leaf
+		{"clipboard.widthPercent", false}, // present, but not a boolean
+		{"clipboard", false},              // descends through the object
+		{"weatherLocation", false},        // a string
+	}
+	for _, c := range cases {
+		if got := s.boolAt(c.path); got != c.want {
+			t.Errorf("boolAt(%q) = %v, want %v", c.path, got, c.want)
+		}
+	}
+	// A patch through the store is visible to the next read, which is what makes
+	// the Hub's toggle live for the sweep.
+	if err := s.patch("clipboard.pruneWeekly", json.RawMessage(``+`false`)); err != nil {
+		t.Fatalf("patch: %v", err)
+	}
+	if s.boolAt("clipboard.pruneWeekly") {
+		t.Error("boolAt still true after the key was patched off")
+	}
+}

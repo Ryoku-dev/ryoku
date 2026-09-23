@@ -34,6 +34,9 @@ Singleton {
     function copy(id) { root.send("clipboard.copy", { entry: id }); }
     function del(id) { root.send("clipboard.delete", { entry: id }); }
     function clear() { root.send("clipboard.clear", {}); }
+    // Star toggles an entry between the history and Starred panes; a starred
+    // entry survives a clear and is protected from history overflow.
+    function star(id, starred) { root.send("clipboard.star", { entry: id, starred: starred }); }
 
     function send(method, args) {
         ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";

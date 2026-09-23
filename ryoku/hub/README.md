@@ -32,6 +32,11 @@ changing a page's look.
     animation, or video into managed user data and prints its descriptor;
     `ryoku-hub reload-cover prune [<managed-path>]` removes every managed
     reload-cover asset, or all but the validated managed path when given.
+  - `ryoku-hub clipboard stats|prune` reports what the clipboard history
+    occupies (items, text bytes, image bytes) as read from the shell daemon, and
+    prunes it: `prune` drops every unstarred entry with its files and prints the
+    refreshed report. The daemon owns the entries, so the Hub never measures or
+    deletes around it.
   - `ryoku-hub lock list|set|apply-greeter <slug>` manages installed qylock
     themes: `list` is the local inventory, `set` writes the in-session
     preference and applies the SDDM greeter, and `apply-greeter` is the

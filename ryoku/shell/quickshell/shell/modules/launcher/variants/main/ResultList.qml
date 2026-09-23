@@ -3,7 +3,7 @@ import Quickshell
 import Ryoku.Ui.Singletons as Ui
 import "../../shared/Singletons"
 import "metrics.js" as MainMetrics
-import "../../shared/lib/fuzzy.js" as Fuzzy
+import "../../../../utils/fuzzy.js" as Fuzzy
 import "../../shared/lib/results.js" as Results
 
 // The result list: ranked rows from the dispatcher. A row is a mono icon, a

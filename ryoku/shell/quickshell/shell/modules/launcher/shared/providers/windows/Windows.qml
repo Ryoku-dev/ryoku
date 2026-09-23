@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
 import "../../Singletons"
-import "../../lib/fuzzy.js" as Fuzzy
+import "../../../../../utils/fuzzy.js" as Fuzzy
 import ".."
 import shell.services as Svc
 

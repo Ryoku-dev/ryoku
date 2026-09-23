@@ -8,8 +8,9 @@ package as the base config under `/usr/share/ryoku/config`, which
 ## Layout
 
 - `ipc/` The control plane: one Go program, `ryoku-shell`. As `ryoku-shell daemon`
-  it supervises the Quickshell components, starts the clipboard and wallpaper
-  helpers, and listens on a single Unix socket. As `ryoku-shell <command>` it is a
+  it supervises the Quickshell components, starts the clipboard helpers (the
+  selection watcher and the selection keeper) and the wallpaper helpers, and
+  listens on a single Unix socket. As `ryoku-shell <command>` it is a
   thin client that forwards a command to that socket; Hyprland keybinds use it.
 - `quickshell/` The hand-written QML UI: `pill` (the four-edge frame bars,
   screen frame, bounded menu manager, power menu, and preserved frame
@@ -62,7 +63,8 @@ dumb. Build it with `go build` in `ipc/`; the binary belongs on `PATH` as
 
 Beyond Hyprland, quickshell, `go` (to build `ryoku-shell`), and cmake + ninja +
 qt6-shadertools (to build the `Ryoku.Blobs` plugin), the shell calls at
-LED color), `wl-clipboard` (clipboard history and capture copy), `imagemagick`
+LED color), `wl-clipboard` (clipboard history and capture copy), `wl-clip-persist`
+(keeps the selection when the app that copied closes), `imagemagick`
 (wallpaper thumbnails), `hyprpicker`, `hypridle` and `brightnessctl` (laptop
 idle/dim), `upower` (battery state), `wireplumber` (`wpctl`), `pipewire-pulse`
 (`pactl` voice-call state and mic source), `cava` (music, mic, and desktop visualizers), `playerctl` (media keys),

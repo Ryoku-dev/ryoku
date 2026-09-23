@@ -30,12 +30,19 @@ import (
 // no synthetic paste. Capture rides wl-clipboard (wl-paste/wl-copy) rather than
 // the reference's raw ext-data-control protocol, which has no Go equivalent; the
 // observable behaviour is the same.
+//
+// The daemon also keeps the selection alive: on Wayland a clipboard belongs to
+// the client that set it, so closing that window (or the tab that copied) drops
+// the content and the next paste comes up empty. wl-clip-persist holds the
+// current selection, every mime type included, and re-claims it when its owner
+// goes away, so a copy outlives the app it came from.
 
 const (
 	clipMaxEntries     = 100      // history cap; oldest drops when a new entry overflows
 	clipMaxEntryBytes  = 10 << 20 // 10 MiB per entry; a larger selection is truncated
 	clipTextPreviewLen = 200      // text preview length in characters
 	clipThumbnailSize  = 512      // image thumbnail bounding box in pixels
+	clipPersistEnv     = "RYOKU_CLIP_PERSIST"
 )
 
 // clipEntry is one history item. The exported fields are the QML view; data is
@@ -50,9 +57,13 @@ type clipEntry struct {
 	ThumbPath string `json:"thumb,omitempty"`
 	ThumbW    int    `json:"thumbW,omitempty"`
 	ThumbH    int    `json:"thumbH,omitempty"`
+	Starred   bool   `json:"starred"`
 	hash      uint64
 	ts        time.Time
 	data      []byte
+	// thumbBytes is the size of the generated thumbnail, kept in memory so the
+	// storage report is a sum instead of a filesystem walk.
+	thumbBytes int
 }
 
 type clipState struct {
@@ -63,6 +74,9 @@ type clipState struct {
 	cacheDir string // on-disk image thumbnails (cache)
 	stateDir string // persisted history dir; "" disables on-disk persistence (tests)
 	dataDir  string // persisted entry bytes (stateDir/data)
+	// lastPrune is when the automatic sweep last ran; zero means it has never
+	// run, and the next look starts the clock rather than pruning on the spot.
+	lastPrune time.Time
 }
 
 // startClipboard registers the clipboard topic and control calls, publishes an
@@ -101,8 +115,29 @@ func (d *daemon) startClipboard() {
 		s.clear()
 		return nil, nil
 	})
+	d.registerCall("clipboard.star", func(raw json.RawMessage) (any, error) {
+		var a struct {
+			Entry   uint64 `json:"entry"`
+			Starred bool   `json:"starred"`
+		}
+		if err := json.Unmarshal(raw, &a); err != nil {
+			return nil, err
+		}
+		return nil, s.star(a.Entry, a.Starred)
+	})
+
+	d.registerCall("clipboard.stats", func(json.RawMessage) (any, error) {
+		return s.stats(), nil
+	})
 
 	go s.watch()
+	go s.keepSelection()
+	go s.autoPrune(func() bool {
+		if d.settings == nil {
+			return false
+		}
+		return d.settings.boolAt("clipboard.pruneWeekly")
+	})
 }
 
 // clipCacheDir holds the on-disk image thumbnails, kept out of the state frames
@@ -135,21 +170,24 @@ func (s *clipState) dataPath(hash uint64) string {
 // entry's bytes live beside it in dataDir keyed by hash and its thumbnail stays
 // in the cache dir, so the index stays small and one entry never rewrites another.
 type persistedClip struct {
-	NextID  uint64           `json:"nextID"`
-	Entries []persistedEntry `json:"entries"`
+	NextID    uint64           `json:"nextID"`
+	LastPrune int64            `json:"lastPrune,omitempty"` // unix seconds; 0 = never
+	Entries   []persistedEntry `json:"entries"`
 }
 
 type persistedEntry struct {
-	ID        uint64 `json:"id"`
-	Kind      string `json:"kind"`
-	Mime      string `json:"mime"`
-	Size      int    `json:"size"`
-	Preview   string `json:"preview,omitempty"`
-	ThumbPath string `json:"thumb,omitempty"`
-	ThumbW    int    `json:"thumbW,omitempty"`
-	ThumbH    int    `json:"thumbH,omitempty"`
-	Hash      uint64 `json:"hash"`
-	TS        int64  `json:"ts"`
+	ID         uint64 `json:"id"`
+	Kind       string `json:"kind"`
+	Mime       string `json:"mime"`
+	Size       int    `json:"size"`
+	Preview    string `json:"preview,omitempty"`
+	ThumbPath  string `json:"thumb,omitempty"`
+	ThumbW     int    `json:"thumbW,omitempty"`
+	ThumbH     int    `json:"thumbH,omitempty"`
+	ThumbBytes int    `json:"thumbBytes,omitempty"`
+	Starred    bool   `json:"starred,omitempty"`
+	Hash       uint64 `json:"hash"`
+	TS         int64  `json:"ts"`
 }
 
 // writeData persists one entry's bytes once, keyed by content hash. Skipped when
@@ -174,10 +212,14 @@ func (s *clipState) persistLocked() {
 		return
 	}
 	p := persistedClip{NextID: s.nextID, Entries: make([]persistedEntry, 0, len(s.entries))}
+	if !s.lastPrune.IsZero() {
+		p.LastPrune = s.lastPrune.Unix()
+	}
 	for _, e := range s.entries {
 		p.Entries = append(p.Entries, persistedEntry{
 			ID: e.ID, Kind: e.Kind, Mime: e.Mime, Size: e.Size, Preview: e.Preview,
-			ThumbPath: e.ThumbPath, ThumbW: e.ThumbW, ThumbH: e.ThumbH, Hash: e.hash, TS: e.ts.UnixNano(),
+			ThumbPath: e.ThumbPath, ThumbW: e.ThumbW, ThumbH: e.ThumbH, ThumbBytes: e.thumbBytes,
+			Starred: e.Starred, Hash: e.hash, TS: e.ts.UnixNano(),
 		})
 	}
 	raw, err := json.Marshal(p)
@@ -208,7 +250,11 @@ func (s *clipState) load() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.nextID = p.NextID
+	if p.LastPrune > 0 {
+		s.lastPrune = time.Unix(p.LastPrune, 0)
+	}
 	keep := make(map[uint64]bool, len(p.Entries))
+	thumbs := make(map[string]bool, len(p.Entries))
 	for _, pe := range p.Entries {
 		data, err := os.ReadFile(s.dataPath(pe.Hash))
 		if err != nil || len(data) == 0 {
@@ -216,15 +262,20 @@ func (s *clipState) load() {
 		}
 		e := &clipEntry{
 			ID: pe.ID, Kind: pe.Kind, Mime: pe.Mime, Size: pe.Size, Preview: pe.Preview,
-			ThumbPath: pe.ThumbPath, ThumbW: pe.ThumbW, ThumbH: pe.ThumbH,
-			hash: pe.Hash, ts: time.Unix(0, pe.TS), data: data,
+			ThumbPath: pe.ThumbPath, ThumbW: pe.ThumbW, ThumbH: pe.ThumbH, Starred: pe.Starred,
+			hash: pe.Hash, ts: time.Unix(0, pe.TS), data: data, thumbBytes: pe.ThumbBytes,
 		}
 		if e.ThumbPath != "" {
-			if _, err := os.Stat(e.ThumbPath); err != nil {
+			fi, err := os.Stat(e.ThumbPath)
+			if err != nil {
 				e.ThumbPath = ""
+				e.thumbBytes = 0
 				if e.Kind == "image" {
 					e.Kind = "binary"
 				}
+			} else if e.thumbBytes == 0 {
+				// An index written before the sizes were recorded: measure once.
+				e.thumbBytes = int(fi.Size())
 			}
 		}
 		if e.ID > s.nextID {
@@ -232,6 +283,9 @@ func (s *clipState) load() {
 		}
 		s.entries = append(s.entries, e)
 		keep[pe.Hash] = true
+		if e.ThumbPath != "" {
+			thumbs[filepath.Base(e.ThumbPath)] = true
+		}
 	}
 	if files, err := os.ReadDir(s.dataDir); err == nil {
 		for _, f := range files {
@@ -241,6 +295,17 @@ func (s *clipState) load() {
 			}
 			if h, err := strconv.ParseUint(strings.TrimSuffix(name, ".bin"), 16, 64); err == nil && !keep[h] {
 				_ = os.Remove(filepath.Join(s.dataDir, name))
+			}
+		}
+	}
+	// Thumbnails get the same sweep as the bytes they belong to: a thumbnail
+	// whose entry is gone is invisible to the user but still occupies the disk,
+	// and the storage report would under-count the history by exactly that much.
+	if files, err := os.ReadDir(s.cacheDir); err == nil {
+		for _, f := range files {
+			name := f.Name()
+			if strings.HasSuffix(name, ".png") && !thumbs[name] {
+				_ = os.Remove(filepath.Join(s.cacheDir, name))
 			}
 		}
 	}
@@ -351,6 +416,7 @@ func (s *clipState) buildEntry(mime string, data []byte) *clipEntry {
 		p := filepath.Join(s.cacheDir, fmt.Sprintf("thumb-%016x.png", e.hash))
 		if os.WriteFile(p, thumb, 0o600) == nil {
 			e.ThumbPath = p
+			e.thumbBytes = len(thumb)
 		} else {
 			// A thumbnail we cannot persist degrades to a binary entry rather
 			// than a broken image reference.
@@ -362,12 +428,14 @@ func (s *clipState) buildEntry(mime string, data []byte) *clipEntry {
 
 // pushLocked inserts an entry at the front. A content-hash match promotes the
 // existing entry instead of keeping a duplicate: it is removed and re-inserted
-// at the front reusing its id, so references stay valid. A fresh entry takes the
-// next id, and an overflow past the cap drops the oldest.
+// at the front reusing its id and its starred flag, so references and the
+// Starred pane stay intact. A fresh entry takes the next id, and an overflow
+// past the cap drops the oldest unstarred entry.
 func (s *clipState) pushLocked(e *clipEntry) {
 	for i, ex := range s.entries {
 		if ex.hash == e.hash {
 			e.ID = ex.ID
+			e.Starred = ex.Starred
 			s.entries = append(s.entries[:i], s.entries[i+1:]...)
 			s.entries = append([]*clipEntry{e}, s.entries...)
 			return
@@ -377,14 +445,28 @@ func (s *clipState) pushLocked(e *clipEntry) {
 	e.ID = s.nextID
 	s.entries = append([]*clipEntry{e}, s.entries...)
 	if len(s.entries) > clipMaxEntries {
-		old := s.entries[len(s.entries)-1]
-		s.entries = s.entries[:len(s.entries)-1]
+		s.dropOldestUnstarredLocked()
+	}
+}
+
+// dropOldestUnstarredLocked enforces the cap by evicting the oldest unstarred
+// entry and its backing files, leaving starred entries untouched. When every
+// entry is starred nothing is dropped, so a deliberately kept item survives an
+// overflow that an ordinary entry would have absorbed.
+func (s *clipState) dropOldestUnstarredLocked() {
+	for i := len(s.entries) - 1; i >= 0; i-- {
+		if s.entries[i].Starred {
+			continue
+		}
+		old := s.entries[i]
+		s.entries = append(s.entries[:i], s.entries[i+1:]...)
 		if old.ThumbPath != "" {
 			_ = os.Remove(old.ThumbPath)
 		}
 		if s.dataDir != "" {
 			_ = os.Remove(s.dataPath(old.hash))
 		}
+		return
 	}
 }
 
@@ -399,6 +481,30 @@ func (s *clipState) promoteLocked(id uint64) *clipEntry {
 			return e
 		}
 	}
+	return nil
+}
+
+// star sets an entry's starred flag in place, immediately moving it between the
+// history and Starred panes. A starred entry survives clear and is protected
+// from overflow eviction. Returns an error for an unknown id.
+func (s *clipState) star(id uint64, starred bool) error {
+	s.mu.Lock()
+	var found *clipEntry
+	for _, e := range s.entries {
+		if e.ID == id {
+			found = e
+			break
+		}
+	}
+	if found != nil {
+		found.Starred = starred
+		s.persistLocked()
+	}
+	s.mu.Unlock()
+	if found == nil {
+		return fmt.Errorf("no clipboard entry %d", id)
+	}
+	s.publish()
 	return nil
 }
 
@@ -486,9 +592,16 @@ func (s *clipState) del(id uint64) {
 	s.publish()
 }
 
+// clear empties the history but keeps starred entries and their backing files,
+// so the Starred pane is genuinely safe from a clear.
 func (s *clipState) clear() {
 	s.mu.Lock()
+	kept := s.entries[:0]
 	for _, e := range s.entries {
+		if e.Starred {
+			kept = append(kept, e)
+			continue
+		}
 		if e.ThumbPath != "" {
 			_ = os.Remove(e.ThumbPath)
 		}
@@ -496,7 +609,7 @@ func (s *clipState) clear() {
 			_ = os.Remove(s.dataPath(e.hash))
 		}
 	}
-	s.entries = nil
+	s.entries = kept
 	s.persistLocked()
 	s.mu.Unlock()
 	s.publish()
@@ -615,6 +728,78 @@ func reapStrayClipWatchers(self string) {
 	}
 }
 
+// clipPersistBin is the selection keeper: the one program that makes a copy
+// outlive the client that made it.
+const clipPersistBin = "wl-clip-persist"
+
+// keepSelection runs the selection keeper for the daemon's life, re-attaching if
+// it drops. A Wayland clipboard is owned by the client that set it, so closing
+// the window -- or the browser tab -- that copied drops the content and the next
+// paste finds nothing; the keeper holds every offered mime type and re-claims the
+// selection when its owner exits. Without it installed the copy keeps the old
+// lifetime: still in the history, but gone from the selection.
+func (s *clipState) keepSelection() {
+	reapStrayClipPersist()
+	for {
+		cmd := exec.Command(clipPersistBin, "--clipboard", "regular")
+		// Marker for the stray reaper: it must never kill a keeper the user runs
+		// themselves, and it must recognise ours across daemon restarts.
+		cmd.Env = append(os.Environ(), clipPersistEnv+"=1")
+		// Tie it to us, so a hard daemon exit cannot strand a process holding a
+		// data-control slot.
+		cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+		if err := cmd.Start(); err != nil {
+			return // not installed; the copy keeps the old lifetime
+		}
+		_ = cmd.Wait()
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// reapStrayClipPersist kills selection keepers stranded by a previous daemon.
+// Pdeathsig ties a keeper to the daemon that started it, but a force-killed
+// daemon (or a logout that skipped the exit path) can leave one reparented to
+// init and holding a data-control slot for the rest of the login. Only a keeper
+// carrying our own environment marker is touched.
+func reapStrayClipPersist() {
+	me := os.Getpid()
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		pid, err := strconv.Atoi(e.Name())
+		if err != nil || pid == me {
+			continue
+		}
+		raw, err := os.ReadFile("/proc/" + e.Name() + "/cmdline")
+		if err != nil {
+			continue
+		}
+		if !isClipPersistCmdline(strings.Split(string(raw), "\x00")) {
+			continue
+		}
+		env, err := os.ReadFile("/proc/" + e.Name() + "/environ")
+		if err != nil || !strings.Contains(string(env), clipPersistEnv+"=1") {
+			continue
+		}
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Signal(syscall.SIGKILL)
+		}
+	}
+}
+
+// isClipPersistCmdline reports whether argv is a selection keeper, by the program
+// name alone: the environment marker decides ownership.
+func isClipPersistCmdline(argv []string) bool {
+	for _, a := range argv {
+		if filepath.Base(a) == clipPersistBin {
+			return true
+		}
+	}
+	return false
+}
+
 // isClipWatcherCmdline reports whether argv is one of our clip processes: the
 // helper (`<self> __clip-ingest`) or the watcher (`wl-paste --watch <self>
 // __clip-ingest`). Both carry our executable path and the __clip-ingest marker.
@@ -691,6 +876,95 @@ func (d *daemon) clipIngest(cmd string, r *bufio.Reader) string {
 	}
 	d.clip.ingest(fields[1], buf)
 	return "ok"
+}
+
+// clipStats is the storage report of the whole history: how much it occupies,
+// split into the two things a user can picture (text and images), and how much
+// of it is pinned by starring. Bytes are everything the history keeps on disk --
+// each entry's bytes plus the thumbnail an image entry generated.
+type clipStats struct {
+	Items      int   `json:"items"`
+	Starred    int   `json:"starred"`
+	Bytes      int64 `json:"bytes"`
+	TextBytes  int64 `json:"textBytes"`
+	ImageBytes int64 `json:"imageBytes"`
+	OtherBytes int64 `json:"otherBytes"`
+	LastPrune  int64 `json:"lastPrune,omitempty"` // unix seconds; 0 = never
+}
+
+// stats walks the history once. Sizes are held in memory, so this is a sum, not
+// a filesystem walk.
+func (s *clipState) stats() clipStats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := clipStats{Items: len(s.entries)}
+	if !s.lastPrune.IsZero() {
+		st.LastPrune = s.lastPrune.Unix()
+	}
+	for _, e := range s.entries {
+		n := int64(len(e.data)) + int64(e.thumbBytes)
+		st.Bytes += n
+		if e.Starred {
+			st.Starred++
+		}
+		switch e.Kind {
+		case "text":
+			st.TextBytes += n
+		case "image":
+			st.ImageBytes += n
+		default:
+			st.OtherBytes += n
+		}
+	}
+	return st
+}
+
+const (
+	// clipPruneEvery is the automatic sweep period: a weekly drop of everything
+	// the user has not starred.
+	clipPruneEvery = 7 * 24 * time.Hour
+	// clipPruneCheck is how often the sweep is re-examined. It is the daemon's
+	// own clock, so a short period costs nothing and means switching the setting
+	// on starts the week promptly instead of at the next day's boundary.
+	clipPruneCheck = 15 * time.Minute
+)
+
+// autoPrune drops unstarred history once a week while the setting is on. The
+// timestamp rides the persisted index, so a restart, a reboot or a shell reload
+// cannot make it prune twice; and turning the setting on starts the clock rather
+// than deleting anything on the spot. Starred entries are never touched -- they
+// are the user's own list, not a cache.
+func (s *clipState) autoPrune(enabled func() bool) {
+	for {
+		s.pruneIfDue(enabled(), time.Now())
+		time.Sleep(clipPruneCheck)
+	}
+}
+
+// pruneIfDue runs the sweep when it is due and reports whether it pruned. The
+// first look after the setting is switched on only starts the clock.
+func (s *clipState) pruneIfDue(on bool, now time.Time) bool {
+	if !on {
+		return false
+	}
+	s.mu.Lock()
+	last := s.lastPrune
+	if last.IsZero() {
+		s.lastPrune = now
+		s.persistLocked()
+		s.mu.Unlock()
+		return false
+	}
+	if now.Sub(last) < clipPruneEvery {
+		s.mu.Unlock()
+		return false
+	}
+	s.lastPrune = now
+	s.mu.Unlock()
+	// clear is the prune: it drops every unstarred entry with its files and keeps
+	// the starred ones, then persists the new clock.
+	s.clear()
+	return true
 }
 
 // clipCopy is the `clip-copy <mime> <path>` control verb: the daemon reads the

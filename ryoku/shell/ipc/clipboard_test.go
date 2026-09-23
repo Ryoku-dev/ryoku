@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func clipIDs(s *clipState) []uint64 {
@@ -192,6 +193,306 @@ func TestClipPersistence(t *testing.T) {
 	}
 	if s2.nextID != s.nextID {
 		t.Errorf("reloaded nextID = %d, want %d", s2.nextID, s.nextID)
+	}
+}
+
+// Starred state is part of the persisted schema: a starred entry survives a
+// daemon restart still starred, and an unstarred one stays unstarred.
+func TestClipStarPersistence(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache := t.TempDir()
+	s := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s.ingest("text/plain", []byte("keep")) // id 1
+	s.ingest("text/plain", []byte("junk")) // id 2
+	if err := s.star(1, true); err != nil {
+		t.Fatalf("star(1, true) = %v", err)
+	}
+
+	s2 := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s2.load()
+	byPreview := map[string]bool{}
+	for _, e := range s2.entries {
+		byPreview[e.Preview] = e.Starred
+	}
+	if !byPreview["keep"] {
+		t.Error("starred entry lost its star across restart")
+	}
+	if byPreview["junk"] {
+		t.Error("unstarred entry came back starred across restart")
+	}
+}
+
+// A repeat of starred content is promoted in place without losing the star, so
+// re-copying something already in the Starred pane keeps it safe.
+func TestClipStarDuplicatePreserved(t *testing.T) {
+	s := &clipState{}
+	s.pushLocked(&clipEntry{hash: 100, Kind: "text", Preview: "keep"})
+	if err := s.star(1, true); err != nil {
+		t.Fatalf("star(1, true) = %v", err)
+	}
+	s.pushLocked(&clipEntry{hash: 100, Kind: "text", Preview: "keep-again"})
+	if len(s.entries) != 1 {
+		t.Fatalf("dedup kept a duplicate: len = %d, want 1", len(s.entries))
+	}
+	if !s.entries[0].Starred {
+		t.Error("re-ingesting starred content dropped the star")
+	}
+	if s.entries[0].ID != 1 {
+		t.Errorf("promoted entry id = %d, want 1", s.entries[0].ID)
+	}
+}
+
+// star flips the flag both ways and reports an error for an unknown id.
+func TestClipStarToggleAndUnknown(t *testing.T) {
+	s := &clipState{}
+	s.pushLocked(&clipEntry{hash: 1, Kind: "text", Preview: "a"})
+	if err := s.star(1, true); err != nil {
+		t.Fatalf("star(1, true) = %v", err)
+	}
+	if !s.entries[0].Starred {
+		t.Fatal("star did not set the flag")
+	}
+	if err := s.star(1, false); err != nil {
+		t.Fatalf("star(1, false) = %v", err)
+	}
+	if s.entries[0].Starred {
+		t.Error("unstar did not clear the flag")
+	}
+	if err := s.star(999, true); err == nil {
+		t.Error("star of an unknown id returned no error")
+	}
+}
+
+// clear empties the history but the Starred pane is safe: starred entries and
+// their backing files stay, unstarred entries and their files go.
+func TestClipClearPreservesStarred(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache := t.TempDir()
+	s := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s.ingest("text/plain", []byte("keep")) // id 1
+	s.ingest("text/plain", []byte("drop")) // id 2
+	var keepHash, dropHash uint64
+	for _, e := range s.entries {
+		switch e.Preview {
+		case "keep":
+			keepHash = e.hash
+		case "drop":
+			dropHash = e.hash
+		}
+	}
+	if err := s.star(1, true); err != nil {
+		t.Fatalf("star(1, true) = %v", err)
+	}
+
+	s.clear()
+	if len(s.entries) != 1 || s.entries[0].Preview != "keep" {
+		t.Fatalf("after clear entries = %v, want just the starred keep", clipIDs(s))
+	}
+	if !s.entries[0].Starred {
+		t.Error("clear stripped the star from the surviving entry")
+	}
+	if _, err := os.Stat(s.dataPath(keepHash)); err != nil {
+		t.Errorf("clear removed the starred entry's backing file: %v", err)
+	}
+	if _, err := os.Stat(s.dataPath(dropHash)); !os.IsNotExist(err) {
+		t.Errorf("clear left the unstarred entry's backing file behind")
+	}
+}
+
+// Overflow evicts the oldest unstarred entry, never a starred one, while an
+// unstarred candidate remains; when only starred entries are left it keeps them
+// rather than dropping something the user marked safe.
+func TestClipOverflowSpareStarred(t *testing.T) {
+	s := &clipState{}
+	for i := range clipMaxEntries {
+		s.pushLocked(&clipEntry{hash: uint64(1 + i)})
+	}
+	if err := s.star(1, true); err != nil { // id 1 is the oldest, at the back
+		t.Fatalf("star(1, true) = %v", err)
+	}
+	for i := range 5 {
+		s.pushLocked(&clipEntry{hash: uint64(1000 + i)})
+	}
+	if len(s.entries) != clipMaxEntries {
+		t.Fatalf("cap not held with an unstarred candidate present: len = %d, want %d", len(s.entries), clipMaxEntries)
+	}
+	starredPresent := false
+	for _, e := range s.entries {
+		if e.ID == 1 {
+			starredPresent = true
+		}
+	}
+	if !starredPresent {
+		t.Error("overflow evicted the starred entry instead of an unstarred one")
+	}
+
+	// Star every remaining entry, then overflow again: with only starred entries
+	// already present, none of them may be evicted. The freshly-copied unstarred
+	// entry is the candidate that yields to hold the cap.
+	prevIDs := clipIDs(s)
+	for _, e := range s.entries {
+		e.Starred = true
+	}
+	s.pushLocked(&clipEntry{hash: 9999})
+	present := map[uint64]bool{}
+	for _, e := range s.entries {
+		present[e.ID] = true
+	}
+	for _, id := range prevIDs {
+		if !present[id] {
+			t.Errorf("overflow evicted starred entry %d with no other unstarred candidate", id)
+		}
+	}
+}
+
+// The storage report is what the Hub shows: every entry's bytes plus the
+// thumbnail an image carries, split into text, images and the rest, with the
+// pinned count -- and it must survive a reload (the sizes are persisted).
+func TestClipStats(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache := t.TempDir()
+	s := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s.ingest("text/plain", []byte("hello")) // 5 bytes of text
+	s.ingest("image/png", tinyPNG(t, 8, 8)) // image bytes + a thumbnail
+	if err := s.star(1, true); err != nil { // star the text entry
+		t.Fatalf("star(1, true) = %v", err)
+	}
+
+	st := s.stats()
+	if st.Items != 2 || st.Starred != 1 {
+		t.Fatalf("stats = %+v, want 2 items and 1 starred", st)
+	}
+	if st.TextBytes != 5 {
+		t.Errorf("textBytes = %d, want 5", st.TextBytes)
+	}
+	if st.ImageBytes <= int64(len(tinyPNG(t, 8, 8))) {
+		t.Errorf("imageBytes = %d, want more than the image alone (thumbnail included)", st.ImageBytes)
+	}
+	if st.Bytes != st.TextBytes+st.ImageBytes+st.OtherBytes {
+		t.Errorf("bytes %d != the three parts %d+%d+%d", st.Bytes, st.TextBytes, st.ImageBytes, st.OtherBytes)
+	}
+
+	// The same numbers after a restart: thumbnail sizes ride the index instead of
+	// being re-measured into a different total.
+	s2 := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s2.load()
+	if got := s2.stats(); got != st {
+		t.Errorf("stats after reload = %+v, want %+v", got, st)
+	}
+}
+
+// The weekly sweep drops unstarred history and keeps the starred entries, and it
+// runs at most once per period: the clock rides the index, so a restart or a
+// second look does not prune again.
+func TestClipAutoPrune(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache := t.TempDir()
+	s := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s.ingest("text/plain", []byte("junk")) // id 1
+	s.ingest("text/plain", []byte("keep")) // id 2
+	if err := s.star(2, true); err != nil {
+		t.Fatalf("star(2, true) = %v", err)
+	}
+
+	now := time.Now()
+	// Off: nothing happens, not even the clock starting.
+	if s.pruneIfDue(false, now) {
+		t.Error("pruned while the setting was off")
+	}
+	// First look after switching on starts the clock rather than deleting.
+	if s.pruneIfDue(true, now) {
+		t.Error("pruned on the first look instead of starting the clock")
+	}
+	if len(s.entries) != 2 {
+		t.Fatalf("entries = %d after the clock started, want 2", len(s.entries))
+	}
+	// Still inside the week.
+	if s.pruneIfDue(true, now.Add(clipPruneEvery-time.Minute)) {
+		t.Error("pruned before the week was up")
+	}
+	if len(s.entries) != 2 {
+		t.Fatalf("entries = %d before the week was up, want 2", len(s.entries))
+	}
+	// Due: everything unstarred goes, the starred entry stays.
+	if !s.pruneIfDue(true, now.Add(clipPruneEvery)) {
+		t.Error("did not prune when the week was up")
+	}
+	if len(s.entries) != 1 || s.entries[0].Preview != "keep" {
+		t.Fatalf("after the sweep = %d entries (%v), want just %q", len(s.entries), clipIDs(s), "keep")
+	}
+	// And the new clock survives a restart, so the next sweep waits another week.
+	s2 := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s2.load()
+	if s2.pruneIfDue(true, now.Add(clipPruneEvery+time.Minute)) {
+		t.Error("pruned again immediately after the last sweep")
+	}
+}
+
+// A thumbnail whose entry is gone is invisible to the user but still holds the
+// disk, and it would make the storage report under-count the history. The load
+// sweep takes it, and leaves the live entry's thumbnail alone.
+func TestClipSweepsOrphanThumbnails(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	cache := t.TempDir()
+	s := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s.ingest("image/png", tinyPNG(t, 8, 8))
+	if len(s.entries) != 1 || s.entries[0].ThumbPath == "" {
+		t.Fatal("expected one image entry with a thumbnail")
+	}
+	live := s.entries[0].ThumbPath
+	orphan := filepath.Join(cache, "thumb-00000000deadbeef.png")
+	if err := os.WriteFile(orphan, []byte("stale thumbnail bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s2 := &clipState{stateDir: dir, dataDir: dataDir, cacheDir: cache}
+	s2.load()
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Error("orphan thumbnail survived the load sweep")
+	}
+	if _, err := os.Stat(live); err != nil {
+		t.Errorf("the live entry's thumbnail was swept: %v", err)
+	}
+}
+
+// The keeper is recognised by program name and owned by its environment marker,
+// so a user's own wl-clip-persist is never reaped and ours always is.
+func TestIsClipPersistCmdline(t *testing.T) {
+	cases := []struct {
+		name string
+		argv []string
+		want bool
+	}{
+		{"our keeper", []string{"wl-clip-persist", "--clipboard", "regular"}, true},
+		{"keeper by path", []string{"/usr/bin/wl-clip-persist", "--clipboard", "regular"}, true},
+		{"the watcher is not a keeper", []string{"wl-paste", "--watch", "/home/u/.local/bin/ryoku-shell", "__clip-ingest"}, false},
+		{"the daemon is not a keeper", []string{"/home/u/.local/bin/ryoku-shell", "daemon"}, false},
+		{"empty", nil, false},
+	}
+	for _, c := range cases {
+		if got := isClipPersistCmdline(c.argv); got != c.want {
+			t.Errorf("%s: isClipPersistCmdline(%v) = %v, want %v", c.name, c.argv, got, c.want)
+		}
 	}
 }
 

@@ -54,6 +54,11 @@ Singleton {
     // Read and written through the services Dock singleton so every consumer goes
     // through one place.
     property alias dock: adapter.dock
+
+    // clipboard: geometry and corner treatment for the bottom-centred history
+    // surface. The adapter keeps it a self-contained shell.json subtree so it
+    // can retune live without a shell restart.
+    property alias clipboard: adapter.clipboard
     readonly property var normalizedNacre: NacreConfig.normalize(nacre)
 
     // typography: a scale that grows or shrinks the whole shell (the bar text
@@ -201,6 +206,15 @@ Singleton {
                 "shadow": true,
                 "labels": true,
                 "media": false
+            })
+            property var clipboard: ({
+                "widthPercent": 65,
+                "heightPercent": 42,
+                "bottomPercent": 0,
+                "panelRadius": 18,
+                "paneRadius": 12,
+                "cardRadius": 9,
+                "pruneWeekly": false
             })
         }
     }

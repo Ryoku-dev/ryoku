@@ -118,7 +118,6 @@ Item {
         case "audio-out": return audioOutPageLoader;
         case "audio-in": return audioInPageLoader;
         case "theme": return themePageLoader;
-        case "clipboard": return clipboardPageLoader;
         }
         return null;
     }
@@ -160,7 +159,6 @@ Item {
         case "audio-out": return I18n.tr("Sound output");
         case "audio-in": return I18n.tr("Microphone");
         case "theme": return I18n.tr("Colour scheme");
-        case "clipboard": return I18n.tr("Clipboard");
         }
         return "";
     }
@@ -471,23 +469,6 @@ Item {
                                 width: parent.width
                                 s: root.s
                                 open: root.open && root.page === "theme"
-                            }
-                        }
-                    }
-                    Loader {
-                        id: clipboardPageLoader
-                        width: pageStack.width
-                        active: root.pageSeen["clipboard"] === true
-                        visible: root.page === "clipboard" && status === Loader.Ready
-                        asynchronous: true
-                        onStatusChanged: root.completePendingPage("clipboard", clipboardPageLoader)
-                        sourceComponent: Component {
-                            MenuClipboard {
-                                avail: pageScroll.height
-                                width: parent.width
-                                s: root.s
-                                open: root.open && root.page === "clipboard"
-                                onRequestClose: root.requestClose()
                             }
                         }
                     }
