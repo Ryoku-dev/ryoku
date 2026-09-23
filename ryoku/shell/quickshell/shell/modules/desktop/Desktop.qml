@@ -561,6 +561,8 @@ Scope {
             z: root.widgetZ("clock")
             active: root.widgetsEnabled && root.reloadReady && Config.clockEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: clockSlot
                 widget: "clock"
@@ -581,6 +583,7 @@ Scope {
                 Clock {}
             }
             }
+            }
         }
 
         Loader {
@@ -589,6 +592,8 @@ Scope {
             z: root.widgetZ("calendar")
             active: root.widgetsEnabled && root.reloadReady && Config.calendarEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: calendarSlot
                 widget: "calendar"
@@ -617,6 +622,7 @@ Scope {
                 }
             }
             }
+            }
         }
 
         Loader {
@@ -625,6 +631,8 @@ Scope {
             z: root.widgetZ("music")
             active: root.widgetsEnabled && root.reloadReady && Config.musicEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: musicSlot
                 widget: "music"
@@ -656,6 +664,7 @@ Scope {
                 }
             }
             }
+            }
         }
 
         Loader {
@@ -664,6 +673,8 @@ Scope {
             z: root.widgetZ("aio")
             active: root.widgetsEnabled && root.reloadReady && Config.aioEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: aioSlot
                 widget: "aio"
@@ -686,6 +697,7 @@ Scope {
                 }
             }
             }
+            }
         }
 
         Loader {
@@ -694,6 +706,8 @@ Scope {
             z: root.widgetZ("stats")
             active: root.widgetsEnabled && root.reloadReady && Config.statsEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: statsSlot
                 widget: "stats"
@@ -715,6 +729,7 @@ Scope {
                 }
             }
             }
+            }
         }
 
         Loader {
@@ -723,6 +738,8 @@ Scope {
             z: root.widgetZ("weather")
             active: root.widgetsEnabled && root.reloadReady && Config.weatherEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: weatherSlot
                 widget: "weather"
@@ -745,6 +762,7 @@ Scope {
                 }
             }
             }
+            }
         }
 
         Loader {
@@ -753,6 +771,8 @@ Scope {
             z: root.widgetZ("notes")
             active: root.widgetsEnabled && root.reloadReady && Config.notesEnabled
             sourceComponent: Component {
+            Item {
+                anchors.fill: parent
             WidgetSlot {
                 id: notesSlot
                 widget: "notes"
@@ -779,6 +799,7 @@ Scope {
                     wLogical: Config.notesWidth
                     hLogical: Config.notesHeight
                 }
+            }
             }
             }
         }

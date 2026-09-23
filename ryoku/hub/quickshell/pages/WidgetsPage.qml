@@ -684,15 +684,27 @@ Item {
                             spacing: Tokens.s4
                             Repeater {
                                 model: setSection.modelData.rows
-                                delegate: StoreWidgetCard {
+                                // resolved by URL, not a bare sibling type: the
+                                // Hub's pages/ dir has no qmldir, so a type
+                                // declared beside this page does not register
+                                // after an upgrade (same form ProfilePage uses
+                                // for HeroEditor/ProfileToolbar). (#251)
+                                delegate: Loader {
+                                    id: widgetCardLoader
                                     required property var modelData
                                     width: Math.max(280, Math.min(360, (setSection.width - Tokens.s4 * 2) / 3))
-                                    title: modelData.title
-                                    on: modelData.enabled === true
-                                    icon: modelData.icon
-                                    dir: modelData.dir
-                                    settings: modelData.settings
-                                    onToggled: (v) => pg.placePlugin(modelData.id, v)
+                                    height: 236
+                                    source: Qt.resolvedUrl("StoreWidgetCard.qml")
+                                    onLoaded: {
+                                        if (!item)
+                                            return
+                                        item.title = modelData.title
+                                        item.on = modelData.enabled === true
+                                        item.icon = modelData.icon
+                                        item.dir = modelData.dir
+                                        item.settings = modelData.settings
+                                        item.toggled.connect(function (v) { pg.placePlugin(modelData.id, v) })
+                                    }
                                 }
                             }
                         }

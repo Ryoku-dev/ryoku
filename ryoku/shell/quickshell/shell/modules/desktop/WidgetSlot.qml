@@ -79,17 +79,37 @@ Item {
     width: Math.max(1, slot.cw + slot.pad * 2)
     height: Math.max(1, slot.ch + slot.pad * 2)
 
-    function clampX(v) { return Math.max(0, Math.min(v, (slot.parent ? slot.parent.width : v + slot.width) - slot.width)); }
-    function clampY(v) { return Math.max(0, Math.min(v, (slot.parent ? slot.parent.height : v + slot.height) - slot.height)); }
+    // A slot's parent is the Loader that hosts it; before the desktop window
+    // has been laid out that parent momentarily reports width/height 0. Clamping
+    // a saved position against a zero parent collapses every widget to (0,0) and
+    // they stack in the corner (#251), so treat a non-positive parent as "not
+    // laid out yet" and pass the requested value through untouched; the binding
+    // re-resolves to the clamped position once the parent has a real size.
+    function clampX(v) {
+        const w = slot.parent ? slot.parent.width : 0;
+        if (w <= 0)
+            return v;
+        return Math.max(0, Math.min(v, w - slot.width));
+    }
+    function clampY(v) {
+        const h = slot.parent ? slot.parent.height : 0;
+        if (h <= 0)
+            return v;
+        return Math.max(0, Math.min(v, h - slot.height));
+    }
     function snap(v) { return Math.round(v / slot.gridSize) * slot.gridSize; }
     function zoneX() {
-        const w = slot.parent ? slot.parent.width : slot.width;
+        const w = slot.parent ? slot.parent.width : 0;
+        if (w <= 0)
+            return slot.anchor.indexOf("left") >= 0 ? slot.zoneMargin : 0;
         if (slot.anchor.indexOf("left") >= 0) return slot.zoneMargin;
         if (slot.anchor.indexOf("right") >= 0) return w - slot.width - slot.zoneMargin;
         return (w - slot.width) / 2;
     }
     function zoneY() {
-        const h = slot.parent ? slot.parent.height : slot.height;
+        const h = slot.parent ? slot.parent.height : 0;
+        if (h <= 0)
+            return slot.anchor.indexOf("top") >= 0 ? slot.zoneMargin : 0;
         if (slot.anchor.indexOf("top") >= 0) return slot.zoneMargin;
         if (slot.anchor.indexOf("bottom") >= 0) return h - slot.height - slot.zoneMargin;
         return (h - slot.height) / 2;
