@@ -207,3 +207,12 @@ func (d *daemon) randomPick(types []string, favouritesOnly bool) {
 		_ = d.applyWallpaper(typeOf(pick), pick, "set", nil, nil, nil)
 	}
 }
+
+// dayNightTick applies a clip the daynight rotation picked. The pool is video,
+// so it routes through the same video apply path the picker uses.
+func (d *daemon) dayNightTick(path string) {
+	if path == "" {
+		return
+	}
+	_ = d.applyWallpaper(typeOf(path), path, "set", nil, nil, nil)
+}

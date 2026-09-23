@@ -294,6 +294,22 @@ QtObject {
         })
     }
 
+    // Day/night rotation (#247). The daemon reads the pools/interval from
+    // config.json itself, so start takes no arguments beyond the verb; force
+    // pins a phase for manual testing.
+    function dayNightStart(callback) {
+        call("wall.daynight_start", {}, callback)
+    }
+    function dayNightStop(callback) {
+        call("wall.daynight_stop", {}, callback)
+    }
+    function dayNightStatus(callback) {
+        call("wall.daynight_status", {}, callback)
+    }
+    function dayNightForce(phase, callback) {
+        call("wall.daynight_force", {phase: phase || ""}, callback)
+    }
+
     function stateGet(key, callback) {
         call("state.get", {key: key}, callback)
     }

@@ -263,5 +263,69 @@ Row {
                 onToggle: function(v) { if (root.saveConfigKey) root.saveConfigKey("general.randomIncludeFavourites", v) }
             }
         }
+
+        SettingsCard {
+            colors: root.colors
+            title: I18n.tr("Day / night rotation")
+            width: parent.width
+
+            RowToggle {
+                colors: root.colors
+                title: I18n.tr("Alternate day and night clips")
+                description: I18n.tr("Switch between a daytime and a night video pool at real sunrise/sunset, rotating within the active one.")
+                checked: Config.dayNightEnabled
+                onToggle: function(v) {
+                    if (root.saveConfigKey) root.saveConfigKey("daynight.enabled", v)
+                    if (v) DaemonClient.dayNightStart()
+                    else DaemonClient.dayNightStop()
+                }
+            }
+
+            RowTextInput {
+                colors: root.colors
+                title: I18n.tr("Day pool")
+                description: I18n.tr("Folder of videos shown between sunrise and sunset.")
+                value: Config.dayNightDayDir
+                placeholder: I18n.tr("~/Pictures/Wallpapers/dynamic/Day")
+                enabled: Config.dayNightEnabled
+                opacity: enabled ? 1.0 : 0.5
+                onCommit: function(v) { if (root.saveConfigKey) root.saveConfigKey("daynight.dayDir", v) }
+            }
+
+            RowTextInput {
+                colors: root.colors
+                title: I18n.tr("Night pool")
+                description: I18n.tr("Folder of videos shown from sunset to sunrise.")
+                value: Config.dayNightNightDir
+                placeholder: I18n.tr("~/Pictures/Wallpapers/dynamic/Night")
+                enabled: Config.dayNightEnabled
+                opacity: enabled ? 1.0 : 0.5
+                onCommit: function(v) { if (root.saveConfigKey) root.saveConfigKey("daynight.nightDir", v) }
+            }
+
+            RowInput {
+                colors: root.colors
+                title: I18n.tr("Rotate every (minutes)")
+                description: I18n.tr("Minutes between clips within the active pool.")
+                value: Config.dayNightInterval
+                min: 1; max: 1440
+                enabled: Config.dayNightEnabled
+                opacity: enabled ? 1.0 : 0.5
+                onCommit: function(v) {
+                    if (root.saveConfigKey) root.saveConfigKey("daynight.rotateIntervalMinutes", v)
+                    if (Config.dayNightEnabled) DaemonClient.dayNightStart()
+                }
+            }
+
+            RowToggle {
+                colors: root.colors
+                title: I18n.tr("No repeat within a day")
+                description: I18n.tr("Show every clip in a pool once before repeating; the set resets at the next sunrise.")
+                checked: Config.dayNightNoRepeat
+                enabled: Config.dayNightEnabled
+                opacity: enabled ? 1.0 : 0.5
+                onToggle: function(v) { if (root.saveConfigKey) root.saveConfigKey("daynight.noRepeatWithinDay", v) }
+            }
+        }
     }
 }

@@ -235,16 +235,43 @@ func (d *daemon) dispatchRequest(req *request) response {
 	case "wall.random_status":
 		return ok(req.ID, d.random.status())
 
-	// Unified auto-rotate: active if the random loop is running OR any playlist
-	// is assigned (playlists rotate independently of random). rotation_stop
-	// halts both, so "auto-rotate off" truly stops every wallpaper change.
+	// Day/night video rotation (#247): the picker configures the pools and the
+	// interval; the daemon owns the timer and the day/night decision (read from
+	// the shell's weather isDay). start reads the config fresh so a GUI Save is
+	// the only writer; force pins a phase for manual testing.
+	case "wall.daynight_start":
+		cfg := dayNightFromWall()
+		d.daynight.start(cfg, d.dayNightTick, nil)
+		d.broadcast("ryogami.wall.daynight_started", map[string]interface{}{
+			"interval": cfg.Interval, "day_dir": cfg.DayDir, "night_dir": cfg.NightDir,
+		})
+		return ok(req.ID, map[string]interface{}{"started": true})
+
+	case "wall.daynight_stop":
+		d.daynight.stop()
+		d.broadcast("ryogami.wall.daynight_stopped", map[string]interface{}{})
+		return ok(req.ID, map[string]interface{}{"stopped": true})
+
+	case "wall.daynight_status":
+		return ok(req.ID, d.daynight.status())
+
+	case "wall.daynight_force":
+		d.daynight.force(strParam(p, "phase", ""))
+		return ok(req.ID, d.daynight.status())
+
+	// Unified auto-rotate: active if the random loop is running, any playlist
+	// is assigned, or day/night rotation is up (each rotates independently of
+	// the others). rotation_stop halts all three, so "auto-rotate off" truly
+	// stops every wallpaper change.
 	case "wall.rotation_status":
 		st := d.random.status()
 		running, _ := st["running"].(bool)
-		return ok(req.ID, map[string]interface{}{"active": running || d.playlists.anyAssigned()})
+		dn, _ := d.daynight.status()["running"].(bool)
+		return ok(req.ID, map[string]interface{}{"active": running || dn || d.playlists.anyAssigned()})
 
 	case "wall.rotation_stop":
 		d.random.stop()
+		d.daynight.stop()
 		d.playlists.stopAll()
 		d.broadcast("ryogami.wall.random_stopped", map[string]interface{}{})
 		return ok(req.ID, map[string]interface{}{"stopped": true})

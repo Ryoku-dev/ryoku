@@ -32,6 +32,7 @@ type daemon struct {
 	restoreMu sync.Mutex // serializes restoreOutputs: startup, retry, output-added, manual
 
 	random    *randomRotation
+	daynight  *dayNightRotation
 	video     *videoPlayer
 	optimizer *Optimizer
 	grader    *Grader
@@ -118,6 +119,7 @@ func runDaemon() error {
 		events:         newEventHub(),
 		ui:             newWallUIProcess(),
 		random:         newRandomRotation(),
+		daynight:       newDayNightRotation(),
 		lastTransition: -1,
 		video:          newVideoPlayer(),
 	}
