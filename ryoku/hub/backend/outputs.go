@@ -151,9 +151,48 @@ func applyLayout(layout []wm.OutputLayout) error {
 	if err != nil {
 		return err
 	}
+	publishGreeterPrimary(layout)
 	return printJSON(rep)
 }
 
+// publishGreeterPrimary records the layout's main output where the login
+// greeter can read it. The greeter runs as the sddm user before any session
+// exists, so it cannot see the per-user compositor config that otherwise holds
+// the choice; without this hand-off it falls back to an internal-panel
+// heuristic and a desktop whose main is an external gets its login form on the
+// wrong screen. Best-effort: the file is created by tmpfiles on a packaged box,
+// and a checkout without it simply keeps today's behaviour.
+func publishGreeterPrimary(layout []wm.OutputLayout) {
+	// The page's "Set as main" re-bases the layout so the chosen output sits at
+	// the global origin; a layout that predates that convention still has a
+	// top-left output. Take the origin first, else the top-left-most enabled
+	// output -- the same order deriveMain uses.
+	var main *wm.OutputLayout
+	for i := range layout {
+		o := &layout[i]
+		if !o.Enabled {
+			continue
+		}
+		if o.X == 0 && o.Y == 0 {
+			main = o
+			break
+		}
+		if main == nil || o.X < main.X || (o.X == main.X && o.Y < main.Y) {
+			main = o
+		}
+	}
+	if main == nil {
+		return
+	}
+	_ = os.WriteFile(greeterPrimaryPath(), []byte(main.Name+"\n"), 0o666)
+}
+
+func greeterPrimaryPath() string {
+	if p := os.Getenv("RYOKU_GREETER_PRIMARY_FILE"); p != "" {
+		return p
+	}
+	return "/var/lib/ryoku/greeter-primary"
+}
 func parseLayout(raw string) ([]wm.OutputLayout, error) {
 	var layout []wm.OutputLayout
 	if err := json.Unmarshal([]byte(raw), &layout); err != nil {

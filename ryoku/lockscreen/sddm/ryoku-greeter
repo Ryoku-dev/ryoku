@@ -123,19 +123,34 @@ fi
 # none, so Qt uses the binary name, sddm-greeter-qt6.
 greeter_conf="${RYOKU_GREETER_CONF:-/etc/ryoku/greeter.conf}"
 conf_val() { [ -r "$greeter_conf" ] && sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$greeter_conf" | tail -n1; }
+# The session's chosen main display, published by the Hub's Displays apply.
+# /etc/ryoku/greeter.conf is root-owned and manual, so it can never follow the
+# user's pick; this file is how the pick reaches the greeter, which runs as the
+# unprivileged sddm user and cannot read a per-user home.
+greeter_primary_file="${RYOKU_GREETER_PRIMARY_FILE:-/var/lib/ryoku/greeter-primary}"
 greeter_primary="${RYOKU_GREETER_PRIMARY:-$(conf_val PRIMARY)}"
 greeter_appid="${RYOKU_GREETER_APPID:-$(conf_val APPID)}"
 greeter_appid="${greeter_appid:-sddm-greeter-qt6}"
 
-# Resolve which connector the login form is pinned to. An explicit PRIMARY wins
-# when it is actually connected; otherwise an internal laptop panel (eDP/LVDS/DSI)
-# is the sensible default. With neither, print nothing: weston keeps its own
-# choice and only the mode tuning applies, exactly as before.
+# Resolve which connector the login form is pinned to. An explicit PRIMARY (env
+# or operator file) wins when it is actually connected; then the connector the
+# session's Displays apply recorded as main; then an internal laptop panel
+# (eDP/LVDS/DSI) as the sensible default. With none of them, print nothing:
+# weston keeps its own choice and only the mode tuning applies, exactly as
+# before. Every candidate is validated against the connected set, so a stale
+# hand-off (a docked external that is gone) degrades to the old behaviour
+# instead of a blank login.
 choose_primary() {
-  local want="$1" names
+  local want="$1" names handoff
   names="$(printf '%s\n' "$modes" | awk 'NF { print $1 }')"
   if [ -n "$want" ] && printf '%s\n' "$names" | grep -qxF "$want"; then
     printf '%s' "$want"; return
+  fi
+  if [ -r "$greeter_primary_file" ]; then
+    handoff="$(tr -d '[:space:]' < "$greeter_primary_file")"
+    if [ -n "$handoff" ] && printf '%s\n' "$names" | grep -qxF "$handoff"; then
+      printf '%s' "$handoff"; return
+    fi
   fi
   printf '%s\n' "$names" | grep -m1 -E '^(eDP|LVDS|DSI)' || true
 }
@@ -144,6 +159,14 @@ choose_primary() {
 # weston only learns which theme to draw from a [shell] block, so every config we
 # hand it carries one; without it the login pointer never renders (issue #191).
 shell_ini() { printf '[shell]\ncursor-theme=%s\ncursor-size=%s\n\n' "${XCURSOR_THEME:-Bibata-Modern-Ice}" "${XCURSOR_SIZE:-24}"; }
+
+# The keypad must type digits at the login field. SDDM's [General] Numlock knob
+# is inert under the Wayland greeter (its keyboard backend's sendChanges() is
+# empty), and the skin's keyboard.numLock assignment reaches the same dead end,
+# so weston's own lock key is the only channel that lands. Without it the
+# keypad sends navigation keysyms (KP_End, not KP_1) and a PIN-style password
+# never reaches the field.
+keyboard_ini() { printf '[keyboard]\nnumlock-on=true\n\n'; }
 
 # Match the session's touchpad feel: Hyprland enables tap-to-click by default,
 # weston does not (enable-tap defaults off), so a clickpad that taps to click in
@@ -156,7 +179,7 @@ libinput_ini() { printf '[libinput]\nenable-tap=true\nnatural-scroll=false\n\n';
 weston_plain() {
   local pini
   pini="$(mktemp --tmpdir ryoku-greeter.XXXXXX.ini 2>/dev/null)" &&
-    { printf '[core]\nidle-time=0\n\n'; shell_ini; libinput_ini; } >"$pini" &&
+    { printf '[core]\nidle-time=0\n\n'; shell_ini; libinput_ini; keyboard_ini; } >"$pini" &&
     exec weston --shell=kiosk $weston_args --config="$pini" "$@"
   exec weston --shell=kiosk $weston_args "$@"
 }
@@ -194,6 +217,7 @@ gen_ini() {
   printf '[core]\nidle-time=0\n\n'
   shell_ini
   libinput_ini
+  keyboard_ini
   while read -r name w h rr; do
     [ -n "$name" ] && [ "${w:-0}" -gt 0 ] && [ "${h:-0}" -gt 0 ] || continue
     printf '[output]\nname=%s\nmode=%sx%s@%s\n' "$name" "$w" "$h" "$rr"
