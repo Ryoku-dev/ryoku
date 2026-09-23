@@ -140,6 +140,13 @@ func TestReadLivePreview(t *testing.T) {
 		t.Fatal("the orphaned marker must be removed")
 	}
 
+	// A marker whose owner was reparented to init cannot attest to a live Hub
+	// either: kill(1,0) succeeds on permission grounds.
+	write(1)
+	if _, ok := readLivePreview(path); ok {
+		t.Fatal("a reparented (pid 1) marker must be dropped, not trusted")
+	}
+
 	// A malformed marker is removed rather than trusted.
 	if err := os.WriteFile(path, []byte("not json"), 0o600); err != nil {
 		t.Fatal(err)

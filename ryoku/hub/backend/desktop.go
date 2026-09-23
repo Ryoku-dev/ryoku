@@ -281,9 +281,12 @@ func previewDesktop(raw string) error {
 		return err
 	}
 	// Record the live draft so the shell daemon can land it again after a
-	// config reload; save/restore clear it, and a dead Hub pid stops the
-	// re-assertion so the next reload reverts the orphaned preview to disk.
-	b, _ := json.Marshal(map[string]any{"pid": os.Getpid(), "draft": m})
+	// config reload; save/restore clear it. The owner is the calling Hub, not
+	// this short-lived CLI: the Hub spawns it as a child, so the parent is the
+	// process whose life the preview depends on. Once that Hub quits, the next
+	// reload drops the marker and reverts to disk -- an unsaved quit still
+	// means unsaved.
+	b, _ := json.Marshal(map[string]any{"pid": os.Getppid(), "draft": m})
 	_ = os.MkdirAll(ryokuConfigDir(), 0o755)
 	_ = os.WriteFile(desktopPreviewPath(), b, 0o600)
 	return nil

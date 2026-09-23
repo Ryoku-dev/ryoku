@@ -268,7 +268,9 @@ func readLivePreview(path string) (map[string]any, bool) {
 		_ = os.Remove(path)
 		return nil, false
 	}
-	if rec.Pid <= 0 || syscall.Kill(rec.Pid, 0) == syscall.ESRCH {
+	// pid 1 is the reparented-CLI case (its own parent exited), and kill(1,0)
+	// succeeds on permission grounds, so neither can attest to a live Hub.
+	if rec.Pid <= 1 || syscall.Kill(rec.Pid, 0) == syscall.ESRCH {
 		_ = os.Remove(path)
 		return nil, false
 	}
