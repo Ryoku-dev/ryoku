@@ -996,7 +996,7 @@
   "DRYRUN: rewrite /etc/pacman.conf without [ryoku]": "DRYRUN: /etc/pacman.conf को [ryoku] के बिना फिर से लिखें",
   "DRYRUN: seed $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv": "DRYRUN: सीड $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv",
   "DRYRUN: seed %s -> ~/%s": "DRYRUN: बीज %s -> ~/%s",
-  "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target": "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target",
+  "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target": "DRYRUN: CPU-संगत CachyOS रेपो चुनें, [multilib] सक्षम करें, लक्ष्य में cachyos कीरिंग भरें",
   "DRYRUN: set Zen as the default web browser for %s if installed": "DRYRUN: Zen को %s के लिए default web browser के रूप में सेट करें (यदि इंस्टॉल हो)",
   "DRYRUN: stub ~/%s if absent": "DRYRUN: यदि अनुपस्थित हो तो ~/%s स्टब करें",
   "DRYRUN: verify [ryoku] repo, packages, session files": "DRYRUN: [ryoku] रेपो, पैकेज, सत्र फ़ाइलें सत्यापित करें",

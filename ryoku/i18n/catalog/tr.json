@@ -6476,7 +6476,7 @@
   "target %s is a": "hedef %s bir",
   "target %s is not a block device": "hedef %s blok cihazı değil",
   "template": "şablon",
-  "terminal": "terminal",
+  "terminal": "uçbirim",
   "text": "metin",
   "that security key is already enrolled": "bu güvenlik anahtarı zaten kayıtlı",
   "the %q keyring is password-protected; it will unlock silently at next login only if its password is your login password": "%q anahtarlığı parola korumalı; parolası sizin giriş parolanız ise sonraki girişte sessizce kilit açılacak",

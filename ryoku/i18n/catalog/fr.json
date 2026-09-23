@@ -5452,7 +5452,7 @@
   "missing": "manquant",
   "missing package list: %s": "liste de paquets manquante: %s",
   "missing: %s": "manquant : %s",
-  "mkinitcpio HOOKS drop-in (/etc/mkinitcpio.conf.d/ryoku.conf)": "mkinitcpio HOOKS drop-in (/etc/mkinitcpio.conf.d/ryoku.conf)",
+  "mkinitcpio HOOKS drop-in (/etc/mkinitcpio.conf.d/ryoku.conf)": "mkinitcpio HOOKS drop-in (/etc/mkinitcpio.d/ryoku.conf)",
   "mkinitcpio not installed": "mkinitcpio non installé",
   "mode:        %s": "mode :        %s",
   "mode:      %s (%s)": "mode :      %s (%s)",
