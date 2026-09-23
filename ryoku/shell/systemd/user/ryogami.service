@@ -19,6 +19,11 @@ RestartSec=2
 # surfaces and the ryoku-depth helper it shells out to must outlive a reload.
 KillMode=process
 Slice=session.slice
+# quickshell links jemalloc, so the glibc arena cap does nothing here. The
+# picker's tree is built and torn down on every open; without a decay schedule
+# the freed pages stay mapped (measured: ~128 MB stranded after a single
+# open/close). Same tuning the shell daemon gives its own surfaces.
+Environment=MALLOC_CONF=narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
 
 [Install]
 WantedBy=ryoku-session.target
