@@ -166,6 +166,7 @@ func runDaemon() error {
 	// defined frame, then restore the last wallpaper and rescan the catalog.
 	d.surface.publishCurrent()
 	go func() {
+		d.healAnimatedWebp()
 		if d.config().restoreEnabled() {
 			d.migrateLegacyOutputs()
 			switch want, applied := d.restoreOutputs(); {

@@ -429,15 +429,13 @@ func hueBucket(hue, sat uint16) uint16 {
 }
 
 // isAnimatedImage reports whether the source needs the mp4 transcode path so
-// the in-shell player advances frames (webp is transcoded unconditionally; the
-// QMl ffmpeg backend sees it as a single frame; gif/apng/avif are gated on the
-// frame count).
+// the in-shell player advances frames. Every animated-capable format is gated
+// on its real frame count: a single-frame webp/png stays a still image and
+// paints once, rather than being transcoded to a looping clip the player keeps
+// decoding on the GPU.
 func isAnimatedImage(src string) bool {
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(src), "."))
-	if ext == "webp" {
-		return true
-	}
-	if ext != "gif" && ext != "png" && ext != "avif" {
+	if ext != "gif" && ext != "png" && ext != "avif" && ext != "webp" {
 		return false
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

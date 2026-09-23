@@ -252,6 +252,45 @@ func TestScanSkipsFreshThumb(t *testing.T) {
 	}
 }
 
+// fakeFFprobeFrames puts a stub ffprobe on PATH that reports a frame count by
+// filename (anything but a name containing "still" reads as multi-frame), so
+// the webp classifier is tested without a real animated webp on disk.
+func fakeFFprobeFrames(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	body := "#!/bin/sh\nlast=\"\"\nfor a in \"$@\"; do last=\"$a\"; done\n" +
+		"case \"$last\" in *still*) printf '1\\n';; *) printf '12\\n';; esac\n"
+	if err := os.WriteFile(filepath.Join(dir, "ffprobe"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+}
+
+// TestIsAnimatedImageWebp: a single-frame webp is a still and must not be sent
+// down the mp4 transcode path -- that forced loop was what made a static webp
+// cost video-level GPU power. A multi-frame webp still animates, and a format
+// that cannot animate short-circuits before ffprobe is ever consulted.
+func TestIsAnimatedImageWebp(t *testing.T) {
+	fakeFFprobeFrames(t)
+	dir := t.TempDir()
+	mk := func(name string) string {
+		p := filepath.Join(dir, name)
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	if isAnimatedImage(mk("still.webp")) {
+		t.Fatal("a single-frame webp must be classified as static")
+	}
+	if !isAnimatedImage(mk("motion.webp")) {
+		t.Fatal("a multi-frame webp must be classified as animated")
+	}
+	if isAnimatedImage(mk("photo.jpg")) {
+		t.Fatal("a jpg must never be classified as animated")
+	}
+}
+
 func keys(m map[string]Entry) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

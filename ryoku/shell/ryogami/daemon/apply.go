@@ -279,6 +279,64 @@ func (d *daemon) migrateLegacyOutputs() {
 	fmt.Fprintln(os.Stderr, "ryogami: migrated the pre-split wallpaper choice into outputs.json")
 }
 
+// webpHealRev marks the catalog revision that stopped forcing every webp onto
+// the video path. An older daemon transcoded a single-frame webp to a looping
+// clip and kept it decoding on the GPU, so a still image cost video-level
+// power. Bump it if the classifier changes again so a healed box re-checks.
+const webpHealRev = "1"
+
+// healAnimatedWebp reclassifies webps the old classifier promoted to video. A
+// single-frame webp becomes a still again -- painted once instead of decoded on
+// a loop -- and the stored wallpaper choice drops the video type so a restore
+// paints it as an image. The catalog and outputs.json both carry the stale
+// type, and neither the rescan (warm-returns an unchanged mtime) nor the
+// restore (reads outputs.json directly) fixes it on its own, so this runs once
+// per revision before the first restore.
+func (d *daemon) healAnimatedWebp() {
+	if v, okKey := d.store.stateGet("webpHealRev"); okKey && v == webpHealRev {
+		return
+	}
+	cfg := d.config()
+	healed := 0
+	for _, e := range d.store.list(false) {
+		if e.Type != "video" || !strings.EqualFold(filepath.Ext(e.Name), ".webp") {
+			continue
+		}
+		src := filepath.Join(cfg.wallpaperDir(), e.Name)
+		if !fileExists(src) || isAnimatedImage(src) {
+			continue
+		}
+		d.store.mutate(e.Key, func(en *Entry) {
+			en.Type = "static"
+			en.VideoFile = ""
+		})
+		healed++
+	}
+	// The stored choice carries the type a restore paints from; a webp recorded
+	// as video would still boot into the player even after the catalog heals.
+	cacheDir := cfg.cacheDir()
+	outputs := map[string]map[string]interface{}{}
+	loadJSON(filepath.Join(cacheDir, "outputs.json"), &outputs)
+	changed := false
+	for _, e := range outputs {
+		p, _ := e["path"].(string)
+		if e["type"] == "video" && strings.EqualFold(filepath.Ext(p), ".webp") &&
+			fileExists(p) && !isAnimatedImage(p) {
+			e["type"] = "static"
+			changed = true
+		}
+	}
+	if changed {
+		saveJSON(filepath.Join(cacheDir, "outputs.json"), outputs)
+		syncWallState(outputs)
+	}
+	if healed > 0 || changed {
+		fmt.Fprintf(os.Stderr, "ryogami: reclassified %d static webp(s) off the video path\n", healed)
+	}
+	rev := webpHealRev
+	d.store.stateSet("webpHealRev", &rev)
+}
+
 // restoreOutputs republishes the stored wallpaper; the caller retries while
 // applied < want, since the file or the outputs can lag at login.
 func (d *daemon) restoreOutputs() (want, applied int) {
