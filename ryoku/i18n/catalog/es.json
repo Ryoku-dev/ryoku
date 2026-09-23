@@ -5880,7 +5880,7 @@
   "prowl is present for the rashin agent index": "prowl está presente para el índice del agente rashin",
   "pruned the stray boot entry for %s (kernel not installed)": "eliminó entrada de arranque huérfana para %s (núcleo no instalado)",
   "pseudo": "pseudo",
-  "push: %w": "push: %w",
+  "push: %w": "empuje: %w",
   "put %s back": "restaurar %s",
   "put a single stage tab on the quick-settings rail": "poner una pestaña stage en el panel de ajustes rápidos",
   "queued": "en cola",

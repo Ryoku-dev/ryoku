@@ -994,7 +994,7 @@
   "DRYRUN: pin TARGET_OS_NAME + FIND_BOOTLOADERS=no + EFI_REGISTER=no in %s, then (when limine-mkinitcpio-hook is installed) rerun limine-update in the chroot and repoint /boot/limine.conf off the flat seed; offline keeps the seed at default_entry 1": "DRYRUN: 在 %s 中固定 TARGET_OS_NAME + FIND_BOOTLOADERS=no + EFI_REGISTER=no, 然后 (安装 limine-mkinitcpio-hook 后) 在 chroot 中重新运行 limine-update 并将 /boot/limine.conf 改指离扁平种子; offline 将种子保留在 default_entry 1",
   "DRYRUN: promote %s to the tool-managed menu (when the generated tree exists)": "DRYRUN: 将 %s 提升到工具管理菜单 (生成树存在时)",
   "DRYRUN: rewrite /etc/pacman.conf without [ryoku]": "DRYRUN: 重写 /etc/pacman.conf，移除 [ryoku]",
-  "DRYRUN: seed $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv": "DRYRUN: seed $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv",
+  "DRYRUN: seed $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv": "试运行：种子 $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv",
   "DRYRUN: seed %s -> ~/%s": "DRYRUN: 种子 %s -> ~/%s",
   "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target": "DRYRUN: 选择CPU兼容的CachyOS仓库，启用[multilib]，在目标中填充cachyos密钥环",
   "DRYRUN: set Zen as the default web browser for %s if installed": "DRYRUN: 若已安装, 为 %s 设置 Zen 为默认网页浏览器",

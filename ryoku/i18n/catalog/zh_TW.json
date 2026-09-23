@@ -1509,7 +1509,7 @@
   "GPU Temperature": "GPU 溫度",
   "GPU barely loads the CPU; pick CPU if GPU encoding fails.": "GPU 幾乎不佔用 CPU；如果 GPU 編碼失敗，請選擇 CPU。",
   "GPU clock and fan control; resets on reboot": "GPU 時脈和風扇控制；重啟後重置",
-  "GPU encoding is fast; CPU is the fallback if it misbehaves.": "GPU encoding is fast; CPU is the fallback if it misbehaves.",
+  "GPU encoding is fast; CPU is the fallback if it misbehaves.": "GPU 編碼快速；若異常則回退為 CPU。",
   "GPU mode: applying": "GPU 模式：套用中",
   "GPU mode: ignoring unknown RYOKU_GPU_MODE=": "GPU 模式: 忽略未知的 RYOKU_GPU_MODE=",
   "GPU mode: skipped (ryoku-gpu not installed; offline or partial desktop set)": "GPU 模式: 跳過 (未安裝 ryoku-gpu; 離線或部分桌面設定)",

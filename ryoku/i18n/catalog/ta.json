@@ -6591,7 +6591,7 @@
   "then find it on the bar, and under QS Bar Settings > Community": "பின்னர் கட்டுப்பாட்டு பெட்டியில் கண்டுபிடிக்கவும், QS கட்டுப்பாட்டு அமைப்புகள் > சமூகம் கீழ்",
   "they disagree; `ryoku keyboard apply` puts the desktop's layout on all of them.": "அவை உடன்படவில்லை; `ryoku keyboard apply` பணிமேசை வடிவ அனைத்துக்கும் வைக்கிறது",
   "this box builds from a source checkout of %s; releases apply to packaged installs.": "இந்த கொள்கலன் %s உருவாக்கம் பரிசோதனையிலிருந்து; வெளியீடுகள் பொதிந்த நிறுவல்களுக்கு பொருந்தும்",
-  "this box is the machine the release describes": "this box is the machine the release describes",
+  "this box is the machine the release describes": "இந்த பெட்டி வெளியீட்டில் விவரிக்கப்பட்டுள்ள கணினி ஆகும்",
   "this desktop": "இந்த டெஸ்க்டாப்",
   "this installer needs systemd (Artix and other non-systemd inits are not supported)": "இந்த நிறுவலாளர் systemd தேவை (Artix மற்றும் பிற non-systemd இனிட்கள் ஆதரிக்கப்படவில்லை)",
   "this is an offline install (RYOKU_ONLINE=0) but RYOKU_OFFLINE_REPO is unset, so there is nothing to install from. Boot an ISO that bakes the offline repo, or connect to a network and install online.": "இது ஆஃப்லைன் நிறுவல் (RYOKU_ONLINE=0) ஆனால் RYOKU_OFFLINE_REPO அமைக்கப்படவில்லை, எனவே நிறுவ ஏதுமில்லை. ஆஃப்லைன் repo ஐ பேக் செய்யும் ISO ஐ பூட் செய்யுங்கள் அல்லது நெட்வொர்க்கில் இணைந்து ஆன்லைனில் நிறுவுங்கள்.",

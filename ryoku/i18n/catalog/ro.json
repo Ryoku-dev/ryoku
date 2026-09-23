@@ -5700,7 +5700,7 @@
   "nothing to submit: the catalogue already carries %s %s": "nimic de trimis: catalogul deja conține %s %s",
   "nouveau is blacklisted but no nvidia module exists for any installed kernel; the session cannot start (the SDDM login loop)": "nouveau e pe lista neagră dar niciun modul nvidia nu există pentru vreun kernel instalat; sesiunea nu poate porni (bucla de logare SDDM)",
   "number pad": "tastatură numerică",
-  "numpad": "numpad",
+  "numpad": "tastatură numerică",
   "obsidian palette snippet": "fragment paletă obsidian",
   "off": "inactiv",
   "offline": "fără conexiune",
