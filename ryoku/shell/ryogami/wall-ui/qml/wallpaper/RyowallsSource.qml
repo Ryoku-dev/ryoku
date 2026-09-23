@@ -354,7 +354,8 @@ QtObject {
             var lHome = Quickshell.env("HOME")
             var lsh = "url=" + JSON.stringify(lUrl) + "; ua=" + JSON.stringify(_ua) + "; home=" + JSON.stringify(lHome) + "; "
                 + "ext=\"${url##*.}\"; ext=\"${ext%%\\?*}\"; "
-                + "case \"$ext\" in mp4|webm|mkv|mov) dest=\"$home/Pictures/livewalls\";; jpg|jpeg|png|webp) dest=\"$home/Pictures/Wallpapers\";; *) ext=mp4; dest=\"$home/Pictures/livewalls\";; esac; "
+                + "pics=\"${XDG_PICTURES_DIR:-$home/Pictures}\"; "
+                + "case \"$ext\" in mp4|webm|mkv|mov) dest=\"$pics/livewalls\";; jpg|jpeg|png|webp) dest=\"$pics/Wallpapers\";; *) ext=mp4; dest=\"$pics/livewalls\";; esac; "
                 + "mkdir -p \"$dest\"; out=\"$dest/lib-$(printf '%s' \"$url\" | md5sum | cut -c1-12).$ext\"; "
                 + "curl -fsSL -A \"$ua\" \"$url\" -o \"$out\" && printf '%s' \"$out\""
             _nativeDlProc.command = ["bash", "-lc", lsh]

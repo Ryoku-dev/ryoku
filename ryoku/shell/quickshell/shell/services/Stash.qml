@@ -15,7 +15,11 @@ Singleton {
     id: root
 
     readonly property string home: Quickshell.env("HOME") || ""
-    readonly property string dir: home + "/Downloads/Stash"
+    // The Downloads root is the localized XDG dir the session exports (the
+    // ryoku user-environment generator does); ~/Downloads only when it is unset,
+    // so a Spanish desktop lands in ~/Descargas/Stash instead of the generator
+    // recreating ~/Downloads on every shell start (#246).
+    readonly property string dir: (Quickshell.env("XDG_DOWNLOAD_DIR") || (home + "/Downloads")) + "/Stash"
     // On PATH, installed with the shell: these are shell helpers, not compositor
     // config, so they must resolve without a compositor config tree.
     readonly property string cobaltScript: "stash-cobalt.sh"

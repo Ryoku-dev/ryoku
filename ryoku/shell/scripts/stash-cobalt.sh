@@ -13,7 +13,7 @@
 # usage: stash-cobalt.sh download <url> [auto|audio|mute] | remux <file> | sites
 set -u
 
-STASH="${STASH_DIR:-$HOME/Downloads/Stash}"
+STASH="${STASH_DIR:-${XDG_DOWNLOAD_DIR:-$HOME/Downloads}/Stash}"
 # `-` (not `:-`): only an *unset* var falls back to the default. The shell passes
 # COBALT_API_URL="" to mean engine-off (yt-dlp only), and that empty stays empty.
 COBALT="${COBALT_API_URL-http://localhost:9000}"

@@ -9,7 +9,7 @@
 # usage: stash-install.sh [file]   (no arg = install every supported file in $STASH)
 set -u
 
-STASH="${STASH_DIR:-$HOME/Downloads/Stash}"
+STASH="${STASH_DIR:-${XDG_DOWNLOAD_DIR:-$HOME/Downloads}/Stash}"
 APPSTORE="$HOME/.local/share/ryoku-apps"        # installed payloads
 APPDIR="$HOME/.local/share/applications"         # launcher reads .desktop from here
 ICONDIR="$HOME/.local/share/icons"

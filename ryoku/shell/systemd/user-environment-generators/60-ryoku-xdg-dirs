@@ -1,0 +1,25 @@
+#!/bin/sh
+# 60-ryoku-xdg-dirs: export the XDG user directories into the session.
+#
+# The shell resolves its Pictures/Downloads roots through XDG_PICTURES_DIR and
+# XDG_DOWNLOAD_DIR (screenshots, wallpapers, the Stash download folder). Those
+# variables are not part of the base login environment: xdg-user-dirs keeps them
+# in ~/.config/user-dirs.dirs, and only tools that shell out to `xdg-user-dir`
+# ever see the localized values. So a shell that reads the variable fell back to
+# the English default on every box, and a localized desktop (Pictures=~/Imágenes)
+# grew a stray ~/Pictures beside the real one (#246).
+#
+# Resolve the dirs once here and hand them to the user manager, and every
+# consumer -- the shell, ryogami, Stash, and any app that trusts the variable --
+# agrees on one path. xdg-user-dir prints $HOME/Pictures (the spec default) when
+# user-dirs.dirs is absent, so this never invents a folder the user lacks.
+
+[ -f "$HOME/.config/user-dirs.dirs" ] || exit 0
+
+command -v xdg-user-dir >/dev/null 2>&1 || exit 0
+
+for dir in PICTURES DOWNLOAD DOCUMENTS MUSIC VIDEOS DESKTOP PUBLICSHARE TEMPLATES; do
+    path=$(xdg-user-dir "$dir" 2>/dev/null) || continue
+    [ -n "$path" ] || continue
+    printf 'XDG_%s_DIR=%s\n' "$dir" "$path"
+done

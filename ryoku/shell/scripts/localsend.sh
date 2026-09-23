@@ -109,7 +109,7 @@ receive)
   # the stash. Status lines the shell parses (READY/OFFER/SAVED/DECLINED/ERROR)
   # stream out tab-separated and flushed.
   ALIAS="${2:-Ryoku Stash}"
-  STASH="${STASH_DIR:-$HOME/Downloads/Stash}"
+  STASH="${STASH_DIR:-${XDG_DOWNLOAD_DIR:-$HOME/Downloads}/Stash}"
   mkdir -p "$STASH"
   CERT="$HOME/.cache/ryoku_localsend_cert.pem"; KEY="$HOME/.cache/ryoku_localsend_key.pem"
   if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then

@@ -92,7 +92,7 @@ QtObject {
         || Quickshell.env("RYOGAMI_WALL_CACHE")
         || (Quickshell.env("XDG_CACHE_HOME") || (homeDir + "/.cache")) + "/ryogami-wall"
     readonly property string wallpaperDir: _resolve(_data.paths?.wallpaper)
-        || (homeDir + "/Pictures/Wallpapers")
+        || ((Quickshell.env("XDG_PICTURES_DIR") || (homeDir + "/Pictures")) + "/Wallpapers")
     readonly property string videoDir: _resolve(_data.paths?.videoWallpaper)
         || wallpaperDir
     readonly property string weDir: _resolve(_data.paths?.steamWorkshop)
@@ -114,6 +114,15 @@ QtObject {
     readonly property bool randomIncludeVideo: _data.general?.randomIncludeVideo !== false
     readonly property bool randomIncludeWE: _data.general?.randomIncludeWE !== false
     readonly property bool randomIncludeFavourites: _data.general?.randomIncludeFavourites !== false
+
+    // Day/night video rotation (#247): two pools switched by the shell's real
+    // sunrise/sunset, rotating within the active pool on an interval. The
+    // daemon owns the timer and the isDay read; these keys are the GUI's view.
+    readonly property bool dayNightEnabled: _data.daynight?.enabled === true
+    readonly property string dayNightDayDir: _resolve(_data.daynight?.dayDir)
+    readonly property string dayNightNightDir: _resolve(_data.daynight?.nightDir)
+    readonly property int dayNightInterval: Math.max(1, _data.daynight?.rotateIntervalMinutes ?? 60)
+    readonly property bool dayNightNoRepeat: _data.daynight?.noRepeatWithinDay !== false
     readonly property bool wallpaperPerMonitor: _data.general?.wallpaperPerMonitor === true
     readonly property int selectorBackdropOpacity: Math.max(0, Math.min(100, _data.general?.selectorBackdropOpacity ?? 0))
     readonly property bool notifyOnWallpaperChange: _data.general?.notifyOnWallpaperChange !== false

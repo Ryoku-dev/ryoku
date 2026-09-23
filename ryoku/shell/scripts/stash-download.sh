@@ -3,7 +3,7 @@
 # usage: stash-download.sh <url>
 set -u
 
-STASH="${STASH_DIR:-$HOME/Downloads/Stash}"
+STASH="${STASH_DIR:-${XDG_DOWNLOAD_DIR:-$HOME/Downloads}/Stash}"
 url="${1:-}"
 
 if [ -z "$url" ]; then

@@ -5,7 +5,7 @@
 # usage: stash-compress.sh [file]   (no arg = every video/image directly in $STASH, non-recursive)
 set -u
 
-STASH="${STASH_DIR:-$HOME/Downloads/Stash}"
+STASH="${STASH_DIR:-${XDG_DOWNLOAD_DIR:-$HOME/Downloads}/Stash}"
 
 notify() { notify-send "Stash" "$1" -i "$2"; }
 

@@ -6,7 +6,7 @@
         "reopenAtLastSelection": false
     },
     "paths": {
-        "wallpaper": "~/Pictures/Wallpapers",
+        "wallpaper": "",
         "videoWallpaper": "~/videowalls",
         "cache": "",
         "templates": "",
@@ -14,6 +14,13 @@
         "steam": "",
         "steamWorkshop": "",
         "steamWeAssets": ""
+    },
+    "daynight": {
+        "enabled": false,
+        "dayDir": "",
+        "nightDir": "",
+        "rotateIntervalMinutes": 60,
+        "noRepeatWithinDay": true
     },
     "features": {
         "matugen": true,

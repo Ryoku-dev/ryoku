@@ -487,6 +487,13 @@ EOF
   install -Dm644 "$_repo/ryoku/shell/environment.d/ryoku-session.conf" \
     "$pkgdir/usr/lib/environment.d/99-ryoku-session.conf"
 
+  # the localized XDG_*_DIR live in ~/.config/user-dirs.dirs, which a static
+  # environment.d file cannot expand per user, so a generator resolves them
+  # through xdg-user-dir at login; the shell reads them for its Pictures and
+  # Downloads roots instead of falling back to the English default (#246).
+  install -Dm755 "$_repo/ryoku/shell/systemd/user-environment-generators/60-ryoku-xdg-dirs" \
+    "$pkgdir/usr/lib/systemd/user-environment-generators/60-ryoku-xdg-dirs"
+
   # the decor art the Decor/Placard components render. shipped here so `ryoku
   # doctor` can seed it into ~/Pictures/ryodecors on a user box (beside
   # Wallpapers and livewalls) where a user can see and swap it; the installer
