@@ -35,6 +35,22 @@ eq(
     "dots",
     "unknown workspace styles restore dots"
 );
+eq(defaults.brandClick, "launcher", "brand click defaults to the launcher");
+eq(
+    Nacre.normalize({ brandClick: "quicksettings" }).brandClick,
+    "quicksettings",
+    "a quicksettings brand click survives normalization"
+);
+eq(
+    Nacre.normalize({ brandClick: "menu" }).brandClick,
+    "launcher",
+    "an unknown brand click restores the launcher"
+);
+eq(
+    Nacre.setValue(defaults, "brandClick", "quicksettings").brandClick,
+    "quicksettings",
+    "the brand click can be staged"
+);
 eq(defaults.frame, true, "frame defaults on");
 eq(defaults.frameSize, 9, "frame size matches main");
 eq(defaults.frameRoundness, 9, "frame roundness matches main");

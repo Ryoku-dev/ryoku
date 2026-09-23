@@ -1,5 +1,6 @@
 const islands = ["left", "center", "right"];
 const workspaceStyles = ["dots", "numbers", "kanji"];
+const brandClicks = ["launcher", "quicksettings"];
 const catalog = [
     { id: "brand", label: "Brand", file: "Brand.qml" },
     { id: "media", label: "Media", file: "Media.qml" },
@@ -56,7 +57,8 @@ function defaultConfig() {
         osdScale: 1,
         frame: true,
         occupiedWorkspaces: true,
-        workspaceStyle: "dots"
+        workspaceStyle: "dots",
+        brandClick: "launcher"
     };
 }
 
@@ -94,6 +96,8 @@ function normalize(raw) {
         ? source.occupiedWorkspaces : base.occupiedWorkspaces;
     output.workspaceStyle = workspaceStyles.includes(source.workspaceStyle)
         ? source.workspaceStyle : base.workspaceStyle;
+    output.brandClick = brandClicks.includes(source.brandClick)
+        ? source.brandClick : base.brandClick;
     return output;
 }
 
@@ -139,7 +143,8 @@ function setValue(config, key, value) {
     const output = normalize(config);
     if (ranges[key])
         output[key] = value;
-    else if (key === "occupiedWorkspaces" || key === "frame" || key === "workspaceStyle")
+    else if (key === "occupiedWorkspaces" || key === "frame" || key === "workspaceStyle"
+             || key === "brandClick")
         output[key] = value;
     else
         return output;

@@ -161,4 +161,22 @@ Grid {
             onChose: key => root.changed("workspaceStyle", key.toLowerCase())
         }
     }
+    Cell {
+        width: (root.width - Tokens.s2) / 2
+        height: implicitHeight
+        controlWidth: 174
+        label: I18n.tr("Brand click opens")
+        value: root.config.brandClick === "quicksettings"
+            ? I18n.tr("Quick Settings") : I18n.tr("Launcher")
+        source: "shell.json"
+
+        Seg {
+            objectName: "nacre-brand-click"
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            options: ["LAUNCHER", "QUICK SETTINGS"]
+            current: root.config.brandClick === "quicksettings" ? "QUICK SETTINGS" : "LAUNCHER"
+            onChose: key => root.changed("brandClick", key === "QUICK SETTINGS" ? "quicksettings" : "launcher")
+        }
+    }
 }
