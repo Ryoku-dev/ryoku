@@ -594,7 +594,9 @@ done
                         text: pg.mode === "hybrid"
                             ? I18n.tr("Hybrid keeps the built-in GPU primary for battery; apps can still use %1 on demand.").arg(pg.dgpuName)
                             : (pg.mode === "performance"
-                                ? I18n.tr("Performance pins %1 as primary: fastest, more power draw.").arg(pg.dgpuName)
+                                ? (pg.caps.chassis === "laptop" && pg.caps.mux && pg.caps.mux !== "none"
+                                    ? I18n.tr("Performance pins %1 as primary, so video decode and GPU work leave the CPU's heat budget. This laptop has a GPU MUX: running `ryoku-gpu-mux set discrete` and rebooting also moves the display to %2, for the full effect.").arg(pg.dgpuName).arg(pg.dgpuName)
+                                    : I18n.tr("Performance pins %1 as primary: fastest, more power draw.").arg(pg.dgpuName))
                                 : I18n.tr("Passthrough runs the desktop on the built-in GPU so %1 is free for a VM.").arg(pg.dgpuName))
                         color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                     }

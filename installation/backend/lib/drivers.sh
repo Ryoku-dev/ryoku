@@ -61,14 +61,15 @@ ryoku_drivers() {
 # non-hybrid box is harmless. best-effort: a failure only skips the pin.
 #
 # config path = gpu.lua (GPU_CONF_DEFAULT), NOT user.lua. Hyprland autostart runs
-# `ryoku-gpu persist` every login, which rewrites gpu.lua ONLY when a discrete
-# pin is "beneficial" (see ryoku-gpu-detect beneficial(): an eGPU, or a DESKTOP
-# whose strongest GPU is discrete). on the hybrid LAPTOP this feature targets,
-# persist is NOT beneficial, so it leaves gpu.lua alone and our pick survives.
-# gpu.lua is also the single file the Hub GPU page, `ryoku doctor`, and `ryoku
-# materialize` all manage; user.lua would survive persist on every box but the
-# Hub can neither see nor rewrite it, stranding the mode as an override no tool
-# owns (a worse trap than the desktop/eGPU re-pin, which the Hub still governs).
+# `ryoku-gpu persist` every login, which rewrites gpu.lua from the policy in
+# ryoku-gpu-detect beneficial(): pin the strongest GPU on any multi-GPU box,
+# unless the file carries a stored `-- ryoku-gpu-mode: hybrid|passthrough`
+# stamp, in which case persist honours that choice and leaves the file alone.
+# `ryoku-gpu mode <m>` writes the stamp, so the installer's pick survives every
+# login. gpu.lua is also the single file the Hub GPU page, `ryoku doctor`, and
+# `ryoku materialize` all manage; user.lua would survive persist on every box
+# but the Hub can neither see nor rewrite it, stranding the mode as an override
+# no tool owns.
 ryoku_gpu_mode() {
 	[[ -n ${RYOKU_GPU_MODE:-} ]] || return 0
 	local mapped

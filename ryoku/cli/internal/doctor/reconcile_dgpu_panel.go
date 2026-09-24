@@ -352,8 +352,9 @@ func rtd3Off(v string) bool {
 // dgpuMuxFix is the one remedy: route the panel through the iGPU by switching the
 // hardware MUX to hybrid, then reboot. Report-only, because it changes display
 // routing and needs a reboot -- doctor must never apply it under the user's feet.
+// A Performance-mode owner pays this draw on purpose: the wording says so.
 func dgpuMuxFix() string {
-	return i18n.T("switch the hardware MUX to hybrid so the panel routes through the iGPU and the dGPU can runtime-suspend: `ryoku-gpu-mux set hybrid`, then reboot. This is a display-routing change that needs a reboot, so doctor never applies it automatically.")
+	return i18n.T("switch the hardware MUX to hybrid so the panel routes through the iGPU and the dGPU can runtime-suspend: `ryoku-gpu-mux set hybrid`, then reboot. This is a display-routing change that needs a reboot, so doctor never applies it automatically. If you chose Performance graphics mode, this draw is the intended cost of running everything on the discrete GPU.")
 }
 
 // dgpuRtd3OffFix applies when the driver itself reports runtime D3 off. Then no

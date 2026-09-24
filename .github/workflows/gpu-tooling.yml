@@ -1,0 +1,57 @@
+name: GPU tooling
+
+# The render pin changes which GPU the whole desktop runs on, and the mode
+# stamp is the only thing that keeps the login-time `ryoku-gpu persist` from
+# overwriting an explicit choice, so the policy is a gate, not a comment.
+# gpu-pin-policy.sh drives the real tool against a fake DRM tree, a fake
+# /dev/dri and the RYOKU_ASSUME_LAPTOP seam: pin-on-laptop default, the
+# hybrid/passthrough opt-outs surviving persist, the check-pin verdicts the
+# doctor acts on (missing-pin / stale-pin / forced), and the MUX hint on
+# `mode performance`. gpu-mux.sh and gpu-lib32.sh cover the sibling tools that
+# share the same detector.
+
+on:
+  pull_request:
+    paths:
+      - 'system/hardware/gpu/**'
+      - 'installation/backend/lib/drivers.sh'
+      - 'tests/gpu-pin-policy.sh'
+      - 'tests/gpu-mux.sh'
+      - 'tests/gpu-lib32.sh'
+      - '.github/workflows/gpu-tooling.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+    paths:
+      - 'system/hardware/gpu/**'
+      - 'installation/backend/lib/drivers.sh'
+      - 'tests/gpu-pin-policy.sh'
+      - 'tests/gpu-mux.sh'
+      - 'tests/gpu-lib32.sh'
+      - '.github/workflows/gpu-tooling.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  policy:
+    name: Render-pin policy and the GPU helpers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: The pin, the mode stamp, and the doctor verdicts
+        shell: bash
+        run: bash tests/gpu-pin-policy.sh
+
+      - name: The hardware MUX reporter/switcher
+        shell: bash
+        run: bash tests/gpu-mux.sh
+
+      - name: 32-bit driver packages per GPU
+        shell: bash
+        run: bash tests/gpu-lib32.sh

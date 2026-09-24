@@ -23,12 +23,17 @@
   Wayland greeter starts on fresh ISO installs, script conversions, and
   existing systems after an update.
 
-- **ryoku-gpu grows `check-pin` and marks forced pins.** `check-pin` audits the
-  written gpu.lua against today's policy in one verdict line (`ok` | `forced` |
-  `stale-pin SLOT`), living beside the policy it audits so the ryoku doctor
-  never re-implements laptop or GPU detection. A `RYOKU_GPU_FORCE=1 persist`
-  now writes a `-- ryoku-gpu-forced` marker so a deliberate laptop pin is never
-  reverted by tooling (`system/hardware/gpu/ryoku-gpu`).
+- **The render pin now covers laptops.** `ryoku-gpu` pinned the strongest GPU
+  only on desktops, so a hybrid laptop composited, blurred and decoded video on
+  its iGPU -- the same die as the CPU -- and the package cooked while a discrete
+  GPU sat parked. The default policy now pins the discrete GPU everywhere; the
+  graphics mode the user chose is stamped into gpu.lua
+  (`-- ryoku-gpu-mode: hybrid|performance|passthrough`) and login-time
+  `persist` honours it, so Hybrid stays an explicit opt-out for battery.
+  `check-pin` grew a `missing-pin` verdict so the ryoku doctor writes the pin
+  on machines the old policy left unpinned, and `mode performance` names the
+  reboot-gated `ryoku-gpu-mux set discrete` step on MUX laptops
+  (`system/hardware/gpu/ryoku-gpu`, `tests/gpu-pin-policy.sh`).
 
 ### Added
 - `ttf-maple-mono-nf` (release/packages + base.packages): Maple Mono, Nerd Font

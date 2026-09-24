@@ -293,15 +293,10 @@ is_laptop() {
 }
 
 is_desktop() {
-  # Auto-pin the strongest GPU only on desktops. On a laptop the internal panel
-  # is routed to one GPU by the hardware MUX (ryoku-gpu-mux), not by
-  # AQ_DRM_DEVICES: in discrete-MUX mode Hyprland already renders on the dGPU
-  # with no pin (the iGPU has no connected connector at all), so a pin changes
-  # nothing; in hybrid-MUX mode the iGPU drives the panel and the dGPU can
-  # runtime-suspend, so pinning the dGPU would only keep it awake and drain the
-  # battery. The MUX, not this render pin, decides whether the dGPU can sleep.
-  # RYOKU_GPU_FORCE=1 treats the box as a desktop (Settings > Display
-  # equivalent on plain Hyprland).
+  # Chassis tell, kept for reporting. The render-pin policy no longer gates on
+  # it: GPU work belongs on the strongest GPU on laptops too (see beneficial()).
+  # RYOKU_GPU_FORCE=1 treats a laptop as a desktop; RYOKU_GPU_ASSUME_DESKTOP
+  # overrides the chassis probe for tests.
   case "${RYOKU_GPU_ASSUME_DESKTOP:-}" in
     1) return 0 ;;
     0) return 1 ;;
@@ -310,14 +305,38 @@ is_desktop() {
   ! is_laptop
 }
 
+gpu_mode_choice() {
+  # The graphics mode the user last chose, stamped into the pin file itself by
+  # `ryoku-gpu mode` as `-- ryoku-gpu-mode: <m>`, so there is no second state
+  # to keep in sync. Empty when nobody ever chose: the default policy decides.
+  local dest="${1:-${GPU_CONF_DEFAULT:-${XDG_CONFIG_HOME:-$HOME/.config}/hypr/gpu.lua}}"
+  [[ -r $dest ]] || return 0
+  sed -n 's/^-- ryoku-gpu-mode: //p' "$dest" | head -n1
+}
+
 beneficial() {
   # True when pinning the strongest GPU as the primary renderer is worth doing.
+  # GPU work belongs on the strongest GPU, laptops included: on a laptop the
+  # iGPU shares the CPU die, so every composited frame and decoded video
+  # (browser video, blur, the shell) heats the same package the fans steer
+  # by. A discrete GPU is a separate die with its own cooling path; parking
+  # it while the APU cooks is the worse machine even at the cost of its idle
+  # draw. So the default now pins a discrete primary everywhere, and Hybrid
+  # (battery) is the explicit opt-out, chosen in the Hub or with `ryoku-gpu
+  # mode hybrid`.
   (( _ngpu >= 2 )) || return 1
-  # An external GPU is hot-plugged on purpose for power, so pin it even on a laptop.
+  # A forced pin outranks every stored choice.
+  [[ ${RYOKU_GPU_FORCE:-0} == "1" ]] && return 0
+  # An explicit mode choice wins: hybrid keeps the built-in GPU primary;
+  # passthrough owns the pin file itself (the iGPU solo, dGPU free for a VM).
+  # RYOKU_GPU_MODE_SET lets `ryoku-gpu mode <m>` override the stored choice
+  # for the call that applies the new one.
+  case "${RYOKU_GPU_MODE_SET:-$(gpu_mode_choice)}" in
+    hybrid | passthrough) return 1 ;;
+  esac
+  # An external GPU is hot-plugged on purpose for power, so pin it anywhere.
   [[ ${_classes[0]} == "egpu" ]] && return 0
-  # Otherwise auto-pin a discrete GPU only on desktops; on a laptop the panel's
-  # GPU is the hardware MUX's call (ryoku-gpu-mux), so a render pin is skipped.
-  is_desktop || return 1
+  # Default: pin the discrete primary on desktops and laptops alike.
   [[ ${_classes[0]} == "discrete" ]] || return 1
   return 0
 }
