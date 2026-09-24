@@ -19,7 +19,12 @@ import (
 // degrades to its archive instead of blanking the catalogue.
 type Cache struct {
 	client *http.Client
-	base   string
+	// download serves the product-install path (fetchProductFile), where a file
+	// can be a multi-megabyte wallpaper video. The catalogue client's 12s bound
+	// is right for JSON probes but makes big assets fail as
+	// "context deadline exceeded (Client.Timeout ...)" on slow links.
+	download *http.Client
+	base     string
 	// fallback is a second source tried when base fails, set only for the
 	// persistent ryostore-base override so a stale or dead configured source
 	// self-heals to the canonical default instead of stranding the store.
@@ -40,6 +45,11 @@ type memoEntry struct {
 const (
 	// cacheTimeout bounds a single fetch so one slow source cannot stall a probe.
 	cacheTimeout = 12 * time.Second
+	// productDownloadTimeout bounds one product-file download. Generous because
+	// installs carry multi-megabyte assets (lockscreen videos) and the cap is
+	// maxProductFileSize; a stalled connection still dies well inside the UI's
+	// patience rather than hanging the install.
+	productDownloadTimeout = 10 * time.Minute
 	// maxBody caps a response so a runaway or misrouted URL can neither exhaust
 	// memory nor truncate a registry into the cache as a false success.
 	maxBody = 4 << 20
@@ -58,11 +68,28 @@ func newCache() *Cache {
 	}
 	return &Cache{
 		client:   &http.Client{Timeout: cacheTimeout},
+		download: &http.Client{Timeout: productDownloadTimeout},
 		base:     base,
 		fallback: fallback,
 		dir:      extrasCacheDir(),
 		memo:     map[string]memoEntry{},
 	}
+}
+
+// hasDownload reports whether this cache can serve the product-install path.
+// A literal-constructed cache (tests) may carry only `client`; that is enough.
+func (c *Cache) hasDownload() bool {
+	return c != nil && (c.download != nil || c.client != nil)
+}
+
+// downloadClient is the client product installs fetch files with: a long bound
+// suited to multi-megabyte assets, falling back to the catalogue client for a
+// cache built without one (test fixtures pointing both at one httptest server).
+func (c *Cache) downloadClient() *http.Client {
+	if c.download != nil {
+		return c.download
+	}
+	return c.client
 }
 
 // Fetch returns the bytes at rel. rel must be a clean, relative, in-tree path;
