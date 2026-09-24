@@ -361,6 +361,7 @@ func (d *daemon) bootstrap() {
 	go d.watchAutoPowerSaver()
 	go d.widgetGateWorker()
 	go d.idlePark()
+	d.startSleepWake()
 	go d.startComponents()
 }
 
