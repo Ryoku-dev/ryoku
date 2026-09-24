@@ -14,7 +14,7 @@ Item {
     property var windows: []
     signal cleared
 
-    readonly property bool available: Wm.caps.focusGrab
+    readonly property bool available: Wm.caps.focusGrab === true
 
     property QtObject _bridge: null
     property var _component: null

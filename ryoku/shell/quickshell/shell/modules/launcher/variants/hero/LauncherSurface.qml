@@ -564,39 +564,13 @@ PanelWindow {
         }
     }
 
-    // Where the compositor has no focus-grab protocol, a full-screen scrim below
-    // the launcher closes it on an outside press. Its mapped state flips one
-    // turn after the driving condition changes, and the close is deferred, so
-    // the window is never unmapped from inside its own pointer handler, which
-    // segfaults the Wayland client on such compositors.
-    PanelWindow {
-        id: dismissScrim
-        property bool scrimWanted: !focusGrab.available && focusGrab.active
-        property bool scrimMapped: false
-        visible: scrimMapped
-        screen: win.screen
-        color: "transparent"
-        exclusionMode: ExclusionMode.Ignore
-        WlrLayershell.namespace: "launcher-dismiss"
-        WlrLayershell.layer: WlrLayer.Top
-        anchors { top: true; bottom: true; left: true; right: true }
-        onScrimWantedChanged: Qt.callLater(function () {
-            dismissScrim.scrimMapped = dismissScrim.scrimWanted;
-        })
-        MouseArea {
-            anchors.fill: parent
-            onPressed: {
-                if (!win.invocationSurface
-                        || win.lifecycleState.phase === Lifecycle.PHASES.CLOSING)
-                    return;
-                var closeGeneration = focusGrab.generation;
-                var closeMonitor = win.surfaceMonitor;
-                Qt.callLater(function () {
-                    win.requestClose(closeGeneration, closeMonitor);
-                });
-            }
-        }
-    }
+    // The dismiss scrim lives as a top-level sibling surface (DismissScrim,
+    // driven from Main.qml): a layer surface nested inside this one is the
+    // lifecycle quickshell faults on under a compositor with no focus-grab
+    // protocol. This surface only exposes when it wants the scrim and the
+    // generation an outside press must close.
+    readonly property bool dismissWanted: !focusGrab.available && focusGrab.active
+    readonly property int dismissGeneration: focusGrab.generation
 
     FrameAnimation {
         id: lifecycleFrame

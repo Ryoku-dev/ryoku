@@ -14,7 +14,7 @@ Item {
     property bool active: false
     readonly property var layouts: Providers.layouts
     property string current: ""
-    readonly property bool available: Wm.caps.tiledLayout
+    readonly property bool available: Wm.caps.tiledLayout === true
     signal stopped()
 
     onActiveChanged: {

@@ -437,4 +437,18 @@ Scope {
             onReady: surface => root.registerRail(surface)
         }
     }
+
+    // One dismiss scrim per screen, mapped only for the screen holding the
+    // active surface: the scrim exists where the launcher holds focus.
+    Variants {
+        model: Screens.uniqueByName(Quickshell.screens)
+
+        HeroVariant.DismissScrim {
+            screenData: modelData
+            surface: root.activeSurface
+                && String(root.activeSurface.surfaceMonitor || "")
+                    === String(modelData.name)
+                ? root.activeSurface : null
+        }
+    }
 }
