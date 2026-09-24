@@ -269,6 +269,10 @@ if command -v sudo >/dev/null 2>&1; then
   _priv_install "$netdir/55-ryoku-network-kill.rules" /usr/share/polkit-1/rules.d/55-ryoku-network-kill.rules 644
   _priv_install "$netdir/ryoku-network-kill-guard.service" /usr/lib/systemd/system/ryoku-network-kill-guard.service 644
   _priv_install "$netdir/ryoku-network-kill-disconnect.service" /usr/lib/systemd/system/ryoku-network-kill-disconnect.service 644
+  # The Machine page flips the hardware GPU MUX through ryoku-gpu-mux (a
+  # root-owned firmware knob); this grant lets the one-click path work on a dev
+  # box too, mirroring the packaged rule.
+  _priv_install "$here/../../system/hardware/gpu/45-ryoku-gpu-mux.rules" /usr/share/polkit-1/rules.d/45-ryoku-gpu-mux.rules 644
   sudo systemctl daemon-reload || true
   sudo systemctl enable --quiet ryoku-network-kill-guard.service ryoku-network-kill-disconnect.service || true
   say "installed privileged network helpers + polkit rules"

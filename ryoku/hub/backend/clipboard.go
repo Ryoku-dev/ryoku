@@ -1,15 +1,9 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net"
 	"os"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 // clipboard.go is the Hub's window onto the shell daemon's clipboard storage:
@@ -43,7 +37,7 @@ func runClipboard(args []string) error {
 	case "prune":
 		// clear is the prune: the daemon drops every unstarred entry and its
 		// backing files, and keeps the starred ones.
-		if err := daemonCall("clipboard.clear", nil); err != nil {
+		if err := daemonCall("clipboard.clear", nil, nil); err != nil {
 			return err
 		}
 		return printClipboardStats()
@@ -58,7 +52,7 @@ func runClipboard(args []string) error {
 // number at all.
 func printClipboardStats() error {
 	var st clipboardStats
-	if err := daemonCall("clipboard.stats", &st); err != nil {
+	if err := daemonCall("clipboard.stats", nil, &st); err != nil {
 		return err
 	}
 	b, err := json.Marshal(st)
@@ -67,53 +61,5 @@ func printClipboardStats() error {
 	}
 	os.Stdout.Write(b)
 	fmt.Println()
-	return nil
-}
-
-// daemonCall runs one control method on the shell daemon and decodes its result
-// into out (nil to discard it). The reply is one JSON line: {ok,result,error}.
-func daemonCall(method string, out any) error {
-	base := os.Getenv("XDG_RUNTIME_DIR")
-	if base == "" {
-		base = os.TempDir()
-	}
-	conn, err := net.DialTimeout("unix", filepath.Join(base, "ryoku-shell.sock"), 3*time.Second)
-	if err != nil {
-		return fmt.Errorf("the shell daemon is not answering; is the Ryoku session running?")
-	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
-	if _, err := io.WriteString(conn, "call "+method+"\n"); err != nil {
-		return fmt.Errorf("clipboard: %w", err)
-	}
-	line, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("clipboard: %w", err)
-	}
-	return decodeCallReply(line, out)
-}
-
-// decodeCallReply turns one reply line into a result or an error. Split out so
-// the wire contract is testable without a live daemon.
-func decodeCallReply(line string, out any) error {
-	var reply struct {
-		OK     bool            `json:"ok"`
-		Result json.RawMessage `json:"result"`
-		Error  string          `json:"error"`
-	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(line)), &reply); err != nil {
-		return fmt.Errorf("clipboard: unreadable daemon reply")
-	}
-	if !reply.OK {
-		if reply.Error == "" {
-			reply.Error = "the daemon refused the request"
-		}
-		return fmt.Errorf("clipboard: %s", reply.Error)
-	}
-	if out != nil && len(reply.Result) > 0 {
-		if err := json.Unmarshal(reply.Result, out); err != nil {
-			return fmt.Errorf("clipboard: unreadable daemon result")
-		}
-	}
 	return nil
 }

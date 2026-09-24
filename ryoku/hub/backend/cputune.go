@@ -77,7 +77,7 @@ type profileDef struct {
 
 func runCpu(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("cpu needs caps|active|set")
+		return fmt.Errorf("cpu needs caps|active|switch|set")
 	}
 	switch args[0] {
 	case "caps":
@@ -88,14 +88,28 @@ func runCpu(args []string) error {
 		return cpuCapsReport(profile)
 	case "active":
 		return cpuActiveReport()
+	case "switch":
+		if len(args) < 2 {
+			return fmt.Errorf("cpu switch needs <profile>")
+		}
+		return cpuSwitch(args[1])
 	case "set":
 		if len(args) < 4 {
 			return fmt.Errorf("cpu set needs <scope> <id> <value>")
 		}
 		return cpuSet(args[1], args[2], args[3])
 	default:
-		return fmt.Errorf("cpu needs caps|active|set")
+		return fmt.Errorf("cpu needs caps|active|switch|set")
 	}
+}
+
+// cpuSwitch changes the LIVE power profile. The write goes through the shell
+// daemon, not straight at ppd: the daemon is the single owner of the user's
+// pick (it banks it for the reboot restore, keeps game mode's stash intact,
+// and re-applies the Ryoku CPU definition after ppd settles). A second, raw
+// writer would silently undo all three.
+func cpuSwitch(profile string) error {
+	return daemonCall("powerprofiles.setProfile", map[string]string{"profile": profile}, nil)
 }
 
 func cpuCapsReport(profile string) error {

@@ -20,6 +20,7 @@
 # reboot required (Documentation/ABI/testing/sysfs-platform-asus-wmi).
 
 set -euo pipefail
+ORIG_ARGV=("$@")
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # gpu_records/classify/json_escape/hw_run/hw_probe_ok and the DRM_ROOT test seam
@@ -114,9 +115,23 @@ mux_write() {
   local val="$1"
   if [[ -w $_mux_value_file || $EUID -eq 0 ]]; then
     printf '%s\n' "$val" >"$_mux_value_file"
-  else
-    printf '%s\n' "$val" | sudo tee "$_mux_value_file" >/dev/null
+    return
   fi
+  # root-owned firmware knob: escalate through pkexec (authorized without a
+  # password by 45-ryoku-gpu-mux.rules for wheel), so a GUI surface can drive
+  # `set` without a terminal. exec re-runs the whole command as root, which
+  # converges (the root pass takes the direct-write branch) and prints once.
+  # pkexec strips the environment, so a run that redirected the knob roots
+  # (tests, hermetic probes) must never escalate: it would write the REAL
+  # firmware with the seams gone. Such a run fails instead.
+  if [[ -n ${RYOKU_MUX_ARMOURY_ROOT:-} || -n ${RYOKU_MUX_LEGACY_ROOT:-} ]]; then
+    echo "ryoku-gpu-mux: seamed run cannot escalate to an unwritable knob" >&2
+    return 1
+  fi
+  if command -v pkexec >/dev/null 2>&1; then
+    exec pkexec "$(readlink -f "$0")" "${ORIG_ARGV[@]}"
+  fi
+  printf '%s\n' "$val" | sudo tee "$_mux_value_file" >/dev/null
 }
 
 # ── dGPU / panel picture (reads the cached gpu_records of one status pass) ─────

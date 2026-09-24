@@ -38,7 +38,7 @@ func TestDaemonStatsReadsTheReport(t *testing.T) {
 	}()
 
 	var st clipboardStats
-	if err := daemonCall("clipboard.stats", &st); err != nil {
+	if err := daemonCall("clipboard.stats", nil, &st); err != nil {
 		t.Fatalf("daemonCall: %v", err)
 	}
 	if req := <-got; req != "call clipboard.stats" {
@@ -54,11 +54,11 @@ func TestDaemonStatsReadsTheReport(t *testing.T) {
 // the daemon refused cannot look like "0 B used, nothing to do".
 func TestDaemonCallSurfacesErrors(t *testing.T) {
 	var out clipboardStats
-	err := decodeCallReply(`{"ok":false,"error":"unknown method: clipboard.stats"}`, &out)
+	err := decodeCallReply("clipboard", `{"ok":false,"error":"unknown method: clipboard.stats"}`, &out)
 	if err == nil || !strings.Contains(err.Error(), "unknown method") {
 		t.Errorf("decodeCallReply error = %v, want the daemon's message", err)
 	}
-	if err := decodeCallReply(`{"ok":true,"result":{"items":2,"bytes":10}}`, &out); err != nil {
+	if err := decodeCallReply("clipboard", `{"ok":true,"result":{"items":2,"bytes":10}}`, &out); err != nil {
 		t.Fatalf("valid reply: %v", err)
 	}
 	if out.Items != 2 || out.Bytes != 10 {
@@ -70,7 +70,7 @@ func TestDaemonCallSurfacesErrors(t *testing.T) {
 // to be able to say why the number is missing.
 func TestDaemonCallWithoutDaemon(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir()) // no socket in there
-	if err := daemonCall("clipboard.stats", nil); err == nil {
+	if err := daemonCall("clipboard.stats", nil, nil); err == nil {
 		t.Error("daemonCall with no daemon returned nil, want an error")
 	}
 }

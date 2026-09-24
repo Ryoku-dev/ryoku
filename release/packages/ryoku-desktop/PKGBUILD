@@ -692,6 +692,14 @@ EOF
   install -Dm644 "$_repo/system/hardware/power/47-ryoku-power.rules" \
     "$pkgdir/usr/share/polkit-1/rules.d/47-ryoku-power.rules"
 
+  # Hardware GPU MUX: the same one-click grant for ryoku-gpu-mux (installed by
+  # the hardware glob above), so the Machine page can flip the display-routing
+  # knob without a terminal. The helper accepts only hybrid|discrete and writes
+  # a constant derived from that pair, so the grant stays safe; the change only
+  # takes effect after a reboot the user performs.
+  install -Dm644 "$_repo/system/hardware/gpu/45-ryoku-gpu-mux.rules" \
+    "$pkgdir/usr/share/polkit-1/rules.d/45-ryoku-gpu-mux.rules"
+
   # Game Mode's system tuning: the same one-click grant for ryoku-game-tune
   # (installed by the hardware glob above), so the panel toggle applies the deep
   # idle, watchdog, lock-mitigation and VM knobs without a prompt. Its argument

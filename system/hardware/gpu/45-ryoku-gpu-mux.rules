@@ -1,0 +1,16 @@
+// The Hub's Machine page flips the hardware GPU MUX through
+// `ryoku-gpu-mux set <mode>`, which writes a root-owned firmware knob. The
+// switch itself is already the user's deliberate act (a click on a named
+// control, and the knob only takes effect after a reboot the user confirms),
+// so a passwordless grant keeps the GUI path from needing a terminal; the
+// grant is scoped to the one program for an active local wheel user. The
+// helper validates its own argument: `set` accepts only hybrid|discrete, and
+// the value written to the knob is derived from that closed pair, so nothing
+// arbitrary reaches the firmware file.
+polkit.addRule(function (action, subject) {
+    if (action.id === "org.freedesktop.policykit.exec" &&
+        action.lookup("program") === "/usr/bin/ryoku-gpu-mux" &&
+        subject.local && subject.active && subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});
