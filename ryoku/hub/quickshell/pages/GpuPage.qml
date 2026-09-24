@@ -623,7 +623,7 @@ done
                         anchors.left: parent.left; anchors.right: parent.right
                         block: true
                         label: I18n.tr("Graphics mode")
-                        desc: I18n.tr("A change takes effect on your next login.")
+                        desc: I18n.tr("Software choice: which GPU renders the desktop. Takes effect on your next login.")
                         Seg {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -656,7 +656,7 @@ done
                         anchors.left: parent.left; anchors.right: parent.right
                         block: true
                         label: I18n.tr("Display wired to")
-                        desc: I18n.tr("A firmware switch: the change lands on your next reboot.")
+                        desc: I18n.tr("Hardware (GPU Mode / MUX / Optimus): which GPU drives the screen. Reboot to apply.")
                         Seg {
                             anchors.left: parent.left; anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
