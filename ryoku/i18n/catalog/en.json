@@ -6459,6 +6459,7 @@
   "switch the hardware MUX to hybrid so the panel routes through the iGPU and the dGPU can runtime-suspend: `ryoku-gpu-mux set hybrid`, then reboot. This is a display-routing change that needs a reboot, so doctor never applies it automatically.": "switch the hardware MUX to hybrid so the panel routes through the iGPU and the dGPU can runtime-suspend: `ryoku-gpu-mux set hybrid`, then reboot. This is a display-routing change that needs a reboot, so doctor never applies it automatically.",
   "switch to Yes and press enter; you will be asked to type ERASE": "switch to Yes and press enter; you will be asked to type ERASE",
   "switched the update checkout onto the tracked channel %q; run `ryoku update` to redeploy": "switched the update checkout onto the tracked channel %q; run `ryoku update` to redeploy",
+  "switched to %s but could not lay its desktop scripts (%v); run `ryoku deploy` before logging out": "switched to %s but could not lay its desktop scripts (%v); run `ryoku deploy` before logging out",
   "symlink in plugin tree: %s": "symlink in plugin tree: %s",
   "symlinks are not allowed in a plugin (R2)": "symlinks are not allowed in a plugin (R2)",
   "synced the Snapshots submenu": "synced the Snapshots submenu",

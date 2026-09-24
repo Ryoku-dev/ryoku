@@ -83,6 +83,20 @@ var configDirs = map[string]string{
 
 func ConfigDir(name string) string { return configDirs[name] }
 
+// LeafScriptsDir is where a provider keeps the standalone programs its config
+// and autostart call by bare name (ryoku-monitor, ryoku-workspace), as a path
+// relative to the repository root. The repo payload dir is named by the provider
+// itself; a provider with no such scripts (niri's are compositor actions or
+// `spawn ryoku-shell`) has no dir, and the caller treats its absence as "ships
+// none". This is the one definition of that layout; deploy.sh and the switch
+// both resolve scripts through it so a new provider's dir is named in one place.
+func LeafScriptsDir(name string) string {
+	if name == "" {
+		return ""
+	}
+	return "ryoku/" + name + "/scripts"
+}
+
 // configEntries is the file each provider's config tree is read from: the one
 // whose absence means the compositor boots its own defaults instead of Ryoku's
 // tree (no keybinds, no autostart). Named per provider because it is the

@@ -199,6 +199,16 @@ app keys while a dev checkout, which used to lay every provider's scripts, never
 noticed; `deploy.sh` now lays only the live provider's own leaf scripts so the
 checkout tells the truth.
 
+The switch lays the target's leaf scripts on a checkout box before declaring it
+ready (`syncLeafScripts` in `ryoku/cli/wm.go`, resolving the directory through
+`wm.LeafScriptsDir`). It has to: a deploy under one compositor lays only that
+compositor's scripts, so switching to the other without this left the next
+session's bare-name calls falling through PATH to a stale copy: a `ryoku-monitor`
+from before the display engine's `apply` verb existed, which silently failed
+every Hub display change and recomputed the scale from DPI at each login. The
+sync is additive because the running session still belongs to the compositor
+being left; pruning stays deploy's and the package's job.
+
 ## Switching
 
     ryoku wm use <name> [--keep-previous|--remove-previous]
