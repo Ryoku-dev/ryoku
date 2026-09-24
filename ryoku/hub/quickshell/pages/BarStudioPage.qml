@@ -52,9 +52,29 @@ Item {
     readonly property bool horizontal: page.edge === "top" || page.edge === "bottom"
 
     property var barStyles: []
+    property string updatingId: ""    // the style whose update is in flight
 
     function browseBarStyles() {
         Quickshell.execDetached(["ryostore", "open", "barstyles"]);
+    }
+
+    // Settings owns updates (docs/store.md); RyoStore only installs. The same
+    // transaction engine serves both, so this re-runs an install over the
+    // receipt-owned tree, which replaces the style in place. Install never
+    // activates, and only a removal rewrites the bar selection, so updating the
+    // style you are wearing is safe: the shell keys style URLs to the store
+    // revision and swaps the new content without a reload.
+    function updateStyle(id) {
+        if (!id || page.updatingId !== "")
+            return;
+        page.updatingId = id;
+        updateProc.command = ["ryostore", "install", "barstyles", id];
+        updateProc.running = true;
+    }
+
+    function refreshBarStyles() {
+        styleProc.running = false;
+        styleProc.running = true;
     }
 
     Process {
@@ -81,6 +101,12 @@ Item {
                             name: item.name || item.id,
                             desc: item.summary || item.description || "",
                             installed: item.installed === true,
+                            // The catalogue's versions ride through so the shelf
+                            // can name the update it offers: Settings owns
+                            // applying it, RyoStore does not (docs/store.md).
+                            version: item.version || "",
+                            installedVersion: item.installedVersion || "",
+                            updateAvailable: item.updateAvailable === true,
                             active: item.active === true,
                             unavailable: item.unavailable === true,
                             unavailableReason: item.unavailableReason || "",
@@ -92,6 +118,18 @@ Item {
                     page.barStyles = [];
                 }
             }
+        }
+    }
+
+    // The update runs in the background: a bar style installs into the user's
+    // own data tree, so unlike a package there is no sudo prompt and no terminal
+    // to hand it. On any outcome the shelf is re-read, so a failed update leaves
+    // the same UPDATE affordance up rather than a dead button.
+    Process {
+        id: updateProc
+        onExited: {
+            page.updatingId = "";
+            page.refreshBarStyles();
         }
     }
 
@@ -327,12 +365,26 @@ Item {
                                     // not-installed or wm-gated one cannot.
                                     readonly property bool applyable: styleCard.modelData.installed && !styleCard.modelData.unavailable
                                     readonly property bool on: styleCard.applyable && page.activeStyle === styleCard.modelData.id
+                                    // The backend refuses an install over a paused download or a
+                                    // product written for another compositor, so an update is
+                                    // offered only where re-running the install can succeed --
+                                    // never a button that is guaranteed to do nothing.
+                                    readonly property bool updatable: styleCard.modelData.updateAvailable === true
+                                        && styleCard.modelData.version.length > 0
+                                        && !styleCard.modelData.unavailable && !styleCard.modelData.downloadPaused
                                     // The sub line reads the style's own blurb
                                     // when it is yours to apply, otherwise the
                                     // honest reason it is not: the compositor it
                                     // wants, that it is under construction, or
-                                    // where to fetch it.
+                                    // where to fetch it. A style with an update
+                                    // shows the version it would move to, so the
+                                    // UPDATE button next to it is self-explanatory.
                                     readonly property string subText: {
+                                        if (styleCard.updatable) {
+                                            const cur = styleCard.modelData.installedVersion.length > 0
+                                                ? styleCard.modelData.installedVersion : styleCard.modelData.version;
+                                            return I18n.tr("%1 \u2192 %2").arg(cur).arg(styleCard.modelData.version);
+                                        }
                                         if (styleCard.applyable)
                                             return I18n.tr(styleCard.modelData.desc);
                                         if (styleCard.modelData.unavailable) {
@@ -362,7 +414,12 @@ Item {
                                     Behavior on color { ColorAnimation { duration: Tokens.snap } }
 
                                     Column {
-                                        anchors { left: parent.left; right: parent.right; margins: Tokens.s3; verticalCenter: parent.verticalCenter }
+                                        anchors {
+                                            left: parent.left
+                                            right: updateBtn.visible ? updateBtn.left : parent.right
+                                            margins: Tokens.s3; rightMargin: updateBtn.visible ? Tokens.s2 : Tokens.s3
+                                            verticalCenter: parent.verticalCenter
+                                        }
                                         spacing: 3
                                         Text {
                                             text: styleCard.modelData.name.toUpperCase()
@@ -388,6 +445,21 @@ Item {
                                         preventStealing: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: styleCard.applyable ? page.fedit("barStyle", styleCard.modelData.id) : page.browseBarStyles()
+                                    }
+                                    // Declared after the MouseArea so it stacks
+                                    // above it: the tile applies on click, and the
+                                    // update must not be stolen by that handler.
+                                    Btn {
+                                        id: updateBtn
+                                        anchors { right: parent.right; rightMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
+                                        visible: styleCard.updatable
+                                        compact: true
+                                        armed: page.updatingId === ""
+                                        text: page.updatingId === styleCard.modelData.id
+                                            ? I18n.tr("UPDATING")
+                                            : I18n.tr("UPDATE")
+                                        objectName: "bar-style-update-" + styleCard.modelData.id
+                                        onAct: page.updateStyle(styleCard.modelData.id)
                                     }
                                 }
                             }
