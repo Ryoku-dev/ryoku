@@ -75,6 +75,13 @@ Item {
   z: 102
   width: Math.min(((settingsPanel.activeTab === "performance" ? 1080 : (settingsPanel.activeTab === "general" || settingsPanel.activeTab === "edit") ? 900 : 760) * Config.uiScale) + _keybindsColW + _s(24), Screen.width - _s(48))
   Behavior on width { NumberAnimation { duration: Style.animFast; easing.type: Easing.OutCubic } }
+  // A tab taller than the screen scrolls inside contentLoader instead of
+  // running off the bottom edge. The budget is the screen minus the panel's
+  // own offset (the picker places it _s(16) from the top), the tab strip and
+  // the bottom padding; the panel height then follows the capped content.
+  readonly property real _contentMaxHeight: Math.max(
+    _s(240),
+    Screen.height - _s(16) - _s(16) - tabRow.height - 36)
   height: tabRow.height + contentLoader.height + 36
 
   visible: settingsOpen || opacity > 0.01
@@ -325,14 +332,19 @@ Item {
     }
   }
 
-  Item {
+  // The active tab's content. A tab taller than the screen scrolls inside this
+  // Flickable rather than growing the panel past the bottom edge; the explicit
+  // WheelHandler is what the rest of the shell uses (Qt 6.11 Flickables do not
+  // take the wheel on their own), and it also keeps the wheel over the panel
+  // from falling through to the carousel behind it.
+  Flickable {
     id: contentLoader
     anchors.top: tabRow.bottom
     anchors.left: keybindsColumn.right
     anchors.right: parent.right
     anchors.margins: 12
     anchors.topMargin: 8
-    height: {
+    property real _contentHeight: {
       if (settingsPanel.activeTab === "selector") return selectorContent.implicitHeight
       if (settingsPanel.activeTab === "edit") return editContent.implicitHeight
       if (settingsPanel.activeTab === "paper") return paperContent.implicitHeight
@@ -343,13 +355,30 @@ Item {
       if (settingsPanel.activeTab === "lighting") return lightingContent.implicitHeight
       if (settingsPanel.activeTab === "wallpaper-engine") return wallpaperEngineContent.implicitHeight
       if (settingsPanel.activeTab === "performance") return performanceContent.implicitHeight
-      if (settingsPanel.activeTab === "postprocessing") return Math.min(postprocessingContent.implicitHeight, 360)
+      if (settingsPanel.activeTab === "postprocessing") return postprocessingContent.implicitHeight
       if (settingsPanel.activeTab === "theme") return themeContent.implicitHeight
-      if (settingsPanel.activeTab === "matugen") return Math.min(matugenContent.implicitHeight, 360)
+      if (settingsPanel.activeTab === "matugen") return matugenContent.implicitHeight
       if (settingsPanel.activeTab === "overview-backdrop") return overviewBackdropContent.implicitHeight
       return 0
     }
+    height: Math.min(_contentHeight, settingsPanel._contentMaxHeight)
+    contentWidth: width
+    contentHeight: _contentHeight
+    clip: true
+    interactive: contentHeight > height
+    boundsBehavior: Flickable.StopAtBounds
+    flickableDirection: Flickable.VerticalFlick
+    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
     Behavior on height { NumberAnimation { duration: Style.animFast; easing.type: Easing.OutCubic } }
+
+    WheelHandler {
+      acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+      onWheel: function (ev) {
+        var step = (ev.angleDelta.y !== 0 ? ev.angleDelta.y : ev.angleDelta.x)
+        var limit = Math.max(0, contentLoader.contentHeight - contentLoader.height)
+        contentLoader.contentY = Math.max(0, Math.min(limit, contentLoader.contentY - step))
+      }
+    }
 
     property real _slide: 0
     transform: Translate { y: contentLoader._slide }

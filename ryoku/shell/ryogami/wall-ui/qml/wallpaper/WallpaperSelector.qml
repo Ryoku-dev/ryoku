@@ -1117,7 +1117,7 @@ Scope {
         anchors.fill: parent
         propagateComposedEvents: true
         onWheel: function(wheel) {
-
+          if (wallpaperSelector._navLocked) return
           var step = 1
           if (wheel.angleDelta.y > 0 || wheel.angleDelta.x > 0) {
             sliceListView.currentIndex = Math.max(0, sliceListView.currentIndex - step)
@@ -1322,6 +1322,7 @@ Scope {
         anchors.fill: parent
         propagateComposedEvents: true
         onWheel: function(wheel) {
+          if (wallpaperSelector._navLocked) return
           var step = Config.hexScrollStep
           if (wheel.angleDelta.y > 0 || wheel.angleDelta.x > 0) {
             hexListView.currentIndex = Math.max(0, hexListView.currentIndex - step)
@@ -1528,6 +1529,7 @@ Scope {
         anchors.fill: parent
         propagateComposedEvents: true
         onWheel: function(wheel) {
+          if (wallpaperSelector._navLocked) return
           thumbGridView._snapScroll(wheel.angleDelta.y)
           thumbGridView.forceActiveFocus()
         }
