@@ -34,6 +34,10 @@ Item {
     property string actionError: ""
     property string capsError: ""
     property string modeWarn: ""
+    // hardware display-routing switch (the MUX): which GPU the built-in panel
+    // is physically wired to. Empty when the machine has no knob.
+    property var mux: ({})
+    property string muxError: ""
 
     // tuning + presets
     property var tune: []
@@ -140,6 +144,7 @@ Item {
         tuneProc.running = true;
         presetProc.running = true;
         cpuActiveProc.running = true;
+        muxProc.running = true;
     }
     function reloadTune() {
         tuneProc.running = true;
@@ -167,6 +172,16 @@ Item {
         pg.modeWarn = "";
         modeSetProc.command = ["ryoku-hub", "gpu", "mode", "set", m];
         modeSetProc.running = true;
+    }
+    function setMux(m) {
+        pg.muxError = "";
+        muxSetProc.command = ["ryoku-hub", "gpu", "mux", "set", m];
+        muxSetProc.running = true;
+    }
+    function cpuSwitch(name) {
+        pg.cpuError = "";
+        cpuSwitchProc.command = ["ryoku-hub", "cpu", "switch", name];
+        cpuSwitchProc.running = true;
     }
     function tuneSet(gpu, id, value) {
         pg.tuneError = "";
@@ -270,6 +285,29 @@ Item {
         }
     }
     Process {
+        id: muxProc
+        command: ["ryoku-hub", "gpu", "mux", "get"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { pg.mux = JSON.parse(this.text) || {}; } catch (e) { pg.mux = {}; }
+            }
+        }
+    }
+    Process {
+        id: muxSetProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { pg.mux = JSON.parse(this.text) || pg.mux; } catch (e) {}
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                var e = this.text.trim();
+                if (e.length > 0) pg.muxError = e;
+            }
+        }
+    }
+    Process {
         id: tuneSetProc
         stdout: StdioCollector { onStreamFinished: pg.reloadTune() }
         stderr: StdioCollector {
@@ -318,6 +356,16 @@ Item {
     Process {
         id: cpuSetProc
         stdout: StdioCollector { onStreamFinished: pg.reloadCpu() }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                var e = this.text.trim();
+                if (e.length > 0) pg.cpuError = e;
+            }
+        }
+    }
+    Process {
+        id: cpuSwitchProc
+        stdout: StdioCollector { onStreamFinished: cpuActiveProc.running = true }
         stderr: StdioCollector {
             onStreamFinished: {
                 var e = this.text.trim();
@@ -594,13 +642,47 @@ done
                         text: pg.mode === "hybrid"
                             ? I18n.tr("Hybrid keeps the built-in GPU primary for battery; apps can still use %1 on demand.").arg(pg.dgpuName)
                             : (pg.mode === "performance"
-                                ? (pg.caps.chassis === "laptop" && pg.caps.mux && pg.caps.mux !== "none"
-                                    ? I18n.tr("Performance pins %1 as primary, so video decode and GPU work leave the CPU's heat budget. This laptop has a GPU MUX: running `ryoku-gpu-mux set discrete` and rebooting also moves the display to %2, for the full effect.").arg(pg.dgpuName).arg(pg.dgpuName)
+                                ? (pg.caps.chassis === "laptop" && pg.mux.capable
+                                    ? I18n.tr("Performance pins %1 as primary, so video decode and GPU work leave the CPU's heat budget. This laptop has a display-routing switch: set it to Discrete below and reboot to move the screen to %1, for the full effect.").arg(pg.dgpuName)
                                     : I18n.tr("Performance pins %1 as primary: fastest, more power draw.").arg(pg.dgpuName))
                                 : I18n.tr("Passthrough runs the desktop on the built-in GPU so %1 is free for a VM.").arg(pg.dgpuName))
                         color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                     }
 
+                    // The hardware display-routing switch, where the firmware has
+                    // one: which GPU the built-in panel is physically wired to.
+                    SettingRow {
+                        visible: !!(pg.mux.capable)
+                        anchors.left: parent.left; anchors.right: parent.right
+                        block: true
+                        label: I18n.tr("Display wired to")
+                        desc: I18n.tr("A firmware switch: the change lands on your next reboot.")
+                        Seg {
+                            anchors.left: parent.left; anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            options: ["Hybrid", "Discrete"]
+                            current: pg.modeLabel(pg.mux.mode || "")
+                            onChose: (label) => pg.setMux(label.toLowerCase())
+                        }
+                    }
+                    Text {
+                        visible: !!(pg.mux.capable && pg.mux.reboot_pending)
+                        width: parent.width
+                        leftPadding: Tokens.s4; rightPadding: Tokens.s4
+                        topPadding: Tokens.s2; bottomPadding: Tokens.s3
+                        wrapMode: Text.WordWrap
+                        text: I18n.tr("Reboot to move the display.");
+                        color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                    }
+                    Text {
+                        visible: pg.muxError !== ""
+                        width: parent.width
+                        leftPadding: Tokens.s4; rightPadding: Tokens.s4
+                        topPadding: Tokens.s2; bottomPadding: Tokens.s3
+                        wrapMode: Text.WordWrap
+                        text: pg.muxError
+                        color: Tokens.inkMuted; font.family: Tokens.mono; font.pixelSize: Tokens.fMicro
+                    }
                     // mode-set warning: a bordered plate, only when the backend complains.
                     Item {
                         visible: pg.modeWarn !== ""
@@ -632,6 +714,24 @@ done
                     width: gfxCol.colWidth
                     visible: pg.cpuTune.length > 0
                     title: I18n.tr("CPU POWER PROFILES")
+
+                    // switch which profile is LIVE, through the shell daemon (the
+                    // one owner of the pick: it banks it across reboots and keeps
+                    // game mode's stash intact).
+                    SettingRow {
+                        visible: pg.cpuProfiles.length > 0
+                        anchors.left: parent.left; anchors.right: parent.right
+                        block: true
+                        label: I18n.tr("Live profile")
+                        desc: I18n.tr("Changes the active profile now.")
+                        Seg {
+                            anchors.left: parent.left; anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            options: pg.cpuProfiles
+                            current: pg.cpuActive
+                            onChose: (k) => pg.cpuSwitch(k)
+                        }
+                    }
 
                     // pick which definition to edit; this never switches the live
                     // profile, so the note below names the one that is active.
