@@ -3394,44 +3394,14 @@ Item {
     // ── Power Profile state ──
     property bool powerProfileVisible: false
     onPowerProfileVisibleChanged: popupOpened("powerProfileVisible")
-    property string powerProfileCurrent: ""
-
-    Process {
-        id: initPowerProfile
-        command: ["bash", "-c", "powerprofilesctl get 2>/dev/null || echo balanced"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var p = this.text.trim()
-                if (p) theme.powerProfileCurrent = p
-            }
-        }
-    }
-
-    // Available power profiles, parsed from `powerprofilesctl list`. Header lines
-    // look like "* performance:" / "  balanced:" (the marker flags the active one);
-    // detail lines have a value after the colon, so we keep only lines that END at
-    // the colon. Defaults to the standard three so nothing regresses if the list
-    // can't be read; the panel/widget offer and cycle only through this set, so a
-    // profile the hardware lacks never shows up as a dead button.
-    property var powerProfileAvailable: ["power-saver", "balanced", "performance"]
-
-    Process {
-        id: initPowerProfileList
-        command: ["bash", "-c", "powerprofilesctl list 2>/dev/null"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var lines = this.text.split("\n")
-                var found = []
-                for (var i = 0; i < lines.length; i++) {
-                    var m = lines[i].match(/^\s*\*?\s*([a-z][a-z0-9-]*):\s*$/)
-                    if (m) found.push(m[1])
-                }
-                if (found.length > 0) theme.powerProfileAvailable = found
-            }
-        }
-    }
+    // The shell daemon owns power-profiles-daemon (ryoku-shell powerprofiles.go)
+    // and streams the live pick on the powerprofiles topic; these read that
+    // stream. A second poller of powerprofilesctl here would drift from the
+    // daemon's banked profile and make a switch look like it did nothing.
+    readonly property string powerProfileCurrent: PowerProfiles.profile
+    readonly property var powerProfileAvailable: PowerProfiles.available
+        ? PowerProfiles.profiles
+        : ["power-saver", "balanced", "performance"]
 
     function gotoWorkspace(id) { Wm.focusWorkspace(id) }
 

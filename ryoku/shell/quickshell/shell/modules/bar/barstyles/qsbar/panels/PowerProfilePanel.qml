@@ -3,6 +3,7 @@ import "../modules"
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import shell.services
 import Ryoku.Ui.Singletons
 
 PanelWindow {
@@ -26,9 +27,9 @@ PanelWindow {
         { key: "performance",  icon: "\uF0E7", label: I18n.tr("Performance") },
     ]
 
-    // Only offer profiles `powerprofilesctl list` reports (root.powerProfileAvailable),
-    // keeping the canonical order and look. Falls back to all three if availability
-    // can't be read, so a shown button always applies and nothing regresses.
+    // Only offer profiles the daemon reports (root.powerProfileAvailable),
+    // keeping the canonical order and look. Falls back to all three if the
+    // stream is down, so a shown button always applies and nothing regresses.
     readonly property var profiles: {
         var avail = root.powerProfileAvailable
         if (!avail || avail.length === 0)
@@ -175,10 +176,7 @@ PanelWindow {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            setProfileProc.command = ["bash", "-c", "powerprofilesctl set " + modelData.key]
-                            setProfileProc.running = false
-                            setProfileProc.running = true
-                            root.powerProfileCurrent = modelData.key
+                            PowerProfiles.setProfile(modelData.key)
                             root.powerProfileVisible = false
                         }
                     }
@@ -206,11 +204,5 @@ PanelWindow {
                 }
             }
         }
-    }
-
-    Process {
-        id: setProfileProc
-        command: ["bash", "-c", "powerprofilesctl set balanced"]
-        running: false
     }
 }
