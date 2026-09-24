@@ -2,6 +2,17 @@
 
 
 ### Added
+- **The Machine page owns the two switches it used to describe.** The
+  hardware display-routing knob (GPU Mode / MUX / Optimus) and the live CPU
+  power profile were CLI-only, and both the render card's Hybrid and the
+  firmware's Hybrid read as one setting with two names. The render card now
+  carries a "Display wired to" segment (a pkexec grant makes the firmware
+  write terminal-free; a reboot-pending flag says when it lands) and the CPU
+  card a "Live profile" segment that switches through the shell daemon, the
+  one owner of the pick. Each row names its layer: a software choice applied
+  at next login, versus a hardware switch applied at next reboot
+  (`quickshell/pages/GpuPage.qml`, `backend/gpumux.go`, `backend/daemonclient.go`).
+
 - **Keybinds, rebuilt around use.** A search field that fuzzy-matches labels,
   hints, categories and key tokens ("clw" finds Close window, "num 3" the
   number-pad workspaces), a category rail with counts, and one calm column of

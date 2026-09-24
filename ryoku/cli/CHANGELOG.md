@@ -189,6 +189,13 @@
   (`internal/updater/materialize.go`).
 
 ### Fixed
+- **`ryoku doctor` re-enables the NVIDIA sleep units the installer sets up.**
+  Boxes installed before nvidia.sh grew its enable step, or converted from
+  another distro, carry nvidia-suspend/hibernate/resume disabled, so VRAM is
+  not preserved across suspend the way the shipped contract arranges; the
+  reconciler repairs exactly that drift and stays silent on mesa-only boxes
+  and healthy installs (`internal/doctor/reconcile_hardware.go`).
+
 - **"Apply system-wide" for the keyboard layout no longer just says FAILED.**
   Setting the login screen, TTYs, and disk-passphrase keymap rebuilds the boot
   image, which needs root; run from the Hub there is no terminal for the sudo

@@ -249,6 +249,18 @@
   `services/Keypresses.qml`, `ipc/keypress.go`).
 
 ### Fixed
+- **Waking from suspend no longer leaves a black screen.** The shell daemon
+  watches logind's PrepareForSleep and holds the panel lit for a window after
+  every wake, through the compositor seam, so a lid-close on a box with idle
+  timeouts off (or a DPMS-on that raced the driver's late panel re-train on a
+  MUX-discrete laptop) comes back to a live desktop (`ipc/sleepwake.go`).
+- **The bar's power profile is one owner's, not two.** The qsbar widget and
+  panel polled and wrote power-profiles-daemon with raw `powerprofilesctl`,
+  beside the daemon that banks the user's pick; a switch the daemon
+  re-asserted looked like a dead button. They now read the daemon's
+  powerprofiles stream and set through its socket, the path the sidebar and
+  the Hub use (`barstyles/qsbar/`).
+
 - **The picker toolbar stays on screen in every display mode.** The new
   Hand/Sandy/Grid modes shipped with two layout faults a scaled or smaller
   display hits hard: the Slices carousel lost the top margin that keeps it

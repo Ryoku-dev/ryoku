@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **The GPU MUX knob is GUI-reachable without a terminal.** `ryoku-gpu-mux
+  set` escalates through pkexec under a scoped polkit grant
+  (`hardware/gpu/45-ryoku-gpu-mux.rules`, wheel, the one program), so the
+  Hub's Machine page can flip display routing; the change still only takes
+  effect at a reboot the user performs.
+
+
 - **The base set no longer installs Spotify.** `spotify-launcher`,
   `spicetify-cli` and `spicetify-marketplace` are out of
   `system/packages/base.packages`; Ryotunes is the music app a fresh install
