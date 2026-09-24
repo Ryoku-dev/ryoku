@@ -486,12 +486,12 @@ Scope {
             // An invisible Image still decodes while its source is set: hold the
             // url back until a glass widget actually samples it, or this mirror
             // costs a full-screen decode on every box that has a wallpaper.
-            source: glassWanted ? root.wallpaperUrl : ""
+            source: win.glassWanted ? root.wallpaperUrl : ""
             cache: false
             asynchronous: true
             sourceSize.width: Math.ceil(width * backdrop.screenDpr)
             sourceSize.height: Math.ceil(height * backdrop.screenDpr)
-            visible: glassWanted
+            visible: win.glassWanted
             fillMode: {
                 switch (root.wallpaperFit) {
                 case "Contain": return Image.PreserveAspectFit;
