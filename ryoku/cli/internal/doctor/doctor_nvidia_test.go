@@ -133,3 +133,47 @@ func TestKeplerRemovalFailureUsesScopedRemedy(t *testing.T) {
 		t.Fatalf("remedy = %q, want %q", got.remedy, want)
 	}
 }
+
+// The sleep-units reconciler repairs installer drift (nvidia.sh enables the
+// three units), so a healthy box must read ok (idempotency: doctor never
+// re-enables what is already enabled), and only the disabled units are
+// named for the fix.
+func TestPlanNvidiaSleepUnits(t *testing.T) {
+	all := map[string]bool{"nvidia-suspend.service": true, "nvidia-hibernate.service": true, "nvidia-resume.service": true}
+	enabled := func(states ...string) map[string]bool {
+		m := map[string]bool{}
+		for _, s := range states {
+			m[s] = true
+		}
+		return m
+	}
+	cases := []struct {
+		name        string
+		nvidia      bool
+		exists      map[string]bool
+		enabled     map[string]bool
+		wantMissing []string
+		wantVerdict string
+	}{
+		{"mesa-only box stays silent", false, nil, nil, nil, "no proprietary NVIDIA driver in use"},
+		{"nvidia-utils absent: nothing to enable", true, map[string]bool{}, nil, nil, "the NVIDIA sleep units are not installed on this machine"},
+		{"healthy box: all three enabled", true, all, enabled("nvidia-suspend.service", "nvidia-hibernate.service", "nvidia-resume.service"), nil, "the NVIDIA sleep units are enabled"},
+		{"converted box: all three disabled", true, all, nil, []string{"nvidia-suspend.service", "nvidia-hibernate.service", "nvidia-resume.service"}, ""},
+		{"partial drift: only resume disabled", true, all, enabled("nvidia-suspend.service", "nvidia-hibernate.service"), []string{"nvidia-resume.service"}, ""},
+	}
+	for _, c := range cases {
+		missing, verdict := planNvidiaSleepUnits(c.nvidia, c.exists, c.enabled)
+		if verdict != c.wantVerdict {
+			t.Errorf("%s: verdict = %q, want %q", c.name, verdict, c.wantVerdict)
+		}
+		if len(missing) != len(c.wantMissing) {
+			t.Errorf("%s: missing = %v, want %v", c.name, missing, c.wantMissing)
+			continue
+		}
+		for i := range missing {
+			if missing[i] != c.wantMissing[i] {
+				t.Errorf("%s: missing[%d] = %s, want %s", c.name, i, missing[i], c.wantMissing[i])
+			}
+		}
+	}
+}
