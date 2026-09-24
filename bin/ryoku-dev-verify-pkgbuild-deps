@@ -34,6 +34,20 @@ if ! command -v pacman >/dev/null 2>&1; then
 	exit 0
 fi
 
+# The virtual provides of every package in the sync databases, versions
+# stripped (udev is provided by systemd, so it is resolvable even though no
+# package is named udev). Read straight from the dbs: pacman -Si matches names
+# only, and -Sp stages a full transaction, which fails on a box whose local
+# system is simply behind its synced db -- a false alarm unrelated to the
+# PKGBUILDs under check.
+provides=$(
+	for db in /var/lib/pacman/sync/*.db; do
+		[[ -r $db ]] || continue
+		tar -xOf "$db" --wildcards '*/desc' 2>/dev/null |
+			awk '/^%PROVIDES%$/{f=1;next} /^%/{f=0} f'
+	done | sed 's/[<>=].*//' | sort -u
+)
+
 # internal = pkgname AND provides of every in-repo PKGBUILD, with any version
 # constraint stripped. A depend satisfied from inside [ryoku] needs no external
 # resolution -- including a virtual a variant provides (ryoku-desktop-hyprland
@@ -56,11 +70,10 @@ for p in release/packages/*/PKGBUILD; do
 		d="${d%%[<>=]*}"
 		[[ -z $d ]] && continue
 		grep -qxF "$d" <<<"$internal" && continue
-		# -Si matches a real package name; it does NOT resolve a virtual provide,
-		# so a valid depend like `udev` (provided by systemd) reads as missing.
-		# -Sp resolves provides against the same sync dbs, so try the cheap
-		# exact-name path first and fall back to it.
-		if ! pacman -Si "$d" >/dev/null 2>&1 && ! pacman -Sp "$d" >/dev/null 2>&1; then
+		# a virtual provide first (the db scan), then a real package name
+		# (-Si); a depend satisfying neither resolves nowhere.
+		if ! grep -qxF "$d" <<<"$provides" &&
+			! pacman -Si "$d" >/dev/null 2>&1; then
 			annotate error "$p: dependency '$d' not found in the official repos or [ryoku]"
 			missing=1
 		fi
