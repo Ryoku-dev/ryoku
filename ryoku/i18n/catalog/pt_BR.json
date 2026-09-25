@@ -2957,7 +2957,7 @@
   "RYOKU RASHIN": "RYOKU RASHIN",
   "RYOKU RENDERS ON": "RYOKU RENDERIZA EM",
   "RYOKU RYOPORT · TYPE V-01": "RYOKU RYOPORT · TIPO V-01",
-  "RYOKU · %1 · KERNEL %2 · SHOT ON BLACK": "RYOKU · %1 · KERNEL %2 · SHOT ON BLACK",
+  "RYOKU · %1 · KERNEL %2 · SHOT ON BLACK": "RYOKU · %1 · KERNEL %2 · FILMADO EM PRETO",
   "RYOKU-": "RYOKU-",
   "RYOKU_COMPOSITOR is required (which window manager to install)": "RYOKU_COMPOSITOR é obrigatório (qual gerenciador de janelas instalar)",
   "RYOKU_COMPOSITOR_CONFIG_DIR is required: the TUI derives it from wm.ConfigDir, so an empty value means '$RYOKU_COMPOSITOR' is not a known compositor. Refusing rather than seeding an unseeded desktop.": "RYOKU_COMPOSITOR_CONFIG_DIR é obrigatório: a TUI o deriva de wm.ConfigDir, então um valor vazio significa que '$RYOKU_COMPOSITOR' não é um compositor conhecido. Recusando em vez de iniciar uma área de trabalho não inicializada.",

@@ -2268,7 +2268,7 @@
   "NVIDIA driver in use but nouveau is not blacklisted / DRM modeset + fbdev not set; the GPU or an external display can fail to come up on some boots": "درایور NVIDIA درحال استفاده اما nouveau بلاکلیست نشده / DRM modeset + fbdev تنظیم نشده؛ GPU یا نمایشگر خارجی ممکن است در برخی بوت‌ها کار نکند",
   "NVIDIA drives everything": "NVIDIA همه چیز را کنترل می‌کند",
   "NVIDIA modeset + fbdev + nouveau blacklist in place": "NVIDIA modeset + fbdev + nouveau بلاکلیست موجود",
-  "NVIDIA sleep units": "NVIDIA sleep units",
+  "NVIDIA sleep units": "واحدهای خواب NVIDIA",
   "NVIDIA update guard hook": "قلاب محافظ بروزرسانی NVIDIA",
   "NVIDIA update guard hook in place": "NVIDIA update guard hook موجود",
   "NVMe composite": "کامپوزیت NVMe",
