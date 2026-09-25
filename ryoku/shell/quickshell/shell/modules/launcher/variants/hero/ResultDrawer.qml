@@ -248,7 +248,12 @@ Item {
                 Behavior on opacity {
                     enabled: root.animationsEnabled && !root.snapping
                         && !root.suppressResultDeckAnimation
-                    OpacityAnimator {
+                    // NumberAnimation, not OpacityAnimator: the deck's layer
+                    // toggles inside the fade, and a render-thread animator
+                    // racing that toggle faults the scene graph (and the
+                    // warning it logs names this very node). Every other fade
+                    // in the launcher animates opacity on the main thread.
+                    NumberAnimation {
                         id: resultDeckFade
                         duration: 120
                         easing.type: Easing.OutCubic
