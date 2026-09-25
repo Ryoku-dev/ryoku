@@ -5399,7 +5399,7 @@
   "logs only, no passwords or keys. Open an issue: %s": "alleen logbestanden, geen wachtwoorden of sleutels. Open een issue: %s",
   "looks like a hardcoded secret or key (R10)": "lijkt op een hardcoded geheim of sleutel (R10)",
   "lowercase; start with a letter or _": "kleine letters; begin met een letter of _",
-  "machine": "machine",
+  "machine": "apparaat",
   "managed": "beheerd",
   "manifest declares no hosts": "manifest declareert geen hosts",
   "manifest id %q must be lowercase letters, digits and dashes": "manifest-id %q moet kleine letters, cijfers en streepjes zijn",

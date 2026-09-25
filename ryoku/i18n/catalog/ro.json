@@ -4545,7 +4545,7 @@
   "bgBlur must be numeric, got %s": "bgBlur trebuie să fie numeric, s-a obținut %s",
   "bhimio1": "bhimio1",
   "bighour": "orăMare",
-  "bind": "bind",
+  "bind": "conectare",
   "binds ingested: %d": "bind-uri ingerate: %d",
   "blacklisted nouveau, enabled NVIDIA DRM modeset, and rebuilt the initramfs": "nouveau pe lista neagră, NVIDIA DRM modeset activat, initramfs reconstruit",
   "blank disk · auto-layout": "disc gol · auto-layout",
