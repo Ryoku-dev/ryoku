@@ -202,6 +202,11 @@ jobs:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           RYOKU_RELEASE: ${{ steps.channel.outputs.release }}
           RYOKU_CHANNEL: ${{ steps.channel.outputs.channel }}
+          # import-ryotunes.sh resolves the latest ryotunes release through the
+          # GitHub API; unauthenticated it shares a runner IP and hits the 60/h
+          # limit (a 403 that aborts the whole build). The workflow token lifts
+          # it, the same way refresh-ryotunes.yml already authenticates.
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
