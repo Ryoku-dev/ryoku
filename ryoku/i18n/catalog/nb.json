@@ -2268,7 +2268,7 @@
   "NVIDIA driver in use but nouveau is not blacklisted / DRM modeset + fbdev not set; the GPU or an external display can fail to come up on some boots": "NVIDIA-driver i bruk, men nouveau er ikke på svartelisten / DRM modeset + fbdev ikke satt; GPU eller ekstern skjerm kan mislykkes ved noen oppstarter",
   "NVIDIA drives everything": "NVIDIA driver alt",
   "NVIDIA modeset + fbdev + nouveau blacklist in place": "NVIDIA modeset + fbdev + nouveau svarteliste på plass",
-  "NVIDIA sleep units": "NVIDIA sleep units",
+  "NVIDIA sleep units": "NVIDIA hvilemoduser",
   "NVIDIA update guard hook": "NVIDIA oppdateringsvakthake",
   "NVIDIA update guard hook in place": "NVIDIA oppdateringsvakthake på plass",
   "NVMe composite": "NVMe sammensatt",

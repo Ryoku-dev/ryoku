@@ -996,7 +996,7 @@
   "DRYRUN: rewrite /etc/pacman.conf without [ryoku]": "הרצה ייבוש: שכתוב /etc/pacman.conf ללא [ryoku]",
   "DRYRUN: seed $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv": "DRYRUN: seed $store -> desktop.input.kbLayout=$xkbl kbVariant=$xkbv",
   "DRYRUN: seed %s -> ~/%s": "הרצה ייבוש: זרע %s -> ~/%s",
-  "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target": "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target",
+  "DRYRUN: select CPU-compatible CachyOS repos, enable [multilib], populate the cachyos keyring in the target": "DRYRUN: בחר מאגרי CachyOS תואמי-CPU, אפשר [multilib], אכלס את טבעת המפתחות של cachyos ביעד",
   "DRYRUN: set Zen as the default web browser for %s if installed": "DRYRUN: הגדר את Zen כדפדפן האינטרנט ברירת המחדל עבור %s אם מותקן",
   "DRYRUN: stub ~/%s if absent": "הרצה ייבוש: עמוד ~/%s אם חסר",
   "DRYRUN: verify [ryoku] repo, packages, session files": "הרצה ייבוש: אימות מאגר [ryoku], חבילות, קבצי הפעלה",
