@@ -78,6 +78,12 @@ while read -r _ local_sha _ remote_sha; do
     case "$subject" in
       Revert\ *|fixup!\ *|squash!\ *) continue ;;
     esac
+    # A PR merged on GitHub gets " (#NNN)" appended to the title after the
+    # author's commit-msg hook already ran, so the pushed subject can exceed
+    # the limit through no fault of the author. Measure what they wrote.
+    if [[ $subject =~ ^(.*)\ \(#[0-9]+\)$ ]]; then
+      subject="${BASH_REMATCH[1]}"
+    fi
     if ((${#subject} > 72)); then
       fail "a pushed commit subject is ${#subject} chars (limit 72): $subject"
     fi
