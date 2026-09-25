@@ -851,7 +851,7 @@ func productDestinationRoot(category string) string {
 }
 
 func fetchProductFile(ctx context.Context, cache *Cache, rel string, size int64, expectedHash string) ([]byte, error) {
-	if cache == nil || cache.client == nil || !validProductPath(rel) || size < 0 || size > maxProductFileSize || !productHashPattern.MatchString(expectedHash) {
+	if cache == nil || !cache.hasDownload() || !validProductPath(rel) || size < 0 || size > maxProductFileSize || !productHashPattern.MatchString(expectedHash) {
 		return nil, fmt.Errorf("invalid product fetch %q", rel)
 	}
 	data, fetchErr := fetchProductFileLive(ctx, cache, rel, size)
@@ -898,7 +898,7 @@ func fetchProductFileLive(ctx context.Context, cache *Cache, rel string, limit i
 		return nil, err
 	}
 	request.Header.Set("Cache-Control", "no-cache")
-	response, err := cache.client.Do(request)
+	response, err := cache.downloadClient().Do(request)
 	if err != nil {
 		return nil, err
 	}
