@@ -25,9 +25,23 @@ Singleton {
         || ((Quickshell.env("HOME") + "/.local/state"))
     readonly property string _revision: root._stateHome + "/ryoku/store/revision.json"
 
+    // one sweep per burst. a dragged tile writes placement on release, a resize
+    // writes it again as the wheel settles, and a Store transaction writes its
+    // revision in the same moment; without this each write re-ran discovery and
+    // re-resolved every tile on the desktop while the pointer was still moving.
     function reload() {
-        discoverProc.running = false;
-        discoverProc.running = true;
+        coalesce.restart();
+    }
+    Timer {
+        id: coalesce
+        // under the slot guard's 90 ms: a dropped tile keeps its drag position
+        // until this settles, so the sweep must land before the guard expires
+        // or the tile flashes back to its old spot for a frame.
+        interval: 40
+        onTriggered: {
+            discoverProc.running = false;
+            discoverProc.running = true;
+        }
     }
     function handleRevision(raw) {
         try {
