@@ -6123,7 +6123,7 @@
   "ryoku doctor": "ryoku doctor",
   "ryoku doctor  (adds %s to %s and rebuilds the images)": "ryoku doctor  (adiciona %s a %s e reconstrói as imagens)",
   "ryoku doctor  (adds ILoveCandy under [options] in %s)": "ryoku doctor  (adiciona ILoveCandy sob [options] em %s)",
-  "ryoku doctor  (enables them with sudo systemctl)": "ryoku doctor  (enables them with sudo systemctl)",
+  "ryoku doctor  (enables them with sudo systemctl)": "ryoku doctor  (os ativa com sudo systemctl)",
   "ryoku doctor  (installs /etc/pacman.d/hooks/ryoku-nvidia.hook)": "ryoku doctor  (instala /etc/pacman.d/hooks/ryoku-nvidia.hook)",
   "ryoku doctor  (removes 580xx and restores Nouveau)": "ryoku doctor  (remove 580xx e restaura Nouveau)",
   "ryoku doctor  (restores nouveau, rebuilds the initramfs)": "ryoku doctor  (restaura nouveau, reconstrói initramfs)",

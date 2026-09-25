@@ -2268,7 +2268,7 @@
   "NVIDIA driver in use but nouveau is not blacklisted / DRM modeset + fbdev not set; the GPU or an external display can fail to come up on some boots": "Χρησιμοποιείται ο οδηγός NVIDIA αλλά το nouveau δεν είναι στη μαύρη λίστα / το DRM modeset + fbdev δεν έχουν ρυθμιστεί. Η GPU ή μια εξωτερική οθόνη ενδέχεται να μην εκκινήσει σε ορισμένες εκκινήσεις.",
   "NVIDIA drives everything": "Η NVIDIA οδηγεί τα πάντα",
   "NVIDIA modeset + fbdev + nouveau blacklist in place": "NVIDIA modeset + fbdev + nouveau μαύρη λίστα σε ισχύ",
-  "NVIDIA sleep units": "NVIDIA sleep units",
+  "NVIDIA sleep units": "μονάδες ύπνου NVIDIA",
   "NVIDIA update guard hook": "NVIDIA άγκιστρο προστασίας ενημερώσεων",
   "NVIDIA update guard hook in place": "NVIDIA άγκιστρο προστασίας ενημερώσεων σε ισχύ",
   "NVMe composite": "NVMe σύνθετο",

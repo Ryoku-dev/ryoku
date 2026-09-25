@@ -5026,7 +5026,7 @@
   "enabled rashin at boot (the Super+S needle and AI dashboard); `ryoku-rashin disable` turns it off": "önyüklemede rashin etkinleştirildi (Super+S iğnesi ve YZ panosu); `ryoku-rashin disable` kapatır",
   "enabled snapper-cleanup.timer": "snapper-cleanup.timer etkin",
   "enabled the AI usage collector timer": "YZ kullanım toplayıcı zamanlayıcısı etkinleştirildi",
-  "enabled the NVIDIA sleep units so VRAM is preserved across suspend, matching the installer's contract": "enabled the NVIDIA sleep units so VRAM is preserved across suspend, matching the installer's contract",
+  "enabled the NVIDIA sleep units so VRAM is preserved across suspend, matching the installer's contract": "NVIDIA uyku birimlerini etkinleştirerek VRAM'in askıya alma sırasında korunmasını sağladı ve yükleyicinin sözleşmesiyle eşleşti",
   "enabled the boot guard; a packaged update that cannot boot twice is reverted": "önyükleme koruması etkin; iki kez önyüklenemeyen paketli güncelleme geri alınır",
   "enabled the ryogami unit": "ryogami birimi etkin",
   "enabling limine-snapper-sync.service": "limine-snapper-sync.service etkinleştiriliyor",

@@ -5026,7 +5026,7 @@
   "enabled rashin at boot (the Super+S needle and AI dashboard); `ryoku-rashin disable` turns it off": "rashin включен при загрузке (Super+S и ИИ-панель); `ryoku-rashin disable` отключает его",
   "enabled snapper-cleanup.timer": "включен snapper-cleanup.timer",
   "enabled the AI usage collector timer": "включен таймер сбора статистики ИИ",
-  "enabled the NVIDIA sleep units so VRAM is preserved across suspend, matching the installer's contract": "enabled the NVIDIA sleep units so VRAM is preserved across suspend, matching the installer's contract",
+  "enabled the NVIDIA sleep units so VRAM is preserved across suspend, matching the installer's contract": "включены спящие режимы NVIDIA, поэтому видеопамять сохраняется при приостановке, в соответствии с контрактом установщика",
   "enabled the boot guard; a packaged update that cannot boot twice is reverted": "включена защита загрузки; обновление пакета которое не загружается дважды отменяется",
   "enabled the ryogami unit": "включена единица ryogami",
   "enabling limine-snapper-sync.service": "включение limine-snapper-sync.service",

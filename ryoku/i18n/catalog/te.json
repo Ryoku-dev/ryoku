@@ -2268,7 +2268,7 @@
   "NVIDIA driver in use but nouveau is not blacklisted / DRM modeset + fbdev not set; the GPU or an external display can fail to come up on some boots": "NVIDIA డ్రైవర్ ఉపయోగంలో కానీ nouveau బ్లాక్‌లిస్ట్‌లో లేదు / DRM modeset + fbdev సెట్ చేయబడలేదు; GPU లేదా బాహ్య డిస్‌ప్లే కొన్ని బూట్‌లలో విఫలమైవచ్చు",
   "NVIDIA drives everything": "NVIDIA ప్రతిదీ నడుపుతుంది",
   "NVIDIA modeset + fbdev + nouveau blacklist in place": "NVIDIA modeset + fbdev + nouveau బ్లాక్‌లిస్ట్ ఉంది",
-  "NVIDIA sleep units": "NVIDIA sleep units",
+  "NVIDIA sleep units": "NVIDIA స్లీప్ యూనిట్లు",
   "NVIDIA update guard hook": "NVIDIA అప్‌డేట్ గార్డ్ హుక్",
   "NVIDIA update guard hook in place": "NVIDIA అప్‌డేట్ గార్డ్ హుక్ ఉంది",
   "NVMe composite": "NVMe సమ్మిళితం",
