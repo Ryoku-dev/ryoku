@@ -248,6 +248,14 @@ if runuser -u "$TESTUSER" -- env "HOME=/home/$TESTUSER" ryoku track testing 2>/t
 fi
 grep -q "does not publish" /tmp/track.err || die "unexpected track refusal: $(cat /tmp/track.err)"
 grep -q "^Server = file://$OUT" /etc/pacman.conf || die "track rewrote a foreign [ryoku] Server line"
+if [[ $repo_name != ryoku ]]; then
+  # The probe's section must not outlive it: an unsynced [ryoku] (a local
+  # build's db is ryoku-local.db, so this section can never sync) makes every
+  # later pacman transaction abort with "could not find database", hiding real
+  # failures behind a test artifact.
+  sed -i "\|^\[ryoku\]$|,\|^Server = file://$OUT$|d" /etc/pacman.conf
+  grep -q "^\[ryoku\]$" /etc/pacman.conf && die "the ephemeral [ryoku] section survived its probe"
+fi
 
 # 8. the boot guard. the ryoku package ships the unit and the tmpfiles entry
 #    for the sessions' boot records; `ryoku boot-guard` with nothing pending is

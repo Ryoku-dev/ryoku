@@ -24,6 +24,8 @@ ryoku_deploy() {
   ryoku_deploy_packages          # pacman -S the desktop set (needs net)
   ryoku_seed_initcpio_hook       # the HOOKS-named trim hook, if that set never came
   ryoku_seed_keymap              # chosen kb_layout into the neutral store
+  ryoku_deploy_chown "$u"        # the store seed creates ~/.config as root; hand
+                                 # it to the user before materialize writes in it
   ryoku_deploy_materialize "$u"  # `ryoku materialize` as the user
   ryoku_deploy_seed "$h"         # unpackaged: brand, wallpapers, ~/.npmrc
   ryoku_deploy_chown "$u"        # own root-seeded files before the user steps
