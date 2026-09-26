@@ -133,7 +133,10 @@ while :; do
     export QYLOCK_PROOF_TOKEN="$proof_token"
     "$proof_helper" begin "$proof_token" "$session_id"
     attempt_started=$(date +%s%N)
-    if quickshell -p "$DIR/lock_shell.qml"; then
+    # The guard and generation flocks must not reach the client's tree: an
+    # inherited fd keeps the flock alive in any coprocess that outlives the
+    # client, and a stuck guard makes every later lock a silent no-op.
+    if (exec 7>&- 9>&-; exec quickshell -p "$DIR/lock_shell.qml"); then
         rc=0
     else
         rc=$?

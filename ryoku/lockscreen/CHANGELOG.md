@@ -53,6 +53,13 @@
   `ryoku-qylock-unlock-prepare`, `qylock/quickshell-lockscreen/lock.sh`,
   `qylock/quickshell-lockscreen/proof.sh`,
   `qylock/quickshell-lockscreen/unlock.sh`).
+- **The launch guard cannot outlive the lock.** lock.sh holds the session-scoped
+  guard and the launcher's generation lease as open fds, and quickshell passed
+  both into its coprocess tree; a watcher that survived a killed client kept the
+  inherited flocks, and every later lock then exited 0 with no screen. The
+  client is exec'd with those fds closed, so the guard belongs to the wrapper
+  alone and dies with it (`quickshell-lockscreen/lock.sh`,
+  `tests/qylock-lock-fd.sh`).
 - **The lockscreen's suspend action cannot bypass the secure handshake.**
   qylock's in-session SDDM shim used `systemctl suspend` directly; it now calls
   `ryoku-shell suspend`, which keeps the session sleep block held unless the

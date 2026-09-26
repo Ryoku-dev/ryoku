@@ -62,6 +62,7 @@ on:
       - 'tests/idle-policy.sh'
       - 'tests/power-cutover.sh'
       - 'tests/qylock-staging.sh'
+      - 'tests/qylock-lock-fd.sh'
       - 'ryoku/lockscreen/install-qylock'
       - 'ryoku/lockscreen/ryoku-qylock-*'
       - 'ryoku/lockscreen/qylock/quickshell-lockscreen/**'
@@ -110,6 +111,7 @@ on:
       - 'tests/idle-policy.sh'
       - 'tests/power-cutover.sh'
       - 'tests/qylock-staging.sh'
+      - 'tests/qylock-lock-fd.sh'
       - 'ryoku/lockscreen/install-qylock'
       - 'ryoku/lockscreen/ryoku-qylock-*'
       - 'ryoku/lockscreen/qylock/quickshell-lockscreen/**'
@@ -214,6 +216,10 @@ jobs:
       - name: Staged lockscreen and daemon activate as one generation
         shell: bash
         run: bash tests/qylock-staging.sh
+
+      - name: Lock guard fds stay out of the client tree
+        shell: bash
+        run: bash tests/qylock-lock-fd.sh
 
   loop-device:
     name: Dual-boot alongside partitioner (real loop device)

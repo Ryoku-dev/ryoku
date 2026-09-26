@@ -76,6 +76,13 @@
   or reboot (`shell/ipc/sleepwake.go`,
   `system/hardware/power/ryoku-idle`,
   `system/hardware/power/ryoku-clamshell`, `hyprland/modules/misc.lua`).
+- **A crashed lock client can no longer lock out later locks.** The wrapper's
+  launch guard and generation lease were open fds that quickshell inherited
+  into its coprocess tree; a watcher surviving a killed client kept holding the
+  flock, and every later lock then exited silently without a screen. The
+  client tree starts with both guard fds closed, so a stuck lock self-heals on
+  the next request on either compositor (`qylock/quickshell-lockscreen/lock.sh`,
+  `tests/qylock-lock-fd.sh`).
 - **niri draws the window border the user sized.** niri 26.04 keeps its border
   off unless the block carries an explicit `on`, so the sized border never drew
   and the thickness slider did nothing; per-app overrides resolve the same way
