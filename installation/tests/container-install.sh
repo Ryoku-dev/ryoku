@@ -312,9 +312,15 @@ done
 grep -qxF 'Exec = /usr/bin/ryoku-power-cutover prepare-package' \
   /usr/share/libalpm/hooks/94-ryoku-power-cutover-prepare.hook \
   || die "the packaged pre-transaction hook does not preserve its live-session executor"
-grep -qxF 'Exec = /run/ryoku-power-cutover package' \
+# The post hook execs the installed binary, which prefers the staged /run copy
+# when the pre-transaction hook ran and falls back to itself on the transaction
+# that first installs the pair (#272): asserting the /run path here would pin
+# the very bug that made first installs report a failed hook.
+grep -qxF 'Exec = /usr/bin/ryoku-power-cutover package' \
   /usr/share/libalpm/hooks/95-ryoku-power-cutover.hook \
-  || die "the packaged post-transaction hook does not run the preserved guarded adoption"
+  || die "the packaged post-transaction hook does not run the guarded adoption"
+grep -q 'RYOKU_CUTOVER_STAGED' /usr/bin/ryoku-power-cutover \
+  || die "the packaged cutover helper does not prefer the staged pre-upgrade copy"
 
 # 10. the other compositor variant. The testing channel ships one variant package
 #    per window manager and the base pulls whichever the virtual resolves to, so
