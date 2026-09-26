@@ -52,6 +52,14 @@ const (
 
 	ActionCursorSet Action = "cursor.set"
 
+	// ActionCursorReassert re-applies the store's resolved cursor theme to the
+	// live compositor with no settings save: recolored cursor images (the
+	// Material theme tracking a new palette) stay cached in the compositor's
+	// memory until the theme is set again, which is why a palette change looked
+	// like it never reached the pointer. No capability gate: a provider that
+	// cannot re-assert answers with an error its caller ignores.
+	ActionCursorReassert Action = "cursor.reassert"
+
 	// Transient live overrides, not persisted settings: the launcher suppresses
 	// focus-follows-mouse while it is open and restores it on close.
 	// ActionFocusFollowsMouse prints the PREVIOUS value so the caller can hand

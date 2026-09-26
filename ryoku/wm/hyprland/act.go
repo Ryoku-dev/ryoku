@@ -200,6 +200,11 @@ func runAct(args []string) error {
 		_, err = ctl("setcursor", theme, size)
 		return err
 
+	case wm.ActionCursorReassert:
+		o := loadStore(desktopStorePath())
+		_, err := ctl("setcursor", o.Cursor.Theme, strconv.Itoa(o.Cursor.Size))
+		return err
+
 	case wm.ActionScreenShader:
 		// A shader NAME, not a path: callers must not know the config layout.
 		// Empty clears.

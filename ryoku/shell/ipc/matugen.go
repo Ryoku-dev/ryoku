@@ -579,7 +579,15 @@ func (d *daemon) matugenApply(img string) error {
 	// matugen's post_hook (which runs only after every template has rendered). It
 	// reads the colors.json just written; a no-op unless the Material cursor is
 	// selected, and its own lock makes the post_hook's later run idempotent.
-	go func() { _ = runCommand("ryoku-cursor-material-recolor") }()
+	go func() {
+		if runCommand("ryoku-cursor-material-recolor") != nil {
+			return
+		}
+		// Recolored cursor images stay cached in the running compositor's
+		// memory; re-asserting the theme is what makes a palette change reach
+		// the pointer without a re-pick or a relogin.
+		_ = d.wmc.Act(wm.ActionCursorReassert)
+	}()
 
 	// And the tonal ramps behind those roles, from the same run.
 	if tones != nil {

@@ -357,3 +357,31 @@ func TestNightlightTempClamps(t *testing.T) {
 		}
 	}
 }
+
+// A palette change recolors the cursor images but the running compositor keeps
+// the old theme cached; cursor.reassert must set the store's resolved theme
+// (DYNAMIC included) without a settings save.
+func TestCursorReassertUsesResolvedStoreTheme(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	store := filepath.Join(dir, "ryoku", "desktop.json")
+	if err := os.MkdirAll(filepath.Dir(store), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `{"desktop":{"cursor":{"theme":"DYNAMIC","size":18}}}`
+	if err := os.WriteFile(store, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	done := stubCtl(t, func(args ...string) ([]byte, error) {
+		got = args
+		return nil, nil
+	})
+	defer done()
+	if err := runAct([]string{"cursor.reassert"}); err != nil {
+		t.Fatalf("cursor.reassert: %v", err)
+	}
+	if len(got) < 3 || got[0] != "setcursor" || got[1] == "" || got[1] == "DYNAMIC" || got[2] != "18" {
+		t.Fatalf("setcursor args = %v, want a resolved theme at size 18", got)
+	}
+}

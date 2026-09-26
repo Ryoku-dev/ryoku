@@ -62,6 +62,11 @@ func runAct(args []string) error {
 	}
 
 	switch act {
+	case wm.ActionCursorReassert:
+		// The cursor is a config block on niri: regenerating the tree is the
+		// re-assert, and niri watches its config file.
+		return runApply([]string{storePath()})
+
 	case wm.ActionWindowFocus:
 		id, err := argID(rest, 0, "window id")
 		if err != nil {
