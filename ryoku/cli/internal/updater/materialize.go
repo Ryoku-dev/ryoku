@@ -89,6 +89,55 @@ func keepsSwitchedAwayTree(rel string, shipped map[string]bool) bool {
 	return !shipped[dir]
 }
 
+// applyProvider renders one provider's generated config from the neutral
+// store; a var so tests stub the provider binary away.
+var applyProvider = func(name, store string) error {
+	_, err := wm.OpenNamed(name).Apply(store)
+	return err
+}
+
+// applyGenerated completes every laid-down compositor tree: the packages ship
+// only the static seeds, while the compositor hard-includes the files its
+// provider generates (niri's settings.kdl and rebinds.kdl, Hyprland's
+// settings.lua and rebinds.lua). A tree without them is a compositor that
+// refuses its own config at the next login, which is exactly what a
+// hyprland-to-niri switch produced: nothing between the switch and that login
+// ran the TARGET's apply, because every apply call elsewhere follows the
+// active provider. Materialize is the one call the login bootstrap, the
+// switch, and the update all share, so it renders each laid-down tree's
+// generated half here. The user_edits mirrors of those files are forks, not
+// generated state, so their absence means nothing. Best-effort per provider:
+// a tree whose provider binary is absent stays as it was, never a failed
+// materialize.
+func applyGenerated(configHome string) {
+	store := filepath.Join(configHome, "ryoku", "desktop.json")
+	if !sys.Exists(store) {
+		return // no neutral store to render from: the seeds are the right config
+	}
+	for _, name := range wm.Providers() {
+		dir := wm.ConfigDir(name)
+		if dir == "" || !sys.Exists(filepath.Join(configHome, dir)) {
+			continue // tree not laid down: nothing to complete
+		}
+		missing := false
+		for _, rel := range wm.GeneratedConfig(name) {
+			if d, _, ok := strings.Cut(rel, "/"); !ok || d != dir {
+				continue // a user_edits fork mirror, not generated state
+			}
+			if !sys.Exists(filepath.Join(configHome, rel)) {
+				missing = true
+				break
+			}
+		}
+		if !missing {
+			continue
+		}
+		if err := applyProvider(name, store); err != nil {
+			fmt.Printf(i18n.T("note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session\n"), name, err, name)
+		}
+	}
+}
+
 // Materialize lays the Ryoku-owned base configs into the user's ~/.config,
 // declaratively: every file the package ships under baseConfigDir() is
 // copied over (clobbering the previous Ryoku copy), files we shipped before
@@ -279,6 +328,7 @@ func Materialize() error {
 			fmt.Printf("  %s\n", rel)
 		}
 	}
+	applyGenerated(dest)
 	return nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"ryoku-cli/internal/sys"
+	wm "ryoku-wm"
 	"slices"
 	"strings"
 	"testing"
@@ -598,5 +599,94 @@ func TestMaterializeKeepsTheTreeOfASwitchedAwayCompositor(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dest, "niri/config.kdl")); !os.IsNotExist(err) {
 		t.Fatal("a dropped file inside a shipped tree must still prune")
+	}
+}
+
+// TestApplyGeneratedCompletesLaidTrees pins the switch-breaking gap: a
+// compositor hard-includes the files its provider generates, the packages ship
+// only the static seeds, and nothing between a hyprland-to-niri switch and the
+// first login of the target used to run that target's apply. Every name here
+// comes from the seam, so the test names no compositor.
+func TestApplyGeneratedCompletesLaidTrees(t *testing.T) {
+	providers := wm.Providers()
+	if len(providers) == 0 {
+		t.Skip("no providers in the seam")
+	}
+	primary := func(name string) []string {
+		dir := wm.ConfigDir(name)
+		var out []string
+		for _, rel := range wm.GeneratedConfig(name) {
+			if d, _, ok := strings.Cut(rel, "/"); ok && d == dir {
+				out = append(out, rel)
+			}
+		}
+		return out
+	}
+	// lay builds a config home: every provider's tree dir exists, the neutral
+	// store exists unless withStore is false, and the generated primaries are
+	// written for every provider except skipGenerated.
+	lay := func(t *testing.T, withStore bool, skipGenerated string) string {
+		t.Helper()
+		home := t.TempDir()
+		for _, name := range providers {
+			dir := wm.ConfigDir(name)
+			if dir == "" {
+				continue
+			}
+			if err := os.MkdirAll(filepath.Join(home, dir), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if name == skipGenerated {
+				continue
+			}
+			for _, rel := range primary(name) {
+				if err := os.WriteFile(filepath.Join(home, rel), []byte("// generated\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		if withStore {
+			if err := os.MkdirAll(filepath.Join(home, "ryoku"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(home, "ryoku", "desktop.json"), []byte("{}\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return home
+	}
+	run := func(t *testing.T, home string) []string {
+		t.Helper()
+		var calls []string
+		old := applyProvider
+		applyProvider = func(name, store string) error {
+			calls = append(calls, name)
+			return nil
+		}
+		t.Cleanup(func() { applyProvider = old })
+		applyGenerated(home)
+		return calls
+	}
+
+	incomplete := providers[0]
+	if got := run(t, lay(t, true, incomplete)); len(got) != 1 || got[0] != incomplete {
+		t.Fatalf("a laid tree without its generated files must be completed, got %v want %v", got, incomplete)
+	}
+	if got := run(t, lay(t, true, "")); len(got) != 0 {
+		t.Fatalf("complete trees must not re-apply, got %v", got)
+	}
+	home := lay(t, true, incomplete)
+	for _, name := range providers {
+		if dir := wm.ConfigDir(name); dir != "" {
+			if err := os.RemoveAll(filepath.Join(home, dir)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if got := run(t, home); len(got) != 0 {
+		t.Fatalf("absent trees must not be created, got %v", got)
+	}
+	if got := run(t, lay(t, false, incomplete)); len(got) != 0 {
+		t.Fatalf("no neutral store must not trigger an apply, got %v", got)
 	}
 }

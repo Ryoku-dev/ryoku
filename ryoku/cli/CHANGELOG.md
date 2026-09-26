@@ -40,6 +40,16 @@
   warnings, errors), animated only on a TTY; the full firehose still lands in
   `~/.local/state/ryoku/update-log.txt` and `--verbose` keeps the raw passthrough
   (`internal/updater/upgradelog.go`).
+- **A switched-to desktop no longer boots without its generated config.**
+  niri's config.kdl hard-includes settings.kdl and rebinds.kdl, and a missing
+  include is a hard niri config error, yet the packages ship only the static
+  seeds and every apply followed the ACTIVE provider: nothing between
+  `ryoku wm use niri` and the first niri login rendered the target's generated
+  half, so the switch laid a tree niri refuses to parse. Materialize, the one
+  call the login bootstrap, the switch and the update all share, now completes
+  every laid-down tree from the neutral store through the seam; a missing
+  user_edits mirror or a missing store triggers nothing, and an absent
+  provider binary notes instead of failing (`internal/updater/materialize.go`).
 - **Colours follow the wallpaper again on boxes the mono era left behind.**
   A theme.json with followWallpaper false and no locked palette is incoherent
   legacy state (the desktop sits on a static ramp while every surface claims
