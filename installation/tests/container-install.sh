@@ -283,14 +283,16 @@ ryoku boot-guard | grep -q "disarmed" || die "a proven boot must disarm the guar
 log "checking the lid/sleep policy drop-in"
 lid_conf=/etc/systemd/logind.conf.d/10-ryoku-lid.conf
 [[ -f $lid_conf ]] || die "ryoku-desktop did not ship $lid_conf"
-owner=$(pacman -Qo "$lid_conf" 2>&1) \
+owner=$(pacman -Qo "$lid_conf" 2>&1 | tail -1) \
   || die "$lid_conf is not owned by an installed package"
-if ! pacman -Ql ryoku-desktop | grep -qF "logind.conf.d/10-ryoku-lid.conf"; then
-  # Name the actual owner: a sibling package that shipped the same path claims
-  # it first and ryoku-desktop's copy is silently dropped, and the bare
-  # "does not claim" error could not tell that from a missing install line.
-  die "ryoku-desktop does not claim $lid_conf (owner: $owner)"
-fi
+# Drain pacman's list into a variable before matching: `pacman -Ql pkg | grep -q`
+# under pipefail is a flake, because grep exits at the first match, SIGPIPEs
+# pacman mid-write, and the pipeline reports failure on a package that does
+# claim the file.
+desktop_files=$(pacman -Ql ryoku-desktop) \
+  || die "pacman -Ql ryoku-desktop failed"
+[[ $desktop_files == *logind.conf.d/10-ryoku-lid.conf* ]] \
+  || die "ryoku-desktop does not claim $lid_conf (owner: $owner)"
 lid_cat=$(systemd-analyze cat-config systemd/logind.conf) \
   || die "systemd-analyze cat-config systemd/logind.conf failed in this container"
 grep -qxF "# $lid_conf" <<<"$lid_cat" \
