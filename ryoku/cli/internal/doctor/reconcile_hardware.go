@@ -54,7 +54,52 @@ func reconcileBacklight(_ bool) recResult {
 		}
 		return noteRes("%s", detail).withFix(fix)
 	}
+	if len(devs) > 1 {
+		// More than one backlight means one of them is a phantom on this
+		// hardware, and a brightness control that "only has off and full" is
+		// exactly what writing percentages to the wrong one looks like. Name
+		// the device every Ryoku writer targets and each candidate's current
+		// level, so the next report from such a box pinpoints it in one line.
+		pick := backlightPick()
+		if pick == "" {
+			pick = "-"
+		}
+		return noteRes(i18n.T("backlight: %s; Ryoku writes to %s (%s)"),
+			strings.Join(devs, ", "), pick, backlightLevels(devs))
+	}
 	return okRes(i18n.T("backlight: %s"), strings.Join(devs, ", "))
+}
+
+// backlightSysRoot is the sysfs root the backlight readings use; a var so the
+// level formatter is unit-tested against a fixture tree.
+var backlightSysRoot = "/sys/class/backlight"
+
+// backlightPick is the device every Ryoku brightness writer targets (the media
+// keys, the OSD daemon and the bar slider all call the same helper). Empty when
+// the helper is absent or cannot decide.
+var backlightPick = func() string {
+	out, err := sys.RunOut("ryoku-hw-backlight")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// backlightLevels renders "name cur/max" per device from sysfs, so a phantom
+// (stuck at max while the panel dims, or stuck at 0) is visible in the report.
+func backlightLevels(devs []string) string {
+	parts := make([]string, 0, len(devs))
+	for _, d := range devs {
+		read := func(attr string) string {
+			b, err := os.ReadFile(filepath.Join(backlightSysRoot, d, attr))
+			if err != nil {
+				return "?"
+			}
+			return strings.TrimSpace(string(b))
+		}
+		parts = append(parts, fmt.Sprintf("%s %s/%s", d, read("brightness"), read("max_brightness")))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // nvidiaBacklightDead: the kernel's own tell that the dGPU has no usable
