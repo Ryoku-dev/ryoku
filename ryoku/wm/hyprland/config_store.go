@@ -339,7 +339,7 @@ func defaultOverrides() Overrides {
 		Master:  Master{Mfact: 0.55, NewStatus: "slave", NewOnTop: false, Orientation: "left", SmartResizing: true},
 		Input: Input{
 			KbLayout: "us", KbVariant: "", KbOptions: "", NumlockByDefault: false,
-			FollowMouse: 2, Sensitivity: 0, AccelProfile: "",
+			FollowMouse: 1, Sensitivity: 0, AccelProfile: "",
 			LeftHanded: false, MouseNaturalScroll: false, MouseScrollFactor: 1,
 			MiddleClickPaste: true,
 			NaturalScroll:    false, TapToClick: true, TapAndDrag: true,

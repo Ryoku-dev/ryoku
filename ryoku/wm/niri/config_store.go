@@ -341,7 +341,7 @@ func defaultStore() niriStore {
 		},
 		Windows: Windows{TameMaximizeOnOpen: true},
 		Input: Input{
-			KbLayout: "us", NumlockByDefault: false, FollowMouse: 0,
+			KbLayout: "us", NumlockByDefault: false, FollowMouse: 1,
 			Sensitivity: 0, AccelProfile: "", LeftHanded: false,
 			MouseNaturalScroll: false, MouseScrollFactor: 1, MiddleClickPaste: true,
 			NaturalScroll: true, TouchScrollFactor: 1,
@@ -402,7 +402,7 @@ func defaultStore() niriStore {
 			WorkspaceShadowColor: "",
 			RecentWindows:        true,
 			WarpMouseToFocus:     "off",
-			FocusFollowScroll:    -1,
+			FocusFollowScroll:    0,
 			WorkspaceBackForth:   false,
 			ModKey:               "Super",
 			ModKeyNested:         "Super",

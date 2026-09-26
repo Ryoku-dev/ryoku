@@ -14,6 +14,14 @@
   state. Verified docked mode remains awake and every other close goes through
   the fail-closed suspend transaction; niri retains its native panel topology
   (`niri/lid.kdl`, `niri/config.kdl`).
+- **Focus follows the cursor by default on both desktops.** The neutral
+  store's input default moves to followMouse 1 ("Focus under pointer"), which
+  the Hyprland base module and the niri provider both ship, and niri caps the
+  scroll jump at 0% the way the iNiR reference config does, so a pointer
+  crossing onto a half-visible window never yanks the view. Boxes carrying the
+  retired detached default get healed once by ryoku doctor, and a deliberate
+  "Click to focus" pick afterwards sticks (`wm/hyprland`, `wm/niri`,
+  `hyprland/modules/input.lua`).
 - **One keybind catalogue for both compositors.** `wm/binds.go` names every
   shipped shortcut once (id, label, hint, category, default chord), and each
   provider's `binds` verb reports the full effective legend: what it bound,

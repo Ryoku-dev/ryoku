@@ -96,20 +96,20 @@ func TestRenderRebindsExpandsFamily(t *testing.T) {
 	}
 }
 
-// The shipped input.lua detaches keyboard focus from the pointer, and the
+// The shipped input.lua puts keyboard focus under the cursor, and the
 // diff-based config must not re-emit that default, or settings.lua would override
 // the shipped module with the same value for no reason.
 func TestDefaultFollowMouseMatchesShippedInput(t *testing.T) {
-	const detachedFocus = 2
-	if got := defaultOverrides().Input.FollowMouse; got != detachedFocus {
-		t.Fatalf("default input.follow_mouse = %d, want %d", got, detachedFocus)
+	const cursorFocus = 1
+	if got := defaultOverrides().Input.FollowMouse; got != cursorFocus {
+		t.Fatalf("default input.follow_mouse = %d, want %d", got, cursorFocus)
 	}
 	inputConfig, err := os.ReadFile(filepath.Join("..", "..", "hyprland", "modules", "input.lua"))
 	if err != nil {
 		t.Fatalf("read shipped input config: %v", err)
 	}
-	if !regexp.MustCompile(`(?m)^[[:space:]]*follow_mouse[[:space:]]*=[[:space:]]*2,[[:space:]]*$`).Match(inputConfig) {
-		t.Fatal("shipped input.lua must detach keyboard focus from pointer focus")
+	if !regexp.MustCompile(`(?m)^[[:space:]]*follow_mouse[[:space:]]*=[[:space:]]*1,[[:space:]]*$`).Match(inputConfig) {
+		t.Fatal("shipped input.lua must put keyboard focus under the cursor")
 	}
 	if config := genConfig(defaultOverrides(), false); strings.Contains(config, "follow_mouse =") {
 		t.Fatalf("default settings.lua overrides input.lua:\n%s", config)
