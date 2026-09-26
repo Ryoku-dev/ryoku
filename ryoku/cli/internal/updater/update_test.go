@@ -344,3 +344,42 @@ func TestConfigReloadResultAcceptsProviderWithoutReload(t *testing.T) {
 		t.Fatalf("live provider error was suppressed: %v", err)
 	}
 }
+
+func TestDbRejection(t *testing.T) {
+	cases := map[string]bool{
+		"error: failed to commit transaction (conflicting files)": false,
+		"could not satisfy dependencies":                          false,
+		"target not found: ryoku-desktop":                         false,
+		"ryoku.db: invalid or corrupted package":                  true,
+		"signature from repository is unknown":                    true,
+		"could not read db file":                                  true,
+	}
+	for msg, want := range cases {
+		if got := dbRejection(errors.New(msg)); got != want {
+			t.Fatalf("dbRejection(%q) = %v, want %v", msg, got, want)
+		}
+	}
+	if dbRejection(nil) {
+		t.Fatal("a nil error is not a database rejection")
+	}
+}
+
+func TestDropSplitMetasNotServed(t *testing.T) {
+	installed := map[string]bool{"ryoku-desktop-hyprland": true, "ryoku-desktop-niri": false}
+	var removed []string
+	oldI, oldR := splitMetaInstalled, splitMetaRemove
+	splitMetaInstalled = func(n string) bool { return installed[n] }
+	splitMetaRemove = func(n string) error { removed = append(removed, n); return nil }
+	t.Cleanup(func() { splitMetaInstalled, splitMetaRemove = oldI, oldR })
+
+	// A release that predates the split serves neither meta: the installed one
+	// goes, the absent one is untouched.
+	if got := dropSplitMetasNotServed(map[string]bool{"ryoku-desktop": true}); len(got) != 1 || got[0] != "ryoku-desktop-hyprland" {
+		t.Fatalf("across the split the installed meta must be dropped, got %v", got)
+	}
+	// A release that serves the metas keeps them.
+	removed = nil
+	if got := dropSplitMetasNotServed(map[string]bool{"ryoku-desktop-hyprland": true}); len(got) != 0 || len(removed) != 0 {
+		t.Fatalf("a served meta must stay, got %v removed %v", got, removed)
+	}
+}

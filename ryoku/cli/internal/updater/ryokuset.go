@@ -105,6 +105,21 @@ func installedRyokuSet(allowDowngrade bool) (set []string, skipped int, err erro
 	return kept, len(set) - len(kept), nil
 }
 
+// repoServedSet is the names the currently pointed [ryoku] repo serves, as a
+// set. installedRyokuSet already fails the run when the repo cannot be read, so
+// an empty set here only ever means the repo genuinely lacks the name.
+func repoServedSet() map[string]bool {
+	out := map[string]bool{}
+	names, err := sys.RunOut("pacman", "-Slq", ryokuRepo)
+	if err != nil {
+		return out
+	}
+	for _, n := range lines(names) {
+		out[n] = true
+	}
+	return out
+}
+
 // dropOlderServes removes every target whose [ryoku] serve is older than what
 // the box has installed. Each name gets two read-only exact-name queries:
 // `pacman -Qi` for the installed version and `pacman -Si ryoku/<name>` for the
