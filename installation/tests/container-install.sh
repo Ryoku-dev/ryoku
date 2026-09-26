@@ -283,10 +283,14 @@ ryoku boot-guard | grep -q "disarmed" || die "a proven boot must disarm the guar
 log "checking the lid/sleep policy drop-in"
 lid_conf=/etc/systemd/logind.conf.d/10-ryoku-lid.conf
 [[ -f $lid_conf ]] || die "ryoku-desktop did not ship $lid_conf"
-pacman -Qo "$lid_conf" >/dev/null 2>&1 \
+owner=$(pacman -Qo "$lid_conf" 2>&1) \
   || die "$lid_conf is not owned by an installed package"
-pacman -Ql ryoku-desktop | grep -qF "logind.conf.d/10-ryoku-lid.conf" \
-  || die "ryoku-desktop does not claim $lid_conf"
+if ! pacman -Ql ryoku-desktop | grep -qF "logind.conf.d/10-ryoku-lid.conf"; then
+  # Name the actual owner: a sibling package that shipped the same path claims
+  # it first and ryoku-desktop's copy is silently dropped, and the bare
+  # "does not claim" error could not tell that from a missing install line.
+  die "ryoku-desktop does not claim $lid_conf (owner: $owner)"
+fi
 lid_cat=$(systemd-analyze cat-config systemd/logind.conf) \
   || die "systemd-analyze cat-config systemd/logind.conf failed in this container"
 grep -qxF "# $lid_conf" <<<"$lid_cat" \
