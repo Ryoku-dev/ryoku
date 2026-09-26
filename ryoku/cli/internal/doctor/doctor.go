@@ -208,6 +208,7 @@ func reconcilers() []reconciler {
 		{i18n.T("display backlight"), reconcileBacklight},
 		{i18n.T("discrete GPU idle drain"), reconcileDgpuPanel},
 		{i18n.T("stale GPU render pin"), reconcileGpuPin},
+		{i18n.T("render pin vs panel driver"), reconcileRenderPinPanel},
 		{i18n.T("power profiles vs AMD GPU"), reconcilePpdAmdgpu},
 		{i18n.T("display resolution"), reconcileDisplayModes},
 		{i18n.T("phantom Wayland output"), reconcilePhantomOutput},
