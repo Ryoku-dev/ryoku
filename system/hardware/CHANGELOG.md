@@ -11,6 +11,14 @@
   `tests/monitor-custom-mode.sh`.
 
 ### Fixed
+- `power/ryoku-power-cutover`: **a killed generation guard releases its
+  locks.** The hold keeps the launch and generation flocks exclusive while a
+  cutover swaps lockscreen generations, and its keep-alive coprocess inherited
+  both descriptors; a holder killed mid-swap left an orphaned sleep pinning
+  the locks, and every later cutover waited on the guard forever. The
+  keep-alive now starts without the lock fds, so the flocks belong to the
+  holder alone and die with it (`tests/power-cutover.sh` covers the kill and
+  the reacquire).
 - `power/ryoku-clamshell`: **every lid close has one fail-closed owner.** The
   daemon holds `handle-lid-switch` only while its login1 session is active and
   reacquires it after activity changes or a login1 restart. Hyprland's close

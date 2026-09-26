@@ -98,6 +98,11 @@
   package.
 
 ### Fixed
+- `hardware/power/ryoku-power-cutover`: a killed generation guard releases
+  its locks. The hold's keep-alive coprocess inherited the launch and
+  generation flock fds, so a holder killed mid-swap left the locks pinned by
+  an orphan and every later cutover waited on the guard forever
+  (`tests/power-cutover.sh`).
 - `hardware/power/logind-ryoku-lid.conf`: raise `InhibitDelayMaxSec` to 15s.
   The always-on shell daemon holds a `sleep` delay inhibitor across suspend while
   it puts a secure lock up, and logind's 5s default expired first on a Quickshell
