@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Fixed
+- **Converting a box that runs oh-my-zsh-git no longer dies at the desktop
+  transaction.** ryoku-oh-my-zsh provides and replaces both upstream
+  frameworks, but a plain removal under --noconfirm refuses while an installed
+  plugin package depends on oh-my-zsh-git, and the resulting dependency conflict
+  aborted the whole desktop install ("la preparation de la transaction a
+  echoue"). The conflict step now drops the upstream framework with -Rdd first;
+  its plugins re-resolve against ryoku-oh-my-zsh's provides in the same install
+  step, and the undo script puts the framework back. Rebuilt the committed
+  binary + checksum.
+
+### Fixed
 - **Converting a box no longer aborts on the Plymouth splash theme.**
   `ryoku-desktop` owns `/usr/share/plymouth/themes/ryoku/`, so a resume after a
   killed run, a box carrying an older Ryoku deploy, or the ISO installer's seeded

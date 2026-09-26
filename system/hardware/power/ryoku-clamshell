@@ -688,7 +688,7 @@ lock_holder_pids() {
   for p in /proc/[0-9]*; do
     p=${p#/proc/}
     [[ $p == "$$" ]] && continue
-    for fd in /proc/$p/fd/*; do
+    for fd in /proc/"$p"/fd/*; do
       target=$(readlink "$fd" 2>/dev/null) || continue
       [[ $target == "$lock" ]] && { printf '%s\n' "$p"; break; }
     done
@@ -706,7 +706,7 @@ reclaim_stale_clamshell_lock() {
   # Rounds, not one pass: killing a leaked holder does not close the lock fd in
   # the children that inherited it, and an inherited fd pins the flock exactly
   # as well as the original.
-  for round in 1 2 3; do
+  for (( round = 1; round <= 3; round++ )); do
     live=""
     holders=""
     while read -r p; do

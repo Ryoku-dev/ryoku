@@ -737,6 +737,21 @@ func stepConflicts(e *engine) error {
 			}
 		}
 	}
+	if len(e.f.zshFrameworkPkgs) > 0 {
+		// ryoku-oh-my-zsh provides and replaces both upstream frameworks, but a
+		// plain -R under --noconfirm refuses while an installed plugin package
+		// depends on oh-my-zsh-git, and the dependency conflict then aborts the
+		// whole desktop transaction. -Rdd drops the framework alone; its plugins
+		// re-resolve against ryoku-oh-my-zsh's provides in the install step.
+		e.say(i18n.Tf("replacing %s with the Ryoku zsh framework", strings.Join(e.f.zshFrameworkPkgs, " ")))
+		if err := e.sudo(append([]string{"pacman", "-Rdd", "--noconfirm"}, e.f.zshFrameworkPkgs...)...); err != nil {
+			e.say(i18n.Tf("warning: could not remove %s; the package step may abort on a dependency conflict", strings.Join(e.f.zshFrameworkPkgs, " ")))
+		} else {
+			for _, p := range e.f.zshFrameworkPkgs {
+				e.recordRestore("sudo pacman -S --asdeps " + p)
+			}
+		}
+	}
 	if len(e.f.blockerPkgs) > 0 {
 		// pacman --noconfirm answers conflict prompts with No and aborts, so
 		// packages that conflict with the desktop set (pulseaudio vs

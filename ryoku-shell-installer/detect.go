@@ -41,31 +41,32 @@ type facts struct {
 	otherNet  []string // enabled network stacks other than NetworkManager
 	nmEnabled bool
 
-	aurHelper     string
-	rivalPkgs     []string // conflicting shell packages installed
-	blockerPkgs   []string // packages that abort the pacman transaction if left
-	omarchyRepo   bool     // [omarchy] stanza in pacman.conf
-	omarchyMirror bool     // mirrorlist pinned to Omarchy's package mirror
-	omarchyGuards []string // Omarchy alpm hooks that abort any direct -Syu
-	softUnits     []string // enabled user units that fight the shell
-	niriFound     bool
-	swayFound     bool         // sway config present; sway stays as a fallback session
-	desktops      []string     // installed desktop environments (kept, never removed)
-	kdeSddmConf   bool         // KDE's sddm-kcm drop-in owns /etc/sddm.conf.d
-	monOutputs    []niriOutput // monitor intent salvaged from the old setup
-	monSource     string       // config the outputs came from (niri, GNOME, KDE, ...)
-	kbLayout      string
-	kbVariant     string
-	kbOptions     string
-	kbSource      string // config the keyboard setup came from
-	userShell     string
-	ryokuOnBox    bool // ryoku-desktop already installed
-	hostname      string
-	username      string
-	homeDir       string
-	hyprCfgDirs   []string  // pre-existing ~/.config/{hypr,quickshell,niri}
-	riceFound     []string  // known hyprland rices detected by marker paths
-	prevRun       *runState // interrupted earlier run, offered as a resume
+	aurHelper        string
+	rivalPkgs        []string // conflicting shell packages installed
+	blockerPkgs      []string // packages that abort the pacman transaction if left
+	zshFrameworkPkgs []string // upstream oh-my-zsh installs ryoku-oh-my-zsh replaces
+	omarchyRepo      bool     // [omarchy] stanza in pacman.conf
+	omarchyMirror    bool     // mirrorlist pinned to Omarchy's package mirror
+	omarchyGuards    []string // Omarchy alpm hooks that abort any direct -Syu
+	softUnits        []string // enabled user units that fight the shell
+	niriFound        bool
+	swayFound        bool         // sway config present; sway stays as a fallback session
+	desktops         []string     // installed desktop environments (kept, never removed)
+	kdeSddmConf      bool         // KDE's sddm-kcm drop-in owns /etc/sddm.conf.d
+	monOutputs       []niriOutput // monitor intent salvaged from the old setup
+	monSource        string       // config the outputs came from (niri, GNOME, KDE, ...)
+	kbLayout         string
+	kbVariant        string
+	kbOptions        string
+	kbSource         string // config the keyboard setup came from
+	userShell        string
+	ryokuOnBox       bool // ryoku-desktop already installed
+	hostname         string
+	username         string
+	homeDir          string
+	hyprCfgDirs      []string  // pre-existing ~/.config/{hypr,quickshell,niri}
+	riceFound        []string  // known hyprland rices detected by marker paths
+	prevRun          *runState // interrupted earlier run, offered as a resume
 }
 
 // rival quickshell stacks; ordered meta -> shell -> runtime so pacman removal
@@ -280,6 +281,11 @@ func detect() *facts {
 		for _, p := range conflictBlockerPkgs {
 			if pacmanHas(p) {
 				f.blockerPkgs = append(f.blockerPkgs, p)
+			}
+		}
+		for _, p := range []string{"oh-my-zsh", "oh-my-zsh-git"} {
+			if pacmanHas(p) {
+				f.zshFrameworkPkgs = append(f.zshFrameworkPkgs, p)
 			}
 		}
 		f.ryokuOnBox = pacmanHas("ryoku-desktop")
