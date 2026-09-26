@@ -1685,7 +1685,21 @@ user_cutover() {
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   case "${1:-}" in
     prepare-package) prepare_package ;;
-    package) root_cutover ;;
+    package)
+      # The staged copy in /run is the pre-upgrade code the transaction started
+      # under, so a live session is cut over by the logic it began with. On the
+      # transaction that FIRST installs this hook pair the staging
+      # PreTransaction hook is not on disk yet, /run/ryoku-power-cutover never
+      # appears, and execv-ing it fails the hook (#272): fall back to the
+      # just-installed binary, which is the same code staging would copy.
+      # RYOKU_CUTOVER_STAGED stops a staged copy of THIS code from exec-ing
+      # itself; an older staged copy ignores the variable and runs its own
+      # root_cutover, so every old/new combination terminates.
+      if [[ -z ${RYOKU_CUTOVER_STAGED:-} && -x /run/ryoku-power-cutover ]]; then
+        RYOKU_CUTOVER_STAGED=1 exec /run/ryoku-power-cutover package
+      fi
+      root_cutover
+      ;;
     package-deferred) deferred_cutover ;;
     user) user_cutover ;;
     wait-qylock) wait_qylock_cutover ;;

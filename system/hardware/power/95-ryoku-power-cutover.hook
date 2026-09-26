@@ -8,4 +8,4 @@ Target = usr/bin/ryoku-clamshell
 [Action]
 Description = Adopting Ryoku sleep and lid policy for live sessions...
 When = PostTransaction
-Exec = /run/ryoku-power-cutover package
+Exec = /usr/bin/ryoku-power-cutover package
