@@ -22,6 +22,11 @@ Item {
     anchors.fill: parent
 
     property string scope: "desktop"   // desktop | clock
+    // The owning Desktop surface. The menu's actions target the screen it was
+    // opened on; the compositor's focused output can be another monitor (or
+    // resolve to no slice at all), which made the editors a silent no-op or
+    // opened them on the wrong screen.
+    property var desktop: null
 
     readonly property bool isWidget: menu.scope !== "desktop"
     readonly property bool isClock: menu.scope === "clock"
@@ -129,9 +134,14 @@ Item {
         Config.set("musicVideo", d[(d.indexOf(Config.musicVideo) + 1) % d.length]);
     }
     // The three editors and the visualizer's own editor (docs/stage.md, "The
-    // desktop right-click menu"). Sessions open on the monitor the menu is on.
+    // desktop right-click menu"). Sessions open on the monitor the menu is on:
+    // the owning desktop's screen, falling back to the focused output only if
+    // the menu was built without one.
+    function targetState() {
+        return menu.desktop ? menu.desktop.stageState : Services.ShellState.forActive();
+    }
     function activeMonitor() {
-        const st = Services.ShellState.forActive();
+        const st = menu.targetState();
         return (st && st.modelData) ? st.modelData.name : "";
     }
     function editWidgets() {
@@ -145,7 +155,7 @@ Item {
         menu.close();
     }
     function customizeVisualizer() {
-        const st = Services.ShellState.forActive();
+        const st = menu.targetState();
         if (!st)
             return;
         if (!VizCfg.Config.enabled)

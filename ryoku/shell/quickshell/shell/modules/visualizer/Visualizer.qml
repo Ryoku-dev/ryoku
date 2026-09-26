@@ -108,14 +108,25 @@ Item {
                     required property int index
                     anchors.fill: parent
                     cfg: VizItem { data: Config.dataAt(vizView.index) }
+                    // The first read of activeView happens while the Repeater is
+                    // still empty; delegate creation changes neither count nor
+                    // the active index, so this is the only signal that re-fires
+                    // the binding once the views exist.
+                    Component.onCompleted: root.viewsReady++
                 }
             }
         }
     }
 
     // The active view, for the placement overlay to frame and colour-match.
+    // `viewsReady` is bumped by each delegate once it exists: the first read of
+    // this binding happens while the Repeater is still empty, and delegate
+    // creation changes neither `rep.count` nor `Config.active`, so without that
+    // signal the binding latches null and the Placer never loads.
+    property int viewsReady: 0
     readonly property Item activeView: {
-        rep.count;   // rebuild the binding when the delegates change
+        root.viewsReady;   // rebuild the binding when delegates appear
+        rep.count;         // rebuild the binding when the delegates change
         return rep.itemAt(Config.active);
     }
 

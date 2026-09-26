@@ -1014,7 +1014,7 @@ Scope {
                 root.openWidgetMenu(p[0], p[1], p[2]);
             }
             sourceComponent: Component {
-                WidgetMenu {}
+                WidgetMenu { desktop: root }
             }
         }
 
