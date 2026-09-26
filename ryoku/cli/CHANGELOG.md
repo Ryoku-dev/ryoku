@@ -40,6 +40,13 @@
   warnings, errors), animated only on a TTY; the full firehose still lands in
   `~/.local/state/ryoku/update-log.txt` and `--verbose` keeps the raw passthrough
   (`internal/updater/upgradelog.go`).
+- **Colours follow the wallpaper again on boxes the mono era left behind.**
+  A theme.json with followWallpaper false and no locked palette is incoherent
+  legacy state (the desktop sits on a static ramp while every surface claims
+  to follow the wallpaper), most visible on niri where no Hyprland decoration
+  regen masks it. A one-time reconciler restores the follow default; a locked
+  palette, or follow turned off afterwards, is a choice and stands
+  (`internal/doctor/reconcile_theme_follow.go`).
 
 ### Changed
 - **`ryoku update` adopts the sleep policy as a guarded transaction.** Stage
