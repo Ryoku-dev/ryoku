@@ -96,10 +96,23 @@ QtObject {
     if (_activeDownloads[wallhavenId]) return
 
     var urlObj
-    try { urlObj = new URL(fullUrl) } catch(e) { return }
-    if (urlObj.protocol !== "https:") return
+    try {
+        urlObj = new URL(fullUrl)
+    } catch (e) {
+        console.warn("[WH] download refused: unparseable url id=" + wallhavenId)
+        return
+    }
+    if (urlObj.protocol !== "https:") {
+        console.warn("[WH] download refused: not https id=" + wallhavenId + " url=" + fullUrl)
+        return
+    }
     var hostOk = _allowedHosts.some(function(h) { return urlObj.hostname === h })
-    if (!hostOk) return
+    if (!hostOk) {
+        // A silent refusal here is indistinguishable from a dead network in a
+        // user report; name the host so a changed wallhaven CDN is visible.
+        console.warn("[WH] download refused: host not allowlisted id=" + wallhavenId + " host=" + urlObj.hostname)
+        return
+    }
 
     var ext = fullUrl.split(".").pop().split("?")[0].toLowerCase()
     if (!_allowedExts[ext]) ext = "jpg"
