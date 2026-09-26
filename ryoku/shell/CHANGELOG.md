@@ -3,6 +3,15 @@
 ## Unreleased
 
 ### Added
+- **The warm screen and the palette can follow the real sun.** The night
+  light grew a "Follow the sun" switch and an edge margin: it warms the screen
+  from sunset+margin until sunrise-margin using the sunrise/sunset the weather
+  poll already computes for your location, and a manual toggle is honoured
+  until the next edge instead of being fought every tick (`ipc/nightlight.go`,
+  `ipc/nightlight_schedule.go`, `ipc/sun.go`). The theme Mode grew a "Sun"
+  choice beside Dark/Light/Smart: light between sunrise and sunset, dark
+  outside, independent of what the wallpaper depicts -- a daytime video that
+  samples dark no longer forces a dark desktop at noon (issues #262, #263).
 
 - **Palette Bridge rides the wallpaper palette to your apps.** A small local
   event server publishes the current matugen palette over HTTP so Spicetify,

@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- **The Cursor motion plugin says what it costs on NVIDIA.** Realistic
+  cursor motion forces software cursor rendering, which reports say stutters
+  when the pointer crosses monitors; the plugin's own card now carries that
+  caveat whenever an NVIDIA driver is active, so the lag has a named suspect
+  before a user hunts for it (issues #257, #259).
 - **niri handles both laptop-lid edges natively.** The niri tree gained
   `niri/lid.kdl`: `lid-close` and `lid-open` switch events feed the shared
   clamshell owner, so an open can cancel a close still waiting on dock or power

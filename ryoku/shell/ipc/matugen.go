@@ -201,13 +201,17 @@ func smartMode(luma float64) string {
 }
 
 // resolveMode turns the mode knob into a concrete light/dark for matugen: an
-// explicit light/dark passes through; "smart" (or anything else) follows the
-// wallpaper's luminance. For a clip that is the whole run, not the sampled
-// frame: one bright second in a dark wallpaper used to turn the desktop white.
+// explicit light/dark passes through; "sun" follows the real day/night window
+// the weather poll publishes (sun.go), independent of what the wallpaper
+// depicts; "smart" (or anything else) follows the wallpaper's luminance. For a
+// clip that is the whole run, not the sampled frame: one bright second in a
+// dark wallpaper used to turn the desktop white.
 func resolveMode(mode, img string) string {
 	switch mode {
 	case "light", "dark":
 		return mode
+	case "sun":
+		return sunMode(img)
 	}
 	var luma float64
 	var ok bool
@@ -221,6 +225,23 @@ func resolveMode(mode, img string) string {
 		return "dark"
 	}
 	return smartMode(luma)
+}
+
+// sunMode resolves the "sun" mode: light between sunrise and sunset, dark
+// outside. The times come from the weather poll (the same location-correct
+// data the weather widget shows), so a "daytime" video that samples dark no
+// longer forces a dark theme at noon. Until the first frame lands there is no
+// window to follow, and the wallpaper's own luminance is the honest fallback:
+// the box behaves like "smart" for the minutes it has no sun data.
+func sunMode(img string) string {
+	sunrise, sunset, ok := daySun.window()
+	if !ok {
+		return resolveMode("smart", img)
+	}
+	if isDaytime(time.Now(), sunrise, sunset) {
+		return "light"
+	}
+	return "dark"
 }
 
 // videoLuma: a clip's mean luma over its first minute, sampled a frame a second
@@ -1658,6 +1679,38 @@ func writeKittyFont(mono string, size int) {
 	}
 	body := "font_family " + mono + "\nfont_size " + strconv.Itoa(size) + "\n"
 	_ = os.WriteFile(filepath.Join(dir, "current-font.conf"), []byte(body), 0o644)
+}
+
+// watchSunMode retints the desktop when the day/night edge crosses while the
+// mode knob is "sun": resolveMode only runs on a theme pass, and nothing else
+// wakes one at sunrise/sunset. The check compares the resolved value, so a
+// re-observed sun window that does not flip light/dark costs nothing. The
+// cadence matches the night light schedule's: sun times are whole minutes and
+// a few minutes of drift at the edge is invisible next to twilight.
+func (d *daemon) watchSunMode() {
+	last := ""
+	for range time.Tick(nlTickEvery) {
+		if readMatugenKnobs().Mode != "sun" {
+			last = ""
+			continue
+		}
+		sunrise, sunset, ok := daySun.window()
+		if !ok {
+			continue // no window yet: the smart fallback only flips on a real theme pass
+		}
+		got := "dark"
+		if isDaytime(time.Now(), sunrise, sunset) {
+			got = "light"
+		}
+		if last == "" {
+			last = got
+			continue
+		}
+		if got != last {
+			last = got
+			d.scheduleTheme()
+		}
+	}
 }
 
 // watchMatugenKnobs retints the desktop whenever the knob store changes, so a Hub

@@ -33,6 +33,10 @@ const nlDefaultTemp = 4000
 // has no night-light capability, so the caller reports the absence by name.
 var errNightlightUnavailable = errors.New("night light is not available on this desktop")
 
+// errNightlightSchedule rejects an unknown schedule mode by name so a UI bug
+// cannot silently disable the follow-the-sun window.
+var errNightlightSchedule = errors.New("night light schedule mode must be off or sun")
+
 type nightlightState struct {
 	topic    *stateTopic
 	wmc      *wm.Client
@@ -44,6 +48,16 @@ type nightlightState struct {
 	// rather than leaving the night light dead for the daemon's whole life.
 	mu      sync.Mutex
 	process string
+
+	// schedMu guards the schedule: mode ("off" | "sun") and the margin in
+	// minutes applied around each sunrise/sunset edge. schedLastDesire is the
+	// last state the schedule asked for, so a manual toggle is honoured until
+	// the next edge instead of being fought every tick.
+	schedMu         sync.Mutex
+	schedMode       string
+	schedMarginMin  int
+	schedFile       string
+	schedLastDesire bool
 }
 
 // nightlightPaths derives the script's state files from XDG_STATE_HOME. The
@@ -67,18 +81,42 @@ func nightlightPaths() (dir, temp string) {
 // intents return errNightlightUnavailable and the frame stays off.
 func (d *daemon) startNightlight() {
 	dir, temp := nightlightPaths()
-	n := &nightlightState{topic: d.registerTopic("nightlight"), wmc: d.wmc, stateDir: dir, tempFile: temp}
+	n := &nightlightState{
+		topic:          d.registerTopic("nightlight"),
+		wmc:            d.wmc,
+		stateDir:       dir,
+		tempFile:       temp,
+		schedFile:      filepath.Join(dir, "ryoku-nightlight-schedule.json"),
+		schedMode:      nlSchedOff,
+		schedMarginMin: nlDefaultMarginMin,
+	}
+	n.loadSchedule()
 
 	d.registerCall("nightlight.toggle", func(json.RawMessage) (any, error) {
 		return nil, n.intent("toggle")
 	})
 	d.registerCall("nightlight.set", func(raw json.RawMessage) (any, error) {
 		var a struct {
-			On          *bool `json:"on"`
-			Temperature int   `json:"temperature"`
+			On          *bool   `json:"on"`
+			Temperature int     `json:"temperature"`
+			Schedule    *string `json:"schedule"`
+			MarginMin   *int    `json:"marginMin"`
 		}
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return nil, err
+		}
+		// The schedule and the manual toggle are independent writes: a UI that
+		// only flips on/off never sends schedule fields, and setting the
+		// schedule never overrides the user's current on/off choice.
+		if a.Schedule != nil {
+			if err := n.setSchedule(*a.Schedule, a.MarginMin); err != nil {
+				return nil, err
+			}
+			n.tickSchedule()
+			n.publish(n.running())
+			if a.On == nil {
+				return map[string]any{"ok": true, "schedule": n.scheduleMode()}, nil
+			}
 		}
 		if a.On != nil && *a.On {
 			if a.Temperature > 0 {
@@ -86,7 +124,10 @@ func (d *daemon) startNightlight() {
 			}
 			return nil, n.intent("on")
 		}
-		return nil, n.intent("off")
+		if a.On != nil {
+			return nil, n.intent("off")
+		}
+		return map[string]any{"ok": true, "schedule": n.scheduleMode()}, nil
 	})
 
 	if dir == "" {
@@ -94,6 +135,7 @@ func (d *daemon) startNightlight() {
 		return
 	}
 	go n.watch()
+	go n.runSchedule()
 }
 
 // backend resolves the provider's night-light process name from caps and caches
@@ -253,9 +295,14 @@ func (n *nightlightState) publish(on bool) {
 	if n.topic == nil {
 		return
 	}
+	n.schedMu.Lock()
+	margin := n.schedMarginMin
+	n.schedMu.Unlock()
 	frame, err := json.Marshal(map[string]any{
 		"on":          on,
 		"temperature": n.savedTemp(),
+		"schedule":    n.scheduleMode(),
+		"marginMin":   margin,
 	})
 	if err != nil {
 		return

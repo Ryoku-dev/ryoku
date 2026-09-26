@@ -21,6 +21,17 @@ type sunState struct {
 	observed bool
 }
 
+// daySun is the package-wide window: the daemon's own state (d.sun) points at
+// it, and the theme path (which resolves the mode without a daemon handle)
+// reads it directly. One box, one location, one window.
+var daySun = &sunState{}
+
+// windowObserved reports whether a sun window has ever been observed.
+func (s *sunState) windowObserved() bool {
+	_, _, ok := s.window()
+	return ok
+}
+
 // observe records a day's sunrise and sunset from the raw forecast strings
 // (local ISO, "2006-01-02T15:04"). A day the strings cannot be parsed for is
 // skipped rather than half-recorded.

@@ -300,7 +300,7 @@ func runDaemon() error {
 		hiddenSince: map[string]time.Time{},
 		lastFail:    map[string]string{},
 		wmc:         wmc,
-		sun:         &sunState{},
+		sun:         daySun,
 	}
 	d.ln = ln
 	d.lock = lock // held for the process lifetime: closing it would free the guard
@@ -437,6 +437,7 @@ func (d *daemon) bootstrap() {
 	d.startPowerProfiles()
 	d.startNetwork()
 	d.startNightlight()
+	go d.watchSunMode()
 	d.startOsd()
 	d.prompter = startKeyringPrompter()
 	if d.prompter != nil {

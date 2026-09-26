@@ -854,7 +854,37 @@ func describePlugin(d pluginDef, o Overrides, target hyprABI, loaded map[string]
 			info.Detail = "Installed. Turn it on and Save to load it."
 		}
 	}
+	if d.ID == "dynamic-cursors" {
+		if note := dynamicCursorsNote(info.Loaded, nvidiaGPU()); note != "" {
+			info.Detail += " " + note
+		}
+	}
 	return info
+}
+
+// dynamicCursorsNote is the honest caveat for the one plugin with a known
+// cost on NVIDIA: it forces software cursor rendering, which reports say
+// stutters when the pointer crosses monitors (#257, #259). Surfacing it on
+// the plugin's own card beats shipping the surprise silently.
+func dynamicCursorsNote(loaded, nvidia bool) string {
+	if !nvidia {
+		return ""
+	}
+	if loaded {
+		return "On NVIDIA this plugin renders the cursor in software, which can stutter when the pointer crosses monitors: turn it off if the desktop feels laggy."
+	}
+	return "On NVIDIA this plugin forces software cursor rendering and can stutter across monitors."
+}
+
+// nvidiaGPU reports an active NVIDIA driver by its device nodes, the same
+// signal ryoku-gpu-detect reads; no subprocess.
+func nvidiaGPU() bool {
+	for _, dev := range []string{"/dev/nvidia0", "/dev/nvidiactl"} {
+		if _, err := os.Stat(dev); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func settingsEqual(a, b []detectedSetting) bool {

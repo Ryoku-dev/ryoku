@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestMatugenArgs pins the argv the pipeline hands matugen for each knob
@@ -1358,4 +1359,47 @@ func TestPaletteBorderColors(t *testing.T) {
 	if !ok || active != "#12ab34" || inactive != "#010203" {
 		t.Fatalf("paletteBorderColors() = (%q,%q,%v), want (#12ab34,#010203,true)", active, inactive, ok)
 	}
+}
+
+// The "sun" mode follows the real day/night window, not the wallpaper: a dark
+// wallpaper inside the window resolves light, outside it resolves dark, and a
+// box with no observed window falls back to the wallpaper's own luminance (the
+// smart rule), never a guess.
+func TestResolveModeSunFollowsTheWindow(t *testing.T) {
+	home := t.TempDir()
+	darkPNG := filepath.Join(home, "dark.png")
+	writeSolidPNG(t, darkPNG, 12)
+
+	withWindow := func(offset, span time.Duration, fn func()) {
+		t.Helper()
+		prev := daySun
+		now := time.Now()
+		daySun = &sunState{sunrise: now.Add(offset), sunset: now.Add(offset + span), observed: true}
+		defer func() { daySun = prev }()
+		fn()
+	}
+	t.Run("inside the window is light on a dark wallpaper", func(t *testing.T) {
+		withWindow(-time.Hour, 2*time.Hour, func() {
+			if got := resolveMode("sun", darkPNG); got != "light" {
+				t.Errorf("resolveMode(sun) inside the window = %q, want light", got)
+			}
+		})
+	})
+	t.Run("outside the window is dark on a light wallpaper", func(t *testing.T) {
+		lightPNG := filepath.Join(home, "light.png")
+		writeSolidPNG(t, lightPNG, 240)
+		withWindow(time.Hour, 2*time.Hour, func() {
+			if got := resolveMode("sun", lightPNG); got != "dark" {
+				t.Errorf("resolveMode(sun) outside the window = %q, want dark", got)
+			}
+		})
+	})
+	t.Run("no window falls back to the wallpaper", func(t *testing.T) {
+		prev := daySun
+		daySun = &sunState{}
+		defer func() { daySun = prev }()
+		if got := resolveMode("sun", darkPNG); got != "dark" {
+			t.Errorf("resolveMode(sun) without a window = %q, want the smart fallback dark", got)
+		}
+	})
 }
