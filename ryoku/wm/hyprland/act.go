@@ -144,7 +144,16 @@ func runAct(args []string) error {
 		if state != "on" && state != "off" {
 			return fmt.Errorf("act %s: state must be on or off, got %q", action, state)
 		}
-		expr := `hl.dsp.dpms({ state = ` + luaStr(state)
+		// Hyprland's Lua dispatcher reads the toggle field named `action`, with
+		// values enable, disable or toggle. A `state` key is silently ignored, so
+		// an explicit on request could leave the display off. Map on/off here.
+		toggle := "toggle"
+		if state == "on" {
+			toggle = "enable"
+		} else {
+			toggle = "disable"
+		}
+		expr := `hl.dsp.dpms({ action = ` + luaStr(toggle)
 		if len(rest) > 1 && rest[1] != "" {
 			expr += `, monitor = ` + luaStr(rest[1])
 		}

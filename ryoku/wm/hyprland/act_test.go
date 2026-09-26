@@ -43,8 +43,10 @@ func TestActEmitsLuaDialect(t *testing.T) {
 			[]string{"dispatch", `hl.dsp.workspace.toggle_special("sharebar")`}},
 		{"session exit", []string{"session.exit"},
 			[]string{"dispatch", `hl.dsp.exit()`}},
-		{"output power", []string{"output.power", "off", "eDP-2"},
-			[]string{"dispatch", `hl.dsp.dpms({ state = "off", monitor = "eDP-2" })`}},
+		{"output power off", []string{"output.power", "off", "eDP-2"},
+			[]string{"dispatch", `hl.dsp.dpms({ action = "disable", monitor = "eDP-2" })`}},
+		{"output power on", []string{"output.power", "on"},
+			[]string{"dispatch", `hl.dsp.dpms({ action = "enable" })`}},
 		{"output enable on", []string{"output.enable", "DP-1", "on"},
 			[]string{"eval", `hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1 })`}},
 		{"output enable off", []string{"output.enable", "DP-1", "off"},
@@ -90,6 +92,49 @@ func TestActEmitsLuaDialect(t *testing.T) {
 			}
 			if strings.Join(got, "\x00") != strings.Join(tc.want, "\x00") {
 				t.Errorf("argv mismatch\n got: %q\nwant: %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// An explicit on or off must be idempotent: repeating the same request must not
+// toggle the display, because the resume path can re-issue an enable while the
+// lock surface is still appearing and flash the screen. The dispatcher field is
+// `action`, so the request names its intent instead of relying on a flip.
+func TestActOutputPowerIsIdempotent(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"on", []string{"output.power", "on"}, `hl.dsp.dpms({ action = "enable" })`},
+		{"off", []string{"output.power", "off"}, `hl.dsp.dpms({ action = "disable" })`},
+		{"on with monitor", []string{"output.power", "on", "eDP-2"},
+			`hl.dsp.dpms({ action = "enable", monitor = "eDP-2" })`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []string
+			restore := stubCtl(t, func(args ...string) ([]byte, error) {
+				got = args
+				return nil, nil
+			})
+			defer restore()
+			if err := runAct(tc.args); err != nil {
+				t.Fatalf("runAct(%v): %v", tc.args, err)
+			}
+			want := []string{"dispatch", tc.want}
+			if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+				t.Errorf("argv mismatch\n got: %q\nwant: %q", got, want)
+			}
+			// Repeating the same request must emit the same literal, never a
+			// toggle, so a second enable cannot re-disable the display.
+			got = nil
+			if err := runAct(tc.args); err != nil {
+				t.Fatalf("repeat runAct(%v): %v", tc.args, err)
+			}
+			if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+				t.Errorf("repeat argv mismatch\n got: %q\nwant: %q", got, want)
 			}
 		})
 	}

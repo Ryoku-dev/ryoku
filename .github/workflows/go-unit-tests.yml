@@ -33,6 +33,7 @@ on:
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
       - 'ryoku/rashin/backend/**'
+      - 'ryoku/wm/**'
       - '.github/workflows/go-unit-tests.yml'
   workflow_dispatch:
 
@@ -165,6 +166,26 @@ jobs:
       - name: Build, vet, and test
         shell: bash
         working-directory: ryoku/rashin/backend
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
+
+  wm:
+    name: window-manager providers (hyprland, niri)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ryoku/wm/go.mod
+
+      - name: Build, vet, and test
+        shell: bash
+        working-directory: ryoku/wm
         run: |
           go build ./...
           go vet ./...
