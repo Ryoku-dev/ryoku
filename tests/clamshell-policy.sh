@@ -645,4 +645,44 @@ fi
 wait "$holder" 2>/dev/null || true
 holder=""
 
+
+# A leaked non-daemon holder (the pre-fix orphan udevadm monitor) must be
+# reclaimed instead of answered with a silent exit 0, and a holder that IS the
+# recorded daemon must stay untouched and read as "already running" (#274).
+log() { printf '%s\n' "$*" >&2; }
+# shellcheck source=/dev/null
+source <(sed -n '/^lock_holder_pids()/,/^}/p;/^reclaim_stale_clamshell_lock()/,/^}/p' "$helper")
+# read by the sourced reclaim function, not by this file directly
+# shellcheck disable=SC2034
+DAEMON_STATE="$daemon_state"
+
+spawn_orphan() {
+  setsid bash -c 'exec 9>"'"$run"'/ryoku-clamshell.lock"; flock 9; exec sleep 30' &
+  orphan_pid=$!
+  local _
+  for _ in {1..50}; do flock -n "$run/ryoku-clamshell.lock" -c true 2>/dev/null || return 0; sleep 0.05; done
+  printf 'test could not establish the orphan lock holder\n' >&2
+  exit 1
+}
+
+spawn_orphan
+rm -f "$daemon_state"
+reclaim_stale_clamshell_lock
+rc=$?
+[[ $rc -eq 0 ]] || { printf 'reclaim of a leaked non-daemon holder must succeed, got %s\n' "$rc" >&2; exit 1; }
+for _ in {1..50}; do kill -0 "$orphan_pid" 2>/dev/null || break; sleep 0.05; done
+kill -0 "$orphan_pid" 2>/dev/null && { printf 'the leaked holder survived the reclaim\n' >&2; exit 1; }
+flock -n "$run/ryoku-clamshell.lock" -c true 2>/dev/null   || { printf 'the lock stayed pinned after the reclaim\n' >&2; exit 1; }
+
+spawn_orphan
+printf '%s\n' "$orphan_pid" >"$daemon_state"
+if reclaim_stale_clamshell_lock; then
+  printf 'a recorded live daemon holder must never be reclaimed\n' >&2
+  exit 1
+fi
+kill -0 "$orphan_pid" 2>/dev/null || { printf 'the recorded daemon holder was killed\n' >&2; exit 1; }
+kill "$orphan_pid" 2>/dev/null || true
+wait "$orphan_pid" 2>/dev/null || true
+orphan_pid=""
+
 printf 'clamshell policy: ok\n'

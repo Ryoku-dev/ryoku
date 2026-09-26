@@ -680,6 +680,53 @@ recover_login1_owner() {
   done
 }
 
+# lock_holder_pids lists every process of this user with the clamshell lock
+# open, by path. /proc is the only oracle here: fuser is not a dependency.
+lock_holder_pids() {
+  local lock="${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell.lock" p fd target
+  [[ -e $lock ]] || return 0
+  for p in /proc/[0-9]*; do
+    p=${p#/proc/}
+    [[ $p == "$$" ]] && continue
+    for fd in /proc/$p/fd/*; do
+      target=$(readlink "$fd" 2>/dev/null) || continue
+      [[ $target == "$lock" ]] && { printf '%s\n' "$p"; break; }
+    done
+  done
+  return 0
+}
+
+# reclaim_stale_clamshell_lock kills non-daemon holders of the lock: a daemon
+# from before the fd-leak fix orphaned its udevadm monitor with the lock fd
+# open, and that orphan pins the flock across an upgrade (#274). A live daemon
+# holder (the recorded PID, or a ryoku-clamshell process) is never touched and
+# makes this a no-op, so "already running" stays true when it is true.
+reclaim_stale_clamshell_lock() {
+  local round p comm live holders
+  # Rounds, not one pass: killing a leaked holder does not close the lock fd in
+  # the children that inherited it, and an inherited fd pins the flock exactly
+  # as well as the original.
+  for round in 1 2 3; do
+    live=""
+    holders=""
+    while read -r p; do
+      [[ -n $p ]] || continue
+      holders=1
+      comm="$(cat "/proc/$p/comm" 2>/dev/null || true)"
+      if [[ -r $DAEMON_STATE && $(<"$DAEMON_STATE") == "$p" ]] || [[ $comm == ryoku-clamshell ]]; then
+        live=1
+        continue
+      fi
+      log "reclaiming the clamshell lock from a leaked non-daemon holder (pid $p, $comm)" >&2
+      kill "$p" 2>/dev/null || true
+    done < <(lock_holder_pids)
+    [[ -n $live ]] && return 1
+    [[ -z $holders ]] && return 0
+    sleep 0.2
+  done
+  return 1
+}
+
 run_daemon() {
   local monitor_pid="" owner_monitor_pid="" event hardware_dirty monitor_ready=0
   local monitor_missing_since=-1
@@ -703,8 +750,21 @@ run_daemon() {
   # instance is alive. Each long-lived spawn below closes fd 9.
   exec 9>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell.lock"
   if ! flock -n 9; then
-    [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "already running"
-    exit 0
+    # Contention is not always "another instance": a leaked orphan pins this
+    # flock across an upgrade, and a silent exit 0 there is indistinguishable
+    # from a healthy second start, so Restart=on-failure never retries and
+    # nothing reaches the journal (#274). Reclaim a non-daemon holder; a live
+    # daemon stays a legitimate "already running"; anything else fails loud.
+    if reclaim_stale_clamshell_lock; then
+      sleep 0.2
+      flock -n 9 || { log "could not take the clamshell lock after reclaiming a stale holder" >&2; exit 1; }
+    elif [[ -r $DAEMON_STATE ]] && kill -0 "$(<"$DAEMON_STATE")" 2>/dev/null; then
+      [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "already running"
+      exit 0
+    else
+      log "the clamshell lock is held but no daemon is alive; find the holder with fuser -v ${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell.lock" >&2
+      exit 1
+    fi
   fi
   # A switch edge published after this point belongs to this daemon generation
   # and remains authoritative until its matching open. Clearing before the PID

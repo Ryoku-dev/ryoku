@@ -27,7 +27,7 @@ spawn-sh-at-startup "command -v ryoku-cmd-folders >/dev/null 2>&1 && ryoku-cmd-f
 // session-start owns the guarded restarts and does not return until the shell
 // and lid owners prove readiness. Portals restart last so a stale frontend
 // cannot proxy ScreenCast requests to the dead backend.
-spawn-sh-at-startup "dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; ryoku-power-cutover session-start && systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
+spawn-sh-at-startup "dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; ryoku-power-cutover session-start-logged && systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
 
 // No autoscale line: niri picks each output's scale itself, and ryoku-monitor is the Hyprland provider's display tool.
 
