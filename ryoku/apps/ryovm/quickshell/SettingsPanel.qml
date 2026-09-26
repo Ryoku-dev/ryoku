@@ -184,6 +184,6 @@ Item {
 
     function installEngine() {
         Quickshell.execDetached(["sh", "-c",
-            "exec \"${TERMINAL:-kitty}\" --class ryovm -e sh -c \"ryovm setup; echo; read -n1 -rsp 'Press any key to close…'; echo\""]);
+            "exec \"${TERMINAL:-kitty}\" --class=ryovm -e sh -c \"ryovm setup; echo; read -n1 -rsp 'Press any key to close…'; echo\""]);
     }
 }

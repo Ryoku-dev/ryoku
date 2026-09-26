@@ -170,14 +170,14 @@ Singleton {
     // stays readable instead of vanishing when the window closes.
     function copyId(a) {
         Quickshell.execDetached(["sh", "-c",
-            "exec \"${TERMINAL:-kitty}\" --class ryoport-ssh -e sh -c 'ryossh copyid \"$1\"; printf \"\\n── press enter to close ──\\n\"; read _' _ \"$1\"", "--", a]);
+            "exec \"${TERMINAL:-kitty}\" --class=ryoport-ssh -e sh -c 'ryossh copyid \"$1\"; printf \"\\n── press enter to close ──\\n\"; read _' _ \"$1\"", "--", a]);
     }
     // run one command on the host in a TTY, then hold on its output with a local
     // read so a fast command like df stays readable instead of being buried under
     // a fresh shell; the remote command stays unwrapped so non-POSIX shells can't mangle it.
     function runOn(alias, cmd) {
         Quickshell.execDetached(["sh", "-c",
-            "exec \"${TERMINAL:-kitty}\" --class ryoport-ssh -e sh -c 'ssh -t \"$1\" \"$2\"; printf \"\\n── press enter to close ──\\n\"; read _' _ \"$1\" \"$2\"", "--", alias, cmd]);
+            "exec \"${TERMINAL:-kitty}\" --class=ryoport-ssh -e sh -c 'ssh -t \"$1\" \"$2\"; printf \"\\n── press enter to close ──\\n\"; read _' _ \"$1\" \"$2\"", "--", alias, cmd]);
         logEvent("run", alias, I18n.tr("%1 on %2").arg(cmd.split(" ")[0]).arg(alias));
     }
     // browse and transfer files over SFTP in the file manager. nautilus (the

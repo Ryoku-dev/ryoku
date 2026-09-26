@@ -47,6 +47,11 @@
   `pages/WindowRulesPage.qml`, `SettingsSheet.qml`, `Singletons/Settings.qml`).
 
 ### Fixed
+- **The security-key enrolment terminal no longer raises the terminal's own
+  config error window.** It launched with `--class ryoku-passkey`, kitty's flag
+  form; a terminal that wants `--class=<name>` reports the bare `--class` as a
+  configuration error. The flag now uses the form both accept
+  (`pages/LockscreenPage.qml`).
 - **No Hyprland wording or dead compositor toggles on niri.** The search
   vocabulary derives from the active provider's rows and name, the import
   wizard names the desktop you run and stands down where it cannot read its

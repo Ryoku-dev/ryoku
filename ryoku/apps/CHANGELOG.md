@@ -34,6 +34,13 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `ryovm/`: **terminal launches no longer raise the terminal's own config error
+  window.** The launches built the command as `--class <name>`, which is kitty's
+  flag form. A terminal that wants `--class=<name>` reads the bare `--class` as a
+  flag with no value and reports a configuration error, so Ghostty opened its
+  "Configuration Errors" window on every connect. The flag is now passed as
+  `--class=<name>`, which kitty accepts as well (`Singletons/Remotes.qml`,
+  `Singletons/Vm.qml`, `SettingsPanel.qml`).
 - `fastfetch/`: **the greeting reports the real shell again.** The wrapper
   bounded fastfetch with `timeout 8`, but fastfetch's shell module walks the
   parent chain and skips known wrappers (`time`, `sudo`, ...) without knowing
