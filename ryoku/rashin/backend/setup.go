@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -100,13 +101,7 @@ func RunSetup() error {
 		reportPhase("install", "existing Hermes detected, leaving it untouched", true)
 	} else {
 		reportPhase("install", "running the official Hermes installer", true)
-		// Not `curl | bash`: piping leaves the installer's stdin on the pipe, so
-		// its optional-package steps block on a hidden /dev/tty y/n + sudo prompt.
-		// --non-interactive skips them; --skip-browser drops the Chromium hang.
-		script := "set -e; f=$(mktemp); trap 'rm -f \"$f\"' EXIT; " +
-			"curl -fsSL " + hermesInstallURL + " -o \"$f\"; " +
-			"bash \"$f\" --non-interactive --skip-browser --skip-computer-use"
-		if err := runInteractive("bash", "-c", script); err != nil {
+		if err := installHermes(); err != nil {
 			return fmt.Errorf("hermes installer: %w", err)
 		}
 	}
@@ -173,6 +168,45 @@ func RunSetup() error {
 	fmt.Printf("\nRashin is ready: %s\npress enter to close\n", url)
 	fmt.Scanln()
 	return nil
+}
+
+// installHermes downloads the official installer to a temp file and runs it
+// with only the options that build of the script actually advertises. Not
+// `curl | bash`: piping leaves the installer's stdin on the pipe, so its
+// optional-package steps block on a hidden /dev/tty y/n + sudo prompt.
+func installHermes() error {
+	f, err := os.CreateTemp("", "hermes-install-*.sh")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	defer os.Remove(name)
+	_ = f.Close()
+	if err := runInteractive("curl", "-fsSL", hermesInstallURL, "-o", name); err != nil {
+		return err
+	}
+	body, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+	return runInteractive("bash", append([]string{name}, hermesInstallerFlags(string(body))...)...)
+}
+
+// hermesInstallerFlags picks the installer options to pass. The official script
+// has grown and dropped options across releases, and it exits 1 on any flag it
+// does not know: a hardcoded --skip-computer-use broke every setup the day
+// upstream removed it (#279). So --non-interactive (the one option Ryoku cannot
+// live without, it is what keeps the installer off a hidden tty prompt) is
+// always passed, and each optional flag only when the downloaded script names
+// it. A flag the script no longer supports is simply not a thing to skip.
+func hermesInstallerFlags(script string) []string {
+	args := []string{"--non-interactive"}
+	for _, opt := range []string{"--skip-browser", "--skip-computer-use"} {
+		if strings.Contains(script, opt) {
+			args = append(args, opt)
+		}
+	}
+	return args
 }
 
 // haveCmd reports whether a command is resolvable on PATH.

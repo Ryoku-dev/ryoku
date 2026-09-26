@@ -59,6 +59,15 @@
   honour (`wm/caps.go`, `wm/action.go`, `wm/hyprland/act.go`, `wm/niri/act.go`).
 
 ### Fixed
+- **Rashin's Hermes setup passes only the installer flags that build supports.**
+  Setup hardcoded `--non-interactive --skip-browser --skip-computer-use`, but
+  the official installer exits 1 on any option it does not recognize, so the
+  day upstream dropped `--skip-computer-use` every "Set up Hermes agent" failed
+  with `unknown option: --skip-computer-use` (issue #279). Setup now downloads
+  the script and passes `--non-interactive` (the guard against the hidden tty
+  prompt) plus each optional flag only when the downloaded script names it, so
+  upstream growing or dropping an option can no longer break the one-click flow
+  (`rashin/backend/setup.go`).
 - **Suspend fails closed, wake recovery starts immediately, and fast user
   switching no longer exposes or blocks a session.** The foreground shell owns
   login1's delay inhibitor and long-lived hard block. Before that singleton
