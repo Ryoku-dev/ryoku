@@ -9,8 +9,8 @@
 # pinned release binary, signed by the release key in the [ryoku] repo.
 # `gpk update` self-updates from upstream after install.
 pkgname=gpk
-pkgver=0.5.8
-pkgrel=2
+pkgver=0.6.10
+pkgrel=1
 pkgdesc="GlazePKG: the RyokuArch package manager, every package manager in one view"
 arch=('x86_64' 'aarch64')
 url="https://github.com/neur0map/glazepkg"
@@ -22,8 +22,8 @@ replaces=('gpk-bin')
 options=('!strip' '!debug')
 source_x86_64=("gpk-$pkgver-x86_64::https://github.com/neur0map/glazepkg/releases/download/v$pkgver/gpk-linux-amd64")
 source_aarch64=("gpk-$pkgver-aarch64::https://github.com/neur0map/glazepkg/releases/download/v$pkgver/gpk-linux-arm64")
-sha256sums_x86_64=('c379780e9b5352a0b1e59f7d391a1c2c01e09ab5257b83712b3d5aaa6acad3ba')
-sha256sums_aarch64=('e31c6553dbc1db21de4e8fdd7615e194e8e2e46682b296a416f520113d8dc8b6')
+sha256sums_x86_64=('b4e43c2428a3c680f9ce97855d44522e18cfce4bb933e5e622c52d3db17a7be3')
+sha256sums_aarch64=('39c4590c65630b134c51e34cdb040819a52513aaf72fb41e2d549eac83fa945b')
 
 package() {
   if [[ $CARCH == aarch64 ]]; then

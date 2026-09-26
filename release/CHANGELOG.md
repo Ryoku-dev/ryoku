@@ -150,6 +150,14 @@
   an old stable for days. The rclone remote is written by one script,
   `bin/ryoku-r2-config`, shared with the ISO workflow.
 
+### Fixed
+- **gpk tracks its upstream again.** The pinned GlazePKG release binary sat at
+  0.5.8 while upstream had moved to 0.6.10, so a box fully up to date against
+  the [ryoku] repo still ran a package manager two minor generations old, and
+  "up to date" read as a false claim to the person who owns the tool. The pin,
+  both architecture checksums and pkgrel move to the current release
+  (`release/packages/gpk/PKGBUILD`).
+
 ### Added
 - **Release lines have names.** `CODENAME` holds the current line's name
   (Onogoro before 1.0; Amaterasu for 1.0) and `release/names.md` tells each
