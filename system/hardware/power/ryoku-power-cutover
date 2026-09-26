@@ -10,8 +10,8 @@ cutover_marker=/var/lib/ryoku/power-cutover-hook-active
 runtime_root=${RYOKU_CUTOVER_RUNTIME_ROOT:-/run/user}
 qylock_installer="${RYOKU_QYLOCK_INSTALLER:-}"
 cgroup_root=${RYOKU_CGROUP_ROOT:-/sys/fs/cgroup}
-target_root=${RYOKU_CUTOVER_TARGET_ROOT:-/usr/bin}
-provider_root=${RYOKU_CUTOVER_PROVIDER_ROOT:-/usr/bin}
+target_root=${RYOKU_CUTOVER_TARGET_ROOT:-}
+provider_root=${RYOKU_CUTOVER_PROVIDER_ROOT:-}
 runtime_helper=${RYOKU_CUTOVER_RUNTIME_HELPER:-/run/ryoku-power-cutover}
 if [[ -z $qylock_installer ]]; then
   power_helper_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
@@ -38,6 +38,14 @@ if [[ -z $installed_helper ]]; then
     installed_helper=$self_path
   fi
 fi
+
+# The helper's siblings live in its own install directory: /usr/bin on a packaged
+# box (including the /run hook copy, whose installed_helper is already normalized
+# above) or ~/.local/bin on a dev checkout deploy. Deriving the roots from it
+# keeps session recognition working wherever the desktop was installed; an
+# explicit environment override still wins.
+[[ -n $target_root ]] || target_root="$(dirname "$installed_helper")"
+[[ -n $provider_root ]] || provider_root="$target_root"
 qylock_generation_guard_unit=ryoku-qylock-generation-guard.service
 qylock_generation_guard_ready="${XDG_RUNTIME_DIR:-/tmp}/ryoku-qylock-generation-guard.ready"
 qylock_launch_lock="${XDG_RUNTIME_DIR:-/tmp}/ryoku-qylock-launch.lock"
@@ -1152,7 +1160,11 @@ start_session_lifecycle() {
 }
 
 session_still_open() {
-  local sid="${1:-${XDG_SESSION_ID:-}}" current state
+  local sid="${1:-}" current state
+  # Without an explicit session, the bound session in the marker is the one
+  # whose liveness matters: a caller from another session (an SSH shell running
+  # a deploy) must not compare the marker against its own XDG_SESSION_ID.
+  [[ -n $sid ]] || sid="$(cat "$session_marker" 2>/dev/null || true)"
   [[ $sid =~ ^[A-Za-z0-9_.-]+$ ]] || return 1
   current="$(cat "$session_marker" 2>/dev/null || true)"
   [[ $current == "$sid" ]] || return 1

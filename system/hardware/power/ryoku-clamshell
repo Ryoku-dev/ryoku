@@ -354,6 +354,7 @@ stop_recorded_inhibitor() {
 
 inhibitor_supervisor() {
   local handshake=$1 child rc tmp
+  exec 9>&-
   systemd-inhibit --what=handle-lid-switch --mode=block \
     --who="ryoku-clamshell" --why="route lid close through the secure Ryoku policy" \
     sleep infinity &
@@ -601,7 +602,8 @@ owner_monitor_ready() {
   [[ $pid =~ ^[0-9]+$ ]] && process_alive "$pid"
 }
 
-monitor_login1_owner() (
+monitor_login1_owner() {
+  exec 9>&-
   local match line monitor_pid="" monitor_fd="" generation=0
   local _name_line _old_line new_line token=$BASHPID tmp
   match="type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.freedesktop.login1'"
@@ -658,7 +660,7 @@ monitor_login1_owner() (
     monitor_pid=""
     sleep 1
   done
-)
+}
 
 recover_login1_owner() {
   local state
@@ -694,7 +696,11 @@ run_daemon() {
     exit 1
   fi
 
-  # one instance per user session.
+  # one instance per user session. The lock fd must never reach a child that
+  # outlives this daemon: an orphaned `udevadm monitor`, the dbus-monitor
+  # coprocess, or the sleep behind systemd-inhibit would keep holding the flock
+  # forever, and every later start would then exit silently believing another
+  # instance is alive. Each long-lived spawn below closes fd 9.
   exec 9>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell.lock"
   if ! flock -n 9; then
     [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "already running"
@@ -709,11 +715,11 @@ run_daemon() {
   (umask 077; printf '%s\n' "$$" >"$daemon_tmp")
   mv -f "$daemon_tmp" "$DAEMON_STATE"
   cleanup_daemon() {
-    if [[ -n $monitor_pid ]]; then
+    if [[ -n ${monitor_pid:-} ]]; then
       kill "$monitor_pid" 2>/dev/null || true
       wait "$monitor_pid" 2>/dev/null || true
     fi
-    if [[ -n $owner_monitor_pid ]]; then
+    if [[ -n ${owner_monitor_pid:-} ]]; then
       kill "$owner_monitor_pid" 2>/dev/null || true
       wait "$owner_monitor_pid" 2>/dev/null || true
     fi
@@ -757,9 +763,10 @@ run_daemon() {
   # event-driven (no polling, zero cost when idle) and runs unprivileged. If it
   # ever exits, the outer loop re-attaches after a short back-off.
   while :; do
-    udevadm monitor --udev \
-      --subsystem-match=power_supply --subsystem-match=drm \
-      >"$EVENT_FIFO" 2>/dev/null &
+    ( exec 9>&-
+      exec udevadm monitor --udev \
+        --subsystem-match=power_supply --subsystem-match=drm \
+        >"$EVENT_FIFO" 2>/dev/null ) &
     monitor_pid=$!
     while process_alive "$monitor_pid"; do
       if owner_monitor_ready; then
