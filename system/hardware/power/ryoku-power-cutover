@@ -80,8 +80,11 @@ hold_qylock_generation_guard() {
   (umask 077; printf '%s\n' "$$" >"$tmp")
   mv -f "$tmp" "$ready"
   trap 'rm -f "$ready"' EXIT
+  # The keep-alive child must never inherit the lock fds: if it outlives the
+  # holder (a stop race, a reparent), its inherited open files keep holding
+  # the exclusive flocks and every later generation guard blocks forever.
   while :; do
-    sleep infinity &
+    sleep infinity 7>&- 8>&- &
     wait "$!" || :
   done
 }

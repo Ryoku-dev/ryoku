@@ -869,10 +869,33 @@ fi
 
 : >"$tmp/calls"
 mkdir -p "$tmp/empty-home"
+cat >"$tmp/bin/ryoku-qylock-activate" <<'EOF'
+#!/usr/bin/env bash
+printf 'qylock-activate\n' >>"$CUTOVER_LOG"
+EOF
+chmod +x "$tmp/bin/ryoku-qylock-activate"
 HOME="$tmp/empty-home" SHELL_RESTART_FAIL=1 NO_POWER_UNITS=1 \
   CUTOVER_LOG="$tmp/calls" CUTOVER_STATE="$tmp/state" PATH="$tmp/bin:$PATH" \
   bash -c 'source "$1"; restart_shell_owner' _ "$helper"
 grep -qxF 'systemd-run shell-fallback' "$tmp/calls" \
   || fail "unitless legacy session did not receive the guarded shell fallback"
+
+# A killed guard must release its locks. Call the real hold verb, SIGKILL
+# the holder, and take both exclusive locks while the keep-alive coprocess is
+# still alive: an inherited lock fd would pin the flock past the holder and
+# the next generation-guard-start would block forever with nothing wrong.
+"$helper" generation-guard-hold "$tmp/g-launch" "$tmp/g-generation" "$tmp/g-ready" &
+guard_pid=$!
+for _ in {1..100}; do [[ -r $tmp/g-ready ]] && break; sleep 0.05; done
+[[ -r $tmp/g-ready ]] || fail "generation hold never published readiness"
+keepalive="$(pgrep -P "$guard_pid" -x sleep | head -n1)"
+[[ -n $keepalive ]] || fail "generation hold started no keep-alive child"
+kill -9 "$guard_pid"
+wait "$guard_pid" 2>/dev/null || true
+flock -n "$tmp/g-launch" -c true \
+  || fail "a surviving keep-alive pinned the launch lock"
+flock -n "$tmp/g-generation" -c true \
+  || fail "a surviving keep-alive pinned the generation lock"
+kill -9 "$keepalive" 2>/dev/null || true
 
 echo "power-cutover: ok"
