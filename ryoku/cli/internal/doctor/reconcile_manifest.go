@@ -119,9 +119,11 @@ func reconcileManifest(checkOnly bool) recResult {
 
 	// Save the baseline only when everything that should have landed did: a
 	// partial run reconciles again next update rather than recording an added
-	// name as delivered when it is not.
+	// name as delivered when it is not. The presence set is sticky over the
+	// previous baseline, so a user removal recorded once is never re-read as
+	// "never delivered" and reinstalled on a later run.
 	if len(missed) == 0 && len(aurMissed) == 0 {
-		if err := updater.SaveApplied(served, updater.PresentNames(served, installed)); err != nil {
+		if err := updater.SaveApplied(served, updater.StickyPresent(applied, served, installed)); err != nil {
 			return warnRes(i18n.T("converged, but could not save the manifest: %v"), err)
 		}
 	}

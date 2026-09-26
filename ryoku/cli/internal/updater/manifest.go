@@ -100,6 +100,31 @@ func SaveApplied(m ryokumanifest.Manifest, present []string) error {
 	return os.WriteFile(ManifestPath(), append(b, '\n'), 0o644)
 }
 
+// StickyPresent is the presence set a new baseline records: every parity name
+// installed now, plus every name an earlier baseline already recorded as
+// delivered. A user removal is therefore permanent in the baseline's eyes: the
+// next reconcile reads the gone name as UserGone (stays deleted), not as
+// never-delivered (re-install). Re-saving the snapshot from the live box
+// alone forgets each removal exactly one run after it happens, and the run
+// after that reinstalls the package -- the loop #268 reported.
+func StickyPresent(prev *Applied, m ryokumanifest.Manifest, installed map[string]bool) []string {
+	set := map[string]bool{}
+	if prev != nil {
+		for _, n := range prev.Present {
+			set[n] = true
+		}
+	}
+	for _, n := range PresentNames(m, installed) {
+		set[n] = true
+	}
+	out := make([]string, 0, len(set))
+	for n := range set {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // Plan is one reconciliation of the box's package set against a manifest.
 type Plan struct {
 	Install   []string // a newer manifest adds the name, absent here, not a user removal
@@ -129,6 +154,9 @@ func nameSet(lanes [][]string) map[string]bool {
 	set := map[string]bool{}
 	for _, lane := range lanes {
 		for _, n := range lane {
+			if ryokumanifest.IsOptIn(n) {
+				continue // a gated reconciler or the user owns it, not the manifest
+			}
 			set[n] = true
 		}
 	}
@@ -139,8 +167,17 @@ func manifestNames(m ryokumanifest.Manifest) map[string]bool {
 	return nameSet(ownLanes(m))
 }
 
+// convergeNames is the set this reconciler moves: the converge lanes minus the
+// deliver-once apps. Many Apps() names are ALSO named by base.packages (the
+// installer's pacstrap list), and the lane table would otherwise let the
+// converge pass re-install what reconcileShippedApps just honoured as a user
+// deletion. The provisioned lane owns those names; the manifest never does.
 func convergeNames(m ryokumanifest.Manifest) map[string]bool {
-	return nameSet(convergeLanes(m))
+	names := nameSet(convergeLanes(m))
+	for _, n := range m.Provisioned {
+		delete(names, n)
+	}
+	return names
 }
 
 // PresentNames is the baseline snapshot for a box: the manifest's parity names

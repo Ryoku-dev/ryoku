@@ -19,7 +19,7 @@ signature, or an `isNiri`-style test anywhere else. Consumers ask what the
 compositor *can do*, never which one it is.
 
 A provider is one binary, `ryoku-wm-<name>`, shipped by
-`ryoku-desktop-<name>`. It implements ten verbs:
+`ryoku-desktop-<name>`. It implements eleven verbs:
 
 |Verb|Answers|
 |---|---|
@@ -33,6 +33,7 @@ A provider is one binary, `ryoku-wm-<name>`, shipped by
 |`binds <store>`|the keybinds only this compositor has, resolved against the store, for the cheatsheet's compositor section|
 |`outputs <layout>`|apply a display layout|
 |`session`|the `wayland-session` desktop entry|
+|`environment <pid>`|export the provider's opaque handle from one verified session process|
 
 `apply --preview` writes nothing and reports what it could not honour. That
 report is what `ryoku wm use` and the Hub show before a switch, so the cost of
@@ -147,6 +148,46 @@ compositor is left alone:
   latency-first gaming pass and reloads the config to restore them. A compositor
   that cannot evaluate its config live has no equivalent, so game mode still
   boosts power there and leaves the look untouched.
+
+## Lock, lid and sleep
+
+This stack is deliberately almost all compositor-neutral, and the one part that
+cannot be sits behind the seam like everything else. Four owners, no overlap:
+
+|Owner|Owns|
+|---|---|
+|**qylock**|the lock surface only, through Quickshell's `WlSessionLock` -- the Wayland session-lock protocol both providers serve, so the same lock runs on either compositor. The greeter is SDDM rendering the same skin; both halves are qylock.|
+|**the shell daemon**|the fail-closed login1 transaction behind `ryoku-shell suspend`: the foreground-bound daemon owns one delay inhibitor and hard `sleep` block, secure lock-before-suspend, output wake on resume, and lighting restore. Before the singleton moves it proves the outgoing session's qylock; all other online same-user sessions have direct session-scoped qylock clients and login1 observers. Only the foreground session may request sleep or unlock. Lost login1 signal or owner connections reconnect in-process without dropping valid protection. Display work reaches the compositor solely through the seam's `output.power`, with a deadline on each wake attempt.|
+|**`hypridle`**|the idle timers only -- dim, lock, screen-off, suspend. A suspend timer calls `ryoku-shell suspend`; hypridle never talks to login1 itself.|
+|**`ryoku-clamshell`**|lid ownership for the active graphical session: a `handle-lid-switch` inhibitor, the docked AC-plus-external decision, and routing every non-docked close through `ryoku-shell suspend`. It drops ownership when that session becomes inactive, reacquires it when active, and recovers across login1 restarts.|
+
+The lid's panel handoff is the one compositor-shaped piece: Hyprland binds the
+lid switch to `ryoku-clamshell lid close|open` from
+`ryoku/hyprland/modules/lid.lua`; niri sends both native `lid-close` and
+`lid-open` switch events to the helper and retains its native output topology.
+Only the active Ryoku session inhibits logind, so without a live owner logind's
+safe fallback suspends on lid close. ACPI supplies live physical state when
+available; UPower seeds an already-closed startup otherwise, but its
+asynchronous value cannot veto a compositor edge. An open edge cancels a close
+still waiting on dock or power state. No provider gains a capability for this:
+a compositor that serves
+`WlSessionLock` and switch events needs nothing further.
+
+The logind drop-in that backs the sessionless lid fallback and the delay budget
+is delivered by both lanes: the package ships it and a checkout deploy seeds
+it, and an unowned copy is adopted on the next update rather than left to
+collide with the package. A system watcher selects one confirmed active Ryoku
+session per user and binds that user's target, idle and clamshell owners to its
+login1 activity; stale compositor variables in a lingering user manager cannot
+take ownership. Login plus live deploy, update, and package cutovers hold a
+durable login1 sleep block, reload the active compositor config, replace the
+shell, wait for its inhibitor readiness, verify idle and clamshell, and restore
+Ryogami before releasing protection. Package hooks do that for every logged-in
+Ryoku user. Doctor repair only stages a complete qylock generation under the
+generation guard; the next managed shell activation performs the handoff. A
+failed live cutover remains blocked until its retry succeeds or the machine
+reboots. A staged checkout deploy does not reload live logind. See
+`docs/updates.md`.
 
 ## Where the config lives
 

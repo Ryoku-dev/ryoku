@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -168,4 +169,36 @@ func niriConfigDir() string {
 		return ""
 	}
 	return filepath.Join(home, ".config", "niri")
+}
+
+var sessionEnvironmentRoot = "/proc"
+
+func processEnvironmentValue(data []byte, key string) string {
+	prefix := key + "="
+	for _, field := range strings.Split(string(data), "\x00") {
+		if strings.HasPrefix(field, prefix) {
+			return strings.TrimPrefix(field, prefix)
+		}
+	}
+	return ""
+}
+
+// runEnvironment exports only this provider's opaque session handle. The
+// lifecycle owner can bind an exact login1 scope without learning its name.
+func runEnvironment(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("environment: expected one process id")
+	}
+	pid, err := strconv.Atoi(args[0])
+	if err != nil || pid <= 0 {
+		return fmt.Errorf("environment: invalid process id %q", args[0])
+	}
+	data, err := os.ReadFile(filepath.Join(sessionEnvironmentRoot, strconv.Itoa(pid), "environ"))
+	if err != nil {
+		return fmt.Errorf("environment: read process %d: %w", pid, err)
+	}
+	if value := processEnvironmentValue(data, "NIRI_SOCKET"); value != "" {
+		_, err = fmt.Fprintf(stdout, "NIRI_SOCKET=%s%c", value, byte(0))
+	}
+	return err
 }

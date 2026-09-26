@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"ryoku-cli/internal/doctor"
 	"ryoku-cli/internal/sys"
@@ -31,6 +33,8 @@ func cmdWm(args []string) {
 		cmdWmStatus()
 	case "caps":
 		cmdWmCaps()
+	case "state":
+		cmdWmState()
 	case "act":
 		cmdWmAct(args[1:])
 	case "session":
@@ -47,7 +51,7 @@ func cmdWm(args []string) {
 }
 
 func wmUsage() {
-	fmt.Print(i18n.T("Usage: ryoku wm <command>\n\n  status            print the detected provider, its capabilities and workspace model\n  caps              print the active provider's capability manifest (JSON)\n  config [name]     print a provider's config dir and the files it owns (JSON)\n  reset-paths       print the config files a factory reset clears (one path per line)\n  use <name>        preview and switch to another compositor (installs its package)\n  act <id> [args]   dispatch a window-manager action through the provider\n  session           print the provider's wayland-session desktop entry\n"))
+	fmt.Print(i18n.T("Usage: ryoku wm <command>\n\n  status            print the detected provider, its capabilities and workspace model\n  caps              print the active provider's capability manifest (JSON)\n  state             print the active provider's current state (JSON)\n  config [name]     print a provider's config dir and the files it owns (JSON)\n  reset-paths       print the config files a factory reset clears (one path per line)\n  use <name>        preview and switch to another compositor (installs its package)\n  act <id> [args]   dispatch a window-manager action through the provider\n  session           print the provider's wayland-session desktop entry\n"))
 }
 
 func cmdWmStatus() {
@@ -93,6 +97,35 @@ func cmdWmCaps() {
 	}
 }
 
+// cmdWmState exposes the provider snapshot to compositor-neutral system
+// helpers that need readback before changing an output.
+func cmdWmState() {
+	ctx, cancel := wmCallContext()
+	defer cancel()
+	state, err := wm.Open().StateContext(ctx)
+	if err != nil {
+		die("%v", err)
+	}
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(state); err != nil {
+		die("%v", err)
+	}
+}
+
+func wmCallContext() (context.Context, context.CancelFunc) {
+	raw := strings.TrimSpace(os.Getenv("RYOKU_WM_CALL_TIMEOUT"))
+	if raw == "" {
+		return context.WithCancel(context.Background())
+	}
+	limit, err := time.ParseDuration(raw)
+	if err != nil || limit <= 0 {
+		die("invalid RYOKU_WM_CALL_TIMEOUT %q", raw)
+		return context.WithCancel(context.Background())
+	}
+	return context.WithTimeout(context.Background(), limit)
+}
+
 // cmdWmAct dispatches an action and maps the two seam errors to distinct exit
 // codes so a caller (a keybind, lock.sh) can tell "no compositor" from "this
 // compositor cannot". Quiet on success: it runs on the idle and lock paths.
@@ -100,10 +133,11 @@ func cmdWmAct(args []string) {
 	if len(args) == 0 {
 		die("usage: ryoku wm act <action> [args...]")
 	}
-	// ActOutput, not Act: an action that answers with a value (input.touchpad
-	// status prints on|off) must reach the caller's stdout, while the silent
-	// actions still print nothing because their output is empty.
-	out, err := wm.Open().ActOutput(wm.Action(args[0]), args[1:]...)
+	// Actions that answer with a value (input.touchpad status prints on|off)
+	// reach stdout; silent actions return an empty string.
+	ctx, cancel := wmCallContext()
+	defer cancel()
+	out, err := wm.Open().ActOutputContext(ctx, wm.Action(args[0]), args[1:]...)
 	if err == nil {
 		if out != "" {
 			fmt.Fprintln(os.Stdout, out)

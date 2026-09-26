@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- **niri handles both laptop-lid edges natively.** The niri tree gained
+  `niri/lid.kdl`: `lid-close` and `lid-open` switch events feed the shared
+  clamshell owner, so an open can cancel a close still waiting on dock or power
+  state. Verified docked mode remains awake and every other close goes through
+  the fail-closed suspend transaction; niri retains its native panel topology
+  (`niri/lid.kdl`, `niri/config.kdl`).
 - **One keybind catalogue for both compositors.** `wm/binds.go` names every
   shipped shortcut once (id, label, hint, category, default chord), and each
   provider's `binds` verb reports the full effective legend: what it bound,
@@ -40,6 +46,23 @@
   honour (`wm/caps.go`, `wm/action.go`, `wm/hyprland/act.go`, `wm/niri/act.go`).
 
 ### Fixed
+- **Suspend fails closed, wake recovery starts immediately, and fast user
+  switching no longer exposes or blocks a session.** The foreground shell owns
+  login1's delay inhibitor and long-lived hard block. Before that singleton
+  moves, it confirms a session-and-generation-scoped qylock on the outgoing
+  login; every other online same-user session is directly locked and observed
+  for foreground activation. Package updates with only inactive sessions
+  secure all of them without starting services against an SSH or stale display
+  environment. The daemon reconnects to replaced login1 owners or signal
+  streams without dropping valid protection. Resume starts output and lighting
+  recovery immediately, puts a deadline on each compositor-provider attempt,
+  and keeps retrying through the panel retrain window. Generated hypridle policy
+  is idle-only. Login, deployment, and package updates replace power owners as
+  one guarded transaction; doctor stages a complete qylock repair for the next
+  managed shell activation. A failed live cutover stays protected until retry
+  or reboot (`shell/ipc/sleepwake.go`,
+  `system/hardware/power/ryoku-idle`,
+  `system/hardware/power/ryoku-clamshell`, `hyprland/modules/misc.lua`).
 - **niri draws the window border the user sized.** niri 26.04 keeps its border
   off unless the block carries an explicit `on`, so the sized border never drew
   and the thickness slider did nothing; per-app overrides resolve the same way
@@ -305,9 +328,10 @@
 - **Device lighting is re-applied on resume from suspend.** Theme colours only
   reached the RGB devices on a palette change and at login, so after waking from
   suspend an OpenRGB motherboard/RAM/mouse (which reset on power loss) sat on its
-  firmware default and the keyboard could hold a stale colour. hypridle's
-  `after_sleep_cmd` now also runs `ryoku-hub lighting apply` (backgrounded, so it
-  never delays the screen coming back).
+  firmware default and the keyboard could hold a stale colour. The always-on
+  shell daemon re-applies it on the wake edge, beside restoring output power, so
+  the job no longer rides a hypridle `after_sleep_cmd` -- the generated idle
+  config carries no sleep hooks at all.
 - **Video decode no longer freezes on hybrid laptops.** The session forced the
   nvidia VA-API/GLX drivers whenever the nvidia driver merely existed, so on a
   hybrid where the Intel or AMD iGPU drives the panel, video froze. It now takes
@@ -564,12 +588,15 @@
   (`ryoku-i18n ensure`).
 - `hyprland` + `system/hardware/power`: **clamshell mode -- close the lid without
   sleeping when docked.** A new `modules/lid.lua` binds the laptop lid switch
-  (`bindl switch:Lid Switch`) to `ryoku-clamshell lid`, which blanks the internal
-  panel on close when an external display is attached and restores the layout on
-  open; autostart launches the `ryoku-clamshell` daemon that keeps the machine
-  awake on lid close while on AC power with an external display (macOS-style: both
-  are required, else it suspends). The suspend policy and the logind drop-in live
-  in `system/hardware/power/`.
+  (`bindl switch:Lid Switch`) to `ryoku-clamshell lid`, which runs the shared
+  lid-close policy (secure the lock when the close will suspend, then blank the
+  internal panel when an external display is attached) and restores the layout
+  on open. Autostart launches the `ryoku-clamshell` daemon that keeps the machine
+  awake on lid close while on AC power with an external display (macOS-style:
+  both are required, else it suspends); live docked mode treats the close as an
+  output handoff and leaves the external session active. niri runs the same
+  policy from its native `lid-close` switch event. The suspend policy and the
+  logind drop-in live in `system/hardware/power/`.
 - `hyprland` + `shell`: **`Super+Alt+D` opens the right (System) sidebar**, the
   mirror of `Super+D` for the left (Features) sidebar. The bind runs
   `ryoku-shell system`, a new IPC verb that toggles the System control centre;

@@ -2,10 +2,13 @@ package updater
 
 import (
 	"encoding/json"
+	"errors"
+	"github.com/godbus/dbus/v5"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	wm "ryoku-wm"
 	"strings"
 	"testing"
 	"time"
@@ -152,7 +155,8 @@ func TestPackagedStatusUpToDateOfflineEmptyRecent(t *testing.T) {
 // the distribution the box was installed from, on the user's schedule. It must
 // also --overwrite the Ryoku system paths the ISO installer and deploy.sh seed
 // unowned (ryoku-dns / ryoku-wifi-powersave + their polkit rules, the Plymouth
-// splash theme, the initcpio hook). Once a package owns one of those paths a
+// splash theme, the initcpio hook, the logind lid drop-in). Once a package owns
+// one of those paths a
 // file conflict otherwise aborts the whole transaction and blocks every user
 // update, so pin them here.
 func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
@@ -160,7 +164,7 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 	args := ryokuInstallArgs(set)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{"pacman -S", "--needed", "--noconfirm", "--overwrite",
-		"ryoku/ryoku-desktop", "ryoku/ryogami"} {
+		"RYOKU_MANAGED_UPDATE=1", "ryoku/ryoku-desktop", "ryoku/ryogami"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("ryokuInstallArgs missing %q: %v", want, args)
 		}
@@ -203,6 +207,7 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 		"/usr/lib/systemd/system/ryoku-network-kill-guard.service",
 		"/usr/lib/initcpio/install/ryoku-gpu-trim",
 		"/usr/share/ryoku/boot/default.conf",
+		"/etc/systemd/logind.conf.d/10-ryoku-lid.conf",
 	} {
 		covered := false
 		for _, g := range strings.Split(glob, ",") {
@@ -219,6 +224,8 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 	// The opt-in lane is the only place a sysupgrade may appear.
 	if got := strings.Join(systemUpgradeArgs(), " "); !strings.Contains(got, "pacman -Syu") {
 		t.Errorf("systemUpgradeArgs = %q, want the full -Syu it exists for", got)
+	} else if !strings.Contains(got, "RYOKU_MANAGED_UPDATE=1") {
+		t.Errorf("systemUpgradeArgs = %q, want first-rollout scheduling owned by stage2", got)
 	}
 }
 
@@ -242,5 +249,98 @@ func TestProwlDecide(t *testing.T) {
 				t.Fatalf("prowlDecide(onPath=%v, owned=%v) = %v, want %v", c.onPath, c.pacmanOwned, got, c.want)
 			}
 		})
+	}
+}
+
+func TestLogin1GraphicalUserProperties(t *testing.T) {
+	properties := func(sessionType, sessionClass, desktop string) map[string]dbus.Variant {
+		return map[string]dbus.Variant{
+			"Type":    dbus.MakeVariant(sessionType),
+			"Class":   dbus.MakeVariant(sessionClass),
+			"Desktop": dbus.MakeVariant(desktop),
+		}
+	}
+	for _, tc := range []struct {
+		name       string
+		properties map[string]dbus.Variant
+		want       bool
+	}{
+		{"wayland Hyprland user", properties("wayland", "user", "Hyprland"), true},
+		{"x11 niri early user", properties("x11", "user-early", "niri"), false},
+		{"tty user", properties("tty", "user", "Hyprland"), false},
+		{"wayland greeter", properties("wayland", "greeter", "Hyprland"), false},
+		{"wayland lock screen", properties("wayland", "lock-screen", "Hyprland"), false},
+		{"other desktop", properties("wayland", "user", "GNOME"), false},
+		{"missing class", map[string]dbus.Variant{
+			"Type": dbus.MakeVariant("wayland"), "Desktop": dbus.MakeVariant("Hyprland"),
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := login1GraphicalUserProperties(tc.properties); got != tc.want {
+				t.Fatalf("login1GraphicalUserProperties() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestHasUpdateSleepGuardRequiresOwnedBlock(t *testing.T) {
+	const uid = 1000
+	for _, tc := range []struct {
+		name       string
+		inhibitors []login1Inhibitor
+		want       bool
+	}{
+		{"owned sleep block", []login1Inhibitor{{
+			What: "sleep:shutdown", Who: "ryoku-session-cutover", Mode: "block", UID: uid,
+		}}, true},
+		{"wrong user", []login1Inhibitor{{
+			What: "sleep", Who: "ryoku-session-cutover", Mode: "block", UID: 1001,
+		}}, false},
+		{"delay is not a block", []login1Inhibitor{{
+			What: "sleep", Who: "ryoku-session-cutover", Mode: "delay", UID: uid,
+		}}, false},
+		{"lid-only block", []login1Inhibitor{{
+			What: "handle-lid-switch", Who: "ryoku-session-cutover", Mode: "block", UID: uid,
+		}}, false},
+		{"foreign owner", []login1Inhibitor{{
+			What: "sleep", Who: "other", Mode: "block", UID: uid,
+		}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := hasUpdateSleepGuard(tc.inhibitors, uid); got != tc.want {
+				t.Fatalf("hasUpdateSleepGuard() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPackagePowerCutoverRetriesIncompleteAdoption(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		markerPresent   bool
+		rootGuardActive bool
+		want            bool
+	}{
+		{"first rollout", false, false, true},
+		{"completed hook", true, false, false},
+		{"stale marker with emergency guard", true, true, true},
+		{"failed unmarked adoption", false, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := needsPackagePowerCutover(tc.markerPresent, tc.rootGuardActive); got != tc.want {
+				t.Fatalf("needsPackagePowerCutover(%v, %v) = %v, want %v",
+					tc.markerPresent, tc.rootGuardActive, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestConfigReloadResultAcceptsProviderWithoutReload(t *testing.T) {
+	if err := configReloadResult(wm.ErrUnsupported); err != nil {
+		t.Fatalf("unsupported reload should defer to provider file watching: %v", err)
+	}
+	providerErr := errors.New("provider unavailable")
+	if err := configReloadResult(providerErr); !errors.Is(err, providerErr) {
+		t.Fatalf("live provider error was suppressed: %v", err)
 	}
 }

@@ -5,6 +5,11 @@ hl.config({
         focus_on_activate = true,
         disable_hyprland_logo = true,
         force_default_wallpaper = 0,
+        -- Input is the compositor-native way out of DPMS. hypridle still runs
+        -- the neutral output.power on action when its idle cycle resumes, but
+        -- these keep a dead or late idle client from leaving the panel black.
+        key_press_enables_dpms = true,
+        mouse_move_enables_dpms = true,
         -- a locker that crashes while locked (GPU glitch on resume) otherwise
         -- wedges the session on a black screen that eats every key. with this,
         -- Hyprland accepts a fresh locker instead of stranding the session.

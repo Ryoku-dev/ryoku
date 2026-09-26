@@ -1,15 +1,16 @@
-// lock_shell.qml - Ryoku in-session lock screen
+// lock_shell.qml - Ryoku in-session Wayland lock screen
 //
 // This is the entry point for the lock screen launched by `ryoku-shell lock`.
-// It creates a Wayland session lock (or X11 fullscreen window) and loads the
-// selected qylock theme (default: clockwork/orbital).
+// It creates a secure Wayland session lock and loads the selected qylock theme
+// (default: clockwork/orbital).
 //
-// Fingerprint integration:
-//   - The SddmShim provides PAM and fingerprint state
-//   - When WlSessionLock.secure becomes true, armWhenReady is set
-//   - The shim probes fprintd and arms the sensor automatically
-//   - On loginSucceeded, loginctl unlock-session is called
-//   - On unlock (secure flips false), resetAuth() stops the sensor
+// Authentication integration:
+//   - The SddmShim provides password and fingerprint PAM conversations
+//   - A secure surface publishes session/generation proof before either arms
+//   - Only the foreground login1 session may authenticate
+//   - On loginSucceeded, the daemon restores its hard block and invalidates
+//     proof before login1 unlocks
+//   - Leaving the foreground cancels the reveal and republishes secure proof
 
 import QtQuick
 import Quickshell
@@ -37,34 +38,180 @@ ShellRoot {
     readonly property var userModel: sddmShim.userModel
     readonly property var sessionModel: sddmShim.sessionModel
     readonly property var keyboard: sddmShim.keyboard
-    readonly property bool isWayland: Quickshell.env("XDG_SESSION_TYPE") === "wayland"
     property bool authenticated: false
     property bool sessionLocked: true
-    property bool isTesting: Quickshell.env("QS_TESTING") === "1"
+    property bool lockSecure: false
+    property bool proofPublished: false
+    property bool surfaceAnnounced: false
+    property string proofPendingAction: ""
+    property bool unlockCancelled: false
+    property bool relockPending: false
+    readonly property string proofToken: Quickshell.env("QYLOCK_PROOF_TOKEN") || ""
+    readonly property string sessionId: Quickshell.env("XDG_SESSION_ID") || ""
+
+    function startProofOperation() {
+        if (proofProcess.running || unlockProcess.running || relockProcess.running ||
+                proofPendingAction === "")
+            return
+        proofProcess.action = proofPendingAction
+        proofPendingAction = ""
+        proofProcess.command = [
+            Quickshell.shellDir + "/proof.sh",
+            proofProcess.action,
+            proofToken,
+            sessionId
+        ]
+        proofProcess.running = true
+    }
+
+    function requestProof(action) {
+        proofPendingAction = action
+        startProofOperation()
+    }
+
+    function armAuthenticationIfSafe() {
+        if (!lockSecure || !proofPublished || relockPending ||
+                relockProcess.running || !sddmShim.loginSessionActive)
+            return
+        sddmShim.armWhenReady = true
+        if (!surfaceAnnounced) {
+            surfaceAnnounced = true
+            sddmShim.sddm.surfaceRevealed()
+        }
+    }
+
+    function recoverUnlock(showFailure) {
+        quitTimer.stop()
+        authenticated = false
+        sddmShim.armWhenReady = false
+        sddmShim.resetAuth()
+        if (showFailure)
+            sddmShim.sddm.loginFailed()
+        proofPublished = false
+        relockPending = lockSecure
+        requestProof(lockSecure ? "publish" : "clear")
+    }
 
     SddmShim {
         id: sddmShim
         themePath: shellRoot.themePath
     }
 
-    // ── login success handler ───────────────────────────────────────────────
-    // Called by the shim when PAM authentication succeeds (either via fingerprint
-    // or typed password). Unlocks the session and quits the lock screen.
+    // Publish and clear are serialized. Authentication is armed only after the
+    // current generation has reached disk, so an older publish can never land
+    // after an authenticated clear.
+    Process {
+        id: proofProcess
+        property string action: ""
+        onExited: (code) => {
+            let completedAction = proofProcess.action
+            proofProcess.action = ""
+            if (code !== 0) {
+                shellRoot.proofPublished = false
+                shellRoot.proofPendingAction = shellRoot.lockSecure ? "publish" : "clear"
+                proofRetry.restart()
+                return
+            }
+            shellRoot.proofPublished = completedAction === "publish" && shellRoot.lockSecure
+            Qt.callLater(shellRoot.startProofOperation)
+            if (completedAction === "publish" && shellRoot.proofPublished &&
+                    shellRoot.relockPending)
+                relockProcess.running = true
+            else if (completedAction === "publish")
+                shellRoot.armAuthenticationIfSafe()
+        }
+    }
+
+    Timer {
+        id: proofRetry
+        interval: 250
+        onTriggered: shellRoot.startProofOperation()
+    }
+
+    // A cancelled reveal republishes proof, then reasserts login1's locked
+    // state before authentication can arm again.
+    Process {
+        id: relockProcess
+        command: ["loginctl", "lock-session", shellRoot.sessionId]
+        onExited: (code) => {
+            if (code !== 0 && shellRoot.lockSecure && shellRoot.relockPending) {
+                relockRetry.restart()
+                return
+            }
+            shellRoot.relockPending = false
+            Qt.callLater(shellRoot.startProofOperation)
+            shellRoot.armAuthenticationIfSafe()
+        }
+    }
+
+    Timer {
+        id: relockRetry
+        interval: 1000
+        onTriggered: {
+            if (shellRoot.lockSecure && shellRoot.relockPending)
+                relockProcess.running = true
+        }
+    }
+
+    // The helper restores the hard sleep block, rechecks login1 activity and
+    // invalidates proof inside one suspend transaction, then updates login1's
+    // LockedHint. The Wayland lock stays raised through the reveal delay.
+    Process {
+        id: unlockProcess
+        command: [Quickshell.shellDir + "/unlock.sh"]
+        onExited: (code) => {
+            if (code !== 0 || shellRoot.unlockCancelled ||
+                    !sddmShim.loginSessionActive || !shellRoot.lockSecure) {
+                shellRoot.recoverUnlock(code !== 0)
+                proofRetry.restart()
+                return
+            }
+            let delay = 100
+            if (activeTheme.includes("clockwork") && sddmShim.config.enableWindup === "true") {
+                // A password win answers after the wind-up already played, so
+                // only the 560 ms reveal remains; a sensor win starts the full
+                // wind-up at this instant (1600 ms + blast + reveal).
+                delay = sddmShim.fingerprintUnlock ? 2300 : 720
+            }
+            quitTimer.interval = delay
+            quitTimer.start()
+        }
+    }
+
     Connections {
         target: sddmShim.sddm
         function onLoginSucceeded() {
-            shellRoot.authenticated = true
-
-            Quickshell.execDetached(["loginctl", "unlock-session"]);
-
-            // Dynamic exit delay: clockwork themes with windup animation
-            // need a longer delay so the reveal animation completes.
-            let delay = 100;
-            if (activeTheme.includes("clockwork") && sddmShim.config.enableWindup === "true") {
-                delay = 720;
+            if (unlockProcess.running)
+                return
+            if (!sddmShim.loginSessionActive || !shellRoot.lockSecure ||
+                    !shellRoot.proofPublished || shellRoot.relockPending ||
+                    relockProcess.running) {
+                shellRoot.recoverUnlock(false)
+                return
             }
-            quitTimer.interval = delay;
-            quitTimer.start()
+            shellRoot.authenticated = true
+            shellRoot.unlockCancelled = false
+            shellRoot.proofPublished = false
+            sddmShim.armWhenReady = false
+            unlockProcess.running = true
+        }
+    }
+
+    Connections {
+        target: sddmShim
+        function onLoginSessionActiveChanged() {
+            if (sddmShim.loginSessionActive) {
+                shellRoot.armAuthenticationIfSafe()
+                return
+            }
+            let pendingUnlock = shellRoot.authenticated || unlockProcess.running || quitTimer.running
+            if (pendingUnlock) {
+                shellRoot.unlockCancelled = true
+                shellRoot.recoverUnlock(false)
+                return
+            }
+            sddmShim.armWhenReady = false
+            sddmShim.resetAuth()
         }
     }
 
@@ -72,6 +219,11 @@ ShellRoot {
         id: quitTimer
         interval: 3000
         onTriggered: {
+            if (!sddmShim.loginSessionActive || !shellRoot.lockSecure) {
+                shellRoot.unlockCancelled = true
+                shellRoot.recoverUnlock(false)
+                return
+            }
             shellRoot.sessionLocked = false
             Qt.quit()
         }
@@ -158,27 +310,29 @@ ShellRoot {
     // acknowledges every output is covered.
     Loader {
         id: waylandLoader
-        active: shellRoot.isWayland
+        active: true
         sourceComponent: Component {
             WlSessionLock {
                 id: lock
                 locked: shellRoot.sessionLocked
 
-                // onSecureChanged fires when the compositor confirms the lock.
-                // We use this to:
-                //   1. Write the qylock.locked marker (so ryoku-shell blocks)
-                //   2. Arm the fingerprint sensor (armWhenReady = true)
-                // On unlock, we clean up the marker and abort any PAM conversation.
+                // Proof publication completes before authentication is armed.
+                // If login1 moves this session out of the foreground during an
+                // authenticated reveal, the root state machine cancels it and
+                // republishes proof while this secure surface stays raised.
                 onSecureChanged: {
+                    shellRoot.lockSecure = lock.secure
                     if (lock.secure) {
-                        Quickshell.execDetached(["sh", "-c", "umask 077; : > \"${XDG_RUNTIME_DIR:-/tmp}/qylock.locked\""])
-                        sddmShim.armWhenReady = true
-                        // surface is up: arm the lock-in reveal (onCompleted too early)
-                        sddmShim.sddm.surfaceRevealed()
+                        shellRoot.proofPublished = false
+                        sddmShim.armWhenReady = false
+                        shellRoot.requestProof("publish")
                     } else {
-                        Quickshell.execDetached(["sh", "-c", "rm -f \"${XDG_RUNTIME_DIR:-/tmp}/qylock.locked\""])
+                        shellRoot.proofPublished = false
+                        shellRoot.relockPending = false
+                        relockRetry.stop()
                         sddmShim.armWhenReady = false
                         sddmShim.resetAuth()
+                        shellRoot.requestProof("clear")
                     }
                 }
 
@@ -211,38 +365,4 @@ ShellRoot {
         }
     }
 
-    // ── X11 fallback ────────────────────────────────────────────────────────
-    // On X11 sessions, use fullscreen windows instead of WlSessionLock.
-    // Each screen gets its own lock window.
-    Loader {
-        id: x11Loader
-        active: !shellRoot.isWayland
-        sourceComponent: Component {
-            Variants {
-                model: Quickshell.screens
-                delegate: Window {
-                    id: window
-                    required property var modelData
-                    screen: modelData
-                    width: isTesting ? 1280 : screen.width
-                    height: isTesting ? 720 : screen.height
-                    visible: shellRoot.sessionLocked
-                    visibility: isTesting ? Window.Windowed : Window.FullScreen
-                    onClosing: (close) => {
-                        close.accepted = shellRoot.authenticated || shellRoot.isTesting;
-                    }
-                    flags: Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint | Qt.MaximizeUsingFullscreenGeometryHint
-                    color: "black"
-                    Loader {
-                        anchors.fill: parent
-                        sourceComponent: themeComponent
-                    }
-                    Loader {
-                        anchors.fill: parent
-                        sourceComponent: fpOverlayComponent
-                    }
-                }
-            }
-        }
-    }
 }

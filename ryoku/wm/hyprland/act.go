@@ -144,7 +144,7 @@ func runAct(args []string) error {
 		if state != "on" && state != "off" {
 			return fmt.Errorf("act %s: state must be on or off, got %q", action, state)
 		}
-		expr := `hl.dsp.dpms({ state = ` + luaStr(state)
+		expr := `hl.dsp.dpms({ action = ` + luaStr(state)
 		if len(rest) > 1 && rest[1] != "" {
 			expr += `, monitor = ` + luaStr(rest[1])
 		}
@@ -295,10 +295,13 @@ func runAct(args []string) error {
 		}
 		// keyword is rejected by the Lua parser, so a connector is toggled
 		// through eval against the hl.monitor API, the same call the display
-		// tooling uses; on restores the preferred mode at auto position.
+		// tooling uses. Only `disabled` is sent: hl.monitor copies the output's
+		// existing rule and reapplies just the fields it is given, so naming a
+		// mode, position or scale here would reset the layout the user set and
+		// turn a re-enable into a "preferred mode at auto position" rewrite.
 		switch state {
 		case "on":
-			return evalLua(`hl.monitor({ output = ` + luaStr(conn) + `, mode = "preferred", position = "auto", scale = 1 })`)
+			return evalLua(`hl.monitor({ output = ` + luaStr(conn) + `, disabled = false })`)
 		case "off":
 			return evalLua(`hl.monitor({ output = ` + luaStr(conn) + `, disabled = true })`)
 		}

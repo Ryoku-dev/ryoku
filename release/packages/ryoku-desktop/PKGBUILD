@@ -447,6 +447,13 @@ EOF
   cp -a "$_repo/ryoku/lockscreen/qylock" "$pkgdir/usr/share/ryoku/lockscreen/qylock"
   install -Dm755 "$_repo/ryoku/lockscreen/install-qylock" \
     "$pkgdir/usr/share/ryoku/lockscreen/install-qylock"
+  install -Dm755 "$_repo/ryoku/lockscreen/ryoku-qylock-activate" \
+    "$pkgdir/usr/bin/ryoku-qylock-activate"
+  install -Dm755 "$_repo/ryoku/lockscreen/ryoku-qylock-lock" \
+    "$pkgdir/usr/bin/ryoku-qylock-lock"
+  install -Dm755 \
+    "$_repo/ryoku/lockscreen/qylock/quickshell-lockscreen/ryoku-qylock-unlock-prepare" \
+    "$pkgdir/usr/bin/ryoku-qylock-unlock-prepare"
   # the Wayland greeter compositor wrapper: weston --shell=kiosk at each
   # output's top mode, so the login screen matches a high-refresh session.
   install -Dm755 "$_repo/ryoku/lockscreen/sddm/ryoku-greeter" \
@@ -676,13 +683,20 @@ EOF
   install -Dm644 "$_repo/system/containers/46-ryoku-docker.rules" \
     "$pkgdir/usr/share/polkit-1/rules.d/46-ryoku-docker.rules"
 
-  # Laptop clamshell: logind suspends on lid close in every case; the
-  # ryoku-clamshell daemon (system/hardware/power, installed to /usr/bin by the
-  # hardware glob above) is the only thing that keeps a closed lid awake, and
-  # only on AC power with an external display. The .install reloads logind so it
-  # applies without a reboot.
+  # Laptop clamshell: logind provides the sessionless fallback, while
+  # ryoku-clamshell (installed to /usr/bin by the hardware glob above) holds
+  # the active session's lid inhibitor. It keeps AC-plus-external closes awake
+  # and sends every other close through the shell's secure suspend transaction.
+  # Paired transaction hooks preserve the old executor before replacement, then
+  # adopt every live Hyprland/niri user after install, downgrade, or removal.
+  # A durable global sleep block covers logind reload and every user's
+  # materialize/helper/shell replacement, and remains if adoption fails.
   install -Dm644 "$_repo/system/hardware/power/logind-ryoku-lid.conf" \
     "$pkgdir/etc/systemd/logind.conf.d/10-ryoku-lid.conf"
+  install -Dm644 "$_repo/system/hardware/power/94-ryoku-power-cutover-prepare.hook" \
+    "$pkgdir/usr/share/libalpm/hooks/94-ryoku-power-cutover-prepare.hook"
+  install -Dm644 "$_repo/system/hardware/power/95-ryoku-power-cutover.hook" \
+    "$pkgdir/usr/share/libalpm/hooks/95-ryoku-power-cutover.hook"
 
   # Battery/ASPM power knobs: a polkit rule authorizes ryoku-power (installed to
   # /usr/bin by the hardware glob above) for the active wheel user without a

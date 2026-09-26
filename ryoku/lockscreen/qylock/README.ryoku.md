@@ -24,14 +24,16 @@ The in-session shim diverges from upstream in two places:
    implements `sddm.suspend()`, and exposes SDDM's `keyboard` object (skins
    assign `keyboard.numLock`).
 
-2. **Parallel PAM conversations** — `shim/SddmShim.qml` runs two `PamContext`s,
-   backed by two services in `assets/pam/`: `ryoku-lock` (fingerprint, stock
-   `pam_fprintd.so timeout=-1`) and `ryoku-lock-pw` (password, prompt pending
-   from lock time); the first `Success` unlocks and aborts the other. A single
-   conversation cannot host both: the PAM stack is serialised by design (see
-   the LIMITATIONS section of `pam_fprintd(8)`), so the password prompt starves
-   the sensor — the stock 30s scan timeout falls through to `pam_unix`, the
-   conversation stays alive waiting for a typed key, the scan never re-arms, and
-   a password typed mid-sit is only flushed when the prompt finally arrives.
+2. **Parallel PAM conversations** — once the compositor-secure lock proof is
+   published for the foreground login1 session,
+   `shim/SddmShim.qml` runs two `PamContext`s backed by services in
+   `assets/pam/`: `ryoku-lock` (fingerprint, stock
+   `pam_fprintd.so timeout=-1`) and `ryoku-lock-pw` (password); the first
+   `Success` unlocks and aborts the other. A single conversation cannot host
+   both: the PAM stack is serialised by design (see the LIMITATIONS section of
+   `pam_fprintd(8)`), so the password prompt starves the sensor — the stock 30s
+   scan timeout falls through to `pam_unix`, the conversation stays alive
+   waiting for a typed key, the scan never re-arms, and a password typed
+   mid-scan is only flushed when the prompt finally arrives.
 
 Everything else is upstream verbatim.

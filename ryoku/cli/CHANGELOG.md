@@ -16,6 +16,21 @@
   (`internal/updater/update.go`).
 
 ### Changed
+- **`ryoku update` adopts the sleep policy as a guarded transaction.** Stage
+  two takes a durable login1 sleep block, activates logind's sessionless
+  fallback, and refuses to quiesce the shell unless the old `ryoku-idle` and
+  `ryoku-clamshell` services are verifiably stopped. The canonical
+  `ryoku-power-cutover` helper binds the replacement target to the exact active
+  login1 session, reloads the compositor's power bindings, waits for the new
+  shell's inhibitor state, and verifies both service owners before protection
+  is released; Ryogami is then restarted onto the installed binary. Any earlier
+  failure leaves the durable block active until retry or reboot. Package hooks
+  use the same all-session helper for every logged-in Ryoku user, while later
+  managed updates hand their already-protected active session to it instead of
+  racing a second transaction. Stale compositor variables in a lingering user
+  manager no longer make an SSH/TTY update own desktop power policy. The stop
+  path also adopts releases that had no daemon PID state
+  (`internal/updater/update.go`).
 - **`ryoku doctor` keeps your login shell honest.** Changing your shell in the
   Hub writes it in two places: your account shell, and a session override the
   compositor exports so everything it launches agrees. Nothing noticed when the

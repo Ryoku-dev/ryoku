@@ -122,6 +122,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-shell plugin <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <visualizer|visualizer-overlay>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell lock")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell suspend")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell theme [<scheme>|catalog]")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell gtk apply <light|dark>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell voice")

@@ -1044,8 +1044,10 @@ func stepSession(e *engine) error {
 	if err := e.sudo("cp", "-r", filepath.Join(e.payload, "ryoku/lockscreen/qylock"), "/usr/share/ryoku/qylock"); err != nil {
 		return err
 	}
-	if err := e.cmd("", []string{"RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock"},
-		"bash", filepath.Join(e.payload, "ryoku/lockscreen/install-qylock")); err != nil {
+	if err := e.cmd("", []string{
+		"RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock",
+		"RYOKU_QYLOCK_MODE=live",
+	}, "bash", filepath.Join(e.payload, "ryoku/lockscreen/install-qylock")); err != nil {
 		return err
 	}
 

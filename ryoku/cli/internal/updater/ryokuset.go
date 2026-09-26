@@ -3,6 +3,7 @@ package updater
 import (
 	"bufio"
 	"sort"
+	"strconv"
 	"strings"
 
 	"ryoku-cli/internal/sys"
@@ -71,19 +72,106 @@ func ryokuSet(repoNames, installed []string) []string {
 	return out
 }
 
-// installedRyokuSet reads the box. An error means the question could not be
-// answered (no [ryoku] section, an unsynced db, no pacman): the caller must
-// stop rather than fall back to a system upgrade, which is the other lane.
-func installedRyokuSet() ([]string, error) {
+// installedRyokuSet reads the box: the installed packages the [ryoku] repo
+// serves, repo-qualified, and how many of them were held back. An error means
+// the question could not be answered (no [ryoku] section, an unsynced db, no
+// pacman): the caller must stop rather than fall back to a system upgrade,
+// which is the other lane.
+//
+// allowDowngrade is false for an ordinary `ryoku update`: a package the box
+// already carries at a NEWER version than [ryoku] serves is held back and
+// counted in skipped. Two shapes make that real: a distro repo (CachyOS,
+// extra) ahead of our vendored copy -- re-issuing ryoku/<name> there
+// flip-flops the package up and back down inside one run and writes a .pacnew
+// every time -- and a split official package (asusctl and rog-control-center)
+// whose pinned dep an explicit downgrade would break, failing the whole
+// transaction. A channel move and a rollback onto a frozen release pass true:
+// there, moving the set DOWN is the point, and the frozen release is the only
+// thing the box should keep.
+func installedRyokuSet(allowDowngrade bool) (set []string, skipped int, err error) {
 	repo, err := sys.RunOut("pacman", "-Slq", ryokuRepo)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	installed, err := sys.RunOut("pacman", "-Qq")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
-	return ryokuSet(lines(repo), lines(installed)), nil
+	set = ryokuSet(lines(repo), lines(installed))
+	if allowDowngrade {
+		return set, 0, nil
+	}
+	kept := dropOlderServes(set)
+	return kept, len(set) - len(kept), nil
+}
+
+// dropOlderServes removes every target whose [ryoku] serve is older than what
+// the box has installed. Each name gets two read-only exact-name queries:
+// `pacman -Qi` for the installed version and `pacman -Si ryoku/<name>` for the
+// repo version, parsed off the Version field. They are per-name on purpose: a
+// name the repo shares with a distro repo (asusctl exists in both [ryoku] and
+// extra, limine-snapper-sync in both [ryoku] and cachyos) makes an unqualified
+// or bulk query ambiguous, and one unresolvable name must not poison the
+// answer for every other package. vercmp is pacman's own version ordering, so
+// the decision is exactly what pacman would have done. A name either side
+// cannot answer for is kept: an update must not silently skip a package
+// because a query failed.
+func dropOlderServes(set []string) []string {
+	var keep []string
+	for _, target := range set {
+		name := strings.TrimPrefix(target, ryokuRepo+"/")
+		inst, err := runPacman("pacman", "-Qi", name)
+		if err != nil {
+			keep = append(keep, target)
+			continue
+		}
+		repo, err := runPacman("pacman", "-Si", target)
+		if err != nil {
+			keep = append(keep, target)
+			continue
+		}
+		installedVer := versionField(inst)
+		repoVer := versionField(repo)
+		if installedVer == "" || repoVer == "" {
+			keep = append(keep, target)
+			continue
+		}
+		if vercmp(installedVer, repoVer) > 0 {
+			continue // the box is ahead of [ryoku]; an explicit -S would move it back
+		}
+		keep = append(keep, target)
+	}
+	sort.Strings(keep)
+	return keep
+}
+
+// runPacman is the read-only pacman seam, a var so tests pin the hold-back
+// decision without a live database.
+var runPacman = sys.RunOut
+
+// versionField extracts the Version value from `pacman -Qi`/`-Si` output.
+func versionField(out string) string {
+	for _, ln := range strings.Split(out, "\n") {
+		k, v, ok := strings.Cut(ln, ":")
+		if ok && strings.TrimSpace(k) == "Version" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+// vercmp is pacman's version comparison, a var so tests pin the ordering
+// without shelling out.
+var vercmp = func(a, b string) int {
+	out, err := sys.RunOut("vercmp", a, b)
+	if err != nil {
+		return 0 // unreadable comparison: keep the target, never skip on a doubt
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out))
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // lines splits command output into non-empty trimmed lines.
@@ -119,16 +207,17 @@ func refreshDBArgs(force bool) []string {
 //
 // `-S <targets>`, never `-Su`: a sysupgrade is the user's lane. Explicit
 // targets also move a package DOWN, which is what a channel move and a
-// rollback onto a frozen release need (`-Su` only ever moves up). `--needed`
-// leaves a package already at the repo's version alone, so a run with nothing
-// to do is a no-op instead of a reinstall.
+// rollback onto a frozen release need (`-Su` only ever moves up); the set
+// itself excludes older serves on an ordinary update (installedRyokuSet).
+// `--needed` leaves a package already at the repo's version alone, so a run
+// with nothing to do is a no-op instead of a reinstall.
 //
 // SNAP_PAC_SKIP=y because `ryoku update` already brackets the run with one
 // snapper pre/post pair; --overwrite adopts the paths the installer and
 // deploy.sh seed unowned (see ryokuOverwriteGlob).
 func ryokuInstallArgs(set []string) []string {
-	args := []string{"sudo", "env", "SNAP_PAC_SKIP=y", "pacman", "-S", "--needed", "--noconfirm",
-		"--overwrite", ryokuOverwriteGlob}
+	args := []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
+		"pacman", "-S", "--needed", "--noconfirm", "--overwrite", ryokuOverwriteGlob}
 	return append(args, set...)
 }
 

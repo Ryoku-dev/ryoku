@@ -33,10 +33,10 @@ package as the base config under `/usr/share/ryoku/config`, which
   Hyprland autostart (`gsettings color-scheme`), not a shipped file.
 - `systemd/` The user session target.
 
-The Hyprland config that hosts this shell lives at `ryoku/hyprland`; its
-`scripts/` holds the clipboard and wallpaper thumbnailers the UI calls directly.
-Its autostart also runs `ryoku-idle start`, which enables dim/lock/display-off/
-suspend timeouts only on detected laptops.
+Both compositor session entries run `ryoku-power-cutover session-start`. It
+binds the shared user services to the foreground login1 session under a sleep
+guard, then starts the shell, idle timers, lid owner and wallpaper in that
+order. An inactive session is secured and observed instead of taking ownership.
 
 ## The IPC
 
@@ -50,6 +50,8 @@ socket and one place that knows how to talk to the components:
 | `bar <id>` | open a finite frame-bar menu or surface on the active monitor |
 | `overview` | open the workspace overview on the active monitor |
 | `lock` | lock the screen with qylock |
+| `suspend` | from the active login1 session, require compositor-secure qylock, release its sleep block, then ask login1 to suspend |
+| `unlock-prepare session <id>` | internal qylock handoff: require this daemon to own the named active session, acquire the hard block, and reject unlock while login1 is entering sleep |
 | `wallpaper [next\|init\|set <path>]` | change the wallpaper and retheme |
 | `voice` | toggle Voxtype transcription and its live mic surface |
 | `visualizer`, `visualizer-overlay` | toggle the desktop audio visualizer or its overlay mode |

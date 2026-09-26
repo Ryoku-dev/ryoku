@@ -23,13 +23,11 @@ spawn-sh-at-startup "command -v ryoku-cmd-folders >/dev/null 2>&1 && ryoku-cmd-f
 
 // The session, in one chained command. Push the compositor env into the user
 // manager first: a lost race skips ConditionEnvironment=WAYLAND_DISPLAY units
-// and lands a black desktop. restart, not start: a daemon the manager still
-// holds from a previous login answers `start` with "already active" while bound
-// to the dead session; reset-failed lets a unit that hit its start limit run
-// again, and daemon-reload picks up a freshly laid unit. Portals restart last,
-// once the desktop is up, so a stale frontend does not proxy dead ScreenCast
-// requests; the backend niri's caps report is the GNOME one.
-spawn-sh-at-startup "dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; systemctl --user reset-failed ryogami ryoku-shell 2>/dev/null; systemctl --user start ryoku-session.target; systemctl --user restart ryoku-shell; systemctl --user restart ryogami; systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
+// and lands a black desktop. daemon-reload picks up freshly laid units, then
+// session-start owns the guarded restarts and does not return until the shell
+// and lid owners prove readiness. Portals restart last so a stale frontend
+// cannot proxy ScreenCast requests to the dead backend.
+spawn-sh-at-startup "dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; ryoku-power-cutover session-start && systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
 
 // No autoscale line: niri picks each output's scale itself, and ryoku-monitor is the Hyprland provider's display tool.
 
@@ -43,8 +41,6 @@ spawn-sh-at-startup "command -v ryoku-bt-audio >/dev/null 2>&1 && ryoku-bt-audio
 spawn-sh-at-startup "command -v ryoku >/dev/null 2>&1 && ryoku keyring init"
 
 spawn-sh-at-startup "command -v ryoku-gpu >/dev/null 2>&1 && ryoku-gpu persist"
-spawn-sh-at-startup "command -v ryoku-idle >/dev/null 2>&1 && ryoku-idle start"
-spawn-sh-at-startup "command -v ryoku-clamshell >/dev/null 2>&1 && ryoku-clamshell daemon"
 // Battery charge ceiling and PCIe link policy are plain sysfs values the kernel
 // forgets across a reboot, so a stored choice is pushed back at login. A no-op
 // with no power.json and on a box without the knobs.

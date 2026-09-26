@@ -1,0 +1,12 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/bin/ryoku-clamshell
+
+[Action]
+Description = Preparing Ryoku's guarded power-policy adoption...
+When = PreTransaction
+Exec = /usr/bin/ryoku-power-cutover prepare-package
+AbortOnFail

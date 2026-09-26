@@ -35,6 +35,14 @@ reports what that lane is holding (`N system package(s) waiting`), `ryoku
 status` prints it as `system:`, and the Hub lists it under SYSTEM PACKAGES;
 `ryoku update --system` runs both lanes in one command for those who want that.
 
+The desktop package's post-transaction power cutover also makes a direct
+`pacman -Syu` safe while graphical sessions are live. One temporary login1 sleep
+block covers the logind reload; then each Hyprland or niri user session (never
+the SDDM greeter or another desktop) stops the old lid/idle/shell owners,
+must report its new sleep guard ready before the block is released. The first
+release that introduces the hook schedules the same adoption after pacman drops
+its database lock, because libalpm discovers hooks before extracting packages.
+
 - A **dev box** runs the checkout: `ryoku deploy` builds the binaries and lays
   `ryoku/` into `~/.config`. `ryoku update` on it tracks `origin/main` (the git
   channel) and redeploys.
@@ -75,13 +83,20 @@ picks up a new Ryotunes (`internal/ryotunesrelease`, `internal/updater/ryotunes.
 ## `ryoku update`
 
 Snapper pre-snapshot, then the channel (git fast-forward, or the `[ryoku]`
-package set), then stage2 through the just-installed binary: quiesce the shell,
-`ryoku materialize`, reload the compositor, restart the shell, `ryoku doctor`,
-snapper post-snapshot. Each stage publishes to
-`$XDG_RUNTIME_DIR/ryoku-update.json` (the
-ordered steps, the current label, a live log tail, and, on failure, the error
-and the pre-update snapshot), so the update island and the Hub's Updates page
-render a determinate run and a one-click rollback.
+package set), then stage2 through the just-installed binary. Package hooks first
+adopt every live Ryoku session; on the hook's first release, stage2 invokes the
+same all-session helper synchronously. For the invoking active session, stage2
+holds a durable login1 sleep block, stops the old shell, idle and clamshell
+owners, materializes config, binds `ryoku-session.target` to the exact login1
+session, and requires the compositor's power bindings to reload. It starts the
+new shell, waits for `sleep-ready`, verifies idle and clamshell, and restores a
+previously running Ryogami before releasing protection. Any earlier failure
+leaves the durable block active until retry or reboot. Longer `ryoku doctor` and
+index work follows. A snapper post-snapshot closes the run. Each stage
+publishes to `$XDG_RUNTIME_DIR/ryoku-update.json` (the ordered steps, the current
+label, a live log tail, and, on failure, the error and the pre-update snapshot),
+so the update island and the Hub's Updates page render a determinate run and a
+one-click rollback.
 
 The database refresh happens before the set is read, so a rollback onto a frozen
 release only ever asks for packages that release actually served; targets are
@@ -406,6 +421,40 @@ island (when the channel serves the next line) and the Hub's Updates page.
   exists. An install-once path silently pins every existing box to the release
   it was installed with: the lock shipped fixes for weeks that no updated box
   ever received.
+- **A system path a package owns may exist unowned first, and the update adopts
+  it.** The ISO installer and `ryoku/shell/deploy.sh` seed some paths before a
+  package owns them: the privileged helpers and their polkit rules, the Plymouth
+  theme, the shipped boot configs, and the logind lid-switch drop-in
+  `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned copy collides with
+  the package on the next transaction ("exists in filesystem") and aborts the
+  whole atomic `-Syu`, so `ryoku update` passes `--overwrite` for the seeded
+  globs (`updater.ryokuOverwriteGlob`, fed by `unownedFiles`) and the doctor
+  clears the same paths on a box already wedged
+  (`reconcileConflictingRyokuFiles`, `ryokuSystemGlobs`). Either way the package
+  adopts the path and later updates own it normally; `deploy.sh` keeps its own
+  copy of the list (`_rovw`) in sync.
+- **Generated power policy and long-running helpers must be adopted as one live
+  transaction.** `hypridle.conf` is rendered state, not materialized payload,
+  and a running shell-script daemon keeps executing its old file after the
+  package replaces it. Paired libalpm hooks preserve the pre-transaction
+  executor and synchronously adopt every live Ryoku user after install,
+  downgrade, or removal. The shared lifecycle helper selects one confirmed
+  active Ryoku session per user, watches login1 activity/logout, and keeps its
+  watcher retryable through D-Bus outages. Package stage two, login, and
+  checkout deploy use the same durable login1 block while activating logind's
+  sessionless fallback, proving old owners stopped, requiring the compositor
+  bindings to reload, and replacing shell, idle, clamshell and wallpaper
+  owners. Doctor instead stages a complete qylock repair under the generation
+  guard for the next managed shell activation. Live-cutover protection releases
+  only after the new shell reports its inhibitor state and service ownership is
+  verified; failure remains blocked until a successful retry or reboot. The
+  first package release cannot load its
+  newly extracted hook: an updater-owned transaction suppresses the deferred
+  install-script job and stage two invokes the all-session helper synchronously,
+  while direct pacman installs schedule an unlimited-retry transient after the
+  database lock drops. A `--no-reload` checkout deploy stages the drop-in
+  without changing live logind, so the running session never mixes old and new
+  halves.
 - **One master per setting.** Two stores that both claim a value drift, and the
   next sync of either undoes the other: the colour master is `shell.json`
   `theme.theme` (the daemon shadows it into `theme.json` `followWallpaper` on

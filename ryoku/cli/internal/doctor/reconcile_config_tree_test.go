@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +29,7 @@ func swapSessionLive(t *testing.T, live bool) {
 }
 
 // swapStartSession keeps a test from restarting the desktop it runs on.
-func swapStartSession(t *testing.T, fn func()) {
+func swapStartSession(t *testing.T, fn func() error) {
 	t.Helper()
 	prev := startSession
 	startSession = fn
@@ -99,7 +100,7 @@ func TestReconcileConfigTreeBareLiveSessionIsFixed(t *testing.T) {
 	t.Setenv("RYOKU_WM", wm.ProviderNiri)
 	restarts := 0
 	swapMaterialize(t, updater.Materialize)
-	swapStartSession(t, func() { restarts++ })
+	swapStartSession(t, func() error { restarts++; return nil })
 	swapSessionLive(t, true)
 
 	r := reconcileConfigTree(true)
@@ -121,6 +122,22 @@ func TestReconcileConfigTreeBareLiveSessionIsFixed(t *testing.T) {
 	}
 	if restarts != 1 {
 		t.Fatalf("a live bare session should be brought up once, got %d", restarts)
+	}
+}
+
+func TestReconcileConfigTreeReportsGuardedSessionStartFailure(t *testing.T) {
+	_, _ = configTreeFixture(t, wm.ProviderNiri)
+	t.Setenv("RYOKU_WM", wm.ProviderNiri)
+	swapMaterialize(t, updater.Materialize)
+	swapStartSession(t, func() error { return errors.New("sleep guard unavailable") })
+	swapSessionLive(t, true)
+
+	r := reconcileConfigTree(false)
+	if r.status != recFailed {
+		t.Fatalf("status=%s detail=%q, want failed", r.status.label(), r.detail)
+	}
+	if !strings.Contains(r.detail, "sleep guard unavailable") {
+		t.Fatalf("failure detail did not preserve startup error: %q", r.detail)
 	}
 }
 
@@ -146,7 +163,7 @@ func TestReconcileConfigTreeHealsTheSwitchedAwayTreeOnly(t *testing.T) {
 	}
 	restarts := 0
 	swapMaterialize(t, updater.Materialize)
-	swapStartSession(t, func() { restarts++ })
+	swapStartSession(t, func() error { restarts++; return nil })
 	swapSessionLive(t, true)
 
 	r := reconcileConfigTree(true)
@@ -170,7 +187,7 @@ func TestReconcileConfigTreeIgnoresAnUninstalledDesktop(t *testing.T) {
 	configTreeFixture(t, wm.ProviderNiri) // hyprland's variant is not installed
 	t.Setenv("RYOKU_WM", wm.ProviderNiri)
 	swapMaterialize(t, updater.Materialize)
-	swapStartSession(t, func() {})
+	swapStartSession(t, func() error { return nil })
 
 	r := reconcileConfigTree(false)
 	if r.status != recFixed {
@@ -191,7 +208,7 @@ func TestReconcileConfigTreeEntryPointMissingAfterMaterializeFails(t *testing.T)
 		t.Fatal(err)
 	}
 	swapMaterialize(t, updater.Materialize)
-	swapStartSession(t, func() { t.Fatal("a session that is still bare must not be reported as started") })
+	swapStartSession(t, func() error { t.Fatal("a session that is still bare must not be reported as started"); return nil })
 
 	r := reconcileConfigTree(false)
 	if r.status != recFailed {

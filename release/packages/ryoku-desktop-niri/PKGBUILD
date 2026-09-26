@@ -46,9 +46,9 @@ _repo="$startdir/../../.."
 package() {
   local cfg="$pkgdir/usr/share/ryoku/config"
 
-  # niri config tree: config.kdl (the only file niri reads) plus the five seeds it
-  # includes by name (keyboard, gpu, monitors, monitors_user, user). A missing
-  # include is a hard niri config error, so the whole tree ships as one unit. The
+  # niri config tree: config.kdl plus every static file it includes (session
+  # startup, lid events, machine seeds, and the user override). A missing include
+  # is a hard niri config error, so the whole tree ships as one unit. The
   # generated settings.kdl/rebinds.kdl are written by `ryoku-wm-niri apply`, not
   # packaged (see caps.GeneratedFiles). No scripts/ or share picker: niri's leaf
   # keybinds are compositor actions or `spawn ryoku-shell`, and the share picker

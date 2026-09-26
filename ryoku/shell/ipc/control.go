@@ -94,16 +94,14 @@ func (d *daemon) brightness(sub string) string {
 	return "ok"
 }
 
-// isLocked reports whether the session is locked: the compositor-confirmed lock
-// marker exists and its locker is still running. A marker left by a killed
-// locker is stale and cleared here, mirroring lockSession's own staleness
-// handling, so a crash never reports a locked screen that is really open.
+// isLocked accepts only generation- and session-bound compositor proof. A
+// marker from a killed or different-session locker is stale and removed.
 func isLocked() bool {
 	marker := lockMarker()
 	if _, err := os.Stat(marker); err != nil {
 		return false
 	}
-	if !pgrepRunning("quickshell.*quickshell-lockscreen.*/lock_shell.qml") {
+	if !lockProofValid() {
 		_ = os.Remove(marker)
 		return false
 	}

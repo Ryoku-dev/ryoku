@@ -16,6 +16,7 @@
 // values, so it sits above the override chain rather than in its tail, and
 // before user.kdl so your file stays the last word.
 include "autostart.kdl"
+include "lid.kdl"
 
 // Seeded once, then owned by this machine. keyboard.kdl is yours to edit; gpu
 // and monitors are rewritten at runtime on a GPU reset or a hotplug.

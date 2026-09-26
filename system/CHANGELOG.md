@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- **Lock, wake and lid each have one owner, and suspend now fails closed.** The
+  shell daemon bound to the foreground graphical session owns login1's delay
+  inhibitor and long-lived hard block. Before ownership moves, the outgoing
+  session is qylock-secured; every other online same-user session has its own
+  session-scoped qylock and foreground observer. Only the foreground session may
+  request suspend or unlock. Every shipped suspend path uses
+  `ryoku-shell suspend`, which refuses to sleep until qylock is
+  compositor-secure. Resume starts output and lighting recovery immediately,
+  bounds every provider attempt, and retries protection in order. `hypridle`
+  owns only timers. `ryoku-clamshell` owns lid events only for the active
+  session, follows login1 activity and owner restarts, and treats matching
+  close/open compositor edges as authoritative. AC plus an external display
+  stays live without an unnecessary lock; every other close uses the secure
+  transaction. Logind supplies the safe fallback when no session owns the
+  switch. Hyprland alone performs the panel handoff; niri keeps native topology.
+  Login, updates, package hooks and live checkout deploys use one guarded
+  session-lifecycle helper while they replace shell, idle, clamshell and
+  wallpaper owners; doctor stages qylock repairs under its generation guard for
+  the next managed activation. Lockscreen generations are leased end to end;
+  unlock substitutes a durable sleep block while a daemon generation restarts.
+  Failure leaves protection held until retry or reboot. See
+  `docs/compositors.md` and `system/hardware/README.md`.
+
 - **The GPU MUX knob is GUI-reachable without a terminal.** `ryoku-gpu-mux
   set` escalates through pkexec under a scoped polkit grant
   (`hardware/gpu/45-ryoku-gpu-mux.rules`, wheel, the one program), so the
@@ -76,13 +99,13 @@
 
 ### Fixed
 - `hardware/power/logind-ryoku-lid.conf`: raise `InhibitDelayMaxSec` to 15s.
-  `hypridle` holds a `sleep` delay inhibitor while it runs `ryoku-shell lock`,
-  and logind's 5s default expired first on a Quickshell lock that also had to
-  wait out a display reconfigure (undocking as the lid shuts), so the machine
-  suspended with the session unlocked. logind logged it and went ahead anyway:
-  "Delay lock is active (hypridle) but inhibitor timeout is reached". The
-  inhibitor is released the moment the lock is up, so a normal lid close still
-  suspends immediately.
+  The always-on shell daemon holds a `sleep` delay inhibitor across suspend while
+  it puts a secure lock up, and logind's 5s default expired first on a Quickshell
+  lock that also had to wait out a display reconfigure (undocking as the lid
+  shuts), so the machine suspended with the session unlocked. logind logged it
+  and went ahead anyway: "Delay lock is active ... but inhibitor timeout is
+  reached". The inhibitor is released the moment the lock is up, so a normal lid
+  close still suspends immediately.
 - `boot/limine/limine.conf`: ship `default_entry: 1` (the bootable flat
   placeholder) plus `remember_last_entry: yes`, not the bare `2`. Limine's
   numeric `default_entry` counts top-level entries, so once

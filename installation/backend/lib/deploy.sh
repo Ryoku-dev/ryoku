@@ -318,7 +318,7 @@ ryoku_deploy_qylock() {
   run cp "$RYOKU_REPO/ryoku/lockscreen/sddm/setup" /mnt/root/ryoku-sddm-setup
   run cp "$RYOKU_REPO/ryoku/lockscreen/install-qylock" /mnt/root/ryoku-install-qylock
   run chmod 755 /mnt/root/ryoku-sddm-setup /mnt/root/ryoku-install-qylock
-  local env="RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock SUDO_USER=$RYOKU_USERNAME RYOKU_DRYRUN=${RYOKU_DRYRUN:-}"
+  local env="RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock RYOKU_QYLOCK_MODE=live SUDO_USER=$RYOKU_USERNAME RYOKU_DRYRUN=${RYOKU_DRYRUN:-}"
   # shellcheck disable=SC2086  # env assignments are intentionally word-split
   run arch-chroot /mnt env $env /root/ryoku-sddm-setup
   # shellcheck disable=SC2086

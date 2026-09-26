@@ -75,6 +75,12 @@ func (c *Client) Available() bool {
 // again: the provider may still be coming up. A zero Caps means every Has reads
 // false rather than assuming Hyprland's feature set.
 func (c *Client) Caps() (Caps, error) {
+	return c.CapsContext(context.Background())
+}
+
+// CapsContext is Caps with cancellation for callers on latency-sensitive
+// paths such as display recovery after resume.
+func (c *Client) CapsContext(ctx context.Context) (Caps, error) {
 	c.capsMu.Lock()
 	defer c.capsMu.Unlock()
 	if c.capsOK {
@@ -83,7 +89,7 @@ func (c *Client) Caps() (Caps, error) {
 	if c.bin == "" {
 		return c.caps, ErrNoProvider
 	}
-	out, err := c.run("caps")
+	out, err := c.runContext(ctx, "caps")
 	if err != nil {
 		return c.caps, err
 	}
@@ -98,7 +104,13 @@ func (c *Client) Caps() (Caps, error) {
 // Can is the gate before offering an affordance. False on a missing provider
 // too, which is what a caller wants.
 func (c *Client) Can(want Capability) bool {
-	caps, err := c.Caps()
+	return c.CanContext(context.Background(), want)
+}
+
+// CanContext is Can with cancellation propagated to an uncached capability
+// probe.
+func (c *Client) CanContext(ctx context.Context, want Capability) bool {
+	caps, err := c.CapsContext(ctx)
 	if err != nil {
 		return false
 	}
@@ -108,27 +120,48 @@ func (c *Client) Can(want Capability) bool {
 // Act checks the capability first, so an unsupported action is a typed error
 // rather than a fork that exits zero having done nothing.
 func (c *Client) Act(a Action, args ...string) error {
+	return c.ActContext(context.Background(), a, args...)
+}
+
+// ActContext bounds both the capability probe and provider action.
+func (c *Client) ActContext(ctx context.Context, a Action, args ...string) error {
 	if c.bin == "" {
 		return ErrNoProvider
 	}
-	if need := a.Capability(); need != "" && !c.Can(need) {
-		return fmt.Errorf("%w: %s", ErrUnsupported, a)
+	if need := a.Capability(); need != "" {
+		caps, err := c.CapsContext(ctx)
+		if err != nil {
+			return err
+		}
+		if !caps.Has(need) {
+			return fmt.Errorf("%w: %s", ErrUnsupported, a)
+		}
 	}
 	argv := append([]string{"act", string(a)}, args...)
-	_, err := c.run(argv...)
+	_, err := c.runContext(ctx, argv...)
 	return err
 }
 
-// ActOutput is Act for the actions that answer with a value, so a caller can
-// restore exactly what it overrode.
+// ActOutput is Act for actions that answer with a value.
 func (c *Client) ActOutput(a Action, args ...string) (string, error) {
+	return c.ActOutputContext(context.Background(), a, args...)
+}
+
+// ActOutputContext bounds both the capability probe and provider action.
+func (c *Client) ActOutputContext(ctx context.Context, a Action, args ...string) (string, error) {
 	if c.bin == "" {
 		return "", ErrNoProvider
 	}
-	if need := a.Capability(); need != "" && !c.Can(need) {
-		return "", fmt.Errorf("%w: %s", ErrUnsupported, a)
+	if need := a.Capability(); need != "" {
+		caps, err := c.CapsContext(ctx)
+		if err != nil {
+			return "", err
+		}
+		if !caps.Has(need) {
+			return "", fmt.Errorf("%w: %s", ErrUnsupported, a)
+		}
 	}
-	out, err := c.run(append([]string{"act", string(a)}, args...)...)
+	out, err := c.runContext(ctx, append([]string{"act", string(a)}, args...)...)
 	if err != nil {
 		return "", err
 	}
@@ -195,11 +228,16 @@ func (c *Client) Preview(storePath string) (ApplyReport, error) {
 
 // State is one full read, for callers that ask a single question and exit.
 func (c *Client) State() (Snapshot, error) {
+	return c.StateContext(context.Background())
+}
+
+// StateContext is State with a caller-owned deadline.
+func (c *Client) StateContext(ctx context.Context) (Snapshot, error) {
 	var snap Snapshot
 	if c.bin == "" {
 		return snap, ErrNoProvider
 	}
-	out, err := c.run("state")
+	out, err := c.runContext(ctx, "state")
 	if err != nil {
 		return snap, err
 	}
@@ -305,11 +343,9 @@ func (c *Client) WatchKinds(ctx context.Context, kinds []FrameKind, onFrame func
 	for _, k := range kinds {
 		argv = append(argv, string(k))
 	}
-	cmd := exec.CommandContext(ctx, c.bin, argv...)
-	// Die with the parent. A watch child outlives a consumer that is restarted
-	// or killed otherwise, and every restart would leave another one streaming
-	// into a closed pipe and re-querying the compositor.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
+	cmd := providerCommandContext(ctx, c.bin, argv...)
+	// The command helper also kills the complete provider/IPC process group when
+	// this watcher is cancelled, so a compositor query cannot outlive it.
 	cmd.Stderr = os.Stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -344,14 +380,37 @@ func (c *Client) WatchKinds(ctx context.Context, kinds []FrameKind, onFrame func
 	return waitErr
 }
 
+func providerCommandContext(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGTERM}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return os.ErrProcessDone
+		}
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		if errors.Is(err, syscall.ESRCH) {
+			return os.ErrProcessDone
+		}
+		return err
+	}
+	return cmd
+}
+
 // run folds stderr into the error so a provider diagnostic reaches the caller's
 // log instead of being swallowed.
 func (c *Client) run(args ...string) ([]byte, error) {
-	cmd := exec.Command(c.bin, args...)
+	return c.runContext(context.Background(), args...)
+}
+
+func (c *Client) runContext(ctx context.Context, args ...string) ([]byte, error) {
+	cmd := providerCommandContext(ctx, c.bin, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			err = ctxErr
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			return nil, fmt.Errorf("%s %s: %w", c.bin, strings.Join(args, " "), err)

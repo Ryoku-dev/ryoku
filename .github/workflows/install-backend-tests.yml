@@ -54,8 +54,18 @@ on:
       - 'tests/install-dns.sh'
       - 'tests/install-swapfile.sh'
       - 'system/hardware/drivers/**'
+      - 'system/hardware/power/**'
       - 'system/hardware/input/ryoku-hw-asus-aura'
       - 'tests/asus-aura-detect.sh'
+      - 'tests/clamshell-policy.sh'
+      - 'tests/idle-policy.sh'
+      - 'tests/power-cutover.sh'
+      - 'tests/qylock-staging.sh'
+      - 'ryoku/lockscreen/install-qylock'
+      - 'ryoku/lockscreen/ryoku-qylock-*'
+      - 'ryoku/lockscreen/qylock/quickshell-lockscreen/**'
+      - 'ryoku/shell/deploy.sh'
+      - 'ryoku/shell/systemd/user/ryoku-shell.service'
       - 'installation/tests/iso-preflight.sh'
       - 'tests/install-noninteractive.sh'
       - 'system/packages/*.packages'
@@ -91,8 +101,18 @@ on:
       - 'tests/install-dns.sh'
       - 'tests/install-swapfile.sh'
       - 'system/hardware/drivers/**'
+      - 'system/hardware/power/**'
       - 'system/hardware/input/ryoku-hw-asus-aura'
       - 'tests/asus-aura-detect.sh'
+      - 'tests/clamshell-policy.sh'
+      - 'tests/idle-policy.sh'
+      - 'tests/power-cutover.sh'
+      - 'tests/qylock-staging.sh'
+      - 'ryoku/lockscreen/install-qylock'
+      - 'ryoku/lockscreen/ryoku-qylock-*'
+      - 'ryoku/lockscreen/qylock/quickshell-lockscreen/**'
+      - 'ryoku/shell/deploy.sh'
+      - 'ryoku/shell/systemd/user/ryoku-shell.service'
       - 'installation/tests/iso-preflight.sh'
       - 'tests/install-noninteractive.sh'
       - 'system/packages/*.packages'
@@ -176,6 +196,22 @@ jobs:
       - name: ASUS Aura hardware detection
         shell: bash
         run: bash tests/asus-aura-detect.sh
+
+      - name: Clamshell lid policy (suspend on lid close; AC + external display stays awake)
+        shell: bash
+        run: bash tests/clamshell-policy.sh
+
+      - name: Idle daemon owns timeouts only
+        shell: bash
+        run: bash tests/idle-policy.sh
+
+      - name: Package power cutover order
+        shell: bash
+        run: bash tests/power-cutover.sh
+
+      - name: Staged lockscreen and daemon activate as one generation
+        shell: bash
+        run: bash tests/qylock-staging.sh
 
   loop-device:
     name: Dual-boot alongside partitioner (real loop device)

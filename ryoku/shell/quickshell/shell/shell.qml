@@ -224,7 +224,12 @@ ShellRoot {
                     placing: perScreen.st ? perScreen.st.visualizerPlacing : false
                     // The desktop hosts the visualizer behind the cut-outs while the
                     // stage is on; this surface steps aside (cava keeps running).
-                    suppressed: desktop.hostsVisualizer
+                    // A rebuilt monitor stack (DPMS off/on, a lid close/open) starts
+                    // with no wallpaper frame, so hostsVisualizer briefly reads false
+                    // even for a stage wallpaper: stay suppressed until the frame
+                    // lands, or the surface maps full-screen and pulses for a few
+                    // seconds on every resume.
+                    suppressed: desktop.hostsVisualizer || !wallpaper.reloadReady
                     onPlacingDone: if (perScreen.st) perScreen.st.visualizerPlacing = false
                 }
             }

@@ -127,6 +127,15 @@ type Inputs struct {
 // Build assembles the manifest from the checkout's own files. The result is
 // deterministic: every list is sorted, so the same tree always yields the same
 // bytes and a box can trust the digest it caches.
+//
+// The first-party lane is the release's own delivery contract: every box on
+// the release is expected to carry it. Two groups of [ryoku] PKGBUILDs are
+// therefore not first-party: names a compositor provider declares (they belong
+// to that compositor's variant, not to every machine -- shipping
+// ryoku-desktop-niri or xwayland-satellite in the lane would offer the other
+// desktop's packages to everyone), and OptIn names a hardware-gated or
+// user-chosen path owns (asusctl, dualsensectl, the fingerprint module, the
+// snapshot sync, the palette bridge).
 func Build(in Inputs) Manifest {
 	m := Manifest{
 		Schema:      Schema,
@@ -139,22 +148,24 @@ func Build(in Inputs) Manifest {
 		Dev:         PackageSet(in.Dev),
 		Hardware:    HardwareSets(in.Hardware),
 		AUR:         PackageSet(in.AUR),
-		FirstParty:  firstPartyNames(in.FirstParty),
 		Compositor:  compositorPackages(in.Compositor),
 		Provisioned: AppNames(),
 	}
-	return m
-}
-
-func firstPartyNames(pkgbuilds map[string]string) []string {
-	var out []string
-	for _, body := range pkgbuilds {
-		if n := Pkgname(body); n != "" {
-			out = append(out, n)
+	declared := map[string]bool{}
+	for _, pkgs := range m.Compositor {
+		for _, p := range pkgs {
+			declared[p] = true
 		}
 	}
-	sort.Strings(out)
-	return out
+	for _, body := range in.FirstParty {
+		n := Pkgname(body)
+		if n == "" || declared[n] || IsOptIn(n) {
+			continue
+		}
+		m.FirstParty = append(m.FirstParty, n)
+	}
+	sort.Strings(m.FirstParty)
+	return m
 }
 
 func compositorPackages(caps map[string]string) map[string][]string {

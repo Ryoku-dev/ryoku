@@ -62,19 +62,19 @@ var commandAllowlist = map[string]bool{
 }
 
 var (
-	escalationRe    = regexp.MustCompile(`\b(sudo|doas|su)\b`)
-	pipeShellRe     = regexp.MustCompile(`(?:curl|wget)[^|\n]*\|\s*(?:sh|bash|zsh)|eval\s+"\$\(curl`)
-	importShellRe   = regexp.MustCompile(`^\s*import\s+shell\.`)
-	importUiRe      = regexp.MustCompile(`^\s*import\s+Ryoku\.Ui`)
-	importRelRe     = regexp.MustCompile(`^\s*import\s+"(\.\./[^"]*)"`)
-	secretRe        = regexp.MustCompile(`(?:sk|ghp|gho|xox[abp])-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY`)
-	cmdArrayRe      = regexp.MustCompile(`command\s*:\s*\[\s*([^,\]\n]+)`)
-	execDetachedRe  = regexp.MustCompile(`execDetached\s*\(\s*\[\s*([^,\]\n]+)`)
-	undeclaredHost  = regexp.MustCompile(`https?://([^/"'\s]+)`)
-	shcArrayRe      = regexp.MustCompile(`["'](?:sh|bash)["']\s*,\s*["']-c["']\s*,\s*([^\]\)]+)`)
-	shcInlineRe     = regexp.MustCompile(`\b(?:sh|bash)\s+-c\b(.*)`)
-	outsideWriteRe  = regexp.MustCompile(`~/\.config/|\$HOME/\.`)
-	cmdPunctRe      = regexp.MustCompile(`["'\[\](),+]`)
+	escalationRe   = regexp.MustCompile(`\b(sudo|doas|su)\b`)
+	pipeShellRe    = regexp.MustCompile(`(?:curl|wget)[^|\n]*\|\s*(?:sh|bash|zsh)|eval\s+"\$\(curl`)
+	importShellRe  = regexp.MustCompile(`^\s*import\s+shell\.`)
+	importUiRe     = regexp.MustCompile(`^\s*import\s+Ryoku\.Ui`)
+	importRelRe    = regexp.MustCompile(`^\s*import\s+"(\.\./[^"]*)"`)
+	secretRe       = regexp.MustCompile(`(?:sk|ghp|gho|xox[abp])-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY`)
+	cmdArrayRe     = regexp.MustCompile(`command\s*:\s*\[\s*([^,\]\n]+)`)
+	execDetachedRe = regexp.MustCompile(`execDetached\s*\(\s*\[\s*([^,\]\n]+)`)
+	undeclaredHost = regexp.MustCompile(`https?://([^/"'\s]+)`)
+	shcArrayRe     = regexp.MustCompile(`["'](?:sh|bash)["']\s*,\s*["']-c["']\s*,\s*([^\]\)]+)`)
+	shcInlineRe    = regexp.MustCompile(`\b(?:sh|bash)\s+-c\b(.*)`)
+	outsideWriteRe = regexp.MustCompile(`~/\.config/|\$HOME/\.`)
+	cmdPunctRe     = regexp.MustCompile(`["'\[\](),+]`)
 )
 
 // auditManifest is the manifest data the audit reasons about: what the plugin

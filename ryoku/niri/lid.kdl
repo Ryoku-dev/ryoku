@@ -1,0 +1,11 @@
+// Niri owns automatic internal-panel topology. Ryoku adds only the shared
+// docked-or-secure-suspend policy at the physical lid edge; the open event
+// cancels any close retry without touching niri's output state.
+switch-events {
+    lid-close {
+        spawn "ryoku-clamshell" "policy" "close"
+    }
+    lid-open {
+        spawn "ryoku-clamshell" "policy" "open"
+    }
+}

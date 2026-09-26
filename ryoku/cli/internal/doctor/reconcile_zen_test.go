@@ -55,11 +55,11 @@ func TestReconcileZen(t *testing.T) {
 	}
 	var doc struct {
 		Policies struct {
-			DisableAppUpdate         bool           `json:"DisableAppUpdate"`
-			DefaultSerialGuardSetting int           `json:"DefaultSerialGuardSetting"`
-			DisableTelemetry         bool           `json:"DisableTelemetry"`
-			ExtensionSettings        map[string]any `json:"ExtensionSettings"`
-			Preferences              map[string]any `json:"Preferences"`
+			DisableAppUpdate          bool           `json:"DisableAppUpdate"`
+			DefaultSerialGuardSetting int            `json:"DefaultSerialGuardSetting"`
+			DisableTelemetry          bool           `json:"DisableTelemetry"`
+			ExtensionSettings         map[string]any `json:"ExtensionSettings"`
+			Preferences               map[string]any `json:"Preferences"`
 		} `json:"policies"`
 	}
 	if err := json.Unmarshal(got, &doc); err != nil {

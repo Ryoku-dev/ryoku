@@ -53,6 +53,8 @@ func main() {
 		err = runSchema()
 	case "binds":
 		err = runBinds(os.Args[2:])
+	case "environment":
+		err = runEnvironment(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -80,6 +82,7 @@ func usage() {
   watch            stream state frames (newline-delimited JSON)
   apply <store>    write the compositor config from the neutral store
   outputs <file>   apply an output layout from the neutral display store
+  environment <pid> export this provider's session handle (NUL-delimited)
 
 Consumers should go through wm.Client rather than exec this directly.
 `)

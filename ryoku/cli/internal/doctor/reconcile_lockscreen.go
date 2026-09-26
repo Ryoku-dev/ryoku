@@ -2,10 +2,13 @@ package doctor
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"ryoku-cli/internal/sys"
 
@@ -13,12 +16,12 @@ import (
 )
 
 // ---- reconciler: the in-session lockscreen -----------------------------------
-//
-// `ryoku-shell lock` execs ~/.local/share/quickshell-lockscreen/lock.sh, and
-// only the ISO installer ever laid that down. A box that predates the step, or
-// where it failed, has a dead lock button and, worse, suspends without locking:
-// hypridle's before_sleep runs the same command. The bundle now ships in
-// ryoku-desktop (and lives in a checkout), so this can heal it anywhere.
+// `ryoku-shell lock` enters the stable ryoku-qylock-lock launcher, which selects
+// ~/.local/share/quickshell-lockscreen/lock.sh. Only the ISO installer used to
+// lay that tree down. A box that predates the step, or where it failed, has a
+// dead lock button and, worse, cannot complete the shell daemon's
+// compositor-secure lock-before-suspend handshake. The bundle now
+// ships in ryoku-desktop (and lives in a checkout), so this can heal it anywhere.
 //
 // It also converges an INSTALLED bundle onto the shipped one. The copy under
 // ~/.local/share is outside materialize's tree, so before this a lock fix (a
@@ -156,8 +159,92 @@ func lockerPath() string {
 	return filepath.Join(os.Getenv("HOME"), ".local", "share", "quickshell-lockscreen", "lock.sh")
 }
 
-func legacyTapePath() string {
-	return filepath.Join(os.Getenv("HOME"), ".local", "share", "qylock", "themes", "clockwork", "tape", "Main.qml")
+func stagedLockerPath() string {
+	return filepath.Join(os.Getenv("HOME"), ".local", "share", "ryoku", "qylock-next", "lockscreen", "lock.sh")
+}
+
+func stageLockscreen(installer string) ([]byte, error) {
+	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
+	if runtimeDir == "" {
+		runtimeDir = os.TempDir()
+	}
+	cutoverLock, err := os.OpenFile(
+		filepath.Join(runtimeDir, "ryoku-power-cutover.lock"),
+		os.O_CREATE|os.O_RDWR, 0o600,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer cutoverLock.Close()
+	if err := syscall.Flock(int(cutoverLock.Fd()), syscall.LOCK_EX); err != nil {
+		return nil, err
+	}
+
+	guarded := false
+	helper, helperErr := exec.LookPath("ryoku-power-cutover")
+	if helperErr == nil {
+		if out, err := exec.Command(helper, "generation-guard-start").CombinedOutput(); err != nil {
+			return out, err
+		}
+		guarded = true
+		defer exec.Command(helper, "generation-guard-stop").Run()
+	}
+
+	cmd := exec.Command(installer)
+	cmd.Env = append(os.Environ(),
+		"RYOKU_QYLOCK_USER_ONLY=1",
+		"RYOKU_QYLOCK_MODE=stage",
+	)
+	if guarded {
+		cmd.Env = append(cmd.Env, "RYOKU_QYLOCK_GENERATION_GUARDED=1")
+	}
+	return cmd.CombinedOutput()
+}
+
+var legacyTapeHashes = map[string]string{
+	"Main.qml":              "106fee628bb634e2b7ee87a4851532a42cbe635ae745d385fc5296e9098dc015",
+	"font/Outfit-Black.ttf": "f240e6128c31a75aa3f456ea1ff3b0fda382176681788ae3d244d08e3fa7d6cd",
+	"metadata.desktop":      "37615671bab45ab45979cc9938c0bb8892f58760bd865a5286f58c342dacdf97",
+	"theme.conf":            "002c24b024b3e0788052f178acd7c6cec25f08e2486b4bfb123c7c8b1b8a4475",
+	"preview.gif":           "93237dfb00b51b9fcd0bc153e076a03a7315b490052f16756d9fd020057b1a02",
+}
+
+func legacyTapeNeedsMigration() bool {
+	themeRoot := filepath.Join(os.Getenv("HOME"), ".local", "share", "qylock", "themes")
+	root := filepath.Join(themeRoot, "clockwork", "tape")
+	if sys.Exists(filepath.Join(themeRoot, "clockwork-tape")) {
+		return false
+	}
+	count := 0
+	valid := true
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			valid = false
+			return nil
+		}
+		if entry.Type()&os.ModeSymlink != 0 {
+			valid = false
+			return nil
+		}
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, path)
+		want, known := legacyTapeHashes[rel]
+		body, readErr := os.ReadFile(path)
+		if relErr != nil || !known || readErr != nil {
+			valid = false
+			return nil
+		}
+		wantBytes, decodeErr := hex.DecodeString(want)
+		sum := sha256.Sum256(body)
+		if decodeErr != nil || !bytes.Equal(sum[:], wantBytes) {
+			valid = false
+		}
+		count++
+		return nil
+	})
+	return err == nil && valid && count == len(legacyTapeHashes)
 }
 
 func needsLockscreenInstaller(lockerPresent, legacyTape bool) bool {
@@ -180,7 +267,7 @@ func lockscreenInstaller() string {
 
 func reconcileLockscreen(checkOnly bool) recResult {
 	lockerPresent := sys.Exists(lockerPath())
-	legacyTape := sys.Exists(legacyTapePath())
+	legacyTape := legacyTapeNeedsMigration()
 	if !needsLockscreenInstaller(lockerPresent, legacyTape) {
 		return reconcileLockscreenDrift(checkOnly)
 	}
@@ -201,25 +288,24 @@ func reconcileLockscreen(checkOnly bool) recResult {
 		return wouldRes(i18n.T("the in-session lockscreen is missing; the lock button and lock-on-sleep do nothing")).
 			withFix("ryoku doctor")
 	}
-	// RYOKU_QYLOCK_USER_ONLY skips the SDDM greeter half: it needs root, the
-	// installer already did it at install time, and a user-session doctor run
-	// must not hang on a sudo prompt.
-	cmd := exec.Command(installer)
-	cmd.Env = append(os.Environ(), "RYOKU_QYLOCK_USER_ONLY=1")
-	if out, err := cmd.CombinedOutput(); err != nil {
+	// A doctor run must not replace the lock client underneath a live daemon:
+	// the two share the proof/unlock protocol. Stage the whole generation for
+	// ryoku-shell.service to promote before its next matching daemon start.
+	out, err := stageLockscreen(installer)
+	if err != nil {
 		return failRes(i18n.T("lockscreen install failed: %v (%s)"), err, firstLine(string(out))).
 			withFix(i18n.T("run %s by hand to see why"), installer)
 	}
-	if !sys.Exists(lockerPath()) {
-		return failRes(i18n.T("lockscreen installer ran but %s did not appear"), lockerPath())
+	if !sys.Exists(stagedLockerPath()) {
+		return failRes(i18n.T("lockscreen installer ran but %s did not appear"), stagedLockerPath())
 	}
-	if legacyTape && !sys.Exists(legacyTapePath()) {
-		return fixedRes(i18n.T("migrated the legacy Tape lockscreen into Store ownership"))
+	if legacyTape {
+		return fixedRes(i18n.T("staged the legacy Tape migration for the next shell daemon start"))
 	}
 	if lockerPresent {
-		return okRes(i18n.T("in-session lockscreen installed; custom legacy Tape retained"))
+		return okRes(i18n.T("in-session lockscreen staged; custom legacy Tape retained"))
 	}
-	return fixedRes(i18n.T("installed the in-session lockscreen; the lock button and lock-on-sleep work again"))
+	return fixedRes(i18n.T("staged the in-session lockscreen for the next shell daemon start"))
 }
 
 // reconcileLockscreenDrift refreshes an installed lock onto the shipped bundle
@@ -250,13 +336,12 @@ func reconcileLockscreenDrift(checkOnly bool) recResult {
 			return warnRes(i18n.T("the installed lockscreen predates the shipped one and no installer is available")).
 				withFix("ryoku update")
 		}
-		cmd := exec.Command(installer)
-		cmd.Env = append(os.Environ(), "RYOKU_QYLOCK_USER_ONLY=1")
-		if out, err := cmd.CombinedOutput(); err != nil {
+		out, err := stageLockscreen(installer)
+		if err != nil {
 			return failRes(i18n.T("lockscreen refresh failed: %v (%s)"), err, firstLine(string(out))).
 				withFix(i18n.T("run %s by hand to see why"), installer)
 		}
-		did = append(did, i18n.T("in-session lock"))
+		did = append(did, i18n.T("in-session lock (next daemon start)"))
 	}
 	if greeter || gscriptStale {
 		if exec.Command("sudo", "-n", "true").Run() != nil {

@@ -35,12 +35,11 @@ var materializeNow = updater.Materialize
 // without a relogin. A var so a test needs no live compositor.
 var sessionLive = func() bool { return wm.Detect().Live }
 
-// startSession brings a live but bare session up: the same two commands the
-// compositor config's autostart runs at login. A var so a test never restarts
-// the desktop it runs on.
-var startSession = func() {
-	_ = sys.Run("systemctl", "--user", "start", "ryoku-session.target")
-	_ = sys.Run("systemctl", "--user", "restart", "ryoku-shell")
+// startSession brings a live but bare session up through the same guarded
+// lifecycle entry point compositor autostart uses. A var keeps tests from
+// restarting the desktop they run on.
+var startSession = func() error {
+	return sys.Run("ryoku-power-cutover", "session-start")
 }
 
 // shippedProviders lists the providers whose tree the packaged base carries, i.e.
@@ -103,9 +102,13 @@ func reconcileConfigTree(checkOnly bool) recResult {
 	}
 	if len(live) > 0 && sessionLive() {
 		// The session came up before the tree existed, so the compositor already
-		// read its own defaults. Start what the tree's autostart would have, and
-		// name the relogin as the complete cure.
-		startSession()
+		// read its own defaults. The lifecycle helper holds sleep blocked until
+		// qylock, shell, lid, and logout ownership are all proven.
+		if err := startSession(); err != nil {
+			return failRes(i18n.T("laid down the %s config but could not safely start the desktop: %v"),
+				strings.Join(live, ", "), err).
+				withFix(i18n.T("run `ryoku doctor` again from the live desktop"))
+		}
 		return fixedRes(i18n.T("laid down the %s config and started the desktop; log out and back in if a surface is still missing"),
 			strings.Join(live, ", "))
 	}

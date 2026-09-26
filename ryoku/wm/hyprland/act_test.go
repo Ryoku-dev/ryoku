@@ -43,10 +43,12 @@ func TestActEmitsLuaDialect(t *testing.T) {
 			[]string{"dispatch", `hl.dsp.workspace.toggle_special("sharebar")`}},
 		{"session exit", []string{"session.exit"},
 			[]string{"dispatch", `hl.dsp.exit()`}},
-		{"output power", []string{"output.power", "off", "eDP-2"},
-			[]string{"dispatch", `hl.dsp.dpms({ state = "off", monitor = "eDP-2" })`}},
+		{"output power on", []string{"output.power", "on"},
+			[]string{"dispatch", `hl.dsp.dpms({ action = "on" })`}},
+		{"output power off", []string{"output.power", "off", "eDP-2"},
+			[]string{"dispatch", `hl.dsp.dpms({ action = "off", monitor = "eDP-2" })`}},
 		{"output enable on", []string{"output.enable", "DP-1", "on"},
-			[]string{"eval", `hl.monitor({ output = "DP-1", mode = "preferred", position = "auto", scale = 1 })`}},
+			[]string{"eval", `hl.monitor({ output = "DP-1", disabled = false })`}},
 		{"output enable off", []string{"output.enable", "DP-1", "off"},
 			[]string{"eval", `hl.monitor({ output = "DP-1", disabled = true })`}},
 		{"submap enter", []string{"submap.enter", "resize"},
@@ -92,6 +94,39 @@ func TestActEmitsLuaDialect(t *testing.T) {
 				t.Errorf("argv mismatch\n got: %q\nwant: %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// Re-enabling a connector must not rewrite its layout. hl.monitor copies the
+// output's existing rule and reapplies only the fields it is handed, so an
+// enable that also named a mode, position or scale would snap the output back
+// to "preferred at auto" and throw away the arrangement the user set. The
+// enable-on payload therefore carries disabled alone -- the regression this
+// pins is a re-enable that clobbered the layout.
+func TestActOutputEnablePreservesLayout(t *testing.T) {
+	var evals []string
+	restore := stubCtl(t, func(args ...string) ([]byte, error) {
+		if len(args) == 2 && args[0] == "eval" {
+			evals = append(evals, args[1])
+		}
+		return nil, nil
+	})
+	defer restore()
+
+	if err := runAct([]string{"output.enable", "DP-1", "on"}); err != nil {
+		t.Fatalf("output.enable on: %v", err)
+	}
+	if len(evals) != 1 {
+		t.Fatalf("output.enable on evaluated %d calls, want 1: %q", len(evals), evals)
+	}
+	got := evals[0]
+	if !strings.Contains(got, `output = "DP-1"`) || !strings.Contains(got, "disabled = false") {
+		t.Errorf("enable-on payload = %q, want output DP-1 with disabled = false", got)
+	}
+	for _, field := range []string{"mode", "position", "scale"} {
+		if strings.Contains(got, field) {
+			t.Errorf("enable-on payload %q sets %q, which would reset the output's layout", got, field)
+		}
 	}
 }
 

@@ -4,25 +4,25 @@
 #
 # Run this on the target system (during install, or by hand later). It installs
 # the vendored "clockwork/orbital" theme as the SDDM greeter, wires SDDM to use
-# it, and lays down the Quickshell lockscreen for in-session locking. The qylock
-# bundle ships next to this script (ryoku/lockscreen/qylock), so the install is
-# fully offline: no git clone, no network.
+# it, and safely installs one complete in-session lock generation. With the
+# activation service present it stages for the next matching daemon start; on a
+# fresh offline system it installs live. Offline provisioning sets
+# `RYOKU_QYLOCK_MODE=live`; guarded updates and deploys set `stage`. The bundle
+# ships next to this script and needs no network.
 #
 # What it does:
 #   1. installs themes/clockwork/orbital to /usr/share/sddm/themes/ryoku
 #   2. writes /etc/sddm.conf.d/99-ryoku.conf with [Theme] Current=ryoku
-#   3. installs quickshell-lockscreen to ~/.local/share/quickshell-lockscreen
-#   4. installs the themes to ~/.local/share/qylock/themes and points
-#      quickshell-lockscreen/themes_link at them
-#   5. writes ~/.config/qylock/theme = clockwork/orbital
+#   3. stages quickshell-lockscreen for the next ryoku-shell daemon start
+#   4. stages the shipped fallback theme without copying optional themes
+#   5. seeds ~/.config/qylock/theme = clockwork/orbital when absent
 #
 # Runtime packages this greeter needs (install them separately, e.g. from the
 # install backend; this script does NOT install them):
 #   qt6-declarative qt6-5compat qt6-svg qt6-multimedia qt6-multimedia-ffmpeg
 #   quickshell
-#
 # Usage:
-#   install-qylock                run the install
+#   install-qylock                auto-select a safe staged or offline install
 #   install-qylock --dry-run      print the plan, change nothing
 #   RYOKU_DRYRUN=1 install-qylock  same, via the shared installer switch
 #
@@ -36,9 +36,11 @@ set -euo pipefail
 
 # --- dry-run switch (shared installer convention: RYOKU_DRYRUN=1) -------------
 RYOKU_DRYRUN="${RYOKU_DRYRUN:-0}"
+PRINT_GENERATION=0
 for arg in "$@"; do
   case "$arg" in
     --dry-run) RYOKU_DRYRUN=1 ;;
+    --print-generation) PRINT_GENERATION=1 ;;
     -h | --help)
       sed -n '2,32p' "$0"
       exit 0
@@ -66,6 +68,20 @@ if [[ ! -f $BUNDLE/themes/clockwork/orbital/Main.qml ]]; then
   echo "install-qylock: qylock bundle not found at $BUNDLE" >&2
   echo "  expected $BUNDLE/themes/clockwork/orbital/Main.qml" >&2
   exit 1
+fi
+
+bundle_generation() {
+  (
+    cd "$BUNDLE"
+    find quickshell-lockscreen themes/clockwork/orbital -type f -print0 |
+      LC_ALL=C sort -z |
+      xargs -0 sha256sum
+  ) | sha256sum | cut -d' ' -f1
+}
+BUNDLE_GENERATION="$(bundle_generation)"
+if (( PRINT_GENERATION == 1 )); then
+  printf '%s\n' "$BUNDLE_GENERATION"
+  exit 0
 fi
 
 # --- resolve the target user and privilege wrappers --------------------------
@@ -129,9 +145,184 @@ legacy_tape_matches() {
   [[ $(sha256sum "$dir/preview.gif" | cut -d' ' -f1) == 93237dfb00b51b9fcd0bc153e076a03a7315b490052f16756d9fd020057b1a02 ]] || return 1
 }
 
-QYLOCK_DIR="$TARGET_HOME/.local/share/qylock"
-LOCK_DIR="$TARGET_HOME/.local/share/quickshell-lockscreen"
+legacy_tape_manifest() {
+  local dir=$1 rel hash
+  for rel in Main.qml font/Outfit-Black.ttf metadata.desktop theme.conf preview.gif; do
+    hash="$(sha256sum "$dir/$rel" | cut -d' ' -f1)"
+    printf '%s  %s\n' "$hash" "$rel"
+  done
+}
 
+QYLOCK_DIR="$TARGET_HOME/.local/share/qylock"
+LIVE_LOCK_DIR="$TARGET_HOME/.local/share/quickshell-lockscreen"
+STAGE_ROOT="$TARGET_HOME/.local/share/ryoku/qylock-next"
+STAGE_TMP="$STAGE_ROOT.staging.$$"
+
+acquire_mutation_guard() {
+  [[ ${RYOKU_QYLOCK_MUTATION_GUARDED:-0} != 1 ]] || return 0
+  (( RYOKU_DRYRUN == 0 )) || return 0
+  command -v flock >/dev/null 2>&1 || {
+    echo "install-qylock: flock is required for safe generation mutation" >&2
+    return 1
+  }
+  local runtime_dir="${RYOKU_QYLOCK_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
+  exec 6>"$runtime_dir/ryoku-qylock-mutation.lock"
+  flock 6
+}
+
+external_generation_guard_ready() {
+  local runtime_dir="${RYOKU_QYLOCK_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
+  [[ -r $runtime_dir/ryoku-qylock-generation-guard.ready ]] &&
+    systemctl --user is-active --quiet ryoku-qylock-generation-guard.service
+}
+
+activation_contract_present() {
+  [[ -x /usr/bin/ryoku-qylock-activate ||
+     -x $TARGET_HOME/.local/bin/ryoku-qylock-activate ]] || return 1
+  local unit
+  for unit in "$TARGET_HOME/.config/systemd/user/ryoku-shell.service" \
+    /usr/lib/systemd/user/ryoku-shell.service; do
+    [[ -f $unit ]] || continue
+    grep -Eq '^ExecStartPre=.*ryoku-qylock-activate([[:space:]]|$)' "$unit" && return 0
+  done
+  return 1
+}
+
+lock_client_active() {
+  local uid
+  uid="$(id -u "$TARGET_USER")" || return 0
+  command -v pgrep >/dev/null 2>&1 || return 0
+  pgrep -u "$uid" -f \
+    '(quickshell.*lock_shell[.]qml|/(quickshell-lockscreen|qylock-next/lockscreen)/lock[.]sh)([[:space:]]|$)' \
+    >/dev/null 2>&1
+}
+
+lock_runtime_active() {
+  local uid
+  uid="$(id -u "$TARGET_USER")" || return 0
+  command -v pgrep >/dev/null 2>&1 || return 0
+  pgrep -u "$uid" -x ryoku-shell >/dev/null 2>&1 || lock_client_active
+}
+
+generation_guard_owned=0
+release_generation_guard() {
+  (( generation_guard_owned == 1 )) || return 0
+  flock -u 7
+  flock -u 8
+  exec 7>&-
+  exec 8>&-
+  generation_guard_owned=0
+}
+
+acquire_generation_guard() {
+  local target_uid runtime_dir
+  [[ ${RYOKU_QYLOCK_GENERATION_GUARDED:-0} != 1 ]] || return 0
+  (( RYOKU_DRYRUN == 0 )) || return 0
+  target_uid="$(id -u "$TARGET_USER")"
+  if (( EUID == 0 && target_uid != EUID )); then
+    if lock_runtime_active; then
+      echo "install-qylock: online root install needs the target user's generation guard" >&2
+      return 1
+    fi
+    return 0
+  fi
+  command -v flock >/dev/null 2>&1 || {
+    echo "install-qylock: flock is required for safe generation publication" >&2
+    return 1
+  }
+  runtime_dir="${RYOKU_QYLOCK_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
+  exec 8>"$runtime_dir/ryoku-qylock-launch.lock"
+  flock 8
+  exec 7>"$runtime_dir/ryoku-qylock-generation.lock"
+  flock 7
+  generation_guard_owned=1
+  trap release_generation_guard EXIT
+}
+
+QYLOCK_MODE="${RYOKU_QYLOCK_MODE:-auto}"
+case "$QYLOCK_MODE" in
+  auto)
+    if activation_contract_present; then
+      QYLOCK_MODE=stage
+    elif lock_runtime_active; then
+      echo "install-qylock: a lock daemon is live but no staged activation contract is installed" >&2
+      echo "  deploy or update ryoku-shell before replacing its lock client" >&2
+      exit 1
+    else
+      QYLOCK_MODE=live
+    fi
+    ;;
+  stage | live) ;;
+  *)
+    echo "install-qylock: RYOKU_QYLOCK_MODE must be auto, stage, or live" >&2
+    exit 1
+    ;;
+esac
+
+if [[ $QYLOCK_MODE == stage &&
+      ${RYOKU_QYLOCK_GENERATION_GUARDED:-0} != 1 ]] &&
+   lock_runtime_active; then
+  echo "install-qylock: live daemon staging requires the generation cutover helper" >&2
+  exit 1
+fi
+
+acquire_mutation_guard
+if [[ ${RYOKU_QYLOCK_GENERATION_GUARDED:-0} == 1 &&
+      ${RYOKU_QYLOCK_INLINE_GENERATION_GUARD:-0} != 1 &&
+      $RYOKU_DRYRUN != 1 ]] &&
+   ! external_generation_guard_ready; then
+  echo "install-qylock: external generation guard was lost before publication" >&2
+  exit 1
+fi
+
+
+acquire_generation_guard
+
+if [[ $QYLOCK_MODE == live ]]; then
+  LOCK_DIR="$LIVE_LOCK_DIR"
+  STAGED_THEME_DIR=""
+else
+  LOCK_DIR="$STAGE_TMP/lockscreen"
+  STAGED_THEME_DIR="$STAGE_TMP/themes"
+fi
+
+migrate_legacy_tape() {
+  local theme_root=$1 update_preference=${2:-1}
+  local legacy_tape product_tape preference
+  legacy_tape="$theme_root/clockwork/tape"
+  product_tape="$theme_root/clockwork-tape"
+  if [[ -e $product_tape ]] || ! legacy_tape_matches "$legacy_tape"; then
+    return 0
+  fi
+  echo "  migrate clockwork/tape -> clockwork-tape"
+  user mv "$legacy_tape" "$product_tape"
+  user rm "$product_tape/preview.gif"
+  user cp "$BUNDLE/LICENSE" "$product_tape/LICENSE"
+  write_user "$product_tape/PROVENANCE.txt" <<'EOF'
+Clockwork Tape qylock theme
+
+Upstream: https://github.com/Darkkal44/qylock
+Vendored from commit: cde4d11e9e3d385620becdc877a0521e40a55e47
+Author: Darkkal44 and qylock contributors
+License: GNU General Public License version 3; see LICENSE
+
+Ryoku adds assets/preview.gif as catalogue media rendered from the theme. The preview is not installed with the runtime payload.
+EOF
+  user chmod 0644 \
+    "$product_tape/LICENSE" \
+    "$product_tape/PROVENANCE.txt" \
+    "$product_tape/Main.qml" \
+    "$product_tape/font/Outfit-Black.ttf" \
+    "$product_tape/metadata.desktop" \
+    "$product_tape/theme.conf"
+  preference="$TARGET_HOME/.config/qylock/theme"
+  if [[ $update_preference == 1 && ! -L $preference && -f $preference &&
+        $(<"$preference") == "clockwork/tape" ]]; then
+    write_user "$preference" <<'EOF'
+clockwork-tape
+EOF
+  fi
+}
 for parent in "$QYLOCK_DIR" "$QYLOCK_DIR/themes" "$QYLOCK_DIR/themes/clockwork"; do
   if [[ -L $parent ]]; then
     echo "install-qylock: refusing symlinked lock theme parent: $parent" >&2
@@ -166,52 +357,53 @@ if [[ ${RYOKU_QYLOCK_USER_ONLY:-0} != 1 ]]; then
 fi
 
 # --- 3. in-session lock (user) -----------------------------------------------
+if [[ $LOCK_DIR == "$LIVE_LOCK_DIR" ]]; then
+  user rm -rf "$STAGE_ROOT" "$TARGET_HOME/.local/share/quickshell-lockscreen.next" \
+    "$QYLOCK_DIR/themes.next"
+else
+  if lock_client_active; then
+    echo "install-qylock: a lock client is still running" >&2
+    echo "  unlock it before staging another daemon generation" >&2
+    exit 1
+  fi
+  user rm -rf "$STAGE_TMP"
+  user mkdir -p "$STAGE_TMP"
+fi
 echo "  quickshell lockscreen -> $LOCK_DIR"
 user mkdir -p "$TARGET_HOME/.local/share"
 user rm -rf "$LOCK_DIR"
 user cp -a "$BUNDLE/quickshell-lockscreen" "$LOCK_DIR"
-user chmod +x "$LOCK_DIR/lock.sh"
+user chmod +x "$LOCK_DIR/lock.sh" "$LOCK_DIR/unlock.sh" \
+  "$LOCK_DIR/ryoku-qylock-unlock-prepare"
 
 # --- 4. themes the lock reads, plus the themes_link the lock resolves ---------
-echo "  lock themes -> $QYLOCK_DIR/themes"
 user mkdir -p "$QYLOCK_DIR"
-legacy_tape="$QYLOCK_DIR/themes/clockwork/tape"
-product_tape="$QYLOCK_DIR/themes/clockwork-tape"
-if [[ ! -e $product_tape ]] && legacy_tape_matches "$legacy_tape"; then
-  echo "  migrate clockwork/tape -> clockwork-tape"
-  user mv "$legacy_tape" "$product_tape"
-  user rm "$product_tape/preview.gif"
-  user cp "$BUNDLE/LICENSE" "$product_tape/LICENSE"
-  write_user "$product_tape/PROVENANCE.txt" <<'EOF'
-Clockwork Tape qylock theme
-
-Upstream: https://github.com/Darkkal44/qylock
-Vendored from commit: cde4d11e9e3d385620becdc877a0521e40a55e47
-Author: Darkkal44 and qylock contributors
-License: GNU General Public License version 3; see LICENSE
-
-Ryoku adds assets/preview.gif as catalogue media rendered from the theme. The preview is not installed with the runtime payload.
-EOF
-  user chmod 0644 \
-    "$product_tape/LICENSE" \
-    "$product_tape/PROVENANCE.txt" \
-    "$product_tape/Main.qml" \
-    "$product_tape/font/Outfit-Black.ttf" \
-    "$product_tape/metadata.desktop" \
-    "$product_tape/theme.conf"
-  preference="$TARGET_HOME/.config/qylock/theme"
-  if [[ ! -L $preference && -f $preference && $(<"$preference") == "clockwork/tape" ]]; then
-    write_user "$preference" <<'EOF'
-clockwork-tape
-EOF
+if [[ $LOCK_DIR != "$LIVE_LOCK_DIR" ]]; then
+  echo "  staged core lock theme -> $STAGED_THEME_DIR/clockwork/orbital"
+  user rm -rf "$STAGED_THEME_DIR"
+  user mkdir -p "$STAGED_THEME_DIR/clockwork"
+  user cp -a "$BUNDLE/themes/clockwork/orbital" "$STAGED_THEME_DIR/clockwork/orbital"
+  live_legacy_tape="$QYLOCK_DIR/themes/clockwork/tape"
+  if [[ ! -e $QYLOCK_DIR/themes/clockwork-tape ]] &&
+    legacy_tape_matches "$live_legacy_tape"; then
+    legacy_manifest_body="$(legacy_tape_manifest "$live_legacy_tape")"
+    user cp -a "$live_legacy_tape" "$STAGED_THEME_DIR/clockwork/tape"
+    migrate_legacy_tape "$STAGED_THEME_DIR" 0
+    write_user "$STAGE_TMP/.legacy-tape.sha256" <<<"$legacy_manifest_body"
   fi
+  # Activation merges this core theme into the live tree. The link is already
+  # correct after promotion and never points at the disposable stage.
+  user ln -sfn "$QYLOCK_DIR/themes" "$LOCK_DIR/themes_link"
+else
+  echo "  lock themes -> $QYLOCK_DIR/themes"
+  migrate_legacy_tape "$QYLOCK_DIR/themes"
+  # Refresh only the core fallback. Optional themes are receipt-owned RyoStore
+  # products, and legacy user themes must survive installer/doctor reruns.
+  user mkdir -p "$QYLOCK_DIR/themes/clockwork"
+  user rm -rf "$QYLOCK_DIR/themes/clockwork/orbital"
+  user cp -a "$BUNDLE/themes/clockwork/orbital" "$QYLOCK_DIR/themes/clockwork/orbital"
+  user ln -sfn "$QYLOCK_DIR/themes" "$LOCK_DIR/themes_link"
 fi
-# Refresh only the core fallback. Optional themes are receipt-owned RyoStore
-# products, and legacy user themes must survive installer/doctor reruns.
-user mkdir -p "$QYLOCK_DIR/themes/clockwork"
-user rm -rf "$QYLOCK_DIR/themes/clockwork/orbital"
-user cp -a "$BUNDLE/themes/clockwork/orbital" "$QYLOCK_DIR/themes/clockwork/orbital"
-user ln -sfn "$QYLOCK_DIR/themes" "$LOCK_DIR/themes_link"
 
 # --- 5. active lock theme (user, seed once) -----------------------------------
 # only when absent: rerunning the installer (or doctor healing a missing
@@ -224,6 +416,17 @@ clockwork/orbital
 EOF
 else
   echo "  lock theme preference kept ($(cat "$TARGET_HOME/.config/qylock/theme" 2>/dev/null))"
+fi
+
+if [[ $LOCK_DIR != "$LIVE_LOCK_DIR" ]]; then
+  user touch "$STAGE_TMP/.complete"
+  write_user "$STAGE_TMP/.generation" <<<"$BUNDLE_GENERATION"
+  user rm -rf "$STAGE_ROOT"
+  user mv "$STAGE_TMP" "$STAGE_ROOT"
+else
+  user mkdir -p "$TARGET_HOME/.local/share/ryoku"
+  write_user "$TARGET_HOME/.local/share/ryoku/qylock-live-generation" \
+    <<<"$BUNDLE_GENERATION"
 fi
 
 echo "qylock clockwork/orbital installed."

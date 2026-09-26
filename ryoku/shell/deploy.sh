@@ -24,6 +24,65 @@ cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
 bindir="$HOME/.local/bin"
 say() { printf '  %s\n' "$*"; }
 
+power_cutover_lock_held=0
+acquire_power_cutover_lock() {
+  command -v flock >/dev/null 2>&1 || {
+    say "cannot cut over lid policy: flock is unavailable" >&2
+    return 1
+  }
+  exec 8>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-power-cutover.lock"
+  flock 8
+  power_cutover_lock_held=1
+}
+
+release_power_cutover_lock() {
+  (( power_cutover_lock_held == 1 )) || return 0
+  flock -u 8
+  exec 8>&-
+  power_cutover_lock_held=0
+}
+
+power_cutover_unit=ryoku-power-cutover-guard.service
+stop_power_cutover_guard() {
+  if systemctl --user is-active --quiet "$power_cutover_unit"; then
+    systemctl --user stop "$power_cutover_unit"
+  fi
+}
+trap 'exit 130' INT TERM
+
+start_power_cutover_guard() {
+  local json uid
+  for command in systemd-inhibit jq systemctl systemd-run; do
+    command -v "$command" >/dev/null 2>&1 || {
+      say "cannot cut over lid policy: $command is unavailable" >&2
+      return 1
+    }
+  done
+  if ! systemctl --user is-active --quiet "$power_cutover_unit"; then
+    systemctl --user reset-failed "$power_cutover_unit" >/dev/null 2>&1 || true
+    systemd-run --user --quiet --collect --unit="$power_cutover_unit" \
+      --property=Type=exec --property=TimeoutStopSec=5s \
+      /usr/bin/systemd-inhibit --what=sleep --mode=block \
+      --who=ryoku-session-cutover \
+      --why="keep the desktop awake while suspend owners are replaced" \
+      /usr/bin/sleep infinity
+  fi
+  uid="$(id -u)"
+  for _ in {1..60}; do
+    json="$(systemd-inhibit --list --json=short 2>/dev/null || true)"
+    if jq -e --argjson uid "$uid" \
+      'any(.[]; .uid == $uid and .who == "ryoku-session-cutover"
+        and .mode == "block" and ((.what | split(":")) | index("sleep")))' \
+      >/dev/null <<<"$json"; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  systemctl --user stop "$power_cutover_unit" >/dev/null 2>&1 || true
+  say "could not acquire the durable lid-policy cutover inhibitor" >&2
+  return 1
+}
+
 # Lay the user's overrides over the freshly-deployed base: a regular file under
 # ~/.config/ryoku/user_edits wins at the mirrored ~/.config path (a fork), the
 # one-way overlay `ryoku materialize` also applies on an installed box. Symlinks
@@ -67,16 +126,24 @@ EOF
 restart_shell() {
   local shell=$bindir/ryoku-shell
   local log="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku-shell.log"
+  local stopped=0
 
   [[ -x $shell ]] || return 0
-  check_renderer || return 0
+  check_renderer || return 1
   "$bindir/ryoku-reload-cover" begin >/dev/null 2>&1 || true
   systemctl --user stop ryoku-shell 2>/dev/null || true
   "$shell" quit >/dev/null 2>&1 || true
-  for _ in {1..20}; do
-    "$shell" ping >/dev/null 2>&1 || break
+  for _ in {1..50}; do
+    if ! "$shell" ping >/dev/null 2>&1; then
+      stopped=1
+      break
+    fi
     sleep 0.1
   done
+  if (( stopped == 0 )); then
+    say "pre-deploy ryoku-shell did not stop" >&2
+    return 1
+  fi
 
   # quit should stop the surfaces, but a crashed daemon orphans them and the
   # leftover qs keeps its single-instance lock, so the fresh pill cant come up and
@@ -100,12 +167,57 @@ restart_shell() {
     say "restarted ryoku-shell daemon (systemd unit)"
   else
     if command -v setsid >/dev/null 2>&1; then
-      setsid "$shell" daemon >"$log" 2>&1 < /dev/null &
+      setsid "$shell" daemon >"$log" 2>&1 < /dev/null 8>&- &
     else
-      nohup "$shell" daemon >"$log" 2>&1 < /dev/null &
+      nohup "$shell" daemon >"$log" 2>&1 < /dev/null 8>&- &
     fi
     say "restarted ryoku-shell daemon -> $log"
   fi
+  for _ in {1..150}; do
+    "$shell" sleep-ready >/dev/null 2>&1 && return 0
+    sleep 0.1
+  done
+  say "new ryoku-shell sleep guard did not become ready after restart" >&2
+  return 1
+}
+
+start_session_power_units() {
+  local status
+  systemctl --user reset-failed ryoku-idle.service ryoku-clamshell.service >/dev/null 2>&1 || true
+  systemctl --user restart ryoku-idle.service
+  for _ in {1..40}; do
+    status="$("$bindir/ryoku-idle" status 2>/dev/null || true)"
+    if grep -qxF 'idle=inactive' <<<"$status"; then
+      break
+    fi
+    if grep -qxF 'idle=active' <<<"$status" &&
+       grep -qxF 'running=yes' <<<"$status" &&
+       systemctl --user is-active --quiet ryoku-idle.service; then
+      break
+    fi
+    sleep 0.05
+  done
+  status="$("$bindir/ryoku-idle" status 2>/dev/null || true)"
+  if ! grep -qxF 'idle=inactive' <<<"$status" &&
+     ! { grep -qxF 'idle=active' <<<"$status" &&
+         grep -qxF 'running=yes' <<<"$status" &&
+         systemctl --user is-active --quiet ryoku-idle.service; }; then
+    say "new idle policy did not acquire its session service" >&2
+    return 1
+  fi
+
+  systemctl --user restart ryoku-clamshell.service
+  "$bindir/ryoku-clamshell" is-laptop || return 0
+  for _ in {1..40}; do
+    status="$("$bindir/ryoku-clamshell" status 2>/dev/null || true)"
+    if systemctl --user is-active --quiet ryoku-clamshell.service &&
+       grep -qxF 'inhibitor=held' <<<"$status"; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  say "new clamshell policy did not acquire its session inhibitor" >&2
+  return 1
 }
 
 # Building the desktop from a checkout needs the Go toolchain (cmake/ninja and
@@ -146,6 +258,36 @@ for s in "$here/scripts"/ryoku-*; do
   [[ -f $s ]] || continue
   install -m755 "$s" "$bindir/${s##*/}"
 done
+install -m755 "$here/../lockscreen/ryoku-qylock-activate" "$bindir/ryoku-qylock-activate"
+install -m755 "$here/../lockscreen/ryoku-qylock-lock" "$bindir/ryoku-qylock-lock"
+install -m755 \
+  "$here/../lockscreen/qylock/quickshell-lockscreen/ryoku-qylock-unlock-prepare" \
+  "$bindir/ryoku-qylock-unlock-prepare"
+qylock_installer_root="$HOME/.local/share/ryoku"
+qylock_installer_revision="$(
+  {
+    sha256sum "$here/../lockscreen/install-qylock"
+    "$here/../lockscreen/install-qylock" --print-generation
+  } | sha256sum | cut -d' ' -f1
+)"
+qylock_installer_dir="$qylock_installer_root/lockscreen-generations/$qylock_installer_revision"
+if [[ ! -x $qylock_installer_dir/install-qylock ]]; then
+  qylock_installer_tmp="$qylock_installer_dir.staging.$$"
+  rm -rf "$qylock_installer_tmp"
+  install -d -m755 "$qylock_installer_tmp"
+  install -m755 "$here/../lockscreen/install-qylock" \
+    "$qylock_installer_tmp/install-qylock"
+  cp -a "$here/../lockscreen/qylock" "$qylock_installer_tmp/qylock"
+  mv "$qylock_installer_tmp" "$qylock_installer_dir"
+fi
+if [[ -d $qylock_installer_root/lockscreen &&
+      ! -L $qylock_installer_root/lockscreen ]]; then
+  rm -rf "$qylock_installer_root/lockscreen"
+fi
+ln -sfn "lockscreen-generations/$qylock_installer_revision" \
+  "$qylock_installer_root/lockscreen.next"
+mv -Tf "$qylock_installer_root/lockscreen.next" \
+  "$qylock_installer_root/lockscreen"
 # ryostage: the wallpaper engine's launcher, not a ryoku-* name.
 install -m755 "$here/scripts/ryostage" "$bindir/ryostage"
 # The .sh helpers the shell drives by bare name: the Stash sidebar's cobalt queue
@@ -273,6 +415,11 @@ if command -v sudo >/dev/null 2>&1; then
   # root-owned firmware knob); this grant lets the one-click path work on a dev
   # box too, mirroring the packaged rule.
   _priv_install "$here/../../system/hardware/gpu/45-ryoku-gpu-mux.rules" /usr/share/polkit-1/rules.d/45-ryoku-gpu-mux.rules 644
+  # Lid-switch policy. logind supplies the sessionless fallback; under either
+  # compositor, ryoku-clamshell's verified session inhibitor takes ownership
+  # and routes every non-docked close through the secure shell transaction.
+  _priv_install "$here/../../system/hardware/power/logind-ryoku-lid.conf" \
+    /etc/systemd/logind.conf.d/10-ryoku-lid.conf 644
   sudo systemctl daemon-reload || true
   sudo systemctl enable --quiet ryoku-network-kill-guard.service ryoku-network-kill-disconnect.service || true
   say "installed privileged network helpers + polkit rules"
@@ -470,15 +617,20 @@ install -Dm644 "$here/../hub/ryoku-hub.desktop" "$appshare/applications/ryoku-hu
 install -Dm644 "$here/../assets/brand/logo.svg" "$appshare/icons/hicolor/scalable/apps/ryoku-hub.svg"
 say "installed ryoku-hub launcher entry"
 
-# In-session lockscreen (qylock): deploy otherwise never lays it down, so the
-# lock button and lock-on-sleep no-op. User-only half, mirroring ryoku doctor.
-if [[ -x "$here/../lockscreen/install-qylock" ]]; then
-  if RYOKU_QYLOCK_USER_ONLY=1 "$here/../lockscreen/install-qylock" >/dev/null 2>&1; then
-    say "installed in-session lockscreen"
-  else
-    say "lockscreen install skipped"
-  fi
-fi
+# In-session lockscreen (qylock). Every deploy stages the complete replacement
+# beside the running client. ryoku-shell.service promotes it only after the old
+# daemon has stopped and before the matching daemon starts.
+stage_qylock_user() {
+  local guarded=${1:-0}
+  local installer="$here/../lockscreen/install-qylock"
+  [[ -x $installer ]] || {
+    say "cannot stage the in-session lockscreen: installer is missing" >&2
+    return 1
+  }
+  RYOKU_QYLOCK_USER_ONLY=1 RYOKU_QYLOCK_MODE=stage \
+    RYOKU_QYLOCK_GENERATION_GUARDED="$guarded" "$installer"
+  say "staged in-session lockscreen for the next daemon start"
+}
 
 # Packaged externals on a checkout box. ryotunes (and every other package
 # release/packages pins to an upstream commit) is a [ryoku] package users get
@@ -531,7 +683,7 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   # the boot configs); once ryoku-desktop packages them an unowned copy otherwise
   # aborts the whole -Syu with "exists in filesystem" and nothing upgrades.
   # Mirrors updater.ryokuOverwriteGlob / the doctor's ryokuSystemGlobs.
-  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*'
+  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/etc/systemd/logind.conf.d/10-ryoku-lid.conf'
   _pac_ryotunes() { sudo pacman -Syu --needed --noconfirm --overwrite "$_rovw" ryotunes; }
   # shellcheck disable=SC2024
   if _pac_ryotunes >"$_plog" 2>&1; then
@@ -745,7 +897,15 @@ mkdir -p "$cfg/systemd/user"; cp -a "$here/systemd/user/." "$cfg/systemd/user/"
 mkdir -p "$cfg/environment.d"; cp -a "$here/environment.d/." "$cfg/environment.d/"
 # dev deploy runs the daemon from ~/.local/bin; the package ships /usr/bin.
 sed -i -e "s|^ExecStart=.*|ExecStart=$bindir/ryoku-shell daemon|" \
-  -e "s|^ExecStartPre=.*|ExecStartPre=-$bindir/ryoku-shell quit|" "$cfg/systemd/user/ryoku-shell.service"
+  -e "s|^ExecStartPre=/usr/bin/ryoku-qylock-activate$|ExecStartPre=$bindir/ryoku-qylock-activate|" \
+  -e "s|^ExecStartPre=-/usr/bin/ryoku-shell quit$|ExecStartPre=-$bindir/ryoku-shell quit|" \
+  -e "s|^ExecStop=/usr/bin/ryoku-qylock-activate --prepare-stop$|ExecStop=$bindir/ryoku-qylock-activate --prepare-stop|" \
+  -e "s|^ExecStartPost=-/usr/bin/ryoku-power-cutover qylock-guards-stop$|ExecStartPost=-$bindir/ryoku-power-cutover qylock-guards-stop|" \
+  "$cfg/systemd/user/ryoku-shell.service"
+sed -i "s|^ExecStart=.*|ExecStart=$bindir/ryoku-idle start|" \
+  "$cfg/systemd/user/ryoku-idle.service"
+sed -i "s|^ExecStart=.*|ExecStart=$bindir/ryoku-clamshell daemon|" \
+  "$cfg/systemd/user/ryoku-clamshell.service"
 # ryogami.service ships ExecStart=/usr/bin/ryogami (the package path); point the
 # dev-deployed unit at ~/.local/bin, mirroring the ryoku-shell rewrite above,
 # and at the staged wall-ui QML (the unit file is re-copied every deploy, so the
@@ -818,13 +978,52 @@ fi
 
 
 if (( wm_live && reload )); then
-  # One clean reload (which also restores auto-reload), then restart the shell
-  # daemon so a changed binary and changed QML both take effect.
-  "$bindir/ryoku-wm-hyprland" act config.reload >/dev/null 2>&1 || true
-  restart_shell
-  say "deployed and reloaded the compositor."
+  acquire_power_cutover_lock
+  if ! check_renderer; then
+    say "installed. next login stages and activates qylock with the new shell."
+    release_power_cutover_lock
+  else
+    # Hold a durable login1 block and the qylock generation writer gate before
+    # stopping the old daemon. Existing locks can finish first; new launches
+    # cannot cross into a half-replaced generation.
+    if [[ ! -x $bindir/ryoku-idle || ! -x $bindir/ryoku-clamshell ]]; then
+      say "cannot cut over lid policy: installed power helpers are missing" >&2
+      exit 1
+    fi
+    if ! command -v sudo >/dev/null 2>&1 ||
+       ! cmp -s "$here/../../system/hardware/power/logind-ryoku-lid.conf" \
+         /etc/systemd/logind.conf.d/10-ryoku-lid.conf; then
+      say "cannot activate the guarded lid policy: the logind drop-in is not installed" >&2
+      exit 1
+    fi
+    start_power_cutover_guard
+    "$bindir/ryoku-power-cutover" generation-guard-start
+    "$bindir/ryoku-power-cutover" shell-quiesce
+    stage_qylock_user 1
+    if ! sudo systemctl reload systemd-logind; then
+      say "could not activate logind's guarded lid policy" >&2
+      exit 1
+    fi
+    "$bindir/ryoku-clamshell" stop
+    "$bindir/ryoku-idle" stop
+    "$bindir/ryoku-power-cutover" session-bind
+    restart_shell
+    wm_reload_rc=0
+    "$bindir/ryoku" wm act config.reload >/dev/null || wm_reload_rc=$?
+    if (( wm_reload_rc != 0 && wm_reload_rc != 4 )); then
+      say "window-manager config reload failed with exit $wm_reload_rc" >&2
+      exit "$wm_reload_rc"
+    fi
+    start_session_power_units
+    systemctl --user restart ryogami.service
+    "$bindir/ryoku-power-cutover" session-check
+    "$bindir/ryoku-power-cutover" generation-guard-stop
+    stop_power_cutover_guard
+    release_power_cutover_lock
+    say "deployed and reloaded the compositor."
+  fi
 else
-  # Staged: leave auto-reload paused so the running session keeps its current
-  # config until the next login, which loads the new one and fires the autostart.
-  say "staged. log out and back in to activate (autostart launches the daemon)."
+  # The rewritten service stages and activates the matching local generation
+  # on the next login, while this session keeps its current lock client intact.
+  say "installed. log out and back in to activate the new shell and qylock."
 fi

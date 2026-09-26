@@ -2,7 +2,8 @@ name: Go unit tests
 
 # Build + test gates for the Go modules no other workflow covered: the ryoku
 # CLI (update / doctor / materialize, the no-migrations delivery spine), the
-# shell IPC daemon, the standalone shell installer, and the three app backends
+# shell IPC daemon, the window-manager seam (ryoku/wm, vendored into every Go
+# consumer), the standalone shell installer, and the three app backends
 # (store, hub, rashin). The build step alone is load-bearing: these ship as
 # prebuilt binaries or compile during ISO and package builds, and an ipc
 # compile break once reached unstable-dev unseen because nothing built the
@@ -17,6 +18,7 @@ on:
     paths:
       - 'ryoku/cli/**'
       - 'ryoku/shell/ipc/**'
+      - 'ryoku/wm/**'
       - 'ryoku-shell-installer/**'
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
@@ -29,6 +31,7 @@ on:
     paths:
       - 'ryoku/cli/**'
       - 'ryoku/shell/ipc/**'
+      - 'ryoku/wm/**'
       - 'ryoku-shell-installer/**'
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
@@ -79,6 +82,29 @@ jobs:
           go build ./...
           go vet ./...
           go test -short ./...
+
+  wm:
+    name: window-manager seam (ryoku-wm)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ryoku/wm/go.mod
+
+      # ryoku/wm is vendored into the CLI, shell IPC, hub, rashin and ryogami
+      # daemons, so a break here compiles nowhere and blocks the wm provider
+      # binaries (ryoku-wm-hyprland / ryoku-wm-niri) the desktop ships.
+      - name: Build, vet, and test
+        shell: bash
+        working-directory: ryoku/wm
+        run: |
+          go build ./...
+          go vet ./...
+          go test ./...
 
   shell-installer:
     name: shell installer (binary parity)

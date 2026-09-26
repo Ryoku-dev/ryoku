@@ -52,7 +52,14 @@ Singleton {
         path: root.sockPath
         parser: SplitParser { onRead: line => root.apply(line) }
         Component.onCompleted: connected = true
-        onConnectionStateChanged: if (!connected) retry.restart()
+        onConnectionStateChanged: {
+            if (connected) {
+                write("subscribe nightlight\n");
+                flush();
+            } else {
+                retry.restart();
+            }
+        }
     }
 
     // The daemon may be down when the shell loads (or restart under it); retry

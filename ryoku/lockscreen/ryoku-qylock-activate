@@ -1,0 +1,344 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+runtime_dir="${RYOKU_QYLOCK_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
+command -v flock >/dev/null 2>&1 || {
+  printf 'ryoku-qylock-activate: flock is required\n' >&2
+  exit 1
+}
+exec 4>"$runtime_dir/ryoku-qylock-mutation.lock"
+flock 4
+
+share="$HOME/.local/share"
+stage="$share/ryoku/qylock-next"
+staged_lock="$stage/lockscreen"
+staged_themes="$stage/themes"
+staged_core="$staged_themes/clockwork/orbital"
+legacy_manifest="$stage/.legacy-tape.sha256"
+staged_tape="$staged_themes/clockwork-tape"
+live_lock="$share/quickshell-lockscreen"
+live_themes="$share/qylock/themes"
+live_core="$live_themes/clockwork/orbital"
+live_legacy_tape="$live_themes/clockwork/tape"
+live_product_tape="$live_themes/clockwork-tape"
+lock_backup="$share/.quickshell-lockscreen.previous.$$"
+core_backup="$share/qylock/.orbital.previous.$$"
+tape_backup="$share/qylock/.tape.previous.$$"
+live_generation_file="$share/ryoku/qylock-live-generation"
+installer="${RYOKU_QYLOCK_INSTALLER:-}"
+if [[ -z $installer ]]; then
+  if [[ $(readlink -f "$0") == /usr/bin/ryoku-qylock-activate ]]; then
+    installer=/usr/share/ryoku/lockscreen/install-qylock
+  elif [[ -x $HOME/.local/share/ryoku/lockscreen/install-qylock ]]; then
+    installer="$HOME/.local/share/ryoku/lockscreen/install-qylock"
+  fi
+fi
+
+read_generation() {
+  local path=$1 value=""
+  [[ -r $path ]] && read -r value <"$path" || true
+  [[ $value =~ ^[a-f0-9]{64}$ ]] && printf '%s\n' "$value"
+}
+
+live_complete() {
+  [[ -d $live_lock && ! -L $live_lock &&
+     -d $live_core && ! -L $live_core &&
+     -x $live_lock/lock.sh && -x $live_lock/unlock.sh &&
+     -x $live_lock/proof.sh && -f $live_lock/lock_shell.qml &&
+     -f $live_core/Main.qml ]]
+}
+
+lock_clients_active() {
+  local proc proc_uid cmdline self_uid
+  self_uid="$(id -u)"
+  for proc in /proc/[0-9]*; do
+    [[ -r $proc/status && -r $proc/cmdline ]] || continue
+    proc_uid="$(awk '/^Uid:/ { print $2; exit }' "$proc/status" 2>/dev/null || true)"
+    [[ $proc_uid == "$self_uid" ]] || continue
+    cmdline="$(tr '\0' ' ' <"$proc/cmdline" 2>/dev/null || true)"
+    if [[ $cmdline == *"$live_lock/lock_shell.qml"* ||
+          $cmdline == *"$staged_lock/lock_shell.qml"* ||
+          $cmdline == *"$live_lock/lock.sh"* ||
+          $cmdline == *"$staged_lock/lock.sh"* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+clients_match_generation() {
+  local generation=$1 proof=$2
+  local proc proc_uid cmdline entry sid token process_generation
+  local found=0 self_uid
+  [[ -x $proof && $generation =~ ^[a-f0-9]{64}$ ]] || return 1
+  self_uid="$(id -u)"
+  for proc in /proc/[0-9]*; do
+    [[ -r $proc/status && -r $proc/cmdline && -r $proc/environ ]] || continue
+    proc_uid="$(awk '/^Uid:/ { print $2; exit }' "$proc/status" 2>/dev/null || true)"
+    [[ $proc_uid == "$self_uid" ]] || continue
+    cmdline="$(tr '\0' ' ' <"$proc/cmdline" 2>/dev/null || true)"
+    if [[ $cmdline != *"$live_lock/lock_shell.qml"* &&
+          $cmdline != *"$staged_lock/lock_shell.qml"* &&
+          $cmdline != *"$live_lock/lock.sh"* &&
+          $cmdline != *"$staged_lock/lock.sh"* ]]; then
+      continue
+    fi
+    found=1
+    sid=""
+    token=""
+    process_generation=""
+    while IFS= read -r -d '' entry; do
+      case "$entry" in
+        XDG_SESSION_ID=*) sid=${entry#*=} ;;
+        QYLOCK_PROOF_TOKEN=*) token=${entry#*=} ;;
+        QYLOCK_GENERATION=*) process_generation=${entry#*=} ;;
+      esac
+    done <"$proc/environ" 2>/dev/null || true
+    [[ $process_generation == "$generation" ]] || return 1
+    if [[ $cmdline == *"$live_lock/lock_shell.qml"* ||
+          $cmdline == *"$staged_lock/lock_shell.qml"* ]]; then
+      [[ $sid =~ ^[A-Za-z0-9_.-]+$ &&
+         $token =~ ^[A-Za-z0-9-]{16,128}$ ]] || return 1
+      "$proof" status "$sid" >/dev/null 2>&1 || return 1
+    fi
+  done
+  (( found == 1 ))
+}
+
+power_helper=""
+if [[ $(readlink -f "$0") == /usr/bin/ryoku-qylock-activate ]]; then
+  power_helper=/usr/bin/ryoku-power-cutover
+elif [[ -x $HOME/.local/bin/ryoku-power-cutover ]]; then
+  power_helper="$HOME/.local/bin/ryoku-power-cutover"
+fi
+
+live_generation="$(read_generation "$live_generation_file" || true)"
+stage_generation="$(read_generation "$stage/.generation" || true)"
+expected_generation=""
+[[ ! -x $installer ]] ||
+  expected_generation="$("$installer" --print-generation 2>/dev/null || true)"
+
+if [[ $expected_generation =~ ^[a-f0-9]{64}$ ]]; then
+  desired_generation=$expected_generation
+elif [[ -e $stage && ! -e $stage/.activated ]]; then
+  [[ -f $stage/.complete && -n $stage_generation ]] || {
+    printf 'ryoku-qylock-activate: staged lockscreen has no valid generation\n' >&2
+    exit 1
+  }
+  desired_generation=$stage_generation
+elif [[ -n $stage_generation ]]; then
+  desired_generation=$stage_generation
+else
+  desired_generation=$live_generation
+fi
+proof_for_desired="$live_lock/proof.sh"
+[[ $stage_generation != "$desired_generation" ]] ||
+  proof_for_desired="$stage/lockscreen/proof.sh"
+
+mutation_needed=1
+if [[ -n $desired_generation && $live_generation == "$desired_generation" ]] &&
+   live_complete && [[ ! -e $stage || -e $stage/.activated ]]; then
+  mutation_needed=0
+fi
+
+if [[ ${1:-} == --prepare-stop ]]; then
+  (( mutation_needed == 1 )) || exit 0
+  [[ -x $power_helper ]] || {
+    printf 'ryoku-qylock-activate: power cutover helper is unavailable\n' >&2
+    exit 1
+  }
+  if [[ -f $stage/.complete && $stage_generation == "$desired_generation" &&
+        ! -e $stage/.activated ]]; then
+    "$power_helper" launch-guard-start
+    if ryoku-shell lock-quiesce >/dev/null 2>&1; then
+      while lock_clients_active &&
+            ! clients_match_generation "$desired_generation" "$proof_for_desired"; do
+        sleep 0.2
+      done
+    else
+      # Pre-protocol daemons cannot close admission. Drain while their unlock
+      # path is alive, then stop them and catch the final legacy launch race.
+      while lock_clients_active; do
+        sleep 0.2
+      done
+      ryoku-shell quit >/dev/null 2>&1 || true
+      while lock_clients_active; do
+        sleep 0.2
+      done
+    fi
+  else
+    "$power_helper" generation-guard-start
+    ryoku-shell quit >/dev/null 2>&1 || true
+    while lock_clients_active; do
+      sleep 0.2
+    done
+  fi
+  exit 0
+fi
+[[ $# -eq 0 ]] || {
+  printf 'usage: ryoku-qylock-activate [--prepare-stop]\n' >&2
+  exit 2
+}
+(( mutation_needed == 1 )) || exit 0
+
+inline_generation_guard=0
+external_generation_guard=0
+if [[ -x $power_helper ]] &&
+   "$power_helper" generation-guard-ready >/dev/null 2>&1; then
+  external_generation_guard=1
+elif [[ -x $power_helper ]] &&
+     "$power_helper" launch-guard-ready >/dev/null 2>&1; then
+  :
+elif lock_clients_active; then
+  printf 'ryoku-qylock-activate: loaded lock generation needs a guarded service restart\n' >&2
+  exit 1
+else
+  exec 6>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-qylock-launch.lock"
+  flock 6
+  exec 5>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-qylock-generation.lock"
+  flock 5
+  inline_generation_guard=1
+fi
+if lock_clients_active &&
+   ! clients_match_generation "$desired_generation" "$proof_for_desired"; then
+  printf 'ryoku-qylock-activate: incompatible lock client crossed the launch guard\n' >&2
+  exit 1
+fi
+
+if [[ ! -e $stage || $stage_generation != "$desired_generation" ||
+      -e $stage/.activated ]]; then
+  [[ -x $installer ]] || {
+    printf 'ryoku-qylock-activate: no installer can prepare generation %s\n' \
+      "$desired_generation" >&2
+    exit 1
+  }
+  if (( inline_generation_guard != 1 && external_generation_guard != 1 )); then
+    printf 'ryoku-qylock-activate: staging requires the exclusive generation guard\n' >&2
+    exit 1
+  fi
+  RYOKU_QYLOCK_USER_ONLY=1 RYOKU_QYLOCK_MODE=stage \
+    RYOKU_QYLOCK_GENERATION_GUARDED=1 \
+    RYOKU_QYLOCK_INLINE_GENERATION_GUARD="$inline_generation_guard" \
+    RYOKU_QYLOCK_MUTATION_GUARDED=1 "$installer" >/dev/null
+  stage_generation="$(read_generation "$stage/.generation" || true)"
+  desired_generation=$stage_generation
+fi
+
+[[ -e $stage ]] || exit 0
+for path in "$stage" "$staged_lock" "$staged_themes" \
+  "$staged_themes/clockwork" "$staged_core"; do
+  if [[ -L $path || ! -d $path ]]; then
+    printf 'ryoku-qylock-activate: refusing invalid staged path: %s\n' "$path" >&2
+    exit 1
+  fi
+done
+for path in "$live_lock" "$live_themes" "$live_themes/clockwork" "$live_core"; do
+  if [[ -L $path ]]; then
+    printf 'ryoku-qylock-activate: refusing symlinked live path: %s\n' "$path" >&2
+    exit 1
+  fi
+done
+for path in "$stage/.complete" "$stage/.generation" \
+  "$staged_lock/lock.sh" "$staged_lock/unlock.sh" \
+  "$staged_lock/proof.sh" "$staged_lock/ryoku-qylock-unlock-prepare" \
+  "$staged_lock/lock_shell.qml" "$staged_core/Main.qml"; do
+  if [[ -L $path || ! -f $path ]]; then
+    printf 'ryoku-qylock-activate: staged lockscreen is incomplete: %s\n' "$path" >&2
+    exit 1
+  fi
+done
+for path in "$staged_lock/lock.sh" "$staged_lock/unlock.sh" \
+  "$staged_lock/proof.sh" "$staged_lock/ryoku-qylock-unlock-prepare"; do
+  if [[ ! -x $path ]]; then
+    printf 'ryoku-qylock-activate: staged helper is not executable: %s\n' "$path" >&2
+    exit 1
+  fi
+done
+
+migrate_tape=0
+if [[ -e $legacy_manifest ]]; then
+  if [[ -L $legacy_manifest || ! -f $legacy_manifest ||
+        -L $staged_tape || ! -d $staged_tape ||
+        ! -f $staged_tape/Main.qml ]]; then
+    printf 'ryoku-qylock-activate: staged legacy migration is incomplete\n' >&2
+    exit 1
+  fi
+  if [[ ! -e $live_product_tape && -d $live_legacy_tape &&
+        ! -L $live_legacy_tape &&
+        -z $(find "$live_legacy_tape" -type l -print -quit) &&
+        $(find "$live_legacy_tape" -type f -print | wc -l) -eq 5 ]] &&
+    (cd "$live_legacy_tape" && sha256sum --status -c "$legacy_manifest"); then
+    migrate_tape=1
+  else
+    printf 'ryoku-qylock-activate: legacy Tape changed after staging; preserving it\n' >&2
+  fi
+fi
+
+mkdir -p "$live_themes/clockwork"
+rm -rf "$lock_backup" "$core_backup" "$tape_backup"
+if [[ -e $live_lock ]] && ! mv "$live_lock" "$lock_backup"; then
+  printf 'ryoku-qylock-activate: could not preserve the live lockscreen\n' >&2
+  exit 1
+fi
+if [[ -e $live_core ]] && ! mv "$live_core" "$core_backup"; then
+  [[ ! -e $lock_backup ]] || mv "$lock_backup" "$live_lock"
+  printf 'ryoku-qylock-activate: could not preserve the live core theme\n' >&2
+  exit 1
+fi
+
+restore_previous() {
+  rm -rf "$live_lock" "$live_core"
+  [[ ! -e $lock_backup ]] || mv "$lock_backup" "$live_lock"
+  [[ ! -e $core_backup ]] || mv "$core_backup" "$live_core"
+}
+
+if ! cp -a "$staged_core" "$live_core"; then
+  restore_previous
+  printf 'ryoku-qylock-activate: could not activate staged core theme\n' >&2
+  exit 1
+fi
+if ! cp -a "$staged_lock" "$live_lock"; then
+  restore_previous
+  printf 'ryoku-qylock-activate: could not activate staged lockscreen\n' >&2
+  exit 1
+fi
+if ! ln -sfn "$live_themes" "$live_lock/themes_link"; then
+  restore_previous
+  printf 'ryoku-qylock-activate: could not link activated lock themes\n' >&2
+  exit 1
+fi
+
+activate_legacy_tape() {
+  (( migrate_tape == 1 )) || return 0
+  if ! mv "$live_legacy_tape" "$tape_backup"; then
+    return 1
+  fi
+  if ! mv "$staged_tape" "$live_product_tape"; then
+    mv "$tape_backup" "$live_legacy_tape"
+    return 1
+  fi
+  preference="$HOME/.config/qylock/theme"
+  if [[ ! -L $preference && -f $preference &&
+        $(<"$preference") == "clockwork/tape" ]]; then
+    preference_tmp="$preference.tmp.$$"
+    if ! (umask 077; printf 'clockwork-tape\n' >"$preference_tmp") ||
+      ! mv -f "$preference_tmp" "$preference"; then
+      rm -f "$preference_tmp"
+      rm -rf "$live_product_tape"
+      mv "$tape_backup" "$live_legacy_tape"
+      return 1
+    fi
+  fi
+  rm -rf "$tape_backup"
+}
+
+if ! activate_legacy_tape; then
+  printf 'ryoku-qylock-activate: legacy Tape migration deferred after activation failure\n' >&2
+fi
+
+rm -rf "$lock_backup" "$core_backup" "$tape_backup"
+mkdir -p "${live_generation_file%/*}"
+generation_tmp="$live_generation_file.$$"
+(umask 077; printf '%s\n' "$desired_generation" >"$generation_tmp")
+mv -f "$generation_tmp" "$live_generation_file"
+(umask 077; : >"$stage/.activated")

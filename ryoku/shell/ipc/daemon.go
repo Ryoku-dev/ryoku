@@ -101,6 +101,10 @@ func componentDisabled(name string) bool {
 	return parseDisabledComponents(b)[name]
 }
 
+type suspendRequest struct {
+	cancel context.CancelFunc
+}
+
 type daemon struct {
 	mu           sync.Mutex
 	sup          map[string]bool      // components that already have a supervisor goroutine
@@ -115,7 +119,8 @@ type daemon struct {
 	quit         chan struct{}
 	closed       bool
 	ln           net.Listener
-	lock         *os.File // exclusive single-daemon guard, held until exit
+	lock         *os.File    // exclusive single-daemon guard, held until exit
+	lockQuiesced atomic.Bool // rejects new lock launches during generation cutover
 	failMu       sync.Mutex
 	lastFail     map[string]string // component -> last line it died with
 	voiceMu      sync.Mutex        // serializes voice (Super+`) toggles
@@ -147,10 +152,99 @@ type daemon struct {
 	tray         *trayState               // system tray watcher/host state (nil until started)
 	ryoWallMu    sync.Mutex               // guards ryoWall
 	ryoWall      ryogamiFrame             // last wallpaper frame seen from ryogami; feeds the stage worker
-	polkit       *polkitAgent             // PolicyKit1 authentication agent (nil until started)
-	settings     *settingsStore           // shell.json store (nil until startSettings); theme apply patches through it
-	pp           *powerProfilesState      // power-profiles-daemon bus state; nil until startPowerProfiles
-	keypress     *keypressManager         // evdev key stream; opens devices only while the overlay is enabled
+	polkit       *polkitAgent             // PolicyKit1 authentication agent (nil when unavailable)
+	settings     *settingsStore           // shell.json store (nil until startSettings)
+	pp           *powerProfilesState      // power-profiles-daemon bus state
+	keypress     *keypressManager         // evdev key stream while the overlay is enabled
+	sun          *sunState                // latest weather sunrise/sunset window
+	sleepMu      sync.RWMutex
+	sleep        *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
+	suspendReqMu sync.Mutex
+	suspendReq   map[string]*suspendRequest
+}
+
+func (d *daemon) currentSleepCycle() *sleepCycle {
+	d.sleepMu.RLock()
+	defer d.sleepMu.RUnlock()
+	return d.sleep
+}
+
+func validSuspendToken(token string) bool {
+	if token == "" || len(token) > 96 {
+		return false
+	}
+	for _, r := range token {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') &&
+			(r < '0' || r > '9') && r != '-' && r != '_' && r != '.' {
+			return false
+		}
+	}
+	return true
+}
+
+func (d *daemon) startSuspendRequest(token string) (context.Context, *suspendRequest, error) {
+	if !validSuspendToken(token) {
+		return nil, nil, fmt.Errorf("invalid transaction token")
+	}
+	d.suspendReqMu.Lock()
+	defer d.suspendReqMu.Unlock()
+	if d.suspendReq == nil {
+		d.suspendReq = make(map[string]*suspendRequest)
+	}
+	if pending, exists := d.suspendReq[token]; exists {
+		if pending.cancel == nil {
+			delete(d.suspendReq, token)
+			return nil, nil, context.Canceled
+		}
+		return nil, nil, fmt.Errorf("transaction is already active")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	request := &suspendRequest{cancel: cancel}
+	d.suspendReq[token] = request
+	return ctx, request, nil
+}
+
+func (d *daemon) finishSuspendRequest(token string, request *suspendRequest) {
+	d.suspendReqMu.Lock()
+	defer d.suspendReqMu.Unlock()
+	if d.suspendReq[token] == request {
+		delete(d.suspendReq, token)
+	}
+	request.cancel()
+}
+
+func (d *daemon) cancelSuspendRequest(token string) error {
+	if !validSuspendToken(token) {
+		return fmt.Errorf("invalid transaction token")
+	}
+	d.suspendReqMu.Lock()
+	if d.suspendReq == nil {
+		d.suspendReq = make(map[string]*suspendRequest)
+	}
+	if request, exists := d.suspendReq[token]; exists {
+		if request.cancel != nil {
+			request.cancel()
+		}
+		d.suspendReqMu.Unlock()
+		return nil
+	}
+	tombstone := &suspendRequest{}
+	d.suspendReq[token] = tombstone
+	d.suspendReqMu.Unlock()
+	time.AfterFunc(time.Minute, func() {
+		d.suspendReqMu.Lock()
+		if d.suspendReq[token] == tombstone {
+			delete(d.suspendReq, token)
+		}
+		d.suspendReqMu.Unlock()
+	})
+	return nil
+}
+
+func (d *daemon) setSleepCycle(cycle *sleepCycle) {
+	d.sleepMu.Lock()
+	d.sleep = cycle
+	d.sleepMu.Unlock()
 }
 
 func runDaemon() error {
@@ -206,6 +300,7 @@ func runDaemon() error {
 		hiddenSince: map[string]time.Time{},
 		lastFail:    map[string]string{},
 		wmc:         wmc,
+		sun:         &sunState{},
 	}
 	d.ln = ln
 	d.lock = lock // held for the process lifetime: closing it would free the guard
@@ -1015,16 +1110,89 @@ func (d *daemon) dispatch(line string) string {
 			return "err barstyle: " + err.Error()
 		}
 		return "ok"
+	case "lock-quiesce":
+		if len(args) != 0 {
+			return "err lock-quiesce: takes no arguments"
+		}
+		d.lockQuiesced.Store(true)
+		return "ok"
 	case "lock":
 		// lock status is the reference check (prints locked/unlocked, exit 0);
-		// bare lock engages the session lock.
-		if len(args) >= 1 && args[0] == "status" {
+		// bare lock engages this daemon's login1 session.
+		if len(args) == 1 && args[0] == "status" {
 			if isLocked() {
 				return "locked"
 			}
 			return "unlocked"
 		}
+		if d.lockQuiesced.Load() {
+			return "err lock: generation cutover is in progress"
+		}
+		if len(args) == 2 && args[0] == "session" {
+			if args[1] != lockSessionID() {
+				return "err lock: requested login1 session is not owned by this daemon"
+			}
+			return lockSession()
+		}
+		if len(args) != 0 {
+			return "err lock: expected no arguments, status, or session <id>"
+		}
 		return lockSession()
+	case "unlock-prepare":
+		if len(args) != 2 || args[0] != "session" {
+			return "err unlock-prepare: expected session <id>"
+		}
+		if args[1] != lockSessionID() {
+			return "err unlock-prepare: requested login1 session is not owned by this daemon"
+		}
+		cycle := d.currentSleepCycle()
+		if cycle == nil {
+			return "err unlock-prepare: sleep guard is unavailable"
+		}
+		if err := cycle.prepareUnlock(); err != nil {
+			return "err unlock-prepare: " + err.Error()
+		}
+		return "ok"
+	case "sleep-ready":
+		if len(args) != 0 {
+			return "err sleep-ready: takes no arguments"
+		}
+		cycle := d.currentSleepCycle()
+		if cycle == nil || !cycle.ready() {
+			return "err sleep-ready: guard is not ready"
+		}
+		return "ok"
+	case "suspend":
+		cycle := d.currentSleepCycle()
+		if cycle == nil {
+			return "err suspend: sleep guard is unavailable"
+		}
+		if len(args) == 0 {
+			if err := cycle.requestSuspend(); err != nil {
+				return "err suspend: " + err.Error()
+			}
+			return "ok"
+		}
+		if len(args) != 2 || args[0] != "transaction" {
+			return "err suspend: expected no arguments or transaction <token>"
+		}
+		ctx, request, err := d.startSuspendRequest(args[1])
+		if err != nil {
+			return "err suspend: " + err.Error()
+		}
+		defer d.finishSuspendRequest(args[1], request)
+		if err := cycle.requestSuspendContext(ctx); err != nil {
+			return "err suspend: " + err.Error()
+		}
+		return "ok"
+	case "suspend-cancel":
+		if len(args) != 2 || args[0] != "transaction" {
+			return "err suspend-cancel: expected transaction <token>"
+		}
+		if err := d.cancelSuspendRequest(args[1]); err != nil {
+			return "err suspend-cancel: " + err.Error()
+		}
+		return "ok"
 	case "audio":
 		if len(args) != 1 {
 			return "err audio: expected up, down, or mute"

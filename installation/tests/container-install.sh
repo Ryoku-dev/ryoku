@@ -273,7 +273,50 @@ runuser -u "$TESTUSER" -- sh -c "echo later-boot >/var/lib/ryoku/boot/ok-$(id -u
 ryoku boot-guard | grep -q "disarmed" || die "a proven boot must disarm the guard"
 [[ ! -e /var/lib/ryoku/update-pending.json ]] || die "disarm left the marker behind"
 
-# 9. the other compositor variant. The testing channel ships one variant package
+# 9. the lid/sleep policy. logind is the safe fallback outside a Ryoku desktop
+#    session; the session-long clamshell inhibitor takes ownership while the
+#    shell can guarantee lock-before-suspend. Assert that the package owns the
+#    policy and both transaction hooks that adopt it in every live graphical
+#    user. `systemd-analyze cat-config` is the offline merge logind itself
+#    performs, so a drop-in the checkout carries but no package installs (or one
+#    placed where logind never scans) shows up missing here.
+log "checking the lid/sleep policy drop-in"
+lid_conf=/etc/systemd/logind.conf.d/10-ryoku-lid.conf
+[[ -f $lid_conf ]] || die "ryoku-desktop did not ship $lid_conf"
+pacman -Qo "$lid_conf" >/dev/null 2>&1 \
+  || die "$lid_conf is not owned by an installed package"
+pacman -Ql ryoku-desktop | grep -qF "logind.conf.d/10-ryoku-lid.conf" \
+  || die "ryoku-desktop does not claim $lid_conf"
+lid_cat=$(systemd-analyze cat-config systemd/logind.conf) \
+  || die "systemd-analyze cat-config systemd/logind.conf failed in this container"
+grep -qxF "# $lid_conf" <<<"$lid_cat" \
+  || die "logind never reads $lid_conf (absent from cat-config); the lid policy is inert"
+for setting in \
+  HandleLidSwitch=suspend \
+  HandleLidSwitchExternalPower=suspend \
+  HandleLidSwitchDocked=ignore \
+  InhibitDelayMaxSec=15; do
+  grep -qxF "$setting" <<<"$lid_cat" \
+    || die "$lid_conf is not effective: cat-config systemd/logind.conf lacks '$setting'"
+done
+for artifact in \
+  /usr/bin/ryoku-power-cutover \
+  /usr/share/libalpm/hooks/94-ryoku-power-cutover-prepare.hook \
+  /usr/share/libalpm/hooks/95-ryoku-power-cutover.hook; do
+  [[ -e $artifact ]] || die "ryoku-desktop did not ship $artifact"
+  pacman -Qo "$artifact" >/dev/null 2>&1 \
+    || die "$artifact is not owned by an installed package"
+done
+[[ -x /usr/bin/ryoku-power-cutover ]] \
+  || die "the packaged power cutover helper is not executable"
+grep -qxF 'Exec = /usr/bin/ryoku-power-cutover prepare-package' \
+  /usr/share/libalpm/hooks/94-ryoku-power-cutover-prepare.hook \
+  || die "the packaged pre-transaction hook does not preserve its live-session executor"
+grep -qxF 'Exec = /run/ryoku-power-cutover package' \
+  /usr/share/libalpm/hooks/95-ryoku-power-cutover.hook \
+  || die "the packaged post-transaction hook does not run the preserved guarded adoption"
+
+# 10. the other compositor variant. The testing channel ships one variant package
 #    per window manager and the base pulls whichever the virtual resolves to, so
 #    a hyprland-only install test says nothing about niri: a broken niri package
 #    would publish green. Installing it exercises the second half the switch

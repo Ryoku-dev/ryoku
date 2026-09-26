@@ -31,6 +31,13 @@ const ryotunesSocketUnit = "ryotunesd.socket"
 // has propagated.
 func reconcileRyotunes(checkOnly bool) recResult {
 	var problems, fixes []string
+	// Deliver-once like the shipped apps: while the package is here, keep it in
+	// the provisioned ledger, so a later deletion reads as the user's choice
+	// rather than a gap to heal. recordProvisioned is a no-op when recorded,
+	// and a check-only run never writes.
+	if !checkOnly && sys.PkgInstalled("ryotunes") {
+		recordProvisioned("ryotunes")
+	}
 
 	bin := filepath.Join(sys.Home(), ".local", "bin", "ryotunes")
 	stale := staleUserRyotunes(bin)
@@ -41,9 +48,11 @@ func reconcileRyotunes(checkOnly bool) recResult {
 	// A box that runs the Ryoku desktop is expected to have Ryotunes: a dev
 	// checkout (all Ryoku managed by `ryoku deploy`, so ryoku-desktop is not a
 	// pacman package) or a packaged install (ryoku-desktop present). Either way,
-	// if the app is absent the reconcile installs the current official build.
+	// if the app is absent the reconcile installs the current official build --
+	// unless the user deleted it: ryotunes is a deliver-once app like the rest
+	// of the shipped set, so the provisioned ledger is honoured here too.
 	managedDesktop := sys.ResolveRepo() != "" || sys.PkgInstalled("ryoku-desktop")
-	desktopMissingRyotunes := managedDesktop && !sys.PkgInstalled("ryotunes")
+	desktopMissingRyotunes := managedDesktop && !sys.PkgInstalled("ryotunes") && !removedByUser("ryotunes")
 	if desktopMissingRyotunes {
 		problems = append(problems, i18n.T("the ryotunes package is not installed"))
 		fixes = append(fixes, "ryoku update")

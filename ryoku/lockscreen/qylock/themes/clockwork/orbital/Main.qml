@@ -150,7 +150,15 @@ Rectangle {
 
     ParallelAnimation {
         id: boomSequence
-        onFinished: root.doLogin()
+        onFinished: {
+            root.doLogin()
+            // A sensor win committed auth before the wind-up ran; the reveal
+            // that the password path plays on loginSucceeded belongs here.
+            if (root._sensorWindup) {
+                root._sensorWindup = false
+                root.playUnlockReveal()
+            }
+        }
         NumberAnimation { target: root; property: "boomScale"; to: 35.0; duration: 150; easing.type: Easing.InQuad }
         NumberAnimation { target: root; property: "boomOpacity"; to: 1.0; duration: 120; easing.type: Easing.InQuad }
     }
@@ -424,10 +432,11 @@ Rectangle {
     // second PAM auth if the fingerprint wins mid-windup (after
     // boomTriggerTimer at 1450ms). boomSequence.stop() kills the animation.
     property bool _unlocked: false
+    property bool _sensorWindup: false
     function doLogin() { if (_unlocked) return; _unlocked = true; root.authInfo = ""; var uname = (userHelper.currentItem && userHelper.currentItem.uLogin) ? userHelper.currentItem.uLogin : (typeof userModel !== "undefined" ? userModel.lastUser : "user"); if (typeof sddm !== "undefined") sddm.login(uname, passInput.text, root.sessionIndex); authWatchdog.restart() }
     // The flash stays up until auth answers; the watchdog lowers it if it never does.
     function clearUnlockFlash() {
-        _unlocked = false; isWindup = false
+        _unlocked = false; _sensorWindup = false; isWindup = false
         windupAnim.stop(); boomTriggerTimer.stop(); boomSequence.stop()
         root.windupOffset = 0; root.boomScale = 1.0; root.boomOpacity = 0.0; root.sparkIntensity = 0
     }
@@ -447,18 +456,22 @@ Rectangle {
         function onLoginSucceeded() {
             authWatchdog.stop()
             if (typeof sddm !== "undefined" && sddm.fingerprintUnlock === true) {
-                // Sensor win: skip the windup, play the reveal flourish, no
-                // second authentication. The _unlocked guard prevents
-                // boomSequence.onFinished from calling doLogin() again.
+                // Sensor win: auth is already committed. Run the same wind-up
+                // the password path plays; _unlocked keeps boomSequence's
+                // doLogin() from re-authenticating.
                 _unlocked = true
-                windupAnim.stop()
-                boomTriggerTimer.stop()
-                boomSequence.stop()
-                boomReveal.start()
-            }
-            // auth already committed, so this is cosmetic only
-            if (root.enableWindup)
+                if (root.enableWindup) {
+                    _sensorWindup = true
+                    isWindup = true
+                    windupAnim.start()
+                    boomTriggerTimer.start()
+                } else {
+                    boomReveal.start()
+                }
+            } else if (root.enableWindup) {
+                // Password win: the wind-up already ran; lower the curtain.
                 playUnlockReveal()
+            }
         }
         function onLoginFailed() { authWatchdog.stop(); clearUnlockFlash(); root.authInfo = ""; errText.text = I18n.tr("ACCESS DENIED"); passInput.text = ""; passInput.forceActiveFocus(); shake.start() }
     }

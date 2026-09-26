@@ -26,14 +26,12 @@ hl.on("hyprland.start", function()
     -- relogin after a compositor crash), and a daemon it still holds from the
     -- previous one answers `start` with "already active" while its surfaces are
     -- bound to the dead compositor, so the login lands on bare Hyprland with no
-    -- shell. daemon-reload first, so a unit materialize just re-laid is the one
-    -- that runs, and reset-failed so a unit that hit its start limit last
-    -- session can start at all.
-    -- Portals restart last, once the desktop is up: they are only
-    -- PartOf=graphical-session.target and nothing stops that target, so a
-    -- previous session's frontend survives and every ScreenCast request it
-    -- proxies times out instead of reaching the backend.
-    hl.exec_cmd("dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; systemctl --user reset-failed ryogami ryoku-shell 2>/dev/null; systemctl --user start ryoku-session.target; systemctl --user restart ryoku-shell; systemctl --user restart ryogami; systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service")
+    -- shell. daemon-reload first, so a freshly materialized unit is visible.
+    -- session-start owns the guarded service restart and does not return until
+    -- the shell and lid owners have proved readiness. Portals restart last:
+    -- they are only PartOf=graphical-session.target and a stale frontend would
+    -- otherwise proxy every ScreenCast request to the dead session backend.
+    hl.exec_cmd("dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; ryoku-power-cutover session-start && systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service")
     -- Polkit authentication is answered by the shell's own agent (the island
     -- that matches the rest of the desktop), so the stock Qt agent must not
     -- take the session's single agent slot. Stopping it is idempotent and
@@ -52,8 +50,6 @@ hl.on("hyprland.start", function()
     -- effort: an old ryoku without the subcommand just fails silently here.
     hl.exec_cmd("command -v ryoku >/dev/null 2>&1 && ryoku keyring init")
     hl.exec_cmd("command -v ryoku-gpu >/dev/null 2>&1 && ryoku-gpu persist")
-    hl.exec_cmd("command -v ryoku-idle >/dev/null 2>&1 && ryoku-idle start")
-    hl.exec_cmd("command -v ryoku-clamshell >/dev/null 2>&1 && ryoku-clamshell daemon")
     -- Power knobs the kernel forgets across a reboot: the battery charge ceiling
     -- and the PCIe link policy are plain sysfs values, so a stored choice has to
     -- be pushed back at login or it silently lapses. A no-op with no

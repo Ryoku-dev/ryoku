@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -135,4 +136,36 @@ func evalLua(expr string) error {
 func live() bool {
 	ensureLiveSignature()
 	return aliveCheck(os.Getenv("HYPRLAND_INSTANCE_SIGNATURE"))
+}
+
+var sessionEnvironmentRoot = "/proc"
+
+func processEnvironmentValue(data []byte, key string) string {
+	prefix := key + "="
+	for _, field := range strings.Split(string(data), "\x00") {
+		if strings.HasPrefix(field, prefix) {
+			return strings.TrimPrefix(field, prefix)
+		}
+	}
+	return ""
+}
+
+// runEnvironment exports only this provider's opaque session handle. The
+// lifecycle owner can bind an exact login1 scope without learning its name.
+func runEnvironment(args []string) error {
+	if len(args) != 1 {
+		return fmt.Errorf("environment: expected one process id")
+	}
+	pid, err := strconv.Atoi(args[0])
+	if err != nil || pid <= 0 {
+		return fmt.Errorf("environment: invalid process id %q", args[0])
+	}
+	data, err := os.ReadFile(filepath.Join(sessionEnvironmentRoot, strconv.Itoa(pid), "environ"))
+	if err != nil {
+		return fmt.Errorf("environment: read process %d: %w", pid, err)
+	}
+	if value := processEnvironmentValue(data, "HYPRLAND_INSTANCE_SIGNATURE"); value != "" {
+		_, err = fmt.Fprintf(stdout, "HYPRLAND_INSTANCE_SIGNATURE=%s%c", value, byte(0))
+	}
+	return err
 }

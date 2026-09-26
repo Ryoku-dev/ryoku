@@ -17,12 +17,32 @@
   new `ryoku-cursor-track` stay here because they speak Hyprland's IPC. The
   touchpad lock and the game-mode decoration strip are provider actions now
   (`modules/binds.lua`, `modules/touchpad.lua`).
-- **`hypridle.conf` is generated, not shipped.** `ryoku-idle` renders the idle
-  daemon's config from the Hub's idle policy into `~/.config/ryoku`, with screen
-  power routed through the window-manager seam, so the tree no longer carries
-  one.
+- **`hypridle.conf` is generated, not shipped, and covers idle timers alone.**
+  `ryoku-idle` renders it from the Hub's idle policy into `~/.config/ryoku`, with
+  screen power routed through the window-manager seam and hypridle's own sleep
+  inhibitor off. Suspend timers call the shell's fail-closed transaction, which
+  owns qylock, login1 protection, output wake and lighting recovery.
+- **The lid switch runs the shared secure policy before a docked panel handoff.**
+  Both binds go through `ryoku-clamshell lid close`/`lid open`. A non-docked
+  close calls `ryoku-shell suspend` and performs no late panel change after
+  resume. Verified live docked clamshell deliberately remains unlocked and
+  awake because closing the panel is only an output handoff; opening clears only
+  the panel's disabled flag, so its configured mode, scale and position survive
+  the round trip. The binds stay live while the session is locked
+  (`modules/lid.lua`).
 
 ### Fixed
+- **Output power goes through the seam as an explicit on/off, and re-enabling a
+  panel keeps its layout.** The idle policy's screen-off stage used to shell out
+  to `hyprctl dispatch dpms`; it now runs the `output.power` action with an
+  explicit `on`/`off`, so the same policy serves every compositor and the shell's
+  wake guard can re-assert "on" idempotently. Hyprland's native key-press and
+  pointer-motion DPMS wake options are enabled too, so a dead or late idle client
+  cannot strand a black panel (`modules/misc.lua`). `output.enable` used to
+  re-enable a connector by authoring a fresh `preferred, auto, 1` monitor rule,
+  which reset the mode, position and scale the user had saved for it. It now
+  toggles only the rule's `disabled` state and leaves every layout field intact
+  (`wm/hyprland/act.go`).
 - **Maximize keybinds work again.**
   Ryoku no longer resets every Hyprland mode-1 fullscreen state to normal.
   The old handler worked around Hyprland #13322, which is fixed upstream in

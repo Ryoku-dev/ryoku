@@ -540,6 +540,7 @@ type wxConfig struct {
 type wxState struct {
 	topic  *stateTopic
 	client *http.Client
+	sun    *sunState // the day window published to the sun-following features
 
 	mu  sync.Mutex
 	cfg wxConfig
@@ -564,6 +565,7 @@ func (d *daemon) startWeather() {
 		topic:  d.registerTopic("weather"),
 		client: &http.Client{Timeout: wxHTTPTimeout},
 		cfg:    wxConfig{unit: "auto", clock24: true},
+		sun:    d.sun,
 		wake:   make(chan struct{}, 1),
 		quit:   d.quit,
 	}
@@ -699,6 +701,9 @@ func (s *wxState) fetchOnce() bool {
 		if err == nil {
 			air, _ := s.fetchAir(loc.lat, loc.lon)
 			s.publishFrame(buildFrame(data, air, *loc, unit, cfg.clock24))
+			if len(data.Daily.Sunrise) > 0 && len(data.Daily.Sunset) > 0 {
+				s.sun.observe(data.Daily.Sunrise[0], data.Daily.Sunset[0])
+			}
 			return true
 		}
 		if !wxRetryable(kind) || attempt == wxMaxRetries {

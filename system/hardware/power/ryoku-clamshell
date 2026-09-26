@@ -2,23 +2,21 @@
 #
 # ryoku-clamshell -- macOS-style clamshell (closed-lid) mode for laptops.
 #
-# Suspend policy (the `daemon`): while the machine is on AC power AND at least
-# one external display is connected, hold a systemd `handle-lid-switch`
-# inhibitor, so closing the lid keeps the session running on the external
-# instead of suspending. In every other case logind's own HandleLidSwitch*
-# suspends on lid close (10-ryoku-lid.conf sets them all to `suspend`), so this
-# daemon is the ONLY thing that ever keeps a closed lid awake, and only under
-# the macOS conjunction: power AND an external display. When AC or the external
-# goes away while the lid is already shut, the daemon suspends then -- logind
-# saw no new lid event, so without this the box would sit awake with the lid
-# closed (the "cooking in a bag" case).
+# Lid ownership (the `daemon`): while this login1 session is active, hold a
+# `handle-lid-switch` inhibitor so logind cannot race a lid event past qylock.
+# The owner stays alive but releases that inhibitor while the session is
+# inactive, allowing SDDM or another foreground session to handle the lid.
+# The compositor routes every active-session close to this helper. On AC with
+# an external display, the helper keeps the session running and hands the
+# covered panel to the external output (macOS-style clamshell). Otherwise it
+# asks ryoku-shell for the fail-closed lock-and-suspend transaction. If AC
+# power or the external display disappears while the lid is already shut, the
+# daemon requests that transaction itself because there is no fresh lid event.
 #
-# Display policy (the `lid` subcommand, driven by the compositor's lid-switch
-# bind): on lid close with an external present, switch the internal panel off
-# through the window-manager seam (output.enable); on open, switch it back on and
-# re-run autoscale. Guarded so the internal is never switched off when it is the
-# only display (no zero-monitor trap). Both providers carry output.enable, so
-# this works the same wherever the compositor routes its lid switch here.
+# Lid-event policy is shared. Hyprland performs the panel handoff after the
+# policy approves live docked mode; niri owns that topology natively and invokes
+# only the policy subcommand. A replayed close while hardware reports the lid
+# open is ignored.
 #
 # Laptop-only: a `daemon` start on a desktop exits at once (like ryoku-idle).
 # Env overrides mirror ryoku-hw-laptop, for tests.
@@ -30,6 +28,19 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PS_DIR="${RYOKU_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
 DRM_DIR="${RYOKU_DRM_DIR:-/sys/class/drm}"
 LID_STATE_GLOB="${RYOKU_LID_STATE_GLOB:-/proc/acpi/button/lid/*/state}"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
+INHIBIT_STATE="${RYOKU_CLAMSHELL_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.inhibitor}"
+DAEMON_STATE="${RYOKU_CLAMSHELL_DAEMON_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.daemon}"
+LID_EVENT_STATE="${RYOKU_CLAMSHELL_LID_EVENT_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.lid}"
+EVENT_FIFO="${RYOKU_CLAMSHELL_EVENT_FIFO:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.events}"
+ACTIVITY_STATE="${RYOKU_CLAMSHELL_ACTIVITY_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.activity}"
+OWNER_MONITOR_STATE="${RYOKU_CLAMSHELL_OWNER_MONITOR_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.login1-monitor}"
+PANEL_STATE="${RYOKU_CLAMSHELL_PANEL_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.panels}"
+PANEL_LOCK="${RYOKU_CLAMSHELL_PANEL_LOCK:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.panel.lock}"
+SUSPEND_STATE="${RYOKU_CLAMSHELL_SUSPEND_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend}"
+SUSPEND_LOCK="${RYOKU_CLAMSHELL_SUSPEND_LOCK:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend.lock}"
+PGREP_BIN="${RYOKU_PGREP_BIN:-$(command -v pgrep || true)}"
+BUSCTL_BIN="${RYOKU_BUSCTL_BIN:-$(command -v busctl || true)}"
 # Internal panels + non-display connectors. Everything else that reports
 # "connected" is an external display (HDMI-A-*, DP-*, ...).
 INTERNAL_RE='^(eDP|LVDS|DSI|Virtual|Writeback)'
@@ -39,16 +50,118 @@ INTERNAL_RE='^(eDP|LVDS|DSI|Virtual|Writeback)'
 PANEL_RE='^(eDP|LVDS|DSI)'
 
 log() { printf 'ryoku-clamshell: %s\n' "$*"; }
+send_event() {
+  local event=$1
+  [[ -p $EVENT_FIFO ]] || return 1
+  printf '%s\n' "$event" | timeout 2 tee "$EVENT_FIFO" >/dev/null
+}
+daemon_pid() {
+  local pid proc_uid cmdline
+  [[ -r $DAEMON_STATE ]] || return 1
+  read -r pid <"$DAEMON_STATE" || return 1
+  [[ $pid =~ ^[0-9]+$ && -r /proc/$pid/status ]] || return 1
+  proc_uid="$(awk '/^Uid:/ { print $2; exit }' "/proc/$pid/status" 2>/dev/null)"
+  [[ $proc_uid == "$(id -u)" ]] || return 1
+  cmdline="$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)"
+  [[ $cmdline == *"ryoku-clamshell daemon"* ]] || return 1
+  printf '%s\n' "$pid"
+}
+
+process_alive() {
+  local state
+  state="$(awk '{ print $3; exit }' "/proc/$1/stat" 2>/dev/null || true)"
+  [[ -n $state && $state != Z ]]
+}
+
+stop_daemon() {
+  local pid failed=0
+  local -a pids=()
+  if pid="$(daemon_pid)"; then
+    pids=("$pid")
+  elif [[ -n $PGREP_BIN && -x $PGREP_BIN ]]; then
+    # Pre-upgrade daemons did not write DAEMON_STATE. Match only this user's
+    # helper in daemon mode so a package cutover adopts that live process too.
+    mapfile -t pids < <("$PGREP_BIN" -u "$(id -u)" -f \
+      '(^|[[:space:]])([^[:space:]]*/)?ryoku-clamshell[[:space:]]+daemon([[:space:]]|$)' || true)
+  fi
+  for pid in "${pids[@]}"; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  for _ in {1..40}; do
+    failed=0
+    for pid in "${pids[@]}"; do
+      process_alive "$pid" && failed=1
+    done
+    (( failed == 0 )) && break
+    sleep 0.05
+  done
+  for pid in "${pids[@]}"; do
+    if process_alive "$pid"; then
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+  done
+  for _ in {1..20}; do
+    failed=0
+    for pid in "${pids[@]}"; do
+      process_alive "$pid" && failed=1
+    done
+    (( failed == 0 )) && break
+    sleep 0.05
+  done
+  if ! stop_recorded_inhibitor; then
+    failed=1
+  fi
+  if (( failed != 0 )); then
+    log "could not stop the previous lid owner cleanly" >&2
+    return 1
+  fi
+  rm -f "$DAEMON_STATE"
+}
+
 
 # The window manager is reached only through the seam, never named. Its
-# output.enable action powers a single output on or off by connector; both
-# providers carry it, so no capability probe gates the call. A missing ryoku
-# (old ISO, partial install) makes it a harmless no-op.
+# output.enable action preserves the provider-owned output layout while
+# changing whether the covered panel participates in that layout.
 ryoku_bin="${RYOKU_BIN-$(command -v ryoku || true)}"
+WM_CALL_TIMEOUT="${RYOKU_CLAMSHELL_WM_TIMEOUT:-2s}"
 
 ryoku_wm_output() {  # <connector> on|off
-  [[ -n $ryoku_bin && -x $ryoku_bin ]] || return 0
-  "$ryoku_bin" wm act output.enable "$1" "$2" >/dev/null 2>&1 || true
+  if [[ -z $ryoku_bin || ! -x $ryoku_bin ]]; then
+    log "ryoku CLI unavailable; cannot set panel $1 $2" >&2
+    return 1
+  fi
+  if ! RYOKU_WM_CALL_TIMEOUT="$WM_CALL_TIMEOUT" \
+    "$ryoku_bin" wm act output.enable "$1" "$2" >/dev/null 2>&1; then
+    log "could not set panel $1 $2; retrying while the lid state permits" >&2
+    return 1
+  fi
+}
+
+ryoku_wm_output_enabled() {  # <connector>
+  local state
+  if [[ -z $ryoku_bin || ! -x $ryoku_bin ]]; then
+    log "ryoku CLI unavailable; cannot inspect panel $1" >&2
+    return 2
+  fi
+  state="$(RYOKU_WM_CALL_TIMEOUT="$WM_CALL_TIMEOUT" \
+    "$ryoku_bin" wm state 2>/dev/null)" || {
+    log "could not inspect panel $1; leaving it unchanged" >&2
+    return 2
+  }
+  case "$(jq -er --arg name "$1" '
+    [.outputs[]? | select(.name == $name)][0] |
+    if . == null then "unknown"
+    elif .disabled == true then "disabled"
+    else "enabled"
+    end
+  ' <<<"$state" 2>/dev/null || true)" in
+    enabled) return 0 ;;
+    disabled) return 1 ;;
+    *)
+      log "provider did not report panel $1; leaving it unchanged" >&2
+      return 2
+      ;;
+  esac
 }
 
 hw_laptop() {
@@ -88,59 +201,486 @@ external_connected() {
   return 1
 }
 
-lid_closed() {
-  local f
+acpi_lid_state() {
+  local f state saw_open=0
   for f in $LID_STATE_GLOB; do
     [[ -r $f ]] || continue
-    grep -qi closed "$f" && return 0
+    state="${state:-}$(<"$f")"
+    state="${state,,}"
+    [[ $state == *closed* ]] && { printf 'closed\n'; return 0; }
+    [[ $state == *open* ]] && saw_open=1
   done
-  return 1
+  (( saw_open == 1 )) && printf 'open\n' || printf 'unknown\n'
+}
+
+upower_lid_state() {
+  local state
+  [[ -n $BUSCTL_BIN && -x $BUSCTL_BIN ]] || { printf 'unknown\n'; return 0; }
+  state="$("$BUSCTL_BIN" --system get-property \
+    org.freedesktop.UPower /org/freedesktop/UPower \
+    org.freedesktop.UPower LidIsClosed 2>/dev/null || true)"
+  case "$state" in
+    'b true') printf 'closed\n' ;;
+    'b false') printf 'open\n' ;;
+    *) printf 'unknown\n' ;;
+  esac
+}
+
+lid_state() {
+  local state
+  state="$(acpi_lid_state)"
+  [[ $state != unknown ]] && { printf '%s\n' "$state"; return 0; }
+  upower_lid_state
+}
+
+write_lid_event_state() {
+  local state=$1 tmp="${LID_EVENT_STATE}.$$"
+  (umask 077; printf '%s\n' "$state" >"$tmp")
+  mv -f "$tmp" "$LID_EVENT_STATE"
+}
+
+reset_lid_event_generation() {
+  rm -f "$LID_EVENT_STATE"
+}
+
+close_event_current() {
+  local state
+  state="$(acpi_lid_state)"
+  [[ $state == closed ]] && return 0
+  [[ $state == open ]] && return 1
+  if [[ -r $LID_EVENT_STATE ]]; then
+    [[ $(<"$LID_EVENT_STATE") == closed ]]
+    return
+  fi
+  [[ $(upower_lid_state) == closed ]]
+}
+
+
+session_active_state() {
+  local sid="${XDG_SESSION_ID:-}" active
+  [[ -n $sid ]] || { printf 'unknown\n'; return 0; }
+  active="$(loginctl show-session "$sid" -p Active --value 2>/dev/null)" || {
+    printf 'unknown\n'
+    return 0
+  }
+  case "$active" in
+    yes) printf 'active\n' ;;
+    no) printf 'inactive\n' ;;
+    *) printf 'unknown\n' ;;
+  esac
+}
+
+session_is_active() { [[ $(session_active_state) == active ]]; }
+
+panel_session_active() {
+  local state
+  [[ -n ${XDG_SESSION_ID:-} ]] || {
+    [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] &&
+      log "no login1 session id; skipping compositor panel handoff"
+    return 1
+  }
+  state="$(session_active_state)"
+  if [[ $state != active ]]; then
+    [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] &&
+      log "login1 session is $state; skipping compositor panel handoff"
+    return 1
+  fi
 }
 
 clamshell_wanted() { on_ac && external_connected; }
 
-# --- suspend inhibitor: a child holding a handle-lid-switch block lock --------
+# --- lid ownership: a supervised child holding handle-lid-switch -------------
 INHIBIT_PID=""
+INHIBIT_WATCH_PID=""
 
-inhibitor_running() { [[ -n $INHIBIT_PID ]] && kill -0 "$INHIBIT_PID" 2>/dev/null; }
+inhibitor_running() { [[ -n $INHIBIT_PID ]] && process_alive "$INHIBIT_PID"; }
+
+write_inhibitor_state() {
+  local tmp="${INHIBIT_STATE}.$$"
+  (umask 077; printf '%s\n' "$INHIBIT_PID" >"$tmp")
+  mv -f "$tmp" "$INHIBIT_STATE"
+}
+
+# Validate both the recorded owner and login1's live inhibitor table. A stale
+# PID file, or an unrelated process reusing that PID, never suppresses locking.
+inhibitor_active() {
+  local pid uid json
+  [[ -r $INHIBIT_STATE ]] || return 1
+  read -r pid <"$INHIBIT_STATE" || return 1
+  if [[ ! $pid =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$INHIBIT_STATE"
+    return 1
+  fi
+  command -v jq >/dev/null 2>&1 || return 1
+  uid="$(id -u)"
+  json="$(systemd-inhibit --list --json=short 2>/dev/null)" || return 1
+  jq -e --argjson pid "$pid" --argjson uid "$uid" '
+    any(.[]; .pid == $pid and .uid == $uid and .who == "ryoku-clamshell"
+      and .mode == "block"
+      and ((.what | split(":")) | index("handle-lid-switch")))
+  ' >/dev/null <<<"$json"
+}
+
+stop_recorded_inhibitor() {
+  local pid
+  [[ -r $INHIBIT_STATE ]] || return 0
+  read -r pid <"$INHIBIT_STATE" || return 1
+  if [[ ! $pid =~ ^[0-9]+$ ]] || ! process_alive "$pid"; then
+    rm -f "$INHIBIT_STATE"
+    return 0
+  fi
+  if ! inhibitor_active; then
+    log "cannot verify the recorded lid inhibitor; refusing to report a clean stop" >&2
+    return 1
+  fi
+  kill -TERM "$pid" 2>/dev/null || true
+  for _ in {1..20}; do
+    process_alive "$pid" || break
+    sleep 0.05
+  done
+  if process_alive "$pid"; then
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  for _ in {1..20}; do
+    process_alive "$pid" || break
+    sleep 0.05
+  done
+  if process_alive "$pid"; then
+    log "recorded lid inhibitor did not exit" >&2
+    return 1
+  fi
+  rm -f "$INHIBIT_STATE"
+}
+
+inhibitor_supervisor() {
+  local handshake=$1 child rc tmp
+  systemd-inhibit --what=handle-lid-switch --mode=block \
+    --who="ryoku-clamshell" --why="route lid close through the secure Ryoku policy" \
+    sleep infinity &
+  child=$!
+  trap 'kill -TERM "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true; exit 1' TERM INT HUP
+  tmp="$handshake.$BASHPID"
+  (umask 077; printf '%s\n' "$child" >"$tmp")
+  mv -f "$tmp" "$handshake"
+  if wait "$child"; then rc=0; else rc=$?; fi
+  if [[ -p $EVENT_FIFO ]]; then
+    send_event "RYOKU_INHIBITOR_EXIT" >/dev/null 2>&1 || true
+  fi
+  return "$rc"
+}
 
 start_inhibitor() {
+  local handshake="${INHIBIT_STATE}.start.$$" pid=""
   inhibitor_running && return 0
-  systemd-inhibit --what=handle-lid-switch --mode=block \
-    --who="ryoku-clamshell" --why="external display on AC power" \
-    sleep infinity &
-  INHIBIT_PID=$!
-  log "holding lid-switch inhibitor (external display on AC power)"
+  if [[ -n $INHIBIT_WATCH_PID ]]; then
+    kill "$INHIBIT_WATCH_PID" 2>/dev/null || true
+    wait "$INHIBIT_WATCH_PID" 2>/dev/null || true
+    INHIBIT_WATCH_PID=""
+  fi
+  rm -f "$handshake"
+  inhibitor_supervisor "$handshake" &
+  INHIBIT_WATCH_PID=$!
+  for _ in {1..40}; do
+    pid="$(cat "$handshake" 2>/dev/null || true)"
+    [[ $pid =~ ^[0-9]+$ ]] && break
+    process_alive "$INHIBIT_WATCH_PID" || break
+    sleep 0.05
+  done
+  rm -f "$handshake"
+  if [[ ! $pid =~ ^[0-9]+$ ]] || ! process_alive "$pid"; then
+    kill "$INHIBIT_WATCH_PID" 2>/dev/null || true
+    wait "$INHIBIT_WATCH_PID" 2>/dev/null || true
+    INHIBIT_WATCH_PID=""
+    log "could not start the supervised lid-switch inhibitor" >&2
+    return 1
+  fi
+  INHIBIT_PID=$pid
+  write_inhibitor_state
+  log "holding lid-switch inhibitor for the secure close policy"
 }
 
 stop_inhibitor() {
-  inhibitor_running || { INHIBIT_PID=""; return 0; }
-  kill "$INHIBIT_PID" 2>/dev/null || true
-  wait "$INHIBIT_PID" 2>/dev/null || true
+  local pid=$INHIBIT_PID watcher=$INHIBIT_WATCH_PID was_running=0
+  inhibitor_running && was_running=1
+  if (( was_running == 1 )); then
+    kill -TERM "$pid" 2>/dev/null || true
+    for _ in {1..40}; do
+      process_alive "$pid" || break
+      sleep 0.05
+    done
+    process_alive "$pid" && kill -KILL "$pid" 2>/dev/null || true
+  fi
+  if [[ -n $watcher ]]; then
+    wait "$watcher" 2>/dev/null || true
+  fi
   INHIBIT_PID=""
-  log "released lid-switch inhibitor"
+  INHIBIT_WATCH_PID=""
+  rm -f "$INHIBIT_STATE" "${INHIBIT_STATE}.start."*
+  (( was_running == 0 )) || log "released lid-switch inhibitor"
 }
 
-PREV_WANTED=0
-evaluate() {
-  if clamshell_wanted; then
-    start_inhibitor
-    PREV_WANTED=1
-  else
-    local was=$PREV_WANTED
-    stop_inhibitor
-    PREV_WANTED=0
-    # AC or the external display was lost while the lid is already shut: logind
-    # cannot see this (no fresh lid event), so match "closing the lid on
-    # battery" and suspend now instead of running on with the lid down.
-    if (( was == 1 )) && lid_closed; then
-      log "clamshell condition lost with the lid shut; suspending"
-      systemctl suspend || true
-    fi
+PREV_WANTED=-1
+DAEMON_SESSION_ACTIVE=0
+
+new_suspend_token() {
+  local sid="${XDG_SESSION_ID:-session}"
+  sid="${sid//[^A-Za-z0-9_.-]/_}"
+  printf 'lid-%s-%s-%s\n' "$sid" "$$" "$RANDOM"
+}
+
+write_suspend_token() {
+  local token=$1 tmp="${SUSPEND_STATE}.$$"
+  (umask 077; printf '%s\n' "$token" >"$tmp")
+  mv -f "$tmp" "$SUSPEND_STATE"
+}
+
+clear_suspend_token() {
+  local token=$1 current
+  current="$(cat "$SUSPEND_STATE" 2>/dev/null || true)"
+  [[ $current != "$token" ]] || rm -f "$SUSPEND_STATE"
+}
+
+cancel_suspend_token() {
+  local token=$1
+  for _ in 1 2 3; do
+    timeout 1 ryoku-shell suspend-cancel transaction "$token" >/dev/null 2>&1 && return 0
+    sleep 0.05
+  done
+  log "could not cancel lid suspend transaction $token" >&2
+  return 1
+}
+
+cancel_current_suspend() {
+  local token
+  token="$(cat "$SUSPEND_STATE" 2>/dev/null || true)"
+  [[ -z $token ]] || cancel_suspend_token "$token"
+}
+
+request_suspend() {
+  local token=$1
+  if ! command -v ryoku-shell >/dev/null 2>&1; then
+    log "ryoku-shell not found; refusing to suspend without a confirmed lock" >&2
+    return 1
+  fi
+  if ! ryoku-shell suspend transaction "$token"; then
+    log "secure suspend transaction was rejected" >&2
+    return 1
   fi
 }
 
+suspend_retry_session_owned() {
+  local state
+  [[ -n ${XDG_SESSION_ID:-} ]] || return 0
+  state="$(session_active_state)"
+  [[ $state == active ]] && return 0
+  if (( DAEMON_SESSION_ACTIVE == 0 )) && [[ $state == unknown ]]; then
+    # The compositor delivered this one-shot close from its live session.
+    # A transient login1 read failure must not consume the only lid edge.
+    return 0
+  fi
+  if (( DAEMON_SESSION_ACTIVE == 1 )); then
+    log "login1 session is $state during suspend retry; relinquishing lid ownership"
+    deactivate_session_owner
+  fi
+  return 1
+}
+
+
+suspend_while_closed() {
+  local suspend_fd rc=0
+  exec {suspend_fd}>"$SUSPEND_LOCK"
+  if ! flock -n "$suspend_fd"; then
+    # Another close-policy process owns the one retrying transaction. It will
+    # observe this same lid/hardware state; duplicate work must not cancel it.
+    exec {suspend_fd}>&-
+    return 0
+  fi
+  suspend_while_closed_locked || rc=$?
+  flock -u "$suspend_fd"
+  exec {suspend_fd}>&-
+  return "$rc"
+}
+
+suspend_while_closed_locked() {
+  local request_pid request_token previous_token
+  previous_token="$(cat "$SUSPEND_STATE" 2>/dev/null || true)"
+  if [[ -n $previous_token ]]; then
+    cancel_suspend_token "$previous_token" >/dev/null 2>&1 || true
+    clear_suspend_token "$previous_token"
+  fi
+  while close_event_current; do
+    if ! suspend_retry_session_owned; then
+      return 0
+    fi
+    if clamshell_wanted && inhibitor_active; then
+      return 0
+    fi
+    request_token="$(new_suspend_token)"
+    write_suspend_token "$request_token"
+    # Publishing first closes both open races: an earlier open is observed by
+    # this check, while a later open can tombstone this exact token.
+    if ! close_event_current; then
+      cancel_suspend_token "$request_token" >/dev/null 2>&1 || true
+      clear_suspend_token "$request_token"
+      return 0
+    fi
+    request_suspend "$request_token" &
+    request_pid=$!
+    while process_alive "$request_pid"; do
+      if ! close_event_current ||
+        ! suspend_retry_session_owned ||
+        { clamshell_wanted && inhibitor_active; }; then
+        cancel_suspend_token "$request_token" || true
+        kill -TERM "$request_pid" 2>/dev/null || true
+        wait "$request_pid" 2>/dev/null || true
+        clear_suspend_token "$request_token"
+        return 0
+      fi
+      sleep 0.1
+    done
+    if wait "$request_pid"; then
+      clear_suspend_token "$request_token"
+      return 0
+    fi
+    clear_suspend_token "$request_token"
+    if ! suspend_retry_session_owned; then
+      return 0
+    fi
+    sleep "${RYOKU_CLAMSHELL_RETRY:-2}"
+  done
+}
+
+write_activity_state() {
+  local state=$1 tmp="${ACTIVITY_STATE}.$$"
+  (umask 077; printf '%s\n' "$state" >"$tmp")
+  mv -f "$tmp" "$ACTIVITY_STATE"
+}
+
+activate_session_owner() {
+  DAEMON_SESSION_ACTIVE=1
+  PREV_WANTED=-1
+  start_inhibitor || return 1
+  for _ in {1..40}; do
+    if inhibitor_active; then
+      write_activity_state active
+      evaluate
+      return 0
+    fi
+    sleep 0.05
+  done
+  stop_inhibitor
+  rm -f "$ACTIVITY_STATE"
+  log "login1 did not confirm the lid-switch inhibitor" >&2
+  return 1
+}
+
+deactivate_session_owner() {
+  DAEMON_SESSION_ACTIVE=0
+  stop_inhibitor
+  write_activity_state inactive
+}
+evaluate() {
+  if (( DAEMON_SESSION_ACTIVE == 0 )); then
+    return 0
+  fi
+  local wanted=0
+  clamshell_wanted && wanted=1
+  if (( wanted == 0 && PREV_WANTED != 0 )) && close_event_current; then
+    log "clamshell condition absent with the lid shut; requesting secure suspend"
+    suspend_while_closed
+    wanted=0
+    clamshell_wanted && wanted=1
+  fi
+  PREV_WANTED=$wanted
+}
+
+owner_monitor_ready() {
+  local pid
+  [[ -r $OWNER_MONITOR_STATE ]] || return 1
+  read -r pid <"$OWNER_MONITOR_STATE" || return 1
+  [[ $pid =~ ^[0-9]+$ ]] && process_alive "$pid"
+}
+
+monitor_login1_owner() (
+  local match line monitor_pid="" monitor_fd="" generation=0
+  local _name_line _old_line new_line token=$BASHPID tmp
+  match="type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.freedesktop.login1'"
+  clear_monitor_ready() {
+    if [[ -r $OWNER_MONITOR_STATE ]] &&
+       [[ $(<"$OWNER_MONITOR_STATE") == "$token" ]]; then
+      rm -f "$OWNER_MONITOR_STATE"
+    fi
+  }
+  # shellcheck disable=SC2329
+  cleanup_login1_monitor() {
+    clear_monitor_ready
+    if [[ -n $monitor_pid ]]; then
+      kill "$monitor_pid" 2>/dev/null || true
+      wait "$monitor_pid" 2>/dev/null || true
+    fi
+    if [[ $monitor_fd =~ ^[0-9]+$ ]]; then
+      exec {monitor_fd}<&-
+    fi
+  }
+  trap cleanup_login1_monitor EXIT
+  trap 'exit 0' TERM INT HUP
+  while :; do
+    clear_monitor_ready
+    coproc LOGIN1_OWNER_EVENTS {
+      exec dbus-monitor --system "$match" 2>/dev/null
+    }
+    monitor_pid=$LOGIN1_OWNER_EVENTS_PID
+    exec {monitor_fd}<&"${LOGIN1_OWNER_EVENTS[0]}"
+    while IFS= read -r line <&"$monitor_fd"; do
+      if [[ $line == *'interface=org.freedesktop.DBus; member=NameAcquired'* ]]; then
+        tmp="$OWNER_MONITOR_STATE.$token"
+        (umask 077; printf '%s\n' "$token" >"$tmp")
+        mv -f "$tmp" "$OWNER_MONITOR_STATE"
+        if (( generation > 0 )); then
+          send_event "RYOKU_LOGIN1_OWNER_CHANGED"
+        fi
+        generation=$((generation + 1))
+      elif [[ $line == *'interface=org.freedesktop.DBus; member=NameOwnerChanged'* ]]; then
+        IFS= read -r _name_line <&"$monitor_fd" || break
+        IFS= read -r _old_line <&"$monitor_fd" || break
+        IFS= read -r new_line <&"$monitor_fd" || break
+        # One login1 restart emits old->empty and empty->new. Recover only when
+        # a new owner exists, so the fresh inhibitor is not dropped twice.
+        if [[ $new_line != *'string ""'* ]]; then
+          send_event "RYOKU_LOGIN1_OWNER_CHANGED"
+        fi
+      fi
+    done
+    clear_monitor_ready
+    exec {monitor_fd}<&-
+    monitor_fd=""
+    wait "$monitor_pid" 2>/dev/null || true
+    monitor_pid=""
+    sleep 1
+  done
+)
+
+recover_login1_owner() {
+  local state
+  stop_inhibitor
+  while :; do
+    state="$(session_active_state)"
+    case "$state" in
+      active)
+        activate_session_owner && return 0
+        ;;
+      inactive)
+        deactivate_session_owner
+        return 0
+        ;;
+    esac
+    sleep 0.1
+  done
+}
+
 run_daemon() {
+  local monitor_pid="" owner_monitor_pid="" event hardware_dirty monitor_ready=0
+  local monitor_missing_since=-1
   if ! hw_laptop; then
     [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "desktop detected; clamshell disabled"
     exit 0
@@ -149,6 +689,10 @@ run_daemon() {
     log "systemd-inhibit not found; clamshell disabled" >&2
     exit 0
   fi
+  if ! command -v dbus-monitor >/dev/null 2>&1; then
+    log "dbus-monitor not found; clamshell cannot recover login1 ownership" >&2
+    exit 1
+  fi
 
   # one instance per user session.
   exec 9>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell.lock"
@@ -156,32 +700,110 @@ run_daemon() {
     [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "already running"
     exit 0
   fi
+  # A switch edge published after this point belongs to this daemon generation
+  # and remains authoritative until its matching open. Clearing before the PID
+  # publication prevents a pre-restart event from overriding the physical seed.
+  reset_lid_event_generation
 
-  trap 'stop_inhibitor; exit 0' TERM INT HUP
+  local daemon_tmp="${DAEMON_STATE}.$$"
+  (umask 077; printf '%s\n' "$$" >"$daemon_tmp")
+  mv -f "$daemon_tmp" "$DAEMON_STATE"
+  cleanup_daemon() {
+    if [[ -n $monitor_pid ]]; then
+      kill "$monitor_pid" 2>/dev/null || true
+      wait "$monitor_pid" 2>/dev/null || true
+    fi
+    if [[ -n $owner_monitor_pid ]]; then
+      kill "$owner_monitor_pid" 2>/dev/null || true
+      wait "$owner_monitor_pid" 2>/dev/null || true
+    fi
+    rm -f "$EVENT_FIFO" "$ACTIVITY_STATE" "$OWNER_MONITOR_STATE" "$LID_EVENT_STATE"
+    exec 8>&-
+    stop_inhibitor
+    if [[ -r $DAEMON_STATE ]] && [[ $(<"$DAEMON_STATE") == "$$" ]]; then
+      rm -f "$DAEMON_STATE"
+    fi
+  }
+  trap cleanup_daemon EXIT
+  trap 'exit 0' TERM INT HUP
 
-  evaluate   # settle the initial state
-
+  rm -f "$EVENT_FIFO" "$OWNER_MONITOR_STATE"
+  mkfifo -m 600 "$EVENT_FIFO"
+  exec 8<>"$EVENT_FIFO"
+  monitor_login1_owner &
+  owner_monitor_pid=$!
+  for _ in {1..40}; do
+    if [[ $(cat "$OWNER_MONITOR_STATE" 2>/dev/null || true) == "$owner_monitor_pid" ]] &&
+       process_alive "$owner_monitor_pid"; then
+      monitor_ready=1
+      break
+    fi
+    process_alive "$owner_monitor_pid" || break
+    sleep 0.05
+  done
+  if (( monitor_ready == 0 )); then
+    log "login1 owner monitor did not acknowledge its subscription" >&2
+    return 1
+  fi
+  case "$(session_active_state)" in
+    active) activate_session_owner ;;
+    inactive) deactivate_session_owner ;;
+    *)
+      log "cannot read login1 session activity; refusing global lid ownership" >&2
+      return 1
+      ;;
+  esac
   # React to AC (power_supply) and display (drm) changes. udevadm monitor is
   # event-driven (no polling, zero cost when idle) and runs unprivileged. If it
   # ever exits, the outer loop re-attaches after a short back-off.
   while :; do
-    while read -r _; do
-      # coalesce a burst (a hotplug emits several lines) into one evaluate, and
-      # let sysfs settle before reading it.
-      while read -r -t 0.2 _; do :; done
-      sleep 0.3
-      evaluate
-    done < <(udevadm monitor --udev \
-               --subsystem-match=power_supply --subsystem-match=drm 2>/dev/null)
+    udevadm monitor --udev \
+      --subsystem-match=power_supply --subsystem-match=drm \
+      >"$EVENT_FIFO" 2>/dev/null &
+    monitor_pid=$!
+    while process_alive "$monitor_pid"; do
+      if owner_monitor_ready; then
+        monitor_missing_since=-1
+      elif (( monitor_missing_since < 0 )); then
+        monitor_missing_since=$SECONDS
+      elif (( SECONDS - monitor_missing_since >= 3 )); then
+        log "login1 owner monitor stopped; refusing unsupervised lid ownership" >&2
+        return 1
+      fi
+      if ! IFS= read -r -t 1 event <&8; then
+        continue
+      fi
+      hardware_dirty=0
+      while :; do
+        case "$event" in
+          'RYOKU_SESSION_ACTIVE yes') activate_session_owner ;;
+          'RYOKU_SESSION_ACTIVE no') deactivate_session_owner ;;
+          'RYOKU_LOGIN1_OWNER_CHANGED') recover_login1_owner ;;
+          'RYOKU_INHIBITOR_EXIT')
+            if (( DAEMON_SESSION_ACTIVE == 1 )) && ! inhibitor_active; then
+              log "lid-switch inhibitor exited unexpectedly; reacquiring"
+              recover_login1_owner
+            fi
+            ;;
+          *) hardware_dirty=1 ;;
+        esac
+        IFS= read -r -t 0.2 event <&8 || break
+      done
+      if (( hardware_dirty == 1 )); then
+        sleep 0.3
+        evaluate
+      fi
+    done
+    kill "$monitor_pid" 2>/dev/null || true
+    wait "$monitor_pid" 2>/dev/null || true
+    monitor_pid=""
     sleep 2
   done
 }
 
-# --- display side: called by the compositor's lid-switch bind -----------------
+# --- lid event policy and Hyprland panel handoff ------------------------------
 # Connected internal panels, read from DRM so the enumeration holds under any
-# compositor and names the exact connector the seam's output.enable expects (the
-# card*-<name> connector carries the same output name). Reads HPD status, not
-# DPMS, so a lid-blanked panel that is still wired still counts.
+# compositor and names the exact connector the seam's output.enable expects.
 internal_panels() {
   local c b n
   for c in "$DRM_DIR"/card*-*; do
@@ -192,45 +814,224 @@ internal_panels() {
   done
 }
 
-cmd_lid() {
-  local action="${1:-}"
-  # Switching the internal panel off on lid close is a live per-output power
-  # change, carried by the seam's output.enable action so it runs the same on
-  # every compositor. A missing ryoku just no-ops the switch.
-  case "$action" in
+remember_disabled_panel() {
+  local name=$1
+  if [[ ! -r $PANEL_STATE ]] || ! grep -Fxq -- "$name" "$PANEL_STATE"; then
+    (umask 077; printf '%s\n' "$name" >>"$PANEL_STATE")
+  fi
+}
+
+restore_internal_panels() {
+  local name failed
+  local -A panels=()
+  [[ -r $PANEL_STATE ]] || return 0
+  while IFS= read -r name; do
+    [[ -n $name ]] && panels["$name"]=1
+  done <"$PANEL_STATE"
+  ((${#panels[@]} > 0)) || return 0
+
+  while [[ -r $LID_EVENT_STATE && $(<"$LID_EVENT_STATE") == open ]]; do
+    failed=0
+    for name in "${!panels[@]}"; do
+      ryoku_wm_output "$name" on || failed=1
+      if [[ ! -r $LID_EVENT_STATE || $(<"$LID_EVENT_STATE") != open ]]; then
+        return 0
+      fi
+    done
+    if (( failed == 0 )); then
+      rm -f "$PANEL_STATE"
+      return 0
+    fi
+    sleep "${RYOKU_CLAMSHELL_RETRY:-2}"
+  done
+}
+
+disable_internal_panels() {
+  local name panel_state failed
+  while close_event_current && clamshell_wanted && inhibitor_active; do
+    failed=0
+    while IFS= read -r name; do
+      [[ -n $name ]] || continue
+      panel_state=0
+      ryoku_wm_output_enabled "$name" || panel_state=$?
+      case "$panel_state" in
+        0)
+          # Record the pre-close state before dispatch. If the provider applies
+          # "off" and then its reply hangs, the matching open still owns restore.
+          remember_disabled_panel "$name"
+          ryoku_wm_output "$name" off || failed=1
+          ;;
+        1) ;;
+        *) failed=1 ;;
+      esac
+      close_event_current && clamshell_wanted && inhibitor_active || return 0
+    done < <(internal_panels)
+    (( failed == 0 )) && return 0
+    sleep "${RYOKU_CLAMSHELL_RETRY:-2}"
+  done
+}
+
+CLOSE_EVENT_CURRENT=1
+CLOSE_EVENT_DOCKED=0
+apply_close_policy() {
+  local state session_state
+  CLOSE_EVENT_CURRENT=1
+  CLOSE_EVENT_DOCKED=0
+  if ! hw_laptop; then
+    CLOSE_EVENT_CURRENT=0
+    return 0
+  fi
+  if [[ -n ${XDG_SESSION_ID:-} ]]; then
+    session_state=$(session_active_state)
+    if [[ $session_state == inactive ]]; then
+      CLOSE_EVENT_CURRENT=0
+      return 0
+    fi
+  fi
+  # The compositor callback is the ordered close edge. Firmware state can
+  # reject a process that ran late after a physical reopen; an asynchronous
+  # UPower property cannot, because it may legitimately lag behind this edge.
+  state="$(acpi_lid_state)"
+  if [[ $state == open ]]; then
+    CLOSE_EVENT_CURRENT=0
+    [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "ignoring replayed close while lid reports open"
+    write_lid_event_state open
+    return 0
+  fi
+  if on_ac && external_connected && inhibitor_active; then
+    CLOSE_EVENT_DOCKED=1
+    return 0
+  fi
+
+  if [[ $state == closed || $state == unknown ]]; then
+    suspend_while_closed
+    if clamshell_wanted && inhibitor_active; then
+      CLOSE_EVENT_DOCKED=1
+    fi
+    return 0
+  fi
+}
+
+cmd_policy() {
+  case "${1:-}" in
     close)
-      # only hand off to an external; with no external this is a normal lid
-      # close (logind suspends) and there is nothing to switch to.
-      external_connected || return 0
-      local name
-      while IFS= read -r name; do
-        [[ -n $name ]] || continue
-        ryoku_wm_output "$name" off
-      done < <(internal_panels)
+      write_lid_event_state closed
+      apply_close_policy
       ;;
     open)
-      # switch the internal panel back on, then let autoscale restore its layout.
-      local name
-      while IFS= read -r name; do
-        [[ -n $name ]] || continue
-        ryoku_wm_output "$name" on
-      done < <(internal_panels)
-      command -v ryoku-monitor >/dev/null 2>&1 && ryoku-monitor autoscale >/dev/null 2>&1 || true
+      write_lid_event_state open
+      cancel_current_suspend || true
       ;;
     *)
-      log "lid needs open|close" >&2
+      log "policy needs open|close" >&2
       return 2
       ;;
   esac
+}
+
+cmd_lid() {
+  local action="${1:-}" panel_fd
+  case "$action" in
+    close)
+      # Publish the edge before waiting for an older panel transaction so a
+      # suspended/retrying close can observe cancellation immediately.
+      write_lid_event_state closed
+      exec {panel_fd}>"$PANEL_LOCK"
+      flock "$panel_fd"
+      [[ $(<"$LID_EVENT_STATE") == closed ]] || return 0
+      apply_close_policy
+      (( CLOSE_EVENT_CURRENT == 1 )) || return 0
+      # Hyprland alone calls this display handoff. Niri invokes `policy close`
+      # and retains its native automatic panel topology. A non-docked close
+      # already completed the suspend transaction and has no panel handoff.
+      (( CLOSE_EVENT_DOCKED == 1 )) || return 0
+      [[ $(<"$LID_EVENT_STATE") == closed ]] || return 0
+      panel_session_active || return 0
+      disable_internal_panels
+      ;;
+    open)
+      write_lid_event_state open
+      cancel_current_suspend || true
+      panel_session_active || return 0
+      exec {panel_fd}>"$PANEL_LOCK"
+      flock "$panel_fd"
+      [[ $(<"$LID_EVENT_STATE") == open ]] || return 0
+      restore_internal_panels
+      ;;
+    sync)
+      if ! hw_laptop; then
+        return 0
+      fi
+      panel_session_active || return 0
+      # The compositor's startup callback can race the user service. Wait for
+      # the lid owner rather than treating a docked close as non-docked while
+      # logind still owns the switch.
+      for _ in {1..100}; do
+        inhibitor_active && break
+        sleep 0.05
+      done
+      if ! inhibitor_active; then
+        log "lid owner is not ready; refusing startup panel synchronization" >&2
+        return 1
+      fi
+      case "$(lid_state)" in
+        closed) cmd_lid close ;;
+        open) cmd_lid open ;;
+        *) [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "physical lid state unavailable at startup" ;;
+      esac
+      ;;
+    *)
+      log "lid needs open|close|sync" >&2
+      return 2
+      ;;
+  esac
+}
+
+cmd_session_active() {
+  local active=${1:-} pid owner_state
+  pid="$(daemon_pid)" || return 3
+  [[ -p $EVENT_FIFO ]] || return 1
+  case "$active" in
+    yes|true|1) active=yes ;;
+    no|false|0) active=no ;;
+    *)
+      log "session-active needs yes|no" >&2
+      return 2
+      ;;
+  esac
+
+  rm -f "$ACTIVITY_STATE"
+  if ! send_event "RYOKU_SESSION_ACTIVE $active"; then
+    log "daemon activity control channel did not answer" >&2
+    return 1
+  fi
+  for _ in {1..40}; do
+    owner_state="$(cat "$ACTIVITY_STATE" 2>/dev/null || true)"
+    if [[ $active == yes && $owner_state == active ]] && inhibitor_active; then
+      return 0
+    fi
+    if [[ $active == no && $owner_state == inactive && ! -e $INHIBIT_STATE ]]; then
+      return 0
+    fi
+    process_alive "$pid" || break
+    sleep 0.05
+  done
+  if [[ $active == yes ]]; then
+    send_event "RYOKU_SESSION_ACTIVE no" >/dev/null 2>&1 || true
+  fi
+  log "daemon did not adopt login1 Active=$active" >&2
+  return 1
 }
 
 cmd_status() {
   hw_laptop && echo "device=laptop" || echo "device=desktop"
   on_ac && echo "ac=online" || echo "ac=offline"
   external_connected && echo "external=connected" || echo "external=none"
-  lid_closed && echo "lid=closed" || echo "lid=open"
+  echo "lid=$(lid_state)"
   clamshell_wanted && echo "clamshell=wanted" || echo "clamshell=inactive"
-  if systemd-inhibit --list 2>/dev/null | grep -q "ryoku-clamshell"; then
+  echo "session=$(session_active_state)"
+  owner_monitor_ready && echo "owner-monitor=ready" || echo "owner-monitor=none"
+  if inhibitor_active; then
     echo "inhibitor=held"
   else
     echo "inhibitor=none"
@@ -239,12 +1040,19 @@ cmd_status() {
 
 usage() {
   cat <<'USAGE'
-Usage: ryoku-clamshell [daemon|lid <open|close>|status]
+Usage: ryoku-clamshell [daemon|stop|session-active <yes|no>|policy <open|close>|lid <open|close|sync>|status]
 
-daemon   watch power + displays and hold a lid-switch inhibitor while on AC
-         with an external display (laptop-only; a desktop exits at once)
-lid      switch the internal panel off (close) / on (open) through the seam; the
-         compositor's lid-switch bind calls this
+daemon   own lid-switch handling for the user session and watch AC/display
+         changes so a docked closed laptop suspends if its dock disappears
+policy   track compositor lid events; keep a current docked close awake,
+         otherwise securely lock and suspend until the matching open event
+lid      apply shared close policy, then switch the calling compositor's
+         internal panel off only for live docked mode; switch it on after open
+         without replacing its saved layout; sync reads physical state at login
+stop     release this user's lid owner and stop its daemon
+session-active
+         release lid ownership when this login1 session leaves the foreground,
+         then reacquire it when the session becomes active again
 status   print device class, AC, external display, lid, and inhibitor state
 
 Env:
@@ -253,16 +1061,21 @@ Env:
 USAGE
 }
 
-cmd="${1:-daemon}"
-case "$cmd" in
-  daemon|start) run_daemon ;;
-  lid)          shift; cmd_lid "$@" ;;
-  status)       cmd_status ;;
-  is-laptop)    hw_laptop ;;
-  -h|--help|help) usage ;;
-  *)
-    log "unknown command: $cmd" >&2
-    usage >&2
-    exit 2
-    ;;
-esac
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  cmd="${1:-daemon}"
+  case "$cmd" in
+    daemon|start) run_daemon ;;
+    stop)         stop_daemon ;;
+    session-active) shift; cmd_session_active "$@" ;;
+    policy)       shift; cmd_policy "$@" ;;
+    lid)          shift; cmd_lid "$@" ;;
+    status)       cmd_status ;;
+    is-laptop)    hw_laptop ;;
+    -h|--help|help) usage ;;
+    *)
+      log "unknown command: $cmd" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+fi

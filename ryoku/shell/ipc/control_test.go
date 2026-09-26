@@ -94,18 +94,27 @@ func TestMenuID(t *testing.T) {
 func TestDispatchControlErrors(t *testing.T) {
 	d := &daemon{}
 	cases := map[string]string{
-		"menu":                "err menu",
-		"menu bogus":          "err menu",
-		"bar":                 "err bar",
-		"bar left":            "err bar",
-		"bar sideways toggle": "err bar",
-		"bar left sideways":   "err bar",
-		"audio":               "err audio",
-		"audio sideways":      "err audio",
-		"brightness":          "err brightness",
-		"brightness sideways": "err brightness",
-		"hub":                 "err hub",
-		"hub bogus":           "err hub",
+		"menu":                            "err menu",
+		"menu bogus":                      "err menu",
+		"bar":                             "err bar",
+		"bar left":                        "err bar",
+		"bar sideways toggle":             "err bar",
+		"bar left sideways":               "err bar",
+		"audio":                           "err audio",
+		"audio sideways":                  "err audio",
+		"brightness":                      "err brightness",
+		"brightness sideways":             "err brightness",
+		"hub":                             "err hub",
+		"hub bogus":                       "err hub",
+		"lock-quiesce now":                "err lock-quiesce",
+		"sleep-ready":                     "err sleep-ready",
+		"sleep-ready now":                 "err sleep-ready",
+		"suspend":                         "err suspend",
+		"suspend now":                     "err suspend",
+		"suspend transaction":             "err suspend",
+		"suspend-cancel":                  "err suspend-cancel",
+		"suspend-cancel transaction":      "err suspend-cancel",
+		"suspend-cancel transaction bad/": "err suspend-cancel",
 	}
 	for cmd, prefix := range cases {
 		got := d.dispatch(cmd)
@@ -121,6 +130,13 @@ func TestDispatchControlErrors(t *testing.T) {
 // not report a locked screen that is really open.
 func TestLockStatus(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("XDG_SESSION_ID", "test")
+	oldRunning, oldProof := lockProcessRunning, lockProofValid
+	lockProcessRunning = func() bool { return false }
+	lockProofValid = func() bool { return false }
+	defer func() {
+		lockProcessRunning, lockProofValid = oldRunning, oldProof
+	}()
 	d := &daemon{}
 	if got := d.dispatch("lock status"); got != "unlocked" {
 		t.Fatalf("dispatch(lock status) with no marker = %q, want unlocked", got)
@@ -134,5 +150,33 @@ func TestLockStatus(t *testing.T) {
 	}
 	if _, err := os.Stat(marker); err == nil {
 		t.Errorf("stale lock marker not cleared")
+	}
+}
+
+func TestLockQuiesceRejectsNewLaunches(t *testing.T) {
+	d := &daemon{}
+	if got := d.dispatch("lock-quiesce"); got != "ok" {
+		t.Fatalf("lock-quiesce = %q, want ok", got)
+	}
+	if got := d.dispatch("lock"); got != "err lock: generation cutover is in progress" {
+		t.Fatalf("lock after quiesce = %q", got)
+	}
+}
+
+func TestLockSessionRejectsAnotherLogin1Session(t *testing.T) {
+	t.Setenv("XDG_SESSION_ID", "session-a")
+	d := &daemon{}
+	const want = "err lock: requested login1 session is not owned by this daemon"
+	if got := d.dispatch("lock session session-b"); got != want {
+		t.Fatalf("dispatch(lock session session-b) = %q, want %q", got, want)
+	}
+}
+
+func TestUnlockPrepareRejectsAnotherLogin1Session(t *testing.T) {
+	t.Setenv("XDG_SESSION_ID", "session-a")
+	d := &daemon{}
+	const want = "err unlock-prepare: requested login1 session is not owned by this daemon"
+	if got := d.dispatch("unlock-prepare session session-b"); got != want {
+		t.Fatalf("dispatch(unlock-prepare session session-b) = %q, want %q", got, want)
 	}
 }

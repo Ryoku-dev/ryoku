@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+runtime_dir="${XDG_RUNTIME_DIR:-/tmp}"
+lock_script="${RYOKU_QYLOCK_LOCK_SCRIPT:-$HOME/.local/share/quickshell-lockscreen/lock.sh}"
+
+command -v flock >/dev/null 2>&1 || {
+  printf 'ryoku-qylock-lock: flock is required\n' >&2
+  exit 1
+}
+
+# Serialize admission outside the replaceable qylock generation. Cutovers take
+# both files exclusively: the launch lock stops new entrants while the
+# generation lock drains wrappers that already loaded a generation.
+exec 8>"$runtime_dir/ryoku-qylock-launch.lock"
+flock 8
+exec 7>"$runtime_dir/ryoku-qylock-generation.lock"
+flock -s 7
+flock -u 8
+exec 8>&-
+
+generation_file="$HOME/.local/share/ryoku/qylock-live-generation"
+if [[ ${lock_script%/*} == "$HOME/.local/share/ryoku/qylock-next/lockscreen" ]]; then
+  generation_file="$HOME/.local/share/ryoku/qylock-next/.generation"
+fi
+generation=""
+[[ ! -r $generation_file ]] || read -r generation <"$generation_file"
+if [[ $generation =~ ^[a-f0-9]{64}$ ]]; then
+  export QYLOCK_GENERATION=$generation
+else
+  unset QYLOCK_GENERATION
+fi
+
+[[ -x $lock_script ]] || {
+  printf 'ryoku-qylock-lock: lock client is unavailable at %s\n' "$lock_script" >&2
+  exit 1
+}
+exec "$lock_script" "$@"

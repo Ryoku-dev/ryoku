@@ -7,6 +7,19 @@ import (
 	wm "ryoku-wm"
 )
 
+func TestMonitorOutputsUsesLiveModeForDisabledState(t *testing.T) {
+	outputs := monitorOutputs([]hyprMonitor{
+		{Name: "eDP-1", Width: 2560, Height: 1600, Disabled: true},
+		{Name: "DP-1", Width: 0, Height: 0, Disabled: false},
+	}, false)
+	if outputs[0].Disabled {
+		t.Fatal("live output inherited Hyprland's stale disabled flag")
+	}
+	if !outputs[1].Disabled {
+		t.Fatal("output without a live mode was reported enabled")
+	}
+}
+
 func TestFocusEventsDoNotQueryAndPreserveHistory(t *testing.T) {
 	restore := stubCtl(t, func(...string) ([]byte, error) { t.Fatal("focus queried compositor"); return nil, nil })
 	defer restore()

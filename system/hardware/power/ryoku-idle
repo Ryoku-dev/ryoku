@@ -4,12 +4,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
-# The idle daemon config Ryoku renders from power.json. It lives beside power.json
-# under ~/.config/ryoku so it is compositor-neutral: hypridle is an
+# The idle daemon config Ryoku renders from power.json. It lives beside
+# power.json under ~/.config/ryoku so it is compositor-neutral: hypridle is an
 # ext-idle-notify client every supported compositor serves, and the screen-off
-# stage reaches the display through `ryoku wm act output.power`, never a named
-# compositor binary. Overridable for tests.
+# stage reaches the display through `ryoku wm act output.power`. The always-on
+# shell daemon, not hypridle, owns suspend locking and wake restoration.
+# Overridable for tests.
 IDLE_CONF="${RYOKU_HYPRIDLE_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/hypridle.conf}"
+PROC_DIR="${RYOKU_PROC_DIR:-/proc}"
+OUTPUT_STATE_DIR="${RYOKU_IDLE_OUTPUT_STATE_DIR:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-idle-output}"
+WM_CALL_TIMEOUT="${RYOKU_WM_CALL_TIMEOUT:-2s}"
+OUTPUT_ON_RETRIES="${RYOKU_OUTPUT_ON_RETRIES:-20}"
+OUTPUT_ON_RETRY_DELAY="${RYOKU_OUTPUT_ON_RETRY_DELAY:-0.1}"
 
 hw_laptop() {
   if command -v ryoku-hw-laptop >/dev/null 2>&1; then
@@ -34,26 +40,80 @@ ryoku_power() {
   fi
 }
 
-# on_battery: exit 0 when running on battery, i.e. a mains supply exists and reads
-# offline. An unknown or absent mains reads as AC, so idle stays relaxed rather
-# than aggressively dimming or suspending an unreadable machine. Feeds the
-# AC/battery-gated hypridle timeouts (aggressive on battery, relaxed on AC).
+# on_battery: exit 0 when at least one readable external power supply exists and
+# all such supplies are offline. USB-C/USB PD supplies do not necessarily call
+# themselves "Mains", so every non-battery supply participates. Unknown or
+# absent supplies read as AC, keeping idle conservative on unreadable hardware.
 on_battery() {
+  local ps type online found=0
   local ps_dir="${RYOKU_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
-  local ps online=1
   for ps in "$ps_dir"/*; do
-    [[ -r $ps/type && $(<"$ps/type") == "Mains" && -r $ps/online ]] || continue
+    [[ -r $ps/type && -r $ps/online ]] || continue
+    type="$(<"$ps/type")"
+    [[ $type != Battery ]] || continue
+    found=1
     online="$(<"$ps/online")"
-    break
+    [[ $online == 1 ]] && return 1
   done
-  [[ $online == "0" ]]
+  (( found == 1 ))
+}
+
+wm_output_action() {
+  RYOKU_WM_CALL_TIMEOUT="$WM_CALL_TIMEOUT" ryoku wm act output.power "$1"
+}
+
+# Every idle-off edge publishes a generation while holding the same lock used
+# by wake retries. A later off therefore waits out at most one bounded provider
+# call, replaces the generation, and is guaranteed to be the final display
+# action even when an older resume races it.
+output_off() {
+  local token tmp
+  mkdir -p "$OUTPUT_STATE_DIR"
+  chmod 700 "$OUTPUT_STATE_DIR"
+  exec 8>"$OUTPUT_STATE_DIR/lock"
+  flock 8
+  token="${BASHPID}-$(date +%s%N)-${RANDOM}"
+  tmp="$OUTPUT_STATE_DIR/generation.$$"
+  (umask 077; printf '%s\n' "$token" >"$tmp")
+  mv -f "$tmp" "$OUTPUT_STATE_DIR/generation"
+  wm_output_action off
+}
+
+# Retry an ordinary idle-DPMS wake with a bounded provider call. The generation
+# check cancels stale retries when hypridle emits a newer off edge.
+output_on() {
+  local token current attempt
+  mkdir -p "$OUTPUT_STATE_DIR"
+  chmod 700 "$OUTPUT_STATE_DIR"
+  exec 8>"$OUTPUT_STATE_DIR/lock"
+  flock 8
+  token="$(cat "$OUTPUT_STATE_DIR/generation" 2>/dev/null || true)"
+  flock -u 8
+  for ((attempt = 0; attempt < OUTPUT_ON_RETRIES; attempt++)); do
+    flock 8
+    current="$(cat "$OUTPUT_STATE_DIR/generation" 2>/dev/null || true)"
+    if [[ $current != "$token" ]]; then
+      flock -u 8
+      return 0
+    fi
+    if wm_output_action on; then
+      current="$(cat "$OUTPUT_STATE_DIR/generation" 2>/dev/null || true)"
+      [[ $current != "$token" ]] || rm -f "$OUTPUT_STATE_DIR/generation"
+      flock -u 8
+      return 0
+    fi
+    flock -u 8
+    sleep "$OUTPUT_ON_RETRY_DELAY"
+  done
+  printf 'ryoku-idle: could not restore display power\n' >&2
+  return 1
 }
 
 hypridle_pids() {
   local proc state uid key value self_uid
   self_uid="$(id -u)"
 
-  for proc in /proc/[0-9]*; do
+  for proc in "$PROC_DIR"/[0-9]*; do
     [[ -r $proc/comm && -r $proc/status ]] || continue
     [[ $(<"$proc/comm") == "hypridle" ]] || continue
 
@@ -105,12 +165,12 @@ emit_listener() {
   printf '}\n'
 }
 
-# render IDLE_CONF from the idle policy. The general block is always written so a
-# running hypridle still locks before sleep and restores the screen after wake;
-# the battery/AC listener pairs are written only when idle is active. `enabled:
-# false` (or an unreadable policy) yields a listener-less config that idles
-# nothing. Each stage has a battery-aggressive listener and an AC-relaxed one,
-# gated by `ryoku-idle on-battery`/`on-ac` so only the matching one acts.
+# Render IDLE_CONF from the idle policy. The general block disables hypridle's
+# sleep inhibitor because the always-on shell daemon owns that handshake; the
+# battery/AC listener pairs exist only when idle is active. `enabled: false` (or
+# an unreadable policy) yields a listener-less config that idles nothing. Each
+# stage has a battery-aggressive listener and an AC-relaxed one, gated by
+# `ryoku-idle on-battery`/`on-ac` so only the matching one acts.
 render() {
   local policy tmp active
   local enabled ondesk b_dim b_lock b_off b_susp a_dim a_lock a_off a_susp
@@ -135,8 +195,7 @@ render() {
   {
     printf 'general {\n'
     printf '    lock_cmd = ryoku-shell lock\n'
-    printf '    before_sleep_cmd = ryoku-shell lock\n'
-    printf '    after_sleep_cmd = ryoku wm act output.power on; command -v ryoku-hub >/dev/null 2>&1 && ryoku-hub lighting apply &\n'
+    printf '    inhibit_sleep = 0\n'
     printf '    ignore_dbus_inhibit = false\n'
     printf '    ignore_systemd_inhibit = false\n'
     printf '}\n'
@@ -148,47 +207,89 @@ render() {
       emit_listener "$b_lock" on-battery 'ryoku-shell lock'
       emit_listener "$a_lock" on-ac      'ryoku-shell lock'
       # Turn the screen off (DPMS) through the window-manager seam.
-      emit_listener "$b_off"  on-battery 'ryoku wm act output.power off' 'ryoku wm act output.power on'
-      emit_listener "$a_off"  on-ac      'ryoku wm act output.power off' 'ryoku wm act output.power on'
-      # Suspend.
-      emit_listener "$b_susp" on-battery 'systemctl suspend'
-      emit_listener "$a_susp" on-ac      'systemctl suspend'
+      emit_listener "$b_off"  on-battery 'ryoku-idle output-off' 'ryoku-idle output-on'
+      emit_listener "$a_off"  on-ac      'ryoku-idle output-off' 'ryoku-idle output-on'
+      # Suspend through the shell's fail-closed lock transaction.
+      emit_listener "$b_susp" on-battery 'ryoku-shell suspend'
+      emit_listener "$a_susp" on-ac      'ryoku-shell suspend'
     fi
   } >"$tmp"
   mv -f "$tmp" "$IDLE_CONF"
 }
 
-# restart a running hypridle so it re-reads the freshly rendered config (it reads
-# its config only at startup; there is no live reload). When idle went inactive
-# the daemon is stopped and not relaunched. A daemon that was not running is left
-# alone; `start` launches it at the next login.
-refresh_daemon() {
+# Restart a running hypridle so it re-reads the freshly rendered config. `apply`
+# is also the update cutover gate: it must not report success while a process
+# that still has the pre-upgrade direct-suspend hooks mapped remains alive.
+stop_hypridle() {
   local pids
+  for _generation in 1 2; do
+    pids="$(hypridle_pids)"
+    [[ -n $pids ]] || return 0
+    # shellcheck disable=SC2086  # the pid list is space-separated on purpose
+    kill $pids 2>/dev/null || true
+    for _ in {1..20}; do
+      hypridle_running || return 0
+      sleep 0.05
+    done
+    pids="$(hypridle_pids)"
+    # shellcheck disable=SC2086  # the pid list is space-separated on purpose
+    [[ -z $pids ]] || kill -KILL $pids 2>/dev/null || true
+    for _ in {1..20}; do
+      hypridle_running || return 0
+      sleep 0.05
+    done
+  done
+  printf 'ryoku-idle: could not stop the pre-upgrade hypridle process\n' >&2
+  return 1
+}
+
+refresh_daemon() {
+  local pids new_pid
   pids="$(hypridle_pids)"
   [[ -n $pids ]] || return 0
-  # shellcheck disable=SC2086  # the pid list is space-separated on purpose
-  kill $pids 2>/dev/null || true
-  for _ in 1 2 3 4 5; do
-    hypridle_running || break
-    sleep 0.2
-  done
+  stop_hypridle
   idle_active || return 0
   command -v hypridle >/dev/null 2>&1 || return 0
   [[ -r $IDLE_CONF ]] || return 0
+  hypridle_running && return 0
   setsid hypridle -c "$IDLE_CONF" >/dev/null 2>&1 &
+  new_pid=$!
+  sleep 0.05
+  if ! kill -0 "$new_pid" 2>/dev/null; then
+    wait "$new_pid" 2>/dev/null || true
+    printf 'ryoku-idle: replacement hypridle exited during startup\n' >&2
+    return 1
+  fi
+}
+
+apply_policy() {
+  render
+  if command -v systemctl >/dev/null 2>&1 &&
+     systemctl --user cat ryoku-idle.service >/dev/null 2>&1 &&
+     systemctl --user is-active --quiet ryoku-session.target; then
+    systemctl --user stop ryoku-idle.service >/dev/null 2>&1 || true
+    stop_hypridle
+    systemctl --user reset-failed ryoku-idle.service >/dev/null 2>&1 || true
+    systemctl --user start ryoku-idle.service
+    return
+  fi
+  refresh_daemon
 }
 
 usage() {
   cat <<'USAGE'
-Usage: ryoku-idle [start|apply|render|status|is-laptop|on-battery|on-ac]
+Usage: ryoku-idle [start|stop|apply|render|status|is-laptop|on-battery|on-ac|output-off|output-on]
 
 start      render the config, then launch hypridle when idle is active
+stop       stop every current-user hypridle process and verify it is gone
 apply      render the config and restart hypridle if it is running
 render     render the config from power.json without touching the daemon
 status     print device class, hypridle availability/running state, idle state, config
 is-laptop  return ryoku-hw-laptop's laptop detection status
 on-battery return 0 on battery, 1 on AC (gates the battery idle timeouts)
 on-ac      return 0 on AC, 1 on battery (gates the AC idle timeouts)
+output-off mark a new idle-display generation and turn outputs off
+output-on  retry output wake for the current generation; a newer off cancels it
 
 The idle policy (enabled, onDesktops, and the per-stage dim/lock/screen-off/
 suspend timeouts for battery and AC) lives in ~/.config/ryoku/power.json under
@@ -198,6 +299,11 @@ runs `ryoku-idle apply`.
 Env:
   RYOKU_HYPRIDLE_CONF=/path/to/hypridle.conf
   RYOKU_POWER_SUPPLY_DIR=/path/to/power_supply
+  RYOKU_PROC_DIR=/path/to/proc
+  RYOKU_IDLE_OUTPUT_STATE_DIR=/path/to/runtime/state
+  RYOKU_WM_CALL_TIMEOUT=2s
+  RYOKU_OUTPUT_ON_RETRIES=20
+  RYOKU_OUTPUT_ON_RETRY_DELAY=0.1
   RYOKU_IDLE_VERBOSE=1   print why start exits without launching hypridle
 USAGE
 }
@@ -221,9 +327,11 @@ case "$cmd" in
     hypridle_running && exit 0
     exec hypridle -c "$IDLE_CONF"
     ;;
+  stop)
+    stop_hypridle
+    ;;
   apply)
-    render
-    refresh_daemon
+    apply_policy
     ;;
   render)
     render
@@ -259,6 +367,12 @@ case "$cmd" in
     ;;
   on-ac)
     ! on_battery
+    ;;
+  output-off)
+    output_off
+    ;;
+  output-on)
+    output_on
     ;;
   -h|--help|help)
     usage

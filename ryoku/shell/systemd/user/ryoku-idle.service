@@ -1,0 +1,16 @@
+[Unit]
+Description=Ryoku idle policy daemon
+PartOf=ryoku-session.target
+After=ryoku-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+ExecStart=/usr/bin/ryoku-idle start
+Restart=on-failure
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=ryoku-session.target

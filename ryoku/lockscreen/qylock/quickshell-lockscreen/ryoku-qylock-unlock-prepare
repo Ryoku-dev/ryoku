@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+session_id=${1:-}
+[[ $session_id =~ ^[A-Za-z0-9_.-]+$ ]] || {
+  printf 'ryoku-qylock-unlock-prepare: invalid login1 session\n' >&2
+  exit 2
+}
+
+unit="ryoku-qylock-unlock-guard-${session_id}.service"
+who="ryoku-qylock-unlock-${session_id}"
+proof_helper="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/proof.sh"
+for command in systemctl systemd-run systemd-inhibit jq loginctl busctl; do
+  command -v "$command" >/dev/null 2>&1 || {
+    printf 'ryoku-qylock-unlock-prepare: %s is required\n' "$command" >&2
+    exit 1
+  }
+done
+
+if ! systemctl --user is-active --quiet "$unit"; then
+  systemctl --user reset-failed "$unit" >/dev/null 2>&1 || true
+  systemd-run --user --quiet --collect --unit="$unit" \
+    --property=Type=exec --property=TimeoutStopSec=5s \
+    /usr/bin/systemd-inhibit --what=sleep --mode=block \
+    --who="$who" \
+    --why="keep suspend blocked until the compositor lock is released" \
+    /usr/bin/sleep infinity
+fi
+
+guard_ready=0
+for _ in {1..60}; do
+  inhibitors="$(systemd-inhibit --list --json=short 2>/dev/null || true)"
+  if jq -e --arg who "$who" \
+    'any(.[]; .who == $who and .mode == "block"
+      and ((.what | split(":")) | index("sleep")))' \
+    <<<"$inhibitors" >/dev/null 2>&1; then
+    guard_ready=1
+    break
+  fi
+  sleep 0.05
+done
+if (( guard_ready != 1 )); then
+  systemctl --user stop "$unit" >/dev/null 2>&1 || true
+  printf 'ryoku-qylock-unlock-prepare: durable sleep guard did not become ready\n' >&2
+  exit 1
+fi
+
+unlockable() {
+  local active preparing
+  active="$(loginctl show-session "$session_id" --property=Active --value 2>/dev/null || true)"
+  preparing="$(busctl get-property org.freedesktop.login1 \
+    /org/freedesktop/login1 org.freedesktop.login1.Manager \
+    PreparingForSleep 2>/dev/null || true)"
+  [[ $active == yes && $preparing == "b false" ]]
+}
+
+if ! unlockable; then
+  systemctl --user stop "$unit" >/dev/null 2>&1 || true
+  printf 'ryoku-qylock-unlock-prepare: session is not safely unlockable\n' >&2
+  exit 1
+fi
+if command -v ryoku-shell >/dev/null 2>&1 &&
+   ryoku-shell unlock-prepare session "$session_id" >/dev/null 2>&1; then
+  exit 0
+fi
+if ! unlockable ||
+   [[ ! -x $proof_helper ]] ||
+   ! "$proof_helper" clear "${QYLOCK_PROOF_TOKEN:-}" "$session_id"; then
+  systemctl --user stop "$unit" >/dev/null 2>&1 || true
+  printf 'ryoku-qylock-unlock-prepare: session is not safely unlockable\n' >&2
+  exit 1
+fi
+exit 0

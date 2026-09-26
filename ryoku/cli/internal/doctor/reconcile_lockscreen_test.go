@@ -1,8 +1,11 @@
 package doctor
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -22,6 +25,51 @@ func TestLockscreenInstallerRunsForLegacyTapeUpgrade(t *testing.T) {
 				t.Fatalf("needsLockscreenInstaller() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestLegacyTapeMigrationOnlyClaimsExactShippedTheme(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := filepath.Join(home, ".local", "share", "qylock", "themes", "clockwork", "tape")
+	if err := os.MkdirAll(filepath.Join(root, "font"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{
+		"Main.qml":              []byte("main"),
+		"font/Outfit-Black.ttf": []byte("font"),
+		"metadata.desktop":      []byte("metadata"),
+		"theme.conf":            []byte("theme"),
+		"preview.gif":           []byte("preview"),
+	}
+	saved := legacyTapeHashes
+	legacyTapeHashes = make(map[string]string, len(files))
+	defer func() { legacyTapeHashes = saved }()
+	for rel, body := range files {
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		legacyTapeHashes[rel] = fmt.Sprintf("%x", sha256.Sum256(body))
+	}
+
+	if !legacyTapeNeedsMigration() {
+		t.Fatal("exact shipped legacy Tape theme was not selected for migration")
+	}
+	if err := os.WriteFile(filepath.Join(root, "Main.qml"), []byte("custom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if legacyTapeNeedsMigration() {
+		t.Fatal("customized legacy Tape theme was claimed by migration")
+	}
+	if err := os.MkdirAll(filepath.Join(filepath.Dir(filepath.Dir(root)), "clockwork-tape"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if legacyTapeNeedsMigration() {
+		t.Fatal("legacy Tape migration repeated after the product theme appeared")
 	}
 }
 
@@ -57,5 +105,44 @@ func TestGreeterScriptStale(t *testing.T) {
 	}
 	if greeterScriptStale(src) {
 		t.Error("an up-to-date installed script must not report stale")
+	}
+}
+
+func TestStageLockscreenHoldsGenerationGuard(t *testing.T) {
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	logPath := filepath.Join(root, "events")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	helper := "#!/bin/sh\nprintf 'guard %s\\n' \"$1\" >>\"$EVENTS\"\n"
+	installer := `#!/bin/sh
+printf 'install guarded=%s mode=%s user=%s\n' \
+  "${RYOKU_QYLOCK_GENERATION_GUARDED:-}" \
+  "${RYOKU_QYLOCK_MODE:-}" "${RYOKU_QYLOCK_USER_ONLY:-}" >>"$EVENTS"
+`
+	helperPath := filepath.Join(bin, "ryoku-power-cutover")
+	installerPath := filepath.Join(root, "install-qylock")
+	if err := os.WriteFile(helperPath, []byte(helper), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(installerPath, []byte(installer), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("XDG_RUNTIME_DIR", root)
+	t.Setenv("EVENTS", logPath)
+	if out, err := stageLockscreen(installerPath); err != nil {
+		t.Fatalf("stageLockscreen: %v: %s", err, out)
+	}
+	got, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "guard generation-guard-start\n" +
+		"install guarded=1 mode=stage user=1\n" +
+		"guard generation-guard-stop\n"
+	if strings.ReplaceAll(string(got), "\r\n", "\n") != want {
+		t.Fatalf("guarded staging events = %q, want %q", got, want)
 	}
 }

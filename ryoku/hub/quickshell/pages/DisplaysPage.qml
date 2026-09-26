@@ -134,6 +134,10 @@ Item {
     // the nightLight capability, so a compositor with no backend shows no group.
     property bool nightOn: false
     property int nightTemp: 4000
+    // "off" | "sun": the daemon's follow-the-sun schedule, carried on the same
+    // frame so the switch never reads stale after a toggle from elsewhere.
+    property string nightSchedule: "off"
+    property int nightMargin: 60
 
     function applyNightFrame(line) {
         try {
@@ -142,12 +146,16 @@ Item {
                 pg.nightOn = f.on === true;
                 if (typeof f.temperature === "number" && f.temperature > 0)
                     pg.nightTemp = f.temperature;
+                if (f.schedule === "off" || f.schedule === "sun")
+                    pg.nightSchedule = f.schedule;
+                if (typeof f.marginMin === "number" && f.marginMin >= 0)
+                    pg.nightMargin = f.marginMin;
             }
         } catch (e) {}
     }
 
-    function sendNight(on, temp) {
-        nlCtl.queued += "call nightlight.set " + JSON.stringify({ on: on === true, temperature: temp }) + "\n";
+    function sendNight(obj) {
+        nlCtl.queued += "call nightlight.set " + JSON.stringify(obj) + "\n";
         if (nlCtl.connected)
             nlCtl.flushQueued();
         else
@@ -159,12 +167,24 @@ Item {
     // (nightlight.set with on:false just turns off), so the row is inert when off.
     function setNight(on) {
         pg.nightOn = on === true;
-        pg.sendNight(pg.nightOn, pg.nightTemp);
+        pg.sendNight({ on: pg.nightOn, temperature: pg.nightTemp });
     }
     function setNightTemp(temp) {
         pg.nightTemp = temp;
         if (pg.nightOn)
-            pg.sendNight(true, temp);
+            pg.sendNight({ on: true, temperature: temp });
+    }
+    // The schedule rides the same call with its own fields: turning it on
+    // applies the window immediately (the daemon ticks), and a manual toggle
+    // stays honoured until the next edge.
+    function setNightSchedule(sun) {
+        pg.nightSchedule = sun ? "sun" : "off";
+        pg.sendNight({ schedule: pg.nightSchedule, marginMin: pg.nightMargin });
+    }
+    function setNightMargin(mins) {
+        pg.nightMargin = mins;
+        if (pg.nightSchedule === "sun")
+            pg.sendNight({ schedule: "sun", marginMin: mins });
     }
 
     Socket {
@@ -1402,6 +1422,32 @@ Item {
                             from: 1000; to: 6500; stepBy: 100
                             value: pg.nightTemp
                             onModified: (v) => pg.setNightTemp(v)
+                        }
+                    }
+                    SettingRow {
+                        anchors.left: parent.left; anchors.right: parent.right
+                        divider: true
+                        label: I18n.tr("FOLLOW THE SUN")
+                        desc: I18n.tr("Warm the screen from sunset to sunrise, using your real sun times.")
+                        controlWidth: 54
+                        Sw {
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            on: pg.nightSchedule === "sun"
+                            onToggled: (v) => pg.setNightSchedule(v)
+                        }
+                    }
+                    SettingRow {
+                        anchors.left: parent.left; anchors.right: parent.right
+                        divider: true
+                        enabled: pg.nightSchedule === "sun"
+                        label: I18n.tr("EDGE MARGIN")
+                        value: pg.nightMargin + " min"
+                        controlWidth: 58
+                        Step {
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            from: 0; to: 180; stepBy: 15
+                            value: pg.nightMargin
+                            onModified: (v) => pg.setNightMargin(v)
                         }
                     }
                 }

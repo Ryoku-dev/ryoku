@@ -11,6 +11,30 @@
   `tests/monitor-custom-mode.sh`.
 
 ### Fixed
+- `power/ryoku-clamshell`: **every lid close has one fail-closed owner.** The
+  daemon holds `handle-lid-switch` only while its login1 session is active and
+  reacquires it after activity changes or a login1 restart. Hyprland's close
+  and open binds and niri's native `lid-close`/`lid-open` events run the same
+  policy: verified live docked mode (AC plus an external display) remains
+  awake; every other close calls `ryoku-shell suspend`, which cannot proceed
+  without compositor-secure qylock. ACPI supplies physical state when present;
+  UPower seeds an already-closed startup otherwise, but its asynchronous value
+  cannot veto an ordered compositor close edge. Losing the dock while already
+  closed uses the same transaction, and a close rejected by an update guard
+  retries until the matching open edge. Hyprland serializes its panel handoff
+  and restores only connectors this helper disabled; niri keeps native
+  topology. Package hooks, login and checkout deploy share a guarded
+  session-lifecycle handoff. It selects the confirmed foreground login1
+  session, secures every other online same-user session with its own qylock and
+  observer, then replaces shell, idle, lid and wallpaper owners. The watchers
+  and rebind transients have no finite restart burst. Failed adoption stays
+  blocked until retry or reboot.
+- `power/logind-ryoku-lid.conf`: **login1 supplies the safe lid fallback and the
+  final bounded lock handshake.** Undocked lid closes suspend when no active
+  session inhibitor owns them, docked closes remain ignored, and
+  `InhibitDelayMaxSec` gives the foreground shell time to finish its one delay
+  handshake. Inactive sessions are secured before ownership moves rather than
+  claiming duplicate per-user daemon delay FDs.
 - `display/ryoku-monitor`: **an active monitor is no longer treated as disabled
   on Hyprland builds that mislabel it.** hyprland-git reports `"disabled": true`
   for a plainly active output (focused, DPMS on, a real mode, an active
@@ -271,12 +295,12 @@
   existed. Ships to `/usr/bin` via ryoku-desktop; covered by
   `tests/nvidia-guard.sh`.
 - Battery-aware idle: `power/ryoku-idle` gains `on-battery`/`on-ac` (exit-status
-  guards read the `/sys/class/power_supply` mains state), and `hypridle.conf` now
-  pairs a battery-aggressive listener with an AC-relaxed one at each stage, gated
-  by those guards. On battery the backlight dims at 2 min, the session locks at 5,
-  the screen (DPMS) turns off at 5.5 and the machine suspends at 15; on AC the
-  prior 5/10/11/30 hold. An unknown or absent mains reads as AC, so a desktop or an
-  unreadable laptop keeps the relaxed policy.
+  guards read the `/sys/class/power_supply` mains state), and the generated idle
+  config pairs a battery-aggressive listener with an AC-relaxed one at each stage,
+  gated by those guards. On battery the backlight dims at 2 min, the session
+  locks at 5, the screen (DPMS) turns off at 5.5 and the machine suspends at 15;
+  on AC the prior 5/10/11/30 hold. An unknown or absent mains reads as AC, so a
+  desktop or an unreadable laptop keeps the relaxed policy.
 - `audio/ryoku-restart-audio`: recover sound when it does not come back. Restarts
   the PipeWire stack (wireplumber, pipewire, pipewire-pulse) and resets a stuck
   USB audio device. Bound to Super+Shift+A. Ported from omarchy.

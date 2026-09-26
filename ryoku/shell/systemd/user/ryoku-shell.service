@@ -23,8 +23,16 @@ Environment=QT_MEDIA_BACKEND=ffmpeg
 Environment=QT_FFMPEG_DECODING_HW_DEVICE_TYPES=
 # a stray unsupervised daemon (an old deploy, a crashed update) holds the
 # socket and would wedge the unit into its start limit; ask it to quit first.
+# A staged checkout deploy keeps the old lock client beside the old live daemon.
+# A staged qylock generation is promoted only after every prior daemon has
+# stopped; retained staged clients keep their generation files until unlock.
 ExecStartPre=-/usr/bin/ryoku-shell quit
+ExecStartPre=/usr/bin/ryoku-qylock-activate
 ExecStart=/usr/bin/ryoku-shell daemon
+ExecStop=/usr/bin/ryoku-qylock-activate --prepare-stop
+ExecStartPost=-/usr/bin/ryoku-power-cutover qylock-guards-stop
+TimeoutStartSec=0
+TimeoutStopSec=0
 Restart=always
 RestartSec=2
 # Kill only the daemon on stop, not its cgroup: it reaps its own surfaces, and

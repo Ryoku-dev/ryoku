@@ -57,5 +57,14 @@ done < <(
 )
 (( ${#missing[@]} == 0 )) \
   || fail "driver packages missing from the offline bake (installation/iso/offline-repo.sh): ${missing[*]}"
+# 5. both compositor variants must be in the bake. The TUI offers every
+#    compositor it knows, and the offline desktop-set install (deploy.sh) names
+#    ryoku-desktop-$RYOKU_COMPOSITOR against the baked repo only: a variant that
+#    was never baked dies at "configure" with "target not found" and no network
+#    to recover with (issue #260: the ISO shipped hyprland only).
+for variant in ryoku-desktop-hyprland ryoku-desktop-niri; do
+  grep -qF -- "$variant" <<<"$bake" \
+    || fail "compositor variant '$variant' is not baked into the offline repo"
+done
 
 echo "offline-repo-integrity: OK"

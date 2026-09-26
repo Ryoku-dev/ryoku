@@ -118,7 +118,8 @@ Column {
                     model: [
                         { mode: "dark",  label: I18n.tr("Dark") },
                         { mode: "light", label: I18n.tr("Light") },
-                        { mode: "smart", label: I18n.tr("Smart") }
+                        { mode: "smart", label: I18n.tr("Smart") },
+                        { mode: "sun",   label: I18n.tr("Sun") }
                     ]
                     onSelect: function(v) {
                         if (root.notifyThemeChanged) root.notifyThemeChanged(Config.matugenScheme, v, root._mat.sourceColorIndex)

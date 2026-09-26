@@ -34,12 +34,37 @@
   this root installer). Honors `RYOKU_DRYRUN`; `ryoku keyring` changes it later.
 
 ### Fixed
+- **Lock and unlock are serialized per login1 session and qylock generation.**
+  Lid, idle and manual requests share a session-scoped launch guard. A stable
+  launcher leases the selected client generation before entering replaceable
+  code, and updates stage the wrapper with its matching core theme before an
+  atomic service handoff. The secure marker carries a fresh token and counts
+  only while the matching session's qylock process carries that token; a
+  delayed callback from an old client cannot bless its replacement. The
+  long-lived wrapper survives a shell-daemon restart, retries three times
+  quickly, then uses a capped backoff so a recovering compositor regains its
+  unlock UI without a hot crash loop. Unlock passes the explicit session ID to
+  the stable preparation helper and login1. If the owning daemon is between
+  generations, that helper substitutes a durable login1 sleep block until the
+  replacement daemon publishes its own, so neither unlock nor an update opens
+  an unprotected suspend window. Inactive locks leave the global fingerprint
+  reader to the foreground session while keeping password authentication ready
+  (`install-qylock`, `ryoku-qylock-lock`,
+  `ryoku-qylock-unlock-prepare`, `qylock/quickshell-lockscreen/lock.sh`,
+  `qylock/quickshell-lockscreen/proof.sh`,
+  `qylock/quickshell-lockscreen/unlock.sh`).
+- **The lockscreen's suspend action cannot bypass the secure handshake.**
+  qylock's in-session SDDM shim used `systemctl suspend` directly; it now calls
+  `ryoku-shell suspend`, which keeps the session sleep block held unless the
+  compositor has confirmed a live qylock client covers every output
+  (`qylock/quickshell-lockscreen/shim/SddmShim.qml`).
 - **The in-session lock shows a usable mouse cursor with any theme.** The lock
   is spawned by the shell daemon, whose imported env can predate the login-time
   `hyprctl setcursor` (autostart.lua), and a downloaded theme carries no cursor
   workaround of its own, so the lock could come up with no visible pointer.
-  `lock.sh` now re-asserts `hyprctl setcursor` from the same theme/size the lock
-  client uses, best-effort, before launching (`qylock/quickshell-lockscreen/lock.sh`).
+  `lock.sh` now re-asserts the provider's compositor cursor action from the
+  same theme/size the lock client uses before launching
+  (`qylock/quickshell-lockscreen/lock.sh`).
 - **A downloaded lockscreen theme now shows its preview in the Hub.** The Hub
   looked for `preview.gif` only at the skin root, where shipped themes keep it,
   but a RyoStore download lands it under `assets/preview.gif` (its product
@@ -132,10 +157,10 @@
   `lock_shell.qml` touches `$XDG_RUNTIME_DIR/qylock.locked` the moment the
   compositor confirms every output is covered (`WlSessionLock.secure`) and
   removes it on unlock, giving `ryoku-shell lock` a real "locked" signal to
-  block on. Before, hypridle's `before_sleep_cmd` returned while Quickshell was
-  still loading QML, so logind's sleep inhibitor was released with the desktop
-  still in the framebuffer: opening the lid showed your windows for a beat
-  before the lock painted.
+  block on. Before, the lock was fire-and-forgotten and the sleep delay was
+  released with Quickshell still loading QML, so opening the lid showed your
+  windows for a beat before the lock painted; a lock that never confirms now
+  reports a failure rather than passing a desktop left uncovered.
 - **A missing lock theme can no longer lock you out.** `lock.sh` defaulted to
   `nier-automata`, a theme the shipped bundle does not contain, and never
   checked the resolved theme path: with `~/.config/qylock/theme` lost (or an

@@ -6,6 +6,10 @@ for finer detail.
 ## Unreleased
 
 ### Fixed
+- Lock, suspend, lid-close and wake now share one fail-closed lifecycle across
+  Hyprland and niri. Lockscreen generations change atomically during updates,
+  every sleep waits for compositor-secure qylock, and output recovery retries
+  after resume without leaving an unlock gap during daemon restarts.
 - The desktop behaves the same on niri as on Hyprland: the night light, window
   borders, the app and brightness keybinds, the colour picker, the recorder and
   the launcher tools, idle management, the lid policy and Super+P all work on a

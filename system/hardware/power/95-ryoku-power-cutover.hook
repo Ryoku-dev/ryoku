@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Path
+Target = usr/bin/ryoku-clamshell
+
+[Action]
+Description = Adopting Ryoku sleep and lid policy for live sessions...
+When = PostTransaction
+Exec = /run/ryoku-power-cutover package

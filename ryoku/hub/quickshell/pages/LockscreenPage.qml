@@ -36,9 +36,9 @@ Item {
     // couldn't answer.
     readonly property bool emptyInstalled: !pg.loading && !pg.loadFailed && pg.skins.length === 0
 
-    // the in-session lock preview script; running it locks the screen with the
-    // named skin so the user sees the real thing (an action, not a pane).
-    readonly property string lockSh: Quickshell.env("HOME") + "/.local/share/quickshell-lockscreen/lock.sh"
+    // The stable launcher enters the generation lease before selecting the
+    // replaceable lock client, then forwards the named preview skin.
+    readonly property string lockLauncher: "ryoku-qylock-lock"
     // the rail's search box drives this; skins filter live against it.
     readonly property string query: (pg.hub && pg.hub.query) ? ("" + pg.hub.query) : ""
 
@@ -557,7 +557,7 @@ Item {
         actProc.running = true;
     }
     function preview(slug) {
-        Spawn.run([pg.lockSh, slug]);
+        Spawn.run([pg.lockLauncher, slug]);
     }
 
     // live filter: name, theme, slug, tags and copy all match the rail query.

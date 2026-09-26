@@ -126,15 +126,17 @@ func consume(conn net.Conn, emit func(wm.Frame), wants func(wm.FrameKind) bool) 
 }
 
 type hyprMonitor struct {
-	ID                    int      `json:"id"`
-	Name                  string   `json:"name"`
-	Width                 int      `json:"width"`
-	Height                int      `json:"height"`
-	Scale                 float64  `json:"scale"`
-	Focused               bool     `json:"focused"`
-	Make                  string   `json:"make"`
-	Model                 string   `json:"model"`
-	PhysicalWidth         int      `json:"physicalWidth"`
+	ID            int     `json:"id"`
+	Name          string  `json:"name"`
+	Width         int     `json:"width"`
+	Height        int     `json:"height"`
+	Scale         float64 `json:"scale"`
+	Focused       bool    `json:"focused"`
+	Make          string  `json:"make"`
+	Model         string  `json:"model"`
+	PhysicalWidth int     `json:"physicalWidth"`
+	// Hyprland-git can report disabled=true for a live DPMS-awake output.
+	// Keep the wire field for fixtures, but derive state from its real mode.
 	Disabled              bool     `json:"disabled"`
 	X                     int      `json:"x"`
 	Y                     int      `json:"y"`
@@ -180,7 +182,7 @@ func monitorOutputs(mons []hyprMonitor, full bool) []wm.Output {
 			Make:            m.Make,
 			Model:           m.Model,
 			PhysicalWidth:   m.PhysicalWidth,
-			Disabled:        m.Disabled,
+			Disabled:        m.Width <= 0 || m.Height <= 0,
 		}
 		if full {
 			o.X = m.X

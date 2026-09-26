@@ -1,10 +1,14 @@
 package wm
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // A daemon can construct its Client before the compositor's provider is
@@ -54,5 +58,70 @@ printf '%s' '{"name":"testwm","supports":["nightLight"],"nightLightProcess":"gam
 	}
 	if !c.Can(CapNightLight) {
 		t.Fatal("night light capability should read true after a successful reprobe")
+	}
+}
+
+func TestActContextPropagatesTransientCapsFailure(t *testing.T) {
+	dir := t.TempDir()
+	prov := filepath.Join(dir, "ryoku-wm-testwm")
+	if err := os.WriteFile(prov, []byte("#!/bin/sh\necho 'provider retraining' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	err := OpenNamed("testwm").ActContext(context.Background(), ActionOutputPower, "on")
+	if err == nil {
+		t.Fatal("transient caps failure was accepted as an action success")
+	}
+	if errors.Is(err, ErrUnsupported) {
+		t.Fatalf("transient caps failure became permanent unsupported: %v", err)
+	}
+}
+
+func TestActContextTimeoutKillsProviderProcessGroup(t *testing.T) {
+	dir := t.TempDir()
+	childPath := filepath.Join(dir, "child.pid")
+	prov := filepath.Join(dir, "ryoku-wm-testwm")
+	script := strings.NewReplacer("@CHILD@", childPath).Replace(`#!/usr/bin/env bash
+if [[ "${1:-}" == caps ]]; then
+  printf '%s' '{"name":"testwm","supports":["outputPower"]}'
+  exit 0
+fi
+sleep 30 &
+printf '%s\n' "$!" >"@CHILD@"
+wait
+`)
+	if err := os.WriteFile(prov, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	err := OpenNamed("testwm").ActContext(ctx, ActionOutputPower, "on")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("hung provider action returned %v, want deadline exceeded", err)
+	}
+	raw, readErr := os.ReadFile(childPath)
+	if readErr != nil {
+		t.Fatalf("provider never started its IPC child: %v", readErr)
+	}
+	pid, convErr := strconv.Atoi(strings.TrimSpace(string(raw)))
+	if convErr != nil {
+		t.Fatal(convErr)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		stat, statErr := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+		if os.IsNotExist(statErr) {
+			break
+		}
+		fields := strings.Fields(string(stat))
+		if statErr == nil && len(fields) > 2 && fields[2] == "Z" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("provider IPC child %d survived context cancellation", pid)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
