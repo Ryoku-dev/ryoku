@@ -144,6 +144,21 @@ ryoku_bitlocker_warn() {
   fi
 }
 
+# ryoku_windows_faststartup_gate <disk>: refuse an alongside install onto a disk
+# whose Windows volume is hibernated or dirty. The carve path re-judges its one
+# partition at shrink time, but a plain alongside install never touches the NTFS
+# volume -- and that is exactly the case that bites: the partition table changes
+# under a hibernated volume, then Windows Startup Repair rewrites the table on
+# its next boot and takes the fresh Ryoku partitions with it. RYOKU_ALLOW_DIRTY_NTFS=1
+# is the documented override for a user who accepts that risk.
+ryoku_windows_faststartup_gate() {
+  local disk=$1 dirty
+  [[ ${RYOKU_ALLOW_DIRTY_NTFS:-} == 1 ]] && return 0
+  dirty=$(ryoku_dirty_ntfs_on "$disk")
+  [[ -n $dirty ]] || return 0
+  die 'Windows on %s is hibernated or was left by Fast Startup (%s). Installing beside a dirty NTFS volume lets Windows Startup Repair rewrite the partition table on its next boot, which can delete the partitions Ryoku is about to create. Boot Windows, turn off Fast Startup (Power Options > Choose what the power buttons do), shut down fully, then retry. RYOKU_ALLOW_DIRTY_NTFS=1 installs anyway, at your risk.' "$disk" "$(printf '%s' "$dirty" | tr '\n' ' ')"
+}
+
 # Alongside preflight resolves the boot mode and validates the free region.
 ryoku_preflight_alongside() {
   local disk=$RYOKU_DISK need_gib region_mib
@@ -152,6 +167,7 @@ ryoku_preflight_alongside() {
   region_mib=$(ryoku_free_regions "$disk" | sort -k3,3 -nr | awk 'NR==1{print $3+0}')
   (( region_mib >= need_gib * 1024 )) || die 'no unallocated region >= %sGiB on %s (largest is %sGiB). Shrink a partition first, then retry.' "${need_gib}" "$disk" "$(( region_mib / 1024 ))"
   ryoku_bitlocker_warn "$disk"
+  ryoku_windows_faststartup_gate "$disk"
   log 'preflight alongside: GPT ok, boot mode %s, existing ESP %s (%s), free region %sGiB >= %sGiB' "$RYOKU_RESOLVED_ESP_MODE" "$RYOKU_PF_ESP" "$RYOKU_PF_ESP_KIND" "$(( region_mib / 1024 ))" "${need_gib}"
 }
 
@@ -174,5 +190,6 @@ ryoku_preflight_resize() {
   need_gib=$(( 2 + $(ryoku_min_root_gib) ))
   { [[ $take =~ ^[0-9]+$ ]] && (( take >= need_gib * 1024 )); } || die 'RYOKU_RESIZE_TAKE_MIB='\''%s'\'' must free at least %s GiB (2 GiB boot + %s GiB root) for Ryoku.' "${take}" "${need_gib}" "$(ryoku_min_root_gib)"
   ryoku_bitlocker_warn "$disk"
+  ryoku_windows_faststartup_gate "$disk"
   log 'preflight carve: GPT ok, boot mode %s, will carve %s MiB out of %s (%s) with %s' "$RYOKU_RESOLVED_ESP_MODE" "${take}" "$part" "$fstype" "$tool"
 }

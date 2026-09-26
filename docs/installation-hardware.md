@@ -114,6 +114,15 @@ automatic:
   Loader, menu, kernels and initramfs stay on it; the existing ESP is never
   mounted read-write or modified.
 
+Before either mode touches the disk, two gates protect the neighbouring OS. A
+hibernated or Fast-Startup-dirty Windows volume stops the install outright
+(override with `RYOKU_ALLOW_DIRTY_NTFS=1`): writing a partition table under a
+dirty NTFS volume is what invites Windows Startup Repair to rewrite that table
+on its next boot, taking the fresh Ryoku partitions with it. And in shared mode
+the existing ESP is checked with `fsck.fat -a` before Ryoku writes a single byte
+into it; a volume the repair cannot clear stops the install with the option to
+switch to `RYOKU_ESP_MODE=dedicated` instead.
+
 Both modes register the Ryoku NVRAM entry against the partition that holds its
 loader. Windows or another Linux remains in its existing firmware entry and is
 also added to the Limine menu by its ESP partition GUID when a chainloadable EFI

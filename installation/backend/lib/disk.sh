@@ -863,6 +863,38 @@ ryoku_part_label() {
   printf '%s' "$lbl"
 }
 
+# ryoku_ntfs_info_state <ntfsresize --info output>: clean, dirty, or unknown.
+# dirty wins over a resize line on purpose: a volume that is hibernated or
+# scheduled for a check must never be shrunk or repartitioned around, whatever
+# else the probe happens to print.
+ryoku_ntfs_info_state() {
+  if grep -qiE 'scheduled for check|volume is dirty|unsafe state|hibernat' <<<"$1"; then
+    printf 'dirty'
+  elif grep -q 'You might resize at' <<<"$1"; then
+    printf 'clean'
+  else
+    printf 'unknown'
+  fi
+}
+
+# ryoku_dirty_ntfs_on <disk>: every NTFS partition on the disk whose volume is
+# hibernated or dirty, one device per line, read-only. Windows Fast Startup and
+# hybrid shutdown leave a volume in this state, and writing a partition table
+# under one is what invites Windows Startup Repair to "fix" the disk on its next
+# boot -- a repair that has deleted fresh Linux partitions outright.
+ryoku_dirty_ntfs_on() {
+  local disk=$1 p fstype info
+  command -v ntfsresize >/dev/null 2>&1 || return 0
+  while IFS= read -r p; do
+    [[ -n $p ]] || continue
+    fstype=$(blkid -o value -s TYPE "$p" 2>/dev/null || true)
+    [[ $fstype == ntfs ]] || continue
+    info=$(ntfsresize --info "$p" 2>&1 || true)
+    [[ $(ryoku_ntfs_info_state "$info") == dirty ]] && printf '%s\n' "$p"
+  done < <(ryoku_partitions "$disk")
+  return 0
+}
+
 # ryoku_part_shrink_info <partdev> <fstype> <sizeMiB>: judge ONE partition's
 # shrinkability, strictly read-only, and print "<usedMiB> <minMiB> <shrinkable> <reason...>".
 # usedMiB/minMiB are -1 when unknown or not shrinkable. the resize probe and the
@@ -872,24 +904,29 @@ ryoku_part_shrink_info() {
   local used=-1 min=-1 shrink=no reason
   case $fstype in
     ntfs)
-      if ! command -v ntfsresize >/dev/null 2>&1; then
-        reason="ntfsresize (ntfsprogs) not installed"
-      else
-        local info min_bytes margin
-        info=$(ntfsresize --info "$dev" 2>&1 || true)
-        if grep -q 'You might resize at' <<<"$info"; then
+      local info state min_bytes margin
+      info=$(ntfsresize --info "$dev" 2>&1 || true)
+      state=$(ryoku_ntfs_info_state "$info")
+      case $state in
+        clean)
           min_bytes=$(grep -o 'You might resize at [0-9]\+ bytes' <<<"$info" | grep -o '[0-9]\+' | head -n1)
           [[ -n $min_bytes ]] || min_bytes=0
           used=$(( (min_bytes + 1048575) / 1048576 ))
           margin=$(( size_mib / 10 )); (( margin < 1024 )) && margin=1024
           min=$(( used + margin ))
           if (( min < size_mib )); then shrink=yes; reason="clean NTFS"; else reason="NTFS already at its minimum size"; fi
-        elif grep -qiE 'scheduled for check|volume is dirty|unsafe state|hibernat' <<<"$info"; then
+          ;;
+        dirty)
           reason="NTFS is dirty (hibernated or Fast Startup): boot Windows, disable Fast Startup, full shutdown"
-        else
-          reason="NTFS could not be probed (ntfsresize --info failed)"
-        fi
-      fi
+          ;;
+        *)
+          if command -v ntfsresize >/dev/null 2>&1; then
+            reason="NTFS could not be probed (ntfsresize --info failed)"
+          else
+            reason="ntfsresize (ntfsprogs) not installed"
+          fi
+          ;;
+      esac
       ;;
     ext4|ext3|ext2)
       local state bs blkcount freeblk mblocks

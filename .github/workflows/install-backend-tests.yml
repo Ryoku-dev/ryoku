@@ -33,6 +33,7 @@ on:
       - 'system/boot/limine/**'
       - 'tests/install-partition-alongside.sh'
       - 'tests/install-resize.sh'
+      - 'tests/install-windows-faststartup.sh'
       - 'tests/install-partition-whole.sh'
       - 'tests/install-largest-free.sh'
       - 'tests/install-preflight.sh'
@@ -80,6 +81,7 @@ on:
       - 'system/boot/limine/**'
       - 'tests/install-partition-alongside.sh'
       - 'tests/install-resize.sh'
+      - 'tests/install-windows-faststartup.sh'
       - 'tests/install-partition-whole.sh'
       - 'tests/install-largest-free.sh'
       - 'tests/install-preflight.sh'
@@ -256,6 +258,10 @@ jobs:
       - name: Carve space out of ntfs/ext4/btrfs partitions on a loop device
         shell: bash
         run: sudo bash tests/install-resize.sh
+
+      - name: Fast Startup gate refuses a hibernated Windows volume
+        shell: bash
+        run: sudo bash tests/install-windows-faststartup.sh
 
       - name: Btrfs @swap swapfile activation
         shell: bash

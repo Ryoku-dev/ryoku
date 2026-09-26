@@ -8,6 +8,22 @@
   `ParallelDownloads` and `DisableDownloadTimeout`, so pacman draws the Pac-Man
   transfer bar from the first `-Syu` on. Idempotent, and existing boxes get it
   from the matching `ryoku doctor` reconciler (`lib/mirrors.sh`).
+- **An alongside install refuses a hibernated Windows volume.** Windows Fast
+  Startup and hybrid shutdown leave the NTFS volume dirty, and writing a
+  partition table under one is what invites Windows Startup Repair to rewrite
+  that table on its next boot, deleting the fresh Ryoku partitions with it.
+  `ryoku_windows_faststartup_gate` probes every NTFS partition on the target
+  with `ntfsresize --info` (read-only) and stops both alongside strategies with
+  the exact Windows-side fix; `RYOKU_ALLOW_DIRTY_NTFS=1` is the documented
+  override. The shrink judge now reads the same probe through one classifier,
+  so a dirty volume is refused everywhere, not only on the carve path
+  (`lib/preflight.sh`, `lib/disk.sh`).
+- **The shared ESP is checked before Ryoku writes into it.** In shared boot
+  mode the existing ESP is a FAT volume another OS writes, and a dirty FAT
+  mounted read-write is how a shared boot partition gets corrupted.
+  `fsck.fat -a` now repairs it before the mount, and a volume the repair cannot
+  clear stops the install before one byte of the existing OS's ESP is touched,
+  naming `RYOKU_ESP_MODE=dedicated` as the way around it (`lib/bootloader.sh`).
 
 ### Fixed
 - **Alongside installation no longer blocks on a nearly full Windows ESP.**

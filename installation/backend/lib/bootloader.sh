@@ -550,6 +550,17 @@ ryoku_bootloader_alongside() {
     log 'note: the existing %s system on the shared ESP has no chainloadable EFI binary; it stays bootable via the firmware boot menu only.' "$esp_kind"
   fi
 
+  # The shared ESP is a FAT volume another OS writes. Windows Fast Startup and
+  # hard power-offs leave it dirty, and laying Ryoku's loader into a dirty FAT
+  # is how a shared boot partition gets corrupted: fsck.fat -a repairs the
+  # countable errors without prompting, and anything it cannot fix stops the
+  # install here, before one byte of the existing OS's ESP is touched.
+  if command -v fsck.fat >/dev/null 2>&1; then
+    local fsrc=0
+    fsck.fat -a "$esp" >/dev/null 2>&1 || fsrc=$?
+    (( fsrc <= 1 )) \
+      || die 'the shared ESP %s has filesystem errors fsck.fat could not repair (rc=%s); Ryoku refuses to write into it. Boot the OS that owns the ESP and repair the volume, or install with RYOKU_ESP_MODE=dedicated so Ryoku keeps to its own ESP.' "$esp" "$fsrc"
+  fi
   run mkdir -p /mnt/efi
   run mount "$esp" /mnt/efi
 
