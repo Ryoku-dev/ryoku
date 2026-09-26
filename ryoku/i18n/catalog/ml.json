@@ -5713,6 +5713,7 @@
   "note: %s": "নোট: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "ശ്രദ്ധിക്കുക: %s ഔട്ട്പുട്ട് %q വിവരണവുമായി പൊരുത്തപ്പെടുന്നു; %s-ൽ കണക്റ്റർ വഴി ഇത് പിൻ ചെയ്യുക",
   "note: boot guard not armed: %v": "নোট: বুট গার্ড সশস্ত্র নয়: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "নোট: নীতি সংরক্ষিত; sudo দিয়ে সক্ষম PAM লক্ষ্য পুনরায় প্রয়োগ করুন (%v)",
   "note: pre-update snapshot skipped: %v": "নোট: pre-update স্ন্যাপশট এড়ানো হয়েছে: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "নোট: ryoku doctor ফলাফল রিপোর্ট করেছে (উপরে দেখুন); ইনস্টল নিজেই সম্পন্ন হয়েছে",

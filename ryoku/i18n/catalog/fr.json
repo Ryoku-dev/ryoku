@@ -5713,6 +5713,7 @@
   "note: %s": "note : %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "note: sortie %s %q est identifiée par description; épinglez-la par connecteur dans %s",
   "note: boot guard not armed: %v": "note : boot guard non armé : %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "note : politique enregistrée ; réappliquez les cibles PAM activées avec sudo (%v)",
   "note: pre-update snapshot skipped: %v": "note : snapshot pré-mise à jour ignoré : %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "note : ryoku doctor a signalé des problèmes (voir ci-dessus) ; l'installation est terminée",

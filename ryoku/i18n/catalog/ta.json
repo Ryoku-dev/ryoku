@@ -5713,6 +5713,7 @@
   "note: %s": "குறிப்பு: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "குறிப்பு: %s வெளியீடு %q விளக்கத்தின் மூலம் பொருந்தியுள்ளது; அதை இணைப்பான் மூலம் %s இல் இணைக்கவும்",
   "note: boot guard not armed: %v": "குறிப்பு: பூட் காவலர் அசல் அல்ல: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "குறிப்பு: கொள்கை சேமிக்கப்பட்டது, sudo (%v) உடன் PAM இலக்குகளை மீண்டும் பயன்படுத்தவும்",
   "note: pre-update snapshot skipped: %v": "குறிப்பு: புதுப்பிப்பு முந்தைய ஸ்ন்যாப்ஷாட் தவிர்க்கப்பட்டது: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "குறிப்பு: ryoku doctor கண்டுபிடிப்புகளை தெரிவித்தது (மேலே பார்க்கவும்), நிறுவல் முடிந்துவிட்டது",

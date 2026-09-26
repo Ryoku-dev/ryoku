@@ -5713,6 +5713,7 @@
   "note: %s": "หมายเหตุ: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "หมายเหตุ: เอาต์พุต %s %q ตรงตามคำอธิบาย; ปักหมุดด้วยตัวเชื่อมต่อใน %s",
   "note: boot guard not armed: %v": "หมายเหตุ: boot guard ไม่ได้ทำงาน: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "หมายเหตุ: บันทึกนโยบายแล้ว; ใช้เป้าหมาย PAM ที่เปิดใช้งานซ้ำด้วย sudo (%v)",
   "note: pre-update snapshot skipped: %v": "หมายเหตุ: ข้ามสแนปช็อตก่อหหน้าการอัปเดต: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "หมายเหตุ: ryoku doctor รายงานผลการค้นพบ (ดูด้านบน); การติดตั้งเสร็จสิ้นแล้ว",

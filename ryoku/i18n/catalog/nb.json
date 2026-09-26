@@ -5713,6 +5713,7 @@
   "note: %s": "merk: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "merk: %s utgang %q er matchet etter beskrivelse; fest den med kobling i %s",
   "note: boot guard not armed: %v": "merk: oppstartsvakt ikke aktivert: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "merk: policy lagret; bruk sudo for å bruke PAM-mål på nytt (%v)",
   "note: pre-update snapshot skipped: %v": "merk: snapshot før oppdatering hoppet over: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "merk: ryoku doctor rapporterte funn (se ovenfor); installasjonen er fullført",

@@ -5713,6 +5713,7 @@
   "note: %s": "توجه: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "توجه: خروجی %s %q با توضیحات مطابقت دارد؛ آن را با کانکتور در %s پین کنید",
   "note: boot guard not armed: %v": "توجه: محافظ بوت فعال نیست: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "توجه: سیاست ذخیره شد؛ اهداف PAM فعال شده را با sudo (%v) دوباره اعمال کنید",
   "note: pre-update snapshot skipped: %v": "توجه: اسنپ‌شات پیش از به‌روزرسانی نادیده گرفته شد: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "توجه: Ryoku doctor یافته‌هایی را گزارش کرد (بالا را ببینید)؛ خود نصب انجام شده است",

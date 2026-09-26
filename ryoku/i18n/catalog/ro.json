@@ -5713,6 +5713,7 @@
   "note: %s": "notă: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "notă: ieșirea %s %q este potrivită prin descriere; fixați-o prin conector în %s",
   "note: boot guard not armed: %v": "notă: boot guard neactivat: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "notă: politică salvată; reaplicați țintele PAM activate cu sudo (%v)",
   "note: pre-update snapshot skipped: %v": "notă: snapshot pre-actualizare omis: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "notă: ryoku doctor a raportat constatări (vezi mai sus); instalarea în sine e gata",

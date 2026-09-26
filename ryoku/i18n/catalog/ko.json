@@ -5713,6 +5713,7 @@
   "note: %s": "참고: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "참고: %s 출력 %q는 설명으로 일치합니다. %s에서 커넥터로 고정하십시오.",
   "note: boot guard not armed: %v": "note: boot guard 활성화 안됨: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "note: policy 저장됨, sudo로 활성화된 PAM targets 재적용 (%v)",
   "note: pre-update snapshot skipped: %v": "note: pre-update snapshot 건너뜀: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "참고: ryoku doctor가 발견 사항을 보고함(위 참조); 설치는 완료됨",

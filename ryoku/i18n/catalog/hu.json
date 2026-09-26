@@ -5713,6 +5713,7 @@
   "note: %s": "megjegyzés: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "megjegyzés: %s kimenet %q leírás alapján van illesztve; rögzítse csatlakozó alapján itt: %s",
   "note: boot guard not armed: %v": "megjegyzés: boot guard nem aktiválva: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "megjegyzés: házirend mentve, alkalmazza újra az engedélyezett PAM célokat sudo-val (%v)",
   "note: pre-update snapshot skipped: %v": "megjegyzés: frissítés előtti pillanatkép kihagyva: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "megjegyzés: ryoku doctor megállapította az eredményeket (lásd fent), a telepítés kész",

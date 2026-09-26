@@ -5713,6 +5713,7 @@
   "note: %s": "σημ: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "σημείωση: η έξοδος %s %q αντιστοιχεί στην περιγραφή. Καρφιτσώστε την με τον σύνδεσμο στο %s",
   "note: boot guard not armed: %v": "σημ: προστασία εκκίνησης ανενεργή: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "σημ: πολιτική αποθηκεύτηκε· εφαρμόστε ξανά τα ενεργά στόχο PAM με sudo (%v)",
   "note: pre-update snapshot skipped: %v": "σημ: στιγμιότυπο προ-ενημέρωσης παραλείφθηκε: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "σημ: ryoku doctor ανέφερε ευρήματα (δες παραπάνω)· η εγκατάσταση ολοκληρώθηκε",

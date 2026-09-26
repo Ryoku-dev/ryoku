@@ -5713,6 +5713,7 @@
   "note: %s": "примечание: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "примечание: выход %s %q соответствует описанию; закрепите его по разъему в %s",
   "note: boot guard not armed: %v": "примечание: загрузочный хранитель не вооружен: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "примечание: политика сохранена; переподключите включенные PAM-цели с sudo (%v)",
   "note: pre-update snapshot skipped: %v": "примечание: снимок перед обновлением пропущен: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "примечание: ryoku doctor обнаружил проблемы (см. выше); установка завершена",

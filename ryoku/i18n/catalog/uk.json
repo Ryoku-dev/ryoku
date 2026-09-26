@@ -5713,6 +5713,7 @@
   "note: %s": "примітка: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "примітка: вивід %s %q відповідає опису; закріпіть його за роз’ємом у %s",
   "note: boot guard not armed: %v": "примітка: boot guard не активовано: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "примітка: політику збережено; повторно застосуйте увімкнені цілі PAM за допомогою sudo (%v)",
   "note: pre-update snapshot skipped: %v": "примітка: знімок перед оновленням пропущено: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "примітка: ryoku doctor повідомив про знахідки (див. вище); встановлення завершено",

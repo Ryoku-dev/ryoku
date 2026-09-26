@@ -5713,6 +5713,7 @@
   "note: %s": "గమనిక: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "గమనిక: %s అవుట్‌పుట్ %q వివరణ ద్వారా సరిపోలింది; %sలో కనెక్టర్ ద్వారా దాన్ని పిన్ చేయండి",
   "note: boot guard not armed: %v": "గమనిక: బూట్ గార్డ్ సજ్జితం కాలేదు: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "గమనిక: విధానం సేవ్ చేయబడింది, sudo (%v) తో ఎనేబుల్ చేసిన PAM లక్ష్యాలను తిరిగి-ఆపై చేయండి",
   "note: pre-update snapshot skipped: %v": "గమనిక: అపడేట్-పూర్వ స్నాప్‌షాట్ దాటవేయబడింది: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "గమనిక: ryoku doctor ఫలితాలను నివేదించింది (పైన చూడండి); ఇన్‌స్టॉల్ పూర్తయినది",

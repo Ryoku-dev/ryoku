@@ -5713,6 +5713,7 @@
   "note: %s": "catatan: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "catatan: keluaran %s %q cocok berdasarkan deskripsi; sematkan berdasarkan konektor di %s",
   "note: boot guard not armed: %v": "catatan: boot guard tidak aktif: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "catatan: kebijakan disimpan; terapkan kembali target PAM yang diaktifkan dengan sudo (%v)",
   "note: pre-update snapshot skipped: %v": "catatan: snapshot pra-pembaruan dilewati: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "catatan: ryoku doctor melaporkan temuan (lihat di atas); instalasi itu sendiri selesai",

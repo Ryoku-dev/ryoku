@@ -5713,6 +5713,7 @@
   "note: %s": "lưu ý: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "lưu ý: đầu ra %s %q khớp theo mô tả; ghim nó bằng đầu nối trong %s",
   "note: boot guard not armed: %v": "lưu ý: boot guard chưa kích hoạt: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "lưu ý: chính sách đã lưu; áp dụng lại các mục tiêu PAM đã bật bằng sudo (%v)",
   "note: pre-update snapshot skipped: %v": "lưu ý: bỏ qua ảnh chụp nhanh trước cập nhật: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "lưu ý: ryoku doctor đã báo cáo phát hiện (xem ở trên); quá trình cài đặt đã hoàn tất",

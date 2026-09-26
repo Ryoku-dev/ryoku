@@ -5713,6 +5713,7 @@
   "note: %s": "not: %s",
   "note: %s output %q is matched by description; pin it by connector in %s": "not: %s çıkışı %q açıklamaya göre eşleştirildi; %s içindeki bağlayıcıya göre sabitleyin",
   "note: boot guard not armed: %v": "not: önyükleme koruması hazır değil: %v",
+  "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session": "note: could not render %s's generated config (%v); run `ryoku doctor` inside a %s session",
   "note: policy saved; re-apply enabled PAM targets with sudo (%v)": "not: ilke kaydedildi; etkinleştirilen PAM hedeflerini sudo ile yeniden uygula (%v)",
   "note: pre-update snapshot skipped: %v": "not: güncelleme öncesi anlık görüntü atlandı: %v",
   "note: ryoku doctor reported findings (see above); the install itself is done": "not: ryoku doctor bulguları bildirdi (yukarıya bakın); kurulum kendisi tamamlandı",
