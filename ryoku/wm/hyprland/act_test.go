@@ -97,6 +97,49 @@ func TestActEmitsLuaDialect(t *testing.T) {
 	}
 }
 
+// An explicit on or off must be idempotent: repeating the same request emits the
+// same literal, never a toggle. The resume path can re-issue an enable while the
+// lock surface is still appearing, and a toggling dispatcher field would flip the
+// panel back off and flash the screen after wake (issues #264, #258, #277). The
+// dispatcher reads the field named `action`, so the request names its intent.
+// Adapted from @Sipper1236's PR #278.
+func TestActOutputPowerIsIdempotent(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"on", []string{"output.power", "on"}, `hl.dsp.dpms({ action = "on" })`},
+		{"off", []string{"output.power", "off"}, `hl.dsp.dpms({ action = "off" })`},
+		{"on with monitor", []string{"output.power", "on", "eDP-2"},
+			`hl.dsp.dpms({ action = "on", monitor = "eDP-2" })`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []string
+			restore := stubCtl(t, func(args ...string) ([]byte, error) {
+				got = args
+				return nil, nil
+			})
+			defer restore()
+			if err := runAct(tc.args); err != nil {
+				t.Fatalf("runAct(%v): %v", tc.args, err)
+			}
+			want := []string{"dispatch", tc.want}
+			if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+				t.Errorf("argv mismatch\n got: %q\nwant: %q", got, want)
+			}
+			got = nil
+			if err := runAct(tc.args); err != nil {
+				t.Fatalf("repeat runAct(%v): %v", tc.args, err)
+			}
+			if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+				t.Errorf("repeat argv mismatch\n got: %q\nwant: %q", got, want)
+			}
+		})
+	}
+}
+
 // Re-enabling a connector must not rewrite its layout. hl.monitor copies the
 // output's existing rule and reapplies only the fields it is handed, so an
 // enable that also named a mode, position or scale would snap the output back
