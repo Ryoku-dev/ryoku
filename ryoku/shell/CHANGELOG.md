@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Fixed
+- **The picker's Matugen App Templates toggles respond again.** The row wrote
+  through `ryoku-hub hypr matugen set`, a command path that no longer exists:
+  the hub printed its usage and exited 0, and because the write was
+  `execDetached` the failure was invisible, so every toggle in the section
+  looked dead while the state file never changed. The row now uses the same
+  merge writer as the rest of the picker and the Hub
+  (`ryoku-hub desktop matugen set`), so the FileView reload flips the switch
+  the click moved (issue #276).
+
 ### Added
 - **The warm screen and the palette can follow the real sun.** The night
   light grew a "Follow the sun" switch and an edge margin: it warms the screen

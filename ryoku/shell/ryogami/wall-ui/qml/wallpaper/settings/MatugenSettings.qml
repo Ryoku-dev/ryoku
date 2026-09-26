@@ -157,7 +157,7 @@ Column {
                     onToggle: function(v) {
                         var patch = {}
                         patch[modelData] = v
-                        Quickshell.execDetached(["ryoku-hub", "hypr", "matugen", "set",
+                        Quickshell.execDetached(["ryoku-hub", "desktop", "matugen", "set",
                             JSON.stringify({ templates: patch })])
                     }
                 }
