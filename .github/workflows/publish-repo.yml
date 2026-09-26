@@ -275,7 +275,28 @@ jobs:
       image: ${{ matrix.base == 'cachyos' && 'cachyos/cachyos:latest' || 'archlinux:latest' }}
     steps:
       - name: Install git
-        run: pacman -Sy --noconfirm --needed git
+        # A fresh base container ships an unpopulated pacman keyring, so the
+        # very first -Sy fails on the image's OWN repo signature ("signature
+        # from ... is invalid") before any Ryoku package is involved. Initialize
+        # and populate the base keyring first -- the same recovery the installer
+        # uses for CachyOS (ryoku_cachyos_keyring) -- then sync. SigLevel is
+        # never lowered, so a genuinely unsigned package still fails the gate.
+        run: |
+          set -euo pipefail
+          pacman-key --init
+          pacman-key --populate archlinux
+          if [ "${{ matrix.base }}" = cachyos ]; then pacman-key --populate cachyos || true; fi
+          if ! pacman -Sy --noconfirm --needed git; then
+            # A mutable base image can also ship a keyring older than its own
+            # repo's rotated signing key ("signature ... is invalid", not
+            # unknown). Refresh that key from the upstream keyserver -- the
+            # recovery the installer documents for exactly this case -- and
+            # retry once. SigLevel is never lowered, so a genuinely unsigned
+            # Ryoku package still fails the gate.
+            pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com || true
+            pacman-key --lsign-key F3B607488DB35A47 || true
+            pacman -Sy --noconfirm --needed git
+          fi
       - name: Checkout
         uses: actions/checkout@v4
         with:
