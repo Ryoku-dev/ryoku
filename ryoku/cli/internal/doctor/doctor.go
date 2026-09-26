@@ -113,6 +113,7 @@ func reconcilers() []reconciler {
 		{i18n.T("limine kernel boot images"), reconcileLimineKernelImages},
 		{i18n.T("boot menu dead entries"), reconcileLimineDeadEntries},
 		{i18n.T("boot partition headroom"), reconcileBootSpace},
+		{i18n.T("boot volume writability"), reconcileBootRW},
 		{i18n.T("initramfs GPU trim"), reconcileInitramfsGPUTrim},
 		{i18n.T("limine autoboot"), reconcileLimineAutoboot},
 		{i18n.T("limine snapshot sync"), reconcileLimineOSName},

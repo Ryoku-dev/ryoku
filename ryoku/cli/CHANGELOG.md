@@ -14,6 +14,32 @@
   fix that changes what it emits (niri's border needing an explicit on) reaches
   a box on the update instead of waiting for the next Hub edit
   (`internal/updater/update.go`).
+- **`ryoku doctor` repairs a read-only boot volume.** /boot, and /efi on an
+  alongside install, are FAT volumes, and one the firmware or a neighbouring OS
+  left dirty can come up read-only: every boot-path write then fails in ways
+  that look unrelated (mkinitcpio copies nothing, limine-update writes nothing,
+  an update ends in "rollback now"). The new reconciler remounts it read-write,
+  and if the kernel refuses, unmounts, runs `fsck.fat -a` and mounts again; a
+  busy mount is left alone with the exact manual command instead of being
+  forced. The btrfs root's read-only flip stays `reconcileBtrfsHealth`'s
+  (`internal/doctor/reconcile_boot_rw.go`).
+
+### Fixed
+- **`ryoku update` no longer dies where taking a sleep inhibitor is denied.**
+  The transaction runs under `systemd-inhibit --mode=block`, which is
+  polkit-gated in sessions with no agent (SSH, a headless run): there it exits
+  "Access denied" BEFORE the wrapped command starts, so pacman never ran and
+  the update reported a failure that had nothing to do with packages. The
+  inhibitor is now probed once per run and dropped on a denial, keeping the
+  lid-close guard wherever the session allows it (`internal/updater/upgradelog.go`).
+- **The update view is curated for pipes, not only terminals.** The Hub's
+  update island and `ryoku update > log` read stdout through a pipe, which used
+  to get the raw pacman firehose: database chatter, per-file progress redraws
+  and long conflict lists that read as a broken install. A piped run now gets
+  the same collapsed view a terminal sees (phase, one-line package summary,
+  warnings, errors), animated only on a TTY; the full firehose still lands in
+  `~/.local/state/ryoku/update-log.txt` and `--verbose` keeps the raw passthrough
+  (`internal/updater/upgradelog.go`).
 
 ### Changed
 - **`ryoku update` adopts the sleep policy as a guarded transaction.** Stage

@@ -56,7 +56,7 @@ func renderUpgrade(phase string, argv []string) error {
 		return err
 	}
 	pw.Close()
-	r := newUpgradeRenderer(os.Stdout, phase, true)
+	r := newUpgradeRenderer(os.Stdout, phase, sys.StdoutIsTTY())
 	sc := bufio.NewScanner(pr)
 	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
 	sc.Split(scanLinesCR)
@@ -70,6 +70,20 @@ func renderUpgrade(phase string, argv []string) error {
 	return werr
 }
 
+// sleepInhibitOK probes once whether this session may take a sleep/idle
+// inhibitor. Taking one is polkit-gated in sessions with no agent (SSH, a
+// headless run), where systemd-inhibit exits "Access denied" BEFORE the wrapped
+// command runs: wrapping there turned a best-effort guard into a failed
+// transaction, with pacman never invoked. Probe once per process; on a denial
+// the transaction runs unwrapped instead of failing the update.
+var sleepInhibitOK = sync.OnceValue(func() bool {
+	if !sys.Has("systemd-inhibit") {
+		return false
+	}
+	return exec.Command("systemd-inhibit", "--what=sleep:idle",
+		"--who=ryoku update", "--why=probe", "--mode=block", "true").Run() == nil
+})
+
 // runUpgradeCollecting runs a package transaction sleep-inhibited and rendered
 // (or streamed raw for pipes/--verbose) exactly like renderUpgrade, and returns
 // the "exists in filesystem" conflict paths pacman reported, so a failed upgrade
@@ -77,7 +91,7 @@ func renderUpgrade(phase string, argv []string) error {
 // stream, so the collection is identical on a TTY and in a log.
 func runUpgradeCollecting(phase, why string, argv []string) ([]string, error) {
 	full := argv
-	if sys.Has("systemd-inhibit") {
+	if sleepInhibitOK() {
 		full = append([]string{"systemd-inhibit", "--what=sleep:idle",
 			"--who=ryoku update", "--why=" + why, "--mode=block"}, argv...)
 	}
@@ -93,10 +107,15 @@ func runUpgradeCollecting(phase, why string, argv []string) ([]string, error) {
 		return nil, err
 	}
 	pw.Close()
-	rendered := !verboseLog && sys.StdoutIsTTY()
+	// Curated for every consumer, animated only for a terminal: the Hub's update
+	// island and `ryoku update > log` read stdout through a pipe, where the raw
+	// pacman firehose (package lists, progress redraws, conflict paths) reads as
+	// a broken install. The full firehose still lands in update-log.txt, and
+	// --verbose keeps the raw passthrough on stdout.
+	rendered := !verboseLog
 	var r *upgradeRenderer
 	if rendered {
-		r = newUpgradeRenderer(os.Stdout, phase, true)
+		r = newUpgradeRenderer(os.Stdout, phase, sys.StdoutIsTTY())
 	}
 	var conflicts []string
 	sc := bufio.NewScanner(pr)

@@ -2,6 +2,8 @@ package updater
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"strings"
 	"testing"
 )
@@ -130,5 +132,46 @@ func TestConflictPath(t *testing.T) {
 		if got := conflictPath(line); got != want {
 			t.Errorf("conflictPath(%q) = %q, want %q", line, got, want)
 		}
+	}
+}
+
+// TestPipedRunIsCurated pins the consumer the Hub's update island and
+// `ryoku update > log` represent: stdout is a pipe, so the curated view (never
+// the raw pacman firehose) must reach it, while the conflict paths are still
+// collected for the stray-clearing retry.
+func TestPipedRunIsCurated(t *testing.T) {
+	oldInhibit := sleepInhibitOK
+	sleepInhibitOK = func() bool { return false }
+	t.Cleanup(func() { sleepInhibitOK = oldInhibit })
+
+	capR, capW, err := os.Pipe()
+	if err != nil {
+		t.Skipf("no pipe: %v", err)
+	}
+	keep := os.Stdout
+	os.Stdout = capW
+	script := `printf '%s\n' ':: Synchronizing package databases...' ' core is up to date' 'Packages (2) ryoku-1-1 ryoku-desktop-2-2' '' 'Net Upgrade Size: 1.00 MiB' '(1/2) upgrading ryoku' 'warning: /etc/foo.conf installed as /etc/foo.conf.pacnew' 'ryoku-desktop: /usr/share/plymouth/themes/ryoku/bullet.png exists in filesystem'`
+	conflicts, _ := runUpgradeCollecting("System", "test", []string{"bash", "-c", script})
+	capW.Close()
+	os.Stdout = keep
+	out, _ := io.ReadAll(capR)
+	capR.Close()
+	got := string(out)
+
+	for _, noise := range []string{"Synchronizing", "is up to date", "upgrading ryoku"} {
+		if strings.Contains(got, noise) {
+			t.Errorf("piped output leaked firehose line %q:\n%s", noise, got)
+		}
+	}
+	for _, want := range []string{"System packages", ".pacnew", "exists in filesystem"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("piped output missing signal %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "\r") {
+		t.Errorf("piped output carries spinner carriage returns:\n%q", got)
+	}
+	if len(conflicts) != 1 || conflicts[0] != "/usr/share/plymouth/themes/ryoku/bullet.png" {
+		t.Errorf("conflicts = %q, want the one pacman conflict path", conflicts)
 	}
 }
