@@ -898,4 +898,20 @@ flock -n "$tmp/g-generation" -c true \
   || fail "a surviving keep-alive pinned the generation lock"
 kill -9 "$keepalive" 2>/dev/null || true
 
+# The launch guard's keep-alive must not inherit the lock fds either: a killed
+# holder whose sleep child keeps fd 8 pins the launch lock, and every later
+# launch guard (and the generation guard, which takes the launch lock first)
+# blocks forever (#273).
+"$helper" launch-guard-hold "$tmp/l-launch" "$tmp/l-ready" &
+lg_pid=$!
+for _ in {1..100}; do [[ -r $tmp/l-ready ]] && break; sleep 0.05; done
+[[ -r $tmp/l-ready ]] || fail "launch hold never published readiness"
+lg_keepalive="$(pgrep -P "$lg_pid" -x sleep | head -n1)"
+[[ -n $lg_keepalive ]] || fail "launch hold started no keep-alive child"
+kill -9 "$lg_pid"
+wait "$lg_pid" 2>/dev/null || true
+flock -n "$tmp/l-launch" -c true \
+  || fail "a surviving keep-alive pinned the launch lock"
+kill -9 "$lg_keepalive" 2>/dev/null || true
+
 echo "power-cutover: ok"
