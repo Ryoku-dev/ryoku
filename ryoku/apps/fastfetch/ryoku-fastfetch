@@ -1,21 +1,37 @@
 #!/usr/bin/env bash
-# Ryoku-branded fastfetch. The emblem is rendered natively by fastfetch's
-# kitty-direct logo (image left, dossier right). fastfetch auto-enables "pipe
-# mode" when it thinks stdout isn't a real TTY, which SILENTLY disables image
-# logos and falls back to ASCII -- so in kitty we force `--pipe false` to keep
-# the image. Outside kitty: chafa if present, else fastfetch's default.
+# Ryoku-branded Fastfetch launcher.
 #
-# Every branch execs fastfetch instead of bounding it with `timeout`: the
-# shell module walks the parent chain and skips known wrappers (`time`,
-# `sudo`, ...) but not `timeout`, so `timeout 8 fastfetch` reported the
-# shell as "timeout" in every greeting. A failed exec makes bash exit 127,
-# which no longer masks a missing fastfetch behind a false success.
+# Store presets may opt into a product-local renderer with:
+#   // ryoku:renderer <product-id>/<relative-executable>
+#
+# The renderer remains inside ~/.local/share/ryoku/fastfetch/<product-id>/ and
+# must be executable. Invalid or missing hooks fall through to normal Fastfetch.
 set -uo pipefail
 
 config="${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/config.jsonc"
-if [ ! -f "$config" ]; then
+data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+if [[ -f "$config" ]]; then
+  renderer="$(
+    sed -n 's#^//[[:space:]]*ryoku:renderer[[:space:]][[:space:]]*##p' "$config" \
+      | head -n1
+  )"
+
+  case "$renderer" in
+    ""|/*|*..*|*[!A-Za-z0-9_./-]*)
+      ;;
+    *)
+      hook="$data_home/ryoku/fastfetch/$renderer"
+      if [[ -x "$hook" && -f "$hook" ]]; then
+        exec "$hook" "$@"
+      fi
+      ;;
+  esac
+fi
+
+if [[ ! -f "$config" ]]; then
   exec fastfetch "$@"
-elif [ -n "${KITTY_WINDOW_ID:-}" ] || [ "${TERM:-}" = "xterm-kitty" ]; then
+elif [[ -n "${KITTY_WINDOW_ID:-}" || "${TERM:-}" == "xterm-kitty" ]]; then
   exec fastfetch --config "$config" --pipe false "$@"
 elif command -v chafa >/dev/null 2>&1; then
   exec fastfetch --config "$config" --logo-type chafa "$@"
