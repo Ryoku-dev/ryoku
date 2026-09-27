@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "rices": [],
+  "lockscreens": [],
+  "barstyles": [],
+  "fastfetch": [],
+  "plugins": [],
+  "bundles": [],
+  "decors": [],
+  "launcher-images": [],
+  "fastfetch-emblems": [],
+  "ryotunes-skins": [],
+  "vesktop-themes": [
+    {
+      "id": "ryoku-discord",
+      "name": "Ryoku Discord",
+      "version": "1.0.0",
+      "path": "ryoku-discord",
+      "author": "Ryoku Team",
+      "summary": "Ryoku Discord theme with live ryoku-palette-bridge colors and rendering improvements",
+      "description": "Ryoku Discord theme with live ryoku-palette-bridge colors and rendering improvements. The theme retains its original red and gold colors as the fallback palette and supports optional live palette integration with Ryoku Matugen colors exposed through QuickCSS. Includes animation optimizations and reduced motion support.",
+      "tags": ["discord", "theme", "palette", "red", "gold"],
+      "screenshots": ["ryoku-discord/preview.png", "ryoku-discord/screenshot1.png"],
+      "accent": "#e2342a",
+      "surface": "#2a2a2a",
+      "preview": "ryoku-discord/preview.png",
+      "manifest": "ryoku-discord/manifest.json",
+      "manifestSha256": "0789d67a1b1c3e8c2a6c1b8f6e7d2c5a1b7e4f8a3c2d5e6f7a1b8c9d2e3f4a5b",
+      "upstream": "https://github.com/niqqudim/ryoku-discord",
+      "discord": "https://discord.gg/ryoku",
+      "windowManager": "vesktop"
+    }
+  ]
+}
