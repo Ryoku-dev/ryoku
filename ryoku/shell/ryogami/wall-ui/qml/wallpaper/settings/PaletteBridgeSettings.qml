@@ -170,7 +170,7 @@ Column {
         RowAction {
             colors: root.colors
             title: I18n.tr("Vesktop")
-            description: I18n.tr("Midnight base theme and QuickCSS palette without an app reload.")
+            description: I18n.tr("Live wallpaper colours through QuickCSS. Keeps your selected Vesktop theme.")
             valueLabel: root.pendingRemove === "vesktop" ? I18n.tr("CONFIRM REMOVE") : (root.integration("vesktop").installed && root.integration("vesktop").managed ? I18n.tr("REMOVE") : I18n.tr("SET UP"))
             enabled: !root.busy && !!root.status.sourceReady
             opacity: enabled ? 1 : 0.45

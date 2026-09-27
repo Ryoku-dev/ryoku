@@ -114,7 +114,7 @@ func paletteBridgeStatusFor(source string) paletteBridgeStatus {
 	config := paletteBridgeConfigRoot()
 	managed := paletteBridgeManagedFiles()
 	spotify := filepath.Join(config, "spicetify", "Extensions", "ryoku-wallpaper-colors.js")
-	vesktop := filepath.Join(config, "vesktop", "themes", "midnight-ryoku.theme.css")
+	vesktop := filepath.Join(config, "ryoku", "user_edits", "matugen", "templates", "vesktop-colors.css")
 	zen := filepath.Join(config, "ryoku", "user_edits", "matugen", "templates", "zen.css")
 	_, binErr := exec.LookPath("ryoku-palette-bridge")
 	_, sourceErr := paletteBridgeSource(source, "install.sh", "install-integrations.sh")

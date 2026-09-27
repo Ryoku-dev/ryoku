@@ -9,10 +9,10 @@ install -d "$bin_dir" "$unit_dir"
 (cd "$project_root" && go build -trimpath -ldflags='-s -w' -o "$bin_dir/ryoku-palette-bridge" .)
 install -m 0755 "$project_root/doctor.sh" "$bin_dir/ryoku-palette-bridge-doctor"
 install -m 0755 "$project_root/remove-integrations.sh" "$bin_dir/ryoku-palette-bridge-remove-integrations"
-# The packaged unit runs /usr/bin/ryoku-palette-bridge; this script builds into
-# $bin_dir, so point ExecStart at the binary actually produced here.
-sed "s|^ExecStart=.*|ExecStart=$bin_dir/ryoku-palette-bridge|" \
-  "$project_root/packaging/systemd/ryoku-palette-bridge.service" > "$unit_dir/ryoku-palette-bridge.service"
+install -Dm0644 "$project_root/vesktop/quickcss.sh" \
+  "$bin_dir/../share/ryoku/palette-bridge/vesktop/quickcss.sh"
+install -m 0644 "$project_root/packaging/systemd/ryoku-palette-bridge.service" \
+  "$unit_dir/ryoku-palette-bridge.service"
 systemctl --user daemon-reload
 for legacy_unit in ryoku-spicetify-palette.service spiceflow.service; do
   if systemctl --user list-unit-files "$legacy_unit" --no-legend 2>/dev/null |

@@ -1,0 +1,146 @@
+# Ryoku Power Profiles Plan: Analysis and Validation
+
+## Overview
+Analysis of the "Ryoku Power Profiles and Optional TLP Integration Plan" against the actual codebase, identifying gaps, issues, and validation requirements.
+
+## Current State Analysis
+
+### 1. Existing Profile System (codebase reality)
+
+**Go layer (`ryoku-arch/ryoku/shell/ipc/powerprofiles.go`)**:
+- 3 profiles hardcoded: `power-saver`, `balanced`, `performance`
+- `setProfile()` (line 177-193): Rejects any profile name not in the list returned by PPD's `Profiles` property
+- `activeProfile()` (line 155-162): Reads `org.freedesktop.UPower.PowerProfiles.ActiveProfile`
+- `profiles()` (line 167-173): Reads `org.freedesktop.UPower.PowerProfiles.Profiles` from PPD
+- `applyProfileCmd` (line 368-370): Calls `ryoku-power apply-profile <profile>`
+- `shouldApplyProfile()` (line 404-418): Validates profile exists in `power.json` configs profiles block
+- `seedProfile = "balanced"` (line 311): Default seed for boxes never told which profile to run
+
+**Power docs (`ryoku-arch/docs/power.md`)**:
+- Documents exactly 3 profiles and their PPD mappings
+- Profile → platform_profile → EPP → Governor → freq mapping (table 28)
+- Section 44-58: Machine page lets users *define* what each profile does via `~/.config/ryoku/power.json`
+- `ryoku-power profile set balanced epp balance_power` etc.
+
+**QML surfaces** (from plan section 3):
+- `PowerProfiles.qml` — subscribes to `powerprofiles` topic, tracks active profile + list
+- `PowerProfilePanel.qml` — bar surface renders selectable profiles
+- `MenuPowerProfile.qml` — compact menu entry and profile list
+- `GpuPage.qml` / `GpuPage.js` — Hub Graphics & Power page
+
+### 2. Gap: No "balance-performance" in the system
+
+- Search results confirm: no references to `balance-performance` as a profile name in Go code
+- PPD on the reference machine only offers 3 profiles (verified in power.md table)
+- The `profiles()` function would return whatever PPD advertises; if PPD returns only 3, Balance-Performance will be rejected
+
+### 3. Critical Code Gaps
+
+| Gap | Impact | Severity |
+|-----|--------|----------|
+| **No Balance-Performance mapping in `setProfile()`** | If a user selects Balance-Performance, it will be rejected as "unknown profile" | Critical — feature won't work |
+| **No capability model/backend response** | UI has no way to know if backend supports intermediate profile | Critical — can't gate availability |
+| **No mapping table from backend values → preset IDs** | UI can't translate between Ryoku presets and backend profile names | High |
+| **QML surfaces not updated** | Bar/Hub still show only 3 profiles | Critical — UI mismatch |
+| **`applyProfileCmd` only handles known profiles** | `ryoku-power apply-profile balance-performance` would fail | High |
+| **Game mode / Perf.qml assumptions about 3 profiles** | May break with 4-profile UI | Medium |
+| **No TLP/tlp-pd integration code** | Plan's biggest open question (Section 5, 10 unresolved items) | Critical — architecture undefined |
+
+## Issues with the Plan
+
+### Issue 1: Balance-Performance has no code path
+The plan (Section 5.2, mapping strategy point 5) says: "For the standard PPD backend, map Power Saver, Balanced, and Performance to their standard values when available. Do not map Balance-Performance to Balanced or Performance silently. Mark it unavailable with an explanation unless another capability provides a real intermediate action."
+
+**But**: There's no code that implements this mapping or "mark unavailable" UI behavior. The `setProfile()` function blindly accepts whatever PPD returns — there's no Ryoku-side logic to mark a profile unavailable.
+
+### Issue 2: Backend capability discovery is unimplemented
+Section 6.1 calls for "a versioned backend capability response" with a JSON structure showing presets with `available` flags and `reason` for unavailability. But the Go code has no such response — it simply proxies PPD's `ActiveProfile` and `Profiles`.
+
+### Issue 3: TLP ownership question completely open
+Section 5 lists 10 unresolved decisions, the most critical being:
+- Whether Ryoku ships PPD by default (Q1)
+- Which Arch package supplies `tlp-pd` (Q2)
+- Whether to support PPD and tlp-pd through same D-Bus client or a richer protocol (Q3)
+- Whether Balance-Performance is unavailable on standard PPD or mapped to a real action on any backend (Q5)
+
+These are not just "open questions" — they're blocking decisions. You can't implement the feature without resolving at least the PPD-default question.
+
+### Issue 4: No transaction/journal infrastructure
+Section 10 describes a backend switching state machine with 8 stages (idle → inspecting → … → committed) and failure states. But there's zero infrastructure: no journal, no snapshot, no staged operation framework.
+
+### Issue 5: Ryostore role undefined
+Section 12 says Ryostore may offer an "optional TLP package entry" but must not be the "only place that implements the feature." No concrete design for how this would work — bundle detection, install/remove semantics, linkage to Ryoku Hub setup.
+
+## Validation Checks
+
+### Checklist: What must exist for the plan to be viable
+
+| # | Requirement | Status |
+|---|-------------|--------|
+| 1 | `powerprofiles.go` `setProfile()` handles 4 profiles when PPD advertises 4, marks unavailable when PPD only has 3 | ❌ Not implemented |
+| 2 | Backend capability JSON response with `presets[].available` and `presets[].reason` | ❌ Not implemented |
+| 3 | QML surfaces (PowerProfilePanel, MenuPowerProfile, GpuPage) render 4 presets with availability gating | ❌ Not implemented |
+| 4 | `ryoku-power apply-profile` handles Balance-Performance or gracefully degrades | ❌ Not implemented |
+| 5 | TLP/tlp-pd architecture decision documented in ADR | ❌ Not decided |
+| 6 | Backend switching state machine (journal, snapshots, rollback) | ❌ Not implemented |
+| 7 | Ryostore bundle design for optional TLP package | ❌ Not designed |
+| 8 | Translation/keyboard labels for 4th preset | ❌ Not added |
+| 9 | Game mode / Perf.qml reviewed for 3→4 profile assumption changes | ❌ Not reviewed |
+| 10 | Upgrade/migration path for existing 3-profile users | ❌ Not designed |
+
+## Recommended Next Steps
+
+### Phase 0 (Discovery — already done, but needs completion)
+- ✅ Locate full Ryoku checkout and confirm branch
+- ✅ Read `docs/power.md`, current profile code, service contracts
+- ✅ Inspect supported Arch packages and PPD/TLP/tlp-pd units
+- **⚠️ Still needed**: Define support matrix and select backend ownership architecture
+- **⚠️ Still needed**: Write an ADR covering PPD, tlp-pd, vendor platform modes
+
+### Phase 1 (Capability model and service API — highest priority)
+Extend the Go power-profile backend to:
+- **Publish normalized presets** with availability flags and reasons
+- **Keep existing powerprofiles topic compatible** — version any incompatible fields
+- **Add a backend request method** that accepts a preset ID, not a raw sysfs value or command
+- **Ensure asynchronous changes publish pending and confirmed state**
+- **Add diagnostic reporting** of backend/service health
+- **Preserve old clients** or use a compatibility adapter during rollout
+
+**Exit criteria**: Service can report real available profiles and apply a standard PPD profile without QML shell commands; unknown profile values do not crash clients.
+
+### Phase 2 (Four-preset UI on PPD)
+- Update service view model to consume normalized preset objects
+- Update PowerProfilePanel and MenuPowerProfile
+- Add preset choices and capability reasons to Hub Graphics & Power page
+- Keep Power Saver, Balanced, and Performance behavior identical to current PPD usage
+- **Show Balance-Performance unavailable when only the standard PPD profiles exist**
+- Add translations and keyboard/screen-reader labels
+- Audit Perf, low-power animation, game-mode, and workspace effects for assumptions about profile names
+
+**Exit criteria**: No existing profile consumer assumes a fixed three-element ordering or silently reports an unavailable preset as active.
+
+### Phase 3+ (TLP and beyond)
+Depends entirely on resolving the 10 open decisions in Section 18, starting with:
+1. Does Ryoku ship PPD by default, and how is its service enabled?
+2. Which supported Arch package supplies tlp-pd?
+3. Should Ryoku support PPD and tlp-pd through the same D-Bus client?
+
+## Conclusion
+
+The plan is **ambitious but under-scoped**. It outlines an excellent architecture but fails to address the concrete code changes needed to make it work. The most critical gaps are:
+
+1. **No code path for Balance-Performance** when PPD only has 3 profiles
+2. **No backend capability model** to inform UI about availability
+3. **No TLP architecture decision** after 10 open questions in Section 18
+4. **No switching/journal infrastructure** for backend transitions
+
+Before any coding begins, the team must:
+1. **Resolve the 10 open decisions** in Section 18, especially Q1-Q5
+2. **Implement the capability model** in the Go backend
+3. **Update all QML surfaces** to handle 4 presets with availability gating
+4. **Design the backend switching state machine** with journal and rollback
+
+The plan serves as a superb high-level roadmap, but it is not a specification that can be handed to engineers for implementation without first closing the gaps above.
+
+---
+*Analysis generated from codebase review on 2026-09-26. Source code: /home/rayyan/ryoku-arch, /home/rayyan/.local/share/ryoku/rashin/source.*

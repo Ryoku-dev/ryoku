@@ -1,6 +1,10 @@
 # Changelog: ryoku/hub/
 
 
+### Fixed
+- Palette Bridge detects Vesktop integration from its palette template, so the
+  app toggle works with Ryoku Discord and other selected themes.
+
 ### Added
 - **Keybinds, rebuilt around use.** A search field that fuzzy-matches labels,
   hints, categories and key tokens ("clw" finds Close window, "num 3" the

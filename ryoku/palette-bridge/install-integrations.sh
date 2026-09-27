@@ -43,6 +43,24 @@ if ! $want_spotify && ! $want_vesktop && ! $want_zen; then
   exit 2
 fi
 
+# Render before changing any integration state, so a missing/invalid palette
+# cannot leave setup reporting success with only an enabled flag.
+vesktop_rendered=
+if $want_vesktop; then
+  command -v jq >/dev/null || { printf 'jq is required for --vesktop\n' >&2; exit 1; }
+  source "$project_root/vesktop/quickcss.sh"
+  [[ -f "$config_root/vesktop/settings/settings.json" ]] || {
+    printf 'Vesktop settings not found: %s\n' "$config_root/vesktop/settings/settings.json" >&2
+    exit 1
+  }
+  vesktop_temporary=$(mktemp -d)
+  trap 'rm -rf "$vesktop_temporary"' EXIT
+  vesktop_rendered="$vesktop_temporary/palette.css"
+  vesktop_render_palette "$project_root/templates/vesktop-colors.css" \
+    "${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/matugen-carrier.json" "$vesktop_rendered"
+  vesktop_strip_palette "$config_root/vesktop/settings/quickCss.css" "$vesktop_temporary/custom.css" 1
+fi
+
 prepare_matugen_overlay() {
   install -d "$overlay_root/templates"
   if [[ ! -f "$overlay_apps" ]]; then
@@ -106,16 +124,23 @@ if $want_vesktop; then
   set_matugen_section templates.vesktop \
     "$matugen_template_root/vesktop-colors.css" \
     "$vesktop_quick_css"
-  install -d "$config_root/vesktop/themes"
-  install -m 0644 "$project_root/vesktop/midnight-ryoku.theme.css" \
-    "$config_root/vesktop/themes/midnight-ryoku.theme.css"
-  record_owned vesktop "$config_root/vesktop/themes/midnight-ryoku.theme.css"
+  # Ryoku consumes the same palette roles itself; stacking Midnight changes its layout.
+  ryoku_selected=$(jq '(.enabledThemes // []) | any(ascii_downcase == "ryoku.theme.css")' "$settings")
+  if [[ "$ryoku_selected" != true ]]; then
+    install -d "$config_root/vesktop/themes"
+    install -m 0644 "$project_root/vesktop/midnight-ryoku.theme.css" \
+      "$config_root/vesktop/themes/midnight-ryoku.theme.css"
+    record_owned vesktop "$config_root/vesktop/themes/midnight-ryoku.theme.css"
+  fi
   temporary=$(mktemp)
-  jq '.useQuickCss = true | .enabledThemes = ((.enabledThemes // []) | if index("midnight-ryoku.theme.css") then . else . + ["midnight-ryoku.theme.css"] end)' \
+  jq --argjson ryoku "$ryoku_selected" '.useQuickCss = true | .enabledThemes = ((.enabledThemes // []) |
+    if $ryoku then map(select(. != "midnight-ryoku.theme.css"))
+    elif index("midnight-ryoku.theme.css") then . else . + ["midnight-ryoku.theme.css"] end)' \
     "$settings" > "$temporary"
   install -m 0644 "$temporary" "$settings"
   rm -f "$temporary"
-  printf 'Installed the Vesktop no-flash Midnight integration.\n'
+  vesktop_write_palette "$config_root/vesktop/settings/quickCss.css" "$vesktop_rendered"
+  printf 'Installed the Vesktop live-palette integration.\n'
 fi
 
 if $want_zen; then
