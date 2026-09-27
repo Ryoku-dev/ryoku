@@ -28,7 +28,9 @@
       "manifestSha256": "0789d67a1b1c3e8c2a6c1b8f6e7d2c5a1b7e4f8a3c2d5e6f7a1b8c9d2e3f4a5b",
       "upstream": "https://github.com/niqqudim/ryoku-discord",
       "discord": "https://discord.gg/ryoku",
-      "windowManager": "vesktop"
+      "windowManager": "vesktop",
+      "license": "GPL-3.0",
+      "licenseUrl": "https://opensource.org/licenses/GPL-3.0"
     }
   ]
 }

@@ -21,5 +21,8 @@
       "size": 2512,
       "install": true
     }
-  ]
+  ],
+  "license": "GPL-3.0",
+  "licenseUrl": "https://opensource.org/licenses/GPL-3.0",
+  "upstream": "https://github.com/niqqudim/ryoku-discord"
 }
