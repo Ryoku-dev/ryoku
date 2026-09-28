@@ -285,6 +285,9 @@ Item {
     function reloadQuotes8() {
         var parsed = []
         try { parsed = parseQuotes8(quotesFile8.text()) } catch (e) {}
+        // No user list: rotate the bundled set instead of the lone inline quote.
+        if (parsed.length === 0)
+            try { parsed = parseQuotes8(bundledQuotes8.text()) } catch (e) {}
         if (parsed.length > 0) quotes8 = parsed
         if (canvas) {
             canvas.quoteSwarm = null
@@ -301,6 +304,13 @@ Item {
         path: root.quotesPath8
         watchChanges: true
         onFileChanged: quotesFile8.reload()
+        onLoaded: root.reloadQuotes8()
+    }
+
+    FileView {
+        id: bundledQuotes8
+        path: Qt.resolvedUrl("../quotes.txt")
+        printErrors: false
         onLoaded: root.reloadQuotes8()
     }
 
