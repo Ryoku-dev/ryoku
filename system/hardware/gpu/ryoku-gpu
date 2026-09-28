@@ -223,6 +223,21 @@ cmd_detect() {
 }
 
 cmd_order() {
+  local dest="${1:-}"
+  # --effective: the AQ_DRM_DEVICES value the compositor would actually read
+  # at its next start, straight out of the pin file, or exit 1 when there is
+  # none. Deliberately indifferent to the stored mode choice: a forced pin
+  # kept under a hybrid stamp, or a pin drifted in by an older release, is
+  # exactly what the doctor's render-pin-vs-panel guard (#270) has to see,
+  # and the plain order (the policy's recommendation) refuses to speak in
+  # those states.
+  if [[ $dest == "--effective" ]]; then
+    local conf="${2:-$GPU_CONF_DEFAULT}" value
+    value="$(sed -n 's/^hl\.env("AQ_DRM_DEVICES", *"\([^"]*\)")$/\1/p' "$conf" 2>/dev/null | head -n1)"
+    [[ -n $value ]] || return 1
+    printf '%s\n' "$value"
+    return 0
+  fi
   analyze
   if ! beneficial; then
     echo "ryoku-gpu: no discrete-GPU pin needed on this machine" >&2
@@ -457,7 +472,10 @@ Pin the strongest GPU as Hyprland's primary render device on multi-GPU machines.
 
 Commands:
   detect [--json]  Show detected GPUs (strongest first) and the chosen primary.
-  order           Print the recommended AQ_DRM_DEVICES value (exit 1 if none).
+  order [--effective [PATH]]
+                  Print the recommended AQ_DRM_DEVICES value (exit 1 if none);
+                  with --effective, print the pin file's own value instead
+                  (what the compositor would read), exit 1 when unpinned.
   persist [PATH]  Write the Hyprland pin (Lua) to PATH, to ~/.config/hypr/gpu.lua
                   by default, or to stdout when PATH is '-'.
   disable [PATH]  Reset the pin file to a managed comment-only placeholder.
@@ -475,7 +493,7 @@ case "${1:-status}" in
   detect)
     if [[ "${2:-}" == "--json" ]]; then gpu_records_json; else cmd_detect; fi
     ;;
-  order) cmd_order ;;
+  order) cmd_order "${2:-}" ;;
   persist) cmd_persist "${2:-}" ;;
   install-udev) cmd_install_udev ;;
   status) cmd_status ;;

@@ -6,6 +6,10 @@ for finer detail.
 ## Unreleased
 
 ### Fixed
+- The doctor's reverse-PRIME warning (#270, a black panel after login on a
+  hybrid-GPU laptop) now also fires when a forced or drifted GPU render pin
+  coexists with a stored hybrid or passthrough choice, which previously
+  silenced the check.
 - Lock, suspend, lid-close and wake now share one fail-closed lifecycle across
   Hyprland and niri. Lockscreen generations change atomically during updates,
   every sleep waits for compositor-secure qylock, and output recovery retries

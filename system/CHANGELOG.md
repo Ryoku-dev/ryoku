@@ -98,6 +98,12 @@
   package.
 
 ### Fixed
+- `hardware/gpu/ryoku-gpu`: `order --effective [PATH]` prints the AQ_DRM_DEVICES
+  value the compositor would actually read, straight from the pin file, while
+  the plain `order` keeps reporting the policy's recommendation (and keeps
+  exiting 1 under a stored hybrid/passthrough choice). doctor's reverse-PRIME
+  guard (#270) audits the machine as it is, and previously went blind exactly
+  when a forced or drifted pin coexisted with an opt-out mode stamp.
 - `hardware/power/ryoku-power-cutover`: a killed generation guard releases
   its locks. The hold's keep-alive coprocess inherited the launch and
   generation flock fds, so a holder killed mid-swap left the locks pinned by

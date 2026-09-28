@@ -133,4 +133,21 @@ egpu() { RYOKU_GPU_DRM_ROOT="$drme" RYOKU_GPU_DRI_DIR="$dri" RYOKU_GPU_CONF="$tm
 egpu persist >/dev/null
 [[ "$(egpu check-pin)" == "ok" ]] || fail "eGPU pin on a laptop must be ok, got $(egpu check-pin)"
 
+# --- 10. order --effective sees a pin the policy order refuses to speak about:
+# a RYOKU_GPU_FORCE pin kept under a stored hybrid choice is the drifted state
+# behind #270, and doctor's render-pin-vs-panel guard must still see it.
+run mode hybrid >/dev/null
+RYOKU_GPU_FORCE=1 run persist >/dev/null   # forced pin, hybrid stamp kept
+grep -Eq '^hl\.env\("AQ_DRM_DEVICES"' "$conf" || fail "force wrote no pin under hybrid"
+if run order >/dev/null 2>&1; then
+  fail "plain order must keep refusing under a stored hybrid choice"
+fi
+v="$(run order --effective)" \
+  && [[ "$v" == *"ryoku-gpu-0000-02-00-0:"*"ryoku-gpu-0000-01-00-0" ]] \
+  || fail "order --effective must print the pin file's value, got ${v:-<none>}"
+run disable >/dev/null
+if run order --effective >/dev/null 2>&1; then
+  fail "order --effective must exit 1 on an unpinned machine"
+fi
+
 echo "gpu-pin-policy: all cases passed"
