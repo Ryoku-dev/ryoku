@@ -104,6 +104,7 @@ func TestDesktopPacmanArgsAdoptsRyokuPaths(t *testing.T) {
 		"/usr/bin/ryoku-dns",
 		"/usr/share/polkit-1/rules.d/50-ryoku-dns.rules",
 		"/usr/share/plymouth/themes/ryoku/bullet.png",
+		"/usr/share/applications/mimeapps.list",
 	} {
 		covered := false
 		for _, g := range strings.Split(glob, ",") {

@@ -51,7 +51,8 @@ var ryokuPkgs = []string{"ryoku-keyring", "ryoku-desktop"}
 // (updater.ryokuOverwriteGlob); keep the three in sync.
 const ryokuOverwriteGlob = "/usr/bin/ryoku-*," +
 	"/usr/share/polkit-1/rules.d/*ryoku*.rules," +
-	"/usr/share/plymouth/themes/ryoku/*"
+	"/usr/share/plymouth/themes/ryoku/*," +
+	"/usr/share/applications/mimeapps.list"
 
 // bootChainSkip: base.packages entries a shell-converted box must NOT get -- it
 // already owns its bootloader, initramfs, encryption and snapshot stack, and

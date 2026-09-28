@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **Installing on Omarchy no longer stops at `mimeapps.list`.** Omarchy already
+  owns `/usr/share/applications/mimeapps.list`, which `ryoku-desktop` supplies
+  with Ryoku's vendor defaults. The Arch installer's `--overwrite` pattern now
+  includes that exact path, allowing pacman to adopt it during the package
+  transaction. Rebuilt the committed binary + checksum.
+
+### Fixed
 - **Converting a box that runs oh-my-zsh-git no longer dies at the desktop
   transaction.** ryoku-oh-my-zsh provides and replaces both upstream
   frameworks, but a plain removal under --noconfirm refuses while an installed
