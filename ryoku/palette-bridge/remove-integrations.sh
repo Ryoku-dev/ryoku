@@ -48,6 +48,7 @@ case "$want" in
     if [[ ! -f "$helper" ]]; then
       helper="$script_root/../share/ryoku/palette-bridge/vesktop/quickcss.sh"
     fi
+    # shellcheck source=ryoku/palette-bridge/vesktop/quickcss.sh
     source "$helper"
     vesktop_write_palette "$config_root/vesktop/settings/quickCss.css"
     remove_matugen_section templates.vesktop
