@@ -19,6 +19,7 @@ Rectangle {
 
     property var entry: null
     property real s: 1
+    property bool selected: false
 
     signal copyRequested()
     signal starRequested()
@@ -52,9 +53,11 @@ Rectangle {
     // a layer; text tiles keep their content inside and need no mask.
     layer.enabled: card.isImage
     layer.smooth: true
-    color: hover.hovered ? Theme.surfaceContainerHigh : Theme.surfaceContainer
-    border.width: Theme.borderWidth
-    border.color: card.starred ? Theme.primary : Theme.outlineVariant
+    color: card.selected
+        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.18)
+        : (hover.hovered ? Theme.surfaceContainerHigh : Theme.surfaceContainer)
+    border.width: card.selected ? Math.max(3, Theme.borderWidth) : Theme.borderWidth
+    border.color: (card.starred || card.selected) ? Theme.primary : Theme.outlineVariant
 
     Behavior on color { ColorAnimation { duration: Motion.rowFade; easing.type: Motion.easeType; easing.bezierCurve: Motion.easeCurve } }
     Behavior on border.color { ColorAnimation { duration: Motion.rowFade; easing.type: Motion.easeType; easing.bezierCurve: Motion.easeCurve } }

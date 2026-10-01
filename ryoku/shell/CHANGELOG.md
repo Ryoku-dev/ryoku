@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### New
+- **Clipboard history supports keyboard selection.** Use the up and down arrows
+  to move through matching entries and press Enter to restore the selected item
+  to the clipboard.
 - **A fifth bar style: Python.** The serpantinum shell (by ilyamiro, AGPL-3.0)
   is ported into the style folder as `python`: a top or edge bar of pill
   widgets that open into one morphing stage, with the ported network, sound,
