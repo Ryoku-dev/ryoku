@@ -11,6 +11,18 @@
   `tests/monitor-custom-mode.sh`.
 
 ### Fixed
+- `power/ryoku-power-cutover`: **the session bind no longer strips the live X
+  display.** Xwayland starts lazily with the first X client, so the compositor
+  child whose environment the bind snapshots often predates it: the file then
+  carries WAYLAND_DISPLAY but no DISPLAY, and the manager bind, which clears
+  the key before replaying the file, removed the DISPLAY the compositor
+  bootstrap had already pushed. Every X11-only app the launcher spawned died
+  at startup (Steam: "XOpenDisplay failed") until the next full relogin, and
+  whether a boot was affected depended on which process won the snapshot
+  race. The snapshot writer now borrows a missing DISPLAY from the session's
+  own X server process (matched by scope cgroup, session id, and the X server
+  binary itself, never a client, whose DISPLAY could name another machine);
+  with no X server in the session the file is written exactly as before.
 - `power/ryoku-power-cutover`: **a failed cutover never strands its sleep
   guard.** The session cutover and the login startup take a durable sleep
   inhibitor before they stop the lid and idle owners, and only the success

@@ -371,6 +371,43 @@ session_property() {
   return 3
 }
 
+# The DISPLAY of this login1 session's own X server, when there is one.
+# Xwayland appears with the first X client, so an environment snapshotted
+# before that moment carries no DISPLAY, and the manager bind must not strip
+# the live one the compositor bootstrap pushed. Attribution stays exact: the
+# scope cgroup plus the process's own XDG_SESSION_ID, and the X server itself
+# (never a client, whose DISPLAY could name another machine).
+session_scope_display() {
+  local sid=$1 proc_root=${RYOKU_PROC_ROOT:-/proc}
+  local scope cgroup pid proc_uid cmdline entry key value proc_sid display self_uid
+  scope="$(session_property "$sid" Scope)" || return 1
+  cgroup="$(systemctl show "$scope" -p ControlGroup --value 2>/dev/null)" || return 1
+  [[ $cgroup == /* && $cgroup != *..* &&
+     -r "$cgroup_root$cgroup/cgroup.procs" ]] || return 1
+  self_uid="$(id -u)"
+  for pid in $(< "$cgroup_root$cgroup/cgroup.procs"); do
+    [[ $pid =~ ^[0-9]+$ && -r $proc_root/$pid/status && -r $proc_root/$pid/environ ]] ||
+      continue
+    proc_uid="$(awk '/^Uid:/ { print $2; exit }' "$proc_root/$pid/status" 2>/dev/null || true)"
+    [[ $proc_uid == "$self_uid" ]] || continue
+    cmdline="$(cat "$proc_root/$pid/cmdline" 2>/dev/null | tr '\0' ' ' 2>/dev/null || true)"
+    [[ $cmdline == *Xwayland* || $cmdline == *Xorg* ]] || continue
+    proc_sid="" display=""
+    while IFS= read -r -d '' entry; do
+      key=${entry%%=*}
+      value=${entry#*=}
+      case "$key" in
+        XDG_SESSION_ID) proc_sid=$value ;;
+        DISPLAY) display=$value ;;
+      esac
+    done < <(cat "$proc_root/$pid/environ" 2>/dev/null || true)
+    [[ $proc_sid == "$sid" && -n $display ]] || continue
+    printf '%s\n' "$display"
+    return 0
+  done
+  return 1
+}
+
 session_environment_path() {
   printf '%s/ryoku-session.%s.environment\n' "${XDG_RUNTIME_DIR:-/tmp}" "$1"
 }
@@ -420,7 +457,7 @@ write_session_environment_from_pid() {
   local sid=$1 session_type=$2 provider=$3 provider_bin=$4 pid=$5 path=$6
   local allow_missing_sid=${7:-0}
   local proc_root=${RYOKU_PROC_ROOT:-/proc}
-  local entry key value tmp
+  local entry key value tmp display_from_scope
   local -a keys=(
     XDG_SESSION_ID XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP
     XDG_SEAT XDG_VTNR WAYLAND_DISPLAY DISPLAY
@@ -443,6 +480,15 @@ write_session_environment_from_pid() {
   fi
   [[ ${found[XDG_SESSION_ID]:-} == "$sid" ]] || return 1
   [[ $session_type == wayland && -n ${found[WAYLAND_DISPLAY]:-} ]] || return 1
+  # Xwayland starts lazily with the first X client, so a compositor child
+  # snapshotted before that moment carries no DISPLAY while the session still
+  # has a live X server. Resolve it from the session's own X server process
+  # instead of leaving the key absent, or the manager bind that replays this
+  # file would strip a DISPLAY the compositor bootstrap had already pushed.
+  if [[ -z ${found[DISPLAY]:-} ]]; then
+    display_from_scope="$(session_scope_display "$sid" 2>/dev/null || true)"
+    [[ -n $display_from_scope ]] && found[DISPLAY]=$display_from_scope
+  fi
   tmp="$path.$$"
   if ! (
     umask 077

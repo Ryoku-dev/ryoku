@@ -499,6 +499,7 @@ loginctl list-sessions --no-legend --no-pager
 loginctl show-session 9 -p Scope --value
 loginctl show-session 9 -p Type --value
 loginctl show-session 9 -p Desktop --value
+loginctl show-session 9 -p Scope --value
 loginctl show-session 9 -p Type --value
 systemctl --user unset-environment XDG_SESSION_ID XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SEAT XDG_VTNR WAYLAND_DISPLAY DISPLAY RYOKU_WM
 systemctl --user set-environment XDG_SESSION_ID=9 XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-test RYOKU_WM=testwm TESTWM_SOCKET=session-nine
@@ -710,6 +711,39 @@ if EXTRA_SESSION=1 PATH="$tmp/bin:$PATH" \
 fi
 [[ ! -e $tmp/runtime-user/ryoku-session.9.environment ]] \
   || fail "an ambiguous attribution still wrote the session environment"
+
+# Xwayland is lazy: it appears with the first X client, so a compositor child
+# snapshotted before that moment carries WAYLAND_DISPLAY but no DISPLAY while
+# the session's X server is already alive. The snapshot must borrow the
+# DISPLAY from that X server, or the manager bind that replays the file
+# strips the DISPLAY the compositor bootstrap pushed and every X11-only app
+# the launcher starts (Steam: "XOpenDisplay failed") dies.
+mkdir -p "$tmp/proc/90009" "$tmp/proc/90010"
+printf 'Name:\tkitty\nUid:\t%s\t%s\t%s\t%s\n' \
+  "$(id -u)" "$(id -u)" "$(id -u)" "$(id -u)" >"$tmp/proc/90009/status"
+printf 'XDG_SESSION_ID=9\0WAYLAND_DISPLAY=wayland-early\0' \
+  >"$tmp/proc/90009/environ"
+printf 'kitty\0--class=early\0\0' >"$tmp/proc/90009/cmdline"
+printf 'Name:\tXwayland\nUid:\t%s\t%s\t%s\t%s\n' \
+  "$(id -u)" "$(id -u)" "$(id -u)" "$(id -u)" >"$tmp/proc/90010/status"
+printf 'XDG_SESSION_ID=9\0WAYLAND_DISPLAY=wayland-test\0DISPLAY=:0\0' \
+  >"$tmp/proc/90010/environ"
+printf 'Xwayland\0:0\0-rootless\0\0' >"$tmp/proc/90010/cmdline"
+printf '%s\n90009\n90010\n' "$session_env_pid" \
+  >"$tmp/cgroup/test.scope/cgroup.procs"
+rm -f "$tmp/runtime-user/ryoku-session.9.environment"
+XDG_RUNTIME_DIR="$tmp/runtime-user" RYOKU_PROC_ROOT="$tmp/proc" \
+  CUTOVER_LOG="$tmp/calls" CUTOVER_STATE="$tmp/state" \
+  RYOKU_CUTOVER_PROVIDER_ROOT="$tmp/bin" \
+  PATH="$tmp/bin:$PATH" \
+  bash -c 'source "$1"; bind_session_environment 9' _ "$helper"
+envmap="$(tr '\0' '\n' <"$tmp/runtime-user/ryoku-session.9.environment")"
+grep -qx 'WAYLAND_DISPLAY=wayland-early' <<<"$envmap" \
+  || fail "the session environment did not snapshot the scope's first client"
+grep -qx 'DISPLAY=:0' <<<"$envmap" \
+  || fail "the session environment lost the X server's DISPLAY"
+rm -rf "$tmp/proc/90009" "$tmp/proc/90010"
+printf '%s\n' "$session_env_pid" >"$tmp/cgroup/test.scope/cgroup.procs"
 
 mkdir -p "$tmp/watch-bin" "$tmp/watch-runtime"
 cat >"$tmp/watch-bin/dbus-monitor" <<'EOF'
