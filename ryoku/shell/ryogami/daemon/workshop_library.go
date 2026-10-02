@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const workshopAppID = "431960"
@@ -488,44 +487,6 @@ func generateWeThumb(preview, thumb, thumbSm string) error {
 		return err
 	}
 	return genSmallThumb(thumb, thumbSm)
-}
-
-func (w *workshopLib) workshopSignature() string {
-	dir := w.workshopDir()
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return ""
-	}
-	var parts []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		parts = append(parts, e.Name()+":"+strconv.FormatInt(fileMtime(filepath.Join(dir, e.Name(), "project.json")), 10))
-	}
-	sort.Strings(parts)
-	return strings.Join(parts, "|")
-}
-
-// Steam writes an item through many temporary files, so a slow poll sees only settled downloads.
-func (w *workshopLib) watch() {
-	if !w.d.featureSteam() {
-		return
-	}
-	last := w.workshopSignature()
-	for {
-		time.Sleep(3 * time.Second)
-		if !w.d.featureSteam() {
-			continue
-		}
-		sig := w.workshopSignature()
-		if sig == last {
-			continue
-		}
-		last = sig
-		w.d.rescan(false)
-		w.d.broadcast("ryogami.workshop.changed", map[string]interface{}{})
-	}
 }
 
 func (w *workshopLib) downloadedSet() map[string]bool {

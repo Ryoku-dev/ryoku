@@ -69,10 +69,13 @@ func (d *daemon) wallpaperVerb(line string) string {
 		d.restoreOutputs()
 		return "ok"
 	case "ui":
-		// Resident picker: flip its surface over the event hub; a dead or
-		// not-yet-started instance cold-launches already visible instead.
+		// A warm picker only flips its surface. A cold one launches visible and
+		// reconciles externally-added Workshop items once, instead of polling
+		// Steam's tree for the entire login session.
 		if d.ui.ensure() {
 			d.broadcast("ryogami.wall.toggle", map[string]interface{}{})
+		} else {
+			go d.refreshWorkshopOnPickerStart()
 		}
 		return "ok"
 	case "settings":
