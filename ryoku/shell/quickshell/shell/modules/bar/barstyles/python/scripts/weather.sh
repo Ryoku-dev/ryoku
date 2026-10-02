@@ -101,9 +101,9 @@ get_location() {
     if [[ -z "$loc_json" || "$loc_json" == "null" ]]; then
         script_dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
         if [[ "$VERBOSE" == "true" ]]; then
-            loc_json="$("${script_dir}/location.sh" --verbose)"
+            loc_json="$(RYOKU_WEATHER_RESOLVING=1 "${script_dir}/location.sh" --verbose)"
         else
-            loc_json="$("${script_dir}/location.sh")"
+            loc_json="$(RYOKU_WEATHER_RESOLVING=1 "${script_dir}/location.sh")"
         fi
     fi
     echo "$loc_json"

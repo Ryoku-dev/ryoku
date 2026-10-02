@@ -36,7 +36,11 @@ save_location() {
     local updated
     updated="$(echo "$gen" | jq --argjson loc "$loc_data" '.location = $loc')"
     set_setting "general" "$updated"
-    "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/weather.sh" --getdata >/dev/null 2>&1 &
+    # weather.sh may call location.sh while bootstrapping a missing location. Do not recursively
+    # launch another weather refresh from that path; standalone/manual location refreshes still do.
+    if [[ "${RYOKU_WEATHER_RESOLVING:-0}" != "1" ]]; then
+        "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/weather.sh" --getdata >/dev/null 2>&1 &
+    fi
 }
 
 try_ipapi() {
