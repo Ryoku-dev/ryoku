@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### New
+- **Clipboard history supports keyboard selection.** Use the up and down arrows
+  to move through matching entries and press Enter to restore the selected item
+  to the clipboard.
 - **Push-aside sidebars put the desktop in motion.** `Super+Escape` opens the
   left controls sidebar and `Super+S` opens the right companion sidebar. The
   screen slides over panels underneath, with a native depth edge and an

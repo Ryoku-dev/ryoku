@@ -115,8 +115,33 @@ Scope {
         // Escape unwinds the filter before the surface.
         property bool hot: false
         property string query: ""
+        property int selectedIndex: 0
         signal queryEdited(string text)
         signal closeRequested()
+
+        function moveSelection(delta) {
+            if (pane.items.length === 0)
+                return;
+            pane.selectedIndex = Math.max(0, Math.min(pane.items.length - 1, pane.selectedIndex + delta));
+            cards.positionViewAtIndex(pane.selectedIndex, ListView.Contain);
+        }
+
+        function activateSelection() {
+            const entry = pane.items[pane.selectedIndex];
+            if (!entry)
+                return;
+            Clipboard.copy(Number(entry.id));
+            pane.closeRequested();
+        }
+
+        onQueryChanged: pane.selectedIndex = 0
+        onHotChanged: if (pane.hot) pane.selectedIndex = 0
+        onItemsChanged: {
+            if (pane.items.length === 0)
+                pane.selectedIndex = 0;
+            else
+                pane.selectedIndex = Math.min(pane.selectedIndex, pane.items.length - 1);
+        }
 
         radius: Math.round(root.paneRadius * pane.s)
         color: Qt.rgba(Theme.surface.r, Theme.surface.g, Theme.surface.b, 0.35)
@@ -217,6 +242,7 @@ Scope {
                     selectByMouse: true
                     clip: true
                     verticalAlignment: TextInput.AlignVCenter
+                    Keys.priority: Keys.BeforeItem
                     // onTextChanged, not onTextEdited: the clear button and the
                     // surface's reset write the text programmatically and the pane
                     // must follow those too.
@@ -227,6 +253,18 @@ Scope {
                         else
                             pane.closeRequested();
                         e.accepted = true;
+                    }
+                    Keys.onPressed: (e) => {
+                        if (e.key === Qt.Key_Up) {
+                            pane.moveSelection(-1);
+                            e.accepted = true;
+                        } else if (e.key === Qt.Key_Down) {
+                            pane.moveSelection(1);
+                            e.accepted = true;
+                        } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                            pane.activateSelection();
+                            e.accepted = true;
+                        }
                     }
                 }
 
@@ -325,11 +363,13 @@ Scope {
             visible: pane.items.length > 0
 
             delegate: ClipboardCard {
+                required property int index
                 required property var modelData
                 width: ListView.view.width
                 s: pane.s
                 radius: Math.round(root.cardRadius * pane.s)
                 entry: modelData
+                selected: pane.searchable && index === pane.selectedIndex
                 onCopyRequested: {
                     Clipboard.copy(Number(modelData.id));
                     pane.closeRequested();
