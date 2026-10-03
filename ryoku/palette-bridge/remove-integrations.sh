@@ -43,6 +43,14 @@ case "$want" in
     fi
     ;;
   vesktop)
+    script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    helper="$script_root/vesktop/quickcss.sh"
+    if [[ ! -f "$helper" ]]; then
+      helper="$script_root/../share/ryoku/palette-bridge/vesktop/quickcss.sh"
+    fi
+    # shellcheck source=ryoku/palette-bridge/vesktop/quickcss.sh
+    source "$helper"
+    vesktop_write_palette "$config_root/vesktop/settings/quickCss.css"
     remove_matugen_section templates.vesktop
     settings="$config_root/vesktop/settings/settings.json"
     if [[ -f "$settings" ]] && command -v jq >/dev/null; then

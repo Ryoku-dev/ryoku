@@ -11,7 +11,7 @@ pkgdesc="Ryoku wallpaper palette event bridge: exposes colours to SPA integratio
 arch=('x86_64')
 url="https://ryoku.dev"
 license=('MIT')
-depends=()
+depends=('bash' 'jq' 'matugen')
 makedepends=('go')
 source=()
 
@@ -22,6 +22,12 @@ build() {
   # no vendor tree is shipped with the bridge; GOFLAGS from the publish
   # container pin the proxy so the build stays offline and reproducible.
   CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags='-s -w' -o "$srcdir/ryoku-palette-bridge" .
+}
+
+check() {
+  cd "$_repo/ryoku/palette-bridge"
+  bash tests/install-integrations.test.sh
+  bash tests/install.test.sh
 }
 
 package() {

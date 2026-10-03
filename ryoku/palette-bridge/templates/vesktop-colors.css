@@ -1,5 +1,7 @@
-/* Generated palette only. Midnight remains loaded in a stable theme layer. */
+/* ryoku-palette-bridge:begin */
+/* Generated palette only. The selected theme remains loaded in a stable layer. */
 :root {
+  --ryo-bridge-enabled: 1;
   --font: "figtree";
   --corner-text: "Midnight";
 
@@ -52,3 +54,4 @@
   --green-to-accent-3-filter: hue-rotate(56deg) saturate(1.43);
   --blurple-to-accent-3-filter: hue-rotate(304deg) saturate(0.84) brightness(1.2);
 }
+/* ryoku-palette-bridge:end */
