@@ -7,8 +7,7 @@ import shell.services
 import "../../../../components"
 
 // Calendar-only embed: the calendar grid from MenuClock, without the weather
-// section. Used both by MenuClock (which stacks it above MenuWeather) and by
-// the Calendar tab of the quick-settings panel.
+// section. MenuClock stacks it above MenuWeather.
 Item {
     id: root
 

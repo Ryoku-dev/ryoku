@@ -85,6 +85,13 @@ Item {
         "shape": "図形"
     })
 
+    // Human names for the built-in scopes; the masthead never shows a raw key.
+    readonly property var builtinLabels: ({
+        clock: "Clock", calendar: "Calendar", music: "Music", aio: "All-in-one",
+        stats: "System stats", weather: "Weather", notes: "Notes",
+        dayprogress: "Day Progress", shape: "Shape"
+    })
+
     // the widgets that cycle through a set of looks from the quick Style row; the
     // rest (stats, notes) have a single look and skip the row.
     readonly property var designLists: ({
@@ -138,7 +145,8 @@ Item {
 
     DesktopMenu {
         id: shell
-        title: (menu.isIris || menu.isPython) ? I18n.tr(menu.hostedFace.label) : menu.scope
+        title: (menu.isIris || menu.isPython) ? I18n.tr(menu.hostedFace.label)
+            : I18n.tr(menu.builtinLabels[menu.scope] || menu.cap(menu.scope))
         gloss: menu.glosses[menu.scope] || ((menu.isIris || menu.isPython) ? menu.hostedFace.gloss : "")
 
         // ── quick knobs ────────────────────────────────────────────────

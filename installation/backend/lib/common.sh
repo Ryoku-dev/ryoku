@@ -105,6 +105,24 @@ append_file() {
   printf '%s\n' "$content" >>"$path"
 }
 
+# ryoku_drop_pkg NAME: is NAME on the user's "remove from the install" list
+# (RYOKU_DROP_PACKAGES, a comma-separated set the browser/apps pickers feed)?
+# Empty set drops nothing, so a direct backend call keeps every package.
+ryoku_drop_pkg() {
+  [[ ",${RYOKU_DROP_PACKAGES:-}," == *,"$1,"* ]]
+}
+
+# ryoku_drop_from: read package names on stdin, print the ones the user kept.
+# One filter point for every package-set reader (pacstrap, the AUR steps), so
+# a drop never has to be honored twice in two styles.
+ryoku_drop_from() {
+  local p
+  while IFS= read -r p; do
+    [[ -n $p ]] || continue
+    ryoku_drop_pkg "$p" || printf '%s\n' "$p"
+  done
+}
+
 # deploy_dir: copy a source tree into a destination (dir-as-dir contents).
 # missing sources -> skipped with a note in real mode; under dry-run the
 # intended copy is always printed.

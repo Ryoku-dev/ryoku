@@ -69,16 +69,18 @@ Item {
         ? pg.shellDir + "/quickshell/plugins/discover.sh"
         : (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/quickshell/plugins/discover.sh"
 
-    // framePopout | desktopWidget | topbarGlyph -> readable label, and back.
+    // Plugin host id -> readable label, and back.
     function hostLabel(key) {
-        return key === "framePopout" ? "Frame popout"
-            : key === "desktopWidget" ? "Desktop widget"
-            : key === "topbarGlyph" ? "Bar" : key;
+        return key === "framePopout" ? I18n.tr("Frame popout")
+            : key === "desktopWidget" ? I18n.tr("Desktop widget")
+            : key === "topbarGlyph" ? I18n.tr("Bar")
+            : key === "sidebarCard" ? I18n.tr("Sidebar card") : key;
     }
     function hostKey(label) {
-        return label === "Frame popout" ? "framePopout"
-            : label === "Desktop widget" ? "desktopWidget"
-            : label === "Bar" ? "topbarGlyph" : label;
+        return label === I18n.tr("Frame popout") ? "framePopout"
+            : label === I18n.tr("Desktop widget") ? "desktopWidget"
+            : label === I18n.tr("Bar") ? "topbarGlyph"
+            : label === I18n.tr("Sidebar card") ? "sidebarCard" : label;
     }
 
     function refresh() { listProc.running = false; listProc.running = true; }
@@ -645,7 +647,8 @@ Item {
                 ? detail.place.host
                 : ((detail.man.defaults && detail.man.defaults.host) ? detail.man.defaults.host : "framePopout")
             readonly property var hosts: (detail.man.hosts || []).filter(function (h) {
-                return h === "framePopout" || h === "desktopWidget" || h === "topbarGlyph";
+                return h === "framePopout" || h === "desktopWidget"
+                    || h === "topbarGlyph" || h === "sidebarCard";
             })
             readonly property string upd: pg.updateFor(detail.sel)
 
@@ -1017,8 +1020,127 @@ Item {
                                 anchors.right: parent.right
                                 visible: placer.centered
                                 wrapMode: Text.WordWrap
-                                text: I18n.tr("A centred popout has no hover edge: open it with its keybind, or with ryoku-shell plugin <id>. It shares the middle of the screen with quick settings (Super+Escape) and the stash (Super+S), and the shell shows one surface at a time, so they take turns instead of overlapping.")
+                                text: I18n.tr("A centred popout has no hover edge: open it with its keybind, or with ryoku-shell plugin <id>. It shares the middle of the screen with the sidebars (Super+Escape and Super+S), and the shell shows one surface at a time, so they take turns instead of overlapping.")
                                 color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fTiny
+                            }
+                        }
+
+                        Item {
+                            id: sidebarPlacement
+                            width: parent.width
+                            visible: detail.enabled && detail.host === "sidebarCard"
+                            implicitHeight: visible ? sidebarPlacementCol.implicitHeight : 0
+
+                            readonly property var card: (detail.place && detail.place.sidebarCard)
+                                ? detail.place.sidebarCard : ({})
+                            readonly property var defaults: (detail.man.defaults && detail.man.defaults.sidebar)
+                                ? detail.man.defaults.sidebar : ({})
+                            readonly property string side: sidebarPlacement.card.side
+                                || sidebarPlacement.defaults.side || "left"
+                            readonly property string tabName: sidebarPlacement.card.tab
+                                || sidebarPlacement.defaults.tab || "Plugins"
+                            readonly property int order: sidebarPlacement.card.order !== undefined
+                                ? Number(sidebarPlacement.card.order)
+                                : (sidebarPlacement.defaults.order !== undefined
+                                    ? Number(sidebarPlacement.defaults.order) : 10)
+                            readonly property string label: sidebarPlacement.card.label
+                                || ((detail.man.defaults || {}).label) || detail.man.name || detail.sel.id
+                            readonly property string glyph: sidebarPlacement.card.glyph
+                                || ((detail.man.defaults || {}).glyph) || "extension"
+
+                            function commit(side, tab, order) {
+                                pg.place(detail.sel.id, "sidebarCard", side, tab, order,
+                                    sidebarPlacement.label, sidebarPlacement.glyph);
+                            }
+
+                            Column {
+                                id: sidebarPlacementCol
+                                width: parent.width
+                                spacing: Tokens.s3
+
+                                Item {
+                                    width: parent.width
+                                    height: 30
+                                    Text {
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: I18n.tr("Side")
+                                        color: Tokens.inkDim
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fBody
+                                    }
+                                    Seg {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        options: [I18n.tr("Left"), I18n.tr("Right")]
+                                        current: sidebarPlacement.side === "right"
+                                            ? I18n.tr("Right") : I18n.tr("Left")
+                                        onChose: label => sidebarPlacement.commit(
+                                            label === I18n.tr("Right") ? "right" : "left",
+                                            sidebarPlacement.tabName, sidebarPlacement.order)
+                                    }
+                                }
+
+                                Item {
+                                    width: parent.width
+                                    height: 30
+                                    Text {
+                                        anchors.left: parent.left
+                                        anchors.right: sidebarTab.left
+                                        anchors.rightMargin: Tokens.s3
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: I18n.tr("Tab")
+                                        color: Tokens.inkDim
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fBody
+                                    }
+                                    Field {
+                                        id: sidebarTab
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: 220
+                                        text: sidebarPlacement.tabName
+                                        placeholder: I18n.tr("Plugins")
+                                        onCommitted: value => sidebarPlacement.commit(
+                                            sidebarPlacement.side,
+                                            String(value).trim() || "Plugins",
+                                            sidebarPlacement.order)
+                                    }
+                                }
+
+                                Item {
+                                    width: parent.width
+                                    height: 30
+                                    Text {
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: I18n.tr("Order")
+                                        color: Tokens.inkDim
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fBody
+                                    }
+                                    Row {
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: Tokens.s2
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: sidebarPlacement.order
+                                            color: Tokens.ink
+                                            font.family: Tokens.mono
+                                            font.pixelSize: Tokens.fBody
+                                        }
+                                        Step {
+                                            value: sidebarPlacement.order
+                                            from: -100
+                                            to: 100
+                                            stepBy: 1
+                                            onModified: value => sidebarPlacement.commit(
+                                                sidebarPlacement.side,
+                                                sidebarPlacement.tabName, value)
+                                        }
+                                    }
+                                }
                             }
                         }
 

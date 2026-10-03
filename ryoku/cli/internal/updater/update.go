@@ -498,24 +498,32 @@ func unownedFiles(paths []string) []string {
 	return out
 }
 
-// ryokuOverwriteGlob names the ryoku-desktop-owned paths that the ISO installer
+// RyokuOverwriteGlob names the ryoku-desktop-owned paths that the ISO installer
 // and ryoku/shell/deploy.sh seed unowned before the package began owning them:
 // the privileged helpers (ryoku-dns, ryoku-network-kill, ryoku-boot-apply,
-// ryoku-wifi-powersave), their polkit rules, the Plymouth splash theme, the
-// ryoku-owned systemd units, the mkinitcpio install hooks the HOOKS drop-in
-// names, the shipped boot configs under /usr/share/ryoku/boot, and the logind
-// lid-switch drop-in. Every ryoku-desktop (re)install --overwrites these, or the
+// ryoku-wifi-powersave, ryoku-hub), their polkit rules, the Plymouth splash
+// theme, the ryoku-owned systemd units, the mkinitcpio install hooks the HOOKS
+// drop-in names, the shipped boot configs under /usr/share/ryoku/boot, the
+// logind lid-switch drop-in, the boot hook, the uinput modules-load drop-in,
+// the backlight udev rule, the lockscreen greeter bundle, and the default-apps
+// mimeapps map. Every ryoku-desktop (re)install --overwrites these, or the
 // first upgrade that starts owning a seeded path aborts the whole transaction
 // ("exists in filesystem") and blocks every update until the files are removed
 // by hand. Keep in sync with the doctor's ryokuSystemGlobs, which clears the
 // same paths on an already-wedged box.
-const ryokuOverwriteGlob = "/usr/bin/ryoku-*," +
+const RyokuOverwriteGlob = "/usr/bin/ryoku-*," +
 	"/usr/lib/systemd/system/ryoku-*," +
 	"/usr/lib/initcpio/install/ryoku-*," +
 	"/usr/share/polkit-1/rules.d/*ryoku*.rules," +
 	"/usr/share/plymouth/themes/ryoku/*," +
 	"/usr/share/ryoku/boot/*," +
-	"/etc/systemd/logind.conf.d/10-ryoku-lid.conf"
+	"/usr/share/ryoku/lockscreen/ryoku-*," +
+	"/usr/share/ryoku/lockscreen/install-qylock," +
+	"/etc/systemd/logind.conf.d/10-ryoku-lid.conf," +
+	"/etc/boot/hooks/post.d/*ryoku*," +
+	"/etc/modules-load.d/*ryoku*," +
+	"/usr/lib/udev/rules.d/*ryoku*.rules," +
+	"/usr/local/share/applications/mimeapps.list"
 
 // systemUpgradeArgs is the user's lane, run only by `ryoku update --system`:
 // the full sysupgrade, kernel included, exactly what `sudo pacman -Syu` does
@@ -523,7 +531,7 @@ const ryokuOverwriteGlob = "/usr/bin/ryoku-*," +
 // owns cannot abort the transaction here either.
 func systemUpgradeArgs() []string {
 	return []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
-		"pacman", "-Syu", "--noconfirm", "--overwrite", ryokuOverwriteGlob}
+		"pacman", "-Syu", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
 }
 
 // runAURUpgrade runs `yay -Sua` under the same sleep inhibitor.
@@ -810,19 +818,41 @@ func acquirePowerCutoverLock() (*os.File, error) {
 }
 
 const updateSleepGuardUnit = "ryoku-power-cutover-guard.service"
-const packagePowerCutoverMarker = "/var/lib/ryoku/power-cutover-hook-active"
+
+// A var so tests point it at a fixture.
+var packagePowerCutoverMarker = "/var/lib/ryoku/power-cutover-hook-active"
 
 func needsPackagePowerCutover(markerPresent, rootGuardActive bool) bool {
 	return !markerPresent || rootGuardActive
 }
 
-func ensurePackagePowerCutover() error {
-	markerPresent := false
-	if _, err := os.Stat(packagePowerCutoverMarker); err == nil {
-		markerPresent = true
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("inspect package power cutover state: %w", err)
+// cutoverMarkerExistsAsRoot asks root whether the marker exists, for when an
+// unprivileged stat cannot see into the root-owned state dir. -n never
+// prompts; a box with no cached credential gets a non-zero exit, which the
+// caller reads as absent.
+var cutoverMarkerExistsAsRoot = func(path string) bool {
+	return exec.Command("sudo", "-n", "test", "-e", path).Run() == nil
+}
+
+// packageCutoverMarkerPresent reports whether the adoption marker exists.
+// /var/lib/ryoku is root-owned and a drifted mode there hides the marker from
+// an unprivileged stat; that is a question for root, not a reason to fail the
+// update. A probe that cannot run reports absent, which errs toward
+// adoption: the helper is idempotent, and skipping a needed cutover is worse
+// than a redundant one.
+func packageCutoverMarkerPresent() bool {
+	_, err := os.Stat(packagePowerCutoverMarker)
+	switch {
+	case err == nil:
+		return true
+	case os.IsNotExist(err):
+		return false
 	}
+	return cutoverMarkerExistsAsRoot(packagePowerCutoverMarker)
+}
+
+func ensurePackagePowerCutover() error {
+	markerPresent := packageCutoverMarkerPresent()
 	rootGuardActive := exec.Command(
 		"sudo", "-n", "systemctl", "is-active", "--quiet", updateSleepGuardUnit,
 	).Run() == nil

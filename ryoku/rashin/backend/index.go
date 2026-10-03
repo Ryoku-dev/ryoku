@@ -241,7 +241,7 @@ func guiMapBody() string {
 }
 
 // ryokuPackages are queried for installed versions in desktop.md.
-var ryokuPackages = []string{"ryoku-shell", "ryoku-hub", "ryoku", "ryoku-blobs", "ryoku-desktop", "ryoku-rashin"}
+var ryokuPackages = []string{"ryoku-shell", "ryoku-hub", "ryoku", "ryoku-blobs", "ryoku-sidebarfx", "ryoku-desktop", "ryoku-rashin"}
 
 func desktopBody() string {
 	var b strings.Builder

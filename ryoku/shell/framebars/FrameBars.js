@@ -39,18 +39,6 @@ function menuWidgetsFor(value, catalog, depth) {
     }
     return out;
 }
-function quickSettingsModulesFor(value, catalog, fallback) {
-    if (!Array.isArray(value)) return clone(fallback);
-    const seen = {};
-    const modules = [];
-    for (const id of value) {
-        if (typeof id === "string" && catalog.quickSettingsModule(id) && !seen[id]) {
-            seen[id] = true;
-            modules.push(id);
-        }
-    }
-    return modules.length > 0 ? modules : clone(fallback);
-}
 
 
 function defaultConfig(menuCatalog) {
@@ -64,14 +52,11 @@ function defaultConfig(menuCatalog) {
             right: { enabled: false, size: 48, reveal: true, top: [], center: [], bottom: [] }
         },
         menus: {
-            "quick-settings": { anchor: "left", minWidth: 410, expansion: "always", widgets: ["quick-settings"], modules: menuCatalog.defaultQuickSettingsModules() },
             wallpaper: { anchor: "bottom", minWidth: 1400, expansion: "always", widgets: ["theme", "wallpaper"] },
             theme: { anchor: "right", minWidth: 320, expansion: "never", widgets: ["theme"] },
             weather: { anchor: "right", minWidth: 320, expansion: "never", widgets: ["weather"] },
         },
-        surfaces: {
-            stash: { anchor: "right", minWidth: 340, panes: ["stash"] },
-        },
+        surfaces: {},
         dock: { pinned: [] }
     };
 }
@@ -101,25 +86,6 @@ function normalize(raw, barCatalog, menuCatalog) {
             minWidth: typeof value.minWidth === "number" && isFinite(value.minWidth) ? Math.max(1, Math.round(value.minWidth)) : fallback.minWidth,
             expansion: menuExpansions.includes(value.expansion) ? value.expansion : fallback.expansion,
             widgets: Array.isArray(value.widgets) ? menuWidgetsFor(value.widgets, menuCatalog, 0) : clone(fallback.widgets)
-        };
-    }
-    // The quick-settings menu is one cohesive stack (MenuQuickSettings), not a
-    // user-composed widget list, so its widgets always resolve to the fixed
-    // default regardless of any stale persisted list.
-    output.menus["quick-settings"].widgets = clone(base.menus["quick-settings"].widgets);
-    const quickSettingsSource = isObject(source.menus) && isObject(source.menus["quick-settings"]) ? source.menus["quick-settings"] : {};
-    output.menus["quick-settings"].modules = quickSettingsModulesFor(
-        quickSettingsSource.modules,
-        menuCatalog,
-        base.menus["quick-settings"].modules
-    );
-    for (const id of ["stash"]) {
-        const value = isObject(source.surfaces) && isObject(source.surfaces[id]) ? source.surfaces[id] : {};
-        const fallback = base.surfaces[id];
-        output.surfaces[id] = {
-            anchor: menuCatalog.anchors().includes(value.anchor) ? value.anchor : fallback.anchor,
-            minWidth: typeof value.minWidth === "number" && isFinite(value.minWidth) ? Math.max(1, Math.round(value.minWidth)) : fallback.minWidth,
-            panes: Array.isArray(value.panes) ? value.panes.filter(pane => typeof pane === "string" && fallback.panes.includes(pane)) : clone(fallback.panes)
         };
     }
     output.dock.pinned = isObject(source.dock) && Array.isArray(source.dock.pinned) ? source.dock.pinned.filter(id => typeof id === "string") : [];
@@ -173,13 +139,6 @@ function setMenu(config, id, value, menuCatalog) {
         expansion: menuExpansions.includes(source.expansion) ? source.expansion : fallback.expansion,
         widgets: Array.isArray(source.widgets) ? source.widgets.filter(widget => menuCatalog.widget(widget)) : clone(fallback.widgets)
     };
-    if (id === "quick-settings") {
-        output.menus[id].modules = quickSettingsModulesFor(
-            source.modules,
-            menuCatalog,
-            fallback.modules
-        );
-    }
     return output;
 }
 

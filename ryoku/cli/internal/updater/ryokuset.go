@@ -229,10 +229,10 @@ func refreshDBArgs(force bool) []string {
 //
 // SNAP_PAC_SKIP=y because `ryoku update` already brackets the run with one
 // snapper pre/post pair; --overwrite adopts the paths the installer and
-// deploy.sh seed unowned (see ryokuOverwriteGlob).
+// deploy.sh seed unowned (see RyokuOverwriteGlob).
 func ryokuInstallArgs(set []string) []string {
 	args := []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
-		"pacman", "-S", "--needed", "--noconfirm", "--overwrite", ryokuOverwriteGlob}
+		"pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
 	return append(args, set...)
 }
 

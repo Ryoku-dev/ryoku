@@ -115,6 +115,12 @@ func listOutputs() error {
 	rows := make([]outputRow, 0, len(snap.Outputs))
 	for _, o := range snap.Outputs {
 		w, h, refresh := parseModeDims(o.Mode)
+		// A provider that cannot read the editor detail (no wlr-randr on mango)
+		// still carries the live geometry over IPC; the mode string is the
+		// refinement, never the only source.
+		if o.Mode == "" {
+			w, h = o.Width, o.Height
+		}
 		rows = append(rows, outputRow{
 			Name:          o.Name,
 			Focused:       o.Focused,

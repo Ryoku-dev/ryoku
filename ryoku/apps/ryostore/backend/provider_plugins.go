@@ -97,9 +97,9 @@ func setPluginPlacementEnabled(id string, enabled bool) error {
 }
 
 // pluginAutoEnable reports whether a freshly installed plugin ships a manifest
-// that asks to be placed on install. Only a desktop widget may auto-enable, so a
-// missing or unreadable manifest, or one without the desktopWidget host or with
-// the flag unset, leaves the plugin disabled.
+// that asks to be placed on install. Only a desktop widget may auto-enable:
+// frame popouts and sidebar cards install disabled, as do missing or unreadable
+// manifests and desktop widgets without the flag.
 func pluginAutoEnable(installDir string) bool {
 	raw, err := os.ReadFile(filepath.Join(installDir, "manifest.json"))
 	if err != nil {

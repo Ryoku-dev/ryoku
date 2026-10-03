@@ -43,7 +43,8 @@ exercise() {
     printf 'frame-bars-smoke: %s acknowledged; %s\n' "$name" "$output_dir/$name.png"
 }
 
-exercise quick-settings menu quick-settings
+exercise quicksettings quicksettings
+exercise stash stash
 exercise power power
 exercise launcher launcher
 

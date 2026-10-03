@@ -65,14 +65,13 @@ Item {
             st.launcherOpen = true;
         menu.close();
     }
-    // Quick controls opens the Super+Esc quick-settings sidebar; Depth settings
-    // deep-links its Stage tab (FrameMenuManager.openSurface).
+    // Quick controls opens the left sidebar; Depth settings deep-links Stage.
     function quickControls() {
-        Services.ShellState.requestSurfaceActive("quick-settings", undefined);
+        Services.ShellState.requestSurfaceActive("sidebar-left", undefined);
         menu.close();
     }
     function depthSettings() {
-        Services.ShellState.requestSurfaceActive("quick-settings#stage", undefined);
+        Services.ShellState.requestSurfaceActive("sidebar-left#stage", undefined);
         menu.close();
     }
     function openSettings() {

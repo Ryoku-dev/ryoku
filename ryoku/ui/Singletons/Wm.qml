@@ -6,11 +6,9 @@ import Quickshell.Io
 import Quickshell.WindowManager
 import Quickshell.Wayland
 
-// Capability-shaped view of the window manager. Presentation lists come from the
-// Wayland protocols (ext-workspace-v1 windowsets, foreign-toplevel toplevels);
-// the residue they cannot answer (focused output, per-window workspace, focus
-// order, geometry, output geometry, caps, workspace model) rides the daemon `wm`
-// topic. Consumers ask caps.*, never which compositor is running.
+// Capability-shaped view of the window manager. The daemon provider owns the
+// workspace and window state; Wayland protocols enrich it with handles and
+// protocol-only flags. Consumers ask caps.*, never which compositor is running.
 Singleton {
     id: root
 
@@ -81,33 +79,52 @@ Singleton {
         return o && typeof o.scale === "number" && o.scale > 0 ? o.scale : 1;
     }
 
-    // ext-workspace-v1 windowsets joined with the daemon's occupancy residue by
-    // name (windowset.id is empty on Hyprland; name is the stable key).
+    // The provider owns workspace identity and state. ext-workspace-v1 enriches
+    // matching names with protocol-only flags; it is a fallback only while the
+    // provider list is empty.
     readonly property var workspaces: {
-        const res = {};
-        for (let i = 0; i < root._wsResidue.length; i++) {
-            const w = root._wsResidue[i];
-            res[w.name] = w;
-        }
         const sets = root._windowsets || [];
+        const byName = {};
+        for (let i = 0; i < sets.length; i++)
+            byName[sets[i].name] = sets[i];
+
+        const residue = root._wsResidue || [];
         const out = [];
+        if (residue.length > 0) {
+            for (let i = 0; i < residue.length; i++) {
+                const r = residue[i];
+                const s = byName[r.name] || null;
+                out.push({
+                    id: r.id !== undefined && r.id !== "" ? String(r.id) : r.name,
+                    name: r.name,
+                    active: r.active === true,
+                    urgent: s ? s.urgent === true : false,
+                    canActivate: s ? s.canActivate === true : root.caps.workspaces === true,
+                    windows: r.windows || 0,
+                    occupied: (r.windows || 0) > 0,
+                    fullscreen: r.fullscreen === true,
+                    special: r.special === true,
+                    output: r.output || "",
+                    layout: r.layout || ""
+                });
+            }
+            return out;
+        }
+
         for (let i = 0; i < sets.length; i++) {
             const s = sets[i];
-            const r = res[s.name] || ({});
-            // Windows name their workspace by the compositor's id, which differs
-            // from the name on niri (id 2 can be named "1"); carry both.
             out.push({
-                id: r.id !== undefined && r.id !== "" ? String(r.id) : s.name,
+                id: s.name,
                 name: s.name,
                 active: s.active === true,
                 urgent: s.urgent === true,
                 canActivate: s.canActivate === true,
-                windows: r.windows || 0,
-                occupied: (r.windows || 0) > 0,
-                fullscreen: r.fullscreen === true,
-                special: r.special === true,
-                output: r.output || "",
-                layout: r.layout || ""
+                windows: 0,
+                occupied: false,
+                fullscreen: false,
+                special: false,
+                output: "",
+                layout: ""
             });
         }
         return out;

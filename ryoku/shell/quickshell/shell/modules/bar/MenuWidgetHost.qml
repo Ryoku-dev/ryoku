@@ -16,8 +16,6 @@ Item {
     property bool open: false
     property real scale: 1
     property int depth: 0
-    property real avail: 0
-    property string initialPage: ""
     property bool incubate: false
     signal requestClose()
 
@@ -37,7 +35,6 @@ Item {
         case "audio-input": return audioInputComponent;
         case "audio-output": return audioOutputComponent;
         case "power-profile": return powerProfileComponent;
-        case "quick-settings": return quickSettingsComponent;
         case "quick-actions": return quickActionsComponent;
         case "layout-switcher": return layoutSwitcherComponent;
         case "theme": return themeComponent;
@@ -82,7 +79,6 @@ Item {
     Component { id: audioInputComponent; MenuAudioInput { width: root.width; s: root.scale; open: root.open } }
     Component { id: audioOutputComponent; MenuAudioOutput { width: root.width; s: root.scale; open: root.open } }
     Component { id: powerProfileComponent; MenuPowerProfile { width: root.width; s: root.scale; open: root.open } }
-    Component { id: quickSettingsComponent; MenuQuickSettings { width: root.width; s: root.scale; open: root.open; avail: root.avail; initialPage: root.initialPage } }
     Component { id: quickActionsComponent; MenuQuickActions { width: root.width; s: root.scale; open: root.open } }
     Component { id: layoutSwitcherComponent; MenuLayoutSwitcher { width: root.width; s: root.scale; open: root.open } }
     Component { id: themeComponent; MenuTheme { width: root.width; s: root.scale; open: root.open } }

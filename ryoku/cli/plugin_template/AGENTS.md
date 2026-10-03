@@ -57,20 +57,34 @@ privileged/network capability.
 
 ## The workflow
 
-1. `ryoku plugin new <id>` scaffolds this folder (already done).
-2. Edit: `service/Main.qml` for logic, `content/Widget.qml` for the view, and
-   `content/Panel.qml` for the bar panel. Capture `assets/preview-widget.png`.
+1. `ryoku plugin new <id> [--bar|--desktop|--popout|--sidebar]` scaffolds this
+   folder (already done). This scaffold selected `{{HOST}}`.
+2. Edit `service/Main.qml` for logic and `content/Widget.qml` for the view.
+   Edit `content/Panel.qml` only for a bar plugin. Capture
+   `assets/preview-widget.png`.
 3. `ryoku plugin validate <dir>` and fix every blocking finding (warnings are
    advisory but read them).
-4. `ryoku plugin add <dir> --bar --yes` to install it, then verify it on the bar
-   and under **QS Bar Settings > Community**.
+4. `ryoku plugin add <dir> --yes`, then enable and place it under
+   **Ryoku Settings > Add-ons**. For a bar plugin, `--bar` enables it on the
+   current bar immediately.
 5. `ryoku plugin share <id>` ONLY when the user asks to publish. Never share a
    plugin unless asked.
 
 ## What the host sets
 
-Every entry point receives, from the host: `pluginApi` (see below), `s` (a scale
-factor), `active`, `density`, and `widthBudget`. Read them; never assign them.
+Ryoku ships four hosts: `topbarGlyph`, `desktopWidget`, `framePopout`, and
+`sidebarCard`. They all mount `content/Widget.qml`; only a bar plugin may add
+`content/Panel.qml`.
+
+The bar, desktop, and popout hosts set `pluginApi`, `s`, `active`, `density`, and
+`widthBudget`. Read them; never assign them.
+
+For `sidebarCard`, the widget root is an `Item` with
+`pragma ComponentBehavior: Bound`. The host sets `s`, `open`, `reveal`,
+`tabActive`, `width`, and `pluginApi`; the card reports `implicitHeight` and
+declares `signal requestClose()`. Read host-set values and never assign them.
+There is no `content/Sidebar.qml`. Ryoku draws the card plate and owns its
+position, size, motion, and chrome.
 
 `pluginApi` exposes:
 
@@ -80,5 +94,5 @@ factor), `active`, `density`, and `widthBudget`. Read them; never assign them.
 - `stateDir`: `$XDG_STATE_HOME/ryoku/plugins/<id>`; the only place to write.
 - `saveSetting(key, value)`: persist one setting.
 - `panelOpen` (bool), `openPanel()`, `closePanel()`, `togglePanel()`: the bar
-  panel controls (present but inert off the bar). The sanctioned widget click is
-  `onClicked: pluginApi.togglePanel()`.
+  panel controls (present but inert off the bar). The sanctioned bar-widget
+  click is `onClicked: pluginApi.togglePanel()`.

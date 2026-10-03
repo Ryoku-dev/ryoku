@@ -17,6 +17,9 @@ Item {
     property real minAspect: 1.0
     property real maxAspect: 1.0
     property bool isRound: true
+    // Ryoku host hook: while the desktop slot draws the plate (Ryoku style),
+    // this face's own pill steps aside so the two plates never double up.
+    property bool ryokuBare: false
     property real faceSize: Math.min(root.width, root.height)
     property real pillLength: root.faceSize * 0.94
     property real pillWidth: root.faceSize * 0.54
@@ -52,7 +55,7 @@ Item {
         height: root.pillLength
         radius: root.pillRadius
         rotation: 45
-        color: ThemeBackend.surface0
+        color: root.ryokuBare ? "transparent" : ThemeBackend.surface0
         antialiasing: true
 
         Item {

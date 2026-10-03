@@ -57,7 +57,7 @@ Revert, or closing the window with unsaved edits, walks the desktop back to the
 saved state through the same channel. Bar Studio never writes configuration
 files directly.
 
-The bounded menus and the `stash` frame surface keep whatever
+The bounded menus keep whatever
 values are persisted: every Bar Studio edit clones the whole `frameBars` object,
 so a subtree it does not touch is never dropped. They are configured through
 their defaults and the catalogue, not edited on this page.
@@ -79,13 +79,12 @@ profiles, and a detail panel, network runs Wi-Fi, and the rest follow suit. They
 share one skin from a card kit (`shell/modules/bar/popouts/PopoutCard.qml` and its siblings),
 so every card opens, reads, and dismisses the same way.
 
-Super+Escape opens the only full-height control sidebar. Its fixed rail selects
-independent modules catalogued in `MenuCatalog.js`; the default module list is
-home, notifications, weather, and capture, while media is available as an optional
-module. The home module retains the session actions and performance profiles.
-Adding a module requires one catalog entry and one component under
-`shell/modules/bar/framebars/menus/quicksettings/`, then its ID can be added to
-`frameBars.menus.quick-settings.modules`.
+Super+Escape and Super+S open the two push-aside sidebars. They are no
+longer frame menus: their cards, catalog, and settings live in the sidebar
+subsystem (`shell/modules/sidebar/`, see `docs/sidebars.md`). Adding a card
+is one entry in `SidebarCatalog.js` plus one component under
+`sidebar/cards/`; users reorder and hide cards from Ryoku Hub -> Desktop ->
+Sidebars.
 
 `ryoku-shell menu <id>` opens a catalogued menu on the active monitor;
 `MenuCatalog.js` holds the valid IDs, and anything else is rejected before it

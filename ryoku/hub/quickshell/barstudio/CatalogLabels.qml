@@ -56,26 +56,6 @@ QtObject {
         }
     }
 
-    function surface(id) {
-        switch (id) {
-        case "stash": return I18n.tr("Stash")
-        case "system": return I18n.tr("System")
-        default: return I18n.tr("Unknown")
-        }
-    }
-
-    function pane(id) {
-        switch (id) {
-        case "calendar": return I18n.tr("Calendar")
-        case "media": return I18n.tr("Media")
-        case "notifications": return I18n.tr("Notifications")
-        case "recording": return I18n.tr("Recording")
-        case "stash": return I18n.tr("Stash")
-        case "weather": return I18n.tr("Weather")
-        default: return I18n.tr("Unknown")
-        }
-    }
-
     function edge(id) {
         switch (id) {
         case "bottom": return I18n.tr("Bottom")

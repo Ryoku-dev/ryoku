@@ -16,6 +16,8 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
   to `/usr/bin/ryoku`.
 - `ryoku-blobs` -- the `Ryoku.Blobs` QML plugin, to
   `/usr/lib/qt6/qml/Ryoku/Blobs`.
+- `ryoku-sidebarfx` -- the `Ryoku.SidebarFx` QML plugin, to
+  `/usr/lib/qt6/qml/Ryoku/SidebarFx`.
 - `skwd-paper-bin` -- the pinned upstream skwd-paper scene renderer (Wallpaper
   Engine wallpapers), a hard dependency of `ryogami`, into `/usr/bin`
   and `/usr/lib/skwd-paper`. A fixed-version binary rebuild like `ryoku-cursors`:
@@ -42,8 +44,8 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
 Most of these PKGBUILDs build from the checked-out monorepo, not from release tarballs.
 `source=()` is empty; each PKGBUILD derives the repo root as `$startdir/../../..`,
 because the CI runs `makepkg` in place inside each package directory within a
-full checkout. The Go binaries and the QML plugin are built into `$srcdir`, so
-the source tree is never modified, and `makepkg --clean` removes `$srcdir` and
+full checkout. The Go binaries and QML plugins are built into `$srcdir`, so the
+source tree is never modified, and `makepkg --clean` removes `$srcdir` and
 `$pkgdir` afterward.
 
 The `gpk`, `skwd-paper-bin`, and `ryoku-keyring` PKGBUILDs are the exceptions:
@@ -51,8 +53,9 @@ they fetch a pinned upstream artifact (release binaries and the release key
 material) rather than building from the checkout.
 
 makedepends across the set: `go` (ryoku-shell, ryoku-hub, ryoku),
-`cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), and `rust` + `git`
-(hyprland-preview-share-picker, asusctl), on top of the assumed `base-devel`.
+`cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs, ryoku-sidebarfx),
+and `rust` + `git` (hyprland-preview-share-picker, asusctl), on top of the
+assumed `base-devel`.
 `ryoku-hub` (`github.com/BurntSushi/toml`) needs network at build time.
 
 ## Configs and materialize

@@ -169,6 +169,7 @@ def main():
                f"RYOKU_HOSTNAME=ryoku-test RYOKU_USERNAME={args.user} "
                f"RYOKU_DISK_STRATEGY=whole RYOKU_WIPE_CONFIRMED=1 RYOKU_SKIP_AUR=1 "
                f"RYOKU_COMPOSITOR=hyprland RYOKU_COMPOSITOR_CONFIG_DIR=hypr "
+               f"RYOKU_BROWSER=chromium "
                f"RYOKU_REPO=/usr/share/ryoku RYOKU_KEYMAP=it RYOKU_XKB_LAYOUT=it RYOKU_PASSWORD_HASH='{pwhash}'")
         if args.dry:
             env += " RYOKU_DRYRUN=1"

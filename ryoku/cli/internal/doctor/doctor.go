@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"ryoku-cli/internal/sys"
+	"ryoku-cli/internal/updater"
 	"strconv"
 	"strings"
 	"syscall"
@@ -167,6 +168,7 @@ func reconcilers() []reconciler {
 		{i18n.T("stage migration leftovers"), reconcileStageLeftovers},
 		{i18n.T("retired system sidebar"), reconcileLegacySystemSidebar},
 		{i18n.T("stash features sidebar anchor"), reconcileStashSidebar},
+		{i18n.T("sidebar settings rework"), reconcileSidebarRework},
 		{i18n.T("shipped app packages"), reconcileShippedApps},
 		{i18n.T("retired app packages"), reconcileRetiredApps},
 		{i18n.T("release control manifest"), reconcileManifest},
@@ -1666,14 +1668,11 @@ func defaultFrameBarsFromLegacy(_ map[string]any) map[string]any {
 			"right":  frameRail(false, 48, map[string][]any{"top": {}, "center": {}, "bottom": {}}),
 		},
 		"menus": map[string]any{
-			"quick-settings": map[string]any{"anchor": "left", "minWidth": float64(410), "expansion": "always", "widgets": []any{"quick-settings"}, "modules": []any{"home", "notifications", "weather", "capture", "stage"}},
-			"wallpaper":      map[string]any{"anchor": "bottom", "minWidth": float64(1400), "expansion": "always", "widgets": []any{"theme", "wallpaper"}},
-			"theme":          map[string]any{"anchor": "right", "minWidth": float64(320), "expansion": "never", "widgets": []any{"theme"}},
-			"weather":        map[string]any{"anchor": "right", "minWidth": float64(320), "expansion": "never", "widgets": []any{"weather"}},
+			"wallpaper": map[string]any{"anchor": "bottom", "minWidth": float64(1400), "expansion": "always", "widgets": []any{"theme", "wallpaper"}},
+			"theme":     map[string]any{"anchor": "right", "minWidth": float64(320), "expansion": "never", "widgets": []any{"theme"}},
+			"weather":   map[string]any{"anchor": "right", "minWidth": float64(320), "expansion": "never", "widgets": []any{"weather"}},
 		},
-		"surfaces": map[string]any{
-			"stash": map[string]any{"anchor": "right", "minWidth": float64(340), "panes": []any{"stash"}},
-		},
+		"surfaces": map[string]any{},
 		"dock": map[string]any{"pinned": []any{}},
 	}
 }
@@ -1696,33 +1695,6 @@ var frameBarAxes = map[string][]string{
 func frameMap(value any) map[string]any {
 	m, _ := value.(map[string]any)
 	return m
-}
-
-func frameStringList(value any, allowed map[string]bool) []any {
-	values, _ := value.([]any)
-	out := make([]any, 0, len(values))
-	seen := map[string]bool{}
-	for _, value := range values {
-		id, ok := value.(string)
-		if ok && allowed[id] && !seen[id] {
-			seen[id] = true
-			out = append(out, id)
-		}
-	}
-	return out
-}
-func frameUniqueStrings(value any) []any {
-	values, _ := value.([]any)
-	out := make([]any, 0, len(values))
-	seen := map[string]bool{}
-	for _, value := range values {
-		id, ok := value.(string)
-		if ok && id != "" && !seen[id] {
-			seen[id] = true
-			out = append(out, id)
-		}
-	}
-	return out
 }
 
 func frameRailList(value any, axis string) []any {
@@ -1804,7 +1776,7 @@ func normalizeFrameBars(v any) (map[string]any, []string) {
 		}
 	}
 	baseMenus, sourceMenus, outMenus := frameMap(base["menus"]), frameMap(source["menus"]), frameMap(out["menus"])
-	for _, id := range []string{"quick-settings", "wallpaper", "theme", "weather"} {
+	for _, id := range []string{"wallpaper", "theme", "weather"} {
 		fallback, raw, menu := frameMap(baseMenus[id]), frameMap(sourceMenus[id]), frameMap(outMenus[id])
 		menu["anchor"] = frameAnchor(raw["anchor"], fallback["anchor"].(string))
 		menu["minWidth"] = frameNumber(raw["minWidth"], fallback["minWidth"].(float64), 1, 10000)
@@ -1815,20 +1787,16 @@ func normalizeFrameBars(v any) (map[string]any, []string) {
 			}
 		}
 	}
-	// Modules are catalogued and filtered by the shell. Doctor only guarantees a
-	// unique string list so a future module can be enabled without teaching this
-	// migration layer about every QML component.
-	menuRaw, menuOut := frameMap(sourceMenus["quick-settings"]), frameMap(outMenus["quick-settings"])
-	if modules := frameUniqueStrings(menuRaw["modules"]); len(modules) > 0 {
-		menuOut["modules"] = modules
+	// Keep the retired records long enough for their dedicated reconcilers to
+	// consume them. reconcileSidebarRework removes them later in the same run.
+	if quickSettings, present := sourceMenus["quick-settings"]; present {
+		outMenus["quick-settings"] = quickSettings
 	}
-	baseSurfaces, sourceSurfaces, outSurfaces := frameMap(base["surfaces"]), frameMap(source["surfaces"]), frameMap(out["surfaces"])
-	fallback, raw, surface := frameMap(baseSurfaces["stash"]), frameMap(sourceSurfaces["stash"]), frameMap(outSurfaces["stash"])
-	surface["anchor"] = frameAnchor(raw["anchor"], fallback["anchor"].(string))
-	surface["minWidth"] = frameNumber(raw["minWidth"], fallback["minWidth"].(float64), 1, 10000)
-	if _, present := raw["panes"]; present {
-		allowed := map[string]bool{"stash": true}
-		surface["panes"] = frameStringList(raw["panes"], allowed)
+	sourceSurfaces, outSurfaces := frameMap(source["surfaces"]), frameMap(out["surfaces"])
+	for _, id := range []string{"stash", "system"} {
+		if surface, present := sourceSurfaces[id]; present {
+			outSurfaces[id] = surface
+		}
 	}
 	dockRaw, dockOut := frameMap(source["dock"]), frameMap(out["dock"])
 	if pinned, ok := dockRaw["pinned"].([]any); ok {
@@ -1850,9 +1818,8 @@ func normalizeFrameBars(v any) (map[string]any, []string) {
 
 // retiredShellKeys are shell.json keys no shipped surface reads any more: the
 // Atoll bar geometry and skins, its module/toggle lists, the island knobs, and
-// the sidebar openers that frame surfaces replaced. Frame bars carry all of it
-// now, so a machine upgrading from any older release sheds them here rather
-// than keeping dead state around forever.
+// the retired sidebar controls. Current frame bars and sidebars replace that
+// state, so an upgrade sheds it rather than keeping dead settings forever.
 var retiredShellKeys = []string{
 	"atollVariant", "barEnabled", "barHeight", "barLayoutCentre", "barLayoutLeft",
 	"barLayoutRight", "barOccupiedWorkspaces", "barPosition", "barShowMedia",
@@ -1873,23 +1840,19 @@ func migrateShellConfig(raw []byte) ([]byte, []string, error) {
 		cfg["frameBars"] = defaultFrameBarsFromLegacy(cfg)
 		changes = append(changes, i18n.T("migrated Atoll settings to frame bars"))
 	}
-	if _, left := cfg["sidebarLeftPanes"]; left || cfg["sidebarRightPanes"] != nil || cfg["sidebarWidth"] != nil {
-		frameBars := frameMap(cfg["frameBars"])
-		surfaces := frameMap(frameBars["surfaces"])
-		stash := frameMap(surfaces["stash"])
-		if panes, ok := cfg["sidebarLeftPanes"]; ok {
-			stash["panes"] = panes
+	if _, present := cfg["sidebars"]; !present {
+		cfg["sidebars"] = defaultSidebars()
+		changes = append(changes, i18n.T("seeded sidebar settings"))
+	}
+	retiredSidebarSettings := false
+	for _, key := range []string{"sidebarLeftPanes", "sidebarRightPanes", "sidebarWidth"} {
+		if _, present := cfg[key]; present {
+			delete(cfg, key)
+			retiredSidebarSettings = true
 		}
-		if width, ok := cfg["sidebarWidth"]; ok {
-			stash["minWidth"] = width
-		}
-		surfaces["stash"] = stash
-		frameBars["surfaces"] = surfaces
-		cfg["frameBars"] = frameBars
-		delete(cfg, "sidebarLeftPanes")
-		delete(cfg, "sidebarRightPanes")
-		delete(cfg, "sidebarWidth")
-		changes = append(changes, i18n.T("migrated stash sidebar and retired system sidebar settings"))
+	}
+	if retiredSidebarSettings {
+		changes = append(changes, i18n.T("removed retired sidebar settings"))
 	}
 	normalized, frameChanges := normalizeFrameBars(cfg["frameBars"])
 	cfg["frameBars"] = normalized
@@ -3941,16 +3904,10 @@ func tailLines(s string, n int) string {
 // older ISO, or `ryoku recovery` collides with the package on `pacman -Syu`
 // ("exists in filesystem") and aborts the whole atomic transaction, so no update
 // lands. `ryoku update` now passes --overwrite for these
-// (updater.ryokuOverwriteGlob), but a box already wedged cannot reach that fixed
-// binary; clearing the copies here lets the next update adopt them.
-var ryokuSystemGlobs = []string{
-	"/usr/bin/ryoku-*",
-	"/usr/lib/systemd/system/ryoku-*",
-	"/usr/share/polkit-1/rules.d/*ryoku*.rules",
-	"/usr/share/plymouth/themes/ryoku/*",
-	"/usr/share/ryoku/boot/*",
-	"/etc/systemd/logind.conf.d/10-ryoku-lid.conf",
-}
+// (updater.RyokuOverwriteGlob), but a box already wedged cannot reach that fixed
+// binary; clearing the copies here lets the next update adopt them. The list is
+// the overwrite glob itself, split: one source of truth, no drift.
+var ryokuSystemGlobs = strings.Split(updater.RyokuOverwriteGlob, ",")
 
 // pkgOwnsFile reports whether an installed package owns path. A var so tests stub
 // the probe without a real pacman database.

@@ -1285,19 +1285,23 @@ func TestMigrateShellConfig(t *testing.T) {
 	if left := rails["left"].(map[string]any); !left["enabled"].(bool) {
 		t.Error("legacy settings must seed the left reference rail")
 	}
+	menus := frameBars["menus"].(map[string]any)
+	if _, present := menus["quick-settings"]; present {
+		t.Error("frameBars defaults recreated the retired quick-settings menu")
+	}
 	surfaces := frameBars["surfaces"].(map[string]any)
-	stash := surfaces["stash"].(map[string]any)
-	if stash["anchor"] != "right" {
-		t.Errorf("stash anchor was not normalized: %v", stash["anchor"])
-	}
-	if stash["minWidth"].(float64) != 360 {
-		t.Errorf("stash width was not preserved: %v", stash["minWidth"])
-	}
-	if got := stash["panes"]; !reflect.DeepEqual(got, []any{"stash"}) {
-		t.Errorf("left sidebar panes were not preserved: %v", got)
+	if _, present := surfaces["stash"]; present {
+		t.Error("frameBars defaults recreated the retired stash surface")
 	}
 	if _, present := surfaces["system"]; present {
 		t.Error("retired system sidebar was recreated")
+	}
+	var wantSidebars map[string]any
+	if err := json.Unmarshal([]byte(canonicalSidebarsJSON), &wantSidebars); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cfg["sidebars"], wantSidebars) {
+		t.Errorf("sidebars = %#v, want %#v", cfg["sidebars"], wantSidebars)
 	}
 	for _, key := range []string{"sidebarLeftPanes", "sidebarRightPanes", "sidebarWidth"} {
 		if _, ok := cfg[key]; ok {
@@ -1345,16 +1349,17 @@ func TestMigrateShellConfig(t *testing.T) {
 	if got := left["top"]; !reflect.DeepEqual(got, []any{"clock"}) {
 		t.Errorf("vertical ids were not normalized: %v", got)
 	}
-	menus := frameBars["menus"].(map[string]any)
-	if menus["quick-settings"].(map[string]any)["anchor"] != "left" {
-		t.Errorf("menu anchor was not normalized: %v", menus)
+	menus = frameBars["menus"].(map[string]any)
+	quickSettings := menus["quick-settings"].(map[string]any)
+	if quickSettings["anchor"] != "wrong" {
+		t.Errorf("retired quick-settings record changed before its reconciler ran: %v", quickSettings)
+	}
+	if got := quickSettings["modules"]; !reflect.DeepEqual(got, []any{"media", "future-module", "media"}) {
+		t.Errorf("retired quick-settings modules changed before their reconcilers ran: %v", got)
 	}
 	surfaces = frameBars["surfaces"].(map[string]any)
-	if surfaces["stash"].(map[string]any)["anchor"] != "right" {
-		t.Errorf("surface anchor was not normalized: %v", surfaces)
-	}
-	if got := menus["quick-settings"].(map[string]any)["modules"]; !reflect.DeepEqual(got, []any{"media", "future-module"}) {
-		t.Errorf("quick-settings module configuration was not preserved: %v", got)
+	if got := surfaces["stash"].(map[string]any)["anchor"]; got != "wrong" {
+		t.Errorf("retired stash record changed before its reconciler ran: %v", surfaces)
 	}
 
 	out, changes, err = migrateShellConfig(out)
@@ -1366,10 +1371,9 @@ func TestMigrateShellConfig(t *testing.T) {
 	}
 }
 
-// A store carrying the pre-parity menu shape (the retired `launcher` menu id and
-// a stale quick-settings widget list) converges: the launcher key is dropped and
-// the quick-settings stack resolves to its fixed widget, so the shell re-seeds
-// the reference menus from defaults on the next read.
+// Shell config normalization keeps the retired quick-settings record intact so
+// the capture and stage reconcilers can inspect it later in the same doctor run.
+// Other unknown menu ids still drop out against the live frame-bars catalog.
 func TestMigrateShellConfigConvergesMenus(t *testing.T) {
 	before := []byte(`{
         "frameBars": {
@@ -1395,10 +1399,10 @@ func TestMigrateShellConfigConvergesMenus(t *testing.T) {
 	}
 	qs, ok := menus["quick-settings"].(map[string]any)
 	if !ok {
-		t.Fatalf("quick-settings menu missing after convergence: %v", menus)
+		t.Fatalf("quick-settings menu was removed before its reconcilers ran: %v", menus)
 	}
-	if got := qs["widgets"]; !reflect.DeepEqual(got, []any{"quick-settings"}) {
-		t.Errorf("quick-settings widgets did not converge to the fixed stack: %v", got)
+	if got := qs["widgets"]; !reflect.DeepEqual(got, []any{"clock", "network", "audio-output"}) {
+		t.Errorf("quick-settings widgets changed before their reconcilers ran: %v", got)
 	}
 	if out2, changes2, err := migrateShellConfig(out); err != nil || out2 != nil || changes2 != nil {
 		t.Fatalf("menu convergence must be idempotent: out=%s changes=%v err=%v", out2, changes2, err)

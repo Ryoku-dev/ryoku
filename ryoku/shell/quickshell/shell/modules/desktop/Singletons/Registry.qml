@@ -15,6 +15,11 @@ Singleton {
     id: root
 
     property var plugins: []
+    // Every installed desktop-capable plugin, enabled or not: discover.sh --all
+    // output. The Edit widgets catalogue lists the whole installed set so a
+    // hidden widget can be turned back on from the picker (the bar's
+    // BarPlugins uses the same installed != on idiom).
+    property var allPlugins: []
     property bool ready: false
 
     readonly property string _shellDir: Quickshell.env("RYOKU_SHELL_DIR")
@@ -41,6 +46,8 @@ Singleton {
         onTriggered: {
             discoverProc.running = false;
             discoverProc.running = true;
+            discoverAllProc.running = false;
+            discoverAllProc.running = true;
         }
     }
     function handleRevision(raw) {
@@ -64,6 +71,23 @@ Singleton {
                     root.plugins = [];
                 }
                 root.ready = true;
+            }
+        }
+    }
+
+    // The --all sweep: same discovery, no enabled filter. Failures degrade to
+    // an empty set, never blank the enabled list above.
+    Process {
+        id: discoverAllProc
+        command: ["bash", root._script, "--all"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.allPlugins = JSON.parse(text || "[]");
+                } catch (e) {
+                    root.allPlugins = [];
+                }
             }
         }
     }

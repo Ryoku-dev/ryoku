@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Added
+- `pacstrap`/`aur`/`offline`: **every package-set reader now filters the
+  installer's app/browser removals.** `ryoku_drop_pkg`/`ryoku_drop_from`
+  (`common.sh`) drop `RYOKU_DROP_PACKAGES` from the assembled pacstrap set,
+  the online AUR build, and the offline AUR batch, so an app the user removed
+  at the checklist is never installed.
+- `deploy`: **the drop list is recorded in the doctor's provisioning ledger**
+  (`~/.local/state/ryoku/provisioned`) before first boot, so `ryoku update`
+  reads each removed app as a user removal and honours it.
+- `aur`: **`ryoku_default_browser` now serves the pick, not a constant.** It
+  points the http/https handlers at `RYOKU_BROWSER`'s .desktop when installed
+  and writes the same choice into the desktop's `browser` role, replacing the
+  old "Zen if it landed" rule.
 - `bootloader`: **the install records the kernel it boots**, in
   `/etc/ryoku/default-kernel` (`linux-cachyos` on the CachyOS variant, `linux`
   on plain). On a live box a kernel package the user added later is

@@ -179,7 +179,7 @@ ryoku_offline_aur() {
     return 0
   fi
   local -a want=() have=()
-  mapfile -t want < <(grep -vE '^[[:space:]]*(#|$)' "$aur_file")
+  mapfile -t want < <(ryoku_drop_from < <(grep -vE '^[[:space:]]*(#|$)' "$aur_file"))
   (( ${#want[@]} )) || return 0
   local p
   for p in "${want[@]}"; do

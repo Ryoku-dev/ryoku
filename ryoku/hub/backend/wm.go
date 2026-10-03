@@ -75,7 +75,7 @@ type wmProvider struct {
 }
 
 func wmList() error {
-	active := wm.Detect().Name
+	detection := wm.Detect()
 	out := []wmProvider{}
 	for _, name := range wm.Providers() {
 		p := wmProvider{
@@ -84,7 +84,7 @@ func wmList() error {
 			ConfigDir: wm.ConfigDir(name),
 			Installed: pkgInstalled(wmPackage(name)),
 			Deployed:  wmDeployed(name),
-			Active:    name == active,
+			Active:    detection.Live && name == detection.Name,
 		}
 		// The manifest is present only when the provider binary is, so a box
 		// that has never installed a compositor still lists it as a target.

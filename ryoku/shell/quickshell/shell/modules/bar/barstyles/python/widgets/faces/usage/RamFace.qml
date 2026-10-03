@@ -40,12 +40,10 @@ Item {
         }
     }
 
-    property real wavePhase: 0.0
-    NumberAnimation on wavePhase {
-        from: 0
-        to: Math.PI * 2
+    property real wavePhase: waveClock.phase
+    WaveClock {
+        id: waveClock
         duration: 1800
-        loops: Animation.Infinite
         running: root.visible
     }
 

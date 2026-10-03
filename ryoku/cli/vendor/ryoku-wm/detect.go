@@ -53,6 +53,18 @@ var envProviders = []struct {
 	{"MANGO_INSTANCE_SIGNATURE", ProviderMango, func(h string) []string { return []string{h} }},
 }
 
+// SessionHandles names the environment variables a compositor session carries
+// as its live IPC handle. Consumers that clean or clear the session environment
+// (the login cutover, tests) derive the names here instead of repeating them:
+// the seam owns which handles prove which session.
+func SessionHandles() []string {
+	out := make([]string, 0, len(envProviders))
+	for _, p := range envProviders {
+		out = append(out, p.env)
+	}
+	return out
+}
+
 // Hyprland's socket dir survives the instance that made it, so the path
 // existing is not proof; only a dial is.
 func hyprlandSockets(sig string) []string {

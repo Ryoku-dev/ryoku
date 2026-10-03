@@ -13,7 +13,7 @@ import shell.services
 //
 // Openness is owned by FrameMenuManager (menuOpen), never a private boolean, so
 // a busy anchor's content is replaced by flipping which record is active. The
-// Ryoku-own surfaces (power/voice/keyring/stash/system) are NOT menus; they are
+// Ryoku-owned surfaces (power/voice/keyring/system) are NOT menus; they are
 // hosted by FrameSurface (still a Popout blob this pass), delegated below.
 Item {
     id: root
@@ -22,13 +22,10 @@ Item {
 
     // Set by the FrameMenuManager delegate.
     property var record: null
-    // The live menuState record for this anchor while open (else null), from the
-    // manager. It carries the dynamic open-time fields the static config record
-    // lacks: `off` (voice opened in its inactive state) and `page` (an initial
-    // sidebar page). Derived below and forwarded to the bodies.
+    // The live menuState record carries dynamic fields the static record lacks,
+    // such as `off` for voice opened in its inactive state.
     property var openRecord: null
     readonly property bool recordOff: !!(root.openRecord && root.openRecord.off)
-    readonly property string recordPage: root.openRecord && root.openRecord.page ? root.openRecord.page : ""
     property string anchor: "left"
     property bool menuOpen: false
     property var manager: null
@@ -92,12 +89,8 @@ Item {
     // vertical scroll taking any overflow.
     readonly property real contentH: menuBody.item ? menuBody.item.implicitHeight : 0
 
-    // A sole "always" widget IS the band: MenuColumn hands it the whole height
-    // (avail) and it reports that back as its implicitHeight. Sizing such a menu
-    // to content therefore feeds restH into its own input -- the height settled
-    // wherever the loop happened to break, so one anchor drew a full-height panel
-    // and another a stunted one with the calendar scrolled out of reach. Filling
-    // the band is a definite height, so every anchor resolves the same.
+    // A sole "always" widget fills the band at the fixed side-menu height.
+    // Content-sized menus instead derive their resting height from the column.
     readonly property string expansion: root.record && root.record.expansion ? root.record.expansion : "never"
     readonly property bool fillsBand: root.widgetIds.length === 1 && root.expansion === "always"
 
@@ -197,9 +190,9 @@ Item {
         Loader {
             id: menuBody
             active: root.isMenu && (root.effectiveOpen || root.retainBody)
-            // The band-filling quick-settings body is retained between opens
-            // and incubated before first use. Content-sized menus still load
-            // synchronously because their measured height defines the band.
+            // Band-filling side menus are retained between opens and incubated
+            // before first use. Content-sized menus still load synchronously
+            // because their measured height defines the band.
             asynchronous: root.retainBody
             width: root.restW
             height: root.restH
@@ -229,7 +222,6 @@ Item {
             retain: root.retainBody
             incubate: root.retainBody
             widgets: root.widgetIds
-            initialPage: root.recordPage
             onRequestClose: root.requestClose()
         }
     }
@@ -250,10 +242,8 @@ Item {
             smoothing: root.smoothing
             s: root.s
             active: root.active
-            manager: root.manager
             record: root.record
             off: root.recordOff
-            page: root.recordPage
             anchor: root.anchor
             menuOpen: root.menuOpen
             triggerAlong: root.triggerAlong

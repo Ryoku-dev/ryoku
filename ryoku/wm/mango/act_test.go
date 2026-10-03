@@ -57,6 +57,36 @@ func TestActEmitsMangoDispatchers(t *testing.T) {
 	}
 }
 
+// A reload with no live session is a successful no-op: apply has already
+// written the tree the next login reads, and the seam's contract (niri's
+// watcher owns the same step) is that the file swap lands without a
+// compositor. Erroring here would report a saved change as failed, so the
+// behaviour is pinned, not incidental.
+func TestActReloadWithoutSessionIsNoOp(t *testing.T) {
+	prevLive, prevRequest := aliveCheck, request
+	aliveCheck = func(string) bool { return false }
+	called := false
+	request = func(string) (json.RawMessage, error) {
+		called = true
+		return nil, nil
+	}
+	t.Cleanup(func() { aliveCheck, request = prevLive, prevRequest })
+	t.Setenv("MANGO_INSTANCE_SIGNATURE", "")
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	if err := runAct([]string{"config.reload"}); err != nil {
+		t.Fatalf("reload with no session: %v", err)
+	}
+	if called {
+		t.Fatal("reload dispatched without a live session")
+	}
+	// The no-op is scoped to the file-driven reload; every other action
+	// still demands a live session.
+	if err := runAct([]string{"window.close", "7"}); err == nil ||
+		!strings.Contains(err.Error(), "no live mango session") {
+		t.Fatalf("window.close without a session: %v", err)
+	}
+}
+
 // Output power addresses one named connector or every one when unnamed: mango
 // sleeps a single output per call, unlike niri's global switch.
 func TestActOutputPowerFansOut(t *testing.T) {

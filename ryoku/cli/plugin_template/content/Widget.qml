@@ -1,11 +1,12 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import Ryoku.PluginKit.Singletons
 
-// content/Widget.qml is the one view the host mounts (on the bar, this is the
-// glyph). It reads live state from the service (pluginApi.mainInstance) and its
-// only click action toggles the plugin's panel: a widget click NEVER mutates
-// anything. The host sets pluginApi, density, s, widthBudget and active; read
-// them, never assign.
+// content/Widget.qml is the one view every host mounts (on the bar, this is the
+// glyph). It reads live state from the service through pluginApi.mainInstance.
+// The sidebar host sets open, reveal, tabActive, width, s and pluginApi; other
+// hosts set active, density and widthBudget as well. Read host values, never
+// assign them.
 Item {
     id: root
 
@@ -15,6 +16,10 @@ Item {
     property string density: "glyph"
     property real s: 1
     property real widthBudget: 0
+    property bool open: false
+    property real reveal: 0
+    property bool tabActive: false
+    signal requestClose()
 
     readonly property var service: pluginApi ? pluginApi.mainInstance : null
     readonly property int count: service ? service.count : 0
@@ -32,7 +37,7 @@ Item {
         Text {
             anchors.verticalCenter: parent.verticalCenter
             text: "\u25C6"
-            color: root.active ? Theme.accent : Theme.dim
+            color: (root.active || root.open) ? Theme.accent : Theme.dim
             font.family: Theme.mono
             font.pixelSize: 13 * root.s
         }
@@ -51,6 +56,13 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        onClicked: if (root.pluginApi) root.pluginApi.togglePanel()
+        onClicked: {
+            if (!root.pluginApi)
+                return;
+            if (root.open)
+                root.requestClose();
+            else if (root.pluginApi.togglePanel)
+                root.pluginApi.togglePanel();
+        }
     }
 }

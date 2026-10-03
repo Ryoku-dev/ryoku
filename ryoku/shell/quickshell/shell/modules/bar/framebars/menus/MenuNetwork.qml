@@ -38,23 +38,10 @@ Item {
 
     implicitHeight: row.implicitHeight
 
-    // Detail-page mode: hosted as a sidebar page, the list arrives already
-    // revealed and the scan starts as if the drawer had been clicked.
-    property bool pageMode: false
-    function forceReveal() {
-        if (!row.revealed) {
-            row.revealed = true;
-            root.scanning = true;
-            Network.refresh();
-            scanClear.restart();
-        }
-    }
     onOpenChanged: {
         Network.setVpnPolling(root, root.open);
         if (!root.open)
             row.revealed = false;
-        else if (root.pageMode)
-            root.forceReveal();
     }
     Component.onDestruction: Network.setVpnPolling(root, false)
 

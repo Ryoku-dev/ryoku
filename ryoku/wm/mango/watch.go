@@ -284,7 +284,11 @@ func (s *session) outputFrames(full bool) []wm.Output {
 }
 
 func (s *session) workspaceFrames() []wm.Workspace {
-	out := []wm.Workspace{}
+	size := len(s.monitors)
+	for _, m := range s.monitors {
+		size += len(m.Tags)
+	}
+	out := make([]wm.Workspace, 0, size)
 	for _, m := range s.monitors {
 		for _, t := range m.Tags {
 			out = append(out, wm.Workspace{
@@ -296,6 +300,7 @@ func (s *session) workspaceFrames() []wm.Workspace {
 				Layout:  s.layoutName(t.Layout),
 			})
 		}
+		out = append(out, specialWorkspaceFrame(m, s.clients, s.layoutName(m.LayoutSymbol)))
 	}
 	return out
 }

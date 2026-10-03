@@ -38,6 +38,8 @@ func cmdPluginNew(args []string) error {
 			host, hostFlags = "desktopWidget", hostFlags+1
 		case a == "--popout":
 			host, hostFlags = "framePopout", hostFlags+1
+		case a == "--sidebar":
+			host, hostFlags = "sidebarCard", hostFlags+1
 		case a == "--name":
 			i++
 			if i >= len(args) {
@@ -72,10 +74,10 @@ func cmdPluginNew(args []string) error {
 		}
 	}
 	if id == "" {
-		return fmt.Errorf(i18n.T("usage: ryoku plugin new <id> [--bar|--desktop|--popout] [--name N] [--author \"N <m>\"] [--to <dir>]"))
+		return fmt.Errorf(i18n.T("usage: ryoku plugin new <id> [--bar|--desktop|--popout|--sidebar] [--name N] [--author \"N <m>\"] [--to <dir>]"))
 	}
 	if hostFlags > 1 {
-		return fmt.Errorf(i18n.T("choose one of --bar, --desktop, --popout"))
+		return fmt.Errorf(i18n.T("choose one of --bar, --desktop, --popout, --sidebar"))
 	}
 	if host == "" {
 		host = "topbarGlyph" // default --bar
@@ -227,6 +229,13 @@ func writeManifest(dir, id, name, author, host string, bar bool) error {
 			{Key: "showCount", Type: "toggle", Label: "Show the tick count", Group: name, Default: true},
 		}},
 	}
+	if host == "sidebarCard" {
+		m.Defaults["sidebar"] = map[string]any{
+			"side":  "left",
+			"tab":   "Plugins",
+			"order": 10,
+		}
+	}
 	if bar {
 		m.EntryPoints.Panel = "content/Panel.qml"
 		m.Panel = &panelSpec{Width: 320}
@@ -245,6 +254,8 @@ func densitiesFor(host string) []string {
 		return []string{"glyph", "compact"}
 	case "desktopWidget":
 		return []string{"compact", "full"}
+	case "sidebarCard":
+		return []string{"compact"}
 	default:
 		return []string{"compact"}
 	}

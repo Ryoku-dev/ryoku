@@ -122,7 +122,7 @@ Item {
         onClicked: {
             tip.hide()
             if (Config.launcherTarget === "quick")
-                ShellState.requestSurfaceActive("quick-settings", undefined)
+                ShellState.requestSurfaceActive("sidebar-left", undefined)
             else
                 root.controlVisible = !root.controlVisible
         }

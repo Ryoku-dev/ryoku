@@ -1,17 +1,22 @@
 # {{NAME}}
 
-A Ryoku shell plugin (`{{ID}}`). This scaffold is a working demo: a counter that
-ticks once a second, a mark on the bar, and a panel with a RESET button. Edit it
-into your own widget.
+A Ryoku shell plugin (`{{ID}}`) scaffolded for the `{{HOST}}` host. The working
+demo is a counter that ticks once a second; edit it into your own plugin.
 
 ## What it does
 
 - **Service** (`service/Main.qml`): the logic, no UI. Holds the live state the
-  views read through `pluginApi.mainInstance`.
-- **Widget** (`content/Widget.qml`): the one view the host mounts. A left click
-  toggles the panel; it never changes state.
-- **Panel** (`content/Panel.qml`): the bar panel the host renders under the
-  glyph when this plugin is on the bar.
+  view reads through `pluginApi.mainInstance`.
+- **Widget** (`content/Widget.qml`): the one view every host mounts.
+- **Panel** (`content/Panel.qml`): present only in a `--bar` scaffold; the bar
+  opens it beneath the glyph.
+
+Ryoku ships four hosts: `topbarGlyph`, `desktopWidget`, `framePopout`, and
+`sidebarCard`. A sidebar card still uses `content/Widget.qml` plus
+`service/Main.qml`; it does not have a separate sidebar entry point. Its root
+`Item` exposes `s`, `open`, `reveal`, `tabActive`, `pluginApi`, and
+`requestClose()`. Ryoku owns its `width`, and the item reports only its
+`implicitHeight`.
 
 ## What it reads and writes
 
@@ -40,11 +45,11 @@ store shows it in the catalogue.
 
 ```
 ryoku plugin validate .
-ryoku plugin add . --bar --yes
+ryoku plugin add . --yes
 ```
 
-It lists under **Community** in QS Bar Settings. Publish it only when you want
-to share it: `ryoku plugin share {{ID}}`.
+Enable and place it under **Ryoku Settings > Add-ons**. A bar plugin can instead
+use `ryoku plugin add . --bar --yes` to enable it on the current bar immediately.
 
 ## Author
 

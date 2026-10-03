@@ -83,9 +83,12 @@ Item {
     property var smoothLevels: []
     property real totalEnergy: 0.0
 
+    // The smoothing loop only earns its keep while there is signal (or its
+    // decay is still settling); on silence it would repaint a flat wave at
+    // 60 Hz forever.
     Timer {
         interval: 16
-        running: root.isVisVisible
+        running: root.isVisVisible && (Cava.isPlaying || root.totalEnergy > 0.002)
         repeat: true
         onTriggered: {
             let targets = root.processedBars;

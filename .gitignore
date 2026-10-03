@@ -18,6 +18,7 @@
 /ryoku/apps/ryovm/mon/ryovm-mon
 /ryoku/apps/ryostore/backend/ryostore
 /ryoku/shell/plugin/build/
+/ryoku/shell/sidebarfx/build/
 /ryoku/shell/ryogami/picker/build/
 /ryoku/shell/plugin/dist/
 /release/repo/out/

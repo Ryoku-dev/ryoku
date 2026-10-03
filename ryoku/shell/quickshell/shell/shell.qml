@@ -19,6 +19,7 @@ import "modules/wallpaper/Singletons" as WallCfg
 import "modules/desktop"
 import "modules/visualizer"
 import "modules/bar"
+import "modules/sidebar"
 import "modules/dock"
 import "modules/launcher"
 import "modules/overview"
@@ -242,6 +243,17 @@ ShellRoot {
                 dockLaneEdge: dockLoader.item ? dockLoader.item.edge : ""
                 dockLaneSize: dockLoader.item ? dockLoader.item.bandSize : 0
                 dockLaneCenter: dockLoader.item ? dockLoader.item.bandCenter : 0
+            }
+
+            Sidebar {
+                screen: perScreen.modelData
+                side: "left"
+                visible: Config.sidebars.left.enabled
+            }
+            Sidebar {
+                screen: perScreen.modelData
+                side: "right"
+                visible: Config.sidebars.right.enabled
             }
 
             // The dock: a resident per-monitor surface on the edge opposite the
@@ -474,10 +486,9 @@ ShellRoot {
 
     // The single surface-toggle mapping. Every shell surface id resolves to one
     // transition here: a per-monitor ShellState flip, a global config toggle, or
-    // a request onto the frame menu bus. Both routes to a surface end in this one
-    // call -- a CustomShortcut press where the compositor bridges global
-    // shortcuts, and the surfaceRequested bus a `ryoku-shell <id>` spawn drives
-    // where that protocol is absent (niri) -- so a toggle is defined once.
+    // a request onto the shared surface bus. A CustomShortcut press and the
+    // `ryoku-shell <id>` fallback both end at the same transition, whether the
+    // surface is hosted by the frame or by a sidebar.
     function toggleSurface(id) {
         const st = ShellState.forActive();
         switch (id) {
@@ -507,7 +518,7 @@ ShellRoot {
                 root.placeVisualizer(!st.visualizerPlacing);
             break;
         case "quicksettings":
-            ShellState.requestSurfaceActive("quick-settings", undefined);
+            ShellState.requestSurfaceActive("sidebar-left", undefined);
             break;
         case "wallpaper-menu":
             ShellState.requestSurfaceActive("wallpaper", undefined);
@@ -517,27 +528,24 @@ ShellRoot {
                 st.clipboardOpen = !st.clipboardOpen;
             break;
         case "stash":
-            ShellState.requestSurfaceActive("stash", undefined);
+            ShellState.requestSurfaceActive("sidebar-right", undefined);
             break;
         case "screenshot":
-            ShellState.requestSurfaceActive("quick-settings#capture", undefined);
+            ShellState.requestSurfaceActive("sidebar-left#capture", undefined);
             break;
         case "compress":
-            ShellState.requestSurfaceActive("stash#compress", undefined);
+            ShellState.requestSurfaceActive("sidebar-right#compress", undefined);
             break;
         case "install":
-            ShellState.requestSurfaceActive("stash#install", undefined);
+            ShellState.requestSurfaceActive("sidebar-right#install", undefined);
             break;
         }
     }
 
-    // The style-independent half of the surface bus. With no global-shortcuts
-    // protocol a keybind reaches a surface only by spawning `ryoku-shell <id>`,
-    // which arrives here as a surfaceRequested. Frame-menu surfaces are opened by
-    // the per-monitor FrameMenuManager (Frame.qml), which maps in every bar
-    // style; the shell-wide flag surfaces have no such host, so this routes them
-    // through the same toggleSurface a shortcut press uses. Frame-menu ids never
-    // match here, so a surface still opens exactly once.
+    // With no global-shortcuts protocol a keybind reaches the shell by spawning
+    // `ryoku-shell <id>`. Shell-wide flag surfaces are handled here; frame menus
+    // and sidebars consume the same surfaceRequested bus in their per-monitor
+    // hosts, so each request still has exactly one owner.
     Connections {
         target: ShellState
         function onSurfaceRequested(id, mon, ctx) {
@@ -846,12 +854,11 @@ ShellRoot {
         }
         function toggle(): void { Keypresses.toggle(); }
     }
-    // Menu global shortcuts: open a bar surface on the focused monitor. Each
-    // dispatches to the one toggleSurface mapping so the compositor bind and the
-    // `ryoku-shell <id>` spawn open the identical surface.
+    // Surface global shortcuts dispatch through the mapping above so compositor
+    // global shortcuts and the `ryoku-shell <id>` fallback behave identically.
     CustomShortcut {
         name: "quicksettings"
-        description: I18n.tr("Open quick settings on the active monitor")
+        description: I18n.tr("Open the left sidebar on the active monitor")
         onPressed: root.toggleSurface("quicksettings")
     }
     CustomShortcut {
@@ -866,22 +873,22 @@ ShellRoot {
     }
     CustomShortcut {
         name: "stash"
-        description: I18n.tr("Open the feature sidebar on the active monitor")
+        description: I18n.tr("Open the right sidebar on the active monitor")
         onPressed: root.toggleSurface("stash")
     }
     CustomShortcut {
         name: "screenshot"
-        description: I18n.tr("Open the capture tab in quick settings on the active monitor")
+        description: I18n.tr("Open the capture tab in the left sidebar")
         onPressed: root.toggleSurface("screenshot")
     }
     CustomShortcut {
         name: "compress"
-        description: I18n.tr("Open the feature sidebar's file picker to compress media")
+        description: I18n.tr("Open the right sidebar's file picker to compress media")
         onPressed: root.toggleSurface("compress")
     }
     CustomShortcut {
         name: "install"
-        description: I18n.tr("Open the feature sidebar's file picker to install a package")
+        description: I18n.tr("Open the right sidebar's file picker to install a package")
         onPressed: root.toggleSurface("install")
     }
 

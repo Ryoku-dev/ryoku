@@ -23,7 +23,7 @@ import (
 
 // knownHosts is the set a manifest may declare (docs/plugins.md). A manifest
 // naming any other host is rejected.
-var knownHosts = map[string]bool{"framePopout": true, "desktopWidget": true, "topbarGlyph": true}
+var knownHosts = map[string]bool{"framePopout": true, "desktopWidget": true, "topbarGlyph": true, "sidebarCard": true}
 
 // pluginIDRe is the id grammar the shell's discover.sh enforces: lowercase
 // alphanumerics and dashes, not starting with a dash.
@@ -84,7 +84,7 @@ func cmdPlugin(args []string) error {
 }
 
 func pluginUsage() error {
-	fmt.Print(i18n.T("Usage: ryoku plugin <command>\n\n  new <id> [--bar|--desktop|--popout] [--name N] [--author \"N <m>\"] [--to <dir>]\n                                     scaffold a new plugin folder and git-init it\n                                     (--bar is the default host; adds a panel)\n  add <git-url|dir> [--bar] [--yes] [--allow-findings]\n                                     fetch, validate, audit, and install a plugin;\n                                     --bar puts it on the QS Bar;\n                                     --allow-findings installs despite blocking audit findings\n  remove <id>                        uninstall a plugin and drop its placement\n  list [--json]                      installed plugins (--json adds capabilities)\n  validate <dir> [--json] [--allow <rule>,...]\n                                     check a local plugin's manifest and run the\n                                     static security audit; --allow downgrades a\n                                     blocking rule to a warning for this run\n  export <id> [--to <dir>]           copy an installed plugin out as a Ryostore\n                                     folder (product manifest + registry entry)\n  share <id> [--from <dir>]          export, then open the Ryostore pull request\n                                     (or the submission form without gh)\n"))
+	fmt.Print(i18n.T("Usage: ryoku plugin <command>\n\n  new <id> [--bar|--desktop|--popout|--sidebar] [--name N] [--author \"N <m>\"] [--to <dir>]\n                                     scaffold a new plugin folder and git-init it\n                                     (--bar is the default host; adds a panel)\n  add <git-url|dir> [--bar] [--yes] [--allow-findings]\n                                     fetch, validate, audit, and install a plugin;\n                                     --bar puts it on the QS Bar;\n                                     --allow-findings installs despite blocking audit findings\n  remove <id>                        uninstall a plugin and drop its placement\n  list [--json]                      installed plugins (--json adds capabilities)\n  validate <dir> [--allow <rule,..>] validate manifest and run the R1-R11 audit\n  export <id> [--to <path>]          write a deterministic .tar.gz\n  share <id>                         export and open the Ryostore PR flow\n"))
 	return nil
 }
 
@@ -182,7 +182,7 @@ func validateManifest(dir string, reserved map[string]bool) (manifest, error) {
 	}
 	for _, h := range rm.Hosts {
 		if !knownHosts[h] {
-			return manifest{}, fmt.Errorf(i18n.T("unknown host %q (allowed: framePopout, desktopWidget, topbarGlyph)"), h)
+			return manifest{}, fmt.Errorf(i18n.T("unknown host %q (allowed: framePopout, desktopWidget, topbarGlyph, sidebarCard)"), h)
 		}
 	}
 	for label, p := range map[string]string{"entryPoints.main": rm.EntryPoints.Main, "entryPoints.content": rm.EntryPoints.Content} {

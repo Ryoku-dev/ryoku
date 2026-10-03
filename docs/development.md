@@ -119,10 +119,11 @@ every supported install has run it, so the set stays small instead of piling up.
 ## Binaries and package managers
 
 - The desktop ships as signed pacman packages from the `[ryoku]` repo
-  (`release/packages/`): `ryoku-shell`, `ryoku-hub`, `ryoku`, and `ryoku-blobs`
-  build from source via their PKGBUILDs. The live ISO still prebuilds the
-  installer TUI (`installation/iso/build.sh`); the installed desktop's binaries
-  come from the repo, so never assume `go` at install time.
+  (`release/packages/`): `ryoku-shell`, `ryoku-hub`, `ryoku`,
+  `ryoku-blobs`, and `ryoku-sidebarfx` build from source via their PKGBUILDs.
+  The live ISO still prebuilds the installer TUI (`installation/iso/build.sh`);
+  the installed desktop's binaries come from the repo, so never assume `go` at
+  install time.
 - AUR packages install in the post-install step (`installation/backend/lib/
   aur.sh`), not via pacstrap.
 - User-level package managers install without root, into `~/.local/bin` (`npm`,

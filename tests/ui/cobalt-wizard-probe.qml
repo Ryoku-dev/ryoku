@@ -1,10 +1,10 @@
 import QtQuick
 import Quickshell
 import shell.services
-import "modules/bar/panel" as BarPanel
+import "modules/sidebar/cards" as SidebarCards
 
-// The Cobalt setup wizard renders Stash's setup state and nothing else, so this
-// drives that state machine through a first run and asserts what the modal
+// The Cobalt setup overlay renders Stash's setup state and nothing else, so this
+// drives that state machine through a first run and asserts what the card
 // actually shows: one row per step with the right glyph, the failing step's own
 // message, and buttons that match the run (Start setup when idle, Retry only
 // after a failure, never a Close that could abandon a privileged step mid-flight).
@@ -40,7 +40,7 @@ ShellRoot {
         width: 420
         height: 420
 
-        BarPanel.CobaltSetupWizard {
+        SidebarCards.CobaltSetupOverlay {
             id: wiz
             anchors.fill: parent
             s: 1
@@ -49,10 +49,10 @@ ShellRoot {
     }
 
     Component.onCompleted: {
-        // ---- idle: five steps, all pending, Start setup offered -------------
+        // ---- idle: four steps, all pending, Start setup offered -------------
         Stash.setupReset();
         var rows = root.stepRows(stage);
-        root.check("step rows rendered", 5, rows.length);
+        root.check("step rows rendered", 4, rows.length);
         root.check("setupState idle", "idle", Stash.setupState);
         var allPending = true;
         for (var i = 0; i < rows.length; i++)

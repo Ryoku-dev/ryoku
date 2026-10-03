@@ -61,23 +61,27 @@ truth for the live desktop.
   runs in-process in a single `qs -c shell` instance under `shell/`, drawn per
   monitor from one scene (`shell.qml`): `modules/` is one directory per surface
   (`bar` the four-edge frame bars with the bounded menu manager, rail status
-  popout cards (`bar/popouts/`), the Super+Escape control sidebar and pluggable
-  bar styles (`bar/barstyles/`, see `docs/barstyles.md`); then `dock` the app
-  dock on the edge opposite the bar (its own surface, shared by every bar style),
-  `launcher`, `overview` (Super+Tab), `wallpaper`,
-  `visualizer` (a click-through spectrum layer that renders through the shared
-  `Ryoku.Ui` spectrum field, keeping only its per-frame band math in its own
-  `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and `desktop` the
-  wallpaper clock and enabled third-party widgets); `services/` holds the shared
-  singletons every surface reads, `components/` the shared UI primitives, and
-  `utils/` the shared JS. Beside it are `ryoshot`, `welcome` (the first-run
+  popout cards (`bar/popouts/`), and pluggable bar styles (`bar/barstyles/`, see
+  `docs/barstyles.md`); `sidebar` the paired global push-aside panels, their
+  built-in card catalogue, shared card shell, and `sidebarCard` plugin host (see
+  `docs/sidebars.md`); `dock` the app dock on the edge opposite the bar (its own
+  surface, shared by every bar style), `launcher`, `overview` (Super+Tab),
+  `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
+  the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
+  its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and
+  `desktop` the wallpaper clock and enabled third-party widgets); `services/`
+  holds the shared singletons every surface reads, `components/` the shared UI
+  primitives, and `utils/` the shared JS. Beside it are `ryoshot`, `welcome`
+  (the first-run
   guided tour), and `plugins` (the third-party shell plugin runtime:
   `discover.sh` merges the catalogue with the user's `plugins.json`, the widget
   host carries desktop placements, and `kit/` is the `Ryoku.PluginKit` QML module
   a plugin imports for the signature look; see `docs/plugins.md`)),
   `plugin/` (`Ryoku.Blobs`, the C++/QML SDF metaball module the frame renders
-  with; `build.sh` builds it, and it ships prebuilt), `matugen/` (palette
-  templates rendered on every wallpaper change), `qt6ct/` (the Qt icon theme, `qt6ct.conf`),
+  with; `build.sh` builds it, and it ships prebuilt), `sidebarfx/`
+  (`Ryoku.SidebarFx`, the C++/QML depth edge drawn by the push-aside sidebars),
+  `matugen/` (palette templates rendered on every wallpaper change), `qt6ct/`
+  (the Qt icon theme, `qt6ct.conf`),
   `scripts/` (the neutral leaf helpers the UI drives by bare name: the
   `ryoku-cmd-*` screen and recorder tools, `ryoku-sysinfo`/`ryoku-profile-stats`,
   `ryoku-app`, `ryostage`, and the stash `.sh` helpers, shipped with the shell so
@@ -199,8 +203,8 @@ System-level definition installed into the target.
 - The desktop ships as signed pacman packages from the `[ryoku]` repository
   (`release/packages/`). `ryoku-desktop` is the umbrella: it version-pins the
   monorepo components (`ryoku-shell`, `ryoku-hub`, `ryoku-rashin`, `ryoku-blobs`,
-  `ryoku`, and the Hyprland plugins `hypr-dynamic-cursors`, `ryoku-hypr-plugins`,
-  `hyprglass`, `imgborders`, `ryoku-keysounds`) and also depends on
+  `ryoku-sidebarfx`, `ryoku`, and the Hyprland plugins `hypr-dynamic-cursors`,
+  `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `ryoku-keysounds`) and also depends on
   `ryoku-keyring` and the `gpk` package manager, and lays the base config under
   `/usr/share/ryoku/config`.
 - The installer adds the `[ryoku]` repo, imports the keyring, and installs
@@ -229,9 +233,9 @@ raw.githubusercontent.com serves them with no release infrastructure.
 ## `release/` packaging
 
 - `packages/` one directory per pacman package in the `[ryoku]` repo, each a
-  `PKGBUILD`. 30 in all, in four groups by why they exist:
+  `PKGBUILD`. 40 in all, in four groups by why they exist:
   - built from the checked-out monorepo: the components (`ryoku-shell`,
-    `ryoku-hub`, `ryoku-rashin`, `ryoku`, `ryoku-blobs`,
+    `ryoku-hub`, `ryoku-rashin`, `ryoku`, `ryoku-blobs`, `ryoku-sidebarfx`,
     `ryotunes`, `ryogami` the wallpaper daemon), the `ryoku-desktop` umbrella,
     `ryoku-keyring`, and the `gpk` package manager.
   - Hyprland plugins: `hypr-dynamic-cursors`, `ryoku-hypr-plugins`, `hyprglass`,

@@ -69,13 +69,17 @@ firewall_present() {
 
 lock_transitions() {
     require flock
-    install -d -m 700 "$(dirname "$state")"
+    # /var/lib/ryoku is shared state: tmpfiles owns its mode (0755) because
+    # the boot-ok files and the greeter connector are written through it by
+    # unprivileged sessions. install -d would chmod an existing directory, so
+    # the mode here must match the contract, never a private 700.
+    install -d -m 755 "$(dirname "$state")"
     exec 9>"${state}.lock"
     flock -x 9
 }
 
 persist() {
-    install -d -m 700 "$(dirname "$state")"
+    install -d -m 755 "$(dirname "$state")"
     umask 077
     : >"$state"
 }

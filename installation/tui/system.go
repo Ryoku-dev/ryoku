@@ -1102,6 +1102,22 @@ func (m model) installEnv() []string {
 	comp := m.picks["compositor"]
 	env = append(env, "RYOKU_COMPOSITOR="+comp, "RYOKU_COMPOSITOR_CONFIG_DIR="+wm.ConfigDir(comp),
 		"RYOKU_COMPOSITOR_GPU_PIN="+wm.GpuPinFile(comp))
+	// The browser and app choices reach the backend as one drop list: every
+	// package the picker removed, plus the two browsers that lost. The backend
+	// filters these out of the pacstrap/AUR sets, skips them in the desktop
+	// seed, and points the desktop's browser role at RYOKU_BROWSER.
+	br := def(m.picks["browser"], "zen")
+	var drop []string
+	drop = append(drop, deselectedPkgs(m.selectedApps())...)
+	for _, b := range browserPackages() {
+		if b != br && !(br == "zen" && b == "zen-browser-bin") {
+			drop = append(drop, b)
+		}
+	}
+	env = append(env, "RYOKU_BROWSER="+br)
+	if len(drop) > 0 {
+		env = append(env, "RYOKU_DROP_PACKAGES="+strings.Join(drop, ","))
+	}
 	if m.picks["gpu"] != "" {
 		env = append(env, "RYOKU_GPU_MODE="+m.picks["gpu"])
 	}

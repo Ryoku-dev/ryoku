@@ -2,15 +2,6 @@ package main
 
 import "testing"
 
-func flowIndex(flow []step, key string) int {
-	for i, s := range flow {
-		if s.key == key {
-			return i
-		}
-	}
-	return -1
-}
-
 // esc must walk back out of the text steps (hostname, username). They set the
 // `typing` flag, which used to skip the global esc->back and left them as
 // one-way dead ends even though the footer advertised "esc back".

@@ -27,6 +27,7 @@ ryoku_deploy() {
   ryoku_deploy_chown "$u"        # the store seed creates ~/.config as root; hand
                                  # it to the user before materialize writes in it
   ryoku_deploy_materialize "$u"  # `ryoku materialize` as the user
+  ryoku_seed_provisioned "$u"    # tell the doctor the dropped apps are the user's call
   ryoku_deploy_seed "$h"         # unpackaged: brand, wallpapers, ~/.npmrc
   ryoku_deploy_chown "$u"        # own root-seeded files before the user steps
   ryoku_deploy_qylock            # qylock writes user files as the now-owning user
@@ -305,6 +306,32 @@ ryoku_deploy_seed() {
   # livewalls so a user can see and swap it. `ryoku doctor` keeps it current.
   deploy_dir "$RYOKU_REPO/ryoku/assets/ryodecors" "$h/Pictures/ryodecors"
   deploy_file "$RYOKU_REPO/ryoku/apps/npm/npmrc" "$h/.npmrc"
+}
+
+# seed_provisioned: the installer's drop list is recorded in the doctor's
+# provisioning ledger (~/.local/state/ryoku/provisioned) BEFORE the user ever
+# logs in. The ledger's rule is "a recorded name that is now missing means the
+# user removed it, so nothing puts it back" -- writing the dropped packages
+# into it is how the installer's answer survives `ryoku update`: the
+# deliver-once reconciler (reconcileShippedApps) sees them as user-removed and
+# honours it, instead of reinstalling on first boot. The later chown pass owns
+# the file. No drops -> no write.
+ryoku_seed_provisioned() {
+  local u=$1
+  local ledger="/mnt/home/$u/.local/state/ryoku/provisioned" p
+  [[ -n ${RYOKU_DROP_PACKAGES:-} ]] || return 0
+  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
+    log "DRYRUN: seed $ledger with the dropped packages (${RYOKU_DROP_PACKAGES//,/ })"
+    return 0
+  fi
+  mkdir -p "$(dirname "$ledger")" || return 0
+  local -a seen=()
+  [[ -f $ledger ]] && mapfile -t seen < "$ledger"
+  for p in ${RYOKU_DROP_PACKAGES//,/ }; do
+    [[ " ${seen[*]-} " == *" $p "* ]] && continue
+    printf '%s\n' "$p" >>"$ledger"
+  done
+  log 'recorded the dropped apps in the provisioning ledger (ryoku doctor will not reinstall them)'
 }
 
 # qylock: install the lockscreen bundle + the SDDM clockwork theme. not yet

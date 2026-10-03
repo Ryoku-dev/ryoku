@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Added
+- **The installer's browser and app choices are honored here.** `RYOKU_BROWSER`
+  (zen|chromium|firefox, default zen) names the one browser to install: the
+  other two are filtered out of the package sets, and once the set lands xdg
+  plus the desktop's `browser` role (`~/.config/ryoku/desktop.json`) point at
+  the pick. `RYOKU_DROP_PACKAGES` (comma-separated names the apps checklist
+  removed) is filtered at every transaction that consumes a package list: the
+  assembled pacstrap set, the online AUR build, and the offline AUR batch.
+  `ryoku_deploy` also records the drop list in the doctor's provisioning
+  ledger before first boot, so `ryoku update` reads each removed app as a
+  user removal and leaves it deleted; an unknown `RYOKU_BROWSER` value is a
+  fatal validation error (`ryoku-install`, `lib/{common,pacstrap,aur,offline,deploy}.sh`).
 - **A fresh install gets Ryoku's pacman progress bar.** `ryoku_pacman_tuning`
   now also sets `ILoveCandy` in the install-time `pacman.conf` alongside
   `ParallelDownloads` and `DisableDownloadTimeout`, so pacman draws the Pac-Man

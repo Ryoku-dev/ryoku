@@ -3,9 +3,9 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import shell.services
 
-// The shared surface tile every quick-settings row, device entry and action
-// tile is built from: the reference `.ok-button-surface` and its size/state
-// variants (contract 16 sec 2.2/2.6). A rounded surface fill that shifts to an
+// The shared surface tile used by device entries and action rows: the reference
+// `.ok-button-surface` and its size/state variants (contract 16 sec 2.2/2.6).
+// A rounded surface fill that shifts to an
 // 8% on-surface hover overlay, to the primary accent when `selected`, and dims
 // its content to 38% when disabled unless `keepEnabledLook` holds it (the
 // reference `.ok-button-no-disabled`).

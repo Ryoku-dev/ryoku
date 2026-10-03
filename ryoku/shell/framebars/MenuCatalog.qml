@@ -13,7 +13,4 @@ QtObject {
     function surface(id) { return Lib.surface(id); }
     function quickAction(id) { return Lib.quickAction(id); }
     function quickActionIds() { return Lib.quickActionIds(); }
-    function quickSettingsModuleIds() { return Lib.quickSettingsModuleIds(); }
-    function quickSettingsModule(id) { return Lib.quickSettingsModule(id); }
-    function defaultQuickSettingsModules() { return Lib.defaultQuickSettingsModules(); }
 }

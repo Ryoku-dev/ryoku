@@ -37,7 +37,7 @@ Singleton {
     property var configFiles: []
     property string provider: ""
     property var windows: []
-    function supports(cap) { return !cap || root.caps[cap] !== false; }
+    function supports(cap) { return !cap || root.caps[cap] === true; }
     // A schema row's key names a provider store leaf. When some installed
     // provider models it but the active one does not, nothing writes it, so the
     // row is dropped; a keyless row, or a leaf no provider models (Hub-owned),

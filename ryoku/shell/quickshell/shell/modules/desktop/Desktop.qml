@@ -86,10 +86,19 @@ Scope {
         if (root.stageComposing)
             root._snapshot();
     }
-    // Human titles for the built-in widgets, for the frame labels.
+    // Human titles for every framed widget: the built-ins by name, then the
+    // hosted rosters' own labels, so a frame never reads "irisClock".
     function widgetTitle(w) {
-        const n = { clock: "Clock", calendar: "Calendar", music: "Music", aio: "All-in-one", stats: "System stats", weather: "Weather", notes: "Notes" };
-        return n[w] || w;
+        const n = { clock: "Clock", calendar: "Calendar", music: "Music", aio: "All-in-one", stats: "System stats", weather: "Weather", notes: "Notes", dayprogress: "Day Progress", shape: "Shape" };
+        if (n[w])
+            return n[w];
+        const iris = IrisRoster.byPrefix(w);
+        if (iris)
+            return iris.label;
+        const py = PythonRoster.byPrefix(w);
+        if (py)
+            return py.label;
+        return w;
     }
     // The Add drop-down's model (docs/stage.md, "Edit widgets"): every widget
     // with its current on/off state and the group it belongs to. The built-ins
@@ -117,11 +126,19 @@ Scope {
         const other = "Plugins";
         const order = [];
         const byGroup = {};
-        const pids = win.desktopPluginIds || [];
-        for (var i = 0; i < pids.length; i++) {
-            const pid = pids[i];
-            const e = Registry.plugins.find(p => p.id === pid);
-            const set = (e && e.manifest && typeof e.manifest.set === "string" && e.manifest.set.length > 0)
+        // The installed desktop-capable set, enabled or not (discover.sh --all),
+        // so a hidden plugin keeps its row and the switch can bring it back.
+        // The switch reads the live placed set, the same list the tiles render
+        // from, so the row can never disagree with the desktop.
+        const placed = win.desktopPluginIds || [];
+        const installed = (Registry.allPlugins || []).filter(p => {
+            const hosts = (p.manifest && Array.isArray(p.manifest.hosts)) ? p.manifest.hosts : [];
+            return (p.placement && p.placement.host === "desktopWidget") || hosts.indexOf("desktopWidget") >= 0;
+        });
+        for (var i = 0; i < installed.length; i++) {
+            const e = installed[i];
+            const pid = e.id;
+            const set = (e.manifest && typeof e.manifest.set === "string" && e.manifest.set.length > 0)
                 ? e.manifest.set : other;
             if (!byGroup.hasOwnProperty(set)) {
                 byGroup[set] = [];
@@ -129,10 +146,10 @@ Scope {
             }
             byGroup[set].push({
                 id: "plugin:" + pid,
-                label: (e && e.manifest && e.manifest.name) ? e.manifest.name : pid,
-                icon: (e && e.manifest && e.manifest.defaults && e.manifest.defaults.icon)
+                label: (e.manifest && e.manifest.name) ? e.manifest.name : pid,
+                icon: (e.manifest && e.manifest.defaults && e.manifest.defaults.icon)
                     ? e.manifest.defaults.icon : "widgets",
-                enabled: true,
+                enabled: placed.indexOf(pid) >= 0,
                 group: set
             });
         }
@@ -176,6 +193,39 @@ Scope {
         Config.set(id + "Enabled", !Config[id + "Enabled"]);
         StageCfg.StageSession.markDirty();
     }
+    // A picker row's tune affordance. The inspector only speaks for slot-hosted
+    // scopes (built-ins, iRiS faces, Python faces), so the two scopes with their
+    // own editors route there instead: the visualizer opens its Placer, a plugin
+    // tile opens its own right-click menu.
+    function stageCustomize(id) {
+        if (id === "visualizer") {
+            // The Placer owns its own surface; leave the compose session the
+            // way the old toolbar's `Visualizer...` row did (docs/stage.md).
+            if (!VizCfg.Config.enabled)
+                VizCfg.Config.setEnabled(true);
+            StageCfg.StageSession.leave();
+            if (root.stageState)
+                root.stageState.visualizerPlacing = true;
+            return;
+        }
+        if (id.indexOf("plugin:") === 0) {
+            const pid = id.slice(7);
+            const e = win.desktopPlugins.find(pp => pp.id === pid) || null;
+            if (!e)
+                return;
+            const dw = (e.placement && e.placement.desktopWidget) || {};
+            // The menu rides the menu surface; drop the picker first so the
+            // edit-bar surface stops swallowing the whole screen's input.
+            editBar.pickerOpen = false;
+            root.openPluginMenu(pid, dw.locked === true, 180, 140,
+                e.manifest, e.placement);
+            return;
+        }
+        // The inspector rides its own surface, but the open picker would keep
+        // the edit-bar surface swallowing the whole screen's input.
+        editBar.pickerOpen = false;
+        root.openInspector(id);
+    }
     // The built-in slot behind a widget id, for placing its Settings menu.
     // Read through the loaders: a disabled widget has no slot item.
     function _builtinSlot(id) {
@@ -187,6 +237,8 @@ Scope {
         case "stats": return statsLoader.item;
         case "weather": return weatherLoader.item;
         case "notes": return notesLoader.item;
+        case "dayprogress": return dayprogressLoader.item;
+        case "shape": return shapeLoader.item;
         }
         return null;
     }
@@ -209,6 +261,11 @@ Scope {
             const ld = irisRepeater.itemAt(i);
             if (ld && ld.item && ld.modelData && ld.modelData.prefix === w)
                 return ld.item;
+        }
+        for (var j = 0; j < pythonRepeater.count; j++) {
+            const pd = pythonRepeater.itemAt(j);
+            if (pd && pd.item && pd.modelData && pd.modelData.prefix === w)
+                return pd.item;
         }
         return null;
     }
@@ -315,7 +372,7 @@ Scope {
     // A widget frame's Settings button: open that built-in's own menu at the
     // frame's corner (its design, lock, size, opacity, colour, snap).
     function stageOpenSettings(id) {
-        const s = root._builtinSlot(id);
+        const s = root.slotFor(id);
         root.openWidgetMenu(id, s ? s.x : 120, s ? s.y : 120);
     }
     // A widget frame's Remove button: hide the built-in and drop any selection.
@@ -328,18 +385,44 @@ Scope {
     // Reset snapshot (docs/stage.md, "Edit widgets"): the widgets Config and the
     // placed plugin set as they were when this session opened, captured on enter
     // and written back on resetRequested.
-    readonly property var _widgetKeys: [
-        "clockEnabled", "clockDesign", "clock24h", "clockSeconds", "clockAccent", "clockScale", "clockAnchor", "clockX", "clockY", "clockLocked", "clockOpacity", "clockBg", "clockRadius", "clockColor", "clockColor2", "clockGradient", "dateShow", "dateDesign", "widgetFont",
-        "calendarEnabled", "calendarStyle", "calendarWeeks", "calendarWeekNumbers", "calendarHolidayRegion", "calendarScale", "calendarAnchor", "calendarX", "calendarY", "calendarLocked", "calendarOpacity", "calendarColor", "calendarColor2", "calendarGradient",
-        "musicEnabled", "musicStyle", "musicLyrics", "musicViz", "musicScale", "musicAnchor", "musicX", "musicY", "musicLocked", "musicOpacity", "musicApp", "musicShape", "musicVideo", "musicVideoFile", "musicColor", "musicColor2", "musicGradient",
-        "aioEnabled", "aioStyle", "aioScale", "aioAnchor", "aioX", "aioY", "aioLocked", "aioOpacity", "aioColor", "aioColor2", "aioGradient",
-        "statsEnabled", "statsScale", "statsAnchor", "statsX", "statsY", "statsLocked", "statsOpacity", "statsColor", "statsColor2", "statsGradient",
-        "weatherEnabled", "weatherDesign", "weatherScale", "weatherAnchor", "weatherX", "weatherY", "weatherLocked", "weatherOpacity", "weatherColor", "weatherColor2", "weatherGradient",
-        "notesEnabled", "notesScale", "notesAnchor", "notesX", "notesY", "notesLocked", "notesOpacity", "notesWidth", "notesHeight", "notesColor", "notesColor2", "notesGradient",
-        "irisClockEnabled", "irisClockScale", "irisClockAnchor", "irisClockX", "irisClockY", "irisClockLocked", "irisClockOpacity", "irisClockBg", "irisClockColor", "irisClockColor2", "irisClockGradient", "irisClockSize", "irisClockOpts", "irisWeatherEnabled", "irisWeatherScale", "irisWeatherAnchor", "irisWeatherX", "irisWeatherY", "irisWeatherLocked", "irisWeatherOpacity", "irisWeatherBg", "irisWeatherColor", "irisWeatherColor2", "irisWeatherGradient", "irisWeatherSize", "irisWeatherOpts", "irisMediaEnabled", "irisMediaScale", "irisMediaAnchor", "irisMediaX", "irisMediaY", "irisMediaLocked", "irisMediaOpacity", "irisMediaBg", "irisMediaColor", "irisMediaColor2", "irisMediaGradient", "irisMediaSize", "irisMediaOpts", "irisControlsEnabled", "irisControlsScale", "irisControlsAnchor", "irisControlsX", "irisControlsY", "irisControlsLocked", "irisControlsOpacity", "irisControlsBg", "irisControlsColor", "irisControlsColor2", "irisControlsGradient", "irisControlsSize", "irisControlsOpts", "irisMonthEnabled", "irisMonthScale", "irisMonthAnchor", "irisMonthX", "irisMonthY", "irisMonthLocked", "irisMonthOpacity", "irisMonthBg", "irisMonthColor", "irisMonthColor2", "irisMonthGradient", "irisMonthSize", "irisMonthOpts", "irisAgendaEnabled", "irisAgendaScale", "irisAgendaAnchor", "irisAgendaX", "irisAgendaY", "irisAgendaLocked", "irisAgendaOpacity", "irisAgendaBg", "irisAgendaColor", "irisAgendaColor2", "irisAgendaGradient", "irisAgendaSize", "irisAgendaOpts", "irisTodoEnabled", "irisTodoScale", "irisTodoAnchor", "irisTodoX", "irisTodoY", "irisTodoLocked", "irisTodoOpacity", "irisTodoBg", "irisTodoColor", "irisTodoColor2", "irisTodoGradient", "irisTodoSize", "irisTodoOpts", "irisNotesEnabled", "irisNotesScale", "irisNotesAnchor", "irisNotesX", "irisNotesY", "irisNotesLocked", "irisNotesOpacity", "irisNotesBg", "irisNotesColor", "irisNotesColor2", "irisNotesGradient", "irisNotesSize", "irisNotesOpts", "irisTimersEnabled", "irisTimersScale", "irisTimersAnchor", "irisTimersX", "irisTimersY", "irisTimersLocked", "irisTimersOpacity", "irisTimersBg", "irisTimersColor", "irisTimersColor2", "irisTimersGradient", "irisTimersSize", "irisTimersOpts", "irisScreenEnabled", "irisScreenScale", "irisScreenAnchor", "irisScreenX", "irisScreenY", "irisScreenLocked", "irisScreenOpacity", "irisScreenBg", "irisScreenColor", "irisScreenColor2", "irisScreenGradient", "irisScreenSize", "irisScreenOpts", "irisVitalsEnabled", "irisVitalsScale", "irisVitalsAnchor", "irisVitalsX", "irisVitalsY", "irisVitalsLocked", "irisVitalsOpacity", "irisVitalsBg", "irisVitalsColor", "irisVitalsColor2", "irisVitalsGradient", "irisVitalsSize", "irisVitalsOpts", "irisBatteryEnabled", "irisBatteryScale", "irisBatteryAnchor", "irisBatteryX", "irisBatteryY", "irisBatteryLocked", "irisBatteryOpacity", "irisBatteryBg", "irisBatteryColor", "irisBatteryColor2", "irisBatteryGradient", "irisBatterySize", "irisBatteryOpts", "irisWorldEnabled", "irisWorldScale", "irisWorldAnchor", "irisWorldX", "irisWorldY", "irisWorldLocked", "irisWorldOpacity", "irisWorldBg", "irisWorldColor", "irisWorldColor2", "irisWorldGradient", "irisWorldSize", "irisWorldOpts", "irisDateEnabled", "irisDateScale", "irisDateAnchor", "irisDateX", "irisDateY", "irisDateLocked", "irisDateOpacity", "irisDateBg", "irisDateColor", "irisDateColor2", "irisDateGradient", "irisDateSize", "irisDateOpts", "irisProfileEnabled", "irisProfileScale", "irisProfileAnchor", "irisProfileX", "irisProfileY", "irisProfileLocked", "irisProfileOpacity", "irisProfileBg", "irisProfileColor", "irisProfileColor2", "irisProfileGradient", "irisProfileSize", "irisProfileOpts", "irisUptimeEnabled", "irisUptimeScale", "irisUptimeAnchor", "irisUptimeX", "irisUptimeY", "irisUptimeLocked", "irisUptimeOpacity", "irisUptimeBg", "irisUptimeColor", "irisUptimeColor2", "irisUptimeGradient", "irisUptimeSize", "irisUptimeOpts", "irisNewsEnabled", "irisNewsScale", "irisNewsAnchor", "irisNewsX", "irisNewsY", "irisNewsLocked", "irisNewsOpacity", "irisNewsBg", "irisNewsColor", "irisNewsColor2", "irisNewsGradient", "irisNewsSize", "irisNewsOpts", "irisClockStyle", "irisWeatherStyle", "irisMediaStyle", "irisControlsStyle", "irisMonthStyle", "irisAgendaStyle", "irisTodoStyle", "irisNotesStyle", "irisTimersStyle", "irisScreenStyle", "irisVitalsStyle", "irisBatteryStyle", "irisWorldStyle", "irisDateStyle", "irisProfileStyle", "irisUptimeStyle", "irisNewsStyle", "irisClockRadius", "irisClockPad", "irisClockBorder", "irisClockBorderOpacity", "irisClockBackingOpacity", "irisWeatherRadius", "irisWeatherPad", "irisWeatherBorder", "irisWeatherBorderOpacity", "irisWeatherBackingOpacity", "irisMediaRadius", "irisMediaPad", "irisMediaBorder", "irisMediaBorderOpacity", "irisMediaBackingOpacity", "irisControlsRadius", "irisControlsPad", "irisControlsBorder", "irisControlsBorderOpacity", "irisControlsBackingOpacity", "irisMonthRadius", "irisMonthPad", "irisMonthBorder", "irisMonthBorderOpacity", "irisMonthBackingOpacity", "irisAgendaRadius", "irisAgendaPad", "irisAgendaBorder", "irisAgendaBorderOpacity", "irisAgendaBackingOpacity", "irisTodoRadius", "irisTodoPad", "irisTodoBorder", "irisTodoBorderOpacity", "irisTodoBackingOpacity", "irisNotesRadius", "irisNotesPad", "irisNotesBorder", "irisNotesBorderOpacity", "irisNotesBackingOpacity", "irisTimersRadius", "irisTimersPad", "irisTimersBorder", "irisTimersBorderOpacity", "irisTimersBackingOpacity", "irisScreenRadius", "irisScreenPad", "irisScreenBorder", "irisScreenBorderOpacity", "irisScreenBackingOpacity", "irisVitalsRadius", "irisVitalsPad", "irisVitalsBorder", "irisVitalsBorderOpacity", "irisVitalsBackingOpacity", "irisBatteryRadius", "irisBatteryPad", "irisBatteryBorder", "irisBatteryBorderOpacity", "irisBatteryBackingOpacity", "irisWorldRadius", "irisWorldPad", "irisWorldBorder", "irisWorldBorderOpacity", "irisWorldBackingOpacity", "irisDateRadius", "irisDatePad", "irisDateBorder", "irisDateBorderOpacity", "irisDateBackingOpacity", "irisProfileRadius", "irisProfilePad", "irisProfileBorder", "irisProfileBorderOpacity", "irisProfileBackingOpacity", "irisUptimeRadius", "irisUptimePad", "irisUptimeBorder", "irisUptimeBorderOpacity", "irisUptimeBackingOpacity", "irisNewsRadius", "irisNewsPad", "irisNewsBorder", "irisNewsBorderOpacity", "irisNewsBackingOpacity", "irisCustomImageEnabled", "irisCustomImageScale", "irisCustomImageAnchor", "irisCustomImageX", "irisCustomImageY", "irisCustomImageLocked", "irisCustomImageOpacity", "irisCustomImageBg", "irisCustomImageColor", "irisCustomImageColor2", "irisCustomImageGradient", "irisCustomImageSize", "irisCustomImageOpts", "irisCustomImageStyle", "irisCustomImageRadius", "irisCustomImagePad", "irisCustomImageBorder", "irisCustomImageBorderOpacity", "irisCustomImageBackingOpacity", "irisEditorialEnabled", "irisEditorialScale", "irisEditorialAnchor", "irisEditorialX", "irisEditorialY", "irisEditorialLocked", "irisEditorialOpacity", "irisEditorialBg", "irisEditorialColor", "irisEditorialColor2", "irisEditorialGradient", "irisEditorialSize", "irisEditorialOpts", "irisEditorialStyle", "irisEditorialRadius", "irisEditorialPad", "irisEditorialBorder", "irisEditorialBorderOpacity", "irisEditorialBackingOpacity", "irisConverterEnabled", "irisConverterScale", "irisConverterAnchor", "irisConverterX", "irisConverterY", "irisConverterLocked", "irisConverterOpacity", "irisConverterBg", "irisConverterColor", "irisConverterColor2", "irisConverterGradient", "irisConverterSize", "irisConverterOpts", "irisConverterStyle", "irisConverterRadius", "irisConverterPad", "irisConverterBorder", "irisConverterBorderOpacity", "irisConverterBackingOpacity", "irisJpEnabled", "irisJpScale", "irisJpAnchor", "irisJpX", "irisJpY", "irisJpLocked", "irisJpOpacity", "irisJpBg", "irisJpColor", "irisJpColor2", "irisJpGradient", "irisJpSize", "irisJpOpts", "irisJpStyle", "irisJpRadius", "irisJpPad", "irisJpBorder", "irisJpBorderOpacity", "irisJpBackingOpacity", "irisVisualizerEnabled", "irisVisualizerScale", "irisVisualizerAnchor", "irisVisualizerX", "irisVisualizerY", "irisVisualizerLocked", "irisVisualizerOpacity", "irisVisualizerBg", "irisVisualizerColor", "irisVisualizerColor2", "irisVisualizerGradient", "irisVisualizerSize", "irisVisualizerOpts", "irisVisualizerStyle", "irisVisualizerRadius", "irisVisualizerPad", "irisVisualizerBorder", "irisVisualizerBorderOpacity", "irisVisualizerBackingOpacity"
-    ]
+    // The keys a compose session snapshots. Built-ins are listed by hand (they
+    // carry bespoke keys); every hosted face derives its full set from its
+    // roster prefix, so a new widget or a new per-widget knob is covered the
+    // moment it lands in Config instead of being silently left out of Reset.
+    readonly property var _hostedSuffixes: [
+        "Enabled", "Scale", "Anchor", "X", "Y", "Locked", "Opacity", "Bg",
+        "Color", "Color2", "Gradient", "Style", "Opts", "Pad", "Radius",
+        "Border", "BorderOpacity", "BackingOpacity"]
+    readonly property var _irisExtraSuffixes: ["Size"]
+    readonly property var _pythonExtraSuffixes: ["Variant"]
+    readonly property var _widgetKeys: root._buildWidgetKeys()
+    function _buildWidgetKeys() {
+        const keys = [
+            "clockEnabled", "clockDesign", "clock24h", "clockSeconds", "clockAccent", "clockScale", "clockAnchor", "clockX", "clockY", "clockLocked", "clockOpacity", "clockBg", "clockRadius", "clockColor", "clockColor2", "clockGradient", "dateShow", "dateDesign", "widgetFont",
+            "calendarEnabled", "calendarStyle", "calendarWeeks", "calendarWeekNumbers", "calendarHolidayRegion", "calendarScale", "calendarAnchor", "calendarX", "calendarY", "calendarLocked", "calendarOpacity", "calendarColor", "calendarColor2", "calendarGradient",
+            "musicEnabled", "musicStyle", "musicLyrics", "musicViz", "musicScale", "musicAnchor", "musicX", "musicY", "musicLocked", "musicOpacity", "musicApp", "musicShape", "musicVideo", "musicVideoFile", "musicColor", "musicColor2", "musicGradient",
+            "aioEnabled", "aioStyle", "aioScale", "aioAnchor", "aioX", "aioY", "aioLocked", "aioOpacity", "aioColor", "aioColor2", "aioGradient",
+            "statsEnabled", "statsScale", "statsAnchor", "statsX", "statsY", "statsLocked", "statsOpacity", "statsColor", "statsColor2", "statsGradient",
+            "weatherEnabled", "weatherDesign", "weatherScale", "weatherAnchor", "weatherX", "weatherY", "weatherLocked", "weatherOpacity", "weatherColor", "weatherColor2", "weatherGradient",
+            "notesEnabled", "notesScale", "notesAnchor", "notesX", "notesY", "notesLocked", "notesOpacity", "notesWidth", "notesHeight", "notesColor", "notesColor2", "notesGradient",
+            "dayprogressEnabled", "dayprogressStyle", "dayprogressShowDate", "dayprogressScale", "dayprogressAnchor", "dayprogressX", "dayprogressY", "dayprogressLocked", "dayprogressOpacity", "dayprogressColor", "dayprogressColor2", "dayprogressGradient",
+            "shapeEnabled", "shapeKind", "shapeOutline", "shapeScale", "shapeAnchor", "shapeX", "shapeY", "shapeLocked", "shapeOpacity", "shapeColor", "shapeColor2", "shapeGradient"
+        ];
+        const hosted = [];
+        for (var i = 0; i < IrisRoster.faces.length; i++)
+            hosted.push({ p: IrisRoster.faces[i].prefix, x: root._irisExtraSuffixes });
+        for (var j = 0; j < PythonRoster.faces.length; j++)
+            hosted.push({ p: PythonRoster.faces[j].prefix, x: root._pythonExtraSuffixes });
+        for (var h = 0; h < hosted.length; h++) {
+            const sfx = root._hostedSuffixes.concat(hosted[h].x);
+            for (var k = 0; k < sfx.length; k++)
+                keys.push(hosted[h].p + sfx[k]);
+        }
+        return keys;
+    }
     property var _snapConfig: null
     property var _snapPlugins: null
+    property bool _snapViz: false
     property var _resetQueue: []
     property var _settingsQueue: []
     function _snapshot() {
@@ -356,6 +439,7 @@ Scope {
             pl[p.id] = { x: dw.x, y: dw.y, scale: dw.scale, locked: dw.locked === true, opacity: dw.opacity };
         }
         root._snapPlugins = pl;
+        root._snapViz = VizCfg.Config.enabled;
     }
     function _restore() {
         if (root._snapConfig) {
@@ -367,6 +451,8 @@ Scope {
                     back[ks[i]] = c[ks[i]];
             Config.setMany(back);
         }
+        if (VizCfg.Config.enabled !== root._snapViz)
+            VizCfg.Config.setEnabled(root._snapViz);
         const q = [];
         const snap = root._snapPlugins || {};
         const nowIds = win.desktopPluginIds || [];
@@ -551,6 +637,26 @@ Scope {
                 StageCfg.StageSession.markDirty();
         }
 
+        Item {
+            id: slideContent
+            x: Services.SidebarState.slideOffset(root.screen ? root.screen.name : "")
+            y: 0
+            width: parent.width
+            height: parent.height
+
+            Behavior on x {
+                enabled: !Services.Motion.reduce
+                NumberAnimation {
+                    duration: Services.SidebarState.isOpen(root.screen, "left")
+                        || Services.SidebarState.isOpen(root.screen, "right")
+                        ? Services.SidebarState.enterDuration : Services.SidebarState.exitDuration
+                    easing.type: Easing.Bezier
+                    easing.bezierCurve: Services.SidebarState.isOpen(root.screen, "left")
+                        || Services.SidebarState.isOpen(root.screen, "right")
+                        ? Services.SidebarState.enterCurve : Services.SidebarState.exitCurve
+                }
+            }
+
         // The base wallpaper painter: the reveal backdrop composites each new
         // frame over the old one through the preset the daemon attached to the
         // frame (a GPU mask shader), decoding capped at surface resolution.
@@ -618,12 +724,12 @@ Scope {
             // An invisible Image still decodes while its source is set: hold the
             // url back until a glass widget actually samples it, or this mirror
             // costs a full-screen decode on every box that has a wallpaper.
-            source: win.glassWanted ? root.wallpaperUrl : ""
+            source: slideContent.glassWanted ? root.wallpaperUrl : ""
             cache: false
             asynchronous: true
             sourceSize.width: Math.ceil(width * backdrop.screenDpr)
             sourceSize.height: Math.ceil(height * backdrop.screenDpr)
-            visible: win.glassWanted
+            visible: slideContent.glassWanted
             fillMode: {
                 switch (root.wallpaperFit) {
                 case "Contain": return Image.PreserveAspectFit;
@@ -1301,9 +1407,12 @@ Scope {
 
             component WidgetFrame: StageOutline {
                 id: wf
-                property var slotItem: null
+                // The live WidgetSlot, resolved through the loaders: the slot's
+                // own rect is the widget's rect. (A frame pointed at the loader
+                // would box the whole screen; the slot is the child it hosts.)
                 property string wid: ""
-                visible: wf.slotItem ? wf.slotItem.visible : false
+                property var slotItem: root.slotFor(wf.wid)
+                visible: wf.slotItem !== null
                 box: wf.slotItem ? Qt.rect(wf.slotItem.x, wf.slotItem.y, wf.slotItem.width, wf.slotItem.height) : Qt.rect(0, 0, 0, 0)
                 title: root.widgetTitle(wf.wid)
                 selected: StageCfg.StageSession.selected === wf.wid
@@ -1311,13 +1420,16 @@ Scope {
                 onSettings: root.stageOpenSettings(wf.wid)
                 onRemove: root.stageRemoveWidget(wf.wid)
             }
-            WidgetFrame { wid: "clock"; slotItem: clockLoader.item }
-            WidgetFrame { wid: "calendar"; slotItem: calendarLoader.item }
-            WidgetFrame { wid: "music"; slotItem: musicLoader.item }
-            WidgetFrame { wid: "aio"; slotItem: aioLoader.item }
-            WidgetFrame { wid: "stats"; slotItem: statsLoader.item }
-            WidgetFrame { wid: "weather"; slotItem: weatherLoader.item }
-            WidgetFrame { wid: "notes"; slotItem: notesLoader.item }
+            Repeater {
+                model: ["clock", "calendar", "music", "aio", "stats", "weather",
+                    "notes", "dayprogress", "shape"]
+                    .concat(IrisRoster.faces.map(f => f.prefix))
+                    .concat(PythonRoster.faces.map(f => f.prefix))
+                delegate: WidgetFrame {
+                    required property string modelData
+                    wid: modelData
+                }
+            }
         }
 
         Process { id: paletteProc }
@@ -1426,6 +1538,7 @@ Scope {
         Process {
             id: resetProc
             onRunningChanged: if (!resetProc.running) root._runResetQueue()
+        }
         }
     }
 
@@ -1614,7 +1727,7 @@ Scope {
             dockClearance: root.editBarDockClear
             onDone: StageCfg.StageSession.leave()
             onAddToggle: id => root.stageAddToggle(id)
-            onCustomize: id => root.openInspector(id)
+            onCustomize: id => root.stageCustomize(id)
         }
     }
 }

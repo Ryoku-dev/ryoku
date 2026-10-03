@@ -19,13 +19,14 @@ var rows = [
         "group": "Placement",
         "key": "<pluginId>.host",
         "label": "Show as",
-        "desc": "Where it appears: popout, wallpaper tile or bar glyph",
+        "desc": "Where it appears: popout, wallpaper tile, bar glyph or sidebar card",
         "ctl": "seg",
         "src": "plugins.json (via `ryoku-plugins-place <id> host <hostName>`)",
         "opts": [
             "framePopout",
             "desktopWidget",
             "topbarGlyph",
+            "sidebarCard",
             "<any"
         ]
     },

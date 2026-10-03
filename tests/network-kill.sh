@@ -146,4 +146,15 @@ if run arbitrary >/dev/null 2>&1; then
 fi
 [[ ! -s $work/log ]] || { echo "invalid action ran a privileged command" >&2; exit 1; }
 
+# /var/lib/ryoku is shared state: tmpfiles owns its mode (0755) because the
+# sessions' boot-ok files and the update's cutover-marker probe read through
+# it. install -d chmods an existing directory, so the helper's mode must
+# match the contract and repair a drifted one, never leave it private.
+chmod 700 "$work/state"
+run on
+[[ $(stat -c '%a' "$work/state") == 755 ]] || {
+  echo "the kill helper left its state dir private to root" >&2; exit 1;
+}
+run off
+
 echo "network kill helper checks passed"

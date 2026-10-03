@@ -500,6 +500,7 @@ loginctl show-session 9 -p Scope --value
 loginctl show-session 9 -p Type --value
 loginctl show-session 9 -p Desktop --value
 loginctl show-session 9 -p Type --value
+ryoku wm handles
 systemctl --user unset-environment XDG_SESSION_ID XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP XDG_SEAT XDG_VTNR WAYLAND_DISPLAY DISPLAY RYOKU_WM
 systemctl --user set-environment XDG_SESSION_ID=9 XDG_SESSION_TYPE=wayland WAYLAND_DISPLAY=wayland-test RYOKU_WM=testwm TESTWM_SOCKET=session-nine
 systemctl --user stop ryoku-session.target

@@ -15,16 +15,13 @@ Item {
 
     property real s: 1
     property bool open: false
-    // Detail-page mode (quick-settings host): the device list arrives expanded.
-    property bool pageMode: false
 
     implicitHeight: col.implicitHeight
 
     readonly property var source: Audio.source
     readonly property bool haveSource: !!(root.source && root.source.audio)
 
-    property bool devicesOpen: root.pageMode
-    onOpenChanged: if (root.open && root.pageMode) root.devicesOpen = true
+    property bool devicesOpen: false
 
     Column {
         id: col

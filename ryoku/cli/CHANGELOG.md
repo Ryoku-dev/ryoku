@@ -52,6 +52,14 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **`ryoku update` survives a private `/var/lib/ryoku`.** The power-cutover
+  preflight statted the adoption marker as the user; with the state dir at
+  0700 (a drifted mode the kill switch used to leave behind) the stat failed
+  with EACCES and the whole update aborted on "inspect package power cutover
+  state: permission denied". An unreadable marker is now a question for root
+  (`sudo -n test -e`), and a probe that cannot run reads as absent, which
+  errs toward re-adoption instead of a hard failure
+  (`internal/updater/update.go`).
 - **`ryoku track unstable` explains itself on a box moved by the old name.**
   A box that ran `ryoku track unstable-dev` is already on the unstable channel,
   so tracking it again moves nothing; it now says so in those words instead of

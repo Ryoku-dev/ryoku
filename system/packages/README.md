@@ -2,7 +2,10 @@
 
 The package lists that make up a Ryoku machine. One package per line; blank lines
 and lines starting with `#` are ignored. The installer reads these at install
-time (`RYOKU_REPO/system/packages/`).
+time (`RYOKU_REPO/system/packages/`), filtered through `RYOKU_DROP_PACKAGES`:
+the apps checklist and the browser pick remove their deselections from the
+transaction, so a removed app is never installed (and never put back by the
+update manifest, which reads the same removal from the doctor's ledger).
 
 ## The lists
 

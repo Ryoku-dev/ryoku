@@ -483,6 +483,7 @@ const (
 	kInfo
 	kPass // password + confirm
 	kNet  // connectivity / Wi-Fi
+	kApps // grouped keep/remove app checklist
 )
 
 const minDiskGiB = 32      // installer floor: minRootGiB closure + 1G ESP + swap/snapshot headroom
@@ -529,6 +530,10 @@ func steps() []step {
 			desc: []string{i18n.T("Hybrid GPU (iGPU + NVIDIA) detected."), i18n.T("How should displays & apps use them?")}},
 		{key: "compositor", title: i18n.T("Window manager"), kind: kSelect, items: compositors(), numbered: true,
 			desc: []string{i18n.T("The Wayland compositor to run.")}},
+		{key: "browser", title: i18n.T("Web browser"), kind: kSelect, items: browsers(), numbered: true,
+			desc: []string{i18n.T("Ryoku ships three browsers; pick the one you want."), i18n.T("It becomes the default and the launcher's browser role.")}},
+		{key: "apps", title: i18n.T("Apps & tools"), kind: kApps,
+			desc: []string{i18n.T("Space toggles · every app Ryoku ships, keep or remove."), i18n.T("Required rows back a desktop feature and cannot be removed.")}},
 		{key: "diskpick", title: i18n.T("Target disk"), kind: kSelect, items: disks(), numbered: true,
 			desc: []string{i18n.T("Pick the disk to install onto."), i18n.T("Everything after this applies to it.")}},
 		{key: "disk", title: i18n.T("Disk strategy"), kind: kSelect, items: diskStrategies(), numbered: true,
@@ -686,6 +691,16 @@ func compositors() []item {
 		{wm.ProviderNiri, "niri", i18n.T("scrollable tiling")},
 		{wm.ProviderMango, "MangoWM", i18n.T("dwm-style tags, scroller tiling, effects")},
 	}
+}
+
+// compositorLabel is the display name for a compositor key (Review/rail cells).
+func compositorLabel(key string) string {
+	for _, c := range compositors() {
+		if c.key == key {
+			return c.label
+		}
+	}
+	return key
 }
 
 // gpuDetails returns the pros and cons shown for the highlighted graphics mode.
@@ -862,6 +877,12 @@ type model struct {
 	lsel                        int
 	sAnim, sVel                 float64
 	sSpr                        harmonica.Spring
+	// apps step: the keep/remove map over apps.go's rows (nil until the step
+	// first loads, then seeded with the shipped defaults), the selected row,
+	// and the scroll offset into the flattened row list.
+	keep  map[string]bool
+	alsel int
+	aoff  int
 	// wipeStage gates the Review->install transition for a whole-disk wipe on a
 	// populated disk: 0 = idle, 1 = user typing "ERASE", 2 = confirmed. installEnv
 	// emits RYOKU_WIPE_CONFIRMED=1 only when wipeStage == 2.
@@ -875,6 +896,7 @@ type model struct {
 }
 
 var spinFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
 // installSteps names the backend's install phases for the progress panel. It is
 // a function, not a package-level var, so the names resolve in the language
 // main() picked (a var initializer would run before i18n.Use).
@@ -913,6 +935,9 @@ func newModel() model {
 	}
 	// default the compositor so RYOKU_COMPOSITOR flows even when the step auto-skips.
 	m.picks["compositor"] = wm.Providers()[0]
+	// the browser defaults to the shipped one; the browser step confirms or
+	// changes it, so RYOKU_BROWSER always carries a real choice.
+	m.picks["browser"] = "zen"
 	m.netOnline = netOnline()
 	m.loadStep()
 	return m
@@ -992,6 +1017,13 @@ func (m *model) loadStep() {
 		if !m.netOnline && !offlineRepo() {
 			m.pick = newPicker(ssids(), true)
 			m.pick.height = 5
+		}
+	case kApps:
+		// Seed once; back/forward keeps the user's edits, and the row list is
+		// static so the cursor and scroll offset survive a revisit too.
+		if m.keep == nil {
+			m.keep = appDefaults()
+			m.alsel, m.aoff = appsRowIdx(m.appsRows(), 0), 0
 		}
 	case kInput:
 		// returning to a text step (esc back, or Review edit) shows what was
@@ -1448,6 +1480,8 @@ func (m model) onKey(k string) (tea.Model, tea.Cmd) {
 				m.jumpToActive(int(k[0] - '1')) // edit a step from Review
 			}
 		}
+	case kApps:
+		m.appsKey(k)
 	case kPartition:
 		m.partKey(k)
 	case kInfo:
@@ -1947,6 +1981,190 @@ func (m model) partBlockReason() string {
 
 // partReady reports whether the chosen layout can be installed.
 func (m model) partReady() bool { return m.partBlockReason() == "" }
+
+// ───────────────────────── apps (keep/remove checklist) ─────────────────────────
+// arow is one display line of the apps step: a group header or a keep/remove
+// row for one appRow id. The cursor only ever lands on app rows.
+type arow struct {
+	kind string // hdr|app
+	id   string // appRow id when kind == app
+	text string // group label when kind == hdr
+}
+
+func (m model) appsRows() []arow {
+	var out []arow
+	for _, g := range appGroups() {
+		if g[0].Group != "" {
+			out = append(out, arow{kind: "hdr", text: g[0].Group})
+		}
+		for _, r := range g {
+			out = append(out, arow{kind: "app", id: r.ID})
+		}
+	}
+	return out
+}
+
+// appsRowIdx maps a cursor position to its row, skipping headers: it walks
+// up from n to the next app row, then falls back to the last app row, so the
+// end/G keys can never park on a header or past the list.
+func appsRowIdx(rows []arow, n int) int {
+	last := -1
+	for i, r := range rows {
+		if r.kind != "app" {
+			continue
+		}
+		if i >= n {
+			return i
+		}
+		last = i
+	}
+	return max(last, 0)
+}
+
+func (m *model) appsMove(d int) {
+	rows := m.appsRows()
+	n := m.alsel
+	for {
+		n += d
+		if n < 0 || n >= len(rows) {
+			return
+		}
+		if rows[n].kind == "app" {
+			m.alsel = n
+			return
+		}
+	}
+}
+
+func (m *model) appsToggle(id string) {
+	r, ok := appRowByID(id)
+	if !ok {
+		return
+	}
+	if r.Req != "" {
+		// Refuse with the reason, not silence: the row is marked REQUIRED for
+		// a named desktop feature, and the user deserves to read which.
+		m.inputErr = i18n.Tf("required: %s", r.Req)
+		return
+	}
+	m.keep[id] = !m.keep[id]
+	m.inputErr = ""
+}
+
+func (m *model) appsKey(k string) {
+	rows := m.appsRows()
+	switch k {
+	case "up", "k":
+		m.appsMove(-1)
+	case "down", "j":
+		m.appsMove(1)
+	case "pgup", "ctrl+u":
+		m.appsMove(-m.listRows())
+	case "pgdown", "ctrl+d":
+		m.appsMove(m.listRows())
+	case "home", "g":
+		m.alsel = appsRowIdx(rows, 0)
+	case "end", "G":
+		m.alsel = appsRowIdx(rows, len(rows)-1)
+	case "enter", "space":
+		m.appsToggle(rows[m.alsel].id)
+	case "a": // back to the shipped defaults
+		m.keep, m.inputErr = appDefaults(), ""
+	case "tab":
+		m.picks["apps"] = appsSummary(m.keep)
+		m.advance()
+	}
+	m.appsFixScroll()
+}
+
+// appsFixScroll keeps the cursor inside the visible window, oldest-style:
+// pull the offset up when the cursor escapes above, slide it down below.
+func (m *model) appsFixScroll() {
+	vis := m.listRows() - 2 // the step keeps two intro lines above the list
+	if vis < 3 {
+		vis = 3
+	}
+	if m.alsel < m.aoff {
+		m.aoff = m.alsel
+	}
+	if m.alsel >= m.aoff+vis {
+		m.aoff = m.alsel - vis + 1
+	}
+	if m.aoff < 0 {
+		m.aoff = 0
+	}
+}
+
+func (m model) appsBody(inner int) string {
+	var b strings.Builder
+	rows := m.appsRows()
+	vis := m.listRows() - 2
+	if vis < 3 {
+		vis = 3
+	}
+	end := min(m.aoff+vis, len(rows))
+	labelW := 18
+	for _, r := range appRows() {
+		if lw := dw(r.Name); lw > labelW {
+			labelW = lw
+		}
+	}
+	for i := m.aoff; i < end; i++ {
+		r := rows[i]
+		prefix := "  "
+		if i == m.alsel {
+			prefix = bold(gradColor(float64(m.phase)/float64(smallW-1)), gSelCur)
+		}
+		if r.kind == "hdr" {
+			b.WriteString(fg(cSub, strings.ToUpper(r.text)) + "\n")
+			continue
+		}
+		ar, _ := appRowByID(r.id)
+		on := m.keep[r.id]
+		var box, name, tag string
+		switch {
+		case ar.Req != "":
+			box = fg(cGreen, "[■] ")
+			name = bold(cText, ar.Name)
+			tag = fg(cYell, i18n.T("REQUIRED"))
+		case on:
+			box = fg(cGreen, "[x] ")
+			name = fg(cText, ar.Name)
+			tag = fg(cDim, i18n.T("keep"))
+		default:
+			box = fg(cDim, "[ ] ")
+			name = fg(cSub, ar.Name)
+			tag = fg(cRed, i18n.T("remove"))
+		}
+		gut := 2 + 4 + labelW + 1 + dw(tag)
+		sub := ""
+		if avail := inner - gut; avail >= 8 {
+			text := ar.Sub
+			if text == "" {
+				text = ar.Req
+			}
+			sub = "  " + fg(cDim, truncW(text, avail))
+		}
+		b.WriteString(prefix + box + padTo(name, labelW) + " " + padTo(tag, dw(i18n.T("REQUIRED"))) + sub + "\n")
+	}
+	if m.inputErr != "" {
+		b.WriteString(fg(cYell, "⚠ "+m.inputErr) + "\n")
+	}
+	dropped := 0
+	for _, r := range appRows() {
+		if r.Req == "" && !m.keep[r.ID] {
+			dropped++
+		}
+	}
+	removable := 0
+	for _, r := range appRows() {
+		if r.Req == "" {
+			removable++
+		}
+	}
+	b.WriteString("\n" + fg(cDim, i18n.Tf("%d of %d apps removed", dropped, removable)))
+	return strings.TrimRight(b.String(), "\n")
+}
 
 // reviewBlockReason reports why the install cannot start from Review, or "" when
 // it can. Secure Boot (Limine is unsigned) is a hard block. Connectivity is only
@@ -2483,6 +2701,11 @@ func (m model) viewWizard() string {
 		c.WriteString(m.reviewBody(inner) + "\n\n" + m.confirmButtons() + hint)
 	case s.kind == kPartition:
 		c.WriteString(m.partBody(inner))
+	case s.kind == kApps:
+		for _, d := range s.desc {
+			c.WriteString(fg(cSub, truncW(d, inner)) + "\n")
+		}
+		c.WriteString("\n" + m.appsBody(inner))
 	case s.kind == kInfo:
 		c.WriteString(m.infoBody(inner))
 	case s.kind == kNet:
@@ -3105,6 +3328,8 @@ func (m model) reviewBody(w int) string {
 		fg(cRed, i18n.Tf("⚠ this writes the layout below to %s", m.diskDev)), "",
 		row(i18n.T("keyboard"), m.picks["keyboard"]), row(i18n.T("locale"), m.picks["locale"]),
 		row(i18n.T("time zone"), m.picks["timezone"]), row(i18n.T("profile"), m.picks["profile"]),
+		row(i18n.T("wm"), compositorLabel(m.picks["compositor"])), row(i18n.T("browser"), browserLabel(m.picks["browser"])),
+		row(i18n.T("apps"), m.appsReviewCell()),
 		row(i18n.T("disk"), m.diskDev),
 		fg(cSub, fmt.Sprintf("%-11s", i18n.T("strategy"))) + stratCell,
 		row(i18n.T("hostname"), m.picks["hostname"]),
@@ -3350,6 +3575,8 @@ func (m model) footer() string {
 		default:
 			parts = []string{keyHint("space", i18n.T("toggle")), keyHint("↑↓", i18n.T("move")), keyHint("a", i18n.T("reset")), keyHint("tab", i18n.T("done")), keyHint("esc", i18n.T("back"))}
 		}
+	case s.kind == kApps:
+		parts = []string{keyHint("↑↓", i18n.T("move")), keyHint("space", i18n.T("keep/remove")), keyHint("a", i18n.T("reset")), keyHint("tab", i18n.T("done")), keyHint("esc", i18n.T("back")), keyHint("q", i18n.T("quit"))}
 	case s.kind == kInfo:
 		if m.hwBIOS { // BIOS is a hard block; there is no "continue" to offer
 			parts = []string{keyHint("esc", i18n.T("back")), keyHint("q", i18n.T("quit"))}
@@ -3410,8 +3637,10 @@ func main() {
 
 func snapshot() {
 	picks := map[string]string{"keyboard": "us", "locale": "en_US.UTF-8", "timezone": "Europe/Madrid",
-		"profile": "amd-nvidia", "gpu": "offload", "disk": "alongside", "hostname": "ryoku", "username": "carlos", "encryption": "LUKS"}
+		"profile": "amd-nvidia", "gpu": "offload", "compositor": "niri", "browser": "zen",
+		"disk": "alongside", "hostname": "ryoku", "username": "carlos", "encryption": "LUKS"}
 	mk := func() model { m := newModel(); m.w, m.h, m.enterPos, m.state = 112, 42, 1, "wizard"; return m }
+	at := func(m *model, key string) { m.idx = flowIndex(m.flow, key) }
 	sep := strings.Repeat("─", 112)
 	render := func(m model) string {
 		if m.state == "done" || m.state == "failed" || m.state == "install" {
@@ -3430,43 +3659,87 @@ func snapshot() {
 	fmt.Println("### welcome: social QR ###\n" + wm.welcomeQR() + "\n" + sep)
 
 	m := mk()
-	m.idx, m.picks = 3, picks // network (online)
+	at(&m, "network") // network (online)
+	m.picks = picks
 	m.loadStep()
 	m.enterPos = 1
 	show("network: connected", m)
 
 	m = mk()
-	m.idx, m.picks, m.netOnline = 3, picks, false // network offline → Wi-Fi list
+	at(&m, "network")
+	m.picks, m.netOnline = picks, false // network offline → Wi-Fi list
 	m.loadStep()
 	m.enterPos = 1
 	show("network: offline (Wi-Fi)", m)
 
 	m = mk()
-	m.idx, m.picks = 4, picks // hardware detected
+	at(&m, "hardware") // hardware detected
+	m.picks = picks
 	m.loadStep()
 	m.enterPos = 1
 	show("hardware: detected", m)
 
 	m = mk()
-	m.idx, m.picks, m.hwOK, m.hwHybrid = 4, picks, false, false
+	at(&m, "hardware")
+	m.picks, m.hwOK, m.hwHybrid = picks, false, false
 	m.loadStep()
 	m.enterPos = 1
 	show("hardware: not detected (graceful fallback)", m)
 
 	m = mk()
-	m.idx, m.picks = 6, picks // graphics mode (hybrid)
+	at(&m, "gpu") // graphics mode (hybrid)
+	m.picks = picks
 	m.loadStep()
 	m.enterPos = 1
 	show("graphics mode (hybrid GPU)", m)
 
 	m = mk()
-	m.idx, m.picks = 7, picks // target-disk picker
+	at(&m, "compositor") // window-manager picker
+	m.picks = picks
+	m.loadStep()
+	m.enterPos = 1
+	show("window manager (the shipped providers)", m)
+
+	m = mk()
+	at(&m, "browser") // browser picker: exactly the three shipped browsers
+	m.picks = picks
+	m.loadStep()
+	m.enterPos = 1
+	show("web browser", m)
+
+	m = mk()
+	at(&m, "apps") // apps keep/remove checklist, shipped defaults
+	m.picks = picks
+	m.loadStep()
+	m.enterPos = 1
+	show("apps: keep/remove (defaults)", m)
+
+	m = mk()
+	at(&m, "apps") // a curated slim install: the gaming, VM and sharing rows off
+	m.picks = picks
+	m.loadStep()
+	for _, id := range []string{"gamescope", "gamemode", "mangohud", "controllers", "vm", "docker", "flatpak", "yazi", "localsend"} {
+		m.keep[id] = false
+	}
+	for i, r := range m.appsRows() { // park the cursor on a removed row
+		if r.kind == "app" && r.id == "gamescope" {
+			m.alsel = i
+		}
+	}
+	m.appsFixScroll()
+	m.enterPos = 1
+	show("apps: gaming + VM bundles removed", m)
+
+	m = mk()
+	at(&m, "diskpick") // target-disk picker
+	m.picks = picks
 	m.loadStep()
 	m.enterPos = 1
 	show("target disk", m)
 
 	m = mk()
-	m.idx, m.picks = 9, picks // partitions
+	at(&m, "partitions")
+	m.picks = picks
 	m.picks["disk"] = "whole"
 	m.loadStep()
 	m.enterPos, m.lsel = 1, 0
@@ -3491,7 +3764,7 @@ func snapshot() {
 	alongPicks["disk"] = "alongside"
 
 	m = mk()
-	m.idx = 8 // disk strategy
+	at(&m, "disk") // disk strategy
 	dl := diskLayout{parts: ryokuKept, gpt: true, espKind: "ryoku", probeVerdict: "ok"}
 	m.pick = newPicker(diskStrategiesFor(dl), true)
 	m.pick.height, m.picks, m.enterPos = m.listRows(), alongPicks, 1
@@ -3499,7 +3772,7 @@ func snapshot() {
 
 	carve := func() model {
 		c := mk()
-		c.idx, c.picks = 9, alongPicks
+		c.idx, c.picks = flowIndex(c.flow, "partitions"), alongPicks
 		c.diskDev, c.diskTotal, c.diskG = "/dev/loop0", 931, 931
 		c.diskBytes = 953869 * 1024 * 1024
 		c.gpt, c.espKind, c.existingBoot, c.probeVerdict, c.espFreeKiB = true, "ryoku", "none", "ok", 8192
@@ -3519,16 +3792,19 @@ func snapshot() {
 	show("alongside: layout with Shift big-step hint (130 GiB)", m)
 
 	m = carve()
-	m.idx, m.netOnline, m.hwSecureBoot = 14, true, false // review
+	at(&m, "review")
+	m.netOnline, m.hwSecureBoot = true, false
 	show("alongside: review (shared ESP, no erase)", m)
 
 	m = carve()
-	m.idx, m.netOnline, m.hwSecureBoot, m.espFreeKiB = 14, true, false, 6144
+	at(&m, "review")
+	m.netOnline, m.hwSecureBoot, m.espFreeKiB = true, false, 6144
 	m.espKind, m.existingBoot = "windows", "/EFI/Microsoft/Boot/bootmgfw.efi"
 	show("alongside: review (dedicated ESP, existing ESP untouched)", m)
 
 	m = carve()
-	m.idx, m.netOnline, m.hwSecureBoot = 14, true, false
+	at(&m, "review")
+	m.netOnline, m.hwSecureBoot = true, false
 	m.reclaim = []part{
 		{dev: "previous Ryoku", size: 6, fs: "ryoku", status: "reclaim", reclaim: true},
 		{dev: "previous Ryoku", size: 1, fs: "ryokuboot", status: "reclaim", reclaim: true},
@@ -3537,7 +3813,8 @@ func snapshot() {
 	show("alongside: review with reclaimed leftovers", m)
 
 	m = mk()
-	m.idx, m.picks = 12, picks // user password
+	at(&m, "password") // user password
+	m.picks = picks
 	m.loadStep()
 	m.enterPos, m.input = 1, "Hunter2!"
 	show("user password (+ strength)", m)

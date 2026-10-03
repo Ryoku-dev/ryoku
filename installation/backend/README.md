@@ -51,6 +51,8 @@ Required:
 | `RYOKU_COMPOSITOR`        | Window manager to install, e.g. `hyprland`. Selects the `ryoku-desktop-<name>` variant package. |
 | `RYOKU_COMPOSITOR_CONFIG_DIR` | The `~/.config` subdir that compositor owns (the TUI derives it from `wm.ConfigDir`, e.g. `hypr`); seeds the keymap and GPU pin. Empty means an unknown compositor and the install aborts. |
 | `RYOKU_COMPOSITOR_GPU_PIN` | The render-pin file inside that dir the TUI derives from `wm.GpuPinFile` (`gpu.lua` on Hyprland, `gpu.conf` on mango). Empty means the compositor picks its own render device (niri) and the GPU-mode step skips. |
+| `RYOKU_BROWSER`               | The one browser to install: `zen` \| `chromium` \| `firefox` (empty = `zen`). The backend drops the other two from the pacstrap/AUR sets, points xdg and the desktop's `browser` role at the pick. |
+| `RYOKU_DROP_PACKAGES`         | Comma-separated package names the user removed at the installer's apps checklist. Every package-set reader (pacstrap, the AUR build, the offline AUR batch) filters this set out, and `deploy.sh` records it in the doctor's provisioning ledger so `ryoku update` honours the removal instead of reinstalling. |
 
 With defaults:
 
@@ -82,7 +84,7 @@ Other (all optional, env-only):
 
 | Variable                  | Meaning                                                              |
 |---------------------------|----------------------------------------------------------------------|
-| `RYOKU_GPU_MODE`          | Hybrid-GPU render mode, **consumed** after driver install: `offload` (iGPU-first default), `sync` (pin the dGPU as primary), `vfio` (pin the iGPU alone, freeing the dGPU for a VM). Applied with `ryoku-gpu mode` to the user's `~/.config/hypr/gpu.lua`. Empty leaves Hyprland's own selection. |
+| `RYOKU_GPU_MODE`          | Hybrid-GPU render mode, **consumed** after driver install: `offload` (iGPU-first default), `sync` (pin the dGPU as primary), `vfio` (pin the iGPU alone, freeing the dGPU for a VM). Applied with `ryoku-gpu mode` to the user's render pin, the file named by `RYOKU_COMPOSITOR_GPU_PIN` (empty, as on niri, skips the step: that compositor picks its own device). |
 | `RYOKU_REGION_START` / `RYOKU_REGION_END` | For `alongside`: the exact start/end SECTORS of the free region the TUI's probe chose. The backend places the boot + root partitions there and re-validates the range is still free before writing. Omitted -> the backend picks the largest free region itself. |
 | `RYOKU_RECLAIM_LEFTOVERS` | `1` lets `alongside` DELETE *unmounted* partitions labeled exactly `ryoku`/`ryokuboot` (leftovers of a prior failed run). Without it, finding such partitions aborts the install (they may be a working Ryoku install). The TUI sets it after the typed `ERASE` ack. |
 | `RYOKU_WIPE_CONFIRMED`    | `1` lets `whole` wipe a non-empty disk (the TUI's typed `ERASE` ack). |

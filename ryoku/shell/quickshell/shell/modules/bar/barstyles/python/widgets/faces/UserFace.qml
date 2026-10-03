@@ -139,13 +139,11 @@ Item {
                             renderTarget: Canvas.Image
                             renderStrategy: Canvas.Immediate
 
-                            property real wavePhase: 0.0
-                            NumberAnimation on wavePhase {
-                                running: actionCapsule.fillLevel > 0.0 && actionCapsule.fillLevel < 1.0
-                                loops: Animation.Infinite
-                                from: 0
-                                to: Math.PI * 2
+                            property real wavePhase: waveClock.phase
+                            WaveClock {
+                                id: waveClock
                                 duration: 800
+                                running: actionCapsule.fillLevel > 0.0 && actionCapsule.fillLevel < 1.0
                             }
 
                             onWavePhaseChanged: requestPaint()

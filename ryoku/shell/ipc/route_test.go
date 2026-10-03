@@ -116,7 +116,7 @@ func TestDispatchFrameSurface(t *testing.T) {
 // surface/voice verbs each emit their exact openSurface call on the shell target.
 func TestDispatchSurfaceRouting(t *testing.T) {
 	t.Setenv("PATH", t.TempDir()) // no voxtype on PATH: voice falls to the "off" note
-	calls := make(chan string, 3)
+	calls := make(chan string, 4)
 	stubShellIpc(t, calls)
 
 	d := &daemon{sup: map[string]bool{"shell": true}, activeMon: "DP-1"}
@@ -137,11 +137,17 @@ func TestDispatchSurfaceRouting(t *testing.T) {
 	if got := <-calls; got != "openSurface DP-1 screenshot" {
 		t.Fatalf("screenshot shell IPC = %q", got)
 	}
+	if got := d.dispatch("menu quick-settings"); got != "ok" {
+		t.Fatalf("dispatch(menu quick-settings) = %q, want ok", got)
+	}
+	if got := <-calls; got != "openSurface DP-1 sidebar-left" {
+		t.Fatalf("quick-settings alias shell IPC = %q", got)
+	}
 	if got := d.dispatch("menu stash"); got != "ok" {
 		t.Fatalf("dispatch(menu stash) = %q, want ok", got)
 	}
-	if got := <-calls; got != "openSurface DP-1 stash" {
-		t.Fatalf("stash shell IPC = %q", got)
+	if got := <-calls; got != "openSurface DP-1 sidebar-right" {
+		t.Fatalf("stash alias shell IPC = %q", got)
 	}
 	if got := d.dispatch("voice"); got != "ok" {
 		t.Fatalf("dispatch(voice) = %q, want ok", got)
@@ -151,15 +157,15 @@ func TestDispatchSurfaceRouting(t *testing.T) {
 	}
 }
 
-// The file-picker tool verbs open the stash sidebar straight onto their picker,
+// The file-picker tool verbs open the right sidebar straight onto their picker,
 // so install-app.desktop and compress-video.desktop reach the right surface.
 func TestDispatchFilePickerTools(t *testing.T) {
 	calls := make(chan string, 2)
 	stubShellIpc(t, calls)
 	d := &daemon{sup: map[string]bool{"shell": true}, activeMon: "DP-1"}
 	for verb, want := range map[string]string{
-		"install":  "openSurface DP-1 stash#install",
-		"compress": "openSurface DP-1 stash#compress",
+		"install":  "openSurface DP-1 sidebar-right#install",
+		"compress": "openSurface DP-1 sidebar-right#compress",
 	} {
 		if got := d.dispatch(verb); got != "ok" {
 			t.Fatalf("dispatch(%q) = %q, want ok", verb, got)
@@ -182,13 +188,13 @@ func TestDispatchSurfaceVerbs(t *testing.T) {
 		"visualizer":         "openSurface DP-1 visualizer",
 		"visualizer-overlay": "openSurface DP-1 visualizer-overlay",
 		"visualizer-place":   "openSurface DP-1 visualizer-place",
-		"quicksettings":      "openSurface DP-1 quick-settings",
+		"quicksettings":      "openSurface DP-1 sidebar-left",
 		"wallpaper-menu":     "openSurface DP-1 wallpaper",
 		"clipboard":          "openSurface DP-1 clipboard",
-		"stash":              "openSurface DP-1 stash",
-		"screenshot":         "openSurface DP-1 quick-settings#capture",
-		"compress":           "openSurface DP-1 stash#compress",
-		"install":            "openSurface DP-1 stash#install",
+		"stash":              "openSurface DP-1 sidebar-right",
+		"screenshot":         "openSurface DP-1 sidebar-left#capture",
+		"compress":           "openSurface DP-1 sidebar-right#compress",
+		"install":            "openSurface DP-1 sidebar-right#install",
 	}
 	calls := make(chan string, 1)
 	stubShellIpc(t, calls)

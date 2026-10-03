@@ -450,7 +450,10 @@ PanelWindow {
 
     Process {
         id: settingsWatcher
-        command: ["bash", "-c", `while [ ! -f "${Config.settingsJsonPath}" ]; do sleep 1; done; inotifywait -qq -e modify,close_write "${Config.settingsJsonPath}"`]
+        // exec after the wait loop: quickshell kills the direct child, so a
+        // plain `inotifywait` here would be orphaned to init on every style
+        // unload and leak one watcher per reload.
+        command: ["bash", "-c", `while [ ! -f "${Config.settingsJsonPath}" ]; do sleep 1; done; exec inotifywait -qq -e modify,close_write "${Config.settingsJsonPath}"`]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {

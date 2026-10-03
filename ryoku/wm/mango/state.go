@@ -39,13 +39,18 @@ func snapshot() (wm.Snapshot, error) {
 	names := layoutNames(layouts)
 
 	var focusedOut string
+	randr := readRandr()
 	outputs := make([]wm.Output, 0, len(mons.Monitors))
-	workspaces := []wm.Workspace{}
+	workspaceCount := len(mons.Monitors)
+	for _, m := range mons.Monitors {
+		workspaceCount += len(m.Tags)
+	}
+	workspaces := make([]wm.Workspace, 0, workspaceCount)
 	for _, m := range mons.Monitors {
 		if m.Active {
 			focusedOut = m.Name
 		}
-		outputs = append(outputs, outputFrame(m, true))
+		outputs = append(outputs, outputFrameWithRandr(m, true, randr))
 		for _, t := range m.Tags {
 			workspaces = append(workspaces, wm.Workspace{
 				ID:      strconv.Itoa(t.Index),
@@ -56,13 +61,24 @@ func snapshot() (wm.Snapshot, error) {
 				Layout:  names[t.Layout],
 			})
 		}
+		workspaces = append(workspaces, specialWorkspaceFrame(m, clients.Clients, names[m.LayoutSymbol]))
 	}
 
+	sort.Slice(clients.Clients, func(i, j int) bool {
+		return clients.Clients[i].ID < clients.Clients[j].ID
+	})
+	focusedID, haveFocused := focusedSnapshotClient(mons.Monitors, clients.Clients)
 	windows := make([]wm.Window, 0, len(clients.Clients))
+	nextOrder := 1
 	for _, c := range clients.Clients {
-		windows = append(windows, clientFrame(c, 0, currentTags(mons.Monitors)))
+		order := nextOrder
+		if haveFocused && c.ID == focusedID {
+			order = 0
+		} else {
+			nextOrder++
+		}
+		windows = append(windows, clientFrame(c, order, currentTags(mons.Monitors)))
 	}
-	sort.Slice(windows, func(i, j int) bool { return windows[i].ID < windows[j].ID })
 
 	kbLayout, kbLayouts := keyboardLayouts()
 	return wm.Snapshot{
@@ -73,6 +89,20 @@ func snapshot() (wm.Snapshot, error) {
 		KeyboardLayout:  kbLayout,
 		KeyboardLayouts: kbLayouts,
 	}, nil
+}
+
+func focusedSnapshotClient(mons []mangoMonitor, clients []mangoClient) (int, bool) {
+	for _, m := range mons {
+		if m.Active && m.ActiveClient.ID != nil {
+			return *m.ActiveClient.ID, true
+		}
+	}
+	for _, c := range clients {
+		if c.IsFocused {
+			return c.ID, true
+		}
+	}
+	return 0, false
 }
 
 // currentTags maps each monitor to its active tag index, so a window shown on
@@ -98,30 +128,39 @@ func activeTagIndex(tags []mangoTag) int {
 // outputFrame renders one mango monitor. full adds the editor detail
 // (advertised modes, position, transform, EDID identity), which mango does NOT
 // carry in IPC: it is read from wlr-randr over the live display, because mango
-// serves wlr-output-management-v1 (verified in src/main.c). Absent or failed,
-// the lean fields stand alone and the editor shows what IPC knows.
+// serves wlr-output-management-v1 (verified in src/main.c).
 func outputFrame(m mangoMonitor, full bool) wm.Output {
+	randr := randrRead{state: randrUnavailable}
+	if full {
+		randr = readRandr()
+	}
+	return outputFrameWithRandr(m, full, randr)
+}
+
+func outputFrameWithRandr(m mangoMonitor, full bool, randr randrRead) wm.Output {
 	o := wm.Output{
 		Name:            m.Name,
 		Width:           m.Width,
 		Height:          m.Height,
 		Scale:           m.Scale,
+		X:               m.X,
+		Y:               m.Y,
 		Focused:         m.Active,
 		VRR:             m.IsVRR,
 		ActiveWorkspace: strconv.Itoa(activeTagIndex(m.Tags)),
 	}
-	if full {
-		// wlr-randr over the advertised output-management protocol carries the
-		// editor detail. Physical size is not in its output; the EDID make and
-		// model are what doctor's phantom-output heuristic reads.
-		if d, ok := randrDetail(m.Name); ok {
-			o.X, o.Y = d.x, d.y
-			o.Transform = d.transform
-			o.Mode = d.mode
-			o.Modes = d.modes
-			o.Make, o.Model = d.make, d.model
-			o.Disabled = !d.enabled
-		}
+	if !full || randr.state == randrUnavailable {
+		return o
+	}
+	// Physical size is not in wlr-randr's output; the EDID make and model are
+	// what doctor's phantom-output heuristic reads.
+	if d, ok := randr.detail(m.Name); ok {
+		o.X, o.Y = d.x, d.y
+		o.Transform = d.transform
+		o.Mode = d.mode
+		o.Modes = d.modes
+		o.Make, o.Model = d.make, d.model
+		o.Disabled = !d.enabled
 	}
 	return o
 }

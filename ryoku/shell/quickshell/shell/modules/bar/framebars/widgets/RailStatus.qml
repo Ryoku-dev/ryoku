@@ -7,7 +7,7 @@ import shell.services
 
 // One renderer parameterised by statusId, exactly as the reference treats each
 // status widget as its own type. The battery, network, bluetooth and the speaker
-// open their popout card; notifications opens quick-settings; the mic mutes on
+// open their popout card; notifications opens the left sidebar; the mic mutes on
 // click; both audio widgets take a hover wheel for volume. Icon rules and
 // self-hide are the reference literals (contract 04 sec 3.2).
 Item {
@@ -97,7 +97,7 @@ Item {
             if (Audio.source && Audio.source.audio)
                 Audio.source.audio.muted = !Audio.source.audio.muted;
         } else if (statusId === "notifications") {
-            root.menuRequested("quick-settings#notifications", Qt.rect(0, 0, root.width, root.height));
+            ShellState.requestSurfaceActive("sidebar-left#notices");
         } else if (statusId === "bluetooth") {
             root.menuRequested("bluetooth", Qt.rect(btn.x, btn.y, btn.width, btn.height));
         } else if (statusId === "battery") {

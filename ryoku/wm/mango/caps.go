@@ -80,16 +80,17 @@ var windowRuleActions = []string{
 }
 
 // The packages ryoku-desktop-mango is made of: the variant package itself,
-// mango (built by release/packages/mangowm from a pinned tag), the scenefx
-// effects library it links (official extra; Ryoku once vendored its own
-// scenefx0.5, retired when extra caught up to the same 0.5 tag), the wlr
-// portal backend its caps report, and the gamma client that holds the warm
-// screen. Kept in step with that package's depends; this is the list a switch
-// away from mango reclaims, minus ryoku-desktop, which is shared. The variant
-// package belongs in the list: on a packaged box it owns every satellite below.
+// mango (built by release/packages/mangowm from a pinned tag), the output
+// management client that fills the display editor, the scenefx effects library
+// it links, the wlr portal backend its caps report, and the gamma client that
+// holds the warm screen. Kept in step with that package's depends; this is the
+// list a switch away from mango reclaims, minus ryoku-desktop, which is shared.
+// The variant package belongs in the list: on a packaged box it owns every
+// satellite below.
 var compositorPackages = []string{
 	"ryoku-desktop-mango",
 	"mangowm",
+	"wlr-randr",
 	"scenefx",
 	"xdg-desktop-portal-wlr",
 	"wlsunset",

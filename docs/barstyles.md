@@ -244,46 +244,48 @@ Everything past this point is about what a widget binds to.
 
 ## Fetching data
 
-This is the real work. The shell already gathers every live fact through the
-singletons in `shell.services`; a widget reads them and draws. Import the module
-once (`import shell.services`) and each singleton is in scope by name. What
-follows is the exact surface each one exposes.
+This is the real work. The shell already gathers every live fact through its
+singletons; a widget reads them and draws. Import the singleton's module once
+and use that contract rather than probing a compositor directly.
 
-### Workspaces and Hyprland
+### Workspaces and windows
 
-Workspaces come from two places. The `Workspaces` singleton gives you one
-reliable number, `Workspaces.activeId`, the focused workspace id (seeded from
-`hyprctl` and kept correct against Ryoku's Hyprland fork, where reading
-`Hyprland.focusedWorkspace` too early yields bogus ids). The live list and the
-switch come from `Quickshell.Hyprland` directly:
+Window-manager state and actions live in `Wm` from `Ryoku.Ui.Singletons`. Every
+style must render and behave identically on every compositor. Never import
+`Quickshell.Hyprland`, `Quickshell.Services.Hyprland`, or a compositor-specific
+backend from a style.
 
 ```qml
-import Quickshell.Hyprland
-import shell.services
+import QtQuick
+import Ryoku.Ui.Singletons
 
-readonly property int activeId: Workspaces.activeId
+Item {
+    readonly property var workspaces: Wm.workspaces
+    readonly property var activeWorkspace: Wm.focusedWorkspace
+    readonly property string activeTitle: Wm.focusedWindow
+        ? Wm.focusedWindow.title : ""
 
-// live workspaces: each w has .id, .name, and .lastIpcObject
-readonly property var wss: Hyprland.workspaces ? Hyprland.workspaces.values : []
-
-// occupancy: scan toplevels for one sitting on this workspace
-function occupied(id) {
-    const tls = Hyprland.toplevels ? Hyprland.toplevels.values : [];
-    for (let i = 0; i < tls.length; i++) {
-        const o = tls[i] && tls[i].lastIpcObject || {};
-        if (o.workspace && o.workspace.id === id) return true;
+    function occupied(workspace) {
+        return workspace.occupied === true;
     }
-    return false;
-}
 
-// switch to one, and cycle with the wheel
-function focus(id) { Hyprland.dispatch('hl.dsp.focus({ workspace = "' + id + '" })'); }
-// onWheel: Hyprland.dispatch(up ? "workspace r-1" : "workspace r+1")
+    function activateWorkspace(workspace) {
+        Wm.focusWorkspace(workspace.id);
+    }
+
+    function cycle(delta) {
+        Wm.cycleWorkspace(delta);
+    }
+}
 ```
 
-The focused window is `Hyprland.activeToplevel`, and its title lives at
-`activeToplevel.lastIpcObject.title` (guard it; it is empty on a bare
-workspace). An active-window widget is nothing more than that string, elided.
+Each workspace has `id`, `name`, `active`, `urgent`, `occupied`, `windows`,
+`output`, `fullscreen`, `special`, `layout`, and `canActivate`. Use the opaque
+`id` for actions and the human `name` for labels. The live window list is
+`Wm.windows`; `Wm.focusedWindow` and `Wm.focusedWorkspace` carry focus. Window
+actions go through `Wm.focusWindow(id)` and `Wm.closeWindow(id)`, just as
+workspace actions go through `Wm.focusWorkspace(id)` and
+`Wm.cycleWorkspace(delta)`.
 
 ### Media
 
@@ -681,11 +683,12 @@ the blue-light rows drive the daemon's night light.
 
 ## Frame menus
 
-The wallpaper picker (Super+W), quick settings (Super+Escape), the feature sidebar
-(Super+S), and the capture card (a separate `screenshot` shortcut into
-`quick-settings#capture`) are shell surfaces, not bar widgets, so they are the same
-in every style. They normally anchor to the Sumi rail edges and read against the
-frame band. A folder style has no rails and hides the band, so `shell.qml` sets
+The wallpaper picker (Super+W) and the rail popout cards are frame surfaces,
+not bar widgets, so they are the same in every style. They normally anchor to
+the Sumi rail edges and read against the
+frame band. The two sidebars (Super+Escape left, Super+S right) are not frame
+menus at all: they are push-aside panels of their own (`docs/sidebars.md`),
+which is why they behave identically under every style. A folder style has no rails and hides the band, so `shell.qml` sets
 `topBar` on the per-monitor `FrameMenuManager`: side and bottom anchors fold up to
 the matching top edge or corner, the menus drop a small inset below the bar, and
 each menu paints its own card since the frame is not there to draw it. Nothing

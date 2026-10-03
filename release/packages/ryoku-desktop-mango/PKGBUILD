@@ -27,7 +27,14 @@ depends=(
   # compositor + Wayland session. The upstream package suppresses its own
   # session entry and portal file; this package owns both (see mangowm's
   # PKGBUILD), and the caps' reclaim list names exactly this depends set.
-  'mangowm'
+  # The >=1: is load-bearing: pacman satisfies an unversioned dep by repo
+  # order, and [ryoku] sits after the official repos, so plain "mangowm"
+  # resolves to extra's build (which owns the greeter entry we must own).
+  # Extra's version has no epoch, so this constraint picks ours.
+  'mangowm>=1:0.17.4'
+  # output detail for the display editor. Mango's IPC has basic geometry but
+  # not its advertised modes, transform or EDID identity.
+  'wlr-randr'
   # the effects library mango renders through (blur, shadows, rounding); a
   # mangowm dependency, named here too so the variant states the whole stack
   # its reclaim list reclaims. Official extra: Ryoku's vendored scenefx0.5 was

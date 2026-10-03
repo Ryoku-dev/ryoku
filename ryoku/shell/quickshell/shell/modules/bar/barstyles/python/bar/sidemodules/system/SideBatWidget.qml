@@ -59,12 +59,10 @@ Rectangle {
     visible: opacity > 0
     Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
-    property real globalWavePhase: 0.0
-    NumberAnimation on globalWavePhase {
-        from: 0
-        to: Math.PI * 2
+    property real globalWavePhase: waveClock.phase
+    WaveClock {
+        id: waveClock
         duration: sideBatRoot.isCharging ? 1800 : 3600
-        loops: Animation.Infinite
         running: sideBatRoot.showLayout && sideBatRoot.moduleActive
     }
 

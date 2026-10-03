@@ -5,8 +5,10 @@
 # (Exec=mango): a first login on it boots the bare compositor with no
 # keybinds, no autostart and no shell. Only a build that leaves the entry to
 # ryoku-desktop-mango (whose Exec is the materializing wrapper) can back the
-# desktop, so this one carries epoch=1: it stays the install candidate
-# however extra's pkgrel sorts. Re-vendor on each tag Ryoku tracks.
+# desktop, so this one carries epoch=1 and the variant depends on
+# mangowm>=1:0.17.4: an unversioned dep resolves by repo order, which puts
+# extra first, but no epoch-less build can satisfy a >=1: constraint.
+# Re-vendor on each tag Ryoku tracks.
 #
 # The greeter session entry and the portal routing file are NOT owned here:
 # meson installs assets/mango.desktop and assets/mango-portals.conf, and

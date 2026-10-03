@@ -487,9 +487,9 @@ and per-monitor visibility from `ShellState`.
   surfaces and grows the same popout cards from the kit under
   `shell/modules/bar/popouts/`: clicking a status widget (network, Bluetooth,
   battery, audio, system monitor, recording, music, voice) grows its live
-  controls out of the bar. The monitor-local menu manager owns those cards, the
-  bounded frame menus, the Super+Escape control sidebar and the Super+S feature
-  sidebar. See `docs/bar.md` and `docs/barstyles.md`.
+  controls out of the bar. The monitor-local menu manager owns those cards and
+  the bounded frame menus. The global left and right sidebars live in
+  `ryoku/shell/quickshell/shell/modules/sidebar/`; see `docs/sidebars.md`.
 - **dock** an app island cluster on a screen edge, its own shell surface
   (`shell/modules/dock/DockSurface.qml`, one per monitor) rather than a part of
   any one bar, so it rides every bar style. Pinned apps hold a stable order you
@@ -537,8 +537,8 @@ and per-monitor visibility from `ShellState`.
 |---|---|---|
 |**launcher**|`Super+Space`|the app launcher and command palette|
 |**overview**|`Super+Tab`|the full-screen workspace expo|
-|**quick settings**|`Super+Escape`|the full-height control sidebar|
-|**feature sidebar**|`Super+S`|the framed card: chat, usage, tools|
+|**left sidebar**|`Super+Escape`|desktop controls, notices, weather, media, capture, and stage|
+|**right sidebar**|`Super+S`|usage, tools, and Rashin chat|
 |**clipboard**|`Super+V`|clipboard history at the bottom edge, with fuzzy search and a starred pane|
 |**wallpaper and theme menu**|`Super+W`|the wallpaper carousel and theme picker|
 |**ryoshot**|`Super+Shift+S`|capture, annotate, pin|
@@ -551,12 +551,6 @@ and per-monitor visibility from `ShellState`.
 *The launcher at zero query: the hero plate, the greeting and clock, the weather,
 the search rule, and the mode buttons. Everything else appears only once you
 type.*
-
-![The control sidebar](media/controls.webp)
-
-*Quick settings, Home module: session actions, the connect tiles, sound and
-per-output brightness, the media card, a month calendar, and the power profile.
-One rail, five modules, no colour.*
 
 - **launcher** three variants ship, chosen by `LauncherConfig.variant` against
   `launcher/catalog.json`: **Hero** (the default, a full image header with mode
@@ -577,23 +571,18 @@ One rail, five modules, no colour.*
   ten workspace ids, so each desktop keeps its own 01..10; the same grouping
   drives the desktop-relative `Super+N` binds (`scripts/ryoku-workspace`). The
   gesture legend sits along the bottom margin as marginalia, not as buttons.
-- **quick settings** the shell's one full-height control body. A fixed icon rail
-  selects independently catalogued modules: **Home** (session actions,
-  connectivity and airplane, night light, keep awake, do not disturb, game mode,
-  volume and mic, per-output brightness, the media card, a month calendar, and
-  the power profile), **Notifications** (the history, grouped by app, with Clear
-  all), **Weather** (current, hourly, three-day, sun, moon phase, conditions, air
-  quality), **Capture** (screenshot and record, with the recent shots and
-  recordings), and **Media** when a player is present. Five utility buttons sit
-  at the rail's foot: lens search, OCR, QR scan, the Hub, and the colour picker.
-- **feature sidebar** a framed floating card whose left rail switches **Chat**,
-  **Usage** and **Tools**. Chat is the needle: `Needle` (`shell/services/`) holds
-  the thread in a singleton rather than in the sidebar body, so a conversation and
-  an in-flight answer survive a close and reopen, and a new chat starts only after
-  ten minutes away. A turn runs `ryoku-rashin chat` and streams the shared Hermes
-  session as JSONL, with the model picker offering whatever that session exposes.
-  Usage is a local screen-time overview. Tools is link download plus an in-shell
-  file picker that compresses media or installs packages. See `docs/bar.md`.
+- **left sidebar** a global push-aside panel under the desktop. Its pill tabs
+  select **Controls**, **Notices**, **Weather**, **Media**, **Capture**, and
+  **Stage** cards. Controls holds session actions, connectivity, audio,
+  brightness, battery, and power controls. The other cards keep their work in
+  the same Hub-styled card stack rather than opening separate frame menus.
+- **right sidebar** the companion push-aside panel with **Overview**, **Tools**,
+  and **Chat** tabs. Overview shows local screen time. Tools handles link
+  downloads, recent work, compression, and package installation with an in-shell
+  file picker. Chat uses the shared `Needle` service, so a conversation and an
+  in-flight answer survive a close and reopen. Both sidebars work under every
+  bar style, accept `sidebarCard` plugins, and are configured under Desktop >
+  Sidebars in the Hub. See `docs/sidebars.md`.
 - **wallpaper and theme menu** a carousel of the wallpaper library (four layouts:
   strips, grid, drift, hearthstone) with the current wall large and named, a
   colour-filter strip, a live tab for animated walls, and a bottom-centre frame
@@ -656,11 +645,12 @@ One rail, five modules, no colour.*
   Hub's Lockscreen page and install from Ryostore; they are the one part of the
   desktop that deliberately does not read `Tokens`, because a lock skin is a
   whole look, not a surface inside ours.
-- **third-party widgets** a plugin ships `manifest.json`, a `service/Main.qml`
-  and a `content/Widget.qml`, and picks one of three hosts: a desktop widget, a
-  frame popout, or a bar glyph. `Ryoku.PluginKit` gives it the shared primitives,
-  and the kit's Theme reads `Scheme`, so a plugin follows the active theme without
-  knowing anything about it. See `docs/plugins.md`.
+- **third-party widgets and cards** a plugin ships `manifest.json`, a
+  `service/Main.qml` and a `content/Widget.qml`, then picks one of four hosts: a
+  desktop widget, a frame popout, a bar glyph, or a sidebar card.
+  `Ryoku.PluginKit` gives it the shared primitives, and the kit's Theme reads
+  `Scheme`, so a plugin follows the active theme without knowing anything about
+  it. See `docs/plugins.md`.
 
 ## The desktop spectrum
 
@@ -863,6 +853,13 @@ which process you are in.
   opening) and `effects` (200ms). A curve is a `cubic-bezier` control-point array
   handed to `easing.bezierCurve` beside a bezier `easing.type`; the shared
   expressive family keeps indicator, popout and frame-bar reveal motion coherent.
+- **The sidebars move as one spatial event.** `SidebarState` gives the panel
+  reveal and desktop offset the same 420ms enter curve
+  (`cubic-bezier(0.16, 1, 0.3, 1)`) and 260ms ease-out exit. `quick`,
+  `standard`, and `calm` scale those durations by 0.6, 1, and 1.5. The panel's
+  exclusive zone, desktop slide, and `DepthEdge` follow the same reveal
+  progress. Card bodies then fade and rise 24px with a 40ms index stagger. Both
+  `Motion.reduce` and `Tokens.reduceMotion` remove the motion.
 - **Every shell token is already scaled.** Each one is defined as `dur(ms)`,
   which multiplies by `Perf.motionSpeed` (the user's tempo, `motionSpeed` in
   `performance.json`) and collapses to zero under reduce-motion, so the whole

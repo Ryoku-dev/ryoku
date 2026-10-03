@@ -33,6 +33,7 @@ func TestRetireSourceTrackingMigratesOffCheckout(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("RYOKU_REPO", "")
+	t.Setenv("RYOKU_WM", "hyprland") // the retire flow edits hypr/user.lua; Detect must not follow the test host's compositor
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
 

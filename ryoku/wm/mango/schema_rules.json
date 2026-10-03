@@ -10,8 +10,8 @@
     "page": "layerrules",
     "fields": [
       { "name": "namespace", "label": "Layer name", "ctl": "text" },
-      { "name": "blur", "label": "Blur", "ctl": "seg", "opts": ["inherit", "on", "off"] },
-      { "name": "shadow", "label": "Shadow", "ctl": "seg", "opts": ["inherit", "on", "off"] }
+      { "name": "blur", "label": "Blur", "ctl": "seg", "opts": ["inherit", "off"] },
+      { "name": "shadow", "label": "Shadow", "ctl": "seg", "opts": ["inherit", "off"] }
     ]
   }
 ]

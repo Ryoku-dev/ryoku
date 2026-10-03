@@ -20,7 +20,6 @@ import (
 var shellDir = os.Getenv("RYOKU_SHELL_DIR")
 
 var frameBarMenuIDs = map[string]bool{
-	"quick-settings": true,
 	"theme":          true,
 	"wallpaper":      true,
 	"weather":        true,

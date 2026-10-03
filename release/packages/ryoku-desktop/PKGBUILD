@@ -28,6 +28,7 @@ depends=(
   "ryoku-hub=$pkgver"
   "ryoku-rashin=$pkgver"
   "ryoku-blobs=$pkgver"
+  "ryoku-sidebarfx=$pkgver"
   "ryoku=$pkgver"
   'ryoku-keyring'
   "ryoku-oh-my-zsh=$pkgver"

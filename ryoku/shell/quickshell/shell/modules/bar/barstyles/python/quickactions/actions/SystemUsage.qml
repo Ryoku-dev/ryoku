@@ -89,9 +89,11 @@ Item {
         }
     }
 
-    property real globalWavePhase: 0.0
-    NumberAnimation on globalWavePhase {
-        from: 0; to: Math.PI * 2; duration: 1800; loops: Animation.Infinite; running: root.widgetVisible
+    property real globalWavePhase: waveClock.phase
+    WaveClock {
+        id: waveClock
+        duration: 1800
+        running: root.widgetVisible
     }
 
     property real rawCpu: isNaN(SysData.cpu) ? 0.0 : SysData.cpu / 100.0

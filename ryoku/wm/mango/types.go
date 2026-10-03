@@ -34,6 +34,10 @@ type mangoClient struct {
 	Proportion   float64 `json:"scroller_proportion"`
 }
 
+type mangoClientRef struct {
+	ID *int `json:"id"`
+}
+
 type mangoTag struct {
 	Index       int    `json:"index"`
 	IsActive    bool   `json:"is_active"`
@@ -43,17 +47,18 @@ type mangoTag struct {
 }
 
 type mangoMonitor struct {
-	Name         string     `json:"name"`
-	Active       bool       `json:"active"`
-	IsHDR        bool       `json:"is_hdr"`
-	IsVRR        bool       `json:"is_vrr"`
-	X            int        `json:"x"`
-	Y            int        `json:"y"`
-	Width        int        `json:"width"`
-	Height       int        `json:"height"`
-	Scale        float64    `json:"scale"`
-	LayoutSymbol string     `json:"layout_symbol"`
-	Tags         []mangoTag `json:"tags"`
+	Name         string         `json:"name"`
+	Active       bool           `json:"active"`
+	IsHDR        bool           `json:"is_hdr"`
+	IsVRR        bool           `json:"is_vrr"`
+	X            int            `json:"x"`
+	Y            int            `json:"y"`
+	Width        int            `json:"width"`
+	Height       int            `json:"height"`
+	Scale        float64        `json:"scale"`
+	LayoutSymbol string         `json:"layout_symbol"`
+	ActiveClient mangoClientRef `json:"active_client"`
+	Tags         []mangoTag     `json:"tags"`
 }
 
 // clientsEnvelope wraps `get all-clients`; monitorsEnvelope wraps
@@ -92,11 +97,38 @@ func layoutNames(env layoutEnvelope) map[string]string {
 	return out
 }
 
+func specialWorkspaceFrame(m mangoMonitor, clients []mangoClient, layout string) wm.Workspace {
+	frame := wm.Workspace{
+		ID:      "0",
+		Name:    "0",
+		Output:  m.Name,
+		Special: true,
+		Layout:  layout,
+	}
+	for _, c := range clients {
+		if c.Monitor != m.Name {
+			continue
+		}
+		onSpecial := false
+		for _, tag := range c.Tags {
+			if tag == 0 {
+				onSpecial = true
+				break
+			}
+		}
+		if !onSpecial {
+			continue
+		}
+		frame.Windows++
+		frame.Active = frame.Active || c.IsVisible
+	}
+	return frame
+}
+
 // clientFrame renders one window. mango reports full on-screen geometry on
 // every client (verified against a live instance), so CapWindowGeometry is
 // honoured and consumers can draw windows where they are. FocusOrder comes
-// from the watch fold; a one-shot snapshot passes 0 for the focused window and
-// -1 elsewhere via its caller.
+// from the caller's observed or snapshot ordering.
 func clientFrame(c mangoClient, focusOrder int, currentTag map[string]int) wm.Window {
 	w := wm.Window{
 		ID:         strconv.Itoa(c.ID),
@@ -112,23 +144,29 @@ func clientFrame(c mangoClient, focusOrder int, currentTag map[string]int) wm.Wi
 	}
 	// A window's tags[] is the set of tags it lives on. The workspace a pill
 	// counts it on is the monitor's currently viewed tag when the window shares
-	// it; otherwise its lowest tag. The model is fixed, so the id is the tag
-	// number as text.
-	tag := 0
+	// it; otherwise its lowest tag. Tag 0 is mango's special workspace handle,
+	// and stays 0 exactly as ordinary workspace handles stay numeric text.
 	for _, t := range c.Tags {
-		if tag == 0 || t < tag {
-			tag = t
+		if t == 0 {
+			w.Workspace = "0"
+			return w
+		}
+	}
+	tag, haveTag := 0, false
+	for _, t := range c.Tags {
+		if !haveTag || t < tag {
+			tag, haveTag = t, true
 		}
 	}
 	if cur, ok := currentTag[c.Monitor]; ok {
 		for _, t := range c.Tags {
 			if t == cur {
-				tag = t
+				tag, haveTag = t, true
 				break
 			}
 		}
 	}
-	if tag > 0 {
+	if haveTag {
 		w.Workspace = strconv.Itoa(tag)
 	}
 	return w

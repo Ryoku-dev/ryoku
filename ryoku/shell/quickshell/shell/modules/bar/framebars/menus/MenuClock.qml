@@ -4,10 +4,9 @@ import QtQuick
 import "../.." as Pill
 import shell.services
 
-// The clock menu: calendar above weather. Composes QsCalendarEmbed (the
-// calendar grid) and MenuWeather in a vertical column, matching the original
-// layout. MenuWidgetHost hosts this as the "clock" widget; the Calendar and
-// Weather quick-settings tabs embed those components directly instead.
+// The clock menu: calendar above weather. It composes QsCalendarEmbed and
+// MenuWeather in a vertical column; MenuWidgetHost exposes it as the "clock"
+// widget.
 Item {
     id: root
 

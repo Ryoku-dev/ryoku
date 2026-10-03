@@ -15,6 +15,10 @@ image) the CachyOS performance layer. All told, a fresh box lands at roughly
 ## How the default set is assembled
 
 Nothing here is magic; it comes from four well-defined places, in this order.
+The installer's window-manager, browser, and apps steps (see
+`installation/tui/apps.go`) can remove entries from the default set: what you
+drop is filtered out of every step below and recorded so `ryoku update` never
+puts it back.
 
 1. **`pacstrap`** lays down the base system from `system/packages/base.packages`,
    the developer toolchains from `dev.packages`, and the microcode for your CPU
@@ -47,6 +51,7 @@ upgrade never leaves the shell QML running against a stale plugin.
 | `ryoku` | The `ryoku` CLI: `update`, `doctor`, `materialize`, rollback, snapshots |
 | `ryoku-rashin` | The system-map vault that keeps a live map of where everything lives |
 | `ryoku-blobs` | The shared `Ryoku.Blobs` QML plugin |
+| `ryoku-sidebarfx` | The shared `Ryoku.SidebarFx` depth-edge QML plugin |
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
 | `ryostore` | RyoStore: the catalogue of rices, bundles, and bar styles |
@@ -128,7 +133,7 @@ The small daemons and utilities the desktop leans on every session.
 
 | Package | Role |
 |---|---|
-| `chromium` | The web browser |
+| `chromium` / `firefox` / Zen (`zen-browser-bin`) | The web browser: the installer picks exactly one of the three (Zen is the default; the other two ship from the official repos) |
 | `kitty` | The default terminal |
 | `mpv`, `mpv-mpris` | The media player, wired onto the players bus |
 | `nautilus`, `nautilus-python` | The file manager and its "Install / Compress / Send with Ryoku" right-click actions |

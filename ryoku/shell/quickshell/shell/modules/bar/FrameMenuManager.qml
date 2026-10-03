@@ -36,9 +36,7 @@ Item {
     property bool active: true
 
     // A folder bar style (topBar) is a single sash on one screen edge with no
-    // other rails, so the frame menus fold to that edge: every side/opposite
-    // anchor collapses to barEdge or its matching corner (so Super+S lands in
-    // the corner nearest the bar).
+    // other rails, so frame menus fold to barEdge or its matching corner.
     property bool topBar: false
     property string barEdge: "top"   // the edge the folded bar sits on: top | bottom
     function mapAnchor(a) {
@@ -73,10 +71,7 @@ Item {
         return out;
     }
     readonly property var surfaces: {
-        const src = Config.normalizedFrameBars.surfaces || ({});
         const out = [];
-        // The config surface (the feature panel) is a framed floating card.
-        for (const id in src) out.push(Object.assign({ id: id, kind: id, fullSpan: false }, src[id]));
         out.push(
             { id: "voice", kind: "voice", anchor: "bottom", minWidth: 380 },
             { id: "keyring", kind: "keyring", anchor: "top", minWidth: 420 },
@@ -101,8 +96,8 @@ Item {
             // input, per-app playback and capture -- on a left-anchored
             // sliding card like the others, pointer-only (faders, no keys).
             { id: "audio", kind: "audio", anchor: "left", minWidth: 300 },
-            // the Super+S capture card: a left-anchored sliding card like the
-            // other rail cards, opened by the screenshot keybind / IPC. Pointer-only.
+            // The rail capture card: a left-anchored sliding card like the
+            // other rail cards. Pointer-only.
             { id: "screenshot", kind: "screenshot", anchor: "left", minWidth: 300 }
         );
         return out;
@@ -123,13 +118,13 @@ Item {
         for (const a in mon) if (mon[a]) return true;
         return false;
     }
-    // Ryoku-owned credential, stash, and plugin surfaces keep outside-click
-    // dismissal and keyboard focus. Pointer-only cards and voice stay passive.
+    // Ryoku-owned credential and plugin surfaces keep outside-click dismissal
+    // and keyboard focus. Pointer-only cards and voice stay passive.
     readonly property bool surfaceModal: {
         const mon = menuState[monitorName];
         if (!mon) return false;
         for (const anchor in mon)
-            if (mon[anchor] && mon[anchor].kind && mon[anchor].kind !== "menu" && mon[anchor].id !== "quick-settings" && mon[anchor].id !== "voice" && mon[anchor].id !== "music" && mon[anchor].id !== "bluetooth" && mon[anchor].id !== "battery" && mon[anchor].id !== "network" && mon[anchor].id !== "sysmon" && mon[anchor].id !== "audio" && mon[anchor].id !== "screenshot") return true;
+            if (mon[anchor] && mon[anchor].kind && mon[anchor].kind !== "menu" && mon[anchor].id !== "voice" && mon[anchor].id !== "music" && mon[anchor].id !== "bluetooth" && mon[anchor].id !== "battery" && mon[anchor].id !== "network" && mon[anchor].id !== "sysmon" && mon[anchor].id !== "audio" && mon[anchor].id !== "screenshot") return true;
         return false;
     }
     // Keyboard focus the frame raises while something is open (contract 05 sec
@@ -142,13 +137,13 @@ Item {
             const rec = mon[anchor];
             if (!rec) continue;
             if (rec.id === "network") return "ondemand";
-            if (rec.kind && rec.kind !== "menu" && rec.id !== "quick-settings" && rec.id !== "voice" && rec.id !== "music" && rec.id !== "bluetooth" && rec.id !== "battery" && rec.id !== "network" && rec.id !== "sysmon" && rec.id !== "audio" && rec.id !== "screenshot") return "exclusive";
+            if (rec.kind && rec.kind !== "menu" && rec.id !== "voice" && rec.id !== "music" && rec.id !== "bluetooth" && rec.id !== "battery" && rec.id !== "network" && rec.id !== "sysmon" && rec.id !== "audio" && rec.id !== "screenshot") return "exclusive";
         }
         return "none";
     }
 
     // The single reference menu (kind "menu") open on this monitor, or null.
-    // Ryoku-owned credential, stash, voice, and plugin surfaces remain popouts.
+    // Ryoku-owned credential, voice, and plugin surfaces remain popouts.
     readonly property var activeMenu: {
         const mon = menuState[monitorName];
         if (!mon) return null;
@@ -386,9 +381,8 @@ Item {
         const rec = MenuState.activeAt(menuState, monitorName, anchor);
         return rec && rec.along !== undefined ? rec.along : -1;
     }
-    // The live (menuState) record active at this anchor when its id matches, so
-    // a delegate can read the dynamic open-time fields (off, page) that the
-    // static config record does not carry. Null when this record is not open.
+    // The live record active at this anchor when its id matches lets a delegate
+    // read dynamic fields such as voice's `off`; static records do not carry it.
     function openRecordAt(anchor, id) {
         const rec = MenuState.activeAt(root.menuState, root.monitorName, anchor);
         return rec && rec.id === id ? rec : null;
@@ -452,14 +446,8 @@ Item {
     }
     function openSurface(id, ownerRect, requestedMonitor, context) {
         if (requestedMonitor !== undefined && requestedMonitor !== "" && requestedMonitor !== root.monitorName) return;
-        // A "#page" suffix on the id carries an initial sidebar page (a bar
-        // indicator deep-linking into quick-settings), stripped before the id
-        // is matched to a surface record.
-        const hash = id.indexOf("#");
-        const page = hash >= 0 ? id.substring(hash + 1) : "";
-        const reqId = hash >= 0 ? id.substring(0, hash) : id;
-        const voiceOff = reqId === "voice-off";
-        const surfaceID = voiceOff ? "voice" : reqId;
+        const voiceOff = id === "voice-off";
+        const surfaceID = voiceOff ? "voice" : id;
         if (surfaceID.indexOf("plugin:") === 0) {
             root.openPlugin(surfaceID.substring(7));
             return;
@@ -472,17 +460,10 @@ Item {
         // or a re-show must replace the live record, never dismiss it.
         const daemonOwned = surfaceID === "keyring" || surfaceID === "voice";
         // Where this surface is currently open. Its live anchor may differ from
-        // the config anchor: a rail widget welds its popout to its own edge, so
-        // the toggle must find it wherever it lives. Re-asking closes it; a new
-        // page switches in place, so a bar button and its command read as one
-        // toggle.
+        // the config anchor because a rail widget welds its popout to its edge.
+        // Find it wherever it lives so asking again closes it.
         const openAnchor = root.liveAnchorFor(surfaceID);
         if (!daemonOwned && openAnchor !== "") {
-            const cur = MenuState.activeAt(root.menuState, root.monitorName, openAnchor);
-            if (page !== "" && cur && cur.page !== page) {
-                root.menuState = MenuState.open(root.menuState, root.monitorName, Object.assign({}, cur, { page: page }));
-                return;
-            }
             root.closeAt(openAnchor);
             return;
         }
@@ -514,7 +495,7 @@ Item {
         }
         root.menuState = MenuState.open(base, root.monitorName,
             Object.assign({}, rec, { id: surfaceID, anchor: anchor, along: along, trigger: trigger,
-                off: voiceOff, page: page, promptId: surfaceID === "keyring" && context ? context.promptId : undefined }));
+                off: voiceOff, promptId: surfaceID === "keyring" && context ? context.promptId : undefined }));
     }
     function openMenu(id, ownerRect) {
         root.openSurface(id, ownerRect, root.monitorName);

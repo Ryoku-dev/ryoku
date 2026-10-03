@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -55,11 +54,12 @@ func runOutputs(args []string) error {
 	rep.Written = []string{path}
 	// The reload rides this verb: monitors.conf is written and the running
 	// session re-reads it here and now, so the caller has nothing left to
-	// trigger and ReloadNeeded stays false — the same stance niri's outputs
-	// verb takes by watching, reached here by dispatching reload.
+	// trigger and ReloadNeeded stays false.
 	rep.ReloadNeeded = false
 	if live() {
-		_ = dispatch("reload_config")
+		if err := dispatch("reload_config"); err != nil {
+			return err
+		}
 	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
@@ -170,20 +170,18 @@ func outputsUnhonored(layout []wm.OutputLayout) []wm.Unhonored {
 }
 
 // advertisedModes maps each live output to the modes it advertises, via
-// wlr-randr over the session's display. nil off a live session, which skips
-// the forced-mode check.
+// wlr-randr over the session's display. nil means the client is unavailable;
+// a successful empty response stays a non-nil empty map.
 func advertisedModes() map[string]map[string]bool {
-	out, err := exec.Command("wlr-randr").Output()
-	if err != nil {
+	randr := readRandr()
+	if randr.state == randrUnavailable {
 		return nil
 	}
-	return parseAdvertisedModes(string(out))
+	return parseAdvertisedModes(randr.text)
 }
 
-// parseAdvertisedModes reads wlr-randr's `NAME "make"` headers and their
-// `WxH px` mode rows into the same "WxH@Hz" spelling the editor uses. Refresh
-// is omitted by wlr-randr's mode line, so only the size half is compared; a
-// forced entry whose size is not advertised is the miss.
+// parseAdvertisedModes reads wlr-randr's `NAME "make"` headers and mode rows
+// into the same exact "WxH@Hz" spelling the editor uses.
 func parseAdvertisedModes(text string) map[string]map[string]bool {
 	out := map[string]map[string]bool{}
 	name := ""
@@ -208,10 +206,10 @@ func parseAdvertisedModes(text string) map[string]map[string]bool {
 			inModes = true
 			continue
 		}
-		if inModes && name != "" && strings.Contains(trimmed, "px") {
-			size := strings.Fields(trimmed)[0]
-			out[name][size] = true
-			out[name][size+"@"] = true
+		if inModes && name != "" {
+			if mode, ok := parseRandrMode(trimmed); ok {
+				out[name][mode] = true
+			}
 		}
 	}
 	return out

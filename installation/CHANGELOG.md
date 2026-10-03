@@ -13,6 +13,20 @@
   its space is listed but needs GPT (`backend/lib/disk.sh`, `tui/system.go`).
 
 ### Added
+- **Pick your window manager, browser, and apps in the installer.** The wizard
+  gained three steps between the graphics mode and the disk: **Window manager**
+  installs the chosen compositor variant (`ryoku-desktop-hyprland`,
+  `ryoku-desktop-niri`, `ryoku-desktop-mango`); **Web browser** picks exactly
+  one of the three browsers Ryoku ships (Zen, Chromium, Firefox) and points
+  both xdg and the desktop's browser role at it; **Apps & tools** is a
+  grouped keep/remove checklist over every optional app (gaming, VMs, Docker,
+  Flatpak, toolchains, AUR extras), with the rows that back a desktop feature
+  (terminal, files, editor, login shell) marked REQUIRED and refused. The
+  removals reach the backend as `RYOKU_DROP_PACKAGES`, are filtered out of the
+  pacstrap and AUR transactions, and are recorded in the doctor's provisioning
+  ledger, so `ryoku update` honours them instead of reinstalling
+  (`tui/main.go`, `tui/apps.go`, `tui/system.go`, `backend/ryoku-install`,
+  `backend/lib/{common,pacstrap,aur,offline,deploy}.sh`).
 - **Install into the free space on a disk that has no ESP.** A GPT disk with free
   space but no EFI System Partition of its own (a second, OS-less drive) now gets
   the `create-esp` verdict: the installer offers "Install in the free space",

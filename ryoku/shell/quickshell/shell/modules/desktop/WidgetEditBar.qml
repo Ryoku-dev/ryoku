@@ -12,11 +12,12 @@ import Ryoku.Ui.Singletons
 // so the bar sits clear of the frame band, the bar-style island and the dock on
 // every bar style; it rests bottom-centre, above the dock. Its compact controls
 // -- the grid snap and step, then Reset/Done -- flank one Widgets button that
-// opens WidgetPicker, an attached panel that grows out of the bar and carries the
-// whole roster as toggle rows (searchable, grouped, wheel- and keyboard-driven).
-// The session state (selection, dirty, escape ladder) stays in StageSession;
-// this owns only the bar and reports host actions as signals. Grid snap and
-// step live on stage.json so an unknown key never reaches the Hub's save.
+// opens WidgetPicker, an attached panel that grows out of the bar: a category
+// rail (Ryoku / Shima / Python / each installed plugin set) and a two-column
+// grid of widget cards, searchable, wheel- and keyboard-driven. The session
+// state (selection, dirty, escape ladder) stays in StageSession; this owns only
+// the bar and reports host actions as signals. Grid snap and step live on
+// stage.json so an unknown key never reaches the Hub's save.
 Item {
     id: ed
     anchors.fill: parent

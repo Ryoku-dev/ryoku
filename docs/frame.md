@@ -38,11 +38,11 @@ the request's anchor and identity. This gives the manager one place to enforce:
 
 `FrameMenu.qml` draws catalogue-backed menus. `FrameSurface.qml` is the single
 Ryoku-owned surface host: it rides the shared `Popout` and mounts a body by
-`kind`, so credential prompts, voice, capture, small rail cards, and the Super+S
-stash all share one component. The stash surface (`kind: "stash"`) renders
-`panel/Panel.qml`, a framed floating card whose left activity rail switches
-between Usage and Tools pages. The menu manager, rather than a widget or IPC
-client, owns their lifecycle.
+`kind`, so credential prompts, voice, capture, and small rail cards all share
+one component. The menu manager, rather than a widget or IPC client, owns
+their lifecycle. The two sidebars (Super+Escape, Super+S) are not frame
+surfaces; they are push-aside panels of their own subsystem, see
+`docs/sidebars.md`.
 
 ## Input and focus
 

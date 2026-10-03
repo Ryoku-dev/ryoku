@@ -110,6 +110,13 @@
   package.
 
 ### Fixed
+- **The kill switch no longer locks the shared state dir.** `ryoku-network-kill`
+  created its marker's parent with `install -d -m 700`, which chmods an existing
+  directory: every Hub Connections toggle put `/var/lib/ryoku` back to
+  root-only, against the tmpfiles contract of 0755. Sessions then could not
+  record their boot-ok files and `ryoku update` could not stat the power-cutover
+  marker. The helper now matches the contract and repairs a drifted mode
+  (`hardware/network/ryoku-network-kill`, `tests/network-kill.sh`).
 - **Deploys and updates no longer strand a niri desktop.** On a niri login
   started through niri-session the compositor runs outside the login scope, so
   the power cutover found no session environment, stopped the shell and never

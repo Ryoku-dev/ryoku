@@ -214,6 +214,12 @@ func prowlAgentNeeded(rashinEnabled, prowlPresent bool) bool {
 	return rashinEnabled && !prowlPresent
 }
 
+// packagedSkillRoot is where ryoku-desktop ships the skill tree. A var so a
+// test can point it at an empty dir: a dev box that is also a packaged install
+// has the real tree there, and the probe below would resolve it no matter what
+// the test's override says.
+var packagedSkillRoot = "/usr/share/ryoku/skills"
+
 // rashinSkillSource resolves the shipped `ryoku` skill dir the same way
 // ryoku-rashin wire does: an override, the packaged tree, then a dev checkout.
 // Returns "" when the skill is not installed, so a box without it stays quiet.
@@ -222,7 +228,7 @@ func rashinSkillSource() string {
 	if v := strings.TrimSpace(os.Getenv("RYOKU_RASHIN_SKILLS")); v != "" {
 		roots = append(roots, v)
 	}
-	roots = append(roots, "/usr/share/ryoku/skills")
+	roots = append(roots, packagedSkillRoot)
 	if repo := sys.ResolveRepo(); repo != "" {
 		roots = append(roots, filepath.Join(repo, "ryoku", "rashin", "skills"))
 	}

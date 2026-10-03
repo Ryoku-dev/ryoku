@@ -580,9 +580,19 @@ bind_session_environment() {
     log "selected session $sid has no compositor display environment" >&2
     return 1
   fi
-  systemctl --user unset-environment \
-    XDG_SESSION_ID XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP \
-    XDG_SEAT XDG_VTNR WAYLAND_DISPLAY DISPLAY RYOKU_WM >/dev/null
+  # A machine that ran another compositor before can carry its IPC handle in
+  # the user manager, and the seam resolves a live handle before the desktop
+  # name; clear every handle the seam knows, not a copy of its list.
+  local -a session_clear=(
+    XDG_SESSION_ID XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP
+    XDG_SEAT XDG_VTNR WAYLAND_DISPLAY DISPLAY RYOKU_WM
+  )
+  if command -v ryoku >/dev/null 2>&1; then
+    while IFS= read -r entry; do
+      [[ $entry =~ ^[A-Z][A-Z0-9_]*$ ]] && session_clear+=("$entry")
+    done < <(ryoku wm handles 2>/dev/null || true)
+  fi
+  systemctl --user unset-environment "${session_clear[@]}" >/dev/null
   systemctl --user set-environment "${assignments[@]}"
 }
 

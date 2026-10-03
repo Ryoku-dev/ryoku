@@ -16,9 +16,6 @@ Item {
     property bool retain: false
     property bool incubate: false
     property real scale: 1
-    // Forwarded to the sole quick-settings widget: an initial sidebar page to
-    // open on (a bar indicator deep-linking into a page). "" opens the main view.
-    property string initialPage: ""
     signal requestClose()
 
     // Repeater.itemAt() does not make the returned delegate's properties part
@@ -68,10 +65,8 @@ Item {
                     open: root.open
                     incubate: root.incubate
                     onContentReadyChanged: ++root.readinessRevision
-                    // A sole widget owns the whole band (the sidebar fills it);
-                    // stacked widgets keep natural heights.
-                    avail: root.widgets.length === 1 ? root.height - root.pad * 2 : 0
-                    initialPage: root.initialPage
+                    // A sole widget owns the whole band; stacked widgets keep
+                    // natural heights.
                     onRequestClose: root.requestClose()
                 }
             }

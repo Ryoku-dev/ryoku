@@ -27,16 +27,16 @@ ok(validate([{ id: "y", name: "Y", category: "Nope", exec: ["a"] }]).some(p => p
 
 const execFor = id => CATALOG.find(action => action.id === id)?.exec;
 ok(
-    JSON.stringify(execFor("open-clipboard")) === JSON.stringify(["ryoku-shell", "menu", "quick-settings#clipboard"]),
-    "Clipboard History uses the supported quick-settings clipboard route"
+    JSON.stringify(execFor("open-clipboard")) === JSON.stringify(["ryoku-shell", "clipboard"]),
+    "Clipboard History uses the dedicated clipboard surface"
 );
 ok(
-    JSON.stringify(execFor("open-sysinfo")) === JSON.stringify(["ryoku-shell", "menu", "quick-settings"]),
-    "System Info uses the supported quick-settings route"
+    JSON.stringify(execFor("open-sysinfo")) === JSON.stringify(["ryoku-shell", "quicksettings"]),
+    "System Info opens the left sidebar"
 );
 ok(
-    JSON.stringify(execFor("open-toolkit")) === JSON.stringify(["ryoku-shell", "menu", "quick-settings"]),
-    "Control Deck uses the supported quick-settings route"
+    JSON.stringify(execFor("open-toolkit")) === JSON.stringify(["ryoku-shell", "quicksettings"]),
+    "Control Deck opens the left sidebar"
 );
 ok(
     CATALOG.filter(action => String(action.exec?.[0] || "").startsWith("ryoku-cmd-"))

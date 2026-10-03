@@ -79,8 +79,13 @@ func TestFoldMonitorsEmitsThreeFrames(t *testing.T) {
 		t.Errorf("outputs wrong: %+v", out)
 	}
 	ws := (*frames)[1].Workspaces
-	if len(ws) != 2 {
-		t.Fatalf("want both tags as workspaces, got %d", len(ws))
+	// Two numbered tags plus the per-monitor special entry (tag 0 is a real
+	// workspace the bar can show, and no client sits on it in this fixture).
+	if len(ws) != 3 {
+		t.Fatalf("want both tags plus the special entry, got %d", len(ws))
+	}
+	if ws[2].ID != "0" || !ws[2].Special || ws[2].Active || ws[2].Windows != 0 {
+		t.Errorf("special entry wrong: %+v", ws[2])
 	}
 	if ws[0].ID != "1" || !ws[0].Active || ws[0].Windows != 2 {
 		t.Errorf("tag 1 wrong: %+v", ws[0])

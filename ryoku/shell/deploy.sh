@@ -479,6 +479,21 @@ else
   say "skipping Ryoku.Blobs plugin (cmake/ninja not found)"
 fi
 
+sidebarfx_qtstamp="$qmldir/Ryoku/SidebarFx/.qt-version"
+if command -v cmake >/dev/null 2>&1 && command -v ninja >/dev/null 2>&1; then
+  if [ -n "$qtver" ] && [ "$(cat "$sidebarfx_qtstamp" 2>/dev/null)" = "$qtver" ] \
+     && [ -n "$(find "$qmldir/Ryoku/SidebarFx" -name '*.so' -print -quit 2>/dev/null)" ]; then
+    say "Ryoku.SidebarFx already built against Qt $qtver"
+  else
+    say "building Ryoku.SidebarFx plugin"
+    "$here/sidebarfx/build.sh" "$qmldir"
+    [ -n "$qtver" ] && printf '%s\n' "$qtver" > "$sidebarfx_qtstamp"
+    say "installed Ryoku.SidebarFx -> $qmldir/Ryoku/SidebarFx"
+  fi
+else
+  say "skipping Ryoku.SidebarFx plugin (cmake/ninja not found)"
+fi
+
 # Built beside Ryoku.Blobs; the daemon adds this dir to the picker's import path.
 # Always rebuilt: the picker changes with the checkout and ninja makes an
 # unchanged tree a no-op.
@@ -688,8 +703,8 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   # unowned (privileged helpers, systemd units, polkit rules, the plymouth theme,
   # the boot configs); once ryoku-desktop packages them an unowned copy otherwise
   # aborts the whole -Syu with "exists in filesystem" and nothing upgrades.
-  # Mirrors updater.ryokuOverwriteGlob / the doctor's ryokuSystemGlobs.
-  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/etc/systemd/logind.conf.d/10-ryoku-lid.conf'
+  # Mirrors updater.RyokuOverwriteGlob / the doctor's ryokuSystemGlobs.
+  _rovw='/usr/bin/ryoku-*,/usr/lib/systemd/system/ryoku-*,/usr/lib/initcpio/install/ryoku-*,/usr/share/polkit-1/rules.d/*ryoku*.rules,/usr/share/plymouth/themes/ryoku/*,/usr/share/ryoku/boot/*,/usr/share/ryoku/lockscreen/ryoku-*,/usr/share/ryoku/lockscreen/install-qylock,/etc/systemd/logind.conf.d/10-ryoku-lid.conf,/etc/boot/hooks/post.d/*ryoku*,/etc/modules-load.d/*ryoku*,/usr/lib/udev/rules.d/*ryoku*.rules,/usr/local/share/applications/mimeapps.list'
   _pac_ryotunes() { sudo pacman -Syu --needed --noconfirm --overwrite "$_rovw" ryotunes; }
   # shellcheck disable=SC2024
   if _pac_ryotunes >"$_plog" 2>&1; then

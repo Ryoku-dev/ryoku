@@ -385,7 +385,7 @@ func applyDesktop() error {
 		return err
 	}
 	if rep.ReloadNeeded {
-		_ = c.Act(wm.ActionConfigReload)
+		return c.Act(wm.ActionConfigReload)
 	}
 	return nil
 }

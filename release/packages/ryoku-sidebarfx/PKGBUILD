@@ -1,0 +1,31 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Ryoku.SidebarFx is the native Qt scene-graph depth treatment for the global
+# push-aside sidebars. It is a standard Qt6 QML module loaded by Quickshell.
+#
+# Built in-repo from ryoku/shell/sidebarfx via its build.sh. The module is
+# self-contained: the plugin carries an $ORIGIN rpath to its backing library,
+# so the whole Ryoku/SidebarFx directory is relocatable onto a QML import path.
+pkgname=ryoku-sidebarfx
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc="Ryoku.SidebarFx: native depth edge for push-aside sidebars"
+arch=('x86_64')
+url="https://ryoku.dev"
+license=('GPL-3.0-or-later')
+depends=('qt6-base' 'qt6-declarative')
+makedepends=('cmake' 'ninja' 'qt6-shadertools' 'qt6-declarative')
+source=()
+
+_repo="$startdir/../../.."
+
+build() {
+  RYOKU_SIDEBARFX_BUILD="$srcdir/build" \
+    "$_repo/ryoku/shell/sidebarfx/build.sh" "$srcdir/qml"
+}
+
+package() {
+  install -dm755 "$pkgdir/usr/lib/qt6/qml/Ryoku/SidebarFx"
+  cp -a "$srcdir/qml/Ryoku/SidebarFx/." "$pkgdir/usr/lib/qt6/qml/Ryoku/SidebarFx/"
+  chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6"
+}

@@ -31,7 +31,7 @@ Item {
     Rectangle {
         id: bubble
 
-        // Above every sibling subtree in the panel (QsTabRail is z:10 in mainBand).
+        // Above every sibling subtree in the hosting panel.
         z: 1000
 
         readonly property real gap: root.showing ? 8 : 4

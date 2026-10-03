@@ -42,34 +42,86 @@ var rows = [{
         "ctl": "reload-cover",
         "src": "brand"
     },{
-        "tab": "General",
-        "group": "QUICK SETTINGS",
-        "key": "frameBars.menus.quick-settings.anchor",
-        "label": "Sidebar edge",
-        "desc": "Which edge the Super+Esc sidebar opens from",
-        "ctl": "seg",
-        "src": "shell",
-        "opts": ["left","right","top","bottom"]
-    },{
-        "tab": "General",
-        "group": "QUICK SETTINGS",
-        "key": "frameBars.menus.quick-settings.expansion",
-        "label": "Fill the edge",
-        "desc": "Stretch to the edge, or fit its content",
-        "ctl": "seg",
-        "src": "shell",
-        "opts": ["always","never"]
-    },{
-        "tab": "General",
-        "group": "QUICK SETTINGS",
-        "key": "frameBars.menus.quick-settings.minWidth",
-        "label": "Minimum width",
-        "desc": "How wide the sidebar is at its narrowest",
+        "tab": "Sidebars",
+        "group": "PANEL",
+        "key": "sidebars.width",
+        "label": "Width",
+        "desc": "How wide each sidebar opens",
         "ctl": "step",
         "src": "shell",
-        "lo": 200,
-        "hi": 1200,
+        "lo": 280,
+        "hi": 560,
         "unit": "px"
+    },{
+        "tab": "Sidebars",
+        "group": "PANEL",
+        "key": "sidebars.motion",
+        "label": "Motion",
+        "desc": "How quickly the sidebars move",
+        "ctl": "seg",
+        "src": "shell",
+        "opts": ["quick","standard","calm"]
+    },{
+        "tab": "Sidebars",
+        "group": "PANEL",
+        "key": "sidebars.depth",
+        "label": "Depth",
+        "desc": "Cast a shadow where the desktop meets the sidebar",
+        "ctl": "sw",
+        "src": "shell"
+    },{
+        "tab": "Sidebars",
+        "group": "PANEL",
+        "key": "sidebars.push",
+        "label": "Push windows",
+        "desc": "Move tiled windows aside while a sidebar is open",
+        "ctl": "sw",
+        "src": "shell"
+    },{
+        "tab": "Sidebars",
+        "group": "PANEL",
+        "key": "sidebars.wallpaperSlide",
+        "label": "Wallpaper parallax",
+        "desc": "How far the wallpaper slides past the panel width",
+        "ctl": "slid",
+        "src": "shell",
+        "lo": 1.0,
+        "hi": 1.4,
+        "unit": "×"
+    },{
+        "tab": "Sidebars",
+        "group": "LEFT SIDEBAR",
+        "key": "sidebars.left.enabled",
+        "label": "Enabled",
+        "desc": "Show the left sidebar",
+        "ctl": "sw",
+        "src": "shell"
+    },{
+        "tab": "Sidebars",
+        "group": "LEFT SIDEBAR",
+        "key": "sidebars.left.cards",
+        "label": "Cards",
+        "desc": "Cards shown in the left sidebar",
+        "ctl": "multi",
+        "src": "shell",
+        "opts": ["system","notifications","weather","media","capture","stage"]
+    },{
+        "tab": "Sidebars",
+        "group": "RIGHT SIDEBAR",
+        "key": "sidebars.right.enabled",
+        "label": "Enabled",
+        "desc": "Show the right sidebar",
+        "ctl": "sw",
+        "src": "shell"
+    },{
+        "tab": "Sidebars",
+        "group": "RIGHT SIDEBAR",
+        "key": "sidebars.right.cards",
+        "label": "Cards",
+        "desc": "Cards shown in the right sidebar",
+        "ctl": "multi",
+        "src": "shell",
+        "opts": ["usage","tools","chat"]
     },{
         "tab": "Clipboard",
         "group": "LAYOUT",

@@ -27,8 +27,12 @@ func gitT(t *testing.T, dir string, args ...string) string {
 // A packaged install has no update-channel checkout, so there is nothing to
 // reconcile and the step is a no-op.
 func TestReconcileUpdateChannelNoCheckout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	t.Setenv("RYOKU_REPO", "")
-	t.Setenv("XDG_STATE_HOME", t.TempDir()) // no recorded repo
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
+	t.Setenv("RYOKU_CHANNEL", "")
 	if r := reconcileUpdateChannel(false); r.status != recOK {
 		t.Fatalf("packaged box: got %s (%s), want ok", r.status.label(), r.detail)
 	}

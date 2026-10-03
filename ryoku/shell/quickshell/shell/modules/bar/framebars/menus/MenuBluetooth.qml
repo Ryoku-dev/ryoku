@@ -36,21 +36,10 @@ Item {
 
     // Discovery is tied to the reveal edge (contract 06 sec 4). Closing the menu
     // collapses the panel and ends discovery; destruction releases ownership.
-    // Detail-page mode: the sidebar page arrives with the device list revealed
-    // and discovery running, exactly as if the drawer had been clicked.
-    property bool pageMode: false
-    function forceReveal() {
-        if (!row.revealed) {
-            row.revealed = true;
-            BluetoothDiscovery.setDiscovering(root, root.adapter, true);
-        }
-    }
     onOpenChanged: {
         if (!root.open) {
             row.revealed = false;
             BluetoothDiscovery.setDiscovering(root, root.adapter, false);
-        } else if (root.pageMode) {
-            root.forceReveal();
         }
     }
     Component.onDestruction: BluetoothDiscovery.setDiscovering(root, root.adapter, false)

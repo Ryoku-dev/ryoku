@@ -7,11 +7,11 @@ import "../../../../components"
 import "../../../../services/lib/weather.js" as Wx
 import Ryoku.Ui.Singletons
 
-// The weather surface: the single implementation the Weather quick-settings tab,
-// the clock menu and the weather frame widget all embed. The daemon (weather.go)
-// owns the Open-Meteo forecast + air-quality fetch, the moon phase, the range
-// context and every display string, so this file makes no network call and does
-// no unit maths - it renders the frame verbatim into eight quiet cards: a current
+// The weather surface shared by the clock menu and weather frame widget. The
+// daemon (weather.go) owns the Open-Meteo forecast + air-quality fetch, the moon
+// phase, the range context and every display string, so this file makes no
+// network call and does no unit maths - it renders the frame verbatim into eight
+// quiet cards: a current
 // hero, an hourly strip, three daily rows with range bars, a sun row, the moon
 // phase strip, a metrics grid, the air-quality block, and an updated-at footer.
 // An outer state stack crossfades between loading, error and the loaded body.

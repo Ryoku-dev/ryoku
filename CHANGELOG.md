@@ -34,6 +34,14 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- **The installer now asks which window manager, browser, and apps you want.**
+  New ISO installs offer a choice of compositor (Hyprland, niri, MangoWM),
+  exactly one of the three shipped browsers (Zen, Chromium, Firefox), and a
+  keep/remove checklist over every optional app and tool; rows that back a
+  desktop feature are marked required and refused. Removed apps are recorded
+  in the doctor's provisioning ledger, and `ryoku doctor`/`ryoku verify` now
+  treat that ledger as a removal on every lane, so the update manifest leaves
+  them deleted. (See `installation/CHANGELOG.md` for the installer detail.)
 - **Plain-language GitHub release notes, generated from commit notes.** A change
   users notice gets a `Note: New|Fixed|Removed: ...` trailer on its commit;
   `bin/ryoku-release-notes` collects these between releases and the

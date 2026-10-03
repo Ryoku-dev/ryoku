@@ -200,6 +200,7 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 	for _, p := range []string{
 		"/usr/bin/ryoku-dns",
 		"/usr/bin/ryoku-wifi-powersave",
+		"/usr/bin/ryoku-hub",
 		"/usr/share/polkit-1/rules.d/50-ryoku-dns.rules",
 		"/usr/share/polkit-1/rules.d/49-ryoku-wifi-powersave.rules",
 		"/usr/share/plymouth/themes/ryoku/bullet.png",
@@ -207,7 +208,12 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 		"/usr/lib/systemd/system/ryoku-network-kill-guard.service",
 		"/usr/lib/initcpio/install/ryoku-gpu-trim",
 		"/usr/share/ryoku/boot/default.conf",
+		"/usr/share/ryoku/lockscreen/ryoku-greeter",
 		"/etc/systemd/logind.conf.d/10-ryoku-lid.conf",
+		"/etc/boot/hooks/post.d/45-ryoku-windows",
+		"/etc/modules-load.d/99-ryoku-uinput.conf",
+		"/usr/lib/udev/rules.d/90-ryoku-backlight.rules",
+		"/usr/local/share/applications/mimeapps.list",
 	} {
 		covered := false
 		for _, g := range strings.Split(glob, ",") {
@@ -342,6 +348,63 @@ func TestConfigReloadResultAcceptsProviderWithoutReload(t *testing.T) {
 	providerErr := errors.New("provider unavailable")
 	if err := configReloadResult(providerErr); !errors.Is(err, providerErr) {
 		t.Fatalf("live provider error was suppressed: %v", err)
+	}
+}
+
+// A drifted /var/lib/ryoku mode (0700) hides the cutover marker from the
+// update's unprivileged stat. That must fall back to asking root, never
+// abort the update with "inspect package power cutover state: permission
+// denied".
+func TestCutoverMarkerFallsBackToRootWhenUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses directory permissions; EACCES is not reproducible")
+	}
+	closed := t.TempDir()
+	if err := os.Chmod(closed, 0o000); err != nil {
+		t.Fatalf("chmod 000: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(closed, 0o700) })
+	marker := filepath.Join(closed, "power-cutover-hook-active")
+
+	oldMarker, oldProbe := packagePowerCutoverMarker, cutoverMarkerExistsAsRoot
+	t.Cleanup(func() { packagePowerCutoverMarker, cutoverMarkerExistsAsRoot = oldMarker, oldProbe })
+	packagePowerCutoverMarker = marker
+
+	probed := 0
+	cutoverMarkerExistsAsRoot = func(path string) bool {
+		probed++
+		if path != marker {
+			t.Errorf("root probe asked for %q, want %q", path, marker)
+		}
+		return true
+	}
+	if !packageCutoverMarkerPresent() {
+		t.Fatal("EACCES on the marker's parent must defer to the root probe")
+	}
+	if probed != 1 {
+		t.Fatalf("root probe ran %d times, want 1", probed)
+	}
+
+	// A box that cannot ask root (no cached credential: the stub returns
+	// false) reads as absent, erring toward re-adoption, not a hard failure.
+	cutoverMarkerExistsAsRoot = func(string) bool { return false }
+	if packageCutoverMarkerPresent() {
+		t.Fatal("a failed root probe must read as absent")
+	}
+
+	// ENOENT must not wake the root probe at all.
+	missing := t.TempDir()
+	packagePowerCutoverMarker = filepath.Join(missing, "power-cutover-hook-active")
+	probed = 0
+	cutoverMarkerExistsAsRoot = func(string) bool {
+		probed++
+		return true
+	}
+	if packageCutoverMarkerPresent() {
+		t.Fatal("a genuinely absent marker is absent")
+	}
+	if probed != 0 {
+		t.Fatalf("ENOENT woke the root probe %d times, want 0", probed)
 	}
 }
 

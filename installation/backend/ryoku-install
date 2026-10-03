@@ -112,6 +112,34 @@ export RYOKU_VARIANT
 : "${RYOKU_COMPOSITOR:=}"
 : "${RYOKU_COMPOSITOR_CONFIG_DIR:=}"
 : "${RYOKU_COMPOSITOR_GPU_PIN:=}"
+: "${RYOKU_BROWSER:=}"
+: "${RYOKU_DROP_PACKAGES:=}"
+export RYOKU_DROP_PACKAGES
+# the browser and app choices the TUI collected. RYOKU_BROWSER is one of
+# zen|chromium|firefox (empty = the shipped default, zen, so a direct
+# backend call behaves like the installer). the losing browsers join the
+# drop list once, here, so every package-set reader filters one set.
+if [[ -n ${RYOKU_BROWSER:-} ]]; then
+  case $RYOKU_BROWSER in
+    zen|chromium|firefox) ;;
+    *) die "RYOKU_BROWSER='%s' is not one of the shipped browsers (zen|chromium|firefox)" "$RYOKU_BROWSER" ;;
+  esac
+else
+  RYOKU_BROWSER=zen
+fi
+export RYOKU_BROWSER
+case ",${RYOKU_DROP_PACKAGES}," in
+  *,zen-browser-bin,*) ;;
+  *) [[ $RYOKU_BROWSER == zen ]] || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}zen-browser-bin" ;;
+esac
+case ",${RYOKU_DROP_PACKAGES}," in
+  *,chromium,*) ;;
+  *) [[ $RYOKU_BROWSER == chromium ]] || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}chromium" ;;
+esac
+case ",${RYOKU_DROP_PACKAGES}," in
+  *,firefox,*) ;;
+  *) [[ $RYOKU_BROWSER == firefox ]] || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}firefox" ;;
+esac
 : "${RYOKU_REBOOT:=}"
 : "${RYOKU_DRYRUN:=}"
 # carve (in-place resize) contract: shrink RYOKU_RESIZE_PART to free
@@ -144,7 +172,7 @@ fi
 
 main() {
   [[ -n $RYOKU_DRYRUN ]] && log "DRY RUN: no disk is touched; commands are printed only"
-  log 'Ryoku install: disk=%s host=%s user=%s profile=%s' "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE"
+  log 'Ryoku install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s' "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER"
 
   ryoku_preflight
   # an offline install with no usable baked repo can only fail, and it must fail

@@ -55,12 +55,15 @@ function unavailableReason(item) {
     return isUnavailable(item) ? String((item && item.unavailableReason) || "") : "";
 }
 
-// pluginKind classifies a plugin by its host surface: a plugin is a BAR plugin
-// when its manifest hosts include topbarGlyph, otherwise it is a DESKTOP plugin
-// (desktopWidget / framePopout). Pure over item.metadata.hosts.
+// pluginKind classifies a plugin by its host surface. Sidebar-only plugins stay
+// in the all-plugins view instead of falling through to the desktop tab.
 function pluginKind(item) {
     var hosts = (item && item.metadata && Array.isArray(item.metadata.hosts)) ? item.metadata.hosts : [];
-    return hosts.indexOf("topbarGlyph") !== -1 ? "bar" : "desktop";
+    if (hosts.indexOf("topbarGlyph") !== -1)
+        return "bar";
+    if (hosts.indexOf("desktopWidget") !== -1 || hosts.indexOf("framePopout") !== -1)
+        return "desktop";
+    return hosts.indexOf("sidebarCard") !== -1 ? "sidebar" : "desktop";
 }
 
 function searchText(item) {

@@ -1,5 +1,6 @@
 module shell.services
 singleton ShellState ShellState.qml
+singleton SidebarState SidebarState.qml
 ServiceLoader ServiceLoader.qml
 singleton Theme Theme.qml
 singleton Scheme Scheme.qml

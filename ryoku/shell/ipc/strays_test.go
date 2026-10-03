@@ -33,12 +33,46 @@ func TestSelectsComponentMatchesEitherSelectorForm(t *testing.T) {
 		{"an app path is not ours", []string{"qs", "-p", "/home/u/.config/quickshell/ryovm"}, byName, false},
 		{"an ipc client is not an instance", []string{"qs", "-c", "shell", "ipc", "call", "bar", "hide"}, byName, false},
 		{"a kill client is not an instance", []string{"qs", "-c", "shell", "kill"}, byName, false},
+		{"instance flags after the selector still draw a desktop", []string{"qs", "-c", "shell", "--no-duplicate", "--log-times"}, byName, true},
+		{"a daemonized instance is still an instance", []string{"qs", "-c", "shell", "-d"}, byName, true},
+		{"an option value is not a subcommand", []string{"qs", "-c", "shell", "--log-rules", "qt.*=false"}, byName, true},
+		{"a flagged checkout leftover is still a stray", []string{"qs", "-p", "/repo/ryoku/shell/quickshell/shell", "--no-duplicate"}, byName, true},
 		{"some other program", []string{"kitty", "-c", "shell"}, byName, false},
 		{"no selector", []string{"qs", "ipc", "call"}, byName, false},
 	} {
 		if got := selectsComponent(tc.argv, tc.sel); got != tc.want {
 			t.Errorf("%s: selectsComponent(%v, %v) = %v, want %v", tc.name, tc.argv, tc.sel, got, tc.want)
 		}
+	}
+}
+
+// A watcher spawned as `bash -c "... inotifywait"` is a grandchild of the
+// surface: killing only the surface reparents it to init, where it leaks for
+// the rest of the session. The reap must take the whole subtree.
+func TestWithDescendantsIncludesChildProcesses(t *testing.T) {
+	nested := exec.Command("bash", "-c", "sleep 60 & sleep 60")
+	nested.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := nested.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = syscall.Kill(-nested.Process.Pid, syscall.SIGKILL)
+		_ = nested.Wait()
+	}()
+	time.Sleep(200 * time.Millisecond)
+
+	all := withDescendants([]int{nested.Process.Pid})
+	if len(all) < 2 {
+		t.Fatalf("expected the backgrounded child too, got %v", all)
+	}
+	root := false
+	for _, pid := range all {
+		if pid == nested.Process.Pid {
+			root = true
+		}
+	}
+	if !root {
+		t.Fatal("the root pid must stay in the set")
 	}
 }
 

@@ -92,7 +92,7 @@ ryoku_gpu_mode() {
 		return 0
 	fi
 	if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-		log "DRYRUN: arch-chroot /mnt runuser -u $u -- env HOME=/home/$u ryoku-gpu mode $mapped"
+		log "DRYRUN: arch-chroot /mnt runuser -u $u -- env HOME=/home/$u ryoku-gpu mode $mapped (writes /home/$u/.config/$RYOKU_COMPOSITOR_CONFIG_DIR/$RYOKU_COMPOSITOR_GPU_PIN)"
 		return 0
 	fi
 	if [[ ! -f /mnt/usr/share/ryoku/config/$RYOKU_COMPOSITOR_CONFIG_DIR/$RYOKU_COMPOSITOR_GPU_PIN ]]; then

@@ -2,24 +2,20 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import "popouts"
-import "panel"
 import shell.services
 
 // One Ryoku-owned surface riding the shared Popout. Credential prompts, voice,
-// stash, capture, and small rail cards mount on demand.
+// capture, and small rail cards mount on demand.
 Popout {
     id: root
 
     property var record: null
     property string anchor: "top"
     property bool menuOpen: false
-    // Initial deep-link page from the manager's open record (e.g. stash#compress).
-    property string page: ""
     // Live "voice opened in its inactive state" flag from the manager record
     // (the static config record does not carry it). Gates the dictation capture
     // and the surface's off note.
     property bool off: false
-    property var manager: null
     // The trigger centre the manager derives for the surface (its owning bar
     // widget or the screen centre for an IPC open).
     property real triggerAlong: -1
@@ -54,8 +50,8 @@ Popout {
     openH: root.fullSpan ? root.height
         : (body.item ? body.item.implicitHeight : 0)
 
-    // card popouts and the floating stash page float off the frame lip; sidebars abut.
-    edgeGap: (root.kind === "music" || root.kind === "bluetooth" || root.kind === "battery" || root.kind === "network" || root.kind === "voice" || root.kind === "sysmon" || root.kind === "audio" || root.kind === "screenshot" || root.kind === "stash") ? 10 * root.s : 0
+    // Card popouts float off the frame lip.
+    edgeGap: (root.kind === "music" || root.kind === "bluetooth" || root.kind === "battery" || root.kind === "network" || root.kind === "voice" || root.kind === "sysmon" || root.kind === "audio" || root.kind === "screenshot") ? 10 * root.s : 0
 
     readonly property bool sideMenu: root.edge === "left" || root.edge === "right"
 
@@ -96,7 +92,6 @@ Popout {
             : root.kind === "sysmon" ? sysmonBody
             : root.kind === "audio" ? audioBody
             : root.kind === "screenshot" ? captureBody
-            : root.kind === "stash" ? stashBody
             : null
     }
 
@@ -175,16 +170,6 @@ Popout {
             s: root.s
             open: root.effectiveOpen
             onRequestClose: root.requestClose()
-        }
-    }
-    Component {
-        id: stashBody
-        Panel {
-            s: root.s
-            open: root.effectiveOpen
-            monitorName: root.manager ? root.manager.monitorName : ""
-            surfaceId: root.record ? root.record.id : ""
-            page: root.page
         }
     }
 }

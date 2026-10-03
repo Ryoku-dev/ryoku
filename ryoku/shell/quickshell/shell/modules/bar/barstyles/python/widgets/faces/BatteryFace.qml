@@ -50,12 +50,10 @@ Item {
     readonly property real maxWaveAmp: isCharging ? Scaler.s(8) : Scaler.s(2.5)
     readonly property real waveAmp: (fillLevel < 0.99 && fillLevel > 0.01) ? maxWaveAmp * Math.sin(fillLevel * Math.PI) : 0
 
-    property real wavePhase: 0.0
-    NumberAnimation on wavePhase {
+    property real wavePhase: waveClock.phase
+    WaveClock {
+        id: waveClock
         running: root.visible && root.hasBattery && root.fillLevel > 0.0 && root.fillLevel < 1.0
-        loops: Animation.Infinite
-        from: 0
-        to: Math.PI * 2
         duration: root.isCharging ? 1200 : 3400
     }
 

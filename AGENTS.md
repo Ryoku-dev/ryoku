@@ -116,11 +116,11 @@ there; the CLI needs no server and is the first choice.
 
 Auto-generated from the Prowl index, refreshed on each `overview`/`init`. Prefer retrieving from Prowl (and reading the cited files) over grepping or relying on training memory; this is the current shape of the repo.
 
-- size: 4700 files, 403181 symbols, 17807 edges (resolved 7855, external deps 6444, unresolved 3508)
-- languages: go:1871 qml:1564 bash:294 javascript:212 json:190 cpp:178 markdown:146 yaml:66
-- subsystems: ryoku/shell(1334,qml) · ryoku/shell(63,cpp) · ryoku/hub(54,qml) · ryoku/ui(54,qml) · ryoku/apps(50,qml) · release/packages(33,cpp) · ryoku/rashin(21,javascript) · tests/ui(20,qml)
-- entrypoints: ryoku/shell/quickshell/inir/modules/background/Background.qml · ryoku/shell/quickshell/shell/shell.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/syspanel/SystemPanel.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/guide/general/GeneralTab.qml · ryoku/hub/quickshell/pages/AnimationsPage.qml · ryoku/shell/quickshell/inir/modules/mediaControls/BarMediaPlayerItem.qml · ryoku/shell/quickshell/shell/modules/bar/MenuWidgetHost.qml · (+299 more)
-- central files (most depended-on): ryoku/shell/quickshell/shell/modules/bar/barstyles/python/quickactions/actions/Timer.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/Config.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/I18n.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/Caching.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/theme/ThemeBackend.qml
+- size: 4574 files, 400260 symbols, 17495 edges (resolved 7932, external deps 6428, unresolved 3135)
+- languages: go:1871 qml:1597 bash:290 javascript:214 json:185 markdown:113 cpp:82 yaml:59
+- subsystems: ryoku/shell(1366,qml) · ryoku/shell(63,cpp) · ryoku/hub(54,qml) · ryoku/ui(54,qml) · ryoku/apps(50,qml) · ryoku/rashin(21,javascript) · tests/ui(20,qml) · ryoku/shell(16,css)
+- entrypoints: ryoku/shell/quickshell/inir/modules/background/Background.qml · ryoku/shell/quickshell/shell/shell.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/syspanel/SystemPanel.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/guide/general/GeneralTab.qml · ryoku/hub/quickshell/pages/AnimationsPage.qml · ryoku/shell/quickshell/inir/modules/mediaControls/BarMediaPlayerItem.qml · ryoku/shell/quickshell/shell/modules/bar/MenuWidgetHost.qml · (+306 more)
+- central files (most depended-on): ryoku/shell/quickshell/shell/modules/bar/barstyles/python/quickactions/actions/Timer.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/Config.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/I18n.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/theme/ThemeBackend.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/Caching.qml
 - read these guides first: README.md · AGENTS.md · CONTRIBUTING.md · docs/development.md · docs/structure.md
 
 Depth on demand: `prowl-agent find|def|outline|references <name>`, `search <text>`, `context search "<question>"`, `sketch <ui>`.

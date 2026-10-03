@@ -42,10 +42,8 @@ ryoku_pacstrap() {
   local base_file="$RYOKU_REPO/system/packages/base.packages"
   local hw_file="$RYOKU_REPO/system/packages/hardware.packages"
   [[ -f $base_file ]] || die 'missing package list: %s' "$base_file"
-
   local -a pkgs=()
   mapfile -t pkgs < <(grep -vE '^[[:space:]]*(#|$)' "$base_file")
-
   local -a sections=()
   case "$RYOKU_PROFILE" in
     amd) sections=(amd) ;;
@@ -94,6 +92,16 @@ ryoku_pacstrap() {
   if declare -f ryoku_offline_pacstrap_extra >/dev/null; then
     mapfile -t -O "${#pkgs[@]}" pkgs < <(ryoku_offline_pacstrap_extra)
   fi
+
+  # the browser/apps pickers may have deselected shipped apps: filter the
+  # assembled set here, the one place names become a transaction, so a
+  # removed app never lands (and every list file stays the whole closure).
+  local -a kept=()
+  local p
+  for p in "${pkgs[@]}"; do
+    ryoku_drop_pkg "$p" || kept+=("$p")
+  done
+  (( ${#kept[@]} )) && pkgs=("${kept[@]}")
 
   ryoku_ensure_keyring
   log 'installing %d packages (profile=%s)' "${#pkgs[@]}" "$RYOKU_PROFILE"

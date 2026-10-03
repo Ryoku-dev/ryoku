@@ -102,8 +102,9 @@ binaries and the plugin and materializes from a checkout. Both leave user files
 ## Install
 
 This tree ships in the `[ryoku]` packages: `ryoku-shell` builds the daemon to
-`/usr/bin`, `ryoku-blobs` installs the `Ryoku.Blobs` plugin onto the QML import
-path (`ryoku-shell` points `QML2_IMPORT_PATH` there for the components it
-supervises), and `ryoku-desktop` lays the QML and configs under
-`/usr/share/ryoku/config` for `ryoku materialize` to copy into `~/.config`. The
-lock screen is qylock, shipped by `ryoku/lockscreen`; the shell does not replace it.
+`/usr/bin`; `ryoku-blobs` and `ryoku-sidebarfx` install the `Ryoku.Blobs` and
+`Ryoku.SidebarFx` plugins onto the QML import path (`ryoku-shell` points
+`QML2_IMPORT_PATH` there for the components it supervises); and `ryoku-desktop`
+lays the QML and configs under `/usr/share/ryoku/config` for `ryoku materialize`
+to copy into `~/.config`. The lock screen is qylock, shipped by
+`ryoku/lockscreen`; the shell does not replace it.

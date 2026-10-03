@@ -26,8 +26,9 @@ import (
 // The rules, in the order they are decided:
 //
 //   - A name the manifest wants and this box lacks is installed, unless it was
-//     present when the baseline was saved -- then the user deleted it and it
-//     stays deleted. This also self-heals a box that never received a name the
+//     present when the baseline was saved OR it sits in the provisioned ledger
+//     -- then the user (or the installer's picker) removed it and it stays
+//     deleted. This also self-heals a box that never received a name the
 //     release has always carried.
 //   - A name the release RETIRED is reported, never uninstalled. A box keeps
 //     what it has; removing it is the user's call.
@@ -80,10 +81,18 @@ func reconcileManifest(checkOnly bool) recResult {
 		return warnRes(i18n.T("could not read the installed set: %v"), err)
 	}
 	var prev *ryokumanifest.Manifest
-	var prevPresent map[string]bool
+	prevPresent := map[string]bool{}
 	if applied != nil {
 		prev = &applied.Manifest
 		prevPresent = applied.PresentSet()
+	}
+	// The provisioned ledger records intent the presence baseline cannot see:
+	// packages the installer's browser/apps picker removed before they were
+	// ever delivered, and apps the doctor delivered once and the user deleted.
+	// Reading it as present makes both classes permanent removals instead of
+	// "never delivered" self-heals.
+	for name := range provisioned() {
+		prevPresent[name] = true
 	}
 	plan := updater.PlanManifest(prev, prevPresent, &served, installed)
 
@@ -190,7 +199,11 @@ func manifestVerify() (updater.VerifyReport, *ryokumanifest.Manifest, error) {
 		return updater.VerifyReport{}, nil, err
 	}
 	applied := updater.LoadApplied()
-	r := updater.Verify(served, installed, explicit, applied.PresentSet())
+	present := applied.PresentSet()
+	for name := range provisioned() {
+		present[name] = true // the same ledger union the reconciler reads
+	}
+	r := updater.Verify(served, installed, explicit, present)
 	if applied == nil {
 		r.NotSaved = true
 	}

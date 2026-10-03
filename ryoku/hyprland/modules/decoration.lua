@@ -83,6 +83,10 @@ hl.config({
   },
 })
 
+-- Sidebar panels stay mapped at a 1 px floor, like ryoku-frame-edge. Their QML
+-- resize and exclusive-zone motion never remaps the layer, so no_anim would only
+-- affect startup. The clear dismiss layer is not matched by any blur rule.
+
 -- the launcher is a translucent layer-shell overlay; blur its backdrop so the
 -- card reads against any wallpaper. its open/close is QML-driven, so suppress
 -- Hyprland's own layer animation to avoid a double move. no_anim covers both

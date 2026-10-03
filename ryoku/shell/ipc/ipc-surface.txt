@@ -222,7 +222,6 @@ qs
 qsbar
 qt
 quality
-quick-settings
 quicksettings
 quickshell
 quit

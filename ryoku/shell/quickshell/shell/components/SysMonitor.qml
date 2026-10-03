@@ -4,10 +4,10 @@ import QtQuick
 import shell.services
 import Ryoku.Ui.Singletons
 
-// The quick-settings system monitor under the calendar: CPU, memory and (when a
-// sensor is found) temperature as eased ring gauges, a CPU-history sparkline
-// that repaints only on each poll, and an uptime + memory readout. Claims
-// Sysinfo and Session only while shown, so polling stops when the panel closes.
+// The rail system monitor card: CPU, memory and (when a sensor is found)
+// temperature as eased ring gauges, a CPU-history sparkline that repaints only
+// on each poll, and an uptime + memory readout. Claims Sysinfo and Session only
+// while shown, so polling stops when the card closes.
 Column {
     id: root
 

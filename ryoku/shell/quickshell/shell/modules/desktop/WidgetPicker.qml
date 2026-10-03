@@ -6,26 +6,31 @@ import "../../components"
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// The Widgets picker: an attached panel that grows out of the Edit widgets bar,
-// listing the whole roster as one row per widget. It replaces the bar's old
-// horizontal chip rail, which read as a cramped filmstrip you had to scrub. Same
-// paper-and-ink surface as the bar; the host hands it the free work area above the
-// bar (maxWidth / maxPanelHeight) and it scrolls when the roster overflows, so a
-// name or hint never truncates.
+// The Widgets picker: an attached panel that grows out of the Edit widgets bar.
+// The whole roster is too long for one honest list (it was: a single strip of
+// forty-plus rows you scrubbed), so the panel reads like a settings page: a
+// category rail down the left (Ryoku, Shima, Python, each installed plugin set,
+// with a live count) and a two-column grid of widget cards for the chosen
+// category. A card carries the widget's glyph, name, one-line hint, an on/off
+// dot, and (once on) a tune affordance that opens that widget's editor; the
+// whole card toggles. Typing in the search field drops into a flat result grid
+// across every category, each card wearing its category as an eyebrow, so a
+// "Clock" hit always says which Clock it is. Same paper-and-ink surface as the
+// free work area above the bar (maxWidth / maxPanelHeight) and the grid
+// scrolls when a category overflows, so a name or hint never truncates.
 //
-// Rows keep the roster's own contiguous grouping: the built-ins as "Ryoku
-// widgets", the vendored faces as "iRiS widgets", each plugin set under its own
-// caption. A search field filters as you type; the wheel scrolls the list; and a
-// keyboard highlight moves with Up/Down, Space toggles it, Esc closes -- keyboard
-// the host grants by taking focus on click (WlrKeyboardFocus.OnDemand). The list
-// is a Repeater, not a virtualised view, so the panel sizes to real content.
+// Keyboard: the host grants focus by taking it on click
+// (WlrKeyboardFocus.OnDemand). Down from the search enters the grid; arrows
+// move the highlight (the grid is two columns, so Up/Down step a row), Space
+// or Enter toggles the highlighted card, Esc closes -- search first, then the
+// panel, matching the session's escape ladder.
 Rectangle {
     id: panel
 
     // The flat roster from Desktop.addItems: [{ id, label, icon, enabled, group }].
     property var items: []
     // Geometry the host allows: the free work area above the bar.
-    property real maxWidth: 460
+    property real maxWidth: 620
     property real maxPanelHeight: 600
 
     signal toggle(string id)
@@ -35,8 +40,8 @@ Rectangle {
 
     // Short descriptions under each name. The labels and icons live in the roster;
     // these one-line hints are presentation copy, so they live with the surface
-    // that shows them, keyed by widget id (a built-in id or an iRiS prefix). A
-    // plugin carries none, so its row is glyph + name + switch, nothing missing.
+    // that shows them, keyed by widget id (a built-in id or a roster prefix). A
+    // plugin carries none, so its card is glyph + name + dot, nothing missing.
     readonly property var hints: ({
         "clock": "Time and date on the wallpaper",
         "calendar": "A month at a glance",
@@ -48,7 +53,7 @@ Rectangle {
         "dayprogress": "How much of the day is left",
         "shape": "A plain decorative accent",
         "visualizer": "Audio spectrum on the desktop",
-        "irisClock": "A clea Shima clock face",
+        "irisClock": "A Shima clock face",
         "irisWeather": "A Shima weather face",
         "irisMedia": "A Shima now-playing face",
         "irisControls": "Quick toggles as a face",
@@ -69,11 +74,23 @@ Rectangle {
         "irisEditorial": "A magazine-style headline",
         "irisConverter": "Convert image formats",
         "irisJp": "Vertical Japanese type",
-        "irisVisualizer": "A Shima audio spectrum"
+        "irisVisualizer": "A Shima audio spectrum",
+        "pythonVisualizer": "A Python audio spectrum",
+        "pythonTime": "A Python clock face",
+        "pythonMusic": "A Python now-playing face",
+        "pythonWeather": "A Python weather face",
+        "pythonImage": "A picture of your own",
+        "pythonUser": "Your profile card",
+        "pythonCpu": "Live CPU usage",
+        "pythonRam": "Live memory usage",
+        "pythonTemp": "Sensor temperatures",
+        "pythonDisk": "Disk usage",
+        "pythonBattery": "Battery at a glance",
+        "pythonGithub": "Your contribution grid"
     })
 
-    // The live on/off for an id, read from `items` rather than a row's snapshot so
-    // a toggle re-tints its row (and flips its switch) without rebuilding the list.
+    // The live on/off for an id, read from `items` rather than a card's snapshot
+    // so a toggle re-tints its card (and flips its switch) without rebuilding.
     function isOn(id) {
         const it = panel.items || [];
         for (var i = 0; i < it.length; i++)
@@ -82,19 +99,83 @@ Rectangle {
         return false;
     }
     function hintFor(id) { return panel.hints[id] || ""; }
-    // The section caption for a roster group: the built-ins read as Ryoku's own,
-    // every other group keeps its roster caption (the iRiS set, a plugin set).
-    function captionFor(g) { return g === "" ? "Ryoku widgets" : g; }
-    function glossFor(g) { return g === "" ? "\u90e8\u54c1" : ""; }
 
-    // Build the display list from the roster and the query: a header whenever the
-    // group changes, then one row per matching widget. The roster is already
-    // grouped contiguously, so a change of group is a new section.
-    function buildRows(src, q) {
-        const ql = (q || "").trim().toLowerCase();
+    // ── categories ──────────────────────────────────────────────────────────
+    // The rail's entries, in roster order: the built-ins as "Ryoku widgets",
+    // the vendored faces under their own captions, each plugin set as its own.
+    // The list is derived from `items`, so a new set appears with no change
+    // here and an empty set never shows.
+    function computeCats() {
         const out = [];
-        var group = null;
-        var opened = false;
+        const src = panel.items || [];
+        for (var i = 0; i < src.length; i++) {
+            const g = src[i].group || "";
+            var found = -1;
+            for (var c = 0; c < out.length; c++)
+                if (out[c].group === g) { found = c; break; }
+            if (found < 0) {
+                out.push({ group: g, caption: panel.captionFor(g), gloss: panel.glossFor(g),
+                    eyebrow: panel.eyebrowFor(g), on: src[i].enabled === true ? 1 : 0,
+                    total: 1 });
+            } else {
+                out[found].total += 1;
+                if (src[i].enabled === true)
+                    out[found].on += 1;
+            }
+        }
+        return out;
+    }
+    function captionFor(g) { return g === "" ? "Ryoku widgets" : g; }
+    // The kanji seal each caption wears (docs/ui-ux.md masthead idiom). The
+    // built-ins keep 部品 (parts), the two vendored suites take their own.
+    function glossFor(g) {
+        if (g === "") return "部品";
+        if (g === "Shima widgets") return "島";
+        if (g === "Python widgets") return "蛇";
+        return "";
+    }
+    // The short Latin eyebrow a search-result card wears so a hit says which
+    // family it belongs to.
+    function eyebrowFor(g) {
+        if (g === "") return "RYOKU";
+        if (g === "Shima widgets") return "SHIMA";
+        if (g === "Python widgets") return "PYTHON";
+        return g.toUpperCase();
+    }
+
+    readonly property var cats: panel.computeCats()
+    onCatsChanged: {
+        if (panel.curCat >= panel.cats.length)
+            panel.curCat = 0;
+        panel.recompute();
+    }
+    property int curCat: 0
+    onCurCatChanged: {
+        panel.curNav = -1;
+        grid.contentY = 0;
+        panel.recompute();
+    }
+
+    // ── the visible set: one category, or every match while searching ──────
+    // The display set is recomputed on any roster, query or category change,
+    // but the array reference only swaps when its *shape* changes (a widget
+    // added/removed, the query narrowing the set, a new category). A plain
+    // on/off toggle leaves the shape untouched, so the Repeater keeps its
+    // cards, the scroll position and the highlight; each card reads its live
+    // state through isOn(), which follows `items` reactively.
+    property string query: ""
+    onQueryChanged: {
+        panel.curNav = -1;
+        grid.contentY = 0;
+        panel.recompute();
+    }
+
+    property var _cards: []
+    property string _sig: ""
+    function recompute() {
+        const src = panel.items || [];
+        const ql = (panel.query || "").trim().toLowerCase();
+        const out = [];
         for (var i = 0; i < src.length; i++) {
             const e = src[i];
             const name = I18n.tr(e.label || e.id);
@@ -102,97 +183,82 @@ Rectangle {
                 const hay = (name + " " + (e.id || "") + " " + panel.hintFor(e.id)).toLowerCase();
                 if (hay.indexOf(ql) < 0)
                     continue;
+            } else {
+                const cur = panel.cats[panel.curCat];
+                if (!cur || (e.group || "") !== cur.group)
+                    continue;
             }
-            const g = e.group || "";
-            if (!opened || g !== group) {
-                group = g;
-                opened = true;
-                out.push({ header: true, group: g });
-            }
-            out.push({ header: false, entry: e });
+            out.push(e);
         }
-        return out;
-    }
-
-    // The display list is recomputed on any roster or query change, but the array
-    // reference only swaps when its *shape* changes (a widget added/removed, the
-    // query narrowing the set). A plain on/off toggle leaves the shape untouched,
-    // so the Repeater keeps its delegates, the scroll position and the highlight.
-    property var _rows: []
-    property string _sig: ""
-    function recompute() {
-        const r = panel.buildRows(panel.items || [], panel.query);
         var sig = "";
-        for (var i = 0; i < r.length; i++)
-            sig += (r[i].header ? "H:" + r[i].group : r[i].entry.id) + "|";
+        for (var j = 0; j < out.length; j++)
+            sig += out[j].id + "|";
         if (sig !== panel._sig) {
             panel._sig = sig;
-            panel._rows = r;
+            panel._cards = out;
         }
     }
-    readonly property var rows: panel._rows
-    // The row indices that are selectable, so the keyboard highlight skips headers.
-    readonly property var navIndices: {
-        const a = [];
-        for (var i = 0; i < panel._rows.length; i++)
-            if (!panel._rows[i].header)
-                a.push(i);
-        return a;
-    }
-    property int curNav: -1
-    readonly property int curModelIndex: (panel.curNav >= 0 && panel.curNav < panel.navIndices.length)
-        ? panel.navIndices[panel.curNav] : -1
-
-    property string query: ""
-    onQueryChanged: {
-        panel.recompute();
-        panel.curNav = -1;
-        list.contentY = 0;
-    }
+    readonly property var filtered: panel._cards
     onItemsChanged: panel.recompute()
     Component.onCompleted: panel.recompute()
+    readonly property bool searching: (panel.query || "").trim().length > 0
 
+    // The keyboard highlight, an index into `filtered`.
+    property int curNav: -1
     function toggleCurrent() {
-        const idx = panel.curModelIndex;
-        if (idx >= 0 && !panel._rows[idx].header)
-            panel.toggle(panel._rows[idx].entry.id);
+        const e = panel.filtered[panel.curNav];
+        if (e)
+            panel.toggle(e.id);
     }
-    // Keep the highlighted row inside the viewport when the keyboard moves it.
-    function keepVisible() {
-        if (panel.curModelIndex < 0)
+    function moveNav(d) {
+        const n = panel.filtered.length;
+        if (n === 0)
             return;
-        const it = rep.itemAt(panel.curModelIndex);
+        panel.curNav = panel.curNav < 0 ? (d > 0 ? 0 : n - 1)
+            : Math.max(0, Math.min(n - 1, panel.curNav + d));
+        panel.keepVisible();
+    }
+    // Keep the highlighted card inside the viewport when the keyboard moves it.
+    function keepVisible() {
+        const it = rep.itemAt(panel.curNav);
         if (!it)
             return;
-        if (it.y < list.contentY)
-            list.contentY = it.y;
-        else if (it.y + it.height > list.contentY + list.height)
-            list.contentY = it.y + it.height - list.height;
+        if (it.y < grid.contentY)
+            grid.contentY = it.y;
+        else if (it.y + it.height > grid.contentY + grid.height)
+            grid.contentY = it.y + it.height - grid.height;
     }
     // Focus the search field for a fresh session whenever the panel appears.
     onVisibleChanged: {
         if (panel.visible) {
             search.text = "";
             panel.curNav = -1;
-            list.contentY = 0;
+            grid.contentY = 0;
             search.forceActiveFocus();
         }
     }
 
     readonly property int pad: Theme.s3
     readonly property int searchH: 34
+    readonly property int railW: 132
+    readonly property int cardH: 104
+    readonly property int cardGap: Theme.s2
 
-    width: Math.min(460, panel.maxWidth)
-    // An empty result still needs room for the "no match" line, so the body floors
-    // at one row's height when nothing is listed.
-    readonly property real bodyHeight: panel.navIndices.length === 0 ? Theme.s7 : col.height
-    height: Math.min(panel.pad + panel.searchH + Theme.s2 + panel.bodyHeight + panel.pad, panel.maxPanelHeight)
+    width: Math.min(620, panel.maxWidth)
+    // The panel is tall enough for the grid it holds, capped by the work area;
+    // an empty result still floors at one row so the "no match" line has room.
+    readonly property real gridRows: Math.ceil(panel.filtered.length / 2)
+    readonly property real gridDesired: panel.filtered.length === 0
+        ? Theme.s7
+        : panel.gridRows * panel.cardH + Math.max(0, panel.gridRows - 1) * panel.cardGap
+    height: Math.min(panel.maxPanelHeight,
+        Math.max(360, panel.pad + panel.searchH + Theme.s3 + panel.gridDesired + panel.pad * 2))
     radius: Theme.menuRadius
     color: Theme.surface
     border.width: 1
     border.color: Theme.line
 
-    // ── search: filters as you type; Down drops into the list, Esc closes ──
+    // ── search: filters as you type; Down drops into the grid, Esc closes ──
     Rectangle {
         id: searchBox
         anchors { top: parent.top; left: parent.left; right: parent.right; margins: panel.pad }
@@ -227,9 +293,9 @@ Rectangle {
             clip: true
             onTextChanged: panel.query = text
             Keys.onDownPressed: e => {
-                if (panel.navIndices.length > 0) {
+                if (panel.filtered.length > 0) {
                     panel.curNav = 0;
-                    list.forceActiveFocus();
+                    grid.forceActiveFocus();
                     panel.keepVisible();
                 }
                 e.accepted = true;
@@ -265,183 +331,268 @@ Rectangle {
         }
     }
 
-    // ── the roster list: natural vertical scroll, no arrow buttons ──
-    Flickable {
-        id: list
+    // ── the category rail: one chip per family, count on the right ─────────
+    // Hidden while searching: the result grid spans every family, so a rail
+    // that highlights none would only waste width.
+    Column {
+        id: rail
+        visible: !panel.searching && panel.cats.length > 1
         anchors {
-            top: searchBox.bottom; topMargin: Theme.s2
-            left: parent.left; right: parent.right; bottom: parent.bottom
-            leftMargin: panel.pad; rightMargin: panel.pad; bottomMargin: panel.pad
+            top: searchBox.bottom; topMargin: Theme.s3
+            left: parent.left; leftMargin: panel.pad
+            bottom: parent.bottom; bottomMargin: panel.pad
+        }
+        width: panel.railW
+        spacing: Theme.s1
+
+        Repeater {
+            model: panel.cats
+            delegate: Item {
+                id: cat
+                required property var modelData
+                required property int index
+                readonly property bool selected: index === panel.curCat
+                width: rail.width
+                height: Theme.s7
+                scale: catMa.pressed ? 0.97 : 1
+                Behavior on scale { NumberAnimation { duration: Theme.quick; easing.type: Theme.ease } }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: Theme.menuTileRadius
+                    color: cat.selected ? Theme.bone
+                        : catMa.pressed ? Theme.tilePress
+                        : catMa.containsMouse ? Theme.tileHover : "transparent"
+                    border.width: 1
+                    border.color: cat.selected ? Theme.bone : Theme.line
+                    Behavior on color { ColorAnimation { duration: Theme.quick } }
+                }
+                Row {
+                    anchors {
+                        left: parent.left; leftMargin: Theme.s3
+                        right: parent.right; rightMargin: Theme.s3
+                        verticalCenter: parent.verticalCenter
+                    }
+                    spacing: Theme.s1
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width - glossText.implicitWidth - countText.implicitWidth - 2 * parent.spacing
+                        text: I18n.tr(cat.modelData.caption)
+                        color: cat.selected ? Theme.inkOnBone : Theme.inkSoft
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fSmall
+                        font.weight: cat.selected ? Font.DemiBold : Font.Medium
+                        elide: Text.ElideRight
+                        Behavior on color { ColorAnimation { duration: Theme.quick } }
+                    }
+                    Text {
+                        id: glossText
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: text.length > 0
+                        text: cat.modelData.gloss
+                        color: cat.selected ? Theme.inkOnBone : Theme.faint
+                        font.family: Theme.fontJp
+                        font.pixelSize: Theme.fMicro
+                    }
+                    Text {
+                        id: countText
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: cat.modelData.on + "/" + cat.modelData.total
+                        color: cat.selected ? Theme.inkOnBone : Theme.inkDim
+                        font.family: Theme.mono
+                        font.pixelSize: Theme.fMicro
+                        font.weight: Font.DemiBold
+                        Behavior on color { ColorAnimation { duration: Theme.quick } }
+                    }
+                }
+                MouseArea {
+                    id: catMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        panel.curCat = cat.index;
+                        panel.curNav = -1;
+                        grid.contentY = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    // ── the grid: two columns of cards, natural vertical scroll ────────────
+    Flickable {
+        id: grid
+        anchors {
+            top: searchBox.bottom; topMargin: Theme.s3
+            left: rail.visible ? rail.right : parent.left
+            right: parent.right; bottom: parent.bottom
+            leftMargin: rail.visible ? Theme.s3 : panel.pad
+            rightMargin: panel.pad; bottomMargin: panel.pad
         }
         clip: true
         contentWidth: width
-        contentHeight: col.height
+        contentHeight: cards.height
         boundsBehavior: Flickable.StopAtBounds
 
         WheelScroll {}
         ScrollBar.vertical: ScrollRail {}
 
-        // The list holds keyboard nav; the search field hands focus down with Down.
+        // The grid holds keyboard nav; the search field hands focus down with
+        // Down. Two columns, so Up/Down step a row and Left/Right a card.
         Keys.onUpPressed: e => {
-            if (panel.curNav > 0) {
-                panel.curNav -= 1;
-                panel.keepVisible();
-            } else {
+            if (panel.curNav <= 0) {
                 panel.curNav = -1;
                 search.forceActiveFocus();
+            } else {
+                panel.moveNav(-2);
             }
             e.accepted = true;
         }
-        Keys.onDownPressed: e => {
-            if (panel.curNav < panel.navIndices.length - 1) {
-                panel.curNav += 1;
-                panel.keepVisible();
-            }
-            e.accepted = true;
-        }
+        Keys.onDownPressed: e => { panel.moveNav(2); e.accepted = true; }
+        Keys.onLeftPressed: e => { panel.moveNav(-1); e.accepted = true; }
+        Keys.onRightPressed: e => { panel.moveNav(1); e.accepted = true; }
         Keys.onSpacePressed: e => { panel.toggleCurrent(); e.accepted = true; }
         Keys.onReturnPressed: e => { panel.toggleCurrent(); e.accepted = true; }
         Keys.onEnterPressed: e => { panel.toggleCurrent(); e.accepted = true; }
         Keys.onEscapePressed: e => { panel.requestClose(); e.accepted = true; }
 
-        Column {
-            id: col
-            width: list.width
+        Grid {
+            id: cards
+            width: grid.width
+            columns: 2
+            columnSpacing: panel.cardGap
+            rowSpacing: panel.cardGap
 
             Repeater {
                 id: rep
-                model: panel.rows
+                model: panel.filtered
 
-                delegate: Item {
-                    id: dg
+                delegate: Rectangle {
+                    id: card
                     required property var modelData
                     required property int index
-                    readonly property bool isHeader: dg.modelData.header === true
-                    readonly property var entry: dg.isHeader ? null : dg.modelData.entry
-                    readonly property bool on: dg.entry ? panel.isOn(dg.entry.id) : false
-                    readonly property bool active: !dg.isHeader && dg.index === panel.curModelIndex
-                    width: col.width
-                    height: dg.isHeader
-                        ? headerRow.implicitHeight + Theme.s4
-                        : Math.max(Theme.s7, textCol.implicitHeight + Theme.s3)
+                    readonly property var entry: card.modelData
+                    readonly property bool on: panel.isOn(card.entry.id)
+                    readonly property bool active: card.index === panel.curNav
 
-                    // ── section header: Latin caption, a kanji seal when we have one ──
-                    Row {
-                        id: headerRow
-                        visible: dg.isHeader
-                        anchors {
-                            left: parent.left; right: parent.right
-                            bottom: parent.bottom; bottomMargin: Theme.s2
-                        }
-                        spacing: Theme.s2
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: dg.isHeader ? I18n.tr(panel.captionFor(dg.modelData.group)).toUpperCase() : ""
-                            color: Theme.inkDim
-                            font.family: Theme.font
-                            font.pixelSize: Theme.fMicro
-                            font.weight: Font.DemiBold
-                            font.letterSpacing: Theme.trackMark
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: dg.isHeader && panel.glossFor(dg.modelData.group).length > 0
-                            text: dg.isHeader ? panel.glossFor(dg.modelData.group) : ""
-                            color: Theme.faint
-                            font.family: Theme.fontJp
-                            font.pixelSize: Theme.fSmall
-                        }
-                        Rectangle {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(0, headerRow.width - x)
-                            height: 1
-                            color: Theme.line
-                        }
+                    width: (cards.width - panel.cardGap) / 2
+                    height: panel.cardH
+                    radius: Theme.menuTileRadius
+                    // An on card sits on its tile; an off card is quiet paper
+                    // with a hairline, so the lit ones read as the desktop's
+                    // current cast at a glance.
+                    color: card.active ? Theme.tilePress
+                        : cardMa.containsMouse ? Theme.tileHover
+                        : card.on ? Theme.tile : "transparent"
+                    border.width: card.active ? 2 : 1
+                    border.color: card.active ? Theme.ink
+                        : card.on ? Theme.lineStrong : Theme.line
+                    Behavior on color { ColorAnimation { duration: Theme.quick } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.quick } }
+
+                    // category eyebrow, only where the family is not obvious:
+                    // search results span every category.
+                    Text {
+                        id: eyebrow
+                        anchors { top: parent.top; topMargin: Theme.s2; left: parent.left; leftMargin: Theme.s3 }
+                        visible: panel.searching
+                        text: panel.eyebrowFor(card.entry.group || "")
+                        color: Theme.faint
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fMicro
+                        font.weight: Font.DemiBold
+                        font.letterSpacing: Theme.trackMark
                     }
 
-                    // ── a widget row: glyph, name over hint, a switch on the right ──
-                    Rectangle {
-                        visible: !dg.isHeader
-                        anchors.fill: parent
-                        radius: Theme.menuTileRadius
-                        color: (dg.active || rowMa.containsMouse) ? Theme.tileHover : "transparent"
+                    MaterialIcon {
+                        id: cardGlyph
+                        anchors { left: parent.left; leftMargin: Theme.s3; top: eyebrow.visible ? eyebrow.bottom : parent.top; topMargin: eyebrow.visible ? Theme.s1 : Theme.s3 }
+                        text: card.entry.icon || "widgets"
+                        font.pixelSize: 22
+                        fill: card.on ? 1 : 0
+                        color: card.on ? Theme.ink : Theme.inkDim
                         Behavior on color { ColorAnimation { duration: Theme.quick } }
                     }
-                    MaterialIcon {
-                        id: rowGlyph
-                        visible: !dg.isHeader
-                        anchors { left: parent.left; leftMargin: Theme.s3; verticalCenter: parent.verticalCenter }
-                        text: dg.entry ? (dg.entry.icon || "widgets") : ""
-                        font.pixelSize: 20
-                        fill: dg.on ? 1 : 0
-                        color: dg.on ? Theme.ink : (rowMa.containsMouse ? Theme.ink : Theme.inkDim)
-                    }
-                    Column {
-                        id: textCol
-                        visible: !dg.isHeader
+
+                    Text {
+                        id: cardName
                         anchors {
-                            left: rowGlyph.right; leftMargin: Theme.s3
-                            right: custBtn.visible ? custBtn.left : rowSwitch.left; rightMargin: Theme.s3
-                            verticalCenter: parent.verticalCenter
+                            left: parent.left; leftMargin: Theme.s3
+                            right: parent.right; rightMargin: Theme.s3
+                            top: cardGlyph.bottom; topMargin: Theme.s1
                         }
-                        spacing: 1
-                        Text {
-                            width: parent.width
-                            text: dg.entry ? I18n.tr(dg.entry.label || dg.entry.id) : ""
-                            color: dg.on ? Theme.ink : Theme.inkSoft
-                            font.family: Theme.font
-                            font.pixelSize: Theme.fBody
-                            font.weight: dg.on ? Font.DemiBold : Font.Medium
-                            wrapMode: Text.WordWrap
+                        width: parent.width
+                        text: I18n.tr(card.entry.label || card.entry.id)
+                        color: card.on ? Theme.ink : Theme.inkSoft
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fBody
+                        font.weight: card.on ? Font.DemiBold : Font.Medium
+                        elide: Text.ElideRight
+                        Behavior on color { ColorAnimation { duration: Theme.quick } }
+                    }
+                    Text {
+                        anchors {
+                            left: parent.left; leftMargin: Theme.s3
+                            right: parent.right; rightMargin: Theme.s3
+                            top: cardName.bottom; topMargin: 1
+                            bottom: parent.bottom; bottomMargin: Theme.s2
                         }
-                        Text {
-                            width: parent.width
-                            visible: text.length > 0
-                            text: dg.entry ? I18n.tr(panel.hintFor(dg.entry.id)) : ""
-                            color: Theme.inkDim
-                            font.family: Theme.font
-                            font.pixelSize: Theme.fSmall
-                            wrapMode: Text.WordWrap
+                        visible: panel.hintFor(card.entry.id).length > 0
+                        text: I18n.tr(panel.hintFor(card.entry.id))
+                        color: Theme.inkDim
+                        font.family: Theme.font
+                        font.pixelSize: Theme.fSmall
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                    }
+
+                    // Click anywhere on the card toggles it and moves the
+                    // highlight there. Declared before the tune affordance so
+                    // the tune button sits on top and keeps its own clicks.
+                    MouseArea {
+                        id: cardMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            panel.curNav = card.index;
+                            grid.forceActiveFocus();
+                            panel.toggle(card.entry.id);
                         }
                     }
-                    Sw {
-                        id: rowSwitch
-                        visible: !dg.isHeader
-                        anchors { right: parent.right; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
-                        on: dg.on
-                        onToggled: v => { if (dg.entry) panel.toggle(dg.entry.id); }
+
+                    // The on/off mark: a filled dot, top-right, so the lit
+                    // cards read as the desktop's current cast at a glance.
+                    Rectangle {
+                        id: cardDot
+                        anchors { top: parent.top; topMargin: Theme.s3; right: parent.right; rightMargin: Theme.s3 }
+                        width: 10; height: 10
+                        radius: 5
+                        color: card.on ? Theme.ink : "transparent"
+                        border.width: 1
+                        border.color: card.on ? Theme.ink : Theme.lineStrong
+                        Behavior on color { ColorAnimation { duration: Theme.quick } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.quick } }
                     }
-                    // A quiet Customize affordance: open the widget inspector for
-                    // an enabled row, so a face can be tuned from the picker too.
+
+                    // A quiet Customize affordance: open the widget's editor for
+                    // an on card, so a face can be tuned from the picker too.
                     MaterialIcon {
-                        id: custBtn
-                        visible: !dg.isHeader && dg.on
-                        anchors { right: rowSwitch.left; rightMargin: Theme.s3; verticalCenter: parent.verticalCenter }
+                        id: tuneBtn
+                        visible: card.on
+                        anchors { right: parent.right; rightMargin: Theme.s3; bottom: parent.bottom; bottomMargin: Theme.s2 }
                         text: "tune"
                         font.pixelSize: 18
-                        color: custMa.containsMouse ? Theme.ink : Theme.inkDim
+                        color: tuneMa.containsMouse ? Theme.ink : Theme.inkDim
+                        Behavior on color { ColorAnimation { duration: Theme.quick } }
                         MouseArea {
-                            id: custMa
+                            id: tuneMa
                             anchors.fill: parent
                             anchors.margins: -Theme.s1
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: if (dg.entry) panel.customize(dg.entry.id)
-                        }
-                    }
-                    // Click anywhere left of the switch toggles the row and moves
-                    // the highlight there.
-                    MouseArea {
-                        id: rowMa
-                        visible: !dg.isHeader
-                        anchors { left: parent.left; right: custBtn.visible ? custBtn.left : rowSwitch.left; top: parent.top; bottom: parent.bottom }
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            if (!dg.entry)
-                                return;
-                            panel.curNav = panel.navIndices.indexOf(dg.index);
-                            panel.toggle(dg.entry.id);
+                            onClicked: panel.customize(card.entry.id)
                         }
                     }
                 }
@@ -451,8 +602,8 @@ Rectangle {
 
     // Nothing matched the search: honest empty paper, not a blank panel.
     Text {
-        anchors.centerIn: list
-        visible: panel.navIndices.length === 0
+        anchors.centerIn: grid
+        visible: panel.filtered.length === 0
         text: I18n.tr("No widgets match")
         color: Theme.inkDim
         font.family: Theme.font

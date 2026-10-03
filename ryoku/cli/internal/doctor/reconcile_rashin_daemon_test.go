@@ -92,6 +92,9 @@ func TestRashinSkillLinksMissing(t *testing.T) {
 	t.Setenv("HOME", h)
 	t.Setenv("RYOKU_REPO", "") // no dev checkout via sys.ResolveRepo
 	t.Setenv("XDG_STATE_HOME", filepath.Join(h, ".local", "state"))
+	oldPackaged := packagedSkillRoot
+	packagedSkillRoot = filepath.Join(t.TempDir(), "absent") // a packaged box ships the tree
+	t.Cleanup(func() { packagedSkillRoot = oldPackaged })
 
 	// No skill installed: nothing to wire, so never "missing".
 	skills := t.TempDir()

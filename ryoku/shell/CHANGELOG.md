@@ -6,6 +6,16 @@
 - **Clipboard history supports keyboard selection.** Use the up and down arrows
   to move through matching entries and press Enter to restore the selected item
   to the clipboard.
+- **Push-aside sidebars put the desktop in motion.** `Super+Escape` opens the
+  left controls sidebar and `Super+S` opens the right companion sidebar. The
+  screen slides over panels underneath, with a native depth edge and an
+  exclusive zone that moves tiled windows aside. Hub-styled cards cover system
+  controls, notifications, weather, media, capture, stage, usage, tools, and
+  Rashin chat. Contributors can add cards through the `sidebarCard` plugin host,
+  and Desktop > Sidebars in Ryoku Hub controls width, motion, depth, window push,
+  wallpaper parallax, enabled sides, and card order.
+  (`quickshell/shell/modules/sidebar/`, `sidebarfx/`,
+  `../hub/quickshell/schema/DesktopPage.js`)
 - **A fifth bar style: Python.** The serpantinum shell (by ilyamiro, AGPL-3.0)
   is ported into the style folder as `python`: a top or edge bar of pill
   widgets that open into one morphing stage, with the ported network, sound,
@@ -528,6 +538,10 @@
   the click moved (issue #276).
 
 ### Removed
+- **The old quick-settings menu and stash card.** The former
+  `Super+Escape` frame menu and `Super+S` floating stash surface are retired.
+  Their rebuilt controls, chat, usage, and tools now live in the global
+  push-aside sidebars.
 - **The old wall-ui picker.** Replaced by the new picker; its day/night
   rotation lives on as two schedule rules, migrated automatically
   (`ryogami/wall-ui/`).

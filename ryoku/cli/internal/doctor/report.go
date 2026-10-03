@@ -38,7 +38,7 @@ func writeReport(override string, findings []finding) (string, error) {
 // ryoku-desktop channel commit, so these per-component and third-party versions
 // are otherwise absent from a report a maintainer reads.
 var diagnosticPackages = []string{
-	"ryoku-desktop", "ryoku", "ryoku-shell", "ryoku-hub", "ryoku-blobs", "ryoku-rashin",
+	"ryoku-desktop", "ryoku", "ryoku-shell", "ryoku-hub", "ryoku-blobs", "ryoku-sidebarfx", "ryoku-rashin",
 	"quickshell",
 	"qt6-base", "qt6-declarative", "qt6-wayland",
 	"pipewire", "wireplumber", "nvidia-utils", "mesa", "limine", "snapper",

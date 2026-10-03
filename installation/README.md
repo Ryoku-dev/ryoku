@@ -16,8 +16,9 @@ installation/
     main.go              pure UI: screens, layout, wizard state, the layout math
     system.go            the only file that touches the machine (lists, hardware
                          detection, RYOKU_* handoff to the backend)
+    apps.go              the browser + app keep/remove choice table (what ships,
+                         what a row means, which rows are required)
     partition_test.go    unit tests for the layout math + safety gates
-    done_test.go         unit test for the done-screen exit action
     go.mod / go.sum      module (bubbletea/v2, lipgloss/v2, harmonica, qrterminal)
     ryoku-tui            the built binary (git-ignored; build.sh rebuilds it)
 
@@ -104,9 +105,12 @@ End to end, USB stick to first login:
    (`foot`, JetBrains Mono Nerd Font). It relaunches on a crash so the console
    never drops mid-install; the serial console stays a plain root shell.
 4. **ryoku-tui.** The terminal runs the installer. It collects keyboard, locale,
-   time zone, network, hardware profile, graphics mode, target disk, disk
-   strategy, layout, user, and encryption, and refuses to proceed past its
-   safety gates (BIOS, Secure Boot, live-medium exclusion, wipe ack, online).
+   time zone, network, hardware profile, graphics mode, window manager
+   (Hyprland / niri / MangoWM), the one browser to install (Zen / Chromium /
+   Firefox), the keep/remove checklist over every optional app, target disk,
+   disk strategy, layout, user, and encryption, and refuses to proceed past
+   its safety gates (BIOS, Secure Boot, live-medium exclusion, wipe ack,
+   online).
 5. **RYOKU_\* handoff.** On the Review screen `system.go` builds the `RYOKU_*`
    environment and streams `ryoku-install` (the `/usr/local/bin/ryoku-install`
    wrapper `exec`s the real backend under `/usr/local/lib/ryoku/backend`). The
@@ -185,7 +189,7 @@ a mounted match is always left alone. Minimum free region is
 | **Build host** | `iso/build.sh`: compile `ryoku-tui` and the payload Go binaries (`ryoku-shell`, `ryoku-hub`) + the `Ryoku.Blobs` QML plugin, bake the backend and the repo payload into a staged airootfs, `mkarchiso`. Needs `go`, `cmake`, `ninja`, `archiso`, root. |
 | **Live ISO** | autologin -> `ryoku-installer-session` -> `ryoku-tui` -> `ryoku-install`. Preflight, partition, LUKS, mkfs, mount, `pacstrap`, mirror ranking all run here as root on the live system. |
 | **Target chroot** (`arch-chroot /mnt`) | in-target config (locale, user, HOOKS, crypttab), the per-vendor GPU driver scripts, the desktop `pacman -S` from `[ryoku]`, the AUR `yay` build, `snapper`/`limine-snapper-sync` enablement, the Limine EFI install. |
-| **Installed system** | first boot: SDDM, NetworkManager, and the Hyprland autostart (`ryoku-gpu`, `ryoku-monitor`). Later changes arrive through `ryoku update`, not the installer. |
+| **Installed system** | first boot: SDDM, NetworkManager, and the Ryoku session for the chosen compositor (`ryoku-gpu`, `ryoku-monitor`). Later changes arrive through `ryoku update`, not the installer. |
 
 ## How a change here reaches users
 

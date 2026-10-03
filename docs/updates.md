@@ -427,15 +427,18 @@ island (when the channel serves the next line) and the Hub's Updates page.
 - **A system path a package owns may exist unowned first, and the update adopts
   it.** The ISO installer and `ryoku/shell/deploy.sh` seed some paths before a
   package owns them: the privileged helpers and their polkit rules, the Plymouth
-  theme, the shipped boot configs, and the logind lid-switch drop-in
-  `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned copy collides with
-  the package on the next transaction ("exists in filesystem") and aborts the
-  whole atomic `-Syu`, so `ryoku update` passes `--overwrite` for the seeded
-  globs (`updater.ryokuOverwriteGlob`, fed by `unownedFiles`) and the doctor
-  clears the same paths on a box already wedged
-  (`reconcileConflictingRyokuFiles`, `ryokuSystemGlobs`). Either way the package
-  adopts the path and later updates own it normally; `deploy.sh` keeps its own
-  copy of the list (`_rovw`) in sync.
+  theme, the shipped boot configs and lockscreen bundle, the boot hook, the
+  modules-load and udev rules, the default-apps mimeapps map, and the logind
+  lid-switch drop-in `/etc/systemd/logind.conf.d/10-ryoku-lid.conf`. An unowned
+  copy collides with the package on the next transaction ("exists in
+  filesystem") and aborts the whole atomic `-Syu`, so every ryoku pacman
+  transaction -- `ryoku update`, the channel move, and the compositor switch
+  (`ryoku wm use`) -- passes `--overwrite` for the seeded globs
+  (`updater.RyokuOverwriteGlob`, fed by `unownedFiles`) and the doctor clears
+  the same paths on a box already wedged (`reconcileConflictingRyokuFiles`,
+  `ryokuSystemGlobs` -- the glob itself, split). Either way the package adopts
+  the path and later updates own it normally; `deploy.sh` keeps its own copy of
+  the list (`_rovw`) in sync.
 - **Generated power policy and long-running helpers must be adopted as one live
   transaction.** `hypridle.conf` is rendered state, not materialized payload,
   and a running shell-script daemon keeps executing its old file after the
