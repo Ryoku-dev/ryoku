@@ -12,7 +12,7 @@ import (
 	"syscall"
 )
 
-// managedProcess supervises the resident picker; a toggle only maps or unmaps its surface.
+// managedProcess supervises the picker while it is in use or inside its short keep-warm window.
 type managedProcess struct {
 	mu     sync.Mutex
 	cmd    *exec.Cmd
@@ -60,9 +60,7 @@ func (m *managedProcess) runningLocked() bool {
 	return true
 }
 
-// launch starts the resident picker; extraEnv rides on top of the daemon's
-// environment (RYOGAMI_START_VISIBLE=1 makes a cold instance show itself, the
-// recovery path when the resident one has died).
+// launch starts the picker; extraEnv rides on top of the daemon's environment.
 func (m *managedProcess) launch(extraEnv ...string) {
 	if headless() {
 		return
@@ -192,10 +190,9 @@ func (m *managedProcess) kill() {
 	}
 }
 
-// ensure reports whether the resident instance is up, cold-starting a visible
-// one when it is not (the daemon just booted, or the picker crashed). extra
-// rides on that cold start, so a request still lands on a picker that was not
-// there to hear the event.
+// ensure reports whether a warm instance is up, cold-starting a visible one
+// when it is not. extra rides on that cold start, so a request still lands on
+// a picker that was not there to hear the event.
 func (m *managedProcess) ensure(extra ...string) bool {
 	if m.running() {
 		return true
@@ -204,10 +201,20 @@ func (m *managedProcess) ensure(extra ...string) bool {
 	return false
 }
 
-// A resident picker hears the event; a dead one cold-starts straight onto the folio.
+func (d *daemon) refreshWorkshopOnPickerStart() {
+	if !d.featureSteam() {
+		return
+	}
+	d.rescan(false)
+	d.broadcast("ryogami.workshop.changed", map[string]interface{}{})
+}
+
+// A warm picker hears the event; a cold one starts straight onto the folio.
 func (d *daemon) openSettings(tab string) {
 	if d.ui.ensure("RYOGAMI_START_SETTINGS=" + tab) {
 		d.broadcast("ryogami.wall.settings", map[string]interface{}{"tab": tab})
+	} else {
+		go d.refreshWorkshopOnPickerStart()
 	}
 }
 

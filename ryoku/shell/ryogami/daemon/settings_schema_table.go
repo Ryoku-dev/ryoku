@@ -330,7 +330,7 @@ var settingsSchema = []settingSpec{
 	{Key: "performance.imageOptimizeResolution", Type: "enum", Default: "2k", Options: []string{"1080p", "2k", "4k"}},
 	{Key: "performance.imageTrashDays", Type: "number", Default: float64(7), Min: fp(0.0), Max: fp(3650.0), Step: fp(1.0)},
 	{Key: "performance.maxThumbJobs", Type: "number", Default: float64(16), Min: fp(1.0), Max: fp(32.0), Step: fp(1.0)},
-	{Key: "performance.releaseAfterHideSeconds", Type: "number", Default: float64(0), Min: fp(0.0), Max: fp(86400.0), Step: fp(1.0)},
+	{Key: "performance.releaseAfterHideSeconds", Type: "number", Default: float64(30), Min: fp(0.0), Max: fp(86400.0), Step: fp(1.0)},
 	{Key: "performance.videoCacheDays", Type: "number", Default: float64(30), Min: fp(0.0), Max: fp(3650.0), Step: fp(1.0)},
 	{Key: "performance.videoConvertPreset", Type: "enum", Default: "balanced", Options: []string{"light", "balanced", "quality"}},
 	{Key: "performance.videoConvertResolution", Type: "enum", Default: "4k", Options: []string{"1080p", "2k", "4k"}},

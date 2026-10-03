@@ -423,3 +423,102 @@ func TestE2EWallApplyWritesLegacyState(t *testing.T) {
 		t.Fatalf("state file = %q, want %q", got, img)
 	}
 }
+
+// TestE2EDaemonDoesNotPreloadPicker keeps the wallpaper service cheap while idle.
+// The picker is a demand-owned UI process: login must not spawn it, but the first
+// wallpaper ui request must still cold-start it.
+func TestE2EDaemonDoesNotPreloadPicker(t *testing.T) {
+	root := t.TempDir()
+	runtime := filepath.Join(root, "run")
+	binDir := filepath.Join(root, "bin")
+	if err := os.MkdirAll(runtime, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := filepath.Join(root, "ryogami-test-bin")
+	build := exec.Command("go", "build", "-o", bin, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v: %s", err, out)
+	}
+
+	marker := filepath.Join(root, "picker-launches")
+	fakeQuickShell := filepath.Join(binDir, "quickshell")
+	body := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + marker + "\n"
+	if err := os.WriteFile(fakeQuickShell, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	qml := filepath.Join(root, "shell.qml")
+	if err := os.WriteFile(qml, []byte("// picker probe\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	env := append(os.Environ(),
+		"HOME="+filepath.Join(root, "home"),
+		"XDG_RUNTIME_DIR="+runtime,
+		"XDG_CONFIG_HOME="+filepath.Join(root, "config"),
+		"XDG_CACHE_HOME="+filepath.Join(root, "cache"),
+		"XDG_STATE_HOME="+filepath.Join(root, "state"),
+		"XDG_DATA_HOME="+filepath.Join(root, "data"),
+		"RYOGAMI_SHELL_QML="+qml,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+
+	cmd := exec.Command(bin, "daemon")
+	cmd.Env = env
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	})
+
+	sock := filepath.Join(runtime, "ryogami.sock")
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(sock); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("daemon socket never appeared")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+
+	time.Sleep(250 * time.Millisecond)
+	if b, err := os.ReadFile(marker); err == nil && len(b) != 0 {
+		t.Fatalf("picker launched during daemon boot: %q", b)
+	} else if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+
+	client := exec.Command(bin, "wallpaper", "ui")
+	client.Env = env
+	if out, err := client.CombinedOutput(); err != nil {
+		t.Fatalf("wallpaper ui: %v: %s", err, out)
+	}
+
+	deadline = time.Now().Add(3 * time.Second)
+	for {
+		if b, err := os.ReadFile(marker); err == nil && len(b) != 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("wallpaper ui did not launch the picker")
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+func TestPickerReleaseDefaultIsBounded(t *testing.T) {
+	spec, ok := specFor("performance.releaseAfterHideSeconds")
+	if !ok {
+		t.Fatal("releaseAfterHideSeconds setting missing")
+	}
+	if got, ok := spec.Default.(float64); !ok || got <= 0 {
+		t.Fatalf("releaseAfterHideSeconds default = %#v, want a bounded nonzero delay", spec.Default)
+	}
+}

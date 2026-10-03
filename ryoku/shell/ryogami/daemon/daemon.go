@@ -165,11 +165,11 @@ func runDaemon() error {
 		os.Exit(0)
 	}()
 
-	// The picker runs resident like the shell's overview: one quickshell
-	// instance preloads hidden at boot and Super+W only flips its surface, so
-	// a press never pays a cold QML boot and rapid presses cannot race a
-	// kill/spawn cycle.
-	go d.ui.launch()
+	// The wallpaper daemon is session-owned, but the picker is demand-owned.
+	// Do not preload a half-gigabyte Qt scene at login merely to save a cold
+	// open later. Clean up a picker left by an older daemon; wallpaper ui/settings
+	// cold-start one when the user actually asks for it.
+	d.ui.clearLeftover()
 
 	// Publish the empty snapshot so a subscriber before the first set sees a
 	// defined frame, then restore the last wallpaper and rescan the catalog.
@@ -200,7 +200,6 @@ func runDaemon() error {
 	go d.watchSettingsFile()
 	go d.startLibraryWatch()
 	go d.watchOutputs()
-	go d.workshop.watch()
 
 	for {
 		conn, err := ln.Accept()
