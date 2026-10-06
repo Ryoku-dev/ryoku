@@ -42,6 +42,55 @@ func TestLocalAllRenamesAndDrops(t *testing.T) {
 	}
 }
 
+// Ubuntu/Pop!_OS (noble) names: Arch names must map to installable apt names,
+// and Hyprland-ecosystem sources must be skipped (built by deploy.sh).
+func TestDebianUbuntuNobleRenames(t *testing.T) {
+	renamed := map[string]string{
+		"go":              "golang-go",
+		"python-pip":      "python3-pip",
+		"python-pipx":     "pipx",
+		"linux-headers":   "linux-headers-generic",
+		"intel-ucode":     "intel-microcode",
+		"amd-ucode":       "amd64-microcode",
+		"mesa":            "mesa-vulkan-drivers",
+		"qt5-wayland":     "qtwayland5",
+		"qt6-declarative": "qml6-module-qtquick",
+		"qt6-5compat":     "libqt6core5compat6",
+		"qt6-svg":         "libqt6svg6",
+		"qt6-multimedia":  "libqt6multimedia6",
+		"tesseract":       "tesseract-ocr",
+		"virglrenderer":   "libvirglrenderer1",
+		"zbar":            "libzbar0t64",
+		"libnotify":       "libnotify-bin",
+		"libqalculate":    "libqalculate22t64",
+		"docker":          "docker.io",
+		"linux-firmware":  "linux-firmware",
+	}
+	for arch, want := range renamed {
+		if got := debianLinux.local(arch); got != want {
+			t.Errorf("debian local(%q) = %q, want %q", arch, got, want)
+		}
+	}
+	dropped := []string{
+		"hypridle", "hyprpicker", "quickshell", "wl-clip-persist",
+		"gpu-screen-recorder", "ttf-maple-mono-nf", "gamescope",
+		"xpadneo-dkms", "broadcom-bt-firmware", "blesh", "fastfetch",
+		"zsh-history-substring-search", "lazygit", "starship", "openrgb",
+		"nautilus-python", "chromium", "mise",
+	}
+	for _, arch := range dropped {
+		if got := debianLinux.local(arch); got != "" {
+			t.Errorf("debian local(%q) = %q, want dropped (\"\")", arch, got)
+		}
+	}
+	// build toolchain must not reference Arch-only dev packages.
+	for _, b := range debianLinux.build {
+		if b == "golang" || b == "hyprland-dev" || b == "libhyprutils-dev" {
+			t.Errorf("debian build must not contain Arch-only %q", b)
+		}
+	}
+}
+
 // The Arch step list is the contract that must not drift; the Debian one swaps
 // the pacman-only steps for the source build.
 func TestStepsPerDistro(t *testing.T) {

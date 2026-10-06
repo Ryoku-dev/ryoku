@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Fixed
+- **Converting an Ubuntu-based box no longer dies at the desktop
+  transaction.** The Debian package map was verified against Debian
+  testing/unstable, but Ubuntu 24.04 (Pop!_OS included) carries different
+  names: `go` is `golang-go`, `intel-ucode` is `intel-microcode`,
+  `linux-headers` is `linux-headers-generic`, `python-pip`/`python-pipx` are
+  `python3-pip`/`pipx`, and the Qt6 runtime splits into `libqt6*`/`qml6*`
+  packages. The map now uses the Ubuntu names, drops the Arch-only
+  `hyprland-dev`/`libhyprutils-dev` build deps, and skips the
+  Hyprland-ecosystem sources `deploy.sh` builds itself (quickshell,
+  hyprpicker, hypridle, gpu-screen-recorder). Rebuilt the committed
+  binary + checksum.
 - **Converting a box that runs oh-my-zsh-git no longer dies at the desktop
   transaction.** ryoku-oh-my-zsh provides and replaces both upstream
   frameworks, but a plain removal under --noconfirm refuses while an installed
