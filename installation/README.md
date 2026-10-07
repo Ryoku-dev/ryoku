@@ -16,8 +16,8 @@ installation/
     main.go              pure UI: screens, layout, wizard state, the layout math
     system.go            the only file that touches the machine (lists, hardware
                          detection, RYOKU_* handoff to the backend)
-    apps.go              the browser + app keep/remove choice table (what ships,
-                         what a row means, which rows are required)
+    apps.go              the browser, login-shell, and app choice tables (what
+                         ships, what a row means, which rows are required)
     partition_test.go    unit tests for the layout math + safety gates
     go.mod / go.sum      module (bubbletea/v2, lipgloss/v2, harmonica, qrterminal)
     ryoku-tui            the built binary (git-ignored; build.sh rebuilds it)
@@ -105,12 +105,12 @@ End to end, USB stick to first login:
    (`foot`, JetBrains Mono Nerd Font). It relaunches on a crash so the console
    never drops mid-install; the serial console stays a plain root shell.
 4. **ryoku-tui.** The terminal runs the installer. It collects keyboard, locale,
-   time zone, network, hardware profile, graphics mode, window manager
-   (Hyprland / niri), the one browser to install (Zen / Chromium / Firefox),
-   the keep/remove checklist over every optional app, target disk, disk
-   strategy, layout, user, and encryption, and refuses to proceed past
-   its safety gates (BIOS, Secure Boot, live-medium exclusion, wipe ack,
-   online).
+   time zone, network, hardware profile, graphics mode, window manager, one
+   browser (Firefox recommended, then Chromium or Zen), one login shell (Fish
+   recommended, then Zsh or Bash), the keep/remove checklist over optional apps,
+   target disk, disk strategy, layout, user, and encryption, and refuses to
+   proceed past its safety gates (BIOS, Secure Boot, live-medium exclusion,
+   wipe acknowledgement, online).
 5. **RYOKU_\* handoff.** On the Review screen `system.go` builds the `RYOKU_*`
    environment and streams `ryoku-install` (the `/usr/local/bin/ryoku-install`
    wrapper `exec`s the real backend under `/usr/local/lib/ryoku/backend`). The
@@ -133,7 +133,8 @@ End to end, USB stick to first login:
    without the sentinel, and the EXIT trap names the stage and leaves `/mnt`
    mounted for inspection.
 7. **Reboot.** The done screen offers reboot / power off / shell. First boot
-   lands on SDDM, then the Ryoku desktop.
+   lands on SDDM, then the first graphical login applies the shipped default
+   rice with a random wallpaper before removing its one-shot state marker.
 
 ## The two disk strategies
 

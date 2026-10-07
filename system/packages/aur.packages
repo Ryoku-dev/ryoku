@@ -51,12 +51,12 @@ voxtype-bin
 # Inter, JetBrains Mono and Noto ship from the official repo (base.packages).
 ttf-fraunces-variable
 
-# Web browser: Zen is Ryoku's default browser. It ships here (post-install,
-# best-effort, online-only) so it lands on the ISO and the install script but
-# never through `ryoku update`, which does not revisit this set. Existing boxes
-# are therefore not given Zen by an update; a user who installs Zen themselves
-# still gets the Ryoku Zen policy (shipped extensions + Wayland/hardware-decode
-# and privacy defaults) applied by `ryoku doctor`. See reconcile_zen.go.
+# Web browser: Zen is the AUR option in the installer's one-browser choice;
+# Firefox is recommended and selected by default. Zen builds post-install on an
+# online install and is baked into the ISO's offline repo. Existing boxes are
+# not given Zen by an update, but a user who installs it themselves still gets
+# the Ryoku Zen policy (shipped extensions plus Wayland, hardware-decode and
+# privacy defaults) from `ryoku doctor`. See reconcile_zen.go.
 zen-browser-bin
 
 # Fingerprint unlock module. The in-session lock (qylock) and the SDDM greeter

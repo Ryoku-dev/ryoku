@@ -5,16 +5,45 @@ import (
 	"testing"
 )
 
-// xkbFromKeymap maps the picker's console keymap to an XKB layout for the
-// graphical stack. Console and XKB names coincide for most layouts; a suffix or
-// alias needs translating. These cases hold whether or not localectl is present
-// (a real layout validates; the alias/suffix resolves to a real base either way).
+// xkbFromKeymap maps the picker's console keymap to an XKB layout and variant
+// for the graphical stack. Seed the probe caches so generic variant handling is
+// deterministic on development machines that have different keymap packages.
 func TestXkbFromKeymap(t *testing.T) {
+	oldLayouts, oldProbed := xkbLayouts, xkbProbed
+	oldVariants, oldVariantsProbed := xkbVariants, xkbVariantsProbed
+	xkbLayouts = map[string]bool{
+		"de": true, "fr": true, "gb": true, "it": true, "tr": true, "us": true,
+	}
+	xkbProbed = true
+	xkbVariants = map[string]map[string]bool{
+		"fr": {"bepo": true},
+		"gb": {"colemak": true, "dvorak": true},
+		"us": {"colemak": true, "dvorak": true, "dvorak-l": true, "dvorak-r": true, "dvp": true, "workman": true},
+	}
+	xkbVariantsProbed = map[string]bool{"de": true, "fr": true, "gb": true, "it": true, "tr": true, "us": true}
+	t.Cleanup(func() {
+		xkbLayouts, xkbProbed = oldLayouts, oldProbed
+		xkbVariants, xkbVariantsProbed = oldVariants, oldVariantsProbed
+	})
+
 	for _, c := range []struct{ in, wantL, wantV string }{
+		{"dvorak", "us", "dvorak"},
+		{"colemak", "us", "colemak"},
+		{"ANSI-dvorak", "us", "dvorak"},
+		{"dvorak-programmer", "us", "dvp"},
+		{"dvorak-l", "us", "dvorak-l"},
+		{"dvorak-r", "us", "dvorak-r"},
+		{"dvorak-uk", "gb", "dvorak"},
+		{"fr-bepo", "fr", "bepo"},
+		{"fr-bepo-latin9", "fr", "bepo_latin9"},
+		{"us-workman", "us", "workman"},
+		{"uk-colemak", "gb", "colemak"},
 		{"it", "it", ""},
 		{"de-latin1", "de", ""},
 		{"fr-latin1", "fr", ""},
 		{"uk", "gb", ""},
+		{"trq", "tr", ""},
+		{"trf", "tr", ""},
 		{"us", "us", ""},
 		{"", "us", ""},
 	} {
@@ -25,9 +54,9 @@ func TestXkbFromKeymap(t *testing.T) {
 }
 
 // keymapRelaunch is the one thing loadkeys cannot do: on the graphical (cage)
-// path it must hand the chosen layout to the session so cage relaunches under it
-// and the password is captured in the user's real layout. The console path is a
-// no-op (loadkeys reaches the VT), and an already-active layout must not loop.
+// path it must hand the chosen layout and variant to the session so cage
+// relaunches under them and the password is captured in the user's real layout.
+// The console path is a no-op, and an already-active pair must not loop.
 func TestKeymapRelaunch(t *testing.T) {
 	const xkbfile = "/tmp/ryoku-xkb"
 	os.Remove(xkbfile)
@@ -44,6 +73,7 @@ func TestKeymapRelaunch(t *testing.T) {
 
 	t.Setenv("RYOKU_SESSION", "graphical")
 	t.Setenv("RYOKU_XKB", "")
+	t.Setenv("XKB_DEFAULT_VARIANT", "")
 	if !keymapRelaunch("it") {
 		t.Fatal("graphical + non-us layout must relaunch")
 	}
@@ -58,6 +88,22 @@ func TestKeymapRelaunch(t *testing.T) {
 		t.Error("must not relaunch when the layout is already active")
 	}
 
+	t.Setenv("RYOKU_XKB", "us")
+	if !keymapRelaunch("dvorak") {
+		t.Fatal("variant-only change must relaunch")
+	}
+	if b, err := os.ReadFile(xkbfile); err != nil {
+		t.Fatalf("variant xkb file not written: %v", err)
+	} else if string(b) != "dvorak\nus\ndvorak\n" {
+		t.Errorf("variant xkb file = %q, want %q", string(b), "dvorak\nus\ndvorak\n")
+	}
+
+	t.Setenv("XKB_DEFAULT_VARIANT", "dvorak")
+	if keymapRelaunch("dvorak") {
+		t.Error("must not relaunch when layout and variant are already active")
+	}
+
+	t.Setenv("XKB_DEFAULT_VARIANT", "")
 	t.Setenv("RYOKU_XKB", "") // cage default us, us pick
 	if keymapRelaunch("us") {
 		t.Error("us pick under cage-default us must not relaunch")
@@ -81,6 +127,9 @@ func TestStepsOmitKeyboardOnPreset(t *testing.T) {
 	}
 	if len(s) != full-1 {
 		t.Errorf("with preset, step count = %d, want %d (one fewer)", len(s), full-1)
+	}
+	if b, sh := flowIndex(s, "browser"), flowIndex(s, "login-shell"); b < 0 || sh != b+1 {
+		t.Errorf("keyboard relaunch changed product-step order: browser=%d login-shell=%d", b, sh)
 	}
 }
 

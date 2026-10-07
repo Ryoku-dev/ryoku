@@ -192,37 +192,33 @@ Subcommands:
 | `fix doctor [finding]` / `fix tip <id>` / `fix app <name> [what happened]` | Fix with AI from anywhere: opens your agent harness with the problem as its first message, in this terminal when run from one, in a new terminal window otherwise (see "Fix with AI" below). Also `rashin fix doctor`; `rashin fix the wifi` stays a plain ask |
 | `repo-index <root> [out]` | Build the Ryoku source map from a checkout; used by the PKGBUILD and `deploy.sh` |
 | `ask <question>` | One-shot quick ask, built for the launcher's `\` prefix: POSTs to `/api/ask` and pipes streamed `@working`/`@perm`/`@answer` markers to stdout. `ask --recent` prints the resume history as JSON; `ask --cancel` stops the running turn. See "Quick asks: two lanes" below |
-| `setup` | One-click actuator: install Hermes, run its onboarding, wire, enable |
+| `setup` | One-click actuator: install Hermes, connect it through Prowl, wire, enable |
 | `wire [agent]` | Apply vault pointers to all detected agents, or one named agent |
 | `unwire [agent]` | Remove vault pointers, keeping the file |
-| `status [--json]` | Report daemon, vault, hermes, and wiring state |
-| `enable [--at-boot]` / `disable` | Start or stop the daemon and its autostart. With systemd, `enable` runs `systemctl --user enable --now ryoku-rashin` so the dashboard starts at every login and restarts on crash; `--at-boot` adds `loginctl enable-linger` so it starts when the machine boots, before login. Without systemd it falls back to a detached spawn for the session |
+| `status [--json]` | Report Rashin, Prowl, vault, Hermes, and wiring state |
+| `enable [--at-boot]` / `disable` | Start or stop Rashin and its Prowl gateway. With systemd, `enable` starts `ryoku-rashin.service`, which wants the bound Prowl unit; `--at-boot` adds user lingering. Without systemd the daemon manages both detached processes |
 
-The daemon runs as a **systemd user unit** (`ryoku-rashin.service`, shipped to
-`/usr/lib/systemd/user` by the package, `~/.config/systemd/user` by
-`deploy.sh`). The unit runs `serve --if-enabled`, so the `enabled` gate in
-`rashin.json` stays the single source of truth: a disabled rashin exits
-immediately even if the unit fires. It no longer rides the Hyprland session,
-so it survives compositor restarts and is up before the desktop paints.
+Rashin runs as `ryoku-rashin.service`, a systemd user unit installed under
+`/usr/lib/systemd/user` by the package and under `~/.config/systemd/user` by
+`deploy.sh`. Prowl has a separate `ryoku-prowl.service` with no install target
+and listens on port 8788 unless `RYOKU_PROWL_PORT` overrides it. Both ship off.
+Starting or enabling Rashin starts Prowl; stopping Rashin stops
+Prowl too. The `enabled` gate in `rashin.json` remains the source of truth, and
+the detached fallback starts and stops both processes when no systemd user
+manager is available.
 
-The dashboard serves on `http://127.0.0.1:3600`. The HTTP API (all localhost)
-covers `GET /api/status`, `GET /api/vitals` (also pushed on `WS /ws/vitals`),
-`GET /api/system` (the read-only machine inventory: services, timers, cron,
-containers, listeners, processes, mounts, plus deterministic tips),
-`GET /api/theme` (the desktop's resolved palette and whether a wallpaper is
-showable) and `GET /api/wallpaper` (that wallpaper's file, image or clip),
-`GET /api/agents` with wire and unwire, `GET /api/harnesses` (every detected
-coding agent with its own skills, memories, sessions, model choice, and
-credential sources, names only), `GET /api/hermes/skills`,
-`GET /api/hermes/memory`, `GET /api/prowl` and `GET /api/prowl/search?q=`,
-`GET /api/code/*` (the live Prowl index proxy, below), `GET /api/providers`
-(the consolidated free/paid/subscription directory), `GET /api/about`,
-`GET /api/doctor` (Ryoku's health check, `ryoku doctor --json` run read-only and
-cached for two minutes; `?refresh=1` reruns it), `POST /api/fix` (Fix with AI,
-below: opens the agent in a terminal; JSON only, and refused unless the request
-comes from this dashboard or a local process), and `WS /ws/chat`, the shared
-agent session behind the Alt+Space Ask chat. Vitals come from `/proc` and `statfs`,
-with GPU via `nvidia-smi` when present.
+The dashboard serves on `http://127.0.0.1:3600`. Its localhost API includes
+status, vitals, system inventory, theme, wallpaper, vault, memory, skills,
+harnesses, doctor, fixes, quick-lane settings, and the two chat WebSockets.
+`GET /api/status` reports both Rashin and Prowl. For GET, POST, PUT, PATCH, and
+DELETE, `/api/prowl/{rest...}` proxies these authenticated gateway groups:
+`keys`, `providers`, `profiles`, `fallback`, `models`, `usage`, `logs`,
+`logins`, `signin`, `settings`, `health`, `catalog`, `free-tier`, `cache`,
+`update`, `projects`, `setup`, and `code`. It never exposes `/v1` to the
+browser. Code requests use Rashin's source mirror by default. The earlier
+`/api/prowl`, `/api/prowl/search`, `/api/code/*`, and `/api/providers` routes
+are retired. Vitals come from `/proc` and `statfs`, with GPU data from
+`nvidia-smi` when present.
 
 ## The two lanes
 
@@ -253,40 +249,29 @@ sessions opened in its own cwd.
 
 ### Quick asks: the fast path
 
-A launcher ask does not always need the full agent. `/api/ask` routes it
-inside the Ryoku lane:
+A launcher ask does not always need the full agent. `/api/ask` keeps the quick
+path inside the Ryoku lane:
 
-1. **Fast lane (fabric-style, with tools).** When hermes's configured provider
-   speaks plain chat-completions (openrouter, openai, groq, ollama, or a local
-   endpoint), the daemon runs a bounded agent loop on that same model
-   connection: a terse pattern prompt plus the vault's generated maps, and a
-   small set of READ-ONLY Go-native tools that run in milliseconds:
-   `system_query` (packages, updates, service, processes, disk, kernel, gpu,
-   network), `read_file`, `list_dir`, `search_code` (prowl), and
-   `fetch_url`. Up to four tool rounds, then the answer, usually a second or
-   two. The model replies `TOOLS_REQUIRED` only when the ask needs something
-   these tools cannot do (generating or editing files or images, an
-   interactive browser, running a hermes skill, or changing the system), which
-   escalates it.
-2. **Session lane.** OAuth backends (openai-codex) and escalated asks go
-   through the real hermes session with its full Python toolset, which the
-   daemon **pre-warms at boot** so even this lane skips the ~10s cold start.
-   The terse-mode preamble keeps answers short.
+1. **Fast lane.** Rashin posts each ask to Prowl's authenticated
+   `/v1/chat/completions` gateway. The selected route defaults to `auto`, which
+   uses the active routing set. `auto:smart`, `auto:fast`, `auto:cheap`,
+   `auto:reliable`, `auto:balanced`, `auto:efficient`, and
+   `auto:<lowercase set name>` select a capability or named set without tying
+   Rashin to a provider. The bounded loop keeps read-only tools for machine facts,
+   files, the Prowl code index, and URL reads. Work that needs broader tools,
+   edits, or an interactive browser escalates.
+2. **Session lane.** Escalated asks continue in the connected harness with its
+   full toolset. Rashin pre-warms the resident session so this path avoids a
+   cold start.
 
-The fast lane's tools are deliberately a small, safe, Go-native set, not the
-full hermes toolset: that is the trade that keeps it fast. Heavy or
-system-changing work is exactly what escalates to the session lane.
-
-Both paths write the conversation into the Ryoku lane's transcript, so
-"continue with the agent" always opens the full exchange. The fast lane's connection can be
-overridden in `~/.config/ryoku/rashin.json` for a cheaper or local model:
+Both paths write into the Ryoku transcript, so continuing with the agent keeps
+the full exchange. `GET /api/quick` reports the available Prowl routes and
+gateway readiness; `POST /api/quick` selects one. The shell Ask bar renders the
+same route list. The only stored setting is the route:
 
 ```json
-{ "quick": { "model": "llama3.2", "baseUrl": "http://127.0.0.1:11434/v1" } }
+{ "quick": { "route": "auto" } }
 ```
-
-`keyEnv` names the `~/.hermes/.env` variable holding the key when the endpoint
-needs one; hermes-known providers resolve their key automatically.
 
 ### Action chips
 
@@ -366,9 +351,8 @@ Ask bar's header use the small cut of the same mark, see `docs/ui-ux.md`.
 | Vault | The grouped tree, the rendered document at a reading measure, deep links, reindex |
 | Memory | The provider tiles, the force graph of the vault's notes, the activity heatmap, the Hermes session history |
 | Skills | One tab per harness, grouped and counted |
-| Agents | The harness ledger, wire and unwire, the chat agent switch |
-| Models | The provider directory with filters, the fast-lane switch, the chat models |
-| About | What Rashin is, the pieces with live facts, the shortcuts |
+| Prowl | Overview, providers and keys, Rashin routing sets, activity, indexed projects, connected harnesses, and their toolkit |
+| About | What Rashin is, the system manifest with live facts, and the shortcuts |
 
 Everything the console shows is the daemon's answer: each lane's sheet is a
 projection of that lane's `/ws/chat` stream and the same reducer the Ask bar uses
@@ -427,9 +411,8 @@ bars sweep) and yields to the OS reduced-motion setting and to
 | Vault | Grouped tree (maps, memory, journal; the agent-facing source mirror collapsed), rendered markdown, reindex button, generated-file badges |
 | Memory | Provider tiles (builtin or external, with Obsidian vault detection), the 2D force graph of the vault's notes and their references with a data-driven legend, a 26-week activity heatmap, and the Hermes session history read from `~/.hermes/state.db` |
 | Skills | One tab per installed harness: Hermes skills grouped by category with origin counts (bundled, hub, agent-grown) and the enabled toolbelt grouped into families; every other harness lists the skills it carries, grouped by origin when long |
-| Agents | Detected CLIs, wiring state per agent, wire and unwire actions, and the harness ledger: each agent's own skills, memory files, session counts, model choice, and credential names |
-| Models | The consolidated provider directory (free, credits, paid) from Prowl's shipped catalogue, with signup friction, model counts, and a key-on-box mark joined from the harness scan |
-| About | What Rashin is, the pieces with live facts, quick start, a command crib (`hermes -h`, `hermes gateway`, `hermes model`, `hermes tools`, `prowl overview`), and the privacy note |
+| Prowl | A left rail for Overview, Providers, Routing, Activity, Projects, Harnesses, and Toolkit. Providers holds keys and sign-ins; Routing holds Prowl sets plus Rashin's Quick and Chat routes; Harnesses connects each detected CLI and shows its ledger |
+| About | What Rashin is, the system manifest with live facts, quick start, a command crib (`hermes -h`, `prowl overview`), and the privacy note |
 
 ### The Ask chat
 
@@ -476,64 +459,77 @@ harness that exits with an error leaves its message on screen until Enter.
 
 ## Prowl ships with Rashin
 
-`prowl` is Prowl, the code-intelligence indexer and MCP server Rashin's
-agent brain uses to read this system's source: it builds a `.prowl` index over a
-tree and answers structural questions (where a symbol is defined, who calls it, a
-change's blast radius) in one call instead of grepping. The CLI was renamed from
-`prowl-agent` to `prowl`; the pacman package is still `prowl-agent` and upstream
-still ships the old binary name, so both may be on PATH during the transition. It
-is no longer an optional hand-install: `ryoku-rashin` depends on the `prowl-agent`
-package, so the desktop set ships it and every rashin box has it.
+Rashin is the app people open. Prowl is its model gateway and code-intelligence
+engine, shipped as the `prowl` package and `/usr/bin/prowl`. The two stay
+separate processes so Prowl can keep its gateway and index engine, but there is
+no second setup or management app.
 
-- **`ryoku update` keeps it current.** A packaged box gets new Prowl builds with
-  the rest of the system through `pacman -Syu`; the packaged binary carries a
-  managed-build guard, so a hand-run `prowl update` defers to the package
-  manager instead of overwriting the pacman-owned file. On a dev box (Prowl
-  installed by hand, not owned by pacman) `ryoku update` runs `prowl update`
-  for you. Either way the update logs one line saying which path it took.
-  If a box enabled rashin before the dependency shipped and lacks the binary,
-  `ryoku doctor` reports it with the fix `sudo pacman -S prowl-agent`.
-- **The mirror index lives with the vault.** `ryoku-rashin index` builds a
-  read-only mirror of the live config at `~/.local/share/ryoku/rashin/source/`
-  and indexes it with Prowl (see "The source mirror" below), so `search_code`
-  and the prowl MCP server answer on a packaged box with no checkout.
-- **Agents get Prowl's skill.** `ryoku-rashin wire` also runs `prowl skills
-  --yes --clients <detected>` for the clients Rashin detects (claude, omp,
-  and hermes), installing Prowl's own agent skill alongside the `ryoku` skill, so
-  an agent gains its code-intelligence guide in the same pass. It is skipped on a
-  Prowl too old to apply non-interactively (no `--yes` in `skills --help`).
-- **One origin for the dashboard.** `prowl api` serves the same answers over
-  loopback HTTP (`/api/find`, `/api/overview`, `/api/impact`, ...) behind the
-  machine-local gateway token. Rashin starts it lazily on the repo
-  `prowlRepo()` names and proxies it as `GET /api/code/*`, so the dashboard
-  keeps one origin and the panels show live index answers instead of the
-  cached report. `/api/providers` forwards the consolidated free, credits,
-  and subscription directory the same way. When prowl or its index is absent,
-  `/api/code/status` says exactly why, and the panels degrade honestly.
+Both processes ship off. Starting or enabling Rashin starts
+`ryoku-prowl.service` on port 8788; stopping Rashin stops it. The Prowl unit has
+no install target, so it does not come up on its own. `ryoku-rashin ensure`
+recovers either process, and the detached fallback owns the same lifecycle on a
+machine without a systemd user manager.
+
+The `ryoku-rashin` package depends on `prowl`, so `pacman -Syu` updates them
+together. The Prowl binary is stamped as pacman-managed and will not overwrite
+itself. A source-installed binary on a development box may still use
+`prowl update`.
+
+Prowl keeps its existing state directories at
+`$XDG_DATA_HOME/prowl-agent/gateway/` and
+`$XDG_STATE_HOME/prowl-agent/registry.json`. The old name remains only there
+because Prowl owns those durable paths and their migration; Ryoku never renames
+them.
 
 ## Prowl integration
 
-When `prowl` (the code-intelligence indexer) is on PATH and a repo with a
-`.prowl/` index is found, the daemon surfaces it read-only: doctor finding
-counts, files and symbols, top hotspots on the Overview card, and
-`GET /api/prowl/search?q=` for content search. The repo is a dev checkout when
-one carries an index, else the vault's config mirror (see "The source mirror"
-below), so a packaged box answers too. Prowl is optional and user-installed;
-everything degrades to a hidden card without it.
+The console's **Prowl** section is the full control surface. Its Overview,
+Providers, Routing, Activity, Projects, Harnesses, and Toolkit pages manage
+provider keys and sign-ins, routing sets, request history, code indexes, harness
+connections, and portable skills. Every harness connected through Rashin points
+at Prowl's authenticated `/v1` gateway and uses the `auto` route. Changing a
+provider or routing set therefore applies to Rashin and every connected harness
+in one place.
+Detected harnesses keep their own models until you connect them:
+`ryoku-rashin wire` and updates re-route only harnesses you connected, and
+Disconnect is never undone by a later update.
+
+Rashin's own chat lanes follow the same rule. Choosing a chat agent connects it
+through Prowl first, and the agent answering chat cannot be disconnected until
+another one takes over. While the agent routes through Prowl, its model picker
+offers only what goes through Prowl: Claude Code keeps every model (its whole
+endpoint points at Prowl); for Hermes, Oh My Pi and opencode, models from the
+agent's other providers are hidden and Prowl's aliases merge into one
+**Active set** entry. Hermes also lists every non-empty Prowl routing set, so
+a chat can run on another set without changing Prowl's active set. A remembered
+pick from another provider is dropped rather than re-applied. Until a provider
+can serve `auto`, the agent stays pending, chat keeps answering on its previous
+model, and the console says why.
+
+Rashin proxies the gateway's management API under `/api/prowl/`, adding the
+machine-local token itself. The browser never receives that token and cannot
+proxy `/v1`. Code requests default to Rashin's source mirror, while the Projects
+page can register and reindex other trees.
+
+Prowl parses code with tree-sitter and stores its lexical index in SQLite FTS5.
+Prose uses Porter stemming. Semantic search uses minishlab's
+`potion-code-16M` static embedding model, compiled into the binary with no
+runtime download, and stores vectors in sqlite-vec. Reciprocal-rank fusion
+combines the FTS and vector rankings. An optional local Ollama model is used
+only by `--smart` for query rewriting and reranking, never for embeddings.
 
 ## The source mirror
 
 On a packaged box there is no source checkout for prowl to index, so the
 prowl MCP server and `search_code` would otherwise answer only on a
-maintainer's machine. Every reindex closes that gap: when prowl is on
-PATH, Rashin mirrors the live config (`~/.config/quickshell`, `~/.config/hypr`,
-and `~/.config/ryoku/*.json`) into `~/.local/share/ryoku/rashin/source/` (with
-rsync when available, else a Go copy that skips symlinks and files over 2 MB),
-writes a short `README.md` marking it read-only, and runs `prowl init
---integrations agents,agent-skills,claude,omp` and `overview` there under a
-120 s budget, so the mirror carries Prowl's index plus its AGENTS.md block, MCP
-config, and skills. It is a read-only copy for the index alone; edits there are
-overwritten and never reach the desktop.
+maintainer's machine. Every reindex closes that gap: Rashin mirrors the live
+config (`~/.config/quickshell`, `~/.config/hypr`, and
+`~/.config/ryoku/*.json`) into
+`~/.local/share/ryoku/rashin/source/` (with rsync when available, else a Go
+copy that skips symlinks and files over 2 MB), writes a short `README.md`
+marking it read-only, and runs `prowl init` there under a 120 s budget. The
+mirror carries Prowl's index and is read-only; edits there are overwritten and
+never reach the desktop.
 
 `prowlRepo()` prefers a dev checkout that carries a `.prowl` index (the
 deploy-recorded checkout, honouring `RYOKU_RASHIN_REPO` and
@@ -550,19 +546,18 @@ page watches live. The flow:
 
 1. **Preflight:** check `curl`, a Python toolchain (`uv` or `python3`), network
    reachability, and disk space; detect an existing Hermes. `uv` and `nodejs`
-   ship as `ryoku-rashin` dependencies, so the check passes on a stock box and
-   the installer never bootstraps a toolchain over the network (nor dies with a
-   cryptic "uv lock missing" on a half-finished, offline install).
-2. **Install Hermes** via its official installer under `$HOME` (skipped if
-   present). Setup never runs with sudo.
-3. **Onboard:** run `hermes setup` interactively in that terminal so you pick a
-   provider and model right there (skipped if already configured).
+   ship as `ryoku-rashin` dependencies, so a stock box needs no downloaded
+   build toolchain.
+2. **Install Hermes** via its official installer under `$HOME` when absent.
+   Setup never runs with sudo.
+3. **Connect:** point Hermes at Prowl's gateway, make `auto` its active model,
+   and install the Prowl toolkit. Once `hermes acp --check` passes, setup skips
+   Hermes's interactive provider step because providers live in Rashin.
 4. **Wire:** ensure the vault, reindex, point Hermes's workspace at the vault so
    `MEMORY.md` and sessions live there, and write the vault `AGENTS.md` pointers.
 5. **Global pointers:** append a marker-fenced block to each detected agent's
    global instructions file (see below).
-6. **Enable** the daemon (at boot via lingering when the desktop allows it,
-   else at login) and open the dashboard.
+6. **Enable** Rashin and its Prowl gateway, then open the console.
 
 ### Two Hermes safety rules
 

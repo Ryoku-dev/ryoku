@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,10 +66,9 @@ func TestRashinOptedOut(t *testing.T) {
 	}
 }
 
-// prowlAgentNeeded is the pure core of reconcileProwlAgent: only an enabled
-// rashin box that lacks the binary should be told to install it. Pinned so the
-// finding never fires on a box that never opted into rashin.
-func TestProwlAgentNeeded(t *testing.T) {
+// prowlNeeded is the pure core of reconcileProwl: only an enabled rashin box
+// that lacks the binary should be told to install it.
+func TestProwlNeeded(t *testing.T) {
 	cases := []struct {
 		name                   string
 		enabled, present, want bool
@@ -80,18 +80,42 @@ func TestProwlAgentNeeded(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := prowlAgentNeeded(c.enabled, c.present); got != c.want {
-				t.Fatalf("prowlAgentNeeded(enabled=%v, present=%v) = %v, want %v", c.enabled, c.present, got, c.want)
+			if got := prowlNeeded(c.enabled, c.present); got != c.want {
+				t.Fatalf("prowlNeeded(enabled=%v, present=%v) = %v, want %v", c.enabled, c.present, got, c.want)
 			}
 		})
+	}
+}
+
+func TestProwlGatewayNeeded(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		for _, active := range []bool{false, true} {
+			for _, installed := range []bool{false, true} {
+				for _, answering := range []bool{false, true} {
+					name := fmt.Sprintf("enabled=%v/active=%v/installed=%v/answering=%v",
+						enabled, active, installed, answering)
+					t.Run(name, func(t *testing.T) {
+						state := rashinUnitState{enabled: enabled, active: active}
+						want := enabled && active && installed && !answering
+						if got := prowlGatewayNeeded(state, installed, answering); got != want {
+							t.Fatalf("prowlGatewayNeeded(%+v, installed=%v, answering=%v) = %v, want %v",
+								state, installed, answering, got, want)
+						}
+					})
+				}
+			}
+		}
 	}
 }
 
 func TestRashinSkillLinksMissing(t *testing.T) {
 	h := t.TempDir()
 	t.Setenv("HOME", h)
-	t.Setenv("RYOKU_REPO", "") // no dev checkout via sys.ResolveRepo
+	t.Setenv("RYOKU_REPO", "")
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(h, ".local", "state"))
+	t.Setenv("RYOKU_CHANNEL", "")
+	t.Setenv("RYOKU_WM", "hyprland")
 	oldPackaged := packagedSkillRoot
 	packagedSkillRoot = filepath.Join(t.TempDir(), "absent") // a packaged box ships the tree
 	t.Cleanup(func() { packagedSkillRoot = oldPackaged })

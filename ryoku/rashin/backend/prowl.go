@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,11 +12,9 @@ import (
 	"time"
 )
 
-// prowl.go surfaces prowl (the code-intelligence indexer) on the
-// dashboard: index state, doctor counts, hotspots, and search over the Ryoku
-// checkout. prowl is an optional, user-installed tool (no license for
-// redistribution yet), so every path degrades gracefully when it or the
-// index is absent.
+// prowl.go surfaces Prowl's code-intelligence state for Rashin's local tools.
+// Query data comes from the gateway so the console, quick lane, and harnesses
+// all observe the same live index.
 
 type ProwlReport struct {
 	Installed bool   `json:"installed"`
@@ -53,9 +52,8 @@ type ProwlHit struct {
 	Text string `json:"text"`
 }
 
-// findProwl resolves the prowl code-intelligence binary. It prefers the current
-// name and falls back to the legacy prowl-agent, so a box that still carries
-// only the old binary keeps working; every caller runs the resolved path.
+// findProwl resolves the shipped Prowl binary. RYOKU_PROWL_BIN lets tests and
+// development deployments choose an explicit build.
 func findProwl() (string, bool) {
 	if v := os.Getenv("RYOKU_PROWL_BIN"); v != "" {
 		if _, err := os.Stat(v); err == nil {
@@ -63,9 +61,6 @@ func findProwl() (string, bool) {
 		}
 	}
 	if p, err := exec.LookPath("prowl"); err == nil {
-		return p, true
-	}
-	if p, err := exec.LookPath("prowl-agent"); err == nil {
 		return p, true
 	}
 	return "", false
@@ -120,20 +115,17 @@ func shQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-func prowlExec(repo string, timeout time.Duration, args ...string) ([]byte, error) {
-	bin, ok := findProwl()
-	if !ok {
-		return nil, os.ErrNotExist
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func prowlVersion(bin string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Dir = repo
-	return cmd.Output()
+	out, err := exec.CommandContext(ctx, bin, "version").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(firstLine(string(out)), "prowl "))
 }
 
-// prowlCache: the report execs three prowl calls; a 60s cache keeps the
-// overview cheap under the dashboard's polling.
+// Prowl reports are cached because several console panels poll the same state.
 var prowlCache struct {
 	mu   sync.Mutex
 	at   time.Time
@@ -158,91 +150,76 @@ func buildProwlReport() ProwlReport {
 		return rep
 	}
 	rep.Installed = true
-	if out, err := exec.Command(bin, "version").Output(); err == nil {
-		rep.Version = strings.TrimSpace(firstLine(string(out)))
-	}
+	rep.Version = prowlVersion(bin)
 	repo := prowlRepo()
 	if repo == "" {
 		return rep
 	}
 	rep.Repo = repo
 
-	// status: file and symbol counts prove the index is live, and the savings
-	// block is the payoff the dashboard shows.
-	if out, err := prowlExec(repo, 15*time.Second, "status", "--json"); err == nil {
-		var st struct {
+	query := url.Values{"repo": []string{repo}}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	var status struct {
+		Counts struct {
 			Files   int `json:"files"`
 			Symbols int `json:"symbols"`
-			Counts  struct {
-				Files   int `json:"files"`
-				Symbols int `json:"symbols"`
-			} `json:"counts"`
-			Savings struct {
-				Queries      int   `json:"queries"`
-				AnswerTokens int64 `json:"answer_tokens"`
-				SavedTokens  int64 `json:"saved_tokens"`
-			} `json:"savings"`
-		}
-		if json.Unmarshal(out, &st) == nil {
-			rep.Files = max(st.Files, st.Counts.Files)
-			rep.Symbols = max(st.Symbols, st.Counts.Symbols)
-			rep.Indexed = rep.Files > 0
-			if st.Savings.Queries > 0 || st.Savings.SavedTokens > 0 {
-				rep.Savings = &ProwlSavings{
-					Queries:      st.Savings.Queries,
-					AnswerTokens: st.Savings.AnswerTokens,
-					SavedTokens:  st.Savings.SavedTokens,
-				}
-			}
+		} `json:"counts"`
+		Savings struct {
+			Queries      int64 `json:"queries"`
+			AnswerTokens int64 `json:"answer_tokens"`
+			SavedTokens  int64 `json:"saved_tokens"`
+		} `json:"savings"`
+	}
+	if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/code/status?"+query.Encode(), nil, &status); err != nil {
+		return rep
+	}
+	rep.Files = status.Counts.Files
+	rep.Symbols = status.Counts.Symbols
+	rep.Indexed = rep.Files > 0
+	if status.Savings.Queries > 0 || status.Savings.SavedTokens > 0 {
+		rep.Savings = &ProwlSavings{
+			Queries:      int(status.Savings.Queries),
+			AnswerTokens: status.Savings.AnswerTokens,
+			SavedTokens:  status.Savings.SavedTokens,
 		}
 	}
 	if !rep.Indexed {
 		return rep
 	}
 
-	// doctor: finding counts only; the 0-100 score saturates on big repos.
-	if out, err := prowlExec(repo, 20*time.Second, "doctor", "--json"); err == nil {
-		var doc struct {
-			Findings []struct {
-				Severity string `json:"severity"`
-			} `json:"findings"`
+	var overview struct {
+		Hotspots []ProwlHotspot `json:"hotspots"`
+	}
+	if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/code/overview?"+query.Encode(), nil, &overview); err == nil {
+		if len(overview.Hotspots) > 5 {
+			overview.Hotspots = overview.Hotspots[:5]
 		}
-		if json.Unmarshal(out, &doc) == nil {
-			d := &struct {
-				Errors int `json:"errors"`
-				Warns  int `json:"warns"`
-				Infos  int `json:"infos"`
-			}{}
-			for _, f := range doc.Findings {
-				switch strings.ToLower(f.Severity) {
-				case "error":
-					d.Errors++
-				case "warn", "warning":
-					d.Warns++
-				default:
-					d.Infos++
-				}
-			}
-			rep.Doctor = d
-		}
+		rep.Hotspots = overview.Hotspots
 	}
 
-	// hotspots --json = {fan_in:[{file,in}], largest:[...], ...}
-	if out, err := prowlExec(repo, 15*time.Second, "hotspots", "--json"); err == nil {
-		var hs struct {
-			FanIn []struct {
-				File string `json:"file"`
-				In   int    `json:"in"`
-			} `json:"fan_in"`
-		}
-		if json.Unmarshal(out, &hs) == nil {
-			for i, h := range hs.FanIn {
-				if i >= 5 {
-					break
-				}
-				rep.Hotspots = append(rep.Hotspots, ProwlHotspot{File: h.File, In: h.In})
+	var doctor struct {
+		Findings []struct {
+			Severity string `json:"severity"`
+		} `json:"findings"`
+	}
+	if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/code/doctor?"+query.Encode(), nil, &doctor); err == nil {
+		counts := &struct {
+			Errors int `json:"errors"`
+			Warns  int `json:"warns"`
+			Infos  int `json:"infos"`
+		}{}
+		for _, finding := range doctor.Findings {
+			switch strings.ToLower(finding.Severity) {
+			case "error":
+				counts.Errors++
+			case "warn", "warning":
+				counts.Warns++
+			default:
+				counts.Infos++
 			}
 		}
+		rep.Doctor = counts
 	}
 	return rep
 }
@@ -253,26 +230,28 @@ func ProwlSearch(query string) []ProwlHit {
 	if repo == "" || strings.TrimSpace(query) == "" {
 		return nil
 	}
-	// search --json --compact = [{file,start_line,end_line,snippet?}]
-	out, err := prowlExec(repo, 15*time.Second, "search", query, "--json", "--limit", "20")
-	if err != nil {
-		return nil
+	params := url.Values{
+		"q":     []string{query},
+		"repo":  []string{repo},
+		"limit": []string{"20"},
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 	var hits []struct {
 		File      string `json:"file"`
 		StartLine int    `json:"start_line"`
 		Snippet   string `json:"snippet"`
 	}
-	if json.Unmarshal(out, &hits) != nil {
+	if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/code/search?"+params.Encode(), nil, &hits); err != nil {
 		return nil
 	}
 	res := make([]ProwlHit, 0, len(hits))
-	for _, h := range hits {
-		text := strings.TrimSpace(h.Snippet)
+	for _, hit := range hits {
+		text := strings.TrimSpace(hit.Snippet)
 		if len(text) > 160 {
 			text = text[:160]
 		}
-		res = append(res, ProwlHit{File: h.File, Line: h.StartLine, Text: text})
+		res = append(res, ProwlHit{File: hit.File, Line: hit.StartLine, Text: text})
 	}
 	return res
 }

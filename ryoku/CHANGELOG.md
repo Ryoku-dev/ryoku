@@ -3,6 +3,39 @@
 ## Unreleased
 
 ### Added
+- **New accounts start with the Ryoku default rice.** The packaged look carries
+  the maintainer's current QS Bar, window styling, visualizer, input and brand
+  choices without machine-specific paths, keyboard layout, app pins or a fixed
+  wallpaper. On the first graphical login Ryoku waits for the desktop services,
+  applies the look, and chooses a random wallpaper from the seeded library
+  (`assets/rices/default/`, `shell/scripts/ryoku-session-intro`).
+- **Prowl lives inside Rashin.** The console's Prowl section (Overview,
+  Providers, Routing, Activity, Projects, Harnesses, Toolkit) is the one place
+  to run Prowl, Ryoku's model gateway and code index: add API keys, keyless free
+  tiers, browser sign-ins and custom endpoints; build routing sets from presets
+  and order their models; read traffic, failures and gateway logs; register and
+  reindex projects; connect coding harnesses. It replaces the Agents and Models
+  sheets. The daemon proxies the gateway's management API under `/api/prowl/`
+  with the machine token and answers only its own console
+  (`rashin/web/src/lib/pages/prowl/`, `rashin/backend/prowlgw.go`).
+- **Rashin's chat picker lists your Prowl routing sets.** While chat routes
+  through Prowl, it shows one Active set entry instead of the same route three
+  times. Picking a set runs that chat on it without changing Prowl's active set
+  (`rashin/backend/acp.go`).
+- **Prowl ships off and starts with Rashin.** `ryoku-prowl.service` (port 8788)
+  has no install target: `ryoku-rashin.service` wants it and it is bound to
+  Rashin, so enabling Rashin brings both up and disabling Rashin stops both
+  (`rashin/systemd/`).
+- **Every harness you connect routes through Prowl.** Connecting Hermes, Claude
+  Code, Codex, opencode or Oh My Pi wires the Ryoku pointer and skills and makes
+  Prowl's `auto` route that harness's default model; Disconnect restores the
+  model it had. With no provider that can serve `auto`, the harness waits as
+  pending and routes once one connects. Detected harnesses keep their own models:
+  `ryoku-rashin wire` and updates re-route only harnesses you connected, so
+  Disconnect is never undone by a later update. Rashin's own chat follows suit:
+  choosing its chat agent connects it. While routed, its model picker offers only
+  models that go through Prowl (`rashin/backend/agents.go`,
+  `rashin/backend/harnesses.go`, `rashin/backend/chatbackend.go`).
 - **The Stage Editor is the desktop's edit mode.** Its toolbar frames one
   monitor at a time, names the edited display and cycles displays from its chip,
   while the drawer keeps the active catalogue instead of repeating those tabs.
@@ -144,7 +177,20 @@
   physical pixels instead of guessing from the reported height
   (`ui/Singletons/Wm.qml`).
 
+### Changed
+- **The fast lane asks Prowl.** Quick asks post to Prowl's
+  `/v1/chat/completions` on a route (`auto`, an axis such as `auto:fast`, or one
+  of your sets) instead of calling a provider directly. `ryoku-rashin backend
+  <route>` and the Ask bar pick it, and keys left in `~/.config/ryoku/rashin.env`
+  are imported into Prowl once (`rashin/backend/quick.go`).
+
 ### Removed
+- **Gemini is no longer a chat agent.** Gemini CLI speaks neither the OpenAI nor
+  the Anthropic API, so it cannot route through Prowl
+  (`rashin/backend/chatbackend.go`).
+- **Rashin no longer knows prowl-agent.** It runs only the `prowl` binary, and
+  the standalone `prowl api` server it used to spawn is replaced by the
+  gateway's own code routes.
 - **Desktop composition no longer has a second settings page in the Hub.**
   Depth, visualizer, and widget editing live only in the Stage Editor. The
   retired `desktop-scene`, `desktop-scene-visualizer`,
@@ -154,6 +200,18 @@
   `hub/quickshell/schema/DesktopScenePage.js`, `shell/ipc/control.go`).
 
 ### Fixed
+- **The Prowl pages fit their window.** Overview's traffic and live-route cards
+  span the page again instead of squeezing into half of it, where numbers ran
+  past the card edge and left a tall empty card. Activity stacks its platform
+  and model tables while they would be cut off, and the Toolkit and Rashin-lanes
+  cards switch to their compact layout before they overflow
+  (`rashin/web/src/lib/pages/prowl/`).
+- **Console card headings keep their kanji gloss beside the title.** Long
+  descriptions no longer let the gloss drift into the middle of the card
+  (`rashin/web/src/lib/ui/Card.svelte`).
+- **Project cards keep each number under its label.** Values no longer push
+  across the column divider, and harness details line up the same way
+  (`rashin/web/src/app.css`).
 - **Visualizers drag like every other widget in the Stage Editor.** The frame
   owns the move, so the look follows the pointer one to one, snaps to the same
   guides, moves in a group, nudges with the arrows, and writes

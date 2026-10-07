@@ -18,8 +18,7 @@ export const SHEETS: readonly Sheet[] = [
   { id: "vault", label: "Vault", gloss: "書庫" },
   { id: "memory", label: "Memory", gloss: "記憶" },
   { id: "skills", label: "Skills", gloss: "技" },
-  { id: "agents", label: "Agents", gloss: "五人衆" },
-  { id: "models", label: "Models", gloss: "モデル" },
+  { id: "prowl", label: "Prowl", gloss: "徘徊" },
   { id: "about", label: "About", gloss: "案内" },
 ];
 

@@ -1,4 +1,18 @@
-import type { ManifestInfo } from "$lib/pages/agents/types";
+export interface ManifestItem {
+  label: string;
+  path: string;
+  kind: string;
+  owner: string;
+  desc: string;
+  exists: boolean;
+}
+
+export interface ManifestInfo {
+  skill: ManifestItem;
+  prowl: ManifestItem;
+  vault: ManifestItem[];
+  snippet: string;
+}
 
 export interface AboutInfo {
   version: string;

@@ -107,12 +107,12 @@ release only ever asks for packages that release actually served; targets are
 repo-qualified (`ryoku/<name>`), so pacman takes our build of a name that also
 exists in `extra`, and moves it down as readily as up.
 
-After the desktop is back, the update refreshes the agent OS when it is present:
-`ryoku-rashin index` regenerates the vault and re-indexes the config mirror with
-Prowl, then `prowl` is brought current. On a dev box (Prowl on PATH but
-not owned by a pacman package) it runs `prowl update`; a packaged box
-already got the new build from the `[ryoku]` set, so the step just logs that the
-binary is managed by pacman. Both are best effort and never fail an update.
+After the desktop is back, the update refreshes Rashin's knowledge when it is
+enabled: `ryoku-rashin index` regenerates the vault and reindexes the config
+mirror with Prowl. The `prowl` package arrives through the same `[ryoku]`
+`pacman -Syu` transaction as Rashin. A dev box whose Prowl binary is not owned
+by pacman runs `prowl update` instead. Both refreshes are best effort and never
+fail the desktop update.
 
 ### The boot guard
 

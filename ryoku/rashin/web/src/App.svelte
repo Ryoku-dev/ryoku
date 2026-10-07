@@ -16,8 +16,7 @@
   import VaultSheet from "./pages/VaultSheet.svelte";
   import MemorySheet from "./pages/MemorySheet.svelte";
   import SkillsSheet from "./pages/SkillsSheet.svelte";
-  import AgentsSheet from "./pages/AgentsSheet.svelte";
-  import ModelsSheet from "./pages/ModelsSheet.svelte";
+  import ProwlSheet from "./pages/ProwlSheet.svelte";
   import AboutSheet from "./pages/AboutSheet.svelte";
 
   const SHEET_VIEWS = {
@@ -29,8 +28,7 @@
     vault: VaultSheet,
     memory: MemorySheet,
     skills: SkillsSheet,
-    agents: AgentsSheet,
-    models: ModelsSheet,
+    prowl: ProwlSheet,
     about: AboutSheet,
   } as const;
 

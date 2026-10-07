@@ -8,6 +8,15 @@ export interface Skill extends SkillLike {
   origin: string;
 }
 
+export interface HarnessRouting {
+  supported: boolean;
+  injected: boolean;
+  connected: boolean;
+  active: boolean;
+  pending: boolean;
+  note?: string;
+}
+
 export interface Harness {
   id: string;
   name: string;
@@ -22,6 +31,7 @@ export interface Harness {
   sessions: number;
   lastActive?: string;
   note?: string;
+  routing: HarnessRouting;
 }
 
 interface HarnessResponse {

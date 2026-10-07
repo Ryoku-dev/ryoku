@@ -38,9 +38,10 @@ Singleton {
             id: "browser",
             label: Translation.tr("Browser"),
             description: Translation.tr("Used by browser shortcuts and app launch tiles."),
-            defaultCommand: "firefox",
-            placeholder: "firefox",
+            defaultCommand: "ryoku-app browser",
+            placeholder: "ryoku-app browser",
             presets: [
+                { id: "system", label: Translation.tr("System browser"), command: "ryoku-app browser" },
                 { id: "firefox", label: "Firefox", command: "firefox" },
                 { id: "zen", label: "Zen Browser", command: "zen-browser" },
                 { id: "librewolf", label: "LibreWolf", command: "librewolf" },
@@ -66,10 +67,10 @@ Singleton {
             label: Translation.tr("Network manager (TUI)"),
             description: Translation.tr("Used by Wi-Fi details shortcuts when a text-mode network tool is preferred."),
             defaultCommand: "nm-connection-editor",
-            placeholder: "kitty -1 fish -c nmtui",
+            placeholder: "kitty -1 nmtui",
             presets: [
                 { id: "nm-editor", label: "NetworkManager GUI", command: "nm-connection-editor" },
-                { id: "nmtui-kitty", label: "nmtui in Kitty", command: "kitty -1 fish -c nmtui" },
+                { id: "nmtui-kitty", label: "nmtui in Kitty", command: "kitty -1 nmtui" },
                 { id: "nmtui-foot", label: "nmtui in Foot", command: "foot -e nmtui" },
                 { id: "kcm-network", label: "KDE Network", command: "kcmshell6 kcm_networkmanagement" }
             ]
@@ -234,11 +235,11 @@ Singleton {
             "nm-connection-editor",
             "kcmshell6 kcm_networkmanagement",
             "gnome-control-center network",
-            "kitty -1 fish -c nmtui",
+            "kitty -1 nmtui",
             "foot -e nmtui"
         ]
         const chain = [command].concat(fallbacks.filter(c => c.split(" ")[0] !== command.split(" ")[0]))
-        // No brace grouping: the string runs under fish when available.
+        // Keep each fallback a plain command so the command shell can short-circuit it.
         const sh = chain
             .filter(c => c.length > 0)
             .map(c => `command -v ${c.split(" ")[0]} >/dev/null 2>&1 && exec ${c}`)

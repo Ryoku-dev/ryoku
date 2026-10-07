@@ -3,17 +3,20 @@
 ## Unreleased
 
 ### Added
-- **The installer's browser and app choices are honored here.** `RYOKU_BROWSER`
-  (zen|chromium|firefox, default zen) names the one browser to install: the
-  other two are filtered out of the package sets, and once the set lands xdg
-  plus the desktop's `browser` role (`~/.config/ryoku/desktop.json`) point at
-  the pick. `RYOKU_DROP_PACKAGES` (comma-separated names the apps checklist
-  removed) is filtered at every transaction that consumes a package list: the
-  assembled pacstrap set, the online AUR build, and the offline AUR batch.
-  `ryoku_deploy` also records the drop list in the doctor's provisioning
-  ledger before first boot, so `ryoku update` reads each removed app as a
-  user removal and leaves it deleted; an unknown `RYOKU_BROWSER` value is a
-  fatal validation error (`ryoku-install`, `lib/{common,pacstrap,aur,offline,deploy}.sh`).
+- **Browser and login-shell choices are honored end to end.** `RYOKU_BROWSER`
+  (`firefox|chromium|zen`, default Firefox) and `RYOKU_LOGIN_SHELL`
+  (`fish|zsh|bash`, default Fish) select exactly one browser and shell stack.
+  The backend adds every losing browser and shell-stack package to
+  `RYOKU_DROP_PACKAGES`, filters that set from pacstrap and AUR transactions,
+  creates the user with the chosen `/usr/bin/<shell>`, and points xdg plus
+  `desktop.apps.browser` at the selected browser. The drop list is recorded in
+  the provisioning ledger so doctor and update do not reinstall it. Unknown
+  browser or shell keys fail before disk work begins
+  (`ryoku-install`, `lib/{chroot,aur,deploy}.sh`).
+- **Fresh accounts request the shipped default rice on first login.**
+  `deploy.sh` writes the user-owned
+  `~/.local/state/ryoku/default-rice-pending` marker with `default`; the first
+  graphical session consumes it after applying the rice and a random wallpaper.
 - **A fresh install gets Ryoku's pacman progress bar.** `ryoku_pacman_tuning`
   now also sets `ILoveCandy` in the install-time `pacman.conf` alongside
   `ParallelDownloads` and `DisableDownloadTimeout`, so pacman draws the Pac-Man
@@ -37,6 +40,10 @@
   naming `RYOKU_ESP_MODE=dedicated` as the way around it (`lib/bootloader.sh`).
 
 ### Fixed
+- **The disk unlock prompt now uses the keyboard layout picked in the installer
+  and starts with Num Lock on.** The `ryoku-console-keys` initramfs hook carries
+  `/etc/vconsole.conf` into the image and enables Num Lock before Plymouth reads
+  the passphrase.
 - **Alongside installation no longer blocks on a nearly full Windows ESP.**
   Auto mode shares an existing ESP only with at least 8 MiB free; otherwise the
   existing 2 GiB Ryoku boot partition becomes a dedicated ESP and Windows' ESP

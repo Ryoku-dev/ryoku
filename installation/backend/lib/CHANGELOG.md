@@ -3,18 +3,20 @@
 ## Unreleased
 
 ### Added
-- `pacstrap`/`aur`/`offline`: **every package-set reader now filters the
-  installer's app/browser removals.** `ryoku_drop_pkg`/`ryoku_drop_from`
-  (`common.sh`) drop `RYOKU_DROP_PACKAGES` from the assembled pacstrap set,
-  the online AUR build, and the offline AUR batch, so an app the user removed
-  at the checklist is never installed.
-- `deploy`: **the drop list is recorded in the doctor's provisioning ledger**
-  (`~/.local/state/ryoku/provisioned`) before first boot, so `ryoku update`
-  reads each removed app as a user removal and honours it.
-- `aur`: **`ryoku_default_browser` now serves the pick, not a constant.** It
-  points the http/https handlers at `RYOKU_BROWSER`'s .desktop when installed
-  and writes the same choice into the desktop's `browser` role, replacing the
-  old "Zen if it landed" rule.
+- `pacstrap`/`aur`/`offline`: **every package-set reader filters installer
+  removals.** `ryoku_drop_pkg`/`ryoku_drop_from` drop the deselected apps,
+  losing browsers, and losing login-shell stacks from the assembled pacstrap
+  set, online AUR build, and offline AUR batch.
+- `deploy`: **the full drop list is recorded in the provisioning ledger** before
+  first boot, so doctor and update keep those packages absent. Fresh accounts
+  also receive the user-owned `default-rice-pending` marker consumed on their
+  first graphical login.
+- `chroot`: **the primary user's shell follows `RYOKU_LOGIN_SHELL`.** User
+  creation selects `/usr/bin/fish`, `/usr/bin/zsh`, or `/usr/bin/bash`, and
+  refuses a real install if that binary is missing from the target.
+- `aur`: **browser defaults now prefer Firefox.** The selected browser owns xdg
+  HTTP, HTTPS, and HTML handlers plus `desktop.apps.browser`; absent fallback
+  values resolve to Firefox rather than Zen.
 - `bootloader`: **the install records the kernel it boots**, in
   `/etc/ryoku/default-kernel` (`linux-cachyos` on the CachyOS variant, `linux`
   on plain). On a live box a kernel package the user added later is

@@ -9,7 +9,7 @@ import (
 
 const usage = `ryoku-rashin: the Ryoku agent OS daemon
 
-  serve [--if-enabled]   run the dashboard and agent bridge on 127.0.0.1
+  serve [--if-enabled]   run Rashin and bring up Prowl on 127.0.0.1
   index                  regenerate the vault maps (system, desktop, packages, repo, user, habits)
   repo-index <root> [out]  build the Ryoku source map from a checkout (build/deploy time)
   ask <question>         one-shot quick ask against the shared session (launcher)
@@ -17,11 +17,11 @@ const usage = `ryoku-rashin: the Ryoku agent OS daemon
   setup                  one-click Hermes install, onboarding, and wiring
   wire [agent]           apply vault pointers (all detected agents, or one)
   unwire [agent]         remove vault pointers
-  status [--json]        report daemon, vault, hermes, and wiring state
-  enable [--at-boot]     start the daemon now and at every login; --at-boot
-                         adds user lingering so it starts with the machine
-  disable                stop the daemon and turn autostart off (opt out of the default)
-  ensure                 default-on convergence: enable at boot unless the user opted out
+  status [--json]        report Rashin, Prowl, vault, Hermes, and wiring state
+  enable [--at-boot]     start Rashin and Prowl now and at every login; --at-boot
+                         adds user lingering so they start with the machine
+  disable                stop Rashin and Prowl and turn autostart off
+  ensure                 bring up Rashin and Prowl unless the user opted out
   backend [provider[:model]]  view or set the fast-lane assistant backend ('auto' follows hermes)
   paths [--json]         show every skill/vault/prowl path (and a paste snippet for any agent)
   agent [use <id>]       list agents + chat backends, or set which agent drives the chat

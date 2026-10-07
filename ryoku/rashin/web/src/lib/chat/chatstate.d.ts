@@ -53,6 +53,8 @@ export interface ChatState {
   models: ModelInfo[];
   currentModel: string;
   agent: string;
+  prowl: "" | "active" | "pending";
+  prowlReason: string;
   commands: CommandInfo[];
   session: { id: string; title: string };
   usage: { size: number; used: number } | null;

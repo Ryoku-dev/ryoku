@@ -29,11 +29,20 @@ const maxStepRetries = 3
 type frameMsg time.Time
 type scanMsg struct{ f *facts }
 
+type choiceOption struct {
+	key         string
+	label       string
+	detail      string
+	recommended bool
+}
+
 type planItem struct {
-	label  string
-	detail string
-	on     *bool
-	locked bool // shown but not toggleable (safety gate holds it)
+	label   string
+	detail  string
+	on      *bool
+	locked  bool // shown but not toggleable (safety gate holds it)
+	pick    *string
+	options []choiceOption
 }
 
 type model struct {
@@ -63,11 +72,16 @@ type model struct {
 	ref        string
 	payload    string
 	compositor string // --compositor pick; "" installs the default variant
+	browser    string // --browser or RYOKU_BROWSER override
+	shell      string // --shell or RYOKU_LOGIN_SHELL override
 	exitReboot bool
 }
 
-func newTUIModel(dry bool, ref, payload, compositor string) model {
-	return model{state: "scan", dry: dry, ref: ref, payload: payload, compositor: compositor}
+func newTUIModel(dry bool, ref, payload, compositor, browser, shell string) model {
+	return model{
+		state: "scan", dry: dry, ref: ref, payload: payload, compositor: compositor,
+		browser: browser, shell: shell,
+	}
 }
 
 func (m model) tickCmd() tea.Cmd {
@@ -93,16 +107,37 @@ func buildItems(f *facts, p *plan) []planItem {
 	// labels stay English here: groupPlanItems matches them against planGroups
 	// to insert section headers, so they are compared, not just shown. viewPlan
 	// translates them at the render site. Details are display-only -> wrapped.
-	var it []planItem
+	var it = []planItem{
+		{
+			label: i18n.T("Browser"),
+			pick:  &p.browser,
+			options: []choiceOption{
+				{key: "firefox", label: i18n.T("Firefox"), detail: i18n.T("Private and compatible, from the official repository."), recommended: true},
+				{key: "chromium", label: i18n.T("Chromium"), detail: i18n.T("Open-source Chromium from the official repository.")},
+				{key: "zen", label: i18n.T("Zen"), detail: i18n.T("Focused Firefox-based browsing; requires the AUR step.")},
+			},
+		},
+		{
+			label: i18n.T("Login shell"),
+			pick:  &p.shell,
+			options: []choiceOption{
+				{key: "fish", label: i18n.T("Fish"), detail: i18n.T("Friendly defaults and autosuggestions."), recommended: true},
+				{key: "zsh", label: i18n.T("Zsh"), detail: i18n.T("Oh My Zsh with history and syntax highlighting.")},
+				{key: "bash", label: i18n.T("Bash"), detail: i18n.T("Familiar Bash with Blesh editing and Ryoku's prompt.")},
+			},
+		},
+	}
 	if f.prevRun != nil {
-		it = append(it, planItem{"Resume the previous run",
-			i18n.Tf("%d step(s) already finished last time; keeps that run's backup dir and skips them (toggle off to redo everything)", len(f.prevRun.Completed)),
-			&p.resume, false})
+		it = append(it, planItem{
+			label: "Resume the previous run",
+			detail: i18n.Tf("%d step(s) already finished last time; keeps that run's backup dir and skips them (toggle off to redo everything)", len(f.prevRun.Completed)),
+			on: &p.resume,
+		})
 	}
 	if f.hasNvidia {
 		d := i18n.T("installs the proprietary driver, blacklists nouveau, rebuilds the initramfs")
 		if f.nouveauLive {
-			d = i18n.T("you are on nouveau right now; switching needs a reboot to take effect")
+			d = i18n.T("the proprietary driver replaces nouveau after a reboot")
 		}
 		locked := false
 		switch {
@@ -112,52 +147,59 @@ func buildItems(f *facts, p *plan) []planItem {
 		case f.secureBoot && f.sbctlSigned:
 			d += "; " + i18n.T("Secure Boot is on, sbctl found: make sure its hook signs DKMS modules")
 		}
-		it = append(it, planItem{"NVIDIA proprietary drivers", d, &p.nvidia, locked})
+		it = append(it, planItem{label: "NVIDIA proprietary drivers", detail: d, on: &p.nvidia, locked: locked})
 	}
 	if dm := f.otherDM(); dm != "" {
 		d := i18n.Tf("disables %s and enables SDDM (at reboot)", dm)
 		if len(f.desktops) > 0 {
 			d += "; " + i18n.Tf("%s stays installed and selectable at login", strings.Join(f.desktops, ", "))
 		}
-		it = append(it, planItem{"Switch login to SDDM", d, &p.switchDM, false})
+		it = append(it, planItem{label: "Switch login to SDDM", detail: d, on: &p.switchDM})
 	} else if f.currentDM == "" {
-		it = append(it, planItem{"Enable SDDM login", i18n.T("no display manager found; toggle off to keep starting Hyprland by hand"), &p.switchDM, false})
+		it = append(it, planItem{label: "Enable SDDM login", detail: i18n.T("no display manager found; toggle off to keep starting Hyprland by hand"), on: &p.switchDM})
 	}
 	gd := i18n.T("points the SDDM login screen at the Ryoku qylock greeter")
 	if f.kdeSddmConf {
 		gd = i18n.T("KDE's login screen settings own SDDM here; toggle on to let the Ryoku theme outrank kde_settings.conf")
 	}
-	it = append(it, planItem{"Ryoku greeter theme", gd, &p.greeter, false})
+	it = append(it, planItem{label: "Ryoku greeter theme", detail: gd, on: &p.greeter})
 	// only offered when nothing better was salvaged: an existing fr/be/de/...
 	// setup already carries its own layout into keyboard.lua.
 	if f.kbLayout == "" || f.kbLayout == "us" {
-		it = append(it, planItem{"AZERTY keyboard (French)",
-			i18n.T("sets layout fr for Hyprland, the console (KEYMAP=fr), and the SDDM login screen; turns the Belgian toggle off"), &p.azertyFR, false})
-		it = append(it, planItem{"AZERTY keyboard (Belgian)",
-			i18n.T("sets layout be for Hyprland, the console (KEYMAP=be-latin1), and the SDDM login screen; turns the French toggle off"), &p.azertyBE, false})
+		it = append(it, planItem{
+			label: "AZERTY keyboard (French)",
+			detail: i18n.T("sets layout fr for Hyprland, the console (KEYMAP=fr), and the SDDM login screen; turns the Belgian toggle off"),
+			on: &p.azertyFR,
+		})
+		it = append(it, planItem{
+			label: "AZERTY keyboard (Belgian)",
+			detail: i18n.T("sets layout be for Hyprland, the console (KEYMAP=be-latin1), and the SDDM login screen; turns the French toggle off"),
+			on: &p.azertyBE,
+		})
 	}
 	if len(f.otherNet) > 0 {
-		it = append(it, planItem{"Switch to NetworkManager", i18n.Tf("disables %s (at reboot)", strings.Join(f.otherNet, ", ")), &p.switchNet, false})
+		it = append(it, planItem{label: "Switch to NetworkManager", detail: i18n.Tf("disables %s (at reboot)", strings.Join(f.otherNet, ", ")), on: &p.switchNet})
 	}
 	if len(f.rivalPkgs) > 0 {
-		it = append(it, planItem{"Remove rival shells", i18n.Tf("uninstalls %s", strings.Join(f.rivalPkgs, ", ")), &p.rivals, false})
+		it = append(it, planItem{label: "Remove rival shells", detail: i18n.Tf("uninstalls %s", strings.Join(f.rivalPkgs, ", ")), on: &p.rivals})
 	}
 	if len(f.softUnits) > 0 {
-		it = append(it, planItem{"Disable conflicting daemons", i18n.Tf("disables %s", strings.Join(f.softUnits, ", ")), &p.softOff, false})
+		it = append(it, planItem{label: "Disable conflicting daemons", detail: i18n.Tf("disables %s", strings.Join(f.softUnits, ", ")), on: &p.softOff})
 	}
 	if f.omarchyRepo || f.omarchyMirror || len(f.omarchyGuards) > 0 {
-		it = append(it, planItem{"Retire the Omarchy repo", i18n.T("drops [omarchy] from pacman.conf, restores a standard Arch mirrorlist, removes omarchy-keyring, retires the pacman guard hook that blocks -Syu"), &p.omarchy, false})
+		it = append(it, planItem{label: "Retire the Omarchy repo", detail: i18n.T("drops [omarchy] from pacman.conf, restores a standard Arch mirrorlist, removes omarchy-keyring, retires the pacman guard hook that blocks -Syu"), on: &p.omarchy})
 	}
 	if len(f.monOutputs) > 0 {
-		it = append(it, planItem{"Carry over monitor layout", i18n.Tf("pins %d output(s) from your %s setup (rotation, scale, position) into monitors_user.lua", len(f.monOutputs), f.monSource), &p.monPins, false})
+		it = append(it, planItem{label: "Carry over monitor layout", detail: i18n.Tf("pins %d output(s) from your %s setup (rotation, scale, position) into monitors_user.lua", len(f.monOutputs), f.monSource), on: &p.monPins})
 	}
 	// awww is retired: the wallpaper daemon is ryogami, a hard ryoku-desktop
 	// depend the packages step pulls, not an AUR build.
-	it = append(it, planItem{"AUR extras", i18n.T("Bibata cursor, LocalSend, Voxtype"), &p.aur, false})
-	it = append(it, planItem{"Developer toolchain", i18n.T("go, rust, node, python (ISO parity); ryoku recovery rebuilds from source and needs go"), &p.devtools, false})
-	if !strings.HasSuffix(f.userShell, "/fish") {
-		it = append(it, planItem{"fish as login shell", i18n.T("Ryoku's default shell; your current one stays installed"), &p.fish, false})
+	aurDetail := i18n.T("Bibata cursor, LocalSend and Voxtype")
+	if p.browser == "zen" {
+		aurDetail = i18n.T("required for Zen; also installs Bibata cursor, LocalSend and Voxtype")
 	}
+	it = append(it, planItem{label: "AUR extras", detail: aurDetail, on: &p.aur, locked: p.browser == "zen"})
+	it = append(it, planItem{label: "Developer toolchain", detail: i18n.T("go, rust, node and python; Ryoku recovery uses go"), on: &p.devtools})
 	return it
 }
 
@@ -169,11 +211,11 @@ var planGroups = []struct {
 }{
 	{"session & hardware", []string{"NVIDIA proprietary drivers", "Switch login to SDDM", "Enable SDDM login", "Ryoku greeter theme", "AZERTY keyboard (French)", "AZERTY keyboard (Belgian)", "Switch to NetworkManager"}},
 	{"migration & cleanup", []string{"Remove rival shells", "Disable conflicting daemons", "Retire the Omarchy repo", "Carry over monitor layout"}},
-	{"extras", []string{"AUR extras", "Developer toolchain", "fish as login shell"}},
+	{"extras", []string{"AUR extras", "Developer toolchain"}},
 }
 
-// groupPlanItems inserts non-selectable header rows (on == nil) between
-// sections once the toggle list grows past ten entries.
+// groupPlanItems inserts non-selectable header rows between sections once the
+// toggle list grows past ten entries.
 func groupPlanItems(items []planItem) []planItem {
 	if len(items) <= 10 {
 		return items
@@ -196,14 +238,50 @@ func groupPlanItems(items []planItem) []planItem {
 	return out
 }
 
-// firstToggle returns the first selectable row (headers carry no toggle).
+func selectablePlanItem(it planItem) bool {
+	return it.on != nil || it.pick != nil
+}
+
+// firstToggle keeps its historical name, but choices are selectable rows too.
 func firstToggle(items []planItem) int {
 	for i, it := range items {
-		if it.on != nil {
+		if selectablePlanItem(it) {
 			return i
 		}
 	}
 	return 0
+}
+
+func cyclePlanChoice(it planItem, delta int) {
+	if it.pick == nil || len(it.options) == 0 {
+		return
+	}
+	at := 0
+	for i, option := range it.options {
+		if option.key == *it.pick {
+			at = i
+			break
+		}
+	}
+	at = (at + delta + len(it.options)) % len(it.options)
+	*it.pick = it.options[at].key
+}
+
+func (m *model) syncPlanConstraints() {
+	if m.p.browser == "zen" {
+		m.p.aur = true
+	}
+	for i := range m.items {
+		if m.items[i].label != "AUR extras" {
+			continue
+		}
+		m.items[i].locked = m.p.browser == "zen"
+		if m.items[i].locked {
+			m.items[i].detail = i18n.T("required for Zen; also installs Bibata cursor, LocalSend and Voxtype")
+		} else {
+			m.items[i].detail = i18n.T("Bibata cursor, LocalSend and Voxtype")
+		}
+	}
 }
 
 func (m *model) startInstall() tea.Cmd {
@@ -221,13 +299,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case frameMsg:
 		m.frame++
-		return m, m.tickCmd()
+		if m.state == "scan" || m.state == "install" {
+			return m, m.tickCmd()
+		}
+		return m, nil
 	case scanMsg:
 		m.f = msg.f
 		m.p = defaultPlan(m.f)
 		if m.compositor != "" {
 			m.p.compositor = m.compositor
 		}
+		applyPlanChoices(m.p, m.browser, m.shell)
 		m.items = groupPlanItems(buildItems(m.f, m.p))
 		m.sel = firstToggle(m.items)
 		if needsManjaroAck(m.f) {
@@ -321,18 +403,24 @@ func (m model) onKey(k string) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "j", "down":
 			for i := m.sel + 1; i < len(m.items); i++ {
-				if m.items[i].on != nil {
+				if selectablePlanItem(m.items[i]) {
 					m.sel = i
 					break
 				}
 			}
 		case "k", "up":
 			for i := m.sel - 1; i >= 0; i-- {
-				if m.items[i].on != nil {
+				if selectablePlanItem(m.items[i]) {
 					m.sel = i
 					break
 				}
 			}
+		case "h", "left":
+			cyclePlanChoice(m.items[m.sel], -1)
+			m.syncPlanConstraints()
+		case "l", "right":
+			cyclePlanChoice(m.items[m.sel], 1)
+			m.syncPlanConstraints()
 		case " ", "space":
 			if len(m.items) > 0 && m.items[m.sel].on != nil && !m.items[m.sel].locked {
 				*m.items[m.sel].on = !*m.items[m.sel].on
@@ -373,9 +461,9 @@ func (m model) View() tea.View {
 	}
 	if m.w < minTermW || m.h < minTermH {
 		msg := lipgloss.JoinVertical(lipgloss.Center,
-			bold(cYell, "↔  "+i18n.T("Please enlarge your terminal")), "",
-			fg(cText, i18n.Tf("The Ryoku shell installer needs at least %d × %d.", minTermW, minTermH)),
-			fg(cSub, i18n.Tf("Current size: %d × %d.", m.w, m.h)))
+			bold(cText, i18n.T("Please enlarge your terminal")), "",
+			fg(cText, i18n.Tf("The Ryoku shell installer needs at least %d x %d.", minTermW, minTermH)),
+			fg(cSub, i18n.Tf("Current size: %d x %d.", m.w, m.h)))
 		v := tea.NewView(lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, msg))
 		v.AltScreen, v.BackgroundColor, v.ForegroundColor = true, cBg, cText
 		return v
@@ -395,11 +483,11 @@ func (m model) View() tea.View {
 	case "failed":
 		body = m.viewFailed()
 	}
-	frame := lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Center, body)
-	foot := m.footer()
-	if foot != "" {
+	frame := lipgloss.Place(m.w, m.h, lipgloss.Center, lipgloss.Top, body)
+	if foot := m.footer(); foot != "" {
 		lines := strings.Split(frame, "\n")
 		if len(lines) >= 2 {
+			foot = truncW(foot, m.w-4)
 			lines[len(lines)-2] = lipgloss.PlaceHorizontal(m.w, lipgloss.Center, foot)
 		}
 		frame = strings.Join(lines, "\n")
@@ -420,18 +508,23 @@ func (m model) footer() string {
 		if m.confirm {
 			return keyHint("y", i18n.T("install")) + hintSep() + keyHint("n", i18n.T("back"))
 		}
-		return keyHint("↑↓", i18n.T("move")) + hintSep() + keyHint("space", i18n.T("toggle")) + hintSep() +
-			keyHint("enter", i18n.T("install")) + hintSep() + keyHint("q", i18n.T("quit"))
+		hints := keyHint("up/down", i18n.T("move"))
+		if len(m.items) > 0 && m.items[m.sel].pick != nil {
+			hints += hintSep() + keyHint("left/right", i18n.T("choose"))
+		} else {
+			hints += hintSep() + keyHint("space", i18n.T("toggle"))
+		}
+		return hints + hintSep() + keyHint("enter", i18n.T("install")) + hintSep() + keyHint("q", i18n.T("quit"))
 	case "install":
 		if m.intAsk {
-			return bold(cRed, i18n.T("a package transaction may be running; press ctrl+c again to abandon"))
+			return bold(cText, i18n.T("a package transaction may be running; press ctrl+c again to abandon"))
 		}
-		return fg(cDim, i18n.T("installing, do not interrupt")) + hintSep() + fg(cDim, i18n.Tf("log: %s", m.logPath()))
+		return fg(cDim, i18n.T("installing, do not interrupt")) + hintSep() + fg(cDim, i18n.T("a bounded live log is shown above"))
 	case "done":
 		return keyHint("r", i18n.T("reboot now")) + hintSep() + keyHint("q", i18n.T("quit"))
 	case "failed":
 		if m.failCount >= maxStepRetries {
-			return fg(cDim, i18n.Tf("this step failed %d times; fix the cause (see the log) or quit and roll back", m.failCount)) + hintSep() + keyHint("q", i18n.T("quit"))
+			return fg(cDim, i18n.Tf("this step failed %d times; fix the cause or roll back", m.failCount)) + hintSep() + keyHint("q", i18n.T("quit"))
 		}
 		return keyHint("r", i18n.T("retry failed step")) + hintSep() + keyHint("q", i18n.T("quit"))
 	}
@@ -445,253 +538,401 @@ func (m model) logPath() string {
 	return ""
 }
 
-func (m model) header(sub string) string {
-	tag := fg(cSub, i18n.T("shell installer"))
-	if m.dry {
-		tag += fg(cYell, "  "+i18n.T("[dry run]"))
+func (m model) displayPath(path string) string {
+	if m.f != nil && m.f.homeDir != "" {
+		if rel, ok := strings.CutPrefix(path, m.f.homeDir); ok {
+			return "~" + rel
+		}
 	}
-	return banner(m.frame/2) + "\n" + tag + "\n\n" + sub
+	return path
+}
+
+func (m model) header(sub string) string {
+	tag := banner(0)
+	if m.dry {
+		tag += fg(cSub, "  "+i18n.T("[dry run]"))
+	}
+	iw := clamp(m.w-8, 64, 104)
+	return leftBlock(iw, tag+"\n"+fg(cLine, strings.Repeat(ruleCh(), iw))+"\n"+sub)
 }
 
 func (m model) viewScan() string {
 	sp := spinFrames[m.frame%len(spinFrames)]
-	return m.header(fg(cBrand, sp) + " " + fg(cText, i18n.T("inspecting this machine…")))
+	return m.header("\n" + fg(cText, sp+"  "+i18n.T("Inspecting this machine")))
 }
 
 // viewAck is the Manjaro gate: a hard warning that must be typed through.
-// the [ryoku] repo is built against Arch current and Manjaro stable trails it
-// by weeks; the resulting partial-upgrade breakage would look like Ryoku's
-// fault, so consent has to be explicit.
+// The repository follows Arch current, so explicit consent prevents a partial
+// upgrade on a delayed package base from looking like a safe install.
 func (m model) viewAck() string {
-	iw := clamp(m.w-14, 56, 90)
+	iw := clamp(m.w-8, 64, 104)
 	var b strings.Builder
-	b.WriteString(bold(cYell, gWarn+" "+i18n.Tf("Manjaro detected: %s", m.f.distroName)) + "\n\n")
-	b.WriteString(sty().Foreground(cText).Width(iw).Render(i18n.T("The [ryoku] repository is built against Arch current. Manjaro stable ships Arch packages 1 to 4 weeks late, so installing can leave the Qt stack half-upgraded: the shell then fails to start, or unrelated apps break.")) + "\n\n")
-	b.WriteString(fg(cText, i18n.T("This setup is unsupported; breakage lands on you.")) + "\n\n")
-	b.WriteString(fg(cSub, i18n.T("Type manjaro and press enter to accept the risk, esc to quit.")) + "\n\n")
-	b.WriteString(fg(cSub, "> ") + fg(cText, m.ackInput) + fg(cBrand, "_") + "\n")
-	box := sty().Border(borderDouble()).BorderForeground(cYell).Padding(1, 2).
-		Render(padLines(strings.TrimRight(b.String(), "\n"), iw))
-	return m.header(box)
+	b.WriteString(bold(cText, gWarn+" "+i18n.Tf("Manjaro detected: %s", m.f.distroName)) + "\n\n")
+	b.WriteString(sty().Foreground(cText).Width(iw).Render(i18n.T("The [ryoku] repository follows Arch current. Manjaro stable can trail it by several weeks, leaving the Qt stack partly upgraded and the desktop unable to start.")) + "\n\n")
+	b.WriteString(fg(cText, i18n.T("This setup is unsupported; breakage lands on you.")) + "\n")
+	b.WriteString(fg(cSub, i18n.T("Type manjaro and press enter to accept the risk.")) + "\n\n")
+	b.WriteString(fg(cSub, gSel+" ") + fg(cText, m.ackInput) + fg(cSub, "_"))
+	return m.header(b.String())
 }
+
+func choiceOptionText(option choiceOption) string {
+	label := option.label
+	if option.recommended {
+		label += " " + i18n.T("(Recommended)")
+	}
+	return label
+}
+
+func choiceColumns(items []planItem) (int, []int) {
+	labelW := 0
+	var optionW []int
+	for _, item := range items {
+		if item.pick == nil {
+			continue
+		}
+		if w := dw(item.label); w > labelW {
+			labelW = w
+		}
+		for i, option := range item.options {
+			for len(optionW) <= i {
+				optionW = append(optionW, 0)
+			}
+			if w := dw(choiceOptionText(option)) + 2; w > optionW[i] {
+				optionW[i] = w
+			}
+		}
+	}
+	return labelW, optionW
+}
+
+func renderChoiceRow(it planItem, focused bool, labelW int, optionW []int, width int) string {
+	lead := "  "
+	if focused {
+		lead = bold(cText, gSel)
+	}
+	line := lead + " " + fg(cSub, padTo(it.label, labelW)) + " "
+	for i, option := range it.options {
+		cell := padTo(" "+choiceOptionText(option), optionW[i])
+		if option.key == *it.pick {
+			line += selected(cell)
+		} else {
+			line += fg(cSub, cell)
+		}
+	}
+	return truncW(line, width)
+}
+
+func choiceDetail(it planItem) string {
+	if it.pick == nil {
+		return ""
+	}
+	for _, option := range it.options {
+		if option.key == *it.pick {
+			return option.detail
+		}
+	}
+	return ""
+}
+
+func truncWords(s string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if dw(s) <= width {
+		return s
+	}
+	limit := width - 1
+	var out string
+	for _, word := range strings.Fields(s) {
+		next := word
+		if out != "" {
+			next = out + " " + word
+		}
+		if dw(next) > limit {
+			break
+		}
+		out = next
+	}
+	if out == "" {
+		return "…"
+	}
+	return out + "…"
+}
+
+func wrapWords(s string, width int) []string {
+	if width <= 0 || s == "" {
+		return nil
+	}
+	var lines []string
+	var line string
+	for _, word := range strings.Fields(s) {
+		next := word
+		if line != "" {
+			next = line + " " + word
+		}
+		if line != "" && dw(next) > width {
+			lines = append(lines, line)
+			line = word
+			continue
+		}
+		line = next
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func labeledRow(label, value string, labelW int) string {
+	return fg(cSub, padTo(label, labelW)) + fg(cText, value)
+}
+
+func bulletRow(label, value string, labelW int) string {
+	return fg(cSub, padTo(gBullet, 3)) + labeledRow(label, value, labelW)
+}
+
 
 func (m model) viewPlan() string {
 	f := m.f
-	iw := clamp(m.w-14, 62, 96)
-
-	// info rows are collected first so the key column can be sized from the
-	// measured widest translated key (a translation may be wider than the
-	// English "secure boot"); the value truncation then follows that width.
-	type infoRow struct {
-		k, v string
-		span string // non-empty => a full-width line with no key column
-	}
-	var rows []infoRow
-	row := func(k, v string) { rows = append(rows, infoRow{k: k, v: v}) }
-	span := func(s string) { rows = append(rows, infoRow{span: s}) }
-
-	row(i18n.T("system"), f.distroName)
-	row("gpu", f.gpuSummary())
-	if f.secureBoot {
-		sb := i18n.T("on and enforcing; unsigned NVIDIA DKMS modules cannot load")
-		if f.sbctlSigned {
-			sb = i18n.T("on, sbctl key store found; its hook must cover DKMS modules")
-		}
-		row(i18n.T("secure boot"), sb)
-	}
+	iw := clamp(m.w-8, 64, 104)
 	dm := f.currentDM
 	if dm == "" {
 		dm = i18n.T("none")
 	}
-	row(i18n.T("login"), dm)
-	if f.niriFound {
-		row(i18n.T("compositor"), i18n.T("niri setup detected; its config is backed up, niri stays installed"))
+	machine := truncW(i18n.Tf("%s / %s / %s", f.hostname, f.distroName, f.gpuSummary()), iw)
+	safety := i18n.Tf("login: %s / configs backed up / snapshot rollback: %s", dm, i18n.T("unavailable"))
+	if f.btrfsRoot {
+		safety = i18n.Tf("login: %s / configs backed up / snapshot rollback: %s", dm, i18n.T("ready"))
 	}
-	if f.swayFound {
-		row(i18n.T("compositor"), i18n.T("sway setup detected; its config is backed up, sway stays installed"))
+
+	var choices, rest []struct {
+		index int
+		item  planItem
 	}
-	if len(f.desktops) > 0 {
-		row(i18n.T("desktops"), i18n.Tf("%s (kept; still selectable at the login screen)", strings.Join(f.desktops, ", ")))
+	for i, it := range m.items {
+		if it.pick != nil {
+			choices = append(choices, struct {
+				index int
+				item  planItem
+			}{i, it})
+		} else {
+			rest = append(rest, struct {
+				index int
+				item  planItem
+			}{i, it})
+		}
 	}
-	if len(f.riceFound) > 0 {
-		row(i18n.T("rice"), i18n.Tf("found: %s rice; its daemons are replaced, configs ride the backup", strings.Join(f.riceFound, ", ")))
+
+	choiceLabelW, optionW := choiceColumns(m.items)
+	choiceDetailIndent := 4 + choiceLabelW
+	var b strings.Builder
+	b.WriteString(bold(cText, i18n.Tf("Install plan for %s", f.hostname)) + "\n")
+	b.WriteString(fg(cText, machine) + "\n")
+	b.WriteString(fg(cSub, truncWords(safety, iw)) + "\n\n")
+	for _, row := range choices {
+		focused := row.index == m.sel
+		b.WriteString(renderChoiceRow(row.item, focused, choiceLabelW, optionW, iw) + "\n")
+		if focused {
+			detail := choiceDetail(row.item)
+			b.WriteString(strings.Repeat(" ", choiceDetailIndent) + fg(cSub, detail) + "\n")
+		}
 	}
-	if len(f.rivalPkgs) > 0 {
-		row(i18n.T("shells"), strings.Join(f.rivalPkgs, ", "))
+	b.WriteString(fg(cLine, strings.Repeat(ruleCh(), iw)) + "\n")
+
+	selectedRest := 0
+	for i, row := range rest {
+		if row.index == m.sel {
+			selectedRest = i
+			break
+		}
 	}
-	if f.ryokuOnBox {
-		row("ryoku", i18n.T("already installed; this run repairs and reconciles it"))
+	start, end := stepWindow(len(rest), selectedRest, clamp(m.h-17, 5, 7))
+	for _, row := range rest[start:end] {
+		it := row.item
+		if !selectablePlanItem(it) {
+			b.WriteString(strings.Repeat(" ", 9) + fg(cDim, it.label) + "\n")
+			continue
+		}
+		focused := row.index == m.sel
+		lead := "  "
+		if focused {
+			lead = bold(cText, gSel)
+		}
+		mark, word := gOn, i18n.T("on")
+		stateColor := cText
+		if !*it.on {
+			mark, word = gOff, i18n.T("off")
+			stateColor = cDim
+		}
+		state := fg(stateColor, padTo(mark, 2)+padTo(word, 4))
+		suffix := ""
+		if it.locked {
+			suffix = " " + fg(cDim, i18n.T("(required)"))
+		}
+		label := fg(cText, it.label)
+		if focused {
+			label = bold(cText, it.label)
+		}
+		b.WriteString(truncW(lead+" "+state+label+suffix, iw) + "\n")
+		if focused {
+			b.WriteString(strings.Repeat(" ", 9) + fg(cSub, truncWords(it.detail, iw-9)) + "\n")
+		}
 	}
-	if f.omarchyRepo || f.omarchyMirror || len(f.omarchyGuards) > 0 {
-		row(i18n.T("previous"), i18n.T("Omarchy install detected; its repo, mirror pin and pacman guard get retired"))
+	if len(rest) > end-start {
+		b.WriteString(fg(cDim, i18n.Tf("   showing %d-%d of %d plan rows", start+1, end, len(rest))) + "\n")
 	}
 	if !f.online {
-		span(fg(cRed, gWarn+" "+i18n.T("repo.ryoku.dev unreachable, the install will fail without network")))
+		b.WriteString(fg(cText, gWarn+" "+i18n.T("repo.ryoku.dev is unreachable; installation needs network")) + "\n")
 	}
-	if f.btrfsRoot {
-		row(i18n.T("snapshots"), i18n.T("btrfs root: snapper snapshots will be configured by ryoku doctor"))
-	} else {
-		row(i18n.T("snapshots"), i18n.T("root is not btrfs: updates work, snapshot rollback is unavailable"))
-	}
-	row(i18n.T("backup"), i18n.T("your touched configs are saved with a restore.sh before anything changes"))
-
-	keyW := 14
-	for _, r := range rows {
-		if r.span == "" {
-			if w := lipgloss.Width(r.k); w > keyW {
-				keyW = w
-			}
-		}
-	}
-	var s strings.Builder
-	for _, r := range rows {
-		if r.span != "" {
-			s.WriteString(r.span + "\n")
-			continue
-		}
-		s.WriteString(fg(cSub, padTo(r.k, keyW)) + fg(cText, truncW(r.v, iw-(keyW+2))) + "\n")
-	}
-	info := sty().Border(border()).BorderForeground(cBlue).Padding(0, 2).Render(padLines(strings.TrimRight(s.String(), "\n"), iw))
-
-	// the toggle label column follows the widest translated label the same way.
-	labelW := 30
-	for _, it := range m.items {
-		if it.on != nil {
-			if w := lipgloss.Width(i18n.T(it.label)); w > labelW {
-				labelW = w
-			}
-		}
-	}
-	var t strings.Builder
-	for i, it := range m.items {
-		if it.on == nil {
-			t.WriteString("  " + fg(cSub, "· "+i18n.T(it.label)) + "\n")
-			continue
-		}
-		cur := "  "
-		if i == m.sel {
-			cur = fg(cBrand, gSel)
-		}
-		state := fg(cGreen, gOn)
-		if !*it.on {
-			state = fg(cDim, gOff)
-		}
-		if it.locked {
-			state = fg(cYell, gOff)
-		}
-		lbl := fg(cText, padTo(i18n.T(it.label), labelW))
-		if i == m.sel {
-			lbl = bold(cText, padTo(i18n.T(it.label), labelW))
-		}
-		t.WriteString(cur + state + "  " + lbl + "\n")
-		if i == m.sel {
-			t.WriteString("     " + fg(cSub, truncW(it.detail, iw-6)) + "\n")
-		}
-	}
-	toggles := sty().Border(border()).BorderForeground(cDim).Padding(0, 2).Render(padLines(strings.TrimRight(t.String(), "\n"), iw))
-
-	body := m.header(bold(cText, i18n.Tf("Here is the plan for %s", f.hostname)) + "\n\n" + info + "\n" + toggles)
 	if m.confirm {
-		q := bold(cBrand, i18n.T("Install the Ryoku desktop with these choices?"))
-		body += "\n\n" + sty().Border(borderDouble()).BorderForeground(cBrand).Padding(0, 2).Render(q)
+		b.WriteString("\n" + selected(" "+i18n.T("Install the Ryoku desktop with these choices?")+" "))
 	}
-	return body
+	return m.header(strings.TrimRight(b.String(), "\n"))
+}
+
+func stepWindow(total, current, count int) (int, int) {
+	if total <= count {
+		return 0, total
+	}
+	start := current - count/2
+	if start < 0 {
+		start = 0
+	}
+	if start+count > total {
+		start = total - count
+	}
+	return start, start + count
 }
 
 func (m model) viewInstall() string {
-	iw := clamp(m.w-12, 60, 100)
-	bw := clamp(iw-10, 30, 70)
-	logRows := clamp(m.h-20-len(m.eng.steps), 4, 12)
-
+	iw := clamp(m.w-8, 64, 104)
 	total := len(m.eng.steps)
-	prog := float64(m.stepIdx) / float64(total)
-	fill := clamp(int(prog*float64(bw)), 0, bw)
-	bar := fg(cBrand, strings.Repeat(gFull, fill)) + fg(cDim, strings.Repeat(gEmpty, bw-fill)) +
-		fg(cSub, fmt.Sprintf(" %2d/%d", m.stepIdx, total))
+	done := clamp(m.stepIdx, 0, total)
+	bw := clamp(iw-12, 30, 72)
+	fill := 0
+	if total > 0 {
+		fill = clamp(int(float64(done)/float64(total)*float64(bw)), 0, bw)
+	}
+	bar := fg(cText, strings.Repeat(gFull, fill)) + fg(cLine, strings.Repeat(gEmpty, bw-fill)) +
+		fg(cSub, fmt.Sprintf(" %2d/%d", done, total))
 
 	var b strings.Builder
-	b.WriteString(bold(cBrand, i18n.T("Installing the Ryoku desktop")) + "\n\n")
-	b.WriteString(bar + "\n\n")
-	for i, s := range m.eng.steps {
+	b.WriteString(bold(cText, i18n.T("Installing the Ryoku desktop")) + "\n\n")
+	b.WriteString(bar + "\n")
+	doneStatus, nowStatus, nextStatus := i18n.T("done"), i18n.T("now"), i18n.T("next")
+	statusW := dw(doneStatus)
+	if w := dw(nowStatus); w > statusW {
+		statusW = w
+	}
+	if w := dw(nextStatus); w > statusW {
+		statusW = w
+	}
+	statusW++
+	start, end := stepWindow(total, m.stepIdx, 5)
+	for i := start; i < end; i++ {
+		s := m.eng.steps[i]
+		lead := "  "
+		mark, status := gPend, nextStatus
+		lineColor := cDim
 		switch {
 		case i < m.stepIdx:
-			b.WriteString(fg(cGreen, gCheck+" ") + fg(cSub, s.title) + "\n")
+			mark, status, lineColor = gCheck, doneStatus, cSub
 		case i == m.stepIdx:
-			b.WriteString(fg(cBrand, spinFrames[m.frame%len(spinFrames)]) + " " + fg(cText, s.title) + "\n")
-		default:
-			b.WriteString(fg(cDim, gPend+" "+s.title) + "\n")
+			lead = gSel
+			mark, status, lineColor = spinFrames[m.frame%len(spinFrames)], nowStatus, cText
+		}
+		line := lead + " " + padTo(mark, 3) + padTo(status, statusW) + s.title
+		if i == m.stepIdx {
+			b.WriteString(bold(lineColor, line) + "\n")
+		} else {
+			b.WriteString(fg(lineColor, line) + "\n")
 		}
 	}
-	b.WriteString(fg(cDim, strings.Repeat(ruleCh(), iw)) + "\n")
+	b.WriteString(fg(cLine, strings.Repeat(ruleCh(), iw)) + "\n")
+	b.WriteString(fg(cSub, i18n.T("Recent install log")) + "\n")
+	logRows := clamp(m.h-18, 3, 6)
 	tail := m.logTail
 	if len(tail) > logRows {
 		tail = tail[len(tail)-logRows:]
 	}
-	for _, ln := range tail {
-		b.WriteString(fg(cDim, truncW(ln, iw)) + "\n")
+	for _, line := range tail {
+		b.WriteString(fg(cDim, truncW(line, iw)) + "\n")
 	}
 	for i := len(tail); i < logRows; i++ {
 		b.WriteString("\n")
 	}
-	return sty().Border(border()).BorderForeground(cBrand).Padding(1, 2).
-		Render(padLines(strings.TrimRight(b.String(), "\n"), iw))
+	return m.header(strings.TrimRight(b.String(), "\n"))
 }
 
 func (m model) viewDone() string {
-	iw := clamp(m.w-14, 56, 90)
+	iw := clamp(m.w-8, 64, 104)
+	labelW := 19
+	valueW := iw - 3 - labelW
 	var b strings.Builder
-	b.WriteString(bold(cGreen, gCheck+" "+i18n.T("The Ryoku desktop is installed")) + "\n\n")
+	b.WriteString(bold(cText, gCheck+" "+i18n.T("The Ryoku desktop is installed")) + "\n\n")
 	b.WriteString(fg(cText, i18n.T("Reboot to land in the Ryoku greeter and your new session.")) + "\n\n")
-	// labels re-padded to 19 so the command column stays aligned after
-	// translation (padTo never truncates, so a longer label just shifts right).
-	b.WriteString(fg(cSub, gBullet+" "+padTo(i18n.T("updates forever:"), 19)) + fg(cText, "ryoku update") + "\n")
-	b.WriteString(fg(cSub, gBullet+" "+padTo(i18n.T("health checks:"), 19)) + fg(cText, "ryoku doctor") + "\n")
+	b.WriteString(bulletRow(i18n.T("updates forever:"), "ryoku update", labelW) + "\n")
+	b.WriteString(bulletRow(i18n.T("health checks:"), "ryoku doctor", labelW) + "\n")
 	if m.eng != nil && m.eng.backupDir != "" {
 		label := i18n.T("your old configs:")
 		if m.eng.prevBackups > 0 {
 			label = i18n.T("this run's backup:")
 		}
-		b.WriteString(fg(cSub, gBullet+" "+padTo(label, 19)) + fg(cText, m.eng.backupDir) + "\n")
-		b.WriteString(fg(cSub, "                    "+i18n.T("(restore.sh inside undoes this run's changes)")) + "\n")
+		b.WriteString(bulletRow(label, truncW(m.displayPath(m.eng.backupDir), valueW), labelW) + "\n")
+		indent := strings.Repeat(" ", 3+labelW)
+		b.WriteString(indent + fg(cSub, i18n.T("restore.sh inside undoes this run's changes")) + "\n")
 		if m.eng.prevBackups > 0 {
-			b.WriteString(fg(cYell, "                    "+i18n.T("earlier backups sit alongside; the oldest holds your pre-Ryoku configs")) + "\n")
+			for _, line := range wrapWords(i18n.T("earlier backups sit alongside; the oldest holds your pre-Ryoku configs"), valueW) {
+				b.WriteString(indent + fg(cSub, line) + "\n")
+			}
 		}
 	}
-	b.WriteString(fg(cSub, gBullet+" "+padTo(i18n.T("install log:"), 19)) + fg(cText, m.logPath()) + "\n\n")
-	b.WriteString(fg(cSub, i18n.T("First steps: ")) + fg(cText, i18n.T("Super+Space launcher · Super+, settings · Super+K keybinds")) + "\n")
-	return sty().Border(borderDouble()).BorderForeground(cGreen).Padding(1, 2).
-		Render(padLines(strings.TrimRight(b.String(), "\n"), iw))
+	b.WriteString(bulletRow(i18n.T("install log:"), truncW(m.displayPath(m.logPath()), valueW), labelW) + "\n")
+	first := wrapWords(i18n.T("Super+Space launcher / Super+, settings / Super+K keybinds"), valueW)
+	if len(first) > 0 {
+		b.WriteString(bulletRow(i18n.T("first steps:"), first[0], labelW))
+		indent := strings.Repeat(" ", 3+labelW)
+		for _, line := range first[1:] {
+			b.WriteString("\n" + indent + fg(cText, line))
+		}
+	}
+	return m.header(b.String())
 }
 
 func (m model) viewFailed() string {
-	iw := clamp(m.w-14, 56, 96)
-	var b strings.Builder
+	iw := clamp(m.w-8, 64, 104)
+	labelW := 14
+	valueW := iw - labelW
 	step := "?"
 	if m.eng != nil && m.failIdx < len(m.eng.steps) {
 		step = m.eng.steps[m.failIdx].title
 	}
-	b.WriteString(bold(cRed, gBad+" "+i18n.T("Install failed")) + "\n\n")
-	b.WriteString(fg(cText, i18n.T("Step: ")) + fg(cYell, step) + "\n")
-	b.WriteString(fg(cText, i18n.T("Error: ")) + fg(cRed, truncW(m.failMsg, iw-8)) + "\n\n")
+	var b strings.Builder
+	b.WriteString(bold(cText, gBad+" "+i18n.T("Install failed")) + "\n\n")
+	b.WriteString(labeledRow(i18n.T("Step:"), truncWords(step, valueW), labelW) + "\n")
+	b.WriteString(labeledRow(i18n.T("Error:"), truncWords(m.failMsg, valueW), labelW) + "\n\n")
+	b.WriteString(labeledRow(i18n.T("Recent log:"), "", labelW) + "\n")
+	logRows := clamp(m.h-18, 3, 6)
 	tail := m.logTail
-	if len(tail) > 8 {
-		tail = tail[len(tail)-8:]
+	if len(tail) > logRows {
+		tail = tail[len(tail)-logRows:]
 	}
-	for _, ln := range tail {
-		b.WriteString(fg(cDim, truncW(ln, iw)) + "\n")
+	indent := strings.Repeat(" ", labelW)
+	for _, line := range tail {
+		b.WriteString(indent + fg(cDim, truncW(line, valueW)) + "\n")
 	}
-	b.WriteString("\n" + fg(cSub, i18n.T("Full log: ")) + fg(cText, m.logPath()) + "\n")
-	b.WriteString(fg(cSub, i18n.T("Completed steps keep their changes; retry resumes at the failed one.")) + "\n")
+	b.WriteString("\n" + labeledRow(i18n.T("Full log:"), truncW(m.displayPath(m.logPath()), valueW), labelW) + "\n")
+	b.WriteString(labeledRow(i18n.T("Retry:"), i18n.T("completed steps stay; retry resumes at the failed one"), labelW) + "\n")
 	if m.eng != nil && m.eng.backupDir != "" {
-		b.WriteString(fg(cSub, i18n.Tf("To roll back instead: bash %s/restore.sh", m.eng.backupDir)) + "\n")
+		rollback := "bash " + m.displayPath(m.eng.backupDir) + "/restore.sh"
+		b.WriteString(labeledRow(i18n.T("Roll back:"), truncW(rollback, valueW), labelW) + "\n")
 	}
-	return sty().Border(border()).BorderForeground(cRed).Padding(1, 2).
-		Render(padLines(strings.TrimRight(b.String(), "\n"), iw))
+	return m.header(strings.TrimRight(b.String(), "\n"))
 }
 
 // ---- headless (--yes) ----
 
-func runHeadless(dry bool, ref, payload, compositor string) int {
+func runHeadless(dry bool, ref, payload, compositor, browser, shell string) int {
 	fmt.Println(bold(cBrand, "ryoku-shell-install") + fg(cSub, " "+i18n.T("(headless)")))
 	f := detect()
 	if needsManjaroAck(f) {
@@ -704,6 +945,7 @@ func runHeadless(dry bool, ref, payload, compositor string) int {
 	if compositor != "" {
 		p.compositor = compositor
 	}
+	applyPlanChoices(p, browser, shell)
 	fmt.Println(i18n.Tf("system: %s | gpu: %s | dm: %s", f.distroName, f.gpuSummary(), f.currentDM))
 	if len(f.riceFound) > 0 {
 		fmt.Println(i18n.Tf("rice found: %s (daemons replaced, configs ride the backup)", strings.Join(f.riceFound, ", ")))
@@ -711,9 +953,9 @@ func runHeadless(dry bool, ref, payload, compositor string) int {
 	if f.prevRun != nil {
 		fmt.Println(i18n.Tf("resuming the interrupted previous run: %d step(s) already done", len(f.prevRun.Completed)))
 	}
-	// a machine-readable toggle dump: the keys are plan field names, not prose.
-	fmt.Printf("plan: nvidia=%v sddm=%v greeter-theme=%v networkmanager=%v remove-shells=%v aur=%v fish=%v devtools=%v omarchy-cleanup=%v monitor-pins=%v azerty-fr=%v azerty-be=%v\n",
-		p.nvidia, p.switchDM, p.greeter, p.switchNet, p.rivals, p.aur, p.fish, p.devtools, p.omarchy, p.monPins, p.azertyFR, p.azertyBE)
+	// A machine-readable plan dump keeps unattended runs auditable.
+	fmt.Printf("plan: browser=%s shell=%s nvidia=%v sddm=%v greeter-theme=%v networkmanager=%v remove-shells=%v aur=%v devtools=%v omarchy-cleanup=%v monitor-pins=%v azerty-fr=%v azerty-be=%v\n",
+		p.browser, p.shell, p.nvidia, p.switchDM, p.greeter, p.switchNet, p.rivals, p.aur, p.devtools, p.omarchy, p.monPins, p.azertyFR, p.azertyBE)
 	e := newEngine(f, p, dry, ref, payload)
 	ev := e.runFrom(0)
 	for msg := range ev {
@@ -791,12 +1033,21 @@ func main() {
 	uninstall := flag.Bool("uninstall", false, i18n.T("remove the ryoku packages and restore the backup chain"))
 	ref := flag.String("ref", envOr("RYOKU_SHELL_REF", "main"), i18n.T("ryoku-arch git ref for the payload"))
 	payload := flag.String("payload", os.Getenv("RYOKU_SHELL_PAYLOAD"), i18n.T("use a local ryoku-arch checkout as the payload"))
-	compositor := flag.String("compositor", "", i18n.T("window manager to install: hyprland or niri (default hyprland)"))
+	compositor := flag.String("compositor", "", i18n.T("window manager to install (default: first available)"))
+	browser := flag.String("browser", envOr("RYOKU_BROWSER", "firefox"), i18n.T("browser to install: firefox, chromium or zen"))
+	shell := flag.String("shell", os.Getenv("RYOKU_LOGIN_SHELL"), i18n.T("login shell: fish, zsh or bash"))
 	flag.Parse()
 
 	initGlyphs()
+	if err := validateBrowser(*browser); err != nil {
+		die(err.Error())
+	}
+	if *shell != "" {
+		if err := validateLoginShell(*shell); err != nil {
+			die(err.Error())
+		}
+	}
 	comp := chooseCompositor(*compositor)
-
 	if os.Geteuid() == 0 {
 		die(i18n.T("run as your normal user, not root; sudo is used where needed"))
 	}
@@ -820,13 +1071,13 @@ func main() {
 		os.Exit(runUninstall(*yes, *dry))
 	}
 	if *yes {
-		os.Exit(runHeadless(*dry, *ref, *payload, comp))
+		os.Exit(runHeadless(*dry, *ref, *payload, comp, *browser, *shell))
 	}
 	if !stdoutIsTTY() {
 		die(i18n.T("unable to run interactively; re-run with --yes for the default plan"))
 	}
 
-	fm, err := tea.NewProgram(newTUIModel(*dry, *ref, *payload, comp)).Run()
+	fm, err := tea.NewProgram(newTUIModel(*dry, *ref, *payload, comp, *browser, *shell)).Run()
 	if err != nil {
 		die(err.Error())
 	}

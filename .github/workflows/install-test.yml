@@ -46,10 +46,14 @@ jobs:
         run: installation/tests/container-install.sh ${{ matrix.base }}
 
   vm-install:
-    name: "VM install (boot the ISO)"
+    name: "VM install (${{ matrix.mode }})"
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [plain, encrypted]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -143,7 +147,7 @@ jobs:
               installation/tests/build-ryoku-repo.sh
               chown -R "$HOST_UID:$HOST_GID" /repo
             '
-      - name: Install into a VM and verify
+      - name: Install into a VM, verify, and boot
         if: steps.fetch.outputs.iso_ready == 'true'
         run: |
           set -euo pipefail
@@ -152,14 +156,22 @@ jobs:
             echo "::warning::no /dev/kvm on this runner; skipping the VM install (needs a KVM runner)"
             exit 0
           fi
+          encryption=()
+          if [ "${{ matrix.mode }}" = encrypted ]; then
+            encryption+=(--encrypt --keypad --wrong-first)
+          fi
           python3 installation/tests/install-vm.py --iso "$iso" \
-            --work "$RUNNER_TEMP/ryoku-vm" --repo-dir release/repo/out
+            --work "$RUNNER_TEMP/ryoku-vm-${{ matrix.mode }}" \
+            --repo-dir release/repo/out --boot-installed "${encryption[@]}"
       # always, not only on failure: a skipped or oddly-green VM run is exactly
       # the case where the log is the only evidence of what really happened.
-      - name: Upload serial log
+      - name: Upload VM boot evidence
         if: always() && steps.fetch.outputs.iso_ready == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: vm-serial-log
-          path: ${{ runner.temp }}/ryoku-vm/serial.log
+          name: vm-install-${{ matrix.mode }}
+          path: |
+            ${{ runner.temp }}/ryoku-vm-${{ matrix.mode }}/serial.log
+            ${{ runner.temp }}/ryoku-vm-${{ matrix.mode }}/unlock-*.ppm
+            ${{ runner.temp }}/ryoku-vm-${{ matrix.mode }}/unlock-*.png
           if-no-files-found: ignore

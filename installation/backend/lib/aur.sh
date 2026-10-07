@@ -146,16 +146,13 @@ browser_desktop_keys() {
 }
 
 # ryoku_default_browser points the target user's default web browser at the
-# installer's pick, but only when that browser actually landed (the AUR-built
-# Zen is best-effort and online-only; a scripted backend call may have been
-# told to drop it). It sets just the http/https scheme handlers via xdg-mime,
-# so an HTML file still opens in the editor. It also records the pick as the
-# desktop's `browser` role in ~/.config/ryoku/desktop.json, the store the
-# launcher and the shell read through ryoku-app, so the whole desktop agrees
-# with xdg. Install-time only: `ryoku update` never repoints a browser, so an
-# existing box keeps whatever default it had.
+# installer's pick, but only when that browser actually landed. It sets the
+# http/https scheme handlers and HTML files through xdg-mime, then records the
+# same pick as desktop.apps.browser in ~/.config/ryoku/desktop.json so the
+# launcher and the shell agree with xdg. Install-time only: `ryoku update`
+# never repoints a browser, so an existing box keeps its choice.
 ryoku_default_browser() {
-  local u="$RYOKU_USERNAME" br="${RYOKU_BROWSER:-zen}" desk="" d
+  local u="$RYOKU_USERNAME" br="${RYOKU_BROWSER:-firefox}" desk="" d
   if [[ -n ${RYOKU_DRYRUN:-} ]]; then
     log 'DRYRUN: set %s as the default web browser (xdg + desktop.apps.browser) for %s if installed' "$br" "$u"
     return 0
@@ -168,7 +165,7 @@ ryoku_default_browser() {
     return 0
   fi
   if arch-chroot /mnt runuser -u "$u" -- env "HOME=/home/$u" "USER=$u" "LOGNAME=$u" \
-    xdg-mime default "$desk" x-scheme-handler/http x-scheme-handler/https 2>/dev/null; then
+    xdg-mime default "$desk" x-scheme-handler/http x-scheme-handler/https text/html 2>/dev/null; then
     log 'default browser: set %s (%s) for %s' "$br" "$desk" "$u"
   else
     log 'default browser: warning, could not set %s for %s (continuing)' "$br" "$u"
@@ -197,14 +194,13 @@ ryoku_default_browser() {
   return 0
 }
 
-# browser_role_cmd KEY: the command the desktop browser role stores for a
-# pick. Zen's .desktop Exec names differ across builds; ryoku-app's fallback
-# resolves both `zen` and `zen-browser`, and `zen` is what the shipped
-# fallback tries first.
+# browser_role_cmd KEY is the command stored in the desktop browser role. Zen's
+# desktop IDs vary across builds, but its executable remains `zen`; an absent or
+# unknown key falls back to Firefox, matching the installer's default.
 browser_role_cmd() {
   case "$1" in
+    zen) echo zen ;;
     chromium) echo chromium ;;
-    firefox) echo firefox ;;
-    *) echo zen ;;
+    *) echo firefox ;;
   esac
 }

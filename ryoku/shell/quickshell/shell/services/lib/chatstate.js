@@ -17,6 +17,8 @@ function initialState() {
         models: [],
         currentModel: "",
         agent: "",
+        prowl: "",
+        prowlReason: "",
         commands: [],
         session: { id: "", title: "" },
         usage: null,
@@ -162,6 +164,8 @@ function applyEvent(state, ev) {
         s.models = ev.models || [];
         s.currentModel = ev.current || "";
         s.agent = ev.agent || "";
+        s.prowl = ev.prowl || "";
+        s.prowlReason = ev.reason || "";
         return s;
     case "commands":
         s.commands = ev.commands || [];

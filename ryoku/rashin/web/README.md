@@ -35,12 +35,13 @@ ships it and no node runs on an installed box.
 |`src/lib/ui/`|The primitives kit on bits-ui: `Button`, `IconButton`, `Tooltip`, `Seg`, `Switch`, `Select`, `Dialog`, `Popover`, `Tabs`, `Fold`, `Chip`, `Card`, `Field`, `Empty`, `Lamp`, `Kbd`, `Icon` (+ `icons.ts`).|
 |`src/lib/fx/`|The Libraries.dev wrappers.|
 |`src/lib/app/`|The frame: `TopBar` (brand, sheets, combined lane presence), `Page`, `Offline`, and `router.svelte.ts` (hash routes and sheet order).|
-|`src/lib/api/`|`client.ts` (one function per daemon route), `socket.ts` (reconnecting JSON WebSocket).|
+|`src/lib/api/`|`client.ts` owns Rashin daemon routes, `prowl.ts` is the only client for proxied Prowl gateway routes, and `socket.ts` owns reconnecting JSON WebSockets.|
 |`src/lib/state/`|`theme.svelte.ts` (wears the wallpaper palette), `machine.svelte.ts` (status + vitals stream).|
 |`src/lib/chat/`|`protocol.ts` (wire shapes), `store.svelte.ts` (the separate Ryoku and Chat lane connections).|
 |`src/lib/content/`|`markdown.ts` (escape-first renderer, tested) and `Markdown.svelte`.|
 |`src/lib/pages/chat/ChatWorkspace.svelte`|The shared sessions, transcript, approval, composer and inspector workspace used by both conversation sheets.|
 |`src/lib/pages/wiki/`|Wiki-specific helpers and reader parts; `WikiSheet.svelte` owns the route and lazy document loading.|
+|`src/lib/pages/prowl/`|The Prowl section: gateway overview, providers, routing, activity, project indexes, harness setup and command toolkit behind `ProwlSheet.svelte`.|
 |`src/pages/<Name>Sheet.svelte`|One sheet per route. Its parts live under `src/lib/pages/<name>/`.|
 
 ## Conversation lanes
@@ -66,7 +67,9 @@ ships it and no node runs on an installed box.
   the stores, the router) change through the integrator, not from a sheet.
 - The daemon is the authority. A sheet renders what the API or the stream
   says; it may render optimistically what the user just did and nothing
-  more. Mutations go through `api.*` and the chat store, never raw `fetch`.
+  more. Rashin-owned mutations go through `api.*`; Prowl operations go
+  through `prowl.*` in `src/lib/api/prowl.ts`, never raw `fetch`.
+  The Prowl proxy requires `X-Rashin-Client: console` on every request.
 - Motion answers an action: a reveal, a fold, a confirm. Nothing loops at
   rest except what reports live state (an orb while working, a lamp while
   busy). `prefers-reduced-motion` is honoured by the tokens already.

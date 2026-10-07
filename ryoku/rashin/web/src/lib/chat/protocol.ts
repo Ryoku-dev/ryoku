@@ -65,6 +65,8 @@ export interface WsOut {
   models?: ModelInfo[];
   current?: string;
   agent?: string;
+  prowl?: "active" | "pending";
+  reason?: string;
   commands?: CommandInfo[];
   sessionId?: string;
   size?: number;

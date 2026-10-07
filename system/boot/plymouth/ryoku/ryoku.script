@@ -23,6 +23,9 @@ global.animation_frame = 0;
 global.fake_progress_start_time = 0;  # Track when fake progress started
 global.password_shown = 0;  # Track if password dialog has been shown
 global.max_progress = 0.0;  # Track the maximum progress reached to prevent backwards movement
+global.password_dialog_active = 0;
+global.password_check_pending = 0;
+global.password_error = 0;
 
 fun refresh_callback ()
   {
@@ -82,6 +85,20 @@ fun hide_progress_bar()
     progress_bar.sprite.SetOpacity(0);
   }
 
+fun update_password_status()
+  {
+    if (global.password_error == 1)
+      status.image = Image.Text("Wrong passphrase, try again", 1.0, 0.45, 0.25);
+    else
+      status.image = Image.Text("Enter the disk passphrase", 0.60, 0.55, 0.50);
+
+    status.sprite.SetImage(status.image);
+    status.x = Window.GetWidth() / 2 - status.image.GetWidth() / 2;
+    status.y = entry.y + entry.image.GetHeight() + 12;
+    status.sprite.SetPosition(status.x, status.y, 10001);
+    status.sprite.SetOpacity(1);
+  }
+
 fun show_password_dialog()
   {
     lock.sprite.SetOpacity(1);
@@ -92,6 +109,7 @@ fun hide_password_dialog()
   {
     lock.sprite.SetOpacity(0);
     entry.sprite.SetOpacity(0);
+    status.sprite.SetOpacity(0);
     for (index = 0; bullet.sprites[index]; index++)
       bullet.sprites[index].SetOpacity(0);
   }
@@ -126,6 +144,9 @@ entry.y = logo.sprite.GetY() + logo.image.GetHeight() + 40;
 entry.sprite.SetPosition(entry.x, entry.y, 10001);
 entry.sprite.SetOpacity(0);
 
+status.sprite = Sprite();
+status.sprite.SetOpacity(0);
+
 # Scale lock to be slightly shorter than entry field height
 # Original lock is 84x96, entry height determines scale
 lock_height = entry.image.GetHeight() * 0.8;
@@ -144,6 +165,12 @@ bullet.sprites = [];
 
 fun display_normal_callback ()
   {
+    if (global.password_dialog_active == 1)
+      {
+        global.password_check_pending = 1;
+        global.password_dialog_active = 0;
+      }
+
     hide_password_dialog();
     
     # Get current mode
@@ -160,6 +187,15 @@ fun display_normal_callback ()
 fun display_password_callback (prompt, bullets)
   {
     global.password_shown = 1;  # Mark that password dialog has been shown
+    if (bullets == 0 && global.password_check_pending == 1)
+      {
+        global.password_error = 1;
+        global.password_check_pending = 0;
+      }
+    else if (bullets > 0)
+      global.password_error = 0;
+
+    global.password_dialog_active = 1;
     
     # Reset progress when password dialog appears
     stop_fake_progress();
@@ -168,6 +204,7 @@ fun display_password_callback (prompt, bullets)
     global.fake_progress = 0.0;
     global.real_progress = 0.0;
     show_password_dialog();
+    update_password_status();
     
     # Clear all bullets first
     for (index = 0; bullet.sprites[index]; index++)

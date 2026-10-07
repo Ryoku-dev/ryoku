@@ -2,8 +2,16 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -331,4 +339,274 @@ func TestACPV2ImagesModelsSessions(t *testing.T) {
 	}
 	expectEvent(t, conn.Events(), "models")
 	expectEvent(t, conn.Events(), "replay_end")
+}
+
+func stubChatProwlProfileSets(t *testing.T, lookup func(context.Context) (string, []string, error)) {
+	t.Helper()
+	previous := chatProwlProfileSets
+	chatProwlProfileSets = lookup
+	t.Cleanup(func() {
+		chatProwlProfileSets = previous
+	})
+}
+
+func hermesRoutedModels() []ModelInfo {
+	return []ModelInfo{
+		{ID: "openai-codex:gpt-5.6", Name: "GPT 5.6"},
+		{ID: "openai-codex:gpt-5.6-mini", Name: "GPT 5.6 mini"},
+		{ID: "openai-codex:gpt-5.5", Name: "GPT 5.5"},
+		{ID: "openai-codex:gpt-5.5-mini", Name: "GPT 5.5 mini"},
+		{ID: "openai-codex:gpt-5.4", Name: "GPT 5.4"},
+		{ID: "openai-codex:gpt-5.3", Name: "GPT 5.3"},
+		{ID: "openai-codex:gpt-5.2", Name: "GPT 5.2"},
+		{ID: "custom:auto", Name: "Custom endpoint · auto", Description: "Provider: Custom endpoint • current"},
+		{ID: "prowl:auto", Name: "prowl · auto", Description: "Provider: prowl"},
+		{ID: "custom:prowl:auto", Name: "auto", Description: "Provider: prowl"},
+	}
+}
+
+func hermesSessionResult(models []ModelInfo) map[string]any {
+	available := make([]map[string]string, 0, len(models))
+	for _, model := range models {
+		available = append(available, map[string]string{
+			"modelId": model.ID, "name": model.Name, "description": model.Description,
+		})
+	}
+	return map[string]any{
+		"sessionId": "s1",
+		"models": map[string]any{
+			"currentModelId":  "custom:auto",
+			"availableModels": available,
+		},
+	}
+}
+
+func TestChatOfferedModelsMergeAliasesAndListProwlSets(t *testing.T) {
+	quickTestEnv(t)
+	quickGateway(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/profiles":
+			fmt.Fprint(w, `[{"id":1,"name":"codings","modelCount":3},{"id":2,"name":"Deep work","modelCount":2},{"id":3,"name":"My subscriptions","modelCount":0},{"id":4,"name":"CODINGS","modelCount":1}]`)
+		case "/api/profiles/active":
+			fmt.Fprint(w, `{"activeProfileId":1}`)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	lookups := 0
+	stubChatProwlProfileSets(t, func(ctx context.Context) (string, []string, error) {
+		lookups++
+		return prowlProfileSets(ctx)
+	})
+
+	models := hermesRoutedModels()
+	conn := &acpConn{
+		agentID:      "hermes",
+		prowl:        chatAgentRouting{Active: true},
+		startedModel: "custom:auto",
+	}
+	conn.cacheProwlProfileSets()
+	conn.emitModels(modelState{models: models, current: "custom:auto", ok: true})
+	got := conn.offeredModelsSnapshot()
+	want := []ModelInfo{
+		{ID: "custom:auto", Name: "Active set", Description: "Prowl · codings"},
+		{ID: "custom:prowl:auto:codings", Name: "codings", Description: "Prowl set"},
+		{ID: "custom:prowl:auto:deep work", Name: "Deep work", Description: "Prowl set"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("offered models = %#v, want %#v", got, want)
+	}
+	if lookups != 1 {
+		t.Fatalf("profile lookups = %d, want 1", lookups)
+	}
+}
+
+func TestChatOfferedModelsSetLookupFailureKeepsMergedAlias(t *testing.T) {
+	stubChatProwlProfileSets(t, func(context.Context) (string, []string, error) {
+		return "", nil, errors.New("gateway unavailable")
+	})
+	models := hermesRoutedModels()
+	conn := &acpConn{
+		agentID:      "hermes",
+		prowl:        chatAgentRouting{Active: true},
+		startedModel: "custom:auto",
+	}
+	conn.cacheProwlProfileSets()
+	conn.emitModels(modelState{models: models, current: "custom:auto", ok: true})
+	want := []ModelInfo{{ID: "custom:auto", Name: "Active set", Description: "Prowl"}}
+	if got := conn.offeredModelsSnapshot(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("offered models = %#v, want %#v", got, want)
+	}
+}
+
+func TestChatOfferedModelsKeepsCurrentMissingProwlSet(t *testing.T) {
+	models := hermesRoutedModels()
+	got := chatOfferedModels(
+		"hermes",
+		true,
+		models,
+		"custom:prowl:auto:renamed set",
+		"custom:prowl:auto:renamed set",
+		"",
+		nil,
+	)
+	want := []ModelInfo{
+		{ID: "custom:prowl:auto", Name: "Active set", Description: "Prowl"},
+		{ID: "custom:prowl:auto:renamed set", Name: "renamed set", Description: "Prowl set"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("offered models = %#v, want %#v", got, want)
+	}
+}
+
+func TestSavedProwlSetReappliedOnlyWhileOffered(t *testing.T) {
+	const saved = "custom:prowl:auto:deep work"
+	for _, test := range []struct {
+		name      string
+		setNames  []string
+		wantApply bool
+	}{
+		{name: "offered", setNames: []string{"codings", "Deep work"}, wantApply: true},
+		{name: "removed", setNames: []string{"codings"}, wantApply: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			lookups := 0
+			stubChatProwlProfileSets(t, func(context.Context) (string, []string, error) {
+				lookups++
+				return "codings", test.setNames, nil
+			})
+			conn, agent := newTestPair(t)
+			defer conn.Close()
+			conn.agentID = "hermes"
+			conn.agentName = "Hermes"
+			conn.prowl = chatAgentRouting{Active: true}
+			saveSessionModel(saved)
+
+			done := make(chan error, 1)
+			go func() {
+				done <- conn.openSession("session/new", map[string]any{"cwd": "/tmp/vault"})
+			}()
+			request := agent.read()
+			if request.Method != "session/new" {
+				t.Fatalf("method = %q, want session/new", request.Method)
+			}
+			agent.respond(*request.ID, hermesSessionResult(hermesRoutedModels()))
+
+			if test.wantApply {
+				setRequest := agent.read()
+				if setRequest.Method != "session/set_model" {
+					t.Fatalf("method = %q, want session/set_model", setRequest.Method)
+				}
+				var params struct {
+					ModelID string `json:"modelId"`
+				}
+				if err := json.Unmarshal(setRequest.Params, &params); err != nil {
+					t.Fatal(err)
+				}
+				if params.ModelID != saved {
+					t.Fatalf("model id = %q, want %q", params.ModelID, saved)
+				}
+				agent.respond(*setRequest.ID, map[string]any{})
+			}
+			if err := <-done; err != nil {
+				t.Fatalf("open session: %v", err)
+			}
+			if !test.wantApply {
+				select {
+				case unexpected := <-agent.lines:
+					t.Fatalf("unexpected request after session/new: %s", unexpected.Method)
+				default:
+				}
+			}
+			if lookups != 1 {
+				t.Fatalf("profile lookups = %d, want 1", lookups)
+			}
+		})
+	}
+}
+
+func TestPendingRoutingKeepsEveryAdvertisedModelUnmerged(t *testing.T) {
+	stubChatProwlProfileSets(t, func(context.Context) (string, []string, error) {
+		t.Fatal("pending routing must not look up Prowl sets")
+		return "", nil, nil
+	})
+	models := hermesRoutedModels()
+	conn := &acpConn{
+		agentID:      "hermes",
+		prowl:        chatAgentRouting{Pending: true},
+		startedModel: "custom:auto",
+	}
+	conn.cacheProwlProfileSets()
+	conn.emitModels(modelState{models: models, current: "custom:auto", ok: true})
+	event := conn.modelsEvent(conn.offeredModelsSnapshot(), "custom:auto")
+	if event.Prowl != "pending" || !reflect.DeepEqual(event.Models, models) {
+		t.Fatalf("models event = %#v, want original models", event)
+	}
+}
+
+func TestSavedNonProwlModelIsDropped(t *testing.T) {
+	home := quickTestEnv(t)
+	t.Setenv("RYOKU_STATE_PATH", filepath.Join(home, "state"))
+	path := modelStatePath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("openai-codex:gpt-5.6\n"+configModelKey()+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	models := []ModelInfo{
+		{ID: "prowl:auto", Name: "Prowl"},
+		{ID: "openai-codex:gpt-5.6", Name: "Direct"},
+	}
+	conn := &acpConn{
+		agentID:      "hermes",
+		prowl:        chatAgentRouting{Active: true},
+		startedModel: "prowl:auto",
+		models:       models,
+	}
+	conn.reconcileModel(modelState{models: models, current: "prowl:auto", ok: true}, "session/new")
+	if got := savedSessionModel(); got != "prowl:auto" {
+		t.Fatalf("saved model = %q, want live Prowl model", got)
+	}
+}
+
+func TestSetModelRequiresProwlOnlyWhileActive(t *testing.T) {
+	active, _ := newTestPair(t)
+	defer active.Close()
+	active.agentID = "hermes"
+	active.prowl = chatAgentRouting{Active: true}
+	active.startedModel = "prowl:auto"
+	active.models = []ModelInfo{{ID: "prowl:auto"}, {ID: "openai-codex:gpt-5.6"}}
+	offered := chatOfferedModels(active.agentID, true, active.models, active.startedModel, active.startedModel, "", nil)
+	event := active.modelsEvent(offered, active.startedModel)
+	if event.Prowl != "active" || len(event.Models) != 1 ||
+		event.Models[0] != (ModelInfo{ID: "prowl:auto", Name: "Active set", Description: "Prowl"}) {
+		t.Fatalf("active models event = %+v", event)
+	}
+	if err := active.SetModel("openai-codex:gpt-5.6"); err == nil || !strings.Contains(err.Error(), "not routed through Prowl") {
+		t.Fatalf("active direct model error = %v", err)
+	}
+
+	pending, agent := newTestPair(t)
+	defer pending.Close()
+	pending.agentID = "hermes"
+	pending.prowl = chatAgentRouting{Pending: true, Reason: "no provider"}
+	pending.sessionID = "s1"
+	pending.startedModel = "prowl:auto"
+	pending.models = []ModelInfo{{ID: "prowl:auto"}, {ID: "openai-codex:gpt-5.6"}}
+	done := make(chan error, 1)
+	go func() { done <- pending.SetModel("openai-codex:gpt-5.6") }()
+	request := agent.read()
+	if request.Method != "session/set_model" {
+		t.Fatalf("method = %q, want session/set_model", request.Method)
+	}
+	agent.respond(*request.ID, map[string]any{})
+	if err := <-done; err != nil {
+		t.Fatalf("pending model switch: %v", err)
+	}
+
+	event = pending.modelsEvent(pending.models, pending.startedModel)
+	if event.Prowl != "pending" || event.ProwlReason != "no provider" || len(event.Models) != 2 {
+		t.Fatalf("pending models event = %+v", event)
+	}
 }

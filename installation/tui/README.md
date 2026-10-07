@@ -22,13 +22,13 @@ no Go toolchain on the ISO; `iso/build.sh` ships the binary prebuilt.
   left a user stuck at the password screen with a perfectly good password.
   `password_test.go` pins it to the published vectors and to the C library's own
   `crypt(3)`, which is what verifies the hash at every later login.
-- **`apps.go` is the product-choice table**: the three browsers, the
-  keep/remove app rows (packages, defaults, and the REQUIRED reason each
-  required row refuses to drop), the flattened checklist rows the `apps` step
-  renders, and the summary Review shows. Membership follows the release's own
-  tables (`ryokumanifest.Apps()`, the feature map in
-  `tests/shell-tool-availability.sh`); hard depends of `ryoku-desktop` are
-  deliberately absent -- they back desktop surfaces the user never chose.
+- **`apps.go` is the product-choice table**: the three browsers, the three
+  login shells and their package stacks, the keep/remove app rows (packages,
+  defaults, and the REQUIRED reason each required row refuses to drop), the
+  flattened checklist rows the `apps` step renders, and the summary Review
+  shows. Membership follows the release's own tables (`ryokumanifest.Apps()`,
+  the feature map in `tests/shell-tool-availability.sh`); hard depends of
+  `ryoku-desktop` are deliberately absent because they back required surfaces.
 
 `system.go`'s `installEnv` builds the `RYOKU_*` environment the backend reads;
 that contract is documented in `../backend/README.md`.
@@ -38,15 +38,15 @@ that contract is documented in `../backend/README.md`.
 The wizard (`steps()` in `main.go`) walks these steps in order:
 
 `keyboard -> locale -> timezone -> network -> hardware -> profile -> gpu ->
-compositor -> browser -> apps -> diskpick (target disk) -> disk (strategy) ->
-partitions (layout) -> hostname -> username -> password -> encryption ->
-review`
+compositor -> browser -> login-shell -> apps -> diskpick (target disk) ->
+disk (strategy) -> partitions (layout) -> hostname -> username -> password ->
+encryption -> review`
 
 The `compositor` step picks the window manager (Hyprland or niri, whatever the
 `ryoku/wm` seam ships; it auto-skips when there is one provider); `browser`
-picks exactly one of the three browsers Ryoku ships (Zen, Chromium, Firefox);
-`apps` is a grouped keep/remove checklist over every optional app
-and tool (apps.go), with role-defining rows marked REQUIRED and refused.
+picks Firefox (Recommended), Chromium, or Zen; `login-shell` picks Fish
+(Recommended), Zsh, or Bash; `apps` is a grouped keep/remove checklist over
+every optional app and tool, with role-defining rows marked REQUIRED and refused.
 Some steps are conditional: the `gpu` (graphics mode) step matters only on a
 hybrid iGPU + dGPU laptop, and the pickers fall back to a small built-in list
 when the live tools return nothing, so the wizard renders anywhere. `review` is
@@ -118,10 +118,10 @@ go run . snapshot
 
 It renders the welcome screen (plain and with the social QR), the network step
 (connected and offline), hardware (detected and the graceful fallback), the
-graphics-mode step, the window-manager picker, the browser picker, the apps
-keep/remove checklist (defaults and a curated slim install), the target-disk
-and partition steps, the password step (with the strength meter), the done
-screen, and the install and failure screens. The
+graphics-mode step, the window-manager picker, browser picker, login-shell
+picker, apps keep/remove checklist (defaults and a curated slim install), the
+target-disk and partition steps, the password step (with the strength meter),
+the done screen, and the install and failure screens. The
 install/failure frames use `stepLog` sample output; a live install streams the
 real backend output instead. Because the pickers fall back to built-in lists,
 the snapshot renders even where the live tools (`localectl`, `lsblk`, ...) return
@@ -142,7 +142,12 @@ swap, the alongside free-space floor, the wipe-confirm plumbing);
 sha512-crypt hash the whole install hangs on (the published vectors, the block
 boundaries, the shape `chpasswd -e` needs, a fresh salt per call, and agreement
 with `crypt(3)` where a Perl is around to reach it); `apps_test.go` covers the
-product choices (three browsers exactly, required rows refuse to toggle, the
-drop list never names a required package, and `installEnv` carries
-`RYOKU_BROWSER` plus the losing browsers and deselected apps in
-`RYOKU_DROP_PACKAGES`).
+product choices (ordered browser and login-shell choices, their defaults,
+required rows refusing to toggle, and `installEnv` carrying `RYOKU_BROWSER`,
+`RYOKU_LOGIN_SHELL`, and every losing browser, shell stack, and deselected app
+in `RYOKU_DROP_PACKAGES`).
+
+The shell package policy is exact. Fish keeps `fish`; Zsh keeps `zsh`,
+`zsh-autosuggestions`, `zsh-history-substring-search`,
+`zsh-syntax-highlighting`, and `ryoku-oh-my-zsh`; Bash keeps `blesh`. Bash
+itself and the shared terminal tools remain installed for all three choices.

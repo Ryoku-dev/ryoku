@@ -132,7 +132,7 @@ The small daemons and utilities the desktop leans on every session.
 
 | Package | Role |
 |---|---|
-| `chromium` / `firefox` / Zen (`zen-browser-bin`) | The web browser: the installer picks exactly one of the three (Zen is the default; the other two ship from the official repos) |
+| `firefox` / `chromium` / Zen (`zen-browser-bin`) | The web browser: the installer picks exactly one of the three, with Firefox recommended |
 | `kitty` | The default terminal |
 | `mpv`, `mpv-mpris` | The media player, wired onto the players bus |
 | `nautilus`, `nautilus-python` | The file manager and its "Install / Compress / Send with Ryoku" right-click actions |
@@ -150,9 +150,9 @@ The command line Ryoku hands you is already comfortable.
 
 | Package | Kind | Role |
 |---|---|---|
-| `fish` | Shell | The default account shell |
-| `bash`, `zsh` | Shell | Account-wide alternatives selectable in Ryoku Settings |
-| `blesh` | Shell | Fish-like highlighting and suggestions for Bash |
+| `fish` | Shell | The recommended account shell |
+| `bash` | Shell | Account-wide alternative with `blesh` highlighting and suggestions |
+| `zsh` | Shell | Account-wide alternative with Ryoku Oh My Zsh |
 | `zsh-autosuggestions`, `zsh-syntax-highlighting`, `zsh-history-substring-search` | Shell | Fish-like editing for Zsh |
 | `starship` | Prompt | The shared prompt |
 | `bash-completion` | CLI | Bash completions |

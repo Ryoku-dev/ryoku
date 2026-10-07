@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -110,14 +111,46 @@ func RunSetup() error {
 		return errors.New("hermes not found after install; open a new terminal and re-run setup")
 	}
 
-	// Onboard: only when hermes has no config yet, and through hermes itself.
-	if HermesStatus().Configured {
-		reportPhase("onboard", "Hermes already configured, keeping your provider and model", true)
+	// Route Hermes through Prowl before deciding whether it still needs its
+	// interactive setup. Injection can make a fresh install ACP-ready without
+	// asking the user to configure a second provider path.
+	acpReady := false
+	if setupDryRun() {
+		reportPhase("route", "would route Hermes through Prowl", true)
 	} else {
-		reportPhase("onboard", "running hermes setup (pick your provider and model)", true)
+		if err := ensureGateway(); err != nil {
+			return fmt.Errorf("start Prowl gateway: %w", err)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		pending, reason, err := connectHarness(ctx, "hermes")
+		cancel()
+		if err != nil {
+			return fmt.Errorf("route hermes through Prowl: %w", err)
+		}
+		if pending {
+			reportPhase("route", "Hermes connected; "+reason, true)
+		} else {
+			reportPhase("route", "Hermes routed through Prowl", true)
+		}
+		if hermesBin != "" {
+			acpReady = exec.Command(hermesBin, "acp", "--check").Run() == nil
+		}
+	}
+	if acpReady {
+		reportPhase("onboard", "Hermes is ready through Prowl", true)
+	} else {
+		reportPhase("onboard", "running hermes setup", true)
 		if hermesBin != "" {
 			if err := runInteractive(hermesBin, "setup"); err != nil {
 				return fmt.Errorf("hermes setup: %w", err)
+			}
+		}
+		if !setupDryRun() {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			_, _, err := connectHarness(ctx, "hermes")
+			cancel()
+			if err != nil {
+				return fmt.Errorf("restore Prowl routing after hermes setup: %w", err)
 			}
 		}
 	}

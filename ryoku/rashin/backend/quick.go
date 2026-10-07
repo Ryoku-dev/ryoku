@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,13 +15,11 @@ import (
 	"time"
 )
 
-// quick.go is the fast lane for launcher asks: a fabric-style pattern (one
-// terse system prompt + the vault's generated maps) sent as a direct
-// chat-completions call on the same model connection hermes is configured
-// with. No Python spawn, no full agent: most questions come back in a second
-// or two. The model may call a small set of read-only Go tools (quicktools.go)
-// for live state; anything heavier escalates to the real hermes session (the
-// model answers a sentinel instead).
+// quick.go is the fast lane for launcher asks: a fabric-style pattern sent
+// through Prowl's gateway. No Python spawn, no full agent: most questions come
+// back in a second or two. The model may call a small set of read-only Go tools
+// (quicktools.go) for live state; anything heavier escalates to the configured
+// chat session.
 
 const toolsSentinel = "TOOLS_REQUIRED"
 
@@ -38,80 +37,182 @@ Rules:
 - When the user is new to Linux, Ryoku, or the compositor, point at the matching wiki page under ~/.local/share/ryoku/rashin/wiki/ (linux-basics, desktop, hyprland-lua, niri-kdl, quickshell-qml, go-tools, rashin) after the direct answer.
 - Only escalate when the request needs something your tools cannot do: generating or editing files or images, an interactive browser, running a skill, or any action that changes the system. In that case reply with exactly TOOLS_REQUIRED and nothing else; the full agent in this lane picks the job up with its skills and the user's approval settings.`
 
-// quickTarget is a resolved direct model connection.
 type quickTarget struct {
-	BaseURL string
-	Key     string
-	Model   string
-	Label   string // provider:model for logs and the dashboard
+	Route string
+	Label string
 }
 
-// quickProviders maps a provider id to its openai-compatible endpoint and the
-// env var holding its key. The user picks one with `ryoku-rashin backend`, or
-// it is derived from hermes's own provider.
-var quickProviders = map[string]struct {
-	base   string
-	keyEnv string
-}{
-	"openrouter": {"https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"},
-	"openai":     {"https://api.openai.com/v1", "OPENAI_API_KEY"},
-	"groq":       {"https://api.groq.com/openai/v1", "GROQ_API_KEY"},
-	"deepseek":   {"https://api.deepseek.com/v1", "DEEPSEEK_API_KEY"},
-	"mistral":    {"https://api.mistral.ai/v1", "MISTRAL_API_KEY"},
-	"together":   {"https://api.together.xyz/v1", "TOGETHER_API_KEY"},
-	"xai":        {"https://api.x.ai/v1", "XAI_API_KEY"},
-	"cerebras":   {"https://api.cerebras.ai/v1", "CEREBRAS_API_KEY"},
-	"ollama":     {"http://127.0.0.1:11434/v1", "OLLAMA_API_KEY"},
-	"local":      {"http://127.0.0.1:8080/v1", "LOCAL_API_KEY"},
+type quickRouteJSON struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Sub   string `json:"sub"`
 }
 
-// providerIDs lists the known providers, sorted, for the CLI and the picker.
-func providerIDs() []string {
-	ids := make([]string, 0, len(quickProviders))
-	for id := range quickProviders {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	return ids
+type prowlSetupHarness struct {
+	ID       string `json:"id"`
+	Injected bool   `json:"injected"`
+	Active   bool   `json:"active"`
+	Skills   string `json:"skills"`
+	Note     string `json:"note,omitempty"`
 }
 
-// readyProviders lists providers usable right now: a key is present, or the
-// endpoint is keyless (local). The picker dims the rest.
-func readyProviders() []string {
-	var out []string
-	for _, id := range providerIDs() {
-		p := quickProviders[id]
-		if isLocalURL(p.base) || envValue(p.keyEnv) != "" {
-			out = append(out, id)
+type prowlSetupHarnesses struct {
+	Routable  bool                `json:"routable"`
+	Reason    string              `json:"reason,omitempty"`
+	Harnesses []prowlSetupHarness `json:"harnesses"`
+}
+
+var quickAxes = []quickRouteJSON{
+	{ID: "auto:smart", Label: "Smart", Sub: "Prioritize capability"},
+	{ID: "auto:fast", Label: "Fast", Sub: "Prioritize response speed"},
+	{ID: "auto:cheap", Label: "Cheap", Sub: "Prioritize lower cost"},
+	{ID: "auto:reliable", Label: "Reliable", Sub: "Prioritize availability"},
+	{ID: "auto:balanced", Label: "Balanced", Sub: "Balance capability, speed, and cost"},
+	{ID: "auto:efficient", Label: "Efficient", Sub: "Favor capable models with lower cost"},
+}
+
+func gatewayRouting(ctx context.Context) (prowlSetupHarnesses, error) {
+	var out prowlSetupHarnesses
+	err := prowlGatewayJSON(ctx, http.MethodGet, "/api/setup/harnesses", nil, &out)
+	return out, err
+}
+
+func quickGatewayError(err error) error {
+	var gatewayErr *prowlGatewayError
+	if errors.As(err, &gatewayErr) {
+		if gatewayErr.Code == "gateway_down" {
+			return errors.New("Prowl's gateway is not running")
+		}
+		if gatewayErr.Message != "" {
+			return errors.New(gatewayErr.Message)
 		}
 	}
-	return out
+	return err
 }
 
-// rashinEnvPath is rashin's own key file, next to its config. Keys here are
-// not shared with hermes, so the assistant's backend is not hermes-locked.
-func rashinEnvPath() string {
-	return filepath.Join(filepath.Dir(ConfigPath()), "rashin.env")
+func resolveQuickTarget(cfg Config) (quickTarget, error) {
+	route := strings.ToLower(strings.TrimSpace(cfg.Quick.Route))
+	if route == "" {
+		route = "auto"
+	}
+	target := quickTarget{Route: route, Label: route}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	routing, err := gatewayRouting(ctx)
+	if err != nil {
+		return target, quickGatewayError(err)
+	}
+	if !routing.Routable {
+		return target, errors.New("Prowl has no provider connected; open Prowl > Providers in Rashin")
+	}
+	return target, nil
 }
 
-// envValue reads one key for the fast lane. Process env wins, then rashin's own
-// env file, then hermes's .env for back-compat. Empty key or nothing found -> "".
-func envValue(key string) string {
-	if key == "" {
-		return ""
+func prowlProfileSets(ctx context.Context) (string, []string, error) {
+	type profile struct {
+		ID         int64  `json:"id"`
+		Name       string `json:"name"`
+		ModelCount int    `json:"modelCount"`
 	}
-	if v := os.Getenv(key); v != "" {
-		return v
+	var profiles []profile
+	if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/profiles", nil, &profiles); err != nil {
+		return "", nil, err
 	}
-	for _, p := range []string{rashinEnvPath(), filepath.Join(home(), ".hermes", ".env")} {
-		if v := envFileValue(p, key); v != "" {
-			return v
+	var active struct {
+		ID *int64 `json:"activeProfileId"`
+	}
+	if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/profiles/active", nil, &active); err != nil {
+		return "", nil, err
+	}
+	activeName := "No active set"
+	if active.ID != nil {
+		for _, p := range profiles {
+			if p.ID == *active.ID {
+				activeName = p.Name
+				break
+			}
 		}
 	}
-	return ""
+	sort.SliceStable(profiles, func(i, j int) bool {
+		left := strings.ToLower(strings.TrimSpace(profiles[i].Name))
+		right := strings.ToLower(strings.TrimSpace(profiles[j].Name))
+		return left < right
+	})
+	names := make([]string, 0, len(profiles))
+	seen := map[string]bool{}
+	for _, p := range profiles {
+		if p.ModelCount == 0 {
+			continue
+		}
+		id := strings.ToLower(strings.TrimSpace(p.Name))
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		names = append(names, p.Name)
+	}
+	return activeName, names, nil
 }
 
-// envFileValue reads KEY=value from a dotenv-style file (quotes trimmed).
+// Tests replace this seam so a chat session never reaches the live gateway.
+var chatProwlProfileSets = prowlProfileSets
+
+func quickRoutes(ctx context.Context) ([]quickRouteJSON, error) {
+	activeName, names, err := prowlProfileSets(ctx)
+	if err != nil {
+		return append([]quickRouteJSON{{ID: "auto", Label: "Active set", Sub: "Unavailable"}}, quickAxes...), err
+	}
+	routes := append([]quickRouteJSON{{ID: "auto", Label: "Active set", Sub: activeName}}, quickAxes...)
+	seen := map[string]bool{}
+	for _, route := range routes {
+		seen[route.ID] = true
+	}
+	for _, name := range names {
+		id := "auto:" + strings.ToLower(strings.TrimSpace(name))
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		routes = append(routes, quickRouteJSON{ID: id, Label: name, Sub: "Routing set"})
+	}
+	return routes, nil
+}
+
+func validateQuickRoute(ctx context.Context, route string) (string, error) {
+	route = strings.ToLower(strings.TrimSpace(route))
+	if route == "" {
+		return "", errors.New("route is required")
+	}
+	if route == "auto" {
+		return route, nil
+	}
+	for _, axis := range quickAxes {
+		if route == axis.ID {
+			return route, nil
+		}
+	}
+	routes, err := quickRoutes(ctx)
+	if err != nil {
+		return "", quickGatewayError(err)
+	}
+	for _, candidate := range routes {
+		if route == candidate.ID && strings.HasPrefix(route, "auto:") {
+			return route, nil
+		}
+	}
+	return "", fmt.Errorf("unknown quick route %q", route)
+}
+
+func setQuickRoute(ctx context.Context, route string) error {
+	route, err := validateQuickRoute(ctx, route)
+	if err != nil {
+		return err
+	}
+	cfg := LoadConfig()
+	cfg.Quick.Route = route
+	return SaveConfig(cfg)
+}
+
 func envFileValue(path, key string) string {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -129,63 +230,69 @@ func envFileValue(path, key string) string {
 	return ""
 }
 
-// isLocalURL: keyless endpoints (ollama and friends) are fine on loopback.
-func isLocalURL(u string) bool {
-	return strings.Contains(u, "127.0.0.1") || strings.Contains(u, "localhost")
+var retiredQuickKeys = []struct {
+	Env      string
+	Platform string
+}{
+	{Env: "OPENROUTER_API_KEY", Platform: "openrouter"},
+	{Env: "OPENAI_API_KEY"},
+	{Env: "GROQ_API_KEY", Platform: "groq"},
+	{Env: "DEEPSEEK_API_KEY", Platform: "deepseek"},
+	{Env: "MISTRAL_API_KEY", Platform: "mistral"},
+	{Env: "TOGETHER_API_KEY", Platform: "together-ai"},
+	{Env: "XAI_API_KEY", Platform: "xai"},
+	{Env: "CEREBRAS_API_KEY", Platform: "cerebras"},
+	{Env: "OLLAMA_API_KEY", Platform: "ollama"},
+	{Env: "LOCAL_API_KEY"},
 }
 
-// resolveQuickTarget picks the fast lane's model connection: an explicit
-// rashin.json quick override (provider, or a raw baseUrl) first, else hermes's
-// own configured provider when it speaks plain chat-completions. OAuth backends
-// (openai-codex) and native anthropic cannot be called directly, so they report
-// unavailable and asks take the session lane.
-func resolveQuickTarget(cfg Config) (quickTarget, error) {
-	provider, model, _ := hermesModel()
-	if cfg.Quick.Provider != "" {
-		provider = cfg.Quick.Provider
+func quickKeyMigrationMarker() string {
+	return filepath.Join(xdgState(), "ryoku", "rashin", "prowl-quick-keys-v1")
+}
+
+func migrateQuickProviderKeys(ctx context.Context) error {
+	marker := quickKeyMigrationMarker()
+	if _, err := os.Stat(marker); err == nil {
+		return nil
 	}
-	// Track the remembered session model so the terminal fast lane defaults to
-	// the same model as the sidebar and dashboard; an explicit Quick.Model in
-	// the rashin config still overrides.
-	if saved := savedSessionModel(); saved != "" {
-		model = saved
-		if i := strings.IndexByte(saved, ':'); i >= 0 {
-			model = saved[i+1:]
+	envPath := filepath.Join(filepath.Dir(ConfigPath()), "rashin.env")
+	pending := make(map[string]string)
+	for _, retired := range retiredQuickKeys {
+		key := envFileValue(envPath, retired.Env)
+		if key == "" {
+			continue
 		}
+		if retired.Platform == "" {
+			fmt.Fprintf(os.Stderr, "ryoku-rashin: not importing %s: Prowl has no adapter for it\n", retired.Env)
+			continue
+		}
+		pending[retired.Platform] = key
 	}
-
-	t := quickTarget{Model: cfg.Quick.Model, BaseURL: cfg.Quick.BaseURL}
-	if t.Model == "" {
-		t.Model = model
-	}
-	keyEnv := cfg.Quick.KeyEnv
-
-	if t.BaseURL == "" {
-		if p, ok := quickProviders[provider]; ok {
-			t.BaseURL = p.base
-			if keyEnv == "" {
-				keyEnv = p.keyEnv
+	if len(pending) > 0 {
+		var existing []struct {
+			Platform string `json:"platform"`
+		}
+		if err := prowlGatewayJSON(ctx, http.MethodGet, "/api/keys", nil, &existing); err != nil {
+			return err
+		}
+		for _, key := range existing {
+			delete(pending, key.Platform)
+		}
+		for platform, key := range pending {
+			body := map[string]string{
+				"platform": platform,
+				"key":      key,
+				"label":    "imported from rashin",
+			}
+			if err := prowlGatewayJSON(ctx, http.MethodPost, "/api/keys", body, nil); err != nil {
+				return err
 			}
 		}
 	}
-	if t.BaseURL == "" {
-		return t, fmt.Errorf("provider %q has no direct endpoint; quick asks use the hermes session", provider)
+	if err := os.MkdirAll(filepath.Dir(marker), 0o700); err != nil {
+		return err
 	}
-	if strings.Contains(t.BaseURL, "chatgpt.com") || strings.Contains(t.BaseURL, "anthropic.com") {
-		return t, fmt.Errorf("provider %q is not directly callable; quick asks use the hermes session", provider)
-	}
-	if t.Model == "" {
-		return t, fmt.Errorf("no model configured")
-	}
-	t.Key = envValue(keyEnv)
-	if t.Key == "" && !isLocalURL(t.BaseURL) {
-		return t, fmt.Errorf("no API key for %s (set %s in ~/.config/ryoku/rashin.env); quick asks use the hermes session", provider, keyEnv)
-	}
-	t.Label = provider + ":" + t.Model
-	if provider == "" && cfg.Quick.Model != "" {
-		t.Label = "quick:" + t.Model
-	}
-	return t, nil
+	return os.WriteFile(marker, []byte("done\n"), 0o600)
 }
 
 // vaultQuickContext inlines the generated maps (fence bodies only) as the
@@ -332,7 +439,7 @@ func toolTitle(c toolCall) string {
 func quickRound(ctx context.Context, t quickTarget, msgs []chatMessage, tools []map[string]any,
 	onDelta func(string)) (string, []toolCall, error) {
 	payload := map[string]any{
-		"model":    t.Model,
+		"model":    t.Route,
 		"stream":   true,
 		"messages": msgs,
 	}
@@ -344,22 +451,34 @@ func quickRound(ctx context.Context, t quickTarget, msgs []chatMessage, tools []
 		return "", nil, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		strings.TrimRight(t.BaseURL, "/")+"/chat/completions", bytes.NewReader(body))
+		prowlGatewayBase()+"/v1/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return "", nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if t.Key != "" {
-		req.Header.Set("Authorization", "Bearer "+t.Key)
-	}
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("Authorization", "Bearer "+prowlGatewayToken())
+	resp, err := prowlGatewayHTTPClient.Do(req)
 	if err != nil {
-		return "", nil, err
+		return "", nil, errors.New("Prowl's gateway is not running")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		msg, _ := readCapped(resp, 300)
-		return "", nil, fmt.Errorf("model endpoint %d: %s", resp.StatusCode, msg)
+		msg, _ := readCapped(resp, 2048)
+		var envelope struct {
+			Error struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if json.Unmarshal([]byte(msg), &envelope) == nil {
+			if envelope.Error.Code == "not_routable" || envelope.Error.Code == "no_available_model" {
+				return "", nil, errors.New("Prowl has no provider connected; open Prowl > Providers in Rashin")
+			}
+			if envelope.Error.Message != "" {
+				return "", nil, errors.New(envelope.Error.Message)
+			}
+		}
+		return "", nil, fmt.Errorf("Prowl gateway returned %d: %s", resp.StatusCode, msg)
 	}
 
 	var answer strings.Builder

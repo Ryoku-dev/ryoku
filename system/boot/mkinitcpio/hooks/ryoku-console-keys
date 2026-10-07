@@ -1,0 +1,15 @@
+#!/usr/bin/ash
+# SPDX-License-Identifier: GPL-2.0-only
+
+run_hook() {
+    local tty
+
+    for tty in /dev/tty[0-9]*; do
+        [ -e "$tty" ] || continue
+        setleds -D +num <"$tty" >/dev/null 2>&1 || :
+    done
+
+    return 0
+}
+
+# vim: set ft=sh ts=4 sw=4 et:

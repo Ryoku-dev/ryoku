@@ -159,12 +159,11 @@ func copyMirrorFile(src, dst string) {
 	_, _ = io.Copy(out, in)
 }
 
-// indexSourceMirror sets up and refreshes prowl inside the mirror, under a
-// single 120s budget across both calls. init installs Prowl's AGENTS.md block,
-// MCP config, and skills into the mirror (integrations agents,agent-skills,
-// claude,omp) and builds the .prowl code index; overview refreshes it cheaply.
-// Best effort and logged: a missing prowl or a slow init never fails the
-// reindex.
+// indexSourceMirror sets up and refreshes prowl inside the mirror under one
+// 120s budget. init installs Prowl's AGENTS.md block, MCP config, and skills
+// into the mirror (integrations agents, agent-skills, claude, omp) and builds
+// the .prowl code index. Best effort and logged: a missing prowl or a slow init
+// never fails the reindex.
 func indexSourceMirror(root string) {
 	bin, ok := findProwl()
 	if !ok {
@@ -173,7 +172,6 @@ func indexSourceMirror(root string) {
 	fmt.Fprintln(os.Stderr, "ryoku-rashin: indexing the config mirror with prowl")
 	deadline := time.Now().Add(120 * time.Second)
 	runProwlAt(root, bin, deadline, "init", "--yes", "--no-input", "--integrations", "agents,agent-skills,claude,omp")
-	runProwlAt(root, bin, deadline, "overview", "--json")
 }
 
 func runProwlAt(dir, bin string, deadline time.Time, args ...string) {

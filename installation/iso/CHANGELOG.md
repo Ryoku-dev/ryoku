@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- **Dvorak, Colemak and other keyboard variants carry into the installer.** The
+  graphical installer switched its keyboard to the base layout only, so picking
+  Dvorak captured the disk passphrase on QWERTY while the boot unlock prompt
+  used Dvorak, and the passphrase never matched. The installer now relaunches
+  under the layout and its variant (`tui/system.go`, `ryoku-installer-session`).
+
 - **The offline package closure now carries `asusctl`.** Supported ASUS Aura
   laptops can select the native keyboard-lighting provider during an offline
   install without making every target install laptop-specific control software.

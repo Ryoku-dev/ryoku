@@ -58,10 +58,10 @@
     <Card title="Quick start" gloss="開始">
       <ol>
         <li><span>1</span><p>Enable Rashin in Ryoku Settings under Advanced.</p></li>
-        <li><span>2</span><p>Set up an installed chat harness.</p></li>
+        <li><span>2</span><p>Connect an installed harness through Prowl.</p></li>
         <li><span>3</span><p>Chat here, or run the agent inside the vault.</p></li>
       </ol>
-      <Button variant="plate" size="sm" onclick={() => router.go("agents")}>Open agents</Button>
+      <Button variant="plate" size="sm" onclick={() => router.go("prowl", "harnesses")}>Open harnesses</Button>
     </Card>
 
     {#if manifest}

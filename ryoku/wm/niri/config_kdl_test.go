@@ -350,6 +350,22 @@ func TestAnimKindsRendered(t *testing.T) {
 	}
 }
 
+func TestWelcomeBuiltinWindowRule(t *testing.T) {
+	out := string(genSettings(defaultStore()))
+	want := "window-rule {\n" +
+		"    match title=\"^Welcome to Ryoku$\"\n" +
+		"    open-floating true\n" +
+		"    default-column-width { fixed 1180; }\n" +
+		"    default-window-height { fixed 760; }\n" +
+		"}\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("welcome must open as a centred 1180x760 floating window\n%s", out)
+	}
+	if strings.Count(out, `match title="^Welcome to Ryoku$"`) != 1 {
+		t.Errorf("welcome builtin rule must be emitted once\n%s", out)
+	}
+}
+
 // The neutral window-rule actions niri gained: each one renders its niri property
 // lines so a rule the WindowRulesPage offers on niri actually reaches the config.
 func TestNiriWindowRuleActions(t *testing.T) {

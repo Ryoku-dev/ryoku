@@ -108,11 +108,11 @@ The Go command surfaces live in these checkout paths:
 Before opening files, ask Prowl's cited index:
 
 ```bash
-prowl-agent find <symbol>
-prowl-agent def <id>
-prowl-agent outline <path>
-prowl-agent references <id>
-prowl-agent impact <path>
+prowl find <symbol>
+prowl def <id>
+prowl outline <path>
+prowl references <id>
+prowl impact <path>
 ```
 
 Use `search` for a structural question, `find` for a named symbol, then `def`,

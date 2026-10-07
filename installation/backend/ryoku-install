@@ -113,33 +113,41 @@ export RYOKU_VARIANT
 : "${RYOKU_COMPOSITOR_CONFIG_DIR:=}"
 : "${RYOKU_COMPOSITOR_GPU_PIN:=}"
 : "${RYOKU_BROWSER:=}"
+: "${RYOKU_LOGIN_SHELL:=}"
 : "${RYOKU_DROP_PACKAGES:=}"
 export RYOKU_DROP_PACKAGES
-# the browser and app choices the TUI collected. RYOKU_BROWSER is one of
-# zen|chromium|firefox (empty = the shipped default, zen, so a direct
-# backend call behaves like the installer). the losing browsers join the
-# drop list once, here, so every package-set reader filters one set.
-if [[ -n ${RYOKU_BROWSER:-} ]]; then
-  case $RYOKU_BROWSER in
-    zen|chromium|firefox) ;;
-    *) die "RYOKU_BROWSER='%s' is not one of the shipped browsers (zen|chromium|firefox)" "$RYOKU_BROWSER" ;;
-  esac
-else
-  RYOKU_BROWSER=zen
-fi
-export RYOKU_BROWSER
-case ",${RYOKU_DROP_PACKAGES}," in
-  *,zen-browser-bin,*) ;;
-  *) [[ $RYOKU_BROWSER == zen ]] || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}zen-browser-bin" ;;
+
+case ${RYOKU_BROWSER:-} in
+  '') RYOKU_BROWSER=firefox ;;
+  firefox|chromium|zen) ;;
+  *) die "RYOKU_BROWSER='%s' is not one of the shipped browsers (firefox|chromium|zen)" "$RYOKU_BROWSER" ;;
 esac
-case ",${RYOKU_DROP_PACKAGES}," in
-  *,chromium,*) ;;
-  *) [[ $RYOKU_BROWSER == chromium ]] || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}chromium" ;;
+case ${RYOKU_LOGIN_SHELL:-} in
+  '') RYOKU_LOGIN_SHELL=fish ;;
+  fish|zsh|bash) ;;
+  *) die "RYOKU_LOGIN_SHELL='%s' is not one of the shipped login shells (fish|zsh|bash)" "$RYOKU_LOGIN_SHELL" ;;
 esac
-case ",${RYOKU_DROP_PACKAGES}," in
-  *,firefox,*) ;;
-  *) [[ $RYOKU_BROWSER == firefox ]] || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}firefox" ;;
+export RYOKU_BROWSER RYOKU_LOGIN_SHELL
+
+append_drop() {
+  local pkg=$1
+  [[ ",${RYOKU_DROP_PACKAGES}," == *,"$pkg,"* ]] \
+    || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}$pkg"
+}
+
+case $RYOKU_BROWSER in
+  firefox) browser_drops=(chromium zen-browser-bin) ;;
+  chromium) browser_drops=(firefox zen-browser-bin) ;;
+  zen) browser_drops=(firefox chromium) ;;
 esac
+for pkg in "${browser_drops[@]}"; do append_drop "$pkg"; done
+
+case $RYOKU_LOGIN_SHELL in
+  fish) shell_drops=(zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh blesh) ;;
+  zsh) shell_drops=(fish blesh) ;;
+  bash) shell_drops=(fish zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh) ;;
+esac
+for pkg in "${shell_drops[@]}"; do append_drop "$pkg"; done
 : "${RYOKU_REBOOT:=}"
 : "${RYOKU_DRYRUN:=}"
 # carve (in-place resize) contract: shrink RYOKU_RESIZE_PART to free
@@ -172,7 +180,7 @@ fi
 
 main() {
   [[ -n $RYOKU_DRYRUN ]] && log "DRY RUN: no disk is touched; commands are printed only"
-  log 'Ryoku install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s' "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER"
+  log 'Ryoku install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s shell=%s' "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER" "$RYOKU_LOGIN_SHELL"
 
   ryoku_preflight
   # an offline install with no usable baked repo can only fail, and it must fail
@@ -239,7 +247,7 @@ main() {
   ryoku_bootloader
 
   ryoku_aur || true
-  # with the AUR set installed, point the default browser at Zen if it landed.
+  # Point xdg and the desktop role at the installed browser choice.
   ryoku_default_browser
 
   # the AUR step may have installed limine-mkinitcpio-hook, whose pacman

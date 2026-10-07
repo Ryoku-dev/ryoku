@@ -90,7 +90,7 @@ body {
 
 #app { height: 100%; }
 
-h1, h2, h3, h4, p, ul, ol, figure, pre { margin: 0; }
+h1, h2, h3, h4, p, ul, ol, dd, figure, pre { margin: 0; }
 ul, ol { padding: 0; list-style: none; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }

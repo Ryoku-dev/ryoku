@@ -178,19 +178,15 @@ Rectangle {
         const rows = [];
         const lane = Needle.quickLane;
         rows.push({ section: I18n.tr("Fast lane") });
-        const provider = lane && lane.provider ? String(lane.provider) : "";
-        rows.push({
-            kind: "lane", value: "auto",
-            label: I18n.tr("Follow Hermes"),
-            sub: I18n.tr("quick asks use hermes's own provider"),
-            active: lane && provider === ""
-        });
-        const available = lane && lane.available ? lane.available : [];
-        for (let i = 0; i < available.length; i++) {
+        const activeRoute = lane && lane.route ? String(lane.route) : "auto";
+        const routes = lane && lane.routes ? lane.routes : [];
+        for (let i = 0; i < routes.length; i++) {
+            const route = routes[i];
             rows.push({
-                kind: "lane", value: String(available[i]),
-                label: String(available[i]),
-                active: String(available[i]) === provider
+                kind: "lane", value: String(route.id || ""),
+                label: String(route.label || route.id || ""),
+                sub: String(route.sub || ""),
+                active: String(route.id || "") === activeRoute
             });
         }
         rows.push({ section: I18n.tr("Chat models") });
@@ -310,7 +306,7 @@ Rectangle {
             }
 
             // The two header buttons ride the right edge: the conversation
-            // history drawer and the model drawer (fast-lane provider + chat
+            // history drawer and the model drawer (fast-lane route + chat
             // model). They sit where the eye lands after reading the field.
             Row {
                 anchors.right: parent.right

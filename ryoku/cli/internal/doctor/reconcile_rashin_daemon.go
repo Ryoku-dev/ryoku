@@ -2,10 +2,14 @@ package doctor
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"ryoku-cli/internal/sys"
 
@@ -25,6 +29,7 @@ const rashinUserUnit = "ryoku-rashin.service"
 // split out so the decision is unit-testable without a live user manager.
 type rashinUnitState struct {
 	enabled bool
+	active  bool
 	linger  bool
 	failed  bool
 }
@@ -46,6 +51,11 @@ func rashinUnitEnabled() bool {
 func rashinUnitFailed() bool {
 	out, _ := exec.Command("systemctl", "--user", "is-failed", rashinUserUnit).Output()
 	return strings.TrimSpace(string(out)) == "failed"
+}
+
+func rashinUnitActive() bool {
+	out, _ := exec.Command("systemctl", "--user", "is-active", rashinUserUnit).Output()
+	return strings.TrimSpace(string(out)) == "active"
 }
 
 // rashinLingerOn reads the marker systemd-logind maintains for a lingering user,
@@ -186,32 +196,96 @@ func reconcileAiUsageTimer(checkOnly bool) recResult {
 	return fixedRes(i18n.T("enabled the AI usage collector timer"))
 }
 
-// reconcileProwlAgent surfaces a rashin box that lost the prowl binary.
-// ryoku-rashin now depends on prowl (its `index` builds the vault code map
-// and its `wire` installs prowl's agent skills), so a box that enabled rashin
-// before that dependency shipped can run without it. `pacman -Syu` delivers it
-// going forward; this reports the gap for a box still stuck without it. Reported,
-// never auto-run: installing a package is the user's call.
-func reconcileProwlAgent(checkOnly bool) recResult {
+// reconcileProwl surfaces a rashin box that lost the prowl binary.
+// ryoku-rashin depends on prowl for its vault code map and agent skills, so a
+// box that enabled rashin before that dependency shipped can run without it.
+// Package installation remains the user's call.
+func reconcileProwl(_ bool) recResult {
 	enabled := rashinUnitEnabled()
-	// The CLI was renamed prowl-agent -> prowl; upstream still ships the old
-	// binary name during the transition, so accept either one on PATH.
-	present := sys.Has("prowl") || sys.Has("prowl-agent")
-	if !prowlAgentNeeded(enabled, present) {
+	present := sys.Has("prowl")
+	if !prowlNeeded(enabled, present) {
 		if !enabled {
 			return okRes(i18n.T("rashin daemon is opt-in and not enabled"))
 		}
 		return okRes(i18n.T("prowl is present for the rashin agent index"))
 	}
 	return warnRes(i18n.T("rashin is enabled but prowl is missing; the vault code index and agent skills will not refresh")).
-		withFix("sudo pacman -S prowl-agent")
+		withFix("sudo pacman -S prowl")
 }
 
-// prowlAgentNeeded reports whether a box should be told to install prowl:
-// rashin is enabled but the binary is absent. Split out so the decision is
-// unit-testable without a live systemd or PATH.
-func prowlAgentNeeded(rashinEnabled, prowlPresent bool) bool {
+// prowlNeeded reports whether a box should be told to install prowl.
+func prowlNeeded(rashinEnabled, prowlPresent bool) bool {
 	return rashinEnabled && !prowlPresent
+}
+
+const defaultProwlGatewayPort = 8788
+
+var prowlGatewayClient = &http.Client{Timeout: 2 * time.Second}
+
+func prowlGatewayPort() int {
+	port, err := strconv.Atoi(strings.TrimSpace(os.Getenv("RYOKU_PROWL_PORT")))
+	if err != nil || port < 1 || port > 65535 {
+		return defaultProwlGatewayPort
+	}
+	return port
+}
+
+func prowlGatewayAnswers() bool {
+	url := fmt.Sprintf("http://127.0.0.1:%d/api/ping", prowlGatewayPort())
+	resp, err := prowlGatewayClient.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+	var answer struct {
+		Status string `json:"status"`
+	}
+	return json.NewDecoder(resp.Body).Decode(&answer) == nil && answer.Status == "ok"
+}
+
+// prowlGatewayNeeded is the pure gateway health decision.
+func prowlGatewayNeeded(state rashinUnitState, prowlPresent, gatewayAnswering bool) bool {
+	return state.enabled && state.active && prowlPresent && !gatewayAnswering
+}
+
+func reconcileProwlGateway(checkOnly bool) recResult {
+	state := rashinUnitState{
+		enabled: rashinUnitEnabled(),
+		active:  rashinUnitActive(),
+	}
+	present := sys.Has("prowl")
+	answering := false
+	if state.enabled && state.active && present {
+		answering = prowlGatewayAnswers()
+	}
+	if !prowlGatewayNeeded(state, present, answering) {
+		switch {
+		case !state.enabled:
+			return okRes(i18n.T("rashin daemon is not enabled; Prowl's gateway is not expected"))
+		case !state.active:
+			return okRes(i18n.T("rashin daemon is not active; Prowl's gateway is not expected"))
+		case !present:
+			return okRes(i18n.T("prowl is not installed; gateway health is not applicable"))
+		default:
+			return okRes(i18n.T("Prowl's gateway answers for rashin"))
+		}
+	}
+	if checkOnly {
+		return wouldRes(i18n.T("rashin is running but Prowl's gateway does not answer")).
+			withFix(i18n.T("ryoku doctor runs `ryoku-rashin ensure`"))
+	}
+	if err := exec.Command("ryoku-rashin", "ensure").Run(); err != nil {
+		return failRes(i18n.T("rashin is running but Prowl's gateway does not answer; `ryoku-rashin ensure` failed: %v"), err).
+			withFix("ryoku-rashin ensure")
+	}
+	if !prowlGatewayAnswers() {
+		return failRes(i18n.T("rashin is running but Prowl's gateway still does not answer after `ryoku-rashin ensure`")).
+			withFix("ryoku-rashin ensure")
+	}
+	return fixedRes(i18n.T("restored Prowl's gateway for rashin"))
 }
 
 // packagedSkillRoot is where ryoku-desktop ships the skill tree. A var so a

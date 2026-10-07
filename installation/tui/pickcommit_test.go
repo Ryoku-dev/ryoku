@@ -45,3 +45,19 @@ func TestSelectCommitsDisplayedItem(t *testing.T) {
 		t.Fatalf("selected the displayed alongside but committed %q", got)
 	}
 }
+
+func TestLoginShellNumberCommitsDisplayedChoice(t *testing.T) {
+	m := newModel()
+	m.state, m.w, m.h, m.enterPos = "wizard", 112, 42, 1
+	m.idx = stepIdx(t, m, "login-shell")
+	m.loadStep()
+
+	next, _ := m.onKey("2")
+	got := next.(model)
+	if got.picks["login-shell"] != "zsh" {
+		t.Fatalf("number 2 committed %q, want zsh", got.picks["login-shell"])
+	}
+	if got.cur().key != "apps" {
+		t.Fatalf("login-shell commit advanced to %q, want apps", got.cur().key)
+	}
+}

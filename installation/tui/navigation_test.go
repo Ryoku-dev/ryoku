@@ -26,6 +26,18 @@ func TestEscGoesBackFromInputSteps(t *testing.T) {
 	}
 }
 
+func TestEscFromLoginShellReturnsToBrowser(t *testing.T) {
+	m := newModel()
+	m.state = "wizard"
+	m.idx = flowIndex(m.flow, "login-shell")
+	m.loadStep()
+	next, _ := m.onKey("esc")
+	got := next.(model)
+	if got.cur().key != "browser" {
+		t.Fatalf("esc from login-shell landed on %q, want browser", got.cur().key)
+	}
+}
+
 // a printable key on a text step must still edit the field, not navigate.
 func TestInputStepStillTypes(t *testing.T) {
 	m := model{state: "wizard", flow: steps(), picks: map[string]string{}}

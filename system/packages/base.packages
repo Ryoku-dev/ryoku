@@ -155,13 +155,11 @@ slurp
 wl-clipboard
 wl-clip-persist
 
-# Applications
-chromium
-# firefox: the second browser, shipped so a Gecko engine is always on hand for a
-# site Chromium renders badly. It does not become the default: the `browser` role
-# in ryoku/shell/scripts/ryoku-app stays chromium, and Ryoku Settings ->
-# App Overrides is where a user repoints the launcher key.
+# Browsers: the installer keeps exactly one stack. Firefox is recommended;
+# Chromium is the other official-repository choice and Zen comes from the AUR set.
+# The losing browser packages are filtered before installation.
 firefox
+chromium
 kitty
 mpv
 mpv-mpris
@@ -229,7 +227,9 @@ game-devices-udev
 # comes up: "Patch brcm/BCM20702A1-....hcd not found".
 broadcom-bt-firmware
 
-# Shell + CLI
+# Shell + CLI. The installer keeps exactly one shell stack; Fish is recommended.
+# Bash itself remains on every system, while blesh is installed only for a Bash
+# login and the Zsh packages are installed only for a Zsh login.
 bash-completion
 blesh
 bat
@@ -240,6 +240,7 @@ fd
 fish
 fzf
 zsh
+ryoku-oh-my-zsh
 zsh-autosuggestions
 zsh-history-substring-search
 zsh-syntax-highlighting

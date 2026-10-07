@@ -514,13 +514,10 @@ Singleton {
         function onReadyChanged() {
             if (!Config.ready) return;
             root.loadSortOptions();
-            if (Config.options.background.useWallpaperEngine) {
-                if (Config.options.background.wallpaperEngineId) {
-                    root.apply(Config.options.background.wallpaperEngineId, Appearance.m3colors.darkmode);
-                }
-            } else if (root.isVideoFile(Config.options.background.wallpaperPath.toLowerCase())) {
-                root.apply(Config.options.background.wallpaperPath, Appearance.m3colors.darkmode);
-            }
+            // No restore here: ryogami brings back the wallpaper it last applied
+            // when it starts. This editor's own record goes stale whenever the
+            // wallpaper changes elsewhere (Super+W, random, a rice), so replaying
+            // it at every shell start put back a clip the user had replaced.
             root.enforceVideoWallpaperConstraints();
             root.recordRecent(Config.options.background.wallpaperPath);
             // Pre-generate lockscreen colors if configured but missing
@@ -544,22 +541,8 @@ Singleton {
         function onUseWallpaperEngineChanged() {
             root.enforceVideoWallpaperConstraints();
         }
-        // switchwall.sh reads the backend: re-applying the current video
-        // starts mpvpaper, or stops it when the shell takes playback over.
-        // Re-applying picks (or drops) the screen-sized copy.
-        function onVideoDownscaleChanged() {
-            const path = Config.options.background.wallpaperPath;
-            if (!Config.options.background.useWallpaperEngine && root.isVideoFile(path)) {
-                Config.saveOptionsNow();
-                root.apply(path, Appearance.m3colors.darkmode);
-            }
-        }
+        // Ryogami owns playback; the backend only changes what the editor locks.
         function onVideoBackendChanged() {
-            const path = Config.options.background.wallpaperPath;
-            if (!Config.options.background.useWallpaperEngine && root.isVideoFile(path)) {
-                Config.saveOptionsNow(); // the script reads the backend from disk
-                root.apply(path, Appearance.m3colors.darkmode);
-            }
             root.enforceVideoWallpaperConstraints();
         }
     }

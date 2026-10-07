@@ -23,10 +23,9 @@ license=('GPL-3.0-or-later')
 # installer's own build-tools helper is apt-only, useless on Arch); nodejs backs
 # its npm/npx tooling. ryoku-desktop depends on ryoku-rashin, so `pacman -Syu`
 # delivers these to existing boxes too. kitty and xdg-open ship with the desktop.
-# prowl-agent is the code index rashin's `index` and `wire` drive (the vault
-# code map and each agent's Prowl skill); depending on it makes `pacman -Syu`
-# and the doctor's rashin reconciler keep it present on every rashin box.
-depends=('uv' 'nodejs' 'gcc' 'prowl-agent')
+# Prowl is Rashin's model gateway and code index; the package dependency keeps
+# the engine and console on the same update path.
+depends=('uv' 'nodejs' 'gcc' 'prowl')
 optdepends=('sqlite: sqlite3 database introspection for the rashin agent')
 makedepends=('go')
 source=()
@@ -66,4 +65,7 @@ package() {
   # lingering) instead of riding the Hyprland session.
   install -Dm644 "$_repo/ryoku/rashin/systemd/ryoku-rashin.service" \
     "$pkgdir/usr/lib/systemd/user/ryoku-rashin.service"
+  # Prowl follows Rashin's lifecycle instead of being enabled on its own.
+  install -Dm644 "$_repo/ryoku/rashin/systemd/ryoku-prowl.service" \
+    "$pkgdir/usr/lib/systemd/user/ryoku-prowl.service"
 }

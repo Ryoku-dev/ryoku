@@ -187,7 +187,7 @@ func componentSpecFor(key string) componentSpec {
 		}
 	case "rashin":
 		return componentSpec{
-			userUnits: []string{"ryoku-rashin.service"},
+			userUnits: []string{"ryoku-rashin.service", "ryoku-prowl.service"},
 			coredumps: []string{"ryoku-rashin"},
 		}
 	case "hub":

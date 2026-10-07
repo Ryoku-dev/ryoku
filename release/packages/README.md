@@ -14,6 +14,10 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
 - `ryoku-hub` -- the Hub backend (Go), to `/usr/bin/ryoku-hub`.
 - `ryoku` -- the control CLI (update / rollback / snapshots / materialize / ...),
   to `/usr/bin/ryoku`.
+- `prowl` -- the pinned model gateway and code-intelligence engine behind
+  Rashin, built from source into `/usr/bin/prowl`.
+- `ryoku-rashin` -- the local assistant daemon and console backend. It ships
+  Prowl's user unit and starts the gateway only when Rashin runs.
 - `ryoku-blobs` -- the `Ryoku.Blobs` QML plugin, to
   `/usr/lib/qt6/qml/Ryoku/Blobs`.
 - `skwd-paper-bin` -- the pinned upstream skwd-paper scene renderer (Wallpaper
@@ -46,15 +50,14 @@ full checkout. The Go binaries and QML plugins are built into `$srcdir`, so the
 source tree is never modified, and `makepkg --clean` removes `$srcdir` and
 `$pkgdir` afterward.
 
-The `gpk`, `skwd-paper-bin`, and `ryoku-keyring` PKGBUILDs are the exceptions:
-they fetch a pinned upstream artifact (release binaries and the release key
-material) rather than building from the checkout.
+The `gpk`, `skwd-paper-bin`, and `ryoku-keyring` PKGBUILDs fetch pinned
+upstream artifacts instead of building from the checkout. `prowl` is also
+pinned upstream, but builds its selected commit from source.
 
-makedepends across the set: `go` (ryoku-shell, ryoku-hub, ryoku),
-`cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs),
-and `rust` + `git` (hyprland-preview-share-picker, asusctl), on top of the
-assumed `base-devel`.
-`ryoku-hub` (`github.com/BurntSushi/toml`) needs network at build time.
+makedepends across the set include `go` (the Ryoku Go tools and Prowl),
+`cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), and `rust` +
+`git` (hyprland-preview-share-picker, asusctl), on top of the assumed
+`base-devel`. `ryoku-hub` and Prowl need network access at build time.
 
 ## Configs and materialize
 

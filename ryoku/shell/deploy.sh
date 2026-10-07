@@ -350,13 +350,21 @@ say "installed $bindir/ryoku-rashin (and the rashin command)"
 "$bindir/ryoku-rashin" repo-index "$here/../.." \
   "${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/rashin-repo.md"
 say "indexed ryoku repo for rashin"
-# Rashin's systemd user unit: the dev deploy points ExecStart at ~/.local/bin
-# (the package ships /usr/bin); reload so systemctl sees the fresh unit.
+# Rashin's systemd user units: the dev deploy points packaged binary paths at
+# the binaries available in this checkout and on this machine.
 mkdir -p "$cfg/systemd/user"
 sed "s|^ExecStart=.*|ExecStart=$bindir/ryoku-rashin serve --if-enabled|" \
   "$here/../rashin/systemd/ryoku-rashin.service" > "$cfg/systemd/user/ryoku-rashin.service"
-systemctl --user daemon-reload 2>/dev/null || true
 say "installed rashin systemd user unit"
+prowl_bin=$(command -v prowl 2>/dev/null || true)
+if [[ -n $prowl_bin ]]; then
+  sed "s|/usr/bin/prowl|$prowl_bin|g" \
+    "$here/../rashin/systemd/ryoku-prowl.service" > "$cfg/systemd/user/ryoku-prowl.service"
+  say "installed prowl systemd user unit"
+else
+  say "skipped prowl systemd user unit: prowl is not installed"
+fi
+systemctl --user daemon-reload 2>/dev/null || true
 # Rashin is on by default: bring it up at boot now unless the user opted out.
 "$bindir/ryoku-rashin" ensure 2>/dev/null || true
 say "building ryoku CLI"

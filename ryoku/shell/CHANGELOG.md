@@ -5,6 +5,19 @@
 ### Added
 - Shell clocks, notification timestamps, weather and launcher clocks follow one global 12/24-hour preference; Super+Esc defaults to 12-hour time.
 
+- **First run is a live tour instead of a static slideshow.** Welcome now opens
+  with the compact Ryoku artwork, lets a new user try all five shipped bar
+  styles immediately, introduces wallpaper and Ryostore, and turns the
+  essential shortcuts into useful actions. It follows the wallpaper palette,
+  respects reduced motion and low-power mode, and fits smaller screens
+  (`quickshell/welcome/`).
+- **New installs land on Ryoku's default rice.** On the first login after a
+  fresh install, the session intro applies the packaged default look (QS Bar
+  with the shipped settings, matched on both compositors), picks a random
+  wallpaper from the seeded set, and only then opens the welcome. A failed
+  apply keeps the installer's marker and retries on the next login; existing
+  accounts never carry the marker and are untouched
+  (`scripts/ryoku-session-intro`).
 - **Clipboard history supports keyboard selection.** The up and down arrows
   move through the entries and Enter copies the selected one and closes the
   panel, so the history is usable without reaching for the mouse
@@ -317,6 +330,11 @@
   Ryoku's seams (`../inir/`).
 
 ### Changed
+- **The Ask bar's Fast lane lists Prowl routes.** Its model drawer offers the
+  active set, the capability axes and your routing sets instead of provider
+  names (`quickshell/shell/modules/ask/AskSurface.qml`,
+  `quickshell/shell/services/Needle.qml`). `deploy.sh` installs
+  `ryoku-prowl.service` beside the Rashin unit.
 - **The visualiser's deep settings moved onto the desktop editor.** The
   placement bar grew a gear that opens a square drawer of everything it has no
   room for: playback (enabled, idle wave, frame rate, adaptive quality), shape
@@ -437,6 +455,14 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- **A shell reload no longer brings back an old live wallpaper.** The Stage
+  Editor kept its own copy of the wallpaper and, at every shell start, replayed
+  it through ryogami whenever that copy was a video. The copy only changes when
+  a wallpaper is picked inside the editor, so after a switch through Super+W,
+  random or a rice, `ryoku reload` put the replaced clip back. Ryogami already
+  restores what it last applied, so the editor no longer replays anything on
+  start or when its video backend option changes
+  (`quickshell/stage/services/Wallpapers.qml`).
 - **Region recordings no longer come out tiled.** The screenshot tool's Record
   action (including Capture this monitor) and the capture card's Window and
   Region targets scaled the box to physical pixels before handing it to GPU
@@ -758,6 +784,11 @@
 - **The old wall-ui picker.** Replaced by the new picker; its day/night
   rotation lives on as two schedule rules, migrated automatically
   (`ryogami/wall-ui/`).
+- **The QS Bar settings rail ends at its routes.** The footer block under the
+  Community route (the Search hint, the QS BAR / QUICK SETTINGS switch, the
+  OPEN THE HUB link and the RYOKU barcode) is gone. Ctrl+K still opens search,
+  and the brand logo keeps opening QS Bar Settings
+  (`quickshell/shell/modules/bar/barstyles/qsbar/controlcenter/CcRail.qml`).
 
 ### Added
 - **The iRiS frame's Spotlight is now a launcher style.** Settings -> App

@@ -97,12 +97,10 @@ func (h *chatHub) handleAsk(w http.ResponseWriter, r *http.Request) {
 			sink.marker("error", "cancelled")
 			return
 		default:
-			// Fast lane broke (endpoint down, bad key): the session lane
-			// still owes the user an answer.
-			sink.marker("working", "fast lane unavailable, waking the full agent")
+			sink.marker("working", "fast lane unavailable: "+qerr.Error()+"; waking the full agent")
 		}
 	} else {
-		sink.marker("working", "waking the needle")
+		sink.marker("working", "fast lane unavailable: "+err.Error()+"; waking the full agent")
 	}
 
 	if ans, ok := h.sessionAsk(ctx, sink, quickPreamble, q); ok {

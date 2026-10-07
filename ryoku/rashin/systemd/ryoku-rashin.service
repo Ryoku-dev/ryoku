@@ -1,5 +1,6 @@
 [Unit]
 Description=Ryoku Rashin: local agent OS daemon and dashboard
+Wants=ryoku-prowl.service
 # Never let a transient start-loop (a stale flock, a busy port) trip systemd's
 # default start-limit and park the unit in `failed` for good: keep retrying so
 # the daemon self-heals instead of turning off and staying off.

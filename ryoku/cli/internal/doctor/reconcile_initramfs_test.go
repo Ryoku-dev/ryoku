@@ -48,6 +48,51 @@ func TestWithGPUTrim(t *testing.T) {
 	}
 }
 
+func TestWithConsoleKeys(t *testing.T) {
+	for _, c := range []struct {
+		name, conf, want string
+		changed          bool
+	}{
+		{
+			name:    "inserted right after udev",
+			conf:    "HOOKS=(base udev plymouth keyboard autodetect microcode modconf kms block filesystems fsck)\n",
+			want:    "HOOKS=(base udev ryoku-console-keys plymouth keyboard autodetect microcode modconf kms block filesystems fsck)\n",
+			changed: true,
+		},
+		{
+			name: "already present is a no-op",
+			conf: "HOOKS=(base udev ryoku-console-keys plymouth keyboard autodetect)\n",
+			want: "HOOKS=(base udev ryoku-console-keys plymouth keyboard autodetect)\n",
+		},
+		{
+			name: "systemd hooks stay untouched",
+			conf: "HOOKS=(base systemd autodetect modconf kms block filesystems fsck)\n",
+			want: "HOOKS=(base systemd autodetect modconf kms block filesystems fsck)\n",
+		},
+		{
+			name: "commented hooks stay untouched",
+			conf: "# HOOKS=(base udev plymouth keyboard)\n",
+			want: "# HOOKS=(base udev plymouth keyboard)\n",
+		},
+		{
+			name:    "stays before GPU trim",
+			conf:    "HOOKS=(base udev plymouth keyboard autodetect ryoku-gpu-trim microcode modconf kms)\n",
+			want:    "HOOKS=(base udev ryoku-console-keys plymouth keyboard autodetect ryoku-gpu-trim microcode modconf kms)\n",
+			changed: true,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			got, changed := withConsoleKeys(c.conf)
+			if got != c.want {
+				t.Errorf("withConsoleKeys =\n%q\nwant\n%q", got, c.want)
+			}
+			if changed != c.changed {
+				t.Errorf("changed = %v, want %v", changed, c.changed)
+			}
+		})
+	}
+}
+
 // A rebuild writes one image and copies the outgoing one to the history
 // directory, so /boot needs room for two of the largest image before a kernel
 // update can land. Under that floor the copy fails while pacman still reports

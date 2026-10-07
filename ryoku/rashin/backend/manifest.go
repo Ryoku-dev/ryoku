@@ -120,7 +120,7 @@ func BuildManifest(cfg Config) Manifest {
 	}
 
 	prowl := ManifestItem{Label: "prowl", Kind: "tool", Owner: "tool",
-		Desc: "cited code intelligence, reindexed each run: search/find/def/references/outline/impact"}
+		Desc: "the model gateway and cited code intelligence used by Rashin and connected agents"}
 	if bin, ok := findProwl(); ok {
 		prowl.Path = tildeAbbrev(bin)
 		prowl.Exists = true

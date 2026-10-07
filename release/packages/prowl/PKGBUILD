@@ -1,0 +1,42 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Prowl is the model gateway and code-intelligence engine behind Rashin. This
+# package builds a pinned upstream commit so every Ryoku release has one known
+# engine. The managedBy=pacman stamp keeps `prowl update` from replacing a
+# pacman-owned binary. The minishlab potion-code-16M embedding model is compiled
+# into the binary, so indexing never downloads a model at runtime.
+pkgname=prowl
+pkgver=0.17.2
+pkgrel=1
+pkgdesc="Prowl model gateway and code intelligence for Ryoku Rashin"
+arch=('x86_64')
+url="https://github.com/neur0map/prowl"
+license=('MIT')
+depends=('gcc-libs' 'glibc')
+makedepends=('go' 'git' 'gcc')
+conflicts=('prowl-agent')
+replaces=('prowl-agent')
+options=('!lto' '!debug')
+_commit=5ba05eb922ff023e3cbc2b9a3768829179bca980
+source=("git+https://github.com/neur0map/prowl.git#commit=$_commit")
+sha256sums=('SKIP')
+
+build() {
+  cd "$srcdir/$pkgname"
+  export CGO_ENABLED=1
+  export GOPATH="$srcdir/gopath"
+  export GOCACHE="$srcdir/gocache"
+  export GOFLAGS="-mod=mod"
+  mkdir -p "$srcdir/out"
+  go build -trimpath -tags sqlite_fts5 \
+    -ldflags "-s -w -X main.version=v$pkgver -X main.commit=$_commit -X main.managedBy=pacman" \
+    -o "$srcdir/out/prowl" ./cmd/prowl
+}
+
+package() {
+  install -Dm755 "$srcdir/out/prowl" "$pkgdir/usr/bin/prowl"
+  install -Dm644 "$srcdir/$pkgname/LICENSE" \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$srcdir/$pkgname/NOTICE.md" \
+    "$pkgdir/usr/share/licenses/$pkgname/NOTICE.md"
+}

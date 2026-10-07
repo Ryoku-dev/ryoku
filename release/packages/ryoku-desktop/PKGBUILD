@@ -30,7 +30,6 @@ depends=(
   "ryoku-blobs=$pkgver"
   "ryoku=$pkgver"
   'ryoku-keyring'
-  "ryoku-oh-my-zsh=$pkgver"
   # the RyokuArch package manager (GlazePKG)
   'gpk'
   # a compositor variant provides this virtual; an installed base pulls the sole
@@ -97,10 +96,6 @@ depends=(
   # reinstalled apps people deleted. The ISO pacstraps them from
   # system/packages/base.packages and `ryoku doctor` delivers them once
   # (reconcile_shipped_apps.go). Tools the shell calls by name stay below.
-  'zsh'
-  'zsh-autosuggestions'
-  'zsh-history-substring-search'
-  'zsh-syntax-highlighting'
   # tools the shipped autostart, pill, ryoshot, and helper scripts call by name
   'brightnessctl'
   'playerctl'
@@ -217,6 +212,11 @@ optdepends=(
   'kitty: the default terminal'
   'fish: optional interactive shell'
   'blesh: Bash line editor'
+  'zsh: optional interactive shell'
+  'zsh-autosuggestions: command suggestions for Zsh'
+  'zsh-history-substring-search: history search for Zsh'
+  'zsh-syntax-highlighting: syntax highlighting for Zsh'
+  "ryoku-oh-my-zsh=$pkgver: Ryoku prompt and plugins for Zsh"
   'starship: shell prompt'
   'fastfetch: system summary (launcher, RyoStore covers)'
   'yazi: terminal file manager'
@@ -513,6 +513,11 @@ EOF
   install -d "$pkgdir/usr/share/ryoku/ryodecors"
   cp -a "$_repo/ryoku/assets/ryodecors/." "$pkgdir/usr/share/ryoku/ryodecors/"
 
+  # packaged rices are immutable source looks; the Hub copies one into the
+  # user's rice library on first apply so later edits stay user-owned.
+  install -d "$pkgdir/usr/share/ryoku/rices"
+  cp -a "$_repo/ryoku/assets/rices/." "$pkgdir/usr/share/ryoku/rices/"
+
   # cp -a kept source mode bits; normalize so hypr/scripts stays executable
   # and the rest is world-readable data.
   chmod -R u=rwX,go=rX "$pkgdir/usr/share/ryoku"
@@ -753,6 +758,13 @@ EOF
   # 2 GiB boot partition (issue #140's stale image).
   install -Dm644 "$_repo/system/boot/mkinitcpio/install/ryoku-gpu-trim" \
     "$pkgdir/usr/lib/initcpio/install/ryoku-gpu-trim"
+
+  # The install hook gives Plymouth /etc/vconsole.conf, and the runtime hook
+  # applies Num Lock before unlock, so keys follow the user's console layout.
+  install -Dm644 "$_repo/system/boot/mkinitcpio/install/ryoku-console-keys" \
+    "$pkgdir/usr/lib/initcpio/install/ryoku-console-keys"
+  install -Dm644 "$_repo/system/boot/mkinitcpio/hooks/ryoku-console-keys" \
+    "$pkgdir/usr/lib/initcpio/hooks/ryoku-console-keys"
 
   # The boot look, shipped so `ryoku update` refreshes it on every box, not just
   # fresh installs; the ryoku-desktop scriptlet then runs ryoku-boot-apply.

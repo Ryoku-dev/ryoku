@@ -111,10 +111,14 @@ EOF
 }
 
 ryoku_cfg_user() {
-  log 'user: %s (wheel,video,input; shell /usr/bin/fish)' "$RYOKU_USERNAME"
+  local login_shell="/usr/bin/$RYOKU_LOGIN_SHELL"
+  if [[ -z ${RYOKU_DRYRUN:-} && ! -x /mnt$login_shell ]]; then
+    die "login shell %s is missing from the target; refusing to create %s with an unusable shell" "$login_shell" "$RYOKU_USERNAME"
+  fi
+  log 'user: %s (wheel,video,input; shell %s)' "$RYOKU_USERNAME" "$login_shell"
   # video -> write panel backlight (with 90-ryoku-backlight.rules); input ->
   # read game controllers / input devices without a per-login logind grant.
-  run arch-chroot /mnt useradd -m -G wheel,video,input -s /usr/bin/fish "$RYOKU_USERNAME"
+  run arch-chroot /mnt useradd -m -G wheel,video,input -s "$login_shell" "$RYOKU_USERNAME"
   # same password on the user + root, so sudo (wheel) and su both work
   # with what the installer collected. hashes go in on stdin (chpasswd -e
   # reads name:hash) and never hit the logs.
@@ -137,12 +141,14 @@ EOF
 ryoku_cfg_initramfs() {
   log "mkinitcpio HOOKS drop-in (/etc/mkinitcpio.conf.d/ryoku.conf)"
   local src="$RYOKU_REPO/system/boot/mkinitcpio/ryoku.conf"
-  local hook="$RYOKU_REPO/system/boot/mkinitcpio/install/ryoku-gpu-trim"
+  local trim_hook="$RYOKU_REPO/system/boot/mkinitcpio/install/ryoku-gpu-trim"
+  local console_keys_install="$RYOKU_REPO/system/boot/mkinitcpio/install/ryoku-console-keys"
+  local console_keys_hook="$RYOKU_REPO/system/boot/mkinitcpio/hooks/ryoku-console-keys"
   local content
   if [[ -f $src ]]; then
     content=$(<"$src")
   else
-    content='HOOKS=(base udev plymouth keyboard autodetect ryoku-gpu-trim microcode modconf kms keymap consolefont block encrypt resume filesystems fsck)'
+    content='HOOKS=(base udev ryoku-console-keys plymouth keyboard autodetect ryoku-gpu-trim microcode modconf kms keymap consolefont block encrypt resume filesystems fsck)'
   fi
   # 'encrypt' hook only matters for a LUKS root; strip it on the HOOKS line
   # only, so the word "encrypted" anywhere in the comments above survives.
@@ -153,9 +159,18 @@ ryoku_cfg_initramfs() {
   # ryoku-desktop owns the hook and deploy.sh seeds it when that set never
   # installs; a HOOKS entry mkinitcpio cannot find aborts the build, so drop the
   # name when even the repo has no copy to deliver.
-  if [[ ! -f $hook ]]; then
-    log 'warning: %s missing; leaving ryoku-gpu-trim out of HOOKS' "$hook"
+  if [[ ! -f $trim_hook ]]; then
+    log 'warning: %s missing; leaving ryoku-gpu-trim out of HOOKS' "$trim_hook"
     content=$(printf '%s\n' "$content" | sed -E '/^HOOKS=/ s/ ryoku-gpu-trim\b//')
+  fi
+
+  # Plymouth needs vconsole.conf in the image to use the installer's keyboard
+  # layout, and it starts early enough that a runtime hook must set the console
+  # lock state. Drop the name if the repo cannot deliver the complete pair.
+  if [[ ! -f $console_keys_install || ! -f $console_keys_hook ]]; then
+    log 'warning: ryoku-console-keys hook pair missing (%s, %s); leaving ryoku-console-keys out of HOOKS' \
+      "$console_keys_install" "$console_keys_hook"
+    content=$(printf '%s\n' "$content" | sed -E '/^HOOKS=/ s/ ryoku-console-keys\b//')
   fi
 
   run mkdir -p /mnt/etc/mkinitcpio.conf.d

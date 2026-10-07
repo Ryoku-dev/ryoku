@@ -133,14 +133,17 @@ test("replay_start clears the stream and stale approvals, replay_end resumes liv
     assert.equal(s.replaying, false);
 });
 
-test("models frame records the model list, current and agent display name", () => {
+test("models frame records model and Prowl routing state", () => {
     const s = applyEvent(initialState(), {
         type: "models", agent: "Oh My Pi", current: "anthropic/claude-haiku-4-5",
-        models: [{ id: "anthropic/claude-haiku-4-5", name: "Claude Haiku 4.5" }]
+        models: [{ id: "anthropic/claude-haiku-4-5", name: "Claude Haiku 4.5" }],
+        prowl: "pending", reason: "no provider"
     });
     assert.equal(s.agent, "Oh My Pi");
     assert.equal(s.currentModel, "anthropic/claude-haiku-4-5");
     assert.equal(s.models.length, 1);
+    assert.equal(s.prowl, "pending");
+    assert.equal(s.prowlReason, "no provider");
 });
 
 test("applyEvent never mutates the state it was given", () => {

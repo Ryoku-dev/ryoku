@@ -2,8 +2,8 @@
 
 Rashin is Ryoku's optional local assistant system. Press Alt+Space to open its
 bar. The companion console, the `rashin` terminal command, and the knowledge
-vault use the same local daemon, while the language model comes from the harness
-and provider you choose.
+vault use one local daemon. Prowl is the model gateway and code index underneath,
+so it appears as part of Rashin rather than as a second app.
 
 ## Two lanes, two purposes
 
@@ -13,8 +13,8 @@ approval mode. Use it to inspect, explain, troubleshoot, or change the machine.
 A session starts in the vault so the harness loads its generated `AGENTS.md` and
 machine contract.
 
-**Chat** is a plain conversation with the harness model, Hermes. It has no
-machine map, no Needle identity, and no quick path. Its session starts in a
+**Chat** is a plain conversation with the selected harness. It has no machine
+map, no Needle identity, and no quick path. Its session starts in a
 neutral directory so a repository `AGENTS.md` is not loaded. Use it when you
 want a normal conversation rather than work on Ryoku. The approval setting is
 shared by both lanes.
@@ -24,16 +24,27 @@ session in one lane does not replace the other lane's conversation.
 
 ## Quick and Agent in the Ryoku lane
 
-**Quick** sends a short question directly to the configured model with a small
-set of read-only machine tools. It is suited to explanations and lookups. If the
-question needs broader tools, edits, or a multi-step task, it escalates into the
-Ryoku lane's full agent rather than pretending the work is done.
+**Quick** sends a short question through Prowl's selected route, `auto` by
+default, with a small set of read-only machine tools. It suits explanations and
+lookups. If the question needs broader tools, edits, or a multi-step task, it
+escalates into the Ryoku lane's full agent rather than pretending the work is
+done.
 
 **Agent** is the full harness session. It can use the vault, skill, wiki, Prowl,
 and the harness tools allowed by the current approval mode. Use it for changes,
 debugging, or work that must inspect several parts of the machine. Quick and
 Agent write into the same Ryoku transcript, so an escalated answer remains in
 context.
+
+## Prowl inside Rashin
+
+Open the console's **Prowl** section to connect providers and sign-ins, manage
+keys and routing sets, inspect activity, index projects, connect harnesses, and
+install their toolkit. Every harness connected through Rashin uses Prowl's
+`auto` route, so provider and routing changes apply in one place.
+
+Prowl ships with Ryoku but stays off until Rashin starts. It stops with Rashin
+too. Its project indexes and gateway data remain available for the next start.
 
 ## Approval modes
 

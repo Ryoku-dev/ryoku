@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 // chatbackend.go lets the Super+S chat run an agent other than Hermes for its
@@ -19,17 +21,26 @@ type chatBackend struct {
 	Recommended bool
 }
 
+type chatAgentRouting struct {
+	Active  bool   `json:"active"`
+	Pending bool   `json:"pending"`
+	Reason  string `json:"reason"`
+}
+
+type chatAgentSelection struct {
+	Agents  []ChatBackendInfo `json:"agents"`
+	Routing chatAgentRouting  `json:"routing"`
+}
+
 // chatBackends lists the agents Rashin can run as the chat's ACP session, in
-// preference order (Hermes leads). omp and opencode speak ACP natively; claude
-// and gemini need their adapter on PATH. An agent absent here is still wired for
-// the terminal, it just cannot render inside the needle.
+// preference order (Hermes leads). Every backend here must route its models
+// through Prowl.
 func chatBackends() []chatBackend {
 	return []chatBackend{
 		{ID: "hermes", Name: "Hermes", Argv: hermesACPArgv(), Recommended: true},
 		{ID: "omp", Name: "Oh My Pi", Argv: []string{"omp", "acp"}},
 		{ID: "opencode", Name: "opencode", Argv: []string{"opencode", "acp"}},
 		{ID: "claude", Name: "Claude Code", Argv: []string{"claude-code-acp"}},
-		{ID: "gemini", Name: "Gemini", Argv: []string{"gemini", "--experimental-acp"}},
 	}
 }
 
@@ -87,18 +98,66 @@ func lookupChatBackend(id string) (chatBackend, bool) {
 	return chatBackend{}, false
 }
 
-// setChatAgent persists the chat backend choice. "" or "auto" clears it back to
-// the recommended default (hermes). A named agent must be a known backend.
-func setChatAgent(id string) error {
-	if id == "auto" {
+// setChatAgent connects the requested backend to Prowl before persisting it.
+// "" and "auto" both select the recommended backend, Hermes.
+func setChatAgent(ctx context.Context, id string) (chatAgentRouting, error) {
+	id = strings.TrimSpace(id)
+	selected := id
+	if id == "" || id == "auto" {
 		id = ""
+		selected = "hermes"
 	}
-	if id != "" {
-		if _, ok := lookupChatBackend(id); !ok {
-			return fmt.Errorf("unknown chat agent %q", id)
-		}
+	if _, ok := lookupChatBackend(selected); !ok {
+		return chatAgentRouting{}, fmt.Errorf("unknown chat agent %q", selected)
+	}
+	pending, reason, err := connectHarness(ctx, selected)
+	if err != nil {
+		return chatAgentRouting{}, err
 	}
 	cfg := LoadConfig()
 	cfg.ChatAgent = id
-	return SaveConfig(cfg)
+	if err := SaveConfig(cfg); err != nil {
+		return chatAgentRouting{}, err
+	}
+	return chatAgentRouting{Active: !pending, Pending: pending, Reason: reason}, nil
+}
+
+func activeChatAgentID(cfg Config) string {
+	if backend, ok := resolveChatBackend(cfg); ok {
+		return backend.ID
+	}
+	if cfg.ChatAgent != "" && cfg.ChatAgent != "auto" {
+		return cfg.ChatAgent
+	}
+	return "hermes"
+}
+
+func chatAgentInUse(id string, cfg Config) bool {
+	selected := cfg.ChatAgent
+	if selected == "" || selected == "auto" {
+		selected = "hermes"
+	}
+	return id == selected || id == activeChatAgentID(cfg)
+}
+
+// chatModelRouted is the single model-classification rule for the chat lane.
+// A pending route stays permissive so a temporarily unroutable chat remains
+// usable.
+func chatModelRouted(agentID string, active bool, model ModelInfo, startedOn string) bool {
+	if !active || agentID == "claude" || model.ID == startedOn {
+		return true
+	}
+	id := strings.TrimSpace(model.ID)
+	for _, prefix := range []string{"prowl:", "custom:prowl:", "prowl/"} {
+		if len(id) >= len(prefix) && strings.EqualFold(id[:len(prefix)], prefix) {
+			return true
+		}
+	}
+	const provider = "provider: prowl"
+	for i := 0; i+len(provider) <= len(model.Description); i++ {
+		if strings.EqualFold(model.Description[i:i+len(provider)], provider) {
+			return true
+		}
+	}
+	return false
 }

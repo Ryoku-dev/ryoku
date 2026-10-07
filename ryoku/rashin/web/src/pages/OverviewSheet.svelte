@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import Page from "$lib/app/Page.svelte";
   import { api, type Json } from "$lib/api/client";
+  import { prowl } from "$lib/api/prowl";
   import { machine } from "$lib/state/machine.svelte";
   import { theme } from "$lib/state/theme.svelte";
   import { router } from "$lib/app/router.svelte";
@@ -19,9 +20,8 @@
     FixAnswer,
     FixRequest,
     FixState,
+    ProwlDaemonStatus,
     ProwlHit,
-    ProwlReport,
-    ProwlSearchAnswer,
     Vitals,
   } from "$lib/pages/overview/types";
   import { attentionFindings } from "$lib/pages/overview/types";
@@ -31,7 +31,7 @@
   let systemError = $state("");
   let doctor = $state<DoctorScan | null>(null);
   let doctorLoading = $state(true);
-  let prowl = $state<ProwlReport | null>(null);
+  let prowlDaemon = $state<ProwlDaemonStatus | null>(null);
   let codeStatus = $state<CodeStatus | null>(null);
   let codeLoading = $state(true);
   let codeError = $state("");
@@ -103,11 +103,13 @@
   async function loadCode(): Promise<void> {
     codeLoading = true;
     codeError = "";
-    void api.codeStatus().then((answer) => {
-      codeStatus = answer as unknown as CodeStatus;
-    }).catch(() => undefined);
+    codeStatus = null;
     try {
-      prowl = (await api.prowl()) as unknown as ProwlReport;
+      const status = await api.status();
+      prowlDaemon = (status as { prowl?: ProwlDaemonStatus }).prowl ?? null;
+      if (prowlDaemon?.installed && prowlDaemon.running) {
+        codeStatus = await prowl.code.status({ repo: prowlDaemon.repo }) as unknown as CodeStatus;
+      }
     } catch (error) {
       codeError = error instanceof Error ? error.message : "The index report could not be read.";
     } finally {
@@ -120,8 +122,7 @@
     searchError = "";
     hits = null;
     try {
-      const answer = (await api.prowlSearch(query)) as unknown as ProwlSearchAnswer;
-      hits = answer.hits ?? [];
+      hits = await prowl.code.search({ q: query, repo: prowlDaemon?.repo }) as unknown as ProwlHit[];
     } catch (error) {
       searchError = error instanceof Error ? error.message : "Search did not answer.";
     } finally {
@@ -211,7 +212,7 @@
       <div class="instruments">
         <div class="code">
           <CodeCard
-            report={prowl}
+            daemon={prowlDaemon}
             status={codeStatus}
             loading={codeLoading}
             error={codeError}

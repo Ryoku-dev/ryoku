@@ -1178,14 +1178,11 @@ func rashinReindex() {
 // prowlRefresh keeps a dev box's prowl current after an update. A packaged box
 // already got it through `pacman -Syu`, so this runs `<bin> update` only when
 // the binary is on PATH but not owned by a pacman package (a dev or manual
-// install). The CLI was renamed prowl-agent -> prowl; prefer the new name and
-// fall back to the old one upstream still ships. Best effort, one line either way.
+// install). Best effort, one line either way.
 func prowlRefresh() {
 	path, err := exec.LookPath("prowl")
 	if err != nil {
-		if path, err = exec.LookPath("prowl-agent"); err != nil {
-			return
-		}
+		return
 	}
 	switch prowlDecide(true, prowlPacmanOwned(path)) {
 	case prowlManaged:

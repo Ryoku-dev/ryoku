@@ -27,8 +27,8 @@ ryoku_deploy() {
   ryoku_deploy_chown "$u"        # the store seed creates ~/.config as root; hand
                                  # it to the user before materialize writes in it
   ryoku_deploy_materialize "$u"  # `ryoku materialize` as the user
-  ryoku_seed_provisioned "$u"    # tell the doctor the dropped apps are the user's call
-  ryoku_deploy_seed "$h"         # unpackaged: brand, wallpapers, ~/.npmrc
+  ryoku_seed_provisioned "$u"    # tell the doctor every dropped package is intentional
+  ryoku_deploy_seed "$h"         # unpackaged assets and first-login rice marker
   ryoku_deploy_chown "$u"        # own root-seeded files before the user steps
   ryoku_deploy_qylock            # qylock writes user files as the now-owning user
 }
@@ -246,23 +246,42 @@ ryoku_deploy_materialize() {
     || log "materialize: warning, ryoku materialize failed (continuing)"
 }
 
-# the HOOKS drop-in (chroot.sh) names ryoku-gpu-trim, and mkinitcpio aborts on a
-# hook it cannot find, so the file has to be there before the bootloader step
-# builds the images. ryoku-desktop owns it; this only covers the install that
-# never got that set (offline with no baked desktop payload). Seeding a packaged
-# path unowned is deliberate here -- a box with no boot image is worse -- and
-# updater.ryokuOverwriteGlob lets the package adopt the copy later.
+# The HOOKS drop-in (chroot.sh) names these Ryoku hooks, and mkinitcpio aborts
+# on a hook it cannot find, so the files have to be there before the bootloader
+# step builds the images. ryoku-desktop owns them; this only covers an install
+# that never got that set (offline with no baked desktop payload). Seeding a
+# packaged path unowned is deliberate here: a box with no boot image is worse,
+# and updater.ryokuOverwriteGlob lets the package adopt the copies later.
 ryoku_seed_initcpio_hook() {
-  local src="$RYOKU_REPO/system/boot/mkinitcpio/install/ryoku-gpu-trim"
-  local dst=/mnt/usr/lib/initcpio/install/ryoku-gpu-trim
+  local trim_src="$RYOKU_REPO/system/boot/mkinitcpio/install/ryoku-gpu-trim"
+  local trim_dst=/mnt/usr/lib/initcpio/install/ryoku-gpu-trim
+  local kind src dst seeded=
   if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    printf 'DRYRUN: install -Dm644 %s %s (only when the desktop set did not ship it)\n' "$src" "$dst"
+    printf 'DRYRUN: install -Dm644 %s %s (only when the desktop set did not ship it)\n' "$trim_src" "$trim_dst"
+    for kind in install hooks; do
+      src="$RYOKU_REPO/system/boot/mkinitcpio/$kind/ryoku-console-keys"
+      dst="/mnt/usr/lib/initcpio/$kind/ryoku-console-keys"
+      printf 'DRYRUN: install -Dm644 %s %s (only when the desktop set did not ship it)\n' "$src" "$dst"
+    done
     return 0
   fi
-  [[ -e $dst ]] && return 0            # ryoku-desktop shipped it: leave the owned file
-  [[ -f $src ]] || return 0            # nothing to seed; chroot.sh already dropped the name
-  log 'seeding the ryoku-gpu-trim initramfs hook (the desktop set did not install it)'
-  install -Dm644 "$src" "$dst"
+
+  if [[ ! -e $trim_dst && -f $trim_src ]]; then
+    log 'seeding the ryoku-gpu-trim initramfs hook (the desktop set did not install it)'
+    install -Dm644 "$trim_src" "$trim_dst"
+  fi
+
+  for kind in install hooks; do
+    src="$RYOKU_REPO/system/boot/mkinitcpio/$kind/ryoku-console-keys"
+    dst="/mnt/usr/lib/initcpio/$kind/ryoku-console-keys"
+    if [[ ! -e $dst && -f $src ]]; then
+      if [[ -z $seeded ]]; then
+        log 'seeding the ryoku-console-keys initramfs hook (the desktop set did not install it)'
+        seeded=1
+      fi
+      install -Dm644 "$src" "$dst"
+    fi
+  done
 }
 
 # seed the desktop keyboard layout into the neutral settings store, so the active
@@ -292,20 +311,25 @@ ryoku_seed_keymap() {
   log 'seeded keyboard layout into the store: %s%s' "$xkbl" "${xkbv:+ ($xkbv)}"
 }
 
-# seed the user-data nothing else owns: brand assets + wallpapers (shell
-# reads them from $HOME), ~/.npmrc prefix. from the repo payload; missing
-# sources are fine.
+# seed the user data nothing else owns: brand assets, wallpapers, ~/.npmrc, and
+# the one-shot first-login marker. Missing payload sources are fine.
 ryoku_deploy_seed() {
-  local h=$1
+  local h=$1 u=$RYOKU_USERNAME
+  local state="/home/$u/.local/state/ryoku"
+  local marker="/mnt$state/default-rice-pending"
   log 'seeding brand assets, wallpapers, decor art, and ~/.npmrc into %s' "$h"
   deploy_dir "$RYOKU_REPO/ryoku/assets/brand" "$h/.local/share/ryoku/assets/brand"
-  # ship a wallpaper set so a fresh install has something to pick from;
-  # ryoku-shell picks one at random on first start.
+  # The first session applies one shipped rice and chooses a wallpaper from this
+  # set. The marker is user-owned before that session starts.
   deploy_dir "$RYOKU_REPO/ryoku/assets/wallpapers" "$h/Pictures/Wallpapers"
-  # the decor art the Decor/Placard components render, beside Wallpapers and
-  # livewalls so a user can see and swap it. `ryoku doctor` keeps it current.
   deploy_dir "$RYOKU_REPO/ryoku/assets/ryodecors" "$h/Pictures/ryodecors"
   deploy_file "$RYOKU_REPO/ryoku/apps/npm/npmrc" "$h/.npmrc"
+  run arch-chroot /mnt install -d -o "$u" -g "$u" \
+    "/home/$u/.local" "/home/$u/.local/state" "$state"
+  write_file "$marker" <<'EOF'
+default
+EOF
+  run arch-chroot /mnt chown "$u:$u" "$state/default-rice-pending"
 }
 
 # seed_provisioned: the installer's drop list is recorded in the doctor's
@@ -330,8 +354,9 @@ ryoku_seed_provisioned() {
   for p in ${RYOKU_DROP_PACKAGES//,/ }; do
     [[ " ${seen[*]-} " == *" $p "* ]] && continue
     printf '%s\n' "$p" >>"$ledger"
+    seen+=("$p")
   done
-  log 'recorded the dropped apps in the provisioning ledger (ryoku doctor will not reinstall them)'
+  log 'recorded the dropped packages in the provisioning ledger (ryoku doctor will not reinstall them)'
 }
 
 # qylock: install the lockscreen bundle + the SDDM clockwork theme. not yet

@@ -5,9 +5,11 @@
 
 export class ApiError extends Error {
   status: number;
-  constructor(path: string, status: number, detail?: string) {
+  code?: string;
+  constructor(path: string, status: number, detail?: string, code?: string) {
     super(detail || `${path} answered ${status}`);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -29,6 +31,31 @@ async function postJSON<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export type Json = Record<string, unknown>;
+export interface QuickRoute {
+  id: string;
+  label: string;
+  sub: string;
+}
+
+export interface QuickResponse {
+  route: string;
+  label: string;
+  routes: QuickRoute[];
+  gateway: { url: string; running: boolean };
+  ready: boolean;
+  reason?: string;
+}
+
+export interface WireResponse {
+  ok: boolean;
+  pending?: boolean;
+  reason?: string;
+}
+
+export interface RouteHarnessesResponse {
+  routed: string[];
+  pending: Array<{ id: string; reason: string }>;
+}
 
 export const api = {
   ping: async (): Promise<boolean> => {
@@ -56,21 +83,16 @@ export const api = {
   reindex: () => postJSON<Json>("/api/index"),
   agents: () => getJSON<Json>("/api/agents"),
   harnesses: () => getJSON<Json>("/api/harnesses"),
-  wire: (id: string) => postJSON<Json>("/api/agents/wire", { id }),
-  unwire: (id: string) => postJSON<Json>("/api/agents/unwire", { id }),
-  quick: () => getJSON<Json>("/api/quick"),
-  setQuick: (provider: string) => postJSON<Json>("/api/quick?provider=" + encodeURIComponent(provider)),
+  wire: (id: string) => postJSON<WireResponse>("/api/agents/wire", { id }),
+  unwire: (id: string) => postJSON<WireResponse>("/api/agents/unwire", { id }),
+  quick: () => getJSON<QuickResponse>("/api/quick"),
+  setQuick: (route: string) => postJSON<QuickResponse>("/api/quick", { route }),
+  routeHarnesses: () => postJSON<RouteHarnessesResponse>("/api/harnesses/route"),
   manifest: () => getJSON<Json>("/api/manifest"),
   chatAgents: () => getJSON<Json>("/api/chat/agent"),
   setChatAgent: (id: string) => postJSON<Json>("/api/chat/agent?id=" + encodeURIComponent(id)),
   hermesSkills: () => getJSON<Json>("/api/hermes/skills"),
   hermesMemory: () => getJSON<Json>("/api/hermes/memory"),
-  prowl: () => getJSON<Json>("/api/prowl"),
-  prowlSearch: (q: string) => getJSON<Json>("/api/prowl/search?q=" + encodeURIComponent(q)),
-  codeStatus: () => getJSON<Json>("/api/code/status"),
-  code: (endpoint: string, params?: Record<string, string>) =>
-    getJSON<Json>("/api/code/" + endpoint + (params ? "?" + new URLSearchParams(params).toString() : "")),
-  providers: () => getJSON<Json>("/api/providers"),
   about: () => getJSON<Json>("/api/about"),
   /** the quick lane: a chunked text/plain stream of @working/@perm/@answer/@error lines */
   ask: async (q: string): Promise<Response> => {

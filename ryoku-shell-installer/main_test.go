@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"charm.land/lipgloss/v2"
+)
 
 func TestGroupPlanItems(t *testing.T) {
 	on := true
@@ -10,7 +14,7 @@ func TestGroupPlanItems(t *testing.T) {
 		"NVIDIA proprietary drivers", "Switch login to SDDM", "Ryoku greeter theme",
 		"Switch to NetworkManager", "Remove rival shells", "Disable conflicting daemons",
 		"Retire the Omarchy repo", "Carry over monitor layout",
-		"AUR extras", "Developer toolchain", "fish as login shell",
+		"AUR extras", "Developer toolchain",
 	} {
 		items = append(items, planItem{label: l, on: &on})
 	}
@@ -91,5 +95,63 @@ func TestCleanTermLine(t *testing.T) {
 		if got := cleanTermLine(c.in); got != c.want {
 			t.Errorf("%s: cleanTermLine(%q) = %q, want %q", c.name, c.in, got, c.want)
 		}
+	}
+}
+
+func TestScreensFitMinimumTerminal(t *testing.T) {
+	f := &facts{
+		distroName: "Arch Linux",
+		hostname: "ryoku",
+		currentDM: "sddm",
+		online: true,
+		btrfsRoot: true,
+		hasNvidia: true,
+		otherNet: []string{"iwd.service"},
+		rivalPkgs: []string{"other-shell"},
+		softUnits: []string{"waybar.service"},
+		omarchyRepo: true,
+		monOutputs: []niriOutput{{}},
+		monSource: "saved setup",
+		kbLayout: "us",
+	}
+	p := defaultPlan(f)
+	items := groupPlanItems(buildItems(f, p))
+	steps := make([]estep, 15)
+	for i := range steps {
+		steps[i] = estep{title: "Installing a bounded step title"}
+	}
+	e := &engine{
+		f: f, p: p, steps: steps,
+		backupDir: "/home/test/.local/state/ryoku/shell-install/backup-20261006-230000",
+		logPath: "/home/test/.local/state/ryoku/shell-install.log",
+		prevBackups: 1,
+	}
+	base := model{
+		w: minTermW, h: minTermH,
+		f: f, p: p, items: items, eng: e,
+		stepIdx: 7, failIdx: 7, failMsg: "the package transaction failed",
+		logTail: []string{"one bounded log line", "two bounded log lines", "three bounded log lines", "four bounded log lines", "five bounded log lines", "six bounded log lines", "seven bounded log lines"},
+	}
+	check := func(name, view string) {
+		t.Helper()
+		if width := lipgloss.Width(view); width > minTermW {
+			t.Errorf("%s width = %d, want <= %d", name, width, minTermW)
+		}
+		if height := lipgloss.Height(view); height > minTermH-2 {
+			t.Errorf("%s height = %d, want <= %d with footer room", name, height, minTermH-2)
+		}
+	}
+	check("scan", base.viewScan())
+	check("ack", base.viewAck())
+	check("install", base.viewInstall())
+	check("done", base.viewDone())
+	check("failed", base.viewFailed())
+	for i, item := range items {
+		if !selectablePlanItem(item) {
+			continue
+		}
+		base.sel = i
+		base.confirm = true
+		check("plan", base.viewPlan())
 	}
 }

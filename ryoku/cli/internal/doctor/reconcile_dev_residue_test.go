@@ -77,35 +77,65 @@ func TestDevUnitsForkAndLiveCopyReturnToTheShippedUnit(t *testing.T) {
 	}
 }
 
-// The deploy writes rashin's unit whole into ~/.config (the base never ships
-// it); it shadows the packaged unit, so it goes and the enablement follows the
-// packaged one.
-func TestDevUnitsHomeUnitYieldsToPackagedUnitAndStaysEnabled(t *testing.T) {
-	l := residueFixture(t)
-	home := filepath.Join(l.userUnits(), "ryoku-rashin.service")
-	writeFile(t, home, "[Service]\nExecStart="+l.localBin+"/ryoku-rashin serve --if-enabled\n")
-	pkg := filepath.Join(l.usrUnits, "ryoku-rashin.service")
-	writeFile(t, pkg, "[Service]\nExecStart=/usr/bin/ryoku-rashin serve --if-enabled\n")
-	link := filepath.Join(l.userUnits(), "default.target.wants", "ryoku-rashin.service")
-	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
-		t.Fatal(err)
+// Whole units written by deploy shadow the packaged units even when their
+// resolved binaries live outside ~/.local/bin.
+func TestDevUnitsHomeUnitYieldsToPackagedUnit(t *testing.T) {
+	cases := []struct {
+		name, unit, homeExec, packagedExec string
+		enabled                            bool
+	}{
+		{
+			name:         "rashin stays enabled",
+			unit:         "ryoku-rashin.service",
+			homeExec:     "/home/dev/bin/ryoku-rashin serve --if-enabled",
+			packagedExec: "/usr/bin/ryoku-rashin serve --if-enabled",
+			enabled:      true,
+		},
+		{
+			name:         "prowl shadow is removed",
+			unit:         "ryoku-prowl.service",
+			homeExec:     "/home/dev/bin/prowl gateway serve --port 8788",
+			packagedExec: "/usr/bin/prowl gateway serve --port 8788",
+		},
 	}
-	if err := os.Symlink(home, link); err != nil {
-		t.Fatal(err)
-	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			l := residueFixture(t)
+			home := filepath.Join(l.userUnits(), c.unit)
+			writeFile(t, home, "[Service]\nExecStart="+c.homeExec+"\n")
+			pkg := filepath.Join(l.usrUnits, c.unit)
+			writeFile(t, pkg, "[Service]\nExecStart="+c.packagedExec+"\n")
 
-	units, failed := l.applyDevUnits(l.planDevUnits(packagedNames))
-	if len(failed) > 0 {
-		t.Fatalf("failed: %v", failed)
-	}
-	if _, err := os.Lstat(home); !os.IsNotExist(err) {
-		t.Fatalf("the home unit survived: %v", err)
-	}
-	if target, err := os.Readlink(link); err != nil || target != pkg {
-		t.Fatalf("wants link -> %q (%v), want %q", target, err, pkg)
-	}
-	if len(units) != 1 || units[0] != "ryoku-rashin.service" {
-		t.Fatalf("touched units = %v", units)
+			var link string
+			if c.enabled {
+				link = filepath.Join(l.userUnits(), "default.target.wants", c.unit)
+				if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(home, link); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			units, failed := l.applyDevUnits(l.planDevUnits(packagedNames))
+			if len(failed) > 0 {
+				t.Fatalf("failed: %v", failed)
+			}
+			if _, err := os.Lstat(home); !os.IsNotExist(err) {
+				t.Fatalf("the home unit survived: %v", err)
+			}
+			if c.enabled {
+				if target, err := os.Readlink(link); err != nil || target != pkg {
+					t.Fatalf("wants link -> %q (%v), want %q", target, err, pkg)
+				}
+			}
+			if len(units) != 1 || units[0] != c.unit {
+				t.Fatalf("touched units = %v, want [%s]", units, c.unit)
+			}
+			if again := l.planDevUnits(packagedNames); len(again) != 0 {
+				t.Fatalf("a healed box still plans %v", again)
+			}
+		})
 	}
 }
 

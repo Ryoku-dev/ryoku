@@ -7,7 +7,7 @@ import shell.services
 
 // QS Bar Settings' left rail: the masthead, the four bar routes as one flat
 // group, then, parted by a rule and a COMMUNITY eyebrow, the route for every bar
-// widget installed from outside Ryoku, and a search row at the foot. The panel
+// widget installed from outside Ryoku. The panel
 // is about one thing, the bar, so the first group has no headers: four routes,
 // always one click away. Latin names the route, kanji seals it. The active route
 // takes a bone plate with a `//` lead, the desktop's only emphasis; nothing here
@@ -19,8 +19,6 @@ Item {
     property var tk
     property string current: ""
     signal chose(string id)
-    signal searchRequested()
-    signal hubRequested()
 
     // Installed bar plugins that are not Ryoku's own: the Community route's count.
     readonly property int communityCount: {
@@ -32,11 +30,9 @@ Item {
     }
 
     // The plate takes its height from whichever is taller, the rail or the page:
-    // masthead + the routes + the search row + the printed foot, each with the
-    // gap it actually sits in.
+    // the masthead and the routes, each with the gap it actually sits in.
     implicitHeight: rail.tk
-        ? rail.tk.headH + nav.implicitHeight + rail.tk.gap * 2
-          + foot.height + margin.height + rail.tk.pad * 2
+        ? rail.tk.headH + nav.implicitHeight + rail.tk.gap * 2 + rail.tk.pad * 2
         : 560
 
     // one route in the rail; a count on the right when the route carries one.
@@ -197,140 +193,6 @@ Item {
         Repeater {
             model: Routes.inSection("community")
             delegate: NavItem { count: rail.communityCount }
-        }
-    }
-
-    // ── foot: search, and the surface switch ─────────────────────────────────
-    Rectangle {
-        id: footLine
-        anchors { bottom: foot.top; left: parent.left; right: parent.right }
-        height: 1
-        color: Tokens.lineSoft
-    }
-    Item {
-        id: foot
-        anchors { bottom: margin.top; left: parent.left; right: parent.right }
-        height: hints.implicitHeight + rail.tk.gap
-
-        Column {
-            id: hints
-            anchors.centerIn: parent
-            width: parent.width - rail.tk.gap * 2
-            spacing: 2
-
-            Rectangle {
-                width: parent.width
-                height: rail.tk.navH
-                radius: Tokens.radius
-                color: searchMa.containsMouse ? Tokens.tint5 : "transparent"
-                Behavior on color { ColorAnimation { duration: Tokens.snap } }
-
-                UiText {
-                    anchors.left: parent.left
-                    anchors.leftMargin: rail.tk.gap
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: I18n.tr("Search")
-                    color: Tokens.inkFaint
-                    font.family: Tokens.ui
-                    font.pixelSize: Tokens.fSmall
-                }
-                Keycap {
-                    anchors.right: parent.right
-                    anchors.rightMargin: rail.tk.gap / 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: I18n.tr("CTRL K")
-                    us: 0.5
-                    dark: !Tokens.light
-                }
-                MouseArea {
-                    id: searchMa
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: rail.searchRequested()
-                }
-            }
-            // Surface switch: sets which panel the bar's brand logo opens -- QS
-            // Bar Settings, or the Super+Esc quick-settings sidebar. The lit
-            // segment is the current target; picking the other retargets the logo.
-            Item {
-                width: parent.width
-                height: navSeg.height
-                Seg {
-                    id: navSeg
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    options: ["QS BAR", "QUICK SETTINGS"]
-                    current: Config.launcherTarget === "quick" ? "QUICK SETTINGS" : "QS BAR"
-                    onChose: (key) => Config.setLauncherTarget(key === "QUICK SETTINGS" ? "quick" : "studio")
-                }
-            }
-        }
-    }
-    // The rail's last inch is genuinely empty, so it carries what the Hub's rail
-    // carries: a way to the full Hub above a real Code 39 plate. It scans.
-    Item {
-        id: margin
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        anchors.leftMargin: rail.tk.pad
-        anchors.rightMargin: rail.tk.pad
-        anchors.bottomMargin: rail.tk.pad
-        height: rail.tk.gap + edition.height + rail.tk.gap / 2 + plate.implicitHeight
-
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; top: parent.top }
-            height: 1
-            color: Tokens.lineSoft
-        }
-        // The panel is the quick surface; the Hub is every setting. A persistent
-        // way there, printed where the edition mark used to sit.
-        Item {
-            id: edition
-            anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: rail.tk.gap }
-            height: 20
-            Row {
-                id: hubRow
-                anchors { left: parent.left; verticalCenter: parent.verticalCenter }
-                spacing: Tokens.s2
-                Pixel {
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 14; height: 14
-                    kind: "torii"
-                }
-                UiText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: I18n.tr("OPEN THE HUB")
-                    color: hubMa.containsMouse ? Tokens.ink : Tokens.inkFaint
-                    font.family: Tokens.mono
-                    font.pixelSize: Tokens.fTiny
-                    font.letterSpacing: Tokens.trackLabel
-                }
-                UiText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "\u276f"
-                    color: Tokens.inkFaint
-                    font.family: Tokens.mono
-                    font.pixelSize: Tokens.fTiny
-                    opacity: hubMa.containsMouse ? 1 : 0.5
-                }
-            }
-            MouseArea {
-                id: hubMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: rail.hubRequested()
-            }
-        }
-        // A Code 39 plate cannot be clipped -- lose the stop bars and it stops
-        // being a barcode -- so the module width is solved from the rail's own
-        // inner width instead of being a constant that overflowed it and printed
-        // across the divider into the page.
-        Barcode {
-            id: plate
-            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            text: "RYOKU"
-            barHeight: 12
-            unit: Math.max(0.7, Math.min(1.4, margin.width / ((plate.text.length + 2) * 16)))
         }
     }
 

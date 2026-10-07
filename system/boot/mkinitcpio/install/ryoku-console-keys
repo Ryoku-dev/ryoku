@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+
+build() {
+    add_binary setleds
+    # Plymouth reads the console keymap from this file and falls back to a US
+    # layout without it; some Plymouth packagings do not copy it.
+    if [[ -s /etc/vconsole.conf ]]; then
+        add_file /etc/vconsole.conf
+    fi
+    add_runscript
+}
+
+help() {
+    cat <<HELPEOF
+Carries the configured console keymap and enables Num Lock on every virtual console before Plymouth starts.
+HELPEOF
+}
+
+# vim: set ft=sh ts=4 sw=4 et:

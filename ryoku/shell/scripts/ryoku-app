@@ -39,9 +39,11 @@ legacy="$conf/hypr.json"
 fallback() {
 	case "$1" in
 	browser)
-		if command -v zen >/dev/null 2>&1; then echo "zen"
+		if command -v firefox >/dev/null 2>&1; then echo "firefox"
+		elif command -v chromium >/dev/null 2>&1; then echo "chromium"
+		elif command -v zen >/dev/null 2>&1; then echo "zen"
 		elif command -v zen-browser >/dev/null 2>&1; then echo "zen-browser"
-		else echo "chromium"; fi ;;
+		else echo ""; fi ;;
 	terminal) echo "kitty" ;;
 	editor)   echo "kitty -e nvim" ;;
 	files)    echo "nautilus" ;;

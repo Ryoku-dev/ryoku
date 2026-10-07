@@ -51,16 +51,16 @@ func TestSecureBootEnforcing(t *testing.T) {
 }
 
 func TestDefaultPlanSecureBoot(t *testing.T) {
-	f := &facts{hasNvidia: true, secureBoot: true}
+	f := &facts{hasNvidia: true, nouveauLive: true, secureBoot: true}
 	if defaultPlan(f).nvidia {
-		t.Fatal("secure boot must force the nvidia default off")
+		t.Fatal("unsigned secure boot must force the nvidia default off, even with nouveau live")
 	}
 	f.sbctlSigned = true
 	if !defaultPlan(f).nvidia {
-		t.Fatal("an sbctl-managed box keeps the nvidia default")
+		t.Fatal("an sbctl-managed box keeps the nvidia default, even with nouveau live")
 	}
-	if !defaultPlan(&facts{hasNvidia: true}).nvidia {
-		t.Fatal("no secure boot, nvidia stays default on")
+	if !defaultPlan(&facts{hasNvidia: true, nouveauLive: true}).nvidia {
+		t.Fatal("nouveau live without secure boot must default nvidia on")
 	}
 }
 

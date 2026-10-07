@@ -43,7 +43,13 @@ export default defineConfig({
     port: 5173,
     fs: { allow: [".", brandDir, path.dirname(chatStateFile)] },
     proxy: {
-      "/api": target,
+      // The daemon's Prowl proxy only answers its own origin, so the dev
+      // server presents the daemon's host and drops the browser's Origin.
+      "/api": {
+        target,
+        changeOrigin: true,
+        configure: (proxy) => proxy.on("proxyReq", (req) => req.removeHeader("origin")),
+      },
       "/ws": { target: target.replace(/^http/, "ws"), ws: true },
     },
   },

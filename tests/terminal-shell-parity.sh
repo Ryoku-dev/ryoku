@@ -47,9 +47,19 @@ done
 grep -Fxq 'pkgver=0.4.0_devel3' "$repo/release/packages/blesh/PKGBUILD" ||
   fail "ble.sh 0.4 or newer is required for Starship prompt integration"
 (( ble_line < starship_line )) || fail "Bash must initialize Starship after ble.sh"
-grep -Fq "\"ryoku-oh-my-zsh=\$pkgver\"" "$repo/release/packages/ryoku-desktop/PKGBUILD" &&
-  test -f "$repo/release/packages/ryoku-oh-my-zsh/PKGBUILD" ||
-  fail "Oh My Zsh must be a signed ryoku-desktop dependency"
+desktop_pkg=$repo/release/packages/ryoku-desktop/PKGBUILD
+depends_block=$(awk '/^depends=\(/{d=1;next} d&&/^\)/{exit} d' "$desktop_pkg")
+optdepends_block=$(awk '/^optdepends=\(/{d=1;next} d&&/^\)/{exit} d' "$desktop_pkg")
+zsh_stack=(zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh)
+for pkg in "${zsh_stack[@]}"; do
+  if grep -qE "^[[:space:]]*[\"']${pkg}(=[^\"']*)?[\"']" <<<"$depends_block"; then
+    fail "$pkg must not be a ryoku-desktop hard dependency"
+  fi
+  grep -qE "^[[:space:]]*[\"']${pkg}(=[^:]*)?:" <<<"$optdepends_block" ||
+    fail "$pkg must be a ryoku-desktop optional dependency"
+done
+test -f "$repo/release/packages/ryoku-oh-my-zsh/PKGBUILD" ||
+  fail "Ryoku Oh My Zsh must remain a signed package"
 # shellcheck disable=SC2016  # matching the literal $pkgver text inside the PKGBUILD
 grep -Fq 'provides=("oh-my-zsh=$pkgver" "oh-my-zsh-git=$pkgver")' \
   "$repo/release/packages/ryoku-oh-my-zsh/PKGBUILD" ||

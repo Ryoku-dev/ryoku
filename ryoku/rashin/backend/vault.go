@@ -96,7 +96,7 @@ const AgentsTemplate = "# Ryoku system vault\n" +
 	"  `plugins.md` and `build.md` (building a widget, a plugin, or a change to the\n" +
 	"  Go tools the Ryoku way), `feature.md` (the ladder before writing code), and\n" +
 	"  `troubleshoot.md` (break/fix).\n" +
-	"- The Ryoku source is indexed by prowl: `prowl-agent search|find|def|outline|\n" +
+	"- The Ryoku source is indexed by prowl: `prowl search|find|def|outline|\n" +
 	"  references` (or the `search_code` tool) answers where code lives, cited to\n" +
 	"  file:line, before any grep. `ryoku-repo.md` is its map.\n" +
 	"- `ryoku owner <path>` decides where an edit belongs; `ryoku-rashin logs <app>`\n" +

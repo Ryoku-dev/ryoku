@@ -23,10 +23,11 @@ import (
 //
 // The binaries are only half of it. Every user unit the deploy pointed at
 // ~/.local/bin (a drop-in today, a rewritten copy or a user_edits fork of one
-// from older deploys, rashin's whole home unit) still execs the home path, so
-// clearing the binaries alone leaves the shell unit failing at its first
-// ExecStartPre and the desktop comes up with no shell after the next login.
-// Those units go back to the packaged ones in the same pass.
+// from older deploys, plus rashin and Prowl's whole home units) still shadows
+// the packaged service. Clearing the binaries alone leaves the shell unit
+// failing at its first ExecStartPre and the desktop comes up with no shell
+// after the next login. Those units go back to the packaged ones in the same
+// pass.
 func reconcileDevResidue(checkOnly bool) recResult {
 	if sys.ResolveRepo() != "" {
 		return okRes(i18n.T("checkout box; home-deployed artifacts are the live desktop"))
@@ -198,7 +199,8 @@ func (l residueLayout) planDevUnits(twin func(string) bool) []unitHeal {
 	live, _ := os.ReadDir(l.userUnits())
 	for _, e := range live {
 		p := filepath.Join(l.userUnits(), e.Name())
-		if planned[p] || !e.Type().IsRegular() || !l.execsDevBin(p, twin) {
+		wholeHomeUnit := e.Name() == "ryoku-rashin.service" || e.Name() == "ryoku-prowl.service"
+		if planned[p] || !e.Type().IsRegular() || (!wholeHomeUnit && !l.execsDevBin(p, twin)) {
 			continue
 		}
 		if base := filepath.Join(l.baseDir, "systemd", "user", e.Name()); sys.Exists(base) {

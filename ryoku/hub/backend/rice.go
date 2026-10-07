@@ -69,7 +69,15 @@ func ryokuConfigDir() string {
 	return filepath.Join(base, "ryoku")
 }
 
-func ricesDir() string            { return filepath.Join(ryokuConfigDir(), "rices") }
+func ricesDir() string { return filepath.Join(ryokuConfigDir(), "rices") }
+
+func systemRicesDir() string {
+	if dir := os.Getenv("RYOKU_SYSTEM_RICES_DIR"); dir != "" {
+		return dir
+	}
+	return "/usr/share/ryoku/rices"
+}
+
 func shellStorePath() string      { return filepath.Join(ryokuConfigDir(), "shell.json") }
 func launcherStorePath() string   { return filepath.Join(ryokuConfigDir(), "launcher.json") }
 func widgetsStorePath() string    { return filepath.Join(ryokuConfigDir(), "widgets.json") }
@@ -188,33 +196,55 @@ func extractStore(path string, allow []string) map[string]any {
 	return pick(readJSONMap(path), allow)
 }
 
-func loadRice(slug string) (Rice, string, error) {
+func loadRiceFrom(dir string) (Rice, error) {
 	var r Rice
-	dir := filepath.Join(ricesDir(), slug)
 	b, err := os.ReadFile(filepath.Join(dir, "rice.json"))
 	if err != nil {
-		return r, dir, err
+		return r, err
 	}
 	err = json.Unmarshal(b, &r)
-	return r, dir, err
+	return r, err
+}
+
+func loadRice(slug string) (Rice, string, error) {
+	userDir := filepath.Join(ricesDir(), slug)
+	if _, err := os.Stat(filepath.Join(userDir, "rice.json")); err == nil {
+		r, loadErr := loadRiceFrom(userDir)
+		return r, userDir, loadErr
+	}
+	systemDir := filepath.Join(systemRicesDir(), slug)
+	r, err := loadRiceFrom(systemDir)
+	return r, systemDir, err
 }
 
 func saveRice(r Rice) error {
 	return atomicWrite(ricePath(r.Slug), mustJSON(r), 0o644)
 }
 
-// listRices returns every user rice, sorted by slug for a stable UI. the
-// reserved backup slots (.baseline / .previous) and any dotdir are skipped.
-func listRices() []Rice {
-	entries, _ := os.ReadDir(ricesDir())
-	out := []Rice{}
+func ricesIn(dir string) map[string]Rice {
+	entries, _ := os.ReadDir(dir)
+	out := map[string]Rice{}
 	for _, e := range entries {
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		if r, _, err := loadRice(e.Name()); err == nil {
-			out = append(out, r)
+		if r, err := loadRiceFrom(filepath.Join(dir, e.Name())); err == nil {
+			out[r.Slug] = r
 		}
+	}
+	return out
+}
+
+// listRices merges packaged and user-owned looks. The user copy wins so an
+// edited fork retaining the shipped slug is always the one the picker shows.
+func listRices() []Rice {
+	bySlug := ricesIn(systemRicesDir())
+	for slug, r := range ricesIn(ricesDir()) {
+		bySlug[slug] = r
+	}
+	out := make([]Rice, 0, len(bySlug))
+	for _, r := range bySlug {
+		out = append(out, r)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Slug < out[j].Slug })
 	return out
@@ -741,9 +771,62 @@ func restoreRice(slot string) error {
 	return nil
 }
 
+// ensureUserRice makes a packaged rice editable before its first apply. The
+// manifest lands last so an interrupted copy is never mistaken for a complete
+// user rice.
+func ensureUserRice(slug string) error {
+	if !validRiceSlug(slug) {
+		return fmt.Errorf("bad rice slug %q", slug)
+	}
+	if isFile(ricePath(slug)) {
+		return nil
+	}
+	src := filepath.Join(systemRicesDir(), slug)
+	if _, err := loadRiceFrom(src); err != nil {
+		return nil
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(ricesDir(), slug)
+	for _, e := range entries {
+		if e.IsDir() || strings.HasPrefix(e.Name(), ".") || e.Name() == "rice.json" {
+			continue
+		}
+		if err := copyFile(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
+			return fmt.Errorf("copy packaged rice asset %s: %w", e.Name(), err)
+		}
+	}
+	if err := copyFile(filepath.Join(src, "rice.json"), filepath.Join(dst, "rice.json")); err != nil {
+		return fmt.Errorf("copy packaged rice manifest: %w", err)
+	}
+	return nil
+}
+
+// riceWindowSections overlays the active provider's look onto the shared
+// neutral sections. Older manifests have no provider map and return the shared
+// document byte-for-byte equivalent.
+func riceWindowSections(r Rice, provider string) map[string]any {
+	shared := jsonMerge(map[string]any{}, r.Look["hypr"])
+	if provider == "" {
+		return shared
+	}
+	providers := r.Look["wm"]
+	specific, _ := providers[provider].(map[string]any)
+	if len(specific) == 0 {
+		return shared
+	}
+	return jsonMerge(shared, specific)
+}
+
+
 // applyRice merges a rice onto the live stores and reloads. it first snapshots
 // the current setup into .previous (and .baseline once) so revert is one click.
 func applyRice(slug string, layers []string) error {
+	if err := ensureUserRice(slug); err != nil {
+		return err
+	}
 	r, dir, err := loadRice(slug)
 	if err != nil {
 		return err
@@ -754,8 +837,9 @@ func applyRice(slug string, layers []string) error {
 	// a store write failing (disk full, bad perms) must surface: silently
 	// applying half a rice reports success over mixed state. .previous (above)
 	// is the one-click way back either way.
-	if err := overlayHyprSections(r.Look["hypr"], riceWindowLook); err != nil {
-		return fmt.Errorf("apply hypr look: %w", err)
+	provider, _ := wmSplit()
+	if err := overlayHyprSections(riceWindowSections(r, provider), riceWindowLook); err != nil {
+		return fmt.Errorf("apply window look: %w", err)
 	}
 	// "all" restores every captured layer, so applying a snapshot brings back the
 	// keybinds, window rules, input and brand it saved -- not just the look.
@@ -785,11 +869,19 @@ func applyRice(slug string, layers []string) error {
 			}
 			var v any
 			if json.Unmarshal(raw, &v) == nil {
+				if l == "input" {
+					if incoming, ok := v.(map[string]any); ok {
+						current, _ := readHyprSections()[l].(map[string]any)
+						v = jsonMerge(current, incoming)
+					}
+				}
 				sections[l] = v
 			}
 		}
 		if len(sections) > 0 {
-			_ = setHyprSections(sections)
+			if err := setHyprSections(sections); err != nil {
+				return fmt.Errorf("apply behavior layers: %w", err)
+			}
 		}
 	}
 	if err := overlayStore(shellStorePath(), r.Look["shell"], nil); err != nil {
@@ -1012,7 +1104,7 @@ func listRiceEntries() []riceListEntry {
 			Rice: r, Compat: compat.Rice(r.CreatedWith, ryokuVersion()), Active: r.Slug == active,
 			Live: isVideo(r.Assets.Wallpaper),
 		}
-		dir := filepath.Join(ricesDir(), r.Slug)
+		_, dir, _ := loadRice(r.Slug)
 		if p := filepath.Join(dir, "preview.png"); isFile(p) {
 			e.Preview = "file://" + p
 		} else if r.Assets.Wallpaper != "" && !e.Live && isFile(filepath.Join(dir, r.Assets.Wallpaper)) {

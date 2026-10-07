@@ -1,8 +1,8 @@
-// apps.go holds the installer's browser and app choice tables: what Ryoku ships
-// that a user may pick or skip, and why. The required rows are not opinion: each
-// names a desktop feature (a ryoku-app role, the login shell, the stash menu)
-// that breaks without the package -- the same feature -> package contract
-// tests/shell-tool-availability.sh gates. Tools that are hard depends of
+// apps.go holds the installer's browser, login-shell, and app choice tables:
+// what Ryoku ships, what a user may pick or skip, and why. The required rows
+// are not opinion: each names a desktop feature (a ryoku-app role or the stash
+// menu) that breaks without the package. The same feature-to-package contract
+// is gated by tests/shell-tool-availability.sh. Tools that are hard depends of
 // ryoku-desktop (grim, cava, matugen, mpv, the portals) never appear here at
 // all: removing them would break a Ryoku surface the user never touched, so
 // the desktop owns them, not the installer's picker.
@@ -25,14 +25,13 @@ func flowIndex(flow []step, key string) int {
 	return -1
 }
 
-// browsers returns the three browsers Ryoku ships: Zen (the default, an AUR
-// build, best-effort), and the two official-repo fallbacks. The installer picks
-// exactly one; the browser step offers these and nothing else.
+// browsers returns the three browsers Ryoku ships. The installer picks exactly
+// one; the browser step offers these and nothing else.
 func browsers() []item {
 	return []item{
-		{"zen", "Zen", i18n.T("the Ryoku default · vertical tabs, AUR build")},
-		{"chromium", "Chromium", i18n.T("official repo · fastest to install")},
-		{"firefox", "Firefox", i18n.T("official repo · the Gecko engine")},
+		{"firefox", "Firefox", i18n.T("Recommended · official repo · the Gecko engine")},
+		{"chromium", "Chromium", i18n.T("official repo · fast and familiar")},
+		{"zen", "Zen", i18n.T("vertical tabs · AUR build")},
 	}
 }
 
@@ -46,9 +45,43 @@ func browserLabel(key string) string {
 	return key
 }
 
-// browserPackages is every browser name the package sets carry, so the
-// handoff can add the two that lost the pick to the backend's drop list.
-func browserPackages() []string { return []string{"chromium", "firefox", "zen-browser-bin"} }
+// browserPackages is every browser name the package sets carry, in picker
+// order, so the handoff can add the two that lost to the backend's drop list.
+func browserPackages() []string { return []string{"firefox", "chromium", "zen-browser-bin"} }
+
+// loginShells returns the three account shells in the order shown by the
+// installer. Every shell keeps the shared terminal tools; only its own editing
+// stack is installed.
+func loginShells() []item {
+	return []item{
+		{"fish", "Fish", i18n.T("Recommended · autosuggestions, abbreviations")},
+		{"zsh", "Zsh", i18n.T("Oh My Zsh with Ryoku's plugins")},
+		{"bash", "Bash", i18n.T("the classic shell · ble.sh editing")},
+	}
+}
+
+// loginShellLabel is the display name for a shell key, for Review and the rail.
+func loginShellLabel(key string) string {
+	for _, s := range loginShells() {
+		if s.key == key {
+			return s.label
+		}
+	}
+	return key
+}
+
+// loginShellDropPackages returns the stacks not owned by the selected shell.
+// Bash itself is part of the base system and is never dropped.
+func loginShellDropPackages(key string) []string {
+	switch key {
+	case "zsh":
+		return []string{"fish", "blesh"}
+	case "bash":
+		return []string{"fish", "zsh", "zsh-autosuggestions", "zsh-history-substring-search", "zsh-syntax-highlighting", "ryoku-oh-my-zsh"}
+	default:
+		return []string{"zsh", "zsh-autosuggestions", "zsh-history-substring-search", "zsh-syntax-highlighting", "ryoku-oh-my-zsh", "blesh"}
+	}
+}
 
 // appRow is one keep/remove decision: a named app or tool group, the packages
 // it stands for, and its honesty labels. Req is why the row cannot be removed
@@ -64,7 +97,7 @@ type appRow struct {
 }
 
 // appRows is the shipped-app table. Order is display order; membership mirrors
-// ryokumanifest.Apps() (deliver-once apps), the AUR extras, and the feature ->
+// ryokumanifest.Apps() (deliver-once apps), the AUR extras, and the feature-to-
 // package map in tests/shell-tool-availability.sh (role apps are required).
 func appRows() []appRow {
 	return []appRow{
@@ -76,13 +109,9 @@ func appRows() []appRow {
 			Req: i18n.T("the Ryoku stash actions in the Files right-click menu (ships with Files)")},
 		{ID: "editor", Name: "Neovim", Pkgs: []string{"neovim"}, Def: true,
 			Req: i18n.T("the Ryoku editor role: the launcher's editor opens 'kitty -e nvim'")},
-		{ID: "shell", Name: "Fish shell", Pkgs: []string{"fish"}, Def: true,
-			Req: i18n.T("your account is created with fish as its login shell")},
 
 		{ID: "prompt", Name: "Starship prompt", Pkgs: []string{"starship"}, Def: true, Group: i18n.T("Terminal"),
 			Sub: i18n.T("the Ryoku shell prompt")},
-		{ID: "bash-edit", Name: "Blesh", Pkgs: []string{"blesh"}, Def: true,
-			Sub: i18n.T("Bash line editing")},
 		{ID: "fastfetch", Name: "Fastfetch", Pkgs: []string{"fastfetch"}, Def: true,
 			Sub: i18n.T("system summary card (launcher, RyoStore covers)")},
 		{ID: "yazi", Name: "Yazi", Pkgs: []string{"yazi"}, Def: true,

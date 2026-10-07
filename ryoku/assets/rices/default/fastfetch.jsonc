@@ -1,0 +1,111 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "kitty-direct",
+    "source": "~/.local/share/ryoku/assets/brand/fastfetch-emblem.png",
+    "width": 28,
+    "height": 14,
+    "padding": {
+      "left": 3,
+      "right": 5,
+      "top": 5
+    }
+  },
+  "display": {
+    "color": {
+      "keys": "38;2;226;52;42",
+      "separator": "#8f8770",
+      "title": "#f3ede1"
+    },
+    "key": {
+      "width": 9
+    },
+    "percent": {
+      "color": {
+        "green": "#7fbf6a",
+        "red": "#e2342a",
+        "yellow": "#d9a441"
+      },
+      "type": 9
+    },
+    "separator": "  "
+  },
+  "modules": [
+    "break",
+    {
+      "type": "title",
+      "format": "{#1;title}{user-name}{#}{#separator} @ {#}{#1;title}{host-name}{#}"
+    },
+    {
+      "format": "\u001b[38;2;226;52;42m■\u001b[0m \u001b[38;2;143;135;112m{#keys}■{#} {#separator}RYOKU · 力 · a hand-built Arch desktop{#}\u001b[0m",
+      "type": "custom"
+    },
+    "break",
+    {
+      "format": "\u001b[38;2;226;52;42m──\u001b[0m \u001b[1;38;2;243;237;225m{#keys}──{#} {#1;title}VITALS{#} {#38;2;58;46;36}──────────────────────────{#}\u001b[0m \u001b[38;2;58;46;36m────\u001b[0m",
+      "type": "custom"
+    },
+    {
+      "key": "CPU",
+      "type": "cpu"
+    },
+    {
+      "detectionMethod": "pci",
+      "key": "GPU",
+      "type": "gpu"
+    },
+    {
+      "key": "MEMORY",
+      "type": "memory"
+    },
+    {
+      "key": "DISK",
+      "type": "disk"
+    },
+    "break",
+    {
+      "format": "\u001b[38;2;226;52;42m──\u001b[0m \u001b[1;38;2;243;237;225m{#keys}──{#} {#1;title}SYSTEM{#} {#38;2;58;46;36}──────────────────────────{#}\u001b[0m \u001b[38;2;58;46;36m────\u001b[0m",
+      "type": "custom"
+    },
+    {
+      "key": "OS",
+      "type": "os"
+    },
+    {
+      "key": "KERNEL",
+      "type": "kernel"
+    },
+    {
+      "key": "WM",
+      "type": "wm"
+    },
+    {
+      "key": "SHELL",
+      "type": "shell"
+    },
+    {
+      "key": "PKGS",
+      "type": "packages"
+    },
+    "break",
+    {
+      "format": "\u001b[38;2;226;52;42m──\u001b[0m \u001b[1;38;2;243;237;225m{#keys}──{#} {#1;title}SESSION{#} {#38;2;58;46;36}─────────────────────────{#}\u001b[0m \u001b[38;2;58;46;36m────\u001b[0m",
+      "type": "custom"
+    },
+    {
+      "key": "UPTIME",
+      "type": "uptime"
+    },
+    {
+      "key": "TERM",
+      "type": "terminal"
+    },
+    "break",
+    {
+      "type": "colors",
+      "symbol": "circle",
+      "paddingLeft": 2
+    },
+    "break"
+  ]
+}

@@ -23,7 +23,18 @@
   54% to 43%. `ryoku-nvidia-guard` lifts the denylist when a kernel has no
   nvidia module and rebuilds, so the recovery image gets nouveau back.
 
+- `mkinitcpio/install/ryoku-console-keys` and
+  `mkinitcpio/hooks/ryoku-console-keys`: an early initramfs hook that carries
+  `/etc/vconsole.conf` into the image and turns Num Lock on for every console
+  before Plymouth starts. The disk unlock prompt now uses the keyboard layout
+  picked in the installer and starts with Num Lock on. It sits right after
+  `udev` in `mkinitcpio/ryoku.conf`.
+
 ### Fixed
+- `plymouth/ryoku/ryoku.script`: the unlock dialog says what it wants ("Enter
+  the disk passphrase") and says so when a passphrase is rejected ("Wrong
+  passphrase, try again"). Before, a wrong passphrase just emptied the box and
+  waited again with no sign anything had happened.
 - `limine/ryoku-windows-entry` now also restores the installer-recorded
   Linux/Ryoku neighbor after Limine regenerates its menu on dedicated-ESP
   dual-boot systems.

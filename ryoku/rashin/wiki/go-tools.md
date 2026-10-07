@@ -22,23 +22,23 @@ ryoku --help
 ryoku wm
 ryoku-shell
 ryoku-rashin --help
-prowl-agent --help
+prowl --help
 ```
 
 Then ask Prowl's cited index before opening broad files:
 
 ```bash
-prowl-agent find <symbol>
-prowl-agent def <id>
-prowl-agent outline <path>
-prowl-agent references <id>
-prowl-agent impact <path>
+prowl find <symbol>
+prowl def <id>
+prowl outline <path>
+prowl references <id>
+prowl impact <path>
 ```
 
 Use `find` for a named function, type, setting, or component. `def` reads one
 definition. `outline` maps one file without dumping its bodies. `references`
 shows callers and uses. `impact` shows the blast radius before an edit. For a
-behavioral question, use `prowl-agent search "how does this work?"`. Use grep
+behavioral question, use `prowl search "how does this work?"`. Use grep
 only after that for an exact literal or regular expression.
 
 ## Add a verb in a checkout
@@ -49,7 +49,7 @@ Those paths are update targets.
 
 A small command change follows this loop:
 
-1. Run `prowl-agent find` for the command dispatcher and the nearest existing
+1. Run `prowl find` for the command dispatcher and the nearest existing
    verb.
 2. Read its definition and references. Match the existing argument, error, and
    output conventions.

@@ -61,9 +61,9 @@ shipped_app() {
   grep -qE "^[[:space:]]*\{\"$1\", " "$shipped_apps_go"
 }
 # deliberately neither a hard depend nor a provisioned app (documented exception):
-#   chromium -- the default browser is user-swappable; base.packages ships it and
-#               the ryoku-app role resolver tolerates another browser being set.
-declare -A dependExempt=( [chromium]=1 )
+#   firefox -- the recommended browser is user-swappable; base.packages ships it
+#              and the ryoku-app role resolver tolerates another browser being set.
+declare -A dependExempt=( [firefox]=1 )
 
 # feature -> package that provides it
 declare -A need=(
@@ -102,7 +102,7 @@ declare -A need=(
   [battery]=upower
   [shell]=quickshell
   [terminal]=kitty
-  [browser]=chromium
+  [browser]=firefox
   [files]=nautilus
   [editor]=neovim
   [file-cli]=yazi
@@ -139,6 +139,11 @@ done
 if (( ${#notreached[@]} )); then
   echo "::error::feature tools in base.packages but NOT a ryoku-desktop hard depend (ISO-only; never reach 'ryoku update' or shell-installer boxes -- the ddcutil-class drift):" >&2
   printf '  %s\n' "${notreached[@]}" | sort >&2
+  exit 1
+fi
+
+if grep -RIsqE 'fish[[:space:]]+-c' "$ROOT/ryoku"; then
+  echo "::error::shipped QML and scripts must not launch commands through fish -c" >&2
   exit 1
 fi
 

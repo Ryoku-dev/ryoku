@@ -764,7 +764,6 @@ func init() {
 	roAllow["ryoku-shell"] = roRyokuShell
 	roAllow["qs"] = roQs
 	roAllow["prowl"] = roProwl
-	roAllow["prowl-agent"] = roProwl
 }
 
 func roAlways(args []string) (bool, string) { return true, "" }

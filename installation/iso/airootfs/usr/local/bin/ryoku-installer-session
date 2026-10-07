@@ -156,18 +156,19 @@ run_graphical() {
 	command -v cage >/dev/null 2>&1 && command -v foot >/dev/null 2>&1 || return 1
 	compgen -G '/dev/dri/card*' >/dev/null 2>&1 || return 1
 	# cage's keyboard layout is fixed at launch and loadkeys never reaches a
-	# wayland session, so the keyboard step writes the chosen layout to $kbfile and
-	# quits; we relaunch cage under it (below) so the PASSWORD is captured in the
-	# user's real layout instead of us. Without this a non-us password silently
-	# mismatches every login prompt after install.
+	# wayland session, so the keyboard step writes the chosen layout and variant
+	# to $kbfile and quits. Relaunching cage under that pair ensures the password
+	# is captured in the same layout used by the installed system instead of
+	# silently mismatching every login prompt.
 	local kmap="" lay="" var=""
 	if [[ -r $kbfile ]]; then
 		{ IFS= read -r kmap; IFS= read -r lay; IFS= read -r var; } <"$kbfile" || true
 	fi
 	local -a genv=(RYOKU_SESSION=graphical)
 	[[ -n $kmap ]] && genv+=("RYOKU_KB_PRESET=$kmap")
-	[[ -n $lay ]] && genv+=("RYOKU_XKB=$lay" "XKB_DEFAULT_LAYOUT=$lay")
-	[[ -n $var ]] && genv+=("XKB_DEFAULT_VARIANT=$var")
+	if [[ -n $lay ]]; then
+		genv+=("RYOKU_XKB=$lay" "XKB_DEFAULT_LAYOUT=$lay" "XKB_DEFAULT_VARIANT=$var")
+	fi
 	# Size the font to the panel, and pin dpi-aware=no so the pt->px conversion is
 	# the deterministic px = round(pt * scale * 4/3) instead of whatever DPI the
 	# monitor's EDID claims -- a wrong EDID used to be enough to halve the grid.
@@ -200,10 +201,11 @@ wait_for_kms || echo "ryoku: no KMS connector appeared; using the console instal
 rm -f "$kbfile"   # clear any stale layout from a prior boot; first run has no preset
 tries=0
 while true; do
-	prev=""; [[ -r $kbfile ]] && prev=$(sed -n 2p "$kbfile")
+	prev=""; [[ -r $kbfile ]] && prev=$(sed -n '2,3p' "$kbfile")
 	if run_graphical; then
-		# a keyboard (re)pick rewrote $kbfile; relaunch cage under the new layout.
-		now=""; [[ -r $kbfile ]] && now=$(sed -n 2p "$kbfile")
+		# A keyboard (re)pick rewrote $kbfile; relaunch cage under the new layout
+		# and variant.
+		now=""; [[ -r $kbfile ]] && now=$(sed -n '2,3p' "$kbfile")
 		if [[ $now != "$prev" ]]; then
 			tries=0
 			continue

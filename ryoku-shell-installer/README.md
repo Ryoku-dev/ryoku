@@ -18,6 +18,26 @@ Headless / unattended:
 curl -fsSL .../install.sh | bash -s -- --yes
 ```
 
+Choose a browser and login shell in the interactive plan, or pass the same
+choices to an unattended install:
+
+```bash
+curl -fsSL .../install.sh | bash -s -- --yes --browser chromium --shell zsh
+```
+
+`--browser` accepts `firefox` (recommended and the default), `chromium`, or
+`zen`. `--shell` accepts `fish` (recommended), `zsh`, or `bash`. With no shell
+flag, the installer keeps the account's current login shell when it is one of
+those three, and otherwise chooses Fish. `RYOKU_BROWSER` and
+`RYOKU_LOGIN_SHELL` provide the flag defaults for scripted runs.
+
+The package picks are exact: Firefox installs `firefox`, Chromium installs
+`chromium`, and Zen installs `zen-browser-bin` in the AUR step. Fish installs
+`fish`; Zsh installs `zsh`, the three Ryoku plugin packages and
+`ryoku-oh-my-zsh`; Bash installs `blesh`. Bash itself and the shared terminal
+tools (`starship`, `fastfetch`, `zoxide`, `fzf`, `eza`, `bat`, and `mise`) stay
+available with every choice.
+
 Preview without changing anything:
 
 ```bash
@@ -35,8 +55,8 @@ ryoku-shell-install --uninstall        # or: ... | bash -s -- --uninstall
 `install.sh` is a dumb bootstrap: it verifies the machine is a supported
 x86_64 family (pacman or apt-get), downloads the prebuilt `ryoku-shell-install`
 binary (checksummed) from this directory, and hands it the real terminal.
-Everything else is the binary, a bubbletea TUI sharing the ISO installer's
-visual language:
+Everything else is the binary, a Bubble Tea TUI using Ryoku's paper-and-ink
+terminal language:
 
 1. **Scan** the machine: distro, GPU, Secure Boot state, display manager,
    network stack, installed desktops (GNOME/KDE/Cinnamon/Xfce), rival
@@ -45,20 +65,28 @@ visual language:
    daemons (dunst/mako/waybar/swww/…), a plain Hyprland, niri or sway setup
    to migrate from, an Omarchy install to retire (repo + mirror pin),
    keyboard layout, btrfs, and an interrupted previous run to resume.
-2. **Plan** review with per-item toggles (NVIDIA drivers, SDDM switch,
-   greeter theme, NetworkManager switch, rival-shell removal, monitor-layout
-   carry-over, AUR extras, fish shell); sections group the list when it gets
-   long.
+2. **Plan** the browser and login shell, then review the migration toggles.
+   Firefox and Fish are recommended. Zen locks the AUR step on because its
+   package is built there. Only the chosen browser and chosen shell stack are
+   added to the package transaction.
 3. **Install**, streamed step by step:
    legacy-repo retirement → `pacman -Syu` → tools → sparse payload clone → config backup (with a
    generated `restore.sh`) → `[ryoku]` repo + keyring trust → conflict removal
    → desktop packages → GPU drivers → SDDM/qylock/network wiring →
    `ryoku materialize` + seeds (wallpapers, brand, keyboard layout salvaged
-   from the old setup) → AUR extras → `ryoku doctor` → verify.
+   from the old setup) → AUR extras → browser defaults and package-choice
+   ledger → login shell → `ryoku doctor` → verify.
 
 Afterwards the machine is a normal Ryoku box: `ryoku update` updates it
 forever, `ryoku doctor` heals it, and the `[ryoku]` pacman repository signs
 everything. Nothing here ever needs re-running.
+
+The browser choice sets the HTTP, HTTPS and HTML XDG defaults and the desktop's
+`desktop.apps.browser` role. Packages omitted by either choice are recorded in
+`~/.local/state/ryoku/provisioned`, unless they were already installed before
+the conversion. That keeps `ryoku doctor` and `ryoku update` from adding an
+intentionally omitted package later, without removing software the user already
+had.
 
 Migration policy: rival shells are uninstalled (toggle), conflicting daemons
 are disabled but never uninstalled, the old display manager is disabled (not

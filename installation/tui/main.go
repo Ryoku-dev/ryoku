@@ -532,6 +532,8 @@ func steps() []step {
 			desc: []string{i18n.T("The Wayland compositor to run.")}},
 		{key: "browser", title: i18n.T("Web browser"), kind: kSelect, items: browsers(), numbered: true,
 			desc: []string{i18n.T("Ryoku ships three browsers; pick the one you want."), i18n.T("It becomes the default and the launcher's browser role.")}},
+		{key: "login-shell", title: i18n.T("Login shell"), kind: kSelect, items: loginShells(), numbered: true,
+			desc: []string{i18n.T("Choose the shell that opens in terminals."), i18n.T("Shared command-line tools stay available with every choice.")}},
 		{key: "apps", title: i18n.T("Apps & tools"), kind: kApps,
 			desc: []string{i18n.T("Space toggles · every app Ryoku ships, keep or remove."), i18n.T("Required rows back a desktop feature and cannot be removed.")}},
 		{key: "diskpick", title: i18n.T("Target disk"), kind: kSelect, items: disks(), numbered: true,
@@ -932,11 +934,10 @@ func newModel() model {
 	} else {
 		m.diskHint = diskHint()
 	}
-	// default the compositor so RYOKU_COMPOSITOR flows even when the step auto-skips.
+	// Defaults must flow even when a choice step is skipped programmatically.
 	m.picks["compositor"] = wm.Providers()[0]
-	// the browser defaults to the shipped one; the browser step confirms or
-	// changes it, so RYOKU_BROWSER always carries a real choice.
-	m.picks["browser"] = "zen"
+	m.picks["browser"] = "firefox"
+	m.picks["login-shell"] = "fish"
 	m.netOnline = netOnline()
 	m.loadStep()
 	return m
@@ -3328,7 +3329,7 @@ func (m model) reviewBody(w int) string {
 		row(i18n.T("keyboard"), m.picks["keyboard"]), row(i18n.T("locale"), m.picks["locale"]),
 		row(i18n.T("time zone"), m.picks["timezone"]), row(i18n.T("profile"), m.picks["profile"]),
 		row(i18n.T("wm"), compositorLabel(m.picks["compositor"])), row(i18n.T("browser"), browserLabel(m.picks["browser"])),
-		row(i18n.T("apps"), m.appsReviewCell()),
+		row(i18n.T("shell"), loginShellLabel(m.picks["login-shell"])), row(i18n.T("apps"), m.appsReviewCell()),
 		row(i18n.T("disk"), m.diskDev),
 		fg(cSub, fmt.Sprintf("%-11s", i18n.T("strategy"))) + stratCell,
 		row(i18n.T("hostname"), m.picks["hostname"]),
@@ -3638,6 +3639,7 @@ func snapshot() {
 	picks := map[string]string{"keyboard": "us", "locale": "en_US.UTF-8", "timezone": "Europe/Madrid",
 		"profile": "amd-nvidia", "gpu": "offload", "compositor": "niri", "browser": "zen",
 		"disk": "alongside", "hostname": "ryoku", "username": "carlos", "encryption": "LUKS"}
+	picks["browser"], picks["login-shell"] = "firefox", "fish"
 	mk := func() model { m := newModel(); m.w, m.h, m.enterPos, m.state = 112, 42, 1, "wizard"; return m }
 	at := func(m *model, key string) { m.idx = flowIndex(m.flow, key) }
 	sep := strings.Repeat("─", 112)
@@ -3705,6 +3707,13 @@ func snapshot() {
 	m.loadStep()
 	m.enterPos = 1
 	show("web browser", m)
+
+	m = mk()
+	at(&m, "login-shell")
+	m.picks = picks
+	m.loadStep()
+	m.enterPos = 1
+	show("login shell", m)
 
 	m = mk()
 	at(&m, "apps") // apps keep/remove checklist, shipped defaults

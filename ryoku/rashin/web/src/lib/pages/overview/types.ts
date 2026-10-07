@@ -1,4 +1,5 @@
 import type { Vitals } from "$lib/state/machine.svelte";
+import type { ProjectStatus } from "$lib/pages/prowl/types";
 
 export type { Vitals };
 
@@ -16,33 +17,24 @@ export interface DoctorScan {
   error?: string;
 }
 
-export interface ProwlReport {
+export interface ProwlDaemonStatus {
   installed: boolean;
+  bin?: string;
   version?: string;
+  running: boolean;
+  port?: number;
+  url?: string;
   repo?: string;
-  indexed: boolean;
-  symbols?: number;
-  doctor?: { errors: number; warns: number; infos: number };
-  hotspots?: { file: string; in: number }[];
-  savings?: { queries: number; answerTokens: number; savedTokens: number };
-}
-
-export interface CodeStatus {
-  installed: boolean;
-  serving: boolean;
-  repo?: string;
-  version?: string;
   error?: string;
 }
 
+export type CodeStatus = ProjectStatus;
+
 export interface ProwlHit {
   file: string;
-  line: number;
-  text: string;
-}
-
-export interface ProwlSearchAnswer {
-  hits: ProwlHit[] | null;
+  start_line: number;
+  end_line: number;
+  snippet?: string;
 }
 
 export interface FixRequest {

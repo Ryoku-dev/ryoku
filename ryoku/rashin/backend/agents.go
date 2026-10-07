@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -134,7 +135,9 @@ func Wire(id string) error {
 		return err
 	}
 	// Wiring an agent also drops the ryoku skill into its skills dir.
-	return wireAgentSkill(d)
+	err := wireAgentSkill(d)
+	invalidateHarnessCache()
+	return err
 }
 
 // Unwire removes the pointer block from an agent's file, keeping the file.
@@ -146,6 +149,7 @@ func Unwire(id string) error {
 	file := d.file()
 	// The skill symlink is independent of the pointer block; drop it too.
 	unwireAgentSkill(d)
+	invalidateHarnessCache()
 	doc := readFileOrEmpty(file)
 	if doc == "" {
 		return nil
@@ -167,6 +171,10 @@ func WireAll() int {
 	// Also link the always-created homes (~/.agents, ~/.hermes) and every
 	// hermes profile; the per-agent links were made by Wire above.
 	_, _ = WireSkill()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	_ = migrateQuickProviderKeys(ctx)
+	_ = routeConnectedHarnesses(ctx)
 	wireProwlSkills()
 	return n
 }
@@ -487,55 +495,117 @@ func removeSkillLinkIfOurs(link string) {
 }
 
 // ---- prowl skills -----------------------------------------------------------
-//
-// `ryoku-rashin wire` also installs prowl's own agent skills for the
-// clients rashin detects, so an agent gets Prowl's code-intelligence skill in
-// the same pass it gets the ryoku skill. Non-interactive and best effort: a
-// no-op when prowl is absent, when no known client is present, or when the
-// installed prowl predates the `--yes` apply.
 
-// prowlSkillClients are the prowl client ids rashin detects present, among
-// the ones prowl knows: the claude and omp coding agents, plus hermes.
 func prowlSkillClients() []string {
-	var cs []string
-	for _, a := range DetectAgents() {
-		if a.Present && (a.ID == "claude" || a.ID == "omp") {
-			cs = append(cs, a.ID)
+	var clients []string
+	for _, agent := range DetectAgents() {
+		if agent.Present {
+			clients = append(clients, agent.ID)
 		}
 	}
 	if _, ok := FindHermes(); ok {
-		cs = append(cs, "hermes")
+		clients = append(clients, "hermes")
 	}
-	return cs
+	return clients
 }
 
-// wireProwlSkills runs `prowl skills --yes --clients <detected>` for the
-// detected clients. Best effort; skipped when prowl is absent, no client
-// is present, or the installed prowl has no non-interactive apply.
-func wireProwlSkills() {
-	bin, ok := findProwl()
-	if !ok {
-		return
-	}
-	clients := prowlSkillClients()
+func installProwlSkills(ctx context.Context, clients []string) error {
 	if len(clients) == 0 {
-		return
+		return nil
 	}
-	if !prowlSkillsSupportsYes(bin) {
-		return
-	}
+	return prowlGatewayJSON(ctx, http.MethodPost, "/api/setup/skills",
+		map[string]any{"clients": clients}, nil)
+}
+
+func wireProwlSkills() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, bin, "skills", "--yes", "--clients", strings.Join(clients, ","))
-	_ = cmd.Run()
+	_ = migrateQuickProviderKeys(ctx)
+	_ = installProwlSkills(ctx, prowlSkillClients())
 }
 
-// prowlSkillsSupportsYes reports whether the installed prowl supports the
-// non-interactive `--yes` apply, detected from `prowl skills --help`
-// mentioning it (older builds preview only).
-func prowlSkillsSupportsYes(bin string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	out, _ := exec.CommandContext(ctx, bin, "skills", "--help").CombinedOutput()
-	return strings.Contains(string(out), "--yes")
+func connectHarness(ctx context.Context, id string) (bool, string, error) {
+	if id == "gemini" {
+		return false, "", errors.New(geminiRoutingReason)
+	}
+	if err := wireRashinHarness(id); err != nil {
+		return false, "", err
+	}
+	skills := ""
+	if setup, err := gatewayRouting(ctx); err == nil {
+		for _, row := range setup.Harnesses {
+			if row.ID == id {
+				skills = row.Skills
+				break
+			}
+		}
+	}
+	pending, reason, err := routeProwlHarness(ctx, id)
+	if err != nil {
+		return false, "", err
+	}
+	cfg := LoadConfig()
+	if cfg.AddProwlHarness(id) {
+		if err := SaveConfig(cfg); err != nil {
+			return false, "", err
+		}
+	}
+	if skills != "unsupported" {
+		if err := installProwlSkills(ctx, []string{id}); err != nil {
+			return false, "", err
+		}
+	}
+	return pending, reason, nil
+}
+
+func disconnectHarness(ctx context.Context, id string) error {
+	if err := prowlGatewayJSON(ctx, http.MethodDelete, "/api/setup/harnesses/"+id, nil, nil); err != nil {
+		return err
+	}
+	cfg := LoadConfig()
+	if cfg.RemoveProwlHarness(id) {
+		if err := SaveConfig(cfg); err != nil {
+			return err
+		}
+	}
+	return unwireRashinHarness(id)
+}
+
+func wireRashinHarness(id string) error {
+	if id == "hermes" {
+		err := WireHermesMemory()
+		invalidateHarnessCache()
+		return err
+	}
+	if _, ok := lookupAgent(id); ok {
+		return Wire(id)
+	}
+	for _, harness := range harnessDefs() {
+		if harness.id == id {
+			return nil
+		}
+	}
+	return os.ErrInvalid
+}
+
+func unwireRashinHarness(id string) error {
+	if id == "hermes" {
+		file := hermesMemory()
+		removeSkillLinkIfOurs(filepath.Join(home(), ".hermes", "skills", "ryoku"))
+		invalidateHarnessCache()
+		doc := readFileOrEmpty(file)
+		if doc == "" {
+			return nil
+		}
+		return atomicWrite(file, []byte(removeBlock(doc)), 0o644)
+	}
+	if _, ok := lookupAgent(id); ok {
+		return Unwire(id)
+	}
+	for _, harness := range harnessDefs() {
+		if harness.id == id {
+			return nil
+		}
+	}
+	return os.ErrInvalid
 }

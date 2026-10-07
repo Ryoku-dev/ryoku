@@ -37,8 +37,8 @@ Singleton {
     // Recent quick asks (the launcher's \resume history), newest first. The
     // Ask bar's history drawer reads this; it reloads when an ask completes.
     property var recentAsks: []
-    // Resolved fast-lane state (`backend --json`): provider, model, label,
-    // available providers, and whether asks fall back to the session lane.
+    // Resolved fast-lane state (`backend --json`): the active Prowl route,
+    // available routes, gateway state, and readiness.
     property var quickLane: null
 
     // All chat-capable agents (agent --json) for the "what's answering" picker.
@@ -143,13 +143,11 @@ Singleton {
 
     function loadRecentAsks() { recentProc.running = true; }
 
-    // Point the fast ask lane at a provider (`backend <provider>`); the config
-    // lands a moment later, so re-read the resolved state once it settles and
-    // refresh the history so the drawer's lane markers follow the switch.
-    function setQuickLane(provider) {
-        if (!provider)
+    // Point the fast ask lane at a Prowl route, then reload the resolved state.
+    function setQuickLane(route) {
+        if (!route)
             return;
-        Quickshell.execDetached(["ryoku-rashin", "backend", String(provider)]);
+        Quickshell.execDetached(["ryoku-rashin", "backend", String(route)]);
         backendReload.restart();
     }
 
@@ -355,7 +353,7 @@ Singleton {
             onRead: (line) => {
                 var f;
                 try { f = JSON.parse(String(line)); } catch (e) { return; }
-                if (f && f.available)
+                if (f && f.routes)
                     root.quickLane = f;
                 root.loadRecentAsks();
             }

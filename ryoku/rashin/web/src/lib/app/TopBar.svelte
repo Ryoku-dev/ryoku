@@ -18,6 +18,7 @@
     const h = machine.status?.hermes as { installed?: boolean; ready?: boolean } | undefined;
     return h?.installed ? (h.ready === false ? "idle" : "ok") : "bad";
   });
+  const prowlOk = $derived(Boolean((machine.status as { prowl?: { running?: boolean } } | null)?.prowl?.running));
 
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
   let now = $state(new Date());
@@ -51,7 +52,7 @@
     <span class="lamps" aria-label="Services">
       <Tooltip text="ryoku-rashin daemon"><Lamp state={machine.online ? "ok" : "bad"} /></Tooltip>
       <Tooltip text="hermes agent"><Lamp state={hermesOk} /></Tooltip>
-      <Tooltip text="prowl code index"><Lamp state={machine.status?.ready ? "ok" : "idle"} /></Tooltip>
+      <Tooltip text="Prowl gateway"><Lamp state={prowlOk ? "ok" : "idle"} /></Tooltip>
     </span>
     <span class="clock t-mono">{timeFmt.format(now)}</span>
   </div>

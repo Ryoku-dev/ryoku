@@ -13,20 +13,15 @@ type Config struct {
 	// default-on convergence leaves it off. Cleared by `enable`.
 	OptedOut bool `json:"optedOut,omitempty"`
 	Port     int  `json:"port"`
-	// Quick overrides the launcher fast lane's model connection. Empty means
-	// derive it from hermes's own provider config. Provider names one of the
-	// built-in openai-compatible providers (see quickProviders); BaseURL/KeyEnv
-	// override it for anything else.
+	// Quick selects a Prowl gateway route for launcher asks.
 	Quick struct {
-		Provider string `json:"provider,omitempty"`
-		Model    string `json:"model,omitempty"`
-		BaseURL  string `json:"baseUrl,omitempty"`
-		KeyEnv   string `json:"keyEnv,omitempty"`
-	} `json:"quick,omitzero"`
+		Route string `json:"route"`
+	} `json:"quick"`
 	// ChatAgent selects which agent drives the Super+S chat's interactive
 	// session. Empty means the recommended default (hermes). Only agents with
 	// an ACP adapter present can drive it; see chatBackends.
-	ChatAgent string `json:"chatAgent,omitempty"`
+	ChatAgent      string   `json:"chatAgent,omitempty"`
+	ProwlHarnesses []string `json:"prowlHarnesses,omitempty"`
 	// Approvals is how the chat agent's tool calls are approved: "read-only"
 	// (the default when empty) runs calls that only read the machine without
 	// asking and asks for everything else; "ask" asks for every call the agent
@@ -42,6 +37,52 @@ type Config struct {
 	Habits struct {
 		History *bool `json:"history,omitempty"`
 	} `json:"habits,omitzero"`
+}
+
+func (c Config) HasProwlHarness(id string) bool {
+	id = strings.TrimSpace(id)
+	for _, connected := range c.ProwlHarnesses {
+		if connected == id {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *Config) AddProwlHarness(id string) bool {
+	id = strings.TrimSpace(id)
+	if id == "" || c.HasProwlHarness(id) {
+		return false
+	}
+	c.ProwlHarnesses = append(c.ProwlHarnesses, id)
+	return true
+}
+
+func (c *Config) RemoveProwlHarness(id string) bool {
+	id = strings.TrimSpace(id)
+	for i, connected := range c.ProwlHarnesses {
+		if connected != id {
+			continue
+		}
+		copy(c.ProwlHarnesses[i:], c.ProwlHarnesses[i+1:])
+		c.ProwlHarnesses = c.ProwlHarnesses[:len(c.ProwlHarnesses)-1]
+		if len(c.ProwlHarnesses) == 0 {
+			c.ProwlHarnesses = nil
+		}
+		return true
+	}
+	return false
+}
+
+func (c *Config) normalizeProwlHarnesses() {
+	connected := c.ProwlHarnesses
+	c.ProwlHarnesses = connected[:0]
+	for _, id := range connected {
+		c.AddProwlHarness(id)
+	}
+	if len(c.ProwlHarnesses) == 0 {
+		c.ProwlHarnesses = nil
+	}
 }
 
 // HabitsHistoryEnabled: fish-history mining is opt-out.
@@ -107,9 +148,11 @@ func (c Config) IntroPreamble() string {
 }
 
 // defaultConfig: rashin is on by default (opt-out via `disable`, which records
-// OptedOut). LoadConfig starts here, so a box with no config reads as enabled.
+// OptedOut). The fast lane follows Prowl's active routing set.
 func defaultConfig() Config {
-	return Config{Enabled: true, Port: 3600}
+	c := Config{Enabled: true, Port: 3600}
+	c.Quick.Route = "auto"
+	return c
 }
 
 func LoadConfig() Config {
@@ -124,10 +167,22 @@ func LoadConfig() Config {
 	if c.Port <= 0 || c.Port > 65535 {
 		c.Port = 3600
 	}
+	if strings.TrimSpace(c.Quick.Route) == "" {
+		c.Quick.Route = "auto"
+	} else {
+		c.Quick.Route = strings.ToLower(strings.TrimSpace(c.Quick.Route))
+	}
+	c.normalizeProwlHarnesses()
 	return c
 }
 
 func SaveConfig(c Config) error {
+	if strings.TrimSpace(c.Quick.Route) == "" {
+		c.Quick.Route = "auto"
+	} else {
+		c.Quick.Route = strings.ToLower(strings.TrimSpace(c.Quick.Route))
+	}
+	c.normalizeProwlHarnesses()
 	p := ConfigPath()
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		return err

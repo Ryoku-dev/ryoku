@@ -41,6 +41,8 @@ type wsOut struct {
 	Models     []ModelInfo   `json:"models,omitempty"`
 	Current    string        `json:"current,omitempty"`
 	Agent      string        `json:"agent,omitempty"`
+	Prowl      string        `json:"prowl,omitempty"`
+	Reason     string        `json:"reason,omitempty"`
 	Commands   []CommandInfo `json:"commands,omitempty"`
 	SessionID  string        `json:"sessionId,omitempty"`
 	Size       int           `json:"size,omitempty"`
@@ -342,7 +344,10 @@ func (h *chatHub) pump(c *acpConn) {
 			h.broadcast(wsOut{Type: "turn_end", StopReason: ev.StopReason})
 			h.broadcast(wsOut{Type: "state", State: "ready"})
 		case "models":
-			m := wsOut{Type: "models", Models: ev.Models, Current: ev.CurrentModel, Agent: ev.AgentName}
+			m := wsOut{
+				Type: "models", Models: ev.Models, Current: ev.CurrentModel, Agent: ev.AgentName,
+				Prowl: ev.Prowl, Reason: ev.ProwlReason,
+			}
 			h.mu.Lock()
 			h.models = m
 			h.mu.Unlock()

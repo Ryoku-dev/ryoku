@@ -162,8 +162,8 @@ func TestCarveFooterHintTracksState(t *testing.T) {
 func reviewModel() model {
 	return model{
 		picks: map[string]string{"disk": "alongside", "keyboard": "us", "locale": "en_US.UTF-8",
-			"timezone": "Europe/Madrid", "profile": "amd", "hostname": "ryoku", "username": "me",
-			"password": "x", "encryption": "none"},
+			"timezone": "Europe/Madrid", "profile": "amd", "browser": "firefox", "login-shell": "fish",
+			"hostname": "ryoku", "username": "me", "password": "x", "encryption": "none"},
 		diskDev: "/dev/loop0", gpt: true, freeG: 200, espG: 1, espFreeKiB: 8192, swapG: 8,
 		kept:      []part{{dev: "EFI System", size: 1}, {dev: "ryoku", size: 931}},
 		netOnline: true,

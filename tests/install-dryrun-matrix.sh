@@ -113,35 +113,54 @@ out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
 grep -qF 'ryoku-gpu mode' <<<"$out" && fail "ryoku-gpu mode narrated when RYOKU_GPU_MODE was unset"
 
 
-# Browser + app-choice wiring: the default (no RYOKU_BROWSER) installs Zen and
-# drops the other two browsers; naming one browser drops the others; the drop
-# list removes shipped apps from the pacstrap set, one package per name.
+# Browser, login-shell, and app-choice wiring. Direct backend calls use the same
+# Firefox/Fish defaults as the TUI, and every losing package reaches both the
+# package filters and the provisioning ledger.
 pcount() {
   grep -oE 'installing [0-9]+ packages' <<<"$1" | grep -oE '[0-9]+' | head -1
 }
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole \
-  bash "$root/installation/backend/ryoku-install" 2>&1)" || fail "default-browser dry run exited nonzero: $out"
-grep -qF 'DRYRUN: set zen as the default web browser' <<<"$out" \
-  || fail "the default browser pick did not narrate zen"
+  bash "$root/installation/backend/ryoku-install" 2>&1)" || fail "default product-choice dry run exited nonzero: $out"
+grep -qF 'DRYRUN: set firefox as the default web browser' <<<"$out" \
+  || fail "the empty browser choice did not default to firefox"
+grep -qF 'useradd -m -G wheel,video,input -s /usr/bin/fish ryoku' <<<"$out" \
+  || fail "the empty login-shell choice did not create the user with fish"
+grep -qF 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/default-rice-pending:' <<<"$out" \
+  || fail "the first-boot default-rice marker write was not narrated"
+grep -qF '        | default' <<<"$out" \
+  || fail "the first-boot default-rice marker did not contain default"
 base_n=$(pcount "$out")
 [[ -n $base_n ]] || fail "no pacstrap package count in the default dry run"
 
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
-  RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_BROWSER=firefox \
-  bash "$root/installation/backend/ryoku-install" 2>&1)" || fail "firefox dry run exited nonzero: $out"
-grep -qF 'DRYRUN: set firefox as the default web browser' <<<"$out" \
-  || fail "RYOKU_BROWSER=firefox did not narrate firefox"
-grep -qF 'DRYRUN: seed /mnt/home/ryoku/.local/state/ryoku/provisioned with the dropped packages' <<<"$out" \
-  || fail "the drop list did not narrate provisioning-ledger seeding"
-ff_n=$(pcount "$out")
-# the zen default drops BOTH repo browsers from the base set; picking firefox
-# trades the dropped firefox for the dropped chromium, so exactly one package
-# comes back into the transaction.
-[[ $ff_n -eq $((base_n + 1)) ]] \
-  || fail "picking firefox did not re-add exactly firefox to the base set (zen default $base_n -> firefox $ff_n)"
+  RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole \
+  RYOKU_BROWSER=chromium RYOKU_LOGIN_SHELL=zsh \
+  bash "$root/installation/backend/ryoku-install" 2>&1)" || fail "chromium/zsh dry run exited nonzero: $out"
+grep -qF 'DRYRUN: set chromium as the default web browser' <<<"$out" \
+  || fail "RYOKU_BROWSER=chromium did not narrate chromium"
+grep -qF 'useradd -m -G wheel,video,input -s /usr/bin/zsh ryoku' <<<"$out" \
+  || fail "RYOKU_LOGIN_SHELL=zsh did not reach useradd"
+ledger="$(grep -F 'DRYRUN: seed /mnt/home/ryoku/.local/state/ryoku/provisioned with the dropped packages' <<<"$out" | tail -n1)"
+[[ -n $ledger ]] || fail "the drop list did not narrate provisioning-ledger seeding"
+ledger_pkgs="${ledger##*packages (}"
+ledger_pkgs="${ledger_pkgs%)}"
+for pkg in firefox zen-browser-bin fish blesh; do
+  [[ " $ledger_pkgs " == *" $pkg "* ]] || fail "chromium/zsh ledger is missing $pkg: $ledger"
+done
+for pkg in chromium zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh; do
+  [[ " $ledger_pkgs " != *" $pkg "* ]] || fail "chromium/zsh ledger drops selected package $pkg: $ledger"
+done
 
-# dropping two base-set apps removes exactly two packages from the transaction.
+for shell in fish zsh bash; do
+  out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
+    RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_LOGIN_SHELL="$shell" \
+    bash "$root/installation/backend/ryoku-install" 2>&1)" || fail "$shell dry run exited nonzero: $out"
+  grep -qF "useradd -m -G wheel,video,input -s /usr/bin/$shell ryoku" <<<"$out" \
+    || fail "$shell did not reach useradd"
+done
+
+# Dropping two base-set apps removes exactly two packages from the transaction.
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_DROP_PACKAGES=docker,flatpak \
   bash "$root/installation/backend/ryoku-install" 2>&1)" || fail "drop dry run exited nonzero: $out"
@@ -149,12 +168,17 @@ drop_n=$(pcount "$out")
 [[ $drop_n -eq $((base_n - 2)) ]] \
   || fail "RYOKU_DROP_PACKAGES=docker,flatpak did not remove exactly 2 packages ($base_n -> $drop_n)"
 
-# an unknown browser is refused before anything runs.
+# Unknown choices are refused before anything runs.
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_BROWSER=brave \
   bash "$root/installation/backend/ryoku-install" 2>&1)" && fail "RYOKU_BROWSER=brave was accepted"
 grep -qF 'not one of the shipped browsers' <<<"$out" \
   || fail "the browser gate did not explain the allowed values"
+out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
+  RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_LOGIN_SHELL=nu \
+  bash "$root/installation/backend/ryoku-install" 2>&1)" && fail "RYOKU_LOGIN_SHELL=nu was accepted"
+grep -qF 'not one of the shipped login shells' <<<"$out" \
+  || fail "the login-shell gate did not explain the allowed values"
 
-echo "install-dryrun-matrix: browser/app-choice checks passed"
+echo "install-dryrun-matrix: browser/shell/app-choice checks passed"
 echo "install-dryrun-matrix: all checks passed"

@@ -13,6 +13,9 @@ func agentEnv(t *testing.T) string {
 	t.Setenv("HOME", h)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(h, ".local", "share"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(h, ".local", "state"))
+	t.Setenv("RYOKU_CONFIG_BASE", filepath.Join(h, "packaged-config-absent"))
+	t.Setenv("RYOKU_PROWL_PORT", "1")
 	t.Setenv("RYOKU_RASHIN_VAULT", filepath.Join(h, "vault"))
 	return h
 }
@@ -191,10 +194,8 @@ func TestDetectAgentsPresentWired(t *testing.T) {
 	}
 }
 
-// prowlSkillClients maps rashin's own agent detection onto the prowl
-// client ids: the claude and omp coding agents (plus hermes, host-dependent).
-// codex and opencode are detected agents but not prowl client ids, so they must
-// never leak into the --clients list.
+// prowlSkillClients maps every installed harness with a skills directory onto
+// the gateway setup API's client ids.
 func TestProwlSkillClients(t *testing.T) {
 	h := agentEnv(t)
 	has := func(ids []string, id string) bool {
@@ -220,8 +221,27 @@ func TestProwlSkillClients(t *testing.T) {
 	if !has(got, "claude") || !has(got, "omp") {
 		t.Fatalf("prowlSkillClients() = %v, want claude and omp present", got)
 	}
-	// codex has a home but is not a prowl client id.
-	if has(got, "codex") || has(got, "opencode") {
-		t.Fatalf("prowlSkillClients() leaked a non-prowl client: %v", got)
+	if !has(got, "codex") {
+		t.Fatalf("prowlSkillClients() omitted codex: %v", got)
+	}
+	if has(got, "opencode") {
+		t.Fatalf("opencode should be absent without its config home: %v", got)
+	}
+}
+
+func TestProwlHarnessConfigSetKeepsStableUniqueOrder(t *testing.T) {
+	cfg := Config{ProwlHarnesses: []string{"claude", "codex"}}
+	if cfg.AddProwlHarness("claude") {
+		t.Fatal("duplicate connection changed the set")
+	}
+	if !cfg.AddProwlHarness("omp") {
+		t.Fatal("new connection was not added")
+	}
+	if !cfg.RemoveProwlHarness("codex") || cfg.RemoveProwlHarness("missing") {
+		t.Fatal("connection removal reported the wrong result")
+	}
+	got := strings.Join(cfg.ProwlHarnesses, ",")
+	if got != "claude,omp" {
+		t.Fatalf("connected harness order = %q", got)
 	}
 }

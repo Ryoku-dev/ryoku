@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **`ryoku doctor` keeps Prowl's gateway up for Rashin.** When Rashin runs but
+  the gateway on port 8788 (`RYOKU_PROWL_PORT`) does not answer, the doctor runs
+  `ryoku-rashin ensure` and checks again
+  (`internal/doctor/reconcile_rashin_daemon.go`).
 - **`ryoku update` is a clean console now, not a wall of logs.** A terminal
   run shows a header, one line per step with its time and what it found, a
   live line for the step in flight, a progress bar, and a closing card; the
@@ -75,6 +79,11 @@
   (`internal/doctor/reconcile_boot_rw.go`).
 
 ### Changed
+- **The Prowl checks know only `prowl`.** The install check suggests
+  `sudo pacman -S prowl`, `ryoku update` refreshes only `prowl`, and a
+  dev-deployed `ryoku-prowl.service` that shadows the packaged unit is cleaned
+  like the Rashin one (`internal/doctor/reconcile_dev_residue.go`,
+  `internal/updater/update.go`).
 - **`ryoku track` speaks stable and unstable.** The channel switch is now
   `ryoku track stable` and `ryoku track unstable`; the old `ryoku track main`
   and `ryoku track unstable-dev` are retired and fail naming their replacement.
@@ -88,6 +97,13 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **Existing installs use their console layout at the disk unlock prompt.** The
+  doctor adds the `ryoku-console-keys` initramfs hook right after `udev` in
+  `/etc/mkinitcpio.conf.d/ryoku.conf` once ryoku-desktop ships it, and rebuilds
+  the boot images. The prompt then reads keys in the user's console layout with
+  Num Lock on instead of falling back to a US layout with Num Lock off and
+  rejecting a passphrase set in the installer
+  (`internal/doctor/reconcile_initramfs.go`).
 - **A fresh install's first niri login starts.** The installer runs
   `ryoku materialize` before a neutral store exists on a box with the default
   keyboard layout, and materialize skipped rendering a compositor's generated

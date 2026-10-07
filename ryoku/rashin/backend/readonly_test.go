@@ -67,7 +67,7 @@ func TestReadOnlyCommand(t *testing.T) {
 		{"ryoku-rashin agent --json", true},
 		{"ryoku-shell bar list", true},
 		{"qs list", true},
-		{"prowl-agent search 'where is the chat panel'", true},
+		{"prowl search 'where is the chat panel'", true},
 		{"ryoku doctor --check", true},
 		{"nvidia-smi -q -d MEMORY", true},
 
@@ -110,7 +110,7 @@ func TestReadOnlyCommand(t *testing.T) {
 		{"ryoku-rashin agent use omp", false},
 		{"ryoku-shell bar show", false},
 		{"qs kill", false},
-		{"prowl-agent gateway start", false},
+		{"prowl gateway start", false},
 		{"sudo cat /etc/shadow", false},
 		{"cat f | sh", false},
 		{"dd if=/dev/zero of=/dev/sda", false},
@@ -132,7 +132,7 @@ func TestReadOnlyCommand(t *testing.T) {
 		// Secret files read through the shell must ask (parent-reported).
 		{"cat ~/.ssh/id_ed25519", false},
 		{"cat ~/.hermes/.env", false},
-		{"tail -n 5 ~/.local/share/prowl/gateway/token", false},
+		{"tail -n 5 ~/.local/share/tool/gateway/token", false},
 		{"head ~/.netrc", false},
 		{"jq -n input --rawfile x ~/.ssh/id_rsa", false},
 		{"grep -r . ~/.password-store", false},

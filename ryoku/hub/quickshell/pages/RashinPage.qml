@@ -33,13 +33,15 @@ Item {
     // the port the daemon reports, not a literal: a user who changed it in
     // ~/.config/ryoku/rashin.json still gets a link that resolves.
     property int port: 3600
+    property bool prowlInstalled: false
+    property bool prowlRunning: false
+    property int prowlPort: 8788
+    property string prowlUrl: ""
+    property string prowlError: ""
     property bool vaultExists: false
     property int vaultFiles: 0
     property bool hermesInstalled: false
     property bool hermesConfigured: false
-    property string hermesModel: ""
-    property string hermesProvider: ""
-    property string hermesVersion: ""
     property int agentsPresent: 0
     property int agentsWired: 0
     // manifest: the full agent surface (paths + agents + chat backends), from
@@ -77,15 +79,19 @@ Item {
                     pg.running = o.running === true;
                     if (typeof o.port === "number" && o.port > 0)
                         pg.port = o.port;
+                    var p = o.prowl || ({});
+                    pg.prowlInstalled = p.installed === true;
+                    pg.prowlRunning = p.running === true;
+                    if (typeof p.port === "number" && p.port > 0)
+                        pg.prowlPort = p.port;
+                    pg.prowlUrl = p.url || "";
+                    pg.prowlError = p.error || "";
                     var v = o.vault || ({});
                     pg.vaultExists = v.exists === true;
                     pg.vaultFiles = (typeof v.files === "number") ? v.files : 0;
                     var h = o.hermes || ({});
                     pg.hermesInstalled = h.installed === true;
                     pg.hermesConfigured = h.configured === true;
-                    pg.hermesModel = h.model || "";
-                    pg.hermesProvider = h.provider || "";
-                    pg.hermesVersion = h.version || "";
                     var ags = o.agents || [];
                     var present = 0, wired = 0;
                     for (var i = 0; i < ags.length; i++) {
@@ -104,6 +110,10 @@ Item {
                 pg.installed = false;
                 pg.daemonEnabled = false;
                 pg.running = false;
+                pg.prowlInstalled = false;
+                pg.prowlRunning = false;
+                pg.prowlUrl = "";
+                pg.prowlError = "";
             }
         }
     }
@@ -519,7 +529,7 @@ Item {
                 wrapMode: Text.WordWrap; lineHeight: 1.5
             }
 
-            // ── MASTER SWITCH + MODEL: what is running, and the control ───────
+            // ── MASTER SWITCH + PROWL: the two-process product state ─────────
             Row {
                 width: parent.width
                 spacing: Tokens.s4
@@ -564,39 +574,39 @@ Item {
                     }
                 }
 
-                // the model Hermes runs on -- the headline fact.
+                // Prowl is Rashin's model gateway and code-intelligence engine.
                 Rectangle {
                     width: parent.colW
                     height: 96
                     color: Tokens.paperLift
                     border.width: 1
-                    border.color: Tokens.line
-                    Rectangle { x: 0; y: 0; width: 34; height: 3; color: Tokens.alert }
+                    border.color: pg.prowlRunning ? Qt.rgba(Tokens.ink.r, Tokens.ink.g, Tokens.ink.b, 0.35) : Tokens.line
+                    Rectangle { x: 0; y: 0; width: 34; height: 3; color: pg.prowlRunning ? Tokens.ink : Tokens.alert }
 
                     Column {
                         anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 18 }
-                        spacing: 4
+                        spacing: 6
                         Row {
                             spacing: Tokens.s2
-                            Text { text: "模型"; color: Tokens.alert; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: "徘徊"; color: Tokens.alert; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                             Text {
-                                text: I18n.tr("MODEL"); color: Tokens.inkDim; font.family: Tokens.mono
-                                font.pixelSize: 10; font.letterSpacing: 3; anchors.verticalCenter: parent.verticalCenter
+                                text: I18n.tr("PROWL GATEWAY"); color: Tokens.ink; font.family: Tokens.display
+                                font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter
                             }
                         }
                         Text {
                             width: parent.width
-                            text: pg.hermesConfigured ? (pg.hermesModel || I18n.tr("configured")) : "-"
-                            color: Tokens.ink; font.family: Tokens.display
-                            font.pixelSize: pg.hermesConfigured ? 30 : 26
-                            elide: Text.ElideRight
+                            text: !pg.prowlInstalled ? I18n.tr("Not installed")
+                                : (pg.prowlRunning ? I18n.tr("Running · %1").arg(pg.prowlUrl || ("127.0.0.1:" + pg.prowlPort))
+                                   : I18n.tr("Offline · starts with Rashin"))
+                            color: pg.prowlRunning ? Tokens.ink : Tokens.inkDim
+                            font.family: Tokens.mono; font.pixelSize: 11; elide: Text.ElideRight
                         }
                         Text {
                             width: parent.width
-                            text: pg.hermesConfigured
-                                ? (I18n.tr("via %1").arg(pg.hermesProvider || "hermes") + (pg.hermesVersion ? I18n.tr("  \u00b7  Hermes v%1").arg(pg.hermesVersion) : ""))
-                                : (pg.hermesInstalled ? I18n.tr("run setup to choose a model") : I18n.tr("set up Hermes to choose a model"))
-                            color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 11; elide: Text.ElideRight
+                            text: pg.prowlError ? pg.prowlError
+                                : I18n.tr("Models and code intelligence")
+                            color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 10; elide: Text.ElideRight
                         }
                     }
                 }
@@ -652,7 +662,7 @@ Item {
                 Head { kanji: "\u4e94\u4eba\u8846"; title: I18n.tr("YOUR AGENTS") }
                 Text {
                     width: parent.width
-                    text: I18n.tr("Wire any coding agent to the same living map of this machine. One click drops a pointer into its instructions, links the ryoku skill, and installs prowl's code-intelligence skill.")
+                    text: I18n.tr("Connect any coding agent to the same living map of this machine. One click adds the Ryoku and Prowl skills, then routes that agent's models through the Prowl gateway.")
                     color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12; wrapMode: Text.WordWrap; lineHeight: 1.4
                 }
                 Column {

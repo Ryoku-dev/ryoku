@@ -16,12 +16,23 @@
   }
 
   let { open = $bindable(false), title, description, width = 520, children, footer }: Props = $props();
+  let content = $state<HTMLElement | null>(null);
+
+  // The focus trap lands on the first focusable element, the close button,
+  // which would make Enter dismiss a confirm. A control marked autofocus (the
+  // dialog's action) takes the initial focus instead.
+  function focusAction(event: Event) {
+    const target = content?.querySelector<HTMLElement>("[autofocus]");
+    if (!target) return;
+    event.preventDefault();
+    target.focus();
+  }
 </script>
 
 <Dialog.Root bind:open>
   <Dialog.Portal>
     <Dialog.Overlay class="dlg-scrim" />
-    <Dialog.Content class="dlg" style="--dlg-w: {width}px">
+    <Dialog.Content bind:ref={content} class="dlg" style="--dlg-w: {width}px" onOpenAutoFocus={focusAction}>
       <header class="dlg-head">
         <div>
           <Dialog.Title class="dlg-title">{title}</Dialog.Title>

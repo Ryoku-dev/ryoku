@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- `base.packages`: **new installs choose one browser and one login-shell stack.**
+  Firefox and Fish are recommended, with Chromium or Zen and Bash or Zsh
+  available in the installers. The unchosen packages are filtered before
+  installation and recorded so updates leave them out. `ryoku-oh-my-zsh` joins
+  the Zsh stack in the signed package set, while shared prompt and CLI tools stay
+  available with every shell.
 - `base.packages`: **the screen recorder is now GPU Screen Recorder.** `wf-recorder`
   is replaced by `gpu-screen-recorder` (GPU-only capture and encode on both
   Hyprland and niri, behind `ryoku-cmd-record` / `ryoku-shell record`). It is also
@@ -23,10 +29,10 @@
   NVDEC through `nvidia-utils`, so only Intel needed a package. It bakes into
   the offline ISO closure.
 
-- `base.packages`: **Bash and Zsh receive Fish-like editing.** `blesh`, `zsh`,
-  `zsh-autosuggestions`, `zsh-syntax-highlighting` and
-  `zsh-history-substring-search` ship with every machine so any account shell
-  selected in Ryoku Settings has highlighting, suggestions and history search.
+- `base.packages`: **Bash and Zsh receive Fish-like editing when selected.**
+  The installer keeps `blesh` with Bash and the Zsh plugins plus
+  `ryoku-oh-my-zsh` with Zsh, rather than installing all three shell stacks on
+  every machine.
 
 - `base.packages`: **the Spicetify Marketplace store ships by default.**
   `spicetify-marketplace` (the store custom app -- the Marketplace icon in
@@ -70,19 +76,18 @@
   so there is no per-brand driver to add). The gap was Bluetooth, which `xpad`
   does not speak at all: `xpadneo-dkms` fills it, and it now ships from
   `[ryoku]`.
-- `base.packages`: ship `docker` and `firefox`. Docker is what the stash "Cobalt
-  engine" switch has always needed and never had: cobalt is distributed only as a
-  container image, so on a clean install that switch could not work at all and
-  said so with a dead end ("Install Docker to use cobalt"). Both are official
-  repo packages, so `base.packages` is simply where they belong; they reach the
-  ISO through the offline closure (`installation/iso/offline-repo.sh`) like every
-  other repo package. The service is deliberately NOT enabled here: a machine
-  that never opens the switch should not pay for a running dockerd, a `docker0`
-  bridge and its iptables rules, so the setup wizard enables it on first use. No
-  `docker-compose`: the cobalt lifecycle is a single `docker run`.
-  Firefox is additive, so a Gecko engine is always on hand for a site Chromium
-  renders badly; it does not become the default, because `ryoku-app`'s `browser`
-  role stays `chromium` and Ryoku Settings owns the override.
+- `base.packages`: ship `docker` and make Firefox available to the installer.
+  Docker is what the stash "Cobalt engine" switch has always needed and never
+  had: cobalt is distributed only as a container image, so on a clean install
+  that switch could not work at all and said so with a dead end ("Install Docker
+  to use cobalt"). Both are official repo packages, so `base.packages` is where
+  they belong; they reach the ISO through the offline closure
+  (`installation/iso/offline-repo.sh`) like every other repo package. The
+  service is deliberately NOT enabled here: a machine that never opens that
+  switch should not pay for a running dockerd, a `docker0` bridge and its
+  iptables rules, so the setup wizard enables it on first use. No
+  `docker-compose`: the cobalt lifecycle is a single `docker run`. Firefox is
+  the recommended browser pick for new installs.
 - `base.packages`: `spicetify-cli` moves out of `aur.packages` and ships from
   `[ryoku]` (`release/packages/spicetify-cli`), listed next to `spotify-launcher`
   because neither is useful for the Canvas backdrop without the other. The ISO

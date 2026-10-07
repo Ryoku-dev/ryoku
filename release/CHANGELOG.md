@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- **`prowl` ships from [ryoku] and replaces `prowl-agent`.** Built from a pinned
+  neur0map/prowl commit with the potion-code-16M embedding model compiled in,
+  and stamped pacman-managed so `prowl update` defers to `ryoku update`.
+  `replaces` and `conflicts` move existing boxes over on `pacman -Syu`.
+  `ryoku-rashin` depends on it and ships `ryoku-prowl.service`.
 - **`skwd-paper-bin` ships from [ryoku].** The skwd-paper renderer Ryogami
   drives for Wallpaper Engine scenes, repackaged from the prebuilt Arch package
   of a pinned upstream release (version and checksum in its PKGBUILD).
