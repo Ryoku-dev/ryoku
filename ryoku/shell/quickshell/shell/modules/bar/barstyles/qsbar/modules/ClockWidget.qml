@@ -1,4 +1,5 @@
 import QtQuick
+import Ryoku.Ui.Singletons
 import Quickshell
 import Quickshell.Io
 import shell.services as Svc
@@ -56,7 +57,7 @@ Item {
         onExited: { tip.hide(); }
         onClicked: (e) => {
             tip.hide();
-            if (e.button === Qt.RightButton) root.clock12h = !root.clock12h;
+            if (e.button === Qt.RightButton) TimeFormat.set24h(root.clock12h);
             else rootMod.activated();
         }
     }

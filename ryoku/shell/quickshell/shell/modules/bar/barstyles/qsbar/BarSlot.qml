@@ -4,6 +4,7 @@
 // a single screen-facing border and shadow replace the rounded section islands.
 // ─────────────────────────────────────────────────────────────────────────────
 import QtQuick
+import Ryoku.Ui.Singletons
 import QtQuick.Effects
 import QtQuick.Shapes
 import Quickshell
@@ -1094,7 +1095,7 @@ PanelWindow {
                 cursorShape: Qt.PointingHandCursor
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onClicked: (e) => {
-                    if (e.button === Qt.RightButton) barSlot.root.clock12h = !barSlot.root.clock12h
+                    if (e.button === Qt.RightButton) TimeFormat.set24h(barSlot.root.clock12h)
                     else g8.openDash()
                 }
             }

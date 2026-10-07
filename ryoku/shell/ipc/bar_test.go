@@ -559,3 +559,26 @@ func TestBarCatalogWithPlugin(t *testing.T) {
 		t.Fatalf("plugin row = %+v, want center/shown/plugin", *pr)
 	}
 }
+
+func TestBarClockFormatUsesGlobalPreference(t *testing.T) {
+	d := barTestDaemon(t)
+	for _, tc := range []struct {
+		value  string
+		want24 bool
+	}{
+		{"off", true}, {"on", false},
+	} {
+		if got := d.dispatch("bar set clock clock12h " + tc.value); got != "ok" {
+			t.Fatalf("bar set clock: %s", got)
+		}
+		frame := d.frame(t)
+		general := frame["general"].(map[string]any)
+		if general["clock_format_24_h"] != tc.want24 {
+			t.Fatalf("global clock format = %v, want %v", general["clock_format_24_h"], tc.want24)
+		}
+		reloaded := newSettingsStore(d.settings.path)
+		if reloaded.raw["general"].(map[string]any)["clock_format_24_h"] != tc.want24 {
+			t.Fatal("clock format did not survive a store reload")
+		}
+	}
+}

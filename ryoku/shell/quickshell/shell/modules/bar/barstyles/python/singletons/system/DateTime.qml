@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import Quickshell
 import "../../"
 
@@ -11,13 +12,13 @@ Item {
     readonly property string timeFormat: {
         if (typeof Config !== "undefined" && Config.rawSettings) {
             if (Config.rawSettings.bar && Config.rawSettings.bar.time && Config.rawSettings.bar.time.format !== undefined) {
-                return Config.rawSettings.bar.time.format;
+                return RyokuUi.TimeFormat.withHourCycle(Config.rawSettings.bar.time.format);
             }
             if (Config.rawSettings.general && Config.rawSettings.general.time_format !== undefined) {
-                return Config.rawSettings.general.time_format;
+                return RyokuUi.TimeFormat.withHourCycle(Config.rawSettings.general.time_format);
             }
         }
-        return "HH:mm:ss";
+        return RyokuUi.TimeFormat.pattern(true);
     }
 
     readonly property string hourFormat: {
@@ -47,14 +48,15 @@ Item {
         return "";
     }
 
-    readonly property bool is12Hour: amPmFormat !== "" || hourFormat === "hh" || hourFormat === "h"
+    readonly property bool is12Hour: !RyokuUi.TimeFormat.is24h
+    readonly property bool is24Hour: RyokuUi.TimeFormat.is24h
 
     readonly property string time: Qt.formatDateTime(now, timeFormat)
     readonly property string timeShort: Qt.formatDateTime(now, hourFormat + ":" + minuteFormat + (amPmFormat !== "" ? " " + amPmFormat : ""))
-    readonly property string timeLong: Qt.formatDateTime(now, "HH:mm:ss")
+    readonly property string timeLong: RyokuUi.TimeFormat.format(now, true)
     readonly property string timeOnly: Qt.formatDateTime(now, timeFormat)
 
-    readonly property string hour: Qt.formatDateTime(now, hourFormat)
+    readonly property string hour: String(RyokuUi.TimeFormat.is24h ? now.getHours() : ((now.getHours() % 12) || 12)).padStart(2, "0")
     readonly property string minute: Qt.formatDateTime(now, minuteFormat)
     readonly property string second: secondFormat !== "" ? Qt.formatDateTime(now, secondFormat) : ""
     readonly property string amPm: amPmFormat !== "" ? Qt.formatDateTime(now, amPmFormat) : ""

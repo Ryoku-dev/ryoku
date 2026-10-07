@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import inir.services
 import inir.modules.common
@@ -61,7 +62,7 @@ AbstractBackgroundWidget {
         const d = new Date(DateTime.clock.date.getTime() - root.sessionSeconds * 1000)
         return d
     }
-    readonly property string bootLabel: Qt.locale().toString(root.bootDate, "HH:mm")
+    readonly property string bootLabel: RyokuUi.TimeFormat.format(root.bootDate)
 
     WidgetSurface {
         irisPresentation: root.widgetIris

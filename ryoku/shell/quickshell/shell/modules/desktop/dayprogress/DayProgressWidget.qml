@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Ryoku.Ui.Singletons
 import QtQuick.Shapes
 import "../Singletons"
 
@@ -28,7 +29,7 @@ Item {
         const d = Now.date;
         return (d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds()) / 86400;
     }
-    readonly property string timeText: Qt.formatTime(Now.date, Config.clock24h ? "HH:mm" : "h:mm")
+    readonly property string timeText: TimeFormat.format(Now.date)
 
     readonly property real dim: Math.round(200 * face.s)
     implicitWidth: face.dim

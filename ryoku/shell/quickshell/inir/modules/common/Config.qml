@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import Quickshell
 import Quickshell.Io
 import "IrisDefaults.js" as IrisDefaults
@@ -85,6 +86,8 @@ Singleton {
     function setNestedValues(patches) {
         let optionsDirty = false
         for (const path of Object.keys(patches)) {
+            if (path === "time.format")
+                RyokuUi.TimeFormat.set24h(!/a/i.test(String(patches[path])));
             if (root.sharedKeys.includes(path)) {
                 root.pending[path] = patches[path]
                 continue
@@ -147,12 +150,24 @@ Singleton {
             }
         }
         merged.panelFamily = "iris";
-        root.options = merged;
+        root.options = Object.assign({}, merged, {
+            time: Object.assign({}, merged.time, { format: RyokuUi.TimeFormat.pattern() })
+        });
         if (!root._seeded && Object.keys(defs).some(k => stored[k] === undefined))
             root.pending["inir"] = merged;
         root._seeded = true;
         if (Object.keys(root.pending).length > 0)
             root.flushWrites();
+    }
+
+    Connections {
+        target: RyokuUi.TimeFormat
+        function onIs24hChanged() {
+            root.options = Object.assign({}, root.options, {
+                time: Object.assign({}, root.options.time, { format: RyokuUi.TimeFormat.pattern() })
+            });
+            root.bump();
+        }
     }
 
     function _deepFill(target, defaults) {

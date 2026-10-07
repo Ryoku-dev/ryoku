@@ -106,7 +106,7 @@ Item {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     kana: "みなと"
-                    index: Qt.formatDateTime(dash.now, "HH:mm")
+                    index: TimeFormat.format(dash.now)
                     glyph: "column"; glyph2: "torii"
                     chevrons: true
                 }
@@ -134,7 +134,7 @@ Item {
                         elide: Text.ElideRight
                     }
                     Text {
-                        text: "@" + dash.userName + "  ·  " + Qt.formatDateTime(dash.now, "HH:mm")
+                        text: "@" + dash.userName + "  ·  " + TimeFormat.format(dash.now)
                         color: Tokens.inkMuted
                         font.family: Tokens.mono
                         font.pixelSize: 12

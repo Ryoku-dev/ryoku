@@ -37,7 +37,7 @@ Item {
         triggeredOnStart: true
         onTriggered: pg.now = new Date()
     }
-    readonly property string clockTime: Qt.formatDateTime(pg.now, "HH:mm")
+    readonly property string clockTime: TimeFormat.format(pg.now)
 
     property string machineId: ""
     property string installDate: ""

@@ -1,5 +1,8 @@
 # Changelog: ryoku/hub/
 
+### Added
+- Global > Language & Region offers a 24-hour time switch for all Ryoku clocks; off selects 12-hour time with AM/PM.
+
 ### Fixed
 - **Vesktop colours follow the Ryoku theme, not Midnight.** The palette
   bridge's Vesktop integration wrote a competing Midnight theme file and could

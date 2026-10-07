@@ -50,9 +50,14 @@ Item {
     }
     function refreshClock() {
         if (!tzp.selected) { tzp.localTime = ""; return; }
-        clockProc.command = ["env", "TZ=" + tzp.selected.tz, "date", "+%H:%M  %Z  UTC%z"];
+        clockProc.command = ["env", "TZ=" + tzp.selected.tz, "date", TimeFormat.is24h ? "+%H:%M  %Z  UTC%z" : "+%-I:%M %p  %Z  UTC%z"];
         clockProc.running = false;
         clockProc.running = true;
+    }
+
+    Connections {
+        target: TimeFormat
+        function onIs24hChanged() { if (tzp.active) tzp.refreshClock(); }
     }
 
     readonly property var results: Tz.search(tzp.zones, tzp.query)

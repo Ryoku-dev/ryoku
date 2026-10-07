@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Ryoku.Ui.Singletons
 import Quickshell
 import Quickshell.Io
 
@@ -13,7 +14,7 @@ Singleton {
     // -- clock ---------------------------------------------------------------
     property alias clockEnabled: adapter.clockEnabled
     property alias clockDesign:  adapter.clockDesign   // digital | minimal | analog | flip | rings
-    property alias clock24h:     adapter.clock24h
+    readonly property bool clock24h: TimeFormat.is24h
     property alias clockSeconds: adapter.clockSeconds
     property alias clockAccent:  adapter.clockAccent   // palette | brand | mono
     property alias clockScale:   adapter.clockScale

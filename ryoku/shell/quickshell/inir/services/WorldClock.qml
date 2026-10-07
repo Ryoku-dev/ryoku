@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import Quickshell
 import Quickshell.Io
 import inir.modules.common
@@ -73,15 +74,8 @@ Singleton {
         Config.setNestedValue("background.widgets.worldClock.timezones", updated);
     }
 
-    readonly property string ampmToken: {
-        const fmt = Config.options?.time?.format ?? "HH:mm";
-        if (fmt.includes("AP"))
-            return "AP";
-        if (fmt.includes("ap"))
-            return "ap";
-        return "";
-    }
-    readonly property bool use24h: root.ampmToken === ""
+    readonly property string ampmToken: RyokuUi.TimeFormat.is24h ? "" : "AP"
+    readonly property bool use24h: RyokuUi.TimeFormat.is24h
 
     property var now: new Date()
     property var offsetsMinutes: []

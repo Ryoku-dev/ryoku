@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import Quickshell
 import inir.modules.common
@@ -13,13 +14,7 @@ IrisWidgetFace {
     readonly property bool analog: String(root.widget.irisOption("face", "analog")) === "analog"
     readonly property bool seconds: Boolean(root.widget.irisOption("seconds", true))
     readonly property var now: clock.date
-    readonly property string timePattern: {
-        const format = String(root.widget.timeFormat ?? "system")
-        if (format === "24h") return "HH:mm"
-        if (format === "12h") return "h:mm AP"
-        return String(Config.options?.time?.format ?? "hh:mm").replace(/:ss/, "")
-    }
-    readonly property string timeText: Qt.locale().toString(root.now, root.timePattern)
+    readonly property string timeText: RyokuUi.TimeFormat.format(root.now)
     readonly property string weekday: {
         const name = Qt.locale().toString(root.now, "dddd")
         return name.charAt(0).toUpperCase() + name.slice(1)

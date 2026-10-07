@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Ryoku.Ui.Singletons
 import Quickshell
 import Quickshell.Io
 import "lib/weather.js" as Model
@@ -67,7 +68,7 @@ Singleton {
     // lands, which the daemon dedupes.
     function setUnit(unit) {
         root.send("settings.patch", { path: "weatherUnit", value: unit });
-        root.send("weather.configure", { location: Config.weatherLocation, unit: unit, clock24: true });
+        root.send("weather.configure", { location: Config.weatherLocation, unit: unit, clock24: TimeFormat.is24h });
     }
 
     // Push the configured location, unit and clock format to the daemon, which
@@ -76,7 +77,7 @@ Singleton {
         root.send("weather.configure", {
             location: Config.weatherLocation,
             unit: Config.weatherUnit,
-            clock24: true
+            clock24: TimeFormat.is24h
         });
     }
 
@@ -86,6 +87,11 @@ Singleton {
             ctl.flushQueued();
         else
             ctl.connected = true;
+    }
+
+    Connections {
+        target: TimeFormat
+        function onIs24hChanged() { root.sendConfigure(); }
     }
 
     Connections {

@@ -1,4 +1,5 @@
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import Quickshell
 import inir
@@ -115,11 +116,10 @@ AbstractBackgroundWidget {
                 WidgetQuickChoices {
                     current: root.timeFormat
                     model: [
-                        { value: "system", icon: "settings", label: Translation.tr("System") },
                         { value: "24h", icon: "schedule", label: Translation.tr("24h") },
                         { value: "12h", icon: "nest_clock_farsight_analog", label: Translation.tr("12h") }
                     ]
-                    onPicked: value => root._setOutputValue("timeFormat", value)
+                    onPicked: value => RyokuUi.TimeFormat.set24h(value === "24h")
                 }
             }
 
@@ -184,7 +184,7 @@ AbstractBackgroundWidget {
 
     // --- Clock customization config ---
     property string clockFontFamily: root._readConfigKey("fontFamily") ?? "Space Grotesk"
-    property string timeFormat: root._readConfigKey("timeFormat") ?? "system"
+    readonly property string timeFormat: RyokuUi.TimeFormat.is24h ? "24h" : "12h"
     property bool showSeconds: root._readConfigKey("showSeconds") ?? false
     property bool showDate: root._readConfigKey("showDate") ?? true
     property bool instrumentTrail: root._readConfigKey("instrumentTrail") ?? true
@@ -236,20 +236,7 @@ AbstractBackgroundWidget {
     }
 
     // --- Resolved format patterns (reactive) ---
-    property string _timePattern: {
-        const fmt = root.timeFormat;
-        const sec = root.showSeconds;
-        if (fmt === "24h") return sec ? "HH:mm:ss" : "HH:mm";
-        if (fmt === "12h") return sec ? "hh:mm:ss AP" : "hh:mm AP";
-        // "system" — use global config format, smart seconds append
-        const base = Config.options?.time?.format ?? "hh:mm";
-        if (sec && !base.includes("s")) {
-            const apIdx = base.indexOf(" AP");
-            if (apIdx >= 0) return base.slice(0, apIdx) + ":ss" + base.slice(apIdx);
-            return base + ":ss";
-        }
-        return base;
-    }
+    readonly property string _timePattern: RyokuUi.TimeFormat.pattern(root.showSeconds)
     property string _datePattern: {
         const style = root.dateStyle;
         if (style === "weekday") return "dddd";

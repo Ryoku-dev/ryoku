@@ -236,7 +236,11 @@ ShellRoot {
         Loader {
             anchors.fill: parent
             source: "file://" + shellRoot.themePath + "/Main.qml"
-            onLoaded: { item.forceActiveFocus() }
+            onLoaded: {
+                if (item.clock24h !== undefined)
+                    item.clock24h = Qt.binding(() => TimeFormat.is24h);
+                item.forceActiveFocus();
+            }
             onStatusChanged: {
                 if (status === Loader.Error) {
                     console.error("FAILED to load theme:", source)

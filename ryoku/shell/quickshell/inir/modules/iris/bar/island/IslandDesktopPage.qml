@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Dialogs
 import QtQuick.Effects
 import QtQuick.Layouts
@@ -737,7 +738,7 @@ ColumnLayout {
                 if (!agenda.event) return ""
                 const now = DateTime.clock.date
                 const minutes = Math.round((agenda.when.getTime() - now.getTime()) / 60000)
-                const time = Qt.locale().toString(agenda.when, Qt.locale().timeFormat(Locale.ShortFormat))
+                const time = RyokuUi.TimeFormat.format(agenda.when)
                 if (minutes < 1) return Translation.tr("Now")
                 if (minutes < 60) return Translation.tr("In %1 min").arg(minutes)
                 const today = new Date(now); today.setHours(0, 0, 0, 0)

@@ -2,6 +2,7 @@
 // read the same time in the same regional-formats locale.
 
 import QtQuick
+import Ryoku.Ui.Singletons
 import Quickshell
 import shell.services
 
@@ -12,7 +13,7 @@ Item {
 
     readonly property var cfg: (Config.kairos && typeof Config.kairos === "object")
         ? Config.kairos : ({})
-    readonly property bool twelve: cfg.clock12h === true
+    readonly property bool twelve: !TimeFormat.is24h
     readonly property bool seconds: cfg.clockSeconds === true
 
     readonly property date now: systemClock.date

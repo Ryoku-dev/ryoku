@@ -127,7 +127,7 @@ PanelWindow {
         target: speedTest
         function onPhaseChanged() {
             if (speedTest.phase === "success")
-                netPanel.lastTestStamp = new Date().toLocaleString(Qt.locale("en_US"), "HH:mm · d MMM")
+                netPanel.lastTestStamp = TimeFormat.format(new Date()) + new Date().toLocaleDateString(TimeFormat.locale, " · d MMM")
         }
     }
 

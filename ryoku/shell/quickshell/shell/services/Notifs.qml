@@ -24,10 +24,6 @@ Singleton {
     // carries no popup timer, so the shell owns it.
     readonly property int popupDuration: 5000
 
-    // 24-hour clock for the card time label. The reference default is 12-hour
-    // (general.clock_format_24_h = false); the Go clock config owns this in the
-    // settings phase, so it follows the reference default for now.
-    property bool format24h: false
 
     // Arrival wall-clock per id, for newest-first ordering and expiry math.
     property var arrivalMs: ({})
@@ -123,12 +119,7 @@ Singleton {
         var ts = root.arrivalMs[n.id];
         if (!ts)
             return "";
-        var d = new Date(ts);
-        var mm = ("0" + d.getMinutes()).slice(-2);
-        if (root.format24h)
-            return ("0" + d.getHours()).slice(-2) + ":" + mm;
-        var h = d.getHours();
-        return ("0" + ((h % 12) || 12)).slice(-2) + ":" + mm + " " + (h < 12 ? I18n.tr("am") : I18n.tr("pm"));
+        return TimeFormat.format(new Date(ts));
     }
 
     // Popup reaper: remove popups past their deadline. A transient popup is

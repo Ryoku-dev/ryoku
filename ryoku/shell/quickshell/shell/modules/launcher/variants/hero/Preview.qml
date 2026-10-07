@@ -16,8 +16,7 @@ Item {
     clip: true
 
     property var now: new Date()
-    readonly property string clockStr: root.pad2(root.now.getHours())
-        + ":" + root.pad2(root.now.getMinutes())
+    readonly property string clockStr: TimeFormat.format(root.now)
     readonly property string dateStr: Qt.locale("en_US").toString(
         root.now, "dddd, MMM d")
     readonly property string greeting: {
