@@ -154,6 +154,12 @@
   `hub/quickshell/schema/DesktopScenePage.js`, `shell/ipc/control.go`).
 
 ### Fixed
+- **Ryostore finds script installers published under their bundle.** Bundles
+  that ship their installer at `bundles/<id>/installers/<name>.sh` (Ryoku for
+  Zed, The Influencer) failed to install with "the installer exited with an
+  error" because the store only looked in the catalogue root; the owning
+  bundle's directory is checked first now, with the root kept as the legacy
+  fallback (`apps/ryostore/backend/extras_assets.go`).
 - **Visualizers drag like every other widget in the Stage Editor.** The frame
   owns the move, so the look follows the pointer one to one, snaps to the same
   guides, moves in a group, nudges with the arrows, and writes
