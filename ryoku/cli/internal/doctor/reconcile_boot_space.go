@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,26 +34,35 @@ import (
 // bootImageSpace is the state the plan needs: free bytes on /boot and the size
 // of the largest image already there.
 type bootImageSpace struct {
-	free    uint64
-	largest uint64
-	name    string
+	free         uint64
+	freeMeasured bool
+	largest      uint64
+	name         string
+	inaccessible bool
 }
 
 // bootImageRoots are where a kernel image lands: the UKI directory, and /boot
 // itself for the vmlinuz + initramfs layout.
-var bootImageRoots = []string{"/boot/EFI/Linux", "/boot"}
+var (
+	bootImageRoots = []string{"/boot/EFI/Linux", "/boot"}
+	bootFreeBytes  = sys.FreeBytes
+)
 
 // measureBootImages: free space on /boot plus the biggest kernel image on it.
-// A path it cannot read leaves the field zero, which the plan reads as
-// "nothing to say".
+// An inaccessible path marks the state so the plan warns instead of reporting
+// false headroom or false success.
 func measureBootImages() bootImageSpace {
 	st := bootImageSpace{}
-	if free, ok := sys.FreeBytes("/boot"); ok {
+	if free, ok := bootFreeBytes("/boot"); ok {
 		st.free = free
+		st.freeMeasured = true
 	}
 	for _, dir := range bootImageRoots {
 		ents, err := os.ReadDir(dir)
 		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				st.inaccessible = true
+			}
 			continue
 		}
 		for _, e := range ents {
@@ -61,6 +71,9 @@ func measureBootImages() bootImageSpace {
 			}
 			info, err := e.Info()
 			if err != nil {
+				if !errors.Is(err, os.ErrNotExist) {
+					st.inaccessible = true
+				}
 				continue
 			}
 			if size := uint64(info.Size()); size > st.largest {
@@ -98,10 +111,18 @@ func reconcileBootSpace(checkOnly bool) recResult {
 	if !limineManagedBoot() {
 		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
 	}
-	if !doctorPackageInstalled("limine") {
+	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
 	st := measureBootImages()
+	if st.inaccessible {
+		return warnRes(i18n.T("cannot inspect kernel images on /boot to verify headroom")).
+			withFix("sudo ryoku doctor --check")
+	}
+	if !st.freeMeasured {
+		return warnRes(i18n.T("cannot measure free space on /boot to verify headroom")).
+			withFix("sudo ryoku doctor --check")
+	}
 	if st.largest == 0 {
 		return okRes(i18n.T("no kernel images on /boot to size against"))
 	}

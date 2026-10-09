@@ -1,9 +1,8 @@
 package doctor
 
 import (
+	"os"
 	"strings"
-
-	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
 )
@@ -82,21 +81,26 @@ func limineEntryKernelPath(bodyLine, esp string) string {
 	return ""
 }
 
-// limineDeadEntries names the top-level entries that boot nothing: a leaf whose
-// image resolves onto this ESP and is missing. exists is injected so the rule
-// is unit-testable without a filesystem.
-func limineDeadEntries(entries []limineEntry, exists func(string) bool) []string {
-	var dead []string
+// planLimineDeadEntries evaluates top-level entries with an injected probe.
+// probe returns (exists, err). Genuine ENOENT (err == nil && !exists) marks
+// an entry dead. Any filesystem error marks it inaccessible so callers avoid
+// false deletions when images cannot be inspected.
+func planLimineDeadEntries(entries []limineEntry, probe func(string) (bool, error)) (dead, inaccessible []string) {
 	for _, e := range entries {
 		if e.children || e.image == "" || e.title == "" {
 			continue
 		}
-		if !exists(e.image) {
+		exists, err := probe(e.image)
+		if err != nil {
+			inaccessible = append(inaccessible, e.title)
+		} else if !exists {
 			dead = append(dead, e.title)
 		}
 	}
-	return dead
+	return dead, inaccessible
 }
+
+var limineDeadEntriesProbe = probePresence
 
 // limineDropEntries removes those entries, title line and body, and repoints
 // default_entry when it named one of them (a default that points at a title
@@ -147,14 +151,22 @@ func reconcileLimineDeadEntries(checkOnly bool) recResult {
 	if !limineManagedBoot() {
 		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
 	}
-	if !doctorPackageInstalled("limine") {
+	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
-	conf := readFileSafe(limineESPConf)
+	b, err := os.ReadFile(limineESPConf)
+	if err != nil {
+		return noteRes(i18n.T("no readable %s; the layout reconciler owns that"), limineESPConf)
+	}
+	conf := string(b)
 	if !strings.Contains(conf, "\n/") && !strings.HasPrefix(conf, "/") {
 		return okRes(i18n.T("no boot menu entries to check"))
 	}
-	dead := limineDeadEntries(limineTopEntries(conf, "/boot"), sys.Exists)
+	dead, inaccessible := planLimineDeadEntries(limineTopEntries(conf, "/boot"), limineDeadEntriesProbe)
+	if len(inaccessible) > 0 {
+		return warnRes(i18n.T("cannot inspect boot images on /boot to verify boot menu entries: %s"), strings.Join(inaccessible, ", ")).
+			withFix("sudo ryoku doctor --check")
+	}
 	if len(dead) == 0 {
 		return okRes(i18n.T("every boot menu entry points at an image that is there"))
 	}
