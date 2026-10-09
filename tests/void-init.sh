@@ -53,7 +53,7 @@ while IFS=$'\t' read -r src verdict trans _notes; do
 done < "$MANIFEST"
 
 # --- 3. every translated service directory is a valid runit service:
-# executable POSIX scripts, inert user-service defaults, and shellcheck-clean.
+# executable POSIX scripts, correct user-service defaults, and shellcheck-clean.
 for helper in "$INIT/lib/wait-for" "$INIT/env/xdg-dirs" "$INIT/session/session-start"; do
 	[[ -x $helper ]] || fail "helper is not executable: $helper"
 	head -1 "$helper" | grep -q '^#!/bin/sh$' || fail "helper must be #!/bin/sh (Void dash): $helper"
@@ -62,6 +62,21 @@ done
 head -1 "$ROOT/ryoku/shell/scripts/ryoku-session-start" | grep -q '^#!/usr/bin/env bash$' \
 	|| fail "session entrypoint must use bash"
 
+login_services=(pipewire pipewire-pulse wireplumber)
+is_login_service() {
+	local candidate=${1%/}
+	candidate=${candidate##*/}
+	local name
+	for name in "${login_services[@]}"; do
+		[[ $candidate == "$name" ]] && return 0
+	done
+	return 1
+}
+
+for name in "${login_services[@]}"; do
+	[[ -d $INIT/user/$name ]] || fail "login service is missing: $name"
+done
+
 while IFS= read -r svc; do
 	[[ -x $svc/run ]] || fail "service run is not executable: $svc"
 	head -1 "$svc/run" | grep -q '^#!/bin/sh$' || fail "run must be #!/bin/sh (Void dash): $svc/run"
@@ -69,7 +84,11 @@ while IFS= read -r svc; do
 		|| fail "run does not source the installed wait-for helper: $svc/run"
 	grep -q '^load_session_env$' "$svc/run" || fail "run does not load the session env: $svc/run"
 	if [[ $svc == "$INIT/user/"* ]]; then
-		[[ -f $svc/down && ! -s $svc/down ]] || fail "user service needs an empty down marker: $svc"
+		if is_login_service "$svc"; then
+			[[ ! -e $svc/down ]] || fail "login service must not have a down marker: $svc"
+		else
+			[[ -f $svc/down && ! -s $svc/down ]] || fail "session service needs an empty down marker: $svc"
+		fi
 	fi
 	if [[ -f $svc/finish ]]; then
 		[[ -x $svc/finish ]] || fail "service finish is not executable: $svc"
@@ -105,8 +124,8 @@ grep -qF 'ryoku-session-start xdg-desktop-portal-gnome.service xdg-desktop-porta
 grep -qF 'ryoku-session-start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/hyprland/modules/autostart.lua" \
 	|| fail "Hyprland autostart does not use the shared session entrypoint"
 
-# --- 4. roster integrity: every named service exists, every user service is
-# either in the roster or documented as on-demand in the roster comments.
+# --- 4. roster integrity: every named service exists, every session user
+# service is either in the roster or documented as on-demand in its comments.
 roster=$INIT/session-services
 [[ -f $roster ]] || fail "missing session roster: $roster"
 while IFS= read -r name; do
@@ -114,6 +133,7 @@ while IFS= read -r name; do
 	[[ -d $INIT/user/$name ]] || fail "roster names a service that does not exist: $name"
 done < "$roster"
 for svc in "$INIT"/user/*/; do
+	is_login_service "$svc" && continue
 	name=$(basename "$svc")
 	grep -qxF "$name" "$roster" || grep -qF "$name" "$roster" \
 		|| fail "user service $name is neither in the roster nor documented as on-demand there"

@@ -1,0 +1,15 @@
+#!/bin/sh
+exec 2>&1
+
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+
+XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+export XDG_RUNTIME_DIR
+
+wait_file "$XDG_RUNTIME_DIR" 30 || exec sv down .
+wait_service dbus 30 || exec sv down .
+wait_file "$XDG_RUNTIME_DIR/pipewire-0" 30 || exec sv down .
+load_session_env
+
+exec wireplumber

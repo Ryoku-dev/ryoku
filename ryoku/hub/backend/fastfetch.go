@@ -32,6 +32,7 @@ const (
 	ffAccent           = "226;52;42"
 	ffPaletteFixed     = "fixed"
 	ffPaletteWallpaper = "wallpaper"
+	ffBaseOSToken      = "{$RYOKU_BASE_OS}"
 )
 
 var (
@@ -42,6 +43,20 @@ var (
 	ffRGBTriple   = regexp.MustCompile(`^([0-9]{1,3});([0-9]{1,3});([0-9]{1,3})$`)
 	ffTrueColorRe = regexp.MustCompile("\x1b\\[((?:1;)?)38;2;([0-9]+;[0-9]+;[0-9]+)m")
 )
+
+func ffBaseOS() string {
+	if base, ok := os.LookupEnv("RYOKU_BASE_OS"); ok {
+		return base
+	}
+	out, err := exec.Command("ryoku-base-os").Output()
+	if err != nil {
+		return "Linux"
+	}
+	if base := strings.TrimSpace(string(out)); base != "" {
+		return base
+	}
+	return "Linux"
+}
 
 func fastfetchDir() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
@@ -130,17 +145,19 @@ type ffLogo struct {
 	Dither bool `json:"dither"`
 }
 
-// ffRow is one readout line. break/colors/title/module keep their original JSON in
-// Raw so extra fields (a gpu detectionMethod, a command's echo) survive; tagline
-// and header carry editable Text and are rebuilt from a template.
+// ffRow keeps raw modules intact. Taglines also keep their stored text so the
+// base-OS token survives an unchanged Hub save while Text remains suitable for
+// display; TextEdited distinguishes a user replacement from that display copy.
 type ffRow struct {
-	Kind    string          `json:"kind"` // title|tagline|header|module|break|colors|raw
-	Enabled bool            `json:"enabled"`
-	Label   string          `json:"label,omitempty"`
-	Module  string          `json:"module,omitempty"`
-	Key     string          `json:"key,omitempty"`
-	Text    string          `json:"text,omitempty"`
-	Raw     json.RawMessage `json:"raw,omitempty"`
+	Kind       string          `json:"kind"` // title|tagline|header|module|break|colors|raw
+	Enabled    bool            `json:"enabled"`
+	Label      string          `json:"label,omitempty"`
+	Module     string          `json:"module,omitempty"`
+	Key        string          `json:"key,omitempty"`
+	Text       string          `json:"text,omitempty"`
+	StoredText string          `json:"storedText,omitempty"`
+	TextEdited bool            `json:"textEdited,omitempty"`
+	Raw        json.RawMessage `json:"raw,omitempty"`
 }
 
 type ffModel struct {
@@ -352,8 +369,9 @@ func loadFastfetch() (ffModel, error) {
 		return ffModel{}, fmt.Errorf("parse config.jsonc: %w", err)
 	}
 	m := ffModel{Schema: doc.Schema, Display: doc.Display, Accent: ffDisplayAccent(doc.Display), Palette: readFastfetchPaletteMode(), Logo: ffNormalizeLogo(doc.Logo)}
+	baseOS := ffBaseOS()
 	for _, rm := range doc.Modules {
-		m.Rows = append(m.Rows, ffNormalizeModule(rm))
+		m.Rows = append(m.Rows, ffNormalizeModule(rm, baseOS))
 	}
 	return m, nil
 }
@@ -401,7 +419,7 @@ func ffNormalizeLogo(l map[string]any) ffLogo {
 	return out
 }
 
-func ffNormalizeModule(rm json.RawMessage) ffRow {
+func ffNormalizeModule(rm json.RawMessage, baseOS string) ffRow {
 	s := strings.TrimSpace(string(rm))
 	if strings.HasPrefix(s, "\"") { // a bare string module ("break")
 		var str string
@@ -421,7 +439,11 @@ func ffNormalizeModule(rm json.RawMessage) ffRow {
 		if strings.Contains(ffStripAnsi(obj.Format), "─") {
 			return ffRow{Kind: "header", Enabled: true, Text: ffHeaderLabel(obj.Format), Label: "Section header", Raw: rm}
 		}
-		return ffRow{Kind: "tagline", Enabled: true, Text: ffTaglineText(obj.Format), Label: "Tagline", Raw: rm}
+		text := ffTaglineText(obj.Format)
+		return ffRow{
+			Kind: "tagline", Enabled: true, Text: strings.ReplaceAll(text, ffBaseOSToken, baseOS),
+			StoredText: text, Label: "Tagline", Raw: rm,
+		}
 	case "colors":
 		return ffRow{Kind: "colors", Enabled: true, Label: "Colour swatches", Raw: rm}
 	default:
@@ -600,10 +622,23 @@ func buildFastfetchEffective(m ffModel) ([]byte, error) {
 		}
 		var raw json.RawMessage
 		switch row.Kind {
-		case "tagline":
-			raw = ffCustomModule(ffTaglineStyled(palette.Section, palette.Muted, row.Text))
-		case "header":
-			raw = ffCustomModule(ffHeaderStyled(palette.Section, palette.Title, palette.Rule, row.Text))
+		case "tagline", "header":
+			// Recolour the row's own format in place so the user's exact layout
+			// survives (a rice's {#...} placeholders included). Only a row with
+			// no stored raw -- one added in the Hub -- is rebuilt from its text.
+			if len(row.Raw) > 0 {
+				raw = row.Raw
+			} else if row.Kind == "tagline" {
+				raw = ffCustomModule(ffTaglineStyled(palette.Section, palette.Muted, ffTaglineBuildText(row)))
+			} else {
+				raw = ffCustomModule(ffHeaderStyled(palette.Section, palette.Title, palette.Rule, row.Text))
+			}
+			if raw != nil {
+				raw, err = ffApplyPaletteToRow(raw, palette)
+				if err != nil {
+					return nil, err
+				}
+			}
 		default:
 			raw, err = ffBuildRow(row, accent)
 			if err != nil {
@@ -721,7 +756,7 @@ func ffBuildRow(r ffRow, accent string) (json.RawMessage, error) {
 		}
 		return json.RawMessage(`"break"`), nil
 	case "tagline":
-		return ffCustomModule(ffTaglineFormat(accent, r.Text)), nil
+		return ffCustomModule(ffTaglineFormat(accent, ffTaglineBuildText(r))), nil
 	case "header":
 		return ffCustomModule(ffHeaderFormat(accent, r.Text)), nil
 	case "module":
@@ -749,6 +784,13 @@ func ffBuildRow(r ffRow, accent string) (json.RawMessage, error) {
 func ffCustomModule(format string) json.RawMessage {
 	b, _ := json.Marshal(map[string]string{"type": "custom", "format": format})
 	return b
+}
+
+func ffTaglineBuildText(r ffRow) string {
+	if !r.TextEdited && r.StoredText != "" {
+		return r.StoredText
+	}
+	return r.Text
 }
 
 func ffTaglineFormat(accent, text string) string {
@@ -790,7 +832,9 @@ func previewFastfetch(m ffModel) error {
 	tmp.Close()
 	// --logo none: the emblem is previewed in the Hub, this is just the readout.
 	// --pipe false keeps the truecolor SGR the Hub parses into rich text.
-	out, _ := exec.Command("fastfetch", "--config", tmp.Name(), "--logo", "none", "--pipe", "false").Output()
+	cmd := exec.Command("fastfetch", "--config", tmp.Name(), "--logo", "none", "--pipe", "false")
+	cmd.Env = append(os.Environ(), "RYOKU_BASE_OS="+ffBaseOS())
+	out, _ := cmd.Output()
 	os.Stdout.Write(out)
 	return nil
 }

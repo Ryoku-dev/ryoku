@@ -46,13 +46,16 @@ The installer places `wait-for`, `xdg-dirs`, `session-start`, and
 under `/etc/sv/`.
 
 Turnstile supervises user services from `~/.config/service/` and reads one
-environment variable per file from `~/.config/service-env/`. Every Ryoku user
-service ships with a `down` marker so PAM login cannot start it before a
-compositor exists. The session entrypoint publishes the compositor's exported
-environment, renders the localized XDG directories, updates D-Bus activation,
-and restarts the roster in order. A stale service from a previous login
-therefore reconnects to the new display instead of remaining attached to the
-old one.
+environment variable per file from `~/.config/service-env/`.
+
+PipeWire, pipewire-pulse, and WirePlumber run as login services without `down`
+markers because Void has no systemd user units to start them. Every other Ryoku
+user service waits for `session-start` after the compositor exists.
+
+The session entrypoint publishes the compositor's exported environment, renders
+the localized XDG directories, updates D-Bus activation, and restarts the
+session roster in order. A stale service from a previous login therefore
+reconnects to the new display instead of remaining attached to the old one.
 
 Turnstile uses elogind's `/run/user` ownership, so
 `/etc/turnstile/turnstiled.conf` sets `manage_rundir = no`. Its per-user D-Bus

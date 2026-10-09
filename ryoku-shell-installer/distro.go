@@ -137,7 +137,7 @@ var voidLinux = &distro{
 		"gtk+3-devel", "libwebkit2gtk41-devel",
 	},
 	runtime: []string{
-		"dbus", "elogind", "turnstile", "polkit",
+		"dbus", "elogind", "turnstile", "polkit", "socklog-void",
 		"xdg-desktop-portal", "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk",
 		"niri", "xwayland-satellite", "sddm",
 		"gtk+3", "libwebkit2gtk41", "qt5-wayland", "qt6-imageformats",
@@ -145,9 +145,9 @@ var voidLinux = &distro{
 		"uv", "socat", "gum", "qrencode",
 	},
 	rename: map[string]string{
-		"base":                          "",
-		"blesh":                         "",
-		"bluez-utils":                   "",
+		"base":        "",
+		"blesh":       "",
+		"bluez-utils": "",
 		// AMD microcode ships in Void's AMD firmware package; Intel's lives
 		// in the nonfree repository a stock install does not enable.
 		"amd-ucode":                     "linux-firmware-amd",

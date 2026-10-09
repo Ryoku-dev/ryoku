@@ -219,7 +219,13 @@ Item {
     function setLogo(k, v) { var m = pg.clone(); m.logo[k] = v; pg.commitModel(m); }
     function setAccent(v) { var m = pg.clone(); m.accent = v; pg.commitModel(m); }
     function setPalette(v) { var m = pg.clone(); m.palette = v; pg.commitModel(m); }
-    function setRow(i, k, v) { var m = pg.clone(); m.rows[i][k] = v; pg.commitModel(m); }
+    function setRow(i, k, v) {
+        var m = pg.clone();
+        m.rows[i][k] = v;
+        if (k === "text" && m.rows[i].kind === "tagline")
+            m.rows[i].textEdited = true;
+        pg.commitModel(m);
+    }
     function moveRow(i, d) {
         var j = i + d;
         if (j < 0 || j >= pg.model.rows.length)

@@ -23,7 +23,7 @@ const sampleFF = `{
   "modules": [
     "break",
     { "type": "title", "format": "{user-name}@{host-name}" },
-    { "type": "custom", "format": "\u001b[38;2;226;52;42m■\u001b[0m \u001b[38;2;143;135;112mRYOKU \u00b7 \u529b \u00b7 a hand-built Arch desktop\u001b[0m" },
+    { "type": "custom", "format": "\u001b[38;2;226;52;42m■\u001b[0m \u001b[38;2;143;135;112mRYOKU \u00b7 \u529b \u00b7 a hand-built {$RYOKU_BASE_OS} desktop\u001b[0m" },
     "break",
     { "type": "custom", "format": "\u001b[38;2;226;52;42m\u2500\u2500\u001b[0m \u001b[1;38;2;243;237;225mVITALS\u001b[0m \u001b[38;2;58;46;36m\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u001b[0m" },
     { "type": "cpu", "key": "CPU" },
@@ -37,6 +37,7 @@ func loadSample(t *testing.T) ffModel {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("RYOKU_BASE_OS", "Void")
 	if err := os.MkdirAll(filepath.Join(dir, "fastfetch"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +84,7 @@ func TestLoadFastfetchModel(t *testing.T) {
 	if m.Accent != "226;52;42" {
 		t.Errorf("accent = %q, want 226;52;42", m.Accent)
 	}
-	if r := rowByKind(m.Rows, "tagline"); r == nil || r.Text != "RYOKU \u00b7 \u529b \u00b7 a hand-built Arch desktop" {
+	if r := rowByKind(m.Rows, "tagline"); r == nil || r.Text != "RYOKU \u00b7 \u529b \u00b7 a hand-built Void desktop" {
 		t.Errorf("tagline text = %+v", r)
 	}
 	if r := rowByKind(m.Rows, "header"); r == nil || r.Text != "VITALS" {
@@ -112,7 +113,7 @@ func TestBuildRoundTripStable(t *testing.T) {
 	if len(m2.Rows) != len(m.Rows) {
 		t.Fatalf("row count changed: %d -> %d", len(m.Rows), len(m2.Rows))
 	}
-	if rowByKind(m2.Rows, "tagline").Text != "RYOKU \u00b7 \u529b \u00b7 a hand-built Arch desktop" {
+	if rowByKind(m2.Rows, "tagline").Text != "RYOKU \u00b7 \u529b \u00b7 a hand-built Void desktop" {
 		t.Errorf("tagline drifted on round-trip")
 	}
 	if rowByKind(m2.Rows, "header").Text != "VITALS" {
@@ -128,11 +129,30 @@ func TestBuildRoundTripStable(t *testing.T) {
 	}
 }
 
-func TestBuildTaglineFormatMatchesShipped(t *testing.T) {
-	got := ffTaglineFormat("226;52;42", "RYOKU \u00b7 \u529b \u00b7 a hand-built Arch desktop")
-	want := "\x1b[38;2;226;52;42m\u25a0\x1b[0m \x1b[38;2;143;135;112mRYOKU \u00b7 \u529b \u00b7 a hand-built Arch desktop\x1b[0m"
-	if got != want {
-		t.Errorf("tagline format:\n got %q\nwant %q", got, want)
+func TestUnchangedTaglinePreservesBaseOSToken(t *testing.T) {
+	m := loadSample(t)
+	b, err := buildFastfetch(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), ffBaseOSToken) {
+		t.Fatalf("unchanged tagline lost %q:\n%s", ffBaseOSToken, b)
+	}
+
+	tagline := rowByKind(m.Rows, "tagline")
+	if tagline == nil {
+		t.Fatal("tagline row missing")
+	}
+	tagline.TextEdited = true
+	b, err = buildFastfetch(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), ffBaseOSToken) {
+		t.Fatalf("edited tagline retained %q:\n%s", ffBaseOSToken, b)
+	}
+	if !strings.Contains(string(b), "a hand-built Void desktop") {
+		t.Fatalf("edited tagline did not save displayed text:\n%s", b)
 	}
 }
 

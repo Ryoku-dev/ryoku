@@ -1299,7 +1299,7 @@ func wireRunitServices(e *engine) error {
 	// elogind stays D-Bus activated, Void's default: the sddm service activates
 	// login1 itself before the greeter starts, so a supervised copy would lose
 	// the bus name to it and restart every second for the whole uptime.
-	services := []string{"dbus", "polkitd", "turnstiled", "bluetoothd"}
+	services := []string{"socklog-unix", "nanoklogd", "dbus", "polkitd", "turnstiled", "bluetoothd"}
 	if e.p.switchDM {
 		services = append(services, "sddm")
 	}

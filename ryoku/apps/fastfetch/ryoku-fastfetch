@@ -23,6 +23,15 @@ config="$config_home/fastfetch/config.jsonc"
 palette_state="$config_home/ryoku/fastfetch.json"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 
+if [[ ! -v RYOKU_BASE_OS ]]; then
+  if command -v ryoku-base-os >/dev/null 2>&1; then
+    RYOKU_BASE_OS="$(ryoku-base-os)"
+  else
+    RYOKU_BASE_OS=Linux
+  fi
+  export RYOKU_BASE_OS
+fi
+
 if [[ -f "$config" ]]; then
   renderer="$(
     sed -n 's#^//[[:space:]]*ryoku:renderer[[:space:]][[:space:]]*##p' "$config" \

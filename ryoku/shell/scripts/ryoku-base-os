@@ -1,0 +1,48 @@
+#!/bin/sh
+
+release=${RYOKU_OS_RELEASE:-/etc/os-release}
+id=
+id_like=
+name=
+
+if [ -r "$release" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case $line in
+      ID=*) id=${line#ID=} ;;
+      ID_LIKE=*) id_like=${line#ID_LIKE=} ;;
+      NAME=*) name=${line#NAME=} ;;
+    esac
+  done < "$release"
+fi
+
+unquote() {
+  value=$1
+  case $value in
+    \"*\") value=${value#\"}; value=${value%\"} ;;
+    \'*\') value=${value#\'}; value=${value%\'} ;;
+  esac
+  printf '%s' "$value"
+}
+
+id=$(unquote "$id")
+id_like=$(unquote "$id_like")
+name=$(unquote "$name")
+
+if [ "$id" = arch ]; then
+  printf 'Arch\n'
+  exit 0
+fi
+
+case " $id_like " in
+  *" arch "*)
+    printf 'Arch\n'
+    exit 0
+    ;;
+esac
+
+first=${name%%[[:space:]]*}
+if [ -n "$first" ]; then
+  printf '%s\n' "$first"
+else
+  printf 'Linux\n'
+fi

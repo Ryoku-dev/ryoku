@@ -4,8 +4,8 @@
 # container (ghcr.io/void-linux/void-glibc), against stub binaries, and asserts
 # the behaviors the static half (tests/void-init.sh) cannot: oneshot parking
 # and re-run, restart-on-crash vs park-on-clean, the ExecStop down sentinel,
-# BindsTo down-propagation, the timer loop, failed-wait parking, live envdir
-# publication, ordered session startup, and the envdir renderer.
+# BindsTo down-propagation, the timer loop, failed-wait parking, user-service
+# precedence, live envdir publication, ordered session startup, and envdir rendering.
 #
 # This is the empirical basis for the runit semantics the translations rely on
 # (a finish exit code does not gate restarts; only an sv down request parks,
@@ -142,8 +142,9 @@ mkdir -p "$RYOKU_BT_SYS/class/bluetooth"; touch "$RYOKU_BT_SYS/class/bluetooth/h
 RSD=
 ERSD=
 SRSD=
+CRSD=
 cleanup() {
-	for pid in "$RSD" "$ERSD" "$SRSD"; do
+	for pid in "$RSD" "$ERSD" "$SRSD" "$CRSD"; do
 		[ -n "$pid" ] && kill "$pid" 2>/dev/null || true
 	done
 }
@@ -264,7 +265,44 @@ rm -f "$WORK/afile"
 wait_file "!$WORK/afile" 2 || fail "wait_file ! did not match an absent file"
 pass "wait-for predicates behave"
 
-#### 10. wait_env watches Turnstile's envdir and reloads it before exec.
+#### 10. a user service wins over a same-named system service whose status is
+####     unreadable to the Turnstile service user.
+# The container leaves this as a dangling symlink until its system runit boots.
+[ ! -L /var/service ] || rm -f /var/service
+mkdir -p "$WORK/collision-svc/dbus" "$WORK/collision-svc/waiter" \
+	/var/service/dbus/supervise
+printf '%s\n' run > /var/service/dbus/supervise/stat
+chmod 600 /var/service/dbus/supervise/stat
+cat > "$WORK/collision-svc/dbus/run" <<'EOF'
+#!/bin/sh
+exec sleep 300
+EOF
+cat > "$WORK/collision-svc/waiter/run" <<'EOF'
+#!/bin/sh
+. /repo/void/init/lib/wait-for
+wait_service dbus 5 || exec sv down .
+printf '%s\n' started >> /tmp/rt/collision-events
+exec sleep 300
+EOF
+chmod +x "$WORK/collision-svc/dbus/run" "$WORK/collision-svc/waiter/run"
+: > "$WORK/collision-events"
+chown -R nobody "$WORK/collision-svc" "$WORK/collision-events"
+chpst -u nobody runsvdir "$WORK/collision-svc" >/dev/null 2>&1 &
+CRSD=$!
+wait_stat_at "$WORK/collision-svc" waiter run \
+	|| fail "user waiter did not start past the unreadable system dbus status"
+i=0
+while ! grep -qxF started "$WORK/collision-events"; do
+	[ "$i" -lt 80 ] || fail "user waiter did not observe the sibling dbus service"
+	sleep 0.25
+	i=$((i+1))
+done
+sv down "$WORK/collision-svc/waiter" "$WORK/collision-svc/dbus"
+kill "$CRSD" 2>/dev/null || true
+CRSD=
+pass "user service dependency wins over an unreadable same-named system service"
+
+#### 11. wait_env watches Turnstile's envdir and reloads it before exec.
 echo run > "$WORK/ctl/ryoku-idle"
 mkdir -p "$WORK/envsvc/ryoku-idle" "$WORK/delayed-env"
 cp /repo/void/init/user/ryoku-idle/run "$WORK/envsvc/ryoku-idle/run"
@@ -289,7 +327,7 @@ kill "$ERSD" 2>/dev/null || true
 ERSD=
 pass "env-gated service observes a late Turnstile value before exec"
 
-#### 11. a down-marked service stays parked until session-start publishes the
+#### 12. a down-marked service stays parked until session-start publishes the
 ####     compositor environment and restarts its roster.
 mkdir -p "$WORK/session-lib" "$WORK/session-svc/ryoku-idle" "$WORK/session-env"
 cp /repo/void/init/lib/wait-for "$WORK/session-lib/wait-for"
@@ -337,7 +375,7 @@ kill "$SRSD" 2>/dev/null || true
 SRSD=
 pass "session-start publishes env and starts the down-marked roster"
 
-#### 12. xdg-dirs renders Turnstile envdir files with no trailing newline.
+#### 13. xdg-dirs renders Turnstile envdir files with no trailing newline.
 mkdir -p "$WORK/xdgbin"
 cat > "$WORK/xdgbin/xdg-user-dir" <<'EOF'
 #!/bin/sh

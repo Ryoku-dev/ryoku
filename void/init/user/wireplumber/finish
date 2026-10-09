@@ -1,0 +1,4 @@
+#!/bin/sh
+# runsv restarts regardless of finish status, so a clean exit must set down.
+[ "$1" -eq 0 ] && [ "${2:-0}" -eq 0 ] && exec sv down .
+exit 0

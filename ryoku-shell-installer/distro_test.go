@@ -10,7 +10,7 @@ import (
 func TestDetectDistro(t *testing.T) {
 	for _, c := range []struct {
 		id, like, want string
-	} {
+	}{
 		{"arch", "", "arch"},
 		{"cachyos", "arch", "arch"},
 		{"endeavouros", "arch", "arch"},

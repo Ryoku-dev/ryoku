@@ -568,6 +568,12 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- **Void installs have sound.** Nothing started PipeWire on a runit system, so
+  the session had no audio at all. PipeWire, WirePlumber and pipewire-pulse now
+  run as login services under Turnstile (`../../void/init/user/`), and a
+  service that waits for the session bus no longer mistakes the system bus
+  service of the same name for it; a wait that gives up now says so in the
+  system log (`../../void/init/lib/wait-for`).
 - **The terminal readout draws the Ryoku emblem on source installs.** Only the
   `ryoku-desktop` package laid `fastfetch-emblem.png`, so a source deploy
   (Void, Debian) fell back to the wide distro ASCII logo and every long row

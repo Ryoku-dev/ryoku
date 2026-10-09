@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -78,6 +79,25 @@ var sourceAssets = []sourceAsset{
 		sha256: "53b415577d4139248555300710bea0d268c7a5be67b93de53b716a9736cabffd",
 		fontPath: func(path string) bool {
 			return strings.Contains(path, "/otf/") && strings.HasSuffix(strings.ToLower(path), ".otf")
+		},
+	},
+	{
+		name: "Bibata cursors", format: "tar.xz",
+		url:    "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata.tar.xz",
+		sha256: "172e33c4ae415278384dcecc7d1a9b7a024266bc944bc751fd86532be1cc6251",
+		cursors: map[string]string{
+			"Bibata-Modern-Amber":           "Bibata-Modern-Amber",
+			"Bibata-Modern-Amber-Right":     "Bibata-Modern-Amber-Right",
+			"Bibata-Modern-Classic":         "Bibata-Modern-Classic",
+			"Bibata-Modern-Classic-Right":   "Bibata-Modern-Classic-Right",
+			"Bibata-Modern-Ice":             "Bibata-Modern-Ice",
+			"Bibata-Modern-Ice-Right":       "Bibata-Modern-Ice-Right",
+			"Bibata-Original-Amber":         "Bibata-Original-Amber",
+			"Bibata-Original-Amber-Right":   "Bibata-Original-Amber-Right",
+			"Bibata-Original-Classic":       "Bibata-Original-Classic",
+			"Bibata-Original-Classic-Right": "Bibata-Original-Classic-Right",
+			"Bibata-Original-Ice":           "Bibata-Original-Ice",
+			"Bibata-Original-Ice-Right":     "Bibata-Original-Ice-Right",
 		},
 	},
 	{
@@ -183,6 +203,8 @@ func fetchSourceAsset(asset sourceAsset, dir string) error {
 		return unpackZip(download, dir)
 	case "tar.gz":
 		return unpackTarGzip(download, dir)
+	case "tar.xz":
+		return unpackTarXz(download, dir)
 	default:
 		return fmt.Errorf("unsupported archive format %q", asset.format)
 	}
@@ -253,7 +275,32 @@ func unpackTarGzip(archive, root string) error {
 		return err
 	}
 	defer gz.Close()
-	rd := tar.NewReader(gz)
+	return unpackTar(gz, root)
+}
+
+func unpackTarXz(archive, root string) error {
+	cmd := exec.Command("xz", "-dc", archive)
+	output, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	unpackErr := unpackTar(output, root)
+	closeErr := output.Close()
+	waitErr := cmd.Wait()
+	if unpackErr != nil {
+		return unpackErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return waitErr
+}
+
+func unpackTar(reader io.Reader, root string) error {
+	rd := tar.NewReader(reader)
 	for {
 		hdr, err := rd.Next()
 		if err == io.EOF {
@@ -261,6 +308,9 @@ func unpackTarGzip(archive, root string) error {
 		}
 		if err != nil {
 			return err
+		}
+		if filepath.Clean(filepath.FromSlash(hdr.Name)) == "." && hdr.Typeflag == tar.TypeDir {
+			continue
 		}
 		path, err := archivePath(root, hdr.Name)
 		if err != nil {

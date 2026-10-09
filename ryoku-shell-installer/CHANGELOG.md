@@ -8,6 +8,9 @@
   desktop from source, installs the pinned fonts and cursor theme, wires
   SDDM and the machine services through runit, and leaves user services to
   Turnstile. Arch and Debian retain their existing systemd paths.
+- **Source installs now include Ryoku's Bibata cursor family.** Void and Debian
+  fetch the same pinned upstream archive as `ryoku-cursors`, verify its checksum,
+  and install every left- and right-handed colour variant.
 - **Browser and login-shell choices now carry through the whole conversion.**
   The plan starts with Firefox, Chromium and Zen plus Fish, Zsh and Bash
   single-choice rows. The same picks work under `--yes` through `--browser`,
@@ -28,6 +31,9 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
+- **Void installs now preserve system service logs.** The package plan includes
+  `socklog-void`, and runit enables both `socklog-unix` and `nanoklogd` so
+  service output reaches the system log.
 - **Keeping bash or zsh as the login shell now gets the Ryoku terminal.** Only
   the Hub's shell picker wrote the rc line that loads Ryoku's shell config, so
   an install that kept or chose bash or zsh opened bare terminals: no fastfetch

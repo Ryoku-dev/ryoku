@@ -12,6 +12,10 @@ set -gx CARGO_INSTALL_ROOT $HOME/.local
 set -q EDITOR; or set -gx EDITOR nvim
 set -q VISUAL; or set -gx VISUAL nvim
 
+if not set -q RYOKU_BASE_OS; and command -q ryoku-base-os
+  set -gx RYOKU_BASE_OS (ryoku-base-os)
+end
+
 if status is-interactive
   set -g fish_greeting
 

@@ -49,6 +49,12 @@ wait_budget() {
 	echo $((_budget * _scale))
 }
 
+_wait_failed() {
+	_wait_actual_budget=$(wait_budget "$4")
+	printf '%s\n' "wait-for: $1 $2 $3 after ${_wait_actual_budget}s; parking" >&2
+	return 1
+}
+
 # poll fn until it succeeds or the budget expires. 0.2s granularity: fast
 # enough that services start promptly, slow enough to be idle-cheap.
 wait_poll() {
@@ -64,7 +70,10 @@ wait_poll() {
 # ConditionEnvironment= checks the live envdir under Turnstile. The run
 # process's inherited environment is only used by the test/fallback tier.
 wait_env() {
-	wait_poll "$2" _wait_env_once "$1"
+	if wait_poll "$2" _wait_env_once "$1"; then
+		return 0
+	fi
+	_wait_failed environment "$1" "not set" "$2"
 }
 
 _wait_env_once() {
@@ -83,16 +92,28 @@ _wait_env_once() {
 # unit-file syntax (ConditionPathExists=!/path).
 wait_file() {
 	case $1 in
-		!*) wait_poll "$2" sh -c "[ ! -e \"${1#!}\" ]" ;;
-		*)  wait_poll "$2" sh -c "[ -e \"$1\" ]" ;;
+		!*)
+			if wait_poll "$2" sh -c "[ ! -e \"${1#!}\" ]"; then
+				return 0
+			fi
+			;;
+		*)
+			if wait_poll "$2" sh -c "[ -e \"$1\" ]"; then
+				return 0
+			fi
+			;;
 	esac
+	_wait_failed file "$1" "not ready" "$2"
 }
 
 # the D-Bus name is owned on the session bus (a stand-in for After=/Wants= on
 # another daemon). Uses busctl when present; falls back to a bare probe so a
 # minimal image still works.
 wait_dbus() {
-	wait_poll "$2" _wait_dbus_once "$1"
+	if wait_poll "$2" _wait_dbus_once "$1"; then
+		return 0
+	fi
+	_wait_failed "D-Bus name" "$1" "not owned" "$2"
 }
 
 _wait_dbus_once() {
@@ -106,16 +127,20 @@ _wait_dbus_once() {
 }
 
 # another runit service is supervised and up (After=/Requires= on a service).
-# Checks the sv status of a system service first, then the sibling user
-# service directory, so the same call works from either tier.
+# User services take precedence because Void can have a same-named system
+# service whose supervisor state is not readable from a Turnstile session.
 wait_service() {
-	wait_poll "$2" _wait_service_once "$1"
+	if wait_poll "$2" _wait_service_once "$1"; then
+		return 0
+	fi
+	_wait_failed service "$1" "not up" "$2"
 }
 
 _wait_service_once() {
-	for _dir in "/var/service/$1" "/etc/sv/$1" "$RYOKU_USER_SERVICE_DIR/$1" "../$1"; do
+	for _dir in "../$1" "${RYOKU_USER_SERVICE_DIR:+$RYOKU_USER_SERVICE_DIR/$1}" "/var/service/$1" "/etc/sv/$1"; do
+		[ -n "$_dir" ] || continue
 		if [ -d "$_dir/supervise" ]; then
-			_state=$(cat "$_dir/supervise/stat" 2>/dev/null) || return 1
+			_state=$(cat "$_dir/supervise/stat" 2>/dev/null) || continue
 			case $_state in
 				run*|finish*) return 0 ;;
 			esac

@@ -98,6 +98,12 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `fastfetch/`: **The readout names the distribution it runs on.** The tagline
+  said "a hand-built Arch desktop" on every system. It now reads the base
+  distribution through `ryoku-base-os` (Arch and CachyOS still say Arch, Void
+  says Void), whether it runs through `ryoku-fastfetch`, as a plain
+  `fastfetch`, or in the Hub preview (`fastfetch/config.jsonc`,
+  `terminal-shell/env.sh`, `fish/config.fish`).
 - `ryovm/`: **Ryoport's OS logos stop going blank.** The catalogue prefetch and
   the logos on screen could fetch the same OS at once into one temp file, and
   both tinted it, so the cached SVG carried `fill` twice. That is not valid XML,

@@ -186,7 +186,6 @@ fi
 # resolves to nothing the login screen has no visible pointer. Keep this body
 # identical to sddmWaylandBody() in ryoku/cli/internal/doctor/doctor.go, which
 # converges existing boxes onto it.
-if [ -d /run/systemd/system ]; then
 WAYLAND_CONF="/etc/sddm.conf.d/10-ryoku-wayland.conf"
 GREETER_BIN="/usr/share/ryoku/lockscreen/ryoku-greeter"
 # the wrapper runs weston at each output's top mode; plain weston (preferred) if
@@ -223,7 +222,6 @@ GreeterEnvironment=QT_QPA_PLATFORM=wayland,XCURSOR_THEME=Bibata-Modern-Ice,XCURS
 CompositorCommand=$COMPOSITOR
 SessionCommand=$SESSION_CMD
 EOF
-fi
 
 # --- 6. give the "default" cursor theme a real target ------------------------
 # The greeter's Qt client and weston both fall back to the freedesktop cursor
