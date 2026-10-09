@@ -28,6 +28,11 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
+- **Keeping bash or zsh as the login shell now gets the Ryoku terminal.** Only
+  the Hub's shell picker wrote the rc line that loads Ryoku's shell config, so
+  an install that kept or chose bash or zsh opened bare terminals: no fastfetch
+  readout, no Ryoku prompt, no `~/.local/bin` on PATH. The login-shell step now
+  writes it through the same code (`ryoku-hub shell loaders`).
 - **Debian source installs no longer stop partway through the build.** The
   build step now pulls Qt's private GUI headers (the Ryogami picker needs them)
   and the GTK and WebKitGTK headers the Rashin app links against, and the

@@ -171,7 +171,7 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-hub keybinds")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub config get <key>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub config set <key> <value>")
-	fmt.Fprintln(os.Stderr, "  ryoku-hub shell get|set <fish|bash|zsh>")
+	fmt.Fprintln(os.Stderr, "  ryoku-hub shell get|set|loaders <fish|bash|zsh>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop get|defaults|cursors|layouts")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop variants <layout>")
 	fmt.Fprintln(os.Stderr, "  ryoku-hub desktop save|preview <json>")

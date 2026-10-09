@@ -1126,6 +1126,9 @@ seed_once "$here/../apps/starship/ryoku-colors.toml" "$cfg/starship/ryoku-colors
 mkdir -p "$cfg/fastfetch"
 seed_once "$here/../apps/fastfetch/config.jsonc" "$cfg/fastfetch/config.jsonc"
 seed_once "$here/../apps/fastfetch/ryoku-colors.json" "$cfg/fastfetch/ryoku-colors.json"
+# the emblem config.jsonc draws, laid where ryoku-desktop ships it; without it
+# fastfetch falls back to the wide distro ASCII logo and the readout wraps
+install -m644 "$here/../assets/brand/fastfetch-emblem.png" "$cfg/fastfetch/fastfetch-emblem.png"
 install -m755 "$here/../apps/fastfetch/ryoku-fastfetch" "$bindir/ryoku-fastfetch"
 mkdir -p "$cfg/kitty"
 cp -a "$here/../apps/kitty/kitty.conf" "$cfg/kitty/kitty.conf"

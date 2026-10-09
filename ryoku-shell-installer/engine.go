@@ -1842,6 +1842,16 @@ func stepLoginShell(e *engine) error {
 	if err := stepPreferences(e); err != nil {
 		return err
 	}
+	// bash and zsh only read Ryoku's config through a loader line in the rc
+	// file (fish's config is laid directly); without it a kept or chosen bash
+	// or zsh opens bare: no fastfetch, prompt or ~/.local/bin on PATH.
+	hub := e.ryokuTool("ryoku-hub")
+	if hub == "" {
+		hub = "ryoku-hub"
+	}
+	if err := e.cmd("", nil, hub, "shell", "loaders", e.p.shell); err != nil {
+		return err
+	}
 	path := loginShellPath[e.p.shell]
 	if filepath.Clean(e.f.userShell) == path {
 		e.say(i18n.Tf("%s is already your login shell", path))

@@ -568,6 +568,10 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- **The terminal readout draws the Ryoku emblem on source installs.** Only the
+  `ryoku-desktop` package laid `fastfetch-emblem.png`, so a source deploy
+  (Void, Debian) fell back to the wide distro ASCII logo and every long row
+  wrapped into it.
 - **A source deploy onto a brand-new account no longer stops at the fish
   config.** The deploy copied `config.fish` before creating `~/.config/fish`,
   so it only worked for accounts that already had the directory.
