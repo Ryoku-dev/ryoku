@@ -15,7 +15,7 @@ command -v docker >/dev/null 2>&1 || fail "docker is required"
 [[ -x $repo/void/packages/resolve ]] ||
   fail "void/packages/resolve is missing or not executable"
 
-if ! docker run --rm -v "$repo:/repo:ro" "$image" /bin/sh -s <<'HARNESS'
+if ! docker run --rm -i -v "$repo:/repo:ro" "$image" /bin/sh -s <<'HARNESS'
 set -eu
 
 fail() {
@@ -54,8 +54,11 @@ fi
 
 resolved=/tmp/resolved.packages
 installed=/tmp/planned.packages
+# The installer adds the hardware lanes of whatever GPUs the runner has, so the
+# plan is checked against every hardware lane.
 if ! sh /repo/void/packages/resolve \
-  --lane desktop --lane dev --session --build > "$resolved"; then
+  --lane desktop --lane dev --lane hardware:amd --lane hardware:intel \
+  --lane hardware:nvidia --lane hardware:vm --session --build > "$resolved"; then
   fail "void package resolver rejected the installer lanes"
 fi
 [ -s "$resolved" ] || fail "void package resolver returned no packages"
