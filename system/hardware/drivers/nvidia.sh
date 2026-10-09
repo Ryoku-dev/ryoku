@@ -122,7 +122,7 @@ if ! has_nvidia; then
 fi
 
 if [[ $(ryoku-host pkgmgr) != pacman ]]; then
-  echo "nvidia.sh: the proprietary NVIDIA driver is not wired on this distribution yet; Void needs the nonfree repository, dracut modules, and elogind sleep hooks. Continuing with the open driver."
+  echo "nvidia.sh: the proprietary NVIDIA driver is not wired on this distribution yet; it needs a driver branch per GPU, dracut modules, and elogind sleep hooks. The card stays on nouveau and Mesa."
   exit 0
 fi
 

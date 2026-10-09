@@ -36,7 +36,11 @@ does not package Hyprland.
 - `optional`: desktop `optdepends` not already assigned elsewhere
 - `hyprland`: the unavailable Hyprland-only variant
 - `hardware:amd`, `hardware:intel`, `hardware:nvidia`, `hardware:vm`: the
-  matching sections of `hardware.packages`
+  matching sections of `hardware.packages`. The NVIDIA lane carries no
+  proprietary driver yet: Void's `nvidia` drives Turing and newer only and
+  blacklists nouveau, so it would leave an older card with no driver. NVIDIA
+  GPUs run on nouveau and Mesa until the driver step picks the branch per GPU,
+  as `system/hardware/drivers/nvidia.sh` does on Arch.
 
 For example:
 

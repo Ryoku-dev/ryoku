@@ -219,8 +219,11 @@ intel=$(check_resolve_output --lane hardware:intel)
 grep -qxF void-repo-multilib <<< "$intel" || fail "Intel 32-bit packages did not enable Void multilib"
 grep -qxF void-repo-nonfree <<< "$intel" || fail "Intel microcode did not enable Void nonfree"
 nvidia=$(check_resolve_output --lane hardware:nvidia)
-grep -qxF void-repo-nonfree <<< "$nvidia" || fail "NVIDIA packages did not enable Void nonfree"
-grep -qxF void-repo-multilib-nonfree <<< "$nvidia" || fail "NVIDIA 32-bit packages did not enable Void multilib/nonfree"
+# Void's nvidia package blacklists nouveau, and its open kernel modules only
+# drive Turing and newer: installed blindly it leaves an older card with no
+# driver at all. It stays out until the driver step picks a branch per GPU.
+! grep -qE '^nvidia($|-libs)' <<< "$nvidia" ||
+	fail "NVIDIA lane installs the proprietary driver before the Void driver step chooses a branch"
 vm=$(check_resolve_output --lane hardware:vm)
 grep -qxF void-repo-multilib <<< "$vm" || fail "VM 32-bit packages did not enable Void multilib"
 dropped=$(check_resolve_output --lane desktop --drop fish --drop chromium)

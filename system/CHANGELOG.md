@@ -6,9 +6,11 @@
   DNS, the network kill switch, the Wi-Fi backend and region, Docker, the audio
   restart, 32-bit GPU libraries and the AMD, Intel, Vulkan and NVIDIA driver
   steps now go through `ryoku-host`, so they behave the same on Void's runit
-  and xbps as on Arch. Arch runs the same commands as before. On Void the
-  NVIDIA step says the proprietary driver is not wired there yet instead of
-  failing.
+  and xbps as on Arch. Arch runs the same commands as before. On Void, NVIDIA
+  GPUs stay on nouveau and Mesa for now: Void's proprietary package drives
+  Turing and newer only and blacklists nouveau, so installing it blindly would
+  leave an older card with no driver at all, and the NVIDIA step says so
+  instead of failing.
 
 - **Idle works on Void.** `ryoku-idle` drives swayidle when hypridle is not
   installed, with the same lock, screen-off and suspend timers, so Void (which

@@ -83,7 +83,7 @@ jq	jq	desktop
 kdialog	kdialog	optional	
 kitty	kitty	desktop	
 lazygit	lazygit	desktop	
-lib32-nvidia-utils	nvidia-libs-32bit	hardware:nvidia	repo=multilib-nonfree
+lib32-nvidia-utils	-	hardware:nvidia	Deferred with nvidia-utils: the 32-bit libraries follow the proprietary driver.
 lib32-vulkan-intel	mesa-vulkan-intel-32bit	hardware:intel	repo=multilib
 lib32-vulkan-radeon	mesa-vulkan-radeon-32bit	hardware:amd	repo=multilib
 lib32-vulkan-swrast	mesa-vulkan-lavapipe-32bit	hardware:vm	repo=multilib
@@ -129,7 +129,7 @@ noto-fonts-cjk	noto-fonts-cjk	desktop
 noto-fonts-emoji	noto-fonts-emoji	desktop	
 npm	-	dev	Included in Void nodejs.
 nvibrant-bin	-	extra	No Void repository package.
-nvidia-utils	nvidia	hardware:nvidia	repo=nonfree
+nvidia-utils	-	hardware:nvidia	Deferred: Void's nvidia drives Turing and newer only and blacklists nouveau; NVIDIA GPUs stay on nouveau until the driver step picks a branch per GPU.
 openrgb	openrgb	desktop	
 otf-space-grotesk	@fetch	desktop	Pinned source asset installed by the source installer.
 pacman	-	desktop	Replaced by the ryoku-host XBPS backend.
