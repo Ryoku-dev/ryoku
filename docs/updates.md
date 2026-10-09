@@ -12,11 +12,11 @@ separate:
 | Lane | Command | What moves |
 |---|---|---|
 | **Ryoku** | `ryoku update` | the packages the signed `[ryoku]` repo serves, the config, the doctor |
-| **Your distribution** | `sudo pacman -Syu` | the base system and its kernel, from Arch or CachyOS, whichever you installed |
+| **Your distribution** | `sudo pacman -Syu` on Arch/CachyOS; `sudo xbps-install -Syu` on Void | the base system and its kernel, from the installed distribution |
 
-`ryoku update` upgrades the installed `[ryoku]` packages by name
-(`pacman -Sy`, then `pacman -S --needed ryoku/<pkg>...`) and never runs a
-sysupgrade. The reasons are the design:
+On packaged Arch and CachyOS installs, `ryoku update` upgrades the installed
+`[ryoku]` packages by name (`pacman -Sy`, then `pacman -S --needed
+ryoku/<pkg>...`) and never runs a system upgrade. The reasons are the design:
 
 - **The kernel is not ours to move.** Ryoku ships a plain Arch variant and a
   CachyOS variant and publishes neither kernel. A Ryoku release must not decide
@@ -29,11 +29,13 @@ sysupgrade. The reasons are the design:
   mirror out of sync, a full boot partition) must still be able to take a Ryoku
   fix, and the reverse.
 
-So a plain `sudo pacman -Syu` is expected, supported, and the only thing that
-moves your kernel. Ryoku ships no hook that blocks it. Every `ryoku update`
-reports what that lane is holding (`N system package(s) waiting`), `ryoku
-status` prints it as `system:`, and the Hub lists it under SYSTEM PACKAGES;
-`ryoku update --system` runs both lanes in one command for those who want that.
+So a plain distribution update is expected, supported, and the only thing that
+moves the kernel: `sudo pacman -Syu` on Arch or CachyOS, and
+`sudo xbps-install -Syu` on Void. Ryoku ships no hook that blocks it. On the
+packaged lane, every `ryoku update` reports what that lane is holding (`N system
+package(s) waiting`), `ryoku status` prints it as `system:`, and the Hub lists
+it under SYSTEM PACKAGES; `ryoku update --system` runs both lanes in one command
+for those who want that.
 
 The desktop package's post-transaction power cutover also makes a direct
 `pacman -Syu` safe while graphical sessions are live. One temporary login1 sleep
@@ -51,6 +53,25 @@ its database lock, because libalpm discovers hooks before extracting packages.
 
 They must converge. A change that lands on one but not the other is the bug this
 page exists to prevent.
+
+### Void source updates today
+
+Void installs currently use the source lane while the signed Ryoku XBPS
+repository is being built. The installer records the checkout that supplied the
+desktop. `ryoku update` opens that checkout, fetches its configured channel,
+fast-forwards it, and runs `ryoku/shell/deploy.sh` from the new revision.
+Deployment then converges host packages from `void/packages/`: the resolver
+selects the install's `system`, `desktop`, hardware, and optional lanes,
+translates their Arch names through `void/packages/translations.tsv`, and sends
+the resulting Void names through `ryoku-host`.
+
+The package definition remains single-source. When a package is added to
+`system/packages/`, the same change adds its row and lanes to
+`void/packages/translations.tsv`. On the next Void update,
+`void/packages/resolve` emits that row's Void package name, so deployment
+installs it without a separate Void-only package list. Rows marked `@repo`,
+`@fetch`, or `-` follow their documented source, fetch, or accepted-loss path
+instead of becoming an XBPS transaction.
 
 ### Ryotunes: an external app on its own channel
 

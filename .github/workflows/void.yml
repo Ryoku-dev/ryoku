@@ -1,0 +1,90 @@
+name: Void Linux
+
+on:
+  pull_request:
+    paths:
+      - 'void/**'
+      - 'ryoku-shell-installer/**'
+      - 'system/packages/**'
+      - 'release/packages/**'
+      - 'system/hardware/drivers/**'
+      - 'ryoku/shell/deploy.sh'
+      - 'ryoku/cli/internal/host/**'
+      - 'ryoku/cli/cmd/ryoku-host/**'
+      - 'tests/void-*.sh'
+      - 'tests/base-os.sh'
+      - '.github/workflows/void.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'void/**'
+      - 'ryoku-shell-installer/**'
+      - 'system/packages/**'
+      - 'release/packages/**'
+      - 'system/hardware/drivers/**'
+      - 'ryoku/shell/deploy.sh'
+      - 'ryoku/cli/internal/host/**'
+      - 'ryoku/cli/cmd/ryoku-host/**'
+      - 'tests/void-*.sh'
+      - 'tests/base-os.sh'
+      - '.github/workflows/void.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  init:
+    name: Init translation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check init translation
+        run: bash tests/void-init.sh
+
+  init-runit:
+    name: Init behavior under runit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check live runit behavior
+        run: bash tests/void-init-runit.sh
+
+  packages:
+    name: Package translation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check package translation
+        run: bash tests/void-packages.sh
+
+  packages-repo:
+    name: Package repository availability
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check Void repository packages
+        run: bash tests/void-packages.sh --repo
+
+  installer-plan:
+    name: Installer dry-run plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check installer plan on Void
+        run: bash tests/void-installer-plan.sh
+
+  base-os:
+    name: Base OS detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check base OS detection
+        run: bash tests/base-os.sh

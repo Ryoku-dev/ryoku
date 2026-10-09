@@ -1,0 +1,161 @@
+#!/bin/sh
+set -eu
+
+LC_ALL=C
+export LC_ALL
+
+script_dir=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
+table=$script_dir/translations.tsv
+session_set=$script_dir/sets/session.packages
+build_set=$script_dir/sets/build.packages
+wanted_lanes=
+dropped=
+with_session=0
+with_build=0
+
+usage() {
+	printf '%s\n' 'usage: resolve [--lane L]... [--drop ARCHNAME]... [--session] [--build] [--table FILE]' >&2
+	exit 2
+}
+
+valid_lane() {
+	case $1 in
+		desktop|dev|system|extra|optional|hyprland|hardware:amd|hardware:intel|hardware:nvidia|hardware:vm) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+while [ "$#" -gt 0 ]; do
+	case $1 in
+		--lane)
+			[ "$#" -ge 2 ] || usage
+			valid_lane "$2" || usage
+			wanted_lanes=$wanted_lanes'|'$2'|'
+			shift 2
+			;;
+		--drop)
+			[ "$#" -ge 2 ] || usage
+			[ -n "$2" ] || usage
+			dropped=$dropped'|'$2'|'
+			shift 2
+			;;
+		--session)
+			with_session=1
+			shift
+			;;
+		--build)
+			with_build=1
+			shift
+			;;
+		--table)
+			[ "$#" -ge 2 ] || usage
+			table=$2
+			shift 2
+			;;
+		*) usage ;;
+	esac
+done
+
+[ -r "$table" ] || {
+	printf 'resolve: cannot read table: %s\n' "$table" >&2
+	exit 1
+}
+
+tmp=$(mktemp "${TMPDIR:-/tmp}/ryoku-packages.XXXXXX") || exit 1
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+awk -F '\t' -v table="$table" -v wanted="$wanted_lanes" -v dropped="$dropped" '
+function bad(reason) {
+	printf "%s: line %d: %s\n", table, NR, reason > "/dev/stderr"
+	failed = 1
+}
+function package_name(name) {
+	return name ~ /^[A-Za-z0-9][A-Za-z0-9+_.-]*$/
+}
+BEGIN {
+	header = 0
+	valid["desktop"] = valid["dev"] = valid["system"] = 1
+	valid["extra"] = valid["optional"] = valid["hyprland"] = 1
+	valid["hardware:amd"] = valid["hardware:intel"] = 1
+	valid["hardware:nvidia"] = valid["hardware:vm"] = 1
+}
+/^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+!header {
+	header = 1
+	if ($0 != "arch\tvoid\tlanes\tnotes") bad("expected arch, void, lanes, notes header")
+	next
+}
+{
+	if (NF != 4) {
+		bad("expected four tab-separated columns")
+		next
+	}
+	if (!package_name($1)) bad("invalid Arch package name")
+	if (seen[$1]++) bad("duplicate Arch package name " $1)
+	if ($2 == "" || $3 == "") bad("void and lanes columns are required")
+
+	lane_count = split($3, row_lanes, ",")
+	selected = (wanted == "")
+	for (i = 1; i <= lane_count; i++) {
+		lane = row_lanes[i]
+		if (!valid[lane]) bad("unknown lane " lane)
+		if (lane_seen[NR SUBSEP lane]++) bad("duplicate lane " lane)
+		if (index(wanted, "|" lane "|")) selected = 1
+	}
+
+	repository = "main"
+	if ($4 ~ /^repo=/) {
+		repository = substr($4, 6)
+		if (repository !~ /^(multilib|nonfree|multilib-nonfree)$/)
+			bad("unknown Void repository " repository)
+	}
+
+	special = ($2 == "@repo" || $2 == "@fetch" || $2 == "-")
+	if (special) {
+		if ($4 == "") bad("special mapping " $2 " requires notes")
+		if ($4 ~ /^repo=/) bad("special mapping cannot declare a Void repository")
+	} else {
+		if ($4 != "" && $4 !~ /^repo=(multilib|nonfree|multilib-nonfree)$/)
+			bad("plain mapping notes must be a repository declaration")
+		name_count = split($2, names, /[[:space:]]+/)
+		for (i = 1; i <= name_count; i++)
+			if (!package_name(names[i])) bad("invalid Void package name " names[i])
+	}
+
+	if (!failed && selected && !index(dropped, "|" $1 "|") && !special) {
+		for (i = 1; i <= name_count; i++) print names[i]
+		if (repository == "multilib") print "void-repo-multilib"
+		else if (repository == "nonfree") print "void-repo-nonfree"
+		else if (repository == "multilib-nonfree") print "void-repo-multilib-nonfree"
+	}
+}
+END {
+	if (!header) {
+		printf "%s: line 0: missing header\n", table > "/dev/stderr"
+		failed = 1
+	}
+	exit failed ? 1 : 0
+}
+' "$table" > "$tmp" || exit 1
+
+append_set() {
+	set_file=$1
+	[ -r "$set_file" ] || {
+		printf 'resolve: cannot read package set: %s\n' "$set_file" >&2
+		exit 1
+	}
+	awk -v file="$set_file" '
+		/^[[:space:]]*#/ || /^[[:space:]]*$/ { next }
+		$0 !~ /^[A-Za-z0-9][A-Za-z0-9+_.-]*$/ {
+			printf "%s: line %d: invalid package name\n", file, NR > "/dev/stderr"
+			failed = 1
+			next
+		}
+		{ print }
+		END { exit failed ? 1 : 0 }
+	' "$set_file" >> "$tmp" || exit 1
+}
+
+[ "$with_session" -eq 0 ] || append_set "$session_set"
+[ "$with_build" -eq 0 ] || append_set "$build_set"
+LC_ALL=C sort -u "$tmp"

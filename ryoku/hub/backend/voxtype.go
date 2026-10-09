@@ -170,10 +170,10 @@ func voxtypeSet(arg string) error {
 	}
 	if req.Enabled {
 		ensureVoxtypeUnit()
-		_ = userctl("enable", "voxtype.service")
-		_ = userctl("restart", "voxtype.service")
+		_ = userService("enable", "voxtype")
+		_ = userService("restart", "voxtype")
 	} else {
-		_ = userctl("disable", "--now", "voxtype.service")
+		_ = userService("disable", "--now", "voxtype")
 	}
 	fmt.Println("ok")
 	return nil
@@ -194,7 +194,7 @@ func voxtypeEnsure() error {
 	}
 	ensureVoxtypeUnit()
 	if voxtypeServiceEnabled() {
-		_ = userctl("start", "voxtype.service")
+		_ = userService("start", "voxtype")
 	}
 	return nil
 }
@@ -312,12 +312,12 @@ func extractConfigString(configText, key string) string {
 	return ""
 }
 
-func userctl(args ...string) error {
-	return exec.Command("systemctl", append([]string{"--user"}, args...)...).Run()
+func userService(args ...string) error {
+	return exec.Command("ryoku-host", append([]string{"svc", "--user"}, args...)...).Run()
 }
 
 func voxtypeServiceEnabled() bool {
-	return userctl("is-enabled", "--quiet", "voxtype.service") == nil
+	return userService("is-enabled", "voxtype") == nil
 }
 
 // ensureVoxtypeUnit installs the user service (voxtype setup systemd writes and
@@ -336,6 +336,6 @@ func ensureVoxtypeUnit() {
 		"# must not permanently disable dictation.\n" +
 		"[Unit]\nStartLimitIntervalSec=0\n\n[Service]\nRestart=always\nRestartSec=2\n"
 	if readFileString(dropin) != want && atomicWrite(dropin, []byte(want), 0o644) == nil {
-		_ = userctl("daemon-reload")
+		_ = userService("daemon-reload")
 	}
 }

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **The system helpers ask the host instead of assuming systemd and pacman.**
+  DNS, the network kill switch, the Wi-Fi backend and region, Docker, the audio
+  restart, 32-bit GPU libraries and the AMD, Intel, Vulkan and NVIDIA driver
+  steps now go through `ryoku-host`, so they behave the same on Void's runit
+  and xbps as on Arch. Arch runs the same commands as before. On Void the
+  NVIDIA step says the proprietary driver is not wired there yet instead of
+  failing.
+
+- **Idle works on Void.** `ryoku-idle` drives swayidle when hypridle is not
+  installed, with the same lock, screen-off and suspend timers, so Void (which
+  packages swayidle, not hypridle) dims, locks and sleeps like Arch.
+
 - **The package power cutover only touches sessions Ryoku runs in.** The
   `ryoku-desktop` hook used to pick up any Wayland session whose compositor has
   a Ryoku provider. That included a rival shell's Hyprland session during a

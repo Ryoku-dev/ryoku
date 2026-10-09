@@ -1,41 +1,59 @@
 # Void Linux
 
 Everything Ryoku needs to run on Void Linux lives under this directory, one
-concern per subdirectory. Void differs from the Arch base in exactly two ways
-that reach into this repo: XBPS replaces pacman, and runit replaces systemd.
-This area holds those translations and the runtime files used by the script
-installer.
+concern per subdirectory. Void differs from the Arch base at two host
+boundaries: XBPS replaces pacman, and runit replaces systemd. Package
+translation, init integration, and ISO inputs stay here; runtime callers use
+`ryoku-host` instead of carrying distro checks.
 
 The validated target profile matches the one the ecosystem converged on
 (iNiR's Void port, DankMaterialShell): **x86_64 glibc + elogind + runit +
 Turnstile**. musl and seatd-only sessions are out of scope until the glibc
 profile ships.
 
-## Layout
+## Port index
 
-- `init/` the systemd to runit translation.
-  - `translations.tsv` the completeness manifest: every systemd unit, target,
-    timer, drop-in and environment generator in the repo maps to its runit
-    translation or an explicit accepted-loss verdict. `tests/void-init.sh`
-    fails when a unit exists without a manifest row, so a new unit can never
-    silently skip Void.
-  - `system/` system-level runit services, installed to `/etc/sv/<name>` and
-    enabled from `/etc/runit/runsvdir/default/<name>`.
-  - `user/` per-user session services installed to
-    `~/.config/service/<name>` for Turnstile.
-  - `env/xdg-dirs` renders the localized XDG directories into Turnstile's
-    envdir format.
-  - `polkit/` records the policy differences whose systemd action ids do not
-    transfer to runit.
-  - `lib/wait-for` provides dependency and environment waits shared by every
-    translated service.
-  - `session/session-start` publishes the compositor environment and restarts
-    the services listed in `session-services`.
-- `iso/` (future) the Void live ISO profile; only a README marking the slot.
-  XBPS repo baking and the live-image runit services belong there.
-- `packages/` (future) xbps-src templates for a signed Ryoku XBPS repository,
-  the counterpart of `release/packages/`; only a README marking the slot.
+The Arch and CachyOS paths remain the source definitions. Their Void
+counterparts translate those definitions rather than duplicating the desktop.
 
+| artifact | Arch/CachyOS path | Void counterpart | status |
+|---|---|---|---|
+| Package sets | `system/packages/` | `void/packages/translations.tsv`, `void/packages/sets/`, `void/packages/resolve` | Done |
+| Package recipes | `release/packages/` | `void/packages/srcpkgs/` in the Ryoku XBPS repository | Planned |
+| Repository build | `release/repo/` | `void/packages/repo/` | Planned |
+| Live ISO | `installation/iso/` | `void/iso/` | Planned; see [`iso/README.md`](iso/README.md) |
+| Init services | systemd unit trees across the repository | `void/init/` | Done |
+| Runtime host seam | direct systemd and pacman calls | `ryoku/cli/cmd/ryoku-host` and `ryoku/cli/internal/host` | Done |
+
+`packages/translations.tsv` is the package-name and lane map for the complete
+Arch package closure. `packages/resolve` selects lanes and emits Void package
+names, while `packages/sets/` supplies the Void session and source-build
+packages that have no Arch package-set row. `packages/README.md` describes the
+future signed XBPS repository.
+
+`init/` is the systemd-to-runit translation:
+
+- `translations.tsv` is the completeness manifest: every systemd unit, target,
+  timer, drop-in and environment generator in the repo maps to its runit
+  translation or an explicit accepted-loss verdict. `tests/void-init.sh`
+  fails when a unit exists without a manifest row, so a new unit cannot
+  silently skip Void.
+- `system/` holds system-level runit services, installed to `/etc/sv/<name>`
+  and enabled from `/etc/runit/runsvdir/default/<name>`.
+- `user/` holds per-user session services installed to
+  `~/.config/service/<name>` for Turnstile.
+- `env/xdg-dirs` renders the localized XDG directories into Turnstile's envdir
+  format.
+- `polkit/` records the policy differences whose systemd action ids do not
+  transfer to runit.
+- `lib/wait-for` provides dependency and environment waits shared by every
+  translated service.
+- `session/session-start` publishes the compositor environment and restarts
+  the services listed in `session-services`.
+
+`iso/README.md` specifies the Void live image, offline XBPS closure, shared
+installer routing, and release workflow. The profile and workflow are planned;
+the package, init, and host-seam inputs they consume are already present.
 
 ## Runtime layout
 
@@ -52,10 +70,12 @@ PipeWire, pipewire-pulse, and WirePlumber run as login services without `down`
 markers because Void has no systemd user units to start them. Every other Ryoku
 user service waits for `session-start` after the compositor exists.
 
-The session entrypoint publishes the compositor's exported environment, renders
-the localized XDG directories, updates D-Bus activation, and restarts the
-session roster in order. A stale service from a previous login therefore
-reconnects to the new display instead of remaining attached to the old one.
+Both compositor login entries call `ryoku-host session start`. On runit,
+`ryoku-host` dispatches to `/usr/lib/ryoku/runit/session-start`, which publishes
+the compositor's exported environment, renders the localized XDG directories,
+updates D-Bus activation, and restarts the session roster in order. A stale
+service from a previous login therefore reconnects to the new display instead
+of remaining attached to the old one.
 
 Turnstile uses elogind's `/run/user` ownership, so
 `/etc/turnstile/turnstiled.conf` sets `manage_rundir = no`. Its per-user D-Bus
@@ -66,6 +86,27 @@ Every translated run script sources
 `/usr/lib/ryoku/runit/wait-for` and reloads the Turnstile envdir before reading
 session values. `wait_env` polls the variable's envdir file when Turnstile is
 active, then the run script reloads the envdir before executing its daemon.
+
+## Turnstile and the session bus
+
+Yes. A stock Void setup normally leaves the administrator to enable
+`turnstiled`, add `pam_turnstile` to the login PAM stack, disable
+`manage_rundir` when elogind owns `/run/user`, and make the per-user D-Bus
+service a `turnstile-ready` core service so the bus exists before login. The
+session must then publish its display environment to supervised services and
+D-Bus activation. Ryoku does not wrap the compositor in `dbus-run-session`;
+PipeWire and the other login services use Turnstile's existing user bus.
+
+Ryoku performs that setup automatically. Every deploy and update runs
+`ryoku-host session ensure`; installation runs `fix-wrappers` with backups, then
+the verify step checks the result. The doctor's Turnstile check repairs later
+drift. The audio login services start PipeWire, pipewire-pulse, and WirePlumber
+after the bus is ready, and `session-start` publishes `WAYLAND_DISPLAY` and the
+rest of the compositor environment to both the Turnstile envdir and D-Bus
+activation.
+
+Polkit prompts also work from the session. The shell's agent registers with the
+graphical session even though Turnstile supervises it.
 
 ## Translation rules
 
@@ -98,6 +139,22 @@ Binaries resolve through `${RYOKU_BIN_DIR:-/usr/bin}` so a dev checkout can
 point the same service files at `~/.local/bin` without a second copy, the
 same job the systemd drop-ins do on Arch.
 
+## Deliberate exceptions
+
+The host seam covers runtime behavior. These provisioning or upstream-owned
+paths remain init- or distribution-specific:
+
+- `ryoku/shell/deploy.sh`, the installer, and PKGBUILD install hooks provision
+  the host and keep their explicit init branches.
+- `system/hardware/power/ryoku-power-cutover` is systemd orchestration. Its
+  runit counterpart is `void/init/session/session-start` together with
+  `deploy.sh`'s runit lane.
+- `ryoku-boot-apply` and the NVIDIA pacman hook are Arch boot and package
+  provisioning.
+- iNiR upstream files that already branch for the host stay as upstream wrote
+  them.
+- Doctor and the packaged update lane move to `ryoku-host` in a later phase.
+
 ## Testing
 
 - `tests/void-init.sh` (host, no container): manifest completeness, script
@@ -107,4 +164,4 @@ same job the systemd drop-ins do on Arch.
   the translated services under a real `runsvdir` against stub binaries and
   asserts oneshot and restart semantics, ordering guards, finish hooks,
   envdir waits, down markers, and session roster startup.
-- `.github/workflows/void-init.yml` runs both; the live job needs docker.
+- `.github/workflows/void.yml` runs both; the live job needs docker.

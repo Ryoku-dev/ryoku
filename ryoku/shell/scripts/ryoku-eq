@@ -177,7 +177,7 @@ start_filter() {
   [[ -n $target ]] || die "no default audio sink"
   render_conf "$state" "$target"
   if ! running; then
-    systemctl --user restart "$UNIT" >/dev/null 2>&1 \
+    ryoku-host svc --user restart "$UNIT" >/dev/null 2>&1 \
       || die "could not start $UNIT"
   fi
   for ((i = 0; i < 40; i++)); do
@@ -213,7 +213,7 @@ stop_filter() {
       sleep 0.05
     done
   fi
-  systemctl --user stop "$UNIT" >/dev/null 2>&1 || true
+  ryoku-host svc --user stop "$UNIT" >/dev/null 2>&1 || true
   return 0
 }
 

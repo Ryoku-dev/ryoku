@@ -43,7 +43,7 @@ SUSPEND_REASON="${RYOKU_CLAMSHELL_SUSPEND_REASON:-$RUNTIME_DIR/ryoku-clamshell-$
 PGREP_BIN="${RYOKU_PGREP_BIN:-$(command -v pgrep || true)}"
 BUSCTL_BIN="${RYOKU_BUSCTL_BIN:-$(command -v busctl || true)}"
 LOGGER_BIN="${RYOKU_CLAMSHELL_LOGGER_BIN:-$(command -v logger || true)}"
-INHIBIT_BIN="$(command -v systemd-inhibit || command -v elogind-inhibit || true)"
+HOST_BIN="$(command -v ryoku-host || true)"
 # Internal panels + non-display connectors. Everything else that reports
 # "connected" is an external display (HDMI-A-*, DP-*, ...).
 INTERNAL_RE='^(eDP|LVDS|DSI|Virtual|Writeback)'
@@ -323,7 +323,7 @@ write_inhibitor_state() {
 # PID file, or an unrelated process reusing that PID, never suppresses locking.
 inhibitor_active() {
   local pid uid json
-  [[ -n $INHIBIT_BIN ]] || return 1
+  [[ -n $HOST_BIN && -n $BUSCTL_BIN && -x $BUSCTL_BIN ]] || return 1
   [[ -r $INHIBIT_STATE ]] || return 1
   read -r pid <"$INHIBIT_STATE" || return 1
   if [[ ! $pid =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
@@ -332,11 +332,13 @@ inhibitor_active() {
   fi
   command -v jq >/dev/null 2>&1 || return 1
   uid="$(id -u)"
-  json="$("$INHIBIT_BIN" --list --json=short 2>/dev/null)" || return 1
+  json="$("$BUSCTL_BIN" --json=short call \
+    org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager ListInhibitors 2>/dev/null)" || return 1
   jq -e --argjson pid "$pid" --argjson uid "$uid" '
-    any(.[]; .pid == $pid and .uid == $uid and .who == "ryoku-clamshell"
-      and .mode == "block"
-      and ((.what | split(":")) | index("handle-lid-switch")))
+    any(.data[0][]; .[5] == $pid and .[4] == $uid and .[1] == "ryoku-clamshell"
+      and .[3] == "block"
+      and ((.[0] | split(":")) | index("handle-lid-switch")))
   ' >/dev/null <<<"$json"
 }
 
@@ -374,7 +376,7 @@ stop_recorded_inhibitor() {
 inhibitor_supervisor() {
   local handshake=$1 child rc tmp
   exec 9>&-
-  "$INHIBIT_BIN" --what=handle-lid-switch --mode=block \
+  "$HOST_BIN" inhibit --what=handle-lid-switch --mode=block \
     --who="ryoku-clamshell" --why="route lid close through the secure Ryoku policy" \
     sleep infinity &
   child=$!
@@ -757,8 +759,8 @@ run_daemon() {
     [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "desktop detected; clamshell disabled"
     exit 0
   fi
-  if [[ -z $INHIBIT_BIN ]]; then
-    log "login1 inhibit tool not found; clamshell disabled" >&2
+  if [[ -z $HOST_BIN ]]; then
+    log "ryoku-host not found; clamshell disabled" >&2
     exit 0
   fi
   if ! command -v dbus-monitor >/dev/null 2>&1; then
@@ -768,9 +770,9 @@ run_daemon() {
 
   # one instance per user session. The lock fd must never reach a child that
   # outlives this daemon: an orphaned `udevadm monitor`, the dbus-monitor
-  # coprocess, or the sleep behind systemd-inhibit would keep holding the flock
-  # forever, and every later start would then exit silently believing another
-  # instance is alive. Each long-lived spawn below closes fd 9.
+  # coprocess, or the sleep behind the login1 inhibitor would keep holding the
+  # flock forever, and every later start would then exit silently believing
+  # another instance is alive. Each long-lived spawn below closes fd 9.
   exec 9>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell.lock"
   if ! flock -n 9; then
     # Contention is not always "another instance": a leaked orphan pins this

@@ -23,6 +23,11 @@
   through Prowl (`quickshell/pages/RashinPage.qml`).
 
 ### Fixed
+- **Hub settings that touch services and packages work on Void.** The
+  keyboard layout, GPU mode, lighting, the palette bridge, the shell
+  preference and the Window Manager page go through `ryoku-host` instead of
+  `systemctl` and `pacman`. Voxtype, which only exists in the AUR, shows as
+  unavailable on Void instead of failing (`backend/`).
 - **Mouse macros take a lone Shift, Ctrl, Alt or Super, and the side grid
   stops double-acting.** Holding just a modifier while recording a macro showed
   it but never added the step; it now commits when you let go. The MACRO and

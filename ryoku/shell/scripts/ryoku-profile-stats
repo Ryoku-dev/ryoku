@@ -48,7 +48,7 @@ free --si | awk '/Swap:/{ if ($2 > 0) printf "%d%%\n", $3 / $2 * 100; else print
 printf '%s\n' "$bat"
 printf '%s\n' "$wm_ver"
 printf '%s\n' "$monitors"
-pacman -Qen 2>/dev/null | wc -l
-pacman -Qm 2>/dev/null | wc -l
+ryoku-host pkg count 2>/dev/null || printf '0\n'
+ryoku-host pkg count --foreign 2>/dev/null || printf '0\n'
 printf '%s\n' "${XCURSOR_THEME:--}${XCURSOR_SIZE:+ · $XCURSOR_SIZE}"
 printf '%s\n' "$palette"

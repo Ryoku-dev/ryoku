@@ -25,22 +25,22 @@ type distro struct {
 	name       string
 	fromSource bool
 
-	// rename maps a base.packages (Arch) name to the local one. A missing key
+	// rename maps an Arch package name to its Debian equivalent. A missing key
 	// means the name is identical; an empty value means the package does not
-	// exist here and is skipped.
+	// exist there and is skipped.
 	rename map[string]string
 
-	// build and runtime extend base.packages for source builds. build carries
-	// the compiler toolchain; runtime carries package dependencies that are not
-	// already in the Arch machine manifest.
+	// Debian extends the translated base set with source-build and runtime
+	// dependencies that its package archive does not express through Ryoku.
 	build   []string
 	runtime []string
 
-	installCmd []string
-	removeCmd  []string
-	updateCmd  []string
-	refreshCmd []string
-	queryCmd   []string
+	installCmd         []string
+	removeCmd          []string
+	updateCmd          []string
+	refreshCmd         []string
+	queryCmd           []string
+	installFirstPrefix string
 }
 
 var archLinux = &distro{
@@ -118,83 +118,18 @@ var debianLinux = &distro{
 	},
 }
 
-// Package names verified against the Void glibc repository. Ryoku is built
-// from the payload because there is no signed XBPS repository yet.
+// Ryoku is built from the payload because there is no signed XBPS repository
+// yet. void/packages owns the package translation and source-build closure.
 var voidLinux = &distro{
-	id:         "void",
-	name:       "Void",
-	fromSource: true,
-	installCmd: []string{"xbps-install", "-Sy"},
-	removeCmd:  []string{"xbps-remove", "-y"},
-	updateCmd:  []string{"xbps-install", "-Syu"},
-	refreshCmd: []string{"xbps-install", "-S"},
-	queryCmd:   []string{"xbps-query"},
-	build: []string{
-		"base-devel", "go", "cmake", "ninja", "pkg-config",
-		"qt6-base-devel", "qt6-base-private-devel", "qt6-declarative-devel", "qt6-multimedia-devel",
-		"qt6-shadertools-devel", "qt6-svg-devel", "qt6-qt5compat-devel",
-		"qt6-wayland-devel", "wayland-devel", "wayland-protocols", "ffmpeg6-devel",
-		"gtk+3-devel", "libwebkit2gtk41-devel",
-	},
-	runtime: []string{
-		"dbus", "elogind", "turnstile", "polkit", "socklog-void",
-		"xdg-desktop-portal", "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk",
-		"niri", "xwayland-satellite", "sddm",
-		"gtk+3", "libwebkit2gtk41", "qt5-wayland", "qt6-imageformats",
-		"syntax-highlighting", "pam-u2f", "wlsunset", "wayland",
-		"uv", "socat", "gum", "qrencode",
-	},
-	rename: map[string]string{
-		"base":        "",
-		"blesh":       "",
-		"bluez-utils": "",
-		// AMD microcode ships in Void's AMD firmware package; Intel's lives
-		// in the nonfree repository a stock install does not enable.
-		"amd-ucode":                     "linux-firmware-amd",
-		"ffmpeg":                        "ffmpeg6",
-		"fish":                          "fish-shell",
-		"game-devices-udev":             "",
-		"gst-plugins-bad":               "gst-plugins-bad1",
-		"gst-plugins-base":              "gst-plugins-base1",
-		"gst-plugins-good":              "gst-plugins-good1",
-		"gst-plugins-ugly":              "gst-plugins-ugly1",
-		"hypridle":                      "",
-		"imagemagick":                   "ImageMagick",
-		"inter-font":                    "font-inter",
-		"limine":                        "",
-		"limine-mkinitcpio-hook":        "",
-		"limine-snapper-sync":           "",
-		"mangohud":                      "MangoHud",
-		"mesa":                          "mesa-dri",
-		"mkinitcpio":                    "",
-		"intel-ucode":                   "",
-		"networkmanager":                "NetworkManager",
-		"noto-fonts":                    "noto-fonts-ttf",
-		"otf-space-grotesk":             "",
-		"pipewire-alsa":                 "alsa-pipewire",
-		"pipewire-audio":                "",
-		"pipewire-pulse":                "",
-		"python":                        "python3",
-		"qemu-desktop":                  "qemu",
-		"qt6-5compat":                   "qt6-qt5compat",
-		"qt6-multimedia-ffmpeg":         "",
-		"ryoku-oh-my-zsh":               "",
-		"snap-pac":                      "",
-		"tesseract":                     "tesseract-ocr",
-		"tesseract-data-eng":            "tesseract-ocr-eng",
-		"ttf-firacode-nerd":             "nerd-fonts-ttf",
-		"ttf-hack-nerd":                 "nerd-fonts-ttf",
-		"ttf-jetbrains-mono-nerd":       "nerd-fonts-ttf",
-		"ttf-maple-mono-nf":             "",
-		"ttf-material-symbols-variable": "",
-		"ttf-readex-pro":                "",
-		"ttf-rubik-vf":                  "",
-		"vulkan-icd-loader":             "vulkan-loader",
-		"vimix-cursors":                 "",
-		"waifu2x-ncnn-vulkan":           "",
-		"xorg-xwayland":                 "xorg-server-xwayland",
-		"xpadneo-dkms":                  "xpadneo",
-	},
+	id:                 "void",
+	name:               "Void",
+	fromSource:         true,
+	installCmd:         []string{"xbps-install", "-Sy"},
+	removeCmd:          []string{"xbps-remove", "-y"},
+	updateCmd:          []string{"xbps-install", "-Syu"},
+	refreshCmd:         []string{"xbps-install", "-S"},
+	queryCmd:           []string{"xbps-query"},
+	installFirstPrefix: "void-repo-",
 }
 
 // activeDistro is set once by detectFacts; installed() reads it from the
@@ -238,6 +173,31 @@ func (d *distro) installArgs(pkgs []string) []string {
 	return append(append([]string{}, d.installCmd...), pkgs...)
 }
 
+// installPhases keeps repository-enabling packages ahead of packages supplied
+// by those repositories. Distros without such bootstrap packages retain one
+// transaction with the original order and argv.
+func (d *distro) installPhases(pkgs []string) [][]string {
+	if d.installFirstPrefix == "" {
+		return [][]string{pkgs}
+	}
+	var first, rest []string
+	for _, pkg := range pkgs {
+		if strings.HasPrefix(pkg, d.installFirstPrefix) {
+			first = append(first, pkg)
+		} else {
+			rest = append(rest, pkg)
+		}
+	}
+	var phases [][]string
+	if len(first) > 0 {
+		phases = append(phases, first)
+	}
+	if len(rest) > 0 || len(phases) == 0 {
+		phases = append(phases, rest)
+	}
+	return phases
+}
+
 func (d *distro) removeArgs(pkgs []string) []string {
 	return append(append([]string{}, d.removeCmd...), pkgs...)
 }
@@ -253,6 +213,12 @@ func (d *distro) installedPkg(pkg string) bool {
 }
 
 func hostInit() initSystem {
+	switch os.Getenv("RYOKU_HOST_INIT") {
+	case "systemd":
+		return initSystemd
+	case "runit":
+		return initRunit
+	}
 	fi, err := os.Stat("/run/systemd/system")
 	if err == nil && fi.IsDir() {
 		return initSystemd

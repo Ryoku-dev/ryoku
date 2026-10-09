@@ -8,11 +8,11 @@ services=(wireplumber.service pipewire.service pipewire-pulse.service)
 
 restart_services() {
   echo "Restarting audio services..."
-  timeout 25s systemctl --user restart "${services[@]}" && return 0
+  timeout 25s ryoku-host svc restart "${services[@]}" && return 0
   # a wedged service ignores restart: kill it, clear the failure, start fresh.
-  systemctl --user kill --kill-whom=all --signal=KILL "${services[@]}" >/dev/null 2>&1 || true
-  systemctl --user reset-failed "${services[@]}" >/dev/null 2>&1 || true
-  timeout 25s systemctl --user start pipewire.service pipewire-pulse.service wireplumber.service
+  ryoku-host svc kill "${services[@]}" >/dev/null 2>&1 || true
+  ryoku-host svc reset-failed "${services[@]}" >/dev/null 2>&1 || true
+  timeout 25s ryoku-host svc start pipewire.service pipewire-pulse.service wireplumber.service
 }
 
 wpctl_ok() { timeout 5s wpctl status >/dev/null 2>&1; }

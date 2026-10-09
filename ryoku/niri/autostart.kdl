@@ -1,6 +1,6 @@
 // The login bootstrap: everything a Ryoku session must bring up when niri
 // starts. niri has no scripting layer, so each entry is a spawn node. The
-// systemd session line is load-bearing; the rest are best-effort helpers, each
+// session handoff line is load-bearing; the rest are best-effort helpers, each
 // guarded so a missing binary or a second login still lands a session.
 //
 // X11 has no line here on purpose: niri creates the X11 sockets, exports
@@ -24,7 +24,7 @@ spawn-sh-at-startup "command -v ryoku-cmd-folders >/dev/null 2>&1 && ryoku-cmd-f
 // The shared entrypoint keeps this config init-neutral while preserving the
 // ordered environment handoff and stale-session restart on every supported
 // service supervisor.
-spawn-sh-at-startup "ryoku-session-start xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
+spawn-sh-at-startup "ryoku-host session start xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
 
 // No autoscale line: niri picks each output's scale itself, and ryoku-monitor is the Hyprland provider's display tool.
 

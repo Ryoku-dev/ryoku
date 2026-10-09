@@ -88,7 +88,7 @@ func paletteBridgeCommand(path string, args ...string) error {
 }
 
 func paletteBridgeUnitState(verb string) bool {
-	_, err := paletteBridgeRun("systemctl", "--user", verb, "--quiet", paletteBridgeUnit)
+	_, err := paletteBridgeRun("ryoku-host", "svc", "--user", verb, paletteBridgeUnit)
 	return err == nil
 }
 
@@ -178,9 +178,9 @@ func runPaletteBridge(args []string) error {
 		}
 		verb := args[1]
 		if verb == "enable" || verb == "disable" {
-			return paletteBridgeCommand("systemctl", "--user", verb, "--now", paletteBridgeUnit)
+			return paletteBridgeCommand("ryoku-host", "svc", "--user", verb, "--now", paletteBridgeUnit)
 		}
-		return paletteBridgeCommand("systemctl", "--user", "restart", paletteBridgeUnit)
+		return paletteBridgeCommand("ryoku-host", "svc", "--user", "restart", paletteBridgeUnit)
 	case "doctor":
 		doctor, lookupErr := exec.LookPath("ryoku-palette-bridge-doctor")
 		if lookupErr != nil {

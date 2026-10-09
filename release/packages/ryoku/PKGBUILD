@@ -1,8 +1,8 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 #
-# Ryoku control CLI (Go). single front door to update, rollback, snapshot, and
-# the config materialize step. orchestrates pacman, yay, snapper -- never
-# reimplements them.
+# Ryoku control CLI (Go), plus the internal host seam used by runtime
+# components. The CLI remains the front door to update, rollback, snapshot, and
+# materialize; both binaries ship together so their contract cannot drift.
 # built from in-repo source at ryoku/cli. the keyring subcommand talks to
 # gnome-keyring over D-Bus via godbus, which is vendored, so the signed-repo CI
 # builds offline regardless of whatever GOFLAGS makepkg picked up.
@@ -24,10 +24,12 @@ _repo="$startdir/../../.."
 build() {
   cd "$_repo/ryoku/cli"
   CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$srcdir/ryoku" .
+  CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$srcdir/ryoku-host" ./cmd/ryoku-host
 }
 
 package() {
   install -Dm755 "$srcdir/ryoku" "$pkgdir/usr/bin/ryoku"
+  install -Dm755 "$srcdir/ryoku-host" "$pkgdir/usr/bin/ryoku-host"
   # the boot guard: a system unit `ryoku boot-guard` runs from early in every
   # boot (enabled by the doctor on every update, so existing boxes get it),
   # and the tmpfiles entries for its marker and the sessions' boot-ok files.

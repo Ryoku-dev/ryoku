@@ -83,83 +83,29 @@ func TestLayoutPrimary(t *testing.T) {
 	}
 }
 
-func TestApplySystemUsesLocalectlUnderSystemd(t *testing.T) {
-	dir := t.TempDir()
-	runtimeDir := filepath.Join(dir, "systemd")
-	if err := os.Mkdir(runtimeDir, 0o755); err != nil {
-		t.Fatal(err)
+func TestApplySystemDelegatesToHostKeymap(t *testing.T) {
+	old := applySystemKeymap
+	t.Cleanup(func() { applySystemKeymap = old })
+	var layout, variant, options string
+	applySystemKeymap = func(gotLayout, gotVariant, gotOptions string) int {
+		layout, variant, options = gotLayout, gotVariant, gotOptions
+		return 0
 	}
-	bin := filepath.Join(dir, "bin")
-	if err := os.Mkdir(bin, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	logPath := filepath.Join(dir, "calls")
-	stub := "#!/bin/sh\nprintf '%s\\n' \"$*\" >\"$CALL_LOG\"\n"
-	if err := os.WriteFile(filepath.Join(bin, "localectl"), []byte(stub), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	oldRuntime, oldRC := systemdRuntimeDir, voidRCConfPath
-	systemdRuntimeDir, voidRCConfPath = runtimeDir, filepath.Join(dir, "untouched-rc.conf")
-	t.Cleanup(func() { systemdRuntimeDir, voidRCConfPath = oldRuntime, oldRC })
-	t.Setenv("CALL_LOG", logPath)
-	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	if err := ApplySystem(Layout{Layout: "de", Variant: "nodeadkeys", Options: "ctrl:nocaps"}); err != nil {
+	if err := ApplySystem(Layout{Layout: "de,us", Variant: "nodeadkeys", Options: "ctrl:nocaps"}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := "set-x11-keymap de  nodeadkeys ctrl:nocaps\n"; string(got) != want {
-		t.Fatalf("localectl args = %q, want %q", got, want)
-	}
-	if _, err := os.Stat(voidRCConfPath); !os.IsNotExist(err) {
-		t.Fatalf("systemd branch wrote Void rc.conf: %v", err)
+	if layout != "de" || variant != "nodeadkeys" || options != "ctrl:nocaps" {
+		t.Fatalf("host keymap args = %q %q %q", layout, variant, options)
 	}
 }
 
-func TestApplySystemWritesVoidRCConfWithoutSystemd(t *testing.T) {
-	dir := t.TempDir()
-	rc := filepath.Join(dir, "rc.conf")
-	initial := "# console settings\nKEYMAP=\"us\"\nHARDWARECLOCK=\"UTC\"\n"
-	if err := os.WriteFile(rc, []byte(initial), 0o640); err != nil {
-		t.Fatal(err)
-	}
-	oldRuntime, oldRC := systemdRuntimeDir, voidRCConfPath
-	systemdRuntimeDir, voidRCConfPath = filepath.Join(dir, "no-systemd"), rc
-	t.Cleanup(func() { systemdRuntimeDir, voidRCConfPath = oldRuntime, oldRC })
-
-	if err := ApplySystem(Layout{Layout: "fr"}); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(rc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "# console settings\nKEYMAP=\"fr\"\nHARDWARECLOCK=\"UTC\"\n"
-	if string(got) != want {
-		t.Fatalf("rc.conf = %q, want %q", got, want)
-	}
-}
-
-func TestWriteVoidKeymapAppendsAndRejectsInvalidValues(t *testing.T) {
-	rc := filepath.Join(t.TempDir(), "rc.conf")
-	if err := os.WriteFile(rc, []byte("HARDWARECLOCK=\"UTC\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeVoidKeymap(rc, "gb"); err != nil {
-		t.Fatal(err)
-	}
-	got, err := os.ReadFile(rc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := "HARDWARECLOCK=\"UTC\"\nKEYMAP=\"gb\"\n"; string(got) != want {
-		t.Fatalf("appended rc.conf = %q, want %q", got, want)
-	}
-	if err := writeVoidKeymap(rc, "us\nMALICIOUS=yes"); err == nil {
-		t.Fatal("invalid keymap was accepted")
+func TestApplySystemReportsHostFailure(t *testing.T) {
+	old := applySystemKeymap
+	t.Cleanup(func() { applySystemKeymap = old })
+	applySystemKeymap = func(string, string, string) int { return 1 }
+	if err := ApplySystem(Layout{Layout: "fr"}); err == nil {
+		t.Fatal("host keymap failure was ignored")
 	}
 }
 

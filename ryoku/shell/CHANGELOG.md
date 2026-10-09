@@ -4,9 +4,10 @@
 
 ### Added
 - **The session starts the same way on systemd and on Void's runit.** Both
-  compositors now call one `ryoku-session-start` at login. On systemd it runs
+  compositors now call `ryoku-host session start` at login. On systemd it runs
   the exact chain the configs ran before; on Void it publishes the session
-  environment to Turnstile and brings the Ryoku services up under runit.
+  environment to Turnstile and D-Bus activation and brings the Ryoku services
+  up under runit, so nothing has to wrap the compositor in `dbus-run-session`.
   Reboot and power off go through login1 directly, so they work under elogind
   too, and Keep Awake, the lid policy, the Hub's timezone picker and the
   system keymap all have a runit path.

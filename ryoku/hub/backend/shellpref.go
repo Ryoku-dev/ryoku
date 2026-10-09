@@ -263,8 +263,7 @@ var runSessionCommand = func(name string, args ...string) error {
 
 func syncSessionShell(path string) {
 	_ = os.Setenv("SHELL", path)
-	_ = runSessionCommand("systemctl", "--user", "set-environment", "SHELL="+path)
-	_ = runSessionCommand("dbus-update-activation-environment", "--systemd", "SHELL="+path)
+	_ = runSessionCommand("ryoku-host", "svc", "env", "SHELL="+path)
 	// SHELL is a persisted setting: the provider emits it into the compositor's
 	// env config and a reload makes newly spawned processes read it.
 	persistShellEnv(path)

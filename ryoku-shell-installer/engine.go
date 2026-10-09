@@ -397,6 +397,9 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 			continue
 		}
 		e.steps = append(e.steps, s)
+		if src && e.usesRunit() && s.id == "build" {
+			e.steps = append(e.steps, estep{"drivers", i18n.T("Setting up GPU drivers"), stepDrivers})
+		}
 	}
 	return e
 }
@@ -695,11 +698,16 @@ func stepTools(e *engine) error {
 
 // resolvePayload anchors the payload checkout path. It runs when the engine is
 // built, not only when the fetch step runs: a resume skips the completed
-// payload step, and every later step joins e.payload to find scripts. Left
-// unset, those joins produce relative paths that fail outside the checkout.
+// payload step, and every later step joins e.payload to find scripts. Source
+// installs use the durable checkout that deploy.sh records for `ryoku update`;
+// packaged Arch installs retain their throwaway sparse payload cache.
 func (e *engine) resolvePayload() {
 	if e.payloadOverride != "" {
 		e.payload = e.payloadOverride
+		return
+	}
+	if e.d().fromSource {
+		e.payload = filepath.Join(e.f.homeDir, "ryoku-arch")
 		return
 	}
 	cache := os.Getenv("XDG_CACHE_HOME")
@@ -716,6 +724,29 @@ func stepPayload(e *engine) error {
 		}
 		e.say(i18n.Tf("using payload checkout %s", e.payload))
 		return nil
+	}
+
+	if e.d().fromSource {
+		if _, err := os.Stat(filepath.Join(e.payload, ".git")); err == nil {
+			if err := e.cmd(e.payload, nil, "git", "remote", "set-url", "origin", repoURL); err != nil {
+				return err
+			}
+			if err := e.cmd(e.payload, nil, "git", "fetch", "--prune", "origin", e.ref); err != nil {
+				return err
+			}
+			if _, err := os.Stat(filepath.Join(e.payload, ".git", "info", "sparse-checkout")); err == nil {
+				if err := e.cmd(e.payload, nil, "git", "sparse-checkout", "disable"); err != nil {
+					return err
+				}
+			}
+			return e.cmd(e.payload, nil, "git", "checkout", "-f", "FETCH_HEAD")
+		}
+		if !e.dry {
+			if err := os.MkdirAll(filepath.Dir(e.payload), 0o755); err != nil {
+				return err
+			}
+		}
+		return e.cmd("", nil, "git", "clone", "--filter=blob:none", "--branch", e.ref, repoURL, e.payload)
 	}
 
 	if _, err := os.Stat(filepath.Join(e.payload, ".git")); err == nil {
@@ -1053,8 +1084,68 @@ func (e *engine) providerAnswers() bool {
 	return bin != "" && exec.Command(bin, "caps").Run() == nil
 }
 
+func voidHardwareLanes(f *facts) []string {
+	if f != nil && f.hasNvidia {
+		return []string{"amd", "intel", "nvidia"}
+	}
+	hasAMD, hasIntel := false, false
+	if f != nil {
+		for _, gpu := range f.gpus {
+			switch strings.ToLower(gpu) {
+			case "amdgpu", "radeon":
+				hasAMD = true
+			case "i915", "xe":
+				hasIntel = true
+			}
+		}
+	}
+	switch {
+	case hasAMD:
+		return []string{"amd"}
+	case hasIntel:
+		return []string{"intel"}
+	default:
+		return []string{"vm"}
+	}
+}
+
+func (e *engine) readVoidPackages() ([]string, error) {
+	resolver := filepath.Join(e.payload, "void", "packages", "resolve")
+	if _, err := os.Stat(resolver); err != nil && e.dry {
+		e.say(i18n.T("DRYRUN: payload not cloned; would resolve the Void package plan"))
+		return nil, nil
+	}
+	args := []string{resolver, "--lane", "desktop"}
+	if e.p != nil && e.p.devtools {
+		args = append(args, "--lane", "dev")
+	}
+	for _, lane := range voidHardwareLanes(e.f) {
+		args = append(args, "--lane", "hardware:"+lane)
+	}
+	args = append(args, "--session", "--build")
+	p := e.p
+	if p == nil {
+		p = &plan{}
+	}
+	for _, pkg := range choiceDropPackages(p) {
+		args = append(args, "--drop", pkg)
+	}
+	out, err := exec.Command("sh", args...).CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("resolve Void package plan: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return strings.Fields(string(out)), nil
+}
+
 func stepPackages(e *engine) error {
 	d := e.d()
+	if d.id == "void" {
+		pkgs, err := e.readVoidPackages()
+		if err != nil {
+			return err
+		}
+		return installPackagePlan(e, d, pkgs)
+	}
 	base, err := e.readBasePackages()
 	if err != nil {
 		if !e.dry {
@@ -1099,7 +1190,16 @@ func stepPackages(e *engine) error {
 	}
 	// -Syu, not -S: a resumed run holds the db its first attempt synced, and
 	// a publish in between replaces or prunes the files that db points at.
-	return e.sudo(desktopPacmanArgs(d, pkgs)...)
+	return installPackagePlan(e, d, pkgs)
+}
+
+func installPackagePlan(e *engine, d *distro, pkgs []string) error {
+	for _, phase := range d.installPhases(pkgs) {
+		if err := e.sudo(desktopPacmanArgs(d, phase)...); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // desktopPacmanArgs builds the package transaction for stepPackages. On Arch it
@@ -1159,20 +1259,46 @@ func (e *engine) dropSatisfied(pkgs []string) []string {
 }
 
 // stepBuild is the fromSource replacement for installing ryoku-desktop: the
-// payload's deploy.sh already builds the Go programs, the QML modules and the
-// Ryoku.Blobs plugin, then materializes the config. It skips the Hyprland
-// compositor plugins when makepkg is absent, which is the case off Arch.
+// payload's deploy.sh builds and installs the desktop plus ryoku-host. On runit,
+// the host seam can therefore repair login wrappers immediately afterward.
 func stepBuild(e *engine) error {
 	script := filepath.Join(e.payload, "ryoku", "shell", "deploy.sh")
 	if e.dry {
 		e.say(i18n.Tf("DRYRUN: would run %s", script))
+		if e.usesRunit() {
+			return fixRunitSessionWrappers(e)
+		}
 		return nil
 	}
 	if _, err := os.Stat(script); err != nil {
 		return errors.New(i18n.T("payload is missing ryoku/shell/deploy.sh"))
 	}
 	e.say(i18n.T("building the desktop from the payload (this takes a few minutes)"))
-	return e.cmd(filepath.Join(e.payload, "ryoku", "shell"), nil, "bash", script)
+	if err := e.cmd(filepath.Join(e.payload, "ryoku", "shell"), nil, "bash", script); err != nil {
+		return err
+	}
+	if e.usesRunit() {
+		return fixRunitSessionWrappers(e)
+	}
+	return nil
+}
+
+func fixRunitSessionWrappers(e *engine) error {
+	backupDir := filepath.Join(e.backupDir, "session-wrappers")
+	if e.dry && e.backupDir == "" {
+		backupDir = "<backup>/session-wrappers"
+	} else if e.backupDir == "" {
+		return errors.New(i18n.T("session wrapper repair has no install backup directory"))
+	}
+	host := e.ryokuTool("ryoku-host")
+	if host == "" {
+		host = "ryoku-host"
+	}
+	if err := e.cmd("", nil, host, "session", "fix-wrappers", "--backup-dir", backupDir); err != nil {
+		return err
+	}
+	e.recordRestore(`[ ! -d "$DIR/session-wrappers" ] || cp -a "$DIR/session-wrappers/." /`)
+	return nil
 }
 
 // filterByUnmet keeps only the names pacman -T reported as unmet.
@@ -1204,18 +1330,16 @@ func stepDrivers(e *engine) error {
 			e.say(i18n.T("skipping the NVIDIA driver setup (kept nouveau; re-run with the toggle on to switch)"))
 		}
 	}
-	// the vendor scripts each do a bare `pacman -S`, so -- exactly like
-	// stepPackages -- they must transact against a current db. this step is
-	// re-entered on a resume with the sysupgrade/packages steps already
-	// skipped, and a repo publish can land between those steps and this one,
-	// pruning the files a stale db still points at (pacman's "failed
-	// retrieving file" abort that reads as a driver that would not install).
-	// clear resumed .part downloads and bring the system current first.
-	if err := e.sudoSh(`rm -f /var/cache/pacman/pkg/*.part`); err != nil {
-		e.say(i18n.T("warning: could not clear partial downloads (continuing)"))
-	}
-	if err := e.sudo("pacman", "-Syu", "--noconfirm"); err != nil {
-		e.say(i18n.T("warning: could not refresh the package db before the driver install; a stale mirror may still fail a download (continuing)"))
+	if e.d().id == "arch" {
+		// The vendor scripts transact against pacman's current database. This
+		// step can be re-entered after a publish, so discard partial downloads
+		// and refresh before handing control to them.
+		if err := e.sudoSh(`rm -f /var/cache/pacman/pkg/*.part`); err != nil {
+			e.say(i18n.T("warning: could not clear partial downloads (continuing)"))
+		}
+		if err := e.sudo("pacman", "-Syu", "--noconfirm"); err != nil {
+			e.say(i18n.T("warning: could not refresh the package db before the driver install; a stale mirror may still fail a download (continuing)"))
+		}
 	}
 	// a single vendor script failing must NOT sink the whole desktop install,
 	// matching installation/backend/lib/drivers.sh: the box still boots on the
@@ -1879,6 +2003,31 @@ func stepDoctor(e *engine) error {
 	return nil
 }
 
+func runRunitSessionCheck(host string) ([]string, error) {
+	out, err := exec.Command(host, "session", "check").CombinedOutput()
+	if err == nil {
+		return nil, nil
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 3 {
+		detail := strings.TrimSpace(string(out))
+		if detail == "" {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%w: %s", err, detail)
+	}
+	var findings []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			findings = append(findings, line)
+		}
+	}
+	if len(findings) == 0 {
+		return nil, errors.New(i18n.T("session check reported a problem without details"))
+	}
+	return findings, nil
+}
+
 func stepVerify(e *engine) error {
 	if e.dry {
 		e.say(i18n.T("DRYRUN: verify [ryoku] repo, packages, session files"))
@@ -1925,6 +2074,23 @@ func stepVerify(e *engine) error {
 			check(runitServiceEnabled("sddm"), i18n.T("sddm runit service enabled"))
 		} else {
 			check(unitEnabled("system", "sddm.service"), i18n.T("sddm.service enabled"))
+		}
+	}
+	if e.usesRunit() {
+		host := e.ryokuTool("ryoku-host")
+		if host == "" {
+			host = "ryoku-host"
+		}
+		findings, sessionErr := runRunitSessionCheck(host)
+		switch {
+		case sessionErr != nil:
+			check(false, i18n.Tf("Turnstile and session bus check failed: %v", sessionErr))
+		case len(findings) == 0:
+			check(true, i18n.T("Turnstile and the session bus are set up"))
+		default:
+			for _, finding := range findings {
+				check(false, finding)
+			}
 		}
 	}
 	if e.p.switchDM && e.p.greeter {

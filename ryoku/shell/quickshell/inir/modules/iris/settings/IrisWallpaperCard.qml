@@ -62,7 +62,7 @@ ClippingRectangle {
         id: shellVersionProc
         property string version: ""
         running: true
-        command: ["/usr/bin/bash", "-c", "pacman -Q ryoku-desktop 2>/dev/null | cut -d' ' -f2"]
+        command: ["ryoku", "version", "--pretty"]
         stdout: StdioCollector { onStreamFinished: shellVersionProc.version = text.trim() }
     }
 

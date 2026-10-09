@@ -68,7 +68,7 @@ func auraInstalled() bool {
 }
 
 func auraServerUp() bool {
-	return exec.Command("systemctl", "is-active", "--quiet", "asusd.service").Run() == nil
+	return exec.Command("ryoku-host", "svc", "--system", "is-active", "asusd").Run() == nil
 }
 
 type auraNode struct {

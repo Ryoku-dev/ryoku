@@ -166,12 +166,7 @@ regdom_set() {
   # iwd reads Country only at start, so a running iwd keeps the old hint until it
   # restarts. try-restart is a no-op when iwd is not running (a chroot, or NM on
   # wpa_supplicant), so it never disturbs a box that is not using iwd.
-  # --no-ask-password: the helper is meant to run as root (pkexec, the package
-  # hook, the installer chroot); a stray unprivileged run must fail fast instead
-  # of blocking on an interactive polkit prompt.
-  if command -v systemctl >/dev/null 2>&1; then
-    systemctl --no-ask-password try-restart iwd.service >/dev/null 2>&1 || true
-  fi
+  ryoku-host svc --system try-restart iwd >/dev/null 2>&1 || true
 }
 
 regdom_apply() {

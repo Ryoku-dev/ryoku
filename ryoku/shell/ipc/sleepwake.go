@@ -1051,8 +1051,8 @@ func (d *daemon) superviseSleepWake() {
 }
 
 var (
-	qylockUnlockGuardActive = userServiceActive
-	qylockUnlockGuardStop   = stopUserService
+	qylockUnlockGuardActive = hostUserServiceActive
+	qylockUnlockGuardStop   = stopHostUserService
 )
 
 func (d *daemon) releaseQylockUnlockGuardWhenReady() {

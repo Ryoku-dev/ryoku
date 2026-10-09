@@ -58,9 +58,6 @@ for helper in "$INIT/lib/wait-for" "$INIT/env/xdg-dirs" "$INIT/session/session-s
 	[[ -x $helper ]] || fail "helper is not executable: $helper"
 	head -1 "$helper" | grep -q '^#!/bin/sh$' || fail "helper must be #!/bin/sh (Void dash): $helper"
 done
-[[ -x $ROOT/ryoku/shell/scripts/ryoku-session-start ]] || fail "session entrypoint is not executable"
-head -1 "$ROOT/ryoku/shell/scripts/ryoku-session-start" | grep -q '^#!/usr/bin/env bash$' \
-	|| fail "session entrypoint must use bash"
 
 login_services=(pipewire pipewire-pulse wireplumber)
 is_login_service() {
@@ -100,8 +97,6 @@ if command -v shellcheck >/dev/null 2>&1; then
 	while IFS= read -r script; do
 		shellcheck -s sh -e SC1091 "$script" || fail "shellcheck: $script"
 	done < <(find "$INIT" -type f \( -name run -o -name finish -o -name wait-for -o -name xdg-dirs -o -name session-start \) | sort)
-	shellcheck -s bash "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
-		|| fail "shellcheck: ryoku-session-start"
 fi
 
 for run in "$INIT"/user/*/run; do
@@ -111,18 +106,10 @@ for run in "$INIT"/user/*/run; do
 	fi
 done
 
-grep -qF 'dbus-update-activation-environment --systemd --all' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
-	|| fail "systemd session entrypoint lost the activation environment handoff"
-grep -qF 'systemctl --user daemon-reload' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
-	|| fail "systemd session entrypoint lost daemon-reload"
-grep -qF 'ryoku-reload-cover begin boot || true' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
-	|| fail "systemd session entrypoint lost the boot cover"
-grep -qF 'ryoku-power-cutover session-start-logged && systemctl --user try-restart xdg-desktop-portal.service "$@"' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
-	|| fail "systemd session entrypoint lost the guarded service and portal restart"
-grep -qF 'ryoku-session-start xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/niri/autostart.kdl" \
-	|| fail "niri autostart does not use the shared session entrypoint"
-grep -qF 'ryoku-session-start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/hyprland/modules/autostart.lua" \
-	|| fail "Hyprland autostart does not use the shared session entrypoint"
+grep -qF 'ryoku-host session start xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/niri/autostart.kdl" \
+	|| fail "niri autostart does not use the host session entrypoint"
+grep -qF 'ryoku-host session start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/hyprland/modules/autostart.lua" \
+	|| fail "Hyprland autostart does not use the host session entrypoint"
 
 # --- 4. roster integrity: every named service exists, every session user
 # service is either in the roster or documented as on-demand in its comments.

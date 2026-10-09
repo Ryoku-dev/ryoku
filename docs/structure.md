@@ -107,15 +107,15 @@ truth for the live desktop.
   QML AST wrapper. Installs to `/usr/share/ryoku/i18n`, which the QML singleton
   (`ui/Singletons/I18n.qml`), the Go runtime and the installer's shell
   (`installation/backend/lib/i18n.sh`) all read. See `docs/i18n.md`.
-- `cli/` the user-facing control CLI, one Go program (`ryoku`): `update`,
-  `rollback`, `snapshots`, `status`, `materialize` (lay the base configs into
-  `~/.config`), and `reload`. It orchestrates pacman, yay, and snapper; it does
-  not reimplement them. `main.go` is a thin dispatcher over the concerns under
-  `internal/`: `updater` (update, status, rollback, channel, run-state,
-  materialize, version), `doctor` (the convergent reconcilers, report, and
-  `--explain`), and `sys` (the shared exec/package/path/terminal primitives,
-  defined once). Per-command reference, user- vs developer-facing, in
-  `docs/cli.md`.
+- `cli/` the user-facing control CLI and the host seam. `ryoku` provides
+  `update`, `rollback`, `snapshots`, `status`, `materialize`, and `reload`;
+  `main.go` is a thin dispatcher over `internal/updater`, `internal/doctor`, and
+  the shared primitives in `internal/sys`. `cmd/ryoku-host` builds
+  `/usr/bin/ryoku-host`, the one runtime boundary for init-system and package
+  manager operations. Its implementation in `internal/host` selects the
+  systemd or runit backend and the pacman or XBPS backend, so scripts, daemons,
+  QML, and other Go modules do not grow host checks. Per-command reference,
+  user- vs developer-facing, is in `docs/cli.md`.
 - `hub/` Ryoku Settings, the central control-center GUI (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go data plane that reads the keybind legend from the live
   Hyprland config, generates the `settings.lua` overlay (in `user_edits`) from JSON, and
@@ -260,21 +260,28 @@ raw.githubusercontent.com serves them with no release infrastructure.
 
 ## `void/` the Void Linux port
 
-Everything Ryoku needs to run on Void Linux (XBPS + runit instead of pacman +
-systemd). Nothing under it is wired into the installer, the ISO or the package
-repo yet; the directory is the staging ground for that work.
+The x86_64 glibc Void counterpart for Ryoku, with XBPS package translation and
+runit plus Turnstile init integration. `void/README.md` is the index and records
+which counterparts are complete or planned.
 
-- `init/` the systemd to runit translation: `translations.tsv` is the
-  completeness manifest (every systemd artifact in the repo maps to a runit
-  translation or an explicit accepted-loss verdict, enforced by
-  `tests/void-init.sh`), `system/` and `user/` hold the runit service
-  directories, `env/` the Turnstile envdir renderer, `lib/wait-for` the bounded
-  precondition waits, `session-services` the roster replacing
-  `ryoku-session.target`, and `polkit/` the note on why the systemd polkit
-  grant has no Void analogue. Translation rules and the verified runit
-  semantics are in `void/README.md`.
-- `iso/` and `packages/` placeholder READMEs for the future Void live ISO and
-  the xbps-src templates of a signed Ryoku XBPS repo; both deliberately empty.
+- `packages/` translates the Arch package closure without copying it:
+  `translations.tsv` maps each Arch name and lane to its Void equivalent,
+  `sets/` holds the Void-only `session.packages` and `build.packages`, and
+  `resolve` emits sorted package names for selected lanes. `README.md` describes
+  the planned `srcpkgs/` recipes and signed XBPS repository.
+- `iso/` contains the concrete `void-mklive` image plan in `README.md`: its
+  live-only package set, signed offline XBPS closure, shared installer routing,
+  and `void-v*` release workflow.
+- `init/` is the systemd-to-runit translation. `translations.tsv` is the
+  completeness manifest enforced by `tests/void-init.sh`; `system/` and `user/`
+  hold runit service directories, `env/` handles the Turnstile environment,
+  `lib/wait-for` supplies bounded dependency waits, `session/session-start`
+  starts the login session, and `session-services` is the ordered user-service
+  roster.
+
+Runtime code does not import this directory. It invokes `/usr/bin/ryoku-host`,
+built from `ryoku/cli/cmd/ryoku-host` with the backends in
+`ryoku/cli/internal/host`.
 
 ## Tooling
 

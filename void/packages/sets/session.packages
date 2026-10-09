@@ -1,0 +1,6 @@
+# Void session foundation not represented by an Arch package in the closure.
+dbus
+elogind
+socklog-void
+turnstile
+xdg-desktop-portal

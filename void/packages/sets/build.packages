@@ -1,0 +1,19 @@
+# Source-build toolchain for the Void installer lane.
+base-devel
+go
+cmake
+ninja
+pkg-config
+qt6-base-devel
+qt6-base-private-devel
+qt6-declarative-devel
+qt6-multimedia-devel
+qt6-shadertools-devel
+qt6-svg-devel
+qt6-qt5compat-devel
+qt6-wayland-devel
+wayland-devel
+wayland-protocols
+ffmpeg6-devel
+gtk+3-devel
+libwebkit2gtk41-devel

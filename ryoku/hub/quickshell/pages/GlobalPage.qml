@@ -58,9 +58,7 @@ Item {
     function readTz() { tzRead.running = false; tzRead.running = true; }
     function applyTimezone(z) {
         if (!z) return;
-        tzApply.command = ["sh", "-c",
-            "if [ -d /run/systemd/system ]; then exec timedatectl set-timezone \"$1\"; fi; zone=$(readlink -f -- \"/usr/share/zoneinfo/$1\") || exit 2; case \"$zone\" in /usr/share/zoneinfo/*) ;; *) exit 2;; esac; [ -f \"$zone\" ] || exit 2; exec pkexec ln -sfn -- \"$zone\" /etc/localtime",
-            "ryoku-timezone", z];
+        tzApply.command = ["ryoku-host", "time", "set-zone", z];
         tzApply.running = false;
         tzApply.running = true;
         tzMap.close();
@@ -77,17 +75,23 @@ Item {
     }
     Process {
         id: tzRead
-        command: ["sh", "-c",
-            "if [ -d /run/systemd/system ]; then exec timedatectl show -p Timezone --value; fi; target=$(readlink -f /etc/localtime) || exit; case \"$target\" in /usr/share/zoneinfo/*) printf '%s\\n' \"${target#/usr/share/zoneinfo/}\";; esac"]
+        command: ["ryoku-host", "time", "zone"]
         stdout: StdioCollector { onStreamFinished: pg.currentTimezone = ("" + text).trim() }
     }
     Process {
         id: shellRestart
-        command: ["sh", "-c",
-            "if [ -d /run/systemd/system ]; then exec systemctl --user restart ryoku-shell.service; fi; service=\"$HOME/.config/service/ryoku-shell\"; if [ -d \"$service/supervise\" ]; then exec sv restart \"$service\"; fi; exec ryoku-shell reload"]
+        command: ["ryoku-host", "svc", "restart", "ryoku-shell"]
+        onExited: function(code) {
+            if (code === 4) {
+                shellReload.running = false;
+                shellReload.running = true;
+            }
+        }
     }
-    // timedatectl is authorised by the shipped polkit rule. Void uses pkexec
-    // because it has no timedated service.
+    Process {
+        id: shellReload
+        command: ["ryoku-shell", "reload"]
+    }
     Process {
         id: tzApply
         stdout: StdioCollector { onStreamFinished: pg.applyDone() }

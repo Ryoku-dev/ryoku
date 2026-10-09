@@ -20,12 +20,6 @@ unit_name="${RYOKU_CAFFEINE_UNIT_NAME:-ryoku-caffeine-inhibit}"
 
 inhibit_pattern="[r]yoku-caffeine-inhibit"
 desired_inhibit_pattern="(^|/)(systemd|elogind)-inhibit --what=idle --who=Ryoku .*Ryoku caffeine mode"
-inhibit_command=""
-if command -v systemd-inhibit >/dev/null 2>&1; then
-  inhibit_command="systemd-inhibit"
-elif command -v elogind-inhibit >/dev/null 2>&1; then
-  inhibit_command="elogind-inhibit"
-fi
 
 usage() {
   cat <<'EOF'
@@ -38,14 +32,6 @@ Usage:
   ryoku-cmd-caffeine release   # drop a temporary hold (keeps a persisted request)
   ryoku-cmd-caffeine toggle
 EOF
-}
-
-command_present() {
-  local cmd
-  for cmd in "$@"; do
-    command -v "$cmd" >/dev/null 2>&1 || return 1
-  done
-  return 0
 }
 
 helper_inhibitor_active() { pgrep -f "$inhibit_pattern" >/dev/null; }
@@ -67,47 +53,30 @@ with_caffeine_lock() {
   ) 9>"$lock_file"
 }
 
-caffeine_unit_active() {
-  [[ -d /run/systemd/system ]] || return 1
-  command_present systemctl || return 1
-  systemctl --user is-active --quiet "$unit_name.service" >/dev/null 2>&1
+caffeine_job_active() {
+  ryoku-host transient is-active "$unit_name" >/dev/null 2>&1
 }
 
-start_inhibitor_with_systemd() {
-  [[ -d /run/systemd/system ]] || return 1
-  command_present systemd-run || return 1
-  [[ -n $inhibit_command ]] || return 1
-  systemd-run \
-    --user --quiet --collect \
-    --unit="$unit_name" \
-    --description="Ryoku caffeine idle inhibitor" \
-    "$inhibit_command" \
+start_inhibitor_job() {
+  ryoku-host transient start "$unit_name" \
+    --prop "Description=Ryoku caffeine idle inhibitor" \
+    -- \
+    ryoku-host inhibit \
     --what=idle \
     --who=Ryoku \
     --why="Ryoku caffeine mode" \
     bash -c 'exec -a ryoku-caffeine-inhibit sleep infinity' 9>&- >/dev/null 2>&1
 }
 
-start_inhibitor_with_setsid() {
-  [[ -n $inhibit_command ]] || return 1
-  setsid "$inhibit_command" \
-    --what=idle \
-    --who=Ryoku \
-    --why="Ryoku caffeine mode" \
-    bash -c 'exec -a ryoku-caffeine-inhibit sleep infinity' 9>&- >/dev/null 2>&1 &
-}
-
 start_inhibitor() {
-  if desired_inhibitor_active; then
-    if caffeine_unit_active || ! command_present systemd-run systemctl; then
-      return 0
-    fi
+  if desired_inhibitor_active && caffeine_job_active; then
+    return 0
   fi
   # An inhibitor of another shape (an older build's idle:sleep block) is
-  # replaced; stopping its unit first is synchronous, so the new unit of the
-  # same name cannot collide with one still deactivating.
+  # replaced; stopping its job first is synchronous, so the new job of the
+  # same name cannot collide with one still stopping.
   stop_inhibitor
-  start_inhibitor_with_systemd || start_inhibitor_with_setsid
+  start_inhibitor_job
 }
 
 wait_for_inhibitor() {
@@ -119,9 +88,7 @@ wait_for_inhibitor() {
 }
 
 stop_inhibitor() {
-  if [[ -d /run/systemd/system ]] && command_present systemctl; then
-    systemctl --user stop "$unit_name.service" >/dev/null 2>&1 || true
-  fi
+  ryoku-host transient stop "$unit_name" >/dev/null 2>&1 || true
   pkill -f "$inhibit_pattern" >/dev/null 2>&1 || true
 }
 

@@ -5,8 +5,10 @@ repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 helper="$repo/system/hardware/power/ryoku-idle"
 tmp="$(mktemp -d)"
 idle_pid=""
+replacement_pid=""
 cleanup() {
   [[ -z $idle_pid ]] || kill "$idle_pid" 2>/dev/null || true
+  [[ -z $replacement_pid ]] || kill "$replacement_pid" 2>/dev/null || true
   rm -rf "$tmp"
 }
 trap cleanup EXIT
@@ -70,6 +72,92 @@ if grep -Eq 'before_sleep_cmd|after_sleep_cmd' "$conf"; then
   printf 'idle listeners reintroduced suspend or global wake ownership\n' >&2
   exit 1
 fi
+
+# Void runs the same policy through swayidle when hypridle is unavailable. Keep
+# this PATH isolated so a host-installed hypridle cannot mask the fallback.
+sway_bin="$tmp/sway-bin"
+sway_log="$tmp/swayidle.argv"
+mkdir -p "$sway_bin"
+for tool in bash dirname id jq mkdir mktemp mv; do
+  ln -s "$(command -v "$tool")" "$sway_bin/$tool"
+done
+ln -s "$bin/ryoku-power" "$sway_bin/ryoku-power"
+ln -s "$bin/ryoku-hw-laptop" "$sway_bin/ryoku-hw-laptop"
+cat >"$sway_bin/swayidle" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$RYOKU_IDLE_SWAY_LOG"
+EOF
+chmod +x "$sway_bin/swayidle"
+export RYOKU_IDLE_SWAY_LOG="$sway_log"
+export RYOKU_IDLE_TEST_POLICY='{"enabled":true,"onDesktops":false,"battery":{"dimSec":120,"lockSec":300,"screenOffSec":330,"suspendSec":900},"ac":{"dimSec":300,"lockSec":600,"screenOffSec":660,"suspendSec":1800}}'
+PATH="$sway_bin" "$helper" start
+cat >"$tmp/swayidle-default.expected" <<'EOF'
+-w
+lock
+ryoku-shell lock
+timeout
+120
+ryoku-idle on-battery && brightnessctl -s set 20%
+resume
+brightnessctl -r
+timeout
+300
+ryoku-idle on-ac && brightnessctl -s set 20%
+resume
+brightnessctl -r
+timeout
+300
+ryoku-idle on-battery && ryoku-shell lock
+timeout
+600
+ryoku-idle on-ac && ryoku-shell lock
+timeout
+330
+ryoku-idle on-battery && ryoku-idle output-off
+resume
+ryoku-idle output-on
+timeout
+660
+ryoku-idle on-ac && ryoku-idle output-off
+resume
+ryoku-idle output-on
+timeout
+900
+ryoku-idle on-battery && ryoku-shell suspend
+timeout
+1800
+ryoku-idle on-ac && ryoku-shell suspend
+EOF
+cmp "$tmp/swayidle-default.expected" "$sway_log"
+
+# An active policy with every stage switched off still carries swayidle's lock
+# event, but emits no timeout or resume pairs.
+export RYOKU_IDLE_TEST_POLICY='{"enabled":true,"onDesktops":false,"battery":{"dimSec":0,"lockSec":0,"screenOffSec":0,"suspendSec":0},"ac":{"dimSec":0,"lockSec":0,"screenOffSec":0,"suspendSec":0}}'
+PATH="$sway_bin" "$helper" start
+cat >"$tmp/swayidle-off.expected" <<'EOF'
+-w
+lock
+ryoku-shell lock
+EOF
+cmp "$tmp/swayidle-off.expected" "$sway_log"
+
+rm -f "$sway_log"
+export RYOKU_IDLE_TEST_POLICY='{"enabled":false,"onDesktops":false}'
+PATH="$sway_bin" "$helper" start
+[[ ! -e $sway_log ]]
+
+# hypridle remains preferred when both ext-idle-notify clients are installed.
+cat >"$sway_bin/hypridle" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@" >"$RYOKU_IDLE_HYPR_LOG"
+EOF
+chmod +x "$sway_bin/hypridle"
+export RYOKU_IDLE_HYPR_LOG="$tmp/hypridle.argv"
+export RYOKU_IDLE_TEST_POLICY='{"enabled":true,"onDesktops":false,"battery":{"lockSec":30},"ac":{"lockSec":120}}'
+PATH="$sway_bin" "$helper" start
+printf '%s\n' -c "$conf" >"$tmp/hypridle.expected"
+cmp "$tmp/hypridle.expected" "$RYOKU_IDLE_HYPR_LOG"
+[[ ! -e $sway_log ]]
 
 # USB-C/USB PD supplies participate in battery detection, while an unreadable
 # or absent external supply keeps the conservative AC fallback.
@@ -145,6 +233,43 @@ if kill -0 "$idle_pid" 2>/dev/null; then
   exit 1
 fi
 wait "$idle_pid" 2>/dev/null || true
+rm -f "$tmp/proc/$idle_pid"
 idle_pid=""
 
+# `apply` also replaces a running swayidle process and detaches the replacement
+# when no service manager owns the process.
+rm -f "$sway_bin/hypridle"
+ln -s "$(command -v setsid)" "$sway_bin/setsid"
+ln -s "$(command -v sleep)" "$sway_bin/sleep"
+cp /usr/bin/sleep "$sway_bin/swayidle"
+PATH="$sway_bin" "$sway_bin/swayidle" 60 &
+idle_pid=$!
+ln -s "/proc/$idle_pid" "$tmp/proc/$idle_pid"
+rm -f "$sway_bin/swayidle"
+cat >"$sway_bin/swayidle" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$$" >"$RYOKU_IDLE_SWAY_PID"
+printf '%s\n' "$@" >"$RYOKU_IDLE_SWAY_LOG"
+exec sleep 60
+EOF
+chmod +x "$sway_bin/swayidle"
+export RYOKU_IDLE_SWAY_PID="$tmp/swayidle.pid"
+export RYOKU_IDLE_TEST_POLICY='{"enabled":true,"onDesktops":false,"battery":{"lockSec":30},"ac":{"lockSec":120}}'
+PATH="$sway_bin" "$helper" apply
+if kill -0 "$idle_pid" 2>/dev/null; then
+  printf 'apply returned while the old swayidle process was still alive\n' >&2
+  exit 1
+fi
+wait "$idle_pid" 2>/dev/null || true
+rm -f "$tmp/proc/$idle_pid"
+idle_pid=""
+for _ in {1..50}; do
+  [[ -r $RYOKU_IDLE_SWAY_PID ]] && break
+  sleep 0.01
+done
+replacement_pid="$(<"$RYOKU_IDLE_SWAY_PID")"
+kill -0 "$replacement_pid"
+kill "$replacement_pid"
+wait "$replacement_pid" 2>/dev/null || true
+replacement_pid=""
 printf 'idle policy: ok\n'

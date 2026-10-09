@@ -89,8 +89,9 @@ gpu_drivers() {
 }
 
 main() {
-  ensure_multilib
-
+  if [[ $RYOKU_DRYRUN == 1 ]] || [[ "$(ryoku-host pkgmgr)" == pacman ]]; then
+    ensure_multilib
+  fi
   # Baseline 32-bit userspace: Mesa (GL for AMD/Intel/virtio/llvmpipe) and the
   # Vulkan loader every 32-bit Vulkan app links to.
   local -a pkgs=(lib32-mesa lib32-vulkan-icd-loader)
@@ -116,11 +117,20 @@ main() {
   done
 
   echo "ryoku-gpu-lib32: 32-bit GPU packages: ${want[*]}"
-  # -Syu --needed: installing new lib32 libs against a stale db is a partial
-  # upgrade that breaks on soname bumps; --needed skips what is already there.
+  # Keep the package database and lib32 libraries in one upgrade transaction.
   local -a priv=()
   (( EUID == 0 )) || priv=(sudo)
-  run "${priv[@]-}" pacman -Syu --needed --noconfirm "${want[@]}"
+  local rc
+  if run "${priv[@]-}" ryoku-host pkg install --upgrade "${want[@]}"; then
+    return 0
+  else
+    rc=$?
+  fi
+  if (( rc == 5 )); then
+    echo "ryoku-gpu-lib32: 32-bit GPU libraries are not available on this distribution; skipping." >&2
+    return 0
+  fi
+  return "$rc"
 }
 
 main

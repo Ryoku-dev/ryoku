@@ -8,6 +8,11 @@
   desktop from source, installs the pinned fonts and cursor theme, wires
   SDDM and the machine services through runit, and leaves user services to
   Turnstile. Arch and Debian retain their existing systemd paths.
+- **Void package planning now comes from the shared translation table.** The
+  installer asks `void/packages/resolve` for the desktop, selected development
+  and detected hardware lanes plus the session and build sets, then gives XBPS
+  that exact result. Browser and login-shell exclusions are passed to the same
+  resolver instead of being maintained in a second Go package map.
 - **Source installs now include Ryoku's Bibata cursor family.** Void and Debian
   fetch the same pinned upstream archive as `ryoku-cursors`, verify its checksum,
   and install every left- and right-handed colour variant.
@@ -31,6 +36,19 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
+- **Source installs now keep a complete checkout that `ryoku update` can use.**
+  Void and Debian clone into `~/ryoku-arch` with full history and source paths,
+  refresh the requested ref in place on reruns, and leave deploy's recorded
+  checkout pointer valid. Arch continues to use its shallow sparse payload
+  cache.
+- **Void installs now repair and verify the Turnstile session chain.** After the
+  source build installs `ryoku-host`, the installer removes nested D-Bus launch
+  wrappers while backing them up for `restore.sh`. Final verification reports
+  each remaining Turnstile or session-bus problem with its repair.
+- **Void installs enable required XBPS repositories before desktop packages.**
+  Repository packages from the shared Void plan now install in a first
+  transaction, then XBPS syncs again while installing the remaining packages,
+  so multilib and nonfree dependencies resolve on a stock Void system.
 - **Void installs now preserve system service logs.** The package plan includes
   `socklog-void`, and runit enables both `socklog-unix` and `nanoklogd` so
   service output reaches the system log.

@@ -3,9 +3,9 @@
 # helper and stash-cobalt-server.sh's choice of door.
 #
 # Nothing here touches a real daemon, a real socket, or root. Every seam points
-# at a tmp fixture -- RYOKU_DOCKER_BIN, RYOKU_DOCKER_SYSTEMCTL and
+# at a tmp fixture: RYOKU_DOCKER_BIN, RYOKU_DOCKER_HOST and
 # RYOKU_DOCKER_SOCKET for the helper, RYOKU_DOCKER_HELPER
-# for the script -- and a fake pkexec on PATH acts as an escalation sentinel.
+# for the script. A fake pkexec on PATH acts as an escalation sentinel.
 #
 # The load-bearing assertions are the NEGATIVE ones: the helper must refuse a
 # bad port or an unknown verb BEFORE it escalates, because its polkit grant is
@@ -44,19 +44,22 @@ exit 0
 EOF
 chmod +x "$bin/docker"
 
-cat >"$bin/systemctl" <<EOF
+cat >"$bin/ryoku-host" <<EOF
 #!/bin/sh
-case "\$1" in is-active) [ -e "$tmp/SVC_UP" ] || exit 3 ;; esac
+case " \$* " in
+  *" is-active "*) [ -e "$tmp/SVC_UP" ] || exit 3 ;;
+  *" enable "*) touch "$tmp/SVC_UP" ;;
+esac
 exit 0
 EOF
-chmod +x "$bin/systemctl"
+chmod +x "$bin/ryoku-host"
 
 # a real unix socket: the helper requires -S, as /var/run/docker.sock is.
 python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])' "$tmp/sock"
 
 export PATH="$bin:$PATH"
 export RYOKU_DOCKER_BIN="$bin/docker"
-export RYOKU_DOCKER_SYSTEMCTL="$bin/systemctl"
+export RYOKU_DOCKER_HOST="$bin/ryoku-host"
 export RYOKU_DOCKER_SOCKET="$tmp/sock"
 
 field() { awk -F'\t' -v k="$1" '$1==k{print $2}'; }
@@ -105,7 +108,7 @@ for v in "" bogus run exec docker "container-up; id" --help; do
 done
 
 # ---- the seams must NOT be honoured when running privileged ----------------
-# RYOKU_DOCKER_BIN reaching a root pass would be arbitrary root code execution.
+# A caller-controlled binary reaching a root pass would be arbitrary root code
 # pkexec sanitises the environment so it should never get there, but the script
 # refuses to depend on that: at EUID 0 it uses hardcoded paths. fakeroot gives a
 # real EUID of 0 without real privilege, which is exactly enough to exercise that
@@ -136,6 +139,24 @@ EOF
   [[ -e "$tmp/SEAM_USED" ]] \
     || fail "the unprivileged run never reached RYOKU_DOCKER_BIN; the seam check proves nothing"
   rm -f "$tmp/SEAM_USED"
+
+  cat >"$bin/evil-host" <<EOF
+#!/bin/sh
+touch "$tmp/HOST_SEAM_USED"
+exit 3
+EOF
+  chmod +x "$bin/evil-host"
+
+  rm -f "$tmp/HOST_SEAM_USED"
+  RYOKU_DOCKER_HOST="$bin/evil-host" fakeroot bash "$helper" state >/dev/null 2>&1 || true
+  [[ -e "$tmp/HOST_SEAM_USED" ]] \
+    && fail "RYOKU_DOCKER_HOST was honoured at EUID 0; a privileged pass must ignore the seams"
+
+  rm -f "$tmp/HOST_SEAM_USED"
+  RYOKU_DOCKER_ASSUME_ROOT=1 RYOKU_DOCKER_HOST="$bin/evil-host" bash "$helper" state >/dev/null 2>&1 || true
+  [[ -e "$tmp/HOST_SEAM_USED" ]] \
+    || fail "the unprivileged run never reached RYOKU_DOCKER_HOST; the seam check proves nothing"
+  rm -f "$tmp/HOST_SEAM_USED"
 fi
 
 # A valid port must NOT be rejected (the allowlist has to permit the real case),

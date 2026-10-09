@@ -68,7 +68,7 @@ free | awk '/Mem:/{print int($3/$2*100)}'
 df -h / | awk 'NR==2{print $3" / "$2}'
 df / | awk 'NR==2{print int($3/($3+$4)*100)}'
 awk '{h=int($1/3600); m=int(($1%3600)/60); print h"h "m"m"}' /proc/uptime
-pacman -Qq 2>/dev/null | wc -l
+ryoku-host pkg count 2>/dev/null || printf '0\n'
 printf '%s\n' "$disp_res"
 printf '%s\n' "$disp_hz"
 echo "$codename"

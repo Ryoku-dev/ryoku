@@ -91,8 +91,7 @@ func TestSyncSessionShellUpdatesLaunchEnvironments(t *testing.T) {
 	syncSessionShell("/usr/bin/zsh")
 	joined := strings.Join(calls, "\n")
 	for _, want := range []string{
-		"systemctl --user set-environment SHELL=/usr/bin/zsh",
-		"dbus-update-activation-environment --systemd SHELL=/usr/bin/zsh",
+		"ryoku-host svc env SHELL=/usr/bin/zsh",
 		"ryoku reload",
 	} {
 		if !strings.Contains(joined, want) {

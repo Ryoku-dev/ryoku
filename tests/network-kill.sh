@@ -41,7 +41,7 @@ grep -qF 'ExecStart=/usr/bin/nmcli networking off' "$disconnect"
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-mkdir -p "$work/bin" "$work/state"
+mkdir -p "$work/bin" "$work/state" "$work/services"
 
 cat >"$work/bin/nft" <<'EOF'
 #!/usr/bin/env bash
@@ -74,10 +74,34 @@ set -euo pipefail
 printf 'nmcli %s\n' "$*" >>"$RYOKU_NETWORK_KILL_LOG"
 EOF
 
-cat >"$work/bin/systemctl" <<'EOF'
+cat >"$work/bin/ryoku-host" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'systemctl %s\n' "$*" >>"$RYOKU_NETWORK_KILL_LOG"
+[[ ${1:-} == svc && ${2:-} == --system && $# -ge 4 ]] || {
+  echo "unexpected ryoku-host command: $*" >&2
+  exit 64
+}
+shift 2
+verb=$1
+shift
+case "$verb" in
+  enable)
+    for service in "$@"; do
+      : >"$RYOKU_NETWORK_KILL_FAKE_SERVICES/$service"
+    done
+    printf 'kill services enabled\n' >>"$RYOKU_NETWORK_KILL_LOG"
+    ;;
+  disable)
+    for service in "$@"; do
+      rm -f "$RYOKU_NETWORK_KILL_FAKE_SERVICES/$service"
+    done
+    printf 'kill services disabled\n' >>"$RYOKU_NETWORK_KILL_LOG"
+    ;;
+  *)
+    echo "unexpected ryoku-host service verb: $verb" >&2
+    exit 64
+    ;;
+esac
 EOF
 chmod +x "$work/bin"/*
 
@@ -86,6 +110,7 @@ run() {
   RYOKU_NETWORK_KILL_STATE="$work/state/enabled" \
   RYOKU_NETWORK_KILL_LOG="$work/log" \
   RYOKU_NETWORK_KILL_FAKE_TABLE="$work/table" \
+  RYOKU_NETWORK_KILL_FAKE_SERVICES="$work/services" \
   RYOKU_NETWORK_KILL_CHECKED_RULES="$work/checked.nft" \
   RYOKU_NETWORK_KILL_APPLIED_RULES="$work/applied.nft" \
   "$helper" "$@"
@@ -99,10 +124,16 @@ line_of() {
 run on
 [[ -e $work/state/enabled ]] || { echo "on did not persist armed state" >&2; exit 1; }
 [[ -e $work/table ]] || { echo "on did not install firewall" >&2; exit 1; }
-grep -qxF 'systemctl enable --quiet ryoku-network-kill-guard.service ryoku-network-kill-disconnect.service' "$work/log"
+grep -qxF 'kill services enabled' "$work/log"
+for service in ryoku-network-kill-guard ryoku-network-kill-disconnect; do
+  [[ -e $work/services/$service ]] || { echo "on did not enable $service" >&2; exit 1; }
+done
 grep -qxF 'nmcli networking off' "$work/log"
 [[ $(line_of 'nft -f -') -lt $(line_of 'nmcli networking off') ]] || {
   echo "NetworkManager was disabled before firewall was installed" >&2; exit 1;
+}
+[[ $(line_of 'kill services enabled') -lt $(line_of 'nft -f -') ]] || {
+  echo "firewall was installed before its boot services were enabled" >&2; exit 1;
 }
 for fragment in \
   'table inet ryoku_kill_switch' \
@@ -122,9 +153,15 @@ run off
 [[ ! -e $work/state/enabled ]] || { echo "off did not clear armed state" >&2; exit 1; }
 [[ ! -e $work/table ]] || { echo "off did not remove firewall" >&2; exit 1; }
 grep -qxF 'nmcli networking on' "$work/log"
-grep -qxF 'systemctl disable --quiet ryoku-network-kill-guard.service ryoku-network-kill-disconnect.service' "$work/log"
+grep -qxF 'kill services disabled' "$work/log"
+for service in ryoku-network-kill-guard ryoku-network-kill-disconnect; do
+  [[ ! -e $work/services/$service ]] || { echo "off did not disable $service" >&2; exit 1; }
+done
 [[ $(line_of 'nft delete table inet ryoku_kill_switch') -lt $(line_of 'nmcli networking on') ]] || {
   echo "NetworkManager was enabled before firewall was removed" >&2; exit 1;
+}
+[[ $(line_of 'kill services disabled') -lt $(line_of 'nft delete table inet ryoku_kill_switch') ]] || {
+  echo "firewall was removed before its boot services were disabled" >&2; exit 1;
 }
 [[ $(run status) == off ]] || { echo "status did not report off" >&2; exit 1; }
 

@@ -283,26 +283,28 @@ cat >"$unlock_bin/ryoku-shell" <<'EOF'
 #!/usr/bin/env bash
 exit 1
 EOF
-cat >"$unlock_bin/systemctl" <<'EOF'
+cat >"$unlock_bin/ryoku-host" <<'EOF'
 #!/usr/bin/env bash
-case "${2:-}" in
-  is-active) [[ -e $UNLOCK_GUARD ]] ;;
-  reset-failed) ;;
-  stop) rm -f "$UNLOCK_GUARD" ;;
+case "${1:-}" in
+  svc)
+    [[ ${2:-} == --user && ${3:-} == reset-failed ]]
+    ;;
+  transient)
+    case "${2:-}" in
+      is-active) [[ -e $UNLOCK_GUARD ]] ;;
+      start) : >"$UNLOCK_GUARD" ;;
+      stop) rm -f "$UNLOCK_GUARD" ;;
+      *) exit 2 ;;
+    esac
+    ;;
+  inhibit)
+    shift
+    while [[ ${1:-} == --* ]]; do shift; done
+    [[ $# -gt 0 ]] || exit 2
+    exec "$@"
+    ;;
   *) exit 2 ;;
 esac
-EOF
-cat >"$unlock_bin/systemd-run" <<'EOF'
-#!/usr/bin/env bash
-: >"$UNLOCK_GUARD"
-EOF
-cat >"$unlock_bin/systemd-inhibit" <<'EOF'
-#!/usr/bin/env bash
-[[ ${1:-} == --list && -e $UNLOCK_GUARD ]] && printf '%s\n' "$INHIBITOR_JSON"
-EOF
-cat >"$unlock_bin/sleep" <<'EOF'
-#!/usr/bin/env bash
-exit 0
 EOF
 cat >"$unlock_bin/loginctl" <<'EOF'
 #!/usr/bin/env bash
@@ -310,10 +312,18 @@ printf '%s\n' "${SESSION_ACTIVE:-yes}"
 EOF
 cat >"$unlock_bin/busctl" <<'EOF'
 #!/usr/bin/env bash
+if [[ $* == *ListInhibitors* ]]; then
+  if [[ -e $UNLOCK_GUARD ]]; then
+    printf '%s\n' "$INHIBITOR_JSON"
+  else
+    printf '%s\n' '{"type":"a(ssssuu)","data":[[]]}'
+  fi
+  exit 0
+fi
 printf '%s\n' "${PREPARING_FOR_SLEEP:-b false}"
 EOF
 chmod +x "$unlock_bin"/*
-wrong_session_inhibitor='[{"what":"sleep","who":"ryoku-qylock-unlock-other-session","mode":"block"}]'
+wrong_session_inhibitor='{"type":"a(ssssuu)","data":[[["sleep","ryoku-qylock-unlock-other-session","test","block",1000,1]]]}'
 if INHIBITOR_JSON="$wrong_session_inhibitor" UNLOCK_GUARD="$unlock_guard" \
     PATH="$unlock_bin:$PATH" \
     "$repo/ryoku/lockscreen/qylock/quickshell-lockscreen/ryoku-qylock-unlock-prepare" \
@@ -321,7 +331,7 @@ if INHIBITOR_JSON="$wrong_session_inhibitor" UNLOCK_GUARD="$unlock_guard" \
   printf 'unlock accepted another login1 session inhibitor\n' >&2
   exit 1
 fi
-right_session_inhibitor='[{"what":"sleep","who":"ryoku-qylock-unlock-test-session","mode":"block"}]'
+right_session_inhibitor='{"type":"a(ssssuu)","data":[[["sleep","ryoku-qylock-unlock-test-session","test","block",1000,1]]]}'
 if INHIBITOR_JSON="$right_session_inhibitor" UNLOCK_GUARD="$unlock_guard" \
     PREPARING_FOR_SLEEP="b true" PATH="$unlock_bin:$PATH" \
     "$repo/ryoku/lockscreen/qylock/quickshell-lockscreen/ryoku-qylock-unlock-prepare" \

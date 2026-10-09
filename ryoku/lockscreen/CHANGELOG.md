@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Unlock preparation and the lock's reboot and power off work under
+  elogind.** `ryoku-qylock-unlock-prepare` reads sleep inhibitors from login1
+  over D-Bus instead of `systemd-inhibit`, and the lock screen's reboot and
+  power off call `loginctl`, so both work on Void as on Arch.
 - **The login screen on a source install matches Arch.** Only the
   `ryoku-desktop` package laid the `ryoku-greeter` launcher, so Void and other
   source installs ran SDDM's greeter in plain weston: wrong refresh rate, no

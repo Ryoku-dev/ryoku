@@ -1161,7 +1161,7 @@ func serverUp() bool {
 }
 
 // connectServer: use the running server, or start Ryoku's own as a transient
-// systemd unit so it is supervised, logged, and stoppable by name. The second
+// host job so it is supervised, logged, and stoppable by name. The second
 // return says Ryoku started it, which matters: OpenRGB accepts connections
 // before it has finished finding devices, so a cold start needs a moment more
 // before the empty device list can be believed.
@@ -1189,16 +1189,9 @@ func connectServer() (*orgbConn, bool, error) {
 // startServer runs OpenRGB headless, bound to loopback: no window, no tray, and
 // nothing reachable from the network.
 func startServer() error {
-	if _, err := exec.LookPath("systemd-run"); err != nil {
-		cmd := exec.Command("openrgb", "--server", "--server-host", "127.0.0.1")
-		cmd.Env = append(os.Environ(), "QT_QPA_PLATFORM=offscreen")
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-		return cmd.Start()
-	}
-	out, err := exec.Command("systemd-run", "--user", "--collect",
-		"--unit="+lightingUnit,
-		"--description=OpenRGB SDK server for Ryoku lighting",
-		"--setenv=QT_QPA_PLATFORM=offscreen",
+	out, err := exec.Command("ryoku-host", "transient", "start", lightingUnit,
+		"--prop", "Description=OpenRGB SDK server for Ryoku lighting",
+		"--env", "QT_QPA_PLATFORM=offscreen", "--",
 		"openrgb", "--server", "--server-host", "127.0.0.1").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("could not start OpenRGB: %s", strings.TrimSpace(string(out)))
@@ -1209,7 +1202,7 @@ func startServer() error {
 // stopServer stops only the unit Ryoku starts. A server the user runs themselves
 // is theirs; Ryoku never takes it down.
 func stopServer() {
-	_ = exec.Command("systemctl", "--user", "stop", lightingUnit+".service").Run()
+	_ = exec.Command("ryoku-host", "transient", "stop", lightingUnit).Run()
 }
 
 // access runs one serialized job against the requested lighting providers.

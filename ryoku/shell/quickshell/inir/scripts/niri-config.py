@@ -1967,7 +1967,7 @@ def _sync_cursor_env(theme=None, size=None):
     that apps read cursor from:
     - ~/.config/environment.d/ (session env for new processes)
     - gsettings org.gnome.desktop.interface (GTK apps)
-    - systemctl --user set-environment (already-running session)
+    - ryoku-host svc env (already-running session)
 
     The install may place XCURSOR_THEME in inir.conf or the user might have
     a standalone cursor.conf. We update whichever file already has the key,
@@ -2032,7 +2032,7 @@ def _sync_cursor_env(theme=None, size=None):
         env_vars.append(f"XCURSOR_SIZE={size}")
     if env_vars:
         subprocess.run(
-            ["systemctl", "--user", "set-environment"] + env_vars,
+            ["ryoku-host", "svc", "env"] + env_vars,
             capture_output=True,
         )
 

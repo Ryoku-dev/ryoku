@@ -35,17 +35,17 @@ DEFAULT_PORT=9000
 # SECURITY: they are honoured ONLY when this is not running privileged. pkexec
 # sanitises the environment, so in practice they cannot cross that boundary
 # anyway, but relying on that would make an env-passing change elsewhere silently
-# catastrophic: RYOKU_DOCKER_BIN reaching a root pass would be arbitrary root
-# code execution. Ignoring them at EUID 0 makes the privileged pass depend on
-# nothing the caller controls, which is a property this script can guarantee by
-# itself rather than borrow from pkexec.
+# catastrophic: RYOKU_DOCKER_BIN or RYOKU_DOCKER_HOST reaching a root pass would
+# be arbitrary root code execution. Ignoring them at EUID 0 makes the privileged
+# pass depend on nothing the caller controls, which is a property this script can
+# guarantee by itself rather than borrow from pkexec.
 if [[ $EUID -eq 0 ]]; then
   DOCKER=docker
-  SYSTEMCTL=systemctl
+  HOST=ryoku-host
   SOCKET=/var/run/docker.sock
 else
   DOCKER="${RYOKU_DOCKER_BIN:-docker}"
-  SYSTEMCTL="${RYOKU_DOCKER_SYSTEMCTL:-systemctl}"
+  HOST="${RYOKU_DOCKER_HOST:-ryoku-host}"
   SOCKET="${RYOKU_DOCKER_SOCKET:-/var/run/docker.sock}"
 fi
 
@@ -56,7 +56,7 @@ have_docker() { command -v "$DOCKER" >/dev/null 2>&1; }
 
 service_state() {
   have_docker || { echo absent; return; }
-  if "$SYSTEMCTL" is-active --quiet docker 2>/dev/null; then
+  if "$HOST" svc --system is-active docker 2>/dev/null; then
     echo active
   else
     echo inactive
@@ -105,7 +105,7 @@ provision)
 
   if [[ "$(service_state)" != active ]]; then
     emit STEP service
-    "$SYSTEMCTL" enable --now docker >/dev/null 2>&1 || {
+    "$HOST" svc --system enable --now docker >/dev/null 2>&1 || {
       emit ERROR "could not enable docker.service"
       exit 1
     }

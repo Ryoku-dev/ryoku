@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -406,41 +407,17 @@ func voxtypeRecord(verb string) {
 	go func() { _ = cmd.Wait() }()
 }
 
-var systemdRuntimeDir = "/run/systemd/system"
-
-func systemdInit() bool {
-	info, err := os.Stat(systemdRuntimeDir)
-	return err == nil && info.IsDir()
+func hostUserServiceActive(unit string) bool {
+	return exec.Command("ryoku-host", "svc", "is-active", unit).Run() == nil
 }
 
-func runitUserServicePath(unit string) (string, bool) {
-	home := os.Getenv("HOME")
-	name := strings.TrimSuffix(unit, ".service")
-	if home == "" || name == "" || filepath.Base(name) != name {
-		return "", false
-	}
-	path := filepath.Join(home, ".config", "service", name)
-	info, err := os.Stat(path)
-	return path, err == nil && info.IsDir()
-}
-
-func userServiceActive(unit string) bool {
-	if systemdInit() {
-		return exec.Command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
-	}
-	path, ok := runitUserServicePath(unit)
-	return ok && exec.Command("sv", "check", path).Run() == nil
-}
-
-func stopUserService(unit string) error {
-	if systemdInit() {
-		return exec.Command("systemctl", "--user", "stop", unit).Run()
-	}
-	path, ok := runitUserServicePath(unit)
-	if !ok {
+func stopHostUserService(unit string) error {
+	err := exec.Command("ryoku-host", "svc", "stop", unit).Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 4 {
 		return nil
 	}
-	return exec.Command("sv", "down", path).Run()
+	return err
 }
 
 // dictationReady reports whether a Super+` tap can actually dictate: Voxtype
@@ -450,7 +427,7 @@ func dictationReady() bool {
 	if _, err := exec.LookPath("voxtype"); err != nil {
 		return false
 	}
-	return userServiceActive("voxtype.service")
+	return hostUserServiceActive("voxtype.service")
 }
 
 func currentUserProcessRunning(pattern string) bool {

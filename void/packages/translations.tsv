@@ -1,0 +1,258 @@
+arch	void	lanes	notes
+adw-gtk-theme	-	desktop	No Void repository package.
+adwaita-icon-theme	adwaita-icon-theme	desktop	
+alsa-lib	alsa-lib	desktop	
+alsa-utils	alsa-utils	desktop	
+amd-ucode	linux-firmware-amd	hardware:amd	
+apple_cursor	-	extra	No Void repository package.
+asusctl	-	optional	No Void repository package.
+base	base-system	system	
+base-devel	base-devel	system	
+bash-completion	bash-completion	desktop	
+bat	bat	desktop	
+blesh	-	desktop	No Void repository package.
+bluez	bluez	desktop	
+bluez-utils	-	desktop	Included in Void bluez.
+brightnessctl	brightnessctl	desktop	
+broadcom-bt-firmware	broadcom-bt-firmware	desktop	
+btop	btop	desktop	
+btrfs-progs	btrfs-progs	system	
+catppuccin-cursors-mocha	-	extra	No Void repository package.
+cava	cava	desktop	
+chromium	chromium	desktop	
+cliphist	cliphist	desktop	
+cryptsetup	cryptsetup	system	
+curl	curl	desktop	
+dav1d	dav1d	desktop	
+ddcutil	ddcutil	desktop	
+desktop-file-utils	desktop-file-utils	desktop	
+dkms	dkms	desktop	
+docker	docker	desktop	
+dosfstools	dosfstools	system	
+edk2-ovmf	edk2-ovmf	desktop	
+efibootmgr	efibootmgr	system	
+eza	eza	desktop	
+fastfetch	fastfetch	desktop	
+fd	fd	desktop	
+ffmpeg	ffmpeg6	desktop	
+firefox	firefox	desktop	
+fish	fish-shell	desktop	
+flatpak	flatpak	desktop	
+fuzzel	fuzzel	desktop	
+fzf	fzf	desktop	
+game-devices-udev	-	desktop	No Void repository package; vendor udev rules are unavailable.
+gamemode	gamemode	desktop	
+gamescope	gamescope	desktop	
+gcc	gcc	desktop	
+gcc-libs	libgcc	desktop	
+git	git	desktop	
+github-cli	github-cli	desktop	
+glibc	glibc	desktop	
+gnome-keyring	gnome-keyring	desktop	
+gnome-themes-extra	gnome-themes-extra	desktop	
+go	go	dev	
+gpk	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+gpu-screen-recorder	gpu-screen-recorder	desktop	
+grim	grim	desktop	
+gst-libav	gst-libav	desktop	
+gst-plugins-bad	gst-plugins-bad1	desktop	
+gst-plugins-base	gst-plugins-base1	desktop	
+gst-plugins-good	gst-plugins-good1	desktop	
+gst-plugins-ugly	gst-plugins-ugly1	desktop	
+gtk3	gtk+3	desktop	
+gtk4	-	hyprland	Hyprland is not packaged on Void.
+gtk4-layer-shell	-	hyprland	Hyprland is not packaged on Void.
+gum	gum	desktop	
+hypr-dynamic-cursors	-	hyprland	Hyprland is not packaged on Void.
+hyprglass	-	hyprland	Hyprland is not packaged on Void.
+hyprgrass	-	hyprland	Hyprland is not packaged on Void.
+hypridle	swayidle	desktop	
+hyprland	-	hyprland	Hyprland is not packaged on Void.
+hyprland-preview-share-picker	-	hyprland	Hyprland is not packaged on Void.
+hyprpicker	hyprpicker	desktop	
+hyprpolkitagent	-	hyprland	Hyprland is not packaged on Void.
+hyprsunset	-	hyprland	Hyprland is not packaged on Void.
+imagemagick	ImageMagick	desktop	
+imgborders	-	hyprland	Hyprland is not packaged on Void.
+intel-media-driver	intel-media-driver	hardware:intel	
+intel-ucode	intel-ucode	hardware:intel	repo=nonfree
+inter-font	font-inter	desktop	
+iw	iw	desktop	
+iwd	iwd	desktop	
+jq	jq	desktop	
+kdialog	kdialog	optional	
+kitty	kitty	desktop	
+lazygit	lazygit	desktop	
+lib32-nvidia-utils	nvidia-libs-32bit	hardware:nvidia	repo=multilib-nonfree
+lib32-vulkan-intel	mesa-vulkan-intel-32bit	hardware:intel	repo=multilib
+lib32-vulkan-radeon	mesa-vulkan-radeon-32bit	hardware:amd	repo=multilib
+lib32-vulkan-swrast	mesa-vulkan-lavapipe-32bit	hardware:vm	repo=multilib
+libcanberra	-	hyprland	Hyprland is not packaged on Void.
+libdrm	libdrm	desktop	
+libgcc	libgcc	desktop	
+libglvnd	libglvnd	desktop	
+libisoburn	xorriso	optional	
+libnotify	libnotify	desktop	
+libpulse	libpulseaudio	desktop	
+libqalculate	libqalculate	desktop	
+librsvg	librsvg	desktop	
+libva	libva	desktop	
+libvirt	libvirt	optional	
+libxcb	libxcb	desktop	
+libxkbcommon	libxkbcommon	desktop	
+libyuv	libyuv	desktop	
+limine	limine	system	
+limine-mkinitcpio-hook	-	system	Void uses dracut and has no limine-entry-tool package.
+limine-snapper-sync	-	system	No Void boot-menu snapshot integration package.
+linux	linux	system	
+linux-firmware	linux-firmware	system	
+linux-headers	linux-headers	desktop	
+localsend-bin	-	extra	No Void repository package.
+looking-glass	-	optional	No Void repository package.
+lua	lua	optional	
+mangohud	MangoHud	desktop	
+matugen	matugen	desktop	
+mesa	mesa-dri	desktop	
+mise	mise	dev	
+mkinitcpio	dracut	system	
+mpv	mpv	desktop	
+mpv-mpris	mpv-mpris	desktop	
+nautilus	nautilus	desktop	
+nautilus-python	nautilus-python	desktop	
+neovim	neovim	desktop	
+networkmanager	NetworkManager	desktop	
+nftables	nftables	desktop	
+niri	niri	desktop	
+nodejs	nodejs	desktop,dev	
+noto-fonts	noto-fonts-ttf	desktop	
+noto-fonts-cjk	noto-fonts-cjk	desktop	
+noto-fonts-emoji	noto-fonts-emoji	desktop	
+npm	-	dev	Included in Void nodejs.
+nvibrant-bin	-	extra	No Void repository package.
+nvidia-utils	nvidia	hardware:nvidia	repo=nonfree
+openrgb	openrgb	desktop	
+otf-space-grotesk	@fetch	desktop	Pinned source asset installed by the source installer.
+pacman	-	desktop	Replaced by the ryoku-host XBPS backend.
+pacman-contrib	-	desktop	Pacman-only tooling; the XBPS backend does not use it.
+pam-fprint-grosshack	-	extra	No Void repository package.
+pam-u2f	pam-u2f	desktop	
+papirus-icon-theme	papirus-icon-theme	desktop	
+pavucontrol	pavucontrol	optional	
+pciutils	pciutils	desktop	
+phinger-cursors	-	extra	No Void repository package.
+pipewire	pipewire	desktop	
+pipewire-alsa	alsa-pipewire	desktop	
+pipewire-audio	-	desktop	Included in Void pipewire.
+pipewire-pulse	-	desktop	Included in Void pipewire.
+plasma-integration	plasma-integration	optional	
+playerctl	playerctl	desktop	
+plymouth	plymouth	system	
+polkit	polkit	desktop	
+power-profiles-daemon	power-profiles-daemon	desktop	
+prowl	-	desktop	Prowl is not yet packaged or source-installed on Void.
+python	python3	desktop,dev	
+python-pip	python3-pip	dev	
+python-pipx	python3-pipx	dev	
+qemu-desktop	qemu	desktop	
+qmk_hid	-	optional	No Void repository package.
+qrencode	qrencode	desktop	
+qt5-wayland	qt5-wayland	desktop	
+qt6-5compat	qt6-qt5compat	desktop	
+qt6-base	qt6-base	desktop	
+qt6-declarative	qt6-declarative	desktop	
+qt6-imageformats	qt6-imageformats	desktop	
+qt6-multimedia	qt6-multimedia	desktop	
+qt6-multimedia-ffmpeg	-	desktop	Included in Void qt6-multimedia.
+qt6-svg	qt6-svg	desktop	
+qt6-wayland	qt6-wayland	desktop	
+qt6ct	qt6ct	desktop	
+quickemu	-	optional	No Void repository package.
+quickshell	quickshell	desktop	
+ripgrep	ripgrep	desktop	
+rtkit	rtkit	desktop	
+rust	rust	desktop	
+ryogami	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-blobs	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-cursor-material	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-cursors	@fetch	desktop	Pinned source asset installed by the source installer.
+ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor meta-package.
+ryoku-desktop-hyprland	-	hyprland	Hyprland is not packaged on Void.
+ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-hypr-plugins	-	hyprland	Hyprland is not packaged on Void.
+ryoku-keyring	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-keysounds	-	hyprland	Hyprland is not packaged on Void.
+ryoku-oh-my-zsh	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-rashin	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryotunes	-	optional	Ryotunes is not yet packaged for Void.
+sddm	sddm	desktop	
+shaderc	shaderc	desktop	
+skwd-paper-bin	-	desktop	The upstream Arch binary cannot be installed by XBPS.
+slurp	slurp	desktop	
+snap-pac	-	system	Pacman hook with no XBPS equivalent.
+snapper	snapper	desktop,system	
+socat	socat	desktop	
+songrec	songrec	desktop	
+spice-gtk	spice-gtk	optional	
+sqlite	sqlite	optional	
+starship	starship	desktop	
+steamcmd	-	optional	No Void repository package.
+sudo	sudo	system	
+swtpm	swtpm	optional	
+syntax-highlighting	syntax-highlighting	desktop	
+tesseract	tesseract-ocr	desktop	
+tesseract-data-eng	tesseract-ocr-eng	desktop	
+ttf-firacode-nerd	nerd-fonts-ttf	desktop	
+ttf-fraunces-variable	-	extra	No Void repository package and not in the pinned source-asset set.
+ttf-hack-nerd	nerd-fonts-ttf	desktop	
+ttf-jetbrains-mono-nerd	nerd-fonts-ttf	desktop	
+ttf-maple-mono-nf	@fetch	desktop	Pinned source asset installed by the source installer.
+ttf-material-symbols-variable	@fetch	desktop	Pinned source asset installed by the source installer.
+ttf-readex-pro	@fetch	desktop	Pinned source asset installed by the source installer.
+ttf-rubik-vf	@fetch	desktop	Pinned source asset installed by the source installer.
+upower	upower	desktop	
+uv	uv	desktop	
+vimix-cursors	@fetch	desktop	Pinned source asset installed by the source installer.
+virglrenderer	virglrenderer	desktop	
+voxtype-bin	-	extra	No Void repository package.
+vulkan-icd-loader	vulkan-loader	desktop	
+vulkan-intel	mesa-vulkan-intel	hardware:intel	
+vulkan-radeon	mesa-vulkan-radeon	hardware:amd	
+vulkan-swrast	mesa-vulkan-lavapipe	hardware:vm	
+waifu2x-ncnn-vulkan	-	desktop	No Void repository package.
+wayland	wayland	desktop	
+webkit2gtk-4.1	libwebkit2gtk41	desktop	
+weston	weston	desktop	
+wireless-regdb	wireless-regdb	desktop	
+wireplumber	wireplumber	desktop	
+wl-clip-persist	wl-clip-persist	desktop	
+wl-clipboard	wl-clipboard	desktop	
+wlsunset	wlsunset	desktop	
+wpa_supplicant	wpa_supplicant	desktop	
+wtype	wtype	desktop	
+xcb-util-cursor	xcb-util-cursor	desktop	
+xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
+xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
+xdg-desktop-portal-hyprland	-	hyprland	Hyprland is not packaged on Void.
+xdg-user-dirs	xdg-user-dirs	desktop	
+xdg-utils	xdg-utils	desktop	
+xorg-xcursorgen	xcursorgen	desktop	
+xorg-xwayland	xorg-server-xwayland	desktop	
+xpadneo-dkms	xpadneo	desktop	
+xwayland-satellite	xwayland-satellite	desktop	
+yay	-	optional	AUR helpers do not apply to XBPS.
+yay-bin	-	extra	AUR helpers do not apply to XBPS.
+yazi	yazi	desktop	
+yt-dlp	yt-dlp	desktop	
+zbar	zbar	desktop	
+zen-browser-bin	-	extra	No Void repository package.
+zenity	zenity	desktop	
+zlib	zlib	desktop	
+zoxide	zoxide	desktop	
+zsh	zsh	desktop	
+zsh-autosuggestions	zsh-autosuggestions	desktop	
+zsh-history-substring-search	zsh-history-substring-search	desktop	
+zsh-syntax-highlighting	zsh-syntax-highlighting	desktop	

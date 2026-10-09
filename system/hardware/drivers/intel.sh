@@ -35,12 +35,10 @@ run() {
   "$@"
 }
 
-PM=(pacman)
-(( EUID == 0 )) || PM=(sudo -n pacman)
-# offline install: see amd.sh -- only the baked repo has a synced db.
-if [[ -f ${RYOKU_PACMAN_CONF:-} ]]; then PM+=(--config "$RYOKU_PACMAN_CONF"); fi
+PKG=(ryoku-host pkg)
+(( EUID == 0 )) || PKG=(sudo -n ryoku-host pkg)
 
-pkg_installed() { pacman -Qq "$1" >/dev/null 2>&1; }
+pkg_installed() { ryoku-host pkg installed "$1" >/dev/null 2>&1; }
 
 install_pkgs() {
   local missing=() p
@@ -50,7 +48,7 @@ install_pkgs() {
     return 0
   fi
   echo "intel.sh: installing ${missing[*]}"
-  run "${PM[@]}" -S --needed --noconfirm "${missing[@]}"
+  run "${PKG[@]}" install "${missing[@]}"
 }
 
 has_intel_gpu() {

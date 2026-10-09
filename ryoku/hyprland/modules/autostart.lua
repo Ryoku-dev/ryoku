@@ -18,7 +18,7 @@ hl.on("hyprland.start", function()
     -- The shared entrypoint keeps this config init-neutral while preserving
     -- the ordered environment handoff and stale-session restart on every
     -- supported service supervisor.
-    hl.exec_cmd("ryoku-session-start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service")
+    hl.exec_cmd("ryoku-host session start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service")
     -- Polkit authentication is answered by the shell's own agent (the island
     -- that matches the rest of the desktop), so the stock Qt agent must not
     -- take the session's single agent slot. Stopping it is idempotent and

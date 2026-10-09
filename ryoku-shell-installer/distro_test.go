@@ -43,20 +43,6 @@ func TestLocalAllRenamesAndDrops(t *testing.T) {
 	}
 }
 
-func TestVoidPackageRenamesAndChoiceFiltering(t *testing.T) {
-	base := []string{
-		"firefox", "chromium", "fish", "zsh", "blesh",
-		"networkmanager", "imagemagick", "ffmpeg", "ttf-hack-nerd",
-		"ttf-jetbrains-mono-nerd", "vimix-cursors",
-	}
-	filtered := filterChoicePackages(base, &plan{browser: "firefox", shell: "fish"})
-	got := voidLinux.localAll(filtered)
-	want := []string{"firefox", "fish-shell", "NetworkManager", "ImageMagick", "ffmpeg6", "nerd-fonts-ttf"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("Void filtered package set = %v, want %v", got, want)
-	}
-}
-
 func TestSupportedInit(t *testing.T) {
 	if !supportsInit(archLinux, initSystemd) || supportsInit(archLinux, initRunit) {
 		t.Fatal("Arch must require systemd")
@@ -66,8 +52,9 @@ func TestSupportedInit(t *testing.T) {
 	}
 }
 
-// The Arch step list is the contract that must not drift; source builds replace
-// repository-only steps and add their pinned font installation.
+// The Arch step list is the contract that must not drift. Source builds replace
+// repository-only steps and add their pinned font installation; runit source
+// installs configure drivers only after deploy has installed ryoku-host.
 func TestStepsPerDistro(t *testing.T) {
 	ids := func(f *facts) []string {
 		e := newEngine(f, &plan{}, true, "", "")
@@ -78,18 +65,24 @@ func TestStepsPerDistro(t *testing.T) {
 		return out
 	}
 
+	t.Setenv("RYOKU_HOST_INIT", "systemd")
 	arch := strings.Join(ids(&facts{distro: archLinux}), " ")
 	wantArch := "legacy sysupgrade tools payload backup repo conflicts packages drivers session configs aur shell doctor verify"
 	if arch != wantArch {
 		t.Errorf("arch steps = %q, want %q", arch, wantArch)
 	}
 
-	wantSource := "sysupgrade tools payload backup conflicts packages fonts build session configs shell doctor verify"
-	for _, d := range []*distro{debianLinux, voidLinux} {
-		got := strings.Join(ids(&facts{distro: d}), " ")
-		if got != wantSource {
-			t.Errorf("%s steps = %q, want %q", d.id, got, wantSource)
-		}
+	debian := strings.Join(ids(&facts{distro: debianLinux}), " ")
+	wantDebian := "sysupgrade tools payload backup conflicts packages fonts build session configs shell doctor verify"
+	if debian != wantDebian {
+		t.Errorf("debian steps = %q, want %q", debian, wantDebian)
+	}
+
+	t.Setenv("RYOKU_HOST_INIT", "runit")
+	void := strings.Join(ids(&facts{distro: voidLinux}), " ")
+	wantVoid := "sysupgrade tools payload backup conflicts packages fonts build drivers session configs shell doctor verify"
+	if void != wantVoid {
+		t.Errorf("void steps = %q, want %q", void, wantVoid)
 	}
 }
 
@@ -114,6 +107,42 @@ func TestVoidInstallArgs(t *testing.T) {
 	}
 	if got := strings.Join(voidLinux.removeArgs([]string{"dunst"}), " "); got != "xbps-remove -y dunst" {
 		t.Errorf("Void removeArgs = %q", got)
+	}
+}
+
+func TestVoidRepositoryPackagesInstallFirst(t *testing.T) {
+	pkgs := []string{
+		"mesa", "void-repo-multilib", "libdrm-32bit",
+		"void-repo-nonfree", "nvidia-utils",
+	}
+	phases := voidLinux.installPhases(pkgs)
+	if len(phases) != 2 {
+		t.Fatalf("install phases = %v, want repository and package transactions", phases)
+	}
+	if got, want := strings.Join(phases[0], " "), "void-repo-multilib void-repo-nonfree"; got != want {
+		t.Fatalf("repository phase = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(phases[1], " "), "mesa libdrm-32bit nvidia-utils"; got != want {
+		t.Fatalf("package phase = %q, want %q", got, want)
+	}
+
+	e := &engine{f: &facts{distro: voidLinux}, dry: true, events: make(chan any, 4)}
+	if err := installPackagePlan(e, voidLinux, pkgs); err != nil {
+		t.Fatal(err)
+	}
+	close(e.events)
+	var commands []string
+	for event := range e.events {
+		if line, ok := event.(evLine); ok {
+			commands = append(commands, line.line)
+		}
+	}
+	wantCommands := []string{
+		"DRYRUN: sudo -n xbps-install -Sy void-repo-multilib void-repo-nonfree",
+		"DRYRUN: sudo -n xbps-install -Sy mesa libdrm-32bit nvidia-utils",
+	}
+	if strings.Join(commands, "\n") != strings.Join(wantCommands, "\n") {
+		t.Fatalf("install commands = %v, want %v", commands, wantCommands)
 	}
 }
 

@@ -22,7 +22,60 @@ reload=1
 here="$(cd "$(dirname "$0")" && pwd)"
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
 bindir="$HOME/.local/bin"
+repo_root="$(cd "$here/../.." && pwd)"
 say() { printf '  %s\n' "$*"; }
+
+converge_void_packages() {
+  local ledger="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/provisioned"
+  local resolved pkg
+  local -a resolve_args=(--lane desktop --session --build)
+  local -a ledger_names=()
+  local -a missing_repos=()
+  local -a missing=()
+
+  if [[ -f $ledger ]]; then
+    while read -r -a ledger_names; do
+      for pkg in "${ledger_names[@]}"; do
+        resolve_args+=(--drop "$pkg")
+      done
+    done <"$ledger"
+  fi
+
+  if ! resolved="$(sh "$repo_root/void/packages/resolve" "${resolve_args[@]}")"; then
+    say "could not resolve the Void package set; deploy stopped before building" >&2
+    return 1
+  fi
+  while IFS= read -r pkg; do
+    [[ -n $pkg ]] || continue
+    if ! xbps-query "$pkg" >/dev/null 2>&1; then
+      if [[ $pkg == void-repo-* ]]; then
+        missing_repos+=("$pkg")
+      else
+        missing+=("$pkg")
+      fi
+    fi
+  done <<<"$resolved"
+
+  (( ${#missing_repos[@]} + ${#missing[@]} > 0 )) || return 0
+  command -v sudo >/dev/null 2>&1 || {
+    say "sudo is required to install missing Void packages" >&2
+    return 1
+  }
+  if (( ${#missing_repos[@]} > 0 )); then
+    say "enabling required Void repositories: ${missing_repos[*]}"
+    if ! sudo xbps-install -Sy "${missing_repos[@]}"; then
+      say "could not enable the required Void repositories; deploy stopped before building" >&2
+      return 1
+    fi
+  fi
+  if (( ${#missing[@]} > 0 )); then
+    say "installing missing Void packages: ${missing[*]}"
+    if ! sudo xbps-install -Sy "${missing[@]}"; then
+      say "could not install the missing Void packages; deploy stopped before building" >&2
+      return 1
+    fi
+  fi
+}
 
 runit_service_root="$HOME/.config/service"
 runit_env_root="$HOME/.config/service-env"
@@ -68,7 +121,8 @@ install_runit_services() {
   # script sources /etc/profile.d before it execs the compositor.
   sudo install -D -m644 "$init_root/env/environment-d" /etc/profile.d/ryoku-environment-d.sh
 
-  mkdir -p "$runit_service_root" "$runit_env_root"
+  sudo /usr/bin/ryoku-host session ensure --system
+  /usr/bin/ryoku-host session ensure --user
   for src in "$init_root/user"/*; do
     [[ -d $src ]] || continue
     name=${src##*/}
@@ -76,20 +130,6 @@ install_runit_services() {
     cp -a "$src/." "$runit_service_root/$name/"
   done
   printf %s "$bindir" >"$runit_env_root/RYOKU_BIN_DIR"
-
-  mkdir -p "$runit_service_root/dbus" "$runit_service_root/turnstile-ready"
-  ln -sfn /usr/share/examples/turnstile/dbus.run "$runit_service_root/dbus/run"
-  ln -sfn /usr/share/examples/turnstile/dbus.check "$runit_service_root/dbus/check"
-  printf '%s\n' 'core_services="dbus"' >"$runit_service_root/turnstile-ready/conf"
-
-  sudo install -d -m755 /etc/turnstile
-  if sudo test -f /etc/turnstile/turnstiled.conf &&
-     sudo grep -qE '^[[:space:]]*manage_rundir[[:space:]]*=' /etc/turnstile/turnstiled.conf; then
-    sudo sed -i 's/^[[:space:]]*manage_rundir[[:space:]]*=.*/manage_rundir = no/' \
-      /etc/turnstile/turnstiled.conf
-  else
-    printf '%s\n' 'manage_rundir = no' | sudo tee -a /etc/turnstile/turnstiled.conf >/dev/null
-  fi
 
   for src in "$init_root/system"/*; do
     [[ -d $src ]] || continue
@@ -105,7 +145,7 @@ install_runit_services() {
   # elogind is left to D-Bus activation (Void's default): sddm's run script
   # activates login1 before the greeter, and a supervised copy would lose the
   # bus name to it and restart every second.
-  for name in dbus polkitd NetworkManager bluetoothd turnstiled power-profiles-daemon socklog-unix nanoklogd sddm; do
+  for name in polkitd NetworkManager bluetoothd power-profiles-daemon socklog-unix nanoklogd sddm; do
     runit_enable_system_service "$name"
   done
   say "installed runit and Turnstile services"
@@ -391,6 +431,14 @@ start_session_power_units() {
   return 1
 }
 
+if command -v xbps-install >/dev/null 2>&1; then
+  command -v xbps-query >/dev/null 2>&1 || {
+    say "xbps-query is required to check the Void package set" >&2
+    exit 1
+  }
+  converge_void_packages
+fi
+
 # Building the desktop from a checkout needs the Go toolchain (cmake/ninja and
 # makepkg below self-gate; go is the one hard requirement). A packaged box that
 # was switched to a checkout channel without it would otherwise die here with a
@@ -551,6 +599,7 @@ fi
 "$bindir/ryoku-rashin" ensure 2>/dev/null || true
 say "building ryoku CLI"
 (cd "$here/../cli" && go build -o ryoku .)
+(cd "$here/../cli" && go build -o ryoku-host ./cmd/ryoku-host)
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
 # every system helper the package ships to /usr/bin, by the same globs, so a new
 # hardware or container helper reaches a checkout the moment it lands.
@@ -585,6 +634,11 @@ if command -v sudo >/dev/null 2>&1; then
     cmp -s "$1" "$2" && return 0
     sudo install -Dm"$3" "$1" "$2" || true
   }
+  _priv_install "$here/../cli/ryoku-host" /usr/bin/ryoku-host 755
+  if command -v xbps-install >/dev/null 2>&1; then
+    _priv_install "$repo_root/void/packages/translations.tsv" \
+      /usr/share/ryoku/packages/void.tsv 644
+  fi
   _priv_install "$here/../lockscreen/sddm/ryoku-greeter" \
     /usr/share/ryoku/lockscreen/ryoku-greeter 755
   _priv_install "$netdir/ryoku-dns" /usr/bin/ryoku-dns 755
@@ -647,7 +701,6 @@ fi
 # deployed `ryoku` binary (on PATH, far from the repo) can track the update
 # channel in `ryoku status`: it compares this commit (what is now running)
 # against origin/main. One way, like every step: the repo is the source.
-repo_root="$(cd "$here/../.." && pwd)"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku"
 mkdir -p "$state_dir"
 printf '%s\n' "$repo_root" > "$state_dir/repo"

@@ -69,7 +69,7 @@ case "${provider,,}" in
     ;;
 esac
 
-if systemctl is-active --quiet NetworkManager.service; then
-  nmcli general reload conf >/dev/null || systemctl reload NetworkManager.service
+if ryoku-host svc --system is-active NetworkManager; then
+  nmcli general reload conf >/dev/null || ryoku-host svc --system reload NetworkManager
   nmcli general reload dns-full >/dev/null 2>&1 || true
 fi

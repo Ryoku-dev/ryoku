@@ -42,11 +42,11 @@ EOF
   # Only one supplicant may own the radio at a time. Stop the one we are leaving;
   # NetworkManager D-Bus-activates the one we keep when it restarts below.
   if [[ $backend == wpa_supplicant ]]; then
-    systemctl stop iwd.service 2>/dev/null || true
+    ryoku-host svc --system stop iwd 2>/dev/null || true
   else
-    systemctl stop wpa_supplicant.service 2>/dev/null || true
+    ryoku-host svc --system stop wpa_supplicant 2>/dev/null || true
   fi
-  systemctl restart NetworkManager.service
+  ryoku-host svc --system restart NetworkManager
 }
 
 case "${1:-get}" in

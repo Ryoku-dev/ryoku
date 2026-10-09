@@ -3,6 +3,24 @@
 ## Unreleased
 
 ### Added
+- **`ryoku-host` answers "how does this machine do it" for everything else.**
+  One small binary names the init system and package manager and runs service,
+  package, inhibitor, timezone and keymap actions through systemd and pacman
+  on Arch or runit and xbps on Void, with the same exit codes everywhere: 3 for
+  "no", 4 for "not here", 5 for "this host has no such thing". Scripts, the Hub
+  and the shell call it instead of `systemctl` or `pacman`, so a fix lands once
+  for every distro (`internal/host/`, `cmd/ryoku-host/`).
+- **Void's Turnstile and D-Bus setup is automatic and self-healing.**
+  `ryoku-host session ensure` enables turnstiled and dbus, sets
+  `manage_rundir = no` for elogind, keeps `pam_turnstile` in
+  `/etc/pam.d/system-login` (backing the file up before the one-line insert),
+  and gives the user a dbus service Turnstile waits for at login. Every deploy
+  and update runs it. `ryoku-host session check` lists what is missing, and
+  `session fix-wrappers` removes `dbus-run-session` and `dbus-launch` wrappers
+  from login files and user session entries, keeping a backup, because they
+  start a second bus that portals, PipeWire and polkit never see. `ryoku
+  doctor` runs the check on runit machines and repairs what it finds
+  (`internal/host/turnstile.go`, `internal/doctor/reconcile_turnstile.go`).
 - **`ryoku doctor` keeps Prowl's gateway up for Rashin.** When Rashin runs but
   the gateway on port 8788 (`RYOKU_PROWL_PORT`) does not answer, the doctor runs
   `ryoku-rashin ensure` and checks again

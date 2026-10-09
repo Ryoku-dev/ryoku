@@ -79,13 +79,13 @@ cat >"$bin/ryoku-monitor" <<'EOF'
 #!/usr/bin/env bash
 printf 'monitor %s\n' "$*" >>"$CLAMSHELL_EVENTS"
 EOF
-cat >"$bin/systemd-inhibit" <<'EOF'
+cat >"$bin/ryoku-host" <<'EOF'
 #!/usr/bin/env bash
-if [[ ${1:-} == --list ]]; then
-  printf '%s\n' "${INHIBIT_JSON:-[]}"
-  exit 0
-fi
-exit 1
+[[ ${1:-} == inhibit ]] || exit 2
+shift
+while [[ ${1:-} == --* ]]; do shift; done
+[[ $# -gt 0 ]] || exit 2
+exec "$@"
 EOF
 cat >"$bin/pgrep" <<'EOF'
 #!/usr/bin/env bash
@@ -103,6 +103,14 @@ printf '%s\n' "$*" >>"${JOURNAL_STUB:-/dev/null}"
 EOF
 cat >"$bin/busctl" <<'EOF'
 #!/usr/bin/env bash
+if [[ $* == *ListInhibitors* ]]; then
+  if [[ -n ${INHIBIT_JSON:-} ]]; then
+    printf '%s\n' "$INHIBIT_JSON"
+  else
+    printf '%s\n' '{"type":"a(ssssuu)","data":[[]]}'
+  fi
+  exit 0
+fi
 state="${UPOWER_LID_STATE:-unknown}"
 if [[ -r ${UPOWER_LID_STATE_FILE:-} ]]; then
   state="$(<"$UPOWER_LID_STATE_FILE")"
@@ -139,7 +147,7 @@ set_lid() { printf 'state:      %s\n' "$1" >"$lid/state"; }
 reset_case() {
   : >"$events"
   rm -f "$state" "$daemon_state" "$event_state" "$panel_state" "$suspend_state"
-  export INHIBIT_JSON='[]'
+  export INHIBIT_JSON='{"type":"a(ssssuu)","data":[[]]}'
   unset RYOKU_SHELL_FAIL || true
   unset RYOKU_CLAMSHELL_RETRY || true
   unset RYOKU_FAIL_PANEL_ONCE || true
@@ -182,7 +190,7 @@ sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
 uid="$(id -u)"
-export INHIBIT_JSON="[{\"who\":\"ryoku-clamshell\",\"uid\":$uid,\"pid\":$holder,\"what\":\"handle-lid-switch\",\"mode\":\"block\"}]"
+export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
 run_helper policy close
 expect_events ''
 kill "$holder" 2>/dev/null || true
@@ -205,7 +213,7 @@ reset_case
 sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
-export INHIBIT_JSON='[]'
+export INHIBIT_JSON='{"type":"a(ssssuu)","data":[[]]}'
 if run_helper stop; then
   printf 'stop accepted an unverified live inhibitor pid\n' >&2
   exit 1
@@ -489,7 +497,7 @@ set_lid closed
 sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
-export INHIBIT_JSON="[{\"who\":\"ryoku-clamshell\",\"uid\":$uid,\"pid\":$holder,\"what\":\"handle-lid-switch\",\"mode\":\"block\"}]"
+export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
 export RYOKU_OUTPUT_DISABLED=false
 run_helper lid close
 expect_events $'ryoku wm state\nryoku wm act output.enable eDP-1 off'
@@ -522,7 +530,7 @@ export UPOWER_LID_STATE=closed
 sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
-export INHIBIT_JSON="[{\"who\":\"ryoku-clamshell\",\"uid\":$uid,\"pid\":$holder,\"what\":\"handle-lid-switch\",\"mode\":\"block\"}]"
+export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
 export RYOKU_OUTPUT_DISABLED=false
 run_helper lid sync
 expect_events $'ryoku wm state\nryoku wm act output.enable eDP-1 off'
@@ -542,7 +550,7 @@ set_lid closed
 sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
-export INHIBIT_JSON="[{\"who\":\"ryoku-clamshell\",\"uid\":$uid,\"pid\":$holder,\"what\":\"handle-lid-switch\",\"mode\":\"block\"}]"
+export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
 export RYOKU_OUTPUT_DISABLED=false
 export RYOKU_FAIL_PANEL_ONCE="$tmp/panel-close-failed-once"
 export RYOKU_CLAMSHELL_RETRY=0.01
@@ -565,7 +573,7 @@ set_lid closed
 sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
-export INHIBIT_JSON="[{\"who\":\"ryoku-clamshell\",\"uid\":$uid,\"pid\":$holder,\"what\":\"handle-lid-switch\",\"mode\":\"block\"}]"
+export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
 export RYOKU_OUTPUT_DISABLED=true
 run_helper lid close
 expect_events 'ryoku wm state'
@@ -664,7 +672,7 @@ sleep 0.05
 sleep 60 &
 holder=$!
 printf '%s\n' "$holder" >"$state"
-export INHIBIT_JSON="[{\"who\":\"ryoku-clamshell\",\"uid\":$uid,\"pid\":$holder,\"what\":\"handle-lid-switch\",\"mode\":\"block\"}]"
+export INHIBIT_JSON="{\"type\":\"a(ssssuu)\",\"data\":[[[\"handle-lid-switch\",\"ryoku-clamshell\",\"test\",\"block\",$uid,$holder]]]}"
 run_helper stop
 for _ in {1..40}; do
   kill -0 "$legacy_pid" 2>/dev/null || break
