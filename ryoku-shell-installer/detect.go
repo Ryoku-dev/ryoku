@@ -238,23 +238,38 @@ func detect() *facts {
 	f.detectUcode()
 	f.detectSecureBoot()
 
-	// enabled display manager: the display-manager.service alias symlink is
-	// authoritative; fall back to probing the known units.
-	if tgt, err := os.Readlink("/etc/systemd/system/display-manager.service"); err == nil {
-		f.currentDM = filepath.Base(tgt)
-	} else {
+	if f.distro != nil && hostInit() == initRunit {
 		for _, dm := range append([]string{"sddm.service"}, otherDMUnits...) {
-			if unitEnabled("system", dm) {
-				f.currentDM = dm
+			if runitServiceEnabled(runitServiceName(dm)) {
+				f.currentDM = runitServiceName(dm)
 				break
 			}
 		}
-	}
+		f.nmEnabled = runitServiceEnabled("NetworkManager")
+		for _, service := range []string{"dhcpcd", "wpa_supplicant"} {
+			if runitServiceEnabled(service) {
+				f.otherNet = append(f.otherNet, service)
+			}
+		}
+	} else {
+		// enabled display manager: the display-manager.service alias symlink is
+		// authoritative; fall back to probing the known units.
+		if tgt, err := os.Readlink("/etc/systemd/system/display-manager.service"); err == nil {
+			f.currentDM = filepath.Base(tgt)
+		} else {
+			for _, dm := range append([]string{"sddm.service"}, otherDMUnits...) {
+				if unitEnabled("system", dm) {
+					f.currentDM = dm
+					break
+				}
+			}
+		}
 
-	f.nmEnabled = unitEnabled("system", "NetworkManager.service")
-	for _, n := range otherNetUnits {
-		if unitEnabled("system", n) {
-			f.otherNet = append(f.otherNet, n)
+		f.nmEnabled = unitEnabled("system", "NetworkManager.service")
+		for _, n := range otherNetUnits {
+			if unitEnabled("system", n) {
+				f.otherNet = append(f.otherNet, n)
+			}
 		}
 	}
 
@@ -307,7 +322,14 @@ func detect() *facts {
 	f.omarchyGuards = findOmarchyGuards()
 
 	for _, unit := range softConflictUnits {
-		if unitEnabled("user", unit) {
+		enabled := false
+		if f.distro != nil && hostInit() == initRunit {
+			_, err := os.Lstat(filepath.Join(f.homeDir, ".config/service", runitServiceName(unit)))
+			enabled = err == nil
+		} else {
+			enabled = unitEnabled("user", unit)
+		}
+		if enabled {
 			f.softUnits = append(f.softUnits, unit)
 		}
 	}
@@ -445,11 +467,13 @@ func (f *facts) detectSecureBoot() {
 	}
 }
 
-// systemdBooted is sd_booted(3)'s canonical test: the directory only exists
-// when systemd is pid 1, even if libsystemd is installed under another init.
-func systemdBooted() bool {
-	fi, err := os.Stat("/run/systemd/system")
-	return err == nil && fi.IsDir()
+func runitServiceName(unit string) string {
+	return strings.TrimSuffix(unit, ".service")
+}
+
+func runitServiceEnabled(service string) bool {
+	_, err := os.Lstat(filepath.Join("/etc/runit/runsvdir/default", service))
+	return err == nil
 }
 
 func (f *facts) detectUcode() {
@@ -477,7 +501,7 @@ func (f *facts) gpuSummary() string {
 }
 
 func (f *facts) otherDM() string {
-	if f.currentDM != "" && f.currentDM != "sddm.service" {
+	if f.currentDM != "" && f.currentDM != "sddm.service" && f.currentDM != "sddm" {
 		return f.currentDM
 	}
 	return ""

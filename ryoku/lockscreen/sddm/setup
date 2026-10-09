@@ -72,15 +72,29 @@ PAM_FILE="/etc/pam.d/sddm"
 SESSION_DIR="/usr/share/wayland-sessions"
 
 # --- 1. enable the service ---------------------------------------------------
-echo "  enabling sddm.service"
-priv systemctl enable sddm.service
+if [ -d /run/systemd/system ]; then
+  echo "  enabling sddm.service"
+  priv systemctl enable sddm.service
 
-# --- 2. default to the graphical target --------------------------------------
-# a plain Arch chroot leaves default.target = multi-user.target = boots to a
-# getty, SDDM never starts. the pacman post-install hook that normally flips
-# this doesn't fire in a chroot, so set it explicitly.
-echo "  setting default target -> graphical.target"
-priv systemctl set-default graphical.target
+  # --- 2. default to the graphical target ------------------------------------
+  # a plain Arch chroot leaves default.target = multi-user.target = boots to a
+  # getty, SDDM never starts. the pacman post-install hook that normally flips
+  # this doesn't fire in a chroot, so set it explicitly.
+  echo "  setting default target -> graphical.target"
+  priv systemctl set-default graphical.target
+else
+  echo "  enabling sddm"
+  priv install -d -m755 /etc/runit/runsvdir/default
+  for dm in gdm lightdm lxdm greetd xdm; do
+    if [[ -L /etc/runit/runsvdir/default/$dm ]]; then
+      priv rm -f "/etc/runit/runsvdir/default/$dm"
+      if [[ -e /run/runit/runsvdir/current ]]; then
+        priv sv down "/etc/sv/$dm" || true
+      fi
+    fi
+  done
+  priv ln -sfn /etc/sv/sddm /etc/runit/runsvdir/default/sddm
+fi
 
 # --- 3. wire pam_gnome_keyring for the shipped keyring mode ------------------
 # Fresh installs ship unlock-on-login: the desktop never prompts and the store
@@ -105,10 +119,12 @@ sddm_autologin() {
 }
 
 wire_keyring_pam() {
-  if ! grep -qE '^[[:space:]]*auth.*pam_gnome_keyring\.so' "$PAM_FILE"; then
+  local prefix=
+  [ -d /run/systemd/system ] || prefix='-?'
+  if ! grep -qE "^[[:space:]]*${prefix}auth.*pam_gnome_keyring\\.so" "$PAM_FILE"; then
     priv sed -i '/^[[:space:]]*auth[[:space:]].*include[[:space:]].*system-login/a auth optional pam_gnome_keyring.so' "$PAM_FILE"
   fi
-  if ! grep -qE '^[[:space:]]*session.*pam_gnome_keyring\.so' "$PAM_FILE"; then
+  if ! grep -qE "^[[:space:]]*${prefix}session.*pam_gnome_keyring\\.so" "$PAM_FILE"; then
     priv sed -i '/^[[:space:]]*session[[:space:]].*include[[:space:]].*system-login/a session optional pam_gnome_keyring.so auto_start' "$PAM_FILE"
   fi
 }
@@ -170,6 +186,7 @@ fi
 # resolves to nothing the login screen has no visible pointer. Keep this body
 # identical to sddmWaylandBody() in ryoku/cli/internal/doctor/doctor.go, which
 # converges existing boxes onto it.
+if [ -d /run/systemd/system ]; then
 WAYLAND_CONF="/etc/sddm.conf.d/10-ryoku-wayland.conf"
 GREETER_BIN="/usr/share/ryoku/lockscreen/ryoku-greeter"
 # the wrapper runs weston at each output's top mode; plain weston (preferred) if
@@ -206,6 +223,7 @@ GreeterEnvironment=QT_QPA_PLATFORM=wayland,XCURSOR_THEME=Bibata-Modern-Ice,XCURS
 CompositorCommand=$COMPOSITOR
 SessionCommand=$SESSION_CMD
 EOF
+fi
 
 # --- 6. give the "default" cursor theme a real target ------------------------
 # The greeter's Qt client and weston both fall back to the freedesktop cursor

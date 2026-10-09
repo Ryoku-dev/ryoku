@@ -13,6 +13,13 @@ import (
 //
 // fromSource distros have no [ryoku] repository, so the desktop is built from the
 // cloned payload with ryoku/shell/deploy.sh instead of installed with pacman.
+type initSystem uint8
+
+const (
+	initSystemd initSystem = iota
+	initRunit
+)
+
 type distro struct {
 	id         string
 	name       string
@@ -23,9 +30,11 @@ type distro struct {
 	// exist here and is skipped.
 	rename map[string]string
 
-	// build are the extra packages a fromSource install needs to compile the
-	// Go programs, the Ryoku.Blobs QML plugin, and the Hyprland plugins.
-	build []string
+	// build and runtime extend base.packages for source builds. build carries
+	// the compiler toolchain; runtime carries package dependencies that are not
+	// already in the Arch machine manifest.
+	build   []string
+	runtime []string
 
 	installCmd []string
 	removeCmd  []string
@@ -56,9 +65,9 @@ var debianLinux = &distro{
 	queryCmd:   []string{"dpkg-query", "-W", "-f=${Status}"},
 	build: []string{
 		"build-essential", "cmake", "ninja-build", "pkgconf", "golang",
-		"qt6-base-dev", "qt6-declarative-dev", "qt6-multimedia-dev",
+		"qt6-base-dev", "qt6-base-private-dev", "qt6-declarative-dev", "qt6-multimedia-dev",
 		"qt6-shadertools-dev", "qt6-svg-dev", "qt6-5compat-dev", "qt6-wayland-dev",
-		"hyprland-dev", "libhyprutils-dev",
+		"hyprland-dev", "libhyprutils-dev", "libgtk-3-dev", "libwebkit2gtk-4.1-dev",
 	},
 	rename: map[string]string{
 		"base":                    "",
@@ -109,12 +118,93 @@ var debianLinux = &distro{
 	},
 }
 
+// Package names verified against the Void glibc repository. Ryoku is built
+// from the payload because there is no signed XBPS repository yet.
+var voidLinux = &distro{
+	id:         "void",
+	name:       "Void",
+	fromSource: true,
+	installCmd: []string{"xbps-install", "-Sy"},
+	removeCmd:  []string{"xbps-remove", "-y"},
+	updateCmd:  []string{"xbps-install", "-Syu"},
+	refreshCmd: []string{"xbps-install", "-S"},
+	queryCmd:   []string{"xbps-query"},
+	build: []string{
+		"base-devel", "go", "cmake", "ninja", "pkg-config",
+		"qt6-base-devel", "qt6-base-private-devel", "qt6-declarative-devel", "qt6-multimedia-devel",
+		"qt6-shadertools-devel", "qt6-svg-devel", "qt6-qt5compat-devel",
+		"qt6-wayland-devel", "wayland-devel", "wayland-protocols", "ffmpeg6-devel",
+		"gtk+3-devel", "libwebkit2gtk41-devel",
+	},
+	runtime: []string{
+		"dbus", "elogind", "turnstile", "polkit",
+		"xdg-desktop-portal", "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk",
+		"niri", "xwayland-satellite", "sddm",
+		"gtk+3", "libwebkit2gtk41", "qt5-wayland", "qt6-imageformats",
+		"syntax-highlighting", "pam-u2f", "wlsunset", "wayland",
+		"uv", "socat", "gum", "qrencode",
+	},
+	rename: map[string]string{
+		"base":                          "",
+		"blesh":                         "",
+		"bluez-utils":                   "",
+		// AMD microcode ships in Void's AMD firmware package; Intel's lives
+		// in the nonfree repository a stock install does not enable.
+		"amd-ucode":                     "linux-firmware-amd",
+		"ffmpeg":                        "ffmpeg6",
+		"fish":                          "fish-shell",
+		"game-devices-udev":             "",
+		"gst-plugins-bad":               "gst-plugins-bad1",
+		"gst-plugins-base":              "gst-plugins-base1",
+		"gst-plugins-good":              "gst-plugins-good1",
+		"gst-plugins-ugly":              "gst-plugins-ugly1",
+		"hypridle":                      "",
+		"imagemagick":                   "ImageMagick",
+		"inter-font":                    "font-inter",
+		"limine":                        "",
+		"limine-mkinitcpio-hook":        "",
+		"limine-snapper-sync":           "",
+		"mangohud":                      "MangoHud",
+		"mesa":                          "mesa-dri",
+		"mkinitcpio":                    "",
+		"intel-ucode":                   "",
+		"networkmanager":                "NetworkManager",
+		"noto-fonts":                    "noto-fonts-ttf",
+		"otf-space-grotesk":             "",
+		"pipewire-alsa":                 "alsa-pipewire",
+		"pipewire-audio":                "",
+		"pipewire-pulse":                "",
+		"python":                        "python3",
+		"qemu-desktop":                  "qemu",
+		"qt6-5compat":                   "qt6-qt5compat",
+		"qt6-multimedia-ffmpeg":         "",
+		"ryoku-oh-my-zsh":               "",
+		"snap-pac":                      "",
+		"tesseract":                     "tesseract-ocr",
+		"tesseract-data-eng":            "tesseract-ocr-eng",
+		"ttf-firacode-nerd":             "nerd-fonts-ttf",
+		"ttf-hack-nerd":                 "nerd-fonts-ttf",
+		"ttf-jetbrains-mono-nerd":       "nerd-fonts-ttf",
+		"ttf-maple-mono-nf":             "",
+		"ttf-material-symbols-variable": "",
+		"ttf-readex-pro":                "",
+		"ttf-rubik-vf":                  "",
+		"vulkan-icd-loader":             "vulkan-loader",
+		"vimix-cursors":                 "",
+		"waifu2x-ncnn-vulkan":           "",
+		"xorg-xwayland":                 "xorg-server-xwayland",
+		"xpadneo-dkms":                  "xpadneo",
+	},
+}
+
 // activeDistro is set once by detectFacts; installed() reads it from the
 // detection paths that have no engine to hand.
 var activeDistro = archLinux
 
 func detectDistro(id, like string) *distro {
 	switch {
+	case id == "void":
+		return voidLinux
 	case id == "arch" || strings.Contains(like, "arch"):
 		return archLinux
 	case id == "debian" || strings.Contains(like, "debian"):
@@ -134,8 +224,10 @@ func (d *distro) local(pkg string) string {
 // localAll maps a base.packages list, dropping what this distro does not carry.
 func (d *distro) localAll(pkgs []string) []string {
 	out := make([]string, 0, len(pkgs))
+	seen := make(map[string]bool, len(pkgs))
 	for _, p := range pkgs {
-		if l := d.local(p); l != "" {
+		if l := d.local(p); l != "" && !seen[l] {
+			seen[l] = true
 			out = append(out, l)
 		}
 	}
@@ -152,14 +244,32 @@ func (d *distro) removeArgs(pkgs []string) []string {
 
 func (d *distro) installedPkg(pkg string) bool {
 	args := append(append([]string{}, d.queryCmd[1:]...), pkg)
-	out, err := exec.Command(d.queryCmd[0], args...).Output()
-	if err != nil {
-		return false
+	cmd := exec.Command(d.queryCmd[0], args...)
+	if d.id != "debian" {
+		return cmd.Run() == nil
 	}
-	if d.id == "debian" {
-		return strings.Contains(string(out), "install ok installed")
+	out, err := cmd.Output()
+	return err == nil && strings.Contains(string(out), "install ok installed")
+}
+
+func hostInit() initSystem {
+	fi, err := os.Stat("/run/systemd/system")
+	if err == nil && fi.IsDir() {
+		return initSystemd
 	}
-	return true
+	return initRunit
+}
+
+func supportsInit(d *distro, init initSystem) bool {
+	return init == initSystemd || d != nil && d.id == "void" && init == initRunit
+}
+
+func supportedInitBooted(d *distro) bool {
+	return supportsInit(d, hostInit())
+}
+
+func (e *engine) usesRunit() bool {
+	return hostInit() == initRunit
 }
 
 // installed queries the detected distro. Replaces the old pacman-only helper.
@@ -173,12 +283,13 @@ func (e *engine) d() *distro {
 	return activeDistro
 }
 
-// ryokuBin finds the ryoku CLI: /usr/bin from a package, ~/.local/bin from a
-// fromSource build. Empty when it is not installed yet.
-func (e *engine) ryokuBin() string {
-	cands := []string{"/usr/bin/ryoku"}
+// ryokuTool finds a Ryoku-built program: /usr/bin from a package, ~/.local/bin
+// from a fromSource build (which a fresh login's PATH does not carry). Empty
+// when it is not installed yet.
+func (e *engine) ryokuTool(name string) string {
+	cands := []string{filepath.Join("/usr/bin", name)}
 	if e.f != nil && e.f.homeDir != "" {
-		cands = append(cands, filepath.Join(e.f.homeDir, ".local", "bin", "ryoku"))
+		cands = append(cands, filepath.Join(e.f.homeDir, ".local", "bin", name))
 	}
 	for _, c := range cands {
 		if fi, err := os.Stat(c); err == nil && !fi.IsDir() {
@@ -187,6 +298,8 @@ func (e *engine) ryokuBin() string {
 	}
 	return ""
 }
+
+func (e *engine) ryokuBin() string { return e.ryokuTool("ryoku") }
 
 // detectHostDistro resolves the distro from /etc/os-release and latches it, so
 // the preflight gate and the later detection pass agree.

@@ -7,9 +7,9 @@
 # config before ever starting the service, so wait for it, do not assume it.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
-
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
 _conf="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ryoku/eq/filter-chain.conf"
 wait_file "$_conf" "${RYOKU_WAIT_EQ_CONF:-60}" || exec sv down .
 wait_dbus org.freedesktop.PipeWire "${RYOKU_WAIT_PIPEWIRE:-60}" || exec sv down .

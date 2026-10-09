@@ -17,6 +17,9 @@ on:
       - 'system/hardware/bluetooth/*.service'
       - 'tests/void-init.sh'
       - 'tests/void-init-runit.sh'
+      - 'ryoku/shell/scripts/ryoku-session-start'
+      - 'ryoku/niri/autostart.kdl'
+      - 'ryoku/hyprland/modules/autostart.lua'
       - '.github/workflows/void-init.yml'
   push:
     branches:
@@ -31,6 +34,9 @@ on:
       - 'system/hardware/bluetooth/*.service'
       - 'tests/void-init.sh'
       - 'tests/void-init-runit.sh'
+      - 'ryoku/shell/scripts/ryoku-session-start'
+      - 'ryoku/niri/autostart.kdl'
+      - 'ryoku/hyprland/modules/autostart.lua'
       - '.github/workflows/void-init.yml'
   workflow_dispatch:
 

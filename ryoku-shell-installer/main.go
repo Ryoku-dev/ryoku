@@ -1051,16 +1051,15 @@ func main() {
 	if os.Geteuid() == 0 {
 		die(i18n.T("run as your normal user, not root; sudo is used where needed"))
 	}
-	if detectHostDistro() == nil {
-		die(i18n.T("unsupported distribution: Ryoku installs on Arch-based and Debian-based systems"))
+	d := detectHostDistro()
+	if d == nil {
+		die(i18n.T("unsupported distribution: Ryoku installs on Arch-based, Debian-based and Void systems"))
 	}
 	if out("uname", "-m") != "x86_64" {
 		die(i18n.T("Ryoku ships x86_64 builds only"))
 	}
-	// the whole engine leans on systemctl; Artix and other non-systemd spins
-	// pass the pacman check but every session/service step would fail.
-	if !systemdBooted() {
-		die(i18n.T("this system does not boot with systemd (Artix or another init detected); Ryoku needs systemd and cannot install here"))
+	if !supportedInitBooted(d) {
+		die(i18n.T("unsupported init: Arch and Debian installs need systemd; Void installs need runit"))
 	}
 
 	if !*dry {
@@ -1082,7 +1081,11 @@ func main() {
 		die(err.Error())
 	}
 	if m, ok := fm.(model); ok && m.exitReboot {
-		_ = exec.Command("systemctl", "reboot").Run()
+		if hostInit() == initRunit {
+			_ = exec.Command("loginctl", "reboot").Run()
+		} else {
+			_ = exec.Command("systemctl", "reboot").Run()
+		}
 	}
 }
 

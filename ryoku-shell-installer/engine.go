@@ -174,6 +174,10 @@ func defaultPlan(f *facts) *plan {
 	if _, ok := loginShellPath[filepath.Base(f.userShell)]; ok {
 		shell = filepath.Base(f.userShell)
 	}
+	compositor := compositors()[0]
+	if f.distro != nil && f.distro.id == "void" {
+		compositor = wm.ProviderNiri
+	}
 	return &plan{
 		// Secure Boot rejects unsigned DKMS modules. The NVIDIA script only
 		// blacklists nouveau once the replacement module is in place.
@@ -189,7 +193,7 @@ func defaultPlan(f *facts) *plan {
 		// look; keep it unless they opt in.
 		greeter:    !f.kdeSddmConf,
 		resume:     f.prevRun != nil,
-		compositor: compositors()[0],
+		compositor: compositor,
 		browser:    "firefox",
 		shell:      shell,
 		// the AZERTY overrides are opt-in only; a salvaged layout already
@@ -364,6 +368,7 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 	// uninstalled until the [ryoku] db has actually been fetched. legacy
 	// sources go first so the full upgrade already runs on clean mirrors.
 	pacmanOnly := map[string]bool{"legacy": true, "repo": true, "aur": true, "drivers": true}
+	sourceOnly := map[string]bool{"fonts": true}
 	all := []estep{
 		{"legacy", i18n.T("Retiring the previous distro's package sources"), stepLegacy},
 		{"sysupgrade", i18n.T("Updating the system"), stepSysupgrade},
@@ -373,6 +378,7 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 		{"repo", i18n.T("Trusting the [ryoku] package repository"), stepRepo},
 		{"conflicts", i18n.T("Clearing conflicting shells and daemons"), stepConflicts},
 		{"packages", i18n.T("Installing the Ryoku desktop"), stepPackages},
+		{"fonts", i18n.T("Installing Ryoku fonts and cursors"), stepFonts},
 		{"drivers", i18n.T("Setting up GPU drivers"), stepDrivers},
 		{"build", i18n.T("Building the Ryoku desktop from source"), stepBuild},
 		{"session", i18n.T("Wiring the login session (SDDM, network)"), stepSession},
@@ -387,7 +393,7 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 		if src && pacmanOnly[s.id] {
 			continue
 		}
-		if !src && s.id == "build" {
+		if !src && (s.id == "build" || sourceOnly[s.id]) {
 			continue
 		}
 		e.steps = append(e.steps, s)
@@ -674,6 +680,11 @@ func stepSysupgrade(e *engine) error {
 			return err
 		}
 	}
+	if d.id == "void" {
+		if err := e.sudo(append(append([]string{}, d.updateCmd...), "xbps")...); err != nil {
+			return err
+		}
+	}
 	return e.sudo(d.updateCmd...)
 }
 
@@ -869,6 +880,13 @@ func stepConflicts(e *engine) error {
 	// stop: running daemons die with the old session.
 	if e.p.softOff {
 		for _, u := range e.f.softUnits {
+			if e.usesRunit() {
+				service := filepath.Join(e.f.homeDir, ".config/service", runitServiceName(u))
+				if err := e.cmd("", nil, "rm", "-rf", service); err != nil {
+					e.say(i18n.Tf("warning: could not disable %s", u))
+				}
+				continue
+			}
 			if err := e.cmd("", nil, "systemctl", "--user", "disable", u); err != nil {
 				e.say(i18n.Tf("warning: could not disable %s", u))
 				continue
@@ -891,7 +909,7 @@ func stepConflicts(e *engine) error {
 			}
 		}
 	}
-	if e.p.shell == "zsh" && len(e.f.zshFrameworkPkgs) > 0 {
+	if e.d().id == "arch" && e.p.shell == "zsh" && len(e.f.zshFrameworkPkgs) > 0 {
 		// ryoku-oh-my-zsh provides and replaces both upstream frameworks, but a
 		// plain -R under --noconfirm refuses while an installed plugin package
 		// depends on oh-my-zsh-git, and the dependency conflict then aborts the
@@ -1031,7 +1049,8 @@ func (e *engine) asusAura() bool {
 // verification runs before the new session exists, and caps answers without a
 // live compositor.
 func (e *engine) providerAnswers() bool {
-	return exec.Command("ryoku-wm-"+e.p.compositor, "caps").Run() == nil
+	bin := e.ryokuTool("ryoku-wm-" + e.p.compositor)
+	return bin != "" && exec.Command(bin, "caps").Run() == nil
 }
 
 func stepPackages(e *engine) error {
@@ -1047,7 +1066,7 @@ func stepPackages(e *engine) error {
 	if d.fromSource {
 		// no [ryoku] repository here: the desktop is built from the payload, so
 		// install its dependencies plus the toolchain that builds it.
-		pkgs = append(d.localAll(base), d.build...)
+		pkgs = sourcePackageSet(d, base)
 	} else {
 		pkgs = append(append([]string{}, ryokuPkgs...), base...)
 		// name the chosen variant so pacman installs it directly instead of
@@ -1062,11 +1081,14 @@ func stepPackages(e *engine) error {
 		}
 	}
 	if e.f.ucodePkg != "" {
-		pkgs = append(pkgs, d.local(e.f.ucodePkg))
+		if pkg := d.local(e.f.ucodePkg); pkg != "" {
+			pkgs = append(pkgs, pkg)
+		}
 	}
 	if e.p.devtools {
 		pkgs = append(pkgs, d.localAll(devPkgs)...)
 	}
+	pkgs = uniquePackages(pkgs)
 	pkgs = e.dropSatisfied(pkgs)
 	if d.id == "arch" {
 		// a .part resumed against a mirror whose bytes moved on trips pacman's
@@ -1092,6 +1114,25 @@ func desktopPacmanArgs(d *distro, pkgs []string) []string {
 		args = append(args, "--overwrite", ryokuOverwriteGlob)
 	}
 	return append(args, pkgs...)
+}
+
+func sourcePackageSet(d *distro, base []string) []string {
+	pkgs := append(d.localAll(base), d.build...)
+	pkgs = append(pkgs, d.runtime...)
+	return uniquePackages(pkgs)
+}
+
+func uniquePackages(pkgs []string) []string {
+	out := make([]string, 0, len(pkgs))
+	seen := make(map[string]bool, len(pkgs))
+	for _, pkg := range pkgs {
+		if pkg == "" || seen[pkg] {
+			continue
+		}
+		seen[pkg] = true
+		out = append(out, pkg)
+	}
+	return out
 }
 
 // dropSatisfied keeps only what no installed provider satisfies (pacman -T
@@ -1215,17 +1256,87 @@ const releaseQylockGuards = `for u in ryoku-qylock-cutover-wait ryoku-qylock-gen
 done
 rm -f "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/ryoku-qylock-*.ready`
 
-func stepSession(e *engine) error {
-	if e.p.switchDM {
-		if dm := e.f.otherDM(); dm != "" {
-			// disable, never mask or uninstall: reversible, and the running
-			// greeter session is untouched until reboot.
-			if err := e.sudo("systemctl", "disable", dm); err != nil {
-				return err
+const releaseQylockGuardsRunit = `for u in ryoku-qylock-cutover-wait ryoku-qylock-generation-guard ryoku-qylock-launch-guard; do
+  [ -d "$HOME/.config/service/$u" ] && sv down "$HOME/.config/service/$u" >/dev/null 2>&1 || :
+done
+rm -f "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"/ryoku-qylock-*.ready`
+
+func enableRunitService(e *engine, service string, optional bool) error {
+	source := filepath.Join("/etc/sv", service)
+	if !e.dry {
+		if fi, err := os.Stat(source); err != nil || !fi.IsDir() {
+			if optional {
+				return nil
 			}
-			e.recordRestore("sudo systemctl disable sddm.service && sudo systemctl enable " + dm)
-		} else if e.f.currentDM == "" {
-			e.recordRestore("sudo systemctl disable sddm.service && sudo systemctl set-default multi-user.target")
+			return fmt.Errorf("runit service %s is missing", source)
+		}
+	}
+	return e.sudo("ln", "-sfn", source, filepath.Join("/etc/runit/runsvdir/default", service))
+}
+
+func disableRunitService(e *engine, service string) {
+	link := filepath.Join("/etc/runit/runsvdir/default", service)
+	enabled := e.dry
+	if !e.dry {
+		_, err := os.Lstat(link)
+		enabled = err == nil
+	}
+	if err := e.sudo("rm", "-f", link); err != nil {
+		e.say(i18n.Tf("warning: could not disable %s", service))
+		return
+	}
+	if enabled {
+		if err := e.sudo("sv", "down", filepath.Join("/etc/sv", service)); err != nil {
+			e.say(i18n.Tf("warning: could not stop %s; it is disabled for the next boot", service))
+		}
+	}
+}
+
+func wireRunitServices(e *engine) error {
+	if err := e.sudo("mkdir", "-p", "/etc/runit/runsvdir/default"); err != nil {
+		return err
+	}
+	// elogind stays D-Bus activated, Void's default: the sddm service activates
+	// login1 itself before the greeter starts, so a supervised copy would lose
+	// the bus name to it and restart every second for the whole uptime.
+	services := []string{"dbus", "polkitd", "turnstiled", "bluetoothd"}
+	if e.p.switchDM {
+		services = append(services, "sddm")
+	}
+	if e.p.switchNet {
+		services = append(services, "NetworkManager")
+	}
+	for _, service := range services {
+		if err := enableRunitService(e, service, false); err != nil {
+			return err
+		}
+	}
+	return enableRunitService(e, "power-profiles-daemon", true)
+}
+
+func stepSession(e *engine) error {
+	if e.usesRunit() {
+		if err := wireRunitServices(e); err != nil {
+			return err
+		}
+	}
+	if e.p.switchDM {
+		if e.usesRunit() {
+			if dm := e.f.otherDM(); dm != "" {
+				disableRunitService(e, runitServiceName(dm))
+				e.recordRestore("sudo ln -s /etc/sv/" + runitServiceName(dm) + " /etc/runit/runsvdir/default/" + runitServiceName(dm))
+			}
+		} else {
+			if dm := e.f.otherDM(); dm != "" {
+				// disable, never mask or uninstall: reversible, and the running
+				// greeter session is untouched until reboot.
+				if err := e.sudo("systemctl", "disable", dm); err != nil {
+					return err
+				}
+				e.recordRestore("sudo systemctl disable sddm.service && sudo systemctl enable " + dm)
+			} else if e.f.currentDM == "" {
+				e.recordRestore("sudo systemctl disable sddm.service && sudo systemctl set-default multi-user.target")
+			}
 		}
 		if err := e.cmd("", nil, "bash", filepath.Join(e.payload, "ryoku/lockscreen/sddm/setup")); err != nil {
 			return err
@@ -1239,7 +1350,11 @@ func stepSession(e *engine) error {
 	// holding the locks install-qylock takes: this step then waits on them
 	// with no output. nothing here needs them: the installer replaces the lock
 	// generation outright and the new session starts after a reboot.
-	if err := e.cmd("", nil, "sh", "-c", releaseQylockGuards); err != nil {
+	releaseGuards := releaseQylockGuards
+	if e.usesRunit() {
+		releaseGuards = releaseQylockGuardsRunit
+	}
+	if err := e.cmd("", nil, "sh", "-c", releaseGuards); err != nil {
 		return err
 	}
 
@@ -1305,18 +1420,27 @@ fi`); err != nil {
 	}
 
 	if e.p.switchNet {
-		for _, n := range e.f.otherNet {
-			if err := e.sudo("systemctl", "disable", n); err != nil {
-				e.say(i18n.Tf("warning: could not disable %s", n))
-				continue
+		if e.usesRunit() {
+			for _, service := range []string{"dhcpcd", "wpa_supplicant"} {
+				disableRunitService(e, service)
 			}
-			e.recordRestore("sudo systemctl enable " + n)
-		}
-		if !e.f.nmEnabled {
-			if err := e.sudo("systemctl", "enable", "NetworkManager.service"); err != nil {
-				return err
+			for _, service := range e.f.otherNet {
+				e.recordRestore("sudo ln -s /etc/sv/" + service + " /etc/runit/runsvdir/default/" + service)
 			}
-			e.recordRestore("sudo systemctl disable NetworkManager.service")
+		} else {
+			for _, n := range e.f.otherNet {
+				if err := e.sudo("systemctl", "disable", n); err != nil {
+					e.say(i18n.Tf("warning: could not disable %s", n))
+					continue
+				}
+				e.recordRestore("sudo systemctl enable " + n)
+			}
+			if !e.f.nmEnabled {
+				if err := e.sudo("systemctl", "enable", "NetworkManager.service"); err != nil {
+					return err
+				}
+				e.recordRestore("sudo systemctl disable NetworkManager.service")
+			}
 		}
 		// iwd backend pin, Ryoku network policy. takes effect at the next NM
 		// restart (reboot), so the live wifi connection is never dropped.
@@ -1340,8 +1464,12 @@ func stepConfigs(e *engine) error {
 	if ryoku == "" {
 		ryoku = "ryoku"
 	}
-	if err := e.cmd("", nil, ryoku, "materialize"); err != nil {
-		return err
+	// a source build has no packaged base tree for materialize to apply;
+	// deploy.sh in the build step already laid and overlaid the config.
+	if !e.d().fromSource {
+		if err := e.cmd("", nil, ryoku, "materialize"); err != nil {
+			return err
+		}
 	}
 
 	// salvaged monitor pins go in before the stub pass, real pins beat a
@@ -1500,6 +1628,9 @@ EOF`); err != nil {
 		}
 		e.say(i18n.Tf("seeded ~/%s", s.dst))
 	}
+	if e.usesRunit() {
+		return nil
+	}
 	return e.cmd("", nil, "systemctl", "--user", "daemon-reload")
 }
 
@@ -1571,7 +1702,8 @@ func (e *engine) packageInstalled(pkg string) bool {
 	if e.installedPkg != nil {
 		return e.installedPkg(pkg)
 	}
-	return e.d().installedPkg(pkg)
+	local := e.d().local(pkg)
+	return local != "" && e.d().installedPkg(local)
 }
 
 func (e *engine) writeProvisionedLedger() error {
@@ -1755,6 +1887,11 @@ func stepVerify(e *engine) error {
 		check(e.ryokuBin() != "", i18n.T("ryoku CLI built and installed"))
 		_, err := os.Stat(filepath.Join(e.f.homeDir, ".local/bin/ryoku-shell"))
 		check(err == nil, i18n.T("ryoku-shell daemon built"))
+		if e.d().id == "void" {
+			for _, pkg := range []string{"sddm", "niri", "quickshell"} {
+				check(e.d().installedPkg(pkg), i18n.Tf("%s installed through XBPS", pkg))
+			}
+		}
 	} else {
 		conf, _ := os.ReadFile("/etc/pacman.conf")
 		check(strings.Contains(string(conf), "[ryoku]"), i18n.T("[ryoku] repository in /etc/pacman.conf"))
@@ -1774,7 +1911,11 @@ func stepVerify(e *engine) error {
 	// without a live compositor (state would falsely fail here).
 	check(e.providerAnswers(), i18n.T("window-manager provider responds"))
 	if e.p.switchDM {
-		check(unitEnabled("system", "sddm.service"), i18n.T("sddm.service enabled"))
+		if e.usesRunit() {
+			check(runitServiceEnabled("sddm"), i18n.T("sddm runit service enabled"))
+		} else {
+			check(unitEnabled("system", "sddm.service"), i18n.T("sddm.service enabled"))
+		}
 	}
 	if e.p.switchDM && e.p.greeter {
 		if theme := effectiveSDDMTheme(); theme != "" && theme != "ryoku" {
@@ -1794,10 +1935,10 @@ func stepVerify(e *engine) error {
 	} else {
 		check(has("matugen"), i18n.T("matugen palette generator (colors follow the wallpaper)"))
 	}
-	if !has("ryogami") {
+	if e.ryokuTool("ryogami") == "" {
 		e.say(gWarn + " " + i18n.T("ryogami missing: the wallpaper will not paint until it installs (ryoku doctor retries it)"))
 	}
-	if e.p.devtools {
+	if e.p.devtools || e.d().fromSource {
 		check(has("go"), i18n.T("go toolchain on PATH (ryoku recovery rebuilds from source)"))
 	} else {
 		e.say(gWarn + " " + i18n.T("developer toolchain skipped: ryoku recovery needs go; install with: sudo pacman -S go"))

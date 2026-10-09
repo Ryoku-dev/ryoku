@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- **Void Linux can install the full Ryoku desktop from the script installer.**
+  The installer now understands XBPS package names and transactions, builds the
+  desktop from source, installs the pinned fonts and cursor theme, wires
+  SDDM and the machine services through runit, and leaves user services to
+  Turnstile. Arch and Debian retain their existing systemd paths.
 - **Browser and login-shell choices now carry through the whole conversion.**
   The plan starts with Firefox, Chromium and Zen plus Fish, Zsh and Bash
   single-choice rows. The same picks work under `--yes` through `--browser`,
@@ -23,6 +28,11 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
+- **Debian source installs no longer stop partway through the build.** The
+  build step now pulls Qt's private GUI headers (the Ryogami picker needs them)
+  and the GTK and WebKitGTK headers the Rashin app links against, and the
+  configs step no longer runs `ryoku materialize`, which only applies to a
+  packaged install; the source build already lays the config.
 - **NVIDIA conversion now defaults on when nouveau currently drives the card.**
   The hardware script keeps nouveau available unless the proprietary module is
   built successfully, then replaces it after reboot. Unsigned Secure Boot

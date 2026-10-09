@@ -1051,12 +1051,8 @@ func (d *daemon) superviseSleepWake() {
 }
 
 var (
-	qylockUnlockGuardActive = func(unit string) bool {
-		return exec.Command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
-	}
-	qylockUnlockGuardStop = func(unit string) error {
-		return exec.Command("systemctl", "--user", "stop", unit).Run()
-	}
+	qylockUnlockGuardActive = userServiceActive
+	qylockUnlockGuardStop   = stopUserService
 )
 
 func (d *daemon) releaseQylockUnlockGuardWhenReady() {

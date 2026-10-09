@@ -43,6 +43,7 @@ SUSPEND_REASON="${RYOKU_CLAMSHELL_SUSPEND_REASON:-$RUNTIME_DIR/ryoku-clamshell-$
 PGREP_BIN="${RYOKU_PGREP_BIN:-$(command -v pgrep || true)}"
 BUSCTL_BIN="${RYOKU_BUSCTL_BIN:-$(command -v busctl || true)}"
 LOGGER_BIN="${RYOKU_CLAMSHELL_LOGGER_BIN:-$(command -v logger || true)}"
+INHIBIT_BIN="$(command -v systemd-inhibit || command -v elogind-inhibit || true)"
 # Internal panels + non-display connectors. Everything else that reports
 # "connected" is an external display (HDMI-A-*, DP-*, ...).
 INTERNAL_RE='^(eDP|LVDS|DSI|Virtual|Writeback)'
@@ -322,6 +323,7 @@ write_inhibitor_state() {
 # PID file, or an unrelated process reusing that PID, never suppresses locking.
 inhibitor_active() {
   local pid uid json
+  [[ -n $INHIBIT_BIN ]] || return 1
   [[ -r $INHIBIT_STATE ]] || return 1
   read -r pid <"$INHIBIT_STATE" || return 1
   if [[ ! $pid =~ ^[0-9]+$ ]] || ! kill -0 "$pid" 2>/dev/null; then
@@ -330,7 +332,7 @@ inhibitor_active() {
   fi
   command -v jq >/dev/null 2>&1 || return 1
   uid="$(id -u)"
-  json="$(systemd-inhibit --list --json=short 2>/dev/null)" || return 1
+  json="$("$INHIBIT_BIN" --list --json=short 2>/dev/null)" || return 1
   jq -e --argjson pid "$pid" --argjson uid "$uid" '
     any(.[]; .pid == $pid and .uid == $uid and .who == "ryoku-clamshell"
       and .mode == "block"
@@ -372,7 +374,7 @@ stop_recorded_inhibitor() {
 inhibitor_supervisor() {
   local handshake=$1 child rc tmp
   exec 9>&-
-  systemd-inhibit --what=handle-lid-switch --mode=block \
+  "$INHIBIT_BIN" --what=handle-lid-switch --mode=block \
     --who="ryoku-clamshell" --why="route lid close through the secure Ryoku policy" \
     sleep infinity &
   child=$!
@@ -755,8 +757,8 @@ run_daemon() {
     [[ ${RYOKU_CLAMSHELL_VERBOSE:-0} == 1 ]] && log "desktop detected; clamshell disabled"
     exit 0
   fi
-  if ! command -v systemd-inhibit >/dev/null 2>&1; then
-    log "systemd-inhibit not found; clamshell disabled" >&2
+  if [[ -z $INHIBIT_BIN ]]; then
+    log "login1 inhibit tool not found; clamshell disabled" >&2
     exit 0
   fi
   if ! command -v dbus-monitor >/dev/null 2>&1; then

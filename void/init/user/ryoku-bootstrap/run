@@ -3,12 +3,13 @@
 # Type=oneshot + RemainAfterExit: run does the work once, then parks itself
 # (exec sv down .) so it never repeats. The ConditionPathExists=|! markers are
 # kept: when the box is already materialized the service is a no-op park.
-# Before=graphical-session.target and the niri drop-in's Wants/After ordering
-# move to the Void session wrapper, which runs this service's command before
-# starting the compositor; under a plain runsvdir the compositor is not
-# supervised, so the wrapper is the only ordering point that exists.
+# Before=graphical-session.target and the session dependency ordering become
+# roster ordering on Void. This service runs first so configuration exists
+# before the wallpaper, shell, and policy daemons restart.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 _home=${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}
 

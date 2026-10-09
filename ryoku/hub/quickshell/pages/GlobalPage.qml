@@ -22,8 +22,8 @@ Item {
     // what this machine can render. Injected into the fontFamily row's options,
     // so the shared "pick" control shows the searchable font list.
     property var fontList: []
-    // the live system time zone, read via timedatectl and injected into the
-    // timezone row (like fontList above); refreshed after an apply.
+    // the live system time zone, injected into the timezone row and refreshed
+    // after an apply.
     property string currentTimezone: ""
     readonly property var schema: {
         var out = [];
@@ -58,7 +58,9 @@ Item {
     function readTz() { tzRead.running = false; tzRead.running = true; }
     function applyTimezone(z) {
         if (!z) return;
-        tzApply.command = ["timedatectl", "set-timezone", z];
+        tzApply.command = ["sh", "-c",
+            "if [ -d /run/systemd/system ]; then exec timedatectl set-timezone \"$1\"; fi; zone=$(readlink -f -- \"/usr/share/zoneinfo/$1\") || exit 2; case \"$zone\" in /usr/share/zoneinfo/*) ;; *) exit 2;; esac; [ -f \"$zone\" ] || exit 2; exec pkexec ln -sfn -- \"$zone\" /etc/localtime",
+            "ryoku-timezone", z];
         tzApply.running = false;
         tzApply.running = true;
         tzMap.close();
@@ -75,15 +77,17 @@ Item {
     }
     Process {
         id: tzRead
-        command: ["timedatectl", "show", "-p", "Timezone", "--value"]
+        command: ["sh", "-c",
+            "if [ -d /run/systemd/system ]; then exec timedatectl show -p Timezone --value; fi; target=$(readlink -f /etc/localtime) || exit; case \"$target\" in /usr/share/zoneinfo/*) printf '%s\\n' \"${target#/usr/share/zoneinfo/}\";; esac"]
         stdout: StdioCollector { onStreamFinished: pg.currentTimezone = ("" + text).trim() }
     }
     Process {
         id: shellRestart
-        command: ["systemctl", "--user", "restart", "ryoku-shell.service"]
+        command: ["sh", "-c",
+            "if [ -d /run/systemd/system ]; then exec systemctl --user restart ryoku-shell.service; fi; service=\"$HOME/.config/service/ryoku-shell\"; if [ -d \"$service/supervise\" ]; then exec sv restart \"$service\"; fi; exec ryoku-shell reload"]
     }
-    // set-timezone talks to systemd-timedated over D-Bus; the shipped polkit
-    // rule authorises it for the active user, so no password prompt.
+    // timedatectl is authorised by the shipped polkit rule. Void uses pkexec
+    // because it has no timedated service.
     Process {
         id: tzApply
         stdout: StdioCollector { onStreamFinished: pg.applyDone() }

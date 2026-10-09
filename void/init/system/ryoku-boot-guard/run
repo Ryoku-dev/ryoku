@@ -13,12 +13,14 @@
 # is that a revert may land while the greeter is already up.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
 # ConditionPathExists=/var/lib/ryoku/update-pending.json: no armed update,
 # no work, park. The marker appears mid-boot when an update arms it, so wait
 # briefly for it rather than racing stage 2.
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
+
 wait_file /var/lib/ryoku/update-pending.json "${RYOKU_WAIT_PENDING:-10}" || exec sv down .
 
 # TimeoutStartSec=10min, bounded the same way.

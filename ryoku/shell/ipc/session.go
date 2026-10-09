@@ -2,29 +2,39 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
-	"os/exec"
-	"strings"
+
+	"github.com/godbus/dbus/v5"
 
 	wm "ryoku-wm"
 )
 
 // session.go runs the session power actions the confirmation dialog triggers.
-// Reboot and shutdown are system-level, so they go through systemctl. Logout
-// ends the session by asking the compositor to exit, through the wm seam.
+// Reboot and shutdown go through login1, which is provided by both logind and
+// elogind. Logout ends the session through the wm seam.
 //
 // There is deliberately no suspend action: the reference tree has none.
-var sessionActions = map[string][]string{
-	"reboot":   {"systemctl", "reboot"},
-	"shutdown": {"systemctl", "poweroff"},
+var sessionActions = map[string]string{
+	"reboot":   "Reboot",
+	"shutdown": "PowerOff",
 }
 
-// sessionActionArgv returns the argv for a session power action, or false for an
-// unknown one. Split from the exec so the documented mapping is unit-testable
-// without powering the machine off.
-func sessionActionArgv(action string) ([]string, bool) {
-	argv, ok := sessionActions[action]
-	return argv, ok
+func sessionActionMethod(action string) (string, bool) {
+	method, ok := sessionActions[action]
+	return method, ok
+}
+
+var login1PowerCall = callLogin1Power
+
+func callLogin1Power(method string) error {
+	conn, err := dbus.ConnectSystemBus()
+	if err != nil {
+		return fmt.Errorf("connect to the system bus: %w", err)
+	}
+	defer conn.Close()
+	return conn.Object(login1Bus, login1Path).
+		Call(login1Interface+"."+method, 0, true).Err
 }
 
 // startSession registers the session power-action calls the confirmation dialog
@@ -45,25 +55,17 @@ func (d *daemon) startSession() {
 	}
 }
 
-// runSessionAction fires the action's command and reaps it in the background, so
-// a failure is logged without blocking the caller (reboot and poweroff normally
-// never return). stderr is captured for the log; stdin and stdout are discarded.
+// runSessionAction sends the login1 request in the background so a slow system
+// bus never blocks the caller.
 func runSessionAction(action string) {
-	argv, ok := sessionActionArgv(action)
+	method, ok := sessionActionMethod(action)
 	if !ok {
 		log.Printf("ryoku-shell: unknown session action %q", action)
 		return
 	}
-	cmd := exec.Command(argv[0], argv[1:]...)
-	var stderr strings.Builder
-	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
-		log.Printf("ryoku-shell: session %s: %v", action, err)
-		return
-	}
 	go func() {
-		if err := cmd.Wait(); err != nil {
-			log.Printf("ryoku-shell: session %s: %v: %s", action, err, strings.TrimSpace(stderr.String()))
+		if err := login1PowerCall(method); err != nil {
+			log.Printf("ryoku-shell: session %s: %v", action, err)
 		}
 	}()
 }

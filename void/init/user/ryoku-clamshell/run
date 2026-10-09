@@ -4,9 +4,11 @@
 # TimeoutStopSec=5 has no runit analogue: sv down waits for the run child.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
 wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
+load_session_env
 
 exec "$BIN/ryoku-clamshell" daemon

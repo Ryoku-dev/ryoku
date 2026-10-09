@@ -7,11 +7,13 @@
 # child, and apps the user launched from the shell survive a shell reload.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
 # ConditionEnvironment=WAYLAND_DISPLAY: fail closed, park, never crash-loop.
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
 wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
+load_session_env
 
 # RYOKU_POLKIT_AGENT: an import that does not land would silently drop the
 # polkit agent back to the stock one, so it is set here, not only via session env.

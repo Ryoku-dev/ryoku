@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	wm "ryoku-wm"
 )
 
 // pacman progress repaints end in \r, not \n; they must surface live as
@@ -68,5 +70,46 @@ func TestReadBasePackagesSkipsBootChain(t *testing.T) {
 		if !set[keep] {
 			t.Errorf("%s must install, missing from %v", keep, got)
 		}
+	}
+}
+
+func TestVoidDefaultPackageSet(t *testing.T) {
+	e := &engine{
+		payload: "..",
+		p:       &plan{browser: "firefox", shell: "fish"},
+	}
+	base, err := e.readBasePackages()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgs := sourcePackageSet(voidLinux, base)
+	set := packageSet(pkgs)
+	for _, required := range []string{
+		"fish-shell", "NetworkManager", "ImageMagick", "ffmpeg6",
+		"niri", "quickshell", "turnstile", "elogind", "sddm",
+		"qt6-base-devel", "xwayland-satellite",
+	} {
+		if !set[required] {
+			t.Errorf("Void package set is missing %s", required)
+		}
+	}
+	for _, absent := range []string{
+		"fish", "chromium", "hypridle", "limine", "mkinitcpio",
+		"pipewire-pulse", "ttf-material-symbols-variable", "vimix-cursors",
+	} {
+		if set[absent] {
+			t.Errorf("Void package set must not request %s", absent)
+		}
+	}
+	for start := 0; start < len(pkgs); start += 12 {
+		end := min(start+12, len(pkgs))
+		t.Log(strings.Join(pkgs[start:end], " "))
+	}
+}
+
+func TestVoidDefaultsToPackagedProvider(t *testing.T) {
+	p := defaultPlan(&facts{distro: voidLinux})
+	if p.compositor != wm.ProviderNiri {
+		t.Fatalf("Void provider = %q", p.compositor)
 	}
 }

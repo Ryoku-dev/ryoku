@@ -4,8 +4,8 @@
 # container (ghcr.io/void-linux/void-glibc), against stub binaries, and asserts
 # the behaviors the static half (tests/void-init.sh) cannot: oneshot parking
 # and re-run, restart-on-crash vs park-on-clean, the ExecStop down sentinel,
-# BindsTo down-propagation, the timer loop, failed-wait parking, the wait-for
-# predicates, and the envdir renderer.
+# BindsTo down-propagation, the timer loop, failed-wait parking, live envdir
+# publication, ordered session startup, and the envdir renderer.
 #
 # This is the empirical basis for the runit semantics the translations rely on
 # (a finish exit code does not gate restarts; only an sv down request parks,
@@ -60,7 +60,8 @@ EOF
 }
 for b in ryoku-shell ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryogami \
 	ryoku-idle ryoku-clamshell pipewire bluetoothctl ryoku-rashin prowl \
-	ryoku-palette-bridge ryoku claude-usage codex-usage opencode-usage nmcli; do
+	ryoku-palette-bridge ryoku claude-usage codex-usage opencode-usage nmcli \
+	dbus-update-activation-environment ryoku-reload-cover; do
 	mkstub "$b"
 done
 
@@ -88,9 +89,21 @@ esac
 EOF
 chmod +x "$WORK/bin/ryoku-shell" "$WORK/bin/prowl"
 
+cat > "$WORK/bin/ryoku-idle" <<'EOF'
+#!/bin/sh
+echo "ryoku-idle $* wayland=${WAYLAND_DISPLAY:-}" >> "$LOG"
+case $(cat "$WORK/ctl/ryoku-idle" 2>/dev/null || echo run) in
+	exit0) exit 0 ;;
+	crash) exit 9 ;;
+	*)     exec sleep 300 ;;
+esac
+EOF
+chmod +x "$WORK/bin/ryoku-idle"
+
 # hook-only and loop-collector stubs must return, never sleep.
 for b in ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryoku \
-	claude-usage codex-usage opencode-usage nmcli; do
+	claude-usage codex-usage opencode-usage nmcli \
+	dbus-update-activation-environment ryoku-reload-cover; do
 	echo exit0 > "$WORK/ctl/$b"
 done
 
@@ -126,9 +139,17 @@ export WAYLAND_DISPLAY=wayland-0
 mkdir -p "$RYOKU_BT_SYS/class/bluetooth"; touch "$RYOKU_BT_SYS/class/bluetooth/hci0"
 # - network-kill marker absent: the guard must park
 
+RSD=
+ERSD=
+SRSD=
+cleanup() {
+	for pid in "$RSD" "$ERSD" "$SRSD"; do
+		[ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+	done
+}
+trap cleanup EXIT
 runsvdir "$WORK/svc" >/dev/null 2>&1 &
 RSD=$!
-trap 'kill $RSD 2>/dev/null || true' EXIT
 
 # grep -c prints 0 and exits 1 on no match; `|| true` keeps the single 0 line.
 count() { grep -c "^$1" "$LOG" 2>/dev/null || true; }
@@ -136,6 +157,14 @@ stat_of() { cat "$WORK/svc/$1/supervise/stat" 2>/dev/null || echo none; }
 wait_stat() { # svc expected [timeout-quarters]
 	i=0; while [ "$i" -lt "${3:-80}" ]; do
 		[ "$(stat_of "$1")" = "$2" ] && return 0
+		sleep 0.25; i=$((i+1))
+	done
+	return 1
+}
+stat_at() { cat "$1/$2/supervise/stat" 2>/dev/null || echo none; }
+wait_stat_at() { # service-root svc expected [timeout-quarters]
+	i=0; while [ "$i" -lt "${4:-80}" ]; do
+		[ "$(stat_at "$1" "$2")" = "$3" ] && return 0
 		sleep 0.25; i=$((i+1))
 	done
 	return 1
@@ -235,7 +264,80 @@ rm -f "$WORK/afile"
 wait_file "!$WORK/afile" 2 || fail "wait_file ! did not match an absent file"
 pass "wait-for predicates behave"
 
-#### 10. xdg-dirs renders Turnstile envdir files with no trailing newline.
+#### 10. wait_env watches Turnstile's envdir and reloads it before exec.
+echo run > "$WORK/ctl/ryoku-idle"
+mkdir -p "$WORK/envsvc/ryoku-idle" "$WORK/delayed-env"
+cp /repo/void/init/user/ryoku-idle/run "$WORK/envsvc/ryoku-idle/run"
+cp /repo/void/init/user/ryoku-idle/finish "$WORK/envsvc/ryoku-idle/finish"
+chmod +x "$WORK/envsvc/ryoku-idle/run" "$WORK/envsvc/ryoku-idle/finish"
+delayed_before=$(count 'ryoku-idle start')
+env -u WAYLAND_DISPLAY \
+	TURNSTILE_ENV_DIR="$WORK/delayed-env" \
+	RYOKU_WAIT_WAYLAND=10 \
+	runsvdir "$WORK/envsvc" >/dev/null 2>&1 &
+ERSD=$!
+sleep 1
+[ "$(count 'ryoku-idle start')" -eq "$delayed_before" ] \
+	|| fail "WAYLAND_DISPLAY-gated service started before the envdir value appeared"
+printf '%s' wayland-delayed > "$WORK/delayed-env/WAYLAND_DISPLAY"
+wait_count_ge 'ryoku-idle start' $((delayed_before+1)) \
+	|| fail "WAYLAND_DISPLAY-gated service did not start after envdir publication"
+grep -q '^ryoku-idle start wayland=wayland-delayed$' "$LOG" \
+	|| fail "daemon did not receive the WAYLAND_DISPLAY loaded after the wait"
+sv down "$WORK/envsvc/ryoku-idle"
+kill "$ERSD" 2>/dev/null || true
+ERSD=
+pass "env-gated service observes a late Turnstile value before exec"
+
+#### 11. a down-marked service stays parked until session-start publishes the
+####     compositor environment and restarts its roster.
+mkdir -p "$WORK/session-lib" "$WORK/session-svc/ryoku-idle" "$WORK/session-env"
+cp /repo/void/init/lib/wait-for "$WORK/session-lib/wait-for"
+cp /repo/void/init/env/xdg-dirs "$WORK/session-lib/xdg-dirs"
+printf '%s\n' ryoku-idle > "$WORK/session-lib/session-services"
+cp /repo/void/init/user/ryoku-idle/run "$WORK/session-svc/ryoku-idle/run"
+cp /repo/void/init/user/ryoku-idle/finish "$WORK/session-svc/ryoku-idle/finish"
+touch "$WORK/session-svc/ryoku-idle/down"
+chmod +x "$WORK/session-lib/wait-for" "$WORK/session-lib/xdg-dirs" \
+	"$WORK/session-svc/ryoku-idle/run" "$WORK/session-svc/ryoku-idle/finish"
+session_before=$(count 'ryoku-idle start')
+env -u WAYLAND_DISPLAY \
+	TURNSTILE_ENV_DIR="$WORK/session-env" \
+	RYOKU_INIT_LIB="$WORK/session-lib" \
+	RYOKU_WAIT_WAYLAND=10 \
+	runsvdir "$WORK/session-svc" >/dev/null 2>&1 &
+SRSD=$!
+wait_stat_at "$WORK/session-svc" ryoku-idle down \
+	|| fail "down-marked session service did not remain parked at runsvdir start"
+sleep 1
+[ "$(count 'ryoku-idle start')" -eq "$session_before" ] \
+	|| fail "down-marked session service ran before session-start"
+PATH="$WORK/bin:$PATH" \
+	TURNSTILE_ENV_DIR="$WORK/session-env" \
+	RYOKU_INIT_LIB="$WORK/session-lib" \
+	RYOKU_USER_SERVICE_DIR="$WORK/session-svc" \
+	WAYLAND_DISPLAY=wayland-session DISPLAY=:9 \
+	/repo/void/init/session/session-start
+wait_stat_at "$WORK/session-svc" ryoku-idle run \
+	|| fail "session-start did not bring the roster service up"
+grep -q '^ryoku-idle start wayland=wayland-session$' "$LOG" \
+	|| fail "roster daemon did not receive session-start's compositor environment"
+[ "$(cat "$WORK/session-env/WAYLAND_DISPLAY")" = wayland-session ] \
+	|| fail "session-start did not publish WAYLAND_DISPLAY"
+[ "$(cat "$WORK/session-env/DISPLAY")" = :9 ] \
+	|| fail "session-start did not publish DISPLAY"
+[ ! -e "$WORK/session-env/PWD" ] \
+	|| fail "session-start published excluded PWD"
+[ ! -e "$WORK/session-env/TURNSTILE_ENV_DIR" ] \
+	|| fail "session-start published an excluded TURNSTILE variable"
+grep -q '^dbus-update-activation-environment --all$' "$LOG" \
+	|| fail "session-start did not update the D-Bus activation environment"
+sv down "$WORK/session-svc/ryoku-idle"
+kill "$SRSD" 2>/dev/null || true
+SRSD=
+pass "session-start publishes env and starts the down-marked roster"
+
+#### 12. xdg-dirs renders Turnstile envdir files with no trailing newline.
 mkdir -p "$WORK/xdgbin"
 cat > "$WORK/xdgbin/xdg-user-dir" <<'EOF'
 #!/bin/sh

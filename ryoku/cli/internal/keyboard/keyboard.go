@@ -141,13 +141,17 @@ func localeCountry(locale string) string {
 
 // ---- reading the four layers -------------------------------------------------
 
-var x11LayoutRe = regexp.MustCompile(`(?i)Option\s+"XkbLayout"\s+"([^"]*)"`)
-
-// X11Path and VconsolePath are package vars so a test can point them at temp
-// files; both are fixed by the system otherwise.
 var (
-	X11Path      = "/etc/X11/xorg.conf.d/00-keyboard.conf"
-	VconsolePath = "/etc/vconsole.conf"
+	x11LayoutRe = regexp.MustCompile(`(?i)Option\s+"XkbLayout"\s+"([^"]*)"`)
+	keymapNameRe = regexp.MustCompile(`^[A-Za-z0-9_+.-]+$`)
+)
+
+// Paths are package vars so tests can use an isolated filesystem.
+var (
+	X11Path          = "/etc/X11/xorg.conf.d/00-keyboard.conf"
+	VconsolePath     = "/etc/vconsole.conf"
+	systemdRuntimeDir = "/run/systemd/system"
+	voidRCConfPath    = "/etc/rc.conf"
 )
 
 // X11Layout is the greeter's layout, from the X11 keyboard config.
@@ -248,18 +252,57 @@ func (l Layout) Primary() string {
 	return strings.TrimSpace(strings.SplitN(l.Layout, ",", 2)[0])
 }
 
-// ApplySystem writes the layout to the greeter and the console. localectl
-// converts the X11 layout to the nearest console keymap, so one call covers
-// both. It escalates through polkit on its own.
+// ApplySystem writes the layout to the greeter and console. systemd's localectl
+// handles both layers; Void reads its console keymap from /etc/rc.conf while the
+// desktop layout already covers the running compositor.
 func ApplySystem(l Layout) error {
 	p := l.Primary()
 	if p == "" {
 		return fmt.Errorf(i18n.T("no layout to apply"))
 	}
-	if err := sys.Run("localectl", "set-x11-keymap", p, "", l.Variant, l.Options); err != nil {
-		return fmt.Errorf(i18n.T("set the greeter and console keymap: %w"), err)
+	info, err := os.Stat(systemdRuntimeDir)
+	if err == nil && info.IsDir() {
+		if err := sys.Run("localectl", "set-x11-keymap", p, "", l.Variant, l.Options); err != nil {
+			return fmt.Errorf(i18n.T("set the greeter and console keymap: %w"), err)
+		}
+		return nil
+	}
+	if err := writeVoidKeymap(voidRCConfPath, p); err != nil {
+		return fmt.Errorf(i18n.T("set the console keymap: %w"), err)
 	}
 	return nil
+}
+
+func writeVoidKeymap(path, keymap string) error {
+	if !keymapNameRe.MatchString(keymap) {
+		return fmt.Errorf(i18n.T("invalid console keymap %q"), keymap)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	lines := strings.Split(string(b), "\n")
+	entry := fmt.Sprintf("KEYMAP=%q", keymap)
+	found := false
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "KEYMAP=") {
+			if !found {
+				lines[i] = entry
+				found = true
+			} else {
+				lines[i] = ""
+			}
+		}
+	}
+	if !found {
+		if len(lines) > 0 && lines[len(lines)-1] == "" {
+			lines[len(lines)-1] = entry
+			lines = append(lines, "")
+		} else {
+			lines = append(lines, entry)
+		}
+	}
+	return os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
 }
 
 // RebuildBootImage regenerates the initramfs so the passphrase prompt picks up

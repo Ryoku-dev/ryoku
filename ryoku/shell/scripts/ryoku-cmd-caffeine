@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # Keep-Awake's durable idle inhibitor. shell only flips Flags.keepAwake + calls
-# this; the real inhibitor is a systemd-inhibit launched OUTSIDE the shell
-# (systemd-run --user, setsid fallback) so it survives a shell reload/restart.
-# do it in-shell and the Wayland inhibitor dies on the swap, screen idles. the
-# request is persisted so a fresh login can pick it back up.
+# this; the real inhibitor is launched outside the shell so it survives a shell
+# reload or restart. The request is persisted so a fresh login can pick it back
+# up.
 #
 # It inhibits idle only: the machine never dims, locks or sleeps on its own
 # while it is on. A deliberate sleep (the lid, the power key, Sleep in Controls)
@@ -20,7 +19,13 @@ lock_file="${RYOKU_CAFFEINE_LOCK_FILE:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-caffeine.l
 unit_name="${RYOKU_CAFFEINE_UNIT_NAME:-ryoku-caffeine-inhibit}"
 
 inhibit_pattern="[r]yoku-caffeine-inhibit"
-desired_inhibit_pattern="(^|/)systemd-inhibit --what=idle --who=Ryoku .*Ryoku caffeine mode"
+desired_inhibit_pattern="(^|/)(systemd|elogind)-inhibit --what=idle --who=Ryoku .*Ryoku caffeine mode"
+inhibit_command=""
+if command -v systemd-inhibit >/dev/null 2>&1; then
+  inhibit_command="systemd-inhibit"
+elif command -v elogind-inhibit >/dev/null 2>&1; then
+  inhibit_command="elogind-inhibit"
+fi
 
 usage() {
   cat <<'EOF'
@@ -63,17 +68,20 @@ with_caffeine_lock() {
 }
 
 caffeine_unit_active() {
+  [[ -d /run/systemd/system ]] || return 1
   command_present systemctl || return 1
   systemctl --user is-active --quiet "$unit_name.service" >/dev/null 2>&1
 }
 
 start_inhibitor_with_systemd() {
+  [[ -d /run/systemd/system ]] || return 1
   command_present systemd-run || return 1
+  [[ -n $inhibit_command ]] || return 1
   systemd-run \
     --user --quiet --collect \
     --unit="$unit_name" \
     --description="Ryoku caffeine idle inhibitor" \
-    systemd-inhibit \
+    "$inhibit_command" \
     --what=idle \
     --who=Ryoku \
     --why="Ryoku caffeine mode" \
@@ -81,7 +89,8 @@ start_inhibitor_with_systemd() {
 }
 
 start_inhibitor_with_setsid() {
-  setsid systemd-inhibit \
+  [[ -n $inhibit_command ]] || return 1
+  setsid "$inhibit_command" \
     --what=idle \
     --who=Ryoku \
     --why="Ryoku caffeine mode" \
@@ -110,7 +119,9 @@ wait_for_inhibitor() {
 }
 
 stop_inhibitor() {
-  command_present systemctl && systemctl --user stop "$unit_name.service" >/dev/null 2>&1 || true
+  if [[ -d /run/systemd/system ]] && command_present systemctl; then
+    systemctl --user stop "$unit_name.service" >/dev/null 2>&1 || true
+  fi
   pkill -f "$inhibit_pattern" >/dev/null 2>&1 || true
 }
 

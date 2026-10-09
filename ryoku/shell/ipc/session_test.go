@@ -1,30 +1,49 @@
 package main
 
 import (
-	"reflect"
+	"errors"
 	"testing"
+	"time"
 )
 
-// Reboot and shutdown map to their systemctl commands; logout is no longer an
-// argv action (it exits through the wm seam), and suspend/hibernate never exist.
-func TestSessionActionArgv(t *testing.T) {
-	want := map[string][]string{
-		"reboot":   {"systemctl", "reboot"},
-		"shutdown": {"systemctl", "poweroff"},
+func TestSessionActionMethod(t *testing.T) {
+	want := map[string]string{
+		"reboot":   "Reboot",
+		"shutdown": "PowerOff",
 	}
-	for action, argv := range want {
-		got, ok := sessionActionArgv(action)
+	for action, method := range want {
+		got, ok := sessionActionMethod(action)
 		if !ok {
-			t.Fatalf("sessionActionArgv(%q) missing", action)
+			t.Fatalf("sessionActionMethod(%q) missing", action)
 		}
-		if !reflect.DeepEqual(got, argv) {
-			t.Errorf("sessionActionArgv(%q) = %v, want %v", action, got, argv)
+		if got != method {
+			t.Errorf("sessionActionMethod(%q) = %q, want %q", action, got, method)
 		}
 	}
 	for _, absent := range []string{"logout", "suspend", "hibernate", "", "poweroff"} {
-		if _, ok := sessionActionArgv(absent); ok {
-			t.Errorf("sessionActionArgv(%q) exists; only reboot/shutdown are argv actions", absent)
+		if _, ok := sessionActionMethod(absent); ok {
+			t.Errorf("sessionActionMethod(%q) exists; only reboot and shutdown are login1 actions", absent)
 		}
+	}
+}
+
+func TestRunSessionActionCallsLogin1(t *testing.T) {
+	old := login1PowerCall
+	t.Cleanup(func() { login1PowerCall = old })
+
+	called := make(chan string, 1)
+	login1PowerCall = func(method string) error {
+		called <- method
+		return errors.New("test rejection")
+	}
+	runSessionAction("reboot")
+	select {
+	case method := <-called:
+		if method != "Reboot" {
+			t.Fatalf("login1 method = %q, want Reboot", method)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("session action did not call login1")
 	}
 }
 

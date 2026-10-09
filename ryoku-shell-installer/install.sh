@@ -36,13 +36,19 @@ main() {
     ryoku_family=arch
   elif command -v apt-get > /dev/null 2>&1; then
     ryoku_family=debian
+  elif command -v xbps-install > /dev/null 2>&1; then
+    ryoku_family=void
   else
-    die "unsupported distribution: Ryoku installs on Arch-based and Debian-based systems"
+    die "unsupported distribution: Ryoku installs on Arch-based, Debian-based and Void systems"
   fi
   [[ $(uname -m) == x86_64 ]] || die "Ryoku ships x86_64 builds only"
-  # the binary refuses non-systemd boots much later (session + services are
-  # systemd units); saying it here spares Artix users the download.
-  [[ -d /run/systemd/system ]] || die "this installer needs systemd (Artix and other non-systemd inits are not supported)"
+  if [[ ! -d /run/systemd/system && $ryoku_family != void ]]; then
+    die "this installer needs systemd on Arch and Debian; Void uses runit"
+  fi
+  if [[ $ryoku_family == void ]] && { ! command -v curl > /dev/null 2>&1 || ! command -v git > /dev/null 2>&1; }; then
+    say "installing bootstrap tools (curl, git)"
+    sudo xbps-install -Sy curl git
+  fi
   command -v curl > /dev/null 2>&1 || die "curl is required"
 
   # warn-only on derivatives: the package manager is what actually matters.
@@ -50,12 +56,12 @@ main() {
     # shellcheck source=/dev/null
     . /etc/os-release
     case "${ID:-} ${ID_LIKE:-}" in
-      *arch*|*debian*) ;;
+      *arch*|*debian*|*void*) ;;
       *) say "warning: ${PRETTY_NAME:-unknown distro} is not recognised; continuing as ${ryoku_family}" ;;
     esac
   fi
-  if [[ $ryoku_family == debian ]]; then
-    say "Debian detected: the desktop is built from source, which takes a few minutes"
+  if [[ $ryoku_family == debian || $ryoku_family == void ]]; then
+    say "${ryoku_family^} detected: the desktop is built from source, which takes a few minutes"
   fi
 
   # global, not local: the EXIT trap fires after main returns, when a local is

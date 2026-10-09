@@ -21,17 +21,10 @@ spawn-at-startup "gsettings" "set" "org.gnome.desktop.interface" "gtk-theme" "ad
 // Folder icons tinted to the wallpaper accent, rebuilt on every palette change.
 spawn-sh-at-startup "command -v ryoku-cmd-folders >/dev/null 2>&1 && ryoku-cmd-folders"
 
-// The session, in one chained command. Push the compositor env into the user
-// manager first: a lost race skips ConditionEnvironment=WAYLAND_DISPLAY units
-// and lands a black desktop. daemon-reload picks up freshly laid units, then
-// the cover goes up over the bare compositor before session-start restarts
-// anything, so the desktop never loads grey or flickers while the shell's
-// QML surfaces cold-load; session-start owns the guarded restarts and does
-// not return until the shell and lid owners prove readiness, and the fresh
-// shell finishes the cover once wallpaper and desktop report ready. Portals
-// restart last so a stale frontend cannot proxy ScreenCast requests to the
-// dead backend.
-spawn-sh-at-startup "dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; ryoku-reload-cover begin boot || true; ryoku-power-cutover session-start-logged && systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
+// The shared entrypoint keeps this config init-neutral while preserving the
+// ordered environment handoff and stale-session restart on every supported
+// service supervisor.
+spawn-sh-at-startup "ryoku-session-start xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service"
 
 // No autoscale line: niri picks each output's scale itself, and ryoku-monitor is the Hyprland provider's display tool.
 

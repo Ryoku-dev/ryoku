@@ -6,6 +6,8 @@
 # prowl's BindsTo=ryoku-rashin is honored in finish.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 _here=$(dirname "$0")
 

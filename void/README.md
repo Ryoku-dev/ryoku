@@ -3,8 +3,8 @@
 Everything Ryoku needs to run on Void Linux lives under this directory, one
 concern per subdirectory. Void differs from the Arch base in exactly two ways
 that reach into this repo: XBPS replaces pacman, and runit replaces systemd.
-This area holds the translations; the installer, the ISO and the package repo
-are deliberately NOT wired to it yet.
+This area holds those translations and the runtime files used by the script
+installer.
 
 The validated target profile matches the one the ecosystem converged on
 (iNiR's Void port, DankMaterialShell): **x86_64 glibc + elogind + runit +
@@ -13,27 +13,56 @@ profile ships.
 
 ## Layout
 
-- `init/` the systemd to runit translation, the only implemented part today.
+- `init/` the systemd to runit translation.
   - `translations.tsv` the completeness manifest: every systemd unit, target,
     timer, drop-in and environment generator in the repo maps to its runit
     translation or an explicit accepted-loss verdict. `tests/void-init.sh`
     fails when a unit exists without a manifest row, so a new unit can never
     silently skip Void.
-  - `system/` system-level runit services (installed to `/etc/sv/<name>`,
-    enabled by symlink into `/var/service/`).
-  - `user/` per-user session services (installed to `~/.config/service/<name>`
-    under Turnstile, or any `runsvdir`-supervised directory).
-  - `env/` session environment translation for the systemd user-environment
-    generator (Turnstile envdir format).
-  - `polkit/` the polkit rules whose systemd-specific action ids do not
+  - `system/` system-level runit services, installed to `/etc/sv/<name>` and
+    enabled from `/etc/runit/runsvdir/default/<name>`.
+  - `user/` per-user session services installed to
+    `~/.config/service/<name>` for Turnstile.
+  - `env/xdg-dirs` renders the localized XDG directories into Turnstile's
+    envdir format.
+  - `polkit/` records the policy differences whose systemd action ids do not
     transfer to runit.
-  - `lib/` shared run-script helpers (dependency waiting).
-  - `session-services` the roster that replaces `ryoku-session.target`: the
-    services a session brings up, in order.
+  - `lib/wait-for` provides dependency and environment waits shared by every
+    translated service.
+  - `session/session-start` publishes the compositor environment and restarts
+    the services listed in `session-services`.
 - `iso/` (future) the Void live ISO profile; only a README marking the slot.
   XBPS repo baking and the live-image runit services belong there.
 - `packages/` (future) xbps-src templates for a signed Ryoku XBPS repository,
   the counterpart of `release/packages/`; only a README marking the slot.
+
+
+## Runtime layout
+
+The installer places `wait-for`, `xdg-dirs`, `session-start`, and
+`session-services` in `/usr/lib/ryoku/runit/`. System services are copied to
+`/etc/sv/`; their enablement symlinks live in
+`/etc/runit/runsvdir/default/`, including distro services that already exist
+under `/etc/sv/`.
+
+Turnstile supervises user services from `~/.config/service/` and reads one
+environment variable per file from `~/.config/service-env/`. Every Ryoku user
+service ships with a `down` marker so PAM login cannot start it before a
+compositor exists. The session entrypoint publishes the compositor's exported
+environment, renders the localized XDG directories, updates D-Bus activation,
+and restarts the roster in order. A stale service from a previous login
+therefore reconnects to the new display instead of remaining attached to the
+old one.
+
+Turnstile uses elogind's `/run/user` ownership, so
+`/etc/turnstile/turnstiled.conf` sets `manage_rundir = no`. Its per-user D-Bus
+service links to the packaged `dbus.run` and `dbus.check` examples, while
+`turnstile-ready/conf` declares `core_services="dbus"`.
+
+Every translated run script sources
+`/usr/lib/ryoku/runit/wait-for` and reloads the Turnstile envdir before reading
+session values. `wait_env` polls the variable's envdir file when Turnstile is
+active, then the run script reloads the envdir before executing its daemon.
 
 ## Translation rules
 
@@ -73,6 +102,6 @@ same job the systemd drop-ins do on Arch.
   unit and its translation (env vars, binaries, conditions all present).
 - `tests/void-init-runit.sh` (docker, `ghcr.io/void-linux/void-glibc`): runs
   the translated services under a real `runsvdir` against stub binaries and
-  asserts the behaviors that matter: oneshot parking, ordering guards,
-  restart-on-crash, finish hooks, down-propagation, timer loop.
+  asserts oneshot and restart semantics, ordering guards, finish hooks,
+  envdir waits, down markers, and session roster startup.
 - `.github/workflows/void-init.yml` runs both; the live job needs docker.

@@ -53,11 +53,24 @@ while IFS=$'\t' read -r src verdict trans _notes; do
 done < "$MANIFEST"
 
 # --- 3. every translated service directory is a valid runit service:
-# executable run, POSIX shebang, and shellcheck-clean.
-[[ -x $INIT/lib/wait-for ]] || fail "wait-for helper is not executable"
+# executable POSIX scripts, inert user-service defaults, and shellcheck-clean.
+for helper in "$INIT/lib/wait-for" "$INIT/env/xdg-dirs" "$INIT/session/session-start"; do
+	[[ -x $helper ]] || fail "helper is not executable: $helper"
+	head -1 "$helper" | grep -q '^#!/bin/sh$' || fail "helper must be #!/bin/sh (Void dash): $helper"
+done
+[[ -x $ROOT/ryoku/shell/scripts/ryoku-session-start ]] || fail "session entrypoint is not executable"
+head -1 "$ROOT/ryoku/shell/scripts/ryoku-session-start" | grep -q '^#!/usr/bin/env bash$' \
+	|| fail "session entrypoint must use bash"
+
 while IFS= read -r svc; do
 	[[ -x $svc/run ]] || fail "service run is not executable: $svc"
 	head -1 "$svc/run" | grep -q '^#!/bin/sh$' || fail "run must be #!/bin/sh (Void dash): $svc/run"
+	grep -qF '. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"' "$svc/run" \
+		|| fail "run does not source the installed wait-for helper: $svc/run"
+	grep -q '^load_session_env$' "$svc/run" || fail "run does not load the session env: $svc/run"
+	if [[ $svc == "$INIT/user/"* ]]; then
+		[[ -f $svc/down && ! -s $svc/down ]] || fail "user service needs an empty down marker: $svc"
+	fi
 	if [[ -f $svc/finish ]]; then
 		[[ -x $svc/finish ]] || fail "service finish is not executable: $svc"
 		head -1 "$svc/finish" | grep -q '^#!/bin/sh$' || fail "finish must be #!/bin/sh: $svc/finish"
@@ -67,8 +80,30 @@ done < <(find "$INIT/user" "$INIT/system" -mindepth 1 -maxdepth 1 -type d | sort
 if command -v shellcheck >/dev/null 2>&1; then
 	while IFS= read -r script; do
 		shellcheck -s sh -e SC1091 "$script" || fail "shellcheck: $script"
-	done < <(find "$INIT" -type f \( -name run -o -name finish -o -name wait-for -o -name xdg-dirs \) | sort)
+	done < <(find "$INIT" -type f \( -name run -o -name finish -o -name wait-for -o -name xdg-dirs -o -name session-start \) | sort)
+	shellcheck -s bash "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
+		|| fail "shellcheck: ryoku-session-start"
 fi
+
+for run in "$INIT"/user/*/run; do
+	if grep -q '^wait_env ' "$run"; then
+		grep -A1 '^wait_env ' "$run" | grep -q '^load_session_env$' \
+			|| fail "env-gated service does not reload the envdir after its wait: $run"
+	fi
+done
+
+grep -qF 'dbus-update-activation-environment --systemd --all' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
+	|| fail "systemd session entrypoint lost the activation environment handoff"
+grep -qF 'systemctl --user daemon-reload' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
+	|| fail "systemd session entrypoint lost daemon-reload"
+grep -qF 'ryoku-reload-cover begin boot || true' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
+	|| fail "systemd session entrypoint lost the boot cover"
+grep -qF 'ryoku-power-cutover session-start-logged && systemctl --user try-restart xdg-desktop-portal.service "$@"' "$ROOT/ryoku/shell/scripts/ryoku-session-start" \
+	|| fail "systemd session entrypoint lost the guarded service and portal restart"
+grep -qF 'ryoku-session-start xdg-desktop-portal-gnome.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/niri/autostart.kdl" \
+	|| fail "niri autostart does not use the shared session entrypoint"
+grep -qF 'ryoku-session-start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service' "$ROOT/ryoku/hyprland/modules/autostart.lua" \
+	|| fail "Hyprland autostart does not use the shared session entrypoint"
 
 # --- 4. roster integrity: every named service exists, every user service is
 # either in the roster or documented as on-demand in the roster comments.

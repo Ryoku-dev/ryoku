@@ -7,8 +7,8 @@
 # BLE HID pairing prompts (#308); bluetoothctl exits at stdin EOF, so the
 # tail -f hold stays.
 exec 2>&1
-
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 wait_service bluetoothd "${RYOKU_WAIT_BLUETOOTHD:-60}" || exec sv down .
 
 # systemd ran this as /bin/sh -c 'tail -f /dev/null | bluetoothctl ...'; keep

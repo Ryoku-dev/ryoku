@@ -8,8 +8,8 @@
 # chpst -e supervised service sees the localized dirs (#246: a localized
 # desktop growing a stray ~/Pictures beside ~/Imágenes).
 #
-# Run once per session by the session bootstrap (future work) or by hand:
-#   void/init/env/xdg-dirs [target-envdir]
+# Run once per session by the session entrypoint or by hand:
+#   xdg-dirs [target-envdir]
 # Without an argument it writes to $TURNSTILE_ENV_DIR when set, else to
 # $XDG_RUNTIME_DIR/ryoku/env (the runsvdir fallback tier reads it from there).
 set -eu

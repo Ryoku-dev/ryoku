@@ -6,7 +6,8 @@
 # rather than crash-looping, matching systemd's condition-not-met behavior.
 #
 # Usage (sourced by a run script; POSIX sh, no bashisms -- Void's /bin/sh is dash):
-#   . "$RYOKU_INIT_LIB/wait-for"        # or a relative path from the service dir
+#   . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+#   load_session_env
 #   wait_env WAYLAND_DISPLAY 30 || exit 101
 #   wait_file /run/user/1000/bus 30 || exit 101
 #   wait_dbus org.freedesktop.portal.Desktop 30 || exit 101
@@ -16,6 +17,24 @@
 #
 # Every budget is in seconds and every one is overridable through the
 # RYOKU_WAIT_BUDGET_SCALE env var (tests shrink it; nothing else sets it).
+
+# Turnstile's service environment is an envdir, not a mutable copy of the
+# compositor environment. Reloading it lets a supervised process observe
+# values published after runsv first invoked its run script.
+load_session_env() {
+	[ -n "${TURNSTILE_ENV_DIR:-}" ] || return 0
+	[ -d "$TURNSTILE_ENV_DIR" ] || return 0
+
+	for _ryoku_env_file in "$TURNSTILE_ENV_DIR"/*; do
+		[ -f "$_ryoku_env_file" ] || continue
+		_ryoku_env_name=${_ryoku_env_file##*/}
+		case $_ryoku_env_name in
+			""|[0-9]*|*[!A-Za-z0-9_]*) continue ;;
+		esac
+		_ryoku_env_value=$(cat "$_ryoku_env_file") || continue
+		export "$_ryoku_env_name=$_ryoku_env_value"
+	done
+}
 
 # scale a budget: integer math only (POSIX sh has no float). scale 0 parks
 # immediately, which is what the negative tests want.
@@ -42,9 +61,22 @@ wait_poll() {
 	done
 }
 
-# the variable is set and non-empty (ConditionEnvironment=).
+# ConditionEnvironment= checks the live envdir under Turnstile. The run
+# process's inherited environment is only used by the test/fallback tier.
 wait_env() {
-	wait_poll "$2" sh -c "[ -n \"\${$1:-}\" ]"
+	wait_poll "$2" _wait_env_once "$1"
+}
+
+_wait_env_once() {
+	case $1 in
+		""|[0-9]*|*[!A-Za-z0-9_]*) return 1 ;;
+	esac
+	if [ -n "${TURNSTILE_ENV_DIR:-}" ]; then
+		[ -s "$TURNSTILE_ENV_DIR/$1" ]
+		return
+	fi
+	eval "_ryoku_env_value=\${$1:-}"
+	[ -n "$_ryoku_env_value" ]
 }
 
 # the path exists (ConditionPathExists=). a leading ! inverts, matching the
@@ -90,5 +122,14 @@ _wait_service_once() {
 			return 1
 		fi
 	done
+	return 1
+}
+
+# the ExecStart binary is installed. systemd fails a unit whose binary is
+# missing and stops retrying at its start limit; runsv would retry every
+# second forever, so the caller parks instead (`sv up` retries once it lands).
+require_bin() {
+	[ -x "$1" ] && return 0
+	echo "missing $1; parked until it is installed"
 	return 1
 }

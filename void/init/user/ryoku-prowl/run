@@ -7,10 +7,13 @@
 # loss (the gateway binds loopback only).
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
 wait_service ryoku-rashin "${RYOKU_WAIT_RASHIN:-60}" || exec sv down .
+# prowl ships as its own package; without it there is no gateway to supervise
+require_bin "$BIN/prowl" || exec sv down .
 
 # ExecStartPre=-prowl gateway down --port 8788: clear a stale gateway first.
 "$BIN/prowl" gateway down --port 8788 >/dev/null 2>&1 || true

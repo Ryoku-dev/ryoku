@@ -406,6 +406,43 @@ func voxtypeRecord(verb string) {
 	go func() { _ = cmd.Wait() }()
 }
 
+var systemdRuntimeDir = "/run/systemd/system"
+
+func systemdInit() bool {
+	info, err := os.Stat(systemdRuntimeDir)
+	return err == nil && info.IsDir()
+}
+
+func runitUserServicePath(unit string) (string, bool) {
+	home := os.Getenv("HOME")
+	name := strings.TrimSuffix(unit, ".service")
+	if home == "" || name == "" || filepath.Base(name) != name {
+		return "", false
+	}
+	path := filepath.Join(home, ".config", "service", name)
+	info, err := os.Stat(path)
+	return path, err == nil && info.IsDir()
+}
+
+func userServiceActive(unit string) bool {
+	if systemdInit() {
+		return exec.Command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
+	}
+	path, ok := runitUserServicePath(unit)
+	return ok && exec.Command("sv", "check", path).Run() == nil
+}
+
+func stopUserService(unit string) error {
+	if systemdInit() {
+		return exec.Command("systemctl", "--user", "stop", unit).Run()
+	}
+	path, ok := runitUserServicePath(unit)
+	if !ok {
+		return nil
+	}
+	return exec.Command("sv", "down", path).Run()
+}
+
 // dictationReady reports whether a Super+` tap can actually dictate: Voxtype
 // installed and its user service running. When it can't, the pill shows an
 // "off" note instead of a listening wave that would capture nothing.
@@ -413,7 +450,7 @@ func dictationReady() bool {
 	if _, err := exec.LookPath("voxtype"); err != nil {
 		return false
 	}
-	return exec.Command("systemctl", "--user", "is-active", "--quiet", "voxtype.service").Run() == nil
+	return userServiceActive("voxtype.service")
 }
 
 func currentUserProcessRunning(pattern string) bool {

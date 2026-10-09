@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -9,15 +10,15 @@ import (
 func TestDetectDistro(t *testing.T) {
 	for _, c := range []struct {
 		id, like, want string
-	}{
+	} {
 		{"arch", "", "arch"},
 		{"cachyos", "arch", "arch"},
 		{"endeavouros", "arch", "arch"},
 		{"debian", "", "debian"},
 		{"ubuntu", "debian", "debian"},
 		{"linuxmint", "ubuntu debian", "debian"},
+		{"void", "", "void"},
 		{"fedora", "", ""},
-		{"void", "", ""},
 	} {
 		d := detectDistro(c.id, c.like)
 		got := ""
@@ -42,8 +43,31 @@ func TestLocalAllRenamesAndDrops(t *testing.T) {
 	}
 }
 
-// The Arch step list is the contract that must not drift; the Debian one swaps
-// the pacman-only steps for the source build.
+func TestVoidPackageRenamesAndChoiceFiltering(t *testing.T) {
+	base := []string{
+		"firefox", "chromium", "fish", "zsh", "blesh",
+		"networkmanager", "imagemagick", "ffmpeg", "ttf-hack-nerd",
+		"ttf-jetbrains-mono-nerd", "vimix-cursors",
+	}
+	filtered := filterChoicePackages(base, &plan{browser: "firefox", shell: "fish"})
+	got := voidLinux.localAll(filtered)
+	want := []string{"firefox", "fish-shell", "NetworkManager", "ImageMagick", "ffmpeg6", "nerd-fonts-ttf"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("Void filtered package set = %v, want %v", got, want)
+	}
+}
+
+func TestSupportedInit(t *testing.T) {
+	if !supportsInit(archLinux, initSystemd) || supportsInit(archLinux, initRunit) {
+		t.Fatal("Arch must require systemd")
+	}
+	if !supportsInit(voidLinux, initSystemd) || !supportsInit(voidLinux, initRunit) {
+		t.Fatal("Void must accept the systemd predicate's runit alternative")
+	}
+}
+
+// The Arch step list is the contract that must not drift; source builds replace
+// repository-only steps and add their pinned font installation.
 func TestStepsPerDistro(t *testing.T) {
 	ids := func(f *facts) []string {
 		e := newEngine(f, &plan{}, true, "", "")
@@ -60,10 +84,12 @@ func TestStepsPerDistro(t *testing.T) {
 		t.Errorf("arch steps = %q, want %q", arch, wantArch)
 	}
 
-	deb := strings.Join(ids(&facts{distro: debianLinux}), " ")
-	wantDeb := "sysupgrade tools payload backup conflicts packages build session configs shell doctor verify"
-	if deb != wantDeb {
-		t.Errorf("debian steps = %q, want %q", deb, wantDeb)
+	wantSource := "sysupgrade tools payload backup conflicts packages fonts build session configs shell doctor verify"
+	for _, d := range []*distro{debianLinux, voidLinux} {
+		got := strings.Join(ids(&facts{distro: d}), " ")
+		if got != wantSource {
+			t.Errorf("%s steps = %q, want %q", d.id, got, wantSource)
+		}
 	}
 }
 
@@ -79,6 +105,29 @@ func TestInstallArgs(t *testing.T) {
 	got = strings.Join(debianLinux.removeArgs([]string{"dunst"}), " ")
 	if got != "apt-get -y remove dunst" {
 		t.Errorf("debian removeArgs = %q", got)
+	}
+}
+
+func TestVoidInstallArgs(t *testing.T) {
+	if got := strings.Join(voidLinux.installArgs([]string{"git"}), " "); got != "xbps-install -Sy git" {
+		t.Errorf("Void installArgs = %q", got)
+	}
+	if got := strings.Join(voidLinux.removeArgs([]string{"dunst"}), " "); got != "xbps-remove -y dunst" {
+		t.Errorf("Void removeArgs = %q", got)
+	}
+}
+
+func TestVoidInstalledPackageUsesExitStatus(t *testing.T) {
+	query := filepath.Join(t.TempDir(), "xbps-query")
+	if err := os.WriteFile(query, []byte("#!/bin/sh\n[ \"$1\" = installed ]\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d := &distro{id: "void", queryCmd: []string{query}}
+	if !d.installedPkg("installed") {
+		t.Fatal("successful xbps-query with no output must mean installed")
+	}
+	if d.installedPkg("missing") {
+		t.Fatal("failed xbps-query must mean missing")
 	}
 }
 

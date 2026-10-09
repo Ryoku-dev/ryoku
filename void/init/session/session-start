@@ -1,0 +1,58 @@
+#!/bin/sh
+# A compositor session must republish its environment before stale supervised
+# processes restart, otherwise they reconnect to the previous display.
+
+INIT_LIB=${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}
+ROSTER=$INIT_LIB/session-services
+SERVICE_DIR=${RYOKU_USER_SERVICE_DIR:-$HOME/.config/service}
+ENV_DIR=${TURNSTILE_ENV_DIR:-$HOME/.config/service-env}
+
+log() {
+	printf 'ryoku-session: %s\n' "$*" >&2
+}
+
+umask 077
+if mkdir -p "$ENV_DIR"; then
+	env | while IFS='=' read -r name value; do
+		case $name in
+			PWD|OLDPWD|SHLVL|_|TURNSTILE_*) continue ;;
+		esac
+		printf '%s' "$value" > "$ENV_DIR/$name" || log "could not publish $name"
+	done
+else
+	log "could not create environment directory $ENV_DIR"
+fi
+
+if ! dbus-update-activation-environment --all; then
+	log "could not update the D-Bus activation environment"
+fi
+
+if [ -x "$INIT_LIB/xdg-dirs" ]; then
+	"$INIT_LIB/xdg-dirs" "$ENV_DIR" || log "could not render XDG user directories"
+else
+	log "missing XDG directory renderer $INIT_LIB/xdg-dirs"
+fi
+
+ryoku-reload-cover begin boot || true
+
+if [ ! -r "$ROSTER" ]; then
+	log "missing service roster $ROSTER"
+	exit 0
+fi
+
+while IFS= read -r name || [ -n "$name" ]; do
+	case $name in
+		""|\#*) continue ;;
+	esac
+	service=$SERVICE_DIR/$name
+	if [ ! -d "$service" ]; then
+		log "missing service $service"
+		continue
+	fi
+	log "restarting $name"
+	if ! sv restart "$service" >/dev/null 2>&1; then
+		log "could not restart $name"
+	fi
+done < "$ROSTER"
+
+exit 0

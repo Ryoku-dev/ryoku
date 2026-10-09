@@ -12,6 +12,9 @@
 # on the boot the kill switch is armed.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+
 [ -e /var/lib/ryoku/network-kill-switch.enabled ] || exec sv down .
 
 # ryoku-network-kill boot installs the nftables table (see

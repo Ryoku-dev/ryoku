@@ -189,11 +189,18 @@ activation_contract_present() {
   [[ -x /usr/bin/ryoku-qylock-activate ||
      -x $TARGET_HOME/.local/bin/ryoku-qylock-activate ]] || return 1
   local unit
-  for unit in "$TARGET_HOME/.config/systemd/user/ryoku-shell.service" \
-    /usr/lib/systemd/user/ryoku-shell.service; do
-    [[ -f $unit ]] || continue
-    grep -Eq '^ExecStartPre=.*ryoku-qylock-activate([[:space:]]|$)' "$unit" && return 0
-  done
+  if [ -d /run/systemd/system ]; then
+    for unit in "$TARGET_HOME/.config/systemd/user/ryoku-shell.service" \
+      /usr/lib/systemd/user/ryoku-shell.service; do
+      [[ -f $unit ]] || continue
+      grep -Eq '^ExecStartPre=.*ryoku-qylock-activate([[:space:]]|$)' "$unit" && return 0
+    done
+  else
+    unit="$TARGET_HOME/.config/service/ryoku-shell/run"
+    [[ -f $unit ]] &&
+      grep -Eq '(^|[[:space:]"/])ryoku-qylock-activate([[:space:]"]|$)' "$unit" &&
+      return 0
+  fi
   return 1
 }
 
@@ -359,6 +366,21 @@ install_greeter() {
 [Theme]
 Current=ryoku
 EOF
+
+  if [ ! -d /run/systemd/system ]; then
+    echo "  enabling sddm"
+    priv install -d -m755 /etc/runit/runsvdir/default
+    local dm
+    for dm in gdm lightdm lxdm greetd xdm; do
+      if [[ -L /etc/runit/runsvdir/default/$dm ]]; then
+        priv rm -f "/etc/runit/runsvdir/default/$dm"
+        if [[ -e /run/runit/runsvdir/current ]]; then
+          priv sv down "/etc/sv/$dm" || true
+        fi
+      fi
+    done
+    priv ln -sfn /etc/sv/sddm /etc/runit/runsvdir/default/sddm
+  fi
 }
 
 if [[ ${RYOKU_QYLOCK_USER_ONLY:-0} != 1 ]]; then

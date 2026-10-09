@@ -6,10 +6,12 @@
 # outlive a reload, and runsv only ever signals this child).
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
 wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
+load_session_env
 
 # quickshell links jemalloc, so the glibc arena cap does nothing here. Without
 # a decay schedule the picker strands ~128 MB after a single open/close

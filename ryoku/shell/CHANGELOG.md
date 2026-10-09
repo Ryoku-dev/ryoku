@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- **The session starts the same way on systemd and on Void's runit.** Both
+  compositors now call one `ryoku-session-start` at login. On systemd it runs
+  the exact chain the configs ran before; on Void it publishes the session
+  environment to Turnstile and brings the Ryoku services up under runit.
+  Reboot and power off go through login1 directly, so they work under elogind
+  too, and Keep Awake, the lid policy, the Hub's timezone picker and the
+  system keymap all have a runit path.
 - **One dock for every bar style, in any design.** The dock is no longer tied
   to a bar style: pick the Ryoku, Python or Shima dock (or none) and it runs
   the same under QS Bar, Kairos, Shima, Python, Sumi and Nomarchy, on both
@@ -561,6 +568,9 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- **A source deploy onto a brand-new account no longer stops at the fish
+  config.** The deploy copied `config.fish` before creating `~/.config/fish`,
+  so it only worked for accounts that already had the directory.
 - **Spotlight opens under every bar style.** The launcher only flipped a
   search flag that Shima's frame listens for, so with any other bar style
   Super+Space did nothing. Without the frame it now mounts the same palette

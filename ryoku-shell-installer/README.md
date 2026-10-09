@@ -2,11 +2,12 @@
 
 Install the Ryoku desktop on an existing machine, without the ISO.
 
-Arch-based hosts get the signed `[ryoku]` packages. Debian-based hosts have no
-`[ryoku]` repository, so the desktop is built from the cloned payload with
-`ryoku/shell/deploy.sh`: dependencies come from apt, and the Go programs, QML
-modules and `Ryoku.Blobs` are compiled locally. The Hyprland compositor plugins
-need `makepkg` and are skipped there; the shell degrades to them being off.
+Arch-based hosts get the signed `[ryoku]` packages. Debian-based and Void
+hosts have no `[ryoku]` repository, so the desktop is built from the cloned
+payload with `ryoku/shell/deploy.sh`. Their distro package manager supplies the
+runtime and build dependencies; the installer also fetches the pinned Ryoku
+fonts and cursor theme that those repositories do not carry. Void uses niri,
+runit, elogind and Turnstile.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash
@@ -53,8 +54,9 @@ ryoku-shell-install --uninstall        # or: ... | bash -s -- --uninstall
 ## What it does
 
 `install.sh` is a dumb bootstrap: it verifies the machine is a supported
-x86_64 family (pacman or apt-get), downloads the prebuilt `ryoku-shell-install`
-binary (checksummed) from this directory, and hands it the real terminal.
+x86_64 family (pacman, apt-get or xbps), downloads the prebuilt
+`ryoku-shell-install` binary (checksummed) from this directory, and hands it the
+real terminal.
 Everything else is the binary, a Bubble Tea TUI using Ryoku's paper-and-ink
 terminal language:
 
@@ -69,17 +71,17 @@ terminal language:
    Firefox and Fish are recommended. Zen locks the AUR step on because its
    package is built there. Only the chosen browser and chosen shell stack are
    added to the package transaction.
-3. **Install**, streamed step by step:
-   legacy-repo retirement → `pacman -Syu` → tools → sparse payload clone → config backup (with a
-   generated `restore.sh`) → `[ryoku]` repo + keyring trust → conflict removal
-   → desktop packages → GPU drivers → SDDM/qylock/network wiring →
-   `ryoku materialize` + seeds (wallpapers, brand, keyboard layout salvaged
-   from the old setup) → AUR extras → browser defaults and package-choice
-   ledger → login shell → `ryoku doctor` → verify.
+3. **Install**, streamed step by step. Arch retires legacy repositories, adds
+   `[ryoku]`, installs signed desktop packages and handles AUR extras. Debian
+   and Void install distro dependencies, fetch the pinned fonts and cursor,
+   then build the desktop from the payload. Every path backs up existing
+   configs, wires SDDM/qylock and networking, materializes the selected
+   compositor config, applies browser and login-shell choices, runs
+   `ryoku doctor`, and verifies the result.
 
-Afterwards the machine is a normal Ryoku box: `ryoku update` updates it
-forever, `ryoku doctor` heals it, and the `[ryoku]` pacman repository signs
-everything. Nothing here ever needs re-running.
+Afterwards Arch machines update from the signed `[ryoku]` repository. Source
+builds can rerun the installer at a newer payload ref; `ryoku doctor` remains
+the common health and repair path.
 
 The browser choice sets the HTTP, HTTPS and HTML XDG defaults and the desktop's
 `desktop.apps.browser` role. Packages omitted by either choice are recorded in
@@ -100,21 +102,21 @@ followed) beats niri beats sway, then KDE (`kxkbrc`,
 `kwinoutputconfig.json`), then GNOME (gsettings input-sources,
 `monitors.xml`), then `localectl`.
 
-Safety gates: non-systemd systems (Artix and friends) are refused outright.
-With Secure Boot enforcing, the NVIDIA toggle is forced off and locked,
-because Arch kernels reject unsigned DKMS modules and the driver script
-denylists nouveau; sign with sbctl or disable Secure Boot, then re-run.
+Safety gates: Arch and Debian require systemd. Void requires its native runit
+boot and the x86_64 glibc package set. With Secure Boot enforcing, the NVIDIA
+toggle is forced off and locked because Arch kernels reject unsigned DKMS
+modules and the driver script denylists nouveau; sign with sbctl or disable
+Secure Boot, then re-run.
 Manjaro requires a typed acknowledgement in the TUI and is refused under
 `--yes` unless `RYOKU_ALLOW_MANJARO=1` is set.
 
 Lifecycle: an interrupted run records its completed steps in
 `~/.local/state/ryoku/shell-install-state.json`; the next run offers a
 resume toggle (automatic with `--yes`) that skips finished steps and
-continues the same backup. `--uninstall` removes the ryoku packages, drops
-the `[ryoku]` repo stanza, and walks the backup chain newest to oldest,
-running each `restore.sh` with confirmation; those scripts also re-enable
-the services and display manager their run disabled. Session packages
-(sddm, pipewire, NetworkManager, …) are left installed.
+continues the same backup. `--uninstall` removes signed Ryoku packages where
+present, drops the `[ryoku]` repo stanza, and walks the backup chain newest to
+oldest, running each `restore.sh` with confirmation. Session packages such as
+SDDM, PipeWire and NetworkManager are left installed.
 
 ## Development
 

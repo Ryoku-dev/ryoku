@@ -15,30 +15,10 @@ hl.on("hyprland.start", function()
     -- Papirus-Dark overlay under ~/.local/share/icons tinted to the palette and
     -- selects it. Rebuilt on every palette change by the shell's matugen hook.
     hl.exec_cmd("command -v ryoku-cmd-folders >/dev/null 2>&1 && ryoku-cmd-folders")
-    -- ONE chained command: exec is fire-and-forget, so as separate lines the
-    -- shell start races the env import, and losing means
-    -- ConditionEnvironment=WAYLAND_DISPLAY skips the unit (a black desktop).
-    -- --all, not a name list: a keybind-launched app is Hyprland's child and
-    -- sees every hl.env() name, a systemd or D-Bus launched one sees only what
-    -- is pushed here, and a hand-kept list drifts the moment env.lua, the Hub,
-    -- or user.lua adds one.
-    -- restart, not start: the user manager outlives a session (linger, a
-    -- relogin after a compositor crash), and a daemon it still holds from the
-    -- previous one answers `start` with "already active" while its surfaces are
-    -- bound to the dead compositor, so the login lands on bare Hyprland with no
-    -- shell. daemon-reload first, so a freshly materialized unit is visible.
-    -- Raise the reload cover before anything else touches the session: the
-    -- greeter's unlock animation has just ended, the shell services restart
-    -- below, and without the cover the desktop loads grey and flickers while
-    -- every QML surface comes up. begin blocks until the cover is painted
-    -- (or fails fast headless), then the session chain proceeds behind it.
-    -- session-start owns the guarded service restart and does not return until
-    -- the shell and lid owners have proved readiness; the fresh shell finishes
-    -- the cover once wallpaper and desktop report ready on every screen.
-    -- Portals restart last:
-    -- they are only PartOf=graphical-session.target and a stale frontend would
-    -- otherwise proxy every ScreenCast request to the dead session backend.
-    hl.exec_cmd("dbus-update-activation-environment --systemd --all; systemctl --user daemon-reload; ryoku-reload-cover begin boot || true; ryoku-power-cutover session-start-logged && systemctl --user try-restart xdg-desktop-portal.service xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service")
+    -- The shared entrypoint keeps this config init-neutral while preserving
+    -- the ordered environment handoff and stale-session restart on every
+    -- supported service supervisor.
+    hl.exec_cmd("ryoku-session-start xdg-desktop-portal-hyprland.service xdg-desktop-portal-gtk.service")
     -- Polkit authentication is answered by the shell's own agent (the island
     -- that matches the rest of the desktop), so the stock Qt agent must not
     -- take the session's single agent slot. Stopping it is idempotent and

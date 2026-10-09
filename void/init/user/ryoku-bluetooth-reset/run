@@ -16,6 +16,9 @@
 #   taking effect (same failure posture as the original).
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+
 # ConditionPathExistsGlob=/sys/class/bluetooth/*: no radio, no work. The sysfs
 # root is overridable so the runit test can fake a radio (same pattern as
 # RYOKU_BIN_DIR).
@@ -25,7 +28,7 @@ for _hci in "$_btsys"/class/bluetooth/*; do
 	[ -e "$_hci" ] && _found=1 && break
 done
 [ "$_found" -eq 1 ] || exec sv down .
-. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
+
 # After=wireplumber.service: wait for the session audio stack's D-Bus name.
 wait_dbus org.freedesktop.PipeWire "${RYOKU_WAIT_WIREPLUMBER:-90}" || exec sv down .
 

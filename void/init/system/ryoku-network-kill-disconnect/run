@@ -5,6 +5,9 @@
 # tell NetworkManager to stay off. ConditionPathExists as in the guard.
 exec 2>&1
 
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+
 [ -e /var/lib/ryoku/network-kill-switch.enabled ] || exec sv down .
 
 # The guard is a oneshot that parks itself once the firewall is up, so its
