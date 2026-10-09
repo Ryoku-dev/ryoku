@@ -97,6 +97,14 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **`ryoku doctor` warns when boot state cannot be verified.** Inaccessible
+  boot files, incomplete kernel metadata, and failed free-space measurements
+  now produce warnings instead of misleading success reports. Doctor also
+  avoids pruning boot entries or rebuilding kernel images when the required
+  state cannot be verified (`internal/doctor/reconcile_limine.go`,
+  `internal/doctor/reconcile_boot_space.go`,
+  `internal/doctor/reconcile_limine_images.go`,
+  `internal/doctor/reconcile_limine_entries.go`).
 - **Existing installs use their console layout at the disk unlock prompt.** The
   doctor adds the `ryoku-console-keys` initramfs hook right after `udev` in
   `/etc/mkinitcpio.conf.d/ryoku.conf` once ryoku-desktop ships it, and rebuilds

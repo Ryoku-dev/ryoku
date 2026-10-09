@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -46,11 +47,14 @@ term_foreground_bright: EAE2D5
 term_background_bright: 141210
 `
 
-const (
-	limineESPConf   = "/boot/limine.conf"
-	limineShadow    = "/boot/limine/limine.conf"
-	limineLegacyEFI = "/boot/EFI/limine/limine.efi"
-	limineToolEFI   = "/boot/EFI/limine/limine_x64.efi"
+var (
+	limineESPConf      = "/boot/limine.conf"
+	limineShadow       = "/boot/limine/limine.conf"
+	limineLegacyEFI    = "/boot/EFI/limine/limine.efi"
+	limineToolEFI      = "/boot/EFI/limine/limine_x64.efi"
+	limineDefaultsPath = "/etc/default/limine"
+
+	liminePkgInstalled = sys.PkgInstalled
 )
 
 type limineLayoutOutcome int
@@ -65,16 +69,18 @@ const (
 // limineLayoutState: the slice of /boot reconcileLimineLayout looks at,
 // lifted to a value so planLimineLayout stays unit-testable.
 type limineLayoutState struct {
-	limineInstalled bool
-	espConfExists   bool
-	espConf         string // "" when absent or unreadable
-	espConfReadable bool
-	shadowExists    bool
-	shadowConf      string
-	shadowReadable  bool
-	legacyEFIExists bool
-	toolEFIExists   bool
-	installerTool   bool // limine-install on PATH
+	limineInstalled       bool
+	espConfExists         bool
+	espConf               string // "" when absent or unreadable
+	espConfReadable       bool
+	shadowExists          bool
+	shadowConf            string
+	shadowReadable        bool
+	legacyEFIExists       bool
+	legacyEFIInaccessible bool
+	toolEFIExists         bool
+	toolEFIInaccessible   bool
+	installerTool         bool // limine-install on PATH
 }
 
 // planLimineLayout picks the branch from observed state. pure, no IO.
@@ -82,12 +88,12 @@ func planLimineLayout(s limineLayoutState) (limineLayoutOutcome, []string) {
 	if !s.limineInstalled {
 		return limineLayoutSkip, nil
 	}
+	if (s.espConfExists && !s.espConfReadable) || (s.shadowExists && !s.shadowReadable) || s.legacyEFIInaccessible || s.toolEFIInaccessible {
+		return limineLayoutUnreadable, nil
+	}
 	if !s.espConfExists && !s.shadowExists {
 		// not a limine-booted box (or the ESP isn't at /boot); nothing to own.
 		return limineLayoutSkip, nil
-	}
-	if (s.espConfExists && !s.espConfReadable) || (s.shadowExists && !s.shadowReadable) {
-		return limineLayoutUnreadable, nil
 	}
 	var actions []string
 	if s.shadowExists {
@@ -109,22 +115,52 @@ func planLimineLayout(s limineLayoutState) (limineLayoutOutcome, []string) {
 	return limineLayoutMigrate, actions
 }
 
+// probePresence checks whether path exists, distinguishing genuine absence (ENOENT)
+// from access or I/O errors.
+func probePresence(p string) (bool, error) {
+	_, err := os.Stat(p)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+var liminePathProbe = probePresence
+
+// probeFile reads a config path, distinguishing genuine absence (ENOENT) from
+// all other filesystem failures (permission errors, I/O errors, etc.). Only
+// genuine ENOENT reports absence; any other failure marks the file as existing
+// but unreadable so callers avoid false missing-file conclusions.
+func probeFile(path string) (content string, exists, readable bool) {
+	b, err := os.ReadFile(path)
+	if err == nil {
+		return string(b), true, true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false, false
+	}
+	return "", true, false
+}
+
 func gatherLimineLayoutState() limineLayoutState {
 	s := limineLayoutState{
-		limineInstalled: sys.PkgInstalled("limine"),
-		legacyEFIExists: sys.Exists(limineLegacyEFI),
-		toolEFIExists:   sys.Exists(limineToolEFI),
+		limineInstalled: liminePkgInstalled("limine"),
 		installerTool:   sys.Has("limine-install"),
 	}
-	if b, err := os.ReadFile(limineESPConf); err == nil {
-		s.espConfExists, s.espConfReadable, s.espConf = true, true, string(b)
-	} else if sys.Exists(limineESPConf) {
-		s.espConfExists = true
+	s.espConf, s.espConfExists, s.espConfReadable = probeFile(limineESPConf)
+	s.shadowConf, s.shadowExists, s.shadowReadable = probeFile(limineShadow)
+	if exists, err := liminePathProbe(limineLegacyEFI); err != nil {
+		s.legacyEFIInaccessible = true
+	} else {
+		s.legacyEFIExists = exists
 	}
-	if b, err := os.ReadFile(limineShadow); err == nil {
-		s.shadowExists, s.shadowReadable, s.shadowConf = true, true, string(b)
-	} else if sys.Exists(limineShadow) {
-		s.shadowExists = true
+	if exists, err := liminePathProbe(limineToolEFI); err != nil {
+		s.toolEFIInaccessible = true
+	} else {
+		s.toolEFIExists = exists
 	}
 	return s
 }
@@ -136,8 +172,18 @@ func reconcileLimineLayout(checkOnly bool) recResult {
 	case limineLayoutSkip:
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	case limineLayoutUnreadable:
-		return warnRes(i18n.T("cannot read the limine config under /boot to verify the boot menu layout")).
-			withFix("sudo ryoku doctor")
+		var detail string
+		confUnreadable := (st.espConfExists && !st.espConfReadable) || (st.shadowExists && !st.shadowReadable)
+		efiInaccessible := st.legacyEFIInaccessible || st.toolEFIInaccessible
+		switch {
+		case confUnreadable && efiInaccessible:
+			detail = i18n.T("cannot read limine config or inspect bootloader binaries under /boot to verify the boot menu layout")
+		case efiInaccessible:
+			detail = i18n.T("cannot inspect limine bootloader binaries under /boot to verify the boot menu layout")
+		default:
+			detail = i18n.T("cannot read the limine config under /boot to verify the boot menu layout")
+		}
+		return warnRes(detail).withFix("sudo ryoku doctor --check")
 	case limineLayoutOK:
 		return okRes(i18n.T("boot menu lives in /boot/limine.conf; nothing shadows it"))
 	}
@@ -597,7 +643,15 @@ func registerRyokuBootEntry() error {
 // bootloader, and it stands aside for the layout migration while a legacy entry
 // is still there to convert.
 func reconcileLimineBootEntry(checkOnly bool) recResult {
-	if !sys.PkgInstalled("limine") || !sys.Exists(limineToolEFI) {
+	if !liminePkgInstalled("limine") {
+		return okRes(i18n.T("not a limine-managed boot on this box"))
+	}
+	exists, err := liminePathProbe(limineToolEFI)
+	if err != nil {
+		return warnRes(i18n.T("cannot inspect %s to verify the UEFI boot entry"), limineToolEFI).
+			withFix("sudo ryoku doctor --check")
+	}
+	if !exists {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
 	if !sys.Has("efibootmgr") {
@@ -669,18 +723,26 @@ func writeBootFile(path, contents string) error {
 // flat placeholder the way the installer's finalize does, and run one sync so
 // the snapshots show up now, not at the next snapper event.
 func reconcileLimineUKITree(checkOnly bool) recResult {
-	if !sys.PkgInstalled("limine") {
+	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
-	defaults := readFileSafe("/etc/default/limine")
+	defaults, defaultsExist, defaultsReadable := probeFile(limineDefaultsPath)
+	if !defaultsExist {
+		return okRes(i18n.T("limine box without the UKI design (no ENABLE_UKI); nothing to converge"))
+	}
+	if !defaultsReadable {
+		return warnRes(i18n.T("cannot read %s to verify the UKI boot tree configuration"), limineDefaultsPath).
+			withFix("sudo ryoku doctor --check")
+	}
 	if !strings.Contains(defaults, "ENABLE_UKI=yes") {
 		return okRes(i18n.T("limine box without the UKI design (no ENABLE_UKI); nothing to converge"))
 	}
-	conf := readFileSafe(limineESPConf)
-	if conf == "" {
-		return okRes(i18n.T("no readable %s; the layout reconciler owns that"), limineESPConf)
+	b, err := os.ReadFile(limineESPConf)
+	if err != nil {
+		return noteRes(i18n.T("no readable %s; the layout reconciler owns that"), limineESPConf)
 	}
-	hookMissing := !sys.PkgInstalled("limine-mkinitcpio-hook")
+	conf := string(b)
+	hookMissing := !liminePkgInstalled("limine-mkinitcpio-hook")
 	_, hasFlat := limineDropFlat(conf)
 	if !hookMissing && limineHasUKITree(conf) && !hasFlat {
 		return okRes(i18n.T("limine-mkinitcpio-hook owns the boot menu (UKI tree with kernel sub-entries)"))
@@ -781,16 +843,24 @@ func limineDropFlat(conf string) (string, bool) {
 }
 
 func reconcileLimineOSName(checkOnly bool) recResult {
-	const path = "/etc/default/limine"
-	cur := readFileSafe(path)
-	if cur == "" {
+	path := limineDefaultsPath
+	cur, exists, readable := probeFile(path)
+	if !exists {
 		return okRes(i18n.T("no /etc/default/limine (limine snapshot sync not in use)"))
+	}
+	if !readable {
+		return warnRes(i18n.T("cannot read %s to verify snapshot sync OS name"), path).
+			withFix("sudo ryoku doctor --check")
 	}
 	got, ok := limineOSNameValue(cur)
 	if !ok {
 		return okRes(i18n.T("limine config sets no TARGET_OS_NAME"))
 	}
-	want := limineEntryName(readFileSafe("/boot/limine.conf"))
+	b, err := os.ReadFile(limineESPConf)
+	if err != nil {
+		return noteRes(i18n.T("no readable %s; the layout reconciler owns that"), limineESPConf)
+	}
+	want := limineEntryName(string(b))
 	if want == "" {
 		return okRes(i18n.T("no Ryoku boot entry found to match TARGET_OS_NAME against"))
 	}
@@ -1049,12 +1119,12 @@ func limineIsNumeric(s string) bool {
 // kernel. Runs on every `ryoku update`, so existing boxes heal without a
 // reinstall; idempotent once the prelude is right.
 func reconcileLimineAutoboot(checkOnly bool) recResult {
-	if !sys.PkgInstalled("limine") {
+	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
 	b, err := os.ReadFile(limineESPConf)
 	if err != nil {
-		return okRes(i18n.T("no readable %s; the layout reconciler owns that"), limineESPConf)
+		return noteRes(i18n.T("no readable %s; the layout reconciler owns that"), limineESPConf)
 	}
 	fixed, changed := limineEnsureAutoboot(string(b))
 	if !changed {
