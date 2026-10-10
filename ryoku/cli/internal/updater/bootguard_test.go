@@ -55,6 +55,7 @@ func TestArmBootGuardRecordsChannel(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("RYOKU_REPO", "")
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
+	t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
 	dir := t.TempDir()

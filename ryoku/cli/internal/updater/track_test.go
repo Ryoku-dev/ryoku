@@ -25,6 +25,7 @@ func packagedConf(t *testing.T, channel string) {
 		t.Fatal(err)
 	}
 	t.Setenv("RYOKU_PACMAN_CONF", conf)
+	t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
 	oldConf, oldSync := sys.PacmanConf, sys.PacmanSyncDir
 	sys.PacmanConf = conf
 	sys.PacmanSyncDir = t.TempDir()

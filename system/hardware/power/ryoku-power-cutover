@@ -116,7 +116,7 @@ user_unit_active() {
   local unit=$1
   if [[ $init_system == systemd ]]; then
     systemctl --user is-active --quiet "$unit"
-    return
+    return $?
   fi
   runit_transient_active "$unit" ||
     runit_host svc --user is-active "$unit" >/dev/null 2>&1
@@ -2132,7 +2132,7 @@ start_target_session() {
   start_session_lifecycle
   start_target_idle
   reload_wm_config
-  restart_shell_owner
+  restart_shell_owner || return
 
   local ready=ping
   [[ -x $installed_helper ]] && ready=sleep-ready

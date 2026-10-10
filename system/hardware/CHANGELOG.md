@@ -59,7 +59,8 @@
   because that session's own user manager takes the inhibitor down with it,
   and releasing early would open the suspend window the guard exists to
   close (`tests/power-cutover.sh` covers the leak, the release, and the
-  closing-session hold).
+  closing-session hold). Systemd liveness probes and shell-owner restart
+  failures now propagate explicitly through Bash 5.2 exit handling.
 - `power/ryoku-power-cutover`: **a uwsm-launched compositor is found.** uwsm
   deliberately keeps transient session variables out of the user manager, so
   its Hyprland runs as a session service carrying no `XDG_SESSION_ID` at all,

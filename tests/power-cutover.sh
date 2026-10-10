@@ -928,6 +928,16 @@ rm -rf "$tmp/proc/90009" "$tmp/proc/90010"
 printf '%s\n' "$session_env_pid" >"$tmp/cgroup/test.scope/cgroup.procs"
 
 mkdir -p "$tmp/watch-bin" "$tmp/watch-runtime"
+watch_runtime_root="$tmp/watch-user-runtime"
+mkdir -p "$watch_runtime_root/$(id -u)"
+python3 - "$watch_runtime_root/$(id -u)/bus" <<'PY'
+import socket
+import sys
+
+sock = socket.socket(socket.AF_UNIX)
+sock.bind(sys.argv[1])
+sock.close()
+PY
 cat >"$tmp/watch-bin/dbus-monitor" <<'EOF'
 #!/usr/bin/env bash
 printf 'signal sender=org.freedesktop.DBus; interface=org.freedesktop.DBus; member=NameAcquired\n'
@@ -1089,6 +1099,7 @@ printf '9\n' >"$tmp/watch-runtime/ryoku-session.id"
 ACTIVE_REBIND_SID=10 SESSION_WATCH_LOG="$tmp/watch-calls" \
   SESSION_ACTIVITY_LOG="$tmp/activity-calls" XDG_RUNTIME_DIR="$tmp/watch-runtime" \
   RYOKU_CUTOVER_PROVIDER_ROOT="$tmp/watch-provider" \
+  RYOKU_CUTOVER_RUNTIME_ROOT="$watch_runtime_root" \
   RYOKU_CUTOVER_INSTALLED_HELPER="$tmp/not-installed" \
   PATH="$tmp/watch-bin:$PATH" bash -c 'source "$1"; watch_session 9' _ "$helper"
 if ! grep -qF -- '--unit=ryoku-session-rebind@10.service' "$tmp/watch-calls"; then
