@@ -94,8 +94,11 @@ printf 'default_entry: %s\n\n/Ryoku Linux\n' "$default_entry" >>"$tmp"
 for i in "${!kernels[@]}"; do
   version=${kernels[$i]}
   entry=${entries[$i]}
+  # Limine allows only comments between a directory title and its first entry.
+  if ((i > 0)); then
+    printf '\n' >>"$tmp"
+  fi
   cat >>"$tmp" <<EOF
-
   //$entry
   comment: Kernel version: $version
   comment: kernel-id=$entry

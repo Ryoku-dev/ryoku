@@ -87,6 +87,10 @@ assert_contains 'interface_branding: Ryoku Test' "$conf"
 assert_contains 'default_entry: Ryoku Linux/linux6.12' "$conf"
 [[ $(grep -c '^default_entry:' "$conf") -eq 1 ]]
 [[ $(grep -c '^/Ryoku Linux$' "$conf") -eq 1 ]]
+if [[ $(awk '/^\/Ryoku Linux$/ { getline; print; exit }' "$conf") != '  //linux6.12' ]]; then
+  printf 'the Ryoku Linux directory must be followed directly by its first kernel entry\n' >&2
+  exit 1
+fi
 assert_contains '  //linux6.12' "$conf"
 assert_contains '  comment: Kernel version: 6.12.30_1' "$conf"
 assert_contains '  comment: kernel-id=linux6.12' "$conf"
