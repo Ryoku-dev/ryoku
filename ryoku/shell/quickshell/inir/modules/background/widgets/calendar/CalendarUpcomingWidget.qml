@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import Quickshell
 import inir
@@ -412,7 +413,7 @@ AbstractBackgroundWidget {
 
         let timeStr = ""
         if (root.showTime && !event.allDay)
-            timeStr = Qt.formatTime(dt, "HH:mm")
+            timeStr = RyokuUi.TimeFormat.format(dt)
 
         if (dateStr && timeStr) return dateStr + " · " + timeStr
         return dateStr || timeStr

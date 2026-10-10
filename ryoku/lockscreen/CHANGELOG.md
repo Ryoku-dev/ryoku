@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- The built-in in-session clockwork lockscreen follows the global 12/24-hour preference, including AM/PM.
+
 ### Fixed
 - **A lock client cannot spill into the next login.** Its crash-recovery wrapper
   now stops when the login1 session that started it has ended, so a reused

@@ -14,6 +14,7 @@
 - **Bar power, service and time-zone actions now use `ryoku-host`.** The same
   controls work on systemd and Void's runit.
 - Missing-dependency hints and the stash installer follow the system package manager on Void.
+- Shell clocks, notification timestamps, weather and launcher clocks follow one global 12/24-hour preference; Super+Esc defaults to 12-hour time.
 - **One dock for every bar style, in any design.** The dock is no longer tied
   to a bar style: pick the Ryoku, Python or Shima dock (or none) and it runs
   the same under QS Bar, Kairos, Shima, Python, Sumi and Nomarchy, on both
@@ -616,6 +617,7 @@
 - **A source deploy onto a brand-new account no longer stops at the fish
   config.** The deploy copied `config.fish` before creating `~/.config/fish`,
   so it only worked for accounts that already had the directory.
+- Nomarchy bar documentation links resolve to the shipped Ryoku guide and default configuration.
 - **Spotlight opens under every bar style.** The launcher only flipped a
   search flag that Shima's frame listens for, so with any other bar style
   Super+Space did nothing. Without the frame it now mounts the same palette

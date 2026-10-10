@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import Quickshell
 import inir.services
 import inir.modules.iris.style
@@ -85,7 +86,7 @@ Singleton {
         day.setHours(0, 0, 0, 0)
         const days = Math.round((day.getTime() - today.getTime()) / 86400000)
         const time = event.allDay ? Translation.tr("All day")
-            : Qt.locale().toString(when, Qt.locale().timeFormat(Locale.ShortFormat))
+            : RyokuUi.TimeFormat.format(when)
         const minutes = Math.round((when.getTime() - new Date(now).getTime()) / 60000)
         if (!event.allDay && minutes >= 0 && minutes < 60)
             return minutes < 1 ? Translation.tr("Now") : Translation.tr("In %1 min").arg(minutes)

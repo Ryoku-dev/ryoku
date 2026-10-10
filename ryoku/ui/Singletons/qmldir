@@ -10,3 +10,4 @@ singleton ProfileStore ProfileStore.qml
 singleton Spawn Spawn.qml
 singleton Version Version.qml
 singleton Wm Wm.qml
+singleton TimeFormat TimeFormat.qml

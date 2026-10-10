@@ -34,7 +34,7 @@ Item {
     implicitHeight: 106 * s
 
     readonly property var now: clock.date
-    readonly property string hh: Qt.formatTime(now, "HH")
+    readonly property string hh: TimeFormat.is24h ? Qt.formatTime(now, "HH") : String((now.getHours() % 12) || 12)
     readonly property string mm: Qt.formatTime(now, "mm")
     readonly property string date: Qt.locale("en_US").toString(now, "dddd, MMM d")
     readonly property string greeting: {
@@ -280,7 +280,7 @@ Item {
                     }
                 }
                 Text {
-                    text: root.mm
+                    text: root.mm + (TimeFormat.is24h ? "" : " " + root.now.toLocaleTimeString(TimeFormat.locale, "AP"))
                     color: Theme.bright
                     font.family: Theme.mono
                     font.pixelSize: 34 * root.s

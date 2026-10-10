@@ -205,7 +205,7 @@ Item {
         }
 
         Text {
-            text: Qt.formatTime(root.now, "HH:mm")
+            text: TimeFormat.format(root.now)
             color: Theme.bright
             style: Text.Raised
             styleColor: Qt.rgba(root.shade, root.shade, root.shade, 0.86)

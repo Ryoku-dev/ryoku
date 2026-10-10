@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Global > Language & Region offers a 24-hour time switch for all Ryoku clocks; off selects 12-hour time with AM/PM.
+
 ### Changed
 - **Updates stays clear when snapshots are unavailable.** The page shows the
   host's short snapshot note near its header and hides snapshot ids, rollback

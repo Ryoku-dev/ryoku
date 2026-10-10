@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons
 import Quickshell
 import Quickshell.Io
 import shell.services
@@ -26,7 +27,7 @@ Scope {
     function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)) }
 
     readonly property real scale: s.clamp(s.num("scale", 1), 0.8, 1.3)
-    readonly property bool clock12h: s.bool("clock12h", false)
+    readonly property bool clock12h: !TimeFormat.is24h
     readonly property bool clockSeconds: s.bool("clockSeconds", false)
     readonly property bool dateWheel: s.bool("dateWheel", true)
     readonly property bool music: s.bool("music", true)
@@ -50,7 +51,6 @@ Scope {
         return {
             scale: 1,
             topGap: M.topGap,
-            clock12h: false,
             clockSeconds: false,
             dateWheel: true,
             music: true,
@@ -61,7 +61,8 @@ Scope {
     }
 
     function set(key, value) {
-        s._queue("kairos." + key, value);
+        if (key === "clock12h") TimeFormat.set24h(!value);
+        else s._queue("kairos." + key, value);
     }
     // A shell-wide key (not under "kairos"): the weather location lives in the
     // shared shell store, so it is patched straight.

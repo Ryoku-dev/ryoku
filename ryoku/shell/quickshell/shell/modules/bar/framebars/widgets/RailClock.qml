@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Ui.Singletons
 import Quickshell
 
 // The one timer-driven widget: a SystemClock ticks the readout. Horizontal
@@ -14,7 +15,7 @@ Item {
     required property real scale
 
     readonly property bool horizontal: edge === "top" || edge === "bottom"
-    property bool format24h: false
+    readonly property bool format24h: TimeFormat.is24h
 
     implicitWidth: btn.implicitWidth
     implicitHeight: btn.implicitHeight
@@ -30,7 +31,7 @@ Item {
         const shown = format24h ? h : ((h % 12) || 12);
         const hh = ("0" + shown).slice(-2);
         const mm = ("0" + d.getMinutes()).slice(-2);
-        return horizontal ? (hh + ":" + mm) : (hh + "\n" + mm);
+        return horizontal ? TimeFormat.format(d) : (hh + "\n" + mm);
     }
 
     RailButton {

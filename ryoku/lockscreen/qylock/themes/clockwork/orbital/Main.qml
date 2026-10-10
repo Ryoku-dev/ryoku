@@ -112,6 +112,8 @@ Rectangle {
     readonly property string inputHint: authInfo !== "" ? authInfo.toUpperCase() : I18n.tr("TYPE PASSWORD OR FIDO PIN")
     readonly property real marginR: 80 * s
 
+    property bool clock24h: true
+
     // Time Logic
     property int curH: new Date().getHours()
     property int curM: new Date().getMinutes()
@@ -298,10 +300,11 @@ Rectangle {
 
             Text {
                 anchors.right: indicatorPill.left; anchors.rightMargin: 40 * s; anchors.verticalCenter: parent.verticalCenter
-                text: String(root.curH).padStart(2, '0'); font.family: outfitFont.name; font.pixelSize: 110 * s; font.weight: Font.Black; color: root.mainText
+                text: String(root.clock24h ? root.curH : ((root.curH % 12) || 12)).padStart(2, '0'); font.family: outfitFont.name; font.pixelSize: 110 * s; font.weight: Font.Black; color: root.mainText
             }
             Column {
                 anchors.left: indicatorPill.right; anchors.leftMargin: 110 * s; anchors.verticalCenter: parent.verticalCenter; spacing: 5 * s
+                Text { visible: !root.clock24h; text: root.curH < 12 ? "AM" : "PM"; font.family: outfitFont.name; font.pixelSize: 18 * s; color: root.mainText }
                 Text { text: Qt.formatDate(new Date(), "dd MMM yyyy").toUpperCase(); font.family: outfitFont.name; font.pixelSize: 13 * s; font.letterSpacing: 4 * s; color: root.subColor }
                 Text { text: Qt.formatDate(new Date(), "dddd").toUpperCase(); font.family: outfitFont.name; font.pixelSize: 18 * s; font.letterSpacing: 8 * s; font.weight: Font.Bold; color: root.mainText }
             }

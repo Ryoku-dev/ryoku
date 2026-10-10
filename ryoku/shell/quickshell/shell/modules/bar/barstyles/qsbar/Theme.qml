@@ -541,6 +541,7 @@ Item {
         var e = barCat.byId(id)
         if (e) {
             if (_isVisKeySetting(id, key)) { _setVisByKey(key, value === true); return }
+            if (key === "clock12h") { TimeFormat.set24h(!value); return }
             theme[key] = value   // the change handler persists through saveWidgets
             return
         }
@@ -1280,7 +1281,7 @@ Item {
         var day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
         var resetDay0 = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
         var dayDelta = Math.round((resetDay0 - day0) / 86400000)
-        var time = aiPad2(d.getHours()) + ":" + aiPad2(d.getMinutes())
+        var time = TimeFormat.format(d)
         if (dayDelta <= 0) return time
         var days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
         return days[d.getDay()] + " " + time
@@ -2643,7 +2644,7 @@ Item {
     // Legacy launcher-logo text values migrated to the current text mode.
     readonly property var legacyLogoTextValues: ["omarchy", "hyprland"]
     property bool   weatherImperial: false   // false = °C / km·h, true = °F / mph
-    property bool   clock12h:        false   // false = 24h, true = 12h (AM/PM)
+    readonly property bool clock12h: !TimeFormat.is24h
 
     // ── widget/workspace state persistence ──
     property var barSeps: []
@@ -2938,7 +2939,6 @@ Item {
     onLauncherLogoTextChanged: if (_widgetsLoaded) saveWidgets()
     onLauncherLogoIconChanged: if (_widgetsLoaded) saveWidgets()
     onWeatherImperialChanged: if (_widgetsLoaded) saveWidgets()
-    onClock12hChanged:        if (_widgetsLoaded) saveWidgets()
     onWorkspaceStyleChanged:   if (_widgetsLoaded) saveWidgets()
     onBarPositionChanged:      if (_widgetsLoaded) saveWidgets()
     onBarScaleChanged:         if (_widgetsLoaded) saveWidgets()
@@ -3124,7 +3124,6 @@ Item {
                     }
                     // weatherImperial / clock12h follow pickerStyle
                     if (parts.length > wsField + 2) theme.weatherImperial = parts[wsField + 2] === "1"
-                    if (parts.length > wsField + 3) theme.clock12h        = parts[wsField + 3] === "1"
                     if (parts.length > wsField + 4) theme.modNetwork      = parts[wsField + 4] === "1"
                     // style tokens - appended after modNetwork, each guarded
                     // +5 is the retired V2 shadow field and is intentionally ignored.

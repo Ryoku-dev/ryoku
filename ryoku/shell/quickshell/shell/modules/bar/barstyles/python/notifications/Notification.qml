@@ -1,4 +1,5 @@
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
@@ -77,18 +78,17 @@ Rectangle {
         if (isPopup) Qt.callLater(playPopupSound);
     }
 
+    Connections {
+        target: RyokuUi.TimeFormat
+        function onIs24hChanged() { typeRoot.updateTimeText(); }
+    }
+
     function updateTimeText() {
         let now = new Date();
         let notifDate = new Date(timestamp);
         let diffSec = Math.floor((now.getTime() - notifDate.getTime()) / 1000);
 
-        let fmt = (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar && Config.rawSettings.bar.time && Config.rawSettings.bar.time.format !== undefined) ? Config.rawSettings.bar.time.format : "HH:mm";
-        let timePart = "HH:mm";
-        if (fmt.includes("hh:")) {
-            timePart = Qt.formatDateTime(notifDate, "hh:mm AP");
-        } else {
-            timePart = Qt.formatDateTime(notifDate, "HH:mm");
-        }
+        const timePart = RyokuUi.TimeFormat.format(notifDate);
 
         if (diffSec < 60) {
             timeText = "Just now";

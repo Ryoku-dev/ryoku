@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Ryoku.Ui.Singletons as RyokuUi
 import Quickshell
 import "../../"
 
@@ -13,13 +14,13 @@ Item {
     readonly property string timeFormat: {
         if (typeof Config !== "undefined" && Config.rawSettings) {
             if (Config.rawSettings.bar && Config.rawSettings.bar.time && Config.rawSettings.bar.time.format !== undefined) {
-                return Config.rawSettings.bar.time.format;
+                return RyokuUi.TimeFormat.withHourCycle(Config.rawSettings.bar.time.format);
             }
             if (Config.rawSettings.general && Config.rawSettings.general.time_format !== undefined) {
-                return Config.rawSettings.general.time_format;
+                return RyokuUi.TimeFormat.withHourCycle(Config.rawSettings.general.time_format);
             }
         }
-        return "HH:mm:ss";
+        return RyokuUi.TimeFormat.pattern(true);
     }
 
     readonly property string hourFormat: {
@@ -49,7 +50,8 @@ Item {
         return "";
     }
 
-    readonly property bool is12Hour: amPmFormat !== "" || hourFormat === "hh" || hourFormat === "h"
+    readonly property bool is12Hour: !RyokuUi.TimeFormat.is24h
+    readonly property bool is24Hour: RyokuUi.TimeFormat.is24h
     readonly property bool hasSeconds: secondFormat !== "" || timeFormat.indexOf("ss") !== -1 || timeFormat.indexOf("s") !== -1
 
     property string time: ""
@@ -107,13 +109,13 @@ Item {
         let curTimeOnly = Qt.formatDateTime(d, timeFormat);
         if (root.timeOnly !== curTimeOnly) root.timeOnly = curTimeOnly;
 
-        let curTimeLong = Qt.formatDateTime(d, "HH:mm:ss");
+        let curTimeLong = RyokuUi.TimeFormat.format(d, true);
         if (root.timeLong !== curTimeLong) root.timeLong = curTimeLong;
 
         let curMin = Qt.formatDateTime(d, minuteFormat);
         if (root.minute !== curMin) root.minute = curMin;
 
-        let curHour = Qt.formatDateTime(d, hourFormat);
+        let curHour = String(RyokuUi.TimeFormat.is24h ? d.getHours() : ((d.getHours() % 12) || 12)).padStart(2, "0");
         if (root.hour !== curHour) root.hour = curHour;
 
         let curAmPm = amPmFormat !== "" ? Qt.formatDateTime(d, amPmFormat) : "";

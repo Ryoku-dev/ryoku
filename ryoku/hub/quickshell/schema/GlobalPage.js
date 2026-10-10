@@ -31,6 +31,14 @@ var rows = [
         "set": "locales"
     }, {
         "tab": "",
+        "group": "LANGUAGE & REGION",
+        "key": "general.clock_format_24_h",
+        "label": "24-hour time",
+        "desc": "Use 24-hour time everywhere in Ryoku. Turn off for 12-hour time with AM/PM.",
+        "ctl": "sw",
+        "src": "shell"
+    }, {
+        "tab": "",
         "group": "LOCATION",
         "key": "weatherLocation",
         "label": "Location",

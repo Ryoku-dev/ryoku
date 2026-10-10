@@ -218,11 +218,13 @@ Item {
 
             Text {
                 width: parent.width
-                text: Qt.formatDateTime(clock.date, I18n.tr("hh:mm"))
+                text: TimeFormat.format(clock.date)
                 textFormat: Text.PlainText
                 color: Tokens.ink
                 font.family: Tokens.display
                 font.pixelSize: Tokens.fHero * root.s
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: Tokens.fBody * root.s
                 font.weight: Font.Light
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignRight
@@ -295,6 +297,8 @@ Item {
                     color: Tokens.ink
                     font.family: Tokens.ui
                     font.pixelSize: Tokens.fHero * root.s
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: Tokens.fBody * root.s
                     font.weight: Font.Light
                     elide: Text.ElideRight
 

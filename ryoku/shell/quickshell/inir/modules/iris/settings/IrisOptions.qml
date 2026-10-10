@@ -616,7 +616,7 @@ QtObject {
     // Shared iNiR keys an iRiS surface acts on, so they are set where iRiS shows them. Material and
     // Waffle read the same keys; nothing here is copied.
     readonly property var shared: [
-        { section: "general", group: "Date & time", label: "Clock", description: "The Island, the lock screen and every clock in Shima.", path: "time.format", kind: "choice", fallback: "hh:mm", choices: [{label:"24-hour",value:"hh:mm"},{label:"12-hour",value:"h:mm ap"},{label:"12-hour AM/PM",value:"h:mm AP"}], keywords: ["time", "hour", "24", "12", "am", "pm", "hora"] },
+        { section: "general", group: "Date & time", label: "Clock", description: "The Island, the lock screen and every clock in Shima.", path: "time.format", kind: "choice", fallback: "h:mm AP", choices: [{label:"24-hour",value:"HH:mm"},{label:"12-hour AM/PM",value:"h:mm AP"}], keywords: ["time", "hour", "24", "12", "am", "pm", "hora"] },
         { section: "general", group: "Date & time", label: "Exact seconds", description: "Clocks that show seconds tick on the second. Costs a little more.", path: "time.secondPrecision", kind: "switch", fallback: false },
         { section: "general", group: "Language", label: "Language", description: "Every label in the shell. System follows your locale.", path: "language.ui", kind: "choice", fallback: "auto",
             choices: [{ label: "System", value: "auto" }].concat(Translation.allAvailableLanguages.map(code => ({ label: Translation.languageDisplayName(code), value: code }))),

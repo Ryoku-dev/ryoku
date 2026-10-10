@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import Ryoku.Ui.Singletons
 import QtQuick.Shapes
 import shell.services
 import shell.services as Svc
@@ -139,7 +140,7 @@ Item {
                 }
                 Text {
                     anchors.centerIn: parent
-                    text: Qt.formatTime(Now.date, Config.clock24h ? "HH:mm" : "hh:mm AP"); color: "#1a1c1f"
+                    text: TimeFormat.format(Now.date); color: "#1a1c1f"
                     font.family: "Inter Display"; font.weight: Font.Black; font.pixelSize: 46; font.letterSpacing: 1
                 }
             }
@@ -248,7 +249,7 @@ Item {
                 id: tm
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: 560
-                text: Qt.formatTime(Now.date, Config.clock24h ? "HH:mm" : "hh:mm AP")
+                text: TimeFormat.format(Now.date)
                 color: Theme.inkOn2(root.underL, root.inkColorA)
                 font.family: "Inter Display"; font.weight: Font.Medium
                 font.pixelSize: 30; font.letterSpacing: 4

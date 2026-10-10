@@ -559,6 +559,7 @@ Rectangle {
         "fontFamily": "Space Grotesk", "fontSize": 11, "fontScale": 1.3,
         "frameBars": FrameBars.defaultConfig(),
         "weatherLocation": "", "weatherUnit": "auto", "formatLocale": "",
+        "general.clock_format_24_h": false,
         "reloadCover": ReloadCoverModel.empty(),
         "language": "Auto", "barStyle": "sumi", "obi": {}, "nacre": NacreConfig.defaultConfig(), "qsbar": {}, "dock": {},
         "clipboard.widthPercent": 65, "clipboard.heightPercent": 42, "clipboard.bottomPercent": 0,

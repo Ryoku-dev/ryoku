@@ -46,7 +46,7 @@ Column {
         value: Config.clock24h ? I18n.tr("On") : I18n.tr("Off")
         on: Config.clock24h
         closeOnTrigger: false
-        onTriggered: Config.toggle("clock24h")
+        onTriggered: TimeFormat.set24h(!TimeFormat.is24h)
     }
     MenuRow {
         label: I18n.tr("Show seconds")
