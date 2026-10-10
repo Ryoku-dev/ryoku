@@ -1,0 +1,18 @@
+# Template file for 'gpu-screen-recorder'
+pkgname=gpu-screen-recorder
+version=6.1.3
+revision=1
+build_style=meson
+configure_args="-Dsystemd=false -Dcapabilities=false -Dnvidia_suspend_fix=false"
+hostmakedepends="meson ninja pkg-config wayland-devel"
+makedepends="ffmpeg6-devel libcap-devel libdrm-devel libglvnd-devel
+ libva-devel libX11-devel libXcomposite-devel libXdamage-devel
+ libXfixes-devel libXrandr-devel pipewire-devel pulseaudio-devel dbus-devel
+ Vulkan-Headers"
+depends="libcap-progs libjpeg-turbo"
+short_desc="Extremely fast screen recorder for Linux"
+maintainer="Ryoku Linux <team@ryoku.dev>"
+license="GPL-3.0-only"
+homepage="https://git.dec05eba.com/gpu-screen-recorder/about"
+distfiles="https://dec05eba.com/snapshot/gpu-screen-recorder.git.${version}.tar.gz"
+checksum=7932921ccb52a32c324c1718fc4f982a9cbe59c11f99a22255791a8eb41214ce

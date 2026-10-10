@@ -14,6 +14,7 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Void installs now use Ryoku's GPU Screen Recorder 6.1.3 package, including the `gsr-cli` recording controls.
 - The doctor's reverse-PRIME warning (#270, a black panel after login on a
   hybrid-GPU laptop) now also fires when a forced or drifted GPU render pin
   coexists with a stored hybrid or passthrough choice, which previously

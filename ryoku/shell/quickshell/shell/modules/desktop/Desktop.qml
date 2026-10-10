@@ -1954,7 +1954,7 @@ Scope {
                         "" + x, "" + y, "" + sc, "" + lk];
                     sizeProc.running = true;
                 }
-                onOpacityChanged: (id, op) => {
+                onOpacityPicked: (id, op) => {
                     const dw = win.placementOf(id);
                     const x = (dw.x !== undefined) ? dw.x : 80;
                     const y = (dw.y !== undefined) ? dw.y : 80;

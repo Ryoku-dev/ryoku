@@ -18,6 +18,7 @@ Singleton {
     id: root
 
     property bool active: false
+    property bool available: true
     property int recorderPid: 0
     property int startedAt: 0
     property int elapsedSec: 0
@@ -144,6 +145,11 @@ Singleton {
     // never counts from when the shell first noticed.
     property bool statusPresent: false
     function applyStatus() {
+        if (!root.available) {
+            root.statusPresent = false;
+            root.clearStatus();
+            return;
+        }
         var p;
         try {
             p = JSON.parse(statusView.text() || "{}");
@@ -204,6 +210,8 @@ Singleton {
     property bool countingDown: false
     property var pendingArgs: []
     function startAfter(args, secs) {
+        if (!root.available)
+            return;
         if (secs <= 0) {
             root.start(args);
             return;
@@ -236,6 +244,8 @@ Singleton {
     }
 
     function start(extraArgs) {
+        if (!root.available)
+            return;
         var a = (extraArgs || []).slice();
         // Discord quick-compress rides the backend: pass --discord and ryoku-cmd-
         // record writes the <name>.discord.mp4 copy once the capture is finalised.
@@ -293,14 +303,24 @@ Singleton {
     // window passes.
     readonly property int socketWarmupSec: 5
     function refreshStatus() {
-        if (!poll.running)
+        if (root.available && !poll.running)
             poll.running = true;
     }
 
     Process {
         id: poll
-        command: ["gsr-cli", "-ipc", (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-gsr.sock", "status"]
+        command: ["/bin/sh", "-c",
+            "command -v gsr-cli >/dev/null 2>&1 || exit 127; "
+            + "exec gsr-cli -ipc \"$1\" status",
+            "ryoku-gsr-status",
+            (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-gsr.sock"]
         onExited: (exitCode) => {
+            if (exitCode === 127) {
+                root.available = false;
+                if (root.active)
+                    root.clearStatus();
+                return;
+            }
             const answering = exitCode === 0;
             const warming = root.active && root.startedAt > 0
                 && Math.floor(Date.now() / 1000) - root.startedAt < root.socketWarmupSec;
@@ -326,7 +346,7 @@ Singleton {
     Timer {
         id: tick
         interval: root.anyActive ? 1000 : 5000
-        running: true
+        running: root.available
         repeat: true
         triggeredOnStart: true
         onTriggered: {

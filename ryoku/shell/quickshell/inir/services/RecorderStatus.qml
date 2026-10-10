@@ -10,6 +10,7 @@ Singleton {
     id: root
 
     property bool isRecording: false
+    property bool available: true
     property int recorderPid: 0
     property string requestedAudioMode: "none"
     property string activeAudioMode: "none"
@@ -116,6 +117,11 @@ Singleton {
     // its launch time: reading it on change shows a start at once, from any entry
     // point, with the clock counting from the real launch rather than first sight.
     function applyStatusFile(): void {
+        if (!root.available) {
+            root.isRecording = false
+            root.resetAudioMetadata()
+            return
+        }
         let payload
         try {
             payload = JSON.parse(statusFile.text() || "{}")
@@ -170,7 +176,7 @@ Singleton {
     }
 
     function refreshStatus() {
-        if (!checkProcess.running)
+        if (root.available && !checkProcess.running)
             checkProcess.running = true
     }
 
@@ -178,7 +184,7 @@ Singleton {
     Timer {
         id: idlePollTimer
         interval: 5000
-        running: Config.ready && !root.isRecording
+        running: root.available && Config.ready && !root.isRecording
         repeat: true
         onTriggered: root.refreshStatus()
     }
@@ -187,7 +193,7 @@ Singleton {
     Timer {
         id: activePollTimer
         interval: 1000
-        running: root.isRecording
+        running: root.available && root.isRecording
         repeat: true
         onTriggered: {
             if (root.recordingStartTime > 0)
@@ -198,6 +204,8 @@ Singleton {
 
     // Quick recheck after a recording action (start/stop) to catch state change fast
     function scheduleQuickCheck(): void {
+        if (!root.available)
+            return
         quickCheckTimer.attemptsRemaining = 6
         quickCheckTimer.restart()
     }
@@ -248,8 +256,17 @@ Singleton {
     readonly property int socketWarmupMs: 5000
     Process {
         id: checkProcess
-        command: ["/usr/bin/gsr-cli", "-ipc", (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-gsr.sock", "status"]
+        command: ["/bin/sh", "-c",
+            "command -v gsr-cli >/dev/null 2>&1 || exit 127; "
+            + "exec gsr-cli -ipc \"$1\" status",
+            "ryoku-gsr-status",
+            (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-gsr.sock"]
         onExited: (exitCode, exitStatus) => {
+            if (exitCode === 127) {
+                root.available = false
+                root.isRecording = false
+                return
+            }
             const warming = root.isRecording && root.recordingStartTime > 0
                 && Date.now() - root.recordingStartTime < root.socketWarmupMs
             root.isRecording = exitCode === 0 || warming

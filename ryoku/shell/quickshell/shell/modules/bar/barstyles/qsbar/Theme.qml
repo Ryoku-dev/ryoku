@@ -2175,6 +2175,7 @@ Item {
     property real _screenRecordingBaseMs: 0
     readonly property string screenRecordingStatePath: (Quickshell.env("RYOKU_STATE_PATH") || (Quickshell.env("HOME") + "/.local/state/ryoku")) + "/recorder-status.json"
     property bool _recordingRefreshPending: false
+    property bool _gsrAvailable: true
     property string voxState: "idle"          // idle/recording/transcribing
     property string voxHint: ""
     property bool voxAvailable: true
@@ -2253,6 +2254,7 @@ Item {
         if (_makoAvailable && !dndProc.running) dndProc.running = true
     }
     function refreshRecordingStatus() {
+        if (!_gsrAvailable) return
         if (recordingPidProc.running) {
             _recordingRefreshPending = true
             return
@@ -2425,10 +2427,12 @@ Item {
     Process {
         id: recordingPidProc
         command: ["sh", "-c",
-            "gsr-cli -ipc \"${XDG_RUNTIME_DIR:-/tmp}/ryoku-gsr.sock\" status >/dev/null 2>&1 || exit 1; "
+            "command -v gsr-cli >/dev/null 2>&1 || exit 127; "
+            + "gsr-cli -ipc \"${XDG_RUNTIME_DIR:-/tmp}/ryoku-gsr.sock\" status >/dev/null 2>&1 || exit 1; "
             + "cat \"${RYOKU_STATE_PATH:-$HOME/.local/state/ryoku}/recorder-status.json\" 2>/dev/null"]
         running: false
         onExited: (exitCode) => {
+            if (exitCode === 127) theme._gsrAvailable = false
             if (exitCode !== 0) theme.setScreenRecordingPid("")
             if (theme._recordingRefreshPending) {
                 theme._recordingRefreshPending = false

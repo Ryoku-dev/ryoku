@@ -53,7 +53,7 @@ gnome-keyring	gnome-keyring	desktop
 gnome-themes-extra	gnome-themes-extra	desktop	
 go	go	dev	
 gpk	-	desktop	GlazePKG is a pacman frontend and does not apply to XBPS.
-gpu-screen-recorder	gpu-screen-recorder	desktop	
+gpu-screen-recorder	gpu-screen-recorder	desktop	repo=ryoku
 grim	grim	desktop	
 gst-libav	gst-libav	desktop	
 gst-plugins-bad	gst-plugins-bad1	desktop	
