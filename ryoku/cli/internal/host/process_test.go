@@ -58,6 +58,9 @@ func TestInhibitPreferenceAndAbsence(t *testing.T) {
 			if tc.want != "" && argv(runner.commands[0]) != tc.want {
 				t.Fatalf("argv = %q", argv(runner.commands[0]))
 			}
+			if tc.code == ExitOK && !runner.commands[0].Replace {
+				t.Fatal("inhibit must replace the host process, not fork the inhibitor as a child")
+			}
 		})
 	}
 }

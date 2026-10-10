@@ -91,5 +91,13 @@ func (a *App) Inhibit(args []string) int {
 	if binary == "" {
 		return ExitAbsent
 	}
-	return commandExit(a.run(binary, args...))
+	// The inhibitor's owner is the PID login1 lists, and ryoku-clamshell
+	// verifies that exact PID against the supervisor it recorded. Replace this
+	// process with the inhibitor binary instead of forking it as a child, so
+	// the recorded PID and login1's agree.
+	return commandExit(a.cfg.Runner.Run(Command{
+		Name: binary, Args: args,
+		Stdin: a.cfg.Stdin, Stdout: a.cfg.Stdout, Stderr: a.cfg.Stderr,
+		Replace: true,
+	}))
 }
