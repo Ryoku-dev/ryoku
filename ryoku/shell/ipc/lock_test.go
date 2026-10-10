@@ -423,6 +423,10 @@ func waitFor(t *testing.T, path string) {
 	t.Fatalf("%s never appeared: lock.sh was not spawned", path)
 }
 
+// lock.sh stops once its login session is gone, so these wrapper tests run
+// inside a session that loginctl reports as live.
+const liveSessionLoginctl = "#!/bin/sh\nif [ \"$1\" = show-session ] && [ \"$3\" = -p ] && [ \"$4\" = State ]; then echo active; exit 0; fi\nexit 1\n"
+
 func TestLockWrapperRecoversWithBoundedCrashBackoff(t *testing.T) {
 	lockScript, err := filepath.Abs(filepath.Join(
 		"..", "..", "lockscreen", "qylock", "quickshell-lockscreen", "lock.sh",
@@ -449,8 +453,12 @@ exit 17
 		if err := os.WriteFile(filepath.Join(bin, "quickshell"), []byte(quickshell), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		for _, name := range []string{"killall", "ryoku"} {
-			if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		for name, body := range map[string]string{
+			"killall":  "#!/bin/sh\nexit 0\n",
+			"ryoku":    "#!/bin/sh\nexit 0\n",
+			"loginctl": liveSessionLoginctl,
+		} {
+			if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -591,6 +599,7 @@ func TestLockLauncherFlockLeavesActiveMarkerUntouched(t *testing.T) {
 		"quickshell": "#!/bin/sh\nprintf 'x\\n' >> \"$QYLOCK_TEST_STARTS\"\n: > \"$QYLOCK_TEST_READY\"\nwhile [ ! -e \"$QYLOCK_TEST_RELEASE\" ]; do sleep 0.01; done\n",
 		"killall":    "#!/bin/sh\nexit 0\n",
 		"ryoku":      "#!/bin/sh\nexit 0\n",
+		"loginctl":   liveSessionLoginctl,
 	} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
 			t.Fatal(err)
@@ -667,8 +676,9 @@ if [ ! -e "$XDG_RUNTIME_DIR/qylock.test.locked" ]; then
   : > "$QYLOCK_TEST_OBSERVED"
 fi
 `,
-		"killall": "#!/bin/sh\nexit 0\n",
-		"ryoku":   "#!/bin/sh\nexit 0\n",
+		"killall":  "#!/bin/sh\nexit 0\n",
+		"ryoku":    "#!/bin/sh\nexit 0\n",
+		"loginctl": liveSessionLoginctl,
 	} {
 		if err := os.WriteFile(filepath.Join(bin, name), []byte(body), 0o755); err != nil {
 			t.Fatal(err)
