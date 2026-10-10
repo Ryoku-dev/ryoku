@@ -331,6 +331,7 @@ func TestLogin1GraphicalUserProperties(t *testing.T) {
 		{"wayland greeter", properties("wayland", "greeter", "Hyprland"), false},
 		{"wayland lock screen", properties("wayland", "lock-screen", "Hyprland"), false},
 		{"other desktop", properties("wayland", "user", "GNOME"), false},
+		{"unnamed desktop", properties("wayland", "user", ""), false},
 		{"missing class", map[string]dbus.Variant{
 			"Type": dbus.MakeVariant("wayland"), "Desktop": dbus.MakeVariant("Hyprland"),
 		}, false},
@@ -340,6 +341,75 @@ func TestLogin1GraphicalUserProperties(t *testing.T) {
 				t.Fatalf("login1GraphicalUserProperties() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestLogin1LocalGraphicalUserProperties(t *testing.T) {
+	properties := func(sessionType, sessionClass string, remote bool) map[string]dbus.Variant {
+		return map[string]dbus.Variant{
+			"Type":   dbus.MakeVariant(sessionType),
+			"Class":  dbus.MakeVariant(sessionClass),
+			"Remote": dbus.MakeVariant(remote),
+		}
+	}
+	for _, tc := range []struct {
+		name       string
+		properties map[string]dbus.Variant
+		want       bool
+	}{
+		{"local wayland user", properties("wayland", "user", false), true},
+		{"local x11 early user", properties("x11", "user-early", false), true},
+		{"remote wayland user", properties("wayland", "user", true), false},
+		{"local tty user", properties("tty", "user", false), false},
+		{"local wayland greeter", properties("wayland", "greeter", false), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := login1LocalGraphicalUserProperties(tc.properties); got != tc.want {
+				t.Fatalf("login1LocalGraphicalUserProperties() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestNeedsUpdateSleepGuard(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		init             host.InitSystem
+		graphicalPresent bool
+		localPresent     bool
+		want             bool
+	}{
+		{"runit SSH only", host.Runit, false, false, false},
+		{"runit unnamed local desktop", host.Runit, false, true, true},
+		{"runit known desktop", host.Runit, true, true, true},
+		{"systemd SSH only", host.Systemd, false, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := needsUpdateSleepGuard(tc.init, tc.graphicalPresent, tc.localPresent); got != tc.want {
+				t.Fatalf("needsUpdateSleepGuard() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunitUpdateSleepGuardSkippedWithoutGraphicalSession(t *testing.T) {
+	t.Setenv("RYOKU_HOST_INIT", "runit")
+	t.Setenv("PATH", t.TempDir())
+
+	guard, err := acquireUpdateSleepGuard(false)
+	if err != nil {
+		t.Fatalf("SSH-only guard acquisition failed: %v", err)
+	}
+	if guard == nil || guard.conn != nil || guard.transient {
+		t.Fatalf("SSH-only guard = %#v, want inert guard", guard)
+	}
+	if err := guard.Release(); err != nil {
+		t.Fatalf("release inert guard: %v", err)
+	}
+	t.Setenv("RYOKU_HOST_INIT", "systemd")
+	if _, err := acquireUpdateSleepGuard(false); err == nil ||
+		!strings.Contains(err.Error(), "systemctl is required") {
+		t.Fatalf("systemd SSH guard error = %v, want missing systemctl", err)
 	}
 }
 

@@ -735,7 +735,7 @@ func updateStage2(pre string, withSystem bool) (err error) {
 		progress.fail(err)
 		return err
 	}
-	graphicalPresent, shellExpected, err := graphicalSessionState()
+	graphicalPresent, shellExpected, localGraphicalPresent, err := graphicalSessionState()
 	if err != nil {
 		progress.fail(err)
 		return err
@@ -752,7 +752,9 @@ func updateStage2(pre string, withSystem bool) (err error) {
 			_ = powerCutoverLock.Close()
 		}
 	}()
-	cutoverGuard, err := acquireUpdateSleepGuard()
+	cutoverGuard, err := acquireUpdateSleepGuard(
+		needsUpdateSleepGuard(updateInitSystem(), graphicalPresent, localGraphicalPresent),
+	)
 	if err != nil {
 		progress.fail(err)
 		return err
@@ -1024,8 +1026,17 @@ func hasUpdateSleepGuard(inhibitors []login1Inhibitor, uid uint32) bool {
 	return false
 }
 
-func acquireUpdateSleepGuard() (*updateSleepGuard, error) {
+func needsUpdateSleepGuard(init host.InitSystem, graphicalPresent, localGraphicalPresent bool) bool {
+	return init != host.Runit || graphicalPresent || localGraphicalPresent
+}
+
+func acquireUpdateSleepGuard(sessionGuardRequired bool) (*updateSleepGuard, error) {
 	init := updateInitSystem()
+	// A runit SSH-only update has no session suspend owners to replace, and
+	// elogind denies inactive remote sessions permission to take a block inhibitor.
+	if init == host.Runit && !sessionGuardRequired {
+		return &updateSleepGuard{}, nil
+	}
 	if init == host.Systemd {
 		for _, command := range []string{"systemctl", "systemd-run"} {
 			if _, err := exec.LookPath(command); err != nil {
@@ -2310,10 +2321,19 @@ func login1GraphicalUserProperties(properties map[string]dbus.Variant) bool {
 		(sessionClass == "user" || sessionClass == "user-early")
 }
 
-func graphicalSessionState() (present bool, active bool, err error) {
+func login1LocalGraphicalUserProperties(properties map[string]dbus.Variant) bool {
+	sessionType, typeOK := properties["Type"].Value().(string)
+	sessionClass, classOK := properties["Class"].Value().(string)
+	remote, remoteOK := properties["Remote"].Value().(bool)
+	return typeOK && classOK && remoteOK && !remote &&
+		(sessionType == "wayland" || sessionType == "x11") &&
+		(sessionClass == "user" || sessionClass == "user-early")
+}
+
+func graphicalSessionState() (present bool, active bool, local bool, err error) {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
-		return false, false, fmt.Errorf("connect login1 to inspect graphical sessions: %w", err)
+		return false, false, false, fmt.Errorf("connect login1 to inspect graphical sessions: %w", err)
 	}
 	defer conn.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -2326,7 +2346,7 @@ func graphicalSessionState() (present bool, active bool, err error) {
 		"org.freedesktop.login1.Manager.ListSessions",
 		0,
 	).Store(&sessions); err != nil {
-		return false, false, fmt.Errorf("list login1 sessions: %w", err)
+		return false, false, false, fmt.Errorf("list login1 sessions: %w", err)
 	}
 	var inspectErr error
 	for _, session := range sessions {
@@ -2344,6 +2364,9 @@ func graphicalSessionState() (present bool, active bool, err error) {
 			inspectErr = err
 			continue
 		}
+		if login1LocalGraphicalUserProperties(properties) {
+			local = true
+		}
 		if !login1GraphicalUserProperties(properties) {
 			continue
 		}
@@ -2354,13 +2377,13 @@ func graphicalSessionState() (present bool, active bool, err error) {
 			continue
 		}
 		if isActive {
-			return true, true, nil
+			return true, true, local, nil
 		}
 	}
 	if inspectErr != nil {
-		return false, false, fmt.Errorf("inspect login1 sessions: %w", inspectErr)
+		return false, false, false, fmt.Errorf("inspect login1 sessions: %w", inspectErr)
 	}
-	return present, false, nil
+	return present, false, local, nil
 }
 
 func waitForShellReady(expected bool) (bool, error) {
