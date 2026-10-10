@@ -281,11 +281,16 @@ func restoreBootMenuDefault() error {
 		return err
 	}
 	_ = os.Remove(pendingFile)
-	return writeNotice(bootNotice{
+	// The hook runs inside the booted snapshot, whose root is read-only; the
+	// menu reset above is what matters, the notice is a courtesy.
+	if err := writeNotice(bootNotice{
 		Action: "restored-default",
 		Detail: i18n.T("the snapshot restore completed; Limine now defaults to the restored system"),
 		At:     now(),
-	})
+	}); err != nil && !errors.Is(err, unix.EROFS) {
+		return err
+	}
+	return nil
 }
 
 func setLimineDefault(raw []byte, entry string) error {
