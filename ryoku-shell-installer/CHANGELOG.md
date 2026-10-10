@@ -3,13 +3,10 @@
 ## Unreleased
 
 ### Added
-- **Void install plans state the edition limits before changes begin.** The
-  interactive plan and headless dry run say that Void is niri-only because of
-  its GCC version, has no snapshots or rollback, and does not provide Zen
-  Browser, LocalSend, Voxtype or asusctl.
-- **Void installs state the snapshot limit before finishing.** The distro
-  adapter carries a Void-only note into the final verification summary, while
-  Arch and CachyOS dry-run output stays unchanged (`distro.go`, `engine.go`).
+- **Void btrfs conversions now describe snapshot rollback accurately.** Plans
+  use the same btrfs check as Arch, omit the old unsupported warning, and explain
+  that `ryoku update --system` keeps base updates inside the snapshot safety net.
+  The niri-only and unavailable-app notes remain.
 - **Void installs Ryoku from the signed XBPS repository.** The installer seeds
   the repository key before its first sync, selects stable or testing from the
   requested ref, resolves runtime and hardware package lanes without the build

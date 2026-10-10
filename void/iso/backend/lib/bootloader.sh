@@ -83,7 +83,6 @@ EOF
     uefi) void_install_limine_uefi ;;
     *) die 'unknown firmware mode: %s' "$RYOKU_FIRMWARE_MODE" ;;
   esac
-  log "Snapshots are not available on Void Linux, so updates cannot be rolled back."
 }
 
 void_prepare_existing_entry() {

@@ -145,6 +145,13 @@ done
 
 # the ai-usage loop must not actually sleep 45s/300s in the test
 export RYOKU_AI_USAGE_INITIAL=0 RYOKU_AI_USAGE_PERIOD=1
+cat > "$WORK/snapper-cleanup" <<'EOF'
+#!/bin/sh
+echo "snapper-cleanup" >> "$LOG"
+EOF
+chmod +x "$WORK/snapper-cleanup"
+export RYOKU_SNAPPER_CLEANUP_SCRIPT="$WORK/snapper-cleanup"
+export RYOKU_SNAPPER_CLEANUP_INITIAL=0 RYOKU_SNAPPER_CLEANUP_PERIOD=1
 
 install_svc() { # repo-dir name [park]
 	mkdir -p "$WORK/svc/$2"
@@ -163,6 +170,7 @@ install_svc /repo/void/init/user/ryoku-ai-usage ryoku-ai-usage
 install_svc /repo/void/init/user/ryoku-bluetooth-reset ryoku-bluetooth-reset
 install_svc /repo/void/init/system/ryoku-var-state ryoku-var-state
 install_svc /repo/void/init/system/ryoku-network-kill-guard ryoku-network-kill-guard
+install_svc /repo/void/init/system/snapper-cleanup snapper-cleanup
 
 # preconditions:
 # - bootstrap parks (config already materialized)
@@ -281,11 +289,13 @@ sv down "$WORK/svc/ryoku-rashin"
 wait_stat ryoku-prowl down || fail "prowl did not go down when rashin stopped (BindsTo)"
 pass "Wants brings the child up; BindsTo takes it down with the parent"
 
-#### 8. timer translation: the ai-usage loop fires its collectors on schedule.
+#### 8. timer translations fire their work on schedule.
 wait_count_ge 'claude-usage' 1 || fail "ai-usage loop never ran claude-usage"
+wait_count_ge 'snapper-cleanup' 1 || fail "snapper-cleanup loop never ran"
 sleep 3
 [ "$(count 'codex-usage')" -ge 2 ] || fail "ai-usage loop did not repeat on its period"
-pass "timer translation loops on its schedule"
+[ "$(count 'snapper-cleanup')" -ge 2 ] || fail "snapper-cleanup loop did not repeat on its period"
+pass "timer translations loop on their schedules"
 
 #### 9. wait-for predicates (env, file, !-inverse).
 . /repo/void/init/lib/wait-for

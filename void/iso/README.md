@@ -2,9 +2,9 @@
 
 The Void image boots straight into the same graphical installer as the Arch
 image. Before setup starts, it shows the short `Ryoku on Void` note covering
-niri-only support, missing snapshots and rollback, and unavailable packages.
-The ISO carries a complete offline XBPS repository and installs x86_64 glibc
-Void plus Ryoku, SDDM, niri, Limine, and dracut.
+niri-only support and unavailable packages. The ISO carries a complete offline
+XBPS repository and installs x86_64 glibc Void plus Ryoku, SDDM, niri, Limine,
+and dracut.
 
 `build.sh` stages the shared installer, builds its static TUI, assembles the
 offline repository, and runs a pinned `void-mklive` in the official Void
@@ -26,6 +26,21 @@ repository. Set `RYOKU_CONTAINER_ENGINE=podman` to use Podman.
 `out/ryoku-void-<version>-x86_64.iso` plus `out/SHA256SUMS`.
 
 For a release build, reserve 64 GiB for work and 32 GiB for output.
+
+## Snapshots
+
+The installer's **Snapshots & rollback** toggle is on by default. An enabled
+install creates `@snapshots` at `/.snapshots`, writes the shared snapper root
+config, enables daily cleanup through the `snapper-cleanup` runit service, and
+starts the `limine-snapper-sync` watcher. Turning the option off writes
+`/etc/ryoku/snapshots-disabled`.
+
+The Void kernel post-install hook writes each installed kernel series and its
+dracut initramfs under **Ryoku Linux** in `/boot/limine.conf`. It preserves the
+**Snapshots** subtree managed by `limine-snapper-sync`.
+
+To restore, reboot into **Ryoku Linux -> Snapshots**, run
+`sudo limine-snapper-restore` from the chosen snapshot, then reboot.
 
 `.github/workflows/build-iso-void.yml` runs the preflight and build on
 `void-v*` tags or manual dispatch. It verifies that the plist derived from the

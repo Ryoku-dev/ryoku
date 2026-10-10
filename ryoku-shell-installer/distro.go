@@ -21,10 +21,9 @@ const (
 )
 
 type distro struct {
-	id           string
-	name         string
-	fromSource   bool
-	snapshotNote string // optional final-summary note about snapshot support
+	id         string
+	name       string
+	fromSource bool
 
 	// rename maps an Arch package name to its Debian equivalent. A missing key
 	// means the name is identical; an empty value means the package does not
@@ -124,7 +123,6 @@ var debianLinux = &distro{
 var voidLinux = &distro{
 	id:                 "void",
 	name:               "Void",
-	snapshotNote:       "Snapshots are not available on Void Linux, so updates cannot be rolled back.",
 	installCmd:         []string{"xbps-install", "-Sy"},
 	removeCmd:          []string{"xbps-remove", "-y"},
 	updateCmd:          []string{"xbps-install", "-Syu"},

@@ -692,16 +692,18 @@ func bulletRow(label, value string, labelW int) string {
 }
 
 
-func voidEditionNotice(d *distro) []string {
-	if d == nil || d.id != "void" {
+func voidEditionNotice(f *facts) []string {
+	if f == nil || f.distro == nil || f.distro.id != "void" {
 		return nil
 	}
-	return []string{
+	notice := []string{
 		i18n.T("Ryoku on Void"),
 		i18n.T("niri only: Hyprland needs GCC 15; Void ships GCC 14."),
-		i18n.T("No snapshots or rollback are available."),
-		i18n.T("Unavailable: Zen Browser, LocalSend, Voxtype and asusctl."),
 	}
+	if f.btrfsRoot {
+		notice = append(notice, i18n.T("Update the base system with ryoku update --system so it is snapshotted; XBPS has no update hooks."))
+	}
+	return append(notice, i18n.T("Unavailable: Zen Browser, LocalSend, Voxtype and asusctl."))
 }
 
 func (m model) viewPlan() string {
@@ -737,7 +739,7 @@ func (m model) viewPlan() string {
 
 	choiceLabelW, optionW := choiceColumns(m.items)
 	choiceDetailIndent := 4 + choiceLabelW
-	notice := voidEditionNotice(f.distro)
+	notice := voidEditionNotice(f)
 	var b strings.Builder
 	b.WriteString(bold(cText, i18n.Tf("Install plan for %s", f.hostname)) + "\n")
 	b.WriteString(fg(cText, machine) + "\n")
@@ -983,7 +985,7 @@ func runHeadless(dry bool, ref, payload, compositor, browser, shell string) int 
 	// A machine-readable plan dump keeps unattended runs auditable.
 	fmt.Printf("plan: browser=%s shell=%s nvidia=%v sddm=%v greeter-theme=%v networkmanager=%v remove-shells=%v aur=%v devtools=%v omarchy-cleanup=%v monitor-pins=%v azerty-fr=%v azerty-be=%v\n",
 		p.browser, p.shell, p.nvidia, p.switchDM, p.greeter, p.switchNet, p.rivals, p.aur, p.devtools, p.omarchy, p.monPins, p.azertyFR, p.azertyBE)
-	if notice := voidEditionNotice(f.distro); len(notice) > 0 {
+	if notice := voidEditionNotice(f); len(notice) > 0 {
 		fmt.Println()
 		for _, line := range notice {
 			fmt.Println(line)

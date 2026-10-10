@@ -2290,9 +2290,6 @@ func stepVerify(e *engine) error {
 			e.say(gWarn + " " + i18n.T("the [omarchy] repository is still in /etc/pacman.conf"))
 		}
 	}
-	if note := e.d().snapshotNote; note != "" {
-		e.say(gWarn + " " + note)
-	}
 	if len(bad) > 0 {
 		return errors.New(i18n.Tf("%d check(s) failed: %s", len(bad), strings.Join(bad, "; ")))
 	}

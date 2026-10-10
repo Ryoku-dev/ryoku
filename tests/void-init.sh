@@ -209,6 +209,14 @@ check_parity "$ROOT/system/hardware/bluetooth/ryoku-bluetooth-reset.service" "$I
 for tool in claude-usage codex-usage opencode-usage; do
 	grep -qF "$tool" "$INIT/user/ryoku-ai-usage/run" || parity_fail "ai-usage loop lost $tool"
 done
+# snapper's packaged cron helper already applies every enabled cleanup algorithm
+# to every registered config; the runit loop preserves the timer's cadence.
+grep -qF '/etc/cron.hourly/snapper' "$INIT/system/snapper-cleanup/run" \
+  || parity_fail "snapper-cleanup does not use Void snapper's cleanup helper"
+grep -qF 'RYOKU_SNAPPER_CLEANUP_INITIAL:-600' "$INIT/system/snapper-cleanup/run" \
+  || parity_fail "snapper-cleanup lost the 10 minute boot delay"
+grep -qF 'RYOKU_SNAPPER_CLEANUP_PERIOD:-86400' "$INIT/system/snapper-cleanup/run" \
+  || parity_fail "snapper-cleanup lost the daily period"
 # boot guard + var-state: oneshot contract without a ConditionEnvironment
 check_parity "$ROOT/ryoku/cli/systemd/ryoku-boot-guard.service" "$INIT/system/ryoku-boot-guard"
 grep -q 'boot-guard' "$INIT/system/ryoku-boot-guard/run" || parity_fail "boot-guard run lost the ryoku boot-guard call"

@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **Void installs now include the snapshot safety net.** Snapshot-enabled
+  installs create and mount `@snapshots`, configure snapper and Limine, and
+  enable the runit cleanup and boot-menu sync services. Declining snapshots
+  records the same durable opt-out marker as Arch.
 - **Void ISO installs start doctor-clean.** The target user's localized XDG
   directories and recording folder are created during deployment, and the
   shipped Ryoku agent skill is wired before first boot.

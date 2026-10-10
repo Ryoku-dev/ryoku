@@ -32,6 +32,8 @@ source "$SHARED_LIB_DIR/resize.sh"
 source "$SHARED_LIB_DIR/luks.sh"
 # shellcheck source=installation/backend/lib/filesystem.sh
 source "$SHARED_LIB_DIR/filesystem.sh"
+# shellcheck source=installation/backend/lib/snapshots.sh
+source "$SHARED_LIB_DIR/snapshots.sh"
 # shellcheck source=installation/backend/lib/network.sh
 source "$SHARED_LIB_DIR/network.sh"
 # shellcheck source=installation/backend/lib/deploy.sh
@@ -40,6 +42,7 @@ source "$BACKEND_DIR/lib/common.sh"
 source "$BACKEND_DIR/lib/base.sh"
 source "$BACKEND_DIR/lib/configure.sh"
 source "$BACKEND_DIR/lib/deploy.sh"
+source "$BACKEND_DIR/lib/snapshots.sh"
 source "$BACKEND_DIR/lib/drivers.sh"
 source "$BACKEND_DIR/lib/bootloader.sh"
 
@@ -66,7 +69,7 @@ fi
 : "${RYOKU_SWAP_GIB:=0}"
 : "${RYOKU_SUBVOL_HOME:=1}"
 : "${RYOKU_SUBVOL_BACKUPS:=0}"
-RYOKU_SUBVOL_SNAPSHOTS=0
+: "${RYOKU_SUBVOL_SNAPSHOTS:=1}"
 : "${RYOKU_ONLINE:=0}"
 : "${RYOKU_OFFLINE_REPO:=/run/initramfs/live/ryoku/repo}"
 : "${RYOKU_RESOLVER:=$RYOKU_REPO/void/packages/resolve}"
@@ -172,6 +175,7 @@ main() {
   void_drivers
   void_services
   void_default_browser
+  void_snapshots
   step bootloader
   void_bootloader
   void_repo_finalize

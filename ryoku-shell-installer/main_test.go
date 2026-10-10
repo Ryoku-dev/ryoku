@@ -100,13 +100,14 @@ func TestCleanTermLine(t *testing.T) {
 }
 
 func TestVoidPlanShowsEditionNotice(t *testing.T) {
-	render := func(d *distro) string {
+	render := func(d *distro, btrfs bool) string {
 		f := &facts{
 			distro:     d,
 			distroName: d.name,
 			hostname:   "ryoku",
 			currentDM:  "sddm",
 			online:     true,
+			btrfsRoot:  btrfs,
 		}
 		p := defaultPlan(f)
 		return model{
@@ -116,17 +117,30 @@ func TestVoidPlanShowsEditionNotice(t *testing.T) {
 		}.viewPlan()
 	}
 
-	voidPlan := render(voidLinux)
-	for _, want := range voidEditionNotice(voidLinux) {
+	const updateNotice = "Update the base system with ryoku update --system so it is snapshotted; XBPS has no update hooks."
+	notice := voidEditionNotice(&facts{distro: voidLinux, btrfsRoot: true})
+	if !strings.Contains(strings.Join(notice, "\n"), updateNotice) {
+		t.Fatalf("Void notice text does not contain %q: %v", updateNotice, notice)
+	}
+	voidPlan := render(voidLinux, true)
+	for _, want := range []string{"niri only", "Unavailable: Zen Browser", "snapshot rollback: ready", "ryoku update --system", "snapshotted"} {
 		if !strings.Contains(voidPlan, want) {
-			t.Errorf("Void plan missing %q", want)
+			t.Errorf("Void btrfs plan missing %q", want)
 		}
 	}
 	if got := strings.Count(voidPlan, "Ryoku on Void"); got != 1 {
 		t.Errorf("Void plan notice count = %d, want 1", got)
 	}
-	if archPlan := render(archLinux); strings.Contains(archPlan, "Ryoku on Void") {
-		t.Fatal("Arch plan contains the Void edition notice")
+	nonBtrfsPlan := render(voidLinux, false)
+	if strings.Contains(nonBtrfsPlan, "Update the base system with ryoku update --system") || !strings.Contains(nonBtrfsPlan, "snapshot rollback: unavailable") {
+		t.Fatalf("Void non-btrfs plan has the wrong snapshot guidance:\n%s", nonBtrfsPlan)
+	}
+	if strings.Contains(voidPlan, "No snapshots or rollback are available.") {
+		t.Fatal("Void plan still says snapshots are unavailable")
+	}
+	archPlan := render(archLinux, true)
+	if strings.Contains(archPlan, "Ryoku on Void") || !strings.Contains(archPlan, "snapshot rollback: ready") {
+		t.Fatal("Arch plan changed while routing the Void edition notice")
 	}
 }
 

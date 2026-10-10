@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Void installs now include the snapshot safety net.** The snapshot layout is
+  offered and enabled by default, and the completion card points to Limine
+  rollback just like Arch.
 - **A second disk shows its partitions and its free space.** The alongside probe
   returned before reporting anything when the target disk was not GPT or had no
   EFI System Partition, and the free-region math read `firstlba`/`lastlba`, which
@@ -16,16 +19,16 @@
 
 ### Added
 - **The Void installer explains the edition before setup begins.** A short card
-  covers niri-only support, missing snapshots and rollback, unavailable apps,
-  and the features that remain unchanged.
+  covers niri-only support, unavailable apps, and using `ryoku update --system`
+  because XBPS has no transaction hooks.
 - **Ryoku now builds a native Void live ISO and installer.** The image carries
   an offline XBPS repository and a Void backend for the target-specific steps,
   while reusing the neutral disk, filesystem, network, and preflight libraries
   from the Arch installer.
 - **The shared ISO wizard now follows the live image's package variant.** The
   welcome card names the Void image, niri remains the installable window
-  manager, choices stay within the XBPS package table, and AUR and snapshot
-  controls are omitted without changing the Arch flow (`tui/{main,apps,system}.go`).
+  manager, choices stay within the XBPS package table, and AUR controls are
+  omitted without changing the Arch flow (`tui/{main,apps,system}.go`).
 - **Pick a window manager, browser, login shell, and optional apps in the
   installer.** Four steps between graphics mode and disk setup choose the
   desktop provider, exactly one browser, exactly one account shell, and the

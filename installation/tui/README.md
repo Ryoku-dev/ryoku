@@ -47,7 +47,7 @@ Arch flow picks Hyprland or niri, Firefox, Chromium, or Zen, and Fish, Zsh, or
 Bash. The Void flow opens with a short edition notice after Welcome; Arch and
 CachyOS skip it. It then keeps the same backend environment contract, but greys
 out Hyprland with its packaging reason, offers niri, Firefox or Chromium, and
-omits AUR-only apps and the snapshot toggle. All three login shells and the four
+omits AUR-only apps. The snapshot toggle, all three login shells, and the four
 hardware profiles remain available from the Void package table.
 
 Some steps are conditional: the `gpu` (graphics mode) step matters only on a

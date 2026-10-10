@@ -487,9 +487,8 @@ const (
 	kApps // grouped keep/remove app checklist
 )
 
-const minDiskGiB = 32 // installer floor: minRootGiB closure + 1G ESP + swap/snapshot headroom
-const minRootGiB = 20 // min root partition (GiB): base+desktop closure plus AUR/snapshot headroom (matches backend ryoku_min_root_gib)
-const voidSnapshotNote = "Snapshots are not available on Void Linux, so updates cannot be rolled back."
+const minDiskGiB = 32      // installer floor: minRootGiB closure + 1G ESP + swap/snapshot headroom
+const minRootGiB = 20      // min root partition (GiB): base+desktop closure plus AUR/snapshot headroom (matches backend ryoku_min_root_gib)
 const alongsideBootGiB = 2 // fixed FAT boot partition (matches backend RYOKU_ALONGSIDE_BOOT_MIB)
 // The grid the layout is verified to render every critical element into: the
 // destructive-write warning, the target disk, the strategy, and the Yes/No
@@ -574,7 +573,7 @@ func stepsForVariant(variant string) []step {
 			desc: []string{
 				i18n.T("This edition runs niri only."),
 				i18n.T("Hyprland needs GCC 15; Void ships GCC 14."),
-				i18n.T("No snapshots or boot-menu rollback: they rely on pacman."),
+				i18n.T("Update the base system with ryoku update --system so it is snapshotted; XBPS has no update hooks."),
 				i18n.T("Zen Browser, LocalSend and Voxtype are AUR-only."),
 				i18n.T("Also unavailable: asusctl, adw-gtk-theme and gpk."),
 				i18n.T("The oh-my-zsh theme is unavailable too."),
@@ -987,7 +986,7 @@ func (m *model) cur() step { return m.flow[m.idx] }
 
 func (m *model) resetLayoutChoices() {
 	m.espG, m.swapG = 1, 16
-	m.snapshots, m.sepHome, m.backups = !isVoidVariant(m.variant), true, false
+	m.snapshots, m.sepHome, m.backups = true, true, false
 }
 
 func (m *model) loadStep() {
@@ -1882,9 +1881,7 @@ func (m model) layoutRows() []lrow {
 		rows = append(rows, lrow{"size", "esp", i18n.T("ESP size"), "/boot · fat32", "required"}) // alongside boot is fixed at 2 GiB
 	}
 	rows = append(rows, lrow{"size", "swap", i18n.T("Swap (swapfile)"), i18n.T("@swap · 0 = none · carved from root"), "optional"})
-	if !isVoidVariant(m.variant) {
-		rows = append(rows, lrow{"toggle", "snap", i18n.T("Snapshots & rollback"), "@snapshots → /.snapshots", "recommended"})
-	}
+	rows = append(rows, lrow{"toggle", "snap", i18n.T("Snapshots & rollback"), "@snapshots → /.snapshots", "recommended"})
 	rows = append(rows,
 		lrow{"toggle", "home", i18n.T("Separate /home"), "@home → /home", "optional"},
 		lrow{"toggle", "backups", i18n.T("Backups"), "@backups → /.backups", "optional"},
@@ -2758,7 +2755,7 @@ func (m model) viewWizard() string {
 	switch {
 	case s.kind == kNotice:
 		for _, d := range s.desc {
-			c.WriteString(fg(cSub, truncW(d, inner)) + "\n")
+			c.WriteString(sty().Foreground(cSub).Width(inner).Render(d) + "\n")
 		}
 	case s.kind == kConfirm && s.key == "review":
 		// The step numbers live in the rail, so the hint only promises them when the
@@ -2974,9 +2971,6 @@ func (m model) partBody(inner int) string {
 			sub := truncW(r.sub, max(0, inner-used))
 			b.WriteString(prefix + "   " + labelStyled(sel, r.label, rowLabelW) + " " + markCell(m.toggleOn(r.key)) + " " + padTo(tagStyle(r.tag), tagW) + "  " + fg(cDim, sub) + "\n")
 		}
-	}
-	if isVoidVariant(m.variant) {
-		b.WriteString("   " + fg(cYell, truncW(i18n.T(voidSnapshotNote), max(0, inner-3))) + "\n")
 	}
 	// Honesty: the partitions we cannot carve show dimmed, each with the probe's
 	// reason, so a disk that can't be carved says exactly why rather than just
@@ -3578,9 +3572,6 @@ func (m model) viewDone() string {
 		user = "you"
 	}
 	next := i18n.T("snapshots and rollback from the Limine boot menu")
-	if isVoidVariant(m.variant) {
-		next = i18n.T(voidSnapshotNote)
-	}
 	card := sty().Border(borderDouble()).BorderForeground(cGreen).Padding(1, 3).Align(lipgloss.Center).
 		Render(bold(cGreen, gCheck+"  "+i18n.T("Ryoku installed")) + "\n\n" +
 			fg(cText, m.picks["hostname"]+" · "+m.picks["username"]+" · "+m.picks["profile"]) + "\n" +

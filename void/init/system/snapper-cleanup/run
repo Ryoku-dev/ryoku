@@ -1,0 +1,20 @@
+#!/bin/sh
+exec 2>&1
+
+. "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
+load_session_env
+
+cleanup=${RYOKU_SNAPPER_CLEANUP_SCRIPT:-/etc/cron.hourly/snapper}
+initial=${RYOKU_SNAPPER_CLEANUP_INITIAL:-600}
+period=${RYOKU_SNAPPER_CLEANUP_PERIOD:-86400}
+
+if [ ! -x "$cleanup" ]; then
+	echo "snapper-cleanup: missing executable $cleanup"
+	exec sv down .
+fi
+
+sleep "$initial"
+while :; do
+	"$cleanup" || true
+	sleep "$period"
+done

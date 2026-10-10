@@ -8,23 +8,27 @@
 
 ryoku_snapshots() {
   if [[ ${RYOKU_SUBVOL_SNAPSHOTS:-1} != 1 ]]; then
-    log "snapshots: @snapshots subvolume disabled, skipping snapper setup"
-    # record the explicit opt-out so `ryoku doctor` (which otherwise converges
-    # every btrfs root onto the canonical snapper layout) respects the choice
-    # instead of silently re-enabling snapshots on the first update. deleting
-    # the marker and running `ryoku doctor` enables them later.
-    run mkdir -p /mnt/etc/ryoku
-    write_file /mnt/etc/ryoku/snapshots-disabled <<'EOF'
-# Snapshots were declined at install (RYOKU_SUBVOL_SNAPSHOTS=0). `ryoku doctor`
-# leaves the snapper layout alone while this file exists; delete it and run
-# `ryoku doctor` to enable snapshots.
-EOF
+    ryoku_snapshots_disabled
     return 0
   fi
   log "configuring snapper (root), snap-pac, and limine-snapper-sync"
   ryoku_snap_config
   ryoku_snap_services
   ryoku_snap_updatedb
+}
+
+ryoku_snapshots_disabled() {
+  log "snapshots: @snapshots subvolume disabled, skipping snapper setup"
+  # record the explicit opt-out so `ryoku doctor` (which otherwise converges
+  # every btrfs root onto the canonical snapper layout) respects the choice
+  # instead of silently re-enabling snapshots on the first update. deleting
+  # the marker and running `ryoku doctor` enables them later.
+  run mkdir -p /mnt/etc/ryoku
+  write_file /mnt/etc/ryoku/snapshots-disabled <<'EOF'
+# Snapshots were declined at install (RYOKU_SUBVOL_SNAPSHOTS=0). `ryoku doctor`
+# leaves the snapper layout alone while this file exists; delete it and run
+# `ryoku doctor` to enable snapshots.
+EOF
 }
 
 # drop the snapper "root" config by hand. `snapper create-config` wants

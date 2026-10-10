@@ -75,6 +75,7 @@ void_write_fstab() {
     [[ ${RYOKU_SUBVOL_HOME:-1} == 1 ]] && printf 'UUID=%s\t/home\tbtrfs\t%s,subvol=@home\t0 0\n' "$root_uuid" "$opts"
     printf 'UUID=%s\t/var/log\tbtrfs\t%s,subvol=@log\t0 0\n' "$root_uuid" "$opts"
     printf 'UUID=%s\t%s\tbtrfs\t%s,subvol=@pkg\t0 0\n' "$root_uuid" "$RYOKU_PACKAGE_CACHE_DIR" "$opts"
+    [[ ${RYOKU_SUBVOL_SNAPSHOTS:-1} == 1 ]] && printf 'UUID=%s\t/.snapshots\tbtrfs\t%s,subvol=@snapshots\t0 0\n' "$root_uuid" "$opts"
     [[ ${RYOKU_SUBVOL_BACKUPS:-0} == 1 ]] && printf 'UUID=%s\t/.backups\tbtrfs\t%s,subvol=@backups\t0 0\n' "$root_uuid" "$opts"
     if (( ${RYOKU_SWAP_GIB:-0} > 0 )); then
       printf 'UUID=%s\t/swap\tbtrfs\tnoatime,subvol=@swap\t0 0\n' "$root_uuid"

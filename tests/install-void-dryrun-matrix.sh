@@ -43,7 +43,7 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 run_case() {
   local name=$1 strategy=$2 profile=$3 encrypt=$4 firmware=$5
-  local esp_mode=${6:-shared} online=${7:-0}
+  local esp_mode=${6:-shared} online=${7:-0} snapshots=${8:-1}
   local out=$tmp/$name.out
   local -a envs=(
     RYOKU_DRYRUN=1
@@ -61,6 +61,7 @@ run_case() {
     RYOKU_XKB_LAYOUT=de
     RYOKU_FIRMWARE_MODE="$firmware"
     RYOKU_ESP_MODE="$esp_mode"
+    RYOKU_SUBVOL_SNAPSHOTS="$snapshots"
   )
   if [[ $encrypt == yes ]]; then
     envs+=(RYOKU_ENCRYPT=1 RYOKU_LUKS_PASSPHRASE=secret)
@@ -81,8 +82,37 @@ run_case() {
   grep -q '/Pictures/Wallpapers' "$out"
   grep -q 'ryoku materialize' "$out"
   ! grep -q 'XBPS_REPOSITORY=' "$out"
-  grep -q 'Snapshots are not available on Void Linux' "$out"
-  ! grep -q 'subvol=@snapshots' "$out"
+  ! grep -q 'Snapshots are not available on Void Linux' "$out"
+  if [[ $snapshots == 1 ]]; then
+    grep -q 'btrfs subvolume create /mnt/@snapshots' "$out"
+    grep -q 'mount -o compress=zstd:1,noatime,subvol=@snapshots .* /mnt/.snapshots' "$out"
+    grep -q $'/.snapshots\tbtrfs\tcompress=zstd:1,noatime,subvol=@snapshots' "$out"
+    grep -q 'write /mnt/etc/snapper/configs/root' "$out"
+    grep -q 'write /mnt/etc/conf.d/snapper' "$out"
+    grep -q 'NUMBER_LIMIT="10"' "$out"
+    grep -q 'SNAPPER_CONFIGS="root"' "$out"
+    grep -q 'write /mnt/etc/default/limine' "$out"
+    grep -q 'TARGET_OS_NAME="Ryoku Linux"' "$out"
+    grep -q 'ESP_PATH="/boot"' "$out"
+    grep -q 'MAX_SNAPSHOT_ENTRIES=10' "$out"
+    grep -q 'SNAPSHOT_FORMAT_CHOICE=5' "$out"
+    grep -q 'ln -sfn /etc/sv/snapper-cleanup /mnt/etc/runit/runsvdir/default/snapper-cleanup' "$out"
+    grep -q 'ln -sfn /etc/sv/limine-snapper-sync /mnt/etc/runit/runsvdir/default/limine-snapper-sync' "$out"
+    grep -qE 'xbps-install .* snapper( |$)' "$out"
+    grep -qE 'xbps-install .* limine-snapper-sync( |$)' "$out"
+    local snap_config_line limine_hook_line
+    snap_config_line=$(grep -n -m1 'write /mnt/etc/snapper/configs/root' "$out" | cut -d: -f1)
+    limine_hook_line=$(grep -n -m1 '/etc/kernel.d/post-install/50-ryoku-limine' "$out" | cut -d: -f1)
+    (( snap_config_line < limine_hook_line )) \
+      || { printf '%s: snapshot config was written after the Limine hook\n' "$name" >&2; exit 1; }
+    ! grep -q '/mnt/etc/ryoku/snapshots-disabled' "$out"
+  else
+    ! grep -q 'subvol=@snapshots' "$out"
+    grep -q 'write /mnt/etc/ryoku/snapshots-disabled' "$out"
+    grep -q 'Snapshots were declined at install (RYOKU_SUBVOL_SNAPSHOTS=0)' "$out"
+    ! grep -q 'write /mnt/etc/snapper/configs/root' "$out"
+    ! grep -q 'write /mnt/etc/default/limine' "$out"
+  fi
 
   local package_line keymap_line materialize_line ledger_line marker_line
   local qylock_line user_services_line xdg_dirs_line recordings_line rashin_wire_line
@@ -149,6 +179,7 @@ run_case whole-vm whole vm no uefi
 run_case whole-amd-crypt whole amd yes uefi
 run_case whole-intel-bios whole intel no bios
 run_case whole-online whole vm no uefi shared 1
+run_case whole-no-snapshots whole vm no uefi shared 0 0
 run_case alongside-shared alongside vm no uefi shared
 run_case alongside-dedicated alongside amd-nvidia yes uefi dedicated
 

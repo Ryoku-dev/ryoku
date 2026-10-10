@@ -75,10 +75,20 @@ func TestVoidNoticeFollowsWelcome(t *testing.T) {
 		t.Fatalf("Void flow = %v, want void-notice followed by %v", voidKeys, defaultKeys)
 	}
 
+	notice := stepByKey(t, voidFlow, "void-notice")
+	const updateNotice = "Update the base system with ryoku update --system so it is snapshotted; XBPS has no update hooks."
+	if !strings.Contains(strings.Join(notice.desc, "\n"), updateNotice) {
+		t.Fatalf("Void notice text does not contain %q: %v", updateNotice, notice.desc)
+	}
 	m := model{variant: variantVoid, flow: voidFlow, w: 112, h: 42, state: "wizard", enterPos: 1}
 	rendered := strings.ToLower(stripSGR(m.viewWizard()))
-	if !strings.Contains(rendered, "niri") || !strings.Contains(rendered, "snapshots") {
-		t.Fatalf("Void notice does not name niri and snapshots:\n%s", rendered)
+	for _, want := range []string{"niri", "ryoku update --system", "snapshotted", "xbps has no update hooks", "aur-only"} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("Void notice is missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "no snapshots") {
+		t.Fatalf("Void notice still says snapshots are unavailable:\n%s", rendered)
 	}
 	m.back()
 	if m.state != "welcome" {
@@ -138,19 +148,22 @@ func TestVoidOffersOnlyPackagedProductChoices(t *testing.T) {
 	}
 }
 
-func TestVoidRemovesSnapshotsAndKeepsArchDefaults(t *testing.T) {
+func TestVoidUsesSnapshotsAndKeepsArchDefaults(t *testing.T) {
 	voidModel := model{variant: variantVoid, picks: map[string]string{"disk": "whole"}}
 	voidModel.resetLayoutChoices()
-	if voidModel.snapshots {
-		t.Fatal("Void layout enables snapshots")
+	if !voidModel.snapshots {
+		t.Fatal("Void layout does not enable snapshots by default")
 	}
+	var voidSnapshotRow *lrow
 	for _, row := range voidModel.layoutRows() {
 		if row.key == "snap" {
-			t.Fatal("Void layout offers the snapshot toggle")
+			copy := row
+			voidSnapshotRow = &copy
+			break
 		}
 	}
-	if voidSnapshotNote != "Snapshots are not available on Void Linux, so updates cannot be rolled back." {
-		t.Fatalf("Void snapshot note drifted: %q", voidSnapshotNote)
+	if voidSnapshotRow == nil {
+		t.Fatal("Void layout does not offer the snapshot toggle")
 	}
 
 	archModel := model{variant: "plain", picks: map[string]string{"disk": "whole"}}
@@ -158,12 +171,27 @@ func TestVoidRemovesSnapshotsAndKeepsArchDefaults(t *testing.T) {
 	if !archModel.snapshots {
 		t.Fatal("Arch snapshot default changed")
 	}
-	found := false
+	var archSnapshotRow *lrow
 	for _, row := range archModel.layoutRows() {
-		found = found || row.key == "snap"
+		if row.key == "snap" {
+			copy := row
+			archSnapshotRow = &copy
+			break
+		}
 	}
-	if !found || !reflect.DeepEqual(browsersForVariant("plain"), browsers()) || !reflect.DeepEqual(compositorsForVariant("plain"), compositors()) || !reflect.DeepEqual(appRowsForVariant("plain"), appRows()) {
+	if archSnapshotRow == nil || !reflect.DeepEqual(*voidSnapshotRow, *archSnapshotRow) {
+		t.Fatalf("Void snapshot row = %+v, want Arch row %+v", voidSnapshotRow, archSnapshotRow)
+	}
+	if !reflect.DeepEqual(browsersForVariant("plain"), browsers()) || !reflect.DeepEqual(compositorsForVariant("plain"), compositors()) || !reflect.DeepEqual(appRowsForVariant("plain"), appRows()) {
 		t.Fatal("Arch choices changed while routing the Void variant")
+	}
+
+	picks := map[string]string{"hostname": "ryoku", "username": "you", "profile": "desktop", "encryption": "off", "timezone": "UTC"}
+	voidDone := stripSGR((model{variant: variantVoid, picks: picks}).viewDone())
+	archDone := stripSGR((model{variant: "plain", picks: picks}).viewDone())
+	wantNext := "snapshots and rollback from the Limine boot menu"
+	if !strings.Contains(voidDone, wantNext) || !strings.Contains(archDone, wantNext) {
+		t.Fatalf("done summary diverged: Void=%q Arch=%q", voidDone, archDone)
 	}
 }
 
@@ -180,7 +208,7 @@ func TestVoidOfflineRepositoryHandoff(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(voidOfflineRepoPath, "x86_64-repodata"), []byte("index"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	m := model{variant: variantVoid, diskDev: "/dev/vda", pwHash: "x", picks: map[string]string{
+	m := model{variant: variantVoid, diskDev: "/dev/vda", pwHash: "x", snapshots: true, sepHome: true, picks: map[string]string{
 		"disk": "whole", "compositor": wm.ProviderNiri, "browser": "firefox", "login-shell": "fish",
 	}}
 	if envHas(m.installEnv(), "RYOKU_ONLINE=0") {
@@ -193,8 +221,8 @@ func TestVoidOfflineRepositoryHandoff(t *testing.T) {
 	if !envHas(env, "RYOKU_ONLINE=0") || !envHas(env, "RYOKU_OFFLINE_REPO="+voidOfflineRepoPath) {
 		t.Fatalf("Void offline repository did not reach backend env: %v", env)
 	}
-	if !envHas(env, "RYOKU_SUBVOL_SNAPSHOTS=0") {
-		t.Fatalf("Void snapshot setting did not reach backend env: %v", env)
+	if !envHas(env, "RYOKU_SUBVOL_SNAPSHOTS=1") {
+		t.Fatalf("Void snapshot default did not reach backend env: %v", env)
 	}
 	if err := os.MkdirAll(archOfflineRepoPath, 0o755); err != nil {
 		t.Fatal(err)
