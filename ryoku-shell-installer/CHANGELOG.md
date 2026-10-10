@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **Void install plans state the edition limits before changes begin.** The
+  interactive plan and headless dry run say that Void is niri-only because of
+  its GCC version, has no snapshots or rollback, and does not provide Zen
+  Browser, LocalSend, Voxtype or asusctl.
 - **Void installs state the snapshot limit before finishing.** The distro
   adapter carries a Void-only note into the final verification summary, while
   Arch and CachyOS dry-run output stays unchanged (`distro.go`, `engine.go`).

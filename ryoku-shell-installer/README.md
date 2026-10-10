@@ -8,6 +8,11 @@ elogind and Turnstile. Debian remains the source-build path: its package manager
 supplies the runtime and build dependencies, and the installer fetches the
 pinned fonts and cursor theme its archive does not carry.
 
+The Void edition is niri-only because Hyprland needs GCC 15 and Void ships GCC
+14. It has no snapshots or boot-menu rollback, and does not provide Zen
+Browser, LocalSend, Voxtype or asusctl. The installer shows these limits in the
+plan before it changes the machine.
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash
 ```
@@ -33,11 +38,10 @@ those three, and otherwise chooses Fish. `RYOKU_BROWSER` and
 
 The package picks are exact: Firefox installs `firefox`, Chromium installs
 `chromium`, and Zen installs `zen-browser-bin`. Arch builds Zen in the AUR step;
-Void receives it from the Ryoku XBPS repository. Fish installs `fish`; Zsh
-installs `zsh`, the three Ryoku plugin packages and `ryoku-oh-my-zsh`; Bash
-installs `blesh`. Bash itself and the shared terminal tools (`starship`,
-`fastfetch`, `zoxide`, `fzf`, `eza`, `bat`, and `mise`) stay available with
-every choice.
+Zen is not available on Void. Fish installs `fish`; Zsh installs `zsh`, the
+three Ryoku plugin packages and `ryoku-oh-my-zsh`; Bash installs `blesh`. Bash
+itself and the shared terminal tools (`starship`, `fastfetch`, `zoxide`, `fzf`,
+`eza`, `bat`, and `mise`) stay available with every choice.
 
 Preview without changing anything:
 

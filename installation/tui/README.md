@@ -44,10 +44,11 @@ encryption -> review`
 
 `system.go` reads `/usr/share/ryoku/variant` before the wizard is built. The
 Arch flow picks Hyprland or niri, Firefox, Chromium, or Zen, and Fish, Zsh, or
-Bash. The Void flow keeps the same steps and backend environment contract, but
-greys out Hyprland with its packaging reason, offers niri, Firefox or Chromium,
-and omits AUR-only apps and the snapshot toggle. All three login shells and the
-four hardware profiles remain available from the Void package table.
+Bash. The Void flow opens with a short edition notice after Welcome; Arch and
+CachyOS skip it. It then keeps the same backend environment contract, but greys
+out Hyprland with its packaging reason, offers niri, Firefox or Chromium, and
+omits AUR-only apps and the snapshot toggle. All three login shells and the four
+hardware profiles remain available from the Void package table.
 
 Some steps are conditional: the `gpu` (graphics mode) step matters only on a
 hybrid iGPU + dGPU laptop, and the pickers fall back to a small built-in list

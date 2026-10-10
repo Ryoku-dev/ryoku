@@ -54,6 +54,43 @@ func TestVariantMarkerRoutesWizard(t *testing.T) {
 	}
 }
 
+func TestVoidNoticeFollowsWelcome(t *testing.T) {
+	t.Setenv("RYOKU_KB_PRESET", "")
+	keys := func(flow []step) []string {
+		out := make([]string, len(flow))
+		for i, s := range flow {
+			out[i] = s.key
+		}
+		return out
+	}
+
+	defaultFlow := stepsForVariant("plain")
+	voidFlow := stepsForVariant(variantVoid)
+	defaultKeys := keys(defaultFlow)
+	voidKeys := keys(voidFlow)
+	if flowIndex(defaultFlow, "void-notice") >= 0 {
+		t.Fatalf("default flow includes the Void notice: %v", defaultKeys)
+	}
+	if len(voidKeys) != len(defaultKeys)+1 || voidKeys[0] != "void-notice" || !reflect.DeepEqual(voidKeys[1:], defaultKeys) {
+		t.Fatalf("Void flow = %v, want void-notice followed by %v", voidKeys, defaultKeys)
+	}
+
+	m := model{variant: variantVoid, flow: voidFlow, w: 112, h: 42, state: "wizard", enterPos: 1}
+	rendered := strings.ToLower(stripSGR(m.viewWizard()))
+	if !strings.Contains(rendered, "niri") || !strings.Contains(rendered, "snapshots") {
+		t.Fatalf("Void notice does not name niri and snapshots:\n%s", rendered)
+	}
+	m.back()
+	if m.state != "welcome" {
+		t.Fatalf("back from Void notice entered %q, want welcome", m.state)
+	}
+	m.state = "wizard"
+	m.advance()
+	if got := m.cur().key; got != defaultKeys[0] {
+		t.Fatalf("continue from Void notice entered %q, want %q", got, defaultKeys[0])
+	}
+}
+
 func TestWelcomeFrameNamesLiveVariant(t *testing.T) {
 	render := func(variant string) string {
 		m := model{variant: variant, w: 112, h: 42}

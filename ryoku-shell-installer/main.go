@@ -692,6 +692,18 @@ func bulletRow(label, value string, labelW int) string {
 }
 
 
+func voidEditionNotice(d *distro) []string {
+	if d == nil || d.id != "void" {
+		return nil
+	}
+	return []string{
+		i18n.T("Ryoku on Void"),
+		i18n.T("niri only: Hyprland needs GCC 15; Void ships GCC 14."),
+		i18n.T("No snapshots or rollback are available."),
+		i18n.T("Unavailable: Zen Browser, LocalSend, Voxtype and asusctl."),
+	}
+}
+
 func (m model) viewPlan() string {
 	f := m.f
 	iw := clamp(m.w-8, 64, 104)
@@ -725,6 +737,7 @@ func (m model) viewPlan() string {
 
 	choiceLabelW, optionW := choiceColumns(m.items)
 	choiceDetailIndent := 4 + choiceLabelW
+	notice := voidEditionNotice(f.distro)
 	var b strings.Builder
 	b.WriteString(bold(cText, i18n.Tf("Install plan for %s", f.hostname)) + "\n")
 	b.WriteString(fg(cText, machine) + "\n")
@@ -746,7 +759,11 @@ func (m model) viewPlan() string {
 			break
 		}
 	}
-	start, end := stepWindow(len(rest), selectedRest, clamp(m.h-17, 5, 7))
+	visibleRows := clamp(m.h-17, 5, 7)
+	if len(notice) > 0 {
+		visibleRows = clamp(m.h-22, 2, 7)
+	}
+	start, end := stepWindow(len(rest), selectedRest, visibleRows)
 	for _, row := range rest[start:end] {
 		it := row.item
 		if !selectablePlanItem(it) {
@@ -783,6 +800,16 @@ func (m model) viewPlan() string {
 	}
 	if !f.online {
 		b.WriteString(fg(cText, gWarn+" "+i18n.T("repo.ryoku.dev is unreachable; installation needs network")) + "\n")
+	}
+	if len(notice) > 0 {
+		b.WriteString("\n")
+		for i, line := range notice {
+			if i == 0 {
+				b.WriteString(bold(cText, line) + "\n")
+			} else {
+				b.WriteString(fg(cSub, line) + "\n")
+			}
+		}
 	}
 	if m.confirm {
 		b.WriteString("\n" + selected(" "+i18n.T("Install the Ryoku desktop with these choices?")+" "))
@@ -956,6 +983,12 @@ func runHeadless(dry bool, ref, payload, compositor, browser, shell string) int 
 	// A machine-readable plan dump keeps unattended runs auditable.
 	fmt.Printf("plan: browser=%s shell=%s nvidia=%v sddm=%v greeter-theme=%v networkmanager=%v remove-shells=%v aur=%v devtools=%v omarchy-cleanup=%v monitor-pins=%v azerty-fr=%v azerty-be=%v\n",
 		p.browser, p.shell, p.nvidia, p.switchDM, p.greeter, p.switchNet, p.rivals, p.aur, p.devtools, p.omarchy, p.monPins, p.azertyFR, p.azertyBE)
+	if notice := voidEditionNotice(f.distro); len(notice) > 0 {
+		fmt.Println()
+		for _, line := range notice {
+			fmt.Println(line)
+		}
+	}
 	e := newEngine(f, p, dry, ref, payload)
 	ev := e.runFrom(0)
 	for msg := range ev {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/lipgloss/v2"
@@ -95,6 +96,37 @@ func TestCleanTermLine(t *testing.T) {
 		if got := cleanTermLine(c.in); got != c.want {
 			t.Errorf("%s: cleanTermLine(%q) = %q, want %q", c.name, c.in, got, c.want)
 		}
+	}
+}
+
+func TestVoidPlanShowsEditionNotice(t *testing.T) {
+	render := func(d *distro) string {
+		f := &facts{
+			distro:     d,
+			distroName: d.name,
+			hostname:   "ryoku",
+			currentDM:  "sddm",
+			online:     true,
+		}
+		p := defaultPlan(f)
+		return model{
+			w: 100, h: 40,
+			f: f, p: p,
+			items: groupPlanItems(buildItems(f, p)),
+		}.viewPlan()
+	}
+
+	voidPlan := render(voidLinux)
+	for _, want := range voidEditionNotice(voidLinux) {
+		if !strings.Contains(voidPlan, want) {
+			t.Errorf("Void plan missing %q", want)
+		}
+	}
+	if got := strings.Count(voidPlan, "Ryoku on Void"); got != 1 {
+		t.Errorf("Void plan notice count = %d, want 1", got)
+	}
+	if archPlan := render(archLinux); strings.Contains(archPlan, "Ryoku on Void") {
+		t.Fatal("Arch plan contains the Void edition notice")
 	}
 }
 

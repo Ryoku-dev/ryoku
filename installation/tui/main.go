@@ -37,7 +37,7 @@ const (
 	discordURL  = "https://discord.gg/8KjBmUEyKA"
 	redditURL   = "https://www.reddit.com/r/RyokuArch"
 	xURL        = "https://x.com/neur0map"
-	iconDiscord = "" // nf-fa-discord
+	iconDiscord = "󰙯" // nf-md-discord
 	iconReddit  = "" // nf-fa-reddit
 	iconX       = "𝕏"
 )
@@ -481,6 +481,7 @@ const (
 	kConfirm
 	kPartition
 	kInfo
+	kNotice
 	kPass // password + confirm
 	kNet  // connectivity / Wi-Fi
 	kApps // grouped keep/remove app checklist
@@ -565,7 +566,21 @@ func stepsForVariant(variant string) []step {
 	// chosen and cage runs under it; drop the step so the wizard resumes at locale,
 	// with the password captured in the user's real layout.
 	if os.Getenv("RYOKU_KB_PRESET") != "" {
-		return all[1:]
+		all = all[1:]
+	}
+	if isVoidVariant(variant) {
+		all = append([]step{{
+			key: "void-notice", title: i18n.T("Ryoku on Void"), kind: kNotice,
+			desc: []string{
+				i18n.T("This edition runs niri only."),
+				i18n.T("Hyprland needs GCC 15; Void ships GCC 14."),
+				i18n.T("No snapshots or boot-menu rollback: they rely on pacman."),
+				i18n.T("Zen Browser, LocalSend and Voxtype are AUR-only."),
+				i18n.T("Also unavailable: asusctl, adw-gtk-theme and gpk."),
+				i18n.T("The oh-my-zsh theme is unavailable too."),
+				i18n.T("Everything else works the same."),
+			},
+		}}, all...)
 	}
 	return all
 }
@@ -1284,6 +1299,10 @@ func (m model) onKey(k string) (tea.Model, tea.Cmd) {
 	}
 
 	switch s.kind {
+	case kNotice:
+		if k == "enter" {
+			m.advance()
+		}
 	case kSelect:
 		if done, sel := m.pick.update(k); done {
 			// Commit from the picker's own list, never s.items: loadStep swaps
@@ -1563,6 +1582,10 @@ func (m *model) advance() {
 }
 
 func (m *model) back() {
+	if m.idx == 0 && m.cur().kind == kNotice {
+		m.state = "welcome"
+		return
+	}
 	for m.idx > 0 {
 		m.idx--
 		if m.stepActive(m.idx) {
@@ -2733,6 +2756,10 @@ func (m model) viewWizard() string {
 	var c strings.Builder
 	c.WriteString(bold(cBrand, s.title) + "\n\n")
 	switch {
+	case s.kind == kNotice:
+		for _, d := range s.desc {
+			c.WriteString(fg(cSub, truncW(d, inner)) + "\n")
+		}
 	case s.kind == kConfirm && s.key == "review":
 		// The step numbers live in the rail, so the hint only promises them when the
 		// rail is actually on screen; a tight grid drops the hint altogether.
@@ -3608,6 +3635,8 @@ func (m model) footer() string {
 	s := m.cur()
 	var parts []string
 	switch {
+	case s.kind == kNotice:
+		parts = []string{keyHint("enter", i18n.T("continue")), keyHint("esc", i18n.T("back")), keyHint("q", i18n.T("quit"))}
 	case s.kind == kPartition:
 		switch {
 		case m.layoutRows()[m.lsel].kind == "keep", m.layoutRows()[m.lsel].kind == "reclaim":

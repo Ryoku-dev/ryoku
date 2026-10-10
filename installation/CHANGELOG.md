@@ -11,8 +11,13 @@
   readable disk now reports its sector size and free regions before the verdict
   gate, MBR free space is computed from the device size, and a non-GPT disk says
   its space is listed but needs GPT (`backend/lib/disk.sh`, `tui/system.go`).
+- **The Discord logo renders in the live installer.** It now uses the Material
+  Design Discord glyph included in the installer's Nerd Font.
 
 ### Added
+- **The Void installer explains the edition before setup begins.** A short card
+  covers niri-only support, missing snapshots and rollback, unavailable apps,
+  and the features that remain unchanged.
 - **Ryoku now builds a native Void live ISO and installer.** The image carries
   an offline XBPS repository and a Void backend for the target-specific steps,
   while reusing the neutral disk, filesystem, network, and preflight libraries
