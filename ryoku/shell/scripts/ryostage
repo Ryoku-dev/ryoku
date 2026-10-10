@@ -368,7 +368,7 @@ pick_python() {
 # A system Python 3.11-3.13 is the fast path; otherwise uv provisions one.
 ensure_venv() {
     [[ -x "$venv/bin/python" ]] && return 0
-    local py
+    local py advice host_advice
     if py="$(pick_python)"; then
         printf 'Creating engine environment (%s)...\n' "$py"
         "$py" -m venv "$venv"
@@ -379,7 +379,13 @@ ensure_venv() {
         uv python install 3.13 && uv venv --python 3.13 "$venv"
         [[ -x "$venv/bin/python" ]] && return 0
     fi
-    printf 'ryostage: needs Python 3.11-3.13 or uv (install it: sudo pacman -S uv)\n' >&2
+    advice='sudo pacman -S uv'
+    if command -v ryoku-host >/dev/null 2>&1; then
+        if host_advice="$(ryoku-host pkg advice uv 2>/dev/null)" && [[ -n $host_advice ]]; then
+            advice=$host_advice
+        fi
+    fi
+    printf 'ryostage: needs Python 3.11-3.13 or uv (install it: %s)\n' "$advice" >&2
     return 1
 }
 

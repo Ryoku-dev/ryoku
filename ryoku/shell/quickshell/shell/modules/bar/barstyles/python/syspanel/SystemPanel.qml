@@ -1354,19 +1354,16 @@ Item {
                                         Sounds.stopSfx(actionCapsule.chargingSoundHandle);
                                         actionCapsule.chargingSoundHandle = -1;
                                     }
-                                    // Ryoku seam: the power verbs ride Ryoku's own
-                                    // paths -- qylock through the daemon, sleep and
-                                    // the system-level actions through systemd.
                                     if (cmd === "lock") {
                                         Quickshell.execDetached(["ryoku-shell", "lock"]);
                                     } else if (cmd === "sleep") {
-                                        Quickshell.execDetached(["systemctl", "suspend"]);
+                                        Quickshell.execDetached(["ryoku-host", "power", "suspend"]);
                                     } else if (cmd === "hibernate") {
-                                        Quickshell.execDetached(["systemctl", "hibernate"]);
+                                        Quickshell.execDetached(["ryoku-host", "power", "hibernate"]);
                                     } else if (cmd === "reboot") {
-                                        Quickshell.execDetached(["systemctl", "reboot"]);
+                                        Quickshell.execDetached(["ryoku-host", "power", "reboot"]);
                                     } else if (cmd === "poweroff") {
-                                        Quickshell.execDetached(["systemctl", "poweroff"]);
+                                        Quickshell.execDetached(["ryoku-host", "power", "poweroff"]);
                                     }
                                     Quickshell.execDetached(["sh", "-c", "echo 'close' > " + Caching.runDir + "/widget_state"]);
 

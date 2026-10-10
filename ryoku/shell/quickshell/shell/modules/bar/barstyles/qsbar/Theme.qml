@@ -1457,7 +1457,7 @@ Item {
     // periodic Timer below only re-reads; this is the only path that refetches.
     Process {
         id: aiCollectProc
-        command: ["systemctl", "--user", "start", "ryoku-ai-usage.service"]
+        command: ["ryoku-host", "svc", "--user", "start", "ryoku-ai-usage.service"]
         onExited: {
             aiRefreshTimeout.stop()
             theme.refreshAiUsage(false)
@@ -2534,7 +2534,7 @@ Item {
     // so it shows an "open nmtui" button instead of an empty list
     property bool useNM: false
     Process {
-        command: ["bash", "-c", "systemctl is-active --quiet NetworkManager && echo 1 || echo 0"]
+        command: ["bash", "-c", "ryoku-host svc --system is-active NetworkManager >/dev/null 2>&1 && echo 1 || echo 0"]
         running: true
         stdout: StdioCollector { onStreamFinished: theme.useNM = this.text.trim() === "1" }
     }

@@ -276,11 +276,11 @@ Item {
                                     actionCapsule.chargingSoundHandle = -1;
                                 }
                                 if (cmd === "sleep") {
-                                    Quickshell.execDetached(["systemctl", "suspend"]);
+                                    Quickshell.execDetached(["ryoku-host", "power", "suspend"]);
                                 } else if (cmd === "reboot") {
-                                    Quickshell.execDetached(["systemctl", "reboot"]);
+                                    Quickshell.execDetached(["ryoku-host", "power", "reboot"]);
                                 } else if (cmd === "poweroff") {
-                                    Quickshell.execDetached(["systemctl", "poweroff"]);
+                                    Quickshell.execDetached(["ryoku-host", "power", "poweroff"]);
                                 }
                                 actionCapsule.fillLevel = 0.0;
                                 actionCapsule.triggered = false;

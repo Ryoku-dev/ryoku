@@ -46,7 +46,7 @@ function parseZones(spec) {
 function probeCommand(ids, withLocal) {
   var script = "for z in \"$@\"; do TZ=\"$z\" date \"+$z|%Z|%z\"; done"
   if (withLocal)
-    script = "tz=$(timedatectl show -p Timezone --value); "
+    script = "tz=$(ryoku-host time zone); "
       + "printf 'LOCAL|%s\\n' \"$tz\"; TZ=\"$tz\" date \"+$tz|%Z|%z\"; " + script
   return ["bash", "-c", script, "bash"].concat(ids || [])
 }
@@ -337,7 +337,7 @@ function removeZone(zones, id) {
   return out.length === zones.length ? zones : out
 }
 
-// `timedatectl list-timezones` plus CITY_ALIASES -> picker options, minus `existing`.
+// `ryoku-host time zones` plus CITY_ALIASES -> picker options, minus `existing`.
 function zoneOptions(text, existing) {
   var lines = String(text || "").split("\n")
   var seen = {}

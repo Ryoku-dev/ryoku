@@ -2,9 +2,9 @@
 # hermetic test for ryoku/shell/scripts/stash-install.sh. stash makes dropped
 # files launchable: AppImages + self-contained tarballs get a synth desktop
 # entry; an Arch package (.pkg.tar.zst, recognised by its .PKGINFO member) must
-# go through `pacman -U` via pkexec, never extracted into ~/.local where its
-# /opt binary would not work. pkexec + pacman stubbed; this asserts the dispatch
-# without touching the real system.
+# go through the host package seam via pkexec, never be extracted into ~/.local
+# where its /opt binary would not work. The privileged commands are stubbed so
+# the test does not touch the real system.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -18,21 +18,27 @@ check() { if [[ $1 == "$2" ]]; then echo "  ok: $3"; else echo "::error::FAIL: $
 present() { if [[ -e $1 ]]; then echo "  ok: $2"; else echo "::error::FAIL: $2 (missing $1)" >&2; fail=1; fi; }
 absent()  { if [[ ! -e $1 ]]; then echo "  ok: $2"; else echo "::error::FAIL: $2 ($1 exists)" >&2; fail=1; fi; }
 
-# stubs. pkexec records args (escalation assertion); pacman, notify-send,
-# update-desktop-database just need to exist for the script's presence checks.
+# stubs. pkexec records the escalation and runs the ryoku-host stub so its exit
+# status matches the host seam. notify-send and update-desktop-database only
+# need to exist for the script's presence checks.
 stub="$work/bin"
 mkdir -p "$stub"
 cat >"$stub/pkexec" <<EOF
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/pkexec.log"
-exit 0
+exec "\$@"
+EOF
+cat >"$stub/ryoku-host" <<EOF
+#!/bin/sh
+printf '%s\n' "\$*" >>"$work/ryoku-host.log"
+exit "\${RYOKU_TEST_INSTALL_FILE_RC:-0}"
 EOF
 cat >"$stub/flatpak" <<EOF
 #!/bin/sh
 printf '%s\n' "\$*" >>"$work/flatpak.log"
 exit 0
 EOF
-for t in pacman notify-send update-desktop-database; do printf '#!/bin/sh\nexit 0\n' >"$stub/$t"; done
+for t in notify-send update-desktop-database; do printf '#!/bin/sh\nexit 0\n' >"$stub/$t"; done
 chmod +x "$stub"/*
 export PATH="$stub:$PATH"
 
@@ -50,10 +56,11 @@ run_stash() {
   HOME="$work/home" bash "$SCRIPT" >"$work/out" 2>&1
 }
 
-# case 1: .pkg.tar.* installs via pkexec pacman -U, not extracted.
+# case 1: .pkg.tar.* installs via pkexec and the host seam, not extraction.
 s1="$work/stash1"; mkdir -p "$s1"
 mkpkg "$s1/foo.pkg.tar.gz" foo
 : >"$work/pkexec.log"
+: >"$work/ryoku-host.log"
 STASH_DIR="$s1" run_stash
 if grep -q "Installed foo" "$work/out"; then
   echo "  ok: reported the pkgname (foo)"
@@ -61,32 +68,53 @@ else
   echo "::error::FAIL: did not report pkgname; out: $(cat "$work/out")" >&2
   fail=1
 fi
-check "$(cat "$work/pkexec.log")" "pacman -U --noconfirm $s1/foo.pkg.tar.gz" \
-  "pacman package handed to pkexec pacman -U"
-absent "$work/home/.local/share/ryoku-apps/foo" "pacman package NOT extracted into ~/.local"
+check "$(cat "$work/pkexec.log")" "ryoku-host pkg install-file $s1/foo.pkg.tar.gz" \
+  "Arch package handed to the host package seam through pkexec"
+check "$(cat "$work/ryoku-host.log")" "pkg install-file $s1/foo.pkg.tar.gz" \
+  "host package seam receives the archive"
+absent "$work/home/.local/share/ryoku-apps/foo" "Arch package NOT extracted into ~/.local"
 absent "$s1/foo.pkg.tar.gz" "source removed from the stash after a successful install"
 if grep -qx "@AUTH" "$work/out"; then
-  echo "  ok: pacman install signals the deck to step aside (@AUTH)"
+  echo "  ok: privileged package install signals the deck to step aside (@AUTH)"
 else
-  echo "::error::FAIL: pacman install did not emit @AUTH" >&2; fail=1
+  echo "::error::FAIL: privileged package install did not emit @AUTH" >&2; fail=1
 fi
 
-# case 2: renamed package (.tar.gz with .PKGINFO) still detected as pacman.
+# case 2: renamed package (.tar.gz with .PKGINFO) still detected as an Arch package.
 s2="$work/stash2"; mkdir -p "$s2"
 mkpkg "$s2/bar.tar.gz" bar
 : >"$work/pkexec.log"
 STASH_DIR="$s2" run_stash
-check "$(cat "$work/pkexec.log")" "pacman -U --noconfirm $s2/bar.tar.gz" \
-  "renamed Arch package detected by .PKGINFO and sent to pacman"
+check "$(cat "$work/pkexec.log")" "ryoku-host pkg install-file $s2/bar.tar.gz" \
+  "renamed Arch package detected by .PKGINFO and sent through the host seam"
 
-# case 3: generic tarball (no .PKGINFO) stays the extract path, never pacman.
+# case 2b: a host without install-file refuses Arch archives and keeps them.
+s2b="$work/stash2b"; mkdir -p "$s2b"
+mkpkg "$s2b/void.pkg.tar.gz" void
+: >"$work/pkexec.log"
+RYOKU_TEST_INSTALL_FILE_RC=5 STASH_DIR="$s2b" run_stash || true
+if grep -qx "Arch packages cannot be installed on this system." "$work/out"; then
+  echo "  ok: unsupported Arch package has a clear host-specific error"
+else
+  echo "::error::FAIL: missing unsupported Arch package message; out: $(cat "$work/out")" >&2
+  fail=1
+fi
+if grep -qi "pacman" "$work/out"; then
+  echo "::error::FAIL: unsupported host output recommends pacman" >&2
+  fail=1
+else
+  echo "  ok: unsupported host output does not recommend pacman"
+fi
+present "$s2b/void.pkg.tar.gz" "unsupported Arch package remains in the stash"
+
+# case 3: generic tarball (no .PKGINFO) stays on the extraction path.
 s3="$work/stash3"; mkdir -p "$s3"
 g="$work/gen"; rm -rf "$g"; mkdir -p "$g"
 printf '#!/bin/sh\necho hi\n' >"$g/plainbin"; chmod +x "$g/plainbin"
 ( cd "$g" && tar -czf "$s3/plainapp.tar.gz" plainbin )
 : >"$work/pkexec.log"
 STASH_DIR="$s3" run_stash
-check "$(cat "$work/pkexec.log")" "" "generic tarball never escalated to pacman"
+check "$(cat "$work/pkexec.log")" "" "generic tarball never escalated to the host package installer"
 present "$work/home/.local/share/applications/plainapp.desktop" \
   "generic tarball still becomes a launcher entry"
 if grep -qx "@AUTH" "$work/out"; then

@@ -19,30 +19,8 @@ ensure_easyeffects() {
         return 0
     fi
 
-    if command -v systemctl >/dev/null 2>&1 &&
-       systemctl --user cat ee-eq.service >/dev/null 2>&1; then
-        systemctl --user start ee-eq.service >/dev/null 2>&1
-        sleep 0.5
-        return 0
-    fi
-
-    if command -v rc-service >/dev/null 2>&1 &&
-       rc-service easyeffects status >/dev/null 2>&1; then
-        rc-service easyeffects start >/dev/null 2>&1
-        sleep 0.5
-        return 0
-    fi
-
-    if command -v sv >/dev/null 2>&1 &&
-       [ -d /var/service/easyeffects ]; then
-        sv up /var/service/easyeffects >/dev/null 2>&1
-        sleep 0.5
-        return 0
-    fi
-
-    if command -v s6-svc >/dev/null 2>&1 &&
-       [ -d /run/service/easyeffects ]; then
-        s6-svc -u /run/service/easyeffects >/dev/null 2>&1
+    if command -v ryoku-host >/dev/null 2>&1 &&
+       ryoku-host svc --user start ee-eq.service >/dev/null 2>&1; then
         sleep 0.5
         return 0
     fi

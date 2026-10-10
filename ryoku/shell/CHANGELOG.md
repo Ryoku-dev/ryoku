@@ -11,6 +11,9 @@
   Reboot and power off go through login1 directly, so they work under elogind
   too, and Keep Awake, the lid policy, the Hub's timezone picker and the
   system keymap all have a runit path.
+- **Bar power, service and time-zone actions now use `ryoku-host`.** The same
+  controls work on systemd and Void's runit.
+- Missing-dependency hints and the stash installer follow the system package manager on Void.
 - **One dock for every bar style, in any design.** The dock is no longer tied
   to a bar style: pick the Ryoku, Python or Shima dock (or none) and it runs
   the same under QS Bar, Kairos, Shima, Python, Sumi and Nomarchy, on both

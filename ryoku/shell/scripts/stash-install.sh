@@ -358,7 +358,7 @@ install_pacman() {
   pkexec ryoku-host pkg install-file "$src" >/dev/null 2>&1
   status=$?
   if [ "$status" -eq 5 ]; then
-    printf 'Arch packages cannot be installed on this distribution\n' >&2
+    printf 'Arch packages cannot be installed on this system.\n' >&2
     return 1
   fi
   [ "$status" -eq 0 ] || return 1

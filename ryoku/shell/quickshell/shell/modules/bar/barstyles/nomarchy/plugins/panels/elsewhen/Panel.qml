@@ -575,7 +575,7 @@ Panel {
 
   Process {
     id: catalogProc
-    command: ["timedatectl", "list-timezones"]
+    command: ["ryoku-host", "time", "zones"]
     stdout: StdioCollector {
       onStreamFinished: root.zoneCatalogText = text
     }
