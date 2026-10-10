@@ -66,6 +66,12 @@ cat >"$tmp/fakebin/systemctl" <<'EOF'
    -r "$XDG_RUNTIME_DIR/ryoku-qylock-generation-guard.ready" ]]
 EOF
 chmod +x "$tmp/fakebin/systemctl"
+cat >"$tmp/fakebin/loginctl" <<'EOF'
+#!/usr/bin/env bash
+[[ $1 == show-session && $* == *"-p State"* ]] || exit 1
+printf 'active\n'
+EOF
+chmod +x "$tmp/fakebin/loginctl"
 : >"$XDG_RUNTIME_DIR/ryoku-qylock-generation-guard.ready"
 
 # An external client-drain guard does not confer mutation ownership. A second
