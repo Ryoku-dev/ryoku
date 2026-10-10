@@ -72,10 +72,10 @@ mapfile -t PKGS < <(
     vulkan-icd-loader lib32-vulkan-icd-loader \
     broadcom-wl-dkms
   # The desktop set plus the hardware-only ASUS Aura provider: the target
-  # installer selects asusctl only on a matching laptop. Both compositor
+  # installer selects asusctl only on a matching laptop. All compositor
   # variants bake because the TUI offers each one and an offline install has no
   # network to fetch a missing variant.
-  printf '%s\n' ryoku-keyring ryoku-desktop ryoku-desktop-hyprland ryoku-desktop-niri asusctl
+  printf '%s\n' ryoku-keyring ryoku-desktop ryoku-desktop-hyprland ryoku-desktop-niri ryoku-desktop-wayfire asusctl
 )
 # dedupe, keep order.
 mapfile -t PKGS < <(printf '%s\n' "${PKGS[@]}" | awk '!seen[$0]++')
@@ -413,6 +413,7 @@ mapfile -t aur_expected < <(read_list "$pkgdir/aur.packages")
 for req in nvidia-open nvidia-open-dkms nvidia-utils libva-nvidia-driver \
            mesa vulkan-radeon vulkan-intel vulkan-icd-loader \
            ryoku-keyring ryoku-desktop ryoku-desktop-hyprland ryoku-desktop-niri \
+           ryoku-desktop-wayfire \
            "${aur_expected[@]}"; do
   repo_has_pkg "$req" || missing+=("$req")
 done
@@ -463,11 +464,11 @@ EOF
     read_list "$pkgdir/dev.packages"
     [[ $VARIANT == cachyos ]] && read_list "$pkgdir/cachyos.packages"
     read_section "$hw" vm
-    # both variants are named so the compositor virtual is already satisfied:
-    # an unqualified ryoku-desktop with two providers in the repo makes pacman
-    # prompt for a choice, which a build script cannot answer.
+    # every variant is named so the compositor virtual is already satisfied:
+    # an unqualified ryoku-desktop with several providers in the repo makes
+    # pacman prompt for a choice, which a build script cannot answer.
     printf '%s\n' amd-ucode intel-ucode ryoku-keyring ryoku-desktop \
-      ryoku-desktop-hyprland ryoku-desktop-niri
+      ryoku-desktop-hyprland ryoku-desktop-niri ryoku-desktop-wayfire
   } | awk '!seen[$0]++' )
 
   local resolved

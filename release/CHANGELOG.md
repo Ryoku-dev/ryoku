@@ -20,6 +20,27 @@
   and stamped pacman-managed so `prowl update` defers to `ryoku update`.
   `replaces` and `conflicts` move existing boxes over on `pacman -Syu`.
   `ryoku-rashin` depends on it and ships `ryoku-prowl.service`.
+- **wayfire is the third window-manager provider.** Registered with its caps
+  manifest (state, watch, act, outputs, binds, session and environment verbs,
+  plus the schema rows), composing `wayfire.ini` from the shipped baseline on
+  `apply` (plugin list, autostart rows, binds, zoom modifier) and refusing a
+  compose without those defaults, so a checkout can never render a wayfire
+  with no plugins and no session chain. The installer offers and bakes the
+  variant, `[ryoku]` packages it, the login bootstrap starts the desktop like
+  the sibling providers do (shell, portals through the GNOME backend the
+  portal config routes to, welcome tour), and the session seed advertises
+  foreign-toplevel so the shell sees windows on wayfire like everywhere else.
+- **The desktop frosts while a window owns the workspace.** Wallpaper,
+  widgets and the bar body haze over while the window in focus stays clear
+  on its own layer: the scrim clears in a ring around the front window and
+  densifies on an exponential ramp toward the far corner, the frosted surface
+  under it blurs as glass (folded into the shared eye-candy policy, so Low
+  Power, Power Saver or Game Mode flatten it to plain translucency), the
+  strength steps up by 0.25 for every window behind the front, and a stack
+  past a solid haze lifts a floor so the rim around the focus keeps
+  darkening with each window instead of stopping, while the bar frosts as
+  translucency of its own silhouette. One knob: the `deckFrost` shell.json
+  key (0-1, default 0.45).
 - **`skwd-paper-bin` ships from [ryoku].** The skwd-paper renderer Ryogami
   drives for Wallpaper Engine scenes, repackaged from the prebuilt Arch package
   of a pinned upstream release (version and checksum in its PKGBUILD).
@@ -75,6 +96,12 @@
 ### Fixed
 - **Void packages record the published release name, channel, and source commit.**
 
+- **A wayfire session rebinds its provider at login.** login1 reports the
+  desktop as "Wayfire:wlroots", the colon failed the provider-name regex in
+  `ryoku-power-cutover`, and discovery returned before the session
+  environment was ever bound: the user manager kept an older session's
+  `RYOKU_WM`, the daemon attached that stale provider, and every window- and
+  workspace-driven feature went empty in a perfectly healthy session.
 - **`ryoku-desktop` no longer collides with another desktop's mimeapps map.**
   The default-app map shipped to `/usr/share/applications/mimeapps.list`, and
   on Omarchy that file belongs to `omarchy-settings`, so pacman aborted the

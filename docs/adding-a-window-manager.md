@@ -120,7 +120,7 @@ settings page uses. A row looks like this:
 `ctl` is the shared control vocabulary: a switch, a stepper, a slider, a colour,
 a text field, a segmented picker. Pick from what exists rather than adding a
 control type, and your page looks like the rest of Ryoku because it literally is
-the rest of Ryoku. Two compositors cannot drift apart visually, because there is
+the rest of Ryoku. Compositors cannot drift apart visually, because there is
 one renderer.
 
 Write real labels and descriptions. Terse, concrete, no marketing. A user should

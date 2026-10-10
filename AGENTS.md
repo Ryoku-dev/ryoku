@@ -116,10 +116,10 @@ there; the CLI needs no server and is the first choice.
 
 Auto-generated from the Prowl index, refreshed on each `overview`/`init`. Prefer retrieving from Prowl (and reading the cited files) over grepping or relying on training memory; this is the current shape of the repo.
 
-- size: 4881 files, 423563 symbols, 20998 edges (resolved 9413, external deps 6545, unresolved 5040)
-- languages: go:1880 qml:1821 bash:292 javascript:224 json:183 markdown:128 cpp:93 yaml:61
-- subsystems: ryoku/shell(1576,qml) · ryoku/shell(63,cpp) · ryoku/hub(57,qml) · ryoku/ui(54,qml) · ryoku/apps(50,qml) · ryoku/rashin(25,typescript) · tests/ui(20,qml) · ryoku/shell(16,css)
-- entrypoints: ryoku/shell/quickshell/inir/modules/background/Background.qml · ryoku/shell/quickshell/shell/shell.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/WearOSArcClock.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/syspanel/SystemPanel.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/CookieClock.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/guide/general/GeneralTab.qml · ryoku/hub/quickshell/pages/AnimationsPage.qml · (+360 more)
+- size: 5367 files, 450980 symbols, 22141 edges (resolved 10002, external deps 6899, unresolved 5240)
+- languages: qml:1950 go:1937 bash:461 javascript:256 json:227 markdown:138 cpp:101 yaml:62
+- subsystems: ryoku/shell(1693,qml) · ryoku/shell(71,cpp) · ryoku/hub(64,qml) · ryoku/apps(54,qml) · ryoku/ui(54,qml) · ryoku/rashin(25,typescript) · ryoku/shell(20,css) · tests/ui(20,qml)
+- entrypoints: ryoku/shell/quickshell/inir/modules/background/Background.qml · ryoku/shell/quickshell/shell/shell.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/WearOSArcClock.qml · ryoku/hub/quickshell/pages/AddonsPage.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/syspanel/SystemPanel.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/CookieClock.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/nomarchy/plugins/dev-gallery/GalleryPanel.qml · (+418 more)
 - central files (most depended-on): ryoku/shell/quickshell/shell/modules/bar/barstyles/python/quickactions/actions/Timer.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/Config.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/I18n.qml · ryoku/ui/Singletons/Tokens.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/theme/ThemeBackend.qml
 - read these guides first: README.md · AGENTS.md · CONTRIBUTING.md · docs/development.md · docs/structure.md
 

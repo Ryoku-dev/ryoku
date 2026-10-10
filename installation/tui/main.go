@@ -714,6 +714,7 @@ func compositors() []item {
 	return []item{
 		{wm.ProviderHyprland, "Hyprland", i18n.T("dynamic tiling, the Ryoku default")},
 		{wm.ProviderNiri, "niri", i18n.T("scrollable tiling")},
+		{wm.ProviderWayfire, "Wayfire", i18n.T("floating windows, the depth deck")},
 	}
 }
 

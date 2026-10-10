@@ -1,0 +1,107 @@
+[
+  {
+    "tab": "Per-animation",
+    "group": "WORKSPACE SWITCH",
+    "key": "wm.wayfire.animation.workspaceSwitch.durationMs",
+    "label": "Duration",
+    "desc": "Length of the animation, in milliseconds",
+    "ctl": "step",
+    "src": "desktop.json",
+    "lo": 25,
+    "hi": 2000,
+    "unit": "ms",
+    "page": "animations"
+  },
+  {
+    "tab": "Per-animation",
+    "group": "WORKSPACE SWITCH",
+    "key": "wm.wayfire.animation.workspaceSwitch.curve",
+    "label": "Curve",
+    "desc": "Easing curve the animation follows",
+    "ctl": "chips",
+    "src": "desktop.json",
+    "opts": [
+      "linear",
+      "circle",
+      "sigmoid",
+      "easeOutElastic"
+    ],
+    "optLabels": {
+      "linear": "Linear",
+      "circle": "Circle",
+      "sigmoid": "Sigmoid",
+      "easeOutElastic": "Elastic"
+    },
+    "page": "animations"
+  },
+  {
+    "tab": "Per-animation",
+    "group": "WINDOW",
+    "key": "wm.wayfire.animation.window.durationMs",
+    "label": "Duration",
+    "desc": "Length of the animation, in milliseconds",
+    "ctl": "step",
+    "src": "desktop.json",
+    "lo": 25,
+    "hi": 2000,
+    "unit": "ms",
+    "page": "animations"
+  },
+  {
+    "tab": "Per-animation",
+    "group": "WINDOW",
+    "key": "wm.wayfire.animation.window.curve",
+    "label": "Curve",
+    "desc": "Easing curve the animation follows",
+    "ctl": "chips",
+    "src": "desktop.json",
+    "opts": [
+      "linear",
+      "circle",
+      "sigmoid",
+      "easeOutElastic"
+    ],
+    "optLabels": {
+      "linear": "Linear",
+      "circle": "Circle",
+      "sigmoid": "Sigmoid",
+      "easeOutElastic": "Elastic"
+    },
+    "page": "animations"
+  },
+  {
+    "tab": "Per-animation",
+    "group": "SNAP",
+    "key": "wm.wayfire.animation.snap.durationMs",
+    "label": "Duration",
+    "desc": "Length of the animation, in milliseconds",
+    "ctl": "step",
+    "src": "desktop.json",
+    "lo": 25,
+    "hi": 2000,
+    "unit": "ms",
+    "page": "animations"
+  },
+  {
+    "tab": "Per-animation",
+    "group": "SNAP",
+    "key": "wm.wayfire.animation.snap.curve",
+    "label": "Curve",
+    "desc": "Easing curve the animation follows",
+    "ctl": "chips",
+    "src": "desktop.json",
+    "opts": [
+      "linear",
+      "circle",
+      "sigmoid",
+      "easeOutElastic"
+    ],
+    "optLabels": {
+      "linear": "Linear",
+      "circle": "Circle",
+      "sigmoid": "Sigmoid",
+      "easeOutElastic": "Elastic"
+    },
+    "page": "animations"
+  }
+]

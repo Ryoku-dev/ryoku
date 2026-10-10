@@ -62,7 +62,7 @@ done < <(
 #    ryoku-desktop-$RYOKU_COMPOSITOR against the baked repo only: a variant that
 #    was never baked dies at "configure" with "target not found" and no network
 #    to recover with (issue #260: the ISO shipped hyprland only).
-for variant in ryoku-desktop-hyprland ryoku-desktop-niri; do
+for variant in ryoku-desktop-hyprland ryoku-desktop-niri ryoku-desktop-wayfire; do
   grep -qF -- "$variant" <<<"$bake" \
     || fail "compositor variant '$variant' is not baked into the offline repo"
 done

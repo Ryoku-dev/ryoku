@@ -27,12 +27,15 @@ const (
 )
 
 type Output struct {
-	Name            string  `json:"name"`
-	Width           int     `json:"width"`
-	Height          int     `json:"height"`
-	Scale           float64 `json:"scale"`
-	Focused         bool    `json:"focused,omitempty"`
-	ActiveWorkspace string  `json:"activeWorkspace,omitempty"`
+	Name    string  `json:"name"`
+	Width   int     `json:"width"`
+	Height  int     `json:"height"`
+	Scale   float64 `json:"scale"`
+	Focused bool    `json:"focused,omitempty"`
+	// ActiveWorkspace is the workspace's flat name, the key its Workspace
+	// frame and this output's windows carry; the opaque handle an act takes
+	// lives in Workspace.ID alone.
+	ActiveWorkspace string `json:"activeWorkspace,omitempty"`
 	// EDID identity and physical size. Zero make, model and width together mean
 	// no EDID, which is how doctor spots a phantom output.
 	Make          string `json:"make,omitempty"`
@@ -76,9 +79,11 @@ type Workspace struct {
 }
 
 type Window struct {
-	ID        string `json:"id"`
-	AppID     string `json:"appId,omitempty"`
-	Title     string `json:"title,omitempty"`
+	ID    string `json:"id"`
+	AppID string `json:"appId,omitempty"`
+	Title string `json:"title,omitempty"`
+	// Workspace is the workspace's flat name, the same key Output's
+	// ActiveWorkspace carries, never the opaque id an act takes.
 	Workspace string `json:"workspace,omitempty"`
 	Output    string `json:"output,omitempty"`
 	// Pid is 0 when the provider does not know the owning process.

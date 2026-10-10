@@ -64,6 +64,26 @@ func isSeed(rel string) bool {
 	return generatedSeed[rel] || strings.HasPrefix(rel, "nvim/")
 }
 
+// generatedRels are the config files a provider's apply authors, across every
+// provider, so the lay never writes them: the file's own provider owns its
+// bytes. wayfire's generated path is a shipped file too (its baseline is
+// compose's first layer, read from the packaged base directly), which is what
+// makes this set necessary rather than theoretical.
+var generatedRels = generatedRelSet()
+
+func generatedRelSet() map[string]bool {
+	out := map[string]bool{}
+	for _, name := range wm.Providers() {
+		dir := wm.ConfigDir(name)
+		for _, rel := range wm.GeneratedConfig(name) {
+			if d, _, ok := strings.Cut(rel, "/"); ok && d == dir {
+				out[rel] = true
+			}
+		}
+	}
+	return out
+}
+
 // providerConfigDirs is the set of ~/.config subdirs the window-manager
 // providers own, asked of the seam so no compositor is named here.
 func providerConfigDirs() map[string]bool {
@@ -230,6 +250,15 @@ func Materialize() error {
 			}
 			continue
 		}
+		if generatedRels[rel] {
+			// The provider's own output, not shipped content: applyGenerated
+			// below reads this path as "the tree still needs its render", and
+			// laying the shipped bytes would forge that signal. The first
+			// login would then read the raw baseline -- no store rows, no
+			// seeds, no keybinds -- and every later materialize would clobber
+			// a composed file back to it.
+			continue
+		}
 		shipped, err := os.ReadFile(filepath.Join(base, rel))
 		if err != nil {
 			return fmt.Errorf(i18n.T("read %s: %w"), rel, err)
@@ -251,6 +280,19 @@ func Materialize() error {
 			return fmt.Errorf(i18n.T("copy %s: %w"), rel, err)
 		}
 		managed = append(managed, rel)
+	}
+
+	// A provider's live tree can be all generated state: wayfire ships no
+	// static file under wayfire/ at all, its baseline being read from this base
+	// at compose time. Laying files alone would leave ~/.config/wayfire absent
+	// and applyGenerated would read "no tree laid down" and skip the render,
+	// so the tree directory itself is part of the lay.
+	for _, name := range wm.Providers() {
+		if dir := wm.ConfigDir(name); dir != "" && sys.Exists(filepath.Join(base, dir)) {
+			if err := os.MkdirAll(filepath.Join(dest, dir), 0o755); err != nil {
+				return fmt.Errorf(i18n.T("lay the %s config dir: %w"), name, err)
+			}
+		}
 	}
 
 	// Prune files this release no longer ships (in the previous manifest,

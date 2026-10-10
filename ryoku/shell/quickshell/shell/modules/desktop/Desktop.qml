@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
@@ -35,6 +36,7 @@ import "../wallpaper" as WallpaperMod
 // The iRiS frame singleton reports the dock's edge and its visible vs reserved
 // depth, so the Edit widgets bar can clear a bottom dock that reserves nothing.
 import inir.modules.iris.frame
+import inir.services
 
 // desktop widgets layer: WlrLayer.Bottom (below windows), instantiated once per
 // monitor by the main shell, carrying the clock. only clicks on bare wallpaper
@@ -109,6 +111,50 @@ Scope {
             duration: Tokens.dur(180)
             easing.type: Easing.OutCubic
         }
+    }
+    // ── deck frost ───────────────────────────────────────────────────────
+    // While a window owns this monitor's active workspace the desktop hazes
+    // over underneath it: windows layer above this surface, so the front
+    // window needs no opt-out, and the bar frosts itself in its own slot.
+    // Presence rides the daemon's window residue rather than the toplevel
+    // protocol, which a compositor may not advertise at all. Off while the
+    // Stage Editor frames this monitor: that mode lifts the desktop above
+    // windows and draws its own chrome over it.
+    readonly property int deckFrostCount: (!root.stageComposing && !root.stageEditing)
+        ? CompositorService.windowsOnActiveWorkspace(root.monitorName)
+        : 0
+    // Depth, not a plate: one window reads as the deckFrost knob, each window
+    // behind the front adds 0.25 (Config.deckFrostIntensity), and the glass
+    // under the haze blurs along with it up to solid.
+    property real deckFrost: root.deckFrostCount > 0
+        ? Services.Config.deckFrostIntensity(root.deckFrostCount)
+        : 0
+    Behavior on deckFrost {
+        NumberAnimation {
+            duration: Tokens.dur(180)
+            easing.type: Easing.OutCubic
+        }
+    }
+    // The glass under the haze: wallpaper and widgets blur while the frost
+    // is up, scaled with the same depth — but folded into the shared
+    // eye-candy policy (Performance): Low Power, Power Saver or Game Mode
+    // flatten it to plain translucency, like the widgets' own frosted glass.
+    readonly property real deckFrostBlur: Performance.blurDisabled
+        ? 0 : Math.min(1, root.deckFrost)
+    // Past full haze the surplus lifts the floor instead: the ramp starts at
+    // this alpha, so a deep stack darkens the rim around the front window
+    // too, while the window itself stays clear on its own layer above.
+    readonly property real deckFrostFloor: Math.max(0, Math.min(0.6,
+        root.deckFrost - 1))
+    // The front window's rectangle, in output coordinates: the desktop spans
+    // the output one to one, so it maps straight onto the scrim and centers
+    // its clear ring. The whole surface when the residue carries no geometry,
+    // or the focus sits on another monitor.
+    readonly property rect deckFocusRect: {
+        const w = Wm.focusedWindow;
+        if (w && w.output === root.monitorName && w.width > 0 && w.height > 0)
+            return Qt.rect(w.x, w.y, w.width, w.height);
+        return Qt.rect(0, 0, win.width, win.height);
     }
     readonly property matrix4x4 stageMatrix: root.stageEditing
         ? StageEdit.EditModeInsets.editMatrixFor(root.monitorName,
@@ -640,6 +686,18 @@ Scope {
             id: desktopContent
             anchors.fill: parent
             transform: Matrix4x4 { matrix: root.stageMatrix }
+
+            // The frost's glass: the wallpaper and the widgets under the scrim
+            // blur together while a window owns the workspace, scaled by the
+            // same depth. The layer only exists while the frost is up, so a
+            // bare desktop pays no texture or blur pass.
+            layer.enabled: root.deckFrostBlur > 0.01
+            layer.effect: MultiEffect {
+                blurEnabled: root.deckFrostBlur > 0.01
+                blur: root.deckFrostBlur
+                blurMax: 24
+                autoPaddingEnabled: false
+            }
 
         // The base wallpaper painter: the reveal backdrop composites each new
         // frame over the old one through the preset the daemon attached to the
@@ -1733,6 +1791,61 @@ Scope {
                     * Stage.GlobalStates.editProgress
             }
         }
+        }
+
+        // The canvas the deck recedes into: a black haze over the wallpaper
+        // and the widgets while a window owns the workspace, which layers
+        // above it and therefore stays clear of both the haze and the blur.
+        // The haze is clear where the front window sits and densifies toward
+        // the far corner on an exponential ramp, so depth reads as a gradient
+        // rather than a plate. A Canvas takes no input, so the desktop
+        // beneath keeps every press.
+        Canvas {
+            id: deckFrost
+            anchors.fill: parent
+            visible: opacity > 0.001
+            opacity: Math.max(0, Math.min(1, root.deckFrost))
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Tokens.dur(180)
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            // alpha(t) = floor + (1 - floor) * (e^2t - 1)/(e^2 - 1): clear
+            // inside the front window's ring while depth is at most 1, then
+            // the surplus of a deep stack lifts the floor so the rim
+            // darkens with it. Full at the farthest corner either way.
+            readonly property rect fr: root.deckFocusRect
+            readonly property real floor: root.deckFrostFloor
+            onFrChanged: requestPaint()
+            onFloorChanged: requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+            onVisibleChanged: if (visible) requestPaint()
+            onPaint: {
+                const ctx = getContext("2d");
+                const w = width, h = height;
+                ctx.clearRect(0, 0, w, h);
+                if (w < 2 || h < 2)
+                    return;
+                const fr0 = fr;
+                const cx = fr0.x + fr0.width / 2;
+                const cy = fr0.y + fr0.height / 2;
+                const r0 = Math.max(1, Math.min(fr0.width, fr0.height) / 2);
+                const r1 = r0 + Math.hypot(Math.max(cx, w - cx),
+                    Math.max(cy, h - cy));
+                const grad = ctx.createRadialGradient(cx, cy, r0, cx, cy, r1);
+                const norm = Math.exp(2) - 1;
+                for (let i = 0; i <= 16; i++) {
+                    const t = i / 16;
+                    const a = floor + (1 - floor)
+                        * (Math.exp(2 * t) - 1) / norm;
+                    grad.addColorStop(t, "rgba(0,0,0," + a.toFixed(4) + ")");
+                }
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, w, h);
+            }
         }
 
         // The Stage Editor's card: the reference's EditModeCard (the live

@@ -44,14 +44,6 @@ func spawnArgs(args ...string) string {
 
 func spawnSh(cmd string) string { return "spawn-sh " + kdlStr(cmd) }
 
-// A bind-spawned qs surface never passes through ryoku-shell's daemon, which is
-// what injects the shared QML module path into the configs it supervises.
-// irisCloseCheck succeeds when the iRiS frame is the bar style and its close
-// confirmation is switched on.
-const irisCloseCheck = `jq -e '(.barStyle // "qsbar") == "iris" and .inir.closeConfirm.enabled == true' "${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json" >/dev/null 2>&1`
-
-const qmlEnv = `env QML_IMPORT_PATH="$HOME/.local/lib/qt6/qml" QML2_IMPORT_PATH="$HOME/.local/lib/qt6/qml"`
-
 // defaultBinds maps each catalogue id to niri's expression of it. Compositor
 // behaviours become niri actions; app and shell launches spawn the same commands
 // (shell surfaces go through ryoku-shell, whose openSurface bus is compositor
@@ -64,7 +56,7 @@ func defaultBinds() map[string]niriBind {
 		// Windows
 		// The iRiS frame can ask before a window closes; only when that is on and
 		// iRiS is the bar style does the close go through the shell.
-		"window.close":      {action: spawnSh(irisCloseCheck + " && qs -c shell ipc call closeConfirm trigger || niri msg action close-window"), noRepeat: true},
+		"window.close":      {action: spawnSh(wm.IrisCloseCheck + " && qs -c shell ipc call closeConfirm trigger || niri msg action close-window"), noRepeat: true},
 		"window.fullscreen": {action: "fullscreen-window"},
 		// The catalogue names this "Float or tile", which is niri's mechanic too.
 		"window.float": {action: "toggle-window-floating"},
@@ -153,21 +145,21 @@ func defaultBinds() map[string]niriBind {
 		"shell.launcher":          {action: spawnArgs("ryoku-shell", "launcher")},
 		"shell.ask":               {action: spawnArgs("ryoku-shell", "ask")},
 		"shell.rashin":            {action: spawnSh("ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app")},
-		"shell.cheatsheet":        {action: spawnSh("pkill -x -f 'qs -c keys' 2>/dev/null || " + qmlEnv + " flock -n -o /tmp/ryoku-keys.lock qs -c keys")},
+		"shell.cheatsheet":        {action: spawnSh("pkill -x -f 'qs -c keys' 2>/dev/null || " + wm.QmlEnv + " flock -n -o /tmp/ryoku-keys.lock qs -c keys")},
 		"shell.lock":              {action: spawnArgs("ryoku-shell", "lock")},
 		"shell.quicksettings":     {action: spawnArgs("ryoku-shell", "quicksettings")},
 		"shell.wallpaper":         {action: spawnArgs("ryogami", "wallpaper", "ui")},
 		"shell.wallpaperRandom":   {action: spawnArgs("ryogami", "wallpaper", "random")},
-		"shell.ryovm":             {action: spawnSh("ryoku-summon ryovm " + qmlEnv + " flock -n -o /tmp/ryovm.lock qs -c ryovm")},
+		"shell.ryovm":             {action: spawnSh("ryoku-summon ryovm " + wm.QmlEnv + " flock -n -o /tmp/ryovm.lock qs -c ryovm")},
 		"shell.clipboard":         {action: spawnArgs("ryoku-shell", "clipboard")},
 		"shell.visualizer":        {action: spawnArgs("ryoku-shell", "visualizer")},
 		"shell.visualizerOverlay": {action: spawnArgs("ryoku-shell", "visualizer-overlay")},
 		"shell.visualizerPlace":   {action: spawnArgs("ryoku-shell", "visualizer-place")},
 		"shell.voice":             {action: spawnArgs("ryoku-shell", "voice")},
 		"shell.settings":          {action: spawnArgs("ryoku-shell", "hub", "open")},
-		"shell.screenshot":        {action: spawnSh(qmlEnv + " flock -n -o /tmp/ryoshot.lock qs -c ryoshot")},
-		"shell.screenshotPrint":   {action: spawnSh(qmlEnv + " flock -n -o /tmp/ryoshot.lock qs -c ryoshot")},
-		"shell.screenshotMonitor": {action: spawnSh(qmlEnv + " flock -n -o /tmp/ryoshot.lock env RYOSHOT_MODE=monitor qs -c ryoshot")},
+		"shell.screenshot":        {action: spawnSh(wm.QmlEnv + " flock -n -o /tmp/ryoshot.lock qs -c ryoshot")},
+		"shell.screenshotPrint":   {action: spawnSh(wm.QmlEnv + " flock -n -o /tmp/ryoshot.lock qs -c ryoshot")},
+		"shell.screenshotMonitor": {action: spawnSh(wm.QmlEnv + " flock -n -o /tmp/ryoshot.lock env RYOSHOT_MODE=monitor qs -c ryoshot")},
 		"shell.colorPicker":       {action: spawnArgs("hyprpicker", "-a")},
 		"shell.restartAudio":      {action: spawnArgs("ryoku-restart-audio")},
 		"shell.inhibitShortcuts":  {action: "toggle-keyboard-shortcuts-inhibit"},

@@ -710,3 +710,57 @@ func TestApplyGeneratedCompletesLaidTrees(t *testing.T) {
 		t.Fatalf("a laid tree with no store must still render its generated defaults, got %v", got)
 	}
 }
+
+// The provider's generated file must reach ~/.config through the provider's own
+// apply, even when the packaged base ships that very path: wayfire ships its
+// baseline as compose's first layer (read from the base directly) and the live
+// file is the provider's render. Laying the shipped bytes would forge
+// applyGenerated's "generated file exists" signal: the render would never run,
+// the first login would read the raw baseline -- no store rows, no seeds, no
+// keybinds -- and every later materialize would clobber a composed file back to
+// it.
+func TestMaterializeRendersTheProvidersOwnOutput(t *testing.T) {
+	base, dest := t.TempDir(), t.TempDir()
+	t.Setenv("RYOKU_CONFIG_BASE", base)
+	t.Setenv("XDG_CONFIG_HOME", dest)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	// wayfire's shipped tree is all generated state: the baseline its apply
+	// composes over, and no static file at all.
+	writeFile(t, filepath.Join(base, "wayfire/wayfire.ini"), "# shipped baseline\n")
+	// a companion provider still ships a static file, so the lay lays trees.
+	writeFile(t, filepath.Join(base, "niri/config.kdl"), "// static\n")
+
+	var calls []string
+	old := applyProvider
+	applyProvider = func(name, store string) error {
+		calls = append(calls, name)
+		for _, rel := range wm.GeneratedConfig(name) {
+			if d, _, ok := strings.Cut(rel, "/"); !ok || d != wm.ConfigDir(name) {
+				continue
+			}
+			if err := os.WriteFile(filepath.Join(dest, rel), []byte("// rendered by "+name+"\n"), 0o644); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	t.Cleanup(func() { applyProvider = old })
+
+	if err := Materialize(); err != nil {
+		t.Fatalf("fresh materialize: %v", err)
+	}
+	if !slices.Contains(calls, "wayfire") {
+		t.Fatalf("apply ran for %v, want wayfire: its shipped baseline is not its render", calls)
+	}
+	wantFile(t, filepath.Join(dest, "wayfire/wayfire.ini"), "rendered by wayfire")
+	wantFile(t, filepath.Join(dest, "niri/config.kdl"), "static")
+
+	// a later release ships a new baseline; the render is provider state and
+	// the lay must not write over it again.
+	writeFile(t, filepath.Join(base, "wayfire/wayfire.ini"), "# a newer baseline\n")
+	if err := Materialize(); err != nil {
+		t.Fatalf("update materialize: %v", err)
+	}
+	wantFile(t, filepath.Join(dest, "wayfire/wayfire.ini"), "rendered by wayfire")
+}

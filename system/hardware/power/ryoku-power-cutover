@@ -716,6 +716,9 @@ discover_session_environment() {
     desktop=${XDG_CURRENT_DESKTOP:-${XDG_SESSION_DESKTOP:-}}
   fi
   provider=${desktop,,}
+  # login1 may qualify the name with its stack ("Wayfire:wlroots"); only the
+  # first component names the provider, the split detect.go already does.
+  provider=${provider%%:*}
   [[ $provider =~ ^[a-z0-9-]+$ ]] || return 1
   provider_bin="$provider_root/ryoku-wm-$provider"
   [[ -x $provider_bin ]] || return 1
@@ -967,6 +970,7 @@ session_users() {
       rc=$?; (( rc == 3 )) && continue; return 1
     fi
     provider=${desktop,,}
+    provider=${provider%%:*}
     [[ $provider =~ ^[a-z0-9-]+$ ]] || continue
     [[ -x $provider_root/ryoku-wm-$provider ]] || continue
 
@@ -1066,6 +1070,7 @@ current_user_graphical_sessions() {
     if value="$(session_property "$sid" Desktop)"; then desktop=$value
     else rc=$?; (( rc == 3 )) && continue; return 1; fi
     provider=${desktop,,}
+    provider=${provider%%:*}
     [[ $provider =~ ^[a-z0-9-]+$ && -x $provider_root/ryoku-wm-$provider ]] || continue
     if value="$(session_property "$sid" User)"; then uid=$value
     else rc=$?; (( rc == 3 )) && continue; return 1; fi

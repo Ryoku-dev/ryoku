@@ -1,0 +1,105 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# ryoku-desktop-wayfire: the wayfire compositor variant of the Ryoku desktop.
+# Carries wayfire and the XWayland server it spawns, the GNOME portal backend
+# the caps report, the wayfire config tree (the shipped baseline apply composes
+# over), the ryoku-wm-wayfire provider binary (ryoku/wm/wayfire), and the
+# depthdeck plugin the baseline's core/plugins loads, built from a vendored git
+# bundle beside this recipe. It provides the ryoku-desktop-compositor virtual,
+# so an installed ryoku-desktop is satisfied by it, and may be installed beside
+# the other variants: a switch is then a config change, not a package swap.
+#
+# No systemd drop-in, unlike niri: the wayfire package ships no user unit, so
+# there is no place to order the config bootstrap against. ryoku-bootstrap is
+# enabled globally for exactly this case, and wayfire's own inotify reload
+# picks up a tree materialized moments after login.
+#
+# built from in-repo sources, no tarball fetch. makepkg runs from a full
+# checkout, so the repo root is three levels up.
+pkgname=ryoku-desktop-wayfire
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc="Ryoku desktop: the wayfire compositor, its X11 server, the depthdeck plugin and the ryoku-wm-wayfire provider"
+# package() builds the Go provider and the meson plugin, so the payload is
+# arch-specific.
+arch=('x86_64')
+url="https://ryoku.dev"
+license=('GPL-3.0-or-later')
+makedepends=('go' 'meson' 'ninja' 'pkgconf' 'git')
+depends=(
+  "ryoku-desktop=$pkgver"
+  # compositor + Wayland session (ships /usr/share/wayland-sessions/wayfire.desktop)
+  'wayfire'
+  # wayfire manages XWayland but does not pull the server: without
+  # xorg-xwayland no X11 app (Steam, Wine, older toolkits) has a display.
+  'xorg-xwayland'
+  # screencast/screenshot portal: ryoku-wm-wayfire caps reports portalBackend
+  # "gnome", and doctor's portal reconciler routes xdg-desktop-portal to this
+  # backend.
+  'xdg-desktop-portal-gnome'
+  # night-light backend: wlsunset warms the screen over wlr-gamma-control,
+  # wayfire's route, so it is wayfire's variant to ship and reclaim
+  # (ryoku-cmd-nightlight, pill Super+U, quick tile, Hub Displays).
+  'wlsunset'
+)
+provides=('ryoku-desktop-compositor')
+# deliberately not exclusive: variants may coinstall, so a switch is a config
+# change with no download and a switch back is instant.
+source=("depthdeck.bundle")
+noextract=("depthdeck.bundle")
+sha256sums=('02c4dd5bc02c9bc10a89485db60ddcd2797bf6759b8e0211caba9f2359b0199d')
+
+# depthdeck rides the variant as a bundle because the plugin's own repo has no
+# published remote: the bundle beside this recipe is a complete snapshot of its
+# history. Refresh it after commits land there with
+# `git -C <checkout> bundle create depthdeck.bundle --all` (an absolute output
+# path: git -C resolves a relative one against the repo) and the matching
+# sha256sums line.
+
+_repo="$startdir/../../.."
+
+prepare() {
+  git clone -q "$srcdir/depthdeck.bundle" "$srcdir/depthdeck"
+}
+
+build() {
+  # depthdeck: wayfire.pc (the wayfire package) carries the public headers plus
+  # wlroots and wf-config, all meson.build asks for. meson.build leaves the
+  # module installless, so package() places the artifacts.
+  cd "$srcdir/depthdeck"
+  meson setup --buildtype=release build
+  meson compile -C build
+}
+
+package() {
+  local cfg="$pkgdir/usr/share/ryoku/config"
+
+  # wayfire config tree: the shipped baseline, the first layer the provider's
+  # apply composes (the generated wayfire.ini is written by apply, not
+  # packaged; see caps.GeneratedFiles).
+  install -d "$cfg/wayfire"
+  cp -a "$_repo/ryoku/wayfire/." "$cfg/wayfire/"
+
+  # xdg-desktop-portal: wayfire implements no portal backend of its own, so
+  # screen sharing rides the GNOME backend but the GNOME FileChooser hangs off
+  # a GNOME session. This routing pins FileChooser to gtk so file pickers open;
+  # doctor's portal reconciler reads it by the running desktop's name.
+  install -Dm644 "$_repo/ryoku/wayfire/wayfire-portals.conf" \
+    "$cfg/xdg-desktop-portal/wayfire-portals.conf"
+
+  # cp -a kept source modes; the tree is all data, so world-readable is right.
+  chmod -R u=rwX,go=rX "$pkgdir/usr/share/ryoku"
+
+  # ryoku-wm-wayfire: the wayfire half of the window-manager seam.
+  ( cd "$_repo/ryoku/wm/wayfire" && go build -o ryoku-wm-wayfire . )
+  install -Dm755 "$_repo/ryoku/wm/wayfire/ryoku-wm-wayfire" \
+    "$pkgdir/usr/bin/ryoku-wm-wayfire"
+
+  # depthdeck: wayfire searches /usr/lib/wayfire for plugins and
+  # /usr/share/wayfire/metadata for their options, the same two paths the
+  # development install under ~/.local used.
+  install -Dm755 "$srcdir/depthdeck/build/libdepthdeck.so" \
+    "$pkgdir/usr/lib/wayfire/libdepthdeck.so"
+  install -Dm644 "$srcdir/depthdeck/metadata/depthdeck.xml" \
+    "$pkgdir/usr/share/wayfire/metadata/depthdeck.xml"
+}

@@ -28,6 +28,21 @@ const (
 	// app id, so the app-focus key cannot tell them apart.
 	ActionWindowSummon Action = "window.summon"
 
+	// The nine directional acts a keybind means for the window under focus
+	// or the screen it points at: the direction is the whole argument, no
+	// window id. Hyprland and niri bind these rows in their own config
+	// languages; wayfire has no such bindings, so its rows run these acts
+	// through the command plugin.
+	ActionWindowFocusDirection    Action = "window.focusDirection" // <left|right|up|down>
+	ActionWindowFocusEdge         Action = "window.focusEdge"      // <left|right>
+	ActionWindowMoveBy            Action = "window.moveBy"         // <left|right|up|down>
+	ActionWindowResizeBy          Action = "window.resizeBy"       // <narrower|wider|shorter|taller>
+	ActionWindowPresetHeight      Action = "window.presetHeight"   // [first]
+	ActionWindowCenter            Action = "window.center"
+	ActionOutputFocusDirection    Action = "output.focusDirection"    // <left|right|up|down>
+	ActionWindowMoveToOutputBy    Action = "window.moveToOutputBy"    // <left|right|up|down>
+	ActionWorkspaceMoveToOutputBy Action = "workspace.moveToOutputBy" // <left|right|up|down>
+
 	// ActionAppFocus is for callers that only know what they launched.
 	ActionAppFocus Action = "app.focus"
 
@@ -112,11 +127,12 @@ const (
 // foreign-toplevel and need nothing.
 func (a Action) Capability() Capability {
 	switch a {
-	case ActionWindowFloat, ActionWindowPlace:
+	case ActionWindowFloat, ActionWindowPlace, ActionWindowMoveBy, ActionWindowResizeBy,
+		ActionWindowPresetHeight, ActionWindowCenter, ActionWindowMoveToOutputBy:
 		return CapWindowFloat
 	case ActionWindowMoveToWorkspace, ActionWindowSummon, ActionWorkspaceFocus, ActionWorkspaceCycle:
 		return CapWorkspaces
-	case ActionWorkspaceMoveToOutput:
+	case ActionWorkspaceMoveToOutput, ActionWorkspaceMoveToOutputBy:
 		return CapWorkspaceMoveToOutput
 	case ActionWorkspaceToggleSpecial:
 		return CapSpecialWorkspace
