@@ -1,0 +1,92 @@
+#!/bin/bash
+set -euo pipefail
+
+export OMARCHY_PATH=${OMARCHY_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/nomarchy}
+config=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.json
+fail() { printf 'omarchy-bar: %s\n' "$*" >&2; exit 1; }
+usage() {
+  cat <<'USAGE'
+Usage: omarchy bar <command> [args...]
+  use <id> | reset | defaults
+  position <top|bottom|left|right>
+  transparent <true|false|toggle>
+  put <id> [placement] | move <id> [placement]
+  set <id> <key> <value> [--json] [placement]
+Placement: --section <left|center|right> --index <n> --before <id> --after <id>
+USAGE
+}
+
+commit() {
+  local filter=$1 tmp
+  shift
+  mkdir -p "${config%/*}"
+  [[ -f $config ]] || install -m0644 "$OMARCHY_PATH/config/omarchy/shell.json" "$config"
+  tmp=$config.tmp.$$
+  jq "$@" "$filter" "$config" >"$tmp" || { rm -f "$tmp"; fail 'could not update shell.json'; }
+  chmod --reference="$config" "$tmp" 2>/dev/null || chmod 0644 "$tmp"
+  mv "$tmp" "$config"
+  omarchy-shell nomarchy reloadConfig >/dev/null
+}
+
+placement() {
+  section='' index='' before='' after='' from_section='' from_index=''
+  if (($#)) && [[ $1 != --* ]]; then section=$1; shift; fi
+  while (($#)); do
+    key=$1; value=${2:-}; [[ -n $value ]] || fail "$key requires a value"
+    case $key in --section) [[ -z $section ]] || fail 'section specified twice'; section=$value;; --index) index=$value;; --before) before=$value;; --after) after=$value;; --from-section) from_section=$value;; --from-index) from_index=$value;; *) fail "unknown option: $key";; esac
+    shift 2
+  done
+  [[ -z $section || $section =~ ^(left|center|right)$ ]] || fail 'section must be left, center, or right'
+  [[ -z $from_section || $from_section =~ ^(left|center|right)$ ]] || fail 'from-section must be left, center, or right'
+  [[ -z $index || $index =~ ^[0-9]+$ ]] || fail 'index must be a non-negative integer'
+  [[ -z $from_index || $from_index =~ ^[0-9]+$ ]] || fail 'from-index must be a non-negative integer'
+  [[ -z $before || -z $after ]] || fail 'use only one of --before or --after'
+  jq -cn --arg section "$section" --arg index "$index" --arg before "$before" --arg after "$after" --arg fromSection "$from_section" --arg fromIndex "$from_index" '{} + (if $section=="" then {} else {section:$section} end) + (if $index=="" then {} else {index:($index|tonumber)} end) + (if $before=="" then {} else {before:$before} end) + (if $after=="" then {} else {after:$after} end) + (if $fromSection=="" then {} else {fromSection:$fromSection} end) + (if $fromIndex=="" then {} else {fromIndex:($fromIndex|tonumber)} end)'
+}
+
+command=${1:-}; shift || true
+case $command in
+  -h|--help|help|'') usage ;;
+  use)
+    id=${1:-}; [[ -n $id && $# == 1 ]] || fail 'use requires one bar id'
+    [[ $id != default && $id != built-in ]] || id=omarchy.bar
+    source_dir=$(omarchy-plugin-catalog | jq -r --arg id "$id" 'map(select(.id==$id and (.kinds|index("bar"))))[0].sourceDir // empty')
+    [[ -n $source_dir ]] || fail "$id is not a known bar option"
+    omarchy-plugin-enable "$id" >/dev/null
+    echo "Using $id as the active bar"
+    ;;
+  reset)
+    (($# == 0)) || fail 'reset takes no arguments'
+    omarchy-plugin-enable omarchy.bar >/dev/null
+    echo 'Using omarchy.bar as the active bar'
+    ;;
+  defaults)
+    (($# == 0)) || fail 'defaults takes no arguments'
+    commit '.bar=$defaults[0].bar' --slurpfile defaults "$OMARCHY_PATH/config/omarchy/shell.json"
+    echo 'Restored the default Nomarchy bar'
+    ;;
+  position)
+    value=${1:-}; [[ $value =~ ^(top|bottom|left|right)$ && $# == 1 ]] || fail 'position must be top, bottom, left, or right'
+    commit '.bar.position=$value' --arg value "$value"; echo "Bar position set to $value"
+    ;;
+  transparent)
+    value=${1:-}; [[ $value =~ ^(true|false|toggle)$ && $# == 1 ]] || fail 'transparent must be true, false, or toggle'
+    if [[ $value == toggle ]]; then omarchy-shell nomarchy toggleBarTransparency >/dev/null; echo 'Bar transparency toggled'; else commit '.bar.transparent=$value' --argjson value "$value"; echo "Bar transparency set to $value"; fi
+    ;;
+  put|move)
+    id=${1:-}; [[ -n $id ]] || fail "$command requires a widget id"; shift
+    json=$(placement "$@")
+    method=putBarWidget; [[ $command != move ]] || method=moveBarWidget
+    result=$(omarchy-shell nomarchy "$method" "$id" "$json"); [[ $result == ok ]] || fail "$result"
+    if [[ $command == move ]]; then echo "Moved $id"; else echo "Put $id on the bar"; fi
+    ;;
+  set)
+    id=${1:-}; key=${2:-}; value=${3:-}; [[ -n $id && -n $key && $# -ge 3 ]] || fail 'set requires an id, key and value'; shift 3
+    as_json=0; args=(); while (($#)); do if [[ $1 == --json ]]; then as_json=1; shift; else args+=("$1"); shift; fi; done
+    if (( as_json )); then jq -e . <<<"$value" >/dev/null || fail 'value after --json must be JSON'; json_value=$value; else json_value=$(jq -cn --arg v "$value" '$v'); fi
+    selector=$(placement "${args[@]}")
+    result=$(omarchy-shell nomarchy setBarWidget "$id" "$key" "$json_value" "$selector"); [[ $result == ok ]] || fail "$result"
+    echo "Set $id.$key"
+    ;;
+  *) fail "unknown command '$command'" ;;
+esac

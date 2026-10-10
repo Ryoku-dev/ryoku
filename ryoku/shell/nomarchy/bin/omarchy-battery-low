@@ -1,0 +1,4 @@
+#!/bin/bash
+set -euo pipefail
+[[ $# == 1 && $1 =~ ^[0-9]+$ ]] || { echo 'Usage: omarchy-battery-low PERCENT' >&2; exit 2; }
+omarchy-notification-send -u critical -i battery-caution -t 30000 'Time to recharge!' "Battery is down to $1%"

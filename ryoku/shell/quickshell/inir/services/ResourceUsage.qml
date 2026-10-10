@@ -32,7 +32,15 @@ Singleton {
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
     property real cpuUsage: 0
     property var previousCpuStats
+    property var previousCpuCoreStats: ({})
+    property list<real> cpuCoreUsage: []
+    property real cpuFrequencyMhz: -1
     property real gpuUsage: 0
+    property real gpuMemoryUsedGb: -1
+    property real gpuMemoryTotalGb: -1
+    property real gpuPower: -1
+    property real gpuCoreClockMhz: -1
+    property real gpuMemoryClockMhz: -1
 
     // Temperature properties (in Celsius)
     property int cpuTemp: 0
@@ -105,9 +113,9 @@ Singleton {
 
     Process {
         id: nvidiaGpuProc
-        // Query utilization and temperature together for efficiency.
+        // Query shared GPU metrics together so consumers do not spawn their own nvidia-smi.
         // NVIDIA reports core GPU temperature, not AMD-style junction/hotspot.
-        command: ["timeout", "2", root._nvidiaSmiPath, "--id=" + root._gpuDevice.split("/").pop(), "--query-gpu=utilization.gpu,temperature.gpu", "--format=csv,noheader,nounits"]
+        command: ["timeout", "2", root._nvidiaSmiPath, "--id=" + root._gpuDevice.split("/").pop(), "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,clocks.gr,clocks.mem", "--format=csv,noheader,nounits"]
         running: false
         stdout: StdioCollector {
             id: nvidiaGpuCollector
@@ -116,9 +124,19 @@ Singleton {
                 const parts = nvidiaGpuCollector.text.trim().split(",").map(s => s.trim());
                 const rawUsage = parseInt(parts[0]);
                 const rawTemp = parseInt(parts[1]);
+                const memoryUsedMb = parseFloat(parts[2]);
+                const memoryTotalMb = parseFloat(parts[3]);
+                const power = parseFloat(parts[4]);
+                const coreClock = parseFloat(parts[5]);
+                const memoryClock = parseFloat(parts[6]);
                 root.gpuUsage = !isNaN(rawUsage) ? root.clampPercentToUnit(rawUsage / 100) : 0;
                 root.gpuUsageAvailable = !isNaN(rawUsage);
                 root.gpuTemp = root.validTemperature(rawTemp);
+                root.gpuMemoryUsedGb = !isNaN(memoryUsedMb) ? memoryUsedMb / 1024 : -1;
+                root.gpuMemoryTotalGb = !isNaN(memoryTotalMb) ? memoryTotalMb / 1024 : -1;
+                root.gpuPower = !isNaN(power) ? power : -1;
+                root.gpuCoreClockMhz = !isNaN(coreClock) ? coreClock : -1;
+                root.gpuMemoryClockMhz = !isNaN(memoryClock) ? memoryClock : -1;
             }
         }
     }
@@ -225,6 +243,10 @@ Singleton {
         root._runningRequested = false;
         root._primed = false;
         root.previousCpuStats = undefined;
+        root.cpuUsage = 0;
+        root.previousCpuCoreStats = ({});
+        root.cpuCoreUsage = [];
+        root.cpuFrequencyMhz = -1;
         root._gpuPollingAllowed = false;
         pollTimer.stop();
         diskPollTimer.stop();
@@ -244,6 +266,8 @@ Singleton {
     function _pollSensors(): void {
         fileMeminfo.reload();
         fileStat.reload();
+        fileCpuInfo.reload();
+        fileCpuInfo.text();
         if (root._cpuTempPath !== "") { fileCpuTemp.reload(); fileCpuTemp.text(); }
         if (!(Config.options?.resources?.monitorGpu ?? true)) {
             root._clearGpu();
@@ -285,6 +309,33 @@ Singleton {
             };
         }
 
+        const previousCoreStats = root.previousCpuCoreStats;
+        const nextCoreStats = ({});
+        const nextCoreUsage = [];
+        for (const line of textStat.split("\n")) {
+            const match = line.match(/^cpu(\d+)\s+(.+)$/);
+            if (!match)
+                continue;
+            const index = Number(match[1]);
+            const stats = match[2].trim().split(/\s+/).map(Number);
+            if (stats.length < 5 || stats.some(value => !isFinite(value)))
+                continue;
+            const total = stats.reduce((sum, value) => sum + value, 0);
+            const idle = stats[3] + stats[4];
+            const old = previousCoreStats[index];
+            let usage = -1;
+            if (old) {
+                const totalDiff = total - old.total;
+                const idleDiff = idle - old.idle;
+                if (totalDiff > 0)
+                    usage = root.clampPercentToUnit((totalDiff - idleDiff) / totalDiff);
+            }
+            nextCoreStats[index] = { total, idle };
+            nextCoreUsage.push({ index, usage });
+        }
+        nextCoreUsage.sort((a, b) => a.index - b.index);
+        root.previousCpuCoreStats = nextCoreStats;
+        root.cpuCoreUsage = nextCoreUsage.map(core => core.usage);
     }
 
     function validTemperature(value: real): int {
@@ -296,6 +347,11 @@ Singleton {
         root.gpuUsage = 0;
         root.gpuUsageAvailable = false;
         root.gpuTemp = 0;
+        root.gpuMemoryUsedGb = -1;
+        root.gpuMemoryTotalGb = -1;
+        root.gpuPower = -1;
+        root.gpuCoreClockMhz = -1;
+        root.gpuMemoryClockMhz = -1;
     }
 
     function _pollGpu(): void {
@@ -313,6 +369,10 @@ Singleton {
         if (root._gpuUsageSource === "sysfs") {
             fileGpuUsage.reload();
             fileGpuUsage.text();
+            fileGpuVramUsed.reload();
+            fileGpuVramUsed.text();
+            fileGpuVramTotal.reload();
+            fileGpuVramTotal.text();
         }
         else if (root._gpuUsageSource === "nvidia-smi" && !nvidiaGpuProc.running)
             nvidiaGpuProc.running = true;
@@ -354,6 +414,16 @@ Singleton {
         path: "/proc/stat"
         onLoaded: root._readCpu(text())
     }
+    FileView {
+        id: fileCpuInfo
+        path: "/proc/cpuinfo"
+        preload: false
+        onLoaded: {
+            const frequency = Number(text().match(/^cpu MHz\s*:\s*([\d.]+)/m)?.[1] ?? -1);
+            root.cpuFrequencyMhz = frequency > 0 ? frequency : -1;
+        }
+        onLoadFailed: root.cpuFrequencyMhz = -1
+    }
     // Temperature sensors - k10temp for AMD CPU, amdgpu for AMD GPU
     // These paths are auto-detected at startup
     FileView {
@@ -381,6 +451,28 @@ Singleton {
             root.gpuUsage = isNaN(value) ? 0 : root.clampPercentToUnit(value / 100);
         }
         onLoadFailed: { root.gpuUsage = 0; root.gpuUsageAvailable = false; }
+    }
+    FileView {
+        id: fileGpuVramUsed
+        path: root._gpuDevice.length > 0 ? `${root._gpuDevice}/mem_info_vram_used` : ""
+        preload: false
+        onLoaded: {
+            if (!root._gpuPollingAllowed) return;
+            const bytes = text().trim().length > 0 ? Number(text()) : NaN;
+            root.gpuMemoryUsedGb = isFinite(bytes) && bytes >= 0 ? bytes / (1024 * 1024 * 1024) : -1;
+        }
+        onLoadFailed: root.gpuMemoryUsedGb = -1
+    }
+    FileView {
+        id: fileGpuVramTotal
+        path: root._gpuDevice.length > 0 ? `${root._gpuDevice}/mem_info_vram_total` : ""
+        preload: false
+        onLoaded: {
+            if (!root._gpuPollingAllowed) return;
+            const bytes = text().trim().length > 0 ? Number(text()) : NaN;
+            root.gpuMemoryTotalGb = isFinite(bytes) && bytes > 0 ? bytes / (1024 * 1024 * 1024) : -1;
+        }
+        onLoadFailed: root.gpuMemoryTotalGb = -1
     }
     // Runtime PM status of the selected GPU; reading it does not wake the device.
     FileView {

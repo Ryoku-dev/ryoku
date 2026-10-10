@@ -493,6 +493,7 @@ summary_pause() {
     echo ""
     read -rp "Some items failed. Press Enter to close this window. " -t 60 _ || true
   fi
+  return "$failed"
 }
 
 # --- dispatch -----------------------------------------------------------------

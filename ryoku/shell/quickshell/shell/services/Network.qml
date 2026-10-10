@@ -47,6 +47,70 @@ Singleton {
         vpnPolling = vpnPollOwners.length > 0;
     }
 
+    // Throughput is shared by every bar. A visible owner starts one /proc read
+    // for the whole shell; hiding the last owner drops the byte baseline and
+    // leaves no timer running.
+    property var trafficOwners: []
+    readonly property bool trafficActive: root.trafficOwners.length > 0
+    function setTrafficActive(owner, enabled) {
+        root.trafficOwners = MenuPoll.setOwnership(root.trafficOwners, owner, enabled);
+    }
+    property real downBps: 0
+    property real upBps: 0
+    property real _trafficRx: 0
+    property real _trafficTx: 0
+    property bool _haveTraffic: false
+
+    function _setTraffic(down, up) {
+        if (root.downBps !== down)
+            root.downBps = down;
+        if (root.upBps !== up)
+            root.upBps = up;
+    }
+
+    function _readTraffic(text) {
+        const lines = String(text || "").split("\n");
+        let rx = 0;
+        let tx = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const colon = lines[i].indexOf(":");
+            if (colon < 0 || lines[i].slice(0, colon).trim() === "lo")
+                continue;
+            const fields = lines[i].slice(colon + 1).trim().split(/\s+/);
+            if (fields.length < 9)
+                continue;
+            rx += Number(fields[0]) || 0;
+            tx += Number(fields[8]) || 0;
+        }
+        if (root._haveTraffic)
+            root._setTraffic(Math.max(0, (rx - root._trafficRx) / 2),
+                             Math.max(0, (tx - root._trafficTx) / 2));
+        root._trafficRx = rx;
+        root._trafficTx = tx;
+        root._haveTraffic = true;
+    }
+
+    onTrafficActiveChanged: if (!root.trafficActive) {
+        root._haveTraffic = false;
+        root._setTraffic(0, 0);
+    }
+
+    FileView {
+        id: trafficFile
+        path: root.trafficActive ? "/proc/net/dev" : ""
+        blockLoading: true
+        printErrors: false
+        onLoaded: root._readTraffic(trafficFile.text())
+    }
+
+    Timer {
+        interval: 2000
+        running: root.trafficActive
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: trafficFile.reload()
+    }
+
     // --- intents (QML -> daemon) ---
     function refresh() { root.call("network.wifiScan", {}); }
     function setWifiEnabled(on) { root.call("network.wifiSetEnabled", { enabled: on === true }); }

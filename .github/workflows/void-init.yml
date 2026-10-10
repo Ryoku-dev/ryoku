@@ -1,0 +1,61 @@
+name: Void init translation
+
+# Guards the systemd-to-runit translation under void/init/: every systemd
+# unit in the repo has a manifest row, the translations carry their unit's
+# contract, and the translated services actually behave under a real runsvdir
+# in a Void container. void/README.md.
+
+on:
+  pull_request:
+    paths:
+      - 'void/**'
+      - 'ryoku/shell/systemd/**'
+      - 'ryoku/rashin/systemd/**'
+      - 'ryoku/cli/systemd/**'
+      - 'ryoku/palette-bridge/packaging/systemd/**'
+      - 'system/hardware/network/*.service'
+      - 'system/hardware/bluetooth/*.service'
+      - 'tests/void-init.sh'
+      - 'tests/void-init-runit.sh'
+      - '.github/workflows/void-init.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'void/**'
+      - 'ryoku/shell/systemd/**'
+      - 'ryoku/rashin/systemd/**'
+      - 'ryoku/cli/systemd/**'
+      - 'ryoku/palette-bridge/packaging/systemd/**'
+      - 'system/hardware/network/*.service'
+      - 'system/hardware/bluetooth/*.service'
+      - 'tests/void-init.sh'
+      - 'tests/void-init-runit.sh'
+      - '.github/workflows/void-init.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    name: Manifest completeness and unit parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Static contract checks
+        shell: bash
+        run: bash tests/void-init.sh
+
+  runit:
+    name: Live runsvdir behavior in a Void container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Behavioral checks under runit
+        shell: bash
+        run: bash tests/void-init-runit.sh

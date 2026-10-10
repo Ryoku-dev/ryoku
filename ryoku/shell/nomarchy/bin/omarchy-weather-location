@@ -1,0 +1,20 @@
+#!/bin/bash
+set -euo pipefail
+file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/settings/weather.json
+case ${1:-} in
+  '')
+    name=; [[ ! -r $file ]] || name=$(jq -r '.name // empty' "$file" 2>/dev/null || true)
+    [[ -n $name ]] || name=$(curl -fsS --max-time 4 'https://wttr.in/?format=%l' 2>/dev/null || true)
+    printf '%s\n' "${name%%,*}"
+    ;;
+  --set)
+    name=${2:-}; [[ -n $name ]] || { echo 'Usage: omarchy-weather-location --set NAME [LAT,LON]' >&2; exit 2; }
+    mkdir -p "${file%/*}"
+    if [[ -n ${3:-} ]]; then
+      [[ $3 =~ ^-?[0-9]+([.][0-9]+)?,-?[0-9]+([.][0-9]+)?$ ]] || { echo 'Coordinates must be LAT,LON' >&2; exit 2; }
+      jq -n --arg name "$name" --argjson latitude "${3%,*}" --argjson longitude "${3#*,}" '{name:$name,latitude:$latitude,longitude:$longitude}' >"$file"
+    else jq -n --arg name "$name" '{name:$name}' >"$file"; fi
+    ;;
+  --clear) rm -f "$file" ;;
+  *) echo 'Usage: omarchy-weather-location [--set NAME [LAT,LON]|--clear]' >&2; exit 2 ;;
+esac

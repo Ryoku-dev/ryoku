@@ -55,7 +55,8 @@ AbstractBackgroundWidget {
     semanticPaletteQuickControls: root.paletteMode === "accent"
         || root.paletteMode === "primary"
     readonly property var spectrumPalette: {
-        if (root.paletteMode === "accent")
+        // iRiS draws its widgets from one solved palette; Cava's colours are Material's.
+        if (root.paletteMode === "accent" || (root.widgetIris && root.paletteMode === "cava"))
             return [root.widgetAccentVisible, root.widgetAccent2Visible, root.widgetAccent3Visible]
         if (root.paletteMode === "primary")
             return [root.widgetAccent]

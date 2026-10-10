@@ -5,6 +5,7 @@ import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import Quickshell
 import inir.modules.common
+import inir.services
 import inir.modules.iris.style
 import inir.modules.iris.components
 
@@ -14,18 +15,18 @@ IrisWidgetFace {
     readonly property bool analog: String(root.widget.irisOption("face", "analog")) === "analog"
     readonly property bool seconds: Boolean(root.widget.irisOption("seconds", true))
     readonly property var now: clock.date
-    readonly property string timeText: RyokuUi.TimeFormat.format(root.now)
+    readonly property string timeText: Translation.locale.toString(root.now, RyokuUi.TimeFormat.pattern())
     readonly property string weekday: {
-        const name = Qt.locale().toString(root.now, "dddd")
+        const name = Translation.locale.toString(root.now, "dddd")
         return name.charAt(0).toUpperCase() + name.slice(1)
     }
-    readonly property string longDate: Qt.locale().toString(root.now, "d MMMM")
+    readonly property string longDate: Translation.locale.toString(root.now, "d MMMM")
 
     padding: root.analog && root.small ? root.dp(8) : root.dp(16)
 
     SystemClock {
         id: clock
-        precision: root.analog && root.seconds && root.live ? SystemClock.Seconds : SystemClock.Minutes
+        precision: root.analog && root.seconds && root.moving ? SystemClock.Seconds : SystemClock.Minutes
     }
 
     FaceDial {
@@ -38,7 +39,7 @@ IrisWidgetFace {
         height: width
         time: root.now
         seconds: root.seconds
-        caption: root.small ? Qt.locale().toString(root.now, "ddd d").replace(/\./g, "") : ""
+        caption: root.small ? Translation.locale.toString(root.now, "ddd d").replace(/\./g, "") : ""
     }
 
     ColumnLayout {

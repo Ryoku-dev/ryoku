@@ -75,8 +75,9 @@ Item {
         }
         return out
     }
+    readonly property real baseRadius: IrisStyle.surfaceRadius("controlCenter", IrisStyle.radiusPanel)
     readonly property var placement: root.fromPiece
-        ? IrisFrame.place(root.placementOrigin, panel.width, panel.height, root.width, root.height, panel.radius,
+        ? IrisFrame.place(root.placementOrigin, panel.width, panel.height, root.width, root.height, root.baseRadius,
             root.avoidRects, IrisStyle.cardJoins ? -IrisStyle.weld : Math.max(IrisFrame.bodyAir, IrisStyle.cardGap)) : null
     readonly property real panelWidth: Math.min(root.width - 16, (Math.max(320, Number(root.options?.width ?? 360))
         + (GlobalStates.irisControlEdit ? IrisControlOptions.editorExtra : 0)) * IrisStyle.density)
@@ -111,7 +112,10 @@ Item {
         color: IrisStyle.bodySurface
         fieldBacked: true
         contentReady: contents.contentHeight > 0
-        radius: IrisStyle.surfaceRadius("controlCenter", IrisStyle.radiusPanel)
+        radius: root.placement && !IrisStyle.cardJoins
+            ? IrisFrame.nestRadius({ x: root.placement.x, y: root.placement.y, width: panel.width, height: panel.height },
+                root.baseRadius, root.origin?.obstacle ?? root.origin, Number(root.origin?.nestFuse ?? IrisStyle.fuse), root.width, root.height)
+            : root.baseRadius
         origin: root.fromPiece ? root.origin : null
         onClosed: if (GlobalStates.irisMorphOwner === "stage" && !GlobalStates.settingsOverlayOpen) GlobalStates.irisMorphOwner = ""
         light: IrisStyle.surfaceLight("controlCenter", IrisStyle.wallpaperLight)

@@ -9,7 +9,7 @@ Item {
     id: root
 
     Repeater {
-        model: Config.count
+        model: Performance.visualizerResident && Config.enabled ? Config.count : 0
         delegate: VisualizerView {
             id: vizView
             anchors.fill: parent

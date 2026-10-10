@@ -132,6 +132,95 @@ Item {
         shellSet.command = ["ryoku-hub", "shell", "prompt", mode];
         shellSet.running = true;
     }
+
+    property var starshipState: ({ "layout": "pill", "palette": "fixed" })
+    property var starshipLayouts: []
+    property string starshipError: ""
+    property bool starshipBusy: false
+    Process {
+        id: starshipGet
+        command: ["ryoku-hub", "starship", "get"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    pg.starshipState = JSON.parse(this.text);
+                } catch (e) {
+                    pg.starshipError = I18n.tr("Couldn't read the Starship settings.");
+                }
+            }
+        }
+    }
+    Process {
+        id: starshipList
+        command: ["ryoku-hub", "starship", "list"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    pg.starshipLayouts = JSON.parse(this.text) || [];
+                } catch (e) {
+                    pg.starshipError = I18n.tr("Couldn't read the Starship layouts.");
+                }
+            }
+        }
+    }
+    Process {
+        id: starshipSet
+        stderr: StdioCollector { id: starshipSetError }
+        onExited: (code, status) => {
+            pg.starshipBusy = false;
+            pg.starshipError = code === 0 ? "" : (starshipSetError.text.trim() || I18n.tr("Couldn't change the Starship prompt."));
+            starshipGet.running = true;
+        }
+    }
+    function setStarshipLayout(layout) {
+        if (pg.starshipBusy || layout === pg.starshipState.layout)
+            return;
+        pg.starshipBusy = true;
+        pg.starshipError = "";
+        starshipSet.command = ["ryoku-hub", "starship", "set", layout];
+        starshipSet.running = true;
+    }
+    function setStarshipPalette(mode) {
+        if (pg.starshipBusy || mode === pg.starshipState.palette)
+            return;
+        pg.starshipBusy = true;
+        pg.starshipError = "";
+        starshipSet.command = ["ryoku-hub", "starship", "palette", mode];
+        starshipSet.running = true;
+    }
+    function starshipName(id) {
+        if (id === "pill") return I18n.tr("Pill");
+        if (id === "minimal") return I18n.tr("Minimal");
+        if (id === "two-line") return I18n.tr("Two line");
+        if (id === "powerline") return I18n.tr("Powerline");
+        if (id === "lean") return I18n.tr("Lean");
+        return id;
+    }
+    function starshipPreview(id) {
+        if (id === "minimal")
+            return "󰉋 ~/ryoku  󰊢 unstable  λ";
+        if (id === "two-line")
+            return "╭─ 󰉋 ~/ryoku  󰊢 unstable\n╰─ λ";
+        if (id === "powerline")
+            return "󰉋 ~/ryoku󰊢 unstable 󰔚 1s  λ";
+        if (id === "lean")
+            return "󰉋  ~/ryoku  󰊢 unstable\n❯";
+        return " 󰉋 ~/ryoku    󰊢 unstable \nλ";
+    }
+    function orderedStarshipLayouts() {
+        var order = ["pill", "minimal", "two-line", "powerline", "lean"];
+        var byID = {};
+        for (var i = 0; i < pg.starshipLayouts.length; i++)
+            byID[pg.starshipLayouts[i].id] = pg.starshipLayouts[i];
+        var out = [];
+        for (var j = 0; j < order.length; j++)
+            if (byID[order[j]]) out.push(byID[order[j]]);
+        for (var k = 0; k < pg.starshipLayouts.length; k++)
+            if (order.indexOf(pg.starshipLayouts[k].id) < 0) out.push(pg.starshipLayouts[k]);
+        return out;
+    }
     // role -> chosen command (draft); empty/absent uses the shipped fallback.
     readonly property var chosen: pg.hubReady ? (pg.hub.hyprVal("desktop.apps") || ({})) : ({})
     function effOf(role, fallback) {
@@ -1155,6 +1244,127 @@ Item {
                                 }
                             }
 
+                            Row {
+                                spacing: Tokens.s2
+                                Text {
+                                    text: I18n.tr("STARSHIP LAYOUT")
+                                    color: Tokens.inkMuted
+                                    font.family: Tokens.ui
+                                    font.pixelSize: Tokens.fMicro
+                                    font.weight: Font.Medium
+                                    font.letterSpacing: Tokens.trackMark
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: I18n.tr("Shared by Fish, Bash and Starship-powered Zsh.")
+                                    color: Tokens.inkFaint
+                                    font.family: Tokens.ui
+                                    font.pixelSize: Tokens.fTiny
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+
+                            Flow {
+                                width: parent.width
+                                spacing: Tokens.s2
+                                Repeater {
+                                    model: pg.orderedStarshipLayouts()
+                                    delegate: Rectangle {
+                                        id: layoutCard
+                                        required property var modelData
+                                        readonly property bool selected: pg.starshipState.layout === layoutCard.modelData.id
+                                        width: 176
+                                        height: 82
+                                        radius: Tokens.radius
+                                        opacity: pg.starshipBusy ? 0.45 : 1
+                                        color: layoutCard.selected ? Tokens.ink : (layoutHover.hovered ? Tokens.tint10 : "transparent")
+                                        border.width: Tokens.border
+                                        border.color: layoutCard.selected ? Tokens.ink : (layoutHover.hovered ? Tokens.lineStrong : Tokens.line)
+                                        Behavior on color { ColorAnimation { duration: Tokens.snap } }
+                                        Text {
+                                            anchors.left: parent.left
+                                            anchors.top: parent.top
+                                            anchors.margins: Tokens.s2
+                                            text: pg.starshipName(layoutCard.modelData.id)
+                                            color: layoutCard.selected ? Tokens.paper : Tokens.inkDim
+                                            font.family: Tokens.ui
+                                            font.pixelSize: Tokens.fSmall
+                                            font.weight: Font.Medium
+                                        }
+                                        Text {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            anchors.margins: Tokens.s2
+                                            height: 42
+                                            text: pg.starshipPreview(layoutCard.modelData.id)
+                                            color: layoutCard.selected ? Tokens.paper : Tokens.inkFaint
+                                            font.family: Tokens.mono
+                                            font.pixelSize: Tokens.fTiny
+                                            wrapMode: Text.Wrap
+                                            verticalAlignment: Text.AlignVCenter
+                                        }
+                                        HoverHandler {
+                                            id: layoutHover
+                                            enabled: !pg.starshipBusy
+                                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        }
+                                        TapHandler {
+                                            enabled: !pg.starshipBusy
+                                            onTapped: pg.setStarshipLayout(layoutCard.modelData.id)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Row {
+                                spacing: Tokens.s2
+                                Text {
+                                    text: I18n.tr("PROMPT PALETTE")
+                                    color: Tokens.inkMuted
+                                    font.family: Tokens.ui
+                                    font.pixelSize: Tokens.fMicro
+                                    font.weight: Font.Medium
+                                    font.letterSpacing: Tokens.trackMark
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Repeater {
+                                    model: [
+                                        { "mode": "fixed", "label": I18n.tr("Fixed") },
+                                        { "mode": "wallpaper", "label": I18n.tr("Follow wallpaper") }
+                                    ]
+                                    delegate: Rectangle {
+                                        id: starshipPaletteChip
+                                        required property var modelData
+                                        readonly property bool selected: pg.starshipState.palette === starshipPaletteChip.modelData.mode
+                                        implicitWidth: paletteLabel.implicitWidth + Tokens.s4
+                                        implicitHeight: 28
+                                        radius: Tokens.radius
+                                        opacity: pg.starshipBusy ? 0.45 : 1
+                                        color: starshipPaletteChip.selected ? Tokens.ink : (paletteHover.hovered ? Tokens.tint10 : "transparent")
+                                        border.width: Tokens.border
+                                        border.color: starshipPaletteChip.selected ? Tokens.ink : Tokens.line
+                                        Text {
+                                            id: paletteLabel
+                                            anchors.centerIn: parent
+                                            text: starshipPaletteChip.modelData.label
+                                            color: starshipPaletteChip.selected ? Tokens.paper : Tokens.inkDim
+                                            font.family: Tokens.ui
+                                            font.pixelSize: Tokens.fSmall
+                                        }
+                                        HoverHandler {
+                                            id: paletteHover
+                                            enabled: !pg.starshipBusy
+                                            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        }
+                                        TapHandler {
+                                            enabled: !pg.starshipBusy
+                                            onTapped: pg.setStarshipPalette(starshipPaletteChip.modelData.mode)
+                                        }
+                                    }
+                                }
+                            }
+
                             Text {
                                 width: parent.width
                                 text: I18n.tr("Custom: ~/.config/fish/user.fish · ~/.config/bash/user.bash · ~/.config/zsh/user.zsh · ~/.config/zsh/oh-my-zsh/")
@@ -1166,6 +1376,13 @@ Item {
                             Text {
                                 visible: pg.shellError !== ""
                                 text: pg.shellError
+                                color: Tokens.alert
+                                font.family: Tokens.ui
+                                font.pixelSize: Tokens.fTiny
+                            }
+                            Text {
+                                visible: pg.starshipError !== ""
+                                text: pg.starshipError
                                 color: Tokens.alert
                                 font.family: Tokens.ui
                                 font.pixelSize: Tokens.fTiny

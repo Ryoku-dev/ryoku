@@ -31,163 +31,6 @@ Item {
         SessionActions.run(action);
     }
 
-    function settleSections(value): void {
-        heroSection.opacity = value;
-        connectionsSection.opacity = value;
-        profileSection.opacity = value;
-        levelsSection.opacity = value;
-        barSection.opacity = value;
-        heroShift.y = value ? 0 : Tokens.s2 * root.s;
-        connectionsShift.y = value ? 0 : Tokens.s2 * root.s;
-        profileShift.y = value ? 0 : Tokens.s2 * root.s;
-        levelsShift.y = value ? 0 : Tokens.s2 * root.s;
-        barShift.y = value ? 0 : Tokens.s2 * root.s;
-    }
-
-    function updateReveal(): void {
-        heroReveal.stop();
-        connectionsReveal.stop();
-        profileReveal.stop();
-        levelsReveal.stop();
-        barReveal.stop();
-        if (!root.overviewActive) {
-            root.settleSections(0);
-        } else if (!root.motionAllowed) {
-            root.settleSections(1);
-        } else {
-            root.settleSections(0);
-            heroReveal.start();
-            connectionsReveal.start();
-            profileReveal.start();
-            levelsReveal.start();
-            barReveal.start();
-        }
-    }
-
-    onOverviewActiveChanged: root.updateReveal()
-    onMotionAllowedChanged: root.updateReveal()
-    Component.onCompleted: root.updateReveal()
-
-    Connections {
-        target: SidebarState
-        function onSpeedScaleChanged() { root.updateReveal(); }
-    }
-
-    SystemMonitor {
-        id: monitor
-        active: root.overviewActive
-    }
-
-    SequentialAnimation {
-        id: heroReveal
-        ParallelAnimation {
-            NumberAnimation {
-                target: heroSection
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-            NumberAnimation {
-                target: heroShift
-                property: "y"
-                from: Tokens.s2 * root.s
-                to: 0
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-        }
-    }
-    SequentialAnimation {
-        id: connectionsReveal
-        PauseAnimation { duration: SidebarState.motionDuration(Tokens.snap / 3) }
-        ParallelAnimation {
-            NumberAnimation {
-                target: connectionsSection
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-            NumberAnimation {
-                target: connectionsShift
-                property: "y"
-                from: Tokens.s2 * root.s
-                to: 0
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-        }
-    }
-    SequentialAnimation {
-        id: profileReveal
-        PauseAnimation { duration: SidebarState.motionDuration(Tokens.snap * 2 / 3) }
-        ParallelAnimation {
-            NumberAnimation {
-                target: profileSection
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-            NumberAnimation {
-                target: profileShift
-                property: "y"
-                from: Tokens.s2 * root.s
-                to: 0
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-        }
-    }
-    SequentialAnimation {
-        id: levelsReveal
-        PauseAnimation { duration: SidebarState.motionDuration(Tokens.snap) }
-        ParallelAnimation {
-            NumberAnimation {
-                target: levelsSection
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-            NumberAnimation {
-                target: levelsShift
-                property: "y"
-                from: Tokens.s2 * root.s
-                to: 0
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-        }
-    }
-    SequentialAnimation {
-        id: barReveal
-        PauseAnimation { duration: SidebarState.motionDuration(Tokens.snap * 4 / 3) }
-        ParallelAnimation {
-            NumberAnimation {
-                target: barSection
-                property: "opacity"
-                from: 0
-                to: 1
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-            NumberAnimation {
-                target: barShift
-                property: "y"
-                from: Tokens.s2 * root.s
-                to: 0
-                duration: SidebarState.motionDuration(Tokens.swap)
-                easing.type: Tokens.ease
-            }
-        }
-    }
-
     Column {
         id: overview
         anchors.left: parent.left
@@ -195,97 +38,99 @@ Item {
         visible: root.currentPage === "controls"
         spacing: Tokens.s3 * root.s
 
-        Item {
-            id: heroSection
-            width: parent.width
-            implicitHeight: hero.implicitHeight
-            height: implicitHeight
-            opacity: 0
-            transform: Translate { id: heroShift; y: Tokens.s2 * root.s }
+        Repeater {
+            model: SidebarState.visibleSections
 
-            ControlsHero {
-                id: hero
-                width: parent.width
-                height: implicitHeight
-                s: root.s
-                active: root.overviewActive
-                monitor: monitor
+            delegate: Loader {
+                id: sectionLoader
+                required property var modelData
+                width: overview.width
+                active: root.currentPage === "controls"
+                sourceComponent: modelData.id === "vitals" ? vitalsSection
+                    : modelData.id === "connections" ? connectionsSection
+                    : modelData.id === "powerProfile" ? profileSection
+                    : modelData.id === "media" ? mediaSection
+                    : modelData.id === "levels" ? levelsSection
+                    : bottomSection
+                height: item ? item.implicitHeight : 0
+                opacity: active ? 1 : 0
+                transform: Translate { y: sectionLoader.active ? 0 : Tokens.s2 * root.s }
+
+                Behavior on opacity {
+                    enabled: root.motionAllowed
+                    NumberAnimation {
+                        duration: SidebarState.motionDuration(Tokens.swap)
+                        easing.type: Tokens.ease
+                    }
+                }
             }
         }
+    }
 
-        Item {
-            id: connectionsSection
-            width: parent.width
-            implicitHeight: connections.implicitHeight
+    Component {
+        id: vitalsSection
+        ControlsHero {
+            width: overview.width
             height: implicitHeight
-            opacity: 0
-            transform: Translate { id: connectionsShift; y: Tokens.s2 * root.s }
-
-            ControlsConnections {
-                id: connections
-                width: parent.width
-                height: implicitHeight
-                s: root.s
-                screen: root.screen
-                active: root.overviewActive
-                onOpenPage: page => root.showPage(page)
-            }
+            s: root.s
+            active: root.overviewActive
         }
+    }
 
-        Item {
-            id: profileSection
-            width: parent.width
-            implicitHeight: powerProfile.implicitHeight
+    Component {
+        id: connectionsSection
+        ControlsConnections {
+            width: overview.width
             height: implicitHeight
-            opacity: 0
-            transform: Translate { id: profileShift; y: Tokens.s2 * root.s }
-
-            PowerProfileControl {
-                id: powerProfile
-                width: parent.width
-                height: implicitHeight
-                s: root.s
-                active: root.overviewActive
-            }
+            s: root.s
+            screen: root.screen
+            active: root.overviewActive
+            onOpenPage: page => root.showPage(page)
         }
+    }
 
-        Item {
-            id: levelsSection
-            width: parent.width
-            implicitHeight: levels.implicitHeight
+    Component {
+        id: profileSection
+        PowerProfileControl {
+            width: overview.width
             height: implicitHeight
-            opacity: 0
-            transform: Translate { id: levelsShift; y: Tokens.s2 * root.s }
-
-            ControlsLevels {
-                id: levels
-                width: parent.width
-                height: implicitHeight
-                s: root.s
-                screen: root.screen
-                active: root.overviewActive
-            }
+            s: root.s
+            active: root.overviewActive
         }
+    }
 
-        Item {
-            id: barSection
-            width: parent.width
-            implicitHeight: controlsBar.implicitHeight
+    Component {
+        id: mediaSection
+        ControlsMedia {
+            width: overview.width
             height: implicitHeight
-            opacity: 0
-            transform: Translate { id: barShift; y: Tokens.s2 * root.s }
+            s: root.s
+            active: root.overviewActive
+        }
+    }
 
-            ControlsBar {
-                id: controlsBar
-                width: parent.width
-                height: implicitHeight
-                s: root.s
-                screen: root.screen
-                active: root.overviewActive
-                onSession: action => root.session(action)
-                onOpenExtensions: root.showPage("plugins")
-                onRequestClose: root.requestClose()
-            }
+    Component {
+        id: levelsSection
+        ControlsLevels {
+            width: overview.width
+            height: implicitHeight
+            s: root.s
+            screen: root.screen
+            active: root.overviewActive
+        }
+    }
+
+    Component {
+        id: bottomSection
+        ControlsBar {
+            width: overview.width
+            height: implicitHeight
+            s: root.s
+            screen: root.screen
+            active: root.overviewActive
+            onSession: action => root.session(action)
+            onOpenExtensions: root.showPage("plugins")
+            onRequestClose: root.requestClose()
         }
     }
 

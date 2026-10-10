@@ -87,14 +87,15 @@ fi
 # depends on loads on a dev box that happens to carry it and fails whole on
 # every other one: Shima imported KDE's Kirigami, which only arrives with
 # unrelated KDE apps, so the style could not load for most users. Each import
-# root must be in-tree or come from a package ryoku-desktop depends on.
+# root must be in-tree or come from a package ryoku-desktop depends on. `qs` is
+# Quickshell's name for the running config's own root, so it is in-tree too.
 declare -A qml_module_pkg=(
 	[Qt]=qt6-declarative [QtQuick]=qt6-declarative [QtQml]=qt6-declarative
 	[QtCore]=qt6-declarative [QtMultimedia]=qt6-multimedia
 	[Qt5Compat]=qt6-5compat [Quickshell]=quickshell
 	[org.kde.syntaxhighlighting]=syntax-highlighting
 )
-qml_in_tree=(Ryoku inir shell stage RashinApp)
+qml_in_tree=(Ryoku inir shell stage RashinApp qs)
 desktop_depends="$(sed -n '/^depends=(/,/^)/p' release/packages/ryoku-desktop/PKGBUILD)"
 qml_fail=0
 while IFS=: read -r file module; do

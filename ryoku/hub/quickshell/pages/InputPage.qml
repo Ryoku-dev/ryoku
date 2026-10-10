@@ -32,14 +32,13 @@ import "../Combos.js" as Combos
 //     keys already being saved.
 //
 // The MOUSE tab is not schema: it drives the shell daemon's evdev remapper
-// (ryoku/shell/ipc/mousemap.go), which is compositor-neutral by construction --
-// it grabs the physical mouse, replays it through a uinput clone, and swaps a
-// mapped extra button for a key chord or another button. So its state lives in
-// the daemon (mousemap.json), not the desktop store, and the page talks to it
-// over the shell socket exactly like the Recording page talks to the keypress
-// overlay: one subscription for frames, one control line per call. A machine
-// with no mouse (a laptop's built-in pad is classified out) shows the empty
-// plate and binds nothing.
+// (ryoku/shell/ipc/mousemap.go), which is compositor-neutral by construction.
+// It pairs a mouse's pointer and MMO side-grid interfaces, replays a grabbed
+// interface through a uinput clone, and substitutes chords, buttons or timed
+// sequences. State lives in mousemap.json, not the desktop store, and the page
+// talks to it over the shell socket exactly like the Recording page talks to
+// the keypress overlay. A machine with no mouse (a laptop's built-in pad is
+// classified out) shows the empty plate and binds nothing.
 //
 // The layout/variant catalogues are scanned at runtime (xkb rules), so they are
 // filtered picks, not enums. Everything else reads hub.hyprVal / writes
@@ -117,16 +116,20 @@ Item {
     // the page never touches a file. Same socket grammar the Recording page
     // uses for the keypress overlay.
     readonly property string shellSockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-    property var mouseDevices: []                 // [{ id, name, bus, buttons }]
-    property var mouseMaps: ({})                  // device -> button -> { kind, keys, button }
+    property var mouseDevices: []
+    property var mouseMaps: ({})
     property bool mouseDaemonSeen: false
     property string mouseError: ""
-    // capture: the button being bound. device "" means detect-from-press: the
-    // next physical click picks the device and button for us.
-    property var captureFor: null                 // { device, button } while the overlay is up
-    property bool captureWaitClick: false         // still waiting for the physical press
-    property string captureForming: ""            // modifiers held, shown as they land
-    readonly property bool capturing: pg.captureFor !== null
+    property var captureFor: null
+    property bool captureWaitClick: false
+    property string captureForming: ""
+    property var macroEditor: null
+    property bool macroKeyCapture: false
+    property bool macroRecording: false
+    property string macroAction: "tap"
+    property string macroModifierOnly: ""
+    property double macroLastAt: 0
+    readonly property bool capturing: pg.captureFor !== null || pg.macroKeyCapture || pg.macroRecording
 
     function applyMouseFrame(line) {
         try {
@@ -153,16 +156,15 @@ Item {
     function applyMouseReply(line) {
         try {
             var reply = JSON.parse(line);
-            if (reply.ok && reply.result && reply.result.devices) {
-                pg.applyMouseFrame(JSON.stringify(reply.result));
+            if (reply.ok) {
                 pg.mouseError = "";
-                return;
-            }
-            if (!reply.ok) {
-                pg.mouseError = reply.error || I18n.tr("The mouse remapper refused the change.");
                 if (reply.result && reply.result.devices)
                     pg.applyMouseFrame(JSON.stringify(reply.result));
+                return;
             }
+            pg.mouseError = reply.error || I18n.tr("The mouse remapper refused the change.");
+            if (reply.result && reply.result.devices)
+                pg.applyMouseFrame(JSON.stringify(reply.result));
         } catch (e) {}
     }
 
@@ -207,18 +209,38 @@ Item {
         onConnectionStateChanged: if (connected) flushQueued()
     }
 
-    // evdev button codes 272..274 are left/right/middle and stay as they came;
-    // 275 up are the extra thumb/paddle keys this tab exists to bind. The names
-    // are what the boxes actually print on them; an unmapped button still sends
-    // its default to apps, which is what the row says.
-    function buttonLabel(code) {
+    function mouseDevice(device) {
+        for (var i = 0; i < pg.mouseDevices.length; i++)
+            if (pg.mouseDevices[i].id === device)
+                return pg.mouseDevices[i];
+        return null;
+    }
+    function mouseDisplayName(device) {
+        var dev = pg.mouseDevice(device);
+        if (!dev) return device;
+        if (dev.brand && dev.model) return dev.brand + " · " + dev.model;
+        return dev.name || device;
+    }
+    function buttonLabel(code, device) {
+        var dev = device ? pg.mouseDevice(device) : null;
+        if (dev && dev.labels && dev.labels[String(code)])
+            return I18n.tr(String(dev.labels[String(code)]));
+        if (code >= 2 && code <= 13)
+            return I18n.tr("Side") + " " + (code === 11 ? 10 : code === 12 ? 11 : code === 13 ? 12 : code - 1);
+        if (code >= 656 && code <= 685)
+            return "G" + (code - 655);
+        if (code >= 183 && code <= 194)
+            return "F" + (code - 170);
+        if (code === 148 || code === 149)
+            return "G" + (code - 147);
+        if (code === 202 || code === 203)
+            return "G" + (code - 199);
         if (code === 275) return I18n.tr("Side");
         if (code === 276) return I18n.tr("Extra");
         if (code === 277) return I18n.tr("Thumb");
         if (code === 278) return I18n.tr("Thumb 2");
-        if (code === 279) return I18n.tr("Paddle");
-        if (code === 280) return I18n.tr("Sniper");
-        return I18n.tr("Button") + " " + (code - 271);
+        if (code >= 704 && code <= 743) return I18n.tr("Macro") + " " + (code - 703);
+        return I18n.tr("Button") + " " + code;
     }
     function buttonDefault(code) {
         if (code === 275) return I18n.tr("Back");
@@ -233,8 +255,11 @@ Item {
         if (!t) return "";
         if (t.kind === "disabled") return I18n.tr("Off");
         if (t.kind === "button") return pg.buttonLabel(t.button) + " " + I18n.tr("click");
+        if (t.kind === "sequence")
+            return (t.sequence ? t.sequence.length : 0) + " " + I18n.tr("steps")
+                + ((t.repeat || 1) > 1 ? " ×" + t.repeat : "");
         var out = [];
-        for (var i = 0; i < t.keys.length; i++)
+        for (var i = 0; i < (t.keys || []).length; i++)
             out.push(String(t.keys[i]).toUpperCase());
         return out.join(" + ");
     }
@@ -253,13 +278,21 @@ Item {
         var m = { "SUPER": "super", "CTRL": "ctrl", "ALT": "alt", "SHIFT": "shift",
             "Return": "enter", "Space": "space", "Tab": "tab", "BackSpace": "backspace",
             "Prior": "pgup", "Next": "pgdn", "Left": "left", "Right": "right",
-            "Up": "up", "Down": "down", "Home": "home", "End": "end" };
+            "Up": "up", "Down": "down", "Home": "home", "End": "end",
+            "Insert": "insert", "Delete": "delete", "Print": "print" };
         if (m[t] !== undefined) return m[t];
         if (/^[A-Z]$/.test(t) || /^[0-9]$/.test(t)) return t.toLowerCase();
         if (/^F([1-9]|1[0-2])$/.test(t)) return t.toLowerCase();
         if (["minus", "equal", "bracketleft", "bracketright", "comma", "period",
              "slash", "semicolon", "apostrophe", "backslash", "grave"].indexOf(t) >= 0)
             return t;
+        return "";
+    }
+    function modifierKeyToken(key) {
+        if (key === Qt.Key_Shift) return "SHIFT";
+        if (key === Qt.Key_Control) return "CTRL";
+        if (key === Qt.Key_Alt) return "ALT";
+        if (key === Qt.Key_Meta) return "SUPER";
         return "";
     }
     function chordToKeys(chord) {
@@ -313,12 +346,135 @@ Item {
     function clearBinding(device, code) {
         mouseCtl.send("mouse.map", { "device": device, "button": code, "target": null });
     }
+    function openMacro(device, code) {
+        var current = pg.mapFor(device, code);
+        var target = current && current.kind === "sequence" ? JSON.parse(JSON.stringify(current)) :
+            { "kind": "sequence", "sequence": [], "repeat": 1, "cancelOnRelease": false };
+        pg.macroEditor = { "device": device, "button": code, "target": target };
+    }
+    function updateMacroTarget(target) {
+        var editor = JSON.parse(JSON.stringify(pg.macroEditor));
+        editor.target = target;
+        pg.macroEditor = editor;
+    }
+    function addMacroStep(step) {
+        if (!pg.macroEditor) return;
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        target.sequence.push(step);
+        pg.updateMacroTarget(target);
+    }
+    function removeMacroStep(index) {
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        target.sequence.splice(index, 1);
+        pg.updateMacroTarget(target);
+    }
+    function moveMacroStep(index, delta) {
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        var other = index + delta;
+        if (other < 0 || other >= target.sequence.length) return;
+        var step = target.sequence[index];
+        target.sequence.splice(index, 1);
+        target.sequence.splice(other, 0, step);
+        pg.updateMacroTarget(target);
+    }
+    function adjustMacroDelay(index, delta) {
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        target.sequence[index].delayMs = Math.max(10, Math.min(60000,
+            Number(target.sequence[index].delayMs || 100) + delta));
+        pg.updateMacroTarget(target);
+    }
+    function setMacroRepeat(delta) {
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        target.repeat = Math.max(1, Math.min(100, Number(target.repeat || 1) + delta));
+        pg.updateMacroTarget(target);
+    }
+    function toggleMacroRelease() {
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        target.cancelOnRelease = !target.cancelOnRelease;
+        pg.updateMacroTarget(target);
+    }
+    function startMacroKey(action) {
+        pg.macroAction = action;
+        pg.macroKeyCapture = true;
+        pg.macroRecording = false;
+        pg.captureForming = "";
+        pg.macroModifierOnly = "";
+        pg.enterRecordSubmap();
+        recordTimeout.restart();
+    }
+    function startMacroRecording() {
+        var target = JSON.parse(JSON.stringify(pg.macroEditor.target));
+        target.sequence = [];
+        pg.updateMacroTarget(target);
+        pg.macroRecording = true;
+        pg.macroKeyCapture = false;
+        pg.captureForming = "";
+        pg.macroLastAt = Date.now();
+        pg.macroModifierOnly = "";
+        pg.enterRecordSubmap();
+        recordTimeout.restart();
+    }
+    function stopMacroCapture() {
+        recordTimeout.stop();
+        pg.exitRecordSubmap();
+        pg.macroKeyCapture = false;
+        pg.macroRecording = false;
+        pg.captureForming = "";
+        pg.macroModifierOnly = "";
+    }
+    function acceptMacroChord(chord) {
+        pg.macroModifierOnly = "";
+        var keys = pg.chordToKeys(chord);
+        if (keys === null) {
+            pg.mouseError = I18n.tr("That key is outside the bindable set.");
+            return;
+        }
+        if (pg.macroRecording) {
+            var now = Date.now();
+            if (pg.macroEditor.target.sequence.length > 0) {
+                var delay = Math.max(1, Math.min(60000, Math.round(now - pg.macroLastAt)));
+                pg.addMacroStep({ "kind": "delay", "delayMs": delay });
+            }
+            pg.addMacroStep({ "kind": "tap", "keys": keys });
+            pg.macroLastAt = now;
+            recordTimeout.restart();
+            return;
+        }
+        pg.addMacroStep({ "kind": pg.macroAction, "keys": keys });
+        pg.stopMacroCapture();
+    }
+    function macroStepText(step) {
+        if (step.kind === "delay") return I18n.tr("Wait") + " " + step.delayMs + " ms";
+        var keys = [];
+        for (var i = 0; i < (step.keys || []).length; i++)
+            keys.push(String(step.keys[i]).toUpperCase());
+        return I18n.tr(step.kind === "down" ? "Key down" : step.kind === "up" ? "Key up" : "Tap")
+            + " · " + keys.join(" + ");
+    }
+    function saveMacro() {
+        if (!pg.macroEditor || pg.macroEditor.target.sequence.length === 0) return;
+        mouseCtl.send("mouse.map", { "device": pg.macroEditor.device,
+            "button": pg.macroEditor.button, "target": pg.macroEditor.target });
+        pg.macroEditor = null;
+    }
+    function testMacro() {
+        if (pg.macroEditor && pg.macroEditor.target.sequence.length > 0)
+            mouseCtl.send("mouse.test", { "target": pg.macroEditor.target });
+    }
+    function addMacroDelay() {
+        pg.addMacroStep({ "kind": "delay", "delayMs": 100 });
+    }
     function enterRecordSubmap() { if (pg.hub && Settings.supports("submap")) pg.hub.wmAct("submap.enter", ["record"]); }
     function exitRecordSubmap() { if (pg.hub && Settings.supports("submap")) pg.hub.wmAct("submap.reset"); }
     Timer {
         id: recordTimeout
         interval: 12000
-        onTriggered: pg.stopBind(false, "")
+        onTriggered: {
+            if (pg.macroKeyCapture || pg.macroRecording)
+                pg.stopMacroCapture();
+            else
+                pg.stopBind(false, "");
+        }
     }
 
     Component.onCompleted: {
@@ -1426,6 +1582,179 @@ Item {
                         onAct: pg.startDetect()
                     }
                 }
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    visible: pg.mouseError !== ""
+                    divider: false
+                    label: I18n.tr("Last change")
+                    desc: pg.mouseError
+                    changed: false
+                }
+            }
+
+            SettingCard {
+                width: mouseBody.colWidth
+                visible: pg.macroEditor !== null
+                collapsible: false
+                title: I18n.tr("MACRO SEQUENCE")
+
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    divider: false
+                    label: pg.macroEditor
+                        ? pg.buttonLabel(pg.macroEditor.button, pg.macroEditor.device)
+                        : ""
+                    desc: I18n.tr("Runs these steps in order without holding up pointer input.")
+                    value: pg.macroEditor ? pg.mouseDisplayName(pg.macroEditor.device) : ""
+                    changed: false
+                }
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    label: I18n.tr("Record timing")
+                    desc: I18n.tr("Play a key sequence naturally; pauses are kept as delay steps.")
+                    controlWidth: 112
+                    changed: false
+                    Btn {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        compact: true
+                        text: I18n.tr("RECORD")
+                        armed: true
+                        onAct: pg.startMacroRecording()
+                    }
+                }
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    label: I18n.tr("Add manually")
+                    desc: I18n.tr("Add a tap, held edge, release edge, or a 100 ms wait.")
+                    controlWidth: 260
+                    changed: false
+                    Row {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Tokens.s1
+                        Btn { compact: true; text: I18n.tr("TAP"); onAct: pg.startMacroKey("tap") }
+                        Btn { compact: true; text: I18n.tr("DOWN"); onAct: pg.startMacroKey("down") }
+                        Btn { compact: true; text: I18n.tr("UP"); onAct: pg.startMacroKey("up") }
+                        Btn { compact: true; text: I18n.tr("WAIT"); onAct: pg.addMacroDelay() }
+                    }
+                }
+                Repeater {
+                    model: pg.macroEditor ? pg.macroEditor.target.sequence : []
+                    delegate: SettingRow {
+                        required property int index
+                        required property var modelData
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        label: (index + 1) + ". " + pg.macroStepText(modelData)
+                        desc: modelData.kind === "delay"
+                            ? I18n.tr("Adjust the pause in 10 ms steps.")
+                            : I18n.tr("Chord keys are emitted together.")
+                        controlWidth: modelData.kind === "delay" ? 244 : 174
+                        changed: false
+                        Row {
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Tokens.s1
+                            Btn {
+                                visible: modelData.kind === "delay"
+                                compact: true; text: "−"
+                                onAct: pg.adjustMacroDelay(index, -10)
+                            }
+                            Btn {
+                                visible: modelData.kind === "delay"
+                                compact: true; text: "+"
+                                onAct: pg.adjustMacroDelay(index, 10)
+                            }
+                            Btn {
+                                compact: true; text: I18n.tr("UP")
+                                armed: index > 0
+                                onAct: pg.moveMacroStep(index, -1)
+                            }
+                            Btn {
+                                compact: true; text: I18n.tr("DOWN")
+                                armed: pg.macroEditor && index < pg.macroEditor.target.sequence.length - 1
+                                onAct: pg.moveMacroStep(index, 1)
+                            }
+                            Btn {
+                                compact: true; text: I18n.tr("REMOVE")
+                                armed: true
+                                onAct: pg.removeMacroStep(index)
+                            }
+                        }
+                    }
+                }
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    label: I18n.tr("Repeat")
+                    desc: I18n.tr("Number of times the full sequence runs.")
+                    controlWidth: 126
+                    changed: false
+                    Row {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Tokens.s2
+                        Btn { compact: true; text: "−"; onAct: pg.setMacroRepeat(-1) }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: pg.macroEditor ? String(pg.macroEditor.target.repeat || 1) : "1"
+                            color: Tokens.ink
+                            font.family: Tokens.mono
+                            font.pixelSize: Tokens.fSmall
+                        }
+                        Btn { compact: true; text: "+"; onAct: pg.setMacroRepeat(1) }
+                    }
+                }
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    label: I18n.tr("On button release")
+                    desc: I18n.tr("Cancel immediately and release any held keys, or let the sequence finish.")
+                    controlWidth: 148
+                    changed: false
+                    Btn {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        compact: true
+                        text: pg.macroEditor && pg.macroEditor.target.cancelOnRelease
+                            ? I18n.tr("CANCEL") : I18n.tr("FINISH")
+                        armed: pg.macroEditor && pg.macroEditor.target.cancelOnRelease
+                        onAct: pg.toggleMacroRelease()
+                    }
+                }
+                SettingRow {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    divider: false
+                    label: I18n.tr("Sequence")
+                    desc: I18n.tr("Test sends the draft now. Save assigns it to the mouse button.")
+                    controlWidth: 220
+                    changed: false
+                    Row {
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Tokens.s2
+                        Btn {
+                            compact: true; text: I18n.tr("TEST")
+                            armed: pg.macroEditor && pg.macroEditor.target.sequence.length > 0
+                            onAct: pg.testMacro()
+                        }
+                        Btn {
+                            compact: true; text: I18n.tr("CLOSE")
+                            onAct: pg.macroEditor = null
+                        }
+                        Btn {
+                            compact: true; text: I18n.tr("SAVE")
+                            armed: pg.macroEditor && pg.macroEditor.target.sequence.length > 0
+                            onAct: pg.saveMacro()
+                        }
+                    }
+                }
             }
             // one card per connected mouse, each row an extra button
             Repeater {
@@ -1434,21 +1763,127 @@ Item {
                     id: devCard
                     required property var modelData
                     width: mouseBody.colWidth
-                    title: String(modelData.name || modelData.id).toUpperCase()
+                    title: ((modelData.brand ? modelData.brand + " · " : "")
+                        + (modelData.model || modelData.name || modelData.id)).toUpperCase()
 
-                    readonly property var extra: (modelData.buttons || []).filter(function (c) { return c >= 275; })
+                    readonly property var side: modelData.sideButtons || []
+                    readonly property var extra: (modelData.buttons || []).filter(function (code) {
+                        return code >= 275 && devCard.side.indexOf(code) < 0;
+                    })
 
                     SettingRow {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         divider: false
                         source: "mousemap.json"
-                        label: I18n.tr("Connected")
-                        desc: modelData.bus === "bluetooth"
-                            ? I18n.tr("Wireless; bindings follow the device.")
-                            : I18n.tr("Bindings live with this device and reload on replug.")
+                        label: modelData.model
+                            ? I18n.tr("Recognized model")
+                            : I18n.tr("Generic mouse")
+                        desc: modelData.model
+                            ? I18n.tr("Friendly names come from the built-in device catalogue.")
+                            : I18n.tr("Every Linux mouse remains bindable even when it is not in the catalogue.")
                         value: String(modelData.bus || "").toUpperCase()
                         changed: false
+                    }
+
+                    Column {
+                        width: parent.width
+                        visible: devCard.side.length > 0
+                        spacing: Tokens.s3
+                        topPadding: Tokens.s3
+                        bottomPadding: Tokens.s3
+
+                        Text {
+                            leftPadding: Tokens.s4
+                            text: I18n.tr("SIDE GRID")
+                            color: Tokens.inkDim
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fSmall
+                            font.weight: Font.Medium
+                            font.letterSpacing: Tokens.trackLabel
+                        }
+                        Grid {
+                            width: parent.width - Tokens.s4 * 2
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            columns: 3
+                            spacing: Tokens.s2
+                            Repeater {
+                                model: devCard.side
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    width: (parent.width - Tokens.s2 * 2) / 3
+                                    height: 78
+                                    radius: Tokens.radius
+                                    color: sideHover.hovered ? Tokens.tint5 : "transparent"
+                                    border.width: Tokens.border
+                                    border.color: pg.mapFor(devCard.modelData.id, modelData)
+                                        ? Tokens.lineStrong : Tokens.line
+                                    Behavior on color { ColorAnimation { duration: Tokens.snap } }
+
+                                    Column {
+                                        anchors {
+                                            left: parent.left; right: parent.right
+                                            top: parent.top; margins: Tokens.s2
+                                        }
+                                        spacing: Tokens.s1
+                                        Text {
+                                            width: parent.width
+                                            text: pg.buttonLabel(modelData, devCard.modelData.id)
+                                            color: Tokens.ink
+                                            font.family: Tokens.ui
+                                            font.pixelSize: Tokens.fSmall
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            width: parent.width
+                                            text: pg.targetText(devCard.modelData.id, modelData)
+                                            color: Tokens.inkDim
+                                            font.family: Tokens.mono
+                                            font.pixelSize: Tokens.fTiny
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                    HoverHandler { id: sideHover; cursorShape: Qt.PointingHandCursor }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onPressed: mouse => {
+                                            var macroPoint = sideMacro.mapFromItem(parent, mouse.x, mouse.y);
+                                            var clearPoint = sideClear.mapFromItem(parent, mouse.x, mouse.y);
+                                            var overMacro = macroPoint.x >= 0 && macroPoint.x <= sideMacro.width
+                                                && macroPoint.y >= 0 && macroPoint.y <= sideMacro.height;
+                                            var overClear = sideClear.visible
+                                                && clearPoint.x >= 0 && clearPoint.x <= sideClear.width
+                                                && clearPoint.y >= 0 && clearPoint.y <= sideClear.height;
+                                            if (overMacro || overClear)
+                                                mouse.accepted = false;
+                                        }
+                                        onClicked: pg.startBind(devCard.modelData.id, modelData)
+                                    }
+                                    Btn {
+                                        id: sideMacro
+                                        anchors {
+                                            left: parent.left; bottom: parent.bottom
+                                            margins: Tokens.s1
+                                        }
+                                        compact: true
+                                        text: I18n.tr("MACRO")
+                                        onAct: pg.openMacro(devCard.modelData.id, modelData)
+                                    }
+                                    Btn {
+                                        id: sideClear
+                                        visible: !!pg.mapFor(devCard.modelData.id, modelData)
+                                        anchors {
+                                            right: parent.right; bottom: parent.bottom
+                                            margins: Tokens.s1
+                                        }
+                                        compact: true
+                                        text: I18n.tr("CLEAR")
+                                        onAct: pg.clearBinding(devCard.modelData.id, modelData)
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     Repeater {
@@ -1460,11 +1895,11 @@ Item {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             divider: true
-                            controlWidth: 84
+                            controlWidth: 224
                             source: "mousemap.json"
-                            label: pg.buttonLabel(modelData)
+                            label: pg.buttonLabel(modelData, devCard.modelData.id)
                             desc: pg.mapFor(devCard.modelData.id, modelData)
-                                ? I18n.tr("Press it and the chord goes to the focused app.")
+                                ? I18n.tr("Rewritten before the focused app receives it.")
                                 : I18n.tr("Still sends its default to apps.")
                             value: ""
                             changed: false
@@ -1472,35 +1907,38 @@ Item {
                             Row {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: Tokens.s2
+                                spacing: Tokens.s1
                                 Text {
                                     anchors.verticalCenter: parent.verticalCenter
                                     text: pg.targetText(devCard.modelData.id, btnRow.modelData)
                                     color: pg.mapFor(devCard.modelData.id, btnRow.modelData) ? Tokens.ink : Tokens.inkDim
-                                    font.family: Tokens.mono; font.pixelSize: 10
+                                    font.family: Tokens.mono
+                                    font.pixelSize: Tokens.fTiny
                                 }
                                 Btn {
-                                    anchors.verticalCenter: parent.verticalCenter
                                     compact: true
-                                    text: pg.mapFor(devCard.modelData.id, btnRow.modelData) ? I18n.tr("CLEAR") : I18n.tr("BIND")
-                                    armed: true
-                                    onAct: {
-                                        if (pg.mapFor(devCard.modelData.id, btnRow.modelData))
-                                            pg.clearBinding(devCard.modelData.id, btnRow.modelData);
-                                        else
-                                            pg.startBind(devCard.modelData.id, btnRow.modelData);
-                                    }
+                                    text: I18n.tr("CHORD")
+                                    onAct: pg.startBind(devCard.modelData.id, btnRow.modelData)
+                                }
+                                Btn {
+                                    compact: true
+                                    text: I18n.tr("MACRO")
+                                    onAct: pg.openMacro(devCard.modelData.id, btnRow.modelData)
+                                }
+                                Btn {
+                                    visible: !!pg.mapFor(devCard.modelData.id, btnRow.modelData)
+                                    compact: true
+                                    text: I18n.tr("CLEAR")
+                                    onAct: pg.clearBinding(devCard.modelData.id, btnRow.modelData)
                                 }
                             }
                         }
                     }
 
-                    // a mouse with no extra buttons: say so instead of an
-                    // empty card, the row is the finding.
                     SettingRow {
                         anchors.left: parent.left
                         anchors.right: parent.right
-                        visible: devCard.extra.length === 0
+                        visible: devCard.extra.length === 0 && devCard.side.length === 0
                         divider: false
                         source: "mousemap.json"
                         label: I18n.tr("No extra buttons")
@@ -1611,12 +2049,9 @@ Item {
         }
     }
 
-    // ── the chord recorder: one z-plane above everything, the Keybinds page's
-    // recorder in miniature. Two phases: waiting for the physical button (only
-    // when the user chose Detect), then waiting for the key chord. The
-    // ShortcutInhibitor hands SUPER + anything to this window instead of the
-    // compositor, and the record submap backs it up where the compositor has
-    // one, so the chord lands in the field rather than closing the Hub.
+    // ── chord and macro recorder ─────────────────────────────────────────────
+    // Shortcut inhibition and the record submap keep desktop bindings from
+    // firing while a direct chord or a timed sequence is being captured.
     Item {
         visible: pg.capturing
         z: 950
@@ -1627,7 +2062,16 @@ Item {
             anchors.fill: parent
             color: Tokens.paper
             opacity: 0.55
-            TapHandler { onTapped: pg.stopBind(false, "") }
+            TapHandler {
+                onTapped: Qt.callLater(function() {
+                    if (!pg.capturing)
+                        return;
+                    if (pg.macroKeyCapture || pg.macroRecording)
+                        pg.stopMacroCapture();
+                    else
+                        pg.stopBind(false, "");
+                })
+            }
         }
 
         Item {
@@ -1639,18 +2083,39 @@ Item {
                 if (event.isAutoRepeat)
                     return;
                 if (event.key === Qt.Key_Escape) {
-                    pg.stopBind(false, "");
+                    if (pg.macroKeyCapture || pg.macroRecording)
+                        pg.stopMacroCapture();
+                    else
+                        pg.stopBind(false, "");
                     return;
                 }
-                // the physical press comes from the daemon's frames, not the
-                // keyboard; keys only bind the chord once the button is known.
                 if (pg.captureWaitClick)
                     return;
                 pg.captureForming = Combos.formingChord(event);
                 var chord = Combos.chordFrom(event);
-                if (chord === "")
+                if (chord === "") {
+                    if (pg.macroKeyCapture || pg.macroRecording) {
+                        var modifier = pg.modifierKeyToken(event.key);
+                        pg.macroModifierOnly = modifier !== "" && pg.captureForming === modifier
+                            ? modifier : "";
+                    }
                     return;
-                pg.stopBind(true, chord);
+                }
+                pg.macroModifierOnly = "";
+                if (pg.macroKeyCapture || pg.macroRecording)
+                    pg.acceptMacroChord(chord);
+                else
+                    pg.stopBind(true, chord);
+            }
+            Keys.onReleased: (event) => {
+                if (!(pg.macroKeyCapture || pg.macroRecording) || event.isAutoRepeat)
+                    return;
+                event.accepted = true;
+                var modifier = pg.modifierKeyToken(event.key);
+                if (modifier !== "" && modifier === pg.macroModifierOnly) {
+                    pg.captureForming = "";
+                    pg.acceptMacroChord(modifier);
+                }
             }
         }
 
@@ -1671,7 +2136,11 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: pg.captureWaitClick
                         ? I18n.tr("PRESS THE MOUSE BUTTON")
-                        : I18n.tr("PRESS THE KEY CHORD")
+                        : pg.macroRecording
+                            ? I18n.tr("RECORD KEYS · ESC TO FINISH")
+                            : pg.macroKeyCapture
+                                ? I18n.tr("PRESS A KEY CHORD")
+                                : I18n.tr("PRESS THE KEY CHORD")
                     color: Tokens.ink
                     font.family: Tokens.ui; font.pixelSize: 12
                     font.weight: Font.Medium; font.letterSpacing: Tokens.trackLabel
@@ -1679,14 +2148,21 @@ Item {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: !pg.captureWaitClick
-                    text: pg.buttonLabel(pg.captureFor ? pg.captureFor.button : 0)
-                        + (pg.captureFor && pg.captureFor.device ? " · " + pg.captureFor.device : "")
+                    text: pg.macroRecording
+                        ? (pg.macroEditor ? pg.macroEditor.target.sequence.length + " " + I18n.tr("steps recorded") : "")
+                        : pg.macroKeyCapture
+                            ? I18n.tr(pg.macroAction.toUpperCase())
+                            : pg.buttonLabel(pg.captureFor ? pg.captureFor.button : 0,
+                                pg.captureFor ? pg.captureFor.device : "")
+                                + (pg.captureFor && pg.captureFor.device ? " · " + pg.captureFor.device : "")
                     color: Tokens.inkDim
                     font.family: Tokens.mono; font.pixelSize: 10
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: pg.captureForming !== "" ? pg.captureForming : I18n.tr("Esc to cancel")
+                    text: pg.captureForming !== ""
+                        ? pg.captureForming
+                        : pg.macroRecording ? I18n.tr("Esc saves the recording") : I18n.tr("Esc to cancel")
                     color: pg.captureForming !== "" ? Tokens.ink : Tokens.inkFaint
                     font.family: Tokens.mono; font.pixelSize: 11
                 }

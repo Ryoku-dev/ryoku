@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euo pipefail
+
+export OMARCHY_PATH=${OMARCHY_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/nomarchy}
+bin=$OMARCHY_PATH/bin
+
+usage() {
+  cat <<'USAGE'
+Usage: omarchy <group> <command> [args...]
+
+  plugin add|update|remove|enable|disable|validate|rescan|list
+  bar use|reset|defaults|position|transparent|put|move|set
+  menu [toggle|summon|close|refresh] [route]
+  shell [-q] <target> <method> [args...]
+  theme set|list|current|switcher
+  restart shell
+USAGE
+}
+
+(( $# > 0 )) || { usage; exit 0; }
+group=$1
+shift
+case $group in
+  -h|--help|help) usage ;;
+  plugin)
+    command=${1:-list}; shift || true
+    case $command in
+      add|install) exec "$bin/omarchy-plugin-add" "$@" ;;
+      update|remove|rm|enable|disable|validate|rescan|list) exec "$bin/omarchy-plugin-${command/rm/remove}" "$@" ;;
+      *) printf "omarchy: unknown plugin command '%s'\n" "$command" >&2; exit 2 ;;
+    esac
+    ;;
+  bar) exec "$bin/omarchy-bar" "$@" ;;
+  menu) exec "$bin/omarchy-menu" "$@" ;;
+  shell) exec "$bin/omarchy-shell" "$@" ;;
+  restart)
+    [[ ${1:-} == shell && $# == 1 ]] || { printf 'Usage: omarchy restart shell\n' >&2; exit 2; }
+    exec "$bin/omarchy-restart-shell"
+    ;;
+  theme)
+    command=${1:-switcher}; shift || true
+    case $command in
+      set|list|current|switcher) exec "$bin/omarchy-theme-$command" "$@" ;;
+      *) printf "omarchy: unknown theme command '%s'\n" "$command" >&2; exit 2 ;;
+    esac
+    ;;
+  *)
+    helper="$bin/omarchy-$group"
+    [[ -x $helper ]] || { printf "omarchy: unknown command '%s'\n" "$group" >&2; exit 2; }
+    exec "$helper" "$@"
+    ;;
+esac

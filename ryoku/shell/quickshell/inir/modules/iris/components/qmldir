@@ -49,3 +49,6 @@ IrisGlassEdge 1.0 IrisGlassEdge.qml
 IrisControlPlate 1.0 IrisControlPlate.qml
 IrisHeaderScrim 1.0 IrisHeaderScrim.qml
 IrisHeaderFade 1.0 IrisHeaderFade.qml
+IrisBatteryMark 1.0 IrisBatteryMark.qml
+IrisPlayerChips 1.0 IrisPlayerChips.qml
+IrisActionRow 1.0 IrisActionRow.qml

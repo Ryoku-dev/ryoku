@@ -101,6 +101,16 @@ func (c *Client) CapsContext(ctx context.Context) (Caps, error) {
 	return c.caps, nil
 }
 
+// Compatibility scans a plugin tree and compares its foreign interface use
+// with the active provider's declarations.
+func (c *Client) Compatibility(dir string) (Compatibility, error) {
+	caps, err := c.Caps()
+	if err != nil {
+		return Compatibility{}, err
+	}
+	return CompatibilityFor(dir, caps.ForeignAPIs)
+}
+
 // Can is the gate before offering an affordance. False on a missing provider
 // too, which is what a caller wants.
 func (c *Client) Can(want Capability) bool {
@@ -308,6 +318,17 @@ func (c *Client) Session() ([]byte, error) {
 		return nil, ErrNoProvider
 	}
 	return c.run("session")
+}
+
+// Import hands provider-owned foreign-config parsing through unchanged. The
+// caller owns the preview/apply transaction; the provider owns its native
+// syntax and mapping. Providers without an importer return their ordinary
+// unknown-verb error, so discovery can skip them.
+func (c *Client) Import(args ...string) ([]byte, error) {
+	if c.bin == "" {
+		return nil, ErrNoProvider
+	}
+	return c.run(append([]string{"import"}, args...)...)
 }
 
 // Plugins returns raw JSON: the inventory shape is the provider's to define and

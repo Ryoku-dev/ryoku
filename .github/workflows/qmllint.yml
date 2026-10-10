@@ -110,12 +110,21 @@ jobs:
       - name: Run qmllint (advisory, syntax fatal)
         if: steps.files.outputs.has_files == 'true' && env.QMLLINT_BIN != ''
         shell: bash
+        timeout-minutes: 30
         run: |
           set -uo pipefail
           out="$(mktemp)"
+          one="$(mktemp)"
           while IFS= read -r -d '' f; do
             echo "::group::qmllint $f"
-            "$QMLLINT_BIN" "$f" 2>&1 | tee -a "$out" || true
+            # qmllint itself can spin forever on valid QML (the vendored
+            # Nomarchy network panel does), and one such file used to hold
+            # the whole job until the runner's six-hour limit. Actions runs
+            # this with -e, so the status is caught rather than failing.
+            rc=0
+            timeout 120 "$QMLLINT_BIN" "$f" >"$one" 2>&1 || rc=$?
+            tee -a "$out" <"$one"
+            if (( rc == 124 )); then echo "::warning file=$f::qmllint gave up after 120 s"; fi
             echo "::endgroup::"
           done < qmllint-files.txt
           # import-resolution noise stays advisory; a file that cannot parse

@@ -13,6 +13,7 @@ import inir.modules.common.models.quickToggles
 import inir.modules.common.widgets
 import inir.modules.mediaControls.components
 import inir.modules.iris.components
+import inir.modules.iris.pieces
 import inir.modules.iris.style
 
 Item {
@@ -373,8 +374,8 @@ Item {
         readonly property string glyph: ctl.moduleId === "record" ? (ctl.recording ? "stop_circle" : "radio_button_checked")
             : ctl.moduleId === "devices" ? (ctl.headphones ? "headphones" : "speaker")
             : String(ctl.model?.icon ?? IrisControlOptions.glyphOf(ctl.moduleId))
-        readonly property string detail: ctl.moduleId === "devices" ? String(Audio.defaultSink?.description ?? "")
-            : ctl.moduleId === "record" ? (ctl.recording ? Translation.tr("Recording") : Translation.tr("Whole screen, with sound"))
+        readonly property string detail: ctl.moduleId === "devices" ? Audio.friendlyDeviceName(Audio.defaultSink)
+            : ctl.moduleId === "record" ? (ctl.recording ? Translation.tr("Recording") : Translation.tr("With sound"))
             : String(ctl.model?.statusText ?? "")
         readonly property bool lit: ctl.moduleId === "record" ? ctl.recording
             : ctl.moduleId === "devices" ? root.picker === "devices"
@@ -392,8 +393,10 @@ Item {
             : IrisControlOptions.categoryOf(ctl.moduleId) === "system" ? "system"
             : IrisControlOptions.categoryOf(ctl.moduleId) === "sound" ? "devices" : ""
         readonly property bool listOnClick: ctl.moduleId === "network" || ctl.moduleId === "bluetooth"
-        readonly property string caption: ["network", "bluetooth", "vpn", "hotspot"].includes(ctl.moduleId)
-            && ctl.lit && ctl.detail.length > 0 ? ctl.detail : ctl.label
+        // A connection's name when it says something: a cable's is NetworkManager's generic "Wired connection 1",
+        // so a wired network reads Ethernet.
+        readonly property string caption: ctl.moduleId === "network" && Network.ethernet && !Network.wifi ? Translation.tr("Ethernet")
+            : ["network", "bluetooth", "vpn", "hotspot"].includes(ctl.moduleId) && ctl.lit && ctl.detail.length > 0 ? ctl.detail : ctl.label
         function activate(): void {
             if (!ctl.ready || root.editing) return
             if (ctl.moduleId === "devices") { root.picker = root.picker === "devices" ? "" : "devices"; return }
@@ -546,6 +549,9 @@ Item {
                     Layout.fillWidth: true
                     visible: text.length > 0
                     text: faceState.ready ? faceState.detail : Translation.tr("Unavailable")
+                    // A device or network name fits by one step of the ladder before it elides, as the 1×1 names do.
+                    fontSizeMode: Text.HorizontalFit
+                    minimumPixelSize: IrisStyle.typeCaption
                     elide: Text.ElideRight
                     color: IrisStyle.textSecondary
                     font.pixelSize: IrisStyle.typeFootnote
@@ -614,6 +620,8 @@ Item {
                             width: Math.min(implicitWidth, platterSlot.width - 4 * root.d)
                             text: slotControl.caption
                             horizontalAlignment: Text.AlignHCenter
+                            fontSizeMode: Text.HorizontalFit
+                            minimumPixelSize: IrisStyle.typeCaption
                             elide: Text.ElideRight
                             color: slotControl.ready ? IrisStyle.subtext : IrisStyle.textTertiary
                             font.pixelSize: IrisStyle.typeFootnote
@@ -735,8 +743,10 @@ Item {
             readonly property bool wide: !nowPlaying.strip && nowPlaying.width > nowPlaying.height * 1.6
             readonly property real pad: Math.round((nowPlaying.strip ? 8 : 12) * root.d)
             readonly property bool hasPlayer: MprisController.activePlayer !== null && MprisController.activePlayer !== undefined
+            // Nothing playing: the whole tile is a button for the music app you use most.
+            readonly property bool offersMusic: !nowPlaying.hasPlayer && IrisPieces.musicAppName.length > 0
             radius: nowPlaying.strip && IrisControlOptions.roundControls ? height / 2 : IrisStyle.radiusPlate
-            color: IrisStyle.fillQuiet
+            color: nowPlaying.hasPlayer ? IrisStyle.fillQuiet : "transparent"
             clip: true
             PlayerBase { id: media; player: MprisController.activePlayer; positionUpdatesActive: nowPlaying.visible }
             Loader {
@@ -745,7 +755,66 @@ Item {
                     && MediaArtwork.displaySource.length > 0
                 sourceComponent: IrisMediaBackdrop { source: MediaArtwork.displaySource; radius: nowPlaying.radius }
             }
+            IrisButton {
+                id: openMusic
+                anchors.fill: parent
+                visible: !nowPlaying.hasPlayer
+                buttonRadius: nowPlaying.radius
+                buttonRadiusPressed: nowPlaying.radius
+                colBackground: IrisStyle.fillQuiet
+                readonly property bool live: nowPlaying.offersMusic && !root.editing && IrisPieces.musicLaunch !== "opening"
+                colBackgroundHover: openMusic.live ? IrisStyle.fillHover : openMusic.colBackground
+                pointingHandCursor: openMusic.live
+                rippleEnabled: openMusic.live
+                pressScaleEnabled: openMusic.live
+                Accessible.name: IrisPieces.musicDetail
+                onClicked: if (openMusic.live) IrisPieces.openMusic()
+            }
+            // One group in the middle of the tile: the app it offers, the state, and what a tap does or did.
             GridLayout {
+                id: idle
+                readonly property bool across: nowPlaying.strip || nowPlaying.wide
+                readonly property real side: nowPlaying.strip ? Math.min(nowPlaying.height - 2 * nowPlaying.pad, Math.round(44 * root.d))
+                    : Math.round((nowPlaying.wide ? 60 : 52) * root.d)
+                readonly property real room: nowPlaying.width - 2 * nowPlaying.pad - (idle.across ? idle.side + idle.columnSpacing : 0)
+                visible: !nowPlaying.hasPlayer
+                anchors.centerIn: parent
+                flow: idle.across ? GridLayout.LeftToRight : GridLayout.TopToBottom
+                columns: idle.across ? 2 : 1
+                rows: idle.across ? 1 : 2
+                columnSpacing: Math.round(10 * root.d)
+                rowSpacing: Math.round(6 * root.d)
+                IrisArtwork {
+                    Layout.preferredWidth: idle.side
+                    Layout.preferredHeight: idle.side
+                    Layout.alignment: Qt.AlignCenter
+                    appIcon: IrisPieces.musicAppIcon
+                    opacity: IrisPieces.musicLaunch === "opening" ? 0.55 : 1
+                    Behavior on opacity { NumberAnimation { duration: IrisStyle.feedbackDuration; easing.type: IrisStyle.feedbackEasing } }
+                }
+                ColumnLayout {
+                    Layout.alignment: idle.across ? Qt.AlignVCenter : Qt.AlignHCenter
+                    spacing: Math.round(2 * root.d)
+                    IrisText {
+                        Layout.alignment: idle.across ? Qt.AlignLeft : Qt.AlignHCenter
+                        Layout.maximumWidth: idle.room
+                        text: Translation.tr("Not playing")
+                        font.pixelSize: nowPlaying.wide ? IrisStyle.typeBody : IrisStyle.typeLabel
+                        font.weight: IrisStyle.weight(Font.DemiBold)
+                        elide: Text.ElideRight
+                    }
+                    IrisText {
+                        Layout.alignment: idle.across ? Qt.AlignLeft : Qt.AlignHCenter
+                        Layout.maximumWidth: idle.room
+                        text: IrisPieces.musicDetail
+                        color: IrisPieces.musicLaunch === "failed" ? IrisStyle.danger : IrisStyle.textSecondary
+                        font.pixelSize: IrisStyle.typeMeta
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+            GridLayout {
+                visible: nowPlaying.hasPlayer
                 anchors.fill: parent
                 anchors.margins: nowPlaying.pad
                 flow: nowPlaying.strip || nowPlaying.wide ? GridLayout.LeftToRight : GridLayout.TopToBottom
@@ -772,14 +841,14 @@ Item {
                     Item { Layout.fillHeight: true; visible: !nowPlaying.strip }
                     IrisText {
                         Layout.fillWidth: true
-                        text: nowPlaying.hasPlayer ? media.effectiveTitle : Translation.tr("Not playing")
-                        font.pixelSize: (nowPlaying.wide ? 14 : 13) * IrisStyle.typeScale
+                        text: media.effectiveTitle
+                        font.pixelSize: nowPlaying.wide ? IrisStyle.typeBody : IrisStyle.typeLabel
                         font.weight: IrisStyle.weight(Font.DemiBold)
                         elide: Text.ElideRight
                     }
                     IrisText {
                         Layout.fillWidth: true
-                        text: nowPlaying.hasPlayer ? media.effectiveArtist : Translation.tr("Music will show here")
+                        text: media.effectiveArtist
                         color: IrisStyle.textSecondary
                         font.pixelSize: IrisStyle.typeMeta
                         elide: Text.ElideRight
@@ -789,14 +858,14 @@ Item {
                         Layout.fillWidth: true
                         Layout.topMargin: Math.round(4 * root.d)
                         player: media
-                        live: nowPlaying.hasPlayer
+                        live: true
                     }
                 }
                 Transport {
                     visible: nowPlaying.strip
                     Layout.preferredWidth: Math.round(112 * root.d)
                     player: media
-                    live: nowPlaying.hasPlayer
+                    live: true
                 }
             }
         }

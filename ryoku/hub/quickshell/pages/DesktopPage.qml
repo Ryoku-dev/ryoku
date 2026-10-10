@@ -7,34 +7,17 @@ import ".."
 import "../schema/DesktopPage.js" as DesktopSchema
 import "../Singletons"
 
-// Desktop: what sits on the desktop itself. The brand mark, the theme,
-// wallpaper and media pickers, and the clipboard panel.
-// Rendered through the shared SchemaPage; the ledger and action bar belong to
-// the shell.
+// Desktop: the shell reload cover and clipboard panel. Rendered through the
+// shared SchemaPage; the ledger and action bar belong to the shell.
 Item {
     id: pg
     property var hub
 
     readonly property string pTitle: I18n.tr("Desktop")
     readonly property string pEyebrow: I18n.tr("DESKTOP")
-    readonly property string pBlurb: I18n.tr("The brand mark, the pickers, and the clipboard.")
+    readonly property string pBlurb: I18n.tr("Reload cover") + " · " + I18n.tr("Clipboard")
     function focusKey(k) { sp.focusKey(k) }
 
-    // ── Pickers ───────────────────────────────────────────────────────────────
-    // The theme/wallpaper/media picker layout lives at qsbar.pickerStyle, a nested
-    // leaf under the bar's own map. Read and write it through the daemon settings
-    // seam so a write patches only that key and never rebuilds the whole qsbar
-    // object, which would clobber the bar layout and widgets the panel writes; it
-    // applies live like every daemon-backed key.
-    readonly property var pickerOptions: ["tanzaku", "hearthstone", "carousel"]
-    readonly property string pickerStyle: {
-        Settings.revision;
-        const v = Settings.get("qsbar.pickerStyle");
-        return (v === undefined || v === null || v === "") ? "tanzaku" : v;
-    }
-    function setPickerStyle(k) {
-        if (k) Settings.patch("qsbar.pickerStyle", k);
-    }
 
     // ── Clipboard storage ─────────────────────────────────────────────────────
     // What the history occupies, and how to get the space back. The numbers come
@@ -167,39 +150,7 @@ Item {
         query: pg.hub ? pg.hub.query : ""
         externalReloadCoverError: pg.hub ? pg.hub.reloadCoverCleanupError : ""
         onEdited: (k, v) => { if (pg.hub) pg.hub.edit(k, v); }
-        onPickRequested: (r) => { if (pg.hub) pg.hub.openPick(r); }
 
-        // ── PICKERS: how the theme, wallpaper and media pickers are laid out.
-        // Folded flat off the General subtab so the shared extras slot leaves no
-        // gap on the Clipboard tab.
-        SettingCard {
-            id: pickersCard
-            // one card on the page's own measure: a lone control stretched across
-            // the window leaves its right half empty
-            anchors.left: parent.left
-            width: sp.cardWidth
-            title: I18n.tr("PICKERS")
-            // the shared extras slot is a Column, which sizes itself from its
-            // VISIBLE children: a height binding here would be the trap of
-            // measuring the card by its own implicitHeight, and is not needed
-            visible: sp.tab === "General"
-
-            SettingRow {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                block: true
-                label: I18n.tr("Picker style")
-                desc: I18n.tr("How the theme, wallpaper and media pickers are laid out.")
-                source: "shell.json"
-                Seg {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    options: pg.pickerOptions
-                    current: pg.pickerStyle
-                    onChose: key => pg.setPickerStyle(key)
-                }
-            }
-        }
 
         // ── CLIPBOARD STORAGE: what the history holds and how to take the space
         // back. The size is measured by the daemon (the component that owns the

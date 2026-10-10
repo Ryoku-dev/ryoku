@@ -1,0 +1,6 @@
+#!/bin/sh
+# Type=oneshot translation: park on any exit. systemd leaves a failed oneshot
+# in `failed` for the doctor to report instead of retrying it; runsv would
+# retry forever without this, so every exit parks (the success path already
+# requested the down from run, this covers the failure paths).
+exec sv down .

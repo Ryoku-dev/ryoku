@@ -155,30 +155,28 @@ func TestSetChatAgentDoesNotSaveGatewayFailure(t *testing.T) {
 	}
 }
 
-func TestChatModelRouted(t *testing.T) {
+func TestChatModelProwlAlias(t *testing.T) {
 	cases := []struct {
 		name      string
-		agent     string
 		active    bool
 		model     ModelInfo
 		startedOn string
 		want      bool
 	}{
-		{"Claude routes every model", "claude", true, ModelInfo{ID: "anthropic:opus"}, "", true},
-		{"Prowl provider id", "hermes", true, ModelInfo{ID: "prowl:auto"}, "", true},
-		{"custom Prowl provider id", "omp", true, ModelInfo{ID: "custom:prowl:auto"}, "", true},
-		{"Prowl slash id", "opencode", true, ModelInfo{ID: "prowl/auto"}, "", true},
-		{"Prowl provider description", "hermes", true, ModelInfo{ID: "custom:auto", Description: "Provider: PrOwL • current"}, "", true},
-		{"session starting model", "omp", true, ModelInfo{ID: "custom:auto"}, "custom:auto", true},
-		{"other Hermes provider", "hermes", true, ModelInfo{ID: "openai-codex:gpt-5.6"}, "custom:auto", false},
-		{"other OMP provider", "omp", true, ModelInfo{ID: "openai:gpt-5.6"}, "prowl:auto", false},
-		{"other opencode provider", "opencode", true, ModelInfo{ID: "anthropic/opus"}, "prowl:auto", false},
-		{"pending route stays available", "hermes", false, ModelInfo{ID: "openai-codex:gpt-5.6"}, "custom:auto", true},
+		{"Prowl provider id", false, ModelInfo{ID: "prowl:auto"}, "", true},
+		{"custom Prowl provider id", false, ModelInfo{ID: "custom:prowl:auto"}, "", true},
+		{"Prowl slash id", false, ModelInfo{ID: "prowl/auto"}, "", true},
+		{"Prowl provider description", false, ModelInfo{ID: "custom:auto", Description: "Provider: PrOwL • current"}, "", true},
+		{"active session starting model", true, ModelInfo{ID: "custom:auto"}, "custom:auto", true},
+		{"pending session starting model", false, ModelInfo{ID: "custom:auto"}, "custom:auto", false},
+		{"unmarked auto model", true, ModelInfo{ID: "custom:auto"}, "prowl:auto", false},
+		{"direct model", true, ModelInfo{ID: "openai-codex:gpt-5.6-sol"}, "custom:auto", false},
+		{"Prowl non-auto model", true, ModelInfo{ID: "prowl:manual"}, "", false},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
-			if got := chatModelRouted(test.agent, test.active, test.model, test.startedOn); got != test.want {
-				t.Fatalf("chatModelRouted() = %v, want %v", got, test.want)
+			if got := chatModelProwlAlias(test.active, test.model, test.startedOn); got != test.want {
+				t.Fatalf("chatModelProwlAlias() = %v, want %v", got, test.want)
 			}
 		})
 	}

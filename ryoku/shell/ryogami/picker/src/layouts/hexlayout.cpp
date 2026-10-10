@@ -271,13 +271,14 @@ HexLayout::Params HexLayout::readParams(const LayoutContext &ctx) const
     const bool small = p->smallScreen();
     Params np;
     np.parallax = p->flag(wsKey("hexParallax"), false);
-    np.r = std::max(float(p->num(wsKey("hexRadius"), small ? 100 : 140)), 20.0f);
-    np.rows = std::max(1, int(std::lround(p->num(wsKey("hexRows"), 3))));
-    np.cols = std::max(3, int(std::lround(p->num(wsKey("hexCols"), small ? 5 : 7))));
-    np.scrollStep = std::max(1, int(std::lround(p->num(wsKey("hexScrollStep"), 1))));
+    np.r = std::clamp(float(p->num(wsKey("hexRadius"), small ? 100 : 140)), 20.0f, 2048.0f);
+    np.rows = int(std::lround(std::clamp(p->num(wsKey("hexRows"), 3), 1.0, 64.0)));
+    np.cols = int(std::lround(std::clamp(p->num(wsKey("hexCols"), small ? 5 : 7), 3.0, 128.0)));
+    np.scrollStep = int(std::lround(std::clamp(p->num(wsKey("hexScrollStep"), 1), 1.0, 128.0)));
     const bool arc = p->flag(wsKey("hexArc"), true);
     np.curve = arc ? parseCurve(p->text(wsKey("hexCurve"), QStringLiteral("arc"))) : Flat;
-    np.curveStrength = float(p->num(wsKey("hexArcIntensityX10"), 12)) / 10.0f;
+    np.curveStrength = std::clamp(float(p->num(wsKey("hexArcIntensityX10"), 12)) / 10.0f,
+                                  -8.0f, 8.0f);
     np.curveFrequency = std::clamp(float(p->num(wsKey("hexCurveFrequency"), 1)), 0.25f, 6.0f);
     np.shape = parseShape(p->text(wsKey("hexShape"), QStringLiteral("hexagon")));
     np.gapX = std::clamp(float(p->num(wsKey("hexGapX"), 6)), -100.0f, 256.0f);

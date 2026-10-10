@@ -83,6 +83,12 @@ type stageQuality struct {
 	matting bool
 }
 
+type stageModels struct {
+	Draft    string `json:"draft"`
+	Standard string `json:"standard"`
+	Fine     string `json:"fine"`
+}
+
 type stageTarget struct {
 	slot   string
 	source string
@@ -247,11 +253,11 @@ func saveStageIndex(source string, idx stageIndex) {
 
 // --- settings --------------------------------------------------------------
 
-// stageConfig reads the shell-owned quality tier from stage.json and resolves it
-// to the model + matting pair. Everything else in stage.json (edge, shadow,
-// motion) is the shell's; the daemon reads only quality, at each generation.
+// stageConfig reads the shell-owned quality tier and its per-tier model choices
+// from stage.json. Everything else in the file is rendered by the shell.
 func stageConfig() stageQuality {
-	def := stageQualityFor("draft")
+	models := defaultStageModels()
+	def := stageQualityFor("draft", models)
 	dir := ryokuConfigDir()
 	if dir == "" {
 		return def
@@ -261,25 +267,47 @@ func stageConfig() stageQuality {
 		return def
 	}
 	var m struct {
-		Quality string `json:"quality"`
+		Quality string      `json:"quality"`
+		Models  stageModels `json:"models"`
 	}
 	if json.Unmarshal(b, &m) != nil {
 		return def
 	}
-	return stageQualityFor(m.Quality)
+	return stageQualityFor(m.Quality, m.Models)
 }
 
-// stageQualityFor maps a quality tier to the engine model + matting pair:
-// draft -> u2netp, standard -> u2netp + matting, fine -> birefnet + matting.
-func stageQualityFor(tier string) stageQuality {
+func defaultStageModels() stageModels {
+	return stageModels{
+		Draft:    "u2netp",
+		Standard: "u2netp",
+		Fine:     "birefnet-general-lite",
+	}
+}
+
+// stageQualityFor keeps each tier's matting contract while allowing its model
+// to be replaced by a model selected from the engine catalogue.
+func stageQualityFor(tier string, models stageModels) stageQuality {
+	defaults := defaultStageModels()
+	var model string
+	var matting bool
 	switch tier {
 	case "standard":
-		return stageQuality{model: "u2netp", matting: true}
+		model, matting = models.Standard, true
+		if model == "" {
+			model = defaults.Standard
+		}
 	case "fine":
-		return stageQuality{model: "birefnet-general-lite", matting: true}
+		model, matting = models.Fine, true
+		if model == "" {
+			model = defaults.Fine
+		}
 	default:
-		return stageQuality{model: "u2netp", matting: false}
+		model = models.Draft
+		if model == "" {
+			model = defaults.Draft
+		}
 	}
+	return stageQuality{model: model, matting: matting}
 }
 
 // --- engine ----------------------------------------------------------------
@@ -1451,8 +1479,8 @@ func migrateStageSettings() {
 
 // settingsToV2 maps a v1 or merged-legacy settings map onto the v2 stage.json
 // shape: quality from the tier string when present else the legacy model+matting
-// pair; feather -> edge; shadow/shadowAngle scalars carried; the motion
-// sub-knobs -> the single amount word; lift/preset dropped; idle/music defaulted.
+// pair; the three model slots get their defaults; feather -> edge; the motion
+// sub-knobs become one amount word; lift/preset are dropped.
 func settingsToV2(m map[string]any) map[string]any {
 	motion, _ := m["motion"].(map[string]any)
 	quality := firstString(m["quality"], "")
@@ -1470,6 +1498,7 @@ func settingsToV2(m map[string]any) map[string]any {
 	}
 	return map[string]any{
 		"quality":     quality,
+		"models":      defaultStageModels(),
 		"edge":        firstNumber(m["feather"], 0.15),
 		"shadow":      firstNumber(m["shadow"], 0),
 		"shadowAngle": firstNumber(m["shadowAngle"], 90),

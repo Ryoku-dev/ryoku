@@ -84,7 +84,6 @@ Item {
     signal drawerBarDragMoved(string componentId, real x, real y)
     signal drawerBarDropRequested(string componentId, real x, real y)
     signal drawerBarDragCancelled()
-    signal drawerDockToggleRequested(string appId)
     signal drawerAddAppRequested(string appId, real dropX, real dropY)
     signal drawerToggleAppRequested(string appId)
     signal drawerAddAppPairRequested(string firstAppId, string secondAppId, string name)
@@ -302,6 +301,12 @@ Item {
                     text: Translation.tr("Style")
                     tooltip: Translation.tr("Presets, theme and colours")
                 }
+                SectionChip {
+                    section: "dock"
+                    iconText: "dock"
+                    text: Translation.tr("Dock")
+                    tooltip: Translation.tr("Dock design, apps and behaviour")
+                }
                 // Whatever the provider folds in beside them (Config.extraSections).
                 Repeater {
                     model: root.visibleExtraSections
@@ -469,7 +474,6 @@ Item {
                 onBarDragMoved: (componentId, x, y) => root.drawerBarDragMoved(componentId, x, y)
                 onBarDropRequested: (componentId, x, y) => root.drawerBarDropRequested(componentId, x, y)
                 onBarDragCancelled: root.drawerBarDragCancelled()
-                onDockToggleRequested: appId => root.drawerDockToggleRequested(appId)
                 onAddAppRequested: (appId, dropX, dropY) => root.drawerAddAppRequested(appId, dropX, dropY)
                 onToggleAppOnHomeScreenRequested: appId => root.drawerToggleAppRequested(appId)
                 onAddAppPairRequested: (firstAppId, secondAppId, name) => root.drawerAddAppPairRequested(firstAppId, secondAppId, name)

@@ -7,11 +7,10 @@ import Ryoku.Ui.Singletons
 import shell.services
 import "lib/dock.js" as DockList
 
-// Shared dock model: running-window + pinned-app data and the activate action,
-// one source for every dock surface (Sumi's in-rail RailDock and the first-class
-// modules/dock surface). The list maths live in the tested lib/dock.js. The
-// first-class dock's pins and look live in this singleton's `dock` store (below);
-// RailDock keeps its own pins.
+// Shared dock model: canonical desktop-entry pins, running windows and actions
+// for the three universal dock designs and Sumi's in-rail RailDock. The list
+// maths live in the tested lib/dock.js; settings persist in shell.json's one
+// top-level dock object.
 Singleton {
     id: root
 
@@ -55,18 +54,40 @@ Singleton {
         }
     }
 
-    // Every first-party Quickshell app (the Hub, Ryostore, Ryoport) reaches the
-    // compositor as class org.quickshell: Quickshell owns the Wayland app id
-    // and offers no way to set one per config. The title is the only thing
-    // that tells them apart, so it maps to the desktop entry id the dock
-    // groups, launches and draws them by; anything else keeps its class.
+    // Quickshell applications and a surprising number of desktop files expose
+    // more than one identity. Persist desktop-entry ids, then resolve window
+    // classes through the desktop database so every dock design groups the same
+    // application and aliases do not create duplicate pins.
     readonly property var quickshellApps: ({ "Ryoku Settings": "ryoku-hub", "Ryostore": "ryostore", "ryovm": "ryovm" })
+    function plainId(value) {
+        return String(value ?? "").trim().replace(/\.desktop$/i, "");
+    }
+    function canonicalId(value) {
+        const id = root.plainId(value);
+        if (id.length === 0)
+            return "";
+        const entry = DesktopEntries.heuristicLookup(id);
+        return entry?.id ? root.plainId(entry.id) : id.toLowerCase();
+    }
+    function sameApp(a, b) {
+        const left = root.canonicalId(a);
+        return left.length > 0 && left === root.canonicalId(b);
+    }
+    function normalizedPins(values) {
+        const out = [];
+        for (const value of Array.from(values ?? [])) {
+            const id = root.canonicalId(value?.desktop_id ?? value?.id ?? value);
+            if (id.length > 0 && !out.includes(id))
+                out.push(id);
+        }
+        return out;
+    }
     function classOf(w) {
         if (!w) return "";
         const cls = w.appId;
         if (cls === "org.quickshell" && root.quickshellApps[w.title])
-            return root.quickshellApps[w.title];
-        return cls;
+            return root.canonicalId(root.quickshellApps[w.title]);
+        return root.canonicalId(cls);
     }
 
     // Running windows as { className, address }, id-sorted for a stable order.
@@ -75,7 +96,7 @@ Singleton {
         const wins = Wm.windows;
         for (let i = 0; i < wins.length; ++i) {
             const className = root.classOf(wins[i]);
-            if (typeof className === "string" && className)
+            if (className)
                 result.push({ className: className, address: wins[i].id });
         }
         result.sort((a, b) => a.address < b.address ? -1 : (a.address > b.address ? 1 : 0));
@@ -91,19 +112,31 @@ Singleton {
 
     readonly property string activeClass: root.classOf(root.focusedClient)
 
-    // Pinned first, then running-unpinned in id order. Omit clients for live.
+    // Pinned first, then running-unpinned in id order.
     function resolve(pinned, activeClients) {
-        const p = (pinned === undefined || pinned === null) ? [] : Array.from(pinned);
-        return DockList.resolve(p, activeClients === undefined ? root.clients : activeClients);
+        const canonicalPins = root.normalizedPins(pinned);
+        const source = activeClients === undefined ? root.clients : activeClients;
+        const canonicalClients = Array.from(source ?? []).map(client => ({
+            className: root.canonicalId(client.className),
+            address: client.address
+        })).filter(client => client.className.length > 0);
+        return DockList.resolve(canonicalPins, canonicalClients);
     }
-    function pin(pinned, className) { return DockList.pin(pinned, className); }
-    function unpin(pinned, className) { return DockList.unpin(pinned, className); }
+    function pin(pinned, className) {
+        const pins = root.normalizedPins(pinned);
+        const id = root.canonicalId(className);
+        return id.length > 0 && !pins.includes(id) ? pins.concat([id]) : pins;
+    }
+    function unpin(pinned, className) {
+        const id = root.canonicalId(className);
+        return root.normalizedPins(pinned).filter(pinId => pinId !== id);
+    }
 
     function countFor(className) {
         const list = root.clients;
         let n = 0;
         for (let i = 0; i < list.length; ++i)
-            if (list[i].className === className) ++n;
+            if (root.sameApp(list[i].className, className)) ++n;
         return n;
     }
 
@@ -131,29 +164,58 @@ Singleton {
         { key: "tanzaku", label: I18n.tr("Tanzaku"), detail: I18n.tr("Hanging strips") },
         { key: "seal",    label: I18n.tr("Seal"),    detail: I18n.tr("Colour means running") }
     ]
+    readonly property string design: String(root.cfg("design", "ryoku"))
+    onDesignChanged: root.closeMenu()
+
     function cfg(key, fallback) {
         const d = Config.dock;
         return (d && d[key] !== undefined && d[key] !== null) ? d[key] : fallback;
+    }
+    function designCfg(designName, key, fallback) {
+        const d = root.cfg(designName, {});
+        return d && d[key] !== undefined && d[key] !== null ? d[key] : fallback;
     }
     function setCfg(key, value) {
         const cur = Config.dock || {};
         const next = {};
         for (const k in cur) next[k] = cur[k];
         next[key] = value;
-        // A fresh object so the live look changes this frame...
         Config.dock = next;
-        // ...and a settings.patch so it survives: the shell's shell.json FileView
-        // is read-only (no onAdapterUpdated), because the daemon owns that file and
-        // serialises every writer through its settings store. Same channel Bar
-        // Studio and the qsbar control centre write on.
         cfgCtl.queued += "call settings.patch " + JSON.stringify({ path: "dock", value: next }) + "\n";
         if (cfgCtl.connected)
             cfgCtl.flushQueued();
         else
             cfgCtl.connected = true;
     }
-    function setPinned(array) { root.setCfg("pinned", array); }
-
+    function setDesignCfg(designName, key, value) {
+        const cur = root.cfg(designName, {});
+        const next = {};
+        for (const k in cur) next[k] = cur[k];
+        next[key] = value;
+        root.setCfg(designName, next);
+    }
+    function setPinned(array) { root.setCfg("pinned", root.normalizedPins(array)); }
+    function movePinned(from, to) {
+        const pins = root.pinnedOrStarter();
+        if (from < 0 || from >= pins.length || to < 0 || to >= pins.length || from === to)
+            return;
+        const value = pins.splice(from, 1)[0];
+        pins.splice(to, 0, value);
+        root.setPinned(pins);
+    }
+    function togglePin(className) {
+        const pins = root.pinnedOrStarter();
+        root.setPinned(pins.includes(root.canonicalId(className))
+            ? root.unpin(pins, className) : root.pin(pins, className));
+    }
+    function resolvedEdge() {
+        const edge = String(root.cfg("edge", "auto"));
+        if (["top", "bottom", "left", "right"].includes(edge))
+            return edge;
+        if (Config.barStyle === "qsbar")
+            return Config.qsbar?.barPosition === "bottom" ? "top" : "bottom";
+        return "bottom";
+    }
     // The daemon's control socket, connected only when there is something to say.
     Socket {
         id: cfgCtl
@@ -172,28 +234,30 @@ Singleton {
     // The effective pin list: the user's order, or the starter set when empty, so
     // an unconfigured dock still shows something instead of reading as broken.
     function pinnedOrStarter() {
-        const p = root.cfg("pinned", []);
-        return (p && p.length) ? Array.from(p) : root.starterPins();
+        const p = root.normalizedPins(root.cfg("pinned", []));
+        return p.length ? p : root.normalizedPins(root.starterPins());
     }
 
     // Desktop-entry icon, then class-as-icon-name; "" so callers can fall back.
     function iconFor(className) {
         void root.iconRev;
-        const desktop = DesktopEntries.heuristicLookup(className);
+        const id = root.canonicalId(className);
+        const desktop = DesktopEntries.heuristicLookup(id);
         const byEntry = (desktop && desktop.icon) ? Icons.path(desktop.icon, true) : "";
-        return byEntry !== "" ? byEntry : Icons.path(String(className).toLowerCase(), true);
+        return byEntry !== "" ? byEntry : Icons.path(id.toLowerCase(), true);
     }
 
     // No clients -> launch; focused already -> cycle by address; else focus,
     // preferring a client on the active workspace.
     function activate(className) {
+        const id = root.canonicalId(className);
         const wins = Wm.windows;
         const matches = [];
         for (let i = 0; i < wins.length; ++i)
-            if (root.classOf(wins[i]) === className)
+            if (root.sameApp(root.classOf(wins[i]), id))
                 matches.push(wins[i]);
         if (matches.length === 0) {
-            const entry = DesktopEntries.heuristicLookup(className);
+            const entry = DesktopEntries.heuristicLookup(id);
             if (entry)
                 AppLaunch.run(entry, null);
             return;
@@ -216,7 +280,7 @@ Singleton {
     function closeAll(className) {
         const wins = Wm.windows;
         for (let i = 0; i < wins.length; ++i)
-            if (root.classOf(wins[i]) === className)
+            if (root.sameApp(root.classOf(wins[i]), className))
                 Wm.closeWindow(wins[i].id);
     }
 

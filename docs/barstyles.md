@@ -1,19 +1,21 @@
 # Bar styles
 
-Ryoku ships five bar styles, and a single key decides which one runs. The
+Ryoku ships six bar styles, and a single key decides which one runs. The
 shipped default is **QS Bar** (`qsbar`), the full-colour top bar. **Shima**
-(`iris`) and **Python** (`python`) are the frame family: whole-desktop systems
-hosted once on the primary output. Shima is an island on any screen edge
-that morphs into whatever you clicked, with glass popups, bubbles, a dock, a live
-Studio and its own settings overlay. Python is a bar of pill widgets that open
-into one morphing stage (its own guide carries its settings), based on
-Serpantinum by ilyamiro. **Sumi** is the monochrome left rail, and **Kairos** is a single
-island at the top centre that carries the clock: hovering opens it into a
+(`iris`), **Python** (`python`), and **Nomarchy** (`nomarchy`) are the frame
+family: whole-desktop systems hosted once on the primary output. Shima is an
+island on any screen edge that morphs into whatever you clicked, with glass
+popups, bubbles, a dock, a live Studio and its own settings overlay. Python is a
+bar of pill widgets that open into one morphing stage (its own guide carries its
+settings), based on Serpantinum by ilyamiro. Nomarchy preserves Omarchy
+quattro's bar, panels, widgets and plugin host while routing desktop state and
+actions through Ryoku. **Sumi** is the monochrome left rail, and **Kairos** is a
+single island at the top centre that carries the clock: hovering opens it into a
 rolling date wheel, a track that plays adds a cover bubble beside it, and
 Super+Space grows the same island into its own app launcher
 (`docs/launcher.md`). Sumi is not a folder: the shell paints it from the
 built-in frame scene in `shell.qml`, so it has no scene file of its own. The
-other four live under `ryoku/shell/quickshell/shell/modules/bar/barstyles/`,
+other five live under `ryoku/shell/quickshell/shell/modules/bar/barstyles/`,
 ship their own scene, and load once per monitor. Shima is special: its scene is
 a thin host that mounts the vendored frame family in
 `ryoku/shell/quickshell/inir/`. It is based on iNiR by snowarch
@@ -37,10 +39,48 @@ rather than clamping to bone-on-black. Sumi is the paper-and-ink bar for anyone
 who wants the rest of the desktop's restraint on the edge too; `docs/ui-ux.md` is
 where colour is and is not allowed, and the bar is the sanctioned exception.
 
-A bar style owns the bar and nothing else. The frame border, the menus, the
-service surfaces, and the tokens stay where they are; a style just decides what
-sits on the edge of the screen and how it reads its data. So building one is
-mostly a layout job over singletons that already exist.
+## Nomarchy
+
+Nomarchy is the Ryoku name for the Omarchy quattro shell port pinned to upstream
+commit `d9b970dd`. Its source lives under `barstyles/nomarchy/`; the upstream
+MIT license and port notice sit at the root of that folder. The port retains
+Omarchy's visual bar, panels, widgets, menus, history UI, OSD, reminders, media
+integration, configuration and manifest-based plugin ABI.
+
+Ryoku remains authoritative for desktop-wide facilities. Nomarchy uses the
+neutral `Wm` singleton for outputs, workspaces, windows and keyboard layouts.
+Ryogami opens wallpapers, ryoshot and Recorder handle capture, the resident
+notification server owns D-Bus notifications, and Ryoku Hub owns updates. The
+stock Agents panel remains available for usage and marketplace extensions that
+write into it. Account add, rename, reauthentication, switching and automatic
+switching controls are hidden when the platform capability check reports them
+unavailable. Its launch action opens Ryoku Ask, and the duplicate
+starter-prompt section is not loaded. The Ryoku lock screen,
+clipboard, policy agent, idle inhibitor and night-light service replace the
+corresponding upstream plugins.
+
+The theme carousel remains part of Nomarchy and can be opened from Bar Studio.
+The same card opens Omarchy's plugin menu. Third-party plugins still live at
+`~/.config/omarchy/plugins/<id>/`, but every enable and load is gated by
+`ryoku wm compat <plugin-dir>`. Results are cached only while the plugin tree is
+unchanged; failures and malformed output block the plugin.
+
+The stable IPC target is `nomarchy`, for example:
+
+```sh
+omarchy-shell nomarchy listPlugins
+omarchy-shell nomarchy summon omarchy.image-picker '{"source":"themes"}'
+```
+
+The detailed plugin manifest and host contract are documented in
+`barstyles/nomarchy/plugins/README.md`.
+
+
+Most bar styles own the bar and nothing else: frame border, menus, service
+surfaces and tokens stay shared. Nomarchy is the deliberate exception because
+its upstream contract includes companion panels, menus, notifications and OSD;
+those exist only while the style is active and still hand desktop-wide work to
+Ryoku's resident services.
 
 ## How selection works
 
@@ -64,7 +104,8 @@ readonly property var builtins: ({
     "qsbar": "barstyles/qsbar/Scene.qml",
     "kairos": "barstyles/kairos/Scene.qml",
     "iris": "barstyles/iris/Scene.qml",
-    "python": "barstyles/python/Scene.qml"
+    "python": "barstyles/python/Scene.qml",
+    "nomarchy": "barstyles/nomarchy/Scene.qml"
 })
 ```
 
@@ -72,8 +113,8 @@ readonly property var builtins: ({
 
 - `""` for `"sumi"`, an empty id, or a style that has failed to load. An empty
   scene is the built-in frame scene (Sumi), which `shell.qml` paints itself.
-- the built-in's relative `Scene.qml` for a built-in id (`"qsbar"`, `"kairos"`, `"iris"`,
-  `"python"`).
+- the built-in's relative `Scene.qml` for a built-in id (`"qsbar"`, `"kairos"`,
+  `"iris"`, `"python"`, `"nomarchy"`).
 - a `file://` path drawn from `~/.local/state/ryoku/store/barstyles.json` for a
   store-installed folder style. The store writes that index and a `revision.json`;
   `BarProducts` watches both and reloads live.
@@ -117,9 +158,9 @@ Ryoku Settings > Displays can suppress the active bar on any output. Sumi releas
 its rail reserve there, normal folder styles are not instantiated there, and QS
 Bar filters that output from its shared multi-monitor bar model. The primary
 output still hosts QS Bar and any frame-family style (`BarProducts.isFrameFamily`,
-today Shima and Python), because their popups, dock and island serve the whole
-desktop. A
-missing per-display setting means enabled, so upgrades preserve the existing layout.
+today Shima, Python and Nomarchy), because their popups, docks and panels serve
+the whole desktop. A missing per-display setting means enabled, so upgrades
+preserve the existing layout.
 
 **To add a built-in style, drop its folder under `barstyles/` and add one row to
 `BarProducts.builtins`.** A store style needs no shell edit: it installs into
@@ -589,21 +630,22 @@ A style with no settings omits all of this.
 ## QS Bar Settings
 
 QS Bar carries its own settings panel, **QS Bar Settings** (`controlcenter/`), the
-plate the bar's 力 logo opens. It is a quick panel, not a second Hub: four routes
+plate the bar's 力 logo opens. It is a quick panel, not a second Hub: six routes
 over the same `Ryoku.Ui` form kit the rest of Ryoku Settings uses.
 
 | Route | Gloss | Holds |
 |---|---|---|
-| Bar | 帯 | position, form, surface, gaps, scale, accent, gap animation, auto-hide |
+| Bar | 帯 | position, form, surface, gaps, scale, accent, gap animation, auto-hide, picker style |
+| Identity | 印 | launcher mark and workspace count and marker style |
 | Layout | 配置 | the three lanes: move, hide, add and reset the bar's widgets |
 | Widgets | 部品 | every widget as a row: on/off, density, colour and its own settings |
 | Dock | 台 | the app dock: enabled, edge, autohide, magnify, labels, frost, pinned apps |
+| Community | 有志 | installed third-party bar widgets and adding from git or Ryostore |
 
 Open it from the bar logo, or from a terminal or a keybind with `ryoku-shell bar
-settings [route]`. The picker style it used to carry now lives in the Hub
-(Desktop page); desktop widgets are edited in place from the wallpaper's
-right-click menu (Widgets). Session and mid-work toggles live in the Super+Escape
-quick settings.
+settings [route]`. Picker style lives on the Bar route; desktop widgets are
+edited in place from the wallpaper's right-click menu (Widgets). Session and
+mid-work toggles live in the Super+Escape quick settings.
 
 ## Kairos Settings
 

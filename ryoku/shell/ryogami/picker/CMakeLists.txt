@@ -15,6 +15,10 @@ qt_standard_project_setup(REQUIRES 6.6)
 file(GLOB_RECURSE picker_sources CONFIGURE_DEPENDS
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     src/*.cpp src/*.h)
+set(picker_test_sources
+    "src/tests/cardinstancesanitize_test.cpp"
+    "src/tests/previewyuv_test.cpp")
+list(REMOVE_ITEM picker_sources ${picker_test_sources})
 file(GLOB_RECURSE picker_qml CONFIGURE_DEPENDS
     RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}"
     qml/*.qml qml/*.js)
@@ -44,6 +48,15 @@ foreach(qml_file IN LISTS picker_qml)
     endif()
 endforeach()
 
+# Qt 6.12's qmlcachegen segfaults recording lookup signatures for its new AOT
+# validation code (PlaylistBrowsePopover.qml trips it whenever the system QML
+# path is on the import list, as Arch's cmake puts it). Skip that code: the
+# module compiles the way it did on 6.11. Older Qt has no such keyword.
+set(picker_qml_module_options)
+if(Qt6_VERSION VERSION_GREATER_EQUAL 6.12)
+    list(APPEND picker_qml_module_options NO_GENERATE_AOT_VALIDATION)
+endif()
+
 qt_add_qml_module(ryogami-picker
     URI Ryoku.Ryogami
     VERSION 1.0
@@ -51,6 +64,7 @@ qt_add_qml_module(ryogami-picker
     SOURCES ${picker_sources}
     QML_FILES ${picker_qml}
     RESOURCES ${picker_fonts} ${picker_brand}
+    ${picker_qml_module_options}
 )
 
 # qmltyperegistrar includes the QML_ELEMENT headers by bare name.
@@ -59,6 +73,21 @@ target_include_directories(ryogami-picker PRIVATE ${picker_source_dirs})
 
 # QRhi sits behind the GuiPrivate include path; only its exported classes are used.
 target_link_libraries(ryogami-picker PRIVATE Qt6::Quick Qt6::Multimedia Qt6::GuiPrivate)
+
+option(RYOGAMI_PICKER_TESTS "Build Ryogami picker CPU invariant tests" OFF)
+if(RYOGAMI_PICKER_TESTS)
+    enable_testing()
+    add_executable(ryogami-cardinstancesanitize-test
+        src/tests/cardinstancesanitize_test.cpp
+        src/render/cardinstancesanitize.cpp)
+    target_include_directories(ryogami-cardinstancesanitize-test PRIVATE src/render)
+    add_test(NAME ryogami-cardinstancesanitize COMMAND ryogami-cardinstancesanitize-test)
+    add_executable(ryogami-previewyuv-test
+        src/tests/previewyuv_test.cpp
+        src/render/previewyuv.cpp)
+    target_link_libraries(ryogami-previewyuv-test PRIVATE Qt6::Gui)
+    add_test(NAME ryogami-previewyuv COMMAND ryogami-previewyuv-test)
+endif()
 
 # Relocatable: the plugin finds its backing library through an $ORIGIN rpath.
 set_target_properties(ryogami-picker ryogami-pickerplugin PROPERTIES

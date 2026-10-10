@@ -61,6 +61,23 @@ The daemon resolves the active monitor itself, so the client and the keybinds st
 dumb. Build it with `go build` in `ipc/`; the binary belongs on `PATH` as
 `ryoku-shell`.
 
+### Mouse remapping
+
+The Hub's Input > Mouse tab talks to the daemon through `mouse.state`,
+`mouse.map`, `mouse.capture`, and `mouse.test`. Bindings live in
+`~/.config/ryoku/mousemap.json` and take effect immediately. The embedded
+catalogue gives common Logitech, Razer, SteelSeries, Corsair, Glorious and Zowie
+mice their model names and printed button labels; unknown mice keep the same
+capability-based generic path.
+
+MMO mice can publish their numbered side grid on a keyboard-class evdev
+interface. The daemon pairs only a sibling of an already-classified physical
+mouse, grabs that interface only when one of its keys is bound, and replays every
+unbound event through its uinput clone. A macro binding is an ordered list of
+key-down, key-up, tap and delay steps with a repeat count. It runs asynchronously
+and can either finish after the source button is released or cancel and release
+held keys.
+
 ## Dependencies
 
 Beyond Hyprland, quickshell, `go` (to build `ryoku-shell`), and cmake + ninja +

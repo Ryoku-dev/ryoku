@@ -266,7 +266,7 @@ PanelWindow {
                             : root.left ? (parent.hour < 5 ? Translation.tr("Good night")
                                 : parent.hour < 12 ? Translation.tr("Good morning")
                                 : parent.hour < 19 ? Translation.tr("Good afternoon") : Translation.tr("Good evening"))
-                            : Qt.locale().toString(DateTime.clock.date, "dddd")
+                            : Translation.locale.toString(DateTime.clock.date, "dddd")
                         font.pixelSize: IrisStyle.typeTitle
                         font.weight: IrisStyle.weight(Font.Bold)
                         elide: Text.ElideRight
@@ -276,12 +276,11 @@ PanelWindow {
                         text: root.editing ? Translation.tr("Choose sections and their order")
                             : root.pinned ? Translation.tr("Kept open")
                             : root.left ? (SystemInfo.displayName || SystemInfo.username || "")
-                            : Qt.locale().toString(DateTime.clock.date, "MMMM yyyy")
+                            : Translation.locale.toString(DateTime.clock.date, "MMMM yyyy")
                         role: IrisText.Meta
                         elide: Text.ElideRight
                     }
                 }
-                // Appearance › Button rows: the header's tools on one plate, concentric with it.
                 IrisControlPlate {
                     id: headerTools
                     Layout.alignment: Qt.AlignVCenter

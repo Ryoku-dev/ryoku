@@ -258,6 +258,24 @@ raw.githubusercontent.com serves them with no release infrastructure.
   runs `makepkg`, signs every artifact with the release key, and `repo-add`s the
   signed `ryoku.db` into `out/`, laid out exactly as the public mirror serves it.
 
+## `void/` the Void Linux port
+
+Everything Ryoku needs to run on Void Linux (XBPS + runit instead of pacman +
+systemd). Nothing under it is wired into the installer, the ISO or the package
+repo yet; the directory is the staging ground for that work.
+
+- `init/` the systemd to runit translation: `translations.tsv` is the
+  completeness manifest (every systemd artifact in the repo maps to a runit
+  translation or an explicit accepted-loss verdict, enforced by
+  `tests/void-init.sh`), `system/` and `user/` hold the runit service
+  directories, `env/` the Turnstile envdir renderer, `lib/wait-for` the bounded
+  precondition waits, `session-services` the roster replacing
+  `ryoku-session.target`, and `polkit/` the note on why the systemd polkit
+  grant has no Void analogue. Translation rules and the verified runit
+  semantics are in `void/README.md`.
+- `iso/` and `packages/` placeholder READMEs for the future Void live ISO and
+  the xbps-src templates of a signed Ryoku XBPS repo; both deliberately empty.
+
 ## Tooling
 
 - `bin/` repo tooling: the release version helpers (`ryoku-release-version`,

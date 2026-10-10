@@ -487,24 +487,64 @@ func TestStageCancelSignalsChild(t *testing.T) {
 	}
 }
 
-// TestStageQualityTiers pins the tier -> model+matting contract the engine
-// calls depend on.
+// TestStageQualityTiers pins the tier defaults, per-tier overrides, and the
+// matting contract the engine calls depend on.
 func TestStageQualityTiers(t *testing.T) {
+	defaults := defaultStageModels()
 	cases := []struct {
+		name    string
 		tier    string
+		models  stageModels
 		model   string
 		matting bool
 	}{
-		{"draft", "u2netp", false},
-		{"standard", "u2netp", true},
-		{"fine", "birefnet-general-lite", true},
-		{"", "u2netp", false}, // unknown falls back to draft
+		{"draft default", "draft", defaults, "u2netp", false},
+		{"standard default", "standard", defaults, "u2netp", true},
+		{"fine default", "fine", defaults, "birefnet-general-lite", true},
+		{"draft override", "draft", stageModels{Draft: "silueta"}, "silueta", false},
+		{"standard override", "standard", stageModels{Standard: "birefnet-portrait"}, "birefnet-portrait", true},
+		{"fine override", "fine", stageModels{Fine: "birefnet-general"}, "birefnet-general", true},
+		{"unknown tier", "", stageModels{}, "u2netp", false},
 	}
 	for _, tc := range cases {
-		got := stageQualityFor(tc.tier)
+		got := stageQualityFor(tc.tier, tc.models)
 		if got.model != tc.model || got.matting != tc.matting {
-			t.Errorf("stageQualityFor(%q) = %+v, want {%s %v}", tc.tier, got, tc.model, tc.matting)
+			t.Errorf("%s: stageQualityFor(%q) = %+v, want {%s %v}", tc.name, tc.tier, got, tc.model, tc.matting)
 		}
+	}
+}
+
+func TestStageConfigReadsModelOverride(t *testing.T) {
+	home := stageHome(t)
+	logf := writeStageStub(t)
+	dir := filepath.Join(home, ".config", "ryoku")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(dir, "stage.json"), `{
+  "quality": "fine",
+  "models": {
+    "draft": "silueta",
+    "standard": "u2netp",
+    "fine": "birefnet-portrait"
+  }
+}`)
+	got := stageConfig()
+	if got.model != "birefnet-portrait" || !got.matting {
+		t.Fatalf("stageConfig() = %+v, want portrait with matting", got)
+	}
+	source := filepath.Join(home, "wall.png")
+	out := filepath.Join(home, "subject.png")
+	writeFile(t, source, "wall")
+	if err := (&daemon{}).engineCut(source, out, got); err != nil {
+		t.Fatal(err)
+	}
+	calls, err := os.ReadFile(logf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(calls), "--model birefnet-portrait --matting") {
+		t.Fatalf("cut did not use the persisted fine override: %s", calls)
 	}
 }
 

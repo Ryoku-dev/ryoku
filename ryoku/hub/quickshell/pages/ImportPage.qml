@@ -48,44 +48,26 @@ Item {
     property bool undone: false
     property string pendingDecisions: ""
 
-    // a previous non-Ryoku setup sitting in the running provider's config tree
-    // (Ryoku writes a generated config, never a hand-rolled monolith), offered as
-    // a one-tap source. Only meaningful on a desktop whose format import reads.
+    // Provider import metadata comes from the backend, which asks each installed
+    // provider for its native reader and default source. The page treats provider
+    // ids as opaque and never infers syntax from filenames.
+    property var importSource: ({})
+    property bool importProbeReady: false
     property bool autoDetected: false
     property string urlText: ""
     readonly property string home: Quickshell.env("HOME") || ""
+    readonly property bool importSupported: !pg.importProbeReady || pg.importSource.supported === true
+    readonly property string providerName: pg.importSource.name || ""
+    readonly property string providerDefaultPath: pg.importSource.path || ""
 
-    // The desktop the user runs and the root of its config tree, both read off the
-    // provider's declared config files rather than named here. The importer turns a
-    // hand-rolled monolith's keybinds and rules into Ryoku settings, so it only
-    // lands on a desktop whose own config is that same format.
-    readonly property var configFiles: Settings.configFiles || []
-    readonly property string providerName: Settings.provider
     function providerCased() {
         var p = pg.providerName;
-        return p.length ? p.charAt(0).toUpperCase() + p.slice(1) : "";
+        return p.length ? p.charAt(0).toUpperCase() + p.slice(1) : I18n.tr("desktop config");
     }
-    readonly property bool importSupported: {
-        for (var i = 0; i < pg.configFiles.length; i++) {
-            var f = ("" + pg.configFiles[i]).toLowerCase();
-            if (f.indexOf(".conf") >= 0 || f.indexOf(".lua") >= 0)
-                return true;
-        }
-        return false;
-    }
-    readonly property string providerCfgDir: {
-        if (pg.configFiles.length === 0) return "";
-        var first = "" + pg.configFiles[0];
-        var slash = first.indexOf("/");
-        return slash > 0 ? first.slice(0, slash) : first;
-    }
-    // detection only makes sense once we know import can read this desktop; run it
-    // on load and again when that answer arrives from the provider frame.
     function runDetect() {
-        if (pg.importSupported && pg.providerCfgDir.length)
+        if (!detectProc.running)
             detectProc.running = true;
     }
-    onImportSupportedChanged: pg.runDetect()
 
     readonly property var stepDefs: [
         { key: "source", label: I18n.tr("Source") }, { key: "review", label: I18n.tr("Review") },
@@ -112,8 +94,7 @@ Item {
         m[id] = v;
         pg.appInclude = m;
     }
-    // every conflict of an included, present app, flattened. All conflicts are
-    // keybind combos, so "keybinds first" is the natural order (Hyprland leads).
+    // Every conflict of an included, present app, flattened with keybinds first.
     readonly property var conflicts: {
         var out = [];
         for (var i = 0; i < pg.apps.length; i++) {
@@ -213,7 +194,7 @@ Item {
     }
     function tierNote(t) {
         if (t === "deep")
-            return I18n.tr("Keybinds and window rules become Ryoku settings; raw config layers into hypr/user.lua and wins.");
+            return I18n.tr("Keybinds, rules and supported settings become Ryoku settings; anything without a typed mapping stays in the provider's user include.");
         if (t === "layer")
             return I18n.tr("Layered into this app's override file, which already wins over the shipped config.");
         return I18n.tr("Dropped into this app's override slot, clearly labelled, applied as-is.");
@@ -332,11 +313,21 @@ Item {
     Process {
         id: detectProc
         running: false
-        command: ["sh", "-c", pg.providerCfgDir.length
-            ? "[ -e \"$HOME/.config/" + pg.providerCfgDir + "/hyprland.conf\" ] && echo yes || true"
-            : "true"]
+        command: ["ryoku-hub", "import", "detect"]
         stdout: StdioCollector {
-            onStreamFinished: pg.autoDetected = this.text.indexOf("yes") >= 0
+            onStreamFinished: {
+                try {
+                    pg.importSource = JSON.parse(this.text.trim() || "{}");
+                } catch (e) {
+                    pg.importSource = ({});
+                }
+                pg.autoDetected = pg.importSource.found === true;
+                pg.importProbeReady = true;
+            }
+        }
+        onExited: (code) => {
+            if (code !== 0)
+                pg.importProbeReady = true;
         }
     }
     Process {
@@ -556,8 +547,8 @@ Item {
             : (pg.step === "preview" ? previewComp : doneComp))))
     }
 
-    // Import reads one desktop's config format today; on a desktop it cannot read
-    // the wizard would dead-end, so the body carries a plain note there instead.
+    // A provider package may omit foreign-config import. Keep that absence
+    // explicit instead of offering a wizard that cannot map the desktop tree.
     Component {
         id: notSupportedComp
         Item {
@@ -573,16 +564,14 @@ Item {
                 Text {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: I18n.tr("Import comes to this desktop soon")
+                    text: I18n.tr("No desktop config reader is installed")
                     color: Tokens.ink; font.family: Tokens.ui
                     font.pixelSize: Tokens.fRow; font.weight: Font.Medium; wrapMode: Text.WordWrap
                 }
                 Text {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
-                    text: pg.providerName.length
-                        ? I18n.tr("Bringing an existing setup across, its keybinds, window rules and app configs, is available on another Ryoku desktop today. It lands on the %1 desktop in a future release.").arg(pg.providerName)
-                        : I18n.tr("Bringing an existing setup across, its keybinds, window rules and app configs, is available on another Ryoku desktop today. It lands on this desktop in a future release.")
+                    text: I18n.tr("Install or enable a window-manager provider that advertises config import, then reopen this page.")
                     color: Tokens.inkMuted; font.family: Tokens.ui
                     font.pixelSize: Tokens.fSmall; wrapMode: Text.WordWrap
                 }
@@ -616,7 +605,7 @@ Item {
 
                     Repeater {
                         model: [
-                            { app: "Hyprland", note: "keybinds and window rules become Ryoku settings; the rest layers into hypr/user.lua and wins" },
+                            { app: pg.providerCased(), note: "keybinds, rules and supported settings become Ryoku settings; unknown native nodes stay in the provider user include" },
                             { app: "Kitty", note: "kitty.conf, layered into kitty/user.conf" },
                             { app: "Fish", note: "config.fish, functions and conf.d, layered into fish/user.fish" },
                             { app: "Fastfetch", note: "config.jsonc, layered into fastfetch/user.jsonc" },
@@ -650,13 +639,13 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Tokens.s1
                             Text {
-                                text: I18n.tr("An existing config is already in ~/.config")
+                                text: I18n.tr("An existing %1 source was detected").arg(pg.providerCased())
                                 color: Tokens.ink; font.family: Tokens.ui
                                 font.pixelSize: Tokens.fRow; font.weight: Font.Medium
                             }
                             Text {
                                 width: parent.width
-                                text: I18n.tr("It looks like you came from another %1 setup. Scan it to bring your keybinds, rules and app configs onto Ryoku.").arg(pg.providerCased())
+                                text: I18n.tr("Scan the detected source to bring its keybinds, rules and app configs onto Ryoku.")
                                 color: Tokens.inkMuted; font.family: Tokens.ui
                                 font.pixelSize: Tokens.fSmall; wrapMode: Text.WordWrap
                             }
@@ -664,9 +653,9 @@ Item {
                         Btn {
                             id: detectBtn
                             anchors.verticalCenter: parent.verticalCenter
-                            text: I18n.tr("SCAN ~/.CONFIG")
+                            text: I18n.tr("SCAN %1").arg(pg.providerCased().toUpperCase())
                             primary: true
-                            onAct: pg.chooseSource(pg.home + "/.config")
+                            onAct: pg.chooseSource(pg.providerDefaultPath)
                         }
                     }
                 }
@@ -795,6 +784,8 @@ Item {
                         required property var modelData
                         readonly property bool present: appCard.modelData.present !== false
                         readonly property int nConflicts: (appCard.modelData.conflicts || []).length
+                        readonly property int nLosses: (appCard.modelData.losses || []).length
+                        readonly property string scanError: appCard.modelData.error || ""
                         visible: appCard.present
                         width: revCol.width
                         height: appCard.present ? (appBody.implicitHeight + Tokens.s4 * 2) : 0
@@ -829,6 +820,18 @@ Item {
                                         label: appCard.nConflicts + " " + (appCard.nConflicts === 1 ? I18n.tr("conflict") : I18n.tr("conflicts"))
                                         tint: Tokens.alert
                                     }
+                                    Pill {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: appCard.scanError.length > 0
+                                        label: I18n.tr("PARSE ERROR")
+                                        tint: Tokens.alert
+                                    }
+                                    Pill {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: appCard.nLosses > 0
+                                        label: appCard.nLosses + " " + (appCard.nLosses === 1 ? I18n.tr("preserved item") : I18n.tr("preserved items"))
+                                        tint: Tokens.inkMuted
+                                    }
                                 }
                                 Sw {
                                     id: incSw
@@ -841,7 +844,8 @@ Item {
                             Text {
                                 width: parent.width
                                 text: appCard.modelData.summary || ""
-                                color: Tokens.inkDim; font.family: Tokens.mono
+                                color: appCard.scanError.length > 0 ? Tokens.alert : Tokens.inkDim
+                                font.family: Tokens.mono
                                 font.pixelSize: Tokens.fSmall; wrapMode: Text.WordWrap
                             }
                             Text {
@@ -849,6 +853,18 @@ Item {
                                 text: pg.tierNote(appCard.modelData.tier || "drop")
                                 color: Tokens.inkFaint; font.family: Tokens.ui
                                 font.pixelSize: Tokens.fTiny; wrapMode: Text.WordWrap
+                            }
+                            Repeater {
+                                model: appCard.modelData.losses || []
+                                delegate: Text {
+                                    required property var modelData
+                                    width: appBody.width
+                                    text: I18n.tr("%1 Preserved as native config: %2").arg(modelData.reason || "").arg(modelData.raw || "")
+                                    color: Tokens.inkMuted
+                                    font.family: Tokens.mono
+                                    font.pixelSize: Tokens.fTiny
+                                    wrapMode: Text.WrapAnywhere
+                                }
                             }
                         }
                     }
@@ -1331,13 +1347,17 @@ Item {
     }
 
     // ── chord recorder overlay: shared reader, page-owned capture ──────────────
-    // enters a do-nothing Hyprland submap so a live chord (SUPER + Q) passes
-    // through to be read here instead of firing its shipped action.
     property string remapNorm: ""
     readonly property bool recording: pg.remapNorm.length > 0
 
-    function enterRecordSubmap() { if (pg.hub) pg.hub.wmAct("submap.enter", ["record"]); }
-    function exitRecordSubmap() { if (pg.hub) pg.hub.wmAct("submap.reset"); }
+    function enterRecordSubmap() {
+        if (Settings.supports("submap") && pg.hub)
+            pg.hub.wmAct("submap.enter", ["record"]);
+    }
+    function exitRecordSubmap() {
+        if (Settings.supports("submap") && pg.hub)
+            pg.hub.wmAct("submap.reset");
+    }
     function startRemap(norm) {
         if (!norm)
             return;
@@ -1358,13 +1378,6 @@ Item {
         id: remapTimeout
         interval: 15000
         onTriggered: pg.stopRemap(false, "")
-    }
-    Connections {
-        target: Hyprland
-        function onRawEvent(event) {
-            if (pg.recording && event.name === "submap" && (event.data === "" || event.data === "reset"))
-                pg.stopRemap(false, "");
-        }
     }
     MouseArea {
         id: recScrim

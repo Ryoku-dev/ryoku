@@ -15,14 +15,14 @@ Row {
     spacing: Math.round(dateMark.pixelSize * 0.3)
     IrisText {
         id: weekdayText
-        text: Qt.locale().toString(DateTime.clock.date, "ddd").replace(/\.$/, "")
+        text: Translation.locale.toString(DateTime.clock.date, "ddd").replace(/\.$/, "")
         color: dateMark.inkColor
         font.pixelSize: dateMark.pixelSize * 0.92
         font.weight: IrisStyle.weight(Font.Medium)
     }
     IrisText {
         anchors.baseline: weekdayText.baseline
-        text: Qt.locale().toString(DateTime.clock.date, "d")
+        text: Translation.locale.toString(DateTime.clock.date, "d")
         color: dateMark.dayColor
         font.pixelSize: dateMark.pixelSize
         font.family: IrisStyle.fontNumbers

@@ -17,12 +17,13 @@ import inir.modules.iris.components
 import inir.modules.iris.pieces
 import inir.modules.iris.settings
 
-// Spotlight lives in the chassis window of its output, so its body, its content and the Island it grows
-// from are one surface: drawn and moved in the same frame.
+// Shima keeps Spotlight in the chassis window so the palette can morph out of
+// its island; standalone launcher hosts render the same body over their own field.
 Item {
     id: root
 
     property var screen: null
+    property bool standalone: false
     readonly property bool here: (root.screen?.name ?? "") === (GlobalStates.focusedScreen?.name ?? "")
     readonly property bool present: root.here && (GlobalStates.searchOpen || (content.item?.progress ?? 0) > 0)
     readonly property bool armed: root.here && GlobalStates.searchOpen && (content.item?.armed ?? false)
@@ -126,7 +127,8 @@ Item {
     }
 
     readonly property var island: GlobalStates.irisIslandGeometry?.[root.screen?.name ?? ""] ?? null
-    readonly property bool fromIsland: String(root.options?.opens ?? "floating") === "island"
+    readonly property bool fromIsland: !root.standalone
+        && String(root.options?.opens ?? "floating") === "island"
         && root.island !== null && root.island.width > 0
     readonly property bool islandBottom: root.island?.bottomEdge ?? false
     readonly property string islandSide: root.island?.vertical ? String(root.island.edge) : ""
@@ -356,7 +358,8 @@ Item {
                 open: root.here && GlobalStates.searchOpen
                 settles: true
                 motionSurface: "spotlight"
-                fieldBacked: true
+                fieldBacked: !root.standalone
+                ownField: root.standalone
                 chassisKey: "spotlight"
                 chassisJoin: {
                     if (!root.joinsEdge) return {}

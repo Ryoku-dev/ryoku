@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+command -v gum >/dev/null 2>&1 || { echo 'omarchy-menu-timezone: gum is required' >&2; exit 1; }
+timezone=$(timedatectl list-timezones | gum filter --placeholder='Set timezone')
+[[ -n $timezone ]] || exit 0
+sudo timedatectl set-timezone "$timezone"
+omarchy-shell -q omarchy.clock refresh
+omarchy-notification-send "Timezone is now set to $timezone"

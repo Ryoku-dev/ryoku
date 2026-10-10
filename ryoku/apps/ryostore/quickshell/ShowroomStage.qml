@@ -15,7 +15,22 @@ Item {
     property string positionText: ""
     property bool offline: false
     property bool reducedMotion: false
-    property real artworkReveal: 1
+    property var shownHero: ({})
+    property var outgoingHero: ({})
+    property real heroProgress: 1
+
+    function safeAccent(value) {
+        const raw = String(value || "").trim().toLowerCase();
+        if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(raw))
+            return Qt.color(raw);
+        if (raw !== "") {
+            var hash = 0;
+            for (var i = 0; i < raw.length; i++)
+                hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+            return Qt.hsla(Math.abs(hash % 360) / 360, 0.52, 0.42, 1);
+        }
+        return Tokens.sun;
+    }
 
     signal installRequested(var item)
     signal detailsRequested(var item)
@@ -32,26 +47,32 @@ Item {
     readonly property string secondaryLabel: StoreLogic.secondaryAction(actionItem)
     readonly property bool hasActionItem: item !== null && item !== undefined
     readonly property color stageSurface: displayItem.surface || Tokens.paper
-    readonly property var coverItem: ({
-        id: displayItem.id,
-        name: displayItem.name || displayItem.id,
-        art: displayItem.art || "",
-        category: displayItem.category,
-        categoryName: displayItem.categoryName,
-        accent: displayItem.accent,
-        surface: displayItem.surface,
-        installed: displayItem.installed,
-        active: displayItem.active,
-        enabled: displayItem.enabled,
-        installedCount: displayItem.installedCount,
-        totalCount: displayItem.totalCount,
-        updateAvailable: displayItem.updateAvailable
-    })
+    readonly property color stageAccent: safeAccent(displayItem.accent)
+    function heroItem(value) {
+        const shown = value || {};
+        return {
+            id: shown.id,
+            name: shown.name || shown.id,
+            art: shown.art || "",
+            artRaw: shown.artRaw || "",
+            category: shown.category,
+            categoryName: shown.categoryName,
+            accent: shown.accent,
+            surface: shown.surface,
+            installed: actionItem.installed,
+            active: actionItem.active,
+            enabled: actionItem.enabled,
+            installedCount: actionItem.installedCount,
+            totalCount: actionItem.totalCount,
+            updateAvailable: actionItem.updateAvailable
+        };
+    }
 
     clip: true
 
     function triggerInstall() {
-        if (hasActionItem && StoreLogic.primaryAction(actionItem) !== "INSTALLED" && busyKey === "" && !StoreLogic.isDownloadPaused(actionItem))
+        if (hasActionItem && StoreLogic.primaryAction(actionItem) !== "INSTALLED" && busyKey === ""
+                && !StoreLogic.isDownloadPaused(actionItem) && !StoreLogic.isUnavailable(actionItem))
             installRequested(actionItem);
     }
 
@@ -70,42 +91,74 @@ Item {
             removeRequested(actionItem);
     }
 
-    function revealArtwork() {
-        if (reducedMotion) {
-            artworkReveal = 1;
+    function syncHero() {
+        const next = heroItem(displayItem);
+        const nextKey = StoreLogic.itemKey(next) + "|" + String(next.artRaw || next.art || "");
+        const shownKey = StoreLogic.itemKey(shownHero)
+                + "|" + String(shownHero.artRaw || shownHero.art || "");
+        if (!shownHero || (!shownHero.id && !shownHero.name)) {
+            shownHero = next;
+            outgoingHero = next;
+            heroProgress = 1;
             return;
         }
-        artworkReveal = 0;
-        Qt.callLater(function() { stage.artworkReveal = 1; });
+        if (nextKey === shownKey) {
+            shownHero = next;
+            return;
+        }
+        heroFade.stop();
+        outgoingHero = shownHero;
+        shownHero = next;
+        if (reducedMotion) {
+            heroProgress = 1;
+            return;
+        }
+        heroProgress = 0;
+        heroFade.restart();
     }
 
-    // Play the entrance reveal only when the committed selection changes (or the
-    // stage first gets an item), not on every hover preview: a preview swaps the
-    // hero art via ProductMedia's own crossfade, so re-dimming the whole stage on
-    // each hover is what made scanning the grid feel janky.
-    onItemChanged: revealArtwork()
+    onDisplayItemChanged: syncHero()
+    onActionItemChanged: syncHero()
     onReducedMotionChanged: {
-        if (reducedMotion)
-            artworkReveal = 1;
+        if (reducedMotion) {
+            heroFade.stop();
+            heroProgress = 1;
+        }
+    }
+    Component.onCompleted: syncHero()
+
+    NumberAnimation {
+        id: heroFade
+        target: stage
+        property: "heroProgress"
+        from: 0
+        to: 1
+        duration: Tokens.swap
+        easing.type: Tokens.ease
+    }
+
+    ProductCover {
+        objectName: "ryostore-stage-artwork-outgoing"
+        anchors.fill: parent
+        item: stage.outgoingHero
+        mode: "hero"
+        active: false
+        opacity: 1 - stage.heroProgress
+        scale: 1.008 - stage.heroProgress * 0.008
+        visible: opacity > 0
+        reducedMotion: stage.reducedMotion
     }
 
     ProductCover {
         id: artwork
         objectName: "ryostore-stage-artwork"
         anchors.fill: parent
-        item: stage.coverItem
+        item: stage.shownHero
         mode: "hero"
-        opacity: 0.45 + stage.artworkReveal * 0.55
-        scale: 0.985 + stage.artworkReveal * 0.015
-
-        Behavior on opacity {
-            enabled: !stage.reducedMotion
-            NumberAnimation { duration: stage.motionDuration; easing.type: Tokens.ease }
-        }
-        Behavior on scale {
-            enabled: !stage.reducedMotion
-            NumberAnimation { duration: stage.motionDuration; easing.type: Tokens.ease }
-        }
+        active: stage.visible
+        opacity: stage.heroProgress
+        scale: 0.992 + stage.heroProgress * 0.008
+        reducedMotion: stage.reducedMotion
     }
 
     Rectangle {
@@ -152,14 +205,13 @@ Item {
     Rectangle {
         anchors.fill: parent
         visible: stage.hasActionItem
-        opacity: 0.5 * stage.artworkReveal
+        opacity: 0.5 * stage.heroProgress
         gradient: Gradient {
             orientation: Gradient.Horizontal
             GradientStop {
                 position: 0
-                color: Qt.rgba((stage.displayItem.accent ? Qt.color(stage.displayItem.accent) : Tokens.sun).r,
-                               (stage.displayItem.accent ? Qt.color(stage.displayItem.accent) : Tokens.sun).g,
-                               (stage.displayItem.accent ? Qt.color(stage.displayItem.accent) : Tokens.sun).b, 0.16)
+                color: Qt.rgba(stage.stageAccent.r, stage.stageAccent.g,
+                               stage.stageAccent.b, 0.16)
             }
             GradientStop { position: 0.5; color: "#00000000" }
             GradientStop { position: 1; color: "#00000000" }
@@ -187,6 +239,7 @@ Item {
         width: Math.min(stage.width * 0.48, 520)
         spacing: Tokens.s3
         visible: stage.hasActionItem
+        opacity: 0.45 + stage.heroProgress * 0.55
 
         Text {
             width: parent.width
@@ -225,7 +278,7 @@ Item {
 
         StatusReadout {
             objectName: "ryostore-stage-status"
-            item: stage.displayItem
+            item: stage.actionItem
             busyKey: stage.busyKey
             installStage: stage.installStage
             installErrorKey: stage.installErrorKey
@@ -263,21 +316,22 @@ Item {
             elide: Text.ElideRight
         }
 
-        Row {
+        Flow {
+            width: parent.width
             spacing: Tokens.s2
 
-            Btn {
+            InstallAction {
                 objectName: "ryostore-stage-primary"
                 text: I18n.tr(stage.primaryLabel)
                 primary: true
+                busy: stage.busyKey === stage.actionKey
+                installed: StoreLogic.primaryAction(stage.actionItem) === "INSTALLED"
+                reducedMotion: stage.reducedMotion
                 armed: stage.hasActionItem
-                        && StoreLogic.primaryAction(stage.actionItem) !== "INSTALLED"
-                        && stage.busyKey === ""
+                        && !installed
                         && !StoreLogic.isDownloadPaused(stage.actionItem)
-                Accessible.role: Accessible.Button
-                Accessible.name: text
+                        && !StoreLogic.isUnavailable(stage.actionItem)
                 onAct: stage.triggerInstall()
-                Accessible.onPressAction: stage.triggerInstall()
             }
 
             Btn {

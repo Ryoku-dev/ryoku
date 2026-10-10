@@ -1,0 +1,48 @@
+#!/bin/bash
+set -uo pipefail
+OMARCHY_PATH=${OMARCHY_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/nomarchy}
+usage_dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/agents/usage
+mkdir -p "$usage_dir"
+flags=(); only=(); declare -A excluded=()
+while (($#)); do
+  case $1 in
+    --force|--limits-only) flags+=("$1") ;;
+    --except) [[ -n ${2:-} ]] || { echo 'omarchy-agent-usage-update: --except needs a provider' >&2; exit 2; }; excluded[$2]=1; shift ;;
+    --*) echo "omarchy-agent-usage-update: unknown option $1" >&2; exit 2 ;;
+    *) only+=("$1") ;;
+  esac
+  shift
+done
+wanted() {
+  local id=$1 candidate
+  [[ -z ${excluded[$id]:-} ]] || return 1
+  ((${#only[@]}==0)) && return 0
+  for candidate in "${only[@]}"; do [[ $candidate != "$id" ]] || return 0; done
+  return 1
+}
+collect() {
+  local collector=$1 id=$2 record tmp
+  if ! record=$("$collector" "${flags[@]}"); then
+    echo "omarchy-agent-usage-update: $id collector failed" >&2
+    return 1
+  fi
+  if [[ -z $record ]]; then
+    rm -f "$usage_dir/$id.json"
+    return 0
+  fi
+  jq -e . >/dev/null 2>&1 <<<"$record" || { echo "omarchy-agent-usage-update: $id collector returned invalid JSON" >&2; return 1; }
+  tmp=$(mktemp "$usage_dir/.$id.XXXXXX") || return 1
+  printf '%s\n' "$record" >"$tmp"
+  mv "$tmp" "$usage_dir/$id.json"
+}
+pids=()
+for collector in "$OMARCHY_PATH"/bin/omarchy-agent-usage-*; do
+  [[ -x $collector ]] || continue
+  id=${collector##*/omarchy-agent-usage-}
+  [[ $id != update && $id != cache ]] || continue
+  wanted "$id" || continue
+  collect "$collector" "$id" & pids+=("$!")
+done
+status=0
+for pid in "${pids[@]}"; do wait "$pid" || status=1; done
+exit "$status"

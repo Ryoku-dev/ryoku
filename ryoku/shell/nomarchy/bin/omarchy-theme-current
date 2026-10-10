@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
+name=""
+if [[ -f $CONFIG_HOME/omarchy/current-theme ]]; then
+  read -r name <"$CONFIG_HOME/omarchy/current-theme" || true
+elif [[ -f $STATE_HOME/omarchy/current/theme.name ]]; then
+  read -r name <"$STATE_HOME/omarchy/current/theme.name" || true
+fi
+
+if [[ -z $name || $name == ryoku ]]; then
+  printf '%s\n' 'Wallpaper (Ryoku)'
+else
+  printf '%s\n' "$name" | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'
+fi

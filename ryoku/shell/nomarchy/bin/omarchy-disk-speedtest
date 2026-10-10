@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+target=${1:-${XDG_CACHE_HOME:-$HOME/.cache}/omarchy}; [[ -d $target || ! -e $target ]] || { echo 'Usage: omarchy-disk-speedtest [target-dir]' >&2; exit 2; }
+mkdir -p "$target"
+file=$(mktemp "$target/disk-speedtest-XXXXXX.dat")
+trap 'rm -f "$file"' EXIT INT TERM
+available=$(df --output=avail -m "$target" | awk 'END{print $1}')
+((available >= 512)) || { echo "Need at least 512MB free on $target" >&2; exit 1; }
+device=$(findmnt -no SOURCE --target "$target" 2>/dev/null); device=${device%%\[*}; model=$(lsblk -dno MODEL "$device" 2>/dev/null | awk '{$1=$1;print}')
+printf 'disk %s\n' "${model:-${device##*/}}"
+rate() { awk 'match($0,/([0-9]+([.][0-9]+)?) ([kMGT]?B\/s)/,m){v=m[1];u=m[3];if(u=="kB/s")v/=1000;else if(u=="GB/s")v*=1000;else if(u=="TB/s")v*=1000000;printf "%.1f",v}' ; }
+write=$(dd if=/dev/zero of="$file" bs=16M count=16 conv=fdatasync status=progress 2>&1 | rate)
+printf 'write %s\n' "${write:-0}"
+read=$(dd if="$file" of=/dev/null bs=16M iflag=direct status=progress 2>&1 | rate)
+printf 'read %s\n' "${read:-0}"

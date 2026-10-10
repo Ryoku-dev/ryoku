@@ -538,17 +538,26 @@ func scanFastfetch(source string) (scanApp, bool) {
 
 // scanGeneric offers any other config dir the user brought as a drop-tier app:
 // listed and copyable, never parsed.
-func scanGeneric(source string) []scanApp {
+func scanGeneric(source string, exclusions ...map[string]bool) []scanApp {
 	var out []scanApp
 	seen := map[string]bool{}
-	for _, root := range []string{source, filepath.Join(source, ".config")} {
+	excluded := map[string]bool{}
+	for _, set := range exclusions {
+		for name := range set {
+			excluded[name] = true
+		}
+	}
+	for i, root := range []string{source, filepath.Join(source, ".config")} {
+		if i == 0 && excluded["."] {
+			continue
+		}
 		entries, err := os.ReadDir(root)
 		if err != nil {
 			continue
 		}
 		for _, e := range entries {
 			name := e.Name()
-			if !e.IsDir() || knownApps[name] || strings.HasPrefix(name, ".") || seen[name] {
+			if !e.IsDir() || knownApps[name] || excluded[name] || strings.HasPrefix(name, ".") || seen[name] {
 				continue
 			}
 			files := listRegularFiles(filepath.Join(root, name))

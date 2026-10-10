@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+copy_only=0; [[ ${1:-} != --copy-only ]] || { copy_only=1; shift; }
+mime=${1:-}; path=${2:-}; [[ -n $mime && -r $path ]] || { echo 'Usage: omarchy-clipboard-paste-file [--copy-only] MIME PATH' >&2; exit 2; }
+wl-copy --type "$mime" <"$path"
+((copy_only)) && exit 0
+sleep 0.15
+wtype -M shift -k Insert -m shift

@@ -89,7 +89,7 @@ QtObject {
     readonly property var spare: root.catalogueIds.filter(id => !root.modules.includes(id))
 
     readonly property int columns: Math.max(3, Math.min(6, Number(root.options?.columns ?? 4)))
-    readonly property bool labelled: Boolean(root.options?.labels ?? false)
+    readonly property bool labelled: Boolean(root.options?.labels ?? true)
     readonly property bool roundControls: String(root.options?.controls ?? "tiles") === "round"
     readonly property var toggleIds: root.catalogue.filter(entry => entry.kind === "toggle" || entry.kind === "action").map(entry => entry.id)
     readonly property var levelKinds: ["brightness", "volume", "microphone"]
@@ -121,8 +121,7 @@ QtObject {
             const hue = root.identities[id] ?? ""
             return hue === "gray" ? IrisStyle.textSecondary : IrisStyle.identityColor(hue)
         }
-        return id === "gameMode" || id === "vpn" ? IrisStyle.identity.green
-            : id === "focus" ? IrisStyle.identity.indigo : IrisStyle.accent
+        return IrisStyle.accent
     }
     readonly property real libraryWidth: 312
     readonly property real editorExtra: root.libraryWidth + 21

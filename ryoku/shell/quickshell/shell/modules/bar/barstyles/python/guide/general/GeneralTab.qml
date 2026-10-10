@@ -45,7 +45,7 @@ Item {
     }
 
     property var generalSettings: Config.getSetting("general", defaultGeneralSettings)
-    property string currentLanguage: generalSettings.language !== undefined ? generalSettings.language : "en"
+    property string currentLanguage: generalSettings.language !== undefined ? generalSettings.language : I18n.currentLang
     property bool muteSfx: generalSettings.muteSfx !== undefined ? generalSettings.muteSfx : false
     property real sfxVolume: generalSettings.sfxVolume !== undefined ? generalSettings.sfxVolume : 100
     property bool screenshotCaptureOnRelease: generalSettings.screenshotCaptureOnRelease !== undefined ? generalSettings.screenshotCaptureOnRelease : false
@@ -82,7 +82,7 @@ Item {
         target: Config
         function onSettingsLoaded() {
             let gs = Config.getSetting("general", generalTabRoot.defaultGeneralSettings);
-            generalTabRoot.currentLanguage = gs.language !== undefined ? gs.language : "en";
+            generalTabRoot.currentLanguage = gs.language !== undefined ? gs.language : I18n.currentLang;
             generalTabRoot.muteSfx = gs.muteSfx !== undefined ? gs.muteSfx : false;
             generalTabRoot.sfxVolume = gs.sfxVolume !== undefined ? gs.sfxVolume : 100;
             generalTabRoot.screenshotCaptureOnRelease = gs.screenshotCaptureOnRelease !== undefined ? gs.screenshotCaptureOnRelease : false;
@@ -153,188 +153,142 @@ Item {
             width: parent.width
             spacing: rootObj.s(6)
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: rowAvatarLayout.implicitHeight + rootObj.s(24)
-                radius: ThemeBackend.borderRadius
-                color: Qt.alpha(ThemeBackend.surface0, 0.4)
-                border.width: 0
+            SettingsRow {
+                rootObj: generalTabRoot.rootObj
+                icon: "󰀄"
+                title: I18n.t("guide.general.avatar.title") || "Profile picture"
+                description: I18n.t("guide.general.avatar.desc") || "Choose profile picture"
+                searchKeywords: "avatar profile picture photo image"
 
                 RowLayout {
-                    id: rowAvatarLayout
-                    anchors.left: parent.left
-                    anchors.leftMargin: rootObj.s(14)
-                    anchors.right: parent.right
-                    anchors.rightMargin: rootObj.s(14)
-                    anchors.verticalCenter: parent.verticalCenter
                     spacing: rootObj.s(12)
 
-                    IconButton {
-                        enabled: false
-                        size: rootObj.s(32)
-                        Layout.preferredWidth: rootObj.s(32)
-                        Layout.preferredHeight: rootObj.s(32)
-                        Layout.alignment: Qt.AlignVCenter
-                        cornerRadius: ThemeBackend.borderRadius
-                        buttonIcon: "󰀄"
-                        iconFontSize: rootObj.s(16)
-                        accentColor: ThemeBackend.surface0
-                        textColor: "#ffffff"
-                    }
-
                     ColumnLayout {
-                        Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignVCenter
-                        spacing: rootObj.s(2)
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        spacing: rootObj.s(8)
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: I18n.t("guide.general.avatar.title") || "Profile picture"
-                            font.family: ThemeBackend.fontFamily
-                            font.pixelSize: rootObj.s(13)
-                            color: ThemeBackend.text
+                        ClickButton {
+                            Layout.alignment: Qt.AlignRight
+                            implicitHeight: rootObj.s(32)
+                            buttonText: I18n.t("guide.general.avatar.select")
+                            buttonIcon: "󰉋"
+                            accentColor: ThemeBackend.mauve
+                            textColor: ThemeBackend.crust
+                            cornerRadius: ThemeBackend.borderRadius
+                            horizontalPadding: rootObj.s(14)
+                            iconFontSize: rootObj.s(15)
+                            textFontSize: rootObj.s(11)
+                            onTriggered: imagePicker.openPicker(generalTabRoot.currentAvatarSourcePath)
                         }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: I18n.t("guide.general.avatar.desc") || "Choose profile picture"
-                            font.family: ThemeBackend.fontFamily
-                            font.pixelSize: rootObj.s(11)
-                            color: ThemeBackend.subtext0
+                        Dropdown {
+                            id: avatarDropdown
+                            Layout.alignment: Qt.AlignRight
+                            implicitWidth: rootObj.s(280)
+                            implicitHeight: rootObj.s(32)
+                            options: generalTabRoot.currentAvatarSourcePath !== "" ? [generalTabRoot.currentAvatarSourcePath] : []
+                            currentIndex: 0
+                            isPathSelector: true
+                            fuzzySearch: true
+                            placeholderText: generalTabRoot.currentAvatarSourcePath !== "" ? generalTabRoot.currentAvatarSourcePath : "Select image path..."
+                            fontFamily: ThemeBackend.fontFamily
+                            accentColor: ThemeBackend.mauve
+                            baseColor: ThemeBackend.surface0
+                            hoverColor: ThemeBackend.surface1
+                            dropdownColor: ThemeBackend.surface0
+                            borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                            textColor: ThemeBackend.text
+                            activeTextColor: ThemeBackend.crust
+                            cornerRadius: ThemeBackend.borderRadius
+                            fontPixelSize: rootObj.s(11)
+                            onValueChanged: function(index, value) {
+                                let gs = Object.assign({}, generalTabRoot.generalSettings);
+                                gs.avatarPath = value;
+                                generalTabRoot.generalSettings = gs;
+                                generalTabRoot.updateGeneralSettings();
+                            }
+                            onSelected: function(index, value) {
+                                let gs = Object.assign({}, generalTabRoot.generalSettings);
+                                gs.avatarPath = value;
+                                generalTabRoot.generalSettings = gs;
+                                generalTabRoot.updateGeneralSettings();
+                            }
                         }
                     }
 
-                    RowLayout {
-                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                        spacing: rootObj.s(12)
-
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                            spacing: rootObj.s(8)
-
-                            ClickButton {
-                                Layout.alignment: Qt.AlignRight
-                                implicitHeight: rootObj.s(32)
-                                buttonText: I18n.t("guide.general.avatar.select")
-                                buttonIcon: "󰉋"
-                                accentColor: ThemeBackend.mauve
-                                textColor: ThemeBackend.crust
-                                cornerRadius: ThemeBackend.borderRadius
-                                horizontalPadding: rootObj.s(14)
-                                iconFontSize: rootObj.s(15)
-                                textFontSize: rootObj.s(11)
-                                onTriggered: imagePicker.openPicker(generalTabRoot.currentAvatarSourcePath)
-                            }
-
-                            Dropdown {
-                                id: avatarDropdown
-                                Layout.alignment: Qt.AlignRight
-                                implicitWidth: rootObj.s(280)
-                                implicitHeight: rootObj.s(32)
-                                options: generalTabRoot.currentAvatarSourcePath !== "" ? [generalTabRoot.currentAvatarSourcePath] : []
-                                currentIndex: 0
-                                isPathSelector: true
-                                fuzzySearch: true
-                                placeholderText: generalTabRoot.currentAvatarSourcePath !== "" ? generalTabRoot.currentAvatarSourcePath : "Select image path..."
-                                fontFamily: ThemeBackend.fontFamily
-                                accentColor: ThemeBackend.mauve
-                                baseColor: ThemeBackend.surface0
-                                hoverColor: ThemeBackend.surface1
-                                dropdownColor: ThemeBackend.surface0
-                                borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
-                                textColor: ThemeBackend.text
-                                activeTextColor: ThemeBackend.crust
-                                cornerRadius: ThemeBackend.borderRadius
-                                fontPixelSize: rootObj.s(11)
-                                onValueChanged: function(index, value) {
-                                    let gs = Object.assign({}, generalTabRoot.generalSettings);
-                                    gs.avatarPath = value;
-                                    generalTabRoot.generalSettings = gs;
-                                    generalTabRoot.updateGeneralSettings();
-                                }
-                                onSelected: function(index, value) {
-                                    let gs = Object.assign({}, generalTabRoot.generalSettings);
-                                    gs.avatarPath = value;
-                                    generalTabRoot.generalSettings = gs;
-                                    generalTabRoot.updateGeneralSettings();
-                                }
-                            }
-                        }
+                    Rectangle {
+                        id: avatarPreviewRect
+                        Layout.preferredWidth: rootObj.s(72)
+                        Layout.preferredHeight: rootObj.s(72)
+                        radius: ThemeBackend.borderRadius
+                        color: ThemeBackend.surface0
+                        border.color: Qt.alpha(ThemeBackend.surface2, 0.6)
+                        border.width: 1
 
                         Rectangle {
-                            id: avatarPreviewRect
-                            Layout.preferredWidth: rootObj.s(72)
-                            Layout.preferredHeight: rootObj.s(72)
+                            id: maskRect
+                            anchors.fill: parent
                             radius: ThemeBackend.borderRadius
-                            color: ThemeBackend.surface0
-                            border.color: Qt.alpha(ThemeBackend.surface2, 0.6)
-                            border.width: 1
+                            color: "black"
+                            visible: false
+                            layer.enabled: true
+                        }
 
-                            Rectangle {
-                                id: maskRect
-                                anchors.fill: parent
-                                radius: ThemeBackend.borderRadius
-                                color: "black"
-                                visible: false
-                                layer.enabled: true
+                        Canvas {
+                            id: personaCanvas
+                            anchors.fill: parent
+                            visible: generalTabRoot.currentAvatarSourcePath === ""
+                            renderTarget: Canvas.FramebufferObject
+                            renderStrategy: Canvas.Immediate
+
+                            Connections {
+                                target: ThemeBackend
+                                function onSurface2Changed() { personaCanvas.requestPaint(); }
+                                function onSubtext0Changed() { personaCanvas.requestPaint(); }
+                                function onTextChanged() { personaCanvas.requestPaint(); }
                             }
 
-                            Canvas {
-                                id: personaCanvas
-                                anchors.fill: parent
-                                visible: generalTabRoot.currentAvatarSourcePath === ""
-                                renderTarget: Canvas.FramebufferObject
-                                renderStrategy: Canvas.Immediate
+                            onPaint: {
+                                var ctx = getContext("2d");
+                                ctx.clearRect(0, 0, width, height);
 
-                                Connections {
-                                    target: ThemeBackend
-                                    function onSurface2Changed() { personaCanvas.requestPaint(); }
-                                    function onSubtext0Changed() { personaCanvas.requestPaint(); }
-                                    function onTextChanged() { personaCanvas.requestPaint(); }
-                                }
+                                var cx = width / 2;
+                                var headRadius = width * 0.19;
+                                var headCenterY = height * 0.36;
 
-                                onPaint: {
-                                    var ctx = getContext("2d");
-                                    ctx.clearRect(0, 0, width, height);
+                                ctx.fillStyle = ThemeBackend.surface2;
 
-                                    var cx = width / 2;
-                                    var headRadius = width * 0.19;
-                                    var headCenterY = height * 0.36;
+                                ctx.beginPath();
+                                ctx.arc(cx, headCenterY, headRadius, 0, Math.PI * 2);
+                                ctx.fill();
 
-                                    ctx.fillStyle = ThemeBackend.surface2;
-
-                                    ctx.beginPath();
-                                    ctx.arc(cx, headCenterY, headRadius, 0, Math.PI * 2);
-                                    ctx.fill();
-
-                                    ctx.beginPath();
-                                    ctx.moveTo(cx - width * 0.32, height * 0.88);
-                                    ctx.bezierCurveTo(cx - width * 0.28, height * 0.58, cx + width * 0.28, height * 0.58, cx + width * 0.32, height * 0.88);
-                                    ctx.bezierCurveTo(cx + width * 0.20, height * 0.94, cx - width * 0.20, height * 0.94, cx - width * 0.32, height * 0.88);
-                                    ctx.closePath();
-                                    ctx.fill();
-                                }
+                                ctx.beginPath();
+                                ctx.moveTo(cx - width * 0.32, height * 0.88);
+                                ctx.bezierCurveTo(cx - width * 0.28, height * 0.58, cx + width * 0.28, height * 0.58, cx + width * 0.32, height * 0.88);
+                                ctx.bezierCurveTo(cx + width * 0.20, height * 0.94, cx - width * 0.20, height * 0.94, cx - width * 0.32, height * 0.88);
+                                ctx.closePath();
+                                ctx.fill();
                             }
+                        }
 
-                            Loader {
-                                id: avatarLoader
-                                anchors.fill: parent
-                                visible: false
-                                active: generalTabRoot.currentAvatarSourcePath !== ""
-                                sourceComponent: Image {
-                                    source: generalTabRoot.currentAvatarSourcePath !== "" ? "file://" + generalTabRoot.currentAvatarSourcePath : ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    cache: false
-                                }
+                        Loader {
+                            id: avatarLoader
+                            anchors.fill: parent
+                            visible: false
+                            active: generalTabRoot.currentAvatarSourcePath !== ""
+                            sourceComponent: Image {
+                                source: generalTabRoot.currentAvatarSourcePath !== "" ? "file://" + generalTabRoot.currentAvatarSourcePath : ""
+                                fillMode: Image.PreserveAspectCrop
+                                cache: false
                             }
+                        }
 
-                            MultiEffect {
-                                anchors.fill: parent
-                                source: avatarLoader.item
-                                maskEnabled: true
-                                maskSource: maskRect
-                                visible: generalTabRoot.currentAvatarSourcePath !== ""
-                            }
+                        MultiEffect {
+                            anchors.fill: parent
+                            source: avatarLoader.item
+                            maskEnabled: true
+                            maskSource: maskRect
+                            visible: generalTabRoot.currentAvatarSourcePath !== ""
                         }
                     }
                 }
@@ -451,200 +405,123 @@ Item {
                 }
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: locSectionCol.implicitHeight + rootObj.s(24)
-                radius: ThemeBackend.borderRadius
-                color: Qt.alpha(ThemeBackend.surface0, 0.4)
-                border.width: 0
-                clip: true
+            SettingsRow {
+                rootObj: generalTabRoot.rootObj
+                icon: "󰍎"
+                title: I18n.t("guide.general.location.title")
+                description: I18n.t("guide.general.location.desc")
+                searchKeywords: "location coordinates city latitude longitude gps"
+                showDivider: generalTabRoot.isLocEditOpen
+                dividerColor: Qt.alpha(ThemeBackend.surface1, 0.2)
+                innerSpacing: generalTabRoot.isLocEditOpen ? rootObj.s(12) : 0
+                Behavior on innerSpacing { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                animateHeight: true
+                animationDuration: 300
 
-                Behavior on implicitHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                LoaderIcon {
+                    id: detectLoader
+                    Layout.preferredWidth: rootObj.s(32)
+                    Layout.preferredHeight: rootObj.s(32)
+                    Layout.alignment: Qt.AlignVCenter
+                    running: Location.isDetecting
+                    visible: Location.isDetecting
+                    accentColor: ThemeBackend.mauve
+                }
 
-                ColumnLayout {
-                    id: locSectionCol
-                    anchors.left: parent.left
-                    anchors.leftMargin: rootObj.s(14)
-                    anchors.right: parent.right
-                    anchors.rightMargin: rootObj.s(14)
-                    anchors.top: parent.top
-                    anchors.topMargin: rootObj.s(12)
-                    spacing: 0
-
-                    RowLayout {
-                        id: rowLocLayout
-                        Layout.fillWidth: true
-                        spacing: rootObj.s(12)
-
-                        IconButton {
-                            enabled: false
-                            size: rootObj.s(32)
-                            Layout.preferredWidth: rootObj.s(32)
-                            Layout.preferredHeight: rootObj.s(32)
-                            Layout.alignment: Qt.AlignVCenter
-                            cornerRadius: ThemeBackend.borderRadius
-                            buttonIcon: "󰍎"
-                            iconFontSize: rootObj.s(16)
-                            accentColor: ThemeBackend.surface0
-                            textColor: "#ffffff"
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: rootObj.s(2)
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: I18n.t("guide.general.location.title")
-                                font.family: ThemeBackend.fontFamily
-                                font.pixelSize: rootObj.s(13)
-                                color: ThemeBackend.text
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: I18n.t("guide.general.location.desc")
-                                font.family: ThemeBackend.fontFamily
-                                font.pixelSize: rootObj.s(11)
-                                color: ThemeBackend.subtext0
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                            spacing: rootObj.s(8)
-
-                            LoaderIcon {
-                                id: detectLoader
-                                Layout.preferredWidth: rootObj.s(32)
-                                Layout.preferredHeight: rootObj.s(32)
-                                Layout.alignment: Qt.AlignVCenter
-                                running: Location.isDetecting
-                                visible: Location.isDetecting
-                                accentColor: ThemeBackend.mauve
-                            }
-
-                            ClickButton {
-                                implicitHeight: rootObj.s(32)
-                                buttonText: "Auto-detect"
-                                buttonIcon: "󰢹"
-                                accentColor: ThemeBackend.surface0
-                                textColor: ThemeBackend.text
-                                cornerRadius: ThemeBackend.borderRadius
-                                horizontalPadding: rootObj.s(12)
-                                iconFontSize: rootObj.s(15)
-                                textFontSize: rootObj.s(12)
-                                onTriggered: {
-                                    generalTabRoot.isLocEditOpen = false;
-                                    Location.detectAuto();
-                                }
-                            }
-
-                            IconButton {
-                                Layout.preferredWidth: rootObj.s(32)
-                                Layout.preferredHeight: rootObj.s(32)
-                                cornerRadius: ThemeBackend.borderRadius
-                                buttonIcon: "󰏫"
-                                iconFontSize: rootObj.s(16)
-                                accentColor: generalTabRoot.isLocEditOpen ? ThemeBackend.surface1 : ThemeBackend.surface0
-                                textColor: generalTabRoot.isLocEditOpen ? ThemeBackend.mauve : ThemeBackend.text
-                                onClicked: generalTabRoot.isLocEditOpen = !generalTabRoot.isLocEditOpen
-                            }
-
-                            ClickButton {
-                                implicitHeight: rootObj.s(32)
-                                buttonText: Location.city
-                                buttonIcon: "󰍎"
-                                accentColor: ThemeBackend.surface0
-                                textColor: ThemeBackend.text
-                                cornerRadius: ThemeBackend.borderRadius
-                                horizontalPadding: rootObj.s(12)
-                                iconFontSize: rootObj.s(15)
-                                textFontSize: rootObj.s(12)
-                                onTriggered: locationPopup.open()
-                            }
-                        }
-                    }
-
-                    Item {
-                        id: locEditSection
-                        Layout.fillWidth: true
-                        implicitHeight: generalTabRoot.isLocEditOpen ? locEditCol.implicitHeight : 0
-                        opacity: generalTabRoot.isLocEditOpen ? 1.0 : 0.0
-                        visible: implicitHeight > 0 || opacity > 0
-                        clip: true
-
-                        Behavior on implicitHeight { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-                        Behavior on opacity { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
-
-                        ColumnLayout {
-                            id: locEditCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            spacing: 0
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                height: 1
-                                color: Qt.alpha(ThemeBackend.surface1, 0.2)
-                                Layout.topMargin: rootObj.s(10)
-                                Layout.bottomMargin: rootObj.s(10)
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: rootObj.s(12)
-
-                                Input {
-                                    id: latInput
-                                    Layout.fillWidth: true
-                                    placeholderText: "Latitude"
-                                    text: Location.latitude !== 0.0 ? Location.latitude.toString() : (Location.locationData.latitude !== undefined ? Location.locationData.latitude.toString() : "")
-                                    baseColor: ThemeBackend.surface0
-                                    accentColor: ThemeBackend.mauve
-                                    textColor: ThemeBackend.text
-                                    subTextColor: ThemeBackend.subtext0
-                                    borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
-                                    cornerRadius: ThemeBackend.borderRadius
-                                    horizontalPadding: rootObj.s(12)
-                                    verticalPadding: rootObj.s(6)
-                                    fontPixelSize: rootObj.s(12)
-                                }
-
-                                Input {
-                                    id: lonInput
-                                    Layout.fillWidth: true
-                                    placeholderText: "Longitude"
-                                    text: Location.longitude !== 0.0 ? Location.longitude.toString() : (Location.locationData.longitude !== undefined ? Location.locationData.longitude.toString() : "")
-                                    baseColor: ThemeBackend.surface0
-                                    accentColor: ThemeBackend.mauve
-                                    textColor: ThemeBackend.text
-                                    subTextColor: ThemeBackend.subtext0
-                                    borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
-                                    cornerRadius: ThemeBackend.borderRadius
-                                    horizontalPadding: rootObj.s(12)
-                                    verticalPadding: rootObj.s(6)
-                                    fontPixelSize: rootObj.s(12)
-                                }
-
-                                ClickButton {
-                                    Layout.preferredHeight: rootObj.s(32)
-                                    buttonText: "Apply"
-                                    accentColor: ThemeBackend.mauve
-                                    textColor: ThemeBackend.crust
-                                    cornerRadius: ThemeBackend.borderRadius
-                                    horizontalPadding: rootObj.s(16)
-                                    textFontSize: rootObj.s(12)
-                                    onTriggered: {
-                                        Location.setManual(latInput.text, lonInput.text);
-                                    }
-                                }
-                            }
-                        }
+                ClickButton {
+                    implicitHeight: rootObj.s(32)
+                    buttonText: "Auto-detect"
+                    buttonIcon: "󰢹"
+                    accentColor: ThemeBackend.surface0
+                    textColor: ThemeBackend.text
+                    cornerRadius: ThemeBackend.borderRadius
+                    horizontalPadding: rootObj.s(12)
+                    iconFontSize: rootObj.s(15)
+                    textFontSize: rootObj.s(12)
+                    onTriggered: {
+                        generalTabRoot.isLocEditOpen = false;
+                        Location.detectAuto();
                     }
                 }
+
+                IconButton {
+                    Layout.preferredWidth: rootObj.s(32)
+                    Layout.preferredHeight: rootObj.s(32)
+                    cornerRadius: ThemeBackend.borderRadius
+                    buttonIcon: "󰏫"
+                    iconFontSize: rootObj.s(16)
+                    accentColor: generalTabRoot.isLocEditOpen ? ThemeBackend.surface1 : ThemeBackend.surface0
+                    textColor: generalTabRoot.isLocEditOpen ? ThemeBackend.mauve : ThemeBackend.text
+                    onClicked: generalTabRoot.isLocEditOpen = !generalTabRoot.isLocEditOpen
+                }
+
+                ClickButton {
+                    implicitHeight: rootObj.s(32)
+                    buttonText: Location.city
+                    buttonIcon: "󰍎"
+                    accentColor: ThemeBackend.surface0
+                    textColor: ThemeBackend.text
+                    cornerRadius: ThemeBackend.borderRadius
+                    horizontalPadding: rootObj.s(12)
+                    iconFontSize: rootObj.s(15)
+                    textFontSize: rootObj.s(12)
+                    onTriggered: locationPopup.open()
+                }
+
+                bottomContent: [
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: rootObj.s(12)
+                        visible: generalTabRoot.isLocEditOpen || opacity > 0.01
+                        opacity: generalTabRoot.isLocEditOpen ? 1.0 : 0.0
+                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+                        Input {
+                            id: latInput
+                            Layout.fillWidth: true
+                            placeholderText: "Latitude"
+                            text: Location.latitude !== 0.0 ? Location.latitude.toString() : (Location.locationData.latitude !== undefined ? Location.locationData.latitude.toString() : "")
+                            baseColor: ThemeBackend.surface0
+                            accentColor: ThemeBackend.mauve
+                            textColor: ThemeBackend.text
+                            subTextColor: ThemeBackend.subtext0
+                            borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                            cornerRadius: ThemeBackend.borderRadius
+                            horizontalPadding: rootObj.s(12)
+                            verticalPadding: rootObj.s(6)
+                            fontPixelSize: rootObj.s(12)
+                        }
+
+                        Input {
+                            id: lonInput
+                            Layout.fillWidth: true
+                            placeholderText: "Longitude"
+                            text: Location.longitude !== 0.0 ? Location.longitude.toString() : (Location.locationData.longitude !== undefined ? Location.locationData.longitude.toString() : "")
+                            baseColor: ThemeBackend.surface0
+                            accentColor: ThemeBackend.mauve
+                            textColor: ThemeBackend.text
+                            subTextColor: ThemeBackend.subtext0
+                            borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                            cornerRadius: ThemeBackend.borderRadius
+                            horizontalPadding: rootObj.s(12)
+                            verticalPadding: rootObj.s(6)
+                            fontPixelSize: rootObj.s(12)
+                        }
+
+                        ClickButton {
+                            Layout.preferredHeight: rootObj.s(32)
+                            buttonText: "Apply"
+                            accentColor: ThemeBackend.mauve
+                            textColor: ThemeBackend.crust
+                            cornerRadius: ThemeBackend.borderRadius
+                            horizontalPadding: rootObj.s(16)
+                            textFontSize: rootObj.s(12)
+                            onTriggered: {
+                                Location.setManual(latInput.text, lonInput.text);
+                            }
+                        }
+                    }
+                ]
             }
 
             SettingsRow {

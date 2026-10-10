@@ -15,8 +15,8 @@ IrisWidgetFace {
     readonly property bool adjacent: root.widget.showAdjacentDays
     readonly property var upcoming: IrisFaceData.upcomingEvents(root.today, 7)
     readonly property var nextEvent: root.upcoming[0] ?? null
-    readonly property string weekday: IrisFaceData.capitalized(Qt.locale().toString(root.today, "dddd"))
-    readonly property string monthName: IrisFaceData.capitalized(Qt.locale().standaloneMonthName(root.viewing.getMonth()))
+    readonly property string weekday: IrisFaceData.capitalized(Translation.locale.toString(root.today, "dddd"))
+    readonly property string monthName: IrisFaceData.capitalized(Translation.locale.standaloneMonthName(root.viewing.getMonth()))
 
     component MonthGrid: ColumnLayout {
         id: grid
@@ -59,7 +59,7 @@ IrisWidgetFace {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
                     horizontalAlignment: Text.AlignHCenter
-                    text: Qt.locale().dayName((root.widget.weekStart + index) % 7, Locale.NarrowFormat).toUpperCase()
+                    text: Translation.locale.dayName((root.widget.weekStart + index) % 7, Locale.NarrowFormat).toUpperCase()
                     color: root.inkTertiary
                     size: grid.cellText - 1
                     weight: Font.DemiBold

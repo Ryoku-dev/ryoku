@@ -1,0 +1,24 @@
+#!/bin/sh
+# Translation of ryoku/shell/systemd/user/ryoku-ai-usage.service plus its
+# .timer. runit has no timer units, so the schedule becomes this loop:
+# OnBootSec=45sec is the first delay, OnUnitActiveSec=5min the period, and
+# Persistent=true (run on schedule even after missed windows) is natural for
+# a loop that only exists while the session does. Both delays are env
+# overridable so the runit test can shrink them.
+exec 2>&1
+
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+
+_initial=${RYOKU_AI_USAGE_INITIAL:-45}
+_period=${RYOKU_AI_USAGE_PERIOD:-300}
+
+sleep "$_initial"
+while :; do
+	# every collector is '-' prefixed in the unit: a missing tool (no codex,
+	# no opencode db, no claude creds) is the normal case and must never
+	# fail the service.
+	"$BIN/claude-usage" >/dev/null 2>&1 || true
+	"$BIN/codex-usage" >/dev/null 2>&1 || true
+	"$BIN/opencode-usage" >/dev/null 2>&1 || true
+	sleep "$_period"
+done

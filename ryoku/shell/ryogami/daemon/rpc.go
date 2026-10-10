@@ -2,7 +2,7 @@ package main
 
 import "fmt"
 
-const daemonVersion = "0.2.0"
+const daemonVersion = "0.3.0"
 
 // dispatchRequest routes one JSON-RPC request. The method set and response
 // shapes are the wire contract the picker parses.
@@ -50,6 +50,15 @@ func (d *daemon) dispatchRequest(req *request) response {
 		return ok(req.ID, map[string]interface{}{"count": len(rows), "wallpapers": rows})
 
 	case "wall.apply":
+		if strParam(p, "target", "") == "workspace" || p["workspace"] != nil {
+			wall, err := d.assignWorkspace(p)
+			if err != nil {
+				return errResp(req.ID, 4, err.Error())
+			}
+			return ok(req.ID, map[string]interface{}{"applied": workspaceTargetLabel(workspaceTarget{
+				Provider: wall.Provider, ID: wall.ID, Name: wall.Name, Output: wall.Output,
+			})})
+		}
 		// A caller that only has a file (a fresh download) leaves the type to its extension.
 		path := strParam(p, "path", "")
 		wpType := strParam(p, "type", "")
@@ -69,6 +78,23 @@ func (d *daemon) dispatchRequest(req *request) response {
 			return errResp(req.ID, 1, fmt.Sprintf("unsupported type: %s", wpType))
 		}
 		return ok(req.ID, map[string]interface{}{"applied": d.currentName()})
+
+	case "wall.assign":
+		wall, err := d.assignWorkspace(p)
+		if err != nil {
+			return errResp(req.ID, 4, err.Error())
+		}
+		return ok(req.ID, map[string]interface{}{"assignment": wall})
+
+	case "wall.unassign":
+		removed, err := d.unassignWorkspace(p)
+		if err != nil {
+			return errResp(req.ID, 4, err.Error())
+		}
+		return ok(req.ID, map[string]interface{}{"removed": removed})
+
+	case "wall.workspaces":
+		return ok(req.ID, d.workspaces.snapshot())
 
 	case "effects.list":
 		return ok(req.ID, map[string]interface{}{"effects": EffectsList()})

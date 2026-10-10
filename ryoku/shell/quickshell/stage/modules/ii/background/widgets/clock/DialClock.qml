@@ -25,9 +25,11 @@ Item {
     readonly property int clockMinute: DateTime.clock.minutes
     property int clockSecond: DateTime.clock.seconds
 
+    // The shared DateTime clock advances on minute boundaries. A per-face
+    // second tick is needed only when this face actually draws a second hand.
     Timer {
         interval: 1000
-        running: true
+        running: root.visible && root.showSecondHand
         repeat: true
         triggeredOnStart: true
         onTriggered: root.clockSecond = new Date().getSeconds()

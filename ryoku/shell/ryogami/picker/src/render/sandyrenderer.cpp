@@ -1,4 +1,5 @@
 #include "sandyrenderer.h"
+#include "gpupoison.h"
 
 #include <QColor>
 #include <QFile>
@@ -35,8 +36,9 @@ struct SandyUniform {
     float layerIdx[4];
     float layerTier[4];
     float uvRect[4][4];
+    float prevUv[4];
 };
-static_assert(sizeof(SandyUniform) == 304);
+static_assert(sizeof(SandyUniform) == 320);
 
 QRhiGraphicsPipeline::TargetBlend premultipliedBlend()
 {
@@ -58,10 +60,11 @@ SandyRenderer::~SandyRenderer()
     releaseResources();
 }
 
-void SandyRenderer::setPreviewTextures(QRhiTexture *incoming, QRhiTexture *outgoing)
+void SandyRenderer::setPreviewTextures(QRhiTexture *incoming, QRhiTexture *outgoing, const QRectF &incomingUv)
 {
     m_prevIncoming = incoming;
     m_prevOutgoing = outgoing;
+    m_prevIncomingUv = incomingUv;
 }
 
 SandyRenderer::Resolved SandyRenderer::resolve(TextureTier &near, TextureTier &far, const QString &key) const
@@ -69,10 +72,10 @@ SandyRenderer::Resolved SandyRenderer::resolve(TextureTier &near, TextureTier &f
     Resolved r;
     if (key.isEmpty())
         return r;
-    const TextureTier::Slot *slot = near.find(key);
+    const TextureTier::Slot *slot = near.texture() ? near.find(key) : nullptr;
     float tier = 0.0f;
     if (!slot) {
-        slot = far.find(key);
+        slot = far.texture() ? far.find(key) : nullptr;
         tier = 1.0f;
     }
     if (!slot)
@@ -87,24 +90,33 @@ SandyRenderer::Resolved SandyRenderer::resolve(TextureTier &near, TextureTier &f
     return r;
 }
 
-void SandyRenderer::ensureStatics(QRhi *rhi, QRhiResourceUpdateBatch *batch)
+bool SandyRenderer::ensureStatics(QRhi *rhi, QRhiResourceUpdateBatch *batch)
 {
     if (!m_uniform) {
         m_uniform.reset(rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(SandyUniform)));
-        m_uniform->create();
+        if (!m_uniform->create())
+            m_uniform.reset();
+        else
+            GpuPoison::buffer(batch, m_uniform.get());
     }
     if (!m_sampler) {
         m_sampler.reset(rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
                                         QRhiSampler::ClampToEdge, QRhiSampler::ClampToEdge));
-        m_sampler->create();
+        if (!m_sampler->create())
+            m_sampler.reset();
     }
     if (!m_dummy) {
         m_dummy.reset(rhi->newTexture(QRhiTexture::RGBA8, QSize(1, 1)));
-        m_dummy->create();
-        QImage blank(1, 1, QImage::Format_RGBA8888);
-        blank.fill(Qt::transparent);
-        batch->uploadTexture(m_dummy.get(), blank);
+        if (!m_dummy->create()) {
+            m_dummy.reset();
+        } else {
+            GpuPoison::texture(batch, m_dummy.get(), QSize(1, 1));
+            QImage blank(1, 1, QImage::Format_RGBA8888);
+            blank.fill(Qt::transparent);
+            batch->uploadTexture(m_dummy.get(), blank);
+        }
     }
+    return m_uniform && m_sampler && m_dummy;
 }
 
 void SandyRenderer::ensureFieldBindings(QRhi *rhi, QRhiTexture *nearTex, QRhiTexture *farTex,
@@ -122,7 +134,8 @@ void SandyRenderer::ensureFieldBindings(QRhi *rhi, QRhiTexture *nearTex, QRhiTex
         QRhiShaderResourceBinding::sampledTexture(3, stages, prevTex, m_sampler.get()),
         QRhiShaderResourceBinding::sampledTexture(4, stages, prevOutTex, m_sampler.get()),
     });
-    m_fieldBindings->create();
+    if (!m_fieldBindings->create())
+        m_fieldBindings.reset();
     m_boundNear = nearTex;
     m_boundFar = farTex;
     m_boundPrev = prevTex;
@@ -146,7 +159,8 @@ void SandyRenderer::buildFieldPipeline(QRhi *rhi, QRhiRenderPassDescriptor *rp, 
     out->setShaderResourceBindings(m_fieldBindings.get());
     out->setRenderPassDescriptor(rp);
     out->setSampleCount(samples);
-    out->create();
+    if (!out->create())
+        out.reset();
 }
 
 void SandyRenderer::ensureInlinePipeline(QRhi *rhi, QRhiRenderPassDescriptor *rp, int samples)
@@ -167,7 +181,8 @@ void SandyRenderer::ensureBlitBindings(QRhi *rhi, QRhiTexture *tex)
         QRhiShaderResourceBinding::sampledTexture(0, QRhiShaderResourceBinding::FragmentStage, tex,
                                                   m_sampler.get()),
     });
-    m_blitBindings->create();
+    if (!m_blitBindings->create())
+        m_blitBindings.reset();
     m_blitBound = tex;
     m_blitPipeline.reset();
 }
@@ -188,24 +203,33 @@ void SandyRenderer::ensureBlitPipeline(QRhi *rhi, QRhiRenderPassDescriptor *rp, 
     m_blitPipeline->setShaderResourceBindings(m_blitBindings.get());
     m_blitPipeline->setRenderPassDescriptor(m_blitRpOwned.get());
     m_blitPipeline->setSampleCount(samples);
-    m_blitPipeline->create();
+    if (!m_blitPipeline->create())
+        m_blitPipeline.reset();
     m_blitSamples = samples;
 }
 
-void SandyRenderer::ensureOffscreen(QRhi *rhi, QSize size)
+bool SandyRenderer::ensureOffscreen(QRhi *rhi, QRhiResourceUpdateBatch *batch, QSize size)
 {
     if (m_offscreen && m_offSize == size)
-        return;
+        return true;
     releaseOffscreen();
     m_offSize = size;
     m_offscreen.reset(rhi->newTexture(QRhiTexture::RGBA8, size, 1, QRhiTexture::RenderTarget));
-    m_offscreen->create();
+    if (!m_offscreen->create()) {
+        releaseOffscreen();
+        return false;
+    }
     QRhiColorAttachment attachment(m_offscreen.get());
     QRhiTextureRenderTargetDescription desc(attachment);
     m_offRT.reset(rhi->newTextureRenderTarget(desc));
     m_offRp.reset(m_offRT->newCompatibleRenderPassDescriptor());
     m_offRT->setRenderPassDescriptor(m_offRp.get());
-    m_offRT->create();
+    if (!m_offRp || !m_offRT->create()) {
+        releaseOffscreen();
+        return false;
+    }
+    GpuPoison::texture(batch, m_offscreen.get(), size);
+    return true;
 }
 
 void SandyRenderer::releaseOffscreen()
@@ -261,7 +285,11 @@ void SandyRenderer::prepare(QRhi *rhi, QRhiCommandBuffer *cb, QRhiRenderTarget *
     m_halfDraw = pass.swirl >= 0.55f || pass.swapStyle >= 16.5f;
 
     QRhiResourceUpdateBatch *batch = rhi->nextResourceUpdateBatch();
-    ensureStatics(rhi, batch);
+    if (!ensureStatics(rhi, batch)) {
+        cb->resourceUpdate(batch);
+        m_hasPass = false;
+        return;
+    }
 
     SandyUniform u{};
     QMatrix4x4 useMvp;
@@ -319,28 +347,46 @@ void SandyRenderer::prepare(QRhi *rhi, QRhiCommandBuffer *cb, QRhiRenderTarget *
     std::memcpy(u.uvRect[1], rB.uv, sizeof(rB.uv));
     std::memcpy(u.uvRect[2], rB2.uv, sizeof(rB2.uv));
     std::memcpy(u.uvRect[3], rB3.uv, sizeof(rB3.uv));
+    u.prevUv[0] = float(m_prevIncomingUv.x());
+    u.prevUv[1] = float(m_prevIncomingUv.y());
+    u.prevUv[2] = float(m_prevIncomingUv.width());
+    u.prevUv[3] = float(m_prevIncomingUv.height());
     batch->updateDynamicBuffer(m_uniform.get(), 0, sizeof(u), &u);
 
     QRhiTexture *prevTex = m_prevIncoming ? m_prevIncoming : m_dummy.get();
     QRhiTexture *prevOutTex = m_prevOutgoing ? m_prevOutgoing : m_dummy.get();
     ensureFieldBindings(rhi, near.texture(), far.texture(), prevTex, prevOutTex);
+    if (!m_fieldBindings) {
+        cb->resourceUpdate(batch);
+        m_hasPass = false;
+        return;
+    }
 
     if (m_scaled) {
         const QSize mainPx = mainTarget->pixelSize();
         const int ow = std::max(1, int(std::ceil(mainPx.width() * pass.resScale)));
         const int oh = std::max(1, int(std::ceil(mainPx.height() * pass.resScale)));
-        ensureOffscreen(rhi, QSize(ow, oh));
+        if (!ensureOffscreen(rhi, batch, QSize(ow, oh))) {
+            cb->resourceUpdate(batch);
+            m_hasPass = false;
+            return;
+        }
         if (!m_offscreenPipeline)
             buildFieldPipeline(rhi, m_offRp.get(), 1, m_offscreenPipeline);
         ensureBlitBindings(rhi, m_offscreen.get());
-        ensureBlitPipeline(rhi, mainTarget->renderPassDescriptor(), mainTarget->sampleCount());
+        if (m_blitBindings)
+            ensureBlitPipeline(rhi, mainTarget->renderPassDescriptor(), mainTarget->sampleCount());
 
         cb->beginPass(m_offRT.get(), QColor(0, 0, 0, 0), QRhiDepthStencilClearValue(1.0f, 0), batch);
-        cb->setGraphicsPipeline(m_offscreenPipeline.get());
-        cb->setViewport(QRhiViewport(0, 0, ow, oh));
-        cb->setShaderResources(m_fieldBindings.get());
-        drawField(cb);
+        if (m_offscreenPipeline && m_fieldBindings) {
+            cb->setGraphicsPipeline(m_offscreenPipeline.get());
+            cb->setViewport(QRhiViewport(0, 0, ow, oh));
+            cb->setShaderResources(m_fieldBindings.get());
+            drawField(cb);
+        }
         cb->endPass();
+        if (!m_offscreenPipeline || !m_fieldBindings || !m_blitPipeline || !m_blitBindings)
+            m_hasPass = false;
     } else {
         releaseOffscreen();
         ensureInlinePipeline(rhi, mainTarget->renderPassDescriptor(), mainTarget->sampleCount());

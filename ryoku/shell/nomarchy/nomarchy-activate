@@ -1,0 +1,83 @@
+#!/bin/bash
+set -euo pipefail
+
+source_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+state_home=${XDG_STATE_HOME:-$HOME/.local/state}
+config_home=${XDG_CONFIG_HOME:-$HOME/.config}
+root=${OMARCHY_PATH:-$data_home/ryoku/nomarchy}
+local_bin=${XDG_BIN_HOME:-$HOME/.local/bin}
+shell_root=$config_home/quickshell/shell
+check=0
+[[ ${1:-} == --check ]] && check=1
+
+link_is() {
+  [[ -L $1 && $(readlink -- "$1") == "$2" ]]
+}
+
+need_link() {
+  local target=$1 link=$2
+  if link_is "$link" "$target"; then
+    return 0
+  fi
+  (( check )) && return 1
+  if [[ -L $link ]]; then
+    rm -f -- "$link"
+  elif [[ -e $link ]]; then
+    printf 'nomarchy-activate: refusing to replace %s\n' "$link" >&2
+    return 1
+  fi
+  ln -s -- "$target" "$link"
+}
+
+if (( ! check )); then
+  mkdir -p "$root" "$root/shell" "$local_bin" "$config_home/omarchy/plugins"
+fi
+
+for name in bin default config themes; do
+  need_link "$source_root/$name" "$root/$name" || exit 1
+done
+
+need_link "$shell_root/modules/bar/barstyles/nomarchy/Host.qml" "$root/shell/shell.qml" || exit 1
+need_link "$shell_root/modules/bar/barstyles/nomarchy/services" "$root/shell/services" || exit 1
+need_link "$shell_root/modules/bar/barstyles/nomarchy/plugins" "$root/shell/plugins" || exit 1
+need_link "$shell_root/Commons" "$root/shell/Commons" || exit 1
+need_link "$shell_root/Ui" "$root/shell/Ui" || exit 1
+
+if (( check )); then
+  [[ -d $config_home/omarchy/plugins && -f $config_home/omarchy/shell.json ]] || exit 1
+  [[ -f $state_home/omarchy/current/theme/colors.toml && -f $state_home/omarchy/current/theme/shell.toml ]] || exit 1
+else
+  if [[ ! -f $config_home/omarchy/shell.json ]]; then
+    install -m0644 "$source_root/config/omarchy/shell.json" "$config_home/omarchy/shell.json"
+  fi
+  if [[ ! -f $state_home/omarchy/current/theme/colors.toml || ! -f $state_home/omarchy/current/theme/shell.toml ]]; then
+    theme=$(cat "$config_home/omarchy/current-theme" 2>/dev/null || printf 'ryoku\n')
+    OMARCHY_PATH=$root "$root/bin/omarchy-theme-set" "$theme"
+  fi
+fi
+
+conflict=0
+for helper in "$source_root/bin"/omarchy "$source_root/bin"/omarchy-shell "$source_root/bin"/omarchy-*; do
+  [[ -e $helper || -L $helper ]] || continue
+  name=${helper##*/}
+  target=$root/bin/$name
+  link=$local_bin/$name
+  if link_is "$link" "$target"; then
+    continue
+  fi
+  if (( check )); then
+    exit 1
+  fi
+  if [[ -e $link || -L $link ]]; then
+    if [[ -L $link && $(readlink -- "$link") == "$root/bin/"* ]]; then
+      rm -f -- "$link"
+    else
+      printf 'nomarchy-activate: keeping non-Ryoku command %s\n' "$link" >&2
+      conflict=1
+      continue
+    fi
+  fi
+  ln -s -- "$target" "$link"
+done
+(( conflict == 0 ))

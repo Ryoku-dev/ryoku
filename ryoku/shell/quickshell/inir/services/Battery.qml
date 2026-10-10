@@ -16,13 +16,22 @@ Singleton {
         if (Quickshell.env("QS_DEBUG") === "1") console.log(...args);
     }
 
-    property bool available: UPower.displayDevice.isLaptopBattery
-    property var chargeState: UPower.displayDevice.state
+    // `inir battery simulate "14 charging"` stands in for UPower until `off` or a restart, so every family's battery
+    // surface can be seen on a machine without one. It never suspends the real machine.
+    property real simulatedPercentage: -1 // 0..1 while simulating
+    property string simulatedState: "discharging" // charging, discharging, full
+    readonly property bool simulating: simulatedPercentage >= 0
+
+    property bool available: simulating || UPower.displayDevice.isLaptopBattery
+    property var chargeState: !simulating ? UPower.displayDevice.state
+        : simulatedState === "charging" ? UPowerDeviceState.Charging
+        : simulatedState === "full" ? UPowerDeviceState.FullyCharged
+        : UPowerDeviceState.Discharging
     property bool isCharging: chargeState == UPowerDeviceState.Charging
     property bool isPluggedIn: isCharging || chargeState == UPowerDeviceState.PendingCharge
     // Discharging-based, not !isPluggedIn: FullyCharged on AC must not count as "on battery"
     readonly property bool onBattery: available && (chargeState == UPowerDeviceState.Discharging || chargeState == UPowerDeviceState.PendingDischarge)
-    property real percentage: UPower.displayDevice?.percentage ?? 1
+    property real percentage: simulating ? simulatedPercentage : (UPower.displayDevice?.percentage ?? 1)
     readonly property bool allowAutomaticSuspend: Config.options?.battery?.automaticSuspend ?? false
     readonly property bool soundEnabled: Config.options?.sounds?.battery ?? true
 
@@ -33,12 +42,40 @@ Singleton {
 
     property bool isLowAndNotCharging: isLow && !isCharging
     property bool isCriticalAndNotCharging: isCritical && !isCharging
-    property bool isSuspendingAndNotCharging: allowAutomaticSuspend && isSuspending && !isCharging
+    property bool isSuspendingAndNotCharging: !simulating && allowAutomaticSuspend && isSuspending && !isCharging
     property bool isFullAndCharging: isFull && isCharging
 
-    property real energyRate: UPower.displayDevice.changeRate
-    property real timeToEmpty: UPower.displayDevice.timeToEmpty
-    property real timeToFull: UPower.displayDevice.timeToFull
+    // A simulated pack: 12 W over five hours, refilled at 30 W in two.
+    property real energyRate: !simulating ? UPower.displayDevice.changeRate : isCharging ? 30 : onBattery ? 12 : 0
+    property real timeToEmpty: !simulating ? UPower.displayDevice.timeToEmpty : onBattery ? Math.round(percentage * 18000) : 0
+    property real timeToFull: !simulating ? UPower.displayDevice.timeToFull : isCharging ? Math.round((1 - percentage) * 7200) : 0
+
+    IpcHandler {
+        target: "battery"
+
+        function status(): string {
+            if (!root.available)
+                return "no battery"
+            const state = root.isCharging ? "charging" : root.onBattery ? "discharging" : "plugged in"
+            return `${Math.round(root.percentage * 100)}% ${state}${root.simulating ? " (simulated)" : ""}`
+        }
+
+        // "14", "14 charging", "full" or "off"; a level alone is discharging.
+        function simulate(spec: string): string {
+            const words = String(spec ?? "").trim().toLowerCase().split(/[\s:]+/).filter(w => w.length > 0)
+            if (words.length === 0 || words[0] === "off") {
+                root.simulatedPercentage = -1
+                return status()
+            }
+            const level = words.find(w => /^\d+(\.\d+)?%?$/.test(w))
+            const state = words.find(w => w === "charging" || w === "discharging" || w === "full") ?? "discharging"
+            // The level first: a notice raised by the state change reads the new level.
+            root.simulatedPercentage = state === "full" && level === undefined ? 1
+                : Math.max(0, Math.min(100, parseFloat(level ?? "50"))) / 100
+            root.simulatedState = state
+            return status()
+        }
+    }
 
     // ─── Charge limit ───
     readonly property bool chargeLimitEnabled: Config.options?.battery?.chargeLimit?.enable ?? false

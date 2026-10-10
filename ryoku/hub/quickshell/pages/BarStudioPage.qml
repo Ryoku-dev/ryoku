@@ -11,9 +11,9 @@ import Ryoku.FrameBars
 import "../barstudio/BarStudioModel.js" as Model
 
 // Bar Studio (DESKTOP). Choose which bar the desktop draws, and tune the
-// built-in styles. QS Bar is a folder style that keeps its own layout, widgets,
-// form and dock in QS Bar Settings (the bar logo opens it, or the OPEN QS BAR
-// SETTINGS card here); this page shows only a live summary of its order. Sumi is
+// built-in styles. QS Bar keeps its layout, widgets and form in QS Bar Settings
+// (the bar logo opens it, or the OPEN QS BAR SETTINGS card here); the universal
+// dock has one Stage Editor handoff regardless of bar style. Sumi is
 // edited in place: the frame's draw toggle and opacity, each rail's on/off and
 // thickness, and the widgets in its three zones (add via a per-zone drawer,
 // remove, reorder). Obi and Nacre carry their own small editors.
@@ -202,8 +202,8 @@ Item {
     }
 
     // ── QS Bar layout summary ─────────────────────────────────────────────────
-    // The QS Bar's layout, widgets, form and dock are arranged in QS Bar Settings
-    // now (the bar logo opens it, or `ryoku-shell bar settings`). This page keeps
+    // The QS Bar's layout, widgets and form are arranged in QS Bar Settings
+    // (the bar logo opens it, or `ryoku-shell bar settings`). This page keeps
     // only a read-only summary of the order, watched off shell.json so it tracks a
     // move made from the panel or the CLI without a Hub reload.
     property var qsbarLayout: ({})
@@ -237,6 +237,9 @@ Item {
     function openQsBarSettings() {
         Quickshell.execDetached(["ryoku-shell", "bar", "settings"]);
     }
+    function openDockSettings() {
+        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "desktop", "editSection", "dock", ""]);
+    }
 
     // The frame family opens its own settings overlay through the shell IPC.
     function openIrisSettings() {
@@ -256,6 +259,16 @@ Item {
         Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "main",
             "handleCommand", "toggle", "guide", ""]);
     }
+    function openNomarchyPlugins() {
+        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "nomarchy",
+            "summon", "omarchy.menu", "{\"menu\":\"setup.plugins\"}"]);
+    }
+
+    function openNomarchyThemes() {
+        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "nomarchy",
+            "summon", "omarchy.image-picker", "{\"source\":\"themes\"}"]);
+    }
+
 
     CatalogLabels { id: labels }
 
@@ -498,7 +511,38 @@ Item {
                 }
             }
 
-            // ── QS BAR: its layout, widgets, form and dock live in QS Bar Settings
+            SettingCard {
+                width: col.colWidth
+                title: I18n.tr("DOCK")
+                kana: "台"
+
+                Item {
+                    width: parent.width
+                    height: dockHandoff.height + Tokens.s3 + Tokens.s4
+                    Column {
+                        id: dockHandoff
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        anchors.leftMargin: Tokens.s4
+                        anchors.rightMargin: Tokens.s4
+                        anchors.topMargin: Tokens.s3
+                        spacing: Tokens.s3
+                        Text {
+                            width: parent.width
+                            text: I18n.tr("Every bar style shares one dock. Choose its design, behaviour and pinned apps in Stage Editor.")
+                            color: Tokens.inkMuted
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fBody
+                            wrapMode: Text.WordWrap
+                        }
+                        Btn {
+                            text: I18n.tr("OPEN DOCK SETTINGS")
+                            onAct: page.openDockSettings()
+                        }
+                    }
+                }
+            }
+
+            // ── QS BAR: its layout, widgets and form live in QS Bar Settings
             SettingCard {
                 id: qsbarSect
                 width: col.colWidth
@@ -516,7 +560,7 @@ Item {
                         spacing: Tokens.s3
                         Text {
                             width: parent.width
-                            text: I18n.tr("The QS Bar arranges its own layout, widgets, form and dock in QS Bar Settings. The bar logo opens it, or the button below.")
+                            text: I18n.tr("The QS Bar arranges its own layout, widgets and form in QS Bar Settings. The bar logo opens it, or the button below.")
                             color: Tokens.inkMuted
                             font.family: Tokens.ui
                             font.pixelSize: Tokens.fBody
@@ -558,7 +602,7 @@ Item {
                         spacing: Tokens.s3
                         Text {
                             width: parent.width
-                            text: I18n.tr("Shima arranges its own island, bubbles, dock and look in its settings overlay: hover the island and press the gear, or use the button below.")
+                            text: I18n.tr("Shima arranges its island, bubbles and look in its settings overlay. Dock settings stay in Stage Editor.")
                             color: Tokens.inkMuted
                             font.family: Tokens.ui
                             font.pixelSize: Tokens.fBody
@@ -610,7 +654,7 @@ Item {
                         spacing: Tokens.s3
                         Text {
                             width: parent.width
-                            text: I18n.tr("Python keeps its bar, dock, widgets and look in its own settings guide: click any bar pill, or use the button below. Ryoku's launcher, wallpaper picker and clipboard stay on their usual keys.")
+                            text: I18n.tr("Python keeps its bar, widgets and look in its own settings guide. Dock settings stay in Stage Editor; Ryoku's launcher, wallpaper picker and clipboard stay on their usual keys.")
                             color: Tokens.inkMuted
                             font.family: Tokens.ui
                             font.pixelSize: Tokens.fBody
@@ -624,12 +668,50 @@ Item {
                 }
             }
 
+            SettingCard {
+                id: nomarchySect
+                width: col.colWidth
+                visible: page.activeStyle === "nomarchy"
+                title: I18n.tr("NOMARCHY")
+                kana: "野"
+
+                Item {
+                    width: parent.width
+                    height: nomarchyBody.height + Tokens.s3 + Tokens.s4
+                    Column {
+                        id: nomarchyBody
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
+                        spacing: Tokens.s3
+                        Text {
+                            width: parent.width
+                            text: I18n.tr("Nomarchy keeps Omarchy's configurable bar, panels and plugin menus while routing desktop actions through Ryoku.")
+                            color: Tokens.inkMuted
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fBody
+                            wrapMode: Text.WordWrap
+                        }
+                        Row {
+                            spacing: Tokens.s2
+                            Btn {
+                                text: I18n.tr("CHOOSE THEME")
+                                onAct: page.openNomarchyThemes()
+                            }
+                            Btn {
+                                text: I18n.tr("OPEN PLUGINS")
+                                onAct: page.openNomarchyPlugins()
+                            }
+                        }
+                    }
+                }
+            }
+
             // A folder style owns its own frame, rails and widgets inside its
             // barstyles/<id>/ folder, so the Sumi editors below stand down.
             SettingCard {
                 id: folderNote
                 width: col.colWidth
-                visible: !page.sumiActive && page.activeStyle !== "qsbar" && page.activeStyle !== "iris" && page.activeStyle !== "python"
+                visible: !page.sumiActive && ["qsbar", "iris", "python", "nomarchy"].indexOf(page.activeStyle) === -1
                 title: I18n.tr("LAYOUT")
 
                 Text {

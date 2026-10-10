@@ -382,11 +382,17 @@ EOF
   install -Dm644 "$_repo/ryoku/shell/gtk-4.0/settings.ini" "$cfg/gtk-4.0/settings.ini"
   install -Dm644 "$_repo/ryoku/apps/btop/btop.conf"       "$cfg/btop/btop.conf"
   install -Dm644 "$_repo/ryoku/apps/starship/starship.toml" "$cfg/starship.toml"
+  install -d "$cfg/starship/layouts"
+  cp -a "$_repo/ryoku/apps/starship/layouts/." "$cfg/starship/layouts/"
+  install -Dm644 "$_repo/ryoku/apps/starship/ryoku-colors.toml" \
+    "$cfg/starship/ryoku-colors.toml"
   # session environment: Hyprland sets its own from env.lua, which never reaches
   # niri; the user manager reads this at login, so both compositors get it.
   install -Dm644 "$_repo/ryoku/shell/environment.d/ryoku-session.conf" \
     "$cfg/environment.d/ryoku-session.conf"
   install -Dm644 "$_repo/ryoku/apps/fastfetch/config.jsonc" "$cfg/fastfetch/config.jsonc"
+  install -Dm644 "$_repo/ryoku/apps/fastfetch/ryoku-colors.json" \
+    "$cfg/fastfetch/ryoku-colors.json"
   # the fastfetch logo the config above draws. ships beside config.jsonc so
   # `ryoku materialize` lays both together on every update; seeding it only as a
   # brand asset (installer-time) left updated machines pointing at a file they

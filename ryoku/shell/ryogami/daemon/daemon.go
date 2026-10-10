@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 )
 
@@ -37,9 +36,14 @@ type daemon struct {
 	upscaler  *Upscaler
 	playlists *playlistManager
 
-	// paintSeq orders frame publishes: the video player's delayed yield and
-	// death fallback drop their repaint when a newer apply has since painted.
-	paintSeq atomic.Int64
+	workspaces *workspaceManager
+
+	// Paint generations are per output, so a delayed video READY on one monitor
+	// cannot cancel another monitor's independent wallpaper switch.
+	paintMu    sync.Mutex
+	paintNext  int64
+	paintSeq   map[string]int64
+	paintShows map[string]string // output ("" = broadcast default) -> beginPaint's shows
 
 	// previous transition preset index (-1 = none); guards the no-repeat pick.
 	lastTransition int
@@ -125,6 +129,7 @@ func runDaemon() error {
 		lastTransition: -1,
 		video:          newVideoPlayer(),
 	}
+	d.workspaces = newWorkspaceManager(d)
 	d.ui = newPickerProcess(d.pickerGpuEnv)
 	d.tasks = newTaskRegistry(d)
 	d.playlists = newPlaylistManager(cfg.cacheDir(), d)
@@ -191,6 +196,7 @@ func runDaemon() error {
 				// than leave the desktop on the empty grey frame until a manual set.
 				go d.retryRestore()
 			}
+			d.restoreActiveWorkspaces()
 		}
 		d.rescan(false)
 		d.playlists.resumeAll()

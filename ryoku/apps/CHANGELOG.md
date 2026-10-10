@@ -3,6 +3,50 @@
 ## Unreleased
 
 ### Added
+- `ryostore/`: **Ryostore looks like the Hub and shows products properly.** The
+  store moves to the Hub's rail, page head and action bar, with Discover,
+  categories, search and Library in the rail. An opened product leads with its
+  media: screenshots are decoded at the size they are shown, never stretched
+  or cropped, GIFs and animated WebP play only while visible and focused, video
+  previews play muted, and the lightbox switches between Fit and 100% with
+  panning. Products with a newer version show UPDATE, and a preview that is
+  missing or fails falls back to the product's initials instead of an endless
+  placeholder (`ryostore/quickshell/ProductDetail.qml`,
+  `ryostore/quickshell/ProductMedia.qml`).
+- `ryostore/`: **Ryostore moves.** Cards lift and their covers ease in on
+  hover and press in on click, the rail's selection plate slides between
+  categories, results settle in with a short stagger when you change category,
+  search, provider or sort, the hero crossfades, an opened product settles in,
+  and Install shows its progress and a brief installed check. Everything rests
+  still and sharp, and follows the reduced-motion setting
+  (`ryostore/quickshell/ProductCard.qml`, `ryostore/quickshell/InstallAction.qml`).
+- `ryostore/`: **The Omarchy plugin market, inside Ryostore.** While Nomarchy is
+  the bar style, an Omarchy plugins category lists the plugins.omarchy.org
+  catalogue (cached, with Popular, New and Verified orders and search), shows
+  each plugin's preview, licence, repository and verification state with an
+  unsandboxed-code warning, and installs, updates, enables or removes through
+  the `omarchy` CLI. A plugin the running compositor cannot host is refused
+  with the reason (`ryostore/backend/provider_omarchy_plugins.go`).
+- `ryovm/`: **Ryoport reads as a fleet dashboard.** The Dashboard puts local
+  VMs and remotes in one resource list with a fleet summary strip, and the
+  selected resource gets CPU, memory, disk and network graphs beside its facts.
+  Activity is now scoped to that resource, explains what it records, and shows
+  observed machine state and remote health transitions with warning reasons
+  alongside connects, tunnels, snapshots and other actions. VM and remote
+  details are tabbed (Overview, Access, Networking, Snapshots or Workloads,
+  Settings, Activity), the empty Machines and Passthrough plates lead with
+  their setup action, and sampling runs only while a plate is on screen.
+  `ryovm-mon` reports disk, network and uptime, `ryossh` samples CPU and I/O,
+  and `ryovm lg stats` covers passthrough VMs
+  (`ryovm/quickshell/Dashboard.qml`, `ryovm/quickshell/Singletons/{Vm,Remotes}.qml`).
+- `starship/`, `fastfetch/`: **Prompt layouts, and colours that follow the
+  wallpaper.** Starship ships five layouts (Pill, Minimal, Two line, Powerline,
+  Lean), picked in Ryoku Hub > Keybinds with rendered previews, and either keeps
+  its fixed palette or follows the wallpaper through matugen. Fastfetch can
+  follow the wallpaper too: matugen writes `fastfetch/ryoku-colors.json` and
+  `ryoku-fastfetch` merges it into a cached copy of your config, so Hub and
+  store edits to `config.jsonc` are never overwritten. Both choices survive
+  updates (`../hub/backend/starship.go`, `../hub/backend/fastfetch.go`).
 - `rashin-app/`: **The window opens on the Ryoku lane.** The first sheet is the
   machine agent; Chat and the new Wiki sheet sit beside it.
 - `rashin-app/`: **The window carries Rashin's own icon.** `logo.svg` links to
@@ -54,6 +98,12 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `ryovm/`: **Ryoport's OS logos stop going blank.** The catalogue prefetch and
+  the logos on screen could fetch the same OS at once into one temp file, and
+  both tinted it, so the cached SVG carried `fill` twice. That is not valid XML,
+  so the Android, Alpine and similar logos drew nothing for up to two weeks.
+  Each fetch now has its own temp file, the tint is added once, and a logo
+  already broken this way is fetched again (`bin/ryovm`).
 - `ryovm/`: **opening a remote in Ghostty no longer raises the terminal's own
   config error window, and the float rule matches again.** The launches built
   `--class <name>` (kitty's form) and Ghostty wants `--class=<name>`, so it read

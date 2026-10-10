@@ -94,6 +94,6 @@ Singleton {
             return time
         if (days === 1)
             return Translation.tr("Tomorrow · %1").arg(time)
-        return root.capitalized(Qt.locale().toString(when, "dddd")) + " · " + time
+        return root.capitalized(Translation.locale.toString(when, "dddd")) + " · " + time
     }
 }

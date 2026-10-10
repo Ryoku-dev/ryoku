@@ -16,11 +16,11 @@ func TestParsePerfFlag(t *testing.T) {
 		{"true", `{"unloadWidgetsWhenCovered":true}`, "unloadWidgetsWhenCovered", true},
 		{"false", `{"unloadWidgetsWhenCovered":false}`, "unloadWidgetsWhenCovered", false},
 		{"other key", `{"freezeVisualizerWhenIdle":true}`, "unloadWidgetsWhenCovered", false},
-		{"absent", `{}`, "unloadVisualizerWhenSilent", false},
+		{"absent", `{}`, "unloadOverviewWhenIdle", false},
 		{"malformed", `not json`, "x", false},
 		{"empty", ``, "x", false},
 		{"wrong type", `{"x":"yes"}`, "x", false},
-		{"visualiser key", `{"unloadVisualizerWhenSilent":true}`, "unloadVisualizerWhenSilent", true},
+		{"palette key", `{"unloadOverviewWhenIdle":true}`, "unloadOverviewWhenIdle", true},
 	}
 	for _, c := range cases {
 		if got := parsePerfFlag([]byte(c.body), c.key); got != c.want {

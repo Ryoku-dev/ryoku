@@ -43,11 +43,11 @@ func UserEditFiles() ([]string, error) {
 }
 
 // LiveOwnedConfig are the files edited at their normal ~/.config path and loaded
-// there directly: the tool's own user-include files and the seeds the runtime
-// or the Hub edit in place (fastfetch/config.jsonc, matugen's kitty and ghostty
-// colours, and each compositor's display, GPU and keyboard state). They must
-// NEVER live in the overlay: overlayUserEdits would re-lay a frozen copy over
-// the live file on every update and silently wipe edits made afterward.
+// there directly: the tool's own user-include files, Hub-owned Starship and
+// Fastfetch choices, Matugen palette siblings, and each provider's display, GPU
+// and keyboard state. They must NEVER live in the overlay: overlayUserEdits
+// would re-lay a frozen copy over the live file on every update and silently
+// wipe edits made afterward.
 var LiveOwnedConfig = liveOwnedConfig()
 
 // compositorLiveOwned are the live-owned files under a provider's config dir.
@@ -55,6 +55,9 @@ func liveOwnedConfig() []string {
 	files := []string{
 		"kitty/user.conf",
 		"fastfetch/config.jsonc",
+		"fastfetch/ryoku-colors.json",
+		"starship.toml",
+		"starship/ryoku-colors.toml",
 		"kitty/current-theme.conf",
 		"ghostty/ryoku-colors",
 	}

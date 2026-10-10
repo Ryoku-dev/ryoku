@@ -93,7 +93,7 @@ Loader {
                     implicitHeight: implicitWidth
                     radius: IrisStyle.iconRadius(width)
                     gradient: Gradient {
-                        GradientStop { position: 0; color: IrisStyle.ryokuFrontend ? "transparent" : Qt.lighter(section.tint, 1.2) }
+                        GradientStop { position: 0; color: IrisStyle.ryokuFrontend ? "transparent" : IrisStyle.tileTop(section.tint) }
                         GradientStop { position: 1; color: IrisStyle.ryokuFrontend ? "transparent" : section.tint }
                     }
                     MaterialSymbol { anchors.centerIn: parent; text: section.glyph; fill: IrisStyle.ryokuFrontend ? 0 : 1; iconSize: Math.round((IrisStyle.ryokuFrontend ? 17 : 15) * root.d); color: IrisStyle.ryokuFrontend ? section.ink : IrisStyle.onTint }
@@ -356,10 +356,13 @@ Loader {
                 onClicked: root.toggleRequested()
             }
             IrisIconButton {
+                id: compactToggle
                 visible: root.expanded
                 anchors.top: parent.top
                 anchors.right: parent.right
-                anchors.margins: 8 * root.d
+                // The glyph sits on the card's own 14·d padding, level with the artwork's top edge, not in a tighter
+                // corner of its own.
+                anchors.margins: Math.round(14 * root.d - (compactToggle.height - compactToggle.iconSize) / 2)
                 materialIcon: "unfold_less"
                 iconSize: Math.round(16 * root.d)
                 Accessible.name: root.expanded ? Translation.tr("Compact player") : Translation.tr("Full player")
@@ -620,7 +623,7 @@ Loader {
             }
             onOpenChanged: if (!open) calendar.composing = false
 
-            title: Qt.locale().toString(calendar.open ? calendar.month : DateTime.clock.date, "MMMM yyyy")
+            title: Translation.locale.toString(calendar.open ? calendar.month : DateTime.clock.date, "MMMM yyyy")
             glyph: "calendar_month"
             tint: IrisStyle.identity.red
             detail: !calendar.open && calendar.todayEntries.length > 0 ? String(calendar.todayEntries.length) : ""
@@ -650,7 +653,7 @@ Loader {
                             spacing: 3 * root.d
                             IrisText {
                                 anchors.horizontalCenter: parent.horizontalCenter
-                                text: Qt.locale().dayName(stripDay.date.getDay(), Locale.ShortFormat).slice(0, 2)
+                                text: Translation.locale.dayName(stripDay.date.getDay(), Locale.ShortFormat).slice(0, 2)
                                 color: stripDay.today ? IrisStyle.identity.red : IrisStyle.muted
                                 font.pixelSize: IrisStyle.typeFootnote
                                 font.weight: stripDay.today ? Font.DemiBold : Font.Normal
@@ -707,7 +710,7 @@ Loader {
                         IrisText {
                             id: weekdayLabel
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: Qt.locale().dayName((calendar.weekStart + weekday.index) % 7, Locale.ShortFormat).slice(0, 2)
+                            text: Translation.locale.dayName((calendar.weekStart + weekday.index) % 7, Locale.ShortFormat).slice(0, 2)
                             color: IrisStyle.muted
                             font.pixelSize: IrisStyle.typeFootnote
                         }
@@ -769,7 +772,7 @@ Loader {
                 Layout.fillWidth: true
                 IrisText {
                     Layout.fillWidth: true
-                    text: Qt.locale().toString(calendar.selectedDate, "dddd d MMMM")
+                    text: Translation.locale.toString(calendar.selectedDate, "dddd d MMMM")
                     font.weight: IrisStyle.weight(Font.DemiBold)
                     font.pixelSize: IrisStyle.typeLabel
                     elide: Text.ElideRight
@@ -1155,19 +1158,21 @@ Loader {
                     visible: mixer.streams.length > 0
                     spacing: 6 * root.d
                     Repeater {
-                        model: mixer.streams.slice(0, 8)
+                        // A stream coming or going keeps the other rows: a plain array rebuilt every delegate,
+                        // and the dying ones re-read their bindings with no node.
+                        model: ScriptModel { values: mixer.streams.slice(0, 8) }
                         IrisImage {
                             required property var modelData
                             width: Math.round(22 * root.d)
                             height: width
-                            source: Quickshell.iconPath(MprisController.streamIconName(modelData), "audio-x-generic")
+                            source: modelData ? Quickshell.iconPath(MprisController.streamIconName(modelData), "audio-x-generic") : ""
                         }
                     }
                 }
             ]
             EmptyLabel { visible: mixer.streams.length === 0; text: Translation.tr("No app is playing sound.") }
             Repeater {
-                model: mixer.streams
+                model: ScriptModel { values: mixer.streams }
                 RowLayout {
                     id: stream
                     required property var modelData
@@ -1177,7 +1182,7 @@ Loader {
                     IrisImage {
                         Layout.preferredWidth: Math.round(26 * root.d)
                         Layout.preferredHeight: Layout.preferredWidth
-                        source: Quickshell.iconPath(MprisController.streamIconName(stream.modelData), "audio-x-generic")
+                        source: stream.modelData ? Quickshell.iconPath(MprisController.streamIconName(stream.modelData), "audio-x-generic") : ""
                         opacity: stream.muted ? 0.45 : 1
                     }
                     ColumnLayout {
@@ -1185,15 +1190,15 @@ Loader {
                         spacing: 4 * root.d
                         IrisText {
                             Layout.fillWidth: true
-                            text: Audio.appNodeDisplayName(stream.modelData)
+                            text: stream.modelData ? Audio.appNodeDisplayName(stream.modelData) : ""
                             font.pixelSize: IrisStyle.typeMeta
                             font.weight: IrisStyle.weight(Font.Medium)
                             elide: Text.ElideRight
                         }
                         IrisScrubber {
                             Layout.fillWidth: true
-                            fillColor: stream.muted ? IrisStyle.muted : IrisStyle.text
-                            value: Math.min(1, stream.modelData?.audio?.volume ?? 0)
+                            fillColor: stream.muted ? IrisStyle.muted : IrisStyle.fillStrong
+                            value: Math.min(1, Number(stream.modelData?.audio?.volume ?? 0) || 0)
                             onMoved: next => { if (stream.modelData?.audio) stream.modelData.audio.volume = next }
                         }
                     }
@@ -1240,7 +1245,10 @@ Loader {
                         required property var modelData
                         readonly property real level: Math.max(0, Math.min(1, Number(gauge.modelData.level) || 0))
                         readonly property color tint: gauge.level >= gauge.modelData.warn ? IrisStyle.danger : IrisStyle.accent
+                        // Four equal columns, each ring centred in its own: a layout with no filling child stops at its implicit width.
                         Layout.fillWidth: true
+                        Layout.preferredWidth: 1
+                        Layout.maximumWidth: Number.POSITIVE_INFINITY
                         spacing: 4 * root.d
                         Item {
                             Layout.alignment: Qt.AlignHCenter

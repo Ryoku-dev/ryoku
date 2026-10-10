@@ -29,7 +29,7 @@ ColumnLayout {
 
     function entry(key: string): var {
         return IrisFaceData.galleryEntries.find(item => item.key === key)
-            ?? { key: key, glyph: DesktopWidgetIdentity.glyph(key), label: key, tint: DesktopWidgetIdentity.tint(key) }
+            ?? { key: key, glyph: DesktopWidgetIdentity.glyph(key), label: key, tint: IrisStyle.identityOf(DesktopWidgetIdentity.tint(key)) }
     }
     function intervalLabel(seconds: int): string {
         return seconds >= 60 ? Translation.tr("%1 min").arg(Math.round(seconds / 60)) : Translation.tr("%1 s").arg(seconds)
@@ -86,7 +86,7 @@ ColumnLayout {
                         Layout.preferredHeight: Layout.preferredWidth
                         radius: IrisStyle.iconRadius(width)
                         gradient: Gradient {
-                            GradientStop { position: 0; color: Qt.lighter(page.facts.tint, 1.18) }
+                            GradientStop { position: 0; color: IrisStyle.tileTop(page.facts.tint) }
                             GradientStop { position: 1; color: page.facts.tint }
                         }
                         MaterialSymbol {

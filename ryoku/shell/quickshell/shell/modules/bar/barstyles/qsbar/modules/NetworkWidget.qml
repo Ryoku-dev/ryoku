@@ -3,23 +3,20 @@ import Quickshell
 import Quickshell.Io
 import "../IconMap.js" as IconMap
 import Ryoku.Ui.Singletons
+import shell.services
 
 Item {
     id: rootMod
     required property var root
     readonly property color contentColor: root.widgetContentColor("G11", root.widgetIconColor)
 
-    property string mode:   "none"  // "wifi" | "ethernet" | "none"
-    property string ssid:   ""
-    property int    signal: 0
-    property string iface:  ""
-
-    // ── speed tracking ──
-    property real prevRx:  -1
-    property real prevTx:  -1
-    property real prevMs:   0
-    property real dlRate:   0
-    property real ulRate:   0
+    readonly property string mode: Network.kind === "" ? "none" : Network.kind
+    readonly property string ssid: Network.activeSsid
+    readonly property int signal: Math.round(Network.level * 100)
+    readonly property real dlRate: Network.downBps
+    readonly property real ulRate: Network.upBps
+    readonly property bool wantsTraffic: rootMod.visible
+        && (root.modNetwork || root.networkVisible)
 
     function formatSpeed(bps) {
         var mb = bps / 1048576
@@ -52,16 +49,6 @@ Item {
         return Math.min(1, Math.log(1 + value / 1024) / Math.log(1 + 102400))
     }
 
-    function updateSpeeds(rx, tx, now) {
-        if (prevRx >= 0 && prevMs > 0) {
-            var dt = (now - prevMs) / 1000
-            if (dt > 0) {
-                dlRate = Math.max(0, (rx - prevRx) / dt)
-                ulRate = Math.max(0, (tx - prevTx) / dt)
-            }
-        }
-        prevRx = rx; prevTx = tx; prevMs = now
-    }
 
     readonly property var wifiIcons: [
         "signal_wifi_0_bar", "network_wifi_1_bar", "network_wifi_2_bar",
@@ -198,65 +185,9 @@ Item {
 
     }
 
-    Process {
-        id: netProc
-        command: ["bash", "-c",
-            "IFACE=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i==\"dev\"){print $(i+1); exit}}'); " +
-            "if [ -z \"$IFACE\" ]; then echo NONE; exit; fi; " +
-            "RX=$(awk -v i=\"$IFACE:\" '$1==i{print $2}' /proc/net/dev 2>/dev/null); " +
-            "TX=$(awk -v i=\"$IFACE:\" '$1==i{print $10}' /proc/net/dev 2>/dev/null); " +
-            "if [ -d \"/sys/class/net/$IFACE/wireless\" ]; then " +
-            "  LINK=$(iw dev \"$IFACE\" link 2>/dev/null); " +
-            "  SSID=$(printf '%s\\n' \"$LINK\" | sed -n 's/^\\s*SSID: //p' | head -1); " +
-            "  if [[ \"$SSID\" =~ \\\\(x[0-9A-Fa-f]{2}|[0-7]{3}) ]]; then SSID=$(printf '%b' \"$SSID\"); fi; " +
-            "  SIG=$(printf '%s\\n' \"$LINK\" | awk '/signal:/ {print int($2); exit}'); " +
-            "  QUAL=$(awk -v s=\"$SIG\" 'BEGIN{q=int((s+110)*100/70);if(q<0)q=0;if(q>100)q=100;print q}'); " +
-            "  printf 'WIFI\\t%s\\t%s\\t%s\\t%s\\n' \"$SSID\" \"$QUAL\" \"$RX\" \"$TX\"; " +
-            "else " +
-            "  printf 'ETHERNET\\t%s\\t%s\\t%s\\n' \"$IFACE\" \"$RX\" \"$TX\"; " +
-            "fi"
-        ]
-        running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                var line  = this.text.trim()
-                var parts = line.split("\t")
-                var now   = Date.now()
-
-                if (parts[0] === "WIFI" && parts.length >= 5) {
-                    rootMod.mode   = "wifi"
-                    rootMod.ssid   = parts[1] || ""
-                    rootMod.signal = parseInt(parts[2]) || 0
-                    rootMod.updateSpeeds(parseFloat(parts[3]) || 0, parseFloat(parts[4]) || 0, now)
-                } else if (parts[0] === "ETHERNET" && parts.length >= 4) {
-                    rootMod.mode  = "ethernet"
-                    rootMod.iface = parts[1] || ""
-                    rootMod.updateSpeeds(parseFloat(parts[2]) || 0, parseFloat(parts[3]) || 0, now)
-                } else {
-                    rootMod.mode  = "none"
-                    rootMod.prevRx = -1; rootMod.prevTx = -1
-                }
-            }
-        }
-    }
-
-    // Dynamic poll cadence. Fast (2 s) whenever something needs fresh data: the pill is shown
-    // (root.modNetwork), the panel is open (root.networkVisible - also covers a running speed
-    // test, which keeps the panel open), or we're on Wi-Fi (signal % moves; the Wi-Fi branch is
-    // also the only one that spawns `iw`). Slow (15 s) ONLY when the module is hidden AND the
-    // panel is closed AND we're on Ethernet or offline - so the saving (fewer idle bash/ip/awk
-    // spawns) is limited to a hidden Ethernet module or the offline state; Wi-Fi always polls
-    // fast. When hidden on Ethernet/offline, poll only once per minute to catch a later Wi-Fi
-    // connection without keeping the old high-rate hidden poller alive. Changing a Timer's
-    // interval does not force a tick, so refresh once immediately on becoming relevant.
-    readonly property bool fastPoll: root.modNetwork || root.networkVisible || mode === "wifi"
-    onFastPollChanged: if (fastPoll) { netProc.running = false; netProc.running = true }
-
-    Timer {
-        interval: rootMod.fastPoll ? 2000 : 60000
-        running: true; repeat: true; triggeredOnStart: true
-        onTriggered: { netProc.running = false; netProc.running = true }
-    }
+    onWantsTrafficChanged: Network.setTrafficActive(rootMod, rootMod.wantsTraffic)
+    Component.onCompleted: Network.setTrafficActive(rootMod, rootMod.wantsTraffic)
+    Component.onDestruction: Network.setTrafficActive(rootMod, false)
 
     TooltipMixin { id: tip; root: rootMod.root; owner: rootMod; text: rootMod.tooltipText }
 

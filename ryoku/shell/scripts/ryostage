@@ -11,9 +11,10 @@
 #   rembg[cpu]            MIT            https://github.com/danielgatis/rembg
 #   onnxruntime (via it)  MIT            https://github.com/microsoft/onnxruntime
 #   u2netp                Apache-2.0*    https://github.com/xuebinqin/U-2-Net
-#   birefnet-general-lite MIT            https://github.com/ZhengPeng7/BiRefNet
-# * the upstream repo states no licence; the mirrored weights rembg fetches are
-#   published Apache-2.0.
+#   silueta               MIT            https://github.com/xuebinqin/U-2-Net/issues/295
+#   birefnet-*            MIT            https://github.com/ZhengPeng7/BiRefNet
+# * the upstream U-2-Net repo states no licence; the mirrored weights rembg
+#   fetches are published Apache-2.0.
 set -euo pipefail
 
 # One venv and one model cache for both effects. A pre-split tree from the old
@@ -37,12 +38,15 @@ export U2NET_HOME="$models" # older rembg reads this name
 # The curated catalogue: id, quality tier, UI label, download size, licence,
 # upstream. `models --json` renders it for the Stage tab so no tier is hardcoded
 # in QML.
-curated=(u2netp birefnet-general-lite)
+curated=(u2netp silueta birefnet-general-lite birefnet-general birefnet-portrait)
 default_model="u2netp"
 model_meta() {
     case "$1" in
-    u2netp) printf 'draft\tDraft\t4.6 MB\tApache-2.0 (mirrored weights)\thttps://github.com/xuebinqin/U-2-Net\n' ;;
-    birefnet-general-lite) printf 'fine\tFine\t224 MB\tMIT\thttps://github.com/ZhengPeng7/BiRefNet\n' ;;
+    u2netp) printf 'draft\tU2Net Portable\t4.6 MB\tApache-2.0 (mirrored weights)\thttps://github.com/xuebinqin/U-2-Net\n' ;;
+    silueta) printf 'draft\tSilueta · Fast\t44.2 MB\tMIT\thttps://github.com/xuebinqin/U-2-Net/issues/295\n' ;;
+    birefnet-general-lite) printf 'fine\tBiRefNet General Lite\t224 MB\tMIT\thttps://github.com/ZhengPeng7/BiRefNet\n' ;;
+    birefnet-general) printf 'fine\tBiRefNet General · Best\t973 MB\tMIT\thttps://github.com/ZhengPeng7/BiRefNet\n' ;;
+    birefnet-portrait) printf 'fine\tBiRefNet Portrait · People\t973 MB\tMIT\thttps://github.com/ZhengPeng7/BiRefNet\n' ;;
     esac
 }
 
@@ -379,9 +383,12 @@ ensure_venv() {
     return 1
 }
 
+# `python -m pip`, never bin/pip: a venv adopted by rename above keeps console
+# scripts whose shebangs name the old directory, so bin/pip no longer runs.
+venv_has_pip() { "$venv/bin/python" -m pip --version >/dev/null 2>&1; }
 venv_pip() {
-    if [[ -x "$venv/bin/pip" ]]; then
-        "$venv/bin/pip" install --quiet "$@"
+    if venv_has_pip; then
+        "$venv/bin/python" -m pip install --quiet "$@"
         return
     fi
     uv pip install --quiet --python "$venv/bin/python" "$@"
@@ -395,7 +402,7 @@ cmd_install() {
     ensure_venv || return 1
 
     printf 'Installing rembg (CPU)...\n'
-    [[ -x "$venv/bin/pip" ]] && venv_pip --upgrade pip
+    venv_has_pip && venv_pip --upgrade pip
     if ! venv_pip "rembg[cpu]"; then
         printf 'ryostage: could not install rembg (no onnxruntime wheel for this Python?)\n' >&2
         return 1

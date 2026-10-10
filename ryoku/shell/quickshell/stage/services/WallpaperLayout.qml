@@ -4,16 +4,17 @@ import stage.modules.common.functions
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui.Singletons
 pragma Singleton
 pragma ComponentBehavior: Bound
 
 /**
  * Per-screen framing for the wallpaper each mounted desktop is painting.
  *
- * Ryogami owns wallpaper selection and persists its per-output paths. This
- * service keeps only the framing records keyed by monitor and wallpaper path;
- * the mounted Backdrop supplies the current provider path so the framing key
- * can never drift from the pixels on that output.
+ * Ryogami owns wallpaper selection and its output and workspace assignments.
+ * This service keeps only framing records keyed by monitor and wallpaper path;
+ * workspaces that use the same picture therefore share one Stage scene and the
+ * mounted Backdrop always supplies the path currently painted on that output.
  *
  * Colours still come from one picture because matugen reads the shared
  * `background.wallpaperPath`. Screens painting that path identify the colour
@@ -737,6 +738,37 @@ Singleton {
             return false;
         return Wallpapers.selectForScreen(clean, name);
     }
+    function activeWorkspaceFor(name) {
+        const workspaces = Wm.workspaces ?? [];
+        for (let i = 0; i < workspaces.length; ++i) {
+            const workspace = workspaces[i];
+            if (workspace.active && workspace.output === name)
+                return workspace;
+        }
+        return null;
+    }
+
+    function workspaceLabelFor(name) {
+        const workspace = root.activeWorkspaceFor(name);
+        if (!workspace)
+            return "";
+        return String(workspace.name || workspace.id || "");
+    }
+
+    function assignCurrentToWorkspace(name) {
+        if (!name || !root.activeWorkspaceFor(name))
+            return false;
+        Spawn.run(["ryogami", "wallpaper", "assign", "--screen", name]);
+        return true;
+    }
+
+    function clearWorkspaceWallpaper(name) {
+        if (!name || !root.activeWorkspaceFor(name))
+            return false;
+        Spawn.run(["ryogami", "wallpaper", "unassign", "--screen", name]);
+        return true;
+    }
+
 
 
     // Ryogami still owns the write; matching the palette source makes the

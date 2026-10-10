@@ -40,9 +40,9 @@ func reconcileSidebarRework(checkOnly bool) recResult {
 	return fixedRes(i18n.T("removed retired sidebar settings from shell.json"))
 }
 
-// migrateSidebarRework removes the retired global sidebar settings and the
-// frame-bar records that held the original sidebar surfaces. Every sibling
-// setting remains byte-equivalent after decoding, and a clean store is a no-op.
+// migrateSidebarRework removes the retired global sidebars key and the frame-bar
+// records that held the original surfaces. The current controls key and every
+// sibling setting remain byte-equivalent after decoding; a clean store is a no-op.
 func migrateSidebarRework(raw []byte) ([]byte, bool, error) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {

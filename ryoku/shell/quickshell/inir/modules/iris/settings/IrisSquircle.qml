@@ -17,7 +17,7 @@ Rectangle {
     readonly property bool tiled: String(Config.options?.iris?.appearance?.icons?.style ?? "iris") === "tile"
     readonly property string plate: String(Config.options?.iris?.appearance?.icons?.plate ?? "black")
     readonly property color tileTop: root.plate === "white" ? IrisStyle.plateWhiteTop
-        : root.plate === "tint" ? Qt.lighter(root.tint, 1.18)
+        : root.plate === "tint" ? IrisStyle.tileTop(root.tint)
         : root.plate === "surface" ? Qt.lighter(IrisStyle.surfaceHighestOpaque, 1.7)
         : IrisStyle.plateBlackTop
     readonly property color tileBase: root.plate === "white" ? IrisStyle.plateWhiteBase
@@ -27,7 +27,7 @@ Rectangle {
 
     radius: IrisStyle.iconRadius(width)
     gradient: Gradient {
-        GradientStop { position: 0; color: root.tiled ? root.tileTop : Qt.lighter(root.tint, 1.18) }
+        GradientStop { position: 0; color: root.tiled ? root.tileTop : IrisStyle.tileTop(root.tint) }
         GradientStop { position: 1; color: root.tiled ? root.tileBase : root.tint }
     }
     MaterialSymbol {

@@ -36,8 +36,6 @@ Item {
     readonly property bool ready: root.isGif ? gif.status === AnimatedImage.Ready
         : still.status === Image.Ready || root.videoFrame
 
-    // "Only the backdrop": the desktop shows the backdrop image under its dim, so everything that shows
-    // or samples the desktop wears the same dim (glass met the backdrop brighter than it).
     readonly property real dim: Wallpapers.desktopDim
     // A moving wallpaper is a subtree: sampling it costs a pass per frame, so only samplers ask.
     readonly property Item textureItem: (root.animated || root.dim > 0) && root.provideTexture ? motionTexture.item : still

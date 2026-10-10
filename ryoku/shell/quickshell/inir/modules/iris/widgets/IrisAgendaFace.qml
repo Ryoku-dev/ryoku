@@ -22,7 +22,7 @@ IrisWidgetFace {
         const days = Math.round((day.getTime() - start.getTime()) / 86400000)
         if (days === 0) return Translation.tr("Today")
         if (days === 1) return Translation.tr("Tomorrow")
-        return IrisFaceData.capitalized(Qt.locale().toString(when, "dddd d"))
+        return IrisFaceData.capitalized(Translation.locale.toString(when, "dddd d"))
     }
 
     component DateHero: ColumnLayout {
@@ -30,7 +30,7 @@ IrisWidgetFace {
         FaceText {
             face: root
             Layout.fillWidth: true
-            text: IrisFaceData.capitalized(Qt.locale().toString(root.today, "dddd"))
+            text: IrisFaceData.capitalized(Translation.locale.toString(root.today, "dddd"))
             color: root.highlight
             size: 13
             weight: Font.DemiBold
@@ -114,7 +114,7 @@ IrisWidgetFace {
                 FaceText {
                     face: root
                     Layout.alignment: Qt.AlignHCenter
-                    text: Qt.locale().toString(day.modelData, "ddd").charAt(0).toUpperCase()
+                    text: Translation.locale.toString(day.modelData, "ddd").charAt(0).toUpperCase()
                     color: day.current ? root.accent : root.inkTertiary
                     size: 11
                     weight: Font.DemiBold

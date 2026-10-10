@@ -1,0 +1,134 @@
+#!/bin/bash
+set -euo pipefail
+
+if (( $# != 1 )) || [[ -z $1 ]]; then
+  echo "Usage: omarchy-theme-set <theme-name>" >&2
+  exit 1
+fi
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
+CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
+RUNTIME_HOME=${XDG_RUNTIME_DIR:-/tmp}
+OMARCHY_ROOT=${OMARCHY_PATH:-$DATA_HOME/ryoku/nomarchy}
+OFFICIAL_THEMES=$OMARCHY_ROOT/themes
+USER_THEMES=$CONFIG_HOME/omarchy/themes
+CURRENT_ROOT=$STATE_HOME/omarchy/current
+CURRENT_THEME=$CURRENT_ROOT/theme
+NEXT_THEME=$CURRENT_ROOT/next-theme
+THEME_NAME_PATH=$CURRENT_ROOT/theme.name
+PERSISTED_THEME_PATH=$CONFIG_HOME/omarchy/current-theme
+LOCK_PATH=$RUNTIME_HOME/omarchy-theme-set-${UID}.lock
+
+THEME_NAME=$(printf '%s' "$1" | sed -E 's/<[^>]+>//g; s/[()]//g' | tr '[:upper:]_' '[:lower:]-' | sed -E 's/[^a-z0-9-]+/-/g; s/-+/-/g; s/^-|-$//g')
+case $THEME_NAME in
+  wallpaper|wallpaper-ryoku) THEME_NAME=ryoku ;;
+esac
+if [[ -z $THEME_NAME || $THEME_NAME == .* || $THEME_NAME == */* ]]; then
+  echo "Invalid theme name: $1" >&2
+  exit 1
+fi
+
+if [[ $THEME_NAME != ryoku && ! -d $OFFICIAL_THEMES/$THEME_NAME && ! -d $USER_THEMES/$THEME_NAME ]]; then
+  echo "Theme '$THEME_NAME' does not exist" >&2
+  exit 1
+fi
+
+mkdir -p "$CURRENT_ROOT" "$CONFIG_HOME/omarchy" "$CACHE_HOME/ryoku"
+exec 9>"$LOCK_PATH"
+flock 9
+rm -rf "$NEXT_THEME"
+mkdir -p "$NEXT_THEME"
+trap 'rm -rf "$NEXT_THEME"' EXIT
+
+render_generated_colors() {
+  local generated=$CACHE_HOME/ryoku/nomarchy-colors.toml
+  local fallback_generated=$HOME/.cache/ryoku/nomarchy-colors.toml
+  local carrier=$CACHE_HOME/ryoku/matugen-carrier.json
+  local palette_template=$CONFIG_HOME/matugen/templates/nomarchy-colors.toml
+  local render_config
+
+  if [[ -f $fallback_generated && ( ! -f $generated || $fallback_generated -nt $generated ) ]]; then
+    generated=$fallback_generated
+  fi
+  if [[ ! -f $generated && -f $carrier && -f $palette_template ]] && command -v matugen >/dev/null 2>&1; then
+    render_config=$(mktemp)
+    printf '[templates.nomarchy]\ninput_path = "%s"\noutput_path = "%s"\n' "$palette_template" "$generated" >"$render_config"
+    matugen -q -c "$render_config" json "$carrier"
+    rm -f "$render_config"
+  fi
+  if [[ ! -f $generated ]]; then
+    echo "The Ryoku wallpaper palette is not ready; apply a wallpaper and try again" >&2
+    exit 1
+  fi
+  cp -- "$generated" "$NEXT_THEME/colors.toml"
+}
+
+copy_theme() {
+  local source=$1
+  local entries=()
+  shopt -s nullglob
+  entries=("$source"/*)
+  shopt -u nullglob
+  (( ${#entries[@]} == 0 )) || cp -a -- "${entries[@]}" "$NEXT_THEME/"
+}
+
+if [[ $THEME_NAME == ryoku ]]; then
+  render_generated_colors
+else
+  if [[ -d $OFFICIAL_THEMES/$THEME_NAME ]]; then
+    copy_theme "$OFFICIAL_THEMES/$THEME_NAME"
+  fi
+  if [[ -d $USER_THEMES/$THEME_NAME ]]; then
+    copy_theme "$USER_THEMES/$THEME_NAME"
+  fi
+fi
+
+if [[ ! -f $NEXT_THEME/colors.toml ]]; then
+  echo "Theme '$THEME_NAME' has no colors.toml" >&2
+  exit 1
+fi
+
+OMARCHY_PATH=$OMARCHY_ROOT OMARCHY_THEME_DIR=$NEXT_THEME "$SCRIPT_DIR/omarchy-theme-set-templates"
+if [[ ! -f $NEXT_THEME/shell.toml ]]; then
+  echo "Theme '$THEME_NAME' could not render shell.toml" >&2
+  exit 1
+fi
+if grep -q '{{' "$NEXT_THEME/shell.toml"; then
+  echo "Theme '$THEME_NAME' left unresolved shell colour tokens" >&2
+  exit 1
+fi
+
+OLD_THEME=$CURRENT_ROOT/theme.previous.$$
+rm -rf "$OLD_THEME"
+if [[ -e $CURRENT_THEME || -L $CURRENT_THEME ]]; then
+  mv -- "$CURRENT_THEME" "$OLD_THEME"
+fi
+if ! mv -- "$NEXT_THEME" "$CURRENT_THEME"; then
+  [[ ! -e $OLD_THEME ]] || mv -- "$OLD_THEME" "$CURRENT_THEME"
+  exit 1
+fi
+rm -rf "$OLD_THEME"
+trap - EXIT
+
+write_choice() {
+  local path=$1
+  local tmp=$path.tmp.$$
+  local current=""
+  if [[ -f $path ]]; then
+    IFS= read -r current <"$path" || true
+  fi
+  [[ $current != "$THEME_NAME" ]] || return 0
+  printf '%s\n' "$THEME_NAME" >"$tmp"
+  mv -f -- "$tmp" "$path"
+}
+write_choice "$THEME_NAME_PATH"
+write_choice "$PERSISTED_THEME_PATH"
+
+if command -v omarchy-shell >/dev/null 2>&1; then
+  colors_payload=$(base64 -w 0 "$CURRENT_THEME/colors.toml")
+  shell_payload=$(base64 -w 0 "$CURRENT_THEME/shell.toml")
+  omarchy-shell -q nomarchy applyTheme "$colors_payload" "$shell_payload" || true
+fi

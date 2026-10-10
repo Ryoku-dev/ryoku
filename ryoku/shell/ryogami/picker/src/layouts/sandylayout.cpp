@@ -23,7 +23,10 @@ double smoothstep(double t)
 
 double window(double p, double start, double end)
 {
-    return smoothstep((p - start) / (end - start));
+    const double span = end - start;
+    if (std::abs(span) < 1e-9)
+        return p >= end ? 1.0 : 0.0;
+    return smoothstep((p - start) / span);
 }
 
 double lerp(double a, double b, double t)
@@ -203,13 +206,13 @@ SandyLayout::Params SandyLayout::readParams(const LayoutContext &ctx) const
     auto num = [&](const char *key, double def) { return p.num(QString::fromLatin1(key), def); };
 
     Params t;
-    t.offsetX = num("components.wallpaperSelector.sandyStageX", 0.0) / 100.0;
-    t.offsetY = num("components.wallpaperSelector.sandyStageY", 0.0) / 100.0;
-    t.centerH = std::max(sel("components.wallpaperSelector.sandyCenter", 440.0, 330.0), 160.0);
-    t.sliceW = std::max(sel("components.wallpaperSelector.sandySliceWidth", 96.0, 68.0), 24.0);
-    t.sliceH = std::max(sel("components.wallpaperSelector.sandySliceHeight", 180.0, 130.0), 60.0);
-    t.skew = sel("components.wallpaperSelector.sandySkew", 12.0, 8.0);
-    t.spacing = sel("components.wallpaperSelector.sandySpacing", 26.0, 20.0);
+    t.offsetX = std::clamp(num("components.wallpaperSelector.sandyStageX", 0.0) / 100.0, -1.0, 1.0);
+    t.offsetY = std::clamp(num("components.wallpaperSelector.sandyStageY", 0.0) / 100.0, -1.0, 1.0);
+    t.centerH = std::clamp(sel("components.wallpaperSelector.sandyCenter", 440.0, 330.0), 160.0, 4096.0);
+    t.sliceW = std::clamp(sel("components.wallpaperSelector.sandySliceWidth", 96.0, 68.0), 24.0, 2048.0);
+    t.sliceH = std::clamp(sel("components.wallpaperSelector.sandySliceHeight", 180.0, 130.0), 60.0, 2048.0);
+    t.skew = std::clamp(sel("components.wallpaperSelector.sandySkew", 12.0, 8.0), -2048.0, 2048.0);
+    t.spacing = std::clamp(sel("components.wallpaperSelector.sandySpacing", 26.0, 20.0), 0.0, 1024.0);
     t.durationMs = std::clamp(num("components.wallpaperSelector.sandyDuration", 1250.0), 200.0, 6000.0);
     t.blendMs = std::clamp(num("components.wallpaperSelector.sandyBlend", 700.0), 100.0, 4000.0);
     t.strands = std::clamp(sel("components.wallpaperSelector.sandyStrands", 22.0, 18.0), 2.0, 64.0);
@@ -236,11 +239,11 @@ SandyLayout::Params SandyLayout::readParams(const LayoutContext &ctx) const
     if (!p.flag(QStringLiteral("components.wallpaperSelector.roundCorners"), true)) {
         t.corners[0] = t.corners[1] = t.corners[2] = t.corners[3] = 0.0;
     } else {
-        const double base = num("components.wallpaperSelector.cornerRadius", 18.0);
-        t.corners[0] = num("components.wallpaperSelector.cornerTL", base);
-        t.corners[1] = num("components.wallpaperSelector.cornerTR", base);
-        t.corners[2] = num("components.wallpaperSelector.cornerBR", base);
-        t.corners[3] = num("components.wallpaperSelector.cornerBL", base);
+        const double base = std::clamp(num("components.wallpaperSelector.cornerRadius", 18.0), 0.0, 1024.0);
+        t.corners[0] = std::clamp(num("components.wallpaperSelector.cornerTL", base), 0.0, 1024.0);
+        t.corners[1] = std::clamp(num("components.wallpaperSelector.cornerTR", base), 0.0, 1024.0);
+        t.corners[2] = std::clamp(num("components.wallpaperSelector.cornerBR", base), 0.0, 1024.0);
+        t.corners[3] = std::clamp(num("components.wallpaperSelector.cornerBL", base), 0.0, 1024.0);
     }
     return t;
 }

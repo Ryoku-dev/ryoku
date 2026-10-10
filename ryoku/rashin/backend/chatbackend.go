@@ -140,14 +140,17 @@ func chatAgentInUse(id string, cfg Config) bool {
 	return id == selected || id == activeChatAgentID(cfg)
 }
 
-// chatModelRouted is the single model-classification rule for the chat lane.
-// A pending route stays permissive so a temporarily unroutable chat remains
-// usable.
-func chatModelRouted(agentID string, active bool, model ModelInfo, startedOn string) bool {
-	if !active || agentID == "claude" || model.ID == startedOn {
-		return true
-	}
+// chatModelProwlAlias identifies the duplicate auto entries a routed provider
+// advertises without treating the harness's direct models as Prowl routes.
+func chatModelProwlAlias(active bool, model ModelInfo, startedOn string) bool {
 	id := strings.TrimSpace(model.ID)
+	segment := id
+	if cut := strings.LastIndexAny(segment, ":/"); cut >= 0 {
+		segment = segment[cut+1:]
+	}
+	if !strings.EqualFold(segment, "auto") {
+		return false
+	}
 	for _, prefix := range []string{"prowl:", "custom:prowl:", "prowl/"} {
 		if len(id) >= len(prefix) && strings.EqualFold(id[:len(prefix)], prefix) {
 			return true
@@ -159,5 +162,5 @@ func chatModelRouted(agentID string, active bool, model ModelInfo, startedOn str
 			return true
 		}
 	}
-	return false
+	return active && id == strings.TrimSpace(startedOn)
 }

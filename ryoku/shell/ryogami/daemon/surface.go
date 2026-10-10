@@ -142,10 +142,9 @@ func (w *wallSurface) republish() {
 // setAudio changes the live frame's in-shell clip audio and republishes it, so a
 // running clip mutes or changes volume at once. A nil field is left untouched.
 // An empty outputs list (or "*") addresses the broadcast default and every
-// override; otherwise the named overrides plus the broadcast default (the
-// in-shell engine paints one clip across every output, so a per-output change
-// still lands on it). The revision is deliberately left alone: only the audio
-// changed, so the shell must not reload the image or restart the clip.
+// override; named updates also reach the default that an output may inherit.
+// The revision is deliberately left alone: only the audio changed, so the shell
+// must not reload the image or restart the clip.
 func (w *wallSurface) setAudio(mute *bool, volume *int, outputs []string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

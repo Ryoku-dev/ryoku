@@ -501,6 +501,133 @@ func TestApplyMineUnknownDispatcherNoUnbind(t *testing.T) {
 	}
 }
 
+func TestProviderApplyUndoRoundTrip(t *testing.T) {
+	home := importHome(t)
+	mustWrite(t, filepath.Join(home, ".config", "target", "user.kdl"), "// existing\n")
+	src := t.TempDir()
+
+	previous := scanProviderImports
+	scanProviderImports = func(string) []providerImportScan {
+		return []providerImportScan{{
+			Provider: "fixture", Name: "Fixture KDL", Path: filepath.Join(src, "config.kdl"),
+			Patch: map[string]any{
+				"desktop": map[string]any{
+					"input": map[string]any{"kbLayout": "de"},
+					"env":   []any{map[string]any{"key": "EDITOR", "value": "nvim"}},
+				},
+				"wm": map[string]any{"fixture": map[string]any{"mode": "columns"}},
+			},
+			Binds: []providerMappedBind{{
+				Norm: "super+x", Combo: "SUPER + X", Conflict: true, ShadowsShipped: true,
+				Store: map[string]any{"keys": "SUPER + X", "action": "exec", "value": "foot", "release": false},
+			}},
+			Items: []scanItem{
+				{Kind: "bind", Raw: "Mod+X { spawn \"foot\"; }", Combo: "SUPER + X", Ingestable: true},
+				{Kind: "setting", Raw: "input { ... }", Ingestable: true},
+			},
+			Losses:       []providerImportLoss{{Raw: "future-node", Reason: "unknown"}},
+			Preserved:    "future-node \"kept\"",
+			PreservePath: "target/user.kdl",
+			SourceDirs:   []string{"target"},
+		}}
+	}
+	defer func() { scanProviderImports = previous }()
+
+	scanned := scanSource(src)
+	app := findApp(scanned, "provider:fixture")
+	if app == nil || len(app.Losses) != 1 || app.Tier != "deep" {
+		t.Fatalf("provider scan model = %#v", app)
+	}
+
+	cfg := filepath.Join(home, ".config")
+	before := snapshotTree(t, cfg)
+	dec := decisions{
+		Source: src,
+		Apps: map[string]appDecision{
+			"provider:fixture": {Include: true},
+		},
+		Conflicts: map[string]json.RawMessage{"super+x": json.RawMessage(`"mine"`)},
+	}
+	res, err := applyImport(dec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := readJSONMap(desktopStorePath())
+	if got := importTestValue(store, "desktop", "input", "kbLayout"); got != "de" {
+		t.Fatalf("mapped layout = %#v", got)
+	}
+	if got := importTestValue(store, "wm", "fixture", "mode"); got != "columns" {
+		t.Fatalf("provider namespace = %#v", got)
+	}
+	if rows, ok := importTestValue(store, "desktop", "unbinds").([]any); !ok || len(rows) != 1 || rows[0] != "SUPER + X" || res.Unbinds != 1 {
+		t.Fatalf("provider conflict unbind = %#v, reported %d", rows, res.Unbinds)
+	}
+	user, err := os.ReadFile(filepath.Join(cfg, "target", "user.kdl"))
+	if err != nil || !strings.Contains(string(user), "future-node") || !strings.Contains(string(user), "// >>> ryoku-import ") {
+		t.Fatalf("preserved include: %v\n%s", err, user)
+	}
+	if len(res.Unresolved) != 1 || !strings.Contains(res.Unresolved[0], "unknown") {
+		t.Fatalf("loss report = %#v", res.Unresolved)
+	}
+	if _, err := undoImport(res.Ts); err != nil {
+		t.Fatal(err)
+	}
+	if after := snapshotTree(t, cfg); !mapsEqual(before, after) {
+		t.Fatalf("provider apply/undo did not restore the config tree\nbefore=%#v\nafter=%#v", before, after)
+	}
+}
+
+func TestProviderDuplicateChoiceReplacesEarlierBind(t *testing.T) {
+	scan := providerImportScan{
+		Patch: map[string]any{},
+		Binds: []providerMappedBind{
+			{Norm: "super+x", Combo: "SUPER + X", Store: map[string]any{"keys": "SUPER + X", "action": "exec", "value": "foot"}},
+			{Norm: "super+x", Combo: "SUPER + X", Conflict: true, Store: map[string]any{"keys": "SUPER + X", "action": "exec", "value": "kitty"}},
+		},
+	}
+	patch, binds, unbinds := providerPatchFor(scan, map[string]conflictChoice{"super+x": {mode: "mine"}})
+	rows, _ := importTestValue(patch, "desktop", "keybinds").([]any)
+	if len(rows) != 1 {
+		t.Fatalf("duplicate plan = %#v", rows)
+	}
+	row, _ := rows[0].(map[string]any)
+	if row["value"] != "kitty" || binds != 1 || unbinds != 0 {
+		t.Fatalf("duplicate plan = %#v, binds=%d unbinds=%d", rows, binds, unbinds)
+	}
+}
+
+func TestProviderParseErrorBlocksApply(t *testing.T) {
+	importHome(t)
+	previous := scanProviderImports
+	scanProviderImports = func(string) []providerImportScan {
+		return []providerImportScan{{
+			Provider: "fixture", Name: "Fixture KDL", Path: "/tmp/config.kdl",
+			Error: "Could not parse this provider config: broken.kdl:3",
+		}}
+	}
+	defer func() { scanProviderImports = previous }()
+
+	_, err := applyImport(decisions{
+		Source: t.TempDir(),
+		Apps:   map[string]appDecision{"provider:fixture": {Include: true}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "broken.kdl:3") {
+		t.Fatalf("parse failure = %v", err)
+	}
+}
+
+func importTestValue(root map[string]any, path ...string) any {
+	var value any = root
+	for _, key := range path {
+		m, ok := value.(map[string]any)
+		if !ok {
+			return nil
+		}
+		value = m[key]
+	}
+	return value
+}
+
 func sourceWithHypr(t *testing.T, conf string) string {
 	t.Helper()
 	src := t.TempDir()

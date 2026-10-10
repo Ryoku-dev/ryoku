@@ -26,14 +26,18 @@ import (
 // voxtypePreset is one dictation option the page offers. Lower-case fields map
 // it to config.toml and the model store; exported ones drive the UI.
 type voxtypePreset struct {
-	Key      string `json:"key"`
-	Label    string `json:"label"`
-	Provider string `json:"provider"`
-	Detail   string `json:"detail"`
-	Size     string `json:"size"`
-	Cloud    bool   `json:"cloud"`   // sends audio off-device via a remote API
-	KeyKind  string `json:"keyKind"` // "openai" or ""
-	Present  bool   `json:"present"` // local model on disk (get only; cloud = true)
+	Key       string `json:"key"`
+	Label     string `json:"label"`
+	Provider  string `json:"provider"`
+	Detail    string `json:"detail"`
+	Size      string `json:"size"`
+	SizeBytes int64  `json:"sizeBytes"`
+	Group     string `json:"group"`
+	Language  string `json:"language"`
+	Speed     string `json:"speed"`
+	Cloud     bool   `json:"cloud"`   // sends audio off-device via a remote API
+	KeyKind   string `json:"keyKind"` // "openai" or ""
+	Present   bool   `json:"present"` // local model on disk (get only; cloud = true)
 
 	model string // whisper model name (local) or remote_model (cloud)
 	lang  string // whisper language
@@ -45,9 +49,13 @@ type voxtypePreset struct {
 // Hub cannot do without a terminal sudo prompt.
 func voxtypePresets() []voxtypePreset {
 	return []voxtypePreset{
-		{Key: "whisper-fast", Label: "Whisper — Fast", Provider: "OpenAI", Detail: "English only, quickest to load. A solid everyday default.", Size: "142 MB", model: "base.en", lang: "en"},
-		{Key: "whisper-accurate", Label: "Whisper — Accurate", Provider: "OpenAI", Detail: "Multilingual, higher accuracy, larger download.", Size: "1.6 GB", model: "large-v3-turbo", lang: "auto"},
-		{Key: "openai", Label: "OpenAI API", Provider: "OpenAI", Detail: "Cloud Whisper through OpenAI's API. Needs a key; audio leaves your machine.", Size: "cloud", Cloud: true, KeyKind: "openai", model: "whisper-1", lang: "en"},
+		{Key: "whisper-tiny-en", Label: "Tiny English", Provider: "Whisper", Detail: "English only. The smallest and fastest local model.", Size: "39 MB", SizeBytes: 39_000_000, Group: "english", Language: "English", Speed: "fastest", model: "tiny.en", lang: "en"},
+		{Key: "whisper-fast", Label: "Base English", Provider: "Whisper", Detail: "English only. A quick everyday model with a little more accuracy.", Size: "142 MB", SizeBytes: 142_000_000, Group: "english", Language: "English", Speed: "fast", model: "base.en", lang: "en"},
+		{Key: "whisper-small-en", Label: "Small English", Provider: "Whisper", Detail: "English only. The best balance of speed and accuracy for English dictation.", Size: "466 MB", SizeBytes: 466_000_000, Group: "english", Language: "English", Speed: "balanced", model: "small.en", lang: "en"},
+		{Key: "whisper-base", Label: "Base Multilingual", Provider: "Whisper", Detail: "A lightweight local model that detects any of Whisper's 99+ languages.", Size: "142 MB", SizeBytes: 142_000_000, Group: "multilingual", Language: "99+ languages", Speed: "fast", model: "base", lang: "auto"},
+		{Key: "whisper-medium", Label: "Medium Multilingual", Provider: "Whisper", Detail: "Higher accuracy across 99+ languages, with a larger download and slower response.", Size: "1.5 GB", SizeBytes: 1_500_000_000, Group: "multilingual", Language: "99+ languages", Speed: "quality", model: "medium", lang: "auto"},
+		{Key: "whisper-accurate", Label: "Large Turbo", Provider: "Whisper", Detail: "Fast, high-accuracy multilingual dictation for more capable hardware.", Size: "1.6 GB", SizeBytes: 1_600_000_000, Group: "multilingual", Language: "99+ languages", Speed: "fast + accurate", model: "large-v3-turbo", lang: "auto"},
+		{Key: "openai", Label: "OpenAI API", Provider: "OpenAI", Detail: "Cloud Whisper through OpenAI's API. Needs a key; audio leaves your machine.", Size: "cloud", Group: "cloud", Language: "99+ languages", Speed: "cloud", Cloud: true, KeyKind: "openai", model: "whisper-1", lang: "en"},
 	}
 }
 
@@ -171,10 +179,13 @@ func voxtypeSet(arg string) error {
 	return nil
 }
 
-// voxtypeEnsure seeds a default config and the user service on first run, and is
-// idempotent so the Hyprland autostart can call it every login. It never forces
+// voxtypeEnsure seeds a default config and the user service on first run. It is
+// idempotent so the session startup can call it every login, and never forces
 // the service on when the user turned dictation off in the Hub.
 func voxtypeEnsure() error {
+	if !onPath("voxtype") {
+		return nil
+	}
 	if _, err := os.Stat(voxtypeConfigPath()); err != nil {
 		p, _ := presetByKey("whisper-fast")
 		if err := atomicWrite(voxtypeConfigPath(), []byte(buildVoxtypeConfig(p, "")), 0o600); err != nil {
@@ -201,7 +212,13 @@ func voxtypeDownload(key string) error {
 	cmd := exec.Command("voxtype", "setup", "--download", "--model", p.model, "--no-post-install")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	if !fileExists(modelFilePath(p)) {
+		return fmt.Errorf("voxtype did not create %s", modelFilePath(p))
+	}
+	return nil
 }
 
 // voxtypeRmModel deletes a preset's downloaded model file.

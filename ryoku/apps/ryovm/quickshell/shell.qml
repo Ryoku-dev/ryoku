@@ -2,9 +2,8 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
 
-// qs -c ryoport entry: a floating window, single-instanced by the launch flock.
-// The window title stays "ryovm" until the coordinated rename lands the matching
-// Hyprland float rule; the harbour identity lives in the rail masthead.
+// The runtime title stays compatible with ryoku-summon and both compositor
+// providers. Ryoport is the visible product identity inside the window.
 ShellRoot {
     FloatingWindow {
         id: win

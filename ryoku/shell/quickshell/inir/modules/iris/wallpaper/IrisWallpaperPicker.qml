@@ -407,7 +407,7 @@ Item {
             eyebrow: "",
             facts: [video ? { glyph: "motion_photos_on", label: Translation.tr("Live") } : { glyph: "image", label: Translation.tr("Picture") },
                 { label: extension, figure: true }].concat(file.time > 0
-                ? [{ glyph: "calendar_today", label: Qt.locale().toString(new Date(file.time), "d MMM yyyy") }] : []),
+                ? [{ glyph: "calendar_today", label: Translation.locale.toString(new Date(file.time), "d MMM yyyy") }] : []),
             current: Wallpapers.isCurrentWallpaperPath(file.path, root.selectionTarget, root.targetMonitor)
         }
     }
@@ -661,7 +661,14 @@ Item {
     function move(step: int): void {
         if (root.count === 0) return
         root.select(Math.max(0, Math.min(root.count - 1, root.selectedIndex + step)))
+        // The row glides to the chosen tile with the ring instead of jumping: ask the view where it would land, then travel.
+        const from = grid.contentX
         grid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+        const to = grid.contentX
+        if (!IrisStyle.motionEnabled || Math.abs(to - from) < 1) return
+        grid.contentX = from
+        glide.to = to
+        glide.restart()
     }
 
     MouseArea {
@@ -1041,8 +1048,42 @@ Item {
                 onContentXChanged: if (root.online && Wallhaven.runningRequests === 0 && root.onlinePage > 0 && !root.onlineExhausted
                     && contentX + width > contentWidth - cellWidth * 2) root.searchOnline(root.onlinePage + 1, false)
                 Behavior on contentX {
-                    enabled: wheelScroll.animating
+                    enabled: wheelScroll.animating && !glide.running
                     NumberAnimation { duration: IrisStyle.duration(180); easing.type: IrisStyle.feedbackEasing }
+                }
+                NumberAnimation {
+                    id: glide
+                    target: grid
+                    property: "contentX"
+                    duration: IrisStyle.morphDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: IrisStyle.morphCurve
+                }
+                onMovementStarted: glide.stop()
+                // One ring for the whole gallery, travelling from tile to tile on the morph curve (a ring per tile only
+                // faded out on one and in on the next). Content coordinates: it scrolls with the tiles.
+                highlightFollowsCurrentItem: false
+                highlight: Item {
+                    id: ring
+                    readonly property Item at: grid.currentItem
+                    readonly property bool travels: IrisStyle.motionEnabled && root.armed && ring.at !== null
+                    z: 2
+                    x: ring.at ? ring.at.x : 0
+                    y: ring.at ? ring.at.y : 0
+                    width: grid.cellWidth
+                    height: grid.cellHeight
+                    opacity: ring.at !== null && root.count > 0 ? 1 : 0
+                    Behavior on x { enabled: ring.travels; NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
+                    Behavior on y { enabled: ring.travels; NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
+                    Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: Math.round(4 * root.d)
+                        radius: IrisStyle.radiusCard
+                        color: "transparent"
+                        border.width: Math.max(2, Math.round(2.5 * root.d))
+                        border.color: IrisStyle.accent
+                    }
                 }
                 WheelHandler {
                     id: wheelScroll

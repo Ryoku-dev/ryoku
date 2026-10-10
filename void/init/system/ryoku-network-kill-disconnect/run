@@ -1,0 +1,33 @@
+#!/bin/sh
+# Translation of system/hardware/network/ryoku-network-kill-disconnect.service.
+# Requires=/After=ryoku-network-kill-guard: wait until the guard has run (its
+# supervise directory shows a parked oneshot once the firewall is up), then
+# tell NetworkManager to stay off. ConditionPathExists as in the guard.
+exec 2>&1
+
+[ -e /var/lib/ryoku/network-kill-switch.enabled ] || exec sv down .
+
+# The guard is a oneshot that parks itself once the firewall is up, so its
+# done state is supervise/stat = down. wait_service only matches running
+# services, so poll for the parked state directly: proceed when the guard is
+# not supervised at all (nothing ordered it this boot) or once it has parked.
+_guard=""
+for _dir in "$(dirname "$0")/../ryoku-network-kill-guard" /var/service/ryoku-network-kill-guard /etc/sv/ryoku-network-kill-guard; do
+	[ -d "$_dir/supervise" ] && _guard=$_dir && break
+done
+if [ -n "$_guard" ]; then
+	_deadline=$(( $(date +%s) + ${RYOKU_WAIT_GUARD_DONE:-60} ))
+	while :; do
+		_stat=$(cat "$_guard/supervise/stat" 2>/dev/null) || _stat=""
+		case $_stat in
+			""|run*|finish*) ;;
+			*) break ;;
+		esac
+		[ "$(date +%s)" -ge "$_deadline" ] && exec sv down .
+		sleep 0.2
+	done
+fi
+
+/usr/bin/nmcli networking off || true
+
+exec sv down .

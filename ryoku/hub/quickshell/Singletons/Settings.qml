@@ -22,6 +22,10 @@ Singleton {
     property var data: ({})
     property bool ready: false
     property int revision: 0
+    property var pendingCalls: ({})
+    property int pendingCallCount: 0
+    property int nextCallId: 0
+
 
     // Compositor gating, carried on the `settings` frame with the values it
     // gates. caps is behavioural (supports() -> a gated row is hidden, not
@@ -58,18 +62,69 @@ Singleton {
         return cur;
     }
 
-    // Intent -> daemon. The daemon validates and clamps; an invalid patch is a
-    // no-op that replies {ok:false}. On success the daemon re-pushes the full
-    // frame, so there is no local echo to keep in sync.
-    function patch(path, value) { root.send("settings.patch", { path: path, value: value }); }
-    function reset(path) { root.send("settings.reset", { path: path }); }
+    // Intent -> daemon. Existing callers remain fire-and-forget; a caller that
+    // supplies `completion(ok, error)` gets the daemon acknowledgement or a
+    // bounded timeout and can keep its UI honest while the daemon is absent.
+    function patch(path, value, completion) {
+        return root.send("settings.patch", { path: path, value: value }, completion);
+    }
+    function reset(path, completion) {
+        return root.send("settings.reset", { path: path }, completion);
+    }
 
-    function send(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
+    function send(method, args, completion) {
+        var payload = {};
+        var source = args || {};
+        for (var key in source)
+            payload[key] = source[key];
+        var id = "";
+        if (typeof completion === "function") {
+            id = "hub-settings-" + (++root.nextCallId);
+            payload.id = id;
+            var pending = Object.assign({}, root.pendingCalls);
+            pending[id] = { callback: completion, deadline: Date.now() + 5000 };
+            root.pendingCalls = pending;
+            root.pendingCallCount++;
+        }
+        ctl.queued += "call " + method + " " + JSON.stringify(payload) + "\n";
         if (ctl.connected)
             ctl.flushQueued();
         else
             ctl.connected = true;
+        return id;
+    }
+
+    function finishCall(id, ok, error) {
+        var entry = root.pendingCalls[id];
+        if (!entry)
+            return;
+        var pending = Object.assign({}, root.pendingCalls);
+        delete pending[id];
+        root.pendingCalls = pending;
+        root.pendingCallCount = Math.max(0, root.pendingCallCount - 1);
+        entry.callback(ok, error || "");
+    }
+
+    function applyReply(line) {
+        try {
+            var reply = JSON.parse(line);
+            if (reply && reply.id)
+                root.finishCall(String(reply.id), reply.ok === true, String(reply.error || ""));
+        } catch (e) {
+        }
+    }
+
+    function expireCalls() {
+        var now = Date.now();
+        var ids = Object.keys(root.pendingCalls);
+        for (var i = 0; i < ids.length; ++i) {
+            var id = ids[i];
+            var entry = root.pendingCalls[id];
+            if (entry && entry.deadline <= now) {
+                ctl.dropQueued(id);
+                root.finishCall(id, false, "The shell daemon did not answer.");
+            }
+        }
     }
 
     function apply(line) {
@@ -113,11 +168,19 @@ Singleton {
         interval: 2000
         onTriggered: if (!sub.connected) sub.connected = true
     }
+    Timer {
+        interval: 250
+        repeat: true
+        running: root.pendingCallCount > 0
+        onTriggered: root.expireCalls()
+    }
+
 
     Socket {
         id: ctl
         path: root.sockPath
         property string queued: ""
+        parser: SplitParser { onRead: line => root.applyReply(line) }
 
         function flushQueued() {
             if (queued.length === 0)
@@ -126,6 +189,17 @@ Singleton {
             flush();
             queued = "";
         }
+        function dropQueued(id) {
+            var needle = "\"id\":\"" + id + "\"";
+            var lines = queued.split("\n");
+            var kept = "";
+            for (var i = 0; i < lines.length; ++i) {
+                if (lines[i].length > 0 && lines[i].indexOf(needle) < 0)
+                    kept += lines[i] + "\n";
+            }
+            queued = kept;
+        }
+
 
         onConnectionStateChanged: if (connected) flushQueued()
     }

@@ -19,6 +19,13 @@ const fileFailure = `  INFO: Launching config: "/home/u/.config/quickshell/shell
  ERROR:   caused by file:///home/u/.config/quickshell/shell/services/Keyring.qml[-1:-1]: Type Media unavailable
  ERROR:   caused by file:///home/u/.config/quickshell/shell/services/Media.qml[76:1]: Syntax error`
 
+// And what Qt prints when a compiled module was built against a newer Qt than
+// the one running: no QML file is at fault, the box is behind its distribution.
+const qtMismatchFailure = `  INFO: Launching config: "/home/u/.config/quickshell/shell/shell.qml"
+ ERROR: Failed to load configuration
+ ERROR:   caused by @shell.qml[13:1]: module "shell.services" is not installed
+ ERROR:   caused by file:///home/u/.config/quickshell/shell/services/Keyring.qml[-1:-1]: The plugin '/usr/lib/qt6/qml/Ryoku/Blobs/libryoku-blobsplugin.so' uses incompatible Qt library. (6.12.0) [release]`
+
 // how many times a repair asked for the shell back
 var testRestarts int
 
@@ -165,6 +172,34 @@ func TestShellLoadReportsAShippedBug(t *testing.T) {
 	}
 	if !strings.Contains(res.remedy, "ryoku update") || !strings.Contains(res.remedy, "rollback") {
 		t.Fatalf("remedy should offer the update and the rollback: %s", res.remedy)
+	}
+}
+
+// A refused plugin means the system's Qt is older than the build's. The drifted
+// tree is not the cause and must stay as it is; the remedy is the system update.
+func TestShellLoadNamesAQtBehindTheBuild(t *testing.T) {
+	cfg, _ := shellSandbox(t)
+	log := filepath.Join(os.Getenv("XDG_STATE_HOME"), "ryoku", "surfaces", "shell.log")
+	if err := os.WriteFile(log, []byte(qtMismatchFailure), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	res := reconcileShellLoad(false)
+	if res.status != recWarn {
+		t.Fatalf("status = %v (%s)", res.status, res.detail)
+	}
+	if !strings.Contains(res.detail, "libryoku-blobsplugin.so") || !strings.Contains(res.detail, "Qt 6.12") {
+		t.Fatalf("the report should name the plugin and the Qt it needs: %s", res.detail)
+	}
+	if !strings.Contains(res.remedy, "pacman -Syu") {
+		t.Fatalf("remedy should be the system update: %s", res.remedy)
+	}
+	if testRestarts != 0 {
+		t.Fatal("nothing to repair, so the shell must not be restarted")
+	}
+	rel := filepath.Join("quickshell", "shell", "services", "Media.qml")
+	if b, _ := os.ReadFile(filepath.Join(cfg, rel)); !strings.Contains(string(b), "hand edited") {
+		t.Fatal("the drifted file is not the cause and must be left alone")
 	}
 }
 

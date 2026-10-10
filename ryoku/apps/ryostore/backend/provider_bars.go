@@ -147,6 +147,13 @@ func builtinBarStyles() []Item {
 		Tags:        []string{"top", "stage", "dock", "built-in"},
 		Installed:   true,
 		Metadata:    map[string]any{"scene": "Scene.qml", "core": true},
+	}, {
+		ID: "nomarchy", Category: "barstyles", Name: "Nomarchy",
+		Summary:     "Based on Omarchy by 37signals",
+		Description: "Omarchy's configurable bar, panels, menu, notifications and plugin host, adapted to Ryoku's window-manager seam.",
+		Tags:        []string{"bar", "panels", "plugins", "built-in"},
+		Installed:   true,
+		Metadata:    map[string]any{"scene": "Scene.qml", "core": true},
 	}}
 }
 
@@ -186,7 +193,7 @@ func barStyleRegistryUnavailable(err error) bool {
 }
 
 func (p barProvider) Install(ctx context.Context, id string) error {
-	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "iris" || id == "python" {
+	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "iris" || id == "python" || id == "nomarchy" {
 		return fmt.Errorf("the built-in %s bar style is already installed", id)
 	}
 	entries, _, err := loadProductRegistry(ctx, p.cache, "barstyles", false)
@@ -201,7 +208,7 @@ func (p barProvider) Install(ctx context.Context, id string) error {
 }
 
 func (p barProvider) Remove(ctx context.Context, id string) error {
-	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "iris" || id == "python" {
+	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "iris" || id == "python" || id == "nomarchy" {
 		return fmt.Errorf("the built-in %s bar style is not removable", id)
 	}
 	return removeProduct(ctx, "barstyles", id)

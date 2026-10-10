@@ -1,0 +1,10 @@
+AppLibrary 1.0 AppLibrary.qml
+BarWidgetRegistry 1.0 BarWidgetRegistry.qml
+BrightnessKeys 1.0 BrightnessKeys.qml
+PluginAppLibraryApi 1.0 PluginAppLibraryApi.qml
+PluginBarStateApi 1.0 PluginBarStateApi.qml
+PluginBarWidgetRegistryApi 1.0 PluginBarWidgetRegistryApi.qml
+PluginFirstPartyServiceApi 1.0 PluginFirstPartyServiceApi.qml
+PluginRegistry 1.0 PluginRegistry.qml
+PluginRegistryApi 1.0 PluginRegistryApi.qml
+PluginShellApi 1.0 PluginShellApi.qml

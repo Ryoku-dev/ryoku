@@ -8,6 +8,8 @@ Item {
     id: root
 
     property var now: new Date()
+    property int _lastDay: -1
+    property string _lastLang: ""
 
     readonly property string timeFormat: {
         if (typeof Config !== "undefined" && Config.rawSettings) {
@@ -50,50 +52,132 @@ Item {
 
     readonly property bool is12Hour: !RyokuUi.TimeFormat.is24h
     readonly property bool is24Hour: RyokuUi.TimeFormat.is24h
+    readonly property bool hasSeconds: secondFormat !== "" || timeFormat.indexOf("ss") !== -1 || timeFormat.indexOf("s") !== -1
 
-    readonly property string time: Qt.formatDateTime(now, timeFormat)
-    readonly property string timeShort: Qt.formatDateTime(now, hourFormat + ":" + minuteFormat + (amPmFormat !== "" ? " " + amPmFormat : ""))
-    readonly property string timeLong: RyokuUi.TimeFormat.format(now, true)
-    readonly property string timeOnly: Qt.formatDateTime(now, timeFormat)
+    property string time: ""
+    property string timeShort: ""
+    property string timeLong: ""
+    property string timeOnly: ""
 
-    readonly property string hour: String(RyokuUi.TimeFormat.is24h ? now.getHours() : ((now.getHours() % 12) || 12)).padStart(2, "0")
-    readonly property string minute: Qt.formatDateTime(now, minuteFormat)
-    readonly property string second: secondFormat !== "" ? Qt.formatDateTime(now, secondFormat) : ""
-    readonly property string amPm: amPmFormat !== "" ? Qt.formatDateTime(now, amPmFormat) : ""
+    property string hour: ""
+    property string minute: ""
+    property string second: ""
+    property string amPm: ""
 
     readonly property string fullDatePattern: {
-        if (!I18n.isReady) return "dddd, MMMM dd";
+        if (typeof I18n === "undefined" || !I18n.isReady) return "dddd, MMMM dd";
         let pattern = I18n.t("datetime.full_date");
         return (pattern && pattern !== "datetime.full_date") ? pattern : "dddd, MMMM dd";
     }
 
-    readonly property string fullDate: now.toLocaleDateString(Qt.locale(I18n.currentLang), fullDatePattern)
-    readonly property string shortDate: now.toLocaleDateString(Qt.locale(I18n.currentLang), "d MMM")
-    readonly property string dateBadge: now.toLocaleDateString(Qt.locale(I18n.currentLang), "d MMM").toUpperCase()
-    readonly property string day: Qt.formatDateTime(now, "dd")
-    readonly property string dayShort: Qt.formatDateTime(now, "d")
-    readonly property string dayName: now.toLocaleDateString(Qt.locale(I18n.currentLang), "dddd")
-    readonly property string dayNameShort: now.toLocaleDateString(Qt.locale(I18n.currentLang), "ddd")
-    readonly property string month: now.toLocaleDateString(Qt.locale(I18n.currentLang), "MMMM")
-    readonly property string monthShort: now.toLocaleDateString(Qt.locale(I18n.currentLang), "MMM")
-    readonly property string year: Qt.formatDateTime(now, "yyyy")
+    property string fullDate: ""
+    property string shortDate: ""
+    property string dateBadge: ""
+    property string day: ""
+    property string dayShort: ""
+    property string dayName: ""
+    property string dayNameShort: ""
+    readonly property alias dayOfWeekShort: root.dayNameShort
+    property string month: ""
+    property string monthShort: ""
+    property string year: ""
 
     function format(pattern, dateObj) {
         return Qt.formatDateTime(dateObj || now, pattern);
     }
 
+    function syncTimer(d) {
+        if (!d) d = new Date();
+        if (root.hasSeconds) {
+            clockTimer.interval = 1000;
+        } else {
+            let msToNextMinute = (60 - d.getSeconds()) * 1000 - d.getMilliseconds();
+            clockTimer.interval = Math.max(500, msToNextMinute);
+        }
+    }
+
+    function updateTime(forceAll) {
+        let d = new Date();
+        root.now = d;
+
+        let curSec = root.hasSeconds ? Qt.formatDateTime(d, secondFormat !== "" ? secondFormat : "ss") : "";
+        if (root.second !== curSec) root.second = curSec;
+
+        let curTime = Qt.formatDateTime(d, timeFormat);
+        if (root.time !== curTime) root.time = curTime;
+
+        let curTimeOnly = Qt.formatDateTime(d, timeFormat);
+        if (root.timeOnly !== curTimeOnly) root.timeOnly = curTimeOnly;
+
+        let curTimeLong = RyokuUi.TimeFormat.format(d, true);
+        if (root.timeLong !== curTimeLong) root.timeLong = curTimeLong;
+
+        let curMin = Qt.formatDateTime(d, minuteFormat);
+        if (root.minute !== curMin) root.minute = curMin;
+
+        let curHour = String(RyokuUi.TimeFormat.is24h ? d.getHours() : ((d.getHours() % 12) || 12)).padStart(2, "0");
+        if (root.hour !== curHour) root.hour = curHour;
+
+        let curAmPm = amPmFormat !== "" ? Qt.formatDateTime(d, amPmFormat) : "";
+        if (root.amPm !== curAmPm) root.amPm = curAmPm;
+
+        let curTimeShort = Qt.formatDateTime(d, hourFormat + ":" + minuteFormat + (amPmFormat !== "" ? " " + amPmFormat : ""));
+        if (root.timeShort !== curTimeShort) root.timeShort = curTimeShort;
+
+        let curDay = d.getDate();
+        let curLang = (typeof I18n !== "undefined" && I18n.currentLang) ? I18n.currentLang : "en";
+        if (forceAll || root._lastDay !== curDay || root._lastLang !== curLang) {
+            root._lastDay = curDay;
+            root._lastLang = curLang;
+            let loc = Qt.locale(curLang);
+            root.fullDate = d.toLocaleDateString(loc, fullDatePattern);
+            root.shortDate = d.toLocaleDateString(loc, "d MMM");
+            root.dateBadge = d.toLocaleDateString(loc, "d MMM").toUpperCase();
+            root.day = Qt.formatDateTime(d, "dd");
+            root.dayShort = Qt.formatDateTime(d, "d");
+            root.dayName = d.toLocaleDateString(loc, "dddd");
+            root.dayNameShort = d.toLocaleDateString(loc, "ddd");
+            root.month = d.toLocaleDateString(loc, "MMMM");
+            root.monthShort = d.toLocaleDateString(loc, "MMM");
+            root.year = Qt.formatDateTime(d, "yyyy");
+        }
+
+        syncTimer(d);
+    }
+
     Timer {
+        id: clockTimer
         interval: 1000
         running: true
         repeat: true
-        triggeredOnStart: true
-        onTriggered: root.now = new Date()
+        onTriggered: root.updateTime(false)
+    }
+
+    onTimeFormatChanged: {
+        root.updateTime(true);
     }
 
     Connections {
         target: typeof Config !== "undefined" ? Config : null
         function onSettingsLoaded() {
-            root.now = new Date();
+            root.updateTime(true);
         }
+        function onRawSettingsChanged() {
+            root.updateTime(true);
+        }
+    }
+
+    Connections {
+        target: typeof I18n !== "undefined" ? I18n : null
+        function onLanguageChanged() {
+            root.updateTime(true);
+        }
+        function onIsReadyChanged() {
+            root.updateTime(true);
+        }
+    }
+
+    Component.onCompleted: {
+        root.updateTime(true);
     }
 }

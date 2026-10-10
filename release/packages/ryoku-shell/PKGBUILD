@@ -15,7 +15,7 @@ url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
 # uv provisions the ryostage engine's Python 3.13 venv (ryostage install); the
 # system python rolls ahead of onnxruntime's wheels, so the engine can't use it.
-depends=('quickshell' 'ffmpeg' 'wayland' 'jq' 'uv')
+depends=('quickshell' 'ffmpeg' 'wayland' 'jq' 'python' 'uv' 'socat' 'gum' 'qrencode' 'upower' 'brightnessctl' 'ddcutil' 'wtype' 'wl-clipboard' 'zenity' 'power-profiles-daemon' 'networkmanager' 'curl' 'libnotify')
 makedepends=('go' 'wayland' 'wayland-protocols' 'ffmpeg')
 source=()
 
@@ -58,6 +58,8 @@ package() {
     [[ -f $s ]] || continue
     install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
   done
+  install -d "$pkgdir/usr/share/ryoku/nomarchy"
+  cp -a "$_repo/ryoku/shell/nomarchy/." "$pkgdir/usr/share/ryoku/nomarchy/"
   install -d "$pkgdir/usr/share/ryoku/reload-cover"
   cp -a "$_repo/ryoku/shell/quickshell/reload-cover/." "$pkgdir/usr/share/ryoku/reload-cover/"
 }

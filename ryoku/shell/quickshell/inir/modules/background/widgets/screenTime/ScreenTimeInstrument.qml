@@ -36,11 +36,15 @@ Item {
             : minutes + Translation.tr("m")
     }
 
+    // Ticks only while the desktop is seen (every tick redraws the whole desktop window); uncovered, it catches
+    // up with what was counted behind the windows.
+    readonly property bool seen: root.widget.visible && root.widget.motionActive
     Connections {
         target: ScreenTime
-        enabled: root.widget.visible && root.widget.powerActive
+        enabled: root.seen
         function onDataChanged(): void { root.revision++ }
     }
+    onSeenChanged: if (root.seen) root.revision++
 
     implicitWidth: Math.round(300 * root.s)
     implicitHeight: column.implicitHeight + Math.round(24 * root.s)

@@ -43,6 +43,7 @@ type niriWindow struct {
 	ID             uint64           `json:"id"`
 	Title          string           `json:"title"`
 	AppID          string           `json:"app_id"`
+	Pid            int              `json:"pid"`
 	WorkspaceID    uint64           `json:"workspace_id"`
 	IsFocused      bool             `json:"is_focused"`
 	IsFloating     bool             `json:"is_floating"`
@@ -555,6 +556,7 @@ func (s *session) windowFrame() []wm.Window {
 			ID:         formatUint(w.ID),
 			AppID:      w.AppID,
 			Title:      w.Title,
+			Pid:        w.Pid,
 			Workspace:  formatUint(w.WorkspaceID),
 			Output:     outputName,
 			FocusOrder: i,

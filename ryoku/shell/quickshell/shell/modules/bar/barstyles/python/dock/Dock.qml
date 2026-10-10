@@ -8,10 +8,13 @@ import Ryoku.Ui.Singletons
 import Quickshell.Io
 import "../"
 import "../reusables"
+import shell.services as Ryoku
 
 Variants {
-    model: Quickshell.screens
-
+    id: universalDock
+    property var targetScreen: null
+    property bool surfaceVisible: true
+    model: targetScreen ? [targetScreen] : Quickshell.screens
     delegate: Component {
         id: dockDelegate
         Scope {
@@ -25,7 +28,7 @@ Variants {
                 WlrLayershell.namespace: "qs-dock-exclusion"
                 WlrLayershell.layer: dockWindow.dockOnTop ? WlrLayer.Top : WlrLayer.Bottom
                 color: "transparent"
-                visible: dockWindow.isEffectivelyExclusive
+                visible: universalDock.surfaceVisible && dockWindow.isEffectivelyExclusive
 
                 exclusionMode: ExclusionMode.Normal
                 exclusiveZone: dockWindow.isEffectivelyExclusive ? dockWindow.dockReservedSpace : 0
@@ -100,14 +103,24 @@ Variants {
                 })
 
                 property var rawDockSettings: {
-                    let dummy = configRevision;
-                    if (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.dock) {
-                        return Config.rawSettings.dock;
-                    }
-                    if (typeof Config !== "undefined" && typeof Config.getSetting === "function") {
-                        return Config.getSetting("dock", defaultDockSettings);
-                    }
-                    return defaultDockSettings;
+                    const design = Ryoku.Dock.cfg("python", {})
+                    const apps = Ryoku.Dock.resolve(Ryoku.Dock.pinnedOrStarter()).map(className => {
+                        const entry = DesktopEntries.heuristicLookup(className)
+                        return {
+                            name: entry?.name ?? className,
+                            comment: entry?.comment ?? "",
+                            desktop_id: className,
+                            icon: entry?.icon ?? className
+                        }
+                    })
+                    return Object.assign({}, defaultDockSettings, design, {
+                        enabled: Ryoku.Dock.cfg("enabled", false),
+                        position: Ryoku.Dock.resolvedEdge(),
+                        elementSize: Ryoku.Dock.cfg("size", 44),
+                        autohide: Ryoku.Dock.cfg("autohide", true),
+                        magnify: Ryoku.Dock.cfg("magnify", true),
+                        apps: apps
+                    })
                 }
 
                 property var defaultLauncherSettings: ({
@@ -192,7 +205,7 @@ Variants {
                 }
 
                 property bool autohide: rawDockSettings.autohide !== undefined ? rawDockSettings.autohide : false
-                readonly property bool effectiveAutohide: smartAutohide ? isWorkspaceBusy : autohide
+                readonly property bool effectiveAutohide: autohide && (!smartAutohide || isWorkspaceBusy)
 
                 onEffectiveAutohideChanged: hideTimer.stop()
                 onActiveIndexChanged: hideTimer.stop()
@@ -202,14 +215,11 @@ Variants {
                 readonly property int dockReservedSpace: Math.round(dockContainer.fullThickness + effectiveMargin)
 
                 property real dockHoverScaleMultiplier: {
-                    let val = undefined;
-                    if (rawDockSettings && rawDockSettings.hoverScale !== undefined) {
-                        val = rawDockSettings.hoverScale;
-                    } else if (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings["dock.hoverScale"] !== undefined) {
-                        val = Config.rawSettings["dock.hoverScale"];
-                    }
-                    let parsed = parseFloat(val);
-                    if (isNaN(parsed) || parsed < 100) return 1.20;
+                    if (!rawDockSettings.magnify)
+                        return 1;
+                    const parsed = parseFloat(rawDockSettings.hoverScale);
+                    if (isNaN(parsed) || parsed < 100)
+                        return 1.20;
                     return parsed / 100.0;
                 }
 
@@ -303,7 +313,7 @@ Variants {
 
                 property int autohideTimeout: rawDockSettings.autohideTimeout !== undefined ? rawDockSettings.autohideTimeout : 1000
                 property real autohideHitSize: s(18)
-                property bool editMode: rawDockSettings.editing !== undefined ? rawDockSettings.editing : false
+                property bool editMode: false
 
                 property real editMargin: (editMode && !dockFloating) ? s(20) : 0
                 Behavior on editMargin {
@@ -330,7 +340,7 @@ Variants {
                     positionChangeTimer.restart();
                 }
 
-                visible: dockWindow.initialized && dockEnabled && !isFullscreenActive && (dockAppsModel.count > 0 || editMode)
+                visible: universalDock.surfaceVisible && dockWindow.initialized && dockEnabled && !isFullscreenActive && (dockAppsModel.count > 0 || editMode)
 
                 property var rawBarSettings: {
                     let dummy = configRevision;
@@ -465,28 +475,13 @@ Variants {
                 }
 
                 function saveApps() {
-                    let arr = [];
+                    let pins = [];
                     for (let i = 0; i < dockAppsModel.count; i++) {
-                        let item = dockAppsModel.get(i);
-                        if (item) {
-                            arr.push({
-                                "name": item.name || "",
-                                "comment": item.comment || "",
-                                "desktop_id": item.desktop_id || "",
-                                "icon": item.icon || ""
-                            });
-                        }
+                        const item = dockAppsModel.get(i);
+                        if (item?.desktop_id)
+                            pins.push(item.desktop_id);
                     }
-                    let current = JSON.parse(JSON.stringify(rawDockSettings || defaultDockSettings));
-                    current.apps = arr;
-                    current.visibleElements = dockVisibleElements;
-                    current.enableScrolling = enableScrolling;
-                    current.exclusive = dockExclusive;
-                    current.onTop = dockOnTop;
-                    current.smartAutohide = smartAutohide;
-                    if (typeof Config !== "undefined" && typeof Config.setSetting === "function") {
-                        Config.setSetting("dock", current);
-                    }
+                    Ryoku.Dock.setPinned(pins);
                 }
 
                 function isAppInDock(desktopId) {
@@ -523,19 +518,9 @@ Variants {
                 }
 
                 function setEditMode(val) {
-                    let current = JSON.parse(JSON.stringify(rawDockSettings || defaultDockSettings));
-                    current.editing = val;
-                    current.visibleElements = dockVisibleElements;
-                    current.enableScrolling = enableScrolling;
-                    current.exclusive = dockExclusive;
-                    current.onTop = dockOnTop;
-                    current.smartAutohide = smartAutohide;
-                    if (typeof Config !== "undefined" && typeof Config.setSetting === "function") {
-                        Config.setSetting("dock", current);
-                    }
-                    if (typeof Sounds !== "undefined") {
+                    dockWindow.editMode = val;
+                    if (typeof Sounds !== "undefined")
                         Sounds.playSfx(val ? "guide/barconfig/out.wav" : "guide/barconfig/in.wav");
-                    }
                 }
 
                 function grabPickerFocus() {
@@ -631,12 +616,7 @@ Variants {
                 }
 
                 function launchApp(desktopId) {
-                    if (typeof DesktopEntries !== "undefined") {
-                        let entry = DesktopEntries.byId(desktopId);
-                        if (entry) {
-                            entry.execute();
-                        }
-                    }
+                    Ryoku.Dock.activate(desktopId);
                 }
 
                 Component.onCompleted: {
@@ -646,6 +626,7 @@ Variants {
                 }
 
                 onConfigRevisionChanged: loadApps()
+                onRawDockSettingsChanged: loadApps()
 
                 Connections {
                     target: (typeof DesktopEntries !== "undefined" && DesktopEntries.applications) ? DesktopEntries.applications : null
@@ -1327,6 +1308,10 @@ Variants {
 
                                     delegate: Item {
                                         id: dockButton
+                                        required property int index
+                                        required property string name
+                                        required property string desktop_id
+                                        required property string icon
                                         implicitWidth: dockWindow.s(dockWindow.dockElementSize)
                                         implicitHeight: dockWindow.s(dockWindow.dockElementSize)
                                         Layout.preferredWidth: dockWindow.s(dockWindow.dockElementSize)
@@ -1513,7 +1498,7 @@ Variants {
                                                     visible: source !== "" && status === Image.Ready && !failedLoad
 
                                                     source: {
-                                                        let ic = model.icon || "";
+                                                        let ic = dockButton.icon;
                                                         if (!ic) return "";
                                                         if (ic.startsWith("file://") || ic.startsWith("image://") || ic.startsWith("http://") || ic.startsWith("https://")) return ic;
                                                         return ic.startsWith("/") ? "file://" + ic : "image://icon/" + ic;
@@ -1529,7 +1514,7 @@ Variants {
                                                 Text {
                                                     anchors.centerIn: parent
                                                     visible: appIcon.source === "" || appIcon.failedLoad || appIcon.status === Image.Error
-                                                    text: model.name ? model.name.charAt(0).toUpperCase() : "?"
+                                                    text: dockButton.name ? dockButton.name.charAt(0).toUpperCase() : "?"
                                                     font.family: ThemeBackend.fontFamily
                                                     font.pixelSize: dockWindow.s(Math.round(dockWindow.dockElementSize * 0.42))
                                                     font.weight: Font.Bold
@@ -1626,8 +1611,8 @@ Variants {
                                                                 if (typeof Sounds !== "undefined") {
                                                                     Sounds.playSfx("guide/barconfig/in.wav");
                                                                 }
-                                                                if (model.desktop_id && model.desktop_id !== "") {
-                                                                    dockWindow.removeAppByDesktopId(model.desktop_id);
+                                                                if (dockButton.desktop_id !== "") {
+                                                                    dockWindow.removeAppByDesktopId(dockButton.desktop_id);
                                                                 } else if (dockWindow.dragSourceIndex >= 0 && dockWindow.dragSourceIndex < dockAppsModel.count) {
                                                                     dockAppsModel.remove(dockWindow.dragSourceIndex, 1);
                                                                     dockWindow.saveApps();
@@ -1657,7 +1642,7 @@ Variants {
                                                     if (typeof Sounds !== "undefined") {
                                                         Sounds.playSfx("reusables/iconbutton/click.wav");
                                                     }
-                                                    dockWindow.launchApp(model.desktop_id);
+                                                    dockWindow.launchApp(dockButton.desktop_id);
                                                 }
                                             }
                                         }

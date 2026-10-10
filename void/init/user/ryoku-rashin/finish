@@ -1,0 +1,9 @@
+#!/bin/sh
+# Restart=on-failure translation (see the shared shape in ryoku-idle/finish)
+# plus the BindsTo=ryoku-rashin half of ryoku-prowl: when rashin stops for
+# any reason, prowl goes down with it.
+exec 2>&1
+_here=$(dirname "$0")
+sv down "$_here/../ryoku-prowl" >/dev/null 2>&1 || true
+[ "$1" -eq 0 ] && [ "${2:-0}" -eq 0 ] && exec sv down .
+exit 0

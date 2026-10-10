@@ -6,17 +6,13 @@ Rectangle {
     id: drawer
 
     property string provider: ""
-    property string providerLabel: ""
     property var sources: null
     property var state: ({})
     property var collections: []
-    property bool searchable: true
-    property bool manual: false      // showApplyButton -> manual search mode
-    property string query: ""
+    property bool manual: false
     property real reveal: 1
+    readonly property bool hasFilters: chips.model.length > 0
 
-    signal queryEdited(string text)
-    signal searchSubmitted(string text)
     signal filtersChanged(var next)
     signal applyPressed()
 
@@ -25,7 +21,6 @@ Rectangle {
     border.color: Theme.withAlpha(Theme.outline, 0.34)
 
     readonly property real _innerW: width - 28 * Theme.scale
-    readonly property bool searchEditing: searchInput.editing
 
     Flickable {
         id: flick
@@ -48,68 +43,13 @@ Rectangle {
             spacing: 10 * Theme.scale
 
             SectionLabel {
-                width: parent.width
-                text: I18n.tr("Search")
-            }
-
-            Rectangle {
-                width: parent.width
-                height: searchInput.implicitHeight + 12 * Theme.scale
-                radius: Theme.radius
-                color: Theme.withAlpha(Theme.surfaceText, 0.05)
-                border.width: 1
-                border.color: Theme.withAlpha(Theme.outline, 0.4)
-
-                TextField {
-                    id: searchInput
-                    visible: drawer.searchable
-                    anchors.fill: parent
-                    anchors.leftMargin: 2 * Theme.scale
-                    anchors.rightMargin: 2 * Theme.scale
-                    variant: "ghost"
-                    glyph: "\uf002"
-                    placeholder: drawer.sources ? drawer.sources.searchPlaceholder(drawer.provider) : ""
-                    text: drawer.query
-                    onEdited: function(t) { drawer.queryEdited(t) }
-                    onCommitted: function(t) { drawer.searchSubmitted(t) }
-                }
-                Text {
-                    visible: !drawer.searchable
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.leftMargin: 8 * Theme.scale
-                    text: drawer.providerLabel
-                    font.family: Theme.sans
-                    font.weight: Font.Medium
-                    font.pixelSize: Theme.fontField
-                    color: Theme.surfaceText
-                    renderType: Text.NativeRendering
-                }
-            }
-
-            FolioRule { width: parent.width; alpha: 0.34; reveal: drawer.reveal }
-
-            SectionLabel {
-                visible: drawer.searchable
+                visible: drawer.hasFilters
                 width: parent.width
                 text: I18n.tr("Filters")
             }
-            Text {
-                visible: drawer.searchable
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: drawer.manual
-                    ? I18n.tr("Change filters, then press Apply or Enter to search.")
-                    : I18n.tr("Each provider has different filters. Changing them starts a new search without importing anything.")
-                font.family: Theme.sans
-                font.weight: Font.Normal
-                font.pixelSize: Theme.fontBase
-                color: Theme.withAlpha(Theme.surfaceText, 0.48 * drawer.reveal)
-                renderType: Text.NativeRendering
-            }
 
             BrowserChips {
-                visible: drawer.searchable
+                id: chips
                 width: drawer._innerW
                 provider: drawer.provider
                 sources: drawer.sources
@@ -117,12 +57,22 @@ Rectangle {
                 collections: drawer.collections
                 onChanged: function(next) { drawer.filtersChanged(next) }
             }
+
+            Text {
+                visible: !drawer.hasFilters
+                width: parent.width
+                text: I18n.tr("No filters for this source")
+                color: Theme.withAlpha(Theme.surfaceText, 0.44)
+                font.family: Theme.sans
+                font.pixelSize: Theme.fontBase
+                renderType: Text.NativeRendering
+            }
         }
     }
 
     FolioAction {
         id: applyBtn
-        visible: drawer.manual && drawer.searchable
+        visible: drawer.manual && drawer.hasFilters
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom

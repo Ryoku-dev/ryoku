@@ -9,6 +9,7 @@ Singleton {
     id: root
 
     readonly property int layoutVersion: 1
+    readonly property int rememberedSizes: 6
     readonly property var records: Config.options?.background?.widgets?.outputOverrides ?? []
 
     function _clone(value): var {
@@ -62,6 +63,35 @@ Singleton {
             && Number(record.layoutVersion ?? 0) >= root.layoutVersion
             && Math.round(Number(record.width ?? 0)) === Math.round(Number(width ?? 0))
             && Math.round(Number(record.height ?? 0)) === Math.round(Number(height ?? 0))
+    }
+
+    function _geometryKey(width, height): string {
+        return Math.round(Number(width) || 0) + "x" + Math.round(Number(height) || 0)
+    }
+
+    function outputGeometry(outputName): var {
+        const record = root.outputRecord(outputName)
+        const width = Math.round(Number(record?.width ?? 0))
+        const height = Math.round(Number(record?.height ?? 0))
+        return width > 0 && height > 0 ? { width: width, height: height } : null
+    }
+
+    function rememberedPosition(outputName, widgetKey, width, height): var {
+        const record = root.outputRecord(outputName)
+        const layout = record?.layouts?.[root._geometryKey(width, height)]
+        const holder = root._holder(outputName, widgetKey, "x")
+        const spot = layout && typeof layout === "object" ? layout[holder] : null
+        if (!spot || typeof spot !== "object")
+            return null
+        const result = ({})
+        if (spot.placementStrategy)
+            result.placementStrategy = String(spot.placementStrategy)
+        if (result.placementStrategy === "free" && Number.isFinite(Number(spot.x))
+                && Number.isFinite(Number(spot.y))) {
+            result.x = Number(spot.x)
+            result.y = Number(spot.y)
+        }
+        return result
     }
 
     function widgetOverride(outputName, widgetKey): var {
@@ -216,7 +246,7 @@ Singleton {
         return root.setValue(outputName, widgetKey, "enable", Boolean(enabled))
     }
 
-    function initializeOutputLayout(outputName, width, height, widgetValues): bool {
+    function initializeOutputLayout(outputName, width, height, widgetValues, leaving): bool {
         const output = root._outputName(outputName)
         const outputWidth = Math.max(0, Math.round(Number(width) || 0))
         const outputHeight = Math.max(0, Math.round(Number(height) || 0))
@@ -229,6 +259,39 @@ Singleton {
         if (!record) {
             record = { output: output, widgets: ({}) }
             list.push(record)
+        }
+        const leftWidth = Math.round(Number(record.width ?? 0))
+        const leftHeight = Math.round(Number(record.height ?? 0))
+        if (leftWidth > 0 && leftHeight > 0
+                && (leftWidth !== outputWidth || leftHeight !== outputHeight)) {
+            const spots = ({})
+            // What the widgets say they were on the size being left wins over what the record
+            // holds: a widget on its default strategy has none there, and a zone one has already
+            // rewritten its own x and y for the new size.
+            const known = Object.assign({}, record.widgets)
+            for (const widgetKey of Object.keys(leaving ?? ({})))
+                known[root._holder(output, widgetKey, "x")] = Object.assign(
+                    {}, known[root._holder(output, widgetKey, "x")] ?? {}, leaving[widgetKey])
+            for (const holder of Object.keys(known)) {
+                const values = known[holder]
+                const strategy = String(values?.placementStrategy ?? "")
+                if (!strategy)
+                    continue
+                const spot = { placementStrategy: strategy }
+                if (strategy === "free" && Number.isFinite(Number(values.x))
+                        && Number.isFinite(Number(values.y))) {
+                    spot.x = Number(values.x)
+                    spot.y = Number(values.y)
+                }
+                spots[holder] = spot
+            }
+            const layouts = Object.assign({}, record.layouts ?? {})
+            delete layouts[root._geometryKey(leftWidth, leftHeight)]
+            layouts[root._geometryKey(leftWidth, leftHeight)] = spots
+            const keys = Object.keys(layouts)
+            for (let i = 0; i < keys.length - root.rememberedSizes; ++i)
+                delete layouts[keys[i]]
+            record.layouts = layouts
         }
         for (const widgetKey of Object.keys(widgetValues)) {
             const values = widgetValues[widgetKey]

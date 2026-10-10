@@ -35,6 +35,7 @@ Item {
     property bool loaded: false
     property bool openaiKeySet: false
     property string downloading: ""    // preset key whose model is downloading, or ""
+    property string pendingDownload: "" // large model awaiting download confirmation
     property string busyError: ""
     property string notice: ""    // one-shot info banner, e.g. after a download
     // streamed download percent, -1 while indeterminate (voxtype emits progress
@@ -55,6 +56,22 @@ Item {
     // or a cloud engine needs its key. otherwise the toggle stays locked.
     readonly property bool usable: pg.sel !== null && (pg.sel.cloud ? pg.keyOnFile : pg.sel.present)
 
+    readonly property var pendingPreset: pg.presetFor(pg.pendingDownload)
+
+    function presetFor(key) {
+        for (var i = 0; i < pg.presets.length; i++)
+            if (pg.presets[i].key === key)
+                return pg.presets[i];
+        return null;
+    }
+    function groupLabel(group) {
+        if (group === "english")
+            return I18n.tr("ENGLISH · LOCAL");
+        if (group === "multilingual")
+            return I18n.tr("MULTILINGUAL · LOCAL");
+        return I18n.tr("CLOUD");
+    }
+
     function reload() { getProc.running = true; }
 
     // apply a full snapshot: the selected preset, the enable state, and any
@@ -68,15 +85,12 @@ Item {
         setProc.command = ["ryoku-hub", "voxtype", "set", JSON.stringify(req)];
         setProc.running = true;
     }
-    // clicking a card selects it; a local model that isn't downloaded is fetched
-    // first (one click gets it), then selected when the download lands.
+    // Clicking a missing local model starts its download. Models above 1 GB stop
+    // at the size confirmation first.
     function choose(key) {
-        var p = null;
-        for (var i = 0; i < pg.presets.length; i++)
-            if (pg.presets[i].key === key)
-                p = pg.presets[i];
+        var p = pg.presetFor(key);
         if (p !== null && !p.cloud && !p.present) {
-            pg.download(key);
+            pg.requestDownload(key);
             return;
         }
         pg.selected = key;
@@ -91,6 +105,16 @@ Item {
     // download a model in-process, no terminal. the card shows a heartbeat (or a
     // filled track when voxtype streams a percent) until it lands; on success
     // the model is selected. one download at a time.
+    function requestDownload(key) {
+        var p = pg.presetFor(key);
+        if (p === null || p.cloud || p.present || pg.downloading !== "")
+            return;
+        if (Number(p.sizeBytes || 0) > 1000000000) {
+            pg.pendingDownload = key;
+            return;
+        }
+        pg.download(key);
+    }
     function download(key) {
         if (pg.downloading !== "")
             return;
@@ -385,16 +409,33 @@ Item {
                         Repeater {
                             model: pg.presets
 
-                            // one engine/model row: name, provider, size, a wrapped
-                            // detail, and a trailing action (download / heartbeat /
-                            // remove). click the row to use it; a missing local
-                            // model downloads first.
-                            delegate: Rectangle {
-                                id: card
+                            // Each language family begins with a quiet register.
+                            // Within it, cards run from the lightest model toward
+                            // the higher-accuracy choices.
+                            delegate: Column {
+                                id: groupBlock
                                 required property var modelData
+                                required property int index
+                                width: parent ? parent.width : 0
+                                spacing: Tokens.s2
+
+                                Text {
+                                    visible: groupBlock.index === 0
+                                        || pg.presets[groupBlock.index - 1].group !== groupBlock.modelData.group
+                                    text: pg.groupLabel(groupBlock.modelData.group)
+                                    color: Tokens.inkFaint
+                                    font.family: Tokens.ui
+                                    font.pixelSize: Tokens.fTiny
+                                    font.weight: Font.Medium
+                                    font.letterSpacing: Tokens.trackLabel
+                                }
+
+                                Rectangle {
+                                id: card
+                                readonly property var modelData: groupBlock.modelData
                                 readonly property bool active: pg.selected === card.modelData.key
                                 readonly property bool busy: pg.downloading === card.modelData.key
-                                width: parent ? parent.width : 0
+                                width: groupBlock.width
                                 height: cardCol.implicitHeight + Tokens.s3 * 2
                                 radius: Tokens.radius
                                 // selection is the ON member of an exclusive set:
@@ -416,27 +457,26 @@ Item {
                                     anchors.rightMargin: Tokens.s3
                                     spacing: Tokens.s1
 
-                                    Row {
-                                        width: parent.width
-                                        spacing: Tokens.s2
-                                        Text {
-                                            text: I18n.tr(card.modelData.label)
-                                            color: card.active ? Tokens.ink : Tokens.inkDim
-                                            font.family: Tokens.ui
-                                            font.pixelSize: Tokens.fBody
-                                            font.weight: Font.DemiBold
-                                        }
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            // provider . size . status is file-truth chrome, so mono.
-                                            text: card.modelData.provider + "  \u00b7  " + card.modelData.size
-                                                + (card.busy ? I18n.tr("  \u00b7  downloading\u2026")
-                                                    : (card.modelData.cloud ? ""
-                                                        : (card.modelData.present ? I18n.tr("  \u00b7  downloaded") : I18n.tr("  \u00b7  not downloaded"))))
-                                            color: (card.busy || (!card.modelData.cloud && !card.modelData.present)) ? Tokens.ink : Tokens.inkFaint
-                                            font.family: Tokens.mono
-                                            font.pixelSize: Tokens.fTiny
-                                        }
+                                    Text {
+                                        width: cardCol.width
+                                        text: I18n.tr(card.modelData.label)
+                                        color: card.active ? Tokens.ink : Tokens.inkDim
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fBody
+                                        font.weight: Font.DemiBold
+                                    }
+                                    Text {
+                                        width: cardCol.width
+                                        text: I18n.tr(card.modelData.language)
+                                            + "  \u00b7  " + I18n.tr(card.modelData.speed)
+                                            + "  \u00b7  " + card.modelData.size
+                                            + (card.busy ? I18n.tr("  \u00b7  downloading\u2026")
+                                                : (card.modelData.cloud ? ""
+                                                    : (card.modelData.present ? I18n.tr("  \u00b7  downloaded") : I18n.tr("  \u00b7  not downloaded"))))
+                                        color: (card.busy || (!card.modelData.cloud && !card.modelData.present)) ? Tokens.ink : Tokens.inkFaint
+                                        font.family: Tokens.mono
+                                        font.pixelSize: Tokens.fTiny
+                                        elide: Text.ElideRight
                                     }
                                     Text {
                                         width: cardCol.width
@@ -548,7 +588,7 @@ Item {
                                             if (card.modelData.present)
                                                 pg.removeModel(card.modelData.key);
                                             else
-                                                pg.download(card.modelData.key);
+                                                pg.requestDownload(card.modelData.key);
                                         }
                                     }
                                 }
@@ -556,6 +596,7 @@ Item {
                                 HoverHandler { id: cardHov; cursorShape: Qt.PointingHandCursor }
                                 TapHandler { onTapped: pg.choose(card.modelData.key) }
                             }
+                                }
                         }
                         }
                     }
@@ -724,6 +765,108 @@ Item {
                     }
                 }
 
+            }
+        }
+    }
+
+    MouseArea {
+        id: downloadConfirm
+        anchors.fill: parent
+        visible: pg.pendingPreset !== null
+        z: 100
+        onClicked: pg.pendingDownload = ""
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Tokens.s6 * 2, Tokens.cardWide)
+            height: confirmCol.implicitHeight + Tokens.s5 * 2
+            radius: Tokens.radius
+            color: Tokens.bone
+            border.width: 2
+            border.color: Tokens.inkOnBone
+
+            MouseArea { anchors.fill: parent }
+
+            Column {
+                id: confirmCol
+                anchors.centerIn: parent
+                width: parent.width - Tokens.s5 * 2
+                spacing: Tokens.s4
+
+                Text {
+                    width: parent.width
+                    text: pg.pendingPreset
+                        ? I18n.tr("Download %1?").arg(I18n.tr(pg.pendingPreset.label))
+                        : ""
+                    color: Tokens.inkOnBone
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fValue
+                    font.weight: Font.Medium
+                    wrapMode: Text.WordWrap
+                }
+                Text {
+                    width: parent.width
+                    text: pg.pendingPreset
+                        ? I18n.tr("This model needs a %1 download. Dictation keeps using your current model until it finishes.").arg(pg.pendingPreset.size)
+                        : ""
+                    color: Tokens.inkOnBoneDim
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fSmall
+                    wrapMode: Text.WordWrap
+                }
+                Row {
+                    anchors.right: parent.right
+                    spacing: Tokens.s3
+
+                    Rectangle {
+                        width: cancelText.implicitWidth + Tokens.s6
+                        height: Tokens.s6
+                        radius: Tokens.radius
+                        color: cancelHover.hovered ? Tokens.lineOnBone : "transparent"
+                        border.width: Tokens.border
+                        border.color: Tokens.inkOnBoneDim
+                        Behavior on color { ColorAnimation { duration: Tokens.snap } }
+                        Text {
+                            id: cancelText
+                            anchors.centerIn: parent
+                            text: I18n.tr("CANCEL")
+                            color: Tokens.inkOnBone
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fMicro
+                            font.weight: Font.Medium
+                            font.letterSpacing: Tokens.trackLabel
+                        }
+                        HoverHandler { id: cancelHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: pg.pendingDownload = "" }
+                    }
+                    Rectangle {
+                        width: downloadText.implicitWidth + Tokens.s6
+                        height: Tokens.s6
+                        radius: Tokens.radius
+                        color: downloadHover.hovered ? Tokens.inkOnBoneDim : Tokens.inkOnBone
+                        Behavior on color { ColorAnimation { duration: Tokens.snap } }
+                        Text {
+                            id: downloadText
+                            anchors.centerIn: parent
+                            text: pg.pendingPreset
+                                ? I18n.tr("DOWNLOAD %1").arg(pg.pendingPreset.size)
+                                : I18n.tr("DOWNLOAD")
+                            color: Tokens.bone
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fMicro
+                            font.weight: Font.Medium
+                            font.letterSpacing: Tokens.trackLabel
+                        }
+                        HoverHandler { id: downloadHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler {
+                            onTapped: {
+                                var key = pg.pendingDownload;
+                                pg.pendingDownload = "";
+                                pg.download(key);
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -11,6 +11,7 @@ import stage.modules.common.widgets
 import stage.modules.common.functions
 import stage.modules.ii.background.widgets
 import stage.modules.ii.background.shortcuts
+import shell.services as ShellServices
 
 /**
  * Edit Mode's panel: the surface that slides in from the right of the card.
@@ -57,7 +58,6 @@ Item {
     signal barDragMoved(string componentId, real x, real y)
     signal barDropRequested(string componentId, real x, real y)
     signal barDragCancelled()
-    signal dockToggleRequested(string appId)
     signal addAppRequested(string appId, real dropX, real dropY)
     signal toggleAppOnHomeScreenRequested(string appId)
     signal addAppPairRequested(string firstAppId, string secondAppId, string name)
@@ -449,28 +449,29 @@ Item {
         return group ? group.items : [];
     }
 
-    // The dock's catalogue, in three groups for the three answers to "why is
-    // this app in the list": it is on the dock, it is open right now, or it is
-    // merely installed. Without the last one an app that is neither pinned nor
-    // running could not be pinned at all - it had to be launched first.
+    // The dock catalogue reads the shell's canonical desktop ids. Running
+    // aliases are resolved before grouping so one application never appears in
+    // both Open now and On the dock under different names.
     readonly property var dockGroups: {
         if (root.section !== "dock")
             return [];
-        const pinnedIds = Config.options.dock.pinnedApps ?? [];
-        const running = (TaskbarApps.apps ?? []).filter(app => app && !app.pinned && app.appId);
+        const pinnedIds = ShellServices.Dock.pinnedOrStarter();
         const taken = {};
         for (const id of pinnedIds)
-            taken[TaskbarApps.normalizeAppId(id)] = true;
-        for (const app of running)
-            taken[TaskbarApps.normalizeAppId(app.appId)] = true;
+            taken[ShellServices.Dock.canonicalId(id)] = true;
+        const running = [];
+        for (const client of ShellServices.Dock.clients) {
+            const id = ShellServices.Dock.canonicalId(client.className);
+            if (!id || taken[id] || running.some(app => app.appId === id))
+                continue;
+            taken[id] = true;
+            running.push({ appId: id });
+        }
         const rest = Array.from(AppSearch.list ?? [])
             .filter(entry => entry && entry.id && !entry.noDisplay
-                && !taken[TaskbarApps.normalizeAppId(entry.id)]);
-        // The name is resolved HERE, once per catalogue, and carried on the
-        // item: a heuristic lookup per row per keystroke over two hundred apps
-        // is the exact cost the launcher had to have taken out of it.
+                && !taken[ShellServices.Dock.canonicalId(entry.id)]);
         const item = (appId, pinned, name) => ({
-            "appId": appId,
+            "appId": ShellServices.Dock.canonicalId(appId),
             "pinned": pinned,
             "name": name || root.appName(appId)
         });
@@ -751,10 +752,10 @@ Item {
             return BarComponentRegistry.getComponent(root.page.substring(10))?.title ?? Translation.tr("Widget");
         if (root.page === "appearance")
             return root.section === "dock"
-                ? (PanelFamily.touchFirst ? Translation.tr("Taskbar appearance & items") : Translation.tr("Dock appearance"))
+                ? (PanelFamily.touchFirst ? Translation.tr("Taskbar appearance & items") : Translation.tr("Dock design & settings"))
                 : Translation.tr("Bar appearance");
         if (root.page === "widgets")
-            return Translation.tr("Dock widgets");
+            return Translation.tr("Pinned apps & order");
         return Translation.tr("Edit");
     }
 
@@ -1657,8 +1658,8 @@ Item {
                     first: true
                     last: false
                     symbol: "palette"
-                    title: Translation.tr("Dock appearance")
-                    subtitle: Translation.tr("Position, size, style and icons")
+                    title: Translation.tr("Dock design & settings")
+                    subtitle: Translation.tr("Design, placement, behaviour and design details")
                     onActivated: root.openPage("appearance")
                 }
 
@@ -1667,9 +1668,9 @@ Item {
                     Layout.fillWidth: true
                     first: false
                     last: true
-                    symbol: "widgets"
-                    title: Translation.tr("Dock widgets")
-                    subtitle: Translation.tr("Media, weather, sports and the buttons")
+                    symbol: "keep"
+                    title: Translation.tr("Pinned apps & order")
+                    subtitle: Translation.tr("Remove pins or move them into place")
                     onActivated: root.openPage("widgets")
                 }
 
@@ -1735,10 +1736,8 @@ Item {
             StyledListView {
                 id: appList
                 anchors.fill: parent
-                // No cascade here, and no row transitions either: pinning an
-                // app genuinely moves it between groups, so this model IS a
-                // function of `dock.pinnedApps` and is rebuilt on every click.
-                // Animated, the whole list would replay its entrance each time.
+                // Pinning moves an app between groups and rebuilds this list.
+                // Entrance animations would replay the whole page on each click.
                 popin: false
                 animateAppearance: false
                 clip: true
@@ -1751,10 +1750,10 @@ Item {
                     width: appList.width
                     first: index === 0
                     last: index === root.dockItems.length - 1
-                    iconSource: Quickshell.iconPath(AppSearch.guessIcon(modelData.appId ?? ""), "image-missing")
+                    iconSource: ShellServices.Dock.iconFor(modelData.appId ?? "")
                     title: modelData.name ?? modelData.appId
                     trailingKind: modelData.pinned === true ? "check" : "add"
-                    onActivated: root.dockToggleRequested(modelData.appId ?? "")
+                    onActivated: ShellServices.Dock.togglePin(modelData.appId ?? "")
                 }
             }
 

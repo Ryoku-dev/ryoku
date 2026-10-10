@@ -49,5 +49,6 @@ public:
     using QObject::QObject;
 Q_SIGNALS:
     void cardsChanged();
+    void cardsAppended();
     void cardUpdated(int row);
 };

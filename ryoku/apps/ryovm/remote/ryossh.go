@@ -487,25 +487,30 @@ func cmdPingAll() {
 // Probe is the health snapshot for one host. Emitted only on success, so the
 // numeric fields are shown even when zero (the GUI expects the full shape).
 type Probe struct {
-	Alias       string            `json:"alias"`
-	OK          bool              `json:"ok"`
-	Host        string            `json:"host"`
-	Kernel      string            `json:"kernel"`
-	Distro      string            `json:"distro"`
-	UptimeS     int64             `json:"uptimeS"`
-	Load1       float64           `json:"load1"`
-	Load5       float64           `json:"load5"`
-	Load15      float64           `json:"load15"`
-	CPUs        int               `json:"cpus"`
-	MemTotalKb  int64             `json:"memTotalKb"`
-	MemAvailKb  int64             `json:"memAvailKb"`
-	DiskTotalKb int64             `json:"diskTotalKb"`
-	DiskUsedKb  int64             `json:"diskUsedKb"`
-	DiskPct     int               `json:"diskPct"`
-	FailedUnits int               `json:"failedUnits"`
-	Logins      int               `json:"logins"`
-	TopProcs    []string          `json:"topProcs"`
-	Services    map[string]string `json:"services"`
+	Alias          string            `json:"alias"`
+	OK             bool              `json:"ok"`
+	Host           string            `json:"host"`
+	Kernel         string            `json:"kernel"`
+	Distro         string            `json:"distro"`
+	UptimeS        int64             `json:"uptimeS"`
+	CPUPercent     float64           `json:"cpuPercent"`
+	Load1          float64           `json:"load1"`
+	Load5          float64           `json:"load5"`
+	Load15         float64           `json:"load15"`
+	CPUs           int               `json:"cpus"`
+	MemTotalKb     int64             `json:"memTotalKb"`
+	MemAvailKb     int64             `json:"memAvailKb"`
+	DiskTotalKb    int64             `json:"diskTotalKb"`
+	DiskUsedKb     int64             `json:"diskUsedKb"`
+	DiskPct        int               `json:"diskPct"`
+	DiskReadBytes  int64             `json:"diskReadBytes"`
+	DiskWriteBytes int64             `json:"diskWriteBytes"`
+	NetRxBytes     int64             `json:"netRxBytes"`
+	NetTxBytes     int64             `json:"netTxBytes"`
+	FailedUnits    int               `json:"failedUnits"`
+	Logins         int               `json:"logins"`
+	TopProcs       []string          `json:"topProcs"`
+	Services       map[string]string `json:"services"`
 }
 
 // baseProbeScript is the one-shot POSIX-sh health script (research §5). It reads
@@ -519,10 +524,21 @@ echo "host=$(hostname 2>/dev/null)"
 echo "kernel=$(uname -r)"
 [ -r /etc/os-release ] && . /etc/os-release && echo "distro=$PRETTY_NAME"
 read u _ < /proc/uptime; echo "uptime_s=${u%.*}"
+read _ u1 n1 s1 i1 w1 q1 sq1 st1 _ < /proc/stat
+t1=$((u1+n1+s1+i1+w1+q1+sq1+st1)); idle1=$((i1+w1))
+sleep 1
+read _ u2 n2 s2 i2 w2 q2 sq2 st2 _ < /proc/stat
+t2=$((u2+n2+s2+i2+w2+q2+sq2+st2)); idle2=$((i2+w2))
+dt=$((t2-t1)); di=$((idle2-idle1))
+awk -v dt="$dt" -v di="$di" "BEGIN{if(dt>0) printf \"cpu_pct=%.1f\n\",100*(dt-di)/dt; else print \"cpu_pct=0\"}"
 read l1 l5 l15 _ < /proc/loadavg; echo "load1=$l1"; echo "load5=$l5"; echo "load15=$l15"
 echo "cpus=$(nproc 2>/dev/null || grep -c ^processor /proc/cpuinfo)"
 awk "/^MemTotal:/{t=\$2}/^MemAvailable:/{a=\$2}END{print \"mem_total_kb=\"t; print \"mem_avail_kb=\"a}" /proc/meminfo
 df -P -k / | awk "NR==2{print \"disk_total_kb=\"\$2; print \"disk_used_kb=\"\$3; print \"disk_avail_kb=\"\$4; print \"disk_pct=\"\$5}"
+set -- $(awk '{r+=$3; w+=$7} END{print r*512, w*512}' /sys/block/*/stat 2>/dev/null)
+echo "disk_read_bytes=${1:-0}"; echo "disk_write_bytes=${2:-0}"
+set -- $(awk -F'[: ]+' 'NR>2 && $2!="lo"{rx+=$3; tx+=$11} END{print rx+0, tx+0}' /proc/net/dev)
+echo "net_rx_bytes=${1:-0}"; echo "net_tx_bytes=${2:-0}"
 command -v systemctl >/dev/null 2>&1 && echo "failed_units=$(systemctl --failed --no-legend 2>/dev/null | wc -l)"
 echo "logins=$(who 2>/dev/null | wc -l)"
 ps -eo pcpu,comm --sort=-pcpu 2>/dev/null | awk "NR>1&&NR<=4{printf \"top%d=%s:%s\n\",NR-1,\$2,\$1}"`
@@ -616,25 +632,30 @@ func parseKV(s string) map[string]string {
 // fillProbe type-converts the parsed key=value map into a Probe.
 func fillProbe(alias string, kv map[string]string) Probe {
 	p := Probe{
-		Alias:       alias,
-		OK:          true,
-		Host:        kv["host"],
-		Kernel:      kv["kernel"],
-		Distro:      kv["distro"],
-		UptimeS:     atoi64(kv["uptime_s"]),
-		Load1:       atof(kv["load1"]),
-		Load5:       atof(kv["load5"]),
-		Load15:      atof(kv["load15"]),
-		CPUs:        atoi(kv["cpus"]),
-		MemTotalKb:  atoi64(kv["mem_total_kb"]),
-		MemAvailKb:  atoi64(kv["mem_avail_kb"]),
-		DiskTotalKb: atoi64(kv["disk_total_kb"]),
-		DiskUsedKb:  atoi64(kv["disk_used_kb"]),
-		DiskPct:     atoi(strings.TrimSuffix(kv["disk_pct"], "%")),
-		FailedUnits: atoi(kv["failed_units"]),
-		Logins:      atoi(kv["logins"]),
-		TopProcs:    []string{},
-		Services:    map[string]string{},
+		Alias:          alias,
+		OK:             true,
+		Host:           kv["host"],
+		Kernel:         kv["kernel"],
+		Distro:         kv["distro"],
+		UptimeS:        atoi64(kv["uptime_s"]),
+		CPUPercent:     atof(kv["cpu_pct"]),
+		Load1:          atof(kv["load1"]),
+		Load5:          atof(kv["load5"]),
+		Load15:         atof(kv["load15"]),
+		CPUs:           atoi(kv["cpus"]),
+		MemTotalKb:     atoi64(kv["mem_total_kb"]),
+		MemAvailKb:     atoi64(kv["mem_avail_kb"]),
+		DiskTotalKb:    atoi64(kv["disk_total_kb"]),
+		DiskUsedKb:     atoi64(kv["disk_used_kb"]),
+		DiskPct:        atoi(strings.TrimSuffix(kv["disk_pct"], "%")),
+		DiskReadBytes:  atoi64(kv["disk_read_bytes"]),
+		DiskWriteBytes: atoi64(kv["disk_write_bytes"]),
+		NetRxBytes:     atoi64(kv["net_rx_bytes"]),
+		NetTxBytes:     atoi64(kv["net_tx_bytes"]),
+		FailedUnits:    atoi(kv["failed_units"]),
+		Logins:         atoi(kv["logins"]),
+		TopProcs:       []string{},
+		Services:       map[string]string{},
 	}
 	for i := 1; ; i++ {
 		v, ok := kv["top"+strconv.Itoa(i)]

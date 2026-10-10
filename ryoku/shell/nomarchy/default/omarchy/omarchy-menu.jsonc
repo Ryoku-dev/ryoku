@@ -1,0 +1,52 @@
+{
+  // Nomarchy keeps Omarchy's menu routes while Ryoku owns the actions behind them.
+  "apps": {"icon":"󰀻","label":"Apps","aliases":["app","applications"],"provider":"apps"},
+  "learn": {"icon":"󰧑","label":"Learn"},
+  "trigger": {"icon":"󱓞","label":"Trigger"},
+  "style": {"icon":"","label":"Style"},
+  "setup": {"icon":"","label":"Setup","aliases":["settings"]},
+  "update": {"icon":"","label":"Update"},
+  "about": {"icon":"","label":"About","action":"xdg-open https://ryoku.dev"},
+  "system": {"icon":"","label":"System","aliases":["power-menu"]},
+
+  "system.lock": {"icon":"","label":"Lock","action":"omarchy-system-lock"},
+  "system.suspend": {"icon":"󰒲","label":"Suspend","action":"ryoku-shell suspend"},
+  "system.logout": {"icon":"󰍃","label":"Logout","action":"ryoku wm act session.exit"},
+  "system.reboot": {"icon":"󰜉","label":"Reboot","action":"systemctl reboot"},
+  "system.shutdown": {"icon":"󰐥","label":"Shutdown","action":"systemctl poweroff"},
+
+  "learn.keybindings": {"icon":"","label":"Keybindings","action":"omarchy-menu-keybindings"},
+  "learn.ryoku": {"icon":"","label":"Ryoku","action":"xdg-open https://ryoku.dev"},
+  "learn.arch": {"icon":"󰣇","label":"Arch","action":"xdg-open https://wiki.archlinux.org/title/Main_page"},
+
+  "trigger.emoji": {"icon":"","label":"Emoji","aliases":["emoji","emojis"],"action":"omarchy-menu-emoji"},
+  "trigger.reminder": {"icon":"󰢌","label":"Reminder","aliases":["reminder"],"action":"omarchy-reminder"},
+  "trigger.capture": {"icon":"","label":"Capture","aliases":["capture","screenshot","screenrecord"]},
+  "trigger.capture.screenshot": {"icon":"","label":"Screenshot","action":"omarchy-capture-screenshot"},
+  "trigger.capture.screenrecord": {"icon":"","label":"Screen recording","action":"omarchy-capture-screenrecording"},
+  "trigger.toggle": {"icon":"󰔎","label":"Toggle","aliases":["toggle","toggles"]},
+  "trigger.toggle.nightlight": {"icon":"󰔎","label":"Night light","action":"omarchy-toggle-nightlight"},
+  "trigger.toggle.touchpad": {"icon":"󰟸","label":"Touchpad","action":"omarchy-toggle-touchpad"},
+  "trigger.toggle.top-bar": {"icon":"󰍜","label":"Menu bar","action":"omarchy-toggle-bar"},
+
+  "style.theme": {"icon":"󰸌","label":"Theme","aliases":["theme","themes"],"action":"omarchy-theme-switcher"},
+  "style.background": {"icon":"","label":"Background","aliases":["background","wallpaper"],"action":"ryogami wallpaper ui"},
+  "style.font": {"icon":"","label":"Font","provider":"fonts"},
+  "style.bar": {"icon":"󰍜","label":"Menu bar"},
+  "style.bar.position": {"icon":"","label":"Position"},
+  "style.bar.position.top": {"icon":"󰁝","label":"Top","action":"omarchy bar position top"},
+  "style.bar.position.bottom": {"icon":"󰁅","label":"Bottom","action":"omarchy bar position bottom"},
+  "style.bar.position.left": {"icon":"󰁍","label":"Left","action":"omarchy bar position left"},
+  "style.bar.position.right": {"icon":"󰁔","label":"Right","action":"omarchy bar position right"},
+  "style.bar.transparency": {"icon":"󰂵","label":"Transparency","action":"omarchy bar transparent toggle"},
+
+  "setup.hub": {"icon":"","label":"Ryoku Hub","action":"ryoku hub"},
+  "setup.plugin": {"icon":"󰐱","label":"Plugins","aliases":["plugin","plugins"]},
+  "setup.plugin.enable": {"icon":"󰄬","label":"Enable plugin","action":"omarchy-menu-plugin enable"},
+  "setup.plugin.disable": {"icon":"󰅖","label":"Disable plugin","action":"omarchy-menu-plugin disable"},
+  "setup.plugin.add": {"icon":"󰖟","label":"Add plugin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-plugin-add"},
+  "setup.plugin.remove": {"icon":"󰭌","label":"Remove plugin","action":"omarchy-launch-floating-terminal-with-presentation omarchy-plugin-remove"},
+
+  "update.ryoku": {"icon":"","label":"Update Ryoku","action":"ryoku-shell hub open updates"},
+  "update.shell": {"icon":"󰑓","label":"Reload shell","action":"omarchy-restart-shell"}
+}

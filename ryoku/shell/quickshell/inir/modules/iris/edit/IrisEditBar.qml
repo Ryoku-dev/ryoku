@@ -27,7 +27,7 @@ Item {
     readonly property real d: IrisStyle.density
     readonly property bool present: GlobalStates.irisEdit
     // The capsule and its sheets appear and leave in place, with no morph: sliding under the Island and
-    // folding back into the capsule read as being swallowed (maintainer, 2026-09-27).
+    // folding back into the capsule read as being swallowed.
     readonly property bool shown: root.entered && root.present
     // Shown on the turn after loading, so the compositor's blur never lands ahead of the body's tint.
     property bool entered: false

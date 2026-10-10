@@ -44,3 +44,10 @@ output_path = "~/.config/qt6ct/colors/ryoku.conf"
 [templates.kde]
 input_path = "~/.config/matugen/templates/kdeglobals"
 output_path = "~/.cache/ryoku/kdeglobals-colors.conf"
+
+# Nomarchy keeps the generated wallpaper palette staged here even while one of
+# its named themes is selected. The daemon publishes the pair atomically only
+# when "Wallpaper (Ryoku)" owns the Nomarchy surfaces.
+[templates.nomarchy]
+input_path = "~/.config/matugen/templates/nomarchy-colors.toml"
+output_path = "~/.cache/ryoku/nomarchy-colors.toml"

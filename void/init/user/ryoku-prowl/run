@@ -1,0 +1,18 @@
+#!/bin/sh
+# Translation of ryoku/rashin/systemd/ryoku-prowl.service.
+# BindsTo=/After=ryoku-rashin: the reverse direction (rashin's finish downs
+# this service); this side only needs rashin supervised first. No [Install] in
+# the original: never started on its own, only by ryoku-rashin.
+# StartLimitIntervalSec=0 is runsv's default; NoNewPrivileges is an accepted
+# loss (the gateway binds loopback only).
+exec 2>&1
+
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+
+. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
+wait_service ryoku-rashin "${RYOKU_WAIT_RASHIN:-60}" || exec sv down .
+
+# ExecStartPre=-prowl gateway down --port 8788: clear a stale gateway first.
+"$BIN/prowl" gateway down --port 8788 >/dev/null 2>&1 || true
+
+exec "$BIN/prowl" gateway serve --port 8788

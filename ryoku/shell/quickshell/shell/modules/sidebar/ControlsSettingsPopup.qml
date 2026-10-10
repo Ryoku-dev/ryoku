@@ -31,7 +31,7 @@ QQC.Popup {
 
     SidebarPlugins {
         id: pluginHost
-        active: root.active
+        active: root.active && SidebarState.elementVisible("pluginCards")
     }
 
     background: Rectangle {
@@ -90,7 +90,7 @@ QQC.Popup {
             id: extensionRow
             width: parent.width
             implicitHeight: (Tokens.ctlH + Tokens.s2) * root.s
-            visible: root.pluginCards.length > 0
+            visible: SidebarState.elementVisible("pluginCards") && root.pluginCards.length > 0
             hoverEnabled: true
             Accessible.name: I18n.tr("Extensions")
             onClicked: {
@@ -161,6 +161,7 @@ QQC.Popup {
 
         Repeater {
             model: [
+                { label: "Controls", glyph: "tune", section: "controls" },
                 { label: "Displays", glyph: "display_settings", section: "displays" },
                 { label: "Sound", glyph: "volume_up", section: "connections" },
                 { label: "Network", glyph: "wifi", section: "connections" },

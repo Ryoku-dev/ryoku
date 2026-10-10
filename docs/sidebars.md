@@ -13,7 +13,7 @@ ryoshot has its own close control. The shortcuts are editable in
 
 ## Controls
 
-Controls is a 688-logical-pixel panel with four sections.
+Controls is a compact, configurable 688-logical-pixel panel.
 
 ### Vitals
 
@@ -31,7 +31,9 @@ network, disk, and temperatures over a one-minute window, keeps a second more
 than it shows so the oldest sample is always beyond the left edge (the trace
 runs off the graph rather than ending on a point), and eases each new sample
 in over one sample period so the trace never steps. Sampling and graph
-animation stop when the panel is inactive.
+animation stop when the panel is inactive. Hiding Vitals prevents its monitor
+from being created; hiding the live graph prevents its graph renderer from
+being created.
 
 ### Connections
 
@@ -64,6 +66,26 @@ persists across logins until it is switched off. It never refuses a deliberate
 sleep: the lid, the power key, and Sleep here still suspend. The gear opens a
 small popup for the remaining Controls settings. Unsupported controls are not
 shown as dead options.
+
+### Customising Controls
+
+**Ryoku Hub > Controls** has a miniature of the panel rather than a list of
+switches. Drag Vitals, Connections, Power profile, Now playing, Levels, and
+Bottom controls into the order you want. The eye on each block shows or hides
+the whole block. Selecting a block exposes chips for its smaller parts, including
+individual readings, the live graph, connection tiles, level sliders, media
+details and transport, session actions, quick controls, and plugin cards.
+
+The shipped arrangement matches the original Controls panel. Now playing is
+available but hidden until selected. **Reset** restores that arrangement. The
+choice is stored in `shell.json` under `controls`, applies immediately to an
+open panel on every display, and is used the next time it opens. Hidden blocks
+are not instantiated, so their panel-owned probes, processes, watches, and
+animations do not continue in the background.
+
+Controls remains a global shell surface. The same arrangement is used by every
+bar style and every supported compositor.
+
 
 ## ryoshot
 
@@ -140,12 +162,13 @@ Controls components live under
 |---|---|
 | `Sidebar.qml` | Top-left placement, focus, input region, and click-away dismissal |
 | `SidebarFrame.qml`, `SidebarChrome.qml` | Shared surface, header, and board routing |
-| `ControlsBoard.qml` | Vitals, Connections, Levels, and bottom-bar composition |
+| `ControlsBoard.qml` | Persisted section order, visibility, and lazy block loading |
 | `ControlsHero.qml`, `Vital*.qml` | Native activity graphs and individual system readings |
 | `ControlsConnections.qml`, `ConnectionTile.qml` | Wi-Fi, Bluetooth, Ethernet, and VPN summaries |
 | `ControlsLevels.qml`, `LevelSlider.qml` | Volume and brightness controls |
 | `MixerDrawer.qml`, `MixerRow.qml` | Per-device and per-application audio controls |
 | `BrightnessDrawer.qml` | Per-display brightness controls |
+| `ControlsMedia.qml` | Optional now-playing details and transport |
 | `ControlsBar.qml`, `HoldButton.qml`, `ControlsSettingsPopup.qml` | Session actions, toggles, and gear popup |
 | `ExtensionsBoard.qml`, `SidebarCardHost.qml`, `SidebarPlugins.qml` | Plugin discovery, ordering, and hosting |
 | `cards/SystemWifiPage.qml`, `cards/SystemBluetoothPage.qml` | Connection detail pages |

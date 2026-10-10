@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+machine=${1:-}; [[ -n $machine ]] || { echo 'Usage: omarchy-tailscale-send <machine> [file...]' >&2; exit 2; }; shift
+files=("$@")
+if ((${#files[@]} == 0)); then
+  mapfile -t files < <(omarchy-file-select --title "Send to ${machine%%.*}" --multiple)
+  ((${#files[@]})) || exit 0
+fi
+if error=$(tailscale file cp --update-interval=0 -- "${files[@]}" "$machine:" 2>&1); then
+  omarchy-notification-send "Sent to ${machine%%.*}" "$((${#files[@]})) file(s)"
+else
+  omarchy-notification-send -u critical "Could not send to ${machine%%.*}" "${error:-Taildrop transfer failed}"
+  exit 1
+fi

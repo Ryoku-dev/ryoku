@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+[[ ${1:-} == --shell || $# == 0 ]] || { echo 'Usage: omarchy-battery-status [--shell]' >&2; exit 2; }
+device=$(upower -e 2>/dev/null | awk '/BAT/{print; exit}')
+[[ -n $device ]] || exit 0
+info=$(upower -i "$device")
+value() { awk -v key="$1" '$1==key":" {print $2; exit}' <<<"$info"; }
+percentage=$(value percentage); state=$(value state); capacity=$(value energy-full); rate=$(value energy-rate)
+time=$(awk '/time to (empty|full):/{print $4 " " $5; exit}' <<<"$info")
+if [[ ${1:-} == --shell ]]; then
+  printf 'percentage\t%s\nstate\t%s\nrate\t%sW\nsize\t%sWh\ntime\t%s\n' "${percentage:-0%}" "${state:-unknown}" "${rate:-0}" "${capacity:-0}" "${time:-}"
+else
+  printf 'Battery %s  ·  %s  ·  %sW / %sWh\n' "${percentage:-0%}" "${state:-unknown}" "${rate:-0}" "${capacity:-0}"
+fi

@@ -64,6 +64,51 @@ func TestWarmAssetsCachesRemoteRewritesAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestWarmAssetsLeavesLargeMarketplaceRemote(t *testing.T) {
+	t.Setenv("RYOKU_EXTRAS_BASE", "")
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+
+	var mu sync.Mutex
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits++
+		mu.Unlock()
+		_, _ = w.Write([]byte("asset"))
+	}))
+	defer srv.Close()
+
+	preview := srv.URL + "/omarchy-plugins/a/preview.webp"
+	shot := srv.URL + "/omarchy-plugins/a/shot.png"
+	if err := os.MkdirAll(assetCacheDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cachedAssetPath(preview), []byte("cached"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	items := []Item{{
+		ID:          "a",
+		Category:    "omarchy-plugins",
+		Art:         preview,
+		ArtRaw:      preview,
+		Screenshots: []string{shot},
+	}}
+	rewriteCachedAssets(items)
+	warmAssets(context.Background(), srv.Client(), items)
+
+	if items[0].Art != preview || items[0].ArtRaw != preview || items[0].Screenshots[0] != shot {
+		t.Fatalf("large marketplace assets must stay remote for lazy delegates: %#v", items[0])
+	}
+	mu.Lock()
+	gotHits := hits
+	mu.Unlock()
+	if gotHits != 0 {
+		t.Fatalf("large marketplace warm made %d network requests, want 0", gotHits)
+	}
+}
+
 func TestWarmAssetsLeavesRemoteURLOnFailure(t *testing.T) {
 	t.Setenv("RYOKU_EXTRAS_BASE", "")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())

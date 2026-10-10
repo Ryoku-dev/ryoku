@@ -1,14 +1,17 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell.Io
 import "../"
 import "../../"
 
-Item {
+FocusScope {
     id: root
     implicitWidth: 180
     implicitHeight: 32
+
+    readonly property var currentWindow: Window.window
 
     property color baseColor: "#313244"
     property color accentColor: "#89b4fa"
@@ -62,6 +65,9 @@ Item {
     property bool isWidgetVisible: true
     property bool showCaret: true
 
+    property bool unfocusOnOutsideClick: true
+    property alias loseFocusOnOutsideClick: root.unfocusOnOutsideClick
+
     readonly property color activeSignalColor: root.hasError ? root.errorColor : (root.isBusy ? root.busyColor : root.accentColor)
     property color caretColor: root.activeSignalColor
 
@@ -76,6 +82,33 @@ Item {
     signal cleared()
     signal clicked()
     signal triggered()
+
+    Item {
+        parent: root.currentWindow ? root.currentWindow.contentItem : null
+        width: parent ? parent.width : 0
+        height: parent ? parent.height : 0
+        visible: root.unfocusOnOutsideClick && root.hasFocus
+        enabled: root.unfocusOnOutsideClick
+
+        PointHandler {
+            enabled: root.unfocusOnOutsideClick
+            acceptedButtons: Qt.AllButtons
+            grabPermissions: PointerHandler.TakeOverForbidden
+            target: null
+            onActiveChanged: {
+                if (root.unfocusOnOutsideClick && active && point) {
+                    let pt = point.scenePosition || point.position;
+                    if (pt) {
+                        let pos = root.mapFromItem(null, pt.x, pt.y);
+                        if (pos.x < 0 || pos.x > root.width || pos.y < 0 || pos.y > root.height) {
+                            innerInput.focus = false;
+                            root.focus = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     function copyToClipboard(str) {
         if (!str || str.length === 0) return;
@@ -427,6 +460,7 @@ Item {
             TextInput {
                 id: innerInput
                 anchors.fill: parent
+                focus: true
                 opacity: 0
                 color: "transparent"
                 selectionColor: "transparent"

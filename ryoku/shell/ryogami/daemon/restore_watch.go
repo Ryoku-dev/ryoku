@@ -59,22 +59,6 @@ func (d *daemon) restoreFallback() {
 	}
 }
 
-// Only the external live-wall player is spawned per output; a static frame
-// and the in-shell engine ride the retained topic the shell repaints itself.
-func (d *daemon) externalLiveStored() bool {
-	if wallPrefs().Engine == "in_shell" {
-		return false
-	}
-	state := map[string]map[string]interface{}{}
-	loadJSON(filepath.Join(d.config().cacheDir(), "outputs.json"), &state)
-	for _, e := range state {
-		if e["type"] == "video" {
-			return true
-		}
-	}
-	return false
-}
-
 // watchOutputs restores the wallpaper onto outputs that appear after startup: a
 // monitor plugged in, or a panel that probes late at login. The seam's watch
 // carries the full output list on every change, so a frame whose set grew since
@@ -83,7 +67,7 @@ func (d *daemon) externalLiveStored() bool {
 // compositor exit, so it reconnects with the same backoff.
 func (d *daemon) watchOutputs() {
 	for {
-		prev := -1
+		var previous map[string]bool
 		// Outputs only: the provider then skips the window and workspace reads
 		// it would otherwise do on every window event.
 		_ = wmClient.WatchKinds(context.Background(), []wm.FrameKind{wm.FrameOutputs}, func(f wm.Frame) {
@@ -91,12 +75,27 @@ func (d *daemon) watchOutputs() {
 				return
 			}
 			outputs.set(f.Outputs)
-			n := len(f.Outputs)
-			grew := prev >= 0 && n > prev
-			prev = n
-			if grew && d.config().restoreEnabled() && d.externalLiveStored() {
-				d.restoreOutputs()
+			current := map[string]bool{}
+			for _, output := range f.Outputs {
+				current[output.Name] = true
 			}
+			if previous != nil && d.config().restoreEnabled() {
+				var added []string
+				for name := range current {
+					if !previous[name] {
+						added = append(added, name)
+					}
+				}
+				if len(added) > 0 {
+					d.restoreOutputTargets(added)
+					for _, name := range added {
+						if target, err := d.workspaces.current(name); err == nil {
+							_ = d.applyWorkspaceTarget(target, "init")
+						}
+					}
+				}
+			}
+			previous = current
 		})
 		time.Sleep(restoreRetryInterval)
 	}

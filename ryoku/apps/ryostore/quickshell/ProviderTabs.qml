@@ -2,8 +2,8 @@ import QtQuick
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// A subtab strip under the app bar. Themes uses it to browse colour schemes per
-// provider; the Decor tab uses it to switch between its picture catalogues.
+// A subtab strip under the page head. Themes uses it to browse colour schemes
+// per provider; the Decor category switches between its picture catalogues.
 // Entries are plain names, or {key, label} pairs when the label and the value
 // differ. The leading All plate and the trailing plate are optional, so a strip
 // can be just its entries.
@@ -17,6 +17,7 @@ Item {
     property string trailingKey: ""
     property int installableCount: 0  // uninstalled items in the focused entry
     property bool busy: false
+    property bool reducedMotion: false
 
     signal picked(string filter)
     signal installAll()
@@ -30,12 +31,25 @@ Item {
         width: plateText.implicitWidth + Tokens.s4
         height: 30
         radius: Tokens.radius
-        color: plate.on ? Tokens.bone : (ph.hovered ? Tokens.tint5 : "transparent")
+        color: plate.on ? Tokens.bone
+              : (plateTap.pressed ? Tokens.tint16 : (ph.hovered ? Tokens.tint5 : "transparent"))
         border.width: Tokens.border
-        border.color: plate.on ? Tokens.bone : Tokens.line
+        border.color: plate.on ? Tokens.bone : (ph.hovered ? Tokens.lineStrong : Tokens.line)
+        scale: plateTap.pressed ? 0.97 : 1
         activeFocusOnTab: true
-        Behavior on color { ColorAnimation { duration: Tokens.snap } }
         Accessible.role: Accessible.Button
+        Behavior on color {
+            enabled: !tabs.reducedMotion
+            ColorAnimation { duration: Tokens.snap }
+        }
+        Behavior on border.color {
+            enabled: !tabs.reducedMotion
+            ColorAnimation { duration: Tokens.snap }
+        }
+        Behavior on scale {
+            enabled: !tabs.reducedMotion
+            NumberAnimation { duration: Tokens.snap; easing.type: Tokens.easeSnap }
+        }
         Accessible.name: plate.label
         Accessible.onPressAction: plate.chose()
         Keys.onPressed: event => {
@@ -53,10 +67,13 @@ Item {
             font.pixelSize: 11
             font.weight: Font.Medium
             font.letterSpacing: Tokens.trackLabel
-            Behavior on color { ColorAnimation { duration: Tokens.snap } }
+            Behavior on color {
+                enabled: !tabs.reducedMotion
+                ColorAnimation { duration: Tokens.snap }
+            }
         }
         HoverHandler { id: ph; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: plate.chose() }
+        TapHandler { id: plateTap; onTapped: plate.chose() }
     }
 
     Flickable {

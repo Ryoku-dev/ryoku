@@ -1,0 +1,10 @@
+#!/bin/sh
+# Restart=on-failure translation, against runit semantics verified on Void
+# (tests/void-init-runit.sh): a finish exit code never gates restarts, runsv
+# re-runs the service after ~1 s unless a down was requested. finish gets the
+# run child's exit status as $1 (0 when killed by a signal, -1 observed on a
+# requested down) and 0 in $2 for a normal exit, else the signal number.
+# Park exactly on a clean self-exit; a crash or signal death falls through to
+# the runsv restart, and an operator sv down parks via its own flag.
+[ "$1" -eq 0 ] && [ "${2:-0}" -eq 0 ] && exec sv down .
+exit 0

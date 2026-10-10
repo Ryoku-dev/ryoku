@@ -27,7 +27,7 @@ Column {
         visible: root.showDay
         anchors.horizontalCenter: parent.horizontalCenter
         bottomPadding: Math.round(root.pixelSize * 0.3)
-        text: Qt.locale().toString(DateTime.clock.date, "d")
+        text: Translation.locale.toString(DateTime.clock.date, "d")
         color: root.accent
         font.pixelSize: Math.round(root.pixelSize * 0.8)
         font.family: IrisStyle.fontNumbers

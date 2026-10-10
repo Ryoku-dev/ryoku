@@ -108,16 +108,53 @@ Singleton {
     // grace (the same binding-vs-imperative trap as the analysers' `running`).
     // onSoundingChanged + audioGrace are the sole controllers; the initial state
     // is seeded once.
+    // Surface residency has its own 30-second grace. Rebuilding one PanelWindow
+    // per output during a short track gap costs more than keeping them warm.
     readonly property bool sounding: Media.playing || Audio.streams.length > 0
+    readonly property bool visualizerHardFrozen: lowPower || saver || gaming
+    readonly property bool unloadVisualizerWhenSilent: adapter.unloadVisualizerWhenSilent
     property bool audioIdle: true
-    Component.onCompleted: root.audioIdle = !root.sounding
-    onSoundingChanged: {
-        if (root.sounding) { audioGrace.stop(); root.audioIdle = false; }
-        else audioGrace.restart();
+    property bool visualizerResident: true
+
+    function syncVisualizerResidency() {
+        visualizerResidencyGrace.stop();
+        if (root.visualizerHardFrozen) {
+            root.visualizerResident = false;
+        } else if (root.sounding || !root.unloadVisualizerWhenSilent) {
+            root.visualizerResident = true;
+        } else if (root.visualizerResident) {
+            visualizerResidencyGrace.restart();
+        }
     }
+
+    Component.onCompleted: {
+        root.audioIdle = !root.sounding;
+        root.syncVisualizerResidency();
+    }
+    onSoundingChanged: {
+        if (root.sounding) {
+            audioGrace.stop();
+            root.audioIdle = false;
+        } else {
+            audioGrace.restart();
+        }
+        root.syncVisualizerResidency();
+    }
+    onUnloadVisualizerWhenSilentChanged: root.syncVisualizerResidency()
+    onVisualizerHardFrozenChanged: root.syncVisualizerResidency()
+
     Timer { id: audioGrace; interval: 4000; onTriggered: root.audioIdle = true }
-    readonly property bool visualizerFrozen: lowPower || saver || gaming || audioIdle
-    readonly property bool pillFrozen:       lowPower || saver || gaming || audioIdle
+    Timer {
+        id: visualizerResidencyGrace
+        interval: 30000
+        onTriggered: {
+            if (root.unloadVisualizerWhenSilent && !root.sounding
+                    && !root.visualizerHardFrozen)
+                root.visualizerResident = false;
+        }
+    }
+    readonly property bool visualizerFrozen: root.visualizerHardFrozen || audioIdle
+    readonly property bool pillFrozen: root.visualizerHardFrozen || audioIdle
 
     // Ambient motion: the bar's stream drifting on a passive sine while the desktop
     // is SILENT (with audio playing it reacts regardless -- that is streamLive's
@@ -164,6 +201,7 @@ Singleton {
             property real motionSpeed: 1.0
             property bool powerProfileEffects: true
             property bool ambientBarMotion: false
+            property bool unloadVisualizerWhenSilent: true
         }
     }
 }

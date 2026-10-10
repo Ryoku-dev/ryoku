@@ -17,6 +17,7 @@ Singleton {
     id: root
 
     property alias quality: adapter.quality
+    property alias models: adapter.models
     property alias edge: adapter.edge
     property alias shadow: adapter.shadow
     property alias shadowAngle: adapter.shadowAngle
@@ -74,6 +75,17 @@ Singleton {
         if (tier !== "draft" && tier !== "standard" && tier !== "fine")
             return;
         adapter.quality = tier;
+        file.writeAdapter();
+    }
+    function setModel(tier, model) {
+        if (["draft", "standard", "fine"].indexOf(tier) < 0 || !model)
+            return;
+        const next = {};
+        const current = adapter.models || {};
+        for (const key in current)
+            next[key] = current[key];
+        next[tier] = model;
+        adapter.models = next;
         file.writeAdapter();
     }
 
@@ -150,6 +162,7 @@ Singleton {
         JsonAdapter {
             id: adapter
             property string quality: "draft"
+            property var models: ({ draft: "u2netp", standard: "u2netp", fine: "birefnet-general-lite" })
             property real edge: 0.15
             property real shadow: 0.0
             property int shadowAngle: 90

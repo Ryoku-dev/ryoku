@@ -1,266 +1,256 @@
 import QtQuick
 import QtQuick.Layouts
-import stage
-import stage.services
 import stage.modules.common
 import stage.modules.common.widgets
+import stage.services
+import shell.services as ShellServices
 
-/**
- * The dock's own quick settings, as a page of Edit Mode's panel.
- *
- * The dock was the one panel the mode let you rearrange without letting you
- * say anything about how it is drawn: pinning was the whole vocabulary. These
- * are the keys from Settings' "Placement & Size" and "Dock appearance" that
- * change its shape - where it sits, how tall it is, which silhouette, how the
- * icons are treated - and nothing deeper.
- *
- * Preferences, not layout edits: no history entries, same as the bar's page.
- */
 StyledFlickable {
     id: root
 
     contentHeight: column.implicitHeight
     clip: true
 
-    readonly property string dockStyle: {
-        const stored = Config.options.dock.dockStyle;
-        if (stored === "islands" || stored === "dynamic_island" || stored === "hug" || stored === "floating" || stored === "transparent")
-            return stored;
-        return (Config.options.dock.islandsStyle ?? false) ? "islands" : "floating";
-    }
+    readonly property string design: String(ShellServices.Dock.cfg("design", "ryoku"))
+    function cfg(key, fallback) { return ShellServices.Dock.cfg(key, fallback) }
+    function setCfg(key, value) { ShellServices.Dock.setCfg(key, value) }
+    function designCfg(key, fallback) { return ShellServices.Dock.designCfg(root.design, key, fallback) }
+    function setDesignCfg(key, value) { ShellServices.Dock.setDesignCfg(root.design, key, value) }
 
     ColumnLayout {
         id: column
         width: root.width
         spacing: 4
 
-        // No standalone heading above a group that already names itself.
-        EditOptionChips {
-            label: Translation.tr("Position")
-            currentValue: Config.options.dock.position
-            options: [
-                { "displayName": Translation.tr("Auto"), "icon": "auto_awesome", "value": "auto" },
-                { "displayName": Translation.tr("Bottom"), "icon": "border_bottom", "value": "bottom" },
-                { "displayName": Translation.tr("Top"), "icon": "border_top", "value": "top" },
-                { "displayName": Translation.tr("Left"), "icon": "border_left", "value": "left" },
-                { "displayName": Translation.tr("Right"), "icon": "border_right", "value": "right" }
-            ]
-            onSelected: value => Config.options.dock.position = value
+        EditDockDesignPicker {
+            currentValue: root.design
+            onSelected: value => root.setCfg("design", value)
         }
+
+        EditPanelSectionLabel { text: Translation.tr("Shared placement") }
 
         EditPanelRow {
             Layout.fillWidth: true
-            Layout.topMargin: 6
             first: true
-            last: true
-            symbol: "height"
-            title: Translation.tr("Dock height")
-            trailingKind: "stepper"
-            valueText: Config.options.dock.height + " px"
-            stepDownEnabled: Config.options.dock.height > 20
-            stepUpEnabled: Config.options.dock.height < 200
-            onStepDown: Config.options.dock.height = Math.max(20, Config.options.dock.height - 2)
-            onStepUp: Config.options.dock.height = Math.min(200, Config.options.dock.height + 2)
+            last: false
+            symbol: "dock"
+            title: Translation.tr("Show dock")
+            subtitle: Translation.tr("Uses this design on every monitor")
+            trailingKind: "switch"
+            switchChecked: root.cfg("enabled", false)
+            rowEnabled: root.design !== "none"
+            onActivated: root.setCfg("enabled", !root.cfg("enabled", false))
         }
 
         EditOptionChips {
-            Layout.topMargin: 10
-            label: Translation.tr("Dock style")
-            currentValue: root.dockStyle
+            Layout.fillWidth: true
+            label: Translation.tr("Screen edge")
+            currentValue: root.cfg("edge", "auto")
             options: [
-                { "displayName": Translation.tr("Floating"), "icon": "dock", "value": "floating" },
-                { "displayName": Translation.tr("Islands"), "icon": "grid_view", "value": "islands" },
-                { "displayName": Translation.tr("Hug"), "icon": "line_curve", "value": "hug" },
-                { "displayName": Translation.tr("Island"), "icon": "dock_to_bottom", "value": "dynamic_island" },
-                { "displayName": Translation.tr("Transparent"), "icon": "opacity", "value": "transparent" }
+                { displayName: Translation.tr("Auto"), icon: "auto_awesome", value: "auto" },
+                { displayName: Translation.tr("Bottom"), icon: "border_bottom", value: "bottom" },
+                { displayName: Translation.tr("Top"), icon: "border_top", value: "top" },
+                { displayName: Translation.tr("Left"), icon: "border_left", value: "left" },
+                { displayName: Translation.tr("Right"), icon: "border_right", value: "right" }
             ]
-            onSelected: value => {
-                Config.options.dock.dockStyle = value;
-                Config.options.dock.islandsStyle = (value === "islands");
-            }
+            onSelected: value => root.setCfg("edge", value)
         }
 
         EditPanelRow {
             Layout.fillWidth: true
-            Layout.topMargin: 6
-            visible: root.dockStyle === "islands"
-            first: true
+            first: false
             last: false
-            symbol: "space_bar"
-            title: Translation.tr("Island spacing")
+            symbol: "aspect_ratio"
+            title: Translation.tr("Icon size")
             trailingKind: "stepper"
-            valueText: String(Config.options.dock.islandSpacing ?? 8)
-            stepDownEnabled: (Config.options.dock.islandSpacing ?? 8) > 4
-            stepUpEnabled: (Config.options.dock.islandSpacing ?? 8) < 32
-            onStepDown: Config.options.dock.islandSpacing = Math.max(4, (Config.options.dock.islandSpacing ?? 8) - 1)
-            onStepUp: Config.options.dock.islandSpacing = Math.min(32, (Config.options.dock.islandSpacing ?? 8) + 1)
+            valueText: Math.round(Number(root.cfg("size", 44))) + " px"
+            stepDownEnabled: Number(root.cfg("size", 44)) > 28
+            stepUpEnabled: Number(root.cfg("size", 44)) < 72
+            onStepDown: root.setCfg("size", Math.max(28, Number(root.cfg("size", 44)) - 2))
+            onStepUp: root.setCfg("size", Math.min(72, Number(root.cfg("size", 44)) + 2))
         }
 
         EditPanelRow {
             Layout.fillWidth: true
-            Layout.topMargin: root.dockStyle === "islands" ? 0 : 6
-            first: root.dockStyle !== "islands"
+            first: false
             last: false
-            symbol: "rounded_corner"
-            title: Translation.tr("Dock corner radius")
-            trailingKind: "stepper"
-            valueText: Config.options.dock.dockRadius < 0 ? Translation.tr("Auto") : String(Config.options.dock.dockRadius)
-            stepDownEnabled: Config.options.dock.dockRadius > 0
-            stepUpEnabled: Config.options.dock.dockRadius < 40
-            onStepDown: {
-                const next = (Config.options.dock.dockRadius < 0 ? 0 : Config.options.dock.dockRadius) - 2;
-                Config.options.dock.dockRadius = next <= 0 ? -1 : next;
-            }
-            onStepUp: {
-                const next = (Config.options.dock.dockRadius < 0 ? 0 : Config.options.dock.dockRadius) + 2;
-                Config.options.dock.dockRadius = Math.min(40, next);
-            }
+            symbol: "visibility_off"
+            title: Translation.tr("Automatically hide")
+            trailingKind: "switch"
+            switchChecked: root.cfg("autohide", true)
+            onActivated: root.setCfg("autohide", !root.cfg("autohide", true))
         }
 
         EditPanelRow {
             Layout.fillWidth: true
             first: false
             last: true
-            symbol: "crop_square"
-            title: Translation.tr("Widget corner radius")
-            trailingKind: "stepper"
-            valueText: Config.options.dock.widgetRadius < 0 ? Translation.tr("Auto") : String(Config.options.dock.widgetRadius)
-            stepDownEnabled: Config.options.dock.widgetRadius > 0
-            stepUpEnabled: Config.options.dock.widgetRadius < 30
-            onStepDown: {
-                const next = (Config.options.dock.widgetRadius < 0 ? 0 : Config.options.dock.widgetRadius) - 2;
-                Config.options.dock.widgetRadius = next <= 0 ? -1 : next;
-            }
-            onStepUp: {
-                const next = (Config.options.dock.widgetRadius < 0 ? 0 : Config.options.dock.widgetRadius) + 2;
-                Config.options.dock.widgetRadius = Math.min(30, next);
-            }
-        }
-
-        EditPanelSectionLabel {
-            text: Translation.tr("Icons")
-        }
-
-        EditPanelRow {
-            Layout.fillWidth: true
-            first: true
-            last: false
-            symbol: "invert_colors"
-            title: Translation.tr("Tint dock icons")
-            trailingKind: "switch"
-            switchChecked: Config.options.dock.monochromeIcons
-            onActivated: Config.options.dock.monochromeIcons = !Config.options.dock.monochromeIcons
-        }
-
-        EditPanelRow {
-            Layout.fillWidth: true
-            first: false
-            last: false
-            rowEnabled: !Config.options.dock.monochromeIcons
-            symbol: "filter_b_and_w"
-            title: Translation.tr("Dim inactive icons")
-            subtitle: Translation.tr("Pinned apps that are not running")
-            trailingKind: "switch"
-            switchChecked: Config.options.dock.dimInactiveIcons
-            onActivated: Config.options.dock.dimInactiveIcons = !Config.options.dock.dimInactiveIcons
-        }
-
-        EditPanelRow {
-            Layout.fillWidth: true
-            first: false
-            last: false
-            symbol: "shapes"
-            title: Translation.tr("Adaptive icon shape")
-            trailingKind: "switch"
-            switchChecked: Config.options.dock.enableShapeMask
-            onActivated: Config.options.dock.enableShapeMask = !Config.options.dock.enableShapeMask
-        }
-
-        EditPanelRow {
-            Layout.fillWidth: true
-            first: false
-            last: false
             symbol: "zoom_out_map"
-            title: Translation.tr("macOS magnification")
+            title: Translation.tr("Magnify on hover")
             trailingKind: "switch"
-            switchChecked: Config.options.dock.enableMagnification ?? false
-            onActivated: Config.options.dock.enableMagnification = !(Config.options.dock.enableMagnification ?? false)
+            switchChecked: root.cfg("magnify", true)
+            onActivated: root.setCfg("magnify", !root.cfg("magnify", true))
         }
 
-        EditPanelRow {
+        EditPanelSectionLabel {
+            visible: root.design === "ryoku"
+            text: Translation.tr("Ryoku design")
+        }
+
+        EditOptionChips {
+            visible: root.design === "ryoku"
             Layout.fillWidth: true
-            first: false
-            last: true
-            symbol: "space_bar"
-            title: Translation.tr("Icon spacing")
-            trailingKind: "stepper"
-            // Negative is the dock's own "work it out from the style", which
-            // is what an untouched config holds - so it reads as Auto rather
-            // than as a nonsensical -1.
-            valueText: Config.options.dock.iconSpacing < 0
-                ? Translation.tr("Auto") : String(Math.round(Config.options.dock.iconSpacing))
-            stepDownEnabled: Config.options.dock.iconSpacing > 0
-            stepUpEnabled: Config.options.dock.iconSpacing < 24
-            onStepDown: {
-                const next = (Config.options.dock.iconSpacing < 0 ? 0 : Config.options.dock.iconSpacing) - 1;
-                Config.options.dock.iconSpacing = next < 0 ? -1 : next;
-            }
-            onStepUp: {
-                const next = (Config.options.dock.iconSpacing < 0 ? 0 : Config.options.dock.iconSpacing) + 1;
-                Config.options.dock.iconSpacing = Math.min(24, next);
+            label: Translation.tr("Shape")
+            currentValue: root.cfg("style", "islands")
+            options: ShellServices.Dock.styleOptions.map(option => ({
+                displayName: option.label, value: option.key, icon: option.key === "rail" ? "view_week" : "dock"
+            }))
+            onSelected: value => root.setCfg("style", value)
+        }
+
+        Repeater {
+            model: root.design === "ryoku" ? [
+                { key: "frost", title: Translation.tr("Frosted surface"), symbol: "blur_on", fallback: true },
+                { key: "shadow", title: Translation.tr("Depth shadow"), symbol: "layers", fallback: true },
+                { key: "labels", title: Translation.tr("Hover labels"), symbol: "label", fallback: true },
+                { key: "media", title: Translation.tr("Now playing card"), symbol: "music_note", fallback: false }
+            ] : []
+            delegate: EditPanelRow {
+                required property var modelData
+                required property int index
+                Layout.fillWidth: true
+                first: index === 0
+                last: index === 3
+                symbol: modelData.symbol
+                title: modelData.title
+                trailingKind: "switch"
+                switchChecked: root.cfg(modelData.key, modelData.fallback)
+                onActivated: root.setCfg(modelData.key, !root.cfg(modelData.key, modelData.fallback))
             }
         }
 
         EditPanelSectionLabel {
-            text: Translation.tr("Behaviour")
+            visible: root.design === "python"
+            text: Translation.tr("Python design")
         }
 
-        EditPanelRow {
+        Repeater {
+            model: root.design === "python" ? [
+                { key: "floating", title: Translation.tr("Float from the edge"), symbol: "space_bar", fallback: false },
+                { key: "onTop", title: Translation.tr("Stay above windows"), symbol: "vertical_align_top", fallback: true },
+                { key: "exclusive", title: Translation.tr("Reserve room for windows"), symbol: "crop_free", fallback: false },
+                { key: "smartAutohide", title: Translation.tr("Hide only when a workspace is busy"), symbol: "auto_awesome", fallback: true },
+                { key: "cascadeScale", title: Translation.tr("Magnify neighbouring icons"), symbol: "filter_center_focus", fallback: false },
+                { key: "enableScrolling", title: Translation.tr("Scroll long docks"), symbol: "swipe", fallback: false },
+                { key: "overrideBoundsCorrection", title: Translation.tr("Allow edge overflow"), symbol: "open_in_full", fallback: false }
+            ] : []
+            delegate: EditPanelRow {
+                required property var modelData
+                required property int index
+                Layout.fillWidth: true
+                first: index === 0
+                last: index === 6
+                symbol: modelData.symbol
+                title: modelData.title
+                trailingKind: "switch"
+                switchChecked: root.designCfg(modelData.key, modelData.fallback)
+                onActivated: root.setDesignCfg(modelData.key, !root.designCfg(modelData.key, modelData.fallback))
+            }
+        }
+
+        Repeater {
+            model: root.design === "python" ? [
+                { key: "opacity", title: Translation.tr("Surface opacity"), symbol: "opacity", fallback: 100, min: 20, max: 100, step: 5, unit: " %" },
+                { key: "hoverScale", title: Translation.tr("Hover scale"), symbol: "zoom_in", fallback: 120, min: 100, max: 180, step: 5, unit: " %" },
+                { key: "autohideTimeout", title: Translation.tr("Hide delay"), symbol: "timer", fallback: 1000, min: 250, max: 5000, step: 250, unit: " ms" },
+                { key: "visibleElements", title: Translation.tr("Visible icons while scrolling"), symbol: "apps", fallback: 7, min: 3, max: 15, step: 1, unit: "" }
+            ] : []
+            delegate: EditPanelRow {
+                required property var modelData
+                required property int index
+                Layout.fillWidth: true
+                first: false
+                last: index === 3
+                symbol: modelData.symbol
+                title: modelData.title
+                trailingKind: "stepper"
+                valueText: Math.round(Number(root.designCfg(modelData.key, modelData.fallback))) + modelData.unit
+                stepDownEnabled: Number(root.designCfg(modelData.key, modelData.fallback)) > modelData.min
+                stepUpEnabled: Number(root.designCfg(modelData.key, modelData.fallback)) < modelData.max
+                onStepDown: root.setDesignCfg(modelData.key, Math.max(modelData.min,
+                    Number(root.designCfg(modelData.key, modelData.fallback)) - modelData.step))
+                onStepUp: root.setDesignCfg(modelData.key, Math.min(modelData.max,
+                    Number(root.designCfg(modelData.key, modelData.fallback)) + modelData.step))
+            }
+        }
+
+        EditPanelSectionLabel {
+            visible: root.design === "shima"
+            text: Translation.tr("Shima design")
+        }
+
+        EditOptionChips {
+            visible: root.design === "shima"
             Layout.fillWidth: true
-            first: true
-            last: false
-            symbol: "push_pin"
-            title: Translation.tr("Pinned on startup")
-            subtitle: Translation.tr("Keep the dock out instead of hiding it")
-            trailingKind: "switch"
-            switchChecked: Config.options.dock.pinnedOnStartup
-            onActivated: Config.options.dock.pinnedOnStartup = !Config.options.dock.pinnedOnStartup
+            label: Translation.tr("Shape")
+            currentValue: root.designCfg("shape", "auto")
+            options: [
+                { displayName: Translation.tr("Auto"), icon: "auto_awesome", value: "auto" },
+                { displayName: Translation.tr("Round"), icon: "circle", value: "round" },
+                { displayName: Translation.tr("Squircle"), icon: "rounded_corner", value: "squircle" },
+                { displayName: Translation.tr("Square"), icon: "square", value: "square" }
+            ]
+            onSelected: value => root.setDesignCfg("shape", value)
         }
 
-        EditPanelRow {
+        EditOptionChips {
+            visible: root.design === "shima"
             Layout.fillWidth: true
-            first: false
-            last: false
-            symbol: "highlight_mouse_cursor"
-            title: Translation.tr("Hover to reveal")
-            trailingKind: "switch"
-            switchChecked: Config.options.dock.hoverToReveal
-            onActivated: Config.options.dock.hoverToReveal = !Config.options.dock.hoverToReveal
+            label: Translation.tr("Material")
+            currentValue: root.designCfg("material", "inherit")
+            options: [
+                { displayName: Translation.tr("Shima"), icon: "auto_awesome", value: "inherit" },
+                { displayName: Translation.tr("Solid"), icon: "square", value: "solid" },
+                { displayName: Translation.tr("Glass"), icon: "blur_on", value: "glass" }
+            ]
+            onSelected: value => root.setDesignCfg("material", value)
+        }
+
+        Repeater {
+            model: root.design === "shima" ? [
+                { key: "notch", title: Translation.tr("Melt into the screen edge"), symbol: "line_curve", fallback: true },
+                { key: "launcher", title: Translation.tr("Applications button"), symbol: "apps", fallback: true },
+                { key: "reserveSpace", title: Translation.tr("Reserve room for windows"), symbol: "crop_free", fallback: true },
+                { key: "revealOnEmpty", title: Translation.tr("Stay visible on empty workspaces"), symbol: "desktop_windows", fallback: true },
+                { key: "badges", title: Translation.tr("Notification badges"), symbol: "notifications", fallback: true }
+            ] : []
+            delegate: EditPanelRow {
+                required property var modelData
+                required property int index
+                Layout.fillWidth: true
+                first: index === 0
+                last: index === 4
+                symbol: modelData.symbol
+                title: modelData.title
+                trailingKind: "switch"
+                switchChecked: root.designCfg(modelData.key, modelData.fallback)
+                onActivated: root.setDesignCfg(modelData.key, !root.designCfg(modelData.key, modelData.fallback))
+            }
         }
 
         EditPanelRow {
+            visible: root.design === "shima" && root.cfg("magnify", true)
             Layout.fillWidth: true
             first: false
             last: true
-            symbol: "group_work"
-            title: Translation.tr("Smart auto-grouping")
-            subtitle: Translation.tr("Arrange by category, keeping what you moved by hand")
-            trailingKind: "switch"
-            switchChecked: Config.options.dock.smartGrouping
-            onActivated: Config.options.dock.smartGrouping = !Config.options.dock.smartGrouping
-        }
-
-        // Live previews, the workspace strip, the presets manager: pages of
-        // forms rather than a handful of switches, the way the bar's own page
-        // points at its Settings page instead of mirroring it.
-        EditPanelRow {
-            Layout.fillWidth: true
-            Layout.topMargin: 10
-            symbol: "settings"
-            title: Translation.tr("All dock settings")
-            subtitle: Translation.tr("Leaves Edit Mode")
-            trailingKind: "chevron"
-            onActivated: GlobalStates.openSettingsFromEditMode("dock")
+            symbol: "zoom_in"
+            title: Translation.tr("Magnification")
+            trailingKind: "stepper"
+            valueText: Math.round(Number(root.designCfg("magnifySize", 150))) + " %"
+            stepDownEnabled: Number(root.designCfg("magnifySize", 150)) > 110
+            stepUpEnabled: Number(root.designCfg("magnifySize", 150)) < 200
+            onStepDown: root.setDesignCfg("magnifySize", Math.max(110, Number(root.designCfg("magnifySize", 150)) - 5))
+            onStepUp: root.setDesignCfg("magnifySize", Math.min(200, Number(root.designCfg("magnifySize", 150)) + 5))
         }
 
         Item {

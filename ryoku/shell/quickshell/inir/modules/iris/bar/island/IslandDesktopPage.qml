@@ -192,7 +192,6 @@ ColumnLayout {
     readonly property string bannerSource: String(page.island.options?.desktopBanner ?? "wallpaper") === "wallpaper"
         ? WallpaperListener.wallpaperUrlForScreen(page.island.targetScreen) : ""
     readonly property bool showBanner: page.bannerSource.length > 0
-    // Settings › Island › Desktop page: 100 / 100 / 0 is the header as designed.
     function bannerPart(key: string, fallback: int): real {
         return Math.max(0, Math.min(100, Number(page.island.options?.[key] ?? fallback))) / 100
     }
@@ -245,7 +244,6 @@ ColumnLayout {
             width: hero.width + page.island.padding * 2
             height: hero.height + heroBleed.topBleed + Math.round(12 * IrisStyle.density)
 
-            // On a side edge the join is beside the header: the same treatment turned sideways (sideJoin).
             Item {
                 id: heroContent
                 anchors.fill: parent
@@ -259,7 +257,12 @@ ColumnLayout {
                 }
                 IrisWallpaperView {
                     id: heroImage
-                    anchors.fill: parent
+                    // The wallpaper as this screen shows it, its band taken from the upper third: heads and skies sit
+                    // there, where a centred band of a portrait shows the subject's knees.
+                    readonly property real screenAspect: (page.island.targetScreen?.height ?? 1080) / Math.max(1, page.island.targetScreen?.width ?? 1920)
+                    width: parent.width
+                    height: Math.max(parent.height, Math.round(parent.width * heroImage.screenAspect))
+                    y: -Math.round((heroImage.height - parent.height) * 0.3)
                     active: page.showBanner
                     screen: page.island.targetScreen
                     live: page.current && page.island.visualExpanded
@@ -288,15 +291,11 @@ ColumnLayout {
             }
         }
 
-        // The Island notched on a side edge: its body runs into the frame beside the header. The image keeps off
-        // the band and the shoulders (the body's own material there) and enters on a ramp as long again, the
-        // same join as at the top.
         Item {
             id: sideJoin
             readonly property string edge: page.island.notch ? String(page.island.edge) : ""
             readonly property bool active: sideJoin.edge === "left" || sideJoin.edge === "right"
             readonly property real depth: IrisFrame.band + page.island.fillet + 4 * IrisStyle.density
-            // Where the screen edge falls in the header's own coordinates.
             readonly property real edgeX: {
                 void (heroBleed.width + heroBleed.x + page.island.chassisItem.width + page.island.chassisItem.x)
                 const window = heroBleed.Window.window
@@ -334,7 +333,6 @@ ColumnLayout {
             height: heroBleed.height
         }
 
-        // The header's tools share the Island's plate (IrisIsland.pagePlate); bare, each keeps its own veil.
         IrisControlPlate {
             id: heroTools
             anchors.right: parent.right
@@ -397,8 +395,8 @@ ColumnLayout {
                 IrisText {
                     textFormat: Text.StyledText
                     text: "<font color='" + (page.showBanner ? IrisStyle.textStrong : IrisStyle.secondaryAccent) + "'><b>"
-                        + Qt.locale().toString(DateTime.clock.date, "dddd") + "</b></font> "
-                        + Qt.locale().toString(DateTime.clock.date, "d MMMM")
+                        + Translation.locale.toString(DateTime.clock.date, "dddd") + "</b></font> "
+                        + Translation.locale.toString(DateTime.clock.date, "d MMMM")
                     color: (page.showBanner ? IrisStyle.textStrong : IrisStyle.textSecondary)
                     font.pixelSize: IrisStyle.typeLabel
                     font.weight: IrisStyle.weight(Font.Medium)
@@ -746,7 +744,7 @@ ColumnLayout {
                 const days = Math.round((day.getTime() - today.getTime()) / 86400000)
                 if (days === 0) return Translation.tr("Today · %1").arg(time)
                 if (days === 1) return Translation.tr("Tomorrow · %1").arg(time)
-                return Qt.locale().toString(agenda.when, "dddd") + " · " + time
+                return Translation.locale.toString(agenda.when, "dddd") + " · " + time
             }
 
             Rectangle {
@@ -759,7 +757,7 @@ ColumnLayout {
                     spacing: -Math.round(3 * IrisStyle.density)
                     IrisText {
                         Layout.alignment: Qt.AlignHCenter
-                        text: Qt.locale().toString(agenda.when, "ddd").toUpperCase()
+                        text: Translation.locale.toString(agenda.when, "ddd").toUpperCase()
                         color: IrisStyle.danger
                         font.pixelSize: 8.5 * IrisStyle.typeScale
                         font.weight: IrisStyle.weight(Font.Bold)

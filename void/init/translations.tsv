@@ -1,0 +1,38 @@
+# The completeness manifest: every systemd unit, target, timer, drop-in and
+# environment generator in the repo, and its Void translation. tests/void-init.sh
+# fails when a unit exists in the repo without a row here, so a new unit can
+# never silently skip Void.
+#
+# Columns (tab separated):
+#   source        systemd artifact, repo-relative
+#   verdict       translated | accepted-loss
+#   translation   runit translation, repo-relative ("-" when verdict is not translated)
+#   notes         what did not transfer and why
+#
+# Translation rules and the two accepted systemd behaviors with no runit
+# analogue (restart rate limits, declarative cross-service ordering) are in
+# void/README.md.
+source	verdict	translation	notes
+ryoku/shell/systemd/user/ryoku-shell.service	translated	void/init/user/ryoku-shell	ExecStartPre/Post and ExecStop move into run/finish; StartLimitBurst is an accepted loss (doctor-side detection instead); KillMode=process is natural under runsv
+ryoku/shell/systemd/user/ryogami.service	translated	void/init/user/ryogami	same StartLimitBurst loss; MALLOC_CONF exported in run
+ryoku/shell/systemd/user/ryoku-idle.service	translated	void/init/user/ryoku-idle	Restart=on-failure becomes a finish script (exit 0 parks, non-zero restarts)
+ryoku/shell/systemd/user/ryoku-clamshell.service	translated	void/init/user/ryoku-clamshell	same on-failure finish translation; TimeoutStopSec has no runit analogue (sv down waits for the run child)
+ryoku/shell/systemd/user/ryoku-eq.service	translated	void/init/user/ryoku-eq	PartOf=pipewire becomes a dbus-name wait plus finish downs the service when pipewire is gone
+ryoku/shell/systemd/user/ryoku-bt-agent.service	translated	void/init/user/ryoku-bt-agent	After/Wants/PartOf=bluetooth becomes a dbus-name wait for org.freedesktop.DBus plus a bluetoothd readiness check; the tail -f stdin hold is kept
+ryoku/shell/systemd/user/ryoku-ai-usage.service	translated	void/init/user/ryoku-ai-usage	loop service: the timer's schedule becomes a run loop with env-overridable delays
+ryoku/shell/systemd/user/ryoku-ai-usage.timer	translated	void/init/user/ryoku-ai-usage	OnBootSec/OnUnitActiveSec/Persistent fold into the loop service above; runit has no timer units
+ryoku/shell/systemd/user/ryoku-bootstrap.service	translated	void/init/user/ryoku-bootstrap	oneshot: run does the work then exec sv down; ConditionPathExists markers kept; Before=graphical-session ordering is the session wrapper's job on Void (the compositor is not a supervised user service there)
+ryoku/shell/systemd/user/ryoku-session.target	translated	void/init/session-services	runit has no targets; the roster file names the session services and their intended order, consumed by the session bootstrap
+ryoku/shell/systemd/user/niri.service.d/ryoku-bootstrap.conf	translated	void/init/user/ryoku-bootstrap	the drop-in's Wants/After=ryoku-bootstrap is folded into the bootstrap service's own ordering contract (session wrapper runs it before the compositor)
+ryoku/shell/systemd/user/xdg-desktop-portal-gnome.service.d/10-ryoku.conf	accepted-loss	-	UnsetEnvironment=GDK_BACKEND is a systemd drop-in on a foreign unit; on Void the portal is started by the session bootstrap, which unsets GDK_BACKEND in the child env instead (recorded so the session work implements it)
+ryoku/shell/systemd/user-environment-generators/60-ryoku-xdg-dirs	translated	void/init/env/xdg-dirs	environment-generator protocol replaced by a Turnstile envdir renderer
+ryoku/rashin/systemd/ryoku-rashin.service	translated	void/init/user/ryoku-rashin	StartLimitIntervalSec=0 (retry forever) is runit's default; NoNewPrivileges has no runit analogue (accepted loss, the daemon drops its own privileges)
+ryoku/rashin/systemd/ryoku-prowl.service	translated	void/init/user/ryoku-prowl	BindsTo=ryoku-rashin becomes finish-side down propagation in ryoku-rashin's finish
+ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service	translated	void/init/user/ryoku-palette-bridge	After=graphical-session becomes a WAYLAND_DISPLAY wait; user service (the systemd original is per-user despite living under packaging/)
+ryoku/cli/systemd/ryoku-boot-guard.service	translated	void/init/system/ryoku-boot-guard	DefaultDependencies=no plus After=local-fs/network: runit stage 2 already implies local-fs; the network wait stays (nm-online inside boot-guard itself); Before=display-manager has no runit analogue (accepted loss: runit starts sddm in parallel, the guard is idempotent)
+ryoku/cli/systemd/ryoku.tmpfiles.conf	translated	void/init/system/ryoku-var-state	oneshot service that creates the /var/lib/ryoku tree with the same modes; Void has no tmpfiles.d
+system/hardware/network/ryoku-network-kill-guard.service	translated	void/init/system/ryoku-network-kill-guard	Before=network-pre/NetworkManager has no runit analogue; the guard runs as early as stage 2 allows and the residual race is recorded (firewall up before NM's first interface bind in practice)
+system/hardware/network/ryoku-network-kill-disconnect.service	translated	void/init/system/ryoku-network-kill-disconnect	Requires=guard becomes a wait on the guard's parked supervise state; WantedBy=NetworkManager.service is dropped (runit has no wants)
+system/hardware/bluetooth/ryoku-bluetooth-reset.service	translated	void/init/user/ryoku-bluetooth-reset	ExecStart=systemctl restart bluetooth becomes sv restart bluetoothd; the polkit rule does not transfer (see void/init/polkit/README.md)
+system/hardware/bluetooth/54-ryoku-bluetooth-a2dp.rules	accepted-loss	-	org.freedesktop.systemd1.manage-units does not exist under runit; the Void path restarts bluetoothd via sv as root from the session wrapper, no polkit grant needed
+installation/iso/airootfs/etc/systemd/system/*	accepted-loss	-	archiso live-image units (pacman-init, firstboot, timesyncd, getty, NetworkManager); the Void ISO is a future milestone with its own live-image service set, out of scope for this translation

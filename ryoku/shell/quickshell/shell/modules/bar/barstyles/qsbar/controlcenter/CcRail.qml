@@ -5,13 +5,12 @@ import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import shell.services
 
-// QS Bar Settings' left rail: the masthead, the four bar routes as one flat
-// group, then, parted by a rule and a COMMUNITY eyebrow, the route for every bar
-// widget installed from outside Ryoku. The panel
-// is about one thing, the bar, so the first group has no headers: four routes,
-// always one click away. Latin names the route, kanji seals it. The active route
-// takes a bone plate with a `//` lead, the desktop's only emphasis; nothing here
-// is coloured except the 力 seal.
+// QS Bar Settings' left rail: five first-party routes as one flat group, then,
+// parted by a rule and a COMMUNITY eyebrow, the route for every bar widget
+// installed from outside Ryoku. The panel is about one thing, the bar, so the
+// first group has no headers and stays one click away. Latin names the route,
+// kanji seals it. The active route takes a bone plate with a `//` lead, the
+// desktop's only emphasis; nothing here is coloured except the 力 seal.
 Item {
     id: rail
 
@@ -152,7 +151,7 @@ Item {
         }
     }
 
-    // ── the four routes, one flat group ──────────────────────────────────────
+    // ── the five first-party routes, one flat group ──────────────────────────
     Column {
         id: nav
         anchors {

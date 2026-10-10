@@ -88,7 +88,7 @@ Item {
         return [{ x: at.x, y: at.y, width: chassis.width, height: chassis.height, radius: chassis.radius }]
     }
     signal closed()
-    // Settles in place (DESIGN §3.3): it arrives at 95 % of itself on its own centre, never from its origin, and
+    // Settles in place: it arrives at 95 % of itself on its own centre, never from its origin, and
     // leaves at 97 %, so a blurred body only ever changes size, never fades.
     property bool settles: false
     readonly property real settleShare: 0.95
@@ -155,6 +155,12 @@ Item {
         if (root.settles && !root.open && !root.armed && root.presentation > 0 && root.presentation <= root.settleCut)
             return presentationSpring.jump()
         if (root.presentation <= 0 && !root.open) root.closed()
+    }
+    Timer {
+        interval: 3000
+        running: !root.open && !root.armed && root.presentation > 0
+        onTriggered: console.warn("iRiS: " + root.motionSurface + " closed but still drawn at " + root.presentation.toFixed(4)
+            + " (" + (root.chassisKey || "own window") + ")")
     }
     // After every animation of the tick has run, so a sample is the frame that is drawn, not the one before it.
     Connections {

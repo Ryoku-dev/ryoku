@@ -12,6 +12,7 @@ Item {
     readonly property var styles: [
         { id: "sumi", name: I18n.tr("Sumi"), description: I18n.tr("The monochrome painted frame.") },
         { id: "qsbar", name: I18n.tr("QS Bar"), description: I18n.tr("The full-colour wallpaper bar."), recommended: true },
+        { id: "nomarchy", name: I18n.tr("Nomarchy"), description: I18n.tr("Omarchy's bar with its plugin library.") },
         { id: "kairos", name: I18n.tr("Kairos"), description: I18n.tr("A clock island that grows with you.") },
         { id: "iris", name: I18n.tr("Shima"), description: I18n.tr("An edge island that morphs into tools.") },
         { id: "python", name: I18n.tr("Python"), description: I18n.tr("Pills that open into one stage.") }
@@ -53,7 +54,7 @@ Item {
 
                 BarCard {
                     required property var modelData
-                    width: Math.floor((selectors.width - selectors.spacing * 4) / 5)
+                    width: Math.floor((selectors.width - selectors.spacing * 5) / 6)
                     styleId: modelData.id
                     name: modelData.name
                     description: modelData.description

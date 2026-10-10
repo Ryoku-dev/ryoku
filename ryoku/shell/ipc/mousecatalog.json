@@ -1,0 +1,132 @@
+[
+  {
+    "vendor": "046d",
+    "products": ["c08b"],
+    "aliases": ["g502 hero", "g502 se hero"],
+    "brand": "Logitech",
+    "model": "G502 Hero",
+    "labels": {"275":"Thumb back","276":"Thumb forward","277":"DPI shift","278":"DPI up","279":"DPI down","280":"Profile"}
+  },
+  {
+    "vendor": "046d",
+    "products": ["c099","c098","409f","c095","4099"],
+    "aliases": ["g502 x", "g502 x plus", "g502 x wireless"],
+    "brand": "Logitech",
+    "model": "G502 X",
+    "labels": {"275":"Thumb back","276":"Thumb forward","277":"DPI shift","278":"DPI up","279":"DPI down","280":"Profile"}
+  },
+  {
+    "vendor": "046d",
+    "products": ["4093","c094"],
+    "aliases": ["g pro x wireless superlight", "g pro x superlight", "pro x superlight"],
+    "brand": "Logitech",
+    "model": "G Pro X Superlight",
+    "labels": {"275":"Thumb back","276":"Thumb forward"}
+  },
+  {
+    "vendor": "046d",
+    "products": ["b034"],
+    "aliases": ["mx master 3s", "mx master 3"],
+    "brand": "Logitech",
+    "model": "MX Master 3S",
+    "labels": {"275":"Thumb back","276":"Thumb forward","277":"Gesture","278":"Mode shift"}
+  },
+  {
+    "vendor": "046d",
+    "products": ["4074","c53f"],
+    "aliases": ["gaming mouse g305", "g305", "g304"],
+    "brand": "Logitech",
+    "model": "G305",
+    "labels": {"275":"Thumb back","276":"Thumb forward","277":"DPI cycle"}
+  },
+  {
+    "vendor": "1532",
+    "products": ["00b2","00b6","00b7","00c2","00c3","00c4","00c5"],
+    "aliases": ["deathadder v3"],
+    "brand": "Razer",
+    "model": "DeathAdder V3",
+    "labels": {"275":"Mouse 4","276":"Mouse 5","277":"DPI cycle"}
+  },
+  {
+    "vendor": "1532",
+    "products": ["0099","00aa","00ab","00cb","00cc","00cd"],
+    "aliases": ["basilisk v3"],
+    "brand": "Razer",
+    "model": "Basilisk V3",
+    "labels": {"275":"Mouse 4","276":"Mouse 5","277":"Sensitivity clutch","278":"DPI up","279":"DPI down","280":"Wheel mode"}
+  },
+  {
+    "vendor": "1532",
+    "products": ["00c0","00c1"],
+    "aliases": ["viper v3 pro"],
+    "brand": "Razer",
+    "model": "Viper V3 Pro",
+    "labels": {"275":"Mouse 4","276":"Mouse 5","277":"DPI cycle"}
+  },
+  {
+    "vendor": "1532",
+    "products": ["008f","0090","00a7","00a8","00b4"],
+    "aliases": ["naga v2", "naga pro"],
+    "brand": "Razer",
+    "model": "Naga V2 / Pro",
+    "sideGrid": true,
+    "labels": {"2":"Side 1","3":"Side 2","4":"Side 3","5":"Side 4","6":"Side 5","7":"Side 6","8":"Side 7","9":"Side 8","10":"Side 9","11":"Side 10","12":"Side 11","13":"Side 12","275":"Mouse 4","276":"Mouse 5","277":"DPI up","278":"DPI down"}
+  },
+  {
+    "vendor": "1038",
+    "products": ["1824","184c"],
+    "aliases": ["rival 3"],
+    "brand": "SteelSeries",
+    "model": "Rival 3",
+    "labels": {"275":"Mouse 4","276":"Mouse 5","277":"CPI cycle"}
+  },
+  {
+    "vendor": "1038",
+    "products": ["1836","1838","183a","1878","187a"],
+    "aliases": ["aerox 3"],
+    "brand": "SteelSeries",
+    "model": "Aerox 3",
+    "labels": {"275":"Mouse 4","276":"Mouse 5","277":"CPI cycle"}
+  },
+  {
+    "vendor": "1b1c",
+    "products": ["1b12","1b2e","1b5a"],
+    "aliases": ["m65 rgb", "m65 pro", "m65 elite"],
+    "brand": "Corsair",
+    "model": "M65",
+    "labels": {"275":"Back","276":"Forward","277":"Sniper","278":"DPI up","279":"DPI down"}
+  },
+  {
+    "vendor": "1b1c",
+    "products": ["1b8b","1be3"],
+    "aliases": ["scimitar rgb elite", "scimitar elite"],
+    "brand": "Corsair",
+    "model": "Scimitar RGB Elite",
+    "sideGrid": true,
+    "labels": {"2":"Side 1","3":"Side 2","4":"Side 3","5":"Side 4","6":"Side 5","7":"Side 6","8":"Side 7","9":"Side 8","10":"Side 9","11":"Side 10","12":"Side 11","13":"Side 12","275":"Back","276":"Forward","277":"DPI up","278":"DPI down"}
+  },
+  {
+    "vendor": "258a",
+    "products": ["0036","2011","2022","2033"],
+    "aliases": ["glorious model o", "model o wireless", "model o 2"],
+    "brand": "Glorious",
+    "model": "Model O",
+    "labels": {"275":"Back","276":"Forward","277":"DPI cycle"}
+  },
+  {
+    "vendor": "258a",
+    "products": ["0033"],
+    "aliases": ["glorious model d", "model d"],
+    "brand": "Glorious",
+    "model": "Model D",
+    "labels": {"275":"Back","276":"Forward","277":"DPI cycle"}
+  },
+  {
+    "vendor": "1af3",
+    "products": ["0001"],
+    "aliases": ["zowie ec2", "ec2-a", "ec2-b", "ec2-c", "ec2-cw"],
+    "brand": "Zowie",
+    "model": "EC2",
+    "labels": {"275":"Back","276":"Forward","277":"DPI cycle","278":"Report rate"}
+  }
+]

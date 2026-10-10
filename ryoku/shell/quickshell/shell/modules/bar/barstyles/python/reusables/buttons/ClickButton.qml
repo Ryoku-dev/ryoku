@@ -13,6 +13,7 @@ Item {
     property string buttonText: ""
     property string subText: ""
     property string buttonIcon: ""
+    property string iconFont: ThemeBackend.iconFont
     property int iconFontSize: 15
     property int textFontSize: 12
     
@@ -84,7 +85,7 @@ Item {
                 id: iconLabel
                 visible: root.buttonIcon !== ""
                 text: root.buttonIcon
-                font.family: "Iosevka Nerd Font"
+                font.family: root.iconFont
                 font.pixelSize: root.iconFontSize
                 color: root.textColor
                 Layout.alignment: Qt.AlignVCenter

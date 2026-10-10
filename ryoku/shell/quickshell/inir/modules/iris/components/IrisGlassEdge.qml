@@ -5,10 +5,8 @@ import QtQuick.Effects
 import inir.modules.common.functions
 import inir.modules.iris.style
 
-// The cut edge of iRiS glass on a plate drawn in QML (glass widgets, framed controls): the shell's
-// Appearance › Glass › Edge light, Edge line, Edge width and Edge colour, like IrisField draws it on bodies.
 // Native borders keep the curve antialiased; the light is faded downward by a smooth vertical mask, never a
-// ring mask (that pixelated every corner, 2026-09-30).
+// ring mask (that pixelated every corner).
 Item {
     id: root
     property real radius: 0
@@ -25,8 +23,6 @@ Item {
         border.color: ColorUtils.applyAlpha(IrisStyle.glassEdgeColour, IrisStyle.glassEdgeLine)
     }
 
-    // The lit top: the same ring at Edge light, masked the way faded lists are (IrisSettings' sidebar): the mask
-    // on the ring's own layer, a smooth threshold, so the light fades down the sides instead of ringing the plate.
     Rectangle {
         anchors.fill: parent
         visible: IrisStyle.glassEdgeLight > IrisStyle.glassEdgeLine

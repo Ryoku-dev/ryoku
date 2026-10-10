@@ -1,0 +1,88 @@
+layout {
+    gaps 18
+    default-column-width {
+        proportion 0.55
+    }
+    preset-column-widths {
+        proportion 0.33333
+        proportion 0.55
+        proportion 0.75
+    }
+    center-focused-column "on-overflow"
+    always-center-single-column
+    background-color "#101217"
+    border {
+        on
+        width 3
+        active-color "#d8cfc4"
+        inactive-color "#54504b"
+        urgent-color "#9b0000"
+    }
+    shadow {
+        on
+        softness 36
+        spread 4
+        offset x=2 y=8
+        color "#00000090"
+    }
+    tab-indicator {
+        width 5
+        hide-when-single-tab
+    }
+    struts {
+        left 4
+        right 5
+        top 6
+        bottom 7
+    }
+}
+
+animations {
+    slowdown 0.85
+    window-open {
+        spring damping-ratio=0.82 stiffness=720 epsilon=0.0001
+    }
+    window-close {
+        duration-ms 180
+        curve "ease-out-cubic"
+    }
+    screenshot-ui-open {
+        off
+    }
+}
+
+environment {
+    BROWSER "zen-browser"
+    TERMINAL "foot"
+    EDITOR "nvim"
+}
+spawn-at-startup "swaybg" "-m" "fill"
+spawn-sh-at-startup "systemctl --user start example.service"
+
+hotkey-overlay {
+    skip-at-startup
+    hide-not-bound
+}
+
+gestures {
+    hot-corners {
+        off
+    }
+    dnd-edge-view-scroll {
+        trigger-width 42
+        delay-ms 140
+        max-speed 1200
+    }
+}
+
+overview {
+    zoom 0.62
+    backdrop-color "#08090a"
+    workspace-shadow {
+        on
+        softness 52
+        spread 12
+        offset x=0 y=14
+        color "#00000099"
+    }
+}

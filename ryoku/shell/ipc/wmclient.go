@@ -14,7 +14,9 @@ import (
 
 func (d *daemon) startWM() {
 	d.wmTopic = d.registerTopic("wm")
+	d.wmFocusTopic = d.registerTopic("wm.focus")
 	d.publishWM()
+	d.publishWMFocus()
 	d.registerCall("wm.act", func(raw json.RawMessage) (any, error) {
 		var a struct {
 			Action string   `json:"action"`
@@ -37,15 +39,16 @@ func (d *daemon) activeMonitor() string {
 	return d.activeMon
 }
 
-// onWMFrame folds one watch frame into the cache and republishes the wm topic.
-// A FrameFocus with an empty output clears the cached focus. Each kind carries
-// a version so a QML consumer can rebind only what moved: one niri window
-// event emits several frames, and without the version every derived list would
-// re-evaluate on every one of them.
+// onWMFrame folds one watch frame into the cache. Focus has its own compact
+// topic: cursor crossing is a hot path, and parsing the output, workspace and
+// window lists again on every crossing used to stall the GUI thread on larger
+// setups. Providers suppress unchanged list frames before this process boundary.
 func (d *daemon) onWMFrame(f wm.Frame) {
 	d.wmMu.Lock()
+	changed := true
 	switch f.Kind {
 	case wm.FrameFocus:
+		changed = d.activeMon != f.FocusedOutput
 		d.activeMon = f.FocusedOutput
 	case wm.FrameOutputs:
 		d.wmOutputs = f.Outputs
@@ -59,8 +62,14 @@ func (d *daemon) onWMFrame(f wm.Frame) {
 	case wm.FrameOverview:
 		d.wmOverview = f.OverviewOpen
 	case wm.FrameReady:
+		// A reconnect refreshes provider-static capabilities even though ready
+		// was already true.
 		d.wmReady = true
 	default:
+		d.wmMu.Unlock()
+		return
+	}
+	if !changed {
 		d.wmMu.Unlock()
 		return
 	}
@@ -71,7 +80,7 @@ func (d *daemon) onWMFrame(f wm.Frame) {
 	d.wmMu.Unlock()
 
 	switch f.Kind {
-	case wm.FrameFocus, wm.FrameOutputs, wm.FrameWorkspaces:
+	case wm.FrameOutputs, wm.FrameWorkspaces:
 		select {
 		case d.widgetSig <- struct{}{}:
 		default:
@@ -84,6 +93,10 @@ func (d *daemon) onWMFrame(f wm.Frame) {
 	// the screen cold while the bar still reads on. See rearmOnOutputs.
 	if f.Kind == wm.FrameOutputs && d.nightlight != nil {
 		d.nightlight.rearmOnOutputs(f.Outputs)
+	}
+	if f.Kind == wm.FrameFocus {
+		d.publishWMFocus()
+		return
 	}
 	d.publishWM()
 }
@@ -111,6 +124,26 @@ type wmTopicFrame struct {
 	KeyboardLayout  string                 `json:"keyboardLayout"`
 	KeyboardLayouts []string               `json:"keyboardLayouts"`
 	Versions        map[string]int         `json:"versions"`
+}
+
+type wmFocusFrame struct {
+	FocusedOutput string `json:"focusedOutput"`
+	Version       int    `json:"version"`
+}
+
+func (d *daemon) publishWMFocus() {
+	if d.wmFocusTopic == nil {
+		return
+	}
+	d.wmMu.Lock()
+	frame := wmFocusFrame{
+		FocusedOutput: d.activeMon,
+		Version:       d.wmVersions[string(wm.FrameFocus)],
+	}
+	d.wmMu.Unlock()
+	if b, err := json.Marshal(frame); err == nil {
+		d.wmFocusTopic.publish(b)
+	}
 }
 
 func (d *daemon) publishWM() {

@@ -8,11 +8,19 @@ Item {
     id: root
 
     readonly property string i18nDir: Caching.assetsPath + "/languages"
-    property string currentLang: "en"
+    property string currentLang: systemLanguage()
     property var translations: ({})
     property bool isReady: false
 
     signal languageChanged()
+
+    // With no language chosen in the guide, the style follows the system
+    // locale instead of always opening in English.
+    function systemLanguage() {
+        let lang = Qt.locale().name.split("_")[0].toLowerCase();
+        // Ukrainian ships as ua.json, not the ISO 639-1 "uk"
+        return lang === "uk" ? "ua" : lang;
+    }
 
     Connections {
         target: Config

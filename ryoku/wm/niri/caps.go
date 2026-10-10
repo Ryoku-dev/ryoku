@@ -37,6 +37,8 @@ import (
 // The Qt client segfaults resolving a screen that is already gone. niri still
 // answers one-shot captures (the overview, a window preview, grim), so this is
 // about the long-lived surface, not screencopy itself.
+var foreignAPIs = []wm.ForeignAPI{}
+
 var capsManifest = []wm.Capability{
 	wm.CapWorkspaces,
 	wm.CapWorkspaceMoveToOutput,
@@ -58,6 +60,9 @@ var capsManifest = []wm.Capability{
 	wm.CapNightLight,
 	wm.CapTouchpadToggle,
 	wm.CapPaletteBorder,
+	// niri routes the pointer by input region whatever holds the keyboard, so
+	// an exclusive grab leaves every other surface clickable.
+	wm.CapKeyboardGrabSharesPointer,
 }
 
 // windowRuleActions are the neutral window-rule action ids niri's config writer
@@ -101,6 +106,7 @@ func runCaps() error {
 		// Workspaces are created and removed per output as windows come and
 		// go, so presenting them as numbered slots would be a lie.
 		WorkspaceModel: wm.WorkspaceModelDynamic,
+		ForeignAPIs:    foreignAPIs,
 		// wm.niri.* keys stay in the store untouched while another compositor
 		// is active, so they are still there on the way back.
 		SettingDomains:    []string{"desktop", "wm." + wm.ProviderNiri},

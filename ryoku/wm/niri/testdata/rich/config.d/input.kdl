@@ -1,0 +1,35 @@
+input {
+    keyboard {
+        xkb {
+            layout "us,de"
+            variant ",nodeadkeys"
+            options "grp:alt_shift_toggle"
+        }
+        repeat-rate 32
+        repeat-delay 280
+        numlock
+    }
+    touchpad {
+        tap
+        natural-scroll
+        scroll-factor 1.25
+        dwt
+        drag true
+        click-method "clickfinger"
+    }
+    mouse {
+        accel-speed -0.15
+        accel-profile "flat"
+    }
+    focus-follows-mouse max-scroll-amount="25%"
+    warp-mouse-to-focus mode="center-xy"
+    workspace-auto-back-and-forth
+    mod-key "Alt"
+}
+
+cursor {
+    xcursor-theme "Bibata-Modern-Classic"
+    xcursor-size 28
+    hide-after-inactive-ms 3500
+    hide-when-typing
+}

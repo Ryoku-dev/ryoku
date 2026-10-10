@@ -30,7 +30,7 @@ Item {
     property var hub
     readonly property bool fullBleed: true
 
-    property var model: ({ "logo": { "kind": "none", "source": "", "width": 28, "height": 14, "padding": 3, "paddingRight": 5, "paddingTop": 5 }, "accent": "226;52;42", "rows": [] })
+    property var model: ({ "logo": { "kind": "none", "source": "", "width": 28, "height": 14, "padding": 3, "paddingRight": 5, "paddingTop": 5 }, "accent": "226;52;42", "palette": "fixed", "rows": [] })
     property var committed: ({})
     property bool ready: false
     property int rev: 0
@@ -218,6 +218,7 @@ Item {
     function commitModel(m) { pg.model = m; pg.rev++; pg.queuePreview(); }
     function setLogo(k, v) { var m = pg.clone(); m.logo[k] = v; pg.commitModel(m); }
     function setAccent(v) { var m = pg.clone(); m.accent = v; pg.commitModel(m); }
+    function setPalette(v) { var m = pg.clone(); m.palette = v; pg.commitModel(m); }
     function setRow(i, k, v) { var m = pg.clone(); m.rows[i][k] = v; pg.commitModel(m); }
     function moveRow(i, d) {
         var j = i + d;
@@ -433,14 +434,28 @@ Item {
     }
 
     // ---- save / revert ------------------------------------------------------
-    Process { id: saveProc }
+    Process {
+        id: saveProc
+        property var pending: ({})
+        stderr: StdioCollector { id: saveError }
+        onExited: function (code) {
+            if (code !== 0) {
+                pg.storeStyleError = saveError.text.trim() || I18n.tr("Couldn't save the Fastfetch settings.");
+                return;
+            }
+            pg.committed = JSON.parse(JSON.stringify(saveProc.pending));
+            pg.rev++;
+        }
+    }
     function save() {
+        if (saveProc.running)
+            return;
         throttle.stop();
         pg.previewPending = false;
-        saveProc.command = ["ryoku-hub", "fastfetch", "save", JSON.stringify(pg.model)];
+        pg.storeStyleError = "";
+        saveProc.pending = pg.clone();
+        saveProc.command = ["ryoku-hub", "fastfetch", "save", JSON.stringify(saveProc.pending)];
         saveProc.running = true;
-        pg.committed = pg.clone();
-        pg.rev++;
     }
     function revert() {
         throttle.stop();
@@ -1182,9 +1197,27 @@ Item {
 
                     SectionHead { label: I18n.tr("ACCENT") }
 
+                    Seg {
+                        options: [I18n.tr("Fixed"), I18n.tr("Follow wallpaper")]
+                        current: pg.model.palette === "wallpaper" ? I18n.tr("Follow wallpaper") : I18n.tr("Fixed")
+                        onChose: (label) => pg.setPalette(label === I18n.tr("Follow wallpaper") ? "wallpaper" : "fixed")
+                    }
+
+                    Text {
+                        width: Math.min(parent.width, 560)
+                        visible: pg.model.palette === "wallpaper"
+                        wrapMode: Text.WordWrap
+                        text: I18n.tr("The live Material palette colours the title, labels, sections, rules and percentage gauges. Your fixed accent stays saved underneath.")
+                        color: Tokens.inkMuted
+                        font.family: Tokens.ui
+                        font.pixelSize: Tokens.fSmall
+                    }
+
                     // the readout accent is a colour the user is choosing, so its
                     // swatch is a specimen (section 1): it is allowed to be itself.
                     Item {
+                        enabled: pg.model.palette !== "wallpaper"
+                        opacity: enabled ? 1 : 0.38
                         width: parent.width
                         height: 30
                         Text {

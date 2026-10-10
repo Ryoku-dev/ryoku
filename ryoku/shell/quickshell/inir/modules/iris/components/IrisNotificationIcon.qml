@@ -42,7 +42,11 @@ Item {
         const rules = [
             [/screenshot|screen shot|captur/, "screenshot_region", IrisStyle.identity.blue],
             [/record/, "videocam", IrisStyle.identity.pink],
-            [/battery|charg|power/, "battery_charging_full", IrisStyle.identity.green],
+            // Battery notices draw the battery itself at the level their words stand for.
+            [/critically low|critical battery/, "battery_alert", IrisStyle.danger, 0.06],
+            [/low battery|battery low/, "battery_alert", IrisStyle.warning, 0.18],
+            [/battery full|unplug/, "battery_full", IrisStyle.identity.green, 1],
+            [/battery|charg|power/, "battery_charging_full", IrisStyle.identity.green, 0.6],
             [/bluetooth/, "bluetooth", IrisStyle.identity.blue],
             [/network|wi-?fi|ethernet|vpn|connect/, "wifi", IrisStyle.identity.blue],
             [/volume|audio|sound|microphone/, "volume_up", IrisStyle.identity.orange],
@@ -59,8 +63,8 @@ Item {
             [/inir|iris|shell|quickshell/, "auto_awesome", IrisStyle.identity.purple]
         ]
         for (const rule of rules)
-            if (rule[0].test(text)) return { glyph: rule[1], tint: rule[2] }
-        return { glyph: "notifications", tint: IrisStyle.identity.gray }
+            if (rule[0].test(text)) return { glyph: rule[1], tint: rule[2], battery: rule[3] ?? -1 }
+        return { glyph: "notifications", tint: IrisStyle.identity.gray, battery: -1 }
     }
 
     ClippingRectangle {
@@ -101,12 +105,14 @@ Item {
             id: tile
             radius: IrisStyle.iconRadius(width)
             readonly property bool insignia: root.fromShell && !root.critical
+            readonly property bool battery: root.semantic.battery >= 0 && !tile.insignia
             readonly property color base: IrisStyle.ryokuFrontend ? IrisStyle.surfaceHigh
+                : tile.battery ? root.semantic.tint
                 : root.critical ? IrisStyle.danger : tile.insignia ? IrisStyle.surfaceHigh : root.semantic.tint
             border.width: IrisStyle.ryokuFrontend || root.hasImage || tile.insignia ? Math.max(1, Math.round(root.width * 0.04)) : 0
             border.color: IrisStyle.ryokuFrontend || tile.insignia ? IrisStyle.hairlineStrong : IrisStyle.surface
             gradient: Gradient {
-                GradientStop { position: 0; color: IrisStyle.ryokuFrontend ? tile.base : Qt.lighter(tile.base, 1.18) }
+                GradientStop { position: 0; color: IrisStyle.ryokuFrontend ? tile.base : IrisStyle.tileTop(tile.base) }
                 GradientStop { position: 1; color: tile.base }
             }
             IrisMark {
@@ -114,8 +120,17 @@ Item {
                 visible: tile.insignia
                 implicitSize: Math.round(tile.width * 0.7)
             }
+            IrisBatteryMark {
+                visible: tile.battery
+                anchors.centerIn: parent
+                anchors.horizontalCenterOffset: Math.round(tile.width * 0.02)
+                markHeight: Math.round(tile.width * 0.3)
+                level: root.semantic.battery
+                tint: IrisStyle.ryokuFrontend ? (root.critical ? IrisStyle.danger : IrisStyle.text) : IrisStyle.onTint
+                frame: IrisStyle.ryokuFrontend ? (root.critical ? IrisStyle.danger : IrisStyle.text) : IrisStyle.onTint
+            }
             MaterialSymbol {
-                visible: !tile.insignia
+                visible: !tile.insignia && !tile.battery
                 anchors.centerIn: parent
                 text: root.critical ? "priority_high" : root.semantic.glyph
                 fill: IrisStyle.ryokuFrontend ? 0 : 1

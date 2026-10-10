@@ -1,0 +1,121 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+CACHE_HOME=${XDG_CACHE_HOME:-$HOME/.cache}
+OMARCHY_ROOT=${OMARCHY_PATH:-$DATA_HOME/ryoku/nomarchy}
+USER_THEMES=$CONFIG_HOME/omarchy/themes
+OFFICIAL_THEMES=$OMARCHY_ROOT/themes
+PREVIEW_DIR=$CACHE_HOME/omarchy/theme-selector/previews
+PRINT_ROWS=0
+
+if [[ ${1:-} == --print-rows ]]; then
+  PRINT_ROWS=1
+  shift
+fi
+if (( $# > 0 )); then
+  echo "Usage: omarchy-theme-switcher [--print-rows]" >&2
+  exit 1
+fi
+
+mkdir -p "$PREVIEW_DIR"
+
+palette_file() {
+  local id=$1
+  local generated=$CACHE_HOME/ryoku/nomarchy-colors.toml
+  local fallback_generated=$HOME/.cache/ryoku/nomarchy-colors.toml
+  if [[ $id == ryoku ]]; then
+    if [[ -f $fallback_generated && ( ! -f $generated || $fallback_generated -nt $generated ) ]]; then
+      REPLY=$fallback_generated
+    elif [[ -f $generated ]]; then
+      REPLY=$generated
+    else
+      REPLY=""
+    fi
+  elif [[ -f $USER_THEMES/$id/colors.toml ]]; then
+    REPLY=$USER_THEMES/$id/colors.toml
+  elif [[ -f $OFFICIAL_THEMES/$id/colors.toml ]]; then
+    REPLY=$OFFICIAL_THEMES/$id/colors.toml
+  else
+    REPLY=""
+  fi
+}
+
+render_swatch() {
+  local id=$1 colors=$2 key value
+  local target=$PREVIEW_DIR/$id.svg
+  local -A palette=()
+  while IFS=$'\t' read -r key value; do
+    palette[$key]=$value
+  done < <("$SCRIPT_DIR/omarchy-theme-color" --file "$colors" --all)
+
+  local background=${palette[background]:-#101315}
+  local foreground=${palette[foreground]:-#cacccc}
+  local accent=${palette[accent]:-${palette[blue]:-#798186}}
+  local red=${palette[red]:-#a55555}
+  local green=${palette[green]:-#7aa278}
+  local blue=${palette[blue]:-#7189b7}
+  for value in "$background" "$foreground" "$accent" "$red" "$green" "$blue"; do
+    [[ $value =~ ^#[0-9A-Fa-f]{6}$ ]] || return 1
+  done
+
+  local tmp=$target.tmp.$$
+  printf '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540"><rect width="960" height="540" fill="%s"/><rect x="96" y="90" width="768" height="250" rx="28" fill="%s" fill-opacity=".10" stroke="%s" stroke-width="4"/><rect x="96" y="390" width="128" height="60" rx="12" fill="%s"/><rect x="256" y="390" width="128" height="60" rx="12" fill="%s"/><rect x="416" y="390" width="128" height="60" rx="12" fill="%s"/><rect x="576" y="390" width="128" height="60" rx="12" fill="%s"/><rect x="736" y="390" width="128" height="60" rx="12" fill="%s"/></svg>\n' "$background" "$foreground" "$foreground" "$accent" "$red" "$green" "$blue" "$foreground" >"$tmp"
+  mv -f -- "$tmp" "$target"
+  REPLY=$target
+}
+
+preview_file() {
+  local id=$1 source="" candidate extension target
+  if [[ $id != ryoku ]]; then
+    for candidate in "$USER_THEMES/$id"/preview.{png,jpg,jpeg,webp,gif,bmp,mp4,m4v,mov,webm,mkv,avi} "$OFFICIAL_THEMES/$id"/preview.{png,jpg,jpeg,webp,gif,bmp,mp4,m4v,mov,webm,mkv,avi}; do
+      if [[ -f $candidate ]]; then
+        source=$candidate
+        break
+      fi
+    done
+  fi
+
+  rm -f -- "$PREVIEW_DIR/$id".{png,jpg,jpeg,webp,gif,bmp,mp4,m4v,mov,webm,mkv,avi,svg}
+  if [[ -n $source ]]; then
+    extension=${source##*.}
+    extension=${extension,,}
+    target=$PREVIEW_DIR/$id.$extension
+    ln -s -- "$source" "$target"
+    REPLY=$target
+    return 0
+  fi
+
+  palette_file "$id"
+  [[ -n $REPLY ]] || return 1
+  render_swatch "$id" "$REPLY"
+}
+
+rows=""
+append_row() {
+  local id=$1 preview
+  preview_file "$id" || return 0
+  preview=$REPLY
+  if [[ -z $rows ]]; then
+    rows="$preview"$'\t'"$preview"
+  else
+    rows+=$'\n'"$preview"$'\t'"$preview"
+  fi
+}
+
+append_row ryoku
+while IFS= read -r id; do
+  [[ -n $id && $id != ryoku ]] && append_row "$id"
+done < <({
+  [[ ! -d $USER_THEMES ]] || find -H "$USER_THEMES" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n'
+  [[ ! -d $OFFICIAL_THEMES ]] || find -H "$OFFICIAL_THEMES" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+} | LC_ALL=C sort -u)
+
+if (( PRINT_ROWS )); then
+  [[ -z $rows ]] || printf '%s\n' "$rows"
+  exit 0
+fi
+
+exec omarchy-shell nomarchy summon omarchy.image-picker '{"source":"themes"}'

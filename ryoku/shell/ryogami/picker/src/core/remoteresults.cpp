@@ -188,7 +188,10 @@ void RemoteResults::applyPage(const QVariantMap &result, int page, bool append)
         Q_EMIT lastPageChanged();
     }
     Q_EMIT countChanged();
-    Q_EMIT m_notifier->cardsChanged();
+    if (append)
+        Q_EMIT m_notifier->cardsAppended();
+    else
+        Q_EMIT m_notifier->cardsChanged();
 }
 
 RemoteResults::Row RemoteResults::rowFromItem(const QVariantMap &item)
@@ -397,7 +400,14 @@ QHash<int, QByteArray> RemoteResults::roleNames() const
 
 QString RemoteResults::cardKey(int row) const
 {
-    return row >= 0 && row < m_rows.size() ? m_rows[row].id : QString();
+    return row >= 0 && row < m_rows.size()
+        ? m_provider + QLatin1Char('/') + m_rows[row].id : QString();
+}
+
+int RemoteResults::rowOfKey(const QString &key) const
+{
+    const QString prefix = m_provider + QLatin1Char('/');
+    return key.startsWith(prefix) ? m_idIndex.value(key.mid(prefix.size()), -1) : -1;
 }
 
 QString RemoteResults::cardThumb(int row) const

@@ -130,6 +130,7 @@ func (d *daemon) driveWE(weID, itemDir string, outputs []string, mute map[string
 	if err := d.paper.apply(d.buildWeApply(itemDir, fill, outputs, mute, volume, props, policy)); err != nil {
 		return err
 	}
+	d.beginPaint(outputs, "we:"+weID)
 	still := d.weStill(weID, itemDir)
 	if len(outputs) == 0 || contains(outputs, "*") {
 		d.surface.show(still, fit, nil, true, false, videoClip{})

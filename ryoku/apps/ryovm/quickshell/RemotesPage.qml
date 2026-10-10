@@ -117,7 +117,7 @@ Item {
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.vertical: ScrollRail { policy: ScrollBar.AsNeeded }
 
-                Flow {
+                Column {
                     id: grid
                     width: parent.width
                     spacing: Tokens.s2
@@ -125,7 +125,7 @@ Item {
                         model: rem.shown
                         RemoteTile {
                             required property var modelData
-                            width: (grid.width - Tokens.s2) / 2
+                            width: grid.width
                             host: modelData
                             onTapped: Remotes.select(modelData.alias)
                             onConnect: Remotes.connect(modelData.alias)

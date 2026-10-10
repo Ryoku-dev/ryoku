@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+shift_insert=0; copy_only=0; index=
+while (($#)); do case $1 in --shift-insert) shift_insert=1; shift;; --copy-only) copy_only=1; shift;; --history-index) index=${2:-}; shift 2;; *) break;; esac; done
+if [[ -n $index ]]; then
+  [[ $index =~ ^[0-9]+$ ]] || exit 2
+  file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/clipboard-history.json
+  jq -ej --argjson index "$index" '.[$index] | select(.type=="text") | .text' "$file" | wl-copy
+  shift_insert=1
+else
+  text=${1:-}; [[ -n $text ]] || exit 2; printf '%s' "$text" | wl-copy
+fi
+((copy_only)) && exit 0
+sleep 0.15
+if ((shift_insert)); then wtype -M shift -k Insert -m shift; else wtype "$text"; fi

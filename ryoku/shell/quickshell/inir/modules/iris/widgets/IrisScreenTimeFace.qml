@@ -36,17 +36,18 @@ IrisWidgetFace {
         return hours > 0 ? hours + Translation.tr("h") + " " + minutes + Translation.tr("m") : minutes + Translation.tr("m")
     }
 
+    // Ticks only while seen; uncovered, it catches up with what was counted behind the windows.
     Connections {
         target: ScreenTime
-        enabled: root.live
+        enabled: root.moving
         function onDataChanged(): void { root.revision++ }
     }
+    onMovingChanged: if (root.moving) root.revision++
 
-    component AppIcon: IconImage {
+    component AppIcon: SmartAppIcon {
         required property var app
         implicitSize: root.dp(root.small ? 22 : 20)
-        source: Quickshell.iconPath(IrisPieces.appIcon(String(app?.originalId ?? app?.id ?? "")), "application-x-executable")
-        asynchronous: true
+        icon: IrisPieces.appIcon(String(app?.originalId ?? app?.id ?? ""))
     }
 
     component HourBars: Row {

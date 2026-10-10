@@ -8,9 +8,10 @@ DEVICE_CACHE="$QS_RUN_MUSIC/device_cache.json"
 
 mkdir -p "$TMP_DIR"
 
-RAW_URL="$1"
-TITLE="$2"
-ARTIST="$3"
+PLAYER_ID="$1"
+RAW_URL="$2"
+TITLE="$3"
+ARTIST="$4"
 
 CLEAN_URL="$RAW_URL"
 if [[ "$RAW_URL" == file://* ]]; then
@@ -18,19 +19,25 @@ if [[ "$RAW_URL" == file://* ]]; then
     CLEAN_URL="$(printf '%b' "${CLEAN_URL//%/\\x}")"
 fi
 
-HASH_KEY="$CLEAN_URL"
-if [[ "$HASH_KEY" =~ (googleusercontent\.com|ggpht\.com) ]]; then
-    HASH_KEY="${HASH_KEY%%\=*}"
-elif [[ "$HASH_KEY" =~ (vi|vi_webp)/([^/?&#]+) ]]; then
-    HASH_KEY="yt_${BASH_REMATCH[2]}"
-elif [[ "$HASH_KEY" =~ ab67([0-9a-f]{4})0000[0-9a-f]{4}([0-9a-f]+) ]]; then
-    HASH_KEY="sp_${BASH_REMATCH[2]}"
-fi
-
-if [ -n "$HASH_KEY" ] && [ "$HASH_KEY" != "unknown" ]; then
-    trackHash=$(echo -n "$HASH_KEY" | md5sum | cut -d" " -f1)
+if [[ "$RAW_URL" == http* ]]; then
+    HASH_KEY="$CLEAN_URL"
+    if [[ "$HASH_KEY" =~ (googleusercontent\.com|ggpht\.com) ]]; then
+        HASH_KEY="${HASH_KEY%%\=*}"
+    elif [[ "$HASH_KEY" =~ (vi|vi_webp)/([^/?&#]+) ]]; then
+        HASH_KEY="yt_${BASH_REMATCH[2]}"
+    elif [[ "$HASH_KEY" =~ ab67([0-9a-f]{4})0000[0-9a-f]{4}([0-9a-f]+) ]]; then
+        HASH_KEY="sp_${BASH_REMATCH[2]}"
+    else
+        HASH_KEY="${TITLE}_${ARTIST}_${CLEAN_URL}"
+    fi
+    trackHash=$(echo -n "${HASH_KEY}" | md5sum | cut -d" " -f1)
+elif [ -n "$CLEAN_URL" ] && [ -f "$CLEAN_URL" ]; then
+    file_sig=$(stat -c "%Y_%s" "$CLEAN_URL" 2>/dev/null || stat -f "%m_%z" "$CLEAN_URL" 2>/dev/null || echo "0_0")
+    trackHash=$(echo -n "${PLAYER_ID}_${TITLE}_${ARTIST}_${CLEAN_URL}_${file_sig}" | md5sum | cut -d" " -f1)
 elif [ -n "$TITLE" ] || [ -n "$ARTIST" ]; then
-    trackHash=$(echo -n "${TITLE}-${ARTIST}" | md5sum | cut -d" " -f1)
+    trackHash=$(echo -n "${PLAYER_ID}_${TITLE}_${ARTIST}" | md5sum | cut -d" " -f1)
+elif [ -n "$CLEAN_URL" ]; then
+    trackHash=$(echo -n "${PLAYER_ID}_${CLEAN_URL}" | md5sum | cut -d" " -f1)
 else
     trackHash=""
 fi
@@ -189,7 +196,7 @@ if ! $CACHE_VALID && [ -n "$trackHash" ]; then
     fi
 
     if $downloadOk && [ -s "$tempArt" ]; then
-        convert "$tempArt" -blur 0x10 "$tempBlur" 2>/dev/null
+        convert "$tempArt" -blur 0x8 "$tempBlur" 2>/dev/null
         colors=$(convert "$tempArt" -resize 50x50 -alpha off +dither -quantize RGB -colors 3 -depth 8 -format "%c" histogram:info: 2>/dev/null | grep -E -o '#[0-9A-Fa-f]{6}' | head -n 3 | tr '\n' ' ')
         read -r -a color_array <<< "$colors"
 
@@ -280,6 +287,10 @@ jq -n -c \
     --arg devName "$DEV_NAME" \
     --arg finalArt "$DISPLAY_ART" \
     --arg trackHash "$trackHash" \
+    --arg playerId "$PLAYER_ID" \
+    --arg title "$TITLE" \
+    --arg artist "$ARTIST" \
+    --arg rawUrl "$RAW_URL" \
     --argjson isPlaceholder "$IS_PLACEHOLDER" \
     '{
         blur: $blur,
@@ -289,5 +300,9 @@ jq -n -c \
         deviceName: $devName,
         artUrl: $finalArt,
         trackHash: $trackHash,
+        playerId: $playerId,
+        title: $title,
+        artist: $artist,
+        rawUrl: $rawUrl,
         isPlaceholder: $isPlaceholder
     }'

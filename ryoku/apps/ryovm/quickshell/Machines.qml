@@ -14,7 +14,6 @@ Item {
     id: mach
 
     property bool active: false           // App gates keys/focus to the shown page
-    onActiveChanged: Vm.monWatch = active // the live VM poll only runs on this plate
     signal installEngineRequested()
 
     property string mode: "library"       // library | new
@@ -257,6 +256,7 @@ Item {
         readonly property real gCol: (width - (Spans.cols - 1) * Tokens.s2) / Spans.cols
         readonly property real leftW: 5 * gCol + 4 * Tokens.s2
         readonly property int seamW: Tokens.s5
+        readonly property bool emptyLibrary: mach.mode === "library" && Vm.vms.length === 0 && !Vm.vmsLoading && mach.query.length === 0
 
         Item {
             id: leftCol
@@ -264,6 +264,7 @@ Item {
             anchors.top: parent.top
             anchors.bottom: parent.bottom
             width: main.leftW
+            visible: !main.emptyLibrary
 
             VmGrid {
                 id: lib
@@ -321,6 +322,7 @@ Item {
             anchors.bottomMargin: Tokens.s2
             width: 1
             color: Tokens.line
+            visible: !main.emptyLibrary
         }
 
         Item {
@@ -331,6 +333,7 @@ Item {
             anchors.top: parent.top
             anchors.topMargin: mach.engineMissing || mach.mode !== "library" ? 0 : -(main.y - toolbar.y)
             anchors.bottom: parent.bottom
+            visible: !main.emptyLibrary
 
             VmDetail {
                 anchors.fill: parent
@@ -356,6 +359,45 @@ Item {
                 opacity: mach.mode === "new" && mach.channel === "iso" ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity { NumberAnimation { duration: Tokens.swap } }
+            }
+        }
+
+        Column {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - Tokens.s6 * 2, 560)
+            spacing: Tokens.s3
+            visible: main.emptyLibrary
+
+            Mark { anchors.horizontalCenter: parent.horizontalCenter; size: 80 }
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: I18n.tr("Build a local machine")
+                color: Tokens.ink
+                font.family: Tokens.display
+                font.pixelSize: 24
+            }
+            Text {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: I18n.tr("Create from the catalogue or import an installer ISO, then launch and operate the VM from this plate.")
+                color: Tokens.inkMuted
+                font.family: Tokens.ui
+                font.pixelSize: 12
+            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Tokens.s2
+                Btn {
+                    text: I18n.tr("CREATE VM")
+                    primary: true
+                    onAct: { mach.channel = "catalog"; mach.mode = "new"; }
+                }
+                Btn {
+                    text: I18n.tr("IMPORT ISO")
+                    onAct: { mach.channel = "iso"; mach.mode = "new"; }
+                }
             }
         }
     }

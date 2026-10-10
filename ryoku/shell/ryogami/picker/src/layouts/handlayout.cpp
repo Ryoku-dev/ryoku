@@ -41,13 +41,13 @@ void HandLayout::readParams(const ParamSource *src, Params &out) const
         return src->text(kPrefix + QLatin1String(k), QLatin1String(fb));
     };
 
-    out.offsetX = float(num("handStageX", 0) / 100.0);
-    out.offsetY = float(num("handStageY", 0) / 100.0);
-    out.count = std::clamp(int(std::lround(num("handCount", 5))), 2, 16);
-    out.cardW = std::max(float(num("handCardWidth", 168)), 40.0f);
-    out.cardH = std::max(float(num("handCardHeight", 432)), 60.0f);
+    out.offsetX = clampf(float(num("handStageX", 0) / 100.0), -1.0f, 1.0f);
+    out.offsetY = clampf(float(num("handStageY", 0) / 100.0), -1.0f, 1.0f);
+    out.count = int(std::lround(std::clamp(num("handCount", 5), 2.0, 16.0)));
+    out.cardW = clampf(float(num("handCardWidth", 168)), 40.0f, 4096.0f);
+    out.cardH = clampf(float(num("handCardHeight", 432)), 60.0f, 4096.0f);
     out.spread = clampf(float(num("handSpread", 126)), 10.0f, 600.0f);
-    out.ribbons = std::clamp(int(std::lround(num("handRibbons", 6))), 2, 14);
+    out.ribbons = int(std::lround(std::clamp(num("handRibbons", 6), 2.0, 14.0)));
     out.fanAngle = clampf(float(num("handFanAngle", 12)), -60.0f, 60.0f);
     out.fanRoll = clampf(float(num("handFanRoll", 8.5)), -45.0f, 45.0f);
     out.arch = clampf(float(num("handArch", 20)), -200.0f, 200.0f);

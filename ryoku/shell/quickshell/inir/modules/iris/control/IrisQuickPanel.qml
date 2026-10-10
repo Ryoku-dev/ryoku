@@ -13,6 +13,8 @@ import inir.modules.iris.style
 
 ColumnLayout {
     id: root
+
+    onVisibleChanged: if (visible) Brightness.getMonitorForScreen(root.targetScreen)?.refresh()
     property var targetScreen
     readonly property real d: IrisStyle.density
     readonly property real blockRadius: IrisStyle.radiusPlate
@@ -89,7 +91,7 @@ ColumnLayout {
                     spacing: Math.round(6 * root.d)
                     IrisText {
                         text: {
-                            const day = Qt.locale().toString(DateTime.clock.date, "dddd")
+                            const day = Translation.locale.toString(DateTime.clock.date, "dddd")
                             return day.charAt(0).toUpperCase() + day.slice(1)
                         }
                         role: IrisText.Title
@@ -112,7 +114,7 @@ ColumnLayout {
                 implicitHeight: lineA.implicitHeight
                 readonly property string line: root.shownHint.length > 0 ? root.shownHint
                     : root.editing ? Translation.tr("Drag to reorder, drag a corner to resize, − takes it out")
-                    : Qt.locale().toString(DateTime.clock.date, "MMMM yyyy")
+                    : Translation.locale.toString(DateTime.clock.date, "MMMM yyyy")
                 property bool frontA: true
                 Component.onCompleted: lineA.text = subtitle.line
                 onLineChanged: {
@@ -165,14 +167,12 @@ ColumnLayout {
             buttonRadius: height / 2
             onClicked: GlobalStates.irisControlEdit = false
         }
-        // Appearance › Button rows: the header's tools on one plate, concentric with it.
         IrisControlPlate {
             id: headerTools
             visible: !root.editing
             Layout.alignment: Qt.AlignVCenter
             controlHeight: Math.round(34 * root.d)
             RowLayout {
-                // Bare, the header's own spacing, as before the plate.
                 spacing: headerTools.framed ? Math.round(2 * root.d) : 8 * root.d
                 IrisIconButton {
                     buttonRadius: headerTools.framed ? headerTools.controlRadius : IrisStyle.radiusSmall

@@ -73,3 +73,32 @@ func TestClaimsPersistentScreenCapture(t *testing.T) {
 		t.Error("Hyprland hosts long-lived capturing layer surfaces; the manifest must say so")
 	}
 }
+
+// The Stage Editor's canvas holds the keyboard exclusively wherever this is
+// claimed. Hyprland then hands it every click as well, and the editor's toolbar
+// and catalogue stop answering, so the manifest must keep denying it.
+func TestDeniesKeyboardGrabSharesPointer(t *testing.T) {
+	c := wm.Caps{Supports: capsManifest}
+	if c.Has(wm.CapKeyboardGrabSharesPointer) {
+		t.Error("Hyprland gives an exclusive keyboard grab the pointer too; the manifest must not claim it shares")
+	}
+}
+
+func TestServesForeignShellAPIs(t *testing.T) {
+	want := []wm.ForeignAPI{
+		wm.ForeignAPIHyprctl,
+		wm.ForeignAPIHyprlandIPC,
+		wm.ForeignAPIQuickshellHyprland,
+	}
+	if strings.Join(foreignAPINames(foreignAPIs), ",") != strings.Join(foreignAPINames(want), ",") {
+		t.Fatalf("foreign APIs = %v, want %v", foreignAPIs, want)
+	}
+}
+
+func foreignAPINames(apis []wm.ForeignAPI) []string {
+	names := make([]string, len(apis))
+	for i, api := range apis {
+		names[i] = string(api)
+	}
+	return names
+}

@@ -90,7 +90,7 @@ public:
     QColor cardFill(int row) const override;
     unsigned cardBadges(int row) const override;
     QString cardPreviewVideo(int row) const override;
-    int rowOfKey(const QString &key) const override { return m_idIndex.value(key, -1); }
+    int rowOfKey(const QString &key) const override;
     quint64 cardGeneration() const override { return m_cardGen; }
     CardSourceNotifier *cardNotifier() const override { return m_notifier; }
 

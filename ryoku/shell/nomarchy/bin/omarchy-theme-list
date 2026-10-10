@@ -1,0 +1,16 @@
+#!/bin/bash
+set -euo pipefail
+
+DATA_HOME=${XDG_DATA_HOME:-$HOME/.local/share}
+CONFIG_HOME=${XDG_CONFIG_HOME:-$HOME/.config}
+OMARCHY_ROOT=${OMARCHY_PATH:-$DATA_HOME/ryoku/nomarchy}
+
+printf '%s\n' 'Wallpaper (Ryoku)'
+{
+  if [[ -d $CONFIG_HOME/omarchy/themes ]]; then
+    find -H "$CONFIG_HOME/omarchy/themes" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -printf '%f\n'
+  fi
+  if [[ -d $OMARCHY_ROOT/themes ]]; then
+    find -H "$OMARCHY_ROOT/themes" -mindepth 1 -maxdepth 1 -type d -printf '%f\n'
+  fi
+} | LC_ALL=C sort -u | grep -v '^ryoku$' | sed -E 's/(^|-)([a-z])/\1\u\2/g; s/-/ /g'

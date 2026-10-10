@@ -6,6 +6,15 @@
 - Global > Language & Region offers a 24-hour time switch for all Ryoku clocks; off selects 12-hour time with AM/PM.
 
 ### Changed
+- **Add-ons is a library of what you installed, not a wall of toggles.**
+  Desktop widgets no longer appear there; they are managed in Desktop. Shell
+  add-ons (bar glyphs, popouts, panels) and bundles are cards in a grid with
+  their kind, version or component count, state, settings and remove or
+  repair, under a header that counts what is installed. Clicking a bundle
+  opens a sheet listing every component, installed and missing, with Repair
+  and Remove. With Nomarchy as the bar style an Omarchy section lists the
+  installed Omarchy plugins with enable, remove and a link to the market
+  (`quickshell/pages/AddonsPage.qml`, `quickshell/pages/Addon*.qml`).
 - **Rices can ship with Ryoku.** The picker merges packaged looks from
   `/usr/share/ryoku/rices` with the user's library, prefers a user rice when
   slugs match, and copies a packaged rice into the user library before applying
@@ -17,6 +26,31 @@
   through Prowl (`quickshell/pages/RashinPage.qml`).
 
 ### Fixed
+- **Mouse macros take a lone Shift, Ctrl, Alt or Super, and the side grid
+  stops double-acting.** Holding just a modifier while recording a macro showed
+  it but never added the step; it now commits when you let go. The MACRO and
+  CLEAR buttons on a side-grid key no longer also open the key-chord prompt,
+  clicking outside the prompt to cancel no longer starts a bind on the key
+  underneath, and the macro editor names the mouse (Razer · Naga V2 / Pro)
+  instead of its device id (`quickshell/pages/InputPage.qml`).
+- **The Add-ons page tells the truth.** Removing a bundle or one of its parts
+  now refreshes the card from the installer's own status once the terminal
+  closes, instead of showing stale counts and dead Remove buttons until you
+  pressed refresh. A failed install, removal, placement or settings write, or a
+  catalogue that cannot be read, shows a small error with Retry and keeps the
+  last good list rather than claiming nothing is installed. The sidebar card
+  placement no longer offers a Right side that never applied: Controls has one
+  host (`quickshell/pages/AddonsPage.qml`,
+  `../shell/quickshell/plugins/ryoku-plugins-place`).
+- **The Updates and Session pages open again.** The Updates page named its
+  own parts (the run timeline, the log, the password prompt), but Quickshell
+  only writes a type list for directories something imports, and nothing
+  imported the pages, so the page failed to load and the Hub stayed on the
+  previous one. The Hub now imports its pages directory. The Session page had
+  dropped out of the page map when Desktop Scene was retired, so its rail
+  entry did nothing. `tests/ui/hub-pages-probe.sh` loads every section's page
+  (`quickshell/Hub.qml`).
+
 - **Vesktop colours follow the Ryoku theme, not Midnight.** The palette
   bridge's Vesktop integration wrote a competing Midnight theme file and could
   clobber the user's QuickCSS; it now ships a managed palette template beside
@@ -51,6 +85,10 @@
   (`quickshell/SchemaPage.qml`, `quickshell/AppPicker.qml`)
 
 ### Removed
+- **The Desktop page drops Brand and Pickers.** Renaming the desktop and
+  swapping its mark are gone, and the picker style moved to QS Bar Settings,
+  the bar it belongs to. General keeps the reload cover
+  (`quickshell/pages/DesktopPage.qml`, `quickshell/schema/DesktopPage.js`).
 - **Desktop Scene is no longer a Hub page.** Wallpaper depth, visualizers, and
   desktop widgets now open directly in the shell's Stage Editor. Retired links
   skip Hub and open the matching catalogue, while direct navigation to an
@@ -63,6 +101,21 @@
   (`quickshell/Hub.qml`)
 
 ### Added
+- **Dictation has more Whisper models.** The page now lists English Tiny,
+  Base and Small, multilingual Base, Medium and Large Turbo, and the OpenAI
+  API, each with its language, speed and download size; models over 1 GB ask
+  before downloading. The Voxtype setup now runs from the shell service, so it
+  happens on niri as well as Hyprland, and it leaves boxes without Voxtype
+  untouched (`backend/voxtype.go`, `quickshell/pages/DictationPage.qml`,
+  `../shell/systemd/user/ryoku-shell.service`).
+- **Import config reads niri.** Point the Import page at a niri config folder
+  or a dotfiles checkout and it follows the `include` tree, maps input, layout,
+  animations, environment, startup apps, cursor, binds and window rules onto
+  Ryoku's settings, lists conflicts with Ryoku's shortcuts, and keeps anything
+  it cannot map in a marked `niri/user.kdl` block instead of dropping it. A niri
+  config imported while another desktop runs is saved for the switch and
+  nothing changes live; Undo restores every touched file
+  (`backend/import_provider.go`, `quickshell/pages/ImportPage.qml`).
 - **Credits name ii-p3drovfx.** The Stage Editor is ported from the Edit Mode
   of P3DROVFX's ii-p3drovfx shell; the Credits page now lists it beside the
   other shells Ryoku grows from, and NOTICE records where the ported code comes

@@ -37,13 +37,21 @@ done
 # fails the gate instead of shipping and killing `ryoku reload`.
 fatal='no matching signal found for handler|Cannot assign to non-existent property|is not a type\b|Could not compile binding|Duplicate signal name|Duplicate method name|Syntax error|Expected token|Unexpected token'
 
+# Quickshell resolves `qs.X` against the running config's root, which qmllint
+# cannot know; without a `qs` module on the path a `qs.Ui` type that shadows a
+# Qt Controls type of the same name is linted against the Controls one and every
+# handler on it reads as missing.
+shim="$(mktemp -d)"
+trap 'rm -rf "$shim"' EXIT
+
 status=0
 for root in "$@"; do
   [[ -d $root ]] || { echo "ryoku-dev-lint-qml: no such directory: $root" >&2; status=2; continue; }
   mapfile -t files < <(find "$root" -name '*.qml' -type f | sort)
   (( ${#files[@]} )) || continue
+  ln -sfn "$(cd "$root" && pwd)" "$shim/qs"
   hits="$(
-    (cd "$root" && "$qmllint_bin" "${imports[@]}" -I . --compiler disable "${files[@]#"$root"/}" 2>&1 || true) \
+    (cd "$root" && "$qmllint_bin" "${imports[@]}" -I "$shim" -I . --compiler disable "${files[@]#"$root"/}" 2>&1 || true) \
       | grep -E "$fatal" || true
   )"
   if [[ -n $hits ]]; then

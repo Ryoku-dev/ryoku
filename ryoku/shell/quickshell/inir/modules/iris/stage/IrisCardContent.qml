@@ -536,7 +536,7 @@ Item {
                 implicitHeight: Math.round(38 * root.d)
                 onClicked: {
                     root.close()
-                    ShellExec.execCmd(Config.options?.apps?.update ?? "kitty -e sudo pacman -Syu")
+                    PackageSearch.runConfiguredUpdate()
                 }
             }
         }
@@ -786,7 +786,7 @@ Item {
                 wrapMode: Text.WordWrap
                 font.pixelSize: IrisStyle.typeMeta
             }
-            RowLayout {
+            IrisActionRow {
                 Layout.fillWidth: true
                 visible: Vpn.hasNmcli
                 spacing: Math.round(6 * root.d)
@@ -796,7 +796,6 @@ Item {
                     enabled: !Vpn.busy
                     text: Vpn.hasEditor ? Translation.tr("New WireGuard…") : Translation.tr("New VPN…")
                     buttonRadius: IrisStyle.radiusTile
-                    implicitHeight: Math.round(34 * root.d)
                     onClicked: Vpn.newProfile("wireguard")
                 }
                 IrisButton {
@@ -805,7 +804,6 @@ Item {
                     enabled: !Vpn.busy
                     text: Translation.tr("Other VPN…")
                     buttonRadius: IrisStyle.radiusTile
-                    implicitHeight: Math.round(34 * root.d)
                     onClicked: Vpn.newProfile("vpn")
                 }
                 IrisButton {
@@ -813,7 +811,6 @@ Item {
                     enabled: !Vpn.busy
                     text: Translation.tr("Import a file…")
                     buttonRadius: IrisStyle.radiusTile
-                    implicitHeight: Math.round(34 * root.d)
                     onClicked: Vpn.chooseProfileFile()
                 }
             }

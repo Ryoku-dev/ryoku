@@ -13,6 +13,7 @@ Item {
     property int cornerRadius: 12
 
     property string buttonIcon: ""
+    property string iconFont: ThemeBackend.iconFont
     property int iconFontSize: 18
     property int iconOffsetX: 0
     property int iconOffsetY: 0
@@ -56,7 +57,7 @@ Item {
             anchors.horizontalCenterOffset: root.iconOffsetX
             anchors.verticalCenterOffset: root.iconOffsetY
             text: root.buttonIcon
-            font.family: "Iosevka Nerd Font"
+            font.family: root.iconFont
             font.pixelSize: root.iconFontSize
             color: root.textColor
             horizontalAlignment: Text.AlignHCenter

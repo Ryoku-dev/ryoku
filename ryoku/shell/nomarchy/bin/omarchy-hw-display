@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+if command -v ryoku-hw-backlight >/dev/null 2>&1; then ryoku-hw-backlight; exit; fi
+for path in /sys/class/backlight/gmux_backlight /sys/class/backlight/amdgpu_bl* /sys/class/backlight/intel_backlight /sys/class/backlight/acpi_video* /sys/class/backlight/*; do
+  [[ -e $path && ${path##*/} != appletb_backlight ]] || continue
+  printf '%s\n' "${path##*/}"
+  exit 0
+done
+exit 1

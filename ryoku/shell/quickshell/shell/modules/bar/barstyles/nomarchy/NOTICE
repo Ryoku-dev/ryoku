@@ -1,0 +1,35 @@
+Nomarchy
+
+This directory contains a modified port of the Omarchy quattro shell from:
+
+  https://github.com/basecamp/omarchy
+  commit d9b970dd
+
+Omarchy is copyright 37signals LLC and Omarchy contributors and is distributed
+under the MIT License. The upstream license is preserved in LICENSE.
+
+Ryoku calls this port Nomarchy to distinguish the modified work from Omarchy.
+The port retains the upstream bar, panels, widgets, menus, plugin host,
+notification presentation, OSD, reminders, media and battery integrations.
+
+Ryoku adaptations include:
+
+- all output, workspace, window, focus and keyboard-layout operations use the
+  neutral Ryoku window-manager contract;
+- shared QML primitives use Ryoku tokens and output state;
+- the resident Ryoku notification server feeds Nomarchy's history and toast UI;
+- Ryogami owns wallpaper selection and ryoshot/Recorder own capture;
+- Ryoku owns lock, clipboard, policy authentication, idle inhibition,
+  night-light and update flows;
+- the Agents panel keeps upstream usage and extension surfaces, while account
+  controls stay hidden when the platform account capability reports unavailable;
+- the Agents launch action opens Ryoku Ask and the duplicate starter-prompt
+  surface is omitted;
+- third-party plugins are fail-closed behind `ryoku wm compat <plugin-dir>`;
+- state and data paths honor XDG_STATE_HOME and XDG_DATA_HOME;
+- Bar Studio exposes Nomarchy themes and plugin controls;
+- every QML file imports `QtQuick 6.11`, because Qt 6.12's new QtQuick `Color`
+  singleton shadows the shell's own `Color` (QTBUG-151278).
+
+No Omarchy trademark, logo or endorsement is claimed. Omarchy is not responsible
+for this modified port.

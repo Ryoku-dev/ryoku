@@ -1,0 +1,8 @@
+#!/bin/bash
+set -euo pipefail
+id=${1:-}; [[ $id =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Usage: omarchy-remove-launcher-entry DESKTOP-ID [NAME]' >&2; exit 2; }
+file=${XDG_DATA_HOME:-$HOME/.local/share}/applications/${id%.desktop}.desktop
+[[ -f $file && ! -L $file ]] || { echo "Launcher '$id' is not user-owned" >&2; exit 1; }
+rm -- "$file"
+update-desktop-database "${file%/*}" >/dev/null 2>&1 || true
+omarchy-notification-send 'Launcher removed' "${2:-$id}"

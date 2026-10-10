@@ -15,16 +15,24 @@ import inir.modules.iris.style
 import inir.modules.iris.components
 import inir.modules.iris.pieces
 import shell.services as Ryoku
+import Ryoku.Ui.Singletons as Ui
 
 Item {
     id: root
     property var screen: null
     anchors.fill: parent
-    readonly property bool showLauncher: Config.options?.iris?.dock?.launcher ?? true
-    readonly property var options: Config.options?.iris?.dock ?? ({})
+    readonly property bool showLauncher: Ryoku.Dock.designCfg("shima", "launcher", true)
+    readonly property var options: {
+        const design = Ryoku.Dock.cfg("shima", {})
+        return Object.assign({}, design, {
+            autoHide: Ryoku.Dock.cfg("autohide", true),
+            iconSize: Ryoku.Dock.cfg("size", 44),
+            magnification: Ryoku.Dock.cfg("magnify", true)
+        })
+    }
     readonly property real d: IrisStyle.density
-    readonly property real iconSize: Math.max(28, Math.min(64, Number(root.options?.iconSize ?? 40))) * root.d
-    readonly property string edge: IrisFrame.dockEdge
+    readonly property real iconSize: Math.max(28, Math.min(64, Number(root.options?.iconSize ?? 44))) * root.d
+    readonly property string edge: Ryoku.Dock.resolvedEdge()
     readonly property bool atTop: root.edge === "top"
     readonly property bool atBottom: root.edge === "bottom"
     readonly property bool atLeft: root.edge === "left"
@@ -43,13 +51,29 @@ Item {
             root.vertical ? item.height / 2 : (root.atTop ? item.height : 0))
         return Qt.point(Math.round(p.x), Math.round(p.y))
     }
-    readonly property bool notch: root.options?.notch ?? false
+    readonly property string shape: String(root.options?.shape ?? "auto")
+    readonly property bool notch: root.options?.notch ?? true
     readonly property bool autoHide: root.options?.autoHide ?? true
     readonly property bool reserveSpace: root.options?.reserveSpace ?? true
     readonly property bool magnify: (root.options?.magnification ?? true) && IrisStyle.motionEnabled
     readonly property bool badges: root.options?.badges ?? true
     readonly property bool revealOnEmpty: root.options?.revealOnEmpty ?? true
-    readonly property var apps: TaskbarApps.apps
+    readonly property var apps: {
+        const source = Array.from(TaskbarApps.apps ?? []).filter(app =>
+            app.appId !== "SEPARATOR" && (app.toplevels?.length ?? 0) > 0)
+        const pins = Ryoku.Dock.pinnedOrStarter()
+        const out = []
+        for (const pin of pins) {
+            const running = source.find(app => Ryoku.Dock.sameApp(app.appId, pin))
+            out.push(Object.assign({}, running ?? {}, { appId: pin, pinned: true,
+                toplevels: running?.toplevels ?? [] }))
+        }
+        const unpinned = source.filter(app => !pins.some(pin => Ryoku.Dock.sameApp(pin, app.appId)))
+            .map(app => Object.assign({}, app, { appId: Ryoku.Dock.canonicalId(app.appId), pinned: false }))
+        if (out.length > 0 && unpinned.length > 0)
+            out.push({ appId: "SEPARATOR" })
+        return out.concat(unpinned)
+    }
     readonly property var entries: {
         const list = root.apps.slice()
         while (list.length > 0 && list[0].appId === "SEPARATOR") list.shift()
@@ -158,20 +182,11 @@ Item {
     readonly property alias hitItem: hitArea
     readonly property alias bodyShape: window.bodyShape
     readonly property alias editShapes: window.editShapes
-    // Customize selects the Dock first and what is in it second, as a design tool enters a group: a click on an app
-    // selects the whole Dock unless the Dock (or something in it) already is, then the app.
-    readonly property var editMembers: root.entries.filter(entry => entry.appId !== "SEPARATOR")
-        .map(entry => IrisPieces.appPieceId(entry.appId))
-        .concat(root.pieces.map(piece => String(piece.slot).startsWith("extra-") ? "extra:" + String(piece.slot).slice(6) : String(piece.slot)))
+    // Dock settings live in Stage Editor. A click while Shima customize is
+    // active hands off there instead of reopening the retired dock inspector.
     function editSelect(member: string): void {
-        const inside = GlobalStates.irisEditTarget === "dock" || root.editMembers.includes(GlobalStates.irisEditSelection)
-        if (!inside) {
-            GlobalStates.irisEditSelection = ""
-            GlobalStates.irisEditTarget = "dock"
-            return
-        }
-        GlobalStates.irisEditTarget = ""
-        GlobalStates.irisEditSelection = member
+        GlobalStates.endIrisEditing()
+        Ui.Spawn.run(["qs", "-c", "shell", "ipc", "call", "desktop", "editSection", "dock", ""])
     }
     function closeMenu(): void { window.menuApp = null }
 
@@ -439,46 +454,10 @@ Item {
                 y: root.vertical ? Math.round((window.height - height) / 2)
                     : root.atTop ? window.edgeOffset : window.height - height - window.edgeOffset
                 readonly property real thickness: root.vertical ? width : height
-                radius: IrisStyle.profileRadius(IrisStyle.bodyProfile(IrisStyle.dockShape, root.notch), dock.thickness)
+                radius: IrisStyle.profileRadius(IrisStyle.bodyProfile(root.shape === "auto" ? IrisStyle.dockShape : root.shape, root.notch), dock.thickness)
                 quiet: true
                 opacity: window.revealed || window.edgeOffset > -window.dockHeight ? 1 : 0
 
-                Item {
-                    id: dockResize
-                    z: 30
-                    visible: window.editingDock
-                    width: Math.round((root.vertical ? 14 : 44) * root.d)
-                    height: Math.round((root.vertical ? 44 : 14) * root.d)
-                    x: root.vertical ? (root.atLeft ? parent.width - width : 0) : Math.round((parent.width - width) / 2)
-                    y: root.vertical ? Math.round((parent.height - height) / 2) : (root.atTop ? parent.height - height : 0)
-                    Rectangle {
-                        anchors.centerIn: parent
-                        width: root.vertical ? Math.max(2, Math.round(3 * root.d)) : Math.round(24 * root.d)
-                        height: root.vertical ? Math.round(24 * root.d) : Math.max(2, Math.round(3 * root.d))
-                        radius: Math.min(width, height) / 2
-                        color: dockResizeHover.hovered || dockResizeDrag.active ? IrisStyle.accent : IrisStyle.textTertiary
-                    }
-                    HoverHandler { id: dockResizeHover; cursorShape: root.vertical ? Qt.SizeHorCursor : Qt.SizeVerCursor }
-                    DragHandler {
-                        id: dockResizeDrag
-                        target: null
-                        xAxis.enabled: root.vertical
-                        yAxis.enabled: !root.vertical
-                        property real startSize: 40
-                        property IrisConfigDrag write: IrisConfigDrag { path: "iris.dock.iconSize" }
-                        onActiveChanged: {
-                            if (active) dockResizeDrag.startSize = Number(Config.options?.iris?.dock?.iconSize ?? 40)
-                            else dockResizeDrag.write.flush()
-                        }
-                        onTranslationChanged: {
-                            if (!active) return
-                            const outward = root.vertical ? (root.atLeft ? translation.x : -translation.x)
-                                : (root.atTop ? translation.y : -translation.y)
-                            const grown = outward / Math.max(0.01, root.d)
-                            dockResizeDrag.write.push(Math.round(Math.max(28, Math.min(64, dockResizeDrag.startSize + grown))))
-                        }
-                    }
-                }
 
                 Grid {
                     id: appRow
@@ -522,8 +501,7 @@ Item {
                             Accessible.name: Translation.tr("Applications")
                             onClicked: {
                                 if (GlobalStates.irisEdit) {
-                                    GlobalStates.irisEditSelection = ""
-                                    GlobalStates.irisEditTarget = "dock"
+                                    root.editSelect("")
                                     return
                                 }
                                 const st = Ryoku.ShellState.forScreen(root.screen) ?? Ryoku.ShellState.forActive()
@@ -1380,7 +1358,7 @@ Item {
                     MenuRow {
                         glyph: menu.app?.pinned ? "keep_off" : "keep"
                         label: menu.app?.pinned ? Translation.tr("Unpin from dock") : Translation.tr("Keep in dock")
-                        onClicked: { TaskbarApps.togglePin(menu.app.appId); window.menuApp = null }
+                        onClicked: { Ryoku.Dock.togglePin(menu.app.appId); window.menuApp = null }
                     }
                     MenuRow {
                         readonly property bool floating: IrisPieces.appFloating(menu.app?.appId ?? "")

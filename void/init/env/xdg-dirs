@@ -1,0 +1,30 @@
+#!/bin/sh
+# Translation of ryoku/shell/systemd/user-environment-generators/60-ryoku-xdg-dirs.
+# systemd runs environment generators at user-manager startup and feeds the
+# printed KEY=VALUE lines into the manager environment. Void has no user
+# manager: Turnstile is the equivalent, and its environment is an envdir
+# ($TURNSTILE_ENV_DIR, one file per variable, file name = variable name).
+# This script renders the same XDG_*_DIR set into that envdir, so every
+# chpst -e supervised service sees the localized dirs (#246: a localized
+# desktop growing a stray ~/Pictures beside ~/Imágenes).
+#
+# Run once per session by the session bootstrap (future work) or by hand:
+#   void/init/env/xdg-dirs [target-envdir]
+# Without an argument it writes to $TURNSTILE_ENV_DIR when set, else to
+# $XDG_RUNTIME_DIR/ryoku/env (the runsvdir fallback tier reads it from there).
+set -eu
+
+target=${1:-${TURNSTILE_ENV_DIR:-${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/ryoku/env}}
+
+[ -f "$HOME/.config/user-dirs.dirs" ] || exit 0
+command -v xdg-user-dir >/dev/null 2>&1 || exit 0
+
+mkdir -p "$target"
+for dir in PICTURES DOWNLOAD DOCUMENTS MUSIC VIDEOS DESKTOP PUBLICSHARE TEMPLATES; do
+	path=$(xdg-user-dir "$dir" 2>/dev/null) || continue
+	[ -n "$path" ] || continue
+	# envdir format: the file name is the variable, the content the value
+	# with no trailing newline. printf, not echo: a trailing newline would
+	# become part of the value under chpst -e.
+	printf '%s' "$path" > "$target/XDG_${dir}_DIR"
+done

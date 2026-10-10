@@ -30,6 +30,7 @@ struct QuadWH {
 QuadWH collectionQuad(float vh, float availW, float cx, float distance, float open, bool selected, float aspect,
                       float sizePct, float spacingPct, float tiltDeg)
 {
+    aspect = clampf(aspect, 0.5f, 2.4f);
     const float size = std::max(std::min(vh * sizePct / 100.0f, availW * 0.64f), 1.0f);
     const float scale = 1.0f + distance * 0.045f;
     const float width = size * scale;
@@ -76,7 +77,7 @@ void CollectionLayout::readParams(const ParamSource *src, Params &out) const
     const auto num = [&](const char *k, double fb) { return src->num(kPrefix + QLatin1String(k), fb); };
     out.size = clampf(float(num("collectionSize", 42)), 15.0f, 65.0f);
     out.spacing = clampf(float(num("collectionSpacing", 17)), 5.0f, 30.0f);
-    out.count = clampf(float(std::lround(num("collectionCount", 7))), 3.0f, 11.0f);
+    out.count = float(std::lround(std::clamp(num("collectionCount", 7), 3.0, 11.0)));
     out.tilt = clampf(float(num("collectionTilt", 52)), 0.0f, 75.0f);
     out.corners = clampf(float(num("collectionCorners", 2)), 0.0f, 100.0f);
     out.speed = clampf(float(num("collectionSpeed", 100)), 25.0f, 300.0f);

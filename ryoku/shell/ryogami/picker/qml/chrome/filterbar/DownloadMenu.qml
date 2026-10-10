@@ -8,7 +8,9 @@ BarMenu {
 
     glyph: "\u{f01da}"
     label: I18n.tr("Download")
-    panelWidth: 250
+    tooltip: I18n.tr("Browse wallpaper sources")
+    panelWidth: 286
+    active: dl.state && dl.state.sheet === "browser"
     alignRight: true
     onOpenChanged: if (dl.open) dl._refresh()
 

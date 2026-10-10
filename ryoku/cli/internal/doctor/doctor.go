@@ -152,6 +152,7 @@ func reconcilers() []reconciler {
 		{i18n.T("Material Symbols icon font"), reconcileIconFont},
 		{i18n.T("frame bar style name"), reconcileFrameBarsStyle},
 		{i18n.T("shell config schema"), reconcileShellConfig},
+		{i18n.T("Nomarchy command activation"), reconcileNomarchyCommands},
 		{i18n.T("login shell source"), reconcileLoginShell},
 		{i18n.T("shell style knobs"), reconcileLegacyStyleKnobs},
 		{i18n.T("sumi bar simplification"), reconcileSumiBar},
@@ -1195,46 +1196,77 @@ func reconcileShellConfig(checkOnly bool) recResult {
 
 // ---- reconciler: dock config store -------------------------------------------
 
-// reconcileDockStore moves the retired dock knobs out of the qsbar map and into
-// the top-level `dock` object the shell reads now that the dock is its own
-// shell surface for every bar style. Only the five keys a box could have
-// persisted move (enabled, magnify, pinned, frost, shadow); the rest of the
-// dock object (edge, autohide, labels, media) is left absent so Config.qml's
-// defaults apply. Surgical and idempotent: a dock object the shell already
-// wrote is never clobbered, the old keys are dropped from qsbar, and a store
-// with none of them is left alone.
+// reconcileDockStore converges every retired dock store onto shell.json's
+// top-level dock object. The shell store carries old QS and Python settings plus
+// frame-bar pins; Stage carries the former iRiS pins. Pins keep source order,
+// aliases are normalised to desktop ids, and old keys are removed after merge.
 func reconcileDockStore(checkOnly bool) recResult {
 	path := filepath.Join(sys.ConfigHome(), "ryoku", "shell.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return okRes(i18n.T("no shell.json yet (seeded on first shell run)"))
 	}
-	migrated, changed, err := migrateDockStore(raw)
+	migrated, shellChanged, err := migrateDockStore(raw)
 	if err != nil {
 		return warnRes(i18n.T("shell.json does not parse (%v); the shell falls back to defaults"), err).
 			withFix(i18n.T("delete %s to re-seed it"), path)
 	}
-	if !changed {
-		return okRes(i18n.T("dock config lives in the top-level dock object"))
+	if !shellChanged {
+		migrated = raw
+	}
+
+	stagePath := filepath.Join(sys.ConfigHome(), "ryoku", "stage", "stage-editor.json")
+	stageRaw, stageErr := os.ReadFile(stagePath)
+	var stageMigrated []byte
+	var stagePins []string
+	stageChanged := false
+	if stageErr == nil {
+		stageMigrated, stagePins, stageChanged, err = migrateStageDockStore(stageRaw)
+		if err != nil {
+			return warnRes(i18n.T("stage-editor.json does not parse (%v); Stage falls back to defaults"), err).
+				withFix(i18n.T("delete %s to re-seed it"), stagePath)
+		}
+	} else if !os.IsNotExist(stageErr) {
+		return warnRes(i18n.T("could not read %s: %v"), stagePath, stageErr)
+	}
+	if len(stagePins) > 0 {
+		var merged bool
+		migrated, merged, err = mergeDockPins(migrated, stagePins)
+		if err != nil {
+			return warnRes(i18n.T("shell.json does not parse (%v); the shell falls back to defaults"), err)
+		}
+		shellChanged = shellChanged || merged
+	}
+	if !shellChanged && !stageChanged {
+		return okRes(i18n.T("dock settings use the universal dock store"))
 	}
 	if checkOnly {
-		return wouldRes(i18n.T("shell.json still keeps dock knobs in the qsbar map")).
-			withFix(i18n.T("ryoku doctor moves them into the top-level dock object in place"))
+		return wouldRes(i18n.T("retired dock settings still exist outside the universal dock store")).
+			withFix(i18n.T("ryoku doctor merges them into shell.json and removes the retired keys"))
 	}
-	tmp := path + ".ryoku-tmp"
-	if err := os.WriteFile(tmp, migrated, 0o644); err != nil {
-		return failRes(i18n.T("could not write %s: %v"), tmp, err)
+	if shellChanged {
+		tmp := path + ".ryoku-tmp"
+		if err := os.WriteFile(tmp, migrated, 0o644); err != nil {
+			return failRes(i18n.T("could not write %s: %v"), tmp, err)
+		}
+		if err := os.Rename(tmp, path); err != nil {
+			os.Remove(tmp)
+			return failRes(i18n.T("could not replace %s: %v"), path, err)
+		}
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		os.Remove(tmp)
-		return failRes(i18n.T("could not replace %s: %v"), path, err)
+	if stageChanged {
+		tmp := stagePath + ".ryoku-tmp"
+		if err := os.WriteFile(tmp, stageMigrated, 0o644); err != nil {
+			return failRes(i18n.T("could not write %s: %v"), tmp, err)
+		}
+		if err := os.Rename(tmp, stagePath); err != nil {
+			os.Remove(tmp)
+			return failRes(i18n.T("could not replace %s: %v"), stagePath, err)
+		}
 	}
-	return fixedRes(i18n.T("moved the retired qsbar dock knobs into the top-level dock object"))
+	return fixedRes(i18n.T("merged retired dock settings into the universal dock store"))
 }
 
-// oldDockKeys map each retired qsbar dock knob to its key in the top-level dock
-// object. Only these five carried a persisted value; the dock's other keys are
-// left to the shell's defaults.
 var oldDockKeys = map[string]string{
 	"dockEnabled": "enabled",
 	"dockMagnify": "magnify",
@@ -1243,62 +1275,256 @@ var oldDockKeys = map[string]string{
 	"dockShadow":  "shadow",
 }
 
-// migrateDockStore lifts the retired qsbar.dock* knobs into a top-level dock
-// object under their new names, deleting them from qsbar. Every other key
-// (qsbar's own settings and each moved value) is preserved as raw bytes, a dock
-// object the shell already wrote wins key-by-key, and a store with none of the
-// old keys is a no-op, so a second run reads clean.
+func canonicalDockID(value string) string {
+	id := strings.TrimSpace(value)
+	if strings.HasSuffix(strings.ToLower(id), ".desktop") {
+		id = id[:len(id)-len(".desktop")]
+	}
+	return strings.ToLower(id)
+}
+
+func appendDockPins(dst []string, raw json.RawMessage) []string {
+	var values []any
+	if len(raw) == 0 || json.Unmarshal(raw, &values) != nil {
+		return dst
+	}
+	seen := make(map[string]bool, len(dst))
+	for _, id := range dst {
+		seen[id] = true
+	}
+	for _, value := range values {
+		id := ""
+		switch v := value.(type) {
+		case string:
+			id = canonicalDockID(v)
+		case map[string]any:
+			if s, ok := v["desktop_id"].(string); ok {
+				id = canonicalDockID(s)
+			} else if s, ok := v["id"].(string); ok {
+				id = canonicalDockID(s)
+			}
+		}
+		if id != "" && !seen[id] {
+			dst = append(dst, id)
+			seen[id] = true
+		}
+	}
+	return dst
+}
+
+func dockPinsAreCanonical(raw json.RawMessage, pins []string) bool {
+	var stored []string
+	if json.Unmarshal(raw, &stored) != nil || len(stored) != len(pins) {
+		return false
+	}
+	for i := range pins {
+		if stored[i] != pins[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func decodeObject(raw json.RawMessage) (map[string]json.RawMessage, error) {
+	out := map[string]json.RawMessage{}
+	if len(raw) == 0 {
+		return out, nil
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func encodeObject(value map[string]json.RawMessage) (json.RawMessage, error) {
+	return json.Marshal(value)
+}
+
 func migrateDockStore(raw []byte) ([]byte, bool, error) {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &top); err != nil {
 		return nil, false, err
 	}
-	qsbarRaw, ok := top["qsbar"]
-	if !ok {
-		return nil, false, nil
-	}
-	var qsbar map[string]json.RawMessage
-	if err := json.Unmarshal(qsbarRaw, &qsbar); err != nil {
+	dock, err := decodeObject(top["dock"])
+	if err != nil {
 		return nil, false, err
 	}
-	moved := map[string]json.RawMessage{}
-	for old, want := range oldDockKeys {
-		if v, ok := qsbar[old]; ok {
-			moved[want] = v
-			delete(qsbar, old)
-		}
-	}
-	if len(moved) == 0 {
-		return nil, false, nil
-	}
-	// A dock object the shell already wrote wins: only fill the keys it lacks,
-	// so a re-run or a hand edit is never clobbered.
-	dock := map[string]json.RawMessage{}
-	if dockRaw, ok := top["dock"]; ok {
-		if err := json.Unmarshal(dockRaw, &dock); err != nil {
+	pins := appendDockPins(nil, dock["pinned"])
+	changed := len(dock["pinned"]) > 0 && !dockPinsAreCanonical(dock["pinned"], pins)
+
+	if qsbarRaw, ok := top["qsbar"]; ok {
+		qsbar, err := decodeObject(qsbarRaw)
+		if err != nil {
 			return nil, false, err
 		}
-	}
-	for k, v := range moved {
-		if _, ok := dock[k]; !ok {
-			dock[k] = v
+		moved := false
+		for old, want := range oldDockKeys {
+			if value, ok := qsbar[old]; ok {
+				if want == "pinned" {
+					pins = appendDockPins(pins, value)
+				} else if _, exists := dock[want]; !exists {
+					dock[want] = value
+				}
+				delete(qsbar, old)
+				moved = true
+			}
+		}
+		if moved {
+			top["qsbar"], err = encodeObject(qsbar)
+			if err != nil {
+				return nil, false, err
+			}
+			changed = true
 		}
 	}
-	dockBytes, err := json.Marshal(dock)
+
+	if pythonRaw, ok := top["python"]; ok {
+		python, err := decodeObject(pythonRaw)
+		if err != nil {
+			return nil, false, err
+		}
+		if legacyRaw, ok := python["dock"]; ok {
+			legacy, err := decodeObject(legacyRaw)
+			if err != nil {
+				return nil, false, err
+			}
+			if _, present := dock["design"]; !present {
+				dock["design"] = json.RawMessage(`"python"`)
+			}
+			pins = appendDockPins(pins, legacy["apps"])
+			for old, want := range map[string]string{
+				"enabled": "enabled", "position": "edge", "elementSize": "size", "autohide": "autohide",
+			} {
+				if value, exists := legacy[old]; exists {
+					if _, present := dock[want]; !present {
+						dock[want] = value
+					}
+					delete(legacy, old)
+				}
+			}
+			delete(legacy, "apps")
+			delete(legacy, "editing")
+			pythonDock, err := decodeObject(dock["python"])
+			if err != nil {
+				return nil, false, err
+			}
+			for key, value := range legacy {
+				if _, exists := pythonDock[key]; !exists {
+					pythonDock[key] = value
+				}
+			}
+			if len(pythonDock) > 0 {
+				dock["python"], err = encodeObject(pythonDock)
+				if err != nil {
+					return nil, false, err
+				}
+			}
+			delete(python, "dock")
+			top["python"], err = encodeObject(python)
+			if err != nil {
+				return nil, false, err
+			}
+			changed = true
+		}
+	}
+
+	if frameRaw, ok := top["frameBars"]; ok {
+		frame, err := decodeObject(frameRaw)
+		if err != nil {
+			return nil, false, err
+		}
+		if frameDockRaw, ok := frame["dock"]; ok {
+			frameDock, err := decodeObject(frameDockRaw)
+			if err != nil {
+				return nil, false, err
+			}
+			if oldPins, exists := frameDock["pinned"]; exists {
+				pins = appendDockPins(pins, oldPins)
+				delete(frameDock, "pinned")
+				if len(frameDock) == 0 {
+					delete(frame, "dock")
+				} else {
+					frame["dock"], _ = encodeObject(frameDock)
+				}
+				top["frameBars"], err = encodeObject(frame)
+				if err != nil {
+					return nil, false, err
+				}
+				changed = true
+			}
+		}
+	}
+
+	if !changed {
+		return nil, false, nil
+	}
+	dock["pinned"], _ = json.Marshal(pins)
+	top["dock"], err = encodeObject(dock)
 	if err != nil {
 		return nil, false, err
 	}
-	top["dock"] = dockBytes
-	qsbarBytes, err := json.Marshal(qsbar)
-	if err != nil {
-		return nil, false, err
-	}
-	top["qsbar"] = qsbarBytes
 	out, err := json.MarshalIndent(top, "", "  ")
 	if err != nil {
 		return nil, false, err
 	}
 	return append(out, '\n'), true, nil
+}
+
+func migrateStageDockStore(raw []byte) ([]byte, []string, bool, error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil, nil, false, err
+	}
+	dock, err := decodeObject(top["dock"])
+	if err != nil {
+		return nil, nil, false, err
+	}
+	oldPins, ok := dock["pinnedApps"]
+	if !ok {
+		return nil, nil, false, nil
+	}
+	pins := appendDockPins(nil, oldPins)
+	delete(dock, "pinnedApps")
+	top["dock"], err = encodeObject(dock)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	out, err := json.MarshalIndent(top, "", "  ")
+	if err != nil {
+		return nil, nil, false, err
+	}
+	return append(out, '\n'), pins, true, nil
+}
+
+func mergeDockPins(raw []byte, extra []string) ([]byte, bool, error) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return nil, false, err
+	}
+	dock, err := decodeObject(top["dock"])
+	if err != nil {
+		return nil, false, err
+	}
+	before := appendDockPins(nil, dock["pinned"])
+	after := appendDockPins(append([]string(nil), before...), mustJSON(extra))
+	if len(after) == len(before) {
+		return raw, false, nil
+	}
+	dock["pinned"], _ = json.Marshal(after)
+	top["dock"], err = encodeObject(dock)
+	if err != nil {
+		return nil, false, err
+	}
+	out, err := json.MarshalIndent(top, "", "  ")
+	if err != nil {
+		return nil, false, err
+	}
+	return append(out, '\n'), true, nil
+}
+
+func mustJSON(value any) json.RawMessage {
+	raw, _ := json.Marshal(value)
+	return raw
 }
 
 // ---- reconciler: frame bar style name ----------------------------------------

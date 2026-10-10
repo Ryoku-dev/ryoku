@@ -1,0 +1,42 @@
+#!/bin/bash
+set -euo pipefail
+runtime=${XDG_RUNTIME_DIR:-/tmp}/omarchy-reminders
+mkdir -p "$runtime"
+active() {
+  systemctl --user list-timers --all --output=json 'omarchy-reminder-*.timer' 2>/dev/null |
+    jq -r '.[] | select(.next > (now*1000000)) | [.unit, (.next/1000000|floor)] | @tsv'
+}
+refresh() { omarchy-shell -q omarchy.indicators refresh >/dev/null 2>&1 || true; }
+show_json() {
+  now=$(date +%s); items='[]'
+  while IFS=$'\t' read -r timer at; do
+    [[ -n $timer ]] || continue
+    unit=${timer%.timer}; message=
+    [[ ! -r $runtime/$unit.message ]] || message=$(<"$runtime/$unit.message")
+    remaining=$((at-now)); label=${message:-Reminder}
+    item=$(jq -cn --arg unit "$unit" --arg timer "$timer" --arg label "$label" --arg message "$message" --argjson at "$at" --argjson remaining "$remaining" '{unit:$unit,timer:$timer,label:$label,message:$message,at:$at,remainingSeconds:$remaining}')
+    items=$(jq -cn --argjson items "$items" --argjson item "$item" '$items+[$item]')
+  done < <(active)
+  count=$(jq 'length' <<<"$items")
+  jq -cn --argjson count "$count" --argjson reminders "$items" '{count:$count,active:($count>0),tooltip:(if $count==1 then "1 reminder" else "\($count) reminders" end),reminders:$reminders}'
+}
+case ${1:-} in
+  -i|--interactive) exec omarchy-shell nomarchy summon omarchy.reminders '{}' ;;
+  show|list)
+    if [[ ${2:-} == -j || ${2:-} == --json ]]; then show_json; else
+      rows=$(active); if [[ -z $rows ]]; then omarchy-notification-send 'Upcoming reminders' 'No outstanding reminders'; else omarchy-notification-send 'Upcoming reminders' "$(cut -f1 <<<"$rows")"; fi
+    fi
+    ;;
+  clear)
+    mapfile -t units < <(active | cut -f1); ((${#units[@]}==0)) || systemctl --user stop "${units[@]}"
+    rm -f "$runtime"/omarchy-reminder-*.message; refresh; omarchy-notification-send 'All reminders have been cleared'
+    ;;
+  '') echo 'Usage: omarchy-reminder [-i|MINUTES [MESSAGE]|show [--json]|clear]' >&2; exit 2 ;;
+  *)
+    minutes=$1; shift; [[ $minutes =~ ^[1-9][0-9]*$ ]] || { echo 'Minutes must be a positive integer' >&2; exit 2; }
+    stamp=$(date +%s%N); unit="omarchy-reminder-${minutes}m-$stamp"; message=${*:-${minutes}-minute reminder}
+    printf '%s' "$message" >"$runtime/$unit.message"
+    systemd-run --user --quiet --collect --unit="$unit" --on-active="${minutes}m" /bin/bash -c 'message=$(cat "$1" 2>/dev/null || printf Reminder); notify-send "Reminder" "$message"; rm -f "$1"' _ "$runtime/$unit.message"
+    refresh; omarchy-notification-send 'Reminder set' "$message in ${minutes}m"
+    ;;
+esac

@@ -102,7 +102,12 @@ func (s *watchState) event(line string) refreshMask {
 		return refreshWindows
 	case "openwindow", "closewindow", "movewindow", "movewindowv2", "fullscreen":
 		return refreshWindows | refreshWorkspaces
-	case "workspace", "workspacev2", "focusedmon", "focusedmonv2",
+	case "focusedmon", "focusedmonv2":
+		// consume already published the focused output directly from this
+		// event. Re-reading every monitor, workspace and window here made one
+		// pointer crossing fan out into three control-socket queries.
+		return 0
+	case "workspace", "workspacev2",
 		"createworkspace", "createworkspacev2", "destroyworkspace", "destroyworkspacev2",
 		"moveworkspace", "moveworkspacev2", "renameworkspace", "activespecial", "activespecialv2":
 		return refreshOutputs | refreshWorkspaces | refreshWindows

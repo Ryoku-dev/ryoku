@@ -25,6 +25,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 layerIdx;
     vec4 layerTier;
     vec4 uvRect[4];
+    vec4 prevUv;
 };
 
 layout(binding = 1) uniform sampler2DArray nearTex;
@@ -51,7 +52,7 @@ void main()
             t = mix(t2, t, v_bmix);
         }
         if (v_vid > 0.003) {
-            vec3 vt = textureLod(prevTex, clamp(v_uv, vec2(0.0), vec2(1.0)), 0.0).rgb;
+            vec3 vt = textureLod(prevTex, prevUv.xy + clamp(v_uv, vec2(0.0), vec2(1.0)) * prevUv.zw, 0.0).rgb;
             t = mix(t, vt, v_vid);
         }
         if (v_vido > 0.003) {

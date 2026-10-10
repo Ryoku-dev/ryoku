@@ -284,6 +284,37 @@ StyledFlickable {
                 : root.lightTarget ? "lightmode" : "desktop")
         }
 
+        EditPanelSectionLabel {
+            visible: !root.lockTab && WallpaperLayout.workspaceLabelFor(root.screenName) !== ""
+            text: Translation.tr("Workspace")
+        }
+
+        EditPanelRow {
+            Layout.fillWidth: true
+            visible: !root.lockTab && WallpaperLayout.workspaceLabelFor(root.screenName) !== ""
+            first: true
+            last: false
+            symbol: "keep"
+            title: Translation.tr("Use for this workspace")
+            subtitle: Translation.tr("Keep this wallpaper on %1").arg(WallpaperLayout.workspaceLabelFor(root.screenName))
+            trailingKind: "value"
+            valueText: Translation.tr("Use")
+            onActivated: WallpaperLayout.assignCurrentToWorkspace(root.screenName)
+        }
+
+        EditPanelRow {
+            Layout.fillWidth: true
+            visible: !root.lockTab && WallpaperLayout.workspaceLabelFor(root.screenName) !== ""
+            first: false
+            last: true
+            symbol: "link_off"
+            title: Translation.tr("Clear workspace wallpaper")
+            subtitle: Translation.tr("Use this display's wallpaper again")
+            trailingKind: "value"
+            valueText: Translation.tr("Clear")
+            onActivated: WallpaperLayout.clearWorkspaceWallpaper(root.screenName)
+        }
+
         // ── Screens ──────────────────────────────────────────────────────────
         // One palette, many pictures: a screen can show its own, and the
         // colours come from whichever picture is the shared one. Choosing

@@ -34,6 +34,9 @@ Singleton {
     // configured, NM absent, not read yet) counts as online so nothing is hidden on a guess.
     property string connectivity: "unknown"
     property string simulatedConnectivity: ""
+    // `inir network simulateLink "wifi 40"` stands in for NetworkManager's link state (wifi strength, searching,
+    // connecting, radio off, cable, no adapter) until `off` or a restart; the probes stop writing while it holds.
+    property string simulatedLink: ""
     readonly property string effectiveConnectivity: simulatedConnectivity || connectivity
     readonly property bool online: effectiveConnectivity === "full" || effectiveConnectivity === "unknown"
     readonly property string offlineReason: online ? ""
@@ -216,6 +219,8 @@ Singleton {
 
     // Actual update logic
     function _doUpdate() {
+        if (root.simulatedLink.length > 0)
+            return;
         root.networkChanged();
         updateConnectionType.startCheck();
         wifiStatusProcess.running = true
@@ -278,6 +283,8 @@ Singleton {
             }
         }
         onExited: (exitCode, exitStatus) => {
+            if (root.simulatedLink.length > 0)
+                return;
             const lines = updateConnectionType.buffer.trim().split('\n');
             const connectivity = (lines.pop() ?? "").trim()
             let hasEthernet = false;
@@ -340,7 +347,8 @@ Singleton {
                     if (carriers.includes(type)) { carrier = name; break; }
                     if (fallback.length === 0 && !skipped.includes(type)) fallback = name;
                 }
-                root.networkName = carrier || fallback;
+                if (root.simulatedLink.length === 0)
+                    root.networkName = carrier || fallback;
             }
         }
     }
@@ -351,7 +359,8 @@ Singleton {
         command: ["sh", "-c", "nmcli -f IN-USE,SIGNAL,SSID device wifi | awk '/^\\*/{if (NR!=1) {print $2}}'"]
         stdout: SplitParser {
             onRead: data => {
-                root.networkStrength = parseInt(data);
+                if (root.simulatedLink.length === 0)
+                    root.networkStrength = parseInt(data);
             }
         }
     }
@@ -366,7 +375,8 @@ Singleton {
         })
         stdout: StdioCollector {
             onStreamFinished: {
-                root.wifiEnabled = text.trim() === "enabled";
+                if (root.simulatedLink.length === 0)
+                    root.wifiEnabled = text.trim() === "enabled";
             }
         }
     }
@@ -454,6 +464,7 @@ Singleton {
                 online: root.online,
                 connectivity: root.effectiveConnectivity,
                 simulated: root.simulatedConnectivity !== "",
+                simulatedLink: root.simulatedLink,
                 ethernet: root.ethernet,
                 wifi: root.wifiStatus,
                 name: root.networkName
@@ -466,6 +477,25 @@ Singleton {
             const s = (state ?? "").trim();
             root.simulatedConnectivity = ["full", "limited", "portal", "none"].includes(s) ? s : "";
             return root.effectiveConnectivity;
+        }
+        // "wifi 40", "searching", "connecting", "radio off", "ethernet", "none" (no adapter) or "off".
+        function simulateLink(spec: string): string {
+            const words = String(spec ?? "").trim().toLowerCase().split(/\s+/).filter(w => w.length > 0);
+            const kind = words[0] ?? "off";
+            if (!["wifi", "searching", "connecting", "radio", "ethernet", "none"].includes(kind)) {
+                root.simulatedLink = "";
+                root.update();
+                return status();
+            }
+            root.simulatedLink = kind;
+            root.ethernet = kind === "ethernet";
+            root.wifiEnabled = kind === "wifi" || kind === "searching" || kind === "connecting";
+            root.wifiStatus = kind === "wifi" ? "connected" : kind === "connecting" ? "connecting"
+                : kind === "searching" ? "disconnected" : "disabled";
+            root.wifi = kind === "wifi";
+            root.networkStrength = kind === "wifi" ? Math.max(0, Math.min(100, parseInt(words[1] ?? "80") || 0)) : 0;
+            root.networkName = kind === "wifi" ? "Simulated Wi-Fi" : kind === "ethernet" ? "Simulated cable" : "";
+            return status();
         }
     }
 

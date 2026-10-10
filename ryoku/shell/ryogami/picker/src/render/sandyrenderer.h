@@ -4,6 +4,7 @@
 #include "texturetier.h"
 
 #include <QMatrix4x4>
+#include <QRectF>
 #include <QSize>
 
 #include <cstdint>
@@ -34,8 +35,9 @@ public:
     void releaseResources();
     bool active() const { return m_hasPass; }
 
-    // Not owned; nullptr clears and binds a transparent dummy.
-    void setPreviewTextures(QRhiTexture *incoming, QRhiTexture *outgoing);
+    // Not owned; nullptr clears and binds a transparent dummy. incomingUv is
+    // the part of the incoming texture a frame covers, in texture space.
+    void setPreviewTextures(QRhiTexture *incoming, QRhiTexture *outgoing, const QRectF &incomingUv);
 
 private:
     struct Resolved {
@@ -46,13 +48,13 @@ private:
     };
 
     Resolved resolve(TextureTier &near, TextureTier &far, const QString &key) const;
-    void ensureStatics(QRhi *rhi, QRhiResourceUpdateBatch *batch);
+    bool ensureStatics(QRhi *rhi, QRhiResourceUpdateBatch *batch);
     void ensureFieldBindings(QRhi *rhi, QRhiTexture *nearTex, QRhiTexture *farTex, QRhiTexture *prevTex,
                              QRhiTexture *prevOutTex);
     void ensureInlinePipeline(QRhi *rhi, QRhiRenderPassDescriptor *rp, int samples);
     void ensureBlitBindings(QRhi *rhi, QRhiTexture *tex);
     void ensureBlitPipeline(QRhi *rhi, QRhiRenderPassDescriptor *rp, int samples);
-    void ensureOffscreen(QRhi *rhi, QSize size);
+    bool ensureOffscreen(QRhi *rhi, QRhiResourceUpdateBatch *batch, QSize size);
     void buildFieldPipeline(QRhi *rhi, QRhiRenderPassDescriptor *rp, int samples,
                             std::unique_ptr<QRhiGraphicsPipeline> &out);
     void releaseOffscreen();
@@ -65,6 +67,7 @@ private:
 
     QRhiTexture *m_prevIncoming = nullptr;  // not owned
     QRhiTexture *m_prevOutgoing = nullptr;  // not owned
+    QRectF m_prevIncomingUv{0, 0, 1, 1};
 
     std::unique_ptr<QRhiBuffer> m_uniform;
     std::unique_ptr<QRhiSampler> m_sampler;

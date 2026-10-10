@@ -309,3 +309,90 @@ func TestDitherLogoBakesTwoColourThenIsIdempotent(t *testing.T) {
 		t.Fatalf("dither off = %q, want the original %q", restored, src)
 	}
 }
+
+func TestWallpaperPaletteBuildsEffectiveConfigWithoutRewritingUserConfig(t *testing.T) {
+	model := loadSample(t)
+	configPath := fastfetchConfigPath()
+	before, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	palette := `{
+  "keys": "1;2;3",
+  "title": "4;5;6",
+  "muted": "7;8;9",
+  "section": "10;11;12",
+  "rule": "13;14;15",
+  "percent": { "green": "16;17;18", "yellow": "19;20;21", "red": "22;23;24" }
+}`
+	if err := os.WriteFile(fastfetchPalettePath(), []byte(palette), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	model.Palette = ffPaletteWallpaper
+	built, err := buildFastfetchEffective(model)
+	if err != nil {
+		t.Fatalf("buildFastfetchEffective: %v", err)
+	}
+	text := string(built)
+	for _, want := range []string{
+		"38;2;1;2;3", "38;2;4;5;6", "38;2;7;8;9", "38;2;10;11;12",
+		"38;2;13;14;15", "38;2;16;17;18", "38;2;19;20;21", "38;2;22;23;24",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("effective config missing %q:\n%s", want, text)
+		}
+	}
+	after, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("building the effective config rewrote config.jsonc")
+	}
+	fixed, err := buildFastfetch(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(fixed), "38;2;1;2;3") {
+		t.Fatal("generated wallpaper colours were serialized into the user config")
+	}
+}
+
+func TestWriteEffectiveFastfetchUsesPersistedPaletteMode(t *testing.T) {
+	loadSample(t)
+	if err := os.WriteFile(fastfetchPalettePath(), []byte(`{
+  "keys":"31;32;33","title":"34;35;36","muted":"37;38;39",
+  "section":"40;41;42","rule":"43;44;45",
+  "percent":{"green":"46;47;48","yellow":"49;50;51","red":"52;53;54"}
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := setFastfetchPaletteMode(ffPaletteWallpaper); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "effective.json")
+	if err := writeEffectiveFastfetch(out); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "38;2;31;32;33") {
+		t.Fatalf("effective config did not use persisted wallpaper mode:\n%s", b)
+	}
+}
+
+func TestFastfetchPaletteRejectsOutOfRangeColours(t *testing.T) {
+	loadSample(t)
+	if err := os.WriteFile(fastfetchPalettePath(), []byte(`{
+  "keys":"256;0;0","title":"1;2;3","muted":"1;2;3",
+  "section":"1;2;3","rule":"1;2;3",
+  "percent":{"green":"1;2;3","yellow":"1;2;3","red":"1;2;3"}
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadFastfetchPalette(); err == nil {
+		t.Fatal("out-of-range palette colour was accepted")
+	}
+}

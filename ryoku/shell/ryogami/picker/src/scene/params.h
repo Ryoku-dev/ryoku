@@ -3,6 +3,8 @@
 #include <QString>
 #include <QVariant>
 
+#include <cmath>
+
 // An unset key falls back to the schema default, else the caller's fallback.
 class ParamSource
 {
@@ -17,7 +19,7 @@ public:
         const QVariant v = value(key);
         bool ok = false;
         const double d = v.toDouble(&ok);
-        return ok ? d : fallback;
+        return ok && std::isfinite(d) ? d : fallback;
     }
     bool flag(const QString &key, bool fallback) const
     {

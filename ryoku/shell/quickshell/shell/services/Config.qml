@@ -51,21 +51,24 @@ Singleton {
     // python: the serpantinum bar style's own settings namespace (shell.json
     // "python"), read and written by the style's own Config mirror.
     property alias python: adapter.python
+    property alias nomarchy: adapter.nomarchy
+
 
     // A folder style may draw its own notification banners and its own volume/
-    // brightness OSD (serpantinum's Python does, like Nacre before it). While it
-    // is active and does not opt out under its own `general` map, the shell's
+    // brightness OSD. While it is active and does not opt out, the shell's
     // resident banners and OSD windows hold back so exactly one of each paints.
-    readonly property bool styleOwnsBanners: barStyle === "python"
-        && !(root.python && root.python.general && root.python.general.notifications === false)
-    readonly property bool styleOwnsFeedback: barStyle === "python"
-        && !(root.python && root.python.general && root.python.general.osd === false)
+    readonly property bool styleOwnsBanners: (barStyle === "python"
+        && !(root.python && root.python.general && root.python.general.notifications === false))
+        || (barStyle === "nomarchy"
+        && !(root.nomarchy && root.nomarchy.notifications === false))
+    readonly property bool styleOwnsFeedback: (barStyle === "python"
+        && !(root.python && root.python.general && root.python.general.osd === false))
+        || (barStyle === "nomarchy"
+        && !(root.nomarchy && root.nomarchy.osd === false))
 
-    // dock: the first-class app dock surface (modules/dock). A top-level store,
-    // not a bar-style key, because the dock is now style-agnostic -- neither qsbar
-    // nor Sumi owns it. Off until the user turns it on (Hub -> Bar Studio -> Dock).
-    // Read and written through the services Dock singleton so every consumer goes
-    // through one place.
+    // dock: the universal app dock store. It is top-level because design,
+    // placement and pins survive bar-style and dock-design changes. Stage
+    // Editor writes it through the Dock singleton; every renderer reads it.
     property alias dock: adapter.dock
 
     // clipboard: geometry and corner treatment for the bottom-centred history
@@ -73,6 +76,18 @@ Singleton {
     // can retune live without a shell restart.
     property alias clipboard: adapter.clipboard
     readonly property var normalizedNacre: NacreConfig.normalize(nacre)
+    readonly property var defaultControls: ({
+        "sections": [
+            { "id": "vitals", "visible": true },
+            { "id": "connections", "visible": true },
+            { "id": "powerProfile", "visible": true },
+            { "id": "media", "visible": false },
+            { "id": "levels", "visible": true },
+            { "id": "bottomControls", "visible": true }
+        ],
+        "hidden": []
+    })
+    property var controls: defaultControls
 
     readonly property var askBubble: {
         const ask = adapter.ask && typeof adapter.ask === "object" ? adapter.ask : ({});
@@ -190,16 +205,20 @@ Singleton {
     property var themePalette: null
     function refreshThemePalette() {
         var pal = null;
+        var nextControls = root.defaultControls;
         var t = file.text();
         if (t) {
             try {
                 var o = JSON.parse(t);
                 if (o && typeof o.themePalette === "object" && o.themePalette !== null)
                     pal = o.themePalette;
+                if (o && typeof o.controls === "object" && o.controls !== null)
+                    nextControls = o.controls;
             } catch (e) {
             }
         }
         themePalette = pal;
+        controls = nextControls;
     }
 
     // brand: the desktop's mark + name, user-overridable from Ryoku Settings ->
@@ -246,16 +265,46 @@ Singleton {
             property var qsbar: ({})
             property var kairos: ({})
             property var python: ({})
+            property var nomarchy: ({
+                "notifications": true,
+                "osd": true
+            })
             property var dock: ({
                 "enabled": false,
+                "design": "ryoku",
                 "edge": "auto",
                 "autohide": true,
+                "size": 44,
                 "pinned": [],
                 "magnify": true,
+                "style": "islands",
                 "frost": true,
                 "shadow": true,
                 "labels": true,
-                "media": false
+                "media": false,
+                "python": {
+                    "onTop": true,
+                    "floating": false,
+                    "opacity": 100,
+                    "exclusive": false,
+                    "smartAutohide": true,
+                    "autohideTimeout": 1000,
+                    "overrideBoundsCorrection": false,
+                    "enableScrolling": false,
+                    "visibleElements": 7,
+                    "hoverScale": 120,
+                    "cascadeScale": false
+                },
+                "shima": {
+                    "shape": "auto",
+                    "notch": true,
+                    "material": "inherit",
+                    "magnifySize": 150,
+                    "launcher": true,
+                    "reserveSpace": true,
+                    "revealOnEmpty": true,
+                    "badges": true
+                }
             })
             property var clipboard: ({
                 "widthPercent": 65,

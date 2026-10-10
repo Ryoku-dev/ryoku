@@ -16,6 +16,69 @@ Singleton {
     readonly property var enterCurve: [0.16, 1, 0.3, 1, 1, 1]
     readonly property var exitCurve: [0, 0, 0.58, 1, 1, 1]
     readonly property string speed: preferences.speed
+    readonly property var defaultSections: [
+        { id: "vitals", visible: true },
+        { id: "connections", visible: true },
+        { id: "powerProfile", visible: true },
+        { id: "media", visible: false },
+        { id: "levels", visible: true },
+        { id: "bottomControls", visible: true }
+    ]
+    readonly property var elementIds: [
+        "identity", "cpu", "cpuTemperature", "liveGraph", "memory", "gpu", "network", "disk", "battery",
+        "wifi", "bluetooth", "ethernet", "vpn",
+        "mediaArtwork", "mediaTrack", "mediaTransport",
+        "volume", "brightness",
+        "lock", "sleep", "logout", "restart", "powerOff",
+        "nightLight", "keepAwake", "doNotDisturb", "micMute", "gamingMode", "panelSettings", "pluginCards"
+    ]
+    readonly property var controls: root.normalizeControls(Config.controls)
+    readonly property var visibleSections: controls.sections.filter(section => section.visible)
+
+    function normalizeControls(value) {
+        const source = value && typeof value === "object" ? value : {};
+        const incoming = Array.isArray(source.sections) ? source.sections : [];
+        const known = {};
+        for (let i = 0; i < root.defaultSections.length; ++i)
+            known[root.defaultSections[i].id] = root.defaultSections[i];
+        const seen = {};
+        const sections = [];
+        for (let i = 0; i < incoming.length; ++i) {
+            const entry = incoming[i];
+            const id = typeof entry === "string" ? entry : entry && entry.id;
+            if (!known[id] || seen[id])
+                continue;
+            seen[id] = true;
+            sections.push({ id: id, visible: typeof entry === "object" && entry.visible !== undefined
+                ? entry.visible === true : true });
+        }
+        for (let i = 0; i < root.defaultSections.length; ++i) {
+            const section = root.defaultSections[i];
+            if (!seen[section.id])
+                sections.push({ id: section.id, visible: section.visible });
+        }
+
+        const allowed = {};
+        for (let i = 0; i < root.elementIds.length; ++i)
+            allowed[root.elementIds[i]] = true;
+        const hidden = [];
+        const hiddenSeen = {};
+        const rawHidden = Array.isArray(source.hidden) ? source.hidden : [];
+        for (let i = 0; i < rawHidden.length; ++i) {
+            const id = String(rawHidden[i]);
+            if (allowed[id] && !hiddenSeen[id]) {
+                hiddenSeen[id] = true;
+                hidden.push(id);
+            }
+        }
+        return { sections: sections, hidden: hidden };
+    }
+
+
+    function elementVisible(id) {
+        return root.controls.hidden.indexOf(id) < 0;
+    }
+
 
     function screenName(screen) {
         if (typeof screen === "string")

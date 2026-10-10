@@ -185,6 +185,14 @@ func doStats(monSock, agentSock, pidFile string) {
 				out["hostRssMB"] = rss
 			}
 			out["pinned"] = allPinned(pid, tids)
+			if io, ok := processIO(pid); ok {
+				for key, value := range io {
+					out[key] = value
+				}
+			}
+			if uptime, ok := processUptime(pid); ok {
+				out["uptimeS"] = uptime
+			}
 		}
 	}
 	if agentSock != "-" {
@@ -366,6 +374,82 @@ func hostRssMB(pid int) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// QEMU's character I/O includes socket traffic while read_bytes/write_bytes
+// account for storage. Their difference is the best per-process network stream
+// available without privileged packet tracing.
+func processIO(pid int) (map[string]uint64, bool) {
+	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/io", pid))
+	if err != nil {
+		return nil, false
+	}
+	values := map[string]uint64{}
+	for _, line := range strings.Split(string(b), "\n") {
+		key, raw, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		n, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
+		if err == nil {
+			values[key] = n
+		}
+	}
+	readBytes, readOK := values["read_bytes"]
+	writeBytes, writeOK := values["write_bytes"]
+	rchar, rcharOK := values["rchar"]
+	wchar, wcharOK := values["wchar"]
+	if !readOK || !writeOK {
+		return nil, false
+	}
+	netRX, netTX := uint64(0), uint64(0)
+	if rcharOK && rchar > readBytes {
+		netRX = rchar - readBytes
+	}
+	if wcharOK && wchar > writeBytes {
+		netTX = wchar - writeBytes
+	}
+	return map[string]uint64{
+		"diskReadBytes":  readBytes,
+		"diskWriteBytes": writeBytes,
+		"netRxBytes":     netRX,
+		"netTxBytes":     netTX,
+	}, true
+}
+
+func processUptime(pid int) (int64, bool) {
+	b, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return 0, false
+	}
+	// comm is parenthesized and may contain spaces. starttime is field 22,
+	// index 19 after the closing parenthesis.
+	end := strings.LastIndexByte(string(b), ')')
+	if end < 0 {
+		return 0, false
+	}
+	fields := strings.Fields(string(b)[end+1:])
+	if len(fields) <= 19 {
+		return 0, false
+	}
+	startTicks, err := strconv.ParseUint(fields[19], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	up, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return 0, false
+	}
+	var upSeconds float64
+	if _, err := fmt.Sscanf(string(up), "%f", &upSeconds); err != nil {
+		return 0, false
+	}
+	const clockTicks = 100
+	seconds := int64(upSeconds) - int64(startTicks/clockTicks)
+	if seconds < 0 {
+		seconds = 0
+	}
+	return seconds, true
 }
 
 func cpusAllowedList(pid, tid int) (string, bool) {

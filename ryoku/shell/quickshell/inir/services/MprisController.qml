@@ -1569,5 +1569,20 @@ Singleton {
 		function next(): void {
 			root.next();
 		}
+		function select(which: string): string {
+			const list = (root.displayPlayers?.length ?? 0) > 0 ? root.displayPlayers : root.players;
+			if (list.length === 0) return "no players";
+			const key = (which ?? "").toLowerCase();
+			let target = null;
+			if (key === "next" || key === "prev") {
+				const i = Math.max(0, list.indexOf(root.activePlayer));
+				target = list[(i + (key === "next" ? 1 : list.length - 1)) % list.length];
+			} else {
+				target = list.find(p => (p.dbusName ?? "").toLowerCase().includes(key) || (p.identity ?? "").toLowerCase().includes(key)) ?? null;
+			}
+			if (!target) return `no player matches "${which}"`;
+			root.setActivePlayer(target);
+			return root.activePlayer?.dbusName ?? "";
+		}
 	}
 }

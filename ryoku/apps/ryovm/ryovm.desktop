@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=Ryoport
-GenericName=Machine Hub
-Comment=One console for your virtual machines, VPS and SSH connections
+GenericName=Fleet Dashboard
+Comment=Monitor and operate virtual machines, remote servers and SSH connections
 Exec=flock -n -o /tmp/ryovm.lock qs -c ryovm
 Terminal=false
 Icon=ryovm

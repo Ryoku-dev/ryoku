@@ -605,6 +605,7 @@ QtObject {
     // The dark scheme's red: a veil over imagery stays dark in every scheme.
     readonly property color dangerOnMedia: "#ff6961"
     readonly property color inkOnDanger: root.ryokuFrontend || root.light ? Qt.color("#ffffff") : Qt.color("#160000")
+    readonly property color warning: root.ryokuFrontend ? Tokens.ink : root.ink ? "#8a6a1f" : root.light ? "#b26a00" : "#ffb340"
     function line(base: color): color {
         const t = root.tweak("lines", 0, 2)
         return t <= 1 ? ColorUtils.mix(base, root.surfaceOpaque, t) : ColorUtils.mix(root.text, base, (t - 1) * 0.35)
@@ -619,9 +620,9 @@ QtObject {
     readonly property color hairlineStrong: root.ryokuFrontend ? Tokens.lineStrong
         : root.glassy ? ColorUtils.applyAlpha(root.text, Math.min(0.45, 0.14 * root.tweak("lines", 0, 2)))
         : root.line(root.ruleOf(Qt.color(root.preset.hairlineStrong)))
-    readonly property color selection: root.ryokuFrontend ? Tokens.tint16 : "#303034"
-    readonly property color selectionHover: root.ryokuFrontend ? ColorUtils.applyAlpha(Tokens.ink, 0.22) : "#404044"
-    readonly property color selectionText: root.ryokuFrontend ? Tokens.ink : "#ffffff"
+    readonly property color selection: root.ryokuFrontend ? Tokens.tint16 : root.accentContainer
+    readonly property color selectionHover: root.ryokuFrontend ? ColorUtils.applyAlpha(Tokens.ink, 0.22) : root.tintFillHover(root.accent)
+    readonly property color selectionText: root.ryokuFrontend ? Tokens.ink : root.inkOnAccentContainer
     readonly property color scrim: Appearance.colors.colScrim
 
     function fillAlpha(level: real): real { return Math.min(0.5, level * root.preset.fill * root.tweak("fill", 0.3, 2)) }
@@ -641,6 +642,23 @@ QtObject {
     function tintFill(tint: color): color { return ColorUtils.applyAlpha(tint, root.fillAlpha(0.18)) }
     function tintFillHover(tint: color): color { return ColorUtils.applyAlpha(tint, root.fillAlpha(0.28)) }
     function tintBorder(tint: color): color { return ColorUtils.applyAlpha(tint, 0.7) }
+    readonly property color accentHover: ColorUtils.mix(root.accent, root.inkOnAccent, 0.9)
+    // The lit top of a tile's gradient (squircle icons, section marks): one step for every tile.
+    function tileTop(c: color): color { return Qt.lighter(c, 1.18) }
+    function trackOf(tint: color): color { return ColorUtils.applyAlpha(tint, root.fillAlpha(0.38)) }
+    // Where you are: a colour's tonal container, and that colour as ink on the container.
+    function containerOf(c: color): color { return ColorUtils.mix(root.surfaceOpaque, c, root.light ? 0.8 : 0.72) }
+    function onContainerOf(c: color): color {
+        return Lume.mark(c, Math.pow(ColorUtils.relativeLuminance(root.containerOf(c)), 1 / 2.2), 0, root.light, 4.5)
+    }
+    function mediaVeil(level: real, spread: real): real {
+        return Lume.veil(level, spread, root.materialSpread.panel, root.darkSurfaceOpaque, root.onMedia,
+            root.materialContrast.panel, root.veil.a, 0.86)
+    }
+    // Ink on any filled colour: white or near-black, whichever reads more (lightness alone sent white onto yellow).
+    function onTintFor(tint: color): color {
+        return ColorUtils.contrastRatio(root.onTint, tint) >= ColorUtils.contrastRatio(root.inkOnPale, tint) ? root.onTint : root.inkOnPale
+    }
 
     function textLevel(level: real): real { return Math.min(1, level * root.tweak("contrast", 0.6, 1.5)) }
     function inkLevel(level: real, glassFloor: real): real { return Math.max(root.textLevel(level), root.glassy ? glassFloor : 0) }
@@ -668,7 +686,6 @@ QtObject {
     readonly property real glow: Math.max(0, Math.min(1, Number(root.theme?.glow ?? 0) / 100))
     readonly property color onTint: root.ryokuFrontend ? Tokens.inkOnBone : "#ffffff"
     readonly property color inkOnPale: root.ryokuFrontend ? Tokens.inkOnBone : "#101318"
-    function onTintFor(tint: color): color { return tint.hslLightness > 0.6 ? root.inkOnPale : root.onTint }
 
     // Content on a light backdrop (a widget over a bright wallpaper): the Island's ink turned over.
     // Near-black ink, frost instead of veil, and each accent's own hue taken deep enough to read.

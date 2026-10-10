@@ -162,172 +162,120 @@ Item {
             width: parent.width
             spacing: rootObj.s(6)
 
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: posCol.implicitHeight + rootObj.s(24)
-                radius: ThemeBackend.borderRadius
-                color: Qt.alpha(ThemeBackend.surface0, 0.4)
-                border.width: 0
+            SettingsRow {
+                id: posSettingsRow
+                rootObj: osdTabRoot.rootObj
+                icon: "󰍹"
+                iconOffsetX: -2
+                title: I18n.t("guide.osd.position.title", "Screen position")
+                titleBold: true
+                wrapText: true
+                description: I18n.t("guide.osd.position.desc", "Select a preset position or drag on screen")
+                innerSpacing: (osdTabRoot.selectorOpen || selectorWrapper.implicitHeight > 0) ? rootObj.s(12) : 0
+                bottomSpacing: 0
 
-                ColumnLayout {
-                    id: posCol
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.leftMargin: rootObj.s(14)
-                    anchors.rightMargin: rootObj.s(14)
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: rootObj.s(12)
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: rootObj.s(12)
-
-                        IconButton {
-                            enabled: false
-                            size: rootObj.s(32)
-                            Layout.preferredWidth: rootObj.s(32)
-                            Layout.preferredHeight: rootObj.s(32)
-                            Layout.alignment: Qt.AlignVCenter
-                            cornerRadius: ThemeBackend.borderRadius
-                            buttonIcon: "󰍹"
-                            iconOffsetX: -2
-                            iconFontSize: rootObj.s(16)
-                            accentColor: ThemeBackend.surface0
-                            textColor: "#ffffff"
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: rootObj.s(2)
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: I18n.t("guide.osd.position.title", "Screen position")
-                                font.family: ThemeBackend.fontFamily
-                                font.pixelSize: rootObj.s(13)
-                                font.bold: true
-                                color: ThemeBackend.text
-                                wrapMode: Text.Wrap
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: I18n.t("guide.osd.position.desc", "Select a preset position or drag on screen")
-                                font.family: ThemeBackend.fontFamily
-                                font.pixelSize: rootObj.s(11)
-                                color: ThemeBackend.subtext0
-                                wrapMode: Text.Wrap
-                            }
-                        }
-
-                        RowLayout {
-                            spacing: rootObj.s(8)
-                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-
-                            ClickButton {
-                                implicitHeight: rootObj.s(32)
-                                horizontalPadding: rootObj.s(12)
-                                buttonText: osdTabRoot.selectorOpen ? I18n.t("guide.osd.position.close_selector", "Close the selector") : I18n.t("guide.osd.position.select_on_screen", "Select on screen...")
-                                buttonIcon: osdTabRoot.selectorOpen ? "󰅖" : "󰍹"
-                                iconFontSize: rootObj.s(13)
-                                textFontSize: rootObj.s(11)
-                                accentColor: osdTabRoot.selectorOpen ? ThemeBackend.mauve : ThemeBackend.surface0
-                                textColor: osdTabRoot.selectorOpen ? ThemeBackend.crust : ThemeBackend.text
-                                cornerRadius: ThemeBackend.borderRadius
-                                onClicked: {
-                                    osdTabRoot.selectorOpen = !osdTabRoot.selectorOpen;
-                                }
-                            }
-
-                            Rectangle {
-                                id: osdCustomBadge
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitHeight: rootObj.s(32)
-                                implicitWidth: osdTabRoot.isCustomPos ? (customPosText.implicitWidth + rootObj.s(20)) : 0
-                                radius: ThemeBackend.borderRadius
-                                color: ThemeBackend.surface0
-                                border.width: 1
-                                border.color: Qt.alpha(ThemeBackend.surface2, 0.6)
-                                clip: true
-                                opacity: osdTabRoot.isCustomPos ? 1.0 : 0.0
-                                visible: opacity > 0.001
-
-                                Behavior on implicitWidth { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                                Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-
-                                Text {
-                                    id: customPosText
-                                    anchors.centerIn: parent
-                                    text: I18n.t("guide.position.custom", "Custom") + " (" + osdTabRoot.horizontalPosition + "%, " + osdTabRoot.verticalPosition + "%)"
-                                    font.family: ThemeBackend.fontFamily
-                                    font.pixelSize: rootObj.s(11)
-                                    font.bold: true
-                                    color: "#ffffff"
-                                }
-                            }
-
-                            Dropdown {
-                                id: posDropdown
-                                Layout.alignment: Qt.AlignVCenter
-                                Layout.preferredWidth: rootObj.s(180)
-                                Layout.preferredHeight: rootObj.s(32)
-                                options: [
-                                    I18n.t("guide.osd.position.bottom_center", "Bottom Center"),
-                                    I18n.t("guide.osd.position.bottom_left", "Bottom Left"),
-                                    I18n.t("guide.osd.position.bottom_right", "Bottom Right"),
-                                    I18n.t("guide.osd.position.top_center", "Top Center"),
-                                    I18n.t("guide.osd.position.top_left", "Top Left"),
-                                    I18n.t("guide.osd.position.top_right", "Top Right")
-                                ]
-                                currentIndex: {
-                                    if (osdTabRoot.isCustomPos) return -1;
-                                    let v = osdTabRoot.verticalPosition;
-                                    let h = osdTabRoot.horizontalPosition;
-                                    if (v === 90 && h === 50) return 0;
-                                    if (v === 90 && h === 10) return 1;
-                                    if (v === 90 && h === 90) return 2;
-                                    if (v === 10 && h === 50) return 3;
-                                    if (v === 10 && h === 10) return 4;
-                                    if (v === 10 && h === 90) return 5;
-                                    return -1;
-                                }
-                                accentColor: ThemeBackend.mauve
-                                baseColor: ThemeBackend.surface0
-                                hoverColor: ThemeBackend.surface1
-                                dropdownColor: ThemeBackend.surface0
-                                borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
-                                textColor: ThemeBackend.text
-                                activeTextColor: ThemeBackend.crust
-                                cornerRadius: ThemeBackend.borderRadius
-                                fontPixelSize: rootObj.s(11)
-                                onValueChanged: function(index, value) {
-                                    osdTabRoot.setPosFromIndex(index);
-                                }
-                                onSelected: function(index, value) {
-                                    osdTabRoot.setPosFromIndex(index);
-                                }
-                            }
-
-                            Binding {
-                                target: posDropdown
-                                property: "currentIndex"
-                                value: {
-                                    if (osdTabRoot.isCustomPos) return -1;
-                                    let v = osdTabRoot.verticalPosition;
-                                    let h = osdTabRoot.horizontalPosition;
-                                    if (v === 90 && h === 50) return 0;
-                                    if (v === 90 && h === 10) return 1;
-                                    if (v === 90 && h === 90) return 2;
-                                    if (v === 10 && h === 50) return 3;
-                                    if (v === 10 && h === 10) return 4;
-                                    if (v === 10 && h === 90) return 5;
-                                    return -1;
-                                }
-                            }
-                        }
+                ClickButton {
+                    implicitHeight: rootObj.s(32)
+                    horizontalPadding: rootObj.s(12)
+                    buttonText: osdTabRoot.selectorOpen ? I18n.t("guide.osd.position.close_selector", "Close the selector") : I18n.t("guide.osd.position.select_on_screen", "Select on screen...")
+                    buttonIcon: osdTabRoot.selectorOpen ? "󰅖" : "󰍹"
+                    iconFontSize: rootObj.s(13)
+                    textFontSize: rootObj.s(11)
+                    accentColor: osdTabRoot.selectorOpen ? ThemeBackend.mauve : ThemeBackend.surface0
+                    textColor: osdTabRoot.selectorOpen ? ThemeBackend.crust : ThemeBackend.text
+                    cornerRadius: ThemeBackend.borderRadius
+                    onClicked: {
+                        osdTabRoot.selectorOpen = !osdTabRoot.selectorOpen;
                     }
+                }
 
+                Rectangle {
+                    id: osdCustomBadge
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitHeight: rootObj.s(32)
+                    implicitWidth: osdTabRoot.isCustomPos ? (customPosText.implicitWidth + rootObj.s(20)) : 0
+                    radius: ThemeBackend.borderRadius
+                    color: ThemeBackend.surface0
+                    border.width: 1
+                    border.color: Qt.alpha(ThemeBackend.surface2, 0.6)
+                    clip: true
+                    opacity: osdTabRoot.isCustomPos ? 1.0 : 0.0
+                    visible: opacity > 0.001
+
+                    Behavior on implicitWidth { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+
+                    Text {
+                        id: customPosText
+                        anchors.centerIn: parent
+                        text: I18n.t("guide.position.custom", "Custom") + " (" + osdTabRoot.horizontalPosition + "%, " + osdTabRoot.verticalPosition + "%)"
+                        font.family: ThemeBackend.fontFamily
+                        font.pixelSize: rootObj.s(11)
+                        font.bold: true
+                        color: "#ffffff"
+                    }
+                }
+
+                Dropdown {
+                    id: posDropdown
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: rootObj.s(180)
+                    Layout.preferredHeight: rootObj.s(32)
+                    options: [
+                        I18n.t("guide.osd.position.bottom_center", "Bottom Center"),
+                        I18n.t("guide.osd.position.bottom_left", "Bottom Left"),
+                        I18n.t("guide.osd.position.bottom_right", "Bottom Right"),
+                        I18n.t("guide.osd.position.top_center", "Top Center"),
+                        I18n.t("guide.osd.position.top_left", "Top Left"),
+                        I18n.t("guide.osd.position.top_right", "Top Right")
+                    ]
+                    currentIndex: {
+                        if (osdTabRoot.isCustomPos) return -1;
+                        let v = osdTabRoot.verticalPosition;
+                        let h = osdTabRoot.horizontalPosition;
+                        if (v === 90 && h === 50) return 0;
+                        if (v === 90 && h === 10) return 1;
+                        if (v === 90 && h === 90) return 2;
+                        if (v === 10 && h === 50) return 3;
+                        if (v === 10 && h === 10) return 4;
+                        if (v === 10 && h === 90) return 5;
+                        return -1;
+                    }
+                    accentColor: ThemeBackend.mauve
+                    baseColor: ThemeBackend.surface0
+                    hoverColor: ThemeBackend.surface1
+                    dropdownColor: ThemeBackend.surface0
+                    borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                    textColor: ThemeBackend.text
+                    activeTextColor: ThemeBackend.crust
+                    cornerRadius: ThemeBackend.borderRadius
+                    fontPixelSize: rootObj.s(11)
+                    onValueChanged: function(index, value) {
+                        osdTabRoot.setPosFromIndex(index);
+                    }
+                    onSelected: function(index, value) {
+                        osdTabRoot.setPosFromIndex(index);
+                    }
+                }
+
+                Binding {
+                    target: posDropdown
+                    property: "currentIndex"
+                    value: {
+                        if (osdTabRoot.isCustomPos) return -1;
+                        let v = osdTabRoot.verticalPosition;
+                        let h = osdTabRoot.horizontalPosition;
+                        if (v === 90 && h === 50) return 0;
+                        if (v === 90 && h === 10) return 1;
+                        if (v === 90 && h === 90) return 2;
+                        if (v === 10 && h === 50) return 3;
+                        if (v === 10 && h === 10) return 4;
+                        if (v === 10 && h === 90) return 5;
+                        return -1;
+                    }
+                }
+
+                bottomContent: [
                     Item {
                         id: selectorWrapper
                         Layout.fillWidth: true
@@ -602,7 +550,7 @@ Item {
                             }
                         }
                     }
-                }
+                ]
             }
 
             RowLayout {

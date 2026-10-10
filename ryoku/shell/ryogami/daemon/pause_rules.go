@@ -368,6 +368,9 @@ func (d *daemon) watchWindowState() {
 				wmCache.overviewOpen = f.OverviewOpen
 			}
 			wmCache.mu.Unlock()
+			if f.Kind == wm.FrameWorkspaces {
+				d.workspaces.updateActive(f.Workspaces)
+			}
 			d.reevaluatePause()
 		})
 		time.Sleep(500 * time.Millisecond)

@@ -333,13 +333,18 @@ Loader {
                                     scale: hero.pressed ? IrisStyle.pressScale(0.98) : 1
                                     Behavior on scale { NumberAnimation { duration: IrisStyle.feedbackDuration; easing.type: IrisStyle.feedbackEasing } }
                                     IrisWallpaperView {
-                                        anchors.fill: parent
+                                        id: heroWallpaper
+                                        // As the screen shows it, its band from the upper third (the Island's hero does the same).
+                                        readonly property real screenAspect: (popup.screen?.height ?? 1080) / Math.max(1, popup.screen?.width ?? 1920)
+                                        width: parent.width
+                                        height: Math.max(parent.height, Math.round(parent.width * heroWallpaper.screenAspect))
+                                        y: -Math.round((heroWallpaper.height - parent.height) * 0.3)
                                         screen: popup.screen
                                         path: hero.image
                                         // A still: the menu is a glance, and a live wallpaper would decode video for it.
                                         live: false
-                                        decodeSize: Qt.size(Math.round(hero.width * (hero.QsWindow.window?.devicePixelRatio ?? 1)),
-                                            Math.round(hero.height * (hero.QsWindow.window?.devicePixelRatio ?? 1)))
+                                        decodeSize: Qt.size(Math.round(heroWallpaper.width * (hero.QsWindow.window?.devicePixelRatio ?? 1)),
+                                            Math.round(heroWallpaper.height * (hero.QsWindow.window?.devicePixelRatio ?? 1)))
                                     }
                                     Rectangle {
                                         anchors.left: parent.left
@@ -459,7 +464,7 @@ Loader {
                                             height: width
                                             radius: IrisStyle.iconRadius(width)
                                             gradient: Gradient {
-                                                GradientStop { position: 0; color: Qt.lighter(menuItem.tint, 1.2) }
+                                                GradientStop { position: 0; color: IrisStyle.tileTop(menuItem.tint) }
                                                 GradientStop { position: 1; color: menuItem.tint }
                                             }
                                         }

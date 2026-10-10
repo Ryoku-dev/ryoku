@@ -6,17 +6,17 @@
 // words search matches on, and the rail section it sits in.
 //
 // The panel is about one thing, the bar, so the rail's first group is five
-// routes: where the bar sits (Bar), the mark and workspaces that make it this
-// user's (Identity), how its widgets are arranged (Layout), what each widget is
-// and does (Widgets), and the dock that rides beside it (Dock). A second, parted
-// group holds Community: every installed bar plugin that is not Ryoku's own, so
-// a widget someone else wrote is never mixed in with the shipped set. What this
-// panel used to also carry -- pickers, desktop widgets, the mid-work switches,
-// the session -- already has a home (the Hub, or quick settings).
+// routes: where the bar sits and how its panels look (Bar), the mark and
+// workspaces that make it this user's (Identity), how its widgets are arranged
+// (Layout), what each widget is and does (Widgets), and the dock that rides
+// beside it (Dock). A second, parted group holds Community: every installed bar
+// plugin that is not Ryoku's own, so a widget someone else wrote is never mixed
+// in with the shipped set. Desktop widgets, mid-work switches and the session
+// already have a home elsewhere.
 var ROUTES = [
     { id: "bars",    label: "Bar",     gloss: "\u5e2f", file: "BarsRoute", section: "bar",
-      desc: "Position, shape, surface, gaps and motion.",
-      keywords: "position top bottom form full fit dock notch islands surface border corners frost shadow depth tooltip gap gaps accent colour scale size motion animation auto hide" },
+      desc: "Position, shape, surface, gaps, motion and picker style.",
+      keywords: "position top bottom form full fit dock notch islands surface border corners frost shadow depth tooltip gap gaps accent colour scale size motion animation auto hide picker pickers tanzaku hearthstone carousel" },
     { id: "identity", label: "Identity", gloss: "\u5370", file: "IdentityRoute", section: "bar",
       desc: "The launcher mark and the workspaces.",
       keywords: "identity logo mark wordmark word glyph icon kanji launcher brand ryoku arch hyprland workspaces spaces count marker style numbers kanji rings preview" },
@@ -64,12 +64,12 @@ function inSection(section) {
     return out;
 }
 
-// Retired route ids, mapped to their nearest new home, so an old caller (a
+// Retired route ids, mapped to their nearest current home, so an old caller (a
 // keybind, a saved link, `bar settings <route>`) never lands on nothing:
 //   logo, spaces      -> Identity (the mark and the workspaces, one route again)
 //   widgets, appearance -> the Widgets route (renamed from the old Appearance)
-//   pickers           -> the Hub's Desktop page owns picker style now; nearest here is Widgets
-//   desktop           -> the Hub owns desktop widgets now; nearest here is Widgets
+//   pickers           -> Bar, where picker appearance now lives
+//   desktop           -> the Hub owns desktop widgets; nearest here is Widgets
 //   system, session   -> quick settings (Super+Escape); nearest here is Bar
 //   plugins           -> the Community route
 function resolve(id) {
@@ -79,9 +79,10 @@ function resolve(id) {
     case "spaces":
         return "identity";
     case "appearance":
-    case "pickers":
     case "desktop":
         return "widgets";
+    case "pickers":
+        return "bars";
     case "plugins":
         return "community";
     case "system":

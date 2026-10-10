@@ -1,0 +1,22 @@
+#!/bin/bash
+set -euo pipefail
+iface=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++)if($i=="dev"){print $(i+1);exit}}')
+[[ -n $iface ]] || { echo 'No active network connection' >&2; exit 1; }
+profile=$(nmcli -e no -g GENERAL.CONNECTION device show "$iface")
+[[ -n $profile && $profile != -- ]] || exit 1
+current=$(nmcli -e no -g ipv4.dns connection show "$profile" | tr '\n' ' ')
+if (($#==0)); then
+  if [[ -z ${current// /} ]]; then echo DHCP; elif [[ $current == *1.1.1.1* ]]; then echo Cloudflare; elif [[ $current == *8.8.8.8* ]]; then echo Google; else echo Custom; fi
+  exit 0
+fi
+case ${1,,} in
+  dhcp) dns=; ignore=no ;;
+  cloudflare) dns='1.1.1.1 1.0.0.1'; ignore=yes ;;
+  google) dns='8.8.8.8 8.8.4.4'; ignore=yes ;;
+  custom)
+    command -v gum >/dev/null 2>&1 || { echo 'omarchy-dns: gum is required for Custom' >&2; exit 1; }
+    dns=$(gum input --placeholder='DNS servers separated by spaces'); [[ -n $dns ]] || exit 0; ignore=yes ;;
+  *) echo 'Usage: omarchy-dns [Cloudflare|Google|DHCP|Custom]' >&2; exit 2 ;;
+esac
+nmcli connection modify "$profile" ipv4.ignore-auto-dns "$ignore" ipv4.dns "$dns"
+nmcli connection up "$profile" >/dev/null

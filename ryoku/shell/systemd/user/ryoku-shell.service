@@ -31,6 +31,9 @@ ExecStartPre=/usr/bin/ryoku-qylock-activate
 ExecStart=/usr/bin/ryoku-shell daemon
 ExecStop=/usr/bin/ryoku-qylock-activate --prepare-stop
 ExecStartPost=-/usr/bin/ryoku-power-cutover qylock-guards-stop
+# Voxtype is optional. When present, seed its managed config and service after
+# the shell is already running, regardless of which session started us.
+ExecStartPost=-/usr/bin/ryoku-hub voxtype ensure
 TimeoutStartSec=0
 TimeoutStopSec=0
 Restart=always

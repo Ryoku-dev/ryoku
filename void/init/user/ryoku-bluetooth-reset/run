@@ -1,0 +1,39 @@
+#!/bin/sh
+# Translation of system/hardware/bluetooth/ryoku-bluetooth-reset.service.
+# The BlueZ 5.83+ A2DP-disconnect workaround (bluez#1545, ryoku#1646): reset
+# the controller once, after the session audio stack (WirePlumber, which
+# registers BlueZ's media endpoints) is up, before the user reaches for
+# headphones. Type=oneshot: do the work, then park.
+#
+# Two Void-specific differences, both recorded in translations.tsv:
+# - ExecStart=systemctl restart bluetooth.service becomes sv restart bluetoothd
+#   (Void's bluez package names its runit service bluetoothd).
+# - The polkit grant (54-ryoku-bluetooth-a2dp.rules) authorized a user session
+#   to restart a systemd unit. Under runit there is no user-visible service
+#   manager to authorize: sv needs write access to the service directory, so
+#   the reset runs from the session wrapper as root instead. If the reset
+#   cannot run, nothing is restarted: never a regression, only the fix not
+#   taking effect (same failure posture as the original).
+exec 2>&1
+
+# ConditionPathExistsGlob=/sys/class/bluetooth/*: no radio, no work. The sysfs
+# root is overridable so the runit test can fake a radio (same pattern as
+# RYOKU_BIN_DIR).
+_btsys=${RYOKU_BT_SYS:-/sys}
+_found=0
+for _hci in "$_btsys"/class/bluetooth/*; do
+	[ -e "$_hci" ] && _found=1 && break
+done
+[ "$_found" -eq 1 ] || exec sv down .
+. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
+# After=wireplumber.service: wait for the session audio stack's D-Bus name.
+wait_dbus org.freedesktop.PipeWire "${RYOKU_WAIT_WIREPLUMBER:-90}" || exec sv down .
+
+# TimeoutStartSec=30: sv restart has no deadline of its own, so bound it.
+if command -v timeout >/dev/null 2>&1; then
+	timeout 30 sv restart bluetoothd || true
+else
+	sv restart bluetoothd || true
+fi
+
+exec sv down .

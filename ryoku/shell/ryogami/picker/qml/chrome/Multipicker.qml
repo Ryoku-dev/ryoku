@@ -18,6 +18,7 @@ Item {
     property var mute: ({})
     property var vol: ({})
     property string themeOutput: ""
+    property string targetMode: "all"
 
     visible: mp.open
 
@@ -36,9 +37,21 @@ Item {
         mp.mute = m
         mp.vol = v
         mp.themeOutput = String(Settings.value("display.themeOutput") || "")
+        mp.targetMode = Settings.value("general.applyOnPickerMonitor") === true ? "monitor" : "all"
     }
-    function _toggleSel(name) { var s = Object.assign({}, mp.sel); s[name] = !s[name]; mp.sel = s }
-    function _setAll(on) { var s = ({}); for (var i = 0; i < mp.outputs.length; ++i) s[mp.outputs[i].name] = on; mp.sel = s }
+    function _toggleSel(name) {
+        var s = Object.assign({}, mp.sel)
+        s[name] = !s[name]
+        mp.sel = s
+        mp.targetMode = "custom"
+    }
+    function _setAll(on) {
+        var s = ({})
+        for (var i = 0; i < mp.outputs.length; ++i)
+            s[mp.outputs[i].name] = on
+        mp.sel = s
+        mp.targetMode = on ? "all" : "custom"
+    }
     function _toggleMute(name) { var m = Object.assign({}, mp.mute); m[name] = !m[name]; mp.mute = m }
     function _setVol(name, value) { var v = Object.assign({}, mp.vol); v[name] = Math.round(value); mp.vol = v }
     function _setTheme(name) {
@@ -52,19 +65,33 @@ Item {
     }
     function _apply() {
         var names = []
-        for (var i = 0; i < mp.outputs.length; ++i) {
-            var n = mp.outputs[i].name
-            if (mp.sel[n]) names.push(n)
+        var workspace = null
+        if (mp.targetMode === "workspace") {
+            workspace = mp.state.currentWorkspace()
+            if (workspace && workspace.output)
+                names = [workspace.output]
+        } else if (mp.targetMode === "monitor") {
+            if (mp.state.monitor)
+                names = [mp.state.monitor]
+        } else if (mp.targetMode === "custom") {
+            for (var i = 0; i < mp.outputs.length; ++i) {
+                var n = mp.outputs[i].name
+                if (mp.sel[n])
+                    names.push(n)
+            }
         }
-        var outs = (mp._allSelected || names.length === 0) ? [] : names
+        var outs = mp.targetMode === "all" ? [] : names
         var targets = outs.length ? outs : mp.outputs.map(function(o) { return o.name })
         var audio = ({}), volume = ({})
         for (var j = 0; j < targets.length; ++j) {
-            var t = targets[j]
-            audio[t] = !!mp.mute[t]
-            volume[t] = (mp.vol[t] !== undefined) ? mp.vol[t] : 100
+            var target = targets[j]
+            audio[target] = !!mp.mute[target]
+            volume[target] = (mp.vol[target] !== undefined) ? mp.vol[target] : 100
         }
-        mp.state.applyEntry(mp.entry, outs, mp.hasAudio ? audio : ({}), mp.hasAudio ? volume : ({}))
+        var workspaceTarget = mp.targetMode === "workspace"
+            ? { "kind": "workspace", "workspace": workspace } : null
+        mp.state.applyEntry(mp.entry, outs, mp.hasAudio ? audio : ({}),
+            mp.hasAudio ? volume : ({}), workspaceTarget)
     }
 
     Scrim {
@@ -87,7 +114,7 @@ Item {
             spacing: 12 * Theme.scale
 
             Text {
-                text: I18n.tr("Apply to displays")
+                text: I18n.tr("Apply wallpaper")
                 font.family: Theme.display
                 font.pixelSize: Theme.fontLead
                 color: Theme.surfaceText
@@ -95,7 +122,7 @@ Item {
             }
             Text {
                 width: parent.width
-                text: I18n.tr("Choose displays and, for video and Wallpaper Engine scenes, their sound. Pick one display to drive the desktop colours.")
+                text: I18n.tr("Choose every display, this monitor, or the active workspace. Video and Wallpaper Engine sound stays independent per display.")
                 wrapMode: Text.WordWrap
                 font.family: Theme.sans
                 font.weight: Font.Normal
@@ -104,11 +131,30 @@ Item {
                 renderType: Text.NativeRendering
             }
 
-            FixedButton {
-                mode: "toggle"
-                active: mp._allSelected
-                label: I18n.tr("All displays")
-                onTriggered: mp._setAll(!mp._allSelected)
+            Row {
+                spacing: 8 * Theme.scale
+                FixedButton {
+                    mode: "toggle"
+                    active: mp.targetMode === "all"
+                    label: I18n.tr("All")
+                    onTriggered: mp.targetMode = "all"
+                }
+                FixedButton {
+                    mode: "toggle"
+                    active: mp.targetMode === "monitor"
+                    enabled: mp.state.monitor.length > 0
+                    label: I18n.tr("This monitor")
+                    onTriggered: mp.targetMode = "monitor"
+                }
+                FixedButton {
+                    mode: "toggle"
+                    active: mp.targetMode === "workspace"
+                    enabled: mp.state.currentWorkspaceName.length > 0
+                    label: mp.state.currentWorkspaceName.length > 0
+                        ? I18n.tr("This workspace · %1").arg(mp.state.currentWorkspaceName)
+                        : I18n.tr("This workspace")
+                    onTriggered: mp.targetMode = "workspace"
+                }
             }
 
             Flickable {

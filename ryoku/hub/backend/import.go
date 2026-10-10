@@ -34,14 +34,16 @@ type scanResult struct {
 }
 
 type scanApp struct {
-	ID        string         `json:"id"`
-	Name      string         `json:"name"`
-	Present   bool           `json:"present"`
-	Path      string         `json:"path"`
-	Tier      string         `json:"tier"` // deep | layer | drop
-	Summary   string         `json:"summary"`
-	Items     []scanItem     `json:"items"`
-	Conflicts []scanConflict `json:"conflicts"`
+	ID        string               `json:"id"`
+	Name      string               `json:"name"`
+	Present   bool                 `json:"present"`
+	Path      string               `json:"path"`
+	Tier      string               `json:"tier"` // deep | layer | drop
+	Summary   string               `json:"summary"`
+	Error     string               `json:"error,omitempty"`
+	Items     []scanItem           `json:"items"`
+	Conflicts []scanConflict       `json:"conflicts"`
+	Losses    []providerImportLoss `json:"losses,omitempty"`
 }
 
 type scanItem struct {
@@ -118,9 +120,13 @@ type manifestFile struct {
 
 func runImport(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("import needs scan|apply|undo")
+		return fmt.Errorf("import needs providers|detect|scan|apply|undo")
 	}
 	switch args[0] {
+	case "providers":
+		return printJSON(providerImportMetadataList())
+	case "detect":
+		return printJSON(detectImportSource())
 	case "scan":
 		if len(args) < 2 {
 			return fmt.Errorf("import scan needs a path or url")
@@ -219,6 +225,10 @@ func scanSource(source string) scanResult {
 	if a, ok := scanHyprland(source); ok {
 		res.Apps = append(res.Apps, a)
 	}
+	providerScans := scanProviderImports(source)
+	for _, scan := range providerScans {
+		res.Apps = append(res.Apps, providerScanApp(scan))
+	}
 	if a, ok := scanKitty(source); ok {
 		res.Apps = append(res.Apps, a)
 	}
@@ -228,7 +238,7 @@ func scanSource(source string) scanResult {
 	if a, ok := scanFastfetch(source); ok {
 		res.Apps = append(res.Apps, a)
 	}
-	res.Apps = append(res.Apps, scanGeneric(source)...)
+	res.Apps = append(res.Apps, scanGeneric(source, providerExcludedDirs(providerScans))...)
 	return res
 }
 

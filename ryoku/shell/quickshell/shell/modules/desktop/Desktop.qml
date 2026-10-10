@@ -563,6 +563,10 @@ Scope {
         // Text fields and icon dialogs keep their existing counter. The editor
         // borrows the grab only while no other surface or desktop control is
         // asking for keys, so opening a search or inspector never loses its caret.
+        // Where a grab would also take every click, the editor asks on demand
+        // instead: the compositor hands it the keyboard as the pointer crosses
+        // the desktop, and the toolbar and catalogue on their own surface stay
+        // clickable (keyboardGrabSharesPointer in docs/compositors.md).
         property int kbWanted: 0
         readonly property bool stageKeyboardWanted: root.stageComposing
             && kbWanted === 0
@@ -571,8 +575,10 @@ Scope {
             && !Stage.GlobalStates.editSearchFocused
         onKbWantedChanged: if (kbWanted === 0 && !stageKeyboardWanted) root.kbRestore()
         onStageKeyboardWantedChanged: if (!stageKeyboardWanted && kbWanted === 0) root.kbRestore()
-        WlrLayershell.keyboardFocus: (kbWanted > 0 || stageKeyboardWanted)
-            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: kbWanted > 0 ? WlrKeyboardFocus.Exclusive
+            : !stageKeyboardWanted ? WlrKeyboardFocus.None
+            : Wm.caps.keyboardGrabSharesPointer === true ? WlrKeyboardFocus.Exclusive
+            : WlrKeyboardFocus.OnDemand
 
         anchors { top: true; left: true; right: true; bottom: true }
 

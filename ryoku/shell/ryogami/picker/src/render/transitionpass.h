@@ -24,13 +24,14 @@ public:
     ~TransitionPass();
 
     // True when the targets were recreated and the offscreen card pipeline must rebuild.
-    bool ensureTargets(QRhi *rhi, QSize pixelSize);
+    bool ensureTargets(QRhi *rhi, QRhiResourceUpdateBatch *batch, QSize pixelSize);
 
     QRhiTextureRenderTarget *targetA() const { return m_rtA.get(); }
     QRhiTextureRenderTarget *targetB() const { return m_rtB.get(); }
     QRhiRenderPassDescriptor *renderPassDescriptor() const { return m_rpd.get(); }
     QSize size() const { return m_size; }
     bool ready() const { return m_pipeline && m_rtA && m_rtB && m_texA && m_texB; }
+    bool targetsReady() const { return m_rtA && m_rtB && m_texA && m_texB; }
 
     // Call in prepare(), before the main render pass begins.
     void prepare(QRhi *rhi, QRhiResourceUpdateBatch *batch, QRhiRenderTarget *mainTarget,
@@ -42,7 +43,7 @@ public:
     void releaseResources();
 
 private:
-    void buildPipeline(QRhi *rhi, QRhiRenderTarget *mainTarget);
+    void buildPipeline(QRhi *rhi, QRhiResourceUpdateBatch *batch, QRhiRenderTarget *mainTarget);
     void releaseTargets();
 
     QSize m_size;

@@ -229,7 +229,7 @@ Item {
                     }
                     FolioAction {
                         visible: back.isWallpaper
-                        label: I18n.tr("Choose displays")
+                        label: I18n.tr("Choose target")
                         onTriggered: back.state.applyRow(back.flipped, true)
                     }
                     FolioAction {

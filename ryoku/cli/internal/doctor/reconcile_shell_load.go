@@ -31,6 +31,8 @@ var (
 	qmlFileErrRe = regexp.MustCompile(`caused by file://([^\[\s]+)(?:\[(-?\d+):-?\d+\])?: (.+)$`)
 	// ERROR: caused by @shell.qml[13:1]: module "shell.services" is not installed
 	qmlModuleErrRe = regexp.MustCompile(`module "([\w.]+)" is not installed`)
+	// The plugin '/usr/lib/qt6/qml/Ryoku/Blobs/libryoku-blobsplugin.so' uses incompatible Qt library. (6.12.0) [release]
+	qtPluginMismatchRe = regexp.MustCompile(`The plugin '([^']+)' uses incompatible Qt library\. \((\d+\.\d+)[\d.]*\)`)
 )
 
 // swapped in tests, which cannot fake /proc
@@ -62,6 +64,14 @@ func reconcileShellLoad(checkOnly bool) recResult {
 	}
 	if report == "" {
 		return okRes(i18n.T("no desktop is running and no load error was reported"))
+	}
+	// A compiled module built against a newer Qt than the one running is refused
+	// by Qt itself: the QML tree is fine, the box is behind its distribution.
+	// Only the system update fixes that, and the updater leaves the base system
+	// alone on purpose, so say exactly which command does.
+	if plugin, built := qtPluginMismatch(report); plugin != "" {
+		return warnRes(i18n.T("the desktop cannot load: %s was built against Qt %s but this system runs Qt %s"), plugin, built, runningQt()).
+			withFix(i18n.T("sudo pacman -Syu brings Qt up to date, then the shell loads again"))
 	}
 
 	// "quickshell/shell/services" when the loader named the module, the whole
@@ -120,6 +130,26 @@ func probeConfig() string {
 
 func isLoadFailure(s string) bool {
 	return strings.Contains(s, "Failed to load configuration")
+}
+
+// qtPluginMismatch is the plugin Qt refused for being built against a newer Qt
+// minor, and that minor, or "" when the report holds no such refusal.
+func qtPluginMismatch(report string) (plugin, built string) {
+	m := qtPluginMismatchRe.FindStringSubmatch(report)
+	if m == nil {
+		return "", ""
+	}
+	return m[1], m[2]
+}
+
+// runningQt is the installed qt6-base version, or "an older one" when pacman
+// cannot say.
+func runningQt() string {
+	out, err := sys.RunOut("pacman", "-Q", "qt6-base")
+	if f := strings.Fields(out); err == nil && len(f) == 2 {
+		return strings.SplitN(f[1], "-", 2)[0]
+	}
+	return i18n.T("an older one")
 }
 
 // failingScope is the config-relative directory to repair.

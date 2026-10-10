@@ -127,11 +127,47 @@ ShellRoot {
         maximumSize: minimumSize
         color: "#080a0d"
 
+        Ryo.ProductMedia {
+            id: pausedGif
+            objectName: "ryostore-probe-paused-gif"
+            width: 64
+            height: 64
+            source: "file:///tmp/ryostore-probe.gif"
+            active: true
+            visible: false
+        }
+        Ryo.ProductMedia {
+            id: webpMedia
+            objectName: "ryostore-probe-animated-webp"
+            width: 64
+            height: 64
+            source: "file:///tmp/ryostore-probe.webp"
+            active: false
+            visible: false
+        }
+        Ryo.ProductMedia {
+            id: videoMedia
+            objectName: "ryostore-probe-video"
+            width: 64
+            height: 64
+            source: "file:///tmp/ryostore-probe.mp4"
+            active: false
+            visible: false
+        }
+        Ryo.ProductMedia {
+            id: aspectGif
+            width: 400
+            height: 300
+            source: Quickshell.env("RYOSTORE_ASPECT_GIF")
+            mode: "view"
+            active: false
+            opacity: 0
+        }
         Ryo.StoreHeader {
             id: header
             z: 10
-            width: parent.width
-            height: implicitHeight
+            width: implicitWidth
+            height: parent.height
             view: "discover"
             categoryID: ""
             categories: [
@@ -229,7 +265,7 @@ ShellRoot {
                 name: "Broken Clock",
                 description: "A lockscreen fixture with exact failure feedback.",
                 art: "",
-                screenshots: [Qt.resolvedUrl("ryostore/logo.svg")],
+                screenshots: [Qt.resolvedUrl("ryostore/logo.svg"), Qt.resolvedUrl("ryostore/logo.svg")],
                 compatibility: ["Hyprland 0.50+", "Ryoku"],
                 contents: ["lockscreen QML", "wallpaper"],
                 author: "Fixture Author",
@@ -314,15 +350,30 @@ ShellRoot {
             root.require(missingCover.hasArtwork === false, "metadata cover path");
             root.require(missingCover.coverTitle === "Plain", "missing art retains identity");
             root.require(missingCover.Accessible.name.indexOf("Plain") !== -1, "cover has accessible identity");
+            const missingFallback = root.findObject(missingCover, "ryostore-media-fallback");
+            const missingFallbackText = root.findObject(missingCover, "ryostore-media-fallback-text");
+            root.require(missingFallback && missingFallback.visible, "missing art shows identity fallback");
+            root.require(missingFallbackText && missingFallbackText.text === "PL",
+                         "identity fallback derives product initials");
             root.require(active.labels.indexOf("ACTIVE") !== -1, "active state explicit");
             root.require(partial.labels.indexOf("2 / 4 INSTALLED") !== -1, "partial state explicit");
             root.require(progress.labels.indexOf("DOWNLOADING") !== -1, "matching progress explicit");
             root.require(offline.labels.indexOf("OFFLINE") !== -1, "offline state explicit");
             root.require(failed.labels.indexOf("fixture install failed") !== -1, "exact failure preserved");
+            root.require(pausedGif.animated && !pausedGif.shouldPlay && !pausedGif.playing,
+                    "off-screen GIF is classified and paused");
+            root.require(webpMedia.animated, "animated WebP uses the animated renderer");
+            root.require(videoMedia.video, "video preview uses the muted media renderer");
+            root.require(aspectGif.ready, "aspect fixture decoded");
+            root.require(Math.abs(aspectGif.nativeLogicalWidth / aspectGif.nativeLogicalHeight - 2) < 0.01,
+                         "animated media retains its decoded aspect "
+                         + aspectGif.nativeLogicalWidth + "x" + aspectGif.nativeLogicalHeight);
+            root.require(aspectGif.nativeLogicalWidth <= 4 && aspectGif.nativeLogicalHeight <= 2,
+                         "fitted animated media does not upscale past native pixels");
             root.require(detail.open && detail.item.id === "broken", "failure keeps dossier open");
             root.require(detail.transitionMode === "shared", "standard motion uses shared transition");
             root.require(detail.errorText.indexOf("fixture install failed") !== -1, "exact failure shown");
-            root.require(detail.screenshotCount === 1, "detail exposes real screenshots");
+            root.require(detail.screenshotCount === 2, "detail exposes real screenshots");
             const detailCover = root.findObject(detail, "ryostore-detail-cover");
             const detailDescription = root.findObject(detail, "ryostore-detail-description");
             const detailScreenshots = root.findObject(detail, "ryostore-detail-screenshots");
@@ -332,8 +383,8 @@ ShellRoot {
             root.require(Math.abs(detailCover.x - detail.targetX) < 0.5
                     && Math.abs(detailCover.y - detail.targetY) < 0.5
                     && Math.abs(detailCover.width - detail.targetWidth) < 0.5
-                    && Math.abs(detailCover.height - detail.targetHeight) < 0.5,
-                    "open shared cover reaches dossier bounds");
+                    && Math.abs(detailCover.height - (detail.targetHeight - detail.filmstripHeight)) < 0.5,
+                    "open shared cover reaches the media plate");
             root.require(detailDescription.text.indexOf("lockscreen fixture") !== -1,
                     "detail exposes description");
             root.require(detail.metadataText.indexOf("Fixture Author") !== -1
@@ -345,14 +396,25 @@ ShellRoot {
             const decorCover = root.findObject(decorDetail, "ryostore-detail-cover");
             root.require(decorDetail.hasDither === true, "decor detail exposes dither variants");
             decorDetail.ditherOn = true;
-            root.require(String(decorCover.artOverride) === "", "dither ON keeps dithered preview");
+            root.require(String(decorCover.artOverride) === "img://dithered.webp", "dither ON shows the dithered preview");
             decorDetail.ditherOn = false;
-            root.require(String(decorCover.artOverride) === "img://raw.webp", "dither OFF swaps to raw preview");
+            root.require(String(decorCover.artOverride) === "", "dither OFF shows the raw preview");
             decorDetail.item = Object.assign({}, decorDetail.item, { installed: true });
             const decorSettings = root.findObject(decorDetail, "ryostore-detail-settings");
             root.require(!decorSettings.visible, "decor detail hides Settings without a settings page");
-            root.require(detailScreenshots.visible && detailRetry.visible,
-                    "detail exposes screenshots and failure action");
+            root.require(detailScreenshots && detailScreenshots.visible && detailRetry.visible,
+                    "multi-preview detail exposes its filmstrip and failure action");
+            detail.openLightbox(0);
+            const lightbox = root.findObject(detail, "ryostore-detail-lightbox");
+            const zoom = root.findObject(detail, "ryostore-lightbox-zoom");
+            root.require(detail.lightboxOpen && lightbox.visible && zoom.text === "100%",
+                    "gallery opens its lightbox at fitted scale");
+            zoom.Accessible.pressAction();
+            root.require(detail.lightboxActualPixels && zoom.text === "FIT",
+                    "lightbox exposes a native-pixel zoom");
+            detail.stepLightbox(1);
+            root.require(detail.lightboxIndex === 1, "lightbox arrows advance the gallery");
+            detail.closeLightbox();
             root.installedKey = "";
             detailInstall.Accessible.pressAction();
             root.require(root.installedKey === "lockscreens:broken",
@@ -395,8 +457,8 @@ ShellRoot {
             const headerSearch = root.findObject(header, "ryostore-header-search");
             const headerSearchField = root.findObject(header, "ryostore-header-search-field");
             const headerLibrary = root.findObject(header, "ryostore-header-library");
-            const firstCategory = root.findObject(header, "ryostore-header-category-rices");
-            const lastCategory = root.findObject(header, "ryostore-header-category-bundles");
+            const firstCategory = root.findObject(header, "ryostore-category-rices");
+            const lastCategory = root.findObject(header, "ryostore-category-bundles");
             firstCategory.Accessible.pressAction();
             root.require(root.routeView === "discover" && root.routeCategory === "rices", "accessible category route");
             headerLibrary.Accessible.pressAction();
@@ -411,37 +473,62 @@ ShellRoot {
             headerSearchField.text = "rice";
             headerSearchField.textEdited();
             root.require(root.editedQuery === "rice", "search field edit delegates query");
+            headerCategories.contentY = 0;
             const searchPt = headerSearch.mapToItem(header, 0, 0);
             const libPt = headerLibrary.mapToItem(header, 0, 0);
             const discPt = headerDiscover.mapToItem(header, 0, 0);
             const catPt = firstCategory.mapToItem(header, 0, 0);
-            root.require(searchPt.x < libPt.x, "search sits before the account actions");
-            root.require(searchPt.y < discPt.y, "identity and search tier sits above the category nav");
-            root.require(discPt.x < catPt.x, "Discover leads the category row");
+            root.require(searchPt.y < discPt.y, "masthead search sits above catalogue navigation");
+            root.require(discPt.y < libPt.y, "Library follows browse categories in the rail");
+            root.require(Math.abs(discPt.x - catPt.x) < 1, "rail entries share one alignment");
             root.require(root.inside(headerSearch, header), "search stays visible at responsive size");
             root.require(root.inside(headerLibrary, header), "library stays visible at responsive size");
             root.require(headerCategories.width > 0, "categories retain scroll region");
             const focusOrder = [
-                "ryostore-header-category-rices",
-                "ryostore-header-category-lockscreens",
-                "ryostore-header-category-plugins",
-                "ryostore-header-category-barstyles",
-                "ryostore-header-category-fastfetch",
-                "ryostore-header-category-bundles"
+                "ryostore-category-rices",
+                "ryostore-category-lockscreens",
+                "ryostore-category-plugins",
+                "ryostore-category-barstyles",
+                "ryostore-category-fastfetch",
+                "ryostore-category-bundles"
             ];
             var focusItem = headerDiscover;
             for (const expectedName of focusOrder) {
                 focusItem = focusItem.nextItemInFocusChain(true);
                 root.require(focusItem.objectName === expectedName, "semantic tab order reaches " + expectedName);
             }
-            headerCategories.contentX = 0;
+            headerCategories.contentY = 0;
             lastCategory.forceActiveFocus(Qt.TabFocusReason);
             root.require(lastCategory.activeFocus, "overflow category takes keyboard focus");
-            root.require(lastCategory.x >= headerCategories.contentX
-                    && lastCategory.x + lastCategory.width <= headerCategories.contentX + headerCategories.width,
+            root.require(lastCategory.y >= headerCategories.contentY
+                    && lastCategory.y + lastCategory.height <= headerCategories.contentY + headerCategories.height,
                     "focused category scrolls into view");
+            headerLibrary.forceActiveFocus(Qt.TabFocusReason);
+            root.require(headerLibrary.y >= headerCategories.contentY
+                    && headerLibrary.y + headerLibrary.height <= headerCategories.contentY + headerCategories.height,
+                    "focused Library scrolls into view");
+            const navigationRows = [
+                headerDiscover,
+                firstCategory,
+                root.findObject(header, "ryostore-category-lockscreens"),
+                root.findObject(header, "ryostore-category-plugins"),
+                root.findObject(header, "ryostore-category-barstyles"),
+                root.findObject(header, "ryostore-category-fastfetch"),
+                lastCategory,
+                headerLibrary
+            ];
+            var firstVisibleRow = null;
+            for (const row of navigationRows) {
+                if (row.y + row.height > headerCategories.contentY) {
+                    firstVisibleRow = row;
+                    break;
+                }
+            }
+            root.require(firstVisibleRow && firstVisibleRow.y >= headerCategories.contentY - 1,
+                         "rail scroll begins on a whole navigation row");
             root.require(headerLibrary.Accessible.name.indexOf("3") !== -1
-                    && headerLibrary.Accessible.name.indexOf("1 UPDATE") !== -1, "library counts remain explicit");
+                    && headerLibrary.Accessible.name.toLowerCase().indexOf("1 update ready") !== -1,
+                    "library counts remain explicit");
             header.offline = true;
             root.require(headerSearchField.Accessible.name.toLowerCase().indexOf("offline") !== -1, "search field exposes offline state");
             const stageTitle = root.findObject(stage, "ryostore-stage-title");
@@ -459,12 +546,10 @@ ShellRoot {
             root.require(stageArtwork.item.installed === false, "cover state remains committed");
             const previewItem = stage.previewItem;
             stage.previewItem = null;
-            const stageMetadata = root.findObject(stageArtwork, "ryostore-cover-metadata");
-            root.require(stageMetadata && !stageMetadata.visible,
-                         "stage story owns missing-art product identity");
+            root.require(root.findObject(stageArtwork, "ryostore-cover-metadata") === null,
+                         "stage cover keeps product copy in the story column");
             const committedItem = stage.item;
             stage.item = null;
-            root.require(!stageMetadata.visible, "empty stage hides fallback identity");
             root.require(stageArtwork.Accessible.ignored,
                     "empty stage cover leaves the accessibility tree");
             root.require(!stageDetails.visible, "empty stage hides product actions");
@@ -498,6 +583,11 @@ ShellRoot {
             });
             stage.triggerInstall();
             root.require(root.installedKey === "", "installed state suppresses install");
+            stage.item = Object.assign({}, stage.item, { updateAvailable: true });
+            root.require(stagePrimary.text === "UPDATE", "installed update is a first-class primary action");
+            stage.triggerInstall();
+            root.require(root.installedKey === "rices:a", "update uses the product transaction");
+            root.installedKey = "";
             stageSettings.Accessible.pressAction();
             root.require(root.settingsKey === "rices:a", "settings targets committed selection");
             stage.busyKey = "rices:a";

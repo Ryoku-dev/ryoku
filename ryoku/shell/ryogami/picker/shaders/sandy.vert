@@ -16,6 +16,7 @@ layout(std140, binding = 0) uniform buf {
     vec4 layerIdx;             // array-layer index for A, B, B2, B3
     vec4 layerTier;            // tier per layer: 0 near, 1 far
     vec4 uvRect[4];            // per-layer sub-rect origin.xy, size.zw
+    vec4 prevUv;               // live preview sub-rect origin.xy, size.zw
 };
 
 layout(binding = 1) uniform sampler2DArray nearTex;

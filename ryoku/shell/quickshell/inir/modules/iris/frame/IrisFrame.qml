@@ -3,12 +3,21 @@ pragma Singleton
 import QtQuick
 import inir.modules.common
 import inir.modules.iris.style
+import shell.services as Ryoku
 
 QtObject {
     id: root
 
     readonly property var bar: Config.options?.iris?.bar ?? ({})
-    readonly property var dock: Config.options?.iris?.dock ?? ({})
+    readonly property var dock: ({
+        enable: Ryoku.Dock.cfg("enabled", false) && Ryoku.Dock.design === "shima",
+        position: Ryoku.Dock.cfg("edge", "auto"),
+        autoHide: Ryoku.Dock.cfg("autohide", true),
+        iconSize: Ryoku.Dock.cfg("size", 44),
+        magnification: Ryoku.Dock.cfg("magnify", true),
+        notch: Ryoku.Dock.designCfg("shima", "notch", true),
+        reserveSpace: Ryoku.Dock.designCfg("shima", "reserveSpace", true)
+    })
     readonly property var surround: Config.options?.iris?.surround ?? ({})
     readonly property real d: IrisStyle.density
 
@@ -71,25 +80,15 @@ QtObject {
     readonly property string islandEdge: root.edges.includes(String(root.bar?.position ?? "top")) ? String(root.bar.position) : "top"
     readonly property string dockEdge: {
         const wanted = String(root.dock?.position ?? "auto")
-        return root.edges.includes(wanted) && wanted !== root.islandEdge ? wanted : root.opposite(root.islandEdge)
+        return root.edges.includes(wanted) ? wanted : root.opposite(root.islandEdge)
     }
     readonly property string wantedIsland: String(root.bar?.position ?? "top")
     readonly property string wantedDock: String(root.dock?.position ?? "auto")
     property string settledIsland: ""
     property string settledDock: ""
-    Component.onCompleted: { root.settledIsland = root.islandEdge; root.settledDock = root.dockEdge }
-    onWantedIslandChanged: {
-        if (root.edges.includes(root.wantedIsland) && root.wantedIsland === root.wantedDock
-                && root.settledIsland.length > 0 && root.settledIsland !== root.wantedIsland)
-            Config.setNestedValue("iris.dock.position", root.settledIsland)
-        root.settle()
-    }
-    onWantedDockChanged: {
-        if (root.edges.includes(root.wantedDock) && root.wantedDock === root.islandEdge
-                && root.settledDock.length > 0 && root.settledDock !== root.wantedDock)
-            Config.setNestedValue("iris.bar.position", root.settledDock)
-        root.settle()
-    }
+    Component.onCompleted: root.settle()
+    onWantedIslandChanged: root.settle()
+    onWantedDockChanged: root.settle()
     function settle(): void {
         Qt.callLater(() => { root.settledIsland = root.islandEdge; root.settledDock = root.dockEdge })
     }
@@ -130,7 +129,7 @@ QtObject {
     // How pieces meet a given edge. On the Island's own edge they meet it the way the Island does: melted with it,
     // or floating at its margin when it floats (two grammars on one edge read as parts from different kits). A corner
     // plate takes its edge's join on both walls (IrisStage.zones): floating, it keeps that margin from the frame's side
-    // too, never floating off one wall and welded to the other (2026-09-28).
+    // too, never floating off one wall and welded to the other.
     readonly property bool islandSpans: String(root.bar?.layout ?? "island") === "full" || root.islandMenubar
     function joinOn(side: string): string {
         if (!root.piecesAttached) return "float"
@@ -143,6 +142,12 @@ QtObject {
     }
     function pieceInsetOn(side: string): real { return root.band + root.pieceGapOn(side) }
     function pieceDepthOn(side: string): real { return root.pieceGapOn(side) + root.pieceBand }
+    // An announcement is never switched on: like Material's bar indicator it shows whenever its state is there.
+    readonly property var announcements: ["shellUpdate"]
+    property var availableExtras: null
+    function extraOn(extras: var, id: string): bool {
+        return root.announcements.includes(id) || Boolean(extras?.[id]?.enable ?? false)
+    }
     function edgeOf(place: string): string {
         if (place.startsWith("edge:")) return ["top", "bottom", "left", "right"].includes(place.slice(5)) ? place.slice(5) : ""
         if (place === "top-left" || place === "top-right") return "top"
@@ -159,7 +164,10 @@ QtObject {
         }
         for (const id of ["left", "right", "utility"]) note(o?.[id]?.place ?? "island")
         const extras = o?.extras ?? ({})
-        for (const id of Object.keys(extras)) if (extras[id]?.enable) note(extras[id]?.place)
+        // A piece that has nothing to show (no update, no player, an empty tray) is not on its edge: the edge
+        // reserves nothing for it. IrisPieces feeds availableExtras (it imports this singleton, not the other way).
+        for (const id of Object.keys(extras))
+            if (root.extraOn(extras, id) && (root.availableExtras === null || root.availableExtras.includes(id))) note(extras[id]?.place)
         for (const app of (o?.apps ?? [])) if (app) note(app?.place)
         return edges
     }
@@ -240,6 +248,53 @@ QtObject {
         }
         return { sideways: false, towardsLeft: towardsLeft, towardsUp: towardsUp,
             x: primary.x, y: primary.y }
+    }
+
+    // The fillet a body melted into a wall draws there: the field's polynomial smooth union of two perpendicular edges
+    // bulges k/4 along the diagonal, which is a circular fillet of radius k / (4·(1 − 1/√2)).
+    function filletRadius(fuse: real): real { return fuse / (4 * (1 - Math.SQRT1_2)) }
+    function meltFuse(side: string, pieceSize: real): real {
+        return root.joinOn(side) === "notch"
+            ? IrisStyle.edgeFuseFor(pieceSize, Number(root.bubbles?.notchCurve ?? 100)) : IrisStyle.fuse
+    }
+    function nestRadius(rect: var, radius: real, origin: var, originFuse: real, screenWidth: real, screenHeight: real): real {
+        if (!rect || rect.width <= 0 || rect.height <= 0) return radius
+        const reach = Math.max(root.bodyAir, root.bodyMargin) + 2 * root.d
+        const floor = Math.round(6 * root.d)
+        const gap = { left: rect.x - root.band, right: screenWidth - root.band - rect.x - rect.width,
+            top: rect.y - root.band, bottom: screenHeight - root.band - rect.y - rect.height }
+        const o = origin?.obstacle ?? origin
+        const touches = (r, wall) => r && (wall === "left" ? r.x - root.band
+            : wall === "right" ? screenWidth - root.band - r.x - r.width
+            : wall === "top" ? r.y - root.band : screenHeight - root.band - r.y - r.height) <= 1.5
+        const nests = []
+        for (const side of ["left", "right"]) {
+            for (const end of ["top", "bottom"]) {
+                if (gap[side] > reach) continue
+                if (root.framed && gap[end] <= reach) {
+                    nests.push(root.cornerRadius - (gap[side] + gap[end]) / 2)
+                    continue
+                }
+                if (o && touches(o, side) && o.width > 0) {
+                    const between = end === "top" ? rect.y - (o.y + o.height) : o.y - (rect.y + rect.height)
+                    if (between >= -1 && between <= reach)
+                        nests.push(root.filletRadius(originFuse) - (gap[side] + between) / 2)
+                }
+            }
+        }
+        for (const end of ["top", "bottom"]) {
+            for (const side of ["left", "right"]) {
+                if (gap[end] > reach || !o || !touches(o, end) || o.height <= 0) continue
+                const between = side === "left" ? rect.x - (o.x + o.width) : o.x - (rect.x + rect.width)
+                if (between >= -1 && between <= reach)
+                    nests.push(root.filletRadius(originFuse) - (gap[end] + between) / 2)
+            }
+        }
+        if (nests.length === 0) return radius
+        // Or nothing: a corner much tighter than the body would square a sheet off to the floor; it keeps its own radius and floats.
+        const nested = Math.min(...nests)
+        if (nested < Math.max(floor * 2, radius * 0.4)) return radius
+        return Math.round(Math.min(Math.min(rect.width, rect.height) / 2, nested))
     }
 
     function reserve(edge: string, chassisPresent: bool): real {

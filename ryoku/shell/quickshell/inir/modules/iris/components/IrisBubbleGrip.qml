@@ -16,7 +16,12 @@ MouseArea {
     property bool pullAcross: false
     property real pullDistance: 0
     readonly property bool lifting: root.lifted
+    property bool slideEnabled: false
+    property real slideDistance: 8
+    property bool sliding: false
     signal tapped()
+    signal slid(real along)
+    signal slideEnded(bool committed)
 
     property bool lifted: false
     property point pressScene: Qt.point(0, 0)
@@ -66,7 +71,18 @@ MouseArea {
             const dx = root.lastScene.x - root.pressScene.x
             const dy = root.lastScene.y - root.pressScene.y
             const pulled = root.pullDirection === 0 ? Math.hypot(dx, dy) : root.pullDirection * (root.pullAcross ? dx : dy)
-            if (pulled > root.liftDistance) root.lift()
+            if (pulled > root.liftDistance) {
+                if (root.sliding) { root.sliding = false; root.slideEnded(false) }
+                root.lift()
+                return
+            }
+            const along = root.pullAcross ? dy : dx
+            if (!root.sliding && root.slideEnabled && root.pullDirection !== 0
+                && Math.abs(along) > root.slideDistance && Math.abs(along) > Math.abs(root.pullAcross ? dx : dy)) {
+                hold.stop()
+                root.sliding = true
+            }
+            if (root.sliding) root.slid(along)
             return
         }
         root.pending = true
@@ -79,7 +95,10 @@ MouseArea {
     }
     onReleased: {
         hold.stop()
-        if (root.lifted) {
+        if (root.sliding) {
+            root.sliding = false
+            root.slideEnded(true)
+        } else if (root.lifted) {
             root.lifted = false
             root.pending = false
             root.publish(true)
@@ -89,6 +108,10 @@ MouseArea {
     }
     onCanceled: {
         hold.stop()
+        if (root.sliding) {
+            root.sliding = false
+            root.slideEnded(true)
+        }
         if (root.lifted) {
             root.lifted = false
             root.pending = false

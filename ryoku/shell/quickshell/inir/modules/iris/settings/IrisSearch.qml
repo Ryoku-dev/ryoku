@@ -55,6 +55,19 @@ Singleton {
         }
         return prev[b.length] <= limit
     }
+    // near(a, b, 1) in one pass: equal, or one insert, delete, substitute or adjacent swap apart. The full
+    // table above ran for every token of ~600 entries per key and cost 20-30 ms on the GUI thread.
+    function oneEdit(a: string, b: string): bool {
+        const la = a.length, lb = b.length
+        if (la - lb > 1 || lb - la > 1) return false
+        let i = 0
+        while (i < la && i < lb && a[i] === b[i]) i++
+        if (la === lb) {
+            if (i === la || a.slice(i + 1) === b.slice(i + 1)) return true
+            return i + 1 < la && a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2)
+        }
+        return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1)
+    }
     function inOrder(word: string, token: string): bool {
         if (word.length < 3 || token[0] !== word[0]) return false
         let at = 0
@@ -68,7 +81,11 @@ Singleton {
         for (const token of entry.nameTokens) {
             if (token === word) return 1
             if (word.length >= 2 && token.startsWith(word)) best = Math.max(best, 0.92)
-            else if (word.length >= 4 && root.near(word, token.slice(0, Math.max(word.length, Math.min(token.length, word.length + 1))), word.length >= 8 ? 2 : 1)) best = Math.max(best, 0.72)
+            else if (word.length >= 4) {
+                const head = token.slice(0, Math.max(word.length, Math.min(token.length, word.length + 1)))
+                if (word.length >= 8 ? root.near(word, head, 2) : root.oneEdit(word, head)) best = Math.max(best, 0.72)
+                else if (root.inOrder(word, token)) best = Math.max(best, 0.55)
+            }
             else if (root.inOrder(word, token)) best = Math.max(best, 0.55)
         }
         // Initials: whole ("nl" → Night light) or three letters in; two letters of a longer name are a guess.
@@ -86,22 +103,32 @@ Singleton {
         if (best < 0.6 && word.length >= 3 && entry.flat.includes(word)) best = 0.6
         return best
     }
+    readonly property var parsed: ({ query: null, words: [], aliasParts: [], whole: "" })
+    function parse(query: string): var {
+        if (root.parsed.query !== query) {
+            const words = root.tokens(query)
+            root.parsed.words = words
+            root.parsed.aliasParts = words.map(word => (root.aliases[word] ?? []).map(alias => root.tokens(alias)))
+            root.parsed.whole = root.fold(query).trim()
+            root.parsed.query = query
+        }
+        return root.parsed
+    }
     function score(query: string, entry: var): real {
-        const words = root.tokens(query)
+        const q = root.parse(query)
+        const words = q.words
         if (words.length === 0) return 0
         let sum = 0
-        for (const word of words) {
-            let best = root.wordScore(word, entry)
-            for (const alias of root.aliases[word] ?? []) {
-                const own = root.tokens(alias)
+        for (let w = 0; w < words.length; w++) {
+            let best = root.wordScore(words[w], entry)
+            for (const own of q.aliasParts[w]) {
                 const s = own.reduce((acc, part) => Math.min(acc, root.wordScore(part, entry)), 1)
                 best = Math.max(best, s * 0.97)
             }
             if (best <= 0) return 0
             sum += best
         }
-        const whole = root.fold(query).trim()
-        return sum / words.length + (entry.foldedName.startsWith(whole) ? 0.05 : 0)
+        return sum / words.length + (entry.foldedName.startsWith(q.whole) ? 0.05 : 0)
     }
     function prepare(entry: var): var {
         const name = String(entry.name ?? "")

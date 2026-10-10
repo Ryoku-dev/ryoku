@@ -309,7 +309,7 @@ Item {
                 }
             }
 
-            // ── 03 SURFACE ──
+            // ── 04 SURFACE ──
             Entrance {
                 width: page.colW
                 index: 3
@@ -482,7 +482,7 @@ Item {
                 }
             }
 
-            // ── 05 ACCENT: the bar's data colour, so the swatches keep their hue ──
+            // ── 06 ACCENT: the bar's data colour, so the swatches keep their hue ──
             Entrance {
                 width: page.colW
                 index: 5
@@ -528,6 +528,39 @@ Item {
                             options: page.root ? page.root.barColorOptions : []
                             current: page.root ? page.root.barColor : ""
                             onChose: id => { if (page.root) page.root.barColor = id }
+                        }
+                    }
+                }
+            }
+
+            // ── 07 PICKERS: the visual form shared by the theme, wallpaper and
+            // media browsers that open from this bar.
+            Entrance {
+                width: page.colW
+                index: 6
+                SettingCard {
+                    width: page.colW
+                    title: I18n.tr("07 PICKERS")
+                    kana: "\u9078"
+
+                    SettingRow {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        block: true
+                        label: I18n.tr("Picker style")
+                        desc: I18n.tr("How the theme, wallpaper and media pickers are laid out.")
+                        source: "shell.json"
+                        Seg {
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            options: ["tanzaku", "hearthstone", "carousel"]
+                            labels: ({
+                                "tanzaku": "Tanzaku",
+                                "hearthstone": "Hearthstone",
+                                "carousel": "Carousel"
+                            })
+                            current: page.root ? page.root.pickerStyle : "tanzaku"
+                            onChose: key => { if (page.root) page.root.pickerStyle = key }
                         }
                     }
                 }

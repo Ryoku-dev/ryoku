@@ -285,7 +285,7 @@ Item {
     }
     function ctlFoot(r) {
         var c = r.ctl;
-        if (c === "pick" || c === "text" || c === "color" || c === "location" || c === "image" || c === "action" || c === "app" || c === "timezone") return 32;
+        if (c === "pick" || c === "text" || c === "color" || c === "location" || c === "action" || c === "app" || c === "timezone") return 32;
         return 0;
     }
     function ctlWidth(r, w) {
@@ -473,7 +473,6 @@ Item {
                                             case "list": return listC;
                                             case "pick": return pickC;
                                             case "reload-cover": return reloadCoverC;
-                                            case "image": return imageC;
                                             case "app": return appC;
                                             case "location": return locationC;
                                             case "color": return colorC;
@@ -863,52 +862,6 @@ Item {
                                         }
                                     }
                                     Component {
-                                        id: imageC
-                                        Row {
-                                            anchors.fill: parent
-                                            spacing: Tokens.s2
-                                            Rectangle {
-                                                id: imgThumb
-                                                width: 46; height: 28
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                radius: Tokens.radius
-                                                color: "transparent"
-                                                border.width: Tokens.border
-                                                border.color: Tokens.line
-                                                clip: true
-                                                readonly property string src: String(sheet.val(srow.r))
-                                                Image {
-                                                    anchors.fill: parent
-                                                    anchors.margins: 1
-                                                    visible: imgThumb.src !== ""
-                                                    source: imgThumb.src === "" ? "" : (imgThumb.src.indexOf("://") >= 0 ? imgThumb.src : "file://" + imgThumb.src)
-                                                    fillMode: Image.PreserveAspectCrop
-                                                    asynchronous: true
-                                                    sourceSize.width: 140
-                                                }
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    visible: imgThumb.src === ""
-                                                    text: "力"
-                                                    color: Tokens.inkFaint
-                                                    font.family: Tokens.jp
-                                                    font.pixelSize: 13
-                                                }
-                                            }
-                                            Btn {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                text: I18n.tr("CHOOSE…")
-                                                onAct: sheet.imagePick(srow.r)
-                                            }
-                                            Btn {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                visible: String(sheet.val(srow.r)) !== ""
-                                                text: I18n.tr("CLEAR")
-                                                onAct: sheet.edited(srow.r.key, "")
-                                            }
-                                        }
-                                    }
-                                    Component {
                                         id: appC
                                         Item {
                                             anchors.fill: parent
@@ -1090,8 +1043,6 @@ Item {
     signal pickRequested(var row)
     function openPick(r) { pickRequested(r) }
 
-    signal imagePickRequested(var row)
-    function imagePick(r) { imagePickRequested(r) }
 
     signal appPickRequested(var row)
     function appPick(r) { appPickRequested(r) }

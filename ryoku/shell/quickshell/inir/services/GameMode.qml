@@ -6,6 +6,7 @@ import Quickshell
 import Quickshell.Io
 import inir
 import inir.modules.common
+import inir.modules.common.functions
 import inir.services
 
 /**
@@ -66,10 +67,56 @@ Singleton {
     // game mode, not the frame: the frame suppresses its effects and motion
     // through Appearance while this is active.
 
-    // External process control (optional)
-    readonly property bool disableDiscoverOverlay: Config.options?.gameMode?.disableDiscoverOverlay ?? true
     readonly property bool suppressNotifications: Config.options?.gameMode?.suppressNotifications ?? true
-    readonly property string _discoverOverlayServiceName: "discover-overlay.service"
+
+    // discover-overlay (a Discord overlay) closes while you play and comes back after, wherever it is
+    // installed: as a systemd user unit or a plain process. Where it is absent (Void ships no package) the
+    // option hides and nothing runs.
+    readonly property bool disableDiscoverOverlay: Config.options?.gameMode?.disableDiscoverOverlay ?? true
+    property bool discoverOverlayInstalled: false
+    property string _discoverOverlayStoppedAs: ""   // "unit", "process", or "" when we stopped nothing
+
+    Process {
+        id: discoverOverlayProbe
+        running: true
+        command: ["/bin/sh", "-c", "command -v discover-overlay >/dev/null"]
+        onExited: (exitCode, exitStatus) => root.discoverOverlayInstalled = exitCode === 0
+    }
+
+    // The pattern is anchored to the program itself (`discover-overlay …` or `python3 …/discover-overlay`), so it
+    // never matches a shell, editor or grep whose command line merely mentions the name, this script included.
+    Process {
+        id: discoverOverlayStopProc
+        command: ["/bin/sh", "-c",
+            "p='^([^ ]*/)?(python[0-9.]* +)?([^ ]*/)?discover-overlay( |$)'; pgrep -f \"$p\" >/dev/null || exit 1; " +
+            "u=discover-overlay.service; " +
+            "if [ -d /run/systemd/system ] && systemctl --user is-active --quiet \"$u\"; then " +
+            "systemctl --user stop \"$u\" && echo unit; exit; fi; " +
+            "pkill -f \"$p\" && echo process"]
+        stdout: StdioCollector {
+            id: discoverOverlayStopOut
+            onStreamFinished: root._discoverOverlayStoppedAs = (discoverOverlayStopOut.text ?? "").trim()
+        }
+    }
+
+    Timer {
+        id: discoverOverlayDebounce
+        interval: 800
+        onTriggered: {
+            const shouldStop = root.active && root.disableDiscoverOverlay && root.discoverOverlayInstalled
+            if (shouldStop && root._discoverOverlayStoppedAs === "") {
+                discoverOverlayStopProc.running = true
+            } else if (!shouldStop && root._discoverOverlayStoppedAs === "unit") {
+                Quickshell.execDetached(["systemctl", "--user", "start", "discover-overlay.service"])
+                root._discoverOverlayStoppedAs = ""
+            } else if (!shouldStop && root._discoverOverlayStoppedAs === "process") {
+                ShellExec.execDetachedArgs(["discover-overlay"], "Discover overlay")
+                root._discoverOverlayStoppedAs = ""
+            }
+        }
+    }
+
+    onDisableDiscoverOverlayChanged: discoverOverlayDebounce.restart()
 
     // State file path
     readonly property string _stateFile: Directories.stateUserPath + "/gamemode_active"
@@ -235,62 +282,9 @@ Singleton {
 
     onActiveChanged: {
         root._log("[GameMode] Active:", active, "(manual:", _manualActive, "auto:", _reactiveAutoActive, ")")
-
-        // External processes control
-        if (root.disableDiscoverOverlay) {
+        // The niri-toast branch is Ryoku-seam out: the animation control lives at the wm layer.
+        if (root.disableDiscoverOverlay && root.discoverOverlayInstalled) {
             discoverOverlayDebounce.restart()
-        }
-    }
-
-    // Track last applied state for discover-overlay control
-    property bool _lastDiscoverOverlayGameState: false
-
-    Timer {
-        id: discoverOverlayDebounce
-        interval: 800
-        repeat: false
-        onTriggered: {
-            if (!root.disableDiscoverOverlay)
-                return
-
-            const shouldStop = root.active
-            if (shouldStop === root._lastDiscoverOverlayGameState)
-                return
-            root._lastDiscoverOverlayGameState = shouldStop
-
-            if (shouldStop) {
-                root._log("[GameMode] Stopping", root._discoverOverlayServiceName)
-                discoverOverlayStopProc.running = true
-            } else {
-                root._log("[GameMode] Starting", root._discoverOverlayServiceName)
-                discoverOverlayStartProc.running = true
-            }
-        }
-    }
-
-    Process {
-        id: discoverOverlayStopProc
-        command: [
-            "/usr/bin/bash",
-            "-c",
-            "systemctl --user stop " + root._discoverOverlayServiceName + " 2>/dev/null; " +
-            "pkill -x discover-overlay 2>/dev/null; true"
-        ]
-        onExited: (code, status) => {
-            root._log("[GameMode] discover-overlay stop exited:", code)
-        }
-    }
-
-    Process {
-        id: discoverOverlayStartProc
-        command: [
-            "/usr/bin/systemctl",
-            "--user",
-            "start",
-            root._discoverOverlayServiceName
-        ]
-        onExited: (code, status) => {
-            root._log("[GameMode] systemctl start exited:", code)
         }
     }
 }

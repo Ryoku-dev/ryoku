@@ -1,0 +1,8 @@
+[palettes.wallpaper]
+dir_bg = "{{colors.surface_container.default.hex}}"
+git_bg = "{{colors.secondary_container.default.hex}}"
+time_bg = "{{colors.tertiary_container.default.hex}}"
+dir_fg = "{{colors.primary.default.hex}}"
+git_fg = "{{colors.on_secondary_container.default.hex}}"
+time_fg = "{{colors.on_tertiary_container.default.hex}}"
+crimson = "{{colors.error.default.hex}}"

@@ -149,7 +149,6 @@ GridLayout {
             Layout.bottomMargin: -4 * IrisStyle.density
             spacing: 0
             Item { Layout.fillWidth: true }
-            // The transport shares the Island's plate (IrisIsland.pagePlate), concentric with play.
             IrisControlPlate {
                 id: transport
                 material: page.island.pagePlate
@@ -275,48 +274,10 @@ GridLayout {
             implicitHeight: 1
             color: IrisStyle.hairline
         }
-        Flow {
-            visible: page.otherPlayers.length > 0
+        IrisPlayerChips {
             Layout.fillWidth: true
-            spacing: 6 * IrisStyle.density
-            Repeater {
-                model: page.otherPlayers
-                IrisButton {
-                    id: playerChip
-                    required property var modelData
-                    implicitHeight: Math.round(32 * IrisStyle.density)
-                    implicitWidth: chipRow.implicitWidth + Math.round(20 * IrisStyle.density)
-                    buttonRadius: height / 2
-                    buttonRadiusPressed: height / 2
-                    colBackground: IrisStyle.fillQuiet
-                    colBackgroundHover: IrisStyle.fillHover
-                    Accessible.name: Translation.tr("Control %1").arg(playerChip.modelData?.identity ?? "")
-                    onClicked: MprisController.setActivePlayer(playerChip.modelData)
-                    RowLayout {
-                        id: chipRow
-                        anchors.centerIn: parent
-                        spacing: 6 * IrisStyle.density
-                        IrisArtwork {
-                            circular: true
-                            Layout.preferredWidth: Math.round(20 * IrisStyle.density)
-                            Layout.preferredHeight: Layout.preferredWidth
-                            source: String(MprisController.artUrlOf(playerChip.modelData) ?? "")
-                        }
-                        IrisText {
-                            text: String(MprisController.titleOf(playerChip.modelData) || playerChip.modelData?.identity || "")
-                            font.pixelSize: IrisStyle.typeMeta
-                            font.weight: IrisStyle.weight(Font.Medium)
-                            elide: Text.ElideRight
-                            Layout.maximumWidth: Math.round(150 * IrisStyle.density)
-                        }
-                        Glyph {
-                            text: playerChip.modelData?.isPlaying ? "graphic_eq" : "pause"
-                            iconSize: 14 * IrisStyle.density
-                            color: playerChip.modelData?.isPlaying ? page.island.artTint : IrisStyle.muted
-                        }
-                    }
-                }
-            }
+            player: page.island.player
+            accent: page.island.artTint
         }
     }
 
@@ -364,7 +325,7 @@ GridLayout {
                 }
                 IrisScrubber {
                     Layout.fillWidth: true
-                    fillColor: appLevel.muted ? IrisStyle.muted : IrisStyle.text
+                    fillColor: appLevel.muted ? IrisStyle.muted : IrisStyle.fillStrong
                     Binding on value {
                         when: appLevel.live
                         restoreMode: Binding.RestoreNone

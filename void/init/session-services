@@ -1,0 +1,24 @@
+# Translation of ryoku/shell/systemd/user/ryoku-session.target.
+# runit has no targets: the session is the roster of services below plus the
+# order the session wrapper starts them in. One service per line; '#' comments
+# ignored. The wrapper (future work, see void/README.md) reads this file to
+# bring the session up, and `sv up`/`sv down` on individual entries replaces
+# `systemctl --user start/stop`.
+#
+# Order mirrors the systemd graph: bootstrap first (config must exist before
+# the compositor reads it), then the wallpaper and shell daemons, then the
+# policy daemons that hang off the session.
+# ryoku-eq is deliberately absent: like its systemd original (no [Install]),
+# it is started on demand by the ryoku-eq tool. ryoku-prowl is absent for the
+# same reason its unit has no [Install]: ryoku-rashin's run/finish bring it up
+# and down (the BindsTo translation).
+ryoku-bootstrap
+ryogami
+ryoku-shell
+ryoku-idle
+ryoku-clamshell
+ryoku-ai-usage
+ryoku-bt-agent
+ryoku-palette-bridge
+ryoku-rashin
+ryoku-bluetooth-reset

@@ -79,6 +79,7 @@ Singleton {
                 case "cachyos": distroIcon = "cachyos-symbolic"; break;
                 case "nixos": distroIcon = "nixos-symbolic"; break;
                 case "fedora": distroIcon = "fedora-symbolic"; break;
+                case "void": distroIcon = "void-symbolic"; break;
                 case "linuxmint":
                 case "ubuntu":
                 case "zorin":

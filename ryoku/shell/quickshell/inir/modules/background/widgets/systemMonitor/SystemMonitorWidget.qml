@@ -335,7 +335,9 @@ AbstractBackgroundWidget {
 
     // Animation duration for smooth value transitions
     readonly property int _animDuration: Appearance.animation.elementMove.duration
-    // Values tick every second: easing them behind windows repaints the desktop for nothing.
+    // Values tick every second: easing them behind windows repaints the desktop for nothing. Every mode's body
+    // exists at once (they crossfade) and iRiS draws its own face over all of them: each body eases only while
+    // it is the one shown, or a hidden one repaints the whole desktop window on every reading.
     readonly property bool animatesValues: Appearance.animationsEnabled && root.motionActive
 
     // Readings behind windows are never seen and each one redraws the desktop: polling follows motionActive.
@@ -385,6 +387,7 @@ AbstractBackgroundWidget {
     // Values, units and resource identity stay readable without watch faces.
     // ══════════════════════════════════════════════════════════
     Grid {
+        id: instrumentBody
         anchors.centerIn: parent
         opacity: root.displayMode === "instrument" ? 1 : 0
         visible: !root.irisFaced && opacity > 0
@@ -432,7 +435,7 @@ AbstractBackgroundWidget {
                     fraction: resourceMeter.liveValue
                     ink: root.widgetInk
                     accent: resourceMeter.liveColor
-                    animated: root.animationsActive
+                    animated: root.animationsActive && instrumentBody.visible
                 }
 
                 ColumnLayout {
@@ -491,6 +494,7 @@ AbstractBackgroundWidget {
     // BARS MODE — horizontal fill bars with icon + percentage
     // ══════════════════════════════════════════════════════════
     ColumnLayout {
+        id: barsBody
         anchors.fill: parent
         anchors.margins: root._innerMargin
         spacing: Appearance.sizes.spacingSmall ?? 4
@@ -543,7 +547,7 @@ AbstractBackgroundWidget {
                         opacity: root.fillOpacity
 
                         Behavior on width {
-                            enabled: root.animatesValues
+                            enabled: root.animatesValues && barsBody.visible
                             NumberAnimation { duration: root._animDuration; easing.type: Easing.OutCubic }
                         }
                     }
@@ -682,6 +686,7 @@ AbstractBackgroundWidget {
     // RINGS MODE — circular gauges per resource
     // ══════════════════════════════════════════════════════════
     Row {
+        id: ringsBody
         anchors.centerIn: parent
         spacing: Appearance.sizes.spacingNormal ?? 8
         opacity: root.displayMode === "rings" ? 1 : 0
@@ -710,7 +715,7 @@ AbstractBackgroundWidget {
                 // Smoothly interpolated value for display
                 property real _animatedValue: _liveValue
                 Behavior on _animatedValue {
-                    enabled: root.animatesValues
+                    enabled: root.animatesValues && ringsBody.visible
                     NumberAnimation { duration: root._animDuration; easing.type: Easing.OutCubic }
                 }
 
@@ -881,7 +886,7 @@ AbstractBackgroundWidget {
                 }
 
                 Behavior on color {
-                    enabled: Appearance.animationsEnabled
+                    enabled: root.animationsActive && tileGrid.visible
                     ColorAnimation {
                         duration: root._animDuration
                         easing.type: Appearance.animation.elementMove.type

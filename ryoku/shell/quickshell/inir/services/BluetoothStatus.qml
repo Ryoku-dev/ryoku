@@ -12,11 +12,34 @@ import QtQuick
 Singleton {
     id: root
 
-    readonly property bool available: Bluetooth.adapters.values.length > 0
-    readonly property bool enabled: Bluetooth.defaultAdapter?.enabled ?? false
-    readonly property BluetoothDevice firstActiveDevice: Bluetooth.defaultAdapter?.devices.values.find(device => device.connected) ?? null
-    readonly property int activeDeviceCount: Bluetooth.defaultAdapter?.devices.values.filter(device => device.connected).length ?? 0
-    readonly property bool connected: Bluetooth.devices.values.some(d => d.connected)
+    // `inir bluetooth simulate 2` stands in for the adapter (`off`, `on`, a count of connected devices, `none` for no
+    // adapter) until `clear` or a restart, so every Bluetooth surface can be seen without the hardware.
+    property string simulated: ""
+    readonly property int _simulatedCount: /^\d+$/.test(root.simulated) ? parseInt(root.simulated) : 0
+    readonly property bool available: root.simulated.length > 0 ? root.simulated !== "none" : Bluetooth.adapters.values.length > 0
+    readonly property bool enabled: root.simulated.length > 0 ? (root.simulated === "on" || /^\d+$/.test(root.simulated))
+        : Bluetooth.defaultAdapter?.enabled ?? false
+    readonly property BluetoothDevice firstActiveDevice: root.simulated.length > 0 ? null
+        : Bluetooth.defaultAdapter?.devices.values.find(device => device.connected) ?? null
+    readonly property int activeDeviceCount: root.simulated.length > 0 ? root._simulatedCount
+        : Bluetooth.defaultAdapter?.devices.values.filter(device => device.connected).length ?? 0
+    readonly property bool connected: root.simulated.length > 0 ? root._simulatedCount > 0 : Bluetooth.devices.values.some(d => d.connected)
+
+    IpcHandler {
+        target: "bluetooth"
+
+        function status(): string {
+            const state = !root.available ? "no adapter" : !root.enabled ? "off"
+                : root.activeDeviceCount > 0 ? `${root.activeDeviceCount} connected` : "on"
+            return state + (root.simulated.length > 0 ? " (simulated)" : "")
+        }
+        // "off", "on", a count of connected devices ("2"), "none" (no adapter) or "clear".
+        function simulate(state: string): string {
+            const s = String(state ?? "").trim().toLowerCase()
+            root.simulated = ["off", "on", "none"].includes(s) || /^\d+$/.test(s) ? s : ""
+            return status()
+        }
+    }
 
     // Material Symbol icon for the currently-active device, or generic bluetooth
     // states when no device is connected. Uses BluetoothDevice.icon (XDG icon

@@ -21,6 +21,7 @@ Rectangle {
     property bool searchOpen: false
     property string providerFilter: ""
     property string pluginFilter: ""
+    property string omarchySort: "popular"
     property string selectedKey: ""
     property var previewItem: null
     property var detailItem: null
@@ -30,6 +31,15 @@ Rectangle {
     property var detailContext: null
     property rect detailOriginRect: Qt.rect(0, 0, 0, 0)
     property bool reducedMotion: performance.lowPowerMode || performance.reduceMotion
+    readonly property bool nomarchyActive: shellSettings.barStyle === "nomarchy"
+    onNomarchyActiveChanged: {
+        if (nomarchyActive) {
+            nomarchyRefresh.restart();
+        } else if (categoryID === "omarchy-plugins"
+                   || (detailItem && String(detailItem.category || "") === "omarchy-plugins")) {
+            openRoute("discover");
+        }
+    }
     readonly property bool catalogLoading: Store.loading && Store.items.length === 0
     readonly property bool catalogError: !Store.loading && Store.items.length === 0 && Store.error !== ""
     // A nav-open (from `ryostore open` / `settings`) can arrive before the
@@ -38,13 +48,16 @@ Rectangle {
     property string pendingRoute: ""
     onNavigationCategoriesChanged: if (app.pendingRoute !== "" && app.validRoute(app.pendingRoute)) app.openRoute(app.pendingRoute)
 
-    readonly property var searchableItems: Store.items.map(item => {
-        const copy = {};
-        Object.keys(item).forEach(key => copy[key] = item[key]);
-        const category = Store.category(item.category);
-        copy.categoryName = category ? category.name : item.category;
-        return copy;
-    })
+    readonly property var searchableItems: Store.items
+            .filter(item => String(item.category || "") !== "omarchy-plugins" || app.nomarchyActive)
+            .map(item => {
+                const copy = {};
+                Object.keys(item).forEach(key => copy[key] = item[key]);
+                const category = Store.category(item.category);
+                copy.categoryName = category ? category.name : item.category;
+                copy.searchIndex = StoreLogic.searchText(copy);
+                return copy;
+            })
     // Decor is one tab over three picture catalogues: the decor art itself, the
     // launcher's hero art, and the fastfetch emblems. They stay separate
     // categories because they install into different folders, but the header
@@ -52,7 +65,8 @@ Rectangle {
     readonly property var decorFamily: ["decors", "launcher-images", "fastfetch-emblems"]
     readonly property var navigationCategories: StoreLogic.sortCategories(Store.categories)
             .filter(category => Number(category.count || 0) > 0
-                    && app.decorFamily.indexOf(String(category.id || "")) <= 0)
+                    && app.decorFamily.indexOf(String(category.id || "")) <= 0
+                    && (String(category.id || "") !== "omarchy-plugins" || app.nomarchyActive))
     // Discover rotates daily: the day number seeds the hero pick and the order in
     // StoreLogic.collection, so the landing holds still while you browse but
     // changes each day. Absent on category/search/library views, which ignore it.
@@ -64,7 +78,8 @@ Rectangle {
         provider: app.themesBrowse && app.providerFilter !== "" && app.providerFilter !== "__mine__" ? app.providerFilter : "",
         installedOnly: app.themesBrowse && app.providerFilter === "__mine__",
         pluginKind: app.pluginsBrowse ? app.pluginFilter : "",
-        seed: app.discoverSeed
+        seed: app.discoverSeed,
+        omarchySort: app.omarchySort
     })
     readonly property var selectedItem: itemForKey(selectedKey, collection)
     readonly property var resolvedDetail: detailItem
@@ -77,6 +92,30 @@ Rectangle {
             ? String(selectedIndex + 1) + " / " + String(collection.length)
             : ""
     readonly property bool showHero: view === "discover" && categoryID === "" && !searchOpen && collection.length > 0
+    readonly property string contentMotionKey: [
+        view,
+        categoryID,
+        query,
+        providerFilter,
+        pluginFilter,
+        omarchySort
+    ].join("|")
+    readonly property var currentCategory: categoryID !== "" ? Store.category(categoryID) : null
+    readonly property string pageTitle: searchOpen ? I18n.tr("Search")
+            : (view === "library" ? I18n.tr("Library")
+               : (currentCategory ? I18n.tr(String(currentCategory.name || currentCategory.id))
+                  : I18n.tr("Discover")))
+    readonly property string pageGroup: searchOpen ? I18n.tr("SEARCH")
+            : (view === "library" ? I18n.tr("YOUR STORE") : I18n.tr("BROWSE"))
+    readonly property string pageDescription: searchOpen
+            ? I18n.tr("Results from every category, with installed state kept in view.")
+            : (view === "library"
+               ? (updateCount > 0
+                  ? I18n.tr("%1 installed pieces, %2 ready to update.").arg(libraryCount).arg(updateCount)
+                  : I18n.tr("%1 installed pieces, all current.").arg(libraryCount))
+               : (currentCategory
+                  ? String(currentCategory.description || I18n.tr("Browse this collection."))
+                  : I18n.tr("A changing edit of additions from across Ryoku.")))
     // The Themes category browses per provider through a subtab strip; the filter
     // narrows the collection to one provider or to the installed library.
     readonly property bool themesBrowse: app.categoryID === "colorschemes" && app.view === "discover" && !app.searchOpen
@@ -103,6 +142,13 @@ Rectangle {
     readonly property var pluginTabs: [
         { "key": "bar", "label": I18n.tr("BAR") },
         { "key": "desktop", "label": I18n.tr("DESKTOP") }
+    ]
+    readonly property bool omarchyPluginsBrowse: app.categoryID === "omarchy-plugins"
+            && app.view === "discover" && !app.searchOpen
+    readonly property var omarchySortTabs: [
+        { "key": "popular", "label": I18n.tr("POPULAR") },
+        { "key": "new", "label": I18n.tr("NEW") },
+        { "key": "verified", "label": I18n.tr("VERIFIED") }
     ]
     readonly property var themeProviders: {
         var seen = ({});
@@ -171,6 +217,8 @@ Rectangle {
     function validRoute(route) {
         if (route === "discover" || route === "library")
             return true;
+        if (route === "omarchy-plugins" && !app.nomarchyActive)
+            return false;
         return Store.categories.some(category => category.id === route);
     }
 
@@ -218,6 +266,7 @@ Rectangle {
         app.pendingRoute = "";
         app.providerFilter = "";
         app.pluginFilter = "";
+        app.omarchySort = "popular";
         detailClear.stop();
         detailOpen = false;
         detailItem = null;
@@ -360,6 +409,32 @@ Rectangle {
         interval: Tokens.swap
         onTriggered: app.detailItem = null
     }
+    Timer {
+        id: nomarchyRefresh
+        interval: 100
+        onTriggered: {
+            if (Store.loading) {
+                restart();
+                return;
+            }
+            const category = Store.category("omarchy-plugins");
+            if (category && Number(category.count || 0) > 0)
+                return;
+            Store.refresh(true);
+        }
+    }
+
+    FileView {
+        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
+              + "/ryoku/shell.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        JsonAdapter {
+            id: shellSettings
+            property string barStyle: "qsbar"
+        }
+    }
 
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
@@ -377,8 +452,8 @@ Rectangle {
     StoreHeader {
         id: header
         objectName: "ryostore-header"
-        anchors { left: parent.left; top: parent.top; right: parent.right }
-        height: implicitHeight
+        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+        width: implicitWidth
         view: app.view
         categoryID: app.categoryID
         categories: app.navigationCategories
@@ -390,23 +465,97 @@ Rectangle {
         refreshing: Store.refreshing
         searchActive: app.searchOpen
         resultCount: app.collection.length
+        reducedMotion: app.reducedMotion
         onRouteRequested: (routeView, routeCategory) => app.openRoute(routeCategory || routeView)
         onRefreshRequested: Store.refresh(true)
         onQueryEdited: value => app.searchFor(value)
         onSearchActivated: app.enterSearch()
         onSearchEscaped: app.exitSearch()
     }
+
+    Item {
+        id: pageHead
+        objectName: "ryostore-page-head"
+        anchors { left: header.right; top: parent.top; right: parent.right }
+        height: 116
+
+        Column {
+            anchors {
+                left: parent.left; leftMargin: Tokens.s6
+                right: headReadout.left; rightMargin: Tokens.s5
+                verticalCenter: parent.verticalCenter
+            }
+            spacing: Tokens.s1
+
+            Text {
+                text: "力  " + app.pageGroup
+                color: Tokens.inkDim
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fMicro
+                font.letterSpacing: Tokens.trackLabel
+            }
+            Text {
+                width: parent.width
+                text: app.pageTitle
+                color: Tokens.ink
+                font.family: Tokens.display
+                font.pixelSize: Tokens.fTitle
+                font.weight: Font.Medium
+                elide: Text.ElideRight
+            }
+            Text {
+                width: Math.min(parent.width, 680)
+                text: app.pageDescription
+                color: Tokens.inkMuted
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+                maximumLineCount: 2
+                wrapMode: Text.Wrap
+                elide: Text.ElideRight
+            }
+        }
+
+        Column {
+            id: headReadout
+            anchors { right: parent.right; rightMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
+            spacing: Tokens.s1
+            Text {
+                anchors.right: parent.right
+                text: String(app.collection.length).padStart(2, "0")
+                color: Tokens.ink
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fValue
+            }
+            Text {
+                anchors.right: parent.right
+                text: Store.offline ? I18n.tr("OFFLINE CACHE") : I18n.tr("PIECES")
+                color: Store.offline ? Tokens.alert : Tokens.inkMuted
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fTiny
+                font.letterSpacing: Tokens.trackLabel
+            }
+        }
+
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Tokens.border
+            color: Tokens.line
+        }
+    }
     ProviderTabs {
         id: providerTabs
         objectName: "ryostore-provider-tabs"
-        anchors { left: parent.left; top: header.bottom; right: parent.right }
+        anchors { left: header.right; top: pageHead.bottom; right: parent.right }
         readonly property bool shown: app.themesBrowse || app.decorBrowse || app.pluginsBrowse
+                || app.omarchyPluginsBrowse
         height: shown ? implicitHeight : 0
         visible: shown
         providers: app.themesBrowse ? app.themeProviders
-                   : (app.pluginsBrowse ? app.pluginTabs : app.decorTabs)
+                   : (app.pluginsBrowse ? app.pluginTabs
+                      : (app.omarchyPluginsBrowse ? app.omarchySortTabs : app.decorTabs))
         active: app.themesBrowse ? app.providerFilter
-                : (app.pluginsBrowse ? app.pluginFilter : app.categoryID)
+                : (app.pluginsBrowse ? app.pluginFilter
+                   : (app.omarchyPluginsBrowse ? app.omarchySort : app.categoryID))
         // Themes and Plugins each browse one catalogue, so both offer an All
         // plate; Themes also offers the installed library, while Decor's plates
         // are whole catalogues so it offers neither.
@@ -415,6 +564,7 @@ Rectangle {
         trailingKey: app.themesBrowse ? "__mine__" : ""
         installableCount: app.themesBrowse ? app.themeInstallable : 0
         busy: Store.busyKey !== ""
+        reducedMotion: app.reducedMotion
         onPicked: filter => {
             if (app.decorBrowse) {
                 app.openRoute(filter);
@@ -423,6 +573,12 @@ Rectangle {
             }
             if (app.pluginsBrowse) {
                 app.pluginFilter = filter;
+                app.reconcileSelection(0);
+                Qt.callLater(function() { productGrid.forceActiveFocus(); });
+                return;
+            }
+            if (app.omarchyPluginsBrowse) {
+                app.omarchySort = filter;
                 app.reconcileSelection(0);
                 Qt.callLater(function() { productGrid.forceActiveFocus(); });
                 return;
@@ -437,8 +593,9 @@ Rectangle {
     ShowroomStage {
         id: stage
         objectName: "ryostore-stage"
-        anchors { left: parent.left; top: providerTabs.bottom; right: parent.right }
-        height: app.showHero ? Math.round((app.height - header.height) * 0.42) : 0
+        anchors { left: header.right; top: providerTabs.bottom; right: parent.right }
+        height: app.showHero
+                ? Math.min(300, Math.max(240, Math.round((actionBar.y - providerTabs.y) * 0.42))) : 0
         visible: app.showHero
         enabled: !app.detailOpen
         item: app.selectedItem
@@ -459,10 +616,16 @@ Rectangle {
     ProductGrid {
         id: productGrid
         objectName: "ryostore-grid"
-        anchors { left: parent.left; top: stage.bottom; right: parent.right; bottom: parent.bottom }
+        anchors {
+            left: header.right; leftMargin: Tokens.s6
+            top: stage.bottom
+            right: parent.right; rightMargin: Tokens.s6
+            bottom: actionBar.top
+        }
         items: app.collection
         selectedKey: app.selectedKey
         reducedMotion: app.reducedMotion
+        contentKey: app.contentMotionKey
         enabled: !app.detailOpen
         onPreviewRequested: item => app.previewItem = item
         onSelectionRequested: item => app.selectKey(StoreLogic.itemKey(item))
@@ -471,44 +634,91 @@ Rectangle {
             app.openSelectedDetail();
         }
     }
+    Item {
+        id: actionBar
+        objectName: "ryostore-action-bar"
+        anchors { left: header.right; right: parent.right; bottom: parent.bottom }
+        height: 42
+
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            height: Tokens.border
+            color: Tokens.line
+        }
+        Text {
+            anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
+            text: Store.busyKey !== ""
+                    ? I18n.tr(Store.installStage)
+                    : (app.view === "library" && app.updateCount > 0
+                       ? I18n.tr("%1 UPDATES READY").arg(app.updateCount)
+                       : I18n.tr("READY"))
+            color: Store.busyKey !== "" || app.updateCount > 0 ? Tokens.ink : Tokens.inkMuted
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fMicro
+            font.letterSpacing: Tokens.trackLabel
+        }
+        Text {
+            anchors { right: parent.right; rightMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
+            text: I18n.tr("ARROWS BROWSE  /  ENTER OPEN  /  ESC BACK")
+            color: Tokens.inkFaint
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fTiny
+            font.letterSpacing: Tokens.trackLabel
+        }
+    }
 
     // initial catalogue fetch: show progress, never the empty plate, so a slow
     // network never reads as "there is nothing here".
-    Column {
+    Grid {
         id: loadingState
-        anchors.centerIn: productGrid
-        spacing: Tokens.s4
+        anchors.fill: productGrid
+        columns: productGrid.columns
         visible: app.catalogLoading
         z: 2
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: I18n.tr("LOADING CATALOGUE")
-            color: Tokens.inkDim
-            font.family: Tokens.mono
-            font.pixelSize: Tokens.fSmall
-            font.letterSpacing: Tokens.trackLabel
-        }
+        Repeater {
+            model: 6
+            delegate: Rectangle {
+                required property int index
+                width: productGrid.cellW
+                height: productGrid.cellH
+                color: Tokens.paper
+                border.width: Tokens.border
+                border.color: Tokens.line
 
-        Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: 220
-            height: 2
-            color: Tokens.lineSoft
-            clip: true
-
-            Rectangle {
-                width: 74
-                height: parent.height
-                radius: 1
-                color: Tokens.sun
-                x: app.reducedMotion ? (parent.width - width) / 2 : -width
-                XAnimator on x {
-                    from: -74
-                    to: 220
-                    duration: 1100
-                    loops: Animation.Infinite
-                    running: loadingState.visible && !app.reducedMotion
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    height: Math.round(parent.height * 0.67)
+                    color: Tokens.paperLift
+                    Rectangle {
+                        width: parent.width * 0.24
+                        height: parent.height
+                        color: Tokens.tint5
+                        x: app.reducedMotion || !app.Window.window || !app.Window.window.active
+                                ? (parent.width - width) / 2 : -width
+                        XAnimator on x {
+                            from: -parent.width * 0.24
+                            to: parent.width
+                            duration: 1100
+                            loops: Animation.Infinite
+                            running: loadingState.visible && !app.reducedMotion
+                                    && app.Window.window && app.Window.window.active
+                        }
+                    }
+                }
+                Rectangle {
+                    x: Tokens.s3
+                    y: Math.round(parent.height * 0.67) + Tokens.s3
+                    width: parent.width * 0.52
+                    height: Tokens.border * 4
+                    color: Tokens.line
+                }
+                Rectangle {
+                    x: Tokens.s3
+                    y: Math.round(parent.height * 0.67) + Tokens.s5
+                    width: parent.width * 0.72
+                    height: Tokens.border * 3
+                    color: Tokens.lineSoft
                 }
             }
         }
@@ -557,24 +767,23 @@ Rectangle {
 
     Column {
         anchors.centerIn: productGrid
-        spacing: Tokens.s3
+        spacing: Tokens.s4
         visible: app.collection.length === 0 && !app.catalogLoading && !app.catalogError
         z: 2
 
-        Text {
+        Empty {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: app.view === "library" ? I18n.tr("YOUR LIBRARY IS EMPTY")
-                  : (app.query !== "" ? I18n.tr("NO SEARCH RESULTS") : I18n.tr("NO PRODUCTS AVAILABLE"))
-            color: Tokens.inkDim
-            font.family: Tokens.mono
-            font.pixelSize: Tokens.fSmall
-            font.letterSpacing: Tokens.trackLabel
+            caption: app.view === "library"
+                    ? I18n.tr("Installed pieces appear here, with updates called out in place.")
+                    : (app.query !== ""
+                       ? I18n.tr("No products match this search.")
+                       : I18n.tr("Nothing has been published to this collection yet."))
         }
 
         Btn {
             anchors.horizontalCenter: parent.horizontalCenter
             text: I18n.tr("RETURN TO DISCOVER")
-            visible: app.view === "library"
+            visible: app.view === "library" || app.query !== ""
             armed: visible
             onAct: app.openRoute("discover")
             Accessible.role: Accessible.Button
@@ -586,7 +795,7 @@ Rectangle {
     ProductDetail {
         id: productDetail
         objectName: "ryostore-detail"
-        anchors { left: parent.left; top: header.bottom; right: parent.right; bottom: parent.bottom }
+        anchors { left: header.right; top: parent.top; right: parent.right; bottom: parent.bottom }
         z: 20
         item: app.resolvedDetail
         open: app.detailOpen
@@ -601,5 +810,6 @@ Rectangle {
         onRetryRequested: (item, dither, components) => Store.retryInstall(item, dither, components)
         onSettingsRequested: item => Store.openSettings(item)
         onRemoveRequested: item => Store.remove(item)
+        onEnabledRequested: (item, enabled) => Store.setOmarchyEnabled(item, enabled)
     }
 }

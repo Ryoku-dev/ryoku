@@ -226,7 +226,6 @@ AbstractBackgroundWidget {
     readonly property color cookieInk: root.cookieBaseInk
     readonly property color cookieInfo: root.supportingOnFace(root.cookieInk, root.cookieFace)
 
-    // Seconds and continuous motion run while the clock is seen: the desktop uncovered, or on ii's lock screen.
     readonly property bool clockMotion: root.motionActive || (root.shellLocked && root.powerActive)
     SystemClock {
         id: displayClock

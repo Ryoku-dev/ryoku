@@ -113,8 +113,10 @@ float sliceOpacity(float itemCenterX, float viewCenterX, float halfView,
         return 1.0f;
     if (dist >= zeroAt)
         return 0.0f;
-    const float o = 1.0f - (dist - start) / (zeroAt - start);
-    return o < 0.0f ? 0.0f : o;
+    const float span = zeroAt - start;
+    if (span <= 1e-4f)
+        return 0.0f;
+    return std::clamp(1.0f - (dist - start) / span, 0.0f, 1.0f);
 }
 
 void rollInCut(CardInstance &body, float fraction)

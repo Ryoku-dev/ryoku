@@ -75,11 +75,6 @@ hl.on("hyprland.start", function()
     -- Hyprland never runs (no autostart manager), so start it here; on a normal
     -- boot it detects no snapshot and exits silently.
     hl.exec_cmd("command -v limine-snapper-restore >/dev/null 2>&1 && limine-snapper-restore --notify")
-    -- Voxtype dictation: `ryoku-hub voxtype ensure` seeds a default config with
-    -- the built-in hotkey off (the shell owns Super+` and the mic wave), installs
-    -- the user service once, and starts it unless you turned dictation off in the
-    -- Hub. The shell then drives it with `voxtype record` on the Super+` tap.
-    hl.exec_cmd("command -v voxtype >/dev/null 2>&1 && command -v ryoku-hub >/dev/null 2>&1 && ryoku-hub voxtype ensure >/dev/null 2>&1")
     -- AI UI translation: seed ~/.config/ryoku/i18n-llm.json (empty key) so the
     -- file exists for the user to paste an API key into; idempotent, a no-op if
     -- present. The Hub's Language > "Generate with AI" then reads it.

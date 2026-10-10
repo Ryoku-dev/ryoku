@@ -11,7 +11,7 @@ import inir.services
 Singleton {
     id: root
 
-    readonly property bool enabled: Config.options?.appearance?.wallpaperTheming?.enableCava ?? false
+    readonly property bool enabled: Config.options?.appearance?.wallpaperTheming?.enableCava ?? true
     readonly property string colorSource: Config.options?.appearance?.cava?.colorSource ?? "theme"
     readonly property bool useCoverSource: root.colorSource === "cover"
     readonly property int gradientCount: Math.max(1,

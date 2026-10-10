@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import inir.modules.common.functions
 import inir.modules.common.widgets
 import inir.modules.iris.style
@@ -22,6 +23,7 @@ RippleButton {
         root.text.length > 0 ? label.implicitWidth + 22 * IrisStyle.density : 34 * IrisStyle.density)
     implicitHeight: Math.max(34 * IrisStyle.density,
         root.text.length > 0 ? label.implicitHeight + 12 * IrisStyle.density : 34 * IrisStyle.density)
+    Layout.minimumHeight: root.text.length > 0 ? label.implicitHeight + 10 * IrisStyle.density : 0
 
     toggled: root.selected
     buttonRadius: IrisStyle.radiusSmall
@@ -35,8 +37,6 @@ RippleButton {
     colBackground: root.danger && root.emphasized ? IrisStyle.danger
         : root.emphasized ? IrisStyle.accent
         : root.quiet ? ColorUtils.applyAlpha(IrisStyle.surfaceHigh, 0)
-        // Appearance › Button rows: the controls' material; bare, the raised step of whatever the family is made of
-        // (solid on solid, a lit layer on glass).
         : IrisStyle.controlPlated ? IrisStyle.plateFillFor(IrisStyle.controlPlate)
         : IrisStyle.surfaceHigh
     colBackgroundHover: root.danger && root.emphasized
@@ -44,7 +44,7 @@ RippleButton {
         : root.danger
             ? IrisStyle.tintFill(IrisStyle.danger)
         : root.emphasized
-            ? ColorUtils.mix(IrisStyle.accent, IrisStyle.inkOnAccent, 0.90)
+            ? IrisStyle.accentHover
             : root.quiet
                 ? IrisStyle.fillHover
             : IrisStyle.surfaceHighest
@@ -77,6 +77,8 @@ RippleButton {
         IrisText {
             id: label
             anchors.centerIn: parent
+            width: Math.min(implicitWidth, Math.max(0, contentHost.width - 16 * IrisStyle.density))
+            elide: Text.ElideRight
             visible: root.text.length > 0
             text: root.text
             color: root.foreground

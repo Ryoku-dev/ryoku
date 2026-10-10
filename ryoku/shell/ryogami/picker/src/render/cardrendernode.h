@@ -55,6 +55,8 @@ public:
     void setScene(const QRectF &bounds, const QRectF &clip, float time, float vis);
     void setPreviewImage(const QImage &image);
     bool hasPreview() const { return !m_previewImage.isNull() || m_previewUploaded; }
+    // The part of the preview texture the latest frame covers, in texture space.
+    QRectF previewUv() const { return m_previewUv; }
 
     void prepare() override;
     void render(const RenderState *state) override;
@@ -69,8 +71,9 @@ private:
     void configureCardPipeline(QRhiGraphicsPipeline *pipeline);
     void buildPipeline(QRhi *rhi);
     void buildScenePipeline(QRhi *rhi);
-    void updateInstanceBuffer(std::unique_ptr<QRhiBuffer> &buffer, QRhi *rhi,
-                              QRhiResourceUpdateBatch *batch, const std::vector<CardInstance> &data);
+    quint32 updateInstanceBuffer(std::unique_ptr<QRhiBuffer> &buffer, QRhi *rhi,
+                                 QRhiResourceUpdateBatch *batch,
+                                 const std::vector<CardInstance> &data);
     bool transitionActive() const { return !m_transitionFrom.empty(); }
 
     QQuickWindow *m_window;
@@ -90,11 +93,14 @@ private:
     bool m_didTransition = false;
 
     QImage m_previewImage;
+    QRectF m_previewUv{0, 0, 1, 1};
     bool m_previewUploaded = false;
 
     std::unique_ptr<QRhiBuffer> m_instanceBuffer;
     std::unique_ptr<QRhiBuffer> m_fromBuffer;
     std::unique_ptr<QRhiBuffer> m_uniformBuffer;
+    quint32 m_uploadedInstanceCount = 0;
+    quint32 m_uploadedFromCount = 0;
     std::unique_ptr<QRhiSampler> m_mipSampler;
     std::unique_ptr<QRhiSampler> m_flatSampler;
     std::unique_ptr<QRhiTexture> m_preview;

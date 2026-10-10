@@ -49,7 +49,7 @@ IrisWidgetFace {
     PlayerBase {
         id: media
         player: root.player
-        positionUpdatesActive: root.live && root.playing && !root.small
+        positionUpdatesActive: root.moving && root.playing && !root.small
     }
 
     component Transport: RowLayout {
@@ -70,8 +70,8 @@ IrisWidgetFace {
             implicitWidth: Math.round(transport.disc * 1.2)
             glyph: root.playing ? "pause" : "play_arrow"
             name: root.playing ? Translation.tr("Pause") : Translation.tr("Play")
-            tint: root.playing ? root.onFill(root.artLight) : root.ink
-            color: root.playing ? root.artLight : root.fill
+            tint: root.playing ? root.onFill(root.accent) : root.ink
+            color: root.playing ? root.accent : root.fill
             onActivated: media.togglePlaying()
         }
         FaceAction {
@@ -121,7 +121,7 @@ IrisWidgetFace {
                 radius: IrisStyle.iconRadius(width)
                 readonly property color base: IrisStyle.identity.pink
                 gradient: Gradient {
-                    GradientStop { position: 0; color: Qt.lighter(tile.base, 1.18) }
+                    GradientStop { position: 0; color: IrisStyle.tileTop(tile.base) }
                     GradientStop { position: 1; color: tile.base }
                 }
                 MaterialSymbol {

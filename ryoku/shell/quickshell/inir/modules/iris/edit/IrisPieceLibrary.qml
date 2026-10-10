@@ -10,6 +10,7 @@ import inir.modules.common.widgets
 import inir.modules.iris.style
 import inir.modules.iris.components
 import inir.modules.iris.pieces
+import inir.modules.iris.frame
 
 // Every piece iRiS can place, one tile each. A tile carries its own state: lit when the piece is on
 // screen. Tap to add or take it away; carry it on screen to place it.
@@ -17,7 +18,7 @@ ColumnLayout {
     id: root
 
     readonly property real d: IrisStyle.density
-    readonly property var extras: IrisPieces.extras
+    readonly property var extras: IrisPieces.extras.filter(extra => !IrisFrame.announcements.includes(extra.id))
     readonly property int onCount: {
         Config.revision
         return root.extras.filter(extra => root.isOn(extra.id)).length

@@ -143,6 +143,7 @@ type daemon struct {
 	wmReady      bool
 	wmVersions   map[string]int // frame kind -> publishes since daemon start
 	wmTopic      *stateTopic
+	wmFocusTopic *stateTopic
 	nightlight   *nightlightState         // night-light self-heal (nil until started)
 	gateMu       sync.Mutex               // guards gateWant / gateWake
 	gateWant     map[string]bool          // component -> may run now (absent = yes)
@@ -460,7 +461,6 @@ func (d *daemon) bootstrap() {
 	go d.watchMatugenKnobs()
 	go d.ledsWorker()
 	d.startWM()
-	go d.watchAudio()
 	go d.watchPowerSounds()
 	go d.watchAutoPowerSaver()
 	go d.widgetGateWorker()
@@ -922,7 +922,7 @@ const jemallocConf = "narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy
 // env (which carries the QML import path setupQmlImportPath exports) plus the
 // jemalloc tuning, unless the user already pinned MALLOC_CONF.
 func qsEnv() []string {
-	env := os.Environ()
+	env := nomarchyEnv()
 	if os.Getenv("MALLOC_CONF") == "" {
 		env = append(env, "MALLOC_CONF="+jemallocConf)
 	}
@@ -976,8 +976,8 @@ func (d *daemon) supervise(name string) {
 			return
 		default:
 		}
-		// park while a gate keeps this component unloaded (the visualiser
-		// audio-unload). a fresh open wakes us; the timeout is a safety re-check.
+		// Park while an idle-freeable component's gate is closed. A fresh open
+		// wakes the supervisor; the timeout is only a safety re-check.
 		for !d.gateAllows(name) {
 			select {
 			case <-d.quit:
@@ -1214,21 +1214,21 @@ var surfaceCommands = map[string]string{
 	// Surface verbs resolve to ids handled by the shell's openSurface route.
 	// Ask subcommands deep-link into a mode; menu aliases preserve established
 	// command spellings.
-	"bar-toggle":         "barToggle",
-	"launcher":           "launcher",
-	"overview":           "overview",
-	"visualizer":         "visualizer",
-	"visualizer-overlay": "visualizer-overlay",
-	"visualizer-place":   "visualizer-place",
-	"quicksettings":      "sidebar-left",
-	"wallpaper-menu":     "wallpaper",
-	"clipboard":          "clipboard",
-	"screenshot":         "screenshot",
-	"ask":                "ask",
-	"ask chat":           "ask#chat",
-	"ask tools":          "ask#tools",
-	"compress":           "ask#tools/compress",
-	"install":            "ask#tools/install",
+	"bar-toggle":          "barToggle",
+	"launcher":            "launcher",
+	"overview":            "overview",
+	"visualizer":          "visualizer",
+	"visualizer-overlay":  "visualizer-overlay",
+	"visualizer-place":    "visualizer-place",
+	"quicksettings":       "sidebar-left",
+	"wallpaper-menu":      "wallpaper",
+	"clipboard":           "clipboard",
+	"screenshot":          "screenshot",
+	"ask":                 "ask",
+	"ask chat":            "ask#chat",
+	"ask tools":           "ask#tools",
+	"compress":            "ask#tools/compress",
+	"install":             "ask#tools/install",
 	"menu quick-settings": "sidebar-left",
 	"menu screenshot":     "screenshot",
 	"menu app-launcher":   "launcher",
@@ -1316,10 +1316,9 @@ func (d *daemon) dispatch(line string) string {
 			return "ok"
 		}
 		d.ensure(config)
-		if config == "visualizer" || parkable(config) {
-			// an explicit toggle must win over the idle-unload gate: reopen a
-			// parked visualiser or palette so its supervisor respawns, then
-			// ipcCall retries until the fresh instance answers.
+		if parkable(config) {
+			// An explicit open wins over the idle-unload gate, then ipcCall
+			// retries until the palette's fresh process answers.
 			d.setGate(config, true)
 		}
 		mon := d.activeMonitor()

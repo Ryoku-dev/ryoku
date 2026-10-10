@@ -14,12 +14,11 @@ Singleton {
 
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
-    // The daemon publishes a full snapshot on every provider frame, tagged with
-    // a per-section version. Each section is copied into a backing property only
-    // when its own version moves, so a window drag rebinds the window-derived
-    // lists and leaves the workspace join, the keyboard feed, and the outputs
-    // list untouched. Derived read-only properties below depend on the backing
-    // property, which is exactly what makes Qt skip their re-evaluation.
+    // Provider state is versioned by section. The ordinary topic carries
+    // coalesced snapshots; focused-output changes use a compact topic because
+    // cursor crossings are frequent. Each section is copied into a backing
+    // property only when its own version moves, so a window drag leaves the
+    // workspace join, keyboard feed and output list untouched.
     property var _v: null
 
     property bool _ready: false
@@ -303,19 +302,34 @@ Singleton {
     function setWorkspaceLayout(ws, layout) { root._act("workspace.layout", "tiledLayout", [String(ws), String(layout)]); }
 
     // ---- transport ----
-    // Copy a section into its backing property only when its version moved, so
-    // the derived lists that depend on it rebind only when that section really
-    // changed. The first frame ever (and any frame from a pre-version daemon,
-    // which sends no versions map) copies everything, so caps and the model are
-    // live before the ready frame lands, exactly as the whole-frame swap did.
+    // The full topic moves only the sections that changed. Focus arrives on a
+    // compact topic so crossing an output never makes the GUI thread parse the
+    // output, workspace and window lists again. Versions make the two sockets
+    // safe to apply in either order during reconnect.
+    function _version(frameVersions, key) {
+        const n = frameVersions ? frameVersions[key] : undefined;
+        return typeof n === "number" ? n : 0;
+    }
+
+    function _newer(frameVersions, key) {
+        const previous = root._v && typeof root._v[key] === "number" ? root._v[key] : -1;
+        return root._version(frameVersions, key) > previous;
+    }
+
+    function _mark(frameVersions, key) {
+        if (root._v === null)
+            root._v = ({});
+        root._v[key] = root._version(frameVersions, key);
+    }
+
     function _apply(line) {
         try {
             const frame = JSON.parse(line);
             if (!frame || typeof frame !== "object" || Array.isArray(frame))
                 return;
             const v = frame.versions;
-            if (!v || root._v === null) {
-                root._v = {};
+            if (!v) {
+                root._v = null;
                 root._ready = frame.ready === true;
                 root._caps = frame.caps || ({});
                 root._workspaceModel = frame.workspaceModel || "fixed";
@@ -330,24 +344,56 @@ Singleton {
                 root._wsResidue = frame.workspaces || [];
                 return;
             }
-            const old = root._v;
-            if (v.ready !== old.ready) {
+            if (root._newer(v, "ready")) {
                 root._ready = frame.ready === true;
                 root._caps = frame.caps || ({});
                 root._workspaceModel = frame.workspaceModel || "fixed";
                 root._provider = frame.provider || "";
                 root._configFiles = frame.configFiles || [];
+                root._mark(v, "ready");
             }
-            if (v.windows !== old.windows) root._winResidue = frame.windows || [];
-            if (v.workspaces !== old.workspaces) root._wsResidue = frame.workspaces || [];
-            if (v.focus !== old.focus) root._focusedOutput = frame.focusedOutput || "";
-            if (v.outputs !== old.outputs) root._outputs = frame.outputs || [];
-            if (v.keyboard !== old.keyboard) {
+            if (root._newer(v, "windows")) {
+                root._winResidue = frame.windows || [];
+                root._mark(v, "windows");
+            }
+            if (root._newer(v, "workspaces")) {
+                root._wsResidue = frame.workspaces || [];
+                root._mark(v, "workspaces");
+            }
+            if (root._newer(v, "focus")) {
+                root._focusedOutput = frame.focusedOutput || "";
+                root._mark(v, "focus");
+            }
+            if (root._newer(v, "outputs")) {
+                root._outputs = frame.outputs || [];
+                root._mark(v, "outputs");
+            }
+            if (root._newer(v, "keyboard")) {
                 root._keyboardLayout = frame.keyboardLayout || "";
                 root._keyboardLayouts = frame.keyboardLayouts || [];
+                root._mark(v, "keyboard");
             }
-            if (v.overview !== old.overview) root._overviewOpen = frame.overviewOpen === true;
-            root._v = v;
+            if (root._newer(v, "overview")) {
+                root._overviewOpen = frame.overviewOpen === true;
+                root._mark(v, "overview");
+            }
+        } catch (e) {
+        }
+    }
+
+    function _applyFocus(line) {
+        try {
+            const frame = JSON.parse(line);
+            if (!frame || typeof frame !== "object" || Array.isArray(frame))
+                return;
+            const v = typeof frame.version === "number" ? frame.version : 0;
+            const previous = root._v && typeof root._v.focus === "number" ? root._v.focus : -1;
+            if (v <= previous)
+                return;
+            root._focusedOutput = frame.focusedOutput || "";
+            if (root._v === null)
+                root._v = ({});
+            root._v.focus = v;
         } catch (e) {
         }
     }
@@ -454,10 +500,30 @@ Singleton {
         }
     }
 
+    Socket {
+        id: focusSub
+        path: root.sockPath
+        parser: SplitParser { onRead: line => root._applyFocus(line) }
+        Component.onCompleted: connected = true
+        onConnectionStateChanged: {
+            if (connected) {
+                write("subscribe wm.focus\n");
+                flush();
+            } else {
+                retry.restart();
+            }
+        }
+    }
+
     Timer {
         id: retry
         interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
+        onTriggered: {
+            if (!sub.connected)
+                sub.connected = true;
+            if (!focusSub.connected)
+                focusSub.connected = true;
+        }
     }
 
     Socket {

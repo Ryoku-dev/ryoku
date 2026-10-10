@@ -26,6 +26,7 @@ Rectangle {
         visible: hero.artSource.length > 0
         source: hero.artSource
         fillMode: Image.PreserveAspectCrop
+        sourceSize: Qt.size(Math.max(1, Math.ceil(width)), Math.max(1, Math.ceil(height)))
         asynchronous: true
         cache: false
         opacity: 0.1 * hero.reveal

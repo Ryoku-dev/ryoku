@@ -10,9 +10,26 @@ import shell.services
 Item {
     id: root
 
-    required property var monitor
     required property bool active
     required property real s
+
+    readonly property bool showIdentity: SidebarState.elementVisible("identity")
+    readonly property bool showCpu: SidebarState.elementVisible("cpu")
+    readonly property bool showTemperature: SidebarState.elementVisible("cpuTemperature")
+    readonly property bool showGraph: SidebarState.elementVisible("liveGraph")
+    readonly property bool showMemory: SidebarState.elementVisible("memory")
+    readonly property bool showGpu: SidebarState.elementVisible("gpu")
+    readonly property bool showNetwork: SidebarState.elementVisible("network")
+    readonly property bool showDisk: SidebarState.elementVisible("disk")
+    readonly property bool showBattery: SidebarState.elementVisible("battery")
+    readonly property bool hasReadings: showCpu || showTemperature || showGraph || showMemory
+        || showGpu || showNetwork || showDisk || showBattery
+    readonly property var monitor: systemMonitor
+
+    SystemMonitor {
+        id: systemMonitor
+        active: root.active && root.hasReadings
+    }
 
     QtObject {
         id: palette
@@ -20,7 +37,8 @@ Item {
         readonly property color gpu: Tokens.role("tertiary", Tokens.inkMuted)
     }
 
-    implicitHeight: (Tokens.s7 * 4 + Tokens.s5) * s
+    implicitHeight: (root.showIdentity ? (Tokens.s7 + Tokens.s3) * s + Tokens.s3 * s : 0)
+        + Tokens.s7 * 3 * s
     clip: true
 
     function blendColor(from, to, amount): color {
@@ -126,10 +144,11 @@ Item {
 
     Item {
         id: identity
+        visible: root.showIdentity
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: (Tokens.s7 + Tokens.s3) * root.s
+        height: visible ? (Tokens.s7 + Tokens.s3) * root.s : 0
         clip: true
 
         Rectangle {
@@ -228,19 +247,21 @@ Item {
         id: body
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: identity.bottom
-        anchors.topMargin: Tokens.s3 * root.s
-        anchors.bottom: parent.bottom
+        anchors.top: root.showIdentity ? identity.bottom : parent.top
+        anchors.topMargin: root.showIdentity ? Tokens.s3 * root.s : 0
+        height: Tokens.s7 * 3 * root.s
         spacing: Tokens.s4 * root.s
 
         Item {
             id: cpuZone
-            width: (Tokens.s7 * 3 + Tokens.s2) * root.s
+            visible: root.showCpu || root.showTemperature
+            width: visible ? (Tokens.s7 * 3 + Tokens.s2) * root.s : 0
             height: parent.height
             clip: true
 
             Text {
                 id: cpuHeading
+                visible: root.showCpu
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -255,6 +276,7 @@ Item {
 
             Item {
                 id: cpuReading
+                visible: root.showCpu || root.showTemperature
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: cpuHeading.bottom
@@ -263,6 +285,7 @@ Item {
 
                 Text {
                     id: cpuPercent
+                    visible: root.showCpu
                     anchors.left: parent.left
                     anchors.right: temperaturePill.visible ? temperaturePill.left : parent.right
                     anchors.rightMargin: temperaturePill.visible ? Tokens.s2 * root.s : 0
@@ -288,6 +311,7 @@ Item {
 
                 Text {
                     id: cpuFrequency
+                    visible: root.showCpu
                     anchors.left: parent.left
                     anchors.right: temperaturePill.visible ? temperaturePill.left : parent.right
                     anchors.rightMargin: temperaturePill.visible ? Tokens.s2 * root.s : 0
@@ -304,7 +328,7 @@ Item {
 
                 Rectangle {
                     id: temperaturePill
-                    visible: root.monitor.cpuTempAvailable
+                    visible: root.showTemperature && root.monitor.cpuTempAvailable
                     anchors.right: parent.right
                     anchors.verticalCenter: cpuPercent.verticalCenter
                     width: temperatureRow.implicitWidth + Tokens.s1 * root.s * 2
@@ -346,6 +370,7 @@ Item {
             }
 
             VitalCores {
+                visible: root.showCpu
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: cpuReading.bottom
@@ -358,7 +383,8 @@ Item {
 
         Item {
             id: graphZone
-            width: (Tokens.s7 * 4 + Tokens.s5) * root.s
+            visible: root.showGraph
+            width: visible ? (Tokens.s7 * 4 + Tokens.s5) * root.s : 0
             height: parent.height
             clip: true
 
@@ -418,38 +444,48 @@ Item {
                 }
             }
 
-            VitalSparkline {
+            Loader {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: activityLabel.bottom
                 anchors.topMargin: Tokens.s2 * root.s
                 anchors.bottom: graphZone.inlineLegend ? parent.bottom : graphLegend.top
                 anchors.bottomMargin: graphZone.inlineLegend ? 0 : Tokens.s2 * root.s
-                monitor: root.monitor
-                active: root.active
-                s: root.s
-                channels: ["cpu", "memory", "gpu"]
-                colors: [Tokens.sun, palette.memory, palette.gpu]
-                fill: true
-                showGrid: true
-                detailPoints: false
-                lineWidth: Tokens.border * root.s
+                active: root.showGraph && root.active
+                sourceComponent: VitalSparkline {
+                    monitor: root.monitor
+                    active: root.active
+                    s: root.s
+                    channels: ["cpu", "memory", "gpu"]
+                    colors: [Tokens.sun, palette.memory, palette.gpu]
+                    fill: true
+                    showGrid: true
+                    detailPoints: false
+                    lineWidth: Tokens.border * root.s
+                }
             }
         }
 
         Column {
             id: meters
-            width: Math.max(0, body.width - cpuZone.width - graphZone.width - body.spacing * 2)
+            readonly property int visibleMeterCount:
+                (root.showMemory && root.monitor.memoryAvailable ? 1 : 0)
+                + (root.showGpu && root.monitor.gpuAvailable ? 1 : 0)
+                + (root.showNetwork && root.monitor.networkAvailable ? 1 : 0)
+                + (root.showDisk && root.monitor.diskAvailable && root.monitor.storageTotalGiB > 0 ? 1 : 0)
+                + (root.showBattery && root.monitor.batteryAvailable ? 1 : 0)
+            width: Math.max(0, body.width - cpuZone.width - graphZone.width
+                - body.spacing * ((cpuZone.visible ? 1 : 0) + (graphZone.visible ? 1 : 0)))
             height: parent.height
             spacing: 0
             clip: true
 
-            readonly property real rowHeight: height / 5
+            readonly property real rowHeight: visibleMeterCount > 0 ? height / visibleMeterCount : 0
 
             VitalMeter {
                 width: parent.width
                 height: meters.rowHeight
-                visible: root.monitor.memoryAvailable
+                visible: root.showMemory && root.monitor.memoryAvailable
                 s: root.s
                 settle: root.monitor.samplePeriodMs
                 label: I18n.tr("Memory")
@@ -470,7 +506,7 @@ Item {
             VitalMeter {
                 width: parent.width
                 height: meters.rowHeight
-                visible: root.monitor.gpuAvailable
+                visible: root.showGpu && root.monitor.gpuAvailable
                 s: root.s
                 settle: root.monitor.samplePeriodMs
                 label: I18n.tr("GPU")
@@ -493,7 +529,7 @@ Item {
                 id: networkMeter
                 width: parent.width
                 height: meters.rowHeight
-                visible: root.monitor.networkAvailable
+                visible: root.showNetwork && root.monitor.networkAvailable
                 s: root.s
                 settle: root.monitor.samplePeriodMs
                 label: I18n.tr("Network")
@@ -520,7 +556,7 @@ Item {
             VitalMeter {
                 width: parent.width
                 height: meters.rowHeight
-                visible: root.monitor.diskAvailable && root.monitor.storageTotalGiB > 0
+                visible: root.showDisk && root.monitor.diskAvailable && root.monitor.storageTotalGiB > 0
                 s: root.s
                 settle: root.monitor.samplePeriodMs
                 label: I18n.tr("Disk")
@@ -542,7 +578,7 @@ Item {
             VitalMeter {
                 width: parent.width
                 height: meters.rowHeight
-                visible: root.monitor.batteryAvailable
+                visible: root.showBattery && root.monitor.batteryAvailable
                 s: root.s
                 settle: root.monitor.samplePeriodMs
                 label: I18n.tr("Battery")

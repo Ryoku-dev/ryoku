@@ -20,6 +20,11 @@ Item {
     // own singleton, which shadows the service of the same name).
     property string fontFamily: (Config.globalFontFamily && Config.globalFontFamily.length > 0)
         ? Config.globalFontFamily : "Iosevka Nerd Font"
+    // Upstream's buttons read the glyph face through `iconFont`, which it loads
+    // from a bundled SymbolsNerdFontMono. Ryoku's mono is already a Nerd Font, so
+    // the name resolves directly and the glyphs draw without a FontLoader.
+    readonly property string iconFont: root.fontFamily
+    readonly property bool iconFontReady: true
     property int borderRadius: 8
     property int clampedBorderRadius: {
         const r = borderRadius;

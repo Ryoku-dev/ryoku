@@ -26,7 +26,7 @@ Item {
         anchors.fill: parent
         visible: g.shown.length > 0
         clip: true
-        spacing: Tokens.s2
+        spacing: 0
         model: g.shown
         cacheBuffer: 800
         boundsBehavior: Flickable.StopAtBounds
@@ -45,17 +45,75 @@ Item {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Tokens.swap; easing.type: Tokens.ease }
         }
 
-        delegate: Item {
+        delegate: Rectangle {
             id: slot
             required property var modelData
             required property int index
             width: list.width
-            height: 64
-            VmCard {
-                width: parent.width - 6
-                item: slot.modelData
-                active: Vm.selectedName === slot.modelData.name
-                onPicked: Vm.select(slot.modelData.name)
+            height: 66
+            color: Vm.selectedName === slot.modelData.name ? Tokens.bone : "transparent"
+            antialiasing: false
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: Vm.selectedName === slot.modelData.name ? Tokens.inkOnBone : Tokens.lineSoft
+                opacity: 0.35
+            }
+            Column {
+                anchors.left: parent.left
+                anchors.leftMargin: Tokens.s3
+                anchors.right: stats.left
+                anchors.rightMargin: Tokens.s2
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 3
+                Text {
+                    width: parent.width
+                    text: slot.modelData.name
+                    elide: Text.ElideRight
+                    color: Vm.selectedName === slot.modelData.name ? Tokens.inkOnBone : Tokens.ink
+                    font.family: Tokens.ui
+                    font.pixelSize: 12
+                    font.weight: Font.Medium
+                }
+                Text {
+                    width: parent.width
+                    text: (slot.modelData.running ? I18n.tr("RUNNING") : I18n.tr("STOPPED"))
+                        + "  /  " + (slot.modelData.os || slot.modelData.guest || "-")
+                    elide: Text.ElideRight
+                    color: Vm.selectedName === slot.modelData.name ? Tokens.inkOnBone : Tokens.inkMuted
+                    opacity: Vm.selectedName === slot.modelData.name ? 0.72 : 1
+                    font.family: Tokens.mono
+                    font.pixelSize: 9
+                }
+            }
+            Item {
+                id: stats
+                anchors.right: parent.right
+                anchors.rightMargin: Tokens.s3
+                anchors.verticalCenter: parent.verticalCenter
+                width: 116
+                height: 42
+                MetricSparkline {
+                    anchors { left: parent.left; right: parent.left; rightMargin: -72; top: parent.top; bottom: parent.bottom }
+                    values: Vm.series(slot.modelData.name, "cpu")
+                    fixedMax: 100
+                    stroke: Vm.selectedName === slot.modelData.name ? Tokens.inkOnBone : Tokens.inkMuted
+                }
+                Text {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: slot.modelData.cores + "c\\n" + slot.modelData.ram
+                    horizontalAlignment: Text.AlignRight
+                    color: Vm.selectedName === slot.modelData.name ? Tokens.inkOnBone : Tokens.inkFaint
+                    font.family: Tokens.mono
+                    font.pixelSize: 8
+                }
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Vm.select(slot.modelData.name)
             }
         }
     }

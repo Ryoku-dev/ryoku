@@ -105,7 +105,10 @@ Item {
             if (root.dragValue >= 0) root.seekRequested(root.dragValue)
             root.dragValue = -1
         }
-        onCanceled: root.dragValue = -1
+        onCanceled: {
+            if (root.dragValue >= 0) root.seekRequested(root.dragValue)
+            root.dragValue = -1
+        }
         preventStealing: true
         property real wheelAccumulator: 0
         IrisWheelIntent { id: wheelIntent; hovered: pointer.containsMouse }

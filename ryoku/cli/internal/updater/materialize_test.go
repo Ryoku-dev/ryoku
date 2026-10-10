@@ -28,6 +28,9 @@ func TestMaterializePreservesGeneratedAndUserFiles(t *testing.T) {
 	writeFile(t, filepath.Join(base, "hypr/keyboard.lua"), "kb_layout = \"us\"\n")
 	writeFile(t, filepath.Join(base, "hypr/user.lua"), "-- seed header\n")
 	writeFile(t, filepath.Join(base, "fastfetch/config.jsonc"), "\"source\": \"ryoku\"\n")
+	writeFile(t, filepath.Join(base, "fastfetch/ryoku-colors.json"), "\"keys\": \"1;2;3\"\n")
+	writeFile(t, filepath.Join(base, "starship.toml"), "palette = \"mythos\"\n")
+	writeFile(t, filepath.Join(base, "starship/ryoku-colors.toml"), "[palettes.wallpaper]\ndir_fg = \"#111111\"\n")
 	writeFile(t, filepath.Join(base, "kitty/current-theme.conf"), "background #16110b\n")
 
 	// fresh install: every file lands, seeds included so first boot works.
@@ -39,6 +42,9 @@ func TestMaterializePreservesGeneratedAndUserFiles(t *testing.T) {
 	wantFile(t, filepath.Join(dest, "hypr/keyboard.lua"), "kb_layout = \"us\"")
 	wantFile(t, filepath.Join(dest, "hypr/user.lua"), "seed header")
 	wantFile(t, filepath.Join(dest, "fastfetch/config.jsonc"), "ryoku")
+	wantFile(t, filepath.Join(dest, "fastfetch/ryoku-colors.json"), "1;2;3")
+	wantFile(t, filepath.Join(dest, "starship.toml"), "mythos")
+	wantFile(t, filepath.Join(dest, "starship/ryoku-colors.toml"), "#111111")
 	wantFile(t, filepath.Join(dest, "kitty/current-theme.conf"), "16110b")
 	// the shell's JSON stores live in ~/.config/ryoku, which no shipped file
 	// creates; materialize guarantees it so the QML self-seed can write there.
@@ -53,10 +59,16 @@ func TestMaterializePreservesGeneratedAndUserFiles(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "hypr/keyboard.lua"), "kb_layout = \"us,ru,de,fr\"\n")
 	writeFile(t, filepath.Join(dest, "hypr/user.lua"), "USER\n")
 	writeFile(t, filepath.Join(dest, "fastfetch/config.jsonc"), "\"source\": \"my-custom-logo\"\n")
+	writeFile(t, filepath.Join(dest, "fastfetch/ryoku-colors.json"), "\"keys\": \"4;5;6\"\n")
+	writeFile(t, filepath.Join(dest, "starship.toml"), "palette = \"wallpaper\"\n")
+	writeFile(t, filepath.Join(dest, "starship/ryoku-colors.toml"), "[palettes.wallpaper]\ndir_fg = \"#abcdef\"\n")
 	writeFile(t, filepath.Join(dest, "kitty/current-theme.conf"), "background #3a5f8a\n") // matugen from the wallpaper
 	// later release changes the managed module and reworks the shipped readout.
 	writeFile(t, filepath.Join(base, "hypr/hyprland.lua"), "require(\"monitors_user\")\n")
 	writeFile(t, filepath.Join(base, "fastfetch/config.jsonc"), "\"source\": \"ryoku-redesigned\"\n")
+	writeFile(t, filepath.Join(base, "fastfetch/ryoku-colors.json"), "\"keys\": \"7;8;9\"\n")
+	writeFile(t, filepath.Join(base, "starship.toml"), "palette = \"new-default\"\n")
+	writeFile(t, filepath.Join(base, "starship/ryoku-colors.toml"), "[palettes.wallpaper]\ndir_fg = \"#222222\"\n")
 
 	// update: managed file is refreshed; the generated seeds, the user file,
 	// and the customized fastfetch readout stay exactly as the machine had them.
@@ -69,6 +81,9 @@ func TestMaterializePreservesGeneratedAndUserFiles(t *testing.T) {
 	wantFile(t, filepath.Join(dest, "hypr/user.lua"), "USER")
 	wantFile(t, filepath.Join(dest, "hypr/keyboard.lua"), "us,ru,de,fr")
 	wantFile(t, filepath.Join(dest, "fastfetch/config.jsonc"), "my-custom-logo")
+	wantFile(t, filepath.Join(dest, "fastfetch/ryoku-colors.json"), "4;5;6")
+	wantFile(t, filepath.Join(dest, "starship.toml"), "wallpaper")
+	wantFile(t, filepath.Join(dest, "starship/ryoku-colors.toml"), "#abcdef")
 	wantFile(t, filepath.Join(dest, "kitty/current-theme.conf"), "3a5f8a")
 }
 

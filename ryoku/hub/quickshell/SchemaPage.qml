@@ -36,7 +36,6 @@ Item {
     // extras ride inside the sheet's scroll area, not pinned above it, so a page
     // with a tall extra block still scrolls as one surface.
     default property alias extras: sheet.lead
-    property var pendingImageRow: null
     property string externalReloadCoverError: ""
     property string importReloadCoverError: ""
     property var pendingReloadCoverRow: null
@@ -174,7 +173,6 @@ Item {
             page.importReloadCoverError = "";
             page.edited(r.key, ReloadCoverModel.empty());
         }
-        onImagePickRequested: (r) => { page.pendingImageRow = r; imgPick.open(); }
         onTimezonePickRequested: (r) => page.timezonePickRequested(r)
         onAppPickRequested: (r) => { page.pendingAppRow = r; appPick.visible = true; }
     }
@@ -202,18 +200,6 @@ Item {
         }
     }
 
-    // the image-mark picker: an `image` control asks for it (SettingsSheet emits
-    // imagePickRequested); the chosen path lands on the row's key like any edit.
-    // full-page overlay so it covers the tabs, not just the sheet.
-    PickFile {
-        id: imgPick
-        title: I18n.tr("Choose an image")
-        onPicked: (p) => {
-            if (page.pendingImageRow) page.edited(page.pendingImageRow.key, ("" + p).replace("file://", ""));
-            imgPick.active = false;
-        }
-        onCanceled: imgPick.active = false
-    }
 
     PickFile {
         id: reloadCoverPick

@@ -21,6 +21,10 @@ Singleton {
     property var machines: []
     property bool loading: false
     property bool busy: false            // a mutating verb is in flight
+    property var metricHistory: ({})
+    property var metricPrevious: ({})
+    property var metricQueue: []
+    property int metricsRevision: 0
 
     // the receipt / fault surface, exactly Vm's grammar: a receipt lands on
     // status, a fault stays sticky until dismissed or the next verb succeeds.
@@ -60,6 +64,63 @@ Singleton {
         run(cmd);
     }
 
+    function _machine(name) {
+        for (var i = 0; i < machines.length; i++)
+            if (machines[i].name === name) return machines[i];
+        return null;
+    }
+    function _rate(now, previous, sample, key) {
+        if (!previous || !previous.sample || previous.sample[key] === undefined || sample[key] === undefined)
+            return 0;
+        return Math.max(0, (+sample[key] - +previous.sample[key]) / Math.max(0.001, (now - previous.at) / 1000));
+    }
+    function _recordMetrics(name, sample) {
+        if (!sample || sample.running !== true) return;
+        var now = Date.now();
+        var previous = metricPrevious[name] || null;
+        var machine = _machine(name);
+        var ramKb = machine ? (+machine.ramMb || 0) * 1024 : 0;
+        var point = {
+            at: now,
+            cpu: previous ? Math.min(100, _rate(now, previous, sample, "cpuTimeNs") / 10000000 / Math.max(1, +(machine ? machine.vcpus : 1))) : 0,
+            ram: ramKb > 0 ? Math.min(100, 100 * (+sample.memoryKb || 0) / ramKb) : 0,
+            disk: _rate(now, previous, sample, "diskReadBytes") + _rate(now, previous, sample, "diskWriteBytes"),
+            net: _rate(now, previous, sample, "netRxBytes") + _rate(now, previous, sample, "netTxBytes")
+        };
+        var histories = metricHistory;
+        var history = (histories[name] || []).slice();
+        history.push(point);
+        if (history.length > 60) history = history.slice(history.length - 60);
+        histories[name] = history;
+        metricHistory = histories;
+        var priors = metricPrevious;
+        priors[name] = { at: now, sample: sample };
+        metricPrevious = priors;
+        metricsRevision++;
+    }
+    function series(name, key) {
+        void metricsRevision;
+        var history = metricHistory[name] || [], values = [];
+        for (var i = 0; i < history.length; i++) values.push(+history[i][key] || 0);
+        return values;
+    }
+    function refreshMetrics() {
+        if (!poll || metricProc.running) return;
+        var queue = [];
+        for (var i = 0; i < machines.length; i++)
+            if (machines[i].state === "running" || machines[i].state === "paused") queue.push(machines[i].name);
+        metricQueue = queue;
+        _nextMetric();
+    }
+    function _nextMetric() {
+        if (!poll || metricQueue.length === 0) return;
+        var queue = metricQueue.slice();
+        var name = queue.shift();
+        metricQueue = queue;
+        metricProc.metricName = name;
+        metricProc.command = ["ryovm", "lg", "stats", name];
+        metricProc.running = true;
+    }
     // one lifecycle runner for every mutating verb: hold on stderr, and on a
     // clean exit fold the JSON receipt to a human line before reloading the list.
     function run(cmd) {
@@ -139,6 +200,24 @@ Singleton {
                 root.refresh();
             }
         }
+    }
+
+    Process {
+        id: metricProc
+        property string metricName: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root._recordMetrics(metricProc.metricName, JSON.parse(this.text)); } catch (e) {}
+            }
+        }
+        onExited: root._nextMetric()
+    }
+    Timer {
+        interval: 5000
+        repeat: true
+        running: root.poll
+        triggeredOnStart: true
+        onTriggered: root.refreshMetrics()
     }
 
     // while a passthrough page is on screen, keep the list fresh on a ~5s cadence

@@ -73,12 +73,12 @@ Item {
     readonly property real railStride: root.iris ? root.irisSlot + root.irisRailSpacing : root.railItemStride
     readonly property var irisEntries: {
         const out = root.builtinWidgets.map(widget => ({ key: widget.key, icon: widget.icon, label: widget.label,
-            tint: DesktopWidgetIdentity.tint(widget.key),
+            tint: IrisStyle.identityOf(DesktopWidgetIdentity.tint(widget.key)),
             on: DesktopWidgetLayout.enabled(root.outputName, widget.key,
                 Config.getNestedValue("background.widgets." + widget.key + ".enable", widget.defaultOn)) }))
         for (const custom of (CustomWidgets.ready ? CustomWidgets.widgets : [])) {
             const key = "custom." + custom.id
-            out.push({ key: key, icon: custom.icon || "widgets", label: custom.name, tint: DesktopWidgetIdentity.customTint,
+            out.push({ key: key, icon: custom.icon || "widgets", label: custom.name, tint: IrisStyle.identityOf(DesktopWidgetIdentity.customTint),
                 on: DesktopWidgetLayout.enabled(root.outputName, key,
                     Config.getNestedValue("background.widgets.custom." + custom.id + ".enable", false)) })
         }

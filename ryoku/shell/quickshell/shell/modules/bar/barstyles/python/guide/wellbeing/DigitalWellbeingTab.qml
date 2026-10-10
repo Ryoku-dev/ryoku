@@ -530,7 +530,7 @@ Item {
                     property real animWidth: active ? rootObj.s(20) : 0
                     Behavior on animWidth { NumberAnimation { duration: 350; easing.type: Easing.OutQuint } }
 
-                    source: tabRoot.selectedAppIcon.startsWith("/") ? "file://" + tabRoot.selectedAppIcon : "image://icon/" + tabRoot.selectedAppIcon
+                    source: (tabRoot.selectedAppIcon && tabRoot.selectedAppIcon !== "") ? (tabRoot.selectedAppIcon.startsWith("/") ? "file://" + tabRoot.selectedAppIcon : "image://icon/" + tabRoot.selectedAppIcon) : ""
                     sourceSize: Qt.size(rootObj.s(20), rootObj.s(20))
                     Layout.preferredWidth: animWidth
                     Layout.preferredHeight: rootObj.s(20)

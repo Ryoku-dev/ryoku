@@ -1,4 +1,6 @@
 import QtQuick
+import QtQuick.Controls
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "lib/store.js" as StoreLogic
 
@@ -12,6 +14,8 @@ FocusScope {
     property var items: []
     property string selectedKey: ""
     property bool reducedMotion: false
+    property string contentKey: ""
+    property int entranceEpoch: 0
 
     signal previewRequested(var item)
     signal selectionRequested(var item)
@@ -19,12 +23,9 @@ FocusScope {
 
     activeFocusOnTab: true
 
-    // a target tile width near 340px keeps cards large enough to read art yet
-    // yields more columns on a wide panel; at least two so a tile is never full
-    // width.
-    readonly property int columns: Math.max(2, Math.round(view.width / 340))
+    readonly property int columns: Math.max(2, Math.floor(view.width / 300))
     readonly property real cellW: view.width / grid.columns
-    readonly property real cellH: Math.round(grid.cellW * 0.66)
+    readonly property real cellH: Math.round(grid.cellW * 0.84)
     property alias contentY: view.contentY
     property bool restoring: false
 
@@ -72,6 +73,8 @@ FocusScope {
         return Qt.rect(col * grid.cellW, row * grid.cellH - view.contentY,
                        grid.cellW, grid.cellH);
     }
+    onContentKeyChanged: entranceEpoch++
+
 
     onSelectedKeyChanged: Qt.callLater(grid.scrollToSelected)
 
@@ -119,7 +122,7 @@ FocusScope {
         model: grid.items
         cellWidth: grid.cellW
         cellHeight: grid.cellH
-        cacheBuffer: Math.ceil(grid.cellH * 3)
+        cacheBuffer: Math.max(0, Math.ceil(grid.cellH * 3))
         keyNavigationEnabled: false
         boundsBehavior: Flickable.StopAtBounds
 
@@ -127,6 +130,8 @@ FocusScope {
             enabled: !grid.reducedMotion && !grid.restoring && !view.dragging && !view.flicking
             NumberAnimation { duration: Tokens.move; easing.type: Tokens.ease }
         }
+        WheelScroll { }
+        ScrollBar.vertical: ScrollRail { policy: ScrollBar.AsNeeded }
         // Clear the preview only when the pointer leaves the grid, not on each
         // card exit: holding the last preview across the inter-card gap is what
         // keeps the hero from flashing back to the selection mid-sweep.
@@ -134,17 +139,72 @@ FocusScope {
             onHoveredChanged: if (!hovered) { dwell.stop(); grid.previewRequested(null); }
         }
 
-        delegate: ProductCard {
+        delegate: Item {
+            id: tile
             required property var modelData
+            required property int index
             width: grid.cellW
             height: grid.cellH
-            item: modelData
-            selected: StoreLogic.itemKey(modelData) === grid.selectedKey
-            focusVisible: grid.activeFocus
-                    && StoreLogic.itemKey(modelData) === grid.selectedKey
-            reducedMotion: grid.reducedMotion
-            onHoverChanged: hovered => { if (hovered) { grid.pendingPreview = modelData; dwell.restart(); } }
-            onActivated: grid.activated(modelData)
+            property real entranceProgress: 1
+            opacity: entranceProgress
+
+            transform: Translate {
+                y: (1 - tile.entranceProgress) * Tokens.s3
+            }
+
+            function reveal() {
+                entrance.stop();
+                if (grid.reducedMotion) {
+                    entranceProgress = 1;
+                    return;
+                }
+                entranceProgress = 0;
+                entrance.restart();
+            }
+
+            SequentialAnimation {
+                id: entrance
+                PauseAnimation {
+                    duration: Math.min(tile.index * Math.round(Tokens.snap / 3), Tokens.move)
+                }
+                NumberAnimation {
+                    target: tile
+                    property: "entranceProgress"
+                    from: 0
+                    to: 1
+                    duration: Tokens.swap
+                    easing.type: Tokens.ease
+                }
+            }
+
+            Connections {
+                target: grid
+                function onEntranceEpochChanged() { tile.reveal(); }
+                function onReducedMotionChanged() {
+                    if (grid.reducedMotion) {
+                        entrance.stop();
+                        tile.entranceProgress = 1;
+                    }
+                }
+            }
+
+            Component.onCompleted: reveal()
+
+            ProductCard {
+                anchors.fill: parent
+                item: tile.modelData
+                selected: StoreLogic.itemKey(tile.modelData) === grid.selectedKey
+                focusVisible: grid.activeFocus
+                        && StoreLogic.itemKey(tile.modelData) === grid.selectedKey
+                reducedMotion: grid.reducedMotion
+                onHoverChanged: hovered => {
+                    if (hovered) {
+                        grid.pendingPreview = tile.modelData;
+                        dwell.restart();
+                    }
+                }
+                onActivated: grid.activated(tile.modelData)
+            }
         }
     }
 }

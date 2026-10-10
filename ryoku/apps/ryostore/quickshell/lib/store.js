@@ -69,6 +69,8 @@ function pluginKind(item) {
 function searchText(item) {
     if (!item)
         return "";
+    if (item.searchIndex)
+        return String(item.searchIndex);
     return [
         item.id,
         item.category,
@@ -78,6 +80,10 @@ function searchText(item) {
         item.description,
         item.author,
         item.version,
+        item.kind,
+        item.license,
+        item.verificationStatus,
+        item.metadata && item.metadata.marketplaceCategory,
         (item.tags || []).join(" "),
         statusLabels(item).join(" ")
     ].filter(Boolean).join(" ").toLowerCase();
@@ -167,6 +173,23 @@ function itemKey(item) {
     return item ? String(item.category || "") + ":" + String(item.id || "") : "";
 }
 
+function sortOmarchyPlugins(items, mode) {
+    var sorted = (Array.isArray(items) ? items : []).slice();
+    sorted.sort(function(a, b) {
+        if (mode === "new" && String(a.listedAt || "") !== String(b.listedAt || ""))
+            return String(b.listedAt || "").localeCompare(String(a.listedAt || ""));
+        if (mode === "verified") {
+            var av = String(a.verificationStatus || "").toLowerCase() === "verified";
+            var bv = String(b.verificationStatus || "").toLowerCase() === "verified";
+            if (av !== bv)
+                return av ? -1 : 1;
+        }
+        var stars = Number(b.stars || 0) - Number(a.stars || 0);
+        return stars !== 0 ? stars : String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""));
+    });
+    return sorted;
+}
+
 function collection(items, options) {
     var opts = options || {};
     var filtered = filter(items, {
@@ -176,6 +199,8 @@ function collection(items, options) {
         pluginKind: opts.pluginKind || "",
         query: opts.query || ""
     });
+    if (opts.categoryID === "omarchy-plugins")
+        filtered = sortOmarchyPlugins(filtered, opts.omarchySort || "popular");
     if (opts.view !== "library" && !opts.categoryID && !opts.query) {
         var seed = Number(opts.seed) || 0;
         var lead = featured(filtered, seed);
@@ -213,6 +238,8 @@ function primaryAction(item) {
         return "UNDER CONSTRUCTION";
     if (item && item.busy)
         return "INSTALLING";
+    if (item && item.updateAvailable)
+        return "UPDATE";
     if (item && Number(item.installedCount || 0) > 0 && Number(item.totalCount || 0) > Number(item.installedCount || 0))
         return "INSTALL " + String(Number(item.totalCount) - Number(item.installedCount)) + " ITEMS";
     return isInstalled(item) ? "INSTALLED" : "INSTALL";
@@ -234,4 +261,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded };
+    module.exports = { statusLabels, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded };

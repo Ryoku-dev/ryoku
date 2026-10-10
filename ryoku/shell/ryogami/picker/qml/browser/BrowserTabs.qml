@@ -1,145 +1,175 @@
 import QtQuick
 import Ryoku.Ui.Singletons
 
-// A disabled provider is never hidden: it greys and says why. Emphasis is weight, not colour:
-// the open provider reads bold and one bone rule slides beneath its name.
 Item {
-    id: strip
+    id: rail
 
-    // [{ id, label, searchable, enabled, reason }]
     property var tabs: []
     property string current: ""
     property real reveal: 1
 
     signal selected(string id)
 
-    implicitHeight: 48 * Theme.scale
+    implicitWidth: 282 * Theme.scale
 
-    property real ruleX: 0
-    property real ruleW: 0
-    property bool _placed: false
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.withAlpha(Theme.surfaceVariant, 0.22)
+        border.width: 1
+        border.color: Theme.withAlpha(Theme.outline, 0.3)
+    }
 
-    Row {
-        id: row
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.leftMargin: 24 * Theme.scale
-        anchors.rightMargin: 24 * Theme.scale
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: 1 * Theme.scale
+    Column {
+        anchors.fill: parent
+        anchors.margins: 8 * Theme.scale
+        spacing: 5 * Theme.scale
 
-        readonly property int n: strip.tabs.length
-        readonly property real tabW: n > 0
-            ? Math.floor((width - (n - 1) * 1 * Theme.scale) / n)
-            : 0
+        Row {
+            width: parent.width
+            height: 28 * Theme.scale
+            spacing: 7 * Theme.scale
 
-        Repeater {
-            model: strip.tabs
-            delegate: Item {
-                id: tab
-                required property var modelData
-                required property int index
-                width: index === row.n - 1
-                    ? row.width - (row.n - 1) * (row.tabW + 1 * Theme.scale)
-                    : row.tabW
-                height: 48 * Theme.scale
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: "力"
+                color: Theme.primary
+                font.family: Theme.jp
+                font.pixelSize: Theme.fs(18)
+                renderType: Text.NativeRendering
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: I18n.tr("SOURCES")
+                color: Theme.withAlpha(Theme.surfaceText, 0.68)
+                font.family: Theme.sans
+                font.weight: Font.DemiBold
+                font.pixelSize: Theme.fontTiny
+                font.letterSpacing: 1.5
+                renderType: Text.NativeRendering
+            }
+        }
 
-                readonly property bool selected: strip.current === modelData.id
-                readonly property bool available: modelData.enabled === true
-                readonly property bool hovered: tabHover.containsMouse
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.withAlpha(Theme.outline, 0.28)
+        }
 
-                // Sized for the bold cut, so the rule holds its width as the name inverts to open.
-                TextMetrics {
-                    id: boldCut
-                    font.family: Theme.sans
-                    font.weight: Font.DemiBold
-                    font.pixelSize: Theme.fontBase
-                    text: tab.modelData.label
-                }
+        Item {
+            width: parent.width
+            height: parent.height - y
 
-                Binding {
-                    target: strip; property: "ruleX"
-                    value: tab.x + (tab.width - boldCut.advanceWidth) * 0.5
-                    when: tab.selected && tab.available; restoreMode: Binding.RestoreNone
-                }
-                Binding {
-                    target: strip; property: "ruleW"; value: boldCut.advanceWidth
-                    when: tab.selected && tab.available; restoreMode: Binding.RestoreNone
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: Theme.radius
-                    color: Theme.withAlpha(Theme.surfaceText,
-                        tab.hovered && tab.available && !tab.selected ? 0.07 : 0)
-                    Behavior on color { ColorAnimation { duration: Theme.fast } }
-                }
+            Flickable {
+                id: sourceScroll
+                anchors.fill: parent
+                anchors.rightMargin: sourceColumn.implicitHeight > height ? 6 * Theme.scale : 0
+                clip: true
+                contentWidth: width
+                contentHeight: sourceColumn.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
 
                 Column {
-                    anchors.centerIn: parent
-                    width: parent.width - 14 * Theme.scale
-                    spacing: 2 * Theme.scale
+                    id: sourceColumn
+                    width: sourceScroll.width
+                    spacing: 1 * Theme.scale
 
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        text: modelData.label
-                        elide: Text.ElideRight
-                        font.family: Theme.sans
-                        font.weight: tab.selected ? Font.DemiBold : Font.Medium
-                        font.pixelSize: Theme.fontBase
-                        color: !tab.available
-                            ? Theme.withAlpha(Theme.surfaceText, 0.34)
-                            : Theme.withAlpha(Theme.surfaceText, tab.selected || tab.hovered ? 1 : 0.66)
-                        renderType: Text.NativeRendering
-                        Behavior on color { ColorAnimation { duration: Theme.fast } }
-                    }
-                    Text {
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        visible: !tab.available && modelData.reason !== undefined
-                            && String(modelData.reason).length > 0
-                        text: modelData.reason !== undefined ? modelData.reason : ""
-                        elide: Text.ElideRight
-                        font.family: Theme.sans
-                        font.weight: Font.Medium
-                        font.pixelSize: Theme.fontMicro
-                        color: Theme.withAlpha(Theme.surfaceText, 0.28)
-                        renderType: Text.NativeRendering
+                    Repeater {
+                        model: rail.tabs
+                        delegate: Rectangle {
+                            id: entry
+                            required property var modelData
+                            required property int index
+                            width: sourceColumn.width
+                            height: 30 * Theme.scale
+                            radius: Theme.radius
+                            readonly property bool selected: rail.current === modelData.id
+                            readonly property bool available: modelData.enabled === true
+                            color: selected
+                                ? Theme.surfaceText
+                                : (tap.pressed
+                                   ? Theme.withAlpha(Theme.surfaceText, 0.14)
+                                   : (hover.hovered && available
+                                      ? Theme.withAlpha(Theme.surfaceText, 0.07)
+                                      : "transparent"))
+                            opacity: rail.reveal
+
+                            Behavior on color { ColorAnimation { duration: Theme.fast } }
+
+                            Row {
+                                anchors.fill: parent
+                                anchors.leftMargin: 9 * Theme.scale
+                                anchors.rightMargin: 8 * Theme.scale
+                                spacing: 7 * Theme.scale
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: entry.selected ? "//" : (entry.index < 9 ? "0" : "") + String(entry.index + 1)
+                                    color: entry.selected
+                                        ? Theme.withAlpha(Theme.surface, 0.58)
+                                        : Theme.withAlpha(Theme.surfaceText, entry.available ? 0.34 : 0.2)
+                                    font.family: Theme.sans
+                                    font.pixelSize: Theme.fontTiny
+                                    renderType: Text.NativeRendering
+                                }
+
+                                Text {
+                                    width: parent.width - 42 * Theme.scale
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: I18n.tr(entry.modelData.label)
+                                    elide: Text.ElideRight
+                                    color: entry.selected
+                                        ? Theme.surface
+                                        : Theme.withAlpha(Theme.surfaceText, entry.available ? 0.84 : 0.34)
+                                    font.family: Theme.sans
+                                    font.weight: Font.Medium
+                                    font.pixelSize: Theme.fontBase
+                                    renderType: Text.NativeRendering
+                                }
+
+                                Text {
+                                    visible: !entry.available
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "\uf023"
+                                    color: entry.selected
+                                        ? Theme.withAlpha(Theme.surface, 0.52)
+                                        : Theme.withAlpha(Theme.surfaceText, 0.28)
+                                    font.family: Theme.icon
+                                    font.pixelSize: Theme.fs(11)
+                                    renderType: Text.NativeRendering
+                                }
+                            }
+
+                            HoverHandler {
+                                id: hover
+                                cursorShape: entry.available && !entry.selected ? Qt.PointingHandCursor : Qt.ArrowCursor
+                            }
+                            TapHandler {
+                                id: tap
+                                enabled: entry.available && !entry.selected
+                                onTapped: rail.selected(entry.modelData.id)
+                            }
+                        }
                     }
                 }
+            }
 
-                MouseArea {
-                    id: tabHover
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    enabled: tab.available && !tab.selected
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: strip.selected(tab.modelData.id)
+            Rectangle {
+                visible: sourceScroll.contentHeight > sourceScroll.height + 1
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                width: 2 * Theme.scale
+                color: Theme.withAlpha(Theme.surfaceText, 0.05)
+
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(18 * Theme.scale,
+                        parent.height * sourceScroll.height / Math.max(sourceScroll.contentHeight, 1))
+                    y: (parent.height - height) * sourceScroll.visibleArea.yPosition
+                    radius: width / 2
+                    color: Theme.withAlpha(Theme.surfaceText, 0.42)
                 }
             }
         }
     }
-
-    // One bone rule sits under the open provider and slides to the next; the first placement
-    // lands without travelling, only a switch springs it.
-    Rectangle {
-        x: row.x + strip.ruleX
-        width: strip.ruleW
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 6 * Theme.scale
-        height: 2 * Theme.scale
-        radius: height
-        color: Theme.surfaceText
-        visible: strip.ruleW > 0
-        Behavior on x {
-            enabled: strip._placed
-            NumberAnimation { duration: Theme.standard; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
-        }
-        Behavior on width {
-            enabled: strip._placed
-            NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic }
-        }
-    }
-    Timer { interval: 1; running: strip.ruleW > 0 && !strip._placed; onTriggered: strip._placed = true }
 }

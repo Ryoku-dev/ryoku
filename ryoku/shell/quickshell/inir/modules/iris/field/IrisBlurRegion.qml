@@ -23,23 +23,38 @@ Region {
     // First and past-the-last pixel whose centre is strictly inside; a tie stays out on both sides.
     function lo(v: real): int { return Math.floor(v - 0.5) + 1 }
     function hi(v: real): int { return Math.ceil(v - 0.5) }
-    // Rebuilding this region is JS plus 70 bound sub-regions and the join runs, and the chassis composes its table
-    // from several sources that each arrive on their own: measured at 594 rebuilds a second during
-    // a morph, eight per frame, for a shape the compositor reads once per frame. The zero timer
-    // takes the last of those eight instead of each one, so the region still lands on its own frame
-    // and never trails the body it belongs to. The settle pass carries the exact resting contour.
+    // Rebuilding this region is JS plus 70 bound sub-regions, and the chassis composes its table from several sources that each arrive
+    // on their own: it is built once per frame inside the window's polish, where the background effect reads it (a zero timer ran
+    // after that polish and left unblurred wallpaper around an opening body). The settle pass carries the exact resting contour.
     property var held: []
+    property bool dirty: false
     // A body that leaves (a dismissed banner, a closed card) takes its region with it in the same turn: the
     // region reaches the compositor only with a frame that has something to draw, and a turn later the frame
     // that removed the body is gone, so its blur stayed until the next repaint.
     onShapesChanged: {
         if ((root.shapes ?? []).length < (root.held ?? []).length) { perFrame.stop(); root.held = root.shapes ?? [] }
-        else if (!perFrame.running) perFrame.restart()
+        else {
+            root.dirty = true
+            poke.x = poke.x > 0 ? 0 : 1
+            if (!perFrame.running) perFrame.restart()
+        }
         root.settled = false
         settle.restart()
     }
-    property Timer perFrame: Timer { interval: 0; onTriggered: root.held = root.shapes ?? [] }
-    property Timer settle: Timer { interval: 96; onTriggered: { root.held = root.shapes ?? []; root.settled = true; root.kick() } }
+    function take(): void {
+        if (!root.dirty) return
+        root.dirty = false
+        perFrame.stop()
+        root.held = root.shapes ?? []
+    }
+    // Qt polishes the content item before every frame with something new: rebuilding here reaches the background effect with it.
+    property Connections framePolish: Connections {
+        target: root.window?.contentItem ?? null
+        ignoreUnknownSignals: true
+        function onPolished(): void { root.take() }
+    }
+    property Timer perFrame: Timer { interval: 0; onTriggered: root.take() }
+    property Timer settle: Timer { interval: 96; onTriggered: { root.dirty = false; root.held = root.shapes ?? []; root.settled = true; root.kick() } }
     // Moving, a join is walked in 4 px strides and stays up to 3 px inside the silhouette; settled, to the pixel.
     property bool settled: true
     readonly property var built: root.build(root.held ?? [], root.settled)
@@ -270,6 +285,8 @@ Region {
             radius: Math.round(root.cornerRadius + root.band - edge)
         }
     }
+    // Empty: its only job is to make the region change, which schedules the window's polish.
+    Region { id: poke; width: 0; height: 0 }
     Piece { index: 0 }
     Piece { index: 1 }
     Piece { index: 2 }

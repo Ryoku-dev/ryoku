@@ -1,11 +1,8 @@
 import QtQuick
+import QtQuick.Controls
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// The store's app bar, in two tiers. Tier 1 carries identity (the 力 seal and
-// wordmark), a persistent search field with a magnifier, and the account
-// actions (Library, Refresh). Tier 2 is the category navigation as bone-invert
-// plates (the design system's Tabs idiom), so every section stays visible
-// rather than clipping in one crammed row.
 Item {
     id: header
 
@@ -20,6 +17,7 @@ Item {
     property bool searchActive: false
     property int resultCount: 0
     property bool updateAvailable: false
+    property bool reducedMotion: false
 
     signal routeRequested(string view, string categoryID)
     signal refreshRequested()
@@ -27,181 +25,209 @@ Item {
     signal searchActivated()
     signal searchEscaped()
 
-    readonly property int tier1Height: 60
-    readonly property int tier2Height: 48
-    implicitHeight: tier1Height + tier2Height
-
-    readonly property string libraryLabel: updateCount > 0
-            ? (updateCount === 1
-                ? I18n.tr("LIBRARY %1 / %2 UPDATE").arg(libraryCount).arg(updateCount)
-                : I18n.tr("LIBRARY %1 / %2 UPDATES").arg(libraryCount).arg(updateCount))
-            : I18n.tr("LIBRARY %1").arg(libraryCount)
+    implicitWidth: Tokens.railW
 
     function activateDiscover() { routeRequested("discover", ""); }
     function activateCategory(id) { routeRequested("discover", id); }
     function activateLibrary() { routeRequested("library", ""); }
     function focusSearch() { searchField.forceActiveFocus(); }
-
-    // A right-aligned account action: mono label, hairline underline when current.
-    component HeaderAction: Item {
-        id: act
-        required property string label
-        property bool current: false
-        property bool flagged: false
-        signal triggered()
-        implicitWidth: actLabel.implicitWidth + (act.flagged ? Tokens.s2 : 0)
-        implicitHeight: actLabel.implicitHeight + Tokens.s3
-        activeFocusOnTab: true
-        Accessible.role: Accessible.Button
-        Accessible.name: act.label
-        Accessible.onPressAction: act.triggered()
-        Keys.onPressed: event => {
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                act.triggered();
-                event.accepted = true;
-            }
-        }
-        Text {
-            id: actLabel
-            anchors { horizontalCenter: parent.horizontalCenter; top: parent.top }
-            text: I18n.tr(act.label)
-            color: act.current || act.activeFocus ? Tokens.ink : Tokens.inkDim
-            font.family: Tokens.mono
-            font.pixelSize: Tokens.fMicro
-            font.weight: Font.Medium
-            font.letterSpacing: Tokens.trackLabel
-        }
-        Rectangle {
-            anchors { left: parent.left; right: parent.right; top: actLabel.bottom; topMargin: 3 }
-            height: Tokens.border * 2
-            color: Tokens.ink
-            visible: act.current || act.activeFocus
-        }
-        // Attention dot: upstream (ryostore) has advanced past what the user
-        // last pulled. Fixed alert red so it always reads as "something new".
-        Rectangle {
-            visible: act.flagged
-            width: 5
-            height: 5
-            radius: 2.5
-            color: Tokens.alert
-            anchors { left: actLabel.right; leftMargin: Tokens.s1; top: actLabel.top }
-        }
-        HoverHandler { cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: act.triggered() }
+    function sealFor(id) {
+        const seals = {
+            "lockscreens": "施錠",
+            "rices": "飯",
+            "colorschemes": "色",
+            "themes": "色",
+            "barstyles": "棒",
+            "fastfetch": "速",
+            "plugins": "部品",
+            "omarchy-plugins": "部品",
+            "bundles": "束",
+            "decors": "飾",
+            "launcher-images": "起動",
+            "fastfetch-emblems": "徽"
+        };
+        return seals[String(id)] || "品";
     }
 
-    // A category plate: bone-invert when active with the // lead, matching Tabs.
-    component NavPlate: Rectangle {
+    component RailItem: Rectangle {
         id: plate
         property string label: ""
-        property bool active: false
+        property string note: ""
+        property string seal: ""
+        property bool current: false
+        property bool flagged: false
         signal chose()
-        width: navContent.implicitWidth + Tokens.s4
-        height: 30
+
+        width: navColumn.width
+        height: Tokens.rowH
         radius: Tokens.radius
-        color: plate.active ? Tokens.bone : (ph.hovered ? Tokens.tint5 : "transparent")
-        border.width: Tokens.border
-        border.color: plate.active ? Tokens.bone : Tokens.line
+        color: plate.current ? "transparent"
+              : (plateTap.pressed ? Tokens.tint16 : (pointer.hovered ? Tokens.tint5 : "transparent"))
         activeFocusOnTab: true
-        Behavior on color { ColorAnimation { duration: Tokens.snap } }
         Accessible.role: Accessible.Button
-        Accessible.name: plate.label
-        Accessible.onPressAction: plate.chose()
+        Accessible.name: note === "" ? I18n.tr(label) : I18n.tr(label) + ", " + note
+        Accessible.onPressAction: chose()
+        onActiveFocusChanged: if (activeFocus) navScroll.reveal(plate)
+        onCurrentChanged: if (current) Qt.callLater(function() { navScroll.reveal(plate); })
+
+        Behavior on color {
+            enabled: !header.reducedMotion
+            ColorAnimation { duration: Tokens.snap }
+        }
+
         Keys.onPressed: event => {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
-                plate.chose();
+                chose();
                 event.accepted = true;
             }
         }
+
         Row {
-            id: navContent
-            anchors.centerIn: parent
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
+            anchors.leftMargin: Tokens.s3
+            anchors.rightMargin: Tokens.s3
             spacing: Tokens.s2
+
             Text {
-                visible: plate.active
+                id: lead
                 text: "//"
+                visible: plate.current
                 color: Tokens.inkOnBoneDim
                 font.family: Tokens.mono
-                font.pixelSize: 10
+                font.pixelSize: Tokens.fMicro
                 anchors.verticalCenter: parent.verticalCenter
             }
-            Text {
-                text: I18n.tr(plate.label)
-                color: plate.active ? Tokens.inkOnBone : (plate.activeFocus ? Tokens.ink : Tokens.inkDim)
-                font.family: Tokens.ui
-                font.pixelSize: 11
-                font.weight: Font.Medium
-                font.letterSpacing: Tokens.trackLabel
+
+            Column {
+                width: parent.width - sealText.implicitWidth - parent.spacing
+                        - (lead.visible ? lead.implicitWidth + parent.spacing : 0)
                 anchors.verticalCenter: parent.verticalCenter
-                Behavior on color { ColorAnimation { duration: Tokens.snap } }
+                spacing: 0
+
+                Text {
+                    width: parent.width
+                    text: I18n.tr(plate.label)
+                    color: plate.current ? Tokens.inkOnBone : (plate.activeFocus ? Tokens.ink : Tokens.inkDim)
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fRow
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                    Behavior on color {
+                        enabled: !header.reducedMotion
+                        ColorAnimation { duration: Tokens.snap }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    visible: plate.note !== ""
+                    text: I18n.tr(plate.note)
+                    color: plate.current ? Tokens.inkOnBoneDim : Tokens.inkMuted
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fTiny
+                    elide: Text.ElideRight
+                    Behavior on color {
+                        enabled: !header.reducedMotion
+                        ColorAnimation { duration: Tokens.snap }
+                    }
+                }
+            }
+
+            Text {
+                id: sealText
+                text: plate.seal
+                color: plate.current ? Tokens.inkOnBoneDim : Tokens.inkFaint
+                font.family: Tokens.jp
+                font.pixelSize: Tokens.fBody
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on color {
+                    enabled: !header.reducedMotion
+                    ColorAnimation { duration: Tokens.snap }
+                }
             }
         }
-        HoverHandler { id: ph; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: plate.chose() }
+
+        Rectangle {
+            visible: plate.flagged
+            width: 6
+            height: 6
+            radius: 3
+            color: Tokens.alert
+            anchors { top: parent.top; right: parent.right; margins: Tokens.s2 }
+        }
+
+        HoverHandler { id: pointer; cursorShape: Qt.PointingHandCursor }
+        TapHandler { id: plateTap; onTapped: plate.chose() }
     }
 
-    // ---- Tier 1: identity, search, account ----
-    Item {
-        id: tier1
+    Rectangle {
+        objectName: "ryostore-rail"
+        anchors.fill: parent
+        color: Tokens.paperLift
+        border.width: Tokens.border
+        border.color: Tokens.line
+    }
+
+    Column {
+        id: masthead
         anchors { left: parent.left; right: parent.right; top: parent.top }
-        height: header.tier1Height
+        anchors.margins: Tokens.s5
+        spacing: Tokens.s1
 
         Row {
-            anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
             spacing: Tokens.s3
             Text {
                 text: "力"
-                color: Tokens.ink
+                color: Tokens.sun
                 font.family: Tokens.jp
-                font.pixelSize: 22
-                anchors.verticalCenter: parent.verticalCenter
+                font.pixelSize: 24
             }
-            Text {
-                text: I18n.tr("RYOSTORE")
-                color: Tokens.ink
-                font.family: Tokens.mono
-                font.pixelSize: 15
-                font.weight: Font.Medium
-                font.letterSpacing: Tokens.trackMark
+            Column {
                 anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+                Text {
+                    text: I18n.tr("RYOKU")
+                    color: Tokens.ink
+                    font.family: Tokens.mono
+                    font.pixelSize: Tokens.fBody
+                    font.weight: Font.Medium
+                    font.letterSpacing: Tokens.trackMark
+                }
+                Text {
+                    text: I18n.tr("STORE")
+                    color: Tokens.inkMuted
+                    font.family: Tokens.mono
+                    font.pixelSize: Tokens.fMicro
+                    font.letterSpacing: Tokens.trackLabel
+                }
             }
         }
 
         Rectangle {
             id: searchBox
             objectName: "ryostore-header-search"
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(460, header.width * 0.42)
-            height: 34
+            width: parent.width
+            height: 36
             radius: Tokens.radius
-            color: searchField.activeFocus ? Tokens.tint5 : "transparent"
+            color: searchField.activeFocus ? Tokens.tint5 : Tokens.paper
             border.width: Tokens.border
             border.color: searchField.activeFocus ? Tokens.lineStrong : Tokens.line
-            Behavior on border.color { ColorAnimation { duration: Tokens.snap } }
 
-            Item {
-                id: mag
-                width: 15; height: 15
+            Text {
+                id: searchGlyph
                 anchors { left: parent.left; leftMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                readonly property color glyph: searchField.activeFocus ? Tokens.ink : Tokens.inkDim
-                Rectangle {
-                    x: 0; y: 0; width: 10; height: 10; radius: 5
-                    color: "transparent"; border.width: 1.5; border.color: mag.glyph
-                }
-                Rectangle {
-                    x: 9; y: 10; width: 6; height: 1.5; radius: 1
-                    color: mag.glyph; rotation: 45; transformOrigin: Item.TopLeft
-                }
+                text: "⌕"
+                color: Tokens.inkDim
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fRow
             }
 
             TextInput {
                 id: searchField
                 objectName: "ryostore-header-search-field"
                 anchors {
-                    left: mag.right; leftMargin: Tokens.s2
-                    right: countLabel.left; rightMargin: Tokens.s2
+                    left: searchGlyph.right; leftMargin: Tokens.s2
+                    right: parent.right; rightMargin: Tokens.s3
                     verticalCenter: parent.verticalCenter
                 }
                 Component.onCompleted: text = header.query
@@ -209,18 +235,15 @@ Item {
                 selectionColor: Tokens.tint16
                 selectedTextColor: Tokens.ink
                 font.family: Tokens.ui
-                font.pixelSize: Tokens.fRow
+                font.pixelSize: Tokens.fBody
                 clip: true
                 activeFocusOnTab: true
                 Accessible.role: Accessible.EditableText
                 Accessible.name: header.offline ? I18n.tr("Search RyoStore (offline)") : I18n.tr("Search RyoStore")
-                Accessible.description: I18n.tr("Type to filter the store")
                 onTextEdited: header.queryEdited(text)
                 onActiveFocusChanged: if (activeFocus) header.searchActivated()
-                Keys.onEscapePressed: event => {
-                    header.searchEscaped();
-                    event.accepted = true;
-                }
+                Keys.onEscapePressed: event => { header.searchEscaped(); event.accepted = true; }
+
                 Connections {
                     target: header
                     function onQueryChanged() {
@@ -232,7 +255,7 @@ Item {
                 Text {
                     anchors.fill: parent
                     visible: searchField.text === ""
-                    text: header.offline ? I18n.tr("Search the store (offline)") : I18n.tr("Search the store")
+                    text: header.offline ? I18n.tr("Search offline") : I18n.tr("Search the store")
                     color: Tokens.inkMuted
                     font: searchField.font
                     verticalAlignment: Text.AlignVCenter
@@ -240,118 +263,208 @@ Item {
                 }
             }
 
-            Text {
-                id: countLabel
-                anchors { right: parent.right; rightMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                visible: header.searchActive && header.query !== ""
-                text: header.resultCount === 1
-                        ? I18n.tr("%1 RESULT").arg(header.resultCount)
-                        : I18n.tr("%1 RESULTS").arg(header.resultCount)
-                color: Tokens.inkDim
-                font.family: Tokens.mono
-                font.pixelSize: Tokens.fMicro
-                font.letterSpacing: Tokens.trackLabel
-            }
-
             HoverHandler { cursorShape: Qt.IBeamCursor }
             TapHandler { onTapped: searchField.forceActiveFocus() }
         }
 
-        Row {
-            anchors { right: parent.right; rightMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
-            spacing: Tokens.s5
-
-            HeaderAction {
-                objectName: "ryostore-header-library"
-                label: header.libraryLabel
-                current: header.view === "library"
-                onTriggered: header.activateLibrary()
-            }
-            HeaderAction {
-                objectName: "ryostore-header-refresh"
-                label: header.refreshing ? I18n.tr("SYNCING") : I18n.tr("REFRESH")
-                current: header.refreshing
-                flagged: header.updateAvailable && !header.refreshing
-                onTriggered: header.refreshRequested()
-            }
+        Text {
+            visible: header.searchActive && header.query !== ""
+            text: header.resultCount === 1
+                    ? I18n.tr("%1 RESULT").arg(header.resultCount)
+                    : I18n.tr("%1 RESULTS").arg(header.resultCount)
+            color: Tokens.inkMuted
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fTiny
+            font.letterSpacing: Tokens.trackLabel
         }
     }
 
     Rectangle {
-        anchors { left: parent.left; right: parent.right; top: tier1.bottom }
+        anchors { left: parent.left; right: parent.right; top: masthead.bottom; topMargin: Tokens.s4 }
         height: Tokens.border
         color: Tokens.line
     }
 
-    // ---- Tier 2: category navigation ----
-    Item {
-        id: tier2
-        anchors { left: parent.left; right: parent.right; top: tier1.bottom }
-        height: header.tier2Height
-
-        Flickable {
-            id: navScroll
-            objectName: "ryostore-header-categories"
-            anchors { fill: parent; leftMargin: Tokens.s6; rightMargin: Tokens.s6 }
-            contentWidth: navRow.width
-            contentHeight: height
-            clip: true
-            flickableDirection: Flickable.HorizontalFlick
-            boundsBehavior: Flickable.StopAtBounds
-
-            function reveal(itemX, itemWidth) {
-                const maximum = Math.max(0, contentWidth - width);
-                if (itemX < contentX)
-                    contentX = Math.max(0, itemX);
-                else if (itemX + itemWidth > contentX + width)
-                    contentX = Math.min(maximum, itemX + itemWidth - width);
+    Flickable {
+        id: navScroll
+        objectName: "ryostore-header-categories"
+        anchors {
+            left: parent.left; right: parent.right
+            top: masthead.bottom; topMargin: Tokens.s5
+            bottom: footer.top; bottomMargin: Tokens.s4
+        }
+        anchors.leftMargin: Tokens.s4
+        anchors.rightMargin: Tokens.s4
+        contentWidth: width
+        contentHeight: navColumn.implicitHeight > height
+                ? navColumn.implicitHeight + Tokens.rowH + Tokens.s1
+                : navColumn.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        function reveal(item) {
+            if (navColumn.implicitHeight <= height) {
+                contentY = 0;
+                return;
             }
+            const top = item.y;
+            const bottom = top + item.height;
+            var target = contentY;
+            if (top < contentY)
+                target = top;
+            else if (bottom > contentY + height)
+                target = bottom - height;
+            else
+                return;
 
-            Row {
-                id: navRow
-                height: parent.height
-                spacing: Tokens.s2
-
-                NavPlate {
-                    objectName: "ryostore-header-discover"
-                    label: I18n.tr("DISCOVER")
-                    active: header.view === "discover" && header.categoryID === "" && !header.searchActive
-                    anchors.verticalCenter: parent.verticalCenter
-                    onChose: header.activateDiscover()
-                }
-                Repeater {
-                    model: header.categories
-                    delegate: NavPlate {
-                        required property var modelData
-                        required property int index
-                        objectName: "ryostore-header-category-" + String(modelData.id || "")
-                        label: String(modelData.name || modelData.id || "").toUpperCase()
-                        active: header.view === "discover" && header.categoryID === String(modelData.id || "") && !header.searchActive
-                        anchors.verticalCenter: parent.verticalCenter
-                        onChose: header.activateCategory(String(modelData.id || ""))
-                        onActiveFocusChanged: if (activeFocus) navScroll.reveal(x, width)
+            if (target > contentY) {
+                const rows = navColumn.children;
+                for (var i = 0; i < rows.length; i++) {
+                    const row = rows[i];
+                    if (row.visible !== false && row.height > 0 && row.y >= target) {
+                        target = row.y;
+                        break;
                     }
                 }
             }
+            contentY = Math.max(0, Math.min(contentHeight - height, target));
+        }
+        clip: true
+        readonly property real selectedY: {
+            header.view;
+            header.categoryID;
+            header.searchActive;
+            header.categories;
+            const rows = navColumn.children;
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].current === true)
+                    return rows[i].y;
+            }
+            return 0;
+        }
+        readonly property bool hasSelection: {
+            header.view;
+            header.categoryID;
+            header.searchActive;
+            const rows = navColumn.children;
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].current === true)
+                    return true;
+            }
+            return false;
         }
 
-        // A right-edge fade telling the eye there are more categories to scroll to.
         Rectangle {
-            anchors { right: parent.right; top: parent.top; bottom: parent.bottom }
-            width: Tokens.s7
-            visible: navScroll.contentWidth > navScroll.width + 1
-                    && navScroll.contentX < navScroll.contentWidth - navScroll.width - 1
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0; color: "transparent" }
-                GradientStop { position: 1; color: Tokens.paper }
+            id: selectionPlate
+            objectName: "ryostore-category-selection"
+            x: 0
+            y: navScroll.selectedY
+            z: 0
+            width: navColumn.width
+            height: Tokens.rowH
+            radius: Tokens.radius
+            color: Tokens.bone
+            opacity: navScroll.hasSelection ? 1 : 0
+
+            Behavior on y {
+                enabled: !header.reducedMotion
+                NumberAnimation { duration: Tokens.move; easing.type: Tokens.ease }
+            }
+            Behavior on opacity {
+                enabled: !header.reducedMotion
+                NumberAnimation { duration: Tokens.snap; easing.type: Tokens.easeSnap }
             }
         }
+
+
+        Column {
+            id: navColumn
+            width: navScroll.width
+            spacing: Tokens.s1
+            z: 1
+
+            Text {
+                text: I18n.tr("01 BROWSE")
+                color: header.view === "discover" ? Tokens.inkDim : Tokens.inkFaint
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fMicro
+                font.letterSpacing: Tokens.trackLabel
+                bottomPadding: Tokens.s2
+            }
+
+            RailItem {
+                objectName: "ryostore-header-discover"
+                label: I18n.tr("Discover")
+                note: I18n.tr("A changing edit")
+                seal: "発見"
+                current: header.view === "discover" && header.categoryID === "" && !header.searchActive
+                onChose: header.activateDiscover()
+            }
+
+            Repeater {
+                model: header.categories
+                delegate: RailItem {
+                    required property var modelData
+                    objectName: "ryostore-category-" + String(modelData.id)
+                    label: String(modelData.name || modelData.id)
+                    note: I18n.tr("%1 pieces").arg(Number(modelData.count || 0))
+                    seal: header.sealFor(modelData.id)
+                    current: header.view === "discover" && header.categoryID === String(modelData.id) && !header.searchActive
+                    onChose: header.activateCategory(String(modelData.id))
+                }
+            }
+
+            Text {
+                text: I18n.tr("02 YOUR STORE")
+                color: header.view === "library" ? Tokens.inkDim : Tokens.inkFaint
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fMicro
+                font.letterSpacing: Tokens.trackLabel
+                topPadding: Tokens.s4
+                bottomPadding: Tokens.s2
+            }
+
+            RailItem {
+                objectName: "ryostore-header-library"
+                label: I18n.tr("Library")
+                note: header.updateCount === 1
+                        ? I18n.tr("%1 installed, 1 update ready").arg(header.libraryCount)
+                        : (header.updateCount > 1
+                           ? I18n.tr("%1 installed, %2 updates ready").arg(header.libraryCount).arg(header.updateCount)
+                           : I18n.tr("%1 installed").arg(header.libraryCount))
+                seal: "蔵"
+                current: header.view === "library" && !header.searchActive
+                flagged: header.updateCount > 0
+                onChose: header.activateLibrary()
+            }
+        }
+
+        WheelScroll { }
+        ScrollBar.vertical: ScrollRail { policy: ScrollBar.AsNeeded }
     }
 
-    Rectangle {
+    Item {
+        id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: Tokens.border
-        color: Tokens.line
+        height: 68
+
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            height: Tokens.border
+            color: Tokens.line
+        }
+
+        Btn {
+            objectName: "ryostore-header-refresh"
+            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter }
+            anchors.leftMargin: Tokens.s4
+            anchors.rightMargin: Tokens.s4
+            text: header.refreshing ? I18n.tr("SYNCING")
+                    : (header.updateAvailable ? I18n.tr("REFRESH CATALOGUE") : I18n.tr("REFRESH"))
+            armed: !header.refreshing
+            primary: header.updateAvailable
+            onAct: header.refreshRequested()
+            Accessible.role: Accessible.Button
+            Accessible.name: text
+            Accessible.onPressAction: header.refreshRequested()
+        }
     }
 }

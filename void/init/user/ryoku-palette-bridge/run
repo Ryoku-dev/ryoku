@@ -1,0 +1,13 @@
+#!/bin/sh
+# Translation of ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service.
+# After=graphical-session.target becomes a WAYLAND_DISPLAY wait; WantedBy=
+# default.target makes it a session service, so it lives in the user tier even
+# though its systemd original ships under packaging/.
+exec 2>&1
+
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+
+. "${RYOKU_INIT_LIB:-$(dirname "$0")/../../lib}/wait-for"
+wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
+
+exec "$BIN/ryoku-palette-bridge"

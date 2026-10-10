@@ -1,0 +1,79 @@
+#!/bin/bash
+set -o pipefail
+
+quiet=0
+if [[ ${1:-} == -q ]]; then
+  quiet=1
+  shift
+fi
+
+fail() {
+  (( quiet )) && exit 0
+  printf '%s\n' "$1" >&2
+  exit 1
+}
+
+if (( $# == 0 )) || [[ ${1:-} == -h || ${1:-} == --help ]]; then
+  cat <<'USAGE'
+Usage: omarchy-shell [-q] <target> <method> [args...]
+
+Forwards an IPC call to the active Nomarchy host. -q suppresses failures.
+USAGE
+  exit 0
+fi
+(( $# >= 2 )) || fail "Usage: omarchy-shell [-q] <target> <method> [args...]"
+
+export OMARCHY_PATH=${OMARCHY_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/nomarchy}
+[[ -L $OMARCHY_PATH/shell/shell.qml || -f $OMARCHY_PATH/shell/shell.qml ]] || fail "Nomarchy is not active"
+
+if [[ -z ${WAYLAND_DISPLAY:-} ]]; then
+  for candidate in "${XDG_RUNTIME_DIR:-/run/user/$UID}"/wayland-[0-9]*; do
+    [[ -S $candidate && $candidate != *.lock ]] || continue
+    export WAYLAND_DISPLAY=${candidate##*/}
+    break
+  done
+fi
+
+if [[ $1 == shell ]]; then
+  set -- nomarchy "${@:2}"
+fi
+if [[ $1 == nomarchy && ( $2 == summon || $2 == toggle ) && $# == 3 ]]; then
+  set -- "$1" "$2" "$3" '{}'
+fi
+
+socket_id=$(printf '%s\n%s' "$OMARCHY_PATH/shell" "${WAYLAND_DISPLAY:-}" | md5sum)
+socket="${XDG_RUNTIME_DIR:-/run/user/$UID}/omarchy-shell-${socket_id:0:16}.sock"
+request="$*"
+if [[ -S $socket && $request != *$'\x1e'* && $request != *$'\x1f'* ]] && command -v socat >/dev/null 2>&1; then
+  saved_ifs=$IFS
+  IFS=$'\x1f'
+  request="$*"
+  IFS=$saved_ifs
+  reply=$(printf '%s\x1e' "$request" | timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" socat -t 86400 - "UNIX-CONNECT:$socket" 2>&1)
+  status=$?
+  if (( status == 0 )) && [[ $reply == OK$'\x1f'*$'\x1e'* ]]; then
+    output=${reply#OK$'\x1f'}
+    output=${output%$'\x1e'*}
+    (( quiet )) || [[ -z $output ]] || printf '%s\n' "$output"
+    exit 0
+  elif (( status == 124 || status == 137 )); then
+    fail "omarchy-shell is not responding"
+  elif [[ $reply == SKIP$'\x1e'* || $reply == *' E connect('* ]]; then
+    :
+  else
+    fail "omarchy-shell is not responding"
+  fi
+fi
+
+output=$(timeout --kill-after=1s "${OMARCHY_SHELL_IPC_TIMEOUT:-2s}" qs -c shell ipc call -- "$@" 2>/dev/null)
+status=$?
+if (( status == 124 || status == 137 )); then
+  fail "omarchy-shell is not responding"
+elif (( status != 0 )); then
+  fail "omarchy-shell is not running"
+fi
+case $output in
+  'Target not found.'|'Function not found.'|'Too few arguments provided'*|'Too many arguments provided'*) fail "$output" ;;
+  'Not ready to accept queries yet'*) fail "omarchy-shell is not ready" ;;
+esac
+(( quiet )) || [[ -z $output ]] || printf '%s\n' "$output"

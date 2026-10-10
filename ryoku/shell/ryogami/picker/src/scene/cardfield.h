@@ -40,12 +40,15 @@ class CardField : public QQuickItem
     Q_PROPERTY(QVariantMap palette READ palette WRITE setPalette NOTIFY paletteChanged)
     Q_PROPERTY(bool interactive READ interactive WRITE setInteractive NOTIFY interactiveChanged)
     Q_PROPERTY(int columns READ columns WRITE setColumns NOTIFY columnsChanged)
+    Q_PROPERTY(bool activateOnClick READ activateOnClick WRITE setActivateOnClick NOTIFY activateOnClickChanged)
     Q_PROPERTY(int hoveredIndex READ hoveredIndex NOTIFY hoveredIndexChanged)
     Q_PROPERTY(QRectF currentRect READ currentRect NOTIFY currentRectChanged)
     Q_PROPERTY(QPointF currentShear READ currentShear NOTIFY currentRectChanged)
     Q_PROPERTY(QRectF stageRect READ stageRect NOTIFY stageRectChanged)
     Q_PROPERTY(QSizeF barReserve READ barReserve WRITE setBarReserve NOTIFY barReserveChanged)
     Q_PROPERTY(int visibleEnd READ visibleEnd NOTIFY visibleEndChanged)
+    Q_PROPERTY(qreal scrollPosition READ scrollPosition NOTIFY scrollMetricsChanged)
+    Q_PROPERTY(qreal scrollExtent READ scrollExtent NOTIFY scrollMetricsChanged)
     Q_PROPERTY(int flippedIndex READ flippedIndex NOTIFY flippedIndexChanged)
     Q_PROPERTY(bool flipsInPlace READ flipsInPlace NOTIFY flipsInPlaceChanged)
     Q_PROPERTY(bool moving READ moving NOTIFY movingChanged)
@@ -68,6 +71,8 @@ public:
     void setPalette(const QVariantMap &palette);
     bool interactive() const { return m_interactive; }
     void setInteractive(bool interactive);
+    bool activateOnClick() const { return m_activateOnClick; }
+    void setActivateOnClick(bool activate);
     int columns() const { return m_columns; }
     void setColumns(int columns);
     int hoveredIndex() const { return m_hovered; }
@@ -78,6 +83,8 @@ public:
     void setBarReserve(const QSizeF &reserve);
     int flippedIndex() const { return m_flippedRow; }
     int visibleEnd() const { return m_visibleEnd; }
+    qreal scrollPosition() const { return m_scrollPosition; }
+    qreal scrollExtent() const { return m_scrollExtent; }
     bool flipsInPlace() const { return m_layout && m_layout->flipsInPlace(); }
     bool moving() const { return m_animating; }
 
@@ -90,6 +97,8 @@ public:
     Q_INVOKABLE void unflip();
     Q_INVOKABLE QRectF rectOf(int row) const;
     Q_INVOKABLE bool action(const QString &name);
+    Q_INVOKABLE void setScrollPosition(qreal position);
+    Q_INVOKABLE void scrollBy(qreal delta);
 
 Q_SIGNALS:
     void sourceChanged();
@@ -101,12 +110,14 @@ Q_SIGNALS:
     void interactiveChanged();
     void columnsChanged();
     void hoveredIndexChanged();
+    void activateOnClickChanged();
     void currentRectChanged();
     void stageRectChanged();
     void barReserveChanged();
     void flippedIndexChanged();
     void flipsInPlaceChanged();
     void visibleEndChanged();
+    void scrollMetricsChanged();
     void movingChanged();
 
     void activated(int row);
@@ -133,6 +144,7 @@ private:
 
 private Q_SLOTS:
     void onSourceChanged();
+    void onCardsAppended();
     void onCardUpdated(int row);
     void onSettingChanged();
 
@@ -141,6 +153,7 @@ private:
     void restoreSelection();
     void connectSource();
     void disconnectSource();
+    void resetGenerationState();
 
     void drainDecoder(CardRenderNode *node);
     void resolve(CardRenderNode *node, const LayoutContext &ctx,
@@ -156,15 +169,14 @@ private:
     bool tickFades(double dt);
 
     float flipPhase(float x, float y) const;
-    float filterRollFor(qint64 cell, const QString &key, float x, float y);
-    void filterStorm();
-    void pushFilterOld(std::vector<CardInstance> &instances, CardRenderNode *node);
+    float filterRollFor(qint64 cell, float x, float y);
     bool advanceFilterSwap(double dt);
 
     void schedulePreview();
     void startPreview();
     void publishRects(const QRectF &current, QPointF shear, const QRectF &stage);
     void publishVisibleEnd(int end);
+    void publishScrollMetrics(qreal position, qreal extent);
     void stopPreview();
 
     QPointer<QObject> m_sourceObj;
@@ -179,6 +191,7 @@ private:
     quint64 m_generation = 0;
 
     bool m_active = false;
+    bool m_activateOnClick = false;
     bool m_interactive = true;
     int m_columns = 0;
     Spring m_entrance;
@@ -190,6 +203,11 @@ private:
     QRectF m_stageRect;
     QSizeF m_barReserve;
     int m_visibleEnd = -1;
+    qreal m_scrollPosition = 0;
+    qreal m_scrollExtent = 0;
+    qreal m_pendingScrollPosition = 0;
+    qreal m_pendingScrollExtent = 0;
+    bool m_scrollQueued = false;
     QPointF m_pointer;
     bool m_pointerInside = false;
     bool m_dragging = false;
@@ -235,21 +253,6 @@ private:
     std::vector<CardInstance> m_transBuf;
     std::unordered_map<QString, Spring> m_fades;
 
-    struct FilterCard {
-        CardInstance inst;
-        qint64 cell;
-        QString key;
-        float roll;
-    };
-    struct FilterOld {
-        CardInstance inst;
-        qint64 cell;
-        QString key;
-        float t;
-    };
-    std::vector<FilterCard> m_filterCache;
-    std::vector<FilterOld> m_filterOld;
-    QHash<qint64, int> m_filterCell;
     QHash<qint64, float> m_filterIn;
     float m_filterWave = 10.0f;
     // Watchdog: a bounded swap must terminate, so a stuck roll can never blank a card.

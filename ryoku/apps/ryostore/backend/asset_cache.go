@@ -1,10 +1,8 @@
-// Browse asset cache: the store shows a preview (and screenshots) for every
-// catalogue item, all served from a remote base by default. Loading those over
-// the network on every open is slow, fails offline, and -- because the QML front
-// end tears down in-flight network image loads when its window closes -- is a
-// source of shutdown crashes. warmAssets pulls each remote image to disk once
-// and rewrites the item to a local file:// path, so the store renders from the
-// cache: instant, offline-capable, and with no live image requests to abort.
+// Browse asset cache: previews and gallery media are remote by default. Loading
+// them on every open is slow, fails offline, and leaves network decoders in
+// flight when the QML window closes. warmAssets copies each asset byte-for-byte
+// to a path that keeps its extension, then rewrites the item to a local file URL.
+// Animated images stay animated and video containers remain playable.
 package main
 
 import (
@@ -24,13 +22,12 @@ import (
 )
 
 const (
-	// maxAssetBytes caps one cached image so a misrouted URL cannot fill the
-	// cache; generous enough for animated decor gifs.
-	maxAssetBytes = 16 << 20
-	// assetFetchTimeout bounds a single image download. Generous because a
-	// preview can be a multi-megabyte gif and the source throttles concurrent
-	// pulls from one address.
-	assetFetchTimeout = 40 * time.Second
+	// maxAssetBytes caps one cached preview so a misrouted URL cannot fill the
+	// cache. Video previews need more room than stills and animated artwork.
+	maxAssetBytes = 96 << 20
+	// assetFetchTimeout bounds a single media download. The cache streams bytes
+	// unchanged so GIF, animated WebP, and video containers keep their format.
+	assetFetchTimeout = 90 * time.Second
 	// warmBudget caps the whole background warm so it always terminates even
 	// against a slow source; the per-asset timeout bounds each download.
 	warmBudget = 5 * time.Minute
@@ -41,6 +38,13 @@ const (
 
 func assetCacheDir() string {
 	return filepath.Join(extrasCacheDir(), "assets")
+}
+
+// shouldWarmAssets keeps very large remote catalogues lazy. Their GridView
+// delegates fetch only visible media, instead of a refresh downloading the
+// entire marketplace in the background.
+func shouldWarmAssets(item Item) bool {
+	return item.Category != "omarchy-plugins"
 }
 
 // rewriteCachedAssets swaps every already-cached remote asset URL for its local
@@ -58,6 +62,9 @@ func rewriteCachedAssets(items []Item) {
 		return u
 	}
 	for i := range items {
+		if !shouldWarmAssets(items[i]) {
+			continue
+		}
 		items[i].Art = swap(items[i].Art)
 		items[i].ArtRaw = swap(items[i].ArtRaw)
 		for j := range items[i].Screenshots {
@@ -114,12 +121,11 @@ func cachedAssetPath(url string) string {
 	return filepath.Join(assetCacheDir(), hex.EncodeToString(sum[:16])+ext)
 }
 
-// warmAssets downloads every unique remote preview and screenshot referenced by
-// items into the asset cache and rewrites those fields to local file:// paths.
-// It is idempotent: an already-cached URL is reused, so only the first warm (or
-// a genuinely new asset) hits the network. A download failure leaves that item's
-// remote URL in place, so the store still shows it over the network as a
-// fallback rather than a blank tile.
+// warmAssets downloads every unique remote cover and gallery asset referenced
+// by items into the cache and rewrites those fields to local file:// paths. It
+// is idempotent: an existing URL is reused, so only the first warm (or a genuinely
+// new asset) hits the network. A failure leaves that item's remote URL in place,
+// preserving the network fallback rather than drawing a blank tile.
 func warmAssets(ctx context.Context, client *http.Client, items []Item) {
 	if len(items) == 0 {
 		return
@@ -144,10 +150,16 @@ func warmAssets(ctx context.Context, client *http.Client, items []Item) {
 	// short. Screenshots (shown only in a detail) fill whatever budget remains and
 	// converge over later refreshes.
 	for i := range items {
+		if !shouldWarmAssets(items[i]) {
+			continue
+		}
 		note(items[i].Art)
 		note(items[i].ArtRaw)
 	}
 	for i := range items {
+		if !shouldWarmAssets(items[i]) {
+			continue
+		}
 		for _, s := range items[i].Screenshots {
 			note(s)
 		}
@@ -189,6 +201,9 @@ func warmAssets(ctx context.Context, client *http.Client, items []Item) {
 		return u
 	}
 	for i := range items {
+		if !shouldWarmAssets(items[i]) {
+			continue
+		}
 		items[i].Art = rewrite(items[i].Art)
 		items[i].ArtRaw = rewrite(items[i].ArtRaw)
 		for j := range items[i].Screenshots {

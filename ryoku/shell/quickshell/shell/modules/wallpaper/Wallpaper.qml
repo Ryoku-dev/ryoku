@@ -60,41 +60,42 @@ Item {
         frame.apply(line);
     }
 
-    // Subscribe once, then stream, mirroring the Tray/Clipboard singletons. A
-    // second write would half-close the stream (daemon rule), so nothing else
-    // writes here.
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser {
-            onRead: line => root.apply(line)
-        }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe wallpaper\n");
-                flush();
-            } else {
-                retry.restart();
+    // QLocalSocket can retain an error from a failed reconnect after a daemon
+    // restart. Recreate the socket for each attempt so an old peer or error
+    // cannot detach a subscription that has just connected.
+    function reconnect(): void {
+        if (subscriber.active)
+            subscriber.active = false;
+    }
+
+    Loader {
+        id: subscriber
+        active: true
+        sourceComponent: Socket {
+            path: root.sockPath
+            parser: SplitParser {
+                onRead: line => root.apply(line)
             }
-        }
-        // A peer close (the daemon restarting under us, which is what login does
-        // with the session daemons) arrives as a socket error and leaves
-        // `connected` true, so the branch above never ran: the desktop kept a
-        // grey wallpaper until something re-applied by hand. Drop the link on the
-        // error so the reconnect path takes over and re-requests the frame.
-        onError: {
-            connected = false;
-            retry.restart();
+            Component.onCompleted: connected = true
+            onConnectionStateChanged: {
+                if (connected) {
+                    write("subscribe wallpaper\n");
+                    flush();
+                } else {
+                    root.reconnect();
+                }
+            }
+            onError: root.reconnect()
         }
     }
 
-    // Ryogami may be down when the shell loads (or restart under it); retry
-    // quietly so the desktop rebinds once it returns.
+    // Ryogami may be down while deploy or update replaces it. Every retry gets
+    // a new socket and therefore a fresh retained frame and subscription.
     Timer {
         id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected)
-            sub.connected = true
+        interval: 500
+        repeat: true
+        running: !subscriber.active
+        onTriggered: subscriber.active = true
     }
 }

@@ -21,17 +21,7 @@ PanelWindow {
     id: dock
 
     // ── edge: explicit, or auto (opposite the bar) ───────────────────────────
-    readonly property string cfgEdge: Dock.cfg("edge", "auto")
-    readonly property string edge: {
-        if (dock.cfgEdge === "top" || dock.cfgEdge === "bottom"
-            || dock.cfgEdge === "left" || dock.cfgEdge === "right")
-            return dock.cfgEdge;
-        // auto = opposite the bar. qsbar carries its own position; every other
-        // style lives up top, so the dock defaults to the bottom.
-        if (Config.barStyle === "qsbar")
-            return Config.qsbar.barPosition === "bottom" ? "top" : "bottom";
-        return "bottom";
-    }
+    readonly property string edge: Dock.resolvedEdge()
     readonly property bool horizontal: dock.edge === "top" || dock.edge === "bottom"
 
     // ── sizing ────────────────────────────────────────────────────────────────

@@ -1,0 +1,43 @@
+// A realistic split config with comments and a raw include path.
+include r"config.d/input.kdl"
+include "config.d/desktop.kdl"
+
+/* nested comments remain harmless
+   /* even when another block appears inside */
+*/
+
+output "eDP-1" {
+    mode "2560x1600@165.001"
+    scale 1.333
+    position x=0 y=0
+    transform "90"
+    variable-refresh-rate
+}
+
+binds {
+    Mod+Q { close-window; }
+    Mod+Return allow-when-locked=true repeat=false { spawn "foot" "--server"; }
+    Mod+X { power-off-monitors; }
+    /- Mod+Z { spawn "ignored"; }
+}
+
+window-rule {
+    match app-id=r#"^org\.example\.Editor$"# title="Notes"
+    open-floating true
+    opacity 0.92
+    min-width 640
+    min-height 480
+}
+
+layer-rule {
+    match namespace="notifications"
+    opacity 0.9
+    background-effect {
+        blur true
+    }
+    block-out-from "screencast"
+}
+
+xwayland-satellite {
+    path "xwayland-satellite"
+}

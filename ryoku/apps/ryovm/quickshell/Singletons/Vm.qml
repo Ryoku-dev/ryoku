@@ -67,11 +67,10 @@ Singleton {
     property string faultDetail: ""      // full engine stderr, un-truncated
 
     // ---- the yard log (the flight recorder) ---------------------------------
-    // Every receipt and fault already funnels through info()/raiseFault(); the
-    // log is those two functions growing memory instead of evaporating after
-    // 4.5s. Session-scoped, capped at 200, tagged with the machine in focus so
-    // the detail sheet can show one machine's history.
+    // Receipts, faults, and observed machine state changes stay in memory for
+    // the dashboard and detail activity views.
     property var events: []
+    property var observedRunning: ({})
     function _log(kind, text, detail, focus) {
         var s = ("" + text).trim();
         if (s.length === 0)
@@ -84,6 +83,19 @@ Singleton {
         if (e.length > 200)
             e = e.slice(e.length - 200);
         events = e;
+    }
+    function _recordRunningStates(rows) {
+        var next = {};
+        for (var i = 0; i < rows.length; i++) {
+            var name = rows[i].name;
+            var running = rows[i].running === true;
+            next[name] = running;
+            if (observedRunning[name] === undefined)
+                _log("status", running ? I18n.tr("Machine is running") : I18n.tr("Machine is stopped"), "", name);
+            else if (observedRunning[name] !== running)
+                _log("status", running ? I18n.tr("Machine started") : I18n.tr("Machine stopped"), "", name);
+        }
+        observedRunning = next;
     }
 
     function raiseFault(text, focus) {
@@ -287,17 +299,99 @@ Singleton {
     // its host-side cost and guest IP, through the sockets quickemu already
     // opens. monStats is the last reading of the selected machine.
     property var monStats: ({})
-    property bool monWatch: false        // set true only while the machine stage is on screen
+    property bool metricsActive: false
+    property var metricHistory: ({})
+    property var metricPrevious: ({})
+    property var metricQueue: []
+    property int metricsRevision: 0
     readonly property bool monRunning: selected ? selected.running === true : false
     onSelectedNameChanged: monStats = ({})
     function monRefresh() {
         if (!monRunning || selectedName.length === 0) { monStats = ({}); return; }
-        monProc.command = ["ryovm", "mon", selectedName, "stats"];
-        monProc.running = true;
+        if (metricsActive)
+            metricsRefresh();
     }
     function power(name, action) { monActProc.command = ["ryovm", "mon", name, "power", action]; monActProc.running = true; }
     function balloon(name, mb) { monActProc.command = ["ryovm", "mon", name, "balloon", "" + Math.round(mb)]; monActProc.running = true; }
     function pin(name, mode) { monActProc.command = ["ryovm", "mon", name, "pin", mode || "auto"]; monActProc.running = true; }
+
+    function _vmByName(name) {
+        for (var i = 0; i < vms.length; i++)
+            if (vms[i].name === name)
+                return vms[i];
+        return null;
+    }
+    function _ramMB(vm) {
+        if (!vm || !vm.ram || vm.ram === "auto")
+            return Math.max(1, (+settings.defaultRam || 4) * 1024);
+        var value = parseFloat(vm.ram) || 0;
+        return vm.ram.indexOf("M") >= 0 ? value : value * 1024;
+    }
+    function _rate(now, previous, sample, key) {
+        if (!previous || !previous.sample || previous.sample[key] === undefined || sample[key] === undefined)
+            return 0;
+        var seconds = Math.max(0.001, (now - previous.at) / 1000);
+        return Math.max(0, (+sample[key] - +previous.sample[key]) / seconds);
+    }
+    function _recordMetrics(name, sample) {
+        if (!sample || sample.running !== true)
+            return;
+        var now = Date.now();
+        var previous = metricPrevious[name] || null;
+        var vm = _vmByName(name);
+        var ramMB = _ramMB(vm);
+        var vcpus = Math.max(1, +sample.vcpus || (vm && vm.cores !== "auto" ? +vm.cores : 1) || 1);
+        var point = {
+            at: now,
+            cpu: Math.min(100, Math.max(0, (+sample.hostCpuPct || 0) / vcpus)),
+            ram: ramMB > 0 ? Math.min(100, 100 * (+sample.hostRssMB || 0) / ramMB) : 0,
+            disk: _rate(now, previous, sample, "diskReadBytes") + _rate(now, previous, sample, "diskWriteBytes"),
+            net: _rate(now, previous, sample, "netRxBytes") + _rate(now, previous, sample, "netTxBytes")
+        };
+        var histories = metricHistory;
+        var history = (histories[name] || []).slice();
+        history.push(point);
+        if (history.length > 60)
+            history = history.slice(history.length - 60);
+        histories[name] = history;
+        metricHistory = histories;
+        var prior = metricPrevious;
+        prior[name] = { at: now, sample: sample };
+        metricPrevious = prior;
+        metricsRevision++;
+        if (selectedName === name)
+            monStats = sample;
+    }
+    function historyFor(name) {
+        void metricsRevision;
+        return metricHistory[name] || [];
+    }
+    function series(name, key) {
+        var history = historyFor(name), values = [];
+        for (var i = 0; i < history.length; i++)
+            values.push(+history[i][key] || 0);
+        return values;
+    }
+    function metricsRefresh() {
+        if (!metricsActive || metricProc.running)
+            return;
+        var queue = [];
+        for (var i = 0; i < vms.length; i++)
+            if (vms[i].running === true)
+                queue.push(vms[i].name);
+        metricQueue = queue;
+        _nextMetric();
+    }
+    function _nextMetric() {
+        if (!metricsActive || metricQueue.length === 0)
+            return;
+        var queue = metricQueue.slice();
+        var name = queue.shift();
+        metricQueue = queue;
+        metricProc.metricName = name;
+        metricProc.command = ["ryovm", "mon", name, "stats"];
+        metricProc.running = true;
+    }
 
     // ---- catalogue ----------------------------------------------------------
     function loadCatalog(force) {
@@ -470,6 +564,7 @@ Singleton {
                 listProc.last = this.text;
                 try {
                     var arr = JSON.parse(this.text);
+                    root._recordRunningStates(arr);
                     root.vms = arr;
                     if (root.pendingSelect.length > 0) {
                         var want = root.pendingSelect;
@@ -783,23 +878,23 @@ Singleton {
             }
         }
     }
-    Process {
-        id: monProc
-        stdout: StdioCollector {
-            onStreamFinished: { try { root.monStats = JSON.parse(this.text); } catch (e) { root.monStats = ({}); } }
-        }
-        onExited: (code) => { if (code !== 0) root.monStats = ({}); }
-    }
     Process { id: monActProc; onExited: root.monRefresh() }
-    // a running machine's live readout, faster than the 5s library poll but only
-    // while a running VM is on the machine stage, so an idle or hidden yard costs
-    // nothing.
+    Process {
+        id: metricProc
+        property string metricName: ""
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root._recordMetrics(metricProc.metricName, JSON.parse(this.text)); } catch (e) {}
+            }
+        }
+        onExited: root._nextMetric()
+    }
     Timer {
-        interval: 2500
+        interval: 5000
         repeat: true
-        running: root.monRunning && root.monWatch
+        running: root.metricsActive
         triggeredOnStart: true
-        onTriggered: root.monRefresh()
+        onTriggered: root.metricsRefresh()
     }
 
     // keep Launch/Stop in step while the window is open. caps ride along (five

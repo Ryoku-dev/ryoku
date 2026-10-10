@@ -114,6 +114,12 @@ public:
         return ctx.motion->ms(MotionProfile::Standard);
     }
     virtual const SandyPass *sandyPass() const { return nullptr; }
+    virtual qreal scrollPosition() const { return 0; }
+    virtual qreal scrollExtent() const { return 0; }
+    virtual void setScrollPosition(const LayoutContext &ctx, qreal position)
+    {
+        Q_UNUSED(ctx) Q_UNUSED(position)
+    }
     // The band the cards occupy; the search panel sits against it.
     virtual QRectF stageRect(const LayoutContext &ctx) const
     {

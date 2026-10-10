@@ -1,0 +1,23 @@
+#!/bin/sh
+# Translation of system/hardware/network/ryoku-network-kill-guard.service.
+# ConditionPathExists=/var/lib/ryoku/network-kill-switch.enabled: without the
+# armed marker the guard is a no-op park. Type=oneshot + RemainAfterExit: run
+# the firewall boot path once and park.
+#
+# Before=network-pre.target NetworkManager.service has no runit analogue
+# (accepted loss, recorded in translations.tsv): runit starts services in
+# parallel. In practice the firewall is up before NetworkManager's first
+# interface bind because this service is a fast oneshot and NM waits on D-Bus
+# first; the residual race is that a single DHCP exchange could slip through
+# on the boot the kill switch is armed.
+exec 2>&1
+
+[ -e /var/lib/ryoku/network-kill-switch.enabled ] || exec sv down .
+
+# ryoku-network-kill boot installs the nftables table (see
+# system/hardware/network/ryoku-network-kill; the helper itself is
+# init-neutral).
+/usr/bin/ryoku-network-kill boot || true
+
+# RemainAfterExit=yes: park rather than restart-loop a oneshot.
+exec sv down .

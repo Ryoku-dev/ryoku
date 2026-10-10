@@ -26,10 +26,10 @@ float depthOffset(float distance, float falloff)
 void DepthLayout::readParams(const LayoutContext &ctx, SliceParams &out) const
 {
     const ParamSource &p = *ctx.params;
-    out.sliceH = float(p.num(skey("depthHeight"), 520.0));
-    out.visibleCount = std::clamp(int(p.num(skey("depthCount"), 5.0)), 3, 21);
-    out.skew = float(p.num(skey("depthSkew"), 0.0));
-    const float c = float(p.num(skey("depthCorners"), 0.0));
+    out.sliceH = float(std::clamp(p.num(skey("depthHeight"), 520.0), 60.0, 4096.0));
+    out.visibleCount = int(std::lround(std::clamp(p.num(skey("depthCount"), 5.0), 3.0, 21.0)));
+    out.skew = float(std::clamp(p.num(skey("depthSkew"), 0.0), -2048.0, 2048.0));
+    const float c = float(std::clamp(p.num(skey("depthCorners"), 0.0), 0.0, 2048.0));
     out.corners = {c, c, c, c};
     out.edgeTilt = 0.0f;
     out.shadows = p.flag(skey("depthShadows"), false);
@@ -44,10 +44,10 @@ void DepthLayout::readParams(const LayoutContext &ctx, SliceParams &out) const
 void DepthLayout::readDepthParams(const LayoutContext &ctx)
 {
     const ParamSource &p = *ctx.params;
-    m_depth.width = float(p.num(skey("depthWidthPx"), 280.0));
-    m_depth.spacing = float(p.num(skey("depthSpacingPx"), 280.0));
-    m_depth.falloff = float(p.num(skey("depthFalloffFactor"), 0.05));
-    m_depth.navigationMs = float(p.num(skey("depthNavigationMs"), 1000.0));
+    m_depth.width = float(std::clamp(p.num(skey("depthWidthPx"), 280.0), 24.0, 4096.0));
+    m_depth.spacing = float(std::clamp(p.num(skey("depthSpacingPx"), 280.0), 0.0, 4096.0));
+    m_depth.falloff = float(std::clamp(p.num(skey("depthFalloffFactor"), 0.05), 0.0, 10.0));
+    m_depth.navigationMs = float(std::clamp(p.num(skey("depthNavigationMs"), 1000.0), 1.0, 10000.0));
     m_depth.selectionFrame = p.flag(skey("depthSelectionFrame"), false);
 }
 
@@ -115,7 +115,8 @@ void DepthLayout::build(const LayoutContext &ctx, std::vector<CardVisual> &out)
     const geom::CenterLayout cl = geom::centerLayout(vw, 0.0f);
     float width = m_depth.width;
     float height = std::max(m_live.sliceH, 1.0f);
-    const float naturalSpan = depthOffset(radius, falloff) * spacing + width * 0.5f;
+    const float naturalSpan = std::max(
+        depthOffset(radius, falloff) * spacing + width * 0.5f, 1.0f);
     const float fit = std::min({std::max(cl.availW * 0.5f - 36.0f, 1.0f) / naturalSpan,
                                 vh * 0.7f / height, 1.0f});
     width *= fit;

@@ -6,6 +6,7 @@ Item {
     id: root
 
     property alias value: slider.value
+    readonly property alias pressed: slider.pressed
     signal moved(real value)
 
     implicitWidth: 220

@@ -13,7 +13,6 @@ QtObject {
     readonly property string family: Config.options?.panelFamily ?? "ii"
     readonly property string shared: Config.options?.background?.widgets?.design ?? "individual"
     readonly property var irisDesigns: ["iris", "material", "instrument", "readout"]
-    // Each family keeps its own design: iRiS in `iris.widgets.design`, Material in `background.widgets.design`.
     readonly property string irisGlobal: {
         const own = String(Config.options?.iris?.widgets?.design ?? "iris")
         return root.irisDesigns.includes(own) ? own : "iris"
@@ -134,8 +133,6 @@ QtObject {
         return name
     }
 
-    // A material or surface opacity one widget (or stack) chose in its Look controls. The shared rows in
-    // Settings do not reach it until it is matched, so Settings lists it with a Match action.
     readonly property var surfaceKeys: ["iris.material", "iris.opacity"]
     function _ownSurface(key: string, value): bool {
         if (key === "iris.opacity") return Number(value) >= 20

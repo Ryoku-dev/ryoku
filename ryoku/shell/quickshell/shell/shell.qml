@@ -218,14 +218,14 @@ ShellRoot {
 
             // Stage now renders entirely inside the desktop surface (one stack:
             // backdrop, layers, widgets), so there is no separate Background
-            // surface here (docs/stage.md). Built on first enable; cava and its
-            // buffers never exist while the visualizer is off. Placement runs in
-            // the Stage Editor now: the desktop hosts the look while the mode
-            // frames this monitor, so this surface exists for the plain and
-            // overlay cases only.
+            // surface here (docs/stage.md). A silent visualizer is unloaded on
+            // every output when the performance policy asks for it; live audio
+            // re-creates the surfaces immediately. Placement runs in the Stage
+            // Editor now: the desktop hosts the look while the mode frames this
+            // monitor, so this surface exists for the plain and overlay cases only.
             LazyLoader {
                 id: vizLoader
-                activeAsync: VizCfg.Config.enabled
+                activeAsync: VizCfg.Config.enabled && Perf.visualizerResident
                 Visualizer {
                     id: perScreenViz
                     screen: perScreen.modelData
@@ -297,26 +297,20 @@ ShellRoot {
                     && Config.askBubble.screen === perScreen.modelData.name
             }
 
-            // The dock: a resident per-monitor surface on the edge opposite the
-            // bar. Style-agnostic, so it lives here rather than inside a bar style;
-            // it is not built until the user turns it on (Hub -> Bar Studio -> Dock).
-            LazyLoader {
+            // One cheap host per monitor loads only the selected dock design.
+            // The surface itself remains independent of the active bar style.
+            UniversalDockHost {
                 id: dockLoader
-                activeAsync: Dock.cfg("enabled", false)
-                DockSurface {
-                    id: perScreenDock
-                    screen: perScreen.modelData
-                    // Edit widgets steps the dock back so the whole desktop is the canvas.
-                    visible: Dock.cfg("enabled", false)
-                        && !(StageCfg.StageSession.widgets && StageCfg.StageSession.monitor === perScreen.modelData.name)
-                }
+                screen: perScreen.modelData
+                surfaceVisible: !(StageCfg.StageSession.widgets
+                    && StageCfg.StageSession.monitor === perScreen.modelData.name)
             }
 
             // The dock's right-click context menu: a full-screen overlay on the
             // monitor that owns the open menu (the thin dock strip cannot host it).
             LazyLoader {
                 id: dockMenuLoader
-                property bool open: Dock.menuOpen && Dock.menuScreen === perScreen.modelData.name
+                property bool open: Dock.design === "ryoku" && Dock.menuOpen && Dock.menuScreen === perScreen.modelData.name
                 activeAsync: open || dockMenuHold.running
                 onOpenChanged: if (!open && active) dockMenuHold.restart()
                 DockMenuOverlay {

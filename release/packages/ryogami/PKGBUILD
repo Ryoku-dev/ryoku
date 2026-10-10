@@ -59,6 +59,10 @@ package() {
   cp -a "$srcdir/qml/Ryoku/Ryogami/." "$pkgdir/usr/lib/qt6/qml/Ryoku/Ryogami/"
   # cp -a keeps build-tree modes: the plugin stays executable, data world-readable.
   chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6"
+  # The picker plugin is refused by a Qt older than the one it was built
+  # against; pin that minor so pacman takes Qt along with this package.
+  local qt; qt="$(pkg-config --modversion Qt6Core | cut -d. -f1,2)"
+  depends+=("qt6-base>=$qt" "qt6-declarative>=$qt" "qt6-multimedia>=$qt")
   # The daemon's default entry point, so an installed box needs no env override.
   install -Dm644 "$_repo/ryoku/shell/ryogami/picker/shell.qml" \
     "$pkgdir/usr/share/ryogami/shell.qml"

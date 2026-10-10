@@ -19,7 +19,7 @@ IrisWidgetFace {
             face: root
             Layout.fillWidth: true
             visible: root.widget.showWeekday
-            text: IrisFaceData.capitalized(Qt.locale().toString(root.today, "dddd"))
+            text: IrisFaceData.capitalized(Translation.locale.toString(root.today, "dddd"))
             color: root.highlight
             size: 13.5
             weight: Font.DemiBold
@@ -34,7 +34,7 @@ IrisWidgetFace {
         FaceText {
             face: root
             Layout.fillWidth: true
-            text: IrisFaceData.capitalized(Qt.locale().toString(root.today, root.widget.showYear ? "MMMM yyyy" : "MMMM"))
+            text: IrisFaceData.capitalized(Translation.locale.toString(root.today, root.widget.showYear ? "MMMM yyyy" : "MMMM"))
             color: root.inkSecondary
             size: 13
             weight: Font.DemiBold

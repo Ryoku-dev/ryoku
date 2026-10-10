@@ -87,6 +87,7 @@ Item {
 
         Loader {
             anchors.fill: parent
+            active: root.visible && root.meterContent !== null
             sourceComponent: root.meterContent
         }
     }

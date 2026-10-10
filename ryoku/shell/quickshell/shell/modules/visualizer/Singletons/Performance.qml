@@ -10,8 +10,7 @@ import shell.services
 Singleton {
     readonly property bool lowPower: Perf.lowPower
     readonly property bool visualizerFrozen: Perf.visualizerFrozen
-    // Only the hard tiers force the idle wave off; plain audio-idle silence is
-    // exactly when the opted-in resting wave should still breathe.
-    readonly property bool visualizerHardFrozen: Perf.lowPower || Perf.saver || Perf.gaming
+    readonly property bool visualizerHardFrozen: Perf.visualizerHardFrozen
+    readonly property bool visualizerResident: Perf.visualizerResident
     readonly property bool blurDisabled: Perf.blurDisabled
 }

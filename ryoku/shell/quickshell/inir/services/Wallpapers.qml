@@ -65,7 +65,7 @@ Singleton {
             return ""
         if (!root.isVideoFile(clean))
             return "file://" + clean
-        if (clean === root.effectiveWallpaperPath && root._fileExists(root.livePoster))
+        if (clean === root.effectiveWallpaperPath && root.livePoster)
             return "file://" + root.livePoster
         const frame = root.videoFirstFrames[clean]
         if (frame)
@@ -178,7 +178,7 @@ Singleton {
         if (!clean || !root.isVideoFile(clean))
             return
         const out = root.getVideoFirstFramePath(clean)
-        if (root.videoFirstFrames[clean] || root._fileExists(out)) {
+        if (root.videoFirstFrames[clean]) {
             root.videoFirstFrames = Object.assign({}, root.videoFirstFrames, { [clean]: out })
             return
         }
@@ -216,12 +216,6 @@ Singleton {
             }
             root._processNextFF()
         }
-    }
-
-    function _fileExists(path: string): bool {
-        if (!path)
-            return false
-        return Quickshell.fileExists(FileUtils.trimFileProtocol(path))
     }
 
     // ── Gallery scan + folder browsing ──────────────────────────────────────
@@ -416,6 +410,8 @@ Singleton {
         // The daemon resolves a clip's poster before it swaps, so a video path
         // needs no still handling here.
         const command = ["ryogami", "wallpaper", "set", clean]
+        if (target === "workspace")
+            command.push("--workspace")
         const monitor = String(monitorName ?? "")
         if (monitor.length > 0)
             command.push("--screen", monitor)

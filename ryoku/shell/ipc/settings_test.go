@@ -372,11 +372,11 @@ func TestMalformedFileFirstLoad(t *testing.T) {
 		if !reflect.DeepEqual(s.cur, defaultSettings()) {
 			t.Fatalf("unparseable file did not fall back to defaults")
 		}
-		// Defaults only: exactly the seven schema namespaces, no passthrough.
-		if len(s.raw) != 7 {
-			t.Fatalf("first-load fallback carried %d top-level keys, want 7 (schema only)", len(s.raw))
+		// Defaults only: exactly the eight schema namespaces, no passthrough.
+		if len(s.raw) != 8 {
+			t.Fatalf("first-load fallback carried %d top-level keys, want 8 (schema only)", len(s.raw))
 		}
-		for _, k := range []string{"general", "theme", "bars", "menus", "notifications", "wallpaper", "ask"} {
+		for _, k := range []string{"general", "theme", "bars", "menus", "notifications", "wallpaper", "ask", "controls"} {
 			if _, ok := s.raw[k]; !ok {
 				t.Fatalf("first-load fallback missing schema namespace %q", k)
 			}
@@ -510,6 +510,33 @@ func TestResetRestoresDefaultWidgetList(t *testing.T) {
 func TestDefaultsValidate(t *testing.T) {
 	if err := defaultSettings().normalize(true); err != nil {
 		t.Fatalf("shipped defaults do not validate: %v", err)
+	}
+}
+
+func TestControlsNormalization(t *testing.T) {
+	s := newTestStore(t)
+	value := `{"sections":[{"id":"levels","visible":false},{"id":"unknown","visible":true},{"id":"levels","visible":true}],"hidden":["liveGraph","unknown","liveGraph"]}`
+	if err := s.patch("controls", rm(value)); err != nil {
+		t.Fatalf("patch controls: %v", err)
+	}
+
+	controls := frameGet(t, s.frameLocked(), "controls").(map[string]any)
+	sections := controls["sections"].([]any)
+	if len(sections) != len(controlSectionIDs) {
+		t.Fatalf("normalized sections = %d, want %d: %v", len(sections), len(controlSectionIDs), sections)
+	}
+	first := sections[0].(map[string]any)
+	if first["id"] != "levels" || first["visible"] != false {
+		t.Fatalf("first normalized section = %v, want hidden levels", first)
+	}
+	for _, raw := range sections {
+		if raw.(map[string]any)["id"] == "unknown" {
+			t.Fatalf("unknown section survived normalization: %v", sections)
+		}
+	}
+	hidden := controls["hidden"].([]any)
+	if len(hidden) != 1 || hidden[0] != "liveGraph" {
+		t.Fatalf("normalized hidden = %v, want [liveGraph]", hidden)
 	}
 }
 

@@ -1,8 +1,10 @@
 #include "texturetier.h"
+#include "gpupoison.h"
 
 #include <rhi/qrhi.h>
 
 #include <algorithm>
+#include <cmath>
 
 TextureTier::TextureTier(QSize layerSize, QSize tileSize, int initialLayers, int maxLayers, int mipLevels)
     : m_layerSize(layerSize)
@@ -67,8 +69,26 @@ int TextureTier::acquireTile()
 
 bool TextureTier::admit(TierImage &&image)
 {
-    if (image.levels.empty() || image.levels.front().isNull() || m_index.contains(image.key))
+    if (image.key.isEmpty() || image.levels.empty() || image.levels.front().isNull()
+        || m_index.contains(image.key))
         return false;
+    const int requiredLevels = m_mipLevels > 1
+        ? int(std::floor(std::log2(std::max(m_tile.width(), m_tile.height())))) + 1
+        : 1;
+    image.levels.resize(std::max(int(image.levels.size()), requiredLevels));
+    for (int level = 0; level < requiredLevels; ++level) {
+        const QSize expected(std::max(1, m_tile.width() >> level),
+                             std::max(1, m_tile.height() >> level));
+        if (image.levels[size_t(level)].isNull()) {
+            if (level == 0)
+                return false;
+            image.levels[size_t(level)] = image.levels[size_t(level - 1)].scaled(
+                expected, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        } else if (image.levels[size_t(level)].size() != expected) {
+            image.levels[size_t(level)] = image.levels[size_t(level)].scaled(
+                expected, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        }
+    }
     int tile = acquireTile();
     if (tile < 0 && m_layers < m_maxLayers) {
         const int grown = std::min(m_maxLayers, m_layers * 2);
@@ -83,7 +103,8 @@ bool TextureTier::admit(TierImage &&image)
         return false;
 
     const QRect r = tileRect(tile);
-    const QSize content = image.content.boundedTo(r.size());
+    const QSize content(std::clamp(image.content.width(), 1, r.width()),
+                        std::clamp(image.content.height(), 1, r.height()));
     Tile &t = m_tiles[size_t(tile)];
     t.key = image.key;
     t.lastUsed = m_frame;
@@ -136,6 +157,8 @@ bool TextureTier::commit(QRhi *rhi, QRhiResourceUpdateBatch *batch)
             }
             return changed;
         }
+        const int levels = m_mipLevels > 1 ? rhi->mipLevelsForSize(m_layerSize) : 1;
+        GpuPoison::texture(batch, tex.get(), m_layerSize, m_layers, levels);
         if (m_texture) {
             const int levels = m_mipLevels > 1 ? rhi->mipLevelsForSize(m_layerSize) : 1;
             for (int layer = 0; layer < m_textureLayers; ++layer) {

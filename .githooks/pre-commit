@@ -19,7 +19,7 @@ fail() {
 # are the English source strings verbatim (including the em-dashes the exempt
 # trees above still carry), and a key that differs from its source no longer
 # matches at lookup. sync.py already strips em-dashes from every translation.
-exempt='^ryoku/lockscreen/qylock/|^ryoku/shell/quickshell/shell/modules/bar/barstyles/qsbar/|^ryoku/shell/quickshell/shell/modules/bar/barstyles/python/|^ryoku/i18n/catalog/'
+exempt='^ryoku/lockscreen/qylock/|^ryoku/shell/quickshell/shell/modules/bar/barstyles/qsbar/|^ryoku/shell/quickshell/shell/modules/bar/barstyles/python/|^ryoku/shell/quickshell/shell/modules/bar/barstyles/nomarchy/|^ryoku/i18n/catalog/'
 text='\.(md|txt|sh|bash|yml|yaml|toml|json|jsonc|conf|lua|tpl|fish|desktop|rules)$|(^|/)(README|NOTICE|LICENSE)$'
 
 mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACM)

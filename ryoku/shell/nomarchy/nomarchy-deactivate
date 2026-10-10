@@ -1,0 +1,21 @@
+#!/bin/bash
+set -euo pipefail
+
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+root=${OMARCHY_PATH:-$data_home/ryoku/nomarchy}
+local_bin=${XDG_BIN_HOME:-$HOME/.local/bin}
+check=0
+[[ ${1:-} == --check ]] && check=1
+
+for link in "$local_bin"/omarchy "$local_bin"/omarchy-*; do
+  [[ -L $link ]] || continue
+  target=$(readlink -- "$link")
+  [[ $target == "$root/bin/"* ]] || continue
+  if (( check )); then
+    exit 1
+  fi
+  rm -f -- "$link"
+done
+
+(( check )) && exit 0
+exit 0

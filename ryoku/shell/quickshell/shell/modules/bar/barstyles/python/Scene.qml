@@ -60,10 +60,6 @@ Item {
                 Bar {}
                 PopoutManager {}
 
-                Loader {
-                    active: Config.getSetting("dock", {}).enabled !== false
-                    sourceComponent: Dock {}
-                }
 
                 Loader {
                     active: Config.getSetting("general", {}).quickactions !== false

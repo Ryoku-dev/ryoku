@@ -69,6 +69,21 @@ Singleton {
         return cur === undefined || cur === null ? fallback : cur;
     }
 
+    // A value shown while a control is dragged: its consumers follow it, but nothing is
+    // persisted and the revision stays put (every Settings row re-reads on a revision).
+    // The drag ends with setNestedValue.
+    function previewNestedValue(path, value) {
+        const segs = _split(Array.isArray(path) ? path.join(".") : String(path));
+        let cur = root.options;
+        for (let i = 0; i < segs.length - 1; i++) {
+            if (cur[segs[i]] === null || typeof cur[segs[i]] !== "object")
+                cur[segs[i]] = ({});
+            cur = cur[segs[i]];
+        }
+        cur[segs[segs.length - 1]] = value;
+        root.options = (Object.assign({}, root.options));
+    }
+
     function setNestedValue(path, value) {
         // Callers pass either a dotted string or a segment array; an array
         // must join before it becomes an object key, or "dock,pinnedApps"

@@ -1,0 +1,3 @@
+// The reader discovers cfg trees even when the entry forgot the include.
+prefer-no-csd
+screenshot-path r#"~/Pictures/Screenshots/%Y-%m-%d // capture.png"#

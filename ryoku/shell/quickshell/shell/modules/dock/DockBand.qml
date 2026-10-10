@@ -27,9 +27,9 @@ Item {
     property real reservedDepth: 0
 
     // ── sizing + look knobs ──────────────────────────────────────────────────
-    readonly property real baseSize: 46
-    readonly property real iconSize: 30
-    readonly property real gap: 16
+    readonly property real baseSize: Math.max(28, Math.min(72, Number(Dock.cfg("size", 44)))) + 2
+    readonly property real iconSize: Math.max(18, baseSize - 16)
+    readonly property real gap: Math.max(10, Math.round(baseSize * 0.35))
     readonly property real sepWidth: 15
     readonly property real radius: Theme.radiusWidget + 4
     readonly property real maxScale: 1.4

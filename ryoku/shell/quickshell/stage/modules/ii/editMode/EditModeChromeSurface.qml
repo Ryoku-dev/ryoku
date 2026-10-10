@@ -7,6 +7,7 @@ import stage.modules.common
 import stage.modules.common.functions
 import stage.modules.common.widgets
 import stage.modules.ii.editMode
+import shell.services as ShellServices
 
 /**
  * One screen's worth of Edit Mode's chrome: a full-screen layer surface that is
@@ -581,44 +582,14 @@ PanelWindow {
             return;
         }
         if (what === "dock") {
-            if (PanelFamily.touchFirst) {
-                const tabletDockDefaults = {
-                    reserveSpace: true,
-                    height: 96,
-                    iconSize: 48,
-                    showAppRow: true,
-                    autoHideOnOccupiedWorkspace: true,
-                    keepNavigationVisible: true,
-                    showNavigation: true,
-                    showRunningApps: true,
-                    maximumRecents: 0,
-                    showAppDrawerButton: true,
-                    showSearchBar: true,
-                    searchBarWidth: 320,
-                    searchBarStyle: "extended",
-                    showAppDividers: true,
-                    showWorkspaceArrows: true,
-                    showPageCounter: true,
-                    hidePageCounterOnOccupiedWorkspace: true,
-                    compactWhenPageCounterHidden: true
-                };
-                for (const key in tabletDockDefaults) {
-                    if (Config.options.tablet.dock.hasOwnProperty(key))
-                        Config.options.tablet.dock[key] = tabletDockDefaults[key];
-                }
-                Config.options.dock.pinnedOnStartup = false;
-            }
-            const pinnedBefore = EditModeLogic.listCopy(Config.options.dock.pinnedApps ?? []);
-            const orderBefore = EditModeLogic.listCopy(Config.options.dock.order ?? []);
-            const pinnedAfter = EditModeLogic.listCopy(root.defaultsFor("dock.pinnedApps") ?? []);
-            const orderAfter = EditModeLogic.listCopy(root.defaultsFor("dock.order") ?? []);
-            if (JSON.stringify([pinnedBefore, orderBefore]) === JSON.stringify([pinnedAfter, orderAfter]))
+            const before = ShellServices.Dock.pinnedOrStarter().slice();
+            const after = ShellServices.Dock.normalizedPins(ShellServices.Dock.starterPins());
+            if (JSON.stringify(before) === JSON.stringify(after))
                 return;
-            Config.options.dock.pinnedApps = pinnedAfter;
-            Config.options.dock.order = orderAfter;
+            ShellServices.Dock.setPinned(after);
             GlobalStates.editHistoryPush({
-                "undo": () => { Config.options.dock.pinnedApps = pinnedBefore; Config.options.dock.order = orderBefore; },
-                "redo": () => { Config.options.dock.pinnedApps = pinnedAfter; Config.options.dock.order = orderAfter; }
+                "undo": () => ShellServices.Dock.setPinned(before),
+                "redo": () => ShellServices.Dock.setPinned(after)
             });
             return;
         }
@@ -645,15 +616,6 @@ PanelWindow {
         }
     }
 
-    function toggleDockPin(appId) {
-        const before = EditModeLogic.listCopy(Config.options.dock.pinnedApps ?? []);
-        TaskbarApps.togglePin(appId);
-        const after = EditModeLogic.listCopy(Config.options.dock.pinnedApps ?? []);
-        GlobalStates.editHistoryPush({
-            "undo": () => { Config.options.dock.pinnedApps = before; },
-            "redo": () => { Config.options.dock.pinnedApps = after; }
-        });
-    }
 
     Item {
         id: menuCloser
@@ -836,7 +798,6 @@ PanelWindow {
         onDrawerBarDragMoved: (componentId, x, y) => root.barDragMoved(componentId, x, y)
         onDrawerBarDropRequested: (componentId, x, y) => root.barDrop(componentId, x, y)
         onDrawerBarDragCancelled: root.barController()?.externalDragEnd()
-        onDrawerDockToggleRequested: appId => root.toggleDockPin(appId)
         onDrawerAddAppRequested: (appId, dropX, dropY) => root.addAppAt(appId, dropX, dropY)
         onDrawerToggleAppRequested: appId => root.toggleAppOnHomeScreen(appId)
         onDrawerAddAppPairRequested: (firstAppId, secondAppId, name) => root.addAppPair(firstAppId, secondAppId, name)

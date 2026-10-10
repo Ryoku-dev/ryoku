@@ -494,16 +494,13 @@ Detected harnesses keep their own models until you connect them:
 `ryoku-rashin wire` and updates re-route only harnesses you connected, and
 Disconnect is never undone by a later update.
 
-Rashin's own chat lanes follow the same rule. Choosing a chat agent connects it
-through Prowl first, and the agent answering chat cannot be disconnected until
-another one takes over. While the agent routes through Prowl, its model picker
-offers only what goes through Prowl: Claude Code keeps every model (its whole
-endpoint points at Prowl); for Hermes, Oh My Pi and opencode, models from the
-agent's other providers are hidden and Prowl's aliases merge into one
-**Active set** entry. Hermes also lists every non-empty Prowl routing set, so
-a chat can run on another set without changing Prowl's active set. A remembered
-pick from another provider is dropped rather than re-applied. Until a provider
-can serve `auto`, the agent stays pending, chat keeps answering on its previous
+Rashin's own chat lanes follow the same rule. Connecting the chat agent makes
+Prowl's `auto` its default for new chats, and the agent answering chat cannot be
+disconnected until another one takes over. The picker lists Prowl once, as
+**Active set** (the set active in Prowl's Routing page), followed by every model
+the agent offers from its own providers, which answer directly rather than
+through Prowl. Claude Code lists its models as they are. Until a provider can
+serve `auto`, the agent stays pending, chat keeps answering on its previous
 model, and the console says why.
 
 Rashin proxies the gateway's management API under `/api/prowl/`, adding the

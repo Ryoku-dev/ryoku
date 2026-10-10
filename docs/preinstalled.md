@@ -263,7 +263,7 @@ pass.
 | Package | Role |
 |---|---|
 | `yay-bin` | The AUR helper, bootstrapped first so the rest can build |
-| `voxtype-bin` | The offline Whisper voice-dictation daemon (pill Super+`) |
+| `voxtype-bin` | The Whisper voice-dictation daemon with curated local English and multilingual models (pill Super+`) |
 | `localsend-bin` | AirDrop-style LAN file sharing, spoken by the file stash |
 | `nvibrant-bin` | NVIDIA digital vibrance for the pill's saturation fader |
 | `game-devices-udev` | udev rules and battery reporting for DualSense and Switch Pro pads |

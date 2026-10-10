@@ -2,9 +2,8 @@
 # Engine for ryovm: the data plane behind the ryovm app. A thin, JSON-speaking
 # wrapper around quickemu + quickget (the QEMU front-end that auto-downloads
 # ~1000 OSes and runs them with tuned defaults), so the QML never shells out to
-# qemu itself. Every VM is one quickemu .conf under the VMs dir, which makes
-# multi-VM native; the GPU-passthrough gaming VM (Ryoku Settings > GPU) is a
-# separate, single-VM path and is deliberately untouched here.
+# qemu itself. Every quickemu VM is one .conf under the VMs directory. Looking
+# Glass guests use a separate libvirt path owned by the GPU VM backend.
 #
 # Verbs (all machine-readable verbs print one JSON document to stdout):
 #   caps                              host readiness (quickemu/qemu/kvm/spice)
@@ -26,8 +25,8 @@
 #   ssh <name>                       print the ssh command to the guest
 #   delete <name> [--disk-only]      remove the VM (or just wipe its disk)
 #   folder [name]                    print the VMs dir (or one VM dir)
-#   lg [list|create|start|stop|remove|status|<name>]  GPU-passthrough VMs via
-#                                    Looking Glass (delegates to ryoku-hub gpu vm)
+#   lg [list|stats|create|start|stop|remove|status|<name>]  GPU-passthrough VMs
+#                                    via Looking Glass (mutations delegate to the Hub)
 set -euo pipefail
 
 vms_dir="${RYOVM_HOME:-${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/vms}"
@@ -1312,6 +1311,9 @@ cmd_icon() {
 	mkdir -p "$icon_dir"
 	local svg="$icon_dir/$os.svg" png="$icon_dir/$os.png" miss="$icon_dir/$os.miss" f
 	for f in "$svg" "$png"; do
+		# A logo two racing fetches both tinted carries fill twice, which is not
+		# valid XML; it would sit undecodable until the TTL, so fetch it again.
+		[ "$f" = "$svg" ] && grep -q 'fill="#e6dccb" fill=' "$f" 2>/dev/null && rm -f "$f"
 		if [ -s "$f" ]; then
 			local age=$(( ( $(date +%s) - $(stat -c %Y "$f" 2>/dev/null || echo 0) ) / 86400 ))
 			[ "$age" -lt "$icon_ttl_days" ] && { printf '%s\n' "$f"; return 0; }
@@ -1342,24 +1344,26 @@ cmd_icon() {
 		lmde) si="linuxmint" ;;
 		windows|windows-server) si="" ;;   # trademarked; quickemu-icons' badge serves
 	esac
-	if [ -n "$si" ] && curl -fsSL "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/$si.svg" -o "$svg.tmp" 2>/dev/null && [ -s "$svg.tmp" ]; then
-		sed -i 's/<svg /<svg fill="#e6dccb" /' "$svg.tmp"
-		mv "$svg.tmp" "$svg"; rm -f "$png" "$miss"; printf '%s\n' "$svg"; return 0
+	# Prefetch and the on-screen icons can ask for the same OS at once, so each
+	# fetch downloads into its own temp file and the rename is the only shared step.
+	local tmp
+	tmp="$(mktemp "$icon_dir/.$os.XXXXXX")"
+	if [ -n "$si" ] && curl -fsSL "https://raw.githubusercontent.com/simple-icons/simple-icons/develop/icons/$si.svg" -o "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+		sed -i '/<svg[^>]*fill=/!s/<svg /<svg fill="#e6dccb" /' "$tmp"
+		mv "$tmp" "$svg"; rm -f "$png" "$miss"; printf '%s\n' "$svg"; return 0
 	fi
-	rm -f "$svg.tmp"
 	# fallback: the catalogue's own art URLs (quickemu-icons badges).
-	[ -s "$catalog_cache" ] || { serve_stale || true; return 0; }
+	[ -s "$catalog_cache" ] || { rm -f "$tmp"; serve_stale || true; return 0; }
 	local svgurl pngurl
 	svgurl="$(jq -r --arg os "$os" 'first(.[] | select(.OS==$os) | .SVG) // empty' "$catalog_cache" 2>/dev/null)"
 	pngurl="$(jq -r --arg os "$os" 'first(.[] | select(.OS==$os) | .PNG) // empty' "$catalog_cache" 2>/dev/null)"
-	if [ -n "$svgurl" ] && curl -fsSL "$svgurl" -o "$svg.tmp" 2>/dev/null && [ -s "$svg.tmp" ]; then
-		mv "$svg.tmp" "$svg"; rm -f "$png" "$miss"; printf '%s\n' "$svg"; return 0
+	if [ -n "$svgurl" ] && curl -fsSL "$svgurl" -o "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+		mv "$tmp" "$svg"; rm -f "$png" "$miss"; printf '%s\n' "$svg"; return 0
 	fi
-	rm -f "$svg.tmp"
-	if [ -n "$pngurl" ] && curl -fsSL "$pngurl" -o "$png.tmp" 2>/dev/null && [ -s "$png.tmp" ]; then
-		mv "$png.tmp" "$png"; rm -f "$miss"; printf '%s\n' "$png"; return 0
+	if [ -n "$pngurl" ] && curl -fsSL "$pngurl" -o "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+		mv "$tmp" "$png"; rm -f "$miss"; printf '%s\n' "$png"; return 0
 	fi
-	rm -f "$png.tmp"
+	rm -f "$tmp"
 	: > "$miss"            # record the miss so the next launch skips the network
 	serve_stale || true
 }
@@ -1423,10 +1427,37 @@ cmd_mon() {
 # through, so this is a separate engine, never a quickemu conf. `ryovm lg <name>`
 # (a bare name) is the everyday shortcut: start the machine and open Looking
 # Glass. The `ryoport` command is a friendly alias for `ryovm lg`.
+cmd_lg_stats() {
+	local name="${1:?lg stats needs a machine name}" domain="ryoku-$1"
+	have virsh || die "virsh is not installed"
+	local state
+	state="$(virsh --connect qemu:///system domstate "$domain" 2>/dev/null || true)"
+	case "$state" in
+		running|paused) ;;
+		*) emit '{"running":false}'; return 0 ;;
+	esac
+	local stats cpu memory disk_read disk_write net_rx net_tx
+	stats="$(virsh --connect qemu:///system domstats "$domain" --cpu-total --balloon --block --interface --raw 2>/dev/null)" \
+		|| die "could not read live metrics for $name"
+	cpu="$(printf '%s\n' "$stats" | awk -F= '$1=="cpu.time"{print $2; exit}')"
+	memory="$(printf '%s\n' "$stats" | awk -F= '$1=="balloon.current"{print $2; exit}')"
+	disk_read="$(printf '%s\n' "$stats" | awk -F= '$1 ~ /^block\\.[0-9]+\\.rd\\.bytes$/{n+=$2} END{print n+0}')"
+	disk_write="$(printf '%s\n' "$stats" | awk -F= '$1 ~ /^block\\.[0-9]+\\.wr\\.bytes$/{n+=$2} END{print n+0}')"
+	net_rx="$(printf '%s\n' "$stats" | awk -F= '$1 ~ /^net\\.[0-9]+\\.rx\\.bytes$/{n+=$2} END{print n+0}')"
+	net_tx="$(printf '%s\n' "$stats" | awk -F= '$1 ~ /^net\\.[0-9]+\\.tx\\.bytes$/{n+=$2} END{print n+0}')"
+	jq -cn --argjson cpu "${cpu:-0}" --argjson memory "${memory:-0}" \
+		--argjson diskRead "${disk_read:-0}" --argjson diskWrite "${disk_write:-0}" \
+		--argjson netRx "${net_rx:-0}" --argjson netTx "${net_tx:-0}" \
+		'{running:true,cpuTimeNs:$cpu,memoryKb:$memory,diskReadBytes:$diskRead,diskWriteBytes:$diskWrite,netRxBytes:$netRx,netTxBytes:$netTx}'
+}
+
 cmd_lg() {
 	have ryoku-hub || die "ryoku-hub is not installed (it owns GPU passthrough)"
 	local sub="${1:-list}"
 	case "$sub" in
+		stats)
+			shift || true
+			cmd_lg_stats "$@" ;;
 		list|create|start|stop|remove|status)
 			shift || true
 			ryoku-hub gpu vm "$sub" "$@" ;;

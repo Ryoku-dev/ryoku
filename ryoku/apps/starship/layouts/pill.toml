@@ -1,0 +1,46 @@
+add_newline = false
+palette = "mythos"
+
+# floating pill layout
+format = """
+$directory$git_branch$cmd_duration
+$character"""
+
+[palettes.mythos]
+# pill backgrounds. dark muted shades that sit next to Noir
+dir_bg = "#23252E"   # Deep Slate
+git_bg = "#1A272D"   # Dark Aegean Blue/Grey
+time_bg = "#2B1E22"  # Shadowy Tyrian Purple/Wine
+
+# foregrounds. bright accents that pop on terminal blacks
+dir_fg = "#ECA75B"   # Olympian Gold / Bronze
+git_fg = "#70C2A3"   # Oxidized Patina Green
+time_fg = "#E27B75"  # Terracotta / Clay red
+crimson = "#E64553"  # error red
+
+[directory]
+style = "fg:dir_fg bg:dir_bg bold"
+truncation_length = 3
+truncation_symbol = "…/"
+read_only = " 󰌾"
+read_only_style = "fg:crimson bg:dir_bg bold"
+# Nerd Font half-circles = the pill caps
+format = "[](fg:dir_bg)[󰉋 $path ]($style)[$read_only]($read_only_style)[](fg:dir_bg) "
+
+[git_branch]
+symbol = "󰊢 "
+style = "fg:git_fg bg:git_bg bold"
+format = "[](fg:git_bg)[$symbol$branch ]($style)[](fg:git_bg) "
+
+[cmd_duration]
+min_time = 500
+style = "fg:time_fg bg:time_bg bold"
+format = "[](fg:time_bg)[󰔚 $duration ]($style)[](fg:time_bg) "
+
+[character]
+# lambda, not a chevron
+success_symbol = "[λ ](bold fg:dir_fg)"
+error_symbol = "[λ ](bold fg:crimson)"
+
+[package]
+disabled = true

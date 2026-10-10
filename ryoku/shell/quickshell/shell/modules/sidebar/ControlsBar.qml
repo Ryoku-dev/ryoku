@@ -13,6 +13,9 @@ Item {
     signal session(string action)
     signal openExtensions()
     signal requestClose()
+    function elementVisible(id) {
+        return SidebarState.elementVisible(id);
+    }
 
     implicitHeight: (Tokens.rowH + Tokens.s3) * s
 
@@ -34,18 +37,22 @@ Item {
 
         Row {
             id: sessionActions
-            width: Math.max((Tokens.ctlH + Tokens.s3) * root.s * 5 + spacing * 4,
-                bar.width - toggles.implicitWidth - gear.implicitWidth - divider.width - bar.spacing * 3)
+            readonly property var allActions: [
+                { id: "lock", action: "lock", glyph: "lock", label: I18n.tr("Lock") },
+                { id: "sleep", action: "suspend", glyph: "dark_mode", label: I18n.tr("Sleep") },
+                { id: "logout", action: "logout", glyph: "logout", label: I18n.tr("Log out") },
+                { id: "restart", action: "reboot", glyph: "restart_alt", label: I18n.tr("Restart") },
+                { id: "powerOff", action: "shutdown", glyph: "power_settings_new", label: I18n.tr("Power off") }
+            ]
+            readonly property var actions: allActions.filter(entry => root.elementVisible(entry.id))
+            readonly property int actionCount: actions.length
+            width: actionCount > 0 ? Math.max(
+                (Tokens.ctlH + Tokens.s3) * root.s * actionCount + spacing * Math.max(0, actionCount - 1),
+                bar.width - toggles.implicitWidth - gear.implicitWidth - divider.width - bar.spacing * 3) : 0
             anchors.verticalCenter: parent.verticalCenter
             spacing: Tokens.s1 * root.s
-            readonly property var actions: [
-                { action: "lock", glyph: "lock", label: I18n.tr("Lock") },
-                { action: "suspend", glyph: "dark_mode", label: I18n.tr("Sleep") },
-                { action: "logout", glyph: "logout", label: I18n.tr("Log out") },
-                { action: "reboot", glyph: "restart_alt", label: I18n.tr("Restart") },
-                { action: "shutdown", glyph: "power_settings_new", label: I18n.tr("Power off") }
-            ]
-            readonly property real buttonWidth: (width - spacing * 4) / 5
+            readonly property real buttonWidth: actionCount > 0
+                ? (width - spacing * Math.max(0, actionCount - 1)) / actionCount : 0
             // Labels are all or nothing: a bar mixing labelled and icon-only
             // actions reads as five different controls.
             readonly property bool labelled: widest.width + (Tokens.s6 + Tokens.s5) * root.s <= buttonWidth
@@ -75,6 +82,7 @@ Item {
 
         Rectangle {
             id: divider
+            visible: sessionActions.actionCount > 0 && (toggles.hasControls || gear.visible)
             anchors.verticalCenter: parent.verticalCenter
             width: Tokens.border
             height: Tokens.ctlH * root.s
@@ -83,11 +91,12 @@ Item {
 
         Row {
             id: toggles
+            readonly property bool hasControls: implicitWidth > 0
             anchors.verticalCenter: parent.verticalCenter
             spacing: Tokens.s1 * root.s
 
             CornerButton {
-                visible: Wm.caps.nightLight === true
+                visible: root.elementVisible("nightLight") && Wm.caps.nightLight === true
                 s: root.s
                 glyph: Toggles.nightOn ? "bedtime" : "light_mode"
                 checked: Toggles.nightOn
@@ -97,6 +106,7 @@ Item {
             }
             CornerButton {
                 s: root.s
+                visible: root.elementVisible("keepAwake")
                 glyph: "coffee"
                 checked: Toggles.keepAwake
                 subtle: true
@@ -105,6 +115,7 @@ Item {
             }
             CornerButton {
                 s: root.s
+                visible: root.elementVisible("doNotDisturb")
                 glyph: "notifications_off"
                 checked: Toggles.dnd
                 subtle: true
@@ -113,6 +124,7 @@ Item {
             }
             CornerButton {
                 s: root.s
+                visible: root.elementVisible("micMute")
                 glyph: Toggles.micMuted ? "mic_off" : "mic"
                 enabled: !!(Audio.source && Audio.source.audio)
                 checked: Toggles.micMuted
@@ -121,7 +133,7 @@ Item {
                 onClicked: Toggles.toggleMic()
             }
             CornerButton {
-                visible: Wm.caps.liveConfigEval === true || Toggles.gameMode
+                visible: root.elementVisible("gamingMode") && (Wm.caps.liveConfigEval === true || Toggles.gameMode)
                 s: root.s
                 glyph: "sports_esports"
                 checked: Toggles.gameMode
@@ -133,6 +145,7 @@ Item {
 
         CornerButton {
             id: gear
+            visible: root.elementVisible("panelSettings")
             anchors.verticalCenter: parent.verticalCenter
             s: root.s
             glyph: "settings"

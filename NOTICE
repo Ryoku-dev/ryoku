@@ -4,9 +4,17 @@ Ryoku is distributed under the GNU General Public License version 3.
 
 Ryoku's alpha series (through v0.1.1-alpha) began as a fork of Omarchy, created by
 David Heinemeier Hansson and contributors (https://github.com/basecamp/omarchy).
-From the beta series onward the tree was pruned and rebuilt from an empty root, and
-no Omarchy code or assets remain: the installer, shell, theming, boot art, tooling,
-and system definition are Ryoku's own.
+The beta tree was pruned and rebuilt from an empty root; its installer, shell,
+theming, boot art, tooling and system definition are Ryoku's own.
+
+The Nomarchy bar style at
+ryoku/shell/quickshell/shell/modules/bar/barstyles/nomarchy/ is adapted from the
+Omarchy quattro shell at commit d9b970dd. The port keeps its bar, panels,
+widgets, plugin ABI, menu, notifications, OSD, reminders and media services.
+Window management crosses Ryoku's neutral provider, while Ryoku keeps ownership
+of wallpaper, capture, recording, lock, clipboard, policy authentication, idle
+inhibition, night light and updates. Omarchy is released under the MIT License.
+The upstream license and a detailed notice ship beside the port.
 
 The Ryoku shell is an original, custom shell. Its frame-blob rendering (the
 Ryoku.Blobs QML/C++ plugin) and parts of its animation and motion curves are

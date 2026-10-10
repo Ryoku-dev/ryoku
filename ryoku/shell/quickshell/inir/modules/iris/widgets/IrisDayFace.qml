@@ -96,7 +96,7 @@ IrisWidgetFace {
             face: root
             Layout.fillWidth: true
             glyph: root.widget.isDaytime ? "light_mode" : "bedtime"
-            text: IrisFaceData.capitalized(Qt.locale().toString(DateTime.clock.date, "dddd d"))
+            text: IrisFaceData.capitalized(Translation.locale.toString(DateTime.clock.date, "dddd d"))
             tint: root.warm
         }
         RowLayout {

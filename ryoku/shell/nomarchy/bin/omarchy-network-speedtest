@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+direction=${1:-}; [[ $direction == down || $direction == up ]] || { echo 'Usage: omarchy-network-speedtest down|up' >&2; exit 2; }
+iface=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++)if($i=="dev"){print $(i+1);exit}}')
+stat=/sys/class/net/$iface/statistics; [[ -r $stat/rx_bytes && -r $stat/tx_bytes ]] || { echo 'No active network interface' >&2; exit 1; }
+url=$(curl -fsS 'https://api.fast.com/netflix/speedtest/v2?https=true&token=YXNkZmFzZGxmbnNkYWZoYXNkZmhrYWxm&urlCount=1' | jq -r '.targets[0].url // empty')
+[[ -n $url ]] || { echo 'Failed to fetch speed test endpoint' >&2; exit 1; }
+pids=(); cleanup(){ for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done; wait 2>/dev/null || true; }; trap cleanup EXIT INT TERM
+for _ in 1 2 3 4; do
+  if [[ $direction == down ]]; then (for _ in 1 2 3 4; do curl -fsS -o /dev/null "$url" || exit; done) &
+  else (for _ in 1 2; do dd if=/dev/zero bs=1M count=32 2>/dev/null | curl -fsS -o /dev/null -X POST --data-binary @- "$url" || exit; done) & fi
+  pids+=("$!")
+done
+file=$stat/rx_bytes; [[ $direction != up ]] || file=$stat/tx_bytes
+before=$(<"$file")
+for _ in 1 2 3 4 5 6 7 8; do
+  sleep 1; after=$(<"$file"); awk -v a="$after" -v b="$before" 'BEGIN{v=(a-b)*8/1000000;if(v<10)printf "%.1f\n",v;else printf "%.0f\n",v}'; before=$after
+  alive=0; for pid in "${pids[@]}"; do kill -0 "$pid" 2>/dev/null && alive=1; done; ((alive)) || break
+done

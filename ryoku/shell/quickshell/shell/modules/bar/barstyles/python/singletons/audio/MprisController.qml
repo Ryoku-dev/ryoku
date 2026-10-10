@@ -8,8 +8,20 @@ import "../../"
 Singleton {
     id: root
 
-    readonly property MprisPlayer activePlayer: {
+    readonly property var _playerWatch: {
         let players = Mpris.players.values;
+        let states = [];
+        for (let i = 0; i < players.length; i++) {
+            states.push(players[i].isPlaying);
+            states.push(players[i].canControl);
+            states.push(players[i].busName);
+        }
+        return states;
+    }
+
+    readonly property MprisPlayer activePlayer: {
+        let _ = _playerWatch;
+        let players = Mpris.players.values.slice().sort((a, b) => (a.busName || "").localeCompare(b.busName || ""));
         let playing = players.find(p => p.isPlaying);
         if (playing) return playing;
         let controllable = players.find(p => p.canControl);
@@ -17,6 +29,7 @@ Singleton {
         return players.length > 0 ? players[0] : null;
     }
 
+    readonly property string activePlayerId: activePlayer ? (activePlayer.busName || activePlayer.identity || "") : ""
     readonly property bool hasActivePlayer: activePlayer !== null
     readonly property bool isPlaying: activePlayer ? activePlayer.isPlaying : false
     readonly property string trackTitle: activePlayer ? (activePlayer.trackTitle || "") : ""
@@ -102,6 +115,7 @@ Singleton {
         command: [
             "bash",
             Caching.qsDir + "/media/art_fetch.sh",
+            root.activePlayerId,
             root.currentArtUrl,
             root.trackTitle,
             root.trackArtist
@@ -120,6 +134,10 @@ Singleton {
                         let d = JSON.parse(txt);
                         root.deviceIcon = d.deviceIcon || "󰓃";
                         root.deviceName = d.deviceName || "Speaker";
+
+                        if (d.playerId !== root.activePlayerId || d.title !== root.trackTitle || d.artist !== root.trackArtist) {
+                            return;
+                        }
 
                         if (d.isPlaceholder === false && d.artUrl) {
                             root.artUrl = d.artUrl;

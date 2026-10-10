@@ -22,6 +22,7 @@ import inir.modules.iris.style
 import inir.modules.iris.components as IrisParts
 import inir.modules.iris.pieces
 import inir.modules.iris.settings
+import shell.services as Ryoku
 
 Scope {
     id: root
@@ -197,7 +198,7 @@ Scope {
         }
         function dockEdge(name: string): string {
             if (name !== "auto" && !IrisFrame.edges.includes(name)) return "Unknown edge: auto, top, bottom, left or right"
-            Config.setNestedValue("iris.dock.position", name)
+            Ryoku.Dock.setCfg("edge", name)
             return IrisFrame.dockEdge
         }
         function zone(name: string, kinds: string): string {
@@ -1018,20 +1019,12 @@ Scope {
                     islandShapes: islandLoader.item?.fieldShapes ?? []
                 }
 
+                // The universal per-output host in shell.qml owns the selected
+                // dock. Keep this null loader as the optional input expected by
+                // the Shima chassis while no dock is embedded in the bar window.
                 Loader {
                     id: dockLoader
-                    z: 2
-                    anchors.fill: parent
-                    active: (Config.options?.iris?.dock?.enable ?? true) && GlobalStates.deferredPanelsReady
-                    asynchronous: true
-                    sourceComponent: IrisDock {
-                        screen: barWindow.screen
-                        onPieceActivated: (slot, kind, rect) => stage.activate(slot, kind, rect)
-                        onPieceMenuRequested: (slot, kind, rect, menu) => {
-                            menu.model = stage.pieceMenu(slot, kind, rect)
-                            menu.requestOpen()
-                        }
-                    }
+                    active: false
                 }
 
                 IrisStage {

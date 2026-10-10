@@ -132,7 +132,7 @@ ColumnLayout {
             Layout.preferredHeight: Layout.preferredWidth
             radius: IrisStyle.iconRadius(width)
             gradient: Gradient {
-                GradientStop { position: 0; color: Qt.lighter(root.widget.identityTint, 1.18) }
+                GradientStop { position: 0; color: IrisStyle.tileTop(root.widget.identityTint) }
                 GradientStop { position: 1; color: root.widget.identityTint }
             }
             MaterialSymbol {
@@ -524,7 +524,6 @@ ColumnLayout {
                 stepSize: 5 / (100 - root.opacityMin)
                 value: (root.opacityValue - root.opacityMin) / (100 - root.opacityMin)
                 onMoved: value => root.widget.previewIrisValue("iris.opacity", root.opacityFrom(value))
-                // Landing on the shared value follows it again instead of pinning this widget.
                 onSeekRequested: value => {
                     const chosen = root.opacityFrom(value)
                     root.widget.commitIrisValue("iris.opacity",

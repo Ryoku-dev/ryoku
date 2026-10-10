@@ -187,6 +187,34 @@ func TestVideoPlayExplicitOutputs(t *testing.T) {
 	}
 }
 
+func TestVideoPlayReplacesOnlyTargetOutput(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "argv")
+	fakeLiveTools(t, marker, false)
+	p := newVideoPlayer()
+	defer p.Stop()
+	first := clip(t)
+	second := clip(t)
+
+	p.Play([]string{"DP-1"}, first, "fill", "medium", nil)
+	p.Play([]string{"DP-2"}, first, "fill", "medium", nil)
+	if !waitFor(t, func() bool { return len(readMarker(t, marker)) == 2 }) {
+		t.Fatalf("initial players did not spawn: %q", readMarker(t, marker))
+	}
+	p.Play([]string{"DP-1"}, second, "fill", "medium", nil)
+	if !waitFor(t, func() bool { return len(readMarker(t, marker)) == 3 }) {
+		t.Fatalf("replacement player did not spawn: %q", readMarker(t, marker))
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.procs["DP-1"] == nil || p.procs["DP-1"].file != second {
+		t.Fatalf("DP-1 player = %+v, want replacement %q", p.procs["DP-1"], second)
+	}
+	if p.procs["DP-2"] == nil || p.procs["DP-2"].file != first {
+		t.Fatalf("DP-2 player = %+v, want original %q", p.procs["DP-2"], first)
+	}
+}
+
 func TestVideoPlayBroadcastSpansMonitors(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "argv")
 	fakeLiveTools(t, marker, false)

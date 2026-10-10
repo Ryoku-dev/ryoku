@@ -61,8 +61,8 @@ Item {
         root.value = root.to
     }
     // The first tick steps at most one frame from the kick: the main thread may spend tens of milliseconds
-    // between a retarget and its frame, and charged in full that wait made a morph start at its middle
-    // (DECISIONS 2026-09-17); a first tick that stepped nothing started every motion a frame late.
+    // between a retarget and its frame, and charged in full that wait made a morph start at its middle. A first
+    // tick that stepped nothing started every motion a frame late.
     function start(): void {
         if (root.running) return
         root.lastTime = 0

@@ -1,0 +1,25 @@
+#!/bin/sh
+# Translation of ryoku-shell.service's ExecStop/ExecStartPost chain plus
+# Restart=always. finish runs after the daemon exits however it exited.
+#
+# systemd semantics being matched: ExecStop fires only on a requested stop;
+# a crash restarts the daemon without running ExecStop. runit's verified
+# sentinel for "this exit was a requested down" is finish $1 = -1 (TERM,
+# $2 = 15); a crash passes the exit status instead. Exit 1 keeps runsv
+# restarting (Restart=always); an operator sv down parks via its own flag,
+# which outranks this exit code.
+exec 2>&1
+
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+_status=$1
+
+# ExecStartPost=-ryoku-power-cutover qylock-guards-stop: best effort on every
+# stop, like the '-' prefixed original.
+"$BIN/ryoku-power-cutover" qylock-guards-stop >/dev/null 2>&1 || true
+
+# ExecStop=ryoku-qylock-activate --prepare-stop: requested stops only.
+if [ "$_status" -eq -1 ]; then
+	"$BIN/ryoku-qylock-activate" --prepare-stop || true
+fi
+
+exit 1

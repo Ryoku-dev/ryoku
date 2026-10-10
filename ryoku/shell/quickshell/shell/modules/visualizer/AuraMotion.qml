@@ -9,9 +9,9 @@ import "Singletons"
 // the current. AuraField paints from what this hands it and knows no audio.
 //
 // The aura twin of Motion, and like Motion it runs on one Timer rather than
-// vsync, halved while idle and stopped on silence, since redrawing a still
-// picture at 165Hz costs a laptop real battery. The same adaptive tier applies:
-// under load the field sheds no effects, it just updates less often.
+// vsync and halves its rate while only the opted-in idle wave is moving. Without
+// that ambient motion it stops once the release reaches rest. The same adaptive
+// tier applies: under load the field sheds no effects, it just updates less often.
 Item {
     id: motion
 
@@ -59,11 +59,13 @@ Item {
         / (1 + motion.smooth08 * 0.16)
 
     readonly property bool sounding: Spectrum.energy > 0.04 || motion.activity > 0.02
-    // A resting field keeps drifting while the ambient motion is wanted, so
-    // silence alone must not stop the Timer.
-    readonly property bool ambient: motion.cfg.idleWave && !Performance.visualizerHardFrozen
+    // Idle wave is an explicit visual choice. Plain audio-idle stops spectrum
+    // analysis, while only the hard performance tiers stop ambient motion.
+    readonly property bool frozen: Performance.visualizerFrozen
+    readonly property bool hardFrozen: Performance.visualizerHardFrozen
+    readonly property bool ambient: motion.cfg.idleWave && !motion.hardFrozen
     readonly property bool animating: motion.sounding || motion.ambient
-        || motion.energy > 0.004 || motion.phase > 0
+        || motion.energy > 0.004
 
     Timer {
         id: ticker
@@ -71,9 +73,9 @@ Item {
         running: motion.active && Config.enabled && motion.animating
         repeat: true
         property real last: 0
-        // A stop leaves `last` stale: the first tick after a freeze (Power Saver,
-        // idle, suspend) would otherwise clock the whole frozen span as one frame
-        // and spike the governor. Reseed so that first tick measures one interval.
+        // A stop leaves `last` stale: the first tick after a hard freeze or
+        // inactive surface would otherwise clock the whole frozen span as one
+        // frame and spike the governor. Reseed that first tick.
         onRunningChanged: if (!ticker.running) ticker.last = 0;
         onTriggered: {
             var now = Date.now();
@@ -114,9 +116,11 @@ Item {
         motion.activity += (goal - motion.activity)
             * (1 - Math.exp(-dt / (goal > motion.activity ? 0.05 : 1.1)));
 
-        // Fold the shared bands to sectors, tilt them by the frequency profile
-        // and the look's own weighting, then follow each toward its target.
-        var shaped = AuraMath.applyProfile(Spectrum.levels,
+        // Once analysis freezes, do not keep replaying the last musical frame.
+        // The opted-in idle phase may continue from an empty source until the
+        // 30-second residency grace unloads the surface.
+        var source = motion.frozen ? [] : Spectrum.levels;
+        var shaped = AuraMath.applyProfile(source,
                                            motion.cfg.auraProfile,
                                            motion.cfg.auraAccent);
         var raw = AuraMath.sectors(shaped);
@@ -170,6 +174,17 @@ Item {
         motion.energy = 0;
         motion.pulse = 0;
         motion.onset = 0;
+        motion.peaks = [];
+        motion.held = [];
+    }
+
+    onHardFrozenChanged: if (motion.hardFrozen) {
+        motion.activity = 0;
+        motion.energy = 0;
+        motion.prevEnergy = 0;
+        motion.pulse = 0;
+        motion.onset = 0;
+        motion.bands = [];
         motion.peaks = [];
         motion.held = [];
     }

@@ -18,7 +18,9 @@
 # a missing fastfetch behind a false success.
 set -uo pipefail
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/config.jsonc"
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config="$config_home/fastfetch/config.jsonc"
+palette_state="$config_home/ryoku/fastfetch.json"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 if [[ -f "$config" ]]; then
@@ -39,12 +41,21 @@ if [[ -f "$config" ]]; then
   esac
 fi
 
+effective="$config"
+if [[ -f "$palette_state" ]] \
+  && grep -Eq '"palette"[[:space:]]*:[[:space:]]*"wallpaper"' "$palette_state"; then
+  cache="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.json"
+  if ryoku-hub fastfetch effective "$cache"; then
+    effective="$cache"
+  fi
+fi
+
 if [[ ! -f "$config" ]]; then
   exec fastfetch "$@"
 elif [[ -n "${KITTY_WINDOW_ID:-}" || "${TERM:-}" == "xterm-kitty" ]]; then
-  exec fastfetch --config "$config" --pipe false "$@"
+  exec fastfetch --config "$effective" --pipe false "$@"
 elif command -v chafa >/dev/null 2>&1; then
-  exec fastfetch --config "$config" --logo-type chafa "$@"
+  exec fastfetch --config "$effective" --logo-type chafa "$@"
 else
-  exec fastfetch --config "$config" --logo-type none "$@"
+  exec fastfetch --config "$effective" --logo-type none "$@"
 fi

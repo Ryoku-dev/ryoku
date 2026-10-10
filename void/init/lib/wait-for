@@ -1,0 +1,94 @@
+#!/bin/sh
+# wait-for: the bounded translation of systemd's Condition* and ordering keys.
+# runit starts every service in parallel, so a translated service waits for its
+# precondition here instead of declaring After=/Condition=. A wait that exceeds
+# its budget fails the service: the run script then parks itself (exec sv down .)
+# rather than crash-looping, matching systemd's condition-not-met behavior.
+#
+# Usage (sourced by a run script; POSIX sh, no bashisms -- Void's /bin/sh is dash):
+#   . "$RYOKU_INIT_LIB/wait-for"        # or a relative path from the service dir
+#   wait_env WAYLAND_DISPLAY 30 || exit 101
+#   wait_file /run/user/1000/bus 30 || exit 101
+#   wait_dbus org.freedesktop.portal.Desktop 30 || exit 101
+#   wait_service bluetoothd 30 || exit 101
+# Exit code 101 means "precondition never arrived" and is what the finish
+# scripts treat as a park, not a crash.
+#
+# Every budget is in seconds and every one is overridable through the
+# RYOKU_WAIT_BUDGET_SCALE env var (tests shrink it; nothing else sets it).
+
+# scale a budget: integer math only (POSIX sh has no float). scale 0 parks
+# immediately, which is what the negative tests want.
+wait_budget() {
+	_budget=${1:-30}
+	_scale=${RYOKU_WAIT_BUDGET_SCALE:-1}
+	# a zero or negative scale means "do not wait": one poll, no sleep.
+	if [ "$_scale" -le 0 ] 2>/dev/null; then
+		echo 0
+		return
+	fi
+	echo $((_budget * _scale))
+}
+
+# poll fn until it succeeds or the budget expires. 0.2s granularity: fast
+# enough that services start promptly, slow enough to be idle-cheap.
+wait_poll() {
+	_deadline=$(( $(date +%s) + $(wait_budget "$1") ))
+	shift
+	while :; do
+		"$@" >/dev/null 2>&1 && return 0
+		[ "$(date +%s)" -ge "$_deadline" ] && return 1
+		sleep 0.2
+	done
+}
+
+# the variable is set and non-empty (ConditionEnvironment=).
+wait_env() {
+	wait_poll "$2" sh -c "[ -n \"\${$1:-}\" ]"
+}
+
+# the path exists (ConditionPathExists=). a leading ! inverts, matching the
+# unit-file syntax (ConditionPathExists=!/path).
+wait_file() {
+	case $1 in
+		!*) wait_poll "$2" sh -c "[ ! -e \"${1#!}\" ]" ;;
+		*)  wait_poll "$2" sh -c "[ -e \"$1\" ]" ;;
+	esac
+}
+
+# the D-Bus name is owned on the session bus (a stand-in for After=/Wants= on
+# another daemon). Uses busctl when present; falls back to a bare probe so a
+# minimal image still works.
+wait_dbus() {
+	wait_poll "$2" _wait_dbus_once "$1"
+}
+
+_wait_dbus_once() {
+	if command -v busctl >/dev/null 2>&1; then
+		busctl --user status "$1" >/dev/null 2>&1 && return 0
+		busctl status "$1" >/dev/null 2>&1 && return 0
+		return 1
+	fi
+	# no busctl: the session socket existing is the best available signal
+	[ -S "${DBUS_SESSION_BUS_ADDRESS#unix:path=}" ] || [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bus" ]
+}
+
+# another runit service is supervised and up (After=/Requires= on a service).
+# Checks the sv status of a system service first, then the sibling user
+# service directory, so the same call works from either tier.
+wait_service() {
+	wait_poll "$2" _wait_service_once "$1"
+}
+
+_wait_service_once() {
+	for _dir in "/var/service/$1" "/etc/sv/$1" "$RYOKU_USER_SERVICE_DIR/$1" "../$1"; do
+		if [ -d "$_dir/supervise" ]; then
+			_state=$(cat "$_dir/supervise/stat" 2>/dev/null) || return 1
+			case $_state in
+				run*|finish*) return 0 ;;
+			esac
+			return 1
+		fi
+	done
+	return 1
+}

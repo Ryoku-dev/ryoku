@@ -2,39 +2,6 @@
 
 var rows = [{
         "tab": "General",
-        "group": "BRAND",
-        "key": "name",
-        "label": "Name",
-        "desc": "The name the shell calls this desktop",
-        "eg": "Ryoku",
-        "ctl": "text",
-        "src": "brand"
-    },{
-        "tab": "General",
-        "group": "BRAND",
-        "key": "markText",
-        "label": "Text mark",
-        "desc": "The glyph the shell uses as its mark",
-        "eg": "力",
-        "ctl": "text",
-        "src": "brand"
-    },{
-        "tab": "General",
-        "group": "BRAND",
-        "key": "markImage",
-        "label": "Logo image",
-        "desc": "An image mark, used instead of the glyph",
-        "ctl": "image",
-        "src": "brand"
-    },{
-        "tab": "General",
-        "group": "BRAND",
-        "key": "markTint",
-        "label": "Tint image to accent",
-        "ctl": "sw",
-        "src": "brand"
-    },{
-        "tab": "General",
         "group": "SHELL RELOAD",
         "key": "reloadCover",
         "label": "Reload cover",

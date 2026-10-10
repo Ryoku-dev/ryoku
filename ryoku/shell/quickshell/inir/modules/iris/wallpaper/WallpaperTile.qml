@@ -43,16 +43,6 @@ MouseArea {
         scale: root.pressed ? IrisStyle.pressScale(0.97) : 1
         Behavior on scale { NumberAnimation { duration: IrisStyle.morphDuration; easing.type: Easing.BezierSpline; easing.bezierCurve: IrisStyle.morphCurve } }
 
-        Rectangle {
-            anchors.fill: parent
-            radius: IrisStyle.radiusCard
-            color: "transparent"
-            border.width: Math.max(2, Math.round(2.5 * root.d))
-            border.color: IrisStyle.accent
-            opacity: root.selected ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
-        }
-
         ClippingRectangle {
             id: tile
             anchors.fill: parent

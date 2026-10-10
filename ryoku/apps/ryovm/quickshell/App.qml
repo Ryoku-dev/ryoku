@@ -25,6 +25,7 @@ Rectangle {
     function refocus() {
         if (app.section === "machines") machines.forceActiveFocus();
         else if (app.section === "remotes") remotes.forceActiveFocus();
+        else if (app.section === "dashboard") dashboard.forceActiveFocus();
         else app.forceActiveFocus();
     }
 
@@ -43,6 +44,7 @@ Rectangle {
     // the dashboard and the remotes page both read live remote health, so the
     // probe timers run for either; the yard-only view lets them rest.
     Binding { target: Remotes; property: "active"; value: app.section === "remotes" || app.section === "dashboard" }
+    Binding { target: Vm; property: "metricsActive"; value: app.section === "dashboard" || (app.section === "machines" && machines.mode === "library") }
     // the passthrough lane polls the looking-glass engine only while shown.
     Binding { target: Lg; property: "poll"; value: app.section === "passthrough" }
 

@@ -1,0 +1,263 @@
+#!/bin/bash
+set -euo pipefail
+
+export OMARCHY_PATH=${OMARCHY_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/nomarchy}
+plugins=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/plugins
+shell_config=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.json
+command=${0##*/}
+command=${command#omarchy-plugin-}
+[[ $command != omarchy-plugin ]] || command=${1:-list}
+if [[ ${0##*/} == omarchy-plugin ]]; then shift || true; fi
+
+fail() { printf 'omarchy-plugin-%s: %s\n' "$command" "$*" >&2; exit 1; }
+interactive() { [[ -t 0 && -t 1 ]]; }
+confirm() {
+  local prompt=$1
+  (( ${assume_yes:-0} )) && return 0
+  interactive || fail "refusing to continue without confirmation; pass --yes"
+  if command -v gum >/dev/null 2>&1; then gum confirm "$prompt"; else read -r -p "$prompt [y/N] " answer; [[ $answer == [yY]* ]]; fi
+}
+valid_id() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]; }
+
+catalog() {
+  local paths=() manifest
+  if [[ -d $OMARCHY_PATH/shell/plugins ]]; then
+    while IFS= read -r manifest; do paths+=("$manifest"); done < <(find -H "$OMARCHY_PATH/shell/plugins" -mindepth 2 -maxdepth 5 -type f \( -name manifest.json -o -name '*.manifest.json' \) | sort)
+  fi
+  if [[ -d $plugins ]]; then
+    while IFS= read -r manifest; do paths+=("$manifest"); done < <(find "$plugins" -mindepth 2 -maxdepth 2 -type f -name manifest.json ! -path "$plugins/.*/*" 2>/dev/null | sort)
+  fi
+  ((${#paths[@]})) || { printf '[]\n'; return; }
+  jq -n '[inputs | . as $m | input_filename as $path
+    | ($path | sub("/manifest.json$"; "") | sub("/[^/]+\\.manifest\\.json$"; "")) as $dir
+    | {id:($m.id//""),name:($m.name//$m.id//""),description:($m.description//""),kinds:($m.kinds//[]),firstParty:(($m.id//"")|startswith("omarchy.")),manifestPath:$path,sourceDir:$dir,entryPoints:($m.entryPoints//{}),barWidget:($m.barWidget//null),bar:($m.bar//null)}
+    | .barWidgetPath=(if .entryPoints.barWidget then .sourceDir+"/"+.entryPoints.barWidget else null end)
+    | .barPath=(if .entryPoints.bar then .sourceDir+"/"+.entryPoints.bar else null end)
+    | select(.id!="")] | unique_by(.id)' "${paths[@]}"
+}
+
+validate() {
+  local dir=${1:-} manifest id kind ep link
+  [[ -n $dir && -d $dir ]] || fail "plugin folder not found: ${dir:-<none>}"
+  manifest=$dir/manifest.json
+  [[ -f $manifest ]] || fail "missing manifest.json in $dir"
+  jq -e . "$manifest" >/dev/null 2>&1 || fail "manifest.json is not valid JSON: $manifest"
+  jq -e '.schemaVersion == 1' "$manifest" >/dev/null || fail "unsupported or missing schemaVersion (expected 1)"
+  for field in id name version kinds entryPoints; do jq -e --arg f "$field" 'has($f)' "$manifest" >/dev/null || fail "manifest missing required field '$field'"; done
+  id=$(jq -r '.id // ""' "$manifest")
+  valid_id "$id" || fail "invalid plugin id '$id'"
+  [[ $id != omarchy.* ]] || fail "plugin id '$id' uses the reserved omarchy.* namespace"
+  jq -e '(.kinds|type)=="array" and (.kinds|length)>0 and (.entryPoints|type)=="object"' "$manifest" >/dev/null || fail "'kinds' must be a non-empty array and 'entryPoints' an object"
+  jq -e 'if ((.barWidget?|type)=="object" and (.barWidget|has("defaultSection"))) then .barWidget.defaultSection as $section | (["left","center","right"]|index($section))!=null else true end' "$manifest" >/dev/null || fail "'barWidget.defaultSection' must be left, center, or right"
+  while IFS= read -r ep; do
+    [[ -n $ep && $ep != /* && $ep != *..* && $ep != *$'\n'* && -f $dir/$ep ]] || fail "unsafe or missing entry point: '$ep'"
+  done < <(jq -r '.entryPoints[]' "$manifest")
+  for pair in bar:bar bar-widget:barWidget menu:menu overlay:overlay panel:panel service:service; do
+    kind=${pair%%:*}; ep=${pair#*:}
+    jq -e --arg kind "$kind" '(.kinds|index($kind))!=null' "$manifest" >/dev/null || continue
+    jq -e --arg ep "$ep" '.entryPoints|has($ep)' "$manifest" >/dev/null || fail "kind '$kind' requires an 'entryPoints.$ep' to load"
+  done
+  link=$(find "$dir" -name .git -prune -o -type l -print -quit 2>/dev/null)
+  [[ -z $link ]] || fail "symlinks are not allowed inside a plugin folder: $link"
+}
+
+compat() {
+  local dir=$1 result reason
+  result=$(ryoku wm compat "$dir") || fail "compatibility scan failed"
+  if ! jq -e '.ok == true' <<<"$result" >/dev/null; then
+    reason=$(jq -r '.reason // "plugin is not compatible with the running window manager"' <<<"$result")
+    fail "$reason"
+  fi
+}
+
+wait_until_known() {
+  local id=$1 rows attempt
+  for ((attempt=0; attempt<20; attempt++)); do
+    if rows=$(OMARCHY_SHELL_IPC_TIMEOUT=0.25s omarchy-shell nomarchy listPlugins 2>/dev/null) &&
+       jq -e --arg id "$id" 'map(select(.id == $id)) | length > 0' <<<"$rows" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.05
+  done
+  fail "plugin '$id' did not become ready after rescan"
+}
+
+plugin_persisted() {
+  local id=$1
+  jq -e --arg id "$id" '
+    (.bar.id? == $id) or
+    ([.bar.layout? | .[]? | .[]? | select((if type == "object" then .id else . end) == $id)] | length > 0) or
+    ([.plugins[]? | select((if type == "object" then .id else . end) == $id)] | length > 0)
+  ' "$shell_config" >/dev/null 2>&1
+}
+
+wait_until_enabled() {
+  local id=$1 rows attempt stable=0
+  for ((attempt=0; attempt<30; attempt++)); do
+    if rows=$(OMARCHY_SHELL_IPC_TIMEOUT=0.25s omarchy-shell nomarchy listPlugins 2>/dev/null) &&
+       jq -e --arg id "$id" 'any(.[]; .id == $id and .enabled == true and (((.kinds // []) | index("bar-widget")) == null or .active == true))' <<<"$rows" >/dev/null 2>&1 &&
+       { [[ $id == omarchy.* ]] || plugin_persisted "$id"; }; then
+      ((++stable))
+      ((stable >= 3)) && return 0
+    else
+      stable=0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+mutation_open=0
+stage=
+begin_plugin_mutation() {
+  omarchy-shell -q nomarchy beginPluginMutation >/dev/null 2>&1 || true
+  mutation_open=1
+}
+end_plugin_mutation() {
+  ((mutation_open)) || return 0
+  mutation_open=0
+  omarchy-shell nomarchy rescanPlugins >/dev/null
+}
+cleanup_plugin_mutation() {
+  [[ -z $stage ]] || rm -rf -- "$stage"
+  end_plugin_mutation || true
+}
+trap cleanup_plugin_mutation EXIT
+
+case $command in
+  catalog) catalog ;;
+  validate)
+    [[ ${1:-} != -h && ${1:-} != --help ]] || { echo 'Usage: omarchy plugin validate <plugin-folder>'; exit 0; }
+    validate "${1:-}"
+    ;;
+  add)
+    assume_yes=0; enable=; url=
+    while (($#)); do case $1 in --enable) enable=1;; --yes|-y) assume_yes=1;; -h|--help) echo 'Usage: omarchy plugin add [git-url] [--enable] [--yes]'; exit 0;; -*) fail "unknown add option: $1";; *) [[ -z $url ]] || fail "unexpected argument: $1"; url=$1;; esac; shift; done
+    if [[ -z $url ]]; then interactive || fail 'a git URL is required'; read -r -p 'Git URL of the plugin repo: ' url; fi
+    [[ -n $url && $url != -* && $url != *::* ]] || fail "invalid git URL"
+    if [[ $url =~ ^([A-Za-z0-9][A-Za-z0-9+.-]*):// ]]; then case ${BASH_REMATCH[1]} in ssh|git|git+ssh|ssh+git|http|https|ftp|ftps|file) :;; *) fail "unsupported git transport: ${BASH_REMATCH[1]}";; esac; fi
+    if (( !assume_yes )); then
+      printf '\nPlugins run as arbitrary, unsandboxed code inside the shell. Review code before enabling it.\n\n  URL: %s\n\n' "$url" >&2
+      confirm 'Clone and add this plugin?' || fail aborted
+    fi
+    begin_plugin_mutation
+    mkdir -p "$plugins"
+    stage=$plugins/.add.tmp.$$
+    GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -oBatchMode=yes}" git clone -- "$url" "$stage" || fail "failed to clone $url"
+    validate "$stage"
+    compat "$stage"
+    id=$(jq -r .id "$stage/manifest.json")
+    existing=$(catalog | jq -r --arg id "$id" 'map(select(.id==$id))[0].manifestPath // empty')
+    [[ -z $existing ]] || fail "plugin id '$id' is already used by $existing"
+    target=$plugins/$id
+    [[ ! -e $target && ! -L $target ]] || fail "plugin '$id' is already installed"
+    mv "$stage" "$target"; stage=
+    echo "Added $id into $target"
+    end_plugin_mutation
+    if [[ -z $enable ]] && (( !assume_yes )) && interactive && confirm "Enable '$id' now?"; then enable=1; fi
+    if [[ -n $enable ]]; then wait_until_known "$id"; "$OMARCHY_PATH/bin/omarchy-plugin-enable" "$id"; else echo "Enable it later with: omarchy plugin enable $id"; fi
+    ;;
+  enable)
+    [[ ${1:-} != -h && ${1:-} != --help ]] || { echo 'Usage: omarchy plugin enable <id> [placement]'; exit 0; }
+    id=${1:-}; [[ -n $id ]] || fail 'plugin id is required'; shift
+    source_dir=$(catalog | jq -r --arg id "$id" 'map(select(.id==$id))[0].sourceDir // empty')
+    [[ -n $source_dir ]] || fail "plugin '$id' is not known; run: omarchy plugin rescan"
+    compat "$source_dir"
+    section='' index='' before='' after=''
+    if (($#)) && [[ $1 != --* ]]; then section=$1; shift; fi
+    while (($#)); do key=$1; value=${2:-}; [[ -n $value ]] || fail "$key requires a value"; case $key in --section) section=$value;; --index) index=$value;; --before) before=$value;; --after) after=$value;; *) fail "unknown placement option: $key";; esac; shift 2; done
+    [[ -z $section || $section =~ ^(left|center|right)$ ]] || fail 'section must be left, center, or right'
+    [[ -z $index || $index =~ ^[0-9]+$ ]] || fail 'index must be a non-negative integer'
+    [[ -z $before || -z $after ]] || fail 'use only one of --before or --after'
+    placement=$(jq -cn --arg section "$section" --arg index "$index" --arg before "$before" --arg after "$after" '{} + (if $section=="" then {} else {section:$section} end) + (if $index=="" then {} else {index:($index|tonumber)} end) + (if $before=="" then {} else {before:$before} end) + (if $after=="" then {} else {after:$after} end)')
+    for ((attempt=0; attempt<3; attempt++)); do
+      result=$(omarchy-shell nomarchy enablePlugin "$id" "$placement")
+      if [[ $result != ok ]]; then
+        [[ $result != unknown ]] || fail "plugin '$id' is not known"
+        fail "$result"
+      fi
+      wait_until_enabled "$id" && { echo "Enabled $id"; break; }
+    done
+    ((attempt < 3)) || fail "plugin '$id' did not remain enabled after its configuration was saved"
+    ;;
+  disable)
+    [[ ${1:-} != -h && ${1:-} != --help ]] || { echo 'Usage: omarchy plugin disable <id>'; exit 0; }
+    id=${1:-}; [[ -n $id ]] || fail 'plugin id is required'
+    result=$(omarchy-shell nomarchy setPluginEnabled "$id" false); [[ $result == ok ]] || fail "plugin '$id' is not known"
+    echo "Disabled $id"
+    ;;
+  rescan)
+    (($# == 0)) || fail 'rescan takes no arguments'
+    omarchy-shell nomarchy rescanPlugins
+    ;;
+  list)
+    json=0; [[ ${1:-} != --json ]] || { json=1; shift; }; (($# == 0)) || fail "unknown option: $1"
+    rows=$(omarchy-shell nomarchy listPlugins)
+    if ((json)); then printf '%s\n' "$rows"; else jq -r '.[] | [.id,(if .enabled then "enabled" else "disabled" end),(if .firstParty then "first-party" else "third-party" end),((.kinds//[])|join(",")),(.name//"")] | @tsv' <<<"$rows" | awk -F '\t' 'BEGIN{printf "%-32s %-9s %-11s %-18s %s\n","ID","STATE","SOURCE","KINDS","NAME"}{printf "%-32s %-9s %-11s %-18s %s\n",$1,$2,$3,$4,$5}'; fi
+    ;;
+  update)
+    assume_yes=0; id=
+    while (($#)); do case $1 in --yes|-y) assume_yes=1;; -h|--help) echo 'Usage: omarchy plugin update [id] [--yes]'; exit 0;; -*) fail "unknown update option: $1";; *) [[ -z $id ]] || fail "unexpected argument: $1"; id=$1;; esac; shift; done
+    [[ -d $plugins ]] || fail 'no plugins installed'
+    targets=(); if [[ -n $id ]]; then valid_id "$id" || fail "invalid plugin id '$id'"; targets=("$id"); else for dir in "$plugins"/*/; do [[ -d $dir/.git ]] && targets+=("${dir%/}" ); done; fi
+    ((${#targets[@]})) || { echo 'No git-managed plugins installed.'; exit 0; }
+    rc=0
+    begin_plugin_mutation
+    for item in "${targets[@]}"; do
+      dir=$item
+      [[ $dir == /* ]] || dir=$plugins/$item
+      pid=${dir##*/}
+      [[ -d $dir/.git ]] || {
+        printf "omarchy-plugin-update: plugin '%s' is not a git checkout\n" "$pid" >&2
+        rc=1
+        continue
+      }
+      git -C "$dir" fetch --quiet origin HEAD || {
+        rc=1
+        continue
+      }
+      [[ $(git -C "$dir" rev-parse HEAD) != $(git -C "$dir" rev-parse FETCH_HEAD) ]] || {
+        echo "$pid is up to date."
+        continue
+      }
+      if (( !assume_yes )); then
+        echo "Changes for $pid:"
+        git -C "$dir" diff HEAD FETCH_HEAD
+        confirm "Update $pid?" || {
+          echo "Skipped $pid."
+          continue
+        }
+      fi
+      git -C "$dir" merge --ff-only FETCH_HEAD >/dev/null || {
+        rc=1
+        continue
+      }
+      if ! (validate "$dir") || ! (compat "$dir"); then
+        git -C "$dir" reset --hard ORIG_HEAD >/dev/null
+        printf "omarchy-plugin-update: update of '%s' failed validation or compatibility; rolled back\n" "$pid" >&2
+        rc=1
+        continue
+      fi
+      echo "Updated $pid."
+    done
+    end_plugin_mutation
+    exit "$rc"
+    ;;
+  remove)
+    assume_yes=0; id=
+    while (($#)); do case $1 in --yes|-y) assume_yes=1;; -h|--help) echo 'Usage: omarchy plugin remove <id> [--yes]'; exit 0;; -*) fail "unknown remove option: $1";; *) [[ -z $id ]] || fail "unexpected argument: $1"; id=$1;; esac; shift; done
+    if [[ -z $id ]]; then
+      interactive || fail 'a plugin id is required'
+      mapfile -t installed < <(find "$plugins" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) ! -name '.*' -printf '%f\n' 2>/dev/null | sort)
+      ((${#installed[@]})) || fail 'no plugins installed'
+      if command -v gum >/dev/null 2>&1; then id=$(printf '%s\n' "${installed[@]}" | gum choose --header='Remove which plugin?'); else id=${installed[0]}; fi
+      [[ -n $id ]] || fail cancelled
+    fi
+    valid_id "$id" || fail "invalid plugin id '$id'"; target=$plugins/$id; [[ -e $target || -L $target ]] || fail "plugin '$id' is not installed"; confirm "Remove '$id'?" || fail aborted
+    omarchy-shell -q nomarchy setPluginEnabled "$id" false
+    begin_plugin_mutation
+    if [[ -L $target || -d $target/.git ]]; then rm -rf -- "$target"; echo "Removed $id."; else backup=$plugins/.${id}.bak.$(date -u +%Y%m%d%H%M%S); mv "$target" "$backup"; echo "Removed $id. Backup at: $backup"; fi
+    end_plugin_mutation
+    ;;
+  *) fail "unknown command '$command'" ;;
+esac

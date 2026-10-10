@@ -16,18 +16,16 @@ import "../../../../components"
 Item {
     id: root
 
-    required property var pinned
     required property var clients        // [{ className, address, pid }], pid-sorted
     required property string activeClass
     required property string edge
     required property real scale
     signal activate(string className)
-    signal pin(string className)
-    signal unpin(string className)
 
     readonly property bool horizontal: edge === "top" || edge === "bottom"
     readonly property real cross: 48 * scale
-    readonly property var classes: Dock.resolve(pinned, clients)
+    readonly property var sharedPins: Dock.pinnedOrStarter()
+    readonly property var classes: Dock.resolve(sharedPins, clients)
     // space the zone can give the dock; -1 = unbounded. When the natural strip
     // would not fit, every item shrinks together, macOS style.
     // ponytail: floored at 0.55 (a 24px tile); past that the strip overlaps
@@ -187,10 +185,8 @@ Item {
                 onClicked: event => {
                     if (event.button === Qt.LeftButton)
                         root.activate(item.className);
-                    else if (root.pinned.includes(item.className))
-                        root.unpin(item.className);
                     else
-                        root.pin(item.className);
+                        Dock.togglePin(item.className);
                 }
                 onEntered: {
                     if (item.count > 0) {

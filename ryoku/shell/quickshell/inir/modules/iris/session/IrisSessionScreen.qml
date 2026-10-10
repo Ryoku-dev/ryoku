@@ -96,6 +96,10 @@ Variants {
                     { id: "lock", icon: "lock", label: Translation.tr("Lock"), confirm: false },
                     { id: "logout", icon: "logout", label: Translation.tr("Log Out"), confirm: true }
                 ]
+                // Lume reads the wallpaper where the clock and the row sit: a bright one gets a thicker veil.
+                readonly property var backdropSample: Lume.read(String(window.modelData?.name ?? ""),
+                    stage.width * 0.3, stage.height * 0.3, stage.width * 0.4, stage.height * 0.4)
+                readonly property real veilAlpha: IrisStyle.mediaVeil(stage.backdropSample?.level ?? -1, stage.backdropSample?.spread ?? 0)
                 property int focusIndex: 0
                 property bool keyboardNavigation: false
                 property string pending: ""
@@ -142,6 +146,8 @@ Variants {
                     // Hidden by opacity: a hidden subtree never renders a live wallpaper's frames into the texture.
                     opacity: 0
                     screen: window.modelData
+                    // The window maps at height 0: decoding before it has its size read the picture at 1×1 and 480×1 first.
+                    active: stage.width > 0 && stage.height > 0
                     live: window.presentationShown
                     provideTexture: true
                     decodeSize: Qt.size(Math.max(1, Math.round(stage.width / 4)), Math.max(1, Math.round(stage.height / 4)))
@@ -150,12 +156,15 @@ Variants {
                     anchors.fill: parent
                     opacity: window.presentationShown ? 1 : 0
                     Behavior on opacity { NumberAnimation { duration: IrisStyle.duration(220); easing.type: IrisStyle.feedbackEasing } }
-                    Rectangle { anchors.fill: parent; color: IrisStyle.surfaceOpaque }
+                    Rectangle { anchors.fill: parent; color: IrisStyle.darkSurfaceOpaque }
                     MultiEffect {
                         anchors.fill: parent
                         anchors.margins: -Math.round(64 * stage.d)
                         visible: backdropImage.ready
                         source: backdropImage.textureItem
+                        // Auto padding crops the source by its size at this item's last resize; it grew first and kept the
+                        // top rows stretched over the screen. The -64 margins are the padding.
+                        autoPaddingEnabled: false
                         blurEnabled: true
                         blur: 1
                         blurMax: 48
@@ -163,7 +172,8 @@ Variants {
                     }
                     Rectangle {
                         anchors.fill: parent
-                        color: backdropImage.ready ? IrisStyle.veil : IrisStyle.veilHeavy
+                        visible: backdropImage.ready
+                        color: ColorUtils.applyAlpha(IrisStyle.darkSurfaceOpaque, stage.veilAlpha)
                     }
                 }
                 MouseArea {
@@ -185,11 +195,13 @@ Variants {
                     IrisClock {
                         Layout.alignment: Qt.AlignHCenter
                         pixelSize: Math.round(64 * IrisStyle.typeScale)
+                        color: IrisStyle.onMedia
+                        separatorColor: IrisStyle.highlightOnMedia
                     }
                     IrisText {
                         Layout.alignment: Qt.AlignHCenter
-                        text: Qt.locale().toString(DateTime.clock.date, "dddd, d MMMM")
-                        color: IrisStyle.textSecondary
+                        text: Translation.locale.toString(DateTime.clock.date, "dddd, d MMMM")
+                        color: IrisStyle.onMediaSecondary
                         font.pixelSize: IrisStyle.typeHeadline
                     }
 
@@ -215,9 +227,9 @@ Variants {
                                     width: parent.width
                                     height: width
                                     radius: width / 2
-                                    color: action.armed ? IrisStyle.danger
-                                        : pointer.containsMouse || action.focused ? IrisStyle.fillActive
-                                        : IrisStyle.fill
+                                    color: action.armed ? IrisStyle.dangerOnMedia
+                                        : pointer.containsMouse || action.focused ? IrisStyle.onMediaFillHover
+                                        : IrisStyle.onMediaFill
                                     scale: pointer.pressed ? IrisStyle.pressScale(0.93) : 1
                                     Behavior on color { ColorAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
                                     Behavior on scale { NumberAnimation { duration: IrisStyle.feedbackDuration; easing.type: IrisStyle.feedbackEasing } }
@@ -229,7 +241,7 @@ Variants {
                                         radius: width / 2
                                         color: "transparent"
                                         border.width: 2
-                                        border.color: action.armed ? IrisStyle.danger : IrisStyle.accent
+                                        border.color: action.armed ? IrisStyle.dangerOnMedia : IrisStyle.accentOnMedia
                                         visible: action.focused
                                     }
 
@@ -238,7 +250,7 @@ Variants {
                                         text: action.modelData.icon
                                         iconSize: Math.round(30 * stage.d)
                                         fill: 1
-                                        color: action.armed ? IrisStyle.onMedia : IrisStyle.text
+                                        color: IrisStyle.onMedia
                                     }
                                 }
                                 IrisText {
@@ -247,7 +259,7 @@ Variants {
                                     anchors.topMargin: 10 * stage.d
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     text: action.armed ? Translation.tr("Confirm") : action.modelData.label
-                                    color: action.armed ? IrisStyle.danger : IrisStyle.text
+                                    color: action.armed ? IrisStyle.dangerOnMedia : IrisStyle.onMedia
                                     font.pixelSize: IrisStyle.typeLabel
                                     font.weight: IrisStyle.weight(Font.Medium)
                                 }
@@ -271,7 +283,7 @@ Variants {
                         text: stage.pendingAction
                             ? Translation.tr("Press %1 again to continue").arg(stage.pendingAction.label)
                             : Translation.tr("Up %1").arg(DateTime.uptime)
-                        color: stage.pendingAction ? IrisStyle.text : IrisStyle.textTertiary
+                        color: stage.pendingAction ? IrisStyle.onMedia : IrisStyle.onMediaTertiary
                         font.pixelSize: IrisStyle.typeLabel
                     }
                 }

@@ -11,6 +11,8 @@ Item {
     required property real s
     required property var screen
     required property bool active
+    readonly property bool showVolume: SidebarState.elementVisible("volume")
+    readonly property bool showBrightness: SidebarState.elementVisible("brightness")
     property bool volumeOpen: false
     property bool brightnessOpen: false
     property int externalBrightness: -1
@@ -41,7 +43,7 @@ Item {
     }
 
     function syncActive(): void {
-        if (root.active) {
+        if (root.active && root.showBrightness) {
             Devices.startProbes(root);
             root.readExternalBrightness();
         } else {
@@ -54,7 +56,7 @@ Item {
     }
 
     function readExternalBrightness(): void {
-        if (!root.active || root.ddcBus === "" || externalRead.running)
+        if (!root.active || !root.showBrightness || root.ddcBus === "" || externalRead.running)
             return;
         externalRead.command = ["timeout", "3", "ddcutil", "getvcp", "10", "--brief", "--bus", root.ddcBus];
         externalRead.running = true;
@@ -84,6 +86,8 @@ Item {
     }
 
     onActiveChanged: root.syncActive()
+    onShowBrightnessChanged: root.syncActive()
+    onShowVolumeChanged: if (!root.showVolume) root.volumeOpen = false
     onDdcBusChanged: {
         root.externalBrightness = -1;
         root.readExternalBrightness();
@@ -118,6 +122,7 @@ Item {
 
         LevelSlider {
             id: volume
+            visible: root.showVolume
             width: parent.width
             s: root.s
             label: I18n.tr("Volume")
@@ -166,6 +171,7 @@ Item {
 
         LevelSlider {
             id: brightness
+            visible: root.showBrightness
             width: parent.width
             s: root.s
             label: I18n.tr("Brightness")

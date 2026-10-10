@@ -54,15 +54,16 @@ Item {
     }
 
     readonly property bool sounding: Spectrum.energy > 0.04 || motion.activity > 0.02
-    // The idle wave is the user's opted-in resting animation, so plain silence
-    // must leave it breathing; only the hard tiers (Power Saver, lowPowerMode,
-    // Game Mode) force it off, as Performance documents.
-    readonly property bool wantIdleWave: motion.cfg.idleWave && !Performance.visualizerHardFrozen
+    // Idle wave and spin are explicit visual choices. Only the hard performance
+    // tiers override them; plain audio-idle merely stops the analyser.
+    readonly property bool hardFrozen: Performance.visualizerHardFrozen
+    readonly property bool wantIdleWave: motion.cfg.idleWave && !motion.hardFrozen
+    readonly property bool wantSpin: motion.cfg.spin > 0 && !motion.hardFrozen
     readonly property bool wantPeaks: motion.cfg.peaks
         && (motion.style === "bars" || motion.style === "segments")
     readonly property bool animating: motion.sounding || motion.wantIdleWave
         || motion.maxLevel > 0.004 || (motion.scope && Waveform.samples.length > 0)
-        || motion.cfg.spin > 0
+        || motion.wantSpin
 
     function rawLevel(i) {
         var l = Spectrum.levels;
@@ -81,9 +82,9 @@ Item {
         running: motion.active && Config.enabled && motion.animating
         repeat: true
         property real last: 0
-        // A stop leaves `last` stale: the first tick after a freeze (Power Saver,
-        // idle, suspend) would otherwise clock the whole frozen span as one frame
-        // and spike the governor. Reseed so that first tick measures one interval.
+        // A stop leaves `last` stale: the first tick after a hard freeze or
+        // inactive surface would otherwise clock the whole frozen span as one
+        // frame and spike the governor. Reseed that first tick.
         onRunningChanged: if (!ticker.running) ticker.last = 0;
         onTriggered: {
             var now = Date.now();
@@ -124,7 +125,7 @@ Item {
             * (1 - Math.exp(-dt / (goal > motion.activity ? 0.05 : 1.1)));
         if (motion.wantIdleWave)
             motion.idlePhase += dt * (Math.PI * 2 / 6);
-        if (motion.cfg.spin > 0)
+        if (motion.wantSpin)
             motion.spinDeg = (motion.spinDeg + dt * motion.cfg.spin) % 360;
 
         if (motion.scope) {
@@ -202,6 +203,13 @@ Item {
         }
         motion.levels = out;
         motion.maxLevel = mx;
+    }
+
+    onHardFrozenChanged: if (motion.hardFrozen) {
+        motion.activity = 0;
+        motion.maxLevel = 0;
+        motion.levels = [];
+        motion.peaks = [];
     }
 
     // A stopped Timer must leave a resting picture behind, not the last frame

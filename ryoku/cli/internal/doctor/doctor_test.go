@@ -1487,11 +1487,8 @@ func TestBarStyleDefaultsToQsbar(t *testing.T) {
 	}
 }
 
-// migrateDockStore lifts the retired qsbar.dock* knobs into a top-level dock
-// object once the dock became its own shell surface. It must move exactly the
-// five persisted knobs under their new names, drop them from qsbar, never
-// clobber a dock object the shell already wrote, leave the shell-defaulted keys
-// absent, and be idempotent so a second doctor run reads clean.
+// The dock migration converges QS, Python, iRiS and frame-bar stores on the
+// universal shell object without changing pin order or overwriting current keys.
 func TestMigrateDockStore(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -1501,7 +1498,7 @@ func TestMigrateDockStore(t *testing.T) {
 		{"absent both", `{"barStyle":"qsbar","qsbar":{"barGapTop":3}}`, false},
 		{"qsbar keys only", `{"qsbar":{"dockEnabled":true,"dockMagnify":false,"dockPinned":["kitty.desktop"],"dockFrost":true,"dockShadow":false,"barGapTop":3}}`, true},
 		{"both present", `{"dock":{"enabled":false,"edge":"top"},"qsbar":{"dockEnabled":true,"dockPinned":["kitty.desktop"],"barGapTop":3}}`, true},
-		{"already migrated", `{"dock":{"enabled":true,"pinned":["kitty.desktop"]},"qsbar":{"barGapTop":3}}`, false},
+		{"already migrated", `{"dock":{"enabled":true,"pinned":["kitty"]},"qsbar":{"barGapTop":3}}`, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -1548,8 +1545,8 @@ func TestMigrateDockStore(t *testing.T) {
 	if dock["enabled"] != true || dock["magnify"] != false || dock["frost"] != true || dock["shadow"] != false {
 		t.Errorf("dock knobs did not move correctly: %v", dock)
 	}
-	if pins, ok := dock["pinned"].([]any); !ok || len(pins) != 1 || pins[0] != "kitty.desktop" {
-		t.Errorf("dockPinned did not move to dock.pinned: %v", dock["pinned"])
+	if pins, ok := dock["pinned"].([]any); !ok || len(pins) != 1 || pins[0] != "kitty" {
+		t.Errorf("dockPinned did not canonicalise into dock.pinned: %v", dock["pinned"])
 	}
 	// the keys the shell defaults stay absent, so its Config.qml default applies.
 	for _, absent := range []string{"edge", "autohide", "labels", "media"} {
@@ -1580,6 +1577,61 @@ func TestMigrateDockStore(t *testing.T) {
 	if q := cfg["qsbar"].(map[string]any); q["dockEnabled"] != nil {
 		t.Errorf("qsbar dockEnabled was not deleted: %v", q)
 	}
+
+	t.Run("all retired stores preserve order", func(t *testing.T) {
+		shell := []byte(`{
+			"dock":{"pinned":["Firefox.desktop"]},
+			"python":{"bar":{"height":40},"dock":{"enabled":true,"position":"left","elementSize":52,"apps":[{"desktop_id":"Kitty.desktop"},{"id":"firefox.desktop"}],"floating":true}},
+			"frameBars":{"style":"sumi","dock":{"pinned":["Thunar.desktop"]}}
+		}`)
+		stage := []byte(`{"dock":{"pinnedApps":["Chromium.desktop","kitty.desktop"],"smartGrouping":true},"other":{"keep":1}}`)
+		shellOut, changed, err := migrateDockStore(shell)
+		if err != nil || !changed {
+			t.Fatalf("migrateDockStore: changed=%v err=%v", changed, err)
+		}
+		stageOut, stagePins, stageChanged, err := migrateStageDockStore(stage)
+		if err != nil || !stageChanged {
+			t.Fatalf("migrateStageDockStore: changed=%v err=%v", stageChanged, err)
+		}
+		shellOut, merged, err := mergeDockPins(shellOut, stagePins)
+		if err != nil || !merged {
+			t.Fatalf("mergeDockPins: changed=%v err=%v", merged, err)
+		}
+
+		var got map[string]any
+		if err := json.Unmarshal(shellOut, &got); err != nil {
+			t.Fatal(err)
+		}
+		gotDock := got["dock"].(map[string]any)
+		pins := gotDock["pinned"].([]any)
+		wantPins := []string{"firefox", "kitty", "thunar", "chromium"}
+		if len(pins) != len(wantPins) {
+			t.Fatalf("pins = %v, want %v", pins, wantPins)
+		}
+		for i, want := range wantPins {
+			if pins[i] != want {
+				t.Errorf("pins[%d] = %v, want %q", i, pins[i], want)
+			}
+		}
+		if gotDock["enabled"] != true || gotDock["design"] != "python" ||
+			gotDock["edge"] != "left" || gotDock["size"] != float64(52) {
+			t.Errorf("shared Python settings did not migrate: %v", gotDock)
+		}
+		if py := got["python"].(map[string]any); py["dock"] != nil || py["bar"] == nil {
+			t.Errorf("Python dock survived or unrelated settings were lost: %v", py)
+		}
+		if frame := got["frameBars"].(map[string]any); frame["dock"] != nil || frame["style"] != "sumi" {
+			t.Errorf("frameBars dock pins survived or style was lost: %v", frame)
+		}
+		var cleanedStage map[string]any
+		if err := json.Unmarshal(stageOut, &cleanedStage); err != nil {
+			t.Fatal(err)
+		}
+		stageDock := cleanedStage["dock"].(map[string]any)
+		if stageDock["pinnedApps"] != nil || stageDock["smartGrouping"] != true {
+			t.Errorf("Stage pins survived or unrelated dock settings were lost: %v", stageDock)
+		}
+	})
 
 	// garbage errors rather than silently rewriting.
 	if _, _, err := migrateDockStore([]byte("not json")); err == nil {

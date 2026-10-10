@@ -51,9 +51,19 @@ Item {
     function _activePlayer(): var { return root.activeSlot === 0 ? playerA : playerB }
     function _inactivePlayer(): var { return root.activeSlot === 0 ? playerB : playerA }
 
-    onPlaybackSourceChanged: root._applySource()
-    Component.onCompleted: root._applySource()
+    // Deferred: on creation the decode height settles a moment after the source (0, "play the file", then the
+    // real height), and applying each step opened the full video only to cancel it ("Immediate exit requested",
+    // "moov atom not found" on every start). One turn later it runs once with the settled value. A timer dies with
+    // the player; a Qt.callLater outlived it when a short-lived view (the session screen) closed and threw a TypeError.
+    onPlaybackSourceChanged: applySource.restart()
+    Component.onCompleted: applySource.restart()
     onShouldPlayChanged: root._syncPlayback()
+
+    Timer {
+        id: applySource
+        interval: 0
+        onTriggered: root._applySource()
+    }
 
     // An in-flight load must be abandoned whenever the requested source changes,
     // or it will finish later and swap the surface to a wallpaper nobody asked

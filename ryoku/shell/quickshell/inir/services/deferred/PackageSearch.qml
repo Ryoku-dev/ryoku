@@ -11,7 +11,7 @@ import Quickshell.Io
 /**
  * PackageSearch — Async package manager search service.
  *
- * Searches pacman repos and AUR via yay/paru for packages matching a query.
+ * Searches pacman/AUR or XBPS repositories for packages matching a query.
  * Results are parsed into structured objects with name, version, repo,
  * description, and installed status.
  *
@@ -63,8 +63,14 @@ Singleton {
         }
 
         const script = preferAurHelper
-            ? "if command -v yay &>/dev/null; then yay -S -- \"$1\"; elif command -v paru &>/dev/null; then paru -S -- \"$1\"; else sudo pacman -S -- \"$1\"; fi"
-            : "sudo pacman -S -- \"$1\""
+            ? "if command -v yay &>/dev/null; then yay -S -- \"$1\"; " +
+                "elif command -v paru &>/dev/null; then paru -S -- \"$1\"; " +
+                "elif command -v pacman &>/dev/null; then sudo pacman -S -- \"$1\"; " +
+                "elif command -v xbps-install &>/dev/null; then sudo xbps-install -S -- \"$1\"; " +
+                "else printf 'No supported package manager found\\n' >&2; exit 127; fi"
+            : "if command -v pacman &>/dev/null; then sudo pacman -S -- \"$1\"; " +
+                "elif command -v xbps-install &>/dev/null; then sudo xbps-install -S -- \"$1\"; " +
+                "else printf 'No supported package manager found\\n' >&2; exit 127; fi"
         root._runTerminalScript(script, [pkg])
         return true
     }
@@ -77,12 +83,54 @@ Singleton {
             return false
         }
 
-        root._runTerminalScript("sudo pacman -Rns -- \"$1\"", [pkg])
+        root._runTerminalScript(
+            "if command -v pacman &>/dev/null; then sudo pacman -Rns -- \"$1\"; " +
+            "elif command -v xbps-remove &>/dev/null; then sudo xbps-remove -R -- \"$1\"; " +
+            "else printf 'No supported package manager found\\n' >&2; exit 127; fi",
+            [pkg]
+        )
         return true
     }
 
     function updateSystem(): void {
-        root._runTerminalScript("if command -v yay &>/dev/null; then yay; elif command -v paru &>/dev/null; then paru; else sudo pacman -Syu; fi", [])
+        root._runTerminalScript(
+            "if command -v pacman &>/dev/null; then " +
+                "if command -v yay &>/dev/null; then yay; elif command -v paru &>/dev/null; then paru; else sudo pacman -Syu; fi; " +
+            "elif command -v xbps-install &>/dev/null; then sudo xbps-install -Su; " +
+            "else printf 'No supported package manager found\\n' >&2; exit 127; fi",
+            []
+        )
+    }
+
+    // apps.update is a person's own command; empty or an old default means the system's package manager.
+    function runConfiguredUpdate(): void {
+        const cmd = (Config.options?.apps?.update ?? "").trim()
+        const legacyDefault = cmd === "kitty -e arch-update" || cmd === "kitty -e sudo pacman -Syu"
+        if (cmd.length === 0 || legacyDefault) {
+            root.updateSystem()
+            return
+        }
+        ShellExec.execCmd(cmd)
+    }
+
+    function cleanPackageCache(): void {
+        root._runTerminalScript(
+            "if command -v pacman &>/dev/null; then " +
+                "if command -v paccache &>/dev/null; then sudo paccache -rk1; else printf 'paccache is unavailable; install pacman-contrib\\n' >&2; exit 127; fi; " +
+            "elif command -v xbps-remove &>/dev/null; then sudo xbps-remove -O; " +
+            "else printf 'No supported package cache cleaner found\\n' >&2; exit 127; fi",
+            []
+        )
+    }
+
+    function _xbpsSearchPipeline(mode: string, limit: int): string {
+        return "xbps-query " + mode + " \"$1\" 2>/dev/null | head -" + limit + " | " +
+            "while IFS= read -r line; do " +
+            "status=${line:1:1}; rest=${line#*] }; pkgver=${rest%% *}; " +
+            "name=$(xbps-uhelper getpkgname \"$pkgver\"); version=${pkgver#\"$name\"-}; " +
+            "desc=${rest#\"$pkgver\"}; desc=\"${desc#\"${desc%%[![:space:]]*}\"}\"; " +
+            "printf '__XBPS__\\t%s\\t%s\\t%s\\t%s\\n' \"$status\" \"$name\" \"$version\" \"$desc\"; " +
+            "done"
     }
 
     function search(q: string): void {
@@ -114,8 +162,15 @@ Singleton {
             root.searching = true
             root.error = ""
             _stdout = ""
+            const xbpsSearch = root._xbpsSearchPipeline("-Rs", 200)
             _searchProc.command = ["/usr/bin/bash", "-lc",
-                "if command -v yay &>/dev/null; then yay -Ss \"$1\" 2>/dev/null | head -200; elif command -v paru &>/dev/null; then paru -Ss \"$1\" 2>/dev/null | head -200; else pacman -Ss \"$1\" 2>/dev/null | head -200; fi",
+                "if command -v pacman &>/dev/null; then " +
+                    "if command -v yay &>/dev/null; then yay -Ss \"$1\" 2>/dev/null | head -200; " +
+                    "elif command -v paru &>/dev/null; then paru -Ss \"$1\" 2>/dev/null | head -200; " +
+                    "else pacman -Ss \"$1\" 2>/dev/null | head -200; fi; " +
+                "elif command -v xbps-query &>/dev/null && command -v xbps-uhelper &>/dev/null; then " +
+                    xbpsSearch + "; " +
+                "else exit 127; fi",
                 "bash", root.query
             ]
             _searchProc.running = true
@@ -158,6 +213,24 @@ Singleton {
         let i = 0
         while (i < lines.length) {
             const line = lines[i]
+            if (line.startsWith("__XBPS__\t")) {
+                const fields = line.split("\t")
+                if (fields.length >= 5) {
+                    pkgs.push({
+                        name: fields[2],
+                        version: fields[3],
+                        repo: "xbps",
+                        description: fields.slice(4).join("\t"),
+                        installed: fields[1] === "*",
+                        votes: 0,
+                        popularity: 0,
+                        isAur: false
+                    })
+                }
+                i++
+                continue
+            }
+
             // Package line format: "repo/name version [size] [installed]"
             // or AUR: "aur/name version (+votes popularity) [installed]"
             const pkgMatch = line.match(/^(\S+)\/(\S+)\s+(\S+)\s*(.*)$/)
@@ -207,8 +280,12 @@ Singleton {
         root.searching = true
         root.error = ""
         _stdout = ""
+        const xbpsSearch = root._xbpsSearchPipeline("-s", 100)
         _installedProc.command = ["/usr/bin/bash", "-lc",
-            "pacman -Qs \"$1\" 2>/dev/null | head -100",
+            "if command -v pacman &>/dev/null; then pacman -Qs \"$1\" 2>/dev/null | head -100; " +
+            "elif command -v xbps-query &>/dev/null && command -v xbps-uhelper &>/dev/null; then " +
+                xbpsSearch + "; " +
+            "else exit 127; fi",
             "bash", root.query
         ]
         _installedProc.running = true

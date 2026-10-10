@@ -62,6 +62,20 @@ Item {
                 c.fill()
                 c.strokeStyle = root.dim
                 c.strokeRect(7, 28, w - 14, h - 34)
+            } else if (root.styleId === "nomarchy") {
+                c.strokeRect(7, 5, w - 14, 10)
+                for (let i = 0; i < 4; i++) {
+                    c.beginPath()
+                    c.arc(14 + i * 7, 10, 1.5, 0, Math.PI * 2)
+                    c.fill()
+                }
+                c.beginPath()
+                root.pill(c, w * 0.45, 8, w * 0.1, 4, 2)
+                c.fill()
+                for (let i = 0; i < 3; i++)
+                    c.fillRect(w - 31 + i * 7, 8, 3, 4)
+                c.strokeStyle = root.dim
+                c.strokeRect(7, 22, w - 14, h - 28)
             } else if (root.styleId === "iris") {
                 c.beginPath()
                 root.pill(c, w * 0.18, 5, w * 0.64, 13, 7)

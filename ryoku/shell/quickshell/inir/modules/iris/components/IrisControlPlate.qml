@@ -3,11 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import inir.modules.iris.style
 
-// A row of round controls held on one plate: Settings › Appearance › Button rows (`IrisStyle.controlPlate`),
-// or a surface's own choice. The plate's corners follow the bubbles' shape and stay concentric with the
-// controls inside, which take `controlRadius`; Glass, or any plate under Appearance › Edges › Light, wears the
-// shell's lit edge. None draws nothing and
-// leaves the controls as they were.
 Item {
     id: root
     property string material: IrisStyle.controlPlate

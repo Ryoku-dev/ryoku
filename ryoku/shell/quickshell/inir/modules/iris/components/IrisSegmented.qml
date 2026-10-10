@@ -27,8 +27,6 @@ Rectangle {
 
     implicitHeight: Math.round((root.pictured ? 52 : root.glyphOnly ? 32 : 28) * root.d)
     implicitWidth: root.glyphOnly ? root.count * (root.implicitHeight - 2 * root.inset) + 2 * root.inset : 0
-    // Appearance › Button rows: the track takes the controls' material and, as a capsule, the bubbles' shape with
-    // the thumb concentric; bare it is the quiet capsule it always was. Pictured tiles keep their corner.
     readonly property real thumbRadius: root.pictured ? IrisStyle.radiusTile - root.inset
         : IrisStyle.controlPlated ? IrisStyle.pieceRadius(root.height - 2 * root.inset) : (root.height - 2 * root.inset) / 2
     radius: root.pictured ? IrisStyle.radiusTile : IrisStyle.controlPlated ? root.thumbRadius + root.inset : height / 2

@@ -186,12 +186,8 @@ Rectangle {
     ZzzPlate {
         anchors.fill: parent
         visible: root._zzz
-        // ZZZ separates by FILL contrast, not outlines (maintainer design law:
-        // bright edge strokes read as accent borders on every card). But the
-        // per-widget showBackground/showBorder toggles still apply —
-        // INDEPENDENTLY, so "border only" (transparent fill + hairline) is
-        // reachable like material. Before this, ZzzPlate always filled with
-        // paper, so toggling Border read as adding a background plate.
+        // ZZZ separates by fill, not outlines; the per-widget showBackground/showBorder toggles still apply independently,
+        // so "border only" (transparent fill + hairline) is reachable like material.
         fillColor: root._backgroundVisible
             ? ColorUtils.applyAlpha(root.colorMode === "auto" ? Appearance.zzz.paper : root._plate,
                 root._plateAlpha)

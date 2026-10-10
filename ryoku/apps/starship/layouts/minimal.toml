@@ -1,0 +1,32 @@
+add_newline = false
+palette = "mythos"
+format = "$directory$git_branch$character"
+
+[palettes.mythos]
+dir_bg = "#23252E"
+git_bg = "#1A272D"
+time_bg = "#2B1E22"
+dir_fg = "#ECA75B"
+git_fg = "#70C2A3"
+time_fg = "#E27B75"
+crimson = "#E64553"
+
+[directory]
+style = "bold fg:dir_fg"
+truncation_length = 2
+truncation_symbol = "…/"
+read_only = " 󰌾"
+read_only_style = "bold fg:crimson"
+format = "[󰉋 $path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+symbol = "󰊢 "
+style = "bold fg:git_fg"
+format = "[$symbol$branch]($style) "
+
+[character]
+success_symbol = "[λ ](bold fg:dir_fg)"
+error_symbol = "[λ ](bold fg:crimson)"
+
+[package]
+disabled = true

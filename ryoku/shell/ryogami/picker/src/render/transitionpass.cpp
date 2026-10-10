@@ -1,4 +1,5 @@
 #include "transitionpass.h"
+#include "gpupoison.h"
 
 #include <QFile>
 #include <rhi/qrhi.h>
@@ -33,7 +34,7 @@ TransitionPass::~TransitionPass()
     releaseResources();
 }
 
-bool TransitionPass::ensureTargets(QRhi *rhi, QSize pixelSize)
+bool TransitionPass::ensureTargets(QRhi *rhi, QRhiResourceUpdateBatch *batch, QSize pixelSize)
 {
     const QSize px = pixelSize.isEmpty() ? QSize(1, 1) : pixelSize;
     if (m_texA && m_size == px)
@@ -69,6 +70,10 @@ bool TransitionPass::ensureTargets(QRhi *rhi, QSize pixelSize)
         releaseTargets();
         m_size = QSize();
     }
+    if (ok) {
+        GpuPoison::texture(batch, m_texA.get(), px);
+        GpuPoison::texture(batch, m_texB.get(), px);
+    }
 
     // The composite bindings reference the (re)allocated textures.
     m_srb.reset();
@@ -78,12 +83,15 @@ bool TransitionPass::ensureTargets(QRhi *rhi, QSize pixelSize)
     return true;
 }
 
-void TransitionPass::buildPipeline(QRhi *rhi, QRhiRenderTarget *mainTarget)
+void TransitionPass::buildPipeline(QRhi *rhi, QRhiResourceUpdateBatch *batch,
+                                   QRhiRenderTarget *mainTarget)
 {
     if (!m_uniform) {
         m_uniform.reset(rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, sizeof(TransUniform)));
         if (!m_uniform->create())
             m_uniform.reset();
+        else
+            GpuPoison::buffer(batch, m_uniform.get());
     }
     if (!m_sampler) {
         m_sampler.reset(rhi->newSampler(QRhiSampler::Linear, QRhiSampler::Linear, QRhiSampler::None,
@@ -137,7 +145,7 @@ void TransitionPass::prepare(QRhi *rhi, QRhiResourceUpdateBatch *batch, QRhiRend
     if (targetsChanged || !m_srb || !m_pipeline || !m_pipelinePass
         || !m_pipelinePass->isCompatible(mainTarget->renderPassDescriptor())
         || m_pipelineSamples != mainTarget->sampleCount())
-        buildPipeline(rhi, mainTarget);
+        buildPipeline(rhi, batch, mainTarget);
     if (!m_uniform)
         return;
 

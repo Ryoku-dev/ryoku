@@ -7,12 +7,11 @@ import "kit/Routes.js" as Routes
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// QS Bar Settings: the panel the bar's 力 logo opens. It is about one thing, the
-// bar, in four routes down one rail: Bar (where it sits and how its surface
-// reads), Layout (the three lanes you arrange the widgets in), Widgets (every
-// widget as a row you show, size, colour and tune) and Dock (the app dock beside
-// it). What this panel used to also carry -- logo, spaces, pickers, desktop
-// widgets, the mid-work switches, the session -- already has a home, so it left.
+// QS Bar Settings: the panel the bar's 力 logo opens. It keeps the bar's form,
+// panel appearance and picker style together, then gives identity, layout,
+// widgets, dock and community additions their own routes. Desktop widgets,
+// mid-work switches and session actions keep their existing homes outside this
+// panel.
 //
 // State reads and writes straight off `root` (the qsbar Theme) and the shell's
 // own services, so persistence is untouched. The chrome is paper and ink from
@@ -28,8 +27,8 @@ PanelWindow {
     // `open(target)` keeps its old contract for the bar-logo click and the qsbar
     // IPC (`ipc call qsbar settings <route>`): a route id shows that route, an
     // empty/legacy target shows the first, and a retired route id (logo, spaces,
-    // pickers, desktop, system, session, appearance) maps to its nearest new home
-    // so an old caller never lands on nothing.
+    // pickers, desktop, system, session, appearance) maps to its nearest current
+    // home so an old caller never lands on nothing.
     function open(target) {
         var raw = (target === undefined || target === null) ? "" : String(target);
         cc.route = (raw === "" || raw === "quick" || raw === "configure")
@@ -54,8 +53,7 @@ PanelWindow {
     }
 
     // Search index: one entry per route from the registry, plus the controls
-    // worth naming, scoped to the four routes. Accepting an entry navigates to
-    // its route.
+    // worth naming. Accepting an entry navigates to its route.
     readonly property var searchEntries: cc.buildSearchIndex()
     function buildSearchIndex() {
         var out = [];
@@ -79,6 +77,8 @@ PanelWindow {
               searchTags: ["motion", "stream", "reactor", "animation"], description: I18n.tr("The stream that flows in the gaps between widgets.") },
             { id: "bars.scale", name: I18n.tr("Bar size"), route: "bars", category: I18n.tr("Bar"),
               searchTags: ["scale", "size", "height", "bigger"], description: I18n.tr("Scale the bar without changing display scaling.") },
+            { id: "bars.pickers", name: I18n.tr("Picker style"), route: "bars", category: I18n.tr("Bar"),
+              searchTags: ["picker", "pickers", "tanzaku", "hearthstone", "carousel"], description: I18n.tr("How the theme, wallpaper and media pickers are laid out.") },
             { id: "layout.arrange", name: I18n.tr("Arrange widgets"), route: "layout", category: I18n.tr("Layout"),
               searchTags: ["move", "reorder", "order", "left", "center", "right", "lane"], description: I18n.tr("Move widgets across the three lanes.") },
             { id: "layout.add", name: I18n.tr("Add a widget"), route: "layout", category: I18n.tr("Layout"),

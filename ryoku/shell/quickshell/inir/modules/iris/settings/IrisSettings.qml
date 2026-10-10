@@ -59,7 +59,7 @@ PanelWindow {
     function shown(spec: var): bool { return IrisOptions.shown(spec) }
 
     readonly property int searchLimit: 24
-    readonly property var searchIndex: root.specifications.filter(spec => !spec.mirror).map(spec => {
+    readonly property var searchIndex: root.specifications.filter(spec => !spec.mirror && spec.section !== "dock").map(spec => {
         const label = Translation.tr(spec.label).toLowerCase()
         const sectionTitle = Translation.tr(IrisOptions.sectionById(spec.section).title)
         return { spec: spec, label: label, section: sectionTitle.toLowerCase(), rest: [Translation.tr(spec.group ?? ""), sectionTitle, Translation.tr(spec.description ?? ""), ...(spec.keywords ?? [])].join(" ").toLowerCase(),
@@ -93,6 +93,8 @@ PanelWindow {
     }
     readonly property var entries: {
         Config.revision
+        if (!root.searching && root.section === "dock")
+            return []
         return root.searching ? root.matches.slice(0, root.searchLimit)
             : root.specifications.filter(spec => spec.section === root.section && root.shown(spec))
     }
@@ -209,6 +211,10 @@ PanelWindow {
         desktop: "desktop", sidebars: "places", controlCenter: "bodies", spotlight: "places", sound: "transients", notifications: "transients", player: "bodies" })
 
     function here(): var { return { section: root.section, group: root.group, advancedPage: root.advancedPage } }
+    function openDockEditor(): void {
+        GlobalStates.settingsOverlayOpen = false
+        Spawn.run(["qs", "-c", "shell", "ipc", "call", "desktop", "editSection", "dock", ""])
+    }
     function same(a: var, b: var): bool { return a.section === b.section && a.group === b.group && a.advancedPage === b.advancedPage }
     function arrive(place: var, direction: int): void {
         root.travel = direction
@@ -787,11 +793,15 @@ PanelWindow {
                         readonly property string target: studioTarget.length > 0 ? studioTarget : (root.editTargets[root.section] ?? "")
                         visible: !root.searching && root.advancedPage < 0 && target.length > 0
                         emphasized: true
-                        text: Translation.tr("Customize")
+                        text: root.section === "dock" ? Translation.tr("Open Stage Editor") : Translation.tr("Customize")
                         buttonRadius: height / 2
                         onClicked: {
-                            GlobalStates.settingsOverlayOpen = false
-                            GlobalStates.openIrisCustomize(target)
+                            if (root.section === "dock")
+                                root.openDockEditor()
+                            else {
+                                GlobalStates.settingsOverlayOpen = false
+                                GlobalStates.openIrisCustomize(target)
+                            }
                         }
                     }
                     IrisButton {
@@ -851,6 +861,15 @@ PanelWindow {
                                 text: Translation.tr(root.currentSection.tip ?? "")
                                 sceneSection: root.browsing ? root.section : ""
                                 sceneGroup: ""
+                            }
+
+                            IrisButton {
+                                visible: root.browsing && root.section === "dock"
+                                Layout.alignment: Qt.AlignHCenter
+                                emphasized: true
+                                text: Translation.tr("Open dock settings in Stage Editor")
+                                buttonRadius: height / 2
+                                onClicked: root.openDockEditor()
                             }
 
                             IrisGameModeCard {

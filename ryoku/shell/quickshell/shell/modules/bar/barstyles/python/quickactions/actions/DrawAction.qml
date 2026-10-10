@@ -171,6 +171,57 @@ Item {
         }
     }
 
+    function exportDrawing(targetPath, callback) {
+        if (typeof drawCanvas.grabToImage === "function") {
+            var initiated = drawCanvas.grabToImage(function(result) {
+                var success = false;
+                try {
+                    success = result.saveToFile(targetPath);
+                } catch (e) {
+                    success = false;
+                }
+                if (!success && typeof drawCanvas.save === "function") {
+                    try {
+                        success = drawCanvas.save(targetPath, Qt.size(drawCanvas.width, drawCanvas.height));
+                    } catch (e) {}
+                    if (!success) {
+                        try {
+                            success = drawCanvas.save(targetPath);
+                        } catch (e) {}
+                    }
+                }
+                if (callback) callback(success);
+            });
+            if (!initiated) {
+                var fallbackSuccess = false;
+                if (typeof drawCanvas.save === "function") {
+                    try {
+                        fallbackSuccess = drawCanvas.save(targetPath, Qt.size(drawCanvas.width, drawCanvas.height));
+                    } catch (e) {}
+                    if (!fallbackSuccess) {
+                        try {
+                            fallbackSuccess = drawCanvas.save(targetPath);
+                        } catch (e) {}
+                    }
+                }
+                if (callback) callback(fallbackSuccess);
+            }
+        } else if (typeof drawCanvas.save === "function") {
+            var res = false;
+            try {
+                res = drawCanvas.save(targetPath, Qt.size(drawCanvas.width, drawCanvas.height));
+            } catch (e) {}
+            if (!res) {
+                try {
+                    res = drawCanvas.save(targetPath);
+                } catch (e) {}
+            }
+            if (callback) callback(res);
+        } else {
+            if (callback) callback(false);
+        }
+    }
+
     Shortcut { enabled: root.visible && root.isActiveTab; sequence: "Ctrl+Z"; onActivated: root.undo() }
     Shortcut { enabled: root.visible && root.isActiveTab; sequence: "Ctrl+Shift+Z"; onActivated: root.redo() }
 
@@ -559,9 +610,15 @@ Item {
                 textColor: root.baseTextColor
                 onClicked: {
                     var outDir = root.picturesDir !== "" ? root.picturesDir : "/tmp";
+                    Quickshell.execDetached(["mkdir", "-p", outDir]);
                     var outPath = outDir + "/drawing_" + Date.now() + ".png";
-                    drawCanvas.save(outPath);
-                    Quickshell.execDetached(["notify-send", "-a", "DrawAction", "Drawing saved", outPath]);
+                    root.exportDrawing(outPath, function(success) {
+                        if (success) {
+                            Quickshell.execDetached(["notify-send", "-a", I18n.t("quickactions.draw.notification.app_name") || "DrawAction", I18n.t("quickactions.draw.notification.saved_title") || "Drawing saved", outPath]);
+                        } else {
+                            Quickshell.execDetached(["notify-send", "-a", I18n.t("quickactions.draw.notification.app_name") || "DrawAction", I18n.t("quickactions.draw.notification.failed_title") || "Export failed", I18n.t("quickactions.draw.notification.failed_body") || "Could not save drawing"]);
+                        }
+                    });
                 }
             }
 
@@ -575,8 +632,14 @@ Item {
                 textColor: root.baseTextColor
                 onClicked: {
                     var tempPath = Caching.getRunDir("quickactions") + "/drawing_clip.png";
-                    drawCanvas.save(tempPath);
-                    Quickshell.execDetached(["sh", "-c", "wl-copy < " + tempPath]);
+                    root.exportDrawing(tempPath, function(success) {
+                        if (success) {
+                            Quickshell.execDetached(["sh", "-c", "if command -v wl-copy >/dev/null 2>&1; then wl-copy --type image/png < '" + tempPath + "'; fi"]);
+                            Quickshell.execDetached(["notify-send", "-a", I18n.t("quickactions.draw.notification.app_name") || "DrawAction", I18n.t("quickactions.draw.notification.copied_title") || "Drawing copied", I18n.t("quickactions.draw.notification.copied_body") || "Drawing copied to clipboard"]);
+                        } else {
+                            Quickshell.execDetached(["notify-send", "-a", I18n.t("quickactions.draw.notification.app_name") || "DrawAction", I18n.t("quickactions.draw.notification.failed_title") || "Export failed", I18n.t("quickactions.draw.notification.failed_body") || "Could not save drawing"]);
+                        }
+                    });
                 }
             }
         }

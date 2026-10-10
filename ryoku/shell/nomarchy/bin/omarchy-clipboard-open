@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+[[ ${1:-} == --history-index && ${2:-} =~ ^[0-9]+$ ]] || { echo 'Usage: omarchy-clipboard-open --history-index INDEX' >&2; exit 2; }
+file=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/clipboard-history.json
+entry=$(jq -ec --argjson index "$2" '.[$index]' "$file")
+case $(jq -r '.type' <<<"$entry") in
+  image) path=$(jq -r '.path' <<<"$entry"); [[ -r $path ]] || exit 1; exec xdg-open "$path" ;;
+  text)
+    text=$(jq -r '.text' <<<"$entry")
+    if [[ $text =~ https?://[^[:space:]]+ ]]; then exec xdg-open "${BASH_REMATCH[0]}"; fi
+    dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/clipboard-open; mkdir -p "$dir"; path=$(mktemp "$dir/clipboard.XXXXXX.txt"); printf '%s' "$text" >"$path"; exec xdg-open "$path"
+    ;;
+  *) exit 1 ;;
+esac

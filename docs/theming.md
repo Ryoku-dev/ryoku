@@ -17,13 +17,33 @@ One palette, rendered outward.
 `ryoku/shell/matugen/` into each app's config. A fixed named theme skips
 generation and renders the catalog palette through the same templates.
 
-Eighteen apps are covered: kitty, the Hyprland border, btop and qt6ct always;
-gtk3, gtk4, vesktop, equibop, qt5ct, obs, zed, heroic, telegram, steam, cava,
-ghostty, micro and papirus behind the app-suite toggle.
+The core desktop and app suite both use this path. Kitty, btop and the Qt
+palette render every time; GTK and the opted-in application templates render
+behind the app-suite switch.
 
 Ryotunes, the native music client, joins the suite too: matugen renders its
 Material 3 palette as a Ryoku skin at `~/.config/ryotunes/skins/matugen/skin.json`,
 which the client loads as its "System" theme.
+
+### Terminal readouts and prompts
+
+Fastfetch and Starship keep layout separate from generated colour.
+
+- Matugen writes `~/.config/fastfetch/ryoku-colors.json`. In **Follow
+  wallpaper** mode, `ryoku-fastfetch` asks the Hub backend for a cached effective
+  config with the generated title, label, section, rule and percentage colours
+  overlaid. `config.jsonc` remains the user's file and is never rewritten by a
+  wallpaper change. **Fixed** mode reads it directly.
+- Matugen writes `~/.config/starship/ryoku-colors.toml`. The selected preset
+  stays under `~/.config/starship/layouts/`, while
+  `~/.config/starship.toml` is the active, atomically composed config. Fixed mode
+  copies the preset exactly. Follow-wallpaper mode swaps its named palette for
+  the generated sibling; Matugen's post-hook refreshes the active config after
+  each render.
+
+The modes and Starship layout id live under `~/.config/ryoku/`, so package
+updates can refresh the catalogue and templates without replacing the user's
+choice.
 
 ### KDE apps and the optional platform theme
 

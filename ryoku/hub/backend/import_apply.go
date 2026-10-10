@@ -56,6 +56,45 @@ func applyImport(dec decisions) (applyResult, error) {
 	var ingUnbinds []string
 	binds, rules, unbinds := 0, 0, 0
 	var unresolved []string
+	var providerPatches []map[string]any
+	var importedProviders []string
+	providerScans := scanProviderImports(dec.Source)
+
+	// Native provider configs are parsed by their provider. The Hub only merges
+	// the returned neutral patch and owns the same backup transaction as every
+	// other imported app.
+	for _, scan := range providerScans {
+		if !included(dec, providerAppID(scan.Provider)) {
+			continue
+		}
+		if scan.Error != "" {
+			return res, fmt.Errorf("%s", scan.Error)
+		}
+		patch, importedBinds, importedUnbinds := providerPatchFor(scan, resolve)
+		if importPatchNonEmpty(patch) {
+			providerPatches = append(providerPatches, patch)
+		}
+		binds += importedBinds
+		unbinds += importedUnbinds
+		for _, item := range scan.Items {
+			if item.Ingestable && (item.Kind == "windowrule" || item.Kind == "layerrule") {
+				rules++
+			}
+		}
+		for _, loss := range scan.Losses {
+			unresolved = append(unresolved, loss.Raw+": "+loss.Reason)
+		}
+		if strings.TrimSpace(scan.Preserved) != "" {
+			target, err := providerPreserveTarget(scan.PreservePath)
+			if err != nil {
+				return res, err
+			}
+			body := headerComment("//", ts, dec.Source) + ensureTrailingNL(scan.Preserved)
+			content := upsertBlock(readFileOr(target), ts, body, "//")
+			writes = append(writes, pendingWrite{path: target, content: []byte(content)})
+		}
+		importedProviders = append(importedProviders, scan.Provider)
+	}
 
 	// --- Hyprland: ingest into desktop.json + a user.lua raw block ------------
 	if included(dec, "hyprland") {
@@ -67,7 +106,7 @@ func applyImport(dec decisions) (applyResult, error) {
 			var userLua []string
 			for _, kb := range plan.keep {
 				if kb.Ingestable {
-				ingBinds = append(ingBinds, Keybind{Keys: kb.Combo, Action: kb.Action, Value: kb.Value})
+					ingBinds = append(ingBinds, Keybind{Keys: kb.Combo, Action: kb.Action, Value: kb.Value})
 					binds++
 					continue
 				}
@@ -122,7 +161,7 @@ func applyImport(dec decisions) (applyResult, error) {
 		}
 	}
 	// --- drop tier: any other config the user brought -------------------------
-	for _, ga := range scanGeneric(dec.Source) {
+	for _, ga := range scanGeneric(dec.Source, providerExcludedDirs(providerScans)) {
 		if !included(dec, ga.ID) {
 			continue
 		}
@@ -134,18 +173,36 @@ func applyImport(dec decisions) (applyResult, error) {
 		writes = append(writes, layerWrite(ga.ID, "user.conf", "#", ts, body))
 	}
 
-	// --- persist the ingested binds/rules into desktop.json -------------------
-	ingested := binds > 0 || rules > 0 || unbinds > 0
+	// --- persist every typed mapping into desktop.json -----------------------
+	ingested := binds > 0 || rules > 0 || unbinds > 0 || len(providerPatches) > 0
 	if ingested {
 		ns := readJSONMap(desktopStorePath())
 		appendDesktopSection(ns, "keybinds", ingBinds)
 		appendDesktopSection(ns, "windowRules", ingRules)
 		appendDesktopSection(ns, "unbinds", ingUnbinds)
+		for _, patch := range providerPatches {
+			mergeImportPatch(ns, patch)
+		}
 		writes = append(writes, pendingWrite{path: desktopStorePath(), content: mustJSON(ns)})
-		// The provider re-authors these from the store below. Back them up like
-		// any other file so an undo restores the exact pre-import config instead
-		// of leaving a freshly generated one behind.
-		writes = append(writes, generatedConfigWrites()...)
+		// Only a live target provider is regenerated. Importing an inactive
+		// provider updates its namespace and neutral settings without changing
+		// the compositor the user is currently running.
+		if len(importedProviders) == 0 {
+			writes = append(writes, generatedConfigWrites()...)
+		} else {
+			for _, provider := range importedProviders {
+				if wmImportProviderLive(provider) {
+					writes = append(writes, providerGeneratedConfigWrites(provider)...)
+				}
+			}
+		}
+	}
+	if !ingested {
+		for _, provider := range importedProviders {
+			if wmImportProviderLive(provider) {
+				writes = append(writes, providerGeneratedConfigWrites(provider)...)
+			}
+		}
 	}
 
 	man, err := backup(res.BackupDir, ts, writes)
@@ -163,9 +220,17 @@ func applyImport(dec decisions) (applyResult, error) {
 			return res, fmt.Errorf("write %s: %w (rolled back)", w.path, err)
 		}
 	}
-	if ingested {
-		// the provider re-authors settings.lua from the store and reloads.
-		_ = applyDesktop()
+	if ingested || len(importedProviders) > 0 {
+		if len(importedProviders) == 0 {
+			_ = applyDesktop()
+		} else {
+			for _, provider := range importedProviders {
+				if err := applyImportedProvider(provider); err != nil {
+					rollback(man)
+					return res, fmt.Errorf("apply imported provider: %w (rolled back)", err)
+				}
+			}
+		}
 	}
 
 	res.FilesWritten = relPaths(writePaths(writes))

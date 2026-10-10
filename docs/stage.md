@@ -131,15 +131,22 @@ selection marquee rather than closing the editor.
 
 ### Wallpaper
 
-The Wallpaper catalogue shows ryogami's library and thumbnails. A per-screen
-pick goes through `ryoku-stage-wallpaper --screen`, so ryogami remains the
-wallpaper owner. On the card, drag to move the real wallpaper, use the wheel or
-a pinch to zoom, and use the restyled framing dock to rotate, mirror, centre, or
-reset it. A live drag remains authoritative until its committed record can be
-read, so releasing after zoom no longer bounces the picture. Wheel, pinch, and
-touchpad steps are written once they settle, so the dock's buttons build on the
-zoom you see. Mirror and rotation also re-render the visible picture after a
-reveal transition, and a click on the dock between its buttons never reaches the
+The Wallpaper catalogue shows Ryogami's library and thumbnails. A per-screen
+pick goes through Ryogami's output target, so Ryogami remains the wallpaper
+owner. **Use for this workspace** pins the wallpaper currently shown on the
+edited display to its active workspace. **Clear workspace wallpaper** removes
+that pin and reveals the display, all-display, or shipped-default fallback
+again. The workspace changes the selected wallpaper only: Stage scenes and
+their generated cut-outs stay keyed by wallpaper path, so two workspaces using
+the same image share one scene.
+
+On the card, drag to move the real wallpaper, use the wheel or a pinch to zoom,
+and use the restyled framing dock to rotate, mirror, centre, or reset it. A live
+drag remains authoritative until its committed record can be read, so releasing
+after zoom no longer bounces the picture. Wheel, pinch, and touchpad steps are
+written once they settle, so the dock's buttons build on the zoom you see.
+Mirror and rotation also re-render the visible picture after a reveal
+transition, and a click on the dock between its buttons never reaches the
 picture's drag or double-click reset. While framing, widgets, desktop icons, and
 the visualizer dim to one quarter opacity and stop taking input. Framing is
 stored per monitor and wallpaper path in
@@ -284,25 +291,32 @@ session in that order.
 ## Models: one catalogue, visible provenance
 
 `ryostage` owns the curated list, and the UI renders it instead of hardcoding
-tiers:
+model cards:
 
-```
-ryostage models --json
-[
-  {"id":"u2netp","label":"Draft","tier":"draft","size":"4.6 MB","installed":true,
-   "licence":"Apache-2.0 (mirrored weights)","upstream":"https://github.com/xuebinqin/U-2-Net"},
-  {"id":"birefnet-general-lite","label":"Fine","tier":"fine","size":"224 MB","installed":false,
-   "licence":"MIT","upstream":"https://github.com/ZhengPeng7/BiRefNet"}
-]
-```
+| id | Catalogue label | Suggested tier | Download | Licence | Upstream |
+|---|---|---|---:|---|---|
+| `u2netp` | U2Net Portable | Draft | 4.6 MB | Apache-2.0 (mirrored weights) | [U-2-Net](https://github.com/xuebinqin/U-2-Net) |
+| `silueta` | Silueta · Fast | Draft | 44.2 MB | MIT | [Silueta model](https://github.com/xuebinqin/U-2-Net/issues/295) |
+| `birefnet-general-lite` | BiRefNet General Lite | Fine | 224 MB | MIT | [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) |
+| `birefnet-general` | BiRefNet General · Best | Fine | 973 MB | MIT | [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) |
+| `birefnet-portrait` | BiRefNet Portrait · People | Fine | 973 MB | MIT | [BiRefNet](https://github.com/ZhengPeng7/BiRefNet) |
 
-The Quality control maps Draft -> `u2netp`, Standard -> `u2netp` with alpha
-matting, Fine -> `birefnet-general-lite` with matting. Picking a tier whose
-model is not installed shows the size and a **Download** button in place;
-`Remove` frees it again. The runtime (`rembg[cpu]`, MIT, on ONNX Runtime,
-MIT) installs once, on the first enable, into the shared cache. Nothing ML
-ships in the base image. Both scripts' licence notes live in the engine's
-header and here, so a packager can check them.
+These are rembg session ids. Although rembg's release assets use longer source
+names for the BiRefNet files, each session saves its download as `<id>.onnx`;
+that is the name `ryostage check <id>` and `remove <id>` look up.
+
+Draft, Standard and Fine remain stable presets. Their defaults are `u2netp`,
+`u2netp` with alpha matting, and `birefnet-general-lite` with alpha matting.
+The model picker below the presets can replace the model for any one tier
+without changing its matting behaviour. It shows each model's download size,
+licence and installed state, and offers Download or Remove in place. A model
+choice is stored in `stage.json`; changing it re-cuts an active scene, and the
+model recorded in `.index.json` prevents an old cut from being reused.
+
+The runtime (`rembg[cpu]`, MIT, on ONNX Runtime, MIT) installs once, on the
+first download, into the shared cache. Nothing ML ships in the base image.
+The engine header and this table keep the model provenance visible to
+packagers.
 
 ## Engine: `ryostage`
 
@@ -313,7 +327,7 @@ rembg's range, `uv` provisioning a managed 3.13 otherwise).
 | Subcommand | Contract |
 |---|---|
 | `check [model]` | exit 0 and print `available` when the runtime and (with a model named) that model, else (without) at least one curated model, are present; otherwise a one-line reason (`runtime missing`, `model <id> missing`, `missing`) and non-zero |
-| `models [--json]` | the curated catalogue: ids one per line, or the JSON above |
+| `models [--json]` | the curated ids one per line, or full catalogue metadata as JSON |
 | `install [model...]` | provision the runtime and fetch the named models (default `u2netp`); opt-in, streams progress |
 | `remove <model>` | drop a cached model |
 | `cut <in> <out.png> [--model id] [--matting]` | the subject as an alpha-matted PNG; never writes a partial file |
@@ -340,7 +354,7 @@ One worker, one registry (below), one topic.
 - **Artifacts** `~/Pictures/Stage/<stem>/`: `subject.png` (the cut),
   `background.png` (the inpainted backdrop, made once the first time
   Parallax is chosen for that wallpaper), `layer-NN.png` (added layers),
-  `.index.json` (mtime + quality reuse).
+  `.index.json` (source + model/matting provenance).
 - **Topic** `stage`: `{ current, busy, stage: "cut"|"inpaint"|"", percent,
   notice, walls: { <path>: { effect, subject, background, rev, layers: [...] } } }`,
   published on every change and on each generation phase. QML renders from it
@@ -372,7 +386,8 @@ Global only; anything per-wallpaper is in the registry.
 
 | Key | Default | What it is |
 |---|---|---|
-| `quality` | `draft` | `draft` / `standard` / `fine`, the model + matting pair |
+| `quality` | `draft` | `draft` / `standard` / `fine`, which sets the matting behaviour and selects one `models` slot |
+| `models` | `{"draft":"u2netp","standard":"u2netp","fine":"birefnet-general-lite"}` | selected rembg model id for each quality tier |
 | `edge` | `0.15` | edge softness of every cut-out (0..1) |
 | `shadow` | `0` | drop shadow behind every layer (0..1) |
 | `shadowAngle` | `90` | shadow direction in degrees, 0 = right, 90 = down |

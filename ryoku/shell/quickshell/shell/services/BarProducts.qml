@@ -55,7 +55,7 @@ Singleton {
     // A frame-family style owns the whole desktop (island, dock, popups) from
     // one host screen, so it must load even where the user hid the bar.
     function isFrameFamily(id) {
-        return id === "iris" || id === "python";
+        return id === "iris" || id === "python" || id === "nomarchy";
     }
 
 
@@ -69,7 +69,8 @@ Singleton {
         "qsbar": "barstyles/qsbar/Scene.qml",
         "kairos": "barstyles/kairos/Scene.qml",
         "iris": "barstyles/iris/Scene.qml",
-        "python": "barstyles/python/Scene.qml"
+        "python": "barstyles/python/Scene.qml",
+        "nomarchy": "barstyles/nomarchy/Scene.qml"
     })
 
     function sceneUrl(id) {

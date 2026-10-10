@@ -29,6 +29,9 @@ public:
     int wheel(const LayoutContext &ctx, QPointF angle, QPointF pixels) override;
     double cameraMs(const LayoutContext &ctx) const override;
     QRectF clip(const LayoutContext &ctx) const override;
+    qreal scrollPosition() const override { return m_camera.x; }
+    qreal scrollExtent() const override { return m_maxScroll; }
+    void setScrollPosition(const LayoutContext &ctx, qreal position) override;
 
 public:
     enum Kind { Uniform, Brick, Masonry, Justified, Editorial, Cylinder };
@@ -86,6 +89,9 @@ private:
     Params m_live;
     Params m_target;
     int m_settingsCols = 6;
+    float m_preferredThumbW = 300;
+    float m_preferredThumbH = 169;
+    float m_viewHeight = 0;
     bool m_haveParams = false;
     bool m_snapCamera = true;
     Spring m_camera;

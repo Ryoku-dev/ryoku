@@ -40,6 +40,9 @@ Singleton {
 
         return Qt.locale().name;
     }
+    // Names of days and months follow the language the shell speaks; formats tied to the region (12 or 24 hours, the
+    // first day of the week, a numeric date) stay with the system's `Qt.locale()`, as on macOS.
+    readonly property var locale: Qt.locale(root.languageCode)
     // The catalogue that serves languageCode: the exact one, else one for the same language
     // (es_MX reads the Spanish catalogue), else none and the English source.
     readonly property string catalogLocale: {

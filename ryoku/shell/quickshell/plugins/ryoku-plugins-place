@@ -6,7 +6,7 @@
 #
 #   ryoku-plugins-place <id> desktopWidget <x> <y> [scale] [locked] [opacity]
 #   ryoku-plugins-place <id> framePopout <edge> <align> <hoverW> <hoverH>
-#   ryoku-plugins-place <id> sidebarCard <side> <tab> <order> [label] [glyph]
+#   ryoku-plugins-place <id> sidebarCard <tab> <order> [label] [glyph]
 #   ryoku-plugins-place <id> host <hostName>
 #   ryoku-plugins-place <id> enabled <true|false>
 #   ryoku-plugins-place <id> settings <json>   merge a settings object
@@ -115,7 +115,7 @@ framePopout)
 		"$f" >"$tmp" && mv "$tmp" "$f"
 	;;
 sidebarCard)
-	_side="${1:?side}"; tab="${2:-Plugins}"; order="${3:-10}"; label="${4:-}"; glyph="${5:-}"
+	tab="${1:-Plugins}"; order="${2:-10}"; label="${3:-}"; glyph="${4:-}"
 	jq --arg id "$id" --arg side "left" --arg tab "$tab" --argjson order "$order" --arg label "$label" --arg glyph "$glyph" \
 		'.[$id] = ((.[$id] // {}) + {
 			enabled: ((.[$id].enabled) // true),
@@ -166,7 +166,7 @@ forget)
 	jq --arg id "$id" 'del(.[$id])' "$f" >"$tmp" && mv "$tmp" "$f"
 	;;
 *)
-	echo "usage: ryoku-plugins-place <id> desktopWidget <x> <y> | framePopout <edge> <align> <hoverW> <hoverH> | sidebarCard <side> <tab> <order> [label] [glyph] | host <name> | enabled <bool> | settings <json> | seed | restore <json|null> <file-existed> | forget" >&2
+	echo "usage: ryoku-plugins-place <id> desktopWidget <x> <y> | framePopout <edge> <align> <hoverW> <hoverH> | sidebarCard <tab> <order> [label] [glyph] | host <name> | enabled <bool> | settings <json> | seed | restore <json|null> <file-existed> | forget" >&2
 	exit 2
 	;;
 esac

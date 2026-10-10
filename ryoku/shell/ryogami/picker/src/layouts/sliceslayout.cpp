@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include <cmath>
 namespace {
 
 constexpr char kPrefix[] = "components.wallpaperSelector.";
@@ -18,13 +19,14 @@ void SlicesLayout::readParams(const LayoutContext &ctx, SliceParams &out) const
 {
     const ParamSource &p = *ctx.params;
     const bool small = p.smallScreen();
-    out.sliceW = float(p.num(skey("sliceWidth"), small ? 110.0 : 170.0));
-    out.expandedW = float(p.num(skey("expandedWidth"), small ? 500.0 : 720.0));
-    out.sliceH = float(p.num(skey("sliceHeight"), small ? 360.0 : 520.0));
-    out.spacing = float(p.num(skey("sliceSpacing"), 20.0));
-    out.skew = float(p.num(skey("skewOffset"), 0.0));
-    out.edgeTilt = float(p.num(skey("sliceEdgeTilt"), 0.0));
-    out.visibleCount = std::max(1, int(p.num(skey("visibleCount"), small ? 8.0 : 12.0)));
+    out.sliceW = float(std::clamp(p.num(skey("sliceWidth"), small ? 110.0 : 170.0), 24.0, 2048.0));
+    out.expandedW = float(std::clamp(p.num(skey("expandedWidth"), small ? 500.0 : 720.0), 32.0, 8192.0));
+    out.sliceH = float(std::clamp(p.num(skey("sliceHeight"), small ? 360.0 : 520.0), 60.0, 4096.0));
+    out.spacing = float(std::clamp(p.num(skey("sliceSpacing"), 20.0), 0.0, 1024.0));
+    out.skew = float(std::clamp(p.num(skey("skewOffset"), 0.0), -2048.0, 2048.0));
+    out.edgeTilt = float(std::clamp(p.num(skey("sliceEdgeTilt"), 0.0), -2048.0, 2048.0));
+    out.visibleCount = int(std::lround(std::clamp(
+        p.num(skey("visibleCount"), small ? 8.0 : 12.0), 1.0, 128.0)));
     out.wobble = p.flag(skey("sliceWobble"), false);
     out.wobbleStrength = float(std::clamp(p.num(skey("sliceWobbleStrength"), 100.0) / 100.0, 0.0, 2.0));
     out.parallax = p.flag(skey("sliceParallax"), false);
@@ -34,8 +36,12 @@ void SlicesLayout::readParams(const LayoutContext &ctx, SliceParams &out) const
     out.offsetX = float(std::clamp(p.num(skey("sliceStageX"), 0.0) / 100.0, -1.0, 1.0));
     out.offsetY = float(std::clamp(p.num(skey("sliceStageY"), 0.0) / 100.0, -1.0, 1.0));
     if (p.flag(skey("roundCorners"), true)) {
-        out.corners = {float(p.num(skey("cornerTL"), 18.0)), float(p.num(skey("cornerTR"), 18.0)),
-                       float(p.num(skey("cornerBR"), 18.0)), float(p.num(skey("cornerBL"), 18.0))};
+        out.corners = {
+            float(std::clamp(p.num(skey("cornerTL"), 18.0), 0.0, 2048.0)),
+            float(std::clamp(p.num(skey("cornerTR"), 18.0), 0.0, 2048.0)),
+            float(std::clamp(p.num(skey("cornerBR"), 18.0), 0.0, 2048.0)),
+            float(std::clamp(p.num(skey("cornerBL"), 18.0), 0.0, 2048.0)),
+        };
     } else {
         out.corners = {0, 0, 0, 0};
     }

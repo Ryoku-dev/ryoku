@@ -1,0 +1,22 @@
+#!/bin/bash
+set -euo pipefail
+device=$(LC_ALL=C nmcli -t -f DEVICE,TYPE,STATE device status | awk -F: '$2=="wifi"&&$3~/^connected/{print $1;exit}')
+[[ -n $device ]] || { echo 'No connected Wi-Fi device' >&2; exit 1; }
+profile=$(nmcli -e no -g GENERAL.CONNECTION device show "$device")
+link=$(iw dev "$device" link 2>/dev/null || true); ssid=$(awk '/SSID:/{sub(/.*SSID: /,"");print;exit}' <<<"$link"); freq=$(awk '/freq:/{print int($2);exit}' <<<"$link")
+band_of() { if (($1<2500)); then echo 2.4; elif (($1<5925)); then echo 5; else echo 6; fi; }
+case ${1:-} in
+  '')
+    current=$(band_of "${freq:-2400}"); selected=$(nmcli -e no -g 802-11-wireless.band connection show "$profile")
+    case $selected in bg) selected=2.4;; a) selected=5;; 6GHz) selected=6;; *) selected=auto;; esac
+    available=$(nmcli -e no -g FREQ,SSID dev wifi list ifname "$device" --rescan no | awk -F: -v want="$ssid" '$2==want{print int($1)}' | while read -r f; do band_of "$f"; done | sort -ug | xargs)
+    printf 'band\t%s\navailable\t%s\nselected\t%s\n' "$current" "${available:-$current}" "$selected"
+    ;;
+  auto|2.4|5|6)
+    case $1 in auto) value='';; 2.4) value='bg';; 5) value='a';; 6) value='6GHz';; esac
+    old=$(nmcli -e no -g 802-11-wireless.band connection show "$profile")
+    nmcli connection modify "$profile" 802-11-wireless.band "$value"
+    nmcli connection up "$profile" >/dev/null || { nmcli connection modify "$profile" 802-11-wireless.band "$old"; nmcli connection up "$profile" >/dev/null || true; exit 1; }
+    ;;
+  *) echo 'Usage: omarchy-network-band [auto|2.4|5|6]' >&2; exit 2 ;;
+esac

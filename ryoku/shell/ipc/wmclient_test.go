@@ -113,7 +113,7 @@ func TestPublishCarriesEveryCapability(t *testing.T) {
 	sub := d.wmTopic.subscribe()
 	defer d.wmTopic.unsubscribe(sub)
 
-	d.onWMFrame(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: "DP-1"})
+	d.onWMFrame(wm.Frame{Kind: wm.FrameReady})
 
 	select {
 	case frame := <-sub.frames:
@@ -131,6 +131,46 @@ func TestPublishCarriesEveryCapability(t *testing.T) {
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("no frame published")
+	}
+}
+
+func TestFocusUsesCompactTopic(t *testing.T) {
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	d.wmTopic = newStateTopic()
+	d.wmFocusTopic = newStateTopic()
+	full := d.wmTopic.subscribe()
+	focus := d.wmFocusTopic.subscribe()
+	defer d.wmTopic.unsubscribe(full)
+	defer d.wmFocusTopic.unsubscribe(focus)
+
+	d.onWMFrame(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: "DP-1"})
+
+	select {
+	case frame := <-focus.frames:
+		var out wmFocusFrame
+		if err := json.Unmarshal(frame, &out); err != nil {
+			t.Fatal(err)
+		}
+		if out.FocusedOutput != "DP-1" || out.Version != 1 {
+			t.Fatalf("focus frame = %+v, want DP-1 at version 1", out)
+		}
+		if len(frame) >= 128 {
+			t.Fatalf("focus frame is %d bytes; compact topic unexpectedly carries snapshot state", len(frame))
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no compact focus frame published")
+	}
+	select {
+	case frame := <-full.frames:
+		t.Fatalf("focus change woke full wm topic with %d bytes", len(frame))
+	default:
+	}
+
+	d.onWMFrame(wm.Frame{Kind: wm.FrameFocus, FocusedOutput: "DP-1"})
+	select {
+	case frame := <-focus.frames:
+		t.Fatalf("duplicate focus published %q", frame)
+	default:
 	}
 }
 

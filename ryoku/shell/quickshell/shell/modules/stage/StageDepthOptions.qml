@@ -14,6 +14,8 @@ Column {
     property string section: "Scene"
     property string pickedCut: ""
     property bool clearArmed: false
+    property bool modelPickerOpen: false
+    property string pendingModelRecut: ""
 
     width: parent ? parent.width : 0
     spacing: Tokens.s4
@@ -26,8 +28,8 @@ Column {
     readonly property string effect: opts.backend.effectFor(opts.wall)
     readonly property bool parallax: opts.effect === "parallax"
     readonly property int layerCount: opts.backend.layerCountFor(opts.wall)
-    readonly property var qualityModel: opts.backend.modelForQuality(opts.cfg.quality)
-    readonly property bool qualityReady: opts.backend.qualityInstalled(opts.cfg.quality)
+    readonly property var qualityModel: opts.backend.modelForQuality(opts.cfg.quality, opts.cfg.models)
+    readonly property bool qualityReady: opts.backend.qualityInstalled(opts.cfg.quality, opts.cfg.models)
     readonly property string stateDir: Quickshell.env("XDG_STATE_HOME")
         || (Quickshell.env("HOME") + "/.local/state")
     readonly property string previewPath: opts.isVideo(opts.wall)
@@ -110,6 +112,36 @@ Column {
     function liftId(row) {
         const id = String(row && row.id || "");
         return id.indexOf("plugin:") === 0 ? id.slice(7) : id;
+    }
+    function chooseModel(model) {
+        if (!model || !model.id || opts.backend.selectedModelId(opts.cfg.quality, opts.cfg.models) === model.id) {
+            opts.modelPickerOpen = false;
+            return;
+        }
+        opts.cfg.setModel(opts.cfg.quality, model.id);
+        opts.pendingModelRecut = model.id;
+        opts.modelPickerOpen = model.installed !== true;
+        modelRecut.restart();
+    }
+
+    function recutSelectedModel() {
+        if (opts.pendingModelRecut === "")
+            return;
+        const model = opts.backend.modelById(opts.pendingModelRecut);
+        if (!model || model.installed !== true)
+            return;
+        if (opts.effect !== "off")
+            opts.backend.refresh();
+        opts.pendingModelRecut = "";
+    }
+
+    onQualityReadyChanged: if (qualityReady && opts.pendingModelRecut !== "")
+        modelRecut.restart()
+
+    Timer {
+        id: modelRecut
+        interval: 120
+        onTriggered: opts.recutSelectedModel()
     }
 
     Component.onCompleted: if (!opts.backend.checked)
@@ -341,7 +373,7 @@ Column {
             SettingRow {
                 width: parent.width
                 label: I18n.tr("Quality")
-                desc: I18n.tr("Fine uses a larger model and keeps softer edges")
+                desc: I18n.tr("Each tier remembers its model and edge treatment")
                 block: true
                 Seg {
                     width: parent.width
@@ -352,44 +384,143 @@ Column {
                         fine: I18n.tr("Fine")
                     })
                     current: opts.cfg.quality
-                    onChose: value => opts.cfg.setQuality(value)
+                    onChose: value => {
+                        if (value === opts.cfg.quality)
+                            return;
+                        opts.cfg.setQuality(value);
+                        opts.pendingModelRecut = opts.backend.selectedModelId(value, opts.cfg.models);
+                        modelRecut.restart();
+                    }
                 }
             }
 
             SettingRow {
                 width: parent.width
                 divider: true
-                label: I18n.tr("Cut model")
+                label: I18n.tr("Model for %1").arg(
+                    opts.cfg.quality === "fine" ? I18n.tr("Fine")
+                    : opts.cfg.quality === "standard" ? I18n.tr("Standard")
+                    : I18n.tr("Draft"))
                 desc: opts.qualityModel
-                    ? I18n.tr("%1 · %2").arg(opts.qualityModel.label || opts.qualityModel.id)
+                    ? I18n.tr("%1 · %2 · %3").arg(opts.qualityModel.label || opts.qualityModel.id)
                         .arg(opts.qualityModel.size || I18n.tr("size unknown"))
+                        .arg(opts.qualityModel.licence || I18n.tr("licence unknown"))
                     : I18n.tr("Checking the model catalogue")
                 block: true
 
-                Flow {
+                Column {
                     width: parent.width
                     spacing: Tokens.s2
 
-                    Btn {
-                        visible: !opts.qualityReady
-                        text: opts.backend.installing
-                            ? I18n.tr("Downloading…") : I18n.tr("Download model")
-                        primary: true
-                        armed: !!opts.qualityModel && !opts.backend.installing && !opts.backend.removing
-                        onAct: opts.backend.install(opts.qualityModel.id)
+                    Flow {
+                        width: parent.width
+                        spacing: Tokens.s2
+
+                        Btn {
+                            text: opts.modelPickerOpen ? I18n.tr("Close models") : I18n.tr("Choose model")
+                            compact: true
+                            onAct: opts.modelPickerOpen = !opts.modelPickerOpen
+                        }
+                        Btn {
+                            text: I18n.tr("Re-cut")
+                            primary: opts.qualityReady && opts.effect !== "off"
+                            armed: opts.qualityReady && opts.effect !== "off" && !opts.backend.busy
+                            compact: true
+                            onAct: opts.backend.refresh()
+                        }
                     }
-                    Btn {
-                        visible: opts.qualityReady
-                        text: opts.backend.removing
-                            ? I18n.tr("Removing…") : I18n.tr("Remove model")
-                        armed: !!opts.qualityModel && !opts.backend.installing && !opts.backend.removing
-                        onAct: opts.backend.remove(opts.qualityModel.id)
-                    }
-                    Btn {
-                        text: I18n.tr("Re-cut")
-                        primary: opts.qualityReady && opts.effect !== "off"
-                        armed: opts.qualityReady && opts.effect !== "off" && !opts.backend.busy
-                        onAct: opts.backend.refresh()
+
+                    Column {
+                        id: modelList
+                        visible: opts.modelPickerOpen
+                        width: parent.width
+                        spacing: Tokens.s1
+
+                        Repeater {
+                            model: opts.backend.models || []
+                            delegate: Rectangle {
+                                id: modelRow
+
+                                required property var modelData
+                                readonly property bool selected: opts.qualityModel
+                                    && opts.qualityModel.id === modelRow.modelData.id
+
+                                width: modelList.width
+                                implicitHeight: modelBody.implicitHeight + Tokens.s2 * 2
+                                radius: Tokens.radius
+                                color: modelRow.selected ? Tokens.tint10 : Tokens.tint5
+                                border.width: Tokens.border
+                                border.color: modelRow.selected ? Tokens.lineStrong : Tokens.line
+
+                                Row {
+                                    id: modelBody
+                                    anchors {
+                                        left: parent.left
+                                        right: parent.right
+                                        verticalCenter: parent.verticalCenter
+                                        margins: Tokens.s2
+                                    }
+                                    spacing: Tokens.s2
+
+                                    Column {
+                                        width: Math.max(0, modelBody.width - modelActions.implicitWidth - modelBody.spacing)
+                                        spacing: Tokens.s1
+
+                                        Text {
+                                            width: parent.width
+                                            text: modelRow.modelData.label || modelRow.modelData.id
+                                            color: Tokens.ink
+                                            font.family: Tokens.ui
+                                            font.pixelSize: Tokens.fSmall
+                                            font.weight: modelRow.selected ? Font.DemiBold : Font.Normal
+                                            elide: Text.ElideRight
+                                        }
+                                        Text {
+                                            width: parent.width
+                                            text: I18n.tr("%1 · %2 · %3")
+                                                .arg(modelRow.modelData.size || I18n.tr("size unknown"))
+                                                .arg(modelRow.modelData.licence || I18n.tr("licence unknown"))
+                                                .arg(modelRow.modelData.installed === true
+                                                    ? I18n.tr("Downloaded") : I18n.tr("Not downloaded"))
+                                            color: Tokens.inkMuted
+                                            font.family: Tokens.ui
+                                            font.pixelSize: Tokens.fTiny
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    Row {
+                                        id: modelActions
+                                        spacing: Tokens.s1
+                                        anchors.verticalCenter: parent.verticalCenter
+
+                                        Btn {
+                                            text: modelRow.selected ? I18n.tr("Selected") : I18n.tr("Use")
+                                            compact: true
+                                            primary: modelRow.selected
+                                            armed: !modelRow.selected
+                                                && !opts.backend.installing && !opts.backend.removing
+                                            onAct: opts.chooseModel(modelRow.modelData)
+                                        }
+                                        Btn {
+                                            text: modelRow.modelData.installed === true
+                                                ? (opts.backend.removingModel === modelRow.modelData.id
+                                                    ? I18n.tr("Removing…") : I18n.tr("Remove"))
+                                                : (opts.backend.installingModel === modelRow.modelData.id
+                                                    ? I18n.tr("Downloading…") : I18n.tr("Download"))
+                                            compact: true
+                                            armed: !opts.backend.installing && !opts.backend.removing
+                                            onAct: {
+                                                if (modelRow.modelData.installed === true)
+                                                    opts.backend.remove(modelRow.modelData.id);
+                                                else
+                                                    opts.backend.install(modelRow.modelData.id);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

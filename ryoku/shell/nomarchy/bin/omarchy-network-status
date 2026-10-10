@@ -1,0 +1,25 @@
+#!/bin/bash
+set -euo pipefail
+probe=1.1.1.1
+route=$(ip -j route get "$probe" 2>/dev/null || printf '[]')
+iface=$(jq -r '.[0].dev // empty' <<<"$route")
+if [[ ${1:-} == --verbose ]]; then
+  [[ -n $iface ]] || exit 0
+  gateway=$(jq -r '.[0].gateway // empty' <<<"$route"); source=$(jq -r '.[0].prefsrc // empty' <<<"$route")
+  prefix=$(ip -j addr show "$iface" | jq -r '.[0].addr_info[]? | select(.family=="inet") | .prefixlen' | awk 'NR==1')
+  printf 'iface\t%s\nip\t%s\nprefix\t%s\ngateway\t%s\n' "$iface" "$source" "$prefix" "$gateway"
+  [[ ! -r /sys/class/net/$iface/statistics/rx_bytes ]] || printf 'rx_bytes\t%s\n' "$(</sys/class/net/$iface/statistics/rx_bytes)"
+  [[ ! -r /sys/class/net/$iface/statistics/tx_bytes ]] || printf 'tx_bytes\t%s\n' "$(</sys/class/net/$iface/statistics/tx_bytes)"
+  if [[ -d /sys/class/net/$iface/wireless ]]; then
+    printf 'type\twifi\n'; link=$(iw dev "$iface" link 2>/dev/null || true)
+    printf 'ssid\t%s\nsignal_dbm\t%s\nfreq\t%s\n' "$(awk '/SSID:/{sub(/.*SSID: /,"");print;exit}' <<<"$link")" "$(awk '/signal:/{print $2;exit}' <<<"$link")" "$(awk '/freq:/{print $2;exit}' <<<"$link")"
+  else printf 'type\tethernet\n'; fi
+  exit 0
+fi
+[[ $# == 0 ]] || { echo 'Usage: omarchy-network-status [--verbose]' >&2; exit 2; }
+if [[ -z $iface ]]; then printf 'disconnected\t\t\t\n'; elif [[ -d /sys/class/net/$iface/wireless ]]; then
+  ssid=$(nmcli -t -f GENERAL.CONNECTION dev show "$iface" | awk -F: '$1=="GENERAL.CONNECTION"{print $2;exit}')
+  signal=$(nmcli -t -f IN-USE,SIGNAL dev wifi list ifname "$iface" --rescan no | awk -F: '$1=="*"{print $2;exit}')
+  freq=$(iw dev "$iface" link 2>/dev/null | awk '/freq:/{print $2;exit}')
+  printf 'wifi\t%s\t%s\t%s\n' "${ssid:-$iface}" "$signal" "$freq"
+else printf 'ethernet\t%s\t\t\n' "$iface"; fi

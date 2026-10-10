@@ -1,0 +1,12 @@
+{
+  "keys": "{{colors.primary.default.red}};{{colors.primary.default.green}};{{colors.primary.default.blue}}",
+  "title": "{{colors.on_surface.default.red}};{{colors.on_surface.default.green}};{{colors.on_surface.default.blue}}",
+  "muted": "{{colors.on_surface_variant.default.red}};{{colors.on_surface_variant.default.green}};{{colors.on_surface_variant.default.blue}}",
+  "section": "{{colors.primary.default.red}};{{colors.primary.default.green}};{{colors.primary.default.blue}}",
+  "rule": "{{colors.outline_variant.default.red}};{{colors.outline_variant.default.green}};{{colors.outline_variant.default.blue}}",
+  "percent": {
+    "green": "{{colors.tertiary.default.red}};{{colors.tertiary.default.green}};{{colors.tertiary.default.blue}}",
+    "yellow": "{{colors.secondary.default.red}};{{colors.secondary.default.green}};{{colors.secondary.default.blue}}",
+    "red": "{{colors.error.default.red}};{{colors.error.default.green}};{{colors.error.default.blue}}"
+  }
+}

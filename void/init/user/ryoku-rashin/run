@@ -1,0 +1,15 @@
+#!/bin/sh
+# Translation of ryoku/rashin/systemd/ryoku-rashin.service.
+# StartLimitIntervalSec=0 (retry forever, never park in failed) is runsv's
+# default. NoNewPrivileges has no runit analogue (accepted loss; the daemon
+# drops its own privileges). Wants=ryoku-prowl is brought up here, and
+# prowl's BindsTo=ryoku-rashin is honored in finish.
+exec 2>&1
+
+BIN=${RYOKU_BIN_DIR:-/usr/bin}
+_here=$(dirname "$0")
+
+# Wants=ryoku-prowl.service: start the gateway alongside (idempotent).
+[ -d "$_here/../ryoku-prowl" ] && sv up "$_here/../ryoku-prowl" >/dev/null 2>&1 || true
+
+exec "$BIN/ryoku-rashin" serve --if-enabled

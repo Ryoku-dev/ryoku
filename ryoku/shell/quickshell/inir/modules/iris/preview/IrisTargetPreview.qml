@@ -88,7 +88,7 @@ Item {
                     }
                     Item { Layout.fillWidth: true }
                     IrisNumber {
-                        text: Qt.locale().toString(DateTime.clock.date, "hh:mm")
+                        text: Translation.locale.toString(DateTime.clock.date, "hh:mm")
                         pixelSize: 30 * IrisStyle.typeScale
                         weight: IrisStyle.figureWeight
                     }

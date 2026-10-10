@@ -501,22 +501,22 @@ and per-monitor visibility from `ShellState`.
   controls out of the bar. The monitor-local menu manager owns those cards and
   the bounded frame menus. The global Controls panel lives in
   `ryoku/shell/quickshell/shell/modules/sidebar/`; see `docs/sidebars.md`.
-- **dock** an app island cluster on a screen edge, its own shell surface
-  (`shell/modules/dock/DockSurface.qml`, one per monitor) rather than a part of
-  any one bar, so it rides every bar style. Pinned apps hold a stable order you
-  set, then a separator, then whatever else is running; drag an island to
-  reorder the pins. Autohide keeps it as a thin peek strip that reveals on a
-  slow hover along the edge; off reserves its space and always shows it.
-  Hovering magnifies an island to 1.4, shows the app name as a hover label, and
-  grows a live window-preview strip (thumbnail, title, window count, close);
-  left click activates, cycles or launches, middle click opens a fresh
-  instance, right click pins or unpins. An optional media chip rides the end of
-  the band. The top-level `dock` object in `shell.json` drives it: `enabled`
-  (off by default), `edge` (`auto` = opposite the bar, or a fixed side),
-  `autohide`, `pinned`, `magnify`, `frost`, `shadow`, `labels` and `media`.
-  Sumi's `RailDock` rail widget is the in-band alternative: the same pin model
-  on the frame rail, no magnify and no preview, with a running indicator on the
-  outer edge.
+- **dock** a per-monitor shell surface that is independent of the selected bar
+  style. `UniversalDockHost.qml` loads exactly one design: Ryoku's paper islands,
+  the Python flowing dock, Shima's notched capsule, or none. All three consume
+  the same running-window model and canonical desktop-entry pins from the
+  top-level `dock` object in `shell.json`, so changing designs keeps app order
+  and aliases cannot create duplicate pins. The shared controls are enabled
+  state, edge, autohide, icon size, magnification and pin order; each design's
+  own look lives below `dock.python`, `dock.shima`, or the Ryoku look keys.
+  Stage Editor's Dock section is the only settings surface. It carries design
+  previews, shared placement and behaviour, each design's details, and pin
+  ordering. Older dock pages only open that section. The selected design is
+  loaded lazily; unselected designs do not create windows or models.
+  Ryoku's design places pinned apps first, then a separator and running apps.
+  It can magnify, label and preview windows, and optionally show media. Sumi's
+  `RailDock` remains an in-bar alternative, but reads and writes the same shared
+  pins and app identities.
 - **wallpaper** the background itself, drawn on the bottom layer with its own
   reveal shader for transitions: 22 presets the daemon draws from at random on
   each switch, from the crossfades, directional sweeps and circle irises to a

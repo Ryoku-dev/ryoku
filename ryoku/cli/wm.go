@@ -20,9 +20,10 @@ import (
 )
 
 // cmdWm is the neutral front door to the window-manager provider: what is running
-// (status), where its config lives (config), dispatch an action from a script
-// (act), print the provider's session entry (session), and switch compositors as
-// a reversible package op (use).
+// (status), whether a plugin's foreign interfaces are served (compat), where the
+// config lives (config), dispatch an action from a script (act), print the
+// provider's session entry (session), and switch compositors as a reversible
+// package op (use).
 func cmdWm(args []string) {
 	if len(args) == 0 {
 		wmUsage()
@@ -33,8 +34,12 @@ func cmdWm(args []string) {
 		cmdWmStatus()
 	case "caps":
 		cmdWmCaps()
+	case "compat":
+		cmdWmCompat(args[1:])
 	case "state":
 		cmdWmState()
+	case "outputs":
+		cmdWmOutputs(args[1:])
 	case "act":
 		cmdWmAct(args[1:])
 	case "session":
@@ -53,7 +58,8 @@ func cmdWm(args []string) {
 }
 
 func wmUsage() {
-	fmt.Print(i18n.T("Usage: ryoku wm <command>\n\n  status            print the detected provider, its capabilities and workspace model\n  caps              print the active provider's capability manifest (JSON)\n  state             print the active provider's current state (JSON)\n  config [name]     print a provider's config dir and the files it owns (JSON)\n  reset-paths       print the config files a factory reset clears (one path per line)\n  handles           print the session IPC handle variables (one per line)\n  use <name>        preview and switch to another compositor (installs its package)\n  act <id> [args]   dispatch a window-manager action through the provider\n  session           print the provider's wayland-session desktop entry\n"))
+	fmt.Print(i18n.T("Usage: ryoku wm <command>\n\n  status            print the detected provider, its capabilities and workspace model\n  caps              print the active provider's capability manifest (JSON)\n  compat <dir>      check a plugin directory against the active provider (JSON)\n  state             print the active provider's current state (JSON)\n  config [name]     print a provider's config dir and the files it owns (JSON)\n  reset-paths       print the config files a factory reset clears (one path per line)\n  handles           print the session IPC handle variables (one per line)\n  use <name>        preview and switch to another compositor (installs its package)\n  act <id> [args]   dispatch a window-manager action through the provider\n  session           print the provider's wayland-session desktop entry\n"))
+	fmt.Print(i18n.T("  outputs <file>    apply and persist a neutral output layout (JSON)\n"))
 }
 
 func cmdWmStatus() {
@@ -99,6 +105,19 @@ func cmdWmCaps() {
 	}
 }
 
+func cmdWmCompat(args []string) {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+		die("usage: ryoku wm compat <plugin-dir>")
+	}
+	result, err := wm.Open().Compatibility(args[0])
+	if err != nil {
+		die("%v", err)
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+		die("%v", err)
+	}
+}
+
 // cmdWmState exposes the provider snapshot to compositor-neutral system
 // helpers that need readback before changing an output.
 func cmdWmState() {
@@ -111,6 +130,21 @@ func cmdWmState() {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(state); err != nil {
+		die("%v", err)
+	}
+}
+
+// cmdWmOutputs applies the same neutral output document used by the display
+// editor, so compatibility helpers never need to detect or invoke a provider.
+func cmdWmOutputs(args []string) {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+		die("usage: ryoku wm outputs <layout.json>")
+	}
+	report, err := wm.Open().ApplyOutputs(args[0])
+	if err != nil {
+		die("%v", err)
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(report); err != nil {
 		die("%v", err)
 	}
 }

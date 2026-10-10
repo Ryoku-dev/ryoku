@@ -81,6 +81,8 @@ type Window struct {
 	Title     string `json:"title,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Output    string `json:"output,omitempty"`
+	// Pid is 0 when the provider does not know the owning process.
+	Pid int `json:"pid,omitempty"`
 	// FocusOrder is 0 for the focused window, counting back through history.
 	// Meaningful only with CapFocusHistory.
 	FocusOrder int  `json:"focusOrder"`

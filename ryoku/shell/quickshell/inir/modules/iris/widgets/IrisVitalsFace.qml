@@ -142,6 +142,8 @@ IrisWidgetFace {
                 progress: root.level(modelData.key)
                 tint: root.tint(modelData.key)
                 Behavior on progress {
+                    // Motion off snaps; behind windows the readings hold anyway.
+                    enabled: root.widget.animationsActive
                     NumberAnimation {
                         duration: IrisStyle.moveDuration
                         easing.type: Easing.BezierSpline

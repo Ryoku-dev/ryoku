@@ -85,20 +85,14 @@ IconToolbarButton {
             radius: Math.round(width * 0.26)
             scale: root.down ? 0.92 : root.buttonHovered ? 1.06 : 1
             Behavior on scale { NumberAnimation { duration: IrisStyle.duration(120); easing.type: IrisStyle.feedbackEasing } }
-            color: root.toggled ? root.tileTint : root.buttonHovered ? IrisStyle.fillHover : IrisStyle.fill
-            gradient: root.toggled ? onGradient : null
+            color: root.toggled ? IrisStyle.containerOf(root.tileTint) : root.buttonHovered ? IrisStyle.fillHover : IrisStyle.fill
             Behavior on color { ColorAnimation { duration: IrisStyle.duration(140) } }
-            Gradient {
-                id: onGradient
-                GradientStop { position: 0; color: Qt.lighter(root.tileTint, 1.18) }
-                GradientStop { position: 1; color: root.tileTint }
-            }
             MaterialSymbol {
                 anchors.centerIn: parent
                 text: root.iconName
                 fill: root.toggled ? 1 : 0
                 iconSize: Math.round(17 * root.d)
-                color: root.toggled ? IrisStyle.onTint : ColorUtils.applyAlpha(root.tileTint, root.buttonHovered ? 1 : 0.78)
+                color: root.toggled ? IrisStyle.onContainerOf(root.tileTint) : ColorUtils.applyAlpha(root.tileTint, root.buttonHovered ? 1 : 0.78)
             }
             Rectangle {
                 x: parent.width - width * 0.7

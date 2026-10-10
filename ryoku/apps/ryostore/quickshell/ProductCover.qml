@@ -6,180 +6,112 @@ Item {
     id: cover
 
     required property var item
-    property string mode: "cover"       // cover | hero | plate
+    property string mode: "cover"
     property bool selected: false
     property bool active: true
-    property string artOverride: ""     // a caller showing the other look in place of ours
+    property string artOverride: ""
+    property bool zoomed: false
+    property bool reducedMotion: false
+
+    function identityColor() {
+        const raw = String(item && (item.accent || item.surface) || "").trim().toLowerCase();
+        if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(raw))
+            return Qt.color(raw);
+        if (raw !== "") {
+            var hash = 0;
+            for (var i = 0; i < raw.length; i++)
+                hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+            return Qt.hsla(Math.abs(hash % 360) / 360, 0.52, 0.42, 1);
+        }
+        return Tokens.paperLift;
+    }
 
     readonly property bool tile: mode === "cover"
-    // The catalogue shows a product as its author made it: `art` is the dithered
-    // bake and `artRaw` the colour original, so browse leads with the colour and
-    // the dither is what a detail view (or the install) opts into.
     readonly property string coverArt: {
         const raw = String(item && item.artRaw || "");
         return raw.length > 0 ? raw : String(item && item.art || "");
     }
-    readonly property bool hasArtwork: cover.coverArt !== ""
+    readonly property bool hasArtwork: coverArt !== ""
     readonly property bool hasIdentity: Boolean(item && (item.id || item.name))
     readonly property string coverTitle: String(item && (item.name || item.id) || I18n.tr("Untitled"))
     readonly property color coverSurface: item && item.surface ? item.surface : Tokens.paperLift
-    readonly property color coverAccent: item && item.accent ? item.accent : Tokens.inkDim
+    readonly property string coverInitials: {
+        const explicit = String(item && item.initials || "").trim();
+        if (explicit !== "")
+            return explicit.slice(0, 3).toUpperCase();
+        const words = coverTitle.trim().split(/\s+/);
+        return (words.length > 1 ? words[0][0] + words[words.length - 1][0]
+                                 : coverTitle.slice(0, 2)).toUpperCase();
+    }
+    readonly property color identitySurface: identityColor()
+    readonly property real identityLuma: identitySurface.r * 0.299
+            + identitySurface.g * 0.587 + identitySurface.b * 0.114
+    readonly property color identityInk: Qt.hsla(0, 0, identityLuma > 0.56 ? 0.08 : 0.94, 1)
     readonly property var status: StoreLogic.statusLabels(item)
-    readonly property string statusTag: (status.length > 0 && status[0] !== "AVAILABLE") ? status[0] : ""
-    readonly property bool flagged: statusTag === "UPDATE" || statusTag === "ACTIVE" || statusTag === "ENABLED"
-    // A product written for another window manager is drawn, not offered: the
-    // tile stays in the grid so the catalogue reads whole, and desaturates with
-    // its tag carrying the reason, the way an unavailable option should.
-    readonly property bool foreign: StoreLogic.isUnavailable(item)
+    readonly property string statusTag: status.length > 0 && status[0] !== "AVAILABLE" ? status[0] : ""
+    readonly property bool unavailable: StoreLogic.isUnavailable(item)
+    readonly property color frameSurface: mode === "plate" || mode === "view"
+            ? Tokens.paper : coverSurface
 
     clip: true
     Accessible.role: Accessible.Graphic
-    Accessible.ignored: !cover.hasIdentity
+    Accessible.ignored: !hasIdentity
     Accessible.name: [
         coverTitle,
         String(item && (item.categoryName || item.category) || ""),
-        cover.status.map(s => I18n.tr(s)).join(", ")
+        status.map(s => I18n.tr(s)).join(", ")
     ].filter(Boolean).join(", ")
 
     Rectangle {
         anchors.fill: parent
-        color: cover.coverSurface
-        gradient: Gradient {
-            GradientStop {
-                position: 0
-                color: Qt.rgba(cover.coverAccent.r, cover.coverAccent.g,
-                               cover.coverAccent.b, 0.42)
-            }
-            GradientStop { position: 0.54; color: cover.coverSurface }
-            GradientStop {
-                position: 1
-                color: Qt.darker(cover.coverSurface, 1.7)
-            }
-        }
+        color: cover.frameSurface
     }
 
-    Rectangle {
-        width: parent.width * 0.82
-        height: width
-        anchors.centerIn: parent
-        visible: !cover.hasArtwork && cover.hasIdentity
-        rotation: -18
-        radius: width / 2
-        color: "transparent"
-        border.width: Math.max(1, Tokens.border)
-        border.color: Qt.rgba(cover.coverAccent.r, cover.coverAccent.g,
-                              cover.coverAccent.b, 0.45)
-    }
-
-    Text {
-        anchors.centerIn: parent
-        visible: !cover.hasArtwork && cover.hasIdentity
-        text: cover.coverTitle.slice(0, 2).toUpperCase()
-        color: Qt.rgba(cover.coverAccent.r, cover.coverAccent.g,
-                       cover.coverAccent.b, 0.78)
-        font.family: Tokens.display
-        font.pixelSize: Math.max(Tokens.fHero, Math.min(parent.width, parent.height) * 0.28)
-        font.weight: Font.Black
-        font.letterSpacing: -2
-    }
 
     ProductMedia {
+        id: productMedia
         anchors.fill: parent
         source: cover.artOverride !== "" ? cover.artOverride : cover.coverArt
         mode: cover.mode
-        surface: cover.coverSurface
+        surface: cover.frameSurface
         active: cover.active
-    }
+        fallbackText: cover.hasIdentity ? cover.coverInitials : ""
+        fallbackSurface: cover.identitySurface
+        fallbackInk: cover.identityInk
+        scale: cover.tile && cover.zoomed ? 1.025 : 1
 
-    // ── tile chrome (grid tiles only) ──────────────────────────────────────
-    Rectangle {
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: Math.min(parent.height * 0.6, 132)
-        visible: cover.tile && cover.hasIdentity
-        gradient: Gradient {
-            GradientStop { position: 0; color: "transparent" }
-            GradientStop { position: 0.58; color: "#b0000000" }
-            GradientStop { position: 1; color: "#ec000000" }
+        Behavior on scale {
+            enabled: !cover.reducedMotion
+            NumberAnimation { duration: Tokens.move; easing.type: Tokens.ease }
         }
     }
 
-    // A product written for another window manager reads as a greyed-out option:
-    // the art is veiled, the tag and the metadata stay crisp so the tile still
-    // says what it is and why it cannot run here. Drawn after the art and before
-    // the tag for exactly that reason.
     Rectangle {
         anchors.fill: parent
-        visible: cover.foreign
-        color: Qt.rgba(0.06, 0.06, 0.06, 0.62)
+        visible: cover.unavailable
+        color: Qt.rgba(Tokens.paper.r, Tokens.paper.g, Tokens.paper.b, 0.68)
     }
 
-    // status tag, accent-tinted for a live product, so a glance finds the
-    // active rice or an available update in the strip
-    Row {
+    Rectangle {
         visible: cover.tile && cover.statusTag !== ""
         anchors { top: parent.top; left: parent.left; margins: Tokens.s2 }
-        spacing: Tokens.s1
-
-        Rectangle {
-            width: tagText.implicitWidth + Tokens.s2 * 2
-            height: tagText.implicitHeight + Tokens.s1 * 2
-            radius: Tokens.radius
-            color: cover.flagged
-                    ? Qt.rgba(cover.coverAccent.r, cover.coverAccent.g, cover.coverAccent.b, 0.9)
-                    : "#b3000000"
-            border.width: Tokens.border
-            border.color: cover.flagged ? "transparent" : "#33ffffff"
-
-            Text {
-                id: tagText
-                anchors.centerIn: parent
-                text: I18n.tr(cover.statusTag)
-                color: cover.flagged ? Qt.rgba(0, 0, 0, 0.86) : "#e8ffffff"
-                font.family: Tokens.mono
-                font.pixelSize: Tokens.fTiny
-                font.weight: Font.Medium
-                font.letterSpacing: Tokens.trackLabel
-            }
-        }
-    }
-
-    Column {
-        objectName: "ryostore-cover-metadata"
-        visible: cover.tile && cover.hasIdentity
-        x: Tokens.s3
-        width: parent.width - Tokens.s3 * 2
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Tokens.s3
-        spacing: Tokens.s1
+        width: statusText.implicitWidth + Tokens.s3
+        height: statusText.implicitHeight + Tokens.s2
+        radius: Tokens.radius
+        color: cover.statusTag === "UPDATE" ? Tokens.bone : Tokens.paper
+        border.width: Tokens.border
+        border.color: cover.statusTag === "UPDATE" ? Tokens.bone : Tokens.lineStrong
 
         Text {
-            width: parent.width
-            text: cover.coverTitle
-            color: "#f5f3ef"
-            font.family: Tokens.display
-            font.pixelSize: Tokens.fRow
-            font.weight: Font.DemiBold
-            elide: Text.ElideRight
-        }
-
-        Text {
-            width: parent.width
-            text: String(cover.item && (cover.item.categoryName || cover.item.category) || "").toUpperCase()
-            color: "#b8ffffff"
+            id: statusText
+            anchors.centerIn: parent
+            text: I18n.tr(cover.statusTag)
+            color: cover.statusTag === "UPDATE" ? Tokens.inkOnBone : Tokens.ink
             font.family: Tokens.mono
-            font.pixelSize: Tokens.fMicro
+            font.pixelSize: Tokens.fTiny
+            font.weight: Font.Medium
             font.letterSpacing: Tokens.trackLabel
-            elide: Text.ElideRight
         }
-    }
-
-    // selection: an accent seam along the bottom plus a frame, so the focused
-    // tile carries the product's own colour
-    Rectangle {
-        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: Tokens.border * 3
-        visible: cover.tile && cover.selected
-        color: cover.coverAccent
     }
 
     Rectangle {
@@ -187,8 +119,6 @@ Item {
         visible: cover.tile
         color: "transparent"
         border.width: cover.selected ? Tokens.border * 2 : Tokens.border
-        border.color: cover.selected
-                ? Qt.rgba(cover.coverAccent.r, cover.coverAccent.g, cover.coverAccent.b, 0.9)
-                : "#22ffffff"
+        border.color: cover.selected ? Tokens.bone : Tokens.line
     }
 }

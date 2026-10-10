@@ -27,11 +27,9 @@ var ryokuDropIn = regexp.MustCompile(`^[0-9]+-ryoku-[^/]*\.conf$`)
 // generatedSeed: base files seeded once on a fresh install, then never
 // clobbered or pruned by an update. The machine owns them after first boot.
 // Two kinds qualify: per-machine files the runtime regenerates (monitors.lua,
-// gpu.lua; kitty/current-theme.conf, which matugen rewrites from the wallpaper)
-// and user-owned config the package only seeds a starting point for
-// (keyboard.lua; hypr/user.lua, seeded with a header so a hand-edit sticks;
-// fastfetch/config.jsonc, which has no include mechanism, so direct edits
-// are the only way to customize the readout).
+// gpu.lua; Matugen's app palette siblings) and user-owned config the package
+// only seeds a starting point for (keyboard.lua; hypr/user.lua;
+// fastfetch/config.jsonc; the Starship layout selected in the Hub).
 // Slash-separated paths, relative to the config base. Most are also in
 // sys.LiveOwnedConfig so the overlay never re-lays a frozen copy over a file
 // edited in place; ghostty/config is the exception -- it is a seed the user may
@@ -40,10 +38,13 @@ var generatedSeed = generatedSeedSet()
 
 func generatedSeedSet() map[string]bool {
 	seed := map[string]bool{
-		"fastfetch/config.jsonc":   true,
-		"kitty/current-theme.conf": true,
-		"ghostty/config":           true,
-		"ghostty/ryoku-colors":     true,
+		"fastfetch/config.jsonc":      true,
+		"fastfetch/ryoku-colors.json": true,
+		"starship.toml":               true,
+		"starship/ryoku-colors.toml":  true,
+		"kitty/current-theme.conf":    true,
+		"ghostty/config":              true,
+		"ghostty/ryoku-colors":        true,
 	}
 	// Every provider's per-machine files are seeded and kept regardless of which
 	// compositor is running, so an update under one never prunes another's. The

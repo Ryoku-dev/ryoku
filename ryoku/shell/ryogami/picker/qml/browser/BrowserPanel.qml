@@ -74,13 +74,32 @@ Item {
     readonly property real filterW: Math.max(238, Math.min(310, 282 * _s))
     readonly property real _gap: 8 * _s
     readonly property real _wsGap: 14 * _s
-    readonly property real _readPadX: 48 * _s
-    readonly property real _gridW: grid.cols * grid.tw * _s + (grid.cols - 1) * _gap
-    readonly property real panelW: Math.min(Math.max(_gridW + filterW + _wsGap + _readPadX, 620 * _s),
-                                            Math.max(220, panel.width - 24))
-    readonly property real _gridHDesired: grid.rows * grid.th * _s + (grid.rows - 1) * _gap
-    readonly property real panelH: Math.min(Math.max(_gridHDesired + 298 * _s, 500 * _s),
-                                            Math.max(160, panel.height - 24))
+    readonly property real panelW: Math.min(1480 * _s, Math.max(220, panel.width - 24))
+    readonly property real panelH: Math.min(920 * _s, Math.max(160, panel.height - 24))
+    function _itemAspect(value) {
+        if (!value)
+            return 16 / 9
+        var resolution = value.resolution ? String(value.resolution) : ""
+        var match = resolution.match(/(\d+)\s*[x\u00d7]\s*(\d+)/i)
+        if (match && Number(match[1]) > 0 && Number(match[2]) > 0)
+            return Number(match[1]) / Number(match[2])
+        var imageW = Number(value.width || value.imageWidth || 0)
+        var imageH = Number(value.height || value.imageHeight || 0)
+        return imageW > 0 && imageH > 0 ? imageW / imageH : 16 / 9
+    }
+    readonly property real detailAspect: _itemAspect(panel.previewItem)
+    readonly property real detailFraction: detailAspect >= 1.3 ? 0.46
+        : (detailAspect >= 0.8 ? 0.40 : 0.34)
+    readonly property real detailW: Math.min(680 * _s,
+        Math.max(340 * _s, panel.panelW * detailFraction))
+    readonly property string sortLabel: {
+        var raw = panel.chipState ? (panel.chipState.sort || panel.chipState.order || "") : ""
+        if (raw === "toplist") return I18n.tr("Top")
+        if (raw === "relevant") return I18n.tr("Relevant")
+        if (raw === "popular") return I18n.tr("Popular")
+        if (raw === "latest") return I18n.tr("Latest")
+        return raw.length > 0 ? I18n.tr(String(raw)) : ""
+    }
 
     readonly property var cardPalette: ({
         primary: Theme.primary, accent: Theme.primary, primaryText: Theme.primaryText,
@@ -337,16 +356,13 @@ Item {
                 panel.atmosphereArt = a
             }
             var heroRow = results.field ? Math.max(results.field.currentIndex, 0) : 0
-            if (row === heroRow && heroBand.artFailed) {
-                var h = panel.heroArt
-                panel.heroArt = ""
-                panel.heroArt = h
-            }
+            if (row === heroRow)
+                panel._refreshArt()
         }
         function onCountChanged() {
             panel._refreshArt()
             if (panel.shown && !panel.previewOpen && remote.count > 0
-                    && results.field && results.field.visible && !drawer.searchEditing)
+                    && results.field && results.field.visible && !results.searchEditing)
                 results.field.forceActiveFocus()
         }
     }
@@ -423,6 +439,7 @@ Item {
                 spacing: 0
 
                 FolioMasthead {
+                    id: masthead
                     width: parent.width
                     reveal: panel.ease
                     breadcrumb: I18n.tr("Sources  /  %1  \u00b7  %2  \u00b7  page %3")
@@ -432,116 +449,132 @@ Item {
                     onCloseRequested: panel.closeRequested()
                 }
 
-                BrowserTabs {
-                    id: tabs
-                    width: parent.width
-                    reveal: panel.ease
-                    tabs: panel.providerTabs
-                    current: panel.provider
-                    onSelected: function(id) { if (panel._tabEnabled(id)) panel.switchTo(id, true) }
-                }
-
                 Item {
                     width: parent.width
                     height: parent.height - y
 
-                    Column {
+                    Row {
                         anchors.fill: parent
-                        anchors.topMargin: 16 * panel._s
-                        anchors.rightMargin: 24 * panel._s
-                        anchors.bottomMargin: 22 * panel._s
-                        anchors.leftMargin: 24 * panel._s
-                        spacing: 14 * panel._s
+                        anchors.topMargin: 14 * panel._s
+                        anchors.rightMargin: 18 * panel._s
+                        anchors.bottomMargin: 18 * panel._s
+                        anchors.leftMargin: 18 * panel._s
+                        spacing: panel._wsGap
 
-                        BrowserHero {
-                            id: heroBand
-                            width: parent.width
-                            reveal: panel.ease
-                            sourceLabel: panel.providerLabel
-                            count: remote.count
-                            page: remote.page
-                            artSource: panel.heroArt
-                        }
+                        Column {
+                            width: panel.filterW
+                            height: parent.height
+                            spacing: 10 * panel._s
 
-                        Row {
-                            width: parent.width
-                            height: parent.height - y
-                            spacing: panel._wsGap
+                            BrowserTabs {
+                                id: tabs
+                                width: parent.width
+                                height: Math.min(390 * panel._s, Math.max(240 * panel._s, parent.height * 0.52))
+                                reveal: panel.ease
+                                tabs: panel.providerTabs
+                                current: panel.provider
+                                onSelected: function(id) {
+                                    if (panel._tabEnabled(id))
+                                        panel.switchTo(id, true)
+                                }
+                            }
 
                             BrowserDrawer {
                                 id: drawer
-                                width: panel.filterW
-                                height: parent.height
+                                width: parent.width
+                                visible: drawer.hasFilters
+                                height: drawer.hasFilters ? parent.height - y : 0
                                 provider: panel.provider
-                                providerLabel: panel.providerLabel
                                 sources: sourceData
                                 state: panel.chipState
                                 collections: panel.collections
-                                searchable: panel.searchable
                                 manual: panel.manual
-                                query: panel.query
                                 reveal: panel.ease
-                                onQueryEdited: function(t) { panel.query = t }
-                                onSearchSubmitted: function(t) { panel.query = t; panel.runSearch() }
                                 onFiltersChanged: function(next) { panel.onFilters(next) }
                                 onApplyPressed: panel.runSearch()
                             }
+                        }
 
-                            BrowserResults {
-                                id: results
-                                width: parent.width - panel.filterW - panel._wsGap
-                                height: parent.height
-                                source: remote
-                                settings: Settings
-                                sources: sourceData
-                                provider: panel.provider
-                                sourceLabel: panel.providerLabel
-                                columns: panel.grid.cols
-                                showApply: panel.manual
-                                palette: panel.cardPalette
-                                reveal: panel.ease
-                                pendingApply: panel.pendingApply
-                                applyItem: panel.applyItem
-                                applyingId: panel.applyingId
-                                emptyText: panel.needsRepo
-                                    ? I18n.tr("Add a GitHub repository in the panel on the left to browse its wallpapers.")
-                                    : I18n.tr("No remote wallpapers found")
-                                onPreviewRequested: function(row) { panel.openPreview(row) }
-                                onDownloadRequested: function(row) { panel.saveRow(row) }
-                                onApplyRequested: function(row) { panel.applyRow(row) }
-                                cancellable: panel.provider !== "steam"
-                                onCancelRequested: function(row) { remote.cancelDownload(row) }
+                        BrowserResults {
+                            id: results
+                            width: parent.width - panel.filterW - panel._wsGap
+                                - (panel.previewOpen ? panel.detailW + panel._wsGap : 0)
+                            height: parent.height
+                            Behavior on width {
+                                NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic }
+                            }
+                            source: remote
+                            settings: Settings
+                            sources: sourceData
+                            provider: panel.provider
+                            sourceLabel: panel.providerLabel
+                            query: panel.query
+                            searchPlaceholder: sourceData.searchPlaceholder(panel.provider)
+                            sortText: panel.sortLabel
+                            searchable: panel.searchable
+                            columns: panel.grid.cols
+                            showApply: panel.manual
+                            palette: panel.cardPalette
+                            reveal: panel.ease
+                            pendingApply: panel.pendingApply
+                            applyItem: panel.applyItem
+                            applyingId: panel.applyingId
+                            emptyText: panel.needsRepo
+                                ? I18n.tr("Add a GitHub repository on the left to browse its wallpapers.")
+                                : I18n.tr("No remote wallpapers found")
+                            onQueryEdited: function(t) { panel.query = t }
+                            onSearchSubmitted: function(t) { panel.query = t; panel.runSearch() }
+                            onPreviewRequested: function(row) { panel.openPreview(row) }
+                            onDownloadRequested: function(row) { panel.saveRow(row) }
+                            onApplyRequested: function(row) { panel.applyRow(row) }
+                            cancellable: panel.provider !== "steam"
+                            onCancelRequested: function(row) { remote.cancelDownload(row) }
+                        }
+
+                        BrowserPreview {
+                            id: preview
+                            z: 6
+                            width: panel.previewOpen ? panel.detailW : 0
+                            height: parent.height
+                            shown: panel.previewOpen
+                            item: panel.previewItem
+                            provider: panel.provider
+                            fullPath: panel.previewFull
+                            showApply: panel.manual
+                            applying: panel.applyingId !== undefined && panel.previewItem
+                                && String(panel.applyingId) === String(panel.previewItem.id)
+                            maxMinutes: panel._num("sources.youtube.maxMinutes", 3)
+                            sources: sourceData
+                            onCloseRequested: panel.closePreview()
+                            onCopyId: function(id) { panel.copyId(id) }
+                            onSave: {
+                                if (panel.previewRow < 0) return
+                                var clip = (panel.provider === "youtube")
+                                    ? { start: preview.clipStartSecs, dur: preview.clipLenSecs } : null
+                                panel.doDownload(panel.previewRow, clip)
+                            }
+                            onApply: if (panel.previewRow >= 0) panel.applyRow(panel.previewRow)
+                            cancellable: panel.provider !== "steam"
+                            onCancel: if (panel.previewRow >= 0) remote.cancelDownload(panel.previewRow)
+                            Behavior on width {
+                                NumberAnimation { duration: Theme.standard; easing.type: Easing.OutCubic }
                             }
                         }
                     }
                 }
             }
-        }
-    }
 
-    BrowserPreview {
-        id: preview
-        anchors.fill: parent
-        shown: panel.previewOpen
-        item: panel.previewItem
-        provider: panel.provider
-        fullPath: panel.previewFull
-        showApply: panel.manual
-        applying: panel.applyingId !== undefined && panel.previewItem
-            && String(panel.applyingId) === String(panel.previewItem.id)
-        maxMinutes: panel._num("sources.youtube.maxMinutes", 3)
-        sources: sourceData
-        onCloseRequested: panel.closePreview()
-        onCopyId: function(id) { panel.copyId(id) }
-        onSave: {
-            if (panel.previewRow < 0) return
-            var clip = (panel.provider === "youtube")
-                ? { start: preview.clipStartSecs, dur: preview.clipLenSecs } : null
-            panel.doDownload(panel.previewRow, clip)
+            MouseArea {
+                z: 5
+                visible: panel.previewOpen
+                anchors.top: masthead.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.rightMargin: panel.detailW + 18 * panel._s
+                onClicked: panel.closePreview()
+            }
         }
-        onApply: if (panel.previewRow >= 0) panel.applyRow(panel.previewRow)
-        cancellable: panel.provider !== "steam"
-        onCancel: if (panel.previewRow >= 0) remote.cancelDownload(panel.previewRow)
     }
 
     Item {

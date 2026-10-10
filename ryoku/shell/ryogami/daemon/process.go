@@ -149,11 +149,29 @@ func pickerImportDirs() string {
 	return strings.Join(dirs, string(os.PathListSeparator))
 }
 
-// Prepended so the Ryoku.Ryogami module resolves ahead of any inherited path.
+// pickerDiskCacheEnv keeps the picker off Qt's on-disk shader and pipeline
+// caches. Every quickshell process shares one cache file, and on NVIDIA's
+// OpenGL driver programs reloaded from it drew the picker's text scrambled.
+// The picker stays resident, so compiling once per daemon start costs little.
+// The backend is left to Qt: on niri a Vulkan picker took no pointer input.
+//
+// Video previews decode in software, as the shell's own clips do: on hybrid
+// NVIDIA boxes hardware-decoded frames (NVDEC, shared into GL through CUDA)
+// tore the whole picker into shards while the download browser played live
+// wallpaper previews. The previews are small loops, so software decode is cheap.
+var pickerDiskCacheEnv = []string{
+	"QSG_RHI_DISABLE_DISK_CACHE=1",
+	"QT_DISABLE_SHADER_DISK_CACHE=1",
+	"QT_MEDIA_BACKEND=ffmpeg",
+	"QT_FFMPEG_DECODING_HW_DEVICE_TYPES=",
+}
+
+// Import dirs are prepended so the Ryoku.Ryogami module resolves ahead of any
+// inherited path.
 func pickerEnv(extra ...string) []string {
 	dirs := pickerImportDirs()
 	base := os.Environ()
-	out := make([]string, 0, len(base)+len(extra)+2)
+	out := make([]string, 0, len(base)+len(extra)+len(pickerDiskCacheEnv)+2)
 	var haveImport, have2 bool
 	for _, kv := range base {
 		switch {
@@ -173,6 +191,7 @@ func pickerEnv(extra ...string) []string {
 	if !have2 {
 		out = append(out, "QML2_IMPORT_PATH="+dirs)
 	}
+	out = append(out, pickerDiskCacheEnv...)
 	return append(out, extra...)
 }
 

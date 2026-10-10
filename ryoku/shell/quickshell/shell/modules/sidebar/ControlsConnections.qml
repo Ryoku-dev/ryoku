@@ -11,12 +11,18 @@ Item {
     required property real s
     required property var screen
     required property bool active
+    readonly property bool showWifi: SidebarState.elementVisible("wifi")
+    readonly property bool showBluetooth: SidebarState.elementVisible("bluetooth")
+    readonly property bool showEthernet: SidebarState.elementVisible("ethernet")
+    readonly property bool showVpn: SidebarState.elementVisible("vpn")
     signal openPage(string page)
 
-    readonly property var adapter: Bluetooth.defaultAdapter
-    readonly property var connectedDevices: Bluetooth.devices && Bluetooth.devices.values
+    readonly property var adapter: root.showBluetooth ? Bluetooth.defaultAdapter : null
+    readonly property var connectedDevices: root.showBluetooth && Bluetooth.devices && Bluetooth.devices.values
         ? Bluetooth.devices.values.filter(device => device && device.connected) : []
     readonly property var activeAccessPoint: {
+        if (!root.showWifi)
+            return null;
         const aps = Network.accessPoints || [];
         for (let i = 0; i < aps.length; i++)
             if (aps[i] && aps[i].active)
@@ -24,6 +30,8 @@ Item {
         return null;
     }
     readonly property string wifiDetail: {
+        if (!root.showWifi)
+            return "";
         if (!Network.wifiPresent)
             return I18n.tr("No Wi-Fi adapter");
         if (!Network.wifiRadio)
@@ -44,24 +52,23 @@ Item {
         : I18n.tr("No devices connected")
     readonly property var statusChips: {
         const chips = [];
-        if (Network.kind === "ethernet")
+        if (root.showEthernet && Network.kind === "ethernet")
             chips.push({ glyph: "lan", label: I18n.tr("Ethernet") });
-        if (Network.vpnActive)
+        if (root.showVpn && Network.vpnActive)
             chips.push({ glyph: "vpn_lock", label: Network.vpnName || I18n.tr("VPN") });
         return chips;
     }
-    readonly property real minimumTileWidth: (Tokens.s7 * 4 + Tokens.s2) * root.s
     readonly property bool showStatusTile: root.statusChips.length > 0
-        && root.width >= root.minimumTileWidth * 3 + Tokens.s2 * root.s * 2
-    readonly property bool showStatusChips: root.statusChips.length > 0 && !root.showStatusTile
-    readonly property int tileCount: root.showStatusTile ? 3 : 2
-    readonly property real tileWidth: (tileRow.width - tileRow.spacing * (root.tileCount - 1)) / root.tileCount
+    readonly property bool showStatusChips: false
+    readonly property int tileCount: (root.showWifi ? 1 : 0) + (root.showBluetooth ? 1 : 0)
+        + (root.showStatusTile ? 1 : 0)
+    readonly property real tileWidth: root.tileCount > 0
+        ? (tileRow.width - tileRow.spacing * (root.tileCount - 1)) / root.tileCount : 0
     readonly property string statusTileLabel: root.statusChips.length > 1
         ? I18n.tr("Ethernet + VPN") : root.statusChips.length === 1 ? root.statusChips[0].label : ""
     readonly property string statusTileDetail: root.statusChips.length > 1 ? root.statusChips[1].label : ""
 
-    implicitHeight: tileRow.height + (root.showStatusChips
-        ? Tokens.s2 * root.s + Tokens.ctlH * root.s : 0)
+    implicitHeight: root.tileCount > 0 ? tileRow.height : 0
 
     Row {
         id: tileRow
@@ -70,6 +77,7 @@ Item {
         spacing: Tokens.s2 * root.s
 
         ConnectionTile {
+            visible: root.showWifi
             width: root.tileWidth
             height: tileRow.height
             s: root.s
@@ -87,6 +95,7 @@ Item {
         }
 
         ConnectionTile {
+            visible: root.showBluetooth
             width: root.tileWidth
             height: tileRow.height
             s: root.s

@@ -61,11 +61,17 @@ ShellRoot {
             if (root.phase === 0) {
                 if (RyoState.Store.categories.length !== 6 || !header || !stage || !grid)
                     return;
-                root.require(!root.findObject(app, "ryostore-rail"), "legacy rail removed");
+                if (app.selectedKey !== "rices:paper") {
+                    app.selectKey("rices:paper");
+                    return;
+                }
+                root.require(root.findObject(app, "ryostore-rail"), "Hub-family navigation rail");
                 root.require(app.view === "discover" && app.categoryID === "", "Discover route");
                 root.require(root.findObject(app, "ryostore-header-discover"), "Discover control");
                 root.require(root.findObject(app, "ryostore-header-search"), "Search control");
                 root.require(root.findObject(app, "ryostore-header-library"), "Library control");
+                root.require(root.findObject(app, "ryostore-page-head"), "page head");
+                root.require(root.findObject(app, "ryostore-action-bar"), "action bar");
                 root.require(root.findObject(app, "ryostore-stage-primary"), "primary action");
                 root.require(root.findObject(app, "ryostore-stage-details"), "details action");
                 root.require(root.findObject(app, "ryostore-status-ACTIVE"), "active status");
@@ -82,6 +88,8 @@ ShellRoot {
                 if (app.selectedKey !== "plugins:market")
                     return;
                 root.require(root.findObject(app, "ryostore-status-UPDATE"), "update status");
+                root.require(root.findObject(app, "ryostore-stage-primary").text === "UPDATE",
+                             "update is the primary product action");
                 app.selectKey("bundles:creator");
                 root.phase = 2;
                 return;

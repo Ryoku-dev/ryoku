@@ -1,8 +1,6 @@
-// ryostore normalizes six product catalogues (lockscreens, plugins, bundles,
-// rices, bar styles, and fastfetch styles) into one JSON contract the Quickshell
-// app renders without per-category logic. These types are that contract; their
-// field names and JSON tags match docs/store.md and are consumed unchanged by
-// every later task.
+// Ryostore normalizes every product catalogue into one JSON contract the
+// Quickshell app renders without per-category data models. These types are that
+// contract; their field names and JSON tags match docs/store.md.
 package main
 
 // Catalog is one probe of every registered provider: the categories with their
@@ -60,21 +58,27 @@ type Item struct {
 	Compatibility       string `json:"compatibility,omitempty"`
 	DownloadPauseReason string `json:"downloadPauseReason,omitempty"`
 	Accent              string `json:"accent,omitempty"`
+	Initials            string `json:"initials,omitempty"`
 	Surface             string `json:"surface,omitempty"`
 	// Upstream and Discord carry the product's provenance links from the
 	// registry entry: the project's home (always present) and an optional
 	// community invite. The app renders them as icon actions on the detail page.
-	Upstream        string   `json:"upstream,omitempty"`
-	Discord         string   `json:"discord,omitempty"`
-	Screenshots     []string `json:"screenshots,omitempty"`
-	Tags            []string `json:"tags,omitempty"`
-	Installed       bool     `json:"installed"`
-	Active          bool     `json:"active"`
-	Enabled         bool     `json:"enabled"`
-	InstalledCount  int      `json:"installedCount"`
-	TotalCount      int      `json:"totalCount"`
-	UpdateAvailable bool     `json:"updateAvailable"`
-	DownloadPaused  bool     `json:"downloadPaused"`
+	Upstream           string   `json:"upstream,omitempty"`
+	Discord            string   `json:"discord,omitempty"`
+	Screenshots        []string `json:"screenshots,omitempty"`
+	Tags               []string `json:"tags,omitempty"`
+	Kind               string   `json:"kind,omitempty"`
+	License            string   `json:"license,omitempty"`
+	Stars              int      `json:"stars,omitempty"`
+	VerificationStatus string   `json:"verificationStatus,omitempty"`
+	ListedAt           string   `json:"listedAt,omitempty"`
+	Installed          bool     `json:"installed"`
+	Active             bool     `json:"active"`
+	Enabled            bool     `json:"enabled"`
+	InstalledCount     int      `json:"installedCount"`
+	TotalCount         int      `json:"totalCount"`
+	UpdateAvailable    bool     `json:"updateAvailable"`
+	DownloadPaused     bool     `json:"downloadPaused"`
 	// RequiredWindowManager is the window manager the product was authored for,
 	// empty when it runs on any; Unavailable says it is not the running one and
 	// UnavailableReason carries the catalogue's human note, if it wrote one.

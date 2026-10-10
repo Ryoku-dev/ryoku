@@ -35,4 +35,10 @@ package() {
   # cp -a kept build-tree mode bits; normalize for packaging: plugin .so stays
   # executable, qmldir/.qsb data world-readable.
   chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6"
+  # Qt refuses a plugin built against a newer minor than the one running, so a
+  # box that took this package but not its distribution's Qt update lost
+  # Ryoku.Blobs and the whole shell with it. Pin the build host's Qt minor so
+  # pacman brings Qt along.
+  local qt; qt="$(pkg-config --modversion Qt6Core | cut -d. -f1,2)"
+  depends+=("qt6-base>=$qt" "qt6-declarative>=$qt" "qt6-multimedia>=$qt")
 }

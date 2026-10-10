@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+case ${1:-} in ''|--bar-widget) ;; *) echo 'Usage: omarchy-system-stats [--bar-widget]' >&2; exit 2;; esac
+if [[ ${1:-} == --bar-widget ]]; then
+  awk 'NR==1 {idle=$5; total=0; for(i=2;i<=NF;i++) total+=$i; printf "cpu\t%s\t%s\n",idle,total}' /proc/stat
+  awk '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{if(t>0)printf "memory\t%.2f\n",100*(t-a)/t}' /proc/meminfo
+  awk '{print "load\t" $1}' /proc/loadavg
+  exit 0
+fi
+cpu=$(top -bn1 | awk '/^%?Cpu/{for(i=1;i<=NF;i++)if($(i+1)~/^id/){gsub(/,/,"",$i);printf "%.0f%%",100-$i;exit}}')
+awk -v cpu="${cpu:-0%}" '/^MemTotal:/{t=$2}/^MemAvailable:/{a=$2}END{printf "cpu\t%s\nmemory\t%.1fGB / %.0fGB\n",cpu,(t-a)/1048576,t/1048576}' /proc/meminfo

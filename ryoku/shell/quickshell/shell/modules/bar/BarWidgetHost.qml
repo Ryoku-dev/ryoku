@@ -55,12 +55,6 @@ Item {
         }
     }
 
-    function updatePinned(className, add) {
-        const next = JSON.parse(JSON.stringify(Config.frameBars));
-        const pinned = next.dock && Array.isArray(next.dock.pinned) ? next.dock.pinned : [];
-        next.dock = { pinned: add ? pinned.concat(pinned.includes(className) ? [] : [className]) : pinned.filter(value => value !== className) };
-        Config.frameBars = next;
-    }
 
     Loader {
         id: widgetLoader
@@ -86,14 +80,10 @@ Item {
         RailDock {
             edge: root.edge
             scale: root.scale
-            pinned: Config.normalizedFrameBars.dock.pinned.length > 0
-                ? Config.normalizedFrameBars.dock.pinned : Dock.starterPins()
             clients: Dock.clients
             activeClass: Dock.activeClass
             maxExtent: root.zoneAvail
             onActivate: className => Dock.activate(className)
-            onPin: className => root.updatePinned(className, true)
-            onUnpin: className => root.updatePinned(className, false)
         }
     }
     Component { id: statusComponent; RailStatus { edge: root.edge; scale: root.scale; statusId: root.widgetId } }

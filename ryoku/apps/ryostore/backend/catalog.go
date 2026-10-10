@@ -31,6 +31,7 @@ func providers() []Provider {
 		newRyotunesSkinsProvider(c),
 		newVesktopThemesProvider(c),
 		pluginProvider{cache: c},
+		newOmarchyPluginProvider(),
 		bundleProvider{cache: c, status: defaultBundleStatus, launch: launchBundleInstall},
 		newDecorProvider(c),
 		newLauncherImageProvider(c),

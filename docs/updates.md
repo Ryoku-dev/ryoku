@@ -143,12 +143,11 @@ mirrored by `ryoku/shell/deploy.sh` on a dev box) into `~/.config`:
   clobbered) and files dropped from a release are pruned; `~/.config/quickshell`
   is converged wholesale.
 - A short **seed list** (`generatedSeed` in
-  `ryoku/cli/internal/updater/materialize.go`: `fastfetch/config.jsonc`,
-  `kitty/current-theme.conf`, the ghostty and nvim starting points, plus every
-  provider's per-machine files from `wm.ConfigSeeds`, e.g. `hypr/monitors.lua`
-  and `niri/monitors_user.kdl`) is copied only when absent, never clobbered:
-  per-machine or user-owned state an update must keep, for every installed
-  compositor, not just the active one.
+  `ryoku/cli/internal/updater/materialize.go`) is copied only when absent, never
+  clobbered. It covers user-edited starting points such as Fastfetch and
+  Starship, Matugen palette siblings, kitty, ghostty and nvim, plus every
+  provider's per-machine files from `wm.ConfigSeeds`. Per-machine or user-owned
+  state survives updates for every installed provider, not just the active one.
 - The user overlay (`~/.config/ryoku/user_edits`, mirroring `~/.config`) is laid
   on top last, so a file there wins at its mirrored path; see below. Anything the
   package never ships (`hypr/user.lua`, `kitty/user.conf`, a forked module) is

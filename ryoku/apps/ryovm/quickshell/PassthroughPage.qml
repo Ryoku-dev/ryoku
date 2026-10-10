@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
+import Quickshell
 import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
@@ -20,6 +21,12 @@ Item {
 
     // the create lane, folded until asked for.
     property bool newOpen: false
+    property string selectedName: ""
+    readonly property var selectedMachine: {
+        for (var i = 0; i < Lg.machines.length; i++)
+            if (Lg.machines[i].name === selectedName) return Lg.machines[i];
+        return null;
+    }
     property string vmName: ""
     property string isoPath: ""
     property string os: "windows"
@@ -36,6 +43,13 @@ Item {
     function specLine(it) {
         var g = Math.round((it.ramMb || 0) / 1024);
         return (it.vcpus || 0) + "c · " + g + "G · " + (it.diskGb || 0) + "G " + I18n.tr("disk");
+    }
+    Connections {
+        target: Lg
+        function onMachinesChanged() {
+            if (!pass.selectedMachine && Lg.machines.length > 0)
+                pass.selectedName = Lg.machines[0].name;
+        }
     }
 
     // ---- head --------------------------------------------------------------
@@ -84,7 +98,7 @@ Item {
 
         Rectangle {
             anchors.centerIn: parent
-            width: Math.min(parent.width, 520)
+            width: Math.min(parent.width, 600)
             height: blockCol.implicitHeight + 2 * Tokens.s6
             color: "transparent"
             radius: Tokens.radius
@@ -95,39 +109,48 @@ Item {
 
             Column {
                 id: blockCol
-                anchors.left: parent.left; anchors.right: parent.right
+                anchors.left: parent.left
+                anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.margins: Tokens.s6
                 spacing: Tokens.s3
 
-                Row {
-                    spacing: Tokens.s2
-                    Text { text: "//"; color: Tokens.inkFaint; font.family: Tokens.mono; font.pixelSize: Tokens.fMicro }
-                    Text {
-                        text: I18n.tr("PASSTHROUGH_OFFLINE"); color: Tokens.ink
-                        font.family: Tokens.ui; font.pixelSize: Tokens.fMicro
-                        font.weight: Font.Medium; font.letterSpacing: Tokens.trackMark
-                    }
-                    Text {
-                        text: "眼"; color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                }
+                Mark { anchors.horizontalCenter: parent.horizontalCenter; size: 72 }
                 Text {
                     width: parent.width
-                    wrapMode: Text.WordWrap
-                    text: Lg.blocker.length > 0
-                        ? Lg.blocker
-                        : I18n.tr("This host can't bind a GPU to a guest yet.")
+                    horizontalAlignment: Text.AlignHCenter
+                    text: I18n.tr("Direct-GPU virtual machines")
                     color: Tokens.ink
-                    font.family: Tokens.ui; font.pixelSize: 14
+                    font.family: Tokens.display
+                    font.pixelSize: 22
                 }
                 Text {
                     width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
                     wrapMode: Text.WordWrap
-                    text: I18n.tr("Set passthrough up in Ryoku Settings › GPU (IOMMU, VFIO binding, a spare dGPU), then reopen this lane.")
+                    text: I18n.tr("Give one VM control of a discrete GPU and view it through Looking Glass.")
                     color: Tokens.inkMuted
-                    font.family: Tokens.ui; font.pixelSize: 12
+                    font.family: Tokens.ui
+                    font.pixelSize: 12
+                }
+                Text {
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: Lg.blocker.length > 0 && Lg.blocker.length < 160
+                        ? Lg.blocker
+                        : I18n.tr("This host is not ready for GPU passthrough yet. Open Graphics & Power for the readiness checks.")
+                    color: Tokens.ink
+                    font.family: Tokens.mono
+                    font.pixelSize: 10
+                }
+                Btn {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: I18n.tr("SET UP PASSTHROUGH")
+                    primary: true
+                    onAct: Quickshell.execDetached(["ryoku-shell", "hub", "open", "gpu"])
                 }
             }
         }
@@ -172,9 +195,9 @@ Item {
                             width: list.width
                             height: 104
                             radius: Tokens.radius
-                            color: mCard.isRun ? Tokens.tint5 : "transparent"
+                            color: pass.selectedName === mCard.modelData.name ? Tokens.tint10 : (mCard.isRun ? Tokens.tint5 : "transparent")
                             border.width: Tokens.border
-                            border.color: mCard.isRun ? Tokens.lineStrong : Tokens.line
+                            border.color: pass.selectedName === mCard.modelData.name ? Tokens.ink : (mCard.isRun ? Tokens.lineStrong : Tokens.line)
                             antialiasing: false
                             Behavior on color { ColorAnimation { duration: Tokens.snap } }
 
@@ -223,9 +246,22 @@ Item {
                                     text: pass.stateWord(mCard.modelData.state)
                                     pad: 3
                                     cellW: 13; cellH: 20; fontPx: 11
-                                    ink: mCard.isRun ? Tokens.sun : Tokens.inkDim
+                                    ink: mCard.isRun ? Tokens.ink : Tokens.inkDim
                                 }
                             }
+
+                            MetricSparkline {
+                                anchors.right: parent.right
+                                anchors.rightMargin: Tokens.s3
+                                anchors.bottom: parent.bottom
+                                anchors.bottomMargin: 38
+                                width: 82
+                                height: 20
+                                values: Lg.series(mCard.modelData.name, "cpu")
+                                fixedMax: 100
+                            }
+
+                            TapHandler { onTapped: pass.selectedName = mCard.modelData.name }
 
                             // foot: the actions. Launch is always the primary
                             // verb (it re-opens the viewer on a running box too);
@@ -403,6 +439,59 @@ Item {
                                     Lg.create(pass.vmName.trim(), pass.isoPath.trim(), pass.os, pass.diskGb, pass.ramGb * 1024);
                                     pass.resetForm();
                                     pass.newOpen = false;
+                                }
+                            }
+                        }
+                    }
+
+                    Column {
+                        width: parent.width
+                        spacing: Tokens.s3
+                        visible: !pass.newOpen && pass.selectedMachine !== null
+
+                        Row {
+                            width: parent.width
+                            Text {
+                                width: parent.width - stateText.width - Tokens.s3
+                                text: pass.selectedMachine ? pass.selectedMachine.name : ""
+                                elide: Text.ElideRight
+                                color: Tokens.ink
+                                font.family: Tokens.display
+                                font.pixelSize: 26
+                            }
+                            Text {
+                                id: stateText
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: pass.selectedMachine ? pass.stateWord(pass.selectedMachine.state) : ""
+                                color: Tokens.inkMuted
+                                font.family: Tokens.mono
+                                font.pixelSize: 10
+                            }
+                        }
+                        MetricsPanel {
+                            width: parent.width
+                            height: 286
+                            cpuValues: Lg.series(pass.selectedName, "cpu")
+                            ramValues: Lg.series(pass.selectedName, "ram")
+                            diskValues: Lg.series(pass.selectedName, "disk")
+                            netValues: Lg.series(pass.selectedName, "net")
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: Tokens.s4
+                            Repeater {
+                                model: pass.selectedMachine ? [
+                                    { label: I18n.tr("OS"), value: pass.selectedMachine.os || "-" },
+                                    { label: I18n.tr("CPU"), value: pass.selectedMachine.vcpus + "c" },
+                                    { label: I18n.tr("RAM"), value: Math.round(pass.selectedMachine.ramMb / 1024) + " GB" },
+                                    { label: I18n.tr("DISK"), value: pass.selectedMachine.diskGb + " GB" }
+                                ] : []
+                                Column {
+                                    required property var modelData
+                                    width: (parent.width - Tokens.s4 * 3) / 4
+                                    spacing: 2
+                                    Text { text: modelData.label; color: Tokens.inkFaint; font.family: Tokens.ui; font.pixelSize: 9 }
+                                    Text { text: modelData.value; color: Tokens.ink; font.family: Tokens.mono; font.pixelSize: 10 }
                                 }
                             }
                         }

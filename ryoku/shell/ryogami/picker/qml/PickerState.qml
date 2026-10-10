@@ -38,6 +38,27 @@ QtObject {
     property int multipickerRow: -1
 
     property string monitor: ""           // output name the picker opened on
+    function currentWorkspace() {
+        const list = Wm.workspaces ?? []
+        for (let i = 0; i < list.length; ++i) {
+            const workspace = list[i]
+            if (workspace.active && (!state.monitor || workspace.output === state.monitor)) {
+                return {
+                    "id": String(workspace.id ?? ""),
+                    "name": String(workspace.name ?? ""),
+                    "output": String(workspace.output || state.monitor || "")
+                }
+            }
+        }
+        return null
+    }
+
+    readonly property string currentWorkspaceName: {
+        const workspace = state.currentWorkspace()
+        if (!workspace)
+            return ""
+        return workspace.name || workspace.id
+    }
     property bool shown: false
 
     readonly property string hoverKey: (state.field && state.view && state.field.hoveredIndex >= 0)
@@ -134,22 +155,26 @@ QtObject {
             state.hideRequested()
     }
 
-    function applyEntry(entry, outputs, audioMap, volumeMap) {
+    function applyEntry(entry, outputs, audioMap, volumeMap, target) {
         if (!entry)
             return
-        state._applyWall(entry, outputs, audioMap, volumeMap)
+        state._applyWall(entry, outputs, audioMap, volumeMap, target)
         state.multipickerOpen = false
         if (state._bool(state._closeOnSelection))
             state.hideRequested()
     }
 
-    function _applyWall(entry, outputs, audioMap, volumeMap) {
+    function _applyWall(entry, outputs, audioMap, volumeMap, target) {
         var type = entry.type || "static"
         var params = { type: type, outputs: outputs || [] }
         if (type === "we")
             params.we_id = entry.weId || entry.we_id || entry.key
         else
             params.path = entry.path || entry.videoFile || entry.key
+        if (target && target.kind === "workspace") {
+            params.target = "workspace"
+            params.workspace = target.workspace || state.currentWorkspace()
+        }
         if (audioMap && Object.keys(audioMap).length > 0)
             params.outputs_audio = audioMap
         if (volumeMap && Object.keys(volumeMap).length > 0)

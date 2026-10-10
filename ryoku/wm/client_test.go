@@ -61,6 +61,30 @@ printf '%s' '{"name":"testwm","supports":["nightLight"],"nightLightProcess":"wls
 	}
 }
 
+func TestClientCompatibilityUsesProviderManifest(t *testing.T) {
+	dir := t.TempDir()
+	prov := filepath.Join(dir, "ryoku-wm-testwm")
+	if err := os.WriteFile(prov, []byte("#!/bin/sh\nprintf '%s' '{\"name\":\"testwm\",\"supports\":[],\"foreignApis\":[\"quickshell-hyprland\"]}'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	plugin := filepath.Join(dir, "plugin")
+	if err := os.Mkdir(plugin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(plugin, "Main.qml"), []byte("import Quickshell.Hyprland\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	got, err := OpenNamed("testwm").Compatibility(plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.OK {
+		t.Fatalf("provider-declared interface was blocked: %+v", got)
+	}
+}
+
 func TestActContextPropagatesTransientCapsFailure(t *testing.T) {
 	dir := t.TempDir()
 	prov := filepath.Join(dir, "ryoku-wm-testwm")

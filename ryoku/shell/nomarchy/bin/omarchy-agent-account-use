@@ -1,0 +1,195 @@
+#!/bin/bash
+set -euo pipefail
+
+name=${0##*/}
+unavailable() { printf '%s: not available on Ryoku\n' "$name" >&2; exit 1; }
+need_arg() { [[ -n ${2:-} ]] || { printf '%s: %s\n' "$name" "$1" >&2; exit 2; }; }
+
+case $name in
+  omarchy-menu)
+    verb=${1:-toggle}; route=${2:-root}; payload=$(jq -cn --arg menu "$route" '{menu:$menu}')
+    case $verb in toggle|summon) exec omarchy-shell nomarchy "$verb" omarchy.menu "$payload";; close) exec omarchy-shell nomarchy hide omarchy.menu;; refresh|ping) exec omarchy-shell nomarchy call omarchy.menu "$verb" '{}';; *) printf "omarchy-menu: unknown verb '%s'\n" "$verb" >&2; exit 2;; esac
+    ;;
+  omarchy-osd)
+    icon='' message='' progress='' duration=''
+    while (($#)); do case $1 in -i|--icon) icon=${2:-}; shift 2;; -m|--message) message=${2:-}; shift 2;; -p|--progress) progress=${2:-}; shift 2;; -d|--duration) duration=${2:-}; shift 2;; *) printf 'omarchy-osd: unknown option %s\n' "$1" >&2; exit 2;; esac; done
+    payload=$(jq -cn --arg icon "$icon" --arg message "$message" --arg value "$progress" --arg progressText "${progress:+$progress%}" --arg max 100 --arg duration "$duration" '{icon:$icon,message:$message,value:$value,progressText:$progressText,max:$max,duration:$duration}')
+    exec omarchy-shell -q osd show "$payload"
+    ;;
+  omarchy-notification-send)
+    urgency=low icon='' timeout=-1 replace='' print_id=0 glyph=''
+    while (($#)); do case $1 in -g|--glyph) glyph=${2:-}; shift 2;; -u|--urgency) urgency=${2:-}; shift 2;; -i|--icon|--image) icon=${2:-}; shift 2;; -t|--expire-time) timeout=${2:-}; shift 2;; -r|--replace-id) replace=${2:-}; shift 2;; --app-name) shift 2;; -p|--print-id) print_id=1; shift;; *) break;; esac; done
+    headline=${1:-}; [[ -n $headline ]] || { echo 'Usage: omarchy-notification-send <headline> [description]' >&2; exit 2; }; shift; body=${1:-}; [[ $# == 0 ]] || shift
+    args=(-u "$urgency" -t "$timeout"); [[ -z $icon ]] || args+=(-i "$icon"); [[ -z $replace ]] || args+=(-r "$replace"); (( !print_id )) || args+=(-p)
+    exec notify-send "${args[@]}" "$headline" "${glyph:+$glyph  }$body"
+    ;;
+  omarchy-launch-browser) if (($#)); then [[ ${1:-} != --private ]] || shift; exec xdg-open "${1:-about:blank}"; else exec ryoku-app browser; fi ;;
+  omarchy-launch-webapp) need_arg 'URL required' "${1:-}"; exec xdg-open "$1" ;;
+  omarchy-launch-terminal) if (($#)); then exec ryoku-app terminal -- "$@"; else exec ryoku-app terminal; fi ;;
+  omarchy-launch-editor|omarchy-launch-config-editor) [[ ${1:-} != --inline ]] || shift; if (($#)); then exec xdg-open "$1"; else exec ryoku-app editor; fi ;;
+  omarchy-launch-tui) need_arg 'command required' "${1:-}"; exec ryoku-app terminal -- "$@" ;;
+  omarchy-launch-floating-terminal-with-presentation) need_arg 'command required' "${1:-}"; exec ryoku-app terminal -- bash -lc "$*; code=\$?; printf '\\n%s\\n' \"\$([[ \$code == 0 ]] && echo Done || echo Failed)\"; exit \$code" ;;
+  omarchy-launch-or-focus|omarchy-launch-or-focus-tui|omarchy-launch-or-focus-webapp)
+    need_arg 'application id required' "${1:-}"; app=$1; shift
+    if ryoku wm act app.focus "$app" >/dev/null 2>&1; then exit 0; fi
+    case $name in *-tui) exec ryoku-app terminal -- "$app" "$@";; *-webapp) exec xdg-open "${1:-$app}";; *) exec "$app" "$@";; esac
+    ;;
+  omarchy-restart-shell|omarchy-refresh-shell) exec ryoku-shell reload ;;
+  omarchy-system-lock) exec ryoku-qylock-lock ;;
+  omarchy-system-logout) exec ryoku wm act session.exit ;;
+  omarchy-system-reboot) exec systemctl reboot ;;
+  omarchy-system-shutdown) exec systemctl poweroff ;;
+  omarchy-system-sleep-lock) ryoku-qylock-lock; exec ryoku-shell suspend ;;
+  omarchy-system-wake) exec ryoku wm act output.power on ;;
+  omarchy-toggle-nightlight) exec ryoku-shell call nightlight.toggle '{}' ;;
+  omarchy-toggle-touchpad) exec ryoku wm act input.touchpad toggle ;;
+  omarchy-toggle-bar) exec omarchy-shell omarchy.bar toggle ;;
+  omarchy-update) exec ryoku update "$@" ;;
+  omarchy-update-available) ryoku status --json | jq -e '.available == true' >/dev/null ;;
+  omarchy-brightness-display)
+    while [[ ${1:-} == --* ]]; do case $1 in --no-osd) shift;; --monitor) shift 2;; *) break;; esac; done
+    case ${1:-} in
+      off|on) exec ryoku wm act output.power "$1" ;;
+      +*%) value=${1#+}; exec ryoku-cmd-brightness "+${value%%%}" ;;
+      *%-) value=${1%'-'}; exec ryoku-cmd-brightness "-${value%%%}" ;;
+      [0-9]*%) value=${1%%%}; ((value>=0 && value<=100)) || exit 2; brightnessctl set "$value%" >/dev/null; command -v ddcutil >/dev/null 2>&1 && ddcutil --noverify setvcp 10 "$value" >/dev/null 2>&1 || true ;;
+      '') brightnessctl -m | awk -F, 'NR==1{print $4; exit}' ;;
+      *) unavailable ;;
+    esac
+    ;;
+  omarchy-audio-output-volume)
+    case ${1:-} in raise) exec wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+;; lower) exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-;; mute-toggle) exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle;; +[0-9]*) exec wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ "${1#+}%+";; -[0-9]*) exec wpctl set-volume @DEFAULT_AUDIO_SINK@ "${1#-}%-";; *) echo 'Usage: omarchy-audio-output-volume <raise|lower|mute-toggle|+N|-N>' >&2; exit 2;; esac
+    ;;
+  omarchy-audio-input-mute) exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle ;;
+  omarchy-audio-output-sink) pactl get-default-sink ;;
+  omarchy-audio-sink-availability) pactl -f json list sinks | jq -e 'length > 0' >/dev/null ;;
+  omarchy-audio-output-set-default) sink=${2:-${1:-}}; need_arg 'sink required' "$sink"; exec pactl set-default-sink "$sink" ;;
+  omarchy-audio-input-set-default) source=${2:-${1:-}}; need_arg 'source required' "$source"; exec pactl set-default-source "$source" ;;
+  omarchy-audio-output-switch)
+    mapfile -t sinks < <(pactl -f json list sinks | jq -r '.[].name'); ((${#sinks[@]})) || unavailable; current=$(pactl get-default-sink); next=${sinks[0]}; for i in "${!sinks[@]}"; do [[ ${sinks[$i]} == "$current" ]] && next=${sinks[$(((i+1)%${#sinks[@]}))]}; done; exec pactl set-default-sink "$next"
+    ;;
+  omarchy-audio-source-switch) direction=${1:-next}; [[ $direction == next ]] && exec omarchy-shell media sourceSwitch; [[ $direction == previous ]] && exec omarchy-shell media sourceSwitchPrevious; exit 2 ;;
+  omarchy-bluetooth-power)
+    case ${1:-} in on) rfkill unblock bluetooth; exec bluetoothctl power on;; off) exec rfkill block bluetooth;; toggle) if rfkill list bluetooth | grep -q 'Soft blocked: yes'; then rfkill unblock bluetooth; exec bluetoothctl power on; else exec rfkill block bluetooth; fi;; is-on) bluetoothctl show | grep -q 'Powered: yes';; *) echo 'Usage: omarchy-bluetooth-power <on|off|toggle|is-on>' >&2; exit 2;; esac
+    ;;
+  omarchy-bluetooth-device) action=${1:-}; address=${2:-}; [[ $action =~ ^(pair|connect|disconnect|forget)$ && $address =~ ^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$ ]] || { echo 'Usage: omarchy-bluetooth-device <pair|connect|disconnect|forget> <address>' >&2; exit 2; }; [[ $action != forget ]] || action=remove; exec bluetoothctl "$action" "$address" ;;
+  omarchy-network-status) nmcli -t -f TYPE,STATE connection show --active | awk -F: '$2=="activated"{print $1; exit}' ;;
+  # A profile is a heading line ("* performance:"); its indented detail lines
+  # (CpuDriver:, PlatformDriver:, Degraded:) carry a value after the colon.
+  omarchy-powerprofiles-list) powerprofilesctl list | awk -v state="${1:+1}" '/^[*[:space:]]*[[:alnum:]-]+:[[:space:]]*$/{active=($1=="*"); gsub(/^[*[:space:]]+|:[[:space:]]*$/,""); print $0 (state?"\t" active:"")}' ;;
+  omarchy-powerprofiles-set) profile=${2:-${1:-balanced}}; [[ $profile != autodetect && $profile != ac && $profile != battery ]] || profile=balanced; exec powerprofilesctl set "$profile" ;;
+  omarchy-bar-text-color)
+    position=${1:-top}; text=${3:-}; contrast=${4:-}; tone=${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/wallpaper-tone.json
+    [[ $text =~ ^#[0-9A-Fa-f]{6}$ && $contrast =~ ^#[0-9A-Fa-f]{6}$ ]] || exit 1
+    if [[ -r $tone ]]; then
+      sample=$(jq -r --arg edge "$position" '
+        . as $m | ($m.cols // 8) as $cols | ($m.rows // 8) as $rows |
+        [range(0; ($m.grid|length)) as $i |
+          select(($edge=="top" and $i<$cols) or ($edge=="bottom" and $i>=($rows-1)*$cols) or
+                 ($edge=="left" and ($i%$cols)==0) or ($edge=="right" and ($i%$cols)==($cols-1))) |
+          $m.grid[$i]] | if length==0 then $m.lstar else add/length end
+      ' "$tone" 2>/dev/null || true)
+      if [[ $sample =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        hex_luma() { local value=${1#\#}; printf '%d\n' "$(( (299*16#${value:0:2} + 587*16#${value:2:2} + 114*16#${value:4:2}) / 255000 ))"; }
+        a=$(hex_luma "$text"); b=$(hex_luma "$contrast")
+        awk -v sample="$sample" -v a="$a" -v b="$b" 'BEGIN{da=a-sample;if(da<0)da=-da;db=b-sample;if(db<0)db=-db;exit !(db>da)}' && text=$contrast
+      fi
+    fi
+    printf '%s\n' "$text"
+    ;;
+  omarchy-monitor-query) ryoku wm state | jq '{focusedOutput,outputs}' ;;
+  omarchy-monitor-scale)
+    scale=${1:-}; output=${2:-}
+    [[ $scale =~ ^([1-9][0-9]*)(\.[0-9]+)?$ ]] || { echo 'Usage: omarchy-monitor-scale SCALE [OUTPUT]' >&2; exit 2; }
+    state=$(ryoku wm state)
+    [[ -n $output ]] || output=$(jq -r '.focusedOutput // (.outputs[] | select(.focused) | .name)' <<<"$state")
+    [[ -n $output && $output != null ]] || { echo 'omarchy-monitor-scale: no focused output' >&2; exit 1; }
+    layout=$(mktemp)
+    trap 'rm -f "$layout"' EXIT
+    jq --arg output "$output" --argjson scale "$scale" '
+      [.outputs[] | {
+        name,
+        enabled: (.disabled != true),
+        mode,
+        scale,
+        x,
+        y,
+        transform,
+        vrr,
+        mirror,
+        colorMode,
+        sdrBrightness
+      } | if .name == $output then .scale = $scale else . end]
+    ' <<<"$state" >"$layout"
+    ryoku wm outputs "$layout"
+    ;;
+  omarchy-file-select)
+    title='Select file'; mode=--file-selection; multiple=; directory=; while (($#)); do case $1 in --title) title=${2:-}; shift 2;; --multiple) multiple=--multiple; shift;; --directory) directory=--directory; shift;; --extensions) shift 2;; *) echo "omarchy-file-select: unknown option $1" >&2; exit 2;; esac; done
+    args=("$mode" "--title=$title"); [[ -z $multiple ]] || args+=("$multiple"); [[ -z $directory ]] || args+=("$directory"); exec zenity "${args[@]}"
+    ;;
+  omarchy-glyph) printf '%s\n' "${1:-}" ;;
+  omarchy-default-browser) if (($#==0)); then env -u BROWSER xdg-settings get default-web-browser; else exec xdg-settings set default-web-browser "$1.desktop"; fi ;;
+  omarchy-default-terminal) if (($#==0)); then xdg-terminal-exec --print-id 2>/dev/null | cut -d: -f1; else mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}"; printf '%s.desktop\n' "$1" >"${XDG_CONFIG_HOME:-$HOME/.config}/xdg-terminals.list"; fi ;;
+  omarchy-default-editor) if (($#==0)); then jq -r '.desktop.apps.editor // "nvim"' "${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/desktop.json" 2>/dev/null || echo nvim; else unavailable; fi ;;
+  omarchy-display-text-size)
+    file=${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.toml
+    if (($#==0)); then
+      awk '/^[[:space:]]*\[font\]/{font=1;next} /^[[:space:]]*\[/{font=0} font && /^[[:space:]]*base-size[[:space:]]*=/{sub(/^[^=]*=[[:space:]]*/, ""); print; found=1; exit} END{if(!found) print 12}' "$file" 2>/dev/null
+      exit 0
+    fi
+    value=$1
+    [[ $value == reset || $value == default || ( $value =~ ^[0-9]+$ && $value -ge 9 && $value -le 20 ) ]] || { echo 'Size must be an integer between 9 and 20.' >&2; exit 2; }
+    mkdir -p "${file%/*}"
+    [[ -f $file ]] || : >"$file"
+    tmp=$file.tmp.$$
+    awk -v value="$value" '
+      function emit(){if(value!="reset" && value!="default") print "base-size = " value; done=1}
+      /^[[:space:]]*\[/{if(font && !done) emit(); font=($0~/^[[:space:]]*\[font\]/); print; next}
+      font && /^[[:space:]]*base-size[[:space:]]*=/{if(!done) emit(); next}
+      {print}
+      END{if(font && !done) emit(); else if(!done && value!="reset" && value!="default"){if(NR) print ""; print "[font]"; emit()}}
+    ' "$file" >"$tmp"
+    mv "$tmp" "$file"
+    omarchy-shell nomarchy reloadConfig >/dev/null
+    ;;
+  omarchy-font-list) fc-list :spacing=100 -f '%{family[0]}\n' | sort -fu ;;
+  omarchy-font-current) fc-match monospace -f '%{family}\n' | cut -d, -f1 ;;
+  omarchy-font-set)
+    need_arg 'font name required' "${1:-}"; fc-list | grep -Fqi -- "$1" || { printf "Font '%s' not found.\n" "$1" >&2; exit 1; }; file=${XDG_CONFIG_HOME:-$HOME/.config}/fontconfig/fonts.conf; mkdir -p "${file%/*}"; printf '<?xml version="1.0"?><fontconfig><match target="pattern"><test name="family"><string>monospace</string></test><edit name="family" mode="prepend_first"><string>%s</string></edit></match></fontconfig>\n' "$1" >"$file"; ryoku-shell reload
+    ;;
+  omarchy-cmd-present) command -v "${1:-}" >/dev/null 2>&1 ;;
+  omarchy-cmd-missing) ! command -v "${1:-}" >/dev/null 2>&1 ;;
+  omarchy-pkg-present) pacman -Q "${1:-}" >/dev/null 2>&1 ;;
+  omarchy-pkg-missing) ! pacman -Q "${1:-}" >/dev/null 2>&1 ;;
+  omarchy-capture-screenshot) exec ryoku-shell screenshot ;;
+  omarchy-capture-screenrecording) if (($#)); then exec ryoku-shell record "$@"; else exec ryoku-shell screenshot; fi ;;
+  omarchy-menu-emoji|omarchy-menu-emoji-insert) exec omarchy-shell nomarchy toggle omarchy.emojis '{}' ;;
+  omarchy-menu-keybindings) exec sh -c "pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys" ;;
+  omarchy-menu-plugin)
+    action=${1:-}; [[ $action =~ ^(enable|disable|remove)$ ]] || { echo 'Usage: omarchy-menu-plugin <enable|disable|remove>' >&2; exit 2; }
+    plugins=$(omarchy-plugin-list --json)
+    case $action in enable) filter='map(select(.enabled|not))';; disable) filter='map(select(.enabled and ((.kinds//[])|index("bar")|not)))';; remove) filter='map(select(.firstParty|not))';; esac
+    mapfile -t ids < <(jq -r "$filter | .[].id" <<<"$plugins")
+    ((${#ids[@]})) || exit 0
+    if command -v gum >/dev/null 2>&1; then id=$(printf '%s\n' "${ids[@]}" | gum choose); else id=${ids[0]}; fi
+    [[ -n $id ]] || exit 0
+    exec "${XDG_DATA_HOME:-$HOME/.local/share}/ryoku/nomarchy/bin/omarchy-plugin-$action" "$id"
+    ;;
+  omarchy-weather-status) exec curl -fsS 'https://wttr.in/?format=3' ;;
+  omarchy-voxtype-config) exec ryoku-shell voice ;;
+  omarchy-voxtype-status) pgrep -x voxtype >/dev/null && echo running || echo stopped ;;
+  omarchy-reminder) exec omarchy-shell nomarchy toggle omarchy.reminders '{}' ;;
+  omarchy-agent-account-add)
+    if [[ ${1:-} == --check ]]; then
+      printf 'claude not possible\ncodex not possible\ngrok not possible\n'
+      exit 0
+    fi
+    echo 'AI accounts are managed in Rāshin, not Nomarchy.' >&2
+    exit 1
+    ;;
+  omarchy-agent-account-use|omarchy-agent-account-mode|omarchy-agent-account-list|omarchy-agent-account-remove|omarchy-agent-account-rename|omarchy-agent-account-home|omarchy-agent-account-exec|omarchy-agent-account-state)
+    echo 'AI accounts are managed in Rāshin, not Nomarchy.' >&2
+    exit 1
+    ;;
+  *) unavailable ;;
+esac

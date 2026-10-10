@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"path/filepath"
 	"sort"
@@ -42,9 +43,16 @@ const (
 	relWheel  = 0x08
 	mscScan   = 0x04
 
-	btnMouseFirst = 272 // BTN_MOUSE — the lowest button code a mouse claims
-	btnMouseLast  = 285 // BTN_TASK — top of the range the Hub can bind
-	btnToolFinger = 325 // BTN_TOOL_FINGER — set only by touchpads
+	btnMouseFirst   = 0x110 // BTN_MOUSE
+	btnMouseLast    = 0x11f // complete mouse BTN_* block
+	btnTriggerFirst = 0x2c0 // BTN_TRIGGER_HAPPY1
+	btnTriggerLast  = 0x2e7 // BTN_TRIGGER_HAPPY40
+	btnToolFinger   = 0x145 // BTN_TOOL_FINGER
+	keyMax          = 0x2ff
+	keyNumberFirst  = 2     // KEY_1
+	keyNumberLast   = 13    // KEY_EQUAL, completing a 12-button side grid
+	keyMacroFirst   = 0x290 // KEY_MACRO1
+	keyMacroLast    = 0x2ad // KEY_MACRO30
 
 	busUSB = 0x03 // BUS_USB, the bustype the clone advertises
 
@@ -86,7 +94,7 @@ var chordKeyCodes = map[string]uint16{
 
 	"enter": 28, "esc": 1, "space": 57, "tab": 15, "backspace": 14,
 	"left": 105, "right": 106, "up": 103, "down": 108,
-	"home": 102, "end": 107, "pgup": 104, "pgdn": 109,
+	"home": 102, "end": 107, "pgup": 104, "pgdn": 109, "insert": 110, "delete": 111, "print": 99,
 	"minus": 12, "equal": 13, "bracketleft": 26, "bracketright": 27,
 	"comma": 51, "period": 52, "slash": 53, "semicolon": 39,
 	"apostrophe": 40, "backslash": 43, "grave": 41,
@@ -108,11 +116,15 @@ func chordCodes(keys []string) ([]uint16, error) {
 	return out, nil
 }
 
-// mouseTarget is one button's rewrite: a key chord, another button, or nothing.
+// mouseTarget is one button's rewrite: a key chord, another button, a timed
+// sequence, or nothing.
 type mouseTarget struct {
-	Kind   string   `json:"kind"`
-	Keys   []string `json:"keys,omitempty"`
-	Button uint16   `json:"button,omitempty"`
+	Kind            string           `json:"kind"`
+	Keys            []string         `json:"keys,omitempty"`
+	Button          uint16           `json:"button,omitempty"`
+	Sequence        []mouseMacroStep `json:"sequence,omitempty"`
+	Repeat          int              `json:"repeat,omitempty"`
+	CancelOnRelease bool             `json:"cancelOnRelease,omitempty"`
 }
 
 // validateTarget rejects a mapping the reader could not honour, so mouse.map
@@ -132,6 +144,8 @@ func validateTarget(t mouseTarget) error {
 		}
 		_, err := chordCodes(t.Keys)
 		return err
+	case "sequence":
+		return validateMouseSequence(t)
 	default:
 		return fmt.Errorf("unknown target kind %q", t.Kind)
 	}
@@ -166,6 +180,8 @@ func (t mouseTarget) downUp() (down, up []synthEvent, err error) {
 			up = append(up, synthEvent{evKey, codes[i], 0})
 		}
 		return down, up, nil
+	case "sequence":
+		return nil, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("unknown target kind %q", t.Kind)
 	}
@@ -228,16 +244,32 @@ func (s *mouseSubstitutor) apply(etype, code uint16, value int32) (out []synthEv
 	}
 }
 
-// mouseDevice is one enumerated physical mouse. node and sysDevice stay internal:
-// the Hub sees only the wire fields.
-type mouseDevice struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Bus     string   `json:"bus"`
-	Buttons []uint16 `json:"buttons"`
+// mouseInterface is one evdev interface in a physical mouse. MMO mice often put
+// their side grid on a keyboard-class sibling, so the logical card may own more
+// than one source and clone.
+type mouseInterface struct {
+	node      string
+	sysDevice string
+	buttons   []uint16
+	keys      []uint16
+	keyboard  bool
+}
 
-	node      string // /dev/input/eventN, opened by the reader
-	sysDevice string // realpath of the sysfs device dir, mined for vendor/product
+// mouseDevice is one enumerated physical mouse. interfaces and the numeric USB
+// identity stay internal; the Hub receives the catalogue-enriched wire fields.
+type mouseDevice struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Bus         string            `json:"bus"`
+	Brand       string            `json:"brand"`
+	Model       string            `json:"model"`
+	Labels      map[string]string `json:"labels"`
+	Buttons     []uint16          `json:"buttons"`
+	SideButtons []uint16          `json:"sideButtons,omitempty"`
+
+	vendor     uint16
+	product    uint16
+	interfaces []mouseInterface
 }
 
 type mousePressed struct {
@@ -371,14 +403,24 @@ func deviceMapCodes(buttons map[string]mouseTarget) map[uint16]mouseTarget {
 	return out
 }
 
-// mapSig is a stable fingerprint of one device's map, used to notice when an edit
-// means a reader must be re-armed. json sorts map keys, so equal maps compare
-// equal.
-func mapSig(buttons map[string]mouseTarget) string {
-	if len(buttons) == 0 {
+func mouseInterfaceMap(mapping map[uint16]mouseTarget, buttons []uint16) map[uint16]mouseTarget {
+	if len(mapping) == 0 {
+		return nil
+	}
+	out := map[uint16]mouseTarget{}
+	for _, button := range buttons {
+		if target, ok := mapping[button]; ok {
+			out[button] = target
+		}
+	}
+	return out
+}
+
+func mouseCodeMapSig(mapping map[uint16]mouseTarget) string {
+	if len(mapping) == 0 {
 		return ""
 	}
-	body, _ := json.Marshal(buttons)
+	body, _ := json.Marshal(mapping)
 	return string(body)
 }
 
@@ -387,10 +429,11 @@ func mouseDevicesEqual(a, b []mouseDevice) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].ID != b[i].ID || a[i].Name != b[i].Name || a[i].Bus != b[i].Bus {
-			return false
-		}
-		if len(a[i].Buttons) != len(b[i].Buttons) {
+		if a[i].ID != b[i].ID || a[i].Name != b[i].Name || a[i].Bus != b[i].Bus ||
+			a[i].Brand != b[i].Brand || a[i].Model != b[i].Model ||
+			len(a[i].Buttons) != len(b[i].Buttons) ||
+			len(a[i].SideButtons) != len(b[i].SideButtons) ||
+			len(a[i].interfaces) != len(b[i].interfaces) {
 			return false
 		}
 		for j := range a[i].Buttons {
@@ -398,74 +441,278 @@ func mouseDevicesEqual(a, b []mouseDevice) bool {
 				return false
 			}
 		}
+		for j := range a[i].SideButtons {
+			if a[i].SideButtons[j] != b[i].SideButtons[j] {
+				return false
+			}
+		}
+		for j := range a[i].interfaces {
+			if a[i].interfaces[j].node != b[i].interfaces[j].node {
+				return false
+			}
+		}
 	}
 	return true
 }
 
-// classifyMouseDevices walks the input class and returns the physical mice: a
-// device with BTN_MOUSE, no BTN_TOOL_FINGER (touchpads), not backed by the
-// virtual bus (built-in virtual mice and our own clones), and not one of our
-// clones by name.
+type mouseInputCandidate struct {
+	node, real, name, phys, uniq, usbRoot string
+	vendor, product                       uint16
+	bits                                  *big.Int
+	keys                                  []uint16
+	mouseButtons                          []uint16
+	sideButtons                           []uint16
+}
+
+type mouseInputCacheEntry struct {
+	inode     uint64
+	ctime     unix.Timespec
+	candidate mouseInputCandidate
+	usable    bool
+}
+
+type mouseInputFactsCache map[string]mouseInputCacheEntry
+
+func sameMouseInputCacheKey(entry mouseInputCacheEntry, stat unix.Stat_t) bool {
+	return entry.inode == stat.Ino &&
+		entry.ctime.Sec == stat.Ctim.Sec &&
+		entry.ctime.Nsec == stat.Ctim.Nsec
+}
+
+func inspectMouseInput(base, node, real, virtualPrefix string) (mouseInputCandidate, bool) {
+	capRaw, err := os.ReadFile(filepath.Join(base, "device", "capabilities", "key"))
+	if err != nil {
+		return mouseInputCandidate{}, false
+	}
+	bits, ok := parseKeyCapabilities(string(capRaw))
+	if !ok {
+		return mouseInputCandidate{}, false
+	}
+	name := readMouseSysText(filepath.Join(base, "device", "name"))
+	isTestVirtual := os.Getenv("RYOKU_MOUSE_TEST_VIRTUAL") == "1" &&
+		strings.HasPrefix(name, "Ryoku Test Mouse ")
+	if strings.HasPrefix(real, virtualPrefix) && !isTestVirtual {
+		return mouseInputCandidate{}, false
+	}
+	if strings.HasPrefix(name, "Ryoku Mouse") {
+		return mouseInputCandidate{}, false
+	}
+	vendor, product, usbRoot := sysMouseIdentity(real)
+	if vendor == 0 || product == 0 {
+		vendor, _ = readSysHex(filepath.Join(base, "device", "id", "vendor"))
+		product, _ = readSysHex(filepath.Join(base, "device", "id", "product"))
+	}
+	return mouseInputCandidate{
+		node:         node,
+		real:         real,
+		name:         name,
+		phys:         readMouseSysText(filepath.Join(base, "device", "phys")),
+		uniq:         readMouseSysText(filepath.Join(base, "device", "uniq")),
+		usbRoot:      usbRoot,
+		vendor:       vendor,
+		product:      product,
+		bits:         bits,
+		keys:         mouseAllKeys(bits),
+		mouseButtons: mousePointerButtons(bits),
+		sideButtons:  mouseSideGridButtons(bits),
+	}, true
+}
+
 func classifyMouseDevices(sysRoot, devRoot, byIDRoot string) []mouseDevice {
+	cache := mouseInputFactsCache{}
+	return classifyMouseDevicesCached(sysRoot, devRoot, byIDRoot, cache)
+}
+
+// classifyMouseDevicesCached avoids reopening immutable sysfs attributes while
+// an event node keeps the same inode and ctime. Recreated nodes are inspected
+// before they can inherit facts from a device that was unplugged.
+func classifyMouseDevicesCached(sysRoot, devRoot, byIDRoot string, cache mouseInputFactsCache) []mouseDevice {
+	if cache == nil {
+		cache = mouseInputFactsCache{}
+	}
 	inputDir := filepath.Join(sysRoot, "class", "input")
 	entries, err := os.ReadDir(inputDir)
 	if err != nil {
 		return []mouseDevice{}
 	}
 	virtualPrefix := filepath.Join(sysRoot, "devices", "virtual", "input")
-	out := []mouseDevice{}
+	candidates := []mouseInputCandidate{}
+	seen := make(map[string]bool, len(entries))
 	for _, entry := range entries {
-		name := entry.Name()
-		if !strings.HasPrefix(name, "event") {
+		event := entry.Name()
+		if !strings.HasPrefix(event, "event") {
 			continue
 		}
-		base := filepath.Join(inputDir, name)
-		capRaw, err := os.ReadFile(filepath.Join(base, "device", "capabilities", "key"))
-		if err != nil {
+		node := filepath.Join(devRoot, event)
+		var stat unix.Stat_t
+		if err := unix.Stat(node, &stat); err != nil {
 			continue
 		}
-		bits, ok := parseKeyCapabilities(string(capRaw))
-		if !ok {
+		seen[event] = true
+		if cached, ok := cache[event]; ok && sameMouseInputCacheKey(cached, stat) {
+			if cached.usable {
+				candidates = append(candidates, cached.candidate)
+			}
 			continue
 		}
-		if bits.Bit(btnMouseFirst) == 0 || bits.Bit(btnToolFinger) != 0 {
-			continue
-		}
+		base := filepath.Join(inputDir, event)
 		real, err := filepath.EvalSymlinks(filepath.Join(base, "device"))
 		if err != nil {
 			real = filepath.Join(base, "device")
 		}
-		if strings.HasPrefix(real, virtualPrefix) {
+		candidate, usable := inspectMouseInput(base, node, real, virtualPrefix)
+		cache[event] = mouseInputCacheEntry{
+			inode: stat.Ino, ctime: stat.Ctim, candidate: candidate, usable: usable,
+		}
+		if usable {
+			candidates = append(candidates, candidate)
+		}
+	}
+	for event := range cache {
+		if !seen[event] {
+			delete(cache, event)
+		}
+	}
+
+	out := []mouseDevice{}
+	for i := range candidates {
+		base := candidates[i]
+		if base.bits.Bit(btnMouseFirst) == 0 || base.bits.Bit(btnToolFinger) != 0 {
 			continue
 		}
-		devName := ""
-		if raw, err := os.ReadFile(filepath.Join(base, "device", "name")); err == nil {
-			devName = strings.TrimSpace(string(raw))
+		entry := matchMouseCatalogue(base.vendor, base.product, base.name)
+		dev := mouseDevice{
+			ID:      mouseDeviceID(byIDRoot, base.node),
+			Name:    base.name,
+			Bus:     mouseBus(base.real),
+			Labels:  map[string]string{},
+			Buttons: append([]uint16(nil), base.mouseButtons...),
+			vendor:  base.vendor,
+			product: base.product,
+			interfaces: []mouseInterface{{
+				node:      base.node,
+				sysDevice: base.real,
+				buttons:   append([]uint16(nil), base.mouseButtons...),
+				keys:      append([]uint16(nil), base.keys...),
+			}},
 		}
-		if strings.HasPrefix(devName, "Ryoku Mouse") {
-			continue
+		if entry != nil {
+			dev.Brand = entry.Brand
+			dev.Model = entry.Model
+			dev.Labels = copyMouseLabels(entry.Labels)
 		}
-		node := filepath.Join(devRoot, name)
-		if _, err := os.Stat(node); err != nil {
-			continue
-		}
-		buttons := []uint16{}
-		for code := btnMouseFirst; code <= btnMouseLast; code++ {
-			if bits.Bit(code) != 0 {
-				buttons = append(buttons, uint16(code))
+
+		for j := range candidates {
+			if i == j {
+				continue
+			}
+			sibling := candidates[j]
+			if sibling.bits.Bit(btnMouseFirst) != 0 || len(sibling.sideButtons) == 0 ||
+				!samePhysicalMouseInput(base, sibling) {
+				continue
+			}
+			dev.interfaces = append(dev.interfaces, mouseInterface{
+				node:      sibling.node,
+				sysDevice: sibling.real,
+				buttons:   append([]uint16(nil), sibling.sideButtons...),
+				keys:      append([]uint16(nil), sibling.keys...),
+				keyboard:  true,
+			})
+			for _, code := range sibling.sideButtons {
+				dev.SideButtons = appendMouseCode(dev.SideButtons, code)
+				dev.Buttons = appendMouseCode(dev.Buttons, code)
 			}
 		}
-		out = append(out, mouseDevice{
-			ID:        mouseDeviceID(byIDRoot, node),
-			Name:      devName,
-			Bus:       mouseBus(real),
-			Buttons:   buttons,
-			node:      node,
-			sysDevice: real,
-		})
+		sort.Slice(dev.Buttons, func(i, j int) bool { return dev.Buttons[i] < dev.Buttons[j] })
+		sort.Slice(dev.SideButtons, func(i, j int) bool { return dev.SideButtons[i] < dev.SideButtons[j] })
+		out = append(out, dev)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out
+}
+
+func readMouseSysText(path string) string {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(raw))
+}
+
+func mouseAllKeys(bits *big.Int) []uint16 {
+	keys := []uint16{}
+	for code := range keyMax + 1 {
+		if bits.Bit(code) != 0 {
+			keys = append(keys, uint16(code))
+		}
+	}
+	return keys
+}
+
+func mousePointerButtons(bits *big.Int) []uint16 {
+	buttons := []uint16{}
+	for code := btnMouseFirst; code <= btnMouseLast; code++ {
+		if bits.Bit(code) != 0 {
+			buttons = append(buttons, uint16(code))
+		}
+	}
+	for code := btnTriggerFirst; code <= btnTriggerLast; code++ {
+		if bits.Bit(code) != 0 {
+			buttons = append(buttons, uint16(code))
+		}
+	}
+	return buttons
+}
+
+func mouseSideGridButtons(bits *big.Int) []uint16 {
+	buttons := []uint16{}
+	addRange := func(first, last int) {
+		for code := first; code <= last; code++ {
+			if bits.Bit(code) != 0 {
+				buttons = appendMouseCode(buttons, uint16(code))
+			}
+		}
+	}
+	addRange(keyNumberFirst, keyNumberLast)
+	addRange(148, 149) // KEY_PROG1..KEY_PROG2
+	addRange(183, 194) // KEY_F13..KEY_F24
+	addRange(202, 203) // KEY_PROG3..KEY_PROG4
+	addRange(keyMacroFirst, keyMacroLast)
+	if bits.Bit(112) != 0 { // KEY_MACRO
+		buttons = appendMouseCode(buttons, 112)
+	}
+	sort.Slice(buttons, func(i, j int) bool { return buttons[i] < buttons[j] })
+	return buttons
+}
+
+func appendMouseCode(codes []uint16, code uint16) []uint16 {
+	for _, existing := range codes {
+		if existing == code {
+			return codes
+		}
+	}
+	return append(codes, code)
+}
+
+func samePhysicalMouseInput(a, b mouseInputCandidate) bool {
+	if a.usbRoot != "" && b.usbRoot != "" {
+		return a.usbRoot == b.usbRoot
+	}
+	if a.uniq != "" && b.uniq != "" {
+		return a.uniq == b.uniq
+	}
+	aPhys, bPhys := mousePhysRoot(a.phys), mousePhysRoot(b.phys)
+	if aPhys != "" && bPhys != "" {
+		return aPhys == bPhys
+	}
+	return a.vendor != 0 && a.vendor == b.vendor && a.product != 0 && a.product == b.product
+}
+
+func mousePhysRoot(phys string) string {
+	if at := strings.LastIndex(phys, "/input"); at >= 0 {
+		return phys[:at]
+	}
+	return phys
 }
 
 // mouseDeviceID prefers the by-id symlink resolving to this event node, which
@@ -560,18 +807,29 @@ func readSysHex(path string) (uint16, bool) {
 	return uint16(value), true
 }
 
-// sysMouseIDs walks up from the device dir for the USB idVendor/idProduct pair so
-// the clone can carry the source's identity; 0x0001 stands in when unreadable.
-func sysMouseIDs(dir string) (uint16, uint16) {
-	for i := 0; i < 6 && dir != "" && dir != "/" && dir != "."; i++ {
+// sysMouseIdentity walks to the USB device carrying the shared VID:PID. The
+// directory is also the strongest sibling key for composite HID interfaces.
+func sysMouseIdentity(dir string) (uint16, uint16, string) {
+	for range 12 {
+		if dir == "" || dir == "/" || dir == "." {
+			break
+		}
 		vendor, vok := readSysHex(filepath.Join(dir, "idVendor"))
 		product, pok := readSysHex(filepath.Join(dir, "idProduct"))
 		if vok && pok {
-			return vendor, product
+			return vendor, product, dir
 		}
 		dir = filepath.Dir(dir)
 	}
-	return 0x0001, 0x0001
+	return 0, 0, ""
+}
+
+func sysMouseIDs(dir string) (uint16, uint16) {
+	vendor, product, _ := sysMouseIdentity(dir)
+	if vendor == 0 || product == 0 {
+		return 0x0001, 0x0001
+	}
+	return vendor, product
 }
 
 const (
@@ -636,6 +894,80 @@ func newMouseMapManager(sysRoot, devRoot, byIDRoot, settingsPath string, openUin
 	}
 }
 
+// watchMouseInputChanges replaces the periodic sysfs walk when inotify is
+// available. The wake pipe lets shutdown stop the poll immediately.
+func watchMouseInputChanges(devRoot, byIDRoot string) (<-chan struct{}, func(), error) {
+	fd, err := unix.InotifyInit1(unix.IN_CLOEXEC | unix.IN_NONBLOCK)
+	if err != nil {
+		return nil, nil, err
+	}
+	mask := uint32(unix.IN_CREATE | unix.IN_DELETE | unix.IN_MOVED_FROM | unix.IN_MOVED_TO)
+	if _, err := unix.InotifyAddWatch(fd, devRoot, mask); err != nil {
+		unix.Close(fd)
+		return nil, nil, err
+	}
+	_, _ = unix.InotifyAddWatch(fd, byIDRoot, mask)
+
+	var wake [2]int
+	if err := unix.Pipe2(wake[:], unix.O_CLOEXEC|unix.O_NONBLOCK); err != nil {
+		unix.Close(fd)
+		return nil, nil, err
+	}
+	changes := make(chan struct{}, 1)
+	var stopOnce sync.Once
+	stop := func() {
+		stopOnce.Do(func() {
+			_, _ = unix.Write(wake[1], []byte{1})
+		})
+	}
+	go func() {
+		defer close(changes)
+		defer unix.Close(fd)
+		defer unix.Close(wake[0])
+		defer unix.Close(wake[1])
+		poll := []unix.PollFd{
+			{Fd: int32(fd), Events: unix.POLLIN},
+			{Fd: int32(wake[0]), Events: unix.POLLIN},
+		}
+		buf := make([]byte, 4096)
+		for {
+			if _, err := unix.Poll(poll, -1); err != nil {
+				if err == unix.EINTR {
+					continue
+				}
+				return
+			}
+			if poll[1].Revents != 0 {
+				return
+			}
+			if poll[0].Revents == 0 {
+				continue
+			}
+			for {
+				n, err := unix.Read(fd, buf)
+				if err != nil {
+					if err == unix.EAGAIN {
+						break
+					}
+					if err == unix.EINTR {
+						continue
+					}
+					return
+				}
+				if n == 0 {
+					break
+				}
+			}
+			_, _ = unix.InotifyAddWatch(fd, byIDRoot, mask)
+			select {
+			case changes <- struct{}{}:
+			default:
+			}
+		}
+	}()
+	return changes, stop, nil
+}
+
 func (m *mouseMapManager) start() {
 	m.mu.Lock()
 	if m.cancel != nil {
@@ -681,6 +1013,7 @@ func (m *mouseMapManager) run(ctx context.Context) {
 	deaths := make(chan string, 8)
 	readers := map[string]*mouseReader{}
 	var curDevices []mouseDevice
+	facts := mouseInputFactsCache{}
 
 	defer func() {
 		for _, reader := range readers {
@@ -700,22 +1033,26 @@ func (m *mouseMapManager) run(ctx context.Context) {
 	}
 
 	reconcile := func() bool {
-		devices := classifyMouseDevices(m.sysRoot, m.devRoot, m.byIDRoot)
-		present := make(map[string]bool, len(devices))
+		devices := classifyMouseDevicesCached(m.sysRoot, m.devRoot, m.byIDRoot, facts)
+		present := map[string]bool{}
 		for _, dev := range devices {
-			present[dev.ID] = true
-			sig := mapSig(m.curMaps[dev.ID])
-			if reader, ok := readers[dev.ID]; ok {
-				if reader.sig == sig {
-					continue
+			allCodes := deviceMapCodes(m.curMaps[dev.ID])
+			for _, iface := range dev.interfaces {
+				readerID := dev.ID + "\x00" + iface.node
+				present[readerID] = true
+				codes := mouseInterfaceMap(allCodes, iface.buttons)
+				sig := mouseCodeMapSig(codes)
+				if reader, ok := readers[readerID]; ok {
+					if reader.sig == sig {
+						continue
+					}
+					reader.cancel()
+					delete(readers, readerID)
 				}
-				reader.cancel()
-				delete(readers, dev.ID)
+				readerCtx, cancel := context.WithCancel(ctx)
+				readers[readerID] = &mouseReader{cancel: cancel, sig: sig}
+				go m.readDevice(readerCtx, dev, iface, len(codes) > 0, codes, events, deaths, readerID)
 			}
-			grab := len(m.curMaps[dev.ID]) > 0
-			readerCtx, cancel := context.WithCancel(ctx)
-			readers[dev.ID] = &mouseReader{cancel: cancel, sig: sig}
-			go m.readDevice(readerCtx, dev, grab, deviceMapCodes(m.curMaps[dev.ID]), events, deaths)
 		}
 		for id, reader := range readers {
 			if !present[id] {
@@ -741,14 +1078,42 @@ func (m *mouseMapManager) run(ctx context.Context) {
 	reconcile()
 	publish(nil)
 
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
+	inputChanges, stopInputWatch, watchErr := watchMouseInputChanges(m.devRoot, m.byIDRoot)
+	var fallbackTicker *time.Ticker
+	var fallbackPoll <-chan time.Time
+	startFallbackPoll := func() {
+		if fallbackTicker == nil {
+			fallbackTicker = time.NewTicker(2 * time.Second)
+			fallbackPoll = fallbackTicker.C
+		}
+	}
+	if watchErr != nil {
+		inputChanges = nil
+		startFallbackPoll()
+	}
+	defer func() {
+		if stopInputWatch != nil {
+			stopInputWatch()
+		}
+		if fallbackTicker != nil {
+			fallbackTicker.Stop()
+		}
+	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case _, ok := <-inputChanges:
+			if !ok {
+				inputChanges = nil
+				startFallbackPoll()
+				continue
+			}
+			if reconcile() {
+				publish(nil)
+			}
+		case <-fallbackPoll:
 			if reconcile() {
 				publish(nil)
 			}
@@ -805,43 +1170,56 @@ func (m *mouseMapManager) run(ctx context.Context) {
 	}
 }
 
-// readDevice reads one mouse. A grabbed device forwards every event to its clone
-// and rewrites mapped buttons; an ungrabbed device is a transparent observer that
-// exists only so a capture can see its presses. Either way, a button press feeds
-// the capture waiter.
-func (m *mouseMapManager) readDevice(ctx context.Context, dev mouseDevice, grab bool, codes map[uint16]mouseTarget, events chan<- capturePress, deaths chan<- string) {
-	src, err := os.Open(dev.node)
+type lockedMouseWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (w *lockedMouseWriter) Write(body []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.w.Write(body)
+}
+
+// readDevice observes one interface of a logical mouse. Only the interface with
+// a live binding is grabbed, so an MMO side grid can be rewritten without
+// seizing an unrelated keyboard or even the pointer half of the same mouse.
+func (m *mouseMapManager) readDevice(ctx context.Context, dev mouseDevice, iface mouseInterface, grab bool, codes map[uint16]mouseTarget, events chan<- capturePress, deaths chan<- string, readerID string) {
+	src, err := os.Open(iface.node)
 	if err != nil {
-		m.signalDeath(ctx, deaths, dev.ID)
+		m.signalDeath(ctx, deaths, readerID)
 		return
 	}
 	defer src.Close()
 
 	// Poll with a short timeout rather than blocking in read: an evdev fd is a
-	// character device, so Go treats it as non-pollable and a Close from the
-	// cancel goroutine does not break a blocked read. Without this, clearing a
-	// mapping left the source grabbed and its clone alive until the next mouse
-	// event. A POLLIN on evdev always means at least one whole event is
-	// buffered, so the read below cannot block.
+	// character device, so Close does not wake a blocked Go read.
 	raw := make([]byte, mouseEventSize)
 	pfd := []unix.PollFd{{Fd: int32(src.Fd()), Events: unix.POLLIN}}
 
 	var clone *os.File
 	var sub *mouseSubstitutor
+	var macro *mouseMacroExecutor
+	var output *lockedMouseWriter
 	if grab {
 		if err := unix.IoctlSetInt(int(src.Fd()), evIoCGrab, 1); err != nil {
-			m.signalDeath(ctx, deaths, dev.ID)
+			m.signalDeath(ctx, deaths, readerID)
 			return
 		}
 		sub, err = newMouseSubstitutor(codes)
 		if err != nil {
 			return
 		}
-		clone, err = m.makeClone(dev)
+		clone, err = m.makeClone(dev, iface)
 		if err != nil {
 			return
 		}
 		defer m.destroyClone(clone)
+		output = &lockedMouseWriter{w: clone}
+		macro = newMouseMacroExecutor(ctx, func(event synthEvent) error {
+			return writeInputEvent(output, event)
+		}, nil)
+		defer macro.stop()
 	}
 
 	for {
@@ -853,22 +1231,22 @@ func (m *mouseMapManager) readDevice(ctx context.Context, dev mouseDevice, grab 
 			if err == unix.EINTR {
 				continue
 			}
-			m.signalDeath(ctx, deaths, dev.ID)
+			m.signalDeath(ctx, deaths, readerID)
 			return
 		}
 		if n == 0 {
 			continue
 		}
 		if pfd[0].Revents&(unix.POLLERR|unix.POLLHUP|unix.POLLNVAL) != 0 {
-			m.signalDeath(ctx, deaths, dev.ID)
+			m.signalDeath(ctx, deaths, readerID)
 			return
 		}
 		if _, err := io.ReadFull(src, raw); err != nil {
-			m.signalDeath(ctx, deaths, dev.ID)
+			m.signalDeath(ctx, deaths, readerID)
 			return
 		}
 		etype, code, value := decodeInputEvent(raw)
-		if etype == evKey && value == 1 && code >= btnMouseFirst && code <= btnMouseLast {
+		if etype == evKey && value == 1 && mouseCodeIn(iface.buttons, code) {
 			select {
 			case events <- capturePress{device: dev.ID, button: code}:
 			case <-ctx.Done():
@@ -878,18 +1256,36 @@ func (m *mouseMapManager) readDevice(ctx context.Context, dev mouseDevice, grab 
 		if !grab {
 			continue
 		}
+		if target, ok := codes[code]; etype == evKey && ok && target.Kind == "sequence" {
+			switch value {
+			case 1:
+				macro.start(code, target)
+			case 0:
+				macro.release(code, target.CancelOnRelease)
+			}
+			continue
+		}
 		if out, consumed := sub.apply(etype, code, value); consumed {
 			for _, event := range out {
-				if writeInputEvent(clone, event) != nil {
+				if writeInputEvent(output, event) != nil {
 					return
 				}
 			}
 			continue
 		}
-		if _, err := clone.Write(raw); err != nil {
+		if _, err := output.Write(raw); err != nil {
 			return
 		}
 	}
+}
+
+func mouseCodeIn(codes []uint16, code uint16) bool {
+	for _, candidate := range codes {
+		if candidate == code {
+			return true
+		}
+	}
+	return false
 }
 
 // signalDeath tells the run loop a reader died from a read error (an unplug) so
@@ -904,10 +1300,9 @@ func (m *mouseMapManager) signalDeath(ctx context.Context, deaths chan<- string,
 	}
 }
 
-// makeClone builds the uinput passthrough: EV_KEY for every button the source
-// carries plus the whole chord table (so any binding works), the relative axes a
-// mouse uses, MSC_SCAN, and EV_SYN.
-func (m *mouseMapManager) makeClone(dev mouseDevice) (*os.File, error) {
+// makeClone mirrors every source key so unbound events pass through, then adds
+// the chord table needed by remaps. Pointer axes belong only on pointer clones.
+func (m *mouseMapManager) makeClone(dev mouseDevice, iface mouseInterface) (*os.File, error) {
 	ui, err := m.openUinput()
 	if err != nil {
 		return nil, err
@@ -922,8 +1317,8 @@ func (m *mouseMapManager) makeClone(dev mouseDevice) (*os.File, error) {
 		return fail(err)
 	}
 	keyset := map[uint16]bool{}
-	for _, button := range dev.Buttons {
-		keyset[button] = true
+	for _, code := range iface.keys {
+		keyset[code] = true
 	}
 	for _, code := range chordKeyCodes {
 		keyset[code] = true
@@ -933,12 +1328,14 @@ func (m *mouseMapManager) makeClone(dev mouseDevice) (*os.File, error) {
 			return fail(err)
 		}
 	}
-	if err := unix.IoctlSetInt(fd, uiSetEvBit, evRel); err != nil {
-		return fail(err)
-	}
-	for _, axis := range []int{relX, relY, relHWheel, relWheel, relDial} {
-		if err := unix.IoctlSetInt(fd, uiSetRelBit, axis); err != nil {
+	if !iface.keyboard {
+		if err := unix.IoctlSetInt(fd, uiSetEvBit, evRel); err != nil {
 			return fail(err)
+		}
+		for _, axis := range []int{relX, relY, relHWheel, relWheel, relDial} {
+			if err := unix.IoctlSetInt(fd, uiSetRelBit, axis); err != nil {
+				return fail(err)
+			}
 		}
 	}
 	if err := unix.IoctlSetInt(fd, uiSetEvBit, evMsc); err != nil {
@@ -951,8 +1348,18 @@ func (m *mouseMapManager) makeClone(dev mouseDevice) (*os.File, error) {
 		return fail(err)
 	}
 
-	vendor, product := sysMouseIDs(dev.sysDevice)
-	setup := buildUinputSetup("Ryoku Mouse "+dev.Name, vendor, product)
+	name := dev.Model
+	if name == "" {
+		name = dev.Name
+	}
+	if iface.keyboard {
+		name += " Side Grid"
+	}
+	vendor, product := dev.vendor, dev.product
+	if vendor == 0 || product == 0 {
+		vendor, product = sysMouseIDs(iface.sysDevice)
+	}
+	setup := buildUinputSetup("Ryoku Mouse "+name, vendor, product)
 	if err := ioctlPointer(uintptr(fd), uiDevSetup, unsafe.Pointer(&setup[0])); err != nil {
 		return fail(err)
 	}
@@ -1019,6 +1426,39 @@ func (m *mouseMapManager) mapButton(raw json.RawMessage) (any, error) {
 	}
 }
 
+func (m *mouseMapManager) testSequence(raw json.RawMessage) (any, error) {
+	var args struct {
+		Target mouseTarget `json:"target"`
+	}
+	if err := json.Unmarshal(raw, &args); err != nil {
+		return nil, err
+	}
+	if args.Target.Kind != "sequence" {
+		return nil, fmt.Errorf("test target must be a sequence")
+	}
+	if err := validateTarget(args.Target); err != nil {
+		return nil, err
+	}
+	dev := mouseDevice{Name: "Macro Test", Model: "Macro Test", vendor: 1, product: 1}
+	iface := mouseInterface{keyboard: true}
+	clone, err := m.makeClone(dev, iface)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	output := &lockedMouseWriter{w: clone}
+	executor := newMouseMacroExecutor(ctx, func(event synthEvent) error {
+		return writeInputEvent(output, event)
+	}, nil)
+	done := executor.start(0, args.Target)
+	go func() {
+		<-done
+		cancel()
+		m.destroyClone(clone)
+	}()
+	return map[string]any{"started": true}, nil
+}
+
 func (m *mouseMapManager) capture(raw json.RawMessage) (any, error) {
 	var args struct {
 		TimeoutMs int `json:"timeoutMs"`
@@ -1063,6 +1503,9 @@ func (d *daemon) startMouseMap() {
 	})
 	d.registerCall("mouse.map", func(raw json.RawMessage) (any, error) {
 		return d.mousemap.mapButton(raw)
+	})
+	d.registerCall("mouse.test", func(raw json.RawMessage) (any, error) {
+		return d.mousemap.testSequence(raw)
 	})
 	d.registerCall("mouse.capture", func(raw json.RawMessage) (any, error) {
 		return d.mousemap.capture(raw)

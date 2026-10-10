@@ -12,12 +12,15 @@ Item {
     required property bool active
     signal closeRequested()
 
-    readonly property string page: SidebarState.activeTab(screen)
+    readonly property string requestedPage: SidebarState.activeTab(screen)
+    readonly property string page: requestedPage === "plugins" && !pluginsEnabled ? "controls" : requestedPage
     readonly property bool detail: page !== "controls"
     readonly property real pad: Tokens.s4 * s
     readonly property real fittedHeight: pad * 2 + header.height + Tokens.s3 * s
         + (board.item ? board.item.implicitHeight : Tokens.cellH * 4 * s)
     readonly property var pluginCards: pluginHost.cards()
+    readonly property bool pluginsEnabled: SidebarState.elementVisible("pluginCards")
+    onPluginsEnabledChanged: if (!pluginsEnabled && requestedPage === "plugins") root.home()
 
     function home(): void {
         SidebarState.selectTab(root.screen, "controls");
@@ -25,7 +28,7 @@ Item {
 
     SidebarPlugins {
         id: pluginHost
-        active: root.active
+        active: root.active && root.pluginsEnabled
     }
 
     Item {
@@ -72,7 +75,7 @@ Item {
             spacing: Tokens.s1 * root.s
 
             CornerButton {
-                visible: root.pluginCards.length > 0
+                visible: root.pluginsEnabled && root.pluginCards.length > 0
                 s: root.s
                 glyph: "extension"
                 subtle: true
@@ -87,7 +90,7 @@ Item {
                 Accessible.name: I18n.tr("Ryoku Hub")
                 onClicked: {
                     root.closeRequested();
-                    Spawn.run(["ryoku-shell", "hub", "open", "desktop"]);
+                    Spawn.run(["ryoku-shell", "hub", "open", "controls"]);
                 }
             }
             CornerButton {

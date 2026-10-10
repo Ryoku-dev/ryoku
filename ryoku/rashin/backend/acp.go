@@ -132,7 +132,6 @@ type acpConn struct {
 	// offeredModels is what the pickers saw, so reconcile only reapplies a model that was on offer.
 	offeredModels  []ModelInfo
 	prowlActiveSet string
-	prowlSetNames  []string
 	// errTail holds the agent's own stderr, bounded. An ACP error like
 	// session/new's bare "Internal error" carries no cause; the agent always
 	// writes the real reason to its log stream. The tail rides on the failure
@@ -349,54 +348,36 @@ func configModelState(opts []acpConfigOption) modelState {
 	return modelState{}
 }
 
-func isProwlAutoAlias(id string) bool {
-	id = strings.TrimSpace(id)
-	if cut := strings.LastIndexAny(id, ":/"); cut >= 0 {
-		id = id[cut+1:]
-	}
-	return strings.EqualFold(id, "auto")
-}
-
-func hermesProwlSetName(id string) (string, bool) {
-	const prefix = "custom:prowl:auto:"
-	id = strings.TrimSpace(id)
-	if len(id) <= len(prefix) || !strings.EqualFold(id[:len(prefix)], prefix) {
-		return "", false
-	}
-	name := strings.TrimSpace(id[len(prefix):])
-	return name, name != ""
-}
-
-// Hermes reads custom:<name>:<model> as a named provider, so only that grammar can carry auto:<set>; other agents get the merged entry.
-func chatOfferedModels(agentID string, active bool, models []ModelInfo, current, started, activeSet string, setNames []string) []ModelInfo {
-	if !active || agentID == "claude" {
+// Hermes advertises the same Prowl route under several provider aliases; only
+// custom:prowl:auto is guaranteed to switch back to Prowl from a direct model.
+func chatOfferedModels(agentID string, active bool, models []ModelInfo, current, started, activeSet string) []ModelInfo {
+	if agentID == "claude" {
 		return models
 	}
 
-	var aliases, other []ModelInfo
-	hasHermesSetGrammar := false
-	currentSetName, currentIsSet := hermesProwlSetName(current)
+	aliases := make([]ModelInfo, 0, 3)
+	other := make([]ModelInfo, 0, len(models))
 	for _, model := range models {
-		if !chatModelRouted(agentID, active, model, started) {
-			continue
-		}
-		id := strings.TrimSpace(model.ID)
-		if strings.EqualFold(id, "custom:prowl:auto") {
-			hasHermesSetGrammar = true
-		}
-		if isProwlAutoAlias(id) {
+		if chatModelProwlAlias(active, model, started) {
 			aliases = append(aliases, model)
-			continue
+		} else {
+			other = append(other, model)
 		}
-		if currentIsSet && strings.EqualFold(id, strings.TrimSpace(current)) {
-			continue
-		}
-		other = append(other, model)
+	}
+	if len(aliases) == 0 {
+		return models
 	}
 
-	offered := make([]ModelInfo, 0, 1+len(other)+len(setNames))
-	if len(aliases) > 0 {
-		id := aliases[0].ID
+	id := aliases[0].ID
+	hasHermesAlias := false
+	for _, alias := range aliases {
+		if strings.EqualFold(strings.TrimSpace(alias.ID), "custom:prowl:auto") {
+			id = alias.ID
+			hasHermesAlias = true
+			break
+		}
+	}
+	if !hasHermesAlias {
 		isAdvertisedAlias := func(candidate string) bool {
 			for _, alias := range aliases {
 				if strings.EqualFold(strings.TrimSpace(alias.ID), strings.TrimSpace(candidate)) {
@@ -409,67 +390,57 @@ func chatOfferedModels(agentID string, active bool, models []ModelInfo, current,
 			id = current
 		} else if isAdvertisedAlias(started) {
 			id = started
-		} else {
-			for _, alias := range aliases {
-				if strings.EqualFold(strings.TrimSpace(alias.ID), "custom:prowl:auto") {
-					id = alias.ID
-					break
-				}
-			}
 		}
-		description := "Prowl"
-		if activeSet != "" {
-			description += " · " + activeSet
-		}
-		offered = append(offered, ModelInfo{ID: id, Name: "Active set", Description: description})
 	}
-	offered = append(offered, other...)
 
-	seen := make(map[string]bool, len(offered)+len(setNames))
-	for _, model := range offered {
-		seen[strings.ToLower(strings.TrimSpace(model.ID))] = true
+	description := "Prowl"
+	if activeSet != "" {
+		description += " · " + activeSet
 	}
-	if hasHermesSetGrammar {
-		for _, name := range setNames {
-			setID := strings.ToLower(strings.TrimSpace(name))
-			id := "custom:prowl:auto:" + setID
-			if setID == "" || seen[id] {
-				continue
-			}
-			seen[id] = true
-			offered = append(offered, ModelInfo{ID: id, Name: name, Description: "Prowl set"})
-		}
-	}
-	if currentIsSet {
-		id := strings.ToLower(strings.TrimSpace(current))
-		if !seen[id] {
-			offered = append(offered, ModelInfo{ID: current, Name: currentSetName, Description: "Prowl set"})
-		}
-	}
-	return offered
+	offered := make([]ModelInfo, 0, 1+len(other))
+	offered = append(offered, ModelInfo{ID: id, Name: "Active set", Description: description})
+	return append(offered, other...)
 }
 
-func (c *acpConn) cacheProwlProfileSets() {
+func normalizedModelID(id string, models, offered []ModelInfo, active bool, started string) string {
+	for _, model := range models {
+		if model.ID == id && chatModelProwlAlias(active, model, started) {
+			if len(offered) > 0 && offered[0].Name == "Active set" {
+				return offered[0].ID
+			}
+			break
+		}
+	}
+	return id
+}
+
+func (c *acpConn) cacheProwlActiveSet(models []ModelInfo) {
 	c.mu.Lock()
-	agentID, routing := c.agentID, c.prowl
+	agentID, active, started := c.agentID, c.prowl.Active, c.startedModel
 	c.mu.Unlock()
 
+	hasAlias := false
+	if agentID != "claude" {
+		for _, model := range models {
+			if chatModelProwlAlias(active, model, started) {
+				hasAlias = true
+				break
+			}
+		}
+	}
 	activeSet := ""
-	var setNames []string
-	if routing.Active && agentID != "claude" {
+	if hasAlias {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		var err error
-		activeSet, setNames, err = chatProwlProfileSets(ctx)
+		activeSet, _, err = chatProwlProfileSets(ctx)
 		cancel()
 		if err != nil {
 			activeSet = ""
-			setNames = nil
 		}
 	}
 
 	c.mu.Lock()
 	c.prowlActiveSet = activeSet
-	c.prowlSetNames = append(c.prowlSetNames[:0], setNames...)
 	c.mu.Unlock()
 }
 
@@ -487,7 +458,7 @@ func (c *acpConn) emitModels(st modelState) {
 	c.modelOption = st.option
 	c.models = append(c.models[:0], st.models...)
 	offered := chatOfferedModels(
-		c.agentID, c.prowl.Active, st.models, st.current, c.startedModel, c.prowlActiveSet, c.prowlSetNames,
+		c.agentID, c.prowl.Active, st.models, st.current, c.startedModel, c.prowlActiveSet,
 	)
 	c.offeredModels = append(c.offeredModels[:0], offered...)
 	eventModels := append([]ModelInfo(nil), c.offeredModels...)
@@ -497,8 +468,10 @@ func (c *acpConn) emitModels(st modelState) {
 
 func (c *acpConn) modelsEvent(offered []ModelInfo, current string) AcpEvent {
 	c.mu.Lock()
-	agentName, routing := c.agentName, c.prowl
+	agentName, routing, started := c.agentName, c.prowl, c.startedModel
+	models := append([]ModelInfo(nil), c.models...)
 	c.mu.Unlock()
+	current = normalizedModelID(current, models, offered, routing.Active, started)
 	prowl := ""
 	if routing.Active {
 		prowl = "active"
@@ -511,19 +484,6 @@ func (c *acpConn) modelsEvent(offered []ModelInfo, current string) AcpEvent {
 	}
 }
 
-func (c *acpConn) modelAllowed(id string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	model := ModelInfo{ID: id}
-	for _, candidate := range c.models {
-		if candidate.ID == id {
-			model = candidate
-			break
-		}
-	}
-	return chatModelRouted(c.agentID, c.prowl.Active, model, c.startedModel)
-}
-
 // reconcileModel keeps a fresh session on the remembered model, and remembers
 // the live model when nothing is stored yet, so every surface and `status`
 // agree on one model that survives restarts.
@@ -531,13 +491,14 @@ func (c *acpConn) reconcileModel(st modelState, method string) {
 	if !st.ok {
 		return
 	}
-	current := st.current
+	c.mu.Lock()
+	models := append([]ModelInfo(nil), c.models...)
+	offered := append([]ModelInfo(nil), c.offeredModels...)
+	active, started := c.prowl.Active, c.startedModel
+	c.mu.Unlock()
+	current := normalizedModelID(st.current, models, offered, active, started)
 	saved := savedSessionModel()
-	if saved != "" && !c.modelAllowed(saved) {
-		_ = os.Remove(modelStatePath())
-		saved = ""
-	}
-	offered := c.offeredModelsSnapshot()
+	saved = normalizedModelID(saved, models, offered, active, started)
 	avail := func(id string) bool {
 		for _, m := range offered {
 			if m.ID == id {
@@ -632,7 +593,7 @@ func (c *acpConn) openSession(method string, params map[string]any) error {
 	c.sessionID = out.SessionID
 	c.startedModel = st.current
 	c.mu.Unlock()
-	c.cacheProwlProfileSets()
+	c.cacheProwlActiveSet(st.models)
 	c.emitModels(st)
 	c.reconcileModel(st, method)
 	return nil
@@ -725,9 +686,6 @@ func stripIdentityPreamble(s string) string {
 // SetModel switches the session's model, through the model config option when
 // the agent exposes one and the legacy session/set_model otherwise.
 func (c *acpConn) SetModel(modelID string) error {
-	if !c.modelAllowed(modelID) {
-		return fmt.Errorf("model %q is not routed through Prowl", modelID)
-	}
 	c.mu.Lock()
 	sid, option := c.sessionID, c.modelOption
 	c.mu.Unlock()

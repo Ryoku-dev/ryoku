@@ -96,3 +96,15 @@ output_path = "~/.config/Sidra/custom.css"
 [templates.ryotunes]
 input_path = "~/.config/matugen/templates/ryotunes.json"
 output_path = "~/.config/ryotunes/skins/matugen/skin.json"
+
+# The active Starship layout remains user-selected. Matugen owns only this
+# palette sibling, then asks the Hub backend to refresh the composed config.
+[templates.starship]
+input_path = "~/.config/matugen/templates/starship-colors.toml"
+output_path = "~/.config/starship/ryoku-colors.toml"
+post_hook = "ryoku-hub starship refresh"
+
+# Fastfetch's wrapper merges this palette over the user-owned config at launch.
+[templates.fastfetch]
+input_path = "~/.config/matugen/templates/fastfetch-colors.json"
+output_path = "~/.config/fastfetch/ryoku-colors.json"

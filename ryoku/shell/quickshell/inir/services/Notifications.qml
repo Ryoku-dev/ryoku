@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import inir.services
 import inir.modules.common
 import shell.services as Ryoku
 
@@ -31,7 +32,9 @@ Singleton {
         return {
             notificationId: n.id,
             notification: n,
-            actions: (n.actions ?? []).map(a => ({ identifier: a.identifier ?? a, text: a.text ?? String(a) })),
+            actions: (n.actions ?? []).map(a => ({ identifier: a.identifier ?? a,
+                text: String(a.text ?? "").trim().length === 0 && String(a.identifier ?? a) === "default"
+                    ? Translation.tr("Open") : (a.text ?? String(a)) })),
             popup: popup === true,
             isTransient: true,
             appIcon: n.appIcon ?? "",

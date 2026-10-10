@@ -802,21 +802,77 @@ Scope {
                     const top = Number(work.top ?? 0)
                     const right = Number(work.right ?? outputWidth)
                     const bottom = Number(work.bottom ?? outputHeight)
+                    const leaving = ({})
+                    const remembered = ({})
+                    const restored = ({})
+                    for (const item of widgets) {
+                        const spot = geometryChanged
+                            ? DesktopWidgetLayout.rememberedPosition(
+                                outputName, item.configEntryName, outputWidth, outputHeight) : null
+                        remembered[item.configEntryName] = spot
+                        if (spot?.x !== undefined) {
+                            // Kept where it was arranged on this size, held only by the output's edges: the
+                            // work area can be narrower than where it was placed (over the Dock's band), and
+                            // clamping to it moved a widget on the way back.
+                            restored[item.configEntryName] = {
+                                x: Math.round(Math.max(0, Math.min(Math.max(0, outputWidth - item.width), spot.x))),
+                                y: Math.round(Math.max(0, Math.min(Math.max(0, outputHeight - item.height), spot.y)))
+                            }
+                            placed.push({ x: restored[item.configEntryName].x,
+                                y: restored[item.configEntryName].y, width: item.width, height: item.height })
+                        }
+                    }
+                    for (const item of widgets) {
+                        const was = String(item.placementStrategy ?? "free")
+                        leaving[item.configEntryName] = { placementStrategy: was }
+                        if (was === "free") {
+                            leaving[item.configEntryName].x = Number(DesktopWidgetLayout.value(
+                                outputName, item.configEntryName, "x", item.x))
+                            leaving[item.configEntryName].y = Number(DesktopWidgetLayout.value(
+                                outputName, item.configEntryName, "y", item.y))
+                        }
+                    }
 
                     for (const item of ordered) {
                         const strategy = String(item.placementStrategy ?? "free")
                         const maxX = Math.max(left, right - item.width)
                         const maxY = Math.max(top, bottom - item.height)
-                        const desiredX = Math.max(left, Math.min(maxX, Number(item.x) || 0))
-                        const desiredY = Math.max(top, Math.min(maxY, Number(item.y) || 0))
                         const localX = DesktopWidgetLayout.hasValue(
                             outputName, item.configEntryName, "x")
                         const localY = DesktopWidgetLayout.hasValue(
                             outputName, item.configEntryName, "y")
-                        const needsLocal = strategy === "free"
+                        const spot = remembered[item.configEntryName]
+                        const target = spot?.placementStrategy ?? strategy
+                        if (target !== "free" && target !== strategy) {
+                            updates[item.configEntryName] = { placementStrategy: target }
+                            placed.push({ x: item.x, y: item.y, width: item.width, height: item.height })
+                            continue
+                        }
+                        let wantX = Number(item.x) || 0
+                        let wantY = Number(item.y) || 0
+                        if (geometryChanged && target === "free" && localX && localY) {
+                            const storedX = Number(DesktopWidgetLayout.value(
+                                outputName, item.configEntryName, "x", wantX))
+                            const storedY = Number(DesktopWidgetLayout.value(
+                                outputName, item.configEntryName, "y", wantY))
+                            if (spot?.x !== undefined) {
+                                wantX = spot.x
+                                wantY = spot.y
+                            } else if (previousGeometry && Number.isFinite(storedX)
+                                    && Number.isFinite(storedY)) {
+                                wantX = (storedX + item.width / 2) / previousGeometry.width
+                                    * outputWidth - item.width / 2
+                                wantY = (storedY + item.height / 2) / previousGeometry.height
+                                    * outputHeight - item.height / 2
+                            }
+                        }
+                        const desiredX = Math.max(left, Math.min(maxX, wantX))
+                        const desiredY = Math.max(top, Math.min(maxY, wantY))
+                        const needsLocal = target === "free"
                             && (geometryChanged || !localX || !localY)
-                        let position = { x: Math.round(desiredX), y: Math.round(desiredY) }
-                        const collides = !widgetCanvas._positionIsFree(
+                        let position = restored[item.configEntryName]
+                            ?? { x: Math.round(desiredX), y: Math.round(desiredY) }
+                        const collides = !restored[item.configEntryName] && !widgetCanvas._positionIsFree(
                             position.x, position.y, item.width, item.height, placed, 14)
                         if (collides && (!item.locked || DesktopWidgetStacks.isSplit(item.configEntryName)))
                             position = widgetCanvas._nearestFreePosition(
@@ -831,17 +887,18 @@ Scope {
                                 placementStrategy: "free"
                             }
                         }
-                        placed.push({
-                            x: position.x,
-                            y: position.y,
-                            width: item.width,
-                            height: item.height
-                        })
+                        if (!restored[item.configEntryName])
+                            placed.push({
+                                x: position.x,
+                                y: position.y,
+                                width: item.width,
+                                height: item.height
+                            })
                     }
 
                     widgetCanvas._outputLayoutAttempts = 0
                     DesktopWidgetLayout.initializeOutputLayout(
-                        outputName, outputWidth, outputHeight, updates)
+                        outputName, outputWidth, outputHeight, updates, geometryChanged ? leaving : null)
                     DesktopWidgetStacks.clearSplits()
                 }
 
