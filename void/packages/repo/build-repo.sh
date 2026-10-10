@@ -22,7 +22,7 @@ log() { printf '\033[1;35m::\033[0m %s\n' "$*"; }
 die() { printf 'build-repo.sh: error: %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -ne 0 ]] || die "xbps-src builds must run as a non-root user"
-for command in cmp git tar sha256sum xbps-rindex; do
+for command in cmp git tar zstd sha256sum xbps-rindex; do
 	command -v "$command" >/dev/null 2>&1 || die "required command not found: $command"
 done
 [[ -d $SRCPKGS ]] || die "template directory not found: $SRCPKGS"

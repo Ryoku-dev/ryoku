@@ -104,7 +104,7 @@ fi
 
 # The official image needs bash installed before the build script takes over.
 inner='
-	xbps-install -y sudo git openssh
+	xbps-install -y sudo git openssh zstd
 	getent group xbuilder >/dev/null || groupadd xbuilder
 	id builder >/dev/null 2>&1 || useradd -m -G xbuilder builder
 	chown -R builder:builder /work /out
