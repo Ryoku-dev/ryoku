@@ -24,8 +24,10 @@ printf 'repository=%s\n' "$REPO" > /etc/xbps.d/20-ryoku.conf
 # current official indexes.
 xbps-install -Syu xbps || xbps-install -yu xbps
 log "Installing ryoku-desktop from the freshly built repository"
-# The base must pull its only compositor variant through the virtual.
-xbps-install -Sy -y ryoku-desktop
+# The base must pull its only compositor variant through the virtual. The bare
+# CI image lacks the tools this check itself uses: useradd (shadow), su
+# (util-linux), find (findutils), awk and sort (gawk, coreutils).
+xbps-install -Sy -y ryoku-desktop shadow util-linux findutils gawk coreutils
 
 xbps-query -p pkgver ryoku-desktop-niri >/dev/null \
 	|| die "ryoku-desktop-niri is not registered as installed"

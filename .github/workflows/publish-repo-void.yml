@@ -149,7 +149,7 @@ jobs:
             -e RYOKU_XBPS_REPO=/repo \
             -e RYOKU_XBPS_KEYRING_DIR=/keys \
             ghcr.io/void-linux/void-glibc \
-            bash /workspace/installation/tests/container-install-void.sh
+            sh -c 'xbps-install -Syu xbps && xbps-install -Sy bash && exec bash /workspace/installation/tests/container-install-void.sh'
 
   publish:
     name: Publish signed XBPS repository
