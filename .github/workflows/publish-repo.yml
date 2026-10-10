@@ -425,6 +425,28 @@ jobs:
             verify "Ryoku:$R2_BUCKET/x86_64"
           fi
 
+      - name: Freeze the testing build and update its ledger
+        if: needs.build.outputs.channel == 'testing'
+        env:
+          REMOTE: Ryoku:${{ secrets.R2_BUCKET }}
+          RELEASE: ${{ needs.build.outputs.release }}
+        run: |
+          set -euo pipefail
+          src="$GITHUB_WORKSPACE/release/repo/out/x86_64"
+          [[ -s $src/release.json ]] || { echo "::error::Tested repository has no release.json"; exit 1; }
+          directory=${RELEASE//+/_}
+          frozen="$REMOTE/channels/testing/builds/$directory/x86_64"
+
+          # release.json is the completion marker consumed by the ledger.
+          rclone sync "$src" "$frozen/" --exclude 'release.json' -P
+          rclone copyto "$src/release.json" "$frozen/release.json" -P
+          rclone check "$src" "$frozen/"
+
+          ./bin/ryoku-release-ledger "$REMOTE" arch testing \
+            | jq -e --arg release "$RELEASE" '.latest == $release' >/dev/null \
+            || { echo "::error::channels/testing/index.json does not list $RELEASE as latest"; exit 1; }
+          echo "::notice::Frozen testing build $RELEASE and updated channels/testing/index.json"
+
       - name: Record the release in the ledger
         if: needs.build.outputs.channel == 'stable'
         env:

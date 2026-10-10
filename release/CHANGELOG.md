@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- **Unstable repositories keep frozen build history.** Arch and Void testing
+  publishes now record immutable builds in ledgers for rollback and pinning.
 - **Void ships `limine-snapper-sync`.** The signed XBPS package builds the
   native tool offline and runs its snapshot watcher under runit.
 - **Ryoku packages now share one payload across pacman and XBPS.** Monorepo

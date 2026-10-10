@@ -1,38 +1,52 @@
 #!/usr/bin/env bash
-# ryoku-release-ledger: rebuild one edition's releases/index.json.
+# ryoku-release-ledger: rebuild one edition's stable or testing ledger.
 #
-# The ledger is derived, never edited: every <prefix>releases/<tag>/x86_64/release.json
-# in the bucket is one entry (tag, name, version, commit, date, repo, plus the
-# ISO images published for that release), newest first by date, and `latest` is
-# the newest. Publish workflows run this after a release lands and
+# Stable ledgers are derived from <prefix>releases/<tag>/x86_64/release.json
+# and include matching ISO images. Testing ledgers are derived from
+# <prefix>channels/testing/builds/<dir>/x86_64/release.json and never include
+# images. Both are newest first by date, and `latest` is the newest release.
+#
+# Publish workflows run this after a frozen repository lands and
 # release-ledger.yml runs it on demand, so a ledger that was lost, truncated, or
 # written by an older publish heals on the next run. The Hub's Updates page,
 # `ryoku rollback` (the list it offers) and the site read it.
 #
-# The `images` map keys each release to the ISOs a reinstall or a rollback would
-# fetch. Arch carries plain and cachyos; Void carries void. bin/ryoku-iso-manifest
-# writes the per-ISO manifests at the bucket root carrying `installer_ref` (the
-# release tag on a release build, `main` otherwise) and `variant`, which is
-# exactly the (release, variant) key the images map needs; a `main` manifest
-# matches no release directory and is left out.
+# The stable `images` map keys each release to the ISOs a reinstall or a rollback
+# would fetch. Arch carries plain and cachyos; Void carries void.
 #
-# usage: ryoku-release-ledger <rclone remote:bucket> [arch|void]
+# usage: ryoku-release-ledger <rclone remote:bucket> [arch|void] [stable|testing]
 # needs: rclone (configured, see bin/ryoku-r2-config), jq
 set -euo pipefail
-remote=${1:?usage: ryoku-release-ledger <rclone remote:bucket> [arch|void]}
+remote=${1:?usage: ryoku-release-ledger <rclone remote:bucket> [arch|void] [stable|testing]}
 edition=${2:-arch}
+channel=${3:-stable}
 
 case "$edition" in
   arch)
-    release_root=releases
+    edition_prefix=
     variants=plain,cachyos
     ;;
   void)
-    release_root=void/releases
+    edition_prefix=void/
     variants=void
     ;;
   *)
     echo "ryoku-release-ledger: edition must be arch or void, got: $edition" >&2
+    exit 2
+    ;;
+esac
+
+case "$channel" in
+  stable)
+    release_root="${edition_prefix}releases"
+    ledger_root=$release_root
+    ;;
+  testing)
+    release_root="${edition_prefix}channels/testing/builds"
+    ledger_root="${edition_prefix}channels/testing"
+    ;;
+  *)
+    echo "ryoku-release-ledger: channel must be stable or testing, got: $channel" >&2
     exit 2
     ;;
 esac
@@ -108,22 +122,42 @@ collect_iso_images() {
   ' "$tmp/manifests.ndjson"
 }
 
-mapfile -t tags < <(rclone lsf "$remote/$release_root/" --dirs-only 2>/dev/null | sed 's|/$||' | grep -E '^v[0-9]' || true)
+if [[ $channel == stable ]]; then
+  mapfile -t directories < <(
+    rclone lsf "$remote/$release_root/" --dirs-only 2>/dev/null \
+      | sed 's|/$||' | grep -E '^v[0-9]' || true
+  )
+else
+  mapfile -t directories < <(
+    rclone lsf "$remote/$release_root/" --dirs-only 2>/dev/null \
+      | sed 's|/$||' | grep -v '^$' || true
+  )
+fi
 entries=()
-for tag in "${tags[@]}"; do
-  if ! rclone cat "$remote/$release_root/$tag/x86_64/release.json" > "$tmp/$tag.json" 2>/dev/null || [[ ! -s "$tmp/$tag.json" ]]; then
-    echo "ryoku-release-ledger: $tag has no release.json; skipped" >&2
+for directory in "${directories[@]}"; do
+  metadata="$tmp/$directory.json"
+  if ! rclone cat "$remote/$release_root/$directory/x86_64/release.json" > "$metadata" 2>/dev/null || [[ ! -s "$metadata" ]]; then
+    echo "ryoku-release-ledger: $directory has no release.json; skipped" >&2
     continue
   fi
-  entries+=("$(jq -c --arg tag "$tag" --arg repo "$release_root/$tag/x86_64" \
-    '{tag: $tag, name: (.name // ""), version: .version, commit: .commit, date: .date, repo: $repo}' "$tmp/$tag.json")")
+  if [[ $channel == testing ]]; then
+    if ! tag=$(jq -er '.release | select(type == "string" and length > 0)' "$metadata"); then
+      echo "ryoku-release-ledger: $directory has no release name; skipped" >&2
+      continue
+    fi
+  else
+    tag=$directory
+  fi
+  entries+=("$(jq -c --arg tag "$tag" --arg repo "$release_root/$directory/x86_64" \
+    '{tag: $tag, name: (.name // ""), version: .version, commit: .commit, date: .date, repo: $repo}' "$metadata")")
 done
 
-collect_iso_images > "$tmp/images.json"
-
+if [[ $channel == stable ]]; then
+  collect_iso_images > "$tmp/images.json"
+fi
 if (( ${#entries[@]} == 0 )); then
   echo '{"schema":1,"latest":"","releases":[]}' > "$tmp/index.json"
-else
+elif [[ $channel == stable ]]; then
   # Attach each release's images map, keyed by its tag. A variant with no ISO
   # simply has no key, and a release with no images at all keeps no images key,
   # so a consumer that ignores images reads byte-identical entries. schema stays
@@ -134,7 +168,11 @@ else
     | map(. + (($img[.tag] // {}) as $m | if ($m | length) > 0 then {images: $m} else {} end))
     | sort_by(.date) | reverse
     | {schema: 1, latest: (.[0].tag // ""), releases: .}' > "$tmp/index.json"
+else
+  printf '%s\n' "${entries[@]}" | jq -s '
+    sort_by(.date) | reverse
+    | {schema: 1, latest: (.[0].tag // ""), releases: .}' > "$tmp/index.json"
 fi
 [[ -s "$tmp/index.json" ]] || { echo "ryoku-release-ledger: produced an empty ledger; refusing to upload" >&2; exit 1; }
-rclone copyto "$tmp/index.json" "$remote/$release_root/index.json" --header-upload "Cache-Control: no-cache, must-revalidate"
+rclone copyto "$tmp/index.json" "$remote/$ledger_root/index.json" --header-upload "Cache-Control: no-cache, must-revalidate"
 cat "$tmp/index.json"

@@ -1,9 +1,9 @@
 name: Release Ledger
 
-# Rebuilds the Arch and Void release ledgers from the release directories the
-# bucket holds, with the same script each publish runs after a release lands.
-# Dispatch it when either ledger is missing or wrong; both are derived, so a
-# rebuild is always safe.
+# Rebuilds the stable and testing ledgers for Arch and Void from the frozen
+# repository directories the bucket holds, with the same script each publish
+# runs after a repository lands. Dispatch it when any ledger is missing or
+# wrong; all four are derived, so a rebuild is always safe.
 
 on:
   workflow_dispatch:
@@ -33,23 +33,28 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
         run: ./bin/ryoku-r2-config
-      - name: Rebuild both ledgers
+      - name: Rebuild all ledgers
         env:
-          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          REMOTE: Ryoku:${{ secrets.R2_BUCKET }}
         run: |
           set -euo pipefail
-          ./bin/ryoku-release-ledger "Ryoku:$R2_BUCKET" arch | tee "$RUNNER_TEMP/index-arch.json"
-          ./bin/ryoku-release-ledger "Ryoku:$R2_BUCKET" void | tee "$RUNNER_TEMP/index-void.json"
+          ./bin/ryoku-release-ledger "$REMOTE" arch stable | tee "$RUNNER_TEMP/index-arch-stable.json"
+          ./bin/ryoku-release-ledger "$REMOTE" arch testing | tee "$RUNNER_TEMP/index-arch-testing.json"
+          ./bin/ryoku-release-ledger "$REMOTE" void stable | tee "$RUNNER_TEMP/index-void-stable.json"
+          ./bin/ryoku-release-ledger "$REMOTE" void testing | tee "$RUNNER_TEMP/index-void-testing.json"
           {
-            echo "### Arch release ledger"
-            echo
-            echo '```json'
-            cat "$RUNNER_TEMP/index-arch.json"
-            echo '```'
-            echo
-            echo "### Void release ledger"
-            echo
-            echo '```json'
-            cat "$RUNNER_TEMP/index-void.json"
-            echo '```'
+            for ledger in \
+              "Arch stable:$RUNNER_TEMP/index-arch-stable.json" \
+              "Arch testing:$RUNNER_TEMP/index-arch-testing.json" \
+              "Void stable:$RUNNER_TEMP/index-void-stable.json" \
+              "Void testing:$RUNNER_TEMP/index-void-testing.json"; do
+              title=${ledger%%:*}
+              file=${ledger#*:}
+              echo "### $title release ledger"
+              echo
+              echo '```json'
+              cat "$file"
+              echo '```'
+              echo
+            done
           } >> "$GITHUB_STEP_SUMMARY"
