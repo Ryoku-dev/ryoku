@@ -1,0 +1,80 @@
+# Template file for 'limine-snapper-sync'
+pkgname=limine-snapper-sync
+version=1.32.1
+revision=1
+archs="x86_64"
+hostmakedepends="mandrel gettext"
+makedepends="zlib-devel"
+depends="bash limine snapper btrfs-progs inotify-tools libnotify util-linux coreutils procps-ng"
+short_desc="Integrates Limine boot entries with Snapper snapshots"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-only"
+homepage="https://gitlab.com/Zesko/limine-snapper-sync"
+distfiles="https://gitlab.com/Zesko/limine-snapper-sync/-/archive/${version}/limine-snapper-sync-${version}.tar.gz
+ https://repo1.maven.org/maven2/tools/jackson/core/jackson-databind/3.2.3/jackson-databind-3.2.3.jar
+ https://repo1.maven.org/maven2/tools/jackson/core/jackson-core/3.2.3/jackson-core-3.2.3.jar
+ https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.22/jackson-annotations-2.22.jar"
+checksum="29bcd51503a0168ca836023efb4cdbd63b6ec4578eb69fb959a33dfa48aa844c
+ 235b72436af983857e44efa42449f4f0a2c571e69d6c5d9dd1253ae7d192dcf2
+ a0c17e7e665a5e95c82f5fb45c0fec2ae3dc556c80f0016452c9c84cd23f3817
+ 21ddb598807d3a51a876704eb979d9296e1c6a6f47ab1826ff88c6d6a127a2d0"
+skip_extraction="jackson-databind-3.2.3.jar jackson-core-3.2.3.jar jackson-annotations-2.22.jar"
+conf_files="/etc/limine-snapper-sync.conf"
+
+# Building directly keeps Maven and Gradle out of the build and the network off.
+do_build() {
+	local distdir="${XBPS_SRCDISTDIR}/${pkgname}-${version}"
+	local java_home=/usr/lib/jvm/mandrel25
+	local classpath="${distdir}/jackson-databind-3.2.3.jar:${distdir}/jackson-core-3.2.3.jar:${distdir}/jackson-annotations-2.22.jar"
+
+	mkdir -p build/classes
+	"${java_home}/bin/javac" -encoding UTF-8 -cp "$classpath" -d build/classes \
+		$(find src/main/java -name '*.java' -type f | LC_ALL=C sort)
+	cp -a src/main/resources/. build/classes/
+
+	"${java_home}/bin/native-image" \
+		--gc=serial \
+		-march=compatibility \
+		-R:MaxHeapSize=128m \
+		-Os \
+		-H:+UnlockExperimentalVMOptions \
+		-H:ReflectionConfigurationFiles="${wrksrc}/src/main/resources/reflect-config.json" \
+		-H:IncludeResourceBundles=messages \
+		-H:IncludeLocales=en,ru \
+		-H:IncludeResources='messages.*\.properties|reflect-config\.json' \
+		--no-fallback \
+		-cp "build/classes:${classpath}" \
+		-o build/limine-snapper-sync \
+		org.limine.snapper.Main
+
+	local po lang
+	for po in po/*.po; do
+		[ -f "$po" ] || continue
+		lang=${po##*/}
+		lang=${lang%.po}
+		mkdir -p "build/locale/${lang}/LC_MESSAGES"
+		msgfmt --check "$po" -o "build/locale/${lang}/LC_MESSAGES/limine-snapper-sync.mo"
+	done
+}
+
+do_install() {
+	vinstall install/arch-linux/etc/limine-snapper-sync.conf 644 etc
+
+	vmkdir etc
+	vcopy install/arch-linux/etc/xdg etc
+	vmkdir usr
+	vcopy install/arch-linux/usr/bin usr
+	vmkdir usr/lib
+	vcopy install/arch-linux/usr/lib/limine usr/lib
+	vcopy install/arch-linux/usr/lib/snapper usr/lib
+	vmkdir usr/share
+	vcopy install/arch-linux/usr/share/applications usr/share
+	vcopy install/arch-linux/usr/share/icons usr/share
+	vcopy build/locale usr/share
+
+	vinstall build/limine-snapper-sync 755 usr/lib/limine
+	vsv limine-snapper-sync
+	vdoc README.md
+	vdoc CHANGELOG.md
+	vlicense LICENSE
+}

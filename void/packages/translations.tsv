@@ -103,8 +103,8 @@ libxcb	libxcb	desktop
 libxkbcommon	libxkbcommon	desktop	
 libyuv	libyuv	desktop	
 limine	limine	system	
-limine-mkinitcpio-hook	-	system	Void uses dracut and has no limine-entry-tool package.
-limine-snapper-sync	-	system	No Void boot-menu snapshot integration package.
+limine-mkinitcpio-hook	-	system	Void uses dracut; Ryoku's kernel hook writes Limine entries.
+limine-snapper-sync	limine-snapper-sync	system	repo=ryoku
 linux	linux	system	
 linux-firmware	linux-firmware	system	
 linux-headers	linux-headers	desktop	
@@ -194,8 +194,8 @@ sddm	sddm	desktop
 shaderc	shaderc	desktop	
 skwd-paper-bin	skwd-paper-bin	desktop	repo=ryoku
 slurp	slurp	desktop	
-snap-pac	-	system	Pacman hook with no XBPS equivalent.
-snapper	-	desktop,system	Ryoku does not set up snapshots on Void.
+snap-pac	-	system	XBPS has no transaction hooks; ryoku update creates snapshots itself.
+snapper	snapper	desktop,system	
 socat	socat	desktop	
 songrec	songrec	desktop	
 spice-gtk	spice-gtk	optional	

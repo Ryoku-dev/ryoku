@@ -10,7 +10,9 @@ maintaining a second desktop list.
   foundation. `sets/build.packages` adds source-build tools.
 - `resolve` selects lanes, drops requested packages, enables required Void
   repositories, and prints a sorted XBPS set.
-- `srcpkgs/` contains the Ryoku package templates.
+- `srcpkgs/` contains the Ryoku package templates. The
+  `limine-snapper-sync` 1.32.1 template builds a native image with Void's
+  Mandrel and installs its runit watcher.
 
 The main lanes are `desktop`, `dev`, `system`, `extra`, `optional`, and the four
 `hardware:*` lanes. The recorded `hyprland` lane is unavailable: Ryoku needs
@@ -69,8 +71,21 @@ workflow.
 `https://repo.ryoku.dev/stable/void/x86_64`. Every `unstable-dev` push publishes
 testing at
 `https://repo.ryoku.dev/stable/void/channels/testing/x86_64`. A `v*` tag creates
-`void/releases/<tag>/x86_64/` and moves the stable repository.
+the frozen `void/releases/<tag>/x86_64/` repository and moves the stable
+repository. Testing builds are not frozen release targets.
 
-`.github/workflows/publish-repo-void.yml` owns that publish flow.
+`.github/workflows/publish-repo-void.yml` owns that publish flow and rebuilds
+`void/releases/index.json` after a tagged publish. The shared ledger tool can
+rebuild it directly:
+
+```sh
+bin/ryoku-release-ledger <rclone-remote> void
+```
+
+`.github/workflows/build-iso-void.yml` refreshes the ledger after a tagged ISO
+upload, while `.github/workflows/release-ledger.yml` rebuilds both the Arch and
+Void ledgers. `RYOKU_RELEASE_BASE` overrides both repository and ledger URL
+bases for tests and mirrors.
+
 `tests/void-packages.sh` checks the translated closure, lane semantics,
 templates, and optional live Void repository resolution.

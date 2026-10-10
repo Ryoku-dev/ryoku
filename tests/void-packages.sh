@@ -180,8 +180,14 @@ NR == 1 {
 		count = split($2, names, /[[:space:]]+/)
 		for (i = 1; i <= count; i++) if (!package_name(names[i])) bad("invalid Void package " names[i])
 	}
-	if ($1 == "snapper" && ($2 != "-" || $4 != "Ryoku does not set up snapshots on Void."))
-		bad("snapper must carry the Void snapshot note")
+	if ($1 == "snapper" && ($2 != "snapper" || $4 != ""))
+		bad("snapper must map to the Void package")
+	if ($1 == "limine-snapper-sync" && ($2 != "limine-snapper-sync" || $4 != "repo=ryoku"))
+		bad("limine-snapper-sync must map to the Ryoku repository")
+	if ($1 == "snap-pac" && ($2 != "-" || $4 != "XBPS has no transaction hooks; ryoku update creates snapshots itself."))
+		bad("snap-pac must explain the XBPS snapshot boundary")
+	if ($1 == "limine-mkinitcpio-hook" && ($2 != "-" || $4 != "Void uses dracut; Ryoku'\''s kernel hook writes Limine entries."))
+		bad("limine-mkinitcpio-hook must explain the dracut path")
 }
 END { exit failed ? 1 : 0 }
 ' "$TABLE" || fail "translation table is malformed"
@@ -253,6 +259,14 @@ for template in "$SRCPKGS"/*/template; do
 			if [[ $expected_dep == ryoku-desktop && $template_provides == *ryoku-desktop-compositor-* ]]; then
 				continue
 			fi
+			# Void installs the snapshot stack from the system lane.
+			if [[ $template_pkg == ryoku && $expected_dep == snapper ]]; then
+				continue
+			fi
+			# Desktop notifications are optional; the service is headless.
+			if [[ $template_pkg == limine-snapper-sync && $expected_dep == libnotify ]]; then
+				continue
+			fi
 			[[ -n ${template_depends[$expected_dep]:-} ]] \
 				|| fail "$template_pkg template misses translated dependency $expected_dep (from $arch_dep)"
 		done
@@ -288,7 +302,10 @@ grep -qxF fish-shell <<< "$desktop" || fail "desktop lane did not translate fish
 grep -qxF ryoku <<< "$desktop" || fail "desktop lane omitted an @repo package"
 grep -qxF prowl <<< "$desktop" || fail "desktop lane omitted a repo=ryoku package"
 ! grep -qxF gpk <<< "$desktop" || fail "desktop lane included the pacman-only gpk frontend"
-! grep -qxF snapper <<< "$desktop" || fail "desktop lane included unsupported snapshot tooling"
+grep -qxF snapper <<< "$desktop" || fail "desktop lane omitted snapper"
+system=$(check_resolve_output --lane system)
+grep -qxF snapper <<< "$system" || fail "system lane omitted snapper"
+grep -qxF limine-snapper-sync <<< "$system" || fail "system lane omitted limine-snapper-sync"
 amd=$(check_resolve_output --lane hardware:amd)
 grep -qxF void-repo-multilib <<< "$amd" || fail "AMD 32-bit packages did not enable Void multilib"
 ! grep -q '^void-repo-.*nonfree$' <<< "$amd" || fail "AMD lane enabled an unnecessary nonfree repository"
