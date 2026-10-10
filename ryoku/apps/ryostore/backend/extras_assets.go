@@ -370,17 +370,54 @@ func removePlugin(id string) error {
 	return os.RemoveAll(dir)
 }
 
-// ensureInstaller pulls a fresh copy of installers/<name>.sh into the cache and
+// ensureInstaller pulls a fresh copy of a script installer into the cache and
 // returns its path, falling back to the cached copy when the source is offline.
+// A bundle publishes its installer under its own directory
+// (bundles/<id>/installers/<name>.sh, as its bundle.json declares); the
+// catalogue root (installers/<name>.sh) remains only for legacy entries, so
+// resolve through the owning bundle's registry entry first and fall back to
+// the root.
 func ensureInstaller(name string) (string, error) {
 	if !validComponent(name) {
 		return "", fmt.Errorf("invalid installer name %q", name)
 	}
-	rel := "installers/" + name + ".sh"
-	if _, _, err := newCache().Fetch(context.Background(), rel, true); err != nil {
-		return "", fmt.Errorf("installer %q not found in the catalogue: %w", name, err)
+	cache := newCache()
+	rels := []string{}
+	if raw, _, err := cache.Fetch(context.Background(), "bundles/registry.json", false); err == nil {
+		var reg registry
+		if err := json.Unmarshal(raw, &reg); err == nil {
+			for _, entry := range reg.Bundles {
+				declares := false
+				for _, comp := range entry.Components {
+					if comp.Type == "script" && comp.Name == name {
+						declares = true
+						break
+					}
+				}
+				if !declares {
+					continue
+				}
+				bundlePath := entry.Path
+				if bundlePath == "" {
+					bundlePath = "bundles/" + entry.ID
+				}
+				if validLocalPath(bundlePath) {
+					rels = append(rels, bundlePath+"/installers/"+name+".sh")
+					break
+				}
+			}
+		}
 	}
-	return filepath.Join(extrasCacheDir(), rel), nil
+	rels = append(rels, "installers/"+name+".sh")
+	var lastErr error
+	for _, rel := range rels {
+		if _, _, err := cache.Fetch(context.Background(), rel, true); err != nil {
+			lastErr = err
+			continue
+		}
+		return filepath.Join(extrasCacheDir(), rel), nil
+	}
+	return "", fmt.Errorf("installer %q not found in the catalogue: %w", name, lastErr)
 }
 
 // ensureBundleManifest pulls the selected bundle's bundle.json into the cache on

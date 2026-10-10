@@ -208,6 +208,12 @@
   `hub/quickshell/schema/DesktopScenePage.js`, `shell/ipc/control.go`).
 
 ### Fixed
+- **Ryostore finds script installers published under their bundle.** Bundles
+  that ship their installer at `bundles/<id>/installers/<name>.sh` (Ryoku for
+  Zed, The Influencer) failed to install with "the installer exited with an
+  error" because the store only looked in the catalogue root; the owning
+  bundle's directory is checked first now, with the root kept as the legacy
+  fallback (`apps/ryostore/backend/extras_assets.go`).
 - **The Prowl pages fit their window.** Overview's traffic and live-route cards
   span the page again instead of squeezing into half of it, where numbers ran
   past the card edge and left a tall empty card. Activity stacks its platform

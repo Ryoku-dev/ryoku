@@ -210,6 +210,50 @@ func TestEnsureInstaller(t *testing.T) {
 	}
 }
 
+// TestEnsureInstallerResolvesBundlePath proves an installer published under
+// its bundle's directory (the layout bundle.json declares) is found there,
+// while a legacy root-only installer still resolves through the fallback.
+func TestEnsureInstallerResolvesBundlePath(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	const reg = `{"version":1,"bundles":[{"id":"zedish","name":"Zedish","description":"d","path":"bundles/zedish","components":[
+		{"type":"script","name":"zed-theme","detect":"zed-theme","tier":"core","interactive":false,"summary":"theme"},
+		{"type":"script","name":"legacy-cli","detect":"legacy-cli","tier":"core","interactive":false,"summary":"cli"}]}]}`
+	const script = "#!/bin/sh\necho themed\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/bundles/registry.json":
+			_, _ = w.Write([]byte(reg))
+		case "/bundles/zedish/installers/zed-theme.sh":
+			_, _ = w.Write([]byte(script))
+		case "/installers/legacy-cli.sh":
+			_, _ = w.Write([]byte(script))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("RYOKU_EXTRAS_BASE", srv.URL)
+
+	p, err := ensureInstaller("zed-theme")
+	if err != nil {
+		t.Fatalf("ensureInstaller: %v", err)
+	}
+	if want := filepath.Join(extrasCacheDir(), "bundles", "zedish", "installers", "zed-theme.sh"); p != want {
+		t.Fatalf("path = %q, want %q", p, want)
+	}
+	if b, err := os.ReadFile(p); err != nil || string(b) != script {
+		t.Fatalf("cached installer = %q, %v; want the bundle copy", b, err)
+	}
+
+	p, err = ensureInstaller("legacy-cli")
+	if err != nil {
+		t.Fatalf("legacy ensureInstaller: %v", err)
+	}
+	if want := filepath.Join(extrasCacheDir(), "installers", "legacy-cli.sh"); p != want {
+		t.Fatalf("legacy path = %q, want %q", p, want)
+	}
+}
+
 // TestEnsureNautilusPack proves a pack's scripts install executable under their
 // subdir, a tracking manifest records them, and removal clears the subdir.
 func TestEnsureNautilusPack(t *testing.T) {
