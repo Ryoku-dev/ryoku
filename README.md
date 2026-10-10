@@ -149,9 +149,8 @@ editor, and toolchains, is the rest of the budget: 8 GB is a sensible floor for
 daily use, and 16 GB is comfortable once the language toolchains are in. The
 32 GB figure is the installer's hard floor. The base plus developer and desktop
 package closure is about 13 to 15 GB, and the root filesystem needs 20 GB
-before swap. On Arch and CachyOS, that also leaves room for Btrfs snapshots and
-AUR builds. Use an SSD; package builds and the shell itself both feel a slow
-disk.
+before swap. That leaves room for Btrfs snapshots and, on Arch and CachyOS, AUR
+builds. Use an SSD; package builds and the shell itself both feel a slow disk.
 
 ### Graphics
 
@@ -189,8 +188,8 @@ CachyOS, or Void glibc box converts in place with the **shell installer**.
 Signed ISO builds are published at **[ryoku.dev](https://ryoku.dev)**. Choose
 the edition, download its image, signature, and checksums, write it to a USB
 stick, and boot it. The guided installer partitions the disk, installs the base
-system and Ryoku desktop from the signed repository, and sets up Limine. Arch
-and CachyOS installs also configure Btrfs snapshots.
+system and Ryoku desktop from the signed repository, sets up Limine, and
+configures Btrfs snapshots unless you turn them off.
 
 Releases are signed with:
 
@@ -237,7 +236,6 @@ before changing the machine:
 | Limit | Why |
 |---|---|
 | niri only | Ryoku needs Hyprland 0.55+, which requires GCC 15 and C++26; Void currently ships GCC 14. |
-| No snapshots or boot-menu rollback | Ryoku's snapper and `limine-snapper-sync` update stack is tied to pacman. |
 | No Zen Browser, LocalSend, or Voxtype | They are available only from the AUR. Dictation is disabled because it uses Voxtype. |
 | No asusctl | Its service has no faithful runit shutdown integration yet. |
 | No Ryotunes or several small extras | They are not packaged for Void yet. |
@@ -248,7 +246,14 @@ Packages come from Ryoku's signed XBPS repository. Stable releases use
 the testing channel at
 `https://repo.ryoku.dev/stable/void/channels/testing/x86_64`. `ryoku update`
 updates the Ryoku set, and `ryoku update --system` updates the Void base as
-well. Build details are under [`void/`](void/README.md).
+well. On snapshot-enabled installs, both commands take a snapper pre/post pair.
+Use `--system` rather than a plain `xbps-install -Su` when you want the base
+update covered by snapshots, because XBPS has no transaction hooks.
+
+The shell installer does not provision a bootloader or snapshot layout. A
+converted machine keeps its existing stack; snapshot restore works when it
+already has a btrfs root and snapper set up. Build details are under
+[`void/`](void/README.md).
 
 > [!WARNING]
 > The shell installer is young and still being tested across different hardware,
@@ -273,16 +278,18 @@ place as a fallback, so you keep the choice of what to boot. Full details in
 Ryoku updates its own layer, and leaves the rest of the system to you:
 
 ```bash
-ryoku update             # Ryoku packages, configs, and doctor
-sudo pacman -Syu         # Arch or CachyOS base system and kernel
-sudo xbps-install -Syu   # Void base system and kernel
+ryoku update                 # Ryoku packages, configs, and doctor
+sudo pacman -Syu             # Arch or CachyOS base system and kernel
+ryoku update --system        # Ryoku and Void base system in one snapshot pair
 ```
 
-On Arch and CachyOS, `ryoku update` takes a snapshot, moves the packages the
-signed `[ryoku]` repo serves (by name, never a full sysupgrade), re-lays the
-desktop configs into your home, reloads the shell, and takes a paired
-post-snapshot. A failed package step aborts before anything else changes. Void
-runs the same update stages without snapshots, using its signed XBPS repository.
+On an ISO install, `ryoku update` takes a snapper pre/post pair, moves the
+packages the signed Ryoku repository serves, re-lays the desktop configs into
+your home, and reloads the shell. A failed package step aborts before anything
+else changes. On Void, XBPS has no equivalent to Arch's snap-pac hooks, so a
+plain `xbps-install -Su` is not snapshotted. Use `ryoku update --system` when
+moving the Void base system or kernel to keep the update inside the same safety
+net.
 
 The base system and kernel are deliberately not part of the default command;
 the distribution's native update moves them when you say so. Every
@@ -297,11 +304,15 @@ Your settings survive every update. The base configs are Ryoku-owned and
 refreshed in place, while your own edits live in override files that are never
 shipped or touched (your compositor's user override, `kitty/user.conf`,
 `fish/user.fish`); they load last, so your changes win. There is no ordered
-migration ledger: the config
-is reconciled to the shipped state on every update, and the rare stateful fix
-(disk layout and the like) is an idempotent `ryoku doctor` reconciler that runs
-inside `ryoku update`. On Arch and CachyOS, run `ryoku rollback` or pick the
-previous snapshot from the Limine boot menu. Void does not offer either path.
+migration ledger: the config is reconciled to the shipped state on every
+update, and the rare stateful fix (disk layout and the like) is an idempotent
+`ryoku doctor` reconciler that runs inside `ryoku update`.
+
+`ryoku rollback` lists frozen tagged releases and moves the Ryoku package set
+back without moving the distribution base or kernel. For a whole-system
+restore, reboot and choose **Ryoku Linux -> Snapshots** in Limine, run
+`sudo limine-snapper-restore`, then reboot again. The testing channel is not a
+frozen release and has no release target to roll back to.
 
 ## Recovery
 

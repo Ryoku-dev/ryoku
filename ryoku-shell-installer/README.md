@@ -9,9 +9,13 @@ supplies the runtime and build dependencies, and the installer fetches the
 pinned fonts and cursor theme its archive does not carry.
 
 The Void edition is niri-only because Hyprland needs GCC 15 and Void ships GCC
-14. It has no snapshots or boot-menu rollback, and does not provide Zen
-Browser, LocalSend, Voxtype or asusctl. The installer shows these limits in the
-plan before it changes the machine.
+14. Zen Browser, LocalSend, Voxtype, asusctl, Ryotunes, and a few small extras
+are not available. A conversion keeps the machine's existing bootloader and
+snapshot stack; the shell installer provisions neither. Snapshot rollback works
+when the existing root is btrfs with snapper set up, and `ryoku doctor`
+converges the snapper config the same way it does on Arch. XBPS has no
+transaction hooks, so use `ryoku update --system` for base updates to keep the
+snapshot safety net.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash

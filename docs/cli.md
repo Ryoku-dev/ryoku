@@ -10,9 +10,9 @@ explains what each command does, where it is meant to run, and who runs it.
 Every command behaves with respect to one of two ways Ryoku can exist on a
 machine. Most confusion about the CLI comes from mixing them up.
 
-- **A packaged install** the normal case. The desktop is installed from the
-  `[ryoku]` pacman repo; `ryoku-desktop` ships the base config under
-  `/usr/share/ryoku/config`, and there is no git checkout and no build toolchain.
+- **A packaged install** the normal case. The desktop is installed from Ryoku's
+  signed repository with pacman or XBPS; `ryoku-desktop` ships the base config
+  under `/usr/share/ryoku/config`, and there is no git checkout or build toolchain.
 - **A dev checkout** a clone of this repo on a maintainer's machine. There is no
   `/usr/share/ryoku/config`; the desktop is laid down from the checkout by
   `ryoku/shell/deploy.sh` (via `ryoku deploy`). The deploy records the checkout
@@ -20,8 +20,9 @@ machine. Most confusion about the CLI comes from mixing them up.
   the deployed `ryoku` binary later finds the repo again.
 
 `ryoku update` auto-detects which world it is in (a recorded checkout means the
-git path, otherwise the pacman path), so the same command is correct on both. A
-few commands belong to only one world; that is called out per command below.
+git path, otherwise the host package-manager path), so the same command is
+correct on both. A few commands belong to only one world; that is called out per
+command below.
 
 ## At a glance
 
@@ -45,23 +46,24 @@ These are user-facing and work on any install.
 
 ### `ryoku update`
 
-On pacman hosts, the full safe update is wrapped in a best-effort snapper
-pre/post pair: an unconfigured snapper never blocks the update, but a failed
-step aborts before anything else changes. On hosts without the snapshot stack,
-the snapshot step prints one warning and the update continues without invoking
-snapper. What the update runs next depends on the world:
+On btrfs Ryoku hosts, including Arch/CachyOS and Void, the full safe update is
+wrapped in a best-effort snapper pre/post pair: an unconfigured snapper never
+blocks the update, but a failed step aborts before anything else changes. On
+hosts without the snapshot stack, the snapshot step prints one warning and the
+update continues without invoking snapper. What the update runs next depends on
+the world:
 
 - **Dev checkout:** updates through the git channel. It fetches the channel
   branch (`main` for everyone), fast-forwards the checkout when it is sitting
   cleanly on that branch, and redeploys with `deploy.sh`. A feature branch or a
   dirty tree is left to git only the redeploy runs.
-- **Packaged install:** the packages the `[ryoku]` repo serves, by name
-  (`pacman -Sy`, then `pacman -S --needed ryoku/<pkg>...`), then
-  `ryoku materialize`, then a shell reload. It is not a sysupgrade: the base
-  system and its kernel come from Arch or CachyOS, and `sudo pacman -Syu` is
-  what moves them. The run reports how many packages that lane is holding, and
-  `ryoku update --system` runs it too (the full `pacman -Syu`, `yay -Sua`, and
-  `flatpak update`) for a box that wants one command.
+- **Packaged install:** the packages the signed Ryoku repository serves, by
+  name. Pacman hosts move only the Ryoku set and leave Arch or CachyOS system
+  updates to `sudo pacman -Syu`. Void moves the same set transactionally with
+  `xbps-install -Sfy`; `sudo xbps-install -Syu` remains the separate system
+  lane. Because XBPS has no snapshot hooks, use `ryoku update --system` when
+  that lane should be included in Ryoku's snapshot pair. The run reports how
+  many packages the system lane is holding.
 
 On a terminal the run is a curated console: a header, one line per step with
 its time and anything it found, a live line for the step in flight, a progress
@@ -92,9 +94,9 @@ gone.
 
 A read-only report. It always prints the active config base. On a checkout it
 shows the channel, the deployed commit (`installed`), and how many commits behind
-the channel you are; on a packaged install it shows the installed `ryoku-desktop`
-version, what the `[ryoku]` repo offers, and the count of pending package
-updates (via `checkupdates` from `pacman-contrib`), listed as `system:` because
+the channel you are; on a packaged install it shows the installed
+`ryoku-desktop` version, what the signed repository offers, and the count of
+pending distribution packages. Those are listed as `system:` because plain
 `ryoku update` does not take them. It ends with the snapshot count.
 
 `--json` is the data seam the Hub and the update island read; it is not meant for
@@ -102,17 +104,26 @@ humans.
 
 ### `ryoku rollback [id]`
 
-With no arguments, this lists published Ryoku releases and, when the host
-provides them, snapshots. `ryoku rollback --to <tag>` moves the Ryoku package
-set to a published release without a reboot. `ryoku rollback <id>` guides a
-whole-system snapshot restore from the boot menu.
+With no arguments, this lists published tagged releases and local snapshots on
+both pacman and XBPS installs. Void reads its release list from
+`https://repo.ryoku.dev/stable/void/releases/index.json`.
+`ryoku rollback --to <tag>` moves the Ryoku package set to that frozen signed
+release without a reboot; `ryoku track <tag>` is the equivalent pin. XBPS uses
+one forced transaction for the move. The distribution base and kernel do not
+move. Testing builds from `unstable-dev` are not tagged releases, so there is no
+frozen testing release to roll back to.
 
-Ryoku boots the `@` subvolume directly (`rootflags=subvol=@`), a layout
-`snapper rollback` cannot restore because it flips the btrfs default subvolume,
-which a pinned `subvol=` ignores. The restore therefore runs from the boot
-menu: reboot, boot the snapshot under the Limine Snapshots menu, and run `sudo
-limine-snapper-restore` there. It copies the booted snapshot and its matching
-kernels on the ESP back onto `@`.
+After a tagged release change, the boot guard watches the next boots on both
+package-manager lanes. Two boots without a healthy desktop move the Ryoku set
+back to the previous frozen release; a third failure makes the pre-update
+snapshot the default Limine entry. Void runs the guard through the
+`ryoku-boot-guard` runit service.
+
+`ryoku rollback <id>` explains the whole-system restore path. Ryoku boots the
+`@` subvolume directly (`rootflags=subvol=@`), a layout `snapper rollback`
+cannot restore because it flips the btrfs default subvolume, which a pinned
+`subvol=` ignores. Reboot, choose **Ryoku Linux -> Snapshots -> <id>** in
+Limine, run `sudo limine-snapper-restore`, then reboot into the restored system.
 
 On a host without Ryoku's snapshot stack, bare `rollback` still lists releases
 and explains that snapshots are unavailable. Supplying a snapshot id returns
@@ -120,9 +131,9 @@ that explanation as an error without invoking snapper.
 
 ### `ryoku snapshots`
 
-List the snapper snapshots on supported pacman hosts. On hosts without the
-snapshot stack, the command prints the same availability reason and exits with
-an error without invoking snapper.
+List the root snapper snapshots on supported pacman and XBPS hosts. On hosts
+without the snapshot stack, the command prints the same availability reason
+and exits with an error without invoking snapper.
 
 ### `ryoku reload`
 

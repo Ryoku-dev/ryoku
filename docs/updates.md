@@ -23,19 +23,20 @@ ryoku/<pkg>...`) and never runs a system upgrade. The reasons are the design:
   when your box changes kernel, rebuilds its DKMS modules, or rewrites its boot
   image.
 - **A release has to be reversible.** `ryoku rollback` puts the Ryoku set back;
-  it cannot put Arch back. An update that moved both was never fully
-  reversible.
+  it does not put the Arch, CachyOS, or Void base back. Snapshots cover that
+  layer. An update that moved both was never fully reversible as a release.
 - **The lanes fail apart.** A box that cannot take an Arch upgrade today (a
   mirror out of sync, a full boot partition) must still be able to take a Ryoku
   fix, and the reverse.
 
-So a plain distribution update is expected, supported, and the only thing that
-moves the kernel: `sudo pacman -Syu` on Arch or CachyOS, and
-`sudo xbps-install -Syu` on Void. Ryoku ships no hook that blocks it. On the
-packaged lane, every `ryoku update` reports what that lane is holding (`N system
-package(s) waiting`), `ryoku status` prints it as `system:`, and the Hub lists
-it under SYSTEM PACKAGES; `ryoku update --system` runs both lanes in one command
-for those who want that.
+So a plain distribution update remains supported and is the only thing that
+moves the kernel unless `ryoku update --system` is used. The direct commands are
+`sudo pacman -Syu` on Arch or CachyOS and `sudo xbps-install -Syu` on Void.
+XBPS has no transaction snapshot hooks, so Void users should use `ryoku update
+--system` when they want a base update covered by Ryoku's pre/post snapshots.
+On the packaged lane, every `ryoku update` reports what that lane is holding
+(`N system package(s) waiting`), `ryoku status` prints it as `system:`, and the
+Hub lists it under SYSTEM PACKAGES.
 
 The desktop package's post-transaction power cutover also makes a direct
 `pacman -Syu` safe while graphical sessions are live. One temporary login1 sleep
@@ -63,15 +64,22 @@ Void packages come from Ryoku's signed XBPS repositories. Stable releases use
 `https://repo.ryoku.dev/stable/void/x86_64`; every `unstable-dev` push publishes
 testing at
 `https://repo.ryoku.dev/stable/void/channels/testing/x86_64`. The
-`ryoku-keyring` package carries the trust key and the stable repository
+`ryoku-keyring` package carries the trust key and stable repository
 configuration. `ryoku update` refreshes the selected repository, updates the
 installed Ryoku set, then runs the same stage-two cutover, materialize, and
-doctor flow as Arch. `ryoku update --system` also updates the Void base system.
+doctor flow as Arch. `ryoku update --system` also updates the Void base system
+inside the same snapper pre/post pair.
 
-Void has no snapshots or rollback. Ryoku's snapper and
-`limine-snapper-sync` stack is tied to pacman, so updates cannot be restored
-from the Limine boot menu and the boot guard is not armed. Update surfaces and
-doctor report that one reason instead of offering a rollback action.
+ISO installs create `@snapshots` at `/.snapshots`, use the shared snapper root
+policy (number cleanup, 10 kept, no timeline), and run daily cleanup through the
+`snapper-cleanup` runit service. Ryoku's Void package of
+`limine-snapper-sync` runs its watcher as a runit service and maintains the
+**Ryoku Linux -> Snapshots** menu. XBPS has no transaction hooks, so a direct
+`xbps-install -Su` is not snapshotted.
+
+The shell installer does not provision a bootloader or snapshot layout on an
+existing Void system. Snapshot restore works there when the btrfs root and
+snapper stack already exist; `ryoku doctor` converges the root config.
 
 ### Ryotunes: an external app on its own channel
 
@@ -142,27 +150,21 @@ fail the desktop update.
 
 ### The boot guard
 
-On Arch/CachyOS, a packaged update that moves the box to another release arms
-a boot guard:
-stage2 writes `/var/lib/ryoku/update-pending.json` (previous release, new
-release, the pre-update snapshot, the boot it ran in). `ryoku-boot-guard.service`
-runs `ryoku boot-guard` as root early in every boot, before the display
-manager, and only while that marker exists. The shell daemon records a good
-boot once the shell has stayed up 45 s (`/var/lib/ryoku/boot/ok-<uid>`, the boot
-id); a record from any boot other than the one the update ran in disarms the
-guard. Without one, the boot counts: on the second, the guard tracks the
-previous release back (`ryoku track <from>`, then an explicit
-`pacman -S ryoku-desktop`; the Ryoku set only, Arch untouched),
-re-materializes every user's config from it, and leaves
-a notice `ryoku doctor` shows once. On a third it points the Limine boot menu
-at the pre-update snapshot entry, for the case where the packages were not what
-broke. `sudo ryoku boot-guard --disarm` clears a marker by hand. The `ryoku`
-package ships the unit and its tmpfiles entry; the doctor enables the unit and
-prepares the record directory on every update, so boxes installed before it get
-it on their next update.
+A packaged update that moves the box to another tagged release arms a boot
+guard. Stage two writes `/var/lib/ryoku/update-pending.json` with the previous
+release, new release, pre-update snapshot, and current boot. The shell daemon
+records a good boot once the shell has stayed up for 45 seconds.
 
-Void's host snapshot capability is unavailable, so it neither arms nor executes
-this guard. Doctor shows the same capability reason without calling systemd.
+The early-boot service is `ryoku-boot-guard.service` on Arch/CachyOS and the
+`ryoku-boot-guard` runit service on Void. After two boots where the desktop
+never came up, it pins the previous tagged release, moves the whole Ryoku set
+back in one native package transaction, re-materializes every user's config,
+and leaves the distribution base and kernel untouched. On a third failed boot,
+it points Limine at the pre-update snapshot. `sudo ryoku boot-guard --disarm`
+clears a pending marker by hand.
+
+Doctor enables the host's service and prepares its state directory, so older
+installs adopt the guard on update.
 
 ## materialize: the config a user receives
 
@@ -367,14 +369,29 @@ Void. There is no second channel state to drift from it:
   up. Pacman uses repo-qualified targets; XBPS force-refreshes its repository
   and uses `-f` when moving to an older frozen release. A tag pins the box until
   it is tracked away.
-- On Arch/CachyOS, `ryoku rollback --to v<tag>` moves the Ryoku set back in one
-  pacman transaction while Arch stays current. On Void the command returns the
-  host snapshot capability's unavailable reason; channel selection remains
-  available through `ryoku track`.
+- `ryoku rollback --to v<tag>` moves the Ryoku set back in one native package
+  transaction while the Arch, CachyOS, or Void base stays current. XBPS forces
+  the selected package versions for the move. `ryoku track v<tag>` is the
+  equivalent pin. Only tagged releases are frozen; testing builds from
+  `unstable-dev` have no release target to roll back to.
 - `ryoku status` reports `release` (this box) and `channelRelease` (what the
   channel serves); `ryoku version` prints the release tag.
 - The doctor names the channel it finds and warns, without touching it, when
   the configured repository is a mirror Ryoku does not publish.
+
+### Release ledgers
+
+`bin/ryoku-release-ledger <remote> arch|void` rebuilds one edition from its
+frozen release directories. Arch writes `releases/index.json` with plain and
+CachyOS images. Void writes `void/releases/index.json` with Void images, which
+is published at
+`https://repo.ryoku.dev/stable/void/releases/index.json`.
+
+`publish-repo-void.yml` rebuilds the Void ledger when a `v*` tag publishes the
+signed XBPS set, and `build-iso-void.yml` refreshes it after the tagged ISO is
+uploaded. `release-ledger.yml` rebuilds both editions on demand.
+`RYOKU_RELEASE_BASE` overrides the bucket base used for both ledger and
+repository URLs, which keeps mirrors and tests on one origin.
 
 `ryoku track stable | unstable --source` is the developer path: it builds and
 tracks a git checkout instead of packages (see `docs/development.md`). An
