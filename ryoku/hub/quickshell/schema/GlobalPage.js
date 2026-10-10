@@ -73,5 +73,16 @@ var rows = [
         "lo": 8,
         "hi": 24,
         "unit": " pt"
+    }, {
+        "tab": "",
+        "group": "FONT",
+        "key": "fontScale",
+        "label": "Interface scale",
+        "desc": "Scales the shell surfaces and popouts together.",
+        "ctl": "slid",
+        "src": "shell",
+        "lo": 0.8,
+        "hi": 1.5,
+        "pct": true
     }
 ];

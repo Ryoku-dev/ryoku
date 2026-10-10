@@ -28,8 +28,14 @@
   Prowl's gateway (running and its address, or why it is not) instead of
   Hermes's model, and connecting an agent now says it routes that agent's models
   through Prowl (`quickshell/pages/RashinPage.qml`).
-
 ### Fixed
+- **Interface scale is editable in Global.** The whole shell reads the one
+  `fontScale` value that scales every surface and popout, but no Hub control
+  reached it: a hand-set value silently reverted to the factory 1.3 on a stale
+  save, and a 1440p desktop popped its surfaces to 1.73x with nothing to fix it
+  from (#333). Global > Font now carries an Interface scale slider, stored
+  through the same shell preference the launcher and sidebar read, so a Save
+  keeps the user's value and nothing resurrects the factory default.
 - **Unavailable desktops no longer start a switch.** The Hub keeps them visible
   and says why they cannot be installed on this system.
 - On Void, Dictation and GPU passthrough say why they are unavailable instead of failing when you try them.
