@@ -1,0 +1,6 @@
+copr	includepkgs	why
+atim/lazygit	lazygit	Fedora 44 does not package lazygit.
+atim/starship	starship	Fedora 44 does not package starship.
+errornointernet/quickshell	cpptrace quickshell	Fedora 44 quickshell 0.2.1 is too old for Ryoku's DefaultEnv pragma.
+lihaohong/yazi	resvg yazi	Fedora 44 does not package yazi; resvg is its COPR-built dependency.
+sdegler/hyprland	aquamarine hyprcursor hyprgraphics hypridle hyprland hyprland-guiutils hyprland-qt-support hyprland-uwsm hyprlang hyprpicker hyprpolkitagent hyprsunset hyprtoolkit hyprutils hyprwire uwsm xdg-desktop-portal-hyprland	Fedora 44 does not package the Hyprland desktop stack.

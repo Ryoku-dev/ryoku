@@ -18,7 +18,8 @@ func TestDetectDistro(t *testing.T) {
 		{"ubuntu", "debian", "debian"},
 		{"linuxmint", "ubuntu debian", "debian"},
 		{"void", "", "void"},
-		{"fedora", "", ""},
+		{"fedora", "", "fedora"},
+		{"ultramarine", "fedora", "fedora"},
 	} {
 		d := detectDistro(c.id, c.like)
 		got := ""
@@ -49,6 +50,9 @@ func TestSupportedInit(t *testing.T) {
 	}
 	if !supportsInit(voidLinux, initSystemd) || !supportsInit(voidLinux, initRunit) {
 		t.Fatal("Void must accept the systemd predicate's runit alternative")
+	}
+	if !supportsInit(fedoraLinux, initSystemd) || supportsInit(fedoraLinux, initRunit) {
+		t.Fatal("Fedora must require systemd")
 	}
 }
 
@@ -84,6 +88,13 @@ func TestStepsPerDistro(t *testing.T) {
 	if void != wantVoid {
 		t.Errorf("void steps = %q, want %q", void, wantVoid)
 	}
+
+	t.Setenv("RYOKU_HOST_INIT", "systemd")
+	fedora := strings.Join(ids(&facts{distro: fedoraLinux}), " ")
+	wantFedora := "sysupgrade tools payload backup repo conflicts packages drivers session configs shell doctor verify"
+	if fedora != wantFedora {
+		t.Errorf("fedora steps = %q, want %q", fedora, wantFedora)
+	}
 }
 
 func TestInstallArgs(t *testing.T) {
@@ -107,6 +118,28 @@ func TestVoidInstallArgs(t *testing.T) {
 	}
 	if got := strings.Join(voidLinux.removeArgs([]string{"dunst"}), " "); got != "xbps-remove -y dunst" {
 		t.Errorf("Void removeArgs = %q", got)
+	}
+}
+
+func TestFedoraInstallArgs(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "dnf5"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	d := newFedoraLinux()
+	dnf := d.installCmd[0]
+	if dnf != "dnf5" {
+		t.Fatalf("Fedora command = %q, want dnf5 when it is available", dnf)
+	}
+	if got := strings.Join(d.installArgs([]string{"ryoku"}), " "); got != dnf+" install -y ryoku" {
+		t.Errorf("Fedora installArgs = %q", got)
+	}
+	if got := strings.Join(d.removeArgs([]string{"ryoku"}), " "); got != dnf+" remove -y ryoku" {
+		t.Errorf("Fedora removeArgs = %q", got)
+	}
+	if got := strings.Join(d.refreshCmd, " "); got != dnf+" makecache --refresh -y" {
+		t.Errorf("Fedora refresh argv = %q", got)
 	}
 }
 

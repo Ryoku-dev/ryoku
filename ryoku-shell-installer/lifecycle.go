@@ -187,11 +187,14 @@ func runUninstall(yes, dry bool) int {
 	// 1. packages, one transaction. The package manager orders dependency
 	// removal itself.
 	packages := append([]string{}, ryokuPkgs...)
-	if activeDistro.id == "void" {
+	switch activeDistro.id {
+	case "void":
 		packages = append(packages, "ryoku-desktop-niri")
+	case "fedora":
+		packages = append([]string{}, fedoraRyokuPkgs...)
 	}
 	var installed []string
-	if activeDistro.id == "arch" || activeDistro.id == "void" {
+	if activeDistro.id == "arch" || activeDistro.id == "void" || activeDistro.id == "fedora" {
 		for _, p := range packages {
 			if activeDistro.installedPkg(p) {
 				installed = append(installed, p)
@@ -230,6 +233,17 @@ func runUninstall(yes, dry bool) int {
 		if confirm(rd, i18n.Tf("drop the Ryoku XBPS repository override %s?", voidRepoConfig), yes) {
 			if err := run("sudo", "-n", "rm", "-f", voidRepoConfig); err != nil {
 				fmt.Println(i18n.T("warning: could not remove the Ryoku XBPS repository override"))
+			}
+		}
+	}
+	if activeDistro.id == "fedora" {
+		paths := []string{fedoraRepoConfigPath(), fedoraKeyPath}
+		coprs, _ := filepath.Glob(filepath.Join(fedoraRepoDir, "ryoku-copr-*.repo"))
+		paths = append(paths, coprs...)
+		if confirm(rd, i18n.T("remove the Ryoku RPM repository files and signing key?"), yes) {
+			args := append([]string{"-n", "rm", "-f"}, paths...)
+			if err := run("sudo", args...); err != nil {
+				fmt.Println(i18n.T("warning: could not remove the Ryoku RPM repository files and signing key"))
 			}
 		}
 	}

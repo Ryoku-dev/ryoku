@@ -307,6 +307,11 @@ func detect() *facts {
 		f.niriFound = pacmanHas("niri")
 		f.desktops = detectDesktops()
 	}
+	if f.distro != nil && f.distro.id == "fedora" {
+		f.ryokuOnBox = f.distro.installedPkg("ryoku-desktop")
+		f.niriFound = f.distro.installedPkg("niri")
+		f.desktops = detectDesktops()
+	}
 	if _, err := os.Stat("/etc/sddm.conf.d/kde_settings.conf"); err == nil {
 		f.kdeSddmConf = true
 	}

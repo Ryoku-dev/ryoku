@@ -144,6 +144,22 @@ func TestVoidPlanShowsEditionNotice(t *testing.T) {
 	}
 }
 
+func TestFedoraPlanKeepsNouveauAndSkipsAUR(t *testing.T) {
+	f := &facts{distro: fedoraLinux, hasNvidia: true}
+	p := defaultPlan(f)
+	if p.nvidia {
+		t.Fatal("Fedora must not schedule proprietary NVIDIA driver changes")
+	}
+	if p.aur {
+		t.Fatal("Fedora must not schedule the Arch-only AUR step")
+	}
+	for _, item := range buildItems(f, p) {
+		if item.label == "NVIDIA proprietary drivers" || item.label == "AUR extras" {
+			t.Fatalf("Fedora plan exposed Arch-only item %q", item.label)
+		}
+	}
+}
+
 func TestScreensFitMinimumTerminal(t *testing.T) {
 	f := &facts{
 		distroName: "Arch Linux",

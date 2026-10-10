@@ -107,6 +107,10 @@ func buildItems(f *facts, p *plan) []planItem {
 	// labels stay English here: groupPlanItems matches them against planGroups
 	// to insert section headers, so they are compared, not just shown. viewPlan
 	// translates them at the render site. Details are display-only -> wrapped.
+	zenDetail := i18n.T("Focused Firefox-based browsing; requires the AUR step.")
+	if f.distro != nil && f.distro.id == "fedora" {
+		zenDetail = i18n.T("Not packaged on Fedora; choosing it leaves browser installation unchanged.")
+	}
 	var it = []planItem{
 		{
 			label: i18n.T("Browser"),
@@ -114,7 +118,7 @@ func buildItems(f *facts, p *plan) []planItem {
 			options: []choiceOption{
 				{key: "firefox", label: i18n.T("Firefox"), detail: i18n.T("Private and compatible, from the official repository."), recommended: true},
 				{key: "chromium", label: i18n.T("Chromium"), detail: i18n.T("Open-source Chromium from the official repository.")},
-				{key: "zen", label: i18n.T("Zen"), detail: i18n.T("Focused Firefox-based browsing; requires the AUR step.")},
+				{key: "zen", label: i18n.T("Zen"), detail: zenDetail},
 			},
 		},
 		{
@@ -134,7 +138,7 @@ func buildItems(f *facts, p *plan) []planItem {
 			on: &p.resume,
 		})
 	}
-	if f.hasNvidia {
+	if f.hasNvidia && (f.distro == nil || f.distro.id != "fedora") {
 		d := i18n.T("installs the proprietary driver, blacklists nouveau, rebuilds the initramfs")
 		if f.nouveauLive {
 			d = i18n.T("the proprietary driver replaces nouveau after a reboot")
@@ -194,11 +198,13 @@ func buildItems(f *facts, p *plan) []planItem {
 	}
 	// awww is retired: the wallpaper daemon is ryogami, a hard ryoku-desktop
 	// depend the packages step pulls, not an AUR build.
-	aurDetail := i18n.T("Bibata cursor, LocalSend and Voxtype")
-	if p.browser == "zen" {
-		aurDetail = i18n.T("required for Zen; also installs Bibata cursor, LocalSend and Voxtype")
+	if f.distro == nil || f.distro.id != "fedora" {
+		aurDetail := i18n.T("Bibata cursor, LocalSend and Voxtype")
+		if p.browser == "zen" {
+			aurDetail = i18n.T("required for Zen; also installs Bibata cursor, LocalSend and Voxtype")
+		}
+		it = append(it, planItem{label: "AUR extras", detail: aurDetail, on: &p.aur, locked: p.browser == "zen"})
 	}
-	it = append(it, planItem{label: "AUR extras", detail: aurDetail, on: &p.aur, locked: p.browser == "zen"})
 	it = append(it, planItem{label: "Developer toolchain", detail: i18n.T("go, rust, node and python; Ryoku recovery uses go"), on: &p.devtools})
 	return it
 }
@@ -268,7 +274,9 @@ func cyclePlanChoice(it planItem, delta int) {
 }
 
 func (m *model) syncPlanConstraints() {
-	if m.p.browser == "zen" {
+	if m.f != nil && m.f.distro != nil && m.f.distro.id == "fedora" {
+		m.p.aur = false
+	} else if m.p.browser == "zen" {
 		m.p.aur = true
 	}
 	for i := range m.items {
@@ -310,6 +318,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.p.compositor = m.compositor
 		}
 		applyPlanChoices(m.p, m.browser, m.shell)
+		if m.f.distro != nil && m.f.distro.id == "fedora" {
+			m.p.aur = false
+		}
 		m.items = groupPlanItems(buildItems(m.f, m.p))
 		m.sel = firstToggle(m.items)
 		if needsManjaroAck(m.f) {
@@ -975,6 +986,9 @@ func runHeadless(dry bool, ref, payload, compositor, browser, shell string) int 
 		p.compositor = compositor
 	}
 	applyPlanChoices(p, browser, shell)
+	if f.distro != nil && f.distro.id == "fedora" {
+		p.aur = false
+	}
 	fmt.Println(i18n.Tf("system: %s | gpu: %s | dm: %s", f.distroName, f.gpuSummary(), f.currentDM))
 	if len(f.riceFound) > 0 {
 		fmt.Println(i18n.Tf("rice found: %s (daemons replaced, configs ride the backup)", strings.Join(f.riceFound, ", ")))
@@ -1088,13 +1102,18 @@ func main() {
 	}
 	d := detectHostDistro()
 	if d == nil {
-		die(i18n.T("unsupported distribution: Ryoku installs on Arch-based, Debian-based and Void systems"))
+		die(i18n.T("unsupported distribution: Ryoku installs on Arch-based, Debian-based, Void and Fedora systems"))
 	}
 	if out("uname", "-m") != "x86_64" {
 		die(i18n.T("Ryoku ships x86_64 builds only"))
 	}
+	if d.id == "fedora" {
+		if _, err := os.Stat("/run/ostree-booted"); err == nil {
+			die(i18n.T("rpm-ostree systems are not supported; use a mutable Fedora Workstation or Server install"))
+		}
+	}
 	if !supportedInitBooted(d) {
-		die(i18n.T("unsupported init: Arch and Debian installs need systemd; Void installs need runit"))
+		die(i18n.T("unsupported init: Arch, Debian and Fedora installs need systemd; Void installs need runit"))
 	}
 
 	if !*dry {

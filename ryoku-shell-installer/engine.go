@@ -33,13 +33,20 @@ const repoURL = "https://github.com/ryoku-dev/ryoku-arch.git"
 // each testing repository rebuilds on every push; everything else matches the
 // stable repository.
 const (
-	stableServer      = "https://repo.ryoku.dev/stable/$arch"
-	testingServer     = "https://repo.ryoku.dev/stable/channels/testing/$arch"
-	voidStableRepo    = "https://repo.ryoku.dev/stable/void/x86_64"
-	voidTestingRepo   = "https://repo.ryoku.dev/stable/void/channels/testing/x86_64"
-	voidRepoConfig    = "/etc/xbps.d/20-ryoku.conf"
-	voidSystemRepo    = "/usr/share/xbps.d/20-ryoku.conf"
-	voidTrustedKeyDir = "/var/db/xbps/keys"
+	stableServer         = "https://repo.ryoku.dev/stable/$arch"
+	testingServer        = "https://repo.ryoku.dev/stable/channels/testing/$arch"
+	voidStableRepo       = "https://repo.ryoku.dev/stable/void/x86_64"
+	voidTestingRepo      = "https://repo.ryoku.dev/stable/void/channels/testing/x86_64"
+	voidRepoConfig       = "/etc/xbps.d/20-ryoku.conf"
+	voidSystemRepo       = "/usr/share/xbps.d/20-ryoku.conf"
+	voidTrustedKeyDir    = "/var/db/xbps/keys"
+	fedoraStableRepo     = "https://repo.ryoku.dev/stable/fedora/$releasever/x86_64"
+	fedoraTestingRepo    = "https://repo.ryoku.dev/stable/fedora/$releasever/channels/testing/x86_64"
+	fedoraRepoConfig     = "/etc/yum.repos.d/ryoku.repo"
+	fedoraRepoDir        = "/etc/yum.repos.d"
+	fedoraKeyPath        = "/etc/pki/rpm-gpg/RPM-GPG-KEY-ryoku"
+	fedoraKeyURL         = "https://repo.ryoku.dev/stable/ryoku-release-key.pub.asc"
+	fedoraKeyFingerprint = "EB6D3C0F55A7B3CABA6B2838847B274F025DD6E3"
 )
 
 // channelForRef names the [ryoku] channel a payload ref belongs to (the value
@@ -64,6 +71,41 @@ func voidRepository(ref string) (channel, repository string, writeOverride bool)
 		writeOverride = true
 	}
 	return
+}
+
+var fedoraReleaseTagRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$`)
+
+func fedoraRepository(ref string) (channel, repository string) {
+	switch {
+	case ref == "unstable-dev":
+		channel, repository = "testing", fedoraTestingRepo
+	case fedoraReleaseTagRe.MatchString(ref):
+		channel = ref
+		repository = "https://repo.ryoku.dev/stable/fedora/$releasever/releases/" + ref + "/x86_64"
+	default:
+		channel, repository = "stable", fedoraStableRepo
+	}
+	if override := os.Getenv("RYOKU_RPM_REPO"); override != "" {
+		repository = override
+	}
+	return
+}
+
+func fedoraRepoConfigPath() string {
+	if path := os.Getenv("RYOKU_DNF_REPO_CONFIG"); path != "" {
+		return path
+	}
+	return fedoraRepoConfig
+}
+
+func fedoraRepoContent(repository string) string {
+	return "[ryoku]\n" +
+		"name=Ryoku\n" +
+		"baseurl=" + repository + "\n" +
+		"enabled=1\n" +
+		"gpgcheck=1\n" +
+		"repo_gpgcheck=1\n" +
+		"gpgkey=file://" + fedoraKeyPath + "\n"
 }
 
 func pacmanStanza(server string) string {
@@ -102,6 +144,8 @@ func setRyokuServer(conf, server string) (string, string) {
 // Ryoku desktop set. Everything else (session, base OS, fonts) comes from
 // base.packages via readBasePackages: the same manifest the ISO pacstraps.
 var ryokuPkgs = []string{"ryoku-keyring", "ryoku-desktop"}
+
+var fedoraRyokuPkgs = []string{"ryoku", "ryoku-desktop", "ryoku-desktop-hyprland", "ryoku-desktop-niri"}
 
 // ryokuOverwriteGlob names the ryoku-desktop-owned paths that a prior partial
 // install, a dev deploy, or the ISO installer can leave unowned on disk: the
@@ -196,15 +240,21 @@ func defaultPlan(f *facts) *plan {
 	if f.distro != nil && f.distro.id == "void" {
 		compositor = wm.ProviderNiri
 	}
+	nvidia := f.hasNvidia && !(f.secureBoot && !f.sbctlSigned)
+	aur := true
+	if f.distro != nil && f.distro.id == "fedora" {
+		nvidia = false
+		aur = false
+	}
 	return &plan{
 		// Secure Boot rejects unsigned DKMS modules. The NVIDIA script only
 		// blacklists nouveau once the replacement module is in place.
-		nvidia:    f.hasNvidia && !(f.secureBoot && !f.sbctlSigned),
+		nvidia:    nvidia,
 		switchDM:  true,
 		switchNet: true,
 		rivals:    true,
 		softOff:   true,
-		aur:       true,
+		aur:       aur,
 		omarchy:   f.omarchyRepo || f.omarchyMirror || len(f.omarchyGuards) > 0,
 		monPins:   len(f.monOutputs) > 0,
 		// when KDE's sddm-kcm owns sddm.conf.d the user chose that greeter
@@ -716,7 +766,12 @@ func stepSysupgrade(e *engine) error {
 func stepTools(e *engine) error {
 	d := e.d()
 	pkgs := []string{"git"}
-	if d.id != "void" {
+	if d.id == "fedora" {
+		pkgs = append(pkgs, "gnupg2")
+		if filepath.Base(d.installCmd[0]) == "dnf" {
+			pkgs = append(pkgs, "dnf-plugins-core")
+		}
+	} else if d.id != "void" {
 		pkgs = append(pkgs, d.local("base-devel"))
 	}
 	return e.sudo(d.installArgs(pkgs)...)
@@ -744,10 +799,14 @@ func (e *engine) resolvePayload() {
 }
 
 func (e *engine) payloadSparsePaths() []string {
-	if e.d().id != "void" {
+	switch e.d().id {
+	case "void":
+		return append(append([]string{}, sparsePaths...), "void/packages")
+	case "fedora":
+		return append(append([]string{}, sparsePaths...), "fedora/packages")
+	default:
 		return sparsePaths
 	}
-	return append(append([]string{}, sparsePaths...), "void/packages")
 }
 
 func stepPayload(e *engine) error {
@@ -807,8 +866,11 @@ func stepPayload(e *engine) error {
 	// a cache from an older installer can come out of the update missing paths
 	// the current engine needs; a broken cache is worth less than a fresh clone.
 	required := filepath.Join(e.payload, "system/packages/base.packages")
-	if e.d().id == "void" {
+	switch e.d().id {
+	case "void":
 		required = filepath.Join(e.payload, "void/packages/resolve")
+	case "fedora":
+		required = filepath.Join(e.payload, "fedora/packages/translations.tsv")
 	}
 	if _, err := os.Stat(required); err != nil && !e.dry {
 		e.say(i18n.T("payload cache is incomplete; recloning it fresh"))
@@ -1077,9 +1139,272 @@ func stepVoidRepo(e *engine) error {
 	return e.sudo("xbps-install", "--repository", repository, "-S")
 }
 
+type fedoraCopr struct {
+	project     string
+	includepkgs string
+}
+
+func rpmPrimaryFingerprint(colons string) (string, error) {
+	var fingerprints []string
+	primaryCount := 0
+	wantFingerprint := false
+	for _, line := range strings.Split(colons, "\n") {
+		fields := strings.Split(line, ":")
+		if len(fields) < 10 {
+			continue
+		}
+		switch fields[0] {
+		case "pub":
+			primaryCount++
+			wantFingerprint = true
+		case "fpr":
+			if wantFingerprint {
+				fingerprints = append(fingerprints, strings.ToUpper(fields[9]))
+				wantFingerprint = false
+			}
+		case "sub":
+			wantFingerprint = false
+		}
+	}
+	if primaryCount != 1 || len(fingerprints) != 1 {
+		return "", fmt.Errorf(i18n.T("release key contains %d primary keys; expected exactly one"), primaryCount)
+	}
+	if fingerprints[0] != fedoraKeyFingerprint {
+		return "", fmt.Errorf(i18n.T("release key fingerprint is %s; expected %s"), fingerprints[0], fedoraKeyFingerprint)
+	}
+	return fingerprints[0], nil
+}
+
+func verifyRPMKey(keyPath, home, exportPath string) error {
+	importCmd := exec.Command("gpg", "--batch", "--homedir", home, "--import-options", "import-minimal", "--import", keyPath)
+	if out, err := importCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf(i18n.T("import release key: %w: %s"), err, strings.TrimSpace(string(out)))
+	}
+	listCmd := exec.Command("gpg", "--batch", "--homedir", home, "--with-colons", "--fingerprint", "--list-keys")
+	out, err := listCmd.Output()
+	if err != nil {
+		return fmt.Errorf(i18n.T("inspect release key: %w"), err)
+	}
+	fingerprint, err := rpmPrimaryFingerprint(string(out))
+	if err != nil {
+		return err
+	}
+	exportCmd := exec.Command("gpg", "--batch", "--homedir", home, "--armor", "--export", fingerprint)
+	cert, err := exportCmd.Output()
+	if err != nil {
+		return fmt.Errorf(i18n.T("export release key: %w"), err)
+	}
+	if len(cert) == 0 {
+		return errors.New(i18n.T("exported release key is empty"))
+	}
+	return os.WriteFile(exportPath, cert, 0o644)
+}
+
+func readFedoraCoprs(path string) ([]fedoraCopr, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	validPart := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+	validPkg := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9+_.-]*$`)
+	var rows []fedoraCopr
+	header := false
+	seen := map[string]bool{}
+	for lineNo, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		if !header {
+			header = true
+			if line != "copr\tincludepkgs\twhy" {
+				return nil, fmt.Errorf(i18n.T("%s:%d: expected copr, includepkgs, why header"), path, lineNo+1)
+			}
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) != 3 {
+			return nil, fmt.Errorf(i18n.T("%s:%d: expected three tab-separated columns"), path, lineNo+1)
+		}
+		parts := strings.Split(fields[0], "/")
+		if len(parts) != 2 || !validPart.MatchString(parts[0]) || !validPart.MatchString(parts[1]) {
+			return nil, fmt.Errorf(i18n.T("%s:%d: invalid COPR project %q"), path, lineNo+1, fields[0])
+		}
+		if seen[fields[0]] {
+			return nil, fmt.Errorf(i18n.T("%s:%d: duplicate COPR project %q"), path, lineNo+1, fields[0])
+		}
+		seen[fields[0]] = true
+		if fields[1] == "" || fields[2] == "" {
+			return nil, fmt.Errorf(i18n.T("%s:%d: includepkgs and why are required"), path, lineNo+1)
+		}
+		for _, pkg := range strings.Fields(fields[1]) {
+			if !validPkg.MatchString(pkg) {
+				return nil, fmt.Errorf(i18n.T("%s:%d: invalid package name %q"), path, lineNo+1, pkg)
+			}
+		}
+		rows = append(rows, fedoraCopr{project: fields[0], includepkgs: fields[1]})
+	}
+	if !header {
+		return nil, fmt.Errorf(i18n.T("%s: missing header"), path)
+	}
+	return rows, nil
+}
+
+func fedoraCoprSlug(project string) string {
+	return strings.ReplaceAll(project, "/", "-")
+}
+
+func fedoraCoprContent(row fedoraCopr) string {
+	slug := fedoraCoprSlug(row.project)
+	base := "https://download.copr.fedorainfracloud.org/results/" + row.project
+	return "[ryoku-copr-" + slug + "]\n" +
+		"name=Ryoku dependency: " + row.project + "\n" +
+		"baseurl=" + base + "/fedora-$releasever-$basearch/\n" +
+		"enabled=1\n" +
+		"gpgcheck=1\n" +
+		"repo_gpgcheck=0\n" +
+		"gpgkey=" + base + "/pubkey.gpg\n" +
+		"includepkgs=" + row.includepkgs + "\n" +
+		"skip_if_unavailable=1\n"
+}
+
+func verifyFedoraRepoReadable(e *engine) error {
+	dnf := e.d().installCmd[0]
+	query := []string{dnf, "repoquery", "--repo=ryoku", "-q", "ryoku"}
+	if e.dry {
+		return e.sudo(query...)
+	}
+	sudoArgs := append([]string{"-n"}, sudoArgv(query, false)...)
+	e.say("$ " + shellJoin("sudo", sudoArgs))
+	cmd := exec.Command("sudo", sudoArgs...)
+	out, err := cmd.CombinedOutput()
+	found := false
+	for _, raw := range strings.Split(string(out), "\n") {
+		line := cleanTermLine(raw)
+		if line == "" {
+			continue
+		}
+		e.say("  " + line)
+		fields := strings.Fields(line)
+		if len(fields) > 0 && (fields[0] == "ryoku" ||
+			strings.HasPrefix(fields[0], "ryoku-") ||
+			strings.HasPrefix(fields[0], "ryoku.")) {
+			found = true
+		}
+	}
+	if err != nil {
+		return fmt.Errorf(i18n.T("Ryoku RPM repository query failed: %w"), err)
+	}
+	if !found {
+		return errors.New(i18n.T("Ryoku RPM repository is not trusted or does not publish the ryoku package"))
+	}
+	return nil
+}
+
+func stepFedoraRepo(e *engine) error {
+	channel, repository := fedoraRepository(e.ref)
+	if strings.ContainsAny(repository, "\r\n") ||
+		!filepath.IsAbs(repository) && !strings.Contains(repository, "://") {
+		return fmt.Errorf(i18n.T("invalid RYOKU_RPM_REPO %q: expected a URL or absolute path"), repository)
+	}
+	keyURL := envOr("RYOKU_RPM_KEY_URL", fedoraKeyURL)
+	if !strings.HasPrefix(keyURL, "https://") || strings.ContainsAny(keyURL, " \t\r\n") {
+		return fmt.Errorf(i18n.T("invalid RYOKU_RPM_KEY_URL %q: expected an HTTPS URL"), keyURL)
+	}
+
+	work := filepath.Join(os.TempDir(), "ryoku-rpm-key")
+	if !e.dry {
+		var err error
+		work, err = os.MkdirTemp("", "ryoku-rpm-key-*")
+		if err != nil {
+			return err
+		}
+		defer os.RemoveAll(work)
+		if err := os.Chmod(work, 0o700); err != nil {
+			return err
+		}
+	}
+	download := filepath.Join(work, "release-key.asc")
+	verified := filepath.Join(work, "RPM-GPG-KEY-ryoku")
+	if err := e.cmd("", nil, "curl", "--fail", "--location", "--retry", "3",
+		"--proto", "=https", "--proto-redir", "=https", "--output", download, keyURL); err != nil {
+		return err
+	}
+	if e.dry {
+		e.say(i18n.Tf("DRYRUN: verify the release key has exactly fingerprint %s", fedoraKeyFingerprint))
+	} else {
+		gnupg := filepath.Join(work, "gnupg")
+		if err := os.Mkdir(gnupg, 0o700); err != nil {
+			return err
+		}
+		if err := verifyRPMKey(download, gnupg, verified); err != nil {
+			return err
+		}
+	}
+	if err := e.sudo("install", "-Dm644", verified, fedoraKeyPath); err != nil {
+		return err
+	}
+	if err := e.sudo("rpm", "--import", fedoraKeyPath); err != nil {
+		return err
+	}
+
+	repoPath := fedoraRepoConfigPath()
+	if err := e.sudo("mkdir", "-p", filepath.Dir(repoPath), fedoraRepoDir); err != nil {
+		return err
+	}
+	if err := e.sudoWrite(repoPath, fedoraRepoContent(repository)); err != nil {
+		return err
+	}
+	if err := e.sudo("chmod", "644", repoPath); err != nil {
+		return err
+	}
+
+	coprTable := filepath.Join(e.payload, "fedora/packages/coprs.tsv")
+	rows, err := readFedoraCoprs(coprTable)
+	if err != nil {
+		if !e.dry {
+			return fmt.Errorf(i18n.T("read Fedora COPR table: %w"), err)
+		}
+		e.say(i18n.T("DRYRUN: payload not cloned; would write the restricted Fedora COPR repositories"))
+		rows = nil
+	}
+	wanted := map[string]bool{}
+	for _, row := range rows {
+		path := filepath.Join(fedoraRepoDir, "ryoku-copr-"+fedoraCoprSlug(row.project)+".repo")
+		wanted[path] = true
+		if err := e.sudoWrite(path, fedoraCoprContent(row)); err != nil {
+			return err
+		}
+		if err := e.sudo("chmod", "644", path); err != nil {
+			return err
+		}
+	}
+	if old, _ := filepath.Glob(filepath.Join(fedoraRepoDir, "ryoku-copr-*.repo")); len(old) > 0 {
+		for _, path := range old {
+			if !wanted[path] {
+				if err := e.sudo("rm", "-f", path); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if err := e.sudoSh(`umask 022 && mkdir -p /var/lib/ryoku && ` +
+		`printf '%s\n' '` + channel + `' > /var/lib/ryoku/channel-intent.new && ` +
+		`mv -f /var/lib/ryoku/channel-intent.new /var/lib/ryoku/channel-intent`); err != nil {
+		return err
+	}
+	e.say(i18n.Tf("configured the signed Ryoku RPM repository (%s channel) in %s", channel, repoPath))
+	if err := e.sudo(e.d().refreshCmd...); err != nil {
+		return err
+	}
+	return verifyFedoraRepoReadable(e)
+}
+
 func stepRepo(e *engine) error {
 	if e.d().id == "void" {
 		return stepVoidRepo(e)
+	}
+	if e.d().id == "fedora" {
+		return stepFedoraRepo(e)
 	}
 	// on a box that already has ryoku-keyring, the keyring files under
 	// /usr/share/pacman/keyrings are package-owned: seeding and deleting them
@@ -1246,6 +1571,106 @@ func (e *engine) readVoidPackages() ([]string, error) {
 	return strings.Fields(string(out)), nil
 }
 
+type fedoraTranslation struct {
+	packages string
+	notes    string
+}
+
+func readFedoraTranslations(path string) (map[string]fedoraTranslation, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	rows := make(map[string]fedoraTranslation)
+	header := false
+	validPkg := regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9+_.-]*$`)
+	for lineNo, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		if !header {
+			header = true
+			if line != "arch\tfedora\tlanes\tnotes" {
+				return nil, fmt.Errorf(i18n.T("%s:%d: expected arch, fedora, lanes, notes header"), path, lineNo+1)
+			}
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) != 4 {
+			return nil, fmt.Errorf(i18n.T("%s:%d: expected four tab-separated columns"), path, lineNo+1)
+		}
+		if fields[0] == "" || fields[1] == "" || fields[2] == "" {
+			return nil, fmt.Errorf(i18n.T("%s:%d: arch, fedora and lanes are required"), path, lineNo+1)
+		}
+		if !validPkg.MatchString(fields[0]) {
+			return nil, fmt.Errorf(i18n.T("%s:%d: invalid Arch package name %q"), path, lineNo+1, fields[0])
+		}
+		if fields[1] != "-" {
+			for _, pkg := range strings.Fields(fields[1]) {
+				if !validPkg.MatchString(pkg) {
+					return nil, fmt.Errorf(i18n.T("%s:%d: invalid Fedora package name %q"), path, lineNo+1, pkg)
+				}
+			}
+		}
+		if _, exists := rows[fields[0]]; exists {
+			return nil, fmt.Errorf(i18n.T("%s:%d: duplicate Arch package %s"), path, lineNo+1, fields[0])
+		}
+		rows[fields[0]] = fedoraTranslation{packages: fields[1], notes: fields[3]}
+	}
+	if !header {
+		return nil, fmt.Errorf(i18n.T("%s: missing header"), path)
+	}
+	return rows, nil
+}
+
+func (e *engine) readFedoraPackages() ([]string, error) {
+	path := filepath.Join(e.payload, "fedora/packages/translations.tsv")
+	rows, err := readFedoraTranslations(path)
+	if err != nil {
+		if e.dry && os.IsNotExist(err) {
+			e.say(i18n.T("DRYRUN: payload not cloned; would map Fedora browser and login-shell packages"))
+			return nil, nil
+		}
+		return nil, fmt.Errorf(i18n.T("read Fedora package table: %w"), err)
+	}
+	p := e.p
+	if p == nil {
+		p = &plan{browser: "firefox", shell: "fish"}
+	}
+	browser := p.browser
+	if browser == "" {
+		browser = "firefox"
+	}
+	shell := p.shell
+	if shell == "" {
+		shell = "fish"
+	}
+	wanted := []string{browserPackage[browser], shell}
+	wanted = append(wanted, shellStackPackages[shell]...)
+	if p.devtools {
+		wanted = append(wanted, devPkgs...)
+	}
+	var packages []string
+	for _, archName := range uniquePackages(wanted) {
+		row, ok := rows[archName]
+		if !ok {
+			packages = append(packages, archName)
+			continue
+		}
+		switch row.packages {
+		case "-":
+			if row.notes == "" {
+				e.say(i18n.Tf("note: %s is not available on Fedora; skipping it", archName))
+			} else {
+				e.say(i18n.Tf("note: %s is not available on Fedora; skipping it (%s)", archName, row.notes))
+			}
+		default:
+			packages = append(packages, strings.Fields(row.packages)...)
+		}
+	}
+	return uniquePackages(packages), nil
+}
+
 func stepPackages(e *engine) error {
 	d := e.d()
 	if d.id == "void" {
@@ -1256,6 +1681,14 @@ func stepPackages(e *engine) error {
 		pkgs = uniquePackages(append(pkgs,
 			"ryoku-keyring", "ryoku-desktop", "ryoku-desktop-niri"))
 		return installPackagePlan(e, d, pkgs)
+	}
+	if d.id == "fedora" {
+		extras, err := e.readFedoraPackages()
+		if err != nil {
+			return err
+		}
+		pkgs := append([]string{"ryoku", "ryoku-desktop", "ryoku-desktop-" + e.p.compositor}, extras...)
+		return installPackagePlan(e, d, uniquePackages(pkgs))
 	}
 	base, err := e.readBasePackages()
 	if err != nil {
@@ -1426,6 +1859,12 @@ func filterByUnmet(pkgs []string, unmetOut string) []string {
 }
 
 func stepDrivers(e *engine) error {
+	if e.d().id == "fedora" {
+		if e.f.hasNvidia {
+			e.say(i18n.T("Fedora keeps NVIDIA on nouveau in this release; no proprietary driver changes are made."))
+		}
+		return nil
+	}
 	drv := filepath.Join(e.payload, "system/hardware/drivers")
 	scripts := []string{"amd.sh", "intel.sh", "vulkan.sh"}
 	if e.p.nvidia {
@@ -1559,12 +1998,45 @@ func ensureRunitSession(e *engine) error {
 	return fixRunitSessionWrappers(e)
 }
 
+func ensureFedoraGroups(e *engine) error {
+	candidates := []string{"wheel", "video", "input"}
+	if e.dry {
+		return e.sudo("usermod", "-aG", strings.Join(candidates, ","), e.f.username)
+	}
+	current := map[string]bool{}
+	for _, group := range strings.Fields(out("id", "-nG", e.f.username)) {
+		current[group] = true
+	}
+	var add []string
+	for _, group := range candidates {
+		if current[group] || exec.Command("getent", "group", group).Run() != nil {
+			continue
+		}
+		add = append(add, group)
+	}
+	if len(add) == 0 {
+		return nil
+	}
+	if err := e.sudo("usermod", "-aG", strings.Join(add, ","), e.f.username); err != nil {
+		return err
+	}
+	for _, group := range add {
+		e.recordRestore("sudo gpasswd -d " + e.f.username + " " + group + " || true")
+	}
+	return nil
+}
+
 func stepSession(e *engine) error {
 	if e.usesRunit() {
 		if err := wireRunitServices(e); err != nil {
 			return err
 		}
 		if err := ensureRunitSession(e); err != nil {
+			return err
+		}
+	}
+	if e.d().id == "fedora" {
+		if err := ensureFedoraGroups(e); err != nil {
 			return err
 		}
 	}
@@ -2185,11 +2657,25 @@ func voidKeysAreTrusted(e *engine) bool {
 	return true
 }
 
+func fedoraRepoIsConfigured(e *engine) bool {
+	_, repository := fedoraRepository(e.ref)
+	data, err := os.ReadFile(fedoraRepoConfigPath())
+	return err == nil && string(data) == fedoraRepoContent(repository)
+}
+
+func fedoraKeyIsPresent() bool {
+	info, err := os.Stat(fedoraKeyPath)
+	return err == nil && info.Mode().IsRegular() && info.Size() > 0
+}
+
 func stepVerify(e *engine) error {
 	if e.dry {
-		if e.d().id == "void" {
+		switch e.d().id {
+		case "void":
 			e.say(i18n.T("DRYRUN: verify Ryoku XBPS repo, trusted key, ryoku-desktop packages, Turnstile, niri session"))
-		} else {
+		case "fedora":
+			e.say(i18n.T("DRYRUN: verify the Ryoku RPM repo and key, RPM packages, SDDM, and compositor session"))
+		default:
 			e.say(i18n.T("DRYRUN: verify [ryoku] repo, packages, session files"))
 		}
 		return nil
@@ -2216,6 +2702,17 @@ func stepVerify(e *engine) error {
 		check(has("ryoku"), i18n.T("ryoku CLI on PATH"))
 		st, err := os.Stat("/usr/share/ryoku/config")
 		check(err == nil && st.IsDir(), i18n.T("base config tree at /usr/share/ryoku/config"))
+	} else if e.d().id == "fedora" {
+		check(fedoraRepoIsConfigured(e), i18n.T("Ryoku RPM repository configured"))
+		check(fedoraKeyIsPresent(), i18n.T("Ryoku RPM signing key installed"))
+		check(e.d().installedPkg("ryoku"), i18n.T("ryoku installed through RPM"))
+		check(e.d().installedPkg("ryoku-desktop"), i18n.T("ryoku-desktop installed through RPM"))
+		check(e.d().installedPkg("ryoku-desktop-"+e.p.compositor), i18n.Tf("ryoku-desktop-%s installed through RPM", e.p.compositor))
+		check(has("ryoku"), i18n.T("ryoku CLI on PATH"))
+		st, err := os.Stat("/usr/share/ryoku/config")
+		check(err == nil && st.IsDir(), i18n.T("base config tree at /usr/share/ryoku/config"))
+		theme, err := os.Stat("/usr/share/sddm/themes/ryoku")
+		check(err == nil && theme.IsDir(), i18n.T("Ryoku SDDM session assets installed"))
 	} else {
 		conf, _ := os.ReadFile("/etc/pacman.conf")
 		check(strings.Contains(string(conf), "[ryoku]"), i18n.T("[ryoku] repository in /etc/pacman.conf"))
@@ -2263,7 +2760,7 @@ func stepVerify(e *engine) error {
 			e.say(gWarn + " " + i18n.Tf("an SDDM drop-in still selects greeter theme %s; check /etc/sddm.conf.d", theme))
 		}
 	}
-	if e.f.hasNvidia && e.f.secureBoot && !e.p.nvidia {
+	if e.d().id != "fedora" && e.f.hasNvidia && e.f.secureBoot && !e.p.nvidia {
 		e.say(gWarn + " " + i18n.T("Secure Boot is on, so the proprietary NVIDIA driver was skipped: unsigned DKMS modules are rejected at boot."))
 		e.say(i18n.T("To switch later, disable Secure Boot in firmware or sign the kernel and modules (sbctl), then re-run this installer."))
 	}

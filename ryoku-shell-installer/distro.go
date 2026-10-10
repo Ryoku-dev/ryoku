@@ -25,7 +25,7 @@ type distro struct {
 	name       string
 	fromSource bool
 
-	// rename maps an Arch package name to its Debian equivalent. A missing key
+	// rename maps an Arch package name to its local equivalent. A missing key
 	// means the name is identical; an empty value means the package does not
 	// exist there and is skipped.
 	rename map[string]string
@@ -131,6 +131,30 @@ var voidLinux = &distro{
 	installFirstPrefix: "void-repo-",
 }
 
+func fedoraDNFCommand() string {
+	if _, err := exec.LookPath("dnf5"); err == nil {
+		return "dnf5"
+	}
+	return "dnf"
+}
+
+func newFedoraLinux() *distro {
+	dnf := fedoraDNFCommand()
+	return &distro{
+		id:         "fedora",
+		name:       "Fedora",
+		installCmd: []string{dnf, "install", "-y"},
+		removeCmd:  []string{dnf, "remove", "-y"},
+		updateCmd:  []string{dnf, "upgrade", "-y", "--refresh"},
+		refreshCmd: []string{dnf, "makecache", "--refresh", "-y"},
+		queryCmd:   []string{"rpm", "-q"},
+	}
+}
+
+// Fedora installs the signed desktop packages from the Ryoku RPM repository.
+// The command is refreshed during distro detection so dnf5 wins when present.
+var fedoraLinux = newFedoraLinux()
+
 // activeDistro is set once by detectFacts; installed() reads it from the
 // detection paths that have no engine to hand.
 var activeDistro = archLinux
@@ -139,6 +163,9 @@ func detectDistro(id, like string) *distro {
 	switch {
 	case id == "void":
 		return voidLinux
+	case id == "fedora" || strings.Contains(like, "fedora"):
+		fedoraLinux = newFedoraLinux()
+		return fedoraLinux
 	case id == "arch" || strings.Contains(like, "arch"):
 		return archLinux
 	case id == "debian" || strings.Contains(like, "debian"):

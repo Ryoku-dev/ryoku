@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- **Fedora is now a packaged shell-installer lane.** Mutable Fedora Workstation
+  and Server systems use dnf5 or dnf, verify and import the Ryoku release key,
+  configure the signed stable, testing or frozen RPM repository plus
+  package-restricted dependency COPRs, and install either compositor variant.
+  The shared session, configuration, doctor and verification steps finish the
+  install; rpm-ostree systems are refused and Fedora stays on nouveau this
+  release.
 - **Void btrfs conversions now describe snapshot rollback accurately.** Plans
   use the same btrfs check as Arch, omit the old unsupported warning, and explain
   that `ryoku update --system` keeps base updates inside the snapshot safety net.

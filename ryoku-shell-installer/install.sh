@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # ryoku-shell bootstrap: fetch and run the standalone Ryoku desktop installer
-# on an existing Arch machine. Kept deliberately dumb: every real decision
+# on an existing supported machine. Kept deliberately dumb: every real decision
 # lives in the ryoku-shell-install binary this script downloads.
 #
 #   curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku-arch/main/ryoku-shell-installer/install.sh | bash
@@ -31,23 +31,36 @@ main() {
   # so refuse honestly instead of dying on the package-manager guard below.
   [[ ! -e /etc/NIXOS ]] || die "NixOS is not supported yet; use the flake instead"
 
-  local ryoku_family
+  local ryoku_family dnf_cmd
   if command -v pacman > /dev/null 2>&1; then
     ryoku_family=arch
   elif command -v apt-get > /dev/null 2>&1; then
     ryoku_family=debian
   elif command -v xbps-install > /dev/null 2>&1; then
     ryoku_family=void
+  elif command -v dnf5 > /dev/null 2>&1 || command -v dnf > /dev/null 2>&1; then
+    ryoku_family=fedora
+    if command -v dnf5 > /dev/null 2>&1; then
+      dnf_cmd=dnf5
+    else
+      dnf_cmd=dnf
+    fi
   else
-    die "unsupported distribution: Ryoku installs on Arch-based, Debian-based and Void systems"
+    die "unsupported distribution: Ryoku installs on Arch-based, Debian-based, Void and Fedora systems"
   fi
   [[ $(uname -m) == x86_64 ]] || die "Ryoku ships x86_64 builds only"
+  if [[ $ryoku_family == fedora && -e /run/ostree-booted ]]; then
+    die "rpm-ostree systems are not supported; use a mutable Fedora Workstation or Server install"
+  fi
   if [[ ! -d /run/systemd/system && $ryoku_family != void ]]; then
-    die "this installer needs systemd on Arch and Debian; Void uses runit"
+    die "this installer needs systemd on Arch, Debian and Fedora; Void uses runit"
   fi
   if [[ $ryoku_family == void ]] && { ! command -v curl > /dev/null 2>&1 || ! command -v git > /dev/null 2>&1; }; then
     say "installing bootstrap tools (curl, git)"
     sudo xbps-install -Sy curl git
+  elif [[ $ryoku_family == fedora ]] && { ! command -v curl > /dev/null 2>&1 || ! command -v git > /dev/null 2>&1; }; then
+    say "installing bootstrap tools (curl, git)"
+    sudo "$dnf_cmd" install -y curl git
   fi
   command -v curl > /dev/null 2>&1 || die "curl is required"
 
@@ -56,7 +69,7 @@ main() {
     # shellcheck source=/dev/null
     . /etc/os-release
     case "${ID:-} ${ID_LIKE:-}" in
-      *arch*|*debian*|*void*) ;;
+      *arch*|*debian*|*void*|*fedora*) ;;
       *) say "warning: ${PRETTY_NAME:-unknown distro} is not recognised; continuing as ${ryoku_family}" ;;
     esac
   fi
