@@ -12,12 +12,13 @@
 # `ryoku rollback` (the list it offers) and the site read it.
 #
 # The stable `images` map keys each release to the ISOs a reinstall or a rollback
-# would fetch. Arch carries plain and cachyos; Void carries void.
+# would fetch. Arch carries plain and cachyos; Void carries void. Fedora editions
+# do not carry images.
 #
-# usage: ryoku-release-ledger <rclone remote:bucket> [arch|void] [stable|testing]
+# usage: ryoku-release-ledger <rclone remote:bucket> [arch|void|fedora/<N>] [stable|testing]
 # needs: rclone (configured, see bin/ryoku-r2-config), jq
 set -euo pipefail
-remote=${1:?usage: ryoku-release-ledger <rclone remote:bucket> [arch|void] [stable|testing]}
+remote=${1:?usage: ryoku-release-ledger <rclone remote:bucket> [arch|void|fedora/<N>] [stable|testing]}
 edition=${2:-arch}
 channel=${3:-stable}
 
@@ -30,8 +31,17 @@ case "$edition" in
     edition_prefix=void/
     variants=void
     ;;
+  fedora/*)
+    fedora_release=${edition#fedora/}
+    if [[ ! $fedora_release =~ ^[0-9]+$ ]]; then
+      echo "ryoku-release-ledger: Fedora edition must be fedora/<N>, got: $edition" >&2
+      exit 2
+    fi
+    edition_prefix="fedora/$fedora_release/"
+    variants=
+    ;;
   *)
-    echo "ryoku-release-ledger: edition must be arch or void, got: $edition" >&2
+    echo "ryoku-release-ledger: edition must be arch, void, or fedora/<N>, got: $edition" >&2
     exit 2
     ;;
 esac
@@ -153,7 +163,11 @@ for directory in "${directories[@]}"; do
 done
 
 if [[ $channel == stable ]]; then
-  collect_iso_images > "$tmp/images.json"
+  if [[ -n $variants ]]; then
+    collect_iso_images > "$tmp/images.json"
+  else
+    echo '{}' > "$tmp/images.json"
+  fi
 fi
 if (( ${#entries[@]} == 0 )); then
   echo '{"schema":1,"latest":"","releases":[]}' > "$tmp/index.json"

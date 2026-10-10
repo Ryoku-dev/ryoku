@@ -241,3 +241,55 @@ test("honours a non-default KEEP value", () => {
   assert.equal(group.kept.length, 2);
   assert.deepEqual(group.dropped, ["v1"]);
 });
+
+test("retains each Fedora release and channel as an independent package group", () => {
+  const names = Array.from({ length: 11 }, (_, index) => `v1.0.${index}`);
+  const facts = mergeFacts(
+    packageFacts(names, "stable/fedora/44/releases/"),
+    packageFacts(names, "stable/fedora/44/channels/testing/builds/"),
+    packageFacts(names, "stable/fedora/45/releases/"),
+    {
+      objects: [
+        object("stable/fedora/44/x86_64/release.json"),
+        object("stable/fedora/44/channels/testing/x86_64/release.json"),
+        object("stable/fedora/44/releases/index.json"),
+      ],
+    },
+  );
+  const plan = planRetention(facts, { keep: 10, now: NOW });
+
+  for (const groupName of [
+    "packages:fedora:44:stable",
+    "packages:fedora:44:unstable",
+    "packages:fedora:45:stable",
+  ]) {
+    const group = plan.groups.find((item) => item.group === groupName);
+    assert.deepEqual(group.dropped, ["v1.0.0"]);
+  }
+  assert.equal(plan.deleteKeys.filter((key) => key.includes("/v1.0.0/")).length, 6);
+  assert.equal(plan.deleteKeys.some((key) => key.endsWith("/index.json")), false);
+  assert.equal(plan.deleteKeys.some((key) => key.includes("/x86_64/release.json") && !key.includes("/v1.0.0/")), false);
+});
+
+test("filters a Fedora ledger after its oldest repository is removed", () => {
+  const packages = packageFacts(["v1", "v2"], "stable/fedora/44/releases/", {
+    v1: "2026-09-01T00:00:00Z",
+    v2: "2026-09-02T00:00:00Z",
+  });
+  const ledger = {
+    schema: 1,
+    latest: "v2",
+    releases: [
+      { tag: "v2", repo: "fedora/44/releases/v2/x86_64" },
+      { tag: "v1", repo: "fedora/44/releases/v1/x86_64" },
+    ],
+  };
+  const facts = mergeFacts(packages, {
+    ledgers: { "stable/fedora/44/releases/index.json": ledger },
+  });
+  const plan = planRetention(facts, { keep: 1, now: NOW });
+
+  assert.equal(plan.ledgerEdits.length, 1);
+  assert.equal(plan.ledgerEdits[0].key, "stable/fedora/44/releases/index.json");
+  assert.deepEqual(plan.ledgerEdits[0].value.releases.map((release) => release.tag), ["v2"]);
+});

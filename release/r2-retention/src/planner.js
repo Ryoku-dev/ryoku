@@ -11,13 +11,27 @@ function newestFirst(a, b) {
   return b.time - a.time || b.name.localeCompare(a.name);
 }
 
-function packageGroups(root) {
-  return [
+function packageGroups(root, objects) {
+  const groups = [
     { id: "packages:arch:stable", base: `${root}releases/` },
     { id: "packages:void:stable", base: `${root}void/releases/` },
     { id: "packages:arch:unstable", base: `${root}channels/testing/builds/` },
     { id: "packages:void:unstable", base: `${root}void/channels/testing/builds/` },
   ];
+  const escapedRoot = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const fedoraReleases = new Set();
+  const pattern = new RegExp(`^${escapedRoot}fedora/([0-9]+)/(?:releases|channels/testing/builds)/`);
+  for (const object of objects) {
+    const match = pattern.exec(object.key);
+    if (match) fedoraReleases.add(match[1]);
+  }
+  for (const release of [...fedoraReleases].sort((a, b) => Number(a) - Number(b))) {
+    groups.push(
+      { id: `packages:fedora:${release}:stable`, base: `${root}fedora/${release}/releases/` },
+      { id: `packages:fedora:${release}:unstable`, base: `${root}fedora/${release}/channels/testing/builds/` },
+    );
+  }
+  return groups;
 }
 
 function versionDirectory(key, base) {
@@ -108,7 +122,7 @@ export function planRetention(facts, options = {}) {
   const debris = [];
   const deleteKeys = new Set();
 
-  for (const definition of packageGroups(root)) {
+  for (const definition of packageGroups(root, objects)) {
     const directories = new Map();
     for (const object of objects) {
       const found = versionDirectory(object.key, definition.base);

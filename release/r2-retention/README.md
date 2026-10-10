@@ -1,8 +1,19 @@
 # R2 retention
 
-This scheduled Worker keeps the ten newest Arch and Void package snapshots in each stable and testing channel, plus the ten newest ISOs for each variant and channel. It removes stale incomplete snapshot uploads after 48 hours. Moving repository heads, ledgers, current ISO pointers, signing keys, unknown files, and the bucket-root `install.sh` are never retention targets. ISO identity normally comes from its manifest, so older CachyOS images without a filename suffix are handled correctly. Legacy images without a manifest fall back to their filename and upload time.
+This scheduled Worker keeps the ten newest Arch, Void, and per-release Fedora package snapshots in each stable and testing channel, plus the ten newest ISOs for each variant and channel. It removes stale incomplete snapshot uploads after 48 hours. Moving repository heads, ledgers, current ISO pointers, signing keys, unknown files, and the bucket-root `install.sh` are never retention targets. ISO identity normally comes from its manifest, so older CachyOS images without a filename suffix are handled correctly. Legacy images without a manifest fall back to their filename and upload time.
 
-Run the dependency-free tests from the repository root:
+## Retained layout
+
+Package retention runs independently for Arch (`stable/releases/` and
+`stable/channels/testing/builds/`), Void (the same paths below `stable/void/`),
+and every Fedora release (the same paths below `stable/fedora/<N>/`). Each
+version directory and all of its sidecars are kept or removed together. Moving
+`x86_64/` heads and `index.json` ledgers are not version directories and are
+never direct deletion targets. A ledger is filtered only when a repository or
+ISO it references no longer exists after retention.
+
+Run the tests from the repository root. The ledger integration test also uses
+the repository's standard `bash` and `jq` release-tool dependencies:
 
 ```sh
 node --test release/r2-retention/test/*.test.js

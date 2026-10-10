@@ -1,0 +1,404 @@
+name: "Publish Ryoku Fedora RPM repos"
+
+# Publishes one signed RPM repository for every release in fedora/releases.
+# A tag writes an immutable release and then moves that Fedora release's stable
+# head. A push to unstable-dev moves testing and also freezes the tested build.
+# No Fedora ISO is built or dispatched.
+on:
+  push:
+    branches:
+      - unstable-dev
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Overwrite existing fedora/<N>/releases/<tag> repositories'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: publish-repo-fedora-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+env:
+  RYOKU_RPM_FINGERPRINT: EB6D3C0F55A7B3CABA6B2838847B274F025DD6E3
+
+jobs:
+  prepare:
+    name: Resolve Fedora publish inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      channel: ${{ steps.channel.outputs.channel }}
+      pkgver: ${{ steps.channel.outputs.pkgver }}
+      release: ${{ steps.channel.outputs.release }}
+      releases: ${{ steps.fedora.outputs.releases }}
+    steps:
+      - name: Verify required secrets are present
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n $GPG_PRIVATE_KEY ]] || missing+=(GPG_PRIVATE_KEY)
+          [[ -n $R2_ACCESS_KEY_ID ]] || missing+=(R2_ACCESS_KEY_ID)
+          [[ -n $R2_SECRET_ACCESS_KEY ]] || missing+=(R2_SECRET_ACCESS_KEY)
+          [[ -n $R2_ENDPOINT ]] || missing+=(R2_ENDPOINT)
+          [[ -n $R2_BUCKET ]] || missing+=(R2_BUCKET)
+          if ((${#missing[@]})); then
+            echo "::error::Missing required secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve release channel and versions
+        id: channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              release=${GITHUB_REF#refs/tags/}
+              raw_version=${release#v}
+              pkgver=${raw_version//-/.}
+              channel=stable
+              ;;
+            refs/heads/unstable-dev)
+              release=$(./bin/ryoku-release-version \
+                --channel unstable-dev \
+                --build-number "$GITHUB_RUN_NUMBER" \
+                --sha "$GITHUB_SHA")
+              pkgver=$(./bin/ryoku-release-version --pkgver --sha "$GITHUB_SHA")
+              channel=testing
+              ;;
+            *)
+              echo "::error::publish-repo-fedora runs on a v* tag or unstable-dev; got $GITHUB_REF"
+              exit 1
+              ;;
+          esac
+          {
+            echo "channel=$channel"
+            echo "pkgver=$pkgver"
+            echo "release=$release"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Read supported Fedora releases
+        id: fedora
+        shell: bash
+        run: |
+          set -euo pipefail
+          releases=()
+          while IFS= read -r release || [[ -n $release ]]; do
+            [[ -n $release && $release != \#* ]] || continue
+            [[ $release =~ ^[0-9]+$ ]] || {
+              echo "::error::Invalid Fedora release in fedora/releases: $release"
+              exit 1
+            }
+            releases+=("$release")
+          done < fedora/releases
+          ((${#releases[@]})) || { echo '::error::fedora/releases is empty'; exit 1; }
+          json=$(printf '%s\n' "${releases[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+          echo "releases=$json" >> "$GITHUB_OUTPUT"
+          echo "::notice::Publishing Fedora releases: ${releases[*]}"
+
+  build:
+    name: "Build signed RPM repo (Fedora ${{ matrix.fedora }})"
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.prepare.outputs.releases) }}
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - name: Install checkout tools
+        run: dnf install -y git tar gzip curl
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install build dependencies from the RPM specs
+        shell: bash
+        run: |
+          set -euo pipefail
+          dnf install -y dnf-plugins-core dnf5-plugins rpm-build rpm-sign createrepo_c gnupg2
+          dnf builddep -y fedora/packages/rpm/*.spec
+
+      - name: Prepare SRPMs and build the signed repository
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          RYOKU_CHANNEL: ${{ needs.prepare.outputs.channel }}
+          RYOKU_PKGVER: ${{ needs.prepare.outputs.pkgver }}
+          RYOKU_RELEASE: ${{ needs.prepare.outputs.release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GNUPGHOME
+          GNUPGHOME=$(mktemp -d)
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME" "$RUNNER_TEMP/ryoku-rpm-key.asc"' EXIT
+          printf '%s\n' "$GPG_PRIVATE_KEY" > "$RUNNER_TEMP/ryoku-rpm-key.asc"
+          chmod 600 "$RUNNER_TEMP/ryoku-rpm-key.asc"
+          gpg --batch --import "$RUNNER_TEMP/ryoku-rpm-key.asc"
+
+          mapfile -t fingerprints < <(
+            gpg --batch --with-colons --list-secret-keys --fingerprint \
+              | awk -F: '$1 == "sec" { primary = 1; next } primary && $1 == "fpr" { print $10; primary = 0 }'
+          )
+          if ((${#fingerprints[@]} != 1)) || [[ ${fingerprints[0]} != "$RYOKU_RPM_FINGERPRINT" ]]; then
+            echo "::error::GPG_PRIVATE_KEY must contain only $RYOKU_RPM_FINGERPRINT"
+            exit 1
+          fi
+
+          srpms="$RUNNER_TEMP/fedora-${{ matrix.fedora }}-srpms"
+          out="$GITHUB_WORKSPACE/fedora/packages/rpm/out"
+          RYOKU_SRPM_OUT="$srpms" \
+            fedora/packages/rpm/prepare-srpms.sh
+          RYOKU_SRPM_IN="$srpms" \
+            RYOKU_RPM_OUT="$out" \
+            RYOKU_RPM_SIGNING_KEY="$RYOKU_RPM_FINGERPRINT" \
+            fedora/packages/rpm/build-rpm-repo.sh
+
+          stage="$RUNNER_TEMP/fedora-repo-artifact"
+          mkdir -p "$stage/x86_64"
+          cp -a "$out/." "$stage/x86_64/"
+          gpg --batch --armor --export "$RYOKU_RPM_FINGERPRINT" > "$stage/RPM-GPG-KEY-ryoku"
+          tar -C "$stage" -cf fedora/packages/rpm/fedora-repo.tar .
+
+      - name: Upload built repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: fedora-${{ matrix.fedora }}-repo-${{ github.run_id }}
+          path: fedora/packages/rpm/fedora-repo.tar
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  container-install:
+    name: "Install packaged desktops (Fedora ${{ matrix.fedora }})"
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.prepare.outputs.releases) }}
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - name: Install checkout and gate tools
+        run: dnf install -y git gnupg2 tar
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download built repository
+        uses: actions/download-artifact@v4
+        with:
+          name: fedora-${{ matrix.fedora }}-repo-${{ github.run_id }}
+          path: fedora/packages/rpm
+
+      - name: Install both desktops from the signed repository
+        env:
+          EXPECTED_RELEASE: ${{ needs.prepare.outputs.release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/fedora-repo-artifact"
+          mkdir -p "$artifact"
+          tar -C "$artifact" -xf fedora/packages/rpm/fedora-repo.tar
+
+          export GNUPGHOME
+          GNUPGHOME=$(mktemp -d)
+          chmod 700 "$GNUPGHOME"
+          trap 'rm -rf "$GNUPGHOME"' EXIT
+          mapfile -t fingerprints < <(
+            gpg --batch --with-colons --show-keys --fingerprint "$artifact/RPM-GPG-KEY-ryoku" \
+              | awk -F: '$1 == "pub" { primary = 1; next } primary && $1 == "fpr" { print $10; primary = 0 }'
+          )
+          if ((${#fingerprints[@]} != 1)) || [[ ${fingerprints[0]} != "$RYOKU_RPM_FINGERPRINT" ]]; then
+            echo "::error::Repository key does not match $RYOKU_RPM_FINGERPRINT"
+            exit 1
+          fi
+          install -Dm0644 "$artifact/RPM-GPG-KEY-ryoku" /etc/pki/rpm-gpg/RPM-GPG-KEY-ryoku
+          rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-ryoku
+
+          cat > /etc/yum.repos.d/ryoku.repo <<EOF
+          [ryoku]
+          name=Ryoku
+          baseurl=file://$artifact/x86_64
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=1
+          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ryoku
+          EOF
+
+          while IFS=$'\t' read -r copr packages why || [[ -n $copr ]]; do
+            [[ -n $copr && $copr != \#* && $copr != copr ]] || continue
+            owner=${copr%%/*}
+            project=${copr#*/}
+            [[ -n $owner && -n $project && $project != "$copr" && -n $packages ]] || {
+              echo "::error::Invalid row in fedora/packages/coprs.tsv: $copr"
+              exit 1
+            }
+            cat > "/etc/yum.repos.d/ryoku-copr-$owner-$project.repo" <<EOF
+          [ryoku-copr-$owner-$project]
+          name=Ryoku dependency: $owner/$project
+          baseurl=https://download.copr.fedorainfracloud.org/results/$owner/$project/fedora-\$releasever-\$basearch/
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=0
+          gpgkey=https://download.copr.fedorainfracloud.org/results/$owner/$project/pubkey.gpg
+          includepkgs=$packages
+          skip_if_unavailable=1
+          EOF
+          done < fedora/packages/coprs.tsv
+
+          dnf clean all
+          dnf makecache --refresh
+          dnf install -y ryoku ryoku-desktop ryoku-desktop-niri
+          dnf install -y ryoku-desktop-hyprland
+
+          installed=$(awk -F= '$1 == "RELEASE" { print substr($0, index($0, "=") + 1); exit }' /etc/ryoku-release)
+          [[ $installed == "$EXPECTED_RELEASE" ]] || {
+            echo "::error::Expected RELEASE=$EXPECTED_RELEASE, got ${installed:-missing}"
+            exit 1
+          }
+
+  publish:
+    name: "Publish RPM repo (Fedora ${{ matrix.fedora }})"
+    needs: [prepare, build, container-install]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.prepare.outputs.releases) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download tested repository
+        uses: actions/download-artifact@v4
+        with:
+          name: fedora-${{ matrix.fedora }}-repo-${{ github.run_id }}
+          path: fedora/packages/rpm
+
+      - name: Install publish tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone jq
+
+      - name: Configure bucket
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: ./bin/ryoku-r2-config
+
+      - name: Publish tested bytes and rebuild the ledger
+        env:
+          CHANNEL: ${{ needs.prepare.outputs.channel }}
+          FORCE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.force_release || false }}
+          RELEASE: ${{ needs.prepare.outputs.release }}
+          REMOTE: Ryoku:${{ secrets.R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/fedora-repo-artifact"
+          mkdir -p "$artifact"
+          tar -C "$artifact" -xf fedora/packages/rpm/fedora-repo.tar
+          src="$artifact/x86_64"
+          [[ -s $src/release.json ]] || { echo '::error::Tested repository has no release.json'; exit 1; }
+          shopt -s nullglob
+          rpms=("$src"/*.rpm)
+          ((${#rpms[@]})) || { echo '::error::Tested repository has no RPMs'; exit 1; }
+          [[ -s $src/repodata/repomd.xml ]] || { echo '::error::Tested repository has no repomd.xml'; exit 1; }
+          [[ -s $src/repodata/repomd.xml.asc ]] || { echo '::error::Tested repository has no repomd.xml signature'; exit 1; }
+
+          base="$REMOTE/fedora/${{ matrix.fedora }}"
+          if [[ $CHANNEL == stable ]]; then
+            frozen="$base/releases/$RELEASE/x86_64"
+            head="$base/x86_64"
+            ledger_channel=stable
+            if [[ $FORCE_RELEASE != true ]]; then
+              existing=$(rclone lsf "$frozen/" 2>/dev/null || true)
+              if [[ -n $existing ]]; then
+                echo "::error::fedora/${{ matrix.fedora }}/releases/$RELEASE already exists; re-run with force_release to overwrite"
+                exit 1
+              fi
+            fi
+          else
+            directory=${RELEASE//+/_}
+            frozen="$base/channels/testing/builds/$directory/x86_64"
+            head="$base/channels/testing/x86_64"
+            ledger_channel=testing
+          fi
+
+          publish() {
+            local source=$1 destination=$2
+            rclone sync "$source/" "$destination/" --include '*.rpm' --exclude '*' -P
+            rclone sync "$source/repodata/" "$destination/repodata/" -P
+            rclone copyto "$source/release.json" "$destination/release.json" -P
+            rclone check "$source/" "$destination/" --one-way
+          }
+
+          publish "$src" "$frozen"
+          publish "$src" "$head"
+          ledger=$(./bin/ryoku-release-ledger "$REMOTE" "fedora/${{ matrix.fedora }}" "$ledger_channel")
+          jq -e --arg release "$RELEASE" '.latest == $release' <<< "$ledger" >/dev/null || {
+            echo "::error::Fedora ${{ matrix.fedora }} $ledger_channel ledger does not list $RELEASE as latest"
+            exit 1
+          }
+          echo "::notice::Published Fedora ${{ matrix.fedora }} $CHANNEL release $RELEASE"
+
+  notify-failure:
+    name: Announce a failed Fedora publish
+    needs: [prepare, build, container-install, publish]
+    if: ${{ failure() && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+    steps:
+      - name: Report the failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="${{ needs.prepare.outputs.channel }}"
+          [[ -n $channel ]] || channel="unknown"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          msg="Ryoku Fedora RPM publish FAILED on the $channel channel (${GITHUB_REF#refs/heads/}, ${GITHUB_SHA:0:9}). Fedora boxes stay on the last good build. $run_url"
+          echo "::error::$msg"
+          if [[ -z ${DISCORD_WEBHOOK_URL:-} ]]; then
+            echo "::notice::DISCORD_WEBHOOK_URL not configured; failure reported as an annotation only."
+            exit 0
+          fi
+          jq -nc --arg content "$msg" '{content: $content}' \
+            | curl -fsS -X POST -H 'Content-Type: application/json' -d @- "$DISCORD_WEBHOOK_URL" \
+            || echo "::warning::could not post the failure notice to Discord"

@@ -1,13 +1,13 @@
 import { planRetention } from "./planner.js";
 
 const CONNECTIONS = 4;
-const LEDGER_KEYS = [
+const CORE_LEDGER_KEYS = [
   "releases/index.json",
   "void/releases/index.json",
   "channels/testing/index.json",
   "void/channels/testing/index.json",
 ];
-const PACKAGE_BASES = [
+const CORE_PACKAGE_BASES = [
   "releases/",
   "void/releases/",
   "channels/testing/builds/",
@@ -84,9 +84,29 @@ async function mapConcurrent(values, concurrency, visit) {
 export async function gatherFacts(bucket, root, operations) {
   const rootListing = await listAll(bucket, operations, { prefix: root, delimiter: "/" });
   const objects = [...rootListing.objects];
+  const fedoraListing = await listAll(bucket, operations, { prefix: `${root}fedora/`, delimiter: "/" });
+  objects.push(...fedoraListing.objects);
+  const escapedFedoraRoot = `${root}fedora/`.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const fedoraPattern = new RegExp(`^${escapedFedoraRoot}([0-9]+)/$`);
+  const fedoraReleases = fedoraListing.prefixes
+    .map((prefix) => fedoraPattern.exec(prefix)?.[1])
+    .filter(Boolean)
+    .sort((a, b) => Number(a) - Number(b));
+  const packageBases = [...CORE_PACKAGE_BASES];
+  const ledgerKeys = [...CORE_LEDGER_KEYS];
+  for (const release of fedoraReleases) {
+    packageBases.push(
+      `fedora/${release}/releases/`,
+      `fedora/${release}/channels/testing/builds/`,
+    );
+    ledgerKeys.push(
+      `fedora/${release}/releases/index.json`,
+      `fedora/${release}/channels/testing/index.json`,
+    );
+  }
 
   const directoryListings = [];
-  for (const relativeBase of PACKAGE_BASES) {
+  for (const relativeBase of packageBases) {
     const base = `${root}${relativeBase}`;
     const listing = await listAll(bucket, operations, { prefix: base, delimiter: "/" });
     objects.push(...listing.objects);
@@ -103,7 +123,7 @@ export async function gatherFacts(bucket, root, operations) {
   const uniqueObjects = [...byKey.values()];
   const releaseKeys = uniqueObjects
     .map((object) => object.key)
-    .filter((key) => key.endsWith("/x86_64/release.json") && PACKAGE_BASES.some((base) => key.startsWith(`${root}${base}`)));
+    .filter((key) => key.endsWith("/x86_64/release.json") && packageBases.some((base) => key.startsWith(`${root}${base}`)));
   const manifestKeys = uniqueObjects
     .map((object) => object.key)
     .filter((key) => key.startsWith(root) && !key.slice(root.length).includes("/") && key.endsWith(".iso.json"));
@@ -115,7 +135,7 @@ export async function gatherFacts(bucket, root, operations) {
     ...releaseKeys.map((key) => ({ kind: "release", key })),
     ...manifestKeys.map((key) => ({ kind: "manifest", key })),
     ...pointerKeys.map((key) => ({ kind: "pointer", key })),
-    ...LEDGER_KEYS.map((key) => ({ kind: "ledger", key: `${root}${key}` })),
+    ...ledgerKeys.map((key) => ({ kind: "ledger", key: `${root}${key}` })),
   ];
   const values = await mapConcurrent(reads, CONNECTIONS, (item) => readJson(bucket, operations, item.key));
   const parsed = { release: {}, manifest: {}, pointer: {}, ledger: {} };
@@ -142,7 +162,15 @@ function keysForGroup(group, plan) {
     "packages:arch:unstable": `${plan.root}channels/testing/builds/`,
     "packages:void:unstable": `${plan.root}void/channels/testing/builds/`,
   };
-  const base = definitions[group.group];
+  let base = definitions[group.group];
+  if (!base) {
+    const match = /^packages:fedora:([0-9]+):(stable|unstable)$/.exec(group.group);
+    if (match) {
+      const suffix = match[2] === "stable" ? "releases/" : "channels/testing/builds/";
+      base = `${plan.root}fedora/${match[1]}/${suffix}`;
+    }
+  }
+  if (!base) return [];
   return plan.deleteKeys.filter((key) => group.dropped.some((name) => key.startsWith(`${base}${name}/`)));
 }
 

@@ -94,3 +94,37 @@ test("dry-run mode never writes", async () => {
   assert.deepEqual(bucket.deleted, []);
   assert.deepEqual(bucket.puts, []);
 });
+
+test("discovers Fedora releases and updates their ledgers", async () => {
+  const bucket = new Bucket();
+  for (let version = 1; version <= 2; version += 1) {
+    const date = `2026-10-0${version}T00:00:00Z`;
+    const prefix = `stable/fedora/44/releases/v${version}/x86_64/`;
+    bucket.add(`${prefix}release.json`, JSON.stringify({ date }), date);
+    bucket.add(`${prefix}ryoku.rpm`, "package", date);
+  }
+  bucket.add("stable/fedora/44/releases/index.json", JSON.stringify({
+    schema: 1,
+    latest: "v2",
+    releases: [
+      { tag: "v2", repo: "fedora/44/releases/v2/x86_64" },
+      { tag: "v1", repo: "fedora/44/releases/v1/x86_64" },
+    ],
+  }), "2026-10-02T00:00:00Z");
+
+  await quietly(() => runRetention({
+    BUCKET: bucket,
+    ROOT: "stable/",
+    KEEP: "1",
+    DRY_RUN: "0",
+    OPERATION_BUDGET: "100",
+  }));
+
+  assert.deepEqual(bucket.deleted.sort(), [
+    "stable/fedora/44/releases/v1/x86_64/release.json",
+    "stable/fedora/44/releases/v1/x86_64/ryoku.rpm",
+  ]);
+  assert.equal(bucket.puts.length, 1);
+  assert.equal(bucket.puts[0].key, "stable/fedora/44/releases/index.json");
+  assert.deepEqual(JSON.parse(bucket.puts[0].body).releases.map((release) => release.tag), ["v2"]);
+});

@@ -22,7 +22,8 @@ else
   [[ -z $("${git_cmd[@]}" status --porcelain) ]] \
     || die 'release sources require a clean checkout; use RYOKU_RPM_LOCAL=1 for local tests'
 fi
-[[ $pkgver =~ ^[0-9][A-Za-z0-9.]*$ ]] || die "invalid RPM package version: $pkgver"
+[[ $pkgver =~ ^[0-9][A-Za-z0-9.]*$ ]] \
+  || die "invalid RPM package version '$pkgver': expected a leading digit followed only by letters, digits, or dots"
 [[ $("${git_cmd[@]}" rev-parse --is-shallow-repository) == false ]] \
   || die 'fetch full history before preparing release sources'
 

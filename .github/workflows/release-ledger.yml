@@ -1,9 +1,9 @@
 name: Release Ledger
 
-# Rebuilds the stable and testing ledgers for Arch and Void from the frozen
-# repository directories the bucket holds, with the same script each publish
-# runs after a repository lands. Dispatch it when any ledger is missing or
-# wrong; all four are derived, so a rebuild is always safe.
+# Rebuilds the stable and testing ledgers for Arch, Void, and every supported
+# Fedora release from the frozen repository directories the bucket holds, with
+# the same script each publish runs after a repository lands. Dispatch it when
+# any ledger is missing or wrong; all ledgers are derived, so a rebuild is safe.
 
 on:
   workflow_dispatch:
@@ -38,16 +38,32 @@ jobs:
           REMOTE: Ryoku:${{ secrets.R2_BUCKET }}
         run: |
           set -euo pipefail
-          ./bin/ryoku-release-ledger "$REMOTE" arch stable | tee "$RUNNER_TEMP/index-arch-stable.json"
-          ./bin/ryoku-release-ledger "$REMOTE" arch testing | tee "$RUNNER_TEMP/index-arch-testing.json"
-          ./bin/ryoku-release-ledger "$REMOTE" void stable | tee "$RUNNER_TEMP/index-void-stable.json"
-          ./bin/ryoku-release-ledger "$REMOTE" void testing | tee "$RUNNER_TEMP/index-void-testing.json"
+          ledgers=()
+          rebuild() {
+            local edition=$1 channel=$2 title=$3 file=$4
+            ./bin/ryoku-release-ledger "$REMOTE" "$edition" "$channel" | tee "$file"
+            ledgers+=("$title:$file")
+          }
+
+          rebuild arch stable "Arch stable" "$RUNNER_TEMP/index-arch-stable.json"
+          rebuild arch testing "Arch testing" "$RUNNER_TEMP/index-arch-testing.json"
+          rebuild void stable "Void stable" "$RUNNER_TEMP/index-void-stable.json"
+          rebuild void testing "Void testing" "$RUNNER_TEMP/index-void-testing.json"
+
+          while IFS= read -r fedora_release || [[ -n $fedora_release ]]; do
+            [[ -n $fedora_release && $fedora_release != \#* ]] || continue
+            [[ $fedora_release =~ ^[0-9]+$ ]] || {
+              echo "::error::Invalid Fedora release in fedora/releases: $fedora_release"
+              exit 1
+            }
+            rebuild "fedora/$fedora_release" stable "Fedora $fedora_release stable" \
+              "$RUNNER_TEMP/index-fedora-$fedora_release-stable.json"
+            rebuild "fedora/$fedora_release" testing "Fedora $fedora_release testing" \
+              "$RUNNER_TEMP/index-fedora-$fedora_release-testing.json"
+          done < fedora/releases
+
           {
-            for ledger in \
-              "Arch stable:$RUNNER_TEMP/index-arch-stable.json" \
-              "Arch testing:$RUNNER_TEMP/index-arch-testing.json" \
-              "Void stable:$RUNNER_TEMP/index-void-stable.json" \
-              "Void testing:$RUNNER_TEMP/index-void-testing.json"; do
+            for ledger in "${ledgers[@]}"; do
               title=${ledger%%:*}
               file=${ledger#*:}
               echo "### $title release ledger"
