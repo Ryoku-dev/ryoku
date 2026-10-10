@@ -1,0 +1,17 @@
+#!/usr/bin/sh
+#
+# snapper plugin (/usr/libexec/snapper/plugins/). snapperd runs it around
+# every snapshot and config change with the event as its first argument. After
+# a snapshot is created or deleted it touches /.snapshots, and
+# ryoku-snapshot-menu.path resyncs the boot menu in the background, so building
+# a kernel image for a new kernel never holds up the snapshot (or the
+# `ryoku update` that took it). SELinux lets snapperd neither start units nor
+# write a file systemd may watch, but systemd may watch /.snapshots itself.
+
+snapshots="${RYOKU_SNAPSHOTS_DIR:-/.snapshots}"
+case "${1:-}" in
+  create-snapshot-post | delete-snapshot-post)
+    touch "$snapshots" 2>/dev/null || :
+    ;;
+esac
+exit 0

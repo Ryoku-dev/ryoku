@@ -1,0 +1,13 @@
+#!/usr/bin/sh
+#
+# grub2-mkconfig snippet (/etc/grub.d/42_ryoku_snapshots). It only sources
+# ryoku-snapshots.cfg next to grub.cfg, the "Ryoku snapshots" submenu that
+# `ryoku boot-menu sync` rewrites after every snapshot, so a new snapshot never
+# needs a grub2-mkconfig run and nothing touches Fedora's BLS entries.
+set -e
+
+cat <<'EOF'
+if [ -f "${config_directory}/ryoku-snapshots.cfg" ]; then
+  source "${config_directory}/ryoku-snapshots.cfg"
+fi
+EOF

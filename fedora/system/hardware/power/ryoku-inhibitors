@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Print logind's inhibitor locks as a JSON array of
+# {what, who, why, mode, uid, pid}, the shape the power and lock helpers match
+# with jq. systemd-inhibit has no --json on Fedora 44 (systemd 259), so ask
+# login1 over D-Bus, which answers the same list on every systemd.
+set -euo pipefail
+
+busctl --json=short call org.freedesktop.login1 /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager ListInhibitors |
+  jq -c '.data[0] | map({what: .[0], who: .[1], why: .[2], mode: .[3], uid: .[4], pid: .[5]})'
