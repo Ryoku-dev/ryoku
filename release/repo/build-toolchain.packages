@@ -49,6 +49,10 @@ pkgconf
 # hyprglass, hyprgrass, imgborders, ryoku-keysounds) plus their makedepends:
 # keysounds links libcanberra. hyprland-preview-share-picker needs gtk4 +
 # gtk4-layer-shell. hyprgrass's wf-touch subproject includes glm headers.
+# ryoku-desktop-wayfire builds the depthdeck plugin against wayfire.pc, so the
+# wayfire package (which ships that .pc and its public headers) is a build host
+# dependency of the [ryoku] repo, not only of the installed desktop.
+wayfire
 hyprland
 hyprcursor
 libcanberra
