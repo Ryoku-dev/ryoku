@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **Native battery alerts.** Every bar style warns once per discharge session at
+  configurable warning and critical levels (25% and 10% by default). Configure
+  or test them in Ryoku Settings → Graphics & Power → Battery. Alerts respect
+  Do Not Disturb and retry notification delivery failures.
 - **One dock for every bar style, in any design.** The dock is no longer tied
   to a bar style: pick the Ryoku, Python or Shima dock (or none) and it runs
   the same under QS Bar, Kairos, Shima, Python, Sumi and Nomarchy, on both

@@ -9,6 +9,26 @@ Reference machine for every number below: ASUS ROG Zephyrus G14 GA402XV, Ryzen 9
 `power-profiles-daemon` running, kernel 7.1. Numbers are specific to that
 chassis; the *shape* of the conclusions holds for AMD laptops generally.
 
+## Low-battery alerts
+
+Open **Win+, → Graphics & Power → Battery** to enable alerts, set the warning
+and critical percentages, or send a test notification. Defaults are 25% and
+10%. Warning accepts 5–50%; critical accepts 1–49% and must be below warning.
+These settings are independent of hardware support for a charge ceiling.
+
+While discharging, Ryoku sends “Battery low” at the warning level and “Battery
+critical” at the critical level, with “Battery at N%. Connect your charger.”
+Each level alerts once until AC power reconnects. Starting below the critical
+level sends only the critical alert. Delivery failures can retry without
+consuming that alert. The service runs regardless of the selected bar style
+or whether its battery indicator is visible.
+
+Alerts use the normal notification system and respect Do Not Disturb. The
+native service replaces the Python bar's separate low-battery reminders while
+preserving its full-charge notification. If you installed the Battery Alerts
+community add-on, disable its alerts when enabling the native service to avoid
+duplicate reminders.
+
 ## The layers, from the one that matters most
 
 1. **Which GPU renders your desktop.** On a hybrid laptop this dominates

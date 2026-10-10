@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+- Battery settings include low-battery alerts, warning and critical percentages,
+  and a test notification. Changes apply immediately and critical always stays
+  below warning (`quickshell/pages/BatteryAlertsSettings.qml`).
+
 ### Changed
 - **Add-ons is a library of what you installed, not a wall of toggles.**
   Desktop widgets no longer appear there; they are managed in Desktop. Shell
