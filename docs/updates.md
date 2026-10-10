@@ -318,30 +318,38 @@ untouched; recovery deliberately resets every installed one.
 
 ## Publishing: releases and channels
 
-The `[ryoku]` repo is published into named states, all under the one bucket
-mount the repo domain serves (`repo.ryoku.dev/stable/<key>` is bucket object
-`<key>`; the `stable` path segment is the mount, not the channel):
+The `[ryoku]` repositories and ISOs live in the `ryoku-iso` bucket below
+`stable/`, served at `https://repo.ryoku.dev/stable` and, for ISOs,
+`https://iso.ryoku.dev/stable`. Arch and CachyOS share the bucket root and one
+`[ryoku]` repository. Void uses the same layout below `void/`. These paths are
+relative to either edition root:
 
-| Directory | Channel | Written when |
+| Directory | Purpose | Written when |
 |---|---|---|
-| `x86_64/` | **stable**: the URL every installed box has | a release tag is published: a byte copy of that release |
-| `releases/<tag>/x86_64/` | one frozen release; never rewritten | the tag is published (`publish-repo.yml` refuses an existing directory) |
-| `releases/index.json` | the release ledger, newest first, with each release's ISO per variant (`images.plain`, `images.cachyos`) | after each release |
-| `channels/testing/x86_64/` | **testing** | every push to `unstable-dev` |
+| `x86_64/` | moving stable head | a release tag is published |
+| `channels/testing/x86_64/` | moving unstable head | every push to `unstable-dev` |
+| `releases/<tag>/x86_64/` | frozen stable release | the tag is published |
+| `releases/index.json` | stable release ledger, newest first, with each release's ISO per variant | after each stable publish or ledger rebuild |
+| `channels/testing/builds/<build>/x86_64/` | frozen tested unstable build | every successful `unstable-dev` publish |
+| `channels/testing/index.json` | unstable build ledger, newest first | after each unstable publish or ledger rebuild |
 
-So a box on stable moves between named releases, and can be put back on any
-earlier one, on any variant: the `[ryoku]` packages are one `x86_64` build
-that every variant installs, the frozen release directories are never pruned,
-and the ledger's `images` map names the Arch and CachyOS ISO of each release
-(derived from the per-ISO manifests in the bucket, so it heals on every
-rebuild) for a reinstall of an older release. Each build carries a strictly
-increasing package version (`core.r<commit-count>.g<sha>`) that the Ryoku
-upgrade moves to, and the `ryoku-desktop` package writes `/etc/ryoku-release`
-(`RELEASE=`, `CHANNEL=`, `VERSION=`, `COMMIT=`) so a box can say which release
-it runs; `release.json` beside each channel's db says which one the channel
-serves, and `manifest.json` beside it lists every package the release is made
-of, by lane (base, dev, hardware, AUR, first-party, compositor, provisioned),
-generated from the checkout by `build-repo.sh` and never hand-edited.
+The unstable directory name replaces `+` in the release name with `_`, so
+`v0.94.1-beta.20.dev.12+g1234567` is stored below
+`builds/v0.94.1-beta.20.dev.12_g1234567/`. The ISO files sit at the bucket
+root with their `.sha256`, `.sig`, `.json`, and `.js` sidecars. The
+`latest*.json` files point to current images.
+
+A box can move between the ten retained frozen targets in its channel, on any
+edition. The stable ledger's `images` map names the Arch, CachyOS, or Void ISO
+for each release, derived from the per-ISO manifests in the bucket. Each build
+carries a strictly increasing package version
+(`core.r<commit-count>.g<sha>`) that the Ryoku upgrade moves to, and the
+`ryoku-desktop` package writes `/etc/ryoku-release` (`RELEASE=`, `CHANNEL=`,
+`VERSION=`, `COMMIT=`) so a box can say which release or build it runs.
+`release.json` beside each moving or frozen repository says what it serves, and
+`manifest.json` lists every package by lane (base, dev, hardware, AUR,
+first-party, compositor, provisioned). `build-repo.sh` generates both; they are
+never hand-edited.
 
 A release is a tag: `main` advances only by fast-forward from `unstable-dev`
 (`RYOKU_RELEASE_PUSH=1 git push origin unstable-dev:main`; the `pre-push` hook
@@ -363,20 +371,22 @@ line in pacman.conf on Arch/CachyOS, or
 Void. There is no second channel state to drift from it:
 
 - `ryoku track unstable` turns any box into a **testing box**: it follows the
-  `testing` channel, rebuilt on every push to `unstable-dev`, so a tester gets
-  each push as signed packages through `ryoku update`. `ryoku track stable`
-  returns it to **stable** (named releases). `unstable` is the user-facing name
-  of the `testing` repository path.
-- `ryoku track stable | unstable | v<tag>` switches the repository and runs an
-  update that moves the Ryoku set to what the channel serves, down as well as
-  up. Pacman uses repo-qualified targets; XBPS force-refreshes its repository
-  and uses `-f` when moving to an older frozen release. A tag pins the box until
-  it is tracked away.
-- `ryoku rollback --to v<tag>` moves the Ryoku set back in one native package
-  transaction while the Arch, CachyOS, or Void base stays current. XBPS forces
-  the selected package versions for the move. `ryoku track v<tag>` is the
-  equivalent pin. Only tagged releases are frozen; testing builds from
-  `unstable-dev` have no release target to roll back to.
+  `testing` moving head, rebuilt on every push to `unstable-dev`, so a tester
+  gets each push as signed packages through `ryoku update`. The publish also
+  freezes the tested repository and rebuilds the testing ledger.
+  `ryoku track stable` returns it to **stable** (named releases). `unstable` is
+  the user-facing name of the `testing` repository path.
+- `ryoku track stable | unstable | <version>` switches the repository and runs
+  an update that moves the Ryoku set to what the channel or frozen target
+  serves, down as well as up. `<version>` may be a release tag or unstable build
+  name and pins the box until it is tracked away. Pacman uses repo-qualified
+  targets; XBPS force-refreshes its repository and uses `-f` when moving to an
+  older frozen target.
+- `ryoku rollback --to <version>` makes the same frozen-target move in one
+  native package transaction while the Arch, CachyOS, or Void base stays
+  current. A box following unstable, or pinned to one of its builds, sees the
+  retained unstable builds in `ryoku rollback`. `ryoku track unstable` follows
+  the moving testing head again.
 - `ryoku status` reports `release` (this box) and `channelRelease` (what the
   channel serves); `ryoku version` prints the release tag.
 - The doctor names the channel it finds and warns, without touching it, when
@@ -384,17 +394,26 @@ Void. There is no second channel state to drift from it:
 
 ### Release ledgers
 
-`bin/ryoku-release-ledger <remote> arch|void` rebuilds one edition from its
-frozen release directories. Arch writes `releases/index.json` with plain and
-CachyOS images. Void writes `void/releases/index.json` with Void images, which
-is published at
-`https://repo.ryoku.dev/stable/void/releases/index.json`.
+`bin/ryoku-release-ledger <remote> [arch|void] [stable|testing]` rebuilds one
+edition and channel from its frozen repository directories. Arch writes
+`releases/index.json` and `channels/testing/index.json`; Void writes the same
+paths below `void/`. Stable ledgers include matching ISO images, while testing
+ledgers contain package builds only. The publish workflows upload
+`release.json` last as the frozen build's completion marker, then rebuild the
+matching ledger. `release-ledger.yml` rebuilds all four ledgers on demand.
+`RYOKU_RELEASE_BASE` overrides the bucket base used for ledger and repository
+URLs, which keeps mirrors and tests on one origin.
 
-`publish-repo-void.yml` rebuilds the Void ledger when a `v*` tag publishes the
-signed XBPS set, and `build-iso-void.yml` refreshes it after the tagged ISO is
-uploaded. `release-ledger.yml` rebuilds both editions on demand.
-`RYOKU_RELEASE_BASE` overrides the bucket base used for both ledger and
-repository URLs, which keeps mirrors and tests on one origin.
+The scheduled Cloudflare Worker in `release/r2-retention/` runs every six hours.
+It keeps the newest ten stable releases and unstable builds per edition, plus
+the newest ten ISOs per variant and channel. An ISO and all its sidecars are
+deleted together. Incomplete frozen directories without `release.json` are
+removed after 48 hours.
+
+Retention never touches the moving repository heads, `latest*.json` pointers or
+the ISOs they name, the ledgers except to remove deleted entries, the signing
+key, or the bucket-root `install.sh`. Each run logs one JSON line per group and
+an `r2_retention_total` line.
 
 `ryoku track stable | unstable --source` is the developer path: it builds and
 tracks a git checkout instead of packages (see `docs/development.md`). An

@@ -308,11 +308,13 @@ migration ledger: the config is reconciled to the shipped state on every
 update, and the rare stateful fix (disk layout and the like) is an idempotent
 `ryoku doctor` reconciler that runs inside `ryoku update`.
 
-`ryoku rollback` lists frozen tagged releases and moves the Ryoku package set
-back without moving the distribution base or kernel. For a whole-system
-restore, reboot and choose **Ryoku Linux -> Snapshots** in Limine, run
-`sudo limine-snapper-restore`, then reboot again. The testing channel is not a
-frozen release and has no release target to roll back to.
+`ryoku rollback` lists the ten retained frozen targets for the current channel:
+tagged releases on stable, and tested builds on unstable. Pin one with
+`ryoku rollback --to <version>` or `ryoku track <version>`, and use
+`ryoku track stable` or `ryoku track unstable` to follow a moving head again;
+the boot guard can return to the previous frozen target after failed boots,
+while a whole-system restore still uses **Ryoku Linux -> Snapshots** in Limine
+followed by `sudo limine-snapper-restore` and another reboot.
 
 ## Recovery
 

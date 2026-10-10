@@ -203,6 +203,12 @@ and move stable. `.github/workflows/build-iso-void.yml` builds the ISO on
 `void-v*` tags or a manual dispatch. See `void/packages/README.md` and
 `void/iso/README.md` for the build inputs.
 
+The R2 retention Worker lives in `release/r2-retention/`. Run its focused tests
+with `node --test release/r2-retention/test`, then deploy from that directory
+with `npx wrangler deploy`. For a first deployment, set its top-level `DRY_RUN`
+value to `1`, inspect one scheduled run with `npx wrangler tail
+ryoku-r2-retention`, then restore `DRY_RUN` to `0` and deploy again.
+
 ## Commit gates
 
 Every commit passes the hooks in `.githooks/`; never use `--no-verify`. A fresh

@@ -259,6 +259,14 @@ raw.githubusercontent.com serves them with no release infrastructure.
 - `repo/` builds the signed `[ryoku]` repo from those PKGBUILDs: `build-repo.sh`
   runs `makepkg`, signs every artifact with the release key, and `repo-add`s the
   signed `ryoku.db` into `out/`, laid out exactly as the public mirror serves it.
+  Publishing keeps moving stable and testing heads, freezes tagged releases and
+  tested unstable builds, then rebuilds their ledgers with
+  `bin/ryoku-release-ledger`.
+- `r2-retention/` is the scheduled Cloudflare Worker for the shared `ryoku-iso`
+  bucket. Its planner keeps ten stable releases and unstable builds per edition
+  and ten ISOs per variant and channel, removes incomplete frozen uploads after
+  48 hours, and preserves moving heads, current pointers, and protected bucket
+  objects.
 
 ## `void/` the Void Linux port
 
