@@ -242,6 +242,16 @@ optdepends=(
   'quickemu: build and run virtual machines in ryovm'
   'libisoburn: instant cloud machines in ryovm (cloud-init seed ISO; xorriso)'
   'spice-gtk: SPICE console + headless VM viewer for ryovm'
+  # ryoport's experimental consoles delegate to mature open-source clients:
+  # picocom (GPL-2.0) for serial console cables, GNU telnet (inetutils,
+  # GPL-3.0) for legacy network consoles, FreeRDP (Apache-2.0) for RDP
+  # desktops, TigerVNC (GPL-2.0) for VNC screens. Optional by the same rule
+  # as quickemu above: each missing client shows as an install hint on its
+  # console page instead of a dead button.
+  'picocom: serial console berths in ryoport'
+  'inetutils: telnet berths in ryoport'
+  'freerdp: RDP berths in ryoport'
+  'tigervnc: VNC berths in ryoport'
   'asusctl: ASUS laptop Aura keyboard lighting'
   'qmk_hid: QMK/VIA keyboard lighting (Framework 16, custom boards)'
 )

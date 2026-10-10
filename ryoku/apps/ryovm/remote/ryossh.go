@@ -21,6 +21,15 @@
 //	add <json>               add/replace a ryoport-managed host
 //	remove <alias>           drop a ryoport-managed host
 //	knownremove <alias>      ssh-keygen -R the resolved hostname
+//	console list             JSON array of saved consoles (serial/telnet/RDP/VNC)
+//	console add <json>       add/replace a saved console
+//	console remove <id>      drop a console and its saved password
+//	console open <id>        launch the console's client (keyring-fed when saved)
+//	console probe <id>       reachability for one console
+//	console probeall         reachability for every console, one JSON array
+//	console setpass <id>     read a password from stdin into the keyring
+//	console clearpass <id>   forget a console's saved password
+//	tunnel <open|list|close|closeall>   tracked ssh forwards
 package main
 
 import (
@@ -69,7 +78,7 @@ func die(format string, a ...any) {
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		die("usage: ryossh <list|ping|pingall|probe|probeall|appcheck|appcheckall|pveguests|pveaction|connect|keys|copyid|keygen|setpass|clearpass|add|remove|knownremove|tunnel> [args]")
+		die("usage: ryossh <list|ping|pingall|probe|probeall|appcheck|appcheckall|pveguests|pveaction|connect|keys|copyid|keygen|setpass|clearpass|add|remove|knownremove|tunnel|console> [args]")
 	}
 	cmd, rest := args[0], args[1:]
 	switch cmd {
@@ -107,6 +116,8 @@ func main() {
 		cmdKnownRemove(needAlias(rest, "knownremove"))
 	case "tunnel":
 		cmdTunnel(rest)
+	case "console":
+		cmdConsole(rest)
 	case "setpass":
 		cmdSetPass(needAlias(rest, "setpass"))
 	case "clearpass":
@@ -574,7 +585,10 @@ func validUnit(s string) bool {
 }
 
 // probeOne runs the health script over ssh with a hard deadline and returns
-// either a filled Probe (success) or a {alias,ok:false,error} map (unreachable).
+// either a filled Probe (success) or a {alias,ok:false,error,needAuth} map
+// (unreachable or blocked). needAuth tells the GUI the box is answering but
+// ryoport cannot prove it is healthy yet, so it can offer a save-password fix
+// instead of showing dead graphs over a quietly failing probe.
 func probeOne(alias string, watch []string, timeout time.Duration, usePassword bool) any {
 	ensureSSHDir()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -596,26 +610,48 @@ func probeOne(alias string, watch []string, timeout time.Duration, usePassword b
 	b, err := cmd.Output()
 	kv := parseKV(string(b))
 	if err != nil || kv["ok"] != "1" {
-		return map[string]any{"alias": alias, "ok": false, "error": probeErr(ctx, err, stderr.String())}
+		msg, needAuth := probeErr(ctx, err, stderr.String(), usePassword)
+		return map[string]any{"alias": alias, "ok": false, "error": msg, "needAuth": needAuth}
 	}
 	return fillProbe(alias, kv)
 }
 
-func probeErr(ctx context.Context, err error, stderr string) string {
-	if s := strings.TrimSpace(stderr); s != "" {
-		// keep only the last line: ssh prints the actionable reason last.
-		if i := strings.LastIndexByte(s, '\n'); i >= 0 {
-			s = s[i+1:]
+// probeErr turns an ssh failure into one actionable line. "authentication
+// required" (needAuth true) means the box answered and only wants a credential
+// ryoport does not have: BatchMode refused to prompt, or a saved keyring
+// password was rejected. Anything else keeps ssh's own last line.
+func probeErr(ctx context.Context, err error, stderr string, usePassword bool) (string, bool) {
+	s := strings.TrimSpace(stderr)
+	if i := strings.LastIndexByte(s, '\n'); i >= 0 {
+		s = s[i+1:] // ssh prints the actionable reason last
+	}
+	low := strings.ToLower(s)
+	authBlocked := strings.Contains(low, "permission denied") ||
+		strings.Contains(low, "too many authentication failures") ||
+		strings.Contains(low, "authentications that can continue") ||
+		strings.Contains(low, "no supported authentication methods")
+	if authBlocked {
+		if usePassword {
+			return "saved password rejected", false
 		}
-		return s
+		return "authentication required", true
+	}
+	if strings.Contains(low, "host key verification failed") {
+		return "host key changed (known_hosts)", false
+	}
+	if strings.Contains(low, "unable to negotiate") {
+		return "ssh handshake failed (very old server?)", false
+	}
+	if s != "" {
+		return s, false
 	}
 	if ctx.Err() == context.DeadlineExceeded {
-		return "timed out"
+		return "timed out", false
 	}
 	if err != nil {
-		return err.Error()
+		return err.Error(), false
 	}
-	return "unreachable"
+	return "unreachable", false
 }
 
 // parseKV turns the probe's key=value output into a map.
@@ -957,6 +993,10 @@ func connectArgv(alias, term string) []string {
 // reverse-DNS id is valid for every terminal on the switch below.
 const ryoportAppID = "dev.ryoku.ryoport_ssh"
 
+// ryoportConsoleAppID is the window class for the direct GUI console clients
+// (RDP, VNC) launched outside a terminal, so the compositors can float them.
+const ryoportConsoleAppID = "dev.ryoku.ryoport_console"
+
 // terminalArgv wraps the connect command in a real terminal window, respecting
 // $TERMINAL and its invocation quirks (kitty/foot take trailing args; alacritty/
 // xterm need -e; wezterm needs `start --`; ghostty wants `--class=` with an
@@ -967,8 +1007,13 @@ func terminalArgv(alias string) []string {
 	if term == "" {
 		term = "kitty"
 	}
-	conn := connectArgv(alias, term)
-	title := "ssh: " + alias
+	return terminalWrap(term, "ssh: "+alias, connectArgv(alias, term))
+}
+
+// terminalWrap is the shared terminal invocation behind terminalArgv: the
+// float-class window, a title, and a hold-on-failure so a bare terminal never
+// buries its own error under a login shell.
+func terminalWrap(term, title string, conn []string) []string {
 	hold := `"$@" || { printf "\n── press enter to close ──\n"; read _; }`
 	prog := append([]string{"sh", "-c", hold, "_"}, conn...)
 	switch filepath.Base(term) {
@@ -1800,4 +1845,526 @@ func cmdTunnelCloseAll(rest []string) {
 	}
 	writeTunnels(pruneTunnels(keep))
 	out(map[string]any{"ok": true, "closed": closed})
+}
+
+// --- consoles (serial / telnet / RDP / VNC) --------------------------------
+//
+// Ryoport speaks SSH itself; every other protocol it delegates to a mature
+// open-source client that already owns negotiation, keyboard handling, and
+// rendering: picocom (GPL-2.0) for serial consoles, GNU inetutils telnet
+// (GPL-3.0) for console-cable-equivalent network logins, FreeRDP (Apache-2.0)
+// for RDP, and TigerVNC (GPL-2.0) for VNC. Ryoport's job is the harbour part:
+// validate the profile, fetch a saved password from the keyring on demand,
+// and hand the child its secret through a private stdin fd or the child's own
+// environment -- never argv, never a file that outlives the launch.
+
+// Console is one saved non-SSH berth. JSON field names are the contract the
+// QML consoles page parses against. Kind selects which fields matter:
+// serial uses Device/Baud; telnet/rdp/vnc use Address/Port; rdp also uses
+// User/Domain; Auth is "password" when the keyring holds the secret.
+type Console struct {
+	ID         string `json:"id"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	Device     string `json:"device,omitempty"`
+	Baud       int    `json:"baud,omitempty"`
+	Address    string `json:"address,omitempty"`
+	Port       int    `json:"port,omitempty"`
+	User       string `json:"user,omitempty"`
+	Domain     string `json:"domain,omitempty"`
+	Fullscreen bool   `json:"fullscreen,omitempty"`
+	Auth       string `json:"auth,omitempty"`
+}
+
+func consolesPath() string {
+	return filepath.Join(home(), ".config", "ryoku", "ryoport", "consoles.json")
+}
+
+// readConsoles loads the book; a missing or corrupt file yields an empty list
+// so no verb ever crashes on it (same tolerance as readSidecar).
+func readConsoles() []Console {
+	data, err := os.ReadFile(consolesPath())
+	if err != nil {
+		return []Console{}
+	}
+	var cs []Console
+	if err := json.Unmarshal(data, &cs); err != nil {
+		return []Console{}
+	}
+	if cs == nil {
+		cs = []Console{}
+	}
+	return cs
+}
+
+func writeConsoles(cs []Console) {
+	b, err := json.MarshalIndent(cs, "", "  ")
+	if err != nil {
+		die("marshal consoles: %v", err)
+	}
+	atomicWrite(consolesPath(), append(b, '\n'), 0600)
+}
+
+func findConsole(id string) (Console, int) {
+	cs := readConsoles()
+	for i, c := range cs {
+		if c.ID == id {
+			return c, i
+		}
+	}
+	return Console{}, -1
+}
+
+// upsertConsole stores one console, replacing any entry with the same id. A
+// new console gets a fresh id; an edit-save keeps the stored Auth flag so the
+// keyring link survives an edit.
+func upsertConsole(c Console) Console {
+	cs := readConsoles()
+	if c.ID == "" {
+		c.ID = newID()
+	} else {
+		for _, old := range cs {
+			if old.ID == c.ID {
+				c.Auth = old.Auth
+				break
+			}
+		}
+	}
+	kept := make([]Console, 0, len(cs)+1)
+	for _, old := range cs {
+		if old.ID != c.ID {
+			kept = append(kept, old)
+		}
+	}
+	writeConsoles(append(kept, c))
+	return c
+}
+
+// dropConsole removes one console and forgets its keyring password.
+func dropConsole(id string) {
+	cs := readConsoles()
+	kept := make([]Console, 0, len(cs))
+	for _, c := range cs {
+		if c.ID == id {
+			clearConsoleSecret(c.ID)
+			continue
+		}
+		kept = append(kept, c)
+	}
+	writeConsoles(kept)
+}
+
+// consoleSecretAttr keys console passwords in the login keyring, separate from
+// the ssh-host attribute so an alias and an id can never collide.
+const consoleSecretAttr = "ryoport-console"
+
+func storeConsoleSecret(c Console, pw string) error {
+	cmd := exec.Command("secret-tool", "store", "--label", "ryoport console: "+c.Name, consoleSecretAttr, c.ID)
+	cmd.Stdin = strings.NewReader(pw)
+	return cmd.Run()
+}
+
+func clearConsoleSecret(id string) {
+	exec.Command("secret-tool", "clear", consoleSecretAttr, id).Run()
+}
+
+// lookupConsoleSecret reads a console password back from the keyring. A miss
+// (no entry, no daemon) is not an error: ok=false lets the caller fall back to
+// the client's own interactive prompt instead of failing the launch.
+func lookupConsoleSecret(id string) (string, bool) {
+	b, err := exec.Command("secret-tool", "lookup", consoleSecretAttr, id).Output()
+	if err != nil {
+		return "", false
+	}
+	pw := strings.TrimRight(string(b), "\r\n")
+	return pw, pw != ""
+}
+
+// findBin returns the first client binary present on PATH, or "" when none is;
+// the GUI turns a miss into an install hint rather than a dead button.
+func findBin(names ...string) string {
+	for _, n := range names {
+		if p, err := exec.LookPath(n); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
+func consoleBin(kind string) (string, error) {
+	switch kind {
+	case "serial":
+		if b := findBin("picocom"); b != "" {
+			return b, nil
+		}
+		return "", fmt.Errorf("no serial client found: install picocom (pacman -S picocom)")
+	case "telnet":
+		if b := findBin("telnet"); b != "" {
+			return b, nil
+		}
+		return "", fmt.Errorf("no telnet client found: install inetutils (pacman -S inetutils)")
+	case "rdp":
+		if b := findBin("xfreerdp3", "xfreerdp"); b != "" {
+			return b, nil
+		}
+		return "", fmt.Errorf("no RDP client found: install freerdp (pacman -S freerdp)")
+	case "vnc":
+		if b := findBin("vncviewer"); b != "" {
+			return b, nil
+		}
+		return "", fmt.Errorf("no VNC client found: install tigervnc (pacman -S tigervnc)")
+	}
+	return "", fmt.Errorf("unknown console kind %q", kind)
+}
+
+func cmdConsoleCaps() {
+	out(map[string]any{
+		"serial": findBin("picocom") != "",
+		"telnet": findBin("telnet") != "",
+		"rdp":    findBin("xfreerdp3", "xfreerdp") != "",
+		"vnc":    findBin("vncviewer") != "",
+	})
+}
+
+// validConsole rejects anything a client could misparse as its own flag or
+// that cannot round-trip through JSON and argv (direct exec never sees a
+// shell, so the risks are argument injection and garbage profiles, not shell
+// quoting). Control characters and leading '-' are the whole attack surface.
+func validConsole(c *Console) error {
+	switch c.Kind {
+	case "serial", "telnet", "rdp", "vnc":
+	default:
+		return fmt.Errorf("kind must be serial, telnet, rdp, or vnc")
+	}
+	if strings.ContainsAny(c.Name, "\r\n") || strings.ContainsRune(c.Name, 0) {
+		return fmt.Errorf("name must not contain control characters")
+	}
+	for _, s := range []string{c.Device, c.Address, c.User, c.Domain} {
+		if strings.ContainsAny(s, "\r\n") || strings.ContainsRune(s, 0) {
+			return fmt.Errorf("fields must not contain control characters")
+		}
+		if strings.HasPrefix(s, "-") {
+			return fmt.Errorf("fields must not start with '-'")
+		}
+	}
+	switch c.Kind {
+	case "serial":
+		if !strings.HasPrefix(c.Device, "/dev/") || strings.ContainsAny(c.Device, " \t") {
+			return fmt.Errorf("serial device must be a /dev/ path without spaces")
+		}
+		if c.Baud < 30 || c.Baud > 4000000 {
+			return fmt.Errorf("baud must be between 30 and 4000000")
+		}
+	case "telnet":
+		if !validHost(c.Address) {
+			return fmt.Errorf("telnet address must be a bare host (letters, digits, . _ -)")
+		}
+		if c.Port < 1 || c.Port > 65535 {
+			c.Port = 23
+		}
+	case "rdp":
+		if !validHost(c.Address) {
+			return fmt.Errorf("RDP address must be a bare host (letters, digits, . _ -)")
+		}
+		if c.Port < 1 || c.Port > 65535 {
+			c.Port = 3389
+		}
+	case "vnc":
+		if !validHost(c.Address) {
+			return fmt.Errorf("VNC address must be a bare host (letters, digits, . _ -)")
+		}
+		if c.Port < 1 || c.Port > 65535 {
+			c.Port = 5900
+		}
+	}
+	return nil
+}
+
+// serialArgv is a plain picocom invocation: fixed baud, no flow control (the
+// console-cable default). No credential surface by design -- the device's own
+// login stays interactive in the terminal window.
+func serialArgv(bin string, c Console) []string {
+	return []string{bin, "--baud", strconv.Itoa(c.Baud), "--flow", "n", c.Device}
+}
+
+func telnetArgv(bin string, c Console) []string {
+	return []string{bin, c.Address, strconv.Itoa(c.Port)}
+}
+
+// rdpArgv is the FreeRDP windowed launch without a saved password: the client
+// shows its own credential dialog when the server demands one. /cert:tofu
+// trusts a fresh server certificate once (it lands in FreeRDP's own store) so
+// a home lab box with a self-signed cert does not eat a modal every connect;
+// never /cert:ignore.
+func rdpArgs(c Console) []string {
+	// the dedicated class lets the compositor float and centre the desktop at
+	// its requested size; the ssh terminal class carries a fixed 900x560.
+	argv := []string{"/v:" + net.JoinHostPort(c.Address, strconv.Itoa(c.Port)), "/cert:tofu",
+		"/wm-class:" + ryoportConsoleAppID, "/t:ryoport: " + c.Name}
+	if c.User != "" {
+		argv = append(argv, "/u:"+c.User)
+	}
+	if c.Domain != "" {
+		argv = append(argv, "/d:"+c.Domain)
+	}
+	if c.Fullscreen {
+		argv = append(argv, "/f")
+	} else {
+		argv = append(argv, "/size:1280x800")
+	}
+	return argv
+}
+
+func rdpArgv(bin string, c Console) []string {
+	return append([]string{bin}, rdpArgs(c)...)
+}
+
+// rdpArgsFile is the saved-password form: every argument (including /p:) on
+// one line of a private pipe handed to the child as fd 3 via /args-from. The
+// password never reaches argv, the environment, or a file on disk -- only the
+// inheriting child can read it, and only until exec.
+func rdpArgsFile(c Console, pw string) string {
+	args := append(rdpArgs(c), "/p:"+pw)
+	return strings.Join(args, "\n") + "\n"
+}
+
+// vncTarget is TigerVNC's explicit-port endpoint form: host::5901.
+func vncTarget(c Console) string {
+	return c.Address + "::" + strconv.Itoa(c.Port)
+}
+
+// vncArgv connects TigerVNC to a host display; the saved password (when any)
+// rides in the child's environment, the mechanism vncviewer documents.
+func vncArgv(bin string, c Console) []string {
+	argv := []string{bin, vncTarget(c)}
+	if c.Fullscreen {
+		argv = append(argv, "-FullScreen")
+	}
+	return argv
+}
+
+// consoleProbeOne answers "can ryoport reach this berth right now": serial
+// checks the node exists and the user may read+write it (group membership is
+// the usual miss), network kinds dial TCP and report latency.
+func consoleProbeOne(c Console) map[string]any {
+	res := map[string]any{"id": c.ID, "kind": c.Kind, "up": false, "rttMs": -1}
+	switch c.Kind {
+	case "serial":
+		st, err := os.Stat(c.Device)
+		switch {
+		case err != nil:
+			res["error"] = "device not present: " + c.Device
+		case st.Mode()&os.ModeDevice == 0:
+			res["error"] = "not a device node: " + c.Device
+		case syscall.Access(c.Device, 06) != nil:
+			res["error"] = "no permission on " + c.Device + " (add yourself to the operator group)"
+		default:
+			res["up"] = true
+			res["rttMs"] = 0
+		}
+		return res
+	}
+	start := time.Now()
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort(c.Address, strconv.Itoa(c.Port)), 3*time.Second)
+	if err != nil {
+		res["error"] = err.Error()
+		return res
+	}
+	conn.Close()
+	res["up"] = true
+	res["rttMs"] = int(time.Since(start).Milliseconds())
+	return res
+}
+
+func cmdConsoleProbe(rest []string) {
+	if len(rest) < 1 {
+		die("usage: ryossh console probe <id>")
+	}
+	c, idx := findConsole(rest[0])
+	if idx < 0 {
+		die("no such console")
+	}
+	res := consoleProbeOne(c)
+	out(res)
+	if res["up"] == false {
+		os.Exit(1)
+	}
+}
+
+func cmdConsoleProbeAll() {
+	cs := readConsoles()
+	results := make([]map[string]any, len(cs))
+	sem := make(chan struct{}, poolSize)
+	var wg sync.WaitGroup
+	for i, c := range cs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, c Console) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			results[i] = consoleProbeOne(c)
+		}(i, c)
+	}
+	wg.Wait()
+	if results == nil {
+		results = []map[string]any{}
+	}
+	out(results)
+}
+
+// consoleTermArgv wraps a console command in a real terminal window (same
+// grammar as ssh connects: float class, title, hold-on-failure).
+func consoleTermArgv(c Console, prog []string) []string {
+	term := os.Getenv("TERMINAL")
+	if term == "" {
+		term = "kitty"
+	}
+	return terminalWrap(term, c.Kind+": "+c.Name, prog)
+}
+
+func cmdConsoleOpen(rest []string) {
+	if len(rest) < 1 {
+		die("usage: ryossh console open <id>")
+	}
+	c, idx := findConsole(rest[0])
+	if idx < 0 {
+		die("no such console")
+	}
+	bin, err := consoleBin(c.Kind)
+	if err != nil {
+		die("%v", err)
+	}
+
+	var cmd *exec.Cmd
+	switch c.Kind {
+	case "serial":
+		argv := consoleTermArgv(c, serialArgv(bin, c))
+		cmd = exec.Command(argv[0], argv[1:]...)
+	case "telnet":
+		argv := consoleTermArgv(c, telnetArgv(bin, c))
+		cmd = exec.Command(argv[0], argv[1:]...)
+	case "rdp":
+		pw, saved := "", false
+		if c.Auth == "password" {
+			pw, saved = lookupConsoleSecret(c.ID)
+		}
+		if saved {
+			pipeR, pipeW, err := os.Pipe()
+			if err != nil {
+				die("pipe: %v", err)
+			}
+			defer pipeR.Close() // parent never reads it; only the child's fd does
+			go func() {
+				pipeW.Write([]byte(rdpArgsFile(c, pw)))
+				// wipe the buffer's only copy by letting it go; pw stays in
+				// Go's heap, acceptable for a short-lived CLI.
+				pipeW.Close()
+			}()
+			cmd = exec.Command(bin, "/args-from:fd:3")
+			cmd.ExtraFiles = []*os.File{pipeR} // fd 3 in the child
+		} else {
+			argv := rdpArgv(bin, c)
+			cmd = exec.Command(argv[0], argv[1:]...)
+		}
+	case "vnc":
+		argv := vncArgv(bin, c)
+		cmd = exec.Command(argv[0], argv[1:]...)
+		if c.Auth == "password" {
+			if pw, ok := lookupConsoleSecret(c.ID); ok {
+				cmd.Env = append(os.Environ(), "VNC_PASSWORD="+pw)
+				if c.User != "" {
+					cmd.Env = append(cmd.Env, "VNC_USERNAME="+c.User)
+				}
+			}
+		}
+	}
+	// Setsid so the session window survives ryoport exiting, like ssh connects.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	if cmd.Stdin == nil {
+		devnull, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+		if err != nil {
+			die("open %s: %v", os.DevNull, err)
+		}
+		defer devnull.Close()
+		cmd.Stdin = devnull
+	}
+	if err := cmd.Start(); err != nil {
+		die("launch %s: %v", bin, err)
+	}
+	go cmd.Wait() // reap so a fast-exiting client can't leave a zombie
+	out(map[string]any{"launched": true, "id": c.ID, "kind": c.Kind})
+}
+
+func cmdConsole(rest []string) {
+	if len(rest) < 1 {
+		die("usage: ryossh console <list|add|remove|open|probe|probeall|caps|setpass|clearpass> [args]")
+	}
+	sub, args := rest[0], rest[1:]
+	switch sub {
+	case "list":
+		out(readConsoles())
+	case "caps":
+		cmdConsoleCaps()
+	case "add":
+		if len(args) < 1 {
+			die("usage: ryossh console add <json>")
+		}
+		var c Console
+		if err := json.Unmarshal([]byte(args[0]), &c); err != nil {
+			die("invalid console JSON: %v", err)
+		}
+		if err := validConsole(&c); err != nil {
+			die("%v", err)
+		}
+		c = upsertConsole(c)
+		out(map[string]any{"ok": true, "id": c.ID})
+	case "remove":
+		if len(args) < 1 {
+			die("usage: ryossh console remove <id>")
+		}
+		dropConsole(args[0])
+		out(map[string]any{"ok": true})
+	case "open":
+		cmdConsoleOpen(args)
+	case "probe":
+		cmdConsoleProbe(args)
+	case "probeall":
+		cmdConsoleProbeAll()
+	case "setpass":
+		if len(args) < 1 {
+			die("usage: ryossh console setpass <id>")
+		}
+		c, idx := findConsole(args[0])
+		if idx < 0 {
+			die("no such console")
+		}
+		if _, err := exec.LookPath("secret-tool"); err != nil {
+			die("secret-tool not found: install libsecret to save passwords")
+		}
+		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+		pw := strings.TrimRight(line, "\r\n")
+		if pw == "" {
+			die("no password on stdin")
+		}
+		if err := storeConsoleSecret(c, pw); err != nil {
+			die("keyring store failed: %v", err)
+		}
+		cs := readConsoles()
+		cs[idx].Auth = "password"
+		writeConsoles(cs)
+		out(map[string]any{"ok": true, "id": c.ID})
+	case "clearpass":
+		if len(args) < 1 {
+			die("usage: ryossh console clearpass <id>")
+		}
+		clearConsoleSecret(args[0])
+		cs := readConsoles()
+		if _, idx := findConsole(args[0]); idx >= 0 {
+			cs[idx].Auth = ""
+			writeConsoles(cs)
+		}
+		out(map[string]any{"ok": true})
+	default:
+		die("unknown console verb %q", sub)
+	}
 }

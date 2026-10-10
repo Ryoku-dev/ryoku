@@ -126,6 +126,66 @@ Item {
                 spacing: Tokens.s4
                 visible: detail.tab === "overview"
 
+                // an auth-blocked host explains its own empty graphs and
+                // carries the fix: the password goes to the keyring, the next
+                // probe fills the history.
+                Rectangle {
+                    width: parent.width
+                    visible: detail.probed === false && detail.health && detail.health.needAuth === true
+                    height: authCol.implicitHeight + Tokens.s4 * 2
+                    color: "transparent"
+                    border.width: Tokens.border
+                    border.color: Tokens.line
+                    antialiasing: false
+                    Column {
+                        id: authCol
+                        anchors { fill: parent; margins: Tokens.s4 }
+                        spacing: Tokens.s2
+                        Row {
+                            spacing: Tokens.s2
+                            Text { text: "鍵"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                            Text {
+                                text: I18n.tr("REACHABLE · PROBE BLOCKED")
+                                color: Tokens.ink
+                                font.family: Tokens.ui; font.pixelSize: 10
+                                font.weight: Font.DemiBold; font.letterSpacing: Tokens.trackMark
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: I18n.tr("This host answers but wants a password ryoport does not hold. Save it to the login keyring (never a file, never argv) and the health probe will run on every poll.")
+                            color: Tokens.inkMuted
+                            font.family: Tokens.ui; font.pixelSize: 11
+                        }
+                        Row {
+                            width: parent.width
+                            spacing: Tokens.s2
+                            Field {
+                                id: hostPwF
+                                width: authCol.width - hostSaveBtn.width - hostProbeBtn.width - Tokens.s2 * 2
+                                secret: true
+                                tabular: true
+                                placeholder: I18n.tr("password for %1").arg(detail.alias)
+                            }
+                            Btn {
+                                id: hostSaveBtn
+                                text: I18n.tr("SAVE")
+                                primary: true
+                                armed: hostPwF.text.length > 0
+                                onAct: { Remotes.setPass(detail.alias, hostPwF.text); hostPwF.clear(); }
+                            }
+                            Btn { id: hostProbeBtn; text: I18n.tr("PROBE"); onAct: Remotes.probe(detail.alias) }
+                        }
+                    }
+                }
+            }
+
+            Column {
+                width: parent.width
+                spacing: Tokens.s4
+                visible: detail.tab === "overview" && !(detail.probed === false && detail.health && detail.health.needAuth === true)
                 MetricsPanel {
                     width: parent.width
                     height: 300
@@ -135,7 +195,6 @@ Item {
                     netValues: Remotes.series(detail.alias, "net")
                     samplePeriodSeconds: 15
                 }
-
                 Rectangle {
                     width: parent.width
                     implicitHeight: facts.implicitHeight + Tokens.s4 * 2

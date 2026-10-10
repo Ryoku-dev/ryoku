@@ -18,6 +18,8 @@ Item {
     signal newRemote()
     signal openMachine(string name)
     signal openRemote(string alias)
+    signal openConsole(string id)
+    signal openLog()
 
     readonly property int runningCount: {
         var count = 0;
@@ -26,20 +28,23 @@ Item {
                 count++;
         return count;
     }
-    readonly property int alertCount: {
-        var count = Vm.fault.length > 0 ? 1 : 0;
+    readonly property int alertCount: Remotes.alertCount + (Vm.fault && Vm.fault.length > 0 ? 1 : 0)
+    readonly property bool authBlocked: {
         void Remotes.healthRev;
-        void Remotes.reachRev;
-        for (var i = 0; i < Remotes.hosts.length; i++) {
-            var state = Remotes.stateOf(Remotes.hosts[i].alias);
-            if (state === "warn" || state === "down")
-                count++;
-        }
-        return count;
+        var h = selectedKind === "remote" ? Remotes.healthOf(selectedKey) : null;
+        return !!(h && h.needAuth === true);
+    }
+    readonly property int needAuthCount: {
+        void Remotes.healthRev;
+        var n = 0;
+        for (var i = 0; i < Remotes.alerts.length; i++)
+            if (Remotes.alerts[i].kind === "auth") n++;
+        return n;
     }
     readonly property var resources: {
         void Remotes.healthRev;
         void Remotes.reachRev;
+        void Remotes.consolesRev;
         var rows = [];
         var i;
         for (i = 0; i < Vm.vms.length; i++) {
@@ -47,14 +52,34 @@ Item {
             rows.push({ kind: "vm", key: vm.name, title: vm.name,
                 subtitle: (vm.os || vm.guest || I18n.tr("Virtual machine")),
                 state: vm.running === true ? "running" : "stopped",
+                reason: "", auth: false,
                 sort: vm.running === true ? 1 : 3 });
         }
         for (i = 0; i < Remotes.hosts.length; i++) {
             var host = Remotes.hosts[i];
             var state = Remotes.stateOf(host.alias);
+            var h = Remotes.healthOf(host.alias);
+            var auth = !!(h && h.needAuth === true);
             rows.push({ kind: "remote", key: host.alias, title: host.alias,
                 subtitle: (host.user ? host.user + "@" : "") + (host.hostName || host.alias),
-                state: state, sort: state === "down" ? 0 : state === "warn" ? 1 : state === "up" ? 2 : 3 });
+                state: state,
+                auth: auth,
+                reason: auth ? I18n.tr("password needed for probes")
+                       : (state === "down" && h && h.error) ? h.error
+                       : state === "warn" ? Remotes.stateReason(host.alias, "warn")
+                       : "",
+                sort: state === "down" ? 0 : state === "warn" ? 1 : state === "up" ? 2 : 3 });
+        }
+        for (i = 0; i < Remotes.consoles.length; i++) {
+            var c = Remotes.consoles[i];
+            var cstate = Remotes.consoleStateOf(c);
+            rows.push({ kind: "console", key: c.id, title: c.name,
+                subtitle: c.kind + " · " + Remotes.consoleTarget(c),
+                state: cstate, auth: false,
+                reason: cstate === "up" ? I18n.tr("ready")
+                        : cstate === "down" ? I18n.tr("not reachable")
+                        : I18n.tr("not probed"),
+                sort: cstate === "down" ? 0 : cstate === "up" ? 2 : 3 });
         }
         rows.sort(function(a, b) { return a.sort !== b.sort ? a.sort - b.sort : a.title.localeCompare(b.title); });
         return rows;
@@ -80,7 +105,8 @@ Item {
                 if (event.vm === selectedKey)
                     rows.push({ at: event.at || 0, time: event.time, text: event.text, kind: event.kind });
             }
-        } else if (selectedKind === "remote") {
+        } else if (selectedKind === "remote" || selectedKind === "console") {
+            // console events carry the berth id in the alias slot.
             for (i = 0; i < Remotes.events.length; i++) {
                 event = Remotes.events[i];
                 if (event.alias === selectedKey)
@@ -115,6 +141,7 @@ Item {
     function openSelected() {
         if (selectedKind === "vm") openMachine(selectedKey);
         else if (selectedKind === "remote") openRemote(selectedKey);
+        else if (selectedKind === "console") openConsole(selectedKey);
     }
 
     PageHead {
@@ -134,26 +161,45 @@ Item {
         anchors.leftMargin: Tokens.s6
         anchors.rightMargin: Tokens.s6
         anchors.topMargin: Tokens.s3
-        height: 72
+        height: 84
         color: "transparent"
         border.width: Tokens.border
         border.color: Tokens.line
         antialiasing: false
 
+        readonly property var cells: [
+            { label: I18n.tr("Fleet"), value: String(Vm.vms.length + Remotes.hostCount).padStart(2, "0"),
+              sub: I18n.tr("%1 machines · %2 remotes").arg(Vm.vms.length).arg(Remotes.hostCount), clickable: false },
+            { label: I18n.tr("Running VMs"), value: String(dash.runningCount).padStart(2, "0"),
+              sub: Vm.vms.length === 0 ? I18n.tr("the yard is empty") : I18n.tr("of %1 in the yard").arg(Vm.vms.length),
+              clickable: false },
+            { label: I18n.tr("Reachable"), value: String(Remotes.upCount).padStart(2, "0") + I18n.tr("/") + String(Remotes.hostCount),
+              sub: Remotes.probing ? I18n.tr("probing the fleet…") : I18n.tr("ssh and console berths"), clickable: false },
+            { label: I18n.tr("Alerts"), value: String(dash.alertCount).padStart(2, "0"),
+              sub: dash.alertCount === 0 ? I18n.tr("all quiet")
+                   : dash.needAuthCount > 0 ? I18n.tr("%1 need a password").arg(dash.needAuthCount)
+                   : I18n.tr("open the harbour log"), clickable: true }
+        ]
+
         Row {
             anchors.fill: parent
             Repeater {
-                model: [
-                    { label: I18n.tr("Fleet"), value: Vm.vms.length + Remotes.hostCount },
-                    { label: I18n.tr("Running VMs"), value: dash.runningCount },
-                    { label: I18n.tr("Reachable remotes"), value: Remotes.upCount },
-                    { label: I18n.tr("Alerts"), value: dash.alertCount }
-                ]
+                model: summary.cells
                 Item {
+                    id: cell
                     required property var modelData
                     required property int index
                     width: summary.width / 4
                     height: summary.height
+                    readonly property bool hot: cell.modelData.clickable === true
+                    // the hover wash sits at the bottom of the stack; the alert
+                    // cell is the door to the harbour log.
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Tokens.tint10
+                        opacity: cell.hot && cellHover.hovered ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Tokens.snap } }
+                    }
                     Rectangle {
                         visible: index > 0
                         anchors.left: parent.left
@@ -161,13 +207,33 @@ Item {
                         height: parent.height
                         color: Tokens.line
                     }
+                    Rectangle {
+                        anchors { top: parent.top; right: parent.right; margins: Tokens.s3 }
+                        width: 6; height: 6
+                        visible: cell.hot && dash.alertCount > 0
+                        color: Tokens.bone
+                        border.width: 1
+                        border.color: Tokens.ink
+                    }
                     Column {
                         anchors.left: parent.left
                         anchors.leftMargin: Tokens.s4
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
-                        Text { text: modelData.label; color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: 10 }
-                        Text { text: String(modelData.value).padStart(2, "0"); color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 26 }
+                        Text { text: cell.modelData.label; color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: 10 }
+                        Text { text: cell.modelData.value; color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 26 }
+                        Text {
+                            width: cell.width - Tokens.s4
+                            text: cell.modelData.sub
+                            elide: Text.ElideRight
+                            color: Tokens.inkFaint
+                            font.family: Tokens.mono; font.pixelSize: 8
+                        }
+                    }
+                    HoverHandler { id: cellHover; cursorShape: cell.hot ? Qt.PointingHandCursor : Qt.ArrowCursor }
+                    TapHandler {
+                        enabled: cell.hot
+                        onTapped: dash.openLog()
                     }
                 }
             }
@@ -233,10 +299,24 @@ Item {
                     required property var modelData
                     required property int index
                     width: resourceList.width
-                    height: 62
-                    color: resourceList.currentIndex === index ? Tokens.bone : "transparent"
+                    height: 68
+                    readonly property bool sel: resourceList.currentIndex === index
+                    readonly property var series: resourceRow.modelData.kind === "vm"
+                        ? Vm.series(resourceRow.modelData.key, "cpu")
+                        : (resourceRow.modelData.kind === "console"
+                            ? [] : Remotes.series(resourceRow.modelData.key, "cpu"))
+                    color: sel ? Tokens.bone : "transparent"
                     antialiasing: false
-                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: resourceList.currentIndex === index ? Tokens.inkOnBone : Tokens.lineSoft; opacity: 0.35 }
+                    Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: sel ? Tokens.inkOnBone : Tokens.lineSoft; opacity: 0.35 }
+                    // a one-px ink lead marks a row that needs attention, so
+                    // the eye finds it without relying on colour words alone.
+                    Rectangle {
+                        anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
+                        width: 2
+                        visible: resourceRow.modelData.state === "down" || resourceRow.modelData.state === "warn"
+                                 || resourceRow.modelData.auth === true
+                        color: sel ? Tokens.inkOnBone : Tokens.ink
+                    }
                     Column {
                         anchors.left: parent.left
                         anchors.leftMargin: Tokens.s3
@@ -247,8 +327,10 @@ Item {
                         Text {
                             width: parent.width
                             text: resourceRow.modelData.title
+                                  + (resourceRow.modelData.kind === "console" ? "  ⌁" : "")
+                                  + (resourceRow.modelData.auth === true ? "  鍵" : "")
                             elide: Text.ElideRight
-                            color: resourceList.currentIndex === resourceRow.index ? Tokens.inkOnBone : Tokens.ink
+                            color: sel ? Tokens.inkOnBone : Tokens.ink
                             font.family: Tokens.ui
                             font.pixelSize: 12
                             font.weight: Font.Medium
@@ -257,9 +339,18 @@ Item {
                             width: parent.width
                             text: resourceRow.modelData.subtitle
                             elide: Text.ElideRight
-                            color: resourceList.currentIndex === resourceRow.index ? Tokens.inkOnBone : Tokens.inkMuted
-                            opacity: resourceList.currentIndex === resourceRow.index ? 0.72 : 1
+                            color: sel ? Tokens.inkOnBone : Tokens.inkMuted
+                            opacity: sel ? 0.72 : 1
                             font.family: Tokens.mono
+                            font.pixelSize: 9
+                        }
+                        Text {
+                            width: parent.width
+                            text: resourceRow.modelData.reason || ""
+                            visible: text.length > 0
+                            elide: Text.ElideRight
+                            color: sel ? Tokens.inkOnBone : Tokens.inkFaint
+                            font.family: Tokens.ui
                             font.pixelSize: 9
                         }
                     }
@@ -270,11 +361,10 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         width: 48
                         height: 24
-                        values: resourceRow.modelData.kind === "vm"
-                            ? Vm.series(resourceRow.modelData.key, "cpu")
-                            : Remotes.series(resourceRow.modelData.key, "cpu")
+                        visible: resourceRow.series.length > 0
+                        values: resourceRow.series
                         fixedMax: 100
-                        stroke: resourceList.currentIndex === resourceRow.index ? Tokens.inkOnBone : Tokens.inkMuted
+                        stroke: sel ? Tokens.inkOnBone : Tokens.inkMuted
                     }
                     Text {
                         id: stateLabel
@@ -282,7 +372,7 @@ Item {
                         anchors.rightMargin: Tokens.s3
                         anchors.verticalCenter: parent.verticalCenter
                         text: I18n.tr(resourceRow.modelData.state.toUpperCase())
-                        color: resourceList.currentIndex === resourceRow.index ? Tokens.inkOnBone : Tokens.inkFaint
+                        color: sel ? Tokens.inkOnBone : Tokens.inkFaint
                         font.family: Tokens.mono
                         font.pixelSize: 9
                     }
@@ -347,16 +437,17 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: Tokens.s2
                     Btn {
-                        visible: dash.selectedKind === "vm"
-                        text: dash.selectedVm && dash.selectedVm.running ? I18n.tr("STOP") : I18n.tr("LAUNCH")
-                        primary: dash.selectedVm && !dash.selectedVm.running
-                        onAct: {
-                            if (!dash.selectedVm) return;
-                            if (dash.selectedVm.running) Vm.stop(dash.selectedVm.name);
-                            else Vm.launch(dash.selectedVm.name, ({ "gtk": "window", "spice": "spice", "none": "headless" })[dash.selectedVm.display] || "window");
-                        }
+                        visible: dash.selectedKind === "remote"
+                        text: I18n.tr("CONNECT")
+                        primary: true
+                        onAct: Remotes.connect(dash.selectedKey)
                     }
-                    Btn { visible: dash.selectedKind === "remote"; text: I18n.tr("CONNECT"); primary: true; onAct: Remotes.connect(dash.selectedKey) }
+                    Btn {
+                        visible: dash.selectedKind === "console"
+                        text: I18n.tr("OPEN CONSOLE")
+                        primary: true
+                        onAct: dash.openConsole(dash.selectedKey)
+                    }
                     Btn { text: I18n.tr("OPEN"); onAct: dash.openSelected() }
                 }
             }
@@ -374,7 +465,9 @@ Item {
                 id: overviewBlurb
                 anchors { top: tabs.bottom; topMargin: Tokens.s3; left: parent.left; right: parent.right }
                 visible: dash.detailTab === "overview" && dash.selectedRow !== null
-                text: dash.selectedKind === "remote"
+                text: dash.selectedKind === "console"
+                    ? I18n.tr("An experimental berth opened through its own client; the session lives in a terminal or viewer window.")
+                    : dash.selectedKind === "remote"
                     ? I18n.tr("Live reachability, health, and resource use for this remote.")
                     : I18n.tr("Live resource use and configuration for this machine.")
                 color: Tokens.inkMuted
@@ -382,21 +475,73 @@ Item {
                 font.pixelSize: Tokens.fSmall
             }
 
-            MetricsPanel {
-                id: charts
+            // charts and the auth note share one slot: a Column skips the
+            // invisible child, so neither can ever paint over the other.
+            Column {
+                id: chartArea
                 anchors { top: overviewBlurb.bottom; topMargin: Tokens.s2; left: parent.left; right: parent.right }
-                height: Math.min(306, Math.max(230, overview.height * 0.54))
-                visible: dash.detailTab === "overview" && dash.selectedRow !== null
-                cpuValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "cpu") : Remotes.series(dash.selectedKey, "cpu")
-                ramValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "ram") : Remotes.series(dash.selectedKey, "ram")
-                diskValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "disk") : Remotes.series(dash.selectedKey, "disk")
-                netValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "net") : Remotes.series(dash.selectedKey, "net")
-                samplePeriodSeconds: dash.selectedKind === "remote" ? 15 : 5
+                spacing: Tokens.s2
+
+                MetricsPanel {
+                    id: charts
+                    width: chartArea.width
+                    height: Math.min(306, Math.max(230, overview.height * 0.54))
+                    visible: dash.detailTab === "overview" && dash.selectedRow !== null && dash.selectedKind !== "console" && !dash.authBlocked
+                    cpuValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "cpu") : Remotes.series(dash.selectedKey, "cpu")
+                    ramValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "ram") : Remotes.series(dash.selectedKey, "ram")
+                    diskValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "disk") : Remotes.series(dash.selectedKey, "disk")
+                    netValues: dash.selectedKind === "vm" ? Vm.series(dash.selectedKey, "net") : Remotes.series(dash.selectedKey, "net")
+                    samplePeriodSeconds: dash.selectedKind === "remote" ? 15 : 5
+                }
+
+                // an auth-blocked remote explains itself where the graphs would be
+                // empty, with the fix beside it.
+                Rectangle {
+                    id: authNote
+                    width: chartArea.width
+                    height: authNoteCol.implicitHeight + Tokens.s4 * 2
+                    visible: dash.detailTab === "overview" && dash.selectedKind === "remote"
+                             && dash.selectedRemote !== null && dash.selectedRemote.needAuth === true
+                    color: "transparent"
+                    border.width: Tokens.border
+                    border.color: Tokens.line
+                    antialiasing: false
+                    Column {
+                        id: authNoteCol
+                        anchors { fill: parent; margins: Tokens.s4 }
+                        spacing: Tokens.s2
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: I18n.tr("This host answers, but ryoport cannot prove it is healthy without a credential. Save its password (kept in the login keyring, never in a file) and the graphs will fill on the next probe.")
+                            color: Tokens.ink
+                            font.family: Tokens.ui; font.pixelSize: 11
+                        }
+                        Row {
+                            spacing: Tokens.s2
+                            Field {
+                                id: dashPwF
+                                width: authNote.width - dashSaveBtn.width - dashProbeBtn.width - Tokens.s2 * 2 - Tokens.s4 * 2
+                                secret: true
+                                tabular: true
+                                placeholder: I18n.tr("password for %1").arg(dash.selectedKey)
+                            }
+                            Btn {
+                                id: dashSaveBtn
+                                text: I18n.tr("SAVE")
+                                primary: true
+                                armed: dashPwF.text.length > 0
+                                onAct: { Remotes.setPass(dash.selectedKey, dashPwF.text); dashPwF.clear(); }
+                            }
+                            Btn { id: dashProbeBtn; text: I18n.tr("PROBE"); onAct: Remotes.probe(dash.selectedKey) }
+                        }
+                    }
+                }
             }
 
             Row {
                 id: facts
-                anchors { top: charts.bottom; topMargin: Tokens.s3; left: parent.left; right: parent.right }
+                anchors { top: chartArea.bottom; topMargin: Tokens.s3; left: parent.left; right: parent.right }
                 visible: dash.detailTab === "overview" && dash.selectedRow !== null
                 spacing: Tokens.s5
                 Repeater {
@@ -405,6 +550,11 @@ Item {
                         { label: I18n.tr("CPU"), value: dash.selectedVm ? dash.selectedVm.cores : "-" },
                         { label: I18n.tr("RAM"), value: dash.selectedVm ? dash.selectedVm.ram : "-" },
                         { label: I18n.tr("DISK"), value: dash.selectedVm ? Vm.human(dash.selectedVm.diskUsed) : "-" }
+                    ] : dash.selectedKind === "console" ? [
+                        { label: I18n.tr("PROTOCOL"), value: Remotes.consoleById(dash.selectedKey) ? Remotes.consoleById(dash.selectedKey).kind : "-" },
+                        { label: I18n.tr("TARGET"), value: Remotes.consoleById(dash.selectedKey) ? Remotes.consoleTarget(Remotes.consoleById(dash.selectedKey)) : "-" },
+                        { label: I18n.tr("CLIENT"), value: Remotes.consoleById(dash.selectedKey) ? Remotes.consoleClientOf(Remotes.consoleById(dash.selectedKey).kind) : "-" },
+                        { label: I18n.tr("CREDENTIAL"), value: Remotes.consoleById(dash.selectedKey) && Remotes.consoleById(dash.selectedKey).auth === "password" ? I18n.tr("keyring") : I18n.tr("none") }
                     ] : [
                         { label: I18n.tr("OS"), value: dash.selectedRemote ? (dash.selectedRemote.distro || "-") : "-" },
                         { label: I18n.tr("CPU"), value: dash.selectedRemote ? dash.selectedRemote.cpus + "c" : "-" },

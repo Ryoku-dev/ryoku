@@ -3,7 +3,7 @@ import QtQuick
 import QtQuick.Controls
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
-
+import "Singletons"
 // The harbour rail: ryoport's one always-present chrome. A framed masthead seal,
 // the fleet nav (Latin name and kanji seal side by side, the live berth taking
 // the sheet's // lead on a bone plate), and a scannable foot plate. The same
@@ -15,14 +15,20 @@ Item {
     signal navigate(string key)
     signal openSettings()
     signal requestQuit()
+    signal openLog()
 
     width: Tokens.railW
 
+    // the fleet alerts plus one sticky engine fault: the number on the plate
+    // is the number of things the harbour log will show.
+    readonly property int alertCount: Remotes.alertCount + (Vm.fault && Vm.fault.length > 0 ? 1 : 0)
+
     readonly property var groups: [
         { name: I18n.tr("OVERVIEW"), items: [ { key: "dashboard", name: I18n.tr("Dashboard") } ] },
-        { name: I18n.tr("FLEET"), items: [ { key: "machines", name: I18n.tr("Machines") }, { key: "remotes", name: I18n.tr("Remotes") }, { key: "passthrough", name: I18n.tr("Looking Glass") } ] }
+        { name: I18n.tr("FLEET"), items: [ { key: "machines", name: I18n.tr("Machines") }, { key: "remotes", name: I18n.tr("Remotes") }, { key: "passthrough", name: I18n.tr("Looking Glass") } ] },
+        { name: I18n.tr("EXPERIMENTAL"), items: [ { key: "consoles", name: I18n.tr("Consoles") } ] }
     ]
-    readonly property var jpName: ({ "dashboard": "一覧", "machines": "仮想", "remotes": "遠隔", "passthrough": "透過" })
+    readonly property var jpName: ({ "dashboard": "一覧", "machines": "仮想", "remotes": "遠隔", "passthrough": "透過", "consoles": "接續" })
 
     Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Tokens.line }
 
@@ -62,6 +68,43 @@ Item {
                 text: "港"; color: Tokens.inkFaint
                 font.family: Tokens.jp; font.pixelSize: 13
             }
+        }
+
+        // the alerts readout rides under the seal: the count is never a dead
+        // number, it is the door to the harbour log.
+        Rectangle {
+            width: parent.width
+            height: 40
+            color: "transparent"
+            border.width: Tokens.border
+            border.color: Tokens.line
+            radius: Tokens.radius
+            antialiasing: false
+            Row {
+                anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Tokens.s4 }
+                spacing: Tokens.s3
+                Text {
+                    text: I18n.tr("ALERTS"); color: Tokens.inkMuted
+                    font.family: Tokens.ui; font.pixelSize: 9
+                    font.weight: Font.Medium; font.letterSpacing: 2
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Annunciator {
+                    anchors.verticalCenter: parent.verticalCenter
+                    label: rail.alertCount > 0
+                        ? String(rail.alertCount).padStart(2, "0")
+                        : I18n.tr("QUIET")
+                    lit: rail.alertCount > 0
+                    tileW: 54
+                }
+            }
+            Text {
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: Tokens.s4 }
+                text: I18n.tr("log"); color: Tokens.inkFaint
+                font.family: Tokens.mono; font.pixelSize: 9
+            }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: rail.openLog() }
         }
     }
 

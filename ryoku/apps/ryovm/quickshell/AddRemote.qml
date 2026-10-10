@@ -101,7 +101,7 @@ Item {
     Rectangle {
         id: cardBg
         anchors.centerIn: parent
-        width: 480
+        width: Math.min(480, sheet.width - Tokens.s5 * 2)
         height: Math.min(Tokens.s6 + header.implicitHeight + Tokens.s3 + fields.implicitHeight + Tokens.s3 + footer.implicitHeight + Tokens.s6, sheet.height - Tokens.s5 * 2)
         radius: Tokens.radius
         color: Tokens.paperLift
@@ -264,6 +264,13 @@ Item {
             }
         }
 
+        Rectangle {
+            id: footerBand
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: footer.implicitHeight + Tokens.s6 * 2
+            color: Tokens.paperLift
+            Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Tokens.lineSoft }
+        }
         Column {
             id: footer
             anchors { bottom: parent.bottom; left: parent.left; right: parent.right }

@@ -78,7 +78,7 @@ func writeWindowRules(b *strings.Builder, a Appearance, rules []WindowRule, apps
 	}
 	writeOpacityRules(b, a)
 	for _, r := range builtinWindowRules {
-		writeRuleBlock(b, "", r.title, r.props)
+		writeRuleBlock(b, r.class, r.title, r.props)
 	}
 	for _, r := range rules {
 		if props := windowRuleProps(r); len(props) > 0 {
@@ -92,18 +92,28 @@ func writeWindowRules(b *strings.Builder, a Appearance, rules []WindowRule, apps
 	}
 }
 
-// builtinWindowRules are the desktop's own windows, matched by the title each
-// sets, floated at their designed size the way ryoku/hyprland/modules/
-// window_rules.lua floats them. They go out before the user's rules, so a
-// user rule on the same title wins (niri takes the last match).
-var builtinWindowRules = []struct {
+// builtinWindowRules are the desktop's own windows, matched by the app-id or
+// title each carries, floated at their designed size the way ryoku/hyprland/
+// modules/window_rules.lua floats them. They go out before the user's rules, so
+// a user rule on the same match wins (niri takes the last match).
+type builtinRule struct {
+	class string
 	title string
 	props []string
-}{
+}
+
+var builtinWindowRules = []builtinRule{
 	// Floating windows open centred. Their own screen-fit maximums clamp these
 	// designed sizes before niri places them on smaller outputs.
-	{"^Welcome to Ryoku$", []string{"open-floating true", "default-column-width { fixed 1180; }", "default-window-height { fixed 760; }"}},
-	{"^Rashin$", []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
+	{class: "", title: "^Welcome to Ryoku$", props: []string{"open-floating true", "default-column-width { fixed 1180; }", "default-window-height { fixed 760; }"}},
+	{class: "", title: "^Rashin$", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
+	// ryoport's GUI console clients (RDP, VNC): FreeRDP is asked to carry the
+	// class below via /wm-class, and xwayland-satellite folds the X11 class
+	// into the Wayland app-id, so the patterns match anywhere. Serial and
+	// telnet berths ride a real terminal window, whose placement stays the
+	// user's.
+	{class: "ryoport_console", title: "", props: []string{"open-floating true"}},
+	{class: "(v|V)ncviewer", title: "", props: []string{"open-floating true"}},
 }
 
 // writeOpacityRules emits the global opacity as a matchless window-rule and the

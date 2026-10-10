@@ -5,9 +5,12 @@ import Quickshell.Io
 import Ryoku.Ui.Singletons
 
 // The remote fleet: SSH hosts and VPS drawn from ~/.ssh/config (plus ryoport's
-// own include file), their live reachability, and on-demand health probes. All
-// driven through the `ryossh` engine, which speaks JSON. The list is the facts;
-// reach and health are kept in maps beside it so a poll never rebuilds the list.
+// own include file), their live reachability, on-demand health probes, and the
+// experimental consoles (serial/telnet/RDP/VNC berths saved in ryoport's book).
+// All driven through the `ryossh` engine, which speaks JSON. The list is the
+// facts; reach and health are kept in maps beside it so a poll never rebuilds
+// the list. `alerts` is the rolled-up "what needs attention" the header, the
+// annunciator, and the harbour log all read.
 Singleton {
     id: root
 
@@ -47,6 +50,116 @@ Singleton {
     function guestBusyOf(a, vmid) { void guestBusyRev; return !!guestBusy[a + "|" + vmid]; }
 
     property var keysData: ({ agent: [], files: [] })
+
+    // ---- consoles (experimental berths, saved in ryoport's own book) --------
+    // {id, kind(serial|telnet|rdp|vnc), name, device, baud, address, port,
+    //  user, domain, fullscreen, auth} -- the engine owns the file and the
+    // keyring; this map mirrors reach by id so a poll never rebuilds the list.
+    property var consoles: []
+    property var consoleReach: ({})
+    property int consolesRev: 0
+    property var consoleCaps: ({ serial: false, telnet: false, rdp: false, vnc: false })
+    function consoleReachOf(id) { void consolesRev; return consoleReach[id] || null; }
+    function consoleById(id) {
+        for (var i = 0; i < consoles.length; i++)
+            if (consoles[i].id === id) return consoles[i];
+        return null;
+    }
+    function consoleStateOf(c) {
+        var r = consoleReachOf(c.id);
+        if (!r) return "unknown";
+        if (r.up === true) return "up";
+        return (r.error || "").length > 0 ? "down" : "unknown";
+    }
+    function consoleTarget(c) {
+        if (c.kind === "serial")
+            return c.device + " @ " + c.baud;
+        return c.kind === "vnc" ? c.address + "::" + c.port : c.address + ":" + c.port;
+    }
+    function consoleClientOf(kind) {
+        return ({ serial: "picocom", telnet: "telnet", rdp: "xfreerdp", vnc: "vncviewer" })[kind] || kind;
+    }
+    function loadConsoles() { consoleListProc.running = true; consoleCapsProc.running = true; }
+    function pingConsoles() {
+        if (consoles.length === 0) { consoleReach = ({}); consolesRev++; return; }
+        consolePingProc.running = true;
+    }
+    function openConsole(id) {
+        consoleOpenProc.forId = id;
+        consoleOpenProc.running = true;
+    }
+    function addConsole(obj, pw, clearPw) {
+        consoleAddProc.pendingJson = JSON.stringify(obj);
+        consoleAddProc.pendingPw = pw || "";
+        consoleAddProc.pendingClear = !!clearPw;
+        consoleAddProc.running = true;
+    }
+    function removeConsole(id) {
+        consoleRemoveProc.forId = id;
+        consoleRemoveProc.running = true;
+    }
+    function setConsolePass(id, pw) {
+        consoleSetPassProc.forId = id;
+        consoleSetPassProc.pw = pw;
+        consoleSetPassProc.running = true;
+    }
+    function clearConsolePass(id) {
+        consoleClearPassProc.forId = id;
+        consoleClearPassProc.running = true;
+    }
+    function _mergeConsoles(arr) {
+        consoles = Array.isArray(arr) ? arr : [];
+        consolesRev++;
+    }
+    function _mergeConsoleReach(arr) {
+        var m = {};
+        for (var i = 0; i < arr.length; i++)
+            m[arr[i].id] = arr[i];
+        consoleReach = m;
+        consolesRev++;
+    }
+
+    // ---- alerts: what needs attention, with the reason beside it ------------
+    // The dashboard tile, the rail annunciator, and the harbour log all read
+    // this one list instead of re-deriving counts from different places.
+    readonly property var alerts: {
+        void reachRev; void healthRev; void consolesRev;
+        var out = [], i;
+        for (i = 0; i < hosts.length; i++) {
+            var a = hosts[i].alias, state = stateOf(a);
+            var h = healthOf(a);
+            // order matters: a dead port is a down alert even if the last
+            // probe that got a TCP answer failed on auth.
+            if (state === "down") {
+                out.push({ kind: "down", key: a, title: a,
+                    text: I18n.tr("unreachable"),
+                    detail: (h && h.error) || I18n.tr("the port did not answer") });
+                continue;
+            }
+            if (h && h.needAuth === true) {
+                out.push({ kind: "auth", key: a, title: a,
+                    text: I18n.tr("health probe needs a password"),
+                    detail: I18n.tr("save the password in the keyring and the graphs will fill in") });
+                continue;
+            }
+            if (state === "warn" && h && h.ok === true) {
+                var why = stateReason(a, "warn");
+                out.push({ kind: "warn", key: a, title: a,
+                    text: I18n.tr("degraded"),
+                    detail: why.length > 0 ? why : I18n.tr("health check flagged this host") });
+            }
+        }
+        for (i = 0; i < consoles.length; i++) {
+            var c = consoles[i], r = consoleReachOf(c.id);
+            if (r && r.up === false) {
+                out.push({ kind: "console", key: c.id, title: c.name,
+                    text: consoleTarget(c),
+                    detail: r.error || I18n.tr("console not reachable") });
+            }
+        }
+        return out;
+    }
+    readonly property int alertCount: alerts.length
 
     // A short session log of fleet actions and observed health transitions,
     // newest last. Dashboard and detail views share it with Vm.events.
@@ -146,7 +259,7 @@ Singleton {
 
     Component.onCompleted: root.refresh()
 
-    function refresh() { listProc.running = true; loadTunnels(); }
+    function refresh() { listProc.running = true; loadTunnels(); loadConsoles(); }
 
     // ---- tunnels (ssh -L / -R / -D), tracked by the engine ------------------
     property var tunnels: []
@@ -506,13 +619,103 @@ Singleton {
         }
     }
 
+    // ---- console plumbing: same JSON contract as the ssh fleet --------------
+    Process {
+        id: consoleListProc
+        command: ["ryossh", "console", "list"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root._mergeConsoles(JSON.parse(this.text) || []); } catch (e) {}
+                root.pingConsoles();
+            }
+        }
+    }
+    Process {
+        id: consoleCapsProc
+        command: ["ryossh", "console", "caps"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try { root.consoleCaps = JSON.parse(this.text); } catch (e) {}
+            }
+        }
+    }
+    Process {
+        id: consolePingProc
+        command: ["ryossh", "console", "probeall"]
+        stdout: StdioCollector {
+            onStreamFinished: { try { root._mergeConsoleReach(JSON.parse(this.text) || []); } catch (e) {} }
+        }
+    }
+    Process {
+        id: consoleOpenProc
+        property string forId: ""
+        onExited: (code) => {
+            var c = root.consoleById(forId), label = c ? c.name : forId;
+            if (code === 0)
+                root.logEvent("console", forId, I18n.tr("opened %1 console %2").arg(c ? c.kind : "").arg(label));
+            else
+                root.logEvent("fault", forId, I18n.tr("could not open console %1").arg(label));
+            root.pingConsoles();
+        }
+        command: ["ryossh", "console", "open", forId]
+    }
+    Process {
+        id: consoleAddProc
+        property string pendingJson: ""
+        property string pendingPw: ""
+        property bool pendingClear: false
+        command: ["ryossh", "console", "add", pendingJson]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                var id = "";
+                try { id = JSON.parse(this.text).id || ""; } catch (e) {}
+                if (id.length > 0) {
+                    if (consoleAddProc.pendingPw.length > 0)
+                        root.setConsolePass(id, consoleAddProc.pendingPw);
+                    else if (consoleAddProc.pendingClear)
+                        root.clearConsolePass(id);
+                    var obj = {};
+                    try { obj = JSON.parse(consoleAddProc.pendingJson); } catch (e) {}
+                    root.logEvent("console", id, I18n.tr("saved %1").arg(obj.name || id));
+                }
+                consoleAddProc.pendingPw = "";
+                consoleAddProc.pendingClear = false;
+                root.loadConsoles();
+            }
+        }
+        onExited: (code) => { if (code !== 0) consoleAddProc.pendingPw = ""; }
+    }
+    Process {
+        id: consoleSetPassProc
+        property string forId: ""
+        property string pw: ""
+        stdinEnabled: true
+        command: ["ryossh", "console", "setpass", forId]
+        onStarted: { write(consoleSetPassProc.pw + "\n"); consoleSetPassProc.pw = ""; }
+        onExited: (code) => { if (code === 0) root.loadConsoles(); }
+    }
+    Process {
+        id: consoleClearPassProc
+        property string forId: ""
+        command: ["ryossh", "console", "clearpass", forId]
+        onExited: (code) => { if (code === 0) root.loadConsoles(); }
+    }
+    Process {
+        id: consoleRemoveProc
+        property string forId: ""
+        command: ["ryossh", "console", "remove", forId]
+        onExited: (code) => {
+            if (code === 0) { root.loadConsoles(); root.logEvent("console", forId, I18n.tr("forgot console")); }
+        }
+    }
+
     // reachability on a short cadence; the fuller health probe less often. Both
     // gate on a page being on screen, so a hidden hub costs nothing.
     Timer {
         interval: 15000
         repeat: true
         running: root.active
-        onTriggered: { root.pingAll(); root.loadTunnels(); root.appCheckAll(); root.loadGuests(root.selectedAlias); }
+        onTriggered: { root.pingAll(); root.loadTunnels(); root.appCheckAll(); root.loadGuests(root.selectedAlias); root.pingConsoles(); }
     }
     Timer {
         interval: 15000

@@ -15,6 +15,7 @@ Rectangle {
     readonly property string state: alias.length > 0 ? Remotes.stateOf(alias) : "unknown"
     readonly property var reach: alias.length > 0 ? Remotes.reachOf(alias) : null
     readonly property var health: alias.length > 0 ? Remotes.healthOf(alias) : null
+    readonly property bool needsAuth: health && health.needAuth === true
     readonly property bool selected: alias.length > 0 && Remotes.selectedAlias === alias
 
     implicitHeight: 68
@@ -39,6 +40,7 @@ Rectangle {
         Text {
             width: parent.width
             text: row.alias
+                  + (row.needsAuth ? "  鍵" : "")
             elide: Text.ElideRight
             color: row.selected ? Tokens.inkOnBone : Tokens.ink
             font.family: Tokens.ui
@@ -47,8 +49,10 @@ Rectangle {
         }
         Text {
             width: parent.width
-            text: (row.host && row.host.user ? row.host.user + "@" : "")
-                + (row.host ? (row.host.hostName || row.alias) : row.alias)
+            text: row.needsAuth
+                ? I18n.tr("reachable · probe needs a password")
+                : (row.host && row.host.user ? row.host.user + "@" : "")
+                    + (row.host ? (row.host.hostName || row.alias) : row.alias)
             elide: Text.ElideRight
             color: row.selected ? Tokens.inkOnBone : Tokens.inkMuted
             opacity: row.selected ? 0.72 : 1

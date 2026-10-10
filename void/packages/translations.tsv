@@ -39,6 +39,7 @@ ffmpeg	ffmpeg6	desktop
 firefox	firefox	desktop	
 fish	fish-shell	desktop	
 flatpak	flatpak	desktop	
+freerdp	freerdp	optional	
 fuzzel	fuzzel	desktop	
 fzf	fzf	desktop	
 game-devices-udev	game-devices-udev	desktop	repo=ryoku
@@ -75,6 +76,7 @@ hyprpolkitagent	-	hyprland	Hyprland is not packaged on Void.
 hyprsunset	-	hyprland	Hyprland is not packaged on Void.
 imagemagick	ImageMagick	desktop	
 imgborders	-	hyprland	Hyprland is not packaged on Void.
+inetutils	inetutils	optional	
 intel-media-driver	intel-media-driver	hardware:intel	
 intel-ucode	intel-ucode	hardware:intel	repo=nonfree
 inter-font	font-inter	desktop	
@@ -141,6 +143,7 @@ papirus-icon-theme	papirus-icon-theme	desktop
 pavucontrol	pavucontrol	optional	
 pciutils	pciutils	desktop	
 phinger-cursors	-	extra	No Void repository package.
+picocom	picocom	optional	
 pipewire	pipewire	desktop	
 pipewire-alsa	alsa-pipewire	desktop	
 pipewire-audio	-	desktop	Included in Void pipewire.
@@ -207,6 +210,7 @@ swtpm	swtpm	optional
 syntax-highlighting	syntax-highlighting	desktop	
 tesseract	tesseract-ocr	desktop	
 tesseract-data-eng	tesseract-ocr-eng	desktop	
+tigervnc	tigervnc	optional	
 ttf-firacode-nerd	ttf-firacode-nerd	desktop	repo=ryoku
 ttf-fraunces-variable	-	extra	No Void repository package and not in the pinned source-asset set.
 ttf-hack-nerd	ttf-hack-nerd	desktop	repo=ryoku

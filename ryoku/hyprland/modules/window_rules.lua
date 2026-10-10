@@ -161,8 +161,18 @@ hl.window_rule({
 })
 
 hl.window_rule({
+    -- SPICE (the VM yard) and the RDP berth (which asks FreeRDP to carry this
+    -- exact class via /wm-class; see ryossh.go) both open as centred floats.
     name   = "float-ryoport-console",
-    match  = { class = "spicy" },
+    match  = { class = "^(spicy|dev\\.ryoku\\.ryoport_console)$" },
+    float  = true,
+    center = true,
+})
+
+hl.window_rule({
+    -- TigerVNC names its own class: instance "vncviewer", class "Vncviewer".
+    name   = "float-ryoport-vnc",
+    match  = { class = "^Vncviewer$" },
     float  = true,
     center = true,
 })
