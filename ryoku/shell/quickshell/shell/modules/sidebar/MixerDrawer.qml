@@ -44,7 +44,7 @@ Item {
                 spacing: Tokens.s2 * root.s
 
                 Repeater {
-                    model: root.active ? Audio.outputs : []
+                    model: root.active ? Audio.outputs.filter(Audio.alive) : []
                     delegate: QQC.AbstractButton {
                         id: outputChip
                         required property var modelData
@@ -124,7 +124,7 @@ Item {
                 interactive: false
                 clip: false
                 spacing: Tokens.s1 * root.s
-                model: root.active ? Audio.streams : []
+                model: root.active ? Audio.streams.filter(Audio.alive) : []
                 delegate: MixerRow {
                     required property var modelData
                     width: playList.width
@@ -177,7 +177,7 @@ Item {
                 interactive: false
                 clip: false
                 spacing: Tokens.s1 * root.s
-                model: root.active ? Audio.captureStreams : []
+                model: root.active ? Audio.captureStreams.filter(Audio.alive) : []
                 delegate: MixerRow {
                     required property var modelData
                     width: captureList.width
@@ -223,7 +223,7 @@ Item {
                 spacing: Tokens.s2 * root.s
 
                 Repeater {
-                    model: root.active ? Audio.inputs : []
+                    model: root.active ? Audio.inputs.filter(Audio.alive) : []
                     delegate: QQC.AbstractButton {
                         id: inputChip
                         required property var modelData

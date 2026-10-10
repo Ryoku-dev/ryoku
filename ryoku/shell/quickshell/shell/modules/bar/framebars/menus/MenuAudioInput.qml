@@ -46,7 +46,7 @@ Item {
             width: parent.width
             s: root.s
             current: root.source
-            devices: Audio.inputs
+            devices: Audio.inputs.filter(Audio.alive)
             listOpen: root.devicesOpen
             fallbackIcon: "mic"
             emptyLabel: I18n.tr("No input device")

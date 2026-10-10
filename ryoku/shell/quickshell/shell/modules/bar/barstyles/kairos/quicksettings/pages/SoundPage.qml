@@ -114,7 +114,7 @@ Column {
         spacing: 8
 
         Repeater {
-            model: Audio.outputs
+            model: Audio.outputs.filter(Audio.alive)
             delegate: Rectangle {
                 id: outRow
                 required property var modelData
@@ -225,7 +225,7 @@ Column {
         spacing: 8
 
         Repeater {
-            model: Audio.inputs
+            model: Audio.inputs.filter(Audio.alive)
             delegate: Rectangle {
                 id: inRow
                 required property var modelData

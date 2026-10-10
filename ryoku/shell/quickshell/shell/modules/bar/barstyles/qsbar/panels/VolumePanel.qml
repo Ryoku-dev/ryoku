@@ -309,7 +309,7 @@ PanelWindow {
                 width: parent.width
                 spacing: 4
                 Repeater {
-                    model: Audio.outputs
+                    model: Audio.outputs.filter(Audio.alive)
                     delegate: Rectangle {
                         id: devTile
                         required property var modelData
@@ -533,7 +533,7 @@ PanelWindow {
                 width: parent.width
                 spacing: 4
                 Repeater {
-                    model: Audio.inputs
+                    model: Audio.inputs.filter(Audio.alive)
                     delegate: Rectangle {
                         id: inTile
                         required property var modelData

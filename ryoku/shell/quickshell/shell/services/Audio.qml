@@ -99,6 +99,18 @@ Singleton {
     property var streams: []
     property var captureStreams: []
 
+    // A settled snapshot can still hold a wrapper whose node died between two
+    // syncs (PipeWire destroys the monitor's DP audio sink on unplug; the bar
+    // rebuilds for the new screen before the debounce fires). Reading a
+    // property of that wrapper is safe -- it reads undefined -- but handing it
+    // to a Repeater with required properties crashes Quickshell while it
+    // builds the delegate's meta-object. Every view binding reads its model
+    // through this: name is a constant, so the check never deadlocks on an
+    // untracked property, and a live node always has a string name.
+    function alive(n) {
+        return !!(n && typeof n.name === "string");
+    }
+
     function syncAudioLists() {
         root.outputs = root.liveOutputs.slice();
         root.inputs = root.liveInputs.slice();

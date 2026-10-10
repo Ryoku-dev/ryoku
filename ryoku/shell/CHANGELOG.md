@@ -570,7 +570,6 @@
   (`services/Config.qml`, `../../hub/quickshell/pages/BarStudioPage.qml`,
   `../../apps/ryostore/backend/provider_bars.go`, `../../wm/niri/config_binds.go`,
   `../../hyprland/modules/binds.lua`).
-
 ### Fixed
 - **The dock stays in view while the Stage Editor edits it.** Opening the Dock
   catalogue hid the dock itself, so every setting was applied blind. The dock
@@ -582,6 +581,13 @@
   the inverted one, but the labels and the miniature kept the paper ink, which
   vanished against it on a light theme; they now follow the plate
   (`quickshell/stage/modules/ii/editMode/EditDockDesignPicker.qml`).
+- **Turning a monitor off and on no longer crashes the shell.** The volume
+  panel, the popout, the framebar menus and the sidebar mixer listed the
+  settled audio devices straight to a Repeater. When PipeWire destroyed a
+  monitor's audio sink on unplug, that dead entry could still sit in the list
+  while the bar rebuilt for the new screen, and Quickshell segfaulted
+  initialising its delegate (#345). Every one of these views now drops a
+  device whose node is gone before it reaches the model.
 - **Void relogins restart the desktop cleanly.** The Turnstile services now bind
   to each graphical login and stop with it, so the shell, bar, and video
   wallpaper return after logout even when another user session keeps runit up.
