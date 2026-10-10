@@ -5,7 +5,8 @@ OpenCode has no local 5h/7d quota, so this reads its local session store and
 writes the cache shape the widget understands, with soft caps for the bars. No
 API tokens, no network. Storage moved across versions, so try each in turn:
 filesystem JSON current (<data>/storage/message/<session>/*.json), the legacy
-session/message path, then the oldest sqlite opencode.db.
+session/message path, the 2.x sqlite session_message table, then the oldest
+sqlite opencode.db message table.
 """
 import glob
 import json
@@ -177,11 +178,103 @@ def load_sqlite_messages(cutoff_ms: int) -> list[dict]:
     return out
 
 
+def parse_message_v2(blob: dict, type_value: str, session_hint: str) -> dict | None:
+    """Turn one 2.x session_message blob into the usage record. 2.x carries the
+    role in the row's `type` column and nests the model as {id, providerID}, so
+    it is normalized into the flat shape parse_message expects before reuse."""
+    if not isinstance(blob, dict):
+        return None
+    role = type_value or blob.get("role") or ""
+    if role != "assistant":
+        return None
+    model = blob.get("model") if isinstance(blob.get("model"), dict) else {}
+    flat = dict(blob)
+    flat["role"] = role
+    flat["modelID"] = blob.get("modelID") or model.get("id") or ""
+    flat["providerID"] = blob.get("providerID") or model.get("providerID") or ""
+    return parse_message(flat, session_hint)
+
+
+def _table_columns(con, table: str) -> list[str]:
+    try:
+        return [r[1] for r in con.execute(f"pragma table_info({table})").fetchall()]
+    except sqlite3.Error:
+        return []
+
+
+def _pick(columns: list[str], *candidates: str) -> str | None:
+    lowered = {c.lower(): c for c in columns}
+    for cand in candidates:
+        if cand in lowered:
+            return lowered[cand]
+    return None
+
+
+def load_v2_messages(con, cutoff_ms: int) -> list[dict]:
+    """2.x layout: opencode.db's session_message table, where each assistant
+    turn is a row whose JSON blob holds tokens/model/cost and the role lives in
+    a type column. Column names drift across releases, so the blob, role and
+    time columns are detected from the live schema rather than assumed."""
+    if "session_message" not in [
+        r[0] for r in con.execute("select name from sqlite_master where type='table'")
+    ]:
+        return []
+    columns = _table_columns(con, "session_message")
+    blob_col = _pick(columns, "data", "content", "body", "message", "json")
+    role_col = _pick(columns, "type", "role")
+    session_col = _pick(columns, "session_id", "sessionid", "session")
+    time_col = _pick(columns, "time_updated", "updated_at", "time_created", "created_at")
+    if not blob_col:
+        return []
+    select_cols = [blob_col]
+    for c in (role_col, session_col, time_col):
+        if c and c != blob_col:
+            select_cols.append(c)
+    where = ""
+    params: tuple = ()
+    if time_col:
+        where = f" where {time_col} >= ?"
+        params = (cutoff_ms,)
+    try:
+        with con:
+            rows = con.execute(
+                f"select {', '.join(select_cols)} from session_message{where}", params
+            ).fetchall()
+    except sqlite3.Error:
+        return []
+    out: list[dict] = []
+    for row in rows:
+        values = dict(zip(select_cols, row))
+        try:
+            blob = json.loads(values.get(blob_col) or "{}")
+        except ValueError:
+            continue
+        rec = parse_message_v2(blob, str(values.get(role_col, "")), str(values.get(session_col, "")))
+        if rec is None:
+            continue
+        if not rec["time"]:
+            rec["time"] = as_int(values.get(time_col))
+        out.append(rec)
+    return out
+
+
 def load_messages() -> list[dict]:
     cutoff_s = time.time() - WINDOW_HORIZON_S
+    cutoff_ms = int(cutoff_s * 1000)
     msgs = load_fs_messages(cutoff_s)
+    if not msgs and DB_FILE.exists():
+        try:
+            con = sqlite3.connect(f"file:{DB_FILE}?mode=ro", uri=True, timeout=2.0)
+            con.execute("pragma busy_timeout=2000")
+        except sqlite3.Error:
+            con = None
+        if con is not None:
+            try:
+                msgs = load_v2_messages(con, cutoff_ms)
+            finally:
+                con.close()
     if not msgs:
-        msgs = load_sqlite_messages(int(cutoff_s * 1000))
+        msgs = load_sqlite_messages(cutoff_ms)
     msgs.sort(key=lambda m: m["time"])
     return msgs
 

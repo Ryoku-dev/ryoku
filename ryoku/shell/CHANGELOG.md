@@ -578,6 +578,12 @@
   `../../apps/ryostore/backend/provider_bars.go`, `../../wm/niri/config_binds.go`,
   `../../hyprland/modules/binds.lua`).
 ### Fixed
+- **The AI usage pill sees OpenCode 2.x sessions.** The collector only knew
+  the pre-2.x message store, so every 2.x install read as stale with zero
+  tokens and the OpenCode card stayed empty (#365). It now reads the
+  `session_message` table, detecting the blob, role and time columns from the
+  live schema so a future rename degrades to the old layouts instead of going
+  silent again (`bin/opencode-usage`).
 - **The dock stays in view while the Stage Editor edits it.** Opening the Dock
   catalogue hid the dock itself, so every setting was applied blind. The dock
   now holds visible and clickable on the edited screen for all three designs,

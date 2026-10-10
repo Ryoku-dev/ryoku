@@ -1,0 +1,41 @@
+name: AI usage collector
+
+# The QS Bar AI usage pill reads caches written by ryoku/shell/bin/opencode-usage,
+# which walks OpenCode's local session store. That store has changed shape twice
+# (file-per-message JSON, then a sqlite message table, then the 2.x
+# session_message table), and each move silently emptied the OpenCode card
+# because the collector kept reading the retired layout (#365). The fixture test
+# builds a throwaway store in every layout and asserts the collector still
+# reports real tokens, so a future OpenCode schema move fails here rather than
+# on a user's bar. See tests/opencode-usage.sh.
+
+on:
+  pull_request:
+    paths:
+      - 'ryoku/shell/bin/opencode-usage'
+      - 'tests/opencode-usage.sh'
+      - '.github/workflows/ai-usage-collector.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+    paths:
+      - 'ryoku/shell/bin/opencode-usage'
+      - 'tests/opencode-usage.sh'
+      - '.github/workflows/ai-usage-collector.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  opencode-usage:
+    name: The collector reads every OpenCode store layout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Store-layout fixture test
+        shell: bash
+        run: bash tests/opencode-usage.sh
