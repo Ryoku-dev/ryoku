@@ -61,11 +61,11 @@ done
 
 session_start=$INIT/session/session-start
 ensure_line=$(grep -nF 'ryoku-host session ensure --user' "$session_start" | cut -d: -f1)
-roster_line=$(grep -nF 'while IFS= read -r name' "$session_start" | cut -d: -f1)
-[[ -n $ensure_line && -n $roster_line && $ensure_line -lt $roster_line ]] \
-	|| fail "session-start does not provision user services before starting the roster"
-grep -qF '$service/.ryoku-disabled' "$session_start" \
-	|| fail "session-start does not preserve user-disabled services"
+lifecycle_line=$(grep -nF '"$POWER_CUTOVER" session-start-logged' "$session_start" | cut -d: -f1)
+[[ -n $ensure_line && -n $lifecycle_line && $ensure_line -lt $lifecycle_line ]] \
+	|| fail "session-start does not provision user services before binding their lifecycle"
+grep -qF '.ryoku-disabled' "$ROOT/system/hardware/power/ryoku-power-cutover" \
+	|| fail "runit session lifecycle does not preserve user-disabled services"
 
 deploy=$ROOT/ryoku/shell/deploy.sh
 grep -qF 'sudo cp -R "$init_root/user/." /usr/lib/ryoku/runit/user/' "$deploy" \

@@ -572,6 +572,14 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- **Void relogins restart the desktop cleanly.** The Turnstile services now bind
+  to each graphical login and stop with it, so the shell, bar, and video
+  wallpaper return after logout even when another user session keeps runit up.
+- **Recording stays quiet when `gsr-cli` is missing.** The status checks stop
+  instead of filling the shell log every few seconds (`services/Recorder.qml`).
+- **The plugin widget menu loads again.** Its opacity signal shared a name
+  with the built-in `opacityChanged`, which current Qt rejects, so the menu
+  never appeared (`modules/desktop/PluginWidgetMenu.qml`).
 - **Void installs have sound.** Nothing started PipeWire on a runit system, so
   the session had no audio at all. PipeWire, WirePlumber and pipewire-pulse now
   run as login services under Turnstile (`../../void/init/user/`), and a

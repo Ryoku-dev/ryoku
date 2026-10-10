@@ -36,6 +36,8 @@ printf 'import QtQuick\n' >"$dir/lock_shell.qml"
 printf 'theme\n' >"$dir/themes_link/clockwork/orbital/Main.qml"
 
 watchers="$tmp/watchers"
+session_state="$tmp/session-state"
+printf 'active\n' >"$session_state"
 mkdir -p "$tmp/fakebin"
 cat >"$tmp/fakebin/quickshell" <<'EOF'
 #!/usr/bin/env bash
@@ -53,8 +55,15 @@ cat >"$tmp/fakebin/killall" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod +x "$tmp/fakebin/quickshell" "$tmp/fakebin/ryoku" "$tmp/fakebin/killall"
+cat >"$tmp/fakebin/loginctl" <<'EOF'
+#!/usr/bin/env bash
+[[ $(cat "$QYLOCK_TEST_SESSION_STATE") == active ]] || exit 1
+printf 'active\n'
+EOF
+chmod +x "$tmp/fakebin/quickshell" "$tmp/fakebin/ryoku" \
+  "$tmp/fakebin/killall" "$tmp/fakebin/loginctl"
 export PATH="$tmp/fakebin:$PATH"
+export QYLOCK_TEST_SESSION_STATE="$session_state"
 export QYLOCK_TEST_WATCHERS="$watchers"
 
 RYOKU_QYLOCK_LOCK_SCRIPT="$dir/lock.sh" bash "$repo/ryoku/lockscreen/ryoku-qylock-lock"
@@ -91,4 +100,38 @@ RYOKU_QYLOCK_LOCK_SCRIPT="$dir/lock.sh" bash "$repo/ryoku/lockscreen/ryoku-qyloc
 
 W2="$(head -n1 "$watchers")"
 kill -9 "$W" "$W2" 2>/dev/null || true
-printf 'qylock-fd: guard fds stay out of the client tree\n'
+
+# A crashed client may be retried while its login is alive, but the wrapper
+# must leave as soon as login1 removes that session.
+attempts="$tmp/attempts"
+: >"$attempts"
+cat >"$tmp/fakebin/quickshell" <<'EOF'
+#!/usr/bin/env bash
+printf 'attempt\n' >>"$QYLOCK_TEST_ATTEMPTS"
+exit 9
+EOF
+chmod +x "$tmp/fakebin/quickshell"
+export QYLOCK_TEST_ATTEMPTS="$attempts"
+printf 'active\n' >"$session_state"
+RYOKU_QYLOCK_LOCK_SCRIPT="$dir/lock.sh" \
+  bash "$repo/ryoku/lockscreen/ryoku-qylock-lock" &
+lock_pid=$!
+for _ in {1..100}; do
+  [[ $(wc -l <"$attempts" 2>/dev/null || printf 0) -ge 3 ]] && break
+  sleep 0.05
+done
+[[ $(wc -l <"$attempts" 2>/dev/null || printf 0) -ge 3 ]] || {
+  printf 'qylock-fd: crash recovery did not retry inside a live session\n' >&2
+  exit 1
+}
+printf 'closed\n' >"$session_state"
+for _ in {1..40}; do
+  ! kill -0 "$lock_pid" 2>/dev/null && break
+  sleep 0.05
+done
+if kill -0 "$lock_pid" 2>/dev/null; then
+  printf 'qylock-fd: wrapper survived its login session\n' >&2
+  exit 1
+fi
+wait "$lock_pid"
+printf 'qylock-fd: guard fds stay out of the client tree; wrapper stops with its login session\n'

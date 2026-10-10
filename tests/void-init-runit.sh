@@ -112,6 +112,19 @@ esac
 EOF
 chmod +x "$WORK/bin/ryoku-host"
 
+cat > "$WORK/bin/ryoku-power-cutover" <<'EOF'
+#!/bin/sh
+echo "ryoku-power-cutover $*" >> "$LOG"
+[ "${1:-}" = session-start-logged ] || exit 0
+while IFS= read -r name || [ -n "$name" ]; do
+	case $name in ""|\#*) continue ;; esac
+	service=$RYOKU_USER_SERVICE_DIR/$name
+	[ ! -e "$service/.ryoku-disabled" ] || continue
+	sv restart "$service" >/dev/null
+done < "$RYOKU_RUNIT_SESSION_SERVICES"
+EOF
+chmod +x "$WORK/bin/ryoku-power-cutover"
+
 cat > "$WORK/bin/ryoku-idle" <<'EOF'
 #!/bin/sh
 echo "ryoku-idle $* wayland=${WAYLAND_DISPLAY:-}" >> "$LOG"
@@ -351,7 +364,7 @@ ERSD=
 pass "env-gated service observes a late Turnstile value before exec"
 
 #### 12. a down-marked service stays parked until session-start publishes the
-####     compositor environment and restarts its roster.
+####     compositor environment and delegates the roster to the lifecycle owner.
 mkdir -p "$WORK/session-lib" "$WORK/session-svc/ryoku-idle" "$WORK/session-env"
 cp /repo/void/init/lib/wait-for "$WORK/session-lib/wait-for"
 cp /repo/void/init/env/xdg-dirs "$WORK/session-lib/xdg-dirs"
@@ -410,8 +423,6 @@ PATH="$WORK/bin:$PATH" \
 sleep 1
 [ "$(count 'ryoku-idle start')" -eq "$disabled_before" ] \
 	|| fail "session-start resurrected a user-disabled service"
-grep -q 'leaving disabled service ryoku-idle stopped' "$WORK/disabled-session.log" \
-	|| fail "session-start did not log the preserved user disable"
 rm "$WORK/session-svc/ryoku-idle/.ryoku-disabled"
 
 echo crash > "$WORK/ctl/ryoku-host"

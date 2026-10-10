@@ -42,6 +42,21 @@ cleanup_proof() {
 }
 trap cleanup_proof EXIT
 
+session_alive() {
+    local state
+    state="$(loginctl show-session "$session_id" -p State --value 2>/dev/null)" || return 1
+    [[ $state == active || $state == online ]]
+}
+
+sleep_while_session_alive() {
+    local remaining=$1
+    while (( remaining > 0 )); do
+        sleep 1
+        session_alive || return 1
+        remaining=$((remaining - 1))
+    done
+}
+
 # Set library paths
 export QML2_IMPORT_PATH="$DIR/imports:${QML2_IMPORT_PATH:-}"
 export QML_XHR_ALLOW_FILE_READ=1
@@ -128,6 +143,7 @@ killall -9 hyprlock swaylock wlogout 2>/dev/null || true
 # capped backoff instead of either a hot crash loop or a permanently black lock.
 short_failures=0
 backoff=1
+session_alive || exit 0
 while :; do
     proof_token="$(< /proc/sys/kernel/random/uuid)"
     export QYLOCK_PROOF_TOKEN="$proof_token"
@@ -144,6 +160,7 @@ while :; do
     lifetime_ns=$(( $(date +%s%N) - attempt_started ))
     "$proof_helper" retire "$proof_token" "$session_id" >/dev/null 2>&1 || true
     proof_token=""
+    session_alive || exit 0
     (( rc == 0 )) && exit 0
 
     # A client that stayed healthy before crashing receives a fresh recovery
@@ -161,7 +178,7 @@ while :; do
         continue
     fi
     echo "qylock: lock client failed repeatedly; retrying in ${backoff}s" >&2
-    sleep "$backoff"
+    sleep_while_session_alive "$backoff" || exit 0
     (( backoff < 30 )) && backoff=$((backoff * 2))
     (( backoff > 30 )) && backoff=30
 done

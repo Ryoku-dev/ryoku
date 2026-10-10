@@ -5,26 +5,20 @@ INIT_LIB=${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}
 ROSTER=$INIT_LIB/session-services
 SERVICE_DIR=${RYOKU_USER_SERVICE_DIR:-$HOME/.config/service}
 ENV_DIR=${TURNSTILE_ENV_DIR:-$HOME/.config/service-env}
+POWER_CUTOVER=${RYOKU_POWER_CUTOVER:-ryoku-power-cutover}
 
 log() {
 	printf 'ryoku-session: %s\n' "$*" >&2
 }
 
-supervisor_unavailable=0
-
-restart_service() {
+wait_for_supervisor() {
 	service=$1
 	attempts=50
 	while [ ! -r "$service/supervise/stat" ]; do
-		[ "$supervisor_unavailable" -eq 0 ] || return 1
 		attempts=$((attempts - 1))
-		if [ "$attempts" -le 0 ]; then
-			supervisor_unavailable=1
-			return 1
-		fi
+		[ "$attempts" -gt 0 ] || return 1
 		sleep 0.1
 	done
-	sv restart "$service" >/dev/null 2>&1
 }
 
 umask 077
@@ -52,12 +46,11 @@ if ! ryoku-host session ensure --user; then
 	log "could not provision Ryoku user services"
 fi
 
-
 ryoku-reload-cover begin boot || true
 
 if [ ! -r "$ROSTER" ]; then
 	log "missing service roster $ROSTER"
-	exit 0
+	exit 1
 fi
 
 while IFS= read -r name || [ -n "$name" ]; do
@@ -69,14 +62,18 @@ while IFS= read -r name || [ -n "$name" ]; do
 		log "missing service $service"
 		continue
 	fi
-	if [ -e "$service/.ryoku-disabled" ]; then
-		log "leaving disabled service $name stopped"
-		continue
-	fi
-	log "restarting $name"
-	if ! restart_service "$service"; then
-		log "could not restart $name"
+	if ! wait_for_supervisor "$service"; then
+		log "service is not supervised: $service"
+		exit 1
 	fi
 done < "$ROSTER"
+
+# The lifecycle owner stops any daemons still bound to the previous login,
+# starts this session's roster, and watches login1 so they stop at logout.
+if ! RYOKU_RUNIT_SESSION_SERVICES="$ROSTER" \
+	"$POWER_CUTOVER" session-start-logged; then
+	log "could not bind Ryoku services to this login session"
+	exit 1
+fi
 
 exit 0

@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **A lock client cannot spill into the next login.** Its crash-recovery wrapper
+  now stops when the login1 session that started it has ended, so a reused
+  Wayland socket cannot let an old lock take over a new session.
 - **Unlock preparation and the lock's reboot and power off work under
   elogind.** `ryoku-qylock-unlock-prepare` reads sleep inhibitors from login1
   over D-Bus instead of `systemd-inhibit`, and the lock screen's reboot and

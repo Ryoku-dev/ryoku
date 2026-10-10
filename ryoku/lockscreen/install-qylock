@@ -181,8 +181,12 @@ acquire_mutation_guard() {
 
 external_generation_guard_ready() {
   local runtime_dir="${RYOKU_QYLOCK_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
-  [[ -r $runtime_dir/ryoku-qylock-generation-guard.ready ]] &&
+  [[ -r $runtime_dir/ryoku-qylock-generation-guard.ready ]] || return 1
+  if command -v systemctl >/dev/null 2>&1; then
     systemctl --user is-active --quiet ryoku-qylock-generation-guard.service
+  else
+    ryoku-power-cutover generation-guard-ready
+  fi
 }
 
 activation_contract_present() {

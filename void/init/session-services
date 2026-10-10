@@ -1,8 +1,9 @@
 # Restart in order; bootstrap must provision config before dependent services.
-# ryoku-eq and ryoku-prowl start on demand; ryoku-palette-bridge is opt-in.
+# ryoku-eq and ryoku-prowl start on demand.
 ryoku-bootstrap
 ryogami
 ryoku-shell
+ryoku-palette-bridge
 ryoku-idle
 ryoku-clamshell
 ryoku-ai-usage

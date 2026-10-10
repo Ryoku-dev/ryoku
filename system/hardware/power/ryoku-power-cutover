@@ -257,10 +257,11 @@ start_session_services() {
     return
   fi
   local roster=${RYOKU_RUNIT_SESSION_SERVICES:-/usr/lib/ryoku/runit/session-services}
-  local service
+  local service service_dir=${RYOKU_USER_SERVICE_DIR:-${HOME:-}/.config/service}
   [[ -r $roster ]] || return 0
   while IFS= read -r service; do
     [[ -n $service && $service != \#* ]] || continue
+    [[ ! -e $service_dir/${service%.service}/.ryoku-disabled ]] || continue
     runit_host svc --user start "$service" || return
   done <"$roster"
 }
@@ -708,9 +709,12 @@ session_environment_path() {
 # same-UID session after a switch.
 discover_session_environment() {
   local sid=$1 scope cgroup session_type desktop provider provider_bin pid path
-  scope="$(session_property "$sid" Scope)" || return 1
+  scope="$(session_property "$sid" Scope 2>/dev/null || true)"
   session_type="$(session_property "$sid" Type)" || return 1
-  desktop="$(session_property "$sid" Desktop)" || return 1
+  desktop="$(session_property "$sid" Desktop 2>/dev/null || true)"
+  if [[ -z $desktop && ${XDG_SESSION_ID:-} == "$sid" ]]; then
+    desktop=${XDG_CURRENT_DESKTOP:-${XDG_SESSION_DESKTOP:-}}
+  fi
   provider=${desktop,,}
   [[ $provider =~ ^[a-z0-9-]+$ ]] || return 1
   provider_bin="$provider_root/ryoku-wm-$provider"
