@@ -8,15 +8,34 @@ cmdline_file=${RYOKU_LIMINE_CMDLINE_FILE:-/etc/kernel/cmdline}
 branding_file=${RYOKU_LIMINE_BRANDING_FILE:-/etc/ryoku/limine-branding.conf}
 extra_file=${RYOKU_LIMINE_EXTRA_FILE:-/etc/ryoku/limine-extra.conf}
 windows_helper=${RYOKU_WINDOWS_HELPER:-/usr/local/bin/ryoku-windows-entry}
+modules_dir=${RYOKU_MODULES_DIR:-/usr/lib/modules}
+snapper_config=${RYOKU_SNAPPER_ROOT_CONFIG:-/etc/snapper/configs/root}
+lock_file=${RYOKU_LIMINE_LOCK_FILE:-/run/lock/boot-partition.lock}
 
 [[ -r $branding_file ]] || exit 0
 
+snapshots_enabled=false
+if command -v limine-snapper-sync >/dev/null 2>&1 && [[ -r $snapper_config ]]; then
+  snapshots_enabled=true
+fi
+
 mkdir -p "$boot_dir" "$(dirname "$conf")"
 tmp=$(mktemp "${conf}.tmp.XXXXXX")
-trap 'rm -f "$tmp"' EXIT HUP INT TERM
+lock_held=false
+cleanup() {
+  rm -f "$tmp"
+  if [[ $lock_held == true ]]; then
+    flock --unlock "$lock_fd" || true
+  fi
+}
+trap cleanup EXIT HUP INT TERM
 
-sed -e '/^\/Ryoku Linux/,$d' -e '/^[[:space:]]*#/d' \
-  "$branding_file" >"$tmp"
+if [[ $snapshots_enabled == true ]]; then
+  mkdir -p "$(dirname "$lock_file")"
+  exec {lock_fd}>"$lock_file"
+  flock --timeout=30 "$lock_fd"
+  lock_held=true
+fi
 
 cmdline=${RYOKU_LIMINE_CMDLINE:-}
 if [[ -z $cmdline && -r $cmdline_file ]]; then
@@ -30,31 +49,99 @@ mapfile -t kernels < <(
   shopt -s nullglob
   for kernel in "$boot_dir"/vmlinuz-*; do
     version=${kernel##*/vmlinuz-}
-    if [[ -f $boot_dir/initramfs-$version.img ]]; then
+    if [[ -f $boot_dir/initramfs-$version.img && -d $modules_dir/$version ]]; then
       printf '%s\n' "$version"
     fi
   done | sort -Vr
 )
 
+declare -a entries=()
+declare -A used_entries=()
 for version in "${kernels[@]}"; do
+  if [[ $version =~ ^([0-9]+)\.([0-9]+)([^0-9]|$) ]]; then
+    entry="linux${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+  else
+    safe=${version//[^[:alnum:]._-]/_}
+    [[ -n $safe ]] || safe=kernel
+    entry="linux-$safe"
+  fi
+  if [[ -n ${used_entries[$entry]:-} ]]; then
+    safe=${version//[^[:alnum:]._-]/_}
+    entry="$entry-$safe"
+    suffix=2
+    while [[ -n ${used_entries[$entry]:-} ]]; do
+      entry="$entry-$suffix"
+      ((suffix += 1))
+    done
+  fi
+  used_entries[$entry]=1
+  entries+=("$entry")
+done
+
+default_entry='Ryoku Linux'
+if ((${#entries[@]} > 0)); then
+  default_entry="Ryoku Linux/${entries[0]}"
+fi
+
+awk '
+  /^[[:space:]]*\// { exit }
+  /^[[:space:]]*#/ { next }
+  /^[[:space:]]*default_entry[[:space:]]*:/ { next }
+  { print }
+' "$branding_file" >"$tmp"
+printf 'default_entry: %s\n\n/Ryoku Linux\n' "$default_entry" >>"$tmp"
+
+for i in "${!kernels[@]}"; do
+  version=${kernels[$i]}
+  entry=${entries[$i]}
   cat >>"$tmp" <<EOF
 
-/Ryoku Linux $version
-    protocol: linux
-    path: boot():/vmlinuz-$version
-    module_path: boot():/initramfs-$version.img
-    cmdline: $cmdline
+  //$entry
+  comment: Kernel version: $version
+  comment: kernel-id=$entry
+  protocol: linux
+  path: boot():/vmlinuz-$version
+  module_path: boot():/initramfs-$version.img
+  cmdline: $cmdline
 EOF
 done
 
-if [[ -r $extra_file ]]; then
+copy_snapshot_tree() {
+  awk '
+    !found {
+      if ($0 ~ /^[[:space:]]*\/\/Snapshots[[:space:]]*$/) {
+        found = 1
+        print
+      }
+      next
+    }
+    /^[[:space:]]*\/[^\/]/ { exit }
+    /^[[:space:]]*\/\/[^\/]/ { exit }
+    { print }
+    END { if (!found) exit 1 }
+  ' "$1"
+}
+
+if [[ $snapshots_enabled == true ]]; then
   printf '\n' >>"$tmp"
+  if [[ ! -r $conf ]] || ! copy_snapshot_tree "$conf" >>"$tmp"; then
+    printf '  //Snapshots\n' >>"$tmp"
+  fi
+fi
+
+if [[ -r $extra_file ]]; then
+  if [[ $snapshots_enabled != true ]]; then
+    printf '\n' >>"$tmp"
+  fi
   cat "$extra_file" >>"$tmp"
 fi
 
 chmod 0644 "$tmp"
 mv -f "$tmp" "$conf"
-trap - EXIT HUP INT TERM
+
+if [[ $snapshots_enabled == true ]]; then
+  limine-snapper-sync --no-mutex </dev/null || printf '50-ryoku-limine: limine-snapper-sync could not refresh the Snapshots menu\n' >&2
+fi
 
 if [[ -x $windows_helper ]]; then
   "$windows_helper" sync "$conf" >/dev/null 2>&1 || true
@@ -71,3 +158,9 @@ if [[ -r $loader ]]; then
     if [[ -e $target ]]; then cp -f "$loader" "$target"; fi
   done
 fi
+
+if [[ $lock_held == true ]]; then
+  flock --unlock "$lock_fd"
+  lock_held=false
+fi
+trap - EXIT HUP INT TERM

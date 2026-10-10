@@ -31,6 +31,9 @@
   `udev` in `mkinitcpio/ryoku.conf`.
 
 ### Fixed
+- `limine/50-ryoku-limine` now builds Void kernels under one `/Ryoku Linux`
+  menu, keeps snapshot entries in place across kernel changes, and excludes
+  ESP kernels whose matching module tree is absent after a snapshot restore.
 - `plymouth/ryoku/ryoku.script`: the unlock dialog says what it wants ("Enter
   the disk passphrase") and says so when a passphrase is rejected ("Wrong
   passphrase, try again"). Before, a wrong passphrase just emptied the box and
