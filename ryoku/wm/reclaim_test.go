@@ -210,6 +210,56 @@ func TestRemovalSetDropsEachBlockedTarget(t *testing.T) {
 	}
 }
 
+func TestDNFBlockedTargetsKeepsRequiredRPMs(t *testing.T) {
+	tests := []struct {
+		name      string
+		targets   []string
+		native    map[string][]string
+		provides  map[string][]string
+		requires  map[string][]string
+		providers map[string][]string
+		want      []string
+	}{
+		{
+			name:     "surviving package requires target capability",
+			targets:  []string{"out-core", "out-portal"},
+			native:   map[string][]string{"out-core": {"core-rpm"}, "out-portal": {"portal-rpm"}},
+			provides: map[string][]string{"core-rpm": {"core-api"}, "portal-rpm": {"portal-api"}},
+			requires: map[string][]string{"core-api": {"portal-rpm"}, "portal-api": {"desktop-app"}},
+			providers: map[string][]string{
+				"core-api":   {"core-rpm"},
+				"portal-api": {"portal-rpm"},
+			},
+			want: []string{"out-portal"},
+		},
+		{
+			name:      "surviving provider satisfies shared capability",
+			targets:   []string{"out-core"},
+			native:    map[string][]string{"out-core": {"out-rpm"}},
+			provides:  map[string][]string{"out-rpm": {"ryoku-desktop-compositor"}},
+			requires:  map[string][]string{"ryoku-desktop-compositor": {"ryoku-desktop"}},
+			providers: map[string][]string{"ryoku-desktop-compositor": {"out-rpm", "in-rpm"}},
+			want:      nil,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			query := func(values map[string][]string) func(string) ([]string, error) {
+				return func(key string) ([]string, error) {
+					return append([]string(nil), values[key]...), nil
+				}
+			}
+			got, err := dnfBlockedTargets(tc.targets, tc.native, query(tc.provides), query(tc.requires), query(tc.providers))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("blocked = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // VerifyRemoval is the guard run right before the destructive removal: it must
 // refuse when pacman's live plan no longer matches the reviewed set.
 func TestVerifyRemovalRefusesOnDivergence(t *testing.T) {

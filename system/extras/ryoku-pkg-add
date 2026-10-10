@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-# Official-repo install via pacman. The extras actuator sends repo packages
-# here and AUR ones to ryoku-pkg-aur-add, so a bundle author just writes a
-# package name. Needs a TTY for the sudo prompt, which is why the Hub runs
-# installs in a floating terminal.
+# Official-repository install through the host package seam. Bundle manifests
+# keep using Ryoku's Arch-side catalogue names; ryoku-host translates them for
+# the active package manager. Needs a TTY for the sudo prompt, which is why the
+# Hub runs installs in a floating terminal.
 
 set -euo pipefail
 
@@ -12,7 +12,10 @@ set -euo pipefail
   exit 2
 }
 
-# -Syu, not -S: installing new packages against a stale db is a partial upgrade,
-# which breaks on soname bumps (e.g. a new x265 vs the installed ffmpeg). A full
-# sync+upgrade keeps the transaction consistent.
+# Pacman keeps its full-sync transaction so installing against stale databases
+# cannot create a partial upgrade. Fedora installs the newest available RPMs;
+# unlike `dnf upgrade`, this also installs bundle packages that are not present.
+if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+  exec sudo ryoku-host pkg install "$@"
+fi
 exec sudo pacman -Syu --needed --noconfirm "$@"

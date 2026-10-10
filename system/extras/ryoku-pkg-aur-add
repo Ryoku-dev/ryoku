@@ -17,6 +17,11 @@ set -uo pipefail
   exit 2
 }
 
+if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+  echo "ryoku-pkg-aur-add: the AUR is available only on pacman hosts" >&2
+  exit 5
+fi
+
 # makepkg (under yay/paru) refuses to build as root; fail early with one clear
 # message instead of a cryptic per-package refusal from every build.
 (( EUID != 0 )) || {

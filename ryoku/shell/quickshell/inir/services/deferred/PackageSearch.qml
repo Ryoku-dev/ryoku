@@ -11,7 +11,7 @@ import Quickshell.Io
 /**
  * PackageSearch — Async package manager search service.
  *
- * Searches pacman/AUR or XBPS repositories for packages matching a query.
+ * Searches pacman/AUR, XBPS, or DNF repositories for packages matching a query.
  * Results are parsed into structured objects with name, version, repo,
  * description, and installed status.
  *
@@ -63,14 +63,17 @@ Singleton {
         }
 
         const script = preferAurHelper
-            ? "if command -v yay &>/dev/null; then yay -S -- \"$1\"; " +
-                "elif command -v paru &>/dev/null; then paru -S -- \"$1\"; " +
-                "elif command -v pacman &>/dev/null; then sudo pacman -S -- \"$1\"; " +
-                "elif command -v xbps-install &>/dev/null; then sudo xbps-install -S -- \"$1\"; " +
-                "else printf 'No supported package manager found\\n' >&2; exit 127; fi"
-            : "if command -v pacman &>/dev/null; then sudo pacman -S -- \"$1\"; " +
-                "elif command -v xbps-install &>/dev/null; then sudo xbps-install -S -- \"$1\"; " +
-                "else printf 'No supported package manager found\\n' >&2; exit 127; fi"
+            ? "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+                "pacman) if command -v yay &>/dev/null; then yay -S -- \"$1\"; " +
+                    "elif command -v paru &>/dev/null; then paru -S -- \"$1\"; else sudo pacman -S -- \"$1\"; fi ;; " +
+                "xbps) sudo xbps-install -S -- \"$1\" ;; " +
+                "dnf) printf 'The AUR is not available on Fedora\\n' >&2; exit 5 ;; " +
+                "*) printf 'No supported package manager found\\n' >&2; exit 127 ;; esac"
+            : "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+                "pacman) sudo pacman -S -- \"$1\" ;; " +
+                "xbps) sudo xbps-install -S -- \"$1\" ;; " +
+                "dnf) sudo ryoku-host pkg install \"$1\" ;; " +
+                "*) printf 'No supported package manager found\\n' >&2; exit 127 ;; esac"
         root._runTerminalScript(script, [pkg])
         return true
     }
@@ -84,9 +87,11 @@ Singleton {
         }
 
         root._runTerminalScript(
-            "if command -v pacman &>/dev/null; then sudo pacman -Rns -- \"$1\"; " +
-            "elif command -v xbps-remove &>/dev/null; then sudo xbps-remove -R -- \"$1\"; " +
-            "else printf 'No supported package manager found\\n' >&2; exit 127; fi",
+            "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+            "pacman) sudo pacman -Rns -- \"$1\" ;; " +
+            "xbps) sudo xbps-remove -R -- \"$1\" ;; " +
+            "dnf) sudo ryoku-host pkg remove \"$1\" ;; " +
+            "*) printf 'No supported package manager found\\n' >&2; exit 127 ;; esac",
             [pkg]
         )
         return true
@@ -94,17 +99,26 @@ Singleton {
 
     function updateSystem(): void {
         root._runTerminalScript(
-            "if command -v pacman &>/dev/null; then " +
-                "if command -v yay &>/dev/null; then yay; elif command -v paru &>/dev/null; then paru; else sudo pacman -Syu; fi; " +
-            "elif command -v xbps-install &>/dev/null; then sudo xbps-install -Su; " +
-            "else printf 'No supported package manager found\\n' >&2; exit 127; fi",
+            "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+            "pacman) if command -v yay &>/dev/null; then yay; elif command -v paru &>/dev/null; then paru; else sudo pacman -Syu; fi ;; " +
+            "xbps) sudo xbps-install -Su ;; " +
+            "dnf) ryoku update --system ;; " +
+            "*) printf 'No supported package manager found\\n' >&2; exit 127 ;; esac",
             []
         )
     }
 
-    // apps.update is a person's own command; empty or an old default means the system's package manager.
+    // apps.update is a person's own command. Keep custom commands intact; the
+    // former stage default is made host-aware so existing Fedora configs never
+    // try to launch pacman.
     function runConfiguredUpdate(): void {
         const cmd = (Config.options?.apps?.update ?? "").trim()
+        const oldStageDefault = "kitty -1 --hold=yes fish -i -c 'pkexec pacman -Syu'"
+        if (cmd === oldStageDefault) {
+            ShellExec.execCmd("if [ \"$(ryoku-host pkgmgr 2>/dev/null)\" = dnf ]; then " +
+                "kitty -1 --hold=yes fish -i -c 'ryoku update --system'; else exec " + cmd + "; fi")
+            return
+        }
         const legacyDefault = cmd === "kitty -e arch-update" || cmd === "kitty -e sudo pacman -Syu"
         if (cmd.length === 0 || legacyDefault) {
             root.updateSystem()
@@ -115,10 +129,11 @@ Singleton {
 
     function cleanPackageCache(): void {
         root._runTerminalScript(
-            "if command -v pacman &>/dev/null; then " +
-                "if command -v paccache &>/dev/null; then sudo paccache -rk1; else printf 'paccache is unavailable; install pacman-contrib\\n' >&2; exit 127; fi; " +
-            "elif command -v xbps-remove &>/dev/null; then sudo xbps-remove -O; " +
-            "else printf 'No supported package cache cleaner found\\n' >&2; exit 127; fi",
+            "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+            "pacman) if command -v paccache &>/dev/null; then sudo paccache -rk1; else printf 'paccache is unavailable; install pacman-contrib\\n' >&2; exit 127; fi ;; " +
+            "xbps) sudo xbps-remove -O ;; " +
+            "dnf) dnf_cmd=$(command -v dnf5 || command -v dnf) || exit 127; sudo \"$dnf_cmd\" clean packages ;; " +
+            "*) printf 'No supported package cache cleaner found\\n' >&2; exit 127 ;; esac",
             []
         )
     }
@@ -130,6 +145,17 @@ Singleton {
             "name=$(xbps-uhelper getpkgname \"$pkgver\"); version=${pkgver#\"$name\"-}; " +
             "desc=${rest#\"$pkgver\"}; desc=\"${desc#\"${desc%%[![:space:]]*}\"}\"; " +
             "printf '__XBPS__\\t%s\\t%s\\t%s\\t%s\\n' \"$status\" \"$name\" \"$version\" \"$desc\"; " +
+            "done"
+    }
+
+    function _dnfSearchPipeline(installedOnly: bool, limit: int): string {
+        const source = installedOnly
+            ? "rpm -qa --qf '%{NAME}\\t%{VERSION}-%{RELEASE}\\t@System\\t%{SUMMARY}\\n' | grep -iF -- \"$1\""
+            : "dnf_cmd=$(command -v dnf5 || command -v dnf) || exit 127; " +
+                "\"$dnf_cmd\" -q repoquery --available --qf '%{name}\\t%{evr}\\t%{repoid}\\t%{summary}\\n' \"*$1*\""
+        return source + " | sed '/^$/d' | head -" + limit + " | while IFS=$'\\t' read -r name version repo desc; do [ -n \"$name\" ] || continue; " +
+            "installed=0; rpm -q --quiet \"$name\" && installed=1; " +
+            "printf '__DNF__\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$installed\" \"$name\" \"$version\" \"$repo\" \"$desc\"; " +
             "done"
     }
 
@@ -163,14 +189,15 @@ Singleton {
             root.error = ""
             _stdout = ""
             const xbpsSearch = root._xbpsSearchPipeline("-Rs", 200)
+            const dnfSearch = root._dnfSearchPipeline(false, 200)
             _searchProc.command = ["/usr/bin/bash", "-lc",
-                "if command -v pacman &>/dev/null; then " +
-                    "if command -v yay &>/dev/null; then yay -Ss \"$1\" 2>/dev/null | head -200; " +
+                "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+                "pacman) if command -v yay &>/dev/null; then yay -Ss \"$1\" 2>/dev/null | head -200; " +
                     "elif command -v paru &>/dev/null; then paru -Ss \"$1\" 2>/dev/null | head -200; " +
-                    "else pacman -Ss \"$1\" 2>/dev/null | head -200; fi; " +
-                "elif command -v xbps-query &>/dev/null && command -v xbps-uhelper &>/dev/null; then " +
-                    xbpsSearch + "; " +
-                "else exit 127; fi",
+                    "else pacman -Ss \"$1\" 2>/dev/null | head -200; fi ;; " +
+                "xbps) " + xbpsSearch + " ;; " +
+                "dnf) " + dnfSearch + " ;; " +
+                "*) exit 127 ;; esac",
                 "bash", root.query
             ]
             _searchProc.running = true
@@ -230,6 +257,24 @@ Singleton {
                 i++
                 continue
             }
+            if (line.startsWith("__DNF__\t")) {
+                const fields = line.split("\t")
+                if (fields.length >= 6) {
+                    pkgs.push({
+                        name: fields[2],
+                        version: fields[3],
+                        repo: fields[4],
+                        description: fields.slice(5).join("\t"),
+                        installed: fields[1] === "1",
+                        votes: 0,
+                        popularity: 0,
+                        isAur: false
+                    })
+                }
+                i++
+                continue
+            }
+
 
             // Package line format: "repo/name version [size] [installed]"
             // or AUR: "aur/name version (+votes popularity) [installed]"
@@ -281,11 +326,13 @@ Singleton {
         root.error = ""
         _stdout = ""
         const xbpsSearch = root._xbpsSearchPipeline("-s", 100)
+        const dnfSearch = root._dnfSearchPipeline(true, 100)
         _installedProc.command = ["/usr/bin/bash", "-lc",
-            "if command -v pacman &>/dev/null; then pacman -Qs \"$1\" 2>/dev/null | head -100; " +
-            "elif command -v xbps-query &>/dev/null && command -v xbps-uhelper &>/dev/null; then " +
-                xbpsSearch + "; " +
-            "else exit 127; fi",
+            "manager=$(ryoku-host pkgmgr 2>/dev/null) || exit 127; case \"$manager\" in " +
+            "pacman) pacman -Qs \"$1\" 2>/dev/null | head -100 ;; " +
+            "xbps) " + xbpsSearch + " ;; " +
+            "dnf) " + dnfSearch + " ;; " +
+            "*) exit 127 ;; esac",
             "bash", root.query
         ]
         _installedProc.running = true

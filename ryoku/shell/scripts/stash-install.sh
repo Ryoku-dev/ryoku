@@ -301,10 +301,10 @@ install_tarball() {
 }
 
 # install_deb / install_rpm SRC: pull a foreign package's payload (its usr/ tree)
-# and synthesize an entry from it. bsdtar (libarchive, always around via pacman)
-# reads both: .deb nests its payload in data.tar.*, .rpm exposes the cpio tree
-# directly. best-effort, like the tarball path; a native pacman package or
-# flatpak is the better route for an app that hardcodes system paths.
+# and synthesize an entry from it. On Fedora, an RPM is native and goes through
+# the host package seam instead. bsdtar reads Debian payloads and foreign RPMs;
+# this stays best-effort because a native package or Flatpak is the better route
+# for an app that hardcodes system paths.
 install_deb() {
   local src rawname name dst tmp data
   src="$1"
@@ -321,8 +321,18 @@ install_deb() {
 }
 
 install_rpm() {
-  local src rawname name dst
+  local src rawname name dst status
   src="$1"
+  if [ "$(ryoku-host pkgmgr 2>/dev/null)" = dnf ]; then
+    command -v pkexec >/dev/null 2>&1 || return 1
+    printf '@AUTH\n'
+    pkexec ryoku-host pkg install-file "$src" >/dev/null 2>&1
+    status=$?
+    [ "$status" -eq 0 ] || return 1
+    name=$(rpm -qp --qf '%{NAME}' "$src" 2>/dev/null)
+    LAST_NAME="${name:-$(slug "$(basename "$src" .rpm)")}"
+    return 0
+  fi
   rawname=$(basename "$src" .rpm)
   name=$(slug "$rawname"); [ -n "$name" ] || name="app"
   command -v bsdtar >/dev/null 2>&1 || return 1

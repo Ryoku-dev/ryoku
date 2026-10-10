@@ -277,9 +277,9 @@ func buildChecks(in capInputs, host, pass *GPU) (checks []Check, hardFail bool) 
 	case len(miss) == 0:
 		add(Check{ID: "tooling", Level: "ok", Label: "Virtualization stack", Value: "installed"})
 	case !in.tooling.qemu:
-		add(Check{ID: "tooling", Level: "warn", Label: "Virtualization stack", Value: "QEMU not installed", Hint: "A plain VM needs QEMU: pacman -S qemu-desktop."})
+		add(Check{ID: "tooling", Level: "warn", Label: "Virtualization stack", Value: "QEMU not installed", Hint: "A plain VM needs QEMU. Install it with `sudo ryoku-host pkg install qemu-desktop`."})
 	default:
-		add(Check{ID: "tooling", Level: "warn", Label: "Passthrough stack", Value: "missing: " + strings.Join(miss, ", ") + " (passthrough only)", Hint: "Only for the GPU-passthrough VM; plain VMs need none of it. Looking Glass + kvmfr are AUR: yay -S looking-glass looking-glass-module-dkms."})
+		add(Check{ID: "tooling", Level: "warn", Label: "Passthrough stack", Value: "missing: " + strings.Join(miss, ", ") + " (passthrough only)", Hint: "Only for the GPU-passthrough VM; plain VMs need none of it. Run `ryoku-host pkg advice <package>` for host-specific install help."})
 	}
 	if in.tooling.libvirt {
 		if in.inLibvirtGroup {

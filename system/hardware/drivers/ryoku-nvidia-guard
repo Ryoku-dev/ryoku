@@ -28,6 +28,12 @@
 
 set -euo pipefail
 
+if command -v ryoku-host >/dev/null 2>&1 &&
+   [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+  echo "ryoku-nvidia-guard: Fedora uses its native NVIDIA and dracut transaction hooks; no changes made."
+  exit 0
+fi
+
 # Test seams: point the paths at a fixture and stub pacman/modinfo/mkinitcpio on
 # PATH. Production defaults are the real system paths.
 : "${RYOKU_MODPROBE_CONF:=/etc/modprobe.d/nvidia.conf}"

@@ -146,7 +146,7 @@ var componentAliases = map[string]string{
 
 	"portal": "portals", "portals": "portals",
 
-	"update": "updates", "updates": "updates", "doctor": "updates", "pacman": "updates",
+	"update": "updates", "updates": "updates", "doctor": "updates", "pacman": "updates", "dnf": "updates",
 
 	"compositor": "compositor", "wm": "compositor", "window-manager": "compositor",
 }
@@ -246,12 +246,15 @@ func buildComponentSections(spec componentSpec, cfg logsConfig) []logSection {
 }
 
 // updatesSections gathers the system-change trail: the doctor report, the last
-// update run, and the recent pacman transactions.
+// update run, and recent native package transactions.
 func updatesSections(cfg logsConfig) []logSection {
 	state := filepath.Join(home(), ".local", "state", "ryoku")
 	secs := []logSection{
 		fileSection(filepath.Join(state, "doctor-report.txt"), cfg),
 		fileSection(filepath.Join(state, "update-log.txt"), cfg),
+	}
+	if logsPackageManager() == "dnf" {
+		return append(secs, dnfHistorySection("", cfg))
 	}
 	if body := pacmanTail(cfg.lines); body != "" {
 		secs = append(secs, logSection{head: pacmanLogPath + " (recent transactions)", body: body})
@@ -394,12 +397,15 @@ func coredumpSections(name string, cfg logsConfig) []logSection {
 	return secs
 }
 
-// packageSections reports the pacman package that owns the binary and its
+// packageSections reports the native package that owns the binary and its
 // recent transactions: an upgrade right before a breakage is the classic cause.
 func packageSections(name string, cfg logsConfig) []logSection {
 	binPath, err := exec.LookPath(name)
 	if err != nil {
 		return []logSection{{head: "PATH lookup for " + name, note: name + " is not on PATH (a script, an alias, or a Flatpak)"}}
+	}
+	if logsPackageManager() == "dnf" {
+		return dnfPackageSections(binPath, cfg)
 	}
 	ownHead := "pacman -Qqo " + binPath
 	out, ok := probe(logsProbeTimeout, "pacman", "-Qqo", binPath)
@@ -664,6 +670,64 @@ func commCandidates(name string) []string {
 		out = append(out, commName(title))
 	}
 	return out
+}
+
+func logsPackageManager() string {
+	out, ok := probe(logsProbeTimeout, "ryoku-host", "pkgmgr")
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+func dnfBinary() string {
+	for _, name := range []string{"dnf5", "dnf"} {
+		if path, err := exec.LookPath(name); err == nil {
+			return path
+		}
+	}
+	return ""
+}
+
+func dnfHistorySection(pkg string, cfg logsConfig) logSection {
+	command := dnfBinary()
+	args := []string{"history", "list"}
+	if pkg != "" {
+		if filepath.Base(command) == "dnf5" {
+			args = append(args, "--contains-pkgs="+pkg)
+		} else {
+			args = append(args, pkg)
+		}
+	}
+	head := "dnf history list"
+	if pkg != "" {
+		if filepath.Base(command) == "dnf5" {
+			head += " --contains-pkgs=" + pkg
+		} else {
+			head += " " + pkg
+		}
+	}
+	if command == "" {
+		return logSection{head: head, note: "dnf unavailable"}
+	}
+	out, ok := probe(logsProbeTimeout, command, args...)
+	if !ok {
+		return logSection{head: head, note: "dnf history unavailable"}
+	}
+	return logSection{head: head, body: tailLines(out, cfg.lines), note: "no recorded transactions"}
+}
+
+func dnfPackageSections(binPath string, cfg logsConfig) []logSection {
+	head := "ryoku-host pkg owner " + binPath
+	out, ok := probe(logsProbeTimeout, "ryoku-host", "pkg", "owner", binPath)
+	pkg := strings.TrimSpace(out)
+	if !ok || pkg == "" {
+		return []logSection{{head: head, note: binPath + " is not owned by an RPM package (a script or a Flatpak)"}}
+	}
+	return []logSection{
+		{head: head, body: pkg},
+		dnfHistorySection(pkg, cfg),
+	}
 }
 
 // pacmanTail returns the last n lines of pacman.log.

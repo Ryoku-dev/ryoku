@@ -25,6 +25,22 @@ bindir="$HOME/.local/bin"
 repo_root="$(cd "$here/../.." && pwd)"
 say() { printf '  %s\n' "$*"; }
 
+host_pkgmgr() {
+  if command -v ryoku-host >/dev/null 2>&1; then
+    ryoku-host pkgmgr 2>/dev/null && return
+  fi
+  if command -v pacman >/dev/null 2>&1; then
+    printf 'pacman\n'
+  elif command -v xbps-install >/dev/null 2>&1; then
+    printf 'xbps\n'
+  elif command -v dnf5 >/dev/null 2>&1 || command -v dnf >/dev/null 2>&1; then
+    printf 'dnf\n'
+  fi
+}
+
+package_manager=$(host_pkgmgr)
+
+
 converge_void_packages() {
   local ledger="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/provisioned"
   local table="$repo_root/void/packages/translations.tsv"
@@ -291,21 +307,32 @@ check_renderer() {
   fi
   say "ryoku-shell NOT restarted: quickshell cannot start"
   printf '%s\n' "$out" | sed 's/^/    /' >&2
-  if [ -d /run/systemd/system ]; then
-    cat >&2 <<'EOF'
+  case "$package_manager" in
+    pacman)
+      cat >&2 <<'EOF'
     Quickshell links Qt's private API, so a build made against another Qt will
     not load. The repo package is rebuilt with Qt; quickshell-git is not:
         sudo pacman -S quickshell
     Then run this deploy again. The desktop you have now was left running.
 EOF
-  else
-    cat >&2 <<'EOF'
+      ;;
+    xbps)
+      cat >&2 <<'EOF'
     Quickshell links Qt's private API, so a build made against another Qt will
     not load. Reinstall quickshell against the current Qt:
         sudo xbps-install -Sf quickshell
     Then run this deploy again. The desktop you have now was left running.
 EOF
-  fi
+      ;;
+    dnf)
+      cat >&2 <<'EOF'
+    Quickshell links Qt's private API, so a build made against another Qt will
+    not load. Reinstall quickshell against the current Qt:
+        sudo ryoku-host pkg install quickshell
+    Then run this deploy again. The desktop you have now was left running.
+EOF
+      ;;
+  esac
   return 1
 }
 
@@ -456,7 +483,7 @@ start_session_power_units() {
   return 1
 }
 
-if command -v xbps-install >/dev/null 2>&1; then
+if [[ $package_manager == xbps ]]; then
   command -v xbps-query >/dev/null 2>&1 || {
     say "xbps-query is required to check the Void package set" >&2
     exit 1
@@ -470,13 +497,23 @@ fi
 # bare "go: command not found"; name the problem and the fix.
 if ! command -v go >/dev/null 2>&1; then
   printf '  the Go toolchain is required to build the desktop from a checkout, but go is not installed.\n' >&2
-  if [ -d /run/systemd/system ]; then
-    printf '    install it:  sudo pacman -S --needed go\n' >&2
-    printf '    (a packaged install updates through pacman and does not build from source; check ryoku status.)\n' >&2
-  else
-    printf '    install it:  sudo xbps-install -Sy go\n' >&2
-    printf '    (a packaged install does not build from source; check ryoku status.)\n' >&2
-  fi
+  case "$package_manager" in
+    pacman)
+      printf '    install it:  sudo pacman -S --needed go\n' >&2
+      printf '    (a packaged install updates through pacman and does not build from source; check ryoku status.)\n' >&2
+      ;;
+    xbps)
+      printf '    install it:  sudo xbps-install -Sy go\n' >&2
+      printf '    (a packaged install does not build from source; check ryoku status.)\n' >&2
+      ;;
+    dnf)
+      printf '    install it:  sudo ryoku-host pkg install go\n' >&2
+      printf '    (a packaged install updates through DNF and does not build from source; check ryoku status.)\n' >&2
+      ;;
+    *)
+      printf '    install it with this host package manager, then run deploy again.\n' >&2
+      ;;
+  esac
   exit 1
 fi
 
@@ -660,9 +697,12 @@ if command -v sudo >/dev/null 2>&1; then
     sudo install -Dm"$3" "$1" "$2" || true
   }
   _priv_install "$here/../cli/ryoku-host" /usr/bin/ryoku-host 755
-  if command -v xbps-install >/dev/null 2>&1; then
+  if [[ $package_manager == xbps ]]; then
     _priv_install "$repo_root/void/packages/translations.tsv" \
       /usr/share/ryoku/packages/void.tsv 644
+  elif [[ $package_manager == dnf && -f $repo_root/fedora/packages/translations.tsv ]]; then
+    _priv_install "$repo_root/fedora/packages/translations.tsv" \
+      /usr/share/ryoku/packages/fedora.tsv 644
   fi
   _priv_install "$here/../lockscreen/sddm/ryoku-greeter" \
     /usr/share/ryoku/lockscreen/ryoku-greeter 755
@@ -695,20 +735,22 @@ if command -v sudo >/dev/null 2>&1; then
     sudo systemctl daemon-reload || true
     sudo systemctl enable --quiet ryoku-network-kill-guard.service ryoku-network-kill-disconnect.service || true
     say "installed privileged network helpers + polkit rules"
-    # Boot look: lay the splash theme, Limine art and ryoku-boot-apply, then apply
-    # them (set the splash, deploy the ESP wallpaper + globals, rebuild initramfs).
-    bootsrc="$here/../../system/boot"
-    sudo install -d /usr/share/plymouth/themes/ryoku
-    sudo cp -a "$bootsrc/plymouth/ryoku/." /usr/share/plymouth/themes/ryoku/
-    sudo install -Dm644 "$bootsrc/limine/limine.conf" /usr/share/ryoku/boot/limine.conf
-    sudo install -Dm644 "$bootsrc/limine/default.conf" /usr/share/ryoku/boot/default.conf
-    sudo install -Dm755 "$bootsrc/ryoku-boot-apply" /usr/bin/ryoku-boot-apply
-    # the mkinitcpio install hook the HOOKS drop-in names: mkinitcpio aborts on a
-    # hook it cannot find, and ryoku-boot-apply rebuilds the images right below.
-    sudo install -Dm644 "$bootsrc/mkinitcpio/install/ryoku-gpu-trim" \
-      /usr/lib/initcpio/install/ryoku-gpu-trim
-    sudo ryoku-boot-apply || true
-    say "installed and applied the boot splash + Limine theme"
+    if [[ $package_manager == pacman ]]; then
+      # Boot look: lay the splash theme, Limine art and ryoku-boot-apply, then apply
+      # them (set the splash, deploy the ESP wallpaper + globals, rebuild initramfs).
+      bootsrc="$here/../../system/boot"
+      sudo install -d /usr/share/plymouth/themes/ryoku
+      sudo cp -a "$bootsrc/plymouth/ryoku/." /usr/share/plymouth/themes/ryoku/
+      sudo install -Dm644 "$bootsrc/limine/limine.conf" /usr/share/ryoku/boot/limine.conf
+      sudo install -Dm644 "$bootsrc/limine/default.conf" /usr/share/ryoku/boot/default.conf
+      sudo install -Dm755 "$bootsrc/ryoku-boot-apply" /usr/bin/ryoku-boot-apply
+      # the mkinitcpio install hook the HOOKS drop-in names: mkinitcpio aborts on a
+      # hook it cannot find, and ryoku-boot-apply rebuilds the images right below.
+      sudo install -Dm644 "$bootsrc/mkinitcpio/install/ryoku-gpu-trim" \
+        /usr/lib/initcpio/install/ryoku-gpu-trim
+      sudo ryoku-boot-apply || true
+      say "installed and applied the boot splash + Limine theme"
+    fi
   else
     _priv_install "$here/../../system/hardware/gpu/45-ryoku-gpu-mux.rules" /usr/share/polkit-1/rules.d/45-ryoku-gpu-mux.rules 644
     _priv_install "$here/../../system/hardware/power/logind-ryoku-lid.conf" \
@@ -756,11 +798,10 @@ fi
 # a module built against another Qt fails to load, and ninja alone may not see
 # the change.
 qmldir="$HOME/.local/lib/qt6/qml"
-if [ -d /run/systemd/system ]; then
-  qtver="$(pacman -Q qt6-base 2>/dev/null | awk '{print $2}')"
-else
-  qtver="$(pkg-config --modversion Qt6Core 2>/dev/null || true)"
-fi
+case "$package_manager" in
+  pacman) qtver="$(pacman -Q qt6-base 2>/dev/null | awk '{print $2}')" ;;
+  *) qtver="$(pkg-config --modversion Qt6Core 2>/dev/null || true)" ;;
+esac
 qtstamp="$qmldir/Ryoku/Blobs/.qt-version"
 if command -v cmake >/dev/null 2>&1 && command -v ninja >/dev/null 2>&1; then
   if [ -z "$qtver" ] || [ "$(cat "$qtstamp" 2>/dev/null)" != "$qtver" ]; then
@@ -1017,6 +1058,8 @@ if command -v sudo >/dev/null 2>&1 && command -v pacman >/dev/null 2>&1; then
   else
     say "  ryotunes not installed from [ryoku] (channel unreachable or not published yet); see $_plog"
   fi
+elif [[ $package_manager == dnf ]]; then
+  say "skipping packaged externals that are not in the Fedora Ryoku package set"
 else
   say "skipping packaged externals (sudo or pacman not available)"
 fi
@@ -1274,10 +1317,17 @@ if command -v sudo >/dev/null 2>&1; then
   # retire the old copy this script seeded before the move; a packaged box
   # owns that path through ryoku-desktop, whose upgrade removes it, so only
   # an unowned (dev-seeded) file is touched here.
-  if [ -d /run/systemd/system ] &&
-     [[ -e /usr/share/applications/mimeapps.list ]] &&
-     ! pacman -Qoq /usr/share/applications/mimeapps.list >/dev/null 2>&1; then
-    sudo rm -f /usr/share/applications/mimeapps.list
+  if [ -d /run/systemd/system ] && [[ -e /usr/share/applications/mimeapps.list ]]; then
+    case "$package_manager" in
+      pacman)
+        pacman -Qoq /usr/share/applications/mimeapps.list >/dev/null 2>&1 ||
+          sudo rm -f /usr/share/applications/mimeapps.list
+        ;;
+      dnf)
+        ryoku-host pkg owner /usr/share/applications/mimeapps.list >/dev/null 2>&1 ||
+          sudo rm -f /usr/share/applications/mimeapps.list
+        ;;
+    esac
   fi
 fi
 # chromium reads ~/.config/chromium-flags.conf, Google Chrome reads chrome-flags.conf;

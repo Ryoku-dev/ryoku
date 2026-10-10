@@ -841,7 +841,7 @@ Item {
                 }
             }
 
-            // ── system packages (pacman -Syu, check-only) ──
+            // ── system packages (distribution upgrade, check-only) ──
             Column {
                 width: idleCol.width
                 spacing: 0
@@ -873,11 +873,11 @@ Item {
                     }
                 }
 
-                // These come from Arch or CachyOS, not from Ryoku: `ryoku update`
-                // does not move them, so the section has to name what does.
+                // These come from the host distribution, not from Ryoku's own
+                // package channel. The CLI owns the package-manager choice.
                 Text {
                     width: idleCol.width
-                    text: I18n.tr("From your distribution, kernel included. Take them with:  sudo pacman -Syu")
+                    text: I18n.tr("From your distribution, kernel included. Take them with:  ryoku update --system")
                     color: Tokens.inkFaint
                     font.family: Tokens.ui; font.pixelSize: Tokens.fTiny
                     wrapMode: Text.WordWrap

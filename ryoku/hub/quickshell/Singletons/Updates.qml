@@ -25,7 +25,7 @@ Singleton {
     // Ryoku channel commits (when behind) and recent history (when current).
     property var updates: []
     property var recent: []
-    // system packages a `pacman -Syu` would pull: [{ name, old, new }].
+    // system packages the host distribution's full upgrade would pull: [{ name, old, new }].
     property var packages: []
 
     property var lastChecked: null

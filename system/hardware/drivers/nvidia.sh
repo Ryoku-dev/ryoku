@@ -138,7 +138,15 @@ case $(ryoku-host pkgmgr) in
     source "$DRIVER_DIR/nvidia-xbps.sh"
     exit $?
     ;;
+  dnf)
+    echo "nvidia.sh: Fedora manages NVIDIA drivers and dracut outside this Arch/Void helper; no changes made."
+    exit 0
+    ;;
   pacman) ;;
+  *)
+    echo "nvidia.sh: unsupported package manager; no changes made." >&2
+    exit 1
+    ;;
 esac
 
 # an installed module package stays: CachyOS boxes ship kernel-matched

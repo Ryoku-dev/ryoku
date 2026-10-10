@@ -159,8 +159,20 @@ case $name in
     ;;
   omarchy-cmd-present) command -v "${1:-}" >/dev/null 2>&1 ;;
   omarchy-cmd-missing) ! command -v "${1:-}" >/dev/null 2>&1 ;;
-  omarchy-pkg-present) pacman -Q "${1:-}" >/dev/null 2>&1 ;;
-  omarchy-pkg-missing) ! pacman -Q "${1:-}" >/dev/null 2>&1 ;;
+  omarchy-pkg-present)
+    if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+      ryoku-host pkg installed "${1:-}" >/dev/null 2>&1
+    else
+      pacman -Q "${1:-}" >/dev/null 2>&1
+    fi
+    ;;
+  omarchy-pkg-missing)
+    if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+      ! ryoku-host pkg installed "${1:-}" >/dev/null 2>&1
+    else
+      ! pacman -Q "${1:-}" >/dev/null 2>&1
+    fi
+    ;;
   omarchy-capture-screenshot) exec ryoku-shell screenshot ;;
   omarchy-capture-screenrecording) if (($#)); then exec ryoku-shell record "$@"; else exec ryoku-shell screenshot; fi ;;
   omarchy-menu-emoji|omarchy-menu-emoji-insert) exec omarchy-shell nomarchy toggle omarchy.emojis '{}' ;;

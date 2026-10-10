@@ -73,31 +73,48 @@ report_dir() {
 
 # --- detection (one implementation, used by status and the install path) ------
 
-# One-shot snapshot of installed package names: status classifies dozens of
-# components, and a `pacman -Qq` per component spawns pacman hundreds of times
-# (seconds of latency). load_pkgset reads the whole set once; pkg_installed then
-# checks membership. Empty until loaded, so the install/remove paths keep their
-# live per-package query (correct after a fresh install).
+PKGMGR=$(ryoku-host pkgmgr 2>/dev/null || true)
+
+# Pacman can snapshot its full installed set cheaply. Fedora stays on the live
+# host seam so catalogue names are translated before probing.
 declare -A PKGSET
 PKGSET_LOADED=0
 load_pkgset() {
   local n
+  [[ $PKGMGR == dnf ]] && return 0
   while IFS= read -r n; do [[ -n $n ]] && PKGSET[$n]=1; done < <(pacman -Qq 2>/dev/null)
   PKGSET_LOADED=1
 }
 pkg_installed() {
-  if (( PKGSET_LOADED )); then [[ -n ${PKGSET[$1]:-} ]]; return; fi
-  pacman -Qq "$1" >/dev/null 2>&1
+  if [[ $PKGMGR == dnf ]]; then
+    ryoku-host pkg installed "$1" >/dev/null 2>&1
+  elif (( PKGSET_LOADED )); then
+    [[ -n ${PKGSET[$1]:-} ]]
+  else
+    pacman -Qq "$1" >/dev/null 2>&1
+  fi
 }
-pkg_official() { pacman -Si "$1" >/dev/null 2>&1; }
+pkg_official() {
+  if [[ $PKGMGR == dnf ]]; then
+    ryoku-host pkg available "$1" >/dev/null 2>&1
+  else
+    pacman -Si "$1" >/dev/null 2>&1
+  fi
+}
+pkg_why() {
+  ryoku-host pkg why "$1" 2>/dev/null | head -n1
+}
 cmd_present() { command -v "$1" >/dev/null 2>&1; }
 
-# The installed package(s) satisfying an item name, one per line, empty when
-# nothing does. `pacman -Q` resolves provides (a `whisper.cpp` item finds an
-# installed `whisper.cpp-cuda`), but `pacman -R` only takes real installed
-# names, so removals must target the owner, never the item name, or the whole
-# transaction aborts on "target not found".
-pkg_owners() { pacman -Qq "$1" 2>/dev/null; }
+# Pacman resolves virtual providers to their concrete installed owners. Fedora
+# removes the catalogue name through its package translation table.
+pkg_owners() {
+  if [[ $PKGMGR == dnf ]]; then
+    pkg_installed "$1" && printf '%s\n' "$1"
+  else
+    pacman -Qq "$1" 2>/dev/null
+  fi
+}
 
 # Where an installed plugin's source lives (read by the runtime + Settings).
 # The catalogue ships the source; install copies it here.
@@ -276,7 +293,7 @@ ensure_requires() {
 }
 
 install_set() {
-  local id=$1 only=${2:-} file type name detect summary tier interactive
+  local id=$1 only=${2:-} file type name detect summary tier interactive reason
   file=$(bundle_file "$id")
   ensure_requires "$file"
 
@@ -293,6 +310,9 @@ install_set() {
           set_state "$name" present
         elif pkg_official "$name"; then
           repo+=("$name")
+        elif [[ $PKGMGR == dnf ]]; then
+          reason=$(pkg_why "$name")
+          set_state "$name" failed "${reason:-not available on this host}"
         else
           aur+=("$name")
         fi
@@ -337,7 +357,7 @@ install_set() {
       if [[ -n $DRYRUN ]] || pkg_installed "$n"; then
         set_state "$n" installed
       else
-        set_state "$n" failed "pacman did not install it"
+        set_state "$n" failed "the package manager did not install it"
       fi
     done
     flush_report "$id" running
@@ -460,10 +480,10 @@ remove_set() {
   if ((${#pkgs[@]})); then
     echo "==> Removing: ${pkgs[*]}"
     if ! run_pkg ryoku-pkg-remove "${pkgs[@]}"; then
-      # pacman aborts the whole batch when one target can't go (something else
-      # still requires it). Retry the stragglers one by one, twice, so a lone
-      # blocker costs itself, not the whole bundle; the second pass picks up a
-      # target that was only blocked by one removed in the first.
+      # The native manager may abort the whole batch when one target cannot go.
+      # Retry stragglers one by one, twice, so a lone blocker costs itself, not
+      # the whole bundle; the second pass picks up a target that was only
+      # blocked by one removed in the first.
       for _ in 1 2; do
         for n in "${pkgs[@]}"; do
           if pkg_installed "$n"; then
@@ -476,7 +496,7 @@ remove_set() {
       if [[ -n $DRYRUN ]] || ! pkg_installed "$n"; then
         set_state "$n" removed
       else
-        set_state "$n" failed "pacman kept it (still required by another package?)"
+        set_state "$n" failed "the package manager kept it (still required by another package?)"
       fi
     done
   fi

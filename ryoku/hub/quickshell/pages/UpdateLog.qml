@@ -4,8 +4,8 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// The update's full raw log, the Hub's `ryoku update -v`: everything pacman,
-// the builds and the doctor printed, which the curated run view leaves out.
+// The update's full raw log, the Hub's `ryoku update -v`: package transactions,
+// builds, and doctor output that the curated run view leaves out.
 // It reads the file only while open, and follows the tail as the run writes.
 Rectangle {
     id: drawer

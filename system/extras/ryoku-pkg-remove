@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# -Rs: drop the package plus deps nothing else needs. pacman won't remove a
-# package another installed one still requires, so uninstalling an extras
-# bundle won't break the rest of the system.
+# Pacman uses -Rs to drop dependencies nothing else needs. Other hosts remove
+# the translated package through ryoku-host and let their native dependency
+# policy decide what can be cleaned.
 
 set -euo pipefail
 
@@ -11,4 +11,7 @@ set -euo pipefail
   exit 2
 }
 
+if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+  exec sudo ryoku-host pkg remove "$@"
+fi
 exec sudo pacman -Rs --noconfirm "$@"

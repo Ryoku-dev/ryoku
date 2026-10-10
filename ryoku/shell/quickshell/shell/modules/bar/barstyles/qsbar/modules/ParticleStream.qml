@@ -1037,11 +1037,15 @@ Item {
         else if (aiOc7 < aiQuotaReset7) aiOcHot = false
     }
 
-    // pacman transaction finished (streaming log tail - no helper script)
+    // Native pacman transaction finish signal. DNF has no equivalent append-only
+    // log, so Fedora holds this optional cosmetic watcher inert.
     Process {
         id: pacTail
         running: root.active && root.reactorMode7 && root.ownsGlobalHelpers7
-        command: ["bash", "-c", "tail -n 0 -F /var/log/pacman.log 2>/dev/null"]
+        command: ["bash", "-c",
+            "if [ \"$(ryoku-host pkgmgr 2>/dev/null)\" = dnf ]; then " +
+            "echo 'ParticleStream: DNF has no streamable transaction log; package-change animation disabled' >&2; exec sleep infinity; fi; " +
+            "exec tail -n 0 -F /var/log/pacman.log 2>/dev/null"]
         property int pkgN: 0
         onRunningChanged: if (!running) pkgN = 0
         stdout: SplitParser {

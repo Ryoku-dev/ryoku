@@ -7,6 +7,11 @@
 
 set -euo pipefail
 
+if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+  echo "ryoku-pkg-multilib: Arch's multilib repository is not available on Fedora" >&2
+  exit 5
+fi
+
 conf=/etc/pacman.conf
 
 # serialize the pacman.conf mutation below (same lock as ryoku-pkg-cachyos):

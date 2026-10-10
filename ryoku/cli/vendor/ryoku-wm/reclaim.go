@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Reclaim answers the one question a compositor switch raises that the neutral
@@ -22,11 +23,11 @@ import (
 //   - a package the incoming compositor also declares is shared, so it stays;
 //   - a package another installed package still needs is kept.
 //
-// The set is pacman's own answer to `pacman -Rs` for the outgoing-only,
-// installed packages: the compositor package, its satellites, and the private
-// dependencies that orphan with them. pacman is the authority because it, not a
-// re-derived graph, knows how a provides-satisfied dependency resolves; this
-// seam layers the two exclusions on top and pins the orchestration with tests.
+// On pacman hosts, the set is pacman's own answer to `pacman -Rs` for the
+// outgoing-only installed packages: the compositor package, its satellites,
+// and the private dependencies that orphan with them. On DNF hosts, dependency
+// cleanup is disabled and catalogue targets expand to native RPM names; a target
+// with an installed dependent outside that set is kept.
 
 // ReclaimSet is what leaving Outgoing for Incoming would remove. Targets are the
 // declared compositor packages the removal names; Packages is the full
@@ -43,12 +44,12 @@ type ReclaimSet struct {
 	Removable bool     `json:"removable"`
 }
 
-// pacman seams, replaced in tests so the orchestration runs without a live
-// pacman.
+// Package-manager seams, replaced in tests so the orchestration runs without a
+// live package database.
 var (
-	pkgInstalled     = pacmanInstalled
-	removalOnce      = pacmanRemovalOnce
-	installedSizes   = pacmanInstalledSizes
+	pkgInstalled     = hostPackageInstalled
+	removalOnce      = hostRemovalOnce
+	installedSizes   = hostInstalledSizes
 	providerPackages = capsPackages
 )
 
@@ -112,10 +113,10 @@ func reclaimTargets(outgoing, incoming []string, installed func(string) bool) []
 	return out
 }
 
-// removalSet drives pacman to a stable removal transaction. pacman refuses the
-// whole transaction when a named target is still required by a surviving
-// package; that target is then dropped (kept installed) and the plan asked
-// again, so the final set removes everything safe and keeps everything needed.
+// removalSet drives the host package manager to a stable removal transaction.
+// A named target still required by a surviving package is dropped and the plan
+// asked again. Pacman reports that refusal directly; DNF derives it from RPM's
+// installed provides/requires graph before any transaction runs.
 // It returns the packages removed and the named targets that survived the drops.
 func removalSet(targets []string, plan func([]string) (set, blocked []string, err error)) (removed, kept []string, err error) {
 	cur := append([]string(nil), targets...)
@@ -133,29 +134,28 @@ func removalSet(targets []string, plan func([]string) (set, blocked []string, er
 	return nil, []string{}, nil
 }
 
-// VerifyRemoval refuses a removal whose real pacman transaction would differ
-// from the reviewed set. Run immediately before the destructive removal, it asks
-// pacman what `-Rs` would take for the surviving targets and compares that to the
-// reviewed set: if pacman would pull in a package the review never showed, or a
-// target has since become one a surviving package needs, the switch's cleanup is
-// refused rather than run, so a removal can never quietly cascade past what the
-// user saw.
+// VerifyRemoval refuses a removal whose live package-manager transaction would
+// differ from the reviewed set. Run immediately before the destructive removal,
+// it asks the manager what removing the surviving targets would take and
+// compares that to the reviewed set. If the manager would pull in a package the
+// review never showed, or a target is now required by a surviving package, the
+// cleanup is refused rather than allowed to cascade past what the user saw.
 func VerifyRemoval(rs ReclaimSet) error {
 	if !rs.Removable {
 		return nil
 	}
 	set, blocked, err := removalOnce(rs.Targets)
 	if err != nil {
-		return fmt.Errorf("refusing to remove %s: pacman could not plan the removal: %w", rs.Outgoing, err)
+		return fmt.Errorf("refusing to remove %s: %s could not plan the removal: %w", rs.Outgoing, removalPlannerName(), err)
 	}
 	if len(blocked) > 0 {
 		return fmt.Errorf("refusing to remove %s: %s is now required by another package", rs.Outgoing, strings.Join(blocked, " "))
 	}
 	if extra := difference(set, rs.Packages); len(extra) > 0 {
-		return fmt.Errorf("refusing to remove %s: pacman would also remove %s, outside the reviewed set", rs.Outgoing, strings.Join(extra, " "))
+		return fmt.Errorf("refusing to remove %s: %s would also remove %s, outside the reviewed set", rs.Outgoing, removalPlannerName(), strings.Join(extra, " "))
 	}
 	if missing := difference(rs.Packages, set); len(missing) > 0 {
-		return fmt.Errorf("refusing to remove %s: pacman would keep %s from the reviewed set", rs.Outgoing, strings.Join(missing, " "))
+		return fmt.Errorf("refusing to remove %s: %s would keep %s from the reviewed set", rs.Outgoing, removalPlannerName(), strings.Join(missing, " "))
 	}
 	return nil
 }
@@ -198,6 +198,192 @@ func capsPackages(name string) ([]string, error) {
 		return nil, err
 	}
 	return caps.Packages, nil
+}
+
+var (
+	hostPackageManagerOnce sync.Once
+	hostPackageManagerName string
+)
+
+func hostPackageManager() string {
+	hostPackageManagerOnce.Do(func() {
+		out, err := exec.Command("ryoku-host", "pkgmgr").Output()
+		if err == nil {
+			hostPackageManagerName = strings.TrimSpace(string(out))
+		}
+	})
+	return hostPackageManagerName
+}
+
+func removalPlannerName() string {
+	if hostPackageManager() == "dnf" {
+		return "dnf"
+	}
+	return "pacman"
+}
+
+func hostPackageInstalled(name string) bool {
+	if hostPackageManager() == "dnf" {
+		return exec.Command("ryoku-host", "pkg", "installed", name).Run() == nil
+	}
+	return pacmanInstalled(name)
+}
+
+func hostRemovalOnce(targets []string) (set, blocked []string, err error) {
+	if hostPackageManager() == "dnf" {
+		return dnfRemovalOnce(targets)
+	}
+	return pacmanRemovalOnce(targets)
+}
+
+func hostInstalledSizes(names []string) (int64, error) {
+	if hostPackageManager() == "dnf" {
+		return dnfInstalledSizes(names)
+	}
+	return pacmanInstalledSizes(names)
+}
+
+// dnfRemovalOnce expands catalogue targets to native installed RPM names, then
+// keeps any catalogue target whose RPM capabilities an installed package outside
+// the removal set still requires. clean_requirements_on_remove=False prevents
+// DNF from adding private orphan dependencies after this dependency check.
+func dnfRemovalOnce(targets []string) (set, blocked []string, err error) {
+	if len(targets) == 0 {
+		return nil, nil, nil
+	}
+	nativeByTarget := make(map[string][]string, len(targets))
+	seen := make(map[string]bool)
+	for _, target := range targets {
+		out, err := exec.Command("ryoku-host", "pkg", "local", target).CombinedOutput()
+		if err != nil {
+			return nil, nil, fmt.Errorf("ryoku-host pkg local %s: %w: %s", target, err, strings.TrimSpace(string(out)))
+		}
+		for _, name := range strings.Fields(string(out)) {
+			if exec.Command("rpm", "-q", name).Run() != nil {
+				continue
+			}
+			nativeByTarget[target] = append(nativeByTarget[target], name)
+			if !seen[name] {
+				seen[name] = true
+				set = append(set, name)
+			}
+		}
+	}
+	blocked, err = dnfBlockedTargets(targets, nativeByTarget, rpmProvidedCapabilities, rpmWhatRequires, rpmWhatProvides)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(blocked) > 0 {
+		return nil, blocked, nil
+	}
+	return set, nil, nil
+}
+
+func dnfBlockedTargets(
+	targets []string,
+	nativeByTarget map[string][]string,
+	provides, whatRequires, whatProvides func(string) ([]string, error),
+) ([]string, error) {
+	removing := make(map[string]bool)
+	for _, names := range nativeByTarget {
+		for _, name := range names {
+			removing[name] = true
+		}
+	}
+	var blocked []string
+	blockedTarget := make(map[string]bool)
+	for _, target := range targets {
+		for _, native := range nativeByTarget[target] {
+			capabilities, err := provides(native)
+			if err != nil {
+				return nil, fmt.Errorf("rpm provides %s: %w", native, err)
+			}
+			for _, capability := range capabilities {
+				dependents, err := whatRequires(capability)
+				if err != nil {
+					return nil, fmt.Errorf("rpm whatrequires %s: %w", capability, err)
+				}
+				neededBySurvivor := false
+				for _, dependent := range dependents {
+					if !removing[dependent] {
+						neededBySurvivor = true
+						break
+					}
+				}
+				if !neededBySurvivor {
+					continue
+				}
+				providers, err := whatProvides(capability)
+				if err != nil {
+					return nil, fmt.Errorf("rpm whatprovides %s: %w", capability, err)
+				}
+				survives := false
+				for _, provider := range providers {
+					if !removing[provider] {
+						survives = true
+						break
+					}
+				}
+				if !survives && !blockedTarget[target] {
+					blockedTarget[target] = true
+					blocked = append(blocked, target)
+					break
+				}
+			}
+			if blockedTarget[target] {
+				break
+			}
+		}
+	}
+	return blocked, nil
+}
+
+func rpmProvidedCapabilities(name string) ([]string, error) {
+	out, err := exec.Command("rpm", "-q", "--provides", name).Output()
+	if err != nil {
+		return nil, err
+	}
+	return nonEmptyLines(out), nil
+}
+
+func rpmWhatRequires(capability string) ([]string, error) {
+	return rpmCapabilityPackages("--whatrequires", capability)
+}
+
+func rpmWhatProvides(capability string) ([]string, error) {
+	return rpmCapabilityPackages("--whatprovides", capability)
+}
+
+func rpmCapabilityPackages(mode, capability string) ([]string, error) {
+	out, err := exec.Command("rpm", "-q", "--qf", "%{NAME}\n", mode, capability).CombinedOutput()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nonEmptyLines(out), nil
+}
+
+func dnfInstalledSizes(names []string) (int64, error) {
+	if len(names) == 0 {
+		return 0, nil
+	}
+	args := append([]string{"-q", "--qf", "%{SIZE}\n"}, names...)
+	out, err := exec.Command("rpm", args...).Output()
+	if err != nil {
+		return 0, fmt.Errorf("rpm -q: %w", err)
+	}
+	var total int64
+	sc := bufio.NewScanner(bytes.NewReader(out))
+	for sc.Scan() {
+		size, err := strconv.ParseInt(strings.TrimSpace(sc.Text()), 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("rpm size %q: %w", sc.Text(), err)
+		}
+		total += size
+	}
+	return total, sc.Err()
 }
 
 // pacmanInstalled reports whether a package is installed.

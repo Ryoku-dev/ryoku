@@ -200,11 +200,12 @@ Provider {
         }
     }
 
-    // Fast lane: pacman/aur answer from gpk's scan cache in well under a
-    // second, while the full sweep hits live registries (npm, cargo, pip...)
-    // and can take tens of seconds. Local rows show immediately; the full
-    // set replaces them when it lands. fullFor marks a term the full sweep
-    // has already answered so a slow fast-lane result never regresses it.
+    // Fast lane: the host's native package manager answers from gpk's scan
+    // cache in well under a second, while the full sweep hits live registries
+    // (npm, cargo, pip...) and can take tens of seconds. Local rows show
+    // immediately; the full set replaces them when it lands. fullFor marks a
+    // term the full sweep has already answered so a slow fast-lane result never
+    // regresses it.
     property string fullFor: ""
 
     Process {
@@ -214,7 +215,11 @@ Provider {
         property bool inFlight: false
         property bool didStart: false
         property string out: ""
-        command: ["gpk", "search", term, "--json", "--limit", "30", "--manager", "pacman,aur"]
+        command: ["/usr/bin/bash", "-c",
+            "manager=$(ryoku-host pkgmgr 2>/dev/null); " +
+            "if [ \"$manager\" = dnf ]; then manager=dnf; else manager=pacman,aur; fi; " +
+            "exec gpk search \"$1\" --json --limit 30 --manager \"$manager\"",
+            "gpk-fast-search", term]
         stdout: SplitParser {
             onRead: data => fastProc.out += data + "\n"
         }

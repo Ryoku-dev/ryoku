@@ -10,6 +10,11 @@
 
 set -euo pipefail
 
+if [[ $(ryoku-host pkgmgr 2>/dev/null) == dnf ]]; then
+  echo "ryoku-pkg-cachyos: the CachyOS repository is not available on Fedora" >&2
+  exit 5
+fi
+
 conf=/etc/pacman.conf
 key=F3B607488DB35A47
 mirror=https://mirror.cachyos.org/repo

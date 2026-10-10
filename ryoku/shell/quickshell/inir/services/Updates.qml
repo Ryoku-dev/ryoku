@@ -7,7 +7,7 @@ import Quickshell
 import Quickshell.Io
 
 /*
- * System updates service for pacman/checkupdates and XBPS.
+ * System updates service for pacman/checkupdates, XBPS, and DNF.
  */
 Singleton {
     id: root
@@ -27,9 +27,16 @@ Singleton {
         if (checkUpdatesProc.running) return;
         root._checkOutput = null
         root._checkExit = -1
-        checkUpdatesProc.command = root._backend === "xbps"
-            ? ["xbps-install", "-nu"]
-            : ["checkupdates"]
+        if (root._backend === "xbps") {
+            checkUpdatesProc.command = ["xbps-install", "-nu"]
+        } else if (root._backend === "dnf") {
+            checkUpdatesProc.command = ["/usr/bin/bash", "-c",
+                "set -o pipefail; dnf_cmd=$(command -v dnf5 || command -v dnf) || exit 127; " +
+                "\"$dnf_cmd\" -q repoquery --upgrades --qf '%{name}.%{arch}\\n' | sed '/^$/d' | sort -u"
+            ]
+        } else {
+            checkUpdatesProc.command = ["checkupdates"]
+        }
         checkUpdatesProc.running = true;
     }
 
@@ -66,9 +73,13 @@ Singleton {
         id: checkAvailabilityProc
         running: false
         command: ["/usr/bin/bash", "-c",
-            "if command -v checkupdates &>/dev/null; then printf 'pacman\\n'; " +
-            "elif command -v xbps-install &>/dev/null; then printf 'xbps\\n'; " +
-            "else exit 1; fi"
+            "backend=$(ryoku-host pkgmgr 2>/dev/null) || exit 1; " +
+            "case \"$backend\" in " +
+                "pacman) command -v checkupdates &>/dev/null ;; " +
+                "xbps) command -v xbps-install &>/dev/null ;; " +
+                "dnf) command -v dnf5 &>/dev/null || command -v dnf &>/dev/null ;; " +
+                "*) exit 1 ;; " +
+            "esac && printf '%s\\n' \"$backend\""
         ]
         stdout: SplitParser {
             splitMarker: ""
@@ -99,6 +110,15 @@ Singleton {
             } else {
                 const reason = (checkUpdatesErr.text ?? "").trim().split("\n").pop()
                 console.info("[Updates] could not check for updates:", reason || `checkupdates exited ${code}`)
+            }
+            return
+        }
+        if (root._backend === "dnf") {
+            if (code === 0) {
+                root.count = listed
+            } else {
+                const reason = (checkUpdatesErr.text ?? "").trim().split("\n").pop()
+                console.info("[Updates] could not check for DNF updates:", reason || `repoquery exited ${code}`)
             }
             return
         }

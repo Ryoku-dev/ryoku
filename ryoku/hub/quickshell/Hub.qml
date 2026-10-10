@@ -1087,7 +1087,9 @@ Rectangle {
                         spacing: 1
                         anchors.verticalCenter: parent.verticalCenter
                         Text {
-                            text: I18n.tr(SysInfo.sysPackageManager === "xbps" ? "RYOKU VOID" : "RYOKU ARCH"); color: Tokens.ink; font.family: Tokens.ui
+                            text: I18n.tr(SysInfo.sysPackageManager === "xbps"
+                                ? "RYOKU VOID"
+                                : (SysInfo.sysPackageManager === "dnf" ? "RYOKU FEDORA" : "RYOKU ARCH")); color: Tokens.ink; font.family: Tokens.ui
                             font.pixelSize: 14; font.weight: Font.Medium; font.letterSpacing: 2.4
                         }
                         Text {
