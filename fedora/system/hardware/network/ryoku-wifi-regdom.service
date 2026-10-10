@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply the configured Ryoku Wi-Fi regulatory domain
+After=systemd-udev-trigger.service
+Before=NetworkManager.service
+ConditionPathExists=/etc/modprobe.d/ryoku-wireless-regdom.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ryoku-wifi-regdom apply
+
+[Install]
+WantedBy=multi-user.target

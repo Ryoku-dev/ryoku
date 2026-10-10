@@ -1,0 +1,50 @@
+# Ryoku GRUB theme: the desktop's default palette (paper #000000, ink
+# #cdc4ba, sun #e2342a) on the Unifont GRUB ships. Installed to
+# /boot/grub2/themes/ryoku by ryoku-grub-menu. The background is a black
+# image as well as a colour because GRUB, left with only a colour, fails to
+# scale a missing bitmap whenever an entry boots from a submenu.
+
+title-text: "Ryoku"
+title-font: "Unifont Regular 16"
+title-color: "#e2342a"
+desktop-color: "#000000"
+desktop-image: "background.png"
+message-font: "Unifont Regular 16"
+message-color: "#b0a9a0"
+terminal-font: "Unifont Regular 16"
+
++ boot_menu {
+  left = 15%
+  top = 20%
+  width = 70%
+  height = 60%
+  item_font = "Unifont Regular 16"
+  item_color = "#cdc4ba"
+  selected_item_font = "Unifont Regular 16"
+  selected_item_color = "#e2342a"
+  item_height = 24
+  item_padding = 4
+  item_spacing = 4
+  scrollbar = false
+}
+
++ label {
+  id = "__timeout__"
+  left = 15%
+  top = 85%
+  width = 70%
+  align = "center"
+  font = "Unifont Regular 16"
+  color = "#b0a9a0"
+  text = "Booting in %d s"
+}
+
++ label {
+  left = 15%
+  top = 90%
+  width = 70%
+  align = "center"
+  font = "Unifont Regular 16"
+  color = "#b0a9a0"
+  text = "Enter boots   e edits   c opens a console"
+}

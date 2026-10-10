@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""Install pinned desktop extras; failed downloads never replace a working file."""
+import hashlib
+import io
+import json
+import os
+import posixpath
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import urllib.request
+import zipfile
+
+RELEASES = {
+    "prowl-agent": ("0.15.6", "https://github.com/neur0map/prowl-agent/releases/download/v0.15.6/prowl-agent-linux-amd64", "3ce3b9183112411e3283ae5857eac281ef428fbfa8656caf7cec13c402998d53", "bin/prowl-agent"),
+    "qmk-hid": ("0.1.11", "https://github.com/FrameworkComputer/qmk_hid/releases/download/v0.1.11/qmk_hid_linux_v0.1.11.zip", "57460728df3777d0abd2f2b464dea898c1fdc1cc6524ede1c2854fa9c8f027dc", "bin/qmk_hid"),
+    "matugen": ("4.2.0", "https://github.com/InioX/matugen/releases/download/v4.2.0/matugen-4.2.0-x86_64.tar.gz", "a2e3b50e49ed6439999ba3c252ed04fabd98ee4e9d12e5e5dff2e66370569751", "bin/matugen"),
+    "bibata": ("2.0.7", "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata.tar.xz", "172e33c4ae415278384dcecc7d1a9b7a024266bc944bc751fd86532be1cc6251", "share/icons"),
+    "space-grotesk": ("2.0.0", "https://github.com/floriankarsten/space-grotesk/releases/download/2.0.0/SpaceGrotesk-2.0.0.zip", "53b415577d4139248555300710bea0d268c7a5be67b93de53b716a9736cabffd", "share/fonts/SpaceGrotesk"),
+    "material-symbols": ("27e9ef1d", "https://raw.githubusercontent.com/google/material-design-icons/27e9ef1dbeedc13d682fece4a58e1eda4cb0961a/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf", "7f3a16d9aa1b6f367eadc1614ad27308ae2c0e91e617e2069f122afd9f0c3c58", "share/fonts/MaterialSymbolsRounded.ttf"),
+    "jetbrains-mono-nerd-fonts": ("3.3.0", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/JetBrainsMono.tar.xz", "7d171ea3884be22fc08bf1a1aee640a3dc93f031989c27f6f9ceb30a6a668de1", "share/fonts/JetBrainsMonoNerdFont"),
+    "space-mono-nerd-fonts": ("3.3.0", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/SpaceMono.tar.xz", "a2058cfc43eee5a170208c6e90fa77d8f0aa755e0d213e795f70781f7d807942", "share/fonts/SpaceMonoNerdFont"),
+}
+FONTS = ("space-grotesk", "material-symbols", "jetbrains-mono-nerd-fonts", "space-mono-nerd-fonts")
+
+
+def download(url, digest):
+    cache = os.environ.get("RYOKU_EXTRA_CACHE")
+    if cache:
+        data = (Path(cache) / digest).read_bytes()
+    else:
+        with urllib.request.urlopen(url, timeout=60) as response:
+            data = response.read(128 * 1024 * 1024 + 1)
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise ValueError("download checksum mismatch: " + url)
+    return data
+
+
+def atomic_write(path, data, mode=0o644):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".ryoku-download-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(name, mode)
+        os.replace(name, path)
+    finally:
+        if os.path.exists(name):
+            os.unlink(name)
+
+
+def install(name, root=None):
+    version, url, digest, relative = RELEASES[name]
+    root = root or Path.home() / ".local"
+    receipt = root / "state/ryoku/extras" / (name + ".json")
+    if receipt.exists():
+        saved = json.loads(receipt.read_text())
+        if saved.get("version") == version and saved.get("files") and all(
+            (root / p).is_file() and hashlib.sha256((root / p).read_bytes()).hexdigest() == h
+            for p, h in saved["files"].items()
+        ):
+            return
+    data = download(url, digest)
+    files = {}
+    install_links = {}
+    if name == "matugen":
+        with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+            member = next(m for m in archive.getmembers() if Path(m.name).name == "matugen" and m.isfile())
+            files[relative] = archive.extractfile(member).read()
+    elif name == "qmk-hid":
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            files[relative] = archive.read("qmk_hid")
+    elif name == "bibata":
+        with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+            members = archive.getmembers()
+            content = {}
+            links = {}
+            for member in members:
+                path = Path(member.name)
+                if path.is_absolute() or ".." in path.parts:
+                    raise ValueError("unsafe archive path")
+                key = str(path)
+                if member.isfile():
+                    content[key] = archive.extractfile(member).read()
+                elif member.issym() or member.islnk():
+                    target = posixpath.normpath(posixpath.join(str(path.parent), member.linkname) if member.issym() else member.linkname)
+                    if target.startswith(("/", "../")):
+                        raise ValueError("unsafe archive link")
+                    links[key] = target
+            # Resolve aliases in memory; seeking backwards through xz for each
+            # cursor alias would repeatedly decompress the entire archive.
+            def resolve(key, seen):
+                if key in content:
+                    return content[key]
+                if key in seen or key not in links:
+                    raise ValueError("broken archive link")
+                return resolve(links[key], seen | {key})
+            for key in links:
+                content[key] = resolve(key, set())
+            for key, value in content.items():
+                destination = "share/licenses/Bibata/LICENSE" if key == "LICENSE" else str(Path(relative) / key)
+                files[destination] = value
+                if key in links:
+                    install_links[destination] = posixpath.relpath(str(Path(relative) / links[key]), str(Path(destination).parent))
+    elif name == "space-grotesk":
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            for member in archive.namelist():
+                if member.endswith(".otf"):
+                    files[str(Path(relative) / Path(member).name)] = archive.read(member)
+    elif name in ("jetbrains-mono-nerd-fonts", "space-mono-nerd-fonts"):
+        with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+            for member in archive.getmembers():
+                path = Path(member.name)
+                if path.is_absolute() or ".." in path.parts:
+                    raise ValueError("unsafe archive path")
+                if member.isfile() and member.name.endswith(".ttf"):
+                    files[str(Path(relative) / path.name)] = archive.extractfile(member).read()
+    else:
+        files[relative] = data
+    if not files:
+        raise ValueError("archive has no installable content")
+    for path, content in files.items():
+        if path.startswith("bin/") and not content.startswith(b"\x7fELF"):
+            raise ValueError("not an ELF executable")
+        if path.endswith((".ttf", ".otf")) and content[:4] not in (b"\x00\x01\x00\x00", b"OTTO", b"ttcf"):
+            raise ValueError("not an OpenType font")
+    for path, content in files.items():
+        if path not in install_links:
+            atomic_write(root / path, content, 0o755 if path.startswith("bin/") else 0o644)
+    for path, target in install_links.items():
+        destination = root / path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".ryoku-link-", dir=destination.parent) as staging:
+            link = Path(staging) / "link"
+            link.symlink_to(target)
+            os.replace(link, destination)
+    atomic_write(receipt, json.dumps({"version": version, "sha256": digest, "files": {
+        p: hashlib.sha256(b).hexdigest() for p, b in files.items()
+    }}, sort_keys=True).encode())
+    if name in FONTS and shutil.which("fc-cache"):
+        subprocess.run(["fc-cache", "-f", str(root / "share/fonts")], check=True)
+
+
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) != 2:
+            raise ValueError("usage: ryoku-install-extra " + "|".join(RELEASES))
+        target = sys.argv[1]
+        if target == "jetbrains-mono-nerd":
+            target = "jetbrains-mono-nerd-fonts"
+        if target not in RELEASES:
+            raise ValueError("usage: ryoku-install-extra " + "|".join(RELEASES))
+        install(target)
+    except Exception as error:
+        sys.exit("ryoku-install-extra: " + str(error))

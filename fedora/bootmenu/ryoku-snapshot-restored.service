@@ -1,0 +1,16 @@
+[Unit]
+# Runs on the first boot after the initramfs restored a snapshot (the dracut
+# module leaves /run/ryoku/restored). /boot is not part of the snapshot, so it
+# still lists kernels the restored root has no modules for: those entries are
+# dropped, the restored root's own kernels get entries, and the kernel this
+# boot runs becomes the default.
+Description=Ryoku boot entries after a snapshot restore
+ConditionPathExists=/run/ryoku/restored
+RequiresMountsFor=/boot
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ryoku boot-menu restored
+
+[Install]
+WantedBy=multi-user.target

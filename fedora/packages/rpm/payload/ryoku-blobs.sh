@@ -1,0 +1,38 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Ryoku.Blobs = the SDF metaball QML plugin behind the screen frame
+# (docs/frame.md). a standard Qt6 QML module loaded by Quickshell from the
+# QML import path.
+#
+# built in-repo from ryoku/shell/plugin via its build.sh (CMake/Ninja, bakes the
+# metaball shaders). self-contained: the plugin .so carries an $ORIGIN rpath to
+# its backing library, so the whole Ryoku/Blobs dir is relocatable onto any QML
+# import path. no tarball fetch.
+pkgname=ryoku-blobs
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc="Ryoku.Blobs: SDF metaball QML plugin for the screen frame"
+arch=('x86_64')
+url="https://ryoku.dev"
+license=('GPL-3.0-or-later')
+# qt6-multimedia backs the CameraFeed item (webcam self-view overlay): it links
+# libQt6Multimedia at runtime and needs the CMake config + headers to build.
+depends=('qt6-base' 'qt6-declarative' 'qt6-multimedia')
+makedepends=('cmake' 'ninja' 'qt6-shadertools' 'qt6-declarative' 'qt6-multimedia')
+source=()
+
+_repo="$startdir/../../../.."
+
+build() {
+  # CMake tree under $srcdir keeps the source checkout clean.
+  RYOKU_BLOBS_BUILD="$srcdir/build" \
+    "$_repo/ryoku/shell/plugin/build.sh" "$srcdir/qml"
+}
+
+package() {
+  install -dm755 "$pkgdir/usr/lib/qt6/qml/Ryoku/Blobs"
+  cp -a "$srcdir/qml/Ryoku/Blobs/." "$pkgdir/usr/lib/qt6/qml/Ryoku/Blobs/"
+  # cp -a kept build-tree mode bits; normalize for packaging: plugin .so stays
+  # executable, qmldir/.qsb data world-readable.
+  chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6"
+}

@@ -1,0 +1,6 @@
+# Heavy source paths and the only packages whose SRPM carries them. Every other
+# path reaches every SRPM; "-" keeps a path out of all of them.
+ryoku/assets/wallpapers ryoku-desktop
+ryoku/i18n/catalog ryoku-desktop
+.rpm-extras ryoku-extras
+ryoku-shell-installer/ryoku-shell-install -
