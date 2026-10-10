@@ -291,6 +291,62 @@ func TestStartPolkitRegistersCallsAndTopic(t *testing.T) {
 	}
 }
 
+func TestTransientPolkitRejection(t *testing.T) {
+	transient := dbus.NewError("org.freedesktop.PolicyKit1.Error.Failed",
+		[]any{"Passed session and the caller is in differs. They must be equal for now."})
+	if !transientPolkitRejection(transient) {
+		t.Error("session-differs rejection must be transient")
+	}
+	held := dbus.NewError("org.freedesktop.PolicyKit1.Error.Failed",
+		[]any{"An authentication agent is already registered"})
+	if transientPolkitRejection(held) {
+		t.Error("second-agent rejection must not be transient")
+	}
+	if transientPolkitRejection(nil) {
+		t.Error("no error is never transient")
+	}
+}
+
+func TestRegisterPolkitAgentRetriesThenSucceeds(t *testing.T) {
+	oldRetries, oldBackoff := polkitRegisterRetries, polkitRegisterBackoff
+	polkitRegisterRetries, polkitRegisterBackoff = 5, time.Millisecond
+	t.Cleanup(func() {
+		polkitRegisterRetries, polkitRegisterBackoff = oldRetries, oldBackoff
+	})
+	d := &daemon{quit: make(chan struct{})}
+	transient := dbus.NewError("org.freedesktop.PolicyKit1.Error.Failed",
+		[]any{"Passed session and the caller is in differs. They must be equal for now."})
+	calls := 0
+	d.registerPolkitAgent(func() error {
+		calls++
+		if calls < 3 {
+			return transient
+		}
+		return nil
+	}, transientPolkitRejection)
+	if calls != 3 {
+		t.Fatalf("attempt calls = %d, want 3", calls)
+	}
+}
+
+func TestRegisterPolkitAgentStopsOnHeldSlot(t *testing.T) {
+	oldRetries, oldBackoff := polkitRegisterRetries, polkitRegisterBackoff
+	polkitRegisterRetries, polkitRegisterBackoff = 5, time.Millisecond
+	t.Cleanup(func() {
+		polkitRegisterRetries, polkitRegisterBackoff = oldRetries, oldBackoff
+	})
+	d := &daemon{quit: make(chan struct{})}
+	calls := 0
+	d.registerPolkitAgent(func() error {
+		calls++
+		return dbus.NewError("org.freedesktop.PolicyKit1.Error.Failed",
+			[]any{"An authentication agent is already registered"})
+	}, transientPolkitRejection)
+	if calls != 1 {
+		t.Fatalf("a held slot must stop after one try, got %d calls", calls)
+	}
+}
+
 func parseUint32(s string) (uint32, error) {
 	v, err := strconv.ParseUint(s, 10, 32)
 	return uint32(v), err

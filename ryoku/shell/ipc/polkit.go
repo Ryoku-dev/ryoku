@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -54,6 +55,14 @@ const (
 	polkitFailed     = "authentication failed"
 	polkitCancelled  = "cancelled by user"
 	polkitNoIdentity = "no unix-user identity found"
+)
+
+// Registration retry bounds: logind settles the display session within a
+// second or two on a fast boot, so a few hundred-millisecond tries cover the
+// race without stalling. Package vars so tests can bound the loop instantly.
+var (
+	polkitRegisterRetries = 40
+	polkitRegisterBackoff = 250 * time.Millisecond
 )
 
 // polkitHelperPath is the setuid helper; a package var so tests can substitute a
@@ -201,15 +210,55 @@ func (d *daemon) startPolkit() {
 		return
 	}
 	locale := polkitLocale()
-	call := conn.Object(polkitAuthorityName, dbus.ObjectPath(polkitAuthorityPath)).Call(
-		polkitAuthorityIface+".RegisterAuthenticationAgent", 0, subject, locale, polkitAgentPath)
-	if call.Err != nil {
-		// Fails closed: another agent already holds the session's slot, so the
-		// existing agent keeps working and Ryoku does not fight it.
-		log.Printf("ryoku-shell: polkit agent not registered (slot held?): %v", call.Err)
-		return
+	// The topic and both calls above already answer, so QML is wired either
+	// way. A fast boot can reach polkitd before logind marks this session the
+	// display one; polkitd then rejects with "the session ... differs", which
+	// fixes itself in a moment. Retry only that, off the startup path, and
+	// stop on the first hard failure so Ryoku never fights a real second agent.
+	go d.registerPolkitAgent(func() error {
+		return conn.Object(polkitAuthorityName, dbus.ObjectPath(polkitAuthorityPath)).Call(
+			polkitAuthorityIface+".RegisterAuthenticationAgent", 0, subject, locale, polkitAgentPath).Err
+	}, transientPolkitRejection)
+}
+
+// registerPolkitAgent retries the D-Bus registration until it succeeds, the
+// error stops being transient, or the daemon is shutting down. A fast boot can
+// reach polkitd before logind has marked this session the display one, and
+// polkitd rejects with "the session ... differs"; that resolves within a
+// second or two on its own. A slot held by a real second agent is not transient
+// and stays fatal, so Ryoku never fights it. A package var so tests can bound
+// the loop without a live daemon.
+func (d *daemon) registerPolkitAgent(attempt func() error, transient func(error) bool) {
+	for range polkitRegisterRetries {
+		err := attempt()
+		if err == nil {
+			log.Printf("ryoku-shell: polkit agent registered")
+			return
+		}
+		if !transient(err) {
+			log.Printf("ryoku-shell: polkit agent not registered (slot held?): %v", err)
+			return
+		}
+		log.Printf("ryoku-shell: polkit agent not registered yet (%v), retrying", err)
+		select {
+		case <-d.quit:
+			return
+		case <-time.After(polkitRegisterBackoff):
+		}
 	}
-	log.Printf("ryoku-shell: polkit agent registered")
+	log.Printf("ryoku-shell: polkit agent not registered (session never became display)")
+}
+
+// transientPolkitRejection reports the error polkitd returns when it cannot
+// yet match the caller to the session's display: the session and the caller
+// differ, which a fast boot settles on its own. Any other rejection (a slot
+// another agent holds) is not transient.
+func transientPolkitRejection(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "differs") && strings.Contains(msg, "must be equal")
 }
 
 // BeginAuthentication is polkitd asking the user to authenticate. It blocks (in

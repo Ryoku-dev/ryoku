@@ -581,6 +581,13 @@
   the inverted one, but the labels and the miniature kept the paper ink, which
   vanished against it on a light theme; they now follow the plate
   (`quickshell/stage/modules/ii/editMode/EditDockDesignPicker.qml`).
+- **A fast boot still gets the polkit prompt.** The shell registered its
+  authentication agent once at login and gave up if logind had not yet marked
+  the session the display one; polkitd then rejected it ("the session and the
+  caller differ") and the whole session ran with no agent, so `pkexec` failed
+  with no dialog until a manual shell restart (#336). The registration now
+  retries that transient rejection off the startup path, and still stops on a
+  real second agent holding the slot.
 - **Turning a monitor off and on no longer crashes the shell.** The volume
   panel, the popout, the framebar menus and the sidebar mixer listed the
   settled audio devices straight to a Repeater. When PipeWire destroyed a
