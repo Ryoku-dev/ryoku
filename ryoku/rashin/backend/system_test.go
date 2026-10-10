@@ -186,6 +186,38 @@ func TestDeriveTipsGrounded(t *testing.T) {
 	}
 }
 
+func TestCronOffActIgnoresPackageOwnedScripts(t *testing.T) {
+	off := false
+	// snapper's packaged cron.hourly fallback alone: no daemon act (#356).
+	sc := ScheduleSection{CronActive: &off, Anacron: []CronEntry{
+		{Schedule: "hourly", Command: "/etc/cron.hourly/snapper", Origin: "/etc/cron.hourly", PackageOwned: true},
+	}}
+	if scheduledWorkWaiting(sc) != 0 {
+		t.Fatal("a package-owned script is not waiting work")
+	}
+	tips := DeriveTips(&SystemInventory{Schedules: sc})
+	for _, tip := range tips {
+		if tip.ID == "cron-off" {
+			t.Fatal("cron-off act must not fire for a packaged fallback")
+		}
+	}
+	// a hand-dropped script still counts and still tips.
+	sc.Anacron = append(sc.Anacron, CronEntry{Schedule: "daily", Command: "/etc/cron.daily/mine"})
+	if scheduledWorkWaiting(sc) != 1 {
+		t.Fatalf("waiting = %d, want 1", scheduledWorkWaiting(sc))
+	}
+	tips = DeriveTips(&SystemInventory{Schedules: sc})
+	found := false
+	for _, tip := range tips {
+		if tip.ID == "cron-off" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("a user script with no cron daemon must tip")
+	}
+}
+
 func TestParseCrontabRejectsShellProse(t *testing.T) {
 	// anacron script dirs are not crontabs; a stray shell line must never
 	// parse as a schedule even if the field count matches.

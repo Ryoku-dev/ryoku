@@ -79,11 +79,16 @@ type TimerSection struct {
 	Passive []TimerRow `json:"passive"`
 }
 
-// CronEntry is one scheduled command from any cron-family source.
+// CronEntry is one scheduled command from any cron-family source. A file in
+// an anacron script directory that the package manager owns is a packaged
+// fallback (snapper's cron.hourly, logrotate's cron.daily): harmless on a
+// systemd box whose equivalent timers already run, and never something the
+// user scheduled, so it is marked and excluded from the "no cron daemon" act.
 type CronEntry struct {
-	Schedule string `json:"schedule"`
-	Command  string `json:"command"`
-	Origin   string `json:"origin"`
+	Schedule     string `json:"schedule"`
+	Command      string `json:"command"`
+	Origin       string `json:"origin"`
+	PackageOwned bool   `json:"packageOwned,omitempty"`
 }
 
 // ScheduleSection covers crontabs, anacron, and at; systemd timers live in
@@ -504,8 +509,19 @@ func readCronScripts(p, cadence string) ([]CronEntry, bool) {
 	for i := range entries {
 		entries[i].Schedule = cadence
 		entries[i].Origin = p
+		entries[i].PackageOwned = packageOwnsFile(entries[i].Command)
 	}
 	return entries, true
+}
+
+// packageOwnsFile asks pacman whether a packaged file owns the path. On a
+// non-Arch box or for a hand-dropped script the answer is simply "no".
+func packageOwnsFile(path string) bool {
+	if _, err := exec.LookPath("pacman"); err != nil {
+		return false
+	}
+	out, err := sysProbe(4, "pacman", "-Qoq", path)
+	return err == nil && strings.TrimSpace(out) != ""
 }
 
 var cronLineRe = regexp.MustCompile(`^(\S+\s+\S+\s+\S+\s+\S+\s+\S+)\s+(\S.*)$`)
@@ -945,10 +961,10 @@ func DeriveTips(inv *SystemInventory) []Tip {
 			Command: "ss -ltnup"})
 	}
 	if inv.Schedules.CronActive != nil && !*inv.Schedules.CronActive &&
-		(len(inv.Schedules.Crontabs) > 0 || len(inv.Schedules.Anacron) > 0) {
+		scheduledWorkWaiting(inv.Schedules) > 0 {
 		add(Tip{ID: "cron-off", Severity: "act",
 			Title:   "cron entries exist but no cron daemon is running",
-			Detail:  "Nothing scheduled through those files is firing. Start the daemon or move the entries to systemd timers.",
+			Detail:  "Nothing you scheduled through those files is firing. Start the daemon or move the entries to systemd timers.",
 			Command: "systemctl status cronie anacron"})
 	}
 	for _, m := range inv.Mounts.Rows {
@@ -970,6 +986,21 @@ func DeriveTips(inv *SystemInventory) []Tip {
 		tips = tips[:12]
 	}
 	return tips
+}
+
+// scheduledWorkWaiting counts cron entries that would fire if a daemon ran:
+// a crontab line or a hand-dropped script. Files a package owns (snapper's
+// cron.hourly fallback and friends) are not counted: their work already runs
+// through systemd timers, and installing a cron daemon on top would schedule
+// it twice.
+func scheduledWorkWaiting(sc ScheduleSection) int {
+	n := len(sc.Crontabs)
+	for _, e := range sc.Anacron {
+		if !e.PackageOwned {
+			n++
+		}
+	}
+	return n
 }
 
 func isWildcardAddr(a string) bool {
