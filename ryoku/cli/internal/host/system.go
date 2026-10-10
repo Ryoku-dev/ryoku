@@ -2,15 +2,49 @@ package host
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
 var keymapPattern = regexp.MustCompile(`^[A-Za-z0-9_+.-]+$`)
 
+var excludedZoneinfoFiles = map[string]bool{
+	"+VERSION":    true,
+	"SECURITY":    true,
+	"leapseconds": true,
+	"localtime":   true,
+	"posixrules":  true,
+}
+
 func (a *App) Time(args []string) int {
+	if len(args) == 1 && args[0] == "zones" {
+		init, err := a.Init()
+		if err != nil {
+			return a.failf("%v", err)
+		}
+		var zones []string
+		if init == Systemd {
+			result := a.query("timedatectl", "list-timezones")
+			if result.Code != 0 {
+				return ExitFailure
+			}
+			zones = sortedUnique(strings.Fields(result.Output))
+		} else {
+			zones, err = zoneNames(a.cfg.ZoneinfoDir)
+			if err != nil {
+				return a.failf("list time zones: %v", err)
+			}
+		}
+		for _, zone := range zones {
+			fmt.Fprintln(a.cfg.Stdout, zone)
+		}
+		return ExitOK
+	}
 	if len(args) == 1 && args[0] == "zone" {
 		init, err := a.Init()
 		if err != nil {
@@ -69,6 +103,82 @@ func validZone(root, zone string) bool {
 	path := filepath.Join(root, filepath.FromSlash(zone))
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+func zoneNames(root string) ([]string, error) {
+	if data, err := os.ReadFile(filepath.Join(root, "tzdata.zi")); err == nil {
+		zones := map[string]bool{}
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && fields[0] == "Z" {
+				zones[fields[1]] = true
+			} else if len(fields) >= 3 && fields[0] == "L" {
+				zones[fields[2]] = true
+			}
+		}
+		if len(zones) > 0 {
+			return sortedZoneSet(zones), nil
+		}
+	}
+
+	zones := map[string]bool{}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if relative == "posix" || relative == "right" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		name := entry.Name()
+		if excludedZoneinfoFiles[name] || strings.HasSuffix(name, ".tab") || strings.HasSuffix(name, ".zi") {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		var magic [4]byte
+		_, readErr := io.ReadFull(file, magic[:])
+		closeErr := file.Close()
+		if readErr != nil {
+			return nil
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		if magic == [4]byte{'T', 'Z', 'i', 'f'} {
+			zones[filepath.ToSlash(relative)] = true
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sortedZoneSet(zones), nil
+}
+
+func sortedZoneSet(zones map[string]bool) []string {
+	values := make([]string, 0, len(zones))
+	for zone := range zones {
+		values = append(values, zone)
+	}
+	sort.Strings(values)
+	return values
+}
+
+func sortedUnique(values []string) []string {
+	set := make(map[string]bool, len(values))
+	for _, value := range values {
+		set[value] = true
+	}
+	return sortedZoneSet(set)
 }
 
 func (a *App) Keymap(args []string) int {

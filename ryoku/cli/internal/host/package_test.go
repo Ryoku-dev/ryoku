@@ -11,7 +11,7 @@ import (
 func packageFixture(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "void.tsv")
-	body := "arch\tvoid\tlanes\tnotes\ncombo\tvoid-a void-b\tdesktop\t\nrepo-pkg\t@repo\tdesktop\tbuilt here\nfont-pkg\t@fetch\tdesktop\tdownloaded\nmissing-pkg\t-\tdesktop\tcovered elsewhere\n"
+	body := "arch\tvoid\tlanes\tnotes\ncombo\tvoid-a void-b\tdesktop\t\nrepo-pkg\t@repo\tdesktop\tbuilt here\nfont-pkg\t@fetch\tdesktop\tdownloaded\nmissing-pkg\t-\tdesktop\tcovered elsewhere\nempty-note\t-\tdesktop\t\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestXBPSPackageTranslationAndMissingOnlyInstall(t *testing.T) {
 		return Result{}
 	}}
 	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_PKG_TABLE": table})
-	if code := app.Package([]string{"install", "--aur", "combo", "identity"}); code != ExitOK {
+	if code := app.Package([]string{"install", "--aur", "--overwrite", "usr/lib/ryoku/*", "combo", "identity"}); code != ExitOK {
 		t.Fatal(code)
 	}
 	if got := argv(runner.commands[len(runner.commands)-1]); got != "xbps-install -Sy void-b identity" {
@@ -81,6 +81,99 @@ func TestXBPSSpecialMappingsAndIdentityFallback(t *testing.T) {
 	}
 }
 
+func TestPackageWhyExplainsOnlyVoidDashMappings(t *testing.T) {
+	table := packageFixture(t)
+	runner := &fakeRunner{}
+	app, stdout, stderr := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_INIT": "runit", "RYOKU_HOST_PKG_TABLE": table})
+	cases := []struct {
+		name string
+		code int
+		want string
+	}{
+		{"missing-pkg", ExitOK, "covered elsewhere\n"},
+		{"empty-note", ExitOK, "Not packaged for Void.\n"},
+		{"combo", ExitFalse, ""},
+		{"identity", ExitFalse, ""},
+	}
+	for _, tc := range cases {
+		stdout.Reset()
+		if code := app.Package([]string{"why", tc.name}); code != tc.code {
+			t.Fatalf("%s exit = %d, want %d", tc.name, code, tc.code)
+		}
+		if got := stdout.String(); got != tc.want {
+			t.Fatalf("%s output = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+	if stderr.Len() != 0 || len(runner.commands) != 0 {
+		t.Fatalf("why wrote stderr=%q or ran commands=%v", stderr.String(), runner.commands)
+	}
+
+	app, stdout, stderr = testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_PKGMGR": "pacman", "RYOKU_HOST_INIT": "systemd"})
+	if code := app.Package([]string{"why", "missing-pkg"}); code != ExitFalse {
+		t.Fatalf("pacman why exit = %d", code)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("pacman why wrote stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if code := app.Package([]string{"why"}); code != ExitUsage {
+		t.Fatalf("why without name exit = %d", code)
+	}
+}
+
+func TestPackageAdviceUsesHostInstallCommand(t *testing.T) {
+	table := packageFixture(t)
+	tests := []struct {
+		manager string
+		env     map[string]string
+		want    string
+	}{
+		{"pacman", map[string]string{"RYOKU_HOST_PKGMGR": "pacman", "RYOKU_HOST_INIT": "systemd"}, "sudo pacman -S combo identity\n"},
+		{"xbps", map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_INIT": "runit", "RYOKU_HOST_PKG_TABLE": table}, "sudo xbps-install -S void-a void-b identity\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.manager, func(t *testing.T) {
+			app, stdout, _ := testApp(&fakeRunner{}, tc.env)
+			if code := app.Package([]string{"advice", "combo", "identity"}); code != ExitOK {
+				t.Fatalf("advice exit = %d", code)
+			}
+			if got := stdout.String(); got != tc.want {
+				t.Fatalf("advice output = %q, want %q", got, tc.want)
+			}
+			if code := app.Package([]string{"advice"}); code != ExitUsage {
+				t.Fatalf("advice without names exit = %d", code)
+			}
+		})
+	}
+}
+
+func TestPackageAvailableAURUsesHostPolicy(t *testing.T) {
+	pacmanRunner := &fakeRunner{}
+	app, _, _ := testApp(pacmanRunner, map[string]string{"RYOKU_HOST_PKGMGR": "pacman", "RYOKU_HOST_INIT": "systemd"})
+	if code := app.Package([]string{"available", "--aur", "voxtype"}); code != ExitOK {
+		t.Fatalf("pacman AUR availability exit = %d", code)
+	}
+	if len(pacmanRunner.commands) != 0 {
+		t.Fatalf("pacman AUR availability ran commands: %v", pacmanRunner.commands)
+	}
+
+	table := packageFixture(t)
+	xbpsRunner := &fakeRunner{}
+	app, _, _ = testApp(xbpsRunner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_INIT": "runit", "RYOKU_HOST_PKG_TABLE": table})
+	if code := app.Package([]string{"available", "--aur", "combo"}); code != ExitOK {
+		t.Fatalf("XBPS mapped AUR availability exit = %d", code)
+	}
+	if len(xbpsRunner.commands) != 2 || argv(xbpsRunner.commands[0]) != "xbps-query -R void-a" || argv(xbpsRunner.commands[1]) != "xbps-query -R void-b" {
+		t.Fatalf("XBPS mapped availability commands = %v", xbpsRunner.commands)
+	}
+	xbpsRunner.commands = nil
+	if code := app.Package([]string{"available", "--aur", "missing-pkg"}); code != ExitNotProvided {
+		t.Fatalf("XBPS unavailable AUR exit = %d", code)
+	}
+	if len(xbpsRunner.commands) != 0 {
+		t.Fatalf("XBPS unavailable mapping ran commands: %v", xbpsRunner.commands)
+	}
+}
+
 func TestPacmanConfigUpgradeAndAURSelection(t *testing.T) {
 	conf := filepath.Join(t.TempDir(), "pacman.conf")
 	if err := os.WriteFile(conf, nil, 0o644); err != nil {
@@ -97,6 +190,8 @@ func TestPacmanConfigUpgradeAndAURSelection(t *testing.T) {
 		{[]string{"install", "foo"}, "pacman --config " + conf + " -S --needed --noconfirm foo"},
 		{[]string{"install", "--upgrade", "foo"}, "pacman --config " + conf + " -Syu --needed --noconfirm foo"},
 		{[]string{"install", "--aur", "foo"}, "yay -S --needed --noconfirm foo"},
+		{[]string{"install", "--overwrite", "usr/lib/ryoku/*", "--overwrite", "etc/ryoku/*", "foo"}, "pacman --config " + conf + " -S --needed --noconfirm --overwrite usr/lib/ryoku/* --overwrite etc/ryoku/* foo"},
+		{[]string{"install", "--aur", "--overwrite", "usr/lib/ryoku/*", "foo"}, "yay -S --needed --noconfirm --overwrite usr/lib/ryoku/* foo"},
 	}
 	for _, tc := range cases {
 		runner.commands = nil

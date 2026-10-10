@@ -2782,57 +2782,36 @@ func TestIconFontAcceptsFontconfigVisibleCopy(t *testing.T) {
 	}
 }
 
-func TestRunitFailureScanSkipsServicesMarkedDown(t *testing.T) {
-	dir := t.TempDir()
-	for _, name := range []string{"wanted", "marked"} {
-		if err := os.MkdirAll(filepath.Join(dir, name), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := os.WriteFile(filepath.Join(dir, "marked", "down"), nil, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	oldService := doctorService
-	t.Cleanup(func() { doctorService = oldService })
-	doctorService = func(args ...string) int {
-		switch args[1] {
-		case "is-enabled":
-			return host.ExitOK
-		case "is-active":
-			return host.ExitFalse
-		}
-		return host.ExitFailure
-	}
-	failures, reliable := runitFailedServicesIn([]runitServiceSource{{scope: "--user", dir: dir}})
-	if !reliable || len(failures) != 1 || failures[0].name != "wanted" {
-		t.Fatalf("failures = %+v, reliable = %t", failures, reliable)
-	}
-}
-
 func TestFailedServicesHaveRunitMeaning(t *testing.T) {
-	oldInit, oldFailures := doctorInitSystem, doctorRunitFailedServices
+	oldInit, oldFailures := doctorInitSystem, doctorFailedServices
 	t.Cleanup(func() {
 		doctorInitSystem = oldInit
-		doctorRunitFailedServices = oldFailures
+		doctorFailedServices = oldFailures
 	})
 	doctorInitSystem = func() (host.InitSystem, error) { return host.Runit, nil }
-	doctorRunitFailedServices = func() ([]runitServiceFailure, bool) {
-		return []runitServiceFailure{{scope: "--system", name: "NetworkManager"}, {scope: "--user", name: "pipewire"}}, true
+	doctorFailedServices = func() ([]host.ServiceFailure, error) {
+		return []host.ServiceFailure{
+			{Scope: "--system", Name: "NetworkManager"},
+			{Scope: "--user", Name: "pipewire"},
+		}, nil
 	}
 	result := reconcileFailedUnits(true)
 	if result.status != recWarn || strings.Contains(result.remedy, "systemctl") {
 		t.Fatalf("result = %+v", result)
 	}
-	for _, command := range []string{"sudo ryoku-host svc --system start NetworkManager", "ryoku-host svc --user start pipewire"} {
-		if !strings.Contains(result.remedy, command) {
-			t.Fatalf("remedy %q misses %q", result.remedy, command)
+	for _, text := range []string{"NetworkManager (system)", "pipewire (user)"} {
+		if !strings.Contains(result.detail, text) {
+			t.Fatalf("detail %q misses %q", result.detail, text)
 		}
 	}
+	if !strings.Contains(result.remedy, "sv status") || !strings.Contains(result.remedy, "service log") {
+		t.Fatalf("remedy = %q", result.remedy)
+	}
 
-	doctorRunitFailedServices = func() ([]runitServiceFailure, bool) { return nil, false }
+	doctorFailedServices = func() ([]host.ServiceFailure, error) { return nil, nil }
 	result = reconcileFailedUnits(true)
-	if result.status != recNote || result.remedy != "" {
-		t.Fatalf("unreliable result = %+v", result)
+	if result.status != recOK || strings.Contains(result.detail, "could not be determined") {
+		t.Fatalf("healthy result = %+v", result)
 	}
 }
 

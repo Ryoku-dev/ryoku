@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Added
+- **The host seam now publishes capabilities and portable system actions.**
+  `ryoku-host` can explain unavailable Void packages, print native install
+  advice, distinguish AUR availability, pass pacman overwrite rules through
+  package installs, list time zones, drive power actions through systemd or
+  elogind, and report package, init, snapshot, and AUR capabilities as JSON
+  (`internal/host/`).
 - **Void updates now use the signed Ryoku XBPS repository end to end.**
   `ryoku update`, channel tracking, status, manifest convergence, shipped-app
   repair, and retired-package cleanup use the same host seams as Arch, mapped
@@ -129,6 +135,17 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **Void service failures are visible in `ryoku doctor`.** The runit host seam
+  reads system and Turnstile supervise state, reports services that want up but
+  are down or repeatedly restarting, and leaves parked services alone
+  (`internal/host/service.go`, `internal/doctor/doctor.go`).
+- **The doctor describes Void as Void.** Its diagnostic prompt names XBPS,
+  runit and Turnstile instead of Arch with snapper, and the NVIDIA initramfs
+  advice uses dracut there (`internal/doctor/explain.go`,
+  `internal/doctor/reconcile_dgpu_panel.go`).
+- **Switching desktops says why a target is missing.** `ryoku wm` checks,
+  installs and removes desktop packages through `ryoku-host`, so a desktop
+  this system cannot install is refused up front with the reason (`wm.go`).
 - **Keyring status recognizes standard optional PAM lines.** SDDM stacks often
   prefix optional module types with `-`, and those `-auth` and `-session` lines
   now count as login-keyring wiring instead of being misreported as

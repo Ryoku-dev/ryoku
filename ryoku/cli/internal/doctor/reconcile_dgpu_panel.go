@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"ryoku-cli/internal/host"
+
 	i18n "ryoku-i18n"
 )
 
@@ -360,6 +362,10 @@ func dgpuMuxFix() string {
 // dgpuRtd3OffFix applies when the driver itself reports runtime D3 off. Then no
 // amount of closing applications will help: the feature is switched off.
 func dgpuRtd3OffFix() string {
+	manager, _ := host.Default().PackageManager()
+	if manager == host.XBPS {
+		return i18n.T("the NVIDIA driver reports runtime D3 power management off for this card, so it can never power down. Enable fine-grained control with `NVreg_DynamicPowerManagement=0x02` in a /etc/modprobe.d/nvidia.conf `options nvidia` line, then rebuild the dracut initramfs with XBPS (`sudo xbps-reconfigure -f <kernel package>`) or directly (`sudo dracut --regenerate-all --force`), and reboot.")
+	}
 	return i18n.T("the NVIDIA driver reports runtime D3 power management off for this card, so it can never power down. Enable fine-grained control with `NVreg_DynamicPowerManagement=0x02` in a /etc/modprobe.d/nvidia.conf `options nvidia` line, rebuild the initramfs (`sudo mkinitcpio -P`), and reboot.")
 }
 

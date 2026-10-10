@@ -87,8 +87,67 @@ func TestRunitKeymapWritesRCConfAndEscalates(t *testing.T) {
 	}
 }
 
+func TestTimeZonesUsesSystemdList(t *testing.T) {
+	runner := &fakeRunner{answer: func(command Command) Result {
+		if argv(command) == "timedatectl list-timezones" {
+			return Result{Output: "Europe/Paris\nAmerica/New_York\nEurope/Paris\n"}
+		}
+		return Result{Code: 1}
+	}}
+	app, stdout, _ := testApp(runner, map[string]string{"RYOKU_HOST_INIT": "systemd", "RYOKU_HOST_PKGMGR": "pacman"})
+	if code := app.Time([]string{"zones"}); code != ExitOK {
+		t.Fatalf("zones exit = %d", code)
+	}
+	if got := stdout.String(); got != "America/New_York\nEurope/Paris\n" {
+		t.Fatalf("zones = %q", got)
+	}
+	if got := argv(runner.commands[0]); got != "timedatectl list-timezones" {
+		t.Fatalf("argv = %q", got)
+	}
+}
+
+func TestTimeZonesReadsTZDataOnRunit(t *testing.T) {
+	root := t.TempDir()
+	body := "# version 2026a\nZ Europe/Paris 0 - CET\nL Europe/Paris Europe/Monaco\nZ America/New_York -5:00 US E%sT\n"
+	if err := os.WriteFile(filepath.Join(root, "tzdata.zi"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app, stdout, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_INIT": "runit", "RYOKU_HOST_PKGMGR": "xbps"})
+	app.cfg.ZoneinfoDir = root
+	if code := app.Time([]string{"zones"}); code != ExitOK {
+		t.Fatalf("zones exit = %d", code)
+	}
+	if got := stdout.String(); got != "America/New_York\nEurope/Monaco\nEurope/Paris\n" {
+		t.Fatalf("zones = %q", got)
+	}
+}
+
+func TestTimeZonesFallsBackToTZifTree(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"Asia/Tokyo", "Etc/UTC", "posix/Europe/London", "right/Europe/London", "localtime", "zone.tab"} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("TZif fixture"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(root, "README"), []byte("not a zone"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	app, stdout, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_INIT": "runit", "RYOKU_HOST_PKGMGR": "xbps"})
+	app.cfg.ZoneinfoDir = root
+	if code := app.Time([]string{"zones"}); code != ExitOK {
+		t.Fatalf("zones exit = %d", code)
+	}
+	if got := stdout.String(); got != "Asia/Tokyo\nEtc/UTC\n" {
+		t.Fatalf("zones = %q", got)
+	}
+}
+
 func TestUsageListsEveryTopLevelVerbAndFlag(t *testing.T) {
-	for _, text := range []string{"init", "pkgmgr", "snapshots", "svc", "reload", "--now", "env", "--all", "inhibit", "transient", "--scope", "--slice", "--prop", "--env", "session", "pkg", "--upgrade", "--aur", "--foreign", "time", "keymap"} {
+	for _, text := range []string{"init", "pkgmgr", "snapshots", "capabilities", "svc", "reload", "--now", "env", "--all", "inhibit", "transient", "--scope", "--slice", "--prop", "--env", "session", "pkg", "why", "advice", "--upgrade", "--aur", "--overwrite", "--foreign", "power", "time", "zones", "keymap"} {
 		if !strings.Contains(Usage, text) {
 			t.Fatalf("usage misses %q", text)
 		}

@@ -9,6 +9,7 @@ Host detection:
   init
   pkgmgr
   snapshots
+  capabilities
   repo channel
   repo set-channel <stable|testing|TAG>
   repo sync
@@ -32,8 +33,8 @@ Process helpers:
 
 Packages (names use the Arch/Ryoku catalogue):
   pkg installed <name>...
-  pkg available <name>...
-  pkg install [--upgrade] [--aur] <name>...
+  pkg available [--aur] <name>...
+  pkg install [--upgrade] [--aur] [--overwrite GLOB]... <name>...
   pkg install-file <path>...
   pkg remove <name>...
   pkg explicit <name>...
@@ -41,9 +42,13 @@ Packages (names use the Arch/Ryoku catalogue):
   pkg owner <path>
   pkg count [--foreign]
   pkg local <name>...
+  pkg why <name>
+  pkg advice <name>...
 
 System settings:
+  power <poweroff|reboot|suspend|hibernate>
   time zone
+  time zones
   time set-zone <Area/City>
   keymap set <layout> [variant] [options]
 
@@ -90,6 +95,11 @@ func (a *App) Execute(args []string) int {
 		}
 		fmt.Fprintln(a.cfg.Stdout, reason)
 		return ExitNotProvided
+	case "capabilities":
+		if len(args) != 1 {
+			return ExitUsage
+		}
+		return a.Capabilities()
 	case "repo":
 		return a.Repo(args[1:])
 	case "svc":
@@ -118,6 +128,8 @@ func (a *App) Execute(args []string) int {
 		return a.Session(args[1:])
 	case "pkg":
 		return a.Package(args[1:])
+	case "power":
+		return a.Power(args[1:])
 	case "time":
 		return a.Time(args[1:])
 	case "keymap":

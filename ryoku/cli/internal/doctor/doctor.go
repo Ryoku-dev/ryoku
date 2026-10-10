@@ -59,6 +59,9 @@ var (
 	doctorService = func(args ...string) int {
 		return host.Default().Service(args)
 	}
+	doctorFailedServices = func() ([]host.ServiceFailure, error) {
+		return host.Default().FailedServices()
+	}
 	doctorOrphans = func() ([]string, error) {
 		return host.Default().Orphans()
 	}
@@ -71,18 +74,6 @@ var (
 		return err == nil && strings.Contains(string(out), "Material Symbols Rounded")
 	}
 )
-
-type runitServiceFailure struct {
-	scope string
-	name  string
-}
-
-type runitServiceSource struct {
-	scope string
-	dir   string
-}
-
-var doctorRunitFailedServices = runitFailedServices
 
 func pacmanHost(subject string) (recResult, bool) {
 	if !hasPacman() {
@@ -3909,79 +3900,20 @@ func balancedRunes(s string, open, shut rune) bool {
 
 // ---- reconciler: failed services ---------------------------------------------
 
-func runitFailedServices() ([]runitServiceFailure, bool) {
-	return runitFailedServicesIn([]runitServiceSource{
-		{"--system", "/etc/runit/runsvdir/default"},
-		{"--user", filepath.Join(sys.Home(), ".config", "service")},
-	})
-}
-
-func runitFailedServicesIn(sources []runitServiceSource) ([]runitServiceFailure, bool) {
-	var failed []runitServiceFailure
-	reliable := true
-	seen := map[string]bool{}
-	for _, source := range sources {
-		entries, err := os.ReadDir(source.dir)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			reliable = false
-			continue
-		}
-		for _, entry := range entries {
-			name := entry.Name()
-			if strings.HasPrefix(name, ".") || seen[source.scope+"\x00"+name] {
-				continue
-			}
-			seen[source.scope+"\x00"+name] = true
-			if _, err := os.Stat(filepath.Join(source.dir, name, "down")); err == nil {
-				continue
-			} else if !os.IsNotExist(err) {
-				reliable = false
-				continue
-			}
-			switch doctorService(source.scope, "is-enabled", name) {
-			case host.ExitOK:
-			case host.ExitFalse:
-				continue
-			default:
-				reliable = false
-				continue
-			}
-			switch doctorService(source.scope, "is-active", name) {
-			case host.ExitOK:
-			case host.ExitFalse:
-				failed = append(failed, runitServiceFailure{scope: source.scope, name: name})
-			default:
-				reliable = false
-			}
-		}
-	}
-	return failed, reliable
-}
-
 func reconcileRunitFailures() recResult {
-	failures, reliable := doctorRunitFailedServices()
-	if !reliable {
-		return noteRes(i18n.T("runit service health could not be determined reliably"))
+	failures, err := doctorFailedServices()
+	if err != nil {
+		return noteRes(i18n.T("service health could not be checked: %v"), err)
 	}
 	if len(failures) == 0 {
-		return okRes(i18n.T("no services that want up are down"))
+		return okRes(i18n.T("no failed services"))
 	}
 	details := make([]string, 0, len(failures))
-	remedies := make([]string, 0, len(failures))
 	for _, failure := range failures {
-		scope := strings.TrimPrefix(failure.scope, "--")
-		details = append(details, fmt.Sprintf("%s (%s)", failure.name, scope))
-		prefix := ""
-		if failure.scope == "--system" {
-			prefix = "sudo "
-		}
-		remedies = append(remedies, fmt.Sprintf("%sryoku-host svc %s start %s", prefix, failure.scope, failure.name))
+		details = append(details, fmt.Sprintf("%s (%s)", failure.Name, strings.TrimPrefix(failure.Scope, "--")))
 	}
-	return warnRes(i18n.T("down while configured to run: %s"), strings.Join(details, ", ")).
-		withFix("%s", strings.Join(remedies, " && "))
+	return warnRes(i18n.T("failed: %s"), strings.Join(details, ", ")).
+		withFix(i18n.T("inspect with `sv status /var/service/<service>` or `sv status ~/.config/service/<service>` and check the service log"))
 }
 
 func reconcileFailedUnits(checkOnly bool) recResult {

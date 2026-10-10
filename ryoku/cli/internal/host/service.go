@@ -1,9 +1,12 @@
 package host
 
 import (
+	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 var serviceVerbs = map[string]bool{
@@ -13,6 +16,174 @@ var serviceVerbs = map[string]bool{
 }
 
 const runitUserDisabledMarker = ".ryoku-disabled"
+
+const (
+	runitTAI64Offset   = uint64(0x400000000000000a)
+	runitRestartWindow = 10 * time.Second
+	runitSampleDelay   = 2 * time.Second
+)
+
+type ServiceFailure struct {
+	Scope string
+	Name  string
+}
+
+type runitServiceSource struct {
+	scope string
+	dir   string
+}
+
+type runitSuperviseState struct {
+	running bool
+	down    bool
+	wantUp  bool
+	changed [12]byte
+	change  time.Time
+}
+
+type runitRestartCandidate struct {
+	failure ServiceFailure
+	path    string
+	state   runitSuperviseState
+}
+
+func (a *App) FailedServices() ([]ServiceFailure, error) {
+	return runitFailedServicesIn(
+		[]runitServiceSource{
+			{scope: "--system", dir: a.cfg.SystemLiveDir},
+			{scope: "--user", dir: a.userServiceDir()},
+		},
+		time.Now,
+		time.Sleep,
+	)
+}
+
+func runitFailedServicesIn(sources []runitServiceSource, now func() time.Time, sleep func(time.Duration)) ([]ServiceFailure, error) {
+	var failed []ServiceFailure
+	var candidates []runitRestartCandidate
+	observedAt := now()
+	for _, source := range sources {
+		entries, err := os.ReadDir(source.dir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read service directory %s: %w", source.dir, err)
+		}
+		for _, entry := range entries {
+			if strings.HasPrefix(entry.Name(), ".") {
+				continue
+			}
+			path := filepath.Join(source.dir, entry.Name())
+			info, err := os.Stat(path)
+			if os.IsNotExist(err) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("inspect service %s: %w", path, err)
+			}
+			if !info.IsDir() {
+				continue
+			}
+			if source.scope == "--user" {
+				if _, err := os.Stat(filepath.Join(path, runitUserDisabledMarker)); err == nil {
+					continue
+				} else if !os.IsNotExist(err) {
+					return nil, fmt.Errorf("inspect service %s: %w", path, err)
+				}
+			}
+			state, err := readRunitSuperviseState(path)
+			if err != nil {
+				if os.IsNotExist(err) && fileExists(filepath.Join(path, "down")) {
+					continue
+				}
+				return nil, fmt.Errorf("read supervise state for %s: %w", path, err)
+			}
+			if !state.wantUp {
+				continue
+			}
+			failure := ServiceFailure{Scope: source.scope, Name: entry.Name()}
+			if state.down {
+				failed = append(failed, failure)
+				continue
+			}
+			if !state.running {
+				continue
+			}
+			age := observedAt.Sub(state.change)
+			if age >= -time.Second && age <= runitRestartWindow {
+				candidates = append(candidates, runitRestartCandidate{failure: failure, path: path, state: state})
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return failed, nil
+	}
+	sleep(runitSampleDelay)
+	for _, candidate := range candidates {
+		state, err := readRunitSuperviseState(candidate.path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("resample supervise state for %s: %w", candidate.path, err)
+		}
+		if !state.wantUp {
+			continue
+		}
+		if state.down || (state.running && state.changed != candidate.state.changed) {
+			failed = append(failed, candidate.failure)
+		}
+	}
+	return failed, nil
+}
+
+func readRunitSuperviseState(path string) (runitSuperviseState, error) {
+	status, err := os.ReadFile(filepath.Join(path, "supervise", "status"))
+	if err != nil {
+		return runitSuperviseState{}, err
+	}
+	if len(status) < 20 {
+		return runitSuperviseState{}, fmt.Errorf("short supervise/status")
+	}
+	var changed [12]byte
+	copy(changed[:], status[:12])
+	seconds := binary.BigEndian.Uint64(status[:8])
+	nanoseconds := binary.BigEndian.Uint32(status[8:12])
+	if seconds < runitTAI64Offset || nanoseconds >= uint32(time.Second) {
+		return runitSuperviseState{}, fmt.Errorf("invalid supervise timestamp")
+	}
+	wantUp := false
+	switch status[17] {
+	case 'u':
+		wantUp = true
+	case 'd':
+	default:
+		return runitSuperviseState{}, fmt.Errorf("invalid supervise want state")
+	}
+	running, down := false, false
+	switch status[19] {
+	case 0:
+		down = true
+	case 1:
+		running = true
+	case 2:
+	default:
+		return runitSuperviseState{}, fmt.Errorf("invalid supervise service state")
+	}
+	return runitSuperviseState{
+		running: running,
+		down:    down,
+		wantUp:  wantUp,
+		changed: changed,
+		change:  time.Unix(int64(seconds-runitTAI64Offset), int64(nanoseconds)),
+	}, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
 
 func unitName(name string) string {
 	if strings.Contains(name, ".") {

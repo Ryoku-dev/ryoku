@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	wm "ryoku-wm"
 )
 
 func TestAIDiagnoseRoundTrip(t *testing.T) {
@@ -45,6 +47,43 @@ func TestAIDiagnoseRoundTrip(t *testing.T) {
 	if gotSystem != "system" {
 		t.Errorf("first message role = %q, want system (the task framing)", gotSystem)
 	}
+}
+
+func TestAISystemPromptMatchesHost(t *testing.T) {
+	t.Run("Arch wording stays unchanged", func(t *testing.T) {
+		t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
+		t.Setenv("RYOKU_HOST_INIT", "systemd")
+
+		comp := "a Wayland compositor"
+		if n := wm.Detect().Name; n != "" {
+			comp = "the " + n + " Wayland compositor"
+		}
+		want := "You are the diagnostic brain for Ryoku, an Arch-based Linux distro running " + comp +
+			" (btrfs root with snapper; the `ryoku` CLI manages updates, snapshots, and " +
+			"config). You are given a `ryoku doctor` report: deterministic findings plus system state (btrfs, " +
+			"packages, services, journal errors, and hardware: GPU and backlight). Name the single most likely root " +
+			"cause and give the exact, safe fix, preferring precise shell commands. When the cause is hardware, " +
+			"firmware, or BIOS, say so plainly: software cannot fix it, so tell the user what to change. Never give a " +
+			"destructive command without a clear warning. Be brief: lead with the cause, then the fix."
+		if got := aiSystemPrompt(); got != want {
+			t.Errorf("Arch prompt changed:\ngot:  %q\nwant: %q", got, want)
+		}
+	})
+
+	t.Run("Void names its real host stack", func(t *testing.T) {
+		t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+		t.Setenv("RYOKU_HOST_INIT", "runit")
+
+		got := aiSystemPrompt()
+		if !strings.Contains(got, "Void Linux with XBPS, runit and Turnstile, no snapshot integration") {
+			t.Errorf("Void prompt does not describe the host stack: %q", got)
+		}
+		for _, wrong := range []string{"Arch-based", "snapper", "btrfs"} {
+			if strings.Contains(got, wrong) {
+				t.Errorf("Void prompt must not mention %q: %q", wrong, got)
+			}
+		}
+	})
 }
 
 func TestAIDiagnoseAPIError(t *testing.T) {

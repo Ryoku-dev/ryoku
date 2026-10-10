@@ -140,6 +140,30 @@ at once; on a dev checkout it drops the override and leaves the re-lay to
 
 ## Production internals
 
+### `ryoku-host`
+
+`ryoku-host` is the internal operating-system seam used by scripts, the Hub,
+and the CLI. Package names passed to it use the Arch/Ryoku catalogue; the host
+backend translates them for XBPS when needed. The host-facing verbs include:
+
+- `capabilities` prints the detected package manager and init system plus
+  snapshot and AUR support as one JSON object.
+- `pkg why <name>` explains a catalogue package that deliberately has no Void
+  equivalent. A package that can be installed, an unknown name, or any name on
+  a pacman host produces no output and returns the false condition exit code.
+- `pkg advice <name>...` prints the pacman or XBPS install command for those
+  catalogue names.
+- `pkg available [--aur] <name>...` checks the native repositories. On pacman
+  hosts, `--aur` marks catalogue names as available through Ryoku's AUR tooling;
+  on XBPS it uses the same translated repository check as the unflagged form.
+- `pkg install [--upgrade] [--aur] [--overwrite GLOB]... <name>...` installs
+  packages. `--overwrite` is repeatable and passes through to pacman and AUR
+  helpers; XBPS accepts and ignores it because XBPS has no equivalent.
+- `power <poweroff|reboot|suspend|hibernate>` runs the action through systemd
+  or elogind.
+- `time zones` prints the sorted IANA zone list. It uses `timedatectl` under
+  systemd and the installed zoneinfo database on other init systems.
+
 ### `ryoku materialize`
 
 Lays Ryoku's base configs into `~/.config`, declaratively and override-safe. It

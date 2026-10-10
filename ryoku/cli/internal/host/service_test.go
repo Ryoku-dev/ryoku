@@ -1,9 +1,11 @@
 package host
 
 import (
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestDetectionAndOverrides(t *testing.T) {
@@ -160,5 +162,77 @@ func TestRunitSystemEnableAndInactive(t *testing.T) {
 	}
 	if code := app.Service([]string{"--system", "start", "missing"}); code != ExitAbsent {
 		t.Fatalf("missing exit = %d", code)
+	}
+}
+
+func TestRunitFailedServicesFromSuperviseState(t *testing.T) {
+	root := t.TempDir()
+	system := filepath.Join(root, "system")
+	user := filepath.Join(root, "user")
+	now := time.Unix(1_800_000_000, 0)
+
+	writeSuperviseState(t, filepath.Join(system, "healthy"), "run", 'u', now.Add(-time.Minute), 10)
+	writeSuperviseState(t, filepath.Join(system, "recent-healthy"), "run", 'u', now.Add(-time.Second), 11)
+	writeSuperviseState(t, filepath.Join(system, "wants-up-down"), "down", 'u', now.Add(-time.Minute), 0)
+	writeSuperviseState(t, filepath.Join(system, "parked"), "down", 'd', now.Add(-time.Minute), 0)
+	crashing := filepath.Join(user, "crashing")
+	writeSuperviseState(t, crashing, "run", 'u', now.Add(-time.Second), 20)
+	if err := os.WriteFile(filepath.Join(crashing, "down"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	neverStarted := filepath.Join(user, "never-started")
+	if err := os.MkdirAll(neverStarted, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(neverStarted, "down"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	failures, err := runitFailedServicesIn(
+		[]runitServiceSource{{scope: "--system", dir: system}, {scope: "--user", dir: user}},
+		func() time.Time { return now },
+		func(delay time.Duration) {
+			if delay >= 3*time.Second {
+				t.Fatalf("resample delay = %s", delay)
+			}
+			writeSuperviseState(t, crashing, "run", 'u', now.Add(time.Second), 21)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []ServiceFailure{
+		{Scope: "--system", Name: "wants-up-down"},
+		{Scope: "--user", Name: "crashing"},
+	}
+	if len(failures) != len(want) {
+		t.Fatalf("failures = %+v, want %+v", failures, want)
+	}
+	for i := range want {
+		if failures[i] != want[i] {
+			t.Fatalf("failures = %+v, want %+v", failures, want)
+		}
+	}
+}
+
+func writeSuperviseState(t *testing.T, service, state string, want byte, changed time.Time, pid uint32) {
+	t.Helper()
+	supervise := filepath.Join(service, "supervise")
+	if err := os.MkdirAll(supervise, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status := make([]byte, 20)
+	binary.BigEndian.PutUint64(status[:8], uint64(changed.Unix())+runitTAI64Offset)
+	binary.BigEndian.PutUint32(status[8:12], uint32(changed.Nanosecond()))
+	binary.LittleEndian.PutUint32(status[12:16], pid)
+	status[17] = want
+	if state == "run" {
+		status[19] = 1
+	}
+	if err := os.WriteFile(filepath.Join(supervise, "stat"), []byte(state+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(supervise, "status"), status, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }

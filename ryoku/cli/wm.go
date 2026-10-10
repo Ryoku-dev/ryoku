@@ -296,12 +296,16 @@ func cmdWmUse(args []string) {
 	if !knownProvider(name) {
 		die("unknown compositor %q; known: %s", name, strings.Join(wm.Providers(), ", "))
 	}
-	store := filepath.Join(sys.ConfigHome(), "ryoku", "desktop.json")
 	active := wm.Detect().Name
 	if name == active {
 		fmt.Printf(i18n.T("%s is already the compositor.\n"), name)
 		return
 	}
+	pkg := "ryoku-desktop-" + name
+	if err := targetPackageAvailability(name, pkg); err != nil {
+		die("%v", err)
+	}
+	store := filepath.Join(sys.ConfigHome(), "ryoku", "desktop.json")
 
 	// A dry run, not an apply: asking the target what it cannot honour must not
 	// author its config as a side effect. Best-effort, since the provider may
@@ -313,11 +317,10 @@ func cmdWmUse(args []string) {
 	// leaving the active compositor reclaims, or that there is nothing to remove.
 	printWmPreviousChoice(active, name, keepPrevious)
 
-	pkg := "ryoku-desktop-" + name
 	// A checkout box runs deployed trees, so switching to one installs nothing;
 	// picking the session at the greeter is the whole move. A package box installs
-	// the target first, as a plain pacman transaction (no SNAP_PAC_SKIP) so
-	// snap-pac snapshots it and `ryoku rollback` can undo the switch.
+	// the target first through the host package seam so the native package manager
+	// and its snapshot hooks handle the switch.
 	if deployedProvider(name) {
 		// A checkout box runs deployed trees, so the switch installs no package,
 		// but the leaf scripts (ryoku-monitor and friends) the target's config
@@ -331,19 +334,16 @@ func cmdWmUse(args []string) {
 		}
 		fmt.Printf(i18n.T("%s is ready. Log out and pick %s at the greeter.\n"), name, name)
 	} else {
-		if !packageAvailable(pkg) {
-			die(i18n.T("cannot switch to %s yet: the %s package is not available on this channel"), name, pkg)
-		}
 		// The variants are not exclusive, so the install leaves the outgoing
-		// compositor in place and "keep" means what it says. A box whose packages
-		// predate that still declares the shared virtual as a conflict and pacman
-		// refuses the install under --noconfirm; only then drop it first.
+		// compositor in place and "keep" means what it says. Older variants may
+		// still declare the shared virtual as a conflict; only then drop the
+		// outgoing package first.
 		if err := sys.Sudo(wmSwitchInstallArgs(pkg)...); err != nil {
 			out := "ryoku-desktop-" + active
 			if active == "" || active == name || !packageInstalled(out) {
 				die(i18n.T("could not install %s: %v"), pkg, err)
 			}
-			if err := sys.Sudo("pacman", "-Rdd", "--noconfirm", out); err != nil {
+			if err := sys.Sudo("ryoku-host", "pkg", "remove", out); err != nil {
 				die(i18n.T("could not install %s, and could not remove %s first: %v"), pkg, out, err)
 			}
 			if err := sys.Sudo(wmSwitchInstallArgs(pkg)...); err != nil {
@@ -370,8 +370,7 @@ func cmdWmUse(args []string) {
 	// Removing the outgoing compositor's packages is a second transaction on
 	// purpose: the switch is complete once the target is ready, so a refusal or
 	// failure here leaves a working desktop rather than a half-switched one. It
-	// runs whether the target came from a package or a checkout, because the old
-	// compositor is a pacman package set either way.
+	// runs whether the target came from a package or a checkout.
 	if !keepPrevious && active != "" && active != name {
 		removePreviousCompositor(active, name)
 	}
@@ -468,11 +467,9 @@ func printWmPreviousChoice(active, incoming string, keep bool) {
 }
 
 // removePreviousCompositor removes the outgoing compositor's packages after a
-// switch to incoming, in one pacman transaction over exactly the reviewed set,
-// leaving its config tree and its wm.<name>.* settings alone so a switch back
-// restores the desktop rather than a default one. It refuses rather than remove
-// anything pacman's own plan no longer agrees with, so a switch can never
-// cascade past what the preview showed.
+// switch to incoming, in one host package transaction over exactly the reviewed
+// set, leaving its config tree and its wm.<name>.* settings alone so a switch
+// back restores the desktop rather than a default one.
 func removePreviousCompositor(active, incoming string) {
 	rs, err := wm.Reclaim(active, incoming)
 	if err != nil {
@@ -486,7 +483,7 @@ func removePreviousCompositor(active, incoming string) {
 		fmt.Printf(i18n.T("Switched, but %s was kept: %v\n"), active, err)
 		return
 	}
-	rmArgs := append([]string{"pacman", "-Rns", "--noconfirm"}, rs.Targets...)
+	rmArgs := append([]string{"ryoku-host", "pkg", "remove"}, rs.Targets...)
 	if err := sys.Sudo(rmArgs...); err != nil {
 		fmt.Printf(i18n.T("Switched, but %s could not be removed: %v\n"), active, err)
 		return
@@ -494,8 +491,7 @@ func removePreviousCompositor(active, incoming string) {
 	fmt.Printf(i18n.T("Removed %s: reclaimed %d packages (%s).\n"), active, rs.Count, humanSize(rs.Size))
 }
 
-// humanSize names a byte count the way pacman's own removal summary does, so a
-// reclaimed size reads the same in `ryoku wm use` as in pacman.
+// humanSize names a byte count the way a package manager's removal summary does.
 func humanSize(n int64) string {
 	if n >= 1<<30 {
 		return fmt.Sprintf("%.2f GiB", float64(n)/(1<<30))
@@ -569,27 +565,38 @@ func rawLen(raw json.RawMessage) int {
 	return 0
 }
 
-// wmSwitchInstallArgs is the compositor-switch install transaction. It carries
-// --overwrite for the ryoku-desktop-owned paths the ISO installer and deploy.sh
-// seed unowned (updater.RyokuOverwriteGlob), exactly like `ryoku update` and the
-// channel move: the variant package pulls ryoku-desktop itself, and on a box
-// seeded by an older ISO or a dev deploy those unowned copies abort the whole
-// atomic transaction ("exists in filesystem"), failing the switch. No
-// SNAP_PAC_SKIP: the interactive path wants snap-pac to snapshot the switch so
-// `ryoku rollback` can undo it.
+// wmSwitchInstallArgs keeps the switch on the host package seam while preserving
+// the switch-safe overwrite used by Arch's non-interactive transaction.
 func wmSwitchInstallArgs(pkg string) []string {
-	return []string{"pacman", "-S", "--needed", "--noconfirm",
-		"--overwrite", updater.RyokuOverwriteGlob, pkg}
+	return []string{"ryoku-host", "pkg", "install", "--overwrite", updater.RyokuOverwriteGlob, pkg}
+}
+
+func targetPackageAvailability(name, pkg string) error {
+	if packageAvailable(pkg) {
+		return nil
+	}
+	if reason := packageUnavailableReason(pkg); reason != "" {
+		return errors.New(i18n.Tf("cannot switch to %s: %s", name, reason))
+	}
+	return errors.New(i18n.Tf("cannot switch to %s yet: %s is unavailable on this host", name, pkg))
 }
 
 func packageAvailable(pkg string) bool {
-	_, err := sys.RunOut("pacman", "-Si", pkg)
+	_, err := sys.RunOut("ryoku-host", "pkg", "available", pkg)
 	return err == nil
+}
+
+func packageUnavailableReason(pkg string) string {
+	out, err := sys.RunOut("ryoku-host", "pkg", "why", pkg)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
 
 // packageInstalled reports whether pkg is installed here, which decides whether
 // a switch has an outgoing variant package to drop.
 func packageInstalled(pkg string) bool {
-	_, err := sys.RunOut("pacman", "-Qq", pkg)
+	_, err := sys.RunOut("ryoku-host", "pkg", "installed", pkg)
 	return err == nil
 }

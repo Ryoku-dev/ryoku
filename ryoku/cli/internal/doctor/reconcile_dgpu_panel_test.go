@@ -109,6 +109,31 @@ func TestDgpuPanelReconcile(t *testing.T) {
 	}
 }
 
+func TestDgpuRtd3OffFixMatchesHost(t *testing.T) {
+	t.Run("Arch keeps mkinitcpio advice", func(t *testing.T) {
+		t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
+
+		want := "the NVIDIA driver reports runtime D3 power management off for this card, so it can never power down. Enable fine-grained control with `NVreg_DynamicPowerManagement=0x02` in a /etc/modprobe.d/nvidia.conf `options nvidia` line, rebuild the initramfs (`sudo mkinitcpio -P`), and reboot."
+		if got := dgpuRtd3OffFix(); got != want {
+			t.Errorf("Arch repair advice changed:\ngot:  %q\nwant: %q", got, want)
+		}
+	})
+
+	t.Run("Void uses XBPS and dracut advice", func(t *testing.T) {
+		t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+
+		got := dgpuRtd3OffFix()
+		for _, want := range []string{"XBPS", "xbps-reconfigure", "dracut"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("Void repair advice must mention %q: %q", want, got)
+			}
+		}
+		if strings.Contains(got, "mkinitcpio") {
+			t.Errorf("Void repair advice must not mention mkinitcpio: %q", got)
+		}
+	})
+}
+
 // A measured draw is quoted; an unreadable one is never turned into a made-up
 // wattage.
 func TestDgpuPanelWattageOnlyWhenMeasured(t *testing.T) {

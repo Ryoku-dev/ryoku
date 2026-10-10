@@ -14,10 +14,43 @@ func (a *App) Package(args []string) int {
 	if err != nil {
 		return a.failf("%v", err)
 	}
+	switch args[0] {
+	case "advice":
+		if len(args) < 2 {
+			return ExitUsage
+		}
+		fmt.Fprintln(a.cfg.Stdout, a.InstallAdvice(args[1:]...))
+		return ExitOK
+	case "why":
+		if len(args) != 2 {
+			return ExitUsage
+		}
+		if manager == Pacman {
+			return ExitFalse
+		}
+		return a.xbpsPackageWhy(args[1])
+	}
 	if manager == Pacman {
 		return a.pacman(args)
 	}
 	return a.xbps(args)
+}
+
+func (a *App) xbpsPackageWhy(name string) int {
+	table, err := a.xbpsTable()
+	if err != nil {
+		return a.failf("%v", err)
+	}
+	mapping, ok := table[name]
+	if !ok || mapping.Special != "-" {
+		return ExitFalse
+	}
+	note := mapping.Note
+	if note == "" {
+		note = "Not packaged for Void."
+	}
+	fmt.Fprintln(a.cfg.Stdout, note)
+	return ExitOK
 }
 
 // Orphans lists packages that were installed as dependencies and are no longer
@@ -107,6 +140,12 @@ func (a *App) pacman(args []string) int {
 	default:
 		return ExitUsage
 	}
+	if verb == "available" && rest[0] == "--aur" {
+		if len(rest) == 1 {
+			return ExitUsage
+		}
+		return ExitOK
+	}
 	if verb == "local" {
 		for _, name := range rest {
 			fmt.Fprintln(a.cfg.Stdout, name)
@@ -115,20 +154,34 @@ func (a *App) pacman(args []string) int {
 	}
 	if verb == "install" {
 		aur, upgrade := false, false
+		var overwrite []string
 		for len(rest) > 0 && strings.HasPrefix(rest[0], "--") {
 			switch rest[0] {
 			case "--aur":
 				aur = true
+				rest = rest[1:]
 			case "--upgrade":
 				upgrade = true
+				rest = rest[1:]
+			case "--overwrite":
+				if len(rest) < 2 {
+					return ExitUsage
+				}
+				overwrite = append(overwrite, "--overwrite", rest[1])
+				rest = rest[2:]
 			default:
 				return ExitUsage
 			}
-			rest = rest[1:]
 		}
 		if len(rest) == 0 {
 			return ExitUsage
 		}
+		action := "-S"
+		if upgrade {
+			action = "-Syu"
+		}
+		installArgs := append([]string{action, "--needed", "--noconfirm"}, overwrite...)
+		installArgs = append(installArgs, rest...)
 		if aur {
 			helper := ""
 			if a.cfg.Runner.LookPath("yay") {
@@ -139,17 +192,9 @@ func (a *App) pacman(args []string) int {
 			if helper == "" {
 				return ExitAbsent
 			}
-			action := "-S"
-			if upgrade {
-				action = "-Syu"
-			}
-			return commandExit(a.run(helper, append([]string{action, "--needed", "--noconfirm"}, rest...)...))
+			return commandExit(a.run(helper, installArgs...))
 		}
-		action := "-S"
-		if upgrade {
-			action = "-Syu"
-		}
-		return commandExit(a.run("pacman", a.pacmanTransactionArgs(action, append([]string{"--needed", "--noconfirm"}, rest...)...)...))
+		return commandExit(a.run("pacman", a.pacmanTransactionArgs(installArgs[0], installArgs[1:]...)...))
 	}
 	var command []string
 	switch verb {
@@ -264,6 +309,12 @@ func (a *App) xbps(args []string) int {
 		}
 		return ExitFalse
 	}
+	if verb == "available" && rest[0] == "--aur" {
+		rest = rest[1:]
+		if len(rest) == 0 {
+			return ExitUsage
+		}
+	}
 	if verb == "local" {
 		for _, arch := range rest {
 			mapping := translatePackage(table, arch)
@@ -276,12 +327,18 @@ func (a *App) xbps(args []string) int {
 		for len(rest) > 0 && strings.HasPrefix(rest[0], "--") {
 			switch rest[0] {
 			case "--aur":
+				rest = rest[1:]
 			case "--upgrade":
 				upgrade = true
+				rest = rest[1:]
+			case "--overwrite":
+				if len(rest) < 2 {
+					return ExitUsage
+				}
+				rest = rest[2:]
 			default:
 				return ExitUsage
 			}
-			rest = rest[1:]
 		}
 		if len(rest) == 0 {
 			return ExitUsage

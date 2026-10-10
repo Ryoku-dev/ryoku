@@ -10,6 +10,7 @@ import (
 type packageMapping struct {
 	Names   []string
 	Special string
+	Note    string
 }
 
 type packageTable map[string]packageMapping
@@ -44,9 +45,9 @@ func readPackageTable(path string) (packageTable, error) {
 		if _, exists := table[fields[0]]; exists {
 			return nil, fmt.Errorf("%s:%d: duplicate package %s", path, lineNo, fields[0])
 		}
-		mapping := packageMapping{}
+		mapping := packageMapping{Note: strings.TrimSpace(fields[3])}
 		if fields[1] == "@repo" || fields[1] == "@fetch" || fields[1] == "-" {
-			if strings.TrimSpace(fields[3]) == "" {
+			if fields[1] != "-" && mapping.Note == "" {
 				return nil, fmt.Errorf("%s:%d: special mapping needs notes", path, lineNo)
 			}
 			mapping.Special = fields[1]
