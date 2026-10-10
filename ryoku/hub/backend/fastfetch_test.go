@@ -403,6 +403,38 @@ func TestWriteEffectiveFastfetchUsesPersistedPaletteMode(t *testing.T) {
 	}
 }
 
+// A rice's config colours its separators and title text through the named
+// display.color.title / display.color.separator slots, which fastfetch honours
+// directly. The wallpaper pass must recolour the ones present and leave a config
+// without them untouched.
+func TestApplyPaletteToDisplayRecoloursNamedSlots(t *testing.T) {
+	var palette ffPalette
+	palette.Keys = "1;2;3"
+	palette.Title = "4;5;6"
+	palette.Muted = "7;8;9"
+	palette.Percent.Green = "16;17;18"
+	palette.Percent.Yellow = "19;20;21"
+	palette.Percent.Red = "22;23;24"
+
+	in := json.RawMessage(`{"color":{"keys":"38;2;226;52;42","title":"#f3ede1","separator":"#8f8770"},"key":{"width":9}}`)
+	got := string(ffApplyPaletteToDisplay(in, palette))
+	for _, want := range []string{
+		`"keys":"38;2;1;2;3"`, `"title":"38;2;4;5;6"`, `"separator":"38;2;7;8;9"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("recoloured display missing %s:\n%s", want, got)
+		}
+	}
+
+	// A config with no named title/separator slots keeps only keys recoloured;
+	// the pass must not invent slots it does not have.
+	bare := json.RawMessage(`{"color":{"keys":"38;2;226;52;42"}}`)
+	gotBare := string(ffApplyPaletteToDisplay(bare, palette))
+	if strings.Contains(gotBare, `"title"`) || strings.Contains(gotBare, `"separator"`) {
+		t.Errorf("bare display gained slots it did not have:\n%s", gotBare)
+	}
+}
+
 func TestFastfetchPaletteRejectsOutOfRangeColours(t *testing.T) {
 	loadSample(t)
 	if err := os.WriteFile(fastfetchPalettePath(), []byte(`{
@@ -414,5 +446,125 @@ func TestFastfetchPaletteRejectsOutOfRangeColours(t *testing.T) {
 	}
 	if _, err := loadFastfetchPalette(); err == nil {
 		t.Fatal("out-of-range palette colour was accepted")
+	}
+}
+
+// The readout follows the wallpaper by default: with no state file pinning a
+// mode, a valid matugen palette makes the mode wallpaper. A box that has never
+// rendered a palette (first boot) falls back to the fixed brand palette.
+func TestFastfetchPaletteDefaultsToWallpaperWhenStateAbsent(t *testing.T) {
+	loadSample(t)
+	if err := os.WriteFile(fastfetchPalettePath(), []byte(`{
+  "keys":"1;2;3","title":"4;5;6","muted":"7;8;9",
+  "section":"10;11;12","rule":"13;14;15",
+  "percent":{"green":"16;17;18","yellow":"19;20;21","red":"22;23;24"}
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFastfetchPaletteMode(); got != ffPaletteWallpaper {
+		t.Fatalf("default palette mode = %q, want %q", got, ffPaletteWallpaper)
+	}
+}
+
+func TestFastfetchPaletteFallsBackToFixedWithoutPalette(t *testing.T) {
+	loadSample(t)
+	if got := readFastfetchPaletteMode(); got != ffPaletteFixed {
+		t.Fatalf("palette mode with no palette file = %q, want %q", got, ffPaletteFixed)
+	}
+}
+
+// End to end: a fresh box (no state file, palette rendered) gets a wallpaper-tinted
+// effective config, so the terminal readout matches the theme without the user
+// ever choosing a mode.
+func TestWriteEffectiveFastfetchDefaultsToWallpaperWithoutStateFile(t *testing.T) {
+	loadSample(t)
+	if err := os.WriteFile(fastfetchPalettePath(), []byte(`{
+  "keys":"31;32;33","title":"34;35;36","muted":"37;38;39",
+  "section":"40;41;42","rule":"43;44;45",
+  "percent":{"green":"46;47;48","yellow":"49;50;51","red":"52;53;54"}
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "effective.json")
+	if err := writeEffectiveFastfetch(out); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "38;2;31;32;33") {
+		t.Fatalf("default effective config did not follow the wallpaper palette:\n%s", b)
+	}
+	if strings.Contains(string(b), "38;2;226;52;42") {
+		t.Fatalf("default effective config still carries the fixed brand red:\n%s", b)
+	}
+}
+
+// In fixed mode the effective config is the user's own file byte-for-byte, so a
+// retint never rewrites their layout or comments.
+func TestWriteEffectiveFastfetchFixedCopiesConfigVerbatim(t *testing.T) {
+	loadSample(t)
+	out := filepath.Join(t.TempDir(), "effective.json")
+	if err := writeEffectiveFastfetch(out); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != sampleFF {
+		t.Fatalf("fixed mode rewrote the config instead of copying it verbatim:\n%s", b)
+	}
+}
+
+// A mode transition must rebuild the cache even though the config file itself
+// never changes. The bug this pins: a state file that is *removed* (returning to
+// the wallpaper default) has no mtime to compare, so an mtime-only freshness
+// check served a stale fixed-mode cache. The resolved-mode sidecar makes the
+// unset visible.
+func TestWriteEffectiveFastfetchRebuildsOnModeTransition(t *testing.T) {
+	loadSample(t)
+	if err := os.WriteFile(fastfetchPalettePath(), []byte(`{
+  "keys":"31;32;33","title":"34;35;36","muted":"37;38;39",
+  "section":"40;41;42","rule":"43;44;45",
+  "percent":{"green":"46;47;48","yellow":"49;50;51","red":"52;53;54"}
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(t.TempDir(), "effective.json")
+
+	// Pin a fixed palette: the cache copies the brand-red config verbatim.
+	if err := setFastfetchPaletteMode(ffPaletteFixed); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeEffectiveFastfetch(out); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "38;2;226;52;42") {
+		t.Fatalf("fixed cache lost the brand red:\n%s", b)
+	}
+
+	// Remove the pin (back to the wallpaper default) without touching the config.
+	// The cache must rebuild tinted, not serve the stale fixed copy.
+	if err := os.Remove(fastfetchPaletteStatePath()); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeEffectiveFastfetch(out); err != nil {
+		t.Fatal(err)
+	}
+	b, err = os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "38;2;31;32;33") {
+		t.Fatalf("cache did not rebuild after the mode was unset:\n%s", b)
+	}
+	if strings.Contains(string(b), "38;2;226;52;42") {
+		t.Fatalf("cache kept stale fixed-mode brand red after unset:\n%s", b)
 	}
 }

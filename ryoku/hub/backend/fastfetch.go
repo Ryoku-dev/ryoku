@@ -42,6 +42,11 @@ var (
 	ffKeysColor   = regexp.MustCompile(`(?:38;2;)?([0-9]+;[0-9]+;[0-9]+)`)
 	ffRGBTriple   = regexp.MustCompile(`^([0-9]{1,3});([0-9]{1,3});([0-9]{1,3})$`)
 	ffTrueColorRe = regexp.MustCompile("\x1b\\[((?:1;)?)38;2;([0-9]+;[0-9]+;[0-9]+)m")
+	// ffSlotTrueColorRe matches a rice's inline fastfetch colour placeholder
+	// "{#38;2;R;G;B}", whose R;G;B is a fixed brand tone baked into the format
+	// (fastfetch resolves it to literal ANSI). The wallpaper pass rewrites the
+	// ones that name a palette role.
+	ffSlotTrueColorRe = regexp.MustCompile(`\{#((?:1;)?38;2;)([0-9]+;[0-9]+;[0-9]+)\}`)
 )
 
 func ffBaseOS() string {
@@ -193,16 +198,23 @@ func ffPaletteMode(mode string) string {
 	return ffPaletteFixed
 }
 
+// readFastfetchPaletteMode: the readout follows the wallpaper palette by
+// default, so a fresh box tints with the theme instead of the fixed brand
+// red. A box whose palette file has never rendered (first boot, before
+// matugen's first pass) or holds invalid colours falls back to the fixed
+// brand palette, which is exactly what the shipped config draws.
 func readFastfetchPaletteMode() string {
 	b, err := os.ReadFile(fastfetchPaletteStatePath())
-	if err != nil {
+	if err == nil {
+		var state ffPaletteState
+		if json.Unmarshal(b, &state) == nil {
+			return ffPaletteMode(state.Palette)
+		}
+	}
+	if _, err := loadFastfetchPalette(); err != nil {
 		return ffPaletteFixed
 	}
-	var state ffPaletteState
-	if json.Unmarshal(b, &state) != nil {
-		return ffPaletteFixed
-	}
-	return ffPaletteMode(state.Palette)
+	return ffPaletteWallpaper
 }
 
 func setFastfetchPaletteMode(mode string) error {
@@ -554,26 +566,46 @@ func ffApplyPaletteToRow(raw json.RawMessage, palette ffPalette) (json.RawMessag
 	if !ok || format == "" {
 		return raw, nil
 	}
-	row["format"] = ffTrueColorRe.ReplaceAllStringFunc(format, func(code string) string {
+	role := func(color string) string {
+		switch color {
+		case ffAccent:
+			return palette.Section
+		case ffBright:
+			return palette.Title
+		case ffTan:
+			return palette.Muted
+		case ffDim:
+			return palette.Rule
+		default:
+			return ""
+		}
+	}
+	// Literal ANSI codes (the shipped config) and inline {#38;2;R;G;B} colour
+	// placeholders (a rice's config, which fastfetch resolves to literal ANSI)
+	// both carry the brand tones; rewrite each that names a palette role.
+	format = ffTrueColorRe.ReplaceAllStringFunc(format, func(code string) string {
 		match := ffTrueColorRe.FindStringSubmatch(code)
 		if match == nil {
 			return code
 		}
-		color := match[2]
-		switch color {
-		case ffAccent:
-			color = palette.Section
-		case ffBright:
-			color = palette.Title
-		case ffTan:
-			color = palette.Muted
-		case ffDim:
-			color = palette.Rule
-		default:
+		mapped := role(match[2])
+		if mapped == "" {
 			return code
 		}
-		return "\x1b[" + match[1] + "38;2;" + color + "m"
+		return "\x1b[" + match[1] + "38;2;" + mapped + "m"
 	})
+	format = ffSlotTrueColorRe.ReplaceAllStringFunc(format, func(code string) string {
+		match := ffSlotTrueColorRe.FindStringSubmatch(code)
+		if match == nil {
+			return code
+		}
+		mapped := role(match[2])
+		if mapped == "" {
+			return code
+		}
+		return "{#" + match[1] + mapped + "}"
+	})
+	row["format"] = format
 	return json.Marshal(row)
 }
 
@@ -582,6 +614,18 @@ func ffApplyPaletteToDisplay(display json.RawMessage, palette ffPalette) json.Ra
 	var doc map[string]any
 	if json.Unmarshal(display, &doc) != nil {
 		doc = map[string]any{}
+	}
+	// fastfetch reads its key/value separator and title-module colour straight
+	// from these named display.color slots (unlike the {#...} format tokens it
+	// strips). Recolour the ones the config sets so the separators and title text
+	// follow the theme; a config without them is left untouched.
+	if color, ok := doc["color"].(map[string]any); ok {
+		if _, ok := color["title"]; ok {
+			color["title"] = "38;2;" + palette.Title
+		}
+		if _, ok := color["separator"]; ok {
+			color["separator"] = "38;2;" + palette.Muted
+		}
 	}
 	percent, _ := doc["percent"].(map[string]any)
 	if percent == nil {
@@ -672,15 +716,27 @@ func fastfetchEffectiveFresh(path string, mode string) bool {
 	if err != nil || out.IsDir() {
 		return false
 	}
-	inputs := []string{fastfetchConfigPath(), fastfetchPaletteStatePath()}
+	// The config is always required (a missing one is not a fresh cache). The
+	// palette file is required in wallpaper mode. The resolved mode is recorded in
+	// a sidecar (see effectiveModeMarker): a state-file mtime cannot detect a
+	// removal that returns to the default, so the sidecar is what makes every
+	// mode transition rebuild.
+	required := []string{fastfetchConfigPath()}
 	if mode == ffPaletteWallpaper {
-		inputs = append(inputs, fastfetchPalettePath())
+		required = append(required, fastfetchPalettePath())
+	}
+	for _, input := range required {
+		info, err := os.Stat(input)
+		if err != nil || out.ModTime().Before(info.ModTime()) {
+			return false
+		}
+	}
+	stored, err := os.ReadFile(effectiveModeMarker(path))
+	if err != nil || strings.TrimSpace(string(stored)) != mode {
+		return false
 	}
 	if executable, err := os.Executable(); err == nil {
-		inputs = append(inputs, executable)
-	}
-	for _, input := range inputs {
-		info, err := os.Stat(input)
+		info, err := os.Stat(executable)
 		if err != nil || out.ModTime().Before(info.ModTime()) {
 			return false
 		}
@@ -688,21 +744,48 @@ func fastfetchEffectiveFresh(path string, mode string) bool {
 	return true
 }
 
+// effectiveModeMarker is the sidecar path that records which palette mode
+// produced the effective config at path. The palette mode cannot be detected by
+// mtime alone: a state file that is *removed* (returning to the wallpaper
+// default) has no timestamp to compare, so a stale fixed-mode cache would be
+// served. Storing the resolved mode beside the cache makes every transition
+// (set, change, unset) visible.
+func effectiveModeMarker(path string) string { return path + ".mode" }
+
+// writeEffectiveFastfetch renders the config fastfetch should actually read into
+// path. It is the single source of truth for the palette default: the wrapper
+// always runs this and reads the result, so the wallpaper-by-default decision
+// lives here, not in shell. Fixed mode copies the user's config verbatim (a
+// retint never rewrites their layout or comments); wallpaper mode rebuilds it
+// with the live Material palette swapped in for the fixed brand tones.
 func writeEffectiveFastfetch(path string) error {
 	mode := readFastfetchPaletteMode()
 	if fastfetchEffectiveFresh(path, mode) {
 		return nil
 	}
-	model, err := loadFastfetch()
-	if err != nil {
+	var b []byte
+	if mode != ffPaletteWallpaper {
+		raw, err := os.ReadFile(fastfetchConfigPath())
+		if err != nil {
+			return err
+		}
+		b = raw
+	} else {
+		model, err := loadFastfetch()
+		if err != nil {
+			return err
+		}
+		model.Palette = mode
+		built, err := buildFastfetchEffective(model)
+		if err != nil {
+			return err
+		}
+		b = built
+	}
+	if err := atomicWrite(path, b, 0o600); err != nil {
 		return err
 	}
-	model.Palette = mode
-	b, err := buildFastfetchEffective(model)
-	if err != nil {
-		return err
-	}
-	return atomicWrite(path, b, 0o600)
+	return atomicWrite(effectiveModeMarker(path), []byte(mode+"\n"), 0o600)
 }
 
 // ffApplyAccentToDisplay writes the accent into display.color.keys so the key

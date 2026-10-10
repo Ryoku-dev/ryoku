@@ -103,8 +103,3 @@ output_path = "~/.config/ryotunes/skins/matugen/skin.json"
 input_path = "~/.config/matugen/templates/starship-colors.toml"
 output_path = "~/.config/starship/ryoku-colors.toml"
 post_hook = "ryoku-hub starship refresh"
-
-# Fastfetch's wrapper merges this palette over the user-owned config at launch.
-[templates.fastfetch]
-input_path = "~/.config/matugen/templates/fastfetch-colors.json"
-output_path = "~/.config/fastfetch/ryoku-colors.json"

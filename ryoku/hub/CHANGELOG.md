@@ -17,6 +17,12 @@
   (`quickshell/Singletons/Updates.qml`, `quickshell/pages/UpdatesPage.qml`,
   `quickshell/pages/UpdateRun.qml`, `backend/gpuapply.go`,
   `backend/import_apply.go`).
+- **The fastfetch readout's palette is owned by the Hub backend.** `ryoku-hub
+  fastfetch effective` copies the user's config verbatim in fixed mode and
+  rebuilds it tinted with the live Material palette in wallpaper mode, so the
+  terminal readout follows the wallpaper like the other themed surfaces and a
+  retint never rewrites the user's layout. A sidecar records which mode produced
+  the effective config, so returning to the default rebuilds it (`backend/fastfetch.go`).
 - **Add-ons is a library of what you installed, not a wall of toggles.**
   Desktop widgets no longer appear there; they are managed in Desktop. Shell
   add-ons (bar glyphs, popouts, panels) and bundles are cards in a grid with

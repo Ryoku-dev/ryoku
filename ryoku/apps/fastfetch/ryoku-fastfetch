@@ -20,7 +20,6 @@ set -uo pipefail
 
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 config="$config_home/fastfetch/config.jsonc"
-palette_state="$config_home/ryoku/fastfetch.json"
 data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 
 if [[ ! -v RYOKU_BASE_OS ]]; then
@@ -51,12 +50,14 @@ if [[ -f "$config" ]]; then
 fi
 
 effective="$config"
-if [[ -f "$palette_state" ]] \
-  && grep -Eq '"palette"[[:space:]]*:[[:space:]]*"wallpaper"' "$palette_state"; then
-  cache="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.json"
-  if ryoku-hub fastfetch effective "$cache"; then
-    effective="$cache"
-  fi
+# The palette default (follow the wallpaper unless the user pinned a fixed
+# palette) is owned by `ryoku-hub fastfetch effective`, which copies the user's
+# config verbatim in fixed mode and rebuilds it tinted with the live Material
+# palette in wallpaper mode. Always run it; fall back to the raw config if the
+# backend is missing or errors, so a broken theme path never eats the readout.
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.json"
+if ryoku-hub fastfetch effective "$cache" 2>/dev/null; then
+  effective="$cache"
 fi
 
 if [[ ! -f "$config" ]]; then

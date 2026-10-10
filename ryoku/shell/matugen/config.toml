@@ -20,6 +20,14 @@ output_path = "~/.cache/ryoku/hypr-colors.lua"
 input_path = "~/.config/matugen/templates/btop.theme"
 output_path = "~/.config/btop/themes/ryoku.theme"
 
+# The Fastfetch readout is a terminal surface like kitty and btop, so it rides
+# the core palette: it follows the wallpaper even when "Theme apps" is off. The
+# ryoku-fastfetch wrapper merges this palette over the user-owned config.jsonc at
+# launch, so a retint never rewrites the user's layout.
+[templates.fastfetch]
+input_path = "~/.config/matugen/templates/fastfetch-colors.json"
+output_path = "~/.config/fastfetch/ryoku-colors.json"
+
 # The screen-share source chooser xdph launches. A core desktop surface, not a
 # third-party app: it renders here so the chooser follows the wallpaper even
 # with "Theme apps" off, instead of opening stock-grey in a themed session.
