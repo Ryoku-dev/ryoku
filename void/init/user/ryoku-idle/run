@@ -1,6 +1,4 @@
 #!/bin/sh
-# Translation of ryoku/shell/systemd/user/ryoku-idle.service.
-# Restart=on-failure: a crash restarts, a clean stop parks (see finish).
 exec 2>&1
 
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"

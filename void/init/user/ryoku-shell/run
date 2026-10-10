@@ -1,43 +1,25 @@
 #!/bin/sh
-# Translation of ryoku/shell/systemd/user/ryoku-shell.service.
-# The daemon supervises every surface, so it must itself be supervised: runsv
-# restarts it forever, which is systemd's Restart=always with no rate limit
-# (StartLimitBurst is an accepted loss; a config that cannot load is detected
-# doctor-side instead). KillMode=process is natural: runsv signals only this
-# child, and apps the user launched from the shell survive a shell reload.
 exec 2>&1
 
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
 load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
 
-# ConditionEnvironment=WAYLAND_DISPLAY: fail closed, park, never crash-loop.
 wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
 load_session_env
 
-# RYOKU_POLKIT_AGENT: an import that does not land would silently drop the
-# polkit agent back to the stock one, so it is set here, not only via session env.
+# Keep the Ryoku agent selected if session environment import misses it.
 export RYOKU_POLKIT_AGENT=1
-# QtMultimedia video must software-decode: on hybrid-GPU boxes hardware-decoded
-# frames land on the offload GPU and never composite (the same failure that
-# hits Electron/CEF).
+# Hardware-decoded frames on an offload GPU do not composite on hybrid systems.
 export QT_MEDIA_BACKEND=ffmpeg
 export QT_FFMPEG_DECODING_HW_DEVICE_TYPES=
 
-# ExecStartPre=-ryoku-shell quit: a stray unsupervised daemon (an old deploy, a
-# crashed update) holds the socket and would wedge the start; ask it to quit
-# first. '-' prefix: failure is fine.
+# Clear a stale daemon that may still own the socket.
 "$BIN/ryoku-shell" quit >/dev/null 2>&1 || true
-# ExecStartPre=ryoku-qylock-activate (no '-' prefix: a failure blocks the start).
 "$BIN/ryoku-qylock-activate" || exec sv down .
 
-# ExecStartPost=-ryoku-power-cutover qylock-guards-stop and
-# ExecStartPost=-ryoku-hub voxtype ensure are both '-' prefixed best effort.
-# runit has no post-start hook, so they run backgrounded right before exec and
-# never delay the daemon start.
+# Runit has no post-start hook; run these jobs without delaying startup.
 ( "$BIN/ryoku-power-cutover" qylock-guards-stop >/dev/null 2>&1 || true
   "$BIN/ryoku-hub" voxtype ensure >/dev/null 2>&1 || true ) &
 
-# ExecStart. TimeoutStartSec=0: no start deadline, matching runit (none exists).
-# The dev deploy repoints RYOKU_BIN_DIR at ~/.local/bin; the package ships /usr/bin.
 exec "$BIN/ryoku-shell" daemon

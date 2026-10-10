@@ -1,18 +1,8 @@
 #!/bin/sh
-# Translation of ryoku/shell/systemd/user/ryoku-bt-agent.service.
-# After=/Wants=/PartOf=bluetooth.service becomes a readiness wait on the
-# bluetoothd service (a bluetooth restart drops the agent registration, and
-# the daemon dying with its dependency is what PartOf gave us: finish parks
-# this service when bluetoothd is gone). The KeyboardDisplay agent auto-confirms
-# BLE HID pairing prompts (#308); bluetoothctl exits at stdin EOF, so the
-# tail -f hold stays.
 exec 2>&1
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
 load_session_env
 wait_service bluetoothd "${RYOKU_WAIT_BLUETOOTHD:-60}" || exec sv down .
 
-# systemd ran this as /bin/sh -c 'tail -f /dev/null | bluetoothctl ...'; keep
-# the same shape so bluetoothctl sees a never-EOF stdin. The inner exec makes
-# bluetoothctl the direct pipeline child. KillMode=control-group has no runit
-# analogue: a stop can orphan the tail hold, which the session teardown reaps.
+# Keep stdin open so bluetoothctl remains registered as the pairing agent.
 exec /bin/sh -c 'tail -f /dev/null | exec bluetoothctl --agent KeyboardDisplay'

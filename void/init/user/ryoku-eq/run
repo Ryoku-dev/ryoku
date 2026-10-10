@@ -1,10 +1,4 @@
 #!/bin/sh
-# Translation of ryoku/shell/systemd/user/ryoku-eq.service.
-# The filter is a PipeWire client: After=/PartOf=pipewire becomes a wait on
-# pipewire's D-Bus name, and a pipewire restart propagates through finish
-# (the run child dies with the server, runsv restarts this service).
-# ConditionPathExists=%t/ryoku/eq/filter-chain.conf: ryoku-eq writes the
-# config before ever starting the service, so wait for it, do not assume it.
 exec 2>&1
 
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"

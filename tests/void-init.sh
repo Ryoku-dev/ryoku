@@ -165,7 +165,12 @@ check_parity() {
 	bin=$(grep -E '^ExecStart=' "$unit" | tail -1 | sed 's/^ExecStart=//; s/^@//; s/^-//' | awk '{print $1}')
 	if [[ -n $bin ]]; then
 		local base=${bin##*/}
-		grep -qF "$base" "$run" || parity_fail "ExecStart binary $base of $unit not found in $run"
+		if [[ $base == systemctl ]]; then
+			grep -v '^[[:space:]]*#' "$run" | grep -qE '(^|[[:space:]])(sv|ryoku-host svc) ' \
+				|| parity_fail "systemctl ExecStart of $unit has no sv or ryoku-host svc call in $run"
+		else
+			grep -qF "$base" "$run" || parity_fail "ExecStart binary $base of $unit not found in $run"
+		fi
 	fi
 
 	if grep -q '^Restart=on-failure' "$unit"; then

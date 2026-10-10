@@ -1,7 +1,4 @@
 #!/bin/sh
-# Translation of ryoku/shell/systemd/user/ryoku-clamshell.service.
-# Restart=on-failure: a crash restarts, a clean stop parks (see finish).
-# TimeoutStopSec=5 has no runit analogue: sv down waits for the run child.
 exec 2>&1
 
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"

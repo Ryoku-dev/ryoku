@@ -1,17 +1,5 @@
-# The completeness manifest: every systemd unit, target, timer, drop-in and
-# environment generator in the repo, and its Void translation. tests/void-init.sh
-# fails when a unit exists in the repo without a row here, so a new unit can
-# never silently skip Void.
-#
-# Columns (tab separated):
-#   source        systemd artifact, repo-relative
-#   verdict       translated | accepted-loss
-#   translation   runit translation, repo-relative ("-" when verdict is not translated)
-#   notes         what did not transfer and why
-#
-# Translation rules and the two accepted systemd behaviors with no runit
-# analogue (restart rate limits, declarative cross-service ordering) are in
-# void/README.md.
+# Completeness manifest checked by tests/void-init.sh.
+# Columns: source, verdict, translation, notes (tab-separated).
 source	verdict	translation	notes
 ryoku/shell/systemd/user/ryoku-shell.service	translated	void/init/user/ryoku-shell	ExecStartPre/Post and ExecStop move into run/finish; StartLimitBurst is an accepted loss (doctor-side detection instead); KillMode=process is natural under runsv
 ryoku/shell/systemd/user/ryogami.service	translated	void/init/user/ryogami	same StartLimitBurst loss; MALLOC_CONF exported in run

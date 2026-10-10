@@ -1,6 +1,5 @@
 #!/bin/sh
-# A compositor session must republish its environment before stale supervised
-# processes restart, otherwise they reconnect to the previous display.
+# Republish the compositor environment before restarting supervised processes.
 
 INIT_LIB=${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}
 ROSTER=$INIT_LIB/session-services

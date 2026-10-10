@@ -1,10 +1,5 @@
 #!/bin/sh
-# Translation of ryoku/cli/systemd/ryoku.tmpfiles.conf. Void has no
-# tmpfiles.d, so the /var/lib/ryoku tree is created by this boot oneshot with
-# the same owners and modes the tmpfiles entry declares. Idempotent: mkdir -p
-# and touch never disturb existing content, and the modes are re-asserted
-# every boot because drift here broke the greeter hand-off before
-# (see the ryoku-shared-state-dir-mode-drift history).
+# Void has no tmpfiles.d, so this oneshot creates its state tree.
 exec 2>&1
 
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
@@ -13,8 +8,7 @@ load_session_env
 install -d -m 0755 -o root -g root /var/lib/ryoku
 install -d -m 1777 -o root -g root /var/lib/ryoku/boot
 
-# f lines: create when absent, never clobber content; re-assert the mode so a
-# drifted file is repaired, matching tmpfiles' f semantics on every boot.
+# Match tmpfiles f semantics: preserve content while repairing owner and mode.
 for _f in /var/lib/ryoku/greeter-primary /var/lib/ryoku/greeter-numlock; do
 	[ -e "$_f" ] || install -m 0666 -o root -g root /dev/null "$_f"
 	chmod 0666 "$_f" 2>/dev/null || true

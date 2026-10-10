@@ -1,19 +1,6 @@
 #!/bin/sh
-# Translation of environment.d(5) for hosts without a systemd user manager.
-# On systemd the user manager reads these files and every session process
-# inherits them; the Ryoku session file sets PATH (a source build lives in
-# ~/.local/bin), the QML import path, the Qt/GTK platform and the polkit agent
-# switch there. Void's SDDM session script sources /etc/profile for every login
-# shell before it execs the compositor, so this file, installed as
-# /etc/profile.d/ryoku-environment-d.sh, gives the compositor and everything it
-# spawns the same environment.
-#
-# Same search order and override rule as systemd: /usr/lib, /etc, then the
-# user's own directory, files in lexical order, later assignments win.
-# $VAR and ${VAR} expand against what is already set, as environment.d does.
-# A value carrying command substitution, quotes or backslashes is skipped:
-# environment.d never ran commands, and this file is sourced by every login
-# shell, so nothing in it may reach eval unescaped.
+# Void has no environment.d reader, so this profile hook supplies the login session.
+# Match systemd's directory precedence and lexical override order.
 
 [ -d /run/systemd/system ] && return 0 2>/dev/null
 
@@ -22,10 +9,10 @@ for _ryoku_envd_dir in /usr/lib/environment.d /etc/environment.d "${XDG_CONFIG_H
 	for _ryoku_envd_file in "$_ryoku_envd_dir"/*.conf; do
 		[ -r "$_ryoku_envd_file" ] || continue
 		while IFS= read -r _ryoku_envd_line || [ -n "$_ryoku_envd_line" ]; do
+			# Reject shell syntax before eval; environment.d expands variables but runs no commands.
+			# shellcheck disable=SC2016,SC1003
 			case $_ryoku_envd_line in
 				''|'#'*) continue ;;
-				# literal characters to reject, not expansions
-				# shellcheck disable=SC2016,SC1003
 				*'`'*|*'$('*|*'"'*|*'\'*) continue ;;
 				*=*) ;;
 				*) continue ;;
