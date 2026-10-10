@@ -247,8 +247,11 @@ func Update(args []string) (err error) {
 					// only advertise `ryoku rollback` when the pre snapshot it needs exists;
 					// snapperPre is best-effort and returns "" when it was skipped.
 					hint := i18n.T("no pre-update snapshot exists (snapper was unavailable), so `ryoku rollback` cannot revert this; recover with pacman directly")
-					if updatePackageManager() == host.XBPS {
+					switch updatePackageManager() {
+					case host.XBPS:
 						hint = i18n.T("no pre-update snapshot exists (snapper was unavailable), so `ryoku rollback` cannot revert this; recover with XBPS directly")
+					case host.DNF:
+						hint = i18n.T("snapshots are unavailable on Fedora; recover with DNF directly")
 					}
 					if pre != "" {
 						hint = i18n.T("see `ryoku rollback` (pre-update snapshot ") + pre + ")"
@@ -343,16 +346,23 @@ func humanBytes(n uint64) string {
 // every escalation the rest of the update makes finds it instead of prompting.
 // Several of those prompts cannot be seen or answered: the pre-snapshot runs
 // through RunOut (no tty), pacman's runs through the curated output pipe, and yay
-// and flatpak escalate on their own -- an unseen prompt there is exactly why users
-// learned to run `sudo -v` by hand first. No tty -> skip (a timer run has no
-// terminal to prompt on), and a Hub-driven run asks through the Hub instead
-// (its pseudo terminal has nobody at it); a NOPASSWD box sees nothing.
+// and flatpak escalate on their own. No tty skips priming, and a Hub-driven run
+// asks through the Hub instead. A non-interactive probe comes first because
+// `sudo -v` may still prompt on a NOPASSWD box when another rule sets verifypw.
 // Best-effort.
+var (
+	primeSudoRun = sys.Run
+	primeSudoTTY = sys.StdinIsTTY
+)
+
 func primeSudo() {
-	if updateUI() == "hub" || !sys.StdinIsTTY() {
+	if updateUI() == "hub" || !primeSudoTTY() {
 		return
 	}
-	_ = sys.Run("sudo", "-v")
+	if primeSudoRun("sudo", "-n", "true") == nil {
+		return
+	}
+	_ = primeSudoRun("sudo", "-v")
 }
 
 // sudoKeepalive refreshes the cached credential every minute so a long
@@ -438,8 +448,11 @@ func runSystemLane(pending []updateItem) {
 	progress.at("system")
 	manager := updatePackageManager()
 	command := "pacman -Syu"
-	if manager == host.XBPS {
+	switch manager {
+	case host.XBPS:
 		command = "xbps-install -Syu"
+	case host.DNF:
+		command = host.DNFCommand() + " upgrade -y --refresh"
 	}
 	progress.logf(i18n.T("Updating %d system package(s) (%s, kernel included)"), len(pending), command)
 	if err := runInhibited("System package upgrade", systemUpgradeArgs()); err != nil {
@@ -474,8 +487,11 @@ func reportSystemLane(pending []updateItem) {
 		return
 	}
 	command := "sudo pacman -Syu"
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		command = "sudo xbps-install -Syu"
+	case host.DNF:
+		command = "sudo " + host.DNFCommand() + " upgrade -y --refresh"
 	}
 	progress.logf(i18n.T("%d system package(s) waiting from your distribution (kernel included): take them with `%s`"), len(pending), command)
 }
@@ -500,10 +516,10 @@ func healPackageUpgrade(conflicts []string, err error) {
 		return
 	}
 	progress.logf(i18n.T("Package database rejected; refreshing the Ryoku repository and retrying"))
-	if updatePackageManager() == host.XBPS {
-		_ = repoSync(true)
-	} else {
+	if updatePackageManager() == host.Pacman {
 		_ = sys.DropRyokuSyncDB()
+	} else {
+		_ = repoSync(true)
 	}
 }
 
@@ -538,10 +554,14 @@ var (
 		return host.Default().Package([]string{"installed", name}) == host.ExitOK
 	}
 	splitMetaRemove = func(name string) error {
-		if updatePackageManager() == host.XBPS {
+		switch updatePackageManager() {
+		case host.XBPS:
 			return privileged("ryoku-host", "pkg", "remove", name)
+		case host.DNF:
+			return privileged("rpm", "-e", "--nodeps", name)
+		default:
+			return privileged("pacman", "-Rdd", "--noconfirm", name)
 		}
-		return privileged("pacman", "-Rdd", "--noconfirm", name)
 	}
 )
 
@@ -613,11 +633,15 @@ const RyokuOverwriteGlob = "/usr/bin/ryoku-*," +
 // by hand. It keeps the --overwrite glob so a seeded path a Ryoku package now
 // owns cannot abort the transaction here either.
 func systemUpgradeArgs() []string {
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		return []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", "xbps-install", "-Syu"}
+	case host.DNF:
+		return []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", host.DNFCommand(), "upgrade", "-y", "--refresh"}
+	default:
+		return []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
+			"pacman", "-Syu", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
 	}
-	return []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
-		"pacman", "-Syu", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
 }
 
 // runAURUpgrade runs `yay -Sua` under the same sleep inhibitor.
@@ -754,7 +778,9 @@ func updateStage2(pre string, withSystem bool) (err error) {
 		}
 	}()
 	cutoverGuard, err := acquireUpdateSleepGuard(
-		needsUpdateSleepGuard(updateInitSystem(), graphicalPresent, localGraphicalPresent),
+		needsUpdateSleepGuard(
+			updatePackageManager(), updateInitSystem(), graphicalPresent, localGraphicalPresent,
+		),
 	)
 	if err != nil {
 		progress.fail(err)
@@ -1027,15 +1053,23 @@ func hasUpdateSleepGuard(inhibitors []login1Inhibitor, uid uint32) bool {
 	return false
 }
 
-func needsUpdateSleepGuard(init host.InitSystem, graphicalPresent, localGraphicalPresent bool) bool {
+func needsUpdateSleepGuard(
+	manager host.PackageManager,
+	init host.InitSystem,
+	graphicalPresent, localGraphicalPresent bool,
+) bool {
+	if manager == host.DNF {
+		return graphicalPresent || localGraphicalPresent
+	}
 	return init != host.Runit || graphicalPresent || localGraphicalPresent
 }
 
 func acquireUpdateSleepGuard(sessionGuardRequired bool) (*updateSleepGuard, error) {
 	init := updateInitSystem()
-	// A runit SSH-only update has no session suspend owners to replace, and
-	// elogind denies inactive remote sessions permission to take a block inhibitor.
-	if init == host.Runit && !sessionGuardRequired {
+	// SSH-only updates have no local suspend owners to replace. elogind denies
+	// inactive remote runit sessions a block inhibitor, while Fedora's login1
+	// asks polkit for an interactive password.
+	if !sessionGuardRequired && (init == host.Runit || updatePackageManager() == host.DNF) {
 		return &updateSleepGuard{}, nil
 	}
 	if init == host.Systemd {
@@ -1350,7 +1384,7 @@ func gatherSnapHelpers() snapHelpers {
 // so the gating (no snapshots without btrfs + snapper; limine-snapper-sync only
 // under Limine) is unit-testable without touching /etc or pacman.
 func wantedSnapperHelpers(h snapHelpers) []string {
-	if !h.rootBtrfs || !h.snapper {
+	if h.manager == host.DNF || !h.rootBtrfs || !h.snapper {
 		return nil
 	}
 	if h.manager == host.XBPS && !h.snapperConfigured {
@@ -1823,9 +1857,12 @@ func Status(args []string) error {
 	// box that reads "up to date" above can still owe its distribution a
 	// kernel.
 	if r.SystemPending > 0 {
-		if updatePackageManager() == host.XBPS {
+		switch updatePackageManager() {
+		case host.XBPS:
 			fmt.Printf(i18n.T("system:        %d package(s) waiting (sudo xbps-install -Syu)\n"), r.SystemPending)
-		} else {
+		case host.DNF:
+			fmt.Printf(i18n.T("system:        %d package(s) waiting (sudo %s upgrade -y --refresh)\n"), r.SystemPending, host.DNFCommand())
+		default:
 			fmt.Printf(i18n.T("system:        %d package(s) waiting (sudo pacman -Syu)\n"), r.SystemPending)
 		}
 	} else {
@@ -1921,9 +1958,11 @@ func baseStatus() statusReport {
 	}
 	installed, _ := host.Default().PackageVersion("ryoku-desktop")
 	latest := latestAvailable("ryoku-desktop")
-	for _, u := range pendingUpdates() {
-		if u.Name == "ryoku-desktop" {
-			latest = u.New
+	if updatePackageManager() != host.DNF {
+		for _, u := range pendingUpdates() {
+			if u.Name == "ryoku-desktop" {
+				latest = u.New
+			}
 		}
 	}
 	return packagedStatus(installed, latest)
@@ -2031,8 +2070,11 @@ type updateItem struct {
 // (pacman-contrib). syncs to a private db, so no root needed. empty when
 // the system is current or checkupdates is absent.
 func pendingUpdates() []updateItem {
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		return filterXBPSUpdates(true)
+	case host.DNF:
+		return filterDNFUpdates(true)
 	}
 	updates := []updateItem{}
 	if !sys.Has("checkupdates") {
@@ -2054,10 +2096,14 @@ func pendingUpdates() []updateItem {
 // systemPackageUpdates lists what a system upgrade would pull outside the Ryoku
 // channel: repo packages (checkupdates) and AUR packages (yay -Qua). Check-only.
 func systemPackageUpdates() []updateItem {
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		return filterXBPSUpdates(false)
+	case host.DNF:
+		return filterDNFUpdates(false)
+	default:
+		return append(pendingUpdates(), aurUpdates()...)
 	}
-	return append(pendingUpdates(), aurUpdates()...)
 }
 
 func filterXBPSUpdates(ryoku bool) []updateItem {
@@ -2076,9 +2122,100 @@ func filterXBPSUpdates(ryoku bool) []updateItem {
 	return filtered
 }
 
+var runDNFCheckUpdate = func(ctx context.Context) (string, int, error) {
+	command, verb := host.DNFCommand(), "check-update"
+	if filepath.Base(command) == "dnf5" {
+		verb = "check-upgrade"
+	}
+	cmd := exec.CommandContext(ctx, command, verb, "-y")
+	out, err := cmd.Output()
+	if err == nil {
+		return string(out), 0, nil
+	}
+	var exit *exec.ExitError
+	if errors.As(err, &exit) {
+		if exit.ExitCode() == 100 {
+			return string(out), 100, nil
+		}
+		return string(out), exit.ExitCode(), err
+	}
+	return string(out), -1, err
+}
+
+var dnfInstalledVersions = func() map[string]string {
+	versions := map[string]string{}
+	out, err := sys.RunOut("rpm", "-qa", "--qf", "%{NAME}\\t%{EPOCHNUM}:%{VERSION}-%{RELEASE}\\n")
+	if err != nil {
+		return versions
+	}
+	for _, line := range lines(out) {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			versions[fields[0]] = fields[1]
+		}
+	}
+	return versions
+}
+
+func dnfPendingUpdates(exclude map[string]bool) []updateItem {
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	out, code, err := runDNFCheckUpdate(ctx)
+	if err != nil || code != 0 && code != 100 {
+		return nil
+	}
+	var updates []updateItem
+	for _, line := range lines(out) {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		name := dnfUpdateName(fields[0])
+		if name == "" || exclude[name] {
+			continue
+		}
+		updates = append(updates, updateItem{Name: name, New: fields[1]})
+	}
+	if len(updates) == 0 {
+		return updates
+	}
+	installed := dnfInstalledVersions()
+	for index := range updates {
+		updates[index].Old = installed[updates[index].Name]
+	}
+	return updates
+}
+
+func dnfUpdateName(value string) string {
+	for _, suffix := range []string{".x86_64", ".noarch", ".i686", ".aarch64"} {
+		if strings.HasSuffix(value, suffix) {
+			return strings.TrimSuffix(value, suffix)
+		}
+	}
+	return ""
+}
+
+func filterDNFUpdates(ryoku bool) []updateItem {
+	packages, err := repositoryHost().RepoPackages()
+	if err != nil {
+		return nil
+	}
+	names := make(map[string]bool, len(packages))
+	for _, pkg := range packages {
+		names[pkg.Name] = true
+	}
+	var filtered []updateItem
+	for _, update := range dnfPendingUpdates(nil) {
+		if names[update.Name] == ryoku {
+			filtered = append(filtered, update)
+		}
+	}
+	return filtered
+}
+
 // aurUpdates lists AUR packages with a newer version via `yay -Qua` (no install).
 func aurUpdates() []updateItem {
-	if updatePackageManager() == host.XBPS {
+	if updatePackageManager() != host.Pacman {
 		return []updateItem{}
 	}
 	ups := []updateItem{}

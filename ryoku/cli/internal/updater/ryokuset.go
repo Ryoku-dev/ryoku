@@ -189,13 +189,43 @@ func refreshDBArgs(force bool) []string {
 // snapper pre/post pair; --overwrite adopts the paths the installer and
 // deploy.sh seed unowned (see RyokuOverwriteGlob).
 func ryokuInstallArgs(set []string) []string {
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		args := []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", "xbps-install", "-Syu"}
 		return append(args, set...)
+	case host.DNF:
+		args := []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", host.DNFCommand(), "distro-sync", "-y"}
+		return append(args, set...)
+	default:
+		args := []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
+			"pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
+		return append(args, set...)
 	}
-	args := []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
-		"pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
-	return append(args, set...)
+}
+
+func targetPackageNames(targets []string) map[string]bool {
+	names := make(map[string]bool, len(targets))
+	switch updatePackageManager() {
+	case host.Pacman:
+		for _, target := range targets {
+			names[strings.TrimPrefix(target, ryokuRepo+"/")] = true
+		}
+	case host.DNF:
+		packages, _ := repositoryHost().RepoPackages()
+		for _, target := range targets {
+			for _, pkg := range packages {
+				if target == pkg.Name || target == pkg.Name+"-"+pkg.Version {
+					names[pkg.Name] = true
+					break
+				}
+			}
+		}
+	default:
+		for _, target := range targets {
+			names[target] = true
+		}
+	}
+	return names
 }
 
 // systemLanePending: what the user's lane would take, after our own -Sy has
@@ -203,12 +233,12 @@ func ryokuInstallArgs(set []string) []string {
 // -Qu` needs no root and no second sync, unlike checkupdates, which is why
 // status uses that and the update run uses this.
 func systemLanePending(ryokuTargets []string) []updateItem {
-	ours := make(map[string]bool, len(ryokuTargets))
-	for _, target := range ryokuTargets {
-		ours[strings.TrimPrefix(target, ryokuRepo+"/")] = true
-	}
-	if updatePackageManager() == host.XBPS {
+	ours := targetPackageNames(ryokuTargets)
+	switch updatePackageManager() {
+	case host.XBPS:
 		return xbpsPendingUpdates(ours)
+	case host.DNF:
+		return dnfPendingUpdates(ours)
 	}
 	out, err := sys.RunOut("pacman", "-Qu")
 	if err != nil {

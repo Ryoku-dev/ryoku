@@ -48,13 +48,18 @@ const releaseFetchTTL = 10 * time.Minute
 
 // RYOKU_RELEASE_BASE overrides RepoBase for tests and a local mirror.
 func repoBase() string {
-	if base := strings.TrimSpace(os.Getenv("RYOKU_RELEASE_BASE")); base != "" {
-		return strings.TrimSuffix(base, "/")
+	base := strings.TrimSpace(os.Getenv("RYOKU_RELEASE_BASE"))
+	if base == "" {
+		switch updatePackageManager() {
+		case host.XBPS:
+			base = host.XBPSRepoBase
+		case host.DNF:
+			base = host.DNFRepoBase
+		default:
+			base = sys.RepoBase
+		}
 	}
-	if updatePackageManager() == host.XBPS {
-		return host.XBPSRepoBase
-	}
-	return sys.RepoBase
+	return expandHTTPRepoURL(strings.TrimSuffix(base, "/"))
 }
 
 // fetchCached GETs url into a state-dir cache keyed by name, re-fetching
@@ -90,11 +95,6 @@ func fetchCached(name, url string, ttl time.Duration) []byte {
 func channelServes(channel string) channelRelease {
 	var release channelRelease
 	url := repoReleaseURL(channel)
-	managerBase := host.PacmanRepoBase
-	if updatePackageManager() == host.XBPS {
-		managerBase = host.XBPSRepoBase
-	}
-	url = strings.Replace(url, managerBase, repoBase(), 1)
 	if url == "" {
 		return release
 	}
@@ -107,7 +107,11 @@ func channelServes(channel string) channelRelease {
 // ledger reads the release ledger, newest first.
 func ledger() releaseLedger {
 	var l releaseLedger
-	if b := fetchCached("releases-index.json", repoBase()+"/releases/index.json", releaseFetchTTL); b != nil {
+	base := repoBase()
+	if base == "" {
+		return l
+	}
+	if b := fetchCached("releases-index.json", base+"/releases/index.json", releaseFetchTTL); b != nil {
 		_ = json.Unmarshal(b, &l)
 	}
 	return l
@@ -117,7 +121,11 @@ func ledger() releaseLedger {
 // distinguishes an empty ledger from one that is unreachable or malformed.
 func unstableLedger() (releaseLedger, bool) {
 	var l releaseLedger
-	b := fetchCached("testing-index.json", repoBase()+"/channels/testing/index.json", releaseFetchTTL)
+	base := repoBase()
+	if base == "" {
+		return l, false
+	}
+	b := fetchCached("testing-index.json", base+"/channels/testing/index.json", releaseFetchTTL)
 	if b == nil || json.Unmarshal(b, &l) != nil {
 		return releaseLedger{}, false
 	}
@@ -202,8 +210,11 @@ func Track(channel string) error {
 		fmt.Println(i18n.T("==> ryoku-desktop is not installed here; the channel switch installs it from the selected channel."))
 	}
 	manager := "pacman"
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		manager = "xbps-install"
+	case host.DNF:
+		manager = host.DNFCommand()
 	}
 	fmt.Printf(i18n.T("==> Updates now come from packages: `ryoku update` runs %s.\n"), manager)
 	// Record the deliberate choice before the move: it is the signal the doctor

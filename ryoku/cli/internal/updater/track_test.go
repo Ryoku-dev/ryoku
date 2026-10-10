@@ -363,3 +363,27 @@ func TestPackagedStatusDetectsStaleUnstableBuildPin(t *testing.T) {
 		t.Fatalf("stale pin status = %+v", status)
 	}
 }
+
+func TestFedoraReleaseURLsExpandDNFVariables(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+	t.Setenv("RYOKU_RELEASE_BASE", "")
+	osRelease := filepath.Join(t.TempDir(), "os-release")
+	if err := os.WriteFile(osRelease, []byte("ID=fedora\nVERSION_ID=44\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_OS_RELEASE", osRelease)
+
+	base := "https://repo.ryoku.dev/stable/fedora/44"
+	if got := repoBase(); got != base {
+		t.Fatalf("repoBase = %q, want %q", got, base)
+	}
+	for channel, want := range map[string]string{
+		sys.ChannelStable:  base + "/x86_64",
+		sys.ChannelTesting: base + "/channels/testing/x86_64",
+		"v1.2.3":           base + "/releases/v1.2.3/x86_64",
+	} {
+		if got := repoReleaseURL(channel); got != want {
+			t.Errorf("repoReleaseURL(%q) = %q, want %q", channel, got, want)
+		}
+	}
+}

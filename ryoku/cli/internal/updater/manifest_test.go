@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -84,5 +85,28 @@ func TestPlanManifestReportsRetiredNames(t *testing.T) {
 	}
 	if len(plan.UserGone) != 0 {
 		t.Errorf("userGone = %v; a retired name is the release's decision, not the user's", plan.UserGone)
+	}
+}
+
+func TestFedoraPackageSetsUseRPMAndDNFUserInstalled(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+	bin := t.TempDir()
+	writeExec(t, filepath.Join(bin, "rpm"), "#!/bin/sh\nprintf 'ryoku-desktop\\nquickshell\\n'\n")
+	writeExec(t, filepath.Join(bin, "dnf5"), "#!/bin/sh\n[ \"$1 $2\" = 'repoquery -y' ] || exit 2\nprintf 'ryoku-desktop\\n'\n")
+	t.Setenv("PATH", bin)
+
+	installed, err := packageSet(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]bool{"ryoku-desktop": true, "quickshell": true}; !reflect.DeepEqual(installed, want) {
+		t.Fatalf("installed = %#v, want %#v", installed, want)
+	}
+	explicit, err := packageSet(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := map[string]bool{"ryoku-desktop": true}; !reflect.DeepEqual(explicit, want) {
+		t.Fatalf("explicit = %#v, want %#v", explicit, want)
 	}
 }

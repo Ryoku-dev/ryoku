@@ -88,6 +88,27 @@ func TestAISystemPromptMatchesHost(t *testing.T) {
 			t.Errorf("Void prompt describes the wrong host stack: %q", got)
 		}
 	})
+
+	t.Run("Fedora names its real host stack", func(t *testing.T) {
+		t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+		t.Setenv("RYOKU_HOST_INIT", "systemd")
+
+		got := aiSystemPrompt()
+		for _, want := range []string{
+			"Fedora Linux with DNF and systemd",
+			"Fedora uses GRUB",
+			"Ryoku snapshots are not available",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("Fedora prompt does not mention %q: %q", want, got)
+			}
+		}
+		for _, wrong := range []string{"Arch-based", "XBPS", "Limine"} {
+			if strings.Contains(got, wrong) {
+				t.Errorf("Fedora prompt describes the wrong host stack: %q", got)
+			}
+		}
+	})
 }
 
 func TestAIDiagnoseAPIError(t *testing.T) {

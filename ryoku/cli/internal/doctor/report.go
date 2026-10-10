@@ -158,6 +158,12 @@ func gatherReport(findings []finding) string {
 		line("package channel: unknown (%v)", packageErr)
 	} else if packageManager == host.Pacman {
 		line("[ryoku] repo configured: %v", strings.Contains(readFileSafe("/etc/pacman.conf"), "[ryoku]"))
+	} else if packageManager == host.DNF {
+		repository, err := host.Default().RepoURL()
+		line("Ryoku RPM repository: %s", repository)
+		if err != nil {
+			line("Ryoku RPM repository error: %v", err)
+		}
 	} else {
 		line("package channel: managed by %s", packageManager)
 	}
@@ -195,11 +201,15 @@ func gatherReport(findings []finding) string {
 	} else {
 		line("orphans:\n%s", strings.Join(orphans, "\n"))
 	}
-	pendingPattern := "*.pacnew"
-	if packageManager == host.XBPS {
-		pendingPattern = "*.new-*"
+	var pending []string
+	switch packageManager {
+	case host.XBPS:
+		pending = doctorFindPendingConfig("*.new-*")
+	case host.DNF:
+		pending = append(doctorFindPendingConfig("*.rpmnew"), doctorFindPendingConfig("*.rpmsave")...)
+	default:
+		pending = doctorFindPendingConfig("*.pacnew")
 	}
-	pending := doctorFindPendingConfig(pendingPattern)
 	if len(pending) == 0 {
 		line("pending config files: (none)")
 	} else {

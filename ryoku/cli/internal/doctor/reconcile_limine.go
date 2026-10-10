@@ -59,11 +59,21 @@ var (
 )
 
 var limineManagedBoot = func() bool {
+	if dnfHost() {
+		return false
+	}
 	if hasPacman() {
 		return sys.Has("limine-entry-tool") || sys.Has("limine-mkinitcpio")
 	}
 	manager, err := doctorPackageManager()
 	return err == nil && manager == host.XBPS && doctorPackageInstalled("limine")
+}
+
+func unmanagedBootResult() recResult {
+	if dnfHost() {
+		return okRes(i18n.T("Fedora uses GRUB; this boot-menu check does not apply"))
+	}
+	return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
 }
 
 func limineEFIPath() string {
@@ -192,7 +202,7 @@ func gatherLimineLayoutState() limineLayoutState {
 
 func reconcileLimineLayout(checkOnly bool) recResult {
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	st := gatherLimineLayoutState()
 	outcome, actions := planLimineLayout(st)
@@ -674,7 +684,7 @@ func registerRyokuBootEntry() error {
 // is still there to convert.
 func reconcileLimineBootEntry(checkOnly bool) recResult {
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
@@ -758,7 +768,7 @@ func reconcileLimineUKITree(checkOnly bool) recResult {
 		return okRes(i18n.T("Void boots a kernel plus a dracut initramfs image; the UKI boot-tree check does not apply"))
 	}
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
@@ -881,7 +891,7 @@ func limineDropFlat(conf string) (string, bool) {
 
 func reconcileLimineOSName(checkOnly bool) recResult {
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	path := limineDefaultsPath
 	if !doctorPackageInstalled("limine-snapper-sync") {
@@ -1215,7 +1225,7 @@ func limineIsNumeric(s string) bool {
 // reinstall; idempotent once the prelude is right.
 func reconcileLimineAutoboot(checkOnly bool) recResult {
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	if !doctorPackageInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))

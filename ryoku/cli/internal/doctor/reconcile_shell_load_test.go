@@ -26,6 +26,8 @@ const qtMismatchFailure = `  INFO: Launching config: "/home/u/.config/quickshell
  ERROR:   caused by @shell.qml[13:1]: module "shell.services" is not installed
  ERROR:   caused by file:///home/u/.config/quickshell/shell/services/Keyring.qml[-1:-1]: The plugin '/usr/lib/qt6/qml/Ryoku/Blobs/libryoku-blobsplugin.so' uses incompatible Qt library. (6.12.0) [release]`
 
+const defaultEnvFailure = ` ERROR: Unrecognized pragma "DefaultEnv QSG_RENDER_LOOP=threaded"`
+
 // how many times a repair asked for the shell back
 var testRestarts int
 
@@ -93,11 +95,16 @@ func shellSandbox(t *testing.T) (cfg, base string) {
 	// no desktop is up in a sandbox, and /proc cannot be faked
 	prev := liveShells
 	liveShells = func() []shellInstance { return nil }
+	prevStableWindow := shellLoadStableWindow
+	shellLoadStableWindow = 0
 	// and a test never restarts the machine's own desktop
 	prevRestart := restartShell
 	testRestarts = 0
 	restartShell = func() { testRestarts++ }
-	t.Cleanup(func() { liveShells, restartShell = prev, prevRestart })
+	t.Cleanup(func() {
+		liveShells, restartShell = prev, prevRestart
+		shellLoadStableWindow = prevStableWindow
+	})
 	return cfg, base
 }
 
@@ -175,6 +182,31 @@ func TestShellLoadReportsAShippedBug(t *testing.T) {
 	}
 }
 
+func TestShellLoadReportsDefaultEnvPragmaFailureDuringRespawn(t *testing.T) {
+	cfg, base := shellSandbox(t)
+	rel := filepath.Join("quickshell", "shell", "services", "Media.qml")
+	shipped, err := os.ReadFile(filepath.Join(base, rel))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg, rel), shipped, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(os.Getenv("XDG_STATE_HOME"), "ryoku", "surfaces", "shell.log")
+	if err := os.WriteFile(log, []byte(defaultEnvFailure), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	liveShells = func() []shellInstance { return []shellInstance{{pid: 42, config: "shell"}} }
+
+	res := reconcileShellLoad(true)
+	if res.status != recWarn {
+		t.Fatalf("status = %v (%s)", res.status, res.detail)
+	}
+	if !strings.Contains(res.detail, "desktop cannot load") {
+		t.Fatalf("fatal pragma error was not reported: %s", res.detail)
+	}
+}
+
 // A refused plugin means the system's Qt is older than the build's. The drifted
 // tree is not the cause and must stay as it is; the remedy is the system update.
 func TestShellLoadNamesAQtBehindTheBuild(t *testing.T) {
@@ -205,6 +237,10 @@ func TestShellLoadNamesAQtBehindTheBuild(t *testing.T) {
 
 func TestShellLoadStaysQuietWithALoadedDesktop(t *testing.T) {
 	shellSandbox(t)
+	log := filepath.Join(os.Getenv("XDG_STATE_HOME"), "ryoku", "surfaces", "shell.log")
+	if err := os.WriteFile(log, []byte("INFO: Configuration Loaded\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	prev := liveShells
 	liveShells = func() []shellInstance { return []shellInstance{{pid: 1}} }
 	t.Cleanup(func() { liveShells = prev })

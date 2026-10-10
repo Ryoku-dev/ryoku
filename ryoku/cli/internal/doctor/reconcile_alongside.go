@@ -82,7 +82,7 @@ func efibootmgrVerbose() string {
 // to watch. never writes NVRAM.
 func reconcileAlongsideBootEntry(_ bool) recResult {
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	if !isAlongsideSystem(readFileSafe("/etc/fstab"), sys.Exists(alongsideHopPath)) {
 		return okRes(i18n.T("not an alongside install (no shared ESP at /efi with our stage-1 hop)"))

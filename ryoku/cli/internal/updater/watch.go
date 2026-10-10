@@ -96,7 +96,11 @@ func descendants(root int) []procInfo {
 
 // packageManagers are the commands whose interruption can leave packages
 // half-installed.
-var packageManagers = map[string]bool{"pacman": true, "xbps-install": true, "xbps-remove": true, "yay": true, "paru": true, "makepkg": true, "flatpak": true}
+var packageManagers = map[string]bool{
+	"pacman": true, "xbps-install": true, "xbps-remove": true,
+	"dnf": true, "dnf5": true, "rpm": true,
+	"yay": true, "paru": true, "makepkg": true, "flatpak": true,
+}
 
 // wrappers carry the real work rather than doing it; the command named to the
 // user is the work they wrap.

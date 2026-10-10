@@ -51,6 +51,9 @@ var (
 	doctorPackageInstalled = func(name string) bool {
 		return host.Default().Package([]string{"installed", name}) == host.ExitOK
 	}
+	doctorPackageAvailability = func(name string) int {
+		return host.Default().Package([]string{"available", name})
+	}
 	doctorPackageInstall = func(names ...string) int {
 		return host.Default().Package(append([]string{"install"}, names...))
 	}
@@ -98,7 +101,7 @@ func failedServices() ([]host.ServiceFailure, error) {
 
 func pacmanHost(subject string) (recResult, bool) {
 	if !hasPacman() {
-		return noteRes(i18n.T("%s is only applicable to pacman hosts"), subject), false
+		return noteRes(i18n.T("%s is not applicable on this host"), subject), false
 	}
 	return recResult{}, true
 }
@@ -106,6 +109,15 @@ func pacmanHost(subject string) (recResult, bool) {
 func xbpsHost() bool {
 	manager, err := doctorPackageManager()
 	return err == nil && manager == host.XBPS
+}
+
+func dnfHost() bool {
+	manager, err := doctorPackageManager()
+	return err == nil && manager == host.DNF
+}
+
+func doctorPackageUnavailable(manager host.PackageManager, name string) bool {
+	return manager != host.Pacman && doctorPackageAvailability(name) == host.ExitNotProvided
 }
 
 func systemServiceEnabled(name string) bool {
@@ -203,29 +215,42 @@ type reconciler struct {
 }
 
 func reconcilers() []reconciler {
-	return []reconciler{
+	fedora := dnfHost()
+	checks := []reconciler{
 		{i18n.T("interface language"), reconcileShellLanguage},
-		{i18n.T("swap kept out of snapshots"), reconcileSwapSubvolume},
-		{i18n.T("snapper configuration"), reconcileSnapper},
-		{i18n.T("snapshot read access"), reconcileSnapperAccess},
-		{i18n.T("snapshot cleanup"), reconcileSnapperCleanup},
-		{i18n.T("limine boot menu layout"), reconcileLimineLayout},
-		{i18n.T("limine boot entry"), reconcileLimineBootEntry},
-		{i18n.T("alongside boot entry"), reconcileAlongsideBootEntry},
-		{i18n.T("limine UKI boot tree"), reconcileLimineUKITree},
-		{i18n.T("limine kernel boot images"), reconcileLimineKernelImages},
-		{i18n.T("boot menu dead entries"), reconcileLimineDeadEntries},
-		{i18n.T("boot partition headroom"), reconcileBootSpace},
-		{i18n.T("boot volume writability"), reconcileBootRW},
-		{i18n.T("initramfs GPU trim"), reconcileInitramfsGPUTrim},
-		{i18n.T("initramfs console keys"), reconcileInitramfsConsoleKeys},
-		{i18n.T("limine autoboot"), reconcileLimineAutoboot},
-		{i18n.T("limine snapshot sync"), reconcileLimineOSName},
-		{i18n.T("updatedb snapshot prune"), reconcileUpdatedbPrune},
-		{i18n.T("pacman database lock"), reconcilePacmanLock},
-		{i18n.T("pacman progress bar"), reconcilePacmanCandy},
-		{i18n.T("multilib repository"), reconcileMultilibRepo},
-		{i18n.T("conflicting Ryoku files"), reconcileConflictingRyokuFiles},
+	}
+	if !fedora {
+		checks = append(checks,
+			reconciler{i18n.T("swap kept out of snapshots"), reconcileSwapSubvolume},
+		)
+	}
+	checks = append(checks,
+		reconciler{i18n.T("snapper configuration"), reconcileSnapper},
+		reconciler{i18n.T("snapshot read access"), reconcileSnapperAccess},
+		reconciler{i18n.T("snapshot cleanup"), reconcileSnapperCleanup},
+	)
+	if !fedora {
+		checks = append(checks,
+			reconciler{i18n.T("limine boot menu layout"), reconcileLimineLayout},
+			reconciler{i18n.T("limine boot entry"), reconcileLimineBootEntry},
+			reconciler{i18n.T("alongside boot entry"), reconcileAlongsideBootEntry},
+			reconciler{i18n.T("limine UKI boot tree"), reconcileLimineUKITree},
+			reconciler{i18n.T("limine kernel boot images"), reconcileLimineKernelImages},
+			reconciler{i18n.T("boot menu dead entries"), reconcileLimineDeadEntries},
+			reconciler{i18n.T("boot partition headroom"), reconcileBootSpace},
+			reconciler{i18n.T("boot volume writability"), reconcileBootRW},
+			reconciler{i18n.T("initramfs GPU trim"), reconcileInitramfsGPUTrim},
+			reconciler{i18n.T("initramfs console keys"), reconcileInitramfsConsoleKeys},
+			reconciler{i18n.T("limine autoboot"), reconcileLimineAutoboot},
+			reconciler{i18n.T("limine snapshot sync"), reconcileLimineOSName},
+			reconciler{i18n.T("updatedb snapshot prune"), reconcileUpdatedbPrune},
+			reconciler{i18n.T("pacman database lock"), reconcilePacmanLock},
+			reconciler{i18n.T("pacman progress bar"), reconcilePacmanCandy},
+			reconciler{i18n.T("multilib repository"), reconcileMultilibRepo},
+			reconciler{i18n.T("conflicting Ryoku files"), reconcileConflictingRyokuFiles},
+		)
+	}
+	checks = append(checks, []reconciler{
 		{i18n.T("stale update run-state"), reconcileStaleUpdateRun},
 		{i18n.T("leaked update sleep guard"), reconcileLeakedSleepGuard},
 		{i18n.T("stale install crypt mapper"), reconcileStaleCryptMapper},
@@ -332,9 +357,10 @@ func reconcilers() []reconciler {
 		{i18n.T("NVIDIA boot reliability"), reconcileNvidiaModeset},
 		{i18n.T("NVIDIA update guard hook"), reconcileNvidiaGuardHook},
 		{i18n.T("NVIDIA sleep units"), reconcileNvidiaSleepUnits},
-		{i18n.T("pending config (.pacnew)"), reconcilePacnew},
+		{pendingConfigCheckName(), reconcilePacnew},
 		{i18n.T("orphaned packages"), reconcileOrphans},
-	}
+	}...)
+	return checks
 }
 
 type finding struct {
@@ -343,9 +369,9 @@ type finding struct {
 }
 
 func runReconcilers(checkOnly bool) []finding {
-	out := make([]finding, 0, len(reconcilers()))
+	var out []finding
 	for _, r := range reconcilers() {
-		out = append(out, finding{r.name, r.run(checkOnly)})
+		out = append(out, finding{name: r.name, res: r.run(checkOnly)})
 	}
 	return out
 }
@@ -1144,6 +1170,9 @@ const ryokuRepoStanza = "\n[ryoku]\nSigLevel = Required\nServer = " + sys.RepoBa
 
 func reconcileRyokuChannel(checkOnly bool) recResult {
 	manager, err := doctorPackageManager()
+	if err == nil && manager == host.DNF {
+		return reconcileFedoraRyokuChannel(checkOnly)
+	}
 	if err == nil && manager == host.XBPS {
 		return reconcileVoidRyokuChannel(checkOnly)
 	}
@@ -1236,6 +1265,106 @@ func reconcileVoidRyokuChannel(checkOnly bool) recResult {
 	}
 }
 
+func dnfRepoConfigPath() string {
+	if path := strings.TrimSpace(os.Getenv("RYOKU_DNF_REPO_CONFIG")); path != "" {
+		return path
+	}
+	return "/etc/yum.repos.d/ryoku.repo"
+}
+
+func dnfRepoConfig(channel string) string {
+	return fmt.Sprintf("[ryoku]\nname=Ryoku\nbaseurl=%s\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ryoku\n",
+		host.RepoURLFor(host.DNF, channel))
+}
+
+var writeDNFRepoConfig = func(path, contents string) error {
+	return writeRootFile(path, contents, "0644")
+}
+
+func reconcileFedoraRyokuChannel(checkOnly bool) recResult {
+	if !doctorPackageInstalled("ryoku-desktop") {
+		return okRes(i18n.T("not a packaged install (desktop runs from a checkout)"))
+	}
+	app := host.Default()
+	repository, err := app.RepoURL()
+	if err != nil || repository == "" {
+		if checkOnly {
+			return wouldRes(i18n.T("ryoku-desktop is installed but the signed Ryoku RPM repository is not configured; updates will not arrive")).
+				withFix("ryoku doctor")
+		}
+		if err := writeDNFRepoConfig(dnfRepoConfigPath(), dnfRepoConfig(sys.ChannelStable)); err != nil {
+			return warnRes(i18n.T("the signed Ryoku RPM repository is missing and could not be restored: %v"), err).
+				withFix(i18n.T("restore %s, then run `%s makecache -y --refresh --repo=ryoku`"), dnfRepoConfigPath(), host.DNFCommand())
+		}
+		if err := refreshDNFRepoMetadata(); err != nil {
+			return warnRes(i18n.T("restored the signed Ryoku RPM repository, but its metadata could not be refreshed: %v"), err).
+				withFix(dnfRepoRefreshAdvice())
+		}
+		return fixedRes(i18n.T("restored the signed Ryoku RPM repository so updates arrive again"))
+	}
+	channel, _ := app.RepoChannel()
+	switch {
+	case channel == sys.ChannelStable:
+		return okRes(i18n.T("ryoku channel: stable packages (named releases); `ryoku track unstable` follows the unstable channel"))
+	case channel == sys.ChannelTesting:
+		return okRes(i18n.T("ryoku channel: unstable packages (rebuilt on every push); `ryoku track stable` returns to stable releases"))
+	case sys.IsReleaseTag(channel):
+		return okRes(i18n.T("ryoku channel: pinned to release %s (packages); `ryoku track stable` follows releases again"), channel)
+	case sys.IsUnstableBuild(channel):
+		return okRes(i18n.T("ryoku channel: pinned to unstable build %s (packages); `ryoku track unstable` follows unstable builds again"), channel)
+	default:
+		return warnRes(i18n.T("the Ryoku RPM repository points at %s, which Ryoku does not publish; releases will not arrive from it"), repository).
+			withFix("ryoku track stable")
+	}
+}
+
+var (
+	checkDNFRepoMetadata = func() (string, error) {
+		return sys.RunOut(host.DNFCommand(), "repoquery", "-y", "--repo=ryoku", "--available", "ryoku-desktop")
+	}
+	refreshDNFRepoMetadata = func() error {
+		return sys.Run("sudo", host.DNFCommand(), "makecache", "-y", "--refresh", "--repo=ryoku")
+	}
+)
+
+func dnfRepoRefreshAdvice() string {
+	return fmt.Sprintf("sudo %s makecache -y --refresh --repo=ryoku", host.DNFCommand())
+}
+
+func reconcileFedoraRyokuSyncDB(checkOnly bool) recResult {
+	if !doctorPackageInstalled("ryoku-desktop") {
+		return okRes(i18n.T("not a packaged install (desktop runs from a checkout)"))
+	}
+	if _, err := host.Default().RepoURL(); err != nil {
+		return okRes(i18n.T("Ryoku RPM repository absent; nothing to verify"))
+	}
+	out, err := checkDNFRepoMetadata()
+	if err == nil {
+		return okRes(i18n.T("the Ryoku RPM repository metadata loads and verifies"))
+	}
+	detail := firstLine(out)
+	if detail == "" {
+		detail = err.Error()
+	}
+	if checkOnly {
+		return wouldRes(i18n.T("the Ryoku RPM repository metadata does not load: %s"), detail).
+			withFix(dnfRepoRefreshAdvice())
+	}
+	if err := refreshDNFRepoMetadata(); err != nil {
+		return failRes(i18n.T("could not refresh the Ryoku RPM repository metadata: %v"), err).
+			withFix(dnfRepoRefreshAdvice())
+	}
+	if out, err := checkDNFRepoMetadata(); err != nil {
+		detail := firstLine(out)
+		if detail == "" {
+			detail = err.Error()
+		}
+		return failRes(i18n.T("the Ryoku RPM repository metadata still does not load after refresh: %s"), detail).
+			withFix(dnfRepoRefreshAdvice())
+	}
+	return fixedRes(i18n.T("refreshed the Ryoku RPM repository metadata"))
+}
+
 // ---- reconciler: ryoku sync database health ----------------------------------
 
 // reconcileRyokuSyncDB heals a cached [ryoku] sync db wedged against its
@@ -1251,6 +1380,9 @@ func reconcileVoidRyokuChannel(checkOnly bool) recResult {
 // and pulls a fresh, matched pair.
 func reconcileRyokuSyncDB(checkOnly bool) recResult {
 	manager, err := doctorPackageManager()
+	if err == nil && manager == host.DNF {
+		return reconcileFedoraRyokuSyncDB(checkOnly)
+	}
 	if err == nil && manager == host.XBPS {
 		return reconcileVoidRyokuSyncDB(checkOnly)
 	}
@@ -4196,10 +4328,25 @@ var boxInstalledAt = func() time.Time {
 // update. it never overwrites a config written on this box. genuine merges are
 // reported for `sudo pacdiff`. idempotent: once the safe ones are gone a
 // re-run only sees (and reports) the conflicts.
+func pendingConfigCheckName() string {
+	if dnfHost() {
+		return i18n.T("pending package config updates")
+	}
+	return i18n.T("pending config (.pacnew)")
+}
+
 func reconcilePacnew(checkOnly bool) recResult {
 	manager, err := doctorPackageManager()
 	if err != nil {
 		return noteRes(i18n.T("could not identify the package manager; pending config updates were not checked"))
+	}
+	if manager == host.DNF {
+		files := append(doctorFindPendingConfig("*.rpmnew"), doctorFindPendingConfig("*.rpmsave")...)
+		if len(files) == 0 {
+			return okRes(i18n.T("no pending package config updates"))
+		}
+		return warnRes(i18n.T("%d pending RPM config update(s) need review: %s"), len(files), strings.Join(files, ", ")).
+			withFix(i18n.T("merge each .rpmnew or .rpmsave file into its base config, then remove the reviewed files"))
 	}
 	if manager == host.XBPS {
 		files := doctorFindPendingConfig("*.new-*")
@@ -4276,6 +4423,9 @@ func reconcileOrphans(_ bool) recResult {
 	}
 	if manager == host.XBPS {
 		return result.withFix(i18n.T("review `xbps-query -O`, then `sudo xbps-remove -o` if unneeded"))
+	}
+	if manager == host.DNF {
+		return result.withFix(i18n.T("review the list, then run `sudo %s autoremove` if unneeded"), host.DNFCommand())
 	}
 	return result.withFix(i18n.T("review `pacman -Qtd`, then `sudo pacman -Rns $(pacman -Qtdq)` if unneeded"))
 }

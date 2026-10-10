@@ -55,13 +55,18 @@ var privileged = func(argv ...string) error {
 // pair and the guard wants no snapshot noise; --overwrite adopts the paths the
 // installer and deploy.sh seed unowned (see RyokuOverwriteGlob).
 func ryokuMoveArgs(set []string) []string {
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		args := []string{"env", "RYOKU_MANAGED_UPDATE=1", "xbps-install", "-Sfy"}
 		return append(args, set...)
+	case host.DNF:
+		args := []string{"env", "RYOKU_MANAGED_UPDATE=1", host.DNFCommand(), "distro-sync", "-y"}
+		return append(args, set...)
+	default:
+		args := []string{"env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
+			"pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
+		return append(args, set...)
 	}
-	args := []string{"env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
-		"pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
-	return append(args, set...)
 }
 
 func prependMissingMoveTargets(set []string, targets ...string) []string {
@@ -79,10 +84,17 @@ func prependMissingMoveTargets(set []string, targets ...string) []string {
 	return append(prefix, set...)
 }
 func ryokuTarget(name string) string {
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		return name
+	case host.DNF:
+		if version := repoAvailableVersion(name); version != "" {
+			return name + "-" + version
+		}
+		return name
+	default:
+		return ryokuRepo + "/" + name
 	}
-	return ryokuRepo + "/" + name
 }
 
 // moveRyokuSetToChannel performs the pacman side of a channel move against the

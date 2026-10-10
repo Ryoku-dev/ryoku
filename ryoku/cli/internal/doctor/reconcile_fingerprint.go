@@ -68,6 +68,10 @@ var (
 		return app.Package([]string{"available", "pam-fprint-grosshack"}) == host.ExitOK
 	}
 	fingerprintInstall = func() int {
+		manager, _ := host.Default().PackageManager()
+		if manager == host.DNF {
+			return host.Default().Package([]string{"install", "pam-fprint-grosshack"})
+		}
 		return host.Default().Package([]string{"install", "--aur", "pam-fprint-grosshack"})
 	}
 	fingerprintInstallAdvice = func() string {
@@ -107,6 +111,9 @@ func reconcileFingerprintModule(checkOnly bool) recResult {
 			withFix(fingerprintInstallAdvice())
 	}
 	res, install := planFingerprintModule(readerPresent, moduleInstalled, checkOnly)
+	if dnfHost() && res.status == recWouldFix {
+		res.remedy = i18n.T("ryoku doctor installs pam-fprint-grosshack from the configured Fedora repositories")
+	}
 	if !install {
 		return res
 	}

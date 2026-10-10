@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/godbus/dbus/v5"
@@ -289,6 +290,104 @@ func TestVoidUpdateTransactionsCarryManagedMarker(t *testing.T) {
 	}
 }
 
+func TestPrimeSudoSkipsValidationWhenNonInteractiveSudoWorks(t *testing.T) {
+	t.Setenv("RYOKU_UPDATE_UI", "")
+	oldRun, oldTTY := primeSudoRun, primeSudoTTY
+	defer func() {
+		primeSudoRun, primeSudoTTY = oldRun, oldTTY
+	}()
+	primeSudoTTY = func() bool { return true }
+	var calls [][]string
+	primeSudoRun = func(name string, args ...string) error {
+		calls = append(calls, append([]string{name}, args...))
+		return nil
+	}
+
+	primeSudo()
+
+	want := [][]string{{"sudo", "-n", "true"}}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("sudo calls = %v, want %v", calls, want)
+	}
+}
+
+func TestPrimeSudoPromptsAfterNonInteractiveSudoFails(t *testing.T) {
+	t.Setenv("RYOKU_UPDATE_UI", "")
+	oldRun, oldTTY := primeSudoRun, primeSudoTTY
+	defer func() {
+		primeSudoRun, primeSudoTTY = oldRun, oldTTY
+	}()
+	primeSudoTTY = func() bool { return true }
+	var calls [][]string
+	primeSudoRun = func(name string, args ...string) error {
+		calls = append(calls, append([]string{name}, args...))
+		if len(args) > 0 && args[0] == "-n" {
+			return errors.New("password required")
+		}
+		return nil
+	}
+
+	primeSudo()
+
+	want := [][]string{{"sudo", "-n", "true"}, {"sudo", "-v"}}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("sudo calls = %v, want %v", calls, want)
+	}
+}
+
+func TestFedoraUpdateTransactionsUseExactDNFTargets(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+	bin := t.TempDir()
+	writeExec(t, filepath.Join(bin, "dnf5"), "#!/bin/sh\nexit 0\n")
+	t.Setenv("PATH", bin)
+
+	set := []string{"ryoku-desktop-0:1.2.3-1.fc44", "ryogami-0:1.2.3-1.fc44"}
+	if got := strings.Join(ryokuInstallArgs(set), " "); got != "sudo env RYOKU_MANAGED_UPDATE=1 dnf5 distro-sync -y ryoku-desktop-0:1.2.3-1.fc44 ryogami-0:1.2.3-1.fc44" {
+		t.Fatalf("Ryoku transaction = %q", got)
+	}
+	if got := strings.Join(systemUpgradeArgs(), " "); got != "sudo env RYOKU_MANAGED_UPDATE=1 dnf5 upgrade -y --refresh" {
+		t.Fatalf("system transaction = %q", got)
+	}
+	if got := strings.Join(ryokuMoveArgs(set), " "); got != "env RYOKU_MANAGED_UPDATE=1 dnf5 distro-sync -y ryoku-desktop-0:1.2.3-1.fc44 ryogami-0:1.2.3-1.fc44" {
+		t.Fatalf("channel move = %q", got)
+	}
+}
+
+func TestDNFPendingUpdatesAcceptsExit100(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+	bin := t.TempDir()
+	writeExec(t, filepath.Join(bin, "dnf5"), "#!/bin/sh\n[ \"$*\" = 'check-upgrade -y' ] || exit 2\nprintf 'Last metadata expiration check: 0:00:02 ago\\nryoku-desktop.x86_64 0:1.2.4-1.fc44 ryoku\\nkernel.x86_64 0:6.17.0-1.fc44 updates\\n'\nexit 100\n")
+	t.Setenv("PATH", bin)
+
+	out, code, err := runDNFCheckUpdate(context.Background())
+	if err != nil || code != 100 || !strings.Contains(out, "kernel.x86_64") {
+		t.Fatalf("check-update = code %d, err %v, output %q", code, err, out)
+	}
+
+	oldCheck, oldVersions := runDNFCheckUpdate, dnfInstalledVersions
+	dnfInstalledVersions = func() map[string]string {
+		return map[string]string{
+			"ryoku-desktop": "0:1.2.3-1.fc44",
+			"kernel":        "0:6.16.0-1.fc44",
+		}
+	}
+	t.Cleanup(func() {
+		runDNFCheckUpdate, dnfInstalledVersions = oldCheck, oldVersions
+	})
+	got := dnfPendingUpdates(map[string]bool{"ryoku-desktop": true})
+	want := []updateItem{{Name: "kernel", Old: "0:6.16.0-1.fc44", New: "0:6.17.0-1.fc44"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("pending = %#v, want %#v", got, want)
+	}
+
+	runDNFCheckUpdate = func(context.Context) (string, int, error) {
+		return "", 1, errors.New("metadata unavailable")
+	}
+	if got := dnfPendingUpdates(nil); got != nil {
+		t.Fatalf("failed check-update returned %#v, want nil", got)
+	}
+}
+
 // prowlDecide is the pure core of prowlRefresh: a dev install (on PATH, not
 // pacman-owned) self-updates; a pacman-owned copy is left to `pacman -Syu`; an
 // absent binary is a no-op. Pinned so the dev-vs-packaged branch cannot regress.
@@ -374,18 +473,23 @@ func TestLogin1LocalGraphicalUserProperties(t *testing.T) {
 func TestNeedsUpdateSleepGuard(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
+		manager          host.PackageManager
 		init             host.InitSystem
 		graphicalPresent bool
 		localPresent     bool
 		want             bool
 	}{
-		{"runit SSH only", host.Runit, false, false, false},
-		{"runit unnamed local desktop", host.Runit, false, true, true},
-		{"runit known desktop", host.Runit, true, true, true},
-		{"systemd SSH only", host.Systemd, false, false, true},
+		{"runit SSH only", host.XBPS, host.Runit, false, false, false},
+		{"runit unnamed local desktop", host.XBPS, host.Runit, false, true, true},
+		{"runit known desktop", host.XBPS, host.Runit, true, true, true},
+		{"Fedora SSH only", host.DNF, host.Systemd, false, false, false},
+		{"Fedora local desktop", host.DNF, host.Systemd, false, true, true},
+		{"Arch SSH only", host.Pacman, host.Systemd, false, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := needsUpdateSleepGuard(tc.init, tc.graphicalPresent, tc.localPresent); got != tc.want {
+			if got := needsUpdateSleepGuard(
+				tc.manager, tc.init, tc.graphicalPresent, tc.localPresent,
+			); got != tc.want {
 				t.Fatalf("needsUpdateSleepGuard() = %v, want %v", got, tc.want)
 			}
 		})
@@ -410,6 +514,23 @@ func TestRunitUpdateSleepGuardSkippedWithoutGraphicalSession(t *testing.T) {
 	if _, err := acquireUpdateSleepGuard(false); err == nil ||
 		!strings.Contains(err.Error(), "systemctl is required") {
 		t.Fatalf("systemd SSH guard error = %v, want missing systemctl", err)
+	}
+}
+
+func TestDNFUpdateSleepGuardSkippedWithoutGraphicalSession(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+	t.Setenv("RYOKU_HOST_INIT", "systemd")
+	t.Setenv("PATH", t.TempDir())
+
+	guard, err := acquireUpdateSleepGuard(false)
+	if err != nil {
+		t.Fatalf("SSH-only Fedora guard acquisition failed: %v", err)
+	}
+	if guard == nil || guard.conn != nil || guard.transient {
+		t.Fatalf("SSH-only Fedora guard = %#v, want inert guard", guard)
+	}
+	if err := guard.Release(); err != nil {
+		t.Fatalf("release inert Fedora guard: %v", err)
 	}
 }
 

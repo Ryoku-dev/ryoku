@@ -46,5 +46,5 @@ func recordProvisioned(pkg string) {
 // removedByUser reports whether pkg was provisioned by the doctor before and
 // is gone now, which only a deliberate removal explains.
 func removedByUser(pkg string) bool {
-	return provisioned()[pkg] && !sys.PkgInstalled(pkg)
+	return provisioned()[pkg] && !doctorPackageInstalled(pkg)
 }

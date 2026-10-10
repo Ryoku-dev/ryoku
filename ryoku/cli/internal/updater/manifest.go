@@ -34,7 +34,7 @@ var ManifestPath = func() string {
 // nothing is cached.
 func FetchManifest() (ryokumanifest.Manifest, error) {
 	channel := packagedChannel()
-	url := channelRepoURL(channel)
+	url := repoReleaseURL(channel)
 	cache := "manifest-" + sanitize(channel) + "-" + string(updatePackageManager()) + ".json"
 	if updatePackageManager() == host.Pacman {
 		channel = sys.PackagedChannel()
@@ -43,6 +43,9 @@ func FetchManifest() (ryokumanifest.Manifest, error) {
 	}
 	if channel == "" {
 		return ryokumanifest.Manifest{}, fmt.Errorf("not a packaged channel")
+	}
+	if url == "" {
+		return ryokumanifest.Manifest{}, fmt.Errorf("manifest URL for channel %s cannot be expanded", channel)
 	}
 	b := fetchCached(cache, url+"/manifest.json", manifestFetchTTL)
 	if b == nil {
@@ -310,16 +313,27 @@ var (
 )
 
 func packageSet(explicit bool) (map[string]bool, error) {
+	manager := updatePackageManager()
 	command := "pacman"
 	args := []string{"-Qq"}
-	if explicit {
-		args = []string{"-Qqe"}
-	}
-	if updatePackageManager() == host.XBPS {
+	switch manager {
+	case host.XBPS:
 		command = "xbps-query"
 		args = []string{"-l"}
 		if explicit {
 			args = []string{"-m"}
+		}
+	case host.DNF:
+		if explicit {
+			command = host.DNFCommand()
+			args = []string{"repoquery", "-y", "--userinstalled", "--queryformat", "%{name}\\n"}
+		} else {
+			command = "rpm"
+			args = []string{"-qa", "--qf", "%{NAME}\\n"}
+		}
+	default:
+		if explicit {
+			args = []string{"-Qqe"}
 		}
 	}
 	out, err := sys.RunOut(command, args...)
@@ -333,7 +347,7 @@ func packageSet(explicit bool) (map[string]bool, error) {
 			continue
 		}
 		name := fields[len(fields)-1]
-		if updatePackageManager() == host.XBPS {
+		if manager == host.XBPS {
 			if match := xbpsPkgverPattern.FindStringSubmatch(name); len(match) == 3 {
 				name = match[1]
 			}

@@ -101,9 +101,13 @@ func planWmPlugins(s wmPluginState, checkOnly bool, repair func() (map[string]st
 		return okRes(i18n.T("%d enabled plugin(s) built for the installed compositor"), s.enabled)
 	}
 	list := strings.Join(s.stale, ", ")
+	toolchainAdvice := fmt.Sprintf(i18n.T("%s, then Settings > Plugins > Rebuild"), doctorInstallAdvice("base-devel", "cmake", "git"))
+	if hasPacman() {
+		toolchainAdvice = i18n.T("sudo pacman -S --needed base-devel cmake git, then Settings > Plugins > Rebuild")
+	}
 	if !s.toolchain {
 		return warnRes(i18n.T("enabled plugin(s) built for another compositor build and this box cannot rebuild them (missing %s): %s"), strings.Join(s.missing, ", "), list).
-			withFix(i18n.T("sudo pacman -S --needed base-devel cmake git, then Settings > Plugins > Rebuild"))
+			withFix(toolchainAdvice)
 	}
 	if checkOnly {
 		return wouldRes(i18n.T("enabled plugin(s) built for another compositor build: %s"), list).

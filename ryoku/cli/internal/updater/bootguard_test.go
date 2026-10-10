@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 )
 
@@ -312,12 +313,16 @@ func setupXBPSReleaseHost(t *testing.T) string {
 }
 
 func capturePackageMove(t *testing.T) *[][]string {
+	return capturePackageMoveSet(t, []string{"ryoku-desktop", "ryogami"})
+}
+
+func capturePackageMoveSet(t *testing.T, set []string) *[][]string {
 	t.Helper()
 	var calls [][]string
 	oldSync, oldSet, oldServed := syncRepoForMove, ryokuSetForMove, servedSetForMove
 	oldInstalled, oldSplit, oldMove := pkgInstalledForMove, splitMetaInstalled, runRyokuMove
 	syncRepoForMove = func(bool) error { return nil }
-	ryokuSetForMove = func() ([]string, error) { return []string{"ryoku-desktop", "ryogami"}, nil }
+	ryokuSetForMove = func() ([]string, error) { return set, nil }
 	servedSetForMove = func() map[string]bool { return map[string]bool{"ryoku-desktop": true, "ryogami": true} }
 	pkgInstalledForMove = func(string) bool { return true }
 	splitMetaInstalled = func(string) bool { return false }
@@ -465,5 +470,128 @@ func TestBootGuardRevertsPacmanUnstableBuild(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "Arch untouched") || !strings.Contains(string(raw), "`ryoku track unstable`") {
 		t.Fatalf("revert notice = %s", raw)
+	}
+}
+
+func setupDNFReleaseHost(t *testing.T) string {
+	t.Helper()
+	home := isolateHome(t)
+	t.Setenv("RYOKU_HOST_PKGMGR", "dnf")
+	t.Setenv("RYOKU_RELEASE_BASE", "")
+	osRelease := filepath.Join(home, "os-release")
+	if err := os.WriteFile(osRelease, []byte("ID=fedora\nVERSION_ID=44\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_OS_RELEASE", osRelease)
+	bin := filepath.Join(home, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeExec(t, filepath.Join(bin, "dnf5"), "#!/bin/sh\nexit 0\n")
+	writeExec(t, filepath.Join(bin, "rpm"), "#!/bin/sh\nexit 0\n")
+	t.Setenv("PATH", bin)
+
+	dir := t.TempDir()
+	repo := filepath.Join(dir, "ryoku.repo")
+	body := "[ryoku]\nname=Ryoku\nbaseurl=" + host.RepoURLFor(host.DNF, sys.ChannelTesting) + "\nenabled=1\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-ryoku\n"
+	if err := os.WriteFile(repo, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_DNF_REPO_CONFIG", repo)
+	release := filepath.Join(dir, "ryoku-release")
+	if err := os.WriteFile(release, []byte("RELEASE="+newerUnstableBuild+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldRelease, oldIntent := sys.ReleaseFile, sys.ChannelIntentFile
+	sys.ReleaseFile = release
+	sys.ChannelIntentFile = filepath.Join(dir, "channel-intent")
+	t.Cleanup(func() {
+		sys.ReleaseFile = oldRelease
+		sys.ChannelIntentFile = oldIntent
+	})
+	return dir
+}
+
+func TestBootGuardRevertsDNFUnstableBuild(t *testing.T) {
+	dir := setupDNFReleaseHost(t)
+	set := []string{"ryoku-desktop-0:1.2.3-1.fc44", "ryogami-0:1.2.3-1.fc44"}
+	calls := capturePackageMoveSet(t, set)
+	oldPending, oldBootOK, oldNotice, oldUID := pendingFile, bootOKDir, noticeFile, effectiveUID
+	pendingFile = filepath.Join(dir, "update-pending.json")
+	bootOKDir = filepath.Join(dir, "boot")
+	noticeFile = filepath.Join(bootOKDir, "notice.json")
+	effectiveUID = func() int { return 0 }
+	t.Cleanup(func() {
+		pendingFile, bootOKDir, noticeFile, effectiveUID = oldPending, oldBootOK, oldNotice, oldUID
+	})
+	if err := os.MkdirAll(bootOKDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	p := pendingUpdate{
+		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
+		ArmedBoot: "earlier-boot", Boots: 1,
+	}
+	body, _ := json.Marshal(p)
+	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	want := append([]string{"env", "RYOKU_MANAGED_UPDATE=1", "dnf5", "distro-sync", "-y"}, set...)
+	if len(*calls) != 1 || !reflect.DeepEqual((*calls)[0], want) {
+		t.Fatalf("DNF revert calls = %v, want [%v]", *calls, want)
+	}
+	if channel := packagedChannel(); channel != olderUnstableBuild {
+		t.Fatalf("DNF revert channel = %q, want %q", channel, olderUnstableBuild)
+	}
+	raw, err := os.ReadFile(noticeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "Fedora untouched") || !strings.Contains(string(raw), "`ryoku track unstable`") {
+		t.Fatalf("revert notice = %s", raw)
+	}
+}
+
+func TestBootGuardDNFSnapshotEscalationStopsWithoutLimine(t *testing.T) {
+	dir := setupDNFReleaseHost(t)
+	oldPending, oldBootOK, oldNotice, oldUID := pendingFile, bootOKDir, noticeFile, effectiveUID
+	pendingFile = filepath.Join(dir, "update-pending.json")
+	bootOKDir = filepath.Join(dir, "boot")
+	noticeFile = filepath.Join(bootOKDir, "notice.json")
+	effectiveUID = func() int { return 0 }
+	t.Cleanup(func() {
+		pendingFile, bootOKDir, noticeFile, effectiveUID = oldPending, oldBootOK, oldNotice, oldUID
+	})
+	if err := os.MkdirAll(bootOKDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	p := pendingUpdate{
+		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
+		ArmedBoot: "earlier-boot", Boots: 2,
+	}
+	body, _ := json.Marshal(p)
+	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(noticeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `"action": "revert-failed"`) || !strings.Contains(text, "Fedora") {
+		t.Fatalf("Fedora escalation notice = %s", raw)
+	}
+	if strings.Contains(strings.ToLower(text), "limine") {
+		t.Fatalf("Fedora escalation names Limine: %s", raw)
+	}
+	if _, err := os.Stat(pendingFile); !os.IsNotExist(err) {
+		t.Fatalf("pending marker survived terminal Fedora escalation: %v", err)
 	}
 }

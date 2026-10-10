@@ -209,8 +209,11 @@ func revertRelease(p pendingUpdate) error {
 		back = sys.ChannelStable
 	}
 	detail := fmt.Sprintf(i18n.T("the desktop did not come up in two boots after the update; the Ryoku set is back on %s (Arch untouched). `ryoku track %s` moves forward again once the release is fixed."), p.From, sys.TrackName(back))
-	if updatePackageManager() == host.XBPS {
+	switch updatePackageManager() {
+	case host.XBPS:
 		detail = fmt.Sprintf(i18n.T("the desktop did not come up in two boots after the update; the Ryoku set is back on %s (Void untouched). `ryoku track %s` moves forward again once the release is fixed."), p.From, sys.TrackName(back))
+	case host.DNF:
+		detail = fmt.Sprintf(i18n.T("the desktop did not come up in two boots after the update; the Ryoku set is back on %s (Fedora untouched). `ryoku track %s` moves forward again once the release is fixed."), p.From, sys.TrackName(back))
 	}
 	return writeNotice(bootNotice{Action: "reverted", From: p.From, To: p.To, Channel: p.Channel, Snapshot: p.Snapshot,
 		Detail: detail,
@@ -232,6 +235,17 @@ func rematerializeUsers() {
 // pointBootMenuAtSnapshot makes the pre-update snapshot the default boot
 // entry, for the case where the packages were not what broke the boot.
 func pointBootMenuAtSnapshot(p pendingUpdate) error {
+	if updatePackageManager() == host.DNF {
+		_ = os.Remove(pendingFile)
+		_, reason := snapshotCapability()
+		if reason == "" {
+			reason = i18n.T("Snapshots are not available on Fedora; recover the system by hand.")
+		}
+		return writeNotice(bootNotice{
+			Action: "revert-failed", From: p.From, To: p.To, Channel: p.Channel,
+			Snapshot: p.Snapshot, Detail: reason, At: now(),
+		})
+	}
 	if p.Snapshot == "" {
 		return writeNotice(bootNotice{Action: "revert-failed", From: p.From, To: p.To, Detail: "no pre-update snapshot to boot; restore from the Limine Snapshots menu by hand", At: now()})
 	}
@@ -256,6 +270,9 @@ func pointBootMenuAtSnapshot(p pendingUpdate) error {
 }
 
 func restoreBootMenuDefault() error {
+	if updatePackageManager() == host.DNF {
+		return nil
+	}
 	rawMarker, err := os.ReadFile(restoreMarker)
 	if os.IsNotExist(err) {
 		return nil

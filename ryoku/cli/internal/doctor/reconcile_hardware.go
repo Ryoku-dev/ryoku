@@ -227,13 +227,13 @@ var (
 		return init
 	}
 	nvidiaPackageInstalled = func(name string) bool {
-		if nvidiaPackageManager() == host.XBPS {
+		if nvidiaPackageManager() != host.Pacman {
 			return host.Default().Package([]string{"installed", name}) == host.ExitOK
 		}
 		return sys.PkgInstalled(name)
 	}
 	nvidiaRemovePackage = func(name string) error {
-		if nvidiaPackageManager() == host.XBPS {
+		if nvidiaPackageManager() != host.Pacman {
 			if code := host.Default().Package([]string{"remove", name}); code != host.ExitOK {
 				return fmt.Errorf("package removal exited %d", code)
 			}
@@ -256,10 +256,14 @@ var (
 )
 
 func nvidia580Package() string {
-	if nvidiaPackageManager() == host.XBPS {
+	switch nvidiaPackageManager() {
+	case host.DNF:
+		return "akmod-nvidia"
+	case host.XBPS:
 		return "nvidia580"
+	default:
+		return "nvidia-580xx-dkms"
 	}
-	return "nvidia-580xx-dkms"
 }
 
 func kepler580RemovalArgs() []string {
@@ -272,6 +276,12 @@ func keplerGpuPresent() bool {
 }
 
 func reconcileKeplerNvidia(checkOnly bool) recResult {
+	if nvidiaPackageManager() == host.DNF {
+		if keplerGpuPresent() {
+			return noteRes(i18n.T("Fedora keeps Nouveau active for this Kepler GPU; proprietary NVIDIA driver changes are left to the user"))
+		}
+		return okRes(i18n.T("no Kepler NVIDIA GPU detected"))
+	}
 	pkg := nvidia580Package()
 	if !keplerGpuPresent() || !nvidia580Installed() {
 		return okRes(i18n.T("no incompatible 580xx driver on Kepler hardware"))
@@ -320,6 +330,9 @@ func nvidiaDriverActiveFor(kepler, packagePresent bool, loaded []string) bool {
 }
 
 func nvidiaDriverPackagePresent() bool {
+	if nvidiaPackageManager() == host.DNF {
+		return anyNvidiaPackageInstalled("akmod-nvidia", "xorg-x11-drv-nvidia")
+	}
 	if nvidiaPackageManager() == host.XBPS {
 		return anyNvidiaPackageInstalled("nvidia", "nvidia580", "nvidia470")
 	}
@@ -336,7 +349,7 @@ func anyNvidiaPackageInstalled(names ...string) bool {
 }
 
 func nvidiaConfigPaths() (string, string) {
-	if nvidiaPackageManager() == host.XBPS {
+	if nvidiaPackageManager() == host.XBPS || nvidiaPackageManager() == host.DNF {
 		return "/etc/modprobe.d/nvidia.conf", "/etc/dracut.conf.d/nvidia.conf"
 	}
 	return "/etc/modprobe.d/nvidia.conf", "/etc/mkinitcpio.conf.d/nvidia.conf"
@@ -413,6 +426,13 @@ func restoreNouveauConfig() error {
 }
 
 func reconcileNvidiaModeset(checkOnly bool) recResult {
+	if nvidiaPackageManager() == host.DNF {
+		if !strings.Contains(strings.ToLower(nvidiaPCIOutput()), "nvidia") {
+			return okRes(i18n.T("no NVIDIA GPU detected"))
+		}
+		return noteRes(i18n.T("Fedora keeps Nouveau active for NVIDIA graphics in this release; proprietary driver installation is a manual step")).
+			withFix(i18n.T("enable RPM Fusion, install its `akmod-nvidia` package, wait for the kernel module build, then run `sudo dracut --regenerate-all --force` and reboot"))
+	}
 	if !nvidiaDriverActive() {
 		return okRes(i18n.T("no proprietary NVIDIA driver in use"))
 	}
@@ -494,6 +514,9 @@ func voidKernelSeriesFrom(packages string) []string {
 }
 
 func rebuildInitramfs() error {
+	if nvidiaPackageManager() == host.DNF {
+		return sys.Run("sudo", "dracut", "--regenerate-all", "--force")
+	}
 	if nvidiaPackageManager() == host.XBPS {
 		series := voidKernelSeriesFrom(xbpsPackageList())
 		if len(series) == 0 {
@@ -513,6 +536,9 @@ func rebuildInitramfs() error {
 }
 
 func nvidiaInitramfsAdvice() string {
+	if nvidiaPackageManager() == host.DNF {
+		return i18n.T("sudo dracut --regenerate-all --force")
+	}
 	if nvidiaPackageManager() == host.XBPS {
 		return i18n.T("sudo xbps-reconfigure -fa")
 	}
@@ -630,6 +656,9 @@ func nvidiaGuardSpec() (path, content, mode string, executable bool) {
 }
 
 func reconcileNvidiaGuardHook(checkOnly bool) recResult {
+	if nvidiaPackageManager() == host.DNF {
+		return okRes(i18n.T("Fedora kernel-module packages manage their own update hooks"))
+	}
 	if !nvidiaDriverActive() {
 		return okRes(i18n.T("no proprietary NVIDIA driver in use"))
 	}

@@ -17,7 +17,9 @@ func repositoryHost() *host.App {
 }
 
 func repositoryPathsOverridden() bool {
-	return sys.PacmanConf != "/etc/pacman.conf" || sys.PacmanSyncDir != "/var/lib/pacman/sync"
+	return sys.PacmanConf != "/etc/pacman.conf" ||
+		sys.PacmanSyncDir != "/var/lib/pacman/sync" ||
+		os.Getenv("RYOKU_DNF_REPO_CONFIG") != ""
 }
 
 func updatePackageManager() host.PackageManager {
@@ -51,7 +53,15 @@ func channelRepoURL(channel string) string {
 }
 
 func repoReleaseURL(channel string) string {
-	return strings.Replace(channelRepoURL(channel), "$arch", "x86_64", 1)
+	return expandHTTPRepoURL(channelRepoURL(channel))
+}
+
+func expandHTTPRepoURL(url string) string {
+	url = host.ExpandRepoURL(url)
+	if strings.Contains(url, "$") {
+		return ""
+	}
+	return url
 }
 
 func repoSetChannel(channel string) error {

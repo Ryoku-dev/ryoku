@@ -23,7 +23,7 @@ import (
 // same transactional path `ryoku track` uses.
 func reconcileChannelPin(checkOnly bool) recResult {
 	manager, err := doctorPackageManager()
-	if err != nil || manager != host.Pacman && manager != host.XBPS {
+	if err != nil || manager != host.Pacman && manager != host.XBPS && manager != host.DNF {
 		return okRes(i18n.T("release channel pin checks are not available on this host"))
 	}
 	if sys.ResolveRepo() != "" || !doctorPackageInstalled("ryoku-desktop") {

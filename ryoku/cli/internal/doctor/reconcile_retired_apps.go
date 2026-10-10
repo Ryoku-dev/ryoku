@@ -34,8 +34,12 @@ var (
 )
 
 func retiredAppRemovalArgs(pkg string) []string {
-	if manager, err := doctorPackageManager(); err == nil && manager == host.XBPS {
+	manager, err := doctorPackageManager()
+	if err == nil && manager == host.XBPS {
 		return []string{"xbps-remove", "-y", pkg}
+	}
+	if err == nil && manager == host.DNF {
+		return []string{host.DNFCommand(), "remove", "-y", pkg}
 	}
 	return []string{"pacman", "-Rns", "--noconfirm", pkg}
 }
@@ -45,7 +49,10 @@ func retiredAppRemovalArgs(pkg string) []string {
 // untouched, so the check stays quiet once the package is gone.
 func reconcileRetiredApps(checkOnly bool) recResult {
 	manager, err := doctorPackageManager()
-	if !hasPacman() && (err != nil || manager != host.XBPS) {
+	if hasPacman() {
+		manager, err = host.Pacman, nil
+	}
+	if err != nil || manager != host.Pacman && manager != host.XBPS && manager != host.DNF {
 		return okRes(i18n.T("retired app package checks are not available on this host"))
 	}
 	var removed []string

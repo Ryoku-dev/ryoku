@@ -108,8 +108,11 @@ func enoughBootHeadroom(st bootImageSpace) bool {
 }
 
 func reconcileBootSpace(checkOnly bool) recResult {
+	if dnfHost() {
+		return okRes(i18n.T("Fedora uses GRUB; Ryoku's boot-image headroom check does not apply"))
+	}
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))

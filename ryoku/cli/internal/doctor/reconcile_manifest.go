@@ -50,9 +50,23 @@ var (
 	}
 )
 
+func supportedManifestPackages(manager host.PackageManager, names []string) (supported, unavailable []string) {
+	for _, name := range names {
+		if doctorPackageUnavailable(manager, name) {
+			unavailable = append(unavailable, name)
+			continue
+		}
+		supported = append(supported, name)
+	}
+	return supported, unavailable
+}
+
 func reconcileManifest(checkOnly bool) recResult {
 	manager, managerErr := doctorPackageManager()
-	if !hasPacman() && (managerErr != nil || manager != host.XBPS) {
+	if hasPacman() {
+		manager, managerErr = host.Pacman, nil
+	}
+	if managerErr != nil || manager != host.Pacman && manager != host.XBPS && manager != host.DNF {
 		return okRes(i18n.T("the package manifest is not managed on this host"))
 	}
 	served, err := updater.FetchManifest()
@@ -81,10 +95,14 @@ func reconcileManifest(checkOnly bool) recResult {
 		prevPresent[name] = true
 	}
 	plan := updater.PlanManifest(prev, prevPresent, &served, installed)
+	var unavailable, skipped []string
+	plan.Install, unavailable = supportedManifestPackages(manager, plan.Install)
+	plan.AUR, skipped = supportedManifestPackages(manager, plan.AUR)
+	unavailable = union(unavailable, skipped)
 
 	if checkOnly {
-		return wouldRes("%s", planSummary(&plan)).
-			withFix(i18n.T("run `ryoku doctor` (or `ryoku update`) to apply"))
+		return withUnavailablePackages(wouldRes("%s", planSummary(manager, &plan)).
+			withFix(i18n.T("run `ryoku doctor` (or `ryoku update`) to apply")), unavailable)
 	}
 
 	// The provisioned lane (the deliver-once apps) is reconcileShippedApps'
@@ -104,10 +122,16 @@ func reconcileManifest(checkOnly bool) recResult {
 	}
 	var aurMissed []string
 	if len(plan.AUR) > 0 {
-		installManifestAUR(plan.AUR)
+		if manager == host.DNF {
+			installManifestPkgs(plan.AUR)
+		} else {
+			installManifestAUR(plan.AUR)
+		}
 		for _, pkg := range plan.AUR {
 			if !doctorPackageInstalled(pkg) {
 				aurMissed = append(aurMissed, pkg)
+			} else if manager == host.DNF {
+				landed = append(landed, pkg)
 			}
 		}
 	}
@@ -119,46 +143,53 @@ func reconcileManifest(checkOnly bool) recResult {
 	// "never delivered" and reinstalled on a later run.
 	if len(missed) == 0 && len(aurMissed) == 0 {
 		if err := updater.SaveApplied(served, updater.StickyPresent(applied, served, installed)); err != nil {
-			return warnRes(i18n.T("converged, but could not save the manifest: %v"), err)
+			return withUnavailablePackages(warnRes(i18n.T("converged, but could not save the manifest: %v"), err), unavailable)
 		}
 	}
 
+	var result recResult
 	switch {
 	case len(missed) > 0:
 		fix := doctorInstallAdvice(missed...)
 		if manager == host.Pacman {
 			fix = fmt.Sprintf("sudo pacman -Sy && sudo pacman -S %s", strings.Join(missed, " "))
 		}
-		return warnRes(i18n.T("manifest: %s did not land"), strings.Join(missed, ", ")).
+		result = warnRes(i18n.T("manifest: %s did not land"), strings.Join(missed, ", ")).
 			withFix(fix)
 	case len(aurMissed) > 0:
 		if manager == host.Pacman {
-			return noteRes(i18n.T("manifest: %s await the AUR helper or a network"), strings.Join(aurMissed, ", ")).
+			result = noteRes(i18n.T("manifest: %s await the AUR helper or a network"), strings.Join(aurMissed, ", ")).
 				withFix("yay -S %s", strings.Join(aurMissed, " "))
+		} else {
+			result = noteRes(i18n.T("manifest: %s await the package repository or a network"), strings.Join(aurMissed, ", ")).
+				withFix(doctorInstallAdvice(aurMissed...))
 		}
-		return noteRes(i18n.T("manifest: %s await the package repository or a network"), strings.Join(aurMissed, ", ")).
-			withFix(doctorInstallAdvice(aurMissed...))
 	case len(landed) > 0:
-		return fixedRes(i18n.T("delivered %s from the %s manifest"),
+		result = fixedRes(i18n.T("delivered %s from the %s manifest"),
 			strings.Join(landed, ", "), served.Release)
 	case len(plan.Retired) > 0:
-		return noteRes(i18n.T("%s retired by %s stay installed (delete them by hand to reclaim)"),
+		result = noteRes(i18n.T("%s retired by %s stay installed (delete them by hand to reclaim)"),
 			strings.Join(plan.Retired, ", "), served.Release)
 	case applied == nil:
-		return okRes(i18n.T("baseline recorded against %s"), served.Release)
+		result = okRes(i18n.T("baseline recorded against %s"), served.Release)
 	default:
-		return okRes(i18n.T("the box matches the %s manifest"), served.Release)
+		result = okRes(i18n.T("the box matches the %s manifest"), served.Release)
 	}
+	return withUnavailablePackages(result, unavailable)
 }
 
 // planSummary renders a check-only plan as one line, so `ryoku doctor --check`
 // says what a real run would do without doing it.
-func planSummary(p *updater.Plan) string {
+func planSummary(manager host.PackageManager, p *updater.Plan) string {
 	var parts []string
-	if len(p.Install) > 0 {
-		parts = append(parts, fmt.Sprintf("install %s", strings.Join(p.Install, ", ")))
+	install := p.Install
+	if manager == host.DNF {
+		install = append(append([]string{}, install...), p.AUR...)
 	}
-	if len(p.AUR) > 0 {
+	if len(install) > 0 {
+		parts = append(parts, fmt.Sprintf("install %s", strings.Join(install, ", ")))
+	}
+	if len(p.AUR) > 0 && manager != host.DNF {
 		parts = append(parts, fmt.Sprintf("aur %s", strings.Join(p.AUR, ", ")))
 	}
 	if len(p.UserGone) > 0 {

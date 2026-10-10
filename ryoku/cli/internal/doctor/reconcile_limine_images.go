@@ -307,7 +307,7 @@ func pruneLimineStrayImages(names []string) error {
 // reconcileLimineKernelImages: a no-op while every image matches its kernel.
 func reconcileLimineKernelImages(checkOnly bool) recResult {
 	if !limineManagedBoot() {
-		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+		return unmanagedBootResult()
 	}
 	if !liminePkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))

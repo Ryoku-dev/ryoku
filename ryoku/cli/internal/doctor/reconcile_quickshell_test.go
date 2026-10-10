@@ -100,6 +100,24 @@ func TestQuickshellFromTheRepoAndRunningIsQuiet(t *testing.T) {
 	}
 }
 
+func TestQuickshellTooOldUsesFedoraUpgradeAdvice(t *testing.T) {
+	stubDoctorDNF(t)
+	stubPath(t, map[string]string{
+		"qs":   "echo 'Quickshell 0.2.1'; exit 0",
+		"dnf5": ":",
+	})
+
+	res := reconcileQuickshell(true)
+	if res.status != recWarn || !strings.Contains(res.detail, "0.2.1") ||
+		!strings.Contains(res.detail, minimumQuickshell) {
+		t.Fatalf("old quickshell result = %+v", res)
+	}
+	if !strings.Contains(res.remedy, "dnf5 upgrade -y --refresh quickshell") ||
+		strings.Contains(res.remedy, "pacman") || strings.Contains(res.remedy, "xbps") {
+		t.Fatalf("Fedora remedy = %q", res.remedy)
+	}
+}
+
 func TestQuickshellMissingIsReported(t *testing.T) {
 	stubPath(t, map[string]string{})
 	res := reconcileQuickshell(true)

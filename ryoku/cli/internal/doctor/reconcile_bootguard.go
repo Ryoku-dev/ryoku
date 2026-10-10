@@ -34,7 +34,7 @@ var (
 // once shown, so it never nags.
 func reconcileBootGuard(checkOnly bool) recResult {
 	manager, err := doctorPackageManager()
-	if err != nil || manager != host.Pacman && manager != host.XBPS {
+	if err != nil || manager != host.Pacman && manager != host.XBPS && manager != host.DNF {
 		return okRes(i18n.T("boot guard package checks are not available on this host"))
 	}
 	if bootGuardCheckout() || !doctorPackageInstalled("ryoku-desktop") {
