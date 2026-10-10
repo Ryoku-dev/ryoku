@@ -162,8 +162,9 @@ Singleton {
     readonly property bool lockLookActive: root.screenLocked || root.editLockPreview
 
     // The edge each dock occupies (screen name -> { side, thickness }), so the
-    // viewport clears a dock that reserves nothing. Ryoku's dock steps aside
-    // while the desktop is edited, so this stays empty unless a surface sets it.
+    // viewport clears a dock that reserves nothing. A dock publishes its own
+    // resting depth while the Stage Editor frames its screen; with no editor
+    // open (or no dock on that edge) the entry is absent and the viewport keeps it.
     property var dockInsets: ({})
     function setDockInset(screenName, side, thickness) {
         if (!screenName)

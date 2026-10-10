@@ -572,6 +572,16 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- **The dock stays in view while the Stage Editor edits it.** Opening the Dock
+  catalogue hid the dock itself, so every setting was applied blind. The dock
+  now holds visible and clickable on the edited screen for all three designs,
+  and the mode's viewport shrinks around the edge it occupies
+  (`quickshell/shell/modules/dock/`, `barstyles/python/dock/`,
+  `inir/modules/iris/dock/`).
+- **The chosen dock design card is readable on every palette.** Its plate is
+  the inverted one, but the labels and the miniature kept the paper ink, which
+  vanished against it on a light theme; they now follow the plate
+  (`quickshell/stage/modules/ii/editMode/EditDockDesignPicker.qml`).
 - **Void relogins restart the desktop cleanly.** The Turnstile services now bind
   to each graphical login and stop with it, so the shell, bar, and video
   wallpaper return after logout even when another user session keeps runit up.

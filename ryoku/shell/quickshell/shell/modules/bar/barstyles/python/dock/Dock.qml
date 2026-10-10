@@ -9,11 +9,15 @@ import Quickshell.Io
 import "../"
 import "../reusables"
 import shell.services as Ryoku
+import stage
 
 Variants {
     id: universalDock
     property var targetScreen: null
     property bool surfaceVisible: true
+    // The Stage Editor frames the host's monitor: the dock holds revealed and
+    // raised there, exactly like the other designs (UniversalDockHost).
+    property bool stageEditing: false
     model: targetScreen ? [targetScreen] : Quickshell.screens
     delegate: Component {
         id: dockDelegate
@@ -52,7 +56,11 @@ Variants {
                 screen: dockScope.modelData
 
                 WlrLayershell.namespace: "qs-dock"
-                WlrLayershell.layer: (dockWindow.dockOnTop || dockWindow.editMode) ? WlrLayer.Top : WlrLayer.Bottom
+                // While the Stage Editor frames this monitor the desktop lifts
+                // to Top; the dock rides Overlay so it stays visible and
+                // clickable above it, like the other designs.
+                WlrLayershell.layer: universalDock.stageEditing ? WlrLayer.Overlay
+                    : (dockWindow.dockOnTop || dockWindow.editMode) ? WlrLayer.Top : WlrLayer.Bottom
                 focusable: dockWindow.editMode
                 color: "transparent"
                 exclusionMode: ExclusionMode.Ignore
@@ -338,9 +346,12 @@ Variants {
                     dockContainer.scrollIndex = 0;
                     dockContainer.hoveredItemIndex = -1;
                     positionChangeTimer.restart();
+                    dockWindow.publishInset();
                 }
 
-                visible: universalDock.surfaceVisible && dockWindow.initialized && dockEnabled && !isFullscreenActive && (dockAppsModel.count > 0 || editMode)
+                visible: universalDock.surfaceVisible && dockWindow.initialized && dockEnabled
+                    && (!isFullscreenActive || universalDock.stageEditing)
+                    && (dockAppsModel.count > 0 || editMode || universalDock.stageEditing)
 
                 property var rawBarSettings: {
                     let dummy = configRevision;
@@ -420,12 +431,30 @@ Variants {
                 }
 
                 function checkHideTimer() {
-                    if (!dockHover.hovered && !edgeHover.hovered && dockWindow.effectiveAutohide && !dockWindow.editMode) {
+                    if (!dockHover.hovered && !edgeHover.hovered && dockWindow.effectiveAutohide
+                            && !dockWindow.editMode && !universalDock.stageEditing) {
                         hideTimer.restart();
                     } else {
                         hideTimer.stop();
                     }
                 }
+
+                // The Stage Editor's viewport clears the edge this dock sits on,
+                // from its resting thickness (never reveal state, which moves
+                // while the mode is on).
+                function publishInset() {
+                    GlobalStates.setDockInset(dockWindow.modelData ? dockWindow.modelData.name : "",
+                        universalDock.stageEditing && dockWindow.visible ? dockWindow.dockPosition : "",
+                        dockWindow.dockReservedSpace);
+                }
+                onVisibleChanged: dockWindow.publishInset()
+                onDockReservedSpaceChanged: dockWindow.publishInset()
+                Connections {
+                    target: universalDock
+                    function onStageEditingChanged() { dockWindow.publishInset(); dockWindow.checkHideTimer(); }
+                }
+                Component.onDestruction: GlobalStates.setDockInset(
+                    dockWindow.modelData ? dockWindow.modelData.name : "", "", 0)
 
                 Connections {
                     target: dockHover
@@ -433,8 +462,8 @@ Variants {
                 }
 
                 property bool isRevealed: {
-                    if (isFullscreenActive) return false;
-                    if (editMode) return true;
+                    if (isFullscreenActive && !universalDock.stageEditing) return false;
+                    if (editMode || universalDock.stageEditing) return true;
                     if (!effectiveAutohide) return true;
                     if (dockHover.hovered) return true;
                     if (edgeHover.hovered) return true;

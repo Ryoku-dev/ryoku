@@ -15,11 +15,15 @@ import inir.modules.iris.style
 import inir.modules.iris.components
 import inir.modules.iris.pieces
 import shell.services as Ryoku
+import stage as StageEditor
 import Ryoku.Ui.Singletons as Ui
 
 Item {
     id: root
     property var screen: null
+    // The Stage Editor frames this monitor: the dock holds revealed and
+    // publishes the edge it occupies for the mode's viewport.
+    property bool stageEditing: false
     anchors.fill: parent
     readonly property bool showLauncher: Ryoku.Dock.designCfg("shima", "launcher", true)
     readonly property var options: {
@@ -274,8 +278,24 @@ Item {
             // the Island: the Dock is part of what is customized and stays in view to be touched.
             readonly property bool stepAside: GlobalStates.widgetEditMode
             onStepAsideChanged: if (window.stepAside) window.menuApp = null
-            readonly property bool revealed: !window.fullscreenIdle && !window.stepAside && (!root.autoHide || window.edgeIntent || window.menuOpen
-                || window.askedShown || window.spotlightHere || window.workspaceEmpty || GlobalStates.irisEdit)
+            readonly property bool revealed: (!window.fullscreenIdle || root.stageEditing) && !window.stepAside && (!root.autoHide || window.edgeIntent || window.menuOpen
+                || window.askedShown || window.spotlightHere || window.workspaceEmpty || GlobalStates.irisEdit || root.stageEditing)
+            // The Stage Editor's viewport clears the edge this dock sits on,
+            // from its resting thickness (never reveal state, which moves
+            // while the mode is on).
+            function publishInset() {
+                StageEditor.GlobalStates.setDockInset(root.screen?.name ?? "",
+                    root.stageEditing && window.visible
+                        ? (root.atTop ? "top" : root.atBottom ? "bottom" : root.atLeft ? "left" : "right") : "",
+                    root.thickness + window.bodyAir)
+            }
+            onVisibleChanged: window.publishInset()
+            Connections {
+                target: root
+                function onStageEditingChanged() { window.publishInset() }
+                function onOptionsChanged() { window.publishInset() }
+                function onThicknessChanged() { window.publishInset() }
+            }
             onPointerOnDockChanged: {
                 if (window.pointerOnDock) {
                     hideDelay.stop()
@@ -429,9 +449,13 @@ Item {
                 GlobalStates.irisDockBody = bodies
             }
             onBodyShapeChanged: window.publishBody()
-            Component.onCompleted: window.publishBody()
+            Component.onCompleted: {
+                window.publishBody()
+                window.publishInset()
+            }
             Component.onDestruction: {
                 const name = root.screen?.name ?? ""
+                StageEditor.GlobalStates.setDockInset(name, "", 0)
                 if (name.length === 0) return
                 const bodies = Object.assign({}, GlobalStates.irisDockBody ?? {})
                 bodies[name] = null

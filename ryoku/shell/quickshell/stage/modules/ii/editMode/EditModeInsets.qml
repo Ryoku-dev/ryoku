@@ -8,10 +8,10 @@ import stage.modules.common.functions
 /**
  * What Edit Mode may not draw on: the edges the bar and the dock occupy.
  *
- * Both stay where they are, at full size, while the mode is on (editing them
- * in place is stage 6), so the desktop shrinks inside what is LEFT of the
- * screen and the toolbar sits in a band opened inside that. Three windows
- * derive the viewport from these four numbers - the wallpaper surface, the
+ * Both stay where they are, at full size, while the mode is on (the dock's
+ * catalogue edits the live surface in place), so the desktop shrinks inside
+ * what is LEFT of the screen and the toolbar sits in a band opened inside
+ * that. Three windows derive the viewport from these four numbers - the wallpaper surface, the
  * widgets surface and the chrome - and a second file working them out would be
  * a second answer to "where is the dock".
  *

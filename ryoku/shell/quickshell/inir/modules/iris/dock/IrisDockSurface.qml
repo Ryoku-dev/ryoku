@@ -10,7 +10,9 @@ Scope {
 
     required property var screen
     property bool surfaceVisible: true
-
+    // The Stage Editor frames this monitor: the dock rises above the lifted
+    // desktop and holds revealed (IrisDock publishes the edge it occupies).
+    property bool stageEditing: false
     PanelWindow {
         id: surface
 
@@ -20,7 +22,7 @@ Scope {
         anchors { left: true; right: true; top: true; bottom: true }
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "ryoku-dock-shima"
-        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.layer: root.stageEditing ? WlrLayer.Overlay : WlrLayer.Top
         WlrLayershell.keyboardFocus: dock.menuOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         mask: dock.menuOpen ? null : dockRegion
 
@@ -33,6 +35,7 @@ Scope {
             id: dock
             anchors.fill: parent
             screen: root.screen
+            stageEditing: root.stageEditing
         }
     }
 

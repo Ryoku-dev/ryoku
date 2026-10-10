@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
 import shell.services
+import stage
 
 // The Ryoku dock: a first-class shell surface (namespace ryoku-dock), one per
 // monitor and style-agnostic -- it no longer belongs to any bar. A frosted
@@ -17,6 +18,11 @@ import shell.services
 // in the peek strip. Hiding slides the band out by its own depth, leaving a 3 px
 // peek inside the input mask; the empty margins stay click-through because the
 // mask is only the band rect unioned with that strip.
+//
+// While the Stage Editor frames this monitor the dock is the thing being
+// edited, so it never steps aside: it holds revealed, rises above the lifted
+// desktop, and publishes the edge it takes so the mode's viewport shrinks
+// around it (stage's EditModeInsets).
 PanelWindow {
     id: dock
 
@@ -43,10 +49,16 @@ PanelWindow {
     readonly property real bandSize: dock.visible ? (dock.horizontal ? band.implicitWidth : band.implicitHeight) : 0
     readonly property real bandCenter: dock.horizontal ? (dock.width / 2) : (dock.height / 2)
 
+    // Set by the host: the Stage Editor is framing this monitor.
+    property bool stageEditing: false
+
     color: "transparent"
     visible: Dock.cfg("enabled", false)
     // `screen` is PanelWindow's own property, set per monitor from shell.qml.
     WlrLayershell.namespace: "ryoku-dock"
+    // The editing desktop lifts to Top; the dock rides Overlay so its strip
+    // stays clickable (the chrome's own mask never covers the dock's edge).
+    WlrLayershell.layer: stageEditing ? WlrLayer.Overlay : WlrLayer.Bottom
     exclusionMode: ExclusionMode.Normal
     // A pinned (non-autohide) dock reserves its depth; an autohiding one floats
     // over the desktop and reserves nothing.
@@ -67,6 +79,9 @@ PanelWindow {
     readonly property string screenName: dock.screen ? dock.screen.name : ""
     readonly property bool menuHere: Dock.menuOpen && Dock.menuScreen === dock.screenName
     readonly property bool revealed: {
+        // The editor is showing this dock's settings page: it holds open.
+        if (dock.stageEditing)
+            return true;
         // A fullscreen window on this monitor forces the dock away; only a hover
         // into the peek strip brings it back over the fullscreen content.
         if (dock.monFullscreen)
@@ -77,6 +92,21 @@ PanelWindow {
             || band.dragging
             || dock.menuHere;
     }
+
+    // The edge the mode's viewport must clear: the band's resting depth plus
+    // its gap, never reveal or hover state (a viewport that moves mid-edit
+    // rescales every widget under the cursor).
+    readonly property real insetDepth: dock.depth + dock.edgeGap
+    function publishInset() {
+        GlobalStates.setDockInset(dock.screenName,
+            dock.stageEditing && dock.visible ? dock.edge : "", dock.insetDepth);
+    }
+    onStageEditingChanged: dock.publishInset()
+    onVisibleChanged: dock.publishInset()
+    onEdgeChanged: dock.publishInset()
+    onInsetDepthChanged: dock.publishInset()
+    Component.onCompleted: dock.publishInset()
+    Component.onDestruction: GlobalStates.setDockInset(dock.screenName, "", 0)
 
     // Perp offset (the axis pointing away from the screen edge) of the band's
     // resting outer corner, and the direction it slides to hide. The far edges

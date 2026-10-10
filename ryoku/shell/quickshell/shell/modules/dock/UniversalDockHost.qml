@@ -1,8 +1,8 @@
 import QtQuick
 import shell.services
+import "../stage/Singletons" as StageCfg
 import "../bar/barstyles/python/dock" as PythonDock
 import inir.modules.iris.dock as ShimaDock
-
 Item {
     id: root
 
@@ -10,6 +10,12 @@ Item {
     property bool surfaceVisible: true
     readonly property string design: Dock.design
     readonly property var item: root.design === "ryoku" ? designLoader.item?.surface : null
+    // The Stage Editor frames this monitor: every design stays mounted,
+    // revealed and raised, and publishes the edge it occupies so the mode's
+    // viewport shrinks around it. The dock catalogue edits the live surface,
+    // so hiding it while that page is open edits an invisible thing.
+    readonly property bool stageEditing: StageCfg.StageSession.onMonitor(
+        root.screen ? root.screen.name : "")
 
     width: 0
     height: 0
@@ -31,6 +37,7 @@ Item {
             DockSurface {
                 id: dockSurface
                 screen: root.screen
+                stageEditing: root.stageEditing
                 visible: root.surfaceVisible && Dock.cfg("enabled", false)
             }
         }
@@ -44,6 +51,7 @@ Item {
             PythonDock.Dock {
                 targetScreen: root.screen
                 surfaceVisible: root.surfaceVisible
+                stageEditing: root.stageEditing
             }
         }
     }
@@ -56,6 +64,7 @@ Item {
             ShimaDock.IrisDockSurface {
                 screen: root.screen
                 surfaceVisible: root.surfaceVisible
+                stageEditing: root.stageEditing
             }
         }
     }

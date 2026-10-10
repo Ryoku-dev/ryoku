@@ -41,8 +41,10 @@ Two places, each with one job:
   wallpaper and choose **Edit desktop** to open the Stage Editor on that
   monitor. Widget menus remain local to the widget.
 
-The Stage Editor is the shell's one desktop editor. The bar, dock, lockscreen
-and menus keep their Hub pages.
+The Stage Editor is the shell's one desktop editor. The bar, lockscreen
+and menus keep their Hub pages; the editor's Dock chip edits the live dock
+in place: the surface stays visible and clickable while its catalogue is
+open, and the viewport shrinks around the edge it occupies.
 
 ## The desktop right-click menu
 
@@ -85,12 +87,12 @@ its paper, ink, spacing, and Space Grotesk, Fraunces, and mono type to Ryoku.Ui
 tokens.
 
 The toolbar is **Desktop** | **Widgets** | **Wallpaper** | **Style** |
-**Visualizer** | **Depth**, followed by snap, undo, redo, and **Done**. A chip
-names the display being edited and cycles displays when there is more than one.
-The drawer shows the current catalogue without repeating the toolbar's section
-tabs. Visualizer and Depth come from `StageWidgetProvider.extraSections`; the
-provider passes them to the island's `Config.extraSections`. There is no
-lockscreen, bar, or dock editing in this mode.
+**Dock** | **Visualizer** | **Depth**, followed by snap, undo, redo, and
+**Done**. A chip names the display being edited and cycles displays when
+there is more than one. The drawer shows the current catalogue without
+repeating the toolbar's section tabs. Visualizer and Depth come from
+`StageWidgetProvider.extraSections`; the provider passes them to the
+island's `Config.extraSections`.
 
 Frames appear on hover or selection, and while composing the frame owns the
 pointer over its widget: a press anywhere on a widget, buttons included, selects

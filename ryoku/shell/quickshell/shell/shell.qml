@@ -299,11 +299,12 @@ ShellRoot {
 
             // One cheap host per monitor loads only the selected dock design.
             // The surface itself remains independent of the active bar style.
+            // The dock stays through the Stage Editor session (like the bar):
+            // the dock catalogue edits it live, and the mode's viewport clears
+            // the edge it occupies (GlobalStates.dockInsets).
             UniversalDockHost {
                 id: dockLoader
                 screen: perScreen.modelData
-                surfaceVisible: !(StageCfg.StageSession.widgets
-                    && StageCfg.StageSession.monitor === perScreen.modelData.name)
             }
 
             // The dock's right-click context menu: a full-screen overlay on the
