@@ -1,7 +1,0 @@
-arch	fedora	lanes	notes
-fd	fd-find	desktop	Fedora packages the fd utility as fd-find.
-github-cli	gh	desktop	Fedora uses gh as the executable package name.
-adw-gtk-theme	adw-gtk3-theme	desktop	Fedora ships the compatible GTK theme as adw-gtk3-theme.
-noto-fonts	google-noto-sans-fonts google-noto-serif-fonts google-noto-sans-mono-fonts	desktop	Fedora splits Noto families into separate packages.
-noto-fonts-emoji	google-noto-emoji-fonts	desktop	Fedora uses the google-noto-emoji-fonts package.
-ttf-jetbrains-mono-nerd	-	desktop	Fedora does not ship the Nerd Font patched glyph set.

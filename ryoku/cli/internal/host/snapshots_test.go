@@ -12,6 +12,7 @@ func TestSnapshotsCapabilityAndCommand(t *testing.T) {
 	}{
 		{name: "pacman", manager: "pacman", supported: true, exit: ExitOK},
 		{name: "xbps", manager: "xbps", supported: true, exit: ExitOK},
+		{name: "dnf", manager: "dnf", supported: false, exit: ExitNotProvided, wantOutput: fedoraSnapshotsUnavailableReason + "\n"},
 		{name: "unknown", manager: "other", supported: false, exit: ExitNotProvided, wantOutput: snapshotsUnavailableReason + "\n"},
 	}
 	for _, tt := range tests {
@@ -24,8 +25,12 @@ func TestSnapshotsCapabilityAndCommand(t *testing.T) {
 			if tt.supported && reason != "" {
 				t.Fatalf("supported host reason = %q, want empty", reason)
 			}
-			if !tt.supported && reason != snapshotsUnavailableReason {
-				t.Fatalf("unsupported host reason = %q", reason)
+			wantReason := snapshotsUnavailableReason
+			if tt.manager == "dnf" {
+				wantReason = fedoraSnapshotsUnavailableReason
+			}
+			if !tt.supported && reason != wantReason {
+				t.Fatalf("unsupported host reason = %q, want %q", reason, wantReason)
 			}
 			if code := app.Execute([]string{"snapshots"}); code != tt.exit {
 				t.Fatalf("snapshots exit = %d, want %d", code, tt.exit)

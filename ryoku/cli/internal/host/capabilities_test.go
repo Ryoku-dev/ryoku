@@ -18,6 +18,11 @@ func TestCapabilitiesJSONForSupportedHosts(t *testing.T) {
 			env:  map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_INIT": "runit"},
 			want: "{\"packageManager\":\"xbps\",\"init\":\"runit\",\"snapshots\":{\"supported\":true,\"reason\":\"\"},\"aur\":{\"supported\":false,\"reason\":\"The AUR is an Arch Linux service; Void installs come from XBPS.\"}}\n",
 		},
+		{
+			name: "dnf-systemd",
+			env:  map[string]string{"RYOKU_HOST_PKGMGR": "dnf", "RYOKU_HOST_INIT": "systemd"},
+			want: "{\"packageManager\":\"dnf\",\"init\":\"systemd\",\"packageTable\":\"/usr/share/ryoku/packages/fedora.tsv\",\"snapshots\":{\"supported\":false,\"reason\":\"Snapshots are not available on Fedora: it boots through GRUB, which Ryoku's snapshot boot menu does not drive.\"},\"aur\":{\"supported\":false,\"reason\":\"The AUR is an Arch Linux service; Fedora installs come from DNF.\"}}\n",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

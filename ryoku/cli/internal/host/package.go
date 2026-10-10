@@ -26,15 +26,23 @@ func (a *App) Package(args []string) int {
 		if len(args) != 2 {
 			return ExitUsage
 		}
-		if manager == Pacman {
+		switch manager {
+		case Pacman:
 			return ExitFalse
+		case DNF:
+			return a.dnfPackageWhy(args[1])
+		default:
+			return a.xbpsPackageWhy(args[1])
 		}
-		return a.xbpsPackageWhy(args[1])
 	}
-	if manager == Pacman {
+	switch manager {
+	case Pacman:
 		return a.pacman(args)
+	case DNF:
+		return a.dnf(args)
+	default:
+		return a.xbps(args)
 	}
-	return a.xbps(args)
 }
 
 func (a *App) xbpsPackageWhy(name string) int {
@@ -42,13 +50,17 @@ func (a *App) xbpsPackageWhy(name string) int {
 	if err != nil {
 		return a.failf("%v", err)
 	}
+	return a.packageWhy(table, name, "Not packaged for Void.")
+}
+
+func (a *App) packageWhy(table packageTable, name, fallback string) int {
 	mapping, ok := table[name]
 	if !ok || mapping.Special != "-" {
 		return ExitFalse
 	}
 	note := mapping.Note
 	if note == "" {
-		note = "Not packaged for Void."
+		note = fallback
 	}
 	fmt.Fprintln(a.cfg.Stdout, note)
 	return ExitOK
@@ -60,6 +72,9 @@ func (a *App) Orphans() ([]string, error) {
 	manager, err := a.PackageManager()
 	if err != nil {
 		return nil, err
+	}
+	if manager == DNF {
+		return a.dnfOrphans()
 	}
 	name, args := "pacman", []string{"-Qdtq"}
 	if manager == XBPS {
@@ -91,7 +106,9 @@ func (a *App) PackageOwner(path string) (string, error) {
 		return "", err
 	}
 	name, args := "pacman", []string{"-Qoq", path}
-	if manager == XBPS {
+	if manager == DNF {
+		name, args = "rpm", []string{"-qf", "--qf", "%{NAME}\n", path}
+	} else if manager == XBPS {
 		name, args = "xbps-query", []string{"-o", path}
 	}
 	result := a.query(name, args...)

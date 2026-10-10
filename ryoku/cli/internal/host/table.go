@@ -16,6 +16,10 @@ type packageMapping struct {
 type packageTable map[string]packageMapping
 
 func readPackageTable(path string) (packageTable, error) {
+	return readPackageTableFor(path, "void")
+}
+
+func readPackageTableFor(path, distribution string) (packageTable, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -34,7 +38,7 @@ func readPackageTable(path string) (packageTable, error) {
 		fields := strings.Split(line, "\t")
 		if !header {
 			header = true
-			if len(fields) != 4 || fields[0] != "arch" || fields[1] != "void" || fields[2] != "lanes" || fields[3] != "notes" {
+			if len(fields) != 4 || fields[0] != "arch" || fields[1] != distribution || fields[2] != "lanes" || fields[3] != "notes" {
 				return nil, fmt.Errorf("%s:%d: invalid header", path, lineNo)
 			}
 			continue
@@ -73,17 +77,21 @@ func readPackageTable(path string) (packageTable, error) {
 	return table, nil
 }
 
-func (a *App) xbpsTable() (packageTable, error) {
-	path := a.getenv("RYOKU_HOST_PKG_TABLE")
-	if path == "" {
-		path = a.cfg.PackageTable
-	}
-	table, err := readPackageTable(path)
+func (a *App) packageTable(path, distribution string) (packageTable, error) {
+	table, err := readPackageTableFor(path, distribution)
 	if os.IsNotExist(err) {
 		fmt.Fprintf(a.cfg.Stderr, "ryoku-host: warning: %s missing; using identity package names\n", path)
 		return packageTable{}, nil
 	}
 	return table, err
+}
+
+func (a *App) xbpsTable() (packageTable, error) {
+	path := a.getenv("RYOKU_HOST_PKG_TABLE")
+	if path == "" {
+		path = a.cfg.PackageTable
+	}
+	return a.packageTable(path, "void")
 }
 
 func translatePackage(table packageTable, name string) packageMapping {

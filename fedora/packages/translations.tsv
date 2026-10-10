@@ -1,0 +1,274 @@
+arch	fedora	lanes	notes
+adw-gtk-theme	adw-gtk3-theme	desktop	
+adwaita-icon-theme	adwaita-icon-theme	desktop	
+alsa-lib	alsa-lib	desktop	
+alsa-utils	alsa-utils	desktop	
+amd-ucode	amd-ucode-firmware	hardware:amd	
+ananicy-cpp	-	system	CachyOS-only package.
+apple_cursor	-	extra	No Fedora 44 package provides this Arch package.
+asusctl	-	optional	No Fedora 44 package provides this Arch package.
+base	-	system	Fedora has no Arch base metapackage; the existing host supplies the base system.
+base-devel	-	system	Fedora has no Arch base-devel metapackage; Ryoku installs only required tools.
+bash	bash	desktop	
+bash-completion	bash-completion	desktop	
+bat	bat	desktop	
+blesh	-	desktop	No Fedora 44 package provides this Arch package.
+bluez	bluez	desktop	
+bluez-utils	bluez	desktop	
+brightnessctl	brightnessctl	desktop	
+broadcom-bt-firmware	-	desktop	No Fedora 44 package provides this Arch package.
+btop	btop	desktop	
+btrfs-progs	btrfs-progs	system	
+cachyos-ananicy-rules	-	system	CachyOS-only package.
+cachyos-keyring	-	system	CachyOS-only package.
+cachyos-mirrorlist	-	system	CachyOS-only package.
+cachyos-settings	-	system	CachyOS-only package.
+cachyos-v3-mirrorlist	-	system	CachyOS-only package.
+cachyos-v4-mirrorlist	-	system	CachyOS-only package.
+catppuccin-cursors-mocha	-	extra	No Fedora 44 package provides this Arch package.
+cava	cava	desktop	
+chromium	chromium	desktop	
+cliphist	cliphist	desktop	
+cryptsetup	cryptsetup	system	
+curl	curl	desktop	
+dav1d	dav1d	desktop	
+ddcutil	ddcutil	desktop	
+desktop-file-utils	desktop-file-utils	desktop	
+dkms	dkms	desktop	
+dnsmasq	dnsmasq	optional	
+docker	moby-engine	desktop	
+dosfstools	dosfstools	system	
+edk2-ovmf	edk2-ovmf	desktop	
+efibootmgr	efibootmgr	system	
+eza	eza	desktop	
+fastfetch	fastfetch	desktop	
+fd	fd-find	desktop	
+ffmpeg	ffmpeg-free	desktop	
+firefox	firefox	desktop	
+fish	fish	desktop	
+flatpak	flatpak	desktop	
+fuzzel	fuzzel	desktop	
+fzf	fzf	desktop	
+game-devices-udev	-	desktop	No Fedora 44 package provides this Arch package.
+gamemode	gamemode	desktop	
+gamescope	gamescope	desktop	
+gcc	gcc	desktop	
+gcc-libs	libgcc libstdc++	desktop	
+git	git	desktop	
+github-cli	gh	desktop	
+glibc	glibc	desktop	
+gnome-keyring	gnome-keyring	desktop	
+gnome-themes-extra	gtk3	desktop	
+go	golang	dev	
+gpk	-	desktop	GlazePKG is a pacman frontend and does not apply to DNF.
+gpu-screen-recorder	-	desktop	No Fedora 44 package provides this Arch package.
+grim	grim	desktop	
+gst-libav	gstreamer1-plugin-libav	desktop	
+gst-plugins-bad	gstreamer1-plugins-bad-free	desktop	
+gst-plugins-base	gstreamer1-plugins-base	desktop	
+gst-plugins-good	gstreamer1-plugins-good	desktop	
+gst-plugins-ugly	gstreamer1-plugins-ugly-free	desktop	
+gtk3	gtk3	desktop	
+gtk4	gtk4	hyprland	
+gtk4-layer-shell	gtk4-layer-shell	hyprland	
+gum	gum	desktop	
+hypr-dynamic-cursors	-	hyprland	No separate Fedora RPM is published.
+hyprglass	-	hyprland	No separate Fedora RPM is published.
+hyprgrass	-	hyprland	No separate Fedora RPM is published.
+hypridle	hypridle	desktop	Provided by a restricted COPR.
+hyprland	hyprland	hyprland	Provided by a restricted COPR.
+hyprland-preview-share-picker	-	hyprland	No separate Fedora RPM is published.
+hyprpicker	hyprpicker	desktop	Provided by a restricted COPR.
+hyprpolkitagent	hyprpolkitagent	hyprland	Provided by a restricted COPR.
+hyprsunset	hyprsunset	hyprland	Provided by a restricted COPR.
+imagemagick	ImageMagick	desktop	
+imgborders	-	hyprland	No separate Fedora RPM is published.
+intel-media-driver	libva-intel-media-driver	hardware:intel	
+intel-ucode	microcode_ctl	hardware:intel	
+inter-font	rsms-inter-fonts	desktop	
+iw	iw	desktop	
+iwd	iwd	desktop	
+jq	jq	desktop	
+kdialog	kdialog	optional	
+kitty	kitty	desktop	
+lazygit	lazygit	desktop	Provided by a restricted COPR.
+lib32-nvidia-utils	-	hardware:nvidia	Fedora NVIDIA drivers require RPM Fusion and hardware-specific selection.
+lib32-vulkan-intel	mesa-vulkan-drivers.i686	hardware:intel	
+lib32-vulkan-radeon	mesa-vulkan-drivers.i686	hardware:amd	
+lib32-vulkan-swrast	mesa-vulkan-drivers.i686	hardware:vm	
+libcanberra	libcanberra	hyprland	
+libdrm	libdrm	desktop	
+libgcc	libgcc	desktop	
+libglvnd	libglvnd	desktop	
+libisoburn	libisoburn	optional	
+libnotify	libnotify	desktop	
+libpulse	pulseaudio-libs	desktop	
+libqalculate	libqalculate	desktop	
+librsvg	librsvg2	desktop	
+libva	libva	desktop	
+libvirt	libvirt	optional	
+libxcb	libxcb	desktop	
+libxkbcommon	libxkbcommon	desktop	
+libyuv	libyuv	desktop	
+limine	-	system	Fedora boots Ryoku through GRUB, not Limine.
+limine-mkinitcpio-hook	-	system	Fedora uses GRUB and dracut, not mkinitcpio hooks.
+limine-snapper-sync	-	system	Fedora snapshots are not supported in this release.
+linux	kernel	system	
+linux-cachyos	-	system	CachyOS-only package.
+linux-cachyos-headers	-	system	CachyOS-only package.
+linux-firmware	linux-firmware	system	
+linux-headers	kernel-devel kernel-headers	desktop	
+localsend-bin	-	extra	No Fedora 44 package provides this Arch package.
+looking-glass	-	optional	No Fedora 44 package provides this Arch package.
+looking-glass-module-dkms	-	optional	No Fedora 44 package provides this Arch package.
+lua	lua	optional	
+mangohud	mangohud	desktop	
+matugen	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+mesa	mesa-dri-drivers mesa-libGL	desktop	
+mise	-	dev	No Fedora 44 package provides this Arch package.
+mkinitcpio	dracut	system	
+mpv	mpv	desktop	
+mpv-mpris	mpv-mpris	desktop	
+nautilus	nautilus	desktop	
+nautilus-python	nautilus-python	desktop	
+neovim	neovim	desktop	
+networkmanager	NetworkManager	desktop	
+nftables	nftables	desktop	
+niri	niri	desktop	
+nodejs	nodejs24	desktop,dev	
+noto-fonts	google-noto-sans-fonts google-noto-serif-fonts google-noto-sans-mono-fonts	desktop	
+noto-fonts-cjk	google-noto-sans-cjk-fonts	desktop	
+noto-fonts-emoji	google-noto-emoji-fonts	desktop	
+npm	nodejs24-npm	dev	
+nvibrant-bin	-	extra	No Fedora 44 package provides this Arch package.
+nvidia-utils	-	hardware:nvidia	Fedora NVIDIA drivers require RPM Fusion and hardware-specific selection.
+openrgb	openrgb	desktop	
+otf-space-grotesk	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+pacman	-	desktop	Pacman is not used on Fedora.
+pacman-contrib	-	desktop	Pacman-only tooling is not used on Fedora.
+pam-fprint-grosshack	-	extra	No Fedora 44 package provides this Arch package.
+pam-u2f	pam-u2f	desktop	
+papirus-icon-theme	papirus-icon-theme	desktop	
+pavucontrol	pavucontrol	optional	
+pciutils	pciutils	desktop	
+phinger-cursors	-	extra	No Fedora 44 package provides this Arch package.
+pipewire	pipewire	desktop	
+pipewire-alsa	pipewire-alsa	desktop	
+pipewire-audio	pipewire	desktop	
+pipewire-pulse	pipewire-pulseaudio	desktop	
+plasma-integration	plasma-integration	optional	
+playerctl	playerctl	desktop	
+plymouth	plymouth	system	
+polkit	polkit	desktop	
+power-profiles-daemon	power-profiles-daemon	desktop	
+proton-cachyos-slr	-	system	CachyOS-only package.
+prowl	ryoku-rashin	desktop	Bundled with Ryoku Rashin on Fedora.
+python	python3	desktop,dev	
+python-pip	python3-pip	dev	
+python-pipx	pipx	dev	
+qemu-desktop	qemu	desktop	
+qmk_hid	ryoku-extras	optional	Bundled by the Ryoku extras RPM.
+qrencode	qrencode	desktop	
+qt5-wayland	qt5-qtwayland	desktop	
+qt6-5compat	qt6-qt5compat	desktop	
+qt6-base	qt6-qtbase	desktop	
+qt6-declarative	qt6-qtdeclarative	desktop	
+qt6-imageformats	qt6-qtimageformats	desktop	
+qt6-multimedia	qt6-qtmultimedia	desktop	
+qt6-multimedia-ffmpeg	qt6-qtmultimedia	desktop	
+qt6-svg	qt6-qtsvg	desktop	
+qt6-wayland	qt6-qtwayland	desktop	
+qt6ct	qt6ct	desktop	
+quickemu	quickemu	optional	
+quickshell	quickshell	desktop	
+ripgrep	ripgrep	desktop	
+rtkit	rtkit	desktop	
+rust	rust	desktop	
+ryogami	ryogami	desktop	Ryoku-owned RPM.
+ryoku	ryoku	desktop	Ryoku-owned RPM.
+ryoku-blobs	ryoku-blobs	desktop	Ryoku-owned RPM.
+ryoku-cursor-material	-	desktop	No separate Fedora RPM is published.
+ryoku-cursors	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+ryoku-desktop	ryoku-desktop	desktop	Ryoku-owned RPM.
+ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a Fedora compositor RPM.
+ryoku-desktop-hyprland	ryoku-desktop-hyprland	hyprland	Ryoku-owned RPM.
+ryoku-desktop-niri	ryoku-desktop-niri	desktop	Ryoku-owned RPM.
+ryoku-hub	ryoku-hub	desktop	Ryoku-owned RPM.
+ryoku-hypr-plugins	-	hyprland	No separate Fedora RPM is published.
+ryoku-keyring	-	desktop	The Fedora installer imports the RPM signing key directly.
+ryoku-keysounds	-	hyprland	No separate Fedora RPM is published.
+ryoku-oh-my-zsh	-	desktop	No separate Fedora RPM is published.
+ryoku-palette-bridge	ryoku-palette-bridge	desktop	Ryoku-owned RPM.
+ryoku-rashin	ryoku-rashin	desktop	Ryoku-owned RPM.
+ryoku-shell	ryoku-shell	desktop	Ryoku-owned RPM.
+ryotunes	-	optional	Ryotunes is not published in the Fedora repository.
+scx-scheds	-	system	CachyOS-only package.
+sddm	sddm	desktop	
+shaderc	glslc	desktop	
+skwd-paper-bin	-	desktop	No separate Fedora RPM is published.
+slurp	slurp	desktop	
+snap-pac	-	system	DNF does not use pacman transaction hooks.
+snapper	snapper	desktop,system	
+socat	socat	desktop	
+songrec	-	desktop	No Fedora 44 package provides this Arch package.
+spice-gtk	spice-gtk spice-gtk-tools	optional	
+sqlite	sqlite	optional	
+starship	starship	desktop	Provided by a restricted COPR.
+steamcmd	-	optional	No Fedora 44 package provides this Arch package.
+sudo	sudo	system	
+swtpm	swtpm	optional	
+syntax-highlighting	kf6-syntax-highlighting	desktop	
+tesseract	tesseract	desktop	
+tesseract-data-eng	tesseract-langpack-eng	desktop	
+ttf-firacode-nerd	-	desktop	No Fedora 44 package provides this Arch package.
+ttf-fraunces-variable	-	extra	No Fedora 44 package provides this Arch package.
+ttf-hack-nerd	-	desktop	No Fedora 44 package provides this Arch package.
+ttf-jetbrains-mono-nerd	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+ttf-maple-mono-nf	-	desktop	No separate Fedora RPM is published.
+ttf-material-symbols-variable	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
+ttf-readex-pro	-	desktop	No separate Fedora RPM is published.
+ttf-rubik-vf	google-rubik-fonts	desktop	
+udev	systemd-udev	desktop	
+upower	upower	desktop	
+uv	uv	desktop	
+vimix-cursors	-	desktop	No Fedora 44 package provides this Arch package.
+virglrenderer	virglrenderer	desktop	
+voxtype-bin	-	extra	No Fedora 44 package provides this Arch package.
+vulkan-icd-loader	vulkan-loader	desktop	
+vulkan-intel	mesa-vulkan-drivers	hardware:intel	
+vulkan-radeon	mesa-vulkan-drivers	hardware:amd	
+vulkan-swrast	mesa-vulkan-drivers	hardware:vm	
+waifu2x-ncnn-vulkan	-	desktop	No Fedora 44 package provides this Arch package.
+wayland	libwayland-client libwayland-cursor libwayland-egl libwayland-server	desktop	
+webkit2gtk-4.1	webkit2gtk4.1	desktop	
+weston	weston	desktop	
+wireless-regdb	wireless-regdb	desktop	
+wireplumber	wireplumber	desktop	
+wl-clip-persist	-	desktop	No Fedora 44 package provides this Arch package.
+wl-clipboard	wl-clipboard	desktop	
+wlsunset	wlsunset	desktop	
+wpa_supplicant	wpa_supplicant	desktop	
+wtype	wtype	desktop	
+xcb-util-cursor	xcb-util-cursor	desktop	
+xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
+xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
+xdg-desktop-portal-hyprland	xdg-desktop-portal-hyprland	hyprland	Provided by a restricted COPR.
+xdg-user-dirs	xdg-user-dirs	desktop	
+xdg-utils	xdg-utils	desktop	
+xorg-xcursorgen	xcursorgen	desktop	
+xorg-xwayland	xorg-x11-server-Xwayland	desktop	
+xpadneo-dkms	-	desktop	No Fedora 44 package provides this Arch package.
+xwayland-satellite	xwayland-satellite	desktop	
+yay	-	optional	AUR helpers do not apply to Fedora.
+yay-bin	-	extra	AUR helpers do not apply to Fedora.
+yazi	yazi	desktop	Provided by a restricted COPR.
+yt-dlp	yt-dlp	desktop	
+zbar	zbar	desktop	
+zen-browser-bin	-	extra	No Fedora 44 package provides this Arch package.
+zenity	zenity	desktop	
+zlib	zlib-ng-compat	desktop	
+zoxide	zoxide	desktop	
+zsh	zsh	desktop	
+zsh-autosuggestions	zsh-autosuggestions	desktop	
+zsh-history-substring-search	-	desktop	No Fedora 44 package provides this Arch package.
+zsh-syntax-highlighting	zsh-syntax-highlighting	desktop	
