@@ -63,7 +63,7 @@ type pendingUpdate struct {
 
 // bootNotice is what the doctor shows after the guard acted.
 type bootNotice struct {
-	Action   string `json:"action"` // reverted, snapshot-default, restored-default, revert-failed
+	Action   string `json:"action"` // reverted, snapshot-default, revert-failed
 	From     string `json:"from"`
 	To       string `json:"to"`
 	Channel  string `json:"channel,omitempty"` // the channel to `ryoku track` back to
@@ -280,16 +280,7 @@ func restoreBootMenuDefault() error {
 	if err := clearLimineLastBootedEntry(); err != nil {
 		return err
 	}
-	_ = os.Remove(pendingFile)
-	// The hook runs inside the booted snapshot, whose root is read-only; the
-	// menu reset above is what matters, the notice is a courtesy.
-	if err := writeNotice(bootNotice{
-		Action: "restored-default",
-		Detail: i18n.T("the snapshot restore completed; Limine now defaults to the restored system"),
-		At:     now(),
-	}); err != nil && !errors.Is(err, unix.EROFS) {
-		return err
-	}
+	fmt.Printf(i18n.T("boot guard: snapshot restore complete; Limine now defaults to %s\n"), entry)
 	return nil
 }
 

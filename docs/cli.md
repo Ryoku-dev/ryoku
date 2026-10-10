@@ -126,9 +126,8 @@ through the service logger.
 cannot restore because it flips the btrfs default subvolume, which a pinned
 `subvol=` ignores. Reboot, choose **Ryoku Linux -> Snapshots -> <id>** in
 Limine, run `sudo limine-snapper-restore`, then reboot into the restored system.
-The restore hook resets Limine to the first kernel under **Ryoku Linux**, clears
-the remembered snapshot entry and any pending boot guard marker, and leaves a
-notice for `ryoku doctor`.
+The restore hook resets Limine to the first kernel under **Ryoku Linux** and
+clears the remembered snapshot entry.
 
 On a host without Ryoku's snapshot stack, bare `rollback` still lists releases
 and explains that snapshots are unavailable. Supplying a snapshot id returns

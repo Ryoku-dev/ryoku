@@ -175,9 +175,6 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 			if err := os.WriteFile(restoreMarker, []byte("restored\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(pendingFile, []byte("{}\n"), 0o644); err != nil {
-				t.Fatal(err)
-			}
 			if err := os.WriteFile(limineLastBootedEntry, []byte("snapshot"), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -191,17 +188,8 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 			if !strings.Contains(string(raw), "default_entry: "+test.entry+"\n") {
 				t.Fatalf("restored default =\n%s", raw)
 			}
-			for _, path := range []string{pendingFile, limineLastBootedEntry} {
-				if _, err := os.Stat(path); !os.IsNotExist(err) {
-					t.Fatalf("%s survived restore handling: %v", path, err)
-				}
-			}
-			notice, err := os.ReadFile(noticeFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(notice), `"action": "restored-default"`) {
-				t.Fatalf("restore notice = %s", notice)
+			if _, err := os.Stat(limineLastBootedEntry); !os.IsNotExist(err) {
+				t.Fatalf("remembered EFI entry survived restore handling: %v", err)
 			}
 		})
 	}
@@ -210,9 +198,6 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 func TestBootGuardRestoredDoesNothingWithoutRestoreMarker(t *testing.T) {
 	setupBootGuardPaths(t)
 	if err := os.WriteFile(limineConf, []byte(limineFixture), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(pendingFile, []byte("pending\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := BootGuard([]string{"--restored"}); err != nil {
@@ -224,9 +209,6 @@ func TestBootGuardRestoredDoesNothingWithoutRestoreMarker(t *testing.T) {
 	}
 	if string(raw) != limineFixture {
 		t.Fatalf("config changed without restore marker:\n%s", raw)
-	}
-	if _, err := os.Stat(pendingFile); err != nil {
-		t.Fatalf("pending marker changed without restore marker: %v", err)
 	}
 }
 

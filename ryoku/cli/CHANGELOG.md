@@ -133,9 +133,10 @@
 
 ### Fixed
 - **Boot fallback and channel overrides now survive the last mile.** The guard
-  writes complete nested Limine paths, clears remembered EFI entries, and
-  returns to the restored system after `limine-snapper-restore`; stable channel
-  selection also keeps an explicit release-base override on pacman and XBPS.
+  writes complete nested Limine paths and clears remembered EFI entries,
+  including when it returns to the restored system after
+  `limine-snapper-restore`. Stable channel selection also keeps an explicit
+  release-base override on pacman and XBPS.
 - **Void updates complete over SSH when no desktop session is active.** The
   updater skips the session cutover sleep inhibitor when there are no live
   desktop suspend owners to replace, while keeping the guard for desktop
