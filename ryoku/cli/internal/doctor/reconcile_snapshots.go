@@ -19,9 +19,12 @@ const snapshotDrainBatch = 20
 // snapper-cleanup.timer -> snapper-cleanup.service, whose success is coupled to
 // limine-snapper-sync (its ExecStopPost); when that breaks nothing is pruned
 // and every update leaves another unremovable pair. So keep the cleanup timer
-// on, the timeline timer off (Ryoku prunes by number, and Cleanup=timeline
-// snapshots leak past number cleanup), and drain leaked timeline snapshots.
-// Draining runs only under a number-only config (TIMELINE_CREATE="no").
+// on and drain leaked timeline snapshots. The shared snapper-timeline.timer is
+// never disabled here: it serves every config on the box, and a user config
+// with its own schedule would silently lose its snapshots (#355). Ryoku owns
+// the root config, so a root that creates timeline snapshots no cleanup
+// reclaims gets timeline creation turned off in that config alone.
+// Draining runs for any root whose timeline leftovers no cleanup reclaims.
 func reconcileSnapperCleanup(checkOnly bool) recResult {
 	if supported, reason := doctorSnapshots(); !supported {
 		return noteRes("%s", reason)
@@ -33,10 +36,12 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 		return okRes(i18n.T("snapper is not installed, so there is nothing to prune"))
 	}
 
-	cleanupOff, timelineOn := snapperCleanupServiceState()
-	numberOnly := snapperTimelineOff()
+	cleanupOff, _ := snapperCleanupServiceState()
+	root := snapperRootConfigContents()
+	numberOnly := configTimelineOff(root)
+	leaks := configTimelineLeak(root)
 	var leaked []string
-	if numberOnly {
+	if numberOnly || leaks {
 		leaked = leakedTimelineSnapshots()
 	}
 	// Untagged Ryoku snapshots (GPU passthrough, config import) carry no cleanup
@@ -49,9 +54,9 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 		case cleanupOff:
 			return wouldRes(i18n.T("snapper-cleanup.timer is disabled, so snapshots are never pruned on a schedule")).
 				withFix(i18n.T("ryoku doctor (enables snapper-cleanup.timer)"))
-		case timelineOn && numberOnly:
-			return wouldRes(i18n.T("snapper-timeline.timer is enabled; Ryoku prunes by number only, so timeline snapshots leak")).
-				withFix(i18n.T("ryoku doctor (disables snapper-timeline.timer)"))
+		case leaks:
+			return wouldRes(i18n.T("the root config creates timeline snapshots its own cleanup never reclaims")).
+				withFix(i18n.T("ryoku doctor (turns timeline creation off in the root config)"))
 		case len(leaked) > 0:
 			return wouldRes(i18n.T("%d leaked timeline snapshot(s) that number cleanup never reclaims"), len(leaked)).
 				withFix(i18n.T("ryoku doctor (deletes them in batches, then runs snapper cleanup number)"))
@@ -68,9 +73,9 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 			fixes = append(fixes, i18n.T("enabled snapper-cleanup.timer"))
 		}
 	}
-	if timelineOn && numberOnly {
-		if err := runSystemService("disable", "--now", "snapper-timeline.timer"); err == nil {
-			fixes = append(fixes, i18n.T("disabled snapper-timeline.timer"))
+	if leaks {
+		if err := writeRootFile("/etc/snapper/configs/root", disableTimelineInConfig(root), "0640"); err == nil {
+			fixes = append(fixes, i18n.T("turned timeline creation off in the root config"))
 		}
 	}
 	if len(leaked) > 0 {
@@ -98,31 +103,63 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 	return fixedRes("%s", strings.Join(fixes, "; "))
 }
 
+// snapperCleanupServiceState reads the cleanup timer's service state. The
+// timeline timer is reported but no longer acted on: it is box-wide, and only
+// the root config's own schedule is Ryoku's to change (#355).
 func snapperCleanupServiceState() (cleanupOff, timelineOn bool) {
 	cleanupOff = !systemServiceEnabled("snapper-cleanup.timer")
 	timelineOn = !xbpsHost() && systemServiceEnabled("snapper-timeline.timer")
 	return cleanupOff, timelineOn
 }
 
-// snapperTimelineOff reports number-only cleanup. The config is 0640 root:root,
-// so fall back to a cached sudo read; an unreadable config reads as "not off"
-// so the drain never fires on a guess.
-func snapperTimelineOff() bool {
+// snapperRootConfigContents reads the root snapper config. It is 0640
+// root:root, so fall back to a cached sudo read; an unreadable config reads
+// as empty, which is neither number-only nor leaking, so the reconciler never
+// acts on files it cannot see.
+func snapperRootConfigContents() string {
 	b, err := os.ReadFile("/etc/snapper/configs/root")
-	contents := string(b)
-	if err != nil {
-		contents, _ = sys.RunOut("sudo", "-n", "cat", "/etc/snapper/configs/root")
+	if err == nil {
+		return string(b)
 	}
-	return configTimelineOff(contents)
+	contents, _ := sys.RunOut("sudo", "-n", "cat", "/etc/snapper/configs/root")
+	return contents
 }
 
+// configTimelineOff reports number-only cleanup: Ryoku's shipped root, where
+// any timeline snapshot can only be a leftover of an earlier config.
 func configTimelineOff(contents string) bool {
+	return configValue(contents, "TIMELINE_CREATE") == "no"
+}
+
+// configTimelineLeak reports a config that creates timeline snapshots while
+// its own timeline cleanup is off: those numbers pile up past every cleanup
+// Ryoku runs. The fix belongs in the root config, not in the box-wide timer.
+func configTimelineLeak(contents string) bool {
+	return configValue(contents, "TIMELINE_CREATE") == "yes" &&
+		configValue(contents, "TIMELINE_CLEANUP") != "yes"
+}
+
+// configValue reads one snapper config key, quotes trimmed; "" when absent.
+func configValue(contents, key string) string {
 	for _, line := range strings.Split(contents, "\n") {
-		if strings.TrimSpace(line) == `TIMELINE_CREATE="no"` {
-			return true
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, key+"=") {
+			return strings.Trim(strings.SplitN(line, "=", 2)[1], "\"")
 		}
 	}
-	return false
+	return ""
+}
+
+// disableTimelineInConfig rewrites TIMELINE_CREATE to "no" in the config text,
+// leaving every other key and comment untouched.
+func disableTimelineInConfig(contents string) string {
+	lines := strings.Split(contents, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) == `TIMELINE_CREATE="yes"` {
+			lines[i] = `TIMELINE_CREATE="no"`
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // leakedTimelineSnapshots lists Cleanup=timeline numbers, read-only and

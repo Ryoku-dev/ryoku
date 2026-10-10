@@ -25,6 +25,37 @@ func TestConfigTimelineOff(t *testing.T) {
 	}
 }
 
+func TestConfigTimelineLeak(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"ryoku root", "TIMELINE_CREATE=\"no\"\nTIMELINE_CLEANUP=\"yes\"\n", false},
+		{"leaks", "TIMELINE_CREATE=\"yes\"\nTIMELINE_CLEANUP=\"no\"\n", true},
+		{"creates and cleans", "TIMELINE_CREATE=\"yes\"\nTIMELINE_CLEANUP=\"yes\"\n", false},
+		{"cleanup absent", "TIMELINE_CREATE=\"yes\"\n", true},
+		{"number-only shipped root", "SUBVOLUME=\"/\"\nTIMELINE_CREATE=\"no\"\nTIMELINE_CLEANUP=\"yes\"\n", false},
+	}
+	for _, c := range cases {
+		if got := configTimelineLeak(c.body); got != c.want {
+			t.Errorf("%s: configTimelineLeak = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestDisableTimelineInConfigTouchesOnlyTheKey(t *testing.T) {
+	in := "# comment\nTIMELINE_CREATE=\"yes\"\nTIMELINE_CLEANUP=\"no\"\nTIMELINE_LIMIT_HOURLY=\"10\"\n"
+	want := "# comment\nTIMELINE_CREATE=\"no\"\nTIMELINE_CLEANUP=\"no\"\nTIMELINE_LIMIT_HOURLY=\"10\"\n"
+	if got := disableTimelineInConfig(in); got != want {
+		t.Fatalf("disableTimelineInConfig = %q, want %q", got, want)
+	}
+	numberOnly := "TIMELINE_CREATE=\"no\"\nTIMELINE_CLEANUP=\"yes\"\n"
+	if got := disableTimelineInConfig(numberOnly); got != numberOnly {
+		t.Fatal("a number-only config must be left alone")
+	}
+}
+
 func TestParseLeakedTimeline(t *testing.T) {
 	csv := "number,cleanup\n" +
 		"0,\n" + // base snapshot, never deletable
