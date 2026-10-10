@@ -84,6 +84,7 @@ fi
 : "${RYOKU_RELEASE:=local-$VERSION}"
 : "${RYOKU_CHANNEL:=local}"
 RYOKU_NAME=${RYOKU_NAME:-$(tr -d '[:space:]' < "$ROOT/CODENAME")}
+RYOKU_COMMIT=${RYOKU_XBPS_COMMIT:-$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf unknown)}
 export RYOKU_RELEASE RYOKU_CHANNEL RYOKU_NAME
 log "Release -> $RYOKU_NAME $RYOKU_RELEASE ($RYOKU_CHANNEL), package version $VERSION"
 
@@ -160,6 +161,15 @@ git -C "$VP" fetch -q --depth=1 origin "$VOID_PACKAGES_REF"
 git -C "$VP" checkout -q --detach FETCH_HEAD
 cp -a "$SRCPKGS"/. "$VP/srcpkgs/"
 
+release_metadata=$VP/srcpkgs/ryoku-desktop/files/ryoku-release.env
+mkdir -p "$(dirname "$release_metadata")"
+{
+	printf 'RYOKU_RELEASE=%q\n' "$RYOKU_RELEASE"
+	printf 'RYOKU_CHANNEL=%q\n' "$RYOKU_CHANNEL"
+	printf 'RYOKU_NAME=%q\n' "$RYOKU_NAME"
+	printf 'RYOKU_COMMIT=%q\n' "$RYOKU_COMMIT"
+} > "$release_metadata"
+
 if [[ -n $KEYRING_DIR ]]; then
 	[[ -d $KEYRING_DIR ]] || die "RYOKU_XBPS_KEYRING_DIR is not a directory: $KEYRING_DIR"
 	development_plists=("$KEYRING_DIR"/*.plist)
@@ -223,7 +233,8 @@ log "Bootstrapping the pinned xbps-src masterdir"
 	./xbps-src binary-bootstrap
 )
 
-# Omit -f so xbps-src reuses exact packages from XBPS_HOSTDIR.
+# Reuse exact package versions except the desktop package, whose release
+# metadata belongs to this repository publication.
 selected_count=${#selected[@]}
 while ((${#built[@]} < selected_count)); do
 	progress=0
@@ -242,7 +253,11 @@ while ((${#built[@]} < selected_count)); do
 		log "Building $pkg"
 		(
 			cd "$VP"
-			./xbps-src pkg "$pkg"
+			if [[ $pkg == ryoku-desktop ]]; then
+				./xbps-src -f pkg "$pkg"
+			else
+				./xbps-src pkg "$pkg"
+			fi
 		)
 		built[$pkg]=1
 		progress=1
@@ -308,9 +323,8 @@ if [[ -n $KEY ]]; then
 fi
 [[ -s $ARCH_DIR/$ARCH-repodata ]] || die "$ARCH-repodata was not created"
 
-commit=${RYOKU_XBPS_COMMIT:-$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf unknown)}
 printf '{"schema":1,"release":"%s","name":"%s","channel":"%s","version":"%s","commit":"%s","date":"%s"}\n' \
-	"$RYOKU_RELEASE" "$RYOKU_NAME" "$RYOKU_CHANNEL" "$VERSION" "$commit" \
+	"$RYOKU_RELEASE" "$RYOKU_NAME" "$RYOKU_CHANNEL" "$VERSION" "$RYOKU_COMMIT" \
 	"$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$ARCH_DIR/release.json"
 
 log "XBPS repository ready at $ARCH_DIR"

@@ -101,12 +101,19 @@ conf_files="
 system_groups="i2c"
 
 _do_payload() {
+	local release_env="$FILESDIR/ryoku-release.env"
+	if [[ -r $release_env ]]; then
+		# shellcheck source=/dev/null
+		source "$release_env"
+	fi
+
 	GOFLAGS="-buildmode=pie" \
 	RYOKU_SRC="$wrksrc" \
 	RYOKU_PKGVER="$version" \
 	RYOKU_RELEASE="${RYOKU_RELEASE:-local-${version}}" \
 	RYOKU_CHANNEL="${RYOKU_CHANNEL:-local}" \
 	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+	RYOKU_COMMIT="${RYOKU_COMMIT:-}" \
 	RYOKU_BUILD_DIR="$wrksrc/.xbps-build/ryoku-desktop" \
 		"$wrksrc/release/packages/ryoku-desktop/payload.sh" "$@"
 }

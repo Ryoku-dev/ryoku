@@ -62,6 +62,8 @@
   the other plugin packages.
 
 ### Fixed
+- **Void packages record the published release name, channel, and source commit.**
+
 - **`ryoku-desktop` no longer collides with another desktop's mimeapps map.**
   The default-app map shipped to `/usr/share/applications/mimeapps.list`, and
   on Omarchy that file belongs to `omarchy-settings`, so pacman aborted the

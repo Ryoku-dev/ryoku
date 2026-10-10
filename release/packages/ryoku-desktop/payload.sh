@@ -47,10 +47,10 @@ package() {
   # pacman-owned so it always names the release actually installed.
   install -Dm644 /dev/stdin "$pkgdir/etc/ryoku-release" <<EOF
 RELEASE=${RYOKU_RELEASE:-local-$pkgver}
-NAME=$(tr -d '[:space:]' < "$_repo/CODENAME")
+NAME=${RYOKU_NAME:-$(tr -d '[:space:]' < "$_repo/CODENAME")}
 CHANNEL=${RYOKU_CHANNEL:-local}
 VERSION=$pkgver
-COMMIT=$(git -C "$_repo" rev-parse HEAD 2>/dev/null || echo unknown)
+COMMIT=${RYOKU_COMMIT:-$(git -C "$_repo" rev-parse HEAD 2>/dev/null || echo unknown)}
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 
