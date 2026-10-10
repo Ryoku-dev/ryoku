@@ -3,6 +3,7 @@ package host
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"strings"
 )
 
@@ -192,6 +193,14 @@ func (a *App) pacman(args []string) int {
 			if helper == "" {
 				return ExitAbsent
 			}
+			// makepkg refuses to run as root, and the doctor's manifest step
+			// arrives here through sudo. Build as the invoking user, who owns
+			// the helper's cache; the helper escalates just the pacman step.
+			if a.cfg.UID == 0 {
+				if run := a.dropForAUR(helper, installArgs); len(run) > 0 {
+					return commandExit(a.run(run[0], run[1:]...))
+				}
+			}
 			return commandExit(a.run(helper, installArgs...))
 		}
 		return commandExit(a.run("pacman", a.pacmanTransactionArgs(installArgs[0], installArgs[1:]...)...))
@@ -260,6 +269,28 @@ func (a *App) pacmanTransactionArgs(action string, rest ...string) []string {
 	}
 	args = append(args, action)
 	return append(args, rest...)
+}
+
+// lookupUser resolves an account for its home directory; a var so tests can
+// substitute an account without touching the host passwd.
+var lookupUser = user.Lookup
+
+// dropForAUR rebuilds the helper command to run as the invoking user when
+// ryoku-host was called through sudo: makepkg refuses to run as root, so a
+// root-side AUR build always fails. The helper escalates the final pacman
+// transaction itself. Returns nil when no invoking user can be attributed.
+func (a *App) dropForAUR(helper string, args []string) []string {
+	name := a.getenv("SUDO_USER")
+	if name == "" || name == "root" {
+		return nil
+	}
+	u, err := lookupUser(name)
+	if err != nil {
+		return nil
+	}
+	run := []string{"runuser", "-u", name, "--", "env",
+		"HOME=" + u.HomeDir, "USER=" + name, "LOGNAME=" + name, helper}
+	return append(run, args...)
 }
 
 func (a *App) xbps(args []string) int {

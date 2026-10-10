@@ -3,6 +3,7 @@ package host
 import (
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -266,6 +267,34 @@ func TestPacmanConfigUpgradeAndAURSelection(t *testing.T) {
 	app, _, _ = testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "pacman"})
 	if code := app.Package([]string{"install", "--aur", "foo"}); code != ExitAbsent {
 		t.Fatalf("no helper exit = %d", code)
+	}
+}
+
+func TestAURInstallDropsToInvokingUserUnderSudo(t *testing.T) {
+	lookupUser = func(name string) (*user.User, error) {
+		return &user.User{Username: name, HomeDir: "/home/" + name}, nil
+	}
+	t.Cleanup(func() { lookupUser = user.Lookup })
+	runner := &fakeRunner{paths: map[string]bool{"yay": true}}
+	app, _, _ := testApp(runner, map[string]string{
+		"RYOKU_HOST_PKGMGR": "pacman", "SUDO_USER": "hilda",
+	})
+	app.cfg.UID = 0
+	if code := app.Package([]string{"install", "--aur", "apple_cursor"}); code != ExitOK {
+		t.Fatalf("exit = %d", code)
+	}
+	want := "runuser -u hilda -- env HOME=/home/hilda USER=hilda LOGNAME=hilda yay -S --needed --noconfirm apple_cursor"
+	if got := argv(runner.commands[0]); got != want {
+		t.Fatalf("argv = %q, want %q", got, want)
+	}
+
+	runner.commands = nil
+	app.cfg.UID = 1000
+	if code := app.Package([]string{"install", "--aur", "apple_cursor"}); code != ExitOK {
+		t.Fatalf("user-side exit = %d", code)
+	}
+	if got := argv(runner.commands[0]); got != "yay -S --needed --noconfirm apple_cursor" {
+		t.Fatalf("user-side argv = %q", got)
 	}
 }
 
