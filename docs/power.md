@@ -12,8 +12,9 @@ chassis; the *shape* of the conclusions holds for AMD laptops generally.
 ## Low-battery alerts
 
 Open **Win+, → Graphics & Power → Battery** to enable alerts, set the warning
-and critical percentages, or send a test notification. Defaults are 25% and
-10%. Warning accepts 5–50%; critical accepts 1–49% and must be below warning.
+and critical percentages, enable either level independently, or send a test notification. Defaults are 25% and
+10%. Both levels default to enabled; turn either one off for warning-only or
+critical-only reminders. Warning accepts 5–50%; critical accepts 1–49% and must be below warning.
 These settings are independent of hardware support for a charge ceiling.
 
 While discharging, Ryoku sends “Battery low” at the warning level and “Battery

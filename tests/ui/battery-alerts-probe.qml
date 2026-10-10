@@ -67,6 +67,43 @@ ShellRoot {
                 break;
             case 12:
                 check(BatteryAlerts.alertState.criticalSent, "failed delivery can retry");
+                Battery.onAc = true;
+                Battery.frac = 0.25;
+                Config.batteryAlerts = { enabled: true, warningEnabled: false, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 };
+                break;
+            case 13:
+                Battery.onAc = false;
+                break;
+            case 14:
+                check(!BatteryAlerts.alertState.lowSent && !BatteryAlerts.alertState.criticalSent, "critical-only skips warning");
+                Battery.frac = 0.10;
+                break;
+            case 15:
+                check(BatteryAlerts.alertState.criticalSent, "critical-only delivery");
+                BatteryAlerts.testNotification();
+                Battery.onAc = true;
+                Config.batteryAlerts = { enabled: true, warningEnabled: true, criticalEnabled: false, warningPercent: 25, criticalPercent: 10 };
+                break;
+            case 16:
+                Battery.onAc = false;
+                break;
+            case 17:
+                check(BatteryAlerts.alertState.lowSent && !BatteryAlerts.alertState.criticalSent, "warning-only delivery below critical threshold");
+                BatteryAlerts.testNotification();
+                Battery.onAc = true;
+                Battery.frac = 0.01;
+                Config.batteryAlerts = { enabled: true, warningEnabled: false, criticalEnabled: false, warningPercent: 25, criticalPercent: 10 };
+                break;
+            case 18:
+                Battery.onAc = false;
+                break;
+            case 19:
+                check(!BatteryAlerts.alertState.lowSent && !BatteryAlerts.alertState.criticalSent, "both levels disabled");
+                BatteryAlerts.testNotification();
+                break;
+            case 20:
+                check(BatteryAlerts.lastResult === "Notification sent.", "both-off test notification");
+                check(!BatteryAlerts.alertState.lowSent && !BatteryAlerts.alertState.criticalSent, "test does not consume disabled levels");
                 console.log("BATTERY-ALERTS-PROBE-PASS");
                 Qt.quit();
             }

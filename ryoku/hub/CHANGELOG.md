@@ -3,8 +3,9 @@
 ## Unreleased
 
 ### Added
-- Battery settings include low-battery alerts, warning and critical percentages,
-  and a test notification. Changes apply immediately and critical always stays
+- Battery settings include low-battery alerts, independent warning and critical
+  switches and percentages, and a test notification. Either reminder can run
+  alone. Changes apply immediately and critical always stays
   below warning (`quickshell/pages/BatteryAlertsSettings.qml`).
 
 ### Changed

@@ -51,7 +51,10 @@ env PATH="$work/bin:$PATH" BATTERY_PROBE_LOG="$work/notifications" BATTERY_PROBE
 if ! rg -q BATTERY-ALERTS-PROBE-PASS "$work/log"; then
  cat "$work/log"; exit 1
 fi
-[[ $(wc -l < "$work/notifications") -eq 7 ]]
+[[ $(wc -l < "$work/notifications") -eq 12 ]]
 rg -q -- '--urgency=normal Battery low Battery at 25%' "$work/notifications"
 rg -q -- '--urgency=critical Battery critical Battery at 10%' "$work/notifications"
-echo 'battery-alerts-probe: native delivery, discharge reset, deduplication, settings, critical startup and failure retry pass'
+rg -q 'Critical alerts: 10%. Warning alerts are disabled.' "$work/notifications"
+rg -q 'Warning alerts: 25%. Critical alerts are disabled.' "$work/notifications"
+rg -q 'Both battery alert levels are disabled.' "$work/notifications"
+echo 'battery-alerts-probe: native delivery, discharge reset, deduplication, settings, critical startup, failure retry and independent levels pass'

@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- Warning and critical battery alerts can each be enabled independently in
+  Graphics & Power → Battery, including warning-only or critical-only modes.
 - **Native battery alerts.** Every bar style warns once per discharge session at
   configurable warning and critical levels (25% and 10% by default). Configure
   or test them in Ryoku Settings → Graphics & Power → Battery. Alerts respect

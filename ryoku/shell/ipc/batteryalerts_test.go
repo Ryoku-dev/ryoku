@@ -10,7 +10,7 @@ import (
 
 func TestBatteryAlertsDefaultsAndPersistence(t *testing.T) {
 	s := newTestStore(t)
-	want := batteryAlertsSettings{Enabled: true, WarningPercent: 25, CriticalPercent: 10}
+	want := batteryAlertsSettings{WarningEnabled: true, CriticalEnabled: true, Enabled: true, WarningPercent: 25, CriticalPercent: 10}
 	if s.cur.BatteryAlerts != want {
 		t.Fatalf("defaults = %+v, want %+v", s.cur.BatteryAlerts, want)
 	}
@@ -19,7 +19,7 @@ func TestBatteryAlertsDefaultsAndPersistence(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want = batteryAlertsSettings{Enabled: false, WarningPercent: 30, CriticalPercent: 12}
+	want = batteryAlertsSettings{WarningEnabled: true, CriticalEnabled: true, Enabled: false, WarningPercent: 30, CriticalPercent: 12}
 	if got := newSettingsStore(s.path).cur.BatteryAlerts; got != want {
 		t.Fatalf("reloaded = %+v, want %+v", got, want)
 	}
@@ -33,7 +33,7 @@ func TestBatteryAlertsDefaultsAndPersistence(t *testing.T) {
 
 func TestBatteryAlertsRejectsInvalidPatchWithoutMutation(t *testing.T) {
 	for _, tc := range []struct{ path, value string }{
-		{"enabled", "1"}, {"warningPercent", "4"}, {"warningPercent", "51"},
+		{"warningEnabled", "1"}, {"criticalEnabled", "1"}, {"enabled", "1"}, {"warningPercent", "4"}, {"warningPercent", "51"},
 		{"criticalPercent", "0"}, {"criticalPercent", "50"},
 		{"criticalPercent", "25"}, {"warningPercent", "10"}, {"unknown", "1"},
 	} {
@@ -107,5 +107,21 @@ func TestBatteryAlertsTestIPCUsesNativeTarget(t *testing.T) {
 	}
 	if string(argv) != "-c\nshell\nipc\ncall\nbattery-alerts-native\ntest\n" {
 		t.Fatalf("unexpected IPC argv: %q", argv)
+	}
+}
+
+func TestBatteryAlertsIndependentLevelsPersist(t *testing.T) {
+	for _, mode := range []struct{ warning, critical string }{{"true", "false"}, {"false", "true"}, {"false", "false"}, {"true", "true"}} {
+		s := newTestStore(t)
+		if err := s.patch("batteryAlerts.warningEnabled", rm(mode.warning)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.patch("batteryAlerts.criticalEnabled", rm(mode.critical)); err != nil {
+			t.Fatal(err)
+		}
+		got := newSettingsStore(s.path).cur.BatteryAlerts
+		if got.WarningEnabled != (mode.warning == "true") || got.CriticalEnabled != (mode.critical == "true") {
+			t.Fatalf("mode did not persist: %+v", got)
+		}
 	}
 }

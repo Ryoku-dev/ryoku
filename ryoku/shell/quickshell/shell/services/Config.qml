@@ -259,7 +259,7 @@ Singleton {
             property string formatLocale: ""
             property string screenShader: ""
             property var frameBars: FrameBars.defaultConfig()
-            property var batteryAlerts: ({ enabled: true, warningPercent: 25, criticalPercent: 10 })
+            property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
             property string barStyle: "qsbar"
             property string launcherTarget: "studio"
             property var obi: ({})

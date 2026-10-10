@@ -14,6 +14,14 @@ Column {
         Settings.revision;
         return Settings.get("batteryAlerts.enabled") !== false;
     }
+    readonly property bool warningEnabled: {
+        Settings.revision;
+        return Settings.get("batteryAlerts.warningEnabled") !== false;
+    }
+    readonly property bool criticalEnabled: {
+        Settings.revision;
+        return Settings.get("batteryAlerts.criticalEnabled") !== false;
+    }
     readonly property int warningPercent: {
         Settings.revision;
         var value = Settings.get("batteryAlerts.warningPercent");
@@ -60,13 +68,28 @@ Column {
     SettingRow {
         width: parent.width
         divider: true
+        label: I18n.tr("Warning alerts")
+        desc: I18n.tr("Send the first reminder to plug in.")
+        controlWidth: 54
+        enabled: Settings.ready && root.alertsEnabled && !root.busy
+        Sw {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            on: root.warningEnabled
+            onToggled: value => root.save("warningEnabled", value)
+        }
+    }
+
+    SettingRow {
+        width: parent.width
+        divider: true
         label: I18n.tr("Warning percentage")
         desc: I18n.tr("First reminder to plug in. Must be above the critical percentage.")
         controlWidth: 58
         unit: "%"
         value: String(root.warningPercent)
         editableValue: true
-        enabled: Settings.ready && root.alertsEnabled && !root.busy
+        enabled: Settings.ready && root.alertsEnabled && root.warningEnabled && !root.busy
         onValueCommitted: text => {
             var value = Number(text);
             if (text.trim() !== "" && isFinite(value))
@@ -86,13 +109,28 @@ Column {
     SettingRow {
         width: parent.width
         divider: true
+        label: I18n.tr("Critical alerts")
+        desc: I18n.tr("Send the urgent reminder to plug in.")
+        controlWidth: 54
+        enabled: Settings.ready && root.alertsEnabled && !root.busy
+        Sw {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            on: root.criticalEnabled
+            onToggled: value => root.save("criticalEnabled", value)
+        }
+    }
+
+    SettingRow {
+        width: parent.width
+        divider: true
         label: I18n.tr("Critical percentage")
         desc: I18n.tr("Urgent reminder to plug in. Must be below the warning percentage.")
         controlWidth: 58
         unit: "%"
         value: String(root.criticalPercent)
         editableValue: true
-        enabled: Settings.ready && root.alertsEnabled && !root.busy
+        enabled: Settings.ready && root.alertsEnabled && root.criticalEnabled && !root.busy
         onValueCommitted: text => {
             var value = Number(text);
             if (text.trim() !== "" && isFinite(value))
@@ -120,7 +158,7 @@ Column {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             text: I18n.tr("Test")
-            armed: Settings.ready && !root.busy
+            armed: Settings.ready && root.alertsEnabled && !root.busy
             onAct: root.testNotification()
         }
     }

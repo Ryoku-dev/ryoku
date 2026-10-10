@@ -7,6 +7,8 @@ import (
 )
 
 type batteryAlertsSettings struct {
+	WarningEnabled  bool `json:"warningEnabled"`
+	CriticalEnabled bool `json:"criticalEnabled"`
 	Enabled         bool `json:"enabled"`
 	WarningPercent  int  `json:"warningPercent"`
 	CriticalPercent int  `json:"criticalPercent"`

@@ -364,7 +364,7 @@ func defaultSettings() *settings {
 		Wallpaper:     wallpaperSettings{ContentFit: "Cover", TransitionPreset: "random", VideoEngine: "ryogami", VideoEnabled: true, VideoTranscodeFps: 24, VideoTranscodeWidth: 1920},
 		Ask:           askSettings{Bubble: askBubbleSettings{Enabled: false, X: 0.94, Y: 0.68, Screen: ""}},
 		Controls:      controlsSettings{Sections: controls, Hidden: []string{}},
-		BatteryAlerts: batteryAlertsSettings{Enabled: true, WarningPercent: 25, CriticalPercent: 10},
+		BatteryAlerts: batteryAlertsSettings{Enabled: true, WarningEnabled: true, CriticalEnabled: true, WarningPercent: 25, CriticalPercent: 10},
 	}
 }
 

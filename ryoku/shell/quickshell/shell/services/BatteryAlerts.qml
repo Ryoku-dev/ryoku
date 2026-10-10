@@ -11,6 +11,8 @@ Singleton {
     id: svc
     readonly property var settings: Config.batteryAlerts
     readonly property bool enabled: settings.enabled ?? true
+    readonly property bool warningEnabled: settings.warningEnabled ?? true
+    readonly property bool criticalEnabled: settings.criticalEnabled ?? true
     readonly property int lowThreshold: Math.max(5, Math.min(50, Number(settings.warningPercent ?? 25)))
     readonly property int criticalThreshold: Math.max(1, Math.min(lowThreshold - 1, Number(settings.criticalPercent ?? 10)))
     readonly property bool present: Battery.present
@@ -32,7 +34,7 @@ Singleton {
         function test(): void { svc.testNotification(); }
         function status(): string {
             return JSON.stringify({ percent: svc.percentage,
-                enabled: svc.enabled, onAc: svc.onAc, ready: svc.ready,
+                enabled: svc.enabled, warningEnabled: svc.warningEnabled, criticalEnabled: svc.criticalEnabled, onAc: svc.onAc, ready: svc.ready,
                 warning: svc.lowThreshold, critical: svc.criticalThreshold,
                 lastResult: svc.lastResult });
         }
@@ -43,7 +45,7 @@ Singleton {
         if (notifier.running) return;
         var result = Policy.evaluate(alertState,
             { present: present, ready: ready, onAc: onAc, discharging: discharging, percent: percent },
-            { enabled: enabled, low: lowThreshold, critical: criticalThreshold });
+            { enabled: enabled, warningEnabled: warningEnabled, criticalEnabled: criticalEnabled, low: lowThreshold, critical: criticalThreshold });
         if (!result.level) return;
         pendingState = result.state;
         pendingSession = session;
@@ -61,8 +63,16 @@ Singleton {
         if (notifier.running) return;
         testing = true;
         pendingState = null;
-        send(I18n.tr("Battery Alerts test"),
-            I18n.tr("Low-battery alerts are ready. Warning: %1%. Critical: %2%.").arg(lowThreshold).arg(criticalThreshold), false);
+        var body;
+        if (warningEnabled && criticalEnabled)
+            body = I18n.tr("Low-battery alerts are ready. Warning: %1%. Critical: %2%.").arg(lowThreshold).arg(criticalThreshold);
+        else if (warningEnabled)
+            body = I18n.tr("Warning alerts: %1%. Critical alerts are disabled.").arg(lowThreshold);
+        else if (criticalEnabled)
+            body = I18n.tr("Critical alerts: %1%. Warning alerts are disabled.").arg(criticalThreshold);
+        else
+            body = I18n.tr("Both battery alert levels are disabled. Test notifications still work.");
+        send(I18n.tr("Battery Alerts test"), body, false);
     }
     onOnAcChanged: {
         session++;
