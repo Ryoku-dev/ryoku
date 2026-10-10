@@ -1017,8 +1017,11 @@ done
                 // ── BATTERY ──
                 SettingCard {
                     width: gfxCol.colWidth
-                    visible: pg.batteryTune.length > 0
                     title: I18n.tr("BATTERY")
+
+                    BatteryAlertsSettings {
+                        width: parent.width
+                    }
 
                     Repeater {
                         model: pg.batteryTune

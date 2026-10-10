@@ -4,6 +4,10 @@
 
 ### Added
 - Global > Language & Region offers a 24-hour time switch for all Ryoku clocks; off selects 12-hour time with AM/PM.
+- Battery settings include low-battery alerts, independent warning and critical
+  switches and percentages, and a test notification. Either reminder can run
+  alone. Changes apply immediately and critical always stays
+  below warning (`quickshell/pages/BatteryAlertsSettings.qml`).
 
 ### Changed
 - **Updates stays clear when snapshots are unavailable.** The page shows the

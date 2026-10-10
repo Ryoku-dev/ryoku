@@ -37,6 +37,7 @@ Singleton {
     // (a shipped folder style under modules/bar/barstyles/qsbar); "sumi" is the
     // built-in painted left rail; any other id is an installed store folder
     // style. Each owns its own bar, popouts and settings. Default qsbar.
+    property alias batteryAlerts: adapter.batteryAlerts
     property alias barStyle: adapter.barStyle
 
     // obi: per-widget visibility for the Obi bar style, edited in Bar Studio.
@@ -258,6 +259,7 @@ Singleton {
             property string formatLocale: ""
             property string screenShader: ""
             property var frameBars: FrameBars.defaultConfig()
+            property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
             property string barStyle: "qsbar"
             property string launcherTarget: "studio"
             property var obi: ({})
