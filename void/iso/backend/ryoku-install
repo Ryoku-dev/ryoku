@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Install Void and the packaged Ryoku desktop from the ISO's offline repository.
 set -euo pipefail
 
 SELF=$(realpath "${BASH_SOURCE[0]}")
@@ -16,8 +15,7 @@ if [[ ! -d $SHARED_LIB_DIR ]]; then
 fi
 [[ -d $SHARED_LIB_DIR ]] || { printf 'ERROR: shared installer libraries not found\n' >&2; exit 1; }
 
-# The shared filesystem library keeps Arch's cache path by default. Select the
-# Void cache before sourcing it so @pkg mounts at /var/cache/xbps.
+# Select XBPS's cache before sourcing the shared filesystem library.
 : "${RYOKU_PACKAGE_CACHE_DIR:=/var/cache/xbps}"
 : "${RYOKU_CHROOT_CMD:=chroot}"
 RYOKU_TARGET_CHROOT=chroot

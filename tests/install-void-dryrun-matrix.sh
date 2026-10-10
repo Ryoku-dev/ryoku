@@ -85,7 +85,7 @@ run_case() {
   ! grep -q 'subvol=@snapshots' "$out"
 
   local package_line keymap_line materialize_line ledger_line marker_line
-  local qylock_line user_services_line
+  local qylock_line user_services_line xdg_dirs_line recordings_line rashin_wire_line
   local -a chown_lines=()
   package_line=$(grep -n -m1 'installing Ryoku desktop' "$out" | cut -d: -f1)
   keymap_line=$(grep -n -m1 'desktop.input.kbLayout=de' "$out" | cut -d: -f1)
@@ -95,6 +95,9 @@ run_case() {
   marker_line=$(grep -n -m1 '/.local/state/ryoku/default-rice-pending' "$out" | cut -d: -f1)
   qylock_line=$(grep -n -m1 'deploying qylock bundle' "$out" | cut -d: -f1)
   user_services_line=$(grep -n -m1 'ryoku-host session ensure --user' "$out" | cut -d: -f1)
+  xdg_dirs_line=$(grep -n -m1 'xdg-user-dirs-update' "$out" | cut -d: -f1)
+  recordings_line=$(grep -n -m1 'config=.*recording.json' "$out" | cut -d: -f1)
+  rashin_wire_line=$(grep -n -m1 'exec ryoku-rashin wire' "$out" | cut -d: -f1)
   [[ ${#chown_lines[@]} == 2 ]] \
     || { printf '%s: expected two ownership passes\n' "$name" >&2; exit 1; }
   (( package_line < keymap_line &&
@@ -103,7 +106,10 @@ run_case() {
      materialize_line < ledger_line &&
      ledger_line < marker_line &&
      marker_line < chown_lines[1] &&
-     chown_lines[1] < qylock_line &&
+     chown_lines[1] < xdg_dirs_line &&
+     xdg_dirs_line < recordings_line &&
+     recordings_line < rashin_wire_line &&
+     rashin_wire_line < qylock_line &&
      qylock_line < user_services_line )) \
     || { printf '%s: desktop provisioning order regressed\n' "$name" >&2; exit 1; }
   if [[ $online == 0 ]]; then

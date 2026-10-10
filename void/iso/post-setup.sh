@@ -13,8 +13,7 @@ for service in dbus NetworkManager seatd; do
 	ln -snf "/etc/sv/$service" "$service_root/$service"
 done
 
-# tty1 keeps the stock Void service so login and PAM still establish the root
-# session. ttyS0 is an independent root recovery shell for unattended installs.
+# Keep the stock tty1 PAM login; ttyS0 provides unattended recovery.
 for getty in agetty-tty1 agetty-ttyS0; do
 	[ -x "$root/etc/sv/$getty/run" ] || {
 		printf 'post-setup: stock getty service is missing: %s\n' "$getty" >&2

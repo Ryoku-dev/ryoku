@@ -48,6 +48,11 @@ PAYLOAD_COMMIT=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || printf unknow
 PAYLOAD_DATE=$(git -C "$REPO_ROOT" log -1 --pretty=%cI 2>/dev/null || date -Iseconds)
 PAYLOAD_VERSION=$(tr -d '[:space:]' < "$REPO_ROOT/VERSION" 2>/dev/null || printf unknown)
 PAYLOAD_NAME=$(tr -d '[:space:]' < "$REPO_ROOT/CODENAME" 2>/dev/null || printf unknown)
+# Match the installed channel to its offline package source.
+case ${RYOKU_VOID_ISO_CHANNEL:-${RYOKU_VOID_ISO_RYOKU_REPO:-}} in
+	testing | */channels/testing/*) PAYLOAD_CHANNEL=testing ;;
+	*) PAYLOAD_CHANNEL=stable ;;
+esac
 ISO_NAME=ryoku-void-${PAYLOAD_VERSION}-${ARCH}.iso
 
 stage_repo() {
@@ -88,8 +93,7 @@ for library in common i18n preflight disk resize luks filesystem network deploy;
 		"$ROOTFS/usr/local/lib/ryoku/backend/shared/$library.sh"
 done
 
-# Keep one implementation of the graphical session. The Void root only owns the
-# login and runit wiring around it.
+# Void adds only login and runit wiring around the shared graphical session.
 install -d "$ROOTFS/usr/local/lib/ryoku"
 install -m0755 "$REPO_ROOT/installation/iso/airootfs/usr/local/bin/ryoku-installer-session" \
 	"$ROOTFS/usr/local/lib/ryoku/installer-session"
@@ -101,6 +105,7 @@ commit=$PAYLOAD_COMMIT
 date=$PAYLOAD_DATE
 version=$PAYLOAD_VERSION
 name=$PAYLOAD_NAME
+channel=$PAYLOAD_CHANNEL
 EOF
 printf 'void\n' > "$ROOTFS/usr/share/ryoku/variant"
 
@@ -212,7 +217,7 @@ fi
 rm -rf /work/mklive-root
 mkdir -p /work/mklive-root
 cd /work/void-mklive
-	# The live TUI font is Ryoku-packaged, so mklive also resolves from the closure.
+	# Ryoku's live TUI font must resolve from the package closure.
 ROOTDIR=/work/mklive-root \
 	./mklive.sh \
 	-a x86_64 \

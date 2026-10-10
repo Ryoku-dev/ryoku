@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **Void ISO installs start doctor-clean.** The target user's localized XDG
+  directories and recording folder are created during deployment, and the
+  shipped Ryoku agent skill is wired before first boot.
 - **Browser and login-shell choices are honored end to end.** `RYOKU_BROWSER`
   (`firefox|chromium|zen`, default Firefox) and `RYOKU_LOGIN_SHELL`
   (`fish|zsh|bash`, default Fish) select exactly one browser and shell stack.

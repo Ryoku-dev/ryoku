@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Run the shared hardware scripts inside the Void target with all siblings intact.
 
 void_drivers() {
   local source=$RYOKU_REPO/system/hardware/drivers

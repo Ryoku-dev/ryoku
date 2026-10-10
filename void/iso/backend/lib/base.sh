@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Install the Void base from the ISO repository and write a UUID-based fstab.
 
 void_profile_lanes() {
   case $RYOKU_PROFILE in

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Void-specific helpers layered on the neutral installer libraries.
 
 VOID_XBPS_OFFLINE_MASKS=()
 VOID_XBPS_MASK_MANIFEST=/mnt/etc/xbps.d/.ryoku-offline-masks
@@ -64,8 +63,7 @@ repository=$RYOKU_OFFLINE_REPO
 EOF
   [[ ${RYOKU_ONLINE:-0} != 1 ]] || return 0
 
-  # These files can arrive after the base transaction through Void's repository
-  # packages or ryoku-keyring, so include them even when they are not present yet.
+  # Mask these paths even if later packages create them.
   local -a candidates=(
     00-repository-main.conf
     10-repository-nonfree.conf
@@ -118,9 +116,11 @@ void_offline_target_off() {
 }
 
 void_remote_repo_url() {
+  local payload=${RYOKU_REPO:-/usr/share/ryoku}/.payload channel=
+  [[ -r $payload ]] && channel=$(awk -F= '$1 == "channel" { print $2 }' "$payload")
   if [[ -n ${RYOKU_XBPS_REPO:-} ]]; then
     printf '%s' "$RYOKU_XBPS_REPO"
-  elif [[ ${RYOKU_REF:-} == unstable-dev ]]; then
+  elif [[ ${RYOKU_REF:-} == unstable-dev || $channel == testing ]]; then
     printf '%s' 'https://repo.ryoku.dev/stable/void/channels/testing/x86_64'
   else
     printf '%s' 'https://repo.ryoku.dev/stable/void/x86_64'
@@ -138,9 +138,7 @@ void_repo_finalize() {
   write_file /mnt/etc/xbps.d/20-ryoku.conf <<EOF
 repository=$remote
 EOF
-  # Repository indexes are disposable. Drop the local-medium cache so the next
-  # update must sync the configured remote mirrors rather than retain a path
-  # below /run/initramfs/live.
+  # Drop live-medium indexes before the installed system syncs remote mirrors.
   run_sh "rm -f /mnt/var/db/xbps/*-repodata /mnt/var/db/xbps/*-repodata.sig2 2>/dev/null || true"
   if [[ -z ${RYOKU_DRYRUN:-} ]]; then
     if grep -R -F "$RYOKU_OFFLINE_REPO" /mnt/etc/xbps.d /mnt/usr/share/xbps.d >/dev/null 2>&1; then

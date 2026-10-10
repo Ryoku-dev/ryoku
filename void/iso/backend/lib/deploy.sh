@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Install the packaged desktop, provision runit, SDDM, and the user's config.
 
 void_desktop_install() {
   local -a args=(--lane desktop --lane dev)
@@ -31,6 +30,34 @@ void_deploy_user() {
   ryoku_seed_provisioned "$user"
   ryoku_deploy_seed "$home"
   ryoku_deploy_chown "$user"
+
+  log 'initializing XDG user directories and recordings for %s' "$user"
+  run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$user:$user" \
+    env "HOME=/home/$user" "USER=$user" "LOGNAME=$user" \
+    "XDG_CONFIG_HOME=/home/$user/.config" "LANG=$RYOKU_LOCALE" \
+    xdg-user-dirs-update
+  run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$user:$user" \
+    env "HOME=/home/$user" "USER=$user" "LOGNAME=$user" \
+    "XDG_CONFIG_HOME=/home/$user/.config" sh -eu -c '
+      config=$XDG_CONFIG_HOME/ryoku/recording.json
+      recordings=
+      if [ -r "$config" ]; then
+        recordings=$(jq -r '"'"'if (.directory? | type) == "string" then .directory | gsub("^\\s+|\\s+$"; "") else empty end'"'"' "$config" 2>/dev/null || :)
+      fi
+      case $recordings in "~/"*) recordings=$HOME/${recordings#~/} ;; esac
+      if [ -z "$recordings" ]; then
+        videos=$(xdg-user-dir VIDEOS)
+        [ -n "$videos" ] || videos=$HOME/Videos
+        recordings=$videos/Recordings
+      fi
+      mkdir -p -- "$recordings"
+    '
+
+  log 'wiring the Rashin agent skill for %s' "$user"
+  run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$user:$user" \
+    env "HOME=/home/$user" "USER=$user" "LOGNAME=$user" \
+    "XDG_CONFIG_HOME=/home/$user/.config" sh -c \
+    'command -v ryoku-rashin >/dev/null 2>&1 || exit 0; exec ryoku-rashin wire'
   ryoku_deploy_qylock
 
   log 'provisioning Turnstile user services for %s' "$user"

@@ -63,8 +63,7 @@ seed_keys() {
 	fi
 }
 
-# A local repository can provide its own trust anchor without a second input.
-# Remote repositories need their key before their first index sync.
+# Remote repositories need their trust key before the first index sync.
 if [[ -d $RYOKU_REPO && -z ${RYOKU_VOID_ISO_KEYRING_DIR:-} ]]; then
 	key_root=$WORK/key-root
 	mkdir -p "$key_root/var/db/xbps/keys"
@@ -120,9 +119,7 @@ fetch_closure() {
 
 fetch_closure target "${target_packages[@]}"
 
-# These branches conflict when installed together. Separate resolution roots
-# retain every hardware choice in one package cache without creating an invalid
-# target transaction.
+# Fetch conflicting NVIDIA branches through separate roots into the shared cache.
 nvidia_branches=(
 	'nvidia nvidia-libs-32bit'
 	'nvidia580 nvidia580-libs-32bit'
@@ -167,8 +164,7 @@ concrete_headers=("$DEST"/linux[0-9]*-headers-*.xbps)
 ((${#concrete_headers[@]})) \
 	|| die "offline closure has linux-headers but no concrete kernel-series headers"
 
-# XBPS dry runs still reject a root whose statvfs free space is below the
-# transaction's installed size, even though verification writes almost nothing.
+# XBPS checks root free space even for dry runs that write almost nothing.
 verify_closure() {
 	local name=$1
 	shift

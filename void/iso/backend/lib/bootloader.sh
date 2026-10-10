@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Dracut and Limine integration for the installed Void system.
 
 void_kernel_packages() {
   if [[ -n ${RYOKU_DRYRUN:-} ]]; then

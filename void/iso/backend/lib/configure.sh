@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Configure a freshly bootstrapped Void target.
 
 void_configure() {
   void_chroot_mounts_on
