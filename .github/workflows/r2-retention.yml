@@ -1,0 +1,31 @@
+name: R2 retention
+
+on:
+  pull_request:
+    paths:
+      - 'release/r2-retention/**'
+      - '.github/workflows/r2-retention.yml'
+  push:
+    paths:
+      - 'release/r2-retention/**'
+      - '.github/workflows/r2-retention.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: R2 retention
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test
+        run: node --test release/r2-retention/test

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "ryoku-r2-retention",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-10",
+  "workers_dev": false,
+  "triggers": {
+    "crons": ["0 */6 * * *"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "ryoku-iso"
+    }
+  ],
+  "vars": {
+    "ROOT": "stable/",
+    "KEEP": "10",
+    "DRY_RUN": "0",
+    "OPERATION_BUDGET": "900"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "env": {
+    "dryrun": {
+      "r2_buckets": [
+        {
+          "binding": "BUCKET",
+          "bucket_name": "ryoku-iso",
+          "remote": true
+        }
+      ],
+      "vars": {
+        "ROOT": "stable/",
+        "KEEP": "10",
+        "DRY_RUN": "1",
+        "OPERATION_BUDGET": "900"
+      }
+    }
+  }
+}

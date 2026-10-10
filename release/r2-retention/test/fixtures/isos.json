@@ -1,0 +1,14 @@
+[
+  {"variant":"plain","ref":"main","at":"2026-08-20T02:46:41Z","key":"stable/ryoku-2026.08.20-r189-ef8e44c-x86_64-main.iso","size":6381248512},
+  {"variant":"plain","ref":"main","at":"2026-08-20T03:50:57Z","key":"stable/ryoku-2026.08.20-r190-40e1bef-x86_64-main.iso","size":6381248512},
+  {"variant":"plain","ref":"main","at":"2026-08-20T05:32:36Z","key":"stable/ryoku-2026.08.20-r191-5b13ea0-x86_64-main.iso","size":6381248512},
+  {"variant":"plain","ref":"v0.73.5-beta.20","at":"2026-09-25T04:51:04Z","key":"stable/ryoku-2026.09.25-r215-c07ffa1-x86_64-v0.73.5-beta.20.iso","size":6663456768},
+  {"variant":"plain","ref":"v0.73.6-beta.20","at":"2026-09-25T06:06:23Z","key":"stable/ryoku-2026.09.25-r216-33532ef-x86_64-v0.73.6-beta.20.iso","size":6663456768},
+  {"variant":"plain","ref":"v0.75.3-beta.20","at":"2026-09-26T16:45:11Z","key":"stable/ryoku-2026.09.26-r217-cfd8899-x86_64-v0.75.3-beta.20.iso","size":6708760576},
+  {"variant":"cachyos","ref":"main","at":"2026-08-20T01:25:17Z","key":"stable/ryoku-2026.08.20-r25-febd279-x86_64-main.iso","size":7047528448},
+  {"variant":"cachyos","ref":"main","at":"2026-08-20T02:14:02Z","key":"stable/ryoku-2026.08.20-r26-d196f70-x86_64-main.iso","size":7047528448},
+  {"variant":"cachyos","ref":"main","at":"2026-08-20T02:49:14Z","key":"stable/ryoku-2026.08.20-r27-ef8e44c-x86_64-main.iso","size":7047528448},
+  {"variant":"cachyos","ref":"v0.73.5-beta.20","at":"2026-09-25T04:52:47Z","key":"stable/ryoku-2026.09.25-r51-c07ffa1-x86_64-v0.73.5-beta.20-cachyos.iso","size":7339155456},
+  {"variant":"cachyos","ref":"v0.73.6-beta.20","at":"2026-09-25T06:06:47Z","key":"stable/ryoku-2026.09.25-r52-33532ef-x86_64-v0.73.6-beta.20-cachyos.iso","size":7339155456},
+  {"variant":"cachyos","ref":"v0.75.3-beta.20","at":"2026-09-26T16:50:54Z","key":"stable/ryoku-2026.09.26-r53-cfd8899-x86_64-v0.75.3-beta.20-cachyos.iso","size":7393490944}
+]

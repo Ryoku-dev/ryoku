@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **The R2 bucket keeps the last ten of everything.** A scheduled Cloudflare
+  Worker (`r2-retention/`) keeps ten stable releases and ten unstable builds
+  per edition and ten ISOs per edition and channel, deletes anything older
+  with its sidecars, and drops ledger entries for what it removed.
 - **Unstable repositories keep frozen build history.** Arch and Void testing
   publishes now record immutable builds in ledgers for rollback and pinning.
 - **Void ships `limine-snapper-sync`.** The signed XBPS package builds the
