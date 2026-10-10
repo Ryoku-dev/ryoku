@@ -30,6 +30,9 @@
   through Prowl (`quickshell/pages/RashinPage.qml`).
 
 ### Fixed
+- **Unavailable desktops no longer start a switch.** The Hub keeps them visible
+  and says why they cannot be installed on this system.
+- On Void, Dictation and GPU passthrough say why they are unavailable instead of failing when you try them.
 - **Hub settings that touch services and packages work on Void.** The
   keyboard layout, GPU mode, lighting, the palette bridge, the shell
   preference and the Window Manager page go through `ryoku-host` instead of

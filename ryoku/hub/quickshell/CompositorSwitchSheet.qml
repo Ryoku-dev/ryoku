@@ -10,10 +10,9 @@ import Quickshell.Io
 // `ryoku-hub wm preview <target>`, what carries over and what the target cannot
 // honour, then asks the one extra question a switch raises: keep the compositor
 // you are leaving so you can return with no download, or remove it to reclaim
-// the space. Confirming runs `ryoku wm use <target>` in a terminal (the same
-// reversible pacman transaction the CLI uses), and, only if you chose remove,
-// drops the old package afterwards. Nothing here is spelled
-// per compositor: every name, package and path comes from the preview.
+// the space. Confirming runs `ryoku wm use <target>` in a terminal, using the
+// same reversible package transaction as the CLI. Nothing here is spelled per
+// compositor: every name, package and path comes from the preview.
 Item {
     id: sh
 
@@ -27,6 +26,8 @@ Item {
     signal closed()
 
     function open(targetRow, currentRow) {
+        if (!targetRow || targetRow.active === true || targetRow.available !== true)
+            return;
         sh.target = targetRow;
         sh.current = currentRow;
         sh.report = null;
@@ -43,7 +44,7 @@ Item {
     }
     function close() { sh.active = false; sh.closed(); }
     function cap(name) { return name && name.length ? name.charAt(0).toUpperCase() + name.slice(1) : (name || ""); }
-    // The reclaimed size, named the way pacman's own removal summary does.
+    // The reclaimed size from the package manager's removal summary.
     function humanSize(bytes) {
         var b = Number(bytes) || 0;
         if (b >= 1073741824) return (b / 1073741824).toFixed(2) + " GiB";
@@ -53,10 +54,8 @@ Item {
     readonly property string targetName: sh.report ? sh.report.target : (sh.target ? sh.target.name : "")
     readonly property string activeName: sh.report ? sh.report.active : (sh.current ? sh.current.name : "")
     readonly property bool leaving: sh.activeName !== "" && sh.activeName !== sh.targetName
-    // A checkout box has no packages, so a deployed provider is switchable too:
-    // the CLI recognises it and tells the user to pick the session.
     readonly property bool deployed: !!sh.report && sh.report.deployed === true
-    readonly property bool available: !!sh.report && (sh.report.available === true || sh.report.deployed === true)
+    readonly property bool available: !!sh.report && sh.report.available === true
     readonly property var unhonored: sh.report && sh.report.unhonored ? sh.report.unhonored : []
     // What leaving the active compositor reclaims, computed by the backend for
     // the outgoing compositor's own packages. Removable drives the keep-or-remove
@@ -88,10 +87,10 @@ Item {
         stderr: StdioCollector { }
     }
 
-    // The deployed switch has nothing to install, so it runs here rather than
-    // in a terminal: a console window for work that needs no password and
-    // prints one line was the wrong surface for it. A package install still
-    // gets the terminal, where pacman's progress and its sudo prompt belong.
+    // A switch with nothing to install runs here rather than in a terminal: a
+    // console window for work that needs no password and prints one line was
+    // the wrong surface for it. Installing the desktop packages still gets the
+    // terminal, where progress and the privilege prompt belong.
     Process {
         id: switchProc
         stdout: StdioCollector { }
@@ -105,17 +104,18 @@ Item {
 
     function shq(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
     function confirm() {
-        if (!sh.available || sh.loading || sh.switching || !sh.target)
+        if (!sh.available || sh.loading || sh.switching || !sh.target
+                || sh.target.available !== true)
             return;
-        // The CLI owns the transaction order, so the Hub never spells a pacman
-        // command of its own. Removal drops the outgoing compositor's packages
-        // only; its config tree holds hand-written files the user owns, and the
-        // switch leaves them in place.
+        // The CLI owns the transaction order, so the Hub never spells a package
+        // manager command of its own. Removal drops the outgoing compositor's
+        // packages only; its config tree holds hand-written files the user owns,
+        // and the switch leaves them in place.
         var removing = sh.keep === "remove" && sh.reclaimRemovable;
         // The in-process path is only safe when nothing privileged happens: a
         // deployed target installs nothing, and keeping the old compositor
-        // removes nothing. Anything that runs pacman gets a terminal for its
-        // progress and its sudo prompt.
+        // removes nothing. Anything that installs the desktop packages gets a
+        // terminal for its progress and privilege prompt.
         if (sh.deployed && !removing) {
             sh.switching = true;
             switchProc.command = ["ryoku", "wm", "use", sh.target.name, "--keep-previous"];
@@ -335,7 +335,7 @@ Item {
                     anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: Tokens.s3; rightMargin: Tokens.s3 }
                     wrapMode: Text.WordWrap
                     text: sh.failure !== "" ? sh.failure
-                        : I18n.tr("The %1 package is not available on this channel yet, and it is not deployed from a checkout, so this switch cannot be made from here.").arg(sh.report ? sh.report.package : "")
+                        : I18n.tr("The desktop packages are not available on this system, so this switch cannot be started here.")
                     color: Tokens.alert
                     font.family: Tokens.ui
                     font.pixelSize: Tokens.fSmall

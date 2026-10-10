@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	wm "ryoku-wm"
 )
@@ -66,9 +67,10 @@ type wmProvider struct {
 	Package   string `json:"package"`
 	ConfigDir string `json:"configDir"`
 	Installed bool   `json:"installed"`
-	// Deployed is true for a provider usable without its package, which is what
-	// a checkout leaves behind. A row that is deployed is switchable, so the
-	// Hub must not label it as missing.
+	Available bool   `json:"available"`
+	Reason    string `json:"reason"`
+	// Deployed reports a provider usable without its package, which is what a
+	// checkout leaves behind.
 	Deployed bool     `json:"deployed"`
 	Active   bool     `json:"active"`
 	Caps     *wm.Caps `json:"caps,omitempty"`
@@ -78,13 +80,19 @@ func wmList() error {
 	detection := wm.Detect()
 	out := []wmProvider{}
 	for _, name := range wm.Providers() {
+		pkg := wmPackage(name)
+		available := pkgAvailable(pkg)
 		p := wmProvider{
 			Name:      name,
-			Package:   wmPackage(name),
+			Package:   pkg,
 			ConfigDir: wm.ConfigDir(name),
-			Installed: pkgInstalled(wmPackage(name)),
+			Installed: pkgInstalled(pkg),
+			Available: available,
 			Deployed:  wmDeployed(name),
 			Active:    detection.Live && name == detection.Name,
+		}
+		if !available {
+			p.Reason = pkgUnavailableReason(pkg)
 		}
 		// The manifest is present only when the provider binary is, so a box
 		// that has never installed a compositor still lists it as a target.
@@ -107,10 +115,7 @@ type wmPreviewReport struct {
 	ConfigDir string `json:"configDir"`
 	Installed bool   `json:"installed"`
 	Available bool   `json:"available"`
-	// Deployed means the target works without its package: its provider answers
-	// and its config tree is in place, which is what a checkout deploy leaves.
-	// Such a box switches by picking the session at the greeter, so the sheet
-	// must offer that instead of reporting a package it will never use.
+	// Deployed reports that the provider works without its package.
 	Deployed     bool           `json:"deployed"`
 	KeybindCount int            `json:"keybindCount"`
 	Exact        bool           `json:"exact"`
@@ -177,6 +182,14 @@ func wmKnown(name string) bool {
 // switch whose transaction would fail.
 func pkgAvailable(pkg string) bool {
 	return exec.Command("ryoku-host", "pkg", "available", pkg).Run() == nil
+}
+
+func pkgUnavailableReason(pkg string) string {
+	out, err := exec.Command("ryoku-host", "pkg", "why", pkg).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // storeKeybindCount is the neutral keybind carry-over: the count `ryoku wm use`

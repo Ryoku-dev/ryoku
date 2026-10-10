@@ -23,6 +23,8 @@ import (
 //	ryoku-hub voxtype download <key>  download a preset's model (streams progress)
 //	ryoku-hub voxtype rmmodel <key>   delete a preset's downloaded model
 
+const voxtypePackage = "voxtype-bin"
+
 // voxtypePreset is one dictation option the page offers. Lower-case fields map
 // it to config.toml and the model store; exported ones drive the UI.
 type voxtypePreset struct {
@@ -127,12 +129,15 @@ func voxtypeGet() error {
 	for i := range presets {
 		presets[i].Present = presets[i].Cloud || fileExists(modelFilePath(presets[i]))
 	}
+	available, reason := voxtypePackageAvailability()
 	out := map[string]any{
-		"installed":    onPath("voxtype"),
-		"selected":     selectedPreset(text),
-		"enabled":      voxtypeServiceEnabled(),
-		"openaiKeySet": extractConfigString(text, "remote_api_key") != "" || os.Getenv("VOXTYPE_WHISPER_API_KEY") != "",
-		"presets":      presets,
+		"installed":        onPath("voxtype"),
+		"packageAvailable": available,
+		"packageReason":    reason,
+		"selected":         selectedPreset(text),
+		"enabled":          voxtypeServiceEnabled(),
+		"openaiKeySet":     extractConfigString(text, "remote_api_key") != "" || os.Getenv("VOXTYPE_WHISPER_API_KEY") != "",
+		"presets":          presets,
 	}
 	b, err := json.Marshal(out)
 	if err != nil {
@@ -290,6 +295,23 @@ func onPath(bin string) bool {
 	return err == nil
 }
 
+func voxtypePackageAvailability() (bool, string) {
+	if exec.Command("ryoku-host", "pkg", "available", "--aur", voxtypePackage).Run() == nil {
+		return true, ""
+	}
+	out, err := exec.Command("ryoku-host", "pkg", "why", voxtypePackage).Output()
+	if err != nil {
+		return false, ""
+	}
+	reason, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	return false, strings.TrimSpace(reason)
+}
+
+func hostUsesSystemd() bool {
+	out, err := exec.Command("ryoku-host", "init").Output()
+	return err == nil && strings.TrimSpace(string(out)) == "systemd"
+}
+
 func selectedPreset(configText string) string {
 	for _, ln := range strings.Split(configText, "\n") {
 		ln = strings.TrimSpace(ln)
@@ -325,6 +347,9 @@ func voxtypeServiceEnabled() bool {
 // crash-loop (the mic getting killed over and over) can't trip systemd's restart
 // rate-limit and leave dictation dead until the next login.
 func ensureVoxtypeUnit() {
+	if !hostUsesSystemd() {
+		return
+	}
 	if !onPath("voxtype") {
 		return
 	}

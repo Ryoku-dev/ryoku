@@ -87,3 +87,101 @@ func TestVoxtypeEnsureDoesNothingWithoutVoxtype(t *testing.T) {
 		t.Fatalf("config created without voxtype installed: stat error = %v", err)
 	}
 }
+
+func TestVoxtypePackageAvailabilityUsesVoidReason(t *testing.T) {
+	bin := t.TempDir()
+	host := filepath.Join(bin, "ryoku-host")
+	script := `#!/bin/sh
+if [ "$1" = pkgmgr ]; then
+	printf 'xbps\n'
+	exit 0
+fi
+if [ "$1" = pkg ] && [ "$2" = available ] && [ "$3" = --aur ] && [ "$4" = voxtype-bin ]; then
+	exit 3
+fi
+if [ "$1" = pkg ] && [ "$2" = why ] && [ "$3" = voxtype-bin ]; then
+	printf '%s\n' "Voxtype needs packages this system does not provide."
+	exit 0
+fi
+exit 1
+`
+	if err := os.WriteFile(host, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	available, reason := voxtypePackageAvailability()
+	if available {
+		t.Fatal("voxtype package reported available")
+	}
+	if reason != "Voxtype needs packages this system does not provide." {
+		t.Fatalf("reason = %q", reason)
+	}
+}
+
+func TestVoxtypePackageAvailabilityUsesAURGateOnArch(t *testing.T) {
+	bin := t.TempDir()
+	host := filepath.Join(bin, "ryoku-host")
+	script := `#!/bin/sh
+if [ "$1" = pkgmgr ]; then
+	printf 'pacman\n'
+	exit 0
+fi
+if [ "$1" = pkg ] && [ "$2" = available ] && [ "$3" = --aur ] && [ "$4" = voxtype-bin ]; then
+	exit 0
+fi
+if [ "$1" = pkg ] && [ "$2" = available ]; then
+	exit 3
+fi
+exit 1
+`
+	if err := os.WriteFile(host, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	available, reason := voxtypePackageAvailability()
+	if !available || reason != "" {
+		t.Fatalf("availability = %t, reason = %q", available, reason)
+	}
+}
+
+func TestEnsureVoxtypeUnitSkipsSystemdSetupOnRunit(t *testing.T) {
+	bin := t.TempDir()
+	marker := filepath.Join(bin, "voxtype-called")
+	host := "#!/bin/sh\nif [ \"$1\" = init ]; then printf 'runit\\n'; exit 0; fi\nexit 1\n"
+	voxtype := "#!/bin/sh\nprintf called > " + marker + "\n"
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte(host), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "voxtype"), []byte(voxtype), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	ensureVoxtypeUnit()
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("voxtype systemd setup ran on runit (stat error = %v)", err)
+	}
+}
+
+func TestEnsureVoxtypeUnitRunsSetupOnSystemd(t *testing.T) {
+	bin := t.TempDir()
+	marker := filepath.Join(bin, "voxtype-called")
+	host := "#!/bin/sh\nif [ \"$1\" = init ]; then printf 'systemd\\n'; fi\nexit 0\n"
+	voxtype := "#!/bin/sh\nif [ \"$1\" = setup ] && [ \"$2\" = systemd ]; then printf called > " + marker + "; fi\n"
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte(host), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "voxtype"), []byte(voxtype), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	ensureVoxtypeUnit()
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("voxtype systemd setup did not run: %v", err)
+	}
+}

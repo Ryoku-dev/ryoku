@@ -33,6 +33,8 @@ Item {
     property bool voiceOn: false
     property bool installed: false
     property bool loaded: false
+    property bool packageAvailable: false
+    property string packageReason: ""
     property bool openaiKeySet: false
     property string downloading: ""    // preset key whose model is downloading, or ""
     property string pendingDownload: "" // large model awaiting download confirmation
@@ -131,22 +133,22 @@ Item {
         rmProc.running = true;
     }
 
-    // gpk (GlazePKG, the RyokuArch package manager) needs a tty for its AUR
-    // build and sudo prompts; --hold keeps any error on screen after it exits.
+    // gpk opens a tty for its AUR build and sudo prompts.
     function installVoxtype() {
+        if (!pg.packageAvailable)
+            return;
         Spawn.run(["kitty", "--hold", "-e", "gpk", "install", "voxtype-bin", "--manager", "aur"]);
     }
 
-    // remove: gpk drops the package (tty for sudo), then we disable and delete
-    // the user service so no dead unit lingers; config and models stay for a
-    // reinstall.
+    // Removal clears the user service while keeping config and models.
     function removeVoxtype() {
+        if (!pg.packageAvailable)
+            return;
         Spawn.run(["kitty", "--hold", "-e", "sh", "-c",
             "gpk remove voxtype-bin && { systemctl --user disable --now voxtype.service 2>/dev/null; rm -f ~/.config/systemd/user/voxtype.service; systemctl --user daemon-reload 2>/dev/null; }"]);
     }
 
-    // when the gpk terminal closes and the Hub regains focus, re-probe so the
-    // page flips from the install prompt to the live settings on its own.
+    // Re-probe when the gpk terminal closes and the Hub regains focus.
     readonly property bool windowActive: Window.active
     onWindowActiveChanged: if (pg.windowActive) pg.reload()
 
@@ -163,6 +165,8 @@ Item {
                     pg.selected = d.selected || "whisper-fast";
                     pg.voiceOn = d.enabled === true;
                     pg.installed = d.installed === true;
+                    pg.packageAvailable = d.packageAvailable !== false;
+                    pg.packageReason = d.packageReason || "";
                     pg.openaiKeySet = d.openaiKeySet === true;
                     pg.loaded = true;
                 } catch (e) {
@@ -270,11 +274,11 @@ Item {
             leftMargin: Tokens.s6; rightMargin: Tokens.s6; topMargin: Tokens.s5; bottomMargin: Tokens.s6
         }
 
-        // voxtype missing: a clear message, not an inert page. voxtype-bin ships
-        // with the desktop, so this is the rare hand-removed case.
+        // Missing packages remain installable on hosts that provide Voxtype.
+        // Unsupported hosts get the same calm empty state without actions.
         Column {
             id: emptyState
-            visible: pg.loaded && !pg.installed
+            visible: pg.loaded && (!pg.packageAvailable || !pg.installed)
             anchors.centerIn: parent
             width: Math.min(parent.width * 0.6, 460)
             spacing: Tokens.s4
@@ -283,7 +287,7 @@ Item {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
-                text: I18n.tr("Voxtype isn't installed")
+                text: pg.packageAvailable ? I18n.tr("Voxtype isn't installed") : I18n.tr("Voxtype is unavailable")
                 color: Tokens.ink
                 font.family: Tokens.ui; font.pixelSize: Tokens.fRow; font.weight: Font.DemiBold
             }
@@ -291,11 +295,14 @@ Item {
                 width: parent.width
                 wrapMode: Text.WordWrap
                 horizontalAlignment: Text.AlignHCenter
-                text: I18n.tr("Voice dictation needs the voxtype-bin package. GlazePKG opens a terminal to confirm the install, and this page fills in once it finishes.")
+                text: pg.packageAvailable
+                    ? I18n.tr("Voice dictation needs the voxtype-bin package. GlazePKG opens a terminal to confirm the install, and this page fills in once it finishes.")
+                    : (pg.packageReason !== "" ? I18n.tr(pg.packageReason) : I18n.tr("Voxtype is not available on this system."))
                 color: Tokens.inkMuted
                 font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
             }
             Text {
+                visible: pg.packageAvailable
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
                 text: I18n.tr("About 600 MB for the engine and runtimes, before any model.")
@@ -303,8 +310,9 @@ Item {
                 font.family: Tokens.mono; font.pixelSize: Tokens.fMicro
             }
             Item {
+                visible: pg.packageAvailable
                 width: parent.width
-                height: installBtn.implicitHeight
+                height: visible ? installBtn.implicitHeight : 0
                 Btn {
                     id: installBtn
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -317,7 +325,7 @@ Item {
 
         Flickable {
             id: flick
-            visible: !pg.loaded || pg.installed
+            visible: pg.loaded && pg.packageAvailable && pg.installed
             anchors.fill: parent
             contentWidth: width
             contentHeight: Math.max(content.height, height)

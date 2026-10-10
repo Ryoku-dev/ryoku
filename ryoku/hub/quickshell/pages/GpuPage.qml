@@ -33,6 +33,9 @@ Item {
     property bool showChecks: false
     property string actionError: ""
     property string capsError: ""
+    property bool ptPackagesLoaded: false
+    property bool ptPackagesAvailable: false
+    property string ptPackagesReason: ""
     property string modeWarn: ""
     // hardware display-routing switch (the MUX): which GPU the built-in panel
     // is physically wired to. Empty when the machine has no knob.
@@ -77,8 +80,9 @@ Item {
     readonly property string dgpuName: pg.caps.passthrough ? pg.caps.passthrough.model : I18n.tr("the discrete GPU")
 
     readonly property bool capsLoaded: pg.caps.verdict !== undefined
-    readonly property bool ptPending: pg.capsError === "" && !pg.capsLoaded
-    readonly property bool ptOk: pg.caps.verdict === "ready"
+    readonly property bool ptUnavailable: pg.ptPackagesLoaded && !pg.ptPackagesAvailable
+    readonly property bool ptPending: pg.capsError === "" && (!pg.capsLoaded || !pg.ptPackagesLoaded)
+    readonly property bool ptOk: pg.ptPackagesAvailable && pg.caps.verdict === "ready"
 
     readonly property var safeTune: (pg.tune || []).filter(t => t.risk === "safe")
     readonly property var advTune: (pg.tune || []).filter(t => t.risk === "advanced")
@@ -110,6 +114,8 @@ Item {
     }
 
     readonly property string ptText: {
+        if (pg.ptUnavailable)
+            return pg.ptPackagesReason !== "" ? I18n.tr(pg.ptPackagesReason) : I18n.tr("GPU passthrough is not available on this system.");
         switch (pg.caps.verdict) {
         case "ready": return I18n.tr("Ready. %1 is free for a VM to claim, and returns to the desktop when the VM stops.").arg(pg.dgpuName);
         case "needs-relogin": return I18n.tr("Set up. Log out and back in once, then it is ready.");
@@ -139,7 +145,11 @@ Item {
 
     function reload() {
         pg.capsError = "";
+        pg.ptPackagesLoaded = false;
+        pg.ptPackagesAvailable = false;
+        pg.ptPackagesReason = "";
         capsProc.running = true;
+        ptPackagesProc.running = true;
         modeProc.running = true;
         tuneProc.running = true;
         presetProc.running = true;
@@ -210,10 +220,14 @@ Item {
         presetSaveProc.running = true;
     }
     function reviewEnable() {
+        if (!pg.ptPackagesLoaded || !pg.ptPackagesAvailable)
+            return;
         planProc.command = ["ryoku-hub", "gpu", "apply", "enable", "--dry-run"];
         planProc.running = true;
     }
     function enableInTerminal() {
+        if (!pg.ptPackagesLoaded || !pg.ptPackagesAvailable)
+            return;
         Spawn.run(["kitty", "--class", "ryoku-gpu", "-e", "sh", "-c",
             "ryoku-hub gpu apply enable; echo; read -n1 -rsp 'Done. Press any key to close…'; echo"]);
         pg.planning = false;
@@ -245,6 +259,25 @@ Item {
                 }
             }
             pg.capsError = capsErr.text.trim() || ("ryoku-hub gpu caps exited " + code);
+        }
+    }
+    Process {
+        id: ptPackagesProc
+        command: ["ryoku-hub", "gpu", "apply", "availability"]
+        stdout: StdioCollector { id: ptPackagesOut }
+        onExited: (code) => {
+            pg.ptPackagesLoaded = true;
+            pg.ptPackagesAvailable = false;
+            pg.ptPackagesReason = "";
+            if (code !== 0)
+                return;
+            try {
+                var d = JSON.parse(ptPackagesOut.text);
+                pg.ptPackagesAvailable = d.available === true;
+                pg.ptPackagesReason = d.reason || "";
+            } catch (e) {
+                console.log("gpu: passthrough availability parse failed: " + e);
+            }
         }
     }
     Process {
@@ -1095,8 +1128,9 @@ done
                             onAct: pg.act(["ryoku-hub", "gpu", "apply", "disable"])
                         }
                         Btn {
-                            visible: pg.caps.enabled !== true && pg.caps.verdict !== "incapable" && !pg.planning && !pg.enabling
-                            text: I18n.tr("Review changes")
+                            visible: pg.caps.enabled !== true && (pg.ptUnavailable || pg.caps.verdict !== "incapable") && !pg.planning && !pg.enabling
+                            text: pg.ptUnavailable ? I18n.tr("Passthrough unavailable") : I18n.tr("Review changes")
+                            armed: pg.ptPackagesLoaded && pg.ptPackagesAvailable
                             onAct: pg.reviewEnable()
                         }
 

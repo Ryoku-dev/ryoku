@@ -18,9 +18,18 @@ import (
 	"strings"
 )
 
+type gpuPassthroughAvailability struct {
+	Available bool   `json:"available"`
+	Package   string `json:"package,omitempty"`
+	Reason    string `json:"reason,omitempty"`
+}
+
 func runGpuApply(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("gpu apply needs enable|disable [--dry-run]")
+	}
+	if args[0] == "availability" {
+		return printJSON(passthroughAvailability())
 	}
 	action := args[0]
 	if action != "enable" && action != "disable" {
@@ -30,6 +39,15 @@ func runGpuApply(args []string) error {
 	for _, a := range args[1:] {
 		if a == "--dry-run" {
 			dryRun = true
+		}
+	}
+	if action == "enable" {
+		availability := passthroughAvailability()
+		if !availability.Available {
+			if availability.Reason != "" {
+				return errors.New(availability.Reason)
+			}
+			return fmt.Errorf("%s is not available on this system", availability.Package)
 		}
 	}
 	// hook = an internal entrypoint libvirt calls. same subcommand tree, but it
@@ -196,6 +214,36 @@ const kvmfrStaticMB = 128
 // ryoku-host translates them for the host package manager.
 var corePassthroughPkgs = []string{"qemu-desktop", "libvirt", "edk2-ovmf", "swtpm", "dnsmasq"}
 var extraPassthroughPkgs = []string{"looking-glass", "looking-glass-module-dkms"}
+
+func passthroughAvailability() gpuPassthroughAvailability {
+	if unavailable, found := firstUnavailablePackage(corePassthroughPkgs, false); found {
+		return unavailable
+	}
+	if unavailable, found := firstUnavailablePackage(extraPassthroughPkgs, true); found {
+		return unavailable
+	}
+	return gpuPassthroughAvailability{Available: true}
+}
+
+func firstUnavailablePackage(packages []string, aur bool) (gpuPassthroughAvailability, bool) {
+	for _, pkg := range packages {
+		cmd := exec.Command("ryoku-host", "pkg", "available", pkg)
+		if aur {
+			cmd = exec.Command("ryoku-host", "pkg", "available", "--aur", pkg)
+		}
+		if cmd.Run() == nil {
+			continue
+		}
+		out, err := exec.Command("ryoku-host", "pkg", "why", pkg).Output()
+		reason := ""
+		if err == nil {
+			reason, _, _ = strings.Cut(strings.TrimSpace(string(out)), "\n")
+			reason = strings.TrimSpace(reason)
+		}
+		return gpuPassthroughAvailability{Package: pkg, Reason: reason}, true
+	}
+	return gpuPassthroughAvailability{}, false
+}
 
 func applyPlan(action, user, exe string, dryRun bool) error {
 	files := managedFiles(user, exe)
