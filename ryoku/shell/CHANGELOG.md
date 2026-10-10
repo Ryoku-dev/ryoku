@@ -563,6 +563,7 @@
   `../../hyprland/modules/binds.lua`).
 
 ### Fixed
+- Nomarchy bar documentation links resolve to the shipped Ryoku guide and default configuration.
 - **Spotlight opens under every bar style.** The launcher only flipped a
   search flag that Shima's frame listens for, so with any other bar style
   Super+Space did nothing. Without the frame it now mounts the same palette
