@@ -13,6 +13,11 @@
   the provisioning ledger so doctor and update do not reinstall it. Unknown
   browser or shell keys fail before disk work begins
   (`ryoku-install`, `lib/{chroot,aur,deploy}.sh`).
+- **Void first login now starts the complete desktop.** The Void ISO reuses the
+  neutral deploy sequence to seed the keyboard store, provisioned-app ledger,
+  default-rice marker, wallpapers, brand assets, and user-owned configuration.
+  It also provisions the account's Turnstile services before first login, so
+  the session bus, PipeWire, wallpaper, and shell are ready on the first boot.
 - **Fresh accounts request the shipped default rice on first login.**
   `deploy.sh` writes the user-owned
   `~/.local/state/ryoku/default-rice-pending` marker with `default`; the first
@@ -40,6 +45,10 @@
   naming `RYOKU_ESP_MODE=dedicated` as the way around it (`lib/bootloader.sh`).
 
 ### Fixed
+- **Offline Void installs no longer probe unreachable package mirrors.** The
+  target masks every packaged XBPS repository configuration while installing
+  from the ISO repository, then removes exactly those recorded masks before
+  writing the permanent Void and Ryoku repository configuration.
 - **The disk unlock prompt now uses the keyboard layout picked in the installer
   and starts with Num Lock on.** The `ryoku-console-keys` initramfs hook carries
   `/etc/vconsole.conf` into the image and enables Num Lock before Plymouth reads

@@ -160,6 +160,40 @@ every supported install has run it, so the set stays small instead of piling up.
   `pip --user`, `go install`, `cargo install`, `pipx`, `mise`). Do not
   reintroduce root-global installs or assume `sudo`.
 
+### Build the Void artifacts locally
+
+Build the XBPS repository through the official Void container:
+
+```sh
+RYOKU_XBPS_WORK=/tmp/ryoku-xbps-work \
+RYOKU_XBPS_OUT=/tmp/ryoku-xbps-out \
+RYOKU_XBPS_KEY=/secure/ryoku-xbps.pem \
+RYOKU_XBPS_KEYRING_DIR=/path/to/key-plists \
+RYOKU_XBPS_WORKTREE=1 \
+  void/packages/repo/container-runner.sh
+```
+
+`RYOKU_XBPS_WORK` keeps the scratch checkout and package cache, while
+`RYOKU_XBPS_OUT` receives the indexed repository. `RYOKU_XBPS_KEY` is the
+optional RSA signing key, and `RYOKU_XBPS_KEYRING_DIR` supplies the matching
+development plist to the `ryoku-keyring` package. `RYOKU_XBPS_WORKTREE=1`
+includes tracked edits and untracked, non-ignored files instead of archiving
+`HEAD`. See `void/packages/README.md` for subset builds, signing, and key setup.
+
+Use the built repository to make the Void ISO:
+
+```sh
+RYOKU_VOID_ISO_RYOKU_REPO=/tmp/ryoku-xbps-out/x86_64 \
+RYOKU_VOID_ISO_KEYRING_DIR=/path/to/key-plists \
+RYOKU_VOID_ISO_WORKTREE=1 \
+  void/iso/build.sh
+```
+
+The repository path is required for a full image. The keyring directory is
+optional when the repository's `ryoku-keyring` package already contains its
+plist. See `void/iso/README.md` for work and output locations, storage needs,
+container selection, and the `--stage-only` mode.
+
 ## Commit gates
 
 Every commit passes the hooks in `.githooks/`; never use `--no-verify`. A fresh

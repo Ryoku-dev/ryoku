@@ -17,6 +17,11 @@ install_runit_payload() {
   install -Dm644 "$init_root/session-services" "$pkgdir/usr/lib/ryoku/runit/session-services"
   install -Dm644 "$init_root/env/environment-d" "$pkgdir/etc/profile.d/ryoku-environment-d.sh"
 
+  install -Dm755 "$_repo/system/boot/limine/50-ryoku-limine" \
+    "$pkgdir/etc/kernel.d/post-install/50-ryoku-limine"
+  install -Dm755 "$_repo/system/boot/limine/50-ryoku-limine" \
+    "$pkgdir/etc/kernel.d/post-remove/50-ryoku-limine"
+
   for src in "$init_root/system"/*; do
     [[ -d $src ]] || continue
     name=${src##*/}

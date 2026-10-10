@@ -42,11 +42,13 @@ compositor -> browser -> login-shell -> apps -> diskpick (target disk) ->
 disk (strategy) -> partitions (layout) -> hostname -> username -> password ->
 encryption -> review`
 
-The `compositor` step picks the window manager (Hyprland or niri, whatever the
-`ryoku/wm` seam ships; it auto-skips when there is one provider); `browser`
-picks Firefox (Recommended), Chromium, or Zen; `login-shell` picks Fish
-(Recommended), Zsh, or Bash; `apps` is a grouped keep/remove checklist over
-every optional app and tool, with role-defining rows marked REQUIRED and refused.
+`system.go` reads `/usr/share/ryoku/variant` before the wizard is built. The
+Arch flow picks Hyprland or niri, Firefox, Chromium, or Zen, and Fish, Zsh, or
+Bash. The Void flow keeps the same steps and backend environment contract, but
+greys out Hyprland with its packaging reason, offers niri, Firefox or Chromium,
+and omits AUR-only apps and the snapshot toggle. All three login shells and the
+four hardware profiles remain available from the Void package table.
+
 Some steps are conditional: the `gpu` (graphics mode) step matters only on a
 hybrid iGPU + dGPU laptop, and the pickers fall back to a small built-in list
 when the live tools return nothing, so the wizard renders anywhere. `review` is
@@ -74,12 +76,13 @@ that would destroy data unintentionally:
   `ryoku_partition_whole` demands. A blank disk skips the extra step. The
   strategy picker also lists the non-destructive "alongside" first so a quick
   Enter is never a wipe.
-- **Offline-first, online fallback.** An offline ISO bakes the whole package
-  closure into a `file://` `[offline]` repo (`offlineRepo()`), so `netOnline()`
-  returns true with nothing to set up and `installEnv` emits `RYOKU_ONLINE=0` plus
-  `RYOKU_OFFLINE_REPO`: the install needs no network at all. A networked ISO
-  (built `RYOKU_OFFLINE_SKIP=1`, no baked repo) gates Review on `netOnline()` and
-  emits `RYOKU_ONLINE=1`, so a box with no route cannot reach the install handoff.
+- **Offline-first, online fallback.** An Arch ISO is offline-ready when its baked
+  repository contains `offline.db`; a Void ISO uses
+  `/run/initramfs/live/ryoku/repo` when it contains `x86_64-repodata` and XBPS
+  packages. `installEnv` emits the selected path with `RYOKU_ONLINE=0` and
+  `RYOKU_OFFLINE_REPO`, using the same backend contract for both. An image
+  without a usable repository gates Review on `netOnline()` and emits
+  `RYOKU_ONLINE=1`.
 
 ## Layout math, and how it mirrors the backend
 

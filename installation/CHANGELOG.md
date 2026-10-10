@@ -13,6 +13,14 @@
   its space is listed but needs GPT (`backend/lib/disk.sh`, `tui/system.go`).
 
 ### Added
+- **Ryoku now builds a native Void live ISO and installer.** The image carries
+  an offline XBPS repository and a Void backend for the target-specific steps,
+  while reusing the neutral disk, filesystem, network, and preflight libraries
+  from the Arch installer.
+- **The shared ISO wizard now follows the live image's package variant.** The
+  welcome card names the Void image, niri remains the installable window
+  manager, choices stay within the XBPS package table, and AUR and snapshot
+  controls are omitted without changing the Arch flow (`tui/{main,apps,system}.go`).
 - **Pick a window manager, browser, login shell, and optional apps in the
   installer.** Four steps between graphics mode and disk setup choose the
   desktop provider, exactly one browser, exactly one account shell, and the

@@ -35,6 +35,14 @@ func browsers() []item {
 	}
 }
 
+func browsersForVariant(variant string) []item {
+	all := browsers()
+	if isVoidVariant(variant) {
+		return all[:2]
+	}
+	return all
+}
+
 // browserLabel is the display name for a browser key, for Review and the rail.
 func browserLabel(key string) string {
 	for _, b := range browsers() {
@@ -58,6 +66,10 @@ func loginShells() []item {
 		{"zsh", "Zsh", i18n.T("Oh My Zsh with Ryoku's plugins")},
 		{"bash", "Bash", i18n.T("the classic shell · ble.sh editing")},
 	}
+}
+
+func loginShellsForVariant(_ string) []item {
+	return loginShells()
 }
 
 // loginShellLabel is the display name for a shell key, for Review and the rail.
@@ -160,11 +172,31 @@ func appRows() []appRow {
 	}
 }
 
+func appRowsForVariant(variant string) []appRow {
+	all := appRows()
+	if !isVoidVariant(variant) {
+		return all
+	}
+	out := make([]appRow, 0, len(all)-2)
+	for _, row := range all {
+		switch row.ID {
+		case "localsend", "voxtype":
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
 // appGroups returns the rows grouped for display: each group's rows in table
 // order. A row carrying a Group header opens a new group.
 func appGroups() [][]appRow {
+	return appGroupsForVariant("")
+}
+
+func appGroupsForVariant(variant string) [][]appRow {
 	var out [][]appRow
-	for _, r := range appRows() {
+	for _, r := range appRowsForVariant(variant) {
 		if r.Group != "" || len(out) == 0 {
 			out = append(out, []appRow{r})
 			continue
@@ -176,7 +208,11 @@ func appGroups() [][]appRow {
 
 // appRowByID finds a row by its stable id.
 func appRowByID(id string) (appRow, bool) {
-	for _, r := range appRows() {
+	return appRowByIDForVariant("", id)
+}
+
+func appRowByIDForVariant(variant, id string) (appRow, bool) {
+	for _, r := range appRowsForVariant(variant) {
 		if r.ID == id {
 			return r, true
 		}
@@ -186,8 +222,12 @@ func appRowByID(id string) (appRow, bool) {
 
 // appDefaults is the initial keep map: every row at its shipped default.
 func appDefaults() map[string]bool {
+	return appDefaultsForVariant("")
+}
+
+func appDefaultsForVariant(variant string) map[string]bool {
 	m := map[string]bool{}
-	for _, r := range appRows() {
+	for _, r := range appRowsForVariant(variant) {
 		m[r.ID] = r.Def
 	}
 	return m
@@ -197,8 +237,12 @@ func appDefaults() map[string]bool {
 // install, in table order. Required rows are never counted, so a stale map
 // entry cannot ask the backend to strip a feature package.
 func deselectedPkgs(keep map[string]bool) []string {
+	return deselectedPkgsForVariant("", keep)
+}
+
+func deselectedPkgsForVariant(variant string, keep map[string]bool) []string {
 	var out []string
-	for _, r := range appRows() {
+	for _, r := range appRowsForVariant(variant) {
 		if r.Req != "" || keep[r.ID] {
 			continue
 		}
@@ -210,8 +254,12 @@ func deselectedPkgs(keep map[string]bool) []string {
 // appsSummary is the Review row for the app choice: "all" when nothing was
 // removed, else the ids of the dropped rows.
 func appsSummary(keep map[string]bool) string {
+	return appsSummaryForVariant("", keep)
+}
+
+func appsSummaryForVariant(variant string, keep map[string]bool) string {
 	var names []string
-	for _, r := range appRows() {
+	for _, r := range appRowsForVariant(variant) {
 		if r.Req == "" && !keep[r.ID] {
 			names = append(names, r.ID)
 		}
@@ -228,14 +276,14 @@ func (m model) appsReviewCell() string {
 	if m.keep == nil {
 		return i18n.T("all")
 	}
-	return appsSummary(m.keep)
+	return appsSummaryForVariant(m.variant, m.keep)
 }
 
 // selectedApps is the keep map, with the shipped defaults standing in for a
 // wizard that never visited the apps step (a scripted handoff keeps every app).
 func (m model) selectedApps() map[string]bool {
 	if m.keep == nil {
-		return appDefaults()
+		return appDefaultsForVariant(m.variant)
 	}
 	return m.keep
 }

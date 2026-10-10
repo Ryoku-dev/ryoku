@@ -1,0 +1,278 @@
+name: Build Void ISO
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_stage:
+        description: 'Public release stage'
+        required: true
+        default: 'beta'
+        type: choice
+        options: [alpha, beta, stable]
+      ryoku_repo_url:
+        description: 'Ryoku XBPS repository URL; empty uses the stable Void repository'
+        required: false
+        default: ''
+        type: string
+  push:
+    tags:
+      - 'void-v*'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  preflight:
+    name: Void installer preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: installation/tui/go.mod
+      - name: Check package and init contracts
+        run: |
+          set -euo pipefail
+          bash tests/void-packages.sh
+          bash tests/void-init.sh
+          bash tests/install-void-dryrun-matrix.sh
+          bash tests/void-limine-hook.sh
+          bash installation/tests/iso-preflight.sh
+          bash installation/tests/void-iso-stage-check.sh
+
+  build:
+    name: Build, sign, and publish Void ISO
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      RELEASE_STAGE: ${{ github.event.inputs.release_stage || 'beta' }}
+      RYOKU_VOID_ISO_RYOKU_REPO: ${{ github.event.inputs.ryoku_repo_url || 'https://repo.ryoku.dev/stable/void/x86_64' }}
+      RYOKU_ISO_VARIANT: void
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: installation/tui/go.mod
+      - name: Prepare release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          short_sha=${GITHUB_SHA::7}
+          tracking_id=r${GITHUB_RUN_NUMBER}-${short_sha}
+          ref=main
+          [[ $GITHUB_REF_NAME == void-v* ]] && ref=$GITHUB_REF_NAME
+          {
+            echo "RYOKU_ISO_TRACKING_ID=$tracking_id"
+            echo "RYOKU_ISO_COMMIT=$GITHUB_SHA"
+            echo "RYOKU_ISO_RUN_ID=$GITHUB_RUN_ID"
+            echo "RYOKU_ISO_RUN_NUMBER=$GITHUB_RUN_NUMBER"
+            echo "RYOKU_ISO_RUN_URL=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "RYOKU_ISO_CHANNEL=$RELEASE_STAGE"
+            echo "RYOKU_ISO_INSTALLER_REF=$ref"
+            echo "RYOKU_ISO_PUBLIC_BASE=https://iso.ryoku.dev/stable"
+          } >> "$GITHUB_ENV"
+      - name: Verify release secrets
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          VOID_REPO_SIGNING_KEY: ${{ secrets.VOID_REPO_SIGNING_KEY }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n $GPG_PRIVATE_KEY ]] || missing+=(GPG_PRIVATE_KEY)
+          [[ -n $VOID_REPO_SIGNING_KEY ]] || missing+=(VOID_REPO_SIGNING_KEY)
+          [[ -n $R2_ACCESS_KEY_ID ]] || missing+=(R2_ACCESS_KEY_ID)
+          [[ -n $R2_SECRET_ACCESS_KEY ]] || missing+=(R2_SECRET_ACCESS_KEY)
+          [[ -n $R2_ENDPOINT ]] || missing+=(R2_ENDPOINT)
+          ((${#missing[@]} == 0)) || { printf 'Missing required secrets: %s\n' "${missing[*]}" >&2; exit 1; }
+      - name: Prepare XBPS trust key
+        env:
+          VOID_REPO_SIGNING_KEY: ${{ secrets.VOID_REPO_SIGNING_KEY }}
+          XBPS_PASSPHRASE: ${{ secrets.VOID_REPO_SIGNING_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key=$RUNNER_TEMP/ryoku-xbps.pem
+          keyring=$RUNNER_TEMP/ryoku-xbps-keyring
+          printf '%s\n' "$VOID_REPO_SIGNING_KEY" > "$key"
+          chmod 600 "$key"
+          mkdir -p "$keyring"
+          void/packages/repo/new-signing-key "$key" "$keyring"
+          echo "RYOKU_VOID_ISO_KEYRING_DIR=$keyring" >> "$GITHUB_ENV"
+          rm -f "$key"
+      - name: Free build storage
+        run: |
+          sudo rm -rf /opt/hostedtoolcache /usr/share/dotnet /opt/ghc \
+            /usr/local/lib/android /usr/local/share/boost
+          docker system prune -af
+          df -h /
+      - name: Build ISO
+        shell: bash
+        run: |
+          set -euo pipefail
+          work=$RUNNER_TEMP/ryoku-void-iso
+          mkdir -p "$work" void/iso/out
+          RYOKU_VOID_ISO_WORK="$work" \
+          RYOKU_VOID_ISO_OUT="$GITHUB_WORKSPACE/void/iso/out" \
+          RYOKU_VOID_ISO_STAGE="$work/staging" \
+            void/iso/build.sh
+          sudo rm -rf "$work"
+      - name: Name release image
+        id: iso
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_iso=$(find void/iso/out -maxdepth 1 -type f -name 'ryoku-void-*-x86_64.iso' -print -quit)
+          [[ -n $source_iso ]] || { echo 'Void ISO was not produced' >&2; exit 1; }
+          epoch=$(git log -1 --pretty=%ct)
+          iso_date=$(date -u --date="@$epoch" +%Y.%m.%d)
+          tracked="void/iso/out/ryoku-${iso_date}-${RYOKU_ISO_TRACKING_ID}-x86_64-${RYOKU_ISO_INSTALLER_REF}.iso"
+          mv "$source_iso" "$tracked"
+          (cd "$(dirname "$tracked")" && sha256sum "$(basename "$tracked")" > SHA256SUMS)
+          echo "path=$tracked" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$tracked")" >> "$GITHUB_OUTPUT"
+      - name: Verify image contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          iso=${{ steps.iso.outputs.path }}
+          iso_mount=$RUNNER_TEMP/void-iso
+          squash_mount=$RUNNER_TEMP/void-squash
+          root_mount=$RUNNER_TEMP/void-root
+          scan_root=$RUNNER_TEMP/void-root-copy
+          mkdir -p "$iso_mount" "$squash_mount" "$root_mount" "$scan_root"
+          {
+            echo "VOID_ISO_MOUNT=$iso_mount"
+            echo "VOID_SQUASH_MOUNT=$squash_mount"
+            echo "VOID_ROOT_MOUNT=$root_mount"
+            echo "VOID_SCAN_ROOT=$scan_root"
+          } >> "$GITHUB_ENV"
+          sudo mount -o loop,ro "$iso" "$iso_mount"
+          [[ -s $iso_mount/ryoku/repo/x86_64-repodata ]]
+          compgen -G "$iso_mount/ryoku/repo/*.xbps" >/dev/null
+          sudo mount -o loop,ro "$iso_mount/LiveOS/squashfs.img" "$squash_mount"
+          sudo mount -o loop,ro "$squash_mount/LiveOS/rootfs.img" "$root_mount"
+          stamp=$root_mount/usr/share/ryoku/.payload
+          [[ -s $stamp ]]
+          [[ $(awk -F= '$1=="commit" { print $2; exit }' "$stamp") == "$GITHUB_SHA" ]]
+          [[ $(cat "$root_mount/usr/share/ryoku/variant") == void ]]
+          sudo rsync -aH --numeric-ids "$root_mount/" "$scan_root/"
+          sudo chmod -R u+rwX,go+rX "$scan_root"
+      - name: Scan live root
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: rootfs
+          scan-ref: ${{ env.VOID_SCAN_ROOT }}
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-void-iso-results.sarif
+          version: v0.70.0
+      - name: Upload scan report
+        if: ${{ always() && hashFiles('trivy-void-iso-results.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v4
+        continue-on-error: true
+        with:
+          sarif_file: trivy-void-iso-results.sarif
+          category: trivy-void-iso
+      - name: Block critical live-root findings
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          scan-type: rootfs
+          scan-ref: ${{ env.VOID_SCAN_ROOT }}
+          scanners: vuln,misconfig
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+          format: table
+          skip-setup-trivy: true
+      - name: Unmount image
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set +e
+          [[ -z ${VOID_ROOT_MOUNT:-} ]] || sudo umount "$VOID_ROOT_MOUNT"
+          [[ -z ${VOID_SQUASH_MOUNT:-} ]] || sudo umount "$VOID_SQUASH_MOUNT"
+          [[ -z ${VOID_ISO_MOUNT:-} ]] || sudo umount "$VOID_ISO_MOUNT"
+          [[ -z ${VOID_SCAN_ROOT:-} ]] || sudo rm -rf "$VOID_SCAN_ROOT"
+      - name: Sign ISO
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export GNUPGHOME=$(mktemp -d)
+          chmod 700 "$GNUPGHOME"
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          iso=${{ steps.iso.outputs.path }}
+          if [[ -n $GPG_PASSPHRASE ]]; then
+            printf '%s\n' "$GPG_PASSPHRASE" | gpg --batch --pinentry-mode loopback \
+              --passphrase-fd 0 --output "$iso.sig" --detach-sign "$iso"
+          else
+            gpg --batch --output "$iso.sig" --detach-sign "$iso"
+          fi
+          gpg --verify "$iso.sig" "$iso"
+          gpg --armor --export > "$(dirname "$iso")/ryoku-release-key.pub.asc"
+      - name: Generate checksums and manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          iso=${{ steps.iso.outputs.path }}
+          ./bin/ryoku-iso-manifest "$iso"
+          [[ -s $(dirname "$iso")/latest-void.json ]]
+          [[ -s $(dirname "$iso")/latest-void.js ]]
+      - name: Install rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+      - name: Upload to Cloudflare R2
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./bin/ryoku-r2-config
+          iso=${{ steps.iso.outputs.path }}
+          dir=$(dirname "$iso")
+          dest=Ryoku:${R2_BUCKET:-ryoku}/
+          for file in "$iso" "$iso.sig" "$iso.sha256" "$iso.json" "$iso.js" \
+            "$dir/SHA256SUMS" "$dir/ryoku-release-key.pub.asc"; do
+            rclone copy "$file" "$dest" -P
+          done
+          rclone copy "$dir/latest-void.json" "$dest" -P \
+            --header-upload 'Cache-Control: no-cache, must-revalidate'
+          rclone copy "$dir/latest-void.js" "$dest" -P \
+            --header-upload 'Cache-Control: no-cache, must-revalidate'
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ryoku-void-iso
+          path: |
+            void/iso/out/*.iso
+            void/iso/out/*.sig
+            void/iso/out/*.sha256
+            void/iso/out/SHA256SUMS
+            void/iso/out/*.json
+            void/iso/out/*.js
+            void/iso/out/*.asc
+          retention-days: 14
+          if-no-files-found: error

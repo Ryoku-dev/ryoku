@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Regenerate Void's Limine menu after dracut creates or removes an initramfs.
+set -euo pipefail
+
+boot_dir=${RYOKU_LIMINE_BOOT_DIR:-/boot}
+conf=${RYOKU_LIMINE_CONF:-$boot_dir/limine.conf}
+cmdline_file=${RYOKU_LIMINE_CMDLINE_FILE:-/etc/kernel/cmdline}
+branding_file=${RYOKU_LIMINE_BRANDING_FILE:-/etc/ryoku/limine-branding.conf}
+extra_file=${RYOKU_LIMINE_EXTRA_FILE:-/etc/ryoku/limine-extra.conf}
+windows_helper=${RYOKU_WINDOWS_HELPER:-/usr/local/bin/ryoku-windows-entry}
+
+[[ -r $branding_file ]] || exit 0
+
+mkdir -p "$boot_dir" "$(dirname "$conf")"
+tmp=$(mktemp "${conf}.tmp.XXXXXX")
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+sed -e '/^\/Ryoku Linux/,$d' -e '/^[[:space:]]*#/d' \
+  "$branding_file" >"$tmp"
+
+cmdline=${RYOKU_LIMINE_CMDLINE:-}
+if [[ -z $cmdline && -r $cmdline_file ]]; then
+  cmdline=$(awk 'NF { print; exit }' "$cmdline_file")
+fi
+if [[ -z $cmdline ]]; then
+  cmdline='rw'
+fi
+
+mapfile -t kernels < <(
+  shopt -s nullglob
+  for kernel in "$boot_dir"/vmlinuz-*; do
+    version=${kernel##*/vmlinuz-}
+    if [[ -f $boot_dir/initramfs-$version.img ]]; then
+      printf '%s\n' "$version"
+    fi
+  done | sort -Vr
+)
+
+for version in "${kernels[@]}"; do
+  cat >>"$tmp" <<EOF
+
+/Ryoku Linux $version
+    protocol: linux
+    path: boot():/vmlinuz-$version
+    module_path: boot():/initramfs-$version.img
+    cmdline: $cmdline
+EOF
+done
+
+if [[ -r $extra_file ]]; then
+  printf '\n' >>"$tmp"
+  cat "$extra_file" >>"$tmp"
+fi
+
+chmod 0644 "$tmp"
+mv -f "$tmp" "$conf"
+trap - EXIT HUP INT TERM
+
+if [[ -x $windows_helper ]]; then
+  "$windows_helper" sync "$conf" >/dev/null 2>&1 || true
+fi
+
+loader=${RYOKU_LIMINE_LOADER:-/usr/share/limine/BOOTX64.EFI}
+shared_efi=${RYOKU_LIMINE_SHARED_ESP:-/efi}
+if [[ -r $loader ]]; then
+  for target in \
+    "$boot_dir/EFI/BOOT/BOOTX64.EFI" \
+    "$boot_dir/EFI/ryoku/BOOTX64.EFI" \
+    "$boot_dir/ryoku-limine.efi" \
+    "$shared_efi/EFI/ryoku/BOOTX64.EFI"; do
+    if [[ -e $target ]]; then cp -f "$loader" "$target"; fi
+  done
+fi

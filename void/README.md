@@ -19,9 +19,9 @@ counterparts translate those definitions rather than duplicating the desktop.
 | artifact | Arch/CachyOS path | Void counterpart | status |
 |---|---|---|---|
 | Package sets | `system/packages/` | `void/packages/translations.tsv`, `void/packages/sets/`, `void/packages/resolve` | Done |
-| Package recipes | `release/packages/` | `void/packages/srcpkgs/` in the Ryoku XBPS repository | Planned |
-| Repository build | `release/repo/` | `void/packages/repo/` | Planned |
-| Live ISO | `installation/iso/` | `void/iso/` | Planned; see [`iso/README.md`](iso/README.md) |
+| Package recipes | `release/packages/` | `void/packages/srcpkgs/` in the Ryoku XBPS repository | Done |
+| Repository build | `release/repo/` | `void/packages/repo/` | Done |
+| Live ISO | `installation/iso/` | `void/iso/` | Done; see [`iso/README.md`](iso/README.md) |
 | Init services | systemd unit trees across the repository | `void/init/` | Done |
 | Runtime host seam | direct systemd and pacman calls | `ryoku/cli/cmd/ryoku-host` and `ryoku/cli/internal/host` | Done |
 
@@ -29,7 +29,7 @@ counterparts translate those definitions rather than duplicating the desktop.
 Arch package closure. `packages/resolve` selects lanes and emits Void package
 names, while `packages/sets/` supplies the Void session and source-build
 packages that have no Arch package-set row. `packages/README.md` describes the
-future signed XBPS repository.
+signed XBPS repository and how to build it.
 
 `init/` is the systemd-to-runit translation:
 
@@ -52,8 +52,7 @@ future signed XBPS repository.
   the services listed in `session-services`.
 
 `iso/README.md` specifies the Void live image, offline XBPS closure, shared
-installer routing, and release workflow. The profile and workflow are planned;
-the package, init, and host-seam inputs they consume are already present.
+installer routing, and release workflow.
 
 ## Snapshots
 

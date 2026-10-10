@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/local/lib/ryoku/backend/ryoku-install "$@"

@@ -220,6 +220,8 @@ ryoku_wipe_signatures() {
 ryoku_partition_whole() {
   local disk=$RYOKU_DISK
   local esp_end=$(( 1 + RYOKU_ESP_GIB * 1024 ))   # MiB: 1 MiB align gap + the ESP
+  local bios_mib=${RYOKU_BIOS_BOOT_MIB:-0}
+  local root_partnum=2
 
   # destructive-wipe guard: refuse to zap a disk that already holds partitions
   # (e.g. a Windows install) unless the caller has explicitly acked. the TUI
@@ -234,7 +236,11 @@ ryoku_partition_whole() {
     die 'refusing to wipe %s: it already holds partitions and RYOKU_WIPE_CONFIRMED is not set. Pick '\''alongside'\'' to keep them, or set RYOKU_WIPE_CONFIRMED=1 to wipe explicitly.' "$disk"
   fi
 
-  log 'partitioning %s (whole disk, GPT: %sGiB ESP + root)' "$disk" "${RYOKU_ESP_GIB}"
+  if (( bios_mib > 0 )); then
+    log 'partitioning %s (whole disk, GPT: %sGiB ESP + %sMiB BIOS boot + root)' "$disk" "${RYOKU_ESP_GIB}" "$bios_mib"
+  else
+    log 'partitioning %s (whole disk, GPT: %sGiB ESP + root)' "$disk" "${RYOKU_ESP_GIB}"
+  fi
 
   # free the disk before touching it: on the live medium the target may be held
   # by an auto-mounted partition (udisks), leftover state from a previous run,
@@ -249,18 +255,29 @@ ryoku_partition_whole() {
   run_sh 'udevadm settle 2>/dev/null || true'
   ryoku_wipe_signatures "$disk"
 
-  # fresh GPT: partition 1 = ESP (EF00 == GPT 'esp' flag), partition 2 = root.
+  # fresh GPT: partition 1 = ESP. BIOS-capable callers reserve partition 2 for
+  # Limine's GPT BIOS stage and place root at 3; Arch's default remains root=2.
   run parted --script "$disk" mklabel gpt
   run parted --script "$disk" mkpart ESP fat32 1MiB "${esp_end}MiB"
   run parted --script "$disk" set 1 esp on
-  run parted --script "$disk" mkpart root "${esp_end}MiB" 100%
+  if (( bios_mib > 0 )); then
+    local bios_end=$(( esp_end + bios_mib ))
+    run parted --script "$disk" mkpart BIOSBOOT "${esp_end}MiB" "${bios_end}MiB"
+    run parted --script "$disk" set 2 bios_grub on
+    run parted --script "$disk" mkpart root "${bios_end}MiB" 100%
+    root_partnum=3
+    RYOKU_BIOS_PART=$(part_dev "$disk" 2)
+    export RYOKU_BIOS_PART
+  else
+    run parted --script "$disk" mkpart root "${esp_end}MiB" 100%
+  fi
 
   # let the kernel re-read the new table before touching the partitions.
   run partprobe "$disk"
   run_sh 'udevadm settle || true'
 
   ESP_DEV=$(part_dev "$disk" 1)
-  ROOT_PART=$(part_dev "$disk" 2)
+  ROOT_PART=$(part_dev "$disk" "$root_partnum")
 
   # a fresh GPT can lay these partitions over an older layout, so a stale sig
   # (old LUKS2 header, previous btrfs) can still sit at the start of each. the
@@ -268,6 +285,7 @@ ryoku_partition_whole() {
   # partitions directly. otherwise blkid reports the old type (e.g. crypto_LUKS)
   # and the later mount fails with "unknown filesystem type".
   run wipefs --all "$ESP_DEV"
+  (( bios_mib == 0 )) || run wipefs --all "$RYOKU_BIOS_PART"
   run wipefs --all "$ROOT_PART"
   log 'ESP=%s root partition=%s' "$ESP_DEV" "$ROOT_PART"
 }

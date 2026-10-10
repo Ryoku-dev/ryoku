@@ -14,8 +14,9 @@
 
 - **Void keeps live sessions safe through package cutovers and kernel updates.**
   Runit sessions now use `ryoku-host` transient guards and elogind inhibitors
-  while sleep, lid, lock, and wallpaper owners are replaced. Void's kernel hook
-  also rebuilds the Limine menu after dracut creates or removes an initramfs.
+  while sleep, lid, lock, and wallpaper owners are replaced. The packaged Void
+  kernel hook also rebuilds the Limine menu after dracut creates or removes an
+  initramfs, so regular `ryoku update` deliveries keep installed systems current.
 
 - **Idle works on Void.** `ryoku-idle` drives swayidle when hypridle is not
   installed, with the same lock, screen-off and suspend timers, so Void (which

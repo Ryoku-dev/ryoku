@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+# Install Void and the packaged Ryoku desktop from the ISO's offline repository.
+set -euo pipefail
+
+SELF=$(realpath "${BASH_SOURCE[0]}")
+BACKEND_DIR=$(dirname "$SELF")
+RYOKU_REPO=${RYOKU_REPO:-/usr/share/ryoku}
+SHARED_LIB_DIR=${RYOKU_SHARED_BACKEND_LIB:-$BACKEND_DIR/shared}
+if [[ ! -d $SHARED_LIB_DIR ]]; then
+  source_checkout=$(realpath -m "$BACKEND_DIR/../../..")
+  if [[ -d $source_checkout/installation/backend/lib ]]; then
+    SHARED_LIB_DIR=$source_checkout/installation/backend/lib
+  else
+    SHARED_LIB_DIR=$RYOKU_REPO/installation/backend/lib
+  fi
+fi
+[[ -d $SHARED_LIB_DIR ]] || { printf 'ERROR: shared installer libraries not found\n' >&2; exit 1; }
+
+# The shared filesystem library keeps Arch's cache path by default. Select the
+# Void cache before sourcing it so @pkg mounts at /var/cache/xbps.
+: "${RYOKU_PACKAGE_CACHE_DIR:=/var/cache/xbps}"
+: "${RYOKU_CHROOT_CMD:=chroot}"
+RYOKU_TARGET_CHROOT=chroot
+
+# shellcheck source=installation/backend/lib/common.sh
+source "$SHARED_LIB_DIR/common.sh"
+# shellcheck source=installation/backend/lib/preflight.sh
+source "$SHARED_LIB_DIR/preflight.sh"
+# shellcheck source=installation/backend/lib/disk.sh
+source "$SHARED_LIB_DIR/disk.sh"
+# shellcheck source=installation/backend/lib/resize.sh
+source "$SHARED_LIB_DIR/resize.sh"
+# shellcheck source=installation/backend/lib/luks.sh
+source "$SHARED_LIB_DIR/luks.sh"
+# shellcheck source=installation/backend/lib/filesystem.sh
+source "$SHARED_LIB_DIR/filesystem.sh"
+# shellcheck source=installation/backend/lib/network.sh
+source "$SHARED_LIB_DIR/network.sh"
+# shellcheck source=installation/backend/lib/deploy.sh
+source "$SHARED_LIB_DIR/deploy.sh"
+source "$BACKEND_DIR/lib/common.sh"
+source "$BACKEND_DIR/lib/base.sh"
+source "$BACKEND_DIR/lib/configure.sh"
+source "$BACKEND_DIR/lib/deploy.sh"
+source "$BACKEND_DIR/lib/drivers.sh"
+source "$BACKEND_DIR/lib/bootloader.sh"
+
+if [[ ${1:-} == probe ]]; then
+  case ${2:-} in
+    alongside) [[ -n ${3:-} ]] || die 'usage: ryoku-install probe alongside <disk>'; ryoku_probe_alongside "$3" ;;
+    resize) [[ -n ${3:-} ]] || die 'usage: ryoku-install probe resize <disk>'; ryoku_probe_resize "$3" ;;
+    *) die 'unknown probe %s' "${2:-}" ;;
+  esac
+  exit 0
+fi
+
+: "${RYOKU_HOSTNAME:=ryoku}"
+: "${RYOKU_USERNAME:=ryoku}"
+: "${RYOKU_KEYMAP:=us}"
+: "${RYOKU_XKB_LAYOUT:=}"
+: "${RYOKU_XKB_VARIANT:=}"
+: "${RYOKU_LOCALE:=en_US.UTF-8}"
+: "${RYOKU_TIMEZONE:=UTC}"
+: "${RYOKU_PROFILE:=vm}"
+: "${RYOKU_DISK_STRATEGY:=}"
+: "${RYOKU_ESP_GIB:=1}"
+: "${RYOKU_ESP_MODE:=auto}"
+: "${RYOKU_SWAP_GIB:=0}"
+: "${RYOKU_SUBVOL_HOME:=1}"
+: "${RYOKU_SUBVOL_BACKUPS:=0}"
+RYOKU_SUBVOL_SNAPSHOTS=0
+: "${RYOKU_ONLINE:=0}"
+: "${RYOKU_OFFLINE_REPO:=/run/initramfs/live/ryoku/repo}"
+: "${RYOKU_RESOLVER:=$RYOKU_REPO/void/packages/resolve}"
+: "${RYOKU_XBPS_KEYRING_DIR:=$RYOKU_REPO/void/packages/srcpkgs/ryoku-keyring/files}"
+: "${RYOKU_PACKAGE_CACHE_DIR:=/var/cache/xbps}"
+: "${RYOKU_CHROOT_CMD:=chroot}"
+: "${RYOKU_DISK:=}"
+: "${RYOKU_PASSWORD_HASH:=}"
+: "${RYOKU_ENCRYPT:=}"
+: "${RYOKU_LUKS_PASSPHRASE:=}"
+: "${RYOKU_GPU_MODE:=}"
+: "${RYOKU_COMPOSITOR:=}"
+: "${RYOKU_COMPOSITOR_CONFIG_DIR:=}"
+: "${RYOKU_COMPOSITOR_GPU_PIN:=}"
+: "${RYOKU_BROWSER:=firefox}"
+: "${RYOKU_LOGIN_SHELL:=fish}"
+: "${RYOKU_DROP_PACKAGES:=}"
+: "${RYOKU_REBOOT:=}"
+: "${RYOKU_DRYRUN:=}"
+: "${RYOKU_RESIZE_PART:=}"
+: "${RYOKU_RESIZE_TAKE_MIB:=}"
+: "${RYOKU_FIRMWARE_MODE:=auto}"
+
+case $RYOKU_FIRMWARE_MODE in
+  auto) if [[ -d /sys/firmware/efi ]]; then RYOKU_FIRMWARE_MODE=uefi; else RYOKU_FIRMWARE_MODE=bios; fi ;;
+  uefi|bios) ;;
+  *) die 'RYOKU_FIRMWARE_MODE must be auto, uefi, or bios' ;;
+esac
+RYOKU_REQUIRE_UEFI=0
+if [[ $RYOKU_FIRMWARE_MODE == bios ]]; then RYOKU_BIOS_BOOT_MIB=1; else RYOKU_BIOS_BOOT_MIB=0; fi
+export RYOKU_REPO RYOKU_DROP_PACKAGES RYOKU_BROWSER RYOKU_LOGIN_SHELL
+export RYOKU_PACKAGE_CACHE_DIR RYOKU_CHROOT_CMD RYOKU_REQUIRE_UEFI RYOKU_BIOS_BOOT_MIB
+
+case $RYOKU_BROWSER in
+  firefox) browser_drops=(chromium zen-browser-bin) ;;
+  chromium) browser_drops=(firefox zen-browser-bin) ;;
+  zen) browser_drops=(firefox chromium) ;;
+  *) die 'RYOKU_BROWSER=%s is not one of firefox, chromium, or zen' "$RYOKU_BROWSER" ;;
+esac
+case $RYOKU_LOGIN_SHELL in
+  fish) shell_drops=(zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh blesh) ;;
+  zsh) shell_drops=(fish blesh) ;;
+  bash) shell_drops=(fish zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh) ;;
+  *) die 'RYOKU_LOGIN_SHELL=%s is not one of fish, zsh, or bash' "$RYOKU_LOGIN_SHELL" ;;
+esac
+append_drop() {
+  local package=$1
+  [[ ",${RYOKU_DROP_PACKAGES}," == *,"$package",* ]] \
+    || RYOKU_DROP_PACKAGES="${RYOKU_DROP_PACKAGES:+$RYOKU_DROP_PACKAGES,}$package"
+}
+for package in "${browser_drops[@]}" "${shell_drops[@]}"; do append_drop "$package"; done
+export RYOKU_DROP_PACKAGES
+
+[[ -n $RYOKU_DISK ]] || die "RYOKU_DISK is required"
+[[ -n $RYOKU_PASSWORD_HASH ]] || die "RYOKU_PASSWORD_HASH is required"
+[[ -n $RYOKU_COMPOSITOR ]] || die "RYOKU_COMPOSITOR is required"
+[[ -n $RYOKU_COMPOSITOR_CONFIG_DIR ]] || die "RYOKU_COMPOSITOR_CONFIG_DIR is required"
+case $RYOKU_DISK_STRATEGY in
+  whole|alongside) ;;
+  '') die "RYOKU_DISK_STRATEGY is required (use whole or alongside)" ;;
+  *) die 'unsupported RYOKU_DISK_STRATEGY=%s' "$RYOKU_DISK_STRATEGY" ;;
+esac
+if [[ $RYOKU_DISK_STRATEGY == alongside ]]; then
+  case $RYOKU_ESP_MODE in auto|shared|dedicated) ;; *) die "RYOKU_ESP_MODE must be auto, shared, or dedicated" ;; esac
+  [[ -z $RYOKU_DRYRUN || $RYOKU_ESP_MODE != auto ]] \
+    || die "alongside dry-run requires RYOKU_ESP_MODE=shared or dedicated"
+fi
+[[ $RYOKU_ENCRYPT != 1 || -n $RYOKU_LUKS_PASSPHRASE ]] \
+  || die "RYOKU_ENCRYPT=1 but RYOKU_LUKS_PASSPHRASE is unset"
+[[ $RYOKU_FIRMWARE_MODE != bios || $RYOKU_DISK_STRATEGY == whole ]] \
+  || die "legacy BIOS supports whole-disk installation only"
+
+main() {
+  [[ -z $RYOKU_DRYRUN ]] || log "DRY RUN: no disk is touched; commands are printed only"
+  log 'Ryoku Void install: disk=%s host=%s user=%s profile=%s wm=%s browser=%s shell=%s' \
+    "$RYOKU_DISK" "$RYOKU_HOSTNAME" "$RYOKU_USERNAME" "$RYOKU_PROFILE" \
+    "$RYOKU_COMPOSITOR" "$RYOKU_BROWSER" "$RYOKU_LOGIN_SHELL"
+
+  ryoku_preflight
+  void_offline_verify
+  ryoku_ensure_dns
+
+  step partition
+  ryoku_carve
+  ryoku_partition
+  ryoku_luks
+
+  step filesystems
+  ryoku_filesystems
+
+  step mount
+  ryoku_mount
+
+  step pacstrap
+  void_base_install
+
+  step configure
+  void_chroot_mounts_on
+  void_desktop_install
+  void_configure
+  void_deploy_user
+  ryoku_network
+  void_drivers
+  void_services
+  void_default_browser
+  step bootloader
+  void_bootloader
+  void_repo_finalize
+
+  log "flushing the target to disk"
+  run sync
+  if [[ -z $RYOKU_DRYRUN ]]; then
+    swapoff /mnt/swap/swapfile 2>/dev/null || true
+    umount -R /mnt 2>/dev/null || true
+  fi
+  printf '@@RYOKU_DONE\n'
+  log "install complete"
+  [[ -z $RYOKU_REBOOT ]] || run reboot
+}
+
+RYOKU_STAGE=preflight
+void_on_exit() {
+  local rc=$?
+  ((rc == 0)) && return 0
+  trap - EXIT
+  printf 'ERROR: install failed at stage "%s" (exit %d)\n' "${RYOKU_STAGE:-startup}" "$rc" >&2
+  sync || true
+  printf 'The partial target remains mounted at /mnt for inspection.\n' >&2
+  exit "$rc"
+}
+trap void_on_exit EXIT
+main "$@"

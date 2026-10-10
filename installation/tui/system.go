@@ -25,6 +25,26 @@ import (
 	wm "ryoku-wm"
 )
 
+const variantVoid = "void"
+
+var variantMarkerPath = "/usr/share/ryoku/variant"
+
+func sysVariant() string {
+	data, err := os.ReadFile(variantMarkerPath)
+	if err != nil {
+		return "plain"
+	}
+	variant := strings.TrimSpace(string(data))
+	if variant == "" {
+		return "plain"
+	}
+	return variant
+}
+
+func isVoidVariant(variant string) bool {
+	return variant == variantVoid
+}
+
 // run executes a command and returns its trimmed stdout, plus whether it worked.
 // A missing tool or non-zero exit just yields ok=false so callers fall back.
 func run(name string, args ...string) (string, bool) {
@@ -1139,10 +1159,10 @@ func (m model) installEnv() []string {
 		// package source (RYOKU_ONLINE / RYOKU_OFFLINE_REPO) is appended after the
 		// literal, since it depends on whether this ISO baked an offline repo.
 	}
-	if offlineRepo() {
-		// offline ISO: the whole closure is baked into a file:// repo and the
-		// backend pacstraps from it with no network (see lib/offline.sh).
-		env = append(env, "RYOKU_ONLINE=0", "RYOKU_OFFLINE_REPO="+offlineRepoPath)
+	if path, ok := offlineRepo(m.variant); ok {
+		// An offline ISO carries the complete package closure. The marker differs
+		// by package manager, but both backends receive the same environment.
+		env = append(env, "RYOKU_ONLINE=0", "RYOKU_OFFLINE_REPO="+path)
 	} else {
 		env = append(env, "RYOKU_ONLINE=1")
 	}
@@ -1165,7 +1185,7 @@ func (m model) installEnv() []string {
 	}
 	sh := def(m.picks["login-shell"], "fish")
 	var drop []string
-	drop = append(drop, deselectedPkgs(m.selectedApps())...)
+	drop = append(drop, deselectedPkgsForVariant(m.variant, m.selectedApps())...)
 	for _, pkg := range browserPackages() {
 		if pkg != brPkg {
 			drop = append(drop, pkg)
@@ -1372,8 +1392,7 @@ func (m *model) startInstall() tea.Cmd {
 // proceed", which hid a real question behind a false answer: every gate that
 // asked about connectivity silently got "yes" on a machine with no network, so
 // whether an offline install worked depended on a short-circuit buried in here
-// rather than on the gates. The gates now ask offlineRepo() themselves (see
-// reviewBlockReason, the kNet step, and installEnv). WIRE target.
+// rather than on the variant-aware gates below. WIRE target.
 func netOnline() bool {
 	if out, ok := run("ip", "-4", "route"); ok && strings.Contains(out, "default") {
 		return true
@@ -1386,24 +1405,36 @@ func netOnline() bool {
 		"https://geo.mirror.pkgbuild.com/").Run() == nil
 }
 
-// offlineRepoPath is where an offline ISO bakes the full package closure
-// (installation/iso/build.sh + offline-repo.sh).
-const offlineRepoPath = "/usr/share/ryoku/offline/repo"
+var (
+	archOfflineRepoPath = "/usr/share/ryoku/offline/repo"
+	voidOfflineRepoPath = "/run/initramfs/live/ryoku/repo"
+)
 
-// offlineRepo reports whether this live ISO carries a USABLE baked offline
-// package repo. The db glob is the same test lib/offline.sh:ryoku_offline_active
-// uses, and it has to be: this decides whether installEnv sends RYOKU_ONLINE=0,
-// and a bare directory (a bake that died before repo-add, say) used to satisfy
-// the installer while failing the backend's check -- so the TUI promised an
-// offline install and the backend quietly took the online path into a pacstrap
-// that cannot reach a mirror. Same question, same answer, both sides.
-func offlineRepo() bool {
-	fi, err := os.Stat(offlineRepoPath)
-	if err != nil || !fi.IsDir() {
-		return false
+// offlineRepo reports whether this live image carries a usable package
+// repository and returns the path handed to either backend.
+func offlineRepo(variant string) (string, bool) {
+	path := archOfflineRepoPath
+	if isVoidVariant(variant) {
+		path = voidOfflineRepoPath
 	}
-	db, _ := filepath.Glob(filepath.Join(offlineRepoPath, "offline.db*"))
-	return len(db) > 0
+	fi, err := os.Stat(path)
+	if err != nil || !fi.IsDir() {
+		return path, false
+	}
+	if isVoidVariant(variant) {
+		if fi, err := os.Stat(filepath.Join(path, "x86_64-repodata")); err != nil || fi.IsDir() {
+			return path, false
+		}
+		pkgs, _ := filepath.Glob(filepath.Join(path, "*.xbps"))
+		return path, len(pkgs) > 0
+	}
+	db, _ := filepath.Glob(filepath.Join(path, "offline.db*"))
+	return path, len(db) > 0
+}
+
+func (m model) hasOfflineRepo() bool {
+	_, ok := offlineRepo(m.variant)
+	return ok
 }
 
 // netInterface returns the active default-route interface name, for the

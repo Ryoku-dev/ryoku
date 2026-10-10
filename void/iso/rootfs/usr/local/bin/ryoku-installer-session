@@ -1,0 +1,4 @@
+#!/bin/sh
+export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/0}
+install -d -m 0700 "$XDG_RUNTIME_DIR"
+exec /usr/local/lib/ryoku/installer-session "$@"

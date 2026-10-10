@@ -1,0 +1,19 @@
+--- a/mklive.sh
++++ b/mklive.sh
+@@ -732,6 +732,16 @@ print_step "Generating squashfs image ($SQUASHFS_COMPRESSION) from rootfs..."
+ generate_squashfs
+ 
++if [ -z "${RYOKU_ISO_ROOT_REPO:-}" ] \
++        || [ ! -s "$RYOKU_ISO_ROOT_REPO/x86_64-repodata" ] \
++        || ! compgen -G "$RYOKU_ISO_ROOT_REPO/*.xbps" >/dev/null; then
++    die "Ryoku ISO-root repository is missing or incomplete"
++fi
++print_step "Copying Ryoku offline repository to the ISO root..."
++mkdir -p "$IMAGEDIR/ryoku"
++cp -a "$RYOKU_ISO_ROOT_REPO" "$IMAGEDIR/ryoku/repo" \
++    || die "Failed to copy Ryoku offline repository"
++
+ print_step "Generating ISO image..."
+ generate_iso_image
+ 
+ sync

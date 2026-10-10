@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# preflight: refuse to start unless we're root, in UEFI mode with Secure Boot
-# off, and pointed at a big-enough WHOLE disk. under dry-run the checks just
-# narrate and never abort, so the flow can be exercised on a dev box with no
-# real target disk.
+# preflight: refuse to start unless we're root, on a supported firmware path
+# with Secure Boot off, and pointed at a big-enough whole disk. Arch defaults to
+# requiring UEFI; callers with a BIOS-capable bootloader may set
+# RYOKU_REQUIRE_UEFI=0. Under dry-run the checks only narrate.
 
 # min target disk: 32 GiB.
 RYOKU_MIN_DISK_BYTES=34359738368
@@ -23,7 +23,11 @@ ryoku_preflight() {
   # dry-run never touches the machine, so narrate and return; we'd just probe
   # hardware that might not be on the dev box.
   if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    log 'preflight: would require root, UEFI (/sys/firmware/efi) with Secure Boot off (override RYOKU_ALLOW_SECUREBOOT=1), and %s a whole disk >= 32 GiB' "$RYOKU_DISK"
+    if [[ ${RYOKU_REQUIRE_UEFI:-1} == 0 ]]; then
+      log 'preflight: would require root, UEFI or legacy BIOS (Secure Boot off on UEFI; override RYOKU_ALLOW_SECUREBOOT=1), and %s a whole disk >= 32 GiB' "$RYOKU_DISK"
+    else
+      log 'preflight: would require root, UEFI (/sys/firmware/efi) with Secure Boot off (override RYOKU_ALLOW_SECUREBOOT=1), and %s a whole disk >= 32 GiB' "$RYOKU_DISK"
+    fi
     log "preflight: would log the disk's logical sector size (blockdev --getss)"
     log 'preflight: would require the repo payload at %s and a working DNS resolver before any disk write' "$RYOKU_REPO"
     if [[ ${RYOKU_DISK_STRATEGY:-} == alongside ]]; then
@@ -37,11 +41,16 @@ ryoku_preflight() {
     return 0
   fi
 
-  # root: partitioning, mkfs, pacstrap, arch-chroot all need it.
+  # root: partitioning, mkfs, the package bootstrap, and chroot all need it.
   [[ $EUID -eq 0 ]] || die "must run as root"
 
-  # UEFI: boot chain is Limine + an ESP.
-  [[ -d /sys/firmware/efi ]] || die "not booted in UEFI mode (/sys/firmware/efi missing)"
+  # Arch's backend remains UEFI-only. A backend that installs Limine's BIOS
+  # stage explicitly opts out; alongside still needs UEFI for its shared ESP.
+  if [[ ${RYOKU_REQUIRE_UEFI:-1} != 0 ]]; then
+    [[ -d /sys/firmware/efi ]] || die "not booted in UEFI mode (/sys/firmware/efi missing)"
+  elif [[ ! -d /sys/firmware/efi && ${RYOKU_DISK_STRATEGY:-} == alongside ]]; then
+    die "alongside installation requires UEFI; legacy BIOS is supported only for whole-disk installs"
+  fi
 
   # Secure Boot: Limine ships unsigned, so a machine enforcing Secure Boot
   # refuses to run it. Fail HERE with firmware guidance instead of installing a

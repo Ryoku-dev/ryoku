@@ -155,6 +155,7 @@ truth for the live desktop.
 System-level definition installed into the target.
 
 - `boot/` the boot chain: `limine/`, `mkinitcpio/`, `plymouth/`.
+- `boot/limine/50-ryoku-limine` rebuilds Void's Limine menu after a kernel or initramfs change.
 - `hardware/` hardware policy and helper scripts (shipped to `/usr/bin` by
   `ryoku-desktop`): `gpu/` (`ryoku-gpu`, `ryoku-gpu-detect`, `ryoku-gpu-mux`,
   udev rule), `display/` (`ryoku-monitor`), `audio/` (`ryoku-mic`, the mic-gain
@@ -163,6 +164,7 @@ System-level definition installed into the target.
   the shared laptop detector; `ryoku-idle`, the laptop-gated `hypridle` launcher;
   `ryoku-power`, the battery charge ceiling and PCIe link power). What actually
   moves power draw and temperature, measured, is in `docs/power.md`.
+- `hardware/drivers/nvidia-xbps.sh` and `hardware/drivers/15-ryoku-nvidia` select Void's generation-correct NVIDIA package and keep nouveau available when DKMS fails.
 - `containers/` the container runtime policy behind the stash Cobalt engine:
   `ryoku-docker` (the one privileged door, shipped to `/usr/bin`) and its polkit
   rule. Its own directory rather than a corner of `hardware/`, because a
@@ -264,14 +266,11 @@ The x86_64 glibc Void counterpart for Ryoku, with XBPS package translation and
 runit plus Turnstile init integration. `void/README.md` is the index and records
 which counterparts are complete or planned.
 
-- `packages/` translates the Arch package closure without copying it:
-  `translations.tsv` maps each Arch name and lane to its Void equivalent,
-  `sets/` holds the Void-only `session.packages` and `build.packages`, and
-  `resolve` emits sorted package names for selected lanes. `README.md` describes
-  the planned `srcpkgs/` recipes and signed XBPS repository.
-- `iso/` contains the concrete `void-mklive` image plan in `README.md`: its
-  live-only package set, signed offline XBPS closure, shared installer routing,
-  and `void-v*` release workflow.
+- `packages/` translates the Arch package closure without copying it: `translations.tsv` maps each Arch name and lane to its Void equivalent, `sets/` holds Void-only additions, and `resolve` emits the selected XBPS names.
+- `packages/srcpkgs/` holds one XBPS template per Ryoku package, mirroring `release/packages/`.
+- `packages/repo/` builds, signs, and indexes the XBPS repository, mirroring `release/repo/`.
+- `iso/` builds the Void live ISO, mirroring `installation/iso/`.
+- `iso/backend/` owns the Void install steps and reuses the neutral libraries in `installation/backend/lib/`.
 - `init/` is the systemd-to-runit translation. `translations.tsv` is the
   completeness manifest enforced by `tests/void-init.sh`; `system/` and `user/`
   hold runit service directories, `env/` handles the Turnstile environment,

@@ -1,0 +1,41 @@
+# Live installer tools only. Kernel, firmware, dracut, and the base system are
+# supplied by void-mklive. The installed desktop comes from the ISO-root XBPS
+# repository, never from this list.
+
+# Disk discovery, partitioning, filesystems, encryption, and boot setup.
+parted
+gptfdisk
+btrfs-progs
+dosfstools
+e2fsprogs
+cryptsetup
+ntfs-3g
+efibootmgr
+limine
+lvm2
+mdadm
+xtools-minimal
+
+# The TUI joins Wi-Fi through NetworkManager and can use either backend.
+NetworkManager
+iwd
+wpa_supplicant
+wireless-regdb
+
+# Minimal Wayland kiosk and login/session support.
+cage
+foot
+seatd
+dbus
+elogind
+# The installer session asks foot for this exact family.
+ttf-jetbrains-mono-nerd
+kbd
+
+# Installer runtime and hardware probes.
+bash
+curl
+jq
+sudo
+pciutils
+openssl

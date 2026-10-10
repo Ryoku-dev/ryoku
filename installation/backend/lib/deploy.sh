@@ -15,6 +15,8 @@
 # wrappers, and tolerates offline / partial installs (the desktop set then
 # turns up on the first `ryoku update`).
 
+: "${RYOKU_TARGET_CHROOT:=arch-chroot}"
+
 ryoku_deploy() {
   local u=$RYOKU_USERNAME
   local h="/mnt/home/$u"
@@ -233,7 +235,7 @@ ryoku_deploy_version_skew() {
 ryoku_deploy_materialize() {
   local u=$1
   if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    log "DRYRUN: arch-chroot /mnt runuser -u $u -- env HOME=/home/$u ryoku materialize"
+    log "DRYRUN: $RYOKU_TARGET_CHROOT /mnt runuser -u $u -- env HOME=/home/$u ryoku materialize"
     return 0
   fi
   if [[ ! -x /mnt/usr/bin/ryoku ]]; then
@@ -241,8 +243,8 @@ ryoku_deploy_materialize() {
     return 0
   fi
   log 'materializing the Ryoku config into /home/%s/.config' "$u"
-  arch-chroot /mnt runuser -u "$u" -- env "HOME=/home/$u" "USER=$u" "LOGNAME=$u" \
-    ryoku materialize \
+  "$RYOKU_TARGET_CHROOT" /mnt runuser -u "$u" -- \
+    env "HOME=/home/$u" "USER=$u" "LOGNAME=$u" ryoku materialize \
     || log "materialize: warning, ryoku materialize failed (continuing)"
 }
 
@@ -324,12 +326,12 @@ ryoku_deploy_seed() {
   deploy_dir "$RYOKU_REPO/ryoku/assets/wallpapers" "$h/Pictures/Wallpapers"
   deploy_dir "$RYOKU_REPO/ryoku/assets/ryodecors" "$h/Pictures/ryodecors"
   deploy_file "$RYOKU_REPO/ryoku/apps/npm/npmrc" "$h/.npmrc"
-  run arch-chroot /mnt install -d -o "$u" -g "$u" \
+  run "$RYOKU_TARGET_CHROOT" /mnt install -d -o "$u" -g "$u" \
     "/home/$u/.local" "/home/$u/.local/state" "$state"
   write_file "$marker" <<'EOF'
 default
 EOF
-  run arch-chroot /mnt chown "$u:$u" "$state/default-rice-pending"
+  run "$RYOKU_TARGET_CHROOT" /mnt chown "$u:$u" "$state/default-rice-pending"
 }
 
 # seed_provisioned: the installer's drop list is recorded in the doctor's
@@ -372,14 +374,14 @@ ryoku_deploy_qylock() {
   run chmod 755 /mnt/root/ryoku-sddm-setup /mnt/root/ryoku-install-qylock
   local env="RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock RYOKU_QYLOCK_MODE=live SUDO_USER=$RYOKU_USERNAME RYOKU_DRYRUN=${RYOKU_DRYRUN:-}"
   # shellcheck disable=SC2086  # env assignments are intentionally word-split
-  run arch-chroot /mnt env $env /root/ryoku-sddm-setup
+  run "$RYOKU_TARGET_CHROOT" /mnt env $env /root/ryoku-sddm-setup
   # shellcheck disable=SC2086
-  run arch-chroot /mnt env $env /root/ryoku-install-qylock
+  run "$RYOKU_TARGET_CHROOT" /mnt env $env /root/ryoku-install-qylock
   run rm -f /mnt/root/ryoku-sddm-setup /mnt/root/ryoku-install-qylock
 }
 
 ryoku_deploy_chown() {
   local u=$1
   log 'fixing ownership of /home/%s' "$u"
-  run arch-chroot /mnt chown -R "$u:$u" "/home/$u"
+  run "$RYOKU_TARGET_CHROOT" /mnt chown -R "$u:$u" "/home/$u"
 }

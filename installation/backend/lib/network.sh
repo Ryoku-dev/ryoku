@@ -26,6 +26,8 @@
 # preflight, before the disk is touched. everything routes through the dry-run
 # wrappers.
 
+: "${RYOKU_CHROOT_CMD:=arch-chroot}"
+
 ryoku_network() {
   log "persisting NetworkManager configuration into the target"
   ryoku_network_backend
@@ -127,7 +129,7 @@ ryoku_network_regdom() {
     return 0
   fi
   log 'Wi-Fi regulatory domain: %s' "$cc"
-  run arch-chroot /mnt ryoku-wifi-regdom set "$cc" \
+  run "$RYOKU_CHROOT_CMD" /mnt ryoku-wifi-regdom set "$cc" \
     || log 'warn: could not pin the Wi-Fi regulatory domain to %s (continuing; '\''ryoku doctor'\'' retries it)' "$cc"
 }
 

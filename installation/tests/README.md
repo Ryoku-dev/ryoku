@@ -36,6 +36,22 @@ demand); see `docs/updates.md` for the delivery contract they guard.
   in `RYOKU_DRYRUN` mode. Uses KVM when `/dev/kvm` is present, else TCG. Needs
   `qemu`, `edk2-ovmf`, and `python-pexpect`.
 
+- `install-vm-void.py --iso <void-iso>` runs the corresponding unattended
+  Void gate. It boots the image with OVMF, requires the baked
+  `/run/initramfs/live/ryoku/repo`, installs a whole-disk niri VM through the
+  serial root shell, waits for the single `@@RYOKU_DONE`, removes the ISO, and
+  boots the target until `ryoku-test login:` appears. The exact release check is:
+
+  ```
+  python3 installation/tests/install-vm-void.py \
+    --iso out/ryoku-void-x86_64.iso \
+    --work /var/tmp/ryoku-void-install
+  ```
+
+  The work directory retains the qcow2 disk and both serial logs. It needs
+  `qemu-system-x86_64`, `qemu-img`, OVMF, OpenSSL, and Python `pexpect`; KVM is
+  used when available.
+
 - `iso-stage-check.sh` stages the ISO profile twice (`iso/build.sh --stage-only`
   into two throwaway dirs) and diffs the trees, proving the prebuilt binaries and
   the baked payload are byte-reproducible for a fixed commit (see

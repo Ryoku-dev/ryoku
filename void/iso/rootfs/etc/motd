@@ -1,0 +1,9 @@
+
+Ryoku @RYOKU_NAME@ @RYOKU_VERSION@ Void installer (live)  (@RYOKU_COMMIT@)
+
+The graphical installer starts automatically on tty1. The serial and secondary
+consoles remain root recovery shells. Run `ryoku-install` there for unattended
+or manual installs; the payload is under /usr/share/ryoku.
+
+The offline package repository is mounted from the ISO at
+/run/initramfs/live/ryoku/repo.
