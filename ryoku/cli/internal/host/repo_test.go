@@ -79,13 +79,15 @@ func TestRepoChannelAndSetChannelXBPS(t *testing.T) {
 
 func TestRepoReleaseBaseOverrideForBothManagers(t *testing.T) {
 	t.Setenv("RYOKU_RELEASE_BASE", "http://127.0.0.1:8080/bucket/")
+	build := "v0.94.1-beta.20.dev.12+g1234567"
+	buildDir := "v0.94.1-beta.20.dev.12_g1234567"
 	for _, manager := range []PackageManager{Pacman, XBPS} {
 		t.Run(string(manager), func(t *testing.T) {
 			arch := "$arch"
 			if manager == XBPS {
 				arch = "x86_64"
 			}
-			for _, channel := range []string{"stable", "testing", "v1.2.3"} {
+			for _, channel := range []string{"stable", "testing", "v1.2.3", build} {
 				url := RepoURLFor(manager, channel)
 				var suffix string
 				switch channel {
@@ -93,6 +95,8 @@ func TestRepoReleaseBaseOverrideForBothManagers(t *testing.T) {
 					suffix = "/" + arch
 				case "testing":
 					suffix = "/channels/testing/" + arch
+				case build:
+					suffix = "/channels/testing/builds/" + buildDir + "/" + arch
 				default:
 					suffix = "/releases/" + channel + "/" + arch
 				}

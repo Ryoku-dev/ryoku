@@ -10,11 +10,10 @@ import (
 
 // ---- reconciler: ryoku channel pin -------------------------------------------
 //
-// reconcileChannelPin heals a packaged box whose [ryoku] pin drifted onto a
-// frozen release OLDER than the release actually installed -- the #291 wedge a
-// failed boot-guard revert leaves behind: the pin was rewritten to the previous
-// release but the downgrade could not complete, so the box runs newer packages
-// than the pinned channel serves and can take no further updates.
+// reconcileChannelPin heals a packaged box whose repository pin drifted onto a
+// frozen version older than the version actually installed. A failed boot-guard
+// revert can rewrite the pin without completing the package move, leaving the
+// box unable to take further updates.
 //
 // Deliberate vs accidental is decided by the channel-intent file `ryoku track`
 // records (and nothing else writes): a pin that matches the recorded intent is
@@ -37,10 +36,13 @@ func reconcileChannelPin(checkOnly bool) recResult {
 	installed := sys.ReadRelease().Release
 	switch outcome, want := planChannelPin(pin, installed, sys.ReadChannelIntent()); outcome {
 	case channelPinDeliberate:
+		if sys.IsUnstableBuild(pin) {
+			return okRes(i18n.T("unstable build %s is pinned on purpose (matches `ryoku track`)"), pin)
+		}
 		return okRes(i18n.T("release %s is pinned on purpose (matches `ryoku track`)"), pin)
 	case channelPinStale:
 		if checkOnly {
-			return wouldRes(i18n.T("the [ryoku] pin %s is older than the installed release %s, so this box can take no updates"), pin, installed).
+			return wouldRes(i18n.T("the Ryoku pin %s is older than the installed version %s, so this box can take no updates"), pin, installed).
 				withFix(i18n.T("ryoku track %s"), sys.TrackName(want))
 		}
 		if err := updater.RetargetChannel(want); err != nil {
@@ -49,7 +51,7 @@ func reconcileChannelPin(checkOnly bool) recResult {
 		}
 		return fixedRes(i18n.T("restored the %s channel; the [ryoku] pin was stuck on %s while %s is installed"), sys.DisplayChannel(want), pin, installed)
 	default:
-		return okRes(i18n.T("channel pin matches the installed release"))
+		return okRes(i18n.T("channel pin matches the installed version"))
 	}
 }
 
@@ -57,29 +59,29 @@ func reconcileChannelPin(checkOnly bool) recResult {
 type channelPinOutcome int
 
 const (
-	channelPinFine       channelPinOutcome = iota // pin is a channel, or a tag no older than installed
-	channelPinDeliberate                          // pin is an old tag the user chose (matches intent)
-	channelPinStale                               // pin is an old tag no one chose: repair to want
+	channelPinFine       channelPinOutcome = iota // pin is a channel, current, ahead, or incomparable
+	channelPinDeliberate                          // an older frozen pin matches the recorded intent
+	channelPinStale                               // an older frozen pin was not chosen: repair to want
 )
 
-// planChannelPin decides, purely, whether the [ryoku] pin is an accidental stale
-// release lock. It fires only when the pin is a frozen release tag strictly
-// older than the installed release (stable/testing/a mirror are never "stale"),
-// and only calls it accidental when it does not match the recorded intent. The
-// second return is the channel to restore (the intent, or stable by default).
+// planChannelPin decides, purely, whether a frozen package pin is accidental.
+// Stable releases compare with stable releases and unstable builds with
+// unstable builds; channels, mirrors, and mixed kinds are never called stale.
+// The second return is the channel to restore (the intent, or stable by default).
 func planChannelPin(pin, installed, intent string) (channelPinOutcome, string) {
-	if !sys.IsReleaseTag(pin) || !sys.IsReleaseTag(installed) {
-		return channelPinFine, "" // stable/testing/mirror, or nothing to compare
+	if !sys.IsFrozenVersion(pin) || !sys.IsFrozenVersion(installed) {
+		return channelPinFine, ""
 	}
-	if sys.CompareReleaseTags(pin, installed) >= 0 {
-		return channelPinFine, "" // pinned release is current or ahead: fine
+	order, comparable := sys.CompareFrozenVersions(pin, installed)
+	if !comparable || order >= 0 {
+		return channelPinFine, ""
 	}
 	want := intent
 	if want == "" {
 		want = sys.ChannelStable
 	}
 	if pin == want {
-		return channelPinDeliberate, want // the user pinned this release on purpose
+		return channelPinDeliberate, want
 	}
 	return channelPinStale, want
 }

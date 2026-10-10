@@ -102,20 +102,36 @@ pending distribution packages. Those are listed as `system:` because plain
 `--json` is the data seam the Hub and the update island read; it is not meant for
 humans.
 
+### `ryoku track <channel-or-version>`
+
+`stable` follows named releases and `unstable` follows packages rebuilt from
+`unstable-dev`. A stable release tag pins its frozen release directory; an
+unstable build name such as `v0.94.1-beta.20.dev.12+g1234567` pins the matching
+frozen testing build. `ryoku track stable` or `ryoku track unstable` returns to
+that channel's moving head. Pacman and XBPS perform the channel move as one
+transaction and restore the previous repository if the package move fails.
+
+`--source` accepts only `stable` or `unstable` and builds from the corresponding
+checkout branch instead of selecting a package repository.
+
+
 ### `ryoku rollback [id]`
 
 With no arguments, this lists published tagged releases and local snapshots on
-both pacman and XBPS installs. Void reads its release list from
-`https://repo.ryoku.dev/stable/void/releases/index.json`.
-`ryoku rollback --to <tag>` moves the Ryoku package set to that frozen signed
-release without a reboot; `ryoku track <tag>` is the equivalent pin. XBPS uses
-one forced transaction for the move. The distribution base and kernel do not
-move. Testing builds from `unstable-dev` are not tagged releases, so there is no
-frozen testing release to roll back to.
+both pacman and XBPS installs. A box following unstable, or pinned to one of its
+builds, also lists the ten frozen builds from
+`channels/testing/index.json`. Void reads the corresponding ledgers below
+`https://repo.ryoku.dev/stable/void/`.
 
-After a tagged release change, the boot guard watches the next boots on both
-package-manager lanes. Two boots without a healthy desktop move the Ryoku set
-back to the previous frozen release. A third failure selects the complete
+`ryoku rollback --to <version>` moves the Ryoku package set to a frozen signed
+release or unstable build without a reboot; `ryoku track <version>` is the
+equivalent pin. XBPS uses one forced transaction for the move. The distribution
+base and kernel do not move. Use `ryoku track stable` after a release pin or
+`ryoku track unstable` after an unstable-build pin to follow new versions again.
+
+After a frozen package-version change, the boot guard watches the next boots on
+both package-manager lanes. Two boots without a healthy desktop move the Ryoku
+set back to the previous frozen version. A third failure selects the complete
 `Ryoku Linux/Snapshots/<snapshot>/<kernel>` Limine path and clears Limine's
 remembered EFI entry so that snapshot really wins at the next boot. Void runs
 the guard through the `ryoku-boot-guard` runit service and records its output

@@ -1174,6 +1174,8 @@ func reconcileRyokuChannel(checkOnly bool) recResult {
 			return okRes(i18n.T("ryoku channel: unstable packages (rebuilt on every push); `ryoku track stable` returns to stable releases"))
 		case sys.IsReleaseTag(ch):
 			return okRes(i18n.T("ryoku channel: pinned to release %s (packages); `ryoku track stable` follows releases again"), ch)
+		case sys.IsUnstableBuild(ch):
+			return okRes(i18n.T("ryoku channel: pinned to unstable build %s (packages); `ryoku track unstable` follows unstable builds again"), ch)
 		default:
 			return warnRes(i18n.T("the [ryoku] repo points at %s, which Ryoku does not publish; releases will not arrive from it"), sys.RyokuServer()).
 				withFix("ryoku track stable")
@@ -1226,6 +1228,8 @@ func reconcileVoidRyokuChannel(checkOnly bool) recResult {
 		return okRes(i18n.T("ryoku channel: unstable packages (rebuilt on every push); `ryoku track stable` returns to stable releases"))
 	case sys.IsReleaseTag(channel):
 		return okRes(i18n.T("ryoku channel: pinned to release %s (packages); `ryoku track stable` follows releases again"), channel)
+	case sys.IsUnstableBuild(channel):
+		return okRes(i18n.T("ryoku channel: pinned to unstable build %s (packages); `ryoku track unstable` follows unstable builds again"), channel)
 	default:
 		return warnRes(i18n.T("the Ryoku XBPS repository points at %s, which Ryoku does not publish; releases will not arrive from it"), repository).
 			withFix("ryoku track stable")

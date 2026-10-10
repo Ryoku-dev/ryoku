@@ -25,12 +25,12 @@ var sourceBranches = map[string]string{
 }
 
 // cmdTrack points the box at an update channel. By default a track selects a
-// package channel and hands off to updater.Track (which rewrites the [ryoku]
-// Server and runs an update): `stable`, `unstable` (the testing channel), and a
-// release tag pass through; `testing` is a quiet synonym for `unstable`. The old
-// `main`/`unstable-dev` arguments are retired -- they named the git branches and
-// now fail with the replacement. `--source` (either order) instead builds the
-// box from a git checkout via bin/ryoku-track, the developer path.
+// package channel and hands off to updater.Track (which rewrites the package
+// repository and runs an update): `stable`, `unstable` (the testing channel),
+// stable release tags, and unstable build names pass through; `testing` is a
+// quiet synonym for `unstable`. The old `main`/`unstable-dev` arguments are
+// retired and fail with the replacement. `--source` (either order) instead
+// builds the box from a git checkout via bin/ryoku-track, the developer path.
 func cmdTrack(args []string) error {
 	channel, source, err := parseTrackArgs(args)
 	if err != nil {
@@ -49,7 +49,7 @@ func cmdTrack(args []string) error {
 	pkg := packageChannelFor(channel)
 	if pkg == "" {
 		return fmt.Errorf(i18n.T("unknown channel %q\n"+
-			"  packaged: stable, unstable, or a release tag (v0.55.7-beta.19)\n"+
+			"  packaged: stable, unstable, a release tag, or an unstable build\n"+
 			"  source:   stable or unstable, with --source"), channel)
 	}
 	return updater.Track(pkg)
@@ -84,16 +84,16 @@ func parseTrackArgs(args []string) (channel string, source bool, err error) {
 		}
 	}
 	if channel == "" {
-		return "", false, fmt.Errorf(i18n.T("usage: ryoku track <stable|unstable|v<release>>\n" +
+		return "", false, fmt.Errorf(i18n.T("usage: ryoku track <stable|unstable|v<release-or-build>>\n" +
 			"       ryoku track <stable|unstable> --source   (build from a git checkout)"))
 	}
 	return channel, source, nil
 }
 
 // packageChannelFor maps a track argument to the package channel it selects:
-// unstable is the testing channel (rebuilt on every push); stable, testing (the
-// quiet synonym for unstable), and a release tag pass through. "" for anything
-// that names no package channel.
+// unstable is the moving testing channel; stable, testing (the quiet synonym),
+// stable release tags, and unstable builds pass through. It returns "" for
+// anything that names no package channel.
 func packageChannelFor(name string) string {
 	if name == sys.ChannelUnstable {
 		return sys.ChannelTesting

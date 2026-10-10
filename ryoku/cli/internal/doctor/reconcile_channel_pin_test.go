@@ -43,6 +43,27 @@ func TestPlanChannelPin(t *testing.T) {
 			pin:  "v0.75.3-beta.20", inst: "v0.63.1-beta.19", intnt: "",
 			want: channelPinFine,
 		},
+		{
+			name:  "an accidental unstable build pin repairs to unstable",
+			pin:   "v0.94.1-beta.20.dev.11+gaaaaaaa",
+			inst:  "v0.94.1-beta.20.dev.12+gbbbbbbb",
+			intnt: "testing",
+			want:  channelPinStale, wantChan: "testing",
+		},
+		{
+			name:  "a deliberate unstable build pin is left alone",
+			pin:   "v0.94.1-beta.20.dev.11+gaaaaaaa",
+			inst:  "v0.94.1-beta.20.dev.12+gbbbbbbb",
+			intnt: "v0.94.1-beta.20.dev.11+gaaaaaaa",
+			want:  channelPinDeliberate, wantChan: "v0.94.1-beta.20.dev.11+gaaaaaaa",
+		},
+		{
+			name:  "an unstable build pin equal to the installed build is fine",
+			pin:   "v0.94.1-beta.20.dev.12+gbbbbbbb",
+			inst:  "v0.94.1-beta.20.dev.12+gbbbbbbb",
+			intnt: "testing",
+			want:  channelPinFine,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

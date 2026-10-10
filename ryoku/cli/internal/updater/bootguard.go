@@ -51,9 +51,9 @@ const fsImmutableFlag = 0x10
 type pendingUpdate struct {
 	From string `json:"from"`
 	To   string `json:"to"`
-	// Channel the box tracked before the update (stable, testing, ...). The
-	// revert pins the previous release tag, but the user gets back onto updates
-	// with `ryoku track <Channel>`, so the guard has to remember it (#291).
+	// Channel is what the box tracked before the update (stable, testing, or a
+	// frozen version). The revert pins the previous version, but the user gets
+	// back onto updates with `ryoku track <Channel>`.
 	Channel   string `json:"channel,omitempty"`
 	Snapshot  string `json:"snapshot,omitempty"`
 	ArmedBoot string `json:"armedBoot"`
@@ -80,16 +80,16 @@ func bootID() string {
 	return strings.TrimSpace(string(b))
 }
 
-// armBootGuard is called by stage2 on a packaged box once the packages are
-// in. RYOKU_UPDATE_FROM carries the release the first stage read before pacman
-// ran; the marker is written only when the release actually changed.
+// armBootGuard is called by stage2 on a packaged box once the packages are in.
+// RYOKU_UPDATE_FROM carries the version the first stage read before the package
+// move; the marker is written only when a frozen version actually changed.
 func armBootGuard(snapshot string) {
 	if sys.ResolveRepo() != "" {
 		return
 	}
 	from := strings.TrimSpace(os.Getenv("RYOKU_UPDATE_FROM"))
 	to := sys.ReadRelease().Release
-	if from == "" || to == "" || from == to || !sys.IsReleaseTag(from) {
+	if from == "" || to == "" || from == to || !sys.IsFrozenVersion(from) {
 		return
 	}
 	p := pendingUpdate{From: from, To: to, Channel: packagedChannel(), Snapshot: snapshot, ArmedBoot: bootID(), At: time.Now().UTC().Format(time.RFC3339)}

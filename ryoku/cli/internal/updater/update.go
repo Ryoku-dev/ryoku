@@ -1461,14 +1461,14 @@ func doctorBin(checkout bool) string {
 	return pkgBin("ryoku")
 }
 
-// Rollback is the way back, on two levels. `--to <tag>` moves the Ryoku set
-// (its packages and config) to a published release without a reboot: the
-// [ryoku] repo is pinned at that frozen release directory and the update runs,
-// so the set moves in one pacman transaction while Arch stays current;
-// `ryoku track stable` follows releases again afterwards. A snapshot id guides
-// a whole-system restore from the boot menu on hosts that provide snapshots.
-// With no argument it always shows releases, then either the snapshots on disk
-// or the host's snapshot availability reason.
+// Rollback is the way back, on two levels. `--to <version>` moves the Ryoku set
+// (its packages and config) to a frozen stable release or unstable build without
+// a reboot: the package repository is pinned at that immutable directory and the
+// update runs, so the set moves in one transaction while the distribution stays
+// current. `ryoku track stable` or `ryoku track unstable` follows that channel
+// again afterwards. A snapshot id guides a whole-system restore from the boot
+// menu on hosts that provide snapshots. With no argument it always shows package
+// versions, then either the snapshots on disk or the availability reason.
 //
 // The snapshot path is a boot-menu restore, not a live one: Ryoku pins the
 // root subvolume on the kernel cmdline and in fstab (rootflags=subvol=@), and
@@ -1486,10 +1486,14 @@ func Rollback(args []string) error {
 		}
 	}
 	if to != "" {
-		if !sys.IsReleaseTag(to) {
-			return fmt.Errorf(i18n.T("--to takes a release tag (see `ryoku rollback` for the list), got %q"), to)
+		if !sys.IsFrozenVersion(to) {
+			return fmt.Errorf(i18n.T("--to takes a release tag or unstable build (see `ryoku rollback` for the list), got %q"), to)
 		}
-		fmt.Printf(i18n.T("==> Moving the Ryoku set to release %s\n"), to)
+		if sys.IsUnstableBuild(to) {
+			fmt.Printf(i18n.T("==> Moving the Ryoku set to unstable build %s\n"), to)
+		} else {
+			fmt.Printf(i18n.T("==> Moving the Ryoku set to release %s\n"), to)
+		}
 		return Track(to)
 	}
 	if len(args) > 0 {
@@ -1509,7 +1513,7 @@ func Rollback(args []string) error {
 		fmt.Println(i18n.T("Published Ryoku releases can be restored live."))
 	}
 	fmt.Println()
-	printReleases()
+	printReleaseChoices()
 	fmt.Println()
 	if !supported {
 		fmt.Println(i18n.T("SNAPSHOTS  not on this box"))
@@ -1521,6 +1525,46 @@ func Rollback(args []string) error {
 		return err
 	}
 	return nil
+}
+
+// printReleaseChoices keeps stable-channel output unchanged and adds the
+// testing ledger only for boxes that follow or are pinned within that channel.
+func printReleaseChoices() {
+	printReleases()
+	if sys.ResolveRepo() != "" {
+		return
+	}
+	channel := packagedChannel()
+	if channel != sys.ChannelTesting && !sys.IsUnstableBuild(channel) {
+		return
+	}
+	fmt.Println()
+	printUnstableBuilds()
+}
+
+func printUnstableBuilds() {
+	channel := packagedChannel()
+	release := sys.ReadRelease()
+	fmt.Printf(i18n.T("UNSTABLE BUILDS  repo.ryoku.dev, channel: %s\n"), orDash(sys.DisplayChannel(channel)))
+	l, reachable := unstableLedger()
+	switch {
+	case !reachable:
+		fmt.Println(i18n.T("  unstable build ledger is unreachable and no cached copy is available"))
+	case len(l.Releases) == 0:
+		fmt.Println(i18n.T("  no frozen unstable builds are published yet"))
+	default:
+		w := tabwriter.NewWriter(os.Stdout, 0, 2, 3, ' ', 0)
+		for _, r := range l.Releases {
+			mark := " "
+			if r.Tag == release.Release {
+				mark = "*"
+			}
+			fmt.Fprintf(w, "  %s %s\t%s\t%s\n", mark, r.Tag, r.Date[:min(10, len(r.Date))], r.Name)
+		}
+		w.Flush()
+	}
+	fmt.Println(i18n.T("  ryoku rollback --to <build>   moves the Ryoku set to that unstable build, no reboot"))
+	fmt.Println(i18n.T("  ryoku track unstable          follows new unstable builds again afterwards"))
 }
 
 // printReleases is the RELEASES block of `ryoku rollback`: what a packaged box
@@ -1908,12 +1952,11 @@ func packagedStatus(installed, latest string) statusReport {
 		serves := channelServes(channel)
 		r.ChannelRelease, r.ChannelReleaseName = serves.Release, serves.Name
 	}
-	// #291: a [ryoku] pin that is a frozen release OLDER than the installed
-	// release means a channel move (a failed boot-guard revert) changed the pin
-	// but the packages never followed. Surface it plainly, since a backwards
-	// "behind N commit(s)" is exactly how this reads without it.
-	if pin := packagedChannel(); sys.IsReleaseTag(pin) {
-		if inst := sys.ReadRelease().Release; sys.IsReleaseTag(inst) && sys.CompareReleaseTags(pin, inst) < 0 {
+	// #291: a frozen pin older than the installed version means a failed
+	// channel move changed the pin but the packages never followed. Surface it
+	// plainly, since a backwards "behind N commit(s)" reads exactly backwards.
+	if pin := packagedChannel(); sys.IsFrozenVersion(pin) {
+		if order, comparable := sys.CompareFrozenVersions(pin, sys.ReadRelease().Release); comparable && order < 0 {
 			r.ChannelPinStale = true
 			r.RecoverChannel = sys.ReadChannelIntent()
 			if r.RecoverChannel == "" {

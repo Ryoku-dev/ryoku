@@ -20,6 +20,7 @@ func TestParseTrackArgs(t *testing.T) {
 		{[]string{"stable", "--source"}, "stable", true, false},
 		{[]string{"--source", "unstable"}, "unstable", true, false},
 		{[]string{"v0.55.7-beta.19"}, "v0.55.7-beta.19", false, false},
+		{[]string{"v0.94.1-beta.20.dev.12+g1234567"}, "v0.94.1-beta.20.dev.12+g1234567", false, false},
 		{[]string{}, "", false, true},
 		{[]string{"stable", "extra"}, "", false, true},
 		{[]string{"--bogus", "stable"}, "", false, true},
@@ -39,19 +40,21 @@ func TestParseTrackArgs(t *testing.T) {
 	}
 }
 
-// unstable selects the testing package channel; stable and a release tag pass
-// through; testing is a quiet synonym; the retired main/unstable-dev name no
-// package channel (cmdTrack turns them into a retirement error before this).
+// unstable selects the testing package channel; stable and frozen versions pass
+// through; testing is a quiet synonym; the retired main/unstable-dev names name
+// no package channel (cmdTrack reports their replacements first).
 func TestPackageChannelForAliases(t *testing.T) {
 	cases := map[string]string{
-		"unstable":        "testing",
-		"stable":          "stable",
-		"testing":         "testing",
-		"v0.55.7-beta.19": "v0.55.7-beta.19",
-		"main":            "",
-		"unstable-dev":    "",
-		"bogus":           "",
-		"":                "",
+		"unstable":                        "testing",
+		"stable":                          "stable",
+		"testing":                         "testing",
+		"v0.55.7-beta.19":                 "v0.55.7-beta.19",
+		"v0.94.1-beta.20.dev.12+g1234567": "v0.94.1-beta.20.dev.12+g1234567",
+		"v0.94.1-beta.20.dev.12_g1234567": "",
+		"main":                            "",
+		"unstable-dev":                    "",
+		"bogus":                           "",
+		"":                                "",
 	}
 	for in, want := range cases {
 		if got := packageChannelFor(in); got != want {

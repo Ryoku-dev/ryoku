@@ -11,6 +11,11 @@ import (
 	"ryoku-cli/internal/sys"
 )
 
+const (
+	olderUnstableBuild = "v0.94.1-beta.20.dev.11+gaaaaaaa"
+	newerUnstableBuild = "v0.94.1-beta.20.dev.12+gbbbbbbb"
+)
+
 // the shape limine-snapper-sync generates (comments and paths trimmed).
 const limineFixture = `timeout: 3
 default_entry: Ryoku Linux/linux
@@ -212,9 +217,8 @@ func TestBootGuardRestoredDoesNothingWithoutRestoreMarker(t *testing.T) {
 	}
 }
 
-// #291: arming the guard records the channel the box tracked before the update,
-// so the revert can tell the user how to get back onto updates (`ryoku track
-// <channel>`) rather than leaving them pinned to the reverted release tag.
+// Arming records the moving unstable channel while retaining the exact frozen
+// builds on either side of the update.
 func TestArmBootGuardRecordsChannel(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -233,18 +237,18 @@ func TestArmBootGuardRecordsChannel(t *testing.T) {
 	}
 
 	conf := filepath.Join(dir, "pacman.conf")
-	if err := os.WriteFile(conf, []byte("[options]\n\n[ryoku]\nServer = "+sys.ChannelServer("stable")+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(conf, []byte("[options]\n\n[ryoku]\nServer = "+sys.ChannelServer(sys.ChannelTesting)+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	rel := filepath.Join(dir, "ryoku-release")
-	if err := os.WriteFile(rel, []byte("RELEASE=v0.75.3-beta.20\n"), 0o644); err != nil {
+	if err := os.WriteFile(rel, []byte("RELEASE="+newerUnstableBuild+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	oldConf, oldRel := sys.PacmanConf, sys.ReleaseFile
 	sys.PacmanConf, sys.ReleaseFile = conf, rel
 	t.Cleanup(func() { sys.PacmanConf, sys.ReleaseFile = oldConf, oldRel })
 
-	t.Setenv("RYOKU_UPDATE_FROM", "v0.63.1-beta.19")
+	t.Setenv("RYOKU_UPDATE_FROM", olderUnstableBuild)
 	armBootGuard("")
 
 	raw, err := os.ReadFile(pendingFile)
@@ -255,11 +259,11 @@ func TestArmBootGuardRecordsChannel(t *testing.T) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.Channel != "stable" {
-		t.Fatalf("recorded channel = %q, want stable", p.Channel)
+	if p.Channel != sys.ChannelTesting {
+		t.Fatalf("recorded channel = %q, want testing", p.Channel)
 	}
-	if p.From != "v0.63.1-beta.19" || p.To != "v0.75.3-beta.20" {
-		t.Fatalf("From/To = %q/%q, want v0.63.1-beta.19/v0.75.3-beta.20", p.From, p.To)
+	if p.From != olderUnstableBuild || p.To != newerUnstableBuild {
+		t.Fatalf("From/To = %q/%q, want %s/%s", p.From, p.To, olderUnstableBuild, newerUnstableBuild)
 	}
 }
 
@@ -307,7 +311,7 @@ func setupXBPSReleaseHost(t *testing.T) string {
 	return dir
 }
 
-func captureXBPSMove(t *testing.T) *[][]string {
+func capturePackageMove(t *testing.T) *[][]string {
 	t.Helper()
 	var calls [][]string
 	oldSync, oldSet, oldServed := syncRepoForMove, ryokuSetForMove, servedSetForMove
@@ -328,7 +332,7 @@ func captureXBPSMove(t *testing.T) *[][]string {
 	return &calls
 }
 
-func TestArmBootGuardOnXBPSReleaseChange(t *testing.T) {
+func TestArmBootGuardOnXBPSUnstableBuildChange(t *testing.T) {
 	dir := setupXBPSReleaseHost(t)
 	oldPending, oldBootOK := pendingFile, bootOKDir
 	pendingFile = filepath.Join(dir, "update-pending.json")
@@ -337,8 +341,14 @@ func TestArmBootGuardOnXBPSReleaseChange(t *testing.T) {
 	if err := os.MkdirAll(bootOKDir, 0o777); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "xbps.d", "20-ryoku.conf"), []byte("repository="+sys.VoidChannelURL(sys.ChannelTesting)+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sys.ReleaseFile, []byte("RELEASE="+newerUnstableBuild+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
-	t.Setenv("RYOKU_UPDATE_FROM", "v0.63.1-beta.19")
+	t.Setenv("RYOKU_UPDATE_FROM", olderUnstableBuild)
 	armBootGuard("1362")
 
 	raw, err := os.ReadFile(pendingFile)
@@ -349,14 +359,14 @@ func TestArmBootGuardOnXBPSReleaseChange(t *testing.T) {
 	if err := json.Unmarshal(raw, &p); err != nil {
 		t.Fatal(err)
 	}
-	if p.From != "v0.63.1-beta.19" || p.To != "v0.75.3-beta.20" || p.Channel != "stable" || p.Snapshot != "1362" {
+	if p.From != olderUnstableBuild || p.To != newerUnstableBuild || p.Channel != sys.ChannelTesting || p.Snapshot != "1362" {
 		t.Fatalf("pending marker = %+v", p)
 	}
 }
 
-func TestRollbackToReleaseRunsXBPSMove(t *testing.T) {
+func TestRollbackToUnstableBuildRunsXBPSMove(t *testing.T) {
 	setupXBPSReleaseHost(t)
-	calls := captureXBPSMove(t)
+	calls := capturePackageMove(t)
 	oldUpdate := runChannelUpdate
 	runChannelUpdate = func() error {
 		_, err := moveRyokuSetToChannel()
@@ -364,18 +374,21 @@ func TestRollbackToReleaseRunsXBPSMove(t *testing.T) {
 	}
 	t.Cleanup(func() { runChannelUpdate = oldUpdate })
 
-	if err := Rollback([]string{"--to", "v0.63.1-beta.19"}); err != nil {
+	if err := Rollback([]string{"--to", olderUnstableBuild}); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{"env", "RYOKU_MANAGED_UPDATE=1", "xbps-install", "-Sfy", "ryoku-desktop", "ryogami"}
 	if len(*calls) != 1 || !reflect.DeepEqual((*calls)[0], want) {
 		t.Fatalf("XBPS move calls = %v, want [%v]", *calls, want)
 	}
+	if channel := packagedChannel(); channel != olderUnstableBuild {
+		t.Fatalf("XBPS channel = %q, want %q", channel, olderUnstableBuild)
+	}
 }
 
-func TestBootGuardRevertsXBPSRelease(t *testing.T) {
+func TestBootGuardRevertsXBPSUnstableBuild(t *testing.T) {
 	dir := setupXBPSReleaseHost(t)
-	calls := captureXBPSMove(t)
+	calls := capturePackageMove(t)
 	oldPending, oldBootOK, oldNotice, oldUID := pendingFile, bootOKDir, noticeFile, effectiveUID
 	pendingFile = filepath.Join(dir, "update-pending.json")
 	bootOKDir = filepath.Join(dir, "boot")
@@ -388,7 +401,7 @@ func TestBootGuardRevertsXBPSRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := pendingUpdate{
-		From: "v0.63.1-beta.19", To: "v0.75.3-beta.20", Channel: "stable",
+		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
 		Snapshot: "1362", ArmedBoot: "earlier-boot", Boots: 1,
 	}
 	body, _ := json.Marshal(p)
@@ -403,6 +416,9 @@ func TestBootGuardRevertsXBPSRelease(t *testing.T) {
 	if len(*calls) != 1 || !reflect.DeepEqual((*calls)[0], want) {
 		t.Fatalf("XBPS revert calls = %v, want [%v]", *calls, want)
 	}
+	if channel := packagedChannel(); channel != olderUnstableBuild {
+		t.Fatalf("XBPS revert channel = %q, want %q", channel, olderUnstableBuild)
+	}
 	if _, err := os.Stat(pendingFile); !os.IsNotExist(err) {
 		t.Fatalf("pending marker survived successful revert: %v", err)
 	}
@@ -410,7 +426,44 @@ func TestBootGuardRevertsXBPSRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), `"action": "reverted"`) || !strings.Contains(string(raw), "Void untouched") {
+	if !strings.Contains(string(raw), `"action": "reverted"`) || !strings.Contains(string(raw), "Void untouched") ||
+		!strings.Contains(string(raw), "`ryoku track unstable`") {
+		t.Fatalf("revert notice = %s", raw)
+	}
+}
+
+func TestBootGuardRevertsPacmanUnstableBuild(t *testing.T) {
+	isolateHome(t)
+	packagedConf(t, sys.ChannelTesting)
+	calls := capturePackageMove(t)
+	setupBootGuardPaths(t)
+	if err := os.MkdirAll(bootOKDir, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	p := pendingUpdate{
+		From: olderUnstableBuild, To: newerUnstableBuild, Channel: sys.ChannelTesting,
+		ArmedBoot: "earlier-boot", Boots: 1,
+	}
+	body, _ := json.Marshal(p)
+	if err := os.WriteFile(pendingFile, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1", "pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob, "ryoku-desktop", "ryogami"}
+	if len(*calls) != 1 || !reflect.DeepEqual((*calls)[0], want) {
+		t.Fatalf("pacman revert calls = %v, want [%v]", *calls, want)
+	}
+	if channel := packagedChannel(); channel != olderUnstableBuild {
+		t.Fatalf("pacman revert channel = %q, want %q", channel, olderUnstableBuild)
+	}
+	raw, err := os.ReadFile(noticeFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "Arch untouched") || !strings.Contains(string(raw), "`ryoku track unstable`") {
 		t.Fatalf("revert notice = %s", raw)
 	}
 }

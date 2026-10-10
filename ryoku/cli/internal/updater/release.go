@@ -113,6 +113,17 @@ func ledger() releaseLedger {
 	return l
 }
 
+// unstableLedger reads the frozen testing-build ledger, newest first. The bool
+// distinguishes an empty ledger from one that is unreachable or malformed.
+func unstableLedger() (releaseLedger, bool) {
+	var l releaseLedger
+	b := fetchCached("testing-index.json", repoBase()+"/channels/testing/index.json", releaseFetchTTL)
+	if b == nil || json.Unmarshal(b, &l) != nil {
+		return releaseLedger{}, false
+	}
+	return l, true
+}
+
 func sanitize(s string) string {
 	return strings.Map(func(r rune) rune {
 		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '.' || r == '-' {
@@ -123,16 +134,16 @@ func sanitize(s string) string {
 }
 
 // Track moves a box onto a package channel: stable (the pointer every install
-// starts on), testing (rebuilt on every push to unstable-dev), or a release
-// tag (pinned to that frozen release until tracked away). It rewrites the
-// [ryoku] Server line and runs an update, which moves the Ryoku set to whatever
-// the channel serves, down as well as up. A box whose updates currently come
-// from a source checkout is migrated onto packages first: the checkout is
-// retired as the update source (the ~/ryoku-arch clone stays on disk but no
-// longer drives updates). Building from a checkout is `ryoku track ... --source`.
+// starts on), testing (rebuilt on every push to unstable-dev), or a frozen
+// stable release or unstable build. It rewrites the package repository and runs
+// an update, which moves the Ryoku set to whatever the target serves, down as
+// well as up. A box whose updates currently come from a source checkout is
+// migrated onto packages first: the checkout is retired as the update source
+// (the ~/ryoku-arch clone stays on disk but no longer drives updates). Building
+// from a checkout is `ryoku track ... --source`.
 func Track(channel string) error {
 	if channelRepoURL(channel) == "" {
-		return fmt.Errorf(i18n.T("unknown channel %q: stable, unstable, or a release tag (see `ryoku rollback` for the list)"), channel)
+		return fmt.Errorf(i18n.T("unknown channel %q: stable, unstable, a release tag, or an unstable build (see `ryoku rollback` for the list)"), channel)
 	}
 	source := sys.SourceTracked()
 	install := host.Default().Package([]string{"installed", "ryoku-desktop"}) != host.ExitOK
@@ -150,14 +161,21 @@ func Track(channel string) error {
 			// on the right channel; record the choice so the doctor treats it as
 			// deliberate, and say so plainly instead of a bare "already on".
 			recordChannelIntent(channel)
-			if channel == sys.ChannelTesting {
+			switch {
+			case channel == sys.ChannelTesting:
 				fmt.Println(i18n.T("already on unstable (the channel `ryoku track unstable-dev` used to select); nothing to move, `ryoku update` keeps it current"))
-			} else {
+			case sys.IsUnstableBuild(channel):
+				fmt.Printf(i18n.T("already pinned to unstable build %s; nothing to move, `ryoku track unstable` follows unstable builds again\n"), channel)
+			default:
 				fmt.Printf(i18n.T("already on %s; nothing to move, `ryoku update` keeps it current\n"), sys.DisplayChannel(channel))
 			}
 			return nil
 		}
-		fmt.Printf(i18n.T("==> Already tracking %s; moving the Ryoku set to what it serves\n"), sys.DisplayChannel(channel))
+		if sys.IsUnstableBuild(channel) {
+			fmt.Printf(i18n.T("==> Already pinned to unstable build %s; moving the Ryoku set to what it serves. `ryoku track unstable` follows unstable builds again.\n"), channel)
+		} else {
+			fmt.Printf(i18n.T("==> Already tracking %s; moving the Ryoku set to what it serves\n"), sys.DisplayChannel(channel))
+		}
 		recordChannelIntent(channel)
 		return retargetChannel(channel, runChannelUpdate)
 	}
@@ -175,6 +193,8 @@ func Track(channel string) error {
 		fmt.Println(i18n.T("==> Now tracking unstable packages: rebuilt on every push. `ryoku track stable` returns to stable releases."))
 	case sys.IsReleaseTag(channel):
 		fmt.Printf(i18n.T("==> Pinned to release %s. `ryoku update` keeps this release; `ryoku track stable` follows releases again.\n"), channel)
+	case sys.IsUnstableBuild(channel):
+		fmt.Printf(i18n.T("==> Pinned to unstable build %s. `ryoku update` keeps this build; `ryoku track unstable` follows unstable builds again.\n"), channel)
 	default:
 		fmt.Println(i18n.T("==> Now tracking stable packages: named releases as they are published."))
 	}

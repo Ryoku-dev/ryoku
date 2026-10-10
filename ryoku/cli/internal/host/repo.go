@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"ryoku-cli/internal/sys"
 )
 
 const (
@@ -21,7 +23,6 @@ const (
 
 var ErrRepoAbsent = errors.New("no Ryoku package repository is configured")
 
-var releaseTagPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$`)
 var xbpsPackagePattern = regexp.MustCompile(`^(.+)-([^-]+_[0-9]+)$`)
 
 func repoBaseFor(manager PackageManager) string {
@@ -46,12 +47,14 @@ func RepoURLFor(manager PackageManager, channel string) string {
 		arch = "x86_64"
 	}
 	switch {
-	case channel == "stable":
+	case channel == sys.ChannelStable:
 		return base + "/" + arch
-	case channel == "testing":
+	case channel == sys.ChannelTesting:
 		return base + "/channels/testing/" + arch
-	case releaseTagPattern.MatchString(channel):
+	case sys.IsReleaseTag(channel):
 		return base + "/releases/" + channel + "/" + arch
+	case sys.IsUnstableBuild(channel):
+		return base + "/channels/testing/builds/" + sys.UnstableBuildDir(channel) + "/" + arch
 	default:
 		return ""
 	}
@@ -116,14 +119,16 @@ func RepoChannelOf(manager PackageManager, raw string) string {
 	rest := strings.Trim(strings.TrimPrefix(value, base), "/")
 	switch {
 	case rest == "":
-		return "stable"
+		return sys.ChannelStable
 	case rest == "channels/testing":
-		return "testing"
+		return sys.ChannelTesting
 	case strings.HasPrefix(rest, "releases/"):
 		tag := strings.TrimPrefix(rest, "releases/")
-		if releaseTagPattern.MatchString(tag) {
+		if sys.IsReleaseTag(tag) {
 			return tag
 		}
+	case strings.HasPrefix(rest, "channels/testing/builds/"):
+		return sys.UnstableBuildFromDir(strings.TrimPrefix(rest, "channels/testing/builds/"))
 	}
 	return ""
 }

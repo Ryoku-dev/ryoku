@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Added
+- **Unstable builds now have the same rollback path as stable releases.**
+  The latest ten testing builds are listed on unstable boxes and can be pinned
+  with `ryoku track <build>` or restored with `ryoku rollback --to <build>`.
+  Pacman and XBPS use their frozen build repositories, and the boot guard can
+  return to the previous unstable build after a failed boot.
 - **The host seam now publishes capabilities and portable system actions.**
   `ryoku-host` can explain unavailable Void packages, print native install
   advice, distinguish AUR availability, pass pacman overwrite rules through

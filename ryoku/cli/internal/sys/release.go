@@ -15,10 +15,10 @@ import (
 // Package channels. A packaged box takes its Ryoku set from one [ryoku] repo
 // directory, and which directory is the channel:
 //
-//	stable    x86_64/                  the pointer every installed box has; a
-//	                                   byte copy of the newest frozen release
-//	testing   channels/testing/x86_64/ rebuilt on every push to unstable-dev
-//	v<tag>    releases/<tag>/x86_64/   one frozen release, never rewritten
+//	stable      x86_64/                              moving stable head
+//	testing     channels/testing/x86_64/             moving unstable head
+//	v<tag>      releases/<tag>/x86_64/               frozen stable release
+//	v<...>.dev  channels/testing/builds/<dir>/x86_64 frozen unstable build
 //
 // All of them live under RepoBase, the one bucket mount the repo domain
 // serves (repo.ryoku.dev/stable/<key> is bucket object <key>; the "stable"
@@ -48,15 +48,44 @@ var PacmanConf = "/etc/pacman.conf"
 // release a box runs; a var for tests.
 var ReleaseFile = "/etc/ryoku-release"
 
-// the shape stable-release.yml tags (bin/ryoku-release-bump): a core version
-// with an optional alpha/beta/rc counter. a testing build's name
-// (v0.56.0-beta.19.dev.363+g4d1cf63) is deliberately not one: nothing frozen
-// stands behind it, so it can be neither tracked nor gone back to.
+// releaseTagRe matches the stable-release.yml tag shape: a core version with
+// an optional alpha, beta, or rc counter.
 var releaseTagRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$`)
 
-// IsReleaseTag reports whether s names a frozen release (v0.55.7-beta.19,
-// v1.0.0), the shape stable-release.yml tags.
+// unstableBuildRe matches the immutable name assigned to one unstable-dev
+// publish. The bucket uses an underscore in place of '+' for its directory.
+var unstableBuildRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?\.dev\.[0-9]+\+g[0-9a-f]{7,40}$`)
+
+// IsReleaseTag reports whether s is a stable release tag (v0.55.7-beta.19 or
+// v1.0.0). Unstable build names are deliberately excluded.
 func IsReleaseTag(s string) bool { return releaseTagRe.MatchString(s) }
+
+// IsUnstableBuild reports whether s names one frozen unstable-dev build.
+func IsUnstableBuild(s string) bool { return unstableBuildRe.MatchString(s) }
+
+// IsFrozenVersion reports whether s names any immutable package version.
+func IsFrozenVersion(s string) bool { return IsReleaseTag(s) || IsUnstableBuild(s) }
+
+// UnstableBuildDir maps a build name to its frozen bucket directory.
+func UnstableBuildDir(build string) string {
+	if !IsUnstableBuild(build) {
+		return ""
+	}
+	return strings.Replace(build, "+", "_", 1)
+}
+
+// UnstableBuildFromDir maps a frozen bucket directory back to its build name.
+func UnstableBuildFromDir(dir string) string {
+	i := strings.LastIndex(dir, "_g")
+	if i < 0 {
+		return ""
+	}
+	build := dir[:i] + "+g" + dir[i+2:]
+	if !IsUnstableBuild(build) {
+		return ""
+	}
+	return build
+}
 
 // releaseTagFieldsRe splits a frozen release tag into its comparable parts.
 var releaseTagFieldsRe = regexp.MustCompile(`^v([0-9]+)\.([0-9]+)\.([0-9]+)(?:-(alpha|beta|rc)\.([0-9]+))?$`)
@@ -118,8 +147,34 @@ func CompareReleaseTags(a, b string) int {
 	return 0
 }
 
-// ChannelServer is the [ryoku] Server line for a channel or release tag, or ""
-// for a name that is neither.
+// CompareFrozenVersions orders two versions when both are stable releases or
+// both are unstable builds. The bool is false when their kinds differ or either
+// value is not frozen.
+func CompareFrozenVersions(a, b string) (int, bool) {
+	if IsReleaseTag(a) && IsReleaseTag(b) {
+		return CompareReleaseTags(a, b), true
+	}
+	if !IsUnstableBuild(a) || !IsUnstableBuild(b) {
+		return 0, false
+	}
+	aDev, bDev := strings.LastIndex(a, ".dev."), strings.LastIndex(b, ".dev.")
+	if order := CompareReleaseTags(a[:aDev], b[:bDev]); order != 0 {
+		return order, true
+	}
+	aBuild, _ := strconv.Atoi(strings.SplitN(a[aDev+5:], "+", 2)[0])
+	bBuild, _ := strconv.Atoi(strings.SplitN(b[bDev+5:], "+", 2)[0])
+	switch {
+	case aBuild < bBuild:
+		return -1, true
+	case aBuild > bBuild:
+		return 1, true
+	default:
+		return 0, true
+	}
+}
+
+// ChannelServer is the [ryoku] Server line for a channel or frozen version, or
+// "" for a name that is neither.
 func ChannelServer(channel string) string {
 	switch {
 	case channel == ChannelStable:
@@ -128,12 +183,14 @@ func ChannelServer(channel string) string {
 		return RepoBase + "/channels/testing/$arch"
 	case IsReleaseTag(channel):
 		return RepoBase + "/releases/" + channel + "/$arch"
+	case IsUnstableBuild(channel):
+		return RepoBase + "/channels/testing/builds/" + UnstableBuildDir(channel) + "/$arch"
 	}
 	return ""
 }
 
 // VoidChannelURL is the signed XBPS repository URL for a channel or frozen
-// release. Unlike pacman's Server line, XBPS repositories do not carry an
+// version. Unlike pacman's Server line, XBPS repositories do not carry an
 // architecture placeholder.
 func VoidChannelURL(channel string) string {
 	switch {
@@ -143,6 +200,8 @@ func VoidChannelURL(channel string) string {
 		return VoidRepoBase + "/channels/testing/x86_64"
 	case IsReleaseTag(channel):
 		return VoidRepoBase + "/releases/" + channel + "/x86_64"
+	case IsUnstableBuild(channel):
+		return VoidRepoBase + "/channels/testing/builds/" + UnstableBuildDir(channel) + "/x86_64"
 	}
 	return ""
 }
@@ -164,13 +223,15 @@ func ChannelOfVoidURL(repository string) string {
 		if tag := strings.TrimPrefix(rest, "releases/"); IsReleaseTag(tag) {
 			return tag
 		}
+	case strings.HasPrefix(rest, "channels/testing/builds/"):
+		return UnstableBuildFromDir(strings.TrimPrefix(rest, "channels/testing/builds/"))
 	}
 	return ""
 }
 
 // ChannelOfServer maps a Server line back to its channel name: stable,
-// testing, a release tag, or "" for a mirror Ryoku does not publish (a local
-// build-repo.sh out/ tree, a private mirror), which is left alone everywhere.
+// testing, a stable release tag, an unstable build, or "" for a mirror Ryoku
+// does not publish (a local build-repo.sh out/ tree or a private mirror).
 func ChannelOfServer(server string) string {
 	s := strings.TrimSpace(server)
 	s = strings.TrimSuffix(strings.TrimSuffix(s, "/"), "$arch")
@@ -189,6 +250,8 @@ func ChannelOfServer(server string) string {
 		if tag := strings.TrimPrefix(rest, "releases/"); IsReleaseTag(tag) {
 			return tag
 		}
+	case strings.HasPrefix(rest, "channels/testing/builds/"):
+		return UnstableBuildFromDir(strings.TrimPrefix(rest, "channels/testing/builds/"))
 	}
 	return ""
 }
@@ -201,8 +264,8 @@ func ChannelURL(channel string) string {
 
 // DisplayChannel is the user-facing name of a package channel: the testing
 // channel reads as "unstable", while its internal key stays "testing". Every
-// other name (stable, a release tag) is shown as itself. Callers that print a
-// PackagedChannel or ReadChannelIntent value to the user route it through here.
+// other name (stable or a frozen version) is shown as itself. Callers that print
+// a PackagedChannel or ReadChannelIntent value to the user route it through here.
 func DisplayChannel(channel string) string {
 	if channel == ChannelTesting {
 		return ChannelUnstable
@@ -254,13 +317,12 @@ func RyokuServer() string {
 // Ryoku does not publish.
 func PackagedChannel() string { return ChannelOfServer(RyokuServer()) }
 
-// SetPackagedChannel rewrites the [ryoku] Server line to channel (stable,
-// testing, or a release tag). It needs a stanza to rewrite; the doctor adds a
-// missing one.
+// SetPackagedChannel rewrites the [ryoku] Server line to a channel or frozen
+// version. It needs a stanza to rewrite; the doctor adds a missing one.
 func SetPackagedChannel(channel string) error {
 	server := ChannelServer(channel)
 	if server == "" {
-		return fmt.Errorf(i18n.T("unknown channel %q (stable, unstable, or a release tag like v0.55.7-beta.19)"), channel)
+		return fmt.Errorf(i18n.T("unknown channel %q (stable, unstable, a release tag, or an unstable build)"), channel)
 	}
 	return SetRyokuServer(server)
 }

@@ -3,11 +3,13 @@ package sys
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestChannelServerRoundTrips(t *testing.T) {
-	for _, ch := range []string{"stable", "testing", "v0.55.7-beta.19", "v1.0.0", "v1.2.3-rc.1"} {
+	build := "v0.94.1-beta.20.dev.12+g1234567"
+	for _, ch := range []string{"stable", "testing", "v0.55.7-beta.19", "v1.0.0", "v1.2.3-rc.1", build} {
 		srv := ChannelServer(ch)
 		if srv == "" {
 			t.Fatalf("%s: no server", ch)
@@ -17,13 +19,13 @@ func TestChannelServerRoundTrips(t *testing.T) {
 		}
 	}
 	if ChannelServer("main") != "" || ChannelServer("v1") != "" || ChannelServer("releases/v1.0.0") != "" ||
-		ChannelServer("v0.56.0-beta.19.dev.363+g4d1cf63") != "" {
+		ChannelServer("v0.94.1-beta.20.dev.12_g1234567") != "" {
 		t.Fatal("non-channels must not map to a server")
 	}
 }
 
 func TestVoidChannelURLRoundTrips(t *testing.T) {
-	for _, channel := range []string{"stable", "testing", "v0.55.7-beta.19", "v1.0.0"} {
+	for _, channel := range []string{"stable", "testing", "v0.55.7-beta.19", "v1.0.0", "v0.94.1-beta.20.dev.12+g1234567"} {
 		repository := VoidChannelURL(channel)
 		if repository == "" {
 			t.Fatalf("%s: no Void repository", channel)
@@ -38,15 +40,16 @@ func TestVoidChannelURLRoundTrips(t *testing.T) {
 }
 
 // The testing channel is shown as "unstable" everywhere the CLI prints a channel
-// to the user; stable and a release tag are shown as themselves. TrackName maps
-// a channel or a source branch to a `ryoku track` argument that still works, so
-// a printed hint never names the retired main/unstable-dev.
+// to the user; stable and frozen versions are shown as themselves. TrackName
+// maps a channel or source branch to a `ryoku track` argument that still works.
 func TestDisplayChannelAndTrackName(t *testing.T) {
+	build := "v0.94.1-beta.20.dev.12+g1234567"
 	display := map[string]string{
 		"testing":         "unstable",
 		"stable":          "stable",
 		"v0.55.7-beta.19": "v0.55.7-beta.19",
 		"unstable":        "unstable",
+		build:             build,
 	}
 	for in, want := range display {
 		if got := DisplayChannel(in); got != want {
@@ -59,6 +62,7 @@ func TestDisplayChannelAndTrackName(t *testing.T) {
 		"main":            "stable",
 		"stable":          "stable",
 		"v0.55.7-beta.19": "v0.55.7-beta.19",
+		build:             build,
 	}
 	for in, want := range track {
 		if got := TrackName(in); got != want {
@@ -68,16 +72,22 @@ func TestDisplayChannelAndTrackName(t *testing.T) {
 }
 
 func TestChannelOfServerAcceptsWhatBoxesCarry(t *testing.T) {
+	build := "v0.94.1-beta.20.dev.12+g1234567"
+	dir := "v0.94.1-beta.20.dev.12_g1234567"
 	cases := map[string]string{
-		"https://repo.ryoku.dev/stable/$arch":                            "stable",
-		"https://repo.ryoku.dev/stable/x86_64":                           "stable",
-		"https://repo.ryoku.dev/stable/x86_64/":                          "stable",
-		"https://repo.ryoku.dev/stable/channels/testing/$arch":           "testing",
-		"https://repo.ryoku.dev/stable/releases/v0.55.7-beta.19/$arch":   "v0.55.7-beta.19",
-		"https://repo.ryoku.dev/stable/releases/v0.55.7-beta.19/x86_64/": "v0.55.7-beta.19",
-		"file:///home/x/ryoku-arch/release/repo/out/$arch":               "",
-		"https://mirror.example.org/ryoku/$arch":                         "",
-		"https://repo.ryoku.dev/stable/releases/not-a-tag/$arch":         "",
+		"https://repo.ryoku.dev/stable/$arch":                                        "stable",
+		"https://repo.ryoku.dev/stable/x86_64":                                       "stable",
+		"https://repo.ryoku.dev/stable/x86_64/":                                      "stable",
+		"https://repo.ryoku.dev/stable/channels/testing/$arch":                       "testing",
+		"https://repo.ryoku.dev/stable/releases/v0.55.7-beta.19/$arch":               "v0.55.7-beta.19",
+		"https://repo.ryoku.dev/stable/releases/v0.55.7-beta.19/x86_64/":             "v0.55.7-beta.19",
+		"https://repo.ryoku.dev/stable/channels/testing/builds/" + dir + "/$arch":    build,
+		"https://repo.ryoku.dev/stable/channels/testing/builds/" + dir + "/x86_64/":  build,
+		"file:///home/x/ryoku-arch/release/repo/out/$arch":                           "",
+		"https://mirror.example.org/ryoku/$arch":                                     "",
+		"https://repo.ryoku.dev/stable/releases/not-a-tag/$arch":                     "",
+		"https://repo.ryoku.dev/stable/channels/testing/builds/not-a-build/x86_64":   "",
+		"https://repo.ryoku.dev/stable/channels/testing/builds/" + build + "/x86_64": "",
 	}
 	for in, want := range cases {
 		if got := ChannelOfServer(in); got != want {
@@ -144,6 +154,57 @@ func TestCompareReleaseTags(t *testing.T) {
 	// an unparseable tag sorts oldest, so it never reads as ahead of a real one.
 	if got := CompareReleaseTags("testing", "v0.1.0"); got != -1 {
 		t.Errorf("unparseable vs real = %d, want -1", got)
+	}
+}
+
+func TestUnstableBuildNamesAndDirectories(t *testing.T) {
+	valid := []string{
+		"v0.94.1-beta.20.dev.12+g1234567",
+		"v1.2.3.dev.0+g0123456789abcdef0123456789abcdef01234567",
+	}
+	for _, build := range valid {
+		if !IsUnstableBuild(build) || !IsFrozenVersion(build) || IsReleaseTag(build) {
+			t.Fatalf("%q was not recognized strictly as an unstable build", build)
+		}
+		dir := UnstableBuildDir(build)
+		if strings.Contains(dir, "+") {
+			t.Fatalf("directory %q still contains +", dir)
+		}
+		if got := UnstableBuildFromDir(dir); got != build {
+			t.Fatalf("%q -> %q -> %q", build, dir, got)
+		}
+	}
+	for _, invalid := range []string{
+		"v0.94.1-beta.20.dev.12_g1234567",
+		"v0.94.1-beta.20.dev.12+g123456",
+		"v0.94.1-beta.20.dev.12+g123456G",
+		"v0.94.1-beta.20.dev.x+g1234567",
+		"v0.94.1-beta.20.dev.12+g0123456789abcdef0123456789abcdef012345678",
+	} {
+		if IsUnstableBuild(invalid) || UnstableBuildDir(invalid) != "" {
+			t.Errorf("invalid build %q was accepted", invalid)
+		}
+	}
+}
+
+func TestCompareFrozenVersions(t *testing.T) {
+	cases := []struct {
+		a, b string
+		want int
+	}{
+		{"v0.94.1-beta.20.dev.9+gaaaaaaa", "v0.94.1-beta.20.dev.12+gbbbbbbb", -1},
+		{"v0.94.1-beta.20.dev.12+gaaaaaaa", "v0.94.1-beta.20.dev.12+gbbbbbbb", 0},
+		{"v0.94.1-beta.20.dev.12+gaaaaaaa", "v0.95.0-beta.20.dev.1+gbbbbbbb", -1},
+		{"v0.75.3-beta.19", "v0.75.3-beta.20", -1},
+	}
+	for _, c := range cases {
+		got, ok := CompareFrozenVersions(c.a, c.b)
+		if !ok || got != c.want {
+			t.Errorf("CompareFrozenVersions(%q, %q) = %d, %v; want %d, true", c.a, c.b, got, ok, c.want)
+		}
+	}
+	if _, ok := CompareFrozenVersions("v0.94.1-beta.20.dev.12+gaaaaaaa", "v0.94.1-beta.20"); ok {
+		t.Fatal("stable release and unstable build must not be comparable")
 	}
 }
 
