@@ -162,7 +162,7 @@ plymouth	plymouth	system
 polkit	polkit	desktop	
 power-profiles-daemon	power-profiles-daemon	desktop	
 proton-cachyos-slr	-	system	CachyOS-only package.
-prowl	ryoku-rashin	desktop	Bundled with Ryoku Rashin on Fedora.
+prowl	prowl	desktop	Ryoku-owned RPM.
 python	python3	desktop,dev	
 python-pip	python3-pip	dev	
 python-pipx	pipx	dev	
@@ -180,7 +180,7 @@ qt6-svg	qt6-qtsvg	desktop
 qt6-wayland	qt6-qtwayland	desktop	
 qt6ct	qt6ct	desktop	
 quickemu	quickemu	optional	
-quickshell	quickshell	desktop	
+quickshell	quickshell	desktop	Requires 0.3.0 or newer; provided by a restricted COPR.
 ripgrep	ripgrep	desktop	
 rtkit	rtkit	desktop	
 rust	rust	desktop	

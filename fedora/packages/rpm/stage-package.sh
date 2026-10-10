@@ -10,6 +10,16 @@ startdir="$root/fedora/packages/rpm/payload"
 srcdir="$root/.rpm-build/$name"
 pkgdir="$stage"
 mkdir -p "$srcdir" "$pkgdir"
+RELEASE=
+NAME=
+CHANNEL=
+COMMIT=
+# shellcheck disable=SC1091
+source "$root/.rpm-release"
+export RYOKU_RELEASE=$RELEASE
+export RYOKU_NAME=$NAME
+export RYOKU_CHANNEL=$CHANNEL
+export RYOKU_COMMIT=$COMMIT
 # The payload recipe is Fedora release input. It stages files only: no host
 # installation hooks run while building an RPM.
 recipe="$startdir/$name.sh"
@@ -23,7 +33,7 @@ if [[ -d $stage/usr/lib/qt6 ]]; then
   mv "$stage/usr/lib/qt6" "$stage$libdir/qt6"
 fi
 if [[ $name == ryoku-desktop ]]; then
-  cp "$root/.rpm-release" "$stage/etc/ryoku-release"
+  install -Dm644 "$root/.rpm-release" "$stage/etc/ryoku-release"
   rm -f "$stage/usr/share/applications/mimeapps.list"
 fi
 if [[ $name == ryoku-desktop-* ]]; then

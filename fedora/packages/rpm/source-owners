@@ -3,4 +3,5 @@
 ryoku/assets/wallpapers ryoku-desktop
 ryoku/i18n/catalog ryoku-desktop
 .rpm-extras ryoku-extras
+.rpm-prowl prowl
 ryoku-shell-installer/ryoku-shell-install -

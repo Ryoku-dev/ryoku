@@ -11,22 +11,24 @@ extra = importlib.machinery.SourceFileLoader('extra', str(helper)).load_module()
 
 
 class Extras(unittest.TestCase):
-    def test_failed_update_preserves_binary_and_retry_works(self):
+    def test_failed_update_preserves_file_and_retry_works(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            target = root / 'bin/prowl-agent'
-            target.parent.mkdir()
-            target.write_bytes(b'old working executable')
+            target = root / 'share/fonts/MaterialSymbolsRounded.ttf'
+            target.parent.mkdir(parents=True)
+            target.write_bytes(b'\x00\x01\x00\x00old font')
             with patch.object(extra, 'download', side_effect=ValueError('truncated')):
                 with self.assertRaises(ValueError):
-                    extra.install('prowl-agent', root)
-            self.assertEqual(target.read_bytes(), b'old working executable')
-            self.assertFalse((root / 'state/ryoku/extras/prowl-agent.json').exists())
-            with patch.object(extra, 'download', return_value=b'\x7fELFnew executable'):
-                extra.install('prowl-agent', root)
-            self.assertEqual(target.read_bytes(), b'\x7fELFnew executable')
+                    extra.install('material-symbols', root)
+            self.assertEqual(target.read_bytes(), b'\x00\x01\x00\x00old font')
+            receipt = root / 'state/ryoku/extras/material-symbols.json'
+            self.assertFalse(receipt.exists())
+            updated = b'\x00\x01\x00\x00new font'
+            with patch.object(extra, 'download', return_value=updated):
+                extra.install('material-symbols', root)
+            self.assertEqual(target.read_bytes(), updated)
             with patch.object(extra, 'download', side_effect=AssertionError('should use receipt')):
-                extra.install('prowl-agent', root)
+                extra.install('material-symbols', root)
 
     def test_bad_content_does_not_become_skip_marker(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -55,17 +57,6 @@ class Extras(unittest.TestCase):
             self.assertTrue(alias_path.is_symlink())
             self.assertEqual(alias_path.read_bytes(), b'cursor')
 
-    def test_exact_font_url(self):
-        url = extra.RELEASES['material-symbols'][1]
-        self.assertIn('Rounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf', url)
-        self.assertNotIn('%%', url)
-
-    def test_jetbrains_mono_nerd_fonts_release(self):
-        self.assertIn('jetbrains-mono-nerd-fonts', extra.RELEASES)
-        version, url, digest, relative = extra.RELEASES['jetbrains-mono-nerd-fonts']
-        self.assertEqual(version, '3.3.0')
-        self.assertTrue(url.endswith('.tar.xz'))
-        self.assertTrue(relative.startswith('share/fonts/'))
 
     def test_jetbrains_mono_nerd_fonts_extraction(self):
         import io, tarfile

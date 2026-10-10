@@ -14,7 +14,7 @@ Requires:       ryoku-desktop = %{version}-%{release}
 Requires:       hyprland
 Requires:       hyprpolkitagent
 Requires:       xdg-desktop-portal-hyprland
-Requires:       hyprpicker
+Requires:       hyprsunset
 Provides:       ryoku-desktop-compositor
 
 %description

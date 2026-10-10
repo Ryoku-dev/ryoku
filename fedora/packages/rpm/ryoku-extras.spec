@@ -33,7 +33,6 @@ rm -r stage/usr/state
 cp -a stage/. %{buildroot}/
 
 %files
-%{_bindir}/prowl-agent
 %{_bindir}/matugen
 %{_bindir}/qmk_hid
 %{_datadir}/fonts/*

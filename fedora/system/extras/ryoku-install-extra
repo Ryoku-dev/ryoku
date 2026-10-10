@@ -15,7 +15,6 @@ import urllib.request
 import zipfile
 
 RELEASES = {
-    "prowl-agent": ("0.15.6", "https://github.com/neur0map/prowl-agent/releases/download/v0.15.6/prowl-agent-linux-amd64", "3ce3b9183112411e3283ae5857eac281ef428fbfa8656caf7cec13c402998d53", "bin/prowl-agent"),
     "qmk-hid": ("0.1.11", "https://github.com/FrameworkComputer/qmk_hid/releases/download/v0.1.11/qmk_hid_linux_v0.1.11.zip", "57460728df3777d0abd2f2b464dea898c1fdc1cc6524ede1c2854fa9c8f027dc", "bin/qmk_hid"),
     "matugen": ("4.2.0", "https://github.com/InioX/matugen/releases/download/v4.2.0/matugen-4.2.0-x86_64.tar.gz", "a2e3b50e49ed6439999ba3c252ed04fabd98ee4e9d12e5e5dff2e66370569751", "bin/matugen"),
     "bibata": ("2.0.7", "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata.tar.xz", "172e33c4ae415278384dcecc7d1a9b7a024266bc944bc751fd86532be1cc6251", "share/icons"),

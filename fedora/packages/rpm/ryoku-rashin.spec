@@ -12,8 +12,9 @@ BuildRequires:  findutils
 BuildRequires:  golang >= 1.26.4
 Requires:       uv
 Requires:       python3
-Requires:       nodejs
+Requires:       nodejs24
 Requires:       gcc
+Requires:       prowl
 
 %description
 ryoku-rashin, built from the shared Ryoku source and package payload recipe.

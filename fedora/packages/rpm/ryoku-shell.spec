@@ -15,7 +15,7 @@ BuildRequires:  pkgconf-pkg-config
 BuildRequires:  wayland-devel
 BuildRequires:  wayland-protocols-devel
 BuildRequires:  ffmpeg-free-devel
-Requires:       quickshell
+Requires:       quickshell >= 0.3.0
 Requires:       ffmpeg-free
 Requires:       jq
 Requires:       uv

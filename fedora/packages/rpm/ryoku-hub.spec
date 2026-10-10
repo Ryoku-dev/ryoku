@@ -10,7 +10,7 @@ BuildRequires:  bash
 BuildRequires:  coreutils
 BuildRequires:  findutils
 BuildRequires:  golang >= 1.26.4
-Requires:       quickshell
+Requires:       quickshell >= 0.3.0
 
 %description
 ryoku-hub, built from the shared Ryoku source and package payload recipe.

@@ -1,23 +1,17 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
+# shellcheck shell=bash
 startdir=${startdir:?stage-package.sh must set startdir}
 srcdir=${srcdir:?stage-package.sh must set srcdir}
 pkgdir=${pkgdir:?stage-package.sh must set pkgdir}
+pkgver=${RYOKU_PKGVER:?stage-package.sh must set RYOKU_PKGVER}
 _repo="$startdir/../../../.."
+_payload="$_repo/release/packages/ryoku-palette-bridge/payload.sh"
 
 build() {
-  ( cd "$_repo/ryoku/palette-bridge" && go build -o "$srcdir/ryoku-palette-bridge" . )
+  RYOKU_SRC="$_repo" RYOKU_BUILD_DIR="$srcdir" RYOKU_PKGVER="$pkgver" \
+    "$_payload" build
 }
 
 package() {
-  install -Dm755 "$srcdir/ryoku-palette-bridge" "$pkgdir/usr/bin/ryoku-palette-bridge"
-  install -Dm755 "$_repo/ryoku/palette-bridge/doctor.sh" \
-    "$pkgdir/usr/bin/ryoku-palette-bridge-doctor"
-  install -Dm755 "$_repo/ryoku/palette-bridge/remove-integrations.sh" \
-    "$pkgdir/usr/bin/ryoku-palette-bridge-remove-integrations"
-  install -Dm644 "$_repo/ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service" \
-    "$pkgdir/usr/lib/systemd/user/ryoku-palette-bridge.service"
-  install -d "$pkgdir/usr/share/ryoku/palette-bridge"
-  cp -a "$_repo/ryoku/palette-bridge/." "$pkgdir/usr/share/ryoku/palette-bridge/"
+  RYOKU_SRC="$_repo" RYOKU_BUILD_DIR="$srcdir" RYOKU_PKGVER="$pkgver" \
+    "$_payload" install "$pkgdir" systemd
 }
