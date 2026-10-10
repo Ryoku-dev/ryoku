@@ -11,7 +11,7 @@ import (
 func packageFixture(t *testing.T) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "void.tsv")
-	body := "arch\tvoid\tlanes\tnotes\ncombo\tvoid-a void-b\tdesktop\t\nrepo-pkg\t@repo\tdesktop\tbuilt here\nfont-pkg\t@fetch\tdesktop\tdownloaded\nmissing-pkg\t-\tdesktop\tcovered elsewhere\nempty-note\t-\tdesktop\t\n"
+	body := "arch\tvoid\tlanes\tnotes\ncombo\tvoid-a void-b\tdesktop\t\nrepo-pkg\t@repo\tdesktop\tbuilt here\nmissing-pkg\t-\tdesktop\tcovered elsewhere\nempty-note\t-\tdesktop\t\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -46,38 +46,87 @@ func TestXBPSPackageTranslationAndMissingOnlyInstall(t *testing.T) {
 	}
 }
 
-func TestXBPSSpecialMappingsAndIdentityFallback(t *testing.T) {
+func TestXBPSRepoMappingsAndUnavailablePackages(t *testing.T) {
 	table := packageFixture(t)
-	for _, name := range []string{"repo-pkg", "font-pkg", "missing-pkg"} {
-		runner := &fakeRunner{}
-		app, stdout, stderr := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_PKG_TABLE": table})
-		if code := app.Package([]string{"installed", name}); code != ExitFalse {
-			t.Fatalf("%s installed exit = %d", name, code)
+	runner := &fakeRunner{answer: func(command Command) Result {
+		switch argv(command) {
+		case "xbps-query repo-pkg", "xbps-query -R repo-pkg":
+			return Result{}
+		case "xbps-query -p pkgver repo-pkg":
+			return Result{Output: "repo-pkg-0.1.0_1\n"}
+		default:
+			if command.Name == "xbps-query" {
+				return Result{Code: 1}
+			}
+			return Result{}
 		}
-		if stdout.Len() != 0 || stderr.Len() != 0 {
-			t.Fatalf("%s condition wrote stdout=%q stderr=%q", name, stdout.String(), stderr.String())
-		}
-		if code := app.Package([]string{"available", name}); code != ExitNotProvided {
-			t.Fatalf("%s available exit = %d", name, code)
-		}
-		if stdout.Len() != 0 || stderr.Len() != 0 {
-			t.Fatalf("%s availability wrote stdout=%q stderr=%q", name, stdout.String(), stderr.String())
-		}
-		if code := app.Package([]string{"install", name}); code != ExitNotProvided {
-			t.Fatalf("%s install exit = %d", name, code)
-		}
-		if len(runner.commands) != 0 {
-			t.Fatalf("%s executed a package command", name)
-		}
+	}}
+	app, stdout, stderr := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_PKG_TABLE": table})
+	if code := app.Package([]string{"installed", "repo-pkg"}); code != ExitOK {
+		t.Fatalf("repo package installed exit = %d", code)
+	}
+	if code := app.Package([]string{"available", "repo-pkg"}); code != ExitOK {
+		t.Fatalf("repo package available exit = %d", code)
+	}
+	if code := app.Package([]string{"installed", "missing-pkg"}); code != ExitFalse {
+		t.Fatalf("unavailable package installed exit = %d", code)
+	}
+	if code := app.Package([]string{"available", "missing-pkg"}); code != ExitNotProvided {
+		t.Fatalf("unavailable package available exit = %d", code)
+	}
+	if stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("conditions wrote stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	if code := app.Package([]string{"version", "repo-pkg"}); code != ExitOK {
+		t.Fatalf("repo package version exit = %d", code)
+	}
+	if got := stdout.String(); got != "0.1.0_1\n" {
+		t.Fatalf("repo package version = %q", got)
+	}
+	stdout.Reset()
+
+	runner.commands = nil
+	if code := app.Package([]string{"install", "repo-pkg"}); code != ExitOK {
+		t.Fatalf("repo package install exit = %d", code)
+	}
+	if len(runner.commands) != 1 || argv(runner.commands[0]) != "xbps-query repo-pkg" {
+		t.Fatalf("repo package install commands = %v", runner.commands)
 	}
 
-	runner := &fakeRunner{}
-	app, _, stderr := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_PKG_TABLE": filepath.Join(t.TempDir(), "absent")})
+	runner.commands = nil
+	if code := app.Package([]string{"remove", "repo-pkg"}); code != ExitOK {
+		t.Fatalf("repo package remove exit = %d", code)
+	}
+	if len(runner.commands) != 2 || argv(runner.commands[1]) != "xbps-remove -y repo-pkg" {
+		t.Fatalf("repo package remove commands = %v", runner.commands)
+	}
+
+	runner.commands = nil
+	if code := app.Package([]string{"install", "missing-pkg"}); code != ExitNotProvided {
+		t.Fatalf("unavailable package install exit = %d", code)
+	}
+	if len(runner.commands) != 0 {
+		t.Fatalf("unavailable package executed commands: %v", runner.commands)
+	}
+
+	runner = &fakeRunner{}
+	app, _, stderr = testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_PKG_TABLE": filepath.Join(t.TempDir(), "absent")})
 	if code := app.Package([]string{"local", "unlisted"}); code != ExitOK {
 		t.Fatal(code)
 	}
 	if stderr.Len() == 0 {
 		t.Fatal("missing table warning not written")
+	}
+}
+
+func TestPackageTableRejectsRetiredFetchMappings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "void.tsv")
+	body := "arch\tvoid\tlanes\tnotes\nfont-pkg\t@fetch\tdesktop\tdownloaded\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readPackageTable(path); err == nil || !strings.Contains(err.Error(), "@fetch mappings are retired") {
+		t.Fatalf("readPackageTable error = %v", err)
 	}
 }
 
@@ -94,6 +143,7 @@ func TestPackageWhyExplainsOnlyVoidDashMappings(t *testing.T) {
 		{"empty-note", ExitOK, "Not packaged for Void.\n"},
 		{"combo", ExitFalse, ""},
 		{"identity", ExitFalse, ""},
+		{"repo-pkg", ExitFalse, ""},
 	}
 	for _, tc := range cases {
 		stdout.Reset()

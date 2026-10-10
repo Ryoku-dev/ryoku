@@ -215,6 +215,40 @@ func TestRunitFailedServicesFromSuperviseState(t *testing.T) {
 	}
 }
 
+func TestRunitFailedServiceVerbKeepsScopesSeparate(t *testing.T) {
+	root := t.TempDir()
+	system := filepath.Join(root, "system")
+	user := filepath.Join(root, "user")
+	now := time.Now().Add(-time.Minute)
+	writeSuperviseState(t, filepath.Join(system, "system-broken"), "down", 'u', now, 0)
+	writeSuperviseState(t, filepath.Join(user, "user-broken"), "down", 'u', now, 0)
+
+	app, stdout, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_INIT": "runit"})
+	app.cfg.SystemLiveDir = system
+	app.cfg.UserServiceDir = user
+	if code := app.Service([]string{"--system", "failed"}); code != ExitOK {
+		t.Fatalf("system failed exit = %d", code)
+	}
+	if got := stdout.String(); got != "system-broken\n" {
+		t.Fatalf("system failed output = %q", got)
+	}
+	stdout.Reset()
+	if code := app.Service([]string{"--user", "failed"}); code != ExitOK {
+		t.Fatalf("user failed exit = %d", code)
+	}
+	if got := stdout.String(); got != "user-broken\n" {
+		t.Fatalf("user failed output = %q", got)
+	}
+	if code := app.Service([]string{"--system", "failed", "extra"}); code != ExitUsage {
+		t.Fatalf("failed with arguments exit = %d", code)
+	}
+
+	systemd, _, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_INIT": "systemd"})
+	if code := systemd.Service([]string{"--system", "failed"}); code != ExitNotProvided {
+		t.Fatalf("systemd failed exit = %d", code)
+	}
+}
+
 func writeSuperviseState(t *testing.T, service, state string, want byte, changed time.Time, pid uint32) {
 	t.Helper()
 	supervise := filepath.Join(service, "supervise")

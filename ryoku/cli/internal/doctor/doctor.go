@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -59,10 +60,8 @@ var (
 	doctorService = func(args ...string) int {
 		return host.Default().Service(args)
 	}
-	doctorFailedServices = func() ([]host.ServiceFailure, error) {
-		return host.Default().FailedServices()
-	}
-	doctorOrphans = func() ([]string, error) {
+	doctorFailedServices = failedServices
+	doctorOrphans        = func() ([]string, error) {
 		return host.Default().Orphans()
 	}
 	doctorFindPendingConfig = func(pattern string) []string {
@@ -74,6 +73,28 @@ var (
 		return err == nil && strings.Contains(string(out), "Material Symbols Rounded")
 	}
 )
+
+var errSystemServiceHealthUnavailable = errors.New("system service health unavailable")
+
+func failedServices() ([]host.ServiceFailure, error) {
+	userFailures, err := host.Default().FailedServicesFor("--user")
+	if err != nil {
+		return nil, err
+	}
+	hostBin := os.Getenv("RYOKU_HOST_BIN")
+	if hostBin == "" {
+		hostBin = "/usr/bin/ryoku-host"
+	}
+	out, err := sys.RunOut("sudo", "-n", hostBin, "svc", "--system", "failed")
+	if err != nil {
+		return userFailures, errSystemServiceHealthUnavailable
+	}
+	systemFailures := make([]host.ServiceFailure, 0)
+	for _, name := range nonEmptyLines(out) {
+		systemFailures = append(systemFailures, host.ServiceFailure{Scope: "--system", Name: name})
+	}
+	return append(systemFailures, userFailures...), nil
+}
 
 func pacmanHost(subject string) (recResult, bool) {
 	if !hasPacman() {
@@ -3902,15 +3923,23 @@ func balancedRunes(s string, open, shut rune) bool {
 
 func reconcileRunitFailures() recResult {
 	failures, err := doctorFailedServices()
-	if err != nil {
+	systemUnavailable := errors.Is(err, errSystemServiceHealthUnavailable)
+	if err != nil && !systemUnavailable {
 		return noteRes(i18n.T("service health could not be checked: %v"), err)
 	}
 	if len(failures) == 0 {
+		if systemUnavailable {
+			return noteRes(i18n.T("system service health could not be checked without passwordless sudo; no failed user services"))
+		}
 		return okRes(i18n.T("no failed services"))
 	}
 	details := make([]string, 0, len(failures))
 	for _, failure := range failures {
 		details = append(details, fmt.Sprintf("%s (%s)", failure.Name, strings.TrimPrefix(failure.Scope, "--")))
+	}
+	if systemUnavailable {
+		return warnRes(i18n.T("failed: %s; system service health could not be checked without passwordless sudo"), strings.Join(details, ", ")).
+			withFix(i18n.T("inspect with `sv status /var/service/<service>` or `sv status ~/.config/service/<service>` and check the service log"))
 	}
 	return warnRes(i18n.T("failed: %s"), strings.Join(details, ", ")).
 		withFix(i18n.T("inspect with `sv status /var/service/<service>` or `sv status ~/.config/service/<service>` and check the service log"))

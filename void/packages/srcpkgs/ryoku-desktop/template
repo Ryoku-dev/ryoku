@@ -93,7 +93,10 @@ distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"
 
-conf_files="/etc/elogind/logind.conf.d/10-ryoku-lid.conf /etc/xdg/mimeapps.list"
+conf_files="
+ /etc/elogind/logind.conf.d/10-ryoku-lid.conf
+ /etc/xdg/mimeapps.list
+ /etc/sudoers.d/ryoku-service-health"
 # 60-ryoku-i2c.rules hands /dev/i2c-* to this group for DDC brightness.
 system_groups="i2c"
 
@@ -114,4 +117,5 @@ do_build() {
 
 do_install() {
 	_do_payload install "$DESTDIR" runit
+	vinstall "$FILESDIR/ryoku-service-health" 440 etc/sudoers.d
 }

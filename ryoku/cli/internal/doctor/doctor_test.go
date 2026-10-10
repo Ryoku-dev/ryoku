@@ -2813,6 +2813,24 @@ func TestFailedServicesHaveRunitMeaning(t *testing.T) {
 	if result.status != recOK || strings.Contains(result.detail, "could not be determined") {
 		t.Fatalf("healthy result = %+v", result)
 	}
+
+	doctorFailedServices = func() ([]host.ServiceFailure, error) {
+		return nil, errSystemServiceHealthUnavailable
+	}
+	result = reconcileFailedUnits(true)
+	if result.status != recNote || !strings.Contains(result.detail, "without passwordless sudo") ||
+		strings.Contains(result.detail, "permission denied") {
+		t.Fatalf("unprivileged system result = %+v", result)
+	}
+
+	doctorFailedServices = func() ([]host.ServiceFailure, error) {
+		return []host.ServiceFailure{{Scope: "--user", Name: "crashing"}}, errSystemServiceHealthUnavailable
+	}
+	result = reconcileFailedUnits(true)
+	if result.status != recWarn || !strings.Contains(result.detail, "crashing (user)") ||
+		!strings.Contains(result.detail, "without passwordless sudo") {
+		t.Fatalf("partial service result = %+v", result)
+	}
 }
 
 func TestUncommentedConfigDropsHeadingLikeComments(t *testing.T) {

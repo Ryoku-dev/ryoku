@@ -135,6 +135,12 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **Void package and service health checks now inspect the real installed
+  system.** Ryoku-owned `@repo` package names map to their native XBPS names,
+  and the doctor reads system runit state through one passwordless,
+  fixed-argument host query while continuing to inspect Turnstile services
+  directly (`internal/host/`, `internal/doctor/`).
+
 - **Void service failures are visible in `ryoku doctor`.** The runit host seam
   reads system and Turnstile supervise state, reports services that want up but
   are down or repeatedly restarting, and leaves parked services alone

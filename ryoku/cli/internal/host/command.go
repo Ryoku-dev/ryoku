@@ -17,7 +17,7 @@ Host detection:
 Services:
   svc [--user|--system] <start|stop|restart|try-restart|reload|is-active|is-enabled|enable|disable|kill> [--now] <name>...
   svc [--user|--system] reset-failed <name>...
-  svc [--user|--system] daemon-reload
+  svc [--user|--system] failed
   svc env [--all | NAME | NAME=VALUE ...]
 
 Process helpers:

@@ -12,6 +12,11 @@
   pre-initramfs kernel hook restores nouveau automatically when a later DKMS
   build fails.
 
+- **Void exposes system service health to the desktop doctor.** Its package
+  grants wheel users one passwordless, fixed-argument read-only
+  `ryoku-host svc --system failed` query; every other root action keeps the
+  existing sudo policy.
+
 - **Void keeps live sessions safe through package cutovers and kernel updates.**
   Runit sessions now use `ryoku-host` transient guards and elogind inhibitors
   while sleep, lid, lock, and wallpaper owners are replaced. The packaged Void

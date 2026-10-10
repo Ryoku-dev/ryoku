@@ -18,7 +18,7 @@ func TestInstallAdviceXBPS(t *testing.T) {
 	if got := app.InstallAdvice("combo", "missing-pkg"); got != "sudo xbps-install -S void-a void-b; missing-pkg is not packaged for this system" {
 		t.Fatalf("partial advice = %q", got)
 	}
-	if got := app.InstallAdvice("repo-pkg", "font-pkg", "missing-pkg"); got != "repo-pkg is not packaged for this system; font-pkg is not packaged for this system; missing-pkg is not packaged for this system" {
-		t.Fatalf("unavailable advice = %q", got)
+	if got := app.InstallAdvice("repo-pkg", "missing-pkg"); got != "sudo xbps-install -S repo-pkg; missing-pkg is not packaged for this system" {
+		t.Fatalf("repo advice = %q", got)
 	}
 }

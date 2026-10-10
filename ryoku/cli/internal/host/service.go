@@ -13,6 +13,7 @@ var serviceVerbs = map[string]bool{
 	"start": true, "stop": true, "restart": true, "try-restart": true,
 	"reload": true, "is-active": true, "is-enabled": true, "enable": true,
 	"disable": true, "kill": true, "reset-failed": true, "daemon-reload": true,
+	"failed": true,
 }
 
 const runitUserDisabledMarker = ".ryoku-disabled"
@@ -47,12 +48,18 @@ type runitRestartCandidate struct {
 	state   runitSuperviseState
 }
 
-func (a *App) FailedServices() ([]ServiceFailure, error) {
+func (a *App) FailedServicesFor(scope string) ([]ServiceFailure, error) {
+	var dir string
+	switch scope {
+	case "--system":
+		dir = a.cfg.SystemLiveDir
+	case "--user":
+		dir = a.userServiceDir()
+	default:
+		return nil, fmt.Errorf("invalid service scope %q", scope)
+	}
 	return runitFailedServicesIn(
-		[]runitServiceSource{
-			{scope: "--system", dir: a.cfg.SystemLiveDir},
-			{scope: "--user", dir: a.userServiceDir()},
-		},
+		[]runitServiceSource{{scope: scope, dir: dir}},
 		time.Now,
 		time.Sleep,
 	)
@@ -221,7 +228,11 @@ func (a *App) Service(args []string) int {
 	if len(args) > 0 && args[0] == "--now" {
 		now, args = true, args[1:]
 	}
-	if verb == "daemon-reload" {
+	if verb == "failed" {
+		if now || len(args) != 0 {
+			return ExitUsage
+		}
+	} else if verb == "daemon-reload" {
 		if now || len(args) != 0 {
 			return ExitUsage
 		}
@@ -233,7 +244,24 @@ func (a *App) Service(args []string) int {
 		return a.failf("%v", err)
 	}
 	if init == Systemd {
+		if verb == "failed" {
+			return ExitNotProvided
+		}
 		return a.systemdService(user, verb, now, args)
+	}
+	if verb == "failed" {
+		scope := "--system"
+		if user {
+			scope = "--user"
+		}
+		failures, err := a.FailedServicesFor(scope)
+		if err != nil {
+			return a.failf("%v", err)
+		}
+		for _, failure := range failures {
+			fmt.Fprintln(a.cfg.Stdout, failure.Name)
+		}
+		return ExitOK
 	}
 	return a.runitService(user, verb, now, args)
 }

@@ -46,12 +46,17 @@ func readPackageTable(path string) (packageTable, error) {
 			return nil, fmt.Errorf("%s:%d: duplicate package %s", path, lineNo, fields[0])
 		}
 		mapping := packageMapping{Note: strings.TrimSpace(fields[3])}
-		if fields[1] == "@repo" || fields[1] == "@fetch" || fields[1] == "-" {
-			if fields[1] != "-" && mapping.Note == "" {
+		switch fields[1] {
+		case "@repo":
+			if mapping.Note == "" {
 				return nil, fmt.Errorf("%s:%d: special mapping needs notes", path, lineNo)
 			}
-			mapping.Special = fields[1]
-		} else {
+			mapping.Names = []string{fields[0]}
+		case "@fetch":
+			return nil, fmt.Errorf("%s:%d: @fetch mappings are retired", path, lineNo)
+		case "-":
+			mapping.Special = "-"
+		default:
 			mapping.Names = strings.Fields(fields[1])
 			if len(mapping.Names) == 0 {
 				return nil, fmt.Errorf("%s:%d: empty package mapping", path, lineNo)
