@@ -3,6 +3,7 @@ package doctor
 import (
 	"os"
 	"path/filepath"
+	"ryoku-cli/internal/host"
 	"strings"
 	"testing"
 	"time"
@@ -209,6 +210,73 @@ func TestGatherLimineBootKernels(t *testing.T) {
 	}
 }
 
+func TestVoidKernelEntriesUseSeriesAndDracutImage(t *testing.T) {
+	for version, want := range map[string]string{
+		"6.12.58_1":    "linux6.12",
+		"6.6.91_1":     "linux6.6",
+		"not-a-kernel": "",
+	} {
+		if got := voidKernelEntryName(version); got != want {
+			t.Errorf("voidKernelEntryName(%q) = %q, want %q", version, got, want)
+		}
+	}
+
+	esp := t.TempDir()
+	image := filepath.Join(esp, "initramfs-6.12.58_1.img")
+	if err := os.WriteFile(image, []byte("dracut"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	installed := map[string]installedKernel{"linux6.12": {version: "6.12.58_1"}}
+	conf := "/Ryoku Linux\n" +
+		"  //linux6.12\n" +
+		"  comment: Kernel version: 6.12.58_1\n" +
+		"  protocol: linux\n" +
+		"  path: boot():/vmlinuz-6.12.58_1\n" +
+		"  module_path: boot():/initramfs-6.12.58_1.img\n"
+	got := gatherLimineBootKernels(conf, esp, installed)
+	if len(got) != 1 || got[0].name != "linux6.12" || got[0].version != "6.12.58_1" ||
+		got[0].image != image || !got[0].imageExists {
+		t.Fatalf("Void kernel entry = %+v", got)
+	}
+}
+
+func TestVoidLimineSnapshotDefaults(t *testing.T) {
+	source := `TARGET_OS_NAME="Old"
+ESP_PATH="/boot"
+ENABLE_UKI=yes
+MAX_SNAPSHOT_ENTRIES=10
+SNAPSHOT_FORMAT_CHOICE=5
+`
+	got := limineSnapshotDefaults(source, "Ryoku Linux")
+	want := "TARGET_OS_NAME=\"Ryoku Linux\"\nESP_PATH=\"/boot\"\nMAX_SNAPSHOT_ENTRIES=10\nSNAPSHOT_FORMAT_CHOICE=5\n"
+	if got != want {
+		t.Fatalf("snapshot defaults = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "ENABLE_UKI") {
+		t.Fatal("Void snapshot defaults retained an Arch UKI key")
+	}
+	if got := setLimineOSName("ESP_PATH=\"/boot\"\n", "Ryoku Linux"); !strings.Contains(got, `TARGET_OS_NAME="Ryoku Linux"`) {
+		t.Fatalf("missing TARGET_OS_NAME was not inserted: %q", got)
+	}
+}
+
+func TestVoidLimineSpecificChecksExplainDracutLayout(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	oldManager := doctorPackageManager
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	t.Cleanup(func() { doctorPackageManager = oldManager })
+
+	for name, result := range map[string]recResult{
+		"UKI tree":     reconcileLimineUKITree(true),
+		"GPU trim":     reconcileInitramfsGPUTrim(true),
+		"console keys": reconcileInitramfsConsoleKeys(true),
+	} {
+		if result.status != recOK || !strings.Contains(result.detail, "kernel plus a dracut initramfs image") {
+			t.Errorf("%s = %#v, want a plain dracut-layout note", name, result)
+		}
+	}
+}
+
 func TestLimineToolingRequiresRyokuManagerBinary(t *testing.T) {
 	stubPacmanHost(t, true)
 	bin := t.TempDir()
@@ -222,6 +290,21 @@ func TestLimineToolingRequiresRyokuManagerBinary(t *testing.T) {
 	}
 	if !limineManagedBoot() {
 		t.Fatal("Ryoku Limine manager binary was not recognized")
+	}
+}
+
+func TestLimineToolingUsesVoidKernelHookOnXBPS(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	oldManager := doctorPackageManager
+	oldInstalled := doctorPackageInstalled
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	doctorPackageInstalled = func(name string) bool { return name == "limine" }
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorPackageInstalled = oldInstalled
+	})
+	if !limineManagedBoot() {
+		t.Fatal("Void's packaged Limine kernel hook was not recognized")
 	}
 }
 

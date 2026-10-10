@@ -40,7 +40,8 @@ case "$ACTION" in
 			ryoku-network-kill-guard ryoku-network-kill-disconnect; do
 			remove_service_link "$name"
 		done
-		rm -f /var/lib/ryoku/power-cutover-hook-active
+		rm -f /var/lib/ryoku/power-cutover-hook-active \
+			/var/lib/ryoku/update-pending.json
 		refresh_caches
 		;;
 esac

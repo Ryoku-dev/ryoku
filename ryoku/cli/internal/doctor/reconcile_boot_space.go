@@ -98,7 +98,7 @@ func reconcileBootSpace(checkOnly bool) recResult {
 	if !limineManagedBoot() {
 		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
 	}
-	if !sys.PkgInstalled("limine") {
+	if !doctorPackageInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
 	st := measureBootImages()
@@ -108,6 +108,11 @@ func reconcileBootSpace(checkOnly bool) recResult {
 	if enoughBootHeadroom(st) {
 		return okRes(i18n.T("/boot has %s free, room for a %s image rebuild"),
 			humanSize(st.free), humanSize(st.largest))
+	}
+	if xbpsHost() {
+		return warnRes(i18n.T("/boot has only %s free but a kernel image is %s: the next kernel update cannot write the new dracut image, so the box can keep booting the old kernel"),
+			humanSize(st.free), humanSize(st.largest)).
+			withFix(i18n.T("run `ryoku doctor`, then remove a kernel you do not boot (`sudo ryoku-host pkg remove <kernel>`) or lower MAX_SNAPSHOT_ENTRIES in /etc/default/limine"))
 	}
 	// Nothing safe to delete, in check mode or out of it: name the wall.
 	return warnRes(i18n.T("/boot has only %s free but a kernel image is %s: the next kernel update builds its image and cannot copy it in, and pacman reports success anyway (the box then keeps booting the old kernel)"),

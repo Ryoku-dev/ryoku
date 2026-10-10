@@ -15,14 +15,11 @@
   to `xbps-query`, `xbps-install`, and `xbps-remove`. Managed transactions
   carry `RYOKU_MANAGED_UPDATE=1` so the package hook does not run a second
   power cutover. The old installer-created Void source-update fallback is gone;
-  explicit development checkouts still work, while packaged installs report
-  snapshots and automatic rollback as unavailable.
-- **Void updates never invoke Arch's snapshot stack.** `ryoku-host snapshots`
-  exposes the host capability and one reason when it is unavailable. Updates
-  skip pre/post snapshots and helper offers on XBPS, publish that capability to
-  the Hub, and keep release listing available while snapshot restore commands
-  return the reason without running snapper (`internal/host/snapshots.go`,
-  `internal/updater/update.go`, `internal/updater/runstate.go`).
+  explicit development checkouts still work.
+- **Void updates now have the same snapshot and rollback safety net as Arch.**
+  Updates create snapper pre/post pairs, frozen-release rollback moves the XBPS
+  set transactionally, and the boot guard can revert a bad release or select the
+  pre-update Limine snapshot.
 - **`ryoku-host` answers "how does this machine do it" for everything else.**
   One small binary names the init system and package manager and runs service,
   package, inhibitor, timezone and keymap actions through systemd and pacman
@@ -145,10 +142,10 @@
   reads system and Turnstile supervise state, reports services that want up but
   are down or repeatedly restarting, and leaves parked services alone
   (`internal/host/service.go`, `internal/doctor/doctor.go`).
-- **The doctor describes Void as Void.** Its diagnostic prompt names XBPS,
-  runit and Turnstile instead of Arch with snapper, and the NVIDIA initramfs
-  advice uses dracut there (`internal/doctor/explain.go`,
-  `internal/doctor/reconcile_dgpu_panel.go`).
+- **The doctor understands Void's full snapshot and boot stack.** Snapshot,
+  snapper cleanup, Limine and boot-guard checks now use XBPS, runit, dracut and
+  Void's kernel hook while keeping Arch's answers unchanged
+  (`internal/doctor/`).
 - **Switching desktops says why a target is missing.** `ryoku wm` checks,
   installs and removes desktop packages through `ryoku-host`, so a desktop
   this system cannot install is refused up front with the reason (`wm.go`).

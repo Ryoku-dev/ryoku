@@ -33,8 +33,7 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 		return okRes(i18n.T("snapper is not installed, so there is nothing to prune"))
 	}
 
-	cleanupOff := !sys.UnitEnabled("snapper-cleanup.timer")
-	timelineOn := sys.UnitEnabled("snapper-timeline.timer")
+	cleanupOff, timelineOn := snapperCleanupServiceState()
 	numberOnly := snapperTimelineOff()
 	var leaked []string
 	if numberOnly {
@@ -65,12 +64,12 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 
 	var fixes []string
 	if cleanupOff {
-		if err := sys.Run("sudo", "systemctl", "enable", "--now", "snapper-cleanup.timer"); err == nil {
+		if err := runSystemService("enable", "--now", "snapper-cleanup.timer"); err == nil {
 			fixes = append(fixes, i18n.T("enabled snapper-cleanup.timer"))
 		}
 	}
 	if timelineOn && numberOnly {
-		if err := sys.Run("sudo", "systemctl", "disable", "--now", "snapper-timeline.timer"); err == nil {
+		if err := runSystemService("disable", "--now", "snapper-timeline.timer"); err == nil {
 			fixes = append(fixes, i18n.T("disabled snapper-timeline.timer"))
 		}
 	}
@@ -97,6 +96,12 @@ func reconcileSnapperCleanup(checkOnly bool) recResult {
 		return okRes(i18n.T("snapshot cleanup is healthy"))
 	}
 	return fixedRes("%s", strings.Join(fixes, "; "))
+}
+
+func snapperCleanupServiceState() (cleanupOff, timelineOn bool) {
+	cleanupOff = !systemServiceEnabled("snapper-cleanup.timer")
+	timelineOn = !xbpsHost() && systemServiceEnabled("snapper-timeline.timer")
+	return cleanupOff, timelineOn
 }
 
 // snapperTimelineOff reports number-only cleanup. The config is 0640 root:root,

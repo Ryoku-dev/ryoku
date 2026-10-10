@@ -75,13 +75,17 @@ func TestAISystemPromptMatchesHost(t *testing.T) {
 		t.Setenv("RYOKU_HOST_INIT", "runit")
 
 		got := aiSystemPrompt()
-		if !strings.Contains(got, "Void Linux with XBPS, runit and Turnstile, no snapshot integration") {
-			t.Errorf("Void prompt does not describe the host stack: %q", got)
-		}
-		for _, wrong := range []string{"Arch-based", "snapper", "btrfs"} {
-			if strings.Contains(got, wrong) {
-				t.Errorf("Void prompt must not mention %q: %q", wrong, got)
+		for _, want := range []string{
+			"Void Linux with XBPS, runit and Turnstile",
+			"btrfs root protected by snapper and limine-snapper-sync",
+			"snapshots restored from the Limine boot menu",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("Void prompt does not mention %q: %q", want, got)
 			}
+		}
+		if strings.Contains(got, "Arch-based") || strings.Contains(got, "no snapshot integration") {
+			t.Errorf("Void prompt describes the wrong host stack: %q", got)
 		}
 	})
 }

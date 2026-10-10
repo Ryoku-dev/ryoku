@@ -248,8 +248,7 @@ func Update(args []string) (err error) {
 					// snapperPre is best-effort and returns "" when it was skipped.
 					hint := i18n.T("no pre-update snapshot exists (snapper was unavailable), so `ryoku rollback` cannot revert this; recover with pacman directly")
 					if updatePackageManager() == host.XBPS {
-						_, hint = snapshotCapability()
-						hint += i18n.T(" Recover with XBPS directly.")
+						hint = i18n.T("no pre-update snapshot exists (snapper was unavailable), so `ryoku rollback` cannot revert this; recover with XBPS directly")
 					}
 					if pre != "" {
 						hint = i18n.T("see `ryoku rollback` (pre-update snapshot ") + pre + ")"
@@ -1314,20 +1313,24 @@ func snapshotCapability() (supported bool, reason string) {
 // primitives so the updater runs the same checks the doctor does without
 // importing the doctor package.
 type snapHelpers struct {
-	rootBtrfs  bool
-	snapper    bool
-	snapPac    bool
-	limineSync bool
-	limine     bool
+	manager           host.PackageManager
+	rootBtrfs         bool
+	snapper           bool
+	snapperConfigured bool
+	snapPac           bool
+	limineSync        bool
+	limine            bool
 }
 
 func gatherSnapHelpers() snapHelpers {
 	return snapHelpers{
-		rootBtrfs:  sys.IsBtrfs("/"),
-		snapper:    sys.Has("snapper"),
-		snapPac:    sys.PkgInstalled("snap-pac"),
-		limineSync: sys.PkgInstalled("limine-snapper-sync"),
-		limine:     sys.PkgInstalled("limine"),
+		manager:           updatePackageManager(),
+		rootBtrfs:         sys.IsBtrfs("/"),
+		snapper:           sys.Has("snapper"),
+		snapperConfigured: sys.Exists("/etc/snapper/configs/root"),
+		snapPac:           sys.PkgInstalled("snap-pac"),
+		limineSync:        sys.PkgInstalled("limine-snapper-sync"),
+		limine:            sys.PkgInstalled("limine"),
 	}
 }
 
@@ -1338,8 +1341,11 @@ func wantedSnapperHelpers(h snapHelpers) []string {
 	if !h.rootBtrfs || !h.snapper {
 		return nil
 	}
+	if h.manager == host.XBPS && !h.snapperConfigured {
+		return nil
+	}
 	var want []string
-	if !h.snapPac {
+	if h.manager != host.XBPS && !h.snapPac {
 		want = append(want, "snap-pac")
 	}
 	if !h.limineSync && h.limine {
@@ -1378,14 +1384,27 @@ func offerSnapperHelpers() {
 	}
 	progress.logf(i18n.T("Installing snapshot helpers: %s"), strings.Join(want, ", "))
 	for _, p := range want {
-		tool := "ryoku-pkg-add"
-		if p == "limine-snapper-sync" {
-			tool = "ryoku-pkg-aur-add"
-		}
-		if err := sys.Run(tool, p); err != nil {
+		if err := installSnapshotHelper(p); err != nil {
 			fmt.Fprintf(os.Stderr, i18n.T("warning: installing %s failed: %v\n"), p, err)
 		}
 	}
+}
+
+func installSnapshotHelper(name string) error {
+	if updatePackageManager() == host.XBPS {
+		if err := privileged("ryoku-host", "pkg", "install", name); err != nil {
+			return err
+		}
+		if name == "limine-snapper-sync" {
+			return privileged("ryoku-host", "svc", "--system", "enable", "--now", "limine-snapper-sync.service")
+		}
+		return nil
+	}
+	tool := "ryoku-pkg-add"
+	if name == "limine-snapper-sync" {
+		tool = "ryoku-pkg-aur-add"
+	}
+	return sys.Run(tool, name)
 }
 
 // askInstall: consent for installing pkgs. hub-launched update
@@ -1448,10 +1467,6 @@ func doctorBin(checkout bool) string {
 // 'snapper rollback'". So the command teaches that flow instead of running a
 // snapper command that cannot restore the system.
 func Rollback(args []string) error {
-	if updatePackageManager() == host.XBPS {
-		_, reason := snapshotCapability()
-		return errors.New(reason)
-	}
 	to := ""
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--to" && i+1 < len(args) {
@@ -1474,7 +1489,11 @@ func Rollback(args []string) error {
 	if supported {
 		fmt.Println(i18n.T("Two ways back:"))
 		fmt.Println(i18n.T("  the Ryoku set (its packages and config) to a published release, live;"))
-		fmt.Println(i18n.T("  the whole system (Arch included) to a snapshot, from the boot menu."))
+		if updatePackageManager() == host.XBPS {
+			fmt.Println(i18n.T("  the whole system (Void included) to a snapshot, from the boot menu."))
+		} else {
+			fmt.Println(i18n.T("  the whole system (Arch included) to a snapshot, from the boot menu."))
+		}
 	} else {
 		fmt.Println(i18n.T("Published Ryoku releases can be restored live."))
 	}
@@ -1553,7 +1572,13 @@ func restoreGuide(id string) error {
 		fmt.Println()
 		fmt.Println(i18n.T("limine-snapper-sync is not installed, so snapshots are missing from the boot"))
 		fmt.Println(i18n.T("menu. Install it first:"))
-		fmt.Println("  ryoku-pkg-aur-add limine-snapper-sync && sudo systemctl enable --now limine-snapper-sync.service")
+		if updatePackageManager() == host.XBPS {
+			fmt.Println("  ryoku-host pkg advice limine-snapper-sync")
+			fmt.Println("  sudo ryoku-host pkg install limine-snapper-sync &&")
+			fmt.Println("    sudo ryoku-host svc --system enable --now limine-snapper-sync.service")
+		} else {
+			fmt.Println("  ryoku-pkg-aur-add limine-snapper-sync && sudo systemctl enable --now limine-snapper-sync.service")
+		}
 	}
 	return nil
 }

@@ -103,6 +103,41 @@ func pacmanHost(subject string) (recResult, bool) {
 	return recResult{}, true
 }
 
+func xbpsHost() bool {
+	manager, err := doctorPackageManager()
+	return err == nil && manager == host.XBPS
+}
+
+func systemServiceEnabled(name string) bool {
+	return doctorService("--system", "is-enabled", name) == host.ExitOK
+}
+
+func runSystemService(args ...string) error {
+	if xbpsHost() {
+		hostBin := os.Getenv("RYOKU_HOST_BIN")
+		if hostBin == "" {
+			hostBin = "/usr/bin/ryoku-host"
+		}
+		command := append([]string{hostBin, "svc", "--system"}, args...)
+		return sys.Sudo(command...)
+	}
+	command := append([]string{"systemctl"}, args...)
+	return sys.Sudo(command...)
+}
+
+func systemServiceEnableAdvice(name string, now bool) string {
+	if xbpsHost() {
+		if now {
+			return i18n.Tf("sudo ryoku-host svc --system enable --now %s", name)
+		}
+		return i18n.Tf("sudo ryoku-host svc --system enable %s", name)
+	}
+	if now {
+		return i18n.Tf("sudo systemctl enable --now %s", name)
+	}
+	return i18n.Tf("sudo systemctl enable %s", name)
+}
+
 type recStatus int
 
 const (
@@ -595,6 +630,7 @@ const (
 // to a value so planSnapper is unit-testable without real /etc or running
 // snapper/btrfs.
 type snapperState struct {
+	manager             host.PackageManager
 	rootIsBtrfs         bool
 	configExists        bool
 	optedOut            bool
@@ -614,6 +650,10 @@ type snapperState struct {
 // "configured" branch runs the same consistency checks the old reconciler
 // did, so a healthy box still reads ok.
 func planSnapper(s snapperState) (snapperOutcome, []string) {
+	manager := s.manager
+	if manager == "" {
+		manager = host.Pacman
+	}
 	if !s.configExists {
 		if !s.rootIsBtrfs {
 			return snapperWarnNotBtrfs, nil
@@ -641,18 +681,22 @@ func planSnapper(s snapperState) (snapperOutcome, []string) {
 		problems = append(problems, i18n.T("/etc/conf.d/snapper does not list the root config (timers and hooks will skip it)"))
 	}
 	if !s.snapperInstalled {
-		problems = append(problems, i18n.T("snapper is not installed; the root config exists but cannot be used (sudo pacman -S snapper)"))
+		problems = append(problems, fmt.Sprintf(i18n.T("snapper is not installed; the root config exists but cannot be used (%s)"), doctorInstallAdvice("snapper")))
 	}
-	if !s.snapPacInstalled {
+	if manager == host.Pacman && !s.snapPacInstalled {
 		problems = append(problems, i18n.T("snap-pac is not installed, so pacman transactions are not auto-snapshotted (sudo pacman -S snap-pac)"))
 	}
 	// only meaningful under Limine; a GRUB box (converted CachyOS and the
 	// like) is healthy without it and must not warn forever.
 	if s.limineInstalled {
 		if !s.limineSyncInstalled {
-			problems = append(problems, i18n.T("limine-snapper-sync is not installed, so snapshots are not in the Limine boot menu (ryoku-pkg-aur-add limine-snapper-sync)"))
+			advice := "ryoku-pkg-aur-add limine-snapper-sync"
+			if manager == host.XBPS {
+				advice = doctorInstallAdvice("limine-snapper-sync")
+			}
+			problems = append(problems, fmt.Sprintf(i18n.T("limine-snapper-sync is not installed, so snapshots are not in the Limine boot menu (%s)"), advice))
 		} else if !s.limineSyncEnabled {
-			problems = append(problems, i18n.T("limine-snapper-sync.service is disabled, so new snapshots never reach the Limine boot menu (sudo systemctl enable --now limine-snapper-sync.service)"))
+			problems = append(problems, fmt.Sprintf(i18n.T("limine-snapper-sync.service is disabled, so new snapshots never reach the Limine boot menu (%s)"), systemServiceEnableAdvice("limine-snapper-sync.service", true)))
 		}
 	}
 	if len(problems) == 0 {
@@ -665,15 +709,17 @@ func planSnapper(s snapperState) (snapperOutcome, []string) {
 // non-privileged stats and world-readable files; privileged writes happen
 // later in the create branch under sudo, like every other reconciler.
 func gatherSnapperState() snapperState {
+	manager, _ := doctorPackageManager()
 	s := snapperState{
+		manager:             manager,
 		rootIsBtrfs:         sys.IsBtrfs("/"),
 		configExists:        sys.Exists("/etc/snapper/configs/root"),
 		optedOut:            sys.Exists("/etc/ryoku/snapshots-disabled"),
-		snapperInstalled:    sys.Has("snapper"),
-		snapPacInstalled:    sys.PkgInstalled("snap-pac"),
-		limineInstalled:     sys.PkgInstalled("limine"),
-		limineSyncInstalled: sys.PkgInstalled("limine-snapper-sync"),
-		limineSyncEnabled:   sys.UnitEnabled("limine-snapper-sync.service"),
+		snapperInstalled:    doctorPackageInstalled("snapper"),
+		snapPacInstalled:    manager == host.Pacman && doctorPackageInstalled("snap-pac"),
+		limineInstalled:     doctorPackageInstalled("limine"),
+		limineSyncInstalled: doctorPackageInstalled("limine-snapper-sync"),
+		limineSyncEnabled:   systemServiceEnabled("limine-snapper-sync.service"),
 	}
 	if fi, err := os.Stat("/.snapshots"); err == nil {
 		s.snapshotsExists = true
@@ -701,7 +747,7 @@ func reconcileSnapper(checkOnly bool) recResult {
 		return warnRes(i18n.T("root filesystem is not btrfs; snapshot and rollback are unavailable on this machine"))
 	case snapperWarnMissingPkgs:
 		return warnRes(i18n.T("root is btrfs but snapper is not installed; snapshots and rollback are off")).
-			withFix(i18n.T("sudo pacman -S snapper snap-pac, then ryoku doctor"))
+			withFix(i18n.T("%s, then ryoku doctor"), doctorInstallAdvice("snapper"))
 	case snapperOptedOut:
 		return okRes(i18n.T("snapshots were declined at install (/etc/ryoku/snapshots-disabled); delete the marker and run `ryoku doctor` to enable them"))
 	case snapperCreate:
@@ -711,8 +757,11 @@ func reconcileSnapper(checkOnly bool) recResult {
 		}
 		return createSnapperRootConfig(st)
 	case snapperWarnInconsistent:
-		return warnRes("%s", strings.Join(problems, "; ")).
-			withFix(i18n.T("see https://wiki.archlinux.org/title/Snapper"))
+		remedy := i18n.T("see https://wiki.archlinux.org/title/Snapper")
+		if st.manager == host.XBPS {
+			remedy = i18n.T("run `sudo ryoku doctor`; use `ryoku-host pkg advice <package>` for a missing snapshot package")
+		}
+		return warnRes("%s", strings.Join(problems, "; ")).withFix(remedy)
 	}
 	return okRes(i18n.T("snapper root config is consistent"))
 }
@@ -817,12 +866,12 @@ func createSnapperRootConfig(st snapperState) recResult {
 		actions = append(actions, "/etc/conf.d/snapper")
 	}
 
-	// services: best-effort. a healthy install has both; an offline AUR install
-	// can be missing limine-snapper-sync, and a failure here doesn't undo the
-	// config we just wrote.
-	_ = sys.Run("sudo", "systemctl", "enable", "--now", "snapper-cleanup.timer")
-	if sys.Exists("/usr/lib/systemd/system/limine-snapper-sync.service") {
-		_ = sys.Run("sudo", "systemctl", "enable", "--now", "limine-snapper-sync.service")
+	// Service enablement is best-effort. A healthy install has both; a package
+	// mirror outage can leave limine-snapper-sync absent without invalidating
+	// the root config just written.
+	_ = runSystemService("enable", "--now", "snapper-cleanup.timer")
+	if doctorPackageInstalled("limine-snapper-sync") {
+		_ = runSystemService("enable", "--now", "limine-snapper-sync.service")
 	}
 
 	return fixedRes(i18n.T("created snapper root config: %s"), strings.Join(actions, ", "))

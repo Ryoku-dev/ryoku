@@ -47,6 +47,16 @@ func onESP(present ...string) func(string) bool {
 	return func(p string) bool { return have[p] }
 }
 
+func TestVoidRyokuUEFIBootEntry(t *testing.T) {
+	out := "Boot0007* Ryoku\tHD(1,GPT,...)/File(\\EFI\\ryoku\\BOOTX64.EFI)\n"
+	if !hasRyokuBootEntry(out) {
+		t.Fatal("Void's active Ryoku loader entry was not recognized")
+	}
+	if hasRyokuBootEntry(strings.Replace(out, "Boot0007*", "Boot0007 ", 1)) {
+		t.Fatal("an inactive Void loader entry was treated as active")
+	}
+}
+
 func TestLimineDeadEntries(t *testing.T) {
 	exists := onESP(
 		"/boot/EFI/Linux/ryoku_linux.efi",

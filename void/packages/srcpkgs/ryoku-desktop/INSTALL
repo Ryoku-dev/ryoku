@@ -35,15 +35,6 @@ enable_first_install_services() {
 	done
 }
 
-disable_boot_guard() {
-	if command -v sv >/dev/null 2>&1 && [ -e /var/service/ryoku-boot-guard ]; then
-		sv down /var/service/ryoku-boot-guard >/dev/null 2>&1 || true
-	fi
-	rm -f /etc/runit/runsvdir/default/ryoku-boot-guard \
-		/var/service/ryoku-boot-guard \
-		/var/lib/ryoku/update-pending.json
-}
-
 tune_host() {
 	if command -v ryoku-bluetooth-tune >/dev/null 2>&1; then
 		ryoku-bluetooth-tune >/dev/null 2>&1 || true
@@ -84,7 +75,8 @@ case "$ACTION" in
 		if [ "${UPDATE:-no}" != yes ]; then
 			enable_first_install_services
 		fi
-		disable_boot_guard
+		# Older packages removed this link, so upgrades repair it too.
+		enable_service_once ryoku-boot-guard
 		tune_host
 		if [ "${RYOKU_MANAGED_UPDATE:-0}" != 1 ]; then
 			if [ -x /run/ryoku-power-cutover ] || session_running; then

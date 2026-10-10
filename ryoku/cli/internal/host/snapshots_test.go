@@ -11,7 +11,8 @@ func TestSnapshotsCapabilityAndCommand(t *testing.T) {
 		wantOutput string
 	}{
 		{name: "pacman", manager: "pacman", supported: true, exit: ExitOK},
-		{name: "xbps", manager: "xbps", supported: false, exit: ExitNotProvided, wantOutput: snapshotsUnavailableReason + "\n"},
+		{name: "xbps", manager: "xbps", supported: true, exit: ExitOK},
+		{name: "unknown", manager: "other", supported: false, exit: ExitNotProvided, wantOutput: snapshotsUnavailableReason + "\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

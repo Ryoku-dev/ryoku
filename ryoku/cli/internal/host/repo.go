@@ -24,6 +24,16 @@ var ErrRepoAbsent = errors.New("no Ryoku package repository is configured")
 var releaseTagPattern = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$`)
 var xbpsPackagePattern = regexp.MustCompile(`^(.+)-([^-]+_[0-9]+)$`)
 
+func repoBaseFor(manager PackageManager) string {
+	if base := strings.TrimSpace(os.Getenv("RYOKU_RELEASE_BASE")); base != "" {
+		return strings.TrimSuffix(base, "/")
+	}
+	if manager == XBPS {
+		return XBPSRepoBase
+	}
+	return PacmanRepoBase
+}
+
 type RepoPackage struct {
 	Name       string
 	Version    string
@@ -31,9 +41,9 @@ type RepoPackage struct {
 }
 
 func RepoURLFor(manager PackageManager, channel string) string {
-	base, arch := PacmanRepoBase, "$arch"
+	base, arch := repoBaseFor(manager), "$arch"
 	if manager == XBPS {
-		base, arch = XBPSRepoBase, "x86_64"
+		arch = "x86_64"
 	}
 	switch {
 	case channel == "stable":
@@ -94,10 +104,7 @@ func (a *App) Repo(args []string) int {
 }
 
 func RepoChannelOf(manager PackageManager, raw string) string {
-	base := PacmanRepoBase
-	if manager == XBPS {
-		base = XBPSRepoBase
-	}
+	base := repoBaseFor(manager)
 	value := strings.TrimSpace(raw)
 	value = strings.TrimSuffix(value, "/")
 	value = strings.TrimSuffix(value, "$arch")

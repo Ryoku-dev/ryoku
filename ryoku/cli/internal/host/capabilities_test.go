@@ -16,7 +16,7 @@ func TestCapabilitiesJSONForSupportedHosts(t *testing.T) {
 		{
 			name: "xbps-runit",
 			env:  map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_INIT": "runit"},
-			want: "{\"packageManager\":\"xbps\",\"init\":\"runit\",\"snapshots\":{\"supported\":false,\"reason\":\"Snapshots are not available on Void Linux, so updates cannot be rolled back.\"},\"aur\":{\"supported\":false,\"reason\":\"The AUR is an Arch Linux service; Void installs come from XBPS.\"}}\n",
+			want: "{\"packageManager\":\"xbps\",\"init\":\"runit\",\"snapshots\":{\"supported\":true,\"reason\":\"\"},\"aur\":{\"supported\":false,\"reason\":\"The AUR is an Arch Linux service; Void installs come from XBPS.\"}}\n",
 		},
 	}
 	for _, tc := range tests {

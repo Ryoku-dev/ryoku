@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"reflect"
+	"ryoku-cli/internal/host"
 	"strconv"
 	"testing"
 )
@@ -73,6 +74,31 @@ func TestChunk(t *testing.T) {
 	}
 	if c := chunk(nil, 20); c != nil {
 		t.Errorf("chunk(nil) = %v, want nil", c)
+	}
+}
+
+func TestVoidSnapshotCleanupUsesRunitServiceOnly(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	oldManager := doctorPackageManager
+	oldService := doctorService
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	var calls [][]string
+	doctorService = func(args ...string) int {
+		calls = append(calls, append([]string(nil), args...))
+		return host.ExitFalse
+	}
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorService = oldService
+	})
+
+	cleanupOff, timelineOn := snapperCleanupServiceState()
+	if !cleanupOff || timelineOn {
+		t.Fatalf("cleanupOff=%t timelineOn=%t, want true,false", cleanupOff, timelineOn)
+	}
+	want := [][]string{{"--system", "is-enabled", "snapper-cleanup.timer"}}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("service calls = %q, want %q", calls, want)
 	}
 }
 

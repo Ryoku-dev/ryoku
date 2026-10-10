@@ -472,6 +472,51 @@ func TestPlanSnapper(t *testing.T) {
 	}
 }
 
+func TestPlanSnapperVoidUsesHostSnapshotStack(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	base := snapperState{
+		manager:             host.XBPS,
+		rootIsBtrfs:         true,
+		configExists:        true,
+		snapshotsExists:     true,
+		snapshotsIsSubvol:   true,
+		snapshotsMode:       0o750,
+		confdExists:         true,
+		confdContents:       "SNAPPER_CONFIGS=\"root\"\n",
+		snapperInstalled:    true,
+		limineInstalled:     true,
+		limineSyncInstalled: true,
+		limineSyncEnabled:   true,
+	}
+	if got, problems := planSnapper(base); got != snapperOK || len(problems) != 0 {
+		t.Fatalf("Void without snap-pac = %v %v, want healthy", got, problems)
+	}
+
+	missingSync := base
+	missingSync.limineSyncInstalled = false
+	got, problems := planSnapper(missingSync)
+	joined := strings.Join(problems, " ")
+	if got != snapperWarnInconsistent || !strings.Contains(joined, "limine-snapper-sync") {
+		t.Fatalf("missing sync = %v %q", got, joined)
+	}
+	for _, forbidden := range []string{"pacman", "AUR", "systemctl"} {
+		if strings.Contains(joined, forbidden) {
+			t.Errorf("Void missing-package advice mentions %q: %q", forbidden, joined)
+		}
+	}
+
+	disabled := base
+	disabled.limineSyncEnabled = false
+	got, problems = planSnapper(disabled)
+	joined = strings.Join(problems, " ")
+	if got != snapperWarnInconsistent || !strings.Contains(joined, "ryoku-host svc --system enable --now limine-snapper-sync.service") {
+		t.Fatalf("disabled sync = %v %q, want host service advice", got, joined)
+	}
+	if strings.Contains(joined, "systemctl") {
+		t.Fatalf("Void service advice leaked systemctl: %q", joined)
+	}
+}
+
 // mergedConfdRoot decides how /etc/conf.d/snapper changes when doctor writes
 // the snapper root config. it must add "root" without dropping anything a
 // human (or another tool) already put in the file.
@@ -2680,16 +2725,43 @@ func TestVoidPackageChannelUsesXBPSRepository(t *testing.T) {
 	}
 }
 
-func TestVoidBootGuardReportsUnsupportedWithoutSystemd(t *testing.T) {
+func TestVoidBootGuardUsesHostServiceSeam(t *testing.T) {
 	oldManager := doctorPackageManager
-	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	oldInstalled := doctorPackageInstalled
+	oldService := doctorService
+	oldCheckout := bootGuardCheckout
+	oldShipped := bootGuardShipped
+	oldWritable := bootGuardWritable
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorPackageInstalled = oldInstalled
+		doctorService = oldService
+		bootGuardCheckout = oldCheckout
+		bootGuardShipped = oldShipped
+		bootGuardWritable = oldWritable
+	})
 	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
-	t.Cleanup(func() { doctorPackageManager = oldManager })
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	doctorPackageInstalled = func(name string) bool { return name == "ryoku-desktop" }
+	bootGuardCheckout = func() bool { return false }
+	bootGuardShipped = func(manager host.PackageManager) bool { return manager == host.XBPS }
+	bootGuardWritable = func() bool { return true }
+	var serviceArgs []string
+	doctorService = func(args ...string) int {
+		serviceArgs = append([]string(nil), args...)
+		return host.ExitFalse
+	}
 
-	result := reconcileBootGuard(false)
-	_, reason := host.Default().Snapshots()
-	if result.status != recOK || result.detail != reason || strings.Contains(result.remedy, "systemctl") {
+	result := reconcileBootGuard(true)
+	if result.status != recWouldFix || !strings.Contains(result.remedy, "ryoku-host svc --system enable ryoku-boot-guard.service") {
 		t.Fatalf("result = %+v", result)
+	}
+	if strings.Contains(result.remedy, "systemctl") || strings.Contains(result.remedy, "pacman") {
+		t.Fatalf("Void remedy leaked an Arch command: %q", result.remedy)
+	}
+	wantArgs := []string{"--system", "is-enabled", "ryoku-boot-guard.service"}
+	if !reflect.DeepEqual(serviceArgs, wantArgs) {
+		t.Fatalf("service args = %q, want %q", serviceArgs, wantArgs)
 	}
 }
 
@@ -2840,7 +2912,7 @@ func TestUncommentedConfigDropsHeadingLikeComments(t *testing.T) {
 	}
 }
 
-func TestVoidReportAvoidsPacmanSystemctlAndSnapperComments(t *testing.T) {
+func TestVoidReportUsesHostCommandsWithSnapshotsSupported(t *testing.T) {
 	oldManager, oldInit := doctorPackageManager, doctorInitSystem
 	oldVersion, oldService := reportPackageVersion, doctorService
 	oldOrphans, oldPending, oldSnapshots := doctorOrphans, doctorFindPendingConfig, doctorSnapshots
@@ -2860,9 +2932,9 @@ func TestVoidReportAvoidsPacmanSystemctlAndSnapperComments(t *testing.T) {
 		}
 		return nil
 	}
-	doctorSnapshots = func() (bool, string) { return false, "unsupported" }
+	doctorSnapshots = func() (bool, string) { return true, "" }
 	report := gatherReport(nil)
-	for _, forbidden := range []string{"$ pacman ", "$ systemctl ", "/etc/conf.d/snapper:", "\n## Path: System/Snapper"} {
+	for _, forbidden := range []string{"$ pacman ", "$ systemctl "} {
 		if strings.Contains(report, forbidden) {
 			t.Fatalf("report contains %q", forbidden)
 		}

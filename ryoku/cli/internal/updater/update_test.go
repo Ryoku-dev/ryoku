@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
+	"ryoku-cli/internal/host"
 	wm "ryoku-wm"
 	"strings"
 	"testing"
@@ -45,6 +47,43 @@ func TestWantedSnapperHelpers(t *testing.T) {
 	}
 	if got := wantedSnapperHelpers(snapHelpers{rootBtrfs: true}); got != nil {
 		t.Fatalf("snapper absent must offer nothing (a separate doctor warn), got %v", got)
+	}
+
+	voidReady := snapHelpers{
+		manager:           host.XBPS,
+		rootBtrfs:         true,
+		snapper:           true,
+		snapperConfigured: true,
+		limine:            true,
+	}
+	if got := wantedSnapperHelpers(voidReady); len(got) != 1 || got[0] != "limine-snapper-sync" {
+		t.Fatalf("Void helper offer = %v, want [limine-snapper-sync]", got)
+	}
+	voidReady.snapperConfigured = false
+	if got := wantedSnapperHelpers(voidReady); got != nil {
+		t.Fatalf("Void without a configured root store offered helpers: %v", got)
+	}
+}
+
+func TestVoidSnapshotHelperUsesPackageAndServiceSeams(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	var calls [][]string
+	oldPrivileged := privileged
+	privileged = func(args ...string) error {
+		calls = append(calls, append([]string(nil), args...))
+		return nil
+	}
+	t.Cleanup(func() { privileged = oldPrivileged })
+
+	if err := installSnapshotHelper("limine-snapper-sync"); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{
+		{"ryoku-host", "pkg", "install", "limine-snapper-sync"},
+		{"ryoku-host", "svc", "--system", "enable", "--now", "limine-snapper-sync.service"},
+	}
+	if !reflect.DeepEqual(calls, want) {
+		t.Fatalf("calls = %v, want %v", calls, want)
 	}
 }
 

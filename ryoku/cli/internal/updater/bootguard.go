@@ -24,11 +24,10 @@ import (
 //   - ryoku-boot-guard.service runs `ryoku boot-guard` early in every boot,
 //     as root. With a marker present and no ok file from a boot after the
 //     update, it counts the boot; on the second such boot it tracks the
-//     previous release back (the Ryoku set moves in one pacman transaction;
-//     Arch stays as it is), re-materializes every user's config from it, and
-//     leaves a notice the doctor surfaces. On a third it points the boot menu
-//     at the pre-update snapshot, which is the last resort when the packages
-//     were not the problem.
+//     previous release back in one package transaction, re-materializes every
+//     user's config from it, and leaves a notice the doctor surfaces. On a
+//     third it points the boot menu at the pre-update snapshot, which is the
+//     last resort when the packages were not the problem.
 //
 // Nothing here needs the user session, so it works when the session is what
 // broke.
@@ -40,6 +39,8 @@ var (
 	noticeFile  = "/var/lib/ryoku/boot/notice.json"
 	limineConf  = "/boot/limine.conf"
 )
+
+var effectiveUID = os.Geteuid
 
 type pendingUpdate struct {
 	From string `json:"from"`
@@ -77,7 +78,7 @@ func bootID() string {
 // in. RYOKU_UPDATE_FROM carries the release the first stage read before pacman
 // ran; the marker is written only when the release actually changed.
 func armBootGuard(snapshot string) {
-	if updatePackageManager() == host.XBPS || sys.ResolveRepo() != "" {
+	if sys.ResolveRepo() != "" {
 		return
 	}
 	from := strings.TrimSpace(os.Getenv("RYOKU_UPDATE_FROM"))
@@ -101,12 +102,8 @@ func armBootGuard(snapshot string) {
 
 // BootGuard is `ryoku boot-guard`, run as root by ryoku-boot-guard.service.
 func BootGuard(args []string) error {
-	if os.Geteuid() != 0 {
+	if effectiveUID() != 0 {
 		return fmt.Errorf(i18n.T("ryoku boot-guard runs as root (ryoku-boot-guard.service)"))
-	}
-	if updatePackageManager() == host.XBPS {
-		_ = os.Remove(pendingFile)
-		return nil
 	}
 	if len(args) > 0 && args[0] == "--disarm" {
 		return disarmBootGuard(i18n.T("disarmed by hand"))
@@ -200,8 +197,12 @@ func revertRelease(p pendingUpdate) error {
 	if back == "" {
 		back = sys.ChannelStable
 	}
+	detail := fmt.Sprintf(i18n.T("the desktop did not come up in two boots after the update; the Ryoku set is back on %s (Arch untouched). `ryoku track %s` moves forward again once the release is fixed."), p.From, sys.TrackName(back))
+	if updatePackageManager() == host.XBPS {
+		detail = fmt.Sprintf(i18n.T("the desktop did not come up in two boots after the update; the Ryoku set is back on %s (Void untouched). `ryoku track %s` moves forward again once the release is fixed."), p.From, sys.TrackName(back))
+	}
 	return writeNotice(bootNotice{Action: "reverted", From: p.From, To: p.To, Channel: p.Channel, Snapshot: p.Snapshot,
-		Detail: fmt.Sprintf(i18n.T("the desktop did not come up in two boots after the update; the Ryoku set is back on %s (Arch untouched). `ryoku track %s` moves forward again once the release is fixed."), p.From, sys.TrackName(back)),
+		Detail: detail,
 		At:     now()})
 }
 

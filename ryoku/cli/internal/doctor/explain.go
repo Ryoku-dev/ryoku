@@ -51,13 +51,9 @@ func aiSystemPrompt() string {
 		if initSystem == host.Runit {
 			initDescription = "runit and Turnstile"
 		}
-		snapshots, _ := app.Snapshots()
-		snapshotDescription := "no snapshot integration"
-		if snapshots {
-			snapshotDescription = "snapper snapshot integration"
-		}
-		return "You are the diagnostic brain for Ryoku on Void Linux with XBPS, " + initDescription + ", " +
-			snapshotDescription + ", running " + comp + ". The `ryoku` CLI manages updates and config. " +
+		return "You are the diagnostic brain for Ryoku on Void Linux with XBPS, " + initDescription +
+			", a btrfs root protected by snapper and limine-snapper-sync, with snapshots restored from the Limine boot menu, running " +
+			comp + ". The `ryoku` CLI manages updates and config. " +
 			"You are given a `ryoku doctor` report: deterministic findings plus system state (packages, " +
 			"services, journal errors, and hardware: GPU and backlight). Name the single most likely root " +
 			"cause and give the exact, safe fix, preferring precise shell commands. When the cause is hardware, " +

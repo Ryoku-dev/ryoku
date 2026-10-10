@@ -71,6 +71,47 @@ func TestRepoChannelAndSetChannelXBPS(t *testing.T) {
 	}
 }
 
+func TestRepoReleaseBaseOverrideForBothManagers(t *testing.T) {
+	t.Setenv("RYOKU_RELEASE_BASE", "http://127.0.0.1:8080/bucket/")
+	for _, manager := range []PackageManager{Pacman, XBPS} {
+		t.Run(string(manager), func(t *testing.T) {
+			arch := "$arch"
+			if manager == XBPS {
+				arch = "x86_64"
+			}
+			for _, channel := range []string{"stable", "testing", "v1.2.3"} {
+				url := RepoURLFor(manager, channel)
+				var suffix string
+				switch channel {
+				case "stable":
+					suffix = "/" + arch
+				case "testing":
+					suffix = "/channels/testing/" + arch
+				default:
+					suffix = "/releases/" + channel + "/" + arch
+				}
+				want := "http://127.0.0.1:8080/bucket" + suffix
+				if url != want {
+					t.Fatalf("RepoURLFor(%s, %q) = %q, want %q", manager, channel, url, want)
+				}
+				if got := RepoChannelOf(manager, url); got != channel {
+					t.Fatalf("RepoChannelOf(%s, %q) = %q, want %q", manager, url, got, channel)
+				}
+			}
+		})
+	}
+}
+
+func TestRepoProductionBasesWithoutOverride(t *testing.T) {
+	t.Setenv("RYOKU_RELEASE_BASE", "")
+	if got := RepoURLFor(Pacman, "stable"); got != PacmanRepoBase+"/$arch" {
+		t.Fatalf("Pacman stable URL = %q", got)
+	}
+	if got := RepoURLFor(XBPS, "stable"); got != XBPSRepoBase+"/x86_64" {
+		t.Fatalf("XBPS stable URL = %q", got)
+	}
+}
+
 func TestRepoCommandExitAndSync(t *testing.T) {
 	runner := &fakeRunner{}
 	app, stdout, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps"})
