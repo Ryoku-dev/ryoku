@@ -28,4 +28,4 @@ jobs:
           node-version: '22'
 
       - name: Test
-        run: node --test release/r2-retention/test
+        run: node --test release/r2-retention/test/*.test.js

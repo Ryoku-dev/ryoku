@@ -5,7 +5,7 @@ This scheduled Worker keeps the ten newest Arch and Void package snapshots in ea
 Run the dependency-free tests from the repository root:
 
 ```sh
-node --test release/r2-retention/test
+node --test release/r2-retention/test/*.test.js
 ```
 
 ## Dry run against R2
