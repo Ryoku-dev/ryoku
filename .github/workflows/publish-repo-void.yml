@@ -342,6 +342,18 @@ jobs:
             verify "Ryoku:$R2_BUCKET/void/x86_64"
           fi
 
+      - name: Record the Void release in the ledger
+        if: needs.build.outputs.channel == 'stable'
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          RELEASE: ${{ needs.build.outputs.release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./bin/ryoku-release-ledger "Ryoku:$R2_BUCKET" void | jq -e --arg tag "$RELEASE" '.latest == $tag' >/dev/null \
+            || { echo "::error::void/releases/index.json does not list $RELEASE as latest"; exit 1; }
+          echo "::notice::void/releases/index.json now lists $RELEASE as latest"
+
       - name: Dispatch the Void release ISO build
         if: needs.build.outputs.channel == 'stable'
         env:

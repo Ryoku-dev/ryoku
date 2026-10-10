@@ -279,6 +279,17 @@ jobs:
             --header-upload 'Cache-Control: no-cache, must-revalidate'
           rclone copy "$dir/latest-void.js" "$dest" -P \
             --header-upload 'Cache-Control: no-cache, must-revalidate'
+      - name: Refresh the Void release ledger
+        if: github.ref_type == 'tag'
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./bin/ryoku-release-ledger "Ryoku:$R2_BUCKET" void \
+            | jq -e --arg tag "$GITHUB_REF_NAME" \
+              'any(.releases[]?; .tag == $tag and (.images.void != null))' >/dev/null \
+            || { echo "::error::void/releases/index.json has no Void image for $GITHUB_REF_NAME"; exit 1; }
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:

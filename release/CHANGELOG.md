@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Added
+- **Void ships `limine-snapper-sync`.** The signed XBPS package builds the
+  native tool offline and runs its snapshot watcher under runit.
 - **Ryoku packages now share one payload across pacman and XBPS.** Monorepo
   PKGBUILDs install the shared payload with systemd wiring, while Void templates
   install it with runit wiring. The new Void pipeline builds, signs, and indexes
@@ -51,6 +53,9 @@
   manifest (with a message, never an abort), and keeps every existing field, so
   a consumer that ignores `images` reads byte-identical entries
   (`bin/ryoku-release-ledger`).
+- **Void releases have their own ledger.** Package and ISO publishes rebuild
+  `void/releases/index.json`, while the Arch ledger accepts only plain and
+  CachyOS images.
 
 - **`ryoku-keysounds`: the key sounds compositor plugin.** Built from
   `ryoku/hyprland/plugins/keysounds` (depends on `hyprland`, `libcanberra`),

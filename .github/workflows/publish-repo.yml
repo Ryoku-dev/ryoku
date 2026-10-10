@@ -437,7 +437,7 @@ jobs:
           # in-place edit once read a missing ledger as empty input and
           # published a zero-byte file. release-ledger.yml rebuilds it on
           # demand with the same script.
-          ./bin/ryoku-release-ledger "Ryoku:$R2_BUCKET" | jq -e --arg tag "$RELEASE" '.latest == $tag' >/dev/null \
+          ./bin/ryoku-release-ledger "Ryoku:$R2_BUCKET" arch | jq -e --arg tag "$RELEASE" '.latest == $tag' >/dev/null \
             || { echo "::error::releases/index.json does not list $RELEASE as latest"; exit 1; }
           echo "::notice::releases/index.json now lists $RELEASE as latest"
 
