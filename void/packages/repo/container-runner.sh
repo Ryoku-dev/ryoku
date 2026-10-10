@@ -85,6 +85,7 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-e "RYOKU_CHANNEL=$channel"
 	-e "RYOKU_NAME=$name"
 	-e "RYOKU_PKGVER=$package_version"
+	-e "RYOKU_XBPS_PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}"
 	-e "XBPS_PASSPHRASE=${XBPS_PASSPHRASE:-}")
 
 if [[ -n ${RYOKU_XBPS_KEY:-} ]]; then
@@ -95,9 +96,13 @@ if [[ -n ${RYOKU_XBPS_KEYRING_DIR:-} ]]; then
 	[[ -d $RYOKU_XBPS_KEYRING_DIR ]] || { printf 'container-runner.sh: keyring directory not found: %s\n' "$RYOKU_XBPS_KEYRING_DIR" >&2; exit 1; }
 	run+=( -v "$(cd "$RYOKU_XBPS_KEYRING_DIR" && pwd -P):/run/ryoku-keyring:ro" )
 fi
+if [[ -n ${RYOKU_XBPS_MIRROR:-} ]]; then
+	[[ -d $RYOKU_XBPS_MIRROR ]] || { printf 'container-runner.sh: package mirror not found: %s\n' "$RYOKU_XBPS_MIRROR" >&2; exit 1; }
+	run+=( -v "$(cd "$RYOKU_XBPS_MIRROR" && pwd -P):/run/ryoku-mirror:ro" )
+	run+=( -e "RYOKU_XBPS_MIRROR=/run/ryoku-mirror" )
+fi
 
-# The official image ships only sh, so bash is installed (with a current xbps)
-# before the build script, which needs bash, takes over.
+# The official image needs bash installed before the build script takes over.
 inner='
 	xbps-install -y sudo git openssh
 	getent group xbuilder >/dev/null || groupadd xbuilder
@@ -125,6 +130,8 @@ inner='
 		RYOKU_XBPS_OUT=/out \
 		RYOKU_XBPS_KEY="$key" \
 		RYOKU_XBPS_KEYRING_DIR="$keyring" \
+		RYOKU_XBPS_MIRROR="${RYOKU_XBPS_MIRROR:-}" \
+		RYOKU_XBPS_PRODUCTION="$RYOKU_XBPS_PRODUCTION" \
 		RYOKU_VOID_PACKAGES_REF="$RYOKU_VOID_PACKAGES_REF" \
 		RYOKU_XBPS_PACKAGES="$RYOKU_XBPS_PACKAGES" \
 		RYOKU_XBPS_WORKTREE="$RYOKU_XBPS_WORKTREE" \

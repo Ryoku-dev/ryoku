@@ -102,17 +102,24 @@ void/packages/repo/new-signing-key /secure/ryoku-xbps.pem
 ```
 
 The filename is XBPS's lower-case, colon-separated MD5 fingerprint of the SSH
-RSA wire key, without the `MD5:` prefix. Before publishing, sync the signed
-repository in an isolated XBPS root, accept the offered key, and byte-compare
-the imported `/var/db/xbps/keys/*.plist` with the generated plist. Local and CI
-builds can substitute an uncommitted development plist directory through
-`RYOKU_XBPS_KEYRING_DIR`.
+RSA wire key, without the `MD5:` prefix. Publishing and ISO builds derive this
+plist from the production secret and refuse to continue unless it is committed.
+Production package builds reject keyring overrides and verify the package
+contains exactly the committed plists. Local builds may use
+`RYOKU_XBPS_KEYRING_DIR` for a development key.
 
 The keyring package installs the trusted plist and
 `/usr/share/xbps.d/20-ryoku.conf`, which points at
 `https://repo.ryoku.dev/stable/void/x86_64`. An administrator selects another
 channel by writing `/etc/xbps.d/20-ryoku.conf`; XBPS gives that same-basename
 file precedence.
+
+Pushes to `unstable-dev` publish `void/channels/testing/x86_64/`. A `v*` tag
+publishes an immutable `void/releases/<tag>/x86_64/` repository and then moves
+the `void/x86_64/` stable pointer. Before building, CI adopts unchanged XBPS
+files from the bucket into xbps-src's host repository. Stable releases seed
+from the stable pointer and then testing, so unchanged third-party and keyring
+packages retain their published bytes.
 
 `tests/void-packages.sh` recomputes the Arch package closure, validates table
 semantics and template coverage, and checks that each template covers the

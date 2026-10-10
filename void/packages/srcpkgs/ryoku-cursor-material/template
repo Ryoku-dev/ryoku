@@ -4,8 +4,7 @@ version=1.0.0
 revision=1
 _bibata_commit=f4ccfe8abb63fddc7b3ce51a866fd8378395cb3d
 wrksrc="bibata_cursor-${_bibata_commit}"
-# The compile and the runtime recolor both shell out to rsvg-convert and
-# xcursorgen, so the tools (not just their libraries) are needed on both sides.
+# Both build and runtime recoloring require the rsvg-convert and xcursorgen tools.
 hostmakedepends="fish-shell jq python3 librsvg-utils xcursorgen"
 depends="python3 librsvg librsvg-utils xcursorgen"
 python_version=3

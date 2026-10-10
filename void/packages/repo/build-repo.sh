@@ -11,6 +11,8 @@ VOID_PACKAGES_REF=${RYOKU_VOID_PACKAGES_REF:-deb0bc286bd5e1fbbf191802c3f578caf4f
 VOID_PACKAGES_URL=${RYOKU_VOID_PACKAGES_URL:-https://github.com/void-linux/void-packages.git}
 KEY=${RYOKU_XBPS_KEY:-}
 KEYRING_DIR=${RYOKU_XBPS_KEYRING_DIR:-}
+MIRROR_DIR=${RYOKU_XBPS_MIRROR:-}
+PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}
 SOURCE_ARCHIVE=${RYOKU_XBPS_SOURCE_ARCHIVE:-}
 VP=$WORK/void-packages
 HOSTDIR=$WORK/hostdir
@@ -20,10 +22,17 @@ log() { printf '\033[1;35m::\033[0m %s\n' "$*"; }
 die() { printf 'build-repo.sh: error: %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -ne 0 ]] || die "xbps-src builds must run as a non-root user"
-for command in git tar sha256sum xbps-rindex; do
+for command in cmp git tar sha256sum xbps-rindex; do
 	command -v "$command" >/dev/null 2>&1 || die "required command not found: $command"
 done
 [[ -d $SRCPKGS ]] || die "template directory not found: $SRCPKGS"
+[[ $PRODUCTION == 0 || $PRODUCTION == 1 ]] \
+	|| die "RYOKU_XBPS_PRODUCTION must be 0 or 1"
+if [[ $PRODUCTION == 1 ]]; then
+	[[ -n $KEY ]] || die "production builds require RYOKU_XBPS_KEY"
+	[[ -z $KEYRING_DIR ]] \
+		|| die "production builds must use the committed ryoku-keyring plist"
+fi
 if [[ -n $KEY ]]; then
 	[[ -r $KEY ]] || die "cannot read RYOKU_XBPS_KEY: $KEY"
 else
@@ -104,8 +113,6 @@ else
 	for pkg in "${all_packages[@]}"; do selected[$pkg]=1; done
 fi
 
-# Include every overlay dependency of a selected package. This keeps a focused
-# build usable without requiring callers to spell its private dependency chain.
 changed=1
 while ((changed)); do
 	changed=0
@@ -123,13 +130,26 @@ while ((changed)); do
 done
 
 if [[ -n ${selected[ryoku-keyring]:-} ]]; then
-	key_source=${KEYRING_DIR:-$SRCPKGS/ryoku-keyring/files}
+	key_source=$SRCPKGS/ryoku-keyring/files
+	[[ $PRODUCTION == 1 || -z $KEYRING_DIR ]] || key_source=$KEYRING_DIR
 	key_plists=("$key_source"/*.plist)
 	((${#key_plists[@]})) || die "ryoku-keyring has no plist; run void/packages/repo/new-signing-key PRIVATE_KEY and add the production plist, or set RYOKU_XBPS_KEYRING_DIR for a development key"
 fi
 
 mkdir -p "$WORK" "$OUT" "$HOSTDIR"
-# A Go module cache from an earlier run is read-only by design.
+if [[ -n $MIRROR_DIR ]]; then
+	[[ -d $MIRROR_DIR ]] || die "RYOKU_XBPS_MIRROR is not a directory: $MIRROR_DIR"
+	mirror_packages=("$MIRROR_DIR"/*.xbps)
+	if ((${#mirror_packages[@]})); then
+		mkdir -p "$HOSTDIR/binpkgs"
+		cp -f "${mirror_packages[@]}" "$HOSTDIR/binpkgs/"
+		host_packages=("$HOSTDIR/binpkgs"/*.xbps)
+		rm -f "$HOSTDIR/binpkgs/$ARCH-repodata"
+		XBPS_TARGET_ARCH=$ARCH xbps-rindex --add "${host_packages[@]}"
+		log "Adopted ${#mirror_packages[@]} published package(s)"
+	fi
+fi
+# Go's module cache may be read-only.
 [[ ! -d $VP ]] || chmod -R u+w "$VP"
 rm -rf "$VP"
 mkdir -p "$WORK/source"
@@ -161,8 +181,7 @@ else
 	git -C "$ROOT" archive --format=tar.gz --prefix="ryoku-$VERSION/" -o "$archive" HEAD
 fi
 archive_sha=$(sha256sum "$archive" | awk '{print $1}')
-# Every worktree edit yields a new version, so drop older monorepo archives
-# instead of letting each build leave several hundred megabytes per package.
+# Remove obsolete monorepo archives before they consume hundreds of megabytes.
 for stale in "$WORK"/source/ryoku-*.tar.gz; do
 	[[ -e $stale && $stale != "$archive" ]] && rm -f "$stale"
 done
@@ -189,16 +208,14 @@ done
 
 {
 	printf '%s\n' 'XBPS_BUILD_ENVIRONMENT=ryoku-repository' 'XBPS_CHROOT_CMD=uchroot'
-	# Without this xbps-src rebuilds every package even when the exact version
-	# already sits in the persistent hostdir.
+	# Reuse exact package versions already present in the persistent hostdir.
 	printf '%s\n' 'XBPS_PRESERVE_PKGS=yes'
 	printf 'XBPS_HOSTDIR=%q\n' "$HOSTDIR"
 	printf 'export RYOKU_RELEASE=%q\n' "$RYOKU_RELEASE"
 	printf 'export RYOKU_CHANNEL=%q\n' "$RYOKU_CHANNEL"
 	printf 'export RYOKU_NAME=%q\n' "$RYOKU_NAME"
 } >> "$VP/etc/conf"
-# xbps-src resolves a virtual dependency through etc/virtual even when the
-# provider is built in the same run; niri is the only Void compositor today.
+# xbps-src needs etc/virtual even when the provider is built in the same run.
 printf '%s\n' 'ryoku-desktop-compositor ryoku-desktop-niri' >> "$VP/etc/virtual"
 log "Bootstrapping the pinned xbps-src masterdir"
 (
@@ -206,11 +223,7 @@ log "Bootstrapping the pinned xbps-src masterdir"
 	./xbps-src binary-bootstrap
 )
 
-# Build in topological order among selected overlay packages. Official Void
-# dependencies remain xbps-src's responsibility. xbps-src consults
-# XBPS_HOSTDIR/binpkgs before building and returns success when that exact
-# package version already exists. Deliberately do not pass -f: fixed
-# third-party builds and unchanged worktree archives are reusable.
+# Omit -f so xbps-src reuses exact packages from XBPS_HOSTDIR.
 selected_count=${#selected[@]}
 while ((${#built[@]} < selected_count)); do
 	progress=0
@@ -258,6 +271,25 @@ for pkg in "${all_packages[@]}"; do
 done
 packages=("$ARCH_DIR"/*.xbps)
 ((${#packages[@]})) || die "xbps-src produced no selected packages"
+if [[ $PRODUCTION == 1 && -n ${selected[ryoku-keyring]:-} ]]; then
+	keyring_packages=("$ARCH_DIR"/ryoku-keyring-*.xbps)
+	((${#keyring_packages[@]} == 1)) \
+		|| die "production repository must contain one ryoku-keyring package"
+	keyring_check=$WORK/keyring-check
+	rm -rf "$keyring_check"
+	mkdir -p "$keyring_check"
+	tar -xf "${keyring_packages[0]}" -C "$keyring_check"
+	committed_plists=("$SRCPKGS/ryoku-keyring/files/"*.plist)
+	packaged_plists=("$keyring_check/var/db/xbps/keys/"*.plist)
+	((${#packaged_plists[@]} == ${#committed_plists[@]})) \
+		|| die "ryoku-keyring package does not contain exactly the committed plists"
+	for committed in "${committed_plists[@]}"; do
+		packaged="$keyring_check/var/db/xbps/keys/$(basename "$committed")"
+		[[ -f $packaged ]] && cmp -s "$committed" "$packaged" \
+			|| die "ryoku-keyring package does not contain committed plist $(basename "$committed")"
+	done
+	rm -rf "$keyring_check"
+fi
 
 log "Indexing ${#packages[@]} package(s)"
 XBPS_TARGET_ARCH=$ARCH xbps-rindex --add "${packages[@]}"

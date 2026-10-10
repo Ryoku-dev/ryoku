@@ -4,8 +4,7 @@ version=0.1.0
 revision=1
 archs="x86_64"
 hostmakedepends="go"
-# ryoku-desktop pulls this variant through the compositor virtual. Depending
-# back on the base would form a cycle that xbps-src refuses to build.
+# Depending back on ryoku-desktop would create an xbps-src cycle.
 depends="niri xwayland-satellite xdg-desktop-portal-gnome wlsunset"
 provides="ryoku-desktop-compositor-${version}_${revision}"
 short_desc="Ryoku niri compositor, portal, X11 bridge, and WM provider"

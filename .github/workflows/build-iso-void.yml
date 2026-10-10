@@ -9,10 +9,10 @@ on:
         default: 'beta'
         type: choice
         options: [alpha, beta, stable]
-      ryoku_repo_url:
+      repo_url:
         description: 'Ryoku XBPS repository URL; empty uses the stable Void repository'
         required: false
-        default: ''
+        default: 'https://repo.ryoku.dev/stable/void/x86_64'
         type: string
   push:
     tags:
@@ -54,7 +54,7 @@ jobs:
     timeout-minutes: 240
     env:
       RELEASE_STAGE: ${{ github.event.inputs.release_stage || 'beta' }}
-      RYOKU_VOID_ISO_RYOKU_REPO: ${{ github.event.inputs.ryoku_repo_url || 'https://repo.ryoku.dev/stable/void/x86_64' }}
+      RYOKU_VOID_ISO_RYOKU_REPO: ${{ github.event.inputs.repo_url || 'https://repo.ryoku.dev/stable/void/x86_64' }}
       RYOKU_ISO_VARIANT: void
     steps:
       - name: Checkout
@@ -73,7 +73,7 @@ jobs:
           short_sha=${GITHUB_SHA::7}
           tracking_id=r${GITHUB_RUN_NUMBER}-${short_sha}
           ref=main
-          [[ $GITHUB_REF_NAME == void-v* ]] && ref=$GITHUB_REF_NAME
+          [[ $GITHUB_REF_TYPE == tag ]] && ref=$GITHUB_REF_NAME
           {
             echo "RYOKU_ISO_TRACKING_ID=$tracking_id"
             echo "RYOKU_ISO_COMMIT=$GITHUB_SHA"
@@ -101,20 +101,37 @@ jobs:
           [[ -n $R2_SECRET_ACCESS_KEY ]] || missing+=(R2_SECRET_ACCESS_KEY)
           [[ -n $R2_ENDPOINT ]] || missing+=(R2_ENDPOINT)
           ((${#missing[@]} == 0)) || { printf 'Missing required secrets: %s\n' "${missing[*]}" >&2; exit 1; }
-      - name: Prepare XBPS trust key
+      - name: Verify the XBPS trust key
         env:
           VOID_REPO_SIGNING_KEY: ${{ secrets.VOID_REPO_SIGNING_KEY }}
           XBPS_PASSPHRASE: ${{ secrets.VOID_REPO_SIGNING_PASSPHRASE }}
         shell: bash
         run: |
           set -euo pipefail
-          key=$RUNNER_TEMP/ryoku-xbps.pem
-          keyring=$RUNNER_TEMP/ryoku-xbps-keyring
+          key="$RUNNER_TEMP/ryoku-xbps.pem"
+          derived="$RUNNER_TEMP/ryoku-xbps-derived"
+          committed_dir="$GITHUB_WORKSPACE/void/packages/srcpkgs/ryoku-keyring/files"
           printf '%s\n' "$VOID_REPO_SIGNING_KEY" > "$key"
           chmod 600 "$key"
-          mkdir -p "$keyring"
-          void/packages/repo/new-signing-key "$key" "$keyring"
-          echo "RYOKU_VOID_ISO_KEYRING_DIR=$keyring" >> "$GITHUB_ENV"
+          mkdir -p "$derived"
+          void/packages/repo/new-signing-key "$key" "$derived"
+          shopt -s nullglob
+          plists=("$derived"/*.plist)
+          ((${#plists[@]} == 1)) || {
+            echo "::error::Could not derive one XBPS public key plist from VOID_REPO_SIGNING_KEY"
+            exit 1
+          }
+          name=${plists[0]##*/}
+          committed="$committed_dir/$name"
+          [[ -f $committed ]] || {
+            echo "::error::VOID_REPO_SIGNING_KEY has fingerprint ${name%.plist}, but $committed is not committed. Generate it with void/packages/repo/new-signing-key before building an ISO."
+            exit 1
+          }
+          cmp -s "${plists[0]}" "$committed" || {
+            echo "::error::Committed XBPS key plist $committed does not match VOID_REPO_SIGNING_KEY"
+            exit 1
+          }
+          echo "RYOKU_VOID_ISO_KEYRING_DIR=$committed_dir" >> "$GITHUB_ENV"
           rm -f "$key"
       - name: Free build storage
         run: |

@@ -13,8 +13,7 @@ provides="bibata-cursor-theme-${version}_${revision}"
 conflicts="bibata-cursor-theme>=0 bibata-cursor-theme-bin>=0"
 replaces="bibata-cursor-theme>=0 bibata-cursor-theme-bin>=0"
 
-# Void's niri edition uses XCursor. The Hyprcursor rebuild is intentionally
-# omitted because its Hyprland tooling is not available in Void.
+# Void lacks the Hyprland tooling needed to rebuild Hyprcursor themes.
 do_install() {
 	vmkdir usr/share/icons
 	vcopy "Bibata*" usr/share/icons

@@ -93,9 +93,9 @@ distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"
 
-# Administrators may tune elogind's fallback lid policy and the site-wide
-# default applications after installation.
 conf_files="/etc/elogind/logind.conf.d/10-ryoku-lid.conf /etc/xdg/mimeapps.list"
+# 60-ryoku-i2c.rules hands /dev/i2c-* to this group for DDC brightness.
+system_groups="i2c"
 
 _do_payload() {
 	GOFLAGS="-buildmode=pie" \

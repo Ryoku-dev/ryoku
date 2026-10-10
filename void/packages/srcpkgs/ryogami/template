@@ -12,9 +12,7 @@ hostmakedepends="go cmake ninja pkg-config wayland-devel wayland-protocols
 makedepends="wayland-devel ffmpeg6-devel qt6-base-private-devel
  qt6-declarative-devel qt6-multimedia-devel qt6-shadertools-devel
  Vulkan-Headers"
-# makepkg reads the build host's Qt version while packaging. XBPS metadata is
-# fixed before do_install, so the template pins the Void Qt series explicitly;
-# generated shared-library requirements add the matching ABI constraints.
+# Pin Qt so generated shlib requirements match the build-host ABI.
 depends="ImageMagick ffmpeg6 quickshell qt6-base>=6.11.2
  qt6-declarative>=6.11.2 qt6-multimedia>=6.11.2 qt6-imageformats
  skwd-paper-bin"

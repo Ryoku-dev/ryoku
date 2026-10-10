@@ -1,6 +1,6 @@
 # Template file for 'ryoku-keyring'
 pkgname=ryoku-keyring
-version=20261009
+version=20261010
 revision=1
 short_desc="Ryoku XBPS repository signing keys and stable repository configuration"
 maintainer="Ryoku <releases@ryoku.dev>"

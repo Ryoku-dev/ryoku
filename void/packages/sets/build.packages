@@ -1,4 +1,3 @@
-# Source-build toolchain for the Void installer lane.
 base-devel
 go
 cmake

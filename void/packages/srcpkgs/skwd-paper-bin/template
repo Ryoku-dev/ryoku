@@ -40,8 +40,7 @@ do_build() {
 }
 
 do_install() {
-	# package-stage.sh insists on an empty destination, and xbps-src has
-	# already populated DESTDIR by the time do_install runs.
+	# package-stage.sh requires a fresh destination after xbps-src populates DESTDIR.
 	rm -rf .xbps-stage
 	SKWD_PAPER_BIN_DIR="${PWD}/target/${RUST_TARGET}/release" \
 		./scripts/package-stage.sh "${PWD}/.xbps-stage"

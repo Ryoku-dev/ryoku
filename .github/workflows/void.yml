@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'void/**'
+      - 'release/packages/*/payload.sh'
+      - 'installation/tests/*void*'
+      - 'tests/*void*'
+      - '.github/workflows/*void*.yml'
       - 'ryoku-shell-installer/**'
       - 'system/packages/**'
       - 'release/packages/**'
@@ -27,6 +31,10 @@ on:
       - main
     paths:
       - 'void/**'
+      - 'release/packages/*/payload.sh'
+      - 'installation/tests/*void*'
+      - 'tests/*void*'
+      - '.github/workflows/*void*.yml'
       - 'ryoku-shell-installer/**'
       - 'system/packages/**'
       - 'release/packages/**'

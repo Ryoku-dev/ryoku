@@ -68,7 +68,7 @@ hypr-dynamic-cursors	-	hyprland	Hyprland is not packaged on Void.
 hyprglass	-	hyprland	Hyprland is not packaged on Void.
 hyprgrass	-	hyprland	Hyprland is not packaged on Void.
 hypridle	swayidle	desktop	
-hyprland	-	hyprland	Hyprland is not packaged on Void.
+hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
 hyprland-preview-share-picker	-	hyprland	Hyprland is not packaged on Void.
 hyprpicker	hyprpicker	desktop	
 hyprpolkitagent	-	hyprland	Hyprland is not packaged on Void.
@@ -108,7 +108,7 @@ limine-snapper-sync	-	system	No Void boot-menu snapshot integration package.
 linux	linux	system	
 linux-firmware	linux-firmware	system	
 linux-headers	linux-headers	desktop	
-localsend-bin	-	extra	No Void repository package.
+localsend-bin	-	extra	Only published in the AUR, not packaged for Void.
 looking-glass	-	optional	No Void repository package.
 lua	lua	optional	
 mangohud	MangoHud	desktop	
@@ -179,7 +179,7 @@ ryoku-cursor-material	ryoku-cursor-material	desktop	repo=ryoku
 ryoku-cursors	ryoku-cursors	desktop	repo=ryoku
 ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor meta-package.
-ryoku-desktop-hyprland	-	hyprland	Hyprland is not packaged on Void.
+ryoku-desktop-hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
 ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hypr-plugins	-	hyprland	Hyprland is not packaged on Void.
@@ -220,7 +220,7 @@ upower	upower	desktop
 uv	uv	desktop	
 vimix-cursors	vimix-cursors	desktop	repo=ryoku
 virglrenderer	virglrenderer	desktop	
-voxtype-bin	-	extra	No Void repository package.
+voxtype-bin	-	extra	Only published in the AUR, not packaged for Void.
 vulkan-icd-loader	vulkan-loader	desktop	
 vulkan-intel	mesa-vulkan-intel	hardware:intel	
 vulkan-radeon	mesa-vulkan-radeon	hardware:amd	
@@ -251,7 +251,7 @@ yay-bin	-	extra	AUR helpers do not apply to XBPS.
 yazi	yazi	desktop	
 yt-dlp	yt-dlp	desktop	
 zbar	zbar	desktop	
-zen-browser-bin	-	extra	No Void repository package.
+zen-browser-bin	-	extra	Only published in the AUR, not packaged for Void.
 zenity	zenity	desktop	
 zlib	zlib	desktop	
 zoxide	zoxide	desktop	

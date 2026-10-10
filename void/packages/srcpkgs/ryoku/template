@@ -12,8 +12,7 @@ distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"
 
-# pacman, pacman-contrib, and snapper are Arch-only. Runtime package and
-# snapshot operations use ryoku-host's XBPS and unsupported-snapshot seams.
+# Arch-only package and snapshot operations use ryoku-host's Void seams.
 _payload() {
 	GOFLAGS="-buildmode=pie" \
 	RYOKU_SRC="$wrksrc" \

@@ -54,25 +54,15 @@ case $fingerprint in
 esac
 
 plist=$keyring_dir/$fingerprint.plist
+# Match the bytes XBPS writes when it accepts the key.
 {
-	cat <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>public-key</key>
-  <data>
-EOF
-	base64 "$work/public.pem" | while IFS= read -r line; do printf '    %s\n' "$line"; done
-	cat <<'EOF'
-  </data>
-  <key>public-key-size</key>
-  <integer>4096</integer>
-  <key>signature-by</key>
-  <string>Ryoku Linux package repository</string>
-</dict>
-</plist>
-EOF
+	printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+		'<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+		'<plist version="1.0">' '<dict>' '	<key>public-key</key>'
+	printf '\t<data>%s</data>\n' "$(base64 -w0 "$work/public.pem")"
+	printf '%s\n' '	<key>public-key-size</key>' '	<integer>4096</integer>' \
+		'	<key>signature-by</key>' '	<string>Ryoku Linux package repository</string>' \
+		'</dict>' '</plist>'
 } > "$plist"
 chmod 644 "$plist"
 

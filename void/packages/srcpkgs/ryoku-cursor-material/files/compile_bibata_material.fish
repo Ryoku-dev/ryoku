@@ -1,5 +1,4 @@
 #!/usr/bin/env fish
-# Compiles themes from themes.json into installed Bibata cursor packs.
 
 set -l requested_theme $argv[1]
 set -l script_dir (dirname (readlink -f (status filename)))

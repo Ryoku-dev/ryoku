@@ -57,6 +57,7 @@ pkgbuild_field() {
 	' _ "$path" "$field"
 }
 
+# shellcheck disable=SC2034 # the closure is written through namerefs
 walk_closure() {
 	local root=$1 hard_name=$2 opt_name=$3 seen_name=$4
 	local -n hard_ref=$hard_name opt_ref=$opt_name seen_ref=$seen_name
@@ -83,9 +84,10 @@ walk_closure() {
 	done
 }
 
-declare -A neutral_hard=() neutral_opt=() neutral_seen=()
-declare -A niri_hard=() niri_opt=() niri_seen=()
-declare -A hypr_hard=() hypr_opt=() hypr_seen=()
+# shellcheck disable=SC2034 # filled by walk_closure through namerefs
+declare -A neutral_hard=() neutral_opt=() neutral_seen=() \
+	niri_hard=() niri_opt=() niri_seen=() \
+	hypr_hard=() hypr_opt=() hypr_seen=()
 walk_closure ryoku-desktop neutral_hard neutral_opt neutral_seen
 walk_closure ryoku-desktop-niri niri_hard niri_opt niri_seen
 walk_closure ryoku-desktop-hyprland hypr_hard hypr_opt hypr_seen
