@@ -8,7 +8,6 @@ BIN=${RYOKU_BIN_DIR:-/usr/bin}
 wait_env WAYLAND_DISPLAY "${RYOKU_WAIT_WAYLAND:-60}" || exec sv down .
 load_session_env
 
-# jemalloc decay releases picker memory after close.
 export MALLOC_CONF=narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy_decay_ms:5000
 
 exec "$BIN/ryogami"
