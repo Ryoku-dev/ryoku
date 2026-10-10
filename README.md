@@ -6,13 +6,13 @@
 
 **力と美のために** &middot; *For the sake of power and beauty.*
 
-Ryoku is a hand-built Linux distribution built on Arch Linux: one cohesive
-desktop that runs on Hyprland or niri, a guided installer, and the system
-definition that reproduces them, all from a single repository. It is a whole
-operating system you install to disk from its own ISO -- the bootloader,
-drivers, packages, installer and desktop are all part of it -- not a shell or a
-set of dotfiles you layer onto an existing distro. The base is lean enough to
-live in from first boot and deliberate in how it looks and moves.
+Ryoku is a hand-built Linux distribution with Arch, CachyOS, and Void Linux
+editions: one cohesive desktop, a guided installer, and the system definition
+that reproduces them, all from a single repository. It is a whole operating
+system you install to disk from its own ISO, including the bootloader, drivers,
+packages, installer, and desktop, not a shell or a set of dotfiles layered onto
+another distro. The base is lean enough to live in from first boot and
+deliberate in how it looks and moves.
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-E2342A?style=for-the-badge)](LICENSE)
 [![Built on Arch](https://img.shields.io/badge/Arch_Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white)](https://archlinux.org)
@@ -122,17 +122,18 @@ Everything else waits in Ryoku Settings (`Super + ,`).
   the lockscreen, app configs, and brand assets.
 - **The system definition** under `system/`: the boot chain, hardware policy,
   and package sets that make a machine a Ryoku machine.
-- **The installer** under `installation/`: a guided TUI, the backend installer,
-  and the archiso profile that builds the signed ISO.
-- **The update system** under `release/`: the `ryoku` control CLI, the desktop
-  packages, and the signed `[ryoku]` pacman repository.
+- **The installer** under `installation/` and `void/iso/`: a guided TUI, the
+  backend installers, and the live-image profiles that build the signed ISOs.
+- **The update system** under `release/` and `void/packages/`: the `ryoku`
+  control CLI, desktop packages, and signed pacman and XBPS repositories.
 
 ## Requirements
 
-Ryoku is `x86_64` only and boots in UEFI mode. The session is Wayland on
-Hyprland or niri, with the GPU-composited Ryoku shell on top. The installer
-refuses a machine with Secure Boot on (Limine ships unsigned) unless you have
-enrolled your own keys, and there is no 32-bit build and no legacy BIOS path.
+Ryoku is `x86_64` only and boots in UEFI mode. Arch and CachyOS sessions can
+run Hyprland or niri; the Void edition runs niri. The GPU-composited Ryoku
+shell sits on top. The installer refuses a machine with Secure Boot on (Limine
+ships unsigned) unless you have enrolled your own keys, and there is no 32-bit
+build or legacy BIOS path.
 
 |  | Minimum | Recommended |
 |---|---|---|
@@ -146,11 +147,11 @@ The desktop is light on its own: a resting session (the compositor, the shell,
 and its daemons) uses under 1 GB of RAM. What you run on top, the browser,
 editor, and toolchains, is the rest of the budget: 8 GB is a sensible floor for
 daily use, and 16 GB is comfortable once the language toolchains are in. The
-32 GB disk figure is the installer's hard floor. The base plus developer and
-desktop package closure is about 13 to 15 GB, and the root filesystem needs 20 GB
-before swap so Btrfs snapshots and AUR builds have somewhere to go. Use an SSD;
-snapshots on every `ryoku update`, package builds, and the shell itself all feel
-a slow disk.
+32 GB figure is the installer's hard floor. The base plus developer and desktop
+package closure is about 13 to 15 GB, and the root filesystem needs 20 GB
+before swap. On Arch and CachyOS, that also leaves room for Btrfs snapshots and
+AUR builds. Use an SSD; package builds and the shell itself both feel a slow
+disk.
 
 ### Graphics
 
@@ -180,16 +181,16 @@ Broadcom Wi-Fi, read-only NVRAM, slow USB media) is in
 
 ## Install
 
-Two ways in. A fresh machine boots the signed **ISO**; an existing Arch box
-converts in place with the **shell installer**.
+Two ways in. A fresh machine boots the signed **ISO**; an existing Arch,
+CachyOS, or Void glibc box converts in place with the **shell installer**.
 
 ### Fresh install (the ISO)
 
-Signed ISO builds are published at **[ryoku.dev](https://ryoku.dev)**. Download
-the latest image, its signature, and the checksums, write it to a USB stick, and
-boot it. The guided installer partitions the disk (Btrfs with subvolumes),
-installs the package set and the Ryoku desktop from the signed repository, sets
-up the Limine boot chain, and configures snapshots.
+Signed ISO builds are published at **[ryoku.dev](https://ryoku.dev)**. Choose
+the edition, download its image, signature, and checksums, write it to a USB
+stick, and boot it. The guided installer partitions the disk, installs the base
+system and Ryoku desktop from the signed repository, and sets up Limine. Arch
+and CachyOS installs also configure Btrfs snapshots.
 
 Releases are signed with:
 
@@ -204,15 +205,16 @@ gpg --import keys/ryoku-release-key.pub.asc
 gpg --verify ryoku-*.iso.sig ryoku-*.iso
 ```
 
-Prefer to build it yourself? The archiso profile and build script live in
-[`installation/iso`](installation/iso).
+To build an Arch or CachyOS image yourself, use
+[`installation/iso`](installation/iso). The Void build is linked in its section
+below.
 
-### Already on Arch (no ISO)
+### Already on Arch or CachyOS (no ISO)
 
-One line converts an existing Arch machine into a Ryoku box: it backs up your
-configs (with a `restore.sh` to undo), trusts the signed `[ryoku]` repo, migrates
-you off conflicting shells and daemons, and wires up the full desktop. It never
-partitions a disk.
+One line converts an existing Arch or CachyOS machine into a Ryoku box: it
+backs up your configs (with a `restore.sh` to undo), trusts the signed `[ryoku]`
+repo, migrates you off conflicting shells and daemons, and wires up the full
+desktop. It never partitions a disk.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash
@@ -221,6 +223,32 @@ curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-in
 Preview everything it would do without changing anything by appending
 `-s -- --dry-run` after `bash`. Details in
 [`ryoku-shell-installer/`](ryoku-shell-installer/README.md).
+
+### Void Linux
+
+The Void edition is x86_64 glibc Void with runit, Turnstile, elogind, the SDDM
+greeter, and the niri desktop. Install it from the Void ISO, which boots into
+the same graphical installer and carries a complete offline package repository,
+or run the shell installer above on an existing Void glibc system (a minimal
+Void install needs `sudo xbps-install -S curl` first). The ISO installs Void
+and Ryoku with Limine and dracut. Both installers show the following limits
+before changing the machine:
+
+| Limit | Why |
+|---|---|
+| niri only | Ryoku needs Hyprland 0.55+, which requires GCC 15 and C++26; Void currently ships GCC 14. |
+| No snapshots or boot-menu rollback | Ryoku's snapper and `limine-snapper-sync` update stack is tied to pacman. |
+| No Zen Browser, LocalSend, or Voxtype | They are available only from the AUR. Dictation is disabled because it uses Voxtype. |
+| No asusctl | Its service has no faithful runit shutdown integration yet. |
+| No Ryotunes or several small extras | They are not packaged for Void yet. |
+| No GPU passthrough | Looking Glass and the kvmfr module are AUR-only; the Hub disables the control and states why. |
+
+Packages come from Ryoku's signed XBPS repository. Stable releases use
+`https://repo.ryoku.dev/stable/void/x86_64`; every `unstable-dev` push publishes
+the testing channel at
+`https://repo.ryoku.dev/stable/void/channels/testing/x86_64`. `ryoku update`
+updates the Ryoku set, and `ryoku update --system` updates the Void base as
+well. Build details are under [`void/`](void/README.md).
 
 > [!WARNING]
 > The shell installer is young and still being tested across different hardware,
@@ -245,24 +273,25 @@ place as a fallback, so you keep the choice of what to boot. Full details in
 Ryoku updates its own layer, and leaves the rest of the system to you:
 
 ```bash
-ryoku update          # the Ryoku packages, the configs, the doctor
-sudo pacman -Syu      # your distribution: the base system and its kernel
+ryoku update             # Ryoku packages, configs, and doctor
+sudo pacman -Syu         # Arch or CachyOS base system and kernel
+sudo xbps-install -Syu   # Void base system and kernel
 ```
 
-`ryoku update` takes a snapshot, moves the packages the signed `[ryoku]` repo
-serves (by name, never a full sysupgrade), re-lays the desktop configs into your
-home, reloads the shell, and takes a paired post-snapshot. A failed package step
-aborts before anything else changes.
+On Arch and CachyOS, `ryoku update` takes a snapshot, moves the packages the
+signed `[ryoku]` repo serves (by name, never a full sysupgrade), re-lays the
+desktop configs into your home, reloads the shell, and takes a paired
+post-snapshot. A failed package step aborts before anything else changes. Void
+runs the same update stages without snapshots, using its signed XBPS repository.
 
-The kernel is deliberately not part of that. Ryoku runs on Arch or on the
-CachyOS kernel, publishes neither, and never picks the moment your boot image is
-rebuilt: `sudo pacman -Syu` does that, when you say so. Every `ryoku update`
-tells you how many system packages are waiting, and `ryoku update --system`
-runs both in one go if you prefer that.
+The base system and kernel are deliberately not part of the default command;
+the distribution's native update moves them when you say so. Every
+`ryoku update` tells you how many system packages are waiting, and
+`ryoku update --system` runs both lanes in one go if you prefer that.
 
-The desktop ships from the `[ryoku]` pacman repository, signed by the release key
-and trusted through the `ryoku-keyring` package, so updates are verified the same
-way the rest of the system is.
+The desktop ships from Ryoku's signed pacman repository on Arch and CachyOS and
+its signed XBPS repository on Void. The `ryoku-keyring` package carries the
+matching trust key, so updates are verified through the native package manager.
 
 Your settings survive every update. The base configs are Ryoku-owned and
 refreshed in place, while your own edits live in override files that are never
@@ -271,8 +300,8 @@ shipped or touched (your compositor's user override, `kitty/user.conf`,
 migration ledger: the config
 is reconciled to the shipped state on every update, and the rare stateful fix
 (disk layout and the like) is an idempotent `ryoku doctor` reconciler that runs
-inside `ryoku update`. If an update goes wrong, run `ryoku rollback` or pick the
-previous snapshot from the Limine boot menu.
+inside `ryoku update`. On Arch and CachyOS, run `ryoku rollback` or pick the
+previous snapshot from the Limine boot menu. Void does not offer either path.
 
 ## Recovery
 
@@ -305,16 +334,17 @@ redeploy the configs without the pacman step.
 | `ryoku/` | The desktop: the window-manager seam and per-compositor configs (Hyprland in Lua, niri in KDL), the Quickshell shell, the lockscreen, app configs, brand assets. |
 | `system/` | The machine definition: boot chain, hardware policy, package sets. |
 | `installation/` | How a machine is built: the TUI, the backend installer, the ISO profile. |
-| `release/` | Packaging: the desktop PKGBUILDs, the `[ryoku]` repo builder, the signing keyring. |
+| `release/` | Arch and CachyOS packaging: the desktop PKGBUILDs, the `[ryoku]` repo builder, the signing keyring. |
+| `void/` | Void packaging, runit integration, and the Void ISO. |
 | `docs/` | The guides. Start with [`docs/ryoku.md`](docs/ryoku.md) and [`docs/structure.md`](docs/structure.md). |
 
 ## Channels
 
-`main` is the stable channel everyone runs; it is published to the `[ryoku]`
-repository and the ISO only on tagged releases. `unstable-dev` is the maintainer
-preview, consumed through the dev loop and never published. A release promotes
-`unstable-dev` to `main`. See [`docs/development.md`](docs/development.md) for the
-deploy, test, and commit loop.
+`main` is the stable channel users run; packages and ISOs are published on
+tagged releases. `unstable-dev` is the maintainer preview, and every push
+publishes the testing package channels. A release promotes `unstable-dev` to
+`main`. See [`docs/development.md`](docs/development.md) for the deploy, test,
+and commit loop.
 
 ## Credits and license
 

@@ -148,51 +148,60 @@ every supported install has run it, so the set stays small instead of piling up.
 
 ## Binaries and package managers
 
-- The desktop ships as signed pacman packages from the `[ryoku]` repo
-  (`release/packages/`): `ryoku-shell`, `ryoku-hub`, `ryoku`,
-  and `ryoku-blobs` build from source via their PKGBUILDs.
-  The live ISO still prebuilds the installer TUI (`installation/iso/build.sh`);
-  the installed desktop's binaries come from the repo, so never assume `go` at
-  install time.
-- AUR packages install in the post-install step (`installation/backend/lib/
-  aur.sh`), not via pacstrap.
+- The desktop ships as native signed packages. Arch and CachyOS use the
+  `[ryoku]` pacman repository built from `release/packages/`; Void uses the XBPS
+  repository built from `void/packages/srcpkgs/`. The live ISOs prebuild the
+  installer TUI, while the installed desktop binaries come from the package
+  repository, so never assume `go` exists at install time.
+- On Arch and CachyOS, AUR packages install in the post-install step
+  (`installation/backend/lib/aur.sh`), not via pacstrap.
 - User-level package managers install without root, into `~/.local/bin` (`npm`,
   `pip --user`, `go install`, `cargo install`, `pipx`, `mise`). Do not
   reintroduce root-global installs or assume `sudo`.
 
-### Build the Void artifacts locally
+### Build the Void artifacts
 
-Build the XBPS repository through the official Void container:
+Build the XBPS repository in the official Void container:
 
 ```sh
 RYOKU_XBPS_WORK=/tmp/ryoku-xbps-work \
 RYOKU_XBPS_OUT=/tmp/ryoku-xbps-out \
-RYOKU_XBPS_KEY=/secure/ryoku-xbps.pem \
-RYOKU_XBPS_KEYRING_DIR=/path/to/key-plists \
 RYOKU_XBPS_WORKTREE=1 \
   void/packages/repo/container-runner.sh
 ```
 
-`RYOKU_XBPS_WORK` keeps the scratch checkout and package cache, while
-`RYOKU_XBPS_OUT` receives the indexed repository. `RYOKU_XBPS_KEY` is the
-optional RSA signing key, and `RYOKU_XBPS_KEYRING_DIR` supplies the matching
-development plist to the `ryoku-keyring` package. `RYOKU_XBPS_WORKTREE=1`
-includes tracked edits and untracked, non-ignored files instead of archiving
-`HEAD`. See `void/packages/README.md` for subset builds, signing, and key setup.
+Set `RYOKU_XBPS_PACKAGES` for a subset. Add `RYOKU_XBPS_KEY` to sign a local
+repository, and use `RYOKU_XBPS_KEYRING_DIR` only with a development key. A
+production build must use the committed trust plist:
 
-Use the built repository to make the Void ISO:
+```sh
+void/packages/repo/new-signing-key /secure/ryoku-xbps.pem
+RYOKU_XBPS_KEY=/secure/ryoku-xbps.pem \
+RYOKU_XBPS_PRODUCTION=1 \
+  void/packages/repo/container-runner.sh
+```
+
+`new-signing-key` writes the fingerprint-named public plist under
+`void/packages/srcpkgs/ryoku-keyring/files/`; commit that plist, never the
+private key. Production mode rejects a keyring override and checks the
+`ryoku-keyring` package contains exactly the committed plist. CI keeps the
+private key in `VOID_REPO_SIGNING_KEY`; both Void workflows derive its plist
+again and stop if it is missing from the tree or differs from the committed
+file.
+
+Build the ISO from a completed repository:
 
 ```sh
 RYOKU_VOID_ISO_RYOKU_REPO=/tmp/ryoku-xbps-out/x86_64 \
-RYOKU_VOID_ISO_KEYRING_DIR=/path/to/key-plists \
 RYOKU_VOID_ISO_WORKTREE=1 \
   void/iso/build.sh
 ```
 
-The repository path is required for a full image. The keyring directory is
-optional when the repository's `ryoku-keyring` package already contains its
-plist. See `void/iso/README.md` for work and output locations, storage needs,
-container selection, and the `--stage-only` mode.
+`.github/workflows/publish-repo-void.yml` builds and signs the XBPS repository:
+`unstable-dev` pushes publish testing, and `v*` tags publish a frozen release
+and move stable. `.github/workflows/build-iso-void.yml` builds the ISO on
+`void-v*` tags or a manual dispatch. See `void/packages/README.md` and
+`void/iso/README.md` for the build inputs.
 
 ## Commit gates
 

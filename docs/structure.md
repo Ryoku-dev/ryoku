@@ -262,15 +262,20 @@ raw.githubusercontent.com serves them with no release infrastructure.
 
 ## `void/` the Void Linux port
 
-The x86_64 glibc Void counterpart for Ryoku, with XBPS package translation and
-runit plus Turnstile init integration. `void/README.md` is the index and records
-which counterparts are complete or planned.
+The x86_64 glibc Void edition, with XBPS package translation and runit plus
+Turnstile init integration. `void/README.md` is the index.
 
-- `packages/` translates the Arch package closure without copying it: `translations.tsv` maps each Arch name and lane to its Void equivalent, `sets/` holds Void-only additions, and `resolve` emits the selected XBPS names.
-- `packages/srcpkgs/` holds one XBPS template per Ryoku package, mirroring `release/packages/`.
-- `packages/repo/` builds, signs, and indexes the XBPS repository, mirroring `release/repo/`.
-- `iso/` builds the Void live ISO, mirroring `installation/iso/`.
-- `iso/backend/` owns the Void install steps and reuses the neutral libraries in `installation/backend/lib/`.
+- `packages/` translates the shared package closure without copying it:
+  `translations.tsv` maps package names and lanes, `sets/` holds Void-only
+  additions, and `resolve` emits the selected XBPS names.
+- `packages/srcpkgs/` holds the Ryoku XBPS templates.
+  `ryoku-keyring/files/` contains the committed public-key plist shipped to
+  trust the signed repository.
+- `packages/repo/` builds, signs, and indexes the XBPS repository.
+- `iso/` builds the Void live ISO; `iso/backend/` owns the Void install steps
+  and reuses the neutral libraries in `installation/backend/lib/`.
+- `.github/workflows/publish-repo-void.yml` publishes the testing and stable
+  XBPS repositories. `.github/workflows/build-iso-void.yml` builds the Void ISO.
 - `init/` is the systemd-to-runit translation. `translations.tsv` is the
   completeness manifest enforced by `tests/void-init.sh`; `system/` and `user/`
   hold runit service directories, `env/` handles the Turnstile environment,

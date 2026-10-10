@@ -57,36 +57,29 @@ prepare/commit and stage two remains the single cutover owner.
 They must converge. A change that lands on one but not the other is the bug this
 page exists to prevent.
 
-### Void packages
+### Void
 
-Void installs use Ryoku's signed XBPS repository at
-`https://repo.ryoku.dev/stable/void/x86_64`. `ryoku update` refreshes that
-repository, discovers the installed Ryoku packages it serves, and runs
-`xbps-install -Syu <set>`. The transaction carries
-`RYOKU_MANAGED_UPDATE=1`, so the package `INSTALL` hook leaves the live
-power-cutover lifecycle to update stage two instead of running it twice.
+Void packages come from Ryoku's signed XBPS repositories. Stable releases use
+`https://repo.ryoku.dev/stable/void/x86_64`; every `unstable-dev` push publishes
+testing at
+`https://repo.ryoku.dev/stable/void/channels/testing/x86_64`. The
+`ryoku-keyring` package carries the trust key and the stable repository
+configuration. `ryoku update` refreshes the selected repository, updates the
+installed Ryoku set, then runs the same stage-two cutover, materialize, and
+doctor flow as Arch. `ryoku update --system` also updates the Void base system.
 
-The packaged stable repository is shipped by `ryoku-keyring` in
-`/usr/share/xbps.d/20-ryoku.conf`; testing and frozen-release selections use
-the same-named override in `/etc/xbps.d`. `ryoku track unstable`,
-`ryoku track stable`, and release tags switch that repository through
-`ryoku-host repo`, and all package, repository, service, transient-unit, and
-sleep-inhibitor operations go through the host seam. Packaged Void installs do
-not record a source checkout, so they have no installer-created source-build
-fallback.
-
-The snapshot capability reports unavailable on Void, so automatic boot
-rollback and `ryoku rollback` reuse that capability reason instead of arming a
-guard that cannot restore the system.
+Void has no snapshots or rollback. Ryoku's snapper and
+`limine-snapper-sync` stack is tied to pacman, so updates cannot be restored
+from the Limine boot menu and the boot guard is not armed. Update surfaces and
+doctor report that one reason instead of offering a rollback action.
 
 ### Ryotunes: an external app on its own channel
 
 Ryotunes updates are released independently as prebuilt Arch packages on
-[ryoku-dev/ryotunes](https://github.com/ryoku-dev/ryotunes)' GitHub
-releases (`ryotunes-<ver>-1-x86_64.pkg.tar.zst`, with a `.sha256` beside it).
-This independent lane applies to Arch/CachyOS. Void receives Ryotunes through
-the signed XBPS repository, so it never invokes pacman or the Arch release
-installer. On Arch/CachyOS:
+[ryoku-dev/ryotunes](https://github.com/ryoku-dev/ryotunes)' GitHub releases
+(`ryotunes-<ver>-1-x86_64.pkg.tar.zst`, with a `.sha256` beside it). This lane
+applies only to Arch and CachyOS; Ryotunes is not currently packaged for Void.
+On Arch and CachyOS:
 
 - **`ryoku update` installs a newer build.** It re-reads the latest release
   fresh, verifies the download by sha256 and by its own pacman metadata (name,

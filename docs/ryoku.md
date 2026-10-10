@@ -1,9 +1,10 @@
 # What Ryoku is
 
-Ryoku (力, "power") is a hand-built Arch Linux distribution: a complete,
-opinionated Hyprland desktop plus the installer and system definition that
-reproduce it on any machine. The whole thing lives in this one repository and is
-built from it; the live machine is only ever a deployment target.
+Ryoku (力, "power") is a hand-built Linux distribution: a complete, opinionated
+Wayland desktop plus the installer and system definition that reproduce it on
+any machine. It ships Arch and CachyOS editions with Hyprland or niri, and an
+x86_64 glibc Void edition with niri, runit, Turnstile, and elogind. The whole
+thing lives in this repository; a live machine is only a deployment target.
 
 ## Philosophy
 
@@ -72,9 +73,9 @@ locked behind a text editor.
   control plane: it supervises the UI components, owns the wallpaper, clipboard,
   and lock, and answers one socket. Keybinds and the UI talk to it; it decides.
 - **The control CLI** (`ryoku/cli/`, the `ryoku` command) is the system front
-  door: `ryoku update` (snapshot, then pacman and the AUR, then materialize, then
-  reload), plus `rollback`, `snapshots`, `status`, and `materialize`. It
-  orchestrates pacman, yay, and snapper.
+  door: `ryoku update`, `status`, `materialize`, and the snapshot and rollback
+  commands where the host supports them. It uses pacman on Arch and CachyOS,
+  XBPS on Void, and the host's init seam for service work.
 - **The compositor** is Hyprland (`ryoku/hyprland/`, configured in Lua) or
   niri (`ryoku/niri/`, KDL). Each is a provider under `ryoku/wm/`, configured
   in its own language, one concern per file. Its autostart brings up the shell
@@ -86,11 +87,10 @@ locked behind a text editor.
   fixed elements (the 力 logo, a few accents) stay constant.
 - **The system** (`system/`) defines the boot chain, the hardware policy
   (GPU/driver/display/power helper scripts), and the package sets.
-- **The installer** (`installation/`) is a Go TUI plus a shell backend that
-  partitions, pacstraps the base, adds the `[ryoku]` package repo and installs
-  `ryoku-desktop`, and sets up the boot chain. The desktop comes from signed
-  packages and the ISO prebuilds the installer, so an install needs no build
-  toolchain.
+- **The installers** (`installation/` and `void/iso/`) share a Go TUI and use a
+  host-specific backend to partition the disk, install the signed package set,
+  and set up the boot chain. Each ISO carries the packages it needs, so an
+  install needs no build toolchain.
 - **Rashin** (`ryoku/rashin/`, optional and off by default) is the agent OS: a
   machine-generated knowledge vault, a local daemon with a web dashboard, and a
   one-click Hermes setup, so any coding agent starts with an exact map of the
