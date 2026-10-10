@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	i18n "ryoku-i18n"
@@ -32,15 +34,19 @@ import (
 // Nothing here needs the user session, so it works when the session is what
 // broke.
 // The guard's on-disk state. Vars, not consts, so a test can point them at a
-// temp dir instead of /var/lib and /boot.
+// temp dir instead of /var/lib, /boot, and efivarfs.
 var (
-	pendingFile = "/var/lib/ryoku/update-pending.json"
-	bootOKDir   = "/var/lib/ryoku/boot"
-	noticeFile  = "/var/lib/ryoku/boot/notice.json"
-	limineConf  = "/boot/limine.conf"
+	pendingFile           = "/var/lib/ryoku/update-pending.json"
+	bootOKDir             = "/var/lib/ryoku/boot"
+	noticeFile            = "/var/lib/ryoku/boot/notice.json"
+	limineConf            = "/boot/limine.conf"
+	restoreMarker         = "/run/lock/limine-snapper-restore.lock"
+	limineLastBootedEntry = "/sys/firmware/efi/efivars/LimineLastBootedEntry-513ee0d0-6e43-cb05-b272-f146a2fcb88a"
 )
 
 var effectiveUID = os.Geteuid
+
+const fsImmutableFlag = 0x10
 
 type pendingUpdate struct {
 	From string `json:"from"`
@@ -57,7 +63,7 @@ type pendingUpdate struct {
 
 // bootNotice is what the doctor shows after the guard acted.
 type bootNotice struct {
-	Action   string `json:"action"` // reverted, snapshot-default, revert-failed
+	Action   string `json:"action"` // reverted, snapshot-default, restored-default, revert-failed
 	From     string `json:"from"`
 	To       string `json:"to"`
 	Channel  string `json:"channel,omitempty"` // the channel to `ryoku track` back to
@@ -105,8 +111,13 @@ func BootGuard(args []string) error {
 	if effectiveUID() != 0 {
 		return fmt.Errorf(i18n.T("ryoku boot-guard runs as root (ryoku-boot-guard.service)"))
 	}
-	if len(args) > 0 && args[0] == "--disarm" {
-		return disarmBootGuard(i18n.T("disarmed by hand"))
+	if len(args) > 0 {
+		switch args[0] {
+		case "--disarm":
+			return disarmBootGuard(i18n.T("disarmed by hand"))
+		case "--restored":
+			return restoreBootMenuDefault()
+		}
 	}
 	raw, err := os.ReadFile(pendingFile)
 	if err != nil {
@@ -219,9 +230,7 @@ func rematerializeUsers() {
 }
 
 // pointBootMenuAtSnapshot makes the pre-update snapshot the default boot
-// entry, for the case where the packages were not what broke the boot. The
-// entry is the one limine-snapper-sync generated for that snapshot: the
-// nested entry under //Snapshots whose cmdline names the snapshot subvolume.
+// entry, for the case where the packages were not what broke the boot.
 func pointBootMenuAtSnapshot(p pendingUpdate) error {
 	if p.Snapshot == "" {
 		return writeNotice(bootNotice{Action: "revert-failed", From: p.From, To: p.To, Detail: "no pre-update snapshot to boot; restore from the Limine Snapshots menu by hand", At: now()})
@@ -234,13 +243,10 @@ func pointBootMenuAtSnapshot(p pendingUpdate) error {
 	if entry == "" {
 		return writeNotice(bootNotice{Action: "revert-failed", From: p.From, To: p.To, Snapshot: p.Snapshot, Detail: "snapshot " + p.Snapshot + " has no boot entry; restore from the Limine Snapshots menu by hand", At: now()})
 	}
-	lines := strings.Split(string(raw), "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(strings.TrimSpace(l), "default_entry:") {
-			lines[i] = "default_entry: " + entry
-		}
+	if err := setLimineDefault(raw, entry); err != nil {
+		return err
 	}
-	if err := os.WriteFile(limineConf, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+	if err := clearLimineLastBootedEntry(); err != nil {
 		return err
 	}
 	_ = os.Remove(pendingFile)
@@ -249,30 +255,184 @@ func pointBootMenuAtSnapshot(p pendingUpdate) error {
 		At:     now()})
 }
 
-// snapshotEntryPath finds `Snapshots/<title>/<kernel>` for snapshot id in a
-// limine-snapper-sync generated config: the ///<title> under //Snapshots
-// whose ////<kernel> cmdline carries subvol=/@snapshots/<id>/snapshot.
+func restoreBootMenuDefault() error {
+	rawMarker, err := os.ReadFile(restoreMarker)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(rawMarker)) != "restored" {
+		return nil
+	}
+	raw, err := os.ReadFile(limineConf)
+	if err != nil {
+		return err
+	}
+	entry := firstKernelEntryPath(string(raw))
+	if entry == "" {
+		return errors.New(i18n.T("the Ryoku Linux menu has no kernel entry"))
+	}
+	if err := setLimineDefault(raw, entry); err != nil {
+		return err
+	}
+	if err := clearLimineLastBootedEntry(); err != nil {
+		return err
+	}
+	_ = os.Remove(pendingFile)
+	return writeNotice(bootNotice{
+		Action: "restored-default",
+		Detail: i18n.T("the snapshot restore completed; Limine now defaults to the restored system"),
+		At:     now(),
+	})
+}
+
+func setLimineDefault(raw []byte, entry string) error {
+	lines := strings.Split(string(raw), "\n")
+	found := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "default_entry:") {
+			continue
+		}
+		indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+		lines[i] = indent + "default_entry: " + entry
+		found = true
+	}
+	if !found {
+		return errors.New(i18n.T("Limine config has no default_entry setting"))
+	}
+	return os.WriteFile(limineConf, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+func clearLimineLastBootedEntry() error {
+	file, err := os.Open(limineLastBootedEntry)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	flags, ioctlErr := unix.IoctlGetInt(int(file.Fd()), unix.FS_IOC_GETFLAGS)
+	if ioctlErr == nil && flags&fsImmutableFlag != 0 {
+		ioctlErr = unix.IoctlSetPointerInt(int(file.Fd()), unix.FS_IOC_SETFLAGS, flags&^fsImmutableFlag)
+	}
+	closeErr := file.Close()
+	if ioctlErr != nil {
+		return fmt.Errorf(i18n.T("clear Limine remembered-entry attributes: %w"), ioctlErr)
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if err := os.Remove(limineLastBootedEntry); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf(i18n.T("clear Limine remembered entry: %w"), err)
+	}
+	return nil
+}
+
+// snapshotEntryPath follows the generated menu hierarchy so nested snapshot
+// entries retain their Ryoku Linux parent.
 func snapshotEntryPath(conf, id string) string {
 	want := "subvol=/@snapshots/" + id + "/snapshot"
-	var top, title, kernel string
+	var path []string
 	for _, raw := range strings.Split(conf, "\n") {
-		l := strings.TrimSpace(raw)
-		switch {
-		case strings.HasPrefix(l, "////"):
-			kernel = strings.TrimSpace(strings.TrimPrefix(l, "////"))
-		case strings.HasPrefix(l, "///"):
-			title = strings.TrimSpace(strings.TrimPrefix(l, "///"))
-			kernel = ""
-		case strings.HasPrefix(l, "//"):
-			top = strings.TrimSpace(strings.TrimPrefix(l, "//"))
-			title, kernel = "", ""
-		case strings.HasPrefix(l, "cmdline:") && strings.Contains(l, want):
-			if top == "Snapshots" && title != "" && kernel != "" {
-				return top + "/" + title + "/" + kernel
+		depth, name, ok := limineEntry(raw)
+		if ok {
+			if depth <= len(path) {
+				path = path[:depth-1]
+			}
+			if depth != len(path)+1 {
+				path = nil
+				continue
+			}
+			path = append(path, name)
+			continue
+		}
+		if !strings.HasPrefix(strings.TrimSpace(raw), "cmdline:") || !strings.Contains(raw, want) {
+			continue
+		}
+		snapshots := -1
+		for i, component := range path {
+			if limineUnescape(component) == "Snapshots" {
+				snapshots = i
+				break
+			}
+		}
+		if snapshots < 0 || len(path) != snapshots+3 {
+			continue
+		}
+		if snapshots == 0 || snapshots == 1 && limineUnescape(path[0]) == "Ryoku Linux" {
+			return limineEntryPath(path)
+		}
+	}
+	return ""
+}
+
+func firstKernelEntryPath(conf string) string {
+	inRyoku := false
+	var root string
+	for _, raw := range strings.Split(conf, "\n") {
+		depth, name, ok := limineEntry(raw)
+		if !ok {
+			continue
+		}
+		switch depth {
+		case 1:
+			inRyoku = limineUnescape(name) == "Ryoku Linux"
+			root = name
+		case 2:
+			if inRyoku && limineUnescape(name) != "Snapshots" {
+				return limineEntryPath([]string{root, name})
 			}
 		}
 	}
 	return ""
+}
+
+func limineEntry(raw string) (int, string, bool) {
+	line := strings.TrimSpace(raw)
+	depth := 0
+	for depth < len(line) && line[depth] == '/' {
+		depth++
+	}
+	if depth == 0 {
+		return 0, "", false
+	}
+	name := strings.TrimSpace(line[depth:])
+	return depth, name, name != ""
+}
+
+func limineEntryPath(components []string) string {
+	escaped := make([]string, len(components))
+	for i, component := range components {
+		escaped[i] = limineEscape(limineUnescape(component))
+	}
+	return strings.Join(escaped, "/")
+}
+
+func limineUnescape(name string) string {
+	var out strings.Builder
+	out.Grow(len(name))
+	for i := 0; i < len(name); i++ {
+		if name[i] == '\\' && i+1 < len(name) && (name[i+1] == '\\' || name[i+1] == '/' || name[i+1] == '#') {
+			i++
+		}
+		out.WriteByte(name[i])
+	}
+	return out.String()
+}
+
+func limineEscape(name string) string {
+	var out strings.Builder
+	out.Grow(len(name))
+	for i := range len(name) {
+		if name[i] == '\\' || name[i] == '/' || name[i] == '#' {
+			out.WriteByte('\\')
+		}
+		out.WriteByte(name[i])
+	}
+	return out.String()
 }
 
 func writeNotice(n bootNotice) error {

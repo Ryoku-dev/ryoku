@@ -115,15 +115,20 @@ frozen testing release to roll back to.
 
 After a tagged release change, the boot guard watches the next boots on both
 package-manager lanes. Two boots without a healthy desktop move the Ryoku set
-back to the previous frozen release; a third failure makes the pre-update
-snapshot the default Limine entry. Void runs the guard through the
-`ryoku-boot-guard` runit service.
+back to the previous frozen release. A third failure selects the complete
+`Ryoku Linux/Snapshots/<snapshot>/<kernel>` Limine path and clears Limine's
+remembered EFI entry so that snapshot really wins at the next boot. Void runs
+the guard through the `ryoku-boot-guard` runit service and records its output
+through the service logger.
 
 `ryoku rollback <id>` explains the whole-system restore path. Ryoku boots the
 `@` subvolume directly (`rootflags=subvol=@`), a layout `snapper rollback`
 cannot restore because it flips the btrfs default subvolume, which a pinned
 `subvol=` ignores. Reboot, choose **Ryoku Linux -> Snapshots -> <id>** in
 Limine, run `sudo limine-snapper-restore`, then reboot into the restored system.
+The restore hook resets Limine to the first kernel under **Ryoku Linux**, clears
+the remembered snapshot entry and any pending boot guard marker, and leaves a
+notice for `ryoku doctor`.
 
 On a host without Ryoku's snapshot stack, bare `rollback` still lists releases
 and explains that snapshots are unavailable. Supplying a snapshot id returns

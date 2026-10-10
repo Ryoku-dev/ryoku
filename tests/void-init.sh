@@ -220,6 +220,10 @@ grep -qF 'RYOKU_SNAPPER_CLEANUP_PERIOD:-86400' "$INIT/system/snapper-cleanup/run
 # boot guard + var-state: oneshot contract without a ConditionEnvironment
 check_parity "$ROOT/ryoku/cli/systemd/ryoku-boot-guard.service" "$INIT/system/ryoku-boot-guard"
 grep -q 'boot-guard' "$INIT/system/ryoku-boot-guard/run" || parity_fail "boot-guard run lost the ryoku boot-guard call"
+guard_log=$INIT/system/ryoku-boot-guard/log/run
+[[ -x $guard_log ]] || parity_fail "boot-guard has no executable log service"
+grep -qF 'exec vlogger -p daemon.info -t ryoku-boot-guard' "$guard_log" \
+  || parity_fail "boot-guard log service does not use vlogger"
 # var-state must carry every tmpfiles path and mode
 for entry in '/var/lib/ryoku 0755' '/var/lib/ryoku/boot 1777' 'greeter-primary 0666' 'greeter-numlock 0666'; do
 	path=${entry% *}; mode=${entry#* }

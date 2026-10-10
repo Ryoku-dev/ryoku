@@ -69,6 +69,12 @@ func TestRepoChannelAndSetChannelXBPS(t *testing.T) {
 	if want := "repository=" + RepoURLFor(XBPS, "v1.2.3") + "\n"; string(body) != want {
 		t.Fatalf("override = %q, want %q", body, want)
 	}
+	if err := app.RepoSetChannel("stable"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(app.cfg.XBPSConfigDir, xbpsRepoConfig)); !os.IsNotExist(err) {
+		t.Fatalf("production stable override survived: %v", err)
+	}
 }
 
 func TestRepoReleaseBaseOverrideForBothManagers(t *testing.T) {
@@ -100,6 +106,55 @@ func TestRepoReleaseBaseOverrideForBothManagers(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRepoSetStableHonorsReleaseBaseOverride(t *testing.T) {
+	const base = "http://127.0.0.1:8080/bucket"
+	t.Setenv("RYOKU_RELEASE_BASE", base)
+
+	t.Run("pacman", func(t *testing.T) {
+		dir := t.TempDir()
+		conf := filepath.Join(dir, "pacman.conf")
+		if err := os.WriteFile(conf, []byte("[ryoku]\nServer = "+PacmanRepoBase+"/$arch\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		app, _, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_PKGMGR": "pacman"})
+		app.cfg.PacmanConf = conf
+		app.cfg.PacmanSyncDir = filepath.Join(dir, "sync")
+		if err := app.RepoSetChannel("stable"); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(conf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "Server = " + base + "/$arch"
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("pacman stable override = %q, want %q", raw, want)
+		}
+	})
+
+	t.Run("xbps", func(t *testing.T) {
+		dir := t.TempDir()
+		shipped := filepath.Join(dir, "shipped.conf")
+		if err := os.WriteFile(shipped, []byte("repository="+XBPSRepoBase+"/x86_64\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		app, _, _ := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_PKGMGR": "xbps"})
+		app.cfg.XBPSConfigDir = filepath.Join(dir, "etc")
+		app.cfg.XBPSShippedConfig = shipped
+		if err := app.RepoSetChannel("stable"); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(filepath.Join(app.cfg.XBPSConfigDir, xbpsRepoConfig))
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "repository=" + base + "/x86_64\n"
+		if string(raw) != want {
+			t.Fatalf("XBPS stable override = %q, want %q", raw, want)
+		}
+	})
 }
 
 func TestRepoProductionBasesWithoutOverride(t *testing.T) {

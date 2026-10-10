@@ -237,7 +237,7 @@ func (a *App) RepoSetChannel(channel string) error {
 		if override != "" {
 			return a.RepoSetURL(override)
 		}
-		if channel == "stable" {
+		if channel == "stable" && strings.TrimSpace(os.Getenv("RYOKU_RELEASE_BASE")) == "" {
 			path := filepath.Join(a.xbpsConfigDir(), xbpsRepoConfig)
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 				return err

@@ -132,6 +132,14 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **Boot fallback and channel overrides now survive the last mile.** The guard
+  writes complete nested Limine paths, clears remembered EFI entries, and
+  returns to the restored system after `limine-snapper-restore`; stable channel
+  selection also keeps an explicit release-base override on pacman and XBPS.
+- **Void updates complete over SSH when no desktop session is active.** The
+  updater skips the session cutover sleep inhibitor when there are no live
+  desktop suspend owners to replace, while keeping the guard for desktop
+  updates (`internal/updater/update.go`).
 - **Void package and service health checks now inspect the real installed
   system.** Ryoku-owned `@repo` package names map to their native XBPS names,
   and the doctor reads system runit state through one passwordless,

@@ -538,6 +538,10 @@ EOF
   install -Dm644 "$_repo/system/hardware/power/53-ryoku-game-tune.rules" \
     "$pkgdir/usr/share/polkit-1/rules.d/53-ryoku-game-tune.rules"
 
+  # limine-snapper-sync runs this after a successful whole-system restore.
+  install -Dm755 "$_repo/system/boot/limine/90-ryoku-restore-default" \
+    "$pkgdir/etc/boot/hooks/post.d/90-ryoku-restore-default"
+
   if [[ $RYOKU_INIT_MODE == systemd ]]; then
     # Arch owns this Limine, mkinitcpio and Plymouth integration. Void uses
     # dracut and has no package hook directory matching these files.

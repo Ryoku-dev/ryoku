@@ -1,0 +1,8 @@
+#!/bin/sh
+
+lock=${RYOKU_RESTORE_LOCK:-/run/lock/limine-snapper-restore.lock}
+[ -r "$lock" ] || exit 0
+state=$(cat "$lock" 2>/dev/null) || exit 0
+[ "$state" = restored ] || exit 0
+
+exec "${RYOKU_BIN_DIR:-/usr/bin}/ryoku" boot-guard --restored

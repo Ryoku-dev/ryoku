@@ -31,6 +31,8 @@
   `udev` in `mkinitcpio/ryoku.conf`.
 
 ### Fixed
+- `limine/90-ryoku-restore-default` returns Limine to the restored system after
+  `limine-snapper-restore`; Void's boot guard now logs through vlogger.
 - `limine/50-ryoku-limine` now builds Void kernels under one `/Ryoku Linux`
   menu, keeps snapshot entries in place across kernel changes, and excludes
   ESP kernels whose matching module tree is absent after a snapshot restore.

@@ -160,8 +160,11 @@ The early-boot service is `ryoku-boot-guard.service` on Arch/CachyOS and the
 never came up, it pins the previous tagged release, moves the whole Ryoku set
 back in one native package transaction, re-materializes every user's config,
 and leaves the distribution base and kernel untouched. On a third failed boot,
-it points Limine at the pre-update snapshot. `sudo ryoku boot-guard --disarm`
-clears a pending marker by hand.
+it selects the full pre-update snapshot path and clears Limine's remembered EFI
+entry so the fallback wins. After `limine-snapper-restore`, a post hook resets
+the default to the restored system's first kernel, clears the remembered
+snapshot entry and pending marker, and leaves a notice for the doctor.
+`sudo ryoku boot-guard --disarm` clears a pending marker by hand.
 
 Doctor enables the host's service and prepares its state directory, so older
 installs adopt the guard on update.
