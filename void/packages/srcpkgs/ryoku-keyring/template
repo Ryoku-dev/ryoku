@@ -1,0 +1,27 @@
+# Template file for 'ryoku-keyring'
+pkgname=ryoku-keyring
+version=20261009
+revision=1
+short_desc="Ryoku XBPS repository signing keys and stable repository configuration"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="CC0-1.0"
+homepage="https://ryoku.dev"
+
+# /etc/xbps.d/20-ryoku.conf with the same basename overrides this default.
+do_install() {
+	local plist found=
+	for plist in "$FILESDIR"/*.plist; do
+		[ -f "$plist" ] || continue
+		vinstall "$plist" 644 var/db/xbps/keys
+		found=1
+	done
+	[ -n "$found" ] || {
+		msg_error "ryoku-keyring has no XBPS key plist\n"
+		return 1
+	}
+
+	vmkdir usr/share/xbps.d
+	printf '%s\n' 'repository=https://repo.ryoku.dev/stable/void/x86_64' \
+		> "$DESTDIR/usr/share/xbps.d/20-ryoku.conf"
+	chmod 644 "$DESTDIR/usr/share/xbps.d/20-ryoku.conf"
+}

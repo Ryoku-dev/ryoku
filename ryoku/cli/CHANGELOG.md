@@ -3,6 +3,20 @@
 ## Unreleased
 
 ### Added
+- **Void updates now use the signed Ryoku XBPS repository end to end.**
+  `ryoku update`, channel tracking, status, manifest convergence, shipped-app
+  repair, and retired-package cleanup use the same host seams as Arch, mapped
+  to `xbps-query`, `xbps-install`, and `xbps-remove`. Managed transactions
+  carry `RYOKU_MANAGED_UPDATE=1` so the package hook does not run a second
+  power cutover. The old installer-created Void source-update fallback is gone;
+  explicit development checkouts still work, while packaged installs report
+  snapshots and automatic rollback as unavailable.
+- **Void updates never invoke Arch's snapshot stack.** `ryoku-host snapshots`
+  exposes the host capability and one reason when it is unavailable. Updates
+  skip pre/post snapshots and helper offers on XBPS, publish that capability to
+  the Hub, and keep release listing available while snapshot restore commands
+  return the reason without running snapper (`internal/host/snapshots.go`,
+  `internal/updater/update.go`, `internal/updater/runstate.go`).
 - **`ryoku-host` answers "how does this machine do it" for everything else.**
   One small binary names the init system and package manager and runs service,
   package, inhibitor, timezone and keymap actions through systemd and pacman
@@ -115,6 +129,10 @@
   `internal/sys/release.go`, `internal/updater/release.go`).
 
 ### Fixed
+- **Keyring status recognizes standard optional PAM lines.** SDDM stacks often
+  prefix optional module types with `-`, and those `-auth` and `-session` lines
+  now count as login-keyring wiring instead of being misreported as
+  `never-ask` (`internal/keyring/pam.go`).
 - **Existing installs use their console layout at the disk unlock prompt.** The
   doctor adds the `ryoku-console-keys` initramfs hook right after `udev` in
   `/etc/mkinitcpio.conf.d/ryoku.conf` once ryoku-desktop ships it, and rebuilds

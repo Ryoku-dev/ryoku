@@ -144,6 +144,9 @@ func limineDropEntries(conf, esp string, titles []string) (string, bool) {
 }
 
 func reconcileLimineDeadEntries(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	if !sys.PkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}

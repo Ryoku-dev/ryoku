@@ -12,16 +12,11 @@ import (
 	wm "ryoku-wm"
 )
 
-// pacmanOp reports whether any recorded call runs `pacman <op>`.
-func pacmanOp(calls [][]string, op string) bool {
-	for _, c := range calls {
-		for i, a := range c {
-			if a == "pacman" && i+1 < len(c) && c[i+1] == op {
-				return true
-			}
-		}
-	}
-	return false
+func stubMoveRepoSync(t *testing.T, fn func(bool) error) {
+	t.Helper()
+	old := syncRepoForMove
+	syncRepoForMove = fn
+	t.Cleanup(func() { syncRepoForMove = old })
 }
 
 // #291: reverting (or tracking) onto a channel that does not serve an installed
@@ -30,10 +25,11 @@ func pacmanOp(calls [][]string, op string) bool {
 // guard ran `pacman -S ryoku-desktop` alone, so the meta's exact pin failed the
 // downgrade; this test fails on that behaviour.
 func TestMoveRyokuSetDropsUnservedSplitMeta(t *testing.T) {
-	var priv [][]string
-	oldPriv := privileged
-	privileged = func(argv ...string) error { priv = append(priv, argv); return nil }
-	t.Cleanup(func() { privileged = oldPriv })
+	synced := false
+	stubMoveRepoSync(t, func(force bool) error {
+		synced = force
+		return nil
+	})
 
 	var movedSet []string
 	oldMove := runRyokuMove
@@ -69,8 +65,8 @@ func TestMoveRyokuSetDropsUnservedSplitMeta(t *testing.T) {
 	if want := []string{"ryoku/ryoku-desktop", "ryoku/ryogami"}; !reflect.DeepEqual(set, want) {
 		t.Fatalf("moved set = %v, want %v", set, want)
 	}
-	if !pacmanOp(priv, "-Syy") {
-		t.Fatalf("no forced -Syy refresh before the move; calls: %v", priv)
+	if !synced {
+		t.Fatal("move did not force-refresh the target repository")
 	}
 	// the transaction moves the WHOLE set (the old revert moved ryoku-desktop
 	// alone, which is exactly what left the split meta's pin unsatisfiable).
@@ -82,14 +78,9 @@ func TestMoveRyokuSetDropsUnservedSplitMeta(t *testing.T) {
 // A refresh that cannot reach the channel surfaces as errChannelUnreachable, the
 // signal the boot guard uses to retry next boot rather than escalate.
 func TestMoveRyokuSetUnreachableRefresh(t *testing.T) {
-	oldPriv := privileged
-	privileged = func(argv ...string) error {
-		if len(argv) >= 2 && argv[0] == "pacman" && argv[1] == "-Syy" {
-			return fmt.Errorf("no route to host")
-		}
-		return nil
-	}
-	t.Cleanup(func() { privileged = oldPriv })
+	stubMoveRepoSync(t, func(bool) error {
+		return fmt.Errorf("no route to host")
+	})
 
 	if _, err := moveRyokuSetToChannel(); err == nil || !errors.Is(err, errChannelUnreachable) {
 		t.Fatalf("err = %v, want errChannelUnreachable", err)
@@ -103,6 +94,7 @@ func TestMoveRyokuSetUnreachableRefresh(t *testing.T) {
 // dropped metas from the restored channel. This fails on a revert that only
 // restores the pin.
 func TestRetargetChannelReinstallsDroppedMetaOnFailure(t *testing.T) {
+	stubMoveRepoSync(t, func(bool) error { return nil })
 	isolateHome(t)
 	packagedConf(t, "stable") // the restored channel serves the split metas
 
@@ -153,6 +145,7 @@ func TestRetargetChannelReinstallsDroppedMetaOnFailure(t *testing.T) {
 // the active compositor variant, or the box is left with its source lane gone
 // and no packaged base to update from.
 func TestMoveRyokuSetAddsPackagedBaseWhenMigrating(t *testing.T) {
+	stubMoveRepoSync(t, func(bool) error { return nil })
 	var movedSet []string
 	oldMove := runRyokuMove
 	runRyokuMove = func(set []string) error { movedSet = set; return nil }
@@ -193,6 +186,7 @@ func TestMoveRyokuSetAddsPackagedBaseWhenMigrating(t *testing.T) {
 }
 
 func TestMoveRyokuSetMigratesRetiredVariant(t *testing.T) {
+	stubMoveRepoSync(t, func(bool) error { return nil })
 	legacy := wm.RetiredCompositor()
 	var movedSet, dropped []string
 

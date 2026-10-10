@@ -48,3 +48,16 @@ func TestTransactionCollectsConflictsAndReasons(t *testing.T) {
 		t.Errorf("error = %v, want pacman's reason exactly once", err)
 	}
 }
+
+func TestVoidInhibitorUsesHostSeam(t *testing.T) {
+	oldInhibit := sleepInhibitOK
+	sleepInhibitOK = func() bool { return true }
+	t.Cleanup(func() { sleepInhibitOK = oldInhibit })
+	t.Setenv("RYOKU_HOST_INIT", "runit")
+
+	got := strings.Join(inhibited("package update", []string{"xbps-install", "-Syu"}), " ")
+	want := "ryoku-host inhibit --what=sleep:idle --who=ryoku update --why=package update --mode=block xbps-install -Syu"
+	if got != want || strings.Contains(got, "systemd") {
+		t.Fatalf("inhibited command = %q, want %q", got, want)
+	}
+}

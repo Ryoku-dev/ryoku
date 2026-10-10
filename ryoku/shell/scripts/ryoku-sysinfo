@@ -72,3 +72,5 @@ ryoku-host pkg count 2>/dev/null || printf '0\n'
 printf '%s\n' "$disp_res"
 printf '%s\n' "$disp_hz"
 echo "$codename"
+pkgmgr=$(ryoku-host pkgmgr 2>/dev/null || true)
+printf '%s\n' "$pkgmgr"

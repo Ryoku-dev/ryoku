@@ -7,10 +7,15 @@
   restart, 32-bit GPU libraries and the AMD, Intel, Vulkan and NVIDIA driver
   steps now go through `ryoku-host`, so they behave the same on Void's runit
   and xbps as on Arch. Arch runs the same commands as before. On Void, NVIDIA
-  GPUs stay on nouveau and Mesa for now: Void's proprietary package drives
-  Turing and newer only and blacklists nouveau, so installing it blindly would
-  leave an older card with no driver at all, and the NVIDIA step says so
-  instead of failing.
+  installs the generation-correct nonfree branch, matching headers and optional
+  32-bit libraries, then enables early KMS only after the module exists. A
+  pre-initramfs kernel hook restores nouveau automatically when a later DKMS
+  build fails.
+
+- **Void keeps live sessions safe through package cutovers and kernel updates.**
+  Runit sessions now use `ryoku-host` transient guards and elogind inhibitors
+  while sleep, lid, lock, and wallpaper owners are replaced. Void's kernel hook
+  also rebuilds the Limine menu after dracut creates or removes an initramfs.
 
 - **Idle works on Void.** `ryoku-idle` drives swayidle when hypridle is not
   installed, with the same lock, screen-off and suspend timers, so Void (which

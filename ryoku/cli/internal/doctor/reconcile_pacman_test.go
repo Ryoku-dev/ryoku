@@ -2,6 +2,13 @@ package doctor
 
 import "testing"
 
+func stubPacmanHost(t *testing.T, available bool) {
+	t.Helper()
+	old := hasPacman
+	hasPacman = func() bool { return available }
+	t.Cleanup(func() { hasPacman = old })
+}
+
 // enableILoveCandy must land the directive inside [options] and nowhere else:
 // pacman only honors it there, and a config it cannot parse breaks every
 // pacman invocation on the box.
@@ -69,5 +76,35 @@ func TestEnableILoveCandyIdempotent(t *testing.T) {
 	}
 	if string(twice) != string(once) {
 		t.Fatalf("second pass rewrote the config: %q", twice)
+	}
+}
+
+func TestPacmanHostUsesHostPackageManager(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	if hasPacman() {
+		t.Fatal("xbps host reported pacman")
+	}
+}
+
+func TestPacmanReconcilersAreNeutralOnOtherPackageManagers(t *testing.T) {
+	stubPacmanHost(t, false)
+	checks := []struct {
+		name string
+		run  func() recResult
+	}{
+		{"boot guard", func() recResult { return reconcileBootGuard(false) }},
+		{"channel pin", func() recResult { return reconcileChannelPin(false) }},
+		{"pacman progress", func() recResult { return reconcilePacmanCandy(false) }},
+		{"multilib", func() recResult { return reconcileMultilibRepo(false) }},
+		{"manifest", func() recResult { return reconcileManifest(false) }},
+		{"shipped apps", func() recResult { return reconcileShippedApps(false) }},
+		{"retired apps", func() recResult { return reconcileRetiredApps(false) }},
+	}
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			if got := check.run(); got.status != recOK && got.status != recNote {
+				t.Fatalf("result = %#v, want a neutral result", got)
+			}
+		})
 	}
 }

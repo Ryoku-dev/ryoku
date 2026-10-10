@@ -1,0 +1,21 @@
+# Template file for 'ryoku-cursors'
+pkgname=ryoku-cursors
+version=2.0.7
+revision=1
+create_wrksrc=yes
+short_desc="Bibata XCursor themes used by the Ryoku desktop"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/ful1e5/Bibata_Cursor"
+distfiles="${homepage}/releases/download/v${version}/Bibata.tar.xz"
+checksum=172e33c4ae415278384dcecc7d1a9b7a024266bc944bc751fd86532be1cc6251
+provides="bibata-cursor-theme-${version}_${revision}"
+conflicts="bibata-cursor-theme>=0 bibata-cursor-theme-bin>=0"
+replaces="bibata-cursor-theme>=0 bibata-cursor-theme-bin>=0"
+
+# Void's niri edition uses XCursor. The Hyprcursor rebuild is intentionally
+# omitted because its Hyprland tooling is not available in Void.
+do_install() {
+	vmkdir usr/share/icons
+	vcopy "Bibata*" usr/share/icons
+}

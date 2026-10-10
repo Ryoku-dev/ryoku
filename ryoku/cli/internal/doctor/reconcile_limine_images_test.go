@@ -208,3 +208,55 @@ func TestGatherLimineBootKernels(t *testing.T) {
 		t.Errorf("plan = stale %v stray %v, want stale [linux-cachyos] (stale image), no strays", stale, stray)
 	}
 }
+
+func TestLimineToolingRequiresRyokuManagerBinary(t *testing.T) {
+	stubPacmanHost(t, true)
+	bin := t.TempDir()
+	t.Setenv("PATH", bin)
+	if limineManagedBoot() {
+		t.Fatal("Limine package alone was treated as a Ryoku-managed boot")
+	}
+	tool := filepath.Join(bin, "limine-entry-tool")
+	if err := os.WriteFile(tool, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !limineManagedBoot() {
+		t.Fatal("Ryoku Limine manager binary was not recognized")
+	}
+}
+
+func TestLimineToolingIsNotManagedOnNonPacmanHost(t *testing.T) {
+	stubPacmanHost(t, false)
+	if limineManagedBoot() {
+		t.Fatal("non-pacman host was treated as Ryoku-managed Limine")
+	}
+}
+
+func TestLimineReconcilersAreNeutralWithoutRyokuTooling(t *testing.T) {
+	old := limineManagedBoot
+	limineManagedBoot = func() bool { return false }
+	t.Cleanup(func() { limineManagedBoot = old })
+
+	checks := []struct {
+		name string
+		run  func() recResult
+	}{
+		{"layout", func() recResult { return reconcileLimineLayout(false) }},
+		{"boot entry", func() recResult { return reconcileLimineBootEntry(false) }},
+		{"UKI tree", func() recResult { return reconcileLimineUKITree(false) }},
+		{"OS name", func() recResult { return reconcileLimineOSName(false) }},
+		{"autoboot", func() recResult { return reconcileLimineAutoboot(false) }},
+		{"kernel images", func() recResult { return reconcileLimineKernelImages(false) }},
+		{"dead entries", func() recResult { return reconcileLimineDeadEntries(false) }},
+		{"alongside entry", func() recResult { return reconcileAlongsideBootEntry(false) }},
+		{"boot space", func() recResult { return reconcileBootSpace(false) }},
+		{"boot read-write", func() recResult { return reconcileBootRW(false) }},
+	}
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			if got := check.run(); got.status != recOK {
+				t.Fatalf("result = %#v, want neutral ok", got)
+			}
+		})
+	}
+}

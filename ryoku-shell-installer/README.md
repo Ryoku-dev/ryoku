@@ -2,12 +2,11 @@
 
 Install the Ryoku desktop on an existing machine, without the ISO.
 
-Arch-based hosts get the signed `[ryoku]` packages. Debian-based and Void
-hosts have no `[ryoku]` repository, so the desktop is built from the cloned
-payload with `ryoku/shell/deploy.sh`. Their distro package manager supplies the
-runtime and build dependencies; the installer also fetches the pinned Ryoku
-fonts and cursor theme that those repositories do not carry. Void uses niri,
-runit, elogind and Turnstile.
+Arch-based hosts install signed packages from `[ryoku]`. Void installs the same
+desktop package set from the signed Ryoku XBPS repository, with niri, runit,
+elogind and Turnstile. Debian remains the source-build path: its package manager
+supplies the runtime and build dependencies, and the installer fetches the
+pinned fonts and cursor theme its archive does not carry.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash
@@ -33,11 +32,12 @@ those three, and otherwise chooses Fish. `RYOKU_BROWSER` and
 `RYOKU_LOGIN_SHELL` provide the flag defaults for scripted runs.
 
 The package picks are exact: Firefox installs `firefox`, Chromium installs
-`chromium`, and Zen installs `zen-browser-bin` in the AUR step. Fish installs
-`fish`; Zsh installs `zsh`, the three Ryoku plugin packages and
-`ryoku-oh-my-zsh`; Bash installs `blesh`. Bash itself and the shared terminal
-tools (`starship`, `fastfetch`, `zoxide`, `fzf`, `eza`, `bat`, and `mise`) stay
-available with every choice.
+`chromium`, and Zen installs `zen-browser-bin`. Arch builds Zen in the AUR step;
+Void receives it from the Ryoku XBPS repository. Fish installs `fish`; Zsh
+installs `zsh`, the three Ryoku plugin packages and `ryoku-oh-my-zsh`; Bash
+installs `blesh`. Bash itself and the shared terminal tools (`starship`,
+`fastfetch`, `zoxide`, `fzf`, `eza`, `bat`, and `mise`) stay available with
+every choice.
 
 Preview without changing anything:
 
@@ -72,16 +72,18 @@ terminal language:
    package is built there. Only the chosen browser and chosen shell stack are
    added to the package transaction.
 3. **Install**, streamed step by step. Arch retires legacy repositories, adds
-   `[ryoku]`, installs signed desktop packages and handles AUR extras. Debian
-   and Void install distro dependencies, fetch the pinned fonts and cursor,
-   then build the desktop from the payload. Every path backs up existing
-   configs, wires SDDM/qylock and networking, materializes the selected
-   compositor config, applies browser and login-shell choices, runs
-   `ryoku doctor`, and verifies the result.
+   `[ryoku]`, installs signed desktop packages and handles AUR extras. Void
+   seeds the XBPS signing key, configures the matching Ryoku channel, resolves
+   the Void package lanes and installs the signed desktop packages. Debian
+   installs distro dependencies, fetches the pinned fonts and cursor, then
+   builds the desktop from the payload. Every path backs up existing configs,
+   wires SDDM/qylock and networking, materializes the selected compositor
+   config, applies browser and login-shell choices, runs `ryoku doctor`, and
+   verifies the result.
 
-Afterwards Arch machines update from the signed `[ryoku]` repository. Source
-builds can rerun the installer at a newer payload ref; `ryoku doctor` remains
-the common health and repair path.
+Afterwards Arch and Void machines update from their signed Ryoku package
+repositories. Debian source builds can rerun the installer at a newer payload
+ref; `ryoku doctor` remains the common health and repair path.
 
 The browser choice sets the HTTP, HTTPS and HTML XDG defaults and the desktop's
 `desktop.apps.browser` role. Packages omitted by either choice are recorded in
@@ -114,9 +116,9 @@ Lifecycle: an interrupted run records its completed steps in
 `~/.local/state/ryoku/shell-install-state.json`; the next run offers a
 resume toggle (automatic with `--yes`) that skips finished steps and
 continues the same backup. `--uninstall` removes signed Ryoku packages where
-present, drops the `[ryoku]` repo stanza, and walks the backup chain newest to
-oldest, running each `restore.sh` with confirmation. Session packages such as
-SDDM, PipeWire and NetworkManager are left installed.
+present, drops the Arch repository stanza or Void XBPS override, and walks the
+backup chain newest to oldest, running each `restore.sh` with confirmation.
+Session packages such as SDDM, PipeWire and NetworkManager are left installed.
 
 ## Development
 
@@ -135,11 +137,18 @@ curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/<branch>/ryoku-shel
   | RYOKU_SHELL_REF=<branch> bash
 ```
 
-The ref also picks the package channel: `unstable-dev` points `[ryoku]` at the
-unstable (testing) channel its payload is built against, any other ref at
-stable, and the choice is recorded the way `ryoku track` records it. Rerunning
-from the other ref moves an existing Ryoku channel and redoes the payload and
-package steps, so a half-finished stable install can be finished on unstable.
+The ref also picks the package channel: `unstable-dev` points the Arch and Void
+repositories at testing, while any other ref uses stable. The choice is
+recorded the way `ryoku track` records it. Rerunning from the other ref moves
+an existing Ryoku channel and redoes the payload and package steps, so a
+half-finished stable install can be finished on unstable.
 
 `--payload /path/to/checkout` (or `RYOKU_SHELL_PAYLOAD`) skips the payload
 clone and uses a local repo, for iterating without pushing.
+
+### Test overrides
+
+- `RYOKU_XBPS_REPO`: repository URL or absolute path written for a Void
+  installer test.
+- `RYOKU_XBPS_KEYRING_DIR`: directory of `*.plist` trust keys seeded before
+  the first repository sync.

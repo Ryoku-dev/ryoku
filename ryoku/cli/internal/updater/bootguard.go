@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	i18n "ryoku-i18n"
 )
@@ -76,7 +77,7 @@ func bootID() string {
 // in. RYOKU_UPDATE_FROM carries the release the first stage read before pacman
 // ran; the marker is written only when the release actually changed.
 func armBootGuard(snapshot string) {
-	if sys.ResolveRepo() != "" {
+	if updatePackageManager() == host.XBPS || sys.ResolveRepo() != "" {
 		return
 	}
 	from := strings.TrimSpace(os.Getenv("RYOKU_UPDATE_FROM"))
@@ -84,7 +85,7 @@ func armBootGuard(snapshot string) {
 	if from == "" || to == "" || from == to || !sys.IsReleaseTag(from) {
 		return
 	}
-	p := pendingUpdate{From: from, To: to, Channel: sys.PackagedChannel(), Snapshot: snapshot, ArmedBoot: bootID(), At: time.Now().UTC().Format(time.RFC3339)}
+	p := pendingUpdate{From: from, To: to, Channel: packagedChannel(), Snapshot: snapshot, ArmedBoot: bootID(), At: time.Now().UTC().Format(time.RFC3339)}
 	b, _ := json.MarshalIndent(p, "", "  ")
 	// earlier ok files would read as proof of a boot after this update; clear
 	// them so only a boot from here on counts.
@@ -102,6 +103,10 @@ func armBootGuard(snapshot string) {
 func BootGuard(args []string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf(i18n.T("ryoku boot-guard runs as root (ryoku-boot-guard.service)"))
+	}
+	if updatePackageManager() == host.XBPS {
+		_ = os.Remove(pendingFile)
+		return nil
 	}
 	if len(args) > 0 && args[0] == "--disarm" {
 		return disarmBootGuard(i18n.T("disarmed by hand"))

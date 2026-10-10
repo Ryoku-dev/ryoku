@@ -3,6 +3,8 @@ package doctor
 import (
 	"errors"
 	"testing"
+
+	"ryoku-cli/internal/host"
 )
 
 // stubGuard drives the three seams the reconciler reads: which units are
@@ -74,5 +76,25 @@ func TestLeakedSleepGuardReclaim(t *testing.T) {
 	stubGuard(t, guard, true, errors.New("boom"))
 	if r := reconcileLeakedSleepGuard(false); r.status != recFailed {
 		t.Fatalf("failed stop: %s %q, want fail", r.status.label(), r.detail)
+	}
+}
+
+func TestSleepGuardUsesHostUserServices(t *testing.T) {
+	oldService := sleepGuardService
+	t.Cleanup(func() { sleepGuardService = oldService })
+	var calls [][]string
+	sleepGuardService = func(args []string) int {
+		calls = append(calls, append([]string(nil), args...))
+		return host.ExitOK
+	}
+
+	if !userUnitActive(updateSleepGuardUnit) {
+		t.Fatal("active service should be reported active")
+	}
+	if err := stopLeakedSleepGuard(); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 2 || calls[0][1] != "is-active" || calls[1][1] != "stop" {
+		t.Fatalf("service calls = %v, want user is-active then stop", calls)
 	}
 }

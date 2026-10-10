@@ -1,0 +1,17 @@
+# Template file for 'ttf-jetbrains-mono-nerd'
+pkgname=ttf-jetbrains-mono-nerd
+version=3.5.1
+revision=1
+create_wrksrc=yes
+short_desc="JetBrains Mono Nerd Font monospace face"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/ryanoasis/nerd-fonts"
+distfiles="${homepage}/releases/download/v${version}/JetBrainsMono.tar.xz"
+checksum=04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
+
+do_install() {
+	vmkdir usr/share/fonts/jetbrains-mono-nerd
+	vcopy "*.ttf" usr/share/fonts/jetbrains-mono-nerd
+	vlicense OFL.txt
+}

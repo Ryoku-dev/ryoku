@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
 
@@ -22,10 +23,17 @@ import (
 // the pin, the sync db, and the installed set back into agreement through the
 // same transactional path `ryoku track` uses.
 func reconcileChannelPin(checkOnly bool) recResult {
-	if sys.ResolveRepo() != "" || !sys.PkgInstalled("ryoku-desktop") {
-		return okRes(i18n.T("not a packaged install; no [ryoku] channel pin to reconcile"))
+	manager, err := doctorPackageManager()
+	if err != nil || manager != host.Pacman && manager != host.XBPS {
+		return okRes(i18n.T("release channel pin checks are not available on this host"))
 	}
-	pin := sys.PackagedChannel()
+	if sys.ResolveRepo() != "" || !doctorPackageInstalled("ryoku-desktop") {
+		if manager == host.Pacman {
+			return okRes(i18n.T("not a packaged install; no [ryoku] channel pin to reconcile"))
+		}
+		return okRes(i18n.T("not a packaged install; no Ryoku channel pin to reconcile"))
+	}
+	pin, _ := host.Default().RepoChannel()
 	installed := sys.ReadRelease().Release
 	switch outcome, want := planChannelPin(pin, installed, sys.ReadChannelIntent()); outcome {
 	case channelPinDeliberate:

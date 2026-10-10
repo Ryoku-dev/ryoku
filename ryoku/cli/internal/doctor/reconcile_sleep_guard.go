@@ -1,10 +1,12 @@
 package doctor
 
 import (
+	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"syscall"
+
+	"ryoku-cli/internal/host"
 
 	i18n "ryoku-i18n"
 )
@@ -46,16 +48,23 @@ var cutoverLockFree = func() bool {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil
 }
 
-// userUnitActive reports whether one of this user's units is active. A var
-// so tests need no real systemd.
+// The host seam maps these names to systemd user units or the services
+// supervised under ~/.config/service.
+var sleepGuardService = func(args []string) int {
+	return host.Default().Service(args)
+}
+
 var userUnitActive = func(unit string) bool {
-	return exec.Command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
+	return sleepGuardService([]string{"--user", "is-active", unit}) == host.ExitOK
 }
 
 // stopLeakedSleepGuard stops the orphaned guard. A var so the repair test
-// never touches the real user manager.
+// never touches the real session supervisor.
 var stopLeakedSleepGuard = func() error {
-	return exec.Command("systemctl", "--user", "stop", updateSleepGuardUnit).Run()
+	if code := sleepGuardService([]string{"--user", "stop", updateSleepGuardUnit}); code != host.ExitOK {
+		return fmt.Errorf("service stop exited %d", code)
+	}
+	return nil
 }
 
 func reconcileLeakedSleepGuard(checkOnly bool) recResult {
@@ -68,7 +77,7 @@ func reconcileLeakedSleepGuard(checkOnly bool) recResult {
 	if userUnitActive(cutoverWaiterUnit) {
 		return okRes(i18n.T("a deferred generation cutover owns the sleep guard"))
 	}
-	fix := "systemctl --user stop " + updateSleepGuardUnit
+	fix := "ryoku-host svc --user stop " + updateSleepGuardUnit
 	if checkOnly {
 		return wouldRes(i18n.T("a crashed update left its sleep guard active; suspend is denied")).
 			withFix("%s", fix)

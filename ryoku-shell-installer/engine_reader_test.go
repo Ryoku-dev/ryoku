@@ -92,7 +92,7 @@ func TestVoidPackagePlanMatchesResolver(t *testing.T) {
 		"--lane", "hardware:amd",
 		"--lane", "hardware:intel",
 		"--lane", "hardware:nvidia",
-		"--session", "--build",
+		"--session",
 		"--drop", "firefox",
 		"--drop", "zen-browser-bin",
 		"--drop", "fish",
@@ -105,6 +105,77 @@ func TestVoidPackagePlanMatchesResolver(t *testing.T) {
 	want := strings.Fields(string(out))
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("Void package plan:\n%v\nwant resolver output:\n%v", got, want)
+	}
+}
+
+func TestVoidPackagedTransactionsContainMetaPackagesWithoutBuildSet(t *testing.T) {
+	t.Setenv("RYOKU_XBPS_REPO", "https://repo.test/void")
+	e := &engine{
+		f:       &facts{distro: voidLinux, hasNvidia: true},
+		p:       &plan{browser: "firefox", shell: "fish"},
+		payload: filepath.Clean(".."),
+		dry:     true,
+		events:  make(chan any, 16),
+	}
+	if err := stepPackages(e); err != nil {
+		t.Fatal(err)
+	}
+	close(e.events)
+	var commands []string
+	for event := range e.events {
+		line, ok := event.(evLine)
+		if ok && strings.Contains(line.line, "xbps-install") {
+			commands = append(commands, line.line)
+		}
+	}
+	if len(commands) != 2 {
+		t.Fatalf("xbps transactions = %v, want one enabler and one package transaction", commands)
+	}
+	if !strings.Contains(commands[0], "void-repo-") {
+		t.Fatalf("first transaction does not enable a Void repository: %q", commands[0])
+	}
+	for _, pkg := range []string{"ryoku-keyring", "ryoku-desktop", "ryoku-desktop-niri"} {
+		if !strings.Contains(" "+commands[1]+" ", " "+pkg+" ") {
+			t.Errorf("package transaction missing %s: %q", pkg, commands[1])
+		}
+	}
+	for _, buildPkg := range []string{" go ", " cmake "} {
+		if strings.Contains(" "+commands[1]+" ", buildPkg) {
+			t.Errorf("package transaction contains source-build package %q: %q", strings.TrimSpace(buildPkg), commands[1])
+		}
+	}
+}
+
+func TestVoidRepoSeedsKeyBeforeConfigAndSync(t *testing.T) {
+	keyDir := t.TempDir()
+	plist := filepath.Join(keyDir, "test-key.plist")
+	if err := os.WriteFile(plist, []byte("test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_XBPS_KEYRING_DIR", keyDir)
+	t.Setenv("RYOKU_XBPS_REPO", "https://repo.test/void")
+	e := &engine{
+		f:      &facts{distro: voidLinux},
+		ref:    "unstable-dev",
+		dry:    true,
+		events: make(chan any, 16),
+	}
+	if err := stepRepo(e); err != nil {
+		t.Fatal(err)
+	}
+	close(e.events)
+	var lines []string
+	for event := range e.events {
+		if line, ok := event.(evLine); ok {
+			lines = append(lines, line.line)
+		}
+	}
+	joined := strings.Join(lines, "\n")
+	keyAt := strings.Index(joined, "install -Dm644 "+plist)
+	configAt := strings.Index(joined, "write "+voidRepoConfig)
+	syncAt := strings.LastIndex(joined, "xbps-install -S")
+	if keyAt < 0 || configAt < 0 || syncAt < 0 || !(keyAt < configAt && configAt < syncAt) {
+		t.Fatalf("repo plan must seed key, write config, then sync:\n%s", joined)
 	}
 }
 
@@ -137,7 +208,13 @@ func TestPayloadLocationFollowsDeliveryModel(t *testing.T) {
 		t.Fatalf("Arch payload = %q, want %q", arch.payload, want)
 	}
 
-	source := &engine{f: &facts{homeDir: home, distro: voidLinux}}
+	void := &engine{f: &facts{homeDir: home, distro: voidLinux}}
+	void.resolvePayload()
+	if void.payload != arch.payload {
+		t.Fatalf("Void payload = %q, want packaged cache %q", void.payload, arch.payload)
+	}
+
+	source := &engine{f: &facts{homeDir: home, distro: debianLinux}}
 	source.resolvePayload()
 	if want := filepath.Join(home, "ryoku-arch"); source.payload != want {
 		t.Fatalf("source payload = %q, want durable checkout %q", source.payload, want)
@@ -160,7 +237,7 @@ func TestSourcePayloadCloneIsCompleteAndRefreshable(t *testing.T) {
 
 	home := filepath.Join(root, "home")
 	e := &engine{
-		f:   &facts{homeDir: home, distro: voidLinux},
+		f:   &facts{homeDir: home, distro: debianLinux},
 		p:   &plan{},
 		ref: "main",
 	}
@@ -212,28 +289,29 @@ func TestSourcePayloadCloneIsCompleteAndRefreshable(t *testing.T) {
 	}
 }
 
-func TestRunitBuildRepairsSessionWrappersWithRestore(t *testing.T) {
+func TestRunitSessionEnsureAndWrapperRepairOrder(t *testing.T) {
 	t.Setenv("RYOKU_HOST_INIT", "runit")
 	root := t.TempDir()
 	home := filepath.Join(root, "home")
-	payload := filepath.Join(root, "payload")
-	shellDir := filepath.Join(payload, "ryoku", "shell")
 	binDir := filepath.Join(home, ".local", "bin")
 	backupDir := filepath.Join(root, "backup")
-	for _, dir := range []string{shellDir, binDir, backupDir} {
+	for _, dir := range []string{binDir, backupDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(shellDir, "deploy.sh"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
 	logPath := filepath.Join(root, "host.log")
 	host := filepath.Join(binDir, "ryoku-host")
-	hostScript := "#!/bin/sh\nprintf '%s\\n' \"$*\" > \"$HOST_LOG\"\n"
+	hostScript := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$HOST_LOG\"\n"
 	if err := os.WriteFile(host, []byte(hostScript), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	sudo := filepath.Join(binDir, "sudo")
+	sudoScript := "#!/bin/sh\n[ \"$1\" != -n ] || shift\nexec \"$@\"\n"
+	if err := os.WriteFile(sudo, []byte(sudoScript), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOST_LOG", logPath)
 	restorePath := filepath.Join(backupDir, "restore.sh")
 	if err := os.WriteFile(restorePath, []byte("#!/bin/sh\n"), 0o755); err != nil {
@@ -242,11 +320,10 @@ func TestRunitBuildRepairsSessionWrappersWithRestore(t *testing.T) {
 	e := &engine{
 		f:           &facts{homeDir: home, distro: voidLinux},
 		p:           &plan{},
-		payload:     payload,
 		backupDir:   backupDir,
 		restorePath: restorePath,
 	}
-	if err := stepBuild(e); err != nil {
+	if err := ensureRunitSession(e); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(logPath)
@@ -254,8 +331,9 @@ func TestRunitBuildRepairsSessionWrappersWithRestore(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantBackup := filepath.Join(backupDir, "session-wrappers")
-	if want := "session fix-wrappers --backup-dir " + wantBackup; strings.TrimSpace(string(got)) != want {
-		t.Fatalf("ryoku-host args = %q, want %q", strings.TrimSpace(string(got)), want)
+	want := "session ensure --system\nsession ensure --user\nsession fix-wrappers --backup-dir " + wantBackup
+	if strings.TrimSpace(string(got)) != want {
+		t.Fatalf("ryoku-host calls = %q, want %q", strings.TrimSpace(string(got)), want)
 	}
 	restore, err := os.ReadFile(restorePath)
 	if err != nil {

@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **Ryoku packages now share one payload across pacman and XBPS.** Monorepo
+  PKGBUILDs install the shared payload with systemd wiring, while Void templates
+  install it with runit wiring. The new Void pipeline builds, signs, and indexes
+  those templates as an XBPS repository.
 - **`prowl` ships from [ryoku] and replaces `prowl-agent`.** Built from a pinned
   neur0map/prowl commit with the potion-code-16M embedding model compiled in,
   and stamped pacman-managed so `prowl update` defers to `ryoku update`.

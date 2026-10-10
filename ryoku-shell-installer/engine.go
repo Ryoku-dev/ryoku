@@ -29,23 +29,41 @@ var ryokuStanzaRe = regexp.MustCompile(`(?m)^\[ryoku\]`)
 
 const repoURL = "https://github.com/ryoku-dev/ryoku-arch.git"
 
-// the [ryoku] channels the installer can point a box at. a payload ref is
-// built against one of them: unstable-dev is what the testing channel rebuilds
-// on every push, everything else (main, release tags) matches stable. pairing
-// an unstable-dev payload with stable packages fails on any package that only
-// exists in testing yet.
+// The Ryoku channels an installer payload ref belongs to. unstable-dev is what
+// each testing repository rebuilds on every push; everything else matches the
+// stable repository.
 const (
-	stableServer  = "https://repo.ryoku.dev/stable/$arch"
-	testingServer = "https://repo.ryoku.dev/stable/channels/testing/$arch"
+	stableServer      = "https://repo.ryoku.dev/stable/$arch"
+	testingServer     = "https://repo.ryoku.dev/stable/channels/testing/$arch"
+	voidStableRepo    = "https://repo.ryoku.dev/stable/void/x86_64"
+	voidTestingRepo   = "https://repo.ryoku.dev/stable/void/channels/testing/x86_64"
+	voidRepoConfig    = "/etc/xbps.d/20-ryoku.conf"
+	voidSystemRepo    = "/usr/share/xbps.d/20-ryoku.conf"
+	voidTrustedKeyDir = "/var/db/xbps/keys"
 )
 
 // channelForRef names the [ryoku] channel a payload ref belongs to (the value
-// `ryoku track` records as the channel intent) and its Server.
+// `ryoku track` records as the channel intent) and its pacman Server.
 func channelForRef(ref string) (channel, server string) {
 	if ref == "unstable-dev" {
 		return "testing", testingServer
 	}
 	return "stable", stableServer
+}
+
+func voidRepository(ref string) (channel, repository string, writeOverride bool) {
+	channel = "stable"
+	repository = voidStableRepo
+	if ref == "unstable-dev" {
+		channel = "testing"
+		repository = voidTestingRepo
+		writeOverride = true
+	}
+	if override := os.Getenv("RYOKU_XBPS_REPO"); override != "" {
+		repository = override
+		writeOverride = true
+	}
+	return
 }
 
 func pacmanStanza(server string) string {
@@ -358,6 +376,9 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 	if p.resume && f.prevRun != nil {
 		e.state = f.prevRun
 		e.state.adoptRef(ref)
+		if e.d().id == "void" {
+			e.state.adoptPackagedVoid()
+		}
 		if f.prevRun.BackupDir != "" {
 			if fi, err := os.Stat(f.prevRun.BackupDir); err == nil && fi.IsDir() {
 				e.backupDir = f.prevRun.BackupDir
@@ -365,10 +386,10 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 		}
 	}
 	// repo trust comes before conflict removal on purpose: nothing gets
-	// uninstalled until the [ryoku] db has actually been fetched. legacy
-	// sources go first so the full upgrade already runs on clean mirrors.
-	pacmanOnly := map[string]bool{"legacy": true, "repo": true, "aur": true, "drivers": true}
-	sourceOnly := map[string]bool{"fonts": true}
+	// uninstalled until the Ryoku package database has actually been fetched.
+	// Legacy sources go first on Arch so its full upgrade uses clean mirrors.
+	archOnly := map[string]bool{"legacy": true, "aur": true}
+	sourceOnly := map[string]bool{"fonts": true, "build": true}
 	all := []estep{
 		{"legacy", i18n.T("Retiring the previous distro's package sources"), stepLegacy},
 		{"sysupgrade", i18n.T("Updating the system"), stepSysupgrade},
@@ -389,17 +410,18 @@ func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine
 		{"verify", i18n.T("Verifying the install"), stepVerify},
 	}
 	src := f.distro != nil && f.distro.fromSource
+	arch := f.distro == nil || f.distro.id == "arch"
 	for _, s := range all {
-		if src && pacmanOnly[s.id] {
+		if !arch && archOnly[s.id] {
 			continue
 		}
-		if !src && (s.id == "build" || sourceOnly[s.id]) {
+		if src && (s.id == "repo" || s.id == "drivers") {
+			continue
+		}
+		if sourceOnly[s.id] && !src {
 			continue
 		}
 		e.steps = append(e.steps, s)
-		if src && e.usesRunit() && s.id == "build" {
-			e.steps = append(e.steps, estep{"drivers", i18n.T("Setting up GPU drivers"), stepDrivers})
-		}
 	}
 	return e
 }
@@ -693,14 +715,18 @@ func stepSysupgrade(e *engine) error {
 
 func stepTools(e *engine) error {
 	d := e.d()
-	return e.sudo(d.installArgs([]string{"git", d.local("base-devel")})...)
+	pkgs := []string{"git"}
+	if d.id != "void" {
+		pkgs = append(pkgs, d.local("base-devel"))
+	}
+	return e.sudo(d.installArgs(pkgs)...)
 }
 
 // resolvePayload anchors the payload checkout path. It runs when the engine is
 // built, not only when the fetch step runs: a resume skips the completed
 // payload step, and every later step joins e.payload to find scripts. Source
 // installs use the durable checkout that deploy.sh records for `ryoku update`;
-// packaged Arch installs retain their throwaway sparse payload cache.
+// packaged installs retain a throwaway sparse payload cache.
 func (e *engine) resolvePayload() {
 	if e.payloadOverride != "" {
 		e.payload = e.payloadOverride
@@ -715,6 +741,13 @@ func (e *engine) resolvePayload() {
 		cache = filepath.Join(e.f.homeDir, ".cache")
 	}
 	e.payload = filepath.Join(cache, "ryoku-shell-install/repo")
+}
+
+func (e *engine) payloadSparsePaths() []string {
+	if e.d().id != "void" {
+		return sparsePaths
+	}
+	return append(append([]string{}, sparsePaths...), "void/packages")
 }
 
 func stepPayload(e *engine) error {
@@ -767,12 +800,17 @@ func stepPayload(e *engine) error {
 			return err
 		}
 	}
-	if err := e.cmd(e.payload, nil, "git", append([]string{"sparse-checkout", "set"}, sparsePaths...)...); err != nil {
+	paths := e.payloadSparsePaths()
+	if err := e.cmd(e.payload, nil, "git", append([]string{"sparse-checkout", "set"}, paths...)...); err != nil {
 		return err
 	}
 	// a cache from an older installer can come out of the update missing paths
 	// the current engine needs; a broken cache is worth less than a fresh clone.
-	if _, err := os.Stat(filepath.Join(e.payload, "system/packages/base.packages")); err != nil && !e.dry {
+	required := filepath.Join(e.payload, "system/packages/base.packages")
+	if e.d().id == "void" {
+		required = filepath.Join(e.payload, "void/packages/resolve")
+	}
+	if _, err := os.Stat(required); err != nil && !e.dry {
 		e.say(i18n.T("payload cache is incomplete; recloning it fresh"))
 		if err := os.RemoveAll(e.payload); err != nil {
 			return err
@@ -781,7 +819,7 @@ func stepPayload(e *engine) error {
 			"--branch", e.ref, repoURL, e.payload); err != nil {
 			return err
 		}
-		return e.cmd(e.payload, nil, "git", append([]string{"sparse-checkout", "set"}, sparsePaths...)...)
+		return e.cmd(e.payload, nil, "git", append([]string{"sparse-checkout", "set"}, paths...)...)
 	}
 	return nil
 }
@@ -971,7 +1009,78 @@ func stepConflicts(e *engine) error {
 	return nil
 }
 
+func voidKeyringSource(e *engine) string {
+	if dir := os.Getenv("RYOKU_XBPS_KEYRING_DIR"); dir != "" {
+		return dir
+	}
+	return filepath.Join(e.payload, "void/packages/srcpkgs/ryoku-keyring/files")
+}
+
+func voidKeyPlists(e *engine) ([]string, error) {
+	dir := voidKeyringSource(e)
+	plists, err := filepath.Glob(filepath.Join(dir, "*.plist"))
+	if err != nil {
+		return nil, fmt.Errorf("read XBPS keyring %s: %w", dir, err)
+	}
+	if len(plists) == 0 && !e.dry {
+		return nil, fmt.Errorf("XBPS keyring %s contains no .plist keys", dir)
+	}
+	return plists, nil
+}
+
+func stepVoidRepo(e *engine) error {
+	plists, err := voidKeyPlists(e)
+	if err != nil {
+		return err
+	}
+	if len(plists) == 0 {
+		e.say(i18n.Tf("DRYRUN: seed XBPS key plists from %s into %s", voidKeyringSource(e), voidTrustedKeyDir))
+	}
+	for _, plist := range plists {
+		dst := filepath.Join(voidTrustedKeyDir, filepath.Base(plist))
+		if err := e.sudo("install", "-Dm644", plist, dst); err != nil {
+			return err
+		}
+	}
+
+	channel, repository, writeOverride := voidRepository(e.ref)
+	if strings.ContainsAny(repository, "\r\n") ||
+		!filepath.IsAbs(repository) && !strings.Contains(repository, "://") {
+		return fmt.Errorf("invalid RYOKU_XBPS_REPO %q: expected a URL or absolute path", repository)
+	}
+	if writeOverride {
+		if err := e.sudo("mkdir", "-p", filepath.Dir(voidRepoConfig)); err != nil {
+			return err
+		}
+		if err := e.sudoWrite(voidRepoConfig, "repository="+repository+"\n"); err != nil {
+			return err
+		}
+		if err := e.sudo("chmod", "644", voidRepoConfig); err != nil {
+			return err
+		}
+		e.say(i18n.Tf("configured the Ryoku XBPS repository (%s channel) in %s", channel, voidRepoConfig))
+	} else {
+		if err := e.sudo("rm", "-f", voidRepoConfig); err != nil {
+			return err
+		}
+		e.say(i18n.T("using the stable Ryoku XBPS repository; ryoku-keyring will install its system default"))
+	}
+
+	if err := e.sudoSh(`umask 022 && mkdir -p /var/lib/ryoku && ` +
+		`printf '%s\n' '` + channel + `' > /var/lib/ryoku/channel-intent.new && ` +
+		`mv -f /var/lib/ryoku/channel-intent.new /var/lib/ryoku/channel-intent`); err != nil {
+		return err
+	}
+	if writeOverride {
+		return e.sudo("xbps-install", "-S")
+	}
+	return e.sudo("xbps-install", "--repository", repository, "-S")
+}
+
 func stepRepo(e *engine) error {
+	if e.d().id == "void" {
+		return stepVoidRepo(e)
+	}
 	// on a box that already has ryoku-keyring, the keyring files under
 	// /usr/share/pacman/keyrings are package-owned: seeding and deleting them
 	// again would strip files out of the installed package. the trustdb is
@@ -1122,7 +1231,7 @@ func (e *engine) readVoidPackages() ([]string, error) {
 	for _, lane := range voidHardwareLanes(e.f) {
 		args = append(args, "--lane", "hardware:"+lane)
 	}
-	args = append(args, "--session", "--build")
+	args = append(args, "--session")
 	p := e.p
 	if p == nil {
 		p = &plan{}
@@ -1144,6 +1253,8 @@ func stepPackages(e *engine) error {
 		if err != nil {
 			return err
 		}
+		pkgs = uniquePackages(append(pkgs,
+			"ryoku-keyring", "ryoku-desktop", "ryoku-desktop-niri"))
 		return installPackagePlan(e, d, pkgs)
 	}
 	base, err := e.readBasePackages()
@@ -1195,7 +1306,14 @@ func stepPackages(e *engine) error {
 
 func installPackagePlan(e *engine, d *distro, pkgs []string) error {
 	for _, phase := range d.installPhases(pkgs) {
-		if err := e.sudo(desktopPacmanArgs(d, phase)...); err != nil {
+		args := desktopPacmanArgs(d, phase)
+		if d.id == "void" {
+			_, repository, writeOverride := voidRepository(e.ref)
+			if !writeOverride {
+				args = append([]string{"xbps-install", "--repository", repository}, args[1:]...)
+			}
+		}
+		if err := e.sudo(args...); err != nil {
 			return err
 		}
 	}
@@ -1205,9 +1323,9 @@ func installPackagePlan(e *engine, d *distro, pkgs []string) error {
 // desktopPacmanArgs builds the package transaction for stepPackages. On Arch it
 // --overwrites the ryoku-desktop-owned paths a prior partial install, a dev
 // deploy, or the ISO installer can leave unowned (ryokuOverwriteGlob), so a
-// resume or a conversion adopts them instead of aborting the whole transaction on
-// "exists in filesystem". fromSource distros build from the payload and never take
-// this path, so they keep the plain install command.
+// resume or conversion adopts them instead of aborting the transaction on
+// "exists in filesystem". Other package managers keep their plain install
+// command.
 func desktopPacmanArgs(d *distro, pkgs []string) []string {
 	args := append([]string{}, d.installCmd...)
 	if d.id == "arch" {
@@ -1258,29 +1376,18 @@ func (e *engine) dropSatisfied(pkgs []string) []string {
 	return keep
 }
 
-// stepBuild is the fromSource replacement for installing ryoku-desktop: the
-// payload's deploy.sh builds and installs the desktop plus ryoku-host. On runit,
-// the host seam can therefore repair login wrappers immediately afterward.
+// stepBuild is the source-only replacement for installing ryoku-desktop.
 func stepBuild(e *engine) error {
 	script := filepath.Join(e.payload, "ryoku", "shell", "deploy.sh")
 	if e.dry {
 		e.say(i18n.Tf("DRYRUN: would run %s", script))
-		if e.usesRunit() {
-			return fixRunitSessionWrappers(e)
-		}
 		return nil
 	}
 	if _, err := os.Stat(script); err != nil {
 		return errors.New(i18n.T("payload is missing ryoku/shell/deploy.sh"))
 	}
 	e.say(i18n.T("building the desktop from the payload (this takes a few minutes)"))
-	if err := e.cmd(filepath.Join(e.payload, "ryoku", "shell"), nil, "bash", script); err != nil {
-		return err
-	}
-	if e.usesRunit() {
-		return fixRunitSessionWrappers(e)
-	}
-	return nil
+	return e.cmd(filepath.Join(e.payload, "ryoku", "shell"), nil, "bash", script)
 }
 
 func fixRunitSessionWrappers(e *engine) error {
@@ -1438,9 +1545,26 @@ func wireRunitServices(e *engine) error {
 	return enableRunitService(e, "power-profiles-daemon", true)
 }
 
+func ensureRunitSession(e *engine) error {
+	host := e.ryokuTool("ryoku-host")
+	if host == "" {
+		host = "ryoku-host"
+	}
+	if err := e.sudo(host, "session", "ensure", "--system"); err != nil {
+		return err
+	}
+	if err := e.cmd("", nil, host, "session", "ensure", "--user"); err != nil {
+		return err
+	}
+	return fixRunitSessionWrappers(e)
+}
+
 func stepSession(e *engine) error {
 	if e.usesRunit() {
 		if err := wireRunitServices(e); err != nil {
+			return err
+		}
+		if err := ensureRunitSession(e); err != nil {
 			return err
 		}
 	}
@@ -2028,9 +2152,46 @@ func runRunitSessionCheck(host string) ([]string, error) {
 	return findings, nil
 }
 
+func voidRepoIsConfigured(e *engine) bool {
+	_, want, _ := voidRepository(e.ref)
+	for _, path := range []string{voidRepoConfig, voidSystemRepo} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			key, value, ok := strings.Cut(strings.TrimSpace(line), "=")
+			if ok && strings.TrimSpace(key) == "repository" {
+				return strings.TrimSpace(value) == want
+			}
+		}
+		if path == voidRepoConfig {
+			return false
+		}
+	}
+	return false
+}
+
+func voidKeysAreTrusted(e *engine) bool {
+	plists, err := voidKeyPlists(e)
+	if err != nil || len(plists) == 0 {
+		return false
+	}
+	for _, plist := range plists {
+		if _, err := os.Stat(filepath.Join(voidTrustedKeyDir, filepath.Base(plist))); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 func stepVerify(e *engine) error {
 	if e.dry {
-		e.say(i18n.T("DRYRUN: verify [ryoku] repo, packages, session files"))
+		if e.d().id == "void" {
+			e.say(i18n.T("DRYRUN: verify Ryoku XBPS repo, trusted key, ryoku-desktop packages, Turnstile, niri session"))
+		} else {
+			e.say(i18n.T("DRYRUN: verify [ryoku] repo, packages, session files"))
+		}
 		return nil
 	}
 	var bad []string
@@ -2046,11 +2207,15 @@ func stepVerify(e *engine) error {
 		check(e.ryokuBin() != "", i18n.T("ryoku CLI built and installed"))
 		_, err := os.Stat(filepath.Join(e.f.homeDir, ".local/bin/ryoku-shell"))
 		check(err == nil, i18n.T("ryoku-shell daemon built"))
-		if e.d().id == "void" {
-			for _, pkg := range []string{"sddm", "niri", "quickshell"} {
-				check(e.d().installedPkg(pkg), i18n.Tf("%s installed through XBPS", pkg))
-			}
-		}
+	} else if e.d().id == "void" {
+		check(voidRepoIsConfigured(e), i18n.T("Ryoku XBPS repository configured"))
+		check(voidKeysAreTrusted(e), i18n.T("Ryoku XBPS signing key trusted"))
+		check(e.d().installedPkg("ryoku-keyring"), i18n.T("ryoku-keyring installed through XBPS"))
+		check(e.d().installedPkg("ryoku-desktop"), i18n.T("ryoku-desktop installed through XBPS"))
+		check(e.d().installedPkg("ryoku-desktop-niri"), i18n.T("ryoku-desktop-niri installed through XBPS"))
+		check(has("ryoku"), i18n.T("ryoku CLI on PATH"))
+		st, err := os.Stat("/usr/share/ryoku/config")
+		check(err == nil && st.IsDir(), i18n.T("base config tree at /usr/share/ryoku/config"))
 	} else {
 		conf, _ := os.ReadFile("/etc/pacman.conf")
 		check(strings.Contains(string(conf), "[ryoku]"), i18n.T("[ryoku] repository in /etc/pacman.conf"))
@@ -2116,7 +2281,7 @@ func stepVerify(e *engine) error {
 	}
 	if e.p.devtools || e.d().fromSource {
 		check(has("go"), i18n.T("go toolchain on PATH (ryoku recovery rebuilds from source)"))
-	} else {
+	} else if e.d().id == "arch" {
 		e.say(gWarn + " " + i18n.T("developer toolchain skipped: ryoku recovery needs go; install with: sudo pacman -S go"))
 	}
 	if e.p.omarchy {
@@ -2124,6 +2289,9 @@ func stepVerify(e *engine) error {
 		if omarchyStanzaRe.Match(conf2) {
 			e.say(gWarn + " " + i18n.T("the [omarchy] repository is still in /etc/pacman.conf"))
 		}
+	}
+	if note := e.d().snapshotNote; note != "" {
+		e.say(gWarn + " " + note)
 	}
 	if len(bad) > 0 {
 		return errors.New(i18n.Tf("%d check(s) failed: %s", len(bad), strings.Join(bad, "; ")))

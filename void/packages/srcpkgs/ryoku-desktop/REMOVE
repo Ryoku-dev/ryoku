@@ -1,0 +1,46 @@
+#!/bin/sh
+
+refresh_caches() {
+	if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+		gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+	fi
+	if command -v update-desktop-database >/dev/null 2>&1; then
+		update-desktop-database -q /usr/share/applications 2>/dev/null || true
+	fi
+}
+
+session_running() {
+	command -v pgrep >/dev/null 2>&1 || return 1
+	pgrep -x ryoku-shell >/dev/null 2>&1 ||
+		pgrep -x ryoku-clamshell >/dev/null 2>&1 ||
+		pgrep -x ryoku-idle >/dev/null 2>&1
+}
+
+remove_service_link() {
+	name=$1
+	link=/etc/runit/runsvdir/default/$name
+	[ "$(readlink "$link" 2>/dev/null || true)" = "/etc/sv/$name" ] && rm -f "$link"
+}
+
+case "$ACTION" in
+	pre)
+		if [ "${UPDATE:-no}" != yes ] && session_running &&
+		   [ -x /usr/bin/ryoku-power-cutover ]; then
+			/usr/bin/ryoku-power-cutover prepare-package
+		fi
+		;;
+	post)
+		[ "${UPDATE:-no}" != yes ] || exit 0
+		if [ -x /run/ryoku-power-cutover ]; then
+			/run/ryoku-power-cutover package
+		elif command -v loginctl >/dev/null 2>&1; then
+			loginctl reload >/dev/null 2>&1 || true
+		fi
+		for name in ryoku-var-state ryoku-boot-guard \
+			ryoku-network-kill-guard ryoku-network-kill-disconnect; do
+			remove_service_link "$name"
+		done
+		rm -f /var/lib/ryoku/power-cutover-hook-active
+		refresh_caches
+		;;
+esac

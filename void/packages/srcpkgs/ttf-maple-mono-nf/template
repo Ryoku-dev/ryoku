@@ -1,0 +1,17 @@
+# Template file for 'ttf-maple-mono-nf'
+pkgname=ttf-maple-mono-nf
+version=7.9
+revision=1
+create_wrksrc=yes
+short_desc="Maple Mono Nerd Font monospace face"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/subframe7536/maple-font"
+distfiles="${homepage}/releases/download/v${version}/MapleMono-NF.zip"
+checksum=59098b87c895d871635d37680e88000ae2b2b25b55428195b228ec589e35fb89
+
+do_install() {
+	vmkdir usr/share/fonts/maple-mono-nf
+	vcopy "*.ttf" usr/share/fonts/maple-mono-nf
+	vlicense LICENSE.txt
+}

@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -171,13 +171,13 @@ func storeWriter(rel string) string {
 	return i18n.T("a Ryoku tool; change it through its GUI or command")
 }
 
-// pacmanOwner returns the package that owns an absolute path, or "".
-func pacmanOwner(path string) string {
-	out, err := exec.Command("pacman", "-Qqo", path).Output()
+// packageOwner returns the native package that owns an absolute path, or "".
+func packageOwner(path string) string {
+	owner, err := host.Default().PackageOwner(path)
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return owner
 }
 
 // classify is the whole verdict for one argument. The order is the contract's:
@@ -274,8 +274,8 @@ func (e ownerEnv) classify(arg string) ownership {
 		return o
 	}
 
-	// package: outside ~/.config, owned by a pacman package.
-	if pkg := pacmanOwner(named); pkg != "" {
+	// package: outside ~/.config, owned by a distribution package.
+	if pkg := packageOwner(named); pkg != "" {
 		o.Class = "package"
 		o.Writer = i18n.Tf("the %s package", pkg)
 		o.Advice = i18n.T("Package upgrades overwrite it. Use the program's documented override (for example an /etc drop-in) or ask before touching it.")

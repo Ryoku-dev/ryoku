@@ -317,7 +317,16 @@ func gpuHostUnavailable(err error) bool {
 	return code == 4 || code == 5
 }
 
+func snapshotsUnavailable() bool {
+	err := exec.Command("ryoku-host", "snapshots").Run()
+	var exitErr *exec.ExitError
+	return errors.As(err, &exitErr) && exitErr.ExitCode() == 5
+}
+
 func snapshot(desc string) {
+	if snapshotsUnavailable() {
+		return
+	}
 	if _, err := exec.LookPath("snapper"); err != nil {
 		return
 	}

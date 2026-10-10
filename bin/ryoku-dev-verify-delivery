@@ -20,9 +20,10 @@ say() { (( quiet )) || printf '%s\n' "$*"; }
 repo="$(git rev-parse --show-toplevel)"
 cd "$repo"
 
-# delivery paths: the package base config, the installer's one-time seeds, and
-# the dev deploy. an app config is "delivered" if any of them references it.
-sources=(release/packages/*/PKGBUILD installation/backend/lib/deploy.sh ryoku/shell/deploy.sh)
+# delivery paths: the package base config (each PKGBUILD and the payload.sh it
+# shares with the Void template), the installer's one-time seeds, and the dev
+# deploy. an app config is "delivered" if any of them references it.
+sources=(release/packages/*/PKGBUILD release/packages/*/payload.sh installation/backend/lib/deploy.sh ryoku/shell/deploy.sh)
 
 # delivered = the file, or any ancestor dir up to apps/, is named by a delivery
 # path. a wholesale `cp -a apps/foo/.` ships every file under foo, so a match on

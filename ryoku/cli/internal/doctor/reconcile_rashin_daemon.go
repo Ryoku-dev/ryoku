@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -18,15 +19,26 @@ import (
 
 // ---- reconciler: rashin (the in-system AI) is on by default -----------------
 //
-// Not enabled and not opted out -> enable at boot (delegated to `ryoku-rashin
-// ensure`, which re-checks the opt-out). Already enabled -> keep it healthy
-// (daemon-reload, lingering, reset a wedged `failed`). `ryoku-rashin disable`
-// is the one-line opt-out and is respected. Idempotent; safe on every update.
+// The service supervisor enables Rashin unless the user opted out. On systemd,
+// ryoku-rashin ensure also maintains login lingering; on runit the Turnstile
+// session roster owns startup. Both paths restart an enabled service that has
+// wedged off and keep the agent skill wiring current.
 
 const rashinUserUnit = "ryoku-rashin.service"
 
-// rashinUnitState is the subset of systemd state the reconciler decides on,
-// split out so the decision is unit-testable without a live user manager.
+const prowlUserUnit = "ryoku-prowl.service"
+
+var (
+	rashinInit = func() (host.InitSystem, error) {
+		return host.Default().Init()
+	}
+	rashinService = func(args []string) int {
+		return host.Default().Service(args)
+	}
+)
+
+// rashinUnitState is the subset of session supervisor state the reconciler
+// decides on, split out so the decision is unit-testable.
 type rashinUnitState struct {
 	enabled bool
 	active  bool
@@ -44,18 +56,20 @@ func rashinDaemonActions(s rashinUnitState) (enableLinger, clearFailed bool) {
 }
 
 func rashinUnitEnabled() bool {
-	out, _ := exec.Command("systemctl", "--user", "is-enabled", rashinUserUnit).Output()
-	return strings.TrimSpace(string(out)) == "enabled"
+	return rashinService([]string{"--user", "is-enabled", rashinUserUnit}) == host.ExitOK
 }
 
 func rashinUnitFailed() bool {
+	initSystem, err := rashinInit()
+	if err != nil || initSystem != host.Systemd {
+		return false
+	}
 	out, _ := exec.Command("systemctl", "--user", "is-failed", rashinUserUnit).Output()
 	return strings.TrimSpace(string(out)) == "failed"
 }
 
 func rashinUnitActive() bool {
-	out, _ := exec.Command("systemctl", "--user", "is-active", rashinUserUnit).Output()
-	return strings.TrimSpace(string(out)) == "active"
+	return rashinService([]string{"--user", "is-active", rashinUserUnit}) == host.ExitOK
 }
 
 // rashinLingerOn reads the marker systemd-logind maintains for a lingering user,
@@ -92,41 +106,68 @@ func rashinOptedOut() bool {
 	return json.Unmarshal(b, &c) == nil && c.OptedOut
 }
 
-const aiUsageTimer = "ryoku-ai-usage.timer"
+const (
+	aiUsageTimer   = "ryoku-ai-usage.timer"
+	aiUsageService = "ryoku-ai-usage.service"
+)
 
-// the usage-collector timer that feeds the bar AI pill.
-func aiUsageTimerKnown() bool {
-	out, _ := exec.Command("systemctl", "--user", "list-unit-files", aiUsageTimer, "--no-legend").Output()
-	return strings.Contains(string(out), aiUsageTimer)
+func aiUsageUnit(initSystem host.InitSystem) string {
+	if initSystem == host.Runit {
+		return aiUsageService
+	}
+	return aiUsageTimer
 }
-func aiUsageTimerEnabled() bool {
-	out, _ := exec.Command("systemctl", "--user", "is-enabled", aiUsageTimer).Output()
-	return strings.TrimSpace(string(out)) == "enabled"
+
+func aiUsageUnitState(unit string) int {
+	return rashinService([]string{"--user", "is-enabled", unit})
 }
 
 func reconcileRashinDaemon(checkOnly bool) recResult {
 	if !sys.Has("ryoku-rashin") {
 		return okRes(i18n.T("ryoku-rashin not installed"))
 	}
+	initSystem, err := rashinInit()
+	if err != nil {
+		return noteRes(i18n.T("could not identify the session supervisor; the rashin daemon was not changed"))
+	}
 	if !rashinUnitEnabled() {
 		if rashinOptedOut() {
 			return okRes(i18n.T("rashin left off by choice (`ryoku-rashin disable`)"))
 		}
 		if checkOnly {
-			return wouldRes(i18n.T("rashin (the Super+S needle and AI dashboard) is off; Ryoku turns it on by default")).
-				withFix(i18n.T("ryoku doctor enables it at boot; `ryoku-rashin disable` opts out"))
+			result := wouldRes(i18n.T("rashin (the Super+S needle and AI dashboard) is off; Ryoku turns it on by default"))
+			if initSystem == host.Runit {
+				return result.withFix(i18n.T("ryoku doctor enables it in the runit session roster; `ryoku-rashin disable` opts out"))
+			}
+			return result.withFix(i18n.T("ryoku doctor enables it at boot; `ryoku-rashin disable` opts out"))
 		}
-		if err := exec.Command("ryoku-rashin", "ensure").Run(); err != nil {
-			return failRes(i18n.T("could not enable the rashin daemon: %v"), err).
-				withFix("ryoku-rashin enable --at-boot")
+		if initSystem == host.Systemd {
+			if err := exec.Command("ryoku-rashin", "ensure").Run(); err != nil {
+				return failRes(i18n.T("could not enable the rashin daemon: %v"), err).
+					withFix("ryoku-rashin enable --at-boot")
+			}
+			return fixedRes(i18n.T("enabled rashin at boot (the Super+S needle and AI dashboard); `ryoku-rashin disable` turns it off"))
 		}
-		return fixedRes(i18n.T("enabled rashin at boot (the Super+S needle and AI dashboard); `ryoku-rashin disable` turns it off"))
+		if code := rashinService([]string{"--user", "enable", "--now", rashinUserUnit}); code != host.ExitOK {
+			return failRes(i18n.T("could not enable the rashin daemon (service exit %d)"), code).
+				withFix("ryoku-host svc --user enable --now " + rashinUserUnit)
+		}
+		return fixedRes(i18n.T("enabled rashin for this and future sessions; `ryoku-rashin disable` turns it off"))
 	}
 	user := doctorUser()
-	state := rashinUnitState{enabled: true, linger: rashinLingerOn(user), failed: rashinUnitFailed()}
+	state := rashinUnitState{
+		enabled: true,
+		active:  rashinUnitActive(),
+		linger:  initSystem != host.Systemd || rashinLingerOn(user),
+		failed:  rashinUnitFailed(),
+	}
 	enableLinger, clearFailed := rashinDaemonActions(state)
+	start := initSystem == host.Runit && !state.active
 	wireSkill := rashinSkillLinksMissing()
-	if !enableLinger && !clearFailed && !wireSkill {
+	if !enableLinger && !clearFailed && !start && !wireSkill {
+		if initSystem == host.Runit {
+			return okRes(i18n.T("rashin daemon enabled and supervised in the runit session roster; the ryoku skill is wired"))
+		}
 		return okRes(i18n.T("rashin daemon enabled with boot-start; the ryoku skill is wired"))
 	}
 	if checkOnly {
@@ -137,15 +178,17 @@ func reconcileRashinDaemon(checkOnly bool) recResult {
 		case enableLinger:
 			return wouldRes(i18n.T("rashin is enabled but only starts at login; a headless boot leaves the dashboard down")).
 				withFix(i18n.T("ryoku doctor enables lingering so it starts at boot"))
+		case start:
+			return wouldRes(i18n.T("the rashin service is enabled but down in this runit session")).
+				withFix(i18n.T("ryoku doctor starts ryoku-rashin under the session supervisor"))
 		default:
 			return wouldRes(i18n.T("rashin is enabled but the ryoku agent skill is not wired into every agent")).
 				withFix(i18n.T("ryoku doctor runs `ryoku-rashin wire`"))
 		}
 	}
 	var did []string
-	if enableLinger || clearFailed {
-		// daemon-reload so the just-delivered hardened unit is the one systemd runs.
-		_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+	if enableLinger || clearFailed || start {
+		_ = rashinService([]string{"--user", "daemon-reload"})
 	}
 	if enableLinger {
 		if user == "" {
@@ -159,41 +202,60 @@ func reconcileRashinDaemon(checkOnly bool) recResult {
 		did = append(did, i18n.T("enabled boot-start (lingering)"))
 	}
 	if clearFailed {
-		_ = exec.Command("systemctl", "--user", "reset-failed", rashinUserUnit).Run()
+		_ = rashinService([]string{"--user", "reset-failed", rashinUserUnit})
 		did = append(did, i18n.T("cleared the wedged failed state"))
 	}
-	if enableLinger || clearFailed {
-		_ = exec.Command("systemctl", "--user", "start", rashinUserUnit).Run()
+	if enableLinger || clearFailed || start {
+		if code := rashinService([]string{"--user", "start", rashinUserUnit}); code != host.ExitOK {
+			return failRes(i18n.T("could not start the rashin daemon (service exit %d)"), code).
+				withFix("ryoku-host svc --user start " + rashinUserUnit)
+		}
 		did = append(did, i18n.T("reloaded the hardened unit"))
 	}
 	if wireSkill {
-		// wire is idempotent and cheap: it drops the ryoku skill symlink into
-		// every agent's skills dir and refreshes the vault pointers.
 		_ = exec.Command("ryoku-rashin", "wire").Run()
 		did = append(did, i18n.T("wired the ryoku agent skill"))
 	}
 	return fixedRes(i18n.T("converged the rashin daemon: ") + strings.Join(did, " and "))
 }
 
-// reconcileAiUsageTimer keeps the bar AI pill fed: the usage-collector timer
-// should run whenever the user has not opted out of the AI. Enabling a user
-// timer is per-user, so the package cannot do it; doctor (in the session) can.
+// reconcileAiUsageTimer keeps the bar AI pill fed. systemd schedules the
+// collector with a timer; runit supervises the equivalent loop service.
 func reconcileAiUsageTimer(checkOnly bool) recResult {
-	if !aiUsageTimerKnown() || rashinOptedOut() {
+	initSystem, err := rashinInit()
+	if err != nil {
+		return noteRes(i18n.T("could not identify the session supervisor; the AI usage collector was not checked"))
+	}
+	unit := aiUsageUnit(initSystem)
+	state := aiUsageUnitState(unit)
+	if state == host.ExitAbsent || rashinOptedOut() {
+		if initSystem == host.Runit {
+			return okRes(i18n.T("AI usage collector service not applicable"))
+		}
 		return okRes(i18n.T("AI usage collector timer not applicable"))
 	}
-	if aiUsageTimerEnabled() {
-		return okRes(i18n.T("AI usage collector timer enabled"))
+	if state == host.ExitOK {
+		if initSystem == host.Systemd {
+			return okRes(i18n.T("AI usage collector timer enabled"))
+		}
+		return okRes(i18n.T("AI usage collector service enabled"))
 	}
 	if checkOnly {
-		return wouldRes(i18n.T("the AI usage collector timer is off, so the bar AI pill goes stale")).
-			withFix(i18n.T("ryoku doctor enables ryoku-ai-usage.timer"))
+		if initSystem == host.Systemd {
+			return wouldRes(i18n.T("the AI usage collector timer is off, so the bar AI pill goes stale")).
+				withFix(i18n.T("ryoku doctor enables ryoku-ai-usage.timer"))
+		}
+		return wouldRes(i18n.T("the AI usage collector service is off, so the bar AI pill goes stale")).
+			withFix(i18n.T("ryoku doctor enables ryoku-ai-usage in the runit session roster"))
 	}
-	if err := exec.Command("systemctl", "--user", "enable", "--now", aiUsageTimer).Run(); err != nil {
-		return failRes(i18n.T("could not enable the AI usage collector timer: %v"), err).
-			withFix("systemctl --user enable --now " + aiUsageTimer)
+	if code := rashinService([]string{"--user", "enable", "--now", unit}); code != host.ExitOK {
+		return failRes(i18n.T("could not enable the AI usage collector (service exit %d)"), code).
+			withFix("ryoku-host svc --user enable --now " + unit)
 	}
-	return fixedRes(i18n.T("enabled the AI usage collector timer"))
+	if initSystem == host.Systemd {
+		return fixedRes(i18n.T("enabled the AI usage collector timer"))
+	}
+	return fixedRes(i18n.T("enabled the AI usage collector service"))
 }
 
 // reconcileProwl surfaces a rashin box that lost the prowl binary.
@@ -210,7 +272,7 @@ func reconcileProwl(_ bool) recResult {
 		return okRes(i18n.T("prowl is present for the rashin agent index"))
 	}
 	return warnRes(i18n.T("rashin is enabled but prowl is missing; the vault code index and agent skills will not refresh")).
-		withFix("sudo pacman -S prowl")
+		withFix(doctorInstallAdvice("prowl"))
 }
 
 // prowlNeeded reports whether a box should be told to install prowl.
@@ -273,15 +335,29 @@ func reconcileProwlGateway(checkOnly bool) recResult {
 			return okRes(i18n.T("Prowl's gateway answers for rashin"))
 		}
 	}
+	initSystem, initErr := rashinInit()
 	if checkOnly {
+		if initErr == nil && initSystem == host.Runit {
+			return wouldRes(i18n.T("rashin is running but Prowl's gateway does not answer")).
+				withFix(i18n.T("ryoku doctor starts the ryoku-prowl runit service"))
+		}
 		return wouldRes(i18n.T("rashin is running but Prowl's gateway does not answer")).
 			withFix(i18n.T("ryoku doctor runs `ryoku-rashin ensure`"))
 	}
-	if err := exec.Command("ryoku-rashin", "ensure").Run(); err != nil {
+	if initErr == nil && initSystem == host.Runit {
+		if code := rashinService([]string{"--user", "start", prowlUserUnit}); code != host.ExitOK {
+			return failRes(i18n.T("rashin is running but Prowl's gateway does not answer; the ryoku-prowl service could not start (exit %d)"), code).
+				withFix("ryoku-host svc --user start " + prowlUserUnit)
+		}
+	} else if err := exec.Command("ryoku-rashin", "ensure").Run(); err != nil {
 		return failRes(i18n.T("rashin is running but Prowl's gateway does not answer; `ryoku-rashin ensure` failed: %v"), err).
 			withFix("ryoku-rashin ensure")
 	}
 	if !prowlGatewayAnswers() {
+		if initErr == nil && initSystem == host.Runit {
+			return failRes(i18n.T("rashin is running but Prowl's gateway still does not answer after starting ryoku-prowl")).
+				withFix("ryoku-host svc --user restart " + prowlUserUnit)
+		}
 		return failRes(i18n.T("rashin is running but Prowl's gateway still does not answer after `ryoku-rashin ensure`")).
 			withFix("ryoku-rashin ensure")
 	}

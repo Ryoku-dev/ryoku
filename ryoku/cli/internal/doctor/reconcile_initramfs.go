@@ -35,6 +35,8 @@ const (
 	consoleKeysName        = "ryoku-console-keys"
 )
 
+var mkinitcpioHost = func() bool { return sys.Has("mkinitcpio") }
+
 // withGPUTrim inserts gpuTrimName into a HOOKS= line, right after autodetect,
 // and reports whether it changed anything. Pure, so the placement rule is
 // unit-testable: the hook edits autodetect's allowlist, which only exists once
@@ -74,6 +76,9 @@ func withGPUTrim(conf string) (string, bool) {
 }
 
 func reconcileInitramfsGPUTrim(checkOnly bool) recResult {
+	if !mkinitcpioHost() {
+		return okRes(i18n.T("mkinitcpio does not manage the initramfs on this host"))
+	}
 	// Naming a hook mkinitcpio cannot find aborts every image build, so the
 	// file has to be on the box before the name goes in the drop-in.
 	if !sys.Exists(gpuTrimHook) {
@@ -145,6 +150,9 @@ func withConsoleKeys(conf string) (string, bool) {
 }
 
 func reconcileInitramfsConsoleKeys(checkOnly bool) recResult {
+	if !mkinitcpioHost() {
+		return okRes(i18n.T("mkinitcpio does not manage the initramfs on this host"))
+	}
 	// Naming a hook mkinitcpio cannot find aborts every image build, so both
 	// files have to be on the box before the name goes in the drop-in.
 	if !sys.Exists(consoleKeysInstallHook) || !sys.Exists(consoleKeysRuntimeHook) {

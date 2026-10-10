@@ -1,0 +1,39 @@
+# Template file for 'ryoku-palette-bridge'
+pkgname=ryoku-palette-bridge
+version=0.1.0
+revision=1
+archs="x86_64"
+short_desc="Ryoku wallpaper palette event bridge"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="MIT"
+homepage="https://ryoku.dev"
+hostmakedepends="go"
+depends="bash jq matugen"
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
+checksum=SKIP
+wrksrc="ryoku-${version}"
+
+_payload() {
+	GOFLAGS="-buildmode=pie" \
+	RYOKU_SRC="$wrksrc" \
+	RYOKU_BUILD_DIR="${wrksrc%/*}/${pkgname}-payload-build" \
+	RYOKU_PKGVER="$version" \
+	RYOKU_RELEASE="$version" \
+	RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+		"$wrksrc/release/packages/$pkgname/payload.sh" "$@"
+}
+
+do_build() {
+	_payload build
+}
+
+do_check() {
+	cd "$wrksrc/ryoku/palette-bridge"
+	bash tests/install-integrations.test.sh
+	bash tests/install.test.sh
+}
+
+do_install() {
+	_payload install "$DESTDIR" runit
+}

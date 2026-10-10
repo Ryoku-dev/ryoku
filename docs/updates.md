@@ -11,7 +11,7 @@ separate:
 
 | Lane | Command | What moves |
 |---|---|---|
-| **Ryoku** | `ryoku update` | the packages the signed `[ryoku]` repo serves, the config, the doctor |
+| **Ryoku** | `ryoku update` | packages from Ryoku's signed pacman or XBPS repository, then config and doctor |
 | **Your distribution** | `sudo pacman -Syu` on Arch/CachyOS; `sudo xbps-install -Syu` on Void | the base system and its kernel, from the installed distribution |
 
 On packaged Arch and CachyOS installs, `ryoku update` upgrades the installed
@@ -44,44 +44,49 @@ the SDDM greeter or another desktop) stops the old lid/idle/shell owners,
 must report its new sleep guard ready before the block is released. The first
 release that introduces the hook schedules the same adoption after pacman drops
 its database lock, because libalpm discovers hooks before extracting packages.
+The Void XBPS `INSTALL` action provides the same cutover for direct package
+updates. A managed `ryoku update` marks its transaction so that action skips
+prepare/commit and stage two remains the single cutover owner.
 
 - A **dev box** runs the checkout: `ryoku deploy` builds the binaries and lays
   `ryoku/` into `~/.config`. `ryoku update` on it tracks `origin/main` (the git
   channel) and redeploys.
-- A **user box** runs signed packages: `ryoku update` moves the `[ryoku]` set,
-  then `ryoku materialize`, then `ryoku doctor`.
+- A **user box** runs signed packages: `ryoku update` moves the Ryoku set from
+  the native pacman or XBPS repository, then `ryoku materialize`, then `ryoku doctor`.
 
 They must converge. A change that lands on one but not the other is the bug this
 page exists to prevent.
 
-### Void source updates today
+### Void packages
 
-Void installs currently use the source lane while the signed Ryoku XBPS
-repository is being built. The installer records the checkout that supplied the
-desktop. `ryoku update` opens that checkout, fetches its configured channel,
-fast-forwards it, and runs `ryoku/shell/deploy.sh` from the new revision.
-Deployment then converges host packages from `void/packages/`: the resolver
-selects the install's `system`, `desktop`, hardware, and optional lanes,
-translates their Arch names through `void/packages/translations.tsv`, and sends
-the resulting Void names through `ryoku-host`.
+Void installs use Ryoku's signed XBPS repository at
+`https://repo.ryoku.dev/stable/void/x86_64`. `ryoku update` refreshes that
+repository, discovers the installed Ryoku packages it serves, and runs
+`xbps-install -Syu <set>`. The transaction carries
+`RYOKU_MANAGED_UPDATE=1`, so the package `INSTALL` hook leaves the live
+power-cutover lifecycle to update stage two instead of running it twice.
 
-The package definition remains single-source. When a package is added to
-`system/packages/`, the same change adds its row and lanes to
-`void/packages/translations.tsv`. On the next Void update,
-`void/packages/resolve` emits that row's Void package name, so deployment
-installs it without a separate Void-only package list. Rows marked `@repo`,
-`@fetch`, or `-` follow their documented source, fetch, or accepted-loss path
-instead of becoming an XBPS transaction.
+The packaged stable repository is shipped by `ryoku-keyring` in
+`/usr/share/xbps.d/20-ryoku.conf`; testing and frozen-release selections use
+the same-named override in `/etc/xbps.d`. `ryoku track unstable`,
+`ryoku track stable`, and release tags switch that repository through
+`ryoku-host repo`, and all package, repository, service, transient-unit, and
+sleep-inhibitor operations go through the host seam. Packaged Void installs do
+not record a source checkout, so they have no installer-created source-build
+fallback.
+
+The snapshot capability reports unavailable on Void, so automatic boot
+rollback and `ryoku rollback` reuse that capability reason instead of arming a
+guard that cannot restore the system.
 
 ### Ryotunes: an external app on its own channel
 
 Ryotunes updates are released independently as prebuilt Arch packages on
 [ryoku-dev/ryotunes](https://github.com/ryoku-dev/ryotunes)' GitHub
-releases (`ryotunes-<ver>-1-x86_64.pkg.tar.zst`, with a `.sha256` beside it), so
-it is a third channel a Ryoku box tracks directly rather than through the
-`[ryoku]` repo. `ryoku update` runs the check on every channel (dev checkout and
-packaged) and outside the `[ryoku]` set, so a box with no other changes still
-picks up a new Ryotunes (`internal/ryotunesrelease`, `internal/updater/ryotunes.go`):
+releases (`ryotunes-<ver>-1-x86_64.pkg.tar.zst`, with a `.sha256` beside it).
+This independent lane applies to Arch/CachyOS. Void receives Ryotunes through
+the signed XBPS repository, so it never invokes pacman or the Arch release
+installer. On Arch/CachyOS:
 
 - **`ryoku update` installs a newer build.** It re-reads the latest release
   fresh, verifies the download by sha256 and by its own pacman metadata (name,
@@ -103,30 +108,37 @@ picks up a new Ryotunes (`internal/ryotunesrelease`, `internal/updater/ryotunes.
 
 ## `ryoku update`
 
-Snapper pre-snapshot, then the channel (git fast-forward, or the `[ryoku]`
-package set), then stage2 through the just-installed binary. Package hooks first
-adopt every live Ryoku session; on the hook's first release, stage2 invokes the
-same all-session helper synchronously. For the invoking active session, stage2
-holds a durable login1 sleep block, stops the old shell, idle and clamshell
-owners, materializes config, binds `ryoku-session.target` to the exact login1
-session, and requires the compositor's power bindings to reload. It starts the
-new shell, waits for `sleep-ready`, verifies idle and clamshell, and restores a
+On hosts that provide Ryoku's snapshot stack, a snapper pre-snapshot starts the
+run and a post-snapshot closes it. On hosts without that capability, the
+snapshot step emits one warning and is skipped; no snapper command or snapshot
+helper offer runs.
+
+The channel follows (git fast-forward, or the `[ryoku]` package set), then
+stage2 runs through the just-installed binary. Package hooks first adopt every
+live Ryoku session; on the hook's first release, stage2 invokes the same
+all-session helper synchronously. For the invoking active session, stage2 holds
+a durable login1 sleep block, stops the old shell, idle and clamshell owners,
+materializes config, binds `ryoku-session.target` to the exact login1 session,
+and requires the compositor's power bindings to reload. It starts the new
+shell, waits for `sleep-ready`, verifies idle and clamshell, and restores a
 previously running Ryogami before releasing protection. Any earlier failure
-leaves the durable block active until retry or reboot. Longer `ryoku doctor` and
-index work follows. A snapper post-snapshot closes the run. Each stage
-publishes to `$XDG_RUNTIME_DIR/ryoku-update.json` (the ordered steps and their
-timings, the current label, the line the running work last printed, a
-heartbeat with the run's own watchdog verdict, and, on failure, the error and
-the pre-update snapshot), so the Hub's Updates page renders a determinate run,
-notices a stalled or vanished one, and offers a one-click rollback. The Hub
-drives its own runs (`ryoku update --gui`) without a terminal; the terminal
-shows a curated console and keeps the raw output in
+leaves the durable block active until retry or reboot. Longer `ryoku doctor`
+and index work follows.
+
+Each stage publishes to `$XDG_RUNTIME_DIR/ryoku-update.json` (the ordered steps
+and their timings, snapshot capability and its reason, the current label, the
+line the running work last printed, a heartbeat with the run's own watchdog
+verdict, and, on failure, the error and any pre-update snapshot), so the Hub's
+Updates page renders a determinate run and notices a stalled or vanished one.
+The Hub offers one-click rollback only when snapshots are supported and the run
+created one. It drives its own runs (`ryoku update --gui`) without a terminal;
+the terminal shows a curated console and keeps the raw output in
 `~/.local/state/ryoku/update-log.txt` (`ryoku update -v` streams it instead).
 
-The database refresh happens before the set is read, so a rollback onto a frozen
-release only ever asks for packages that release actually served; targets are
-repo-qualified (`ryoku/<name>`), so pacman takes our build of a name that also
-exists in `extra`, and moves it down as readily as up.
+The database refresh happens before the set is read, so a move onto a frozen
+release asks only for packages that release served. Pacman targets are
+repo-qualified (`ryoku/<name>`); XBPS targets use their native names and `-f`
+for an explicit channel downgrade.
 
 After the desktop is back, the update refreshes Rashin's knowledge when it is
 enabled: `ryoku-rashin index` regenerates the vault and reindexes the config
@@ -137,7 +149,8 @@ fail the desktop update.
 
 ### The boot guard
 
-A packaged update that moves the box to another release arms a boot guard:
+On Arch/CachyOS, a packaged update that moves the box to another release arms
+a boot guard:
 stage2 writes `/var/lib/ryoku/update-pending.json` (previous release, new
 release, the pre-update snapshot, the boot it ran in). `ryoku-boot-guard.service`
 runs `ryoku boot-guard` as root early in every boot, before the display
@@ -154,6 +167,9 @@ broke. `sudo ryoku boot-guard --disarm` clears a marker by hand. The `ryoku`
 package ships the unit and its tmpfiles entry; the doctor enables the unit and
 prepares the record directory on every update, so boxes installed before it get
 it on their next update.
+
+Void's host snapshot capability is unavailable, so it neither arms nor executes
+this guard. Doctor shows the same capability reason without calling systemd.
 
 ## materialize: the config a user receives
 
@@ -343,35 +359,34 @@ releases; only the Ryoku set is frozen.
 **Work on `unstable-dev` reaches testing on every push, and stable only when a
 release is tagged.**
 
-On a packaged box the channel is nothing but the `Server` line of the `[ryoku]`
-stanza, so there is no second state to drift from it:
+On a packaged box the channel is the native repository selection: the `Server`
+line in pacman.conf on Arch/CachyOS, or
+`/etc/xbps.d/20-ryoku.conf` overriding the shipped XBPS stable repository on
+Void. There is no second channel state to drift from it:
 
 - `ryoku track unstable` turns any box into a **testing box**: it follows the
   `testing` channel, rebuilt on every push to `unstable-dev`, so a tester gets
   each push as signed packages through `ryoku update`. `ryoku track stable`
   returns it to **stable** (named releases). `unstable` is the user-facing name
-  of the `testing` channel (its internal key -- the repo path, the `[ryoku]`
-  `Server`, the channel-intent file -- stays `testing`); `ryoku track testing`
-  still works as a quiet synonym.
-- `ryoku track stable | unstable | v<tag>` rewrites that line and runs an update
-  that moves the Ryoku set to what the channel serves, down as well as up: the
-  databases are force-refreshed (a frozen release's db is older than the
-  channel's, so pacman would keep the cached one), then the installed
-  `ryoku/<pkg>` set is installed at the versions that channel publishes. A tag
-  pins the box to that release until it is tracked away.
-- `ryoku rollback --to v<tag>` is `track` onto a frozen release: the Ryoku set
-  goes back in one pacman transaction while Arch stays current. Bare
-  `ryoku rollback` lists the ledger and the snapshots.
+  of the `testing` repository path.
+- `ryoku track stable | unstable | v<tag>` switches the repository and runs an
+  update that moves the Ryoku set to what the channel serves, down as well as
+  up. Pacman uses repo-qualified targets; XBPS force-refreshes its repository
+  and uses `-f` when moving to an older frozen release. A tag pins the box until
+  it is tracked away.
+- On Arch/CachyOS, `ryoku rollback --to v<tag>` moves the Ryoku set back in one
+  pacman transaction while Arch stays current. On Void the command returns the
+  host snapshot capability's unavailable reason; channel selection remains
+  available through `ryoku track`.
 - `ryoku status` reports `release` (this box) and `channelRelease` (what the
   channel serves); `ryoku version` prints the release tag.
 - The doctor names the channel it finds and warns, without touching it, when
-  `[ryoku]` points at a mirror Ryoku does not publish.
+  the configured repository is a mirror Ryoku does not publish.
 
 `ryoku track stable | unstable --source` is the developer path: it builds and
-tracks a git checkout instead of packages (see `docs/development.md`). A box
-already on a checkout is migrated onto packages by a plain track without
-`--source`: the checkout is retired as the update source (the `~/ryoku-arch`
-clone stays on disk) and `ryoku update` runs `pacman` from then on.
+tracks a git checkout instead of packages (see `docs/development.md`). An
+explicitly recorded checkout selects this source lane on both Arch and Void;
+packaged Void installs simply never create that record.
 
 ### Release names
 
@@ -390,13 +405,13 @@ island (when the channel serves the next line) and the Hub's Updates page.
 
 ## The contract
 
-- **Ryoku moves only what Ryoku publishes.** `ryoku update` upgrades the
-  installed `[ryoku]` packages by name and nothing else: no sysupgrade, no
-  kernel, no `--ignore` list to maintain. Anything Ryoku needs from the base
-  system belongs in a package dependency, where pacman resolves it, not in a
-  transaction that quietly upgrades the machine. A user must never have to
-  choose between a Ryoku fix and their own upgrade schedule, and nothing may
-  block `sudo pacman -Syu`.
+- **Ryoku moves through the native signed repository.** On Arch/CachyOS,
+  `ryoku update` upgrades the installed `[ryoku]` packages by name and nothing
+  else: no sysupgrade or kernel move. On Void it sends the installed,
+  repository-served Ryoku set to `xbps-install -Syu`, the native safe-upgrade
+  transaction required by XBPS. Dependencies belong in package metadata, not
+  source-build fallbacks. Nothing blocks a user's direct `pacman -Syu` or
+  `xbps-install -Syu`.
 - **What a surface shows about the system must be read from the system.** No
   kernel, variant, or OS name is hardcoded into a menu, a default, or a report:
   boot entries come from the installed kernels

@@ -105,6 +105,9 @@ func TestRepairBootRWBusyMountIsLeftAlone(t *testing.T) {
 }
 
 func TestReconcileBootRW(t *testing.T) {
+	oldManaged := limineManagedBoot
+	limineManagedBoot = func() bool { return true }
+	t.Cleanup(func() { limineManagedBoot = oldManaged })
 	stubBootRW(t,
 		func(target string) (string, error) {
 			if target == "/efi" {

@@ -6,11 +6,12 @@ import (
 	i18n "ryoku-i18n"
 )
 
-// runInit is the first-login keyring default, run by the Hyprland autostart
-// (`ryoku keyring init`) every login. Its job is that no app ever prompts for a
-// keyring password out of the box: it records the mode for a user who has never
-// chosen one and seeds the blank, passwordless default keyring that never-ask
-// needs. Idempotent and user-side only (it never edits the root PAM stack).
+// runInit is the first-login keyring default, run by each compositor's
+// autostart (`ryoku keyring init`) every login. Its job is that no app ever
+// prompts for a keyring password out of the box: it records the mode for a user
+// who has never chosen one and seeds the blank, passwordless default keyring
+// that never-ask needs. Idempotent and user-side only (it never edits the root
+// PAM stack).
 //
 //   - Already configured -> no-op, so a user who picked a mode in Ryoku Settings
 //     keeps it.

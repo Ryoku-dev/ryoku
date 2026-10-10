@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -27,10 +28,9 @@ import (
 // lock and greeter silently do nothing on a touch, and PAM logs a "cannot open
 // pam_fprintd_grosshack.so / faulty module" line on every unlock attempt.
 //
-// Converge it: on a box with a fingerprint reader, install the module through the
-// same AUR path the other backfilled packages use (reconcile_limine's
-// ryoku-pkg-aur-add). Report-only in checkOnly. Silent on a machine with no
-// reader, so a desktop is never made to build an AUR package it cannot use.
+// Converge it on a box with a fingerprint reader when the host package lane
+// provides the module. Report-only in checkOnly. Silent on a machine with no
+// reader, so a desktop is never made to build a package it cannot use.
 
 // fingerprintModulePath is where the grosshack PAM module lands, the exact path
 // the lock's PAM stack and the Hub probe. A var so a test can point it elsewhere.
@@ -55,6 +55,33 @@ var fingerprintReaderPresent = func() bool {
 	return strings.Contains(out, "/net/reactivated/Fprint/Device")
 }
 
+var (
+	fingerprintProviderAvailable = func() bool {
+		app := host.Default()
+		manager, err := app.PackageManager()
+		if err != nil {
+			return false
+		}
+		if manager == host.Pacman {
+			return true
+		}
+		return app.Package([]string{"available", "pam-fprint-grosshack"}) == host.ExitOK
+	}
+	fingerprintInstall = func() int {
+		return host.Default().Package([]string{"install", "--aur", "pam-fprint-grosshack"})
+	}
+	fingerprintInstallAdvice = func() string {
+		return host.Default().InstallAdvice("pam-fprint-grosshack")
+	}
+	fingerprintFailureAdvice = func() string {
+		manager, _ := host.Default().PackageManager()
+		if manager == host.Pacman {
+			return "ryoku-pkg-aur-add pam-fprint-grosshack, then sudo ryoku doctor"
+		}
+		return host.Default().InstallAdvice("pam-fprint-grosshack")
+	}
+)
+
 // planFingerprintModule decides the result from the two facts it depends on: is
 // there a reader, and is the module already installed. pure, so every branch is
 // unit-testable without fprintd or an AUR helper.
@@ -73,17 +100,23 @@ func planFingerprintModule(readerPresent, moduleInstalled, checkOnly bool) (recR
 }
 
 func reconcileFingerprintModule(checkOnly bool) recResult {
-	res, install := planFingerprintModule(fingerprintReaderPresent(), sys.Exists(fingerprintModulePath), checkOnly)
+	readerPresent := fingerprintReaderPresent()
+	moduleInstalled := sys.Exists(fingerprintModulePath)
+	if readerPresent && !moduleInstalled && !fingerprintProviderAvailable() {
+		return noteRes(i18n.T("fingerprint unlock module is not packaged for this system")).
+			withFix(fingerprintInstallAdvice())
+	}
+	res, install := planFingerprintModule(readerPresent, moduleInstalled, checkOnly)
 	if !install {
 		return res
 	}
-	if err := sys.Run("ryoku-pkg-aur-add", "pam-fprint-grosshack"); err != nil {
-		return failRes(i18n.T("could not install the fingerprint unlock module: %v"), err).
-			withFix(i18n.T("ryoku-pkg-aur-add pam-fprint-grosshack, then sudo ryoku doctor"))
+	if code := fingerprintInstall(); code != host.ExitOK {
+		return failRes(i18n.T("could not install the fingerprint unlock module (exit %d)"), code).
+			withFix(fingerprintFailureAdvice())
 	}
 	if !sys.Exists(fingerprintModulePath) {
 		return failRes(i18n.T("pam-fprint-grosshack installed but %s is missing"), fingerprintModulePath).
-			withFix(i18n.T("check the AUR build: ryoku-pkg-aur-add pam-fprint-grosshack"))
+			withFix(fingerprintFailureAdvice())
 	}
 	return fixedRes(i18n.T("installed the fingerprint unlock module (pam-fprint-grosshack); touch-to-unlock now works at the lock and login screens"))
 }

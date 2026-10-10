@@ -2,6 +2,7 @@ package host
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io/fs"
 	"net"
@@ -88,7 +89,7 @@ func (a *App) ensureTurnstileSystem() int {
 }
 
 func (a *App) ensureTurnstileUser() int {
-	service := filepath.Join(a.home(), ".config", "service")
+	service := a.userServiceDir()
 	links := []struct{ path, target string }{
 		{filepath.Join(service, "dbus", "run"), turnstilePath("/usr/share/examples/turnstile/dbus.run")},
 		{filepath.Join(service, "dbus", "check"), turnstilePath("/usr/share/examples/turnstile/dbus.check")},
@@ -119,7 +120,176 @@ func (a *App) ensureTurnstileUser() int {
 	} else if err != nil || !info.IsDir() {
 		return a.failf("%s is not a directory", envdir)
 	}
+	if code := a.ensureRunitUserServices(service); code != ExitOK {
+		return code
+	}
 	return ExitOK
+}
+
+func (a *App) ensureRunitUserServices(serviceRoot string) int {
+	sourceRoot := filepath.Join(a.cfg.InitLibDir, "user")
+	services, err := os.ReadDir(sourceRoot)
+	if err != nil {
+		return a.failf("read runit user service sources %s: %v", sourceRoot, err)
+	}
+	for _, source := range services {
+		if !source.IsDir() {
+			continue
+		}
+		name := source.Name()
+		destination := filepath.Join(serviceRoot, name)
+		_, statErr := os.Stat(destination)
+		fresh := os.IsNotExist(statErr)
+		if statErr != nil && !fresh {
+			return a.failf("inspect user service %s: %v", destination, statErr)
+		}
+		if err := os.MkdirAll(destination, 0o755); err != nil {
+			return a.failf("create user service %s: %v", destination, err)
+		}
+
+		changed := fresh
+		for _, entry := range []string{"run", "finish", "conf", "log"} {
+			sourcePath := filepath.Join(sourceRoot, name, entry)
+			if _, err := os.Lstat(sourcePath); os.IsNotExist(err) {
+				continue
+			} else if err != nil {
+				return a.failf("inspect user service source %s: %v", sourcePath, err)
+			}
+			entryChanged, err := syncRunitServiceEntry(sourcePath, filepath.Join(destination, entry))
+			if err != nil {
+				return a.failf("provision user service %s: %v", name, err)
+			}
+			changed = changed || entryChanged
+		}
+
+		// Packaged down files park session services until the graphical
+		// environment is ready. User disables remain distinct in
+		// .ryoku-disabled and are never part of the managed source payload.
+		sourceDown := filepath.Join(sourceRoot, name, "down")
+		if _, err := os.Lstat(sourceDown); err == nil {
+			entryChanged, err := syncRunitServiceEntry(sourceDown, filepath.Join(destination, "down"))
+			if err != nil {
+				return a.failf("provision user service %s: %v", name, err)
+			}
+			changed = changed || entryChanged
+		} else if !os.IsNotExist(err) {
+			return a.failf("inspect user service source %s: %v", sourceDown, err)
+		}
+		if changed {
+			fmt.Fprintf(a.cfg.Stdout, "provisioned user service %s\n", name)
+		}
+	}
+	return ExitOK
+}
+
+func syncRunitServiceEntry(source, destination string) (bool, error) {
+	info, err := os.Lstat(source)
+	if err != nil {
+		return false, err
+	}
+	if info.IsDir() {
+		current, currentErr := os.Lstat(destination)
+		if currentErr == nil && !current.IsDir() {
+			if err := os.RemoveAll(destination); err != nil {
+				return false, err
+			}
+			currentErr = os.ErrNotExist
+		}
+		changed := os.IsNotExist(currentErr)
+		if currentErr != nil && !os.IsNotExist(currentErr) {
+			return false, currentErr
+		}
+		if err := os.MkdirAll(destination, info.Mode().Perm()); err != nil {
+			return false, err
+		}
+		if currentErr == nil && current.Mode().Perm() != info.Mode().Perm() {
+			if err := os.Chmod(destination, info.Mode().Perm()); err != nil {
+				return false, err
+			}
+			changed = true
+		}
+		entries, err := os.ReadDir(source)
+		if err != nil {
+			return false, err
+		}
+		for _, entry := range entries {
+			if entry.Name() == "supervise" {
+				continue
+			}
+			entryChanged, err := syncRunitServiceEntry(
+				filepath.Join(source, entry.Name()),
+				filepath.Join(destination, entry.Name()),
+			)
+			if err != nil {
+				return false, err
+			}
+			changed = changed || entryChanged
+		}
+		return changed, nil
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		target, err := os.Readlink(source)
+		if err != nil {
+			return false, err
+		}
+		if current, err := os.Readlink(destination); err == nil && current == target {
+			return false, nil
+		}
+		if err := os.RemoveAll(destination); err != nil && !os.IsNotExist(err) {
+			return false, err
+		}
+		if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+			return false, err
+		}
+		return true, os.Symlink(target, destination)
+	}
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("%s is not a regular file, directory, or symlink", source)
+	}
+
+	body, err := os.ReadFile(source)
+	if err != nil {
+		return false, err
+	}
+	if currentInfo, statErr := os.Lstat(destination); statErr == nil &&
+		currentInfo.Mode().IsRegular() &&
+		currentInfo.Mode().Perm() == info.Mode().Perm() {
+		current, readErr := os.ReadFile(destination)
+		if readErr == nil && bytes.Equal(current, body) {
+			return false, nil
+		}
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return false, err
+	}
+	if current, err := os.Lstat(destination); err == nil && !current.Mode().IsRegular() {
+		if err := os.RemoveAll(destination); err != nil {
+			return false, err
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	temp, err := os.CreateTemp(filepath.Dir(destination), ".ryoku-service-*")
+	if err != nil {
+		return false, err
+	}
+	tempName := temp.Name()
+	defer os.Remove(tempName)
+	if _, err := temp.Write(body); err != nil {
+		temp.Close()
+		return false, err
+	}
+	if err := temp.Chmod(info.Mode().Perm()); err != nil {
+		temp.Close()
+		return false, err
+	}
+	if err := temp.Close(); err != nil {
+		return false, err
+	}
+	if err := os.Rename(tempName, destination); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func ensureExactLink(target, path string) (bool, error) {

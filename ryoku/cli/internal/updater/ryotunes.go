@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/ryotunesrelease"
 
 	i18n "ryoku-i18n"
@@ -24,6 +25,9 @@ import (
 // "up to date". Not installed -> nothing to do: Upgrade does no network and
 // installs nothing, so a Ryotunes the user removed is not resurrected.
 func upgradeRyotunes() {
+	if updatePackageManager() == host.XBPS {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 	st, err := ryotunesrelease.Upgrade(ctx)
@@ -48,6 +52,9 @@ func upgradeRyotunes() {
 // an offline poll is never rendered as a spurious update nor as a false
 // "current".
 func addRyotunesUpdate(r *statusReport) {
+	if updatePackageManager() == host.XBPS {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	st, err := ryotunesrelease.Check(ctx)

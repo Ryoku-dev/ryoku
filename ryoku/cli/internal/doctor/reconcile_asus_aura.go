@@ -1,9 +1,10 @@
 package doctor
 
 import (
+	"fmt"
 	"os/exec"
 
-	"ryoku-cli/internal/sys"
+	"ryoku-cli/internal/host"
 
 	i18n "ryoku-i18n"
 )
@@ -16,12 +17,44 @@ type asusAuraStatus struct {
 }
 
 var (
-	readAsusAuraStatus = probeAsusAuraStatus
-	installAsusAura    = func() error {
-		return sys.Sudo("pacman", "-S", "--needed", "--noconfirm", "asusctl")
+	readAsusAuraStatus   = probeAsusAuraStatus
+	asusPackageInstalled = func(name string) bool {
+		return host.Default().Package([]string{"installed", name}) == host.ExitOK
+	}
+	asusProviderAvailable = func() bool {
+		app := host.Default()
+		manager, err := app.PackageManager()
+		if err != nil {
+			return false
+		}
+		if manager == host.Pacman {
+			return true
+		}
+		return app.Package([]string{"available", "asusctl"}) == host.ExitOK
+	}
+	asusInstallAdvice = func() string { return host.Default().InstallAdvice("asusctl") }
+	asusService       = func(args []string) int { return host.Default().Service(args) }
+	installAsusAura   = func() error {
+		if code := host.Default().Package([]string{"install", "asusctl"}); code != host.ExitOK {
+			return fmt.Errorf("package install exited %d", code)
+		}
+		return nil
 	}
 	startAsusAura = func() error {
-		return sys.Sudo("systemctl", "start", "asusd.service")
+		if code := asusService([]string{"--system", "start", "asusd"}); code != host.ExitOK {
+			return fmt.Errorf("service start exited %d", code)
+		}
+		return nil
+	}
+	asusServiceRunning = func() bool {
+		return asusService([]string{"--system", "is-active", "asusd"}) == host.ExitOK
+	}
+	asusServiceAdvice = func() string {
+		init, err := host.Default().Init()
+		if err == nil && init == host.Systemd {
+			return "sudo systemctl start asusd.service"
+		}
+		return "sudo ryoku-host svc --system start asusd"
 	}
 )
 
@@ -30,9 +63,9 @@ func probeAsusAuraStatus() asusAuraStatus {
 	if !st.supported {
 		return st
 	}
-	st.installed = sys.PkgInstalled("asusctl")
-	st.tlp = sys.PkgInstalled("tlp")
-	st.running = exec.Command("systemctl", "is-active", "--quiet", "asusd.service").Run() == nil
+	st.installed = asusPackageInstalled("asusctl")
+	st.tlp = asusPackageInstalled("tlp")
+	st.running = asusServiceRunning()
 	return st
 }
 
@@ -40,6 +73,10 @@ func reconcileAsusAura(checkOnly bool) recResult {
 	st := readAsusAuraStatus()
 	if !st.supported {
 		return okRes(i18n.T("this machine has no supported ASUS Aura laptop controller"))
+	}
+	if !st.installed && !asusProviderAvailable() {
+		return noteRes(i18n.T("ASUS Aura keyboard provider is not packaged for this system")).
+			withFix(asusInstallAdvice())
 	}
 	if !st.installed && st.tlp {
 		return warnRes(i18n.T("ASUS Aura keyboard support needs asusctl, which conflicts with the installed TLP power stack")).
@@ -55,7 +92,7 @@ func reconcileAsusAura(checkOnly bool) recResult {
 		}
 		if err := installAsusAura(); err != nil {
 			return failRes(i18n.T("could not install the ASUS Aura provider: %v"), err).
-				withFix("sudo pacman -S asusctl")
+				withFix(asusInstallAdvice())
 		}
 		recordProvisioned("asusctl")
 	}
@@ -68,7 +105,7 @@ func reconcileAsusAura(checkOnly bool) recResult {
 	}
 	if err := startAsusAura(); err != nil {
 		return failRes(i18n.T("could not start the ASUS Aura provider: %v"), err).
-			withFix("sudo systemctl start asusd.service")
+			withFix(asusServiceAdvice())
 	}
 	if st.installed {
 		return fixedRes(i18n.T("started asusd; the ASUS Aura keyboard is available in Appearance"))

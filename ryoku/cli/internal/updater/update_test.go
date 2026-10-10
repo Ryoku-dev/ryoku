@@ -182,12 +182,11 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 	}
 	// The database refresh is its own step, and a channel move forces it: pacman
 	// skips a db that is not newer than its cache, and a frozen release is older
-	// than the channel the box just left.
-	if got := strings.Join(refreshDBArgs(false), " "); !strings.Contains(got, "pacman -Sy") {
-		t.Errorf("refreshDBArgs = %q, want a -Sy refresh", got)
+	if got := strings.Join(refreshDBArgs(false), " "); got != "sudo ryoku-host repo sync" {
+		t.Errorf("refreshDBArgs = %q, want host repository sync", got)
 	}
-	if got := strings.Join(refreshDBArgs(true), " "); !strings.Contains(got, "pacman -Syy") {
-		t.Errorf("refreshDBArgs(force) = %q, want -Syy so a frozen release's db is refetched", got)
+	if got := strings.Join(refreshDBArgs(true), " "); got != "sudo ryoku-host repo sync --force" {
+		t.Errorf("refreshDBArgs(force) = %q, want forced host repository sync", got)
 	}
 
 	var glob string
@@ -234,6 +233,20 @@ func TestRyokuInstallArgsStayInTheRyokuLane(t *testing.T) {
 		t.Errorf("systemUpgradeArgs = %q, want the full -Syu it exists for", got)
 	} else if !strings.Contains(got, "RYOKU_MANAGED_UPDATE=1") {
 		t.Errorf("systemUpgradeArgs = %q, want first-rollout scheduling owned by stage2", got)
+	}
+}
+
+func TestVoidUpdateTransactionsCarryManagedMarker(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	set := []string{"ryoku-desktop", "ryogami"}
+	if got := strings.Join(ryokuInstallArgs(set), " "); got != "sudo env RYOKU_MANAGED_UPDATE=1 xbps-install -Syu ryoku-desktop ryogami" {
+		t.Fatalf("Ryoku transaction = %q", got)
+	}
+	if got := strings.Join(systemUpgradeArgs(), " "); got != "sudo env RYOKU_MANAGED_UPDATE=1 xbps-install -Syu" {
+		t.Fatalf("system transaction = %q", got)
+	}
+	if got := strings.Join(ryokuMoveArgs(set), " "); got != "env RYOKU_MANAGED_UPDATE=1 xbps-install -Sfy ryoku-desktop ryogami" {
+		t.Fatalf("channel move = %q", got)
 	}
 }
 

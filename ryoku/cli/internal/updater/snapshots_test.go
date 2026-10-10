@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -15,6 +16,7 @@ import (
 // unprivileged before a cached-credential sudo, so a machine that granted
 // ALLOW_USERS never needs sudo at all.
 func TestSnapshotCountDistinguishesUnavailableFromEmpty(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
 	header := "number,type,date,description,cleanup\n"
 	base := "0,single,,current,\n" // dropped by parseSnapshotRows
 	two := "12,pre,2026-08-20 14:03:11,ryoku-update,number\n" +
@@ -49,6 +51,62 @@ func TestSnapshotCountDistinguishesUnavailableFromEmpty(t *testing.T) {
 				t.Fatalf("snapshotCount() = (%d, %v), want (%d, %v)", n, known, c.wantN, c.wantKnown)
 			}
 		})
+	}
+}
+func TestUnsupportedHostNeverRunsSnapshotCommands(t *testing.T) {
+	repo, err := filepath.Abs("../../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_REPO", repo)
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	bin := t.TempDir()
+	marker := filepath.Join(bin, "called")
+	body := "#!/bin/sh\nprintf called >> " + marker + "\n"
+	writeExec(t, filepath.Join(bin, "snapper"), body)
+	writeExec(t, filepath.Join(bin, "sudo"), body)
+	writeExec(t, filepath.Join(bin, "findmnt"), body)
+	writeExec(t, filepath.Join(bin, "pacman"), body)
+	writeExec(t, filepath.Join(bin, "systemctl"), body)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	_, reason := snapshotCapability()
+	oldStderr := os.Stderr
+	stderrRead, stderrWrite, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatal(pipeErr)
+	}
+	os.Stderr = stderrWrite
+	got := snapperPre("test update")
+	_ = stderrWrite.Close()
+	os.Stderr = oldStderr
+	warning, readErr := io.ReadAll(stderrRead)
+	_ = stderrRead.Close()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if got != "" {
+		t.Fatalf("snapperPre = %q, want empty", got)
+	}
+	if string(warning) != "warning: "+reason+"\n" {
+		t.Fatalf("snapperPre warning = %q, want reason once", warning)
+	}
+	snapperPost("42", "test update")
+	offerSnapperHelpers()
+	if n, known := snapshotCount(); n != 0 || known {
+		t.Fatalf("snapshotCount = (%d, %v), want (0, false)", n, known)
+	}
+	if err := Snapshots(); err == nil || err.Error() != reason {
+		t.Fatalf("Snapshots error = %v, want %q", err, reason)
+	}
+	if err := restoreGuide("42"); err == nil || err.Error() != reason {
+		t.Fatalf("restoreGuide error = %v, want %q", err, reason)
+	}
+	if err := Rollback(nil); err == nil || err.Error() != reason {
+		t.Fatalf("Rollback error = %v, want %q", err, reason)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("unsupported snapshot path invoked a command (stat err %v)", err)
 	}
 }
 

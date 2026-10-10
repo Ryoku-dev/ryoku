@@ -54,6 +54,19 @@ The `gpk`, `skwd-paper-bin`, and `ryoku-keyring` PKGBUILDs fetch pinned
 upstream artifacts instead of building from the checkout. `prowl` is also
 pinned upstream, but builds its selected commit from source.
 
+## Shared package payloads
+
+Monorepo packages keep their build and install logic in
+`release/packages/<pkg>/payload.sh`. The PKGBUILD calls that payload with
+`systemd`, while the matching `void/packages/srcpkgs/<pkg>/template` calls it
+with `runit`. This keeps the pacman and XBPS packages on the same file layout
+and init wiring.
+
+When changing one of these packages, update `payload.sh` first. Change the
+PKGBUILD or Void template only when package-manager metadata, dependencies, or
+the wrapper itself must change; do not copy build or install commands into
+either recipe.
+
 makedepends across the set include `go` (the Ryoku Go tools and Prowl),
 `cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), and `rust` +
 `git` (hyprland-preview-share-picker, asusctl), on top of the assumed

@@ -2,50 +2,28 @@ package updater
 
 import (
 	"bufio"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 )
 
-// The Ryoku lane.
-//
-// `ryoku update` moves the packages Ryoku publishes, and nothing else. The base
-// system and its kernel belong to the distribution the box was installed from
-// (Arch or CachyOS), and the user takes those with `sudo pacman -Syu`, on their
-// own schedule. Two lanes, for reasons that are the whole design:
-//
-//   - The kernel is not ours to move. Ryoku ships two variants and neither
-//     kernel is published by us; a Ryoku release must never decide when a box
-//     changes kernel, rebuilds its DKMS modules, or rewrites its boot image.
-//   - A release must be reversible. `ryoku rollback` puts the Ryoku set back;
-//     it cannot put Arch back, so an update that moved both was never fully
-//     reversible in the first place.
-//   - The lanes fail independently. A box that cannot take an Arch upgrade
-//     today (a mirror out of sync, a held package, a full ESP) must still be
-//     able to take a Ryoku fix, and the other way round.
-//
-// So this file is the only place that decides what `ryoku update` may touch:
-// the installed packages the [ryoku] repository serves. Everything else is
-// reported, never moved. `ryoku update --system` opts back into one command
-// that also runs the user's lane, for people who want it.
+// The Ryoku package lane. Arch/CachyOS move only the installed packages served
+// by [ryoku], leaving the distribution upgrade to pacman. Void uses XBPS's
+// native safe-upgrade transaction with the installed set served by the signed
+// Ryoku repository. Package-manager details stay behind the host seam.
 
 // ryokuRepo is the repository name in /etc/pacman.conf. Targets are qualified
 // with it ("ryoku/<name>"), so pacman resolves them from our repo even for a
 // name that also exists in core/extra, whatever the section order is.
 const ryokuRepo = "ryoku"
 
-// externalReleasePkgs are packages the [ryoku] repo builds for a first install
-// but that update on their OWN published-release channel afterwards, not through
-// the Ryoku package lane. Ryotunes ships prebuilt Arch packages on its GitHub
-// releases; `ryoku update` installs those directly (internal/ryotunesrelease,
-// upgrade-only, sha256/arch/version-verified). Moving it from the [ryoku] repo
-// set would DOWNGRADE a newer external build onto the repo's base version (an
-// explicit `-S` moves a package down as well as up), so it is dropped from the
-// update set and from the distribution lane's pending list, and tracked through
-// its own channel instead. The initial install still comes from the repo (ISO
-// pacstrap, ryoku-desktop optdepend) -- only the update path skips it.
+// externalReleasePkgs update from their own release channel on Arch after
+// initial installation. Void serves and updates them through XBPS, so this
+// exclusion is applied only to pacman.
 var externalReleasePkgs = map[string]bool{"ryotunes": true}
 
 // ryokuSet: the installed packages the [ryoku] repo serves, repo-qualified and
@@ -89,20 +67,7 @@ func ryokuSet(repoNames, installed []string) []string {
 // there, moving the set DOWN is the point, and the frozen release is the only
 // thing the box should keep.
 func installedRyokuSet(allowDowngrade bool) (set []string, skipped int, err error) {
-	repo, err := sys.RunOut("pacman", "-Slq", ryokuRepo)
-	if err != nil {
-		return nil, 0, err
-	}
-	installed, err := sys.RunOut("pacman", "-Qq")
-	if err != nil {
-		return nil, 0, err
-	}
-	set = ryokuSet(lines(repo), lines(installed))
-	if allowDowngrade {
-		return set, 0, nil
-	}
-	kept := dropOlderServes(set)
-	return kept, len(set) - len(kept), nil
+	return repoInstalledSet(allowDowngrade)
 }
 
 // repoServedSet is the names the currently pointed [ryoku] repo serves, as a
@@ -110,12 +75,12 @@ func installedRyokuSet(allowDowngrade bool) (set []string, skipped int, err erro
 // an empty set here only ever means the repo genuinely lacks the name.
 func repoServedSet() map[string]bool {
 	out := map[string]bool{}
-	names, err := sys.RunOut("pacman", "-Slq", ryokuRepo)
+	packages, err := host.Default().RepoPackages()
 	if err != nil {
 		return out
 	}
-	for _, n := range lines(names) {
-		out[n] = true
+	for _, pkg := range packages {
+		out[pkg.Name] = true
 	}
 	return out
 }
@@ -201,21 +166,14 @@ func lines(out string) []string {
 	return xs
 }
 
-// refreshDBArgs syncs the package databases, and nothing else. It runs BEFORE
-// the set is read, so the set is what the repo serves NOW: a rollback onto a
-// frozen release must not ask pacman for a package that release never had
-// ("target not found" would fail the whole transaction).
-//
-// force (-Syy) is for a channel move: pacman skips a db that is not newer than
-// its cached copy, and a frozen release directory is older than the channel the
-// box just left, so a plain -Sy kept the old db against the new signature and
-// failed with "invalid or corrupted database (PGP signature)".
+// refreshDBArgs routes package database refresh through the host repository
+// seam. The host preserves pacman's -Sy/-Syy behavior and maps Void to XBPS.
 func refreshDBArgs(force bool) []string {
-	op := "-Sy"
+	args := []string{"sudo", "ryoku-host", "repo", "sync"}
 	if force {
-		op = "-Syy"
+		args = append(args, "--force")
 	}
-	return []string{"sudo", "pacman", op, "--noconfirm"}
+	return args
 }
 
 // ryokuInstallArgs installs exactly the set, from our repo.
@@ -231,6 +189,10 @@ func refreshDBArgs(force bool) []string {
 // snapper pre/post pair; --overwrite adopts the paths the installer and
 // deploy.sh seed unowned (see RyokuOverwriteGlob).
 func ryokuInstallArgs(set []string) []string {
+	if updatePackageManager() == host.XBPS {
+		args := []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", "xbps-install", "-Syu"}
+		return append(args, set...)
+	}
 	args := []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
 		"pacman", "-S", "--needed", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
 	return append(args, set...)
@@ -242,20 +204,47 @@ func ryokuInstallArgs(set []string) []string {
 // status uses that and the update run uses this.
 func systemLanePending(ryokuTargets []string) []updateItem {
 	ours := make(map[string]bool, len(ryokuTargets))
-	for _, t := range ryokuTargets {
-		ours[strings.TrimPrefix(t, ryokuRepo+"/")] = true
+	for _, target := range ryokuTargets {
+		ours[strings.TrimPrefix(target, ryokuRepo+"/")] = true
+	}
+	if updatePackageManager() == host.XBPS {
+		return xbpsPendingUpdates(ours)
 	}
 	out, err := sys.RunOut("pacman", "-Qu")
 	if err != nil {
-		return nil // "no upgrades" is also a non-zero exit; either way, nothing to report
+		return nil
 	}
-	var ups []updateItem
-	for _, l := range lines(out) {
-		f := strings.Fields(l)
-		if len(f) < 4 || f[2] != "->" || ours[f[0]] || externalReleasePkgs[f[0]] {
+	var updates []updateItem
+	for _, line := range lines(out) {
+		fields := strings.Fields(line)
+		if len(fields) < 4 || fields[2] != "->" || ours[fields[0]] || externalReleasePkgs[fields[0]] {
 			continue
 		}
-		ups = append(ups, updateItem{Name: f[0], Old: f[1], New: f[3]})
+		updates = append(updates, updateItem{Name: fields[0], Old: fields[1], New: fields[3]})
 	}
-	return ups
+	return updates
+}
+
+var xbpsPkgverPattern = regexp.MustCompile(`^(.+)-([^-]+_[0-9]+)$`)
+
+func xbpsPendingUpdates(exclude map[string]bool) []updateItem {
+	out, err := sys.RunOut("xbps-install", "-Mun")
+	if err != nil {
+		return nil
+	}
+	var updates []updateItem
+	for _, line := range lines(out) {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || fields[1] != "update" {
+			continue
+		}
+		match := xbpsPkgverPattern.FindStringSubmatch(fields[0])
+		if len(match) != 3 || exclude[match[1]] {
+			continue
+		}
+		old, _ := sys.RunOut("xbps-query", "-p", "pkgver", match[1])
+		old = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(old), match[1]+"-"))
+		updates = append(updates, updateItem{Name: match[1], Old: old, New: match[2]})
+	}
+	return updates
 }

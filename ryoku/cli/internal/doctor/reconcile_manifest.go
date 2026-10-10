@@ -1,13 +1,11 @@
 package doctor
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
-	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/ryokumanifest"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
@@ -44,30 +42,18 @@ import (
 // mirror, or no network, reports what did not land and moves on.
 
 var (
-	// installManifestPkgs is one bounded transaction for the whole added set.
 	installManifestPkgs = func(pkgs []string) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		args := append([]string{"pacman", "-S", "--needed", "--noconfirm"}, pkgs...)
-		_ = exec.CommandContext(ctx, "sudo", args...).Run()
+		_ = sys.Sudo(append([]string{"ryoku-host", "pkg", "install"}, pkgs...)...)
 	}
-	// installManifestAUR arrives through the AUR helper, best-effort: the set is
-	// online-only by contract, so a box without a helper or a network just
-	// reports the miss, exactly as the installer's post-install AUR step does.
 	installManifestAUR = func(pkgs []string) {
-		if !sys.Has("yay") {
-			return
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
-		defer cancel()
-		args := append([]string{"yay", "-S", "--needed", "--noconfirm", "--answerupgrade", "all"}, pkgs...)
-		_ = exec.CommandContext(ctx, "sudo", args...).Run()
+		_ = sys.Sudo(append([]string{"ryoku-host", "pkg", "install", "--aur"}, pkgs...)...)
 	}
 )
 
 func reconcileManifest(checkOnly bool) recResult {
-	if !hasPacman() {
-		return okRes(i18n.T("not a pacman box; the manifest is the installer's business"))
+	manager, managerErr := doctorPackageManager()
+	if !hasPacman() && (managerErr != nil || manager != host.XBPS) {
+		return okRes(i18n.T("the package manifest is not managed on this host"))
 	}
 	served, err := updater.FetchManifest()
 	if err != nil {
@@ -109,7 +95,7 @@ func reconcileManifest(checkOnly bool) recResult {
 	if len(plan.Install) > 0 {
 		installManifestPkgs(plan.Install)
 		for _, pkg := range plan.Install {
-			if sys.PkgInstalled(pkg) {
+			if doctorPackageInstalled(pkg) {
 				landed = append(landed, pkg)
 			} else {
 				missed = append(missed, pkg)
@@ -120,7 +106,7 @@ func reconcileManifest(checkOnly bool) recResult {
 	if len(plan.AUR) > 0 {
 		installManifestAUR(plan.AUR)
 		for _, pkg := range plan.AUR {
-			if !sys.PkgInstalled(pkg) {
+			if !doctorPackageInstalled(pkg) {
 				aurMissed = append(aurMissed, pkg)
 			}
 		}
@@ -139,11 +125,19 @@ func reconcileManifest(checkOnly bool) recResult {
 
 	switch {
 	case len(missed) > 0:
+		fix := doctorInstallAdvice(missed...)
+		if manager == host.Pacman {
+			fix = fmt.Sprintf("sudo pacman -Sy && sudo pacman -S %s", strings.Join(missed, " "))
+		}
 		return warnRes(i18n.T("manifest: %s did not land"), strings.Join(missed, ", ")).
-			withFix("sudo pacman -Sy && sudo pacman -S %s", strings.Join(missed, " "))
+			withFix(fix)
 	case len(aurMissed) > 0:
-		return noteRes(i18n.T("manifest: %s await the AUR helper or a network"), strings.Join(aurMissed, ", ")).
-			withFix("yay -S %s", strings.Join(aurMissed, " "))
+		if manager == host.Pacman {
+			return noteRes(i18n.T("manifest: %s await the AUR helper or a network"), strings.Join(aurMissed, ", ")).
+				withFix("yay -S %s", strings.Join(aurMissed, " "))
+		}
+		return noteRes(i18n.T("manifest: %s await the package repository or a network"), strings.Join(aurMissed, ", ")).
+			withFix(doctorInstallAdvice(aurMissed...))
 	case len(landed) > 0:
 		return fixedRes(i18n.T("delivered %s from the %s manifest"),
 			strings.Join(landed, ", "), served.Release)

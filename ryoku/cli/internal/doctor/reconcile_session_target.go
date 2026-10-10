@@ -1,12 +1,13 @@
 package doctor
 
 import (
+	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -48,20 +49,34 @@ func staleSessionWants() []string {
 	return units
 }
 
+var sessionTargetInit = func() (host.InitSystem, error) {
+	return host.Default().Init()
+}
+
 // enableUserUnit re-enables a unit so it lands in the new target's .wants dir
 // (the unit's own [Install] WantedBy names it). A var so the migration is
 // testable without a live user manager.
 var enableUserUnit = func(unit string) error {
-	return exec.Command("systemctl", "--user", "enable", unit).Run()
+	if code := host.Default().Service([]string{"--user", "enable", unit}); code != host.ExitOK {
+		return fmt.Errorf("service enable exited %d", code)
+	}
+	return nil
 }
 
 // reloadUserDaemon makes systemd pick up the relocated symlinks. A var so the
 // migration test never touches the real user manager.
 var reloadUserDaemon = func() {
-	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+	_ = host.Default().Service([]string{"--user", "daemon-reload"})
 }
 
 func reconcileSessionTarget(checkOnly bool) recResult {
+	initSystem, err := sessionTargetInit()
+	if err != nil {
+		return noteRes(i18n.T("could not identify the session supervisor; retired systemd targets were not checked"))
+	}
+	if initSystem != host.Systemd {
+		return okRes(i18n.T("the runit session roster replaces systemd session targets"))
+	}
 	stale := staleSessionWants()
 	if len(stale) == 0 {
 		return okRes(i18n.T("session units are wanted by the current target"))
@@ -89,7 +104,7 @@ func reconcileSessionTarget(checkOnly bool) recResult {
 	reloadUserDaemon()
 	if len(failed) > 0 {
 		return failRes(i18n.T("could not migrate every session unit onto %s: %s"), sessionTarget, strings.Join(failed, ", ")).
-			withFix(i18n.T("systemctl --user enable %s"), strings.Join(failed, " "))
+			withFix(i18n.T("ryoku-host svc --user enable %s"), strings.Join(failed, " "))
 	}
 	return fixedRes(i18n.T("re-enabled session units under %s: %s"), sessionTarget, strings.Join(migrated, ", "))
 }

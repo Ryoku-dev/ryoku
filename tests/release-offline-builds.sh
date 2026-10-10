@@ -47,12 +47,17 @@ count=$(find "$go/repo" -name '*.jar' | wc -l)
 (( count > 0 )) || fail "release/gradle-offline/repo carries no jars"
 
 # --- in-repo go builds use the committed vendor tree ------------------------
-# shellcheck disable=SC2016  # $srcdir is matched literally in the PKGBUILDs
-mapfile -t go_pkgs < <(grep -rlE 'go build .*-o "\$srcdir' "$pkgs"/*/PKGBUILD | sort)
-[[ ${#go_pkgs[@]} -gt 0 ]] || fail "no go PKGBUILDs found; did the layout change?"
+# The monorepo recipes build through release/packages/<pkg>/payload.sh, shared
+# by the PKGBUILD and the Void template; its `build)` branch is what runs.
+payload_build_body() {
+  sed -n '/^build)/,/^[[:space:]]*;;/p' "$1" | sed -e 's/#.*//' -e '/^[[:space:]]*$/d'
+}
+# shellcheck disable=SC2016  # $RYOKU_BUILD_DIR is matched literally in the payloads
+mapfile -t go_pkgs < <(grep -rlE 'go build .*-o "\$RYOKU_BUILD_DIR' "$pkgs"/*/payload.sh | sort)
+[[ ${#go_pkgs[@]} -gt 0 ]] || fail "no go payload builds found; did the layout change?"
 for p in "${go_pkgs[@]}"; do
   n=$(basename "$(dirname "$p")")
-  grep -qE 'go build[^|&]*-mod=vendor' <<<"$(build_body "$p")" \
+  grep -qE 'go build[^|&]*-mod=vendor' <<<"$(payload_build_body "$p")" \
     || fail "$n: go build must pass -mod=vendor so it never reaches proxy.golang.org"
 done
 

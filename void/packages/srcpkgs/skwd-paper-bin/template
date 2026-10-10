@@ -1,0 +1,55 @@
+# Template file for 'skwd-paper-bin'
+pkgname=skwd-paper-bin
+version=1.0.0beta23
+revision=1
+archs="x86_64*"
+build_style=cargo
+_paper_commit=68916db2c49e098fb3b8fa1c77b7eeeee07ba627
+_ffmpeg_version=9.0.1
+wrksrc="skwd-paper-${_paper_commit}"
+skip_extraction="ffmpeg-${_ffmpeg_version}.tar.xz"
+hostmakedepends="cargo-auditable clang curl nasm patchelf pkg-config tar xz"
+makedepends="Vulkan-Headers alsa-lib-devel libdav1d-devel libdrm-devel
+ pulseaudio-devel libva-devel libyuv-devel shaderc vulkan-loader-devel
+ wayland-devel zlib-devel"
+depends="alsa-lib libdav1d libdrm libgcc libglvnd libpulseaudio libva
+ libxkbcommon libyuv shaderc vulkan-loader wayland zlib"
+short_desc="Wallpaper Engine renderer backend for Ryogami"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/liixini/skwd-paper"
+distfiles="https://github.com/liixini/skwd-paper/archive/${_paper_commit}.tar.gz
+ https://ffmpeg.org/releases/ffmpeg-${_ffmpeg_version}.tar.xz"
+checksum="b725b2d1322cd26da8ae2b43c2fa0d50cd27578a980db30af951d7ca396d0063
+ cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635"
+provides="skwd-paper-${version}_${revision}"
+conflicts="skwd-paper>=0"
+nocross=yes
+
+do_build() {
+	local ffmpeg_prefix="${PWD}/.xbps-ffmpeg"
+
+	mkdir -p vendor-ffmpeg
+	cp "${XBPS_SRCDISTDIR}/${pkgname}-${version}/ffmpeg-${_ffmpeg_version}.tar.xz" \
+		vendor-ffmpeg/
+	./packaging/build-ffmpeg-runtime.sh "${ffmpeg_prefix}"
+
+	export FFMPEG_DIR="${ffmpeg_prefix}"
+	export PKG_CONFIG_PATH="${ffmpeg_prefix}/lib/pkgconfig"
+	cargo auditable build --release --locked --target "${RUST_TARGET}" --workspace
+}
+
+do_install() {
+	# package-stage.sh insists on an empty destination, and xbps-src has
+	# already populated DESTDIR by the time do_install runs.
+	rm -rf .xbps-stage
+	SKWD_PAPER_BIN_DIR="${PWD}/target/${RUST_TARGET}/release" \
+		./scripts/package-stage.sh "${PWD}/.xbps-stage"
+	cp -a .xbps-stage/. "${DESTDIR}/"
+
+	vmkdir usr/lib/skwd-paper
+	vcopy ".xbps-ffmpeg/lib/*.so*" usr/lib/skwd-paper
+	vlicense .xbps-ffmpeg/share/licenses/ffmpeg/COPYING.LGPLv2.1 \
+		ffmpeg-COPYING.LGPLv2.1
+	vlicense .xbps-ffmpeg/share/licenses/ffmpeg/LICENSE.md ffmpeg-LICENSE.md
+}

@@ -3,6 +3,7 @@ package host
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,96 @@ func TestRunitTransientLifecycle(t *testing.T) {
 		t.Fatal(code)
 	}
 	if len(runner.signals) != 1 || runner.signals[0].pid != 42 {
+		t.Fatalf("signals = %#v", runner.signals)
+	}
+}
+
+func TestRunitSupervisedTransientLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	serviceRoot := filepath.Join(dir, "service")
+	service := filepath.Join(serviceRoot, "job")
+	running := false
+	runner := &fakeRunner{
+		paths: map[string]bool{"sv": true},
+		alive: map[int]bool{314: true},
+	}
+	runner.answer = func(command Command) Result {
+		if command.Name != "sv" || len(command.Args) == 0 {
+			return Result{Code: 1}
+		}
+		switch command.Args[0] {
+		case "status":
+			if running {
+				return Result{Output: "run: job: (pid 314) 1s\n"}
+			}
+			return Result{Output: "down: job: 1s\n"}
+		case "-w":
+			if len(command.Args) != 4 {
+				return Result{Code: 1}
+			}
+			switch command.Args[2] {
+			case "up":
+				if err := os.MkdirAll(filepath.Join(service, "supervise"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(service, "supervise", "pid"), []byte("314\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				running = true
+			case "down":
+				running = false
+			default:
+				return Result{Code: 1}
+			}
+			return Result{}
+		default:
+			return Result{Code: 1}
+		}
+	}
+	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_INIT": "runit"})
+	app.cfg.RuntimeDir = filepath.Join(dir, "run")
+	app.cfg.UserServiceDir = serviceRoot
+	if code := app.Transient([]string{"start", "job", "--env", "QUOTE=a'b", "--", "worker", "x y"}); code != ExitOK {
+		t.Fatalf("start exit = %d", code)
+	}
+
+	run, err := os.ReadFile(filepath.Join(service, "run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"cd " + shellQuote(cwd),
+		"exec chpst -P env -i --",
+		"'QUOTE=a'\\''b' 'worker' 'x y' 2>&1",
+	} {
+		if !strings.Contains(string(run), want) {
+			t.Fatalf("run script missing %q:\n%s", want, run)
+		}
+	}
+	for _, path := range []string{
+		filepath.Join(service, "finish"),
+		filepath.Join(service, "log", "run"),
+		app.pidPath("job"),
+		app.runsvPath("job"),
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("missing transient artifact %s: %v", path, err)
+		}
+	}
+	if code := app.Transient([]string{"is-active", "job"}); code != ExitOK {
+		t.Fatalf("is-active exit = %d", code)
+	}
+	if code := app.Transient([]string{"stop", "job"}); code != ExitOK {
+		t.Fatalf("stop exit = %d", code)
+	}
+	if _, err := os.Stat(service); !os.IsNotExist(err) {
+		t.Fatalf("service directory remained after stop: %v", err)
+	}
+	if len(runner.signals) != 1 || runner.signals[0].pid != 314 {
 		t.Fatalf("signals = %#v", runner.signals)
 	}
 }

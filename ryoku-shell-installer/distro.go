@@ -11,8 +11,8 @@ import (
 // asks it for argv and for the local name of a package; nothing else branches on
 // the distribution.
 //
-// fromSource distros have no [ryoku] repository, so the desktop is built from the
-// cloned payload with ryoku/shell/deploy.sh instead of installed with pacman.
+// Source-only distros have no Ryoku package repository, so the desktop is built
+// from the cloned payload with ryoku/shell/deploy.sh.
 type initSystem uint8
 
 const (
@@ -21,9 +21,10 @@ const (
 )
 
 type distro struct {
-	id         string
-	name       string
-	fromSource bool
+	id           string
+	name         string
+	fromSource   bool
+	snapshotNote string // optional final-summary note about snapshot support
 
 	// rename maps an Arch package name to its Debian equivalent. A missing key
 	// means the name is identical; an empty value means the package does not
@@ -118,12 +119,12 @@ var debianLinux = &distro{
 	},
 }
 
-// Ryoku is built from the payload because there is no signed XBPS repository
-// yet. void/packages owns the package translation and source-build closure.
+// Void installs the signed desktop packages from the Ryoku XBPS repository.
+// void/packages owns the package translation and transaction ordering.
 var voidLinux = &distro{
 	id:                 "void",
 	name:               "Void",
-	fromSource:         true,
+	snapshotNote:       "Snapshots are not available on Void Linux, so updates cannot be rolled back.",
 	installCmd:         []string{"xbps-install", "-Sy"},
 	removeCmd:          []string{"xbps-remove", "-y"},
 	updateCmd:          []string{"xbps-install", "-Syu"},

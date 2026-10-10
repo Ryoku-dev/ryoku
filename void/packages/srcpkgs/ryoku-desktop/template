@@ -1,0 +1,117 @@
+# Template file for 'ryoku-desktop'
+pkgname=ryoku-desktop
+version=0.1.0
+revision=1
+archs="x86_64"
+hostmakedepends="go cmake ninja pkg-config"
+makedepends="gtk+3-devel libwebkit2gtk41-devel"
+depends="
+ ryoku-shell>=${version}
+ ryoku-hub>=${version}
+ ryoku-rashin>=${version}
+ ryoku-blobs>=${version}
+ ryoku>=${version}
+ ryoku-keyring
+ virtual?ryoku-desktop-compositor
+ xorg-server-xwayland
+ qt6-wayland
+ qt5-wayland
+ qt6-qt5compat
+ qt6-svg
+ gtk+3
+ libwebkit2gtk41
+ qt6-imageformats
+ weston
+ xdg-desktop-portal-gtk
+ gnome-themes-extra
+ papirus-icon-theme
+ ryoku-cursors
+ ryoku-cursor-material
+ quickshell
+ syntax-highlighting
+ brightnessctl
+ playerctl
+ mpv
+ mpv-mpris
+ yt-dlp
+ wl-clipboard
+ wl-clip-persist
+ cliphist
+ grim
+ slurp
+ cava
+ python3
+ pipewire
+ jq
+ ImageMagick
+ matugen
+ ryogami
+ ffmpeg6
+ curl
+ qt6-multimedia
+ qt6-declarative
+ zenity
+ iw
+ nftables
+ bluez
+ pam-u2f
+ rtkit
+ ttf-jetbrains-mono-nerd
+ font-inter
+ noto-fonts-ttf
+ noto-fonts-cjk
+ noto-fonts-emoji
+ ttf-material-symbols-variable
+ tesseract-ocr
+ tesseract-ocr-eng
+ zbar
+ gpu-screen-recorder
+ wtype
+ libqalculate
+ upower
+ power-profiles-daemon
+ ddcutil
+ swayidle
+ hyprpicker
+ linux-headers
+ dkms
+ dbus
+ elogind
+ polkit
+ socklog-void
+ turnstile
+ xdg-desktop-portal
+ NetworkManager
+ wireplumber
+ sddm
+ xdg-user-dirs"
+short_desc="Ryoku compositor-neutral desktop payload and runtime"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later, AGPL-3.0-or-later"
+homepage="https://ryoku.dev"
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
+checksum=SKIP
+wrksrc="ryoku-${version}"
+
+# Administrators may tune elogind's fallback lid policy and the site-wide
+# default applications after installation.
+conf_files="/etc/elogind/logind.conf.d/10-ryoku-lid.conf /etc/xdg/mimeapps.list"
+
+_do_payload() {
+	GOFLAGS="-buildmode=pie" \
+	RYOKU_SRC="$wrksrc" \
+	RYOKU_PKGVER="$version" \
+	RYOKU_RELEASE="${RYOKU_RELEASE:-local-${version}}" \
+	RYOKU_CHANNEL="${RYOKU_CHANNEL:-local}" \
+	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+	RYOKU_BUILD_DIR="$wrksrc/.xbps-build/ryoku-desktop" \
+		"$wrksrc/release/packages/ryoku-desktop/payload.sh" "$@"
+}
+
+do_build() {
+	_do_payload build
+}
+
+do_install() {
+	_do_payload install "$DESTDIR" runit
+}

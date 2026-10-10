@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"ryoku-cli/internal/host"
 )
 
 func TestRashinDaemonActions(t *testing.T) {
@@ -151,5 +153,96 @@ func TestRashinSkillLinksMissing(t *testing.T) {
 	}
 	if rashinSkillLinksMissing() {
 		t.Fatal("links present: should not report missing")
+	}
+}
+
+func TestRashinDaemonRunitRepairSettles(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-rashin"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), ".config"))
+	t.Setenv("RYOKU_RASHIN_SKILLS", filepath.Join(t.TempDir(), "absent"))
+
+	t.Setenv("RYOKU_REPO", "")
+	t.Setenv("RYOKU_CHANNEL", "")
+	t.Setenv("RYOKU_WM", "niri")
+	oldInit, oldService, oldPackaged := rashinInit, rashinService, packagedSkillRoot
+	t.Cleanup(func() {
+		rashinInit, rashinService, packagedSkillRoot = oldInit, oldService, oldPackaged
+	})
+	rashinInit = func() (host.InitSystem, error) { return host.Runit, nil }
+	packagedSkillRoot = filepath.Join(t.TempDir(), "absent")
+
+	enabled, active := false, false
+	var calls [][]string
+	rashinService = func(args []string) int {
+		calls = append(calls, append([]string(nil), args...))
+		switch args[1] {
+		case "is-enabled":
+			if enabled {
+				return host.ExitOK
+			}
+			return host.ExitFalse
+		case "is-active":
+			if active {
+				return host.ExitOK
+			}
+			return host.ExitFalse
+		case "enable":
+			enabled, active = true, true
+		case "start":
+			active = true
+		}
+		return host.ExitOK
+	}
+
+	if r := reconcileRashinDaemon(false); r.status != recFixed {
+		t.Fatalf("repair = %s %q, want fixed", r.status.label(), r.detail)
+	}
+	if !enabled || !active {
+		t.Fatalf("runit service state = enabled %v active %v, want both true; calls=%v", enabled, active, calls)
+	}
+	if r := reconcileRashinDaemon(false); r.status != recOK {
+		t.Fatalf("second run = %s %q, want settled ok", r.status.label(), r.detail)
+	}
+}
+
+func TestAiUsageCollectorUsesRunitServiceAndSettles(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), ".config"))
+
+	oldInit, oldService := rashinInit, rashinService
+	t.Cleanup(func() { rashinInit, rashinService = oldInit, oldService })
+	rashinInit = func() (host.InitSystem, error) { return host.Runit, nil }
+
+	enabled := false
+	var enabledUnit string
+	rashinService = func(args []string) int {
+		switch args[1] {
+		case "is-enabled":
+			if enabled {
+				return host.ExitOK
+			}
+			return host.ExitFalse
+		case "enable":
+			enabled = true
+			enabledUnit = args[len(args)-1]
+			return host.ExitOK
+		default:
+			return host.ExitOK
+		}
+	}
+
+	if r := reconcileAiUsageTimer(false); r.status != recFixed {
+		t.Fatalf("repair = %s %q, want fixed", r.status.label(), r.detail)
+	}
+	if enabledUnit != aiUsageService {
+		t.Fatalf("enabled %q, want runit service %q", enabledUnit, aiUsageService)
+	}
+	if r := reconcileAiUsageTimer(false); r.status != recOK {
+		t.Fatalf("second run = %s %q, want settled ok", r.status.label(), r.detail)
 	}
 }

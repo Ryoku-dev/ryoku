@@ -134,3 +134,20 @@ func TestBootImageName(t *testing.T) {
 		}
 	}
 }
+
+func TestInitramfsReconcilersAreNeutralWithoutMkinitcpio(t *testing.T) {
+	old := mkinitcpioHost
+	mkinitcpioHost = func() bool { return false }
+	t.Cleanup(func() { mkinitcpioHost = old })
+
+	for name, run := range map[string]func(bool) recResult{
+		"GPU trim":     reconcileInitramfsGPUTrim,
+		"console keys": reconcileInitramfsConsoleKeys,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := run(false); got.status != recOK {
+				t.Fatalf("result = %#v, want neutral ok", got)
+			}
+		})
+	}
+}

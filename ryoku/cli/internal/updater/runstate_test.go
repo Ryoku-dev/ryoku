@@ -59,6 +59,21 @@ func TestProgressStepsAdvance(t *testing.T) {
 		t.Errorf("at(packages): progress %v, want strictly between 0 and 1", st.Progress)
 	}
 }
+func TestProgressPublishesUnsupportedSnapshots(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	p := &publisher{}
+	p.begin(pkgSteps)
+	t.Cleanup(p.idle)
+
+	st := readRunState(t)
+	if st.SnapshotsSupported {
+		t.Fatal("xbps run-state reports snapshots supported")
+	}
+	if st.SnapshotReason == "" {
+		t.Fatal("xbps run-state omits the snapshot reason")
+	}
+}
 
 // A logged line lands in the rolling ring, capped, and republishes.
 func TestProgressLogRing(t *testing.T) {

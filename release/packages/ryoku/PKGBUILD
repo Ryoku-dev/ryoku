@@ -22,19 +22,21 @@ source=()
 _repo="$startdir/../../.."
 
 build() {
-  cd "$_repo/ryoku/cli"
-  CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$srcdir/ryoku" .
-  CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$srcdir/ryoku-host" ./cmd/ryoku-host
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" build
 }
 
 package() {
-  install -Dm755 "$srcdir/ryoku" "$pkgdir/usr/bin/ryoku"
-  install -Dm755 "$srcdir/ryoku-host" "$pkgdir/usr/bin/ryoku-host"
-  # the boot guard: a system unit `ryoku boot-guard` runs from early in every
-  # boot (enabled by the doctor on every update, so existing boxes get it),
-  # and the tmpfiles entries for its marker and the sessions' boot-ok files.
-  install -Dm644 "$_repo/ryoku/cli/systemd/ryoku-boot-guard.service" \
-    "$pkgdir/usr/lib/systemd/system/ryoku-boot-guard.service"
-  install -Dm644 "$_repo/ryoku/cli/systemd/ryoku.tmpfiles.conf" \
-    "$pkgdir/usr/lib/tmpfiles.d/ryoku.conf"
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" install "$pkgdir" systemd
 }

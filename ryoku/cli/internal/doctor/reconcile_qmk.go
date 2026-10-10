@@ -1,8 +1,10 @@
 package doctor
 
 import (
+	"fmt"
 	"os/exec"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -14,8 +16,28 @@ type qmkStatus struct {
 }
 
 var (
-	readQMKStatus = probeQMKStatus
-	installQMK    = func() error { return sys.Run("ryoku-pkg-aur-add", "qmk-hid") }
+	readQMKStatus       = probeQMKStatus
+	qmkPackageInstalled = func() bool {
+		return host.Default().Package([]string{"installed", "qmk-hid"}) == host.ExitOK
+	}
+	qmkProviderAvailable = func() bool {
+		app := host.Default()
+		manager, err := app.PackageManager()
+		if err != nil {
+			return false
+		}
+		if manager == host.Pacman {
+			return true
+		}
+		return app.Package([]string{"available", "qmk-hid"}) == host.ExitOK
+	}
+	qmkInstallAdvice = func() string { return host.Default().InstallAdvice("qmk-hid") }
+	installQMK       = func() error {
+		if code := host.Default().Package([]string{"install", "--aur", "qmk-hid"}); code != host.ExitOK {
+			return fmt.Errorf("package install exited %d", code)
+		}
+		return nil
+	}
 	reloadQMKUdev = func() error {
 		if err := sys.Sudo("udevadm", "control", "--reload"); err != nil {
 			return err
@@ -32,7 +54,7 @@ func probeQMKStatus() qmkStatus {
 	if !st.supported {
 		return st
 	}
-	st.installed = sys.PkgInstalled("qmk-hid")
+	st.installed = qmkPackageInstalled()
 	return st
 }
 
@@ -49,13 +71,17 @@ func reconcileQMK(checkOnly bool) recResult {
 	if st.installed {
 		return okRes(i18n.T("QMK/VIA keyboard lighting provider is installed"))
 	}
+	if !qmkProviderAvailable() {
+		return noteRes(i18n.T("QMK/VIA keyboard lighting provider is not packaged for this system")).
+			withFix(qmkInstallAdvice())
+	}
 	if checkOnly {
 		return wouldRes(i18n.T("QMK/VIA keyboard lighting provider is missing")).
 			withFix(i18n.T("ryoku doctor installs qmk-hid so the keyboard follows the theme"))
 	}
 	if err := installQMK(); err != nil {
 		return failRes(i18n.T("could not install the QMK lighting provider: %v"), err).
-			withFix("ryoku-pkg-aur-add qmk-hid")
+			withFix(qmkInstallAdvice())
 	}
 	_ = reloadQMKUdev()
 	return fixedRes(i18n.T("installed qmk-hid; the QMK/VIA keyboard is available in Appearance"))

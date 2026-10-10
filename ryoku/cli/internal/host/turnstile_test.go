@@ -22,6 +22,10 @@ func turnstileTestApp(t *testing.T, init string, runner *fakeRunner) (*App, *byt
 	})
 	app, stdout, stderr := testApp(runner, map[string]string{"RYOKU_HOST_INIT": init, "HOME": home})
 	app.cfg.UID, app.cfg.UIDSet = 0, true
+	app.cfg.InitLibDir = filepath.Join(root, "usr/lib/ryoku/runit")
+	if err := os.MkdirAll(filepath.Join(app.cfg.InitLibDir, "user"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	return app, stdout, stderr, root, home
 }
 
@@ -157,6 +161,94 @@ func TestTurnstileUserEnsureMergesCoreServices(t *testing.T) {
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("second ensure = %q", stdout.String())
+	}
+}
+
+func TestTurnstileUserEnsureProvisionsAndRefreshesServices(t *testing.T) {
+	app, stdout, _, _, home := turnstileTestApp(t, "runit", &fakeRunner{})
+	sourceRoot := filepath.Join(app.cfg.InitLibDir, "user")
+	serviceRoot := filepath.Join(home, ".config/service")
+
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-shell", "run"), "#!/bin/sh\nexec new-shell\n")
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-shell", "finish"), "#!/bin/sh\nexit 0\n")
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-shell", "conf"), "export READY=1\n")
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-shell", "log", "run"), "#!/bin/sh\nexec logger\n")
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-shell", "down"), "")
+	for _, path := range []string{
+		filepath.Join(sourceRoot, "ryoku-shell", "run"),
+		filepath.Join(sourceRoot, "ryoku-shell", "finish"),
+		filepath.Join(sourceRoot, "ryoku-shell", "log", "run"),
+	} {
+		if err := os.Chmod(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFixture(t, filepath.Join(sourceRoot, "pipewire", "run"), "#!/bin/sh\nexec pipewire\n")
+	if err := os.Chmod(filepath.Join(sourceRoot, "pipewire", "run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFixture(t, filepath.Join(sourceRoot, "wireplumber", "run"), "#!/bin/sh\nexec wireplumber\n")
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-idle", "run"), "#!/bin/sh\nexec ryoku-idle\n")
+	writeFixture(t, filepath.Join(sourceRoot, "ryoku-idle", "down"), "")
+	if err := os.Chmod(filepath.Join(sourceRoot, "ryoku-idle", "run"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "run"), "stale\n")
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "finish"), "stale\n")
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "conf"), "stale\n")
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "log", "run"), "stale\n")
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "log", "supervise", "status"), "live logger state")
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "supervise", "status"), "live service state")
+	writeFixture(t, filepath.Join(serviceRoot, "ryoku-shell", "down"), "")
+	writeFixture(t, filepath.Join(serviceRoot, "pipewire", "run"), "stale\n")
+	writeFixture(t, filepath.Join(serviceRoot, "pipewire", "down"), "")
+	writeFixture(t, filepath.Join(serviceRoot, "pipewire", runitUserDisabledMarker), "")
+
+	if code := app.SessionEnsure("--user"); code != ExitOK {
+		t.Fatal(code)
+	}
+	for relative, want := range map[string]string{
+		"ryoku-shell/run":                  "#!/bin/sh\nexec new-shell\n",
+		"ryoku-shell/finish":               "#!/bin/sh\nexit 0\n",
+		"ryoku-shell/conf":                 "export READY=1\n",
+		"ryoku-shell/log/run":              "#!/bin/sh\nexec logger\n",
+		"ryoku-shell/supervise/status":     "live service state",
+		"ryoku-shell/log/supervise/status": "live logger state",
+		"pipewire/run":                     "#!/bin/sh\nexec pipewire\n",
+		"wireplumber/run":                  "#!/bin/sh\nexec wireplumber\n",
+		"ryoku-idle/run":                   "#!/bin/sh\nexec ryoku-idle\n",
+	} {
+		body, err := os.ReadFile(filepath.Join(serviceRoot, relative))
+		if err != nil || string(body) != want {
+			t.Errorf("%s = %q, %v; want %q", relative, body, err, want)
+		}
+	}
+	for _, relative := range []string{"ryoku-shell/down", "ryoku-idle/down", "pipewire/down", "pipewire/" + runitUserDisabledMarker} {
+		if _, err := os.Stat(filepath.Join(serviceRoot, relative)); err != nil {
+			t.Errorf("%s was not preserved: %v", relative, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(serviceRoot, "wireplumber", "down")); !os.IsNotExist(err) {
+		t.Errorf("fresh login service gained a down file: %v", err)
+	}
+	for _, relative := range []string{"ryoku-shell/run", "ryoku-shell/finish", "ryoku-shell/log/run", "ryoku-idle/run"} {
+		info, err := os.Stat(filepath.Join(serviceRoot, relative))
+		if err != nil {
+			t.Errorf("%s stat: %v", relative, err)
+			continue
+		}
+		if info.Mode().Perm() != 0o755 {
+			t.Errorf("%s mode = %v", relative, info.Mode().Perm())
+		}
+	}
+
+	stdout.Reset()
+	if code := app.SessionEnsure("--user"); code != ExitOK {
+		t.Fatal(code)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("idempotent ensure reported changes: %q", stdout.String())
 	}
 }
 

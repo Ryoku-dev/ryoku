@@ -1,18 +1,20 @@
 name: NVIDIA guard
 
-# guards ryoku-nvidia-guard, the heal that breaks the SDDM login loop: nouveau
-# blacklisted with no nvidia module for any installed kernel (a failed DKMS
-# rebuild on a kernel update) must restore nouveau, and the guard must stay a
-# no-op on a healthy box, a non-NVIDIA box, or mid-install. Stubbed pacman /
-# modinfo / mkinitcpio -> no GPU, no root needed. tests/nvidia-guard.sh.
+# Guards both package-manager paths that prevent a failed NVIDIA module build
+# from hiding nouveau. The pacman hook heals existing installs; Void's kernel
+# hook runs after DKMS and before dracut. Driver selection tests cover the
+# generation map without a GPU or root access.
 
 on:
   pull_request:
     paths:
       - 'system/hardware/drivers/ryoku-nvidia-guard'
       - 'system/hardware/drivers/nvidia.sh'
+      - 'system/hardware/drivers/nvidia-xbps.sh'
+      - 'system/hardware/drivers/15-ryoku-nvidia'
       - 'tests/nvidia-guard.sh'
       - 'tests/nvidia-driver-selection.sh'
+      - 'tests/nvidia-xbps.sh'
       - '.github/workflows/nvidia-guard.yml'
   push:
     branches:
@@ -20,8 +22,11 @@ on:
     paths:
       - 'system/hardware/drivers/ryoku-nvidia-guard'
       - 'system/hardware/drivers/nvidia.sh'
+      - 'system/hardware/drivers/nvidia-xbps.sh'
+      - 'system/hardware/drivers/15-ryoku-nvidia'
       - 'tests/nvidia-guard.sh'
       - 'tests/nvidia-driver-selection.sh'
+      - 'tests/nvidia-xbps.sh'
       - '.github/workflows/nvidia-guard.yml'
   workflow_dispatch:
 
@@ -43,3 +48,7 @@ jobs:
       - name: Run NVIDIA driver selection test
         shell: bash
         run: bash tests/nvidia-driver-selection.sh
+
+      - name: Run Void NVIDIA driver test
+        shell: bash
+        run: bash tests/nvidia-xbps.sh

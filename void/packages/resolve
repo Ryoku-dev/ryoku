@@ -106,27 +106,34 @@ BEGIN {
 	repository = "main"
 	if ($4 ~ /^repo=/) {
 		repository = substr($4, 6)
-		if (repository !~ /^(multilib|nonfree|multilib-nonfree)$/)
-			bad("unknown Void repository " repository)
+		if (repository !~ /^(ryoku|multilib|nonfree|multilib-nonfree)$/)
+			bad("unknown package repository " repository)
 	}
 
-	special = ($2 == "@repo" || $2 == "@fetch" || $2 == "-")
+	if ($2 == "@fetch")
+		bad("@fetch mappings are no longer supported; package the source in the Ryoku repository")
+	special = ($2 == "@repo" || $2 == "-")
 	if (special) {
 		if ($4 == "") bad("special mapping " $2 " requires notes")
-		if ($4 ~ /^repo=/) bad("special mapping cannot declare a Void repository")
+		if ($4 ~ /^repo=/) bad("special mapping cannot declare a package repository")
+		if ($2 == "@repo" && $4 != "Ryoku-owned package built from the checkout.")
+			bad("@repo mapping must use the checkout-owned package note")
 	} else {
-		if ($4 != "" && $4 !~ /^repo=(multilib|nonfree|multilib-nonfree)$/)
+		if ($4 != "" && $4 !~ /^repo=(ryoku|multilib|nonfree|multilib-nonfree)$/)
 			bad("plain mapping notes must be a repository declaration")
 		name_count = split($2, names, /[[:space:]]+/)
 		for (i = 1; i <= name_count; i++)
 			if (!package_name(names[i])) bad("invalid Void package name " names[i])
 	}
 
-	if (!failed && selected && !index(dropped, "|" $1 "|") && !special) {
-		for (i = 1; i <= name_count; i++) print names[i]
-		if (repository == "multilib") print "void-repo-multilib"
-		else if (repository == "nonfree") print "void-repo-nonfree"
-		else if (repository == "multilib-nonfree") print "void-repo-multilib-nonfree"
+	if (!failed && selected && !index(dropped, "|" $1 "|")) {
+		if ($2 == "@repo") print $1
+		else if (!special) {
+			for (i = 1; i <= name_count; i++) print names[i]
+			if (repository == "multilib") print "void-repo-multilib"
+			else if (repository == "nonfree") print "void-repo-nonfree"
+			else if (repository == "multilib-nonfree") print "void-repo-multilib-nonfree"
+		}
 	}
 }
 END {

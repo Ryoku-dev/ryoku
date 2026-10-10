@@ -6,11 +6,11 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	i18n "ryoku-i18n"
 )
@@ -48,8 +48,11 @@ const releaseFetchTTL = 10 * time.Minute
 
 // RYOKU_RELEASE_BASE overrides RepoBase for tests and a local mirror.
 func repoBase() string {
-	if b := strings.TrimSpace(os.Getenv("RYOKU_RELEASE_BASE")); b != "" {
-		return strings.TrimSuffix(b, "/")
+	if base := strings.TrimSpace(os.Getenv("RYOKU_RELEASE_BASE")); base != "" {
+		return strings.TrimSuffix(base, "/")
+	}
+	if updatePackageManager() == host.XBPS {
+		return host.XBPSRepoBase
 	}
 	return sys.RepoBase
 }
@@ -85,16 +88,20 @@ func fetchCached(name, url string, ttl time.Duration) []byte {
 // channelServes reads what a channel currently serves, or a zero value when
 // the channel is unreachable and nothing is cached.
 func channelServes(channel string) channelRelease {
-	var r channelRelease
-	url := strings.Replace(sys.ChannelServer(channel), sys.RepoBase, repoBase(), 1)
-	url = strings.Replace(url, "$arch", "x86_64", 1)
+	var release channelRelease
+	url := repoReleaseURL(channel)
+	managerBase := host.PacmanRepoBase
+	if updatePackageManager() == host.XBPS {
+		managerBase = host.XBPSRepoBase
+	}
+	url = strings.Replace(url, managerBase, repoBase(), 1)
 	if url == "" {
-		return r
+		return release
 	}
-	if b := fetchCached("channel-"+sanitize(channel)+".json", url+"/release.json", releaseFetchTTL); b != nil {
-		_ = json.Unmarshal(b, &r)
+	if body := fetchCached("channel-"+sanitize(channel)+".json", url+"/release.json", releaseFetchTTL); body != nil {
+		_ = json.Unmarshal(body, &release)
 	}
-	return r
+	return release
 }
 
 // ledger reads the release ledger, newest first.
@@ -124,24 +131,20 @@ func sanitize(s string) string {
 // retired as the update source (the ~/ryoku-arch clone stays on disk but no
 // longer drives updates). Building from a checkout is `ryoku track ... --source`.
 func Track(channel string) error {
-	if sys.ChannelServer(channel) == "" {
+	if channelRepoURL(channel) == "" {
 		return fmt.Errorf(i18n.T("unknown channel %q: stable, unstable, or a release tag (see `ryoku rollback` for the list)"), channel)
 	}
 	source := sys.SourceTracked()
-	install := !sys.PkgInstalled("ryoku-desktop")
-	// A pure source box with no ryoku-desktop and no [ryoku] repo to install it
-	// from cannot be moved onto packages here; the doctor adds the repo first.
-	if install && sys.RyokuServer() == "" {
-		return fmt.Errorf(i18n.T("no ryoku-desktop package and no [ryoku] repo to install it from; run `ryoku doctor` to add the repo, then `ryoku track %s`"), sys.TrackName(channel))
+	install := host.Default().Package([]string{"installed", "ryoku-desktop"}) != host.ExitOK
+	if install && packagedRepoURL() == "" {
+		return fmt.Errorf(i18n.T("no ryoku-desktop package and no Ryoku package repository to install it from; run `ryoku doctor` to add the repo, then `ryoku track %s`"), sys.TrackName(channel))
 	}
-	// A deliberate private mirror (a Server Ryoku does not publish) is never
-	// silently overwritten, unless we are migrating a source box off its checkout.
-	if !source && sys.PackagedChannel() == "" && sys.RyokuServer() != "" {
-		return fmt.Errorf(i18n.T("the [ryoku] repo points at %s, a mirror Ryoku does not publish; edit %s by hand"), sys.RyokuServer(), sys.PacmanConf)
+	if !source && packagedChannel() == "" && packagedRepoURL() != "" {
+		return fmt.Errorf(i18n.T("the Ryoku package repository points at %s, a mirror Ryoku does not publish; edit its package-manager configuration by hand"), packagedRepoURL())
 	}
 	// Already on the channel, package box, nothing to migrate: only move the set
 	// if the channel now serves something newer than what is installed.
-	if !source && !install && sys.PackagedChannel() == channel {
+	if !source && !install && packagedChannel() == channel {
 		if serves := channelServes(channel).Release; serves == "" || serves == sys.ReadRelease().Release {
 			// A box moved here by a retired name (unstable-dev, main) is already
 			// on the right channel; record the choice so the doctor treats it as
@@ -178,7 +181,11 @@ func Track(channel string) error {
 	if install {
 		fmt.Println(i18n.T("==> ryoku-desktop is not installed here; the channel switch installs it from the selected channel."))
 	}
-	fmt.Println(i18n.T("==> Updates now come from packages: `ryoku update` runs pacman."))
+	manager := "pacman"
+	if updatePackageManager() == host.XBPS {
+		manager = "xbps-install"
+	}
+	fmt.Printf(i18n.T("==> Updates now come from packages: `ryoku update` runs %s.\n"), manager)
 	// Record the deliberate choice before the move: it is the signal the doctor
 	// uses to tell a pin the user asked for from one a failed boot-guard revert
 	// left behind (#291). retargetChannel makes the pin transactional -- a failed
@@ -225,7 +232,6 @@ var runChannelUpdate = func() error { return Update([]string{"--channel-switch"}
 // launched after a migration no longer carry the stale channel. Best-effort and
 // a var so a test never touches the real session.
 var clearSessionChannelEnv = func() {
-	_ = exec.Command("systemctl", "--user", "unset-environment", "RYOKU_CHANNEL").Run()
-	_ = exec.Command("dbus-update-activation-environment", "RYOKU_CHANNEL=").Run()
+	_ = host.Default().Service([]string{"env", "RYOKU_CHANNEL="})
 	os.Unsetenv("RYOKU_CHANNEL")
 }

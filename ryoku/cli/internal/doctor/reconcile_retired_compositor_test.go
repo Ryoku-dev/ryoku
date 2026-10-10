@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"testing"
 
+	"ryoku-cli/internal/host"
+
 	wm "ryoku-wm"
 )
 
@@ -16,12 +18,14 @@ func stubRetiredCompositor(t *testing.T, installed map[string]bool) (*[][]string
 	oldRemoveAll := retiredCompositorRemoveAll
 	oldRemove := retiredCompositorRemove
 	oldHome := retiredCompositorHome
+	oldManager := doctorPackageManager
 	t.Cleanup(func() {
 		retiredCompositorPackageInstalled = oldInstalled
 		retiredCompositorRun = oldRun
 		retiredCompositorRemoveAll = oldRemoveAll
 		retiredCompositorRemove = oldRemove
 		retiredCompositorHome = oldHome
+		doctorPackageManager = oldManager
 	})
 
 	home := t.TempDir()
@@ -31,6 +35,7 @@ func stubRetiredCompositor(t *testing.T, installed map[string]bool) (*[][]string
 	legacy := wm.RetiredCompositor()
 	t.Setenv(legacy.SessionHandle, "")
 	retiredCompositorHome = func() (string, error) { return home, nil }
+	doctorPackageManager = func() (host.PackageManager, error) { return host.Pacman, nil }
 	retiredCompositorPackageInstalled = func(name string) bool { return installed[name] }
 	calls := &[][]string{}
 	retiredCompositorRun = func(args ...string) error {
@@ -115,5 +120,15 @@ func TestReconcileRetiredCompositorDefersRemovalForLiveSession(t *testing.T) {
 	}
 	if _, err := os.Stat(config); err != nil {
 		t.Fatalf("live session config was removed: %v", err)
+	}
+}
+
+func TestReconcileRetiredCompositorIsNeutralOnXBPS(t *testing.T) {
+	oldManager := doctorPackageManager
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	t.Cleanup(func() { doctorPackageManager = oldManager })
+
+	if got := reconcileRetiredCompositor(false); got.status != recOK {
+		t.Fatalf("XBPS result = %s %q, want neutral", got.status.label(), got.detail)
 	}
 }

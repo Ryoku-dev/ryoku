@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
 	"strconv"
@@ -35,6 +36,60 @@ import (
 // ledger.
 
 const ryokuIssuesURL = "https://github.com/ryoku-dev/ryoku-arch/issues"
+
+var (
+	doctorPackageManager = func() (host.PackageManager, error) {
+		return host.Default().PackageManager()
+	}
+	doctorInitSystem = func() (host.InitSystem, error) {
+		return host.Default().Init()
+	}
+	doctorSnapshots = func() (bool, string) {
+		return host.Default().Snapshots()
+	}
+	doctorPackageInstalled = func(name string) bool {
+		return host.Default().Package([]string{"installed", name}) == host.ExitOK
+	}
+	doctorPackageInstall = func(names ...string) int {
+		return host.Default().Package(append([]string{"install"}, names...))
+	}
+	doctorInstallAdvice = func(names ...string) string {
+		return host.Default().InstallAdvice(names...)
+	}
+	doctorService = func(args ...string) int {
+		return host.Default().Service(args)
+	}
+	doctorOrphans = func() ([]string, error) {
+		return host.Default().Orphans()
+	}
+	doctorFindPendingConfig = func(pattern string) []string {
+		out, _ := sys.RunOut("find", "/etc", "-type", "f", "-name", pattern)
+		return nonEmptyLines(out)
+	}
+	doctorMaterialSymbolsVisible = func() bool {
+		out, err := exec.Command("fc-list", ":family=Material Symbols Rounded", "family").Output()
+		return err == nil && strings.Contains(string(out), "Material Symbols Rounded")
+	}
+)
+
+type runitServiceFailure struct {
+	scope string
+	name  string
+}
+
+type runitServiceSource struct {
+	scope string
+	dir   string
+}
+
+var doctorRunitFailedServices = runitFailedServices
+
+func pacmanHost(subject string) (recResult, bool) {
+	if !hasPacman() {
+		return noteRes(i18n.T("%s is only applicable to pacman hosts"), subject), false
+	}
+	return recResult{}, true
+}
 
 type recStatus int
 
@@ -434,6 +489,9 @@ func emitFindingsJSON(findings []finding) error {
 // already sits in its own subvolume. skipped on machines that don't snapshot
 // root.
 func reconcileSwapSubvolume(checkOnly bool) recResult {
+	if supported, reason := doctorSnapshots(); !supported {
+		return noteRes("%s", reason)
+	}
 	if !sys.Exists("/etc/snapper/configs/root") {
 		return okRes(i18n.T("root snapshots not configured, nothing to keep out of them"))
 	}
@@ -621,6 +679,9 @@ func gatherSnapperState() snapperState {
 // -> write the canonical installer layout. non-btrfs root -> warn honestly
 // instead of silently ok. healthy box -> consistency checks gate "ok".
 func reconcileSnapper(checkOnly bool) recResult {
+	if supported, reason := doctorSnapshots(); !supported {
+		return noteRes("%s", reason)
+	}
 	st := gatherSnapperState()
 	outcome, problems := planSnapper(st)
 	switch outcome {
@@ -652,6 +713,9 @@ func reconcileSnapper(checkOnly bool) recResult {
 // the safety net is fine. Idempotent and gated on whether an unprivileged read
 // already works, so it never has to read the 0640 config to know.
 func reconcileSnapperAccess(checkOnly bool) recResult {
+	if supported, reason := doctorSnapshots(); !supported {
+		return noteRes("%s", reason)
+	}
 	if !sys.Has("snapper") || !sys.Exists("/etc/snapper/configs/root") {
 		return okRes(i18n.T("root snapshots not configured, no access to grant"))
 	}
@@ -840,6 +904,9 @@ func markMigration(marker string) error {
 // ---- reconciler: stale pacman lock -------------------------------------------
 
 func reconcilePacmanLock(checkOnly bool) recResult {
+	if result, applicable := pacmanHost(i18n.T("the pacman database lock check")); !applicable {
+		return result
+	}
 	const lock = "/var/lib/pacman/db.lck"
 	if !sys.Exists(lock) {
 		return okRes(i18n.T("no stale pacman lock"))
@@ -1015,6 +1082,13 @@ func baseSource(s string) string {
 const ryokuRepoStanza = "\n[ryoku]\nSigLevel = Required\nServer = " + sys.RepoBase + "/$arch\n"
 
 func reconcileRyokuChannel(checkOnly bool) recResult {
+	manager, err := doctorPackageManager()
+	if err == nil && manager == host.XBPS {
+		return reconcileVoidRyokuChannel(checkOnly)
+	}
+	if result, applicable := pacmanHost(i18n.T("the Ryoku pacman channel check")); !applicable {
+		return result
+	}
 	if !sys.PkgInstalled("ryoku-desktop") {
 		return okRes(i18n.T("not a packaged install (desktop runs from a checkout)"))
 	}
@@ -1061,6 +1135,42 @@ func reconcileRyokuChannel(checkOnly bool) recResult {
 	return fixedRes(i18n.T("re-added the [ryoku] repo to pacman.conf so updates arrive again"))
 }
 
+func reconcileVoidRyokuChannel(checkOnly bool) recResult {
+	if !doctorPackageInstalled("ryoku-desktop") {
+		return okRes(i18n.T("not a packaged install (desktop runs from a checkout)"))
+	}
+	if !doctorPackageInstalled("ryoku-keyring") {
+		return warnRes(i18n.T("ryoku-keyring is missing, so the Ryoku XBPS repository cannot be trusted; updates will fail signature checks")).
+			withFix(i18n.T("sudo xbps-install -S ryoku-keyring, then run ryoku doctor"))
+	}
+	app := host.Default()
+	repository, err := app.RepoURL()
+	if err != nil || repository == "" {
+		if checkOnly {
+			return wouldRes(i18n.T("ryoku-desktop is installed but the Ryoku XBPS repository is not configured; updates will not arrive")).
+				withFix("ryoku doctor")
+		}
+		stable := sys.VoidChannelURL(sys.ChannelStable)
+		if err := sys.Sudo("ryoku-host", "repo", "set-url", stable); err != nil {
+			return warnRes(i18n.T("the Ryoku XBPS repository is missing and could not be restored: %v"), err).
+				withFix(i18n.T("add repository=%s to /etc/xbps.d/20-ryoku.conf"), stable)
+		}
+		return fixedRes(i18n.T("restored the signed Ryoku XBPS repository so updates arrive again"))
+	}
+	channel, _ := app.RepoChannel()
+	switch {
+	case channel == sys.ChannelStable:
+		return okRes(i18n.T("ryoku channel: stable packages (named releases); `ryoku track unstable` follows the unstable channel"))
+	case channel == sys.ChannelTesting:
+		return okRes(i18n.T("ryoku channel: unstable packages (rebuilt on every push); `ryoku track stable` returns to stable releases"))
+	case sys.IsReleaseTag(channel):
+		return okRes(i18n.T("ryoku channel: pinned to release %s (packages); `ryoku track stable` follows releases again"), channel)
+	default:
+		return warnRes(i18n.T("the Ryoku XBPS repository points at %s, which Ryoku does not publish; releases will not arrive from it"), repository).
+			withFix("ryoku track stable")
+	}
+}
+
 // ---- reconciler: ryoku sync database health ----------------------------------
 
 // reconcileRyokuSyncDB heals a cached [ryoku] sync db wedged against its
@@ -1075,6 +1185,13 @@ func reconcileRyokuChannel(checkOnly bool) recResult {
 // read-only (`pacman -Sl` loads and verifies the cached db); the fix drops it
 // and pulls a fresh, matched pair.
 func reconcileRyokuSyncDB(checkOnly bool) recResult {
+	manager, err := doctorPackageManager()
+	if err == nil && manager == host.XBPS {
+		return reconcileVoidRyokuSyncDB(checkOnly)
+	}
+	if result, applicable := pacmanHost(i18n.T("the Ryoku pacman database check")); !applicable {
+		return result
+	}
 	if !sys.PkgInstalled("ryoku-desktop") {
 		return okRes(i18n.T("not a packaged install (desktop runs from a checkout)"))
 	}
@@ -1108,6 +1225,30 @@ func reconcileRyokuSyncDB(checkOnly bool) recResult {
 	return fixedRes(i18n.T("dropped the stale [ryoku] sync db so pacman refetches a matched db and signature"))
 }
 
+func reconcileVoidRyokuSyncDB(checkOnly bool) recResult {
+	if !doctorPackageInstalled("ryoku-desktop") {
+		return okRes(i18n.T("not a packaged install (desktop runs from a checkout)"))
+	}
+	app := host.Default()
+	if _, err := app.RepoURL(); err != nil {
+		return okRes(i18n.T("Ryoku XBPS repository absent; the channel check owns its repair"))
+	}
+	if _, err := app.RepoPackages(); err == nil {
+		return okRes(i18n.T("the Ryoku XBPS repository index loads and verifies"))
+	} else if !strings.Contains(strings.ToLower(err.Error()), "signature") {
+		return noteRes(i18n.T("the Ryoku XBPS repository index could not be checked: %v"), err)
+	}
+	if checkOnly {
+		return wouldRes(i18n.T("the cached Ryoku XBPS repository index fails signature verification")).
+			withFix("ryoku doctor")
+	}
+	if err := sys.Sudo("ryoku-host", "repo", "sync", "--force"); err != nil {
+		return failRes(i18n.T("could not refresh the signed Ryoku XBPS repository index: %v"), err).
+			withFix("sudo xbps-install -S")
+	}
+	return fixedRes(i18n.T("refreshed the signed Ryoku XBPS repository index"))
+}
+
 // ---- reconciler: Material Symbols icon font ------------------------------------
 
 // reconcileIconFont converges the icon font onto boxes that predate it being a
@@ -1120,16 +1261,21 @@ func reconcileIconFont(checkOnly bool) recResult {
 	if wm.Detect().Name == "" {
 		return okRes(i18n.T("no window manager provider"))
 	}
-	if anyPkgInstalled("ttf-material-symbols-variable", "ttf-material-symbols-variable-git") {
+	if doctorMaterialSymbolsVisible() {
 		return okRes(i18n.T("Material Symbols icon font installed"))
 	}
+	advice := doctorInstallAdvice("ttf-material-symbols-variable")
 	if checkOnly {
 		return wouldRes(i18n.T("Material Symbols font missing; every shell icon renders as its ligature name")).
-			withFix(i18n.T("ryoku doctor installs ttf-material-symbols-variable"))
+			withFix("%s", advice)
 	}
-	if err := sys.Sudo("pacman", "-S", "--needed", "--noconfirm", "ttf-material-symbols-variable"); err != nil {
-		return failRes(i18n.T("could not install ttf-material-symbols-variable: %v"), err).
-			withFix("sudo pacman -S ttf-material-symbols-variable")
+	if code := doctorPackageInstall("ttf-material-symbols-variable"); code != host.ExitOK {
+		return failRes(i18n.T("could not install ttf-material-symbols-variable (exit %d)"), code).
+			withFix("%s", advice)
+	}
+	if !doctorMaterialSymbolsVisible() {
+		return warnRes(i18n.T("installed the Material Symbols font, but fontconfig cannot see it")).
+			withFix("fc-cache -f")
 	}
 	return fixedRes(i18n.T("installed the Material Symbols icon font; `ryoku reload` picks it up"))
 }
@@ -2039,59 +2185,89 @@ func migrateShellConfig(raw []byte) ([]byte, []string, error) {
 
 // ---- reconciler: desktop session components ----------------------------------
 
-// portalFrontends maps a declared backend to the frontend package that serves
-// it, keyed by the seam's own provider constant so no bare compositor name is
-// branched on here.
-var portalFrontends = map[string]struct {
-	fix  string
-	pkgs []string
-}{
-	wm.ProviderHyprland: {"sudo pacman -S xdg-desktop-portal-hyprland", []string{"xdg-desktop-portal-hyprland"}},
-	"gnome":             {"sudo pacman -S xdg-desktop-portal-gnome", []string{"xdg-desktop-portal-gnome"}},
-	"kde":               {"sudo pacman -S xdg-desktop-portal-kde", []string{"xdg-desktop-portal-kde"}},
-	"wlr":               {"sudo pacman -S xdg-desktop-portal-wlr", []string{"xdg-desktop-portal-wlr"}},
+// portalFrontends maps the backend declared by the running provider to the
+// package that implements it.
+var portalFrontends = map[string][]string{
+	wm.ProviderHyprland: {"xdg-desktop-portal-hyprland"},
+	"gnome":             {"xdg-desktop-portal-gnome"},
+	"kde":               {"xdg-desktop-portal-kde"},
+	"wlr":               {"xdg-desktop-portal-wlr"},
 }
 
-// portalFrontendCheck resolves the xdg-desktop-portal frontend this session
-// needs from the live provider's declared backend, with the command to install
-// it. With no provider answering (a broken or headless box) every frontend is
-// accepted rather than pointing at one compositor's, which is what the check
-// did before the backend was read.
 func portalFrontendCheck() (fix string, pkgs []string) {
-	backend := ""
-	if caps, err := wm.Open().Caps(); err == nil {
-		backend = caps.PortalBackend
+	caps, err := wm.Open().Caps()
+	if err != nil {
+		return "", nil
 	}
-	if f, ok := portalFrontends[backend]; ok {
-		return f.fix, f.pkgs
+	pkgs = portalFrontends[caps.PortalBackend]
+	if len(pkgs) == 0 {
+		return "", nil
 	}
-	return "", []string{
-		"xdg-desktop-portal-hyprland", "xdg-desktop-portal-gnome",
-		"xdg-desktop-portal-kde", "xdg-desktop-portal-wlr",
+	return doctorInstallAdvice(pkgs...), pkgs
+}
+
+type sessionService struct {
+	scope string
+	name  string
+}
+
+type sessionComponent struct {
+	role     string
+	fix      string
+	packages []string
+	services []sessionService
+}
+
+func sessionComponentPresent(packages []string, services ...sessionService) bool {
+	for _, name := range packages {
+		if doctorPackageInstalled(name) {
+			return true
+		}
 	}
+	for _, service := range services {
+		if doctorService(service.scope, "is-active", service.name) == host.ExitOK {
+			return true
+		}
+	}
+	return false
 }
 
 func reconcileSessionComponents(_ bool) recResult {
-	if wm.Detect().Name == "" {
-		return okRes(i18n.T("no window manager provider"))
+	detected := wm.Detect()
+	if detected.Name == "" || !detected.Live {
+		return okRes(i18n.T("no running window manager provider"))
 	}
 	portalFix, portalPkgs := portalFrontendCheck()
-	checks := []struct {
-		role, fix string
-		any       []string
-	}{
-		{i18n.T("authentication agent"), "sudo pacman -S hyprpolkitagent", []string{"hyprpolkitagent", "polkit-gnome", "polkit-kde-agent", "lxsession"}},
-		// The frontend the session needs is the one its compositor declares
-		// (Caps.PortalBackend): checking Hyprland's on a niri box reported the
-		// portal missing and told the user to install the wrong backend.
-		{i18n.T("desktop portal"), portalFix, portalPkgs},
-		{i18n.T("audio server"), "sudo pacman -S pipewire wireplumber", []string{"pipewire"}},
-		{i18n.T("network manager"), "sudo pacman -S networkmanager", []string{"networkmanager"}},
+	checks := []sessionComponent{
+		{i18n.T("authentication agent"), doctorInstallAdvice("polkit-gnome"), []string{"hyprpolkitagent", "polkit-gnome", "polkit-kde-agent", "lxsession"}, nil},
 	}
+	if len(portalPkgs) > 0 {
+		checks = append(checks, sessionComponent{
+			i18n.T("desktop portal"), portalFix, portalPkgs,
+			[]sessionService{{"--user", "xdg-desktop-portal"}},
+		})
+	}
+	checks = append(checks,
+		sessionComponent{
+			i18n.T("audio server"), doctorInstallAdvice("pipewire", "wireplumber"),
+			[]string{"pipewire"},
+			[]sessionService{{"--user", "pipewire"}, {"--user", "wireplumber"}},
+		},
+		sessionComponent{
+			i18n.T("network manager"), doctorInstallAdvice("networkmanager"),
+			[]string{"networkmanager"},
+			[]sessionService{{"--system", "NetworkManager"}},
+		},
+	)
 	var missing []string
-	for _, c := range checks {
-		if !anyPkgInstalled(c.any...) {
-			missing = append(missing, fmt.Sprintf("%s [%s]", c.role, c.fix))
+	for _, check := range checks {
+		if sessionComponentPresent(check.packages, check.services...) {
+			continue
+		}
+		if check.fix == "" {
+			missing = append(missing, check.role)
+		} else {
+			missing = append(missing, fmt.Sprintf("%s [%s]", check.role, check.fix))
 		}
 	}
 	if len(missing) == 0 {
@@ -2228,8 +2404,12 @@ func reconcilePortalRouting(checkOnly bool) recResult {
 		return okRes(i18n.T("portal routing follows %s"), healthy)
 	}
 	if healthy == "" {
-		return warnRes(i18n.T("no config routes portals to the %s backend; screenshare and portal dialogs cannot work"), backend).
-			withFix(i18n.T("sudo pacman -S xdg-desktop-portal-%s"), backend)
+		advice := doctorInstallAdvice(portalFrontends[backend]...)
+		result := warnRes(i18n.T("no config routes portals to the %s backend; screenshare and portal dialogs cannot work"), backend)
+		if advice != "" {
+			result = result.withFix("%s", advice)
+		}
+		return result
 	}
 	list := strings.Join(offenders, ", ")
 	if checkOnly {
@@ -2250,11 +2430,11 @@ func reconcilePortalRouting(checkOnly bool) recResult {
 	}
 	// a hung foreign backend keeps its stall alive until it dies. best-effort
 	// and quiet: outside a session the next login picks the routing up anyway.
-	for _, u := range []string{"xdg-desktop-portal-gnome.service", "xdg-desktop-portal-kde.service",
+	for _, service := range []string{"xdg-desktop-portal-gnome.service", "xdg-desktop-portal-kde.service",
 		"xdg-desktop-portal-wlr.service", "xdg-desktop-portal-lxqt.service"} {
-		_ = exec.Command("systemctl", "--user", "stop", u).Run()
+		_ = doctorService("--user", "stop", service)
 	}
-	_ = exec.Command("systemctl", "--user", "try-restart", "xdg-desktop-portal.service").Run()
+	_ = doctorService("--user", "try-restart", "xdg-desktop-portal.service")
 	return fixedRes(i18n.T("moved %s aside; the portal now follows %s"), list, healthy)
 }
 
@@ -2361,7 +2541,7 @@ func reconcileCursorTheme(checkOnly bool) recResult {
 		// the package default is missing too: no config edit can conjure the
 		// theme files, and doctor never drives pacman.
 		return warnRes(i18n.T("cursor theme %q is missing on disk and so is the default %q; the pointer falls back to a bitmap"), theme, defaultCursorTheme).
-			withFix(i18n.T("install ryoku-cursors (it ships the Bibata family and is a ryoku-desktop dependency)"))
+			withFix("%s", doctorInstallAdvice("ryoku-cursors"))
 	}
 	if checkOnly {
 		return wouldRes(i18n.T("cursor theme %q missing on disk; would reset to %s"), theme, defaultCursorTheme).
@@ -3286,9 +3466,13 @@ func startShellDaemon() error {
 	// if login's import never reached the user manager, the unit's
 	// ConditionEnvironment=WAYLAND_DISPLAY skips it and restart "succeeds"
 	// while starting nothing.
-	_ = exec.Command("dbus-update-activation-environment", "--systemd", "--all").Run()
-	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
-	if exec.Command("systemctl", "--user", "restart", "ryoku-shell").Run() == nil {
+	if initSystem, _ := doctorInitSystem(); initSystem == host.Systemd {
+		_ = exec.Command("dbus-update-activation-environment", "--systemd", "--all").Run()
+	} else {
+		_ = exec.Command("dbus-update-activation-environment", "--all").Run()
+	}
+	_ = doctorService("--user", "daemon-reload")
+	if doctorService("--user", "restart", "ryoku-shell") == host.ExitOK {
 		return nil
 	}
 	shell := "ryoku-shell"
@@ -3723,9 +3907,91 @@ func balancedRunes(s string, open, shut rune) bool {
 	return depth == 0
 }
 
-// ---- reconciler: failed systemd units ----------------------------------------
+// ---- reconciler: failed services ---------------------------------------------
+
+func runitFailedServices() ([]runitServiceFailure, bool) {
+	return runitFailedServicesIn([]runitServiceSource{
+		{"--system", "/etc/runit/runsvdir/default"},
+		{"--user", filepath.Join(sys.Home(), ".config", "service")},
+	})
+}
+
+func runitFailedServicesIn(sources []runitServiceSource) ([]runitServiceFailure, bool) {
+	var failed []runitServiceFailure
+	reliable := true
+	seen := map[string]bool{}
+	for _, source := range sources {
+		entries, err := os.ReadDir(source.dir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			reliable = false
+			continue
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if strings.HasPrefix(name, ".") || seen[source.scope+"\x00"+name] {
+				continue
+			}
+			seen[source.scope+"\x00"+name] = true
+			if _, err := os.Stat(filepath.Join(source.dir, name, "down")); err == nil {
+				continue
+			} else if !os.IsNotExist(err) {
+				reliable = false
+				continue
+			}
+			switch doctorService(source.scope, "is-enabled", name) {
+			case host.ExitOK:
+			case host.ExitFalse:
+				continue
+			default:
+				reliable = false
+				continue
+			}
+			switch doctorService(source.scope, "is-active", name) {
+			case host.ExitOK:
+			case host.ExitFalse:
+				failed = append(failed, runitServiceFailure{scope: source.scope, name: name})
+			default:
+				reliable = false
+			}
+		}
+	}
+	return failed, reliable
+}
+
+func reconcileRunitFailures() recResult {
+	failures, reliable := doctorRunitFailedServices()
+	if !reliable {
+		return noteRes(i18n.T("runit service health could not be determined reliably"))
+	}
+	if len(failures) == 0 {
+		return okRes(i18n.T("no services that want up are down"))
+	}
+	details := make([]string, 0, len(failures))
+	remedies := make([]string, 0, len(failures))
+	for _, failure := range failures {
+		scope := strings.TrimPrefix(failure.scope, "--")
+		details = append(details, fmt.Sprintf("%s (%s)", failure.name, scope))
+		prefix := ""
+		if failure.scope == "--system" {
+			prefix = "sudo "
+		}
+		remedies = append(remedies, fmt.Sprintf("%sryoku-host svc %s start %s", prefix, failure.scope, failure.name))
+	}
+	return warnRes(i18n.T("down while configured to run: %s"), strings.Join(details, ", ")).
+		withFix("%s", strings.Join(remedies, " && "))
+}
 
 func reconcileFailedUnits(checkOnly bool) recResult {
+	initSystem, err := doctorInitSystem()
+	if err != nil {
+		return noteRes(i18n.T("service health could not be checked: %v"), err)
+	}
+	if initSystem == host.Runit {
+		return reconcileRunitFailures()
+	}
 	// Clear the lingering transient app scopes (safe: the app is already gone)
 	// and the TPM units that failed only for want of NvPCRs (reconcile_tpm_nvpcr.go),
 	// then report whatever real failures remain.
@@ -3917,8 +4183,19 @@ var boxInstalledAt = func() time.Time {
 // reported for `sudo pacdiff`. idempotent: once the safe ones are gone a
 // re-run only sees (and reports) the conflicts.
 func reconcilePacnew(checkOnly bool) recResult {
-	out, _ := sys.RunOut("find", "/etc", "-name", "*.pacnew")
-	files := nonEmptyLines(out)
+	manager, err := doctorPackageManager()
+	if err != nil {
+		return noteRes(i18n.T("could not identify the package manager; pending config updates were not checked"))
+	}
+	if manager == host.XBPS {
+		files := doctorFindPendingConfig("*.new-*")
+		if len(files) == 0 {
+			return okRes(i18n.T("no pending config updates"))
+		}
+		return warnRes(i18n.T("%d pending XBPS config update(s) need review: %s"), len(files), strings.Join(files, ", ")).
+			withFix(i18n.T("merge each .new-<version> file into its base config, then remove the reviewed files with `sudo rm -f %s`"), strings.Join(files, " "))
+	}
+	files := doctorFindPendingConfig("*.pacnew")
 	if len(files) == 0 {
 		return okRes(i18n.T("no pending config updates"))
 	}
@@ -3971,13 +4248,22 @@ func reconcilePacnew(checkOnly bool) recResult {
 // ---- reconciler: orphaned packages -------------------------------------------
 
 func reconcileOrphans(_ bool) recResult {
-	out, err := sys.RunOut("pacman", "-Qtdq")
-	orphans := nonEmptyLines(out)
-	if err != nil || len(orphans) == 0 {
+	orphans, err := doctorOrphans()
+	if err != nil {
+		return noteRes(i18n.T("could not check orphaned packages: %v"), err)
+	}
+	if len(orphans) == 0 {
 		return okRes(i18n.T("no orphaned packages"))
 	}
-	return noteRes(i18n.T("%d orphaned package(s)"), len(orphans)).
-		withFix(i18n.T("review `pacman -Qtd`, then `sudo pacman -Rns $(pacman -Qtdq)` if unneeded"))
+	result := noteRes(i18n.T("%d orphaned package(s)"), len(orphans))
+	manager, managerErr := doctorPackageManager()
+	if managerErr != nil {
+		return result
+	}
+	if manager == host.XBPS {
+		return result.withFix(i18n.T("review `xbps-query -O`, then `sudo xbps-remove -o` if unneeded"))
+	}
+	return result.withFix(i18n.T("review `pacman -Qtd`, then `sudo pacman -Rns $(pacman -Qtdq)` if unneeded"))
 }
 
 // ---- swap helpers ------------------------------------------------------------
@@ -4056,8 +4342,8 @@ func firstLine(s string) string {
 }
 
 func anyPkgInstalled(names ...string) bool {
-	for _, n := range names {
-		if sys.PkgInstalled(n) {
+	for _, name := range names {
+		if doctorPackageInstalled(name) {
 			return true
 		}
 	}
@@ -4152,6 +4438,9 @@ func strayRyokuFiles(globs []string, glob func(string) ([]string, error), owned 
 }
 
 func reconcileConflictingRyokuFiles(checkOnly bool) recResult {
+	if result, applicable := pacmanHost(i18n.T("pacman file ownership checks")); !applicable {
+		return result
+	}
 	// Only a packaged box hits the conflict. A dev checkout has no ryoku-desktop,
 	// and deploy.sh's unowned helpers there are correct, so leave them be.
 	if !sys.PkgInstalled("ryoku-desktop") {

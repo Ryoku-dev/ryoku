@@ -1,0 +1,48 @@
+#!/bin/sh
+# Runs after 10-dkms and before 20-initramfs. The latter builds the image from
+# the policy this hook writes, so a failed DKMS build cannot hide nouveau.
+
+set -eu
+
+kernel=${2:-}
+[ -n "$kernel" ] || exit 0
+
+modprobe_conf=${RYOKU_MODPROBE_CONF:-/etc/modprobe.d/nvidia.conf}
+dracut_conf=${RYOKU_DRACUT_CONF:-/etc/dracut.conf.d/nvidia.conf}
+mkdir -p "$(dirname "$modprobe_conf")" "$(dirname "$dracut_conf")"
+modules_dir=${RYOKU_MODULES_DIR:-/usr/lib/modules}
+
+modules_ready() {
+  modinfo -k "$kernel" nvidia >/dev/null 2>&1 || return 1
+  for tree in "$modules_dir"/*; do
+    [ -d "$tree" ] || continue
+    version=${tree##*/}
+    modinfo -k "$version" nvidia >/dev/null 2>&1 || return 1
+  done
+}
+
+preserve=0
+if xbps-query nvidia >/dev/null 2>&1 || xbps-query nvidia580 >/dev/null 2>&1; then
+  preserve=1
+fi
+
+if modules_ready; then
+  {
+    printf '%s\n' 'options nvidia_drm modeset=1 fbdev=1'
+    [ "$preserve" -eq 1 ] && printf '%s\n' 'options nvidia NVreg_PreserveVideoMemoryAllocations=1'
+    printf '%s\n' 'blacklist nouveau' 'options nouveau modeset=0' 'blacklist nova_core' 'blacklist nova_drm'
+  } >"$modprobe_conf"
+  cat >"$dracut_conf" <<'EOF'
+force_drivers+=" nvidia nvidia_modeset nvidia_drm "
+add_drivers+=" nvidia_uvm "
+EOF
+else
+  cat >"$modprobe_conf" <<'EOF'
+# Ryoku keeps this file so it shadows the NVIDIA package default.
+# Nouveau remains available until DKMS produces a loadable nvidia module.
+EOF
+  cat >"$dracut_conf" <<'EOF'
+# Ryoku leaves NVIDIA out of the initramfs until its kernel module exists.
+EOF
+  logger -t ryoku-nvidia "nvidia module missing for $kernel after DKMS; leaving nouveau available" || true
+fi

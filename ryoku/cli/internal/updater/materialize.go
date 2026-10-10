@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"ryoku-cli/internal/sys"
@@ -338,7 +337,7 @@ func Materialize() error {
 	}
 	wirePlumberAfter, _ := os.ReadFile(filepath.Join(dest, wirePlumberPolicyRel))
 	if wpConfigPruned || !bytes.Equal(wirePlumberBefore, wirePlumberAfter) {
-		_ = exec.Command("systemctl", "--user", "try-restart", "wireplumber.service").Run()
+		_ = service("--user", "try-restart", "wireplumber.service")
 	}
 	fmt.Printf(i18n.T("materialized %d files -> %s\n"), len(managed), dest)
 	if len(kept) > 0 {

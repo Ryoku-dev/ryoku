@@ -35,7 +35,9 @@ func pamFilePath() string {
 func pamHasKeyring(content, kind string) bool {
 	for _, l := range strings.Split(content, "\n") {
 		f := strings.Fields(l)
-		if len(f) > 0 && f[0] == kind && strings.Contains(l, "pam_gnome_keyring.so") {
+		if len(f) > 0 &&
+			strings.TrimPrefix(f[0], "-") == kind &&
+			strings.Contains(l, "pam_gnome_keyring.so") {
 			return true
 		}
 	}

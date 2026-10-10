@@ -52,9 +52,9 @@ func TestSupportedInit(t *testing.T) {
 	}
 }
 
-// The Arch step list is the contract that must not drift. Source builds replace
-// repository-only steps and add their pinned font installation; runit source
-// installs configure drivers only after deploy has installed ryoku-host.
+// The Arch step list is the contract that must not drift. Debian retains its
+// source-only font and build steps; packaged Void follows the repository path
+// and configures drivers after its package transaction.
 func TestStepsPerDistro(t *testing.T) {
 	ids := func(f *facts) []string {
 		e := newEngine(f, &plan{}, true, "", "")
@@ -80,7 +80,7 @@ func TestStepsPerDistro(t *testing.T) {
 
 	t.Setenv("RYOKU_HOST_INIT", "runit")
 	void := strings.Join(ids(&facts{distro: voidLinux}), " ")
-	wantVoid := "sysupgrade tools payload backup conflicts packages fonts build drivers session configs shell doctor verify"
+	wantVoid := "sysupgrade tools payload backup repo conflicts packages drivers session configs shell doctor verify"
 	if void != wantVoid {
 		t.Errorf("void steps = %q, want %q", void, wantVoid)
 	}
@@ -138,8 +138,8 @@ func TestVoidRepositoryPackagesInstallFirst(t *testing.T) {
 		}
 	}
 	wantCommands := []string{
-		"DRYRUN: sudo -n xbps-install -Sy void-repo-multilib void-repo-nonfree",
-		"DRYRUN: sudo -n xbps-install -Sy mesa libdrm-32bit nvidia-utils",
+		"DRYRUN: sudo -n xbps-install --repository " + voidStableRepo + " -Sy void-repo-multilib void-repo-nonfree",
+		"DRYRUN: sudo -n xbps-install --repository " + voidStableRepo + " -Sy mesa libdrm-32bit nvidia-utils",
 	}
 	if strings.Join(commands, "\n") != strings.Join(wantCommands, "\n") {
 		t.Fatalf("install commands = %v, want %v", commands, wantCommands)

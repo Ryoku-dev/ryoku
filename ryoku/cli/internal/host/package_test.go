@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -185,5 +186,81 @@ func TestXBPSVersionIsBare(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("version stderr = %q", stderr.String())
+	}
+}
+
+func TestXBPSOwnershipAndExplicitStateUseNativeTools(t *testing.T) {
+	table := packageFixture(t)
+	runner := &fakeRunner{answer: func(command Command) Result {
+		if strings.HasPrefix(argv(command), "xbps-query -o ") {
+			return Result{Output: "ryogami-2.4.1_3: /usr/bin/ryogami\n"}
+		}
+		return Result{}
+	}}
+	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps", "RYOKU_HOST_PKG_TABLE": table})
+	if owner, err := app.PackageOwner("/usr/bin/ryogami"); err != nil || owner != "ryogami" {
+		t.Fatalf("owner = %q, %v", owner, err)
+	}
+	if code := app.Package([]string{"explicit", "identity"}); code != ExitOK {
+		t.Fatalf("explicit exit = %d", code)
+	}
+	if got := argv(runner.commands[len(runner.commands)-1]); got != "xbps-pkgdb -m manual identity" {
+		t.Fatalf("explicit command = %q", got)
+	}
+}
+
+func TestOrphansUsesHostPackageManager(t *testing.T) {
+	tests := []struct {
+		manager string
+		command string
+		output  string
+		want    []string
+	}{
+		{"pacman", "pacman -Qdtq", "old-lib\nunused-tool\n", []string{"old-lib", "unused-tool"}},
+		{"xbps", "xbps-query -O", "old-lib-1.0_1\nunused-tool-2.0_3\n", []string{"old-lib-1.0_1", "unused-tool-2.0_3"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.manager, func(t *testing.T) {
+			runner := &fakeRunner{answer: func(command Command) Result {
+				return Result{Output: tc.output}
+			}}
+			app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": tc.manager})
+			got, err := app.Orphans()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(tc.want) {
+				t.Fatalf("orphans = %v", got)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("orphans = %v", got)
+				}
+			}
+			if command := argv(runner.commands[0]); command != tc.command {
+				t.Fatalf("command = %q, want %q", command, tc.command)
+			}
+		})
+	}
+}
+
+func TestOrphansTreatsEmptyQueryAsNone(t *testing.T) {
+	runner := &fakeRunner{answer: func(command Command) Result {
+		return Result{Code: 1}
+	}}
+	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "pacman"})
+	got, err := app.Orphans()
+	if err != nil || len(got) != 0 {
+		t.Fatalf("orphans = %v, err = %v", got, err)
+	}
+}
+
+func TestOrphansReportsQueryFailure(t *testing.T) {
+	runner := &fakeRunner{answer: func(command Command) Result {
+		return Result{Code: 2}
+	}}
+	app, _, _ := testApp(runner, map[string]string{"RYOKU_HOST_PKGMGR": "xbps"})
+	if _, err := app.Orphans(); err == nil {
+		t.Fatal("query failure returned no error")
 	}
 }

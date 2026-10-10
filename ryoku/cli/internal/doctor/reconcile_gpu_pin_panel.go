@@ -100,6 +100,9 @@ func renderPinPanelRisk(laptop bool, panelDriver, pinFirst string) bool {
 }
 
 func reconcileRenderPinPanel(checkOnly bool) recResult {
+	if !gpuPinSupported() {
+		return okRes(i18n.T("the active window manager has no render-pin capability"))
+	}
 	pin := pinFirstDriver()
 	panel := panelDriver()
 	if !renderPinPanelRisk(isLaptop(), panel, pin) {

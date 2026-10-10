@@ -13,6 +13,7 @@
 set -euo pipefail
 
 RYOKU_DRYRUN="${RYOKU_DRYRUN:-0}"
+DRIVER_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 for arg in "$@"; do
   case "$arg" in
     --dry-run) RYOKU_DRYRUN=1 ;;
@@ -102,6 +103,14 @@ nvidia_is_kepler() {
   lspci | grep -i 'nvidia' | grep -qE '(^|[^[:alnum:]])GK[0-9]+'
 }
 
+# Void's packaged branches start at Kepler. Explicitly recognize the generations
+# in between so an older or unknown card is never sent to a proprietary branch
+# that cannot bind it.
+nvidia_is_maxwell_volta() {
+  has_lspci || return 1
+  lspci | grep -i 'nvidia' | grep -qE '(^|[^[:alnum:]])G(M|P|V)[0-9]+'
+}
+
 # prebuilt_for <kernel-pkgbase>: print the kernel-matched prebuilt open-module
 # package for that kernel when a synced repo actually carries one, else fail.
 # Stock linux is nvidia-open in [extra]; distro kernels follow the
@@ -121,10 +130,16 @@ if ! has_nvidia; then
   exit 0
 fi
 
-if [[ $(ryoku-host pkgmgr) != pacman ]]; then
-  echo "nvidia.sh: the proprietary NVIDIA driver is not wired on this distribution yet; it needs a driver branch per GPU, dracut modules, and elogind sleep hooks. The card stays on nouveau and Mesa."
-  exit 0
-fi
+case $(ryoku-host pkgmgr) in
+  xbps)
+    # Package names, dracut policy and kernel hooks stay isolated from the
+    # pacman path below.
+    # shellcheck source=nvidia-xbps.sh
+    source "$DRIVER_DIR/nvidia-xbps.sh"
+    exit $?
+    ;;
+  pacman) ;;
+esac
 
 # an installed module package stays: CachyOS boxes ship kernel-matched
 # prebuilt modules (linux-cachyos-nvidia-open) that provide NVIDIA-MODULE,

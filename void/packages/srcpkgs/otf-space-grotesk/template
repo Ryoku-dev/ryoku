@@ -1,0 +1,19 @@
+# Template file for 'otf-space-grotesk'
+pkgname=otf-space-grotesk
+version=2.0.0
+revision=1
+# The release zip also carries a __MACOSX folder, so it is not a single tree.
+create_wrksrc=yes
+short_desc="Space Grotesk OTF for the Ryoku shell and Hub"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/floriankarsten/space-grotesk"
+distfiles="${homepage}/releases/download/${version}/SpaceGrotesk-${version}.zip"
+checksum=53b415577d4139248555300710bea0d268c7a5be67b93de53b716a9736cabffd
+
+do_install() {
+	local f
+	for f in Bold Light Medium Regular; do
+		vinstall "SpaceGrotesk-${version}/otf/SpaceGrotesk-${f}.otf" 644 usr/share/fonts/OTF
+	done
+}

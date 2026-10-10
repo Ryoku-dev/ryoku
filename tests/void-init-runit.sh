@@ -3,9 +3,10 @@
 # translated service scripts under a real `runsvdir` inside a Void Linux
 # container (ghcr.io/void-linux/void-glibc), against stub binaries, and asserts
 # the behaviors the static half (tests/void-init.sh) cannot: oneshot parking
-# and re-run, restart-on-crash vs park-on-clean, the ExecStop down sentinel,
-# BindsTo down-propagation, the timer loop, failed-wait parking, user-service
-# precedence, live envdir publication, ordered session startup, and envdir rendering.
+# and re-run, restart-on-crash vs park-on-clean, transient user supervision,
+# the ExecStop down sentinel, BindsTo down-propagation, the timer loop,
+# failed-wait parking, user-service precedence, live envdir publication,
+# ordered session startup, and envdir rendering.
 #
 # This is the empirical basis for the runit semantics the translations rely on
 # (a finish exit code does not gate restarts; only an sv down request parks,
@@ -20,6 +21,11 @@ ROOT=${RYOKU_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 IMAGE=${RYOKU_VOID_IMAGE:-ghcr.io/void-linux/void-glibc:latest}
 
 command -v docker >/dev/null 2>&1 || { echo "void-init-runit: docker not available; skipping live runit checks" >&2; exit 0; }
+
+HOST_BUILD=$(mktemp -d)
+HARNESS_PATH=$(mktemp)
+trap 'rm -rf "$HOST_BUILD"; rm -f "$HARNESS_PATH"' EXIT
+(cd "$ROOT/ryoku/cli" && CGO_ENABLED=0 go build -o "$HOST_BUILD/ryoku-host" ./cmd/ryoku-host)
 
 # The in-container harness: one POSIX sh script (Void's /bin/sh is dash), the
 # repo bind-mounted read-only at /repo. One runsvdir for the whole suite;
@@ -61,7 +67,7 @@ EOF
 for b in ryoku-shell ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryogami \
 	ryoku-idle ryoku-clamshell pipewire bluetoothctl ryoku-rashin prowl \
 	ryoku-palette-bridge ryoku claude-usage codex-usage opencode-usage nmcli \
-	dbus-update-activation-environment ryoku-reload-cover; do
+	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	mkstub "$b"
 done
 
@@ -89,6 +95,23 @@ esac
 EOF
 chmod +x "$WORK/bin/ryoku-shell" "$WORK/bin/prowl"
 
+cat > "$WORK/bin/ryoku-host" <<'EOF'
+#!/bin/sh
+echo "ryoku-host $*" >> "$LOG"
+if [ "$*" = "session ensure --user" ] && [ -n "${RYOKU_TEST_PROVISION_DIR:-}" ]; then
+	mkdir -p "$RYOKU_TEST_PROVISION_DIR/ryoku-idle"
+	cp /repo/void/init/user/ryoku-idle/run "$RYOKU_TEST_PROVISION_DIR/ryoku-idle/run"
+	cp /repo/void/init/user/ryoku-idle/finish "$RYOKU_TEST_PROVISION_DIR/ryoku-idle/finish"
+	cp /repo/void/init/user/ryoku-idle/down "$RYOKU_TEST_PROVISION_DIR/ryoku-idle/down"
+	chmod +x "$RYOKU_TEST_PROVISION_DIR/ryoku-idle/run" "$RYOKU_TEST_PROVISION_DIR/ryoku-idle/finish"
+fi
+case $(cat "$WORK/ctl/ryoku-host" 2>/dev/null || echo exit0) in
+	crash) exit 9 ;;
+	*) exit 0 ;;
+esac
+EOF
+chmod +x "$WORK/bin/ryoku-host"
+
 cat > "$WORK/bin/ryoku-idle" <<'EOF'
 #!/bin/sh
 echo "ryoku-idle $* wayland=${WAYLAND_DISPLAY:-}" >> "$LOG"
@@ -103,7 +126,7 @@ chmod +x "$WORK/bin/ryoku-idle"
 # hook-only and loop-collector stubs must return, never sleep.
 for b in ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryoku \
 	claude-usage codex-usage opencode-usage nmcli \
-	dbus-update-activation-environment ryoku-reload-cover; do
+	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
 	echo exit0 > "$WORK/ctl/$b"
 done
 
@@ -370,12 +393,70 @@ grep -q '^ryoku-idle start wayland=wayland-session$' "$LOG" \
 	|| fail "session-start published an excluded TURNSTILE variable"
 grep -q '^dbus-update-activation-environment --all$' "$LOG" \
 	|| fail "session-start did not update the D-Bus activation environment"
+ensure_event=$(grep -n '^ryoku-host session ensure --user$' "$LOG" | tail -1 | cut -d: -f1)
+service_event=$(grep -n '^ryoku-idle start wayland=wayland-session$' "$LOG" | tail -1 | cut -d: -f1)
+[ -n "$ensure_event" ] && [ -n "$service_event" ] && [ "$ensure_event" -lt "$service_event" ] \
+	|| fail "session-start did not provision user services before starting the roster"
+
+sv down "$WORK/session-svc/ryoku-idle"
+touch "$WORK/session-svc/ryoku-idle/.ryoku-disabled"
+disabled_before=$(count 'ryoku-idle start')
+PATH="$WORK/bin:$PATH" \
+	TURNSTILE_ENV_DIR="$WORK/session-env" \
+	RYOKU_INIT_LIB="$WORK/session-lib" \
+	RYOKU_USER_SERVICE_DIR="$WORK/session-svc" \
+	WAYLAND_DISPLAY=wayland-session \
+	/repo/void/init/session/session-start 2>"$WORK/disabled-session.log"
+sleep 1
+[ "$(count 'ryoku-idle start')" -eq "$disabled_before" ] \
+	|| fail "session-start resurrected a user-disabled service"
+grep -q 'leaving disabled service ryoku-idle stopped' "$WORK/disabled-session.log" \
+	|| fail "session-start did not log the preserved user disable"
+rm "$WORK/session-svc/ryoku-idle/.ryoku-disabled"
+
+echo crash > "$WORK/ctl/ryoku-host"
+PATH="$WORK/bin:$PATH" \
+	TURNSTILE_ENV_DIR="$WORK/session-env" \
+	RYOKU_INIT_LIB="$WORK/session-lib" \
+	RYOKU_USER_SERVICE_DIR="$WORK/session-svc" \
+	WAYLAND_DISPLAY=wayland-session \
+	/repo/void/init/session/session-start 2>"$WORK/failed-provision.log"
+grep -q 'could not provision Ryoku user services' "$WORK/failed-provision.log" \
+	|| fail "session-start did not log a provisioning failure"
+echo exit0 > "$WORK/ctl/ryoku-host"
 sv down "$WORK/session-svc/ryoku-idle"
 kill "$SRSD" 2>/dev/null || true
 SRSD=
 pass "session-start publishes env and starts the down-marked roster"
+#### 13. first-login provisioning adds a down-marked roster service after the
+####     user's runsvdir already exists; session-start waits for supervision.
+mkdir -p "$WORK/fresh-svc" "$WORK/fresh-env"
+env -u WAYLAND_DISPLAY \
+	TURNSTILE_ENV_DIR="$WORK/fresh-env" \
+	RYOKU_INIT_LIB="$WORK/session-lib" \
+	RYOKU_WAIT_WAYLAND=10 \
+	runsvdir "$WORK/fresh-svc" >/dev/null 2>&1 &
+SRSD=$!
+fresh_before=$(count 'ryoku-idle start')
+PATH="$WORK/bin:$PATH" \
+	TURNSTILE_ENV_DIR="$WORK/fresh-env" \
+	RYOKU_INIT_LIB="$WORK/session-lib" \
+	RYOKU_USER_SERVICE_DIR="$WORK/fresh-svc" \
+	RYOKU_TEST_PROVISION_DIR="$WORK/fresh-svc" \
+	WAYLAND_DISPLAY=wayland-fresh \
+	/repo/void/init/session/session-start
+wait_stat_at "$WORK/fresh-svc" ryoku-idle run \
+	|| fail "freshly provisioned session service did not start at first login"
+wait_count_ge 'ryoku-idle start' $((fresh_before+1)) \
+	|| fail "freshly provisioned roster service never ran"
+grep -q '^ryoku-idle start wayland=wayland-fresh$' "$LOG" \
+	|| fail "freshly provisioned service missed the first-login environment"
+sv down "$WORK/fresh-svc/ryoku-idle"
+kill "$SRSD" 2>/dev/null || true
+SRSD=
+pass "first login provisions and starts the full session roster"
 
-#### 13. xdg-dirs renders Turnstile envdir files with no trailing newline.
+#### 14. xdg-dirs renders Turnstile envdir files with no trailing newline.
 mkdir -p "$WORK/xdgbin"
 cat > "$WORK/xdgbin/xdg-user-dir" <<'EOF'
 #!/bin/sh
@@ -391,10 +472,62 @@ lastbyte=$(od -An -tx1 "$out/XDG_PICTURES_DIR" | tr -d ' \n' | tail -c2)
 [ "$lastbyte" = 0a ] && fail "xdg-dirs wrote a trailing newline (envdir values must not have one)"
 pass "xdg-dirs renders Turnstile envdir files"
 
+#### 15. ryoku-host transients run beneath runsv with captured launch state.
+mkdir -p "$WORK/caller-cwd"
+cat > "$WORK/bin/transient-probe" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$TRANSIENT_VALUE" > "$WORK/transient.env"
+pwd > "$WORK/transient.cwd"
+printf '%s\n' "$PPID" > "$WORK/transient.parent"
+printf '%s\n' "$$" > "$WORK/transient.pid"
+sleep 300 &
+printf '%s\n' "$!" > "$WORK/transient.child"
+wait
+EOF
+chmod +x "$WORK/bin/transient-probe"
+probe_value="captured value with ' apostrophe"
+(
+	cd "$WORK/caller-cwd"
+	RYOKU_HOST_INIT=runit RYOKU_USER_SERVICE_DIR="$WORK/svc" \
+		TRANSIENT_VALUE="$probe_value" \
+		/ryoku-host transient start transient-live -- "$WORK/bin/transient-probe"
+) || fail "ryoku-host did not start the supervised transient"
+i=0
+while [ ! -s "$WORK/transient.child" ] && [ "$i" -lt 40 ]; do
+	sleep 0.1
+	i=$((i+1))
+done
+[ "$(cat "$WORK/transient.env" 2>/dev/null)" = "$probe_value" ] ||
+	fail "supervised transient did not receive the caller environment"
+[ "$(cat "$WORK/transient.cwd" 2>/dev/null)" = "$WORK/caller-cwd" ] ||
+	fail "supervised transient did not start in the caller working directory"
+probe_parent=$(cat "$WORK/transient.parent" 2>/dev/null)
+[ -n "$probe_parent" ] && [ "$(cat "/proc/$probe_parent/comm" 2>/dev/null)" = runsv ] ||
+	fail "supervised transient is not a child of runsv"
+RYOKU_HOST_INIT=runit RYOKU_USER_SERVICE_DIR="$WORK/svc" \
+	/ryoku-host transient is-active transient-live ||
+	fail "supervised transient was not active"
+probe_pid=$(cat "$WORK/transient.pid")
+probe_child=$(cat "$WORK/transient.child")
+RYOKU_HOST_INIT=runit RYOKU_USER_SERVICE_DIR="$WORK/svc" \
+	/ryoku-host transient stop transient-live ||
+	fail "supervised transient did not stop"
+[ ! -e "$WORK/svc/transient-live" ] ||
+	fail "supervised transient service directory remained after stop"
+kill -0 "$probe_pid" 2>/dev/null &&
+	fail "supervised transient process survived stop"
+kill -0 "$probe_child" 2>/dev/null &&
+	fail "supervised transient child survived stop"
+pass "ryoku-host transient is supervised, stateful, and fully removed"
+
 kill $RSD 2>/dev/null || true
 echo "void-init live runit checks passed"
 HARNESS_EOF
 )
 
-printf '%s' "$HARNESS" > /tmp/void-init-runit-harness.sh
-docker run --rm -v "$ROOT:/repo:ro" -v /tmp/void-init-runit-harness.sh:/harness.sh:ro "$IMAGE" sh /harness.sh
+printf '%s' "$HARNESS" > "$HARNESS_PATH"
+docker run --rm \
+	-v "$ROOT:/repo:ro" \
+	-v "$HARNESS_PATH:/harness.sh:ro" \
+	-v "$HOST_BUILD/ryoku-host:/ryoku-host:ro" \
+	"$IMAGE" sh /harness.sh

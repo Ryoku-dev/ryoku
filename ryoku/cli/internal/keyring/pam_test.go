@@ -23,6 +23,25 @@ session     include     system-login
 -session    optional    pam_kwallet5.so         auto_start
 `
 
+func TestPamHasKeyringAcceptsPlainAndDashTypes(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		content string
+		kind    string
+	}{
+		{name: "plain auth", content: "auth optional pam_gnome_keyring.so", kind: "auth"},
+		{name: "dash auth", content: "-auth optional pam_gnome_keyring.so", kind: "auth"},
+		{name: "plain session", content: "session optional pam_gnome_keyring.so auto_start", kind: "session"},
+		{name: "dash session", content: "-session optional pam_gnome_keyring.so auto_start", kind: "session"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if !pamHasKeyring(tc.content, tc.kind) {
+				t.Fatalf("did not recognize %q as %s wiring", tc.content, tc.kind)
+			}
+		})
+	}
+}
+
 func TestApplyPAMTextInsert(t *testing.T) {
 	out, missing := applyPAMText(archSDDM, true)
 	if len(missing) != 0 {

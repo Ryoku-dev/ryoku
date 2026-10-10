@@ -1,0 +1,35 @@
+# Template file for 'prowl'
+pkgname=prowl
+version=0.17.2
+revision=1
+archs="x86_64"
+_commit=5ba05eb922ff023e3cbc2b9a3768829179bca980
+wrksrc="prowl-${_commit}"
+hostmakedepends="go"
+makedepends="sqlite-devel"
+depends="glibc libgcc"
+short_desc="Prowl model gateway and code intelligence for Ryoku Rashin"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="MIT"
+homepage="https://github.com/neur0map/prowl"
+distfiles="https://github.com/neur0map/prowl/archive/${_commit}.tar.gz"
+checksum=08fbd327fccd1210b19b621914f134e38eaf196ea216f11f9036e83c40c0212f
+conflicts="prowl-agent>=0"
+replaces="prowl-agent>=0"
+
+# Prowl uses the sqlite_fts5 CGO path; a pure-Go build is not equivalent.
+do_build() {
+	export CGO_ENABLED=1
+	export GOPATH="${wrksrc}/.gopath"
+	export GOCACHE="${wrksrc}/.gocache"
+	export GOFLAGS="-mod=mod -modcacherw -buildmode=pie"
+	go build -trimpath -tags sqlite_fts5 \
+		-ldflags "-s -w -X main.version=v${version} -X main.commit=${_commit} -X main.managedBy=xbps" \
+		-o prowl ./cmd/prowl
+}
+
+do_install() {
+	vbin prowl
+	vlicense LICENSE
+	vlicense NOTICE.md
+}

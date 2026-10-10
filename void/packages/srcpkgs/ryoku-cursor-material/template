@@ -1,0 +1,38 @@
+# Template file for 'ryoku-cursor-material'
+pkgname=ryoku-cursor-material
+version=1.0.0
+revision=1
+_bibata_commit=f4ccfe8abb63fddc7b3ce51a866fd8378395cb3d
+wrksrc="bibata_cursor-${_bibata_commit}"
+# The compile and the runtime recolor both shell out to rsvg-convert and
+# xcursorgen, so the tools (not just their libraries) are needed on both sides.
+hostmakedepends="fish-shell jq python3 librsvg-utils xcursorgen"
+depends="python3 librsvg librsvg-utils xcursorgen"
+python_version=3
+short_desc="Material Bibata cursor following the Ryoku accent"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later, MIT"
+homepage="https://github.com/SakibShahariar/material-bibata-cursor"
+distfiles="https://github.com/rtgiskard/bibata_cursor/archive/${_bibata_commit}.tar.gz"
+checksum=32f053a4b155106e3d1305e597a409d0e7ce85aa84b0ebe31b909ffbf7e80417
+
+do_build() {
+	mkdir -p build-root/scripts/bibata_cursor
+	cp -a src svg config build-root/scripts/bibata_cursor/
+	cp "${FILESDIR}/compile_bibata_material.fish" \
+		"${FILESDIR}/metadata_generator.py" build-root/scripts/
+	cp "${FILESDIR}/themes.json" build-root/
+	cd build-root
+	BIBATA_MATERIAL_INSTALL_DIR="${wrksrc}/out" \
+		fish scripts/compile_bibata_material.fish Ryoku
+}
+
+do_install() {
+	vmkdir usr/share/icons
+	vcopy out/Bibata-Material-Ryoku usr/share/icons
+	vmkdir usr/share/ryoku-cursor-material/bibata
+	vcopy src usr/share/ryoku-cursor-material/bibata
+	vcopy svg usr/share/ryoku-cursor-material/bibata
+	vcopy config usr/share/ryoku-cursor-material/bibata
+	vbin "${FILESDIR}/ryoku-cursor-material-recolor"
+}

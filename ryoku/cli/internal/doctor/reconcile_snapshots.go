@@ -23,6 +23,9 @@ const snapshotDrainBatch = 20
 // snapshots leak past number cleanup), and drain leaked timeline snapshots.
 // Draining runs only under a number-only config (TIMELINE_CREATE="no").
 func reconcileSnapperCleanup(checkOnly bool) recResult {
+	if supported, reason := doctorSnapshots(); !supported {
+		return noteRes("%s", reason)
+	}
 	if !sys.Exists("/etc/snapper/configs/root") {
 		return okRes(i18n.T("root snapshots not configured, nothing to prune"))
 	}
@@ -237,6 +240,9 @@ func allDigits(s string) bool {
 // /.snapshots, which turns updatedb into an hours-long crawl on a
 // snapshot-heavy box. No updatedb.conf means locate is not installed.
 func reconcileUpdatedbPrune(checkOnly bool) recResult {
+	if supported, reason := doctorSnapshots(); !supported {
+		return noteRes("%s", reason)
+	}
 	const path = "/etc/updatedb.conf"
 	if !sys.Exists(path) {
 		return okRes(i18n.T("no /etc/updatedb.conf (locate not installed)"))

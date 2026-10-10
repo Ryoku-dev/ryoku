@@ -3,6 +3,8 @@ package doctor
 import (
 	"slices"
 	"testing"
+
+	"ryoku-cli/internal/host"
 )
 
 // Only the TPM units that fail for want of NvPCRs are cleared, and only once
@@ -15,8 +17,11 @@ func TestClearNvpcrFailures(t *testing.T) {
 	stub := func(t *testing.T, marked, ruleInstalled, markAfterTrigger bool) (*[]string, *int) {
 		var rerun []string
 		triggers := 0
-		pm, pr, pt, pu := tpmNvpcrMarked, tpmNvpcrRuleInstalled, tpmNvpcrRetrigger, tpmNvpcrRerun
-		t.Cleanup(func() { tpmNvpcrMarked, tpmNvpcrRuleInstalled, tpmNvpcrRetrigger, tpmNvpcrRerun = pm, pr, pt, pu })
+		pi, pm, pr, pt, pu := tpmNvpcrInit, tpmNvpcrMarked, tpmNvpcrRuleInstalled, tpmNvpcrRetrigger, tpmNvpcrRerun
+		t.Cleanup(func() {
+			tpmNvpcrInit, tpmNvpcrMarked, tpmNvpcrRuleInstalled, tpmNvpcrRetrigger, tpmNvpcrRerun = pi, pm, pr, pt, pu
+		})
+		tpmNvpcrInit = func() (host.InitSystem, error) { return host.Systemd, nil }
 		tpmNvpcrMarked = func() bool { return marked }
 		tpmNvpcrRuleInstalled = func() bool { return ruleInstalled }
 		tpmNvpcrRetrigger = func() { triggers++; marked = markAfterTrigger }
@@ -48,6 +53,13 @@ func TestClearNvpcrFailures(t *testing.T) {
 		rerun, _ := stub(t, false, true, false)
 		if got := clearNvpcrFailures(failed); got != nil || len(*rerun) != 0 {
 			t.Errorf("still unmarked: cleared %v, reran %v; want nothing", got, *rerun)
+		}
+	})
+	t.Run("runit has no systemd NvPCR units", func(t *testing.T) {
+		rerun, _ := stub(t, true, true, true)
+		tpmNvpcrInit = func() (host.InitSystem, error) { return host.Runit, nil }
+		if got := clearNvpcrFailures(failed); got != nil || len(*rerun) != 0 {
+			t.Errorf("runit cleared %v and reran %v, want no systemd-unit work", got, *rerun)
 		}
 	})
 }

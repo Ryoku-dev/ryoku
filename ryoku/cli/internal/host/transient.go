@@ -1,11 +1,13 @@
 package host
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type transientOptions struct {
@@ -86,6 +88,10 @@ func (a *App) Transient(args []string) int {
 func (a *App) transientDir() string         { return filepath.Join(a.runtimeDir(), "ryoku", "transient") }
 func (a *App) pidPath(name string) string   { return filepath.Join(a.transientDir(), name+".pid") }
 func (a *App) scopePath(name string) string { return filepath.Join(a.transientDir(), name+".scope") }
+func (a *App) runsvPath(name string) string { return filepath.Join(a.transientDir(), name+".runsv") }
+func (a *App) runitTransientPath(name string) string {
+	return filepath.Join(a.userServiceDir(), name)
+}
 
 func (a *App) startSystemdTransient(name string, opts transientOptions) int {
 	args := []string{"--user", "--unit=" + name}
@@ -148,6 +154,60 @@ func (a *App) startRunitTransient(name string, opts transientOptions) int {
 		result := a.cfg.Runner.Run(Command{Name: opts.command[0], Args: opts.command[1:], Env: opts.env, Stdin: a.cfg.Stdin, Stdout: a.cfg.Stdout, Stderr: a.cfg.Stderr})
 		return commandExit(result)
 	}
+	if !a.cfg.Runner.LookPath("sv") {
+		return a.startDetachedRunitTransient(name, opts)
+	}
+
+	service := a.runitTransientPath(name)
+	if _, err := os.Stat(a.runsvPath(name)); err == nil {
+		_ = a.runitTransientState("stop", name)
+	}
+	if _, err := os.Stat(service); err == nil {
+		return ExitFailure
+	} else if !os.IsNotExist(err) {
+		return ExitFailure
+	}
+	if err := os.MkdirAll(a.transientDir(), 0o700); err != nil {
+		return ExitFailure
+	}
+	if err := a.writeRunitTransientService(service, name, opts); err != nil {
+		return ExitFailure
+	}
+	if !a.waitRunitSupervisor(service) {
+		_ = os.RemoveAll(service)
+		return a.startDetachedRunitTransient(name, opts)
+	}
+
+	if err := os.WriteFile(a.runsvPath(name), nil, 0o600); err != nil {
+		_ = os.RemoveAll(service)
+		return ExitFailure
+	}
+	if err := os.Remove(filepath.Join(service, "down")); err != nil && !os.IsNotExist(err) {
+		_ = a.removeSupervisedRunitTransient(name)
+		return ExitFailure
+	}
+	if result := a.run("sv", "-w", "5", "up", service); result.Code != 0 {
+		_ = a.removeSupervisedRunitTransient(name)
+		return ExitFailure
+	}
+	running, code := a.runitStatus(service)
+	if code != ExitOK || !running {
+		_ = a.removeSupervisedRunitTransient(name)
+		return ExitFailure
+	}
+	pid, ok := a.waitRunitPID(service)
+	if !ok {
+		_ = a.removeSupervisedRunitTransient(name)
+		return ExitFailure
+	}
+	if err := os.WriteFile(a.pidPath(name), []byte(strconv.Itoa(pid)), 0o600); err != nil {
+		_ = a.removeSupervisedRunitTransient(name)
+		return ExitFailure
+	}
+	return ExitOK
+}
+
+func (a *App) startDetachedRunitTransient(name string, opts transientOptions) int {
 	if err := os.MkdirAll(a.transientDir(), 0o700); err != nil {
 		return ExitFailure
 	}
@@ -160,6 +220,89 @@ func (a *App) startRunitTransient(name string, opts transientOptions) int {
 		return ExitFailure
 	}
 	return ExitOK
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func (a *App) writeRunitTransientService(service, name string, opts transientOptions) error {
+	root := filepath.Dir(service)
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return err
+	}
+	staging, err := os.MkdirTemp(root, "."+name+".")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(staging)
+	if err := os.Chmod(staging, 0o700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(staging, "down"), nil, 0o600); err != nil {
+		return err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	var run strings.Builder
+	run.WriteString("#!/bin/sh\ncd ")
+	run.WriteString(shellQuote(cwd))
+	run.WriteString(" || exit 111\nexec chpst -P env -i --")
+	for _, entry := range append(os.Environ(), opts.env...) {
+		run.WriteByte(' ')
+		run.WriteString(shellQuote(entry))
+	}
+	for _, arg := range opts.command {
+		run.WriteByte(' ')
+		run.WriteString(shellQuote(arg))
+	}
+	run.WriteString(" 2>&1\n")
+	if err := os.WriteFile(filepath.Join(staging, "run"), []byte(run.String()), 0o700); err != nil {
+		return err
+	}
+	finish := "#!/bin/sh\n: > ./down\nexec sv down .\n"
+	if err := os.WriteFile(filepath.Join(staging, "finish"), []byte(finish), 0o700); err != nil {
+		return err
+	}
+	logDir := filepath.Join(staging, "log")
+	if err := os.Mkdir(logDir, 0o700); err != nil {
+		return err
+	}
+	logRun := "#!/bin/sh\nexec cat >> " + shellQuote(filepath.Join(a.transientDir(), name+".log")) + " 2>&1\n"
+	if err := os.WriteFile(filepath.Join(logDir, "run"), []byte(logRun), 0o700); err != nil {
+		return err
+	}
+	return os.Rename(staging, service)
+}
+
+func (a *App) waitRunitSupervisor(service string) bool {
+	deadline := time.Now().Add(6 * time.Second)
+	for {
+		if a.probe("sv", "status", service).Code == 0 {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func (a *App) waitRunitPID(service string) (int, bool) {
+	deadline := time.Now().Add(time.Second)
+	for {
+		body, err := os.ReadFile(filepath.Join(service, "supervise", "pid"))
+		pid, parseErr := strconv.Atoi(strings.TrimSpace(string(body)))
+		if err == nil && parseErr == nil && pid > 0 && a.cfg.Runner.Alive(pid) {
+			return pid, true
+		}
+		if !time.Now().Before(deadline) {
+			return 0, false
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 }
 
 func (a *App) transientPID(name string) (int, int) {
@@ -179,7 +322,47 @@ func (a *App) transientPID(name string) (int, int) {
 	return pid, ExitOK
 }
 
+func (a *App) removeSupervisedRunitTransient(name string) error {
+	var first error
+	for _, path := range []string{a.runitTransientPath(name), a.runsvPath(name), a.pidPath(name)} {
+		if err := os.RemoveAll(path); err != nil && first == nil {
+			first = err
+		}
+	}
+	return first
+}
+
 func (a *App) runitTransientState(verb, name string) int {
+	if _, err := os.Stat(a.runsvPath(name)); err == nil {
+		service := a.runitTransientPath(name)
+		if verb == "is-active" {
+			running, code := a.runitStatus(service)
+			if code != ExitOK {
+				return code
+			}
+			if !running {
+				return ExitFalse
+			}
+			return ExitOK
+		}
+		pid, _ := a.transientPID(name)
+		var signalErr error
+		if pid > 0 {
+			signalErr = a.cfg.Runner.SignalGroup(pid, syscall.SIGTERM)
+			if errors.Is(signalErr, syscall.ESRCH) {
+				signalErr = nil
+			}
+		}
+		result := a.run("sv", "-w", "5", "down", service)
+		if err := a.removeSupervisedRunitTransient(name); err != nil {
+			return ExitFailure
+		}
+		if signalErr != nil || (result.Code != 0 && pid <= 0) {
+			return ExitFailure
+		}
+		return ExitOK
+	}
+
 	pid, code := a.transientPID(name)
 	if code != ExitOK {
 		return code

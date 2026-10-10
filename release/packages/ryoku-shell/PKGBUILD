@@ -22,44 +22,21 @@ source=()
 _repo="$startdir/../../.."
 
 build() {
-  cd "$_repo/ryoku/shell/ipc"
-  # -mod=vendor keeps the build hermetic. godbus is vendored, so the signed-repo
-  # CI builds offline regardless of whatever GOFLAGS makepkg picked up.
-  CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$srcdir/ryoku-shell" .
-  # ryoku-livewall: the C video-wallpaper daemon the shell drives. It software-
-  # decodes a downscaled clip into wl_shm on a wlr background surface (no GL, so
-  # ~40 MB RSS on any GPU vs mpv/mpvpaper's 300-700 MB). build.sh generates the
-  # wayland protocol glue and compiles it.
-  "$_repo/ryoku/shell/livewall/build.sh" "$srcdir/ryoku-livewall"
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" build
 }
 
 package() {
-  install -Dm755 "$srcdir/ryoku-shell" "$pkgdir/usr/bin/ryoku-shell"
-  install -Dm755 "$srcdir/ryoku-livewall" "$pkgdir/usr/bin/ryoku-livewall"
-  # Every shell leaf script the bar, launcher, Hub, keybinds, recorder and the
-  # daemon call by bare name (ryoku-app, ryoku-cmd-*, ryoku-sysinfo, the recorder
-  # helpers, ...). They resolve on PATH with no compositor config tree, so a niri
-  # box that ships no compositor scripts still gets every one of them. A single
-  # glob, so a new script lands here with no packaging edit.
-  local s
-  for s in "$_repo"/ryoku/shell/scripts/ryoku-*; do
-    [[ -f $s ]] || continue
-    install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
-  done
-  # ryostage: the wallpaper engine's launcher. Not a ryoku-* name, so it installs
-  # beside the glob.
-  install -Dm755 "$_repo/ryoku/shell/scripts/ryostage" \
-    "$pkgdir/usr/bin/ryostage"
-  # The .sh helpers the shell drives by bare name: the Stash sidebar's cobalt
-  # queue and its compress/install/download backends, the LocalSend LAN transfer,
-  # the clipboard-thumbnail generator. Shell scripts, not compositor config, so
-  # they ride the shell to PATH and resolve with no compositor config tree.
-  for s in "$_repo"/ryoku/shell/scripts/*.sh; do
-    [[ -f $s ]] || continue
-    install -Dm755 "$s" "$pkgdir/usr/bin/${s##*/}"
-  done
-  install -d "$pkgdir/usr/share/ryoku/nomarchy"
-  cp -a "$_repo/ryoku/shell/nomarchy/." "$pkgdir/usr/share/ryoku/nomarchy/"
-  install -d "$pkgdir/usr/share/ryoku/reload-cover"
-  cp -a "$_repo/ryoku/shell/quickshell/reload-cover/." "$pkgdir/usr/share/ryoku/reload-cover/"
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" install "$pkgdir" systemd
 }

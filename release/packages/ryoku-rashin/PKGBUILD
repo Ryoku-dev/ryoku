@@ -33,39 +33,21 @@ source=()
 _repo="$startdir/../../.."
 
 build() {
-  cd "$_repo/ryoku/rashin/backend"
-  CGO_ENABLED=0 go build -trimpath -mod=vendor -o "$srcdir/ryoku-rashin" .
-  # Pre-index the monorepo: the installed target has no checkout, so the
-  # vault's ryoku-repo.md ships as a snapshot generated from this exact tree.
-  "$srcdir/ryoku-rashin" repo-index "$_repo" "$srcdir/ryoku-repo.md"
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" build
 }
 
 package() {
-  install -Dm755 "$srcdir/ryoku-rashin" "$pkgdir/usr/bin/ryoku-rashin"
-  # `rashin` is the terminal-lane command: the same binary under a second
-  # name (busybox pattern); argv0 routes a bare argument to the terminal ask.
-  ln -s ryoku-rashin "$pkgdir/usr/bin/rashin"
-  install -Dm644 "$srcdir/ryoku-repo.md" "$pkgdir/usr/share/ryoku/rashin/ryoku-repo.md"
-  # The `ryoku` agent skill: the source map, safety rules, the GUI map, the
-  # bar, plugin, window-manager, build and troubleshoot guides. Every page in
-  # the dir ships (a hand-kept list once left troubleshoot.md behind).
-  # `ryoku-rashin wire` symlinks this dir into every agent's skills directory;
-  # the doctor's rashin reconciler re-wires it on update.
-  for f in "$_repo"/ryoku/rashin/skills/ryoku/*.md; do
-    install -Dm644 "$f" "$pkgdir/usr/share/ryoku/skills/ryoku/$(basename "$f")"
-  done
-  # The wiki: the plain-language guides for someone new. The daemon mirrors
-  # this dir into the vault as wiki/ on every start, so the Needle cites it,
-  # prowl indexes it and the console renders it.
-  for f in "$_repo"/ryoku/rashin/wiki/*.md; do
-    install -Dm644 "$f" "$pkgdir/usr/share/ryoku/rashin/wiki/$(basename "$f")"
-  done
-  # Systemd user unit: `ryoku-rashin enable` runs `systemctl --user enable
-  # --now` on it; the daemon then starts at every login (or at boot with
-  # lingering) instead of riding the Hyprland session.
-  install -Dm644 "$_repo/ryoku/rashin/systemd/ryoku-rashin.service" \
-    "$pkgdir/usr/lib/systemd/user/ryoku-rashin.service"
-  # Prowl follows Rashin's lifecycle instead of being enabled on its own.
-  install -Dm644 "$_repo/ryoku/rashin/systemd/ryoku-prowl.service" \
-    "$pkgdir/usr/lib/systemd/user/ryoku-prowl.service"
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" install "$pkgdir" systemd
 }

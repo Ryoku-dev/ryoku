@@ -88,7 +88,7 @@ func TestRunitKeymapWritesRCConfAndEscalates(t *testing.T) {
 }
 
 func TestUsageListsEveryTopLevelVerbAndFlag(t *testing.T) {
-	for _, text := range []string{"init", "pkgmgr", "svc", "reload", "--now", "env", "--all", "inhibit", "transient", "--scope", "--slice", "--prop", "--env", "session", "pkg", "--upgrade", "--aur", "--foreign", "time", "keymap"} {
+	for _, text := range []string{"init", "pkgmgr", "snapshots", "svc", "reload", "--now", "env", "--all", "inhibit", "transient", "--scope", "--slice", "--prop", "--env", "session", "pkg", "--upgrade", "--aur", "--foreign", "time", "keymap"} {
 		if !strings.Contains(Usage, text) {
 			t.Fatalf("usage misses %q", text)
 		}

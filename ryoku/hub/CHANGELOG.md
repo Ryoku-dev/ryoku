@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Changed
+- **Updates stays clear when snapshots are unavailable.** The page shows the
+  host's short snapshot note near its header and hides snapshot ids, rollback
+  copy and the rollback action. GPU changes and config imports keep their file
+  backups but skip their best-effort snapper calls on those hosts
+  (`quickshell/Singletons/Updates.qml`, `quickshell/pages/UpdatesPage.qml`,
+  `quickshell/pages/UpdateRun.qml`, `backend/gpuapply.go`,
+  `backend/import_apply.go`).
 - **Add-ons is a library of what you installed, not a wall of toggles.**
   Desktop widgets no longer appear there; they are managed in Desktop. Shell
   add-ons (bar glyphs, popouts, panels) and bundles are cards in a grid with
@@ -27,7 +34,8 @@
   keyboard layout, GPU mode, lighting, the palette bridge, the shell
   preference and the Window Manager page go through `ryoku-host` instead of
   `systemctl` and `pacman`. Voxtype, which only exists in the AUR, shows as
-  unavailable on Void instead of failing (`backend/`).
+  unavailable on Void instead of failing (`backend/`). The sidebar header
+  reads RYOKU VOID there instead of RYOKU ARCH (`quickshell/Hub.qml`).
 - **Mouse macros take a lone Shift, Ctrl, Alt or Super, and the side grid
   stops double-acting.** Holding just a modifier while recording a macro showed
   it but never added the step; it now commits when you let go. The MACRO and

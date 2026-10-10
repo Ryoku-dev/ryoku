@@ -1,0 +1,36 @@
+# Template file for 'ryoku-desktop-niri'
+pkgname=ryoku-desktop-niri
+version=0.1.0
+revision=1
+archs="x86_64"
+hostmakedepends="go"
+# ryoku-desktop pulls this variant through the compositor virtual. Depending
+# back on the base would form a cycle that xbps-src refuses to build.
+depends="niri xwayland-satellite xdg-desktop-portal-gnome wlsunset"
+provides="ryoku-desktop-compositor-${version}_${revision}"
+short_desc="Ryoku niri compositor, portal, X11 bridge, and WM provider"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://ryoku.dev"
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
+checksum=SKIP
+wrksrc="ryoku-${version}"
+
+_do_payload() {
+	GOFLAGS="-buildmode=pie" \
+	RYOKU_SRC="$wrksrc" \
+	RYOKU_PKGVER="$version" \
+	RYOKU_RELEASE="${RYOKU_RELEASE:-local-${version}}" \
+	RYOKU_CHANNEL="${RYOKU_CHANNEL:-local}" \
+	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+	RYOKU_BUILD_DIR="$wrksrc/.xbps-build/ryoku-desktop-niri" \
+		"$wrksrc/release/packages/ryoku-desktop-niri/payload.sh" "$@"
+}
+
+do_build() {
+	_do_payload build
+}
+
+do_install() {
+	_do_payload install "$DESTDIR" runit
+}

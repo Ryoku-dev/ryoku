@@ -59,6 +59,23 @@ for helper in "$INIT/lib/wait-for" "$INIT/env/xdg-dirs" "$INIT/session/session-s
 	head -1 "$helper" | grep -q '^#!/bin/sh$' || fail "helper must be #!/bin/sh (Void dash): $helper"
 done
 
+session_start=$INIT/session/session-start
+ensure_line=$(grep -nF 'ryoku-host session ensure --user' "$session_start" | cut -d: -f1)
+roster_line=$(grep -nF 'while IFS= read -r name' "$session_start" | cut -d: -f1)
+[[ -n $ensure_line && -n $roster_line && $ensure_line -lt $roster_line ]] \
+	|| fail "session-start does not provision user services before starting the roster"
+grep -qF '$service/.ryoku-disabled' "$session_start" \
+	|| fail "session-start does not preserve user-disabled services"
+
+deploy=$ROOT/ryoku/shell/deploy.sh
+grep -qF 'sudo cp -R "$init_root/user/." /usr/lib/ryoku/runit/user/' "$deploy" \
+	|| fail "dev deploy does not install packaged user service sources"
+grep -qF '/usr/bin/ryoku-host session ensure --user' "$deploy" \
+	|| fail "dev deploy does not use the host provisioning path"
+if grep -qF 'cp -a "$src/." "$runit_service_root/$name/"' "$deploy"; then
+	fail "dev deploy still carries a second user service provisioning loop"
+fi
+
 login_services=(pipewire pipewire-pulse wireplumber)
 is_login_service() {
 	local candidate=${1%/}

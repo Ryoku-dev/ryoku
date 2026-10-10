@@ -24,21 +24,26 @@ source=()
 _repo="$startdir/../../.."
 
 build() {
-  # CMake tree under $srcdir keeps the source checkout clean.
-  RYOKU_BLOBS_BUILD="$srcdir/build" \
-    "$_repo/ryoku/shell/plugin/build.sh" "$srcdir/qml"
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" build
 }
 
 package() {
-  install -dm755 "$pkgdir/usr/lib/qt6/qml/Ryoku/Blobs"
-  cp -a "$srcdir/qml/Ryoku/Blobs/." "$pkgdir/usr/lib/qt6/qml/Ryoku/Blobs/"
-  # cp -a kept build-tree mode bits; normalize for packaging: plugin .so stays
-  # executable, qmldir/.qsb data world-readable.
-  chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6"
-  # Qt refuses a plugin built against a newer minor than the one running, so a
-  # box that took this package but not its distribution's Qt update lost
-  # Ryoku.Blobs and the whole shell with it. Pin the build host's Qt minor so
-  # pacman brings Qt along.
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" install "$pkgdir" systemd
+
+  # Qt refuses a plugin built against a newer minor than the one running, so
+  # keep pacman's package metadata tied to the build host's Qt minor.
   local qt; qt="$(pkg-config --modversion Qt6Core | cut -d. -f1,2)"
   depends+=("qt6-base>=$qt" "qt6-declarative>=$qt" "qt6-multimedia>=$qt")
 }

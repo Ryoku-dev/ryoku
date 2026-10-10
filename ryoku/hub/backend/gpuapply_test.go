@@ -54,6 +54,24 @@ func TestApplyPlanDryRunWritesNothing(t *testing.T) {
 		t.Error("a dry-run must not write any file")
 	}
 }
+func TestSnapshotWritersSkipUnsupportedHost(t *testing.T) {
+	bin := t.TempDir()
+	marker := filepath.Join(bin, "snapper-called")
+	if err := os.WriteFile(filepath.Join(bin, "ryoku-host"), []byte("#!/bin/sh\nexit 5\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "snapper"), []byte("#!/bin/sh\nprintf called >> "+marker+"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	snapshot("gpu change")
+	snapshotBestEffort("import")
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("snapper ran on an unsupported host (stat err %v)", err)
+	}
+}
+
 func containsFile(files []managedFile, rel, want string) bool {
 	for _, f := range files {
 		if f.rel == rel {

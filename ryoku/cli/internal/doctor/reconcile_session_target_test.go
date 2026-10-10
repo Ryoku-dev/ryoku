@@ -3,12 +3,18 @@ package doctor
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"ryoku-cli/internal/host"
 )
 
 func TestReconcileSessionTargetMigratesStaleWants(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	oldInit := sessionTargetInit
+	sessionTargetInit = func() (host.InitSystem, error) { return host.Systemd, nil }
+	t.Cleanup(func() { sessionTargetInit = oldInit })
 
 	wants := filepath.Join(home, ".config", "systemd", "user", retiredSessionTarget+".wants")
 	if err := os.MkdirAll(wants, 0o755); err != nil {
@@ -51,5 +57,29 @@ func TestReconcileSessionTargetMigratesStaleWants(t *testing.T) {
 
 	if r := reconcileSessionTarget(true); r.status != recOK {
 		t.Fatalf("idempotent second run: status=%s, want ok", r.status.label())
+	}
+}
+
+func TestReconcileSessionTargetUsesRunitRoster(t *testing.T) {
+	oldInit := sessionTargetInit
+	sessionTargetInit = func() (host.InitSystem, error) { return host.Runit, nil }
+	t.Cleanup(func() { sessionTargetInit = oldInit })
+
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	wants := filepath.Join(home, ".config", "systemd", "user", retiredSessionTarget+".wants")
+	if err := os.MkdirAll(wants, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wants, "ryoku-shell.service"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := reconcileSessionTarget(false)
+	if r.status != recOK || !strings.Contains(r.detail, "runit session roster") {
+		t.Fatalf("runit result = %s %q, want neutral roster result", r.status.label(), r.detail)
+	}
+	if _, err := os.Stat(wants); err != nil {
+		t.Fatal("runit check must not alter retired systemd state")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 )
 
@@ -28,6 +29,9 @@ func nvpcrUnit(unit string) bool {
 
 // Seams over the live box, replaced in tests.
 var (
+	tpmNvpcrInit = func() (host.InitSystem, error) {
+		return host.Default().Init()
+	}
 	tpmNvpcrMarked = func() bool {
 		out, err := exec.Command("udevadm", "info", "-q", "property", "-n", "/dev/tpmrm0").Output()
 		return err == nil && strings.Contains(string(out), "TPM2_BROKEN_NVPCR=1")
@@ -55,6 +59,10 @@ var (
 // (retriggering udev when the rule is installed but the device predates it)
 // and returns the units it cleared. Unmarked, it leaves them for the report.
 func clearNvpcrFailures(failed []string) []string {
+	initSystem, err := tpmNvpcrInit()
+	if err != nil || initSystem != host.Systemd {
+		return nil
+	}
 	var units []string
 	for _, u := range failed {
 		if nvpcrUnit(u) {

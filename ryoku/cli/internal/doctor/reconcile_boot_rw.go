@@ -99,6 +99,9 @@ func repairBootRW(st bootRWState) (fixed bool, detail string) {
 }
 
 func reconcileBootRW(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	var ro []bootRWState
 	for _, target := range bootRWMounts {
 		out, err := bootRWFindmnt(target)

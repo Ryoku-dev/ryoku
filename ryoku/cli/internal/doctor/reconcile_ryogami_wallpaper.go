@@ -5,28 +5,35 @@ import (
 	"os/exec"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
 )
 
 // ---- reconciler: cut existing boxes over from the old awww daemon to Ryogami -
-//
 // The wallpaper backend moved from awww (a swww fork the shell drove by name) to
-// Ryogami, the in-repo daemon the shell now drives over ryogami.sock. `ryoku
-// update` pulls the ryogami package (a ryoku-desktop depend) and drops the awww
-// depend, but pacman alone leaves an existing box in a broken middle: the ryogami
-// user unit is delivered but not enabled, so ryoku-session.target never owns
-// it, and a stale awww-daemon from the old session keeps a surface mapped on the
-// background layer that stacks over Ryogami's and swallows every static set. This
-// daemon-reloads so systemd sees the delivered unit, enables it, clears it when
-// wedged failed, and stops any leftover awww-daemon. Idempotent; retired once
-// every box has cut over.
+// Ryogami, the in-repo daemon the shell now drives over ryogami.sock. Updating
+// the package alone can leave an existing box in a broken middle: the Ryogami
+// service is delivered but disabled, while a stale awww-daemon keeps a surface
+// mapped over it. The host service seam reloads and enables the systemd unit on
+// Arch or the supervised runit service on Void, clears a systemd failed state
+// when one exists, and stops the leftover daemon. Idempotent; retired once every
+// box has cut over.
 
 const ryogamiUserUnit = "ryogami.service"
 
-// ryogamiWallpaperState is the subset of session state the reconciler decides
-// on, split out so the decision is unit-testable without a live user manager.
+var (
+	ryogamiInit = func() (host.InitSystem, error) {
+		return host.Default().Init()
+	}
+	ryogamiService = func(args []string) int {
+		return host.Default().Service(args)
+	}
+)
+
+// ryogamiWallpaperState is the subset of session supervisor state the
+// reconciler decides on, split out so the decision is unit-testable.
 type ryogamiWallpaperState struct {
 	enabled     bool
 	active      bool
@@ -52,16 +59,18 @@ func ryogamiWallpaperActions(s ryogamiWallpaperState) (enable, clearFailed, star
 }
 
 func ryogamiUnitEnabled() bool {
-	out, _ := exec.Command("systemctl", "--user", "is-enabled", ryogamiUserUnit).Output()
-	return strings.TrimSpace(string(out)) == "enabled"
+	return ryogamiService([]string{"--user", "is-enabled", ryogamiUserUnit}) == host.ExitOK
 }
 
 func ryogamiUnitActive() bool {
-	out, _ := exec.Command("systemctl", "--user", "is-active", ryogamiUserUnit).Output()
-	return strings.TrimSpace(string(out)) == "active"
+	return ryogamiService([]string{"--user", "is-active", ryogamiUserUnit}) == host.ExitOK
 }
 
 func ryogamiUnitFailed() bool {
+	initSystem, err := ryogamiInit()
+	if err != nil || initSystem != host.Systemd {
+		return false
+	}
 	out, _ := exec.Command("systemctl", "--user", "is-failed", ryogamiUserUnit).Output()
 	return strings.TrimSpace(string(out)) == "failed"
 }
@@ -72,7 +81,7 @@ func inGraphicalSession() bool {
 	return os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
-func awwwDaemonRunning() bool {
+var awwwDaemonRunning = func() bool {
 	return exec.Command("pgrep", "-x", "awww-daemon").Run() == nil
 }
 
@@ -107,15 +116,17 @@ func reconcileRyogamiWallpaper(checkOnly bool) recResult {
 				withFix(i18n.T("ryoku doctor starts the ryogami unit"))
 		}
 	}
-	// daemon-reload so systemd runs the just-delivered unit file.
-	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+	_ = ryogamiService([]string{"--user", "daemon-reload"})
 	var did []string
 	if enable {
-		_ = exec.Command("systemctl", "--user", "enable", ryogamiUserUnit).Run()
+		if code := ryogamiService([]string{"--user", "enable", ryogamiUserUnit}); code != host.ExitOK {
+			return failRes(i18n.T("could not enable the ryogami wallpaper daemon (service exit %d)"), code).
+				withFix("ryoku-host svc --user enable " + ryogamiUserUnit)
+		}
 		did = append(did, i18n.T("enabled the ryogami unit"))
 	}
 	if clearFailed {
-		_ = exec.Command("systemctl", "--user", "reset-failed", ryogamiUserUnit).Run()
+		_ = ryogamiService([]string{"--user", "reset-failed", ryogamiUserUnit})
 		did = append(did, i18n.T("cleared the wedged failed state"))
 	}
 	if stopAwww {
@@ -135,9 +146,13 @@ func reconcileRyogamiWallpaper(checkOnly bool) recResult {
 	// graphical session the condition refuses them all and autostart starts the
 	// daemon at the next login.
 	if start {
-		_ = exec.Command("systemctl", "--user", "reset-failed", ryogamiUserUnit).Run()
+		_ = ryogamiService([]string{"--user", "reset-failed", ryogamiUserUnit})
 	}
-	_ = exec.Command("systemctl", "--user", "try-restart", ryogamiUserUnit).Run()
-	_ = exec.Command("systemctl", "--user", "start", ryogamiUserUnit).Run()
+	_ = ryogamiService([]string{"--user", "try-restart", ryogamiUserUnit})
+	startCode := ryogamiService([]string{"--user", "start", ryogamiUserUnit})
+	if state.inSession && (startCode != host.ExitOK || !ryogamiUnitActive()) {
+		return failRes(i18n.T("could not start the ryogami wallpaper daemon (service exit %d)"), startCode).
+			withFix("ryoku-host svc --user start " + ryogamiUserUnit)
+	}
 	return fixedRes(i18n.T("cut the wallpaper over to Ryogami: ") + strings.Join(did, ", "))
 }

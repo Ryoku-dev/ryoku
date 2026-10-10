@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	i18n "ryoku-i18n"
 	wm "ryoku-wm"
@@ -60,16 +61,15 @@ var (
 	}
 )
 
-// Update = the whole safe update, wrapped in a snapper pre/post pair.
-// checkout box -> git channel (fast-forward + redeploy). packaged box ->
-// the Ryoku packages, then hand off to the binary pacman just installed
-// (--stage2) so the deploy and doctor semantics of the new release apply
-// during this same update, not one release late. stage2 quiesces the shell,
-// materializes, brings the desktop back, and runs `ryoku doctor` (same one
-// users run by hand) to heal stateful drift, then the post snapshot.
-// snapshots are best-effort: an unconfigured snapper never blocks an update,
-// but a failed step still aborts first. Each stage is published to the
-// run-state file so the update island and Hub show real, determinate progress.
+// Update runs the whole safe update. On hosts that provide Ryoku's snapshot
+// stack it wraps the run in a snapper pre/post pair; elsewhere the snapshot
+// step explains why it is skipped. A checkout box follows the git channel and
+// redeploys. A packaged box updates the Ryoku packages, then hands off to the
+// binary pacman just installed (--stage2) so the new release's deploy and
+// doctor semantics apply during this same update. Stage2 quiesces the shell,
+// materializes, brings the desktop back, and runs `ryoku doctor` before the
+// optional post snapshot. Each stage is published to the run-state file so the
+// update island and Hub show real, determinate progress.
 //
 // It updates the Ryoku set only (ryokuset.go). The base system and its kernel
 // come from Arch or CachyOS, whichever the box installed, and stay the user's
@@ -161,8 +161,12 @@ func Update(args []string) (err error) {
 	defer stopKeepalive()
 
 	progress.at("snapshot")
+	snapshotsSupported, _ := snapshotCapability()
 	pre := snapperPre(snapshotDesc())
 	progress.setSnapshot(pre)
+	if !snapshotsSupported {
+		progress.skip("snapshot")
+	}
 
 	// checkout: update through the git channel. packaged: pacman + a hand-off
 	// to the freshly installed binary (stage2).
@@ -234,7 +238,6 @@ func Update(args []string) (err error) {
 				progress.logf(i18n.T("Updating %d Ryoku package(s); the base system stays as it is"), len(set))
 			}
 			if conflicts, err := runRyokuUpgrade(set); err != nil {
-				healPackageUpgrade(conflicts, err)
 				// One in-place recovery, then a single retry: clear the unowned files a
 				// new package now claims (an installer/deploy stray), or, with nothing to
 				// clear, drop a stale [ryoku] db whose signature no longer matches and
@@ -244,6 +247,10 @@ func Update(args []string) (err error) {
 					// only advertise `ryoku rollback` when the pre snapshot it needs exists;
 					// snapperPre is best-effort and returns "" when it was skipped.
 					hint := i18n.T("no pre-update snapshot exists (snapper was unavailable), so `ryoku rollback` cannot revert this; recover with pacman directly")
+					if updatePackageManager() == host.XBPS {
+						_, hint = snapshotCapability()
+						hint += i18n.T(" Recover with XBPS directly.")
+					}
 					if pre != "" {
 						hint = i18n.T("see `ryoku rollback` (pre-update snapshot ") + pre + ")"
 					}
@@ -430,11 +437,16 @@ func runRyokuUpgrade(set []string) ([]string, error) {
 // Ryoku set is already in, and stage2 still has to bring the desktop back.
 func runSystemLane(pending []updateItem) {
 	progress.at("system")
-	progress.logf(i18n.T("Updating %d system package(s) (pacman -Syu, kernel included)"), len(pending))
+	manager := updatePackageManager()
+	command := "pacman -Syu"
+	if manager == host.XBPS {
+		command = "xbps-install -Syu"
+	}
+	progress.logf(i18n.T("Updating %d system package(s) (%s, kernel included)"), len(pending), command)
 	if err := runInhibited("System package upgrade", systemUpgradeArgs()); err != nil {
 		fmt.Fprintf(os.Stderr, i18n.T("warning: the system upgrade reported errors: %v\n"), err)
 	}
-	if sys.Has("yay") {
+	if manager == host.Pacman && sys.Has("yay") {
 		progress.at("aur")
 		progress.logf(i18n.T("Updating AUR packages (yay)"))
 		if err := runAURUpgrade(); err != nil {
@@ -443,9 +455,6 @@ func runSystemLane(pending []updateItem) {
 	} else {
 		progress.skip("aur")
 	}
-	// Flatpak apps are a separate channel from pacman and the AUR. Skipped when
-	// there is nothing to update: an offline box, or one with the client but no
-	// remote, must not turn a whole update red.
 	if flatpakUpdatable() {
 		progress.at("flatpak")
 		progress.logf(i18n.T("Updating Flatpak apps"))
@@ -465,7 +474,11 @@ func reportSystemLane(pending []updateItem) {
 		progress.detailf(i18n.T("The base system is current; nothing waiting outside the Ryoku set"))
 		return
 	}
-	progress.logf(i18n.T("%d system package(s) waiting from your distribution (kernel included): take them with `sudo pacman -Syu`"), len(pending))
+	command := "sudo pacman -Syu"
+	if updatePackageManager() == host.XBPS {
+		command = "sudo xbps-install -Syu"
+	}
+	progress.logf(i18n.T("%d system package(s) waiting from your distribution (kernel included): take them with `%s`"), len(pending), command)
 }
 
 // healPackageUpgrade recovers from a failed Ryoku upgrade in place, once. Files
@@ -487,8 +500,12 @@ func healPackageUpgrade(conflicts []string, err error) {
 		progress.logf(i18n.T("The Ryoku transaction failed for a reason that is not the package database; keeping the [ryoku] db so the error stays readable"))
 		return
 	}
-	progress.logf(i18n.T("Package database rejected; dropping the stale [ryoku] db and retrying"))
-	_ = sys.DropRyokuSyncDB()
+	progress.logf(i18n.T("Package database rejected; refreshing the Ryoku repository and retrying"))
+	if updatePackageManager() == host.XBPS {
+		_ = repoSync(true)
+	} else {
+		_ = sys.DropRyokuSyncDB()
+	}
 }
 
 // dbRejection reports whether a pacman failure is a database/signature
@@ -517,8 +534,13 @@ var splitMetapackages = []string{
 
 // Seams over the live box, replaced in tests.
 var (
-	splitMetaInstalled = func(name string) bool { return sys.PkgInstalled(name) }
-	splitMetaRemove    = func(name string) error {
+	splitMetaInstalled = func(name string) bool {
+		return host.Default().Package([]string{"installed", name}) == host.ExitOK
+	}
+	splitMetaRemove = func(name string) error {
+		if updatePackageManager() == host.XBPS {
+			return privileged("ryoku-host", "pkg", "remove", name)
+		}
 		return privileged("pacman", "-Rdd", "--noconfirm", name)
 	}
 )
@@ -547,13 +569,13 @@ func dropSplitMetasNotServed(served map[string]bool) []string {
 func unownedFiles(paths []string) []string {
 	var out []string
 	seen := map[string]bool{}
-	for _, p := range paths {
-		if p == "" || seen[p] {
+	for _, path := range paths {
+		if path == "" || seen[path] {
 			continue
 		}
-		seen[p] = true
-		if _, err := sys.RunOut("pacman", "-Qo", p); err != nil {
-			out = append(out, p)
+		seen[path] = true
+		if _, err := host.Default().PackageOwner(path); err != nil {
+			out = append(out, path)
 		}
 	}
 	return out
@@ -591,6 +613,9 @@ const RyokuOverwriteGlob = "/usr/bin/ryoku-*," +
 // by hand. It keeps the --overwrite glob so a seeded path a Ryoku package now
 // owns cannot abort the transaction here either.
 func systemUpgradeArgs() []string {
+	if updatePackageManager() == host.XBPS {
+		return []string{"sudo", "env", "RYOKU_MANAGED_UPDATE=1", "xbps-install", "-Syu"}
+	}
 	return []string{"sudo", "env", "SNAP_PAC_SKIP=y", "RYOKU_MANAGED_UPDATE=1",
 		"pacman", "-Syu", "--noconfirm", "--overwrite", RyokuOverwriteGlob}
 }
@@ -679,10 +704,15 @@ func updateStage2(pre string, withSystem bool) (err error) {
 	stopKeepalive := sudoKeepalive()
 	defer stopKeepalive()
 	progress.setSnapshot(pre)
-	progress.markDone("snapshot", "packages")
+	progress.markDone("packages")
+	if supported, _ := snapshotCapability(); supported {
+		progress.markDone("snapshot")
+	} else {
+		progress.skip("snapshot")
+	}
 	if withSystem {
 		progress.markDone("system")
-		if sys.Has("yay") {
+		if updatePackageManager() == host.Pacman && sys.Has("yay") {
 			progress.markDone("aur")
 		} else {
 			progress.skip("aur")
@@ -712,7 +742,7 @@ func updateStage2(pre string, withSystem bool) (err error) {
 		return err
 	}
 	wallpaperWasActive := shellExpected &&
-		exec.Command("systemctl", "--user", "is-active", "--quiet", "ryogami.service").Run() == nil
+		service("--user", "is-active", "ryogami.service") == host.ExitOK
 	powerCutoverLock, err := acquirePowerCutoverLock()
 	if err != nil {
 		progress.fail(err)
@@ -949,9 +979,7 @@ func packageCutoverMarkerPresent() bool {
 
 func ensurePackagePowerCutover() error {
 	markerPresent := packageCutoverMarkerPresent()
-	rootGuardActive := exec.Command(
-		"sudo", "-n", "systemctl", "is-active", "--quiet", updateSleepGuardUnit,
-	).Run() == nil
+	rootGuardActive := service("--system", "is-active", updateSleepGuardUnit) == host.ExitOK
 	if !needsPackagePowerCutover(markerPresent, rootGuardActive) {
 		return nil
 	}
@@ -978,7 +1006,8 @@ type login1Inhibitor struct {
 }
 
 type updateSleepGuard struct {
-	conn *dbus.Conn
+	conn      *dbus.Conn
+	transient bool
 }
 
 func hasUpdateSleepGuard(inhibitors []login1Inhibitor, uid uint32) bool {
@@ -997,31 +1026,49 @@ func hasUpdateSleepGuard(inhibitors []login1Inhibitor, uid uint32) bool {
 }
 
 func acquireUpdateSleepGuard() (*updateSleepGuard, error) {
-	for _, command := range []string{"systemctl", "systemd-run"} {
-		if _, err := exec.LookPath(command); err != nil {
-			return nil, fmt.Errorf("%s is required for the update sleep guard", command)
+	init := updateInitSystem()
+	if init == host.Systemd {
+		for _, command := range []string{"systemctl", "systemd-run"} {
+			if _, err := exec.LookPath(command); err != nil {
+				return nil, fmt.Errorf("%s is required for the update sleep guard", command)
+			}
 		}
 	}
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return nil, fmt.Errorf("connect login1 for update sleep guard: %w", err)
 	}
-	guard := &updateSleepGuard{conn: conn}
-	active := exec.Command("systemctl", "--user", "is-active", "--quiet", updateSleepGuardUnit).Run() == nil
-	if !active {
-		_ = exec.Command("systemctl", "--user", "reset-failed", updateSleepGuardUnit).Run()
-		output, runErr := exec.Command(
-			"systemd-run", "--user", "--quiet", "--collect", "--unit="+updateSleepGuardUnit,
-			"--property=Type=exec", "--property=TimeoutStopSec=5s",
-			"/usr/bin/systemd-inhibit", "--what=sleep", "--mode=block",
-			"--who=ryoku-session-cutover",
-			"--why=keep the desktop awake while suspend owners are replaced",
-			"/usr/bin/sleep", "infinity",
-		).CombinedOutput()
-		if runErr != nil &&
-			exec.Command("systemctl", "--user", "is-active", "--quiet", updateSleepGuardUnit).Run() != nil {
-			guard.Disconnect()
-			return nil, fmt.Errorf("start durable update sleep guard: %w: %s", runErr, strings.TrimSpace(string(output)))
+	guard := &updateSleepGuard{conn: conn, transient: init == host.Runit}
+	if init == host.Runit {
+		app := host.Default()
+		if app.Transient([]string{"is-active", updateSleepGuardUnit}) != host.ExitOK {
+			code := app.Transient([]string{
+				"start", updateSleepGuardUnit, "--",
+				"ryoku-host", "inhibit", "--what=sleep", "--mode=block",
+				"--who=ryoku-session-cutover",
+				"--why=keep the desktop awake while suspend owners are replaced",
+				"/usr/bin/sleep", "infinity",
+			})
+			if code != host.ExitOK {
+				guard.Disconnect()
+				return nil, fmt.Errorf("start durable update sleep guard: host transient exit %d", code)
+			}
+		}
+	} else {
+		if service("--user", "is-active", updateSleepGuardUnit) != host.ExitOK {
+			_ = service("--user", "reset-failed", updateSleepGuardUnit)
+			code := host.Default().Transient([]string{
+				"start", updateSleepGuardUnit,
+				"--prop", "Type=exec", "--prop", "TimeoutStopSec=5s", "--",
+				"/usr/bin/systemd-inhibit", "--what=sleep", "--mode=block",
+				"--who=ryoku-session-cutover",
+				"--why=keep the desktop awake while suspend owners are replaced",
+				"/usr/bin/sleep", "infinity",
+			})
+			if code != host.ExitOK && service("--user", "is-active", updateSleepGuardUnit) != host.ExitOK {
+				guard.Disconnect()
+				return nil, fmt.Errorf("start durable update sleep guard: host transient exit %d", code)
+			}
 		}
 	}
 	deadline := time.Now().Add(3 * time.Second)
@@ -1042,7 +1089,11 @@ func acquireUpdateSleepGuard() (*updateSleepGuard, error) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	_ = exec.Command("systemctl", "--user", "stop", updateSleepGuardUnit).Run()
+	if guard.transient {
+		_ = host.Default().Transient([]string{"stop", updateSleepGuardUnit})
+	} else {
+		_ = service("--user", "stop", updateSleepGuardUnit)
+	}
 	guard.Disconnect()
 	if err != nil {
 		return nil, fmt.Errorf("verify durable update sleep guard: %w", err)
@@ -1054,9 +1105,17 @@ func (g *updateSleepGuard) Release() error {
 	if g == nil {
 		return nil
 	}
-	if exec.Command("systemctl", "--user", "is-active", "--quiet", updateSleepGuardUnit).Run() == nil {
-		if output, err := exec.Command("systemctl", "--user", "stop", updateSleepGuardUnit).CombinedOutput(); err != nil {
-			return fmt.Errorf("release durable update sleep guard: %w: %s", err, strings.TrimSpace(string(output)))
+	if g.transient {
+		if host.Default().Transient([]string{"is-active", updateSleepGuardUnit}) == host.ExitOK {
+			if code := host.Default().Transient([]string{"stop", updateSleepGuardUnit}); code != host.ExitOK {
+				return fmt.Errorf("release durable update sleep guard: host transient exit %d", code)
+			}
+		}
+		return nil
+	}
+	if service("--user", "is-active", updateSleepGuardUnit) == host.ExitOK {
+		if code := service("--user", "stop", updateSleepGuardUnit); code != host.ExitOK {
+			return fmt.Errorf("release durable update sleep guard: host service exit %d", code)
 		}
 	}
 	return nil
@@ -1073,8 +1132,7 @@ func (g *updateSleepGuard) Disconnect() {
 // is quiesced. hypridle.conf is generated state outside materialize, while a
 // running shell-script daemon keeps executing the old file after replacement.
 func preparePowerPolicyUpdate() error {
-	_ = exec.Command("systemctl", "--user", "stop",
-		"ryoku-clamshell.service", "ryoku-idle.service").Run()
+	_ = service("--user", "stop", "ryoku-clamshell.service", "ryoku-idle.service")
 	if err := runPowerHelper("ryoku-clamshell", "stop"); err != nil {
 		return fmt.Errorf("stop previous lid policy: %w", err)
 	}
@@ -1096,13 +1154,12 @@ func hasStatusLine(status, want string) bool {
 // activatePowerPolicy starts both policy owners as session services only after
 // the new shell can serve its secure suspend transaction.
 func activatePowerPolicy() error {
-	if output, err := exec.Command("systemctl", "--user", "daemon-reload").CombinedOutput(); err != nil {
-		return fmt.Errorf("reload user services: %w: %s", err, strings.TrimSpace(string(output)))
+	if code := service("--user", "daemon-reload"); code != host.ExitOK {
+		return serviceError("reload user services", code)
 	}
-	_ = exec.Command("systemctl", "--user", "reset-failed",
-		"ryoku-idle.service", "ryoku-clamshell.service").Run()
-	if output, err := exec.Command("systemctl", "--user", "restart", "ryoku-idle.service").CombinedOutput(); err != nil {
-		return fmt.Errorf("start idle policy service: %w: %s", err, strings.TrimSpace(string(output)))
+	_ = service("--user", "reset-failed", "ryoku-idle.service", "ryoku-clamshell.service")
+	if code := service("--user", "restart", "ryoku-idle.service"); code != host.ExitOK {
+		return serviceError("start idle policy service", code)
 	}
 	idleReady := false
 	for range 40 {
@@ -1111,7 +1168,7 @@ func activatePowerPolicy() error {
 		if hasStatusLine(status, "idle=inactive") ||
 			(hasStatusLine(status, "idle=active") &&
 				hasStatusLine(status, "running=yes") &&
-				exec.Command("systemctl", "--user", "is-active", "--quiet", "ryoku-idle.service").Run() == nil) {
+				service("--user", "is-active", "ryoku-idle.service") == host.ExitOK) {
 			idleReady = true
 			break
 		}
@@ -1120,9 +1177,8 @@ func activatePowerPolicy() error {
 	if !idleReady {
 		return fmt.Errorf("idle policy service did not acquire its hypridle owner")
 	}
-
-	if output, err := exec.Command("systemctl", "--user", "restart", "ryoku-clamshell.service").CombinedOutput(); err != nil {
-		return fmt.Errorf("start lid policy service: %w: %s", err, strings.TrimSpace(string(output)))
+	if code := service("--user", "restart", "ryoku-clamshell.service"); code != host.ExitOK {
+		return serviceError("start lid policy service", code)
 	}
 	if exec.Command(pkgBin("ryoku-clamshell"), "is-laptop").Run() != nil {
 		return nil
@@ -1132,7 +1188,7 @@ func activatePowerPolicy() error {
 		status := string(output)
 		if hasStatusLine(status, "owner-monitor=ready") &&
 			hasStatusLine(status, "inhibitor=held") &&
-			exec.Command("systemctl", "--user", "is-active", "--quiet", "ryoku-clamshell.service").Run() == nil {
+			service("--user", "is-active", "ryoku-clamshell.service") == host.ExitOK {
 			return nil
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -1151,7 +1207,16 @@ func runPowerHelper(name, arg string) error {
 }
 
 func reloadLogindLidPolicy() error {
-	if err := exec.Command("sudo", "systemctl", "reload", "systemd-logind").Run(); err != nil {
+	var err error
+	if updateInitSystem() == host.Runit {
+		// Void's sddm service starts elogind by D-Bus activation, though the
+		// handbook lets users supervise it with runit instead. loginctl
+		// reaches it either way, as ryoku-power-cutover does.
+		err = sys.Sudo("loginctl", "reload")
+	} else {
+		err = sys.Sudo("ryoku-host", "svc", "--system", "reload", "systemd-logind")
+	}
+	if err != nil {
 		return fmt.Errorf("reload logind lid policy: %w", err)
 	}
 	return nil
@@ -1195,10 +1260,10 @@ func prowlRefresh() {
 	}
 }
 
-// prowlPacmanOwned reports whether path belongs to an installed pacman package;
-// `pacman -Qo <path>` exits non-zero for a file no package owns (a dev install).
+// prowlPacmanOwned reports whether path belongs to an installed package.
 func prowlPacmanOwned(path string) bool {
-	return exec.Command("pacman", "-Qo", path).Run() == nil
+	_, err := host.Default().PackageOwner(path)
+	return err == nil
 }
 
 // prowlAction is what an update should do about prowl.
@@ -1227,6 +1292,9 @@ func prowlDecide(onPath, pacmanOwned bool) prowlAction {
 // the user is running to heal the box. A lock owned by a live pacman is left
 // alone. Composed from sys primitives, same reason as snapHelpers below.
 func clearStalePacmanLock() {
+	if updatePackageManager() != host.Pacman {
+		return
+	}
 	const lock = "/var/lib/pacman/db.lck"
 	if !sys.Exists(lock) {
 		return
@@ -1236,6 +1304,10 @@ func clearStalePacmanLock() {
 	}
 	progress.logf(i18n.T("Removing a stale pacman lock (no pacman running)"))
 	_ = privileged("rm", "-f", lock)
+}
+
+func snapshotCapability() (supported bool, reason string) {
+	return host.Default().Snapshots()
 }
 
 // snapHelpers: the snapshot facts the offer gates on, composed from sys
@@ -1283,6 +1355,9 @@ func wantedSnapperHelpers(h snapHelpers) []string {
 // opt-in + best-effort: Skip (or no answer) leaves them for `ryoku doctor`
 // to keep recommending, and a failed install never aborts the update.
 func offerSnapperHelpers() {
+	if supported, _ := snapshotCapability(); !supported {
+		return
+	}
 	want := wantedSnapperHelpers(gatherSnapHelpers())
 	if len(want) == 0 {
 		return
@@ -1361,8 +1436,9 @@ func doctorBin(checkout bool) string {
 // [ryoku] repo is pinned at that frozen release directory and the update runs,
 // so the set moves in one pacman transaction while Arch stays current;
 // `ryoku track stable` follows releases again afterwards. A snapshot id guides
-// a whole-system restore from the boot menu. With no argument it shows both:
-// the releases the ledger knows and the snapshots on disk.
+// a whole-system restore from the boot menu on hosts that provide snapshots.
+// With no argument it always shows releases, then either the snapshots on disk
+// or the host's snapshot availability reason.
 //
 // The snapshot path is a boot-menu restore, not a live one: Ryoku pins the
 // root subvolume on the kernel cmdline and in fstab (rootflags=subvol=@), and
@@ -1372,6 +1448,10 @@ func doctorBin(checkout bool) string {
 // 'snapper rollback'". So the command teaches that flow instead of running a
 // snapper command that cannot restore the system.
 func Rollback(args []string) error {
+	if updatePackageManager() == host.XBPS {
+		_, reason := snapshotCapability()
+		return errors.New(reason)
+	}
 	to := ""
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--to" && i+1 < len(args) {
@@ -1390,12 +1470,22 @@ func Rollback(args []string) error {
 		return restoreGuide(args[0])
 	}
 
-	fmt.Println(i18n.T("Two ways back:"))
-	fmt.Println(i18n.T("  the Ryoku set (its packages and config) to a published release, live;"))
-	fmt.Println(i18n.T("  the whole system (Arch included) to a snapshot, from the boot menu."))
+	supported, reason := snapshotCapability()
+	if supported {
+		fmt.Println(i18n.T("Two ways back:"))
+		fmt.Println(i18n.T("  the Ryoku set (its packages and config) to a published release, live;"))
+		fmt.Println(i18n.T("  the whole system (Arch included) to a snapshot, from the boot menu."))
+	} else {
+		fmt.Println(i18n.T("Published Ryoku releases can be restored live."))
+	}
 	fmt.Println()
 	printReleases()
 	fmt.Println()
+	if !supported {
+		fmt.Println(i18n.T("SNAPSHOTS  not on this box"))
+		fmt.Println("  " + reason)
+		return nil
+	}
 	fmt.Println(i18n.T("SNAPSHOTS  the whole system, on this disk"))
 	if err := Snapshots(); err != nil {
 		return err
@@ -1413,7 +1503,7 @@ func printReleases() {
 		fmt.Println(i18n.T("  ryoku track stable|unstable   moves it onto stable|unstable packages (with releases)"))
 		return
 	}
-	ch := sys.PackagedChannel()
+	ch := packagedChannel()
 	rel := sys.ReadRelease()
 	fmt.Printf(i18n.T("RELEASES  repo.ryoku.dev, channel: %s\n"), orDash(sys.DisplayChannel(ch)))
 	if rel.Release != "" {
@@ -1440,6 +1530,9 @@ func printReleases() {
 // restoreGuide is `ryoku rollback <id>`: the boot-menu restore, step by step,
 // naming the snapshot when snapper can describe it.
 func restoreGuide(id string) error {
+	if supported, reason := snapshotCapability(); !supported {
+		return errors.New(reason)
+	}
 	label := id
 	if rows, err := snapshotRows(); err == nil {
 		for _, r := range rows {
@@ -1465,8 +1558,11 @@ func restoreGuide(id string) error {
 	return nil
 }
 
-// Snapshots prints the snapshot table (the SNAPSHOTS block of `ryoku rollback`).
+// Snapshots prints the root snapshot table when this host provides it.
 func Snapshots() error {
+	if supported, reason := snapshotCapability(); !supported {
+		return errors.New(reason)
+	}
 	if !sys.Has("snapper") {
 		return fmt.Errorf(i18n.T("snapper is not installed"))
 	}
@@ -1646,14 +1742,21 @@ func Status(args []string) error {
 	// box that reads "up to date" above can still owe its distribution a
 	// kernel.
 	if r.SystemPending > 0 {
-		fmt.Printf(i18n.T("system:        %d package(s) waiting (sudo pacman -Syu)\n"), r.SystemPending)
+		if updatePackageManager() == host.XBPS {
+			fmt.Printf(i18n.T("system:        %d package(s) waiting (sudo xbps-install -Syu)\n"), r.SystemPending)
+		} else {
+			fmt.Printf(i18n.T("system:        %d package(s) waiting (sudo pacman -Syu)\n"), r.SystemPending)
+		}
 	} else {
 		fmt.Println(i18n.T("system:        up to date"))
 	}
 	// Three distinct states, never conflated: no root config at all (doctor
 	// restores it), a config we could not read (a bare "0" here used to look
 	// like a real empty store -- the opposite meaning), and the real count.
+	snapshotsSupported, snapshotsReason := snapshotCapability()
 	switch {
+	case !snapshotsSupported:
+		fmt.Printf(i18n.T("snapshots:     unavailable (%s)\n"), snapshotsReason)
 	case !sys.Exists("/etc/snapper/configs/root"):
 		fmt.Println(i18n.T("snapshots:     not configured (run ryoku doctor)"))
 	case !r.SnapshotsKnown:
@@ -1735,7 +1838,7 @@ func baseStatus() statusReport {
 		r.ReleaseName = ReleaseName()
 		return r
 	}
-	installed := sys.InstalledVersion()
+	installed, _ := host.Default().PackageVersion("ryoku-desktop")
 	latest := latestAvailable("ryoku-desktop")
 	for _, u := range pendingUpdates() {
 		if u.Name == "ryoku-desktop" {
@@ -1765,15 +1868,15 @@ func packagedStatus(installed, latest string) statusReport {
 		Release:        sys.ReadRelease().Release,
 		ReleaseName:    ReleaseName(),
 	}
-	if ch := sys.PackagedChannel(); ch != "" {
-		serves := channelServes(ch)
+	if channel := packagedChannel(); channel != "" {
+		serves := channelServes(channel)
 		r.ChannelRelease, r.ChannelReleaseName = serves.Release, serves.Name
 	}
 	// #291: a [ryoku] pin that is a frozen release OLDER than the installed
 	// release means a channel move (a failed boot-guard revert) changed the pin
 	// but the packages never followed. Surface it plainly, since a backwards
 	// "behind N commit(s)" is exactly how this reads without it.
-	if pin := sys.PackagedChannel(); sys.IsReleaseTag(pin) {
+	if pin := packagedChannel(); sys.IsReleaseTag(pin) {
 		if inst := sys.ReadRelease().Release; sys.IsReleaseTag(inst) && sys.CompareReleaseTags(pin, inst) < 0 {
 			r.ChannelPinStale = true
 			r.RecoverChannel = sys.ReadChannelIntent()
@@ -1833,18 +1936,7 @@ func isHex(s string) bool {
 // latestAvailable: version of pkg in the [ryoku] repo, or "" when the repo
 // isn't synced/configured. `pacman -Sl ryoku` = "<repo> <pkg> <ver>".
 func latestAvailable(pkg string) string {
-	out, err := sys.RunOut("pacman", "-Sl", "ryoku")
-	if err != nil {
-		return ""
-	}
-	sc := bufio.NewScanner(strings.NewReader(out))
-	for sc.Scan() {
-		f := strings.Fields(sc.Text())
-		if len(f) >= 3 && f[1] == pkg {
-			return f[2]
-		}
-	}
-	return ""
+	return repoAvailableVersion(pkg)
 }
 
 // updateItem = one row in the update list. pacman -> a package (name,
@@ -1859,34 +1951,56 @@ type updateItem struct {
 // (pacman-contrib). syncs to a private db, so no root needed. empty when
 // the system is current or checkupdates is absent.
 func pendingUpdates() []updateItem {
-	ups := []updateItem{}
-	if !sys.Has("checkupdates") {
-		return ups
+	if updatePackageManager() == host.XBPS {
+		return filterXBPSUpdates(true)
 	}
-	// cap the check: checkupdates syncs package dbs over the network and the
-	// update island polls this, so it MUST never hang status. generous so a
-	// slow sync still finishes.
+	updates := []updateItem{}
+	if !sys.Has("checkupdates") {
+		return updates
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	out, _ := exec.CommandContext(ctx, "checkupdates").Output()
-	sc := bufio.NewScanner(strings.NewReader(string(out)))
-	for sc.Scan() {
-		f := strings.Fields(sc.Text())
-		if len(f) >= 4 && f[2] == "->" && !externalReleasePkgs[f[0]] {
-			ups = append(ups, updateItem{Name: f[0], Old: f[1], New: f[3]})
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) >= 4 && fields[2] == "->" && !externalReleasePkgs[fields[0]] {
+			updates = append(updates, updateItem{Name: fields[0], Old: fields[1], New: fields[3]})
 		}
 	}
-	return ups
+	return updates
 }
 
 // systemPackageUpdates lists what a system upgrade would pull outside the Ryoku
 // channel: repo packages (checkupdates) and AUR packages (yay -Qua). Check-only.
 func systemPackageUpdates() []updateItem {
+	if updatePackageManager() == host.XBPS {
+		return filterXBPSUpdates(false)
+	}
 	return append(pendingUpdates(), aurUpdates()...)
+}
+
+func filterXBPSUpdates(ryoku bool) []updateItem {
+	names := map[string]bool{}
+	if packages, err := host.Default().RepoPackages(); err == nil {
+		for _, pkg := range packages {
+			names[pkg.Name] = true
+		}
+	}
+	var filtered []updateItem
+	for _, update := range xbpsPendingUpdates(nil) {
+		if names[update.Name] == ryoku {
+			filtered = append(filtered, update)
+		}
+	}
+	return filtered
 }
 
 // aurUpdates lists AUR packages with a newer version via `yay -Qua` (no install).
 func aurUpdates() []updateItem {
+	if updatePackageManager() == host.XBPS {
+		return []updateItem{}
+	}
 	ups := []updateItem{}
 	if !sys.Has("yay") {
 		return ups
@@ -1912,6 +2026,9 @@ func aurUpdates() []updateItem {
 // terminal-less poll (a prompt with no tty trips pam_faillock and can lock the
 // account out of sudo -- found the loud way).
 func snapshotCount() (int, bool) {
+	if supported, _ := snapshotCapability(); !supported {
+		return 0, false
+	}
 	if !sys.Has("snapper") {
 		return 0, false
 	}
@@ -1944,9 +2061,13 @@ func Deploy(_ []string) error {
 	return sys.Run(script)
 }
 
-// --- snapper pre/post (best-effort) ----------------------------------------
+// --- snapper pre/post (best-effort on supported hosts) ----------------------
 
 func snapperPre(desc string) string {
+	if supported, reason := snapshotCapability(); !supported {
+		fmt.Fprintln(os.Stderr, "warning: "+reason)
+		return ""
+	}
 	if !sys.Has("snapper") {
 		fmt.Fprintln(os.Stderr, i18n.T("note: snapper not installed; skipping pre-update snapshot"))
 		return ""
@@ -1967,6 +2088,9 @@ func snapperPre(desc string) string {
 }
 
 func snapperPost(pre, desc string) {
+	if supported, _ := snapshotCapability(); !supported {
+		return
+	}
 	if pre == "" {
 		return
 	}
@@ -2060,10 +2184,9 @@ func stopShell() error {
 		return nil
 	}
 	BeginReloadCover()
-	// Under systemd the unit would respawn the daemon two seconds after the
-	// quit below and the update would race its own quiesce. Stopping the unit
-	// is a no-op where it does not exist yet.
-	_ = exec.Command("systemctl", "--user", "stop", "ryoku-shell").Run()
+	// Stop whichever user-service backend supervises the shell before asking
+	// the daemon to quit, so the update cannot race an automatic respawn.
+	_ = service("--user", "stop", "ryoku-shell")
 	shell := pkgBin("ryoku-shell")
 	_ = exec.Command(shell, "quit").Run()
 	stopped := false
@@ -2105,20 +2228,20 @@ func stopShell() error {
 	return nil
 }
 
-// startShell brings the shell daemon back up, under systemd where the unit
-// exists so it stays supervised, else detached on the current binary. The
-// daemon-reload is what lets a unit materialize just laid down be found; a
-// stale-cached user manager would otherwise report it unknown at start.
+// startShell brings the shell daemon back up through the host service seam
+// where a supervised service exists, else detached on the current binary.
 func startShell() error {
 	if !sys.Has("ryoku-shell") {
 		return nil
 	}
-	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
-	if exec.Command("systemctl", "--user", "restart", "ryoku-shell").Run() == nil {
+	_ = service("--user", "daemon-reload")
+	switch code := service("--user", "restart", "ryoku-shell"); code {
+	case host.ExitOK:
 		return nil
-	}
-	if exec.Command("systemctl", "--user", "cat", "ryoku-shell.service").Run() == nil {
-		return fmt.Errorf("ryoku-shell.service failed its guarded restart")
+	case host.ExitAbsent:
+		// No service yet on a box mid-cutover; use the guarded fallback below.
+	default:
+		return serviceError("restart ryoku-shell", code)
 	}
 	activator := pkgBin("ryoku-qylock-activate")
 	if err := exec.Command(activator).Run(); err != nil {
@@ -2249,13 +2372,13 @@ func restartWallpaper(forceStart bool) {
 	if !sys.Has("ryogami") {
 		return
 	}
-	_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
+	_ = service("--user", "daemon-reload")
 	verb := "try-restart"
 	if forceStart {
-		_ = exec.Command("systemctl", "--user", "reset-failed", "ryogami.service").Run()
+		_ = service("--user", "reset-failed", "ryogami.service")
 		verb = "restart"
 	}
-	if exec.Command("systemctl", "--user", verb, "ryogami.service").Run() == nil {
+	if service("--user", verb, "ryogami.service") == host.ExitOK {
 		return
 	}
 	// No unit yet on a box mid-cutover: drop the old process so the shell's

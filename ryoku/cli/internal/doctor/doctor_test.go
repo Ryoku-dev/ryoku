@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	"strings"
 	"testing"
@@ -1829,8 +1830,8 @@ func TestReconcilePortalRoutingHealsUserHijack(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local/share"))
 	data := filepath.Join(home, "data")
 	t.Setenv("XDG_DATA_DIRS", data)
-	// A fake provider reporting a portal backend, resolved via RYOKU_WM; PATH
-	// holds only it, so the fix's systemctl nudge never reaches a live session.
+	// A fake provider reports the required portal backend. PATH holds only it,
+	// so the best-effort service restart cannot reach a live session.
 	bin := filepath.Join(home, "bin")
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
@@ -2576,6 +2577,7 @@ func TestStaleUserRyotunesSpotsTheWrapperOnly(t *testing.T) {
 // The portal frontend a session needs is the one its compositor declares
 // (wm.Caps.PortalBackend): a niri box must not be told to install Hyprland's.
 func TestPortalFrontendCheckFollowsTheDeclaredBackend(t *testing.T) {
+	t.Setenv("RYOKU_HOST_PKGMGR", "pacman")
 	cases := []struct{ provider, backend, wantPkg string }{
 		{"niri", "gnome", "xdg-desktop-portal-gnome"},
 		{"hyprland", "hyprland", "xdg-desktop-portal-hyprland"},
@@ -2605,12 +2607,272 @@ func TestPortalFrontendCheckFollowsTheDeclaredBackend(t *testing.T) {
 		}
 	}
 
-	// With no provider answering, every frontend is accepted rather than one
-	// compositor's: the old behaviour pointed a niri box at Hyprland's portal.
+	// Without a provider answer, the check cannot name a portal package without
+	// risking a recommendation for a different session.
 	t.Setenv("RYOKU_WM", "none")
 	t.Setenv("PATH", t.TempDir())
 	fix, pkgs := portalFrontendCheck()
-	if fix != "" || len(pkgs) < 2 {
-		t.Fatalf("no provider: fix=%q pkgs=%v, want no hint and every frontend", fix, pkgs)
+	if fix != "" || len(pkgs) != 0 {
+		t.Fatalf("no provider: fix=%q pkgs=%v, want neither", fix, pkgs)
+	}
+}
+
+func TestSnapshotReconcilersAreNeutralWhenUnsupported(t *testing.T) {
+	old := doctorSnapshots
+	t.Cleanup(func() { doctorSnapshots = old })
+	doctorSnapshots = func() (bool, string) {
+		return false, "Snapshots are not available on this system."
+	}
+	for name, reconcile := range map[string]func(bool) recResult{
+		"swap":    reconcileSwapSubvolume,
+		"snapper": reconcileSnapper,
+		"access":  reconcileSnapperAccess,
+	} {
+		t.Run(name, func(t *testing.T) {
+			result := reconcile(true)
+			if result.status != recNote || result.detail != "Snapshots are not available on this system." || result.remedy != "" {
+				t.Fatalf("result = %+v", result)
+			}
+		})
+	}
+}
+
+func TestPacmanReconcilersAreNeutralOnXBPS(t *testing.T) {
+	oldManager, oldHasPacman := doctorPackageManager, hasPacman
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		hasPacman = oldHasPacman
+	})
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	hasPacman = func() bool { return false }
+	for name, reconcile := range map[string]func(bool) recResult{
+		"lock":      reconcilePacmanLock,
+		"ownership": reconcileConflictingRyokuFiles,
+		"ryotunes":  reconcileRyotunes,
+	} {
+		t.Run(name, func(t *testing.T) {
+			result := reconcile(true)
+			if result.status != recNote || result.remedy != "" || strings.Contains(result.detail, "sudo pacman") {
+				t.Fatalf("result = %+v", result)
+			}
+		})
+	}
+}
+
+func TestVoidPackageChannelUsesXBPSRepository(t *testing.T) {
+	oldManager, oldInstalled := doctorPackageManager, doctorPackageInstalled
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorPackageInstalled = oldInstalled
+	})
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	doctorPackageInstalled = func(string) bool { return true }
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	configDir := t.TempDir()
+	t.Setenv("RYOKU_XBPS_CONFIG_DIR", configDir)
+	if err := os.WriteFile(filepath.Join(configDir, "20-ryoku.conf"), []byte("repository="+sys.VoidChannelURL(sys.ChannelStable)+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := reconcileRyokuChannel(true)
+	if result.status != recOK || strings.Contains(result.detail, "pacman") {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestVoidBootGuardReportsUnsupportedWithoutSystemd(t *testing.T) {
+	oldManager := doctorPackageManager
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	t.Setenv("RYOKU_HOST_PKGMGR", "xbps")
+	t.Cleanup(func() { doctorPackageManager = oldManager })
+
+	result := reconcileBootGuard(false)
+	_, reason := host.Default().Snapshots()
+	if result.status != recOK || result.detail != reason || strings.Contains(result.remedy, "systemctl") {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestPendingXBPSConfigUpdates(t *testing.T) {
+	oldManager, oldFind := doctorPackageManager, doctorFindPendingConfig
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorFindPendingConfig = oldFind
+	})
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	doctorFindPendingConfig = func(pattern string) []string {
+		if pattern != "*.new-*" {
+			t.Fatalf("pattern = %q", pattern)
+		}
+		return []string{"/etc/example.conf.new-2.0_1"}
+	}
+	result := reconcilePacnew(true)
+	if result.status != recWarn || !strings.Contains(result.detail, "/etc/example.conf.new-2.0_1") {
+		t.Fatalf("result = %+v", result)
+	}
+	if strings.Contains(result.remedy, "pacdiff") || !strings.Contains(result.remedy, "sudo rm -f") {
+		t.Fatalf("remedy = %q", result.remedy)
+	}
+}
+
+func TestOrphanRemedyUsesXBPS(t *testing.T) {
+	oldManager, oldOrphans := doctorPackageManager, doctorOrphans
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorOrphans = oldOrphans
+	})
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	doctorOrphans = func() ([]string, error) { return []string{"unused-1.0_1"}, nil }
+	result := reconcileOrphans(true)
+	if result.status != recNote || !strings.Contains(result.remedy, "xbps-query -O") || strings.Contains(result.remedy, "pacman") {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestSessionComponentUsesPackageAndServiceSeams(t *testing.T) {
+	oldInstalled, oldService := doctorPackageInstalled, doctorService
+	t.Cleanup(func() {
+		doctorPackageInstalled = oldInstalled
+		doctorService = oldService
+	})
+	doctorPackageInstalled = func(name string) bool { return name == "installed" }
+	doctorService = func(args ...string) int {
+		if strings.Join(args, " ") == "--user is-active running" {
+			return host.ExitOK
+		}
+		return host.ExitFalse
+	}
+	if !sessionComponentPresent([]string{"installed"}) {
+		t.Fatal("installed package was not accepted")
+	}
+	if !sessionComponentPresent([]string{"missing"}, sessionService{"--user", "running"}) {
+		t.Fatal("running service was not accepted")
+	}
+	if sessionComponentPresent([]string{"missing"}, sessionService{"--user", "down"}) {
+		t.Fatal("missing package and down service were accepted")
+	}
+}
+
+func TestIconFontAcceptsFontconfigVisibleCopy(t *testing.T) {
+	home := t.TempDir()
+	bin := filepath.Join(home, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	provider := filepath.Join(bin, "ryoku-wm-test")
+	if err := os.WriteFile(provider, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", bin)
+	t.Setenv("RYOKU_WM", "test")
+	oldVisible, oldInstall := doctorMaterialSymbolsVisible, doctorPackageInstall
+	t.Cleanup(func() {
+		doctorMaterialSymbolsVisible = oldVisible
+		doctorPackageInstall = oldInstall
+	})
+	doctorMaterialSymbolsVisible = func() bool { return true }
+	doctorPackageInstall = func(names ...string) int {
+		t.Fatal("visible font triggered an install")
+		return host.ExitFailure
+	}
+	result := reconcileIconFont(true)
+	if result.status != recOK {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestRunitFailureScanSkipsServicesMarkedDown(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"wanted", "marked"} {
+		if err := os.MkdirAll(filepath.Join(dir, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "marked", "down"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldService := doctorService
+	t.Cleanup(func() { doctorService = oldService })
+	doctorService = func(args ...string) int {
+		switch args[1] {
+		case "is-enabled":
+			return host.ExitOK
+		case "is-active":
+			return host.ExitFalse
+		}
+		return host.ExitFailure
+	}
+	failures, reliable := runitFailedServicesIn([]runitServiceSource{{scope: "--user", dir: dir}})
+	if !reliable || len(failures) != 1 || failures[0].name != "wanted" {
+		t.Fatalf("failures = %+v, reliable = %t", failures, reliable)
+	}
+}
+
+func TestFailedServicesHaveRunitMeaning(t *testing.T) {
+	oldInit, oldFailures := doctorInitSystem, doctorRunitFailedServices
+	t.Cleanup(func() {
+		doctorInitSystem = oldInit
+		doctorRunitFailedServices = oldFailures
+	})
+	doctorInitSystem = func() (host.InitSystem, error) { return host.Runit, nil }
+	doctorRunitFailedServices = func() ([]runitServiceFailure, bool) {
+		return []runitServiceFailure{{scope: "--system", name: "NetworkManager"}, {scope: "--user", name: "pipewire"}}, true
+	}
+	result := reconcileFailedUnits(true)
+	if result.status != recWarn || strings.Contains(result.remedy, "systemctl") {
+		t.Fatalf("result = %+v", result)
+	}
+	for _, command := range []string{"sudo ryoku-host svc --system start NetworkManager", "ryoku-host svc --user start pipewire"} {
+		if !strings.Contains(result.remedy, command) {
+			t.Fatalf("remedy %q misses %q", result.remedy, command)
+		}
+	}
+
+	doctorRunitFailedServices = func() ([]runitServiceFailure, bool) { return nil, false }
+	result = reconcileFailedUnits(true)
+	if result.status != recNote || result.remedy != "" {
+		t.Fatalf("unreliable result = %+v", result)
+	}
+}
+
+func TestUncommentedConfigDropsHeadingLikeComments(t *testing.T) {
+	got := uncommentedConfig("## Path: System/Snapper\n# explanation\nSNAPPER_CONFIGS=\"root\"\n")
+	if got != "SNAPPER_CONFIGS=\"root\"" {
+		t.Fatalf("config = %q", got)
+	}
+}
+
+func TestVoidReportAvoidsPacmanSystemctlAndSnapperComments(t *testing.T) {
+	oldManager, oldInit := doctorPackageManager, doctorInitSystem
+	oldVersion, oldService := reportPackageVersion, doctorService
+	oldOrphans, oldPending, oldSnapshots := doctorOrphans, doctorFindPendingConfig, doctorSnapshots
+	t.Cleanup(func() {
+		doctorPackageManager, doctorInitSystem = oldManager, oldInit
+		reportPackageVersion, doctorService = oldVersion, oldService
+		doctorOrphans, doctorFindPendingConfig, doctorSnapshots = oldOrphans, oldPending, oldSnapshots
+	})
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	doctorInitSystem = func() (host.InitSystem, error) { return host.Runit, nil }
+	reportPackageVersion = func(string) (string, bool) { return "", false }
+	doctorService = func(args ...string) int { return host.ExitAbsent }
+	doctorOrphans = func() ([]string, error) { return nil, nil }
+	doctorFindPendingConfig = func(pattern string) []string {
+		if pattern != "*.new-*" {
+			t.Fatalf("pattern = %q", pattern)
+		}
+		return nil
+	}
+	doctorSnapshots = func() (bool, string) { return false, "unsupported" }
+	report := gatherReport(nil)
+	for _, forbidden := range []string{"$ pacman ", "$ systemctl ", "/etc/conf.d/snapper:", "\n## Path: System/Snapper"} {
+		if strings.Contains(report, forbidden) {
+			t.Fatalf("report contains %q", forbidden)
+		}
+	}
+	for _, want := range []string{"package manager: xbps", "service manager: runit", "pending config files: (none)"} {
+		if !strings.Contains(report, want) {
+			t.Fatalf("report missing %q", want)
+		}
 	}
 }

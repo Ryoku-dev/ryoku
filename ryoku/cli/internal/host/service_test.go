@@ -96,8 +96,28 @@ func TestRunitUserServiceStateAndReload(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(service, "down")); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := os.Stat(filepath.Join(service, runitUserDisabledMarker)); err != nil {
+		t.Fatal(err)
+	}
 	if code := app.Service([]string{"--user", "is-enabled", "bluetooth"}); code != ExitFalse {
 		t.Fatalf("disabled exit = %d", code)
+	}
+	if code := app.Service([]string{"--user", "enable", "bluetooth"}); code != ExitOK {
+		t.Fatal(code)
+	}
+	for _, name := range []string{"down", runitUserDisabledMarker} {
+		if _, err := os.Stat(filepath.Join(service, name)); !os.IsNotExist(err) {
+			t.Fatalf("%s remained after enable: %v", name, err)
+		}
+	}
+	if code := app.Service([]string{"--user", "is-enabled", "bluetooth"}); code != ExitOK {
+		t.Fatalf("enabled exit = %d", code)
+	}
+	if err := os.WriteFile(filepath.Join(service, "down"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code := app.Service([]string{"--user", "is-enabled", "bluetooth"}); code != ExitOK {
+		t.Fatalf("committed down marker reported disabled: %d", code)
 	}
 	if code := app.Service([]string{"--user", "reload", "bluetooth"}); code != ExitOK {
 		t.Fatal(code)

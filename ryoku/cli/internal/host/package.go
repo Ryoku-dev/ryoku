@@ -20,10 +20,66 @@ func (a *App) Package(args []string) int {
 	return a.xbps(args)
 }
 
+// Orphans lists packages that were installed as dependencies and are no longer
+// required by another installed package.
+func (a *App) Orphans() ([]string, error) {
+	manager, err := a.PackageManager()
+	if err != nil {
+		return nil, err
+	}
+	name, args := "pacman", []string{"-Qdtq"}
+	if manager == XBPS {
+		name, args = "xbps-query", []string{"-O"}
+	}
+	result := a.query(name, args...)
+	output := strings.TrimSpace(result.Output)
+	if result.Code != 0 {
+		if result.Code == 1 && output == "" {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("%s: exit %d: %s", strings.Join(append([]string{name}, args...), " "), result.Code, output)
+	}
+	if output == "" {
+		return nil, nil
+	}
+	lines := strings.Split(output, "\n")
+	orphans := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line = strings.TrimSpace(line); line != "" {
+			orphans = append(orphans, line)
+		}
+	}
+	return orphans, nil
+}
+func (a *App) PackageOwner(path string) (string, error) {
+	manager, err := a.PackageManager()
+	if err != nil {
+		return "", err
+	}
+	name, args := "pacman", []string{"-Qoq", path}
+	if manager == XBPS {
+		name, args = "xbps-query", []string{"-o", path}
+	}
+	result := a.query(name, args...)
+	if result.Code != 0 {
+		return "", fmt.Errorf("%s: exit %d", strings.Join(append([]string{name}, args...), " "), result.Code)
+	}
+	value := strings.TrimSpace(result.Output)
+	if manager == XBPS {
+		if owner, _, ok := strings.Cut(value, ":"); ok {
+			value = strings.TrimSpace(owner)
+		}
+		if match := xbpsPackagePattern.FindStringSubmatch(value); len(match) == 3 {
+			value = match[1]
+		}
+	}
+	return value, nil
+}
+
 func (a *App) pacman(args []string) int {
 	verb, rest := args[0], args[1:]
 	switch verb {
-	case "installed", "available", "remove":
+	case "installed", "available", "remove", "explicit":
 		if len(rest) == 0 {
 			return ExitUsage
 		}
@@ -105,6 +161,8 @@ func (a *App) pacman(args []string) int {
 		command = append([]string{"-U", "--noconfirm"}, rest...)
 	case "remove":
 		command = append([]string{"-R", "--noconfirm"}, rest...)
+	case "explicit":
+		command = append([]string{"-D", "--asexplicit", "--quiet"}, rest...)
 	case "version":
 		command = []string{"-Q", rest[0]}
 	case "owner":
@@ -166,7 +224,7 @@ func (a *App) xbps(args []string) int {
 		return a.failf("%v", err)
 	}
 	switch verb {
-	case "installed", "available", "remove", "local":
+	case "installed", "available", "remove", "local", "explicit":
 		if len(rest) == 0 {
 			return ExitUsage
 		}
@@ -289,6 +347,8 @@ func (a *App) xbps(args []string) int {
 			return ExitOK
 		}
 		return commandExit(a.run("xbps-remove", append([]string{"-y"}, installed...)...))
+	case "explicit":
+		return commandExit(a.run("xbps-pkgdb", append([]string{"-m", "manual"}, translated...)...))
 	}
 	return ExitUsage
 }

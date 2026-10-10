@@ -2,11 +2,12 @@ package doctor
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"ryoku-cli/internal/sys"
 	"strings"
+
+	"ryoku-cli/internal/host"
+	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
 )
@@ -28,11 +29,27 @@ import (
 // failing at its first ExecStartPre and the desktop comes up with no shell
 // after the next login. Those units go back to the packaged ones in the same
 // pass.
+
+var (
+	devPackageInstalled = func(name string) bool {
+		return host.Default().Package([]string{"installed", name}) == host.ExitOK
+	}
+	devPackageOwner = func(path string) (string, error) {
+		return host.Default().PackageOwner(path)
+	}
+	devPathExists  = sys.Exists
+	devService     = func(args []string) int { return host.Default().Service(args) }
+	reloadDevUnits = func(units []string) {
+		_ = devService([]string{"--user", "daemon-reload"})
+		_ = devService(append([]string{"--user", "reset-failed"}, units...))
+	}
+)
+
 func reconcileDevResidue(checkOnly bool) recResult {
 	if sys.ResolveRepo() != "" {
 		return okRes(i18n.T("checkout box; home-deployed artifacts are the live desktop"))
 	}
-	if !sys.PkgInstalled("ryoku-desktop") {
+	if !devPackageInstalled("ryoku-desktop") {
 		return okRes(i18n.T("not a packaged install"))
 	}
 	l := residueLayout{
@@ -99,10 +116,7 @@ func reconcileDevResidue(checkOnly bool) recResult {
 	units, failed := l.applyDevUnits(heals)
 	kept = append(kept, failed...)
 	if len(units) > 0 {
-		_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
-		// a unit that already hit its start limit on the missing binary stays
-		// failed until reset; the shell daemon check further down starts it.
-		_ = exec.Command("systemctl", append([]string{"--user", "reset-failed"}, units...)...).Run()
+		reloadDevUnits(units)
 	}
 	if len(kept) > 0 {
 		return failRes(i18n.T("could not remove home-deployed artifact(s) still shadowing the packaged install: %s"), strings.Join(kept, ", ")).
@@ -116,10 +130,10 @@ func reconcileDevResidue(checkOnly bool) recResult {
 // ryoku-* names that the dev deploy also builds into ~/.local/bin.
 var packagedTwin = func(name string) bool {
 	usr := "/usr/bin/" + name
-	if !sys.Exists(usr) {
+	if !devPathExists(usr) {
 		return false
 	}
-	owner, err := sys.RunOut("pacman", "-Qoq", usr)
+	owner, err := devPackageOwner(usr)
 	if err != nil {
 		return false
 	}

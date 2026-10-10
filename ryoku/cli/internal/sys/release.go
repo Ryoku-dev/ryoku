@@ -25,7 +25,10 @@ import (
 // segment is the mount, not the channel). publish-repo.yml writes them. The
 // channel a box is on is nothing but the Server line of its [ryoku] stanza,
 // so there is no second state to drift from it.
-const RepoBase = "https://repo.ryoku.dev/stable"
+const (
+	RepoBase     = "https://repo.ryoku.dev/stable"
+	VoidRepoBase = RepoBase + "/void"
+)
 
 const (
 	ChannelStable  = "stable"
@@ -125,6 +128,42 @@ func ChannelServer(channel string) string {
 		return RepoBase + "/channels/testing/$arch"
 	case IsReleaseTag(channel):
 		return RepoBase + "/releases/" + channel + "/$arch"
+	}
+	return ""
+}
+
+// VoidChannelURL is the signed XBPS repository URL for a channel or frozen
+// release. Unlike pacman's Server line, XBPS repositories do not carry an
+// architecture placeholder.
+func VoidChannelURL(channel string) string {
+	switch {
+	case channel == ChannelStable:
+		return VoidRepoBase + "/x86_64"
+	case channel == ChannelTesting:
+		return VoidRepoBase + "/channels/testing/x86_64"
+	case IsReleaseTag(channel):
+		return VoidRepoBase + "/releases/" + channel + "/x86_64"
+	}
+	return ""
+}
+
+// ChannelOfVoidURL maps a published XBPS repository URL to its channel.
+func ChannelOfVoidURL(repository string) string {
+	value := strings.TrimSuffix(strings.TrimSpace(repository), "/")
+	value = strings.TrimSuffix(strings.TrimSuffix(value, "/"), "x86_64")
+	if !strings.HasPrefix(value, VoidRepoBase) {
+		return ""
+	}
+	rest := strings.Trim(strings.TrimPrefix(value, VoidRepoBase), "/")
+	switch {
+	case rest == "":
+		return ChannelStable
+	case rest == "channels/testing":
+		return ChannelTesting
+	case strings.HasPrefix(rest, "releases/"):
+		if tag := strings.TrimPrefix(rest, "releases/"); IsReleaseTag(tag) {
+			return tag
+		}
 	}
 	return ""
 }

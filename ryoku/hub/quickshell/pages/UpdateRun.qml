@@ -217,7 +217,7 @@ Column {
                     text: st.live ? view.since(st.modelData.began || 0)
                         : st.state === "skipped" ? I18n.tr("skipped")
                         : (st.modelData.took || 0) > 0 ? view.run.human(st.modelData.took)
-                        : (st.state === "ok" && st.modelData.key === "snapshot" && view.run.snapshot !== "" ? "#" + view.run.snapshot : "")
+                        : (view.run.snapshotsSupported && st.state === "ok" && st.modelData.key === "snapshot" && view.run.snapshot !== "" ? "#" + view.run.snapshot : "")
                     color: st.live ? Tokens.ink : Tokens.inkFaint
                     font.family: Tokens.mono; font.pixelSize: Tokens.fMicro
                 }

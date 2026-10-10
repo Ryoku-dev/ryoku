@@ -85,3 +85,17 @@ func TestDrmCardOf(t *testing.T) {
 		t.Fatalf("drmCardOf(render node) = %q, want empty", got)
 	}
 }
+
+func TestReconcileRenderPinPanelIsNeutralWithoutCapability(t *testing.T) {
+	oldSupported, oldPin := gpuPinSupported, pinFirstDriver
+	t.Cleanup(func() { gpuPinSupported, pinFirstDriver = oldSupported, oldPin })
+	gpuPinSupported = func() bool { return false }
+	pinFirstDriver = func() string {
+		t.Fatal("unsupported compositor must not inspect a render pin")
+		return ""
+	}
+
+	if r := reconcileRenderPinPanel(false); r.status != recOK {
+		t.Fatalf("unsupported compositor = %s %q, want neutral", r.status.label(), r.detail)
+	}
+}

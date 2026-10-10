@@ -29,8 +29,8 @@ import (
 // stale login env; a box that never tracked follows main.
 func ryokuChannel() string {
 	if sys.ResolveRepo() == "" {
-		if c := sys.PackagedChannel(); c != "" {
-			return c
+		if channel := packagedChannel(); channel != "" {
+			return channel
 		}
 	}
 	if c := sys.TrackedChannel(); c != "" {

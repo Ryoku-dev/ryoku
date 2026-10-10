@@ -1,0 +1,18 @@
+# Template file for 'game-devices-udev'
+pkgname=game-devices-udev
+version=1.0
+revision=1
+wrksrc="game-devices-udev"
+build_style=meson
+depends="eudev"
+short_desc="Udev rules for game controllers"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="MIT"
+homepage="https://codeberg.org/fabiscafe/game-devices-udev"
+distfiles="${homepage}/archive/${version}.tar.gz"
+checksum=ac733ea6babb6623e1ac76eceac9b494255ae312d1e7c3fde011ac50ee99f6c5
+provides="nintendo-udev-${version}_${revision}"
+
+post_install() {
+	vlicense LICENSE
+}

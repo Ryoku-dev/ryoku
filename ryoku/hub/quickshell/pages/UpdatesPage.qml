@@ -118,6 +118,11 @@ Item {
     property string promptDetail: ""
     property string promptError: ""
     property var promptOptions: []
+    property bool runSnapshotsKnown: false
+    property bool runSnapshotsSupported: false
+    property string runSnapshotReason: ""
+    readonly property bool snapshotsSupported: pg.runSnapshotsKnown ? pg.runSnapshotsSupported : Updates.snapshotsSupported
+    readonly property string snapshotReason: pg.runSnapshotsKnown ? pg.runSnapshotReason : Updates.snapshotReason
     readonly property string statePath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-update.json"
     readonly property string answerPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-update-answer"
     readonly property string defaultLogPath: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/ryoku/update-log.txt"
@@ -304,6 +309,11 @@ Item {
         pg.watch = o.watch || ({});
         pg.errorMsg = o.error || "";
         pg.snapshot = o.snapshot || "";
+        pg.runSnapshotsKnown = o.snapshotsSupported === true || (o.snapshotReason || "") !== "";
+        if (pg.runSnapshotsKnown) {
+            pg.runSnapshotsSupported = o.snapshotsSupported;
+            pg.runSnapshotReason = o.snapshotReason || "";
+        }
         pg.logPath = o.logPath || "";
         const sk = JSON.stringify(o.steps || []);
         if (sk !== pg.stepsKey) {
@@ -366,7 +376,7 @@ Item {
     // (`ryoku rollback` prints the boot-menu restore steps and exits, so hold
     // the window for the user to read), then clear the error state.
     function rollback() {
-        if (pg.snapshot === "")
+        if (!pg.snapshotsSupported || pg.snapshot === "")
             return;
         Spawn.run(["kitty", "--class=dev.ryoku.update", "-e", "sh", "-c", "ryoku rollback \"$1\"; printf '\\npress enter to close '; read -r _", "sh", pg.snapshot]);
         pg.dismiss();
@@ -538,6 +548,13 @@ Item {
             text: I18n.tr("What sits behind origin, and a one-click update.")
             color: Tokens.inkMuted; font.family: Tokens.ui
             font.pixelSize: Tokens.fBody; wrapMode: Text.WordWrap
+        }
+        Text {
+            visible: pg.snapshotReason !== ""
+            width: Math.min(parent.width, 720)
+            text: pg.snapshotReason
+            color: Tokens.inkFaint; font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall; wrapMode: Text.WordWrap
         }
     }
 
@@ -973,7 +990,7 @@ Item {
             Text {
                 width: runCol.width
                 visible: pg.phase === "error" && pg.errorMsg !== "stopped by request"
-                text: pg.snapshot !== ""
+                text: pg.snapshotsSupported && pg.snapshot !== ""
                     ? I18n.tr("The system was snapshotted before the update. Roll back to undo every change.")
                     : I18n.tr("DETAILS shows everything the update printed.")
                 color: Tokens.inkFaint; font.family: Tokens.ui
@@ -1145,7 +1162,7 @@ Item {
             }
             Btn {
                 anchors.verticalCenter: parent.verticalCenter
-                visible: pg.phase === "error" && pg.snapshot !== ""
+                visible: pg.snapshotsSupported && pg.phase === "error" && pg.snapshot !== ""
                 text: I18n.tr("ROLL BACK")
                 onAct: pg.rollback()
             }

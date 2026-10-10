@@ -1,0 +1,17 @@
+# Template file for 'ttf-hack-nerd'
+pkgname=ttf-hack-nerd
+version=3.5.1
+revision=1
+create_wrksrc=yes
+short_desc="Hack Nerd Font monospace face"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="MIT AND Bitstream-Vera"
+homepage="https://github.com/ryanoasis/nerd-fonts"
+distfiles="${homepage}/releases/download/v${version}/Hack.tar.xz"
+checksum=cdd389472e10e2261520140ff1b382b4f8a226af5fd0b2735b975d31151d9c3c
+
+do_install() {
+	vmkdir usr/share/fonts/hack-nerd
+	vcopy "*.ttf" usr/share/fonts/hack-nerd
+	vlicense LICENSE.md
+}

@@ -1,0 +1,101 @@
+#!/bin/sh
+
+refresh_caches() {
+	if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+		gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+	fi
+	if command -v update-desktop-database >/dev/null 2>&1; then
+		update-desktop-database -q /usr/share/applications 2>/dev/null || true
+	fi
+}
+
+session_running() {
+	command -v pgrep >/dev/null 2>&1 || return 1
+	pgrep -x ryoku-shell >/dev/null 2>&1 ||
+		pgrep -x ryoku-clamshell >/dev/null 2>&1 ||
+		pgrep -x ryoku-idle >/dev/null 2>&1
+}
+
+enable_service_once() {
+	name=$1
+	service=/etc/sv/$name
+	link=/etc/runit/runsvdir/default/$name
+	[ -d "$service" ] || return 0
+	mkdir -p /etc/runit/runsvdir/default
+	[ -e "$link" ] || [ -L "$link" ] || ln -s "$service" "$link"
+}
+
+enable_first_install_services() {
+	for name in \
+		ryoku-var-state \
+		ryoku-network-kill-guard ryoku-network-kill-disconnect \
+		polkitd NetworkManager bluetoothd power-profiles-daemon \
+		socklog-unix nanoklogd sddm; do
+		enable_service_once "$name"
+	done
+}
+
+disable_boot_guard() {
+	if command -v sv >/dev/null 2>&1 && [ -e /var/service/ryoku-boot-guard ]; then
+		sv down /var/service/ryoku-boot-guard >/dev/null 2>&1 || true
+	fi
+	rm -f /etc/runit/runsvdir/default/ryoku-boot-guard \
+		/var/service/ryoku-boot-guard \
+		/var/lib/ryoku/update-pending.json
+}
+
+tune_host() {
+	if command -v ryoku-bluetooth-tune >/dev/null 2>&1; then
+		ryoku-bluetooth-tune >/dev/null 2>&1 || true
+		if command -v sv >/dev/null 2>&1 &&
+		   sv status /etc/sv/bluetoothd 2>/dev/null | grep -q '^run:'; then
+			sv restart /etc/sv/bluetoothd >/dev/null 2>&1 || true
+		fi
+	fi
+	if command -v ryoku-wifi-regdom >/dev/null 2>&1; then
+		ryoku-wifi-regdom apply >/dev/null 2>&1 || true
+	fi
+	if command -v ryoku-hw-backlight-fix >/dev/null 2>&1; then
+		ryoku-hw-backlight-fix >/dev/null 2>&1 || true
+	fi
+}
+
+power_prepare() {
+	helper=/usr/bin/ryoku-power-cutover
+	[ -x "$helper" ] || return 0
+	"$helper" prepare-package
+}
+
+power_commit() {
+	helper=/usr/bin/ryoku-power-cutover
+	[ -x "$helper" ] || return 0
+	"$helper" package
+}
+
+case "$ACTION" in
+	pre)
+		if [ "${RYOKU_MANAGED_UPDATE:-0}" != 1 ] &&
+		   session_running && [ -x /usr/bin/ryoku-power-cutover ]; then
+			power_prepare
+		fi
+		;;
+	post)
+		refresh_caches
+		if [ "${UPDATE:-no}" != yes ]; then
+			enable_first_install_services
+		fi
+		disable_boot_guard
+		tune_host
+		if [ "${RYOKU_MANAGED_UPDATE:-0}" != 1 ]; then
+			if [ -x /run/ryoku-power-cutover ] || session_running; then
+				power_commit
+			elif command -v loginctl >/dev/null 2>&1; then
+				loginctl reload >/dev/null 2>&1 || true
+			fi
+		fi
+		cat <<'EOF'
+==> Run `ryoku materialize` as your user to lay the Ryoku base configs into
+    ~/.config. The next Ryoku session provisions them through its runit bootstrap.
+EOF
+		;;
+esac

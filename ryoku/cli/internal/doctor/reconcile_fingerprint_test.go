@@ -37,3 +37,25 @@ func TestPlanFingerprintModule(t *testing.T) {
 		})
 	}
 }
+
+func TestReconcileFingerprintNotesUnavailableProvider(t *testing.T) {
+	oldReader, oldPath := fingerprintReaderPresent, fingerprintModulePath
+	oldAvailable, oldAdvice, oldInstall := fingerprintProviderAvailable, fingerprintInstallAdvice, fingerprintInstall
+	fingerprintReaderPresent = func() bool { return true }
+	fingerprintModulePath = t.TempDir() + "/missing.so"
+	fingerprintProviderAvailable = func() bool { return false }
+	fingerprintInstallAdvice = func() string { return "pam-fprint-grosshack is not packaged for this system" }
+	fingerprintInstall = func() int {
+		t.Fatal("unavailable provider was installed")
+		return -1
+	}
+	t.Cleanup(func() {
+		fingerprintReaderPresent, fingerprintModulePath = oldReader, oldPath
+		fingerprintProviderAvailable, fingerprintInstallAdvice, fingerprintInstall = oldAvailable, oldAdvice, oldInstall
+	})
+
+	got := reconcileFingerprintModule(true)
+	if got.status != recNote || got.remedy != "pam-fprint-grosshack is not packaged for this system" {
+		t.Fatalf("result = %#v, want unavailable note with host advice", got)
+	}
+}

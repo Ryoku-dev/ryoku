@@ -55,20 +55,34 @@ future signed XBPS repository.
 installer routing, and release workflow. The profile and workflow are planned;
 the package, init, and host-seam inputs they consume are already present.
 
+## Snapshots
+
+Ryoku's snapshot stack is not available on Void Linux. Updates skip snapper and
+show one warning instead, so they cannot be rolled back from the boot menu.
+
 ## Runtime layout
 
-The installer places `wait-for`, `xdg-dirs`, `session-start`, and
+The packages place `wait-for`, `xdg-dirs`, `session-start`, and
 `session-services` in `/usr/lib/ryoku/runit/`. System services are copied to
 `/etc/sv/`; their enablement symlinks live in
 `/etc/runit/runsvdir/default/`, including distro services that already exist
-under `/etc/sv/`.
+under `/etc/sv/`. Packaged user service definitions live under
+`/usr/lib/ryoku/runit/user/`.
 
-Turnstile supervises user services from `~/.config/service/` and reads one
-environment variable per file from `~/.config/service-env/`.
+Turnstile supervises each user's services from `~/.config/service/` and reads
+one environment variable per file from `~/.config/service-env/`. Before the
+session roster starts, `ryoku-host session ensure --user` creates missing
+services from the packaged definitions and refreshes changed run, finish, conf,
+and log scripts. It leaves `supervise/` state and user disables alone. A dev
+deploy installs its checkout definitions to the same packaged-source directory
+and calls the same provisioning command, so there is only one copy path.
 
 PipeWire, pipewire-pulse, and WirePlumber run as login services without `down`
 markers because Void has no systemd user units to start them. Every other Ryoku
-user service waits for `session-start` after the compositor exists.
+user service carries a `down` marker and waits for `session-start` after the
+compositor exists. `ryoku-host svc disable --user` records `.ryoku-disabled`
+beside the runit marker, so login preserves the user's choice. `svc enable`
+removes both files.
 
 Both compositor login entries call `ryoku-host session start`. On runit,
 `ryoku-host` dispatches to `/usr/lib/ryoku/runit/session-start`, which publishes
@@ -97,13 +111,14 @@ session must then publish its display environment to supervised services and
 D-Bus activation. Ryoku does not wrap the compositor in `dbus-run-session`;
 PipeWire and the other login services use Turnstile's existing user bus.
 
-Ryoku performs that setup automatically. Every deploy and update runs
-`ryoku-host session ensure`; installation runs `fix-wrappers` with backups, then
-the verify step checks the result. The doctor's Turnstile check repairs later
-drift. The audio login services start PipeWire, pipewire-pulse, and WirePlumber
-after the bus is ready, and `session-start` publishes `WAYLAND_DISPLAY` and the
-rest of the compositor environment to both the Turnstile envdir and D-Bus
-activation.
+Ryoku performs that setup automatically. Installation and dev deploys run
+`ryoku-host session ensure`; `session-start` also runs the user half at each
+login so a fresh user and scripts from a package update converge before the
+roster starts. Installation runs `fix-wrappers` with backups, then the verify
+step checks the result. The doctor's Turnstile check repairs later drift. The
+audio login services start PipeWire, pipewire-pulse, and WirePlumber after the
+bus is ready, and `session-start` publishes `WAYLAND_DISPLAY` and the rest of
+the compositor environment to both the Turnstile envdir and D-Bus activation.
 
 Polkit prompts also work from the session. The shell's agent registers with the
 graphical session even though Turnstile supervises it.

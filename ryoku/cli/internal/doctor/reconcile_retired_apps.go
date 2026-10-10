@@ -3,6 +3,7 @@ package doctor
 import (
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -28,11 +29,14 @@ var retiredApps = []retiredApp{
 
 // Seams: the live box's answers, replaced in tests.
 var (
-	retiredAppInstalled = func(pkg string) bool { return sys.PkgInstalled(pkg) }
-	removeRetiredApp    = func(pkg string) error { return sys.Sudo(retiredAppRemovalArgs(pkg)...) }
+	retiredAppInstalled = func(pkg string) bool { return doctorPackageInstalled(pkg) }
+	removeRetiredApp    = func(pkg string) error { return sys.Sudo("ryoku-host", "pkg", "remove", pkg) }
 )
 
 func retiredAppRemovalArgs(pkg string) []string {
+	if manager, err := doctorPackageManager(); err == nil && manager == host.XBPS {
+		return []string{"xbps-remove", "-y", pkg}
+	}
 	return []string{"pacman", "-Rns", "--noconfirm", pkg}
 }
 
@@ -40,6 +44,10 @@ func retiredAppRemovalArgs(pkg string) []string {
 // box that never carried it, or where the user already removed it, is left
 // untouched, so the check stays quiet once the package is gone.
 func reconcileRetiredApps(checkOnly bool) recResult {
+	manager, err := doctorPackageManager()
+	if !hasPacman() && (err != nil || manager != host.XBPS) {
+		return okRes(i18n.T("retired app package checks are not available on this host"))
+	}
 	var removed []string
 	for _, app := range retiredApps {
 		if !retiredAppInstalled(app.pkg) {

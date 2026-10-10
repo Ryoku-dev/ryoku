@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"ryoku-cli/internal/host"
+
 	i18n "ryoku-i18n"
 	wm "ryoku-wm"
 )
@@ -72,8 +74,13 @@ func sessionStartTicks() (uint64, bool) {
 	return procStartTicks(pid)
 }
 
-// userUnitMainPID is the MainPID of a --user unit, or 0 when it is not running.
+// userUnitMainPID is the MainPID of a systemd user unit. Runit does not expose
+// this metadata; its session roster starts a fresh portal through D-Bus.
 func userUnitMainPID(unit string) int {
+	initSystem, err := doctorInitSystem()
+	if err != nil || initSystem != host.Systemd {
+		return 0
+	}
 	out, err := exec.Command("systemctl", "--user", "show", "-p", "MainPID", "--value", unit).Output()
 	if err != nil {
 		return 0
@@ -124,17 +131,27 @@ func portalBackendFault() recResult {
 	if caps, err := wm.Open().Caps(); err == nil {
 		backend = caps.PortalBackend
 	}
-	frontend, ok := portalFrontends[backend]
+	pkgs, ok := portalFrontends[backend]
 	if !ok {
 		return warnRes(i18n.T("screen share offers no source picker: this session's portal publishes no ScreenCast interface")).
 			withFix(i18n.T("ryoku doctor --check, then reinstall the desktop portal backend"))
 	}
-	if !anyPkgInstalled(frontend.pkgs...) {
+	installed := false
+	for _, pkg := range pkgs {
+		if doctorPackageInstalled(pkg) {
+			installed = true
+			break
+		}
+	}
+	if !installed {
 		return warnRes(i18n.T("screen share offers no source picker: the portal backend this desktop needs is not installed")).
-			withFix(frontend.fix)
+			withFix(doctorInstallAdvice(pkgs...))
+	}
+	if initSystem, err := doctorInitSystem(); err == nil && initSystem == host.Runit {
+		return noteRes(i18n.T("screen share offers no source picker: the installed portal backend did not publish its D-Bus interface; log out and back in to restart it"))
 	}
 	return warnRes(i18n.T("screen share offers no source picker: the portal backend is installed but never published its interface")).
-		withFix(fmt.Sprintf("systemctl --user status xdg-desktop-portal-%s.service", backend))
+		withFix(fmt.Sprintf("ryoku-host svc --user restart xdg-desktop-portal-%s.service", backend))
 }
 
 func reconcilePortalSession(checkOnly bool) recResult {
@@ -172,9 +189,9 @@ func reconcilePortalSession(checkOnly bool) recResult {
 	}
 
 	if fePID != 0 {
-		if err := exec.Command("systemctl", "--user", "restart", "xdg-desktop-portal.service").Run(); err != nil {
-			return failRes(i18n.T("could not restart the portal frontend: %v"), err).
-				withFix("systemctl --user restart xdg-desktop-portal.service")
+		if code := doctorService("--user", "restart", "xdg-desktop-portal.service"); code != host.ExitOK {
+			return failRes(i18n.T("could not restart the portal frontend (service exit %d)"), code).
+				withFix("ryoku-host svc --user restart xdg-desktop-portal.service")
 		}
 		for range 6 {
 			time.Sleep(500 * time.Millisecond)
@@ -208,9 +225,9 @@ func reconcilePortalLifetime(checkOnly bool, fePID int) recResult {
 		return wouldRes(i18n.T("the portal frontend predates this login session; screen share opens no source picker and silently shares nothing")).
 			withFix(i18n.T("ryoku doctor restarts xdg-desktop-portal"))
 	}
-	if err := exec.Command("systemctl", "--user", "restart", "xdg-desktop-portal.service").Run(); err != nil {
-		return failRes(i18n.T("could not restart the portal frontend: %v"), err).
-			withFix("systemctl --user restart xdg-desktop-portal.service")
+	if code := doctorService("--user", "restart", "xdg-desktop-portal.service"); code != host.ExitOK {
+		return failRes(i18n.T("could not restart the portal frontend (service exit %d)"), code).
+			withFix("ryoku-host svc --user restart xdg-desktop-portal.service")
 	}
 	return fixedRes(i18n.T("restarted the portal frontend against this session; screen share picks a source again"))
 }

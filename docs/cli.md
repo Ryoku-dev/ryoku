@@ -1,9 +1,9 @@
 # The `ryoku` command
 
 The user-facing control CLI (`ryoku/cli/`, one Go program). It is the front door
-to updates, rollback, status, and the shell; it orchestrates pacman, yay, and
-snapper rather than reimplementing them. This is the per-command reference: what
-each command does, where it is meant to run, and who runs it.
+to updates, rollback, status, and the shell; it orchestrates the host's package,
+service, and snapshot tools rather than reimplementing them. This reference
+explains what each command does, where it is meant to run, and who runs it.
 
 ## Two worlds
 
@@ -27,10 +27,10 @@ few commands belong to only one world; that is called out per command below.
 
 |Command|What it does|Where|Who|
 |---|---|---|---|
-|`update`|Snapshot, then bring the system current and redeploy|both|you|
-|`status [--json]`|Version, how far behind, snapshot count|both|you, the Hub|
-|`rollback [id]`|Guide restoring a snapshot from the boot menu (no id: list them)|both|you|
-|`snapshots`|List snapper snapshots|both|you|
+|`update`|Snapshot when supported, then bring the system current and redeploy|both|you|
+|`status [--json]`|Version, how far behind, snapshot count when supported|both|you, the Hub|
+|`rollback [id]`|List releases; on snapshot-capable hosts, guide a boot-menu restore|both|you|
+|`snapshots`|List snapshots when the host provides them|both|you|
 |`reload`|Restart the shell and reload Hyprland|both|you|
 |`materialize`|Lay the base configs into `~/.config`|packaged install|the updater/installer|
 |`reset [path]`|Drop a `user_edits` override, back to the Ryoku default|both|you|
@@ -45,9 +45,11 @@ These are user-facing and work on any install.
 
 ### `ryoku update`
 
-The full, safe update, wrapped in a snapper pre/post snapshot pair (best-effort:
-an unconfigured snapper never blocks the update, but a failed step aborts before
-anything else changes). What it actually runs depends on the world:
+On pacman hosts, the full safe update is wrapped in a best-effort snapper
+pre/post pair: an unconfigured snapper never blocks the update, but a failed
+step aborts before anything else changes. On hosts without the snapshot stack,
+the snapshot step prints one warning and the update continues without invoking
+snapper. What the update runs next depends on the world:
 
 - **Dev checkout:** updates through the git channel. It fetches the channel
   branch (`main` for everyone), fast-forwards the checkout when it is sitting
@@ -66,8 +68,9 @@ its time and anything it found, a live line for the step in flight, a progress
 bar, and a closing card. Everything the steps and their tools print (pacman,
 git, the builds, the doctor) goes to `~/.local/state/ryoku/update-log.txt`
 instead; the console surfaces only `error:`, `warning:` and `note:` lines, a
-`.pacnew`, and the doctor's findings. On failure the card shows the error, the
-last lines the work printed, and the rollback snapshot.
+`.pacnew`, and the doctor's findings. On failure the card shows the error and
+the last lines the work printed. When a pre-update snapshot exists, it also
+offers that snapshot for rollback.
 
 - `ryoku update -v` (`--verbose`) streams the raw output instead, pacman's own
   progress bars included.
@@ -99,17 +102,27 @@ humans.
 
 ### `ryoku rollback [id]`
 
-Guide restoring a snapper snapshot. With no id it lists the snapshots so you can
-pick one. Ryoku boots the `@` subvolume directly (`rootflags=subvol=@`), a layout
-`snapper rollback` cannot restore (it flips the btrfs default subvolume, which a
-pinned `subvol=` ignores), so the restore runs from the boot menu: reboot, boot
-the snapshot under the Limine Snapshots menu, and run `sudo
-limine-snapper-restore` there; it copies the booted snapshot (and its matching
-kernels on the ESP) back onto `@`.
+With no arguments, this lists published Ryoku releases and, when the host
+provides them, snapshots. `ryoku rollback --to <tag>` moves the Ryoku package
+set to a published release without a reboot. `ryoku rollback <id>` guides a
+whole-system snapshot restore from the boot menu.
+
+Ryoku boots the `@` subvolume directly (`rootflags=subvol=@`), a layout
+`snapper rollback` cannot restore because it flips the btrfs default subvolume,
+which a pinned `subvol=` ignores. The restore therefore runs from the boot
+menu: reboot, boot the snapshot under the Limine Snapshots menu, and run `sudo
+limine-snapper-restore` there. It copies the booted snapshot and its matching
+kernels on the ESP back onto `@`.
+
+On a host without Ryoku's snapshot stack, bare `rollback` still lists releases
+and explains that snapshots are unavailable. Supplying a snapshot id returns
+that explanation as an error without invoking snapper.
 
 ### `ryoku snapshots`
 
-List the snapper snapshots (`sudo snapper list`). Requires snapper.
+List the snapper snapshots on supported pacman hosts. On hosts without the
+snapshot stack, the command prints the same availability reason and exits with
+an error without invoking snapper.
 
 ### `ryoku reload`
 
@@ -197,10 +210,11 @@ persists across reboots. Three modes:
   prompts. Opt in for an encrypted store. The default keyring points at `login`.
 - `ask` the store stays locked until an app asks, and gnome-keyring prompts then.
 
-`ryoku keyring init` is the first-login default, run from the Hyprland autostart:
-idempotent, it records the inferred mode and seeds the never-ask keyring, is a
-no-op once you have chosen a mode, and never destroys a pre-existing encrypted
-keyring (it records the policy and points you at `set --reset` instead).
+`ryoku keyring init` is the first-login default, run from each compositor's
+autostart. It is idempotent: it records the inferred mode and seeds the
+never-ask keyring, is a no-op once you have chosen a mode, and never destroys a
+pre-existing encrypted keyring (it records the policy and points you at
+`set --reset` instead).
 
 `ryoku keyring status [--json]` reports the configured (or, when unset, inferred)
 mode, whether `/etc/pam.d/sddm` carries `pam_gnome_keyring`, whether autologin is

@@ -61,46 +61,50 @@ type promptSpec struct {
 
 // runState is the JSON document the GUI reads.
 type runState struct {
-	Phase      string      `json:"phase"` // idle | running | prompt | auth | done | error
-	PID        int         `json:"pid,omitempty"`
-	UI         string      `json:"ui,omitempty"`      // hub | terminal
-	Started    int64       `json:"started,omitempty"` // unix ms the run began
-	Beat       int64       `json:"beat,omitempty"`    // unix ms of this write
-	Step       string      `json:"step"`
-	Label      string      `json:"label"`
-	Progress   float64     `json:"progress"`
-	Steps      []runStep   `json:"steps,omitempty"`
-	Log        []string    `json:"log,omitempty"`
-	Activity   string      `json:"activity,omitempty"`   // the last line the running work printed
-	ActivityAt int64       `json:"activityAt,omitempty"` // unix ms of that line
-	Watch      *watchState `json:"watch,omitempty"`
-	Error      string      `json:"error,omitempty"`
-	Snapshot   string      `json:"snapshot,omitempty"`
-	LogPath    string      `json:"logPath,omitempty"`
-	Prompt     *promptSpec `json:"prompt,omitempty"`
+	Phase              string      `json:"phase"` // idle | running | prompt | auth | done | error
+	PID                int         `json:"pid,omitempty"`
+	UI                 string      `json:"ui,omitempty"`      // hub | terminal
+	Started            int64       `json:"started,omitempty"` // unix ms the run began
+	Beat               int64       `json:"beat,omitempty"`    // unix ms of this write
+	Step               string      `json:"step"`
+	Label              string      `json:"label"`
+	Progress           float64     `json:"progress"`
+	Steps              []runStep   `json:"steps,omitempty"`
+	Log                []string    `json:"log,omitempty"`
+	Activity           string      `json:"activity,omitempty"`   // the last line the running work printed
+	ActivityAt         int64       `json:"activityAt,omitempty"` // unix ms of that line
+	Watch              *watchState `json:"watch,omitempty"`
+	Error              string      `json:"error,omitempty"`
+	Snapshot           string      `json:"snapshot,omitempty"`
+	SnapshotsSupported bool        `json:"snapshotsSupported"`
+	SnapshotReason     string      `json:"snapshotReason,omitempty"`
+	LogPath            string      `json:"logPath,omitempty"`
+	Prompt             *promptSpec `json:"prompt,omitempty"`
 }
 
 // progress is the singleton run-state publisher for the update in this process.
 var progress = &publisher{}
 
 type publisher struct {
-	mu         sync.Mutex
-	active     bool
-	phase      string
-	pid        int
-	ui         string
-	started    int64
-	steps      []runStep
-	log        []string
-	snapshot   string
-	errMsg     string
-	prompt     *promptSpec
-	activity   string
-	activityAt int64
-	sub        float64 // how far the running step is, read off its output ("(3/12)")
-	watch      *watchState
-	lastWrite  time.Time
-	stopBeat   chan struct{}
+	mu                 sync.Mutex
+	active             bool
+	phase              string
+	pid                int
+	ui                 string
+	started            int64
+	steps              []runStep
+	log                []string
+	snapshot           string
+	snapshotsSupported bool
+	snapshotReason     string
+	errMsg             string
+	prompt             *promptSpec
+	activity           string
+	activityAt         int64
+	sub                float64 // how far the running step is, read off its output ("(3/12)")
+	watch              *watchState
+	lastWrite          time.Time
+	stopBeat           chan struct{}
 }
 
 func runtimeDir() string {
@@ -161,6 +165,7 @@ func (p *publisher) begin(steps []runStep) (resumed bool) {
 		p.steps[i].State = stepPending
 	}
 	p.log = nil
+	p.snapshotsSupported, p.snapshotReason = snapshotCapability()
 	p.started = nowMs()
 	if prev, ok := readState(); ok && prev.PID == p.pid && prev.Phase == "running" {
 		resumed = true
@@ -373,6 +378,7 @@ func (p *publisher) write() {
 	st := runState{
 		Phase: p.phase, PID: p.pid, UI: p.ui, Started: p.started, Beat: now,
 		Steps: p.steps, Log: p.log, Snapshot: p.snapshot, Error: p.errMsg,
+		SnapshotsSupported: p.snapshotsSupported, SnapshotReason: p.snapshotReason,
 		Activity: p.activity, ActivityAt: p.activityAt, Prompt: p.prompt,
 		LogPath: updateLogPath(), Progress: p.fraction(),
 	}

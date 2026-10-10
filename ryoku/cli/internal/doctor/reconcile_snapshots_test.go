@@ -124,3 +124,23 @@ func TestAddUpdatedbPrunePath(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotCleanupReconcilersAreNeutralWhenUnsupported(t *testing.T) {
+	old := doctorSnapshots
+	doctorSnapshots = func() (bool, string) {
+		return false, "Snapshots are not available on this system."
+	}
+	t.Cleanup(func() { doctorSnapshots = old })
+
+	for name, run := range map[string]func(bool) recResult{
+		"cleanup":        reconcileSnapperCleanup,
+		"updatedb prune": reconcileUpdatedbPrune,
+	} {
+		t.Run(name, func(t *testing.T) {
+			got := run(false)
+			if got.status != recNote || got.detail != "Snapshots are not available on this system." {
+				t.Fatalf("result = %#v, want unsupported note", got)
+			}
+		})
+	}
+}

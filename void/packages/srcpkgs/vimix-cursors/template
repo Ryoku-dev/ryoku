@@ -1,0 +1,19 @@
+# Template file for 'vimix-cursors'
+pkgname=vimix-cursors
+version=2020.02.24
+revision=1
+_upstream=2020-02-24
+wrksrc="Vimix-cursors-${_upstream}"
+short_desc="Material-inspired XCursor theme"
+maintainer="Robin Candau <antiz@archlinux.org>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/vinceliuice/Vimix-cursors"
+distfiles="${homepage}/archive/${_upstream}.tar.gz"
+checksum=69298d02264b5b15239c340f8fa899f91574c0eac49ad5745e8e588315423618
+
+do_install() {
+	vmkdir usr/share/icons/Vimix
+	vcopy "dist/*" usr/share/icons/Vimix
+	vmkdir usr/share/icons/Vimix-white-cursors
+	vcopy "dist-white/*" usr/share/icons/Vimix-white-cursors
+}

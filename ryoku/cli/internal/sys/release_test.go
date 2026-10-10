@@ -22,6 +22,21 @@ func TestChannelServerRoundTrips(t *testing.T) {
 	}
 }
 
+func TestVoidChannelURLRoundTrips(t *testing.T) {
+	for _, channel := range []string{"stable", "testing", "v0.55.7-beta.19", "v1.0.0"} {
+		repository := VoidChannelURL(channel)
+		if repository == "" {
+			t.Fatalf("%s: no Void repository", channel)
+		}
+		if got := ChannelOfVoidURL(repository); got != channel {
+			t.Fatalf("%s -> %s -> %q", channel, repository, got)
+		}
+	}
+	if VoidChannelURL("main") != "" || ChannelOfVoidURL("https://mirror.example/void") != "" {
+		t.Fatal("unpublished Void channels must not map to the Ryoku repository")
+	}
+}
+
 // The testing channel is shown as "unstable" everywhere the CLI prints a channel
 // to the user; stable and a release tag are shown as themselves. TrackName maps
 // a channel or a source branch to a `ryoku track` argument that still works, so

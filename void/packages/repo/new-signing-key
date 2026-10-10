@@ -1,0 +1,83 @@
+#!/bin/sh
+set -eu
+
+script_dir=$(CDPATH='' cd -P "$(dirname "$0")" && pwd)
+default_keyring=$script_dir/../srcpkgs/ryoku-keyring/files
+
+usage() {
+	printf '%s\n' "usage: ${0##*/} PRIVATE_KEY [KEYRING_DIR]" >&2
+	exit 2
+}
+
+[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+private_key=$1
+keyring_dir=${2:-$default_keyring}
+
+for command in ssh-keygen openssl base64 awk; do
+	command -v "$command" >/dev/null 2>&1 || {
+		printf '%s: required command not found: %s\n' "${0##*/}" "$command" >&2
+		exit 1
+	}
+done
+
+umask 077
+mkdir -p "$(dirname "$private_key")" "$keyring_dir"
+if [ ! -e "$private_key" ]; then
+	printf 'Generating an RSA-4096 PEM key at %s. Choose and retain a strong passphrase.\n' "$private_key"
+	ssh-keygen -q -t rsa -b 4096 -m PEM -f "$private_key"
+else
+	printf 'Using existing private key %s.\n' "$private_key"
+fi
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/ryoku-xbps-key.XXXXXX")
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+
+if [ -n "${XBPS_PASSPHRASE:-}" ]; then
+	openssl pkey -in "$private_key" -passin env:XBPS_PASSPHRASE -pubout -out "$work/public.pem"
+else
+	openssl pkey -in "$private_key" -pubout -out "$work/public.pem"
+fi
+ssh-keygen -i -m PKCS8 -f "$work/public.pem" > "$work/public.openssh"
+key_bits=$(ssh-keygen -lf "$work/public.openssh" | awk '{print $1; exit}')
+key_type=$(ssh-keygen -lf "$work/public.openssh" | awk '{print $NF; exit}')
+[ "$key_bits" = 4096 ] && [ "$key_type" = "(RSA)" ] || {
+	printf '%s: repository key must be RSA-4096, got %s %s\n' \
+		"${0##*/}" "$key_bits" "$key_type" >&2
+	exit 1
+}
+
+fingerprint=$(ssh-keygen -E md5 -lf "$work/public.openssh" \
+	| awk '{ sub(/^MD5:/, "", $2); print tolower($2); exit }')
+case $fingerprint in
+	??:??:??:??:??:??:??:??:??:??:??:??:??:??:??:??) ;;
+	*) printf '%s: could not derive an XBPS fingerprint\n' "${0##*/}" >&2; exit 1 ;;
+esac
+
+plist=$keyring_dir/$fingerprint.plist
+{
+	cat <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>public-key</key>
+  <data>
+EOF
+	base64 "$work/public.pem" | while IFS= read -r line; do printf '    %s\n' "$line"; done
+	cat <<'EOF'
+  </data>
+  <key>public-key-size</key>
+  <integer>4096</integer>
+  <key>signature-by</key>
+  <string>Ryoku Linux package repository</string>
+</dict>
+</plist>
+EOF
+} > "$plist"
+chmod 644 "$plist"
+
+printf 'Private key: %s\n' "$private_key"
+printf 'XBPS key plist: %s\n' "$plist"
+printf 'Fingerprint: %s\n' "$fingerprint"
+printf '%s\n' 'The filename is the lower-case colon-separated MD5 of the SSH RSA wire key, without the MD5: prefix.'
+printf '%s\n' 'Before publishing, sync the signed repository in an isolated XBPS root, accept its key, and byte-compare the imported /var/db/xbps/keys/*.plist with this plist.'

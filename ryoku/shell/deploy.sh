@@ -27,11 +27,32 @@ say() { printf '  %s\n' "$*"; }
 
 converge_void_packages() {
   local ledger="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/provisioned"
-  local resolved pkg
+  local table="$repo_root/void/packages/translations.tsv"
+  local resolved pkg arch void _lanes notes
+  local repo_configured=0
   local -a resolve_args=(--lane desktop --session --build)
   local -a ledger_names=()
   local -a missing_repos=()
+  local -a missing_ryoku=()
   local -a missing=()
+  local -A checkout_packages=()
+  local -A ryoku_repo_packages=()
+
+  while IFS=$'\t' read -r arch void _lanes notes; do
+    [[ $arch != arch && $arch != \#* && -n $arch ]] || continue
+    if [[ $void == @repo ]]; then
+      checkout_packages["$arch"]=1
+    elif [[ $notes == repo=ryoku ]]; then
+      for pkg in $void; do
+        ryoku_repo_packages["$pkg"]=1
+      done
+    fi
+  done <"$table"
+
+  if command -v ryoku-host >/dev/null 2>&1 &&
+     ryoku-host repo channel >/dev/null 2>&1; then
+    repo_configured=1
+  fi
 
   if [[ -f $ledger ]]; then
     while read -r -a ledger_names; do
@@ -47,6 +68,11 @@ converge_void_packages() {
   fi
   while IFS= read -r pkg; do
     [[ -n $pkg ]] || continue
+    [[ -z ${checkout_packages[$pkg]:-} ]] || continue
+    if [[ -n ${ryoku_repo_packages[$pkg]:-} && $repo_configured -eq 0 ]]; then
+      missing_ryoku+=("$pkg")
+      continue
+    fi
     if ! xbps-query "$pkg" >/dev/null 2>&1; then
       if [[ $pkg == void-repo-* ]]; then
         missing_repos+=("$pkg")
@@ -56,6 +82,9 @@ converge_void_packages() {
     fi
   done <<<"$resolved"
 
+  if (( ${#missing_ryoku[@]} > 0 )); then
+    say "Ryoku repository is not configured; continuing without: ${missing_ryoku[*]}"
+  fi
   (( ${#missing_repos[@]} + ${#missing[@]} > 0 )) || return 0
   command -v sudo >/dev/null 2>&1 || {
     say "sudo is required to install missing Void packages" >&2
@@ -120,15 +149,11 @@ install_runit_services() {
   # environment.d has no reader without a systemd user manager; SDDM's session
   # script sources /etc/profile.d before it execs the compositor.
   sudo install -D -m644 "$init_root/env/environment-d" /etc/profile.d/ryoku-environment-d.sh
+  sudo install -d -m755 /usr/lib/ryoku/runit/user
+  sudo cp -R "$init_root/user/." /usr/lib/ryoku/runit/user/
 
   sudo /usr/bin/ryoku-host session ensure --system
   /usr/bin/ryoku-host session ensure --user
-  for src in "$init_root/user"/*; do
-    [[ -d $src ]] || continue
-    name=${src##*/}
-    mkdir -p "$runit_service_root/$name"
-    cp -a "$src/." "$runit_service_root/$name/"
-  done
   printf %s "$bindir" >"$runit_env_root/RYOKU_BIN_DIR"
 
   for src in "$init_root/system"/*; do
@@ -1369,21 +1394,16 @@ if (( wm_live && reload )); then
     fi
     start_power_cutover_guard
     trap 'stop_power_cutover_guard' EXIT
-    if runit_service_supervised "$runit_service_root/ryoku-shell"; then
-      sv down "$runit_service_root/ryoku-shell"
-    fi
-    "$bindir/ryoku-shell" quit >/dev/null 2>&1 || true
-    for _ in {1..50}; do
-      "$bindir/ryoku-shell" ping >/dev/null 2>&1 || break
-      sleep 0.1
-    done
-    if "$bindir/ryoku-shell" ping >/dev/null 2>&1; then
-      say "pre-deploy ryoku-shell did not stop" >&2
+    "$bindir/ryoku-power-cutover" generation-guard-start
+    "$bindir/ryoku-power-cutover" shell-quiesce
+    stage_qylock_user 1
+    if ! sudo loginctl reload; then
+      say "could not activate elogind's guarded lid policy" >&2
       exit 1
     fi
-    stage_qylock_user
     "$bindir/ryoku-clamshell" stop
     "$bindir/ryoku-idle" stop
+    "$bindir/ryoku-power-cutover" session-bind
     restart_shell
     wm_reload_rc=0
     "$bindir/ryoku" wm act config.reload >/dev/null || wm_reload_rc=$?
@@ -1393,6 +1413,8 @@ if (( wm_live && reload )); then
     fi
     start_session_power_units
     runit_restart_service ryogami
+    "$bindir/ryoku-power-cutover" session-check
+    "$bindir/ryoku-power-cutover" generation-guard-stop
     stop_power_cutover_guard
     release_power_cutover_lock
     say "deployed and reloaded the compositor."

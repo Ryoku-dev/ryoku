@@ -9,6 +9,28 @@ driver="$ROOT/system/hardware/drivers/nvidia.sh"
 
 [[ -x $driver ]] || { echo "missing driver policy: $driver" >&2; exit 1; }
 
+write_ryoku_host_fake() {
+  local bin=$1
+  cat >"$bin/ryoku-host" <<'EOF'
+#!/usr/bin/env bash
+if [[ ${1:-} == pkgmgr ]]; then
+  printf '%s\n' pacman
+  exit 0
+fi
+[[ ${1:-} == pkg ]] || exit 2
+verb=${2:-}
+shift 2
+case $verb in
+  installed) exec pacman -Q "$@" ;;
+  available) exec pacman -Si "$@" ;;
+  version) exec pacman -Q "$@" ;;
+  install) exec pacman -S --needed --noconfirm "$@" ;;
+  *) exit 2 ;;
+esac
+EOF
+  chmod +x "$bin/ryoku-host"
+}
+
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin"
@@ -28,6 +50,7 @@ cat >"$work/bin/pacman-conf" <<'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
+write_ryoku_host_fake "$work/bin"
 chmod +x "$work/bin"/*
 
 out=$(PATH="$work/bin:$PATH" RYOKU_DRYRUN=1 bash "$driver")
@@ -63,6 +86,7 @@ fi
 exit 1
 EOS
   printf '#!/usr/bin/env bash\nexit 0\n' >"$bin/pacman-conf"
+  write_ryoku_host_fake "$bin"
   chmod +x "$bin"/*
   local out
   # point the kernel enumeration at the fake module trees

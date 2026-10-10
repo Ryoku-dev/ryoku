@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -130,6 +131,10 @@ func removeRetiredCompositor() error {
 // reconcileRetiredCompositor first makes a supported session bootable, then
 // removes the retired stack only after the user has left that session.
 func reconcileRetiredCompositor(checkOnly bool) recResult {
+	manager, err := doctorPackageManager()
+	if err != nil || manager != host.Pacman {
+		return okRes(i18n.T("retired compositor package migration is not applicable on this host"))
+	}
 	if !retiredCompositorArtifactsPresent() {
 		return okRes(i18n.T("no retired compositor artifacts present"))
 	}

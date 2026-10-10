@@ -184,3 +184,38 @@ func TestHomeRyokuWrapperMatchesOnlyTheHomeCLI(t *testing.T) {
 		t.Fatalf("homeRyokuWrapper = %q, want %q", got, p)
 	}
 }
+
+func TestPackagedTwinUsesNativeOwnershipOnXBPS(t *testing.T) {
+	oldOwner, oldExists := devPackageOwner, devPathExists
+	t.Cleanup(func() { devPackageOwner, devPathExists = oldOwner, oldExists })
+	devPathExists = func(path string) bool { return path == "/usr/bin/ryoku-shell" }
+	called := ""
+	devPackageOwner = func(path string) (string, error) {
+		called = path
+		return "ryoku-shell", nil
+	}
+	if !packagedTwin("ryoku-shell") || called != "/usr/bin/ryoku-shell" {
+		t.Fatalf("native ownership not consulted: called=%q", called)
+	}
+}
+
+func TestReloadDevUnitsUsesUserServiceSeam(t *testing.T) {
+	old := devService
+	var calls [][]string
+	devService = func(args []string) int {
+		calls = append(calls, append([]string(nil), args...))
+		return 0
+	}
+	t.Cleanup(func() { devService = old })
+
+	reloadDevUnits([]string{"ryoku-shell.service"})
+	if len(calls) != 2 {
+		t.Fatalf("service calls = %v, want daemon-reload and reset-failed", calls)
+	}
+	if len(calls[0]) != 2 || calls[0][0] != "--user" || calls[0][1] != "daemon-reload" {
+		t.Fatalf("daemon reload = %v, want user service seam", calls[0])
+	}
+	if len(calls[1]) != 3 || calls[1][0] != "--user" || calls[1][1] != "reset-failed" || calls[1][2] != "ryoku-shell.service" {
+		t.Fatalf("reset failed = %v, want user service seam", calls[1])
+	}
+}

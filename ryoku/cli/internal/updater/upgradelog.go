@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 )
 
@@ -25,12 +26,16 @@ import (
 var verboseLog bool
 
 // sleepInhibitOK probes once whether this session may take a sleep/idle
-// inhibitor. Taking one is polkit-gated in sessions with no agent (SSH, a
-// headless run), where systemd-inhibit exits "Access denied" BEFORE the wrapped
-// command runs: wrapping there turned a best-effort guard into a failed
-// transaction, with pacman never invoked. Probe once per process; on a denial
-// the transaction runs unwrapped instead of failing the update.
+// inhibitor. A denied inhibitor must never prevent the wrapped package
+// transaction from running.
 var sleepInhibitOK = sync.OnceValue(func() bool {
+	if updateInitSystem() == host.Runit {
+		if !sys.Has("ryoku-host") {
+			return false
+		}
+		return exec.Command("ryoku-host", "inhibit", "--what=sleep:idle",
+			"--who=ryoku update", "--why=probe", "--mode=block", "true").Run() == nil
+	}
 	if !sys.Has("systemd-inhibit") {
 		return false
 	}
@@ -91,8 +96,13 @@ func inhibited(why string, argv []string) []string {
 	if !sleepInhibitOK() {
 		return argv
 	}
-	return append([]string{"systemd-inhibit", "--what=sleep:idle",
-		"--who=ryoku update", "--why=" + why, "--mode=block"}, argv...)
+	prefix := []string{"systemd-inhibit"}
+	if updateInitSystem() == host.Runit {
+		prefix = []string{"ryoku-host", "inhibit"}
+	}
+	prefix = append(prefix, "--what=sleep:idle",
+		"--who=ryoku update", "--why="+why, "--mode=block")
+	return append(prefix, argv...)
 }
 
 // runInhibited runs a transaction whose conflicts nobody heals (the system

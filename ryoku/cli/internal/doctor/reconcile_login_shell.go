@@ -18,11 +18,11 @@ package doctor
 import (
 	"encoding/json"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -49,13 +49,11 @@ var accountLoginShell = func() string {
 	return ""
 }
 
-// syncSessionShellEnv pushes SHELL into the user manager and the dbus activation
-// environment, the same two updates shellpref.go makes on a deliberate change,
-// so processes spawned after the repair read the corrected shell without a
-// logout. A var so the test never touches the live session managers.
+// syncSessionShellEnv publishes SHELL through the host's session environment
+// seam, which updates the systemd user manager on Arch and Turnstile's envdir on
+// runit. A var so the test never touches the live session managers.
 var syncSessionShellEnv = func(path string) {
-	_ = exec.Command("systemctl", "--user", "set-environment", "SHELL="+path).Run()
-	_ = exec.Command("dbus-update-activation-environment", "--systemd", "SHELL="+path).Run()
+	_ = host.Default().Service([]string{"env", "SHELL=" + path})
 }
 
 // storeShellOverride reads desktop.env's SHELL value and whether such a pair

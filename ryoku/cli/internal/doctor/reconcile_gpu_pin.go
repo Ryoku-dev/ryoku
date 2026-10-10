@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	i18n "ryoku-i18n"
+	wm "ryoku-wm"
 )
 
 // ---- reconciler: GPU render pin drift ---------------------------------------
@@ -29,6 +30,17 @@ import (
 // takes effect at the next Hyprland login; doctor never restarts the session.
 
 var (
+	gpuPinProviderInstalled = func(name string) bool {
+		return wm.SessionGap(name) != "compositor"
+	}
+	gpuPinSupported = func() bool {
+		for _, name := range wm.Providers() {
+			if wm.GpuPinFile(name) != "" && gpuPinProviderInstalled(name) {
+				return true
+			}
+		}
+		return false
+	}
 	gpuPinVerdict = func() (string, error) {
 		out, err := exec.Command("ryoku-gpu", "check-pin").Output()
 		return strings.TrimSpace(string(out)), err
@@ -78,6 +90,9 @@ func planGpuPin(verdict string, verdictErr error, checkOnly bool, disable, persi
 }
 
 func reconcileGpuPin(checkOnly bool) recResult {
+	if !gpuPinSupported() {
+		return okRes(i18n.T("the active window manager has no render-pin capability"))
+	}
 	verdict, err := gpuPinVerdict()
 	return planGpuPin(verdict, err, checkOnly, gpuPinDisable, gpuPinPersist)
 }

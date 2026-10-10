@@ -1,0 +1,8 @@
+#!/bin/sh
+for arg do
+	if [ "$arg" = "-m" ]; then
+		exec /usr/libexec/waifu2x-ncnn-vulkan.real "$@"
+	fi
+done
+exec /usr/libexec/waifu2x-ncnn-vulkan.real \
+	-m /usr/share/waifu2x-ncnn-vulkan/models-cunet "$@"

@@ -7,6 +7,7 @@ ROOT=${RYOKU_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 PACKAGES="$ROOT/void/packages"
 TABLE="$PACKAGES/translations.tsv"
 RESOLVE="$PACKAGES/resolve"
+SRCPKGS="$PACKAGES/srcpkgs"
 MODE=${1:-}
 
 fail() { echo "void-packages: $*" >&2; exit 1; }
@@ -127,7 +128,10 @@ for pkg in "${!neutral_opt[@]}" "${!niri_opt[@]}" "${!hypr_opt[@]}"; do
 	closure[$pkg]=1
 	[[ -n ${expected_lanes[$pkg]:-} ]] || add_lane "$pkg" optional
 done
+add_lane bash desktop
 add_lane ryoku-keyring desktop
+add_lane ryoku-palette-bridge desktop
+add_lane udev desktop
 
 canonical_lanes() {
 	local encoded=$1 lane out=
@@ -162,23 +166,34 @@ NR == 1 {
 			bad("invalid lane " lanes[i])
 		if (row_lane[lanes[i]]++) bad("duplicate lane " lanes[i])
 	}
-	if ($2 == "@repo" || $2 == "@fetch" || $2 == "-") {
+	if ($2 == "@fetch") bad("@fetch mappings are no longer supported")
+	if ($2 == "@repo" || $2 == "-") {
 		if ($4 == "") bad("special mapping requires notes")
 		if ($4 ~ /^repo=/) bad("special mapping cannot declare a repository")
+		if ($2 == "@repo" && $4 != "Ryoku-owned package built from the checkout.")
+			bad("@repo mapping has the wrong ownership note")
 	} else {
-		if ($4 != "" && $4 !~ /^repo=(multilib|nonfree|multilib-nonfree)$/)
+		if ($4 != "" && $4 !~ /^repo=(ryoku|multilib|nonfree|multilib-nonfree)$/)
 			bad("invalid repository declaration " $4)
 		count = split($2, names, /[[:space:]]+/)
 		for (i = 1; i <= count; i++) if (!package_name(names[i])) bad("invalid Void package " names[i])
 	}
+	if ($1 == "snapper" && ($2 != "-" || $4 != "Ryoku does not set up snapshots on Void."))
+		bad("snapper must carry the Void snapshot note")
 }
 END { exit failed ? 1 : 0 }
 ' "$TABLE" || fail "translation table is malformed"
 
-declare -A rows=()
-while IFS=$'\t' read -r arch _void row_lanes _notes; do
+declare -A rows=() row_void=() template_refs=()
+while IFS=$'\t' read -r arch void row_lanes notes; do
 	[[ $arch == arch || $arch == '#'* || -z $arch ]] && continue
 	rows[$arch]=1
+	row_void[$arch]=$void
+	if [[ $void == @repo ]]; then
+		template_refs[$arch]=1
+	elif [[ $notes == repo=ryoku ]]; then
+		for pkg in $void; do template_refs[$pkg]=1; done
+	fi
 	[[ -n ${closure[$arch]:-} ]] || fail "translation lies outside the Arch closure: $arch"
 	expected=$(canonical_lanes "${expected_lanes[$arch]}")
 	[[ $row_lanes == "$expected" ]] || fail "$arch lanes are '$row_lanes', expected '$expected'"
@@ -187,6 +202,62 @@ for pkg in "${!closure[@]}"; do
 	[[ -n ${rows[$pkg]:-} ]] || fail "Arch closure package has no Void row: $pkg"
 done
 ((${#rows[@]} == ${#closure[@]})) || fail "translation row count does not match closure"
+
+for pkg in "${!template_refs[@]}"; do
+	[[ -f $SRCPKGS/$pkg/template ]] \
+		|| fail "Ryoku repository mapping has no template: $pkg"
+done
+
+template_count=0
+for template in "$SRCPKGS"/*/template; do
+	[[ -f $template ]] || continue
+	((template_count += 1))
+	dir_pkg=${template%/template}
+	dir_pkg=${dir_pkg##*/}
+	template_pkg=$(bash -c 'source "$1"; printf "%s" "$pkgname"' _ "$template") \
+		|| fail "could not read template: $template"
+	[[ $template_pkg == "$dir_pkg" ]] \
+		|| fail "template directory $dir_pkg declares pkgname=$template_pkg"
+	[[ $template_pkg == ryoku-keyring || -n ${template_refs[$template_pkg]:-} ]] \
+		|| fail "template is not referenced by @repo or repo=ryoku: $template_pkg"
+
+	pkgbuild=${pkgbuilds[$template_pkg]:-}
+	[[ -n $pkgbuild ]] || continue
+	declare -A template_depends=()
+	template_dep_list=$(bash -c 'source "$1"; printf "%s\n" ${depends:-}' _ "$template") \
+		|| fail "could not read depends from $template"
+	while IFS= read -r raw; do
+		[[ -n $raw ]] || continue
+		name=$(strip_dep "${raw#virtual?}")
+		template_depends[$name]=1
+	done <<< "$template_dep_list"
+	template_provides=$(bash -c 'source "$1"; printf "%s\n" ${provides:-}' _ "$template") \
+		|| fail "could not read provides from $template"
+
+	while IFS= read -r raw; do
+		arch_dep=$(strip_dep "$raw")
+		[[ -n $arch_dep ]] || continue
+		[[ -n ${row_void[$arch_dep]+set} ]] \
+			|| fail "$template_pkg PKGBUILD dependency has no translation: $arch_dep"
+		mapping=${row_void[$arch_dep]}
+		case $mapping in
+			-) continue ;;
+			@repo) expected_list=$arch_dep ;;
+			*) expected_list=$mapping ;;
+		esac
+		for expected_dep in $expected_list; do
+			# A compositor variant is pulled by the base through its virtual;
+			# xbps-src cannot build the reverse edge, so the variant omits it.
+			if [[ $expected_dep == ryoku-desktop && $template_provides == *ryoku-desktop-compositor-* ]]; then
+				continue
+			fi
+			[[ -n ${template_depends[$expected_dep]:-} ]] \
+				|| fail "$template_pkg template misses translated dependency $expected_dep (from $arch_dep)"
+		done
+	done < <(pkgbuild_field "$pkgbuild" depends)
+	unset template_depends
+done
+((template_count > 0)) || fail "no XBPS templates found under $SRCPKGS"
 
 check_resolve_output() {
 	local out line sorted
@@ -212,6 +283,10 @@ union=$(printf '%s\n%s\n' "$desktop" "$dev" | awk 'NF' | LC_ALL=C sort -u)
 [[ $both == "$union" ]] || fail "repeated --lane arguments do not resolve their union"
 grep -qxF fish-shell <<< "$desktop" || fail "desktop lane did not translate fish"
 ! grep -q '^void-repo-' <<< "$desktop" || fail "desktop lane enabled an unnecessary Void repository"
+grep -qxF ryoku <<< "$desktop" || fail "desktop lane omitted an @repo package"
+grep -qxF prowl <<< "$desktop" || fail "desktop lane omitted a repo=ryoku package"
+! grep -qxF gpk <<< "$desktop" || fail "desktop lane included the pacman-only gpk frontend"
+! grep -qxF snapper <<< "$desktop" || fail "desktop lane included unsupported snapshot tooling"
 amd=$(check_resolve_output --lane hardware:amd)
 grep -qxF void-repo-multilib <<< "$amd" || fail "AMD 32-bit packages did not enable Void multilib"
 ! grep -q '^void-repo-.*nonfree$' <<< "$amd" || fail "AMD lane enabled an unnecessary nonfree repository"
@@ -251,7 +326,7 @@ if [[ $MODE == --repo ]]; then
 	repo_rows=$(
 		{
 			awk -F '\t' '
-				NR == 1 || /^#/ || $2 == "-" || $2 == "@repo" || $2 == "@fetch" { next }
+				NR == 1 || /^#/ || $2 == "-" || $2 == "@repo" || $4 == "repo=ryoku" { next }
 				{
 					repository = "main"
 					if ($4 ~ /^repo=/) repository = substr($4, 6)

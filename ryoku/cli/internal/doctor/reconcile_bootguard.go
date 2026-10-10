@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
 
@@ -20,6 +21,13 @@ import (
 // the pre-update snapshot. The notice is a one-time report and is cleared
 // once shown, so it never nags.
 func reconcileBootGuard(checkOnly bool) recResult {
+	if manager, err := doctorPackageManager(); err == nil && manager == host.XBPS {
+		_, reason := host.Default().Snapshots()
+		return okRes("%s", reason)
+	}
+	if !hasPacman() {
+		return okRes(i18n.T("boot guard package checks are not available on this host"))
+	}
 	if sys.ResolveRepo() != "" || !sys.PkgInstalled("ryoku-desktop") {
 		return okRes(i18n.T("not a packaged install; the boot guard watches package updates only"))
 	}

@@ -1,13 +1,12 @@
 package doctor
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
-	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/ryokumanifest"
 	"ryoku-cli/internal/sys"
 
@@ -66,31 +65,34 @@ func planShippedApps(apps []shippedApp, installed, asDep, seen map[string]bool) 
 
 // Seams: the live box's answers, replaced in tests.
 var (
-	appInstalled = func(pkg string) bool { return sys.PkgInstalled(pkg) }
-	// `pacman -Qdq <pkg>` succeeds only for a package installed as a dependency.
+	appInstalled      = func(pkg string) bool { return doctorPackageInstalled(pkg) }
 	appInstalledAsDep = func(pkg string) bool {
+		manager, err := doctorPackageManager()
+		if err != nil {
+			return false
+		}
+		if manager == host.XBPS {
+			value, err := sys.RunOut("xbps-query", "-p", "automatic-install", pkg)
+			return err == nil && strings.TrimSpace(value) == "true"
+		}
 		return exec.Command("pacman", "-Qdq", pkg).Run() == nil
 	}
-	// One transaction for the whole missing set, bounded, and best-effort: a box
-	// with no network must not fail `ryoku update` over an app.
 	installShippedApps = func(pkgs []string) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		args := append([]string{"pacman", "-S", "--needed", "--noconfirm"}, pkgs...)
-		_ = exec.CommandContext(ctx, "sudo", args...).Run()
+		_ = sys.Sudo(append([]string{"ryoku-host", "pkg", "install"}, pkgs...)...)
 	}
 	markAppsExplicit = func(pkgs []string) {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		args := append([]string{"pacman", "-D", "--asexplicit", "--quiet"}, pkgs...)
-		_ = exec.CommandContext(ctx, "sudo", args...).Run()
+		_ = sys.Sudo(append([]string{"ryoku-host", "pkg", "explicit"}, pkgs...)...)
 	}
-	hasPacman = func() bool { return sys.Has("pacman") }
+	hasPacman = func() bool {
+		manager, err := host.Default().PackageManager()
+		return err == nil && manager == host.Pacman
+	}
 )
 
 func reconcileShippedApps(checkOnly bool) recResult {
-	if !hasPacman() {
-		return okRes(i18n.T("not a pacman box; shipped apps are the installer's business"))
+	manager, err := doctorPackageManager()
+	if !hasPacman() && (err != nil || manager != host.XBPS) {
+		return okRes(i18n.T("shipped apps are not managed on this host"))
 	}
 	apps := shippedApps()
 	installed, asDep := map[string]bool{}, map[string]bool{}
@@ -149,11 +151,19 @@ func reconcileShippedApps(checkOnly bool) recResult {
 
 	switch {
 	case len(missed) > 0 && len(landed) > 0:
+		fix := doctorInstallAdvice(missed...)
+		if manager == host.Pacman {
+			fix = fmt.Sprintf("sudo pacman -S %s", strings.Join(missed, " "))
+		}
 		return warnRes(i18n.T("installed %s; %s did not land"), strings.Join(landed, ", "), strings.Join(missed, ", ")).
-			withFix("sudo pacman -S %s", strings.Join(missed, " "))
+			withFix(fix)
 	case len(missed) > 0:
+		fix := doctorInstallAdvice(missed...)
+		if manager == host.Pacman {
+			fix = fmt.Sprintf("sudo pacman -Sy && sudo pacman -S %s", strings.Join(missed, " "))
+		}
 		return warnRes(i18n.T("%s could not be installed"), strings.Join(missed, ", ")).
-			withFix("sudo pacman -Sy && sudo pacman -S %s", strings.Join(missed, " "))
+			withFix(fix)
 	case len(landed) > 0:
 		return fixedRes(i18n.T("installed %s (delete any of them and Ryoku will not reinstall it)"),
 			strings.Join(landed, ", "))

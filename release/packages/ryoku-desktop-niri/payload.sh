@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${RYOKU_SRC:?set RYOKU_SRC to the checkout root}"
+: "${RYOKU_PKGVER:?set RYOKU_PKGVER to the package version}"
+
+_repo=$RYOKU_SRC
+
+package() {
+  local cfg="$pkgdir/usr/share/ryoku/config"
+
+  # niri config tree: config.kdl plus every static file it includes (session
+  # startup, lid events, machine seeds, and the user override). A missing include
+  # is a hard niri config error, so the whole tree ships as one unit. The
+  # generated settings.kdl/rebinds.kdl are written by `ryoku-wm-niri apply`, not
+  # packaged (see caps.GeneratedFiles). No scripts/ or share picker: niri's leaf
+  # keybinds are compositor actions or `spawn ryoku-shell`, and the share picker
+  # is a hyprland-only portal helper.
+  install -d "$cfg/niri"
+  cp -a "$_repo/ryoku/niri/." "$cfg/niri/"
+
+  # xdg-desktop-portal: niri has no backend of its own, so screen sharing rides
+  # the GNOME backend (caps.PortalBackend) but the GNOME FileChooser hangs off a
+  # GNOME session. This routing pins FileChooser to gtk so file pickers open;
+  # doctor's portal reconciler reads it by the running desktop's name.
+  install -Dm644 "$_repo/ryoku/niri/niri-portals.conf" \
+    "$cfg/xdg-desktop-portal/niri-portals.conf"
+
+  # cp -a kept source modes; the tree is all data, so world-readable is right.
+  chmod -R u=rwX,go=rX "$pkgdir/usr/share/ryoku"
+
+  # ryoku-wm-niri: the niri half of the window-manager seam. Built from the
+  # ryoku/wm module (its root is one dir up from the niri package).
+  ( cd "$_repo/ryoku/wm/niri" && go build -o ryoku-wm-niri . )
+  install -Dm755 "$_repo/ryoku/wm/niri/ryoku-wm-niri" \
+    "$pkgdir/usr/bin/ryoku-wm-niri"
+  if [[ $RYOKU_INIT_MODE == systemd ]]; then
+    # The systemd session orders the config bootstrap ahead of niri so the
+    # compositor never reads its own defaults on first login.
+    install -Dm644 "$_repo/ryoku/shell/systemd/user/niri.service.d/ryoku-bootstrap.conf" \
+      "$pkgdir/usr/lib/systemd/user/niri.service.d/ryoku-bootstrap.conf"
+  fi
+}
+case "${1:-}" in
+  build)
+    ;;
+  install)
+    pkgdir=${2:?install requires a destination root}
+    RYOKU_INIT_MODE=${3:?install requires systemd or runit}
+    case "$RYOKU_INIT_MODE" in
+      systemd|runit) ;;
+      *) printf 'unsupported init mode: %s\n' "$RYOKU_INIT_MODE" >&2; exit 2 ;;
+    esac
+    package
+    ;;
+  *)
+    printf 'usage: %s <build|install DESTDIR systemd|runit>\n' "$0" >&2
+    exit 2
+    ;;
+esac

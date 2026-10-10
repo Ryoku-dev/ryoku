@@ -24,6 +24,7 @@ func packagedConf(t *testing.T, channel string) {
 	if err := os.WriteFile(conf, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("RYOKU_PACMAN_CONF", conf)
 	oldConf, oldSync := sys.PacmanConf, sys.PacmanSyncDir
 	sys.PacmanConf = conf
 	sys.PacmanSyncDir = t.TempDir()
@@ -84,11 +85,11 @@ func TestRetargetChannelRestoresOnFailure(t *testing.T) {
 	isolateHome(t)
 	packagedConf(t, "stable")
 	before := sys.RyokuServer()
-
-	var priv [][]string
-	old := privileged
-	privileged = func(argv ...string) error { priv = append(priv, argv); return nil }
-	t.Cleanup(func() { privileged = old })
+	resynced := false
+	stubMoveRepoSync(t, func(force bool) error {
+		resynced = resynced || force
+		return nil
+	})
 
 	err := retargetChannel(sys.ChannelTesting, func() error { return fmt.Errorf("downgrade could not satisfy dependencies") })
 	if err == nil {
@@ -100,15 +101,8 @@ func TestRetargetChannelRestoresOnFailure(t *testing.T) {
 	if got := sys.PackagedChannel(); got != "stable" {
 		t.Fatalf("channel = %q after a failed move, want stable", got)
 	}
-	// the restore re-syncs so the cached db matches the pin it put back.
-	resynced := false
-	for _, c := range priv {
-		if len(c) >= 2 && c[0] == "pacman" && c[1] == "-Syy" {
-			resynced = true
-		}
-	}
 	if !resynced {
-		t.Fatalf("restore did not re-sync the databases; privileged calls: %v", priv)
+		t.Fatal("restore did not re-sync the databases")
 	}
 }
 

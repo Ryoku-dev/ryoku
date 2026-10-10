@@ -96,11 +96,11 @@ func descendants(root int) []procInfo {
 
 // packageManagers are the commands whose interruption can leave packages
 // half-installed.
-var packageManagers = map[string]bool{"pacman": true, "yay": true, "paru": true, "makepkg": true, "flatpak": true}
+var packageManagers = map[string]bool{"pacman": true, "xbps-install": true, "xbps-remove": true, "yay": true, "paru": true, "makepkg": true, "flatpak": true}
 
 // wrappers carry the real work rather than doing it; the command named to the
 // user is the work they wrap.
-var wrappers = map[string]bool{"sudo": true, "systemd-inhibit": true, "env": true, "sh": true, "bash": true, "script": true}
+var wrappers = map[string]bool{"sudo": true, "systemd-inhibit": true, "elogind-inhibit": true, "ryoku-host": true, "env": true, "sh": true, "bash": true, "script": true}
 
 type watchdog struct {
 	root       int

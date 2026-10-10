@@ -70,6 +70,9 @@ func enableILoveCandy(conf []byte) (out []byte, changed, ok bool) {
 // the user's file (pacman tracks it as a backup file) and nothing in Ryoku
 // rewrites it wholesale.
 func reconcilePacmanCandy(checkOnly bool) recResult {
+	if !hasPacman() {
+		return okRes(i18n.T("not a pacman host; there is no pacman progress bar to configure"))
+	}
 	const conf = "/etc/pacman.conf"
 	marker := pacmanCandyMarker()
 	if sys.Exists(marker) {

@@ -12,6 +12,8 @@ var serviceVerbs = map[string]bool{
 	"disable": true, "kill": true, "reset-failed": true, "daemon-reload": true,
 }
 
+const runitUserDisabledMarker = ".ryoku-disabled"
+
 func unitName(name string) string {
 	if strings.Contains(name, ".") {
 		return name
@@ -145,13 +147,15 @@ func (a *App) runitUserOne(path, verb string, now bool) int {
 		}
 		return ExitOK
 	case "is-enabled":
-		if _, err := os.Stat(filepath.Join(path, "down")); err == nil {
+		if _, err := os.Stat(filepath.Join(path, runitUserDisabledMarker)); err == nil {
 			return ExitFalse
 		}
 		return ExitOK
 	case "enable":
-		if err := os.Remove(filepath.Join(path, "down")); err != nil && !os.IsNotExist(err) {
-			return ExitFailure
+		for _, name := range []string{runitUserDisabledMarker, "down"} {
+			if err := os.Remove(filepath.Join(path, name)); err != nil && !os.IsNotExist(err) {
+				return ExitFailure
+			}
 		}
 		if !now {
 			return ExitOK
@@ -159,6 +163,9 @@ func (a *App) runitUserOne(path, verb string, now bool) int {
 		return commandExit(a.run("sv", "up", path))
 	case "disable":
 		if err := os.WriteFile(filepath.Join(path, "down"), nil, 0o644); err != nil {
+			return ExitFailure
+		}
+		if err := os.WriteFile(filepath.Join(path, runitUserDisabledMarker), nil, 0o644); err != nil {
 			return ExitFailure
 		}
 		if !now {

@@ -1,0 +1,34 @@
+# Template file for 'ryoku'
+pkgname=ryoku
+version=0.1.0
+revision=1
+archs="x86_64"
+short_desc="Ryoku control CLI: updates, rollback, snapshots, materialize"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://ryoku.dev"
+hostmakedepends="go"
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
+checksum=SKIP
+wrksrc="ryoku-${version}"
+
+# pacman, pacman-contrib, and snapper are Arch-only. Runtime package and
+# snapshot operations use ryoku-host's XBPS and unsupported-snapshot seams.
+_payload() {
+	GOFLAGS="-buildmode=pie" \
+	RYOKU_SRC="$wrksrc" \
+	RYOKU_BUILD_DIR="${wrksrc%/*}/${pkgname}-payload-build" \
+	RYOKU_PKGVER="$version" \
+	RYOKU_RELEASE="$version" \
+	RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+		"$wrksrc/release/packages/$pkgname/payload.sh" "$@"
+}
+
+do_build() {
+	_payload build
+}
+
+do_install() {
+	_payload install "$DESTDIR" runit
+}

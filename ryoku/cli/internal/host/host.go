@@ -140,6 +140,10 @@ type Config struct {
 	LocaltimePath     string
 	RCConfPath        string
 	InitLibDir        string
+	PacmanConf        string
+	PacmanSyncDir     string
+	XBPSConfigDir     string
+	XBPSShippedConfig string
 	UIDSet            bool
 	UID               int
 }
@@ -190,6 +194,18 @@ func New(cfg Config) *App {
 	}
 	if cfg.InitLibDir == "" {
 		cfg.InitLibDir = "/usr/lib/ryoku/runit"
+	}
+	if cfg.PacmanConf == "" {
+		cfg.PacmanConf = "/etc/pacman.conf"
+	}
+	if cfg.PacmanSyncDir == "" {
+		cfg.PacmanSyncDir = "/var/lib/pacman/sync"
+	}
+	if cfg.XBPSConfigDir == "" {
+		cfg.XBPSConfigDir = "/etc/xbps.d"
+	}
+	if cfg.XBPSShippedConfig == "" {
+		cfg.XBPSShippedConfig = "/usr/share/xbps.d/20-ryoku.conf"
 	}
 	if !cfg.UIDSet && cfg.UID == 0 {
 		cfg.UID = os.Geteuid()

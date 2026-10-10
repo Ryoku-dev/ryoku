@@ -30,6 +30,9 @@ const ryotunesSocketUnit = "ryotunesd.socket"
 // stale repo copy), so it lands the current build even before a repo re-import
 // has propagated.
 func reconcileRyotunes(checkOnly bool) recResult {
+	if result, applicable := pacmanHost(i18n.T("Ryotunes release-package checks")); !applicable {
+		return result
+	}
 	var problems, fixes []string
 	// Deliver-once like the shipped apps: while the package is here, keep it in
 	// the provisioned ledger, so a later deletion reads as the user's choice

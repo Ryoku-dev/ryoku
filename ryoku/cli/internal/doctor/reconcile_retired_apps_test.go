@@ -3,9 +3,12 @@ package doctor
 import (
 	"errors"
 	"testing"
+
+	"ryoku-cli/internal/host"
 )
 
 func TestReconcileRetiredApps(t *testing.T) {
+	stubPacmanHost(t, true)
 	oldInstalled := retiredAppInstalled
 	oldRemove := removeRetiredApp
 	t.Cleanup(func() {
@@ -38,7 +41,26 @@ func TestReconcileRetiredApps(t *testing.T) {
 	}
 }
 
+func TestVoidRetiredAppRemovalUsesXBPS(t *testing.T) {
+	oldManager, oldHasPacman := doctorPackageManager, hasPacman
+	oldInstalled, oldRemove := retiredAppInstalled, removeRetiredApp
+	t.Cleanup(func() {
+		doctorPackageManager, hasPacman = oldManager, oldHasPacman
+		retiredAppInstalled, removeRetiredApp = oldInstalled, oldRemove
+	})
+	doctorPackageManager = func() (host.PackageManager, error) { return host.XBPS, nil }
+	hasPacman = func() bool { return false }
+	retiredAppInstalled = func(pkg string) bool { return pkg == "ryomotion" }
+	removeRetiredApp = func(string) error { t.Fatal("check mode removed a package"); return nil }
+
+	result := reconcileRetiredApps(true)
+	if result.status != recWouldFix || result.remedy != "sudo xbps-remove -y ryomotion" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
 func TestReconcileRetiredAppsQuietWhenAbsent(t *testing.T) {
+	stubPacmanHost(t, true)
 	oldInstalled := retiredAppInstalled
 	oldRemove := removeRetiredApp
 	t.Cleanup(func() {

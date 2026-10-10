@@ -8,6 +8,10 @@ const Usage = `Usage: ryoku-host <verb> [arguments]
 Host detection:
   init
   pkgmgr
+  snapshots
+  repo channel
+  repo set-channel <stable|testing|TAG>
+  repo sync
 
 Services:
   svc [--user|--system] <start|stop|restart|try-restart|reload|is-active|is-enabled|enable|disable|kill> [--now] <name>...
@@ -32,6 +36,7 @@ Packages (names use the Arch/Ryoku catalogue):
   pkg install [--upgrade] [--aur] <name>...
   pkg install-file <path>...
   pkg remove <name>...
+  pkg explicit <name>...
   pkg version <name>
   pkg owner <path>
   pkg count [--foreign]
@@ -75,6 +80,18 @@ func (a *App) Execute(args []string) int {
 		}
 		fmt.Fprintln(a.cfg.Stdout, value)
 		return ExitOK
+	case "snapshots":
+		if len(args) != 1 {
+			return ExitUsage
+		}
+		supported, reason := a.Snapshots()
+		if supported {
+			return ExitOK
+		}
+		fmt.Fprintln(a.cfg.Stdout, reason)
+		return ExitNotProvided
+	case "repo":
+		return a.Repo(args[1:])
 	case "svc":
 		return a.Service(args[1:])
 	case "inhibit":

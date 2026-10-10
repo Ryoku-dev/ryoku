@@ -1,0 +1,240 @@
+name: "Publish Ryoku XBPS repo"
+
+on:
+  push:
+    branches:
+      - unstable-dev
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      force_release:
+        description: 'Overwrite an existing void/releases/<tag> repository'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-repo-void-${{ github.ref_type == 'tag' && 'stable' || 'testing' }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+  build:
+    name: Build and sign the XBPS repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    outputs:
+      channel: ${{ steps.channel.outputs.channel }}
+      release: ${{ steps.channel.outputs.release }}
+      prefix: ${{ steps.channel.outputs.prefix }}
+      can_publish: ${{ steps.signing.outputs.can_publish }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Resolve release channel
+        id: channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/tags/v*)
+              tag=${GITHUB_REF#refs/tags/}
+              echo "channel=stable" >> "$GITHUB_OUTPUT"
+              echo "release=$tag" >> "$GITHUB_OUTPUT"
+              echo "prefix=void/releases/$tag" >> "$GITHUB_OUTPUT"
+              ;;
+            refs/heads/unstable-dev)
+              release=$(./bin/ryoku-release-version --channel unstable-dev --build-number "$GITHUB_RUN_NUMBER" --sha "$GITHUB_SHA")
+              echo "channel=testing" >> "$GITHUB_OUTPUT"
+              echo "release=$release" >> "$GITHUB_OUTPUT"
+              echo "prefix=void/channels/testing" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::Void repository publishing only accepts v* tags and unstable-dev"
+              exit 1
+              ;;
+          esac
+
+      - name: Prepare repository signing material
+        id: signing
+        env:
+          VOID_REPO_SIGNING_KEY: ${{ secrets.VOID_REPO_SIGNING_KEY }}
+          XBPS_PASSPHRASE: ${{ secrets.VOID_REPO_SIGNING_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/ryoku-xbps.pem"
+          keyring="$RUNNER_TEMP/ryoku-xbps-keyring"
+          mkdir -p "$keyring"
+          if [[ -n ${VOID_REPO_SIGNING_KEY:-} ]]; then
+            printf '%s\n' "$VOID_REPO_SIGNING_KEY" > "$key"
+            echo "can_publish=true" >> "$GITHUB_OUTPUT"
+          else
+            ssh-keygen -q -t rsa -b 4096 -m PEM -N '' -f "$key"
+            echo "can_publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VOID_REPO_SIGNING_KEY is absent. This run will build and test with an ephemeral key, then skip publishing."
+          fi
+          chmod 600 "$key"
+          XBPS_PASSPHRASE="$XBPS_PASSPHRASE" \
+            void/packages/repo/new-signing-key "$key" "$keyring"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "keyring=$keyring" >> "$GITHUB_OUTPUT"
+
+      - name: Build in the official Void container
+        env:
+          RYOKU_XBPS_KEY: ${{ steps.signing.outputs.key }}
+          RYOKU_XBPS_KEYRING_DIR: ${{ steps.signing.outputs.keyring }}
+          RYOKU_XBPS_WORK: ${{ runner.temp }}/ryoku-xbps-work
+          RYOKU_XBPS_OUT: ${{ github.workspace }}/void/packages/repo/out
+          RYOKU_RELEASE: ${{ steps.channel.outputs.release }}
+          RYOKU_CHANNEL: ${{ steps.channel.outputs.channel }}
+          XBPS_PASSPHRASE: ${{ secrets.VOID_REPO_SIGNING_PASSPHRASE }}
+        run: void/packages/repo/container-runner.sh
+
+      - name: Pack repository artifact
+        env:
+          KEYRING: ${{ steps.signing.outputs.keyring }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/void-repo-artifact"
+          mkdir -p "$stage/x86_64" "$stage/keys"
+          cp -a void/packages/repo/out/x86_64/. "$stage/x86_64/"
+          cp -a "$KEYRING"/*.plist "$stage/keys/"
+          tar -C "$stage" -cf void/packages/repo/void-repo.tar .
+
+      - name: Upload built repository
+        uses: actions/upload-artifact@v4
+        with:
+          name: void-repo-${{ github.run_id }}
+          path: void/packages/repo/void-repo.tar
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+  container-install:
+    name: Install the packaged niri desktop
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download built repository
+        uses: actions/download-artifact@v4
+        with:
+          name: void-repo-${{ github.run_id }}
+          path: void/packages/repo
+      - name: Install and materialize in a clean Void container
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/void-repo-artifact"
+          mkdir -p "$artifact"
+          tar -C "$artifact" -xf void/packages/repo/void-repo.tar
+          docker run --rm --platform linux/amd64 \
+            -v "$GITHUB_WORKSPACE:/workspace:ro" \
+            -v "$artifact/x86_64:/repo:ro" \
+            -v "$artifact/keys:/keys:ro" \
+            -e RYOKU_PATH=/workspace \
+            -e RYOKU_XBPS_REPO=/repo \
+            -e RYOKU_XBPS_KEYRING_DIR=/keys \
+            ghcr.io/void-linux/void-glibc \
+            bash /workspace/installation/tests/container-install-void.sh
+
+  publish:
+    name: Publish signed XBPS repository
+    needs: [build, container-install]
+    if: needs.build.outputs.can_publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download tested repository
+        uses: actions/download-artifact@v4
+        with:
+          name: void-repo-${{ github.run_id }}
+          path: void/packages/repo
+      - name: Install publish tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rclone jq
+      - name: Configure bucket
+        env:
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n ${R2_ACCESS_KEY_ID:-} ]] || missing+=(R2_ACCESS_KEY_ID)
+          [[ -n ${R2_SECRET_ACCESS_KEY:-} ]] || missing+=(R2_SECRET_ACCESS_KEY)
+          [[ -n ${R2_ENDPOINT:-} ]] || missing+=(R2_ENDPOINT)
+          [[ -n ${R2_BUCKET:-} ]] || missing+=(R2_BUCKET)
+          ((${#missing[@]} == 0)) || { echo "::error::Missing required secrets: ${missing[*]}"; exit 1; }
+          ./bin/ryoku-r2-config
+
+      - name: Publish packages before repository metadata
+        env:
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          CHANNEL: ${{ needs.build.outputs.channel }}
+          PREFIX: ${{ needs.build.outputs.prefix }}
+          FORCE: ${{ inputs.force_release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/void-repo-artifact"
+          mkdir -p "$artifact"
+          tar -C "$artifact" -xf void/packages/repo/void-repo.tar
+          src="$artifact/x86_64"
+          shopt -s nullglob
+          packages=("$src"/*.xbps)
+          ((${#packages[@]} > 0)) || { echo '::error::No XBPS packages in artifact'; exit 1; }
+          for package in "${packages[@]}"; do
+            [[ -s $package.sig2 ]] || { echo "::error::Missing signature for ${package##*/}"; exit 1; }
+          done
+          [[ -s $src/x86_64-repodata ]] || { echo '::error::Missing x86_64-repodata'; exit 1; }
+
+          remote="Ryoku:$R2_BUCKET/$PREFIX/x86_64"
+          if [[ $CHANNEL == stable && ${FORCE:-false} != true ]]; then
+            if [[ -n $(rclone lsf "$remote/" 2>/dev/null | sed -n '1p') ]]; then
+              echo "::error::$PREFIX/x86_64 already exists; release paths are immutable"
+              exit 1
+            fi
+          fi
+
+          publish() {
+            local source=$1 destination=$2
+            rclone copy "$source" "$destination" --exclude 'x86_64-repodata' -P
+            rclone copy "$source" "$destination" --include 'x86_64-repodata' --exclude '*' -P
+            rclone sync "$source" "$destination" -P
+          }
+          publish "$src" "$remote/"
+          echo "::notice::Published Void $CHANNEL to $PREFIX/x86_64 (packages and signatures first, repodata last)"
+          if [[ $CHANNEL == stable ]]; then
+            publish "$src" "Ryoku:$R2_BUCKET/void/x86_64/"
+            echo "::notice::Stable Void pointer now serves $PREFIX"
+          fi
+
+  publish-skipped:
+    name: Publishing disabled without production key
+    needs: [build, container-install]
+    if: needs.build.outputs.can_publish != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped publish
+        run: echo "::notice::Build and container install passed. Publishing was skipped because VOID_REPO_SIGNING_KEY is not configured."

@@ -24,6 +24,7 @@ type runState struct {
 	BackupDir string   `json:"backupDir"`
 	Updated   string   `json:"updated"`
 	Ref       string   `json:"ref,omitempty"`
+	Delivery  string   `json:"delivery,omitempty"`
 }
 
 // refBoundSteps depend on the payload ref: its checkout, the [ryoku] channel
@@ -50,6 +51,30 @@ func (s *runState) adoptRef(ref string) {
 	}
 	s.Completed = kept
 	s.Ref = ref
+}
+
+// adoptPackagedVoid invalidates source-lane work recorded by an older Void
+// installer. A current run records its delivery model, so ordinary resumes keep
+// skipping completed package and session work.
+func (s *runState) adoptPackagedVoid() {
+	if s.Delivery == "packages" {
+		return
+	}
+	keep := map[string]bool{
+		"sysupgrade": true,
+		"tools":      true,
+		"backup":     true,
+		"conflicts":  true,
+		"shell":      true,
+	}
+	completed := s.Completed[:0]
+	for _, id := range s.Completed {
+		if keep[id] {
+			completed = append(completed, id)
+		}
+	}
+	s.Completed = completed
+	s.Delivery = "packages"
 }
 
 func statePath(home string) string {
@@ -90,6 +115,11 @@ func (e *engine) markStepDone(id string) {
 		e.state.Completed = append(e.state.Completed, id)
 	}
 	e.state.Ref = e.ref
+	if e.d().fromSource {
+		e.state.Delivery = "source"
+	} else {
+		e.state.Delivery = "packages"
+	}
 	if e.backupDir != "" {
 		e.state.BackupDir = e.backupDir
 	}
@@ -128,12 +158,12 @@ func confirm(rd *bufio.Reader, q string, yes bool) bool {
 	return ln == "y" || ln == "yes"
 }
 
-// runUninstall removes the ryoku packages, retires the [ryoku] repo stanza,
-// then walks the backup chain newest to oldest running each restore.sh with
-// confirmation: that is the honest inverse of possibly repeated installs,
-// each script undoes exactly what its run changed (configs, disabled
-// services, display manager, shell). session packages (sddm, pipewire, ...)
-// are left alone, they may predate Ryoku and removing them can kill a box.
+// runUninstall removes the Ryoku packages, retires the configured package
+// repository, then walks the backup chain newest to oldest running each
+// restore.sh with confirmation. Each script undoes exactly what its run changed
+// (configs, disabled services, display manager, shell). Session packages (sddm,
+// pipewire, and similar) are left alone because they may predate Ryoku and
+// removing them can kill a box.
 func runUninstall(yes, dry bool) int {
 	fmt.Println(bold(cBrand, "ryoku-shell-install") + fg(cSub, " "+i18n.T("(uninstall)")))
 	home, err := os.UserHomeDir()
@@ -154,23 +184,31 @@ func runUninstall(yes, dry bool) int {
 		return c.Run()
 	}
 
-	// 1. packages, one -R transaction; ryoku-desktop depends on the rest so
-	// pacman orders the removal itself.
+	// 1. packages, one transaction. The package manager orders dependency
+	// removal itself.
+	packages := append([]string{}, ryokuPkgs...)
+	if activeDistro.id == "void" {
+		packages = append(packages, "ryoku-desktop-niri")
+	}
 	var installed []string
-	for _, p := range ryokuPkgs {
-		if activeDistro.id == "arch" && pacmanHas(p) {
-			installed = append(installed, p)
+	if activeDistro.id == "arch" || activeDistro.id == "void" {
+		for _, p := range packages {
+			if activeDistro.installedPkg(p) {
+				installed = append(installed, p)
+			}
 		}
 	}
 	if len(installed) == 0 {
 		fmt.Println(i18n.T("no ryoku packages installed"))
 	} else if confirm(rd, i18n.Tf("remove %s?", strings.Join(installed, " ")), yes) {
-		if err := run("sudo", append([]string{"-n", "pacman", "-R", "--noconfirm"}, installed...)...); err != nil {
-			fmt.Println(i18n.T("warning: package removal failed; fix pacman and re-run (continuing with restore)"))
+		args := append([]string{"-n"}, activeDistro.removeArgs(installed)...)
+		if err := run("sudo", args...); err != nil {
+			fmt.Println(i18n.T("warning: package removal failed; fix the package manager and re-run (continuing with restore)"))
 		}
 	}
 
-	// 2. the [ryoku] repo stanza; original kept next to it.
+	// 2. the package repository override; package-owned stable defaults leave
+	// with ryoku-keyring.
 	if b, err := os.ReadFile("/etc/pacman.conf"); err == nil && activeDistro.id == "arch" && ryokuStanzaRe.Match(b) {
 		if confirm(rd, i18n.T("drop the [ryoku] repository from /etc/pacman.conf?"), yes) {
 			stripped := stripPacmanSection(string(b), "ryoku")
@@ -185,6 +223,13 @@ func runUninstall(yes, dry bool) int {
 						fmt.Println(i18n.T("warning: could not rewrite /etc/pacman.conf"))
 					}
 				}
+			}
+		}
+	}
+	if _, err := os.Stat(voidRepoConfig); err == nil && activeDistro.id == "void" {
+		if confirm(rd, i18n.Tf("drop the Ryoku XBPS repository override %s?", voidRepoConfig), yes) {
+			if err := run("sudo", "-n", "rm", "-f", voidRepoConfig); err != nil {
+				fmt.Println(i18n.T("warning: could not remove the Ryoku XBPS repository override"))
 			}
 		}
 	}

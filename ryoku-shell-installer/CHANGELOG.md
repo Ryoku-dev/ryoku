@@ -3,26 +3,31 @@
 ## Unreleased
 
 ### Added
-- **Void Linux can install the full Ryoku desktop from the script installer.**
-  The installer now understands XBPS package names and transactions, builds the
-  desktop from source, installs the pinned fonts and cursor theme, wires
-  SDDM and the machine services through runit, and leaves user services to
-  Turnstile. Arch and Debian retain their existing systemd paths.
-- **Void package planning now comes from the shared translation table.** The
+- **Void installs state the snapshot limit before finishing.** The distro
+  adapter carries a Void-only note into the final verification summary, while
+  Arch and CachyOS dry-run output stays unchanged (`distro.go`, `engine.go`).
+- **Void installs Ryoku from the signed XBPS repository.** The installer seeds
+  the repository key before its first sync, selects stable or testing from the
+  requested ref, resolves runtime and hardware package lanes without the build
+  set, and installs `ryoku-keyring`, `ryoku-desktop` and
+  `ryoku-desktop-niri`. It then materializes the packaged config and provisions
+  the runit and Turnstile session. The old source build and font-fetch path is
+  gone on Void.
+- **Void package planning comes from the shared translation table.** The
   installer asks `void/packages/resolve` for the desktop, selected development
-  and detected hardware lanes plus the session and build sets, then gives XBPS
-  that exact result. Browser and login-shell exclusions are passed to the same
-  resolver instead of being maintained in a second Go package map.
-- **Source installs now include Ryoku's Bibata cursor family.** Void and Debian
-  fetch the same pinned upstream archive as `ryoku-cursors`, verify its checksum,
-  and install every left- and right-handed colour variant.
+  and detected hardware lanes plus the session set, then gives XBPS that exact
+  result. Browser and login-shell exclusions are passed to the same resolver
+  instead of being maintained in a second Go package map.
+- **Debian source installs include Ryoku's Bibata cursor family.** They fetch
+  the pinned upstream archive used by `ryoku-cursors`, verify its checksum and
+  install every left- and right-handed colour variant.
 - **Browser and login-shell choices now carry through the whole conversion.**
   The plan starts with Firefox, Chromium and Zen plus Fish, Zsh and Bash
   single-choice rows. The same picks work under `--yes` through `--browser`,
   `--shell`, `RYOKU_BROWSER` and `RYOKU_LOGIN_SHELL`. The package transaction
-  keeps only the selected stacks, Zen forces its AUR build, the account shell
-  and browser defaults follow the picks, and omitted packages are recorded so
-  later health checks do not add them back.
+  keeps only the selected stacks, Zen forces its AUR build on Arch, the
+  account shell and browser defaults follow the picks, and omitted packages
+  are recorded so later health checks do not add them back.
 - **The installer now looks like Ryoku.** Every screen uses the warm dark
   terminal palette, paper-and-ink contrast, quiet hairlines and one vermilion
   力 seal instead of the old generic card and status-colour treatment. The plan
@@ -36,15 +41,16 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
-- **Source installs now keep a complete checkout that `ryoku update` can use.**
-  Void and Debian clone into `~/ryoku-arch` with full history and source paths,
+- **Debian source installs keep a complete checkout that `ryoku update` can
+  use.** They clone into `~/ryoku-arch` with full history and source paths,
   refresh the requested ref in place on reruns, and leave deploy's recorded
-  checkout pointer valid. Arch continues to use its shallow sparse payload
-  cache.
-- **Void installs now repair and verify the Turnstile session chain.** After the
-  source build installs `ryoku-host`, the installer removes nested D-Bus launch
-  wrappers while backing them up for `restore.sh`. Final verification reports
-  each remaining Turnstile or session-bus problem with its repair.
+  checkout pointer valid. Packaged Arch and Void installs use a shallow sparse
+  payload cache.
+- **Void installs repair and verify the Turnstile session chain.** After the
+  packages install `ryoku-host`, the installer provisions the system and user
+  session, then removes nested D-Bus launch wrappers while backing them up for
+  `restore.sh`. Final verification reports each remaining Turnstile or
+  session-bus problem with its repair.
 - **Void installs enable required XBPS repositories before desktop packages.**
   Repository packages from the shared Void plan now install in a first
   transaction, then XBPS syncs again while installing the remaining packages,

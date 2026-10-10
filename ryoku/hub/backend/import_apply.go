@@ -402,9 +402,13 @@ func rollback(man importManifest) {
 	}
 }
 
-// snapshotBestEffort takes a snapper snapshot when snapper is installed; it is a
-// belt-and-suspenders layer over the per-file backup, so failures are ignored.
+// snapshotBestEffort takes a snapper snapshot when this host provides the
+// snapshot stack and snapper is installed. It is a belt-and-suspenders layer
+// over the per-file backup, so failures are ignored.
 func snapshotBestEffort(ts string) {
+	if snapshotsUnavailable() {
+		return
+	}
 	if _, err := exec.LookPath("snapper"); err != nil {
 		return
 	}

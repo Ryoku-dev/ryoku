@@ -1,0 +1,17 @@
+# Template file for 'ttf-readex-pro'
+pkgname=ttf-readex-pro
+version=1.204
+revision=1
+_commit=1a5aaa4c15edb043c37113a8cddf020235917050
+wrksrc="readexpro-${_commit}"
+short_desc="Readex Pro variable TTF used for Shima titles"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/ThomasJockin/readexpro"
+distfiles="${homepage}/archive/${_commit}.tar.gz"
+checksum=128848eba1ae8fe0454f279a367f5ef0e932949e131382f7b3e26b9373c9a7e4
+
+do_install() {
+	vinstall "fonts/variable/Readexpro[HEXP,wght].ttf" 644 usr/share/fonts/TTF
+	vlicense OFL.txt
+}

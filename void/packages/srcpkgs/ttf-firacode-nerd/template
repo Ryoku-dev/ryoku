@@ -1,0 +1,17 @@
+# Template file for 'ttf-firacode-nerd'
+pkgname=ttf-firacode-nerd
+version=3.5.1
+revision=1
+create_wrksrc=yes
+short_desc="Fira Code Nerd Font monospace face"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/ryanoasis/nerd-fonts"
+distfiles="${homepage}/releases/download/v${version}/FiraCode.tar.xz"
+checksum=68e3bd6164864b8b514605bc34e3a87ac401c8c48682fcce6478c70263340207
+
+do_install() {
+	vmkdir usr/share/fonts/firacode-nerd
+	vcopy "*.ttf" usr/share/fonts/firacode-nerd
+	vlicense LICENSE
+}

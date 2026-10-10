@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	wm "ryoku-wm"
 )
 
 func TestPlanGpuPin(t *testing.T) {
@@ -86,4 +88,43 @@ func TestPlanGpuPin(t *testing.T) {
 			t.Fatalf("status = %v, want warn", r.status)
 		}
 	})
+}
+
+func TestGpuPinCapabilityIncludesInstalledInactiveProvider(t *testing.T) {
+	capable := ""
+	for _, name := range wm.Providers() {
+		if wm.GpuPinFile(name) != "" {
+			capable = name
+			break
+		}
+	}
+	if capable == "" {
+		t.Fatal("wm seam exposes no render-pin provider")
+	}
+
+	oldInstalled := gpuPinProviderInstalled
+	t.Cleanup(func() { gpuPinProviderInstalled = oldInstalled })
+	gpuPinProviderInstalled = func(name string) bool { return name == capable }
+	if !gpuPinSupported() {
+		t.Fatal("an installed render-pin provider must be audited even while inactive")
+	}
+
+	gpuPinProviderInstalled = func(string) bool { return false }
+	if gpuPinSupported() {
+		t.Fatal("a host with no installed render-pin provider must be neutral")
+	}
+}
+
+func TestReconcileGpuPinIsNeutralWithoutCapability(t *testing.T) {
+	oldSupported, oldVerdict := gpuPinSupported, gpuPinVerdict
+	t.Cleanup(func() { gpuPinSupported, gpuPinVerdict = oldSupported, oldVerdict })
+	gpuPinSupported = func() bool { return false }
+	gpuPinVerdict = func() (string, error) {
+		t.Fatal("unsupported compositor must not be probed")
+		return "", nil
+	}
+
+	if r := reconcileGpuPin(false); r.status != recOK {
+		t.Fatalf("unsupported compositor = %s %q, want neutral", r.status.label(), r.detail)
+	}
 }

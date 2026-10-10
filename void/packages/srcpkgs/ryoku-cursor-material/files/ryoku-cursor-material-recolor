@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+import colorsys
+import fcntl
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+THEME = "Bibata-Material-Ryoku"
+HOME = Path(os.path.expanduser("~"))
+SRC = Path(os.environ.get("RYOKU_BIBATA_SRC", "/usr/share/ryoku-cursor-material/bibata"))
+INSTALL = HOME / ".local/share/icons"
+CFG = HOME / ".config/ryoku/desktop.json"
+COLORS = HOME / ".cache/ryoku/colors.json"
+LOCK = Path(os.environ.get("XDG_CACHE_HOME", str(HOME / ".cache"))) / "ryoku" / "cursor-material.lock"
+INDEX = ("[Icon Theme]\nName=Material Bibata Cursor Ryoku\n"
+         "Comment=Material Bibata Cursor, wallpaper accent\nInherits=Adwaita\n")
+
+
+def read_json(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except Exception:
+        return {}
+
+
+def active_theme():
+    theme = str(read_json(CFG).get("desktop", {}).get("cursor", {}).get("theme", ""))
+    return THEME if theme == "DYNAMIC" else theme
+
+
+def cursor_size():
+    try:
+        return int(read_json(CFG).get("desktop", {}).get("cursor", {}).get("size", 24))
+    except Exception:
+        return 24
+
+
+def hexval(value):
+    value = str(value).strip().lstrip("#")
+    if len(value) == 3:
+        value = "".join(char * 2 for char in value)
+    if len(value) != 6:
+        return None
+    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def tohex(rgb):
+    return "#%02x%02x%02x" % tuple(max(0, min(255, round(value))) for value in rgb)
+
+
+def relit(rgb, lightness, sat_cap):
+    red, green, blue = (value / 255 for value in rgb)
+    hue, _, saturation = colorsys.rgb_to_hls(red, green, blue)
+    return tohex(tuple(value * 255 for value in colorsys.hls_to_rgb(
+        hue, lightness, min(saturation, sat_cap))))
+
+
+def accent():
+    for arg in sys.argv[1:]:
+        if not arg.startswith("-") and hexval(arg):
+            return tohex(hexval(arg))
+    primary = read_json(COLORS).get("primary")
+    return tohex(hexval(primary)) if primary and hexval(primary) else "#e2342a"
+
+
+def compile_theme(flags, body, primary, watch):
+    if not (SRC / "src/cursor_utils.py").is_file():
+        sys.exit(f"bibata source missing at {SRC}")
+    work = Path(tempfile.mkdtemp(prefix="ryoku-cursor-"))
+    for subdir in ("src", "svg", "config"):
+        shutil.copytree(SRC / subdir, work / subdir)
+    render = work / "config/render.json"
+    data = json.loads(render.read_text())
+    theme = "Bibata-Modern-Classic"
+    data[theme]["colors"][0]["replace"] = body
+    data[theme]["colors"][1]["replace"] = primary
+    data[theme]["colors"][2]["replace"] = watch
+    render.write_text(json.dumps(data, indent=2))
+    subprocess.run([sys.executable, "src/cursor_utils.py", *flags,
+                    "--theme", theme, "--out-dir", "out"],
+                   cwd=work, check=True, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+    return work, work / "out" / theme
+
+
+def install_parts(compiled, parts):
+    final = INSTALL / THEME
+    final.mkdir(parents=True, exist_ok=True)
+    (final / "index.theme").write_text(INDEX)
+    for name in parts:
+        source = compiled / name
+        if not source.exists():
+            continue
+        destination = final / name
+        if destination.is_dir():
+            shutil.rmtree(destination, ignore_errors=True)
+        elif destination.exists():
+            destination.unlink()
+        shutil.move(str(source), str(destination))
+
+
+def build_hypr(body, primary, watch):
+    work, compiled = compile_theme(["--hypr"], body, primary, watch)
+    try:
+        install_parts(compiled, ["hyprcursors", "manifest.hl", "index.theme"])
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def build_x11(body, primary, watch):
+    work, compiled = compile_theme(["--x11"], body, primary, watch)
+    try:
+        install_parts(compiled, ["cursors"])
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def apply_live():
+    subprocess.run(["ryoku", "wm", "act", "cursor.set", THEME, str(cursor_size())],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def colors_from(value):
+    rgb = hexval(value)
+    return relit(rgb, 0.16, 0.35), value, relit(rgb, 0.06, 0.40)
+
+
+def x11_locked(function):
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    lock = open(LOCK, "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock.close()
+        return
+    try:
+        function()
+    finally:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        lock.close()
+
+
+def main():
+    args = sys.argv[1:]
+    if "--x11only" in args:
+        body, primary, watch = colors_from(accent())
+        x11_locked(lambda: build_x11(body, primary, watch))
+        return
+    if "--force" not in args and active_theme() != THEME:
+        return
+    body, primary, watch = colors_from(accent())
+    build_hypr(body, primary, watch)
+    apply_live()
+    if "--full" in args:
+        x11_locked(lambda: build_x11(body, primary, watch))
+        apply_live()
+    else:
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), "--x11only", primary],
+                         start_new_session=True, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+
+
+if __name__ == "__main__":
+    main()

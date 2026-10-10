@@ -41,6 +41,7 @@ Singleton {
     property string sysRefresh: ""
     property string codename: "OPERATOR"
 
+    property string sysPackageManager: ""
     // extended read-out for the dossier panel (ryoku-profile-stats).
     property string sysLoad: "-"
     property string sysTemp: "-"
@@ -84,6 +85,7 @@ Singleton {
                 const cn = (l[18] || "").trim();
                 if (cn.length > 0)
                     root.codename = cn;
+                root.sysPackageManager = (l[19] || "").trim();
             }
         }
     }

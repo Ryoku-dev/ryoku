@@ -1,0 +1,19 @@
+# Template file for 'blesh'
+pkgname=blesh
+version=0.4.0devel3
+revision=1
+_upstream=0.4.0-devel3
+wrksrc="ble-${_upstream}"
+depends="bash"
+short_desc="Bash Line Editor with highlighting and autosuggestions"
+maintainer="Koichi Murase <myoga.murase@gmail.com>"
+license="BSD-3-Clause"
+homepage="https://github.com/akinomyoga/ble.sh"
+distfiles="${homepage}/releases/download/v${_upstream}/ble-${_upstream}-2.tar.xz"
+checksum=bdcdcfff216495403adf82a701fe41675f64b64644dc77caabd3e015871ebd61
+
+do_install() {
+	vmkdir usr/share/blesh
+	vcopy . usr/share/blesh
+	vlicense doc/LICENSE.md
+}

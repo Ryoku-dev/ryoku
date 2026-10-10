@@ -1,0 +1,23 @@
+# Template file for 'waifu2x-ncnn-vulkan'
+pkgname=waifu2x-ncnn-vulkan
+version=20250915
+revision=1
+archs="x86_64"
+wrksrc="waifu2x-ncnn-vulkan-${version}-linux"
+depends="vulkan-loader"
+short_desc="NCNN implementation of the waifu2x converter"
+maintainer="Felix Yan <felixonmars@archlinux.org>"
+license="MIT"
+homepage="https://github.com/nihui/waifu2x-ncnn-vulkan"
+distfiles="${homepage}/releases/download/${version}/waifu2x-ncnn-vulkan-${version}-linux.zip"
+checksum=848e0fba55657d34da90b775b8139e9806dc754798b029f95e106ba8850a731f
+conflicts="waifu2x-ncnn-vulkan-git>=0"
+nostrip=yes
+
+do_install() {
+	vinstall waifu2x-ncnn-vulkan 755 usr/libexec waifu2x-ncnn-vulkan.real
+	vbin "${FILESDIR}/waifu2x-ncnn-vulkan"
+	vmkdir usr/share/waifu2x-ncnn-vulkan
+	vcopy "models-*" usr/share/waifu2x-ncnn-vulkan
+	vlicense LICENSE
+}

@@ -100,6 +100,35 @@ func TestResumeFromOtherRefRedoesRefBoundSteps(t *testing.T) {
 	}
 }
 
+func TestVoidResumeCutsOverOldSourceState(t *testing.T) {
+	done := []string{
+		"sysupgrade", "tools", "payload", "backup", "conflicts", "packages",
+		"fonts", "build", "drivers", "session", "configs", "shell", "doctor",
+	}
+	state := &runState{Completed: append([]string(nil), done...), Ref: "main", Delivery: "source"}
+	f := &facts{homeDir: t.TempDir(), distro: voidLinux, prevRun: state}
+	e := newEngine(f, defaultPlan(f), true, "main", "")
+	for _, id := range []string{"payload", "packages", "build", "drivers", "session", "configs", "doctor"} {
+		if e.state.has(id) {
+			t.Errorf("source-lane step %s survived the packaged Void cutover", id)
+		}
+	}
+	for _, id := range []string{"sysupgrade", "tools", "backup", "conflicts", "shell"} {
+		if !e.state.has(id) {
+			t.Errorf("delivery-independent step %s was dropped", id)
+		}
+	}
+	if e.state.Delivery != "packages" {
+		t.Fatalf("delivery = %q, want packages", e.state.Delivery)
+	}
+
+	current := &runState{Completed: append([]string(nil), done...), Ref: "main", Delivery: "packages"}
+	f.prevRun = current
+	if resumed := newEngine(f, defaultPlan(f), true, "main", ""); len(resumed.state.Completed) != len(done) {
+		t.Fatalf("packaged Void resume redid finished steps: %v", resumed.state.Completed)
+	}
+}
+
 func TestSetRyokuServerTouchesOnlyRyokuStanza(t *testing.T) {
 	conf := "[options]\nArchitecture = auto\n\n[core]\nInclude = /etc/pacman.d/mirrorlist\n\n" +
 		"[ryoku]\nSigLevel = Required\n#Server = https://old.example/$arch\nServer = " + stableServer + "\n\n" +

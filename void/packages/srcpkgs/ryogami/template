@@ -1,0 +1,42 @@
+# Template file for 'ryogami'
+pkgname=ryogami
+version=0.2.0
+revision=1
+archs="x86_64"
+short_desc="Ryoku wallpaper daemon and Qt Quick picker"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://ryoku.dev"
+hostmakedepends="go cmake ninja pkg-config wayland-devel wayland-protocols
+ qt6-base qt6-declarative-devel qt6-shadertools"
+makedepends="wayland-devel ffmpeg6-devel qt6-base-private-devel
+ qt6-declarative-devel qt6-multimedia-devel qt6-shadertools-devel
+ Vulkan-Headers"
+# makepkg reads the build host's Qt version while packaging. XBPS metadata is
+# fixed before do_install, so the template pins the Void Qt series explicitly;
+# generated shared-library requirements add the matching ABI constraints.
+depends="ImageMagick ffmpeg6 quickshell qt6-base>=6.11.2
+ qt6-declarative>=6.11.2 qt6-multimedia>=6.11.2 qt6-imageformats
+ skwd-paper-bin"
+distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
+checksum=SKIP
+wrksrc="ryoku-${version}"
+
+_payload() {
+	GOFLAGS="-buildmode=pie" \
+	RYOKU_SRC="$wrksrc" \
+	RYOKU_BUILD_DIR="${wrksrc%/*}/${pkgname}-payload-build" \
+	RYOKU_PKGVER="$version" \
+	RYOKU_RELEASE="$version" \
+	RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+	RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+		"$wrksrc/release/packages/$pkgname/payload.sh" "$@"
+}
+
+do_build() {
+	_payload build
+}
+
+do_install() {
+	_payload install "$DESTDIR" runit
+}

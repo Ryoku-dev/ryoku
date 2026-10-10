@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
 
 	i18n "ryoku-i18n"
@@ -304,5 +305,5 @@ func plural(n int, noun string) string {
 // restartShell saves the user knowing the command; a failure here is not fatal,
 // the repair still stands. A var so a test never restarts the desktop it runs on.
 var restartShell = func() {
-	_ = exec.Command("systemctl", "--user", "restart", "ryoku-shell").Run()
+	_ = host.Default().Service([]string{"--user", "restart", "ryoku-shell"})
 }

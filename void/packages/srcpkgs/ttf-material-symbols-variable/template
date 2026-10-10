@@ -1,0 +1,30 @@
+# Template file for 'ttf-material-symbols-variable'
+pkgname=ttf-material-symbols-variable
+version=2.874
+revision=1
+_commit=bb04090f930e272697f2a1f0d7b352d92dfeee43
+create_wrksrc=yes
+skip_extraction="MaterialSymbolsOutlined.ttf MaterialSymbolsRounded.ttf MaterialSymbolsSharp.ttf LICENSE"
+short_desc="Google Material Symbols four-axis variable fonts"
+maintainer="Caleb Maclennan <caleb@alerque.com>"
+license="Apache-2.0"
+homepage="https://github.com/google/material-design-icons"
+distfiles="
+ https://raw.githubusercontent.com/google/material-design-icons/${_commit}/variablefont/MaterialSymbolsOutlined%5BFILL,GRAD,opsz,wght%5D.ttf>MaterialSymbolsOutlined.ttf
+ https://raw.githubusercontent.com/google/material-design-icons/${_commit}/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf>MaterialSymbolsRounded.ttf
+ https://raw.githubusercontent.com/google/material-design-icons/${_commit}/variablefont/MaterialSymbolsSharp%5BFILL,GRAD,opsz,wght%5D.ttf>MaterialSymbolsSharp.ttf
+ https://raw.githubusercontent.com/google/material-design-icons/${_commit}/LICENSE>LICENSE"
+checksum="
+ fb0d00bfa03507fe6712348604aea33741b41f97643e109ad4e582b1a15865b9
+ d719f22fdee27e344b07e46e6fa8b50b1fce3cfcb03d4a84f03fafbf0812fc22
+ e76edbb72b8cbca2380c507cd17ea5cb4023cf3e01a9dcfeddd670da8c495f37
+ 58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+provides="material-symbols-font-${version}_${revision}"
+
+do_install() {
+	_srcdir="${XBPS_SRCDISTDIR}/${pkgname}-${version}"
+	vinstall "${_srcdir}/MaterialSymbolsOutlined.ttf" 644 usr/share/fonts/TTF
+	vinstall "${_srcdir}/MaterialSymbolsRounded.ttf" 644 usr/share/fonts/TTF
+	vinstall "${_srcdir}/MaterialSymbolsSharp.ttf" 644 usr/share/fonts/TTF
+	vlicense "${_srcdir}/LICENSE"
+}

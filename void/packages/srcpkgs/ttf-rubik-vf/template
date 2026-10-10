@@ -1,0 +1,26 @@
+# Template file for 'ttf-rubik-vf'
+pkgname=ttf-rubik-vf
+version=2.3.0
+revision=1
+_commit=e337a5f69a9bea30e58d05bd40184d79cc099628
+create_wrksrc=yes
+skip_extraction="Rubik[wght].ttf Rubik-Italic[wght].ttf OFL.txt"
+short_desc="Rubik variable TTF used for Shima numerals"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="OFL-1.1"
+homepage="https://github.com/googlefonts/rubik"
+distfiles="
+ ${homepage}/raw/${_commit}/fonts/variable/Rubik%5Bwght%5D.ttf>Rubik[wght].ttf
+ ${homepage}/raw/${_commit}/fonts/variable/Rubik-Italic%5Bwght%5D.ttf>Rubik-Italic[wght].ttf
+ ${homepage}/raw/${_commit}/OFL.txt>OFL.txt"
+checksum="
+ 1b3a7437ba2af80e465e773ed60c5036d1ba6ace492d89046dbcf18fb31e4e88
+ 08c6c4018a5ada8b517407b46897e46cf6ebb106853fbd3e89addb51d3b59c62
+ 472cbe7c25441df63e9c7864b43eb3c0f4b3df950c66a76224e6cfe1eae843fb"
+
+do_install() {
+	_srcdir="${XBPS_SRCDISTDIR}/${pkgname}-${version}"
+	vinstall "${_srcdir}/Rubik[wght].ttf" 644 usr/share/fonts/TTF
+	vinstall "${_srcdir}/Rubik-Italic[wght].ttf" 644 usr/share/fonts/TTF
+	vlicense "${_srcdir}/OFL.txt"
+}

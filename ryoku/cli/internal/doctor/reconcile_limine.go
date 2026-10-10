@@ -53,6 +53,10 @@ const (
 	limineToolEFI   = "/boot/EFI/limine/limine_x64.efi"
 )
 
+var limineManagedBoot = func() bool {
+	return hasPacman() && (sys.Has("limine-entry-tool") || sys.Has("limine-mkinitcpio"))
+}
+
 type limineLayoutOutcome int
 
 const (
@@ -130,6 +134,9 @@ func gatherLimineLayoutState() limineLayoutState {
 }
 
 func reconcileLimineLayout(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	st := gatherLimineLayoutState()
 	outcome, actions := planLimineLayout(st)
 	switch outcome {
@@ -597,6 +604,9 @@ func registerRyokuBootEntry() error {
 // bootloader, and it stands aside for the layout migration while a legacy entry
 // is still there to convert.
 func reconcileLimineBootEntry(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	if !sys.PkgInstalled("limine") || !sys.Exists(limineToolEFI) {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
@@ -669,6 +679,9 @@ func writeBootFile(path, contents string) error {
 // flat placeholder the way the installer's finalize does, and run one sync so
 // the snapshots show up now, not at the next snapper event.
 func reconcileLimineUKITree(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	if !sys.PkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}
@@ -781,6 +794,9 @@ func limineDropFlat(conf string) (string, bool) {
 }
 
 func reconcileLimineOSName(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	const path = "/etc/default/limine"
 	cur := readFileSafe(path)
 	if cur == "" {
@@ -1049,6 +1065,9 @@ func limineIsNumeric(s string) bool {
 // kernel. Runs on every `ryoku update`, so existing boxes heal without a
 // reinstall; idempotent once the prelude is right.
 func reconcileLimineAutoboot(checkOnly bool) recResult {
+	if !limineManagedBoot() {
+		return okRes(i18n.T("Ryoku's Limine tooling does not manage this boot"))
+	}
 	if !sys.PkgInstalled("limine") {
 		return okRes(i18n.T("not a limine-managed boot on this box"))
 	}

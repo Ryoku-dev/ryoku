@@ -1,6 +1,12 @@
 package doctor
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"ryoku-cli/internal/host"
+)
 
 func TestRyogamiWallpaperActions(t *testing.T) {
 	cases := []struct {
@@ -41,5 +47,54 @@ func TestRyogamiWallpaperActions(t *testing.T) {
 					c.wantEnable, c.wantFailed, c.wantStart, c.wantAwww)
 			}
 		})
+	}
+}
+
+func TestRyogamiWallpaperRunitRepairSettles(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "ryogami"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	t.Setenv("WAYLAND_DISPLAY", "wayland-1")
+
+	oldInit, oldService, oldAwww := ryogamiInit, ryogamiService, awwwDaemonRunning
+	t.Cleanup(func() {
+		ryogamiInit, ryogamiService, awwwDaemonRunning = oldInit, oldService, oldAwww
+	})
+	ryogamiInit = func() (host.InitSystem, error) { return host.Runit, nil }
+	awwwDaemonRunning = func() bool { return false }
+
+	enabled, active := false, false
+	var calls [][]string
+	ryogamiService = func(args []string) int {
+		calls = append(calls, append([]string(nil), args...))
+		switch args[1] {
+		case "is-enabled":
+			if enabled {
+				return host.ExitOK
+			}
+			return host.ExitFalse
+		case "is-active":
+			if active {
+				return host.ExitOK
+			}
+			return host.ExitFalse
+		case "enable":
+			enabled = true
+		case "start":
+			active = true
+		}
+		return host.ExitOK
+	}
+
+	if r := reconcileRyogamiWallpaper(false); r.status != recFixed {
+		t.Fatalf("repair = %s %q, want fixed", r.status.label(), r.detail)
+	}
+	if !enabled || !active {
+		t.Fatalf("runit service state = enabled %v active %v, want both true; calls=%v", enabled, active, calls)
+	}
+	if r := reconcileRyogamiWallpaper(false); r.status != recOK {
+		t.Fatalf("second run = %s %q, want settled ok", r.status.label(), r.detail)
 	}
 }

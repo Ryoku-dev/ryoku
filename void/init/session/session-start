@@ -11,6 +11,23 @@ log() {
 	printf 'ryoku-session: %s\n' "$*" >&2
 }
 
+supervisor_unavailable=0
+
+restart_service() {
+	service=$1
+	attempts=50
+	while [ ! -r "$service/supervise/stat" ]; do
+		[ "$supervisor_unavailable" -eq 0 ] || return 1
+		attempts=$((attempts - 1))
+		if [ "$attempts" -le 0 ]; then
+			supervisor_unavailable=1
+			return 1
+		fi
+		sleep 0.1
+	done
+	sv restart "$service" >/dev/null 2>&1
+}
+
 umask 077
 if mkdir -p "$ENV_DIR"; then
 	env | while IFS='=' read -r name value; do
@@ -32,6 +49,10 @@ if [ -x "$INIT_LIB/xdg-dirs" ]; then
 else
 	log "missing XDG directory renderer $INIT_LIB/xdg-dirs"
 fi
+if ! ryoku-host session ensure --user; then
+	log "could not provision Ryoku user services"
+fi
+
 
 ryoku-reload-cover begin boot || true
 
@@ -49,8 +70,12 @@ while IFS= read -r name || [ -n "$name" ]; do
 		log "missing service $service"
 		continue
 	fi
+	if [ -e "$service/.ryoku-disabled" ]; then
+		log "leaving disabled service $name stopped"
+		continue
+	fi
 	log "restarting $name"
-	if ! sv restart "$service" >/dev/null 2>&1; then
+	if ! restart_service "$service"; then
 		log "could not restart $name"
 	fi
 done < "$ROSTER"

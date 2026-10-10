@@ -5,12 +5,13 @@ alsa-lib	alsa-lib	desktop
 alsa-utils	alsa-utils	desktop	
 amd-ucode	linux-firmware-amd	hardware:amd	
 apple_cursor	-	extra	No Void repository package.
-asusctl	-	optional	No Void repository package.
+asusctl	-	optional	No faithful runit shutdown integration is available.
 base	base-system	system	
 base-devel	base-devel	system	
+bash	bash	desktop	
 bash-completion	bash-completion	desktop	
 bat	bat	desktop	
-blesh	-	desktop	No Void repository package.
+blesh	blesh	desktop	repo=ryoku
 bluez	bluez	desktop	
 bluez-utils	-	desktop	Included in Void bluez.
 brightnessctl	brightnessctl	desktop	
@@ -23,7 +24,7 @@ chromium	chromium	desktop
 cliphist	cliphist	desktop	
 cryptsetup	cryptsetup	system	
 curl	curl	desktop	
-dav1d	dav1d	desktop	
+dav1d	libdav1d	desktop	
 ddcutil	ddcutil	desktop	
 desktop-file-utils	desktop-file-utils	desktop	
 dkms	dkms	desktop	
@@ -40,7 +41,7 @@ fish	fish-shell	desktop
 flatpak	flatpak	desktop	
 fuzzel	fuzzel	desktop	
 fzf	fzf	desktop	
-game-devices-udev	-	desktop	No Void repository package; vendor udev rules are unavailable.
+game-devices-udev	game-devices-udev	desktop	repo=ryoku
 gamemode	gamemode	desktop	
 gamescope	gamescope	desktop	
 gcc	gcc	desktop	
@@ -51,7 +52,7 @@ glibc	glibc	desktop
 gnome-keyring	gnome-keyring	desktop	
 gnome-themes-extra	gnome-themes-extra	desktop	
 go	go	dev	
-gpk	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+gpk	-	desktop	GlazePKG is a pacman frontend and does not apply to XBPS.
 gpu-screen-recorder	gpu-screen-recorder	desktop	
 grim	grim	desktop	
 gst-libav	gst-libav	desktop	
@@ -131,7 +132,7 @@ npm	-	dev	Included in Void nodejs.
 nvibrant-bin	-	extra	No Void repository package.
 nvidia-utils	-	hardware:nvidia	Deferred: Void's nvidia drives Turing and newer only and blacklists nouveau; NVIDIA GPUs stay on nouveau until the driver step picks a branch per GPU.
 openrgb	openrgb	desktop	
-otf-space-grotesk	@fetch	desktop	Pinned source asset installed by the source installer.
+otf-space-grotesk	otf-space-grotesk	desktop	repo=ryoku
 pacman	-	desktop	Replaced by the ryoku-host XBPS backend.
 pacman-contrib	-	desktop	Pacman-only tooling; the XBPS backend does not use it.
 pam-fprint-grosshack	-	extra	No Void repository package.
@@ -149,7 +150,7 @@ playerctl	playerctl	desktop
 plymouth	plymouth	system	
 polkit	polkit	desktop	
 power-profiles-daemon	power-profiles-daemon	desktop	
-prowl	-	desktop	Prowl is not yet packaged or source-installed on Void.
+prowl	prowl	desktop	repo=ryoku
 python	python3	desktop,dev	
 python-pip	python3-pip	dev	
 python-pipx	python3-pipx	dev	
@@ -171,29 +172,30 @@ quickshell	quickshell	desktop
 ripgrep	ripgrep	desktop	
 rtkit	rtkit	desktop	
 rust	rust	desktop	
-ryogami	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku-blobs	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku-cursor-material	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku-cursors	@fetch	desktop	Pinned source asset installed by the source installer.
-ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryogami	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku-blobs	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku-cursor-material	ryoku-cursor-material	desktop	repo=ryoku
+ryoku-cursors	ryoku-cursors	desktop	repo=ryoku
+ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-desktop-compositor	-	desktop	Virtual dependency provided by a compositor meta-package.
 ryoku-desktop-hyprland	-	hyprland	Hyprland is not packaged on Void.
-ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-desktop-niri	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku-hub	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-hypr-plugins	-	hyprland	Hyprland is not packaged on Void.
-ryoku-keyring	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-keyring	ryoku-keyring	desktop	repo=ryoku
 ryoku-keysounds	-	hyprland	Hyprland is not packaged on Void.
-ryoku-oh-my-zsh	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku-rashin	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
-ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout; future XBPS template.
+ryoku-oh-my-zsh	-	desktop	Void uses its packaged Zsh configuration instead.
+ryoku-palette-bridge	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku-rashin	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout.
 ryotunes	-	optional	Ryotunes is not yet packaged for Void.
 sddm	sddm	desktop	
 shaderc	shaderc	desktop	
-skwd-paper-bin	-	desktop	The upstream Arch binary cannot be installed by XBPS.
+skwd-paper-bin	skwd-paper-bin	desktop	repo=ryoku
 slurp	slurp	desktop	
 snap-pac	-	system	Pacman hook with no XBPS equivalent.
-snapper	snapper	desktop,system	
+snapper	-	desktop,system	Ryoku does not set up snapshots on Void.
 socat	socat	desktop	
 songrec	songrec	desktop	
 spice-gtk	spice-gtk	optional	
@@ -205,24 +207,25 @@ swtpm	swtpm	optional
 syntax-highlighting	syntax-highlighting	desktop	
 tesseract	tesseract-ocr	desktop	
 tesseract-data-eng	tesseract-ocr-eng	desktop	
-ttf-firacode-nerd	nerd-fonts-ttf	desktop	
+ttf-firacode-nerd	ttf-firacode-nerd	desktop	repo=ryoku
 ttf-fraunces-variable	-	extra	No Void repository package and not in the pinned source-asset set.
-ttf-hack-nerd	nerd-fonts-ttf	desktop	
-ttf-jetbrains-mono-nerd	nerd-fonts-ttf	desktop	
-ttf-maple-mono-nf	@fetch	desktop	Pinned source asset installed by the source installer.
-ttf-material-symbols-variable	@fetch	desktop	Pinned source asset installed by the source installer.
-ttf-readex-pro	@fetch	desktop	Pinned source asset installed by the source installer.
-ttf-rubik-vf	@fetch	desktop	Pinned source asset installed by the source installer.
+ttf-hack-nerd	ttf-hack-nerd	desktop	repo=ryoku
+ttf-jetbrains-mono-nerd	ttf-jetbrains-mono-nerd	desktop	repo=ryoku
+ttf-maple-mono-nf	ttf-maple-mono-nf	desktop	repo=ryoku
+ttf-material-symbols-variable	ttf-material-symbols-variable	desktop	repo=ryoku
+ttf-readex-pro	ttf-readex-pro	desktop	repo=ryoku
+ttf-rubik-vf	ttf-rubik-vf	desktop	repo=ryoku
+udev	eudev	desktop	
 upower	upower	desktop	
 uv	uv	desktop	
-vimix-cursors	@fetch	desktop	Pinned source asset installed by the source installer.
+vimix-cursors	vimix-cursors	desktop	repo=ryoku
 virglrenderer	virglrenderer	desktop	
 voxtype-bin	-	extra	No Void repository package.
 vulkan-icd-loader	vulkan-loader	desktop	
 vulkan-intel	mesa-vulkan-intel	hardware:intel	
 vulkan-radeon	mesa-vulkan-radeon	hardware:amd	
 vulkan-swrast	mesa-vulkan-lavapipe	hardware:vm	
-waifu2x-ncnn-vulkan	-	desktop	No Void repository package.
+waifu2x-ncnn-vulkan	waifu2x-ncnn-vulkan	desktop	repo=ryoku
 wayland	wayland	desktop	
 webkit2gtk-4.1	libwebkit2gtk41	desktop	
 weston	weston	desktop	

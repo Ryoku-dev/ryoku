@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"ryoku-cli/internal/host"
 )
 
 // statLine builds a /proc/<pid>/stat line with `comm` as the process name and
@@ -177,5 +179,31 @@ func TestPortalSessionStaysQuietWithoutABus(t *testing.T) {
 
 	if got := reconcilePortalSession(false); got.status != recOK {
 		t.Fatalf("no bus: status=%v detail=%q, want ok", got.status, got.detail)
+	}
+}
+
+func TestPortalSessionRunitUsesHostPackageState(t *testing.T) {
+	portalShims(t, "org.freedesktop.portal.Screenshot   interface - - -\n", true, false)
+	portalCaps(t, "niri", "gnome")
+
+	oldInstalled, oldAdvice, oldInit := doctorPackageInstalled, doctorInstallAdvice, doctorInitSystem
+	t.Cleanup(func() {
+		doctorPackageInstalled, doctorInstallAdvice, doctorInitSystem = oldInstalled, oldAdvice, oldInit
+	})
+	doctorInitSystem = func() (host.InitSystem, error) { return host.Runit, nil }
+	doctorPackageInstalled = func(string) bool { return false }
+	doctorInstallAdvice = func(names ...string) string {
+		return "sudo xbps-install -S " + strings.Join(names, " ")
+	}
+
+	missing := reconcilePortalSession(true)
+	if missing.status != recWarn || missing.remedy != "sudo xbps-install -S xdg-desktop-portal-gnome" {
+		t.Fatalf("missing runit backend = %s remedy %q", missing.status.label(), missing.remedy)
+	}
+
+	doctorPackageInstalled = func(string) bool { return true }
+	dead := reconcilePortalSession(true)
+	if dead.status != recNote || strings.Contains(dead.remedy, "systemctl") {
+		t.Fatalf("dead runit backend = %s remedy %q, want neutral D-Bus note", dead.status.label(), dead.remedy)
 	}
 }
