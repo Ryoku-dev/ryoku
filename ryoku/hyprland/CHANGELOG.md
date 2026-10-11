@@ -25,6 +25,9 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Hyprland reloads no longer duplicate `~/.local/bin` in PATH.** Reapplying
+  the environment keeps the directory first without growing PATH on each
+  config reload (`modules/env.lua`).
 - **Arrow keys still move focus when a window is maximized.** Super+D
   maximizes, and with the compositor's default the direction focus binds then
   refuse to leave a maximized or fullscreen window: on the scrolling layout
