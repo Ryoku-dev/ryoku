@@ -80,12 +80,13 @@ Edit the repo, deploy, test on the running system.
 
 Two branches, two jobs. Work goes to one; a release moves the other.
 
-- **`unstable-dev` is where work lands.** Every push publishes the testing
-  channel (`[ryoku]` packages built and signed by **Publish [ryoku] repo**), so
-  a tester on `ryoku track unstable` gets it on the next `ryoku update`. Push
-  with `git push origin unstable-dev`; after the push the version bot adds a
-  `[skip ci]` bump commit, so `git fetch origin && git rebase origin/unstable-dev`
-  before the next push. Batch small commits: each push is a publish cycle.
+- **`unstable-dev` is where work lands.** Every push publishes the signed
+  testing package repositories for every packaged edition, so a tester on
+  `ryoku track unstable` gets it on the next `ryoku update`. Push with
+  `git push origin unstable-dev`; after the push the version bot adds a
+  `[skip ci]` bump commit,
+  so `git fetch origin && git rebase origin/unstable-dev` before the next push.
+  Batch small commits: each push is a publish cycle.
 - **`main` is the stable channel users run, and nothing is pushed to it.** It
   advances only when a release is cut, by fast-forwarding to a commit
   `unstable-dev` already carries (`docs/updates.md`, "Publishing: releases and
@@ -111,10 +112,10 @@ Two branches, two jobs. Work goes to one; a release moves the other.
 Where a change lives decides whether, and how, it reaches an installed machine.
 
 - **Desktop config and binaries (`ryoku/`)** reach users through `ryoku update`:
-  config is re-laid by `ryoku materialize` (override-safe), binaries come from the
-  signed `[ryoku]` repo. They reach the testing channel on every push to
-  `unstable-dev` and stable when a release is tagged (`docs/updates.md`,
-  "Publishing: releases and channels").
+  config is re-laid by `ryoku materialize` (override-safe), and binaries come
+  from the edition's signed native repository. They reach every testing package
+  channel on each push to `unstable-dev` and stable when a release is tagged
+  (`docs/updates.md`, "Publishing: releases and channels").
 - **Push, or work on a branch that is not the channel.** `ryoku update` on a
   checkout reconciles the branch it is ON onto `origin/<channel>`: a clean
   fast-forward when it can, and a `git reset --hard` when the branch has diverged
@@ -150,9 +151,10 @@ every supported install has run it, so the set stays small instead of piling up.
 
 - The desktop ships as native signed packages. Arch and CachyOS use the
   `[ryoku]` pacman repository built from `release/packages/`; Void uses the XBPS
-  repository built from `void/packages/srcpkgs/`. The live ISOs prebuild the
-  installer TUI, while the installed desktop binaries come from the package
-  repository, so never assume `go` exists at install time.
+  repository built from `void/packages/srcpkgs/`; Fedora uses the RPM repository
+  built from `fedora/packages/rpm/`. The live ISOs prebuild the installer TUI,
+  while installed desktop binaries come from the package repository, so never
+  assume `go` exists at install time.
 - On Arch and CachyOS, AUR packages install in the post-install step
   (`installation/backend/lib/aur.sh`), not via pacstrap.
 - User-level package managers install without root, into `~/.local/bin` (`npm`,
@@ -202,6 +204,32 @@ RYOKU_VOID_ISO_WORKTREE=1 \
 and move stable. `.github/workflows/build-iso-void.yml` builds the ISO on
 `void-v*` tags or a manual dispatch. See `void/packages/README.md` and
 `void/iso/README.md` for the build inputs.
+
+### Build the Fedora artifacts
+
+Fedora RPMs are built for every release listed in `fedora/releases`. Prepare
+the source RPMs from tracked files, then rebuild and assemble the signed binary
+repository:
+
+```sh
+RYOKU_PKGVER=1.2.3 \
+RYOKU_RELEASE=v1.2.3 \
+RYOKU_CHANNEL=stable \
+RYOKU_SRPM_OUT=/tmp/ryoku-srpms \
+  fedora/packages/rpm/prepare-srpms.sh
+
+RYOKU_SRPM_IN=/tmp/ryoku-srpms \
+RYOKU_RPM_OUT=/tmp/ryoku-rpm-repo \
+RYOKU_RPM_SIGNING_KEY=EB6D3C0F55A7B3CABA6B2838847B274F025DD6E3 \
+  fedora/packages/rpm/build-rpm-repo.sh
+```
+
+The output contains signed binary RPMs, `repodata/`, its detached armored
+signature, and `release.json`. SRPMs stay in the build artifact and are not
+published. `.github/workflows/publish-repo-fedora.yml` builds and tests each
+supported Fedora release in its own container, publishes stable or testing
+heads and their frozen targets, and rebuilds the ledgers. Fedora has no ISO
+workflow. See `fedora/packages/rpm/README.md` for local-build overrides.
 
 The R2 retention Worker lives in `release/r2-retention/`. Run its focused tests
 with `node --test release/r2-retention/test/*.test.js`, then deploy from that

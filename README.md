@@ -6,13 +6,12 @@
 
 **力と美のために** &middot; *For the sake of power and beauty.*
 
-Ryoku is a hand-built Linux distribution with Arch, CachyOS, and Void Linux
-editions: one cohesive desktop, a guided installer, and the system definition
-that reproduces them, all from a single repository. It is a whole operating
-system you install to disk from its own ISO, including the bootloader, drivers,
-packages, installer, and desktop, not a shell or a set of dotfiles layered onto
-another distro. The base is lean enough to live in from first boot and
-deliberate in how it looks and moves.
+Ryoku is a hand-built Linux distribution with Arch, CachyOS, Void Linux, and
+Fedora editions: one cohesive desktop, a guided installer, and the system
+definition that reproduces them, all from a single repository. Arch, CachyOS,
+and Void can be installed from Ryoku's own images; Fedora installs the same
+desktop onto an existing mutable Fedora system. The result includes the
+drivers, packages, installer, and desktop, not just a set of dotfiles.
 
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-E2342A?style=for-the-badge)](LICENSE)
 [![Built on Arch](https://img.shields.io/badge/Arch_Linux-1793D1?style=for-the-badge&logo=archlinux&logoColor=white)](https://archlinux.org)
@@ -122,18 +121,21 @@ Everything else waits in Ryoku Settings (`Super + ,`).
   the lockscreen, app configs, and brand assets.
 - **The system definition** under `system/`: the boot chain, hardware policy,
   and package sets that make a machine a Ryoku machine.
-- **The installer** under `installation/` and `void/iso/`: a guided TUI, the
-  backend installers, and the live-image profiles that build the signed ISOs.
-- **The update system** under `release/` and `void/packages/`: the `ryoku`
-  control CLI, desktop packages, and signed pacman and XBPS repositories.
+- **The installer** under `installation/`, `void/iso/`, and
+  `ryoku-shell-installer/`: guided installers and the live-image profiles that
+  build the signed ISOs.
+- **The update system** under `release/`, `void/packages/`, and
+  `fedora/packages/`: the `ryoku` control CLI and signed pacman, XBPS, and RPM
+  repositories.
 
 ## Requirements
 
-Ryoku is `x86_64` only and boots in UEFI mode. Arch and CachyOS sessions can
-run Hyprland or niri; the Void edition runs niri. The GPU-composited Ryoku
-shell sits on top. The installer refuses a machine with Secure Boot on (Limine
-ships unsigned) unless you have enrolled your own keys, and there is no 32-bit
-build or legacy BIOS path.
+Ryoku is `x86_64` only. Arch and CachyOS sessions can run Hyprland or niri; the
+Void edition runs niri; Fedora 44 supports either compositor on a mutable
+systemd install. The ISO editions boot in UEFI mode and refuse Secure Boot
+unless you have enrolled your own keys because Limine ships unsigned. Fedora
+keeps GRUB and does not accept rpm-ostree systems. There is no 32-bit or legacy
+BIOS build.
 
 |  | Minimum | Recommended |
 |---|---|---|
@@ -141,7 +143,7 @@ build or legacy BIOS path.
 | RAM | 4 GB | 8 GB, 16 GB with the dev toolchains |
 | GPU | any card with working KMS and OpenGL/Vulkan | recent integrated or discrete |
 | Storage | 32 GB (installer floor) | 64 GB+ SSD |
-| Firmware | UEFI, Secure Boot off | UEFI, Secure Boot off |
+| Firmware | ISO editions: UEFI, Secure Boot off | ISO editions: UEFI, Secure Boot off |
 
 The desktop is light on its own: a resting session (the compositor, the shell,
 and its daemons) uses under 1 GB of RAM. What you run on top, the browser,
@@ -168,6 +170,9 @@ the right driver is picked for the detected hardware at install time:
   cards. On the stock kernel Ryoku installs the prebuilt module, so there is no
   DKMS build to fail on first boot.
 
+Fedora is the exception in this release: the installer leaves NVIDIA on
+nouveau and does not add a proprietary driver repository.
+
 On a hybrid laptop with two GPUs, Ryoku ranks them and pins the strongest as the
 primary renderer on a desktop, while a laptop keeps the integrated GPU primary
 for battery; an external GPU always wins. Every GPU stays available, so a monitor
@@ -180,8 +185,9 @@ Broadcom Wi-Fi, read-only NVRAM, slow USB media) is in
 
 ## Install
 
-Two ways in. A fresh machine boots the signed **ISO**; an existing Arch,
-CachyOS, or Void glibc box converts in place with the **shell installer**.
+Two ways in. A fresh Arch, CachyOS, or Void machine boots the signed **ISO**; an
+existing Arch, CachyOS, Void glibc, or Fedora box converts in place with the
+**shell installer**.
 
 ### Fresh install (the ISO)
 
@@ -222,6 +228,40 @@ curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-in
 Preview everything it would do without changing anything by appending
 `-s -- --dry-run` after `bash`. Details in
 [`ryoku-shell-installer/`](ryoku-shell-installer/README.md).
+
+### Fedora Linux
+
+The Fedora edition installs on mutable Fedora 44 Workstation or Server,
+`x86_64`, with systemd. Run the same shell installer used above:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ryoku-dev/ryoku/main/ryoku-shell-installer/install.sh | bash
+```
+
+It uses dnf5 (or dnf when dnf5 is unavailable), verifies Ryoku's release key,
+adds the signed repository for the running Fedora release, installs the chosen
+Hyprland or niri desktop, and replaces GDM with SDDM. Package-restricted COPR
+repositories supply only the Hyprland stack, starship, lazygit, and yazi pieces
+Fedora does not provide. Ryoku-owned software still comes from Ryoku's signed
+RPM repository. rpm-ostree systems are refused.
+
+Fedora 44 stable uses
+`https://repo.ryoku.dev/stable/fedora/44/x86_64`; every `unstable-dev` push
+publishes testing at
+`https://repo.ryoku.dev/stable/fedora/44/channels/testing/x86_64`. Tagged
+releases and successful testing builds are frozen below the same Fedora root,
+with stable and testing ledgers for the ten retained rollback targets.
+
+| Limit | Why |
+|---|---|
+| No Fedora ISO | Fedora is installed by converting an existing mutable system. |
+| No snapshots or snapshot boot menu | Fedora keeps GRUB, which Ryoku's snapshot boot flow does not drive. |
+| NVIDIA stays on nouveau | Ryoku does not manage Fedora's proprietary NVIDIA packages in this release. |
+| No Zen Browser, Ryotunes, or several small extras | They are not published in the Fedora package lane yet. |
+
+`ryoku update`, `ryoku track`, and `ryoku rollback` use DNF and the signed RPM
+repositories. Rollback and the boot guard can downgrade the Ryoku package set,
+but Fedora has no whole-system snapshot restore path.
 
 ### Void Linux
 
@@ -280,25 +320,27 @@ Ryoku updates its own layer, and leaves the rest of the system to you:
 ```bash
 ryoku update                 # Ryoku packages, configs, and doctor
 sudo pacman -Syu             # Arch or CachyOS base system and kernel
-ryoku update --system        # Ryoku and Void base system in one snapshot pair
+sudo dnf5 upgrade --refresh  # Fedora base system and kernel
+ryoku update --system        # Ryoku plus the Void or Fedora base system
 ```
 
-On an ISO install, `ryoku update` takes a snapper pre/post pair, moves the
-packages the signed Ryoku repository serves, re-lays the desktop configs into
-your home, and reloads the shell. A failed package step aborts before anything
-else changes. On Void, XBPS has no equivalent to Arch's snap-pac hooks, so a
-plain `xbps-install -Su` is not snapshotted. Use `ryoku update --system` when
-moving the Void base system or kernel to keep the update inside the same safety
-net.
+On a snapshot-enabled install, `ryoku update` takes a snapper pre/post pair,
+moves the packages the signed Ryoku repository serves, re-lays the desktop
+configs into your home, and reloads the shell. A failed package step aborts
+before anything else changes. On Void, XBPS has no equivalent to Arch's
+snap-pac hooks, so a plain `xbps-install -Su` is not snapshotted. Use `ryoku
+update --system` when moving the Void base system or kernel to keep the update
+inside the same safety net. Fedora updates continue without snapshots; DNF
+package rollback remains available.
 
 The base system and kernel are deliberately not part of the default command;
-the distribution's native update moves them when you say so. Every
-`ryoku update` tells you how many system packages are waiting, and
-`ryoku update --system` runs both lanes in one go if you prefer that.
+the distribution's native update moves them when you say so. Every `ryoku
+update` tells you how many system packages are waiting, and `ryoku update
+--system` runs both lanes in one go if you prefer that.
 
-The desktop ships from Ryoku's signed pacman repository on Arch and CachyOS and
-its signed XBPS repository on Void. The `ryoku-keyring` package carries the
-matching trust key, so updates are verified through the native package manager.
+The desktop ships from Ryoku's signed pacman repository on Arch and CachyOS,
+its signed XBPS repository on Void, and its signed RPM repository on Fedora.
+Each native package manager verifies the update with Ryoku's release key.
 
 Your settings survive every update. The base configs are Ryoku-owned and
 refreshed in place, while your own edits live in override files that are never
@@ -311,10 +353,11 @@ update, and the rare stateful fix (disk layout and the like) is an idempotent
 `ryoku rollback` lists the ten retained frozen targets for the current channel:
 tagged releases on stable, and tested builds on unstable. Pin one with
 `ryoku rollback --to <version>` or `ryoku track <version>`, and use
-`ryoku track stable` or `ryoku track unstable` to follow a moving head again;
-the boot guard can return to the previous frozen target after failed boots,
-while a whole-system restore still uses **Ryoku Linux -> Snapshots** in Limine
-followed by `sudo limine-snapper-restore` and another reboot.
+`ryoku track stable` or `ryoku track unstable` to follow a moving head again.
+The boot guard can return the Ryoku package set to the previous frozen target
+after failed boots on every packaged edition. Arch and Void can also restore a
+whole-system snapshot through **Ryoku Linux -> Snapshots** in Limine followed
+by `sudo limine-snapper-restore`; Fedora has no snapshot boot path.
 
 ## Recovery
 
@@ -338,7 +381,7 @@ This is a true last resort. It clears your user overrides and the Hub's stored
 settings, and resets you to the latest `main`. It refuses to run on a machine
 that is not Ryoku, and asks you to confirm before it changes
 anything. Pass `--yes` to skip the prompt and `--no-packages` to pull and
-redeploy the configs without the pacman step.
+redeploy the configs without the native package step.
 
 ## Repository layout
 
@@ -349,13 +392,15 @@ redeploy the configs without the pacman step.
 | `installation/` | How a machine is built: the TUI, the backend installer, the ISO profile. |
 | `release/` | Arch and CachyOS packaging: the desktop PKGBUILDs, the `[ryoku]` repo builder, the signing keyring. |
 | `void/` | Void packaging, runit integration, and the Void ISO. |
+| `fedora/` | Fedora package translation, RPM specs and repository publishing for each supported Fedora release. |
 | `docs/` | The guides. Start with [`docs/ryoku.md`](docs/ryoku.md) and [`docs/structure.md`](docs/structure.md). |
 
 ## Channels
 
-`main` is the stable channel users run; packages and ISOs are published on
-tagged releases. `unstable-dev` is the maintainer preview, and every push
-publishes the testing package channels. A release promotes `unstable-dev` to
+`main` is the stable channel users run; packages and the editions' available
+ISOs are published on tagged releases. `unstable-dev` is the maintainer preview,
+and every push publishes the testing package channels. A release promotes
+`unstable-dev` to
 `main`. See [`docs/development.md`](docs/development.md) for the deploy, test,
 and commit loop.
 

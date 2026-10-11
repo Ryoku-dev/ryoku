@@ -3,12 +3,21 @@
 ## Unreleased
 
 ### Added
+- **Fedora releases publish signed RPM repositories.** Every release listed in
+  `fedora/releases` gets its own stable and testing heads, frozen releases and
+  unstable builds, and package-only ledgers below `stable/fedora/<N>/`. CI
+  rebuilds SRPMs in that Fedora release, signs every binary RPM and
+  `repomd.xml`, install-tests both compositor packages, and publishes no SRPMs
+  or ISO. Retention keeps the latest ten stable and unstable targets for each
+  Fedora release.
 - **The R2 bucket keeps the last ten of everything.** A scheduled Cloudflare
   Worker (`r2-retention/`) keeps ten stable releases and ten unstable builds
-  per edition and ten ISOs per edition and channel, deletes anything older
-  with its sidecars, and drops ledger entries for what it removed.
-- **Unstable repositories keep frozen build history.** Arch and Void testing
-  publishes now record immutable builds in ledgers for rollback and pinning.
+  per edition and Fedora release, plus ten ISOs for each image-producing
+  edition and channel. It deletes older targets with their sidecars and drops
+  ledger entries for what it removed.
+- **Unstable repositories keep frozen build history.** Arch, Void, and each
+  supported Fedora release record immutable testing builds in ledgers for
+  rollback and pinning.
 - **Void ships `limine-snapper-sync`.** The signed XBPS package builds the
   native tool offline and runs its snapshot watcher under runit.
 - **Ryoku packages now share one payload across pacman and XBPS.** Monorepo

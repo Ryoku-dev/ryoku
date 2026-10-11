@@ -112,10 +112,10 @@ truth for the live desktop.
   `main.go` is a thin dispatcher over `internal/updater`, `internal/doctor`, and
   the shared primitives in `internal/sys`. `cmd/ryoku-host` builds
   `/usr/bin/ryoku-host`, the one runtime boundary for init-system and package
-  manager operations. Its implementation in `internal/host` selects the
-  systemd or runit backend and the pacman or XBPS backend, so scripts, daemons,
-  QML, and other Go modules do not grow host checks. Per-command reference,
-  user- vs developer-facing, is in `docs/cli.md`.
+  manager operations. Its implementation in `internal/host` selects systemd or
+  runit and pacman, XBPS, or DNF, so scripts, daemons, QML, and other Go modules
+  do not grow host checks. Per-command reference, user- vs developer-facing, is
+  in `docs/cli.md`.
 - `hub/` Ryoku Settings, the central control-center GUI (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go data plane that reads the keybind legend from the live
   Hyprland config, generates the `settings.lua` overlay (in `user_edits`) from JSON, and
@@ -203,19 +203,18 @@ System-level definition installed into the target.
 
 ## The distribution model
 
-- The desktop ships as signed pacman packages from the `[ryoku]` repository
-  (`release/packages/`). `ryoku-desktop` is the umbrella: it version-pins the
-  monorepo components (`ryoku-shell`, `ryoku-hub`, `ryoku-rashin`, `ryoku-blobs`,
-  `ryoku`, and the Hyprland plugins `hypr-dynamic-cursors`,
-  `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `ryoku-keysounds`) and also depends on
-  `ryoku-keyring` and the `gpk` package manager, and lays the base config under
-  `/usr/share/ryoku/config`.
-- The installer adds the `[ryoku]` repo, imports the keyring, and installs
-  `ryoku-desktop`; per-user config is then copied into `~/.config` by
+- The desktop ships as signed native packages. Arch and CachyOS use pacman
+  packages from `release/packages/`, Void uses XBPS templates under
+  `void/packages/srcpkgs/`, and Fedora uses RPM specs under
+  `fedora/packages/rpm/`. `ryoku-desktop` is the umbrella in each edition and
+  pulls in the desktop components and the selected compositor.
+- Each installer configures the edition's signed repository and installs the
+  desktop package set. Per-user config is then copied into `~/.config` by
   `ryoku materialize`, which clobbers Ryoku-owned files and prunes dropped ones
   but never touches user files.
 - It only ever flows **repo to system**. A change starts in the repo, is built
-  into a package, and is installed; nothing is harvested back from a live machine.
+  into a package, and is installed; nothing is harvested back from a live
+  machine.
 
 ## Shared, not duplicated
 
@@ -225,13 +224,14 @@ and the idle policy. Reuse the helper; never re-implement its logic.
 
 ## `ryoku-shell-installer/` the no-ISO installer
 
-The standalone way in: a curl-able `install.sh` bootstrap plus the
-`ryoku-shell-install` Go TUI that converts an existing Arch machine into a
-Ryoku one: config backup with a generated `restore.sh`, rival-shell and
-daemon migration, `[ryoku]` repo trust, the desktop set, SDDM/qylock wiring,
-`ryoku materialize`. After it runs once the machine updates through
-`ryoku update` like any other. The binary and its checksum are committed so
-raw.githubusercontent.com serves them with no release infrastructure.
+The standalone way into an existing system: a curl-able `install.sh` bootstrap
+plus the `ryoku-shell-install` Go TUI. Arch, Void, and Fedora install from their
+signed native Ryoku repositories; Debian remains the source-build path. The
+installer backs up config with a generated `restore.sh`, migrates rival shells
+and daemons, installs the desktop set, wires SDDM and qylock, and runs `ryoku
+materialize`. After it runs once the machine updates through `ryoku update` like
+any other. The binary and its checksum are committed so raw.githubusercontent.com
+serves them with no release infrastructure.
 
 ## `release/` packaging
 
@@ -264,9 +264,9 @@ raw.githubusercontent.com serves them with no release infrastructure.
   `bin/ryoku-release-ledger`.
 - `r2-retention/` is the scheduled Cloudflare Worker for the shared `ryoku-iso`
   bucket. Its planner keeps ten stable releases and unstable builds per edition
-  and ten ISOs per variant and channel, removes incomplete frozen uploads after
-  48 hours, and preserves moving heads, current pointers, and protected bucket
-  objects.
+  and Fedora release, and ten ISOs per variant and channel where an edition
+  publishes images. It removes incomplete frozen uploads after 48 hours and
+  preserves moving heads, current pointers, and protected bucket objects.
 
 ## `void/` the Void Linux port
 
@@ -294,6 +294,28 @@ Turnstile init integration. `void/README.md` is the index.
 Runtime code does not import this directory. It invokes `/usr/bin/ryoku-host`,
 built from `ryoku/cli/cmd/ryoku-host` with the backends in
 `ryoku/cli/internal/host`.
+
+## `fedora/` the Fedora port
+
+The mutable Fedora 44 `x86_64` edition, with DNF package translation, systemd,
+and either Hyprland or niri. `fedora/README.md` is the index.
+
+- `releases` lists the Fedora releases the publish workflow builds.
+- `packages/translations.tsv` maps the shared Arch package catalogue to Fedora
+  names and records packages that are unavailable.
+- `packages/coprs.tsv` names the package-restricted COPR repositories used only
+  for the Hyprland stack, starship, lazygit, and yazi pieces Fedora lacks.
+- `packages/rpm/` holds the RPM specs and payload recipes. It prepares SRPMs,
+  rebuilds signed binary RPMs, signs `repomd.xml`, and emits `release.json`.
+- `.github/workflows/publish-repo-fedora.yml` builds and install-tests every
+  supported Fedora release, then publishes moving stable and testing heads,
+  frozen releases and unstable builds, and their ledgers below
+  `stable/fedora/<N>/`.
+
+Fedora is installed through the shell installer, not an ISO; rpm-ostree systems
+are refused. The installer replaces GDM with SDDM and leaves NVIDIA on nouveau.
+Fedora keeps GRUB and does not provide Ryoku snapshots or a snapshot boot menu.
+Package rollback and the boot guard use DNF downgrades.
 
 ## Tooling
 

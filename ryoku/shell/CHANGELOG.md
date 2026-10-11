@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **Package actions use DNF on Fedora.** Package search, install, remove,
+  updates, stash dependencies, and the Nomarchy compatibility commands now go
+  through the host seam instead of assuming pacman. Unsupported AUR-only
+  actions stay unavailable rather than running a dead command.
 - **The session starts the same way on systemd and on Void's runit.** Both
   compositors now call `ryoku-host session start` at login. On systemd it runs
   the exact chain the configs ran before; on Void it publishes the session

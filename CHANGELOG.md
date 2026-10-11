@@ -43,6 +43,13 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- **Ryoku now has a Fedora edition.** The shell installer converts mutable
+  Fedora 44 Workstation or Server on `x86_64`, installs either compositor from
+  Ryoku's signed RPM repository and replaces GDM with SDDM. Stable and testing
+  releases, frozen rollback targets, DNF updates, package rollback and the boot
+  guard work like the other packaged editions. Fedora keeps GRUB, has no Ryoku
+  ISO or snapshots, and stays on nouveau for now. Thanks @aethctl for the
+  original Fedora port.
 - **`main` is pushed only as the release fast-forward.** The `pre-push` hook now
   refuses every push that moves `main` unless it is named as the release
   (`RYOKU_RELEASE_PUSH=1 git push origin unstable-dev:main`), and even then

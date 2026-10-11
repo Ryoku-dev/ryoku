@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- **Updates, channels, rollback, and doctor now work on Fedora.** The host seam
+  detects dnf5 or dnf, translates the shared package catalogue, reads and
+  rewrites `/etc/yum.repos.d/ryoku.repo`, and moves the exact RPM set served by
+  stable, testing, or a frozen target in one transaction. The boot guard can
+  downgrade a failed update; snapshot commands explain that Fedora's GRUB path
+  has no Ryoku snapshot support. Doctor repairs repository metadata and uses
+  RPM-specific health advice.
 - **Unstable builds now have the same rollback path as stable releases.**
   The latest ten testing builds are listed on unstable boxes and can be pinned
   with `ryoku track <build>` or restored with `ryoku rollback --to <build>`.

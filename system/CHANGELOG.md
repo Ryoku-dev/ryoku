@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **System package actions now work on Fedora.** The package helpers and
+  Ryostore route installs, removals, availability checks, and native advice
+  through the DNF host seam instead of assuming pacman. The Fedora installer
+  uses the shared hardware and session helpers, switches GDM to SDDM, and keeps
+  NVIDIA on nouveau in this release.
+
 - **The system helpers ask the host instead of assuming systemd and pacman.**
   DNS, the network kill switch, the Wi-Fi backend and region, Docker, the audio
   restart, 32-bit GPU libraries and the AMD, Intel, Vulkan and NVIDIA driver

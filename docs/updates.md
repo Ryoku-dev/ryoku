@@ -11,8 +11,8 @@ separate:
 
 | Lane | Command | What moves |
 |---|---|---|
-| **Ryoku** | `ryoku update` | packages from Ryoku's signed pacman or XBPS repository, then config and doctor |
-| **Your distribution** | `sudo pacman -Syu` on Arch/CachyOS; `sudo xbps-install -Syu` on Void | the base system and its kernel, from the installed distribution |
+| **Ryoku** | `ryoku update` | packages from Ryoku's signed pacman, XBPS, or RPM repository, then config and doctor |
+| **Your distribution** | `sudo pacman -Syu` on Arch/CachyOS; `sudo xbps-install -Syu` on Void; `sudo dnf5 upgrade --refresh` on Fedora | the base system and its kernel, from the installed distribution |
 
 On packaged Arch and CachyOS installs, `ryoku update` upgrades the installed
 `[ryoku]` packages by name (`pacman -Sy`, then `pacman -S --needed
@@ -23,37 +23,40 @@ ryoku/<pkg>...`) and never runs a system upgrade. The reasons are the design:
   when your box changes kernel, rebuilds its DKMS modules, or rewrites its boot
   image.
 - **A release has to be reversible.** `ryoku rollback` puts the Ryoku set back;
-  it does not put the Arch, CachyOS, or Void base back. Snapshots cover that
-  layer. An update that moved both was never fully reversible as a release.
+  it does not put the Arch, CachyOS, Void, or Fedora base back. Snapshots cover
+  that layer where the edition supports them. An update that moved both was
+  never fully reversible as a release.
 - **The lanes fail apart.** A box that cannot take an Arch upgrade today (a
   mirror out of sync, a full boot partition) must still be able to take a Ryoku
   fix, and the reverse.
 
 So a plain distribution update remains supported and is the only thing that
 moves the kernel unless `ryoku update --system` is used. The direct commands are
-`sudo pacman -Syu` on Arch or CachyOS and `sudo xbps-install -Syu` on Void.
-XBPS has no transaction snapshot hooks, so Void users should use `ryoku update
---system` when they want a base update covered by Ryoku's pre/post snapshots.
-On the packaged lane, every `ryoku update` reports what that lane is holding
-(`N system package(s) waiting`), `ryoku status` prints it as `system:`, and the
-Hub lists it under SYSTEM PACKAGES.
+`sudo pacman -Syu` on Arch or CachyOS, `sudo xbps-install -Syu` on Void, and
+`sudo dnf5 upgrade --refresh` on Fedora. XBPS has no transaction snapshot
+hooks, so Void users should use `ryoku update --system` when they want a base
+update covered by Ryoku's pre/post snapshots. Fedora does not provide snapshots;
+`--system` still runs the Ryoku and Fedora package lanes together. On the
+packaged lane, every `ryoku update` reports what the distribution lane is
+holding (`N system package(s) waiting`), `ryoku status` prints it as `system:`,
+and the Hub lists it under SYSTEM PACKAGES.
 
 The desktop package's post-transaction power cutover also makes a direct
-`pacman -Syu` safe while graphical sessions are live. One temporary login1 sleep
-block covers the logind reload; then each Ryoku user session (never
-the SDDM greeter or another desktop) stops the old lid/idle/shell owners,
-must report its new sleep guard ready before the block is released. The first
-release that introduces the hook schedules the same adoption after pacman drops
-its database lock, because libalpm discovers hooks before extracting packages.
-The Void XBPS `INSTALL` action provides the same cutover for direct package
-updates. A managed `ryoku update` marks its transaction so that action skips
-prepare/commit and stage two remains the single cutover owner.
+package update safe while graphical sessions are live. One temporary login1
+sleep block covers the systemd reload; then each Ryoku user session (never the
+SDDM greeter or another desktop) stops the old lid, idle, and shell owners and
+must report its new sleep guard ready before the block is released. Pacman uses
+its transaction hook, Fedora uses the RPM `%posttrans` script, and the Void
+XBPS `INSTALL` action provides the same cutover. A managed `ryoku update` marks
+its transaction so the package hook skips prepare and commit and stage two
+remains the single cutover owner.
 
 - A **dev box** runs the checkout: `ryoku deploy` builds the binaries and lays
   `ryoku/` into `~/.config`. `ryoku update` on it tracks `origin/main` (the git
   channel) and redeploys.
 - A **user box** runs signed packages: `ryoku update` moves the Ryoku set from
-  the native pacman or XBPS repository, then `ryoku materialize`, then `ryoku doctor`.
+  the native pacman, XBPS, or DNF repository, then `ryoku materialize`, then
+  `ryoku doctor`.
 
 They must converge. A change that lands on one but not the other is the bug this
 page exists to prevent.
@@ -81,13 +84,31 @@ The shell installer does not provision a bootloader or snapshot layout on an
 existing Void system. Snapshot restore works there when the btrfs root and
 snapper stack already exist; `ryoku doctor` converges the root config.
 
+### Fedora
+
+Fedora packages come from a signed RPM repository for each supported Fedora
+release. Fedora 44 stable uses
+`https://repo.ryoku.dev/stable/fedora/44/x86_64`; testing uses
+`https://repo.ryoku.dev/stable/fedora/44/channels/testing/x86_64`. The installer
+verifies and imports Ryoku's release key and writes
+`/etc/yum.repos.d/ryoku.repo`. Separate package-restricted COPR files supply the
+Hyprland stack, starship, lazygit, and yazi packages Fedora lacks. Ryoku-owned
+packages do not come from COPR.
+
+`ryoku update` refreshes the selected repository, moves the installed Ryoku RPM
+set in one DNF transaction, then runs the same stage-two cutover, materialize,
+and doctor flow. `ryoku update --system` also upgrades the Fedora base. Fedora
+boots through GRUB and has no Ryoku snapshot or snapshot boot-menu support, so
+updates skip snapper. `ryoku rollback` and the boot guard still move the Ryoku
+set back by package downgrade, leaving Fedora and its kernel current.
+
 ### Ryotunes: an external app on its own channel
 
 Ryotunes updates are released independently as prebuilt Arch packages on
 [ryoku-dev/ryotunes](https://github.com/ryoku-dev/ryotunes)' GitHub releases
 (`ryotunes-<ver>-1-x86_64.pkg.tar.zst`, with a `.sha256` beside it). This lane
-applies only to Arch and CachyOS; Ryotunes is not currently packaged for Void.
-On Arch and CachyOS:
+applies only to Arch and CachyOS; Ryotunes is not currently packaged for Void
+or Fedora. On Arch and CachyOS:
 
 - **`ryoku update` installs a newer build.** It re-reads the latest release
   fresh, verifies the download by sha256 and by its own pacman metadata (name,
@@ -114,9 +135,9 @@ run and a post-snapshot closes it. On hosts without that capability, the
 snapshot step emits one warning and is skipped; no snapper command or snapshot
 helper offer runs.
 
-The channel follows (git fast-forward, or the `[ryoku]` package set), then
-stage2 runs through the just-installed binary. Package hooks first adopt every
-live Ryoku session; on the hook's first release, stage2 invokes the same
+The channel follows (git fast-forward, or the host's signed package repository),
+then stage2 runs through the just-installed binary. Package hooks first adopt
+every live Ryoku session; on the hook's first release, stage2 invokes the same
 all-session helper synchronously. For the invoking active session, stage2 holds
 a durable login1 sleep block, stops the old shell, idle and clamshell owners,
 materializes config, binds `ryoku-session.target` to the exact login1 session,
@@ -139,14 +160,15 @@ the terminal shows a curated console and keeps the raw output in
 The database refresh happens before the set is read, so a move onto a frozen
 release asks only for packages that release served. Pacman targets are
 repo-qualified (`ryoku/<name>`); XBPS targets use their native names and `-f`
-for an explicit channel downgrade.
+for an explicit channel downgrade; DNF targets the exact EVR served by the
+selected repository.
 
 After the desktop is back, the update refreshes Rashin's knowledge when it is
 enabled: `ryoku-rashin index` regenerates the vault and reindexes the config
-mirror with Prowl. The `prowl` package arrives through the same `[ryoku]`
-`pacman -Syu` transaction as Rashin. A dev box whose Prowl binary is not owned
-by pacman runs `prowl update` instead. Both refreshes are best effort and never
-fail the desktop update.
+mirror with Prowl. Arch, CachyOS, and Void receive Prowl as its own signed
+package; Fedora carries it inside `ryoku-rashin`. A dev box whose Prowl binary
+is not managed by the native package manager runs `prowl update` instead. Both
+refreshes are best effort and never fail the desktop update.
 
 ### The boot guard
 
@@ -155,15 +177,15 @@ guard. Stage two writes `/var/lib/ryoku/update-pending.json` with the previous
 release, new release, pre-update snapshot, and current boot. The shell daemon
 records a good boot once the shell has stayed up for 45 seconds.
 
-The early-boot service is `ryoku-boot-guard.service` on Arch/CachyOS and the
-`ryoku-boot-guard` runit service on Void. After two boots where the desktop
-never came up, it pins the previous tagged release, moves the whole Ryoku set
-back in one native package transaction, re-materializes every user's config,
-and leaves the distribution base and kernel untouched. On a third failed boot,
-it selects the full pre-update snapshot path and clears Limine's remembered EFI
-entry so the fallback wins. After `limine-snapper-restore`, a post hook resets
-the default to the restored system's first kernel and clears the remembered
-snapshot entry.
+The early-boot service is `ryoku-boot-guard.service` on Arch/CachyOS and
+Fedora, and the `ryoku-boot-guard` runit service on Void. After two boots where
+the desktop never came up, it pins the previous tagged release, moves the whole
+Ryoku set back in one native package transaction, re-materializes every user's
+config, and leaves the distribution base and kernel untouched. On
+snapshot-capable Arch and Void installs, a third failed boot selects the full
+pre-update snapshot path and clears Limine's remembered EFI entry so the
+fallback wins. Fedora records that snapshot escalation is unavailable and
+keeps the package downgrade.
 `sudo ryoku boot-guard --disarm` clears a pending marker by hand.
 
 Doctor enables the host's service and prepares its state directory, so older
@@ -307,22 +329,22 @@ untouched; recovery deliberately resets every installed one.
   command from the freshly fetched checkout first (`go run . wm reset-paths`), so
   a broken installed build cannot skew the list, then redeploys the shipped
   defaults. The per-machine seeds (monitors, gpu, keyboard) and saved rices are
-  not in that set and survive. `--no-packages` skips pacman; it refuses on a
-  machine that is not Ryoku.
+  not in that set and survive. `--no-packages` skips the native package step; it
+  refuses on a machine that is not Ryoku.
 - **Switching** (`ryoku wm use <name> [--keep-previous|--remove-previous]`)
   installs the target's package; removing the old compositor reclaims its
   packages. `wm.Reclaim` computes the free set from the outgoing provider's
-  `Caps.Packages`, and the package and byte counts shown come from pacman's own
-  removal plan, re-checked immediately before the transaction. Full switch
-  contract in `docs/compositors.md`.
+  `Caps.Packages`, and the package and byte counts shown come from the native
+  package manager's own removal plan, re-checked immediately before the
+  transaction. The full switch contract is in `docs/compositors.md`.
 
 ## Publishing: releases and channels
 
-The `[ryoku]` repositories and ISOs live in the `ryoku-iso` bucket below
+The package repositories and ISOs live in the `ryoku-iso` bucket below
 `stable/`, served at `https://repo.ryoku.dev/stable` and, for ISOs,
 `https://iso.ryoku.dev/stable`. Arch and CachyOS share the bucket root and one
-`[ryoku]` repository. Void uses the same layout below `void/`. These paths are
-relative to either edition root:
+`[ryoku]` repository. Void uses the same layout below `void/`; Fedora release
+`N` uses it below `fedora/N/`. These paths are relative to an edition root:
 
 | Directory | Purpose | Written when |
 |---|---|---|
@@ -341,15 +363,17 @@ root with their `.sha256`, `.sig`, `.json`, and `.js` sidecars. The
 
 A box can move between the ten retained frozen targets in its channel, on any
 edition. The stable ledger's `images` map names the Arch, CachyOS, or Void ISO
-for each release, derived from the per-ISO manifests in the bucket. Each build
-carries a strictly increasing package version
-(`core.r<commit-count>.g<sha>`) that the Ryoku upgrade moves to, and the
-`ryoku-desktop` package writes `/etc/ryoku-release` (`RELEASE=`, `CHANNEL=`,
-`VERSION=`, `COMMIT=`) so a box can say which release or build it runs.
-`release.json` beside each moving or frozen repository says what it serves, and
-`manifest.json` lists every package by lane (base, dev, hardware, AUR,
-first-party, compositor, provisioned). `build-repo.sh` generates both; they are
-never hand-edited.
+for each release, derived from the per-ISO manifests in the bucket. Fedora has
+no ISO, so its ledger entries carry no images. Each build carries a strictly
+increasing package version (`core.r<commit-count>.g<sha>` for pacman and the
+corresponding native version for XBPS or RPM) that the Ryoku upgrade moves to.
+The `ryoku-desktop` package writes `/etc/ryoku-release` (`RELEASE=`,
+`CHANNEL=`, `VERSION=`, `COMMIT=`) so a box can say which release or build it
+runs.
+`release.json` beside each moving or frozen repository says what it serves.
+The pacman repository also publishes `manifest.json`, which lists every package
+by lane (base, dev, hardware, AUR, first-party, compositor, provisioned).
+`build-repo.sh` generates both files; they are never hand-edited.
 
 A release is a tag: `main` advances only by fast-forward from `unstable-dev`
 (`RYOKU_RELEASE_PUSH=1 git push origin unstable-dev:main`; the `pre-push` hook
@@ -366,9 +390,10 @@ releases; only the Ryoku set is frozen.
 release is tagged.**
 
 On a packaged box the channel is the native repository selection: the `Server`
-line in pacman.conf on Arch/CachyOS, or
+line in pacman.conf on Arch/CachyOS,
 `/etc/xbps.d/20-ryoku.conf` overriding the shipped XBPS stable repository on
-Void. There is no second channel state to drift from it:
+Void, or the `baseurl` in `/etc/yum.repos.d/ryoku.repo` on Fedora. There is no
+second channel state to drift from it:
 
 - `ryoku track unstable` turns any box into a **testing box**: it follows the
   `testing` moving head, rebuilt on every push to `unstable-dev`, so a tester
@@ -381,12 +406,13 @@ Void. There is no second channel state to drift from it:
   serves, down as well as up. `<version>` may be a release tag or unstable build
   name and pins the box until it is tracked away. Pacman uses repo-qualified
   targets; XBPS force-refreshes its repository and uses `-f` when moving to an
-  older frozen target.
+  older frozen target; DNF installs the exact RPM versions served by the
+  selected repository.
 - `ryoku rollback --to <version>` makes the same frozen-target move in one
-  native package transaction while the Arch, CachyOS, or Void base stays
-  current. A box following unstable, or pinned to one of its builds, sees the
-  retained unstable builds in `ryoku rollback`. `ryoku track unstable` follows
-  the moving testing head again.
+  native package transaction while the Arch, CachyOS, Void, or Fedora base
+  stays current. A box following unstable, or pinned to one of its builds, sees
+  the retained unstable builds in `ryoku rollback`. `ryoku track unstable`
+  follows the moving testing head again.
 - `ryoku status` reports `release` (this box) and `channelRelease` (what the
   channel serves); `ryoku version` prints the release tag.
 - The doctor names the channel it finds and warns, without touching it, when
@@ -394,21 +420,23 @@ Void. There is no second channel state to drift from it:
 
 ### Release ledgers
 
-`bin/ryoku-release-ledger <remote> [arch|void] [stable|testing]` rebuilds one
-edition and channel from its frozen repository directories. Arch writes
-`releases/index.json` and `channels/testing/index.json`; Void writes the same
-paths below `void/`. Stable ledgers include matching ISO images, while testing
-ledgers contain package builds only. The publish workflows upload
-`release.json` last as the frozen build's completion marker, then rebuild the
-matching ledger. `release-ledger.yml` rebuilds all four ledgers on demand.
-`RYOKU_RELEASE_BASE` overrides the bucket base used for ledger and repository
-URLs, which keeps mirrors and tests on one origin.
+`bin/ryoku-release-ledger <remote> [arch|void|fedora/<N>] [stable|testing]`
+rebuilds one edition and channel from its frozen repository
+directories. Arch writes `releases/index.json` and
+`channels/testing/index.json`; Void writes the same paths below `void/`;
+Fedora release `N` writes them below `fedora/N/`. Stable Arch and Void ledgers
+include matching ISO images. Fedora ledgers contain packages only. The publish
+workflows upload `release.json` last as the frozen build's completion marker,
+then rebuild the matching ledger. `release-ledger.yml` rebuilds every Arch,
+Void, and supported Fedora ledger on demand. `RYOKU_RELEASE_BASE` overrides the
+bucket base used for ledger and repository URLs, which keeps mirrors and tests
+on one origin.
 
 The scheduled Cloudflare Worker in `release/r2-retention/` runs every six hours.
-It keeps the newest ten stable releases and unstable builds per edition, plus
-the newest ten ISOs per variant and channel. An ISO and all its sidecars are
-deleted together. Incomplete frozen directories without `release.json` are
-removed after 48 hours.
+It keeps the newest ten stable releases and unstable builds per edition and
+Fedora release, plus the newest ten ISOs for editions that publish them. An ISO
+and all its sidecars are deleted together. Incomplete frozen directories
+without `release.json` are removed after 48 hours.
 
 Retention never touches the moving repository heads, `latest*.json` pointers or
 the ISOs they name, the ledgers except to remove deleted entries, the signing
@@ -417,8 +445,8 @@ an `r2_retention_total` line.
 
 `ryoku track stable | unstable --source` is the developer path: it builds and
 tracks a git checkout instead of packages (see `docs/development.md`). An
-explicitly recorded checkout selects this source lane on both Arch and Void;
-packaged Void installs simply never create that record.
+explicitly recorded checkout selects this source lane on Arch, Void, or Fedora;
+packaged installs simply never create that record.
 
 ### Release names
 
@@ -441,9 +469,10 @@ island (when the channel serves the next line) and the Hub's Updates page.
   `ryoku update` upgrades the installed `[ryoku]` packages by name and nothing
   else: no sysupgrade or kernel move. On Void it sends the installed,
   repository-served Ryoku set to `xbps-install -Syu`, the native safe-upgrade
-  transaction required by XBPS. Dependencies belong in package metadata, not
-  source-build fallbacks. Nothing blocks a user's direct `pacman -Syu` or
-  `xbps-install -Syu`.
+  transaction required by XBPS. On Fedora it gives DNF the exact versions in
+  the selected signed RPM repository, which supports upgrades and downgrades.
+  Dependencies belong in package metadata, not source-build fallbacks. Nothing
+  blocks a user's direct `pacman -Syu`, `xbps-install -Syu`, or `dnf5 upgrade`.
 - **What a surface shows about the system must be read from the system.** No
   kernel, variant, or OS name is hardcoded into a menu, a default, or a report:
   boot entries come from the installed kernels

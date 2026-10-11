@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- **The desktop now has a Fedora host path.** Package and service actions use
+  DNF and systemd through `ryoku-host`, the Hub reflects Fedora's unavailable
+  snapshot and AUR capabilities, and updates and compositor package switches
+  avoid pacman-only commands.
 - **The window-manager seam can vet plugins and read foreign configs.** Each
   provider declares which foreign shell interfaces it serves, and
   `ryoku wm compat <dir>` scans a plugin folder for the ones it needs and says
