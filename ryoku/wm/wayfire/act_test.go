@@ -338,6 +338,49 @@ func TestWorkspaceFocusAndCycle(t *testing.T) {
 	})
 }
 
+// The grid has no native "send to previous/next workspace" method, so the
+// moveWindowPrev/Next rows step the focused window along its own set with the
+// same row-major wrap workspace.cycle uses. The fixture's window 7 sits at cell
+// (0,0) of a 3x3 grid: +1 lands on (1,0), and -1 wraps to the last cell (2,2).
+func TestMoveWindowWorkspaceBy(t *testing.T) {
+	t.Run("forward one cell", func(t *testing.T) {
+		calls := stubAct(t, stageReplies())
+		if err := runAct([]string{"window.moveToWorkspaceBy", "1"}); err != nil {
+			t.Fatal(err)
+		}
+		wantOrder(t, *calls,
+			expectedCall{"vswitch/send-view", `{"view-id":7,"x":1,"y":0}`},
+			expectedCall{"window-rules/focus-view", `{"id":7}`})
+		wantNoCall(t, *calls, "wsets/send-view-to-wset")
+	})
+
+	t.Run("back one cell wraps to the last", func(t *testing.T) {
+		calls := stubAct(t, stageReplies())
+		if err := runAct([]string{"window.moveToWorkspaceBy", "-1"}); err != nil {
+			t.Fatal(err)
+		}
+		wantCall(t, *calls, "vswitch/send-view", `{"view-id":7,"x":2,"y":2}`)
+	})
+
+	t.Run("rejects a non-integer", func(t *testing.T) {
+		stubAct(t, stageReplies())
+		err := runAct([]string{"window.moveToWorkspaceBy", "sideways"})
+		if err == nil || !strings.Contains(err.Error(), "delta must be an integer") {
+			t.Errorf("got %v, want a delta error", err)
+		}
+	})
+
+	t.Run("no focused window names itself", func(t *testing.T) {
+		r := stageReplies()
+		r["window-rules/get-focused-view"] = `{"result":"ok","info":null}`
+		stubAct(t, r)
+		err := runAct([]string{"window.moveToWorkspaceBy", "1"})
+		if err == nil || !strings.Contains(err.Error(), "no window is focused") {
+			t.Errorf("got %v, want a no-focused-window error", err)
+		}
+	})
+}
+
 func TestWorkspaceMoveToOutput(t *testing.T) {
 	replies := func() map[string]string {
 		r := stageReplies()

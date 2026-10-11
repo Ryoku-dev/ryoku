@@ -20,6 +20,11 @@ const (
 	// opaque handle published in Window.ID.
 	ActionWindowPlace           Action = "window.place"
 	ActionWindowMoveToWorkspace Action = "window.moveToWorkspace"
+	// ActionWindowMoveToWorkspaceBy sends the focused window one or more
+	// workspaces along the compositor's own order. Wayfire's grid has no native
+	// "previous/next workspace" move, so its moveWindowPrev/Next rows run this
+	// act; niri and Hyprland bind those behaviours natively and never call it.
+	ActionWindowMoveToWorkspaceBy Action = "window.moveToWorkspaceBy" // <delta>
 
 	// ActionWindowSummon raises an already-open window to the current
 	// workspace and focuses it, matched by exact title. The desktop's summon
@@ -130,7 +135,7 @@ func (a Action) Capability() Capability {
 	case ActionWindowFloat, ActionWindowPlace, ActionWindowMoveBy, ActionWindowResizeBy,
 		ActionWindowPresetHeight, ActionWindowCenter, ActionWindowMoveToOutputBy:
 		return CapWindowFloat
-	case ActionWindowMoveToWorkspace, ActionWindowSummon, ActionWorkspaceFocus, ActionWorkspaceCycle:
+	case ActionWindowMoveToWorkspace, ActionWindowMoveToWorkspaceBy, ActionWindowSummon, ActionWorkspaceFocus, ActionWorkspaceCycle:
 		return CapWorkspaces
 	case ActionWorkspaceMoveToOutput, ActionWorkspaceMoveToOutputBy:
 		return CapWorkspaceMoveToOutput

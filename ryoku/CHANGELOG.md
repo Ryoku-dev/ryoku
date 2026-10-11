@@ -208,6 +208,12 @@
   `hub/quickshell/schema/DesktopScenePage.js`, `shell/ipc/control.go`).
 
 ### Fixed
+- **Wayfire can send a window to the previous or next workspace.** The
+  `SUPER + SHIFT + Prior` / `Next` rows were reported as unsupported because
+  wayfire's grid has no native relative-move method; the provider now steps the
+  focused window along its own grid with the same row-major wrap the workspace
+  pills and `workspace.cycle` use, so the two chords work like they do on
+  Hyprland and niri (`wm/wayfire/act.go`).
 - **Ryostore finds script installers published under their bundle.** Bundles
   that ship their installer at `bundles/<id>/installers/<name>.sh` (Ryoku for
   Zed, The Influencer) failed to install with "the installer exited with an

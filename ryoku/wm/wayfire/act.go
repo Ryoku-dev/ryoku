@@ -238,6 +238,17 @@ func runAct(args []string) error {
 			"x": flat % gridW, "y": flat / gridW, "output-id": out.ID,
 		})
 
+	case wm.ActionWindowMoveToWorkspaceBy:
+		delta, err := arg(rest, 0, "delta")
+		if err != nil {
+			return err
+		}
+		n, convErr := strconv.Atoi(delta)
+		if convErr != nil {
+			return fmt.Errorf("act %s: delta must be an integer, got %q", act, delta)
+		}
+		return moveFocusedWindowWorkspaceBy(act, n)
+
 	case wm.ActionWorkspaceMoveToOutput:
 		ws, err := arg(rest, 0, "workspace id")
 		if err != nil {
@@ -506,6 +517,37 @@ func moveViewToCell(id int64, handle string, focus bool) error {
 		return perform("window-rules/focus-view", map[string]any{"id": id})
 	}
 	return nil
+}
+
+// moveFocusedWindowWorkspaceBy steps the window under the seat along its own
+// workspace set, the same row-major-with-wrap order the pills and workspace.cycle
+// use, and follows it there. Wayfire's grid has no native "send to previous/next
+// workspace" method, so the moveWindowPrev/Next rows run this act; niri and
+// Hyprland spell the same behaviour natively.
+func moveFocusedWindowWorkspaceBy(act wm.Action, n int) error {
+	s, err := readStage()
+	if err != nil {
+		return err
+	}
+	view, ok, err := readFocusedView()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("act %s: no window is focused", act)
+	}
+	ws, ok := s.wsetByIndex(view.WsetIndex)
+	if !ok {
+		return fmt.Errorf("act %s: window %d is on a workspace set that is gone", act, view.ID)
+	}
+	gridW, gridH := ws.Workspace.GridWidth, ws.Workspace.GridHeight
+	if gridW <= 0 || gridH <= 0 {
+		return fmt.Errorf("act %s: workspace set %q reports no grid", act, ws.Name)
+	}
+	x, y, _ := s.cellOfView(view)
+	steps := gridW * gridH
+	flat := (((y*gridW + x + n) % steps) + steps) % steps
+	return moveViewToCell(view.ID, workspaceHandle(ws.Index, flat%gridW, flat/gridW), true)
 }
 
 // directionArg reads the argument every directional act takes. A keybind row
