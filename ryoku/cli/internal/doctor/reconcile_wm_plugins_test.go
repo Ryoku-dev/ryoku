@@ -70,6 +70,9 @@ func TestPlanWmPlugins(t *testing.T) {
 	})
 
 	t.Run("no toolchain warns with what to install", func(t *testing.T) {
+		oldHasPacman := hasPacman
+		hasPacman = func() bool { return true }
+		t.Cleanup(func() { hasPacman = oldHasPacman })
 		s := stale
 		s.toolchain, s.missing = false, []string{"cmake", "compositor headers"}
 		r := planWmPlugins(s, false, noRepair)
