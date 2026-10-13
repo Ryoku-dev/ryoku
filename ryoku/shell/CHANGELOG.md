@@ -13,6 +13,20 @@
   the click moved (issue #276).
 
 ### Added
+- **The picker is answered by the script, and the tier you tap is the one that
+  downloads.** `stash-cobalt.sh probe <url> [auto|audio|mute]` asks yt-dlp for
+  the format table once and answers with a single `TIERS` line: video and mute
+  get three heights (the top rung, the best under 720p, the cheapest worth
+  keeping) and audio gets the 320/128/64 kbit rungs, each with an estimated size
+  and the exact selector that lands on it. Mute selectors carry no audio at
+  all, an audio-only link falls through to the bitrate rungs, a source with no
+  duration reports no size rather than an invented one, and a rung the source
+  never offered is left off the menu instead of being faked. `download` takes
+  that selector as an optional fourth argument and hands it to yt-dlp as its
+  format, or maps the height onto cobalt's quality ladder, so choosing a card
+  and getting the bytes are the same decision. Without a selector it runs the
+  exact command it always did (`scripts/stash-cobalt.sh`,
+  `tests/stash-probe.sh`).
 - **The warm screen and the palette can follow the real sun.** The night
   light grew a "Follow the sun" switch and an edge margin: it warms the screen
   from sunset+margin until sunrise-margin using the sunrise/sunset the weather
