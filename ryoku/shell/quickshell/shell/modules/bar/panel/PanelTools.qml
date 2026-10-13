@@ -24,11 +24,34 @@ Item {
     property string urlText: ""
     implicitHeight: col.implicitHeight + 24 * root.s
 
-    function startDownload() {
-        if (root.urlText.trim().length === 0)
+    // Fetch reads the link's formats. Nothing here probes on a keystroke: a
+    // format list costs a network round trip, so it waits for a deliberate press
+    // of the button or Enter in the field. The download that follows is the
+    // row's own action, or the fallback pill when the link could not be read.
+    readonly property bool probing: Stash.probeState === "probing"
+
+    // Whether the field holds something Fetch could ask about: an http(s) scheme
+    // and a non-empty, whitespace-free authority. Same family as the probe gate
+    // in Stash, so a green border never promises something Fetch would refuse.
+    // Advisory only: it colours the border and nothing else, the button's own
+    // enabled state is unchanged.
+    readonly property bool urlValid:
+        /^https?:\/\/[^\s\/?#]+(?:[\/?#][^\s]*)?$/i.test(root.urlText.trim())
+
+    function fetch() {
+        if (root.urlText.trim().length === 0 || root.probing)
             return;
-        Stash.enqueueDownload(root.urlText, Stash.dlMode);
-        root.urlText = "";
+        // The mode travels with the chip, not the ask: one probe answers all
+        // three, so switching chips only re-renders the cached lists.
+        Stash.probe(root.urlText);
+    }
+
+    // An answer about a link that is no longer in the field is worse than no
+    // answer: it would offer formats for something else. Dropped rather than
+    // re-asked, since re-asking is the very request cost this removed.
+    onUrlTextChanged: {
+        if (Stash.probeState !== "idle" && root.urlText.trim() !== Stash.probedUrl)
+            Stash.resetProbe();
     }
 
     function fileGlyph(name) {
@@ -41,8 +64,11 @@ Item {
         return "draft";
     }
 
+    // The id is what the script speaks (auto | audio | mute); only the word on the
+    // chip is ours. "Video" says what the mode actually fetches, where "Auto"
+    // named a policy the user never set.
     readonly property var modes: [
-        { id: "auto", label: I18n.tr("Auto") },
+        { id: "auto", label: I18n.tr("Video") },
         { id: "audio", label: I18n.tr("Audio") },
         { id: "mute", label: I18n.tr("Mute") }
     ]
@@ -182,7 +208,15 @@ Item {
                 radius: Theme.radiusWidget
                 color: Theme.surface
                 border.width: Theme.borderWidth
-                border.color: urlInput.activeFocus ? Theme.primary : Theme.outline
+                // Three states, one border. Empty is the field at rest (focus
+                // still wins, so a caret never hides), a typed link reads its
+                // verdict as you type.
+                border.color: urlInput.activeFocus && root.urlText.trim().length === 0
+                    ? Theme.primary
+                    : root.urlText.trim().length === 0 ? Theme.outline
+                    : root.urlValid
+                        ? Theme.inkOn(Theme.effectiveSurface, Scheme.tertiary, 3.0)
+                        : Theme.inkOn(Theme.effectiveSurface, Theme.error, 3.0)
                 Behavior on border.color { ColorAnimation { duration: Motion.fast } }
                 SumiEdge {}
 
@@ -209,7 +243,7 @@ Item {
                         font.pixelSize: 10.5 * root.s
                         clip: true
                         selectByMouse: true
-                        onAccepted: root.startDownload()
+                        onAccepted: root.fetch()
 
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
@@ -258,66 +292,30 @@ Item {
                 }
             }
 
+            // "Fetch", not "Download": what this button does now is read the
+            // link's formats. The download is a row's own action, and naming
+            // this one after it invited tapping the wrong thing. It dims while
+            // the read is in flight, because a second press would ask twice.
             ActionButton {
                 width: parent.width
-                label: I18n.tr("Download")
-                icon: "download"
+                label: I18n.tr("Fetch")
+                icon: "search"
+                busy: root.probing
                 primary: root.urlText.trim().length > 0
-                enabled: root.urlText.trim().length > 0
-                onTapped: root.startDownload()
+                enabled: root.urlText.trim().length > 0 && !root.probing
+                onTapped: root.fetch()
             }
 
-            // what cobalt can pull from, live from the instance (built-in list otherwise).
-            Rectangle {
+            // One slot, four states: the sites bubble when nothing is asked,
+            // a quiet line while reading, the tiers once they land, and the
+            // fallback when the link cannot be read. It owns the tier rows, so
+            // this file never has to know what a probe returned.
+            QualityPicker {
                 width: parent.width
-                visible: true
-                radius: Theme.radiusWidget
-                color: Qt.rgba(Theme.onSurface.r, Theme.onSurface.g, Theme.onSurface.b, 0.04)
-                border.width: Theme.borderWidth
-                border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.4)
-                implicitHeight: sitesCol.implicitHeight + 18 * root.s
-
-                Column {
-                    id: sitesCol
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 9 * root.s
-                    spacing: 4 * root.s
-
-                    Row {
-                        spacing: 5 * root.s
-                        MaterialIcon {
-                            anchors.verticalCenter: parent.verticalCenter
-                            font.pixelSize: 10 * root.s
-                            text: "public"
-                            color: Theme.inkOn(Theme.effectiveSurface, Theme.onSurfaceVariant, 3.0)
-                        }
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: Stash.cobaltState === "running"
-                                ? I18n.tr("WORKS WITH %1 SITES").arg(Stash.supportedSites.length)
-                                : I18n.tr("POWERED BY YT-DLP")
-                            color: Theme.inkOn(Theme.effectiveSurface, Theme.onSurfaceVariant, 3.0)
-                            font.family: Theme.fontPrimary
-                            font.pixelSize: 6.5 * root.s
-                            font.weight: Font.DemiBold
-                            font.letterSpacing: 1.5
-                        }
-                    }
-
-                    Text {
-                        width: parent.width
-                        text: Stash.cobaltState === "running"
-                            ? Stash.supportedSites.map(s => s === "twitter" ? "x" : s).join("  ·  ")
-                            : I18n.tr("Works with 1000+ sites, including YouTube, Twitter/X, Reddit, TikTok, and more.")
-                        wrapMode: Text.WordWrap
-                        color: Theme.inkOn(Theme.effectiveSurface, Theme.onSurface)
-                        font.family: Theme.mono
-                        font.pixelSize: 8.5 * root.s
-                        lineHeight: 1.3
-                    }
-                }
+                s: root.s
+                url: root.urlText
+                mode: Stash.dlMode
+                onAccepted: root.urlText = ""
             }
 
             Column {
@@ -348,6 +346,11 @@ Item {
                                 width: parent.width
                                 height: qName.implicitHeight
 
+                                // The row's name is a video title as often as a file path now, and a
+                                // title is not a single word: it is elided, never
+                                // trimmed or re-cased, because the file's own
+                                // words are the only thing that says what is
+                                // being fetched.
                                 Text {
                                     id: qName
                                     anchors.left: parent.left
@@ -365,48 +368,77 @@ Item {
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: 7 * root.s
 
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: qRow.model.state === "running" ? qRow.model.pct + "%"
-                                            : qRow.model.state === "error" ? (qRow.model.msg && qRow.model.msg.length > 0 ? qRow.model.msg : I18n.tr("failed"))
-                                            : qRow.model.state === "done" ? I18n.tr("done")
-                                            : qRow.model.state === "queued" ? I18n.tr("queued")
-                                            : qRow.model.state
-                                        color: qRow.model.state === "error" ? Theme.vermLit
-                                            : Theme.inkOn(Theme.effectiveSurface, Theme.onSurfaceVariant, 3.0)
-                                        font.family: Theme.mono
-                                        font.pixelSize: 8 * root.s
-                                    }
-                                    MaterialIcon {
-                                        visible: qRow.model.state === "error"
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        font.pixelSize: 12 * root.s
-                                        text: "refresh"
-                                        color: Theme.inkOn(Theme.effectiveSurface, retryArea.containsMouse ? Theme.onSurface : Theme.onSurfaceVariant, 3.0)
-                                        MouseArea {
-                                            id: retryArea
-                                            anchors.fill: parent
-                                            anchors.margins: -6 * root.s
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: Stash.retryJob(qRow.index)
+                                    // A row that was stopped is not a row that failed: same quiet ink as
+                                        // queued, no red, and the same two
+                                        // affordances a finished row gets.
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: qRow.model.state === "running" ? qRow.model.pct + "%"
+                                                : qRow.model.state === "error" ? (qRow.model.msg && qRow.model.msg.length > 0 ? qRow.model.msg : I18n.tr("failed"))
+                                                : qRow.model.state === "done" ? I18n.tr("done")
+                                                : qRow.model.state === "queued" ? I18n.tr("queued")
+                                                : qRow.model.state === "cancelled" ? I18n.tr("cancelled")
+                                                : qRow.model.state
+                                            color: qRow.model.state === "error" ? Theme.vermLit
+                                                : Theme.inkOn(Theme.effectiveSurface, Theme.onSurfaceVariant, 3.0)
+                                            font.family: Theme.mono
+                                            font.pixelSize: 8 * root.s
                                         }
-                                    }
-                                    MaterialIcon {
-                                        visible: qRow.model.state === "done" || qRow.model.state === "error"
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        font.pixelSize: 12 * root.s
-                                        text: "close"
-                                        color: Theme.inkOn(Theme.effectiveSurface, dropArea.containsMouse ? Theme.onSurface : Theme.onSurfaceVariant, 3.0)
-                                        MouseArea {
-                                            id: dropArea
-                                            anchors.fill: parent
-                                            anchors.margins: -6 * root.s
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: Stash.dismissJob(qRow.index)
+                                        // Retry re-queues whatever the row was,
+                                        // stopped included, so a cancel costs
+                                        // the position in the queue and nothing
+                                        // else.
+                                        MaterialIcon {
+                                            visible: qRow.model.state === "error" || qRow.model.state === "cancelled"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            font.pixelSize: 12 * root.s
+                                            text: "refresh"
+                                            color: Theme.inkOn(Theme.effectiveSurface, retryArea.containsMouse ? Theme.onSurface : Theme.onSurfaceVariant, 3.0)
+                                            MouseArea {
+                                                id: retryArea
+                                                anchors.fill: parent
+                                                anchors.margins: -6 * root.s
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: Stash.retryJob(qRow.index)
+                                            }
                                         }
-                                    }
+                                        MaterialIcon {
+                                            visible: qRow.model.state === "done" || qRow.model.state === "error" || qRow.model.state === "cancelled"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            font.pixelSize: 12 * root.s
+                                            text: "close"
+                                            color: Theme.inkOn(Theme.effectiveSurface, dropArea.containsMouse ? Theme.onSurface : Theme.onSurfaceVariant, 3.0)
+                                            MouseArea {
+                                                id: dropArea
+                                                anchors.fill: parent
+                                                anchors.margins: -6 * root.s
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: Stash.dismissJob(qRow.index)
+                                            }
+                                        }
+                                        // Cancel wears the dismiss icon on
+                                        // purpose: it is the same shape as
+                                        // "this row goes away", which is what
+                                        // pressing it means, rather than a new
+                                        // glyph the user has to learn.
+                                        MaterialIcon {
+                                            visible: qRow.model.state === "running"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            font.pixelSize: 12 * root.s
+                                            text: "close"
+                                            color: Theme.inkOn(Theme.effectiveSurface, cancelArea.containsMouse ? Theme.vermLit : Theme.onSurfaceVariant, 3.0)
+                                            Behavior on color { ColorAnimation { duration: Motion.fast } }
+                                            MouseArea {
+                                                id: cancelArea
+                                                anchors.fill: parent
+                                                anchors.margins: -6 * root.s
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: Stash.cancelJob(qRow.index)
+                                            }
+                                        }
                                 }
                             }
                             Rectangle {
@@ -544,10 +576,14 @@ Item {
         property string label: ""
         property string icon: ""
         property bool primary: false
+        // A work in flight replaces the icon rather than stacking beside it, so
+        // the button stays one object the same size whether or not it is busy.
+        property bool busy: false
         signal tapped()
 
         implicitHeight: 24 * root.s
-        opacity: btn.enabled ? 1 : 0.4
+        opacity: btn.enabled ? (btn.busy ? 0.55 : 1) : 0.4
+        Behavior on opacity { NumberAnimation { duration: Motion.fast } }
 
         Rectangle {
             anchors.fill: parent
@@ -565,12 +601,25 @@ Item {
                 spacing: 8 * root.s
 
                 MaterialIcon {
-                    visible: btn.icon.length > 0
                     anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: 13 * root.s
+                    visible: !btn.busy && btn.icon.length > 0
                     text: btn.icon
                     color: btn.primary ? Theme.inkOn(Theme.primary, Theme.onPrimary)
                         : Theme.inkOn(Theme.effectiveSurface, Theme.onSurface)
+                }
+                MaterialIcon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 13 * root.s
+                    visible: btn.busy
+                    text: "progress_activity"
+                    color: btn.primary ? Theme.inkOn(Theme.primary, Theme.onPrimary)
+                        : Theme.inkOn(Theme.effectiveSurface, Theme.onSurface)
+                    RotationAnimation on rotation {
+                        running: btn.busy
+                        loops: Animation.Infinite
+                        from: 0; to: 360; duration: 900
+                    }
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter

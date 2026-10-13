@@ -13,17 +13,71 @@
   the click moved (issue #276).
 
 ### Added
+- **The Tools download field shows what a link can be fetched as, before you
+  fetch it.** Pasting a link used to start a download with whatever quality
+  yt-dlp decided on, and the only feedback was a progress row after the fact.
+  The button under the field is now "Fetch": press it and the panel reads the
+  available formats and lists them, one row per tier, under the file's own
+  title. The title is set in the panel's own type: it wraps to two or three
+  lines and the box grows, because a heading cut to one ellipsis line said
+  nothing about what was on offer. Video and Mute list a resolution (`1080p`,
+  `~145 MB`), Audio lists a bitrate (`320k`, `~14 MB`), and an audio-only
+  source reads `Audio · ~5 MB`
+  rather than a resolution it does not have. Each row has its own Download
+  button and nothing else does: a row that fetched on any touch was a row that
+  fetched when the user meant to read the sizes.
+
+  Nothing probes on a keystroke any more. Reading formats is a yt-dlp call, so
+  it costs one deliberate press of Fetch (or Enter in the field) and the button
+  dims and spins while it runs. The field's border is the one thing that does
+  answer a keystroke, and it only reads the text: green once the link has an
+  http(s) scheme and a host, red while it does not, resting colour when it is
+  empty. It is advice, not a gate: Fetch is enabled exactly as before. A link
+  that has already been asked about answers from a day-long local cache keyed
+  by the link itself, so re-opening the panel on the same video costs no round
+  trip; the cache only ever holds successful answers. The list
+  lives in the box that used to say how
+  many sites the engine works with, so there is one thing below the field that
+  changes rather than three stacked ones: the sites text when nothing has been
+  asked, "Reading formats" while it is asked, the tiers when they arrive. A
+  link that cannot be read says so in that box, carries the helper's own reason
+  underneath it (an unsupported URL, a private video) so the link can be
+  diagnosed in the panel rather than in a terminal, and offers "Download best",
+  so a probe failure costs the size hint and not the download. One probe answers
+  all three modes at once, so switching Video/Audio/Mute re-renders the same
+  answer rather than asking again; only editing the link drops a stale answer,
+  instead of redrawing the wrong ladder. A chip the source has nothing for says
+  so in one quiet line, the same place "Reading formats" sat: a silent video
+  offers no audio rungs, and that is a true answer rather than a link that could
+  not be read, so it gets no error box and no fallback button. The "Auto" chip
+  is now "Video": it fetches a video, and the old name
+  described a policy the user never chose. All the state lives in `Stash` and
+  the picker only renders it, so the flow is testable without a window
+  (`modules/bar/panel/QualityPicker.qml`, `services/Stash.qml`,
+  `modules/bar/panel/PanelTools.qml`).
+- **A download in flight can be stopped.** A queue row that was running showed a
+  percentage and nothing to do about it, so a link queued by mistake or one that
+  turned out to be a 4 GB remux had to be waited out or found in a terminal. A
+  running row now carries the same cross the finished rows use, and pressing it
+  stops the job. The row stays put and reads "cancelled" in the same quiet ink
+  as "queued", not the red of a failure, because nothing went wrong: it keeps the
+  retry and dismiss a finished row has, so a cancel costs the place in the queue
+  and nothing else (`modules/bar/panel/PanelTools.qml`, `services/Stash.qml`).
 - **The picker is answered by the script, and the tier you tap is the one that
-  downloads.** `stash-cobalt.sh probe <url> [auto|audio|mute]` asks yt-dlp for
-  the format table once and answers with a single `TIERS` line: video and mute
-  get three heights (the top rung, the best under 720p, the cheapest worth
-  keeping) and audio gets the 320/128/64 kbit rungs, each with an estimated size
-  and the exact selector that lands on it. Mute selectors carry no audio at
+  downloads.** `stash-cobalt.sh probe <url>` asks yt-dlp for the format table
+  once and answers with a single `TIERS` line carrying all three modes: video
+  and mute get three heights (the top rung, the best under 720p, the cheapest
+  worth keeping) and audio gets the 320/128/64 kbit rungs, each with an
+  estimated size and the selector that lands on it. Selectors are keyed by
+  height and bitrate, never by the format ids of the probe's own extraction:
+  those ids rotate between yt-dlp runs, so a pinned id silently failed on the
+  next one, which is how a fetch that listed the tiers could still refuse to
+  download them. Mute selectors carry no audio at
   all, an audio-only link falls through to the bitrate rungs, a source with no
   duration reports no size rather than an invented one, and a rung the source
   never offered is left off the menu instead of being faked. `download` takes
   that selector as an optional fourth argument and hands it to yt-dlp as its
-  format, or maps the height onto cobalt's quality ladder, so choosing a card
+  format, or maps the height onto cobalt's quality ladder, so choosing a row
   and getting the bytes are the same decision. Without a selector it runs the
   exact command it always did (`scripts/stash-cobalt.sh`,
   `tests/stash-probe.sh`).
