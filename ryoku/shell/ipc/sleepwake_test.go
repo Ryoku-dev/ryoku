@@ -1232,3 +1232,47 @@ func TestUnlockFallbackGuardReleasedOnlyByReadyOwningSession(t *testing.T) {
 		t.Fatal("unlock fallback watcher stopped after its first guard")
 	}
 }
+
+// TestIdleUnlockGuardWatcherDoesNotSpin is the #411 regression. An idle daemon
+// holds both sleep inhibitors, so cycle.ready() is true with no lock on screen:
+// the watcher must park there rather than poll at the fast cadence forever.
+func TestIdleUnlockGuardWatcherDoesNotSpin(t *testing.T) {
+	oldActive, oldStop := qylockUnlockGuardActive, qylockUnlockGuardStop
+	oldRunning := lockProcessRunning
+	defer func() {
+		qylockUnlockGuardActive, qylockUnlockGuardStop = oldActive, oldStop
+		lockProcessRunning = oldRunning
+	}()
+
+	t.Setenv("XDG_SESSION_ID", "session-idle")
+	var mu sync.Mutex
+	probes := 0
+	qylockUnlockGuardActive = func(string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		probes++
+		return false
+	}
+	qylockUnlockGuardStop = func(string) error { return nil }
+	lockProcessRunning = func() bool { return false }
+
+	d := &daemon{quit: make(chan struct{})}
+	d.setSleepCycle(&sleepCycle{
+		block: &fakeSleepInhibitor{heldState: true},
+		delay: &fakeSleepInhibitor{heldState: true},
+	})
+	go d.releaseQylockUnlockGuardWhenReady()
+	defer close(d.quit)
+
+	window := 6 * guardPollActive
+	time.Sleep(window)
+
+	mu.Lock()
+	got := probes
+	mu.Unlock()
+	// Parking asks once in this window; the old fixed cadence would ask six.
+	if got > 2 {
+		t.Fatalf("idle watcher asked systemd %d times in %v; it must park, not spin at %v",
+			got, window, guardPollActive)
+	}
+}

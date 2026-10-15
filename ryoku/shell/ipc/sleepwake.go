@@ -978,31 +978,44 @@ var (
 	}
 )
 
+// The unlock guard is only armed by the lockscreen's unlock-prepare script,
+// between a successful unlock and qylock exiting. The daemon holds both sleep
+// inhibitors on an idle desktop, so cycle.ready() is true for the whole session
+// and this watcher used to re-check every 100ms anyway, forking pgrep and
+// systemctl ten times a second from login onward (#411). It now asks the same
+// two questions on every pass, but backs off while no release is possible.
+const (
+	guardPollActive = 100 * time.Millisecond
+	guardPollParked = 500 * time.Millisecond
+)
+
 func (d *daemon) releaseQylockUnlockGuardWhenReady() {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	timer := time.NewTimer(guardPollParked)
+	defer timer.Stop()
 	for {
 		select {
 		case <-d.quit:
 			return
-		case <-ticker.C:
-			cycle := d.currentSleepCycle()
-			if cycle == nil || !cycle.ready() || !cycle.sessionActive() ||
-				lockProcessRunning() {
-				continue
-			}
-			session := lockSessionID()
-			if session == "" {
-				continue
-			}
-			unit := "ryoku-qylock-unlock-guard-" + session + ".service"
-			if !qylockUnlockGuardActive(unit) {
-				continue
-			}
-			if err := qylockUnlockGuardStop(unit); err != nil {
-				log.Printf("ryoku-shell: release qylock unlock sleep guard: %v", err)
+		case <-timer.C:
+		}
+
+		delay := guardPollParked
+		cycle := d.currentSleepCycle()
+		if cycle != nil && cycle.ready() && cycle.sessionActive() {
+			if lockProcessRunning() {
+				// qylock is up, so the guard can still be armed.
+				delay = guardPollActive
+			} else if session := lockSessionID(); session != "" {
+				unit := "ryoku-qylock-unlock-guard-" + session + ".service"
+				if qylockUnlockGuardActive(unit) {
+					delay = guardPollActive
+					if err := qylockUnlockGuardStop(unit); err != nil {
+						log.Printf("ryoku-shell: release qylock unlock sleep guard: %v", err)
+					}
+				}
 			}
 		}
+		timer.Reset(delay)
 	}
 }
 
