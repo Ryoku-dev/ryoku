@@ -39,9 +39,25 @@ var (
 	}
 	devPathExists  = sys.Exists
 	devService     = func(args []string) int { return host.Default().Service(args) }
-	reloadDevUnits = func(units []string) {
-		_ = devService([]string{"--user", "daemon-reload"})
-		_ = devService(append([]string{"--user", "reset-failed"}, units...))
+	reloadDevUnits = func(units []string) []string {
+		if devService([]string{"--user", "daemon-reload"}) != host.ExitOK {
+			return units
+		}
+		if devService(append([]string{"--user", "reset-failed"}, units...)) != host.ExitOK {
+			return units
+		}
+		for _, unit := range units {
+			// The bridge is opt-in and has no later doctor check to start it.
+			// Resetting a failed unit alone leaves wallpaper clients disconnected.
+			if unit == "ryoku-palette-bridge.service" &&
+				(devService([]string{"--user", "is-enabled", unit}) == host.ExitOK ||
+					devService([]string{"--user", "is-active", unit}) == host.ExitOK) {
+				if devService([]string{"--user", "restart", unit}) != host.ExitOK {
+					return []string{unit}
+				}
+			}
+		}
+		return nil
 	}
 )
 
@@ -116,10 +132,10 @@ func reconcileDevResidue(checkOnly bool) recResult {
 	units, failed := l.applyDevUnits(heals)
 	kept = append(kept, failed...)
 	if len(units) > 0 {
-		reloadDevUnits(units)
+		kept = append(kept, reloadDevUnits(units)...)
 	}
 	if len(kept) > 0 {
-		return failRes(i18n.T("could not remove home-deployed artifact(s) still shadowing the packaged install: %s"), strings.Join(kept, ", ")).
+		return failRes(i18n.T("could not remove home-deployed artifact(s) or reload repaired user units: %s"), strings.Join(kept, ", ")).
 			withFix(i18n.T("remove them by hand (check ownership/permissions), then `ryoku reload`"))
 	}
 	return fixedRes(i18n.T("removed %d home-deployed artifact(s) shadowing the packaged install and pointed %d user unit file(s) back at the packaged binaries; `ryoku reload` switches to the packaged shell"), len(residue), len(heals))
@@ -239,7 +255,15 @@ func (l residueLayout) execsDevBin(path string, twin func(string) bool) bool {
 			continue
 		}
 		fields := strings.Fields(strings.TrimLeft(val, "-@:+!"))
-		if len(fields) > 0 && filepath.Dir(fields[0]) == l.localBin && twin(filepath.Base(fields[0])) {
+		if len(fields) == 0 {
+			continue
+		}
+		bin := fields[0]
+		// The standalone palette bridge installer used systemd's home specifier.
+		if strings.HasPrefix(bin, "%h/") {
+			bin = filepath.Join(filepath.Dir(filepath.Dir(l.localBin)), strings.TrimPrefix(bin, "%h/"))
+		}
+		if filepath.Dir(bin) == l.localBin && twin(filepath.Base(bin)) {
 			return true
 		}
 	}

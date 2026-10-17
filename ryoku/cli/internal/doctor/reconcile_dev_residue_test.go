@@ -3,6 +3,7 @@ package doctor
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -39,7 +40,7 @@ func residueFixture(t *testing.T) residueLayout {
 
 var packagedNames = func(name string) bool {
 	switch name {
-	case "ryoku-shell", "ryoku-qylock-activate", "ryoku-rashin", "ryogami":
+	case "ryoku-shell", "ryoku-qylock-activate", "ryoku-rashin", "ryoku-palette-bridge", "ryogami":
 		return true
 	}
 	return false
@@ -158,6 +159,124 @@ func TestDevUnitsDropInIsRemoved(t *testing.T) {
 	}
 	if len(units) != 1 || units[0] != "ryogami.service" {
 		t.Fatalf("touched units = %v", units)
+	}
+}
+
+func TestDevUnitsPaletteBridgeHomeSpecifier(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
+			l := residueFixture(t)
+			unit := "ryoku-palette-bridge.service"
+			home := filepath.Join(l.userUnits(), unit)
+			writeFile(t, home, "[Service]\nExecStart=%h/.local/bin/ryoku-palette-bridge\n")
+			pkg := filepath.Join(l.usrUnits, unit)
+			writeFile(t, pkg, "[Service]\nExecStart=/usr/bin/ryoku-palette-bridge\n")
+			link := filepath.Join(l.userUnits(), "default.target.wants", unit)
+			if enabled {
+				if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(home, link); err != nil {
+					t.Fatal(err)
+				}
+			}
+			plan := l.planDevUnits(packagedNames)
+			if len(plan) != 1 {
+				t.Fatalf("plan = %v, want the stale bridge unit even with its binary absent", plan)
+			}
+			if got := readFile(t, home); got != "[Service]\nExecStart=%h/.local/bin/ryoku-palette-bridge\n" {
+				t.Fatal("planning changed the unit")
+			}
+			units, failed := l.applyDevUnits(plan)
+			if len(failed) != 0 || !reflect.DeepEqual(units, []string{unit}) {
+				t.Fatalf("units = %v, failed = %v", units, failed)
+			}
+			if _, err := os.Lstat(home); !os.IsNotExist(err) {
+				t.Fatalf("stale home unit survived: %v", err)
+			}
+			if enabled {
+				if target, err := os.Readlink(link); err != nil || target != pkg {
+					t.Fatalf("wants link = %q (%v), want %q", target, err, pkg)
+				}
+			} else if _, err := os.Lstat(link); !os.IsNotExist(err) {
+				t.Fatalf("disabled bridge was enabled: %v", err)
+			}
+			if again := l.planDevUnits(packagedNames); len(again) != 0 {
+				t.Fatalf("healed bridge still plans %v", again)
+			}
+		})
+	}
+}
+
+func TestDevUnitsHomeSpecifierPreservesUnrelatedUnits(t *testing.T) {
+	l := residueFixture(t)
+	for _, unit := range []string{"mika.service", "custom-shell.service", "ryoku-palette-bridge.service"} {
+		writeFile(t, filepath.Join(l.userUnits(), unit), "[Service]\nExecStart=%h/.local/bin/ryoku-palette-bridge\n")
+	}
+	if plan := l.planDevUnits(packagedNames); len(plan) != 0 {
+		t.Fatalf("planned %v without a packaged unit to return to", plan)
+	}
+}
+
+func TestReloadDevUnitsRestartsOnlyOptedInPaletteBridge(t *testing.T) {
+	for _, state := range []string{"enabled", "active", "disabled"} {
+		t.Run(state, func(t *testing.T) {
+			old := devService
+			t.Cleanup(func() { devService = old })
+			var restarted []string
+			devService = func(args []string) int {
+				switch args[1] {
+				case "is-enabled":
+					if state != "enabled" {
+						return 1
+					}
+				case "is-active":
+					if state != "active" {
+						return 1
+					}
+				case "restart":
+					restarted = append(restarted, args[2:]...)
+				}
+				return 0
+			}
+			reloadDevUnits([]string{"ryoku-shell.service", "ryoku-palette-bridge.service"})
+			var want []string
+			if state != "disabled" {
+				want = []string{"ryoku-palette-bridge.service"}
+			}
+			if !reflect.DeepEqual(restarted, want) {
+				t.Fatalf("restarted = %v, want %v", restarted, want)
+			}
+		})
+	}
+}
+
+func TestDevUnitsHomeSpecifierPreservesCustomBridge(t *testing.T) {
+	l := residueFixture(t)
+	unit := "ryoku-palette-bridge.service"
+	writeFile(t, filepath.Join(l.userUnits(), unit), "[Service]\nExecStart=%h/custom/ryoku-palette-bridge\n")
+	writeFile(t, filepath.Join(l.usrUnits, unit), "[Service]\nExecStart=/usr/bin/ryoku-palette-bridge\n")
+	if plan := l.planDevUnits(packagedNames); len(plan) != 0 {
+		t.Fatalf("planned %v for a custom executable", plan)
+	}
+}
+
+func TestReloadDevUnitsReportsServiceFailures(t *testing.T) {
+	for _, failAt := range []string{"daemon-reload", "reset-failed", "restart"} {
+		t.Run(failAt, func(t *testing.T) {
+			old := devService
+			t.Cleanup(func() { devService = old })
+			devService = func(args []string) int {
+				if args[1] == failAt {
+					return 1
+				}
+				return 0
+			}
+			units := []string{"ryoku-palette-bridge.service"}
+			if failed := reloadDevUnits(units); !reflect.DeepEqual(failed, units) {
+				t.Fatalf("failed = %v, want %v", failed, units)
+			}
+		})
 	}
 }
 

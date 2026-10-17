@@ -52,6 +52,11 @@
   what the switch itself installed (`internal/host/phone.go`).
 
 ### Fixed
+- **Wallpaper app colours recover after switching to packaged Ryoku.** The
+  doctor now recognizes old palette bridge user services using
+  `%h/.local/bin/ryoku-palette-bridge`, restores the packaged service while
+  preserving enablement, and restarts an enabled or running bridge. Disabled
+  bridges stay disabled, and service reload failures are reported.
 - **`ryoku update --help` prints help instead of updating the machine.** Any
   option update did not know used to fall through into a full run: the password
   prompt, the config re-laid, the desktop restarted. `-h` and `--help` now
