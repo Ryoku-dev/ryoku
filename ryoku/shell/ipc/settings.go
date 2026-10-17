@@ -1095,6 +1095,7 @@ func (d *daemon) startSettings() {
 	// only layers the re-theme trigger on top of it.
 	lastThemeSig := matugenThemeSig(frame)
 	lastFontSig := fontSig(frame)
+	lastIconSig := iconSig(frame)
 	store.onChange = func(f []byte) {
 		t.publish(f)
 		if sig := matugenThemeSig(f); sig != lastThemeSig {
@@ -1105,13 +1106,18 @@ func (d *daemon) startSettings() {
 			lastFontSig = fs
 			go applyFont(f)
 		}
+		if is := iconSig(f); is != lastIconSig {
+			lastIconSig = is
+			go applyIconTheme(f)
+		}
 	}
 	store.mu.Unlock()
 	t.publish(frame)
-	// Apply the configured system font on startup so a fresh login matches the
-	// saved choice without waiting for a change (this replaces the old autostart
-	// hardcode). Off the hot path, best-effort.
+	// Apply the configured system font and icon theme on startup so a fresh
+	// login matches the saved choice without waiting for a change (this replaces
+	// the old autostart hardcode). Off the hot path, best-effort.
 	go applyFont(frame)
+	go applyIconTheme(frame)
 
 	d.registerCall("settings.patch", func(raw json.RawMessage) (any, error) {
 		var a struct {

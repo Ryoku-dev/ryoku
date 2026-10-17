@@ -1689,6 +1689,78 @@ func writeKittyFont(mono string, size int) {
 	_ = os.WriteFile(filepath.Join(dir, "current-font.conf"), []byte(body), 0o644)
 }
 
+// iconSig fingerprints the frame's icon-theme key, so a change to it lands the
+// new theme on the toolkits the same way a font change retunes them.
+func iconSig(frame []byte) string {
+	return strings.TrimSpace(iconThemeChoice(frame))
+}
+
+// applyIconTheme pushes the chosen icon theme to every consumer without a
+// logout: the GNOME interface setting, the GTK settings.ini baselines (a bare
+// Wayland session has no xsettings daemon, so a GTK app reads the ini and never
+// sees gsettings), and qt6ct for Qt. An empty key means no choice was ever made,
+// so nothing is written and Ryoku's shipped default (ryoku-folders, minted and
+// selected by ryoku-cmd-folders) stays in force.
+func applyIconTheme(frame []byte) {
+	name := iconThemeChoice(frame)
+	if name == "" {
+		return
+	}
+	_ = runCommand("gsettings", "set", "org.gnome.desktop.interface", "icon-theme", name)
+	writeGtkIconTheme(name)
+	writeQt6ctIconTheme(name)
+}
+
+// iconThemeChoice reads shell.json's top-level iconTheme key (a passthrough
+// key, like fontFamily: the Settings row writes it, this pipeline consumes it).
+func iconThemeChoice(frame []byte) string {
+	var doc struct {
+		IconTheme string `json:"iconTheme"`
+	}
+	_ = json.Unmarshal(frame, &doc)
+	return strings.TrimSpace(doc.IconTheme)
+}
+
+// writeGtkIconTheme swaps gtk-icon-theme-name in the GTK 3 and 4 settings.ini
+// baselines, keeping every other line. Best-effort: a missing file is left for
+// the next materialize to provide, and the next apply rewrites it.
+func writeGtkIconTheme(name string) {
+	cfg := matugenConfigHome()
+	for _, sub := range []string{"gtk-3.0", "gtk-4.0"} {
+		path := filepath.Join(cfg, sub, "settings.ini")
+		b, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(b), "\n")
+		for i, ln := range lines {
+			if strings.HasPrefix(strings.TrimSpace(ln), "gtk-icon-theme-name=") {
+				lines[i] = "gtk-icon-theme-name=" + name
+				_ = os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+				break
+			}
+		}
+	}
+}
+
+// writeQt6ctIconTheme swaps icon_theme in qt6ct's appearance block, so Qt apps
+// take the theme on next launch. Best-effort, like the font writer above.
+func writeQt6ctIconTheme(name string) {
+	path := filepath.Join(matugenConfigHome(), "qt6ct", "qt6ct.conf")
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	lines := strings.Split(string(b), "\n")
+	for i, ln := range lines {
+		if strings.HasPrefix(strings.TrimSpace(ln), "icon_theme=") {
+			lines[i] = "icon_theme=" + name
+			_ = os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o644)
+			return
+		}
+	}
+}
+
 // watchSunMode retints the desktop when the day/night edge crosses while the
 // mode knob is "sun": resolveMode only runs on a theme pass, and nothing else
 // wakes one at sunrise/sunset. The check compares the resolved value, so a

@@ -2,6 +2,13 @@
 
 
 ### Added
+- **The General page picks the icon theme.** A new Icon theme row lists the
+  themes installed on the machine (`ryoku-hub desktop icons` enumerates the
+  standard search paths, cursor-only sets and hicolor excluded) and writes the
+  shell.json `iconTheme` key the daemon applies to gsettings, GTK and qt6ct, so
+  the three consumers can no longer drift apart
+  (`quickshell/pages/GlobalPage.qml`, `quickshell/schema/GlobalPage.js`,
+  `backend/desktop_enum.go`, `backend/desktop.go`).
 - **The Machine page owns the two switches it used to describe.** The
   hardware display-routing knob (GPU Mode / MUX / Optimus) and the live CPU
   power profile were CLI-only, and both the render card's Hybrid and the

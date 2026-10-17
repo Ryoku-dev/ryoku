@@ -95,13 +95,19 @@ mv -T "$stage" "$link"
 # only when it is not already set, so palette changes never churn the setting.
 # Select the theme only over the shipped defaults (or a stale generation name);
 # an icon theme the user picked stays theirs across logins and palette changes.
-case $cur in
-  ""|"$name"|Papirus|Papirus-Dark|Papirus-Light|Adwaita|hicolor|ryoku-folders-*)
-    if [ "$cur" != "$name" ] && command -v gsettings >/dev/null 2>&1; then
-      gsettings set org.gnome.desktop.interface icon-theme "$name"
-    fi
-    ;;
-esac
+# A theme picked in Settings (shell.json iconTheme) owns the setting outright:
+# the daemon applies it to gsettings, GTK and qt6ct, so this script must not
+# flip gsettings back whenever the pick differs from this theme.
+picked=$(sed -n 's/.*"iconTheme"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json" 2>/dev/null | head -1)
+if [ -z "$picked" ] || [ "$picked" = "$name" ]; then
+  case $cur in
+    ""|"$name"|Papirus|Papirus-Dark|Papirus-Light|Adwaita|hicolor|ryoku-folders-*)
+      if [ "$cur" != "$name" ] && command -v gsettings >/dev/null 2>&1; then
+        gsettings set org.gnome.desktop.interface icon-theme "$name"
+      fi
+      ;;
+  esac
+fi
 
 # Keep only the live and immediately-previous generations; a reader that resolved
 # the old target before the swap still finds it. Drop older gens and dead builds.

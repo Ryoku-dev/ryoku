@@ -82,7 +82,7 @@ func wmSplit() (string, map[string]bool) {
 
 func runDesktop(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("desktop needs get|defaults|schema|unhonored|save|preview|restore|set-rebind|cursors|layouts|variants|plugins|scheme|anim-preset")
+		return fmt.Errorf("desktop needs get|defaults|schema|unhonored|save|preview|restore|set-rebind|cursors|icons|layouts|variants|plugins|scheme|anim-preset")
 	}
 	switch args[0] {
 	case "get":
@@ -119,6 +119,8 @@ func runDesktop(args []string) error {
 		return pluginsDesktop(args[1:])
 	case "cursors":
 		return printJSON(listCursorThemes())
+	case "icons":
+		return printJSON(listIconThemes())
 	case "layouts":
 		return printJSON(listKbLayouts())
 	case "variants":

@@ -2,11 +2,11 @@
 
 // Global: the cross-cutting preferences that are not tied to one surface --
 // interface language, regional formats (dates/numbers/currency), the machine
-// location (weather + clock), and the shell text size. Every key is a plain
-// shell.json value (src "shell"), so the daemon persists and the shell retunes
-// live. These were collected here from Desktop (weather) and from nowhere at all
-// (language, text size were config-only, with no editor), so each key lives in
-// exactly one page -- no overlap.
+// location (weather + clock), the shell text size, and the icon theme. Every key
+// is a plain shell.json value (src "shell"), so the daemon persists it and the
+// consumers retune live. These were collected here from Desktop (weather) and
+// from nowhere at all (language, text size were config-only, with no editor), so
+// each key lives in exactly one page -- no overlap.
 var rows = [
     {
         "tab": "",
@@ -73,5 +73,14 @@ var rows = [
         "lo": 8,
         "hi": 24,
         "unit": " pt"
+    }, {
+        "tab": "",
+        "group": "ICONS",
+        "key": "iconTheme",
+        "label": "Icon theme",
+        "desc": "Icons for apps, the dock and the launcher, from the themes installed on this machine. Nothing picked keeps the folder-tinted Ryoku default.",
+        "ctl": "pick",
+        "src": "shell",
+        "opts": []
     }
 ];

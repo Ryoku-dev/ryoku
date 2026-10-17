@@ -8,8 +8,9 @@ import (
 	"strings"
 )
 
-// Environment enumeration for the settings pickers: installed cursor themes and
-// X11 keyboard layouts/variants. Pure filesystem reads, no compositor.
+// Environment enumeration for the settings pickers: installed cursor themes,
+// installed icon themes, and X11 keyboard layouts/variants. Pure filesystem
+// reads, no compositor.
 
 // listCursorThemes: installed cursor themes = icon-theme dirs with a cursors/
 // subdir, across the standard search paths, deduped and sorted.
@@ -49,6 +50,78 @@ func iconSearchDirs() []string {
 		"/usr/share/icons",
 		"/usr/local/share/icons",
 	}
+}
+
+// listIconThemes: installed icon themes = icon-theme dirs carrying both an
+// index.theme and at least one icon directory. A cursor theme ships an
+// index.theme too (Bibata does), so the index alone is not enough: without the
+// icon-directory check the cursor list and the icon list would be the same
+// list. hicolor is excluded: it is the universal fallback, not a look, and
+// picking it renders bare file-type icons.
+func listIconThemes() []string {
+	seen := map[string]bool{}
+	for _, dir := range iconSearchDirs() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if !e.IsDir() || e.Name() == "hicolor" {
+				continue
+			}
+			if iconThemeShaped(filepath.Join(dir, e.Name())) {
+				seen[e.Name()] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for n := range seen {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// iconThemeShaped: does this directory look like an icon theme rather than a
+// cursor set? An icon theme carries scalable/ or a raster size dir (48x48) next
+// to the index; a cursor set carries only cursors/.
+func iconThemeShaped(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "index.theme")); err != nil {
+		return false
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if e.Name() == "scalable" || sizedIconDir(e.Name()) {
+			return true
+		}
+	}
+	return false
+}
+
+// sizedIconDir: a raster icon directory name, "48x48" or "16x16@2x"-shaped.
+func sizedIconDir(name string) bool {
+	base, _, _ := strings.Cut(name, "@")
+	dims := strings.Split(base, "x")
+	if len(dims) != 2 {
+		return false
+	}
+	for _, d := range dims {
+		if d == "" {
+			return false
+		}
+		for _, r := range d {
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // listKbLayouts: X11 layout codes from the xkb rules base, each as {code, name};

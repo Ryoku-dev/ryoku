@@ -514,6 +514,7 @@ Rectangle {
         "frameThickness": 2, "frameCorner": 8,
         "surfaceColor": "#0f1115", "osdRadius": 28, "osdOpacity": 1,
         "fontFamily": "Space Grotesk", "fontSize": 11, "fontScale": 1.3,
+        "iconTheme": "",
         "frameBars": FrameBars.defaultConfig(),
         "frameBars.menus.quick-settings.anchor": "left",
         "frameBars.menus.quick-settings.expansion": "always",

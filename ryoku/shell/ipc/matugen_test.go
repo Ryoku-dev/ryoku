@@ -693,6 +693,72 @@ func TestApplyFont(t *testing.T) {
 	}
 }
 
+// TestApplyIconTheme: a picked icon theme lands on gsettings, both GTK
+// settings.ini baselines and qt6ct without touching the other lines; an empty
+// key writes nothing, leaving Ryoku's shipped default in force.
+func TestApplyIconTheme(t *testing.T) {
+	var got [][]string
+	orig := runCommand
+	t.Cleanup(func() { runCommand = orig })
+	runCommand = func(name string, args ...string) error {
+		got = append(got, append([]string{name}, args...))
+		return nil
+	}
+
+	cfg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfg)
+	for _, sub := range []string{"gtk-3.0", "gtk-4.0"} {
+		dir := filepath.Join(cfg, sub)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		body := "[Settings]\ngtk-theme-name=adw-gtk3-dark\ngtk-icon-theme-name=ryoku-folders\n"
+		if err := os.WriteFile(filepath.Join(dir, "settings.ini"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(cfg, "qt6ct"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	qt := "[Appearance]\nstyle=Fusion\nicon_theme=Papirus-Dark\n"
+	if err := os.WriteFile(filepath.Join(cfg, "qt6ct", "qt6ct.conf"), []byte(qt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	applyIconTheme([]byte(`{"iconTheme":"breeze"}`))
+	if len(got) != 1 || !slices.Equal(got[0], []string{"gsettings", "set", "org.gnome.desktop.interface", "icon-theme", "breeze"}) {
+		t.Errorf("gsettings icon-theme not set to breeze; got %v", got)
+	}
+	for _, sub := range []string{"gtk-3.0", "gtk-4.0"} {
+		b, err := os.ReadFile(filepath.Join(cfg, sub, "settings.ini"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(b), "gtk-icon-theme-name=breeze") {
+			t.Errorf("%s/settings.ini did not take breeze: %q", sub, b)
+		}
+		if !strings.Contains(string(b), "gtk-theme-name=adw-gtk3-dark") {
+			t.Errorf("%s/settings.ini lost the theme line: %q", sub, b)
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(cfg, "qt6ct", "qt6ct.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "icon_theme=breeze") || !strings.Contains(string(b), "style=Fusion") {
+		t.Errorf("qt6ct.conf did not take breeze cleanly: %q", b)
+	}
+
+	got = nil
+	applyIconTheme([]byte(`{}`))
+	if len(got) != 0 {
+		t.Errorf("an empty iconTheme must write nothing; got %v", got)
+	}
+	if iconSig([]byte(`{"iconTheme":" breeze "}`)) != "breeze" {
+		t.Errorf("iconSig should trim the frame value")
+	}
+}
+
 // TestMatugenFollows is the trigger rule: the dynamic pipeline runs only when
 // Match wallpaper is on and no fixed named theme is selected. Match off, or a
 // static theme active, leaves it idle so it never fights the theme daemon.

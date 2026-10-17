@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Added
+- **An icon theme picked in Settings reaches every toolkit.** The Hub's General
+  page gained an icon-theme picker; the shell.json `iconTheme` key it writes is
+  consumed by the daemon like the system font: on a change and on every login it
+  lands the theme on gsettings, the GTK 3/4 settings.ini baselines and qt6ct, so
+  GTK, Qt, the dock and the launcher all agree. An empty key writes nothing and
+  keeps the shipped `ryoku-folders` default in force, and `ryoku-cmd-folders`
+  now leaves a picked theme's gsettings value alone
+  (`ipc/matugen.go`, `ipc/settings.go`, `scripts/ryoku-cmd-folders`).
+
 ### Fixed
 - **The picker's Matugen App Templates toggles respond again.** The row wrote
   through `ryoku-hub hypr matugen set`, a command path that no longer exists:
