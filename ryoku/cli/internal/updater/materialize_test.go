@@ -655,15 +655,17 @@ func TestApplyGeneratedCompletesLaidTrees(t *testing.T) {
 		}
 		return home
 	}
+	uninstalled := ""
 	run := func(t *testing.T, home string) []string {
 		t.Helper()
 		var calls []string
-		old := applyProvider
+		old, oldInstalled := applyProvider, providerInstalled
 		applyProvider = func(name, store string) error {
 			calls = append(calls, name)
 			return nil
 		}
-		t.Cleanup(func() { applyProvider = old })
+		providerInstalled = func(name string) bool { return name != uninstalled }
+		t.Cleanup(func() { applyProvider, providerInstalled = old, oldInstalled })
 		applyGenerated(home)
 		return calls
 	}
@@ -688,5 +690,9 @@ func TestApplyGeneratedCompletesLaidTrees(t *testing.T) {
 	}
 	if got := run(t, lay(t, false, incomplete)); len(got) != 0 {
 		t.Fatalf("no neutral store must not trigger an apply, got %v", got)
+	}
+	uninstalled = incomplete
+	if got := run(t, lay(t, true, incomplete)); len(got) != 0 {
+		t.Fatalf("a provider whose binary is absent must be skipped, got %v", got)
 	}
 }

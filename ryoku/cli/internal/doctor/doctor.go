@@ -3944,9 +3944,10 @@ var ryokuSystemGlobs = []string{
 }
 
 // pkgOwnsFile reports whether an installed package owns path. A var so tests stub
-// the probe without a real pacman database.
+// the probe without a real pacman database. Silent: pacman -Qo prints one
+// "is owned by" line per path, which would flood the doctor report.
 var pkgOwnsFile = func(path string) bool {
-	return sys.Run("pacman", "-Qo", path) == nil
+	return exec.Command("pacman", "-Qo", path).Run() == nil
 }
 
 // strayRyokuFiles returns the files matching globs that pacman does not own: the

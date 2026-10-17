@@ -96,6 +96,14 @@ var applyProvider = func(name, store string) error {
 	return err
 }
 
+// providerInstalled reports whether a provider's binary is on PATH: a tree
+// laid down for a compositor whose package is not installed (niri's tree on a
+// Hyprland-only box) has nothing to render it, and that is not an error. A var
+// so tests stub the PATH lookup.
+var providerInstalled = func(name string) bool {
+	return wm.OpenNamed(name).Available()
+}
+
 // applyGenerated completes every laid-down compositor tree: the packages ship
 // only the static seeds, while the compositor hard-includes the files its
 // provider generates (niri's settings.kdl and rebinds.kdl, Hyprland's
@@ -129,7 +137,7 @@ func applyGenerated(configHome string) {
 				break
 			}
 		}
-		if !missing {
+		if !missing || !providerInstalled(name) {
 			continue
 		}
 		if err := applyProvider(name, store); err != nil {
