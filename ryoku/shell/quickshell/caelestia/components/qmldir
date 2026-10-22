@@ -1,0 +1,14 @@
+module caelestia.components
+AnchorAnim 1.0 AnchorAnim.qml
+Anim 1.0 Anim.qml
+AnimLoader 1.0 AnimLoader.qml
+CAnim 1.0 CAnim.qml
+DrawerVisibilities 1.0 DrawerVisibilities.qml
+Logo 1.0 Logo.qml
+MaterialIcon 1.0 MaterialIcon.qml
+ScreenState 1.0 ScreenState.qml
+SectionHeader 1.0 SectionHeader.qml
+StateLayer 1.0 StateLayer.qml
+StyledClippingRect 1.0 StyledClippingRect.qml
+StyledRect 1.0 StyledRect.qml
+StyledText 1.0 StyledText.qml

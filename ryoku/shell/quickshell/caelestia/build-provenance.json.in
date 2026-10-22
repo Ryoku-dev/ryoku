@@ -1,0 +1,10 @@
+{
+  "source_revision": "@GIT_REVISION@",
+  "dependency_revision": "@M3SHAPES_REV@",
+  "build_type": "@CMAKE_BUILD_TYPE@",
+  "compiler": "@CMAKE_CXX_COMPILER_ID@ @CMAKE_CXX_COMPILER_VERSION@",
+  "cmake_version": "@CMAKE_VERSION@",
+  "qt_version": "@CAELESTIA_QT_VERSION@",
+  "hash_algorithm": "sha256",
+  "artifact_root_hash": "@CAELESTIA_ARTIFACT_ROOT_HASH@"
+}

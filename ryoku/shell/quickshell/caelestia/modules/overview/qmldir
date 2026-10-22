@@ -1,0 +1,7 @@
+module caelestia.modules.overview
+Anim 1.0 Anim.qml
+Content 1.0 Content.qml
+Wallpaper 1.0 Wallpaper.qml
+WindowGrid 1.0 WindowGrid.qml
+WorkspaceIndicator 1.0 WorkspaceIndicator.qml
+Wrapper 1.0 Wrapper.qml

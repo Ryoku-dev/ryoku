@@ -1,0 +1,11 @@
+module caelestia.modules.dashboard
+Content 1.0 Content.qml
+Dash 1.0 Dash.qml
+Media 1.0 Media.qml
+NotesTab 1.0 NotesTab.qml
+Performance 1.0 Performance.qml
+Tabs 1.0 Tabs.qml
+TerminalTab 1.0 TerminalTab.qml
+WallhavenTab 1.0 WallhavenTab.qml
+WeatherTab 1.0 WeatherTab.qml
+Wrapper 1.0 Wrapper.qml

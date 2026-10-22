@@ -1,0 +1,6 @@
+module caelestia.modules
+BatteryMonitor 1.0 BatteryMonitor.qml
+BluetoothReconnect 1.0 BluetoothReconnect.qml
+GSFLoader 1.0 GSFLoader.qml
+ServiceLoader 1.0 ServiceLoader.qml
+Shortcuts 1.0 Shortcuts.qml

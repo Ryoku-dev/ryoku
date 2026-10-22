@@ -261,6 +261,8 @@ optdepends=(
   'tigervnc: VNC berths in ryoport'
   'asusctl: ASUS laptop Aura keyboard lighting'
   'qmk_hid: QMK/VIA keyboard lighting (Framework 16, custom boards)'
+  # only the Caelestia bar style needs it; Bar Studio installs it when that style is picked
+  'ryoku-caelestia: the Caelestia bar style'
 )
 install="$pkgname.install"
 source=()

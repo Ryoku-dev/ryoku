@@ -974,6 +974,26 @@ else
   piece_end skipped
 fi
 
+# Build the Caelestia QML modules (Caelestia.*, M3Shapes) the Caelestia shell
+# style loads. Needs libqalculate, pipewire and aubio headers on top of the
+# toolchain above. Not fatal: without it the Ryoku shell still runs and only the
+# Caelestia style is unavailable. Built outside the checkout (the tree has no
+# ignore rule for it) and always rebuilt, ninja keeps an unchanged tree a no-op.
+piece caelestia "Caelestia modules, the Caelestia shell style"
+if command -v cmake >/dev/null 2>&1 && command -v ninja >/dev/null 2>&1; then
+  if RYOKU_CAELESTIA_BUILD="${RYOKU_CAELESTIA_BUILD:-$HOME/.cache/ryoku/caelestia-build}" \
+     "$here/quickshell/caelestia/plugin/build.sh" "$qmldir"; then
+    say "installed Caelestia modules -> $qmldir/Caelestia"
+    piece_end
+  else
+    say "skipped the Caelestia modules (build failed; see above, the Caelestia style stays off)"
+    piece_end failed
+  fi
+else
+  say "skipping Caelestia modules (cmake/ninja not found)"
+  piece_end skipped
+fi
+
 # Build the optional Hyprland compositor plugins (dynamic-cursors, hyprbars,
 # hyprfocus, hyprglass, imgborders, and this repo's keysounds) through the one
 # builder the Hub's Plugins page and the doctor use, `ryoku-hub desktop plugins

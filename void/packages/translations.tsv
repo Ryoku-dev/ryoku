@@ -196,6 +196,7 @@ rust	rust	desktop
 ryogami	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-blobs	@repo	desktop	Ryoku-owned package built from the checkout.
+ryoku-caelestia	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-cursor-material	ryoku-cursor-material	desktop	repo=ryoku
 ryoku-cursors	ryoku-cursors	desktop	repo=ryoku
 ryoku-desktop	@repo	desktop	Ryoku-owned package built from the checkout.

@@ -1,0 +1,11 @@
+module caelestia.modules.dashboard.dash
+Calendar 1.0 Calendar.qml
+ControlsConnections 1.0 ControlsConnections.qml
+ControlsLevels 1.0 ControlsLevels.qml
+ControlsToggles 1.0 ControlsToggles.qml
+DateTime 1.0 DateTime.qml
+Media 1.0 Media.qml
+MediaShapes 1.0 MediaShapes.qml
+Resources 1.0 Resources.qml
+SmallWeather 1.0 SmallWeather.qml
+User 1.0 User.qml

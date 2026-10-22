@@ -1,0 +1,3 @@
+module caelestia.modules.bar
+Bar 1.0 Bar.qml
+BarWrapper 1.0 BarWrapper.qml

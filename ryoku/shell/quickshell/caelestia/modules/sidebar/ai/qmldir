@@ -1,0 +1,8 @@
+module caelestia.modules.sidebar.ai
+Attachments 1.0 Attachments.qml
+ChatMarkdown 1.0 ChatMarkdown.qml
+ChatMessage 1.0 ChatMessage.qml
+ChatStore 1.0 ChatStore.qml
+ClaudeCodeSession 1.0 ClaudeCodeSession.qml
+HistoryPane 1.0 HistoryPane.qml
+ToolCard 1.0 ToolCard.qml

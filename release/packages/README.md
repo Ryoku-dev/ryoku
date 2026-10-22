@@ -20,6 +20,9 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
   Prowl's user unit and starts the gateway only when Rashin runs.
 - `ryoku-blobs` -- the `Ryoku.Blobs` QML plugin, to
   `/usr/lib/qt6/qml/Ryoku/Blobs`.
+- `ryoku-caelestia` -- the `Caelestia.*` QML plugins behind the Caelestia shell
+  style, to `/usr/lib/qt6/qml/Caelestia`. Optional (an `optdepends` of
+  `ryoku-desktop`): Bar Studio installs it when the Caelestia style is picked.
 - `skwd-paper-bin` -- the pinned upstream skwd-paper scene renderer (Wallpaper
   Engine wallpapers), a hard dependency of `ryogami`, into `/usr/bin`
   and `/usr/lib/skwd-paper`. A fixed-version binary rebuild like `ryoku-cursors`:

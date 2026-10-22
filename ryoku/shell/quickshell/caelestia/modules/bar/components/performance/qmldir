@@ -1,0 +1,8 @@
+module caelestia.modules.bar.components.performance
+PerfBattery 1.0 PerfBattery.qml
+PerfCpu 1.0 PerfCpu.qml
+PerfGpu 1.0 PerfGpu.qml
+PerfMemory 1.0 PerfMemory.qml
+PerfNetwork 1.0 PerfNetwork.qml
+PerfStat 1.0 PerfStat.qml
+PerfStorage 1.0 PerfStorage.qml

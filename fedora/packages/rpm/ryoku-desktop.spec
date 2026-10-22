@@ -23,6 +23,7 @@ Requires:       ryoku-shell = %{version}-%{release}
 Requires:       ryogami = %{version}-%{release}
 Requires:       ryoku-hub = %{version}-%{release}
 Requires:       ryoku-blobs = %{version}-%{release}
+Suggests:       ryoku-caelestia = %{version}-%{release}
 Requires:       ryoku-extras = %{version}-%{release}
 Requires:       ryoku-keyring
 Requires:       sddm-theme-ryoku = %{version}-%{release}

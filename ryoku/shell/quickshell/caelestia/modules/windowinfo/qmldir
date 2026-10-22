@@ -1,0 +1,5 @@
+module caelestia.modules.windowinfo
+Buttons 1.0 Buttons.qml
+Details 1.0 Details.qml
+Preview 1.0 Preview.qml
+WindowInfo 1.0 WindowInfo.qml

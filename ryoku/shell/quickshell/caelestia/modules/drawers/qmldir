@@ -1,0 +1,7 @@
+module caelestia.modules.drawers
+ContentWindow 1.0 ContentWindow.qml
+Drawers 1.0 Drawers.qml
+Exclusions 1.0 Exclusions.qml
+Interactions 1.0 Interactions.qml
+Panels 1.0 Panels.qml
+Regions 1.0 Regions.qml

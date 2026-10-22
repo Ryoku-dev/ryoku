@@ -1,0 +1,13 @@
+module caelestia.modules.launcher
+AnimationsList 1.0 AnimationsList.qml
+AppBrowser 1.0 AppBrowser.qml
+AppBrowserCompact 1.0 AppBrowserCompact.qml
+AppBrowserGrid 1.0 AppBrowserGrid.qml
+AppBrowserSimple 1.0 AppBrowserSimple.qml
+AppList 1.0 AppList.qml
+Content 1.0 Content.qml
+ContentList 1.0 ContentList.qml
+KeybindsList 1.0 KeybindsList.qml
+WallpaperList 1.0 WallpaperList.qml
+WindowSwitcherList 1.0 WindowSwitcherList.qml
+Wrapper 1.0 Wrapper.qml

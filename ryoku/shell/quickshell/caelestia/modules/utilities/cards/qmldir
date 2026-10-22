@@ -1,0 +1,6 @@
+module caelestia.modules.utilities.cards
+CaptureCard 1.0 CaptureCard.qml
+IdleInhibit 1.0 IdleInhibit.qml
+RecordingList 1.0 RecordingList.qml
+ScreenshotList 1.0 ScreenshotList.qml
+Toggles 1.0 Toggles.qml

@@ -1,0 +1,13 @@
+module caelestia.modules.sidebar
+AiAssistant 1.0 AiAssistant.qml
+Content 1.0 Content.qml
+News 1.0 News.qml
+Notif 1.0 Notif.qml
+NotifActionList 1.0 NotifActionList.qml
+NotifDock 1.0 NotifDock.qml
+NotifDockList 1.0 NotifDockList.qml
+NotifGroup 1.0 NotifGroup.qml
+NotifGroupList 1.0 NotifGroupList.qml
+NotifSwipeDelegate 1.0 NotifSwipeDelegate.qml
+Props 1.0 Props.qml
+Wrapper 1.0 Wrapper.qml

@@ -1,0 +1,11 @@
+module caelestia.modules.launcher.services
+singleton Actions 1.0 Actions.qml
+singleton Animations 1.0 Animations.qml
+singleton Apps 1.0 Apps.qml
+singleton Categories 1.0 Categories.qml
+singleton Clipboard 1.0 Clipboard.qml
+singleton Emojis 1.0 Emojis.qml
+singleton Keybinds 1.0 Keybinds.qml
+singleton M3Variants 1.0 M3Variants.qml
+singleton Schemes 1.0 Schemes.qml
+singleton Windows 1.0 Windows.qml

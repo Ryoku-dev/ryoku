@@ -1,0 +1,11 @@
+module caelestia.utils
+singleton Centering 1.0 Centering.qml
+singleton Icons 1.0 Icons.qml
+singleton Images 1.0 Images.qml
+singleton Launch 1.0 Launch.qml
+singleton Logger 1.0 Logger.qml
+singleton NetworkConnection 1.0 NetworkConnection.qml
+singleton Paths 1.0 Paths.qml
+Searcher 1.0 Searcher.qml
+singleton Strings 1.0 Strings.qml
+singleton SysInfo 1.0 SysInfo.qml

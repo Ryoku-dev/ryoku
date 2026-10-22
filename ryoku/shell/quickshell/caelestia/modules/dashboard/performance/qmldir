@@ -1,0 +1,6 @@
+module caelestia.modules.dashboard.performance
+BatteryTank 1.0 BatteryTank.qml
+HeroCard 1.0 HeroCard.qml
+MemoryCard 1.0 MemoryCard.qml
+NetworkCard 1.0 NetworkCard.qml
+StorageCard 1.0 StorageCard.qml

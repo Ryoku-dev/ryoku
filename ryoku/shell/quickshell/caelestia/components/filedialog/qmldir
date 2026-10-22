@@ -1,0 +1,8 @@
+module caelestia.components.filedialog
+CurrentItem 1.0 CurrentItem.qml
+DialogButtons 1.0 DialogButtons.qml
+FileDialog 1.0 FileDialog.qml
+FolderContents 1.0 FolderContents.qml
+HeaderBar 1.0 HeaderBar.qml
+Sidebar 1.0 Sidebar.qml
+singleton Sizes 1.0 Sizes.qml

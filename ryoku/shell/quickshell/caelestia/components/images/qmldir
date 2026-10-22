@@ -1,0 +1,7 @@
+module caelestia.components.images
+CachingAnimatedImage 1.0 CachingAnimatedImage.qml
+CachingIconImage 1.0 CachingIconImage.qml
+CachingImage 1.0 CachingImage.qml
+CachingVideo 1.0 CachingVideo.qml
+FadeImage 1.0 FadeImage.qml
+WindowPreview 1.0 WindowPreview.qml

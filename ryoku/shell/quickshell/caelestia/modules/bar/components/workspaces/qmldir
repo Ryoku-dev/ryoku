@@ -1,0 +1,7 @@
+module caelestia.modules.bar.components.workspaces
+ActiveIndicator 1.0 ActiveIndicator.qml
+GapMarkers 1.0 GapMarkers.qml
+OccupiedBg 1.0 OccupiedBg.qml
+SpecialWorkspaces 1.0 SpecialWorkspaces.qml
+Workspace 1.0 Workspace.qml
+Workspaces 1.0 Workspaces.qml

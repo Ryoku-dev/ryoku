@@ -1,0 +1,15 @@
+module caelestia.modules.bar.components
+Clock 1.0 Clock.qml
+Dock 1.0 Dock.qml
+GithubActivity 1.0 GithubActivity.qml
+singleton GithubStore 1.0 GithubStore.qml
+Greeter 1.0 Greeter.qml
+KbLayoutIndicator 1.0 KbLayoutIndicator.qml
+Media 1.0 Media.qml
+NotificationsIndicator 1.0 NotificationsIndicator.qml
+OsIcon 1.0 OsIcon.qml
+Power 1.0 Power.qml
+StatusIcons 1.0 StatusIcons.qml
+Tray 1.0 Tray.qml
+TrayItem 1.0 TrayItem.qml
+UpdateIndicator 1.0 UpdateIndicator.qml

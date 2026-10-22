@@ -1,0 +1,26 @@
+module caelestia.modules.bar.popouts
+Audio 1.0 Audio.qml
+AudioPopout 1.0 AudioPopout.qml
+BarComponentContext 1.0 BarComponentContext.qml
+Battery 1.0 Battery.qml
+Bluetooth 1.0 Bluetooth.qml
+CalendarPopout 1.0 CalendarPopout.qml
+ClipWrapper 1.0 ClipWrapper.qml
+Content 1.0 Content.qml
+DockContext 1.0 DockContext.qml
+DockHover 1.0 DockHover.qml
+Github 1.0 Github.qml
+Greeter 1.0 Greeter.qml
+LockStatus 1.0 LockStatus.qml
+Media 1.0 Media.qml
+Network 1.0 Network.qml
+NightLight 1.0 NightLight.qml
+Notifications 1.0 Notifications.qml
+PeripheralBattery 1.0 PeripheralBattery.qml
+PopoutSection 1.0 PopoutSection.qml
+PopoutState 1.0 PopoutState.qml
+PopoutToggleRow 1.0 PopoutToggleRow.qml
+TrayMenu 1.0 TrayMenu.qml
+Updates 1.0 Updates.qml
+WirelessPassword 1.0 WirelessPassword.qml
+Wrapper 1.0 Wrapper.qml

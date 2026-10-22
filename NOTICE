@@ -137,6 +137,23 @@ distribution. The installer builds parakeet.cpp by the parakeet.cpp authors
 user's machine and downloads Moondream's Parakeet Redux weights, derived from
 NVIDIA Parakeet TDT 0.6B v3 (CC-BY-4.0); neither ships in a Ryoku package.
 
+The Caelestia shell style (ryoku/shell/quickshell/caelestia/) is based on
+caelestia-kde at commit 6769205 (https://github.com/ladybug-me/caelestia-kde), the
+KDE Plasma port of caelestia-dots/shell by soramanew and the Caelestia
+contributors (https://github.com/caelestia-dots/shell). It is a modified version:
+Ryoku leaves out its Nexus settings app, runs its window and workspace data through
+Ryoku's neutral window-manager layer instead of KWin and Plasma, and keeps its
+settings in the Hub. Caelestia is released under the GNU General Public License
+version 3 or later; the adapted portions remain under that license, compatible with
+Ryoku's GPL-3, and the upstream license ships unchanged beside the port.
+
+The Caelestia shell style also vendors M3Shapes by soramanew
+(https://github.com/soramanew/m3shapes, revision bdc327b), a Qt port of the
+androidx Material shapes library, at
+ryoku/shell/quickshell/caelestia/plugin/vendor/m3shapes/. It is released under the
+Apache License 2.0, which ships unchanged beside it and is compatible with Ryoku's
+GPL-3 distribution.
+
 The default Vesktop and Equibop theme
 (ryoku/apps/vesktop/themes/ryoku-discord.theme.css) is ryoku.theme.css v3.0.0
 from ryoku-discord by Ron (niqqudim, https://github.com/niqqudim/ryoku-discord)

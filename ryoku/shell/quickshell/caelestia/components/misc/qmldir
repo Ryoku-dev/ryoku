@@ -1,0 +1,3 @@
+module caelestia.components.misc
+CustomShortcut 1.0 CustomShortcut.qml
+FocusGrab 1.0 FocusGrab.qml

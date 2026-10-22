@@ -1,0 +1,6 @@
+module caelestia.components.containers
+StyledFlickable 1.0 StyledFlickable.qml
+StyledListView 1.0 StyledListView.qml
+StyledWindow 1.0 StyledWindow.qml
+VerticalFadeFlickable 1.0 VerticalFadeFlickable.qml
+VerticalFadeListView 1.0 VerticalFadeListView.qml

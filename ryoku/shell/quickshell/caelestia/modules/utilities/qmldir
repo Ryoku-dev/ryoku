@@ -1,0 +1,8 @@
+module caelestia.modules.utilities
+Background 1.0 Background.qml
+Content 1.0 Content.qml
+DrawerConfirmModal 1.0 DrawerConfirmModal.qml
+DrawerModal 1.0 DrawerModal.qml
+DrawerScrim 1.0 DrawerScrim.qml
+RecordingDeleteModal 1.0 RecordingDeleteModal.qml
+Wrapper 1.0 Wrapper.qml

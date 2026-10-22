@@ -1,0 +1,7 @@
+module caelestia.modules.dashboard.media
+BackgroundShapes 1.0 BackgroundShapes.qml
+CoverVisualiser 1.0 CoverVisualiser.qml
+Details 1.0 Details.qml
+LyricList 1.0 LyricList.qml
+LyricsAndSelector 1.0 LyricsAndSelector.qml
+LyricsInfo 1.0 LyricsInfo.qml

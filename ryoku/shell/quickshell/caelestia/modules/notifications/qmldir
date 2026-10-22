@@ -1,0 +1,4 @@
+module caelestia.modules.notifications
+Content 1.0 Content.qml
+Notification 1.0 Notification.qml
+Wrapper 1.0 Wrapper.qml

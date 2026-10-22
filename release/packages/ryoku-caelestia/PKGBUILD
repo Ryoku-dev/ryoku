@@ -1,0 +1,50 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Caelestia.* = the QML plugin set behind the Caelestia shell style
+# (ryoku/shell/quickshell/caelestia): config and tokens, components, services,
+# models, images, layouts and blobs, plus the vendored M3Shapes module. Standard Qt6 QML modules loaded by Quickshell
+# from the QML import path.
+#
+# built in-repo from ryoku/shell/quickshell/caelestia/plugin via its build.sh
+# (CMake/Ninja). the backing libraries sit in Caelestia/lib and every plugin
+# carries an $ORIGIN rpath to them, so the whole Caelestia dir is relocatable onto
+# any QML import path. no tarball fetch.
+pkgname=ryoku-caelestia
+pkgver=${RYOKU_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc="Caelestia.* QML plugins for the Caelestia shell style"
+arch=('x86_64')
+url="https://ryoku.dev"
+license=('GPL-3.0-or-later')
+# libqalculate backs the launcher calculator, pipewire and aubio the audio
+# visualiser, lm_sensors the temperature readings.
+depends=('qt6-base' 'qt6-declarative' 'libqalculate' 'pipewire' 'aubio' 'lm_sensors' 'cava')
+makedepends=('cmake' 'ninja' 'qt6-shadertools' 'qt6-declarative')
+source=()
+
+_repo="$startdir/../../.."
+
+build() {
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" build
+}
+
+package() {
+  RYOKU_SRC="$_repo" \
+  RYOKU_BUILD_DIR="$srcdir" \
+  RYOKU_PKGVER="$pkgver" \
+  RYOKU_RELEASE="${RYOKU_RELEASE:-$pkgver}" \
+  RYOKU_CHANNEL="${RYOKU_CHANNEL:-stable}" \
+  RYOKU_NAME="${RYOKU_NAME:-Ryoku}" \
+    "$startdir/payload.sh" install "$pkgdir" systemd
+
+  # Qt refuses a plugin built against a newer minor than the one running, so
+  # keep pacman's package metadata tied to the build host's Qt minor.
+  local qt; qt="$(pkg-config --modversion Qt6Core | cut -d. -f1,2)"
+  depends+=("qt6-base>=$qt" "qt6-declarative>=$qt")
+}

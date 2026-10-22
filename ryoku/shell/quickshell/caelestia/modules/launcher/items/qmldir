@@ -1,0 +1,14 @@
+module caelestia.modules.launcher.items
+ActionItem 1.0 ActionItem.qml
+AppContextMenu 1.0 AppContextMenu.qml
+AppItem 1.0 AppItem.qml
+AppTile 1.0 AppTile.qml
+CalcItem 1.0 CalcItem.qml
+CategoryButton 1.0 CategoryButton.qml
+ClipItem 1.0 ClipItem.qml
+EmojiItem 1.0 EmojiItem.qml
+KeybindItem 1.0 KeybindItem.qml
+SchemeItem 1.0 SchemeItem.qml
+VariantItem 1.0 VariantItem.qml
+WallpaperItem 1.0 WallpaperItem.qml
+WindowSwitcherItem 1.0 WindowSwitcherItem.qml

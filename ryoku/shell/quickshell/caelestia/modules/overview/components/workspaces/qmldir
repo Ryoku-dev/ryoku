@@ -1,0 +1,4 @@
+module caelestia.modules.overview.components.workspaces
+ActiveIndicator 1.0 ActiveIndicator.qml
+OccupiedBg 1.0 OccupiedBg.qml
+Workspace 1.0 Workspace.qml
