@@ -4,6 +4,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
+import caelestia.services as CS
 import "lib/screens.js" as Screens
 
 Singleton {
@@ -117,7 +118,17 @@ Singleton {
             slice.tab = root.normalizedTab(tab);
     }
 
+    // With the Caelestia bar style, Controls is the Caelestia dashboard drawer.
+    readonly property bool caelestia: Config.barStyle === "caelestia"
+    function setDashboard(open) {
+        const drawers = CS.Visibilities.getForActive();
+        if (drawers)
+            drawers.dashboard = open === undefined ? !drawers.dashboard : open;
+    }
+
     function open(screen, tab) {
+        if (root.caelestia)
+            return root.setDashboard(true);
         const slice = root.sliceFor(screen);
         if (!slice)
             return;
@@ -129,6 +140,8 @@ Singleton {
     }
 
     function close(screen) {
+        if (root.caelestia)
+            return root.setDashboard(false);
         const slice = root.sliceFor(screen);
         if (slice)
             slice.open = false;
@@ -141,6 +154,8 @@ Singleton {
     }
 
     function toggle(screen, tab) {
+        if (root.caelestia)
+            return root.setDashboard();
         const slice = root.sliceFor(screen);
         if (!slice)
             return;

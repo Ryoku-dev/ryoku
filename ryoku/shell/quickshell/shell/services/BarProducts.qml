@@ -72,7 +72,8 @@ Singleton {
         "orpheus": "barstyles/orpheus/Scene.qml",
         "iris": "barstyles/iris/Scene.qml",
         "python": "barstyles/python/Scene.qml",
-        "nomarchy": "barstyles/nomarchy/Scene.qml"
+        "nomarchy": "barstyles/nomarchy/Scene.qml",
+        "caelestia": "barstyles/caelestia/Scene.qml"
     })
 
     function sceneUrl(id) {

@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import inir.modules.common
 import shell.modules.stage.frame
+import shell.services as Ryoku
 
 Scope {
     id: root
@@ -21,6 +22,8 @@ Scope {
         visible: root.surfaceVisible
         color: "transparent"
         anchors { left: true; right: true; top: true; bottom: true }
+        // stand above a bar that holds the dock's edge; the Stage card frames the whole screen
+        margins.bottom: root.stageEditing ? 0 : Ryoku.Dock.barInset(dock.edge)
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "ryoku-dock-shima"
         WlrLayershell.layer: root.stageEditing ? WlrLayer.Overlay : WlrLayer.Top
@@ -45,7 +48,7 @@ Scope {
             id: frameLayer
             screenName: surface.screen?.name ?? ""
             edge: dock.edge
-            restThickness: dock.vertical ? screenWidth : screenHeight
+            restThickness: dock.vertical ? surface.width : surface.height
             screenWidth: surface.screen?.width ?? 1920
             screenHeight: surface.screen?.height ?? 1080
 
@@ -66,7 +69,7 @@ Scope {
         color: "transparent"
         exclusionMode: ExclusionMode.Normal
         WlrLayershell.namespace: "ryoku-dock-shima-reserve"
-        WlrLayershell.layer: WlrLayer.Bottom
+        WlrLayershell.layer: Ryoku.Dock.yieldsToBar ? WlrLayer.Top : WlrLayer.Bottom
         exclusiveZone: visible ? dock.thickness : 0
         mask: emptyRegion
         implicitHeight: dock.vertical ? 0 : dock.thickness

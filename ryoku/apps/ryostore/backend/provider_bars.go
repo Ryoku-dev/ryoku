@@ -164,6 +164,13 @@ func builtinBarStyles() []Item {
 		Tags:        []string{"bar", "panels", "plugins", "built-in"},
 		Installed:   true,
 		Metadata:    map[string]any{"scene": "Scene.qml", "core": true},
+	}, {
+		ID: "caelestia", Category: "barstyles", Name: "Caelestia",
+		Summary:     "Material bar",
+		Description: "The Caelestia Material bar on the bottom edge with workspaces, a dock, the clock, status icons and power, drawn with the Ryoku shell's own services.",
+		Tags:        []string{"bottom", "material", "built-in"},
+		Installed:   true,
+		Metadata:    map[string]any{"scene": "Scene.qml", "core": true},
 	}}
 }
 
@@ -194,7 +201,7 @@ func snapshotStaleBuiltins(data []byte) bool {
 }
 
 func (p barProvider) Install(ctx context.Context, id string) error {
-	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "orpheus" || id == "iris" || id == "python" || id == "nomarchy" {
+	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "orpheus" || id == "iris" || id == "python" || id == "nomarchy" || id == "caelestia" {
 		return fmt.Errorf("the built-in %s bar style is already installed", id)
 	}
 	entries, _, err := loadProductRegistry(ctx, p.cache, "barstyles", false)
@@ -209,7 +216,7 @@ func (p barProvider) Install(ctx context.Context, id string) error {
 }
 
 func (p barProvider) Remove(ctx context.Context, id string) error {
-	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "orpheus" || id == "iris" || id == "python" || id == "nomarchy" {
+	if id == "sumi" || id == "qsbar" || id == "kairos" || id == "orpheus" || id == "iris" || id == "python" || id == "nomarchy" || id == "caelestia" {
 		return fmt.Errorf("the built-in %s bar style is not removable", id)
 	}
 	return removeProduct(ctx, "barstyles", id)

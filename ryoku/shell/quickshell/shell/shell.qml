@@ -319,7 +319,7 @@ ShellRoot {
             // The Ryoku design and docks installed from RyoStore share it.
             LazyLoader {
                 id: dockMenuLoader
-                property bool open: (Dock.design === "ryoku" || Dock.storeDesign)
+                property bool open: (Dock.design === "ryoku" || Dock.design === "caelestia" || Dock.storeDesign)
                     && Dock.menuOpen && Dock.menuScreen === perScreen.modelData.name
                 activeAsync: open || dockMenuHold.running
                 onOpenChanged: if (!open && active) dockMenuHold.restart()

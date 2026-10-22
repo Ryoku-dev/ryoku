@@ -84,7 +84,10 @@ Singleton {
     // cue; Nomarchy and Tansu draw banners but play nothing themselves.
     readonly property bool styleOwnsNotificationSound: barStyle === "python"
         && !(root.python && root.python.general && root.python.general.notifications === false)
-    readonly property bool styleOwnsFeedback: (barStyle === "python"
+    // The Caelestia style always draws its own OSD (volume and brightness, right edge); its
+    // notification banners wait for its notification server, so the shell's stay.
+    readonly property bool styleOwnsFeedback: barStyle === "caelestia"
+        || (barStyle === "python"
         && !(root.python && root.python.general && root.python.general.osd === false))
         || (barStyle === "nomarchy"
         && !(root.nomarchy && root.nomarchy.osd === false))

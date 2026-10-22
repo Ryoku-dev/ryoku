@@ -37,6 +37,7 @@ Item {
             : chrome.style === "ledger" ? ledgerC
             : chrome.style === "tanzaku" ? tanzakuC
             : chrome.style === "seal" ? sealC
+            : chrome.style === "capsule" ? capsuleC
             : null
     }
 
@@ -218,6 +219,37 @@ Item {
                 height: 9
                 Rectangle { width: parent.width; height: 2; color: chrome.band.bone }
                 Rectangle { width: 2; height: parent.height; color: chrome.band.bone }
+            }
+        }
+    }
+
+    // ── capsule: the Material look. The plate is one rounded capsule behind the run
+    // (DockBackdrop); here the focused app sits in a tonal pill, and an app that is
+    // running but not focused carries a small dot on the outer edge ──────────────
+    Component {
+        id: capsuleC
+        Item {
+            id: capsule
+            anchors.fill: parent
+            Rectangle {
+                visible: chrome.item.isActive
+                anchors.fill: parent
+                anchors.margins: 3
+                radius: width / 2
+                color: Theme.secondaryContainer
+                Behavior on color { enabled: chrome.band.animate; ColorAnimation { duration: Motion.thumbHover } }
+            }
+            Rectangle {
+                visible: chrome.item.count >= 1 && !chrome.item.isActive
+                width: 4; height: 4; radius: 2
+                color: Theme.onSurfaceVariant
+                anchors.horizontalCenter: chrome.horizontal ? capsule.horizontalCenter : undefined
+                anchors.verticalCenter: chrome.horizontal ? undefined : capsule.verticalCenter
+                anchors.bottom: chrome.outerBottom ? capsule.bottom : undefined
+                anchors.top: chrome.outerTop ? capsule.top : undefined
+                anchors.right: chrome.outerRight ? capsule.right : undefined
+                anchors.left: chrome.outerLeft ? capsule.left : undefined
+                anchors.margins: 2
             }
         }
     }

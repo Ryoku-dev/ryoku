@@ -57,7 +57,7 @@ PanelWindow {
     WlrLayershell.namespace: "ryoku-dock"
     // The editing desktop lifts to Top; the dock rides Overlay so its strip
     // stays clickable (the chrome's own mask never covers the dock's edge).
-    WlrLayershell.layer: stageEditing ? WlrLayer.Overlay : WlrLayer.Bottom
+    WlrLayershell.layer: stageEditing ? WlrLayer.Overlay : (Dock.yieldsToBar ? WlrLayer.Top : WlrLayer.Bottom)
     exclusionMode: ExclusionMode.Normal
     // A pinned (non-autohide) dock reserves its depth; an autohiding one floats
     // over the desktop and reserves nothing.

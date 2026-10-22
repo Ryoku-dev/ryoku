@@ -45,7 +45,7 @@ Item {
     // Persisted look. A style only changes what is DRAWN: the geometry below is
     // fixed, so autohide, the peek strip, the drag-reorder, the hover label and
     // the window preview hold in every form. DockItem/chrome read it via band.
-    readonly property string style: Dock.cfg("style", "islands")
+    readonly property string style: Dock.design === "caelestia" ? "capsule" : Dock.cfg("style", "islands")
 
     // Hairline vocabulary hoisted so every style role reads a token, not a raw
     // alpha: `hairline` is the plate/cell border and `rule` the stronger divider

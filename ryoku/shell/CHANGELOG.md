@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- **Caelestia bar style.** `barstyles/caelestia/Scene.qml` hosts the original
+  Caelestia drawers (bar, dock, dashboard, session, OSD, status popouts) from
+  the `caelestia` library inside the shell. Controls opens the Caelestia
+  dashboard, which follows the Controls page's sections, order and hidden
+  elements; the "caelestia" dock design is drawn by that bar, and docks on the
+  bottom edge stand above it. Under other bars that design is the Ryoku dock
+  in the new Capsule look.
 - **Visualizer colours can be entered as hex values.** The desktop editor now
   has a live-swatch field for a static colour and one for each gradient stop.
   It accepts `rrggbb` or `#rrggbb`, marks invalid input without saving it, and

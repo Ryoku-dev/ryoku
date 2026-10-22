@@ -173,14 +173,17 @@ Singleton {
         { key: "rail",    label: I18n.tr("Rail"),    detail: I18n.tr("One continuous plate") },
         { key: "ledger",  label: I18n.tr("Ledger"),  detail: I18n.tr("Numbered cells") },
         { key: "tanzaku", label: I18n.tr("Tanzaku"), detail: I18n.tr("Hanging strips") },
-        { key: "seal",    label: I18n.tr("Seal"),    detail: I18n.tr("Colour means running") }
+        { key: "seal",    label: I18n.tr("Seal"),    detail: I18n.tr("Colour means running") },
+        { key: "capsule", label: I18n.tr("Capsule"), detail: I18n.tr("One rounded Material plate") }
     ]
     readonly property string design: String(root.cfg("design", "ryoku"))
     onDesignChanged: root.closeMenu()
     // The designs the shell ships. Any other design names a dock installed from
     // RyoStore (DockProducts), which UniversalDockHost runs from its own view and
     // which shares the Ryoku design's context menu below.
-    readonly property var builtinDesigns: ["ryoku", "python", "shima", "ii", "none"]
+    // "caelestia" is drawn inside the Caelestia bar style; under any other bar it is
+    // the Ryoku dock in the Capsule look.
+    readonly property var builtinDesigns: ["ryoku", "python", "shima", "ii", "caelestia", "none"]
     readonly property bool storeDesign: !root.builtinDesigns.includes(root.design)
 
     function cfg(key, fallback) {
@@ -234,6 +237,16 @@ Singleton {
         root.setPinned(pins.includes(root.canonicalId(className))
             ? root.unpin(pins, className) : root.pin(pins, className));
     }
+    // The room a bar keeps on a dock edge, for docks drawn over the whole screen
+    // that do not step aside for it on their own. The Caelestia bar always holds
+    // the bottom (barH in barstyles/caelestia/Scene.qml).
+    function barInset(edge) {
+        return Config.barStyle === "caelestia" && edge === "bottom" ? 56 : 0;
+    }
+    // Hyprland hands out an edge layer by layer, Bottom before Top, so a dock that
+    // reserves space on the Bottom layer would take the edge and push a Top-layer
+    // bar above it. Where a bar holds the dock's edge, the dock reserves from Top.
+    readonly property bool yieldsToBar: root.barInset(root.resolvedEdge()) > 0
     function resolvedEdge() {
         const edge = String(root.cfg("edge", "auto"));
         if (["top", "bottom", "left", "right"].includes(edge))

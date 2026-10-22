@@ -19,6 +19,9 @@ Controls is the compact top-left panel shared by every bar style and compositor.
 - `ExtensionsBoard.qml` uses `SidebarCardHost.qml` for installed plugins;
   `SidebarPlugins.qml` discovers and orders them while the panel is open.
 - `shell/services/SidebarState.qml` owns per-display Controls state and routing.
+- With the Caelestia bar style, Controls is the Caelestia dashboard drawer (from the
+  Caelestia library, hosted by `modules/bar/barstyles/caelestia/Scene.qml`), and
+  `SidebarState` opens and closes that drawer instead.
 
 Capture is a separate surface under `shell/modules/capture/`; Ask and its desktop
 bubble are under `shell/modules/ask/`. Do not route either back through Controls.

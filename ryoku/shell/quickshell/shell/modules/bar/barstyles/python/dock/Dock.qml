@@ -32,7 +32,7 @@ Variants {
                 screen: dockScope.modelData
 
                 WlrLayershell.namespace: "qs-dock-exclusion"
-                WlrLayershell.layer: dockWindow.dockOnTop ? WlrLayer.Top : WlrLayer.Bottom
+                WlrLayershell.layer: (dockWindow.dockOnTop || Ryoku.Dock.yieldsToBar) ? WlrLayer.Top : WlrLayer.Bottom
                 color: "transparent"
                 visible: universalDock.surfaceVisible && dockWindow.isEffectivelyExclusive
 
@@ -595,6 +595,8 @@ Variants {
                     left: true
                     right: true
                 }
+                // stand above a bar that holds the dock's edge; the Stage card frames the whole screen
+                margins.bottom: universalDock.stageEditing ? 0 : Ryoku.Dock.barInset(dockWindow.dockPosition)
 
                 Timer {
                     id: hideTimer
@@ -1023,7 +1025,7 @@ Variants {
                     id: frameLayer
                     screenName: dockWindow.modelData?.name ?? ""
                     edge: dockWindow.dockPosition
-                    restThickness: dockWindow.isVertical ? dockWindow.screenWidth : dockWindow.screenHeight
+                    restThickness: dockWindow.isVertical ? dockWindow.effectiveWindowWidth : dockWindow.effectiveWindowHeight
                     screenWidth: dockWindow.screenWidth > 0 ? dockWindow.screenWidth : 1920
                     screenHeight: dockWindow.screenHeight > 0 ? dockWindow.screenHeight : 1080
 

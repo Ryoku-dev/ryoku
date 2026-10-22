@@ -31,7 +31,9 @@ Item {
         id: designLoader
         // A saved store design waits for the Store's index rather than drawing
         // the Ryoku dock first and swapping a moment later.
+        // the Caelestia bar draws the "caelestia" design itself
         active: root.surfaceVisible && Dock.cfg("enabled", false) && root.design !== "none" && root.design !== "ii"
+            && !(root.design === "caelestia" && Config.barStyle === "caelestia")
             && (!Dock.storeDesign || DockProducts.ready)
         asynchronous: true
         sourceComponent: root.storeRuns ? storeDesign

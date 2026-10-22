@@ -18,8 +18,9 @@ Item {
     readonly property bool horizontal: backdrop.band.horizontal
     readonly property string edge: backdrop.band.edge
     readonly property bool ledger: backdrop.style === "ledger"
-    readonly property real r: backdrop.band.radius
-    visible: backdrop.style === "rail" || backdrop.ledger
+    readonly property bool capsule: backdrop.style === "capsule"
+    readonly property real r: backdrop.capsule ? backdrop.band.baseSize / 2 : backdrop.band.radius
+    visible: backdrop.style === "rail" || backdrop.ledger || backdrop.capsule
 
     // Span the app run along the band, baseSize across; sits at the run origin.
     width: backdrop.horizontal ? backdrop.band.runSpan : backdrop.band.baseSize
@@ -36,13 +37,13 @@ Item {
     Rectangle {
         id: plate
         anchors.fill: parent
-        color: Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, backdrop.band.frost ? 0.6 : 0.94)
-        border.width: backdrop.ledger ? 1 : 0
+        color: Qt.rgba(Theme.surfaceContainer.r, Theme.surfaceContainer.g, Theme.surfaceContainer.b, backdrop.capsule ? 0.92 : (backdrop.band.frost ? 0.6 : 0.94))
+        border.width: (backdrop.ledger || backdrop.capsule) ? 1 : 0
         border.color: backdrop.band.hairline
-        topLeftRadius:     backdrop.ledger ? backdrop.r : ((backdrop.outerBottom || backdrop.outerRight) ? backdrop.r : 0)
-        topRightRadius:    backdrop.ledger ? backdrop.r : ((backdrop.outerBottom || backdrop.outerLeft) ? backdrop.r : 0)
-        bottomLeftRadius:  backdrop.ledger ? backdrop.r : ((backdrop.outerTop || backdrop.outerRight) ? backdrop.r : 0)
-        bottomRightRadius: backdrop.ledger ? backdrop.r : ((backdrop.outerTop || backdrop.outerLeft) ? backdrop.r : 0)
+        topLeftRadius:     (backdrop.ledger || backdrop.capsule) ? backdrop.r : ((backdrop.outerBottom || backdrop.outerRight) ? backdrop.r : 0)
+        topRightRadius:    (backdrop.ledger || backdrop.capsule) ? backdrop.r : ((backdrop.outerBottom || backdrop.outerLeft) ? backdrop.r : 0)
+        bottomLeftRadius:  (backdrop.ledger || backdrop.capsule) ? backdrop.r : ((backdrop.outerTop || backdrop.outerRight) ? backdrop.r : 0)
+        bottomRightRadius: (backdrop.ledger || backdrop.capsule) ? backdrop.r : ((backdrop.outerTop || backdrop.outerLeft) ? backdrop.r : 0)
 
         RectangularShadow {
             anchors.fill: parent

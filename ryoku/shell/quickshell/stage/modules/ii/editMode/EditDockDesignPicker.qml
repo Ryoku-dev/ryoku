@@ -22,6 +22,7 @@ ColumnLayout {
         { value: "ryoku", title: Translation.tr("Ryoku"), detail: Translation.tr("Paper islands"), glyph: "dock" },
         { value: "python", title: Translation.tr("Python"), detail: Translation.tr("Flowing glass"), glyph: "blur_on" },
         { value: "shima", title: Translation.tr("Shima"), detail: Translation.tr("Notched capsule"), glyph: "line_curve" },
+        { value: "caelestia", title: Translation.tr("Caelestia"), detail: Translation.tr("Inside the Caelestia bar"), glyph: "rounded_corner" },
         { value: "ii", title: Translation.tr("ii"), detail: Translation.tr("Islands, widgets, magnification"), glyph: "view_carousel" },
         { value: "none", title: Translation.tr("None"), detail: Translation.tr("No dock surface"), glyph: "block" }
     ].concat(root.storeDocks.map(dock => ({

@@ -59,7 +59,7 @@ var (
 		entry: "Dock.qml",
 		// The shell's services/Dock.qml builtinDesigns.
 		builtins: map[string]bool{
-			"ryoku": true, "python": true, "shima": true, "ii": true, "none": true,
+			"ryoku": true, "python": true, "shima": true, "ii": true, "caelestia": true, "none": true,
 		},
 		views: dockViews,
 	}

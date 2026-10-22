@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **Blur behind the Caelestia drawers.** A layer rule blurs what sits behind
+  the Caelestia bar style's drawers (the "dock" layer), so its panels frost
+  over the desktop as in the Caelestia shell (`modules/decoration.lua`).
 - **Super+Alt+Space opens the Rashin app.** The companion window summons the
   single-instance way: a second press focuses the open window instead of
   spawning a twin, and a window rule floats and centres it like the other

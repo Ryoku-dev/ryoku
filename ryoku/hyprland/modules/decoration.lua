@@ -121,6 +121,17 @@ hl.layer_rule({
 })
 
 
+-- the Caelestia drawers (the Caelestia bar style) are one full-screen layer named
+-- "dock" that paints its panels translucent. Blur what is behind the panels so they
+-- frost over the desktop as in the Caelestia shell; ignore_alpha keeps the frost to
+-- the panels and off the empty rest of the surface.
+hl.layer_rule({
+  name         = "caelestia-drawers-blur",
+  match        = { namespace = "^dock$" },
+  blur         = not no_blur,
+  ignore_alpha = 0.1,
+})
+
 -- the workspace overview (qs -c overview, Super+Tab) is a full-screen layer-shell
 -- expo: blur the desktop behind it so only the workspace cells and their live
 -- window previews read on top. QML drives its open/close, so suppress Hyprland's
