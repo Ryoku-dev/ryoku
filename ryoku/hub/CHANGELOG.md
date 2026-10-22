@@ -3,6 +3,16 @@
 ## Unreleased
 
 ### Added
+- **Caelestia bar, panels and style pages.** While the Caelestia bar style is
+  picked, Desktop gains three pages for its bar, its panels (dashboard,
+  launcher, overview, session, OSD) and its look. Their rows are generated
+  from the Caelestia settings pages by `bin/ryoku-dev-gen-caelestia-schema`,
+  and `ryoku-hub caelestia get|defaults|save` keeps only what differs from the
+  shell's defaults in `~/.config/ryoku/caelestia/shell.json`. The style's
+  plugin package (`ryoku-caelestia`) is optional: picking the style in Bar
+  Studio installs it first (`ryoku-hub caelestia status|install`, behind the
+  password prompt like the Rashin switch). Bar Studio's layout card links to them (`backend/caelestia.go`,
+  `quickshell/pages/Caelestia*.qml`, `quickshell/Hub.qml`).
 - **Overlays chooses shell surface designs.** The new Desktop > Overlays page
   wears installed RyoStore designs for pop-ups, notification cards and the
   Super+Escape panel, previews each surface, and keeps Bar Studio's style

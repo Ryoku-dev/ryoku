@@ -14,6 +14,9 @@ import "pages"
 import "schema/DesktopPage.js" as DesktopSchema
 import "schema/GlobalPage.js" as GlobalSchema
 import "schema/BarStudioPage.js" as BarStudioSchema
+import "schema/CaelestiaBarPage.js" as CaelestiaBarSchema
+import "schema/CaelestiaStylePage.js" as CaelestiaStyleSchema
+import "schema/CaelestiaPanelsPage.js" as CaelestiaPanelsSchema
 import "schema/ControlsPage.js" as ControlsSchema
 import "schema/WindowSettings.js" as WindowSettingsSchema
 import "schema/PluginsPage.js" as PluginsSchema
@@ -137,7 +140,11 @@ Rectangle {
             { key: "windowmanager", name: "Window Manager", needs: { provider: true } }, { key: "plugins", name: "Plugins", needs: { cap: "plugins" } },
             { key: "layerrules", name: "Layer Rules", adv: true, needs: { rows: true } } ] },
         { name: "DESKTOP", items: [
-            { key: "bar-studio", name: "Bar Studio", wired: true }, { key: "desktop", name: "Desktop", wired: true },
+            { key: "bar-studio", name: "Bar Studio", wired: true },
+            { key: "shellbar", name: "Caelestia bar", needs: { barStyle: "caelestia" } },
+            { key: "shellpanels", name: "Caelestia panels", needs: { barStyle: "caelestia" } },
+            { key: "shellstyle", name: "Caelestia style", needs: { barStyle: "caelestia" } },
+            { key: "desktop", name: "Desktop", wired: true },
             { key: "controls", name: "Controls", wired: true }, { key: "overlays", name: "Overlays", wired: true },
             { key: "launcher", name: "App Launcher" } ] },
         { name: "KEYS & APPS", items: [
@@ -182,6 +189,9 @@ Rectangle {
         "dictation": "voice typing speech transcribe whisper microphone stt",
         "windowmanager": "compositor window manager wm wayland switch change swap session provider window windows rounding corners softness gaps border borders thickness colour tiling layout opacity transparency transparent dim blur shadow float snap resize animation spread offset",
         "plugins": "plugin plugins hyprland compositor hyprpm title bar titlebar hyprbars glass hyprglass image border imgborders cursor motion dynamic cursors focus flash hyprfocus key sound sounds keyboard keysounds typing click clicky thock creamy cherry mx topre mechvibes switch version abi mismatch rebuild build update add git repository install",
+        "shellbar": "caelestia shell bar taskbar dock workspaces clock tray media greeter status icons scale position dodge persistent",
+        "shellpanels": "caelestia shell panels launcher dashboard overview sidebar window switcher alt tab utilities toggles osd sliders volume brightness drawer",
+        "shellstyle": "caelestia shell style theme transparency opacity blur rounding corners border thickness islands pitch black bezel scale animation",
         "bar-studio": "bar frame rails zones widgets menus surfaces style catalogue layout framebars sidebar dock dockapps pinned pin magnify autohide auto-hide media chip peek labels edge taskbar",
         "desktop": "desktop brand logo mark name wallpaper picker clipboard sidebar sidebars controls today panel corner",
         "controls": "controls quick settings super escape sidebar panel layout sections order graph vitals levels media plugins",
@@ -209,6 +219,7 @@ Rectangle {
     // section -> its schema rows, the one source for both global search and the
     // compositor-driving classification, so the two cannot drift apart.
     readonly property var sectionRows: ({
+        "shellbar": CaelestiaBarSchema.rows, "shellstyle": CaelestiaStyleSchema.rows, "shellpanels": CaelestiaPanelsSchema.rows,
         "bar-studio": BarStudioSchema.rows, "desktop": DesktopSchema.rows, "controls": ControlsSchema.rows,
         "windowmanager": WindowSettingsSchema.rows, "plugins": PluginsSchema.rows,
         "input": InputSchema.rows, "keybinds": KeybindsSchema.rows,
@@ -431,7 +442,7 @@ Rectangle {
     // `framed` pages keep the rail + bottom action bar; `ledger` pages also get
     // the right write-ledger column. Everything else is full-bleed.
     readonly property var framedSet: ({
-        "bar-studio": true, "desktop": true, "controls": true, "plugins": true, "input": true, "animations": true, "global": true, "windowmanager": true,
+        "bar-studio": true, "desktop": true, "controls": true, "plugins": true, "input": true, "animations": true, "global": true, "windowmanager": true, "shellbar": true, "shellstyle": true, "shellpanels": true,
         "windowrules": true, "appoverrides": true, "layerrules": true,
         "session": true
     })
@@ -484,6 +495,8 @@ Rectangle {
         if (!n) return true;
         if (n.cap !== undefined && !Settings.supports(n.cap)) return false;
         if (n.provider === true && Settings.provider === "") return false;
+        // the Caelestia pages only mean something while the Caelestia bar style runs
+        if (n.barStyle !== undefined && hub.val("barStyle") !== n.barStyle) return false;
         if (n.rows === true && !hub.hasModeledRow(item.key)) return false;
         return true;
     }
@@ -520,6 +533,7 @@ Rectangle {
     function pageFile(s) {
         var map = {
             "plugins": "PluginsPage", "profile": "ProfilePage",
+            "shellbar": "CaelestiaBarPage", "shellstyle": "CaelestiaStylePage", "shellpanels": "CaelestiaPanelsPage",
             "bar-studio": "BarStudioPage", "desktop": "DesktopPage", "controls": "ControlsPage", "overlays": "OverlaysPage", "session": "SessionPage",
             "layerrules": "LayerRulesPage", "windowrules": "WindowRulesPage",
             "appoverrides": "AppOverridesPage", "animations": "AnimationsPage",
@@ -672,7 +686,7 @@ Rectangle {
             if (draft[k] === undefined || committed[k] === undefined) continue;
             if (JSON.stringify(draft[k]) !== JSON.stringify(committed[k])) n++;
         }
-        return n + hub.hyprChanges().length + (hub.pageDirty ? 1 : 0) + hub.liveChanges.length;
+        return n + hub.hyprChanges().length + hub.caeChanges().length + (hub.pageDirty ? 1 : 0) + hub.liveChanges.length;
     }
 
     // ── Bar Studio live-apply ────────────────────────────────────────────
@@ -769,6 +783,12 @@ Rectangle {
             hyprSave.command = ["ryoku-hub", "desktop", "save", JSON.stringify(hyprSave.pendingDraft)];
             hyprSave.running = true;
         }
+        if (hub.caeChanges().length) {
+            hub.caeSaveError = "";
+            caeSave.pendingDraft = JSON.parse(JSON.stringify(hub.caeDraft));
+            caeSave.command = ["ryoku-hub", "caelestia", "save", JSON.stringify(caeSave.pendingDraft)];
+            caeSave.running = true;
+        }
         hub.captureLiveBaseline();
         hub.savePage();
     }
@@ -777,6 +797,7 @@ Rectangle {
         hub.draft = JSON.parse(JSON.stringify(hub.committed));
         hub.restoreLiveUnsaved();
         hub.hyprDraft = JSON.parse(JSON.stringify(hub.hyprCommitted));
+        hub.caeDraft = JSON.parse(JSON.stringify(hub.caeCommitted));
         if (hub.wmLoaded) { hyprRestore.command = ["ryoku-hub", "desktop", "restore"]; hyprRestore.running = true; }
         hub.revertPage();
         hub.requestReloadCoverPrune(hub.committed.reloadCover);
@@ -786,6 +807,7 @@ Rectangle {
         hub.pristine = false;
         hub.draft = JSON.parse(JSON.stringify(hub.defs));
         if (Object.keys(hub.hyprDefaults).length) hub.hyprDraft = JSON.parse(JSON.stringify(hub.hyprDefaults));
+        if (Object.keys(hub.caeDefaults).length) hub.caeDraft = JSON.parse(JSON.stringify(hub.caeDefaults));
     }
 
     property string reloadCoverCleanupError: ""
@@ -839,6 +861,8 @@ Rectangle {
                 out.push({ file: hub.fileFor(order[i]) + ".json", changes: by[order[i]] });
         var hc = hub.hyprChanges();
         if (hc.length) out.push({ file: hub.wmSettingsFilename(), changes: hc });
+        var cc = hub.caeChanges();
+        if (cc.length) out.push({ file: "caelestia/shell.json", changes: cc });
         return out;
     }
 
@@ -955,6 +979,78 @@ Rectangle {
         }
     }
 
+    // ── Caelestia shell style ────────────────────────────────────────────
+    // The shell style keeps its settings in ~/.config/ryoku/caelestia/shell.json
+    // and watches it, so Save reaches the running shell. The store is one nested
+    // object like the window manager's: pages read and write dotted paths under
+    // "caelestia", and ryoku-hub lays the file over the shell's defaults on read
+    // and writes back only what differs.
+    property var caeCommitted: ({})
+    property var caeDraft: ({})
+    property var caeDefaults: ({})
+    property bool caeLoaded: false
+    property string caeSaveError: ""
+
+    // same for the Caelestia style file: an outside edit shows up unless there are unsaved edits
+    FileView {
+        path: hub.cfgDir + "/caelestia/shell.json"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: if (!caeGet.running && !caeSave.running) caeGet.running = true
+    }
+    Process {
+        id: caeGet
+        command: ["ryoku-hub", "caelestia", "get"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    var o = JSON.parse(this.text);
+                    hub.caeCommitted = o;
+                    if (hub.pristine || !hub.caeLoaded) hub.caeDraft = JSON.parse(JSON.stringify(o));
+                    hub.caeLoaded = true;
+                } catch (e) { console.log("hub: caelestia get parse failed: " + e); }
+            }
+        }
+    }
+    Process {
+        id: caeDefaultsGet
+        command: ["ryoku-hub", "caelestia", "defaults"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: { try { hub.caeDefaults = JSON.parse(this.text); } catch (e) {} }
+        }
+    }
+    Process {
+        id: caeSave
+        property var pendingDraft: ({})
+        stderr: StdioCollector { id: caeSaveStderr }
+        onExited: function(code) {
+            if (code === 0) {
+                hub.caeCommitted = JSON.parse(JSON.stringify(pendingDraft));
+                hub.caeSaveError = "";
+            } else {
+                hub.caeSaveError = caeSaveStderr.text.trim() || I18n.tr("Couldn't save the shell settings.");
+                console.log("hub: caelestia save failed (" + code + "): " + hub.caeSaveError);
+            }
+            pendingDraft = ({});
+        }
+    }
+    function caeVal(path) { return hub.pathGet(hub.caeDraft, path); }
+    function caeCommittedVal(path) { return hub.pathGet(hub.caeCommitted, path); }
+    function caeEdit(path, v) {
+        hub.pristine = false;
+        var d = JSON.parse(JSON.stringify(hub.caeDraft));
+        hub.pathSet(d, path, v);
+        hub.caeDraft = d;
+    }
+    function caeChanges() {
+        if (!hub.caeLoaded) return [];
+        var out = [];
+        hub.walkHypr("", hub.caeCommitted, hub.caeDraft, out);
+        return out;
+    }
+
     // live preview: the shell owns it, not the pages. A hypr edit applies to the
     // running compositor (throttled) so "previewing live" is honest; revert and
     // an unsaved quit restore the compositor to what is on disk.
@@ -1022,16 +1118,31 @@ Rectangle {
         hub.hyprDraft = drop(hub.hyprDraft);
         hub.hyprCommitted = drop(hub.hyprCommitted);
     }
+    // A path segment "@dock" picks the element of a list whose id is "dock", so a setting
+    // inside a list of components (the Caelestia bar entries) is addressed by what it is,
+    // not by where it sits.
+    function pathStep(cur, part) {
+        if (part.charAt(0) !== "@") return cur[part];
+        var id = part.substring(1);
+        if (!Array.isArray(cur)) return undefined;
+        for (var i = 0; i < cur.length; i++) if (cur[i] && cur[i].id === id) return cur[i];
+        return undefined;
+    }
     function pathGet(obj, path) {
         var parts = path.split("."), cur = obj;
-        for (var i = 0; i < parts.length; i++) { if (cur === undefined || cur === null) return undefined; cur = cur[parts[i]]; }
+        for (var i = 0; i < parts.length; i++) { if (cur === undefined || cur === null) return undefined; cur = hub.pathStep(cur, parts[i]); }
         return cur;
     }
     function pathSet(obj, path, v) {
         var parts = path.split("."), cur = obj;
         for (var i = 0; i < parts.length - 1; i++) {
-            if (typeof cur[parts[i]] !== "object" || cur[parts[i]] === null) cur[parts[i]] = {};
-            cur = cur[parts[i]];
+            var next = hub.pathStep(cur, parts[i]);
+            if (typeof next !== "object" || next === null) {
+                // a missing list element is not invented: its id would have no zone to sit in
+                if (parts[i].charAt(0) === "@") return;
+                next = cur[parts[i]] = {};
+            }
+            cur = next;
         }
         cur[parts[parts.length - 1]] = v;
     }
@@ -1618,7 +1729,7 @@ Rectangle {
         z: 70
         anchors { right: parent.right; rightMargin: Tokens.s6; bottom: bar.top; bottomMargin: Tokens.s2 }
         width: Math.min(560, implicitWidth)
-        text: hub.wmSaveError
+        text: hub.wmSaveError !== "" ? hub.wmSaveError : hub.caeSaveError
         color: Tokens.ink
         font.family: Tokens.ui
         font.pixelSize: Tokens.fSmall

@@ -1,0 +1,440 @@
+#!/usr/bin/env python3
+"""Turn the Caelestia Nexus settings pages into Hub schema rows.
+
+The Nexus pages of the caelestia-kde checkout declare every option as a row
+(ToggleRow, StepperRow, SliderRow, SelectRow) with its label, description and
+range, and name the config path they write. This reads those rows and writes the
+Hub's own schema files, plus the default of every option read from the compiled
+Caelestia.Config plugin, so the Hub needs no hand-kept copy of the schema.
+
+  ryoku-dev-gen-caelestia-schema --nexus <caelestia-kde>/shell/modules/nexus/pages \\
+      --enums ryoku/shell/quickshell/caelestia/plugin/src/Caelestia/Config/enums.hpp \\
+      --plugin <qml import dir holding Caelestia/>
+  ryoku-dev-gen-caelestia-schema --selftest
+
+Run it again after the Nexus pages or the plugin change; the output is committed.
+Rows it cannot express yet (lists, text fields, per-monitor overrides) are skipped
+and counted.
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SCHEMA_DIR = os.path.join(REPO, "ryoku/hub/quickshell/schema")
+DEFAULTS_OUT = os.path.join(REPO, "ryoku/hub/backend/caelestia_defaults.json")
+
+# page file -> (tab shown in the Hub). Tabs are the Nexus page titles.
+SECTIONS = {
+    "bar": [
+        ("panels/TaskbarPanel.qml", "Taskbar"),
+        ("panels/taskbar/BarWorkspaces.qml", "Workspaces"),
+        ("panels/taskbar/BarClock.qml", "Clock"),
+        ("panels/taskbar/BarDock.qml", "Dock"),
+        ("panels/taskbar/BarTray.qml", "Tray"),
+        ("panels/taskbar/BarMedia.qml", "Media"),
+        ("panels/taskbar/BarGreeter.qml", "Greeter"),
+        ("panels/taskbar/BarStatusIcons.qml", "Status icons"),
+        ("panels/taskbar/BarUpdates.qml", "Updates"),
+        ("panels/taskbar/BarPreviewScales.qml", "Scale"),
+    ],
+    "style": [
+        ("wallandstyle/AppearancePage.qml", "Theme"),
+    ],
+    "notifs": [
+        ("services/NotificationPreferencesPage.qml", "Notifications"),
+        ("services/ToastPreferencesPage.qml", "Toasts"),
+        ("services/ToastEventsPage.qml", "Toast events"),
+        ("audio/SoundEffectsPage.qml", "Sounds"),
+    ],
+    "game": [
+        ("services/GameModePage.qml", "Game mode"),
+    ],
+    "panels": [
+        ("panels/LauncherPanel.qml", "Launcher"),
+        ("panels/DashboardPanel.qml", "Dashboard"),
+        ("panels/OverviewPanel.qml", "Overview"),
+        ("panels/SidebarPanel.qml", "Sidebar"),
+        ("panels/TabSwitcherPanel.qml", "Window switcher"),
+        ("utilities/UtilitiesPanelPage.qml", "Utilities"),
+        ("panels/UtilitiesPanel.qml", "Utilities"),
+        ("utilities/QuickTogglesPage.qml", "Utilities"),
+        ("utilities/OsdPage.qml", "On-screen sliders"),
+    ],
+}
+# The Nexus appearance page puts its first toggles after the font cards, under the last
+# font header; those headers name cards the Hub does not carry, so the rows get a plain one.
+GROUP_ALIAS = {"MONOSPACE FONT": "LOOK", "FONT": "LOOK"}
+# The compositor can only switch game mode as a whole, so its per-effect switches would
+# do nothing.
+SKIP_GROUPS = {"HYPRLAND OVERRIDES"}
+KINDS = ("ToggleRow", "StepperRow", "SliderRow", "SelectRow", "DoubleStepperRow", "TextFieldRow", "SectionHeader")
+
+
+def block_at(text, open_brace):
+    """The text between a '{' and its matching '}', skipping strings and comments."""
+    depth, i, n = 0, open_brace, len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+        elif text.startswith("//", i):
+            i = text.find("\n", i)
+            if i < 0:
+                break
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_brace + 1:i]
+        i += 1
+    return text[open_brace + 1:]
+
+
+def qstr(block, name):
+    m = re.search(r"\b" + name + r':\s*qsTr\("((?:[^"\\]|\\.)*)"\)', block)
+    return m.group(1).replace('\\"', '"') if m else ""
+
+
+def number(block, name):
+    m = re.search(r"\b" + name + r":\s*(-?\d+(?:\.\d+)?)\b", block)
+    return float(m.group(1)) if m else None
+
+
+def key_path(block):
+    m = re.search(r"reset:\s*\(\{\s*node:\s*GlobalConfig\.([\w.]+),\s*setting:\s*\"(\w+)\"", block)
+    if m:
+        return m.group(1) + "." + m.group(2)
+    m = re.search(r"GlobalConfig\.([\w.]+)\s*=[^=]", block)
+    return m.group(1) if m else ""
+
+
+def gate(block):
+    """enabled: GlobalConfig.a && !GlobalConfig.b  ->  {a: [true], b: [false]}, else None."""
+    m = re.search(r"\benabled:\s*([^\n]+)", block)
+    if not m:
+        return None
+    terms = [t.strip() for t in m.group(1).split("&&")]
+    out = {}
+    for t in terms:
+        g = re.fullmatch(r"(!?)\s*GlobalConfig\.([\w.]+)", t)
+        if not g:
+            return None
+        out[g.group(2)] = [g.group(1) != "!"]
+    return out
+
+
+def menu_items(text, name):
+    """The MenuItem list a SelectRow points at: [(value, label)], values as written."""
+    m = re.search(r"readonly property list<MenuItem> " + re.escape(name) + r":\s*\[", text)
+    if not m:
+        return None
+    start = text.index("[", m.start())
+    depth, i = 0, start
+    while i < len(text):
+        depth += text[i] == "["
+        depth -= text[i] == "]"
+        if depth == 0:
+            break
+        i += 1
+    body = text[start:i]
+    items, labels = [], []
+    for mi in re.finditer(r"MenuItem\s*\{", body):
+        blk = block_at(body, mi.end() - 1)
+        v = re.search(r"property \w+ value:\s*(\"[^\"]*\"|-?\d+|[\w.]+)", blk)
+        label = qstr(blk, "text")
+        if v and label:
+            items.append((v.group(1), label))
+        elif label:
+            labels.append(label)
+    if items:
+        return items
+    # items that carry only a label take their values from a sibling array
+    vals = re.search(r"readonly property (?:var|list<\w+>) " + re.escape(re.sub(r"Items$", "", name)) + r"Values:\s*\[([^\]]*)\]", text)
+    if vals and labels:
+        values = [v.strip() for v in vals.group(1).split(",") if v.strip()]
+        if len(values) == len(labels):
+            return list(zip(values, labels))
+    return None
+
+
+# Enums whose values are stored as numbers (an int option typed with a QML enum from the
+# vendored M3Shapes plugin), keyed by the name the Nexus pages write them under.
+NUMERIC_ENUMS = {"MaterialShape": ("ryoku/shell/quickshell/caelestia/plugin/vendor/m3shapes/src/qml/MaterialShapeItem.hpp", "Shape")}
+
+
+def parse_numeric_enums():
+    out = {}
+    for name, (rel, enum) in NUMERIC_ENUMS.items():
+        body = re.search(r"enum " + enum + r"\s*\{(.*?)\};", open(os.path.join(REPO, rel)).read(), re.S).group(1)
+        value, members = -1, {}
+        for item in body.split(","):
+            m = re.fullmatch(r"\s*(\w+)(?:\s*=\s*(-?\d+))?\s*", item)
+            if m:
+                value = int(m.group(2)) if m.group(2) is not None else value + 1
+                members[m.group(1)] = value
+        out[name] = members
+    return out
+
+
+def rows_from(text, tab, enums, numeric=None):
+    numeric = numeric or {}
+    rows, group, skipped = [], tab, 0
+    for m in re.finditer(r"\b(" + "|".join(KINDS) + r")\s*\{", text):
+        kind, blk = m.group(1), block_at(text, m.end() - 1)
+        if kind == "SectionHeader":
+            group = qstr(blk, "text") or group
+            continue
+        if group.upper() in SKIP_GROUPS:
+            continue
+        key = key_path(blk)
+        label = qstr(blk, "text") or qstr(blk, "label")
+        if not key or not label or "[" in key or kind in ("TextFieldRow", "DoubleStepperRow"):
+            skipped += 1
+            continue
+        row = {"tab": tab, "group": GROUP_ALIAS.get(group.upper(), group.upper()), "key": "caelestia." + key, "label": label,
+               "desc": qstr(blk, "subtext"), "src": "caelestia.json"}
+        if kind == "ToggleRow":
+            row["ctl"] = "sw"
+        elif kind == "StepperRow":
+            lo, hi, step = number(blk, "from"), number(blk, "to"), number(blk, "stepSize")
+            if lo is None or hi is None:
+                skipped += 1
+                continue
+            whole = all(float(v).is_integer() for v in (lo, hi, step if step is not None else 1))
+            row.update({"ctl": "step" if whole else "slid", "lo": lo, "hi": hi})
+            if whole:
+                row.update({"from": lo, "to": hi})
+        elif kind == "SliderRow":
+            lo, hi = number(blk, "from"), number(blk, "to")
+            row.update({"ctl": "slid", "lo": 0.0 if lo is None else lo, "hi": 1.0 if hi is None else hi})
+            if "* 100" in blk and "%" in blk:
+                row["pct"] = True
+        elif kind == "SelectRow":
+            ref = re.search(r"menuItems:\s*(?:root\.)?(\w+)\b", blk)
+            items = menu_items(text, ref.group(1)) if ref else None
+            if not items:
+                skipped += 1
+                continue
+            opts, labels, enum = [], {}, None
+            for value, lab in items:
+                e = re.fullmatch(r"([A-Za-z_]\w*)\.(\w+)", value)
+                if e and e.group(1) in numeric:
+                    name = numeric[e.group(1)][e.group(2)]
+                else:
+                    name = e.group(2) if e else (int(value) if re.fullmatch(r"-?\d+", value) else value.strip('"'))
+                    enum = e.group(1) if e else enum
+                opts.append(name)
+                labels[str(name)] = lab
+            # a segmented bar holds a few choices; a long list wraps as chips
+            row.update({"ctl": "seg" if len(opts) <= 5 else "chips", "opts": opts, "optLabels": labels})
+            if enum:
+                row["enum"] = enum
+        g = gate(blk)
+        if g:
+            row["when"] = {"caelestia." + k: v for k, v in g.items()}
+        rows.append(row)
+    return rows, skipped
+
+
+def parse_enums(path):
+    src = open(path).read()
+    return {m.group(1): [x.strip() for x in m.group(2).split(",")]
+            for m in re.finditer(r"^ENUM\((\w+),\s*([^)]*)\)", src, re.M)}
+
+
+def read_defaults(keys, plugin):
+    """Each key's value on a config with no file, read from the compiled plugin."""
+    probe = ("import QtQuick\nimport Caelestia.Config\nItem {\n  Component.onCompleted: {\n    const keys = "
+             + json.dumps(keys) + ";\n    for (const k of keys) {\n      try {\n        let n = GlobalConfig;\n"
+             "        const ps = k.split('.');\n        for (let i = 0; i < ps.length - 1; i++) n = n[ps[i]];\n"
+             "        console.log('DEF ' + k + ' ' + JSON.stringify(n[ps[ps.length - 1]]));\n"
+             "      } catch (e) { console.log('DEFERR ' + k); }\n    }\n    console.log('DEFDONE');\n    Qt.quit();\n  }\n}\n")
+    with tempfile.TemporaryDirectory() as home:
+        qml = os.path.join(home, "probe.qml")
+        open(qml, "w").write(probe)
+        env = {k: v for k, v in os.environ.items() if k != "QML_IMPORT_PATH"}
+        env.update({"QML2_IMPORT_PATH": plugin, "HOME": home, "XDG_CONFIG_HOME": home + "/.config",
+                    "XDG_CACHE_HOME": home + "/.cache", "QT_QPA_PLATFORM": "offscreen", "QT_FORCE_STDERR_LOGGING": "1"})
+        out = subprocess.run(["/usr/lib/qt6/bin/qml", qml], env=env, capture_output=True, text=True, timeout=60)
+    found = {}
+    for line in (out.stdout + out.stderr).splitlines():
+        m = re.search(r"DEF (\S+) (.*)$", line)
+        if m and not line.startswith("DEFERR"):
+            found[m.group(1)] = json.loads(m.group(2)) if m.group(2) != "undefined" else None
+    return found
+
+
+def nest(flat):
+    root = {}
+    for key, value in flat.items():
+        cur = root
+        parts = key.split(".")
+        for p in parts[:-1]:
+            cur = cur.setdefault(p, {})
+        cur[parts[-1]] = value
+    return root
+
+
+# Each part of the bar (dock, clock, tray...) is one entry of the `bar.entries` list, and the
+# Nexus pages carry its on/off switch as a single row that points at the whole list: a
+# switch cannot write that, and the Hub failed with "bar.entries must be []interface {}, got
+# bool". The list is not a row; every component tab gets a switch for its own entry instead,
+# addressed by id (`@dock`), so it survives the entries being reordered.
+COMPONENT_TABS = {
+    "Workspaces": "workspaces", "Clock": "clock", "Dock": "dock", "Tray": "tray",
+    "Media": "media", "Greeter": "greeter", "Status icons": "statusIcons", "Updates": "updateIndicator",
+}
+
+
+def component_rows(rows, entries):
+    """Drop the whole-list row and put one enable switch at the top of each component tab."""
+    by_id = {e["id"]: e for e in entries}
+    rows = [r for r in rows if r["key"] != "caelestia.bar.entries"]
+    out, done = [], set()
+    for r in rows:
+        tab = r.get("tab")
+        cid = COMPONENT_TABS.get(tab)
+        if cid and tab not in done and cid in by_id:
+            done.add(tab)
+            out.append({
+                "tab": tab, "group": r["group"], "key": "caelestia.bar.entries.@%s.enabled" % cid,
+                "label": "Show in the bar", "desc": "Turn this part of the bar on or off",
+                "src": "caelestia.json", "ctl": "sw", "def": bool(by_id[cid]["enabled"]),
+            })
+        out.append(r)
+    return out
+
+
+def write_js(path, name, rows):
+    with open(path, "w") as f:
+        f.write(".pragma library\n\n// " + name + " as data. Generated by bin/ryoku-dev-gen-caelestia-schema from the\n"
+                "// Caelestia Nexus pages; run it again rather than editing by hand.\n\nvar rows = ")
+        f.write(json.dumps(rows, indent=4, ensure_ascii=False))
+        f.write(";\n")
+
+
+def run(args):
+    enums = parse_enums(args.enums)
+    numeric = parse_numeric_enums()
+    sections, skipped_total = {}, 0
+    for section, pages in SECTIONS.items():
+        rows = []
+        for rel, tab in pages:
+            text = open(os.path.join(args.nexus, rel)).read()
+            got, skipped = rows_from(text, tab, enums, numeric)
+            rows += got
+            skipped_total += skipped
+        seen, uniq = set(), []
+        for r in rows:
+            if r["key"] not in seen:
+                seen.add(r["key"])
+                uniq.append(r)
+        sections[section] = uniq
+    keys = [r["key"][len("caelestia."):] for rows in sections.values() for r in rows]
+    defaults = read_defaults(keys, args.plugin)
+    missing = [k for k in keys if k not in defaults]
+    flat = {}
+    for rows in sections.values():
+        for r in list(rows):
+            k = r["key"][len("caelestia."):]
+            if k not in defaults:
+                rows.remove(r)
+                continue
+            d = defaults[k]
+            if "enum" in r:
+                names = enums[r.pop("enum")]
+                d = names[d] if isinstance(d, int) and 0 <= d < len(names) else d
+            r["def"] = d
+            flat[k] = d
+    entries_def = defaults.get("bar.entries")
+    if entries_def:
+        flat["bar.entries"] = entries_def
+        sections["bar"] = component_rows(sections["bar"], entries_def)
+    # the Hub keeps pages for the bar, style and panels; the other
+    # sections still feed the defaults
+    names = {"bar": ("CaelestiaBarPage", "Shell bar"), "style": ("CaelestiaStylePage", "Shell style"),
+             "panels": ("CaelestiaPanelsPage", "Shell panels")}
+    for section, rows in sections.items():
+        if section not in names:
+            continue
+        write_js(os.path.join(SCHEMA_DIR, names[section][0] + ".js"), names[section][1], rows)
+    with open(DEFAULTS_OUT, "w") as f:
+        json.dump(nest(flat), f, indent=2, sort_keys=True)
+        f.write("\n")
+    print("rows: " + ", ".join(f"{s} {len(r)}" for s, r in sections.items()) +
+          f"; skipped {skipped_total}; no default for {len(missing)}" + (": " + ", ".join(missing) if missing else ""))
+
+
+def selftest():
+    sample = '''
+    PageBase {
+      readonly property list<MenuItem> layoutItems: [
+        MenuItem { property int value: 0; text: qsTr("Grid") },
+        MenuItem { property int value: 2; text: qsTr("Wide") }
+      ]
+      readonly property var modeValues: ["on", "off"]
+      readonly property list<MenuItem> modeItems: [
+        MenuItem { text: qsTr("Allow") },
+        MenuItem { text: qsTr("Hide") }
+      ]
+      readonly property list<MenuItem> posItems: [
+        MenuItem { property string value: "top"; text: qsTr("Top") },
+        MenuItem { property string value: "left"; text: qsTr("Left") }
+      ]
+      ColumnLayout {
+        SectionHeader { text: qsTr("Behavior") }
+        ToggleRow { text: qsTr("Persistent"); subtext: qsTr("Keep it"); reset: ({ node: GlobalConfig.bar, setting: "persistent" }) }
+        ToggleRow { text: qsTr("Dodge"); enabled: GlobalConfig.bar.persistent && !GlobalConfig.bar.x
+                    reset: ({ node: GlobalConfig.bar, setting: "dodge" }) }
+        StepperRow { label: qsTr("Threshold"); from: 0; to: 200; stepSize: 5; onMoved: v => GlobalConfig.bar.threshold = v }
+        StepperRow { label: qsTr("Scale"); from: 0.5; to: 2.0; stepSize: 0.1; onMoved: v => GlobalConfig.bar.scale = v }
+        SelectRow { label: qsTr("Fullscreen"); menuItems: root.modeItems; onSelected: item => GlobalConfig.bar.fullscreen = root.modeValues[0] }
+        SelectRow { label: qsTr("Position"); menuItems: root.posItems; onSelected: item => GlobalConfig.bar.position = item.value }
+        SelectRow { label: qsTr("Layout"); menuItems: layoutItems
+                    onSelected: item => GlobalConfig.bar.layout = item.value }
+        TextFieldRow { label: qsTr("Name"); onAccepted: GlobalConfig.bar.name = text }
+      }
+    }'''
+    rows, skipped = rows_from(sample, "Taskbar", {})
+    by = {r["key"]: r for r in rows}
+    assert skipped == 1 and len(rows) == 7, (skipped, len(rows))
+    assert by["caelestia.bar.persistent"]["group"] == "BEHAVIOR" and by["caelestia.bar.persistent"]["ctl"] == "sw"
+    assert by["caelestia.bar.dodge"]["when"] == {"caelestia.bar.persistent": [True], "caelestia.bar.x": [False]}
+    assert by["caelestia.bar.threshold"]["ctl"] == "step" and by["caelestia.bar.threshold"]["hi"] == 200
+    assert by["caelestia.bar.scale"]["ctl"] == "slid"
+    assert by["caelestia.bar.position"]["opts"] == ["top", "left"]
+    assert by["caelestia.bar.fullscreen"]["opts"] == ["on", "off"] and by["caelestia.bar.fullscreen"]["optLabels"] == {"on": "Allow", "off": "Hide"}
+    assert by["caelestia.bar.layout"]["opts"] == [0, 2] and by["caelestia.bar.layout"]["optLabels"] == {"0": "Grid", "2": "Wide"}
+    assert nest({"a.b.c": 1, "a.d": 2}) == {"a": {"b": {"c": 1}, "d": 2}}
+    ents = [{"id": "dock", "enabled": True, "zone": "middle"}, {"id": "media", "enabled": False, "zone": "right"}]
+    rows = [{"tab": "Dock", "group": "DOCK", "key": "caelestia.bar.entries", "label": "Enable component"},
+            {"tab": "Dock", "group": "DOCK", "key": "caelestia.bar.dock.x", "label": "X"},
+            {"tab": "Media", "group": "MEDIA", "key": "caelestia.bar.media.y", "label": "Y"}]
+    got = component_rows(rows, ents)
+    assert [r["key"] for r in got] == ["caelestia.bar.entries.@dock.enabled", "caelestia.bar.dock.x",
+                                       "caelestia.bar.entries.@media.enabled", "caelestia.bar.media.y"], got
+    assert got[0]["def"] is True and got[2]["def"] is False
+    print("selftest ok")
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--nexus")
+    ap.add_argument("--enums")
+    ap.add_argument("--plugin")
+    ap.add_argument("--selftest", action="store_true")
+    a = ap.parse_args()
+    if a.selftest:
+        selftest()
+    elif a.nexus and a.enums and a.plugin:
+        run(a)
+    else:
+        ap.error("pass --nexus, --enums and --plugin, or --selftest")

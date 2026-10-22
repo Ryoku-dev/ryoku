@@ -69,6 +69,50 @@ Item {
     // the shell's own default. The frame, rails and zone editors below are
     // Sumi's; a folder style owns its own layout.
     readonly property string activeStyle: page.fval("barStyle", "orpheus")
+
+    // The Caelestia style runs on an optional plugin package (ryoku-caelestia).
+    // Picking the style without it installs it first, behind the password prompt,
+    // the way the Rashin switch installs its package.
+    property bool caeInstalled: true
+    property bool caeBusy: false
+    property string caeError: ""
+    function wearStyle(id) {
+        if (id === "caelestia" && !page.caeInstalled)
+            page.installCaelestia(true);
+        else
+            page.fedit("barStyle", id);
+    }
+    function installCaelestia(wear) {
+        if (page.caeBusy)
+            return;
+        page.caeError = "";
+        page.caeBusy = true;
+        caeInstall.wearAfter = wear;
+        caeInstall.running = true;
+    }
+    Process {
+        command: ["ryoku-hub", "caelestia", "status"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: { try { page.caeInstalled = JSON.parse(this.text).installed === true; } catch (e) {} }
+        }
+    }
+    Process {
+        id: caeInstall
+        property bool wearAfter: false
+        command: ["ryoku-hub", "caelestia", "install"]
+        stderr: StdioCollector { id: caeInstallErr }
+        onExited: function(code) {
+            page.caeBusy = false;
+            if (code === 0) {
+                page.caeInstalled = true;
+                if (wearAfter)
+                    page.fedit("barStyle", "caelestia");
+            } else {
+                page.caeError = caeInstallErr.text.trim().split("\n").pop() || I18n.tr("Couldn't install the Caelestia plugin.");
+            }
+        }
+    }
     readonly property bool sumiActive: page.activeStyle === "sumi"
     readonly property string activeName: {
         const designs = styleGallery.designs || [];
@@ -295,7 +339,18 @@ Item {
                     category: "barstyles"
                     wornId: page.activeStyle
                     shippedDesigns: []
-                    onWear: designId => page.fedit("barStyle", designId)
+                    onWear: designId => page.wearStyle(designId)
+                }
+                Text {
+                    visible: page.caeBusy || page.caeError !== ""
+                    width: parent.width
+                    leftPadding: Tokens.s4; rightPadding: Tokens.s4
+                    topPadding: Tokens.s2; bottomPadding: Tokens.s3
+                    text: page.caeBusy ? I18n.tr("Installing the Caelestia plugin (ryoku-caelestia)…") : page.caeError
+                    color: page.caeBusy ? Tokens.inkMuted : Tokens.ink
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fSmall
+                    wrapMode: Text.WordWrap
                 }
             }
 
@@ -503,6 +558,7 @@ Item {
                 title: I18n.tr("LAYOUT")
 
                 Text {
+                    visible: page.activeStyle !== "caelestia"
                     width: parent.width
                     leftPadding: Tokens.s4; rightPadding: Tokens.s4
                     topPadding: Tokens.s3; bottomPadding: Tokens.s4
@@ -511,6 +567,52 @@ Item {
                     font.family: Tokens.ui
                     font.pixelSize: Tokens.fBody
                     wrapMode: Text.WordWrap
+                }
+                // Caelestia reads the Caelestia config: its bar and style pages
+                Item {
+                    visible: page.activeStyle === "caelestia"
+                    width: parent.width
+                    height: visible ? caeLayout.height + Tokens.s3 + Tokens.s4 : 0
+                    Column {
+                        id: caeLayout
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
+                        spacing: Tokens.s3
+                        // the style is picked but its plugin is gone: the desktop draws the plain rail
+                        Text {
+                            visible: !page.caeInstalled
+                            width: parent.width
+                            text: I18n.tr("The Caelestia plugin (ryoku-caelestia) is not installed, so the plain rail stands in for the Caelestia bar.")
+                            color: Tokens.ink
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fBody
+                            wrapMode: Text.WordWrap
+                        }
+                        Btn {
+                            visible: !page.caeInstalled
+                            text: page.caeBusy ? I18n.tr("INSTALLING…") : I18n.tr("INSTALL THE CAELESTIA PLUGIN")
+                            onAct: page.installCaelestia(false)
+                        }
+                        Text {
+                            width: parent.width
+                            text: I18n.tr("The Caelestia bar keeps its widgets, position and look in the Caelestia config.")
+                            color: Tokens.inkMuted
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fBody
+                            wrapMode: Text.WordWrap
+                        }
+                        Row {
+                            spacing: Tokens.s2
+                            Btn {
+                                text: I18n.tr("CAELESTIA BAR")
+                                onAct: if (page.hub) page.hub.navigate("shellbar")
+                            }
+                            Btn {
+                                text: I18n.tr("CAELESTIA STYLE")
+                                onAct: if (page.hub) page.hub.navigate("shellstyle")
+                            }
+                        }
+                    }
                 }
             }
 
