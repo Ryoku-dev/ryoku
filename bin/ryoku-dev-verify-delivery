@@ -90,13 +90,14 @@ fi
 # unrelated KDE apps, so the style could not load for most users. Each import
 # root must be in-tree or come from a package ryoku-desktop depends on. `qs` is
 # Quickshell's name for the running config's own root, so it is in-tree too.
+# `caelestia` is the Caelestia port laid out as a library (bin/ryoku-dev-caelestia-library).
 declare -A qml_module_pkg=(
 	[Qt]=qt6-declarative [QtQuick]=qt6-declarative [QtQml]=qt6-declarative
 	[QtCore]=qt6-declarative [QtMultimedia]=qt6-multimedia
 	[Qt5Compat]=qt6-5compat [Quickshell]=quickshell
 	[org.kde.syntaxhighlighting]=syntax-highlighting
 )
-qml_in_tree=(Ryoku inir shell stage RashinApp qs)
+qml_in_tree=(Ryoku Caelestia caelestia M3Shapes inir shell stage RashinApp qs)
 desktop_depends="$(sed -n '/^depends=(/,/^)/p' release/packages/ryoku-desktop/PKGBUILD)"
 qml_fail=0
 while IFS=: read -r file module; do

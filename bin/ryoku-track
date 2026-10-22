@@ -48,12 +48,12 @@ say "Installing build tools and matugen"
 package_manager=$(host_pkgmgr)
 case "$package_manager" in
   pacman)
-    sudo pacman -S --needed --noconfirm git go cmake ninja qt6-shadertools wayland base-devel matugen vulkan-headers
+    sudo pacman -S --needed --noconfirm git go cmake ninja qt6-shadertools wayland base-devel matugen vulkan-headers aubio libqalculate lm_sensors
     ;;
   xbps)
     # system/packages/resolve cannot translate an explicit list; these names come
     # from void/packages/translations.tsv and void/packages/sets/build.packages.
-    void_tools=(git go cmake ninja qt6-shadertools-devel wayland-devel base-devel matugen Vulkan-Headers)
+    void_tools=(git go cmake ninja qt6-shadertools-devel wayland-devel base-devel matugen Vulkan-Headers aubio-devel libqalculate-devel lm_sensors-devel)
     sudo xbps-install -Sy "${void_tools[@]}"
     ;;
   dnf)
@@ -62,6 +62,7 @@ case "$package_manager" in
     fedora_tools=(
       git golang cmake ninja-build qt6-qtshadertools-devel wayland-devel
       gcc gcc-c++ make meson pkgconf-pkg-config ryoku-extras vulkan-headers
+      aubio-devel libqalculate-devel lm_sensors-devel
     )
     command -v ryoku-host >/dev/null 2>&1 || {
       echo "ryoku-track: ryoku-host is required to install the Fedora build toolchain" >&2

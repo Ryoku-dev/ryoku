@@ -15,6 +15,7 @@ packages=(
   ryoku-desktop-niri
   ryoku-desktop-hyprland
   ryoku-blobs
+  ryoku-caelestia
   ryogami
   ryoku-keysounds-profiles
   ryoku-keysounds-niri
@@ -78,6 +79,14 @@ prepare_prebuilt() {
       mkdir -p "$dir/qml/Ryoku/Blobs"
       printf 'module Ryoku.Blobs\n' > "$dir/qml/Ryoku/Blobs/qmldir"
       fake_binary "$dir/qml/Ryoku/Blobs/libryoku-blobs.so"
+      ;;
+    ryoku-caelestia)
+      mkdir -p "$dir/qml/Caelestia/lib"
+      printf 'module Caelestia\n' > "$dir/qml/Caelestia/qmldir"
+      fake_binary "$dir/qml/Caelestia/lib/libcaelestia-core.so"
+      mkdir -p "$dir/qml/M3Shapes"
+      printf 'module M3Shapes\n' > "$dir/qml/M3Shapes/qmldir"
+      fake_binary "$dir/qml/M3Shapes/libm3shapes.so"
       ;;
     ryogami)
       fake_binary "$dir/ryogami"

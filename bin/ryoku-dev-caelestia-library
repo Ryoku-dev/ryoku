@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Make the Caelestia port an importable QML library, the way inir is.
+
+Quickshell maps `qs.*` to the running config, so the port's own `import qs.x`
+lines only resolve inside `qs -c caelestia`. Rewritten to `import caelestia.x`,
+with a qmldir in every folder, the same modules load in any shell that has the
+quickshell config root on its import path (the ryoku-shell daemon puts it there),
+so the Caelestia bar style can use the original panels instead of copies.
+
+  ryoku-dev-caelestia-library            rewrite imports and write the qmldirs
+  ryoku-dev-caelestia-library --check    exit 1 if anything would change
+
+Run it again after syncing the port from upstream.
+"""
+import os
+import re
+import sys
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.join(REPO, "ryoku/shell/quickshell/caelestia")
+# folders that hold no QML module of their own
+SKIP = {"plugin", "assets", "extras", "scripts"}
+IMPORT = re.compile(r"^(\s*import\s+)qs\.", re.M)
+TYPE_FILE = re.compile(r"^[A-Z][A-Za-z0-9_]*\.qml$")
+
+
+def qml_dirs():
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        rel = os.path.relpath(dirpath, ROOT)
+        if rel.split(os.sep)[0] in SKIP:
+            dirnames[:] = []
+            continue
+        yield dirpath, rel, filenames
+
+
+def qmldir_for(dirpath, rel, filenames):
+    lines = ["module caelestia." + rel.replace(os.sep, ".")]
+    for name in sorted(filenames):
+        if not TYPE_FILE.match(name):
+            continue
+        with open(os.path.join(dirpath, name), encoding="utf-8") as f:
+            head = f.read(2048)
+        singleton = re.search(r"^\s*pragma\s+Singleton\b", head, re.M) is not None
+        lines.append(("singleton " if singleton else "") + name[:-4] + " 1.0 " + name)
+    return "\n".join(lines) + "\n" if len(lines) > 1 else None
+
+
+def main():
+    check = "--check" in sys.argv[1:]
+    changed = []
+
+    def put(path, text):
+        old = open(path, encoding="utf-8").read() if os.path.exists(path) else None
+        if old != text:
+            changed.append(os.path.relpath(path, REPO))
+            if not check:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+
+    for dirpath, rel, filenames in qml_dirs():
+        for name in filenames:
+            if name.endswith((".qml", ".js")):
+                path = os.path.join(dirpath, name)
+                text = open(path, encoding="utf-8").read()
+                put(path, IMPORT.sub(r"\1caelestia.", text))
+        # the config root keeps shell.qml as Quickshell's entry point, no module
+        if rel != ".":
+            text = qmldir_for(dirpath, rel, filenames)
+            if text:
+                put(os.path.join(dirpath, "qmldir"), text)
+
+    for path in changed:
+        print(("would change " if check else "changed ") + path)
+    if check and changed:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
