@@ -8,6 +8,13 @@
   CachyOS no longer appears as RYOKU ARCH (`quickshell/Hub.qml`).
 
 ### Added
+- **Updates switches between stable and unstable channels.** A segmented
+  control in the Updates tab lets you switch the update lane between the
+  stable (main) and unstable branches. Switching runs `ryoku track` and
+  `ryoku update` in a terminal window to allow entering authentication
+  credentials, and automatically refreshes update status on completion
+  (`quickshell/pages/UpdatesPage.qml`, `quickshell/schema/UpdatesPage.js`,
+  `quickshell/Hub.qml`).
 - **General manages people on this computer.** The Users tab lists local
   accounts, sign-in state, roles, permissions and home storage, and lets an
   administrator add or remove people, reset passwords and set storage limits

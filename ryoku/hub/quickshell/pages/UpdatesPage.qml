@@ -99,6 +99,53 @@ Item {
         onTriggered: Updates.check()
     }
 
+    // ── update channel (stable / unstable) ──────────────────────────────────
+    readonly property var channelOptions: ["stable", "unstable"]
+    readonly property var channelLabels: ({
+        "stable": I18n.tr("Stable"),
+        "unstable": I18n.tr("Unstable")
+    })
+    readonly property string currentChannel: {
+        if (pg.channelBusy && pg.targetChannel !== "")
+            return pg.targetChannel;
+        var b = (Updates.branch || "").toLowerCase();
+        return (b === "unstable" || b === "unstable-dev") ? "unstable" : "stable";
+    }
+    property bool channelBusy: false
+    property string targetChannel: ""
+
+    function channelBlurb(k) {
+        if (k === "unstable")
+            return I18n.tr("unstable branch");
+        return I18n.tr("main branch");
+    }
+
+    function setChannel(k) {
+        if (pg.currentChannel === k || pg.channelBusy || pg.live)
+            return;
+        pg.channelBusy = true;
+        pg.targetChannel = k;
+        pg.actionError = "";
+        var trackCmd = (k === "unstable")
+            ? "ryoku track unstable"
+            : "ryoku track main";
+        var shLine = trackCmd + " && ryoku update; code=$?; printf '\\npress enter to close '; read -r _; exit $code";
+        trackProc.command = ["kitty", "--class=dev.ryoku.update", "-e", "sh", "-c", shLine];
+        trackProc.running = true;
+    }
+
+    Process {
+        id: trackProc
+        environment: Spawn.env
+        onExited: (code) => {
+            pg.channelBusy = false;
+            pg.targetChannel = "";
+            if (code !== 0)
+                pg.actionError = I18n.tr("Channel switch or update was cancelled or failed.");
+            Updates.check();
+        }
+    }
+
     // ── live run state (published by `ryoku update`) ────────────────────────
     property string phase: "idle"   // idle | running | prompt | auth | done | error
     property real progress: 0
@@ -594,10 +641,10 @@ Item {
             width: idle.width - Tokens.s3   // reserve a lane for the scroll rail
             spacing: Tokens.s5
 
-            // ── status readout (left) + automatic-check schedule (right) ──
+            // ── status readout (left) + controls (right) ──
             Item {
                 width: idleCol.width
-                implicitHeight: Math.max(status.implicitHeight, autoCol.implicitHeight)
+                implicitHeight: Math.max(status.implicitHeight, controlsRow.implicitHeight)
 
                 // editorial status, not a boxed banner. a 2px rule encodes state
                 // (an update is available), not style: bright when behind, faint
@@ -605,7 +652,7 @@ Item {
                 Item {
                     id: status
                     anchors.left: parent.left
-                    anchors.right: autoCol.left
+                    anchors.right: controlsRow.left
                     anchors.rightMargin: Tokens.s6
                     anchors.top: parent.top
                     implicitHeight: statusCol.implicitHeight
@@ -712,31 +759,66 @@ Item {
                     }
                 }
 
-                // automatic checks: a Seg over the cadence + a derived blurb.
-                Column {
-                    id: autoCol
+                Row {
+                    id: controlsRow
                     anchors.right: parent.right; anchors.top: parent.top
                     anchors.topMargin: 2
-                    spacing: Tokens.s2
+                    spacing: Tokens.s6
 
-                    Text {
-                        anchors.right: parent.right
-                        text: I18n.tr("AUTOMATIC CHECKS")
-                        color: Tokens.inkMuted; font.family: Tokens.ui
-                        font.pixelSize: Tokens.fMicro; font.weight: Font.Medium
-                        font.letterSpacing: Tokens.trackMark
+                    // channel selection: switch between stable (main) and unstable
+                    Column {
+                        id: channelCol
+                        spacing: Tokens.s2
+
+                        Text {
+                            anchors.right: parent.right
+                            text: I18n.tr("UPDATE CHANNEL")
+                            color: Tokens.inkMuted; font.family: Tokens.ui
+                            font.pixelSize: Tokens.fMicro; font.weight: Font.Medium
+                            font.letterSpacing: Tokens.trackMark
+                        }
+                        Seg {
+                            anchors.right: parent.right
+                            options: pg.channelOptions
+                            labels: pg.channelLabels
+                            current: pg.currentChannel
+                            enabled: !pg.channelBusy && !pg.live
+                            onChose: (k) => pg.setChannel(k)
+                        }
+                        Text {
+                            anchors.right: parent.right
+                            text: pg.channelBusy
+                                ? I18n.tr("switching...")
+                                : pg.channelBlurb(pg.currentChannel)
+                            color: Tokens.inkMuted; font.family: Tokens.ui
+                            font.pixelSize: Tokens.fSmall
+                        }
                     }
-                    Seg {
-                        anchors.right: parent.right
-                        options: pg.intervalLabels
-                        current: pg.intervalLabel(pg.interval)
-                        onChose: (l) => pg.setInterval(pg.intervalKey(l))
-                    }
-                    Text {
-                        anchors.right: parent.right
-                        text: pg.intervalBlurb(pg.interval)
-                        color: Tokens.inkMuted; font.family: Tokens.ui
-                        font.pixelSize: Tokens.fSmall
+
+                    // automatic checks: a Seg over the cadence + a derived blurb.
+                    Column {
+                        id: autoCol
+                        spacing: Tokens.s2
+
+                        Text {
+                            anchors.right: parent.right
+                            text: I18n.tr("AUTOMATIC CHECKS")
+                            color: Tokens.inkMuted; font.family: Tokens.ui
+                            font.pixelSize: Tokens.fMicro; font.weight: Font.Medium
+                            font.letterSpacing: Tokens.trackMark
+                        }
+                        Seg {
+                            anchors.right: parent.right
+                            options: pg.intervalLabels
+                            current: pg.intervalLabel(pg.interval)
+                            onChose: (l) => pg.setInterval(pg.intervalKey(l))
+                        }
+                        Text {
+                            anchors.right: parent.right
+                            text: pg.intervalBlurb(pg.interval)
+                            color: Tokens.inkMuted; font.family: Tokens.ui
+                            font.pixelSize: Tokens.fSmall
+                        }
                     }
                 }
             }

@@ -7,6 +7,18 @@
 var rows = [
     {
         "tab": "",
+        "group": "UPDATE CHANNEL",
+        "key": "update_channel",
+        "label": "Update channel",
+        "desc": "Switch between stable (main) and unstable branches",
+        "ctl": "seg",
+        "opts": [
+            "stable",
+            "unstable"
+        ]
+    },
+    {
+        "tab": "",
         "group": "AUTOMATIC CHECKS",
         "key": "update_interval",
         "label": "Automatic checks",

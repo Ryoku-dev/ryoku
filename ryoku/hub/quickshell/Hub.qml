@@ -197,7 +197,7 @@ Rectangle {
         "session": "session login startup autostart launch run command boot environment variable env var export",
         "performance": "performance battery power saving save lowpower potato lag cpu gpu ram memory idle freeze reduce motion fps",
         "rashin": "rashin agent ai assistant hermes vault memory skills chat code llm needle",
-        "updates": "update upgrade version channel commit behind check origin",
+        "updates": "update upgrade version channel commit behind check origin track stable unstable",
         "import": "import bring migrate dotfiles config existing kitty fish fastfetch drop folder git backup undo restore adopt",
         "credits": "credits thanks acknowledgement gratitude contributor"
     })
