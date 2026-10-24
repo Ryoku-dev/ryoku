@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Python's Pacman workspaces respect Hide empty workspaces.** Empty inactive
+  slots collapse and Pacman stays aligned with the active workspace in either
+  orientation. The workspace filter retains all slots through the active
+  workspace, plus any occupied workspaces after it.
 - **The quick-launch defaults name Default Apps roles, not fixed programs.**
   The Files, Terminal, Browser and Code slots carried over from the iNiR port
   now run `ryoku-app files|terminal|browser|editor`, so anything that reads

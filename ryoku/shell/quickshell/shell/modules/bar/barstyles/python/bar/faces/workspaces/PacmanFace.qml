@@ -7,6 +7,11 @@ Item {
     id: pacmanFaceRoot
     property var widget: null
 
+    function isShown(index) {
+        if (!widget) return false;
+        return typeof widget.isShown === "function" ? widget.isShown(index) : true;
+    }
+
     readonly property bool isVertical: widget ? widget.orientation === "vertical" : false
 
     property real slotSize: widget ? widget.s(widget.isCompact ? 16 : 18) : 18
@@ -23,7 +28,14 @@ Item {
     property real pacmanAngle: 90
 
     property real stepSize: slotSize + slotSpacing
-    property real targetPacmanPos: activeIdx >= 0 ? ((isVertical ? pelletsLayout.y : pelletsLayout.x) + activeIdx * stepSize) : 0
+    readonly property int activeVisualIndex: {
+        let position = 0;
+        for (let i = 0; i < activeIdx; i++) {
+            if (isShown(i)) position++;
+        }
+        return position;
+    }
+    property real targetPacmanPos: activeIdx >= 0 ? ((isVertical ? pelletsLayout.y : pelletsLayout.x) + activeVisualIndex * stepSize) : 0
     property real currentPacmanPos: targetPacmanPos
 
     Behavior on currentPacmanPos {
@@ -85,6 +97,7 @@ Item {
                 id: pelletSlot
                 required property int index
 
+                visible: pacmanFaceRoot.isShown(index)
                 width: pacmanFaceRoot.slotSize
                 height: pacmanFaceRoot.slotSize
 

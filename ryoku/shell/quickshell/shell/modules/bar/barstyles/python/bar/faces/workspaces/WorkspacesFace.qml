@@ -146,7 +146,7 @@ Item {
 
     function isShown(index) {
         if (!hideEmptyWorkspaces) return true;
-        return index === activeIndex || isOccupied(index);
+        return index <= activeIndex || isOccupied(index);
     }
 
     function focusWorkspace(index) {
