@@ -11,7 +11,7 @@ hostmakedepends="go pkg-config wayland-devel wayland-protocols"
 makedepends="wayland-devel ffmpeg6-devel"
 depends="quickshell ffmpeg6 wayland jq python3 uv socat gum qrencode upower
  brightnessctl ddcutil wtype wl-clipboard zenity power-profiles-daemon
- NetworkManager curl libnotify inotify-tools"
+ NetworkManager curl libnotify inotify-tools easyeffects lsp-plugins-lv2 calf"
 distfiles="https://repo.ryoku.dev/sources/ryoku-${version}.tar.gz"
 checksum=SKIP
 wrksrc="ryoku-${version}"

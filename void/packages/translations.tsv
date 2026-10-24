@@ -20,6 +20,7 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
+calf	calf	desktop	Python equalizer LV2 effects.
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	repo=ryoku
 cava	cava	desktop	
 chromium	chromium	desktop	
@@ -35,6 +36,7 @@ docker	docker	desktop
 dolphin	dolphin	optional	
 dualsensectl	dualsensectl	optional	repo=ryoku
 dosfstools	dosfstools	system	
+easyeffects	easyeffects	desktop	Python equalizer backend.
 edk2-ovmf	edk2-ovmf	desktop	
 efibootmgr	efibootmgr	system	
 eza	eza	desktop	
@@ -129,6 +131,7 @@ linux-firmware	linux-firmware linux-firmware-intel linux-firmware-nvidia linux-f
 linux-headers	linux-headers	desktop	
 localsend-bin	localsend-bin	extra	repo=ryoku
 looking-glass	-	optional	No Void repository package.
+lsp-plugins-lv2	lsp-plugins-lv2	desktop	Python equalizer and compressor plugins.
 lua	lua	optional	
 make	make	optional	
 mangohud	MangoHud	desktop	

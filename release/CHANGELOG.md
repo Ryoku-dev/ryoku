@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **The shell installs its equalizer backend automatically.** `ryoku-shell`
+  requires EasyEffects and the LSP and Calf LV2 plugins on Arch, Void and Fedora,
+  so Python's built-in audio controls do not depend on a manual package install.
 - **Fedora gets a `ryoku-keyring` RPM.** It owns the release key file and the
   revoked-key list, `ryoku-desktop` requires it, and a rotated key now reaches
   Fedora machines through `ryoku update`. Contributed by itsKontra.

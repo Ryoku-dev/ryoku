@@ -39,6 +39,9 @@ Requires:       NetworkManager-wifi
 Requires:       curl
 Requires:       libnotify
 Requires:       inotify-tools
+Requires:       easyeffects
+Requires:       lsp-plugins-lv2
+Requires:       lv2-calf-plugins
 
 %description
 ryoku-shell, built from the shared Ryoku source and package payload recipe.

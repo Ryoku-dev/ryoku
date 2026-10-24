@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source "$(dirname "${BASH_SOURCE[0]}")/../../scripts/caching.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/../scripts/caching.sh" || exit 1
 qs_ensure_cache "music"
 
 STATE_FILE="$QS_RUN_MUSIC/eq_state.json"

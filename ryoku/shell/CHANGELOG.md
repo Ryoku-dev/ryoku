@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Python's equalizer initializes its runtime state in the correct directory.**
+  The helper loads the port's cache initializer beside the media directory and
+  exits if it cannot be loaded, instead of writing state at the filesystem root.
 - **The quick-launch defaults name Default Apps roles, not fixed programs.**
   The Files, Terminal, Browser and Code slots carried over from the iNiR port
   now run `ryoku-app files|terminal|browser|editor`, so anything that reads

@@ -15,7 +15,8 @@ url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
 # uv provisions the ryostage engine's Python 3.13 venv (ryostage install); the
 # system python rolls ahead of onnxruntime's wheels, so the engine can't use it.
-depends=('quickshell' 'ffmpeg' 'wayland' 'jq' 'python' 'uv' 'socat' 'gum' 'qrencode' 'upower' 'brightnessctl' 'ddcutil' 'wtype' 'wl-clipboard' 'zenity' 'power-profiles-daemon' 'networkmanager' 'curl' 'libnotify' 'inotify-tools')
+# Python's built-in equalizer needs the processor and its LV2 effects at runtime.
+depends=('quickshell' 'ffmpeg' 'wayland' 'jq' 'python' 'uv' 'socat' 'gum' 'qrencode' 'upower' 'brightnessctl' 'ddcutil' 'wtype' 'wl-clipboard' 'zenity' 'power-profiles-daemon' 'networkmanager' 'curl' 'libnotify' 'inotify-tools' 'easyeffects' 'lsp-plugins-lv2' 'calf')
 makedepends=('go' 'wayland' 'wayland-protocols' 'ffmpeg')
 source=()
 

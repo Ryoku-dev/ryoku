@@ -20,6 +20,7 @@ brightnessctl	brightnessctl	desktop
 broadcom-bt-firmware	broadcom-bt-firmware	desktop	Ryoku-owned RPM.
 btop	btop	desktop	
 btrfs-progs	btrfs-progs	system	
+calf	lv2-calf-plugins	desktop	Python equalizer LV2 effects.
 catppuccin-cursors-mocha	catppuccin-cursors-mocha	extra	Ryoku-owned RPM.
 cava	cava	desktop	
 chromium	chromium	desktop	
@@ -35,6 +36,7 @@ docker	moby-engine	desktop
 dolphin	dolphin	optional	
 dosfstools	dosfstools	system	
 dualsensectl	dualsensectl	optional	Ryoku-owned RPM.
+easyeffects	easyeffects	desktop	Python equalizer backend.
 edk2-ovmf	edk2-ovmf	desktop	
 efibootmgr	efibootmgr	system	
 eza	eza	desktop	
@@ -125,6 +127,7 @@ linux-firmware	linux-firmware	system
 linux-headers	kernel-devel kernel-headers	desktop	
 localsend-bin	localsend-bin	extra	Ryoku-owned RPM.
 looking-glass	-	optional	No Fedora package provides this Arch package.
+lsp-plugins-lv2	lsp-plugins-lv2	desktop	Python equalizer and compressor plugins.
 lua	lua	optional	
 make	make	optional	
 mangohud	mangohud	desktop	
