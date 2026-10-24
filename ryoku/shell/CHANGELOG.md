@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Python media widgets load album covers again.** The artwork helper now
+  loads the cache initializer from the port's scripts directory and stops if
+  initialization cannot be loaded, instead of attempting to write under `/covers`.
 - **The quick-launch defaults name Default Apps roles, not fixed programs.**
   The Files, Terminal, Browser and Code slots carried over from the iNiR port
   now run `ryoku-app files|terminal|browser|editor`, so anything that reads
