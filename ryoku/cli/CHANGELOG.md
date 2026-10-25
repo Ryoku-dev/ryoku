@@ -77,6 +77,12 @@
   what the switch itself installed (`internal/host/phone.go`).
 
 ### Fixed
+- **nvidia-settings no longer fails at every login.** The nvidia-settings
+  package autostarts `nvidia-settings -l`, which exits 1 when there is no
+  `~/.nvidia-settings-rc` to load. `ryoku doctor` now hides that autostart once
+  with a user-level `Hidden=true` entry, and leaves it alone when the rc file
+  exists, the user has their own entry, or they deleted the override
+  (`internal/doctor/reconcile_nvidia_settings_autostart.go`).
 - **AUR packages install during updates instead of timing out on sudo.**
   Doctor's manifest step ran yay through sudo, which put yay's own pacman
   step on sudo's private terminal where the update's cached credential does

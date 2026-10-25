@@ -313,6 +313,7 @@ func reconcilers() []reconciler {
 		{i18n.T("ryogami wallpaper daemon"), reconcileRyogamiWallpaper},
 		{i18n.T("ryowalls app leftovers"), reconcileRyowallsRemoval},
 		{i18n.T("duplicate launcher entries"), reconcileLauncherDuplicates},
+		{i18n.T("nvidia-settings autostart"), reconcileNvidiaSettingsAutostart},
 		{i18n.T("quick-settings capture tab"), reconcileCaptureModule},
 		{i18n.T("quick-settings stage tab"), reconcileStageModule},
 		{i18n.T("ryostage cache"), reconcileRyostageCache},
