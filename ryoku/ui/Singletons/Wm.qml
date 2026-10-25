@@ -260,16 +260,27 @@ Singleton {
 
     // The foreign-toplevel activated flag marks the focused window on every
     // compositor; focusOrder is only meaningful where caps.focusHistory is set,
-    // so it is the fallback.
+    // so it is the fallback, and only for a window on a workspace its output is
+    // showing: after a switch to an empty workspace nothing is activated, and
+    // the last-focused window of the workspace just left must not read as focus.
     readonly property var _focusedCandidate: {
         const list = root.windows;
         for (let i = 0; i < list.length; i++)
             if (list[i].toplevel && list[i].toplevel.activated)
                 return list[i];
         for (let i = 0; i < list.length; i++)
-            if (list[i].focusOrder === 0)
+            if (list[i].focusOrder === 0 && root._windowIsShown(list[i]))
                 return list[i];
         return null;
+    }
+
+    // False only when the compositor reports the window's workspace and its
+    // output's shown workspace and they differ.
+    function _windowIsShown(w) {
+        const o = root.outputByName(w.output);
+        if (!o || !o.activeWorkspace || !w.workspace)
+            return true;
+        return root._wsId(w.workspace) === root._wsId(o.activeWorkspace);
     }
 
     // windows rebuilds every object on any title change, so the focused one is

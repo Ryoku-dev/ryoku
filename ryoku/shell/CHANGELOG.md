@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The window title no longer keeps showing a window from the workspace you left.**
+  After a switch to an empty workspace nothing is activated, and the
+  last-focused fallback in `Wm.focusedWindow` returned the previous workspace's
+  window; it now only accepts a window on the workspace its output is showing
+  (`ui/Singletons/Wm.qml`).
 - **Game Mode reports a failed compositor strip instead of showing On.** It
   persists the request before the strip, and a failed restore no longer skips
   the power, tune or Wi-Fi cleanup (`scripts/ryoku-cmd-game-mode`).
