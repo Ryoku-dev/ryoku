@@ -47,7 +47,7 @@ func writeUserLayerRule(b *strings.Builder, r LayerRule) {
 	}
 	switch r.Blur {
 	case "on":
-		b.WriteString("    background-effect {\n        blur true\n    }\n")
+		b.WriteString("    background-effect {\n        blur true\n        xray true\n    }\n")
 	case "off":
 		b.WriteString("    background-effect {\n        blur false\n    }\n")
 	}
@@ -205,7 +205,7 @@ func windowRuleProps(r WindowRule) []string {
 	case "noshadow":
 		return []string{"shadow {", "    off", "}"}
 	case "blur":
-		return []string{"background-effect {", "    blur true", "}"}
+		return []string{"background-effect {", "    blur true", "    xray true", "}"}
 	case "noblur":
 		return []string{"background-effect {", "    blur false", "}"}
 	case "xray":
@@ -271,7 +271,7 @@ func appOverrideProps(a AppOverride) []string {
 	}
 	switch a.Blur {
 	case "on":
-		props = append(props, "background-effect {", "    blur true", "}")
+		props = append(props, "background-effect {", "    blur true", "    xray true", "}")
 	case "off":
 		props = append(props, "background-effect {", "    blur false", "}")
 	}
