@@ -437,6 +437,7 @@ func TestNiriWindowRuleActions(t *testing.T) {
 		{Class: "c", Action: "noshadow"},
 		{Class: "d", Action: "noblur"},
 		{Class: "e", Action: "blockout"},
+		{Class: "f", Action: "blur"},
 	}
 	out := string(genSettings(s))
 	for _, want := range []string{
@@ -447,6 +448,7 @@ func TestNiriWindowRuleActions(t *testing.T) {
 		"tiled-state true",
 		"baba-is-float true",
 		"    shadow {\n        off\n    }",
+		"    background-effect {\n        blur false\n    }",
 		"    background-effect {\n        blur true\n        xray true\n    }",
 		`block-out-from "screencast"`,
 	} {
@@ -487,7 +489,7 @@ func TestUserLayerRulesRendered(t *testing.T) {
 		`match namespace="waybar"`,
 		"opacity 0.9",
 		"geometry-corner-radius 12",
-		"    background-effect {\n        blur true\n    }",
+		"    background-effect {\n        blur true\n        xray true\n    }",
 		"    shadow {\n        on\n    }",
 		`block-out-from "screencast"`,
 		"baba-is-float true",
