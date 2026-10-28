@@ -107,7 +107,7 @@ Item {
             SettingRow {
                 width: parent.width
                 label: "Click"
-                desc: "What a left-click on the logo opens. Middle-click opens the other; right-click stays the launcher."
+                desc: "What a left-click on the logo opens. Middle-click opens Orpheus settings (the Hub if that is already the left-click); right-click stays the launcher."
                 block: true
                 divider: true
 
@@ -115,7 +115,8 @@ Item {
                     anchors.fill: parent
                     model: [
                         { value: "settings", label: "Orpheus settings" },
-                        { value: "hub", label: "Ryoku Hub" }
+                        { value: "hub", label: "Ryoku Hub" },
+                        { value: "quick", label: "Quick settings" }
                     ]
                     value: S.Prefs.logoClick
                     onPicked: value => S.Prefs.set("logoClick", value)

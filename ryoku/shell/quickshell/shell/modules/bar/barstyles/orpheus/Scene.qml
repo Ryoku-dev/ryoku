@@ -506,6 +506,12 @@ Item {
         Spawn.run(["ryoku-shell", "hub", "open", section]);
     }
 
+    // Same surface Super+Esc opens: the left sidebar (quick settings, power,
+    // network), on this scene's output.
+    function openQuickSettings() {
+        ShellState.requestSurfaceActive("sidebar-left", scene.screenName, undefined);
+    }
+
     onCardKeyChanged: if (cardKey !== "") {
         settingsOpen = false;
         Qt.callLater(function() { focusSurface.forceActiveFocus(); });
