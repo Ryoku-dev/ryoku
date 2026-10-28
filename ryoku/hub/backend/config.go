@@ -19,11 +19,12 @@ type Config struct {
 type UIConfig struct {
 	Section        string `toml:"section"`
 	UpdateInterval string `toml:"update_interval"`
+	UpdateSystem   string `toml:"update_system"`
 	Advanced       string `toml:"advanced"`
 }
 
 func defaultConfig() Config {
-	return Config{UI: UIConfig{Section: "displays", UpdateInterval: "daily"}}
+	return Config{UI: UIConfig{Section: "displays", UpdateInterval: "daily", UpdateSystem: "off"}}
 }
 
 func configPath() string {
@@ -84,6 +85,8 @@ func configGet(key string) (string, bool) {
 		return c.UI.Section, true
 	case "update_interval":
 		return c.UI.UpdateInterval, true
+	case "update_system":
+		return c.UI.UpdateSystem, true
 	case "advanced":
 		return c.UI.Advanced, true
 	}
@@ -97,6 +100,11 @@ func configSet(key, value string) error {
 		c.UI.Section = normalizeSection(value)
 	case "update_interval":
 		c.UI.UpdateInterval = value
+	case "update_system":
+		if value != "on" && value != "off" {
+			return fmt.Errorf("update_system takes on or off, not %q", value)
+		}
+		c.UI.UpdateSystem = value
 	case "advanced":
 		c.UI.Advanced = value
 	default:

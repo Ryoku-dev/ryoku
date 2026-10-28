@@ -48,6 +48,29 @@ func TestUpdateInterval(t *testing.T) {
 	}
 }
 
+func TestUpdateSystem(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// the distribution upgrade stays opt-in: no file reads off.
+	if v, ok := configGet("update_system"); !ok || v != "off" {
+		t.Fatalf("default update_system = %q ok=%v, want off", v, ok)
+	}
+
+	if err := configSet("update_system", "on"); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := configGet("update_system"); !ok || v != "on" {
+		t.Fatalf("after set: got %q ok=%v, want on", v, ok)
+	}
+
+	if err := configSet("update_system", "maybe"); err == nil {
+		t.Error("update_system should reject anything but on or off")
+	}
+	if v, _ := configGet("update_system"); v != "on" {
+		t.Errorf("a rejected value must not change the setting, got %q", v)
+	}
+}
+
 func TestAdvanced(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 

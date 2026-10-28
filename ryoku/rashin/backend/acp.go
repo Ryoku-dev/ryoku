@@ -706,28 +706,63 @@ func (c *acpConn) LoadSession(id string) error {
 	return err
 }
 
-// ListSessions fetches stored session metadata over ACP.
+// ListSessions fetches stored session metadata over ACP. Hermes's state
+// database is also merged in because its workspace column is authoritative:
+// some valid rows expose that cwd to the CLI but not through session/list.
 func (c *acpConn) ListSessions() []SessionMeta {
-	res, err := c.request("session/list", map[string]any{})
-	if err != nil {
-		return nil
+	var list []SessionMeta
+	if res, err := c.request("session/list", map[string]any{}); err == nil {
+		var out struct {
+			Sessions []struct {
+				SessionID string `json:"sessionId"`
+				Title     string `json:"title"`
+				Cwd       string `json:"cwd"`
+				UpdatedAt string `json:"updatedAt"`
+			} `json:"sessions"`
+		}
+		if json.Unmarshal(res, &out) == nil {
+			list = make([]SessionMeta, 0, len(out.Sessions))
+			for _, s := range out.Sessions {
+				list = append(list, SessionMeta{ID: s.SessionID, Title: cleanTitle(s.Title), Cwd: s.Cwd, UpdatedAt: s.UpdatedAt})
+			}
+		}
 	}
-	var out struct {
-		Sessions []struct {
-			SessionID string `json:"sessionId"`
-			Title     string `json:"title"`
-			Cwd       string `json:"cwd"`
-			UpdatedAt string `json:"updatedAt"`
-		} `json:"sessions"`
-	}
-	if json.Unmarshal(res, &out) != nil {
-		return nil
-	}
-	list := make([]SessionMeta, 0, len(out.Sessions))
-	for _, s := range out.Sessions {
-		list = append(list, SessionMeta{ID: s.SessionID, Title: cleanTitle(s.Title), Cwd: s.Cwd, UpdatedAt: s.UpdatedAt})
+	if c.backend() == "hermes" {
+		list = mergeHermesSessions(list, hermesHistorySessions(1000))
 	}
 	return list
+}
+
+func mergeHermesSessions(agent, stored []SessionMeta) []SessionMeta {
+	if len(stored) == 0 {
+		return agent
+	}
+	byID := make(map[string]SessionMeta, len(agent))
+	for _, s := range agent {
+		byID[s.ID] = s
+	}
+	out := make([]SessionMeta, 0, len(stored)+len(agent))
+	for _, s := range stored {
+		if live, ok := byID[s.ID]; ok {
+			if s.Title == "" {
+				s.Title = live.Title
+			}
+			if s.Cwd == "" {
+				s.Cwd = live.Cwd
+			}
+			if s.UpdatedAt == "" {
+				s.UpdatedAt = live.UpdatedAt
+			}
+			delete(byID, s.ID)
+		}
+		out = append(out, s)
+	}
+	for _, s := range agent {
+		if _, ok := byID[s.ID]; ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // cleanTitle drops notes that only the agent saw from a generated session

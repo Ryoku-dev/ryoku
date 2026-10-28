@@ -63,6 +63,33 @@ func TestConnectivityFromState(t *testing.T) {
 	}
 }
 
+// preferredDevice reports the live link on a multi-device machine: an
+// unplugged port or idle adapter listed first must not mask the connected
+// one, a usable adapter beats an unusable one, and ties keep order.
+func TestPreferredDevice(t *testing.T) {
+	cases := []struct {
+		name string
+		devs []nmDevice
+		want dbus.ObjectPath
+	}{
+		{"none", nil, ""},
+		{"single unavailable", []nmDevice{{"/d/2", 20}}, "/d/2"},
+		{"unplugged listed first", []nmDevice{{"/d/2", 20}, {"/d/3", 100}}, "/d/3"},
+		{"unmanaged listed first", []nmDevice{{"/d/2", 10}, {"/d/3", 100}}, "/d/3"},
+		{"connecting beats disconnected", []nmDevice{{"/d/2", 30}, {"/d/3", 70}}, "/d/3"},
+		{"connected beats connecting", []nmDevice{{"/d/2", 70}, {"/d/3", 100}}, "/d/3"},
+		{"tie keeps service order", []nmDevice{{"/d/2", 100}, {"/d/3", 100}}, "/d/2"},
+		{"usable beats unavailable", []nmDevice{{"/d/2", 20}, {"/d/3", 30}}, "/d/3"},
+		{"usable beats failed", []nmDevice{{"/d/2", 120}, {"/d/3", 30}}, "/d/3"},
+		{"all unusable keeps first", []nmDevice{{"/d/2", 20}, {"/d/3", 10}}, "/d/2"},
+	}
+	for _, c := range cases {
+		if got := preferredDevice(c.devs); got != c.want {
+			t.Errorf("%s: preferredDevice = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
 // wifiConnectSettings omits the security block for an open network, derives
 // key-mgmt from the resolved AP's security (sae for WPA3, wpa-psk otherwise),
 // pins the band only when the caller supplied a BSSID and the AP is known, and

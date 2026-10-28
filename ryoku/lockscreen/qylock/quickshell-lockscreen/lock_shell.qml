@@ -34,7 +34,14 @@ ShellRoot {
     // Themes bind to sddm.login(), sddm.loginSucceeded, sddm.loginFailed,
     // sddm.hostName, sddm.fingerprintHint, etc.
     readonly property var sddm: sddmShim.sddm
-    readonly property var config: sddmShim.config
+    readonly property var config: {
+        const merged = {}
+        const themeConfig = sddmShim.config || {}
+        for (const key in themeConfig)
+            merged[key] = themeConfig[key]
+        merged.clock24h = TimeFormat.is24h ? "true" : "false"
+        return merged
+    }
     readonly property var userModel: sddmShim.userModel
     readonly property var sessionModel: sddmShim.sessionModel
     readonly property var keyboard: sddmShim.keyboard
@@ -235,13 +242,14 @@ ShellRoot {
         id: themeComponent
         Loader {
             anchors.fill: parent
+            focus: true
             source: "file://" + shellRoot.themePath + "/Main.qml"
             onLoaded: {
                 if (item.clock24h !== undefined)
                     item.clock24h = Qt.binding(() => TimeFormat.is24h);
                 if (item.clockLocale !== undefined)
                     item.clockLocale = Qt.binding(() => TimeFormat.locale);
-                item.forceActiveFocus();
+                Qt.callLater(() => forceActiveFocus(Qt.OtherFocusReason));
             }
             onStatusChanged: {
                 if (status === Loader.Error) {
@@ -344,7 +352,20 @@ ShellRoot {
 
                 surface: Component {
                     WlSessionLockSurface {
+                        id: lockSurface
                         color: "black"
+
+                        function focusTheme() {
+                            Qt.callLater(function() {
+                                if (lockSurface.visible && themeSurface.status === Loader.Ready)
+                                    themeSurface.forceActiveFocus(Qt.OtherFocusReason);
+                            });
+                        }
+
+                        onVisibleChanged: {
+                            if (visible)
+                                focusTheme();
+                        }
 
                         // Absorb unhandled gestures (scroll, pinch) so they
                         // don't leak through to the desktop underneath.
@@ -358,8 +379,11 @@ ShellRoot {
                         }
 
                         Loader {
+                            id: themeSurface
                             anchors.fill: parent
+                            focus: true
                             sourceComponent: themeComponent
+                            onLoaded: lockSurface.focusTheme()
                         }
                         Loader {
                             anchors.fill: parent

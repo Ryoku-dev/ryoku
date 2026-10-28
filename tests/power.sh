@@ -317,6 +317,54 @@ for c in "$cpuM"/cpu[0-9]*; do
   [[ "$(cat "$c/cpufreq/scaling_max_freq")" == 4001000 ]] || fail "apply with no profiles block wrote a CPU knob"
 done
 
+# --- authorization: a PATH-shadowing dev helper escalates only the packaged path
+rule="$here/../system/hardware/power/47-ryoku-power.rules"
+grep -Fq 'action.lookup("program") === "/usr/bin/ryoku-power"' "$rule" \
+  || fail "power rule does not stay pinned to the packaged helper"
+grep -Fq 'subject.local && subject.active && subject.isInGroup("wheel")' "$rule" \
+  || fail "power rule no longer requires an active local administrator"
+
+cpuN="$tmp/cpuN"; mk_cpu "$cpuN" 1
+cfgN="$tmp/cfgN/power.json"; mkdir -p "$(dirname "$cfgN")"
+printf '{"profiles":{"balanced":{"governor":"performance"}}}\n' >"$cfgN"
+chmod 0444 "$cpuN/cpu0/cpufreq/scaling_governor"
+stubN="$tmp/stubN"; mkdir -p "$stubN"; pkexec_argv="$tmp/pkexec-argv"
+cat >"$stubN/pkexec" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >"$pkexec_argv"
+EOF
+chmod +x "$stubN/pkexec"
+install -m755 "$helper" "$stubN/ryoku-power"
+install -m755 "$(dirname "$helper")/ryoku-hw-laptop" "$stubN/ryoku-hw-laptop"
+PATH="$stubN:$PATH" RYOKU_CPU_DIR="$cpuN" \
+  RYOKU_PLATFORM_PROFILE_FILE="$tmp/no-ppN/platform_profile" \
+  RYOKU_POWER_CONFIG="$cfgN" RYOKU_POWER_SUPPLY_DIR="$nops" \
+  RYOKU_ASPM_POLICY_FILE="$noaspm" RYOKU_SHELL_BIN="$shell_stub" \
+  ryoku-power apply-profile balanced \
+  || fail "shadow helper escalation did not exit 0"
+mapfile -t pkexec_args <"$pkexec_argv"
+[[ ${pkexec_args[0]:-} == /usr/bin/ryoku-power ]] \
+  || fail "pkexec program did not match the policy path: ${pkexec_args[0]:-missing}"
+[[ ${pkexec_args[1]:-}:${pkexec_args[2]:-} == apply-profile:balanced ]] \
+  || fail "pkexec did not preserve the profile command"
+
+# An already-converged profile needs no privileged write at all.
+cpuO="$tmp/cpuO"; mk_cpu "$cpuO" 1
+cfgO="$tmp/cfgO/power.json"; mkdir -p "$(dirname "$cfgO")"
+printf '{"profiles":{"balanced":{"governor":"powersave","epp":"power"}}}\n' >"$cfgO"
+chmod 0444 "$cpuO/cpu0/cpufreq/scaling_governor" \
+  "$cpuO/cpu0/cpufreq/energy_performance_preference"
+markerO="$tmp/pkexec-converged"
+printf '#!/usr/bin/env bash\ntouch "%s"\nexit 0\n' "$markerO" >"$stubN/pkexec"
+chmod +x "$stubN/pkexec"
+PATH="$stubN:$PATH" RYOKU_CPU_DIR="$cpuO" \
+  RYOKU_PLATFORM_PROFILE_FILE="$tmp/no-ppO/platform_profile" \
+  RYOKU_POWER_CONFIG="$cfgO" RYOKU_POWER_SUPPLY_DIR="$nops" \
+  RYOKU_ASPM_POLICY_FILE="$noaspm" RYOKU_SHELL_BIN="$shell_stub" \
+  "$helper" apply-profile balanced \
+  || fail "converged apply-profile did not exit 0"
+[[ ! -e $markerO ]] || fail "converged apply-profile invoked pkexec"
+
 # --- the real user config was never created or modified -----------------------
 now="absent"; [[ -e $realcfg ]] && now="$(cksum <"$realcfg")"
 [[ "$now" == "$realcfg_state" ]] || fail "the real $realcfg was created or modified"

@@ -1,5 +1,6 @@
 import QtQuick
 import "Singletons"
+import Ryoku.Ui.Singletons as Ui
 
 // The rule yields all available width to the section name before collapsing,
 // so translated labels stay readable in a narrow docked inspector.
@@ -25,7 +26,7 @@ Item {
 
     TextMetrics {
         id: glossMetrics
-        text: sec.gloss
+        text: Ui.UiPreferences.text(sec.gloss, "")
         font.family: Theme.fontJp
         font.pixelSize: 9
     }
@@ -41,7 +42,7 @@ Item {
 
     Text {
         id: gl
-        visible: sec.gloss.length > 0 && sec.label.length > 0
+        visible: Ui.UiPreferences.showJapaneseGloss && sec.gloss.length > 0 && sec.label.length > 0
         x: tick.x + tick.width + 7
         width: visible ? glossMetrics.advanceWidth : 0
         anchors.verticalCenter: parent.verticalCenter

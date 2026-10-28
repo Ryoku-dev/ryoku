@@ -125,7 +125,7 @@ Item {
                     font.weight: Font.Medium; font.letterSpacing: Tokens.trackMark
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                Text { text: "接続"; color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                Text { visible: UiPreferences.showJapaneseGloss; text: "接続"; color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
             }
             Rectangle { width: parent.width; height: 1; color: Tokens.lineSoft }
         }

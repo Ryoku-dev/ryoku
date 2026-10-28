@@ -79,9 +79,12 @@ hyprgrass	-	hyprland	Hyprland is not packaged on Void.
 hypridle	swayidle	desktop	
 hyprland	-	hyprland	Ryoku's Hyprland needs GCC 15 and Void still ships GCC 14.
 hyprland-preview-share-picker	-	hyprland	Hyprland is not packaged on Void.
+hyprlang	-	hyprland	Hyprland is not packaged on Void.
 hyprpicker	hyprpicker	desktop	
 hyprpolkitagent	-	hyprland	Hyprland is not packaged on Void.
 hyprsunset	-	hyprland	Hyprland is not packaged on Void.
+hyprtoolkit	-	hyprland	Hyprland is not packaged on Void.
+hyprutils	-	hyprland	Hyprland is not packaged on Void.
 imagemagick	ImageMagick	desktop	
 imgborders	-	hyprland	Hyprland is not packaged on Void.
 inetutils	inetutils	optional	
@@ -117,6 +120,7 @@ libnotify	libnotify	desktop
 libpulse	libpulseaudio pulseaudio-utils	desktop	
 libqalculate	libqalculate	desktop	
 librsvg	librsvg	desktop	
+libstdc++	-	hyprland	Hyprland is not packaged on Void.
 libusb	libusb	optional	
 libva	libva	desktop	
 libvirt	libvirt	optional	
@@ -223,6 +227,7 @@ ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout.
 ryomanager	@repo	optional	Ryoku-owned package built from the checkout.
 ryotunes	ryotunes	optional	repo=ryoku
 scrcpy	scrcpy	optional	
+sdbus-cpp	-	hyprland	Hyprland is not packaged on Void.
 sddm	sddm	desktop	
 shaderc	shaderc	desktop	
 skwd-paper-bin	skwd-paper-bin	desktop	repo=ryoku
@@ -254,6 +259,7 @@ ttf-readex-pro	ttf-readex-pro	desktop	repo=ryoku
 ttf-rubik-vf	ttf-rubik-vf	desktop	repo=ryoku
 udev	eudev	desktop	
 upower	upower	desktop	
+util-linux-libs	-	hyprland	Hyprland is not packaged on Void.
 uv	uv	desktop	
 v4l2loopback-dkms	v4l2loopback	optional	
 vdirsyncer	vdirsyncer	desktop	
@@ -279,6 +285,7 @@ wlsunset	wlsunset	desktop
 wpa_supplicant	wpa_supplicant	desktop	
 wtype	wtype	desktop	
 xcb-util-cursor	xcb-util-cursor	desktop	
+xdg-desktop-portal	-	hyprland	Hyprland is not packaged on Void.
 xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
 xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
 xdg-desktop-portal-hyprland	-	hyprland	Hyprland is not packaged on Void.

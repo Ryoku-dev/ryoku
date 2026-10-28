@@ -5196,8 +5196,8 @@
       "id": "ryoku.ryoku-hub.lock.apply-greeter",
       "group": "ryoku-internal",
       "title": "Apply the greeter lock theme",
-      "command": "ryoku-hub lock apply-greeter <slug>",
-      "description": "Runs the privileged greeter-theme installation step.",
+      "command": "ryoku-hub lock apply-greeter <slug> <true|false>",
+      "description": "Runs the privileged greeter-theme installation step with the global clock format.",
       "tool": "ryoku-hub",
       "level": "internal",
       "privileged": true

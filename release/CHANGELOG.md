@@ -152,6 +152,9 @@
   the other plugin packages.
 
 ### Fixed
+- **Hyprland screen sharing survives DMA-BUF renegotiation.** `[ryoku]` now
+  carries the post-1.4.1 portal fixes that preserve the capture callback and
+  bound PipeWire stream startup instead of wedging every later share.
 - **Fedora applies Bluetooth tuning during the package transaction.** The
   desktop RPM now restarts a running Bluetooth service after tuning BlueZ, as
   the Arch, CachyOS, and Void package hooks already do.

@@ -68,11 +68,20 @@ func voiceStopOnIdle(sawActive bool, class string) (closeNow, nextSawActive bool
 }
 
 // watchVoice streams Voxtype's state for one dictation session, started from
-// voice() on the ON edge. It exits on its own once dictation ends (Voxtype
-// returns to idle) or the session is stopped, so an idle desktop spawns nothing.
-// A stop channel lets a manual OFF tap reap the stream; the watcher only
-// performs the surface close itself when Voxtype ended without that tap.
+// voice() on the ON edge. Only one stream may own the Voxtype follow connection
+// at a time; canceled sessions leave before spawning and the next live session
+// waits until its predecessor has killed and reaped the child.
 func (d *daemon) watchVoice(stop <-chan struct{}) {
+	d.voiceWatchMu.Lock()
+	defer d.voiceWatchMu.Unlock()
+
+	select {
+	case <-d.quit:
+		return
+	case <-stop:
+		return
+	default:
+	}
 	if _, err := exec.LookPath("voxtype"); err != nil {
 		return
 	}
@@ -88,17 +97,10 @@ func (d *daemon) watchVoice(stop <-chan struct{}) {
 		return
 	}
 
-	kill := make(chan struct{})
-	go func() {
-		select {
-		case <-d.quit:
-			_ = cmd.Process.Kill()
-		case <-kill:
-		}
-	}()
-
 	classes := make(chan string, 8)
+	scanDone := make(chan struct{})
 	go func() {
+		defer close(scanDone)
 		sc := bufio.NewScanner(stdout)
 		for sc.Scan() {
 			if class, ok := parseVoxtypeClass(sc.Text()); ok {
@@ -111,17 +113,21 @@ func (d *daemon) watchVoice(stop <-chan struct{}) {
 		close(classes)
 	}()
 
+	killAndWait := func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		<-scanDone
+	}
+
 	sawActive := false
 	for {
 		var closeNow bool
 		select {
 		case <-d.quit:
-			close(kill)
-			_ = cmd.Wait()
+			killAndWait()
 			return
 		case <-stop:
-			close(kill)
-			_ = cmd.Wait()
+			killAndWait()
 			return
 		case class, ok := <-classes:
 			if !ok {
@@ -132,9 +138,8 @@ func (d *daemon) watchVoice(stop <-chan struct{}) {
 			}
 		}
 		if closeNow {
-			close(kill)
-			_ = cmd.Wait()
-			d.voiceEnded()
+			killAndWait()
+			d.voiceEnded(stop)
 			return
 		}
 	}
@@ -144,9 +149,9 @@ func (d *daemon) watchVoice(stop <-chan struct{}) {
 // it closes the card and clears the toggle so the next tap starts fresh. It is a
 // no-op if a manual tap already closed the surface (voiceOn is false), so the two
 // close paths never fight over the state.
-func (d *daemon) voiceEnded() {
+func (d *daemon) voiceEnded(stop <-chan struct{}) {
 	d.voiceMu.Lock()
-	if !d.voiceOn {
+	if !d.voiceOn || d.voiceStop != stop {
 		d.voiceMu.Unlock()
 		return
 	}

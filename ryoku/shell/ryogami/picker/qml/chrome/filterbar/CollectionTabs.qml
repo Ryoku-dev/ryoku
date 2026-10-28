@@ -61,7 +61,7 @@ Item {
                 id: kanji
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: (tab.hovered ? 4 : 6) * Theme.scale
-                text: tab.modelData.jp
+                text: UiPreferences.text(tab.modelData.jp, "")
                 font.family: Theme.jp
                 font.pixelSize: Theme.fs(9.5)
                 font.letterSpacing: 2

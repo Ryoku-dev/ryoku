@@ -10,7 +10,7 @@ import stage
 Singleton {
     id: root
 
-    readonly property bool available: Bluetooth.adapters.values.length > 0
+    readonly property bool available: Bluetooth.adapters.values.length > 0 || root.blocked
     readonly property bool enabled: Bluetooth.defaultAdapter?.enabled ?? false
     readonly property BluetoothDevice firstActiveDevice: Bluetooth.defaultAdapter?.devices.values.find(device => device.connected) ?? null
     readonly property int activeDeviceCount: Bluetooth.defaultAdapter?.devices.values.filter(device => device.connected).length ?? 0
@@ -20,11 +20,12 @@ Singleton {
     readonly property string adapterId: root.adapter?.adapterId ?? ""
     readonly property string adapterName: root.adapter?.name ?? ""
     /**
-     * True while the radio is killswitched. BlueZ reports both kinds of block as
-     * the same adapter state, so `hardBlocked` is what decides whether the user
-     * can do anything about it — a soft block is what `setEnabled` clears.
+     * True while any Bluetooth radio is killswitched. Platform rfkill switches
+     * can remove the BlueZ adapter entirely, so the kernel state remains
+     * authoritative while there is no `defaultAdapter`.
      */
-    readonly property bool blocked: root.adapter?.state === BluetoothAdapterState.Blocked
+    readonly property bool blocked: root.softBlocked || root.hardBlocked
+        || root.adapter?.state === BluetoothAdapterState.Blocked
     property bool softBlocked: false
     property bool hardBlocked: false
     readonly property bool discovering: root.adapter?.discovering ?? false
@@ -43,7 +44,7 @@ Singleton {
         root.adapter.discovering = false;
     }
 
-    onBlockedChanged: rfkillState.running = true
+    onAdapterChanged: rfkillState.running = true
     onAdapterIdChanged: root.readAdapterAddress()
     Component.onCompleted: {
         rfkillState.running = true;
@@ -68,11 +69,10 @@ Singleton {
         command: ["rfkill", "-n", "-o", "TYPE,SOFT,HARD", "list", "bluetooth"]
         stdout: StdioCollector {
             onStreamFinished: {
-                // "bluetooth blocked unblocked" — one line per radio.
-                const line = text.trim().split("\n").find(entry => entry.includes("bluetooth")) ?? "";
-                const fields = line.trim().split(/\s+/);
-                root.softBlocked = fields[1] === "blocked";
-                root.hardBlocked = fields[2] === "blocked";
+                const rows = text.trim().split("\n").map(line => line.trim().split(/\s+/))
+                    .filter(fields => fields[0] === "bluetooth");
+                root.softBlocked = rows.some(fields => fields[1] === "blocked");
+                root.hardBlocked = rows.some(fields => fields[2] === "blocked");
             }
         }
     }
@@ -89,8 +89,6 @@ Singleton {
 
     // === Power control ===
     function setEnabled(on: bool): void {
-        if (!Bluetooth.defaultAdapter)
-            return;
         Quickshell.execDetached(["ryoku-bluetooth-power", on ? "on" : "off"]);
     }
 

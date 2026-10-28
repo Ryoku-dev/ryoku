@@ -101,8 +101,15 @@ Singleton {
     function setNestedValues(patches) {
         let optionsDirty = false
         for (const path of Object.keys(patches)) {
-            if (path === "time.format")
-                root.pending["general.clock_format_24_h"] = RyokuUi.TimeFormat.is24HourPattern(patches[path])
+            if (path === "time.format") {
+                const format = String(patches[path])
+                root.options = Object.assign({}, root.options, {
+                    time: Object.assign({}, root.options?.time ?? ({}), { format: format })
+                })
+                root.pending["general.clock_format_24_h"] = RyokuUi.TimeFormat.is24HourPattern(format)
+                optionsDirty = true
+                continue
+            }
             if (root.sharedKeys.includes(path)) {
                 root.pending[path] = patches[path]
                 continue
@@ -151,8 +158,11 @@ Singleton {
     // daemon's single-writer lock on first boot.
     function _seed(frame) {
         const stored = frame?.inir ?? ({});
+        const legacyTimeFormat = typeof stored?.time?.format === "string"
+            ? stored.time.format : ""
         const defs = IrisDefaults.config();
         const merged = Object.assign({}, stored);
+        const needsSeed = Object.keys(defs).some(k => stored[k] === undefined)
         for (const k of Object.keys(defs)) {
             if (k === "enabledPanels") {
                 const have = Array.isArray(merged.enabledPanels) ? merged.enabledPanels : null;
@@ -165,10 +175,16 @@ Singleton {
             }
         }
         merged.panelFamily = "iris";
+        if (merged.time !== null && typeof merged.time === "object") {
+            merged.time = Object.assign({}, merged.time)
+            delete merged.time.format
+        }
         root.options = Object.assign({}, merged, {
             time: Object.assign({}, merged.time, { format: RyokuUi.TimeFormat.pattern() })
         });
-        if (!root._seeded && Object.keys(defs).some(k => stored[k] === undefined))
+        if (!root._seeded && legacyTimeFormat !== "")
+            root.pending["general.clock_format_24_h"] = RyokuUi.TimeFormat.is24HourPattern(legacyTimeFormat)
+        if (!root._seeded && (needsSeed || legacyTimeFormat !== ""))
             root.pending["inir"] = merged;
         root._seeded = true;
         if (Object.keys(root.pending).length > 0)

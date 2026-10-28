@@ -1,0 +1,76 @@
+# Maintainer: Ryoku <releases@ryoku.dev>
+#
+# Arch's 1.4.1 build can lose its screencopy callback during DMA-BUF
+# renegotiation (#403), killing hardware-encoded shares, and its Start handler
+# then waits forever for an invalid PipeWire node. Upstream 59d429bf preserves
+# the replacement callback, and 167adef9 bounds stream initialization to five
+# seconds. This pinned build carries both fixes against Arch's stable Hyprland
+# libraries until an official 1.4.2 or newer sorts above it and takes over.
+#
+# Fixed version, not RYOKU_PKGVER: build-repo.sh builds it once and adopts the
+# published bytes later. Bump pkgrel if the pinned commit changes.
+pkgname=xdg-desktop-portal-hyprland
+pkgver=1.4.1.r10.g167adef
+pkgrel=1
+_commit=167adef947a6067d1b90317daa0c6625641b27fb
+_protocolver=044a434ec371f985655389bcef09286b1af3d77c
+pkgdesc='xdg-desktop-portal backend for Hyprland (Ryoku build with screencopy fixes)'
+url="https://github.com/hyprwm/$pkgname"
+arch=('x86_64')
+license=('BSD-3-Clause')
+provides=('xdg-desktop-portal-impl')
+depends=(
+  'glibc'
+  'hyprlang'
+  'hyprtoolkit'
+  'hyprutils'
+  'libdrm'
+  'libgcc'
+  'libstdc++'
+  'pipewire'
+  'sdbus-cpp'
+  'util-linux-libs'
+  'wayland'
+  'xdg-desktop-portal'
+)
+makedepends=(
+  'cmake'
+  'git'
+  'hyprland-protocols'
+  'hyprwayland-scanner'
+  'wayland-protocols'
+)
+optdepends=(
+  'grim: required for the screenshot portal to function'
+  'slurp: support for interactive mode for the screenshot portal'
+)
+source=(
+  "$pkgname::git+$url.git#commit=$_commit"
+  "hyprland-protocols-$_protocolver.tar.gz::https://github.com/hyprwm/hyprland-protocols/archive/$_protocolver.tar.gz"
+)
+sha256sums=(
+  'SKIP'
+  'da075667ab2aecb271f6cbd49490f14c725f417d7522c49269decf7f14431d3e'
+)
+
+prepare() {
+  cd "$pkgname/subprojects"
+  rm -rf hyprland-protocols sdbus-cpp
+  ln -s "$srcdir/hyprland-protocols-$_protocolver" hyprland-protocols
+}
+
+build() {
+  cd "$pkgname"
+  cmake -B build \
+    -D CMAKE_INSTALL_PREFIX=/usr \
+    -D CMAKE_INSTALL_LIBEXECDIR=/usr/lib \
+    -D CMAKE_BUILD_TYPE=Release \
+    -D BUILD_TESTING=OFF
+  cmake --build build
+}
+
+package() {
+  cd "$pkgname"
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm0644 -t "$pkgdir/usr/share/licenses/$pkgname/" LICENSE
+}

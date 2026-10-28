@@ -1,0 +1,8 @@
+[SddmGreeterTheme]
+Name=Ryoku lockscreen host
+Description=Ryoku lockscreen theme host
+Author=Ryoku contributors
+Type=sddm-theme
+MainScript=Main.qml
+ConfigFile=theme.conf
+QtVersion=6

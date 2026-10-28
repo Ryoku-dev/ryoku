@@ -38,7 +38,7 @@ logger pkexec
 logger ryoku-wifi-powersave
 logger ryoku-game-tune
 
-printf '#!/usr/bin/env bash\nexit 0\n' >"$bin/notify-send"
+printf '#!/usr/bin/env bash\necho "notify-send $*" >> "%s"\nexit 0\n' "$calls" >"$bin/notify-send"
 
 # ryoku-shell stub with a real backing value. It exposes the same state and set
 # calls as the daemon, so a wrong restore is visible rather than merely logged.
@@ -185,5 +185,46 @@ grep -qF 'ryoku-game-tune apply' "$calls" || fail "system tune skipped without a
 RYOKU_BIN="$tmp/ryoku-nolive" "$gm" stop
 [[ ! -e $deco ]] || fail "compositor without live config evaluation was changed"
 on && fail "stop did not clear the request without a compositor strip"
+
+# A failed provider action must not advertise Game Mode as on or tune hardware.
+cat >"$tmp/ryoku-broken" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  "wm status") echo "Capabilities: configReload, liveConfigEval" ;;
+  "wm act decoration.gameMode on") echo "eval rejected" >&2; exit 7 ;;
+esac
+EOF
+chmod +x "$tmp/ryoku-broken"
+: >"$calls"
+RYOKU_BIN="$tmp/ryoku-broken" "$gm" start >"$tmp/failure.log" 2>&1 &&
+  fail "start succeeded despite a rejected decoration strip"
+on && fail "a rejected decoration strip left Game Mode on"
+grep -qF 'eval rejected' "$tmp/failure.log" || fail "strip error was hidden"
+grep -qF 'ryoku-game-tune apply' "$calls" &&
+  fail "tuned hardware after the decoration strip failed"
+
+# A failed compositor reload cannot strand the power, tune or Wi-Fi restores.
+cat >"$tmp/ryoku-restore-fails" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "wm status") echo "Capabilities: configReload, liveConfigEval" ;;
+  "wm act decoration.gameMode on") touch "$deco" ;;
+  "wm act decoration.gameMode off") echo "reload rejected" >&2; exit 7 ;;
+esac
+EOF
+chmod +x "$tmp/ryoku-restore-fails"
+echo balanced >"$profile"
+RYOKU_BIN="$tmp/ryoku-restore-fails" "$gm" start
+[[ "$(cat "$profile")" == performance ]] || fail "failed-reload setup did not boost power"
+: >"$calls"
+RYOKU_BIN="$tmp/ryoku-restore-fails" "$gm" stop >"$tmp/restore-failure.log" 2>&1 &&
+  fail "stop reported success despite failed compositor restore"
+on && fail "failed compositor restore left Game Mode on"
+grep -qF 'reload rejected' "$tmp/restore-failure.log" || fail "restore error was hidden"
+grep -qF 'ryoku-game-tune restore' "$calls" || fail "failed reload skipped tune restore"
+grep -qF 'ryoku-shell powerprofiles set balanced' "$calls" || fail "failed reload skipped profile restore"
+grep -qF 'ryoku-wifi-powersave on' "$calls" || fail "failed reload skipped Wi-Fi restore"
+grep -qF 'Off - desktop restored' "$calls" &&
+  fail "failed reload announced successful desktop restoration"
 
 echo "game-mode: all checks passed"

@@ -5,6 +5,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
+import shell.services as RyokuServices
 import "../"
 import "../reusables"
 
@@ -109,16 +110,12 @@ PanelWindow {
         item: popupContainer
     }
 
-    property bool dndEnabled: {
-        let n = Config.getSetting("notifications", { "dnd": false, "position": "top right" });
-        return Boolean(n && n.dnd);
-    }
+    readonly property bool dndEnabled: RyokuServices.Flags.dnd
 
     Connections {
         target: Config
         function onSettingsLoaded() {
-            let n = Config.getSetting("notifications", { "dnd": false, "position": "top right" });
-            popupWindow.dndEnabled = Boolean(n && n.dnd);
+            let n = Config.getSetting("notifications", { "position": "top right" });
             popupWindow.position = (n && n.position !== undefined) ? n.position : "top right";
             popupWindow.horizontalPosition = (n && n.horizontalPosition !== undefined) ? n.horizontalPosition : 95;
             popupWindow.verticalPosition = (n && n.verticalPosition !== undefined) ? n.verticalPosition : 5;

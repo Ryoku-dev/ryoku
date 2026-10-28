@@ -9,15 +9,15 @@ import "../../components"
 // (contract 07 sec 2.3). A bordered surface tile with a header (app name, time,
 // and an open/expand/close cluster), a bold summary, an optional body, and one
 // primary button per action. The reference text-only look remains the default;
-// the opt-in image setting adds a token-sized thumbnail without reserving space
-// when no source resolves.
+// the opt-in image setting adds a token-sized thumbnail row when an image,
+// application icon, or fallback glyph resolves.
 //
 // Popups pass `compact: true`: the body clamps to two lines and the actions
-// hide, so the toast stays a tidy glance; the expand chevron slides the card
-// open to the full body and its action buttons (Motion.rowReveal). The open
-// button surfaces the freedesktop "default" action, which is otherwise
-// unreachable from a toast. The history panel leaves `compact` false, so it is
-// unchanged bar the open button appearing when an app sent a default action.
+// hide, so the toast stays a tidy glance; the expand chevron reveals the full
+// body and its action buttons. The open button surfaces the freedesktop
+// "default" action, which is otherwise unreachable from a toast. The history
+// panel leaves `compact` false, so it is unchanged bar the open button appearing
+// when an app sent a default action.
 Rectangle {
     id: card
 
@@ -41,12 +41,46 @@ Rectangle {
     // Per-monitor UI scale, threaded from the popup surface (default 1 = no-op,
     // so the history panel that composes this card unchanged stays identical).
     property real us: 1
-
-    // The height Behavior below must not animate the card's initial layout: a
-    // fresh toast would otherwise grow tall as it arrives and churn the stack.
-    // Armed after creation, it eases only the user-driven expand/collapse.
-    property bool ready: false
-    Component.onCompleted: card.ready = true
+    // Only explicit expand/collapse clicks ease the frame height. Image loads
+    // and every other layout change snap to their measured height so the popup
+    // surface never trails content that has already moved.
+    readonly property real targetImplicitHeight: body.implicitHeight + Theme.paddingMd * 2 * card.us
+    property real animatedImplicitHeight: 0
+    property bool userHeightChange: false
+    Component.onCompleted: card.animatedImplicitHeight = card.targetImplicitHeight
+    function toggleExpanded() {
+        card.userHeightChange = true;
+        card.expanded = !card.expanded;
+        heightAnimationStart.restart();
+    }
+    function animateUserHeightChange() {
+        heightAnimation.stop();
+        const targetHeight = card.targetImplicitHeight;
+        heightAnimation.from = card.animatedImplicitHeight;
+        heightAnimation.to = targetHeight;
+        heightAnimation.start();
+        card.userHeightChange = false;
+    }
+    onTargetImplicitHeightChanged: {
+        if (card.userHeightChange) {
+            heightAnimationStart.restart();
+            return;
+        }
+        heightAnimation.stop();
+        card.animatedImplicitHeight = card.targetImplicitHeight;
+    }
+    Timer {
+        id: heightAnimationStart
+        interval: 16
+        onTriggered: card.animateUserHeightChange()
+    }
+    NumberAnimation {
+        id: heightAnimation
+        target: card
+        property: "animatedImplicitHeight"
+        duration: Motion.rowReveal
+        easing.type: Motion.rowRevealCurve
+    }
 
     // Only real actions get a button: the freedesktop "default" action (surfaced
     // as the open button, not a row button) and any action with no label are
@@ -117,11 +151,7 @@ Rectangle {
     border.width: card.unifiedFrame ? 0 : Theme.borderWidth * card.us
     border.color: Theme.outline
     color: card.unifiedFrame ? "transparent" : Theme.surface
-    implicitHeight: body.implicitHeight + Theme.paddingMd * 2 * card.us
-    // Ease the expand/collapse: the body clamp and the actions toggle change the
-    // content height in a step, and this glides the card (and the stack it sits
-    // in) between the two heights instead of snapping.
-    Behavior on implicitHeight { enabled: card.ready; NumberAnimation { duration: Motion.rowReveal; easing.type: Motion.rowRevealCurve } }
+    implicitHeight: card.animatedImplicitHeight
 
     // A hidden, unclamped copy of the body, used only to learn whether the real
     // body would overflow the compact clamp (so the chevron appears only when it
@@ -232,7 +262,7 @@ Rectangle {
                     glyph: "expand_more"
                     visible: card.expandable
                     iconRotation: card.expanded ? 180 : 0
-                    onClicked: card.expanded = !card.expanded
+                    onClicked: card.toggleExpanded()
                 }
 
                 HeaderButton {
@@ -317,8 +347,8 @@ Rectangle {
         }
 
         // Actions: one primary button per action, full width (contract 07 sec
-        // 2.3). Hidden while a popup is compact and collapsed; the expand chevron
-        // brings them in, fading up as the card grows.
+        // 2.3). Hidden while a popup is compact and collapsed; the expand
+        // chevron brings them in with a short fade.
         Column {
             id: actionCol
             width: parent.width

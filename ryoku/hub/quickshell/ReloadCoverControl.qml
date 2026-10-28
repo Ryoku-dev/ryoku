@@ -70,7 +70,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     visible: renderer.status === Loader.Error
-                    text: "力"
+                    text: UiPreferences.brandMark("力")
                     color: Tokens.inkFaint
                     font.family: Tokens.jp
                     font.pixelSize: Tokens.fHero

@@ -327,15 +327,18 @@ Singleton {
     }
 
     property string _editReopenMonitor: ""
+    property string _editReopenSection: ""
     property string _editReopenPage: ""
-    property bool _editReopenWallpaper: false
+    property bool _editReopenDrawer: false
     function switchEditMonitor(monitorName) {
         if (!root.editMode || !monitorName || monitorName === root.editModeMonitor)
             return;
         root._editReopenMonitor = monitorName;
-        root._editReopenWallpaper = root.editDrawerOpen && root.editDrawerSection === "wallpaper"
-            && !root.editLockPreview;
-        root._editReopenPage = root._editReopenWallpaper ? root.editDrawerPage : "";
+        root._editReopenDrawer = root.editDrawerOpen && !root.editLockPreview;
+        root._editReopenSection = root.editDrawerSection === "widget"
+            ? "widgets" : root.editDrawerSection;
+        root._editReopenPage = root.editDrawerSection === "widget"
+            ? "" : root.editDrawerPage;
         root.closeEditMode();
         editReopenTimer.restart();
     }
@@ -345,17 +348,20 @@ Singleton {
         repeat: false
         onTriggered: {
             const monitor = root._editReopenMonitor;
-            const wallpaper = root._editReopenWallpaper;
+            const section = root._editReopenSection;
             const page = root._editReopenPage;
+            const drawer = root._editReopenDrawer;
             root._editReopenMonitor = "";
-            root._editReopenWallpaper = false;
+            root._editReopenSection = "";
             root._editReopenPage = "";
+            root._editReopenDrawer = false;
             if (monitor === "")
                 return;
-            if (wallpaper)
-                root.openEditCatalogue("wallpaper", monitor, page);
-            else
-                root.openEditMode(monitor);
+            root.editDrawerSection = section;
+            root.editDrawerPage = page;
+            root.openEditMode(monitor);
+            if (root.editMode)
+                root.editDrawerOpen = drawer;
         }
     }
 

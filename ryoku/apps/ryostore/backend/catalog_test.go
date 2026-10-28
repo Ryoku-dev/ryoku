@@ -229,6 +229,33 @@ func TestRunCatalogSnapshotServesThenRefresh(t *testing.T) {
 	}
 }
 
+func TestRunCatalogRebuildsWhenProviderAdded(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	var originalLoads, addedLoads int32
+	original := countingProvider{
+		fakeProvider{category: Category{ID: "rices"}, items: []Item{{ID: "demo", Category: "rices"}}},
+		&originalLoads,
+	}
+	if err := runCatalog(io.Discard, []Provider{original}, nil); err != nil {
+		t.Fatal(err)
+	}
+	added := countingProvider{
+		fakeProvider{category: Category{ID: "flatpak"}, items: []Item{{ID: "org.example.App", Category: "flatpak"}}},
+		&addedLoads,
+	}
+	var out bytes.Buffer
+	if err := runCatalog(&out, []Provider{original, added}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var cat Catalog
+	if err := json.Unmarshal(out.Bytes(), &cat); err != nil {
+		t.Fatal(err)
+	}
+	if len(cat.Categories) != 2 || originalLoads != 2 || addedLoads != 1 {
+		t.Fatalf("new provider was hidden by old snapshot: categories=%d, loads=%d/%d", len(cat.Categories), originalLoads, addedLoads)
+	}
+}
+
 // TestRunCatalogDoesNotSnapshotEmpty proves a catalogue with no items is never
 // cached, so a launch after a failed fetch probes live again instead of pinning
 // an empty store.

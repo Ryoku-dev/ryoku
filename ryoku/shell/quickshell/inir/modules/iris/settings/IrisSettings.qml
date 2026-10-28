@@ -663,7 +663,7 @@ Item {
                                 Behavior on scale { NumberAnimation { duration: IrisStyle.feedbackDuration } }
                                 IrisText {
                                     anchors.centerIn: parent
-                                    text: frontendSwitch.ryoku ? "力" : "i"
+                                    text: frontendSwitch.ryoku ? UiPreferences.brandMark("力") : "i"
                                     color: frontendSwitch.ryoku ? IrisStyle.accent : IrisStyle.muted
                                     font.family: frontendSwitch.ryoku ? Tokens.jp : IrisStyle.fontMain
                                     font.pixelSize: 11 * IrisStyle.typeScale
@@ -1135,7 +1135,7 @@ Item {
             IrisText {
                 id: jpSeal
                 visible: !sectionRow.compact && IrisStyle.ryokuFrontend
-                    && String(root.jpName[sectionRow.modelData.id] ?? "").length > 0
+                    && UiPreferences.showJapaneseGloss && String(root.jpName[sectionRow.modelData.id] ?? "").length > 0
                 anchors.right: parent.right
                 anchors.rightMargin: 10 * root.d
                 anchors.verticalCenter: parent.verticalCenter

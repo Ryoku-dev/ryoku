@@ -111,11 +111,37 @@ Singleton {
         return !!(n && typeof n.name === "string");
     }
 
+    // The sink music actually enters, which is not the default one behind Easy Effects or a similar filter.
+    property string musicSink: ""
+    readonly property var liveLinks: Pipewire.ready ? Pipewire.links.values : []
+    readonly property var callApps: ["vesktop", "discord", "webrtc", "teams", "zoom", "slack", "telegram"]
+
+    function playbackSink() {
+        var fallback = "";
+        for (var i = 0; i < root.liveLinks.length; i++) {
+            var link = root.liveLinks[i];
+            var from = link && link.source;
+            var to = link && link.target;
+            if (!root.isPlayStream(from) || !to || !to.isSink || to.isStream || !root.alive(to))
+                continue;
+            var app = ("" + from.name).toLowerCase();
+            if (!root.callApps.some(name => app.indexOf(name) >= 0))
+                return "" + to.name;
+            if (fallback === "")
+                fallback = "" + to.name;
+        }
+        return fallback;
+    }
+
     function syncAudioLists() {
         root.outputs = root.liveOutputs.slice();
         root.inputs = root.liveInputs.slice();
         root.streams = root.liveStreams.slice();
         root.captureStreams = root.liveCaptureStreams.slice();
+        const sink = root.playbackSink();
+        const known = root.nodes.some(n => n && n.isSink && !n.isStream && ("" + n.name) === root.musicSink);
+        if (sink !== "" || !known)
+            root.musicSink = sink;
     }
 
     Timer {
@@ -129,6 +155,7 @@ Singleton {
     onLiveInputsChanged: listSettle.restart()
     onLiveStreamsChanged: listSettle.restart()
     onLiveCaptureStreamsChanged: listSettle.restart()
+    onLiveLinksChanged: listSettle.restart()
 
     Component.onCompleted: root.syncAudioLists()
 

@@ -24,6 +24,15 @@ func mkSkin(t *testing.T, dir, slug string, withPreview bool) {
 	}
 }
 
+func useGreeterThemeInstaller(t *testing.T) {
+	t.Helper()
+	path, err := filepath.Abs(filepath.Join("..", "..", "lockscreen", "qylock", "sddm-host", "install-greeter-theme"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_GREETER_THEME_INSTALLER", path)
+}
+
 func findSkin(skins []LockSkin, slug string) *LockSkin {
 	for i := range skins {
 		if skins[i].Slug == slug {
@@ -118,16 +127,27 @@ func TestSetLockSkinIn(t *testing.T) {
 }
 
 func TestInstallGreeter(t *testing.T) {
+	useGreeterThemeInstaller(t)
 	src := t.TempDir()
 	mkSkin(t, src, "material-you", false)
 	themes := t.TempDir()
 	conf := filepath.Join(t.TempDir(), "sddm.conf.d", "99-ryoku.conf")
 
-	if err := installGreeter(src, themes, conf, "material-you"); err != nil {
+	if err := installGreeter(src, themes, conf, "material-you", false); err != nil {
 		t.Fatalf("install greeter: %v", err)
 	}
 	if !fileExists(filepath.Join(themes, greeterTheme, "Main.qml")) {
 		t.Fatalf("greeter theme %q not installed under %s", greeterTheme, themes)
+	}
+	if !fileExists(filepath.Join(themes, greeterTheme, "theme", "Main.qml")) {
+		t.Fatalf("selected skin not installed beneath the greeter host")
+	}
+	themeConfig, err := os.ReadFile(filepath.Join(themes, greeterTheme, "theme.conf"))
+	if err != nil {
+		t.Fatalf("read greeter theme config: %v", err)
+	}
+	if !strings.Contains(string(themeConfig), "clock24h=false") {
+		t.Fatalf("greeter theme config did not receive 12-hour preference: %q", themeConfig)
 	}
 	b, err := os.ReadFile(conf)
 	if err != nil {
@@ -139,15 +159,22 @@ func TestInstallGreeter(t *testing.T) {
 
 	// second skin overwrites the same fixed greeter dir; nothing orphans.
 	mkSkin(t, src, "clockwork/orbital", false)
-	if err := installGreeter(src, themes, conf, "clockwork/orbital"); err != nil {
+	if err := installGreeter(src, themes, conf, "clockwork/orbital", true); err != nil {
 		t.Fatalf("reinstall greeter: %v", err)
 	}
 	if !fileExists(filepath.Join(themes, greeterTheme, "Main.qml")) {
 		t.Fatalf("greeter theme missing after switch")
 	}
+	themeConfig, err = os.ReadFile(filepath.Join(themes, greeterTheme, "theme.conf"))
+	if err != nil {
+		t.Fatalf("read reinstalled greeter theme config: %v", err)
+	}
+	if !strings.Contains(string(themeConfig), "clock24h=true") {
+		t.Fatalf("greeter theme config did not receive 24-hour preference: %q", themeConfig)
+	}
 
 	// unknown skin -> error before touching anything privileged.
-	if err := installGreeter(src, themes, conf, "ghost/none"); err == nil {
+	if err := installGreeter(src, themes, conf, "ghost/none", false); err == nil {
 		t.Fatalf("installing an unknown skin should error")
 	}
 }
@@ -170,6 +197,7 @@ func TestValidSlug(t *testing.T) {
 // copy to world-readable, else SDDM can't read the theme and silently falls back
 // to its embedded one on every boot.
 func TestInstallGreeterMakesThemeWorldReadable(t *testing.T) {
+	useGreeterThemeInstaller(t)
 	src := t.TempDir()
 	mkSkin(t, src, "video/tape", false)
 	// mimic a catalogue download: owner-only perms on the skin tree.
@@ -183,7 +211,7 @@ func TestInstallGreeterMakesThemeWorldReadable(t *testing.T) {
 	themes := t.TempDir()
 	conf := filepath.Join(t.TempDir(), "sddm.conf.d", "99-ryoku.conf")
 
-	if err := installGreeter(src, themes, conf, "video/tape"); err != nil {
+	if err := installGreeter(src, themes, conf, "video/tape", false); err != nil {
 		t.Fatalf("install greeter: %v", err)
 	}
 

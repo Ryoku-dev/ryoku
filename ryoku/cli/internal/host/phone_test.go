@@ -43,6 +43,68 @@ func decodePhonePlan(t *testing.T, body string) phonePlan {
 	return plan
 }
 
+func phoneKernelModules(t *testing.T, kernels map[string]string) string {
+	t.Helper()
+	root := t.TempDir()
+	for version, pkgbase := range kernels {
+		dir := filepath.Join(root, version)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if pkgbase != "" {
+			if err := os.WriteFile(filepath.Join(dir, "pkgbase"), []byte(pkgbase+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return root
+}
+
+func TestPhonePacmanKernelHeaders(t *testing.T) {
+	cases := []struct {
+		name    string
+		kernels map[string]string
+		headers []string
+	}{
+		{
+			name: "cachyos with nvidia modules",
+			kernels: map[string]string{
+				"7.3.0-4-cachyos":     "linux-cachyos",
+				"nvidia-open-7.3.0-4": "",
+				"zfs-7.3.0-4":         "",
+			},
+			headers: []string{"linux-cachyos-headers"},
+		},
+		{
+			name:    "stock kernel",
+			kernels: map[string]string{"7.2.11-arch1-1": "linux"},
+			headers: []string{"linux-headers"},
+		},
+		{
+			name: "two kernels",
+			kernels: map[string]string{
+				"6.12.1-1-lts": "linux-lts",
+				"7.3.0-4-zen":  "linux-zen",
+			},
+			headers: []string{"linux-lts-headers", "linux-zen-headers"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app, stdout, stderr := testApp(&fakeRunner{}, map[string]string{"RYOKU_HOST_PKGMGR": "pacman"})
+			app.cfg.KernelModulesDir = phoneKernelModules(t, tc.kernels)
+			if code := app.Phone([]string{"plan-enable"}); code != ExitOK {
+				t.Fatalf("exit %d: %s", code, stderr.String())
+			}
+			want := append(append([]string{}, phoneBasePackages...), tc.headers...)
+			plan := decodePhonePlan(t, stdout.String())
+			if !reflect.DeepEqual(plan.Packages, want) {
+				t.Fatalf("packages = %#v, want %#v", plan.Packages, want)
+			}
+		})
+	}
+}
+
 func TestPhoneEnablePlansExactTransactionPerEdition(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -53,7 +115,7 @@ func TestPhoneEnablePlansExactTransactionPerEdition(t *testing.T) {
 		{
 			name: "arch", manager: "pacman", paths: map[string]bool{},
 			want: [][]string{
-				{"pacman", "-S", "--needed", "--noconfirm", "kdeconnect", "scrcpy", "android-tools", "python-gobject", "python-dbus", "avahi", "python-pillow", "v4l2loopback-dkms", "linux-headers", "linux-cachyos-headers"},
+				{"pacman", "-S", "--needed", "--noconfirm", "kdeconnect", "scrcpy", "android-tools", "python-gobject", "python-dbus", "avahi", "python-pillow", "v4l2loopback-dkms", "linux-cachyos-headers"},
 				{"modprobe", "v4l2loopback"},
 			},
 		},
@@ -76,17 +138,16 @@ func TestPhoneEnablePlansExactTransactionPerEdition(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			runner := &fakeRunner{paths: tc.paths, answer: func(command Command) Result {
-				if argv(command) == "pacman -Qqo /usr/lib/modules" {
-					return Result{Output: "linux-cachyos\nlinux-cachyos-headers\n"}
-				}
-				return Result{}
-			}}
+			runner := &fakeRunner{paths: tc.paths}
 			env := map[string]string{"RYOKU_HOST_PKGMGR": tc.manager}
 			if tc.manager != "pacman" {
 				env["RYOKU_HOST_PKG_TABLE"] = phonePackageTable(t, tc.name)
 			}
 			app, stdout, stderr := testApp(runner, env)
+			app.cfg.KernelModulesDir = phoneKernelModules(t, map[string]string{
+				"7.3.0-4-cachyos": "linux-cachyos",
+				"nvidia-open":     "",
+			})
 			app.cfg.PhoneModulesLoadPath = "ETC/modules-load.d/phone-v4l2loopback.conf"
 			app.cfg.PhoneModprobePath = "ETC/modprobe.d/phone-v4l2loopback.conf"
 			app.cfg.PhoneStatePath = filepath.Join(t.TempDir(), "missing-state")

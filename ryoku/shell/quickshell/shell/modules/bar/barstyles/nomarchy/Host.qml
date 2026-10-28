@@ -42,8 +42,9 @@ Item {
   readonly property var osdSourceAudio: osdSource && osdSource.audio ? osdSource.audio : null
   property bool osdBridgeReady: false
 
-  function showAudioOsd(audio, microphone) {
+  function showAudioOsd(audio, microphone, volumeChange) {
     if (!osdBridgeReady || !audio) return
+    if (microphone && volumeChange && !Ryoku.OsdFeed.acceptsMicVolume(audio.volume)) return
     var percent = Math.round(Math.max(0, Math.min(1, audio.volume)) * 100)
     shell.summon("omarchy.osd", JSON.stringify({
       icon: microphone ? (audio.muted ? "microphone-muted" : "microphone")
@@ -60,16 +61,17 @@ Item {
   Timer { interval: 700; running: true; onTriggered: shell.osdBridgeReady = true }
   Connections {
     target: shell.osdSinkAudio
-    function onVolumesChanged() { shell.showAudioOsd(shell.osdSinkAudio, false) }
-    function onMutedChanged() { shell.showAudioOsd(shell.osdSinkAudio, false) }
+    function onVolumesChanged() { shell.showAudioOsd(shell.osdSinkAudio, false, true) }
+    function onMutedChanged() { shell.showAudioOsd(shell.osdSinkAudio, false, false) }
   }
   Connections {
     target: shell.osdSourceAudio
-    function onVolumesChanged() { shell.showAudioOsd(shell.osdSourceAudio, true) }
-    function onMutedChanged() { shell.showAudioOsd(shell.osdSourceAudio, true) }
+    function onVolumesChanged() { shell.showAudioOsd(shell.osdSourceAudio, true, true) }
+    function onMutedChanged() { shell.showAudioOsd(shell.osdSourceAudio, true, false) }
   }
   Connections {
     target: Ryoku.OsdFeed
+    function onMicRequested() { shell.showAudioOsd(shell.osdSourceAudio, true, false) }
     function onBrightnessSeqChanged() {
       if (!shell.osdBridgeReady) return
       var percent = Math.round(Ryoku.OsdFeed.brightness * 100)

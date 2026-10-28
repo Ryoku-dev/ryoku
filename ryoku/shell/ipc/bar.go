@@ -1211,7 +1211,7 @@ func (d *daemon) barSettings(args []string) string {
 func defaultDock() map[string]any {
 	return map[string]any{
 		"enabled": false, "edge": "auto", "edgeGap": dockEdgeGapDefault,
-		"autohide": false, "pinned": []string{},
+		"autohide": false, "revealOnEmpty": true, "pinned": []string{},
 		"magnify": true, "frost": true, "shadow": true, "labels": true, "media": false,
 	}
 }

@@ -2,8 +2,8 @@
 # Ryoku-branded fastfetch. The emblem is rendered natively by fastfetch's
 # kitty-direct logo (image left, dossier right). fastfetch auto-enables "pipe
 # mode" when it thinks stdout isn't a real TTY, which SILENTLY disables image
-# logos and falls back to ASCII -- so in kitty we force `--pipe false` to keep
-# the image. Outside kitty: chafa if present, else no logo.
+# logos and falls back to ASCII -- so in kitty and ghostty we force
+# `--pipe false` to keep the image. Outside those: chafa if present, else no logo.
 #
 # A Ryostore preset may hand drawing to its own renderer (for image formats
 # fastfetch cannot show, such as icat PNGs) with a comment in its config:
@@ -62,7 +62,7 @@ fi
 
 if [[ ! -f "$config" ]]; then
   exec fastfetch "$@"
-elif [[ -n "${KITTY_WINDOW_ID:-}" || "${TERM:-}" == "xterm-kitty" ]]; then
+elif [[ -n "${KITTY_WINDOW_ID:-}" || "${TERM:-}" == "xterm-kitty" || "${TERM:-}" == "xterm-ghostty" || "${TERM_PROGRAM:-}" == "ghostty" ]]; then
   exec fastfetch --config "$effective" --pipe false "$@"
 elif command -v chafa >/dev/null 2>&1; then
   exec fastfetch --config "$effective" --logo-type chafa "$@"

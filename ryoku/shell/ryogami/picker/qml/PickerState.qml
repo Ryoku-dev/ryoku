@@ -286,7 +286,7 @@ QtObject {
                 Daemon.call("wall.preview.clear", {})
             }
         }
-        if (state._bool(state._shellHover))
+        if (state._bool(state._shellHover) && !state._bool(state._livePreview))
             Daemon.call("palette.hover", key ? { key: key } : ({}))
     }
 

@@ -17,11 +17,14 @@ Scope {
 
     // ── palette: the live matugen roles ─────────────────────────────────────
     property var pal: ({})       // colors.json: the live wallpaper palette
+    property var preview: ({})
     property var named: null     // shell.json themePalette: the active coded theme
     // Resolve like the pill's Theme: a selected coded theme wins, then the live
     // wallpaper palette, then the compiled default. Without the coded-theme layer
     // the launcher only tracked the wallpaper and ignored the fixed presets.
     function role(k, d) {
+        if (typeof root.preview[k] === "string" && root.preview[k].length > 0)
+            return root.preview[k];
         if (root.named && typeof root.named[k] === "string" && root.named[k].length > 0)
             return root.named[k];
         const v = root.pal[k];
@@ -49,6 +52,17 @@ Scope {
         }
     }
 
+    FileView {
+        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/dev/null") + "/ryoku-wall-preview.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.preview = JSON.parse(text() || "{}") || {} }
+            catch (e) { root.preview = {} }
+        }
+    }
     // the active coded theme's palette, resolved by the daemon into shell.json's
     // top-level themePalette key (absent for the dynamic Wallpaper/Default variants).
     FileView {

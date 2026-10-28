@@ -45,6 +45,7 @@ AbstractBackgroundWidget {
     // Ryoku hosting draws the slot card, so drop this widget's own card in Ryoku
     // style — the bars/organic art sit on the single shared surface.
     readonly property bool _ryokuBare: root.ryokuHosted && root.ryokuStyle
+    property real ryokuSlotRadius: -1
 
     readonly property string vizType: Config.getNestedValue("background.widgets.visualizer.vizType", "bars")
     readonly property int waveOpacity: Config.getNestedValue("background.widgets.visualizer.waveOpacity", -1)
@@ -401,6 +402,11 @@ AbstractBackgroundWidget {
                 animate: root.motionActive && vizDrawn.drawing
                 visualizerType: root.vizType
                 normalizationCeiling: cavaProcess.normalizationCeiling
+                topLeftRadius: Math.max(0, (root._ryokuBare && root.ryokuSlotRadius >= 0
+                    ? root.ryokuSlotRadius : cardBg.radius) - anchors.margins)
+                topRightRadius: topLeftRadius
+                bottomLeftRadius: topLeftRadius
+                bottomRightRadius: topLeftRadius
                 spectrumColors: root.spectrumPalette
                 spectrumColor: root.widgetAccentVisible
                 spectrumOpacity: (root.vizType === "wave"

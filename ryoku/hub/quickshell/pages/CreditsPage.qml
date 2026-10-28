@@ -117,7 +117,7 @@ Item {
         Text {
             anchors.centerIn: parent
             rotation: -90
-            text: "RYOKU  \u00b7  \u611f\u8b1d KANSHA  \u00b7  SHOT ON BLACK"
+            text: UiPreferences.text("RYOKU  \u00b7  \u611f\u8b1d KANSHA  \u00b7  SHOT ON BLACK", "RYOKU  \u00b7  THANKS  \u00b7  SHOT ON BLACK")
             color: Tokens.inkFaint
             font.family: Tokens.mono
             font.pixelSize: Tokens.fTiny
@@ -161,7 +161,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: "力"
+                        text: UiPreferences.brandMark("力")
                         color: Tokens.ink
                         font.family: Tokens.jp
                         font.pixelSize: Tokens.fMicro
@@ -190,7 +190,7 @@ Item {
                     width: parent.width
                     spacing: 0
                     Text {
-                        text: "感謝"
+                        text: UiPreferences.text("感謝", "THANKS")
                         color: Tokens.ink
                         font.family: Tokens.jp
                         font.pixelSize: pg.fKanji

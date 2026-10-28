@@ -20,6 +20,16 @@ Item {
     readonly property var defaultSettings: ({})
     property bool dataReady: true
     property var rawSettings: ({})
+    property int hostSettingsRevision: 0
+    readonly property bool hostNotificationSoundEnabled: {
+        const revision = hostSettingsRevision;
+        return hostNotificationSoundEnabledFor(false);
+    }
+    readonly property string hostNotificationSoundFile: {
+        const revision = hostSettingsRevision;
+        return String(hostSetting("sounds.events.notification.file", "") || "");
+    }
+
 
     signal settingsLoaded()
 
@@ -92,6 +102,52 @@ Item {
         }
         cur[parts[parts.length - 1]] = value;
     }
+    function nestedValue(obj, path, fallbackValue) {
+        let parts = typeof path === "string" ? path.split(".") : [path];
+        let cur = obj;
+        for (let i = 0; i < parts.length; i++) {
+            if (!cur || typeof cur !== "object" || !cur.hasOwnProperty(parts[i])) {
+                return fallbackValue;
+            }
+            cur = cur[parts[i]];
+        }
+        return cur !== undefined && cur !== null ? cur : fallbackValue;
+    }
+
+    function hostSetting(path, fallbackValue) {
+        const soundsPath = String(path || "").replace(/^sounds\./, "");
+        return nestedValue(Config.sounds || ({}), soundsPath, fallbackValue);
+    }
+    function hostNotificationSoundEnabledFor(critical) {
+        const event = critical ? "notification-critical" : "notification";
+        return Boolean(hostSetting("sounds.enabled", true)
+            && hostSetting("sounds.events." + event + ".enabled", true));
+    }
+
+
+    function setHostSetting(path, value) {
+        patchQueue(path, value);
+    }
+
+    function setNotificationSoundEnabled(enabled) {
+        if (enabled) setHostSetting("sounds.enabled", true);
+        setHostSetting("sounds.events.notification.enabled", enabled);
+        setHostSetting("sounds.events.notification-critical.enabled", enabled);
+    }
+
+    function setNotificationSoundFile(filePath) {
+        const path = String(filePath || "").replace(/^file:\/\//, "");
+        setHostSetting("sounds.events.notification.file", path);
+        setHostSetting("sounds.events.notification-critical.file", path);
+    }
+
+    function previewNotificationSound(filePath) {
+        callQueue("sounds.preview", {
+            "event": "notification",
+            "file": String(filePath || "").replace(/^file:\/\//, "")
+        });
+    }
+
 
     function sh(cmd) {
         Quickshell.execDetached(["bash", "-c", cmd]);
@@ -163,6 +219,12 @@ Item {
 
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
+    function callQueue(method, payload) {
+        ctl.queued += "call " + method + " " + JSON.stringify(payload || {}) + "\n";
+        if (ctl.connected) ctl.flushQueued();
+        else ctl.connected = true;
+    }
+
     function patchQueue(path, value) {
         ctl.queued += "call settings.patch "
             + JSON.stringify({ path: path, value: value }) + "\n";
@@ -181,10 +243,12 @@ Item {
         onConnectionStateChanged: if (connected) flushQueued()
     }
 
+
     Connections {
         target: Config
         function onPythonChanged() { config.pull(); }
         function onFontFamilyChanged() { config.pull(); }
+        function onSettingsLoaded() { config.hostSettingsRevision += 1; }
     }
 
     Component.onCompleted: {

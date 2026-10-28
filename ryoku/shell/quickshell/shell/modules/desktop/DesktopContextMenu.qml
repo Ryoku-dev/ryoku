@@ -6,6 +6,7 @@ import shell.services as Services
 import "../stage/Singletons" as StageCfg
 import inir
 import "Singletons"
+import stage.modules.ii.background.shortcuts as StageShortcuts
 
 // The system desktop right-click menu: right-clicking bare wallpaper on any bar
 // style opens this. It carries the iRiS desktop menu's structure -- a quick row
@@ -26,7 +27,15 @@ Item {
     // launcher open, and its wallpaper feeds the Wallpaper tile's thumbnail.
     property var desktop: null
 
-    function openAt(x, y) { shell.px = x; shell.py = y; shell.open = true; }
+    property var pendingFolderPoint: null
+    property var pendingApplicationPoint: null
+    property string page: ""
+    function openAt(x, y) {
+        menu.pendingFolderPoint = null;
+        menu.pendingApplicationPoint = null;
+        menu.page = "";
+        shell.px = x; shell.py = y; shell.open = true;
+    }
     function close() { shell.open = false; }
 
     // The launcher and the Stage Editor open on the monitor the menu is on: the
@@ -48,11 +57,27 @@ Item {
         menu.close();
     }
     function newFolder() {
-        const openX = shell.px;
-        const openY = shell.py;
+        menu.pendingFolderPoint = Qt.point(shell.px, shell.py);
         menu.close();
-        if (menu.desktop)
-            menu.desktop.newDesktopFolder(openX, openY);
+    }
+    function finishNewFolder() {
+        const point = menu.pendingFolderPoint;
+        menu.pendingFolderPoint = null;
+        if (point && menu.desktop)
+            menu.desktop.newDesktopFolder(point.x, point.y);
+    }
+    function newApplication() {
+        menu.pendingApplicationPoint = Qt.point(shell.px, shell.py);
+        menu.page = "application";
+    }
+    function leaveApplicationPage() {
+        menu.page = "";
+        shell.forceActiveFocus();
+    }
+    function finishNewApplication() {
+        menu.pendingApplicationPoint = null;
+        menu.leaveApplicationPage();
+        menu.close();
     }
     function changeWallpaper() {
         Services.ShellState.requestSurfaceActive("wallpaper", null);
@@ -105,34 +130,48 @@ Item {
 
     DesktopMenu {
         id: shell
-        cardWidth: powerActions.implicitWidth + Theme.s4 * 2
-        title: I18n.tr("Desktop")
+        cardWidth: menu.page === "application" ? 400 : powerActions.implicitWidth + Theme.s4 * 2
+        onShowingChanged: {
+            if (!showing && menu.pendingFolderPoint)
+                menu.finishNewFolder();
+            if (!showing)
+                menu.pendingApplicationPoint = null;
+        }
+        title: menu.page === "application" ? I18n.tr("New application") : I18n.tr("Desktop")
         gloss: "卓上"
-
         // ── quick row: the wallpaper picker and the launcher ──
         MenuQuick {
+            visible: menu.page === ""
             items: [
                 { icon: "wallpaper", label: I18n.tr("Wallpaper"), image: menu.wallpaperThumb, action: () => menu.changeWallpaper() },
                 { icon: "search", label: I18n.tr("Search"), action: () => menu.openSearch() }
             ]
         }
 
-        MenuSection {}
+        MenuSection { visible: menu.page === "" }
 
-        MenuRow { icon: "dashboard_customize"; label: I18n.tr("Edit desktop"); accent: true; onTriggered: menu.editDesktop() }
-        MenuRow { icon: "create_new_folder"; label: I18n.tr("New folder"); onTriggered: menu.newFolder() }
-        MenuRow { icon: "tune"; label: I18n.tr("Quick controls"); onTriggered: menu.quickControls() }
+        MenuRow { visible: menu.page === ""; icon: "dashboard_customize"; label: I18n.tr("Edit desktop"); accent: true; onTriggered: menu.editDesktop() }
+        MenuRow { visible: menu.page === ""; icon: "create_new_folder"; label: I18n.tr("New folder"); onTriggered: menu.newFolder() }
+        MenuRow {
+            visible: menu.page === ""
+            icon: "add_to_home_screen"
+            label: I18n.tr("New application")
+            closeOnTrigger: false
+            onTriggered: menu.newApplication()
+        }
+        MenuRow { visible: menu.page === ""; icon: "tune"; label: I18n.tr("Quick controls"); onTriggered: menu.quickControls() }
         // iRiS conveniences: Studio and Edit iRiS on the iris bar style only. On
         // every other style they hide, and the Column skips them with no gap.
-        MenuRow { visible: menu.iris; icon: "palette"; label: I18n.tr("Studio"); onTriggered: menu.openIrisStudio() }
-        MenuRow { visible: menu.iris; icon: "edit"; label: I18n.tr("Edit Shima"); onTriggered: menu.editIris() }
+        MenuRow { visible: menu.page === "" && menu.iris; icon: "palette"; label: I18n.tr("Shima Studio"); onTriggered: menu.openIrisStudio() }
+        MenuRow { visible: menu.page === "" && menu.iris; icon: "edit"; label: I18n.tr("Edit Shima"); onTriggered: menu.editIris() }
 
-        MenuSection {}
-        MenuRow { icon: "settings"; label: I18n.tr("Settings"); accent: true; closeOnTrigger: false; onTriggered: menu.openSettings() }
-        MenuRow { icon: "refresh"; label: I18n.tr("Reload shell"); closeOnTrigger: false; onTriggered: menu.refreshShell() }
+        MenuSection { visible: menu.page === "" }
+        MenuRow { visible: menu.page === ""; icon: "settings"; label: I18n.tr("General settings"); accent: true; closeOnTrigger: false; onTriggered: menu.openSettings() }
+        MenuRow { visible: menu.page === ""; icon: "refresh"; label: I18n.tr("Reload desktop"); closeOnTrigger: false; onTriggered: menu.refreshShell() }
 
-        MenuSection {}
+        MenuSection { visible: menu.page === "" }
         MenuQuick {
+            visible: menu.page === ""
             id: powerActions
             columns: 3
             items: [
@@ -140,6 +179,17 @@ Item {
                 { icon: "restart_alt", label: I18n.tr("Reboot"), action: () => menu.confirmSessionAction("reboot") },
                 { icon: "power_settings_new", label: I18n.tr("Power off"), action: () => menu.confirmSessionAction("shutdown") }
             ]
+        }
+
+        StageShortcuts.DesktopShortcutAppPicker {
+            visible: menu.page === "application"
+            width: 368
+            screenName: menu.activeMonitor()
+            folderId: ""
+            targetX: menu.pendingApplicationPoint ? menu.pendingApplicationPoint.x : NaN
+            targetY: menu.pendingApplicationPoint ? menu.pendingApplicationPoint.y : NaN
+            onApplicationAdded: menu.finishNewApplication()
+            onDone: menu.leaveApplicationPage()
         }
     }
 }

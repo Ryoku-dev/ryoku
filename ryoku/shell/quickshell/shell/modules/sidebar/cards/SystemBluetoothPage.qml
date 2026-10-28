@@ -16,8 +16,8 @@ Item {
     signal backRequested()
 
     readonly property var adapter: Bluetooth.defaultAdapter
-    readonly property bool adapterAvailable: root.adapter !== null
-    readonly property bool adapterEnabled: root.adapterAvailable && root.adapter.enabled
+    readonly property bool adapterAvailable: BluetoothPower.available
+    readonly property bool adapterEnabled: root.adapter !== null && root.adapter.enabled
     readonly property bool scanning: root.adapterEnabled && root.adapter.discovering
     property var discoveryAdapter: null
     property string busyAddress: ""
@@ -369,7 +369,8 @@ Item {
                     spacing: Tokens.s1 * root.s
                     Text {
                         width: parent.width
-                        text: !root.adapterAvailable ? I18n.tr("No Bluetooth hardware")
+                        text: BluetoothPower.blocked ? I18n.tr("Bluetooth is blocked")
+                            : !root.adapterAvailable ? I18n.tr("No Bluetooth hardware")
                             : !root.adapterEnabled ? I18n.tr("Bluetooth is off")
                             : root.connectedDevices.length === 1 ? BtLink.label(root.connectedDevices[0])
                             : root.connectedDevices.length > 1 ? I18n.tr("%1 devices connected").arg(root.connectedDevices.length)

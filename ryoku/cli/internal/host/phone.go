@@ -18,7 +18,6 @@ var phoneBasePackages = []string{
 	"avahi",
 	"python-pillow",
 	"v4l2loopback-dkms",
-	"linux-headers",
 }
 
 const (
@@ -83,14 +82,21 @@ func (a *App) Phone(args []string) int {
 func (a *App) phonePackages(manager PackageManager) []string {
 	packages := append([]string{}, phoneBasePackages...)
 	if manager == Pacman {
-		result := a.query("pacman", "-Qqo", "/usr/lib/modules")
-		if result.Code == 0 {
-			for _, kernel := range strings.Fields(result.Output) {
-				if strings.HasPrefix(kernel, "linux-cachyos") && !strings.Contains(kernel, "headers") {
+		modules, err := os.ReadDir(a.cfg.KernelModulesDir)
+		if err == nil {
+			for _, module := range modules {
+				pkgbase, err := os.ReadFile(filepath.Join(a.cfg.KernelModulesDir, module.Name(), "pkgbase"))
+				if err != nil {
+					continue
+				}
+				kernel := strings.TrimSpace(string(pkgbase))
+				if strings.HasPrefix(kernel, "linux") && !strings.ContainsAny(kernel, " \t\r\n/") {
 					packages = append(packages, kernel+"-headers")
 				}
 			}
 		}
+	} else {
+		packages = append(packages, "linux-headers")
 	}
 	seen := make(map[string]bool, len(packages))
 	out := make([]string, 0, len(packages))

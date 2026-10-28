@@ -31,36 +31,45 @@ Item {
         SessionActions.run(action);
     }
 
-    Column {
-        id: overview
-        anchors.left: parent.left
-        anchors.right: parent.right
+    Flickable {
+        id: overviewScroll
+        anchors.fill: parent
         visible: root.currentPage === "controls"
-        spacing: Tokens.s3 * root.s
+        clip: true
+        contentWidth: width
+        contentHeight: overview.implicitHeight + (overview.implicitHeight > height ? Tokens.s2 * root.s : 0)
+        boundsBehavior: Flickable.StopAtBounds
+        acceptedButtons: Qt.LeftButton
 
-        Repeater {
-            model: SidebarState.visibleSections
+        Column {
+            id: overview
+            width: overviewScroll.width
+            spacing: Tokens.s3 * root.s
 
-            delegate: Loader {
-                id: sectionLoader
-                required property var modelData
-                width: overview.width
-                active: root.currentPage === "controls"
-                sourceComponent: modelData.id === "vitals" ? vitalsSection
-                    : modelData.id === "connections" ? connectionsSection
-                    : modelData.id === "powerProfile" ? profileSection
-                    : modelData.id === "media" ? mediaSection
-                    : modelData.id === "levels" ? levelsSection
-                    : bottomSection
-                height: item ? item.implicitHeight : 0
-                opacity: active ? 1 : 0
-                transform: Translate { y: sectionLoader.active ? 0 : Tokens.s2 * root.s }
+            Repeater {
+                model: SidebarState.visibleSections
 
-                Behavior on opacity {
-                    enabled: root.motionAllowed
-                    NumberAnimation {
-                        duration: SidebarState.motionDuration(Tokens.swap)
-                        easing.type: Tokens.ease
+                delegate: Loader {
+                    id: sectionLoader
+                    required property var modelData
+                    width: overview.width
+                    active: root.currentPage === "controls"
+                    sourceComponent: modelData.id === "vitals" ? vitalsSection
+                        : modelData.id === "connections" ? connectionsSection
+                        : modelData.id === "powerProfile" ? profileSection
+                        : modelData.id === "media" ? mediaSection
+                        : modelData.id === "levels" ? levelsSection
+                        : bottomSection
+                    height: item ? item.implicitHeight : 0
+                    opacity: active ? 1 : 0
+                    transform: Translate { y: sectionLoader.active ? 0 : Tokens.s2 * root.s }
+
+                    Behavior on opacity {
+                        enabled: root.motionAllowed
+                        NumberAnimation {
+                            duration: SidebarState.motionDuration(Tokens.swap)
+                            easing.type: Tokens.ease
+                        }
                     }
                 }
             }

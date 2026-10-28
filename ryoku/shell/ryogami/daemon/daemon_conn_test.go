@@ -354,3 +354,28 @@ func TestPickerOpenDuringLaunchIsDeliveredAfterSubscribe(t *testing.T) {
 		t.Fatal("subscribed picker did not report ready")
 	}
 }
+
+func TestPickerToggleSurvivesFullEventQueue(t *testing.T) {
+	d := &daemon{events: newEventHub()}
+	events := d.events.subscribe()
+	d.events.setControl(events)
+	defer d.events.unsubscribe(events)
+
+	for i := range cap(events) {
+		d.broadcast("ryogami.wall.cached", map[string]interface{}{"index": i})
+	}
+	d.broadcast("ryogami.wall.toggle", map[string]interface{}{})
+
+	found := false
+	for range cap(events) {
+		var ev capturedEvent
+		if line := <-events; json.Unmarshal([]byte(line), &ev) != nil {
+			t.Fatalf("invalid event: %s", line)
+		} else if ev.Event == "ryogami.wall.toggle" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("picker toggle was dropped behind a full subscriber queue")
+	}
+}

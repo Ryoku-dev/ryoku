@@ -1,13 +1,14 @@
 // Network panel DNS switch, authorized without a password so the provider
-// buttons apply in one click. Scoped to any ryoku-dns helper (basename match, so
-// a dev checkout's non-/usr/bin path still authorizes) for an active local user
-// in the wheel group. The helper only writes a NetworkManager
-// global-dns drop-in (a fixed provider list or validated addresses) and reverts
-// to DHCP, the same network control NetworkManager already grants the active
-// user, so a passwordless grant is safe.
+// buttons apply in one click. Scoped to the exact installed helper path: a
+// basename match would let any executable placed at a path ending in
+// /ryoku-dns run as root (local privilege escalation). Active local wheel
+// users only. The helper writes a NetworkManager global-dns drop-in (a fixed
+// provider list or validated addresses) and reverts to DHCP, the same network
+// control NetworkManager already grants the active user, so a passwordless
+// grant is safe.
 polkit.addRule(function (action, subject) {
     if (action.id === "org.freedesktop.policykit.exec" &&
-        /(^|\/)ryoku-dns$/.test(action.lookup("program")) &&
+        action.lookup("program") === "/usr/bin/ryoku-dns" &&
         subject.local && subject.active && subject.isInGroup("wheel")) {
         return polkit.Result.YES;
     }

@@ -232,6 +232,15 @@ Item {
             }
         }
         Connections {
+            target: BluetoothPower
+            function onAvailableChanged() {
+                window.rebuildBtData(false);
+            }
+            function onBlockedChanged() {
+                window.rebuildBtData(false);
+            }
+        }
+        Connections {
             target: Bluetooth.defaultAdapter || null
             ignoreUnknownSignals: true
             function onEnabledChanged() {
@@ -1294,7 +1303,8 @@ Item {
         let adapter = Bluetooth.defaultAdapter;
         if (!adapter) {
             window.btMissCount++;
-            if (window.btMissCount >= 2) window.btPresent = false;
+            window.btPresent = BluetoothPower.available;
+            window.btPower = "off";
             if (!isCache) validateActiveMode();
             return;
         }

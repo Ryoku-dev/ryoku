@@ -131,6 +131,7 @@ type daemon struct {
 	failMu       sync.Mutex
 	lastFail     map[string]string // component -> last line it died with
 	voiceMu      sync.Mutex        // serializes voice (Super+`) toggles
+	voiceWatchMu sync.Mutex        // allows only one live voxtype follow stream
 	voiceOn      bool              // dictation active; guarded by voiceMu
 	voiceStop    chan struct{}     // reaps the live voxtype state stream; nil when none
 	prompter     *prompter         // GNOME keyring system prompter (nil when unavailable)
@@ -1758,12 +1759,19 @@ func (d *daemon) voice() string {
 	defer d.voiceMu.Unlock()
 	if !dictationReady() {
 		d.voiceOn = false
+		if d.voiceStop != nil {
+			close(d.voiceStop)
+			d.voiceStop = nil
+		}
 		d.ensure("shell")
 		return shellIpc("openSurface", d.activeMonitor(), "voice-off")
 	}
 	d.voiceOn = !d.voiceOn
 	if d.voiceOn {
 		d.ensure("shell")
+		if d.voiceStop != nil {
+			close(d.voiceStop)
+		}
 		stop := make(chan struct{})
 		d.voiceStop = stop
 		go d.watchVoice(stop)

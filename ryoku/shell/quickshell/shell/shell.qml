@@ -63,6 +63,19 @@ ShellRoot {
     // its outer Store Scene exists; a nested load error must still fall back.
     readonly property bool gokkoRunning: Config.barStyle === "gokko"
         && BarProducts.gokkoReady
+    property var desktopLayersReady: ({})
+    function markDesktopLayerReady(name) {
+        const next = Object.assign({}, desktopLayersReady);
+        next[name] = true;
+        desktopLayersReady = next;
+    }
+    readonly property bool docksMayMount: {
+        const screens = ShellState.screens;
+        if (!screens.length) return false;
+        for (const screen of screens)
+            if (!desktopLayersReady[screen.name]) return false;
+        return true;
+    }
     // One deferred-build wave for the cheap event-driven surfaces (the OSDs and
     // the notification column), armed 1.5 s into boot so a keypress or an
     // arriving toast never waits on a component build. Everything heavier is
@@ -199,6 +212,7 @@ ShellRoot {
             Desktop {
                 id: desktop
                 screen: perScreen.modelData
+                onSurfaceReadyChanged: if (surfaceReady) root.markDesktopLayerReady(perScreen.modelData.name)
                 active: true
                 widgetsEnabled: Tokens.widgetsEnabledFor(perScreen.modelData.name)
                     && !root.gokkoRunning
@@ -229,30 +243,16 @@ ShellRoot {
                 }
             }
 
-            // Stage now renders entirely inside the desktop surface (one stack:
-            // backdrop, layers, widgets), so there is no separate Background
-            // surface here (docs/stage.md). A silent visualizer is unloaded on
-            // every output when the performance policy asks for it; live audio
-            // re-creates the surfaces immediately. Placement runs in the Stage
-            // Editor now: the desktop hosts the look while the mode frames this
-            // monitor, so this surface exists for the plain and overlay cases only.
+            // Only Above windows needs a separate surface; the plain look stays on the desktop.
             LazyLoader {
                 id: vizLoader
                 activeAsync: VizCfg.Config.enabled && Perf.visualizerResident
+                    && !desktop.hostsVisualizer && !desktop.plainVisualizer
                 Visualizer {
                     id: perScreenViz
                     screen: perScreen.modelData
-                    mode: !VizCfg.Config.enabled ? "off"
-                        : (perScreen.st && perScreen.st.visualizerOverlay ? "overlay" : "desktop")
-                    // The desktop hosts the visualizer behind the cut-outs while the
-                    // stage is on, and inside the lifted desktop while the Stage
-                    // Editor frames this monitor; this surface steps aside (cava
-                    // keeps running). A rebuilt monitor stack (DPMS off/on, a lid
-                    // close/open) starts with no wallpaper frame, so
-                    // hostsVisualizer briefly reads false even for a stage wallpaper:
-                    // stay suppressed until the frame lands, or the surface maps
-                    // full-screen and pulses for a few seconds on every resume.
-                    suppressed: desktop.hostsVisualizer || !wallpaper.reloadReady
+                    mode: "overlay"
+                    suppressed: !wallpaper.reloadReady
                 }
             }
 
@@ -280,7 +280,9 @@ ShellRoot {
                     active: controlsLoader.showNow
                 }
             }
-            Timer { id: controlsHold; interval: SidebarState.exitDuration + 48 }
+            // The controls tree is expensive to construct; keep it across ordinary
+            // toggles while its active-gated probes and surfaces remain stopped.
+            Timer { id: controlsHold; interval: 15000 }
 
 
             LazyLoader {
@@ -323,7 +325,7 @@ ShellRoot {
             UniversalDockHost {
                 id: dockLoader
                 screen: perScreen.modelData
-                surfaceVisible: !root.gokkoRunning
+                surfaceVisible: !root.gokkoRunning && desktop.surfaceReady
             }
 
             // The dock's right-click context menu: a full-screen overlay on the
@@ -567,7 +569,7 @@ ShellRoot {
     // The ii host publishes actions and mounts its auxiliary surfaces only for
     // the selected, enabled design. Other docks do not instantiate the port.
     LazyLoader {
-        active: !root.gokkoRunning
+        active: !root.gokkoRunning && root.docksMayMount
             && Dock.design === "ii" && Dock.cfg("enabled", false)
         LazyLoader {
             activeAsync: true
@@ -719,6 +721,8 @@ ShellRoot {
     // device restore + ddc prewarm and re-arming the persisted Keep-Awake /
     // Game Mode external inhibitors.
     Component.onCompleted: {
+        Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+            (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/");
         Devices.restore();
         root.syncCaffeine(Flags.keepAwake ? "start" : "stop");
         if (Flags.gameMode)

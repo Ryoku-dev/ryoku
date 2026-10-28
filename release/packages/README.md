@@ -35,6 +35,10 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
   few commits past `v0.8.2` because that release regressed override-redirect
   popup focus (Steam and Wine menus close on sight under niri). A pinned commit,
   not a monorepo build; a later official `0.8.3` sorts above it and takes over.
+- `xdg-desktop-portal-hyprland` -- the Hyprland portal pinned ten commits past
+  `v1.4.1`: it preserves the screencopy callback across DMA-BUF renegotiation
+  and bounds PipeWire stream startup instead of hanging forever. A later
+  official `1.4.2` sorts above it and takes over.
 - `ryoku-desktop` -- the umbrella. Depends on the packages above plus the user-facing
   desktop runtime, lays the base configuration under `/usr/share/ryoku/config`,
   and installs the helper scripts (`ryoku-cmd-*`, the hardware `ryoku-*`,

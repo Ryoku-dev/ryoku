@@ -48,11 +48,49 @@ Rectangle {
     property string pendingRoute: ""
     onNavigationCategoriesChanged: if (app.pendingRoute !== "" && app.validRoute(app.pendingRoute)) app.openRoute(app.pendingRoute)
 
-    readonly property var searchableItems: Store.items
+    readonly property bool remoteScope: searchOpen && searchContext !== null
+            && String(searchContext.categoryID || "") === "flatpak"
+    readonly property string remoteQuery: remoteScope ? query.trim() : ""
+    readonly property var remoteMatches: {
+        const matches = {};
+        if (remoteScope && Store.remoteResultQuery === remoteQuery)
+            Store.remoteItems.forEach(item => matches[StoreLogic.itemKey(item)] = true);
+        return matches;
+    }
+    readonly property var remoteExtras: {
+        if (!remoteScope || Store.remoteResultQuery !== remoteQuery)
+            return [];
+        const known = {};
+        Store.items.forEach(item => known[StoreLogic.itemKey(item)] = true);
+        return Store.remoteItems
+                .filter(item => !known[StoreLogic.itemKey(item)])
+                .map(item => {
+                    const copy = {};
+                    Object.keys(item).forEach(key => copy[key] = item[key]);
+                    copy.remoteMatch = true;
+                    return copy;
+                });
+    }
+    onRemoteQueryChanged: {
+        Store.clearRemote();
+        if (remoteQuery.length < 2)
+            remoteDebounce.stop();
+        else
+            remoteDebounce.restart();
+    }
+    Timer {
+        id: remoteDebounce
+        interval: 350
+        onTriggered: if (app.remoteQuery.length >= 2) Store.searchRemote("flatpak", app.remoteQuery)
+    }
+
+    readonly property var searchableItems: Store.items.concat(app.remoteExtras)
             .filter(item => String(item.category || "") !== "omarchy-plugins" || app.nomarchyActive)
             .map(item => {
                 const copy = {};
                 Object.keys(item).forEach(key => copy[key] = item[key]);
+                if (app.remoteMatches[StoreLogic.itemKey(item)] === true)
+                    copy.remoteMatch = true;
                 const category = Store.category(item.category);
                 copy.categoryName = StoreLogic.categoryName(item, category);
                 copy.searchIndex = StoreLogic.searchText(copy);
@@ -111,7 +149,9 @@ Rectangle {
     readonly property string pageGroup: searchOpen ? I18n.tr("SEARCH")
             : (view === "library" ? I18n.tr("YOUR STORE") : I18n.tr("BROWSE"))
     readonly property string pageDescription: searchOpen
-            ? I18n.tr("Results from every category, with installed state kept in view.")
+            ? (remoteScope
+               ? I18n.tr("Results from the whole of Flathub, with installed state kept in view.")
+               : I18n.tr("Results from every category, with installed state kept in view."))
             : (view === "library"
                ? (updateCount > 0
                   ? I18n.tr("%1 installed pieces, %2 ready to update.").arg(libraryCount).arg(updateCount)
@@ -491,7 +531,7 @@ Rectangle {
             spacing: Tokens.s1
 
             Text {
-                text: "力  " + app.pageGroup
+                text: UiPreferences.brandMark("力") + "  " + app.pageGroup
                 color: Tokens.inkDim
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fMicro
@@ -810,9 +850,13 @@ Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
             caption: app.view === "library"
                     ? I18n.tr("Installed pieces appear here, with updates called out in place.")
-                    : (app.query !== ""
-                       ? I18n.tr("No products match this search.")
-                       : I18n.tr("Nothing has been published to this collection yet."))
+                    : (app.remoteScope && Store.remoteSearching
+                       ? I18n.tr("Searching Flathub.")
+                       : (app.remoteScope && Store.remoteError !== ""
+                          ? Store.remoteError
+                          : (app.query !== ""
+                             ? I18n.tr("No products match this search.")
+                             : I18n.tr("Nothing has been published to this collection yet."))))
         }
 
         Btn {

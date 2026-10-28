@@ -13,6 +13,8 @@ import (
 
 const previewCommandTimeout = 10 * time.Second
 
+var previewColorGenerator = matugenPreviewColors
+
 func matugenPreviewColors(img string) (map[string]string, error) {
 	if img == "" {
 		return nil, fmt.Errorf("no image to preview")
@@ -54,7 +56,7 @@ func (d *daemon) previewColorsFor(key string) (map[string]string, error) {
 	}
 	img := entry.Thumb
 	if img == "" {
-		return nil, fmt.Errorf("no thumbnail for %q", key)
+		img = entry.Path
 	}
 	previewMu.Lock()
 	if c, ok := previewCache[key]; ok && c.mtime == entry.Mtime {
@@ -74,7 +76,7 @@ func (d *daemon) previewColorsFor(key string) (map[string]string, error) {
 	}
 	previewMu.Unlock()
 
-	colors, err := matugenPreviewColors(img)
+	colors, err := previewColorGenerator(img)
 	if err != nil {
 		return nil, err
 	}

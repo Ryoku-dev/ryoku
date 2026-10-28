@@ -463,7 +463,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                text: "力"; color: Tokens.ink; font.family: Tokens.jp
+                text: UiPreferences.brandMark("力"); color: Tokens.ink; font.family: Tokens.jp
                 font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter
             }
             Text {
@@ -1145,7 +1145,7 @@ Item {
                 Row {
                     spacing: Tokens.s2
                     Text {
-                        text: pg.undone ? "空" : "力"
+                        text: pg.undone ? UiPreferences.text("空", "EMPTY") : UiPreferences.brandMark("力")
                         color: pg.undone ? Tokens.inkDim : Tokens.sun
                         font.family: Tokens.jp; font.pixelSize: Tokens.fHero
                         anchors.verticalCenter: parent.verticalCenter

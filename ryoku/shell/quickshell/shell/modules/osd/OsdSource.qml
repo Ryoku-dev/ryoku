@@ -105,7 +105,10 @@ QtObject {
 
     property Connections audioEvents: Connections {
         target: root.audio
-        function onVolumesChanged() { root.flash(false); }
+        function onVolumesChanged() {
+            if (!root.isMic || (root.audio && OsdFeed.acceptsMicVolume(root.audio.volume)))
+                root.flash(false);
+        }
         function onMutedChanged() { root.flash(false); }
     }
 
@@ -117,6 +120,10 @@ QtObject {
     property Connections previewEvents: Connections {
         target: root.isVolume ? OsdFeed : null
         function onPreviewSeqChanged() { root.flash(true); }
+    }
+    property Connections micRequests: Connections {
+        target: root.isMic ? OsdFeed : null
+        function onMicRequested() { root.flash(true); }
     }
 
     // KeyboardLayout only carries the layout name; the old signatureChanged

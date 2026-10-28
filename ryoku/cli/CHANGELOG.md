@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Phone installs use headers for the installed kernels, not driver modules.**
+  Pacman reads each kernel's pkgbase and no longer adds stock headers on systems
+  without the stock kernel (`internal/host/phone.go`, `internal/host/phone_test.go`).
 - **Doctor stops reporting user service activation after it is fixed.** The user
   service record is now saved even when nothing needs enabling
   (`internal/host/service_manifest.go`).

@@ -261,8 +261,12 @@ func defaultBundleStatus(ctx context.Context, overlay string) bundleStatus {
 }
 
 // launchBundleInstall runs the actuator's bundle install in a floating kitty
-// terminal, detached into its own session so it owns the sudo prompt and
-// long-running output independently of this short-lived process.
+// terminal, in its own session so it owns the sudo prompt and long-running
+// output. It waits for that terminal to close: the store refreshes the
+// catalogue when the install really ends, not the instant kitty is spawned,
+// and an install-all queue runs one bundle at a time instead of a terminal
+// per item. The separate session keeps the install alive if the store closes
+// mid-run.
 func launchBundleInstall(id string, only []string) error {
 	args := []string{"--class", "ryostore", "-e", "ryostore-install", "install", "bundle", id}
 	if len(only) > 0 {
@@ -270,8 +274,5 @@ func launchBundleInstall(id string, only []string) error {
 	}
 	cmd := exec.Command("kitty", args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	return cmd.Process.Release()
+	return cmd.Run()
 }

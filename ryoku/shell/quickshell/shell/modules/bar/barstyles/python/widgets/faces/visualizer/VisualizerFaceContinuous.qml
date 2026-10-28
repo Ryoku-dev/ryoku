@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Shapes
 import Quickshell
 import Quickshell.Io
+import "../../../../../../visualizer/Singletons" as VizCfg
 import "../../../reusables"
 import "../../../"
 
@@ -46,6 +47,8 @@ Item {
         anchors.fill: parent
         active: root.isSubscribed
         continuous: true
+        color: VizCfg.Config.hasCustomColor ? VizCfg.Config.customColor : ThemeBackend.mauve
+        gain: VizCfg.Config.gain
         count: 64
         rise: 0.25
         fall: 0.12

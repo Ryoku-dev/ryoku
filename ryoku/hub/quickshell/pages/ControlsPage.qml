@@ -161,7 +161,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Tokens.s2
                 Rectangle { width: 16; height: Tokens.border; color: Tokens.ink; anchors.verticalCenter: parent.verticalCenter }
-                Text { text: "力"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: Tokens.fMicro; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: UiPreferences.brandMark("力"); color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: Tokens.fMicro; anchors.verticalCenter: parent.verticalCenter }
                 Text {
                     text: I18n.tr("DESKTOP")
                     color: Tokens.inkMuted

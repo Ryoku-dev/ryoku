@@ -11,19 +11,17 @@ Rectangle {
     property bool busy: false
 
     signal openRequested()
-    signal repairRequested()
+    signal installRequested()
     signal removeRequested()
 
+    readonly property var components: ((card.bundle.metadata || {}).items || [])
     readonly property int installedCount: Number(card.bundle.installedCount || 0)
-    // Every part, including those this system cannot have: the card reports
-    // those as unavailable rather than leaving them out of the bundle.
-    readonly property int totalCount: ((card.bundle.metadata || {}).items || []).length
-    readonly property int missingCount: Math.max(0, totalCount - installedCount)
-    readonly property var unavailableComponents: ((card.bundle.metadata || {}).items || [])
-        .filter(item => item.available === false && item.installed !== true)
-    readonly property int unavailableCount: card.unavailableComponents.length
-    readonly property int repairableMissingCount: Math.max(0,
-        card.missingCount - card.unavailableCount)
+    readonly property int totalCount: card.components.length
+    readonly property var requiredComponents: card.components.filter(item =>
+        item.tier !== "optional" && item.available !== false)
+    readonly property int installedRequiredCount: card.requiredComponents
+        .filter(item => item.installed === true).length
+    readonly property int missingCount: card.requiredComponents.length - card.installedRequiredCount
     readonly property string summary: card.bundle.summary || card.bundle.description
         || I18n.tr("Installed add-on bundle.")
 
@@ -178,9 +176,7 @@ Rectangle {
                 anchors.centerIn: parent
                 text: card.missingCount === 0
                     ? I18n.tr("Complete")
-                    : (card.unavailableCount === card.missingCount
-                        ? I18n.tr("%1 unavailable").arg(card.unavailableCount)
-                        : I18n.tr("%1 missing").arg(card.missingCount))
+                    : I18n.tr("%1 missing").arg(card.missingCount)
                 color: card.missingCount === 0 ? Tokens.inkOnBone : Tokens.inkMuted
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fTiny
@@ -194,11 +190,12 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             spacing: Tokens.s2
             Btn {
-                visible: card.repairableMissingCount > 0
+                visible: card.missingCount > 0
                 compact: true
-                text: card.busy ? I18n.tr("WORKING") : I18n.tr("REPAIR")
+                text: card.busy ? I18n.tr("WORKING")
+                    : card.installedRequiredCount === 0 ? I18n.tr("INSTALL") : I18n.tr("INSTALL MISSING")
                 armed: !card.busy
-                onAct: card.repairRequested()
+                onAct: card.installRequested()
             }
             Btn {
                 visible: card.installedCount > 0

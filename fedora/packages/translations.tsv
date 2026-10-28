@@ -79,9 +79,12 @@ hyprgrass	hyprgrass	hyprland	Ryoku-owned RPM.
 hypridle	hypridle	desktop	Provided by a restricted COPR.
 hyprland	hyprland	hyprland	Provided by a restricted COPR.
 hyprland-preview-share-picker	hyprland-preview-share-picker	hyprland	Ryoku-owned RPM.
+hyprlang	hyprlang	hyprland	Provided by a restricted COPR.
 hyprpicker	hyprpicker	desktop	Provided by a restricted COPR.
 hyprpolkitagent	hyprpolkitagent	hyprland	Provided by a restricted COPR.
 hyprsunset	hyprsunset	hyprland	Provided by a restricted COPR.
+hyprtoolkit	hyprtoolkit	hyprland	Provided by a restricted COPR.
+hyprutils	hyprutils	hyprland	Provided by a restricted COPR.
 imagemagick	ImageMagick	desktop	
 imgborders	imgborders	hyprland	Ryoku-owned RPM.
 inetutils	telnet	optional	
@@ -113,6 +116,7 @@ libnotify	libnotify	desktop
 libpulse	pulseaudio-libs pulseaudio-utils	desktop	
 libqalculate	libqalculate	desktop	
 librsvg	librsvg2-tools	desktop	
+libstdc++	libstdc++	hyprland	
 libusb	libusb1	optional	
 libva	libva	desktop	
 libvirt	libvirt	optional	
@@ -219,6 +223,7 @@ ryoku-shell	ryoku-shell	desktop	Ryoku-owned RPM.
 ryomanager	ryomanager	optional	Ryoku-owned RPM.
 ryotunes	ryotunes	optional	Ryoku-owned RPM.
 scrcpy	scrcpy	optional	Provided by a restricted COPR.
+sdbus-cpp	sdbus-cpp	hyprland	
 sddm	sddm	desktop	
 shaderc	glslc	desktop	
 skwd-paper-bin	skwd-paper-bin	desktop	Ryoku-owned RPM.
@@ -249,6 +254,7 @@ ttf-readex-pro	ttf-readex-pro	desktop	Ryoku-owned RPM.
 ttf-rubik-vf	google-rubik-fonts	desktop	
 udev	systemd-udev	desktop	
 upower	upower	desktop	
+util-linux-libs	util-linux-libs	hyprland	
 uv	uv	desktop	
 v4l2loopback-dkms	v4l2loopback v4l2loopback-dkms	optional	Provided by a restricted COPR.
 vdirsyncer	vdirsyncer	desktop	
@@ -274,6 +280,7 @@ wlsunset	wlsunset	desktop
 wpa_supplicant	wpa_supplicant	desktop	
 wtype	wtype	desktop	
 xcb-util-cursor	xcb-util-cursor	desktop	
+xdg-desktop-portal	xdg-desktop-portal	hyprland	
 xdg-desktop-portal-gnome	xdg-desktop-portal-gnome	desktop	
 xdg-desktop-portal-gtk	xdg-desktop-portal-gtk	desktop	
 xdg-desktop-portal-hyprland	xdg-desktop-portal-hyprland	hyprland	Provided by a restricted COPR.

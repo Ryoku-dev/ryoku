@@ -1,6 +1,118 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Shima and Python dock icons stay visible and clickable with the Shima bar.**
+  Their icon surfaces now stay above Shima's full-output chassis, and Python
+  reads each pinned app's bound entry before launching through the shared service
+  (`quickshell/{inir/modules/iris/dock,shell/modules/bar/barstyles/python/dock}/`).
+- **The system monitor stops warning every second on machines without a fan
+  sensor or GPU power reading.** It opened the missing sensor paths anyway on
+  each slow sample (`plugin/systemmonitor.cpp`). Contributed by SourceAura.
+- **Voice typing no longer leaves status followers inside the shell daemon.**
+  Ending dictation now kills and reaps its Voxtype status stream, consecutive
+  sessions cannot overlap, and holding the niri shortcut does not repeat the
+  toggle (`ipc/{daemon,voicewatch}.go`, `wm/niri/config_binds.go`).
+- **The wallpaper picker no longer misses Super+W behind a busy event queue.**
+  Picker controls displace an older progress event when a slow subscriber has
+  filled its buffer (`ryogami/daemon/topics.go`, `daemon.go`).
+- **Login opens straight into a ready desktop.** The boot cover now maps closed
+  behind the greeter curtain instead of replaying a shell-reload close over the
+  wallpaper while the shell starts (`quickshell/reload-cover/shell.qml`).
+- **Super+Escape controls reopen without rebuilding the whole sidebar.** The
+  hidden panel stays warm between ordinary toggles while its probes and surfaces
+  remain inactive (`quickshell/shell/shell.qml`).
+- **The ii dock paints immediately and auto-hide works above open windows.**
+  Island backgrounds no longer wait for an app-list refresh after shell startup,
+  and the edge reveal strip stays reachable over tiled, floating and maximised
+  windows (`quickshell/shell/modules/dock/ii/`).
+- **The launcher's Audio Visualizer stays behind apps and the dock.** The Media
+  action now uses the ordinary desktop mode; the separately named overlay
+  shortcut still raises it over windows on demand
+  (`quickshell/shell/modules/launcher/shared/providers/actions/catalog.js`).
+- **Music visualizers follow routed playback and react at normal volume.** The
+  shared feeds now capture the routed sink's monitor, adapt to quiet playback,
+  and apply gain consistently to every look (`plugin/cavafeed.cpp`,
+  `quickshell/shell/{services/AudioBars.qml,modules/visualizer/}`).
+- **Added visualizers keep their own look and selection.** Every instance now
+  has a stable saved identity, so adding or removing another no longer reuses
+  its number, retargets the editor, or hides it behind the wrong view
+  (`quickshell/shell/modules/{desktop,stage,visualizer}/`).
+- **Ryoshot sends annotated captures to a chosen KDE Connect device.** The
+  transfer uses private temporary files, reports failures, and cleans each file
+  after KDE Connect has accepted it. Contributed by Ronin-CK
+  (`quickshell/ryoshot/`).
+- **Updates no longer make open Ryoku surfaces reload a half-laid QML tree.**
+  Packaged shell tools stay on their loaded generation until their normal restart,
+  while checkout configs still hot-reload source edits (`quickshell/*/shell.qml`).
+- **Desktop application shortcuts can be added from the right-click menu.**
+  The existing installed-app picker places them on the clicked display, icon
+  settings choose single- or double-click opening, and Stage menus follow the
+  shared Ryoku language (`quickshell/{shell/modules/desktop,stage/}`).
+- **Creating desktop folders and application shortcuts returns input to the
+  desktop.** A selected icon now holds keyboard focus only while the pointer
+  remains over a shortcut and releases it before another app is clicked; folder
+  naming keeps its field focused, and the application search releases focus
+  when its picker closes
+  (`quickshell/{shell/modules/desktop,stage/modules/ii/background/shortcuts/}`).
+- **Japanese glosses can be hidden across the desktop.** The shared setting now
+  updates shell cards, menus, bar and launcher marks, wallpaper typography and
+  Ryogami live, while the default remains the existing Japanese treatment
+  (`quickshell/`, `ryogami/picker/qml/`, `../ui/`).
+- **Python bar notification and visualizer controls now share Ryoku settings.**
+  Do Not Disturb and notification sounds follow the shell, including custom
+  clips, volume and critical cues; visualizers follow the active colour and gain
+  (`quickshell/shell/modules/bar/barstyles/python/`).
+- **Bluetooth toggles can recover a radio that an older build left soft-blocked,**
+  even while BlueZ reports no adapter.
+- **Desktop widgets can be added on a second display from the Stage Editor.**
+  Switching displays keeps the editor connected to that display's widgets,
+  without changing the first display (`quickshell/stage/GlobalStates.qml`,
+  `quickshell/shell/modules/stage/StageEditorHost.qml`).
+- **Dock window and music previews stay open while the pointer crosses from the
+  dock into their controls.** The first trip gets a longer grace period; after
+  the card is reached, leaving still closes it promptly
+  (`quickshell/shell/modules/bar/popouts/`).
+- **Desktop session confirmation matches Ryoku's paper-and-ink menu.** Power off,
+  restart and log out now show a theme-aware action card with keyboard cancellation
+  and confirmation on every bar style (`quickshell/shell/modules/confirm/RyokuConfirmationDialog.qml`).
+- **Desktop frost blurs the wallpaper and widgets with a visualizer on.**
+  The plain visualizer stays sharp above the glass in the same desktop surface
+  (`quickshell/shell/modules/desktop/Desktop.qml`).
+- **Game Mode reports a failed compositor strip instead of showing On.** It
+  persists the request before the strip, and a failed restore no longer skips
+  the power, tune or Wi-Fi cleanup (`scripts/ryoku-cmd-game-mode`).
+- **The Ryoku dock can stay visible on empty workspaces.** Set this in Stage
+  Editor to keep an auto-hiding dock up on its own empty workspace, even when
+  another display has a focused window (`quickshell/shell/modules/dock/DockSurface.qml`,
+  `quickshell/stage/modules/ii/editMode/EditDockAppearancePage.qml`).
+- **The bar shows ethernet on machines with two network ports.** The daemon
+  read only the first device of each type, so an unplugged port listed ahead
+  of the connected one reported the link as down; a second Wi-Fi adapter had
+  the same problem. It now reports the connected device, and with nothing up
+  reaches a usable adapter first (`ipc/network.go`).
+- **Microphone level popups no longer follow app gain changes.** Shell controls
+  and explicit requests still show them; microphone mute and speaker keys and
+  knobs still show (`quickshell/shell/services/OsdFeed.qml`,
+  `quickshell/{shell/modules,inir/}`).
+- **Controls can scroll to the bottom on shorter displays.** The overview stays
+  inside its panel while the header remains in place (`quickshell/shell/modules/sidebar/ControlsBoard.qml`).
+- **Desktop visualizers reappear when added after removal.** The plain look
+  paints with the wallpaper instead of relying on a separate layer, while
+  the audio feed survives its surface being rebuilt
+  (`quickshell/shell/{shell.qml,modules/desktop/Desktop.qml,modules/visualizer/}`).
+- **Shima's desktop visualizer stays inside its card.** Its bars now follow
+  either the Shima plate or the Ryoku host's curved edges, even at small sizes
+  and loud playback (`quickshell/inir/modules/background/widgets/visualizer/VisualizerWidget.qml`,
+  `quickshell/shell/modules/desktop/iris/IrisCanvasProvider.qml`).
+- **Pinned dock apps open again and the dock sits behind normal windows.** Running
+  marks update as soon as a window opens, and Stage still shows the dock while editing
+  (`quickshell/shell/modules/dock/`, `quickshell/shell/services/{AppLaunch,Dock}.qml`).
+- **Music-reactive bars and visualizers hear music played through Easy Effects.** They
+  listen to the output the music actually plays into instead of only the default one
+  (`quickshell/shell/services/Audio.qml`).
+- **Music-reactive bars and visualizers always run in Performance mode.** They no
+  longer pause when Ryoku misses the playing app's audio stream
+  (`quickshell/shell/services/Perf.qml`).
 - **Settings save again when notifications sit bottom right.** That position was
   refused, which blocked every other change; notifications now follow the chosen
   position (`ipc/settings.go`, `modules/notifications/NotificationPopups.qml`).
@@ -13,6 +125,10 @@
 - Clipboard history and Starred can be navigated and acted on from the keyboard. Tab switches panes; arrows, Page Up/Down, Home/End and Ctrl+J/K or Ctrl+N/P move the selection; Enter copies, Ctrl/Alt+S toggles a star, and Delete removes an item.
 
 ### Fixed
+- **Image notifications keep their full body, actions and bottom edge visible.**
+  A thumbnail that finishes loading can no longer leave the popup surface at
+  the card's shorter pre-image height
+  (`quickshell/shell/modules/notifications/{NotificationCard,NotificationPopups}.qml`).
 - **Every spectrum visualizer reacts at ordinary playback levels.** The shared
   native feed's silence state now wakes desktop looks instead of an unreachable
   average-energy threshold (`quickshell/shell/modules/visualizer/{Motion,AuraMotion}.qml`).

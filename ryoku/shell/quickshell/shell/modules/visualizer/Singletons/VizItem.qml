@@ -19,6 +19,8 @@ QtObject {
         return (d && d[key] !== undefined && d[key] !== null) ? d[key] : def;
     }
 
+    readonly property string instanceId: "" + item.val("id", "")
+
     // The looks the renderer knows; the polar three sit at the tail so one index
     // decides the family, `frame` is the whole-screen bar ring, and `aura` is the
     // whole-screen edge field drawn by its own shader rather than the SDF one.

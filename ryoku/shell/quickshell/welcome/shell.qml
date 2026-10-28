@@ -3,6 +3,9 @@ import Quickshell
 import Ryoku.Ui.Singletons
 
 ShellRoot {
+    Component.onCompleted: Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+        (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/")
+
     FloatingWindow {
         id: win
 

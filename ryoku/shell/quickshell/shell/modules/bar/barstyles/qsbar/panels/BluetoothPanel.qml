@@ -223,7 +223,7 @@ PanelWindow {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            enabled: btPanel.adapter !== null
+                            enabled: BluetoothPower.available
                             onClicked: BluetoothPower.toggle()
                         }
                     }
@@ -242,7 +242,7 @@ PanelWindow {
             UiText {
                 visible: !btPanel.btOn
                 width: parent.width; horizontalAlignment: Text.AlignHCenter
-                text: I18n.tr("Bluetooth is off")
+                text: BluetoothPower.blocked ? I18n.tr("Bluetooth is blocked") : I18n.tr("Bluetooth is off")
                 color: Qt.rgba(root.ink.r, root.ink.g, root.ink.b, 0.35)
                 font.family: root.mono; font.pixelSize: 11
                 topPadding: 4; bottomPadding: 4

@@ -353,13 +353,14 @@ Item {
     readonly property string levelStyle: String(root.osdPrefs?.style ?? "capsule")
     readonly property bool levelFigure: root.osdPrefs?.figure ?? true
     readonly property bool osdKeyboard: (root.osdPrefs?.keyboard ?? true) && root.osdGameRule === "show"
-    function showFeedback(kind: string, requested = false): void {
+    function showFeedback(kind: string, requested = false, micVolumeChange = false, muteChange = false): void {
         if (Date.now() < GlobalStates.irisLevelQuietUntil) return
         if (!(Config.options?.iris?.modules?.osd ?? true) || root.expanded || root.fullscreenCovered
             || root.osdGameRule === "hide" || root.targetScreen?.name !== GlobalStates.focusedScreen?.name) return
+        if (kind === "mic" && micVolumeChange && !Ryoku.OsdFeed.acceptsMicVolume(Audio.micVolume)) return
         const mode = String(root.osdPrefs?.levels ?? "yours")
         const touched = kind === "brightness" ? Brightness.lastUserChange : Audio.lastUserChange
-        if (!requested && (mode === "off" || (mode === "yours" && Date.now() - touched > 1200))) return
+        if (!requested && (mode === "off" || (kind !== "volume" && !muteChange && mode === "yours" && Date.now() - touched > 1200))) return
         root.feedbackKind = kind
         feedbackTimer.restart()
     }
@@ -1069,12 +1070,12 @@ Item {
     Connections {
         target: Audio.sink?.audio ?? null
         function onVolumeChanged(): void { root.showFeedback("volume") }
-        function onMutedChanged(): void { root.showFeedback("volume") }
+        function onMutedChanged(): void { root.showFeedback("volume", false, false, true) }
     }
     Connections {
         target: Audio
-        function onMicVolumeChanged(): void { root.showFeedback("mic") }
-        function onMicMutedChanged(): void { root.showFeedback("mic") }
+        function onMicVolumeChanged(): void { root.showFeedback("mic", false, true) }
+        function onMicMutedChanged(): void { root.showFeedback("mic", false, false, true) }
     }
     Connections {
         target: Brightness

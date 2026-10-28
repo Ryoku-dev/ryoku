@@ -60,6 +60,17 @@ Singleton {
         arr.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         return arr;
     }
+    function lookupDesktopEntry(appId, includeNoDisplay = false) {
+        const id = String(appId ?? "").trim();
+        if (!id)
+            return null;
+        const plain = id.replace(/\.desktop$/i, "");
+        const exact = root.list.find(entry => entry.id === id || entry.id === plain);
+        if (exact)
+            return exact;
+        const match = DesktopEntries.heuristicLookup(id);
+        return match && (includeNoDisplay || !match.noDisplay) ? match : null;
+    }
 
     readonly property var preppedNames: list.map(a => ({
                 name: Fuzzy.prepare(`${a.name} `),

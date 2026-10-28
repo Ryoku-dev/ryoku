@@ -1190,6 +1190,32 @@ func TestLogin1OwnerLossInvalidatesReadiness(t *testing.T) {
 	}
 }
 
+func TestRemovedLogin1SessionStopsSleepLockRetries(t *testing.T) {
+	block := &fakeSleepInhibitor{heldState: true}
+	delay := &fakeSleepInhibitor{heldState: true}
+	cycle := &sleepCycle{
+		sessionID:    "old-session",
+		block:        block,
+		delay:        delay,
+		retryProtect: make(chan struct{}, 1),
+		logf:         func(string, ...any) {},
+	}
+	sigs := make(chan *dbus.Signal, 2)
+	sigs <- &dbus.Signal{
+		Name: login1Interface + ".SessionRemoved",
+		Path: login1Path,
+		Body: []any{"other-session", dbus.ObjectPath("/org/freedesktop/login1/session/other")},
+	}
+	sigs <- &dbus.Signal{
+		Name: login1Interface + ".SessionRemoved",
+		Path: login1Path,
+		Body: []any{"old-session", dbus.ObjectPath("/org/freedesktop/login1/session/old")},
+	}
+	if err := runSleepSignals(sigs, make(chan struct{}), cycle, true, time.Second); !errors.Is(err, errLogin1SessionRemoved) {
+		t.Fatalf("removed session returned %v", err)
+	}
+}
+
 func TestClosedLogin1SignalStreamRetainsHardBlockForReconnect(t *testing.T) {
 	block := &fakeSleepInhibitor{heldState: true}
 	delay := &fakeSleepInhibitor{heldState: true}

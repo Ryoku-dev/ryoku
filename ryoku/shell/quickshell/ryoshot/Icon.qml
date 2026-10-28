@@ -47,7 +47,8 @@ Item {
         "mic":       "M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1 -6 0z M6 12a6 6 0 0 0 12 0 M12 18v3 M9 21h6",
         "keyboard":  "M3 6h18v12H3z M6 9h1 M10 9h1 M14 9h1 M18 9h1 M6 12h1 M10 12h1 M14 12h1 M18 12h1 M7 15h10",
         "webcam":    "M5 7h14v10H5z M15 12a3 3 0 1 1 -6 0a3 3 0 0 1 6 0z M12 17v3 M9 20h6",
-        "folder":    "M3 6h7l2 2h9v11H3z"
+        "folder":    "M3 6h7l2 2h9v11H3z",
+        "phone":     "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V4a2 2 0 0 1 2 -2z M11 5h2 M12 18h.01"
     })
 
     readonly property string d: defs[name] !== undefined ? defs[name] : ""

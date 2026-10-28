@@ -1,6 +1,7 @@
 import QtQuick
 import shell.services
 import "../stage/Singletons" as StageCfg
+import stage as Stage
 import "../bar/barstyles/python/dock" as PythonDock
 import inir.modules.iris.dock as ShimaDock
 Item {
@@ -23,6 +24,8 @@ Item {
     // edits an invisible thing.
     readonly property bool stageEditing: StageCfg.StageSession.onMonitor(
         root.screen ? root.screen.name : "")
+        || (Stage.GlobalStates.editModeMonitor === (root.screen?.name ?? "")
+            && Stage.GlobalStates.editProgress > 0)
 
     width: 0
     height: 0

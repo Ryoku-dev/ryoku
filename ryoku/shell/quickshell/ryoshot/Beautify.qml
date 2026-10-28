@@ -61,7 +61,7 @@ Item {
     // (Ryoku Settings -> Shell -> Global). the stamped watermark and the editor
     // seals follow it; the user@host handle beside the watermark stays as-is.
     // empty/absent markText falls back to the 力 default, so this never seeds.
-    readonly property string mark: brandAdapter.markText.length > 0 ? brandAdapter.markText : "\u529b"
+    readonly property string mark: UiPreferences.brandMark(brandAdapter.markText)
     property bool composeOnly: false
     property string composeMode: ""
     property bool hd: false

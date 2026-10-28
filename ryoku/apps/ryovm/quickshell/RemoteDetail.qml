@@ -143,7 +143,7 @@ Item {
                         spacing: Tokens.s2
                         Row {
                             spacing: Tokens.s2
-                            Text { text: "鍵"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                            Text { visible: UiPreferences.showJapaneseGloss; text: "鍵"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
                             Text {
                                 text: I18n.tr("REACHABLE · PROBE BLOCKED")
                                 color: Tokens.ink

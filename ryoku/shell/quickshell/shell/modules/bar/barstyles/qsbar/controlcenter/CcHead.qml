@@ -60,7 +60,7 @@ Item {
             anchors.left: nameText.right
             anchors.leftMargin: head.tk ? head.tk.gap : 12
             anchors.baseline: nameText.baseline
-            text: head.gloss
+            text: UiPreferences.text(head.gloss, "")
             color: Tokens.inkFaint
             font.family: Tokens.jp
             font.pixelSize: Tokens.fBody

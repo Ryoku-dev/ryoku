@@ -138,39 +138,6 @@ Item {
     readonly property bool compactSurface: !root.raised
         && Spectrum.placementHolds === 0 && !root.hasPlacementPreview()
 
-    // One shared analyser serves every visualizer instance and follows the
-    // visualizer performance policy inside Spectrum.
-    Binding {
-        target: Spectrum
-        property: "active"
-        value: root.active || root.suppressed
-    }
-
-    // one shared cava for every instance, at the largest band count any of them
-    // wants; each Motion resamples down. changing it restarts cava.
-    Binding {
-        target: Spectrum
-        property: "bars"
-        value: Config.maxBars
-    }
-
-    // cava's framerate follows the render ceiling: no point sampling faster than
-    // the spectrum draws.
-    Binding {
-        target: Spectrum
-        property: "fps"
-        value: Config.fps
-    }
-
-    // The scope capture is tied to the same hard policy as the visualizer feed.
-    // Placement is the one override: a frozen line cannot be aimed.
-    Binding {
-        target: Waveform
-        property: "active"
-        value: (root.active || root.suppressed) && Config.anyLine
-            && (!Performance.visualizerFrozen || Spectrum.placementHolds > 0)
-    }
-
     PanelWindow {
         id: win
 
@@ -218,7 +185,8 @@ Item {
                 delegate: VisualizerView {
                     id: vizView
                     anchors.fill: parent
-                    cfg: VizItem { data: Config.dataAt(vizView.index) }
+                    instanceId: Config.idAt(vizView.index)
+                    cfg: VizItem { data: Config.dataById(vizView.instanceId) }
                 }
             }
         }

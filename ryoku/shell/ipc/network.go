@@ -418,19 +418,55 @@ func (n *networkState) snapshotState() *networkSnapshot {
 	}
 }
 
-// deviceOfType returns the path of the first device of the given NMDeviceType,
-// or "" if none. Service order (GetAllDevices) is preserved; no sort.
+// deviceOfType returns the preferred device of the given NMDeviceType, or ""
+// if none. Taking the first in service order let an unplugged port or idle
+// adapter listed ahead of the live one hide it.
 func (n *networkState) deviceOfType(devType uint32) dbus.ObjectPath {
 	var paths []dbus.ObjectPath
 	if n.obj(nmPath).Call(nmIface+".GetAllDevices", 0).Store(&paths) != nil {
 		return ""
 	}
+	var devs []nmDevice
 	for _, p := range paths {
 		if n.uintProp(n.obj(p), nmDeviceIface+".DeviceType") == devType {
-			return p
+			devs = append(devs, nmDevice{path: p, state: n.uintProp(n.obj(p), nmDeviceIface+".State")})
 		}
 	}
-	return ""
+	return preferredDevice(devs)
+}
+
+// nmDevice is one NetworkManager device and its NMDeviceState.
+type nmDevice struct {
+	path  dbus.ObjectPath
+	state uint32
+}
+
+// preferredDevice picks the highest-ranked device, the first in order on a
+// tie, or "" for an empty list.
+func preferredDevice(devs []nmDevice) dbus.ObjectPath {
+	best, bestRank := dbus.ObjectPath(""), -1
+	for _, d := range devs {
+		if r := deviceRank(d.state); r > bestRank {
+			best, bestRank = d.path, r
+		}
+	}
+	return best
+}
+
+// deviceRank orders NMDeviceStates: Connected, then Connecting, then
+// disconnected but usable (30), so a Wi-Fi scan or connect with nothing up
+// reaches a working adapter rather than an unavailable, unmanaged or failed one.
+func deviceRank(state uint32) int {
+	switch {
+	case connectivityFromState(state) == "Connected":
+		return 3
+	case connectivityFromState(state) == "Connecting":
+		return 2
+	case state == 30:
+		return 1
+	default:
+		return 0
+	}
 }
 
 // apPaths lists the access points the wifi device currently sees, in service

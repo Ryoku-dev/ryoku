@@ -40,7 +40,7 @@ func writeUserLayerRule(b *strings.Builder, r LayerRule) {
 	b.WriteString("layer-rule {\n")
 	fmt.Fprintf(b, "    match namespace=%s\n", kdlStr(r.Namespace))
 	if r.Opacity >= 0 && r.Opacity <= 1 {
-		fmt.Fprintf(b, "    opacity %s\n", kdlNum(r.Opacity))
+		fmt.Fprintf(b, "    opacity %s\n", kdlFloat(r.Opacity))
 	}
 	if r.CornerRadius >= 0 {
 		fmt.Fprintf(b, "    geometry-corner-radius %d\n", r.CornerRadius)
@@ -139,13 +139,13 @@ var builtinWindowRules = []builtinRule{
 func writeOpacityRules(b *strings.Builder, a Appearance) {
 	if a.ActiveOpacity > 0 && a.ActiveOpacity < 1 {
 		b.WriteString("window-rule {\n")
-		fmt.Fprintf(b, "    opacity %s\n", kdlNum(a.ActiveOpacity))
+		fmt.Fprintf(b, "    opacity %s\n", kdlFloat(a.ActiveOpacity))
 		b.WriteString("}\n\n")
 	}
 	if a.InactiveOpacity > 0 && a.InactiveOpacity < 1 {
 		b.WriteString("window-rule {\n")
 		b.WriteString("    match is-active=false\n")
-		fmt.Fprintf(b, "    opacity %s\n", kdlNum(a.InactiveOpacity))
+		fmt.Fprintf(b, "    opacity %s\n", kdlFloat(a.InactiveOpacity))
 		b.WriteString("}\n\n")
 	}
 }
@@ -185,13 +185,13 @@ func windowRuleProps(r WindowRule) []string {
 	case "norounding":
 		return []string{"geometry-corner-radius 0"}
 	case "opacity":
-		return []string{fmt.Sprintf("opacity %s", kdlNum(parseFloat(r.Value, 1)))}
+		return []string{fmt.Sprintf("opacity %s", kdlFloat(parseFloat(r.Value, 1)))}
 	case "workspace":
 		return []string{fmt.Sprintf("open-on-workspace %s", kdlStr(r.Value))}
 	case "noborder":
 		return []string{"border {", "    off", "}"}
 	case "columnwidth":
-		return []string{fmt.Sprintf("default-column-width { proportion %s; }", kdlNum(parseFloat(r.Value, 0.5)))}
+		return []string{fmt.Sprintf("default-column-width { proportion %s; }", kdlFloat(parseFloat(r.Value, 0.5)))}
 	case "minsize":
 		return sizeProps("min", r.Value)
 	case "maxsize":
@@ -258,7 +258,7 @@ func parseWH(s string) (int, int) {
 func appOverrideProps(a AppOverride) []string {
 	var props []string
 	if a.Opacity >= 0 && a.Opacity <= 1 {
-		props = append(props, fmt.Sprintf("opacity %s", kdlNum(a.Opacity)))
+		props = append(props, fmt.Sprintf("opacity %s", kdlFloat(a.Opacity)))
 	}
 	if a.Rounding >= 0 {
 		props = append(props, fmt.Sprintf("geometry-corner-radius %d", a.Rounding))

@@ -16,9 +16,14 @@ Singleton {
     // adapter) until `clear` or a restart, so every Bluetooth surface can be seen without the hardware.
     property string simulated: ""
     readonly property int _simulatedCount: /^\d+$/.test(root.simulated) ? parseInt(root.simulated) : 0
-    readonly property bool available: root.simulated.length > 0 ? root.simulated !== "none" : Bluetooth.adapters.values.length > 0
+    readonly property bool available: root.simulated.length > 0 ? root.simulated !== "none"
+        : Bluetooth.adapters.values.length > 0 || root.blocked
     readonly property bool enabled: root.simulated.length > 0 ? (root.simulated === "on" || /^\d+$/.test(root.simulated))
         : Bluetooth.defaultAdapter?.enabled ?? false
+    readonly property bool blocked: root.simulated.length === 0 && (root.softBlocked || root.hardBlocked
+        || Bluetooth.defaultAdapter?.state === BluetoothAdapterState.Blocked)
+    property bool softBlocked: false
+    property bool hardBlocked: false
     readonly property BluetoothDevice firstActiveDevice: root.simulated.length > 0 ? null
         : Bluetooth.defaultAdapter?.devices.values.find(device => device.connected) ?? null
     readonly property int activeDeviceCount: root.simulated.length > 0 ? root._simulatedCount
@@ -29,7 +34,7 @@ Singleton {
         target: "bluetooth"
 
         function status(): string {
-            const state = !root.available ? "no adapter" : !root.enabled ? "off"
+            const state = !root.available ? "no adapter" : root.blocked ? "blocked" : !root.enabled ? "off"
                 : root.activeDeviceCount > 0 ? `${root.activeDeviceCount} connected` : "on"
             return state + (root.simulated.length > 0 ? " (simulated)" : "")
         }
@@ -41,9 +46,28 @@ Singleton {
         }
     }
 
+    Connections {
+        target: Bluetooth
+        function onDefaultAdapterChanged(): void {
+            rfkillState.running = true;
+        }
+    }
+
+    Process {
+        id: rfkillState
+        command: ["rfkill", "-n", "-o", "TYPE,SOFT,HARD", "list", "bluetooth"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const rows = text.trim().split("\n").map(line => line.trim().split(/\s+/))
+                    .filter(fields => fields[0] === "bluetooth");
+                root.softBlocked = rows.some(fields => fields[1] === "blocked");
+                root.hardBlocked = rows.some(fields => fields[2] === "blocked");
+            }
+        }
+    }
+
     function setEnabled(on: bool): void {
-        if (!Bluetooth.defaultAdapter)
-            return;
         Quickshell.execDetached(["ryoku-bluetooth-power", on ? "on" : "off"]);
     }
 

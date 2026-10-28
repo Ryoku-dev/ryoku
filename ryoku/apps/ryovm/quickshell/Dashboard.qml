@@ -328,7 +328,7 @@ Item {
                             width: parent.width
                             text: resourceRow.modelData.title
                                   + (resourceRow.modelData.kind === "console" ? "  ⌁" : "")
-                                  + (resourceRow.modelData.auth === true ? "  鍵" : "")
+                                  + (resourceRow.modelData.auth === true ? UiPreferences.text("  鍵", "") : "")
                             elide: Text.ElideRight
                             color: sel ? Tokens.inkOnBone : Tokens.ink
                             font.family: Tokens.ui

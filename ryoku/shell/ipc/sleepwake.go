@@ -42,10 +42,11 @@ var (
 	// The released block fd is observed by logind asynchronously (it polls
 	// the fd); Suspend must not overtake that observation or login1 denies
 	// the daemon's own transaction. Poll its inhibitor list to confirm.
-	blockReleaseWait      = 2 * time.Second
-	blockReleasePoll      = 25 * time.Millisecond
-	errLogin1OwnerRestart = errors.New("login1 D-Bus owner changed")
-	errLogin1SignalLost   = errors.New("login1 signal stream ended")
+	blockReleaseWait        = 2 * time.Second
+	blockReleasePoll        = 25 * time.Millisecond
+	errLogin1OwnerRestart   = errors.New("login1 D-Bus owner changed")
+	errLogin1SignalLost     = errors.New("login1 signal stream ended")
+	errLogin1SessionRemoved = errors.New("login1 session removed")
 )
 
 type sleepInhibitor interface {
@@ -180,6 +181,7 @@ type sleepCycle struct {
 	guardKick       func()
 	resumeKick      func()
 	disconnected    <-chan struct{}
+	sessionID       string
 	sessionPath     dbus.ObjectPath
 	activeCheck     func(context.Context) (bool, error)
 	blockCleared    func(context.Context) (bool, error)
@@ -801,6 +803,12 @@ func runSleepSignals(
 				cycle.block.release()
 				return errLogin1OwnerRestart
 			}
+			if sig != nil &&
+				sig.Name == login1Interface+".SessionRemoved" &&
+				sig.Path == login1Path &&
+				len(sig.Body) >= 1 && sig.Body[0] == cycle.sessionID {
+				return errLogin1SessionRemoved
+			}
 			if active, changed := sessionActiveChange(sig, cycle.sessionPath); changed {
 				cycle.setSessionActive(active)
 				if cycle.protect() {
@@ -884,6 +892,15 @@ func (d *daemon) connectSleepGuard() (_ *connectedSleepGuard, err error) {
 	}
 	if err := conn.AddMatchSignal(
 		dbus.WithMatchSender(login1Bus),
+		dbus.WithMatchObjectPath(login1Path),
+		dbus.WithMatchInterface(login1Interface),
+		dbus.WithMatchMember("SessionRemoved"),
+		dbus.WithMatchArg(0, sessionID),
+	); err != nil {
+		return nil, fmt.Errorf("install session removal match: %w", err)
+	}
+	if err := conn.AddMatchSignal(
+		dbus.WithMatchSender(login1Bus),
 		dbus.WithMatchObjectPath(sessionPath),
 		dbus.WithMatchInterface(propertiesInterface),
 		dbus.WithMatchMember("PropertiesChanged"),
@@ -925,6 +942,7 @@ func (d *daemon) connectSleepGuard() (_ *connectedSleepGuard, err error) {
 		retryProtect: make(chan struct{}, 1),
 		disconnected: conn.Context().Done(),
 		sessionPath:  sessionPath,
+		sessionID:    sessionID,
 		activeCheck: func(ctx context.Context) (bool, error) {
 			value, err := login1SessionProperty(ctx, conn, sessionPath, "Active")
 			if err != nil {
@@ -1058,6 +1076,10 @@ func (d *daemon) superviseSleepWake() {
 		err = runSleepSignals(guard.sigs, d.quit, guard.cycle, true, sleepGuardRetry)
 		d.setSleepCycle(nil)
 		if err == nil {
+			guard.release()
+			return
+		}
+		if errors.Is(err, errLogin1SessionRemoved) {
 			guard.release()
 			return
 		}

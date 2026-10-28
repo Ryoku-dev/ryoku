@@ -384,7 +384,7 @@ Item {
 
     // A monumental face-kanji breathing behind the void (the Profile's own 横顔).
     Text {
-        visible: pg.blockVisible("watermark")
+        visible: UiPreferences.showJapaneseGloss && pg.blockVisible("watermark")
         opacity: pg.blockOpacity("watermark")
         anchors.verticalCenter: parent.verticalCenter
         anchors.horizontalCenter: parent.horizontalCenter
@@ -503,7 +503,9 @@ Item {
         y: 400
         spacing: Tokens.s3
         Repeater {
-            model: pg.f("text.verse", ["力", "美", "滅", "虚"])
+            model: UiPreferences.showJapaneseGloss
+                ? pg.f("text.verse", ["力", "美", "滅", "虚"])
+                : ["POWER", "BEAUTY", "DECAY", "VOID"]
             delegate: Text {
                 required property var modelData
                 text: modelData
@@ -677,7 +679,7 @@ Item {
                 spacing: Tokens.s2
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "力"
+                    text: UiPreferences.brandMark("力")
                     color: Tokens.inkDim
                     font.family: Tokens.jp
                     font.pixelSize: Tokens.fMicro
@@ -883,7 +885,7 @@ Item {
             { x: cx, sx: leadFrom, cy: firstY + gap, fx: 0.30, fy: 0.40, k: "gpu", name: "GPU", big: true },
             { x: cx, sx: leadFrom, cy: firstY + 2 * gap, fx: 0.28, fy: 0.54, k: "mem", name: I18n.tr("MEMORY"), big: true },
             { x: cx, sx: leadFrom, cy: firstY + 3 * gap, fx: 0.40, fy: 0.70, k: "net", name: I18n.tr("NETWORK"), big: true },
-            { x: 372, sx: 372, cy: firstY + Math.round(gap * 0.94), fx: 0.47, fy: 0.44, k: "frac", name: "亀裂 · " + I18n.tr("FRACTURE"), big: false }
+            { x: 372, sx: 372, cy: firstY + Math.round(gap * 0.94), fx: 0.47, fy: 0.44, k: "frac", name: UiPreferences.text("亀裂 · ", "") + I18n.tr("FRACTURE"), big: false }
         ]
 
         // Eyebrow for the live column, with the never-still pulse.
@@ -906,7 +908,7 @@ Item {
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "脈 · " + I18n.tr("LIVE TELEMETRY")
+                text: UiPreferences.text("脈 · ", "") + I18n.tr("LIVE TELEMETRY")
                 color: Tokens.inkMuted
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fTiny

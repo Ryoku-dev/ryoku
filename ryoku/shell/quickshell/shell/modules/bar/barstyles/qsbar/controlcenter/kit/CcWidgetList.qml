@@ -254,7 +254,7 @@ SettingCard {
                     }
                     UiText {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: wr.modelData.gloss || ""
+                        text: UiPreferences.text(wr.modelData.gloss || "", "")
                         color: Tokens.inkFaint
                         font.family: Tokens.jp
                         font.pixelSize: Tokens.fSmall

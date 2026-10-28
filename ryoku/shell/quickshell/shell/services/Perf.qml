@@ -120,7 +120,7 @@ Singleton {
         visualizerResidencyGrace.stop();
         if (root.visualizerHardFrozen) {
             root.visualizerResident = false;
-        } else if (root.sounding || !root.unloadVisualizerWhenSilent) {
+        } else if (root.sounding || !root.unloadVisualizerWhenSilent || root.tier === root.tierPerformance) {
             root.visualizerResident = true;
         } else if (root.visualizerResident) {
             visualizerResidencyGrace.restart();
@@ -142,6 +142,7 @@ Singleton {
     }
     onUnloadVisualizerWhenSilentChanged: root.syncVisualizerResidency()
     onVisualizerHardFrozenChanged: root.syncVisualizerResidency()
+    onTierChanged: root.syncVisualizerResidency()
 
     Timer { id: audioGrace; interval: 4000; onTriggered: root.audioIdle = true }
     Timer {
@@ -149,12 +150,14 @@ Singleton {
         interval: 30000
         onTriggered: {
             if (root.unloadVisualizerWhenSilent && !root.sounding
-                    && !root.visualizerHardFrozen)
+                    && !root.visualizerHardFrozen && root.tier !== root.tierPerformance)
                 root.visualizerResident = false;
         }
     }
-    readonly property bool visualizerFrozen: root.visualizerHardFrozen || audioIdle
-    readonly property bool pillFrozen: root.visualizerHardFrozen || audioIdle
+    // Performance keeps the analysers running even when playback detection misses a stream.
+    readonly property bool idleFreeze: audioIdle && root.tier !== root.tierPerformance
+    readonly property bool visualizerFrozen: root.visualizerHardFrozen || root.idleFreeze
+    readonly property bool pillFrozen: root.visualizerHardFrozen || root.idleFreeze
 
     // Ambient motion: the bar's stream drifting on a passive sine while the desktop
     // is SILENT (with audio playing it reacts regardless -- that is streamLive's

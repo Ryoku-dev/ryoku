@@ -18,17 +18,19 @@ import Quickshell.Io
  * first matugen run; they sit inside the band, so they render unchanged.
  */
 Singleton {
+    id: root
+    property var preview: ({})
     // The shell surface ramp, matched to the wallpaper's terminal background,
     // tone-mapped into the dark band (tiles lighter, recesses darker, hairline
     // borders lighter still).
-    readonly property color base:     shade(adapter.background)
+    readonly property color base:     shade(preview.background || adapter.background)
     readonly property color elevated: tone(base, 0.05)
     readonly property color deep:     tone(base, -0.03)
     readonly property color line:     tone(base, 0.14)
     // Alias kept for the blob fill in shell.qml.
     readonly property color surface:  base
-    readonly property color accent:   legible(vivid(adapter.color4), elevated, 3.0)
-    readonly property color accent2:  legible(vivid(adapter.color5), elevated, 3.0)
+    readonly property color accent:   legible(vivid(preview.color4 || preview.primary || adapter.color4), elevated, 3.0)
+    readonly property color accent2:  legible(vivid(preview.color5 || preview.secondary || adapter.color5), elevated, 3.0)
 
     // Tone-map the wallpaper background into the shell's dark band, hue kept.
     // HSV value inside [0.08, 0.26] passes through; pure black lifts to a soft
@@ -98,6 +100,17 @@ Singleton {
             property color background: "#16110b"
             property color color4: "#e2342a"
             property color color5: "#e83b30"
+        }
+    }
+    FileView {
+        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/dev/null") + "/ryoku-wall-preview.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.preview = JSON.parse(text() || "{}") || {} }
+            catch (e) { root.preview = {} }
         }
     }
 }

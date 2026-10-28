@@ -24,7 +24,7 @@ func writeLayout(b *strings.Builder, a Appearance, n Niri) {
 		fmt.Fprintf(b, "    background-color %s\n", c)
 	}
 	if n.DefaultColumnWidth > 0 {
-		fmt.Fprintf(b, "    default-column-width { proportion %s; }\n", kdlNum(n.DefaultColumnWidth))
+		fmt.Fprintf(b, "    default-column-width { proportion %s; }\n", kdlFloat(n.DefaultColumnWidth))
 	}
 	if strings.ToLower(strings.TrimSpace(n.DefaultColumnDisplay)) == "tabbed" {
 		b.WriteString("    default-column-display \"tabbed\"\n")
@@ -41,14 +41,14 @@ func writeLayout(b *strings.Builder, a Appearance, n Niri) {
 	if len(n.PresetColumnWidths) > 0 {
 		b.WriteString("    preset-column-widths {\n")
 		for _, w := range n.PresetColumnWidths {
-			fmt.Fprintf(b, "        proportion %s\n", kdlNum(w))
+			fmt.Fprintf(b, "        proportion %s\n", kdlFloat(w))
 		}
 		b.WriteString("    }\n")
 	}
 	if len(n.PresetWindowHeights) > 0 {
 		b.WriteString("    preset-window-heights {\n")
 		for _, h := range n.PresetWindowHeights {
-			fmt.Fprintf(b, "        proportion %s\n", kdlNum(h))
+			fmt.Fprintf(b, "        proportion %s\n", kdlFloat(h))
 		}
 		b.WriteString("    }\n")
 	}

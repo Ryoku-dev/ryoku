@@ -24,7 +24,10 @@ Scope {
         anchors { left: true; right: true; top: true; bottom: true }
         exclusionMode: ExclusionMode.Ignore
         WlrLayershell.namespace: "ryoku-dock-shima"
-        WlrLayershell.layer: root.stageEditing ? WlrLayer.Overlay : WlrLayer.Top
+        // The Shima chassis paints this dock's fused body in its Top-layer
+        // field. Keep the icon surface above that field regardless of which
+        // one finishes loading first or whether the shell was just restarted.
+        WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: dock.menuOpen ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         // The dock body is visually reparented through the Stage layer. Mapping
         // it to `rest` collapses to (0, 0), so build the compositor mask from

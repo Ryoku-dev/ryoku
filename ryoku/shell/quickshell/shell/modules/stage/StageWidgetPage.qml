@@ -255,9 +255,9 @@ Item {
     function routeVisualizer() {
         if (page.target.indexOf("visualizer:") !== 0)
             return false;
-        const index = Number(page.target.slice("visualizer:".length));
-        if (isFinite(index))
-            VizCfg.Config.setActive(index);
+        const instanceId = page.target.slice("visualizer:".length);
+        if (instanceId !== "")
+            VizCfg.Config.setActive(instanceId);
         StageCfg.StageSession.inspecting = "";
         StageCfg.StageSession.openSection("visualizer");
         return true;

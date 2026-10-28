@@ -4,6 +4,7 @@ import QtQuick.Window
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
+import "../../../../../../visualizer/Singletons" as VizCfg
 import "../../../reusables"
 import "../../../"
 
@@ -142,7 +143,9 @@ Item {
             ? "start"
             : ((root.visAlignment === "bottom" || root.visAlignment === "right") ? "end" : "center")
         count: root.visContinuous ? root.sampleCount : root.barCount
-        color: root.isCompact ? Qt.lighter(ThemeBackend.mauve, 1.08) : ThemeBackend.mauve
+        color: VizCfg.Config.hasCustomColor ? VizCfg.Config.customColor
+            : (root.isCompact ? Qt.lighter(ThemeBackend.mauve, 1.08) : ThemeBackend.mauve)
+        gain: VizCfg.Config.gain
         previewDemo: Boolean(root.activeTarget && root.activeTarget.isPreview)
 
         // Bars: low frequencies first. Wave: low frequencies in the middle, mirrored

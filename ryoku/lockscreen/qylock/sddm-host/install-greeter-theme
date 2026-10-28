@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+clock24h=${3:-}
+if [[ $# -ne 3 || ($clock24h != true && $clock24h != false) ]]; then
+  echo "usage: install-greeter-theme <skin-dir> <destination> <clock-24h:true|false>" >&2
+  exit 2
+fi
+
+src=${1%/}
+dst=${2%/}
+host=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+for file in "$src/Main.qml" "$host/Main.qml" "$host/metadata.desktop"; do
+  [[ -f $file && ! -L $file ]] || {
+    echo "install-greeter-theme: missing regular file: $file" >&2
+    exit 1
+  }
+done
+
+parent=$(dirname "$dst")
+tmp="$dst.new.$$"
+cleanup() { rm -rf "$tmp"; }
+trap cleanup EXIT
+
+mkdir -p "$parent"
+rm -rf "$tmp"
+mkdir -p "$tmp"
+cp -a "$src" "$tmp/theme"
+install -m644 "$host/Main.qml" "$tmp/Main.qml"
+install -m644 "$host/metadata.desktop" "$tmp/metadata.desktop"
+if [[ -f $src/theme.conf && ! -L $src/theme.conf ]]; then
+  cp "$src/theme.conf" "$tmp/theme.conf.source"
+else
+  : >"$tmp/theme.conf.source"
+fi
+awk -v value="$clock24h" '
+  BEGIN { in_general = 0; saw_general = 0; wrote_clock = 0 }
+  function write_clock() {
+    if (in_general && !wrote_clock) {
+      print "clock24h=" value
+      wrote_clock = 1
+    }
+  }
+  /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+    write_clock()
+    in_general = ($0 ~ /^[[:space:]]*\[General\][[:space:]]*$/)
+    if (in_general) saw_general = 1
+    print
+    next
+  }
+  in_general && /^[[:space:]]*clock24h[[:space:]]*=/ {
+    if (!wrote_clock) {
+      print "clock24h=" value
+      wrote_clock = 1
+    }
+    next
+  }
+  { print }
+  END {
+    write_clock()
+    if (!saw_general) {
+      if (NR > 0) print ""
+      print "[General]"
+      print "clock24h=" value
+    }
+  }
+' "$tmp/theme.conf.source" >"$tmp/theme.conf"
+rm "$tmp/theme.conf.source"
+chmod -R a+rX "$tmp"
+if (( EUID == 0 )); then
+  chown -R root:root "$tmp"
+fi
+rm -rf "$dst"
+mv "$tmp" "$dst"
+trap - EXIT

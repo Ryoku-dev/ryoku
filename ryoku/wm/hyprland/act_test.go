@@ -71,10 +71,9 @@ func TestActEmitsLuaDialect(t *testing.T) {
 			[]string{"switchxkblayout", "all", "next"}},
 		{"reload config only", []string{"config.reload", "config-only"},
 			[]string{"reload", "config-only"}},
-		// game mode strips decorations through eval and restores them with a
-		// reload, exactly what the ported ryoku-cmd-game-mode ran.
+		// The same shipped Lua module runs live and on config reload.
 		{"game mode on", []string{"decoration.gameMode", "on"},
-			[]string{"eval", gameModeLua}},
+			[]string{"eval", `dofile(` + luaStr(filepath.Join(hyprModulesDir(), "game_mode.lua")) + `)`}},
 		{"game mode off", []string{"decoration.gameMode", "off"},
 			[]string{"reload"}},
 	}

@@ -85,6 +85,21 @@ void WaveCapture::setActive(bool active) {
         stopCapture();
     emit activeChanged();
 }
+void WaveCapture::setSource(const QString& source) {
+    QString bounded = source.trimmed();
+    bounded.replace('\n', ' ');
+    bounded.replace('\r', ' ');
+    if (bounded == QStringLiteral("auto"))
+        bounded.clear();
+    if (m_source == bounded)
+        return;
+    m_source = bounded;
+    emit sourceChanged();
+    if (m_active) {
+        stopCapture();
+        scheduleRestart();
+    }
+}
 
 void WaveCapture::startResolution() {
     if (!m_active || m_resolver.state() != QProcess::NotRunning
@@ -92,10 +107,20 @@ void WaveCapture::startResolution() {
         return;
 
     m_restart.stop();
-    m_defaultSink.clear();
-    m_resolveStage = ResolveStage::DefaultSink;
-    m_resolver.setProgram(QStringLiteral("pactl"));
-    m_resolver.setArguments({QStringLiteral("get-default-sink")});
+    if (m_source.isEmpty()) {
+        m_defaultSink.clear();
+        m_explicitResolution = false;
+        m_resolveStage = ResolveStage::DefaultSink;
+        m_resolver.setProgram(QStringLiteral("pactl"));
+        m_resolver.setArguments({QStringLiteral("get-default-sink")});
+    } else {
+        m_defaultSink = m_source;
+        m_explicitResolution = true;
+        m_resolveStage = ResolveStage::Sources;
+        m_resolver.setProgram(QStringLiteral("pactl"));
+        m_resolver.setArguments({QStringLiteral("list"), QStringLiteral("short"),
+                                 QStringLiteral("sources")});
+    }
     m_resolver.start();
 }
 
@@ -141,6 +166,15 @@ void WaveCapture::handleResolverExit(int exitCode, QProcess::ExitStatus status) 
             target = fields[0];
             break;
         }
+    }
+    if (target.isEmpty() && m_explicitResolution) {
+        m_explicitResolution = false;
+        m_defaultSink.clear();
+        m_resolveStage = ResolveStage::DefaultSink;
+        m_resolver.setProgram(QStringLiteral("pactl"));
+        m_resolver.setArguments({QStringLiteral("get-default-sink")});
+        m_resolver.start();
+        return;
     }
     if (target.isEmpty())
         target = fallback;

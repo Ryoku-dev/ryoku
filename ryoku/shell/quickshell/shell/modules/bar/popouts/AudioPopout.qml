@@ -137,7 +137,11 @@ Item {
                 valueLabel: !root.haveSource ? "" : (root.source.audio.muted ? I18n.tr("off") : Math.round(root.source.audio.volume * 100) + "%")
                 peakNode: root.source
                 peakEnabled: root.open && !!root.source
-                onMoved: v => { if (root.haveSource) root.source.audio.volume = v; }
+                onMoved: v => {
+                    if (!root.haveSource) return;
+                    OsdFeed.expectMicVolume(v);
+                    root.source.audio.volume = v;
+                }
                 onIconTapped: { if (root.haveSource) root.source.audio.muted = !root.source.audio.muted; }
             }
             Menus.AudioDevicePicker {

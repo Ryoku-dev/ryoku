@@ -30,6 +30,14 @@ Item {
     opacity: root.iconsHidden ? 0 : 1
     visible: root.opacity > 0.01
     enabled: !root.iconsHidden
+    readonly property bool pointerOverShortcut: {
+        for (let i = 0; i < iconRepeater.count; ++i) {
+            const tile = iconRepeater.itemAt(i);
+            if (tile && tile.hovered)
+                return true;
+        }
+        return false;
+    }
     Behavior on opacity {
         NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease }
     }
@@ -91,13 +99,13 @@ Item {
     property real surfaceScale: 1
     readonly property real counterScale: 1 / Math.max(0.2, Math.min(5, root.surfaceScale))
     // ── Click-to-open ──────────────────────────────────────────────────────
-    // Windows/KDE semantics: the first click SELECTS and arms, the second
-    // click of the pair opens. One timer for the whole layer (never one per
-    // icon), keyed by the armed id — clicking a different icon just
-    // re-arms. Qt.styleHints is absent in this runtime, so the window is
-    // the conventional 400 ms.
+    // Single-click mode opens immediately. Double-click mode selects and arms
+    // on the first click, then opens a second click on that icon. One timer for
+    // the whole layer keeps the pair keyed to one id; Qt.styleHints is absent
+    // in this runtime, so the window is the conventional 400 ms.
     property string armedId: ""
     readonly property bool iconsLocked: Config.options.background.desktopIconsLocked ?? false
+    readonly property bool singleClickOpen: root.options.openOn === "single"
     Timer {
         id: clickTimer
         interval: 400
@@ -180,10 +188,10 @@ Item {
         }
     }
 
-    // The keys ride the window's OnDemand keyboard (the host holds it while
-    // hasSelection is true). When the band picked widgets as well, the canvas
-    // holds the focus and Delete stays the widgets' — the context menu's
-    // Remove still takes the whole icon selection either way.
+    // The host holds the keyboard while a selection exists and the pointer is
+    // over a shortcut; moving away releases it before another surface is
+    // clicked. When a marquee picked widgets too, the canvas owns Delete — the
+    // context menu's Remove still takes the whole icon selection.
     focus: root.hasSelection
     onHasSelectionChanged: {
         if (root.hasSelection)
@@ -384,10 +392,12 @@ Item {
     }
     function openEntry(entry) {
         const tile = root.tileFor(entry.id);
-        if (entry.type === "group" && tile)
+        if (entry.type === "group" && tile) {
             root.openPopup(entry.id, tile.x, tile.y, tile.width, tile.height);
-        else
+        } else {
+            root.clearSelection();
             DesktopShortcuts.launch(entry);
+        }
     }
     function tileFor(id) {
         for (let i = 0; i < iconRepeater.count; ++i) {
@@ -1063,9 +1073,12 @@ Item {
                             root.clearSelection();
                         const p = root.mapFromItem(gesture, mouse.x, mouse.y);
                         root.openContext(tile.entry.id, p.x, p.y);
+                    } else if (root.singleClickOpen) {
+                        root.selectedIds = [tile.entry.id];
+                        root.armedId = "";
+                        clickTimer.stop();
+                        root.openEntry(tile.entry);
                     } else if (root.armedId !== tile.entry.id) {
-                        // A single click selects. The second click within the
-                        // desktop double-click interval opens the item.
                         root.selectedIds = [tile.entry.id];
                         root.armedId = tile.entry.id;
                         clickTimer.restart();

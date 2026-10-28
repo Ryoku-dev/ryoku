@@ -226,11 +226,8 @@ Item {
                 return;
             }
             if (button === Qt.MiddleButton) {
-                const entry = DesktopEntries.heuristicLookup(item.className);
-                if (entry) {
-                    AppLaunch.run(entry, null);
-                    item.launchBounce();
-                }
+                Dock.launch(item.className);
+                item.launchBounce();
                 return;
             }
             if (item.count === 0)

@@ -80,6 +80,31 @@ func fastfetchPalettePath() string {
 func fastfetchPaletteStatePath() string {
 	return filepath.Join(filepath.Dir(fastfetchDir()), "ryoku", "fastfetch.json")
 }
+func fastfetchJapaneseGlossEnabled() bool {
+	b, err := os.ReadFile(filepath.Join(configHome(), "ryoku", "shell.json"))
+	if err != nil {
+		return true
+	}
+	var settings struct {
+		ShowJapaneseGloss *bool `json:"showJapaneseGloss"`
+	}
+	if json.Unmarshal(b, &settings) != nil || settings.ShowJapaneseGloss == nil {
+		return true
+	}
+	return *settings.ShowJapaneseGloss
+}
+
+func applyFastfetchJapaneseGloss(b []byte, enabled bool) []byte {
+	if enabled {
+		return b
+	}
+	replacer := strings.NewReplacer(
+		"RYOKU · 力 · ", "RYOKU · ",
+		`RYOKU \u00b7 \u529b \u00b7 `, `RYOKU \u00b7 `,
+		`RYOKU \u00B7 \u529B \u00B7 `, `RYOKU \u00B7 `,
+	)
+	return []byte(replacer.Replace(string(b)))
+}
 
 // stripJSONC removes // line and /* */ block comments from a JSONC document,
 // leaving comment-like text inside string literals (a $schema URL) intact so
@@ -801,7 +826,7 @@ func buildFastfetchEffectiveWithRoles(m ffModel, recolor map[string]string) ([]b
 	return append(b, '\n'), nil
 }
 
-func fastfetchEffectiveFresh(path string, mode string) bool {
+func fastfetchEffectiveFresh(path string, mode string, japaneseGloss bool) bool {
 	out, err := os.Stat(path)
 	if err != nil || out.IsDir() {
 		return false
@@ -821,8 +846,13 @@ func fastfetchEffectiveFresh(path string, mode string) bool {
 			return false
 		}
 	}
+	shellStore := filepath.Join(configHome(), "ryoku", "shell.json")
+	if info, err := os.Stat(shellStore); err == nil && out.ModTime().Before(info.ModTime()) {
+		return false
+	}
+	signature := fmt.Sprintf("%s|japanese=%t", mode, japaneseGloss)
 	stored, err := os.ReadFile(effectiveModeMarker(path))
-	if err != nil || strings.TrimSpace(string(stored)) != mode {
+	if err != nil || strings.TrimSpace(string(stored)) != signature {
 		return false
 	}
 	if executable, err := os.Executable(); err == nil {
@@ -834,12 +864,11 @@ func fastfetchEffectiveFresh(path string, mode string) bool {
 	return true
 }
 
-// effectiveModeMarker is the sidecar path that records which palette mode
-// produced the effective config at path. The palette mode cannot be detected by
-// mtime alone: a state file that is *removed* (returning to the wallpaper
-// default) has no timestamp to compare, so a stale fixed-mode cache would be
-// served. Storing the resolved mode beside the cache makes every transition
-// (set, change, unset) visible.
+// effectiveModeMarker is the sidecar path that records which effective inputs
+// produced the config at path. A state-file removal and the Japanese gloss
+// preference cannot be detected reliably by comparing source mtimes alone, so
+// the signature beside the cache makes every mode or preference transition
+// rebuild it.
 func effectiveModeMarker(path string) string { return path + ".mode" }
 
 // writeEffectiveFastfetch renders the config fastfetch should actually read into
@@ -849,7 +878,8 @@ func effectiveModeMarker(path string) string { return path + ".mode" }
 // retint never rewrites their layout or comments); wallpaper mode rebuilds it
 func writeEffectiveFastfetch(path string) error {
 	mode := readFastfetchPaletteMode()
-	if fastfetchEffectiveFresh(path, mode) {
+	japaneseGloss := fastfetchJapaneseGlossEnabled()
+	if fastfetchEffectiveFresh(path, mode, japaneseGloss) {
 		return nil
 	}
 	raw, err := os.ReadFile(fastfetchConfigPath())
@@ -858,7 +888,7 @@ func writeEffectiveFastfetch(path string) error {
 	}
 	var b []byte
 	if mode != ffPaletteWallpaper {
-		b = raw
+		b = applyFastfetchJapaneseGloss(raw, japaneseGloss)
 	} else {
 		model, err := loadFastfetch()
 		if err != nil {
@@ -871,10 +901,12 @@ func writeEffectiveFastfetch(path string) error {
 		}
 		b = built
 	}
+	b = applyFastfetchJapaneseGloss(b, japaneseGloss)
 	if err := atomicWrite(path, b, 0o600); err != nil {
 		return err
 	}
-	return atomicWrite(effectiveModeMarker(path), []byte(mode+"\n"), 0o600)
+	signature := fmt.Sprintf("%s|japanese=%t\n", mode, japaneseGloss)
+	return atomicWrite(effectiveModeMarker(path), []byte(signature), 0o600)
 }
 
 // ffApplyAccentToDisplay writes the accent into display.color.keys so the key
@@ -993,6 +1025,7 @@ func previewFastfetch(m ffModel) error {
 	if err != nil {
 		return err
 	}
+	b = applyFastfetchJapaneseGloss(b, fastfetchJapaneseGlossEnabled())
 	tmp, err := os.CreateTemp("", "ryoku-ff-*.jsonc")
 	if err != nil {
 		return err

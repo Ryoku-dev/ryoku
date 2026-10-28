@@ -122,6 +122,7 @@ Singleton {
 
     function _syncClients(force) {
         const wins = Array.from(Wm.windows ?? []);
+        const toplevels = Array.from(Wm.toplevels ?? []);
         const focused = Wm.focusedWindow;
         const focusedId = focused ? String(focused.id ?? "") : "";
         const records = [];
@@ -138,8 +139,30 @@ Singleton {
                 workspace: String(w?.workspace ?? "")
             });
         }
+        const frameCounts = new Map();
+        for (const record of records) {
+            const id = root.canonicalId(record.specialId || record.appId);
+            frameCounts.set(id, (frameCounts.get(id) || 0) + 1);
+        }
+        const directCounts = new Map();
+        let activeToplevel = null;
+        for (const toplevel of toplevels) {
+            if (!toplevel?.appId)
+                continue;
+            const id = root.canonicalId(toplevel.appId === "org.quickshell"
+                ? (root.quickshellApps[toplevel.title] || toplevel.appId) : toplevel.appId);
+            if (!id)
+                continue;
+            directCounts.set(id, (directCounts.get(id) || 0) + 1);
+            if (toplevel.activated)
+                activeToplevel = toplevel;
+        }
+        for (const [id, count] of directCounts) {
+            for (let i = frameCounts.get(id) || 0; i < count; ++i)
+                records.push({ id: "pending:" + id + ":" + i, appId: id, specialId: "", workspace: "" });
+        }
         records.sort((a, b) => a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
-        const signature = focusedId + "\u0001" + records.map(record =>
+        const signature = (focusedId || (activeToplevel ? "active:" + activeToplevel.appId : "")) + "\u0001" + records.map(record =>
             record.id + "\u0000" + record.appId + "\u0000"
                 + record.specialId + "\u0000" + record.workspace).join("\u0001");
         if (force !== true && signature === root._windowSignature)
@@ -154,16 +177,18 @@ Singleton {
         }
         root._windowSignature = signature;
         root._clients = result;
-        root._focusedClient = focused;
+        root._focusedClient = focused || activeToplevel;
         root._activeClass = focused
             ? root.canonicalId((focused.appId === "org.quickshell"
                 ? root.quickshellApps[focused.title] : "") || focused.appId)
-            : "";
+            : activeToplevel ? root.canonicalId(activeToplevel.appId === "org.quickshell"
+                ? (root.quickshellApps[activeToplevel.title] || activeToplevel.appId) : activeToplevel.appId) : "";
     }
 
     Connections {
         target: Wm
         function onWindowsChanged() { root._syncClients(false); }
+        function onToplevelsChanged() { root._syncClients(false); }
         function onFocusedWindowChanged() { root._syncClients(false); }
     }
     Component.onCompleted: root._syncClients(true)
@@ -339,6 +364,11 @@ Singleton {
         return resolved;
     }
 
+    function launch(className) {
+        const entry = root.entryFor(className);
+        if (entry)
+            AppLaunch.run(entry, null);
+    }
     // No clients -> launch; focused already -> cycle by address; else focus,
     // preferring a client on the active workspace.
     function activate(className) {
@@ -349,9 +379,13 @@ Singleton {
             if (root.sameApp(root.classOf(wins[i]), id))
                 matches.push(wins[i]);
         if (matches.length === 0) {
-            const entry = DesktopEntries.heuristicLookup(id);
-            if (entry)
-                AppLaunch.run(entry, null);
+            const direct = Array.from(Wm.toplevels ?? []).find(toplevel =>
+                root.sameApp(toplevel?.appId === "org.quickshell"
+                    ? (root.quickshellApps[toplevel.title] || toplevel.appId) : toplevel?.appId, id));
+            if (direct)
+                direct.activate();
+            else
+                root.launch(id);
             return;
         }
         matches.sort((a, b) => a.id < b.id ? -1 : (a.id > b.id ? 1 : 0));
@@ -400,10 +434,9 @@ Singleton {
     }
     function closeMenu() { root.menuClass = ""; }
     function menuActOpen() {
-        if (root.menuCount > 0) {
-            const e = DesktopEntries.heuristicLookup(root.menuClass);
-            if (e) AppLaunch.run(e, null);
-        } else {
+        if (root.menuCount > 0)
+            root.launch(root.menuClass);
+        else {
             root.activate(root.menuClass);
         }
         root.closeMenu();

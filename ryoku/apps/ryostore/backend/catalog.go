@@ -37,6 +37,7 @@ func providers() []Provider {
 		newVesktopThemesProvider(c),
 		pluginProvider{cache: c},
 		newOmarchyPluginProvider(),
+		newFlatpakProvider(),
 		bundleProvider{cache: c, status: defaultBundleStatus, launch: launchBundleInstall},
 		newDecorProvider(c),
 		newLauncherImageProvider(c),

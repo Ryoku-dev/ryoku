@@ -50,7 +50,7 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: Tokens.s4
             anchors.verticalCenter: parent.verticalCenter
-            text: "力"
+            text: UiPreferences.brandMark("力")
             color: Tokens.sun
             font.family: Tokens.jp
             font.pixelSize: Tokens.fRow

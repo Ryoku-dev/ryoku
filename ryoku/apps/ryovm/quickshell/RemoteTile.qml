@@ -40,7 +40,7 @@ Rectangle {
         Text {
             width: parent.width
             text: row.alias
-                  + (row.needsAuth ? "  鍵" : "")
+                  + (row.needsAuth ? UiPreferences.text("  鍵", "") : "")
             elide: Text.ElideRight
             color: row.selected ? Tokens.inkOnBone : Tokens.ink
             font.family: Tokens.ui

@@ -20,8 +20,11 @@ Singleton {
         if (!target)
             return;
         const argv = Array.from(target.command || []).map(arg => String(arg));
-        if (argv.length === 0)
+        if (argv.length === 0) {
+            if (entry?.id)
+                Spawn.runApp(["gtk-launch", String(entry.id)], { label: entry.id });
             return;
+        }
         const command = entry && entry.runInTerminal
             ? ["ryoku-app", "terminal", "--"].concat(argv)
             : argv;

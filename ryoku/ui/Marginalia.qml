@@ -27,7 +27,7 @@ Row {
     }
 
     Text {
-        visible: mg.kana !== ""
+        visible: UiPreferences.showJapaneseGloss && mg.kana !== ""
         anchors.verticalCenter: parent.verticalCenter
         text: mg.kana; color: Tokens.inkFaint
         font.family: Tokens.jp; font.pixelSize: 12

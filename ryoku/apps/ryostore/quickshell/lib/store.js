@@ -97,6 +97,10 @@ function matchesQuery(item, query) {
     var terms = String(query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0)
         return true;
+    // A live search result was matched by its source (typos, keywords and
+    // translations included), so the literal text test would wrongly drop it.
+    if (item && item.remoteMatch === true)
+        return true;
     var haystack = searchText(item);
     return terms.every(function(term) { return haystack.indexOf(term) !== -1; });
 }

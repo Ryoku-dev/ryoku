@@ -7,7 +7,6 @@ import Ryoku.Ui.Singletons
 
 ShellRoot {
     id: root
-
     property var pins: []
     property bool framePainted: false
 
@@ -74,7 +73,11 @@ ShellRoot {
         onFileChanged: reload()
     }
 
-    Component.onCompleted: root.relist()
+    Component.onCompleted: {
+        Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+            (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/");
+        root.relist();
+    }
 
     Variants {
         model: root.pins

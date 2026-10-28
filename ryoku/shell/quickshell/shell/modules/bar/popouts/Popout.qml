@@ -110,22 +110,36 @@ Item {
     // bar module): a click-pinned popout must close the moment it's unpinned
     // (close button, Escape, keybind re-toggle), even under the pointer.
     readonly property bool hovered: (hoverOpen && triggerHH.hovered) || triggerHovered
-        || (bodyHH.hovered && (hoverOpen || centered || closeDelay > 0))
+        || (bodyHH.hovered && (hoverOpen || centered || closeDelay > 0 || arrivalDelay > 0))
     // host gates this off while a centre surface is open or a window is
     // fullscreen, so an edge hover never fights a modal surface.
     property bool active: true
     readonly property bool shouldOpen: active && (hovered || pinned)
 
-    // hover-intent close grace: hold the popout open this many ms after
-    // shouldOpen drops, so crossing the ~2px blob-border rim just outside the
-    // body's hover region never flickers it shut. 0 = close at once (clicks).
+    // Once the pointer has reached a detached body, the short close delay keeps
+    // its rim from flickering. Before that first arrival, allow a slower trip
+    // across the gap between the trigger surface and the popout.
     property int closeDelay: 0
+    property int arrivalDelay: closeDelay
+    property bool bodyTouched: false
     property bool heldOpen: false
-    onHeldOpenChanged: if (heldOpen) { heldW = openW; heldH = openH }
+    onHeldOpenChanged: {
+        if (heldOpen) {
+            heldW = openW;
+            heldH = openH;
+        } else {
+            bodyTouched = false;
+        }
+    }
     onShouldOpenChanged: {
-        if (shouldOpen) { closeGrace.stop(); heldOpen = true; }
-        else if (closeDelay > 0) closeGrace.restart();
-        else heldOpen = false;
+        if (shouldOpen) {
+            closeGrace.stop();
+            heldOpen = true;
+        } else if (Math.max(closeDelay, arrivalDelay) > 0) {
+            closeGrace.restart();
+        } else {
+            heldOpen = false;
+        }
     }
     Component.onCompleted: heldOpen = shouldOpen
 
@@ -242,7 +256,11 @@ Item {
         }
     ]
 
-    Timer { id: closeGrace; interval: root.closeDelay; onTriggered: root.heldOpen = false }
+    Timer {
+        id: closeGrace
+        interval: root.bodyTouched ? root.closeDelay : Math.max(root.closeDelay, root.arrivalDelay)
+        onTriggered: root.heldOpen = false
+    }
 
     // blob body = a BlobRect in the shared group. it anchors at the outer frame
     // edge and grows inward, exactly like shell.qml's pillBlob at the top: the
@@ -312,7 +330,10 @@ Item {
         opacity: root.heldOpen ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: Motion.effects; easing.type: Easing.BezierSpline; easing.bezierCurve: Motion.effectsCurve } }
 
-        HoverHandler { id: bodyHH }
+        HoverHandler {
+            id: bodyHH
+            onHoveredChanged: if (hovered) root.bodyTouched = true
+        }
 
         Item {
             id: contentInner

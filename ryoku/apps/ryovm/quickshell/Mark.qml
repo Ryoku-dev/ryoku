@@ -8,7 +8,7 @@ import Ryoku.Ui.Singletons
 Text {
     property real size: 96
     property color tint: Tokens.inkFaint
-    text: "\u529b"
+    text: UiPreferences.brandMark("\u529b")
     color: tint
     font.family: Tokens.jp
     font.pixelSize: size

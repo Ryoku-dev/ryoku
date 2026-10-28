@@ -113,6 +113,13 @@ Rectangle {
     property bool advanced: false
     onAdvancedChanged: Quickshell.execDetached(["ryoku-hub", "config", "set", "advanced", hub.advanced ? "1" : "0"])
 
+    // The daemon owns this preference; the shared file reader covers startup
+    // before the first settings frame arrives.
+    readonly property bool showJapaneseGloss: Settings.ready
+        ? Settings.get("showJapaneseGloss") !== false
+        : UiPreferences.showJapaneseGloss
+    readonly property string brandMark: showJapaneseGloss ? "力" : "R"
+
     // The full catalogue. `wired` marks the pages whose content and
     // persistence are ported; the rest render an honest porting plate rather
     // than a settings page that cannot save. `needs` is what the active window
@@ -573,7 +580,7 @@ Rectangle {
         "weatherLocation": "", "weatherUnit": "auto", "formatLocale": "",
         "general.clock_format_24_h": false,
         "reloadCover": ReloadCoverModel.empty(),
-        "language": "Auto", "barStyle": "orpheus", "obi": {}, "nacre": NacreConfig.defaultConfig(), "qsbar": {}, "dock": {},
+        "language": "Auto", "barStyle": "orpheus", "showJapaneseGloss": true, "obi": {}, "nacre": NacreConfig.defaultConfig(), "qsbar": {}, "dock": {},
         "notifications.show_images": false,
         "deckFrostEnabled": true, "deckFrost": 0.45,
         "clipboard.widthPercent": 65, "clipboard.heightPercent": 42, "clipboard.bottomPercent": 0,
@@ -1108,7 +1115,7 @@ Rectangle {
                 Row {
                     anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Tokens.s4 }
                     spacing: Tokens.s3
-                    Text { text: "力"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 22 }
+                    Text { text: hub.brandMark; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 22 }
                     Column {
                         spacing: 1
                         anchors.verticalCenter: parent.verticalCenter
@@ -1321,7 +1328,7 @@ Rectangle {
                                 Text {
                                     id: navKana
                                     anchors { right: parent.right; rightMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                                    text: hub.jpName[navItem.modelData.key] || ""
+                                    text: hub.showJapaneseGloss ? (hub.jpName[navItem.modelData.key] || "") : ""
                                     color: navItem.sel ? Tokens.inkOnBoneDim : Tokens.inkFaint
                                     font.family: Tokens.jp; font.pixelSize: 12
                                     Behavior on color { ColorAnimation { duration: Tokens.snap } }
@@ -1502,7 +1509,7 @@ Rectangle {
             Row {
                 spacing: Tokens.s2
                 Rectangle { width: 16; height: 1; color: Tokens.ink; anchors.verticalCenter: parent.verticalCenter }
-                Text { text: "力"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: hub.brandMark; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
                 Text {
                     text: I18n.tr(hub.groupFor(hub.section)); color: Tokens.inkMuted
                     font.family: Tokens.ui; font.pixelSize: 9; font.weight: Font.Medium
@@ -1788,7 +1795,7 @@ Rectangle {
                 Text {
                     id: kseal
                     anchors { right: parent.right; rightMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                    text: hub.jpName[rr.modelData.section] || ""
+                    text: hub.showJapaneseGloss ? (hub.jpName[rr.modelData.section] || "") : ""
                     color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12
                 }
                 MouseArea {

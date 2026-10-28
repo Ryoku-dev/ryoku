@@ -16,6 +16,20 @@ Singleton {
     property real brightness: 0
     property int brightnessSeq: 0
     property int previewSeq: 0
+    property real expectedMicVolume: -1
+    property double expectedMicVolumeAt: 0
+
+    function expectMicVolume(value) {
+        root.expectedMicVolume = value
+        root.expectedMicVolumeAt = Date.now()
+    }
+
+    function acceptsMicVolume(value) {
+        return root.expectedMicVolumeAt > 0
+            && Date.now() - root.expectedMicVolumeAt < 1500
+            && Math.abs(value - root.expectedMicVolume) < 0.015
+    }
+
 
     signal volumeRequested()
     signal brightnessRequested()

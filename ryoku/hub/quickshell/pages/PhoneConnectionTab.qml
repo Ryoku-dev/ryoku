@@ -207,9 +207,7 @@ Item {
         id: switchProc
         property bool turningOn: false
         environment: Spawn.env
-        stderr: StdioCollector {
-            onStreamFinished: if (this.text.trim()) pg.error = this.text.trim()
-        }
+        stderr: StdioCollector { id: switchError }
         onExited: function(code) {
             if (code === 0 && turningOn) {
                 Settings.patch("phone.enabled", true, function(ok, why) {
@@ -223,8 +221,18 @@ Item {
             }
             pg.busy = false;
             pg.busyLabel = "";
-            if (code !== 0 && pg.error === "")
-                pg.error = turningOn ? I18n.tr("Phone tools could not be installed.") : I18n.tr("Phone tools could not be removed.");
+            if (code !== 0) {
+                var lines = switchError.text.trim().split("\n");
+                var detail = "";
+                for (var i = 0; i < lines.length; i++) {
+                    if (lines[i].trim().indexOf("error:") === 0) {
+                        detail = lines[i].trim();
+                        break;
+                    }
+                }
+                pg.error = detail || switchError.text.trim()
+                    || (turningOn ? I18n.tr("Phone tools could not be installed.") : I18n.tr("Phone tools could not be removed."));
+            }
             pg.refresh();
         }
     }

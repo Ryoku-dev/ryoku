@@ -4,6 +4,7 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
+import shell.services as RyokuServices
 import "../../"
 import "../../reusables"
 import "../../reusables/guide"
@@ -77,7 +78,7 @@ Item {
         return notificationsTabRoot.defaultNotificationSettings;
     }
 
-    property bool dnd: notifSettings && notifSettings.dnd !== undefined ? notifSettings.dnd : false
+    readonly property bool dnd: RyokuServices.Flags.dnd
     property string position: notifSettings && notifSettings.position !== undefined ? notifSettings.position : "top right"
     property int horizontalPosition: {
         if (position !== "custom") {
@@ -96,8 +97,8 @@ Item {
         if (notifSettings && notifSettings.verticalPosition !== undefined) return notifSettings.verticalPosition;
         return presetTopV;
     }
-    property bool soundEnabled: notifSettings && notifSettings.sound !== undefined ? notifSettings.sound : true
-    property string selectedSound: notifSettings && notifSettings.soundFile !== undefined ? notifSettings.soundFile : ""
+    readonly property bool soundEnabled: Config.hostNotificationSoundEnabled
+    readonly property string selectedSound: Config.hostNotificationSoundFile
     property bool showEmptyGraphic: notifSettings && notifSettings.showEmptyGraphic !== undefined ? notifSettings.showEmptyGraphic : true
 
     property bool rightClickClose: notifSettings && notifSettings.rightClickClose !== undefined ? notifSettings.rightClickClose : true
@@ -174,7 +175,6 @@ Item {
         let s = (typeof Config !== "undefined" && typeof Config.getSetting === "function")
             ? Config.getSetting("notifications", notificationsTabRoot.defaultNotificationSettings)
             : notificationsTabRoot.defaultNotificationSettings;
-        notificationsTabRoot.dnd = s.dnd !== undefined ? s.dnd : false;
         notificationsTabRoot.position = s.position !== undefined ? s.position : "top right";
         if (notificationsTabRoot.position !== "custom") {
             notificationsTabRoot.horizontalPosition = notificationsTabRoot.position.indexOf("left") !== -1 ? presetLeftH : (notificationsTabRoot.position.indexOf("center") !== -1 ? presetCenterH : presetRightH);
@@ -187,8 +187,6 @@ Item {
             screenSelector.horizontalPosition = notificationsTabRoot.horizontalPosition;
             screenSelector.verticalPosition = notificationsTabRoot.verticalPosition;
         }
-        notificationsTabRoot.soundEnabled = s.sound !== undefined ? s.sound : true;
-        notificationsTabRoot.selectedSound = s.soundFile !== undefined ? s.soundFile : "";
         notificationsTabRoot.showEmptyGraphic = s.showEmptyGraphic !== undefined ? s.showEmptyGraphic : true;
         notificationsTabRoot.rightClickClose = s.rightClickClose !== undefined ? s.rightClickClose : true;
         notificationsTabRoot.notifSettings = s;
@@ -240,37 +238,34 @@ Item {
         }
         stdout: StdioCollector {
             onStreamFinished: {
+                let defaults = [{
+                    "name": "Ryoku " + I18n.t("widgets.variants.default"),
+                    "path": ""
+                }];
                 try {
                     let txt = this.text.trim();
-                    if (txt !== "") {
-                        let list = JSON.parse(txt);
-                        if (Array.isArray(list)) {
-                            notificationsTabRoot.soundList = list;
-                            let found = false;
-                            for (let i = 0; i < list.length; i++) {
-                                if (list[i].path === notificationsTabRoot.selectedSound || list[i].name === notificationsTabRoot.selectedSound) {
-                                    notificationsTabRoot.selectedSound = list[i].path;
-                                    notificationsTabRoot.updateNotifSetting("soundFile", list[i].path);
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found) {
-                                if (list.length > 0) {
-                                    notificationsTabRoot.selectedSound = list[0].path;
-                                    notificationsTabRoot.updateNotifSetting("soundFile", list[0].path);
-                                } else {
-                                    notificationsTabRoot.selectedSound = "";
-                                    notificationsTabRoot.updateNotifSetting("soundFile", "");
-                                }
-                            }
+                    let list = txt !== "" ? JSON.parse(txt) : [];
+                    if (!Array.isArray(list)) list = [];
+                    list.unshift(defaults[0]);
+                    const selected = notificationsTabRoot.selectedSound;
+                    let found = selected === "";
+                    for (let i = 1; i < list.length; i++) {
+                        if (list[i].path === selected || list[i].name === selected) {
+                            found = true;
+                            break;
                         }
-                    } else {
-                        notificationsTabRoot.soundList = [];
-                        notificationsTabRoot.selectedSound = "";
-                        notificationsTabRoot.updateNotifSetting("soundFile", "");
                     }
-                } catch (e) {}
+                    if (!found) {
+                        let parts = selected.split("/");
+                        list.push({
+                            "name": parts[parts.length - 1] || selected,
+                            "path": selected
+                        });
+                    }
+                    notificationsTabRoot.soundList = list;
+                } catch (e) {
+                    notificationsTabRoot.soundList = defaults;
+                }
             }
         }
     }
@@ -303,12 +298,9 @@ Item {
                     let idx = out.indexOf('|');
                     let sPath = idx !== -1 ? out.substring(idx + 1).trim() : "";
                     if (sPath !== "") {
-                        notificationsTabRoot.selectedSound = sPath;
-                        notificationsTabRoot.updateNotifSetting("soundFile", sPath);
+                        Config.setNotificationSoundFile(sPath);
                         notificationsTabRoot.reloadSounds();
-                        if (typeof Sounds !== "undefined" && typeof Sounds.play === "function") {
-                            Sounds.play(sPath);
-                        }
+                        Config.previewNotificationSound(sPath);
                     }
                 }
                 soundPickerPopup.close();
@@ -357,6 +349,9 @@ Item {
         target: typeof Config !== "undefined" ? Config : null
         function onSettingsLoaded() {
             notificationsTabRoot.syncSettings();
+        }
+        function onHostNotificationSoundFileChanged() {
+            notificationsTabRoot.reloadSoundsDebounceTimer.restart();
         }
     }
 
@@ -725,8 +720,7 @@ Item {
                         handleColor: ThemeBackend.crust
                         handleOffColor: ThemeBackend.text
                         onToggled: function(c) {
-                            notificationsTabRoot.dnd = c;
-                            notificationsTabRoot.updateNotifSetting("dnd", c);
+                            RyokuServices.Flags.dnd = c;
                         }
                     }
                 }
@@ -787,8 +781,7 @@ Item {
                         handleColor: ThemeBackend.crust
                         handleOffColor: ThemeBackend.text
                         onToggled: function(c) {
-                            notificationsTabRoot.soundEnabled = c;
-                            notificationsTabRoot.updateNotifSetting("sound", c);
+                            Config.setNotificationSoundEnabled(c);
                         }
                     }
                 }
@@ -854,11 +847,8 @@ Item {
                         onSelected: function(index, value) {
                             if (index >= 0 && index < notificationsTabRoot.soundList.length) {
                                 let targetPath = notificationsTabRoot.soundList[index].path;
-                                notificationsTabRoot.selectedSound = targetPath;
-                                notificationsTabRoot.updateNotifSetting("soundFile", targetPath);
-                                if (typeof Sounds !== "undefined" && typeof Sounds.play === "function") {
-                                    Sounds.play(targetPath);
-                                }
+                                Config.setNotificationSoundFile(targetPath);
+                                Config.previewNotificationSound(targetPath);
                             }
                         }
                     }

@@ -22,6 +22,7 @@ Flow {
     }
 
     spacing: 5
+    height: childrenRect.height
 
     Repeater {
         model: chips.options

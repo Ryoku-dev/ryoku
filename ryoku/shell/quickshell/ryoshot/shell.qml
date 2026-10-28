@@ -14,7 +14,6 @@ import "lib/constrain.js" as Constrain
 
 ShellRoot {
     id: root
-
     property var globalSel: null
     property var pressPoint: null
     property bool capturing: false
@@ -38,6 +37,23 @@ ShellRoot {
     property bool textEditing: false
     property string openPopover: ""
     property bool eyedropArmed: false
+    property bool phoneAvailable: false
+    property var phoneDevices: []
+    property bool phoneBusy: false
+    property bool phoneProbeStarted: false
+    property bool phoneProbeFinished: false
+    property bool phoneTempReady: false
+    property string phoneFile: ""
+    property string phoneTargetName: ""
+    property string phoneTargetId: ""
+    property string phoneFailureTitle: ""
+    property string phoneFailureBody: ""
+    property int phoneSequence: 0
+
+    onPhaseChanged: {
+        if (phase === "editing" && !phoneProbeStarted)
+            root.refreshPhoneDevices();
+    }
 
     property var selectedIndex: null
     property var moveOffset: null
@@ -129,6 +145,8 @@ ShellRoot {
     readonly property string homeDir: Quickshell.env("HOME")
     readonly property string shotsDir: (Quickshell.env("XDG_PICTURES_DIR") || (homeDir + "/Pictures")) + "/Screenshots"
     readonly property string pinDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku/pins"
+    readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") || ""
+    readonly property string phoneTempDir: runtimeDir.length > 0 ? runtimeDir + "/ryoshot" : ""
 
     /**
      * Canonical tool list. The toolbar renders it, the key handler derives its
@@ -249,7 +267,12 @@ ShellRoot {
         beautifySrc = path;
         phase = "beautify";
     }
-    Component.onCompleted: if (openPath.length > 0) openForBeautify(openPath);
+    Component.onCompleted: {
+        Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+            (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/");
+        if (openPath.length > 0)
+            openForBeautify(openPath);
+    }
 
     function beginSelection(gx, gy) {
         frontPressed = true;
@@ -1034,6 +1057,94 @@ ShellRoot {
         });
     }
 
+    function phoneDevicesFrom(text) {
+        var devices = [];
+        var lines = String(text).split("\n");
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            var separator = line.indexOf(" ");
+            if (separator < 1) continue;
+            var deviceId = line.substring(0, separator);
+            if (!/^[A-Za-z0-9_-]+$/.test(deviceId)) continue;
+            var deviceName = line.substring(separator + 1).trim();
+            devices.push({ deviceId: deviceId, name: deviceName.length > 0 ? deviceName : deviceId });
+        }
+        return devices;
+    }
+
+    function refreshPhoneDevices() {
+        if (root.phoneProbeStarted) return;
+        root.phoneProbeStarted = true;
+        kdeStateProc.running = true;
+    }
+
+    function doSendPhone() {
+        if (!root.phoneProbeFinished) {
+            root.notifySend(I18n.tr("Checking for connected phones"), "");
+            return;
+        }
+        if (!root.phoneAvailable) {
+            root.notifySend(I18n.tr("KDE Connect is not installed"), "");
+            return;
+        }
+        if (!root.phoneTempReady) {
+            root.notifySend(I18n.tr("Phone transfer is unavailable"),
+                I18n.tr("Could not prepare private temporary storage"));
+            return;
+        }
+        if (root.phoneDevices.length === 0) {
+            root.notifySend(I18n.tr("No connected phone"), "");
+            return;
+        }
+        if (root.phoneDevices.length > 1) {
+            root.openPopover = root.openPopover === "phone" ? "" : "phone";
+            return;
+        }
+        root.sendPhoneTo(root.phoneDevices[0].deviceId, root.phoneDevices[0].name);
+    }
+
+    function sendPhoneTo(deviceId, deviceName) {
+        if (root.phoneBusy || root.exported) return;
+        root.openPopover = "";
+        root.phoneBusy = true;
+        root.exported = true;
+        root.phoneTargetName = deviceName;
+        root.phoneTargetId = deviceId;
+        root.phoneSequence += 1;
+        root.phoneFile = root.phoneTempDir + "/capture-" + Date.now() + "-"
+            + root.phoneSequence + "-" + Math.floor(Math.random() * 0x100000000).toString(16) + ".png";
+        grabTo(root.phoneFile, function (ok) {
+            if (!ok) {
+                root.failPhoneTransfer(I18n.tr("Could not send screenshot"),
+                    I18n.tr("Could not create the temporary image"));
+                return;
+            }
+            root.shutter();
+            phoneFileModeProc.run(root.phoneFile);
+        });
+    }
+
+    function failPhoneTransfer(title, body) {
+        root.phoneFailureTitle = title;
+        root.phoneFailureBody = body;
+        phoneCleanupProc.run(root.phoneFile);
+    }
+
+    function deferPhoneCleanup(path, delaySeconds) {
+        if (path.length === 0 && root.phoneTempDir.length === 0) return;
+        Quickshell.execDetached(["python3", "-c",
+            "import os,sys,time\n"
+                + "time.sleep(float(sys.argv[2])); p=sys.argv[1]; d=sys.argv[3]\n"
+                + "if p:\n"
+                + " try: os.unlink(p)\n"
+                + " except FileNotFoundError: pass\n"
+                + "try: os.rmdir(d)\n"
+                + "except OSError: pass",
+            path, String(delaySeconds), root.phoneTempDir]);
+    }
+
+    Component.onDestruction: root.deferPhoneCleanup(root.phoneFile, 0)
+
     /**
      * Pins the finished shot: the PNG lands in the pin directory, the poke file
      * wakes an already running host, and the flock spawn starts one if there is
@@ -1261,6 +1372,116 @@ ShellRoot {
         }
     }
 
+    Process {
+        id: kdeStateProc
+        stdout: StdioCollector { id: kdeStateOut }
+        stderr: StdioCollector {}
+        command: ["/usr/bin/env", "kdeconnect-cli", "-a", "--id-name-only"]
+        onExited: (code) => {
+            root.phoneProbeFinished = true;
+            root.phoneAvailable = code === 0;
+            root.phoneDevices = code === 0 ? root.phoneDevicesFrom(kdeStateOut.text) : [];
+            if (root.phoneAvailable && root.phoneTempDir.length > 0)
+                phoneDirCreateProc.run();
+        }
+    }
+
+    Process {
+        id: phoneDirCreateProc
+        stderr: StdioCollector {}
+        function run() {
+            command = ["mkdir", "-p", "-m", "700", "--", root.phoneTempDir];
+            running = true;
+        }
+        onExited: (code) => {
+            if (code === 0) phoneDirModeProc.run();
+            else root.phoneTempReady = false;
+        }
+    }
+
+    Process {
+        id: phoneDirModeProc
+        stderr: StdioCollector {}
+        function run() {
+            command = ["chmod", "700", "--", root.phoneTempDir];
+            running = true;
+        }
+        onExited: (code) => root.phoneTempReady = code === 0
+    }
+
+    Process {
+        id: phoneFileModeProc
+        stderr: StdioCollector {}
+        function run(file) {
+            command = ["chmod", "600", "--", file];
+            running = true;
+        }
+        onExited: (code) => {
+            if (code === 0)
+                kdePhoneProc.run(root.phoneFile, root.phoneTargetId);
+            else
+                root.failPhoneTransfer(I18n.tr("Could not send screenshot"),
+                    I18n.tr("Could not protect the temporary image"));
+        }
+    }
+
+    Process {
+        id: kdePhoneProc
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+        function run(file, targetId) {
+            if (targetId.length === 0) {
+                root.failPhoneTransfer(I18n.tr("Could not send screenshot"),
+                    I18n.tr("The selected phone is no longer available"));
+                return;
+            }
+            command = ["/usr/bin/env", "kdeconnect-cli", "-d", targetId, "--share", file];
+            running = true;
+        }
+        onExited: (code) => {
+            if (code === 0) {
+                var sentFile = root.phoneFile;
+                root.deferPhoneCleanup(sentFile, 15);
+                root.phoneFile = "";
+                root.phoneBusy = false;
+                root.notifySend(I18n.tr("Sent via KDE Connect"),
+                    I18n.tr("Sent to %1").arg(root.phoneTargetName));
+                root.quitSoon();
+            } else {
+                root.failPhoneTransfer(I18n.tr("Could not send screenshot"),
+                    I18n.tr("KDE Connect could not reach %1").arg(root.phoneTargetName));
+            }
+        }
+    }
+
+    Process {
+        id: phoneCleanupProc
+        property string doomedFile: ""
+        stderr: StdioCollector {}
+        function run(file) {
+            doomedFile = file;
+            if (file.length === 0) {
+                finish();
+                return;
+            }
+            command = ["rm", "-f", "--", file];
+            running = true;
+        }
+        function finish() {
+            root.phoneFile = "";
+            root.phoneBusy = false;
+            root.exported = false;
+            root.notifySend(root.phoneFailureTitle, root.phoneFailureBody);
+            root.phoneFailureTitle = "";
+            root.phoneFailureBody = "";
+            doomedFile = "";
+        }
+        onExited: (code) => {
+            if (code !== 0) root.deferPhoneCleanup(doomedFile, 0);
+            finish();
+        }
+    }
+
     // Upload the crop, then open a reverse-image search on the hosted URL. Bing is
     // the default engine iRiS settled on (Google and Yandex paste endpoints broke).
     Process {
@@ -1345,6 +1566,7 @@ ShellRoot {
             if (e.key === Qt.Key_S) { root.exportSaveOrStyled(); return true; }
             if (e.key === Qt.Key_P) { root.doPin(); return true; }
             if (e.key === Qt.Key_U) { root.doUpload(); return true; }
+            if (e.key === Qt.Key_K) { root.doSendPhone(); return true; }
             if (e.key === Qt.Key_B) { root.openBeautify(); return true; }
             if (e.key === Qt.Key_Z) { if (shift) root.redo(); else root.undo(); return true; }
             if (e.key === Qt.Key_Y) { root.redo(); return true; }
@@ -1523,6 +1745,10 @@ ShellRoot {
                     canUndo: { root.annRevision; return root.model ? root.model.canUndo() : false; }
                     canRedo: { root.annRevision; return root.model ? root.model.canRedo() : false; }
                     settingsOpen: root.settingsOpen
+                    phoneAvailable: root.phoneAvailable
+                    phoneDevices: root.phoneDevices
+                    phoneReady: root.phoneTempReady
+                    phoneBusy: root.phoneBusy
 
                     x: {
                         if (!win.selLocal) return 0;
@@ -1546,6 +1772,7 @@ ShellRoot {
                     onCopyRequested: root.exportCopyOrStyled()
                     onSaveRequested: root.exportSaveOrStyled()
                     onUploadRequested: root.doUpload()
+                    onPhoneRequested: root.doSendPhone()
                     onPinRequested: root.doPin()
                     onHelpRequested: root.shortcutsOpen = !root.shortcutsOpen
                     onSettingsRequested: root.settingsOpen = !root.settingsOpen
@@ -1572,6 +1799,16 @@ ShellRoot {
                                             win.width - width - 8))
                     y: toolbar.y - height - 6
                     onPicked: (w) => root.setToolWidth(w)
+                    onCloseRequested: root.openPopover = ""
+                }
+
+                PhonePopover {
+                    visible: toolbar.visible && root.openPopover === "phone"
+                    devices: root.phoneDevices
+                    x: Math.max(8, Math.min(toolbar.x + toolbar.phoneCenterX - width / 2,
+                                            win.width - width - 8))
+                    y: toolbar.y - height - 6
+                    onPicked: (deviceId, deviceName) => root.sendPhoneTo(deviceId, deviceName)
                     onCloseRequested: root.openPopover = ""
                 }
 

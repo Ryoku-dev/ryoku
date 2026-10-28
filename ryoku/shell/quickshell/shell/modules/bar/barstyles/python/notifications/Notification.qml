@@ -3,6 +3,7 @@ import Ryoku.Ui.Singletons as RyokuUi
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
+import shell.services as RyokuServices
 import "../"
 import "../reusables"
 
@@ -60,19 +61,18 @@ Rectangle {
     property bool _soundPlayed: false
 
     function playPopupSound() {
-        if (_soundPlayed) return;
-        if (!typeRoot.isPopup) return;
+        if (_soundPlayed || !typeRoot.isPopup || RyokuServices.Flags.dnd
+                || !Config.hostNotificationSoundEnabledFor(typeRoot.urgency === 2)) return;
         if (Math.abs(Date.now() - typeRoot.timestamp) > 3000) return;
-        let cfg = Config.getSetting("notifications", { "sound": true, "soundFile": "", "dnd": false });
-        if (cfg.dnd === true) return;
-        let soundEnabled = cfg.sound !== undefined ? cfg.sound : true;
-        let soundFile = cfg.soundFile !== undefined ? cfg.soundFile : "";
-        if (!soundEnabled || soundFile === "") return;
-
-        if (typeof Sounds !== "undefined") {
-            _soundPlayed = true;
-            Sounds.play(soundFile);
-        }
+        const n = delegateWrapper ? delegateWrapper.realNotif : null;
+        const hints = n && n.hints ? n.hints : {};
+        if (hints["suppress-sound"] === true) return;
+        _soundPlayed = true;
+        Quickshell.execDetached([
+            "ryoku-shell",
+            "sound",
+            typeRoot.urgency === 2 ? "notification-critical" : "notification"
+        ]);
     }
 
     onDelegateWrapperChanged: Qt.callLater(playPopupSound)

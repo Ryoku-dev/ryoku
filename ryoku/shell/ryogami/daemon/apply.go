@@ -42,7 +42,10 @@ func (d *daemon) applyWallpaperReasonRecord(reason, wpType, path, mode string, o
 	if record {
 		d.previewMu.Lock()
 		defer d.previewMu.Unlock()
-		d.preview = nil
+		if d.preview != nil {
+			d.preview = nil
+			writeWallPreviewPalette(nil)
+		}
 	}
 	if pickOnly {
 		if !record {

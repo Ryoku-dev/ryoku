@@ -83,6 +83,14 @@ hl.config({
   },
 })
 
+-- Inactive tiled windows keep their 94% tint, but do not blur the whole
+-- animating desktop beneath them. Floating glass and layer cards still blur.
+hl.window_rule({
+  name    = "opaque-tile-no-blur",
+  match   = { float = false },
+  no_blur = true,
+})
+
 -- Sidebar panels stay mapped at a 1 px floor, like ryoku-frame-edge. Their QML
 -- resize and exclusive-zone motion never remaps the layer, so no_anim would only
 -- affect startup. The clear dismiss layer is not matched by any blur rule.

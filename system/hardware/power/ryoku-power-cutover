@@ -706,6 +706,22 @@ session_property() {
   return 3
 }
 
+# live, gone (closing or removed) or unknown (login1 could not answer).
+session_liveness() {
+  local state
+  if state="$(session_property "$1" State)"; then
+    if [[ $state == active || $state == online ]]; then
+      echo live
+    else
+      echo gone
+    fi
+  elif (( $? == 3 )); then
+    echo gone
+  else
+    echo unknown
+  fi
+}
+
 # The DISPLAY of this login1 session's own X server, when there is one.
 # Xwayland appears with the first X client, so an environment snapshotted
 # before that moment carries no DISPLAY, and the manager bind must not strip
@@ -1288,6 +1304,10 @@ secure_session_direct() {
     start_session_observer "$sid"
     return 0
   fi
+  local existing_lock=0
+  if [[ -n $(session_lock_pids "$sid") ]]; then
+    existing_lock=1
+  fi
   path="$(session_environment_path "$sid")"
   discover_session_environment "$sid" || [[ -r $path ]] || {
     log "cannot resolve lock environment for login1 session $sid" >&2
@@ -1308,33 +1328,35 @@ secure_session_direct() {
   username=${USER:-$(id -un)}
   escaped_sid="$(escape_unit_component "$sid")"
   unit="ryoku-session-lock-$escaped_sid-$BASHPID.service"
-  if [[ $init_system == systemd ]]; then
-    if ! systemd-run --user --quiet --collect --unit="$unit" \
-        --property=Type=exec --property=TimeoutStopSec=5s \
-        /usr/bin/env -i \
-        "HOME=${HOME:-}" "USER=$username" "LOGNAME=${LOGNAME:-$username}" \
-        "SHELL=${SHELL:-/bin/bash}" "PATH=${PATH:-/usr/bin}" \
-        "LANG=${LANG:-C.UTF-8}" "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}" \
-        "DBUS_SESSION_BUS_ADDRESS=unix:path=${XDG_RUNTIME_DIR:-/tmp}/bus" \
-        QT_QPA_PLATFORM=wayland "RYOKU_QYLOCK_LOCK_SCRIPT=$lock_script" \
-        "${assignments[@]}" "$lock_launcher"; then
-      log "could not start qylock for login1 session $sid" >&2
-      return 1
-    fi
-  else
-    if ! runit_transient_start "$unit" -- \
-        /usr/bin/env -i \
-        "HOME=${HOME:-}" "USER=$username" "LOGNAME=${LOGNAME:-$username}" \
-        "SHELL=${SHELL:-/bin/bash}" "PATH=${PATH:-/usr/bin}" \
-        "LANG=${LANG:-C.UTF-8}" "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}" \
-        "DBUS_SESSION_BUS_ADDRESS=unix:path=${XDG_RUNTIME_DIR:-/tmp}/bus" \
-        QT_QPA_PLATFORM=wayland "RYOKU_QYLOCK_LOCK_SCRIPT=$lock_script" \
-        "${assignments[@]}" "$lock_launcher"; then
-      log "could not start qylock for login1 session $sid" >&2
-      return 1
+  if (( existing_lock == 0 )); then
+    if [[ $init_system == systemd ]]; then
+      if ! systemd-run --user --quiet --collect --unit="$unit" \
+          --property=Type=exec --property=TimeoutStopSec=5s \
+          /usr/bin/env -i \
+          "HOME=${HOME:-}" "USER=$username" "LOGNAME=${LOGNAME:-$username}" \
+          "SHELL=${SHELL:-/bin/bash}" "PATH=${PATH:-/usr/bin}" \
+          "LANG=${LANG:-C.UTF-8}" "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}" \
+          "DBUS_SESSION_BUS_ADDRESS=unix:path=${XDG_RUNTIME_DIR:-/tmp}/bus" \
+          QT_QPA_PLATFORM=wayland "RYOKU_QYLOCK_LOCK_SCRIPT=$lock_script" \
+          "${assignments[@]}" "$lock_launcher"; then
+        log "could not start qylock for login1 session $sid" >&2
+        return 1
+      fi
+    else
+      if ! runit_transient_start "$unit" -- \
+          /usr/bin/env -i \
+          "HOME=${HOME:-}" "USER=$username" "LOGNAME=${LOGNAME:-$username}" \
+          "SHELL=${SHELL:-/bin/bash}" "PATH=${PATH:-/usr/bin}" \
+          "LANG=${LANG:-C.UTF-8}" "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/tmp}" \
+          "DBUS_SESSION_BUS_ADDRESS=unix:path=${XDG_RUNTIME_DIR:-/tmp}/bus" \
+          QT_QPA_PLATFORM=wayland "RYOKU_QYLOCK_LOCK_SCRIPT=$lock_script" \
+          "${assignments[@]}" "$lock_launcher"; then
+        log "could not start qylock for login1 session $sid" >&2
+        return 1
+      fi
     fi
   fi
-  for ((attempt = 0; attempt < 150; attempt++)); do
+  for ((attempt = 0; attempt < ${RYOKU_LOCK_PROOF_TRIES:-150}; attempt++)); do
     if "$proof_helper" status "$sid" >/dev/null 2>&1; then
       retire_proof_backed_unlock_guard "$sid" || return 1
       start_session_observer "$sid"
@@ -1356,6 +1378,9 @@ secure_session_direct() {
     rc=$?
     (( rc == 1 )) || return 1
   fi
+  if (( existing_lock == 0 )); then
+    user_unit_stop "$unit" >/dev/null 2>&1 || true
+  fi
   log "login1 session $sid did not establish compositor-secure qylock" >&2
   return 1
 }
@@ -1372,7 +1397,9 @@ session_lock_pids() {
     if [[ $cmdline != *ryoku-qylock-lock* &&
           $cmdline != *quickshell*lock_shell.qml* &&
           $cmdline != *quickshell-lockscreen/lock.sh* &&
-          $cmdline != *qylock-next/lockscreen/lock.sh* ]]; then
+          $cmdline != *qylock-next/lockscreen/lock.sh* &&
+          ( -z ${RYOKU_QYLOCK_LOCK_SCRIPT:-} ||
+            $cmdline != *"$RYOKU_QYLOCK_LOCK_SCRIPT"* ) ]]; then
       continue
     fi
     process_sid=""
@@ -1475,6 +1502,10 @@ current_active_user_session() {
 
 schedule_session_rebind() {
   local sid=$1 watcher=$2 unit
+  case "$(session_liveness "$sid")" in
+    gone) return 0 ;;
+    unknown) return 1 ;;
+  esac
   unit="ryoku-session-rebind@$sid.service"
   if user_unit_active "$unit"; then
     return 0
@@ -2456,9 +2487,17 @@ start_login_session() {
   (( EUID != 0 )) || { log "session startup must run as the graphical user" >&2; return 1; }
   local sid="${1:-${XDG_SESSION_ID:-}}" activity
   [[ $sid =~ ^[A-Za-z0-9_.-]+$ ]] || return 2
+  case "$(session_liveness "$sid")" in
+    gone) return 0 ;;
+    unknown) return 1 ;;
+  esac
   user_guard_sid=$sid
   exec 8>"${XDG_RUNTIME_DIR:-/tmp}/ryoku-power-cutover.lock"
   flock 8
+  case "$(session_liveness "$sid")" in
+    gone) return 0 ;;
+    unknown) return 1 ;;
+  esac
   # Any unexpected failure (errexit, a killed unit) must not strand the
   # durable sleep block: a leaked guard denies every later suspend with
   # logind's "Operation denied due to active block inhibitor" (#282, #285).

@@ -358,10 +358,17 @@ echo "Installing qylock clockwork/orbital greeter for $TARGET_USER"
 install_greeter() {
   # --- 1. SDDM greeter theme (system). The fixed "ryoku" name is the one the Hub's
   # lock picker overwrites (ryoku-hub lock apply-greeter) when the user changes skins.
+  # The host keeps the pointer independent of the selected skin and Weston's
+  # hardware-cursor path.
   echo "  greeter theme -> /usr/share/sddm/themes/ryoku"
-  priv mkdir -p /usr/share/sddm/themes
-  priv rm -rf /usr/share/sddm/themes/ryoku
-  priv cp -a "$BUNDLE/themes/clockwork/orbital" /usr/share/sddm/themes/ryoku
+  local greeter_clock24h=false
+  if [[ -r $TARGET_HOME/.config/ryoku/shell.json ]] &&
+    grep -Eq '"clock_format_24_h"[[:space:]]*:[[:space:]]*true' \
+      "$TARGET_HOME/.config/ryoku/shell.json"; then
+    greeter_clock24h=true
+  fi
+  priv "$BUNDLE/sddm-host/install-greeter-theme" \
+    "$BUNDLE/themes/clockwork/orbital" /usr/share/sddm/themes/ryoku "$greeter_clock24h"
 
   # --- 2. point SDDM at it (system) --------------------------------------------
   echo "  greeter selection -> /etc/sddm.conf.d/99-ryoku.conf"

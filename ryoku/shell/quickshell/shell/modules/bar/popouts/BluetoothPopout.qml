@@ -29,8 +29,7 @@ Item {
     readonly property var adapter: Bluetooth.defaultAdapter
     readonly property bool hasAdapter: root.adapter !== null
     readonly property bool adapterOn: root.hasAdapter && root.adapter.enabled
-    readonly property bool blocked: root.hasAdapter && typeof BluetoothAdapterState !== "undefined"
-        && root.adapter.state === BluetoothAdapterState.Blocked
+    readonly property bool blocked: BluetoothPower.blocked
     readonly property bool discovering: root.adapterOn && root.adapter.discovering
 
     readonly property var devices: (root.adapterOn && Bluetooth.devices) ? Bluetooth.devices.values : []

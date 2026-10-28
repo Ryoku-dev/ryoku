@@ -18,6 +18,7 @@ license=('GPL-3.0-or-later')
 # Python's built-in equalizer needs the processor and its LV2 effects at runtime.
 depends=('quickshell' 'ffmpeg' 'wayland' 'jq' 'python' 'uv' 'socat' 'gum' 'qrencode' 'upower' 'brightnessctl' 'ddcutil' 'wtype' 'wl-clipboard' 'zenity' 'power-profiles-daemon' 'networkmanager' 'curl' 'libnotify' 'inotify-tools' 'easyeffects' 'lsp-plugins-lv2' 'calf')
 makedepends=('go' 'wayland' 'wayland-protocols' 'ffmpeg')
+optdepends=('kdeconnect: send ryoshot captures to paired devices')
 source=()
 
 _repo="$startdir/../../.."

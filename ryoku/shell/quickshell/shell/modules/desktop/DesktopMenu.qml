@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Effects
 import "Singletons"
+import Ryoku.Ui.Singletons as Ui
 
 // The desktop right-click chrome, shared by every context menu the widget
 // layer spawns (the desktop and clock menu, and each plugin tile's menu). One
@@ -101,7 +102,7 @@ Item {
             spacing: Theme.s2
             Text {
                 id: seal
-                visible: menu.gloss.length > 0
+                visible: Ui.UiPreferences.showJapaneseGloss && menu.gloss.length > 0
                 anchors.verticalCenter: parent.verticalCenter
                 text: menu.gloss
                 color: Theme.faint

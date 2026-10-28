@@ -1,6 +1,18 @@
 # Changelog: system/
 
 ## Unreleased
+- **Bluetooth can turn back on after a legacy rfkill block.** Power-off now
+  records the user's choice through BlueZ without soft-blocking platform radio
+  switches, while power-on clears old blocks and waits for the controller to
+  reappear (`hardware/bluetooth/ryoku-bluetooth-power`).
+- **Power-profile switches no longer ask an administrator for a password.**
+  A dev deploy's `~/.local/bin/ryoku-power` can shadow the packaged helper, but
+  privileged writes now cross through the exact root-owned `/usr/bin/ryoku-power`
+  path authorized by polkit. Already-converged profiles still skip escalation
+  entirely (`hardware/power/ryoku-power`, `../tests/power.sh`).
+- **Locking no longer piles up lock screens for logged-out sessions.** Old sessions
+  stop retrying their locks, and a new attempt reuses the lock screen already
+  running (`hardware/power/ryoku-power-cutover`, `../ryoku/shell/ipc/`).
 - **QMK keyboard lighting names the package each edition can install.** Arch and
   CachyOS use the `qmk-hid` AUR package while Fedora and Void translate it to
   their shipped providers (`../fedora/packages/translations.tsv`,

@@ -21,9 +21,14 @@ Item {
     property bool canUndo: false
     property bool canRedo: false
     property bool settingsOpen: false
+    property bool phoneAvailable: false
+    property var phoneDevices: []
+    property bool phoneReady: false
+    property bool phoneBusy: false
 
     readonly property real colorCenterX: colorBtn.x + row.x + colorBtn.width / 2
     readonly property real widthCenterX: widthBtn.x + row.x + widthBtn.width / 2
+    readonly property real phoneCenterX: phoneBtn.x + row.x + phoneBtn.width / 2
     readonly property real gearCenterX: gear.x + row.x + gear.width / 2
 
     signal toolPicked(string tool)
@@ -36,6 +41,7 @@ Item {
     signal copyRequested()
     signal saveRequested()
     signal uploadRequested()
+    signal phoneRequested()
     signal pinRequested()
     signal helpRequested()
     signal settingsRequested()
@@ -45,7 +51,7 @@ Item {
     // the desktop brand seal, user-overridable via ~/.config/ryoku/brand.json
     // (Ryoku Settings -> Shell -> Global). the beautify button follows markText;
     // empty/absent falls back to the 力 default, so this never seeds.
-    readonly property string mark: brandAdapter.markText.length > 0 ? brandAdapter.markText : "\u529b"
+    readonly property string mark: UiPreferences.brandMark(brandAdapter.markText)
     FileView {
         id: brandFile
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/brand.json"
@@ -204,6 +210,19 @@ Item {
             IconButton { icon: "save"; tooltip: I18n.tr("Save") + "  (ctrl+s)"; onClicked: tb.saveRequested() }
             IconButton { icon: "pin"; tooltip: I18n.tr("Pin to desktop") + "  (ctrl+p)"; onClicked: tb.pinRequested() }
             IconButton { icon: "upload"; tooltip: I18n.tr("Upload") + "  (ctrl+u)"; onClicked: tb.uploadRequested() }
+            IconButton {
+                id: phoneBtn
+                visible: tb.phoneAvailable
+                icon: "phone"
+                dim: tb.phoneBusy || !tb.phoneReady || tb.phoneDevices.length === 0
+                tooltip: tb.phoneBusy ? I18n.tr("Sending screenshot")
+                    : !tb.phoneReady ? I18n.tr("Phone transfer is unavailable")
+                    : tb.phoneDevices.length === 0 ? I18n.tr("No connected phone")
+                    : tb.phoneDevices.length === 1
+                        ? I18n.tr("Send to %1").arg(tb.phoneDevices[0].name) + "  (ctrl+k)"
+                        : I18n.tr("Choose a phone") + "  (ctrl+k)"
+                onClicked: tb.phoneRequested()
+            }
 
             Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 20; color: Theme.hair; Layout.leftMargin: 3; Layout.rightMargin: 3 }
 

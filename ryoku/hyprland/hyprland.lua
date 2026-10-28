@@ -65,3 +65,12 @@ optional("ghosttype")
 -- last word: ~/.config/hypr/user.lua. seeded once with a header explaining the
 -- load order, then yours; never touched by updates.
 optional("user")
+
+-- Game Mode's persisted strip is the one override user.lua cannot undo.
+local home = os.getenv("HOME") or ""
+local state_home = os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")
+local game_mode = io.open(state_home .. "/ryoku/game-mode.enabled", "r")
+if game_mode then
+    game_mode:close()
+    require("modules.game_mode")
+end

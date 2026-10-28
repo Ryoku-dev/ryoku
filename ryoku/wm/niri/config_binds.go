@@ -25,12 +25,13 @@ import (
 // catalogue copy when niri's mechanic differs from the neutral description. In a
 // family action, {n} is the workspace number, substituted per expanded chord.
 type niriBind struct {
-	action     string
-	reason     string // set when action == ""; the Unhonored copy
-	label      string // replaces the catalogue Label when niri's mechanic differs
-	hint       string // replaces the catalogue Hint when niri's mechanic differs
-	noRepeat   bool   // repeat=false
-	cooldownMs int    // cooldown-ms=N, for wheel binds
+	action          string
+	reason          string // set when action == ""; the Unhonored copy
+	label           string // replaces the catalogue Label when niri's mechanic differs
+	hint            string // replaces the catalogue Hint when niri's mechanic differs
+	noRepeat        bool   // repeat=false
+	ignoreInhibitor bool   // allow-inhibiting=false
+	cooldownMs      int    // cooldown-ms=N, for wheel binds
 }
 
 func spawnArgs(args ...string) string {
@@ -165,7 +166,7 @@ func shippedBinds() map[string]niriBind {
 		"shell.rashin":            {action: spawnSh("ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app")},
 		"shell.cheatsheet":        {action: spawnSh("pkill -x -f 'qs -c keys' 2>/dev/null || " + wm.QmlEnv + " flock -n -o /tmp/ryoku-keys.lock qs -c keys")},
 		"shell.lock":              {action: spawnArgs("ryoku-shell", "lock")},
-		"shell.quicksettings":     {action: spawnArgs("ryoku-shell", "quicksettings")},
+		"shell.quicksettings":     {action: spawnArgs("ryoku-shell", "quicksettings"), ignoreInhibitor: true},
 		"shell.wallpaper":         {action: spawnArgs("ryogami", "wallpaper", "ui")},
 		"shell.wallpaperRandom":   {action: spawnArgs("ryogami", "wallpaper", "random")},
 		"shell.ryovm":             {action: spawnSh("ryoku-summon ryovm " + wm.QmlEnv + " flock -n -o /tmp/ryovm.lock qs -c ryovm")},
@@ -173,7 +174,7 @@ func shippedBinds() map[string]niriBind {
 		"shell.visualizer":        {action: spawnArgs("ryoku-shell", "visualizer")},
 		"shell.visualizerOverlay": {action: spawnArgs("ryoku-shell", "visualizer-overlay")},
 		"shell.visualizerPlace":   {action: spawnArgs("ryoku-shell", "visualizer-place")},
-		"shell.voice":             {action: spawnArgs("ryoku-shell", "voice")},
+		"shell.voice":             {action: spawnArgs("ryoku-shell", "voice"), noRepeat: true},
 		"shell.settings":          {action: spawnArgs("ryoku-shell", "hub", "open")},
 		"shell.stageEditor":       {action: spawnArgs("ryoku-shell", "hub", "open", "widgets")},
 		"shell.screenshot":        {action: spawnSh(wm.QmlEnv + " ryoku-cmd-ryoshot")},
@@ -181,14 +182,14 @@ func shippedBinds() map[string]niriBind {
 		"shell.screenshotMonitor": {action: spawnSh(wm.QmlEnv + " RYOSHOT_MODE=monitor ryoku-cmd-ryoshot")},
 		"shell.colorPicker":       {action: spawnArgs("hyprpicker", "-a")},
 		"shell.restartAudio":      {action: spawnArgs("ryoku-restart-audio")},
-		"shell.inhibitShortcuts":  {action: "toggle-keyboard-shortcuts-inhibit"},
+		"shell.inhibitShortcuts":  {action: "toggle-keyboard-shortcuts-inhibit", ignoreInhibitor: true},
 
 		// Media. Locked in the catalogue, so genBinds emits allow-when-locked.
 		"media.volumeUp":   {action: spawnArgs("ryoku-volume", "up")},
 		"media.volumeDown": {action: spawnArgs("ryoku-volume", "down")},
-		"media.mute":       {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle")},
-		"media.micMute":    {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle")},
-		"media.play":       {action: spawnArgs("playerctl", "play-pause")},
+		"media.mute":       {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"), noRepeat: true},
+		"media.micMute":    {action: spawnArgs("wpctl", "set-mute", "@DEFAULT_AUDIO_SOURCE@", "toggle"), noRepeat: true},
+		"media.play":       {action: spawnArgs("playerctl", "play-pause"), noRepeat: true},
 		"media.next":       {action: spawnArgs("playerctl", "next")},
 		"media.prev":       {action: spawnArgs("playerctl", "previous")},
 
@@ -208,9 +209,9 @@ func shippedBinds() map[string]niriBind {
 // outBind is one resolved bind, ready for the config writer: the niri chord and
 // action apply writes plus the KDL properties niri's parser reads off the node.
 type outBind struct {
-	chord, action    string
-	locked, noRepeat bool
-	cooldownMs       int
+	chord, action                     string
+	locked, noRepeat, ignoreInhibitor bool
+	cooldownMs                        int
 }
 
 // resolveBinds expands the catalogue into the emitted bind set and folds the
@@ -253,24 +254,25 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 	// user set on that keysym; among twins the earlier (higher priority)
 	// resolution wins, matching the one-winner rule.
 	type pendingTwin struct {
-		hubChord   string
-		action     string
-		locked     bool
-		noRepeat   bool
-		cooldownMs int
+		hubChord        string
+		action          string
+		locked          bool
+		noRepeat        bool
+		ignoreInhibitor bool
+		cooldownMs      int
 	}
 	var twins []pendingTwin
-	emit := func(hubChord, niriChord, action string, locked, noRepeat bool, cooldownMs int) {
+	emit := func(hubChord, niriChord, action string, locked, noRepeat, ignoreInhibitor bool, cooldownMs int) {
 		if niriChord == "" || claimed[niriChord] {
 			return
 		}
 		claimed[niriChord] = true
 		out = append(out, outBind{
 			chord: niriChord, action: action,
-			locked: locked, noRepeat: noRepeat, cooldownMs: cooldownMs,
+			locked: locked, noRepeat: noRepeat, ignoreInhibitor: ignoreInhibitor, cooldownMs: cooldownMs,
 		})
 		if len(wm.NumpadAliases(hubChord)) > 0 {
-			twins = append(twins, pendingTwin{hubChord, action, locked, noRepeat, cooldownMs})
+			twins = append(twins, pendingTwin{hubChord, action, locked, noRepeat, ignoreInhibitor, cooldownMs})
 		}
 	}
 
@@ -288,7 +290,7 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 			report = append(report, wm.Unhonored{Key: fmt.Sprintf("desktop.keybinds[%d]", i), Reason: fmt.Sprintf("niri cannot bind the chord %q.", k.Keys)})
 			continue
 		}
-		emit(k.Keys, niriChord, action, false, false, 0)
+		emit(k.Keys, niriChord, action, false, false, false, 0)
 	}
 
 	cat := wm.ShippedBinds()
@@ -334,7 +336,7 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 					continue
 				}
 				if niriChord, ok := toNiriChord(to); ok {
-					emit(to, niriChord, action, cb.Locked, nb.noRepeat, nb.cooldownMs)
+					emit(to, niriChord, action, cb.Locked, nb.noRepeat, nb.ignoreInhibitor, nb.cooldownMs)
 				}
 			}
 		}
@@ -348,7 +350,7 @@ func resolveBinds(s niriStore) ([]outBind, []wm.Unhonored) {
 	for _, t := range twins {
 		for _, alias := range wm.NumpadAliases(t.hubChord) {
 			if aliasChord, ok := toNiriChord(alias); ok {
-				emit(alias, aliasChord, t.action, t.locked, t.noRepeat, t.cooldownMs)
+				emit(alias, aliasChord, t.action, t.locked, t.noRepeat, t.ignoreInhibitor, t.cooldownMs)
 			}
 		}
 	}
@@ -366,6 +368,9 @@ func genBinds(s niriStore) (string, []wm.Unhonored) {
 	b.WriteString("binds {\n")
 	for _, o := range out {
 		var props []string
+		if o.ignoreInhibitor {
+			props = append(props, "allow-inhibiting=false")
+		}
 		if o.locked {
 			props = append(props, "allow-when-locked=true")
 		}

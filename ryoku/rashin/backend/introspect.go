@@ -514,15 +514,49 @@ func buildHeatmap(sessions []SessionEntry) []HeatmapDay {
 	return out
 }
 
-// hermesSessions reads session metadata from ~/.hermes/state.db without
-// disturbing the live daemon's WAL handle.
-func hermesSessions(limit int) []SessionEntry {
-	entries, _ := hermesSessionReport(limit)
-	return entries
+// hermesSessionHome mirrors Hermes's profile selection for the session store.
+// A concrete profile HERMES_HOME wins; a root follows its sticky active profile.
+func hermesSessionHome() string {
+	root := strings.TrimSpace(os.Getenv("HERMES_HOME"))
+	if root == "" {
+		root = filepath.Join(home(), ".hermes")
+	} else if strings.HasPrefix(root, "~/") {
+		root = filepath.Join(home(), root[2:])
+	}
+	root = filepath.Clean(root)
+	if filepath.Base(filepath.Dir(root)) == "profiles" {
+		return root
+	}
+	active, err := os.ReadFile(filepath.Join(root, "active_profile"))
+	if err != nil {
+		return root
+	}
+	name := strings.TrimSpace(string(active))
+	if name == "" || name == "default" || !validHermesProfileName(name) {
+		return root
+	}
+	profile := filepath.Join(root, "profiles", name)
+	if dirExists(profile) {
+		return profile
+	}
+	return root
 }
 
-func hermesSessionReport(limit int) ([]SessionEntry, string) {
-	db := filepath.Join(home(), ".hermes", "state.db")
+func validHermesProfileName(name string) bool {
+	if len(name) == 0 || len(name) > 64 {
+		return false
+	}
+	for i, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || (i > 0 && (r == '_' || r == '-')) {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func hermesStateQuery(query string) ([]byte, string) {
+	db := filepath.Join(hermesSessionHome(), "state.db")
 	if !fileExists(db) {
 		return nil, ""
 	}
@@ -532,10 +566,60 @@ func hermesSessionReport(limit int) ([]SessionEntry, string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	q := "SELECT id, COALESCE(title,'') AS title, COALESCE(model,'') AS model, message_count, started_at, source FROM sessions WHERE archived IS NOT 1 ORDER BY started_at DESC LIMIT " + itoa(limit)
-	out, err := exec.CommandContext(ctx, bin, "-readonly", "-json", "file:"+db+"?mode=ro", q).Output()
+	out, err := exec.CommandContext(ctx, bin, "-readonly", "-json", "file:"+db+"?mode=ro", query).Output()
 	if err != nil || len(out) == 0 {
 		return nil, ""
+	}
+	return out, ""
+}
+
+// hermesHistorySessions reads the same ACP rows that can be reopened, using
+// the dedicated cwd column preferred by current Hermes and the legacy
+// model_config value as a fallback.
+func hermesHistorySessions(limit int) []SessionMeta {
+	if limit <= 0 {
+		return nil
+	}
+	q := "SELECT id, COALESCE(title,'') AS title, " +
+		"COALESCE(NULLIF(cwd,''), CASE WHEN json_valid(model_config) THEN json_extract(model_config,'$.cwd') END, '') AS cwd, " +
+		"COALESCE(last_activity_at, ended_at, started_at) AS updated_at " +
+		"FROM sessions WHERE source = 'acp' AND archived IS NOT 1 AND message_count > 0 " +
+		"ORDER BY updated_at DESC LIMIT " + itoa(limit)
+	out, _ := hermesStateQuery(q)
+	var rows []struct {
+		ID        string  `json:"id"`
+		Title     string  `json:"title"`
+		Cwd       string  `json:"cwd"`
+		UpdatedAt float64 `json:"updated_at"`
+	}
+	if json.Unmarshal(out, &rows) != nil {
+		return nil
+	}
+	sessions := make([]SessionMeta, 0, len(rows))
+	for _, r := range rows {
+		updated := ""
+		if r.UpdatedAt > 0 {
+			updated = time.Unix(int64(r.UpdatedAt), 0).Format(time.RFC3339)
+		}
+		sessions = append(sessions, SessionMeta{
+			ID: r.ID, Title: cleanTitle(r.Title), Cwd: r.Cwd, UpdatedAt: updated,
+		})
+	}
+	return sessions
+}
+
+// hermesSessions reads session metadata from Hermes's active state.db without
+// disturbing its WAL handle.
+func hermesSessions(limit int) []SessionEntry {
+	entries, _ := hermesSessionReport(limit)
+	return entries
+}
+
+func hermesSessionReport(limit int) ([]SessionEntry, string) {
+	q := "SELECT id, COALESCE(title,'') AS title, COALESCE(model,'') AS model, message_count, started_at, source FROM sessions WHERE archived IS NOT 1 ORDER BY started_at DESC LIMIT " + itoa(limit)
+	out, note := hermesStateQuery(q)
+	if note != "" || len(out) == 0 {
+		return nil, note
 	}
 	var rows []struct {
 		ID       string  `json:"id"`

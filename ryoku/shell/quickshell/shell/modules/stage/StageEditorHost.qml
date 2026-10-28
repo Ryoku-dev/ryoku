@@ -54,15 +54,18 @@ Scope {
     Connections {
         target: GlobalStates
         function onEditModeChanged() {
-            if (!GlobalStates.editMode && StageCfg.StageSession.widgets)
+            if (!GlobalStates.editMode && GlobalStates._editReopenMonitor === ""
+                    && StageCfg.StageSession.widgets)
                 StageCfg.StageSession.leave();
         }
         function onEditModeMonitorChanged() {
-            if (GlobalStates.editMode
-                    && StageCfg.StageSession.widgets
+            if (StageCfg.StageSession.widgets
                     && GlobalStates.editModeMonitor !== ""
-                    && StageCfg.StageSession.monitor !== GlobalStates.editModeMonitor)
+                    && StageCfg.StageSession.monitor !== GlobalStates.editModeMonitor) {
+                StageCfg.StageSession.selection = [];
+                StageCfg.StageSession.inspecting = "";
                 StageCfg.StageSession.monitor = GlobalStates.editModeMonitor;
+            }
         }
     }
 }

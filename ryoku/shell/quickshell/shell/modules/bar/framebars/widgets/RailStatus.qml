@@ -115,7 +115,9 @@ Item {
             Quickshell.execDetached(["ryoku-shell", "audio", steps > 0 ? "up" : "down"]);
         } else if (audioIn && Audio.source && Audio.source.audio) {
             const v = Audio.source.audio.volume + (steps > 0 ? 0.05 : -0.05);
-            Audio.source.audio.volume = Math.max(0, Math.min(1, v));
+            const next = Math.max(0, Math.min(1, v));
+            OsdFeed.expectMicVolume(next);
+            Audio.source.audio.volume = next;
         }
     }
 

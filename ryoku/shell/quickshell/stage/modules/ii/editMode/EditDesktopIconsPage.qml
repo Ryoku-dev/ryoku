@@ -61,6 +61,23 @@ StyledFlickable {
                 SettingRow {
                     width: parent.width
                     divider: true
+                    label: Translation.tr("Open desktop icons")
+                    desc: Translation.tr("Choose whether one click selects or opens an icon")
+                    block: true
+                    Seg {
+                        width: parent.width
+                        options: ["single", "double"]
+                        labels: ({
+                            "single": Translation.tr("Single click"),
+                            "double": Translation.tr("Double click")
+                        })
+                        current: root.options.openOn
+                        onChose: key => root.options.openOn = key
+                    }
+                }
+                SettingRow {
+                    width: parent.width
+                    divider: true
                     label: Translation.tr("Icon size")
                     desc: Translation.tr("Scale icons and their spacing together")
                     value: `${DesktopShortcuts.iconScale}×`

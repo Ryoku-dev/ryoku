@@ -203,6 +203,50 @@ func TestLayoutExtrasEmitted(t *testing.T) {
 	}
 }
 
+// Niri rejects whole-number proportions and opacities written as integer KDL.
+func TestWholeFloatsEmittedAsFloats(t *testing.T) {
+	s := defaultStore()
+	s.Niri.DefaultColumnWidth = 1
+	s.Niri.PresetColumnWidths = Proportions{0.5, 1}
+	s.WindowRules = []WindowRule{
+		{Class: "foo", Action: "columnwidth", Value: "1"},
+		{Class: "bar", Action: "opacity", Value: "1"},
+	}
+	out := string(genSettings(s))
+	for _, want := range []string{
+		"    default-column-width { proportion 1.0; }",
+		"preset-column-widths {\n        proportion 0.5\n        proportion 1.0\n    }",
+		"default-column-width { proportion 1.0; }",
+		"opacity 1.0",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("whole float missing %q\n%s", want, out)
+		}
+	}
+	for _, bad := range []string{"proportion 1\n", "proportion 1;", "opacity 1\n"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("integer literal %q emitted where niri needs a float\n%s", bad, out)
+		}
+	}
+	s.Niri.PresetWindowHeights = Proportions{0.5, 1}
+	s.Niri.LayerRules = []LayerRule{{Namespace: "probe", Opacity: 1, CornerRadius: -1}}
+	s.AppOverrides = []AppOverride{{Class: "kitty", Opacity: 1, Rounding: -1, BorderSize: -1}}
+	s.WindowRules = append(s.WindowRules, WindowRule{Class: "baz", Action: "scrollfactor", Value: "1"})
+	s.Input.Sensitivity = 1
+	s.Input.MouseScrollFactor = 2
+	s.Input.TouchScrollFactor = 2
+	s.Niri.OverviewZoom = 1
+	s.Niri.AnimationSlowdown = 2
+	dir := niriHome(t)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "settings.kdl"), genSettings(s), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	validateGen(t, dir, "settings.kdl")
+}
+
 func TestPreferNoCSD(t *testing.T) {
 	if out := string(genSettings(defaultStore())); !strings.Contains(out, "\nprefer-no-csd\n") {
 		t.Errorf("the default must ask apps to hide client-side title bars\n%s", out)

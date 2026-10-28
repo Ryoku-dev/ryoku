@@ -64,6 +64,14 @@ var rows = [
         "opts": ["auto", "celsius", "fahrenheit"]
     }, {
         "tab": "Region & fonts",
+        "group": "INTERFACE",
+        "key": "showJapaneseGloss",
+        "label": "Japanese glosses",
+        "desc": "Show Ryoku's Japanese glosses, decorative text and mark across the desktop. Off keeps English and Latin marks; CJK fonts, language support and your content are unaffected.",
+        "ctl": "sw",
+        "src": "shell"
+    }, {
+        "tab": "Region & fonts",
         "group": "FONT",
         "key": "fontFamily",
         "label": "System font",

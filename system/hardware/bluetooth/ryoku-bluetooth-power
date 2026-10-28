@@ -26,32 +26,32 @@ saved_state() {
   esac
 }
 
+controller_available() {
+  bluetoothctl list 2>/dev/null | command grep -q '^Controller[[:space:]]'
+}
+
 apply_state() {
-  local state=$1 changed=1
+  local state=$1 attempt
   case $state in
     off)
-      if command -v bluetoothctl >/dev/null 2>&1 && bluetoothctl power off >/dev/null 2>&1; then
-        changed=0
-      fi
-      if command -v rfkill >/dev/null 2>&1 && rfkill block bluetooth >/dev/null 2>&1; then
-        changed=0
-      fi
+      command -v bluetoothctl >/dev/null 2>&1 \
+        && bluetoothctl power off >/dev/null 2>&1
       ;;
     on)
-      if command -v rfkill >/dev/null 2>&1 && rfkill unblock bluetooth >/dev/null 2>&1; then
-        changed=0
+      if command -v rfkill >/dev/null 2>&1; then
+        rfkill unblock bluetooth >/dev/null 2>&1 || true
       fi
-      if command -v bluetoothctl >/dev/null 2>&1; then
-        if bluetoothctl power on >/dev/null 2>&1; then
-          changed=0
-        else
-          sleep 0.4
-          bluetoothctl power on >/dev/null 2>&1 && changed=0
+      command -v bluetoothctl >/dev/null 2>&1 || return 1
+      for ((attempt = 0; attempt < 50; attempt++)); do
+        if controller_available; then
+          bluetoothctl power on >/dev/null 2>&1
+          return
         fi
-      fi
+        ((attempt == 49)) || sleep 0.1
+      done
+      return 1
       ;;
   esac
-  return "$changed"
 }
 
 set_state() {

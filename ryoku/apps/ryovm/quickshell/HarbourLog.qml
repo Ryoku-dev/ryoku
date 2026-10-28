@@ -59,7 +59,7 @@ Item {
             font.weight: Font.Medium; font.letterSpacing: Tokens.trackMark
             anchors.verticalCenter: parent.verticalCenter
         }
-        Text { text: mark.glyph; color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+        Text { text: UiPreferences.text(mark.glyph, ""); color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
     }
 
     Rectangle {

@@ -133,9 +133,7 @@ FilePicker {
                         enabled: soundPickerRoot.selectedFilePath !== ""
                         opacity: enabled ? 1.0 : 0.4
                         onClicked: {
-                            if (typeof Sounds !== "undefined" && typeof Sounds.play === "function") {
-                                Sounds.play(soundPickerRoot.selectedFilePath);
-                            }
+                            Config.previewNotificationSound(soundPickerRoot.selectedFilePath);
                         }
                     }
                 }

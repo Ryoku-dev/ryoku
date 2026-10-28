@@ -51,6 +51,13 @@ func TestNotificationDefaultsMatchContract(t *testing.T) {
 	}
 }
 
+func TestJapaneseGlossDefaultsOn(t *testing.T) {
+	store := newTestStore(t)
+	if got := frameGet(t, store.frameLocked(), "showJapaneseGloss"); got != true {
+		t.Fatalf("showJapaneseGloss = %v, want true", got)
+	}
+}
+
 func TestPhoneDefaultsMatchContract(t *testing.T) {
 	store := newTestStore(t)
 	var want any
@@ -498,8 +505,8 @@ func TestMalformedFileFirstLoad(t *testing.T) {
 			t.Fatalf("first-load fallback carried %d top-level keys, want %d (schema only)", len(s.raw), len(contractKeys))
 		}
 		for _, k := range []string{
-			"deckFrostEnabled", "deckFrost", "general", "theme", "bars", "menus", "notifications",
-			"wallpaper", "ask", "controls", "batteryAlerts",
+			"deckFrostEnabled", "deckFrost", "showJapaneseGloss", "general", "theme", "bars", "menus",
+			"notifications", "wallpaper", "ask", "controls", "batteryAlerts",
 		} {
 			if _, ok := s.raw[k]; !ok {
 				t.Fatalf("first-load fallback missing schema root %q", k)

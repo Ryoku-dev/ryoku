@@ -322,7 +322,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                text: "\u529b"; color: Tokens.ink; font.family: Tokens.jp
+                text: UiPreferences.brandMark("\u529b"); color: Tokens.ink; font.family: Tokens.jp
                 font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter
             }
             Text {

@@ -5,6 +5,9 @@ import Ryoku.Ui.Singletons
 // The runtime title stays compatible with ryoku-summon and both compositor
 // providers. Ryoport is the visible product identity inside the window.
 ShellRoot {
+    Component.onCompleted: Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+        (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/")
+
     FloatingWindow {
         id: win
         title: "ryovm"

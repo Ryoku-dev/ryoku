@@ -82,7 +82,7 @@ Singleton {
     property var _memo: ({ state: "", data: {}, defaults: {} })
 
     function snapshot(): string {
-        return JSON.stringify(ShellCfg.Config.dock ?? {});
+        return ShellCfg.Dock.iconRev + ":" + JSON.stringify(ShellCfg.Config.dock ?? {});
     }
 
     function pull(path: string, fallback: var): var {
@@ -126,7 +126,12 @@ Singleton {
         if (path === "order") {
             const own = root.frame().order;
             if (own !== undefined && own !== null)
-                return Array.from(own);
+                return Array.from(own, entry => {
+                    const key = String(entry);
+                    const prefix = key.startsWith("app:") ? "app:"
+                        : key.startsWith("runningApp:") ? "runningApp:" : "";
+                    return prefix ? prefix + ShellCfg.Dock.canonicalId(key.substring(prefix.length)) : key;
+                });
             const built = ["pin"];
             const pins = root.sharedPinned();
             for (let i = 0; i < pins.length; i++)

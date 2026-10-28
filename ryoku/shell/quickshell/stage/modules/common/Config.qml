@@ -4367,6 +4367,7 @@ Singleton {
                     property bool keepSorted: false // re-sort whenever an icon comes or goes
                     property bool stacks: false // one stack per kind: apps, folders, files
                     property bool hidden: false // a clean desktop; the icons stay stored
+                    property string openOn: "double" // single | double
                     property string labels: "always" // always | hover | never
                     property int labelLines: 1 // 1 | 2
                     property string labelStyle: "auto" // auto | shadow | pill

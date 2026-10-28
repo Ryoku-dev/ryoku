@@ -241,3 +241,17 @@ eq(Store.categoryName(shellProducts[0], { name: "Bar styles" }), "Subshell",
    "subshell cards carry a small marker");
 eq(Store.categoryName(shellProducts[4], { name: "Bar styles" }), "Bar styles",
    "ordinary barstyle cards keep their category");
+
+eq(
+    Store.filter([
+        { id: "local", category: "flatpak", name: "Local", summary: "no match here" },
+        { id: "live", category: "flatpak", name: "Live", summary: "no match here", remoteMatch: true }
+    ], { query: "discord" }).map(i => i.id),
+    ["live"],
+    "a live search result is kept even when its text does not contain the query"
+);
+eq(
+    Store.filter([{ id: "live", category: "flatpak", name: "Live", remoteMatch: true }], { category: "plugins", query: "discord" }).length,
+    0,
+    "a live search result still respects the category filter"
+);

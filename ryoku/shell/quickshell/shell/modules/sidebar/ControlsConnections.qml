@@ -45,7 +45,8 @@ Item {
             ? I18n.tr("%1 · %2 GHz · %3%").arg(Network.activeSsid).arg(band).arg(strength)
             : I18n.tr("%1 · %2%").arg(Network.activeSsid).arg(strength);
     }
-    readonly property string bluetoothDetail: !root.adapter ? I18n.tr("No adapter")
+    readonly property string bluetoothDetail: BluetoothPower.blocked ? I18n.tr("Blocked")
+        : !root.adapter ? I18n.tr("No adapter")
         : !root.adapter.enabled ? I18n.tr("Radio off")
         : root.connectedDevices.length === 1 ? BtLink.label(root.connectedDevices[0])
         : root.connectedDevices.length > 1 ? I18n.tr("%1 connected").arg(root.connectedDevices.length)

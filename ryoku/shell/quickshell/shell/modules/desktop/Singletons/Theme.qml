@@ -84,7 +84,7 @@ Singleton {
     // brand mark + name, user-overridable via ~/.config/ryoku/brand.json (Shell ->
     // Global). defaults to the 力 seal / "Ryoku". BrandMark renders `mark`, or
     // `markSource` (an image) when set. Ryoku's own apps never read these.
-    readonly property string mark: Config.markText.length > 0 ? Config.markText : "\u529b"
+    readonly property string mark: Ui.UiPreferences.brandMark(Config.markText)
     readonly property string markSource: Config.markImage
     readonly property bool markTint: Config.markTint
     readonly property string brandName: Config.brandName.length > 0 ? Config.brandName : "Ryoku"

@@ -8,9 +8,11 @@ import inir.modules.common.widgets
 
 QuickToggleModel {
     name: Translation.tr("Bluetooth")
-    statusText: BluetoothStatus.firstActiveDevice?.name ?? Translation.tr("Not connected")
+    statusText: BluetoothStatus.blocked ? Translation.tr("Blocked")
+        : BluetoothStatus.firstActiveDevice?.name ?? Translation.tr("Not connected")
     tooltipText: Translation.tr("%1 | Right-click to configure").arg(
-        BluetoothStatus.activeDeviceSummary(true) || Translation.tr("Bluetooth")
+        BluetoothStatus.blocked ? Translation.tr("Bluetooth is blocked")
+            : BluetoothStatus.activeDeviceSummary(true) || Translation.tr("Bluetooth")
     )
     icon: BluetoothStatus.activeIcon
 

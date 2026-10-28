@@ -589,7 +589,7 @@ if [[ $name == systemd-run ]]; then
     printf 'systemd-run session-lock %s\n' "$sid" >>"$CUTOVER_LOG"
     if [[ ${DISAPPEAR_SESSION:-} == "$sid" ]]; then
       : >"$CUTOVER_STATE/gone-$sid"
-    else
+    elif [[ ${NO_LOCK_PROOF:-0} != 1 ]]; then
       : >"$CUTOVER_STATE/proof-$sid"
     fi
     [[ $* != *'/ryoku/qylock-next/lockscreen/lock.sh'* ]] ||
@@ -648,7 +648,8 @@ if [[ $name == systemd-run ]]; then
 fi
 if [[ ${REQUIRE_USER_GUARD:-0} == 1 &&
       ! -e $CUTOVER_STATE/user-guard &&
-      ! -e $CUTOVER_STATE/runit-inhibitor ]]; then
+      ! -e $CUTOVER_STATE/runit-inhibitor &&
+      "$name ${1:-}" != "loginctl show-session" ]]; then
   exit 88
 fi
 printf '%s %s\n' "$name" "$*" >>"$CUTOVER_LOG"
@@ -709,7 +710,8 @@ case "$name:${1:-}" in
     fi
     ;;
   loginctl:show-session)
-    if [[ -e $CUTOVER_STATE/gone-${2:-} ]]; then
+    if [[ -e $CUTOVER_STATE/gone-${2:-} ||
+          ${DEAD_SESSION:-} == "${2:-}" ]]; then
       exit 1
     fi
     if [[ ${EXTRA_SESSION:-0} == 1 ]]; then
@@ -781,6 +783,13 @@ EOF
 cat >"$tmp/qylock-proof" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ ${PROOF_AFTER_RETRY:-0} == 1 && ${1:-} == status ]]; then
+  if [[ -e $CUTOVER_STATE/retry-probed ]]; then
+    : >"$CUTOVER_STATE/proof-${2:-}"
+  else
+    : >"$CUTOVER_STATE/retry-probed"
+  fi
+fi
 [[ ${1:-} == status && -e $CUTOVER_STATE/proof-${2:-} ]]
 EOF
 cat >"$tmp/bin/ryoku-wm-testwm" <<'EOF'
@@ -971,7 +980,51 @@ grep -qxF \
   fail "vanished pre-observer session did not stop its queued lock clients"
 [[ ! -e $tmp/runtime-user/ryoku-session.8.environment ]] \
   || fail "vanished pre-observer session kept stale compositor environment"
+
+# A removed session must finish its rebind unit successfully, without ever
+# acquiring an inhibitor or scheduling another lock.
+: >"$tmp/calls"
+DEAD_SESSION=8 CUTOVER_LOG="$tmp/calls" CUTOVER_STATE="$tmp/state" \
+  XDG_RUNTIME_DIR="$tmp/runtime-user" PATH="$tmp/bin:$PATH" \
+  bash -c 'source "$1"; start_login_session 8 && schedule_session_rebind 8 "$1"' _ "$helper" ||
+  fail "removed session did not finish its startup and rebind cleanly"
+if grep -Ev '^loginctl show-session 8( |$)' "$tmp/calls" | grep -q .; then
+  fail "removed session scheduled a new rebind or guard"
+fi
+
+# The second direct attempt waits for the existing wrapper's proof rather than
+# creating a second transient client for the same live session.
 rm -f "$tmp/state/gone-8"
+printf 'XDG_SESSION_ID=8\0XDG_SESSION_TYPE=wayland\0WAYLAND_DISPLAY=wayland-eight\0' \
+  >"$tmp/runtime-user/ryoku-session.8.environment"
+mkdir -p "$tmp/lock-proc/8888"
+printf 'Uid:\t%s\t%s\t%s\t%s\n' "$(id -u)" "$(id -u)" "$(id -u)" "$(id -u)" \
+  >"$tmp/lock-proc/8888/status"
+printf 'bash\0/home/user/.local/share/quickshell-lockscreen/lock.sh\0' \
+  >"$tmp/lock-proc/8888/cmdline"
+printf 'XDG_SESSION_ID=8\0' >"$tmp/lock-proc/8888/environ"
+: >"$tmp/calls"
+rm -f "$tmp/state/proof-8" "$tmp/state/retry-probed"
+PROOF_AFTER_RETRY=1 EXTRA_SESSION=1 CUTOVER_LOG="$tmp/calls" CUTOVER_STATE="$tmp/state" \
+  RYOKU_PROC_ROOT="$tmp/lock-proc" XDG_RUNTIME_DIR="$tmp/runtime-user" \
+  RYOKU_QYLOCK_LOCK_SCRIPT="$tmp/qylock-lock" \
+  RYOKU_QYLOCK_LAUNCHER="$tmp/qylock-lock" \
+  RYOKU_QYLOCK_PROOF_HELPER="$tmp/qylock-proof" PATH="$tmp/bin:$PATH" \
+  bash -c 'source "$1"; secure_session_direct 8' _ "$helper"
+if grep -qF 'systemd-run session-lock 8' "$tmp/calls"; then
+  fail "retry spawned another lock client while the first wrapper was alive"
+fi
+rm -f "$tmp/state/proof-8" "$tmp/state/retry-probed"
+: >"$tmp/calls"
+NO_LOCK_PROOF=1 RYOKU_LOCK_PROOF_TRIES=2 EXTRA_SESSION=1 CUTOVER_LOG="$tmp/calls" \
+  CUTOVER_STATE="$tmp/state" RYOKU_PROC_ROOT="$tmp/empty-lock-proc" \
+  XDG_RUNTIME_DIR="$tmp/runtime-user" \
+  RYOKU_QYLOCK_LOCK_SCRIPT="$tmp/qylock-lock" \
+  RYOKU_QYLOCK_LAUNCHER="$tmp/qylock-lock" \
+  RYOKU_QYLOCK_PROOF_HELPER="$tmp/qylock-proof" PATH="$tmp/bin:$PATH" \
+  bash -c 'source "$1"; ! secure_session_direct 8' _ "$helper"
+grep -q 'systemctl --user stop ryoku-session-lock-8-' "$tmp/calls" ||
+  fail "failed lock proof left its transient lock client running"
 printf 'XDG_SESSION_ID=8\0XDG_SESSION_TYPE=wayland\0WAYLAND_DISPLAY=wayland-eight\0' \
   >"$tmp/runtime-user/ryoku-session.8.environment"
 

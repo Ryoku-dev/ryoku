@@ -4,7 +4,9 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import stage.services
+import inir.services as InirServices
 import ".."
+import Ryoku.Ui.Singletons as RyokuUi
 
 Singleton {
     id: root
@@ -16,7 +18,7 @@ Singleton {
         if (!appId) return null
         if (_desktopEntryCache.hasOwnProperty(appId))
             return _desktopEntryCache[appId]
-        const entry = DesktopEntries.heuristicLookup(appId)
+        const entry = InirServices.AppSearch.lookupDesktopEntry(appId, true)
         _desktopEntryCache[appId] = entry ?? null
         return _desktopEntryCache[appId]
     }
@@ -34,15 +36,17 @@ Singleton {
         target: DesktopEntries
         function onApplicationsChanged() { root.invalidateDesktopEntryCache() }
     }
+    Connections {
+        target: InirServices.AppSearch
+        function onListChanged() { root.invalidateDesktopEntryCache() }
+    }
 
     // ── App ID normalization ──────────────────────────────────────────────
     // Strips the .desktop suffix and lowercases for consistent comparisons
     function normalizeAppId(appId) {
         if (!appId) return ""
-        let id = appId.toLowerCase().trim()
-        if (id.endsWith(".desktop"))
-            id = id.substring(0, id.length - 8)
-        return id
+        const entry = getCachedDesktopEntry(appId)
+        return String(entry?.id || appId).toLowerCase().trim().replace(/\.desktop$/i, "")
     }
 
     // ── Pinned app helpers ────────────────────────────────────────────────
@@ -282,32 +286,59 @@ Singleton {
         for (const appId of pinnedApps) {
             if (appId) pinnedMap.set(appId, { pinned: true, toplevels: [] })
         }
-
-        for (const toplevel of ToplevelManager.toplevels.values) {
-            if (!toplevel?.appId) continue
-            if (ignoredRegexes.some(re => re.test(toplevel.appId))) continue
-
-            const normToplevel = normalizeAppId(toplevel.appId)
+        const directWindows = new Map()
+        function addWindow(appId, toplevel) {
+            if (!appId || ignoredRegexes.some(re => re.test(appId))) return
+            const normToplevel = normalizeAppId(appId)
             let matchedKey = null
             for (const key of pinnedMap.keys()) {
                 if (normalizeAppId(key) === normToplevel) { matchedKey = key; break }
             }
-
+            if (matchedKey === null) {
+                for (const key of pinnedMap.keys()) {
+                    const startupClass = getCachedDesktopEntry(key)?.startupClass
+                    if (startupClass && String(startupClass).toLowerCase() === String(appId).toLowerCase().replace(/\.desktop$/i, "")) {
+                        matchedKey = key
+                        break
+                    }
+                }
+            }
             if (matchedKey !== null) {
                 pinnedMap.get(matchedKey).toplevels.push(toplevel)
             } else {
-                const id = toplevel.appId
-                if (!unpinnedMap.has(id))
-                    unpinnedMap.set(id, { pinned: false, toplevels: [] })
-                unpinnedMap.get(id).toplevels.push(toplevel)
+                if (!unpinnedMap.has(normToplevel))
+                    unpinnedMap.set(normToplevel, { appId: appId, pinned: false, toplevels: [] })
+                unpinnedMap.get(normToplevel).toplevels.push(toplevel)
             }
+        }
+        for (const toplevel of ToplevelManager.toplevels.values) {
+            if (!toplevel?.appId) continue
+            const norm = normalizeAppId(toplevel.appId)
+            directWindows.set(norm, (directWindows.get(norm) ?? 0) + 1)
+            addWindow(toplevel.appId, toplevel)
+        }
+        const providerWindows = new Map()
+        for (const window of (RyokuUi.Wm.windows ?? [])) {
+            if (!window?.appId) continue
+            const norm = normalizeAppId(window.appId)
+            const count = (providerWindows.get(norm) ?? 0) + 1
+            providerWindows.set(norm, count)
+            if (count <= (directWindows.get(norm) ?? 0)) continue
+            const windowId = window.id
+            addWindow(window.appId, window.toplevel ?? {
+                appId: window.appId,
+                output: window.output,
+                activated: RyokuUi.Wm.focusedWindow?.id === windowId,
+                activate: () => RyokuUi.Wm.focusWindow(windowId),
+                close: () => RyokuUi.Wm.closeWindow(windowId)
+            })
         }
 
         const values = []
         for (const [key, value] of pinnedMap)
             values.push({ appId: key, toplevels: value.toplevels, pinned: true })
-        for (const [key, value] of unpinnedMap)
-            values.push({ appId: key, toplevels: value.toplevels, pinned: false })
+        for (const [, value] of unpinnedMap)
+            values.push({ appId: value.appId, toplevels: value.toplevels, pinned: false })
         return values
     }
 }

@@ -57,9 +57,11 @@ The skin is chosen in Ryoku Settings (**Lockscreen**), which browses the full qy
 catalogue live from upstream with looping previews. Selecting a skin rewrites
 `~/.config/qylock/theme` (the in-session lock) and reinstalls it as the SDDM greeter
 under `/usr/share/sddm/themes/ryoku`. The greeter half lives on a system path, so the
-Hub escalates it with pkexec (`ryoku-hub lock apply-greeter`); skins not yet present
-download into `~/.local/share/qylock/themes` first. Only the theme changes; the
-login/auth flow is untouched.
+Hub escalates it with pkexec (`ryoku-hub lock apply-greeter`) and records the global
+12/24-hour preference in the installed theme config. The sign-in screen picks up a
+new clock choice the next time its skin is applied or Ryoku updates. Skins not yet
+present download into `~/.local/share/qylock/themes` first. The login/auth flow is
+untouched.
 
 ## What owns the lock, the lid and sleep
 

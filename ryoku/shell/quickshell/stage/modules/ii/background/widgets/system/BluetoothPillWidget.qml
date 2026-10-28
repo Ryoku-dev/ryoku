@@ -78,7 +78,7 @@ AbstractBackgroundWidget {
             anchors.right: parent.right
             anchors.rightMargin: 14
             anchors.verticalCenter: parent.verticalCenter
-            text: root.isActive ? ((BluetoothStatus.firstActiveDevice && BluetoothStatus.firstActiveDevice.name) ? BluetoothStatus.firstActiveDevice.name : Translation.tr("Bluetooth")) : Translation.tr("Off")
+            text: BluetoothStatus.blocked ? Translation.tr("Blocked") : root.isActive ? ((BluetoothStatus.firstActiveDevice && BluetoothStatus.firstActiveDevice.name) ? BluetoothStatus.firstActiveDevice.name : Translation.tr("Bluetooth")) : Translation.tr("Off")
             font.pixelSize: 24
             font.weight: Font.Bold
             color: root.contentColor

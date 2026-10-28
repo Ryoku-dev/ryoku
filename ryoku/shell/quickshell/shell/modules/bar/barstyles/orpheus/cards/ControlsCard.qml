@@ -95,9 +95,9 @@ Item {
             K.Switch {
                 checked: root.currentPage === "wifi"
                     ? Network.wifiRadio
-                    : (!!Bluetooth.defaultAdapter && Bluetooth.defaultAdapter.enabled)
+                    : BluetoothPower.enabled
                 enabled: root.currentPage === "wifi"
-                    ? Network.wifiPresent : !!Bluetooth.defaultAdapter
+                    ? Network.wifiPresent : BluetoothPower.available
                 onToggled: value => {
                     if (root.currentPage === "wifi")
                         Network.setWifiEnabled(value);

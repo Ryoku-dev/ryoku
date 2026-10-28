@@ -16,8 +16,8 @@ constexpr int StopGraceMs = 500;
 constexpr int SilenceDelayMs = 1000;
 constexpr qreal PeakTarget = 0.6;
 constexpr qreal PeakReleaseMs = 8000.0;
-constexpr qreal QuietBoostMax = 4.0;
-constexpr qreal PeakNoiseFloor = 0.02;
+constexpr qreal QuietBoostMax = 8.0;
+constexpr qreal LoudCutMin = 0.5;
 }
 
 CavaFeed::CavaFeed(QObject* parent)
@@ -239,6 +239,8 @@ void CavaFeed::startProcess() {
     m_intentionalStop = false;
     m_acceptOutput = false;
     m_frameBytes = 0;
+    m_peak = 0.0;
+    m_lastFrameMs = -1;
     m_process.setProcessChannelMode(QProcess::SeparateChannels);
     m_process.start(executable, { QStringLiteral("-p"), m_configPath }, QIODevice::ReadOnly);
 }
@@ -334,10 +336,10 @@ void CavaFeed::processFrame() {
     if (m_peakFollow) {
         m_peak = std::max(frameMax, m_peak * std::exp(-static_cast<qreal>(elapsed) / PeakReleaseMs));
         if (m_peak > 0.0)
-            gain = std::clamp(PeakTarget / m_peak, qreal(1.0), QuietBoostMax);
+            gain = std::clamp(PeakTarget / m_peak, LoudCutMin, QuietBoostMax);
     }
 
-    const qreal floor = m_peakFollow ? std::max(m_noiseFloor, PeakNoiseFloor) : m_noiseFloor;
+    const qreal floor = m_noiseFloor;
     qreal sum = 0.0;
     bool levelsDiffer = false;
     for (int i = 0; i < m_bars; ++i) {

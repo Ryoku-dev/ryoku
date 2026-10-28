@@ -27,6 +27,7 @@ Singleton {
     property bool matchWallpaper: true
     property var namedScheme: null
     property var wall: ({})
+    property var preview: ({})
 
     // A palette value is only usable when it is a non-empty hex string; a null,
     // missing or half-written role falls through to the next layer, so a partial
@@ -36,6 +37,8 @@ Singleton {
     // Resolve one role through the layer chain: a selected named scheme wins,
     // then the live wallpaper palette while Match wallpaper is on, then the base.
     function role(key, base) {
+        if (usable(preview[key]))
+            return preview[key];
         if (namedScheme && usable(namedScheme[key]))
             return namedScheme[key];
         if (matchWallpaper && usable(wall[key]))
@@ -156,6 +159,18 @@ Singleton {
         printErrors: false
         onFileChanged: reload()
         onLoaded: root.refreshWall()
+    }
+    FileView {
+        id: previewFile
+        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/dev/null") + "/ryoku-wall-preview.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.preview = JSON.parse(text() || "{}") || {} }
+            catch (e) { root.preview = {} }
+        }
     }
     FileView {
         id: shellFile

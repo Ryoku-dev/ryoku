@@ -75,6 +75,28 @@ func rowByKind(rows []ffRow, kind string) *ffRow {
 	return nil
 }
 
+func TestFastfetchJapaneseGlossPreference(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if !fastfetchJapaneseGlossEnabled() {
+		t.Fatal("missing setting should preserve the current Japanese gloss")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "ryoku", "shell.json"), []byte(`{"showJapaneseGloss":false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if fastfetchJapaneseGlossEnabled() {
+		t.Fatal("disabled setting was ignored")
+	}
+	input := []byte(`{\"format\":\"RYOKU · 力 · a hand-built Linux desktop\"}`)
+	got := string(applyFastfetchJapaneseGloss(input, false))
+	if strings.Contains(got, "力") || !strings.Contains(got, "RYOKU · a hand-built Linux desktop") {
+		t.Fatalf("Japanese gloss remained in effective config: %s", got)
+	}
+}
+
 func TestStripJSONC(t *testing.T) {
 	in := `{ "$schema": "https://x/y.json", // trailing
   "a": 1, /* block */ "b": "//not a comment" }`

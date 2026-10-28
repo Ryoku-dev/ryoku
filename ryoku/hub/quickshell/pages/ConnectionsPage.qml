@@ -1390,10 +1390,12 @@ Item {
         readonly property bool adapterOn: adapter ? adapter.enabled === true : false
         readonly property bool discovering: adapter ? adapter.discovering === true : false
         readonly property bool hasAdapter: adapter !== null
-        // rfkill (airplane mode) blocks the radio at the kernel; BlueZ then
-        // refuses Powered=true. surfaced so the toggle can unblock first.
-        readonly property bool blocked: (adapter && typeof BluetoothAdapterState !== "undefined")
+        readonly property bool adapterBlocked: (adapter && typeof BluetoothAdapterState !== "undefined")
             ? adapter.state === BluetoothAdapterState.Blocked : false
+        readonly property bool blocked: adapterBlocked || softBlocked || hardBlocked
+        property bool softBlocked: false
+        property bool hardBlocked: false
+        onAdapterChanged: rfkillState.running = true
         readonly property int connectedCount: {
             var n = 0;
             for (var i = 0; i < devices.length; i++)
@@ -1468,9 +1470,8 @@ Item {
         }
 
         // Keep the fresh-install default on, but persist every explicit choice.
+        // The helper can recover a soft-blocked radio before BlueZ has an adapter.
         function setAdapterEnabled(v) {
-            if (!bt.adapter)
-                return;
             Quickshell.execDetached(["ryoku-bluetooth-power", v ? "on" : "off"]);
         }
 
@@ -1501,6 +1502,20 @@ Item {
             interval: 4000
             repeat: false
             onTriggered: bt.failedAddress = ""
+        }
+
+        Process {
+            id: rfkillState
+            command: ["rfkill", "-n", "-o", "TYPE,SOFT,HARD", "list", "bluetooth"]
+            running: true
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const rows = text.trim().split("\n").map(line => line.trim().split(/\s+/))
+                        .filter(fields => fields[0] === "bluetooth");
+                    bt.softBlocked = rows.some(fields => fields[1] === "blocked");
+                    bt.hardBlocked = rows.some(fields => fields[2] === "blocked");
+                }
+            }
         }
 
         Process {
@@ -1616,11 +1631,11 @@ Item {
                         }
                     }
 
-                    // one primary toggle for the whole adapter, hidden when the
-                    // service is gone: a switch that can't act shouldn't look live.
+                    // A platform rfkill switch can remove the adapter from
+                    // BlueZ. Keep the switch available for a recoverable soft block.
                     Sw {
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: bt.hasAdapter
+                        visible: bt.hasAdapter || bt.softBlocked
                         on: bt.adapterOn
                         onToggled: (v) => bt.setAdapterEnabled(v)
                     }
@@ -1653,8 +1668,8 @@ Item {
 
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        text: !bt.hasAdapter ? I18n.tr("Bluetooth isn't available.")
-                            : bt.blocked ? I18n.tr("Bluetooth is blocked.")
+                        text: bt.blocked ? I18n.tr("Bluetooth is blocked.")
+                            : !bt.hasAdapter ? I18n.tr("Bluetooth isn't available.")
                             : !bt.adapterOn ? I18n.tr("Bluetooth is off.")
                             : (bt.discovering ? I18n.tr("Scanning\u2026") : I18n.tr("No devices yet."))
                         color: Tokens.inkDim
@@ -1665,8 +1680,9 @@ Item {
                     Text {
                         anchors.horizontalCenter: parent.horizontalCenter
                         visible: !bt.hasAdapter || !bt.adapterOn || (!bt.discovering && bt.devices.length === 0)
-                        text: !bt.hasAdapter ? I18n.tr("The bluetooth service (bluez) isn't running.")
-                            : bt.blocked ? I18n.tr("The radio is off at the hardware level (rfkill); the toggle unblocks it.")
+                        text: bt.softBlocked ? I18n.tr("The radio is software blocked; the toggle unblocks it.")
+                            : bt.hardBlocked ? I18n.tr("The radio is off at the hardware level.")
+                            : !bt.hasAdapter ? I18n.tr("The bluetooth service (bluez) isn't running.")
                             : !bt.adapterOn ? I18n.tr("Turn the adapter on to see nearby and paired devices.")
                             : I18n.tr("Hit Scan to discover nearby devices.")
                         color: Tokens.inkMuted
@@ -1678,7 +1694,7 @@ Item {
                     // service repair, shown only when org.bluez is missing entirely.
                     Btn {
                         anchors.horizontalCenter: parent.horizontalCenter
-                        visible: !bt.hasAdapter
+                        visible: !bt.hasAdapter && !bt.blocked
                         text: svcProc.running ? I18n.tr("Starting\u2026") : I18n.tr("Start service")
                         armed: !svcProc.running
                         onAct: bt.startService()
@@ -2150,7 +2166,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: "\u529b"; color: Tokens.ink; font.family: Tokens.jp
+                    text: UiPreferences.brandMark("\u529b"); color: Tokens.ink; font.family: Tokens.jp
                     font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {

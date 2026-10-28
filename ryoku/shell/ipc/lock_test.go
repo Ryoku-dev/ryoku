@@ -82,6 +82,32 @@ func TestLockerProcessLookupIgnoresAnotherUsersLock(t *testing.T) {
 		t.Fatalf("current user's qylock matches = %v, want [102]", got)
 	}
 }
+func TestLockerProcessLookupIncludesSessionWrapper(t *testing.T) {
+	root := t.TempDir()
+	for pid, command := range map[string]string{
+		"101": "bash\x00/home/user/.local/share/quickshell-lockscreen/lock.sh\x00",
+		"102": "bash\x00/home/user/.local/share/ryoku/qylock-next/lockscreen/lock.sh\x00",
+		"103": "bash\x00/usr/bin/ryoku-qylock-lock\x00",
+	} {
+		dir := filepath.Join(root, pid)
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		status := "Uid:\t0\t" + strconv.Itoa(os.Getuid()) + "\t0\t0\n"
+		if err := os.WriteFile(filepath.Join(dir, "status"), []byte(status), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "cmdline"), []byte(command), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := userProcessIDsUnder(root, os.Getuid(), lockClientOrWrapperPattern); len(got) != 3 {
+		t.Fatalf("session wrappers found = %v, want all three", got)
+	}
+	if got := userProcessIDsUnder(root, os.Getuid(), lockClientPattern); len(got) != 0 {
+		t.Fatalf("wrapper was accepted as secure client: %v", got)
+	}
+}
 
 func TestLockerProcessLookupFindsRetainedStageClient(t *testing.T) {
 	cmd := exec.Command(
@@ -400,6 +426,23 @@ func TestLockSessionClearsStaleMarkerAndReportsTimeout(t *testing.T) {
 		t.Fatal("stale marker survived: a dead locker's marker faked the locked state")
 	}
 	waitFor(t, spawned)
+}
+
+func TestLockRetryDoesNotStartAnotherLiveClient(t *testing.T) {
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	starts := 0
+	setLockSeams(t, func() bool { return starts > 0 }, func(int) error {
+		starts++
+		return nil
+	})
+	for range 2 {
+		if err := ensureSessionLocked(time.Now().Add(20 * time.Millisecond)); err == nil {
+			t.Fatal("unconfirmed lock was accepted")
+		}
+	}
+	if starts != 1 {
+		t.Fatalf("live unconfirmed client started %d times, want one", starts)
+	}
 }
 
 // waitFor polls briefly for a file the fake locker writes asynchronously.

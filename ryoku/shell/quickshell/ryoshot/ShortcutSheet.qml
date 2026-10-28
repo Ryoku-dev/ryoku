@@ -15,6 +15,7 @@ Item {
         { key: "Ctrl+S", label: I18n.tr("Save") },
         { key: "Ctrl+P", label: I18n.tr("Pin") },
         { key: "Ctrl+U", label: I18n.tr("Upload") },
+        { key: "Ctrl+K", label: I18n.tr("Send to phone") },
         { key: "Ctrl+B", label: I18n.tr("Beautify") },
         { key: "Enter", label: I18n.tr("Copy and save") },
         { key: "Ctrl+Z", label: I18n.tr("Undo") },

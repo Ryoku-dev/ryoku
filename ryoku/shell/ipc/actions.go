@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -250,8 +251,15 @@ func qylockProcessPIDs(session, token string) []int {
 	if session == "" {
 		return nil
 	}
+	pattern := lockClientPattern
+	if token == "" {
+		pattern = lockClientOrWrapperPattern
+		if script := os.Getenv("RYOKU_QYLOCK_LOCK_SCRIPT"); script != "" {
+			pattern += `|(^| )` + regexp.QuoteMeta(script) + `( |$)`
+		}
+	}
 	var matches []int
-	for _, value := range currentUserProcessIDs(lockClientPattern) {
+	for _, value := range currentUserProcessIDs(pattern) {
 		env, err := os.ReadFile(filepath.Join("/proc", value, "environ"))
 		if err != nil || processEnvironmentValue(env, "XDG_SESSION_ID") != session {
 			continue
@@ -315,6 +323,7 @@ var (
 // validation also checks the selected session and generation token through
 // /proc.
 const lockClientPattern = "quickshell.*(quickshell-lockscreen|qylock-next/lockscreen).*/lock_shell[.]qml"
+const lockClientOrWrapperPattern = lockClientPattern + `|(^| )([^ ]*/)?(quickshell-lockscreen|qylock-next/lockscreen)/lock[.]sh( |$)|(^| )([^ ]*/)?ryoku-qylock-lock( |$)`
 
 // lockSession locks the screen with qylock, the in-session lock Ryoku ships.
 // The shell has no lock surface of its own.

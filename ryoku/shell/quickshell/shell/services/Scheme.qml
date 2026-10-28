@@ -22,13 +22,21 @@ Singleton {
     // cannot carry it: half the role names start with "on", which QML's
     // signal-handler grammar rejects as adapter property names.
     property var roles: ({})
+    property var committedRoles: ({})
+    property var previewRoles: ({})
     function refreshRoles() {
         try {
             const t = file.text();
-            roles = t && t.length ? (JSON.parse(t) || {}) : {};
+            committedRoles = t && t.length ? (JSON.parse(t) || {}) : {};
         } catch (e) {
-            roles = {};
+            committedRoles = {};
         }
+        roles = Object.keys(previewRoles).length ? previewRoles : committedRoles;
+    }
+    function refreshPreview() {
+        try { previewRoles = JSON.parse(previewFile.text() || "{}") || {}; }
+        catch (e) { previewRoles = {}; }
+        roles = Object.keys(previewRoles).length ? previewRoles : committedRoles;
     }
 
     // Verbatim role when present, compiled default before the first write.
@@ -102,6 +110,16 @@ Singleton {
         printErrors: false
         onFileChanged: reload()
         onLoaded: w.refreshRoles()
+    }
+
+    FileView {
+        id: previewFile
+        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/dev/null") + "/ryoku-wall-preview.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: w.refreshPreview()
     }
 
     Component.onCompleted: refreshRoles()

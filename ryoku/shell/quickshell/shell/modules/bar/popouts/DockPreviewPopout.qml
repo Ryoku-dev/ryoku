@@ -51,7 +51,8 @@ Popout {
     // ---- shared Popout wiring (hover-driven, welded to the rail edge) -------
     edge: DockPreview.edge
     hoverOpen: false                 // no frame-edge band; the dock icon is the trigger
-    closeDelay: 300                  // grace to cross from the icon onto the strip
+    closeDelay: 300                  // short close once the strip has been reached
+    arrivalDelay: 1200              // enough time to cross from a separate dock surface
     edgeGap: DockPreview.margin > 0 ? DockPreview.margin : 10 * root.s
     radius: Theme.radiusWindow
     triggerHovered: root.cls !== ""

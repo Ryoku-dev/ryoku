@@ -14,22 +14,24 @@ FocusScope {
     property bool busy: false
 
     signal dismissed()
-    signal repairRequested()
+    signal installRequested()
     signal removeRequested()
 
     readonly property var components: ((sheet.bundle.metadata || {}).items || [])
     readonly property var installedComponents: sheet.components.filter(item => item.installed === true)
-    readonly property var missingComponents: sheet.components.filter(item => item.installed !== true)
+    readonly property var missingComponents: sheet.components.filter(item =>
+        item.installed !== true && item.available !== false && item.tier !== "optional")
+    readonly property var optionalComponents: sheet.components.filter(item =>
+        item.installed !== true && item.available !== false && item.tier === "optional")
+    readonly property var unavailableComponents: sheet.components.filter(item =>
+        item.installed !== true && item.available === false)
+    readonly property var requiredComponents: sheet.components.filter(item =>
+        item.available !== false && item.tier !== "optional")
+    readonly property int installedRequiredCount: sheet.requiredComponents
+        .filter(item => item.installed === true).length
     readonly property int installedCount: Number(sheet.bundle.installedCount || 0)
-    // Every part, including those this system cannot have, which the sheet lists
-    // greyed with their reason.
     readonly property int totalCount: sheet.components.length
-    readonly property int missingCount: Math.max(0, sheet.totalCount - sheet.installedCount)
-    readonly property var unavailableComponents: sheet.missingComponents
-        .filter(item => item.available === false)
-    readonly property int unavailableCount: sheet.unavailableComponents.length
-    readonly property int repairableMissingCount: Math.max(0,
-        sheet.missingCount - sheet.unavailableCount)
+    readonly property int missingCount: sheet.missingComponents.length
     readonly property string summary: sheet.bundle.summary || sheet.bundle.description
         || I18n.tr("Installed add-on bundle.")
     readonly property string icon: String((sheet.bundle.metadata || {}).icon || "inventory_2")
@@ -185,10 +187,10 @@ FocusScope {
                     elide: Text.ElideRight
                 }
                 Text {
-                    width: parent.width
                     text: sheet.loading
                         ? I18n.tr("Checking bundle components…")
-                        : I18n.tr("%1 of %2 installed").arg(sheet.installedCount).arg(sheet.totalCount)
+                        : I18n.tr("%1 of %2 required installed")
+                            .arg(sheet.installedRequiredCount).arg(sheet.requiredComponents.length)
                     color: sheet.loading ? Tokens.inkMuted : Tokens.inkDim
                     font.family: Tokens.ui
                     font.pixelSize: Tokens.fTiny
@@ -245,6 +247,16 @@ FocusScope {
                         {
                             title: I18n.tr("MISSING"),
                             components: sheet.missingComponents,
+                            installed: false
+                        },
+                        {
+                            title: I18n.tr("OPTIONAL"),
+                            components: sheet.optionalComponents,
+                            installed: false
+                        },
+                        {
+                            title: I18n.tr("UNAVAILABLE"),
+                            components: sheet.unavailableComponents,
                             installed: false
                         }
                     ].filter(group => group.components.length > 0)
@@ -411,14 +423,10 @@ FocusScope {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: sheet.missingCount === 0
-                    ? I18n.tr("Bundle complete")
-                    : (sheet.unavailableCount === sheet.missingCount
-                        ? (sheet.unavailableCount === 1
-                            ? I18n.tr("%1 component unavailable")
-                            : I18n.tr("%1 components unavailable")).arg(sheet.unavailableCount)
-                        : (sheet.missingCount === 1
-                            ? I18n.tr("%1 component missing")
-                            : I18n.tr("%1 components missing")).arg(sheet.missingCount))
+                    ? I18n.tr("Required components complete")
+                    : (sheet.missingCount === 1
+                        ? I18n.tr("%1 required component missing")
+                        : I18n.tr("%1 required components missing")).arg(sheet.missingCount)
                 color: Tokens.inkMuted
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fTiny
@@ -430,10 +438,11 @@ FocusScope {
                 spacing: Tokens.s2
 
                 Btn {
-                    visible: sheet.repairableMissingCount > 0
-                    text: sheet.busy ? I18n.tr("WORKING") : I18n.tr("REPAIR")
+                    visible: sheet.missingCount > 0
+                    text: sheet.busy ? I18n.tr("WORKING")
+                        : sheet.installedRequiredCount === 0 ? I18n.tr("INSTALL") : I18n.tr("INSTALL MISSING")
                     armed: !sheet.busy && !sheet.loading
-                    onAct: sheet.repairRequested()
+                    onAct: sheet.installRequested()
                 }
                 Btn {
                     visible: sheet.installedCount > 0

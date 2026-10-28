@@ -34,6 +34,11 @@ die() { printf 'offline-repo: error: %s\n' "$*" >&2; exit 1; }
 
 command -v pacman >/dev/null 2>&1 || die "pacman not found"
 command -v repo-add >/dev/null 2>&1 || die "repo-add not found (pacman package)"
+case $VARIANT in
+  plain | cachyos) ;;
+  *) die "offline pacman closure supports only plain or cachyos, got: $VARIANT" ;;
+esac
+
 
 # read a plain one-per-line list, dropping comments + blanks.
 read_list() { [[ -f $1 ]] && grep -vE '^[[:space:]]*(#|$)' "$1" || true; }
@@ -155,17 +160,19 @@ log "syncing repo databases (throwaway db)"
 "${PAC[@]}" -Sy --config "$conf" --dbpath "$work/db" --noconfirm >/dev/null
 
 # SERVED: every name the configured repos serve, mapped to the version pacman
-# resolves it to: the first repo in config order that has the name, as on the
-# target, whichever build is newer. RESOLVED keeps every "name version" pacman
+# resolves it to: the first repo in config order that has the name, even when a
+# later repo has a newer build. RESOLVED keeps every "name version" pacman
 # resolved during this run, so a retry's db re-sync does not orphan what an
 # earlier sync already fetched. Re-read after every db sync.
-declare -A SERVED=() RESOLVED=()
+declare -A SERVED=() SERVED_REPO=() RESOLVED=()
 read_served() {
-  local _repo name ver
+  local repo name ver
   SERVED=()
-  while read -r _repo name ver _; do
+  SERVED_REPO=()
+  while read -r repo name ver _; do
     [[ -n ${SERVED[$name]:-} ]] && continue
     SERVED[$name]=$ver
+    SERVED_REPO[$name]=$repo
     RESOLVED["$name $ver"]=1
     # A package file names its version without the epoch when the repo that
     # publishes it does (ryotunes is 1:1.2.3-1 in a ryotunes-1.2.3-1 file), and
@@ -174,6 +181,20 @@ read_served() {
   done < <("${PAC[@]}" -Sl --config "$conf" --dbpath "$work/db")
 }
 read_served
+# Pacman resolves duplicate names from the first repository, regardless of
+# version. Qualify every newer [ryoku] duplicate so the flat offline repository
+# contains the same overrides `ryoku update` would select, without downgrades.
+ryoku_pins=()
+while read -r _repo name ver _; do
+  first_repo=${SERVED_REPO[$name]:-}
+  [[ -n $first_repo && $first_repo != ryoku ]] || continue
+  comparison=$(vercmp "$ver" "${SERVED[$name]}") || die "could not compare repository versions for $name"
+  (( comparison > 0 )) && ryoku_pins+=("$name")
+done < <("${PAC[@]}" -Sl --config "$conf" --dbpath "$work/db" ryoku)
+for name in "${ryoku_pins[@]}"; do
+  PKGS+=("ryoku/$name")
+done
+log "qualified ${#ryoku_pins[@]} newer [ryoku] duplicate(s) in the offline closure"
 
 # An aur.packages name a configured repo serves (CachyOS ships zen-browser-bin)
 # is that repo's package: fetch its build like any other, so the box updates it
@@ -505,7 +526,7 @@ done
 # (a retry's re-sync, an older AUR build), `repo-add -p` indexes the newest
 # whatever order it reads them in.
 stage_offline_repo() {
-  local f base name
+  local f base name url candidate pinned
   local -a keep=()
   for f in "$CACHE"/*.pkg.tar.zst "$CACHE"/*.pkg.tar.xz; do
     [[ -e $f ]] || continue
@@ -516,6 +537,28 @@ stage_offline_repo() {
   done
   (( ${#keep[@]} )) || die "no packages in $CACHE after download"
   cp -a --reflink=auto "${keep[@]}" "$DEST"/
+
+  # The configured repo order is deliberately the installed system's order,
+  # where official/CachyOS repos precede [ryoku]. Resolve each override by its
+  # qualified target, then replace any earlier-repo build staged above.
+  for name in "${ryoku_pins[@]}"; do
+    pinned=
+    while IFS= read -r url; do
+      candidate=${url%%\?*}; candidate=${candidate##*/}
+      base=${candidate%.pkg.tar.*}; base=${base%-*}; base=${base%-*}; base=${base%-*}
+      if [[ $base == "$name" ]]; then
+        pinned="$CACHE/$candidate"
+        break
+      fi
+    done < <("${PAC[@]}" -Sp --config "$conf" --dbpath "$work/db" --print-format '%l' "ryoku/$name")
+    [[ -f $pinned ]] || die "qualified [ryoku] package '$name' was not downloaded"
+    for f in "$DEST/$name"-*.pkg.tar.*; do
+      [[ -e $f ]] || continue
+      base=${f##*/}; base=${base%.pkg.tar.*}; base=${base%-*}; base=${base%-*}; base=${base%-*}
+      [[ $base == "$name" ]] && rm -f "$f"
+    done
+    cp -a --reflink=auto "$pinned" "$DEST"/
+  done
 }
 
 # assemble the [offline] repo, then build the db.

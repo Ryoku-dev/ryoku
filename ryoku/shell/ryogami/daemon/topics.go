@@ -54,8 +54,9 @@ func (t *stateTopic) unsubscribe(ch chan string) {
 // eventHub fans broadcast events (already-serialized Event JSON lines) out to
 // subscribed connections. No retention: events are notifications, not state.
 type eventHub struct {
-	mu   sync.Mutex
-	subs map[chan string]struct{}
+	mu      sync.Mutex
+	subs    map[chan string]struct{}
+	control chan string
 }
 
 func newEventHub() *eventHub {
@@ -74,6 +75,17 @@ func (h *eventHub) unsubscribe(ch chan string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	delete(h.subs, ch)
+	if h.control == ch {
+		h.control = nil
+	}
+}
+
+func (h *eventHub) setControl(ch chan string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, subscribed := h.subs[ch]; subscribed {
+		h.control = ch
+	}
 }
 
 func (h *eventHub) publish(line string) {
@@ -84,5 +96,28 @@ func (h *eventHub) publish(line string) {
 		case ch <- line:
 		default:
 		}
+	}
+}
+
+// publishControl makes room for a user action when the picker has filled its
+// event queue. Other subscribers keep the ordinary lossy behavior: an
+// irrelevant picker control never displaces one of their queued events.
+func (h *eventHub) publishControl(line string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for ch := range h.subs {
+		select {
+		case ch <- line:
+			continue
+		default:
+		}
+		if ch != h.control {
+			continue
+		}
+		select {
+		case <-ch:
+		default:
+		}
+		ch <- line
 	}
 }

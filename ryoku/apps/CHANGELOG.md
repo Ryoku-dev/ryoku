@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Added
+- `ryostore/`: **Apps: browse and install Flathub applications.** The Apps
+  category lists popular and installed applications, searches the wider Flathub
+  catalogue, and labels Flathub verification. New apps use the doctor's shared
+  system remote when available, or an existing canonical user remote; the
+  store checks remote identity and leaves unrelated runtimes alone
+  (`ryostore/backend/provider_flatpak.go`, `ryostore/quickshell/App.qml`,
+  `ryostore/quickshell/ProductDetail.qml`).
 - `ryostore/`: **Built-in bar styles carry a resource tier.** Orpheus and
   Kairos are `light`; QS Bar, Python, Nomarchy, Shima and Sumi are `heavy`,
   so the Hub can say which styles may cost more. A catalogue snapshot from an
@@ -180,6 +187,29 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `fastfetch/`: **The terminal greeting shows the Ryoku logo image in Ghostty.**
+  The greeting kept the image only in kitty, so Ghostty, which speaks the same
+  graphics protocol, fell back to a text logo or none (`ryoku-fastfetch`).
+  Contributed by SourceAura.
+- `ryovm/`, `ryostore/`: **Open apps survive a Ryoku update.** Packaged
+  Quickshell apps keep their loaded generation while materialize replaces their
+  QML tree, then pick up the new one on their next launch; source runs still
+  hot-reload (`quickshell/shell.qml`).
+- `ryostore/`, `ryovm/`: **The Japanese gloss preference reaches app chrome.**
+  Decorative seals and Ryoku marks change to hidden or Latin forms with the
+  desktop setting (`*/quickshell/`).
+- `ryostore/`: **A bundle install refreshes the store when it finishes.** The
+  launcher waited only for the terminal to exist, so the catalogue reloaded
+  milliseconds later and kept listing the bundle as not installed until a
+  manual refresh. It now waits for the terminal to close, the startup probe
+  keeps its live build as the launch snapshot so a part installed outside the
+  store is not frozen as absent, and an install-all queue installs one bundle
+  at a time instead of opening a terminal per item
+  (`ryostore/backend/provider_bundles.go`, `ryostore/backend/main.go`,
+  `ryostore/quickshell/Singletons/Store.qml`).
+- `ryostore/`: **New bundles appear on the first Store visit.** When the
+  upstream catalogue has changed, the Store refreshes its cached view on open
+  instead of waiting for a manual refresh (`ryostore/quickshell/Singletons/Store.qml`).
 - `fish/`, `bash/`, `zsh/`, `terminal-shell/`: **Multiplexer panes started
   before the desktop can paste again.** A herdr, tmux or zellij server keeps the
   environment of the login that started it, so one started over SSH or from a

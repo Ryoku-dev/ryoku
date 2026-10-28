@@ -88,7 +88,7 @@ Item {
             }
             UiText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: item.modelData.gloss || ""
+                text: UiPreferences.text(item.modelData.gloss || "", "")
                 color: item.on ? Tokens.inkOnBoneDim : Tokens.inkFaint
                 font.family: Tokens.jp
                 font.pixelSize: Tokens.fTiny
@@ -121,7 +121,7 @@ Item {
 
             UiText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "\u529b"
+                text: UiPreferences.brandMark("\u529b")
                 color: Tokens.sun
                 font.family: Tokens.jp
                 font.pixelSize: Tokens.fBody

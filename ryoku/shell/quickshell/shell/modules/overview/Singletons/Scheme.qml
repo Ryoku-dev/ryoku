@@ -12,11 +12,13 @@ import Quickshell.Io
  * right before the first matugen run.
  */
 Singleton {
-    readonly property color base:     shade(adapter.background)
+    id: root
+    property var preview: ({})
+    readonly property color base:     shade(preview.background || adapter.background)
     readonly property color elevated: tone(base, 0.05)
     readonly property color deep:     tone(base, -0.03)
     readonly property color line:     tone(base, 0.14)
-    readonly property color accent:   legible(vivid(adapter.color4), elevated, 3.0)
+    readonly property color accent:   legible(vivid(preview.color4 || preview.primary || adapter.color4), elevated, 3.0)
 
     // Tone-map the wallpaper background into the shell's dark band, hue kept:
     // HSV value inside [0.08, 0.26] passes through, pure black lifts to a soft
@@ -80,6 +82,17 @@ Singleton {
             id: adapter
             property color background: "#16110b"
             property color color4: "#e2342a"
+        }
+    }
+    FileView {
+        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/dev/null") + "/ryoku-wall-preview.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            try { root.preview = JSON.parse(text() || "{}") || {} }
+            catch (e) { root.preview = {} }
         }
     }
 }

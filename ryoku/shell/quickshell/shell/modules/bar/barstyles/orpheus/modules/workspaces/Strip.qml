@@ -29,8 +29,9 @@ Item {
         return square ? Math.min(3 * u, height / 2) : height / 2;
     }
     readonly property color occupiedColor: Theme.blend(K.Style.tint16, K.Style.base)
-    readonly property string mode: ["dots", "numbers", "kanji", "greek", "dashes", "icons"].indexOf(style) >= 0
+    readonly property string requestedMode: ["dots", "numbers", "kanji", "greek", "dashes", "icons"].indexOf(style) >= 0
         ? style : "dots"
+    readonly property string mode: requestedMode === "kanji" && !UiPreferences.showJapaneseGloss ? "numbers" : requestedMode
     readonly property int activeIndex: {
         const rows = model || [];
         for (let index = 0; index < rows.length; ++index) {

@@ -49,7 +49,7 @@ Item {
             Row {
                 anchors { left: parent.left; verticalCenter: parent.verticalCenter; leftMargin: Tokens.s4 }
                 spacing: Tokens.s3
-                Text { text: "力"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 22 }
+                Text { text: UiPreferences.brandMark("力"); color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 22 }
                 Column {
                     spacing: 1
                     anchors.verticalCenter: parent.verticalCenter
@@ -65,7 +65,7 @@ Item {
             }
             Text {
                 anchors { right: parent.right; top: parent.top; margins: Tokens.s2 }
-                text: "港"; color: Tokens.inkFaint
+                text: UiPreferences.text("港", ""); color: Tokens.inkFaint
                 font.family: Tokens.jp; font.pixelSize: 13
             }
         }
@@ -198,7 +198,7 @@ Item {
                             }
                             Text {
                                 anchors { right: parent.right; rightMargin: Tokens.s3; verticalCenter: parent.verticalCenter }
-                                text: rail.jpName[navItem.modelData.key] || ""
+                                text: UiPreferences.text(rail.jpName[navItem.modelData.key] || "", "")
                                 color: navItem.sel ? Tokens.inkOnBoneDim : Tokens.inkFaint
                                 font.family: Tokens.jp; font.pixelSize: 12
                                 Behavior on color { ColorAnimation { duration: Tokens.snap } }

@@ -109,6 +109,10 @@ func (d *daemon) broadcast(name string, data interface{}) {
 	if err != nil {
 		return
 	}
+	if name == "ryogami.wall.toggle" || name == "ryogami.wall.settings" {
+		d.events.publishControl(string(b))
+		return
+	}
 	d.events.publish(string(b))
 }
 
@@ -140,6 +144,7 @@ func runDaemon() error {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "ryogami: listening on %s\n", sock)
+	writeWallPreviewPalette(nil)
 
 	d := &daemon{
 		cfg:            cfg,
@@ -436,16 +441,10 @@ func (d *daemon) serveRequests(conn net.Conn, r *bufio.Reader, first string) {
 				return false
 			}
 			if was == nil && events != nil {
+				d.events.setControl(events)
 				if d.ui != nil {
 					d.ui.subscribed(connectionID, func(name string, data map[string]interface{}) {
-						b, err := json.Marshal(event{Event: name, Data: data})
-						if err != nil {
-							return
-						}
-						select {
-						case events <- string(b):
-						default:
-						}
+						d.broadcast(name, data)
 					})
 				}
 				subscribed <- events

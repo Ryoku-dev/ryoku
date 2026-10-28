@@ -48,7 +48,7 @@ Column {
     // box, the release records one undo entry through the editor's provider
     // (none outside the editor, where there is no undo stack to join).
     property var placeBefore: null
-    readonly property string instanceId: "visualizer:" + opts.cfg.active
+    readonly property string instanceId: "visualizer:" + opts.cfg.activeId
     function placeBegin() {
         if (opts.placeBefore === null && opts.provider)
             opts.placeBefore = opts.provider.snapshot(opts.instanceId);
@@ -95,9 +95,9 @@ Column {
     }
     MenuRow {
         label: I18n.tr("Instance")
-        value: (opts.cfg.active + 1) + " / " + opts.cfg.count
+        value: opts.cfg.labelAt(opts.cfg.active) + " / " + opts.cfg.count
         closeOnTrigger: false
-        onTriggered: opts.cfg.setActive((opts.cfg.active + 1) % opts.cfg.count)
+        onTriggered: opts.cfg.setActive(opts.cfg.idAt((opts.cfg.active + 1) % opts.cfg.count))
     }
     MenuRow {
         label: I18n.tr("Add instance")
@@ -109,7 +109,7 @@ Column {
         visible: opts.cfg.count > 1
         label: I18n.tr("Remove instance")
         closeOnTrigger: false
-        onTriggered: opts.cfg.removeVisualizer(opts.cfg.active)
+        onTriggered: opts.cfg.removeVisualizer(opts.cfg.activeId)
     }
     // The visual gallery is the first decision in Look. There is no second
     // "open gallery" state to hunt through.

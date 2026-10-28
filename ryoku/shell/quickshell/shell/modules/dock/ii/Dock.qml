@@ -364,7 +364,11 @@ Scope {
 
             exclusiveZone: (dock.pinned && reveal) ? unmagnifiedThickness : 0
             WlrLayershell.namespace: "quickshell:dock"
-            WlrLayershell.layer: WlrLayer.Overlay
+            // Pinned docks remain part of the desktop. An auto-hidden dock must
+            // own its edge above app windows or neither its reveal strip nor the
+            // revealed tray can receive the pointer.
+            WlrLayershell.layer: (GlobalStates.editMode || GlobalStates.editProgress > 0)
+                ? WlrLayer.Overlay : (dock.pinned ? WlrLayer.Bottom : WlrLayer.Top)
             color: "transparent"
             readonly property bool popupOnThisScreen: {
                 const popup = Stage.GlobalStates.iiDockPopup;

@@ -8,6 +8,7 @@ Item {
     id: root
 
     property bool active: false
+    property bool discovered: false
     property var plugins: []
     property var availablePlugins: []
 
@@ -21,14 +22,8 @@ Item {
 
     width: 0
     height: 0
-    onActiveChanged: {
-        if (root.active) root.reload();
-        else discover.running = false;
-    }
-
     function reload() {
-        discover.running = false;
-        discover.running = root.active;
+        root.discovered = false;
     }
 
     function normalizedEntry(plugin) {
@@ -93,12 +88,13 @@ Item {
     Process {
         id: discover
         command: ["bash", root.discoverScript, "--all"]
-        running: root.active
+        running: root.active && !root.discovered
         stdout: StdioCollector {
             onStreamFinished: {
                 var parsed = [];
                 try { parsed = JSON.parse(text || "[]"); } catch (error) { parsed = []; }
                 root.syncPlugins(Array.isArray(parsed) ? parsed : []);
+                root.discovered = true;
             }
         }
     }
@@ -106,7 +102,7 @@ Item {
     FileView {
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
             + "/ryoku/plugins.json"
-        watchChanges: root.active
+        watchChanges: true
         atomicWrites: true
         printErrors: false
         onFileChanged: root.reload()
@@ -114,7 +110,7 @@ Item {
 
     FileView {
         path: root.stateHome + "/ryoku/store/revision.json"
-        watchChanges: root.active
+        watchChanges: true
         atomicWrites: true
         printErrors: false
         onFileChanged: root.reload()

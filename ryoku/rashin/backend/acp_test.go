@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 )
@@ -272,6 +273,33 @@ func TestACPDeadChildEmitsDeadState(t *testing.T) {
 	}
 }
 
+// A prompt still running when the agent exits must not crash the daemon (#595).
+func TestACPEmitAfterAgentExitDoesNotPanic(t *testing.T) {
+	for range 100 {
+		cr, cw := io.Pipe()
+		ar, aw := io.Pipe()
+		go func() { _, _ = io.Copy(io.Discard, cr) }()
+		conn := newACPConn(cw, ar, cw)
+		var wg sync.WaitGroup
+		for range 4 {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for range 100 {
+					conn.emit(AcpEvent{Type: "turn_end"})
+				}
+			}()
+		}
+		_ = aw.Close()
+		go func() {
+			for range conn.Events() {
+			}
+		}()
+		wg.Wait()
+		conn.Close()
+	}
+}
+
 func TestACPV2ImagesModelsSessions(t *testing.T) {
 	conn, fa := newTestPair(t)
 	defer conn.Close()
@@ -383,6 +411,27 @@ func TestACPV2ImagesModelsSessions(t *testing.T) {
 	}
 	expectEvent(t, conn.Events(), "models")
 	expectEvent(t, conn.Events(), "replay_end")
+}
+
+func TestMergeHermesSessionsUsesStoredWorkspace(t *testing.T) {
+	agent := []SessionMeta{
+		{ID: "agent", Title: "Agent", Cwd: ".", UpdatedAt: "old"},
+		{ID: "live", Title: "Live", Cwd: "/tmp/live"},
+	}
+	stored := []SessionMeta{
+		{ID: "agent", Title: "Agent", Cwd: "/tmp/rashin", UpdatedAt: "new"},
+		{ID: "chat", Title: "Chat", Cwd: "/tmp/rashin-chat"},
+	}
+	got := mergeHermesSessions(agent, stored)
+	if len(got) != 3 {
+		t.Fatalf("merged sessions = %+v", got)
+	}
+	if got[0].ID != "agent" || got[0].Cwd != "/tmp/rashin" || got[0].UpdatedAt != "new" {
+		t.Fatalf("stored workspace did not replace ACP placeholder: %+v", got[0])
+	}
+	if got[1].ID != "chat" || got[2].ID != "live" {
+		t.Fatalf("stored and live-only sessions were not retained: %+v", got)
+	}
 }
 
 func stubChatProwlProfileSets(t *testing.T, lookup func(context.Context) (string, []string, error)) {

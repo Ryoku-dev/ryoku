@@ -21,7 +21,7 @@ Item {
 
     Text {
         id: glyph
-        text: wm.text
+        text: UiPreferences.showJapaneseGloss ? wm.text : ""
         anchors { right: parent.right; bottom: parent.bottom }
         anchors.rightMargin: -Math.round(wm.width * 0.05)
         anchors.bottomMargin: -Math.round(wm.height * 0.16)

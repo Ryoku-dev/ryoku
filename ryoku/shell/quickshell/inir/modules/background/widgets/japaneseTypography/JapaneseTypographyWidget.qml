@@ -8,6 +8,7 @@ import inir.modules.common
 import inir.modules.common.functions
 import inir.modules.common.widgets
 import inir.modules.background.widgets
+import Ryoku.Ui.Singletons
 import "JapaneseTypographyPresets.js" as JapanesePresets
 
 AbstractBackgroundWidget {
@@ -192,6 +193,9 @@ AbstractBackgroundWidget {
     readonly property string sealText: Config.getNestedValue("background.widgets.japaneseTypography.sealText", "特別展")
     readonly property string footerText: Config.getNestedValue("background.widgets.japaneseTypography.footerText", "PACIFIC DRIVE-IN")
     readonly property string dateText: Config.getNestedValue("background.widgets.japaneseTypography.dateText", "7.12 — 8.31")
+    readonly property string displayPrimaryText: UiPreferences.shippedText(root.primaryText, "夏の記憶", "SUMMER MEMORIES")
+    readonly property string displaySecondaryText: UiPreferences.shippedText(root.secondaryText, "潮風と、あの子と、終わらない夏", "SEA BREEZE AND ENDLESS SUMMER")
+    readonly property string displaySealText: UiPreferences.shippedText(root.sealText, "特別展", "SPECIAL")
     readonly property bool showSecondary: Config.getNestedValue("background.widgets.japaneseTypography.showSecondary", true)
     readonly property bool showSeal: Config.getNestedValue("background.widgets.japaneseTypography.showSeal", true)
     readonly property bool showFooter: Config.getNestedValue("background.widgets.japaneseTypography.showFooter", true)
@@ -370,7 +374,7 @@ AbstractBackgroundWidget {
                     bottom: parent.bottom
                 }
                 width: root.leadWidth
-                text: root.primaryText
+                text: root.displayPrimaryText
                 fontFamily: root.fontFamily
                 fontPixelSize: root.leadPixelSize
                 fontWeight: root.primaryWeight
@@ -395,7 +399,7 @@ AbstractBackgroundWidget {
                     bottom: parent.bottom
                 }
                 width: root.noteWidth
-                text: root.secondaryText
+                text: root.displaySecondaryText
                 fontFamily: root.secondaryFontFamily
                 fontPixelSize: root.notePixelSize
                 fontWeight: root.secondaryWeight
@@ -431,8 +435,8 @@ AbstractBackgroundWidget {
                     height: Math.max(1, Math.min(
                         parent.height - sealTypography.innerPadding * 2,
                         Math.max(sealTypography.cellAdvance,
-                            Array.from(root.sealText).length * sealTypography.cellAdvance)))
-                    text: root.sealText
+                            Array.from(root.displaySealText).length * sealTypography.cellAdvance)))
+                    text: root.displaySealText
                     fontFamily: root.fontFamily
                     fontPixelSize: Math.max(10 * root.scaleFactor, root.notePixelSize * 0.86)
                     fontWeight: Font.DemiBold

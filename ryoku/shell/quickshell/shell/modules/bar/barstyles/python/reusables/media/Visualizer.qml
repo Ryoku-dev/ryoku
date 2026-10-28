@@ -14,6 +14,7 @@ Item {
     property string alignment: "end"
     property int count: 16
     property color color: ThemeBackend.mauve
+    property real gain: 1.0
 
     // Frequency mapping: low frequencies first, or in the middle and mirrored to both sides
     property bool mirrored: true
@@ -87,7 +88,7 @@ Item {
         for (let i = 0; i < map.length; i++) {
             let v0 = source[map[i].idx0] || 0.0;
             let v1 = source[map[i].idx1] || 0.0;
-            let raw = v0 + (v1 - v0) * map[i].frac;
+            let raw = Math.min(1.0, (v0 + (v1 - v0) * map[i].frac) * root.gain);
 
             let val = raw < threshold ? 0.0 : Math.pow((raw - threshold) / (1 - threshold), gamma);
             out[i] = Math.max(0.0, Math.min(1.0, val));

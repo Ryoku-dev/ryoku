@@ -12,6 +12,8 @@ import Ryoku.Ui.Singletons
 // and leaves no idle process.
 ShellRoot {
     id: app
+    Component.onCompleted: Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+        (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/")
 
     property var categories: []
     property bool loaded: false

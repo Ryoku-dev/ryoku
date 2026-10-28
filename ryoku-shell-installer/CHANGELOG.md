@@ -72,6 +72,10 @@
   steps, so a stuck stable install can be finished on unstable.
 
 ### Fixed
+- **Fresh Arch-based conversions receive newer Ryoku package overrides.**
+  After the desktop transaction, the installer aligns every installed package
+  that `[ryoku]` serves at a newer version without downgrading packages whose
+  official or CachyOS build is already ahead.
 - **Uninstalling on Fedora stops trusting Ryoku's signing key.** Removing the
   repository files now also deletes the key rpm imported, so the machine no
   longer accepts packages signed by Ryoku. The key file itself leaves with the

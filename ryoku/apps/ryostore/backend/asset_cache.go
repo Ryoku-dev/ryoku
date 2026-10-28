@@ -44,7 +44,7 @@ func assetCacheDir() string {
 // delegates fetch only visible media, instead of a refresh downloading the
 // entire marketplace in the background.
 func shouldWarmAssets(item Item) bool {
-	return item.Category != "omarchy-plugins"
+	return item.Category != "omarchy-plugins" && item.Category != flatpakCategory
 }
 
 // rewriteCachedAssets swaps every already-cached remote asset URL for its local

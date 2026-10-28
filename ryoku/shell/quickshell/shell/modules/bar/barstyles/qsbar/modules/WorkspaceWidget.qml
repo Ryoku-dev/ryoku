@@ -308,9 +308,10 @@ Item {
                 Text {
                     visible: root.workspaceStyle === "kanji"
                     anchors.centerIn: parent
-                    text: (Number(wsKey) >= 1 && Number(wsKey) <= 10)
-                        ? ["一","二","三","四","五","六","七","八","九","十"][Number(wsKey) - 1]
-                        : wsKey
+                    text: UiPreferences.showJapaneseGloss
+                        && Number(wsKey) >= 1 && Number(wsKey) <= 10
+                            ? ["一","二","三","四","五","六","七","八","九","十"][Number(wsKey) - 1]
+                            : wsKey
                     color: isFocused  ? wsWidget.contentColor
                          : isOccupied ? Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.7)
                                       : Qt.rgba(wsWidget.contentColor.r, wsWidget.contentColor.g, wsWidget.contentColor.b, 0.3)

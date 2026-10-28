@@ -18,6 +18,11 @@
   (`installerplan/components.tsv`, `tui/main.go`, `backend/lib/deploy.sh`).
 
 ### Fixed
+- **Fresh installs receive newer Ryoku package overrides.** After the Arch or
+  CachyOS desktop transaction, the installer aligns every installed package
+  that `[ryoku]` serves at a newer version. Both offline ISO repositories
+  compute and bake the same overrides instead of keeping an earlier
+  repository's build (`backend/lib/deploy.sh`, `iso/offline-repo.sh`).
 - **The Void package check sees what a real install gets.** The Void container
   image skips `/etc/skel` and other paths through noextract patterns, so the
   clean-container install could not find the per-user services `ryoku-desktop`

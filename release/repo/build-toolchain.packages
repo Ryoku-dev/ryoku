@@ -71,6 +71,18 @@ gtk4
 gtk4-layer-shell
 glm
 
+# xdg-desktop-portal-hyprland builds its portal and HyprToolkit picker against
+# the stable Hyprland libraries. The protocol source is pinned by the recipe,
+# but keeping its package here also covers CMake's system lookup in CI.
+hyprlang
+hyprtoolkit
+hyprutils
+hyprland-protocols
+hyprwayland-scanner
+pipewire
+sdbus-cpp
+util-linux-libs
+
 # ryoku-cursor-material compiles a Bibata variant at build time: fish + jq run
 # the vendored recipe, and python + librsvg (rsvg-convert) + xorg-xcursorgen
 # (xcursorgen) plus xcur2png (the recipe's -x PNG export) rasterise the cursors.

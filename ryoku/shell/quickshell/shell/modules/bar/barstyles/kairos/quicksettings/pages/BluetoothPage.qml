@@ -131,7 +131,7 @@ Column {
         }
         K.QsSwitch {
             anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-            visible: page.adapter !== null
+            visible: BluetoothPower.available
             value: page.adapter ? page.adapter.enabled : false
             onToggled: v => BluetoothPower.setEnabled(v)
         }
@@ -149,7 +149,7 @@ Column {
 
     Text {
         visible: !page.btOn
-        text: I18n.tr("Bluetooth is off")
+        text: BluetoothPower.blocked ? I18n.tr("Bluetooth is blocked") : I18n.tr("Bluetooth is off")
         color: page.dim(0.55)
         font.family: Theme.fontPrimary
         font.pixelSize: 13

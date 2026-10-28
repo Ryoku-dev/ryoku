@@ -51,7 +51,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
-                visible: card.kana !== ""
+                visible: UiPreferences.showJapaneseGloss && card.kana !== ""
                 text: card.kana
                 color: Tokens.inkFaint
                 font.family: Tokens.jp; font.pixelSize: 12

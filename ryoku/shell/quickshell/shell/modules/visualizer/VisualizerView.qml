@@ -17,13 +17,16 @@ Item {
     // one draw path serves the primary and each extra visualiser alike.
     required property VizItem cfg
 
-    // Which instance this is in Config.list, injected by the Repeater delegate.
+    // The stable instance id is independent of the roster position. Repeater
+    // delegates can move after a delete without inheriting another view's
+    // preview, selection, or governor state.
+    required property string instanceId
     required property int index
 
     readonly property string style: root.cfg.styleId
     readonly property bool aura: root.style === "aura"
     readonly property bool polar: field.polar
-    readonly property var preview: Config.previewAt(root.index)
+    readonly property var preview: Config.previewAt(root.instanceId)
 
     // What the placement overlay needs: the look's box, and a colour lit for the
     // same wallpaper. The edge field owns the whole screen, like the frame, so
@@ -52,7 +55,7 @@ Item {
     readonly property int govTier: root.aura ? auraMotion.govTier : motion.govTier
     readonly property bool govDriving: root.aura ? auraMotion.active : motion.active
     function publishGovTier() {
-        if (root.index === Config.active)
+        if (root.instanceId === Config.activeId)
             Config.activeGovTier = (root.govDriving && Config.adaptive) ? root.govTier : 0;
     }
     onGovTierChanged: root.publishGovTier()
@@ -197,7 +200,7 @@ Item {
         transientStrength: root.cfg.auraTransient
         beatGlow: root.cfg.auraBeatGlow
         compression: root.cfg.auraCompression
-        sensitivity: root.cfg.auraSensitivity * root.cfg.gain
+        sensitivity: root.cfg.auraSensitivity
         idleMotion: root.cfg.auraIdleMotion
         pulseStrength: 0.9
         primaryColor: root.auraTriad[0]

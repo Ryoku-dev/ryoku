@@ -6,10 +6,14 @@ import Quickshell.Io
 
 ShellRoot {
     id: root
+    Component.onCompleted: Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+        (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/")
 
     readonly property string token: Quickshell.env("RYOKU_RELOAD_COVER_TOKEN")
     readonly property string mode: Quickshell.env("RYOKU_RELOAD_COVER_MODE")
-    property string phase: "closing"
+    // Login arrives behind the greeter's closed curtain. Map boot covers closed
+    // too; replaying the reload close would expose the half-built desktop.
+    property string phase: mode === "boot" ? "hold" : "closing"
     property bool startClose: false
     property bool finishQueued: false
     property int mappedCount: 0
@@ -33,7 +37,7 @@ ShellRoot {
             mappedOutputs[name] = true;
             mappedCount += 1;
         }
-        if (mappedCount >= Quickshell.screens.length)
+        if (mappedCount >= Quickshell.screens.length && phase === "closing")
             startClose = true;
     }
     function finish(value: string): bool {

@@ -29,8 +29,7 @@ Rectangle {
         id: ma
         anchors.fill: parent
         hoverEnabled: true
-        enabled: !btn.dim
-        onClicked: btn.clicked()
+        onClicked: if (!btn.dim) btn.clicked()
     }
 
     Timer {
@@ -40,7 +39,7 @@ Rectangle {
     }
 
     onHoveredChanged: {
-        if (hovered && tooltip.length > 0 && !dim)
+        if (hovered && tooltip.length > 0)
             tipDelay.restart()
         else {
             tipDelay.stop()

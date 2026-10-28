@@ -648,7 +648,8 @@ Item {
                         }
                         UiText {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: (prow.modelData.gloss || "") + (prow.modelData.category ? "  " + String(prow.modelData.category).toUpperCase() : "")
+                            text: UiPreferences.text(prow.modelData.gloss || "", "")
+                                + (prow.modelData.category ? "  " + String(prow.modelData.category).toUpperCase() : "")
                             color: Tokens.inkFaint
                             font.family: Tokens.jp
                             font.pixelSize: Tokens.fTiny

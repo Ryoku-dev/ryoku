@@ -12,6 +12,6 @@ var rows = [
         "label": "Bluetooth",
         "desc": "Powers the adapter and remembers the choice across restarts",
         "ctl": "sw",
-        "src": "ryoku-bluetooth-power on|off writes the user's power choice, updates BlueZ and applies an rfkill soft block while off."
+        "src": "ryoku-bluetooth-power on|off writes the user's power choice, updates BlueZ, and clears legacy rfkill soft blocks while turning on."
     }
 ];

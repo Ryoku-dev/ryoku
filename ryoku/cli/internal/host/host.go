@@ -159,6 +159,7 @@ type Config struct {
 	PAMModulePaths       []string
 	UIDSet               bool
 	UID                  int
+	KernelModulesDir     string
 	PhoneModulesLoadPath string
 	PhoneModprobePath    string
 	PhoneStatePath       string
@@ -266,6 +267,9 @@ func New(cfg Config) *App {
 			"/usr/lib/security/pam_fprintd_grosshack.so",
 			"/usr/lib64/security/pam_fprintd_grosshack.so",
 		}
+	}
+	if cfg.KernelModulesDir == "" {
+		cfg.KernelModulesDir = "/usr/lib/modules"
 	}
 	if cfg.PhoneModulesLoadPath == "" {
 		cfg.PhoneModulesLoadPath = "/etc/modules-load.d/phone-v4l2loopback.conf"

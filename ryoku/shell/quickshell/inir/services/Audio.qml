@@ -6,6 +6,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.Pipewire
 import inir.services.deferred
+import shell.services as Ryoku
 
 /**
  * A nice wrapper for default Pipewire audio sink and source.
@@ -46,6 +47,9 @@ Singleton {
         target: root.source?.audio ?? null
         function onVolumeChanged(): void {
             root._micVolume = root.source?.audio?.volume ?? 0
+        }
+        function onMutedChanged(): void {
+            root._micMuted = root.source?.audio?.muted ?? false
         }
     }
 
@@ -126,6 +130,7 @@ Singleton {
     function setSourceVolume(target: real): void {
         root.lastUserChange = Date.now()
         const clamped = Math.max(0, Math.min(root.hardMaxValue, target))
+        Ryoku.OsdFeed.expectMicVolume(clamped)
         root._micVolume = clamped
         root._queueSourceVolume(clamped)
     }
@@ -506,6 +511,9 @@ Singleton {
 
         function micMute(): void {
             root.toggleMicMute();
+        }
+        function micVolume(value: real): void {
+            root.setSourceVolume(value);
         }
     }
 }

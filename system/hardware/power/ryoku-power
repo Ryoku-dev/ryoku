@@ -15,13 +15,14 @@
 #                 lets PCIe links enter deeper low-power states at idle.
 #
 # Both sysfs paths are root-owned; a write we cannot do directly re-execs the
-# whole command once under pkexec, and 47-ryoku-power.rules grants exactly this
-# binary to the active wheel user without a password so login autostart's
-# `apply` never blocks on a prompt (the values it acts on are range-checked, so
-# the grant stays safe). The desired state lives in ~/.config/ryoku/power.json
-# (keys `chargeLimit`, `aspm`) so a user edit survives updates; `apply` is the
-# idempotent convergent entry point that reads it back. A missing file or
-# missing key means "leave the hardware alone", never a forced default.
+# whole command once under pkexec, and 47-ryoku-power.rules grants exactly the
+# packaged /usr/bin helper to the active wheel user without a password. A dev
+# deploy also puts this helper in ~/.local/bin, but that user-writable copy must
+# hand privileged work to /usr/bin so the rule still matches and mutable code is
+# never run as root. The desired state lives in ~/.config/ryoku/power.json (keys
+# `chargeLimit`, `aspm`) so a user edit survives updates; `apply` is the
+# idempotent convergent entry point that reads it back. A missing file or missing
+# key means "leave the hardware alone", never a forced default.
 # Laptop-only, like ryoku-idle: `apply` on a desktop does nothing.
 
 set -euo pipefail
@@ -38,6 +39,7 @@ CONFIG="${RYOKU_POWER_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/power.json
 CPU_DIR="${RYOKU_CPU_DIR:-/sys/devices/system/cpu}"
 PLATFORM_PROFILE_FILE="${RYOKU_PLATFORM_PROFILE_FILE:-/sys/firmware/acpi/platform_profile}"
 SHELL_HELPER="${RYOKU_SHELL_BIN-$(command -v ryoku-shell || true)}"
+PRIVILEGED_HELPER="/usr/bin/ryoku-power"
 
 # pkexec resets HOME to root's and strips our environment, so a pkexec re-run of
 # `apply` would read /root's power.json instead of the caller's. Resolve the
@@ -84,11 +86,11 @@ hw_laptop() {
 escalated() { [[ -n ${PKEXEC_UID:-} ]]; }
 
 # root-owned sysfs write: write directly when the target is already writable (the
-# test seams point at a tmp dir we own) or we are already root; otherwise re-exec
-# the whole command once under pkexec. After pkexec re-enters as root the direct
-# branch below writes, so there is no re-exec loop. 47-ryoku-power.rules grants
-# exactly this binary to the active wheel user without a password, so `apply`
-# from login autostart never blocks on a prompt.
+# test seams point at a tmp dir we own) or we are already root; otherwise run the
+# packaged helper under pkexec. A dev deploy's ~/.local/bin copy shadows the
+# package on PATH, but polkit deliberately grants only the root-owned /usr/bin
+# helper. Always crossing the privilege boundary through that exact path keeps
+# the narrow rule effective and never runs a user-writable script as root.
 priv_write() {
   local path="$1" value="$2"
   # Convergent: an already-correct value needs no write, and skipping it skips
@@ -103,7 +105,7 @@ priv_write() {
     log "cannot write $path: not writable and pkexec is unavailable"
     exit 1
   fi
-  exec pkexec "$(readlink -f "$0")" "${ORIG_ARGV[@]}"
+  exec pkexec "$PRIVILEGED_HELPER" "${ORIG_ARGV[@]}"
 }
 
 # ── config (~/.config/ryoku/power.json, parsed with jq, a desktop dependency) ──

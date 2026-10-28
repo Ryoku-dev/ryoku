@@ -88,7 +88,7 @@ Item {
                         Repeater {
                             model: [
                                 { mode: "text", label: I18n.tr("Wordmark"), glyph: "RYOKU" },
-                                { mode: "icon", label: I18n.tr("Glyph"),    glyph: "\u529b" }
+                                { mode: "icon", label: I18n.tr("Glyph"),    glyph: UiPreferences.brandMark("\u529b") }
                             ]
 
                             delegate: Rectangle {

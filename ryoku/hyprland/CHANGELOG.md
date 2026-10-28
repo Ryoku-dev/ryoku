@@ -25,6 +25,10 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Game Mode keeps compositor blur, shadows and animations off across reloads.**
+  The live action and config both load one strip; tiled windows keep their faint
+  tint without blurring the moving desktop, while floating glass still blurs
+  (`hyprland.lua`, `modules/game_mode.lua`, `modules/decoration.lua`).
 - **Super+Escape always opens Controls while an app holds the keyboard.** The
   Hyprland bind bypasses keyboard-shortcut inhibition from apps such as VM
   viewers, leaving Lock, Log out, Restart and Power off reachable without

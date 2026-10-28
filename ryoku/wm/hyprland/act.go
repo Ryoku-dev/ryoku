@@ -301,9 +301,9 @@ func runAct(args []string) error {
 		}
 		switch state {
 		case "on":
-			return evalLua(gameModeLua)
+			return evalLua(`dofile(` + luaStr(filepath.Join(hyprModulesDir(), "game_mode.lua")) + `)`)
 		case "off":
-			// A reload rereads the config and clears every eval override on set.
+			// The caller clears the persisted request before restoring defaults.
 			_, err := ctl("reload")
 			return err
 		}
@@ -404,30 +404,6 @@ func summon(title string) error {
 	_ = dispatch(`hl.dsp.focus({ window = ` + sel + ` })`)
 	return nil
 }
-
-// gameModeLua is the exact eval the ported ryoku-cmd-game-mode ran for its
-// decoration strip: it kills present-time cost (blur, shadow, rounding, opacity
-// blending, animations) and flips to the low-latency path, an immediate window
-// rule for tearing on a sole fullscreen window, fullscreen-only VRR, and
-// render_unfocused so a fullscreen game keeps drawing while off-screen instead
-// of stalling on frame callbacks it never receives. decoration.gameMode off
-// reloads the config, which rereads it and clears every override here.
-const gameModeLua = `
-hl.config({
-  general = { allow_tearing = true },
-  decoration = {
-    rounding = 0,
-    active_opacity = 1.0,
-    inactive_opacity = 1.0,
-    blur = { enabled = false },
-    shadow = { enabled = false },
-  },
-  animations = { enabled = false },
-  misc = { vrr = 2 },
-})
-hl.window_rule({ name = "game-mode-immediate", match = { class = ".*" }, immediate = true })
-hl.window_rule({ name = "game-mode-render-unfocused", match = { fullscreen = true }, render_unfocused = true })
-`
 
 // touchpad locks or unlocks every touchpad the FN touchpad key drives. Ported
 // from ryoku-cmd-touchpad: the Lua config provider rejects `hyprctl keyword`, so

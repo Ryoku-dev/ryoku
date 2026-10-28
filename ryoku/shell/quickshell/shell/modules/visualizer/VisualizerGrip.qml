@@ -10,9 +10,10 @@ import "Singletons"
 Item {
     id: win
 
-    // The visualizer instance this grip owns.
-    required property int instanceIndex
-    // Whether the Stage Editor frames this desktop right now.
+    // The visualizer instance this grip owns. Its roster index may change when
+    // another instance is deleted; identity and interaction routing do not.
+    required property string instanceId
+    readonly property int instanceIndex: Config.indexOfId(win.instanceId)
     required property bool composing
     property var stageController: null
 
@@ -34,8 +35,8 @@ Item {
     visible: win.composing && Config.enabled && win.instanceIndex < Config.count
 
     readonly property real handle: Ui.Tokens.s4
-    readonly property var instance: Config.dataAt(win.instanceIndex) || ({})
-    readonly property var preview: Config.previewAt(win.instanceIndex)
+    readonly property var instance: Config.dataById(win.instanceId)
+    readonly property var preview: Config.previewAt(win.instanceId)
     function value(key, fallback) {
         const v = win.instance[key];
         return v === undefined || v === null ? fallback : v;
@@ -72,7 +73,7 @@ Item {
         if (win.aura || !win.composing || !win.stageController)
             return false;
         const bounds = win.stageController.widgetDragStarted(
-            "visualizer:" + win.instanceIndex);
+            "visualizer:" + win.instanceId);
         if (bounds.active === false)
             return false;
         win.stageMoveActive = true;
@@ -103,7 +104,7 @@ Item {
         let py = Math.max(win.groupDragMinY,
             Math.min(win.groupDragMaxY, footprint.clampY(ny)));
         const bounded = win.stageController.widgetDragMoved(
-            "visualizer:" + win.instanceIndex, px, py, modifiers);
+            "visualizer:" + win.instanceId, px, py, modifiers);
         footprint.stagePreviewPosition(bounded.x, bounded.y);
     }
     function stageEndMove(modifiers) {
@@ -113,14 +114,14 @@ Item {
             const px = Math.round(footprint.x);
             const py = Math.round(footprint.y);
             const handled = win.stageController.widgetDragEnded(
-                "visualizer:" + win.instanceIndex, px, py, modifiers);
+                "visualizer:" + win.instanceId, px, py, modifiers);
             if (!handled) {
                 footprint.stageCommitPosition(px, py);
                 footprint.stageEndPreview();
             }
         } else {
             win.stageController.widgetDragCancelled(
-                "visualizer:" + win.instanceIndex);
+                "visualizer:" + win.instanceId);
         }
         win.stageMoveActive = false;
         win.dragging = false;
@@ -133,8 +134,8 @@ Item {
         if (!win.stageMoveActive)
             return;
         win.stageController.widgetDragCancelled(
-            "visualizer:" + win.instanceIndex);
-        Config.clearPreview(win.instanceIndex);
+            "visualizer:" + win.instanceId);
+        Config.clearPreview(win.instanceId);
         win.stageMoveActive = false;
         win.dragging = false;
     }
@@ -177,7 +178,7 @@ Item {
     function stageBeginResize(corner, point, modifiers) {
         if (win.aura || !win.composing)
             return;
-        Config.setActive(win.instanceIndex);
+        Config.setActive(win.instanceId);
         win.activated();
         win.resizeStartW = win.vw;
         win.resizeStartH = win.vh;
@@ -252,7 +253,7 @@ Item {
     Connections {
         target: Config
         function onActiveChanged() {
-            if (Config.active === win.instanceIndex || win.gesture === "")
+            if (Config.activeId === win.instanceId || win.gesture === "")
                 return;
             win.gesture = "";
             grab.mode = "";
@@ -299,17 +300,17 @@ Item {
                 return;
             const point = footprint.boxPosition(
                 footprint.clampX(px), footprint.clampY(py));
-            Config.setPreview(win.instanceIndex, point.x, point.y);
+            Config.setPreview(win.instanceId, point.x, point.y);
         }
         function stageEndPreview() {
-            Config.clearPreview(win.instanceIndex);
+            Config.clearPreview(win.instanceId);
         }
         function stageCommitPosition(px, py) {
             if (win.aura)
                 return;
             const point = footprint.boxPosition(
                 footprint.clampX(px), footprint.clampY(py));
-            Config.moveBoxAt(win.instanceIndex, point.x, point.y, win.aspect);
+            Config.moveBoxAt(win.instanceId, point.x, point.y, win.aspect);
         }
     }
     // The turned footprint, exposed for the desktop: the edit frame boxes this
@@ -411,7 +412,7 @@ Item {
         property real pressAngle: 0
 
         onPressed: (m) => {
-            Config.setActive(win.instanceIndex);
+            Config.setActive(win.instanceId);
             win.activated();
             if (m.button === Qt.RightButton) {
                 win.menuRequested(win.box.x, win.box.y);
@@ -472,7 +473,7 @@ Item {
         WheelHandler {
             acceptedModifiers: Qt.ControlModifier
             onWheel: (w) => {
-                Config.setActive(win.instanceIndex);
+                Config.setActive(win.instanceId);
                 win.activated();
                 if (!win.wheelHold) {
                     win.wheelHold = true;

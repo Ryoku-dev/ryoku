@@ -3,13 +3,14 @@ import QtQuick
 import Quickshell
 import Ryoku.Blobs
 import shell.services
+import "." as VizCfg
 
 Singleton {
     id: root
 
-    property bool active: false
-    property int bars: 64
-    property int fps: 60
+    readonly property bool active: VizCfg.Config.enabled && Perf.visualizerResident
+    readonly property int bars: VizCfg.Config.maxBars
+    readonly property int fps: VizCfg.Config.fps
     property int placementHolds: 0
 
     readonly property bool analysing: root.active
@@ -25,11 +26,11 @@ Singleton {
         bars: root.bars
         framerate: root.fps
         method: "pipewire"
-        source: "auto"
-        autosens: false
-        sensitivity: 180
-        noiseReduction: 45
-        peakFollow: false
+        source: Audio.musicSink !== "" ? Audio.musicSink + ".monitor" : "auto"
+        autosens: true
+        sensitivity: 150
+        noiseReduction: 25
+        peakFollow: true
         staleMs: 260
     }
 }

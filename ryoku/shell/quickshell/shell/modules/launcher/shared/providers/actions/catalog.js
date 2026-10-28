@@ -31,7 +31,7 @@ var CATALOG = [
     { id: "media-next",       name: "Next Track",         category: "Media",      icon: "skip-next",   exec: ["playerctl", "next"] },
     { id: "media-previous",   name: "Previous Track",     category: "Media",      icon: "skip-prev",   exec: ["playerctl", "previous"] },
     { id: "recognize-music",  name: "Recognize Music",    category: "Media",      icon: "music",       exec: ["ryoku-cmd-songrec"] },
-    { id: "media-visualizer", name: "Audio Visualizer",   category: "Media",      icon: "wave",        exec: ["ryoku-shell", "visualizer-overlay"] },
+    { id: "media-visualizer", name: "Audio Visualizer",   category: "Media",      icon: "wave",        exec: ["ryoku-shell", "visualizer"] },
 
     { id: "open-settings",    name: "Ryoku Settings",     category: "Settings",   icon: "settings",    exec: ["sh", "-c", "flock -n -o /tmp/ryoku-hub.lock qs -c hub"] },
     { id: "keybind-legend",   name: "Keybind Reference",  category: "Settings",   icon: "keyboard",    exec: ["sh", "-c", "flock -n -o /tmp/ryoku-keys.lock qs -c keys"] },

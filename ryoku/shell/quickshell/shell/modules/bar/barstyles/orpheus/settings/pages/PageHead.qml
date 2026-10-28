@@ -1,5 +1,6 @@
 import QtQuick
 import "../../kit" as K
+import Ryoku.Ui.Singletons
 
 Column {
     id: head
@@ -20,7 +21,7 @@ Column {
         }
 
         K.Label {
-            text: "力"
+            text: UiPreferences.brandMark("力")
             role: "micro"
             tone: "accent"
             font.family: K.Style.jp

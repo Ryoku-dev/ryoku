@@ -361,7 +361,7 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
-                                        text: proto.modelData.jp
+                                        text: UiPreferences.text(proto.modelData.jp, "")
                                         color: Tokens.inkFaint
                                         font.family: Tokens.jp; font.pixelSize: 11
                                         anchors.verticalCenter: parent.verticalCenter

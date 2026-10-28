@@ -10,6 +10,8 @@ import Ryoku.Ui.Singletons
 // out; dismissing it quits the process and releases the launch flock.
 ShellRoot {
     id: app
+    Component.onCompleted: Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+        (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/")
 
     property bool closing: false
     function dismiss() {
@@ -129,7 +131,7 @@ ShellRoot {
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "\u529b"; color: Tokens.ink
+                            text: UiPreferences.brandMark("\u529b"); color: Tokens.ink
                             font.family: Tokens.jp; font.pixelSize: Tokens.fBody
                         }
                         Text {

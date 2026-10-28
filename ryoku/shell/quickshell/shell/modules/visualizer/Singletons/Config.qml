@@ -7,8 +7,8 @@ import Quickshell.Io
 // Live config for the desktop visualiser. One or more visualisers can share the
 // desktop: the PRIMARY is the flat top-level config (the one Ryoku Settings'
 // Visualizer tab still edits and reset-to-defaults mirrors), and any EXTRAS ride
-// an `extras` list, each a full per-viz object. `active` is the instance the
-// on-desktop editor is tuning. The renderer paints `list` (primary + extras);
+// an `extras` list, each a full per-viz object. `activeId` names the stable
+// instance the on-desktop editor is tuning. The renderer paints `list` (primary + extras);
 // the editor reads/writes the active instance through here.
 //
 // JSON at ~/.config/ryoku/visualizer.json, watched, so a save in Settings (or a
@@ -49,7 +49,7 @@ Singleton {
     ]
     function primaryData() {
         var d = {
-            "style": adapter.style, "shape": adapter.shape,
+            "id": adapter.instanceId, "style": adapter.style, "shape": adapter.shape,
             "color": adapter.color, "color2": adapter.color2, "gradient": adapter.gradient,
             "bars": adapter.bars, "thickness": adapter.thickness, "bloom": adapter.bloom,
             "reflection": adapter.reflection, "idleWave": adapter.idleWave,
@@ -64,22 +64,58 @@ Singleton {
         return d;
     }
     function dataAt(index) {
-        if (index <= 0)
-            return root.primaryData();
-        return (adapter.extras || [])[index - 1] || ({});
+        const i = Math.round(Number(index));
+        return isFinite(i) && i >= 0 && i < root.count ? root.list[i] : ({});
+    }
+    function indexOfId(instanceId) {
+        const wanted = "" + (instanceId || "");
+        if (wanted === "")
+            return -1;
+        const rows = root.list;
+        for (let i = 0; i < rows.length; ++i)
+            if (("" + (rows[i].id || "")) === wanted)
+                return i;
+        return -1;
+    }
+    function idAt(index) {
+        const i = Math.round(Number(index));
+        const row = isFinite(i) && i >= 0 && i < root.count ? root.list[i] : null;
+        return row ? "" + (row.id || "") : "";
+    }
+    function dataById(instanceId) {
+        const index = root.indexOfId(instanceId);
+        return index >= 0 ? root.dataAt(index) : ({});
+    }
+    function labelAt(index) {
+        const stableId = root.idAt(index);
+        const match = /^viz-(\d+)$/.exec(stableId);
+        return match ? match[1] : stableId;
+    }
+    function allocateId() {
+        let serial = Math.max(1, Math.round(adapter.nextId));
+        let stableId = "";
+        do {
+            stableId = "viz-" + serial;
+            serial++;
+        } while (root.indexOfId(stableId) >= 0);
+        adapter.nextId = serial;
+        return stableId;
     }
     property var previews: ({})
-    function previewAt(index) {
-        return root.previews["" + index] || null;
+    function previewAt(instanceId) {
+        return root.previews["" + instanceId] || null;
     }
-    function setPreview(index, nx, ny) {
+    function setPreview(instanceId, nx, ny) {
+        const key = "" + instanceId;
+        if (key === "")
+            return;
         const next = Object.assign({}, root.previews);
-        next["" + index] = { x: nx, y: ny };
+        next[key] = { x: nx, y: ny };
         root.previews = next;
     }
-    function clearPreview(index) {
-        const key = "" + index;
-        if (root.previews[key] === undefined)
+    function clearPreview(instanceId) {
+        const key = "" + instanceId;
+        if (key === "" || root.previews[key] === undefined)
             return;
         const next = Object.assign({}, root.previews);
         delete next[key];
@@ -87,13 +123,17 @@ Singleton {
     }
     readonly property var list: {
         var out = [root.primaryData()];
-        var ex = adapter.extras || [];
+        var ex = root.cloneData(adapter.extras);
         for (var i = 0; i < ex.length; i++)
             out.push(ex[i]);
         return out;
     }
     readonly property int count: root.list.length
-    readonly property int active: Math.max(0, Math.min(root.count - 1, adapter.active))
+    readonly property int active: {
+        const found = root.indexOfId(adapter.activeId);
+        return found >= 0 ? found : 0;
+    }
+    readonly property string activeId: root.idAt(root.active)
     readonly property var activeData: root.list[root.active]
 
     // Never more than this many at once; each adds a full-screen GPU pass.
@@ -151,7 +191,7 @@ Singleton {
     readonly property bool   hasCustomColor: act.hasCustomColor
     readonly property color  customColor:    act.customColor
     readonly property string colorHex:       act.hasCustomColor ? act.rawColor : ""
-    readonly property bool   gradient:       adapter.active <= 0 ? (adapter.gradient === true) : (act.val("gradient", false) === true)
+    readonly property bool   gradient: root.active === 0 ? (adapter.gradient === true) : (act.val("gradient", false) === true)
     readonly property bool   hasColor2:      act.hasColor2
     readonly property color  color2Value:    act.color2Value
     readonly property string color2Hex:      act.hasColor2 ? act.rawColor2 : ""
@@ -164,7 +204,7 @@ Singleton {
         if (root.active <= 0) {
             adapter[key] = value;
         } else {
-            var arr = (adapter.extras || []).slice();
+            var arr = root.cloneData(adapter.extras);
             var e = Object.assign({}, arr[root.active - 1]);
             e[key] = value;
             arr[root.active - 1] = e;
@@ -314,8 +354,10 @@ Singleton {
         root.poke("x", b.x);
         root.poke("y", b.y);
     }
-    function moveBoxAt(index, nx, ny, aspect) {
-        const i = Math.max(0, Math.min(root.count - 1, Math.round(index)));
+    function moveBoxAt(instanceId, nx, ny, aspect) {
+        const i = root.indexOfId(instanceId);
+        if (i < 0)
+            return;
         const data = root.dataAt(i);
         const w = Number(data.w);
         const h = Number(data.h);
@@ -329,7 +371,7 @@ Singleton {
             adapter.x = b.x;
             adapter.y = b.y;
         } else {
-            const arr = (adapter.extras || []).slice();
+            const arr = root.cloneData(adapter.extras);
             const entry = Object.assign({}, arr[i - 1]);
             entry.x = b.x;
             entry.y = b.y;
@@ -350,7 +392,7 @@ Singleton {
             adapter.x = b.x;
             adapter.y = b.y;
         } else {
-            var arr = (adapter.extras || []).slice();
+            var arr = root.cloneData(adapter.extras);
             var e = Object.assign({}, arr[root.active - 1]);
             e.w = b.w;
             e.h = b.h;
@@ -388,27 +430,34 @@ Singleton {
     function cloneData(o) {
         return JSON.parse(JSON.stringify(o || {}));
     }
-    function setActive(i) {
-        adapter.active = Math.max(0, Math.min(root.count - 1, i));
+    function setActive(instance) {
+        const idx = typeof instance === "number"
+            ? Math.max(0, Math.min(root.count - 1, Math.round(instance)))
+            : root.indexOfId(instance);
+        if (idx < 0)
+            return false;
+        adapter.activeId = root.idAt(idx);
         settle.restart();
+        return true;
     }
     function addVisualizer() {
         if (root.count >= root.maxVisualizers)
-            return -1;
-        var arr = (adapter.extras || []).slice();
+            return "";
+        var arr = root.cloneData(adapter.extras);
         // Seed from the active instance, nudged so the new one is not hidden
         // exactly under it, and given a fresh box so it is easy to grab.
         var seed = root.cloneData(root.activeData);
+        seed.id = root.allocateId();
         seed.x = Math.max(-0.2, Math.min(0.8, (seed.x || 0) + 0.06));
         seed.y = Math.max(-0.2, Math.min(0.8, (seed.y || 0.58) - 0.12));
         arr.push(seed);
         adapter.extras = arr;
-        adapter.active = arr.length;
+        adapter.activeId = seed.id;
         settle.restart();
-        return adapter.active;
+        return seed.id;
     }
     function applyPrimary(o) {
-        adapter.style = o.style; adapter.shape = o.shape;
+        adapter.instanceId = "" + (o.id || adapter.instanceId); adapter.style = o.style; adapter.shape = o.shape;
         adapter.color = o.color || ""; adapter.color2 = o.color2 || "";
         adapter.gradient = o.gradient === true;
         adapter.bars = o.bars; adapter.thickness = o.thickness; adapter.bloom = o.bloom;
@@ -430,11 +479,11 @@ Singleton {
         if (idx === 0) {
             root.applyPrimary(copy);
         } else {
-            var arr = (adapter.extras || []).slice();
+            var arr = root.cloneData(adapter.extras);
             arr[idx - 1] = copy;
             adapter.extras = arr;
         }
-        adapter.active = idx;
+        adapter.activeId = copy.id;
         settle.restart();
     }
     function insertVisualizer(i, data) {
@@ -443,18 +492,18 @@ Singleton {
         var idx = Math.max(0, Math.min(root.count, i));
         var copy = root.cloneData(data);
         if (idx === 0) {
-            var arr0 = (adapter.extras || []).slice();
+            var arr0 = root.cloneData(adapter.extras);
             arr0.unshift(root.cloneData(root.primaryData()));
             root.applyPrimary(copy);
             adapter.extras = arr0;
         } else {
-            var arr = (adapter.extras || []).slice();
+            var arr = root.cloneData(adapter.extras);
             arr.splice(idx - 1, 0, copy);
             adapter.extras = arr;
         }
-        adapter.active = idx;
+        adapter.activeId = copy.id;
         settle.restart();
-        return idx;
+        return copy.id;
     }
     function replaceAll(instances, selected, on) {
         var rows = root.cloneData(instances);
@@ -462,27 +511,37 @@ Singleton {
             rows = [root.primaryData()];
         root.applyPrimary(rows[0]);
         adapter.extras = rows.slice(1, root.maxVisualizers);
-        adapter.active = Math.max(0, Math.min(rows.length - 1, selected || 0));
+        const selectedId = typeof selected === "number"
+            ? "" + (rows[Math.max(0, Math.min(rows.length - 1, selected))].id || "")
+            : "" + (selected || rows[0].id || "");
+        adapter.activeId = selectedId;
         adapter.enabled = on === true;
         settle.restart();
     }
-    function removeVisualizer(i) {
-        var idx = Math.max(0, Math.min(root.count - 1, i === undefined ? root.active : i));
+    function removeVisualizer(instance) {
+        const idx = instance === undefined ? root.active
+            : (typeof instance === "number"
+                ? Math.max(0, Math.min(root.count - 1, Math.round(instance)))
+                : root.indexOfId(instance));
+        if (idx < 0)
+            return false;
         if (root.count === 1) {
             root.setEnabled(false);
             return true;
         }
+        const selectedId = root.activeId;
         if (idx === 0) {
-            var ex = (adapter.extras || []).slice();
+            var ex = root.cloneData(adapter.extras);
             var promoted = ex.shift();
             root.applyPrimary(promoted);
             adapter.extras = ex;
         } else {
-            var arr = (adapter.extras || []).slice();
+            var arr = root.cloneData(adapter.extras);
             arr.splice(idx - 1, 1);
             adapter.extras = arr;
         }
-        adapter.active = Math.max(0, Math.min(idx, root.count - 1));
+        adapter.activeId = root.indexOfId(selectedId) >= 0
+            ? selectedId : root.idAt(Math.min(idx, root.count - 1));
         settle.restart();
         return true;
     }
@@ -570,10 +629,13 @@ Singleton {
             property string auraProfile: "flat"
             property real auraAccent: 0.7
             property real auraSensitivity: 0.72
-            // Additional visualisers beyond the primary, each a full per-viz
-            // object, and which instance the desktop editor is tuning.
+            // Stable identity is stored with each instance. The active pointer is
+            // an id, never a list position, so removing one cannot retarget the
+            // editor or make another instance inherit its selection.
+            property string instanceId: ""
+            property int nextId: 1
             property var extras: []
-            property int active: 0
+            property string activeId: ""
         }
     }
 
@@ -618,6 +680,64 @@ Singleton {
         return true;
     }
 
+    function ensureIdentities(raw) {
+        const source = raw || {};
+        const rows = root.cloneData(adapter.extras);
+        const seen = ({});
+        let serial = Math.max(1, Math.round(adapter.nextId));
+        const candidates = [adapter.instanceId].concat(rows.map(row => row ? row.id : ""));
+        for (let i = 0; i < candidates.length; ++i) {
+            const match = /^viz-(\d+)$/.exec("" + (candidates[i] || ""));
+            if (match)
+                serial = Math.max(serial, parseInt(match[1]) + 1);
+        }
+        function claim(candidate) {
+            let stableId = "" + (candidate || "");
+            if (stableId === "" || seen[stableId]) {
+                do {
+                    stableId = "viz-" + serial;
+                    serial++;
+                } while (seen[stableId]);
+            }
+            seen[stableId] = true;
+            return stableId;
+        }
+
+        let changed = false;
+        const primaryId = claim(adapter.instanceId);
+        if (primaryId !== adapter.instanceId) {
+            adapter.instanceId = primaryId;
+            changed = true;
+        }
+        for (let j = 0; j < rows.length; ++j) {
+            const oldId = "" + ((rows[j] || {}).id || "");
+            const stableId = claim(oldId);
+            if (stableId !== oldId) {
+                rows[j] = Object.assign({}, rows[j] || {}, { id: stableId });
+                changed = true;
+            }
+        }
+        if (changed)
+            adapter.extras = rows;
+        if (adapter.nextId !== serial) {
+            adapter.nextId = serial;
+            changed = true;
+        }
+
+        const allIds = [adapter.instanceId].concat(rows.map(row => "" + (row.id || "")));
+        let selected = "" + (adapter.activeId || "");
+        if (allIds.indexOf(selected) < 0) {
+            const legacyIndex = Math.max(0, Math.min(allIds.length - 1,
+                typeof source.active === "number" ? Math.round(source.active) : 0));
+            selected = allIds[legacyIndex];
+        }
+        if (adapter.activeId !== selected) {
+            adapter.activeId = selected;
+            changed = true;
+        }
+        return changed;
+    }
+
     // A box saved while overhang was still allowed (or by hand) is folded back
     // inside the screen once, primary and extras alike; true when one moved.
     // Best-effort aspect from whatever screen is up first; a stored box off by
@@ -632,7 +752,7 @@ Singleton {
             adapter.x = b.x; adapter.y = b.y; adapter.w = b.w; adapter.h = b.h;
             moved = true;
         }
-        var arr = (adapter.extras || []).slice();
+        var arr = root.cloneData(adapter.extras);
         for (var i = 0; i < arr.length; i++) {
             var e = arr[i] || {};
             var f = root.fitBox(Number(e.x) || 0, Number(e.y) || 0, Number(e.w) || 1, Number(e.h) || 0.42,
@@ -648,11 +768,21 @@ Singleton {
     }
 
     Component.onCompleted: {
+        let raw = {};
+        if (file.text()) {
+            try {
+                raw = JSON.parse(file.text()) || {};
+            } catch (e) {
+                raw = {};
+            }
+        }
+        var write = root.ensureIdentities(raw);
         if (!file.text()) {
             file.writeAdapter();
             return;
         }
-        var write = root.migrate();
+        if (root.migrate())
+            write = true;
         if (adapter.style === "circle") {
             adapter.style = "orb";
             write = true;

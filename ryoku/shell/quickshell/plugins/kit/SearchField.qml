@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import "Singletons"
+import Ryoku.Ui.Singletons as Ui
 
 Item {
     id: root
@@ -24,7 +25,7 @@ Item {
         id: glyph
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
-        text: root.kanji
+        text: Ui.UiPreferences.text(root.kanji, "")
         color: Theme.brand
         font.family: Theme.fontJp
         font.weight: Font.Medium

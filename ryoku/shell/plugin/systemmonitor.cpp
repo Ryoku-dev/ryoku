@@ -743,7 +743,7 @@ public:
                 reading.memoryTotalGiB = static_cast<double>(total) / BytesPerGiB;
                 reading.memoryAvailable = true;
             }
-            if (includePower) {
+            if (includePower && !m_powerPath.isEmpty()) {
                 quint64 microwatts = 0;
                 if (readUnsignedFile(m_powerPath, microwatts))
                     reading.powerWatts = static_cast<double>(microwatts) / 1000000.0;
@@ -1376,8 +1376,10 @@ void SystemMonitor::startWorker() {
                     slow.battery = readBattery(batterySensor);
                     slow.uptimeSeconds = readUptimeSeconds();
                     slow.storage = readRootStorage();
-                    quint64 fanRpm = 0;
-                    slow.fanRpm = readUnsignedFile(fanPath, fanRpm) ? static_cast<double>(fanRpm) : 0.0;
+                    if (!fanPath.isEmpty()) {
+                        quint64 fanRpm = 0;
+                        slow.fanRpm = readUnsignedFile(fanPath, fanRpm) ? static_cast<double>(fanRpm) : 0.0;
+                    }
                 }
                 ++tick;
                 result.loadAverage = slow.load.average;

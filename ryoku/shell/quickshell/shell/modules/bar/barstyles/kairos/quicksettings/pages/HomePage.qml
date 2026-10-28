@@ -30,6 +30,7 @@ Column {
         return I18n.tr("Not connected");
     }
     readonly property string btSubtitle: {
+        if (BluetoothPower.blocked) return I18n.tr("Blocked");
         if (!page.adapter) return I18n.tr("Not available");
         if (!page.adapter.enabled) return I18n.tr("Off");
         var devs = Bluetooth.devices ? Bluetooth.devices.values : [];

@@ -15,6 +15,7 @@ import inir.modules.iris.style
 import inir.modules.iris.field as Field
 import inir.modules.iris.components
 import inir.modules.iris.bar.island
+import shell.services as Ryoku
 
 Scope {
     id: root
@@ -55,10 +56,11 @@ Scope {
         if (root.gameRule === "quiet") return nextKind !== "media" && nextKind !== "keyboard" && nextKind !== "connection"
         return nextKind !== "keyboard" || (root.prefs?.keyboard ?? true)
     }
-    function showLevel(nextKind: string): void {
+    function showLevel(nextKind: string, volumeChange = false, muteChange = false): void {
         if (root.levelsMode === "off") return
+        if (nextKind === "mic" && volumeChange && !Ryoku.OsdFeed.acceptsMicVolume(Audio.micVolume)) return
         const touched = nextKind === "brightness" ? Brightness.lastUserChange : Audio.lastUserChange
-        if (root.levelsMode === "yours" && Date.now() - touched > 1200) return
+        if (nextKind !== "volume" && !muteChange && root.levelsMode === "yours" && Date.now() - touched > 1200) return
         root.show(nextKind, root.holdMs)
     }
 
@@ -148,12 +150,12 @@ Scope {
     Connections {
         target: Audio.sink?.audio ?? null
         function onVolumeChanged(): void { root.showLevel("volume") }
-        function onMutedChanged(): void { root.showLevel("volume") }
+        function onMutedChanged(): void { root.showLevel("volume", false, true) }
     }
     Connections {
         target: Audio
-        function onMicVolumeChanged(): void { root.showLevel("mic") }
-        function onMicMutedChanged(): void { root.showLevel("mic") }
+        function onMicVolumeChanged(): void { root.showLevel("mic", true) }
+        function onMicMutedChanged(): void { root.showLevel("mic", false, true) }
         function onSinkProtectionTriggered(reason: string): void {
             root.warningText = reason
             root.show("warning", root.holdMs + 1100)

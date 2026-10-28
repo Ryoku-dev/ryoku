@@ -39,6 +39,7 @@ Popout {
     edge: MusicPreview.edge
     hoverOpen: false
     closeDelay: 300
+    arrivalDelay: 1200
     edgeGap: MusicPreview.margin > 0 ? MusicPreview.margin : 10 * root.s
     radius: Theme.radiusWindow
     triggerHovered: MusicPreview.hovered && root.present

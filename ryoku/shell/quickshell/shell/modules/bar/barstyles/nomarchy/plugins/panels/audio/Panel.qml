@@ -7,6 +7,7 @@ import Quickshell.Services.Pipewire
 import qs.Ui
 import qs.Commons
 import "Model.js" as Model
+import shell.services as Ryoku
 
 Panel {
   id: root
@@ -454,7 +455,9 @@ Panel {
 
   function setInputVolume(v) {
     if (!source || !source.audio) return
-    source.audio.volume = Math.max(0, Math.min(1, v))
+    var value = Math.max(0, Math.min(1, v))
+    Ryoku.OsdFeed.expectMicVolume(value)
+    source.audio.volume = value
   }
 
   function toggleOutputMute() {

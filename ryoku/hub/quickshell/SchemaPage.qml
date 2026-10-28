@@ -102,7 +102,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 Rectangle { width: 16; height: 1; color: Tokens.ink; anchors.verticalCenter: parent.verticalCenter }
                 Text {
-                    text: "力"; color: Tokens.ink; font.family: Tokens.jp
+                    text: UiPreferences.brandMark("力"); color: Tokens.ink; font.family: Tokens.jp
                     font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {

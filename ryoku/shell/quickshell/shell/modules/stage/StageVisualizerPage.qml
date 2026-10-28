@@ -37,32 +37,33 @@ Item {
             return s.length === 1 ? "0" + s : s;
         }).join("").toUpperCase();
     }
-    function selectInstance(index) {
+    function selectInstance(instanceId) {
         page.finishPlace();
-        page.cfg.setActive(index);
-        StageCfg.StageSession.select("visualizer:" + index);
+        if (!page.cfg.setActive(instanceId))
+            return;
+        StageCfg.StageSession.select("visualizer:" + instanceId);
     }
     function addInstance() {
         if (page.cfg.count >= page.cfg.maxVisualizers)
             return;
-        const index = page.provider ? page.provider.addVisualizer() : page.cfg.addVisualizer();
-        if (index < 0)
+        const instanceId = page.provider ? page.provider.addVisualizer() : page.cfg.addVisualizer();
+        if (!instanceId)
             return;
         page.cfg.setEnabled(true);
-        page.selectInstance(index);
+        page.selectInstance(instanceId);
     }
     function toggleShown() {
-        const id = "visualizer:" + page.cfg.active;
+        const id = "visualizer:" + page.cfg.activeId;
         if (page.cfg.enabled) {
             StageIsland.Config.removeWidgetInstance("visualizer");
             StageCfg.StageSession.remove(id);
         } else {
             StageIsland.Config.addWidgetToDesktop("visualizer");
-            page.selectInstance(page.cfg.active);
+            page.selectInstance(page.cfg.activeId);
         }
     }
     function placeChange(change) {
-        const id = "visualizer:" + page.cfg.active;
+        const id = "visualizer:" + page.cfg.activeId;
         if (page.placeBefore === null || page.placeId !== id) {
             page.finishPlace();
             page.placeId = id;
@@ -80,7 +81,7 @@ Item {
     }
     function placeOnce(change) {
         page.finishPlace();
-        const id = "visualizer:" + page.cfg.active;
+        const id = "visualizer:" + page.cfg.activeId;
         const before = page.provider ? page.provider.snapshot(id) : null;
         change();
         if (page.provider)
@@ -104,7 +105,7 @@ Item {
         function onActiveChanged() {
             if (page.placeBefore)
                 page.finishPlace();
-            StageCfg.StageSession.select("visualizer:" + page.cfg.active);
+            StageCfg.StageSession.select("visualizer:" + page.cfg.activeId);
         }
     }
 
@@ -282,11 +283,17 @@ Item {
                         options: {
                             const out = [];
                             for (let i = 0; i < page.cfg.count; ++i)
-                                out.push(String(i + 1));
+                                out.push(page.cfg.labelAt(i));
                             return out;
                         }
-                        current: String(page.cfg.active + 1)
-                        onChose: key => page.selectInstance(parseInt(key) - 1)
+                        current: page.cfg.labelAt(page.cfg.active)
+                        onChose: label => {
+                            for (let i = 0; i < page.cfg.count; ++i)
+                                if (page.cfg.labelAt(i) === label) {
+                                    page.selectInstance(page.cfg.idAt(i));
+                                    return;
+                                }
+                        }
                     }
                     Btn {
                         text: I18n.tr("Add")

@@ -9,6 +9,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -16,9 +17,9 @@ import (
 // one swaps the in-session lock preference plus the SDDM greeter theme. Ryostore
 // owns upstream browsing and install-only downloads; Hub owns activation.
 //
-//	ryoku-hub lock list                  installed skins + active one, as JSON
-//	ryoku-hub lock set <slug>            activate an installed skin
-//	ryoku-hub lock apply-greeter <slug>  install it as the SDDM greeter
+//	ryoku-hub lock list                              installed skins + active one, as JSON
+//	ryoku-hub lock set <slug>                        activate an installed skin
+//	ryoku-hub lock apply-greeter <slug> <true|false> privileged greeter install
 //
 // a skin = any folder under the themes dir with a Main.qml. slug = its path
 // under that dir (e.g. "clockwork/orbital"), exactly what lock.sh resolves
@@ -93,10 +94,14 @@ func runLock(args []string) error {
 		}
 		return setLockSkin(args[1])
 	case "apply-greeter":
-		if len(args) < 2 {
-			return fmt.Errorf("lock apply-greeter needs a slug")
+		if len(args) < 3 {
+			return fmt.Errorf("lock apply-greeter needs a slug and true or false")
 		}
-		return applyGreeter(args[1])
+		clock24h, err := strconv.ParseBool(args[2])
+		if err != nil {
+			return fmt.Errorf("invalid clock format %q", args[2])
+		}
+		return applyGreeter(args[1], clock24h)
 	default:
 		return fmt.Errorf("lock needs list|set|apply-greeter")
 	}
@@ -113,6 +118,19 @@ func readLockPref(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(b))
+}
+
+func clockFormat24h() bool {
+	b, err := os.ReadFile(filepath.Join(xdgHome("XDG_CONFIG_HOME", ".config"), "ryoku", "shell.json"))
+	if err != nil {
+		return false
+	}
+	var settings struct {
+		General struct {
+			ClockFormat24H bool `json:"clock_format_24_h"`
+		} `json:"general"`
+	}
+	return json.Unmarshal(b, &settings) == nil && settings.General.ClockFormat24H
 }
 
 // listLockSkinsIn scans dir for installed skins, unions in any store product the
@@ -350,7 +368,7 @@ func setLockSkin(slug string) error {
 	if err := setLockSkinIn(dir, qylockThemePref(), slug); err != nil {
 		return err
 	}
-	if err := escalateGreeter(slug); err != nil {
+	if err := escalateGreeter(slug, clockFormat24h()); err != nil {
 		return fmt.Errorf("lock skin set for this session; the sign-in screen keeps its old one: %w", err)
 	}
 	return nil
@@ -369,6 +387,13 @@ func setLockSkinIn(dir, pref, slug string) error {
 }
 
 const greeterTheme = "ryoku"
+
+func greeterThemeInstaller() string {
+	if v := os.Getenv("RYOKU_GREETER_THEME_INSTALLER"); v != "" {
+		return v
+	}
+	return "/usr/share/ryoku/lockscreen/qylock/sddm-host/install-greeter-theme"
+}
 
 func sddmThemesDir() string {
 	if v := os.Getenv("RYOKU_SDDM_THEMES_DIR"); v != "" {
@@ -396,12 +421,12 @@ func validSlug(slug string) error {
 // escalateGreeter re-execs this binary under pkexec to install the skin as the
 // SDDM greeter (it has to write /usr/share/sddm + /etc). pkexec pops the
 // graphical polkit prompt; cancel -> error.
-func escalateGreeter(slug string) error {
+func escalateGreeter(slug string, clock24h bool) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command("pkexec", self, "lock", "apply-greeter", slug)
+	cmd := exec.Command("pkexec", self, "lock", "apply-greeter", slug, strconv.FormatBool(clock24h))
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
@@ -414,12 +439,12 @@ func escalateGreeter(slug string) error {
 // applyGreeter = the privileged half, run as root by pkexec. installs the
 // skin the invoking user picked as the greeter. source resolves from the
 // invoking user's home, never from a caller-supplied path. don't change that.
-func applyGreeter(slug string) error {
+func applyGreeter(slug string, clock24h bool) error {
 	src := os.Getenv("RYOKU_QYLOCK_THEMES")
 	if src == "" {
 		src = invokingUserThemes()
 	}
-	return installGreeter(src, sddmThemesDir(), sddmConfPath(), slug)
+	return installGreeter(src, sddmThemesDir(), sddmConfPath(), slug, clock24h)
 }
 
 // invokingUserThemes: qylock themes dir of whoever invoked us via pkexec
@@ -437,10 +462,11 @@ func invokingUserThemes() string {
 	return qylockThemesDir()
 }
 
-// installGreeter copies srcThemes/slug into themesDir under a fixed name and
-// points the greeter config at it, so the login screen wears the same skin as
-// the in-session lock. privileged; broken out for tests.
-func installGreeter(srcThemes, themesDir, confPath, slug string) error {
+// installGreeter installs srcThemes/slug beneath the shared SDDM host and
+// points the greeter config at it. The host owns cursor fallback, focus and the
+// global clock preference, so optional skins receive the same login-screen
+// behavior as the built-in skin.
+func installGreeter(srcThemes, themesDir, confPath, slug string, clock24h bool) error {
 	if err := validSlug(slug); err != nil {
 		return err
 	}
@@ -452,21 +478,10 @@ func installGreeter(srcThemes, themesDir, confPath, slug string) error {
 	if err := os.MkdirAll(themesDir, 0o755); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(dst); err != nil {
-		return err
-	}
-	if out, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
+	if out, err := exec.Command(
+		greeterThemeInstaller(), src, dst, strconv.FormatBool(clock24h),
+	).CombinedOutput(); err != nil {
 		return fmt.Errorf("install greeter theme: %v: %s", err, out)
-	}
-	// The greeter runs as the unprivileged `sddm` user, so it must be able to
-	// read the theme no matter how the source was owned or masked. Catalog skins
-	// download into an os.MkdirTemp dir (always 0700) and `cp -a` preserves that,
-	// leaving the greeter dir unreadable to sddm -> SDDM silently falls back to
-	// its embedded theme on every boot. Normalize: root-owned (best effort, since
-	// this half runs as root under pkexec) and world-readable.
-	_ = exec.Command("chown", "-R", "root:root", dst).Run()
-	if out, err := exec.Command("chmod", "-R", "a+rX", dst).CombinedOutput(); err != nil {
-		return fmt.Errorf("make greeter theme readable: %v: %s", err, out)
 	}
 	if err := os.MkdirAll(filepath.Dir(confPath), 0o755); err != nil {
 		return err

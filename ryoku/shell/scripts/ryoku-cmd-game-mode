@@ -11,12 +11,8 @@
 #   stop     restore, clear
 #   toggle
 #
-# revert = exact. compositor changes are runtime overrides the seam applies; a
-# reload rereads the config and clears them, so nothing to track. the wifi helper
-# saves + restores the prior power-save state, ryoku-game-tune saves + restores
-# every knob it touches, and the prior power profile is written down here.
-# `start` is safe to re-run after a relogin (the compositor comes back fresh,
-# request is still on disk).
+# The request is stored before the compositor is stripped, so config reloads
+# and login keep it stripped until stop clears the request before restoring.
 #
 # AC only, on purpose. every lever here trades power and heat for latency, and
 # on battery that is a bad deal the user cannot see: deep idle states off and a
@@ -39,11 +35,8 @@ tune_helper="${RYOKU_GAME_TUNE_BIN-$(command -v ryoku-game-tune || true)}"
 idle_helper="${RYOKU_IDLE_BIN-$(command -v ryoku-idle || true)}"
 shell_helper="${RYOKU_SHELL_BIN-$(command -v ryoku-shell || true)}"
 
-# The window manager is reached only through the seam, asked by capability and
-# never by name. The live decoration strip below is a runtime config override; a
-# compositor that cannot evaluate its config live has no equivalent, so game mode
-# still boosts power there and leaves the desktop's look alone instead of
-# dispatching into a socket that will not answer.
+# The provider owns the live decoration strip, while its config reads the
+# persisted request on every reload. Other compositors keep their own look.
 ryoku_bin="${RYOKU_BIN-$(command -v ryoku || true)}"
 stripped=0
 
@@ -70,27 +63,23 @@ on_battery() {
 }
 
 # ── compositor ────────────────────────────────────────────────────────────────
-# The decoration strip is a runtime config override the seam applies through
-# decoration.gameMode: it kills present-time cost (blur, shadow, rounding,
-# opacity blending, animations) and flips to a low-latency path with immediate
-# tearing on a sole fullscreen window and fullscreen-only VRR. It also keeps a
-# fullscreen window rendering while it is off-screen, so a game on another
-# workspace keeps being scheduled instead of stalling on the frame callbacks an
-# invisible surface never gets (its audio would keep playing, input would die,
-# and multiplayer would time out). The strip is gated on liveConfigEval, so a
-# compositor with a file-only config leaves the desktop's look alone and game
-# mode still boosts power there. off reloads the config, which rereads it and
-# drops every override.
+# On compositors with live config evaluation, the provider strips decoration.
+# A failed strip is an error, not a successful Game Mode activation.
 deco_strip() {
   wm_can liveConfigEval || return 0
-  "$ryoku_bin" wm act decoration.gameMode on >/dev/null 2>&1 && stripped=1 || true
+  local error
+  if ! error=$("$ryoku_bin" wm act decoration.gameMode on 2>&1); then
+    printf 'Game Mode: compositor strip failed: %s\n' "$error" >&2
+    notify "力 Game Mode" "Could not turn off compositor effects: $error"
+    return 1
+  fi
+  stripped=1
 }
 
 deco_restore() {
   wm_can configReload || return 0
-  "$ryoku_bin" wm act decoration.gameMode off >/dev/null 2>&1 || true
+  "$ryoku_bin" wm act decoration.gameMode off >&2
 }
-
 # The active provider owns the governor, EPP and platform_profile as a set, so
 # asking it for `performance` is the whole CPU story and needs no root. Route
 # both reads and writes through ryoku-shell so game mode follows the same
@@ -160,12 +149,16 @@ start() {
     return 1
   fi
 
-  mkdir -p "$state_dir" 2>/dev/null || true
-  deco_strip
+  mkdir -p "$state_dir" || return 1
+  printf 'enabled\n' >"$state_file" || return 1
+  if ! deco_strip; then
+    rm -f "$state_file"
+    deco_restore
+    return 1
+  fi
   profile_fast
   tune apply
   wifi_set off
-  printf 'enabled\n' >"$state_file" 2>/dev/null || true
   if (( stripped )); then
     notify "力 Game Mode" "On - performance profile, deep idle off, compositor stripped"
   else
@@ -174,11 +167,16 @@ start() {
 }
 
 stop() {
-  deco_restore
-  tune restore
-  profile_restore
-  wifi_set on
-  rm -f "$state_file" 2>/dev/null || true
+  local failed=0
+  rm -f "$state_file" || failed=1
+  deco_restore || failed=1
+  tune restore || failed=1
+  profile_restore || failed=1
+  wifi_set on || failed=1
+  if (( failed )); then
+    notify "力 Game Mode" "Could not fully restore the desktop"
+    return 1
+  fi
   notify "力 Game Mode" "Off - desktop restored"
 }
 

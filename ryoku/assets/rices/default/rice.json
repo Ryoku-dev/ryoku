@@ -145,6 +145,7 @@
         }
       },
       "barStyle": "qsbar",
+      "showJapaneseGloss": true,
       "bars": {
         "bottom_bar": {
           "center_widgets": [],

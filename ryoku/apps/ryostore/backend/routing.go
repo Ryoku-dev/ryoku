@@ -11,7 +11,7 @@ var storeSections = map[string]struct{}{
 	"subshells": {}, "barstyles": {}, "docks": {}, "launchers": {}, "osds": {}, "notifications": {}, "sidebars": {},
 	"fastfetch": {}, "plugins": {}, "bundles": {}, "decors": {},
 	"launcher-images": {}, "fastfetch-emblems": {}, "ryotunes-skins": {},
-	"vesktop-themes": {},
+	"vesktop-themes": {}, "flatpak": {},
 }
 
 func storeSection(section string) bool {

@@ -7,6 +7,9 @@ import Ryoku.Ui.Singletons
 // surface); the Hyprland window rule floats and centres it. `qs -c hub` loads
 // this (the config dir and binary keep the internal "hub" name).
 ShellRoot {
+    Component.onCompleted: Quickshell.watchFiles = !Quickshell.shellDir.startsWith(
+        (Quickshell.env("XDG_CONFIG_HOME") || Quickshell.env("HOME") + "/.config") + "/quickshell/")
+
     FloatingWindow {
         id: win
         title: I18n.tr("Ryoku Settings")

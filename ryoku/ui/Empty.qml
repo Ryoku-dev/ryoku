@@ -18,7 +18,7 @@ Column {
         Motif { anchors.fill: parent; kind: "rings"; strength: 0.14 }
         Text {
             anchors.centerIn: parent
-            text: "空"
+            text: UiPreferences.text("空", "")
             color: Tokens.inkDim
             font.family: Tokens.jp
             font.pixelSize: 42

@@ -133,6 +133,18 @@ StyledFlickable {
         }
 
         EditPanelRow {
+            visible: root.design === "ryoku"
+            Layout.fillWidth: true
+            first: false
+            last: false
+            symbol: "desktop_windows"
+            title: Translation.tr("Stay visible on empty workspaces")
+            trailingKind: "switch"
+            switchChecked: root.cfg("revealOnEmpty", true)
+            onActivated: root.setCfg("revealOnEmpty", !root.cfg("revealOnEmpty", true))
+        }
+
+        EditPanelRow {
             Layout.fillWidth: true
             first: false
             last: true

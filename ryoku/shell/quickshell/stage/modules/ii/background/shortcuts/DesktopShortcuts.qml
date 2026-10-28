@@ -8,7 +8,7 @@ import stage.services
 import stage.modules.common
 import stage.modules.ii.editMode
 import Ryoku.Ui.Singletons
-import shell.services
+import shell.services as ShellServices
 
 Singleton {
     id: root
@@ -1108,7 +1108,7 @@ Singleton {
         } else if (entry.path) {
             Spawn.runApp(["gio", "launch", entry.path], { label: entry.id });
         } else {
-            AppLaunch.run(TaskbarApps.getCachedDesktopEntry(entry.id), null);
+            ShellServices.AppLaunch.run(TaskbarApps.getCachedDesktopEntry(entry.id), null);
         }
         Qt.callLater(() => root.countLaunch(entry.id));
     }

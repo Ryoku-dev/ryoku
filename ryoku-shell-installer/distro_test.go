@@ -32,6 +32,48 @@ func TestDetectDistro(t *testing.T) {
 	}
 }
 
+func TestNewerRyokuRepoTargets(t *testing.T) {
+	previousCompare := comparePackageVersions
+	comparePackageVersions = func(available, installed string) (int, error) {
+		return strings.Compare(available, installed), nil
+	}
+	t.Cleanup(func() { comparePackageVersions = previousCompare })
+
+	installed := map[string]string{
+		"upgrade":    "1.0-1",
+		"equal":      "2.0-1",
+		"repo-older": "3.0-1",
+		"not-served": "1.0-1",
+	}
+	served := map[string]string{
+		"upgrade":       "1.1-1",
+		"equal":         "2.0-1",
+		"repo-older":    "2.9-1",
+		"not-installed": "4.0-1",
+	}
+	cachyos := detectDistro("cachyos", "arch")
+	for _, test := range []struct {
+		name   string
+		distro *distro
+		want   string
+	}{
+		{name: "arch", distro: archLinux, want: "ryoku/upgrade"},
+		{name: "cachyos", distro: cachyos, want: "ryoku/upgrade"},
+		{name: "fedora", distro: fedoraLinux},
+		{name: "void", distro: voidLinux},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := newerRyokuRepoTargets(test.distro, installed, served)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if joined := strings.Join(got, ","); joined != test.want {
+				t.Fatalf("newerRyokuRepoTargets() = %q, want %q", joined, test.want)
+			}
+		})
+	}
+}
+
 func TestLocalAllRenamesAndDrops(t *testing.T) {
 	in := []string{"git", "networkmanager", "fd", "matugen", "limine", "kitty"}
 	got := debianLinux.localAll(in)

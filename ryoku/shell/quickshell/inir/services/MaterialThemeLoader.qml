@@ -16,6 +16,11 @@ Singleton {
     id: root
     property string filePath: Directories.generatedMaterialThemePath
     property bool ready: false
+    property string committedContent: ""
+    property string previewContent: ""
+    function refresh(): void {
+        root.applyColors(root.previewContent || root.committedContent)
+    }
 
     function _log(...args): void {
         if (Quickshell.env("QS_DEBUG") === "1") console.log(...args);
@@ -74,10 +79,30 @@ Singleton {
         id: themeFileView
         path: Qt.resolvedUrl(root.filePath)
         watchChanges: true
-        onLoadedChanged: {
-            root.applyColors(themeFileView.text())
+        onFileChanged: reload()
+        onLoaded: {
+            root.committedContent = text()
+            root.refresh()
             root.ready = true
         }
         onLoadFailed: root._log("[MaterialThemeLoader] palette file not present yet")
+    }
+    FileView {
+        id: previewFileView
+        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/dev/null") + "/ryoku-wall-preview.json"
+        blockLoading: true
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: {
+            const content = text()
+            try {
+                const parsed = JSON.parse(content || "{}")
+                root.previewContent = parsed && parsed.background ? content : ""
+            } catch (e) {
+                root.previewContent = ""
+            }
+            root.refresh()
+        }
     }
 }

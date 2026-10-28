@@ -17,6 +17,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -149,6 +151,84 @@ func setRyokuServer(conf, server string) (string, string) {
 var ryokuPkgs = []string{"ryoku-keyring", "ryoku-desktop"}
 
 var fedoraRyokuPkgs = []string{"ryoku", "ryoku-keyring", "ryoku-desktop", "ryoku-desktop-hyprland", "ryoku-desktop-niri"}
+var comparePackageVersions = func(available, installed string) (int, error) {
+	out, err := exec.Command("vercmp", available, installed).Output()
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(out)))
+}
+
+func newerRyokuRepoTargets(d *distro, installed, served map[string]string) ([]string, error) {
+	if d.id != "arch" {
+		return nil, nil
+	}
+	names := make([]string, 0, len(served))
+	for name := range served {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var targets []string
+	for _, name := range names {
+		installedVersion, ok := installed[name]
+		if !ok {
+			continue
+		}
+		comparison, err := comparePackageVersions(served[name], installedVersion)
+		if err != nil {
+			return nil, fmt.Errorf("compare package version for %s: %w", name, err)
+		}
+		if comparison > 0 {
+			targets = append(targets, "ryoku/"+name)
+		}
+	}
+	return targets, nil
+}
+
+func pacmanVersionMap(args []string, nameField, versionField int) (map[string]string, error) {
+	out, err := exec.Command("pacman", args...).Output()
+	if err != nil {
+		return nil, err
+	}
+	versions := map[string]string{}
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		if len(fields) > versionField {
+			versions[fields[nameField]] = fields[versionField]
+		}
+	}
+	return versions, scanner.Err()
+}
+
+func alignNewerRyokuPackages(e *engine, d *distro) error {
+	if d.id != "arch" {
+		return nil
+	}
+	if e.dry {
+		e.say(i18n.T("DRYRUN: after installation, align installed packages that [ryoku] serves at a newer version"))
+		return nil
+	}
+	installed, err := pacmanVersionMap([]string{"-Q"}, 0, 1)
+	if err != nil {
+		return fmt.Errorf("read installed package versions: %w", err)
+	}
+	served, err := pacmanVersionMap([]string{"-Sl", "ryoku"}, 1, 2)
+	if err != nil {
+		return fmt.Errorf("read [ryoku] package versions: %w", err)
+	}
+	targets, err := newerRyokuRepoTargets(d, installed, served)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	e.say(i18n.Tf("Aligning %d newer package(s) from [ryoku]", len(targets)))
+	args := append([]string{"pacman", "-S", "--noconfirm", "--needed"}, targets...)
+	return e.sudo(args...)
+}
 
 // ryokuOverwriteGlob names the ryoku-desktop-owned paths that a prior partial
 // install, a dev deploy, or the ISO installer can leave unowned on disk: the
@@ -1985,7 +2065,10 @@ func stepPackages(e *engine) error {
 	}
 	// -Syu, not -S: a resumed run holds the db its first attempt synced, and
 	// a publish in between replaces or prunes the files that db points at.
-	return installPackagePlan(e, d, pkgs)
+	if err := installPackagePlan(e, d, pkgs); err != nil {
+		return err
+	}
+	return alignNewerRyokuPackages(e, d)
 }
 
 func cachyosV3Supported() bool {

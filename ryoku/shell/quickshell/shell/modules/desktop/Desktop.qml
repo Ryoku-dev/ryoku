@@ -51,6 +51,7 @@ Scope {
 
     // the monitor this instance renders on, bound by the main shell per screen.
     property var screen
+    property bool surfaceReady: false
     // controller hook; the desktop layer defaults on.
     property bool active: true
     property bool widgetsEnabled: true
@@ -89,14 +90,13 @@ Scope {
         return Config.widgetDepth(id, root.monitorName);
     }
     readonly property var stageState: Services.ShellState.forScreen(root.screen)
-    // The visualiser paints inside this surface (docs/stage.md) while the
-    // stage cuts this wall, or while the Stage Editor frames the monitor: the
-    // desktop lifts to Top then, so the inline look still clears open windows
-    // and the placement grip shares its surface. In overlay mode outside the
-    // editor it keeps its own raised surface.
+    // Cut layers and Stage composing keep the visualizer inside the frosted content.
     readonly property bool hostsVisualizer: VizCfg.Config.enabled
         && (root.stageComposing
             || (root.stageOn && !(root.stageState && root.stageState.visualizerOverlay)))
+    readonly property bool plainVisualizer: VizCfg.Config.enabled
+        && !root.hostsVisualizer
+        && !(root.stageState && root.stageState.visualizerOverlay)
     readonly property string monitorName: root.screen ? root.screen.name : ""
     // Edit widgets lifts this desktop above open windows. Per-widget locks stay
     // authoritative and can be toggled from the canvas.
@@ -108,8 +108,8 @@ Scope {
     // monitor, the desktop is drawn as the card the toolbar frames (a scale +
     // translate about the usable area's centre), on the mode's one animated
     // scalar, so the desktop and the chrome shrink as one rectangle across two
-    // scene graphs. Off the edited screen it stays the identity. desktopContent
-    // carries the matrix.
+    // scene graphs. Off the edited screen it stays the identity. Both the
+    // frosted content and its plain visualizer use this matrix.
     readonly property bool stageEditing: Stage.GlobalStates.editModeMonitor === root.monitorName
         && (Stage.GlobalStates.editMode || Stage.GlobalStates.editProgress > 0)
     readonly property bool stageFramingHere: root.stageEditing
@@ -138,9 +138,8 @@ Scope {
             easing.type: Easing.OutCubic
         }
     }
-    // Capturing a live desktop into a full-output blur layer forces every video
-    // or visualizer frame through another FBO pass. Keep the haze but flatten
-    // the glass while content below it is moving.
+    // Blur stays flat while video or a visualizer inside the frosted content
+    // would force every moving frame through another full-output FBO pass.
     readonly property bool deckFrostHasMotion:
         (root.videoUrl !== "" && !root.videoPaused)
         || root.wallpaperLive || root.hostsVisualizer
@@ -313,8 +312,9 @@ Scope {
         const visualizerId = "" + w;
         if (visualizerId === "visualizer" || visualizerId.indexOf("visualizer:") === 0) {
             const index = visualizerId === "visualizer"
-                ? VizCfg.Config.active : parseInt(visualizerId.slice(11));
-            const grip = !isNaN(index) ? vizGripRepeater.itemAt(index) : null;
+                ? VizCfg.Config.active
+                : VizCfg.Config.indexOfId(visualizerId.slice(11));
+            const grip = index >= 0 ? vizGripRepeater.itemAt(index) : null;
             return VizCfg.Config.enabled && grip ? grip.boxItem : null;
         }
         if (String(w).indexOf("plugin:") === 0) {
@@ -454,11 +454,8 @@ Scope {
         Config.selectMonitor(root.monitorName, true);
         StageCfg.StageSession.select(value);
         if (value === "visualizer" || value.indexOf("visualizer:") === 0) {
-            if (value.indexOf("visualizer:") === 0) {
-                const index = parseInt(value.slice(11));
-                if (!isNaN(index))
-                    VizCfg.Config.setActive(index);
-            }
+            if (value.indexOf("visualizer:") === 0)
+                VizCfg.Config.setActive(value.slice(11));
             StageCfg.StageSession.inspecting = "";
             StageCfg.StageSession.openSection("visualizer");
             return;
@@ -488,9 +485,9 @@ Scope {
         if (p) {
             p.removeWidget(id);
         } else if (String(id).indexOf("visualizer:") === 0) {
-            const index = parseInt(String(id).slice(11));
-            if (!isNaN(index))
-                VizCfg.Config.removeVisualizer(index);
+            const instanceId = String(id).slice(11);
+            if (instanceId !== "")
+                VizCfg.Config.removeVisualizer(instanceId);
         } else {
             Config.setFor(root.monitorName, id + "Enabled", false);
         }
@@ -541,16 +538,16 @@ Scope {
     // Each grip snapshots its own complete instance. The map keeps wheel and
     // easing settle timers independent when two instances are touched quickly.
     property var vizGestureBefore: ({})
-    function stageVizGestureStart(index) {
+    function stageVizGestureStart(instanceId) {
         const p = root.stageProvider();
-        const id = "visualizer:" + index;
+        const id = "visualizer:" + instanceId;
         const next = Object.assign({}, root.vizGestureBefore);
         next[id] = p ? p.snapshot(id) : null;
         root.vizGestureBefore = next;
     }
-    function stageVizGestureFinish(index) {
+    function stageVizGestureFinish(instanceId) {
         const p = root.stageProvider();
-        const id = "visualizer:" + index;
+        const id = "visualizer:" + instanceId;
         const before = root.vizGestureBefore[id];
         const next = Object.assign({}, root.vizGestureBefore);
         delete next[id];
@@ -642,18 +639,31 @@ Scope {
         visible: root.active
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
-        // Editing lifts the desktop above open windows so the stage is never
-        // obscured by whatever was in front; Done drops it back under them.
-        WlrLayershell.layer: root.stageComposing ? WlrLayer.Top : WlrLayer.Bottom
+        // Editing and desktop text entry lift above ordinary windows. A
+        // compositor may ignore an exclusive keyboard request on a bottom
+        // surface, so the lift lasts exactly as long as a hosted field needs it.
+        WlrLayershell.layer: (root.stageComposing || win.kbWanted > 0)
+            ? WlrLayer.Top : WlrLayer.Bottom
         WlrLayershell.namespace: "ryoku-widgets"
-        // Text fields and icon dialogs keep their existing counter. The editor
-        // borrows the grab only while no other surface or desktop control is
-        // asking for keys, so opening a search or inspector never loses its caret.
-        // Where a grab would also take every click, the editor asks on demand
-        // instead: the compositor hands it the keyboard as the pointer crosses
-        // the desktop, and the toolbar and catalogue on their own surface stay
-        // clickable (keyboardGrabSharesPointer in docs/compositors.md).
+        Connections {
+            target: win.contentItem?.Window.window ?? null
+            enabled: !root.surfaceReady
+            function onFrameSwapped() { root.surfaceReady = true }
+        }
+        // Text fields and icon dialogs keep their existing exclusive counter.
+        // A selected shortcut takes keys only while the pointer remains over
+        // the icon grid. Moving toward another app releases the grab before
+        // that app is clicked; moving back restores shortcut key navigation.
         property int kbWanted: 0
+        readonly property bool shortcutKeyboardWanted: !!desktopIcons.item
+            && desktopIcons.item.hasSelection && desktopIcons.item.pointerOverShortcut
+            && !desktopIcons.item.dialogOpen && !root.stageComposing
+        onShortcutKeyboardWantedChanged: if (shortcutKeyboardWanted) {
+            Qt.callLater(() => {
+                if (shortcutKeyboardWanted && desktopIcons.item)
+                    desktopIcons.item.forceActiveFocus();
+            });
+        }
         readonly property bool hostedWidgetTyping: {
             const owner = String(Stage.GlobalStates.widgetTypingOwner || "");
             return root.monitorName !== "" && owner.indexOf(root.monitorName + "|") === 0;
@@ -668,9 +678,11 @@ Scope {
         onKbWantedChanged: if (kbWanted === 0 && !stageKeyboardWanted) root.kbRestore()
         onStageKeyboardWantedChanged: if (!stageKeyboardWanted && kbWanted === 0) root.kbRestore()
         WlrLayershell.keyboardFocus: kbWanted > 0 ? WlrKeyboardFocus.Exclusive
-            : !stageKeyboardWanted ? WlrKeyboardFocus.None
-            : Wm.caps.keyboardGrabSharesPointer === true ? WlrKeyboardFocus.Exclusive
-            : WlrKeyboardFocus.OnDemand
+            : stageKeyboardWanted
+                ? (Wm.caps.keyboardGrabSharesPointer === true
+                    ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.OnDemand)
+            : shortcutKeyboardWanted ? WlrKeyboardFocus.Exclusive
+            : WlrKeyboardFocus.None
 
         anchors { top: true; left: true; right: true; bottom: true }
 
@@ -724,10 +736,8 @@ Scope {
             guides.flash(v, h);
         }
 
-        // The Stage Editor's card: every visible layer of the desktop (wallpaper,
-        // stage, widgets, editor frames) in one container that carries the mode's
-        // shrink matrix, so the desktop becomes the object the chrome frames and
-        // the widgets under the cursor scale together. Identity when not editing.
+        // The Stage Editor's card: wallpaper, stage, widgets and editor frames
+        // carry the same matrix as the plain visualizer above the frost.
         Item {
             id: desktopContent
             anchors.fill: parent
@@ -797,8 +807,6 @@ Scope {
             visible: root.stageOn
         }
 
-        // While the stage is on (or the Stage Editor frames this monitor), the
-        // visualizer shares this surface so Stage cut-outs can layer around it.
         Item {
             id: vizHost
             z: root.stageCut
@@ -806,7 +814,11 @@ Scope {
             anchors.fill: parent
             visible: root.hostsVisualizer
             opacity: 1 - 0.75 * root.stageFramingDim
-            Viz.InlineVisualizer { anchors.fill: parent }
+            Loader {
+                anchors.fill: parent
+                active: root.hostsVisualizer
+                sourceComponent: Viz.InlineVisualizer { anchors.fill: parent }
+            }
         }
 
         // One grip and one frame per rendered instance. Selecting either makes
@@ -815,9 +827,10 @@ Scope {
             id: vizGripRepeater
             model: VizCfg.Config.enabled ? VizCfg.Config.count : 0
             delegate: Viz.VisualizerGrip {
+                id: vizGrip
                 required property int index
                 z: 5.6
-                instanceIndex: index
+                instanceId: VizCfg.Config.idAt(vizGrip.index)
                 composing: root.stageComposing
                     && (Stage.GlobalStates.editDrawerSection === "widgets"
                         || Stage.GlobalStates.editDrawerSection === "visualizer")
@@ -825,12 +838,12 @@ Scope {
                 enabled: !root.stageFramingHere
                 opacity: 1 - 0.75 * root.stageFramingDim
                 onActivated: {
-                    VizCfg.Config.setActive(index);
-                    StageCfg.StageSession.select("visualizer:" + index);
+                    VizCfg.Config.setActive(vizGrip.instanceId);
+                    StageCfg.StageSession.select("visualizer:" + vizGrip.instanceId);
                 }
-                onGestureStarted: root.stageVizGestureStart(index)
-                onGestureFinished: root.stageVizGestureFinish(index)
-                onMenuRequested: root.stageOpenSettings("visualizer:" + index)
+                onGestureStarted: root.stageVizGestureStart(vizGrip.instanceId)
+                onGestureFinished: root.stageVizGestureFinish(vizGrip.instanceId)
+                onMenuRequested: root.stageOpenSettings("visualizer:" + vizGrip.instanceId)
             }
         }
 
@@ -838,7 +851,7 @@ Scope {
             model: VizCfg.Config.enabled ? VizCfg.Config.count : 0
             delegate: StageOutline {
                 required property int index
-                readonly property string instanceId: "visualizer:" + index
+                readonly property string instanceId: "visualizer:" + VizCfg.Config.idAt(index)
                 // Both repeaters follow the same model, in no guaranteed order:
                 // re-resolve when the grips' count changes, not once at creation.
                 readonly property var gripItem: vizGripRepeater.count > index
@@ -851,7 +864,7 @@ Scope {
                         || Stage.GlobalStates.editDrawerSection === "visualizer")
                 box: slotItem ? Qt.rect(slotItem.x, slotItem.y,
                     slotItem.width, slotItem.height) : Qt.rect(0, 0, 0, 0)
-                title: I18n.tr("Visualizer") + " " + (index + 1)
+                title: I18n.tr("Visualizer") + " " + VizCfg.Config.labelAt(index)
                 selected: StageCfg.StageSession.contains(instanceId)
                 primary: StageCfg.StageSession.selected === instanceId
                 targetItem: gripItem
@@ -862,7 +875,7 @@ Scope {
                         Stage.GlobalStates.editProgress,
                         Stage.GlobalStates.editDrawerProgress).width / Math.max(1, win.width))
                 onPicked: modifiers => {
-                    VizCfg.Config.setActive(index);
+                    VizCfg.Config.setActive(VizCfg.Config.idAt(index));
                     stageSelection.pick(instanceId, modifiers);
                 }
                 onSettings: root.stageOpenSettings(instanceId)
@@ -915,7 +928,7 @@ Scope {
                 && row.id !== "visualizer").map(row => row.id).concat(
                     VizCfg.Config.enabled
                         ? Array.from({ length: VizCfg.Config.count },
-                            (_, i) => "visualizer:" + i) : [])
+                            (_, i) => "visualizer:" + VizCfg.Config.idAt(i)) : [])
             itemFor: id => root.slotFor(id)
             provider: StageIsland.Config.widgetProvider
             onRemoveRequested: id => root.stageRemoveWidget(id)
@@ -1785,12 +1798,8 @@ Scope {
             z: root.stageOn ? 2.5 : -1
             opacity: 1 - 0.75 * root.stageFramingDim
             enabled: !root.stageFramingHere
-            readonly property bool keyboardNeeded: !!item && (item.hasSelection || item.dialogOpen)
-            onKeyboardNeededChanged: {
-                win.kbWanted += keyboardNeeded ? 1 : -1;
-                if (keyboardNeeded && item)
-                    item.forceActiveFocus();
-            }
+            readonly property bool keyboardNeeded: !!item && item.dialogOpen
+            onKeyboardNeededChanged: win.kbWanted += keyboardNeeded ? 1 : -1
             Component.onDestruction: if (keyboardNeeded) win.kbWanted -= 1
             sourceComponent: StageShortcuts.DesktopShortcutsLayer {
                 anchors.fill: parent
@@ -1962,6 +1971,19 @@ Scope {
             focusRect: root.deckFocusRect
             floorAlpha: root.deckFrostFloor
             strength: root.deckFrost
+        }
+
+        // The plain look shares the desktop surface but stays outside its blur.
+        Item {
+            anchors.fill: parent
+            transform: Matrix4x4 { matrix: root.stageMatrix }
+            visible: root.plainVisualizer
+            opacity: 1 - 0.75 * root.stageFramingDim
+            Loader {
+                anchors.fill: parent
+                active: root.plainVisualizer
+                sourceComponent: Viz.InlineVisualizer { anchors.fill: parent }
+            }
         }
 
         // The Stage Editor's card: the reference's EditModeCard (the live

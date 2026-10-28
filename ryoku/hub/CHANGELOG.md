@@ -3,6 +3,24 @@
 ## Unreleased
 
 ### Fixed
+- **Bluetooth can recover when rfkill hides the adapter.** Connections shows
+  the software-blocked state and keeps its power switch available so the shared
+  helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).
+- **Ryoku Settings stays loadable while an update lays its QML files.** The
+  packaged window waits for the updater's clean reopen instead of watching each
+  copied file; checkout runs still hot-reload (`quickshell/shell.qml`).
+- **Japanese glosses can be switched off.** Global > Japanese glosses hides the
+  kana beside labels, the page watermarks and the 力 mark across Settings, and
+  Fastfetch drops it from its greeting without rewriting the user's config
+  (`quickshell/`, `backend/fastfetch.go`). Started by Harsh Singh in #619.
+- **Phone installation shows the package manager's error.** The Phone card
+  displays the failure line instead of only reporting that installation failed
+  (`quickshell/pages/PhoneConnectionTab.qml`).
+- **Updates and Add-ons show actions that work.** Update now remains available when
+  no Ryoku update is pending; Add-ons opens RyoStore, offers bundle installation,
+  and separates optional parts from required ones
+  (`quickshell/pages/UpdatesPage.qml`, `quickshell/pages/AddonsPage.qml`,
+  `quickshell/pages/AddonBundleCard.qml`, `quickshell/pages/AddonBundleSheet.qml`).
 - **Vial keyboards follow the desktop accent.** Boards identified by their Vial
   serial use the VialRGB raw HID interface, including the board's brightness
   range, instead of sending VIA lighting commands the firmware ignores
@@ -28,6 +46,12 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Update now can include the system packages.** Updates has an INCLUDE SYSTEM
+  switch, off by default, saved as `update_system` in the Hub config. When it is
+  on, Update now runs `ryoku update --gui --system`, so the distribution
+  upgrade, kernel included, rides along with the Ryoku packages
+  (`backend/config.go`, `quickshell/pages/UpdatesPage.qml`,
+  `quickshell/schema/UpdatesPage.js`).
 - **General manages people on this computer.** The Users tab lists local
   accounts, sign-in state, roles, permissions and home storage, and lets an
   administrator add or remove people, reset passwords and set storage limits

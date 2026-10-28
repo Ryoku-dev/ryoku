@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Ryoku.Blobs
+import Ryoku.Ui.Singletons
 import shell.barkit as Pill
 import "../kit" as K
 import "pages" as P
@@ -425,7 +426,7 @@ Scope {
                                     anchors.right: parent.right
                                     anchors.rightMargin: K.Style.s3
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: navItem.modelData.kana
+                                    text: UiPreferences.text(navItem.modelData.kana, "")
                                     color: navItem.active ? K.Style.inkOnBone : K.Style.inkFaint
                                     font.family: K.Style.jp
                                     font.pixelSize: 12

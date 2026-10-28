@@ -24,9 +24,9 @@ func kdlNum(f float64) string {
 }
 
 // kdlFloat formats a float that niri's parser insists be a float literal, not an
-// integer: a spring damping-ratio of 1 must read "1.0", or niri rejects it as an
-// integer where a float scalar is required. A value that already carries a point
-// or exponent is left as %g gives it.
+// integer: a spring damping-ratio, a proportion or an opacity of 1 must read
+// "1.0", or niri rejects it as an integer where a float scalar is required. A
+// value that already carries a point or exponent is left as %g gives it.
 func kdlFloat(f float64) string {
 	s := strconv.FormatFloat(f, 'g', -1, 64)
 	if !strings.ContainsAny(s, ".eE") {

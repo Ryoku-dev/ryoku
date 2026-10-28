@@ -193,6 +193,35 @@ func TestBundleProviderInstallComponents(t *testing.T) {
 	}
 }
 
+// TestLaunchBundleInstallWaitsForTheTerminal proves the launcher hands the
+// install to the terminal and returns only when it closes, so the refresh
+// after an install reads finished state instead of a racing snapshot, and an
+// install-all queue cannot spawn a terminal per item.
+func TestLaunchBundleInstallWaitsForTheTerminal(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" > " + argsFile + "\nsleep 0.2\n"
+	if err := os.WriteFile(filepath.Join(dir, "kitty"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake terminal: %v", err)
+	}
+	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
+
+	start := time.Now()
+	if err := launchBundleInstall("demo", []string{"steam", "lutris"}); err != nil {
+		t.Fatalf("launchBundleInstall: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed < 150*time.Millisecond {
+		t.Fatalf("launcher returned in %s, want it to wait for the terminal", elapsed)
+	}
+	got, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("fake terminal never ran: %v", err)
+	}
+	if want := "--class ryostore -e ryostore-install install bundle demo --only steam,lutris\n"; string(got) != want {
+		t.Fatalf("terminal args = %q, want %q", got, want)
+	}
+}
+
 // TestBundleProviderBrowseFetchesRegistryOnly proves browsing is a single
 // registry request: no per-bundle definition and no installer is fetched to
 // render the catalogue.

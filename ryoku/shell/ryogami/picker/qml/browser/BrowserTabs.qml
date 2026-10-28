@@ -31,7 +31,7 @@ Item {
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "力"
+                text: UiPreferences.brandMark("力")
                 color: Theme.primary
                 font.family: Theme.jp
                 font.pixelSize: Theme.fs(18)

@@ -31,6 +31,17 @@ Singleton {
     property string revision: ""
     property bool _forced: false
     property string _checkOutput: ""
+    property bool _reloadAfterCheck: false
+    property var remoteItems: []
+    property string remoteResultQuery: ""
+    property bool remoteSearching: false
+    property string remoteError: ""
+    property string _remoteWanted: ""
+    property string _remoteRunning: ""
+    property string _remoteOutput: ""
+    property string _remoteErrorText: ""
+    property string _checkRevision: ""
+    property bool _autoRefreshAttempted: false
     property string _op: "install"            // which flow installProc is running
     property string _failedOp: ""
 
@@ -97,6 +108,36 @@ Singleton {
         return null;
     }
 
+    function searchRemote(category, query) {
+        const wanted = String(category) + "\n" + String(query);
+        if (wanted === _remoteWanted)
+            return;
+        _remoteWanted = wanted;
+        remoteResultQuery = "";
+        remoteItems = [];
+        remoteError = "";
+        remoteSearching = true;
+        if (!remoteProc.running)
+            _startRemote();
+    }
+
+    function clearRemote() {
+        _remoteWanted = "";
+        remoteResultQuery = "";
+        remoteItems = [];
+        remoteError = "";
+        remoteSearching = false;
+    }
+
+    function _startRemote() {
+        const parts = _remoteWanted.split("\n");
+        _remoteRunning = _remoteWanted;
+        _remoteOutput = "";
+        _remoteErrorText = "";
+        remoteProc.command = ["ryostore", "search", parts[0], parts.slice(1).join("\n")];
+        remoteProc.running = true;
+    }
+
     function refresh(force) {
         if (catalogProc.running)
             return;
@@ -107,6 +148,15 @@ Singleton {
         _catalogError = "";
         catalogProc.command = force ? ["ryostore", "catalog", "--refresh"] : ["ryostore", "catalog"];
         catalogProc.running = true;
+    }
+
+    function refreshIfStale() {
+        if (!root._autoRefreshAttempted && !catalogProc.running && !root.loading
+                && root.revision !== "" && root._checkRevision !== ""
+                && root.revision !== root._checkRevision) {
+            root._autoRefreshAttempted = true;
+            root.refresh(true);
+        }
     }
 
     // A lightweight upstream probe (registries only, no downloads): it lights the
@@ -125,6 +175,8 @@ Singleton {
         catalogProc.running = false;
         installProc.running = false;
         checkProc.running = false;
+        clearRemote();
+        remoteProc.running = false;
     }
 
     function install(item, dither, components) {
@@ -264,6 +316,7 @@ Singleton {
                 root.revision = String(next.revision || "");
                 if (root._forced)
                     root.updateAvailable = false;
+                Qt.callLater(() => root.refreshIfStale());
                 // Fill the on-disk asset cache out of band so the next open (and
                 // this session's later scrolling) renders previews from disk.
                 Quickshell.execDetached(["ryostore", "warm"]);
@@ -280,6 +333,10 @@ Singleton {
                 }
             }
             root._pumpQueue();
+            if (root._reloadAfterCheck) {
+                root._reloadAfterCheck = false;
+                root.refresh(false);
+            }
         }
     }
 
@@ -312,18 +369,64 @@ Singleton {
     }
 
     Process {
+        id: remoteProc
+        stdout: StdioCollector { onStreamFinished: root._remoteOutput = text }
+        stderr: StdioCollector { onStreamFinished: root._remoteErrorText = text }
+        onExited: code => {
+            const answered = root._remoteRunning;
+            root._remoteRunning = "";
+            if (root._remoteWanted === "") {
+                root.remoteSearching = false;
+                return;
+            }
+            if (root._remoteWanted !== answered) {
+                root._startRemote();
+                return;
+            }
+            root.remoteSearching = false;
+            if (code !== 0) {
+                root.remoteItems = [];
+                root.remoteError = root._remoteErrorText.trim() || I18n.tr("Search failed");
+                return;
+            }
+            try {
+                const res = JSON.parse(root._remoteOutput);
+                if (!Array.isArray(res.items))
+                    throw new Error("search items are missing");
+                root.remoteResultQuery = answered.split("\n").slice(1).join("\n");
+                root.remoteItems = res.items.slice();
+            } catch (e) {
+                root.remoteItems = [];
+                root.remoteError = I18n.tr("Search failed");
+            }
+        }
+    }
+
+    Process {
         id: checkProc
         command: ["ryostore", "check"]
         stdout: StdioCollector { onStreamFinished: root._checkOutput = text }
         onExited: code => {
             if (code !== 0)
                 return;
+            const reloading = catalogProc.running;
             try {
                 const res = JSON.parse(root._checkOutput);
                 root.updateAvailable = res.updateAvailable === true;
+                root._checkRevision = res.offline === true ? "" : String(res.revision || "");
+                root.refreshIfStale();
             } catch (e) {
                 // A malformed probe never asserts an update.
             }
+            // The probe rebuilt the catalogue live and refreshed the launch
+            // snapshot. Installed state is local and not part of the revision,
+            // so a part installed outside the store (Settings, a terminal) would
+            // otherwise stay missing until a manual refresh. A stale rebuild
+            // started just above is already live, so it needs no second read.
+            if (reloading)
+                root._reloadAfterCheck = true;
+            else if (!catalogProc.running)
+                root.refresh(false);
         }
     }
 }

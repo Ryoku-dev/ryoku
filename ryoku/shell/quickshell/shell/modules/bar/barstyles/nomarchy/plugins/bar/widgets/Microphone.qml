@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Services.Pipewire
 import qs.Ui
 import Ryoku.Ui.Singletons
+import shell.services as Ryoku
 
 BarWidget {
   id: root
@@ -49,7 +50,9 @@ BarWidget {
     onWheelMoved: function(delta) {
       if (!root.source || !root.source.audio) return
       var step = 0.05
-      root.source.audio.volume = Math.max(0, Math.min(1, root.volume + (delta > 0 ? step : -step)))
+      var value = Math.max(0, Math.min(1, root.volume + (delta > 0 ? step : -step)))
+      Ryoku.OsdFeed.expectMicVolume(value)
+      root.source.audio.volume = value
     }
   }
 }

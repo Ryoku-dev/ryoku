@@ -525,6 +525,7 @@ Item {
                                     font.weight: Font.Medium; font.letterSpacing: Tokens.trackMark
                                 }
                                 Text {
+                                    visible: UiPreferences.showJapaneseGloss
                                     text: "客"; color: Tokens.inkFaint; font.family: Tokens.jp; font.pixelSize: 12
                                     anchors.verticalCenter: parent.verticalCenter
                                 }

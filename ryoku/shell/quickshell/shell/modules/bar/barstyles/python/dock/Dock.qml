@@ -101,10 +101,11 @@ Variants {
                 screen: dockScope.modelData
 
                 WlrLayershell.namespace: "qs-dock"
-                // While the Stage Editor frames this monitor the desktop lifts
-                // to Top; the dock rides Overlay so it stays visible and
-                // clickable above it, like the other designs.
-                WlrLayershell.layer: universalDock.stageEditing ? WlrLayer.Overlay
+                // Shima's full-output chassis occupies Top and owns its frame.
+                // Its transparent edge mask otherwise receives clicks before
+                // this dock when the chassis loads later.
+                WlrLayershell.layer: universalDock.stageEditing || Ryoku.Config.barStyle === "iris"
+                    ? WlrLayer.Overlay
                     : (dockWindow.dockOnTop || dockWindow.editMode) ? WlrLayer.Top : WlrLayer.Bottom
                 focusable: dockWindow.editMode
                 color: "transparent"
@@ -1010,7 +1011,7 @@ Variants {
 
                 function launchApp(desktopId) {
                     const entry = Ryoku.Dock.entryFor(desktopId);
-                    if (entry) AppLaunch.run(entry, null);
+                    if (entry) Ryoku.AppLaunch.run(entry, null);
                     else Ryoku.Dock.activate(desktopId);
                 }
 
@@ -1586,7 +1587,7 @@ Variants {
                                         property bool isBeingDragged: btnMa.drag.active
                                         property int btnSize: dockWindow.s(dockWindow.dockElementSize)
 
-                                        readonly property var runningInfo: dockWindow.getRunningInfoForApp(model.desktop_id)
+                                        readonly property var runningInfo: dockWindow.getRunningInfoForApp(dockButton.desktop_id)
                                         readonly property bool isAppRunning: runningInfo !== null && runningInfo.hasWindows
                                         readonly property bool isAppHere: runningInfo !== null && runningInfo.count > 0
                                         readonly property bool isAppFocused: runningInfo !== null && runningInfo.isFocused
@@ -2021,7 +2022,7 @@ Variants {
                                                         dockButton.flashOpacity = 0.4;
                                                         btnFlashAnim.start();
                                                         if (typeof Sounds !== "undefined") Sounds.playSfx("reusables/iconbutton/click.wav");
-                                                        dockWindow.launchApp(model.desktop_id);
+                                                        dockWindow.launchApp(dockButton.desktop_id);
                                                         return;
                                                     }
 
@@ -2029,16 +2030,16 @@ Variants {
                                                         let pt = dockButton.mapToItem(null, 0, 0);
                                                         let globX = pt.x + (dockButton.width / 2);
                                                         let globY = pt.y + (dockButton.height / 2);
-                                                        let info = dockWindow.getRunningInfoForApp(model.desktop_id);
+                                                        let info = dockWindow.getRunningInfoForApp(dockButton.desktop_id);
                                                         let winList = dockWindow.menuWindows(info);
                                                         DockAppMenuController.toggle(
                                                             dockWindow.screen,
                                                             globX,
                                                             globY,
                                                             dockWindow.dockPosition,
-                                                            model.desktop_id,
-                                                            model.name || (info ? info.appId : ""),
-                                                            model.icon || "",
+                                                            dockButton.desktop_id,
+                                                            dockButton.name || (info ? info.appId : ""),
+                                                            dockButton.icon || "",
                                                             true,
                                                             winList,
                                                             dockButton.width
@@ -2047,20 +2048,20 @@ Variants {
                                                     }
 
                                                     if (mouse.button === Qt.LeftButton) {
-                                                        if (typeof DockAppMenuController !== "undefined" && DockAppMenuController.isVisible && !DockAppMenuController.isSameApp(DockAppMenuController.desktopId, model.desktop_id)) {
+                                                        if (typeof DockAppMenuController !== "undefined" && DockAppMenuController.isVisible && !DockAppMenuController.isSameApp(DockAppMenuController.desktopId, dockButton.desktop_id)) {
                                                             let pt = dockButton.mapToItem(null, 0, 0);
                                                             let globX = pt.x + (dockButton.width / 2);
                                                             let globY = pt.y + (dockButton.height / 2);
-                                                            let info = dockWindow.getRunningInfoForApp(model.desktop_id);
+                                                            let info = dockWindow.getRunningInfoForApp(dockButton.desktop_id);
                                                             let winList = dockWindow.menuWindows(info);
                                                             DockAppMenuController.show(
                                                                 dockWindow.screen,
                                                                 globX,
                                                                 globY,
                                                                 dockWindow.dockPosition,
-                                                                model.desktop_id,
-                                                                model.name || (info ? info.appId : ""),
-                                                                model.icon || "",
+                                                                dockButton.desktop_id,
+                                                                dockButton.name || (info ? info.appId : ""),
+                                                                dockButton.icon || "",
                                                                 true,
                                                                 winList,
                                                                 dockButton.width
@@ -2068,7 +2069,7 @@ Variants {
                                                             return;
                                                         }
 
-                                                        if (typeof DockAppMenuController !== "undefined" && DockAppMenuController.isVisible && DockAppMenuController.isSameApp(DockAppMenuController.desktopId, model.desktop_id)) {
+                                                        if (typeof DockAppMenuController !== "undefined" && DockAppMenuController.isVisible && DockAppMenuController.isSameApp(DockAppMenuController.desktopId, dockButton.desktop_id)) {
                                                             DockAppMenuController.hide();
                                                         }
 
@@ -2076,7 +2077,7 @@ Variants {
                                                         dockButton.flashOpacity = 0.4;
                                                         btnFlashAnim.start();
                                                         if (typeof Sounds !== "undefined") Sounds.playSfx("reusables/iconbutton/click.wav");
-                                                        dockWindow.activateOrLaunch(model.desktop_id, mouse.modifiers);
+                                                        dockWindow.activateOrLaunch(dockButton.desktop_id, mouse.modifiers);
                                                     }
                                                 }
                                             }

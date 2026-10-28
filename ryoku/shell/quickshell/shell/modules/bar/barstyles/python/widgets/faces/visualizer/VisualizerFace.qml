@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import "../../../../../../visualizer/Singletons" as VizCfg
 import "../../../reusables"
 import "../../../"
 
@@ -48,6 +49,8 @@ Item {
     Visualizer {
         anchors.fill: parent
         active: root.isSubscribed
+        color: VizCfg.Config.hasCustomColor ? VizCfg.Config.customColor : ThemeBackend.mauve
+        gain: VizCfg.Config.gain
         count: root.activeBars
         spacing: root.barSpacing
         maxLength: height * 0.96

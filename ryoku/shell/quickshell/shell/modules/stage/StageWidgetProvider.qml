@@ -180,13 +180,13 @@ Scope {
     function addVisualizer() {
         const v = VizCfg.Config;
         if (v.count >= v.maxVisualizers)
-            return -1;
+            return "";
         const wasEnabled = v.enabled;
-        const index = v.addVisualizer();
-        if (index < 0)
-            return -1;
+        const stableId = v.addVisualizer();
+        if (!stableId)
+            return "";
         v.setEnabled(true);
-        const id = "visualizer:" + index;
+        const id = "visualizer:" + stableId;
         const after = root.snapshot(id);
         GlobalStates.editHistoryPush({
             "undo": () => {
@@ -196,7 +196,7 @@ Scope {
             },
             "redo": () => root.restore(id, after)
         });
-        return index;
+        return stableId;
     }
 
     // The drop point is the widget's top-left in screen px; the visualiser has
@@ -222,12 +222,13 @@ Scope {
         root.restore(instanceId, null);
     }
 
-    function visualizerIndex(instanceId) {
+    function visualizerId(instanceId) {
         const text = "" + instanceId;
-        if (text.indexOf("visualizer:") !== 0)
-            return -1;
-        const index = parseInt(text.slice(11));
-        return isNaN(index) ? -1 : index;
+        return text.indexOf("visualizer:") === 0 ? text.slice(11) : "";
+    }
+    function visualizerIndex(instanceId) {
+        const stableId = root.visualizerId(instanceId);
+        return stableId === "" ? -1 : VizCfg.Config.indexOfId(stableId);
     }
 
     // An indexed visualizer snapshot is its complete settings object plus the
@@ -248,6 +249,7 @@ Scope {
                 return null;
             return {
                 viz: true,
+                id: VizCfg.Config.idAt(vi),
                 index: vi,
                 count: VizCfg.Config.count,
                 data: VizCfg.Config.cloneData(VizCfg.Config.dataAt(vi))
@@ -260,7 +262,7 @@ Scope {
             return {
                 visualizers: true,
                 enabled: VizCfg.Config.enabled,
-                active: VizCfg.Config.active,
+                active: VizCfg.Config.activeId,
                 instances: all
             };
         }
@@ -288,20 +290,21 @@ Scope {
                 root.enqueue([root.placeTool, pid, "enabled", "true"]);
             return;
         }
-        const vi = root.visualizerIndex(instanceId);
-        if (vi >= 0) {
+        const stableId = root.visualizerId(instanceId);
+        if (stableId !== "") {
             const v = VizCfg.Config;
+            const vi = v.indexOfId(stableId);
             if (snap === null || snap === undefined) {
-                v.setActive(vi);
-                v.removeVisualizer(vi);
+                if (vi >= 0)
+                    v.removeVisualizer(stableId);
                 return;
             }
-            if (v.count < snap.count)
+            if (vi < 0)
                 v.insertVisualizer(snap.index, snap.data);
             else
-                v.replaceVisualizer(snap.index, snap.data);
+                v.replaceVisualizer(vi, snap.data);
             v.setEnabled(true);
-            v.setActive(snap.index);
+            v.setActive(snap.id || stableId);
             return;
         }
         if (instanceId === "visualizer") {

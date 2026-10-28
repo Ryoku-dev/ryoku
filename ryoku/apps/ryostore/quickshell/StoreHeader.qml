@@ -45,11 +45,12 @@ Item {
             "plugins": "部品",
             "omarchy-plugins": "部品",
             "bundles": "束",
+            "flatpak": "応",
             "decors": "飾",
             "launcher-images": "起動",
             "fastfetch-emblems": "徽"
         };
-        return seals[String(id)] || "品";
+        return UiPreferences.text(seals[String(id)] || "品", "");
     }
 
     component RailItem: Rectangle {
@@ -180,7 +181,7 @@ Item {
         Row {
             spacing: Tokens.s3
             Text {
-                text: "力"
+                text: UiPreferences.brandMark("力")
                 color: Tokens.sun
                 font.family: Tokens.jp
                 font.pixelSize: 24
@@ -397,7 +398,7 @@ Item {
                 objectName: "ryostore-header-discover"
                 label: I18n.tr("Discover")
                 note: I18n.tr("A changing edit")
-                seal: "発見"
+                seal: UiPreferences.text("発見", "")
                 current: header.view === "discover" && header.categoryID === "" && !header.searchActive
                 onChose: header.activateDiscover()
             }
@@ -433,7 +434,7 @@ Item {
                         : (header.updateCount > 1
                            ? I18n.tr("%1 installed, %2 updates ready").arg(header.libraryCount).arg(header.updateCount)
                            : I18n.tr("%1 installed").arg(header.libraryCount))
-                seal: "蔵"
+                seal: UiPreferences.text("蔵", "")
                 current: header.view === "library" && !header.searchActive
                 flagged: header.updateCount > 0
                 onChose: header.activateLibrary()

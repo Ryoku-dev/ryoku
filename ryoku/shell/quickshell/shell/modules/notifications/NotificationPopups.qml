@@ -229,12 +229,22 @@ PanelWindow {
                 && Designs.notificationReady
                 && win.notificationUrl !== ""
                 && win.notificationUrl !== win.failedNotificationUrl
+            // ListView keeps its first delegate measurement unless a later
+            // Loader height is pushed through the delegate and force-laid out.
+            property real shippedHeight: 0
+            function syncShippedHeight() {
+                const item = shippedLoader.item;
+                popupDelegate.shippedHeight = item
+                    ? Math.max(item.implicitHeight, item.targetImplicitHeight)
+                    : 0;
+            }
 
             width: ListView.view ? ListView.view.width : implicitWidth
             implicitHeight: storeLoader.visible && storeLoader.item
                 ? storeLoader.item.implicitHeight
-                : shippedLoader.item ? shippedLoader.item.implicitHeight : 0
+                : popupDelegate.shippedHeight
             height: implicitHeight
+            onHeightChanged: if (ListView.view) ListView.view.forceLayout()
             transformOrigin: win.position === "Left" ? Item.TopLeft
                 : win.position === "Center" ? Item.Top
                 : win.position === "BottomRight" ? Item.BottomRight : Item.TopRight
@@ -243,9 +253,10 @@ PanelWindow {
                 id: shippedLoader
 
                 width: popupDelegate.width
-                height: item ? item.implicitHeight : 0
+                height: popupDelegate.shippedHeight
                 active: !popupDelegate.storeRuns || storeLoader.status === Loader.Error
                 visible: active
+                onItemChanged: popupDelegate.syncShippedHeight()
                 sourceComponent: Component {
                     NotificationCard {
                         width: popupDelegate.width
@@ -262,6 +273,11 @@ PanelWindow {
                         // The popup has no menu to close, so it ignores actionInvoked.
                     }
                 }
+            }
+            Connections {
+                target: shippedLoader.item
+                function onImplicitHeightChanged() { popupDelegate.syncShippedHeight(); }
+                function onTargetImplicitHeightChanged() { popupDelegate.syncShippedHeight(); }
             }
 
             Loader {

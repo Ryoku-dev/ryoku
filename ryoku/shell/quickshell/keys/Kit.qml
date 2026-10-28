@@ -361,7 +361,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                 }
                 Text {
-                    text: "\u529b"
+                    text: UiPreferences.brandMark("\u529b")
                     color: Tokens.ink
                     font.family: Tokens.jp
                     font.pixelSize: Tokens.fMicro

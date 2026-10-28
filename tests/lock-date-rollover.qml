@@ -20,6 +20,14 @@ ShellRoot {
         for (var child of item.children || []) if (hasText(child, value)) return true;
         return false;
     }
+    function findNamed(item, name) {
+        if (item.objectName === name) return item;
+        for (var child of item.children || []) {
+            var match = findNamed(child, name);
+            if (match) return match;
+        }
+        return null;
+    }
     function day(d) { return Qt.formatDate(d, "dddd").toUpperCase(); }
     Timer {
         interval: 250; running: true; repeat: true
@@ -29,8 +37,16 @@ ShellRoot {
                 if (theme.item.curDate === undefined) {
                     console.error("FAIL: theme has no reactive curDate property"); Qt.quit(); return;
                 }
-                if (theme.item.softwareCursorEnabled === undefined || theme.item.softwareCursorEnabled) {
-                    console.error("FAIL: in-session lock enabled the greeter software cursor"); Qt.quit(); return;
+                if (theme.item.softwareCursorEnabled !== undefined) {
+                    console.error("FAIL: theme still owns the greeter host cursor"); Qt.quit(); return;
+                }
+                var pill = root.findNamed(theme.item, "indicatorPill");
+                var minuteRing = root.findNamed(theme.item, "minuteRing");
+                var secondRing = root.findNamed(theme.item, "secondRing");
+                if (!pill || !minuteRing || !secondRing
+                        || minuteRing.parent !== pill.parent || secondRing.parent !== pill.parent
+                        || minuteRing.z <= pill.z || secondRing.z <= pill.z) {
+                    console.error("FAIL: clock rings must pass in front of the password pill"); Qt.quit(); return;
                 }
                 root.secStart = theme.item.smoothSecAngle;
                 root.secTarget = root.secStart - 30;

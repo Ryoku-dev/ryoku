@@ -63,6 +63,28 @@ func TestDirectionalFocusFallsThroughToAdjacentMonitor(t *testing.T) {
 	}
 }
 
+func TestRecoveryBindsBypassShortcutInhibitor(t *testing.T) {
+	rendered, _ := genBinds(loadStore(""))
+	for _, want := range []string{
+		`Super+Escape allow-inhibiting=false { spawn "ryoku-shell" "quicksettings"; }`,
+		`Super+Shift+Escape allow-inhibiting=false { toggle-keyboard-shortcuts-inhibit; }`,
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("generated binds missing inhibitor recovery %q", want)
+		}
+	}
+}
+
+func TestMicMuteKeyDoesNotRepeat(t *testing.T) {
+	if !defaultBinds()["media.micMute"].noRepeat {
+		t.Fatal("media.micMute must ignore key repeat or one press can toggle twice")
+	}
+	rendered, _ := genBinds(loadStore(""))
+	if want := `XF86AudioMicMute allow-when-locked=true repeat=false`; !strings.Contains(rendered, want) {
+		t.Errorf("generated binds missing %q", want)
+	}
+}
+
 func emittedChords(s niriStore) []string {
 	out, _ := resolveBinds(s)
 	chords := make([]string, len(out))

@@ -19,5 +19,14 @@ var rows = [
             "daily",
             "weekly"
         ]
+    },
+    {
+        "tab": "",
+        "group": "UPDATE NOW",
+        "key": "update_system",
+        "label": "Include system packages",
+        "desc": "Update now also takes the distribution's packages, kernel included (ryoku update --system)",
+        "ctl": "sw",
+        "src": "hub.toml), TOML table [ui], field update_system"
     }
 ];

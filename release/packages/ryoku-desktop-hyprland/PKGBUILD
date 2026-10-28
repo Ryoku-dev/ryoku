@@ -33,6 +33,8 @@ depends=(
   "ryoku-keysounds=$pkgver"
   "hyprgrass=$pkgver"
   'hyprpolkitagent'
+  # [ryoku] pins the post-1.4.1 DMA-BUF renegotiation and Start-timeout fixes;
+  # `ryoku update` repo-qualifies this drop-in even though extra is listed first.
   'xdg-desktop-portal-hyprland'
   # XDPH names /usr/bin/hyprland-preview-share-picker for the screen-share source
   # chooser, so a hard depend keeps the picker atomic with the portal.
