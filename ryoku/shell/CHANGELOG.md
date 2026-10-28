@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Orpheus AI usage module can leave out coding agents.** Modules > AI usage
+  picks which of Claude, Codex and OpenCode the module counts (`aiTools`), as QS
+  Bar's AI widget already does; none selected hides the module
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Ai.qml,settings/}`).
 - **Game Mode reports a failed compositor strip instead of showing On.** It
   persists the request before the strip, and a failed restore no longer skips
   the power, tune or Wi-Fi cleanup (`scripts/ryoku-cmd-game-mode`).

@@ -35,6 +35,11 @@ Item {
         { value: "volume", label: "Volume", icon: "volume_up" },
         { value: "mic", label: "Microphone", icon: "mic" }
     ]
+    readonly property var aiChoices: [
+        { value: "claude", label: "Claude", icon: "auto_awesome" },
+        { value: "codex", label: "Codex", icon: "auto_awesome" },
+        { value: "opencode", label: "OpenCode", icon: "auto_awesome" }
+    ]
     readonly property var readingChoices: [
         { value: "cpu", label: "Processor", icon: "memory" },
         { value: "mem", label: "Memory", icon: "data_usage" },
@@ -337,6 +342,34 @@ Item {
                             icon: modelData.icon
                             selected: root.contains(S.Prefs.sysmonItems, modelData.value)
                             onClicked: root.toggleList("sysmonItems", modelData.value)
+                        }
+                    }
+                }
+            }
+        }
+
+        SettingCard {
+            width: parent.width
+            title: "AI USAGE"
+            collapsible: false
+
+            SettingRow {
+                width: parent.width
+                label: "Tools"
+                desc: "Choose which coding agents the module counts. A tool with no usage data stays hidden; none selected hides the module."
+                block: true
+
+                Flow {
+                    width: parent.width
+                    spacing: K.Style.s2
+                    Repeater {
+                        model: root.aiChoices
+                        delegate: K.Chip {
+                            required property var modelData
+                            text: modelData.label
+                            icon: modelData.icon
+                            selected: root.contains(S.Prefs.aiTools, modelData.value)
+                            onClicked: root.toggleList("aiTools", modelData.value)
                         }
                     }
                 }

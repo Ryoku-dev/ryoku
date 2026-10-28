@@ -143,7 +143,8 @@ Singleton {
             sysmonItems: ["cpu", "mem", "temp"],
             actions: ["launcher", "capture", "clipboard"],
             trayLimit: 6,
-            statusItems: ["wifi", "bluetooth", "volume", "mic"]
+            statusItems: ["wifi", "bluetooth", "volume", "mic"],
+            aiTools: ["claude", "codex", "opencode"]
         };
     }
 
@@ -200,6 +201,8 @@ Singleton {
         case "statusItems": return subset(value,
             ["wifi", "bluetooth", "volume", "mic"],
             ["wifi", "bluetooth", "volume", "mic"]);
+        case "aiTools": return subset(value,
+            ["claude", "codex", "opencode"], ["claude", "codex", "opencode"]);
         default: return value;
         }
     }
@@ -231,6 +234,7 @@ Singleton {
     readonly property var actions: clean("actions", value("actions"))
     readonly property int trayLimit: clean("trayLimit", value("trayLimit"))
     readonly property var statusItems: clean("statusItems", value("statusItems"))
+    readonly property var aiTools: clean("aiTools", value("aiTools"))
     readonly property bool clock12h: own(_previews, "clock12h")
         ? _previews.clock12h === true : !TimeFormat.is24h
 
