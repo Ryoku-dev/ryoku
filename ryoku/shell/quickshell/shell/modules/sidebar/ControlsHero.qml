@@ -161,8 +161,16 @@ Item {
             radius: width / 2
             color: Tokens.role("primaryContainer", Tokens.tint10)
 
+            AvatarImage {
+                id: avatarImage
+                anchors.fill: parent
+                userName: root.monitor.userName
+                home: Quickshell.env("HOME") || ""
+            }
+
             Text {
                 anchors.fill: parent
+                visible: !avatarImage.hasImage
                 text: root.monitor.userName.length > 0
                       ? root.monitor.userName.slice(0, 1).toUpperCase()
                       : I18n.tr("—")

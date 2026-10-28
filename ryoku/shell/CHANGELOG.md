@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The sidebar shows your profile picture.** The round avatar in the Controls
+  header draws the AccountsService icon (or `~/.face`) instead of the first
+  letter of your user name, and keeps the letter when there is none
+  (`quickshell/shell/modules/sidebar/{ControlsHero,AvatarImage}.qml`).
 - **Game Mode reports a failed compositor strip instead of showing On.** It
   persists the request before the strip, and a failed restore no longer skips
   the power, tune or Wi-Fi cleanup (`scripts/ryoku-cmd-game-mode`).

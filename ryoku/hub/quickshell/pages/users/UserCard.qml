@@ -14,7 +14,11 @@ Item {
     required property int adminCount
     property bool canManage: false
     property var selectedPermissions: []
+    property int avatarRevision: 0
+    property bool avatarBusy: false
 
+    signal avatarChooseRequested()
+    signal avatarRemoveRequested()
     signal roleRequested(string name, string role)
     signal permissionsRequested(string name, var permissions)
     signal passwordRequested(string name)
@@ -101,10 +105,19 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
+                    visible: !avatarImage.hasImage
                     text: cardRoot.initialFor(cardRoot.userData)
                     color: Tokens.inkOnBone
                     font.family: Tokens.display
                     font.pixelSize: 24
+                }
+
+                AvatarImage {
+                    id: avatarImage
+                    anchors.fill: parent
+                    userName: String(cardRoot.userData.name || "")
+                    home: String(cardRoot.userData.home || "")
+                    revision: cardRoot.avatarRevision
                 }
             }
 
@@ -185,6 +198,49 @@ Item {
                     color: Tokens.inkFaint
                     font.family: Tokens.mono
                     font.pixelSize: Tokens.fTiny
+                }
+            }
+        }
+
+        Rectangle { visible: cardRoot.isSelf; width: parent.width; height: 1; color: Tokens.lineSoft }
+
+        Item {
+            visible: cardRoot.isSelf
+            width: parent.width
+            implicitHeight: visible ? photoRow.implicitHeight + Tokens.s4 * 2 : 0
+
+            Row {
+                id: photoRow
+                anchors { left: parent.left; right: parent.right; margins: Tokens.s4; verticalCenter: parent.verticalCenter }
+                spacing: Tokens.s3
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - photoButtons.width - Tokens.s3
+                    text: I18n.tr("PROFILE PICTURE")
+                    color: Tokens.inkDim
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fMicro
+                    font.weight: Font.Medium
+                    font.letterSpacing: Tokens.trackLabel
+                }
+                Row {
+                    id: photoButtons
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Tokens.s2
+                    Btn {
+                        compact: true
+                        text: avatarImage.hasImage ? I18n.tr("CHANGE") : I18n.tr("CHOOSE")
+                        armed: !cardRoot.avatarBusy
+                        onAct: cardRoot.avatarChooseRequested()
+                    }
+                    Btn {
+                        visible: avatarImage.hasImage
+                        compact: true
+                        text: I18n.tr("REMOVE")
+                        armed: !cardRoot.avatarBusy
+                        onAct: cardRoot.avatarRemoveRequested()
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
@@ -20,6 +21,7 @@ Column {
     property bool refreshPending: false
     property string loadError: ""
     property string actionError: ""
+    property int avatarRevision: 0
 
     readonly property bool supported: Host.supports("users")
     readonly property string unsupportedReason: Host.reason("users") !== ""
@@ -128,6 +130,36 @@ Column {
         root.runMutation(["delete", name, eraseFiles ? "--erase-files" : "--keep-files"]);
     }
 
+    // The picture lives in ~/.face (any user can write it) and is pushed to
+    // AccountsService too, so login managers and other settings apps show the
+    // same one. The second step is best effort: it needs the accounts daemon.
+    function setAvatar(path) {
+        if (avatarProc.running)
+            return;
+        root.actionError = "";
+        avatarProc.command = ["sh", "-c", [
+            'src=$1; face="$HOME/.face"; tmp="$face.new"',
+            'if command -v magick >/dev/null 2>&1; then',
+            '  magick "$src[0]" -auto-orient -thumbnail 512x512^ -gravity center -extent 512x512 -strip "PNG:$tmp" || { echo "Could not read that image."; exit 1; }',
+            'else cp -- "$src" "$tmp" || { echo "Could not read that image."; exit 1; }; fi',
+            '[ "$(stat -c %s "$tmp")" -gt 1000000 ] && magick "$tmp" -quality 90 "JPEG:$tmp"',
+            'mv -f -- "$tmp" "$face" || exit 1',
+            'busctl --system call org.freedesktop.Accounts "/org/freedesktop/Accounts/User$(id -u)" org.freedesktop.Accounts.User SetIconFile s "$face" >/dev/null 2>&1 || true'
+        ].join("\n"), "sh", path];
+        avatarProc.running = true;
+    }
+
+    function removeAvatar() {
+        if (avatarProc.running)
+            return;
+        root.actionError = "";
+        avatarProc.command = ["sh", "-c", [
+            'rm -f -- "$HOME/.face" "$HOME/.face.icon"',
+            'busctl --system call org.freedesktop.Accounts "/org/freedesktop/Accounts/User$(id -u)" org.freedesktop.Accounts.User SetIconFile s "" >/dev/null 2>&1 || true'
+        ].join("\n")];
+        avatarProc.running = true;
+    }
+
     function closeDialogs() {
         addDialog.close();
         passwordDialog.close();
@@ -227,6 +259,27 @@ Column {
             stdinEnabled = false;
             root.finishMutation(exitCode, actionOut.text);
         }
+    }
+
+    Process {
+        id: avatarProc
+        environment: Spawn.env
+        stdout: StdioCollector { id: avatarOut }
+        stderr: StdioCollector { }
+        onExited: function(exitCode) {
+            if (exitCode === 0)
+                root.avatarRevision++;
+            else
+                root.actionError = root.parseError(avatarOut.text, I18n.tr("The profile picture could not be changed."));
+        }
+    }
+
+    FileDialogHost {
+        id: avatarPicker
+        title: I18n.tr("Choose a profile picture")
+        nameFilters: [I18n.tr("Images") + " (*.png *.jpg *.jpeg *.webp *.bmp *.gif)", I18n.tr("All files") + " (*)"]
+        currentFolder: "file://" + (Quickshell.env("XDG_PICTURES_DIR") || ((Quickshell.env("HOME") || "/") + "/Pictures"))
+        onAccepted: root.setAvatar(decodeURIComponent(("" + avatarPicker.selectedFile).replace(/^file:\/\//, "")))
     }
 
     SettingCard {
@@ -364,6 +417,10 @@ Column {
             permissionDefs: root.permissionDefs
             storageCaps: root.storageCaps
             canManage: root.canManage
+            avatarRevision: root.avatarRevision
+            avatarBusy: avatarProc.running
+            onAvatarChooseRequested: avatarPicker.open()
+            onAvatarRemoveRequested: root.removeAvatar()
             onRoleRequested: (name, role) => root.setRole(name, role)
             onPermissionsRequested: (name, permissions) => root.setPermissions(name, permissions)
             onPasswordRequested: name => {

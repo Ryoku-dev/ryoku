@@ -5,3 +5,4 @@ AddPersonDialog 1.0 AddPersonDialog.qml
 PasswordDialog 1.0 PasswordDialog.qml
 StorageLimitDialog 1.0 StorageLimitDialog.qml
 RemovePersonDialog 1.0 RemovePersonDialog.qml
+AvatarImage 1.0 AvatarImage.qml
