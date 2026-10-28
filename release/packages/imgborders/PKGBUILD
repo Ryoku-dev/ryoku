@@ -13,12 +13,10 @@
 # host's Hyprland version and checks out the matching commit from the vendored
 # hyprpm.toml (the same map hyprpm uses), so a [ryoku] rebuild always builds
 # against whatever Hyprland it ships, with no manual commit bumps. When that map
-# has no pin for the shipped Hyprland yet, prepare() falls back to the
-# default-branch HEAD (as hyprpm does) rather than failing, so a Hyprland release
-# outpacing the pin table can't abort the whole [ryoku] publish. Upstream
-# currently flags image rendering as limited on Hyprland 0.55 (tiled-texture
-# support was removed); the plugin builds and loads, and the auto-resolve picks
-# up the fix as soon as upstream ships it for the running Hyprland.
+# has no pin for the shipped Hyprland yet, prepare() falls back to the vendored
+# default-branch HEAD (as hyprpm does) rather than failing. That HEAD carries
+# Ryoku's Hyprland 0.57 render-context port; pinned versions still check out
+# their exact source commits.
 #
 # Built from a vendored git bundle committed beside this recipe
 # (imgborders.bundle = `git bundle create ... --all` of the upstream repo), so a
@@ -37,7 +35,7 @@ depends=('hyprland')
 makedepends=('hyprland' 'cmake' 'pkgconf' 'git' 'libdrm' 'pixman' 'pango' 'cairo')
 source=("$pkgname.bundle")
 noextract=("$pkgname.bundle")
-sha256sums=('8d40c70536a44364c9e9aec9cd69321b5e6880df1b76c7f11b7839ecc645d6c4')
+sha256sums=('259f33251afa2b93edf635e96339d5080c89e120a4c6f23c5bade69978e91e70')
 
 # the plugin ABI this build locks to, Hyprland's own client-hash formula:
 # commit + major.minor of aquamarine, hyprutils, hyprgraphics, hyprcursor and
@@ -62,9 +60,9 @@ prepare() {
     echo "PKGBUILD: $pkgname -> $commit (Hyprland $hv)"
     git checkout -q "$commit"
   else
-    # no pin for this Hyprland yet: build the fetched default-branch HEAD, as
-    # hyprpm does when no pin matches (upstream keeps HEAD on the latest
-    # Hyprland). failing here would abort the whole [ryoku] publish under set -e.
+    # no pin for this Hyprland yet: build the vendored default-branch HEAD.
+    # That HEAD carries Ryoku's Hyprland 0.57 render-context port; failing here
+    # would abort the whole [ryoku] publish under set -e.
     echo "PKGBUILD: no hyprpm.toml pin for Hyprland $hv; building $pkgname HEAD" >&2
   fi
 }
