@@ -35,20 +35,13 @@ Item {
     readonly property bool hasIdentity: Boolean(item && (item.id || item.name))
     readonly property string coverTitle: String(item && (item.name || item.id) || I18n.tr("Untitled"))
     readonly property color coverSurface: item && item.surface ? item.surface : Tokens.paperLift
-    readonly property string coverInitials: {
-        const explicit = String(item && item.initials || "").trim();
-        if (explicit !== "")
-            return explicit.slice(0, 3).toUpperCase();
-        const words = coverTitle.trim().split(/\s+/);
-        return (words.length > 1 ? words[0][0] + words[words.length - 1][0]
-                                 : coverTitle.slice(0, 2)).toUpperCase();
-    }
+    readonly property string coverInitials: StoreLogic.initials(item, coverTitle)
     readonly property color identitySurface: identityColor()
     readonly property real identityLuma: identitySurface.r * 0.299
             + identitySurface.g * 0.587 + identitySurface.b * 0.114
     readonly property color identityInk: Qt.hsla(0, 0, identityLuma > 0.56 ? 0.08 : 0.94, 1)
     readonly property var status: StoreLogic.statusLabels(item)
-    readonly property string statusTag: status.length > 0 && status[0] !== "AVAILABLE" ? status[0] : ""
+    readonly property string statusTag: StoreLogic.statusTag(item)
     readonly property bool unavailable: StoreLogic.isUnavailable(item)
     readonly property color frameSurface: mode === "plate" || mode === "view"
             ? Tokens.paper : coverSurface

@@ -230,6 +230,68 @@ function sortOmarchyPlugins(items, mode) {
     return sorted;
 }
 
+function appMetric(item, mode) {
+    var meta = (item && item.metadata) || {};
+    if (mode === "popular")
+        return Number(meta.installsLastMonth || 0);
+    if (mode === "trending")
+        return Number(meta.trending || 0);
+    if (mode === "new")
+        return String(item && item.listedAt || "");
+    if (mode === "updated")
+        return String(meta.updatedAt || (item && item.listedAt) || "");
+    return 0;
+}
+
+function sortApps(items, mode) {
+    var sorted = (Array.isArray(items) ? items : []).slice();
+    var key = mode || "trending";
+    sorted.sort(function(a, b) {
+        var av = appMetric(a, key);
+        var bv = appMetric(b, key);
+        var cmp = typeof av === "number" && typeof bv === "number"
+                ? bv - av
+                : String(bv).localeCompare(String(av));
+        return cmp !== 0 ? cmp
+                : String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""));
+    });
+    return sorted;
+}
+
+function featuredApps(items, count, seed) {
+    var source = Array.isArray(items) ? items : [];
+    var size = Math.max(1, Number(count) || 1);
+    var pool = source.filter(function(item) { return item && item.art && !isInstalled(item); });
+    if (!pool.length)
+        pool = source.filter(function(item) { return item && item.art; });
+    if (!pool.length)
+        pool = source;
+    // A wider pool than the shelf keeps the daily rotation on the strongest apps.
+    var top = sortApps(pool, "trending").slice(0, Math.max(size, 5));
+    if (!top.length)
+        return [];
+    var start = (Number(seed) || 0) % top.length;
+    if (start < 0)
+        start += top.length;
+    return top.slice(start).concat(top.slice(0, start)).slice(0, size);
+}
+
+// AVAILABLE is the absence of state, so it never becomes a chip.
+function statusTag(item) {
+    var labels = statusLabels(item);
+    return labels.length > 0 && labels[0] !== "AVAILABLE" ? labels[0] : "";
+}
+
+function initials(item, title) {
+    var explicit = String(item && item.initials || "").trim();
+    if (explicit !== "")
+        return explicit.slice(0, 3).toUpperCase();
+    var name = String(title || (item && (item.name || item.id)) || "").trim();
+    var words = name.split(/\s+/);
+    return (words.length > 1 ? words[0][0] + words[words.length - 1][0]
+                             : name.slice(0, 2)).toUpperCase();
+}
+
 function collection(items, options) {
     var opts = options || {};
     var filtered = filter(items, {
@@ -239,6 +301,8 @@ function collection(items, options) {
         pluginKind: opts.pluginKind || "",
         query: opts.query || ""
     });
+    if (opts.categoryID === "flatpak" && !opts.query)
+        filtered = sortApps(filtered, opts.appSort || "trending");
     if (opts.categoryID === "omarchy-plugins")
         filtered = sortOmarchyPlugins(filtered, opts.omarchySort || "popular");
     if (opts.view !== "library" && !opts.categoryID && !opts.query) {
@@ -301,4 +365,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
+    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, featuredApps, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };

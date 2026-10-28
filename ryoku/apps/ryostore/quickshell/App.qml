@@ -22,6 +22,7 @@ Rectangle {
     property string providerFilter: ""
     property string pluginFilter: ""
     property string omarchySort: "popular"
+    property string appSort: "trending"
     property string selectedKey: ""
     property var previewItem: null
     property var detailItem: null
@@ -117,7 +118,8 @@ Rectangle {
         installedOnly: app.themesBrowse && app.providerFilter === "__mine__",
         pluginKind: app.pluginsBrowse ? app.pluginFilter : "",
         seed: app.discoverSeed,
-        omarchySort: app.omarchySort
+        omarchySort: app.omarchySort,
+        appSort: app.appSort
     })
     readonly property var selectedItem: itemForKey(selectedKey, collection)
     readonly property var busyItem: itemForKey(Store.busyKey, searchableItems)
@@ -131,13 +133,17 @@ Rectangle {
             ? String(selectedIndex + 1) + " / " + String(collection.length)
             : ""
     readonly property bool showHero: view === "discover" && categoryID === "" && !searchOpen && collection.length > 0
+    readonly property bool appsBrowse: categoryID === "flatpak" && view === "discover" && !searchOpen
+    readonly property bool appsScope: appsBrowse || remoteScope
+    readonly property var browseSurface: appsBrowse ? appsPage.grid : productGrid
     readonly property string contentMotionKey: [
         view,
         categoryID,
         query,
         providerFilter,
         pluginFilter,
-        omarchySort
+        omarchySort,
+        appSort
     ].join("|")
     readonly property var currentCategory: categoryID === "subshells"
         ? app.navigationCategories.find(category => category.id === "subshells")
@@ -275,7 +281,7 @@ Rectangle {
             categoryID: categoryID,
             query: query,
             selectedKey: selectedKey,
-            gridOffset: productGrid.contentY,
+            gridOffset: app.browseSurface.contentY,
             focusObject: currentFocusObject()
         };
     }
@@ -291,12 +297,12 @@ Rectangle {
         Qt.callLater(function() {
             app.reconcileSelection(0);
             Qt.callLater(function() {
-                productGrid.restoreOffset(context.gridOffset);
-                app.gridOffset = productGrid.contentY;
+                app.browseSurface.restoreOffset(context.gridOffset);
+                app.gridOffset = app.browseSurface.contentY;
                 if (context.focusObject && context.focusObject.forceActiveFocus)
                     context.focusObject.forceActiveFocus();
                 else
-                    productGrid.forceActiveFocus();
+                    app.browseSurface.forceActiveFocus();
             });
         });
     }
@@ -310,6 +316,7 @@ Rectangle {
         app.providerFilter = "";
         app.pluginFilter = "";
         app.omarchySort = "popular";
+        app.appSort = "trending";
         detailClear.stop();
         detailOpen = false;
         detailItem = null;
@@ -326,7 +333,15 @@ Rectangle {
             categoryID = route;
         }
         reconcileSelection(0);
-        Qt.callLater(function() { productGrid.forceActiveFocus(); });
+        Qt.callLater(function() { app.browseSurface.forceActiveFocus(); });
+    }
+
+    function setAppSort(key) {
+        app.appSort = key;
+        app.selectedKey = app.collection.length > 0
+                ? StoreLogic.itemKey(app.collection[0]) : "";
+        app.browseSurface.restoreOffset(0);
+        Qt.callLater(function() { app.browseSurface.forceActiveFocus(); });
     }
 
     function selectKey(key) {
@@ -335,10 +350,10 @@ Rectangle {
     }
 
     function selectedCoverRect() {
-        const rect = productGrid.cellRectFor(selectedKey);
+        const rect = app.browseSurface.cellRectFor(selectedKey);
         if (rect.width === 0)
             return Qt.rect(0, 0, 0, 0);
-        const point = productGrid.mapToItem(productDetail, rect.x, rect.y);
+        const point = app.browseSurface.mapToItem(productDetail, rect.x, rect.y);
         return Qt.rect(point.x, point.y, rect.width, rect.height);
     }
 
@@ -426,7 +441,7 @@ Rectangle {
         if (detailItem)
             detailItem = itemForKey(StoreLogic.itemKey(detailItem), searchableItems) || detailItem;
     }
-    Component.onCompleted: Qt.callLater(function() { productGrid.forceActiveFocus(); })
+    Component.onCompleted: Qt.callLater(function() { app.browseSurface.forceActiveFocus(); })
 
     Keys.onEscapePressed: event => {
         escapeLayer();
@@ -611,24 +626,24 @@ Rectangle {
         onPicked: filter => {
             if (app.decorBrowse) {
                 app.openRoute(filter);
-                Qt.callLater(function() { productGrid.forceActiveFocus(); });
+                Qt.callLater(function() { app.browseSurface.forceActiveFocus(); });
                 return;
             }
             if (app.pluginsBrowse) {
                 app.pluginFilter = filter;
                 app.reconcileSelection(0);
-                Qt.callLater(function() { productGrid.forceActiveFocus(); });
+                Qt.callLater(function() { app.browseSurface.forceActiveFocus(); });
                 return;
             }
             if (app.omarchyPluginsBrowse) {
                 app.omarchySort = filter;
                 app.reconcileSelection(0);
-                Qt.callLater(function() { productGrid.forceActiveFocus(); });
+                Qt.callLater(function() { app.browseSurface.forceActiveFocus(); });
                 return;
             }
             app.providerFilter = filter;
             app.reconcileSelection(0);
-            Qt.callLater(function() { productGrid.forceActiveFocus(); });
+            Qt.callLater(function() { app.browseSurface.forceActiveFocus(); });
         }
         onInstallAll: Store.installAll(app.providerItems(app.providerFilter))
     }
@@ -659,6 +674,31 @@ Rectangle {
         onRemoveRequested: item => Store.remove(item)
     }
 
+    AppsPage {
+        id: appsPage
+        objectName: "ryostore-apps-page"
+        anchors {
+            left: header.right
+            top: pageHead.bottom
+            right: parent.right
+            bottom: actionBar.top
+        }
+        visible: app.appsBrowse
+        enabled: !app.detailOpen
+        items: app.collection
+        selectedKey: app.selectedKey
+        sortKey: app.appSort
+        reducedMotion: app.reducedMotion
+        contentKey: app.contentMotionKey
+        seed: app.discoverSeed
+        onSelectionRequested: item => app.selectKey(StoreLogic.itemKey(item))
+        onActivated: item => {
+            app.selectKey(StoreLogic.itemKey(item));
+            app.openSelectedDetail();
+        }
+        onSortRequested: key => app.setAppSort(key)
+    }
+
     ProductGrid {
         id: productGrid
         objectName: "ryostore-grid"
@@ -668,6 +708,8 @@ Rectangle {
             right: parent.right; rightMargin: Tokens.s6
             bottom: actionBar.top
         }
+        visible: !app.appsBrowse
+        variant: app.appsScope ? "app" : "cover"
         items: app.collection
         selectedKey: app.selectedKey
         reducedMotion: app.reducedMotion
@@ -742,12 +784,25 @@ Rectangle {
         }
     }
 
+    // Loading and empty plates sit in the browse body, not the featured shelf,
+    // so they can anchor to a sibling of the two grids.
+    Item {
+        id: overlayArea
+        anchors {
+            left: header.right
+            top: pageHead.bottom
+            right: parent.right
+            bottom: actionBar.top
+        }
+        anchors.topMargin: app.appsBrowse ? appsPage.bodyTop : 0
+    }
+
     // initial catalogue fetch: show progress, never the empty plate, so a slow
     // network never reads as "there is nothing here".
     Grid {
         id: loadingState
-        anchors.fill: productGrid
-        columns: productGrid.columns
+        anchors.fill: overlayArea
+        columns: app.browseSurface.columns
         visible: app.catalogLoading
         z: 2
 
@@ -755,13 +810,19 @@ Rectangle {
             model: 6
             delegate: Rectangle {
                 required property int index
-                width: productGrid.cellW
-                height: productGrid.cellH
+                readonly property bool appShape: app.appsScope
+                readonly property real iconSize: Tokens.px(56)
+                readonly property real textX: appShape ? iconSize + Tokens.s3 * 2 : Tokens.s3
+                readonly property real barW: appShape
+                        ? parent.width - iconSize - Tokens.s3 * 3 : parent.width * 0.52
+                width: app.browseSurface.cellW
+                height: app.browseSurface.cellH
                 color: Tokens.paper
                 border.width: Tokens.border
                 border.color: Tokens.line
 
                 Rectangle {
+                    visible: !parent.appShape
                     anchors { left: parent.left; right: parent.right; top: parent.top }
                     height: Math.round(parent.height * 0.67)
                     color: Tokens.paperLift
@@ -782,16 +843,24 @@ Rectangle {
                     }
                 }
                 Rectangle {
+                    visible: parent.appShape
                     x: Tokens.s3
-                    y: Math.round(parent.height * 0.67) + Tokens.s3
-                    width: parent.width * 0.52
+                    y: Tokens.s3
+                    width: parent.iconSize
+                    height: parent.iconSize
+                    color: Tokens.paperLift
+                }
+                Rectangle {
+                    x: parent.textX
+                    y: parent.appShape ? Tokens.s3 : Math.round(parent.height * 0.67) + Tokens.s3
+                    width: parent.barW
                     height: Tokens.border * 4
                     color: Tokens.line
                 }
                 Rectangle {
-                    x: Tokens.s3
-                    y: Math.round(parent.height * 0.67) + Tokens.s5
-                    width: parent.width * 0.72
+                    x: parent.textX
+                    y: parent.appShape ? Tokens.s5 : Math.round(parent.height * 0.67) + Tokens.s5
+                    width: parent.appShape ? parent.barW : parent.width * 0.72
                     height: Tokens.border * 3
                     color: Tokens.lineSoft
                 }
@@ -801,7 +870,7 @@ Rectangle {
 
     // catalogue source failed with nothing cached to fall back on.
     Column {
-        anchors.centerIn: productGrid
+        anchors.centerIn: overlayArea
         spacing: Tokens.s3
         visible: app.catalogError
         z: 2
@@ -817,7 +886,7 @@ Rectangle {
 
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(productGrid.width - Tokens.s7 * 2, 420)
+            width: Math.min(overlayArea.width - Tokens.s7 * 2, 420)
             text: Store.error
             visible: text !== ""
             horizontalAlignment: Text.AlignHCenter
@@ -841,7 +910,7 @@ Rectangle {
     }
 
     Column {
-        anchors.centerIn: productGrid
+        anchors.centerIn: overlayArea
         spacing: Tokens.s4
         visible: app.collection.length === 0 && !app.catalogLoading && !app.catalogError
         z: 2

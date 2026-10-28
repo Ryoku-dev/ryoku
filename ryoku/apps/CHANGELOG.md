@@ -3,6 +3,16 @@
 ## Unreleased
 
 ### Added
+- `ryostore/`: **Apps is a marketplace page.** The Apps catalogue opens with a
+  featured shelf, a Trending / Popular / New / Updated strip, and compact icon
+  and text tiles that fit several apps per row; every other category keeps the
+  artwork grid. The strip sorts the union of Flathub's popular, trending,
+  recently added and recently updated collections, so a tab describes the
+  catalogue instead of reshuffling one popular page. The union is cached as one
+  snapshot, a partial fetch still serves what answered and leaves the complete
+  cache in place, and search keeps its relevance order
+  (`ryostore/backend/provider_flatpak.go`, `ryostore/quickshell/AppsPage.qml`,
+  `AppsHero.qml`, `AppsTile.qml`, `lib/store.js`).
 - `ryostore/`: **Apps: browse and install Flathub applications.** The Apps
   category lists popular and installed applications, searches the wider Flathub
   catalogue, and labels Flathub verification. New apps use the doctor's shared
