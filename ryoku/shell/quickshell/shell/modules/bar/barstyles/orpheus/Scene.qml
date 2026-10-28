@@ -447,6 +447,40 @@ Item {
         scene.settingsOpen = false;
     }
 
+    // Opens settings on a page without toggling them shut (the IPC path).
+    function showSettings(page) {
+        if (scene.settingsOpen && typeof page === "string" && page !== "") {
+            scene.settingsPage = page === "general" ? "bar"
+                : page === "wave" ? "sound" : page;
+            return;
+        }
+        if (!scene.settingsOpen && !scene.hasPendingSurfaceRequest("settings"))
+            scene.openSettings(page);
+    }
+
+    // The output an IPC request lands on: the focused one, or the first screen
+    // while the compositor has not reported focus.
+    function requestOutput() {
+        const screens = Quickshell.screens;
+        for (let i = 0; i < screens.length; ++i) {
+            if (screens[i] && screens[i].name === Wm.focusedOutput)
+                return Wm.focusedOutput;
+        }
+        return screens.length > 0 && screens[0] ? screens[0].name : "";
+    }
+
+    Connections {
+        target: S.Prefs
+        function onSettingsRequested(page) {
+            if (scene.screenName === "" || scene.screenName !== scene.requestOutput())
+                return;
+            if (page === "close")
+                scene.closeSettings();
+            else
+                scene.showSettings(page);
+        }
+    }
+
 
     function toggleLauncher() {
         const state = scene.screen ? ShellState.forScreen(scene.screen) : null;

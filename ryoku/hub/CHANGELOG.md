@@ -33,6 +33,10 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
+  card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar, so the
+  settings stay reachable when the logo is set to open Ryoku Hub
+  (`quickshell/pages/BarStudioPage.qml`).
 - **Update now can include the system packages.** Updates has an INCLUDE SYSTEM
   switch, off by default, saved as `update_system` in the Hub config. When it is
   on, Update now runs `ryoku update --gui --system`, so the distribution

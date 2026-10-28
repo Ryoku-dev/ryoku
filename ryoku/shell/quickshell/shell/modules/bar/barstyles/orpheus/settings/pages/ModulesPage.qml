@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Ryoku.Ui
 import "../../kit" as K
+import "../../kit/LogoGlyphs.js" as LogoGlyphs
 import "../../modules/workspaces" as W
 import ".." as S
 import "." as P
@@ -79,6 +80,101 @@ Item {
             width: parent.width
             title: "Modules"
             description: "Choose what each module shows and how much room it takes."
+        }
+
+        SettingCard {
+            width: parent.width
+            title: "LOGO"
+            collapsible: false
+
+            SettingRow {
+                width: parent.width
+                label: "Mark"
+                desc: "System follows the brand mark from Ryoku Settings; Custom picks a glyph for this bar."
+                block: true
+
+                K.Segmented {
+                    anchors.fill: parent
+                    model: [
+                        { value: "system", label: "System" },
+                        { value: "custom", label: "Custom" }
+                    ]
+                    value: S.Prefs.logoMark
+                    onPicked: value => S.Prefs.set("logoMark", value)
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                label: "Click"
+                desc: "What a left-click on the logo opens. Middle-click opens the other; right-click stays the launcher."
+                block: true
+                divider: true
+
+                K.Segmented {
+                    anchors.fill: parent
+                    model: [
+                        { value: "settings", label: "Orpheus settings" },
+                        { value: "hub", label: "Ryoku Hub" }
+                    ]
+                    value: S.Prefs.logoClick
+                    onPicked: value => S.Prefs.set("logoClick", value)
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                visible: S.Prefs.logoMark === "custom"
+                label: "Glyph"
+                desc: "Choose the mark the logo wears."
+                value: S.Prefs.logoIcon
+                block: true
+                divider: true
+
+                Grid {
+                    id: glyphGrid
+                    readonly property real cell: 40
+                    width: parent.width
+                    columns: Math.max(1, Math.floor((width + spacing) / (cell + spacing)))
+                    spacing: K.Style.s1
+
+                    Repeater {
+                        model: LogoGlyphs.ids
+
+                        delegate: Item {
+                            id: glyphCell
+                            required property string modelData
+                            readonly property bool selected: S.Prefs.logoIcon === modelData
+                            width: glyphGrid.cell
+                            height: glyphGrid.cell
+                            scale: glyphPress.pressScale
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: K.Style.radius
+                                color: glyphCell.selected ? K.Style.tint10 : "transparent"
+                                border.width: K.Style.border
+                                border.color: glyphCell.selected ? K.Style.ink
+                                    : glyphPress.hovered ? K.Style.lineStrong : K.Style.lineSoft
+                            }
+
+                            K.LogoMark {
+                                anchors.centerIn: parent
+                                mark: glyphCell.modelData
+                                size: 18
+                                color: K.Style.accent
+                                weight: Font.Black
+                            }
+
+                            K.Press {
+                                id: glyphPress
+                                tint: false
+                                onClicked: S.Prefs.set("logoIcon", glyphCell.modelData)
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         SettingCard {

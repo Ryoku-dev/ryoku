@@ -110,7 +110,10 @@ cover media, weather, notifications grouped by app, tray menus, power, system,
 and session. Right-click empty bar space to open Controls.
 
 Left-click the 力 logo to open settings, and right-click it to open the
-launcher. The settings pages are Bar, Layout, Modules, Sound, and About. A choice
+launcher. With `logoClick` set to `hub` a left-click opens Ryoku Hub instead and
+a middle-click opens settings; Ryoku Hub > Bar Studio has an OPEN ORPHEUS
+SETTINGS button, and `qs -c shell ipc call orpheus settings [page]` opens them
+from a keybind or script. The settings pages are Bar, Layout, Modules, Sound, and About. A choice
 applies at once and is written through the shell daemon; the foot of the
 settings rail reads Saved, Saving, or Not saved, and hovering Not saved shows
 why. On Layout, drag a module between the left, centre, and right lanes, or into
@@ -160,6 +163,9 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `actions` | subset of `launcher`, `ask`, `overview`, `clipboard`, `capture`, `wallpaper`, `hub` | `["launcher","capture","clipboard"]` | Choose shortcut actions. |
 | `trayLimit` | `3` to `12` | `6` | Set the visible tray item limit. |
 | `statusItems` | subset of `wifi`, `bluetooth`, `volume`, `mic` | all four | Choose the icons in the Controls module. |
+| `logoMark` | `system` or `custom` | `system` | Draw the logo with the desktop brand mark (Ryoku Settings, Shell, Global) or with `logoIcon`. Modules page, Logo. |
+| `logoIcon` | a QS Bar launcher glyph id (`arch`, `tux`, `nix`, `github`, ...) | `arch` | The glyph the logo wears when `logoMark` is `custom`. |
+| `logoClick` | `settings` or `hub` | `settings` | What a left-click on the logo opens: Orpheus settings or Ryoku Hub. Middle-click opens the other. |
 
 The name is Orpheus, the musician of Greek myth whose lyre moved rivers and
 stones. Made by neur0map.

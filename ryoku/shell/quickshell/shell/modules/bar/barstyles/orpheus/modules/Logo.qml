@@ -1,7 +1,6 @@
 import QtQuick
-import shell.barkit as Pill
-import shell.services
 import "../kit" as K
+import "../settings" as S
 
 Item {
     id: root
@@ -12,22 +11,19 @@ Item {
 
     readonly property real markSize: 18 * K.Style.scale
     readonly property real sealSize: 28 * K.Style.scale
-    readonly property real opticalOffset: markMetrics.imageMode ? 0
-        : markMetrics.boundingRect.y + markMetrics.boundingRect.height / 2
-            - markMetrics.tightBoundingRect.y - markMetrics.tightBoundingRect.height / 2
+
+    // Left-click opens what logoClick names (Orpheus settings or the Ryoku
+    // Hub); middle-click opens the other, so neither is ever out of reach.
+    function activate(target) {
+        if (target === "hub")
+            root.scene.openHub("");
+        else
+            root.scene.openSettings("");
+    }
 
     implicitWidth: sealSize + 2 * K.Style.hitPad
     implicitHeight: K.Style.barH
     height: K.Style.barH
-
-    TextMetrics {
-        id: markMetrics
-        readonly property bool imageMode: Theme.markSource.length > 0
-        text: Theme.mark
-        font.family: Theme.fontJp
-        font.pixelSize: root.markSize
-        font.weight: Font.Black
-    }
 
     Item {
         id: seal
@@ -39,15 +35,14 @@ Item {
         K.Press {
             id: press
             radius: K.Style.radius
-            onClicked: root.scene.openSettings("")
+            onClicked: root.activate(S.Prefs.logoClick)
             onRightClicked: root.scene.toggleLauncher()
+            onMiddleClicked: root.activate(S.Prefs.logoClick === "hub" ? "settings" : "hub")
         }
 
-        Pill.BrandMark {
+        K.LogoMark {
             anchors.centerIn: parent
-            anchors.verticalCenterOffset: root.opticalOffset
-            width: root.markSize
-            height: root.markSize
+            mark: S.Prefs.logoMark === "custom" ? S.Prefs.logoIcon : "system"
             size: root.markSize
             color: K.Style.accent
             weight: Font.Black
@@ -57,7 +52,7 @@ Item {
 
     K.Hint {
         target: root
-        text: "Orpheus settings"
+        text: S.Prefs.logoClick === "hub" ? "Ryoku Hub" : "Orpheus settings"
         shown: press.hovered
     }
 }

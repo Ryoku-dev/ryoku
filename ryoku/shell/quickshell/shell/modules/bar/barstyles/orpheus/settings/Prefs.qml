@@ -7,6 +7,7 @@ import Quickshell.Io
 import Ryoku.Ui.Singletons
 import shell.services
 import "../modules/Registry.js" as Registry
+import "../kit/LogoGlyphs.js" as LogoGlyphs
 
 Singleton {
     id: prefs
@@ -143,7 +144,10 @@ Singleton {
             sysmonItems: ["cpu", "mem", "temp"],
             actions: ["launcher", "capture", "clipboard"],
             trayLimit: 6,
-            statusItems: ["wifi", "bluetooth", "volume", "mic"]
+            statusItems: ["wifi", "bluetooth", "volume", "mic"],
+            logoMark: "system",
+            logoIcon: "arch",
+            logoClick: "settings"
         };
     }
 
@@ -200,6 +204,9 @@ Singleton {
         case "statusItems": return subset(value,
             ["wifi", "bluetooth", "volume", "mic"],
             ["wifi", "bluetooth", "volume", "mic"]);
+        case "logoMark": return choice(value, ["system", "custom"], "system");
+        case "logoIcon": return LogoGlyphs.valid(value) ? value : "arch";
+        case "logoClick": return choice(value, ["settings", "hub"], "settings");
         default: return value;
         }
     }
@@ -231,8 +238,15 @@ Singleton {
     readonly property var actions: clean("actions", value("actions"))
     readonly property int trayLimit: clean("trayLimit", value("trayLimit"))
     readonly property var statusItems: clean("statusItems", value("statusItems"))
+    readonly property string logoMark: clean("logoMark", value("logoMark"))
+    readonly property string logoIcon: clean("logoIcon", value("logoIcon"))
+    readonly property string logoClick: clean("logoClick", value("logoClick"))
     readonly property bool clock12h: own(_previews, "clock12h")
         ? _previews.clock12h === true : !TimeFormat.is24h
+
+    // Raised by the "orpheus" IPC target below; the scene on the focused
+    // output answers it. An empty page opens the default page, "close" closes.
+    signal settingsRequested(string page)
 
     readonly property real waveStiffness: feel === "tight" ? 320 : 170
     readonly property real waveDamping: feel === "tight" ? 26 : 13
@@ -478,6 +492,16 @@ Singleton {
         interval: Object.keys(prefs._writeDue).length > 0 ? 20 : 250
         repeat: true
         onTriggered: prefs._settle()
+    }
+
+    // `qs -c shell ipc call orpheus settings [page]`: the Hub's Bar Studio and
+    // any keybind or script open Orpheus settings without the logo, which can
+    // be set to open the Hub instead.
+    IpcHandler {
+        target: "orpheus"
+        function settings(page: string): void {
+            prefs.settingsRequested(page);
+        }
     }
 
     readonly property string _sockPath:
