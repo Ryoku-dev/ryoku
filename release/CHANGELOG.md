@@ -152,14 +152,14 @@
   the other plugin packages.
 
 ### Fixed
-- **Fedora builds the image-border plugin against Hyprland 0.57.** Fedora moved
-  `hyprland-devel` to 0.57, whose renderer passes an explicit
-  `CRenderContext` and dropped the `m_renderData` field the plugin read, so the
-  RPM build failed and held the whole Fedora publish. The vendored bundle now
-  carries upstream's current commit plus a Ryoku port of the plugin to the
-  0.57 API (applied by the Fedora fetch hook only; the Arch lane keeps its
-  0.56 source pin and is unchanged), proven to link `libimgborders.so` in
-  Fedora 44 and 45 containers (`fedora/packages/rpm/fetch/`,
+- **Fedora and Arch build the image-border plugin against Hyprland 0.57.**
+  Fedora moved `hyprland-devel` and Arch moved `hyprland` to 0.57, whose
+  renderer passes an explicit `CRenderContext` and dropped the `m_renderData`
+  field the plugin read. The Fedora fetch hook and Arch's no-pin vendored HEAD
+  now carry the same Ryoku 0.57 port, so both RPM builds and the `[ryoku]`
+  rebuild link `libimgborders.so`; the exact Arch 0.56.2 source pin remains
+  unchanged. The port links in Fedora 44 and 45 containers, an Arch 0.57
+  container, and the pinned 0.56.2 host build (`fedora/packages/rpm/fetch/`,
   `release/packages/imgborders/`).
 - **Hyprland screen sharing survives DMA-BUF renegotiation.** `[ryoku]` now
   carries the post-1.4.1 portal fixes that preserve the capture callback and
