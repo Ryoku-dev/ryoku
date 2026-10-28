@@ -292,6 +292,39 @@ function initials(item, title) {
                              : name.slice(0, 2)).toUpperCase();
 }
 
+// Flathub's main categories, in the API's own order. An app carries them as
+// tags, so the market tabs need no backend field.
+var appCategoryLabels = {
+    "audiovideo": "AUDIO & VIDEO",
+    "development": "DEVELOPMENT",
+    "education": "EDUCATION",
+    "game": "GAMES",
+    "graphics": "GRAPHICS",
+    "network": "NETWORK",
+    "office": "OFFICE",
+    "science": "SCIENCE",
+    "system": "SYSTEM",
+    "utility": "UTILITY"
+};
+
+function appCategories(items) {
+    var counts = {};
+    (Array.isArray(items) ? items : []).forEach(function(item) {
+        if (!item || item.category !== "flatpak")
+            return;
+        var tags = item.tags || [];
+        Object.keys(appCategoryLabels).forEach(function(key) {
+            if (tags.indexOf(key) !== -1)
+                counts[key] = (counts[key] || 0) + 1;
+        });
+    });
+    return Object.keys(appCategoryLabels).filter(function(key) {
+        return counts[key] > 0;
+    }).map(function(key) {
+        return { key: key, label: appCategoryLabels[key], note: String(counts[key]) };
+    });
+}
+
 function collection(items, options) {
     var opts = options || {};
     var filtered = filter(items, {
@@ -299,10 +332,11 @@ function collection(items, options) {
         installedOnly: opts.view === "library" || opts.installedOnly === true,
         provider: opts.provider || "",
         pluginKind: opts.pluginKind || "",
+        tag: opts.tag || "",
         query: opts.query || ""
     });
-    if (opts.categoryID === "flatpak" && !opts.query)
-        filtered = sortApps(filtered, opts.appSort || "trending");
+    if (opts.appSort)
+        filtered = sortApps(filtered, opts.appSort);
     if (opts.categoryID === "omarchy-plugins")
         filtered = sortOmarchyPlugins(filtered, opts.omarchySort || "popular");
     if (opts.view !== "library" && !opts.categoryID && !opts.query) {
@@ -365,4 +399,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, featuredApps, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
+    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };

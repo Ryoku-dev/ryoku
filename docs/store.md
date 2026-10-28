@@ -72,12 +72,16 @@ rest of the collection. A card may animate its cover only while hovered.
 Status and actions always belong to the committed selection.
 
 The Apps catalogue is the marketplace surface. It opens with a featured shelf,
-then a `TRENDING / POPULAR / NEW / UPDATED` strip, then compact icon and text
-tiles in a responsive grid. The strip sorts the union of Flathub's popular,
-trending, recently added and recently updated collections by the matching
-ranking field, so the tabs describe the catalogue rather than reshuffling one
-popular page. A Flathub search keeps its relevance order and uses the same
-compact tiles.
+a row of Flathub category plates, a `TRENDING / POPULAR / NEW / UPDATED`
+strip, and compact icon and text tiles in a responsive grid. The category
+plates come from the main category tags the provider already carries and show
+their counts, so a plate exists only when the catalogue has something in it.
+The field beside the sort strip narrows the loaded catalogue in place, and the
+shelf steps aside while a category or a filter is active. The strip sorts the
+union of Flathub's popular, trending, recently added and recently updated
+collections by the matching ranking field, so the tabs describe the catalogue
+rather than reshuffling one popular page. A header search for Flathub keeps
+its relevance order and uses the same compact tiles.
 
 The rail exposes one semantic route order:
 
@@ -184,6 +188,7 @@ ryoku/apps/ryostore/
     ShowroomStage.qml
     AppsHero.qml
     AppsTile.qml
+    AppsSearch.qml
     ProductDetail.qml
     ProductCover.qml
     ProductMedia.qml

@@ -113,13 +113,14 @@ Rectangle {
     readonly property var collection: StoreLogic.collection(searchableItems, {
         view: view,
         categoryID: categoryID,
-        query: query,
+        query: app.appsBrowse ? app.appsQuery : query,
+        tag: app.appsBrowse ? app.appsTag : "",
         provider: app.themesBrowse && app.providerFilter !== "" && app.providerFilter !== "__mine__" ? app.providerFilter : "",
         installedOnly: app.themesBrowse && app.providerFilter === "__mine__",
         pluginKind: app.pluginsBrowse ? app.pluginFilter : "",
         seed: app.discoverSeed,
         omarchySort: app.omarchySort,
-        appSort: app.appSort
+        appSort: app.appsBrowse ? app.appSort : ""
     })
     readonly property var selectedItem: itemForKey(selectedKey, collection)
     readonly property var busyItem: itemForKey(Store.busyKey, searchableItems)
@@ -135,7 +136,11 @@ Rectangle {
     readonly property bool showHero: view === "discover" && categoryID === "" && !searchOpen && collection.length > 0
     readonly property bool appsBrowse: categoryID === "flatpak" && view === "discover" && !searchOpen
     readonly property bool appsScope: appsBrowse || remoteScope
-    readonly property var featured: app.appsBrowse
+    property string appsTag: ""
+    property string appsQuery: ""
+    readonly property bool appsFiltered: app.appsBrowse && (app.appsTag !== "" || app.appsQuery !== "")
+    readonly property var appTabs: StoreLogic.appCategories(Store.items)
+    readonly property var featured: app.appsBrowse && !app.appsFiltered
             ? StoreLogic.featuredApps(collection, 5, app.discoverSeed) : []
     readonly property string contentMotionKey: [
         view,
@@ -144,7 +149,8 @@ Rectangle {
         providerFilter,
         pluginFilter,
         omarchySort,
-        appSort
+        appSort,
+        appsTag
     ].join("|")
     readonly property var currentCategory: categoryID === "subshells"
         ? app.navigationCategories.find(category => category.id === "subshells")
@@ -324,6 +330,8 @@ Rectangle {
         app.pluginFilter = "";
         app.omarchySort = "popular";
         app.appSort = "trending";
+        app.appsTag = "";
+        app.appsQuery = "";
         detailClear.stop();
         detailOpen = false;
         detailItem = null;
@@ -347,6 +355,27 @@ Rectangle {
         app.appSort = key;
         app.selectedKey = app.collection.length > 0
                 ? StoreLogic.itemKey(app.collection[0]) : "";
+        productGrid.restoreOffset(0);
+        Qt.callLater(function() { productGrid.forceActiveFocus(); });
+    }
+
+    function setAppTag(key) {
+        app.appsTag = key;
+        app.reconcileSelection(0);
+        productGrid.restoreOffset(0);
+        Qt.callLater(function() { productGrid.forceActiveFocus(); });
+    }
+
+    function setAppsQuery(value) {
+        app.appsQuery = value;
+        app.reconcileSelection(0);
+        productGrid.restoreOffset(0);
+    }
+
+    function clearAppFilter() {
+        app.appsTag = "";
+        app.appsQuery = "";
+        app.reconcileSelection(0);
         productGrid.restoreOffset(0);
         Qt.callLater(function() { productGrid.forceActiveFocus(); });
     }
@@ -689,9 +718,9 @@ Rectangle {
             right: parent.right; rightMargin: Tokens.s6
             top: providerTabs.bottom
         }
-        visible: app.appsBrowse
+        visible: app.appsBrowse && !app.appsFiltered
         enabled: !app.detailOpen
-        height: Tokens.px(192)
+        height: visible ? Tokens.px(192) : 0
         items: app.featured
         reducedMotion: app.reducedMotion
         onActivated: item => {
@@ -701,9 +730,24 @@ Rectangle {
     }
 
     ProviderTabs {
+        id: appsTabs
+        objectName: "ryostore-apps-tabs"
+        anchors { left: header.right; right: parent.right; top: appsHero.bottom }
+        visible: app.appsBrowse
+        enabled: !app.detailOpen
+        providers: app.appTabs
+        active: app.appsTag
+        allLabel: I18n.tr("ALL")
+        trailingLabel: ""
+        installableCount: 0
+        reducedMotion: app.reducedMotion
+        onPicked: key => app.setAppTag(key)
+    }
+
+    ProviderTabs {
         id: appsSort
         objectName: "ryostore-apps-sort"
-        anchors { left: header.right; right: parent.right; top: appsHero.bottom }
+        anchors { left: header.right; right: appsSearch.left; top: appsTabs.bottom }
         visible: app.appsBrowse
         enabled: !app.detailOpen
         providers: app.appSortTabs
@@ -713,6 +757,25 @@ Rectangle {
         installableCount: 0
         reducedMotion: app.reducedMotion
         onPicked: key => app.setAppSort(key)
+    }
+
+    AppsSearch {
+        id: appsSearch
+        objectName: "ryostore-apps-search"
+        anchors {
+            right: parent.right; rightMargin: Tokens.s6
+            verticalCenter: appsSort.verticalCenter
+        }
+        width: Tokens.px(240)
+        visible: app.appsBrowse
+        enabled: !app.detailOpen
+        value: app.appsQuery
+        onEdited: value => app.setAppsQuery(value)
+        onCleared: {
+            app.setAppsQuery("");
+            productGrid.forceActiveFocus();
+        }
+        onAccepted: if (app.selectedItem) app.openSelectedDetail()
     }
 
     ProductGrid {
@@ -926,20 +989,22 @@ Rectangle {
                        ? I18n.tr("Searching Flathub.")
                        : (app.remoteScope && Store.remoteError !== ""
                           ? Store.remoteError
-                          : (app.query !== ""
-                             ? I18n.tr("No products match this search.")
-                             : I18n.tr("Nothing has been published to this collection yet."))))
+                          : (app.appsFiltered
+                             ? I18n.tr("No apps match this filter.")
+                             : (app.query !== ""
+                                ? I18n.tr("No products match this search.")
+                                : I18n.tr("Nothing has been published to this collection yet.")))))
         }
 
         Btn {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: I18n.tr("RETURN TO DISCOVER")
-            visible: app.view === "library" || app.query !== ""
+            text: app.appsFiltered ? I18n.tr("CLEAR FILTER") : I18n.tr("RETURN TO DISCOVER")
+            visible: app.view === "library" || app.query !== "" || app.appsFiltered
             armed: visible
-            onAct: app.openRoute("discover")
+            onAct: app.appsFiltered ? app.clearAppFilter() : app.openRoute("discover")
             Accessible.role: Accessible.Button
             Accessible.name: text
-            Accessible.onPressAction: app.openRoute("discover")
+            Accessible.onPressAction: app.appsFiltered ? app.clearAppFilter() : app.openRoute("discover")
         }
     }
 

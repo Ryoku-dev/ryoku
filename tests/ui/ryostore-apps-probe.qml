@@ -101,10 +101,47 @@ ShellRoot {
                 return;
             }
 
-            if (app.detailOpen || !app.appsBrowse)
+            if (root.phase === 4) {
+                if (app.detailOpen || !app.appsBrowse)
+                    return;
+                root.require(app.selectedKey === "flatpak:org.example.Beta", "closing the detail restores the app selection");
+                root.require(app.appSort === "popular", "closing the detail keeps the chosen sort");
+                root.require(app.appTabs.length === 4, "market tabs list the categories present");
+                root.require(root.findObject(app, "ryostore-apps-tabs") !== null, "category strip is mounted");
+                root.require(root.findObject(app, "ryostore-apps-search-field") !== null, "market search field is mounted");
+                app.setAppTag("game");
+                root.phase = 5;
                 return;
-            root.require(app.selectedKey === "flatpak:org.example.Beta", "closing the detail restores the app selection");
-            root.require(app.appSort === "popular", "closing the detail keeps the chosen sort");
+            }
+
+            if (root.phase === 5) {
+                if (app.appsTag !== "game")
+                    return;
+                root.require(JSON.stringify(root.keys()) === JSON.stringify(
+                        ["org.example.Epsilon", "org.example.Gamma"]),
+                        "a category tab narrows the market");
+                root.require(app.appsFiltered, "the market reports a filter");
+                root.require(!root.findObject(app, "ryostore-apps-hero").visible,
+                             "the featured shelf hides under a filter");
+                app.setAppsQuery("eps");
+                root.phase = 6;
+                return;
+            }
+
+            if (root.phase === 6) {
+                if (app.appsQuery !== "eps")
+                    return;
+                root.require(JSON.stringify(root.keys()) === JSON.stringify(["org.example.Epsilon"]),
+                             "the market search narrows the chosen tab");
+                app.clearAppFilter();
+                root.phase = 7;
+                return;
+            }
+
+            if (app.appsFiltered)
+                return;
+            root.require(app.appsTag === "" && app.appsQuery === "", "clearing the filter resets both");
+            root.require(root.keys().length === 5, "the whole market returns");
             console.log("RYOSTORE-APPS-PROBE-PASS");
             Qt.quit();
         }
