@@ -1,0 +1,470 @@
+diff --git a/ImgBorder.cpp b/ImgBorder.cpp
+index c4a1759..100c361 100644
+--- a/ImgBorder.cpp
++++ b/ImgBorder.cpp
+@@ -13,6 +13,7 @@
+ #include <hyprland/src/render/Renderer.hpp>
+ #include <hyprland/src/render/Texture.hpp>
+ #include <hyprland/src/render/decorations/DecorationPositioner.hpp>
++#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+ #include <hyprutils/math/Box.hpp>
+ #include <hyprutils/math/Vector2D.hpp>
+ #include <wordexp.h>
+@@ -48,14 +49,18 @@ void CImgBorder::onPositioningReply(const SDecorationPositioningReply &reply) {
+   m_assignedBox = reply.assignedGeometry;
+ }
+ 
+-void CImgBorder::draw(PHLMONITOR pMonitor, const float &a) {
++void CImgBorder::draw(
++    Render::CRenderContext &ctx, PHLMONITOR pMonitor, const float &a,
++    const Render::SWindowRenderPresentation &presentation) {
+   if (!m_isEnabled || m_isHidden || //
+       !validMapped(m_pWindow) ||    //
+       !m_pWindow->m_ruleApplicator->decorate().valueOrDefault())
+     return;
+ 
+-  CImgBorderPassElement::SData data = {.deco = this, .a = a};
+-  g_pHyprRenderer->m_renderPass.add(makeUnique<CImgBorderPassElement>(data));
++  CImgBorderPassElement::SData data = {
++      .deco = this, .a = a, .presentation = presentation};
++  Render::IHyprRenderer::addPassElement(
++      ctx, makeUnique<CImgBorderPassElement>(data));
+ }
+ 
+ eDecorationType CImgBorder::getDecorationType() { return DECORATION_CUSTOM; }
+@@ -63,7 +68,9 @@ eDecorationType CImgBorder::getDecorationType() { return DECORATION_CUSTOM; }
+ void CImgBorder::updateWindow(PHLWINDOW pWindow) { damageEntire(); }
+ 
+ void CImgBorder::damageEntire() {
+-  g_pHyprRenderer->damageBox(getGlobalBoundingBox());
++  const auto window = m_pWindow.lock();
++  g_pHyprRenderer->damageBox(
++      getGlobalBoundingBox(window->presentation().renderPresentation()));
+ }
+ 
+ eDecorationLayer CImgBorder::getDecorationLayer() {
+@@ -80,24 +87,22 @@ PHLWINDOWREF CImgBorder::getWindow() { return m_pWindow; }
+ 
+ bool CImgBorder::shouldBlur() { return m_shouldBlur; }
+ 
+-CBox CImgBorder::getGlobalBoundingBox() {
++CBox CImgBorder::getGlobalBoundingBox(
++    const Render::SWindowRenderPresentation &presentation) {
+   const auto PWINDOW = m_pWindow.lock();
+ 
+   CBox box = m_assignedBox;
+   box.translate(g_pDecorationPositioner->getEdgeDefinedPoint(
+       DECORATION_EDGE_TOP | DECORATION_EDGE_LEFT, PWINDOW));
+ 
+-  const auto PWORKSPACE = PWINDOW->m_workspace;
+-  const auto WORKSPACEOFFSET = PWORKSPACE && !PWINDOW->m_pinned
+-                                   ? PWORKSPACE->m_renderOffset->value()
+-                                   : Vector2D();
+-
+-  return box.translate(WORKSPACEOFFSET);
++  return box.translate(presentation.workspaceOffset);
+ }
+ 
+-void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
+-  auto box = getGlobalBoundingBox()
+-                 .translate(m_pWindow->m_floatingOffset - pMonitor->m_position)
++void CImgBorder::drawPass(
++    Render::CRenderContext &ctx, PHLMONITOR pMonitor, const float &a,
++    const Render::SWindowRenderPresentation &presentation) {
++  auto box = getGlobalBoundingBox(presentation)
++                 .translate(presentation.floatingOffset - pMonitor->m_position)
+                  .scale(pMonitor->m_scale);
+ 
+   // For debugging
+@@ -119,137 +124,84 @@ void CImgBorder::drawPass(PHLMONITOR pMonitor, const float &a) {
+ 
+   // Save previous values
+ 
+-  const auto wasUsingNearestNeighbour =
+-      g_pHyprRenderer->m_renderData.useNearestNeighbor;
+-  const auto prevUVTL = g_pHyprRenderer->m_renderData.primarySurfaceUVTopLeft;
+-  const auto prevUVBR =
+-      g_pHyprRenderer->m_renderData.primarySurfaceUVBottomRight;
+-
+-  g_pHyprRenderer->m_renderData.useNearestNeighbor = !m_shouldSmooth;
++  const auto wasUsingNearestNeighbour = ctx.m_data.useNearestNeighbor;
++  const auto prevUVTL = ctx.m_data.primarySurfaceUVTopLeft;
++  const auto prevUVBR = ctx.m_data.primarySurfaceUVBottomRight;
++
++  ctx.m_data.useNearestNeighbor = !m_shouldSmooth;
++
++  const auto drawTexture = [&](const SP<ITexture> &texture,
++                               const CBox &textureBox, bool repeat = false) {
++    if (!texture)
++      return;
++
++    g_pHyprRenderer->draw(
++        ctx,
++        CTexPassElement::SRenderData{
++            .tex = texture,
++            .box = textureBox,
++            .a = a,
++            .blur = shouldBlur(),
++            .allowCustomUV = repeat,
++            .wrapX = repeat ? WRAP_REPEAT : WRAP_CLAMP_TO_EDGE,
++            .wrapY = repeat ? WRAP_REPEAT : WRAP_CLAMP_TO_EDGE,
++            .discardMode = DISCARD_ALPHA,
++        },
++        CRegion{textureBox});
++  };
+ 
+   // Corners
+ 
+-  if (m_tex_tl != nullptr) {
+-    const CBox box_tl = {box.pos(), {BORDER_LEFT, BORDER_TOP}};
+-    g_pHyprRenderer->draw({.tex = m_tex_tl,
+-                           .box = box_tl,
+-                           .a = a,
+-                           .damage = box_tl,
+-                           .blur = shouldBlur(),
+-                           .discardMode = DISCARD_ALPHA});
+-  }
+-
+-  if (m_tex_tr != nullptr) {
+-    const CBox box_tr = {{box.x + box.width - BORDER_RIGHT, box.y},
+-                         {BORDER_RIGHT, BORDER_TOP}};
+-    g_pHyprRenderer->draw({.tex = m_tex_tr,
+-                           .box = box_tr,
+-                           .a = a,
+-                           .damage = box_tr,
+-                           .blur = shouldBlur(),
+-                           .discardMode = DISCARD_ALPHA});
+-  }
+-
+-  if (m_tex_br != nullptr) {
+-    const CBox box_br = {
+-        {box.x + box.width - BORDER_RIGHT, box.y + box.height - BORDER_BOTTOM},
+-        {BORDER_RIGHT, BORDER_BOTTOM}};
+-    g_pHyprRenderer->draw({.tex = m_tex_br,
+-                           .box = box_br,
+-                           .a = a,
+-                           .damage = box_br,
+-                           .blur = shouldBlur(),
+-                           .discardMode = DISCARD_ALPHA});
+-  }
+-
+-  if (m_tex_bl != nullptr) {
+-    const CBox box_bl = {{box.x, box.y + box.height - BORDER_BOTTOM},
+-                         {BORDER_LEFT, BORDER_BOTTOM}};
+-    g_pHyprRenderer->draw({.tex = m_tex_bl,
+-                           .box = box_bl,
+-                           .a = a,
+-                           .damage = box_bl,
+-                           .blur = shouldBlur(),
+-                           .discardMode = DISCARD_ALPHA});
+-  }
++  drawTexture(m_tex_tl, CBox{box.pos(), {BORDER_LEFT, BORDER_TOP}});
++  drawTexture(m_tex_tr,
++              CBox{{box.x + box.width - BORDER_RIGHT, box.y},
++                   {BORDER_RIGHT, BORDER_TOP}});
++  drawTexture(
++      m_tex_br,
++      CBox{{box.x + box.width - BORDER_RIGHT,
++            box.y + box.height - BORDER_BOTTOM},
++           {BORDER_RIGHT, BORDER_BOTTOM}});
++  drawTexture(m_tex_bl,
++              CBox{{box.x, box.y + box.height - BORDER_BOTTOM},
++                   {BORDER_LEFT, BORDER_BOTTOM}});
+ 
+   // Edges
+ 
+-  g_pHyprRenderer->m_renderData.primarySurfaceUVTopLeft = {0, 0};
+-
+-  g_pHyprRenderer->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
++  ctx.m_data.primarySurfaceUVTopLeft = {0, 0};
++  ctx.m_data.primarySurfaceUVBottomRight = {1., 1.};
+   if (m_tex_t != nullptr && m_tex_t->m_size.x != 0 && scale != 0) {
+-    g_pHyprRenderer->m_renderData.primarySurfaceUVBottomRight.x =
++    ctx.m_data.primarySurfaceUVBottomRight.x =
+         WIDTH_MID / (m_tex_t->m_size.x * scale);
+   }
+ 
+-  if (m_tex_t != nullptr) {
+-    const CBox box_t = {{box.x + BORDER_LEFT, box.y}, {WIDTH_MID, BORDER_TOP}};
+-    g_pHyprRenderer->draw({.tex = m_tex_t,
+-                           .box = box_t,
+-                           .a = a,
+-                           .damage = box_t,
+-                           .blur = shouldBlur(),
+-                           .allowCustomUV = true,
+-                           .wrapX = WRAP_REPEAT,
+-                           .wrapY = WRAP_REPEAT,
+-                           .discardMode = DISCARD_ALPHA});
+-  }
+-
+-  if (m_tex_b != nullptr) {
+-    const CBox box_b = {
+-        {box.x + BORDER_LEFT, box.y + box.height - BORDER_BOTTOM},
+-        {WIDTH_MID, BORDER_BOTTOM}};
+-    g_pHyprRenderer->draw({.tex = m_tex_b,
+-                           .box = box_b,
+-                           .a = a,
+-                           .damage = box_b,
+-                           .blur = shouldBlur(),
+-                           .allowCustomUV = true,
+-                           .wrapX = WRAP_REPEAT,
+-                           .wrapY = WRAP_REPEAT,
+-                           .discardMode = DISCARD_ALPHA});
+-  }
++  drawTexture(m_tex_t,
++              CBox{{box.x + BORDER_LEFT, box.y}, {WIDTH_MID, BORDER_TOP}},
++              true);
++  drawTexture(m_tex_b,
++              CBox{{box.x + BORDER_LEFT,
++                    box.y + box.height - BORDER_BOTTOM},
++                   {WIDTH_MID, BORDER_BOTTOM}},
++              true);
+ 
+-  g_pHyprRenderer->m_renderData.primarySurfaceUVBottomRight = {1., 1.};
++  ctx.m_data.primarySurfaceUVBottomRight = {1., 1.};
+   if (m_tex_l != nullptr && m_tex_l->m_size.y != 0 && scale != 0) {
+-    g_pHyprRenderer->m_renderData.primarySurfaceUVBottomRight.y =
++    ctx.m_data.primarySurfaceUVBottomRight.y =
+         HEIGHT_MID / (m_tex_l->m_size.y * scale);
+   }
+ 
+-  if (m_tex_l != nullptr) {
+-    const CBox box_l = {{box.x, box.y + BORDER_TOP}, {BORDER_LEFT, HEIGHT_MID}};
+-    g_pHyprRenderer->draw({.tex = m_tex_l,
+-                           .box = box_l,
+-                           .a = a,
+-                           .damage = box_l,
+-                           .blur = shouldBlur(),
+-                           .allowCustomUV = true,
+-                           .wrapX = WRAP_REPEAT,
+-                           .wrapY = WRAP_REPEAT,
+-                           .discardMode = DISCARD_ALPHA});
+-  }
+-
+-  if (m_tex_r != nullptr) {
+-    const CBox box_r = {{box.x + box.width - BORDER_RIGHT, box.y + BORDER_TOP},
+-                        {BORDER_RIGHT, HEIGHT_MID}};
+-    g_pHyprRenderer->draw({.tex = m_tex_r,
+-                           .box = box_r,
+-                           .a = a,
+-                           .damage = box_r,
+-                           .blur = shouldBlur(),
+-                           .allowCustomUV = true,
+-                           .wrapX = WRAP_REPEAT,
+-                           .wrapY = WRAP_REPEAT,
+-                           .discardMode = DISCARD_ALPHA});
+-  }
++  drawTexture(m_tex_l,
++              CBox{{box.x, box.y + BORDER_TOP}, {BORDER_LEFT, HEIGHT_MID}},
++              true);
++  drawTexture(m_tex_r,
++              CBox{{box.x + box.width - BORDER_RIGHT, box.y + BORDER_TOP},
++                   {BORDER_RIGHT, HEIGHT_MID}},
++              true);
+ 
+   // Restore previous values
+ 
+-  g_pHyprRenderer->m_renderData.useNearestNeighbor = wasUsingNearestNeighbour;
+-
+-  g_pHyprRenderer->m_renderData.primarySurfaceUVTopLeft = prevUVTL;
+-  g_pHyprRenderer->m_renderData.primarySurfaceUVBottomRight = prevUVBR;
++  ctx.m_data.useNearestNeighbor = wasUsingNearestNeighbour;
++  ctx.m_data.primarySurfaceUVTopLeft = prevUVTL;
++  ctx.m_data.primarySurfaceUVBottomRight = prevUVBR;
+ }
+ 
+ void CImgBorder::updateConfig() {
+diff --git a/ImgBorder.hpp b/ImgBorder.hpp
+index c0b54f5..969cd15 100644
+--- a/ImgBorder.hpp
++++ b/ImgBorder.hpp
+@@ -18,7 +18,8 @@ public:
+   virtual SDecorationPositioningInfo getPositioningInfo() override;
+   virtual void
+   onPositioningReply(const SDecorationPositioningReply &reply) override;
+-  virtual void draw(PHLMONITOR, float const &a) override;
++  virtual void draw(Render::CRenderContext &, PHLMONITOR, float const &a,
++                    const Render::SWindowRenderPresentation &) override;
+   virtual eDecorationType getDecorationType() override;
+   virtual void updateWindow(PHLWINDOW) override;
+   virtual void damageEntire() override;
+@@ -30,9 +31,11 @@ public:
+ 
+   bool shouldBlur();
+ 
+-  CBox getGlobalBoundingBox();
++  CBox getGlobalBoundingBox(
++      const Render::SWindowRenderPresentation &presentation);
+ 
+-  void drawPass(PHLMONITOR, float const &a);
++  void drawPass(Render::CRenderContext &, PHLMONITOR, float const &a,
++                const Render::SWindowRenderPresentation &presentation);
+ 
+   void updateConfig();
+   void updateRules();
+diff --git a/ImgBorderPassElement.cpp b/ImgBorderPassElement.cpp
+index 152c370..93220d8 100644
+--- a/ImgBorderPassElement.cpp
++++ b/ImgBorderPassElement.cpp
+@@ -12,14 +12,18 @@ CImgBorderPassElement::CImgBorderPassElement(
+ }
+ CImgBorderPassElement::~CImgBorderPassElement() {}
+ 
+-std::vector<UP<IPassElement>> CImgBorderPassElement::draw() {
+-  data.deco->drawPass(g_pHyprRenderer->m_renderData.pMonitor.lock(), data.a);
++std::vector<UP<IPassElement>>
++CImgBorderPassElement::draw(Render::CRenderContext &ctx) {
++  data.deco->drawPass(ctx, ctx.m_data.pMonitor.lock(), data.a,
++                      data.presentation);
+   return {};
+ }
+ 
+-bool CImgBorderPassElement::needsLiveBlur() { return data.deco->shouldBlur(); }
++bool CImgBorderPassElement::needsLiveBlur(Render::CRenderContext &ctx) {
++  return data.deco->shouldBlur();
++}
+ 
+-bool CImgBorderPassElement::needsPrecomputeBlur() {
++bool CImgBorderPassElement::needsPrecomputeBlur(Render::CRenderContext &ctx) {
+   return data.deco->shouldBlur();
+ }
+ 
+@@ -31,9 +35,11 @@ ePassElementType CImgBorderPassElement::type() { return EK_CUSTOM; }
+ 
+ // bool CImgBorderPassElement::undiscardable() {}
+ 
+-std::optional<CBox> CImgBorderPassElement::boundingBox() {
+-  return data.deco->getGlobalBoundingBox().translate(
+-      -g_pHyprRenderer->m_renderData.pMonitor->m_position);
++std::optional<CBox>
++CImgBorderPassElement::boundingBox(Render::CRenderContext &ctx) {
++  return data.deco->getGlobalBoundingBox(data.presentation)
++      .translate(data.presentation.floatingOffset -
++                 ctx.m_data.pMonitor->m_position);
+ }
+ 
+ // CRegion CImgBorderPassElement::opaqueRegion() {}
+diff --git a/ImgBorderPassElement.hpp b/ImgBorderPassElement.hpp
+index b39475b..c541bab 100644
+--- a/ImgBorderPassElement.hpp
++++ b/ImgBorderPassElement.hpp
+@@ -2,6 +2,7 @@
+ 
+ #include <hyprland/src/render/Texture.hpp>
+ #include <hyprland/src/render/pass/PassElement.hpp>
++#include <hyprland/src/render/WindowRenderPresentation.hpp>
+ #include <optional>
+ 
+ // Class defined elsewhere
+@@ -14,19 +15,22 @@ public:
+   struct SData {
+     CImgBorder *deco = nullptr;
+     float a = 1.F;
++    Render::SWindowRenderPresentation presentation;
+   };
+ 
+   CImgBorderPassElement(const SData &data_);
+   virtual ~CImgBorderPassElement();
+ 
+-  virtual std::vector<UP<IPassElement>> draw() override;
+-  virtual bool needsLiveBlur() override;
+-  virtual bool needsPrecomputeBlur() override;
++  virtual std::vector<UP<IPassElement>>
++  draw(Render::CRenderContext &ctx) override;
++  virtual bool needsLiveBlur(Render::CRenderContext &ctx) override;
++  virtual bool needsPrecomputeBlur(Render::CRenderContext &ctx) override;
+   virtual const char *passName() override;
+   virtual ePassElementType type() override;
+   // virtual void discard() override;
+   // virtual bool undiscardable() override;
+-  virtual std::optional<CBox> boundingBox() override;
++  virtual std::optional<CBox>
++  boundingBox(Render::CRenderContext &ctx) override;
+   // virtual CRegion opaqueRegion() override;
+   // virtual bool disableSimplification() override;
+ 
+diff --git a/main.cpp b/main.cpp
+index 3934936..32116f5 100644
+--- a/main.cpp
++++ b/main.cpp
+@@ -10,7 +10,8 @@
+ #include <hyprland/src/config/values/types/FloatValue.hpp>
+ #include <hyprland/src/config/values/types/StringValue.hpp>
+ #include <hyprland/src/desktop/rule/windowRule/WindowRuleEffectContainer.hpp>
+-#include <hyprland/src/desktop/view/Window.hpp>
++#include <hyprland/src/desktop/view/window/Window.hpp>
++#include <hyprland/src/desktop/view/window/WindowPresentation.hpp>
+ #include <hyprland/src/event/EventBus.hpp>
+ #include <hyprland/src/plugins/PluginAPI.hpp>
+ #include <hyprland/src/render/Renderer.hpp>
+@@ -24,22 +25,24 @@ APICALL EXPORT std::string PLUGIN_API_VERSION() { return HYPRLAND_API_VERSION; }
+ 
+ static void addToWindow(PHLWINDOW PWINDOW) {
+   // Create border and apply it
+-  auto border = makeUnique<CImgBorder>(PWINDOW);
++  auto border = makeShared<CImgBorder>(PWINDOW);
+   border->m_self = border;
+   g_pGlobalState->borders.emplace_back(border);
+   HyprlandAPI::addWindowDecoration(PHANDLE, PWINDOW, std::move(border));
+ }
+ 
+ static void onWindowOpen(PHLWINDOW window) {
+-  if (!window->m_X11DoesntWantBorders) {
+-    // Make sure we haven't added the border already
+-    if (std::ranges::any_of(window->m_windowDecorations, [](const auto &d) {
+-          return d->getDisplayName() == DISPLAY_NAME;
+-        }))
+-      return;
+-
+-    addToWindow(window);
+-  }
++  if (window->backend().traits().suggestsNoBorder)
++    return;
++
++  // Make sure we haven't added the border already
++  if (std::ranges::any_of(window->presentation().decorations(),
++                          [](const auto &d) {
++                            return d->getDisplayName() == DISPLAY_NAME;
++                          }))
++    return;
++
++  addToWindow(window);
+ }
+ 
+ static void onWindowClose(PHLWINDOW window) {
+@@ -51,7 +54,7 @@ static void onWindowClose(PHLWINDOW window) {
+     return;
+ 
+   // We could use the API but this is faster + it doesn't matter here that much.
+-  window->removeWindowDeco(BORDER->get());
++  window->presentation().removeDecoration(BORDER->get());
+ }
+ 
+ static void onWindowUpdateRules(PHLWINDOW window) {
+@@ -63,7 +66,7 @@ static void onWindowUpdateRules(PHLWINDOW window) {
+     return;
+ 
+   (*BORDER)->updateRules();
+-  window->updateWindowDecos();
++  window->presentation().updateDecorations();
+ }
+ 
+ static void onConfigReloaded() {
+@@ -131,7 +134,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
+ 
+   // Add to existing windows
+   for (auto &w : Desktop::windowState()->windows()) {
+-    if (w->isHidden() || !w->m_isMapped)
++    if (w->isHidden() || !w->mapped())
+       continue;
+     addToWindow(w);
+   }
+@@ -143,7 +146,7 @@ APICALL EXPORT void PLUGIN_EXIT() {
+   for (auto &m : State::monitorState()->monitors())
+     m->m_scheduledRecalc = true;
+ 
+-  g_pHyprRenderer->m_renderPass.removeAllOfType(PASS_NAME);
++  g_pHyprRenderer->context().m_pass.removeAllOfType(PASS_NAME);
+ 
+   // Unregister window rules
+   Desktop::Rule::windowEffects()->unregisterEffect(

@@ -37,7 +37,7 @@ depends=('hyprland')
 makedepends=('hyprland' 'cmake' 'pkgconf' 'git' 'libdrm' 'pixman' 'pango' 'cairo')
 source=("$pkgname.bundle")
 noextract=("$pkgname.bundle")
-sha256sums=('48187e72ca62fc0b8d12809ca02082b8d27016516d84527a19abb3ff007d6a7d')
+sha256sums=('8d40c70536a44364c9e9aec9cd69321b5e6880df1b76c7f11b7839ecc645d6c4')
 
 # the plugin ABI this build locks to, Hyprland's own client-hash formula:
 # commit + major.minor of aquamarine, hyprutils, hyprgraphics, hyprcursor and
