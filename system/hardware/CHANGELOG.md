@@ -17,6 +17,15 @@
   headless one exits at once.
 
 ### Fixed
+- `network/50-ryoku-dns.rules`: **the passwordless DNS grant no longer matches
+  any path ending in `ryoku-dns`.** The rule tested the program with a basename
+  regex, so any executable a local wheel user placed at a path ending in
+  `/ryoku-dns` ran as root through `pkexec` with no password: a local privilege
+  escalation (GHSA-683q-8wvh-7m89). The grant now pins the exact installed
+  helper, `action.lookup("program") === "/usr/bin/ryoku-dns"`, matching every
+  other `ryoku-*` polkit rule. Dev boxes keep working because `deploy.sh`
+  installs the helper to `/usr/bin` and the shell's `dnsHelperPath()` prefers
+  that path.
 - `input/62-ryoku-qmk-hid.rules`: **keyboard lighting returns after hotplug.**
   A connected QMK or Vial board triggers the saved lighting apply for each
   active local desktop user on systemd and Void
