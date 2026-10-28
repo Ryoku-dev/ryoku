@@ -146,7 +146,8 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `mirror` | boolean | `true` | Mirror the spectrum around the centre. |
 | `feel` | `fluid` or `tight` | `fluid` | Set the wave spring and damping. |
 | `workspaceStyle` | `dots`, `numbers`, `kanji`, `greek`, `dashes`, or `icons` | `dots` | Choose the workspace marks. |
-| `workspaceShowEmpty` | boolean | `true` | Include empty workspaces. Where workspaces are numbered, gaps fill in and one free slot follows the last used. |
+| `workspaceShowEmpty` | boolean | `true` | Include empty workspaces. Where workspaces are numbered, gaps fill in and one free slot follows the last used unless `workspaceSpare` is off. |
+| `workspaceSpare` | boolean | `true` | With `workspaceShowEmpty` on, add one free slot after the last used workspace. Off ends the strip at the last workspace that exists. |
 | `showDate` | boolean | `true` | Show the date under the idle time. |
 | `seconds` | boolean | `false` | Show seconds in the idle time. |
 | `voiceWeather` | boolean | `true` | Show the weather beside the idle time. |

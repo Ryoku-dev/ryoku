@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Orpheus workspace strip can drop its spare empty workspace.** With Show
+  empty on, Modules > Workspaces has a new "Spare workspace at the end" switch
+  (`workspaceSpare`, default on, so nothing changes): off ends the strip at the last
+  workspace that exists instead of adding one more
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Workspaces.qml,settings/}`).
 - **Game Mode reports a failed compositor strip instead of showing On.** It
   persists the request before the strip, and a failed restore no longer skips
   the power, tune or Wi-Fi cleanup (`scripts/ryoku-cmd-game-mode`).
