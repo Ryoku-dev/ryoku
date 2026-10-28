@@ -90,14 +90,15 @@ Item {
             SettingRow {
                 width: parent.width
                 label: "Mark"
-                desc: "System follows the brand mark from Ryoku Settings; Custom picks a glyph for this bar."
+                desc: "System follows the brand mark from Ryoku Settings; Custom picks a glyph for this bar; Avatar shows your profile picture (set it in Ryoku Hub > Global > Users)."
                 block: true
 
                 K.Segmented {
                     anchors.fill: parent
                     model: [
                         { value: "system", label: "System" },
-                        { value: "custom", label: "Custom" }
+                        { value: "custom", label: "Custom" },
+                        { value: "avatar", label: "Avatar" }
                     ]
                     value: S.Prefs.logoMark
                     onPicked: value => S.Prefs.set("logoMark", value)

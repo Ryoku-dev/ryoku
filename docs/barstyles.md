@@ -164,7 +164,7 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `actions` | subset of `launcher`, `ask`, `overview`, `clipboard`, `capture`, `wallpaper`, `hub` | `["launcher","capture","clipboard"]` | Choose shortcut actions. |
 | `trayLimit` | `3` to `12` | `6` | Set the visible tray item limit. |
 | `statusItems` | subset of `wifi`, `bluetooth`, `volume`, `mic` | all four | Choose the icons in the Controls module. |
-| `logoMark` | `system` or `custom` | `system` | Draw the logo with the desktop brand mark (Ryoku Settings, Shell, Global) or with `logoIcon`. Modules page, Logo. |
+| `logoMark` | `system`, `custom` or `avatar` | `system` | Draw the logo with the desktop brand mark (Ryoku Settings, Shell, Global), with `logoIcon`, or with your profile picture (the AccountsService icon or `~/.face`; the brand mark shows while there is none). Modules page, Logo. |
 | `logoIcon` | a QS Bar launcher glyph id (`arch`, `tux`, `nix`, `github`, ...) | `arch` | The glyph the logo wears when `logoMark` is `custom`. |
 | `logoClick` | `settings`, `hub` or `quick` | `settings` | What a left-click on the logo opens: Orpheus settings, Ryoku Hub or the quick-settings sidebar. Middle-click opens Orpheus settings (Ryoku Hub when settings is already the left-click). |
 

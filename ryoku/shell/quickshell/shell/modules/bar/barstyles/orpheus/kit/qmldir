@@ -25,3 +25,4 @@ PlayButton PlayButton.qml
 TextField TextField.qml
 Badge Badge.qml
 LogoMark LogoMark.qml
+AvatarImage AvatarImage.qml

@@ -2,11 +2,13 @@
 
 ## Unreleased
 - **The Orpheus logo can wear another mark and open Ryoku Hub.** Modules >
-  Logo picks the System brand mark or a Custom glyph from the same set QS Bar's
-  launcher offers (`logoMark`, `logoIcon`), and Click sets whether a left-click
+  Logo picks the System brand mark, a Custom glyph from the same set QS Bar's
+  launcher offers (`logoMark`, `logoIcon`), or your Avatar, the profile picture
+  from the AccountsService icon or `~/.face`, and Click sets whether a left-click
   opens Orpheus settings, Ryoku Hub or the quick-settings sidebar that
   Super+Esc opens (`logoClick`); a middle-click opens Orpheus settings, or Ryoku
-  Hub when settings is already the left-click. Orpheus settings also open through a new `orpheus` IPC target,
+  Hub when settings is already the left-click. Orpheus settings also open
+  through a new `orpheus` IPC target,
   `qs -c shell ipc call orpheus settings [page|close]`, on the focused output
   (`quickshell/shell/modules/bar/barstyles/orpheus/{Scene.qml,kit/,modules/Logo.qml,settings/}`).
 - **Game Mode reports a failed compositor strip instead of showing On.** It

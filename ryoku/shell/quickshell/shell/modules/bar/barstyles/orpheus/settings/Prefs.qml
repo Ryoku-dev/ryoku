@@ -204,7 +204,7 @@ Singleton {
         case "statusItems": return subset(value,
             ["wifi", "bluetooth", "volume", "mic"],
             ["wifi", "bluetooth", "volume", "mic"]);
-        case "logoMark": return choice(value, ["system", "custom"], "system");
+        case "logoMark": return choice(value, ["system", "custom", "avatar"], "system");
         case "logoIcon": return LogoGlyphs.valid(value) ? value : "arch";
         case "logoClick": return choice(value, ["settings", "hub", "quick"], "settings");
         default: return value;

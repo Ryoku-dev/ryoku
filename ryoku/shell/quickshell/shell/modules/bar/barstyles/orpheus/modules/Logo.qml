@@ -45,7 +45,8 @@ Item {
 
         K.LogoMark {
             anchors.centerIn: parent
-            mark: S.Prefs.logoMark === "custom" ? S.Prefs.logoIcon : "system"
+            mark: S.Prefs.logoMark === "custom" ? S.Prefs.logoIcon
+                : S.Prefs.logoMark === "avatar" ? "avatar" : "system"
             size: root.markSize
             color: K.Style.accent
             weight: Font.Black

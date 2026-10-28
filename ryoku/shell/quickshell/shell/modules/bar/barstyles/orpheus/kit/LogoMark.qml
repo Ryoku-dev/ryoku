@@ -1,11 +1,14 @@
 import QtQuick
+import Quickshell
 import shell.barkit as Pill
 import shell.services
 import "LogoGlyphs.js" as LogoGlyphs
 
 // The logo's mark, drawn once for the bar and for the settings picker so both
 // agree. "system" is the desktop brand mark (力, or the glyph or image chosen in
-// Ryoku Settings -> Shell -> Global); any LogoGlyphs id is that Nerd Font mark.
+// Ryoku Settings -> Shell -> Global); any LogoGlyphs id is that Nerd Font mark;
+// "avatar" is the signed-in user's profile picture, and falls back to the
+// system mark while there is none.
 Item {
     id: root
 
@@ -15,6 +18,8 @@ Item {
     property int weight: Font.Black
 
     readonly property bool custom: mark !== "system" && LogoGlyphs.valid(mark)
+    readonly property bool avatar: mark === "avatar"
+    readonly property bool showAvatar: avatar && avatarImage.hasImage
     readonly property real glyphSize: custom ? Math.round(size * LogoGlyphs.scale(mark)) : size
     // Centres the ink, not the line box: CJK and Nerd Font glyphs sit off the
     // font's vertical middle by different amounts.
@@ -34,8 +39,18 @@ Item {
         font.weight: root.weight
     }
 
+    AvatarImage {
+        id: avatarImage
+        visible: root.avatar
+        anchors.centerIn: parent
+        width: Math.round(root.size * 1.35)
+        height: width
+        userName: Quickshell.env("USER") || ""
+        home: Quickshell.env("HOME") || ""
+    }
+
     Pill.BrandMark {
-        visible: !root.custom
+        visible: !root.custom && !root.showAvatar
         anchors.centerIn: parent
         anchors.verticalCenterOffset: root.opticalOffset
         width: root.size
