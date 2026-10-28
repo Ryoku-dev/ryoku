@@ -33,6 +33,13 @@ Item {
     Accessible.name: [title, summary].filter(Boolean).join(", ")
     Accessible.onPressAction: hero.activated(hero.current)
 
+    component Chip: Text {
+        color: Tokens.inkMuted
+        font.family: Tokens.mono
+        font.pixelSize: Tokens.fTiny
+        font.letterSpacing: Tokens.trackLabel
+    }
+
     function step(delta) {
         if (items.length === 0)
             return;
@@ -138,29 +145,18 @@ Item {
                 Row {
                     spacing: Tokens.s3
 
-                    Text {
+                    Chip {
                         text: hero.categoryTag
                         visible: text !== ""
-                        color: Tokens.inkMuted
-                        font.family: Tokens.mono
-                        font.pixelSize: Tokens.fTiny
-                        font.letterSpacing: Tokens.trackLabel
                     }
-                    Text {
+                    Chip {
                         text: I18n.tr("VERIFIED")
                         visible: hero.verified
-                        color: Tokens.inkMuted
-                        font.family: Tokens.mono
-                        font.pixelSize: Tokens.fTiny
-                        font.letterSpacing: Tokens.trackLabel
                     }
-                    Text {
+                    Chip {
                         text: hero.statusTag === "" ? "" : I18n.tr(hero.statusTag)
                         visible: text !== ""
                         color: StoreLogic.isUnavailable(hero.current) ? Tokens.alert : Tokens.ink
-                        font.family: Tokens.mono
-                        font.pixelSize: Tokens.fTiny
-                        font.letterSpacing: Tokens.trackLabel
                     }
                 }
             }
@@ -192,7 +188,6 @@ Item {
         }
 
         Row {
-            id: dots
             anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: Tokens.s3 }
             spacing: Tokens.s2
             visible: hero.hasMultiple

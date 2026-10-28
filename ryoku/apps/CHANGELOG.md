@@ -11,8 +11,8 @@
   catalogue instead of reshuffling one popular page. The union is cached as one
   snapshot, a partial fetch still serves what answered and leaves the complete
   cache in place, and search keeps its relevance order
-  (`ryostore/backend/provider_flatpak.go`, `ryostore/quickshell/AppsPage.qml`,
-  `AppsHero.qml`, `AppsTile.qml`, `lib/store.js`).
+  (`ryostore/backend/provider_flatpak.go`, `ryostore/quickshell/AppsHero.qml`,
+  `AppsTile.qml`, `lib/store.js`).
 - `ryostore/`: **Apps: browse and install Flathub applications.** The Apps
   category lists popular and installed applications, searches the wider Flathub
   catalogue, and labels Flathub verification. New apps use the doctor's shared

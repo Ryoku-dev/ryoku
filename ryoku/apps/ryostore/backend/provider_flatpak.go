@@ -59,7 +59,6 @@ type flathubHit struct {
 	AddedAt           int64    `json:"added_at"`
 	UpdatedAt         int64    `json:"updated_at"`
 	Trending          float64  `json:"trending"`
-	FavoritesCount    int64    `json:"favorites_count"`
 	InstallsLastMonth int64    `json:"installs_last_month"`
 }
 
@@ -520,9 +519,6 @@ func flatpakItem(hit flathubHit, owned installedFlatpak, unavailable string) Ite
 	}
 	if hit.Trending > 0 {
 		metadata["trending"] = hit.Trending
-	}
-	if hit.FavoritesCount > 0 {
-		metadata["favorites"] = hit.FavoritesCount
 	}
 	if hit.UpdatedAt > 0 {
 		metadata["updatedAt"] = time.Unix(hit.UpdatedAt, 0).UTC().Format(time.RFC3339)

@@ -63,12 +63,11 @@ ShellRoot {
             if (root.phase === 1) {
                 if (!app.appsBrowse)
                     return;
-                root.require(root.findObject(app, "ryostore-apps-page") !== null, "apps page is mounted");
                 root.require(root.findObject(app, "ryostore-apps-hero") !== null, "featured hero is mounted");
                 root.require(root.findObject(app, "ryostore-apps-sort") !== null, "sort strip is mounted");
-                const grid = root.findObject(app, "ryostore-apps-grid");
+                const grid = root.findObject(app, "ryostore-grid");
                 root.require(grid !== null, "compact grid is mounted");
-                root.require(grid.variant === "app", "grid uses the compact app variant");
+                root.require(grid.compact, "grid uses the compact app layout");
                 root.require(grid.cellH < 140, "compact cells are shorter than the artwork cards");
                 root.require(JSON.stringify(root.keys()) === JSON.stringify(
                         ["org.example.Gamma", "org.example.Alpha", "org.example.Beta",

@@ -182,7 +182,6 @@ ryoku/apps/ryostore/
     App.qml
     StoreHeader.qml
     ShowroomStage.qml
-    AppsPage.qml
     AppsHero.qml
     AppsTile.qml
     ProductDetail.qml

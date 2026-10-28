@@ -34,7 +34,7 @@ func hit(id, name, kind string, verified bool, arches ...string) map[string]any 
 		"main_categories": "graphics", "sub_categories": []string{"Photography"},
 		"verification_verified": verified, "arches": arches,
 		"added_at": 1493820137, "updated_at": 1700000000,
-		"trending": 12.5, "favorites_count": 7, "installs_last_month": 42,
+		"trending": 12.5, "installs_last_month": 42,
 	}
 }
 
@@ -165,8 +165,8 @@ func TestFlatpakLoadFiltersAndMarksInstalled(t *testing.T) {
 	if !reflect.DeepEqual(alpha.Tags, []string{"graphics", "photography"}) {
 		t.Errorf("tags = %v", alpha.Tags)
 	}
-	if alpha.Metadata["trending"] != 12.5 || alpha.Metadata["favorites"] != int64(7) {
-		t.Errorf("ranking metadata = %v", alpha.Metadata)
+	if alpha.Metadata["trending"] != 12.5 {
+		t.Errorf("trending = %v", alpha.Metadata["trending"])
 	}
 	if alpha.Metadata["updatedAt"] != "2023-11-14T22:13:20Z" {
 		t.Errorf("updatedAt = %v", alpha.Metadata["updatedAt"])

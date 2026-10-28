@@ -16,7 +16,7 @@ FocusScope {
     property bool reducedMotion: false
     property string contentKey: ""
     property int entranceEpoch: 0
-    property string variant: "cover"
+    property bool compact: false
 
     signal previewRequested(var item)
     signal selectionRequested(var item)
@@ -24,11 +24,11 @@ FocusScope {
 
     activeFocusOnTab: true
 
-    readonly property int columns: grid.variant === "app"
+    readonly property int columns: grid.compact
             ? Math.max(2, Math.min(4, Math.floor(view.width / 270)))
             : Math.max(2, Math.floor(view.width / 300))
     readonly property real cellW: view.width / grid.columns
-    readonly property real cellH: grid.variant === "app"
+    readonly property real cellH: grid.compact
             ? Tokens.px(96) : Math.round(grid.cellW * 0.84)
     property alias contentY: view.contentY
     property bool restoring: false
@@ -149,6 +149,7 @@ FocusScope {
             required property int index
             width: grid.cellW
             height: grid.cellH
+            readonly property bool isSelected: StoreLogic.itemKey(modelData) === grid.selectedKey
             property real entranceProgress: 1
             opacity: entranceProgress
 
@@ -196,16 +197,15 @@ FocusScope {
 
             Loader {
                 anchors.fill: parent
-                sourceComponent: grid.variant === "app" ? appTile : coverTile
+                sourceComponent: grid.compact ? appTile : coverTile
             }
 
             Component {
                 id: coverTile
                 ProductCard {
                     item: tile.modelData
-                    selected: StoreLogic.itemKey(tile.modelData) === grid.selectedKey
-                    focusVisible: grid.activeFocus
-                            && StoreLogic.itemKey(tile.modelData) === grid.selectedKey
+                    selected: tile.isSelected
+                    focusVisible: grid.activeFocus && tile.isSelected
                     reducedMotion: grid.reducedMotion
                     onHoverChanged: hovered => {
                         if (hovered) {
@@ -221,9 +221,8 @@ FocusScope {
                 id: appTile
                 AppsTile {
                     item: tile.modelData
-                    selected: StoreLogic.itemKey(tile.modelData) === grid.selectedKey
-                    focusVisible: grid.activeFocus
-                            && StoreLogic.itemKey(tile.modelData) === grid.selectedKey
+                    selected: tile.isSelected
+                    focusVisible: grid.activeFocus && tile.isSelected
                     reducedMotion: grid.reducedMotion
                     onActivated: grid.activated(tile.modelData)
                 }
