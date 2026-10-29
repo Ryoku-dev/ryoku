@@ -1,4 +1,5 @@
 [config]
+reload_apps = true
 
 # Ryoku Arch Matugen App Templates
 # Configured and toggled via Ryoku Settings (Hub) -> Appearance -> Matugen
@@ -45,6 +46,7 @@ output_path = "~/.steam/steam/steamui/skins/Material-Theme/css/main/colors/matug
 [templates.cava]
 input_path = "~/.config/matugen/templates/cava.ini"
 output_path = "~/.config/cava/config"
+post_hook = "pkill -USR1 cava || true"
 
 # ghostty/config is the user's own file; matugen writes only the palette to a
 # sibling the config includes (`config-file = ryoku-colors`), so a retint never
@@ -56,6 +58,7 @@ output_path = "~/.config/ghostty/ryoku-colors"
 [templates.micro]
 input_path = "~/.config/matugen/templates/micro.micro"
 output_path = "~/.config/micro/colorschemes/matugen.micro"
+post_hook = 'pkill -SIGUSR1 --full "$HOME/.config/micro/plug/.*/micro-usr1-reload"'
 
 [templates.papirus]
 input_path = "~/.config/matugen/templates/papirus-color"

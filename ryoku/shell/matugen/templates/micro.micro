@@ -1,45 +1,74 @@
-color-link default "{{ colors.on_surface.default.hex }}"
-color-link comment "{{ colors.outline.default.hex }}"
-color-link selection "{{ colors.on_primary_container.default.hex }},{{ colors.primary_container.default.hex }}"
-color-link hlsearch "{{ colors.secondary.default.hex }}"
+# Matugen colorscheme for micro editor
 
-color-link identifier "{{ colors.primary.default.hex }}"
-color-link identifier.class "{{ colors.primary.default.hex }}"
-color-link identifier.var "{{ colors.primary.default.hex }}"
+# Base Editor & Terminal Workspace
+color-link default "{{colors.on_surface.default.hex}},{{colors.surface.default.hex}}"
+color-link selection "{{colors.on_surface_variant.default.hex}},{{colors.surface_container_highest.default.hex}}"
+# color-link cursor-line "{{colors.on_surface.default.hex}},{{colors.surface_container_low.default.hex}}"
+color-link color-column ",{{colors.surface_container_highest.default.hex}}"
 
-color-link constant "{{ colors.tertiary.default.hex }}"
-color-link constant.number "{{ colors.tertiary.default.hex }}"
-color-link constant.string "{{ colors.secondary.default.hex }}"
+# Programming Language Syntax Highlighting
+# Core Keywords & Logic Structures
+color-link statement "bold {{colors.primary.default.hex}}"
+color-link statement.keyword "bold {{colors.primary.default.hex}}"
 
-color-link symbol "{{ colors.tertiary.default.hex }}"
-color-link symbol.brackets "{{ colors.on_surface_variant.default.hex }}"
-color-link symbol.tag "{{ colors.primary.default.hex }}"
+# Identifiers, Objects, Variables & Parameters
+color-link identifier "{{colors.on_surface.default.hex}}"
+color-link identifier.class "{{colors.tertiary.default.hex}}"
+color-link identifier.var "{{colors.on_surface.default.hex}}"
+color-link identifier.macro "bold {{colors.primary_container.default.hex}}"
 
-color-link type "{{ colors.primary.default.hex }}"
-color-link type.keyword "{{ colors.secondary.default.hex }}"
+# Types & Structs
+color-link type "{{colors.primary_container.default.hex}}"
+color-link type.keyword "bold {{colors.primary.default.hex}}"
 
-color-link special "{{ colors.tertiary.default.hex }}"
-color-link statement "{{ colors.primary.default.hex }}"
-color-link preproc "{{ colors.tertiary.default.hex }}"
+# Constants, Strings & Raw Digits
+color-link constant "{{colors.error.default.hex}}"
+color-link constant.number "{{colors.error.default.hex}}"
+color-link constant.string "{{colors.secondary.default.hex}}"
+color-link constant.string.escape "bold {{colors.tertiary.default.hex}}"
+color-link constant.bool "bold {{colors.error.default.hex}}"
 
-color-link underlined "{{ colors.secondary.default.hex }}"
-color-link error "bold {{ colors.error.default.hex }}"
-color-link todo "bold {{ colors.tertiary.default.hex }}"
+# Brackets, Operators & Special Group Symbols
+color-link symbol "{{colors.outline.default.hex}}"
+color-link symbol.brackets "{{colors.on_surface_variant.default.hex}}"
+color-link symbol.operator "{{colors.outline.default.hex}}"
+color-link symbol.tag "bold {{colors.primary.default.hex}}"
 
-color-link diff-added "{{ colors.secondary.default.hex }}"
-color-link diff-modified "{{ colors.tertiary.default.hex }}"
-color-link diff-deleted "{{ colors.error.default.hex }}"
+# Preprocessor Directives (#include, macros)
+color-link preproc "{{colors.secondary_container.default.hex}}"
+color-link preproc.shebang "bold {{colors.outline.default.hex}}"
 
-color-link gutter-error "{{ colors.error.default.hex }}"
-color-link gutter-warning "{{ colors.tertiary.default.hex }}"
+# Comments
+color-link comment "italic {{colors.outline.default.hex}}"
 
-color-link scrollbar "{{ colors.on_surface_variant.default.hex }}"
-color-link statusline "{{ colors.on_surface.default.hex }},{{ colors.surface.default.hex }}"
-color-link tabbar "{{ colors.on_surface.default.hex }},{{ colors.surface.default.hex }}"
-color-link indent-char "{{ colors.surface_variant.default.hex }}"
-color-link line-number "{{ colors.outline.default.hex }}"
-color-link current-line-number "{{ colors.primary.default.hex }}"
+# Decorators & Alerts
+color-link underlined "underline {{colors.secondary.default.hex}}"
+color-link error "bold {{colors.error.default.hex}}"
+color-link todo "bold reverse {{colors.tertiary.default.hex}}"
 
-color-link cursor-line "{{ colors.on_surface.default.hex }},{{ colors.surface_container_high.default.hex }}"
-color-link color-column "{{ colors.surface_variant.default.hex }}"
-color-link type.extended "default"
+# Editor Gutter Layout & Line Tracking
+color-link line-number "{{colors.outline_variant.default.hex}}"
+color-link current-line-number "bold {{colors.primary.default.hex}}"
+color-link indent-char "{{colors.surface_container_high.default.hex}}"
+
+# Status Bar, Tabs, & Interface Prompts
+color-link statusline "{{colors.on_surface_variant.default.hex}},{{colors.surface_container_high.default.hex}}"
+color-link statusline.msg "{{colors.on_surface.default.hex}},{{colors.surface_container_high.default.hex}}"
+color-link statusline.error "{{colors.error.default.hex}},{{colors.surface_container_high.default.hex}}"
+
+color-link tabbar "{{colors.outline.default.hex}},{{colors.surface_container_low.default.hex}}"
+color-link tabbar.active "{{colors.primary.default.hex}},{{colors.surface.default.hex}}"
+
+# Native Git Diff Integration (Gutter Marks)
+color-link diff-added "{{colors.primary.default.hex}}"
+color-link diff-modified "{{colors.tertiary.default.hex}}"
+color-link diff-deleted "{{colors.error.default.hex}}"
+
+color-link gutter-error "{{colors.error.default.hex}}"
+color-link gutter-warning "{{colors.tertiary.default.hex}}"
+
+# Interactive Floating Windows (Autocomplete / Command Bars)
+color-link scrollbar "{{colors.outline_variant.default.hex}}"
+color-link hlsearch "reverse {{colors.secondary.default.hex}}"
+color-link messenger "{{colors.on_surface.default.hex}},{{colors.surface_container_high.default.hex}}"
+color-link divider "{{colors.surface_container_highest.default.hex}},{{colors.surface_container_highest.default.hex}}"

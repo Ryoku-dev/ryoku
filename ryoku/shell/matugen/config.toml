@@ -1,4 +1,5 @@
 [config]
+reload_apps = true
 
 # colors.json (the shell's own palette) is authored by the Go control plane;
 # matugen fans that same palette into the core desktop surface below. These
@@ -11,14 +12,17 @@
 [templates.kitty]
 input_path = "~/.config/matugen/templates/kitty-colors.conf"
 output_path = "~/.config/kitty/current-theme.conf"
+post_hook = "kitty @ set-colors --all --configured ~/.config/kitty/current-theme.conf || true"
 
 [templates.hypr]
 input_path = "~/.config/matugen/templates/hypr-colors.lua"
 output_path = "~/.cache/ryoku/hypr-colors.lua"
+post_hook = "hyprctl reload || true"
 
 [templates.btop]
 input_path = "~/.config/matugen/templates/btop.theme"
 output_path = "~/.config/btop/themes/ryoku.theme"
+post_hook = "pkill -USR2 btop || true"
 
 # Fastfetch reads the shared palette directly so custom ryoku:recolor roles see
 # the same committed values as the shell. This compatibility render also provides
@@ -26,7 +30,7 @@ output_path = "~/.config/btop/themes/ryoku.theme"
 [templates.fastfetch]
 input_path = "~/.config/matugen/templates/fastfetch-colors.json"
 output_path = "~/.config/fastfetch/ryoku-colors.json"
-post_hook = "ryoku-hub fastfetch effective \"${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.json\" >/dev/null 2>&1 || true"
+post_hook = "sh -c 'ryoku-hub fastfetch effective \"${XDG_CACHE_HOME:-$HOME/.cache}/ryoku/fastfetch-effective.json\" >/dev/null 2>&1 || true'"
 
 # The screen-share source chooser xdph launches. A core desktop surface, not a
 # third-party app: it renders here so the chooser follows the wallpaper even

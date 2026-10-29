@@ -1,0 +1,3 @@
+# Tell Yazi to pull all layout styling rules from your Matugen flavor
+[flavor]
+use = "matugen"

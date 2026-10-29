@@ -1,43 +1,65 @@
-# Ryoku palette -> btop. Rendered by matugen; do not edit.
+# Ryoku Material You theme for btop. Rendered by matugen; do not edit.
+
+# Main UI elements
 theme[main_bg]="{{colors.background.default.hex}}"
-theme[main_fg]="{{colors.foreground.default.hex}}"
-theme[title]="{{colors.foreground.default.hex}}"
-theme[hi_fg]="{{colors.color4.default.hex}}"
-theme[selected_bg]="{{colors.color8.default.hex}}"
-theme[selected_fg]="{{colors.foreground.default.hex}}"
-theme[inactive_fg]="{{colors.color8.default.hex}}"
-theme[graph_text]="{{colors.foreground.default.hex}}"
-theme[meter_bg]="{{colors.color0.default.hex}}"
-theme[proc_misc]="{{colors.color4.default.hex}}"
-theme[cpu_box]="{{colors.color8.default.hex}}"
-theme[mem_box]="{{colors.color8.default.hex}}"
-theme[net_box]="{{colors.color8.default.hex}}"
-theme[proc_box]="{{colors.color8.default.hex}}"
-theme[div_line]="{{colors.color8.default.hex}}"
-theme[temp_start]="{{colors.color6.default.hex}}"
-theme[temp_mid]="{{colors.color3.default.hex}}"
-theme[temp_end]="{{colors.color4.default.hex}}"
-theme[cpu_start]="{{colors.color7.default.hex}}"
-theme[cpu_mid]="{{colors.color6.default.hex}}"
-theme[cpu_end]="{{colors.color4.default.hex}}"
-theme[free_start]="{{colors.color8.default.hex}}"
-theme[free_mid]="{{colors.color6.default.hex}}"
-theme[free_end]="{{colors.foreground.default.hex}}"
-theme[cached_start]="{{colors.color6.default.hex}}"
-theme[cached_mid]="{{colors.color7.default.hex}}"
-theme[cached_end]="{{colors.foreground.default.hex}}"
-theme[available_start]="{{colors.color3.default.hex}}"
-theme[available_mid]="{{colors.color6.default.hex}}"
-theme[available_end]="{{colors.color7.default.hex}}"
-theme[used_start]="{{colors.color5.default.hex}}"
-theme[used_mid]="{{colors.color4.default.hex}}"
-theme[used_end]="{{colors.color1.default.hex}}"
-theme[download_start]="{{colors.color6.default.hex}}"
-theme[download_mid]="{{colors.color7.default.hex}}"
-theme[download_end]="{{colors.foreground.default.hex}}"
-theme[upload_start]="{{colors.color5.default.hex}}"
-theme[upload_mid]="{{colors.color4.default.hex}}"
-theme[upload_end]="{{colors.color1.default.hex}}"
-theme[process_start]="{{colors.color6.default.hex}}"
-theme[process_mid]="{{colors.color4.default.hex}}"
-theme[process_end]="{{colors.color1.default.hex}}"
+theme[main_fg]="{{colors.on_background.default.hex}}"
+theme[title]="{{colors.primary.default.hex}}"
+theme[hi_fg]="{{colors.tertiary.default.hex}}"
+theme[selected_bg]="{{colors.primary_container.default.hex}}"
+theme[selected_fg]="{{colors.on_primary_container.default.hex}}"
+theme[inactive_fg]="{{colors.outline.default.hex}}"
+theme[graph_text]="{{colors.on_surface_variant.default.hex}}"
+theme[meter_bg]="{{colors.surface_container_high.default.hex}}"
+theme[proc_misc]="{{colors.tertiary.default.hex}}"
+
+# Box Outlines & Dividers
+theme[cpu_box]="{{colors.outline_variant.default.hex}}"
+theme[mem_box]="{{colors.outline_variant.default.hex}}"
+theme[net_box]="{{colors.outline_variant.default.hex}}"
+theme[proc_box]="{{colors.outline_variant.default.hex}}"
+theme[div_line]="{{colors.outline_variant.default.hex}}"
+
+# Temperature Gradient (Normal -> Warm -> Critical)
+theme[temp_start]="{{colors.tertiary.default.hex}}"
+theme[temp_mid]="{{colors.secondary.default.hex}}"
+theme[temp_end]="{{colors.error.default.hex}}"
+
+# CPU Graph Gradient (Low -> Moderate -> High)
+theme[cpu_start]="{{colors.primary.default.hex}}"
+theme[cpu_mid]="{{colors.secondary.default.hex}}"
+theme[cpu_end]="{{colors.error.default.hex}}"
+
+# Memory: Free Space (High -> Mid -> Low Capacity)
+theme[free_start]="{{colors.primary.default.hex}}"
+theme[free_mid]="{{colors.primary_container.default.hex}}"
+theme[free_end]="{{colors.surface_container_highest.default.hex}}"
+
+# Memory: Cached
+theme[cached_start]="{{colors.secondary.default.hex}}"
+theme[cached_mid]="{{colors.secondary_container.default.hex}}"
+theme[cached_end]="{{colors.on_secondary_container.default.hex}}"
+
+# Memory: Available
+theme[available_start]="{{colors.tertiary.default.hex}}"
+theme[available_mid]="{{colors.tertiary_container.default.hex}}"
+theme[available_end]="{{colors.on_tertiary_container.default.hex}}"
+
+# Memory: Used (Normal -> Warning -> Heavy)
+theme[used_start]="{{colors.primary.default.hex}}"
+theme[used_mid]="{{colors.tertiary.default.hex}}"
+theme[used_end]="{{colors.error.default.hex}}"
+
+# Network: Download (Primary Accent Gradient)
+theme[download_start]="{{colors.primary_container.default.hex}}"
+theme[download_mid]="{{colors.primary.default.hex}}"
+theme[download_end]="{{colors.inverse_primary.default.hex}}"
+
+# Network: Upload (Tertiary Accent Gradient)
+theme[upload_start]="{{colors.tertiary_container.default.hex}}"
+theme[upload_mid]="{{colors.tertiary.default.hex}}"
+theme[upload_end]="{{colors.on_tertiary.default.hex}}"
+
+# Process List High Usage Gradient
+theme[process_start]="{{colors.primary.default.hex}}"
+theme[process_mid]="{{colors.tertiary.default.hex}}"
+theme[process_end]="{{colors.error.default.hex}}"
