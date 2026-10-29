@@ -64,6 +64,15 @@ card_has_connected() {
   return 1
 }
 
+card_connected_names() {
+  local card_name="$1" conn name
+  for conn in "$drm_root/${card_name}-"*; do
+    [ -r "$conn/status" ] && [ "$(cat "$conn/status")" = connected ] || continue
+    name=${conn##*/}
+    printf '%s ' "${name#"$card_name"-}"
+  done
+}
+
 select_drm_card() {
   local card card_name number class boot
   for card in "$drm_root"/card[0-9]*; do
@@ -316,13 +325,26 @@ command -v weston >/dev/null 2>&1 || { echo "ryoku-greeter: weston not found" >&
 # Output: "<name> <w> <h> <refresh-string>" lines. Refresh is kept verbatim from
 # modetest so weston matches the exact modelist entry. modetest holds no DRM
 # master, so this is safe to poll before weston takes the card.
+#
+# modetest's -D is a legacy bus id, not a device node: a /dev/dri path never
+# opens anything. -M opens the first card bound to the named DRM driver, so a
+# second card on the same driver could answer instead; only connectors sysfs
+# reports connected on the selected card are kept. Fails when the card cannot
+# be probed at all, so the caller stops polling instead of waiting out the
+# deadline in front of a black screen.
 probe_modes() {
-  [ -n "$selected_card" ] || return 0
-  modetest -D "/dev/dri/$selected_card" -c 2>/dev/null | awk '
+  local driver connected out
+  [ -n "$selected_card" ] || return 1
+  driver="$(sed -n 's/^DRIVER=//p' "$drm_root/$selected_card/device/uevent" 2>/dev/null)"
+  [ -n "$driver" ] || return 1
+  out="$(modetest -M "$driver" -c 2>/dev/null)" || return 1
+  connected="$(card_connected_names "$selected_card")"
+  printf '%s\n' "$out" | awk -v connected="$connected" '
+    BEGIN { n = split(connected, names, " "); for (i = 1; i <= n; i++) live[names[i]] = 1 }
     /^Connectors:/ { insec = 1; next }
     /^(CRTCs|Encoders|Planes|Framebuffers):/ { insec = 0 }
     !insec { next }
-    $3 == "connected"    { conn = $4; next }
+    $3 == "connected"    { conn = ($4 in live) ? $4 : ""; next }
     $3 == "disconnected" { conn = "";  next }
     conn != "" && $1 ~ /^#[0-9]+$/ {
       split($2, wh, "x"); w = wh[1] + 0; h = wh[2] + 0; rr = $3 + 0
@@ -385,7 +407,10 @@ compose_and_start() {
   modes=""
   last=-1
   while :; do
-    modes="$(probe_modes)"
+    if ! modes="$(probe_modes)"; then
+      modes=""
+      break
+    fi
     n=$(printf '%s' "$modes" | awk 'NF { c++ } END { print c + 0 }')
     elapsed=$(( SECONDS - start ))
     [ "$elapsed" -ge "$deadline" ] && break
