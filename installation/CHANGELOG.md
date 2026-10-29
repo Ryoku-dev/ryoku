@@ -18,6 +18,12 @@
   (`installerplan/components.tsv`, `tui/main.go`, `backend/lib/deploy.sh`).
 
 ### Fixed
+- **ISO installs finish the sign-in screen setup again.** mkarchiso copies the
+  baked payload without file modes, so the greeter helper that 1.0.6 added
+  (`sddm-host/install-greeter-theme`) reached the target as 0644 and every ISO
+  install stopped at the configure stage with "Permission denied". The
+  backend now restores its executable bit after copying the qylock bundle, as
+  it already does for the two installers it stages (`backend/lib/deploy.sh`).
 - **Fresh installs receive newer Ryoku package overrides.** After the Arch or
   CachyOS desktop transaction, the installer aligns every installed package
   that `[ryoku]` serves at a newer version. Both offline ISO repositories

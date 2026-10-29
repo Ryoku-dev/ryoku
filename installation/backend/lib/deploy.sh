@@ -516,10 +516,13 @@ ryoku_deploy_qylock() {
   log "deploying qylock bundle + SDDM clockwork theme"
   deploy_dir "$RYOKU_REPO/ryoku/lockscreen/qylock" /mnt/usr/share/ryoku/qylock
 
-  # stage the two installers in the chroot, run, drop.
+  # stage the two installers in the chroot, run, drop. mkarchiso copies the
+  # payload with --no-preserve=mode, so every script the bundle executes
+  # directly needs its bit back here.
   run cp "$RYOKU_REPO/ryoku/lockscreen/sddm/setup" /mnt/root/ryoku-sddm-setup
   run cp "$RYOKU_REPO/ryoku/lockscreen/install-qylock" /mnt/root/ryoku-install-qylock
-  run chmod 755 /mnt/root/ryoku-sddm-setup /mnt/root/ryoku-install-qylock
+  run chmod 755 /mnt/root/ryoku-sddm-setup /mnt/root/ryoku-install-qylock \
+    /mnt/usr/share/ryoku/qylock/sddm-host/install-greeter-theme
   local env="RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock RYOKU_QYLOCK_MODE=live SUDO_USER=$RYOKU_USERNAME RYOKU_DRYRUN=${RYOKU_DRYRUN:-}"
   # shellcheck disable=SC2086  # env assignments are intentionally word-split
   run "$RYOKU_TARGET_CHROOT" /mnt env $env /root/ryoku-sddm-setup
