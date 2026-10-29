@@ -6,7 +6,7 @@ Item {
     id: media
 
     property url source: ""
-    property string mode: "cover"       // cover | hero | plate | view
+    property string mode: "cover"       // cover | icon | hero | plate | view
     property bool active: true
     property bool actualPixels: false
     property color surface: Tokens.paper
@@ -19,7 +19,7 @@ Item {
     readonly property bool video: /\.(mp4|webm|mkv|mov|m4v)$/.test(cleanSource)
     readonly property bool animated: !video && /\.(gif|webp)$/.test(cleanSource)
     readonly property bool framed: mode === "plate" || mode === "view"
-    readonly property bool fitted: framed || mode === "hero"
+    readonly property bool fitted: framed || mode === "hero" || mode === "icon"
     readonly property bool nativeDecode: actualPixels || fitted || animated
     readonly property int imageFit: fitted ? Image.PreserveAspectFit : Image.PreserveAspectCrop
     readonly property int videoFit: fitted ? VideoOutput.PreserveAspectFit : VideoOutput.PreserveAspectCrop
