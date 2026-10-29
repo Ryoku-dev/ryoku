@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **The login screen appears without a six-second black screen, at the
+  panel's top refresh rate.** The greeter asked `modetest` for the card by
+  `/dev/dri` path, which its `-D` (a legacy bus id) never opens, so every boot
+  polled until the settle deadline and then fell back to weston's preferred
+  mode. It now probes by DRM driver, keeps only connectors sysfs reports on the
+  chosen card, and starts weston at once when the card cannot be probed
+  (`lockscreen/sddm/ryoku-greeter`).
 - **Holding a mute, mic-mute or play key on niri toggles once.** niri repeats
   binds while a key is held, so a slightly long press could mute and unmute
   the microphone again or pause and resume playback; these toggles now ignore
