@@ -1,6 +1,14 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku update` no longer installs the stock kernel on a converted CachyOS
+  box.** A box converted in place by `ryoku-shell-install` never got the
+  provisioned-ledger entries the ISO writes for `cachyos.replaces`, so the
+  manifest reconciler treated `linux` and `yay-bin` as never delivered and
+  installed them next to `linux-cachyos` and CachyOS's `yay`. The manifest now
+  carries `cachyosReplaces`, and a CachyOS host reads the base, dev, hardware
+  and AUR lanes without those names (`internal/ryokumanifest/manifest.go`,
+  `internal/updater/manifest.go`, `cmd/ryoku-manifest`).
 - **Phone installs use headers for the installed kernels, not driver modules.**
   Pacman reads each kernel's pkgbase and no longer adds stock headers on systems
   without the stock kernel (`internal/host/phone.go`, `internal/host/phone_test.go`).

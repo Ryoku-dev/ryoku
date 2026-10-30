@@ -1,6 +1,7 @@
 package updater
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -220,5 +221,50 @@ func TestPlanManifestDoesNotInstallChoiceAbsentFromNext(t *testing.T) {
 	plan := PlanManifest(prev, map[string]bool{"base": true}, next, map[string]bool{"base": true})
 	if len(plan.Install) != 0 {
 		t.Errorf("install = %v; a package absent from the new manifest must stay absent", plan.Install)
+	}
+}
+
+func TestForHostDropsCachyOSReplacedNamesOnlyOnCachyOS(t *testing.T) {
+	served := ryokumanifest.Manifest{
+		Base:            []string{"base", "linux"},
+		AUR:             []string{"yay-bin"},
+		CachyOSReplaces: []string{"linux", "yay-bin"},
+	}
+	for _, tc := range []struct {
+		osRelease string
+		wantBase  []string
+		wantAUR   []string
+	}{
+		{"NAME=\"CachyOS Linux\"\nID=cachyos\n", []string{"base"}, nil},
+		{"NAME=\"Arch Linux\"\nID=arch\n", []string{"base", "linux"}, []string{"yay-bin"}},
+	} {
+		path := filepath.Join(t.TempDir(), "os-release")
+		if err := os.WriteFile(path, []byte(tc.osRelease), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("RYOKU_OS_RELEASE", path)
+		got := ForHost(served)
+		if !reflect.DeepEqual(got.Base, tc.wantBase) || !reflect.DeepEqual(got.AUR, tc.wantAUR) {
+			t.Errorf("%q: base=%v aur=%v, want base=%v aur=%v",
+				tc.osRelease, got.Base, got.AUR, tc.wantBase, tc.wantAUR)
+		}
+	}
+}
+
+func TestForHostKeepsAConvertedCachyOSBoxOffTheStockKernel(t *testing.T) {
+	// A box converted in place by ryoku-shell-install has no ledger entry for
+	// the stock kernel. Before ForHost, the reconciler read linux as "never
+	// delivered" and installed it next to linux-cachyos.
+	path := filepath.Join(t.TempDir(), "os-release")
+	if err := os.WriteFile(path, []byte("ID=cachyos\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RYOKU_OS_RELEASE", path)
+	m := ryokumanifest.Manifest{Base: []string{"base", "linux"}, CachyOSReplaces: []string{"linux"}}
+	next := ForHost(m)
+	installed := map[string]bool{"base": true, "linux-cachyos": true}
+	plan := PlanManifest(&next, map[string]bool{"base": true}, &next, installed)
+	if len(plan.Install) != 0 || len(plan.UserGone) != 0 {
+		t.Errorf("plan = %+v, want nothing to install or report", plan)
 	}
 }

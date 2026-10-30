@@ -118,6 +118,8 @@ type Inputs struct {
 	Dev      string // system/packages/dev.packages
 	Hardware string // system/packages/hardware.packages
 	AUR      string // system/packages/aur.packages
+	// CachyOSReplaces is system/packages/cachyos.replaces.
+	CachyOSReplaces string
 	// Choices names packages selected per box by the installer.
 	Choices map[string]bool
 	// FirstParty maps a release/packages/<dir> name to its PKGBUILD contents.
@@ -152,6 +154,8 @@ func Build(in Inputs) Manifest {
 		AUR:         withoutPackages(PackageSet(in.AUR), in.Choices),
 		Compositor:  compositorPackages(in.Compositor),
 		Provisioned: AppNames(),
+
+		CachyOSReplaces: PackageSet(in.CachyOSReplaces),
 	}
 	declared := map[string]bool{}
 	for _, pkgs := range m.Compositor {

@@ -1,8 +1,10 @@
 # base.packages and aur.packages names the CachyOS layer (cachyos.packages)
 # replaces. A CachyOS install never carries them: pacstrap and the AUR step leave
 # them out, the offline ISO does not bake them, and the installer records them in
-# the provisioning ledger so `ryoku update` does not deliver them later. One
-# package per line.
+# the provisioning ledger. The release manifest also carries this list, so
+# `ryoku update` never delivers these names to any CachyOS box, including one
+# converted in place by ryoku-shell-install, which has no ledger entries for
+# them. One package per line.
 
 # The stock kernel: CachyOS boots linux-cachyos with linux-cachyos-lts as the
 # fallback. linux-headers is not listed: ryoku-desktop depends on it by name
