@@ -428,7 +428,11 @@ package provides (rustup for rust, tuned-ppd for power-profiles-daemon) counts
 as present, so the box's own choice is never overwritten, and the opt-in names
 (`ryokumanifest.OptIn`: hardware packages, the Limine hook and snapshot sync,
 and prowl, which only ever arrives as ryoku-rashin's dependency)
-belong to their gated reconcilers and are never converged. The deliver-once
+belong to their gated reconcilers and are never converged. On a CachyOS box
+(os-release `ID=cachyos`) the manifest is read without the names its layer
+replaces (`cachyosReplaces`, from `system/packages/cachyos.replaces`: the stock
+`linux` kernel and `yay-bin`), so a box converted in place, which has no ledger
+entries for them, is never offered them either. The deliver-once
 apps stay `reconcileShippedApps'` lane, so one update never runs two
 transactions over the same names. Best-effort: a box with no mirror or no
 network reports what did not land and the update moves on. `ryoku verify`

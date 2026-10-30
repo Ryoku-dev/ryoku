@@ -60,7 +60,37 @@ func FetchManifest() (ryokumanifest.Manifest, error) {
 	if m.Schema > ryokumanifest.Schema {
 		return m, fmt.Errorf("manifest schema %d is newer than this ryoku understands (%d); run a full update first", m.Schema, ryokumanifest.Schema)
 	}
-	return m, nil
+	return ForHost(m), nil
+}
+
+// ForHost is the served manifest as this box should read it. A CachyOS box
+// (os-release ID=cachyos) never carries what its layer replaces, however it was
+// installed, so every reader -- the reconciler, `ryoku verify` -- sees the same
+// set and none of them offers the stock kernel back.
+func ForHost(m ryokumanifest.Manifest) ryokumanifest.Manifest {
+	if osReleaseID() == "cachyos" {
+		return m.ForCachyOS()
+	}
+	return m
+}
+
+// osReleaseID is os-release's ID, unquoted; RYOKU_OS_RELEASE points tests at a
+// fixture, as it does for host's repository URL expansion.
+func osReleaseID() string {
+	path := strings.TrimSpace(os.Getenv("RYOKU_OS_RELEASE"))
+	if path == "" {
+		path = "/etc/os-release"
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		if value, ok := strings.CutPrefix(strings.TrimSpace(line), "ID="); ok {
+			return strings.Trim(value, `"'`)
+		}
+	}
+	return ""
 }
 
 // Applied is the box's saved baseline: the manifest it last converged to, and
