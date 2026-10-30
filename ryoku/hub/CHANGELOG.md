@@ -52,6 +52,18 @@
   upgrade, kernel included, rides along with the Ryoku packages
   (`backend/config.go`, `quickshell/pages/UpdatesPage.qml`,
   `quickshell/schema/UpdatesPage.js`).
+- **The settings search is navigable by keyboard.** Typing in the rail search
+  now keeps a cursor over its results: Up and Down walk the hits (wrapping at
+  the ends), Enter opens the selected one instead of always the top hit, and
+  the header shows `N / TOTAL` so a long list is legible. The cursor resets on
+  every edit and on dismissal, so refining a query or reopening the field
+  never leaves a stale row selected. Moving the pointer over a row also moves
+  the cursor, and the keyboard and pointer highlights share one state, so a
+  click after a key press looks like a continuation rather than a jump
+  (`quickshell/Hub.ml`).
+- **`Ctrl + F` also opens the settings search.** The rail finder answered only
+  to `Ctrl + K`; it now accepts `Ctrl + F` as well, the shortcut a user
+  instinctively reaches for in a settings app (`quickshell/Hub.ml`).
 - **General manages people on this computer.** The Users tab lists local
   accounts, sign-in state, roles, permissions and home storage, and lets an
   administrator add or remove people, reset passwords and set storage limits
