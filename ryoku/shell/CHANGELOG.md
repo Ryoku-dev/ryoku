@@ -34,6 +34,9 @@
 - **The desktop visualizer stays behind apps and the dock after Super+M.** Its
   ordinary on/off toggle no longer creates the separate Above windows surface
   while the desktop renderer catches up (`quickshell/shell/shell.qml`).
+- **Long Orpheus tray menus can be scrolled to their last row.** Tray cards now
+  stay within the display and scroll only when their contents exceed that space
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{kit/Sheet,cards/TrayCard}.qml`).
 - **Orpheus workspace marks stay in workspace order.** The strip now follows
   each output's numeric workspace positions when providers report them out of
   sequence (`quickshell/shell/modules/bar/barstyles/orpheus/modules/Workspaces.qml`).
