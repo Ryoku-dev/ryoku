@@ -88,8 +88,9 @@ packages=${package_command#*DRYRUN: sudo -n xbps-install -Sy }
 for package in $packages; do
   printf '%s\n' "$package" >> "$installed"
   case $package in
-    # the Ryoku apps are installer choices, on by default, outside the desktop lane
-    ryoku-keyring|ryoku-desktop|ryoku-desktop-niri|ryotunes|ryomanager) ;;
+    # the Ryoku apps and the launcher radio are installer choices, on by
+    # default, outside the desktop lane
+    ryoku-keyring|ryoku-desktop|ryoku-desktop-niri|ryotunes|ryomanager|mpv|mpv-mpris) ;;
     *) grep -Fxq "$package" "$resolved" ||
       fail "XBPS package transaction contains '$package', which the resolver did not return" ;;
   esac

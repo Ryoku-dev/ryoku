@@ -16,6 +16,33 @@ bin="$tmp/bin"
 conf="$tmp/hypridle.conf"
 mkdir -p "$bin" "$tmp/proc"
 
+# fake_daemon <path>: a process that stays alive under its own name (comm is
+# the script's basename). Not a renamed copy of sleep: on uutils coreutils
+# sleep is a multicall binary that dispatches on argv[0] and exits at once
+# under any other name.
+fake_daemon() {
+  cat >"$1" <<'EOF'
+#!/bin/sh
+sleep "${1:-60}" &
+child=$!
+trap 'kill "$child" 2>/dev/null; exit 0' TERM INT HUP
+wait "$child"
+EOF
+  chmod +x "$1"
+}
+
+# wait_fake_ready <pid>: the fake has read its script and forked its sleeper,
+# so its file may be replaced and its comm is already its own name.
+wait_fake_ready() {
+  local _
+  for _ in {1..300}; do
+    [[ -n $(pgrep -P "$1" 2>/dev/null) ]] && return 0
+    sleep 0.01
+  done
+  printf 'fake daemon %s did not start\n' "$1" >&2
+  return 1
+}
+
 cat >"$bin/ryoku-power" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$RYOKU_IDLE_TEST_POLICY"
@@ -285,7 +312,7 @@ touch "$tmp/fail-on"
 export RYOKU_IDLE_WM_FAIL_ALWAYS="$tmp/fail-on"
 "$helper" output-on &
 wake_pid=$!
-for _ in {1..50}; do
+for _ in {1..200}; do
   [[ -r $RYOKU_IDLE_WM_COUNT ]] && break
   sleep 0.01
 done
@@ -316,9 +343,10 @@ fi
 
 # `apply` is an update safety gate: a running daemon with the old generated
 # hooks must actually be gone before it reports success.
-cp /usr/bin/sleep "$bin/hypridle"
+fake_daemon "$bin/hypridle"
 "$bin/hypridle" 60 &
 idle_pid=$!
+wait_fake_ready "$idle_pid"
 ln -s "/proc/$idle_pid" "$tmp/proc/$idle_pid"
 export RYOKU_IDLE_TEST_POLICY='{"enabled":false,"onDesktops":false}'
 "$helper" apply
@@ -335,9 +363,10 @@ idle_pid=""
 rm -f "$sway_bin/hypridle"
 ln -s "$(command -v setsid)" "$sway_bin/setsid"
 ln -s "$(command -v sleep)" "$sway_bin/sleep"
-cp /usr/bin/sleep "$sway_bin/swayidle"
+fake_daemon "$sway_bin/swayidle"
 PATH="$sway_bin" "$sway_bin/swayidle" 60 &
 idle_pid=$!
+wait_fake_ready "$idle_pid"
 ln -s "/proc/$idle_pid" "$tmp/proc/$idle_pid"
 rm -f "$sway_bin/swayidle"
 cat >"$sway_bin/swayidle" <<'EOF'
@@ -357,7 +386,7 @@ fi
 wait "$idle_pid" 2>/dev/null || true
 rm -f "$tmp/proc/$idle_pid"
 idle_pid=""
-for _ in {1..50}; do
+for _ in {1..200}; do
   [[ -r $RYOKU_IDLE_SWAY_PID ]] && break
   sleep 0.01
 done
