@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
+  and Super+K open the active style's launcher, clipboard, settings and
+  cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's
+  island feedback replaces the shell's OSD while it is the bar
+  (`quickshell/shell/{shell.qml,services/Config.qml}`, `ipc/daemon.go`,
+  `wm/{niri,wayfire}/config_binds.go`, `hyprland/modules/binds.lua`).
 - **A failed graphics process cannot leave the login cover on screen forever.**
   The cover launcher now removes a wedged surface after one minute even when
   its own animation timer cannot run (`scripts/ryoku-reload-cover`).

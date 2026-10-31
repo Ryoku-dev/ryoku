@@ -623,6 +623,12 @@ ShellRoot {
             if (st)
                 st.clipboardOpen = !st.clipboardOpen;
             break;
+        case "settings":
+            Quickshell.execDetached(["ryoku-shell", "hub", "open"]);
+            break;
+        case "cheatsheet":
+            Quickshell.execDetached(["sh", "-c", "pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys"]);
+            break;
         case "screenshot":
             Quickshell.execDetached(["ryoku-cmd-ryoshot"]);
             break;
@@ -646,10 +652,15 @@ ShellRoot {
         target: ShellState
         function onSurfaceRequested(id, mon, ctx) {
             switch (id) {
-            case "barToggle":
             case "launcher":
-            case "overview":
             case "clipboard":
+            case "settings":
+            case "cheatsheet":
+                if (!Config.styleOwns(id))
+                    root.toggleSurface(id);
+                break;
+            case "barToggle":
+            case "overview":
             case "screenshot":
             case "visualizer":
             case "visualizer-overlay":
@@ -671,7 +682,7 @@ ShellRoot {
     CustomShortcut {
         name: "launcher"
         description: I18n.tr("Toggle the app launcher on the active monitor")
-        onPressed: root.toggleSurface("launcher")
+        onPressed: ShellState.requestSurfaceActive("launcher", undefined)
     }
     CustomShortcut {
         name: "overview"
@@ -1092,7 +1103,7 @@ ShellRoot {
     CustomShortcut {
         name: "clipboard"
         description: I18n.tr("Open the clipboard history on the active monitor")
-        onPressed: root.toggleSurface("clipboard")
+        onPressed: ShellState.requestSurfaceActive("clipboard", undefined)
     }
     CustomShortcut {
         name: "ask"

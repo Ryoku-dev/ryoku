@@ -120,7 +120,7 @@ func sendCommand(line string) error {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell daemon")
-	fmt.Fprintln(os.Stderr, "  ryoku-shell launcher")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell <launcher|clipboard|settings|cheatsheet>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell overview")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell plugin <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <visualizer|visualizer-overlay>")

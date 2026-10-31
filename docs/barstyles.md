@@ -759,6 +759,40 @@ snapshots the keys and applies them live. A folder style usually ships its own
 settings surface instead, the way QS Bar carries **QS Bar Settings** (see below).
 A style with no settings omits all of this.
 
+## What a style may own
+
+Three surfaces are Ryoku's under every style: screen capture (ryoshot,
+Super+Shift+S), the wallpaper picker (Ryogami, Super+W) and the quick-settings
+sidebar (Super+Escape). Everything else a ported shell brings is that style's
+while it is active. `Config.qml` says which style owns which key:
+
+| Key | Gate | Falls back to |
+|---|---|---|
+| Super+Space | `styleOwnsLauncher` | Ryoku's launcher |
+| Super+V | `styleOwnsClipboard` | Ryoku's clipboard history |
+| Super+comma | `styleOwnsSettings` | Ryoku Hub |
+| Super+K | `styleOwnsCheatsheet` | Kit |
+| banners | `styleOwnsBanners` | the shell's notification column |
+| volume and brightness OSD | `styleOwnsFeedback` | the shell's OSD |
+
+Every bind spawns `ryoku-shell <launcher|clipboard|settings|cheatsheet>`;
+Hyprland's in-process global shortcuts land on the same bus. The shell handles
+the request itself only when the active style does not own it, so a Scene that
+owns a key listens on `ShellState.surfaceRequested` from its primary host:
+
+```qml
+Connections {
+    target: ShellState
+    function onSurfaceRequested(id, mon, ctx) {
+        if (id === "launcher")
+            GlobalStates.searchOpen = !GlobalStates.searchOpen
+    }
+}
+```
+
+A style's opt-out key (Shima's `inir.iris.modules.palette`, Python's
+`python.general.notifications`) hands the key back to Ryoku.
+
 ## QS Bar Settings
 
 QS Bar carries its own settings panel, **QS Bar Settings** (`controlcenter/`), the

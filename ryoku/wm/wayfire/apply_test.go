@@ -426,7 +426,7 @@ command_shell_ask = ryoku-shell ask
 binding_shell_ask = <alt> KEY_SPACE
 command_shell_rashin = ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app
 binding_shell_rashin = <super> <alt> KEY_SPACE
-command_shell_cheatsheet = pkill -x -f 'qs -c keys' 2>/dev/null || env QML_IMPORT_PATH="$HOME/.local/lib/qt6/qml" QML2_IMPORT_PATH="$HOME/.local/lib/qt6/qml" flock -n -o /tmp/ryoku-keys.lock qs -c keys
+command_shell_cheatsheet = ryoku-shell cheatsheet
 binding_shell_cheatsheet = <super> KEY_K
 command_shell_lock = ryoku-shell lock
 binding_shell_lock = <super> KEY_L
@@ -448,7 +448,7 @@ command_shell_visualizer_place = ryoku-shell visualizer-place
 binding_shell_visualizer_place = <super> <alt> KEY_M
 command_shell_voice = ryoku-shell voice
 binding_shell_voice = <super> KEY_GRAVE
-command_shell_settings = ryoku-shell hub open
+command_shell_settings = ryoku-shell settings
 binding_shell_settings = <super> KEY_COMMA
 command_shell_stage_editor = ryoku-shell hub open widgets
 binding_shell_stage_editor = <super> <shift> KEY_D
