@@ -92,6 +92,7 @@ Item {
         void pg.rev;
         return pg.ready && JSON.stringify(pg.model) !== JSON.stringify(pg.committed);
     }
+    readonly property bool compositionLocked: !!(pg.model && pg.model.renderer)
 
     // fastfetch's own config path; the head's EDIT CONFIG opens it raw, the same
     // file the Hub writes on Save so hand-edits and the GUI share one source.
@@ -220,6 +221,8 @@ Item {
     function setAccent(v) { var m = pg.clone(); m.accent = v; pg.commitModel(m); }
     function setPalette(v) { var m = pg.clone(); m.palette = v; pg.commitModel(m); }
     function setRow(i, k, v) {
+        if (pg.compositionLocked)
+            return;
         var m = pg.clone();
         m.rows[i][k] = v;
         if (k === "text" && m.rows[i].kind === "tagline")
@@ -227,6 +230,8 @@ Item {
         pg.commitModel(m);
     }
     function moveRow(i, d) {
+        if (pg.compositionLocked)
+            return;
         var j = i + d;
         if (j < 0 || j >= pg.model.rows.length)
             return;
@@ -234,8 +239,14 @@ Item {
         var t = m.rows[i]; m.rows[i] = m.rows[j]; m.rows[j] = t;
         pg.commitModel(m);
     }
-    function removeRow(i) { var m = pg.clone(); m.rows.splice(i, 1); pg.commitModel(m); }
+    function removeRow(i) {
+        if (pg.compositionLocked)
+            return;
+        var m = pg.clone(); m.rows.splice(i, 1); pg.commitModel(m);
+    }
     function addFromMenu(key) {
+        if (pg.compositionLocked)
+            return;
         var m = pg.clone();
         if (key === "__header")
             m.rows.push({ "kind": "header", "enabled": true, "text": "SECTION", "label": "Section header" });
@@ -658,10 +669,12 @@ Item {
         id: rt
         property string glyph: ""
         property color tint: Tokens.inkDim
+        property bool armed: true
         signal tapped()
         width: 26
         height: 26
         radius: Tokens.radius
+        opacity: armed ? 1 : 0.3
         color: rh.hovered ? Tokens.tint10 : "transparent"
         border.width: Tokens.border
         border.color: rh.hovered ? Tokens.lineStrong : Tokens.line
@@ -673,8 +686,8 @@ Item {
             font.family: Tokens.ui
             font.pixelSize: 12 // glyph, sized to the button, no matching token
         }
-        HoverHandler { id: rh; cursorShape: Qt.PointingHandCursor }
-        TapHandler { onTapped: rt.tapped() }
+        HoverHandler { id: rh; enabled: rt.armed; cursorShape: Qt.PointingHandCursor }
+        TapHandler { enabled: rt.armed; onTapped: rt.tapped() }
     }
 
     // ── head: eyebrow, Fraunces title with EDIT CONFIG, subtitle ─────────────
@@ -1291,6 +1304,7 @@ Item {
                             id: addBtn
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             glyph: "+"
+                            armed: !pg.compositionLocked
                             onAct: pg.addOpen = true
                         }
                         Rectangle {
@@ -1299,6 +1313,14 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             height: 1; color: Tokens.lineSoft
                         }
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: pg.compositionLocked
+                        text: I18n.tr("This style draws its own composition in the terminal, so its rows are fixed here.")
+                        color: Tokens.inkFaint; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                        wrapMode: Text.WordWrap
                     }
 
                     Repeater {
@@ -1320,8 +1342,8 @@ Item {
                                 anchors.left: parent.left; anchors.leftMargin: Tokens.s2
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: Tokens.s1
-                                RowTool { glyph: "\u2191"; onTapped: pg.moveRow(rowItem.index, -1) }
-                                RowTool { glyph: "\u2193"; onTapped: pg.moveRow(rowItem.index, 1) }
+                                RowTool { glyph: "\u2191"; armed: !pg.compositionLocked; onTapped: pg.moveRow(rowItem.index, -1) }
+                                RowTool { glyph: "\u2193"; armed: !pg.compositionLocked; onTapped: pg.moveRow(rowItem.index, 1) }
                             }
 
                             Text {
@@ -1342,6 +1364,7 @@ Item {
                                 anchors.verticalCenter: parent.verticalCenter
                                 visible: pg.rowEditable(rowItem.modelData.kind)
                                 placeholder: pg.rowPlaceholder(rowItem.modelData.kind)
+                                readOnly: pg.compositionLocked
                                 text: rowItem.modelData.kind === "module" ? (rowItem.modelData.key || "") : (rowItem.modelData.text || "")
                                 onCommitted: (v) => {
                                     var f = rowItem.modelData.kind === "module" ? "key" : "text";
@@ -1358,9 +1381,10 @@ Item {
                                 RowTool {
                                     glyph: rowItem.modelData.enabled ? "\u25cf" : "\u25cb"
                                     tint: rowItem.modelData.enabled ? Tokens.ink : Tokens.inkFaint
+                                    armed: !pg.compositionLocked
                                     onTapped: pg.setRow(rowItem.index, "enabled", !rowItem.modelData.enabled)
                                 }
-                                RowTool { glyph: "\u2715"; onTapped: pg.removeRow(rowItem.index) }
+                                RowTool { glyph: "\u2715"; armed: !pg.compositionLocked; onTapped: pg.removeRow(rowItem.index) }
                             }
                         }
                     }
