@@ -14,6 +14,8 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Fedora installs keep existing RPM Fusion FFmpeg and Docker CE packages, and
+  no longer request the nonexistent `util-linux-libs` package.
 - Users on filtered networks can route `ryoku update` and pacman through a
   local HTTP proxy without weakening package signature checks.
 - Screenshots no longer pick up the animated pointer when a cursor effect has

@@ -11,7 +11,7 @@ BuildRequires:  coreutils
 BuildRequires:  ffmpeg-free
 BuildRequires:  findutils
 BuildRequires:  python3
-Requires:       ffmpeg-free
+Requires:       /usr/bin/ffmpeg
 
 %description
 The real switch recordings both key-sound engines use, cut from the MIT-licensed

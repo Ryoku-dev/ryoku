@@ -2008,6 +2008,7 @@ func stepPackages(e *engine) error {
 		if err != nil {
 			return err
 		}
+		pkgs = e.dropSatisfied(pkgs)
 		return installPackagePlan(e, d, pkgs)
 	}
 	base, err := e.readBasePackages()
@@ -2188,23 +2189,46 @@ func uniquePackages(pkgs []string) []string {
 	return out
 }
 
-// dropSatisfied keeps only what no installed provider satisfies (pacman -T
-// prints the unmet names), so a provides-conflict like qt6ct-kde cannot
-// abort the install under --noconfirm.
+var fedoraProviderAlternatives = map[string]string{
+	"ffmpeg-free": "/usr/bin/ffmpeg",
+	"moby-engine": "docker",
+}
+
+func filterFedoraSatisfied(pkgs []string, provided func(string) bool) []string {
+	keep := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		capability, hasAlternative := fedoraProviderAlternatives[pkg]
+		if hasAlternative && provided(capability) {
+			continue
+		}
+		keep = append(keep, pkg)
+	}
+	return keep
+}
+
+// dropSatisfied keeps package names whose requirement is not already met by
+// an installed provider, avoiding package-name conflicts during installation.
 func (e *engine) dropSatisfied(pkgs []string) []string {
 	if e.dry || len(pkgs) == 0 {
 		return pkgs
 	}
-	if e.d().id != "arch" {
+	var keep []string
+	switch e.d().id {
+	case "arch":
+		out, err := exec.Command("pacman", append([]string{"-T"}, pkgs...)...).Output()
+		// exit 127 aside, pacman -T exits 1 when any target is unmet; the list
+		// on stdout is the answer either way, so only a total failure falls back.
+		if len(out) == 0 && err != nil {
+			return pkgs
+		}
+		keep = filterByUnmet(pkgs, string(out))
+	case "fedora":
+		keep = filterFedoraSatisfied(pkgs, func(capability string) bool {
+			return exec.Command("rpm", "-q", "--whatprovides", capability).Run() == nil
+		})
+	default:
 		return pkgs
 	}
-	out, err := exec.Command("pacman", append([]string{"-T"}, pkgs...)...).Output()
-	// exit 127 aside, pacman -T exits 1 when any target is unmet; the list on
-	// stdout is the answer either way, so only a total failure falls back.
-	if len(out) == 0 && err != nil {
-		return pkgs
-	}
-	keep := filterByUnmet(pkgs, string(out))
 	if len(keep) < len(pkgs) {
 		e.say(i18n.Tf("%d of %d packages already satisfied by installed providers", len(pkgs)-len(keep), len(pkgs)))
 	}

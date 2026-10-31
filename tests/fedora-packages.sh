@@ -215,6 +215,18 @@ spec_field() {
 	' "$path"
 }
 
+hard_dependency_satisfied() {
+	local arch_dep=$1 expected_dep=$2 file_requirement
+	[[ -n ${hard[$expected_dep]:-}${provided[$expected_dep]:-} ]] && return 0
+	case $arch_dep in
+		ffmpeg)
+			file_requirement=/usr/bin/ffmpeg
+			[[ -n ${hard[$file_requirement]:-} ]]
+			;;
+		*) return 1 ;;
+	esac
+}
+
 declare -A spec_names=() spec_paths=() spec_refs=()
 spec_count=0
 for spec in "$SPECS"/*.spec; do
@@ -258,7 +270,7 @@ for spec_pkg in "${!spec_names[@]}"; do
 		mapping=${row_fedora[$arch_dep]}
 		[[ $mapping != - ]] || continue
 		for expected_dep in $mapping; do
-			[[ -n ${hard[$expected_dep]:-}${provided[$expected_dep]:-} ]] \
+			hard_dependency_satisfied "$arch_dep" "$expected_dep" \
 				|| fail "$spec_pkg spec misses translated dependency $expected_dep (from $arch_dep)"
 		done
 	done < <(pkgbuild_field "$pkgbuild" depends)

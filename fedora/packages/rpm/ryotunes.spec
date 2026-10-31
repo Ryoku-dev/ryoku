@@ -31,7 +31,7 @@ Requires:       webkit2gtk4.1
 Requires:       libappindicator-gtk3
 Requires:       mpv-libs
 Requires:       yt-dlp
-Requires:       ffmpeg-free
+Requires:       /usr/bin/ffmpeg
 Requires:       openssl-libs
 Requires:       librsvg2
 Requires:       desktop-file-utils

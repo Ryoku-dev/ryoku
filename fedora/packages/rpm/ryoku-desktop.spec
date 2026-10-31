@@ -65,7 +65,7 @@ Requires:       pulseaudio-utils
 Requires:       jq
 Requires:       dbus-tools
 Requires:       ImageMagick
-Requires:       ffmpeg-free
+Requires:       /usr/bin/ffmpeg
 Requires:       curl
 Requires:       zenity
 Requires:       iw

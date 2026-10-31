@@ -254,7 +254,7 @@ ttf-readex-pro	ttf-readex-pro	desktop	Ryoku-owned RPM.
 ttf-rubik-vf	google-rubik-fonts	desktop	
 udev	systemd-udev	desktop	
 upower	upower	desktop	
-util-linux-libs	util-linux-libs	hyprland	
+util-linux-libs	-	hyprland	Fedora splits these libraries; RPM soname dependencies install the required providers.
 uv	uv	desktop	
 v4l2loopback-dkms	v4l2loopback v4l2loopback-dkms	optional	Provided by a restricted COPR.
 vdirsyncer	vdirsyncer	desktop	
