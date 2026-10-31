@@ -71,6 +71,11 @@ type Appearance struct {
 	GapsWorkspaces       int     `json:"gapsWorkspaces"`
 }
 
+// Render: compositor-owned colour-management behaviour.
+type Render struct {
+	AutoHDR bool `json:"autoHdr"`
+}
+
 // Dwindle: dwindle layout keywords, emitted as a dwindle block diffed against
 // the defaults.
 type Dwindle struct {
@@ -333,6 +338,7 @@ type Plugins struct {
 
 type Overrides struct {
 	Appearance     Appearance        `json:"appearance"`
+	Render         Render            `json:"render"`
 	Dwindle        Dwindle           `json:"dwindle"`
 	Master         Master            `json:"master"`
 	Input          Input             `json:"input"`
@@ -390,6 +396,7 @@ func defaultOverrides() Overrides {
 			ExtendBorderGrab: 15, HoverIconOnBorder: true, NoFocusFallback: false,
 			ResizeCorner: 0, GapsWorkspaces: 0,
 		},
+		Render:  Render{AutoHDR: false},
 		Dwindle: Dwindle{PreserveSplit: false, SmartSplit: false, SmartResizing: true, DefaultSplitRatio: 1, ForceSplit: "follow", UseActiveForSplits: true},
 		Master:  Master{Mfact: 0.55, NewStatus: "slave", NewOnTop: false, Orientation: "left", SmartResizing: true},
 		Input: Input{
@@ -434,6 +441,7 @@ func defaultOverrides() Overrides {
 // the one split table, driving both the reader and splitStore.
 var wmHyprlandFields = map[string]bool{
 	"dwindle":        true,
+	"render":         true,
 	"master":         true,
 	"anim":           true,
 	"layerRules":     true,

@@ -25,6 +25,10 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Fullscreen browsers no longer switch HDR on automatically.** Automatic HDR
+  starts off because the display-mode switch can blank some AMD DisplayPort
+  panels; users with a working HDR path can turn it back on in Settings
+  (`modules/render.lua`, `../wm/hyprland/`).
 - **Game Mode keeps compositor blur, shadows and animations off across reloads.**
   The live action and config both load one strip; tiled windows keep their faint
   tint without blurring the moving desktop, while floating glass still blurs

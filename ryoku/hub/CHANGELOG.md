@@ -9,6 +9,10 @@
 - **Fix with AI no longer leaves its terminal inside the desktop service.** The
   repair session launches in its own application scope
   (`quickshell/pages/UpdatesPage.qml`).
+- **Window Manager > Display can control automatic HDR.** The new switch starts
+  off and saves through the active provider, so fullscreen HDR content cannot
+  unexpectedly blank a panel; users whose display handles the switch can opt in
+  (`../wm/hyprland/schema.json`, `../wm/hyprland/config_settings.go`).
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).

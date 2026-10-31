@@ -119,6 +119,71 @@ func TestDefaultFollowMouseMatchesShippedInput(t *testing.T) {
 	}
 }
 
+// Automatic HDR stays opt-in because a fullscreen browser can make some
+// DisplayPort panels lose signal during the mode switch. The base module owns
+// the safe default, while the generated user overlay must still be able to
+// override it and survive materialization.
+func TestAutoHDROffByDefaultAndUserOverlayCanEnable(t *testing.T) {
+	if defaultOverrides().Render.AutoHDR {
+		t.Fatal("automatic HDR must default off")
+	}
+	base, err := os.ReadFile(filepath.Join("..", "..", "hyprland", "modules", "render.lua"))
+	if err != nil {
+		t.Fatalf("read shipped render config: %v", err)
+	}
+	if !regexp.MustCompile(`(?m)^[[:space:]]*cm_auto_hdr[[:space:]]*=[[:space:]]*0,[[:space:]]*$`).Match(base) {
+		t.Fatal("shipped render.lua must disable automatic HDR")
+	}
+	if !bytes.Contains(schemaRows, []byte(`"wm.hyprland.render.autoHdr"`)) {
+		t.Fatal("schema missing automatic HDR control")
+	}
+	if cfg := genConfig(defaultOverrides(), false); strings.Contains(cfg, "cm_auto_hdr") {
+		t.Fatalf("default settings.lua overrides render.lua:\n%s", cfg)
+	}
+	on := defaultOverrides()
+	on.Render.AutoHDR = true
+	if cfg := genConfig(on, false); !strings.Contains(cfg, "render = { cm_auto_hdr = 1 }") {
+		t.Fatalf("enabled automatic HDR missing from settings.lua:\n%s", cfg)
+	}
+	if cfg := fullConfigLua(defaultOverrides(), false); !strings.Contains(cfg, "render = { cm_auto_hdr = 0 }") {
+		t.Fatalf("preview cannot switch automatic HDR off:\n%s", cfg)
+	}
+	if cfg := fullConfigLua(on, false); !strings.Contains(cfg, "render = { cm_auto_hdr = 1 }") {
+		t.Fatalf("preview cannot switch automatic HDR on:\n%s", cfg)
+	}
+
+	config := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("RYOKU_GREETER_NUMLOCK_FILE", filepath.Join(t.TempDir(), "greeter-numlock"))
+	store := filepath.Join(config, "ryoku", "desktop.json")
+	if err := os.MkdirAll(filepath.Dir(store), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store, []byte(`{"wm":{"hyprland":{"render":{"autoHdr":true}}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	old := stdout
+	stdout = bufio.NewWriter(&output)
+	t.Cleanup(func() { stdout = old })
+	if err := runApply([]string{store}); err != nil {
+		t.Fatal(err)
+	}
+	stdout.Flush()
+	for _, path := range []string{
+		filepath.Join(config, "hypr", "settings.lua"),
+		filepath.Join(config, "ryoku", "user_edits", "hypr", "settings.lua"),
+	} {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read generated %s: %v", path, err)
+		}
+		if !bytes.Contains(body, []byte("render = { cm_auto_hdr = 1 }")) {
+			t.Fatalf("%s cannot force automatic HDR on:\n%s", path, body)
+		}
+	}
+}
+
 // Hyprland tames a maximise-on-open by refusing the client's request outright, a
 // catch-all suppress_event rule. This is the whole of the Hyprland side, so it
 // is pinned by the exact line and by its presence in the full config when the
