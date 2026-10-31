@@ -36,20 +36,46 @@ const (
 )
 
 var (
-	ffAnsiRe        = regexp.MustCompile("\x1b\\[[0-9;]*m")
-	ffTanRe         = regexp.MustCompile("\x1b\\[38;2;" + regexp.QuoteMeta(ffTan) + "m(.*?)\x1b\\[0m")
-	ffLabelRe       = regexp.MustCompile("\x1b\\[1;38;2;" + regexp.QuoteMeta(ffBright) + "m(.*?)\x1b\\[0m")
-	ffKeysColor     = regexp.MustCompile(`(?:38;2;)?([0-9]+;[0-9]+;[0-9]+)`)
-	ffHexColor      = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-	ffTrueColorRe   = regexp.MustCompile("\x1b\\[((?:1;)?)38;2;([0-9]+;[0-9]+;[0-9]+)m")
-	ffRecolorLineRe = regexp.MustCompile(`(?m)^[\t ]*//[\t ]*ryoku:recolor[\t ]+([^\r\n]+)`)
-	ffRecolorPairRe = regexp.MustCompile(`([A-Za-z][A-Za-z0-9_-]*)=([A-Za-z][A-Za-z0-9_-]*)`)
+	ffAnsiRe         = regexp.MustCompile("\x1b\\[[0-9;]*m")
+	ffTanRe          = regexp.MustCompile("\x1b\\[38;2;" + regexp.QuoteMeta(ffTan) + "m(.*?)\x1b\\[0m")
+	ffLabelRe        = regexp.MustCompile("\x1b\\[1;38;2;" + regexp.QuoteMeta(ffBright) + "m(.*?)\x1b\\[0m")
+	ffKeysColor      = regexp.MustCompile(`(?:38;2;)?([0-9]+;[0-9]+;[0-9]+)`)
+	ffHexColor       = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	ffTrueColorRe    = regexp.MustCompile("\x1b\\[((?:1;)?)38;2;([0-9]+;[0-9]+;[0-9]+)m")
+	ffRecolorLineRe  = regexp.MustCompile(`(?m)^[\t ]*//[\t ]*ryoku:recolor[\t ]+([^\r\n]+)`)
+	ffRendererLineRe = regexp.MustCompile(`(?m)^//[\t ]*ryoku:renderer[\t ]+(\S+)[\t ]*$`)
+	ffRecolorPairRe  = regexp.MustCompile(`([A-Za-z][A-Za-z0-9_-]*)=([A-Za-z][A-Za-z0-9_-]*)`)
 	// ffSlotTrueColorRe matches a rice's inline fastfetch colour placeholder
 	// "{#38;2;R;G;B}", whose R;G;B is a fixed brand tone baked into the format
 	// (fastfetch resolves it to literal ANSI). The wallpaper pass rewrites the
 	// ones that name a palette role.
 	ffSlotTrueColorRe = regexp.MustCompile(`\{#((?:1;)?38;2;)([0-9]+;[0-9]+;[0-9]+)\}`)
 )
+
+func ffRendererLine(config []byte) string {
+	if match := ffRendererLineRe.FindSubmatch(config); match != nil {
+		return string(match[1])
+	}
+	return ""
+}
+
+func ffRecolorLine(config []byte) string {
+	if match := ffRecolorLineRe.FindSubmatch(config); match != nil {
+		return strings.TrimSpace(string(match[1]))
+	}
+	return ""
+}
+
+func ffWithMarkers(config []byte, renderer, recolor string) []byte {
+	var head []byte
+	if renderer != "" {
+		head = append(head, "// ryoku:renderer "+renderer+"\n"...)
+	}
+	if recolor != "" {
+		head = append(head, "// ryoku:recolor "+recolor+"\n"...)
+	}
+	return append(head, config...)
+}
 
 func ffBaseOS() string {
 	if base, ok := os.LookupEnv("RYOKU_BASE_OS"); ok {
@@ -195,12 +221,14 @@ type ffRow struct {
 }
 
 type ffModel struct {
-	Logo    ffLogo          `json:"logo"`
-	Accent  string          `json:"accent"`
-	Palette string          `json:"palette"`
-	Rows    []ffRow         `json:"rows"`
-	Display json.RawMessage `json:"display,omitempty"`
-	Schema  string          `json:"schema,omitempty"`
+	Logo     ffLogo          `json:"logo"`
+	Accent   string          `json:"accent"`
+	Palette  string          `json:"palette"`
+	Renderer string          `json:"renderer,omitempty"`
+	Recolor  string          `json:"recolor,omitempty"`
+	Rows     []ffRow         `json:"rows"`
+	Display  json.RawMessage `json:"display,omitempty"`
+	Schema   string          `json:"schema,omitempty"`
 }
 
 type ffPalette struct {
@@ -342,6 +370,16 @@ func runFastfetch(args []string) error {
 				return err
 			}
 		}
+		if m.Renderer == "" || m.Recolor == "" {
+			if current, err := os.ReadFile(fastfetchConfigPath()); err == nil {
+				if m.Renderer == "" {
+					m.Renderer = ffRendererLine(current)
+				}
+				if m.Recolor == "" {
+					m.Recolor = ffRecolorLine(current)
+				}
+			}
+		}
 		b, err := buildFastfetch(m)
 		if err != nil {
 			return err
@@ -434,7 +472,7 @@ func loadFastfetch() (ffModel, error) {
 	if err := json.Unmarshal(stripJSONC(raw), &doc); err != nil {
 		return ffModel{}, fmt.Errorf("parse config.jsonc: %w", err)
 	}
-	m := ffModel{Schema: doc.Schema, Display: doc.Display, Accent: ffDisplayAccent(doc.Display), Palette: readFastfetchPaletteMode(), Logo: ffNormalizeLogo(doc.Logo)}
+	m := ffModel{Schema: doc.Schema, Display: doc.Display, Accent: ffDisplayAccent(doc.Display), Palette: readFastfetchPaletteMode(), Logo: ffNormalizeLogo(doc.Logo), Renderer: ffRendererLine(raw), Recolor: ffRecolorLine(raw)}
 	baseOS := ffBaseOS()
 	for _, rm := range doc.Modules {
 		m.Rows = append(m.Rows, ffNormalizeModule(rm, baseOS))
@@ -605,7 +643,7 @@ func buildFastfetch(m ffModel) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return append(b, '\n'), nil
+	return ffWithMarkers(append(b, '\n'), m.Renderer, m.Recolor), nil
 }
 
 func ffApplyPaletteToRow(raw json.RawMessage, palette ffPalette) (json.RawMessage, error) {
@@ -823,7 +861,7 @@ func buildFastfetchEffectiveWithRoles(m ffModel, recolor map[string]string) ([]b
 	if err != nil {
 		return nil, err
 	}
-	return append(b, '\n'), nil
+	return ffWithMarkers(append(b, '\n'), m.Renderer, m.Recolor), nil
 }
 
 func fastfetchEffectiveFresh(path string, mode string, japaneseGloss bool) bool {

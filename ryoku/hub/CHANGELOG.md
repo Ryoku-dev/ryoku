@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- Fastfetch renderer and recolor markers survive Settings saves. Renderer based
+  styles keep their readout, and wallpaper recoloring keeps its palette roles.
+  Rows are locked for styles that provide their own renderer.
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).

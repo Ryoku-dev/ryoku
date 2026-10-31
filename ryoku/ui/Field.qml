@@ -11,6 +11,7 @@ Rectangle {
     property string placeholder: ""
     property bool tabular: false      // mono for what a config file would hold
     property bool toolbar: false      // 36 in a toolbar, 30 in a sheet
+    property bool readOnly: false     // shows a value the screen does not own
     property bool secret: false       // masked, for a password
     property bool clearOnEscape: true
     readonly property bool focused: input.activeFocus
@@ -43,6 +44,7 @@ Rectangle {
         selectByMouse: true
         echoMode: field.secret ? TextInput.Password : TextInput.Normal
         passwordCharacter: "\u2022"
+        readOnly: field.readOnly
         clip: true
         onTextEdited: field.edited(text)
         onEditingFinished: field.committed(text)
