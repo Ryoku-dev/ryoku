@@ -301,6 +301,7 @@ func reconcilers() []reconciler {
 		{i18n.T("shell config schema"), reconcileShellConfig},
 		{i18n.T("Nomarchy command activation"), reconcileNomarchyCommands},
 		{i18n.T("login shell source"), reconcileLoginShell},
+		{i18n.T("zsh login config"), reconcileZshrc},
 		{i18n.T("shell style knobs"), reconcileLegacyStyleKnobs},
 		{i18n.T("sumi bar simplification"), reconcileSumiBar},
 		{i18n.T("dock config store"), reconcileDockStore},

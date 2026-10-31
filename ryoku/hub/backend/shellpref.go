@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,10 +11,10 @@ import (
 	"strings"
 )
 
-const (
-	bashLoader = `[ -r "$HOME/.config/bash/ryoku.bash" ] && . "$HOME/.config/bash/ryoku.bash"`
-	zshLoader  = `[ -r "$HOME/.config/zsh/ryoku.zsh" ] && . "$HOME/.config/zsh/ryoku.zsh"`
-)
+const bashLoader = `[ -r "$HOME/.config/bash/ryoku.bash" ] && . "$HOME/.config/bash/ryoku.bash"`
+
+//go:embed zshrc
+var zshLoaderTemplate string
 
 var accountShells = map[string]string{
 	"fish": "/usr/bin/fish",
@@ -65,7 +66,7 @@ func ensureShellLoaders(home, key string) (bool, error) {
 			filepath.Join(home, ".bash_profile"): bashLoader,
 		}
 	case "zsh":
-		files = map[string]string{filepath.Join(home, ".zshrc"): zshLoader}
+		files = map[string]string{filepath.Join(home, ".zshrc"): strings.TrimSpace(zshLoaderTemplate)}
 	default:
 		return false, fmt.Errorf("unknown shell %q", key)
 	}

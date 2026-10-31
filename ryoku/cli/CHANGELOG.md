@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor repairs a missing Zsh startup file without replacing custom config.**
+  It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
+  template exists and the user has no startup file of their own.
 - **`ryoku update` no longer installs the stock kernel on a converted CachyOS
   box.** A box converted in place by `ryoku-shell-install` never got the
   provisioned-ledger entries the ISO writes for `cachyos.replaces`, so the

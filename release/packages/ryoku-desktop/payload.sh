@@ -198,6 +198,7 @@ EOF
   install -Dm644 "$_repo/ryoku/apps/bash/rashin.bash"       "$cfg/bash/rashin.bash"
   install -Dm644 "$_repo/ryoku/apps/zsh/ryoku.zsh"          "$cfg/zsh/ryoku.zsh"
   install -Dm644 "$_repo/ryoku/apps/zsh/rashin.zsh"         "$cfg/zsh/rashin.zsh"
+  install -Dm644 "$_repo/ryoku/hub/backend/zshrc"              "$pkgdir/usr/share/ryoku/zsh/zshrc"
   # GTK toolkit baseline for the xsettings-less Wayland session (see the header
   # of each file); materialized and pruned by `ryoku materialize` like qt6ct.conf.
   install -Dm644 "$_repo/ryoku/shell/gtk-3.0/settings.ini" "$cfg/gtk-3.0/settings.ini"

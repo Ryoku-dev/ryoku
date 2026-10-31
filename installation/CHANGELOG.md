@@ -1,6 +1,9 @@
 # Changelog: installation/
 
 ## Unreleased
+- **Zsh installs open with Ryoku's configured prompt on the first boot.** The
+  Arch, CachyOS and Void installers copy the packaged startup template after
+  selecting Zsh, while leaving an existing `.zshrc` untouched.
 - **Fresh installs keep the launcher radio while leaving its player removable.**
   The default-on Apps list owns `mpv` and `mpv-mpris` on Fedora and Void;
   Arch and CachyOS continue to install both from their base set

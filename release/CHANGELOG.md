@@ -1,6 +1,9 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The desktop package carries the Zsh startup template.** Fresh installers and
+  Doctor can seed it without relying on CachyOS skeleton files or replacing a
+  user's `.zshrc`.
 - **The launcher radio's player can be removed.** `mpv` and `mpv-mpris` are
   optional desktop packages delivered once on a fresh Ryoku box. Removing them
   now sticks across upgrades, and the radio offers an install hint instead of
