@@ -36,6 +36,7 @@ Item {
         const parts = [
             field(S.Prefs.workspaceStyle),
             S.Prefs.workspaceShowEmpty ? "1" : "0",
+            S.Prefs.workspaceSpare ? "1" : "0",
             field(Wm.workspaceModel),
             field(scene.screenName),
             outputsReported ? "1" : "0"
@@ -137,8 +138,9 @@ Item {
 
 
     // A fixed workspace model numbers its slots, yet only the ones in use are
-    // reported. Fill the holes, plus one fresh slot after the last occupied
-    // one, so empty workspaces show the way the setting promises.
+    // reported. Fill the holes, plus (unless workspaceSpare is off) one fresh slot
+    // after the last occupied one, so empty workspaces show the way the setting
+    // promises.
     function padded(shown) {
         const byNumber = ({});
         let last = 0;
@@ -151,7 +153,7 @@ Item {
         }
         if (last === 0)
             return shown;
-        const end = byNumber[last].occupied ? last + 1 : last;
+        const end = S.Prefs.workspaceSpare && byNumber[last].occupied ? last + 1 : last;
         const filled = [];
         for (let number = 1; number <= end; ++number) {
             const row = byNumber[number];

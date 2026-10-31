@@ -140,6 +140,20 @@ Item {
                     onToggled: value => S.Prefs.set("workspaceShowEmpty", value)
                 }
             }
+
+            SettingRow {
+                width: parent.width
+                visible: S.Prefs.workspaceShowEmpty
+                label: "Spare workspace at the end"
+                desc: "Show one extra empty workspace after the last one in use. Off stops the strip at the last workspace that exists."
+                controlWidth: 54
+
+                K.Switch {
+                    anchors.right: parent.right
+                    checked: S.Prefs.workspaceSpare
+                    onToggled: value => S.Prefs.set("workspaceSpare", value)
+                }
+            }
         }
 
         SettingCard {
