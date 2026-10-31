@@ -7,6 +7,7 @@ SettingCard 1.0 SettingCard.qml
 Grain 1.0 Grain.qml
 Btn 1.0 Btn.qml
 ActionBar 1.0 ActionBar.qml
+AvatarImage 1.0 AvatarImage.qml
 Preview 1.0 Preview.qml
 Barcode 1.0 Barcode.qml
 Field 1.0 Field.qml

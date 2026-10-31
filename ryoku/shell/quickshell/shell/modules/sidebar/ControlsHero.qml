@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls as QQC
 import Quickshell
 import Ryoku.Blobs
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import shell.services
 
