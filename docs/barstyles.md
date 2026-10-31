@@ -36,6 +36,13 @@ reads the desktop only through the window-manager seam and the daemon's
 settings topic, so it runs on every compositor Ryoku supports.
 Store-installed styles land under the same folder contract.
 
+The store-installed **Caelestia** style is another frame family. Version 2.0.0
+tracks Caelestia shell commit `b51fdb3` and carries its bar, popouts, dashboard,
+launcher, session menu, sidebar, notification banners, OSD, utilities, lyrics
+and Nexus settings in plain QML. Ryoku still owns screenshots, wallpaper,
+locking and desktop widget placement. Its desktop clock and background
+visualiser stay out until Stage has a store face registration contract.
+
 ## Resource cost
 
 Orpheus and Kairos are the optimized styles: their music paths, cards and idle

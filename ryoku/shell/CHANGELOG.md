@@ -20,6 +20,10 @@
   widget history while preserving Ryoku's compositor, wallpaper, capture,
   lock, dock and desktop seams
   (`quickshell/shell/modules/bar/barstyles/python/`).
+- **Caelestia keeps its desktop-wide surfaces alive from the primary output.**
+  The store style is treated as a frame family, so its launcher, panels and
+  notifications remain hosted when the bar is hidden on that display
+  (`quickshell/shell/services/BarProducts.qml`).
 - **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
   and Super+K open the active style's launcher, clipboard, settings and
   cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's
