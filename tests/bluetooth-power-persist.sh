@@ -11,6 +11,7 @@ LOG="$WORK/commands"
 LIVE="$WORK/live"
 BLOCKED="$WORK/blocked"
 POLLS="$WORK/polls"
+BUSY="$WORK/busy"
 STATE="$WORK/state/bluetooth-power"
 
 cat >"$WORK/bin/rfkill" <<'EOF'
@@ -44,6 +45,15 @@ case ${1:-} in
       polls=0
       if IFS= read -r polls <"$RYOKU_TEST_POLLS"; then :; fi
       ((polls >= RYOKU_TEST_APPEAR_AFTER)) || exit 1
+    else
+      # BlueZ answers org.bluez.Error.Busy while AutoEnable is still powering a
+      # freshly registered controller on; the radio stays on.
+      busy=0
+      if IFS= read -r busy <"$RYOKU_TEST_BUSY"; then :; fi
+      if ((busy > 0)); then
+        printf '%s\n' "$((busy - 1))" >"$RYOKU_TEST_BUSY"
+        exit 1
+      fi
     fi
     printf '%s\n' "$2" >"$RYOKU_TEST_LIVE"
     ;;
@@ -79,6 +89,7 @@ export RYOKU_TEST_LOG="$LOG"
 export RYOKU_TEST_LIVE="$LIVE"
 export RYOKU_TEST_BLOCKED="$BLOCKED"
 export RYOKU_TEST_POLLS="$POLLS"
+export RYOKU_TEST_BUSY="$BUSY"
 export RYOKU_TEST_APPEAR_AFTER=1
 export RYOKU_TEST_RFKILL_UNBLOCK_STATUS=0
 export RYOKU_BLUETOOTH_STATE_FILE="$STATE"
@@ -95,6 +106,7 @@ assert_eq() {
 reset_commands() {
   : >"$LOG"
   printf '0\n' >"$POLLS"
+  printf '0\n' >"$BUSY"
 }
 
 # No saved choice is a fresh install, which deliberately defaults to on.
@@ -123,13 +135,13 @@ reset_commands
 "$POWER" off
 assert_eq off "$(<"$STATE")" 'saved off choice'
 assert_eq off "$(<"$LIVE")" 'live off choice'
-assert_eq 'bluetoothctl power off' "$(<"$LOG")" 'off command sequence'
+assert_eq $'bluetoothctl list\nbluetoothctl power off\nbluetoothctl show' "$(<"$LOG")" 'off command sequence'
 
 # Simulate systemd restarting bluetoothd with AutoEnable=true. Restore must win.
 reset_commands
 "$RESET"
 assert_eq off "$(<"$LIVE")" 'off after systemd login reset'
-assert_eq $'systemctl restart bluetooth.service\nbluetoothctl power off' \
+assert_eq $'systemctl restart bluetooth.service\nbluetoothctl list\nbluetoothctl power off\nbluetoothctl show' \
   "$(<"$LOG")" 'systemd reset command sequence'
 
 # Void has no systemd-rfkill boot restore, so its login reset applies the same
@@ -137,8 +149,20 @@ assert_eq $'systemctl restart bluetooth.service\nbluetoothctl power off' \
 reset_commands
 RYOKU_SYSTEMD_RUNTIME="$WORK/no-systemd" "$RESET"
 assert_eq off "$(<"$LIVE")" 'off after runit login reset'
-assert_eq $'sv restart bluetoothd\nbluetoothctl power off' \
+assert_eq $'sv restart bluetoothd\nbluetoothctl list\nbluetoothctl power off\nbluetoothctl show' \
   "$(<"$LOG")" 'runit reset command sequence'
+
+# The login reset races bluetoothd: the controller registers a beat after the
+# restart and AutoEnable is still powering it on, so power off first finds no
+# controller, then gets Busy. The saved off choice must still win.
+export RYOKU_TEST_APPEAR_AFTER=2
+reset_commands
+printf '1\n' >"$BUSY"
+"$RESET" || { printf 'FAIL: login reset failed on a late, busy controller\n' >&2; exit 1; }
+assert_eq off "$(<"$LIVE")" 'off after a late, busy controller'
+assert_eq $'systemctl restart bluetooth.service\nbluetoothctl list\nbluetoothctl list\nbluetoothctl power off\nbluetoothctl list\nbluetoothctl power off\nbluetoothctl show' \
+  "$(<"$LOG")" 'late, busy controller command sequence'
+export RYOKU_TEST_APPEAR_AFTER=1
 
 # Power-on waits for a controller that re-enumerates after rfkill is cleared.
 export RYOKU_TEST_APPEAR_AFTER=3
