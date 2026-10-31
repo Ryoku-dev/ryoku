@@ -24,6 +24,11 @@
   report lists RAM, swap, zram, OOM activity and the shell cgroup's largest
   processes, and warns only about memory kills or user apps left in that cgroup
   (`internal/doctor/memory.go`, `internal/doctor/report.go`).
+- **Doctor names the installed Hermes agent version without claiming it is
+  current.** Hermes is installed once from its official installer, then remains
+  user-owned, so the new note points users back to that install's update method
+  instead of fetching release state during a health check
+  (`internal/doctor/reconcile_hermes_agent.go`).
 - **`ryoku-host users` manages local accounts on every edition.** The typed
   JSON API lists human users, roles, curated permissions, sessions and Btrfs
   home usage; privileged verbs add, remove and edit accounts without putting

@@ -361,6 +361,7 @@ func reconcilers() []reconciler {
 		{i18n.T("ryoku shell daemon"), reconcileShellDaemon},
 		{i18n.T("duplicate desktop instances"), reconcileShellInstances},
 		{i18n.T("rashin agent daemon"), reconcileRashinDaemon},
+		{i18n.T("hermes agent"), reconcileHermesAgent},
 		{i18n.T("AI usage collector timer"), reconcileAiUsageTimer},
 		{i18n.T("prowl for rashin"), reconcileProwl},
 		{i18n.T("Prowl gateway for rashin"), reconcileProwlGateway},
