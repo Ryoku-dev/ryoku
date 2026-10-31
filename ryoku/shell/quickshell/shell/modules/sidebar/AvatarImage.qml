@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
+import Quickshell.Io
 
 // A person's profile picture, clipped to a circle. It looks for the picture in
 // the places the desktop stack keeps it, first hit wins: the AccountsService
@@ -39,6 +40,12 @@ Item {
     onCandidatesChanged: root.reload()
     onRevisionChanged: root.reload()
     onVisibleChanged: if (visible) root.reload()
+    FileView {
+        path: root.userName !== "" ? "/var/lib/AccountsService/icons/" + root.userName : ""
+        watchChanges: true
+        printErrors: false
+        onFileChanged: root.reload()
+    }
 
     Image {
         id: image
