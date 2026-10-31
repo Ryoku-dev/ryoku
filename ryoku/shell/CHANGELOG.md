@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The auto-hidden Ryoku dock reveals at the screen edge over open windows.**
+  With auto-hide on it sits above maximized, tiled, and floating apps, so the
+  pointer reaches its edge; a dock without auto-hide stays below them
+  (`quickshell/shell/modules/dock/DockSurface.qml`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service

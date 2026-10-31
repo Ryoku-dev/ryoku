@@ -56,7 +56,7 @@ PanelWindow {
     visible: Dock.cfg("enabled", false)
     // `screen` is PanelWindow's own property, set per monitor from shell.qml.
     WlrLayershell.namespace: "ryoku-dock"
-    WlrLayershell.layer: dock.stageEditing ? WlrLayer.Overlay : WlrLayer.Bottom
+    WlrLayershell.layer: dock.stageEditing ? WlrLayer.Overlay : (dock.autohide ? WlrLayer.Top : WlrLayer.Bottom)
     exclusionMode: ExclusionMode.Normal
     // A pinned (non-autohide) dock reserves its depth; an autohiding one floats
     // over the desktop and reserves nothing.
