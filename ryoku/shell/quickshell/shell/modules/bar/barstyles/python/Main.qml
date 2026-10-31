@@ -79,9 +79,7 @@ PanelWindow {
         // reload it. Python lives inside the resident Ryoku shell, so a whole
         // reload would bounce the Hub, the wallpaper UI and every other
         // surface; the style's settings ride the daemon's live frames instead.
-        function forceReload(): void {
-            console.info("python: settings apply live; shell reload skipped");
-        }
+        function forceReload(): void {}
 
         function clearNotifications(): void {
             NotificationManager.clearNotifications();

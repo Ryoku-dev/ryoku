@@ -27,6 +27,7 @@ Scope {
         root.hostScreen = root.screenFor(root.monitor);
         surface.active = true;
         root.hostVisible = true;
+        unloadTimer.stop();
     }
 
     function hide() {

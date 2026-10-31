@@ -47,8 +47,6 @@ Item {
             controller.showNotes(null);
         }
 
-        function forceReload() {
-            console.info("python: settings apply live; shell reload skipped")
-        }
+        function forceReload() {}
     }
 }

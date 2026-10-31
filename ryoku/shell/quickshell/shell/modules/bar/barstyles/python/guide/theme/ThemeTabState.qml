@@ -35,7 +35,7 @@ GuideTab {
     property string currentWallpaperDir: Config.getSetting("wallpaperDir", "") || Config.getSetting("wallpaper_dir", "") || Quickshell.env("WALLPAPER_DIR") || (Quickshell.env("HOME") + "/Pictures/Wallpapers")
     property var availableWallpaperDirs: []
 
-    property var curatedFonts: ThemeBackend.bundledNames
+    property var curatedFonts: [ThemeBackend.fontFamily, ThemeBackend.iconFont]
     property var blockedFontPatterns: [".notdef", "cursor", "emoji", "symbol", "pcf"]
     property var availableFonts: []
 

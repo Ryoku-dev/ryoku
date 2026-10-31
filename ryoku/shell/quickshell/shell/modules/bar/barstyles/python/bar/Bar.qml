@@ -18,6 +18,7 @@ Variants {
         PanelWindow {
             id: barWindow
             visible: barConfigReady
+            readonly property var barWindowRoot: barWindow
 
             property bool pendingReload: false
             property bool startupFilesReady: false
@@ -146,16 +147,14 @@ Variants {
                 // Ryoku seam: no whole-shell reload from inside the resident
                 // Ryoku instance; the style's settings apply live through the
                 // daemon frames. The verbs stay so the ported scripts land.
-                function forceReload() {
-                    console.info("python: settings apply live; shell reload skipped")
-                }
+                function forceReload() {}
                 function queueReload() {
                     barWindow.pendingReload = false
                 }
                 function toggleUpdate() {
                     let target = null;
-                    let layout = barWindowRoot.isVertical ? verticalLoader.item : horizontalLoader.item;
-                    if (layout) target = layout.getWidget("left");
+                    if (barWindow.isVertical) target = verticalWrapper.getWidget("left");
+                    else target = contentWrapper.getWidget("left");
                     if (target && typeof target.toggleUpdate === "function") {
                         target.toggleUpdate();
                     }
@@ -184,8 +183,8 @@ Variants {
             property real effectiveBarHeight: Math.round(!isVertical ? barContentHeight : ((barContentHeight - (autohide ? edgePadding * 2 : 0)) * (barWidthPercent / 100.0)))
             property real verticalOffset: Math.round(!isVertical ? 0 : ((barContentHeight - effectiveBarHeight) / 2))
 
-            readonly property var horizontalLayout: horizontalLoader.item
-            readonly property var verticalLayout: verticalLoader.item
+            readonly property var horizontalLayout: contentWrapper
+            readonly property var verticalLayout: verticalWrapper
 
             property real currentBarMinX: (horizontalLayout && horizontalLayout.dynamicMaxX > horizontalLayout.dynamicMinX) ? horizontalLayout.dynamicMinX : horizontalOffset
             property real currentBarMaxX: (horizontalLayout && horizontalLayout.dynamicMaxX > horizontalLayout.dynamicMinX) ? horizontalLayout.dynamicMaxX : (horizontalOffset + effectiveBarWidth)

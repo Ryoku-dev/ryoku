@@ -29,7 +29,7 @@ import QtQuick
 import Quickshell
 import "."
 import Ryoku.Ui.Singletons
-import shell.services
+import shell.services as ShellServices
 import "launcher" as PythonLauncher
 import "clipboard" as PythonClipboard
 import "guide" as PythonGuide
@@ -67,7 +67,7 @@ Item {
                 PythonPolkit.PythonPolkit {}
 
                 Connections {
-                    target: ShellState
+                    target: ShellServices.ShellState
                     function onSurfaceRequested(id, mon, ctx) {
                         switch (id) {
                         case "launcher":

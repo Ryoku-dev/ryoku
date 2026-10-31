@@ -235,63 +235,7 @@ Rectangle {
                                     Behavior on color { ColorAnimation { duration: 90 } }
                                 }
 
-                                scale: tabHeaderMa.pressed ? 0.98 : 1.0
-                                Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutQuint } }
-
-                                RowLayout {
-                                    layoutDirection: I18n.layoutDirection
-                                    anchors.fill: parent
-                                    anchors.leftMargin: I18n.rtl ? popup.s(14) : (popup.s(10) + (tabHeaderItem.isDirectActive ? popup.s(4) : 0))
-                                    anchors.rightMargin: I18n.rtl ? (popup.s(10) + (tabHeaderItem.isDirectActive ? popup.s(4) : 0)) : popup.s(14)
-                                    spacing: popup.s(10)
-
-                                    Behavior on anchors.leftMargin { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-                                    Behavior on anchors.rightMargin { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
-
-                                    IconButton {
-                                        enabled: false
-                                        size: popup.s(32)
-                                        Layout.preferredWidth: popup.s(32)
-                                        Layout.preferredHeight: popup.s(32)
-                                        Layout.alignment: Qt.AlignVCenter
-                                        cornerRadius: ThemeBackend.borderRadius
-                                        buttonIcon: tabDelegate.modelData.icon || "󰒓"
-                                        iconFontSize: popup.s(16)
-                                        accentColor: ThemeBackend.surface0
-                                        textColor: "#ffffff"
-                                    }
-
-                                    Text {
-                                        text: I18n.t("guide.tabs." + (tabDelegate.modelData.key || tabDelegate.modelData.id).toLowerCase(), tabDelegate.modelData.name || tabDelegate.modelData.id)
-                                        font.family: ThemeBackend.fontFamily
-                                        font.weight: tabHeaderItem.isDirectActive ? Font.Bold : Font.Medium
-                                        font.pixelSize: popup.s(13)
-                                        color: tabHeaderItem.isDirectActive
-                                            ? (activeGlass.active ? ThemeBackend.text : ThemeBackend.crust)
-                                            : (tabHeaderMa.containsMouse ? ThemeBackend.text : ThemeBackend.subtext0)
-                                        Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignVCenter
-                                        horizontalAlignment: I18n.textAlignment
-                                        elide: Text.ElideRight
-                                        Behavior on color { ColorAnimation { duration: 150 } }
-                                    }
-
-                                    Text {
-                                        visible: tabDelegate.hasSubtabs
-                                        text: "󰅀"
-                                        font.family: ThemeBackend.iconFont
-                                        font.pixelSize: popup.s(14)
-                                        color: tabHeaderItem.isDirectActive
-                                            ? (activeGlass.active ? ThemeBackend.text : ThemeBackend.crust)
-                                            : (tabHeaderMa.containsMouse ? ThemeBackend.text : ThemeBackend.subtext0)
-                                        Layout.alignment: Qt.AlignVCenter
-                                        rotation: tabDelegate.expandProgress * 180 - 180
-                                        Behavior on rotation { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                                        Behavior on color { ColorAnimation { duration: 150 } }
-                                    }
-                                }
                             }
-
                             MouseArea {
                                 id: headerMa
                                 anchors.fill: parent
