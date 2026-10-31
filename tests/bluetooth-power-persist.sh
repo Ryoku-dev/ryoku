@@ -13,6 +13,7 @@ BLOCKED="$WORK/blocked"
 POLLS="$WORK/polls"
 BUSY="$WORK/busy"
 STATE="$WORK/state/bluetooth-power"
+SHOW_FAILS="$WORK/show-fails"
 
 cat >"$WORK/bin/rfkill" <<'EOF'
 #!/usr/bin/env bash
@@ -58,6 +59,12 @@ case ${1:-} in
     printf '%s\n' "$2" >"$RYOKU_TEST_LIVE"
     ;;
   show)
+    show_fails=0
+    if IFS= read -r show_fails <"$RYOKU_TEST_SHOW_FAILS"; then :; fi
+    if ((show_fails > 0)); then
+      printf '%s\n' "$((show_fails - 1))" >"$RYOKU_TEST_SHOW_FAILS"
+      exit 1
+    fi
     state=off
     if IFS= read -r state <"$RYOKU_TEST_LIVE"; then :; fi
     [[ $state == on ]] && printf 'Powered: yes\n' || printf 'Powered: no\n'
@@ -91,6 +98,7 @@ export RYOKU_TEST_BLOCKED="$BLOCKED"
 export RYOKU_TEST_POLLS="$POLLS"
 export RYOKU_TEST_BUSY="$BUSY"
 export RYOKU_TEST_APPEAR_AFTER=1
+export RYOKU_TEST_SHOW_FAILS="$SHOW_FAILS"
 export RYOKU_TEST_RFKILL_UNBLOCK_STATUS=0
 export RYOKU_BLUETOOTH_STATE_FILE="$STATE"
 export RYOKU_BLUETOOTH_POWER_BIN="$POWER"
@@ -107,6 +115,7 @@ reset_commands() {
   : >"$LOG"
   printf '0\n' >"$POLLS"
   printf '0\n' >"$BUSY"
+  printf '0\n' >"$SHOW_FAILS"
 }
 
 # No saved choice is a fresh install, which deliberately defaults to on.
@@ -136,6 +145,13 @@ reset_commands
 assert_eq off "$(<"$STATE")" 'saved off choice'
 assert_eq off "$(<"$LIVE")" 'live off choice'
 assert_eq $'bluetoothctl list\nbluetoothctl power off\nbluetoothctl show' "$(<"$LOG")" 'off command sequence'
+
+# A failed status read is not confirmation that the controller is off.
+reset_commands
+printf '1\n' >"$SHOW_FAILS"
+"$POWER" off
+assert_eq $'bluetoothctl list\nbluetoothctl power off\nbluetoothctl show\nbluetoothctl list\nbluetoothctl power off\nbluetoothctl show' \
+  "$(<"$LOG")" 'off retries after an unreadable state'
 
 # Simulate systemd restarting bluetoothd with AutoEnable=true. Restore must win.
 reset_commands

@@ -34,6 +34,10 @@ powered() {
   bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*yes'
 }
 
+powered_off() {
+  bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*no'
+}
+
 apply_state() {
   local state=$1 attempt
   case $state in
@@ -43,7 +47,7 @@ apply_state() {
       # controller on: power off fails with org.bluez.Error.Busy and the radio
       # comes up on against the saved choice. Retry until BlueZ reports it off.
       for ((attempt = 0; attempt < 50; attempt++)); do
-        if controller_available && bluetoothctl power off >/dev/null 2>&1 && ! powered; then
+        if controller_available && bluetoothctl power off >/dev/null 2>&1 && powered_off; then
           return 0
         fi
         ((attempt == 49)) || sleep 0.1
