@@ -63,15 +63,15 @@ func TestCgroupProcessesFixture(t *testing.T) {
 	root := memoryFixture(t, "")
 	processes := cgroupProcesses(filepath.Join(root, "cgroup"), filepath.Join(root, "proc"))
 	want := []memoryProcess{
-		{name: "qs", rssKiB: 921600},
-		{name: "electron", rssKiB: 524288},
-		{name: "python3", rssKiB: 65536},
-		{name: "ryoku-shell", rssKiB: 16384},
+		{pid: 101, name: "qs", rssKiB: 921600},
+		{pid: 202, name: "electron", rssKiB: 524288},
+		{pid: 303, name: "python3", rssKiB: 65536},
+		{pid: 404, name: "ryoku-shell", rssKiB: 16384},
 	}
 	if !reflect.DeepEqual(processes, want) {
 		t.Fatalf("processes = %#v, want %#v", processes, want)
 	}
-	apps := userAppsInShell(processes)
+	apps := userAppsInShell(processes, 0)
 	if len(apps) != 1 || apps[0].name != "electron" {
 		t.Fatalf("user apps = %#v, want electron only", apps)
 	}
@@ -81,15 +81,67 @@ func TestCgroupProcessesFixture(t *testing.T) {
 }
 
 func TestLooksLikeUserApp(t *testing.T) {
-	for _, name := range []string{"qs", "ryoku-shell", "ryogami", "ryogami-live", "wl-clip-persist", "python3", "python3.13", "adb", "cliphist"} {
-		if looksLikeUserApp(name) {
-			t.Errorf("%s should be treated as a shell helper", name)
-		}
+	tests := []struct {
+		name    string
+		userApp bool
+	}{
+		{name: "qs"},
+		{name: "ryoku-shell"},
+		{name: "ryogami"},
+		{name: "ryogami-live"},
+		{name: "wl-clip-persist"},
+		{name: "python3"},
+		{name: "python3.13"},
+		{name: "adb"},
+		{name: "cliphist"},
+		{name: "flock"},
+		{name: "bash"},
+		{name: "sh"},
+		{name: "dbus-monitor"},
+		{name: "ryoku"},
+		{name: "lspci"},
+		{name: "grep"},
+		{name: "electron", userApp: true},
+		{name: "firefox", userApp: true},
 	}
-	for _, name := range []string{"electron", "firefox", "dbus-monitor"} {
-		if !looksLikeUserApp(name) {
-			t.Errorf("%s should be treated as a user app", name)
-		}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := looksLikeUserApp(test.name); got != test.userApp {
+				t.Errorf("looksLikeUserApp(%q) = %t, want %t", test.name, got, test.userApp)
+			}
+		})
+	}
+}
+
+func TestUserAppsInShellExcludesDoctorProcessTree(t *testing.T) {
+	processes := []memoryProcess{
+		{pid: 100, ppid: 10, name: "ryoku"},
+		{pid: 200, ppid: 100, name: "electron"},
+		{pid: 300, ppid: 200, name: "kitty"},
+		{pid: 400, ppid: 10, name: "firefox"},
+	}
+	tests := []struct {
+		name      string
+		doctorPID int
+		want      []memoryProcess
+	}{
+		{
+			name:      "doctor outside cgroup",
+			doctorPID: 999,
+			want:      processes[1:],
+		},
+		{
+			name:      "doctor inside cgroup",
+			doctorPID: 100,
+			want:      processes[3:],
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := userAppsInShell(processes, test.doctorPID); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("user apps = %#v, want %#v", got, test.want)
+			}
+		})
 	}
 }
 

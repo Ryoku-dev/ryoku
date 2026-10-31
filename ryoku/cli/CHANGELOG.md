@@ -9,6 +9,9 @@
   carries `cachyosReplaces`, and a CachyOS host reads the base, dev, hardware
   and AUR lanes without those names (`internal/ryokumanifest/manifest.go`,
   `internal/updater/manifest.go`, `cmd/ryoku-manifest`).
+- **Doctor no longer mistakes Settings helpers for memory-heavy user apps.** It
+  recognizes the Hub's wrappers and ignores its own process tree when System
+  Check runs inside the desktop service (`internal/doctor/memory.go`).
 - **Phone installs use headers for the installed kernels, not driver modules.**
   Pacman reads each kernel's pkgbase and no longer adds stock headers on systems
   without the stock kernel (`internal/host/phone.go`, `internal/host/phone_test.go`).

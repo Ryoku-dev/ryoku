@@ -6,6 +6,9 @@
 - Fastfetch renderer and recolor markers survive Settings saves. Renderer based
   styles keep their readout, and wallpaper recoloring keeps its palette roles.
   Rows are locked for styles that provide their own renderer.
+- **Fix with AI no longer leaves its terminal inside the desktop service.** The
+  repair session launches in its own application scope
+  (`quickshell/pages/UpdatesPage.qml`).
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).

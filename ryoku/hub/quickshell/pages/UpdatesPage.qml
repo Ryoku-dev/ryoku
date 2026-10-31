@@ -247,9 +247,10 @@ Item {
     }
 
     // hand the fixing to Rashin: with no TTY here `ryoku-rashin fix doctor` opens
-    // the agent in a terminal that investigates and repairs. detached, as always.
+    // the agent in a terminal that investigates and repairs. runApp keeps that
+    // terminal outside the Settings process tree.
     function fixWithAI() {
-        Spawn.run(["ryoku-rashin", "fix", "doctor"]);
+        Spawn.runApp(["ryoku-rashin", "fix", "doctor"], { label: "ryoku-fix" });
     }
 
     // the fill fraction for the shared progress track: the run's own reading
