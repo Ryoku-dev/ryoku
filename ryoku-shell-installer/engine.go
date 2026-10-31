@@ -573,8 +573,8 @@ type engine struct {
 	state           *runState
 	freshAccount    bool
 	installedPkg    func(string) bool
-
-	steps []estep
+	availablePkg    func(string) bool
+	steps           []estep
 }
 
 func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine {
@@ -1821,7 +1821,7 @@ func stepRepo(e *engine) error {
 
 var installerKernelModulesDir = "/usr/lib/modules"
 
-func installedKernelHeaderPackages(modulesDir string, installed func(string) bool) ([]string, error) {
+func availableKernelHeaderPackages(modulesDir string, installed, available func(string) bool) ([]string, error) {
 	entries, err := os.ReadDir(modulesDir)
 	if err != nil {
 		return nil, err
@@ -1842,7 +1842,7 @@ func installedKernelHeaderPackages(modulesDir string, installed func(string) boo
 			continue
 		}
 		header := kernel + "-headers"
-		if !seen[header] {
+		if !seen[header] && available(header) {
 			seen[header] = true
 			headers = append(headers, header)
 		}
@@ -2051,7 +2051,7 @@ func stepPackages(e *engine) error {
 		}
 		e.say(i18n.T("DRYRUN: payload not cloned; would read system/packages/base.packages"))
 	}
-	headers, err := installedKernelHeaderPackages(installerKernelModulesDir, d.installedPkg)
+	headers, err := availableKernelHeaderPackages(installerKernelModulesDir, d.installedPkg, e.packageAvailable)
 	if err != nil {
 		return fmt.Errorf("inspect installed kernels: %w", err)
 	}
@@ -3003,6 +3003,16 @@ func (e *engine) packageInstalled(pkg string) bool {
 	}
 	local := e.d().local(pkg)
 	return local != "" && e.d().installedPkg(local)
+}
+
+func (e *engine) packageAvailable(pkg string) bool {
+	if e.availablePkg != nil {
+		return e.availablePkg(pkg)
+	}
+	if e.dry {
+		return true
+	}
+	return exec.Command("pacman", "-Si", pkg).Run() == nil
 }
 
 func (e *engine) writeProvisionedLedger() error {

@@ -3,6 +3,7 @@ package doctor
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -17,6 +18,9 @@ var (
 	kernelHeadersReadDir          = os.ReadDir
 	kernelHeadersReadFile         = os.ReadFile
 	kernelHeadersPackageInstalled = func(name string) bool { return doctorPackageInstalled(name) }
+	kernelHeadersPackageAvailable = func(name string) bool {
+		return exec.Command("pacman", "-Si", name).Run() == nil
+	}
 )
 
 func installedKernelHeaderPackages() ([]string, error) {
@@ -61,20 +65,42 @@ func reconcileKernelHeaders(checkOnly bool) recResult {
 		return noteRes(i18n.T("no installed Arch kernel packages were found"))
 	}
 	missing := make([]string, 0, len(headers))
+	unavailable := make([]string, 0, len(headers))
 	for _, name := range headers {
-		if !kernelHeadersPackageInstalled(name) {
-			missing = append(missing, name)
+		if kernelHeadersPackageInstalled(name) {
+			continue
 		}
+		if !kernelHeadersPackageAvailable(name) {
+			unavailable = append(unavailable, name)
+			continue
+		}
+		missing = append(missing, name)
 	}
 	if len(missing) == 0 {
+		if len(unavailable) > 0 {
+			return noteRes(i18n.T("matching kernel headers are not available in enabled repositories, so skipped: %s"),
+				strings.Join(unavailable, ", "))
+		}
 		return okRes(i18n.T("every installed kernel has matching headers"))
 	}
 	advice := doctorInstallAdvice(missing...)
 	if checkOnly {
-		return wouldRes(i18n.T("matching kernel headers are missing: %s"), strings.Join(missing, ", ")).withFix("%s", advice)
+		result := wouldRes(i18n.T("matching kernel headers are missing: %s"), strings.Join(missing, ", ")).withFix("%s", advice)
+		return withUnavailableKernelHeaders(result, unavailable)
 	}
 	if doctorPackageInstall(missing...) != host.ExitOK {
-		return warnRes(i18n.T("could not install matching kernel headers: %s"), strings.Join(missing, ", ")).withFix("%s", advice)
+		result := warnRes(i18n.T("could not install matching kernel headers: %s"), strings.Join(missing, ", ")).withFix("%s", advice)
+		return withUnavailableKernelHeaders(result, unavailable)
 	}
-	return fixedRes(i18n.T("installed matching kernel headers: %s"), strings.Join(missing, ", "))
+	return withUnavailableKernelHeaders(
+		fixedRes(i18n.T("installed matching kernel headers: %s"), strings.Join(missing, ", ")),
+		unavailable)
+}
+
+func withUnavailableKernelHeaders(result recResult, unavailable []string) recResult {
+	if len(unavailable) > 0 {
+		result.detail += i18n.Tf("; not available in enabled repositories, so skipped: %s",
+			strings.Join(unavailable, ", "))
+	}
+	return result
 }

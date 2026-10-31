@@ -18,8 +18,8 @@
   `internal/doctor/reconcile_shipped_apps.go`).
 - **Doctor installs headers for the kernels that are actually installed.**
   On Arch and CachyOS it reads each installed kernel's `pkgbase`, checks the
-  matching `<kernel>-headers` package, and installs only missing matches
-  (`internal/doctor/reconcile_kernel_headers.go`).
+  matching `<kernel>-headers` package, and installs only missing matches that
+  pacman's enabled repositories provide (`internal/doctor/reconcile_kernel_headers.go`).
 - **Phone installs use headers for the installed kernels, not driver modules.**
   Pacman reads each kernel's pkgbase and no longer adds stock headers on systems
   without the stock kernel (`internal/host/phone.go`, `internal/host/phone_test.go`).

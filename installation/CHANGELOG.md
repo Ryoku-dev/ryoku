@@ -7,8 +7,9 @@
   (`installerplan/components.tsv`, `../ryoku-shell-installer/engine.go`).
 - **Shell conversions install headers for their existing kernels.** The
   installer skips stock `linux-headers` with the rest of the replacement boot
-  chain, reads each installed kernel's `pkgbase`, and adds only matching header
-  packages (`../ryoku-shell-installer/engine.go`).
+  chain, reads each installed kernel's `pkgbase`, and adds its matching header
+  package only when pacman's enabled repositories provide it
+  (`../ryoku-shell-installer/engine.go`).
 
 ### Added
 - **The Arch, CachyOS and Void ISOs have one edition-appropriate Gaming

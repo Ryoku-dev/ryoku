@@ -27,16 +27,20 @@ func kernelHeadersTree(t *testing.T, kernels map[string]string) string {
 	return root
 }
 
-func withKernelHeaderTestState(t *testing.T, kernels map[string]string, installed map[string]bool) {
+func withKernelHeaderTestState(t *testing.T, kernels map[string]string, installed, available map[string]bool) {
 	t.Helper()
 	oldDir := kernelHeadersModulesDir
 	oldReadDir, oldReadFile := kernelHeadersReadDir, kernelHeadersReadFile
 	oldInstalled := kernelHeadersPackageInstalled
+	oldAvailable := kernelHeadersPackageAvailable
 	oldHasPacman := hasPacman
 	oldInstall, oldAdvice := doctorPackageInstall, doctorInstallAdvice
 	kernelHeadersModulesDir = kernelHeadersTree(t, kernels)
 	kernelHeadersReadDir, kernelHeadersReadFile = os.ReadDir, os.ReadFile
 	kernelHeadersPackageInstalled = func(name string) bool { return installed[name] }
+	kernelHeadersPackageAvailable = func(name string) bool {
+		return available == nil || available[name]
+	}
 	hasPacman = func() bool { return true }
 	doctorPackageInstall = func(...string) int { return host.ExitOK }
 	doctorInstallAdvice = func(names ...string) string { return "install " + strings.Join(names, " ") }
@@ -44,6 +48,7 @@ func withKernelHeaderTestState(t *testing.T, kernels map[string]string, installe
 		kernelHeadersModulesDir = oldDir
 		kernelHeadersReadDir, kernelHeadersReadFile = oldReadDir, oldReadFile
 		kernelHeadersPackageInstalled = oldInstalled
+		kernelHeadersPackageAvailable = oldAvailable
 		hasPacman = oldHasPacman
 		doctorPackageInstall, doctorInstallAdvice = oldInstall, oldAdvice
 	})
@@ -60,7 +65,7 @@ func TestInstalledKernelHeaderPackagesUsesInstalledPkgbases(t *testing.T) {
 		"stale":                  "linux-zen",
 		"module-only":            "",
 		"invalid":                "linux bad",
-	}, installed)
+	}, installed, nil)
 
 	got, err := installedKernelHeaderPackages()
 	if err != nil {
@@ -82,7 +87,7 @@ func TestReconcileKernelHeadersInstallsOnlyMissingMatches(t *testing.T) {
 	withKernelHeaderTestState(t, map[string]string{
 		"7.2.11-arch1-1":         "linux",
 		"7.3.0-cachyos-bore-lto": "linux-cachyos-bore-lto",
-	}, installed)
+	}, installed, nil)
 	var installedNow []string
 	doctorPackageInstall = func(names ...string) int {
 		installedNow = append(installedNow, names...)
@@ -101,7 +106,7 @@ func TestReconcileKernelHeadersInstallsOnlyMissingMatches(t *testing.T) {
 
 func TestReconcileKernelHeadersCheckOnlyDoesNotInstall(t *testing.T) {
 	installed := map[string]bool{"linux-cachyos": true}
-	withKernelHeaderTestState(t, map[string]string{"7.3.0-cachyos": "linux-cachyos"}, installed)
+	withKernelHeaderTestState(t, map[string]string{"7.3.0-cachyos": "linux-cachyos"}, installed, nil)
 	doctorPackageInstall = func(names ...string) int {
 		t.Fatalf("check-only installed %v", names)
 		return host.ExitOK
@@ -110,6 +115,22 @@ func TestReconcileKernelHeadersCheckOnlyDoesNotInstall(t *testing.T) {
 	got := reconcileKernelHeaders(true)
 	if got.status != recWouldFix || !strings.Contains(got.detail, "linux-cachyos-headers") ||
 		got.remedy != "install linux-cachyos-headers" {
+		t.Fatalf("result = %+v", got)
+	}
+}
+
+func TestReconcileKernelHeadersNotesUnavailableMatch(t *testing.T) {
+	installed := map[string]bool{"linux-custom": true}
+	available := map[string]bool{"linux-custom-headers": false}
+	withKernelHeaderTestState(t, map[string]string{"7.3.0-custom": "linux-custom"}, installed, available)
+	doctorPackageInstall = func(names ...string) int {
+		t.Fatalf("installed unavailable headers %v", names)
+		return host.ExitOK
+	}
+
+	got := reconcileKernelHeaders(false)
+	if got.status != recNote || !strings.Contains(got.detail, "linux-custom-headers") ||
+		!strings.Contains(got.detail, "not available") || got.remedy != "" {
 		t.Fatalf("result = %+v", got)
 	}
 }

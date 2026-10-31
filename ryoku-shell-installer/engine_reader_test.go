@@ -402,11 +402,12 @@ func TestVoidDefaultsToFirstPackagedProvider(t *testing.T) {
 	}
 }
 
-func TestInstalledKernelHeaderPackagesMatchInstalledKernels(t *testing.T) {
+func TestAvailableKernelHeaderPackagesMatchInstalledKernels(t *testing.T) {
 	root := t.TempDir()
 	for version, pkgbase := range map[string]string{
 		"7.2.11-arch1-1":         "linux",
 		"7.3.0-cachyos-bore-lto": "linux-cachyos-bore-lto",
+		"7.3.0-custom":           "linux-custom",
 		"stale":                  "linux-zen",
 	} {
 		dir := filepath.Join(root, version)
@@ -417,8 +418,15 @@ func TestInstalledKernelHeaderPackagesMatchInstalledKernels(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	installed := map[string]bool{"linux": true, "linux-cachyos-bore-lto": true}
-	got, err := installedKernelHeaderPackages(root, func(name string) bool { return installed[name] })
+	installed := map[string]bool{
+		"linux": true, "linux-cachyos-bore-lto": true, "linux-custom": true,
+	}
+	available := map[string]bool{
+		"linux-headers": true, "linux-cachyos-bore-lto-headers": true,
+	}
+	got, err := availableKernelHeaderPackages(root,
+		func(name string) bool { return installed[name] },
+		func(name string) bool { return available[name] })
 	if err != nil {
 		t.Fatal(err)
 	}
