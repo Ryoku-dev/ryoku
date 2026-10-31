@@ -176,16 +176,34 @@ ShellRoot {
                 return;
             }
 
-            const restoredGrid = root.findObject(app, "ryostore-grid");
-            if (app.searchOpen || !restoredGrid || !restoredGrid.activeFocus
-                    || Math.abs(restoredGrid.contentY - root.savedOffset) >= 0.5)
+            if (root.phase === 8) {
+                const restoredGrid = root.findObject(app, "ryostore-grid");
+                if (app.searchOpen || !restoredGrid || !restoredGrid.activeFocus
+                        || Math.abs(restoredGrid.contentY - root.savedOffset) >= 0.5)
+                    return;
+                root.require(app.categoryID === "lockscreens" && app.selectedKey === "lockscreens:clock",
+                             "search restored exact context");
+                root.require(Math.abs(app.gridOffset - root.savedOffset) < 0.5,
+                             "coordinator mirrors restored grid offset");
+                const names = app.collection.map(item => String(item.name || item.id));
+                for (let i = 1; i < names.length; i++)
+                    root.require(names[i - 1].localeCompare(names[i]) <= 0, "category is ordered A to Z");
+                root.require(root.findObject(app, "ryostore-category-search-field") !== null,
+                             "category search field is mounted");
+                app.setCategoryQuery("broken");
+                root.phase = 9;
                 return;
-            root.require(app.categoryID === "lockscreens" && app.selectedKey === "lockscreens:clock",
-                         "search restored exact context");
-            root.require(Math.abs(app.gridOffset - root.savedOffset) < 0.5,
-                         "coordinator mirrors restored grid offset");
-            console.log("RYOSTORE-FLOW-PROBE-PASS");
-            Qt.quit();
+            }
+
+            if (app.collection.length !== 1 || app.collection[0].id !== "broken")
+                return;
+            root.require(app.categoryID === "lockscreens" && !app.searchOpen,
+                         "category search remains scoped to the open category");
+            if (!root.proofPending)
+                root.saveProof("ryostore-category-search.png", function() {
+                    console.log("RYOSTORE-FLOW-PROBE-PASS");
+                    Qt.quit();
+                });
         }
     }
 }

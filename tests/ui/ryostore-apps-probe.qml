@@ -9,9 +9,13 @@ ShellRoot {
     property int phase: 0
     property int attempts: 0
     property string firstKey: ""
+    property string proofDir: Quickshell.env("RYOSTORE_PROOF_DIR")
+    property bool proofPending: false
+    readonly property int captureWidth: Number(Quickshell.env("RYOSTORE_PROBE_WIDTH") || "1180")
 
     FloatingWindow {
-        implicitWidth: 1180
+        id: win
+        implicitWidth: root.captureWidth
         implicitHeight: 760
 
         Ryo.App {
@@ -41,6 +45,19 @@ ShellRoot {
 
     function keys() {
         return app.collection.map(item => item.id);
+    }
+
+    function saveProof(name, done) {
+        if (proofDir === "") {
+            done();
+            return;
+        }
+        proofPending = true;
+        app.grabToImage(function(result) {
+            root.require(result.saveToFile(proofDir + "/" + name), "saved " + name);
+            proofPending = false;
+            done();
+        });
     }
 
     Timer {
@@ -142,8 +159,13 @@ ShellRoot {
                 return;
             root.require(app.appsTag === "" && app.appsQuery === "", "clearing the filter resets both");
             root.require(root.keys().length === 5, "the whole market returns");
-            console.log("RYOSTORE-APPS-PROBE-PASS");
-            Qt.quit();
+            if (root.proofPending)
+                return;
+            root.saveProof(root.captureWidth < 900
+                    ? "ryostore-apps-narrow.png" : "ryostore-apps-wide.png", function() {
+                console.log("RYOSTORE-APPS-PROBE-PASS");
+                Qt.quit();
+            });
         }
     }
 }

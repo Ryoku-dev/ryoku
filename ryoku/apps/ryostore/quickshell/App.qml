@@ -113,7 +113,7 @@ Rectangle {
     readonly property var collection: StoreLogic.collection(searchableItems, {
         view: view,
         categoryID: categoryID,
-        query: app.appsBrowse ? app.appsQuery : query,
+        query: app.appsBrowse ? app.appsQuery : (app.categoryBrowse ? app.categoryQuery : query),
         tag: app.appsBrowse ? app.appsTag : "",
         provider: app.themesBrowse && app.providerFilter !== "" && app.providerFilter !== "__mine__" ? app.providerFilter : "",
         installedOnly: app.themesBrowse && app.providerFilter === "__mine__",
@@ -135,7 +135,10 @@ Rectangle {
             : ""
     readonly property bool showHero: view === "discover" && categoryID === "" && !searchOpen && collection.length > 0
     readonly property bool appsBrowse: categoryID === "flatpak" && view === "discover" && !searchOpen
+    readonly property bool categoryBrowse: view === "discover" && categoryID !== "" && !searchOpen
+    property string categoryQuery: ""
     readonly property bool appsScope: appsBrowse || remoteScope
+    readonly property bool narrowAppsTools: width < 980
     property string appsTag: ""
     property string appsQuery: ""
     readonly property bool appsFiltered: app.appsBrowse && (app.appsTag !== "" || app.appsQuery !== "")
@@ -147,6 +150,7 @@ Rectangle {
         categoryID,
         query,
         providerFilter,
+        categoryQuery,
         pluginFilter,
         omarchySort,
         appSort,
@@ -210,7 +214,8 @@ Rectangle {
         { "key": "trending", "label": I18n.tr("TRENDING") },
         { "key": "popular", "label": I18n.tr("POPULAR") },
         { "key": "new", "label": I18n.tr("NEW") },
-        { "key": "updated", "label": I18n.tr("UPDATED") }
+        { "key": "updated", "label": I18n.tr("UPDATED") },
+        { "key": "a-z", "label": I18n.tr("A TO Z") }
     ]
     readonly property var themeProviders: {
         var seen = ({});
@@ -332,6 +337,7 @@ Rectangle {
         app.appSort = "trending";
         app.appsTag = "";
         app.appsQuery = "";
+        app.categoryQuery = "";
         detailClear.stop();
         detailOpen = false;
         detailItem = null;
@@ -368,6 +374,12 @@ Rectangle {
 
     function setAppsQuery(value) {
         app.appsQuery = value;
+        app.reconcileSelection(0);
+        productGrid.restoreOffset(0);
+    }
+
+    function setCategoryQuery(value) {
+        app.categoryQuery = value;
         app.reconcileSelection(0);
         productGrid.restoreOffset(0);
     }
@@ -684,10 +696,54 @@ Rectangle {
         onInstallAll: Store.installAll(app.providerItems(app.providerFilter))
     }
 
+    Item {
+        id: categoryTools
+        objectName: "ryostore-category-tools"
+        anchors { left: header.right; top: providerTabs.bottom; right: parent.right }
+        readonly property bool shown: app.categoryBrowse && !app.appsBrowse
+        height: shown ? 48 : 0
+        visible: shown
+        enabled: !app.detailOpen
+
+        Text {
+            anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
+            text: I18n.tr("A TO Z")
+            color: Tokens.inkMuted
+            font.family: Tokens.mono
+            font.pixelSize: Tokens.fTiny
+            font.letterSpacing: Tokens.trackLabel
+        }
+
+        CategorySearch {
+            id: categorySearch
+            objectName: "ryostore-category-search"
+            anchors {
+                right: parent.right; rightMargin: Tokens.s6
+                verticalCenter: parent.verticalCenter
+            }
+            width: Tokens.px(260)
+            height: 36
+            value: app.categoryQuery
+            placeholder: I18n.tr("Search %1").arg(app.pageTitle)
+            onEdited: value => app.setCategoryQuery(value)
+            onCleared: {
+                app.setCategoryQuery("");
+                productGrid.forceActiveFocus();
+            }
+            onAccepted: if (app.selectedItem) app.openSelectedDetail()
+        }
+
+        Rectangle {
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Tokens.border
+            color: Tokens.line
+        }
+    }
+
     ShowroomStage {
         id: stage
         objectName: "ryostore-stage"
-        anchors { left: header.right; top: providerTabs.bottom; right: parent.right }
+        anchors { left: header.right; top: categoryTools.bottom; right: parent.right }
         height: app.showHero
                 ? Math.min(300, Math.max(240, Math.round((actionBar.y - providerTabs.y) * 0.42))) : 0
         visible: app.showHero
@@ -716,7 +772,7 @@ Rectangle {
         anchors {
             left: header.right; leftMargin: Tokens.s6
             right: parent.right; rightMargin: Tokens.s6
-            top: providerTabs.bottom
+            top: categoryTools.bottom
         }
         visible: app.appsBrowse && !app.appsFiltered
         enabled: !app.detailOpen
@@ -734,6 +790,7 @@ Rectangle {
         objectName: "ryostore-apps-tabs"
         anchors { left: header.right; right: parent.right; top: appsHero.bottom }
         visible: app.appsBrowse
+        height: visible ? implicitHeight : 0
         enabled: !app.detailOpen
         providers: app.appTabs
         active: app.appsTag
@@ -747,8 +804,13 @@ Rectangle {
     ProviderTabs {
         id: appsSort
         objectName: "ryostore-apps-sort"
-        anchors { left: header.right; right: appsSearch.left; top: appsTabs.bottom }
+        anchors {
+            left: header.right
+            right: app.narrowAppsTools ? parent.right : appsSearch.left
+            top: appsTabs.bottom
+        }
         visible: app.appsBrowse
+        height: visible ? implicitHeight : 0
         enabled: !app.detailOpen
         providers: app.appSortTabs
         active: app.appSort
@@ -759,17 +821,22 @@ Rectangle {
         onPicked: key => app.setAppSort(key)
     }
 
-    AppsSearch {
+    CategorySearch {
         id: appsSearch
         objectName: "ryostore-apps-search"
         anchors {
             right: parent.right; rightMargin: Tokens.s6
-            verticalCenter: appsSort.verticalCenter
+            top: app.narrowAppsTools ? appsSort.bottom : undefined
+            topMargin: app.narrowAppsTools ? Tokens.s2 : 0
+            verticalCenter: app.narrowAppsTools ? undefined : appsSort.verticalCenter
         }
         width: Tokens.px(240)
+        height: 36
         visible: app.appsBrowse
         enabled: !app.detailOpen
         value: app.appsQuery
+        placeholder: I18n.tr("Search apps")
+        fieldObjectName: "ryostore-apps-search-field"
         onEdited: value => app.setAppsQuery(value)
         onCleared: {
             app.setAppsQuery("");
@@ -783,7 +850,9 @@ Rectangle {
         objectName: "ryostore-grid"
         anchors {
             left: header.right; leftMargin: Tokens.s6
-            top: app.appsBrowse ? appsSort.bottom : stage.bottom
+            top: app.appsBrowse
+                    ? (app.narrowAppsTools ? appsSearch.bottom : appsSort.bottom)
+                    : stage.bottom
             right: parent.right; rightMargin: Tokens.s6
             bottom: actionBar.top
             topMargin: app.appsBrowse ? Tokens.s3 : 0

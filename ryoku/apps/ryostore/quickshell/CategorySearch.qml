@@ -1,12 +1,14 @@
 import QtQuick
 import Ryoku.Ui.Singletons
 
-// The market filter. Typing narrows the loaded catalogue in place; the header
-// search still reaches the rest of Flathub.
+// A local category filter. Typing narrows the loaded category in place; the
+// header search still reaches the whole store or Flathub.
 Item {
     id: field
 
     property string value: ""
+    property string placeholder: I18n.tr("Search this category")
+    property string fieldObjectName: "ryostore-category-search-field"
 
     signal edited(string value)
     signal cleared()
@@ -34,7 +36,7 @@ Item {
 
         TextInput {
             id: input
-            objectName: "ryostore-apps-search-field"
+            objectName: field.fieldObjectName
             anchors {
                 left: glyph.right; leftMargin: Tokens.s2
                 right: parent.right; rightMargin: Tokens.s3
@@ -48,7 +50,7 @@ Item {
             clip: true
             activeFocusOnTab: true
             Accessible.role: Accessible.EditableText
-            Accessible.name: I18n.tr("Search apps")
+            Accessible.name: field.placeholder
             onTextEdited: field.edited(text)
             Keys.onEscapePressed: event => {
                 input.text = "";
@@ -63,7 +65,7 @@ Item {
             Text {
                 anchors.fill: parent
                 visible: input.text === ""
-                text: I18n.tr("Search apps")
+                text: field.placeholder
                 color: Tokens.inkMuted
                 font: input.font
                 verticalAlignment: Text.AlignVCenter

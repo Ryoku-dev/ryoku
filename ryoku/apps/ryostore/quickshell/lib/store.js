@@ -246,6 +246,8 @@ function appMetric(item, mode) {
 function sortApps(items, mode) {
     var sorted = (Array.isArray(items) ? items : []).slice();
     var key = mode || "trending";
+    if (key === "a-z")
+        return sortAlphabetical(sorted);
     sorted.sort(function(a, b) {
         var av = appMetric(a, key);
         var bv = appMetric(b, key);
@@ -325,6 +327,15 @@ function appCategories(items) {
     });
 }
 
+function sortAlphabetical(items) {
+    return (Array.isArray(items) ? items : []).slice().sort(function(a, b) {
+        var an = String(a && (a.name || a.id) || "").toLocaleLowerCase();
+        var bn = String(b && (b.name || b.id) || "").toLocaleLowerCase();
+        var byName = an.localeCompare(bn);
+        return byName || itemKey(a).localeCompare(itemKey(b));
+    });
+}
+
 function collection(items, options) {
     var opts = options || {};
     var filtered = filter(items, {
@@ -337,8 +348,10 @@ function collection(items, options) {
     });
     if (opts.appSort)
         filtered = sortApps(filtered, opts.appSort);
-    if (opts.categoryID === "omarchy-plugins")
+    else if (opts.categoryID === "omarchy-plugins")
         filtered = sortOmarchyPlugins(filtered, opts.omarchySort || "popular");
+    else if (opts.categoryID && opts.categoryID !== "flatpak")
+        filtered = sortAlphabetical(filtered);
     if (opts.view !== "library" && !opts.categoryID && !opts.query) {
         var seed = Number(opts.seed) || 0;
         var lead = featured(filtered, seed);
@@ -410,4 +423,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, competingActionLabel, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
+    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, sortAlphabetical, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, competingActionLabel, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };

@@ -25,6 +25,15 @@ eq(Store.collection(products, { view: "discover", query: "hero" }).map(Store.ite
 eq(Store.selectionKey(products, "lockscreens:lock", 0), "lockscreens:lock", "preserve valid selection");
 eq(Store.selectionKey(products, "missing:item", 1), "lockscreens:lock", "fallback by bounded index");
 eq(Store.selectionKey([], "missing:item", 0), "", "empty selection");
+eq(Store.collection([
+    { id: "z", category: "lockscreens", name: "Zen" },
+    { id: "a", category: "lockscreens", name: "Amber" },
+    { id: "m", category: "lockscreens", name: "Moss" }
+], { view: "discover", categoryID: "lockscreens" }).map(item => item.name), ["Amber", "Moss", "Zen"], "category collections sort A to Z");
+eq(Store.collection([
+    { id: "z", category: "lockscreens", name: "Zen" },
+    { id: "a", category: "lockscreens", name: "Amber" }
+], { view: "discover", categoryID: "lockscreens", query: "zen" }).map(item => item.name), ["Zen"], "category search stays scoped to the open category");
 
 const activeUpdate = { active: true, installed: true, updateAvailable: true };
 eq(Store.statusLabels(activeUpdate), ["UPDATE", "ACTIVE"], "update and active are both explicit");
@@ -186,13 +195,13 @@ eq(
 );
 eq(
     Store.collection(plugins, { view: "discover", categoryID: "plugins", pluginKind: "bar" }).map(Store.itemKey),
-    ["plugins:vpn", "plugins:clockbar"],
-    "plugins BAR collection filters through the pluginKind option"
+    ["plugins:clockbar", "plugins:vpn"],
+    "plugins BAR collection filters and sorts A to Z"
 );
 eq(
     Store.collection(plugins, { view: "discover", categoryID: "plugins" }).map(item => item.id),
-    ["vpn", "clockbar", "widget", "popout", "bare"],
-    "plugins ALL collection keeps every plugin in source order"
+    ["bare", "clockbar", "popout", "vpn", "widget"],
+    "plugins ALL collection sorts A to Z"
 );
 
 const omarchyPlugins = [
@@ -227,6 +236,7 @@ eq(Store.collection(apps, { categoryID: "flatpak", appSort: "trending" }).map(i 
 eq(Store.collection(apps, { categoryID: "flatpak", appSort: "popular" }).map(i => i.id), ["graphics", "player", "browser", "bare"], "Apps Popular sorts by monthly installs");
 eq(Store.collection(apps, { categoryID: "flatpak", appSort: "new" }).map(i => i.id), ["browser", "player", "graphics", "bare"], "Apps New sorts by listing date");
 eq(Store.collection(apps, { categoryID: "flatpak", appSort: "updated" }).map(i => i.id), ["graphics", "player", "browser", "bare"], "Apps Updated sorts by update date");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "a-z" }).map(i => i.id), ["bare", "browser", "graphics", "player"], "Apps A to Z sorts by display name");
 eq(Store.collection(apps, { categoryID: "flatpak", query: "a" }).map(i => i.id), ["graphics", "browser", "player", "bare"], "a search keeps Flathub relevance order");
 eq(Store.appCategories(apps).map(c => c.key), ["audiovideo", "graphics", "network"], "market tabs list the categories the catalogue carries");
 eq(Store.appCategories(apps)[1].note, "1", "a tab carries its app count");
@@ -261,10 +271,10 @@ const shellProducts = [
     { id: "launcher", category: "launchers", installed: true }
 ];
 eq(Store.collection(shellProducts, { categoryID: "subshells" }).map(i => i.id),
-   ["python", "gokko", "tansu", "caelestia"], "subshell browse tab");
+   ["caelestia", "gokko", "python", "tansu"], "subshell browse tab sorts A to Z");
 eq(Store.collection(shellProducts, { categoryID: "barstyles" }).map(i => i.id),
-   ["python", "gokko", "tansu", "caelestia", "obi", "chroma", "nacre"],
-   "barstyle browse tab includes subshells");
+   ["caelestia", "chroma", "gokko", "nacre", "obi", "python", "tansu"],
+   "barstyle browse tab includes subshells and sorts A to Z");
 eq(Store.collection(shellProducts, { view: "library" }).map(i => i.id),
    ["python", "tansu", "obi", "chroma", "launcher"], "library unchanged");
 eq(Store.barCategories([{ id: "barstyles", name: "Bar styles", count: 7, group: "wear" }], shellProducts)

@@ -284,6 +284,11 @@ Install, update, removal, and enablement are single-flight so receipts and packa
 manager state cannot race. While one product is active, every other product keeps
 its action visible but disabled and names the operation that is already running;
 the active product continues to show the backend's real byte or step progress.
+Within a category, products are ordered by display name and a local search field
+filters only that category. Marketplace categories with explicit ranking controls
+keep those controls; Apps also offers **A to Z** alongside Flathub's Trending,
+Popular, New, and Updated rankings.
+
 
 ## Provider behavior
 
