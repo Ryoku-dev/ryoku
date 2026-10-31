@@ -237,6 +237,49 @@ func TestGenPluginsSyncsSavedValuesAtStartup(t *testing.T) {
 	}
 }
 
+// Hyprland turns ':' into '.' and '-' into '_' when it registers plugin
+// options with the Lua config provider. The section names must follow that Lua
+// namespace, not the plugin filename.
+func TestBundledPluginLuaNamespaces(t *testing.T) {
+	for id, want := range map[string]string{
+		"dynamic-cursors":   "dynamic_cursors",
+		"borders-plus-plus": "borders_plus_plus",
+		"hyprglass":         "hyprglass",
+		"hyprgrass":         "hyprgrass",
+		"imgborders":        "imgborders",
+	} {
+		d, ok := bundledByID(id)
+		if !ok {
+			t.Fatalf("%s missing from bundled plugins", id)
+		}
+		if d.ConfigSection != want {
+			t.Errorf("%s config section = %q, want %q", id, d.ConfigSection, want)
+		}
+	}
+}
+
+func TestPluginLoadLuaReportsErrors(t *testing.T) {
+	pb := pluginBlock{
+		id: "dynamic-cursors", name: "dynamic-cursors", so: "/p/dynamic-cursors.so",
+		config: "{ dynamic_cursors = { mode = \"rotate\", shake = { enabled = false } } }",
+	}
+	got := pb.loadLua()
+	want := "do\n" +
+		"  local ok, err = pcall(function()\n" +
+		"    hl.plugin.load(\"/p/dynamic-cursors.so\")\n" +
+		"    if ryoku_plugin_loaded(\"dynamic-cursors\") then\n" +
+		"      hl.config({ plugin = { dynamic_cursors = { mode = \"rotate\", shake = { enabled = false } } } })\n" +
+		"    end\n" +
+		"  end)\n" +
+		"  if not ok then\n" +
+		"    print(\"Ryoku plugin dynamic-cursors: \" .. tostring(err))\n" +
+		"  end\n" +
+		"end\n\n"
+	if got != want {
+		t.Fatalf("load block:\n got %q\nwant %q", got, want)
+	}
+}
+
 // Every bundled plugin's toggle has to reach the roster through the store, or a
 // plugin the user enabled would never be loaded by the status probe.
 func TestPluginEnabledCoversBundled(t *testing.T) {
@@ -253,6 +296,33 @@ func TestPluginEnabledCoversBundled(t *testing.T) {
 		if !pluginEnabled(o, d.ID) {
 			t.Fatalf("%s enabled in the store but not seen by pluginEnabled", d.ID)
 		}
+	}
+}
+
+func TestEnabledPluginReportsUnreachableCompositor(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	dir := filepath.Join(home, ".local", "lib", "hyprland", "plugins")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const id = "offline-test"
+	so := filepath.Join(dir, id+".so")
+	if err := os.WriteFile(so, []byte("plugin:offline-test:enabled"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	target := parseABI("aaaa_aq_0.15_hu_0.14_hg_0.5_hc_0.1_hlg_0.6")
+	if err := os.WriteFile(filepath.Join(dir, id+".abi"), []byte(target.String()+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	o := defaultOverrides()
+	o.Plugins.Extra = map[string]ExtraPlugin{id: {Enabled: true}}
+	info := describePlugin(
+		pluginDef{ID: id, Name: "Offline test", Loaded: id},
+		o, target, map[string]loadedPlugin{}, false,
+	)
+	if info.Status != "unreachable" || !strings.Contains(info.Detail, "not reachable") {
+		t.Fatalf("offline status = %q, detail = %q", info.Status, info.Detail)
 	}
 }
 

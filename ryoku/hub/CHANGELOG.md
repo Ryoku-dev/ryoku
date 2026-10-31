@@ -20,6 +20,11 @@
 - **Updates does not offer an empty run.** A current box labels the action
   `UP TO DATE` and disables it; selecting `INCLUDE SYSTEM` enables `UPDATE NOW`
   only when system packages are waiting (`quickshell/pages/UpdatesPage.qml`).
+- **Plugin failures tell the truth.** A stopped or replaced Hyprland instance is
+  shown as offline instead of making every enabled plugin look broken, stale
+  session handles are rebound before commands run, and plugin setup errors are
+  written to the compositor log (`quickshell/pages/PluginsPage.qml`,
+  `../wm/hyprland/`).
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).

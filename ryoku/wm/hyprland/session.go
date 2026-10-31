@@ -105,6 +105,7 @@ func eventSocketPath() string {
 var ctl = runCtl
 
 func runCtl(args ...string) ([]byte, error) {
+	ensureLiveSignature()
 	cmd := exec.Command("hyprctl", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

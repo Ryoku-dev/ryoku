@@ -22,16 +22,17 @@ import (
 
 // pluginDef is one plugin Ryoku bundles.
 type pluginDef struct {
-	ID      string
-	Name    string
-	Desc    string
-	Repo    string // upstream git URL; "" for a plugin authored in this repo
-	Plugin  string // the [table] in the repo's hyprpm.toml
-	Local   string // in-tree source dir for a Ryoku-authored plugin
-	Package string // the native package that ships the .so
-	Docs    string
-	Sounds  string
-	Loaded  string // the name the plugin reports in `hyprctl plugins list`
+	ID            string
+	Name          string
+	Desc          string
+	Repo          string // upstream git URL; "" for a plugin authored in this repo
+	Plugin        string // the [table] in the repo's hyprpm.toml
+	Local         string // in-tree source dir for a Ryoku-authored plugin
+	Package       string // the native package that ships the .so
+	Docs          string
+	Sounds        string
+	Loaded        string // the name the plugin reports in `hyprctl plugins list`
+	ConfigSection string // the option namespace Hyprland exposes in Lua
 }
 
 var bundledPlugins = []pluginDef{
@@ -41,7 +42,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://github.com/hyprwm/hyprland-plugins", Plugin: "hyprbars",
 		Package: "ryoku-hypr-plugins",
 		Docs:    "https://github.com/hyprwm/hyprland-plugins/tree/main/hyprbars",
-		Loaded:  "hyprbars",
+		Loaded:  "hyprbars", ConfigSection: "hyprbars",
 	},
 	{
 		ID: "hyprglass", Name: "Glass",
@@ -49,7 +50,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://github.com/hyprnux/hyprglass", Plugin: "hyprglass",
 		Package: "hyprglass",
 		Docs:    "https://github.com/hyprnux/hyprglass#configuration",
-		Loaded:  "hyprglass",
+		Loaded:  "hyprglass", ConfigSection: "hyprglass",
 	},
 	{
 		ID: "imgborders", Name: "Image borders",
@@ -57,7 +58,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://codeberg.org/zacoons/imgborders", Plugin: "imgborders",
 		Package: "imgborders",
 		Docs:    "https://codeberg.org/zacoons/imgborders#configuration",
-		Loaded:  "imgborders",
+		Loaded:  "imgborders", ConfigSection: "imgborders",
 	},
 	{
 		ID: "dynamic-cursors", Name: "Cursor motion",
@@ -65,7 +66,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://github.com/VirtCode/hypr-dynamic-cursors", Plugin: "dynamic-cursors",
 		Package: "hypr-dynamic-cursors",
 		Docs:    "https://github.com/VirtCode/hypr-dynamic-cursors#configuration",
-		Loaded:  "dynamic-cursors",
+		Loaded:  "dynamic-cursors", ConfigSection: "dynamic_cursors",
 	},
 	{
 		ID: "hyprfocus", Name: "Focus flash",
@@ -73,7 +74,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://github.com/hyprwm/hyprland-plugins", Plugin: "hyprfocus",
 		Package: "ryoku-hypr-plugins",
 		Docs:    "https://github.com/hyprwm/hyprland-plugins/tree/main/hyprfocus",
-		Loaded:  "hyprfocus",
+		Loaded:  "hyprfocus", ConfigSection: "hyprfocus",
 	},
 	{
 		ID: "borders-plus-plus", Name: "Extra borders",
@@ -81,7 +82,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://github.com/hyprwm/hyprland-plugins", Plugin: "borders-plus-plus",
 		Package: "ryoku-hypr-plugins",
 		Docs:    "https://github.com/hyprwm/hyprland-plugins/tree/main/borders-plus-plus",
-		Loaded:  "borders-plus-plus",
+		Loaded:  "borders-plus-plus", ConfigSection: "borders_plus_plus",
 	},
 	{
 		ID: "hyprgrass", Name: "Touch gestures",
@@ -89,7 +90,7 @@ var bundledPlugins = []pluginDef{
 		Repo: "https://github.com/horriblename/hyprgrass", Plugin: "hyprgrass",
 		Package: "hyprgrass",
 		Docs:    "https://github.com/horriblename/hyprgrass/blob/master/docs/configuration.md",
-		Loaded:  "hyprgrass",
+		Loaded:  "hyprgrass", ConfigSection: "hyprgrass",
 	},
 	{
 		ID: "keysounds", Name: "Key sounds",
@@ -98,7 +99,7 @@ var bundledPlugins = []pluginDef{
 		Package: "ryoku-keysounds",
 		Docs:    "https://github.com/ryoku-dev/ryoku/blob/unstable-dev/ryoku/hyprland/plugins/keysounds/README.md",
 		Sounds:  "https://github.com/hainguyents13/mechvibes/tree/main/src/audio",
-		Loaded:  "keysounds",
+		Loaded:  "keysounds", ConfigSection: "keysounds",
 	},
 }
 
@@ -647,7 +648,7 @@ type pluginInfo struct {
 	ABI           string            `json:"abi"`
 	Enabled       bool              `json:"enabled"`
 	Loaded        bool              `json:"loaded"`
-	Status        string            `json:"status"` // running | ready | stale | missing | failed
+	Status        string            `json:"status"` // running | ready | unreachable | stale | missing | failed
 	Detail        string            `json:"detail"`
 	Current       bool              `json:"current"`
 	Rebuildable   bool              `json:"rebuildable"`
@@ -730,20 +731,23 @@ func pluginRosterNow() pluginRoster {
 	if !target.ok() {
 		target = hdr
 	}
-	loaded := loadedPlugins()
+	loaded := map[string]loadedPlugin{}
+	if comp.Live {
+		loaded = loadedPlugins()
+	}
 	roster := pluginRoster{Compositor: comp, Toolchain: toolchain()}
 
 	seen := map[string]bool{}
 	for _, d := range bundledPlugins {
 		seen[d.ID] = true
-		roster.Plugins = append(roster.Plugins, describePlugin(d, o, target, loaded))
+		roster.Plugins = append(roster.Plugins, describePlugin(d, o, target, loaded, comp.Live))
 	}
 	for _, r := range localReceipts() {
 		if seen[r.ID] {
 			continue
 		}
 		seen[r.ID] = true
-		roster.Plugins = append(roster.Plugins, describePlugin(receiptDef(r), o, target, loaded))
+		roster.Plugins = append(roster.Plugins, describePlugin(receiptDef(r), o, target, loaded, comp.Live))
 	}
 	for _, p := range hyprpmCopies() {
 		id := strings.TrimSuffix(filepath.Base(p), ".so")
@@ -752,7 +756,7 @@ func pluginRosterNow() pluginRoster {
 		}
 		seen[id] = true
 		d := pluginDef{ID: id, Name: id, Plugin: id, Loaded: id, Desc: "Installed by hyprpm from " + filepath.Base(filepath.Dir(p)) + "."}
-		roster.Plugins = append(roster.Plugins, describePlugin(d, o, target, loaded))
+		roster.Plugins = append(roster.Plugins, describePlugin(d, o, target, loaded, comp.Live))
 	}
 	return roster
 }
@@ -770,7 +774,7 @@ func receiptDef(r pluginReceipt) pluginDef {
 	return pluginDef{ID: r.ID, Name: name, Desc: r.Desc, Repo: r.Repo, Plugin: r.Plugin, Local: r.Local, Docs: r.Repo, Loaded: loadedName}
 }
 
-func describePlugin(d pluginDef, o Overrides, target hyprABI, loaded map[string]loadedPlugin) pluginInfo {
+func describePlugin(d pluginDef, o Overrides, target hyprABI, loaded map[string]loadedPlugin, compositorLive bool) pluginInfo {
 	_, bundled := bundledByID(d.ID)
 	info := pluginInfo{
 		ID: d.ID, Name: d.Name, Desc: d.Desc, Docs: d.Docs, Sounds: d.Sounds, Repo: d.Repo, Package: d.Package,
@@ -836,6 +840,8 @@ func describePlugin(d pluginDef, o Overrides, target hyprABI, loaded map[string]
 	switch {
 	case isLoaded:
 		info.Status, info.Detail = "running", "Loaded in the running compositor."
+	case info.Enabled && !compositorLive:
+		info.Status, info.Detail = "unreachable", "The Hyprland compositor instance is not reachable. Start or restart the session, then refresh."
 	case stale:
 		info.Status, info.Detail = "stale", abiDiff(c.ABI, target)+". Rebuild it for this Hyprland."
 	case info.Enabled && target.ok():

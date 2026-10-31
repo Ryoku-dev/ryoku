@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -36,5 +37,36 @@ func TestRunEnvironmentExportsOnlyProviderHandle(t *testing.T) {
 	}
 	if got, want := output.String(), "HYPRLAND_INSTANCE_SIGNATURE=session-nine\x00"; got != want {
 		t.Fatalf("environment output = %q, want %q", got, want)
+	}
+}
+
+func TestRunCtlRebindsStaleInstanceSignature(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	t.Setenv("HYPRLAND_INSTANCE_SIGNATURE", "dead-instance")
+
+	socketDir := filepath.Join(runtimeDir, "hypr", "live-instance")
+	if err := os.MkdirAll(socketDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", filepath.Join(socketDir, ".socket.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	bin := t.TempDir()
+	hyprctl := filepath.Join(bin, "hyprctl")
+	if err := os.WriteFile(hyprctl, []byte("#!/bin/sh\nprintf '%s\\n' \"$HYPRLAND_INSTANCE_SIGNATURE\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+
+	out, err := runCtl("version", "-j")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(out), "live-instance\n"; got != want {
+		t.Fatalf("hyprctl signature = %q, want %q", got, want)
 	}
 }

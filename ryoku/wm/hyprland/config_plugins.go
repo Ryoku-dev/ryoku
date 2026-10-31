@@ -139,15 +139,28 @@ func genPlugins(o Overrides) string {
 			fmt.Fprintf(&b, "-- %s: no copy built for this Hyprland; rebuild it from Settings > Plugins\n\n", pb.id)
 			continue
 		}
-		b.WriteString("pcall(function()\n")
-		fmt.Fprintf(&b, "  hl.plugin.load(%s)\n", luaStr(pb.so))
-		b.WriteString(pb.configLua("  "))
-		b.WriteString("end)\n\n")
+		b.WriteString(pb.loadLua())
 	}
 	if len(blocks) > 0 {
 		b.WriteString(luaPluginStartupSync)
 	}
 	b.WriteString(genScrolling(o))
+	return b.String()
+}
+
+// loadLua keeps one plugin's failure local while making it visible in the
+// compositor log instead of discarding pcall's error value.
+func (pb pluginBlock) loadLua() string {
+	var b strings.Builder
+	b.WriteString("do\n")
+	b.WriteString("  local ok, err = pcall(function()\n")
+	fmt.Fprintf(&b, "    hl.plugin.load(%s)\n", luaStr(pb.so))
+	b.WriteString(pb.configLua("    "))
+	b.WriteString("  end)\n")
+	b.WriteString("  if not ok then\n")
+	fmt.Fprintf(&b, "    print(%s .. tostring(err))\n", luaStr("Ryoku plugin "+pb.id+": "))
+	b.WriteString("  end\n")
+	b.WriteString("end\n\n")
 	return b.String()
 }
 
@@ -183,13 +196,13 @@ func (pb pluginBlock) configLua(indent string) string {
 	return b.String()
 }
 
-// typedBlock is a bundled plugin's block: its options under one section, keys
-// underscored (the Lua config normalises them to the plugin's dashed names).
-func typedBlock(id, section string, opts []string, extra string) pluginBlock {
+// typedBlock is a bundled plugin's block. ConfigSection is the exact name
+// Hyprland exposes to Lua after normalising the plugin's option namespace.
+func typedBlock(id string, opts []string, extra string) pluginBlock {
 	d, _ := bundledByID(id)
 	return pluginBlock{
 		id: id, name: d.Loaded, so: pluginSoPath(id),
-		config: fmt.Sprintf("{ %s = { %s } }", section, strings.Join(opts, ", ")),
+		config: fmt.Sprintf("{ %s = { %s } }", d.ConfigSection, strings.Join(opts, ", ")),
 		extra:  extra,
 	}
 }
@@ -205,7 +218,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			fmt.Sprintf("mode = %s", luaStr(dc.Mode)),
 			fmt.Sprintf("shake = { enabled = %t, base = %s }", dc.Shake, luaNum(dc.Magnify)),
 		}
-		out = append(out, typedBlock("dynamic-cursors", "dynamic_cursors", opts, ""))
+		out = append(out, typedBlock("dynamic-cursors", opts, ""))
 	}
 
 	if hb := p.Hyprbars; hb.Enabled {
@@ -220,7 +233,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			extra = "    hl.plugin.hyprbars.add_button({ bg_color = \"rgb(ff5f57)\", fg_color = \"rgb(ffffff)\", size = 12, icon = \"\u00d7\", action = \"hyprctl dispatch killactive\" })\n" +
 				"    hl.plugin.hyprbars.add_button({ bg_color = \"rgb(28c840)\", fg_color = \"rgb(ffffff)\", size = 12, icon = \"+\", action = \"hyprctl dispatch fullscreen 1\" })\n"
 		}
-		out = append(out, typedBlock("hyprbars", "hyprbars", opts, extra))
+		out = append(out, typedBlock("hyprbars", opts, extra))
 	}
 
 	if ib := p.Imgborders; ib.Enabled {
@@ -233,7 +246,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			fmt.Sprintf("smooth = %t", ib.Smooth),
 			fmt.Sprintf("blur = %t", ib.Blur),
 		}
-		out = append(out, typedBlock("imgborders", "imgborders", opts, ""))
+		out = append(out, typedBlock("imgborders", opts, ""))
 	}
 
 	if hg := p.Hyprglass; hg.Enabled {
@@ -246,7 +259,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			fmt.Sprintf("brightness = %s", luaNum(hg.Brightness)),
 			fmt.Sprintf("default_theme = %s", luaStr(hg.Theme)),
 		}
-		out = append(out, typedBlock("hyprglass", "hyprglass", opts, ""))
+		out = append(out, typedBlock("hyprglass", opts, ""))
 	}
 
 	if hf := p.Hyprfocus; hf.Enabled {
@@ -264,7 +277,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			fmt.Sprintf("shrink_percentage = %s", luaNum(hf.Bounce)),
 			fmt.Sprintf("slide_height = %s", luaNum(hf.Slide)),
 		}
-		out = append(out, typedBlock("hyprfocus", "hyprfocus", opts, ""))
+		out = append(out, typedBlock("hyprfocus", opts, ""))
 	}
 
 	if ks := p.Keysounds; ks.Enabled {
@@ -274,7 +287,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			fmt.Sprintf("volume = %s", luaNum(ks.Volume)),
 			fmt.Sprintf("release = %t", ks.Release),
 		}
-		out = append(out, typedBlock("keysounds", "keysounds", opts, ""))
+		out = append(out, typedBlock("keysounds", opts, ""))
 	}
 
 	if bp := p.BordersPlusPlus; bp.Enabled {
@@ -286,7 +299,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 			fmt.Sprintf("col = { border_1 = %s }", luaStr(luaRGB(bp.Color))),
 			fmt.Sprintf("border_size_1 = %d", bp.Size),
 		}
-		out = append(out, typedBlock("borders-plus-plus", "borders_plus_plus", opts, ""))
+		out = append(out, typedBlock("borders-plus-plus", opts, ""))
 	}
 
 	if gr := p.Hyprgrass; gr.Enabled {
@@ -306,7 +319,7 @@ func pluginBlocks(o Overrides) []pluginBlock {
 				"        action = hl.dsp.window.float({ action = \"toggle\" }),\n" +
 				"    })\n"
 		}
-		out = append(out, typedBlock("hyprgrass", "hyprgrass", opts, extra))
+		out = append(out, typedBlock("hyprgrass", opts, extra))
 	}
 
 	for _, id := range sortedExtraIDs(p.Extra) {
