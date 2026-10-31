@@ -32,6 +32,35 @@ func TestMonitorOutputsDisabledState(t *testing.T) {
 	}
 }
 
+func TestWorkspaceFramesCarryNumericRank(t *testing.T) {
+	restore := stubCtl(t, func(args ...string) ([]byte, error) {
+		if args[0] != "workspaces" {
+			t.Fatalf("unexpected query %v", args)
+		}
+		return []byte(`[
+			{"id":3,"name":"3","monitor":"DP-1"},
+			{"id":1,"name":"1","monitor":"DP-1"},
+			{"id":2,"name":"2","monitor":"DP-1"}
+		]`), nil
+	})
+	defer restore()
+	workspaces := readWorkspaces([]hyprMonitor{{
+		Name: "DP-1", ActiveWorkspace: struct {
+			ID   int    `json:"id"`
+			Name string `json:"name"`
+		}{ID: 1, Name: "1"},
+	}})
+	got := map[string]int{}
+	for _, workspace := range workspaces {
+		got[workspace.ID] = workspace.Index
+	}
+	for id, index := range map[string]int{"1": 1, "2": 2, "3": 3} {
+		if got[id] != index {
+			t.Errorf("workspace %s index = %d, want %d", id, got[id], index)
+		}
+	}
+}
+
 func TestFocusEventsDoNotQueryAndPreserveHistory(t *testing.T) {
 	restore := stubCtl(t, func(...string) ([]byte, error) { t.Fatal("focus queried compositor"); return nil, nil })
 	defer restore()

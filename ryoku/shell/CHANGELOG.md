@@ -34,6 +34,9 @@
 - **The desktop visualizer stays behind apps and the dock after Super+M.** Its
   ordinary on/off toggle no longer creates the separate Above windows surface
   while the desktop renderer catches up (`quickshell/shell/shell.qml`).
+- **Orpheus workspace marks stay in workspace order.** The strip now follows
+  each output's numeric workspace positions when providers report them out of
+  sequence (`quickshell/shell/modules/bar/barstyles/orpheus/modules/Workspaces.qml`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service

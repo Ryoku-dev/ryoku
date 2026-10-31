@@ -397,10 +397,17 @@ func readWorkspaces(mons []hyprMonitor) []wm.Workspace {
 	list := make([]wm.Workspace, 0, len(raw))
 	for _, w := range raw {
 		key := workspaceKey(w.ID, w.Name)
+		index := 0
+		if w.ID > 0 {
+			index = w.ID
+		} else if parsed, err := strconv.Atoi(w.Name); err == nil && parsed > 0 {
+			index = parsed
+		}
 		list = append(list, wm.Workspace{
 			ID:     key,
 			Name:   w.Name,
 			Output: w.Monitor,
+			Index:  index,
 			Active: active[key],
 			// A negative id is how Hyprland marks a scratchpad workspace.
 			Special:    w.ID < 0 || strings.HasPrefix(w.Name, "special:"),

@@ -28,6 +28,24 @@ func foldEvents(t *testing.T, s *session, wants func(wm.FrameKind) bool, events 
 
 func allKinds(wm.FrameKind) bool { return true }
 
+func TestWorkspaceFrameCarriesPerOutputIndex(t *testing.T) {
+	s := &session{workspaces: []niriWorkspace{
+		{ID: 20, Idx: 3, Output: "eDP-1"},
+		{ID: 2, Idx: 1, Output: "eDP-1"},
+		{ID: 10, Idx: 2, Output: "eDP-1"},
+	}}
+	got := map[string]int{}
+	for _, workspace := range s.workspaceFrame() {
+		got[workspace.ID] = workspace.Index
+	}
+	want := map[string]int{"2": 1, "10": 2, "20": 3}
+	for id, index := range want {
+		if got[id] != index {
+			t.Errorf("workspace %s index = %d, want %d", id, got[id], index)
+		}
+	}
+}
+
 // The overview state is what gates the backdrop's blur pass, so the fold must
 // carry is_open straight onto a FrameOverview and keep it on the session for a
 // later connect replay.

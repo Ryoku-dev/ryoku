@@ -64,8 +64,9 @@ Item {
                     }
                 }
             }
-            parts.push(field(key), field(workspace.name || key),
-                field(workspace.idx !== undefined ? workspace.idx : index + 1),
+            const rank = workspace.index !== undefined ? workspace.index
+                : workspace.idx !== undefined ? workspace.idx : index + 1;
+            parts.push(field(key), field(workspace.name || key), field(rank),
                 workspace.active === true ? "1" : "0",
                 workspace.occupied === true ? "1" : "0",
                 workspace.urgent === true ? "1" : "0",
@@ -121,10 +122,12 @@ Item {
             if (!S.Prefs.workspaceShowEmpty && !occupied && workspace.active !== true)
                 continue;
 
+            const rank = workspace.index !== undefined ? Number(workspace.index)
+                : workspace.idx !== undefined ? Number(workspace.idx) : index + 1;
             shown.push({
                 key: key,
                 label: String(workspace.name || key),
-                index: workspace.idx !== undefined ? Number(workspace.idx) : index + 1,
+                index: Number.isFinite(rank) && rank > 0 ? rank : index + 1,
                 active: workspace.active === true,
                 occupied: occupied,
                 urgent: workspace.urgent === true,
@@ -132,6 +135,13 @@ Item {
                 windowCount: count
             });
         }
+        shown.sort((left, right) => {
+            const leftIndex = Number(left.index);
+            const rightIndex = Number(right.index);
+            if (!Number.isFinite(leftIndex) || !Number.isFinite(rightIndex))
+                return 0;
+            return leftIndex - rightIndex;
+        });
         return S.Prefs.workspaceShowEmpty && Wm.workspaceModel === "fixed"
             ? root.padded(shown) : shown;
     }

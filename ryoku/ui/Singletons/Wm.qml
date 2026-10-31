@@ -136,6 +136,7 @@ Singleton {
                 out.push({
                     id: r.id !== undefined && r.id !== "" ? String(r.id) : r.name,
                     name: r.name,
+                    index: r.index !== undefined ? r.index : r.idx,
                     active: r.active === true,
                     urgent: s ? s.urgent === true : false,
                     canActivate: s ? s.canActivate === true : root.caps.workspaces === true,

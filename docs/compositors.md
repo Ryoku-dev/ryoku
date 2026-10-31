@@ -35,6 +35,10 @@ A provider is one binary, `ryoku-wm-<name>`, shipped by
 |`session`|the `wayland-session` desktop entry|
 |`environment <pid>`|export the provider's opaque handle from one verified session process|
 
+Ordinary workspace frames carry a one-based `index` inside their output. The
+handle in `id` remains the only action argument; `index` is presentation order,
+and consumers preserve frame order when an older provider omits it.
+
 `ryoku wm compat <plugin-dir>` is the neutral plugin gate. It scans QML,
 JavaScript, shell, Python and executable files without running them, then
 compares any foreign shell interfaces it finds with `caps.foreignApis`. A

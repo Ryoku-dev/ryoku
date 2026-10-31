@@ -519,6 +519,7 @@ func (s *session) workspaceFrame() []wm.Workspace {
 			ID:      formatUint(ws.ID),
 			Name:    workspaceName(ws),
 			Output:  ws.Output,
+			Index:   ws.Idx,
 			Active:  ws.IsActive,
 			Windows: counts[ws.ID],
 		})
