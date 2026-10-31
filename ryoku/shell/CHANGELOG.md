@@ -6,6 +6,14 @@
   `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,
   gaming, Discord and notification tray (`quickshell/{inir,shell/modules/bar/barstyles/iris}/`,
   `ipc/`).
+- **Shima themes reach the dock users actually see.** Theme presets now send
+  notch, material, icon-size and magnification choices through the universal
+  dock owner instead of writing retired Shima-only settings
+  (`quickshell/inir/modules/iris/settings/IrisThemes.qml`).
+- **Shima's dock previews match the live dock.** Settings previews now read the
+  universal dock's active design, visibility, edge, material and icon settings
+  instead of stale Shima-only values
+  (`quickshell/inir/modules/iris/preview/IrisGroupPreview.qml`).
 - **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
   and Super+K open the active style's launcher, clipboard, settings and
   cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's

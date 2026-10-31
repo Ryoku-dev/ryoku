@@ -6,6 +6,7 @@ import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
+import shell.services as Ryoku
 import inir.services
 import inir.modules.common
 import inir.modules.common.functions
@@ -24,6 +25,10 @@ Singleton {
         { path: "iris.appearance.preset", fallback: "iris" },
         { path: "iris.bar.composition", fallback: "cluster" },
         { path: "iris.appearance.motionDuration", fallback: 220 },
+        { path: "iris.dock.notch", fallback: true },
+        { path: "iris.dock.material", fallback: "inherit" },
+        { path: "iris.dock.iconSize", fallback: 44 },
+        { path: "iris.dock.magnification", fallback: false },
     ]
     readonly property var paths: {
         const seen = new Set()
@@ -41,6 +46,20 @@ Singleton {
     readonly property var pathSet: new Set(root.paths.map(entry => entry.path))
     function owns(path: string): bool { return root.pathSet.has(path) }
 
+    readonly property var dockPaths: ({
+        "iris.dock.notch": { scope: "shima", key: "notch" },
+        "iris.dock.material": { scope: "shima", key: "material" },
+        "iris.dock.iconSize": { scope: "shared", key: "size" },
+        "iris.dock.magnification": { scope: "shared", key: "magnify" }
+    })
+    function value(path: string, fallback: var): var {
+        const dock = root.dockPaths[path]
+        if (!dock)
+            return Config.getNestedValue(path, fallback)
+        return dock.scope === "shima"
+            ? Ryoku.Dock.designCfg("shima", dock.key, fallback)
+            : Ryoku.Dock.cfg(dock.key, fallback)
+    }
     function resolved(values: var): var {
         const out = {}
         for (const entry of root.paths)
@@ -49,7 +68,7 @@ Singleton {
     }
     function current(): var {
         const out = {}
-        for (const entry of root.paths) out[entry.path] = IrisOptions.plain(Config.getNestedValue(entry.path, entry.fallback))
+        for (const entry of root.paths) out[entry.path] = IrisOptions.plain(root.value(entry.path, entry.fallback))
         return out
     }
     function differences(values: var): var {
@@ -61,10 +80,16 @@ Singleton {
     function apply(theme: var): void {
         if (!theme) return
         const updates = root.resolved(theme.values)
-        // The widget design goes through its owner so every widget follows the theme and the looks
-        // it replaces can be undone.
         const design = String(updates["iris.widgets.design"] ?? "iris")
         delete updates["iris.widgets.design"]
+        for (const path of Object.keys(root.dockPaths)) {
+            const dock = root.dockPaths[path]
+            if (dock.scope === "shima")
+                Ryoku.Dock.setDesignCfg("shima", dock.key, updates[path])
+            else
+                Ryoku.Dock.setCfg(dock.key, updates[path])
+            delete updates[path]
+        }
         updates["iris.appearance.themeId"] = String(theme.id ?? "")
         Config.setNestedValues(updates)
         DesktopWidgetDesign.apply(design)
@@ -99,7 +124,7 @@ Singleton {
         if (!root.active) return true
         const wanted = root.resolved(root.active.values)
         for (const entry of root.paths)
-            if (!IrisOptions.same(Config.getNestedValue(entry.path, entry.fallback), wanted[entry.path])) return true
+            if (!IrisOptions.same(root.value(entry.path, entry.fallback), wanted[entry.path])) return true
         return false
     }
 
