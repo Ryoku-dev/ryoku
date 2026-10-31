@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A failed graphics process cannot leave the login cover on screen forever.**
+  The cover launcher now removes a wedged surface after one minute even when
+  its own animation timer cannot run (`scripts/ryoku-reload-cover`).
 - **The auto-hidden Ryoku dock reveals at the screen edge over open windows.**
   With auto-hide on it sits above maximized, tiled, and floating apps, so the
   pointer reaches its edge; a dock without auto-hide stays below them

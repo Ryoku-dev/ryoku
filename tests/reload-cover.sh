@@ -92,6 +92,37 @@ if env -u WAYLAND_DISPLAY -u RYOKU_RELOAD_COVER_TEST "$cover" begin >/dev/null 2
 fi
 test ! -e "$XDG_RUNTIME_DIR/ryoku-reload-cover.json"
 
+# A graphics hang can stop the cover's QML timer with the surface still mapped.
+# The launcher's process watchdog must tear that instance down independently.
+mkdir -p "$tmp/bin"
+cat >"$tmp/bin/qs" <<'EOF'
+#!/usr/bin/env bash
+if [[ ${3:-} == ipc ]]; then
+    case "${6:-}" in
+        mapped|covered) echo true ;;
+        status) echo hold ;;
+        *) echo false ;;
+    esac
+    exit 0
+fi
+exec sleep 300
+EOF
+chmod +x "$tmp/bin/qs"
+token=$(PATH="$tmp/bin:$PATH" WAYLAND_DISPLAY=wayland-test \
+    RYOKU_SHELL_DIR="$root/ryoku/shell" \
+    RYOKU_RELOAD_COVER_WATCHDOG_TICKS=10 "$cover" begin boot)
+test -n "$token"
+stuck_pid=$(jq -r .pid "$XDG_RUNTIME_DIR/ryoku-reload-cover.json")
+for _ in $(seq 1 40); do
+    [[ ! -e $XDG_RUNTIME_DIR/ryoku-reload-cover.json ]] && break
+    sleep 0.1
+done
+test ! -e "$XDG_RUNTIME_DIR/ryoku-reload-cover.json"
+if kill -0 "$stuck_pid" 2>/dev/null; then
+    echo "process watchdog left a stuck cover alive" >&2
+    exit 1
+fi
+
 echo "reload cover launcher: PASS"
 
 if [[ ${RYOKU_RELOAD_COVER_LIVE:-0} == 1 ]]; then
