@@ -58,6 +58,7 @@ Singleton {
 
     Connections {
         target: Ryoku.OsdFeed
+        function onPreviewSeqChanged(): void { root.osdVolumeOpen = true }
         function onVolumeRequested(): void { root.osdVolumeOpen = true }
         function onBrightnessRequested(): void { root.osdBrightnessOpen = true }
         function onMicRequested(): void { root.osdMicOpen = true }
@@ -320,6 +321,8 @@ Singleton {
     // launcher variant share it, so one morph answers Super+Space, the island
     // search bubble and the dock's launcher alike.
     property bool searchOpen: false
+    property bool cheatsheetOpen: false
+    property bool overlayOpen: false
 
     // User-configured fallback for singular panels such as wallpaper pickers.
     // Empty string uses the first available Quickshell screen.

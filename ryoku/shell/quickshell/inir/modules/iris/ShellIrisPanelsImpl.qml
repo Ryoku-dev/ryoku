@@ -5,6 +5,8 @@ import Quickshell
 import inir
 import inir.services
 import inir.modules.common
+import inir.modules.cheatsheet
+import inir.modules.ii.overlay
 import inir.modules.iris.notificationPopup
 import inir.modules.iris.onScreenDisplay
 import inir.modules.iris.session
@@ -155,6 +157,22 @@ Item {
         extraCondition: Config.options?.iris?.modules?.palette ?? true
         component: IrisPalette {}
     }
+    OnDemandPanelLoader {
+        identifier: "irisCheatsheet"
+        requireEnabledPanel: false
+        open: GlobalStates.cheatsheetOpen
+        closeGraceMs: IrisStyle.settleDuration + 120
+        component: Cheatsheet {}
+    }
+
+    OnDemandPanelLoader {
+        identifier: "irisOverlay"
+        requireEnabledPanel: false
+        open: GlobalStates.overlayOpen
+        closeGraceMs: IrisStyle.settleDuration + 120
+        component: Overlay {}
+    }
+
 
 
 

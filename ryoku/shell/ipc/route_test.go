@@ -9,6 +9,7 @@ func TestRoute(t *testing.T) {
 		cmd, config, target, fn string
 	}{
 		{"launcher", "shell", "shell", "openSurface"},
+		{"tools", "shell", "shell", "openSurface"},
 		{"overview", "shell", "shell", "openSurface"},
 		{"visualizer", "shell", "shell", "openSurface"},
 		{"visualizer-overlay", "shell", "shell", "openSurface"},

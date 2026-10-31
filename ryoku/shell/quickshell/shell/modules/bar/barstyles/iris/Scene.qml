@@ -11,11 +11,14 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import inir
 import inir.modules.common
 import inir.modules.iris
 import inir.modules.iris.critical
 import inir.services
+import inir.services.deferred
+import shell.services as Ryoku
 import "../../../../services/lib/screens.js" as Screens
 
 Item {
@@ -45,7 +48,7 @@ Item {
                 ShellIrisCriticalPanels {}
 
                 // The deferred tier: side panels, popups, studio, settings,
-                // OSD, session and Spotlight.
+                // OSD, session, Spotlight, cheatsheet and floating tools.
                 Loader {
                     active: Config.ready && GlobalStates.deferredPanelsReady
                     sourceComponent: Component { ShellIrisPanelsImpl {} }
@@ -58,6 +61,7 @@ Item {
                     // lazy singleton, so without this nudge the target stays
                     // unregistered until the palette first opens.
                     void GlobalActions.allActions
+                    void KeybindCatalogue.categories
                     GlobalStates.shellEntryReady = false
                     GlobalStates.deferredPanelsReady = false
                     if (Config.ready)
@@ -77,6 +81,81 @@ Item {
                     id: deferredTimer
                     interval: 500
                     onTriggered: GlobalStates.deferredPanelsReady = true
+                }
+
+                Connections {
+                    target: Ryoku.ShellState
+                    function onSurfaceRequested(id, mon, ctx): void {
+                        switch (id) {
+                        case "launcher":
+                            GlobalStates.searchOpen = !GlobalStates.searchOpen
+                            break
+                        case "clipboard":
+                            if (GlobalStates.searchOpen) {
+                                GlobalStates.searchOpen = false
+                            } else {
+                                LauncherSearch.ensurePrefix(Config.options?.search?.prefix?.clipboard ?? ";")
+                                GlobalStates.irisSpotlightQuery = LauncherSearch.query
+                                GlobalStates.searchOpen = true
+                            }
+                            break
+                        case "settings":
+                            if (GlobalStates.settingsOverlayOpen)
+                                GlobalStates.settingsOverlayOpen = false
+                            else
+                                GlobalStates.openSettings()
+                            break
+                        case "cheatsheet":
+                            GlobalStates.cheatsheetOpen = !GlobalStates.cheatsheetOpen
+                            break
+                        case "tools":
+                            GlobalStates.overlayOpen = !GlobalStates.overlayOpen
+                            break
+                        }
+                    }
+                }
+
+                IpcHandler {
+                    target: "clipboard"
+                    function open(): void {
+                        LauncherSearch.ensurePrefix(Config.options?.search?.prefix?.clipboard ?? ";")
+                        GlobalStates.irisSpotlightQuery = LauncherSearch.query
+                        GlobalStates.searchOpen = true
+                    }
+                    function close(): void { GlobalStates.searchOpen = false }
+                    function toggle(): void {
+                        if (GlobalStates.searchOpen) close()
+                        else open()
+                    }
+                }
+
+                IpcHandler {
+                    target: "cheatsheet"
+                    function open(): void { GlobalStates.cheatsheetOpen = true }
+                    function close(): void { GlobalStates.cheatsheetOpen = false }
+                    function toggle(): void { GlobalStates.cheatsheetOpen = !GlobalStates.cheatsheetOpen }
+                }
+
+                IpcHandler {
+                    target: "session"
+                    function open(): void { GlobalStates.sessionOpen = true }
+                    function close(): void { GlobalStates.sessionOpen = false }
+                    function toggle(): void { GlobalStates.sessionOpen = !GlobalStates.sessionOpen }
+                }
+
+                IpcHandler {
+                    target: "overlay"
+                    function toggle(): void { GlobalStates.overlayOpen = !GlobalStates.overlayOpen }
+                    function tool(identifier: string, action: string): string {
+                        const state = Persistent.states.overlay
+                        if (!state || typeof state[identifier] !== "object") return "Unknown tool"
+                        const open = Array.from(state.open ?? []).includes(identifier)
+                        const wanted = action === "on" ? true : action === "off" ? false : !open
+                        state.open = wanted
+                            ? Array.from(state.open ?? []).filter(id => id !== identifier).concat([identifier])
+                            : Array.from(state.open ?? []).filter(id => id !== identifier)
+                        return wanted ? "on" : "off"
+                    }
                 }
 
                 Connections {

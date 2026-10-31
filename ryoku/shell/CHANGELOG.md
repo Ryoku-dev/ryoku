@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,
+  clipboard, settings and shortcuts keys now open Shima surfaces, while
+  `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,
+  gaming, Discord and notification tray (`quickshell/{inir,shell/modules/bar/barstyles/iris}/`,
+  `ipc/`).
 - **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
   and Super+K open the active style's launcher, clipboard, settings and
   cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's

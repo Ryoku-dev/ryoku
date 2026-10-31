@@ -1272,6 +1272,7 @@ var surfaceCommands = map[string]string{
 	"clipboard":           "clipboard",
 	"settings":            "settings",
 	"cheatsheet":          "cheatsheet",
+	"tools":               "tools",
 	"screenshot":          "screenshot",
 	"ask":                 "ask",
 	"ask chat":            "ask#chat",

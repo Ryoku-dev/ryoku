@@ -793,6 +793,23 @@ Connections {
 A style's opt-out key (Shima's `inir.iris.modules.palette`, Python's
 `python.general.notifications`) hands the key back to Ryoku.
 
+### Shima surfaces
+
+Shima owns the four routed keys while `iris` is active:
+
+| Key | Surface |
+|---|---|
+| Super+Space | Spotlight |
+| Super+V | Spotlight in clipboard-history mode |
+| Super+comma | Shima Settings, using its configured overlay or window host |
+| Super+K | Shima's shortcuts sheet, populated from Ryoku's active keybind catalogue |
+
+Run `ryoku-shell tools` to open Shima's floating tools. There is no default
+chord; the same entry is listed as **Floating tools** in Spotlight. The tray
+offers notes, images, a crosshair, resource and game views, a volume mixer, an
+FPS limiter, Discord controls and notifications. Screen recording remains in
+Ryoku's capture workflow.
+
 ## QS Bar Settings
 
 QS Bar carries its own settings panel, **QS Bar Settings** (`controlcenter/`), the
