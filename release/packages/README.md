@@ -54,9 +54,10 @@ full checkout. The Go binaries and QML plugins are built into `$srcdir`, so the
 source tree is never modified, and `makepkg --clean` removes `$srcdir` and
 `$pkgdir` afterward.
 
-The `gpk`, `skwd-paper-bin`, and `ryoku-keyring` PKGBUILDs fetch pinned
-upstream artifacts instead of building from the checkout. `prowl` is also
-pinned upstream, but builds its selected commit from source.
+The `gpk`, `skwd-paper-bin`, `hyprland-preview-share-picker`, and
+`ryoku-keyring` PKGBUILDs fetch pinned upstream artifacts or source instead of
+building from the checkout. `prowl` is also pinned upstream, but builds its
+selected commit from source.
 
 ## Shared package payloads
 

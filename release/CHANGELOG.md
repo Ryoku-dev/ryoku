@@ -152,6 +152,10 @@
   the other plugin packages.
 
 ### Fixed
+- **The Hyprland share picker works with Hyprland 0.57 again.** The Arch and
+  Fedora packages now ship upstream 0.3.0, which no longer parses Hyprland's
+  workspace data through `hyprland-rs`. Outputs and Windows load again instead
+  of leaving Discord monitor shares black or forcing Region selection.
 - **Fedora and Arch build the image-border plugin against Hyprland 0.57.**
   Fedora moved `hyprland-devel` and Arch moved `hyprland` to 0.57, whose
   renderer passes an explicit `CRenderContext` and dropped the `m_renderData`
