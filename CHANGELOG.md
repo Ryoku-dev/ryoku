@@ -16,6 +16,9 @@ for finer detail.
 ### Fixed
 - Fedora installs keep existing RPM Fusion FFmpeg and Docker CE packages, and
   no longer request the nonexistent `util-linux-libs` package.
+- RyoStore no longer leaves other products with inert download buttons while an
+  install is running; their actions are disabled and say that another item is
+  downloading until the single-flight operation completes.
 - Users on filtered networks can route `ryoku update` and pacman through a
   local HTTP proxy without weakening package signature checks.
 - Screenshots no longer pick up the animated pointer when a cursor effect has

@@ -280,6 +280,11 @@ lives under `modules/bar/barstyles/<id>/`, a qylock theme under the qylock theme
 and a plugin in the plugin data directory. Ryostore owns their catalogue adapter
 and installation, not a second runtime copy.
 
+Install, update, removal, and enablement are single-flight so receipts and package
+manager state cannot race. While one product is active, every other product keeps
+its action visible but disabled and names the operation that is already running;
+the active product continues to show the backend's real byte or step progress.
+
 ## Provider behavior
 
 - **Lockscreens:** fetch the qylock catalogue, preview cache, and install-only

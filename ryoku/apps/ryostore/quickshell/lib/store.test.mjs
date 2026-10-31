@@ -83,6 +83,10 @@ eq(Store.primaryAction({ installed: false, busy: true }), "INSTALLING", "busy ac
 eq(Store.secondaryAction({ installed: true, hasSettings: true }), "OPEN IN SETTINGS", "management handoff when the product has a settings page");
 eq(Store.secondaryAction({ installed: true }), "", "installed product without a settings page has no handoff");
 eq(Store.secondaryAction({ installed: false }), "", "available item has no management handoff");
+eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "FETCHING"), "DOWNLOADING ANOTHER ITEM", "another product explains the single-flight download");
+eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:clock", "FETCHING"), "", "the active product keeps its own progress stage");
+eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "REMOVING"), "REMOVING ANOTHER ITEM", "another product explains a removal");
+eq(Store.competingActionLabel("", "lockscreens:broken", ""), "", "idle actions keep their ordinary label");
 eq(
     Store.filter(items, { query: "plugin update" }).map(item => item.id),
     ["market"],

@@ -41,6 +41,7 @@ FocusScope {
 
     readonly property var actionItem: item || ({})
     readonly property string actionKey: StoreLogic.itemKey(actionItem)
+    readonly property string competingLabel: StoreLogic.competingActionLabel(busyKey, actionKey, installStage)
     readonly property var screenshots: Array.isArray(actionItem.screenshots) ? actionItem.screenshots : []
     readonly property int screenshotCount: screenshots.length
     // The gallery and lightbox present whatever previews the product ships:
@@ -830,14 +831,16 @@ FocusScope {
                     visible: detail.isBundle
                     text: detail.busyKey === detail.actionKey && detail.installStage !== ""
                             ? I18n.tr(detail.installStage)
-                            : (detail.actionItem.updateAvailable === true
-                               ? I18n.tr("UPDATE SELECTED") : I18n.tr("INSTALL SELECTED"))
+                            : (detail.competingLabel !== "" ? I18n.tr(detail.competingLabel)
+                               : (detail.actionItem.updateAvailable === true
+                                  ? I18n.tr("UPDATE SELECTED") : I18n.tr("INSTALL SELECTED")))
                     primary: true
                     busy: detail.busyKey === detail.actionKey
                     reducedMotion: detail.reducedMotion
                     progressDone: detail.installProgressDone
                     progressTotal: detail.installProgressTotal
-                    armed: detail.item !== null && detail.selectedNames.length > 0
+                    armed: detail.item !== null && detail.busyKey === ""
+                            && detail.selectedNames.length > 0
                             && !StoreLogic.isDownloadPaused(detail.actionItem)
                             && !StoreLogic.isUnavailable(detail.actionItem)
                     onAct: detail.triggerInstallSelected()
@@ -846,7 +849,8 @@ FocusScope {
                 InstallAction {
                     objectName: "ryostore-detail-install-all"
                     visible: detail.isBundle
-                    text: detail.actionItem.updateAvailable === true ? I18n.tr("UPDATE ALL") : I18n.tr("INSTALL ALL")
+                    text: detail.competingLabel !== "" ? I18n.tr(detail.competingLabel)
+                            : (detail.actionItem.updateAvailable === true ? I18n.tr("UPDATE ALL") : I18n.tr("INSTALL ALL"))
                     armed: detail.item !== null && detail.busyKey === ""
                             && !StoreLogic.isDownloadPaused(detail.actionItem)
                             && !StoreLogic.isUnavailable(detail.actionItem)
@@ -859,7 +863,8 @@ FocusScope {
                     visible: !detail.isBundle
                     text: detail.busyKey === detail.actionKey && detail.installStage !== ""
                             ? I18n.tr(detail.installStage)
-                            : I18n.tr(StoreLogic.primaryAction(detail.actionItem))
+                            : (detail.competingLabel !== "" ? I18n.tr(detail.competingLabel)
+                               : I18n.tr(StoreLogic.primaryAction(detail.actionItem)))
                     primary: true
                     busy: detail.busyKey === detail.actionKey
                     installed: StoreLogic.primaryAction(detail.actionItem) === "INSTALLED"
@@ -867,6 +872,7 @@ FocusScope {
                     progressDone: detail.installProgressDone
                     progressTotal: detail.installProgressTotal
                     armed: detail.item !== null
+                            && detail.busyKey === ""
                             && !installed
                             && !StoreLogic.isDownloadPaused(detail.actionItem)
                             && !StoreLogic.isUnavailable(detail.actionItem)

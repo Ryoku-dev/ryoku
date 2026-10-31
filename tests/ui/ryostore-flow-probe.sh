@@ -28,6 +28,7 @@ install)
         exit 9
     fi
     [[ ${2:-} == lockscreens && ${3:-} == clock ]] || { echo "unexpected install: $*" >&2; exit 2; }
+    sleep 2
     : >"$state"
     ;;
 *)

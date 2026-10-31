@@ -383,6 +383,17 @@ function primaryAction(item) {
     return isInstalled(item) ? "INSTALLED" : "INSTALL";
 }
 
+function competingActionLabel(busyKey, actionKey, installStage) {
+    if (String(busyKey || "") === "" || String(busyKey) === String(actionKey || ""))
+        return "";
+    var stage = String(installStage || "").toUpperCase();
+    if (stage.indexOf("REMOV") !== -1)
+        return "REMOVING ANOTHER ITEM";
+    if (stage.indexOf("ENABL") !== -1 || stage.indexOf("DISABL") !== -1)
+        return "CHANGING ANOTHER ITEM";
+    return "DOWNLOADING ANOTHER ITEM";
+}
+
 function secondaryAction(item) {
     return (item && item.hasSettings && isInstalled(item)) ? "OPEN IN SETTINGS" : "";
 }
@@ -399,4 +410,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
+    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, competingActionLabel, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
