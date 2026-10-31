@@ -5,6 +5,9 @@
   With auto-hide on it sits above maximized, tiled, and floating apps, so the
   pointer reaches its edge; a dock without auto-hide stays below them
   (`quickshell/shell/modules/dock/DockSurface.qml`).
+- **Wallpaper previews recolour desktop widgets reliably.** Preview palettes now
+  replace their runtime file in one step, so the shell never catches an empty
+  file while a downloaded wallpaper is hovered (`ryogami/daemon/preview.go`).
 - **Dock designs can sit closer to the screen edge.** The Stage Editor's edge
   gap now accepts negative values while every design keeps its hover and reserved
   regions inside the screen (`quickshell/{stage,shell/modules/dock,inir/modules/iris/dock}/`).

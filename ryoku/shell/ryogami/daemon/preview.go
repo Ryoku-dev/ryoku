@@ -156,7 +156,14 @@ func writeWallPreviewPalette(colors map[string]string) {
 			return
 		}
 	}
-	_ = os.WriteFile(filepath.Join(runtimeDir, "ryoku-wall-preview.json"), data, 0o600)
+	path := filepath.Join(runtimeDir, "ryoku-wall-preview.json")
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o600); err != nil {
+		return
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+	}
 }
 
 // repaintCommitted repaints the committed wallpaper on the given outputs,

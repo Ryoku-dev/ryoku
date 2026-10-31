@@ -415,3 +415,33 @@ func TestClearedPreviewDropsLatePalette(t *testing.T) {
 		t.Fatalf("late palette repainted after cancel: %s, %v", b, err)
 	}
 }
+
+func TestPreviewPalettePublishesByAtomicReplacement(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	path := filepath.Join(runtimeDir, "ryoku-wall-preview.json")
+	if err := os.WriteFile(path, []byte(`{"primary":"#111111"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	writeWallPreviewPalette(map[string]string{"primary": "#abcdef"})
+
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(before, after) {
+		t.Fatal("preview palette was rewritten in place")
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(b), "#abcdef") {
+		t.Fatalf("published palette = %s, %v", b, err)
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Fatalf("temporary palette remains: %v", err)
+	}
+}
