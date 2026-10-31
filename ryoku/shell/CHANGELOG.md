@@ -27,6 +27,10 @@
   offers an Install mpv row instead of starting a silent, doomed broadcast
   (`quickshell/shell/modules/launcher/shared/{Singletons,providers}/`,
   `scripts/ryoku-cmd-radio`).
+- **Bluetooth controls follow the active radio when it appears or is replaced.**
+  The shared radio state now follows adapter-model and BlueZ lifecycle events,
+  so a controller that registers after shell startup or a service restart no
+  longer stays marked missing (`quickshell/shell/{services,modules/sidebar}/`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service

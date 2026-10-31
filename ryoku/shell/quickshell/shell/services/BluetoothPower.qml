@@ -8,10 +8,23 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    readonly property bool enabled: Bluetooth.defaultAdapter?.enabled ?? false
-    readonly property bool available: Bluetooth.defaultAdapter !== null || root.blocked
+    readonly property var adapter: {
+        if (!root.cliAvailable)
+            return null;
+        const adapters = Bluetooth.adapters.values;
+        if (adapters.length === 0)
+            return null;
+        const preferred = Bluetooth.defaultAdapter;
+        return preferred && adapters.indexOf(preferred) >= 0 ? preferred : adapters[0];
+    }
+    readonly property var devices: root.adapter !== null && Bluetooth.devices
+        ? Bluetooth.devices.values : []
+    readonly property bool enabled: root.adapter !== null ? root.adapter.enabled : root.cliEnabled
+    readonly property bool available: root.adapter !== null || root.cliAvailable || root.blocked
     readonly property bool blocked: root.softBlocked || root.hardBlocked
-        || Bluetooth.defaultAdapter?.state === BluetoothAdapterState.Blocked
+        || root.adapter?.state === BluetoothAdapterState.Blocked
+    property bool cliAvailable: false
+    property bool cliEnabled: false
     property bool softBlocked: false
     property bool hardBlocked: false
 
@@ -23,11 +36,53 @@ Singleton {
         setEnabled(!enabled);
     }
 
-    Connections {
-        target: Bluetooth
-        function onDefaultAdapterChanged(): void {
-            rfkillState.running = true;
+    Component.onCompleted: adapterState.running = true
+
+    onAdapterChanged: {
+        rfkillState.running = true;
+        adapterRefresh.restart();
+    }
+
+    Timer {
+        id: adapterRefresh
+        interval: 100
+        onTriggered: {
+            adapterState.running = false;
+            adapterState.running = true;
         }
+    }
+
+    Process {
+        id: adapterState
+        command: ["bluetoothctl", "--timeout", "2", "show"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.cliAvailable = text.indexOf("Controller") >= 0
+                    && text.indexOf("No default controller") < 0;
+                root.cliEnabled = /Powered:[^\\n]*yes/i.test(text);
+            }
+        }
+    }
+
+    Process {
+        id: adapterMonitor
+        command: [
+            "dbus-monitor", "--system",
+            "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.ObjectManager'",
+            "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Adapter1'",
+            "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bluez'"
+        ]
+        running: true
+        stdout: SplitParser {
+            onRead: adapterRefresh.restart()
+        }
+        onExited: adapterMonitorRestart.restart()
+    }
+
+    Timer {
+        id: adapterMonitorRestart
+        interval: 1000
+        onTriggered: if (!adapterMonitor.running) adapterMonitor.running = true
     }
 
     Process {
