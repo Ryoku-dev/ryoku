@@ -222,6 +222,9 @@ func (s *session) apply(name string, body json.RawMessage, emit func(wm.Frame), 
 		}
 		s.activate(e.ID, e.Focused)
 		s.emitWorkspaces(emit, wants)
+		if wants(wm.FrameOutputs) {
+			emit(wm.Frame{Kind: wm.FrameOutputs, Outputs: s.outputs})
+		}
 		if e.Focused {
 			s.emitFocus(emit, wants)
 		}
@@ -425,6 +428,14 @@ func (s *session) activate(id uint64, focused bool) {
 		}
 		if focused {
 			ws.IsFocused = false
+		}
+	}
+	if output != "" {
+		for i := range s.outputs {
+			if s.outputs[i].Name == output {
+				s.outputs[i].ActiveWorkspace = formatUint(id)
+				break
+			}
 		}
 	}
 }

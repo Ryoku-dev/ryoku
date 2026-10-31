@@ -101,6 +101,30 @@ func TestWindowEventCarriesProcessID(t *testing.T) {
 	}
 }
 
+// The shell joins a window's workspace to the active workspace carried by its
+// output. WorkspaceActivated must refresh both frames or an empty workspace
+// switch leaves the output pointing at the workspace just left.
+func TestWorkspaceActivationRefreshesOutputWorkspace(t *testing.T) {
+	s := &session{
+		outputs: []wm.Output{{Name: "DP-1", ActiveWorkspace: "1"}},
+		workspaces: []niriWorkspace{
+			{ID: 1, Output: "DP-1", IsActive: true, IsFocused: true},
+			{ID: 2, Output: "DP-1"},
+		},
+	}
+
+	frames := foldEvents(t, s, allKinds, map[string]any{
+		"WorkspaceActivated": map[string]any{"id": 2, "focused": true},
+	})
+	if len(frames) != 3 {
+		t.Fatalf("activation frames = %+v, want workspace, output and focus", frames)
+	}
+	if frames[1].Kind != wm.FrameOutputs || len(frames[1].Outputs) != 1 ||
+		frames[1].Outputs[0].ActiveWorkspace != "2" {
+		t.Fatalf("output frame = %+v, want active workspace 2", frames[1])
+	}
+}
+
 // Floating geometry is the persistence source after a native move/resize. niri
 // reports it output-local, while wm.Window is globally logical, so the output
 // origin is added and a layout delta must publish a fresh window frame.
