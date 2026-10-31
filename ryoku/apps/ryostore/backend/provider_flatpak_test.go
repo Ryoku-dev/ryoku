@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -13,13 +14,15 @@ import (
 )
 
 type flatpakFixture struct {
-	provider flatpakProvider
-	calls    [][]string
-	failing  bool
-	body     map[string]any
-	remotes  map[string]string
-	found    map[string]any
-	searched []map[string]any
+	provider  flatpakProvider
+	calls     [][]string
+	failing   bool
+	body      map[string]any
+	bodies    map[string]map[string]any
+	failPaths map[string]bool
+	remotes   map[string]string
+	found     map[string]any
+	searched  []map[string]any
 }
 
 func hit(id, name, kind string, verified bool, arches ...string) map[string]any {
@@ -30,7 +33,8 @@ func hit(id, name, kind string, verified bool, arches ...string) map[string]any 
 		"project_license": "GPL-3.0+", "developer_name": "Dev",
 		"main_categories": "graphics", "sub_categories": []string{"Photography"},
 		"verification_verified": verified, "arches": arches,
-		"added_at": 1493820137, "installs_last_month": 42,
+		"added_at": 1493820137, "updated_at": 1700000000,
+		"trending": 12.5, "installs_last_month": 42,
 	}
 }
 
@@ -48,14 +52,25 @@ func newFlatpakFixture(t *testing.T, installed []installedFlatpak) *flatpakFixtu
 		hit("org.example.Foreign", "Foreign", "desktop-application", true, "riscv64"),
 		hit("--evil", "Evil", "desktop-application", true, arch),
 	}}
+	fx.bodies = map[string]map[string]any{}
+	fx.failPaths = map[string]bool{}
+	for _, name := range flathubCollections {
+		fx.bodies[name] = fx.body
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fx.failing {
 			http.Error(w, "down", http.StatusBadGateway)
 			return
 		}
 		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/collection/popular":
-			_ = json.NewEncoder(w).Encode(fx.body)
+		case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/collection/"):
+			name := strings.TrimPrefix(r.URL.Path, "/collection/")
+			body, ok := fx.bodies[name]
+			if !ok || fx.failPaths[name] {
+				http.NotFound(w, r)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(body)
 		case r.Method == http.MethodPost && r.URL.Path == "/search":
 			var sent map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&sent)
@@ -150,6 +165,12 @@ func TestFlatpakLoadFiltersAndMarksInstalled(t *testing.T) {
 	if !reflect.DeepEqual(alpha.Tags, []string{"graphics", "photography"}) {
 		t.Errorf("tags = %v", alpha.Tags)
 	}
+	if alpha.Metadata["trending"] != 12.5 {
+		t.Errorf("trending = %v", alpha.Metadata["trending"])
+	}
+	if alpha.Metadata["updatedAt"] != "2023-11-14T22:13:20Z" {
+		t.Errorf("updatedAt = %v", alpha.Metadata["updatedAt"])
+	}
 	if alpha.Unavailable {
 		t.Errorf("alpha should be available")
 	}
@@ -165,6 +186,38 @@ func TestFlatpakCategoryCountsInstalled(t *testing.T) {
 	}
 	if got := cat.Categories[0]; got.Count != 2 || got.InstalledCount != 1 || got.Error != "" {
 		t.Fatalf("category = %+v", got)
+	}
+}
+
+func TestFlatpakLoadMergesEveryCollection(t *testing.T) {
+	fx := newFlatpakFixture(t, nil)
+	arch := flathubArch()
+	fx.bodies["trending"] = searchResult(hit("org.example.Trend", "Trend", "desktop-application", true, arch))
+	fx.bodies["recently-added"] = searchResult(hit("org.example.New", "New", "desktop-application", true, arch))
+	fx.bodies["recently-updated"] = searchResult(hit("org.example.Updated", "Updated", "desktop-application", true, arch))
+	items, state, err := fx.provider.Load(context.Background(), true)
+	if err != nil || state.Offline {
+		t.Fatalf("Load = %v, offline %v", err, state.Offline)
+	}
+	var ids []string
+	for _, it := range items {
+		ids = append(ids, it.ID)
+	}
+	want := []string{"org.example.Alpha", "org.example.Beta", "org.example.Trend", "org.example.New", "org.example.Updated"}
+	if !reflect.DeepEqual(ids, want) {
+		t.Fatalf("ids = %v, want %v", ids, want)
+	}
+}
+
+func TestFlatpakPartialCollectionFailureKeepsTheRest(t *testing.T) {
+	fx := newFlatpakFixture(t, nil)
+	fx.failPaths["trending"] = true
+	items, state, err := fx.provider.Load(context.Background(), true)
+	if err != nil || state.Offline || len(items) != 2 {
+		t.Fatalf("Load = %d items, state %+v, err %v", len(items), state, err)
+	}
+	if _, err := os.Stat(filepath.Join(extrasCacheDir(), flathubCache)); !os.IsNotExist(err) {
+		t.Fatalf("a partial collection must not replace the complete cache: %v", err)
 	}
 }
 
@@ -814,7 +867,7 @@ func TestFlathubRejectsCrossOriginRedirect(t *testing.T) {
 	}))
 	defer source.Close()
 	p := flatpakProvider{api: source.URL}
-	if _, err := p.fetchPopular(context.Background()); err == nil {
+	if _, err := p.fetchCollection(context.Background(), "popular"); err == nil {
 		t.Fatal("cross-origin redirect accepted")
 	}
 	if fetched {

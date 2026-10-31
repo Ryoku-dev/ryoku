@@ -2,7 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/gif"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
@@ -261,6 +265,99 @@ func TestSafeItemJoin(t *testing.T) {
 	}
 	if _, ok := safeItemJoin(root, "/etc/passwd"); ok {
 		t.Fatal("absolute path accepted")
+	}
+}
+
+func TestFindPreviewUsesDecodableFallback(t *testing.T) {
+	item := t.TempDir()
+	writeWEProject(t, item, map[string]interface{}{
+		"type":    "scene",
+		"title":   "Fallback scene",
+		"preview": "preview.tex",
+	})
+	touch(t, filepath.Join(item, "preview.tex"))
+	if err := os.MkdirAll(filepath.Join(item, "materials"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fallback := filepath.Join(item, "materials", "cover.jpg")
+	touch(t, fallback)
+
+	project, err := resolveProject(item)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := findPreview(item, project); got != fallback {
+		t.Fatalf("preview = %q, want fallback %q", got, fallback)
+	}
+}
+
+func TestFindPreviewKeepsAnimatedAndVideoSources(t *testing.T) {
+	for _, name := range []string{"preview.gif", "preview.webm"} {
+		t.Run(name, func(t *testing.T) {
+			item := t.TempDir()
+			writeWEProject(t, item, map[string]interface{}{"type": "scene", "preview": name})
+			source := filepath.Join(item, name)
+			touch(t, source)
+			project, err := resolveProject(item)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := findPreview(item, project); got != source {
+				t.Fatalf("preview = %q, want %q", got, source)
+			}
+		})
+	}
+}
+
+func TestProjectSchemeColorProvidesFallbackTint(t *testing.T) {
+	doc := map[string]interface{}{
+		"general": map[string]interface{}{
+			"properties": map[string]interface{}{
+				"schemecolor": map[string]interface{}{"value": "0.1 0.8 0.2"},
+			},
+		},
+	}
+	hue, sat, ok := projectSchemeColor(doc)
+	if !ok || hue < 3 || hue > 5 || sat < 70 {
+		t.Fatalf("scheme tint = (%d, %d, %v), want saturated green", hue, sat, ok)
+	}
+}
+
+func TestGenerateWeThumbReadsGIFFrame(t *testing.T) {
+	if !haveMagick() {
+		t.Skip("magick not on PATH")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not on PATH")
+	}
+	root := t.TempDir()
+	source := filepath.Join(root, "preview.gif")
+	file, err := os.Create(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	palette := color.Palette{color.RGBA{R: 255, A: 255}, color.RGBA{G: 255, A: 255}}
+	first := image.NewPaletted(image.Rect(0, 0, 32, 18), palette)
+	second := image.NewPaletted(image.Rect(0, 0, 32, 18), palette)
+	for i := range second.Pix {
+		second.Pix[i] = 1
+	}
+	if err := gif.EncodeAll(file, &gif.GIF{Image: []*image.Paletted{first, second}, Delay: []int{2, 2}}); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	thumb := filepath.Join(root, "cache", "thumb.webp")
+	small := filepath.Join(root, "cache-sm", "thumb.webp")
+	if err := generateWeThumb(source, thumb, small); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{thumb, small} {
+		if info, err := os.Stat(path); err != nil || info.Size() == 0 {
+			t.Fatalf("thumbnail %q missing or empty: %v", path, err)
+		}
 	}
 }
 

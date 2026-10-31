@@ -44,9 +44,10 @@ Item {
     readonly property var actionItem: item || ({})
     readonly property int motionDuration: reducedMotion ? 0 : Tokens.swap
     readonly property string actionKey: StoreLogic.itemKey(actionItem)
+    readonly property string competingLabel: StoreLogic.competingActionLabel(busyKey, actionKey, installStage)
     readonly property string primaryLabel: busyKey === actionKey && installStage !== ""
             ? installStage
-            : StoreLogic.primaryAction(actionItem)
+            : (competingLabel !== "" ? competingLabel : StoreLogic.primaryAction(actionItem))
     readonly property string secondaryLabel: StoreLogic.secondaryAction(actionItem)
     readonly property bool hasActionItem: item !== null && item !== undefined
     readonly property color stageSurface: displayItem.surface || Tokens.paper
@@ -345,6 +346,7 @@ Item {
                 progressDone: stage.installProgressDone
                 progressTotal: stage.installProgressTotal
                 armed: stage.hasActionItem
+                        && stage.busyKey === ""
                         && !installed
                         && !StoreLogic.isDownloadPaused(stage.actionItem)
                         && !StoreLogic.isUnavailable(stage.actionItem)

@@ -38,6 +38,7 @@ K.Sheet {
     readonly property var overflowItems: (Tray.items || []).slice(trayLimit)
 
     pageWidth: 320
+    maxHeight: scene ? scene.cardMaxHeight : 0
     title: showingOverflow ? "Tray" : displayName(currentItem)
     backVisible: pathIds.length > 0 || (overflowMode && menuService.length > 0)
     onBack: backPage()

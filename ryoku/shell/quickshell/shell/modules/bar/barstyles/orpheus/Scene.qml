@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Ryoku.Blobs
 import Ryoku.Ui.Singletons
 import shell.services
 import shell.modules.stage.frame
@@ -42,6 +43,8 @@ Item {
     property bool autoHidden: false
     property var pendingSurfaceActions: []
     property bool settingsSurfaceHeld: false
+    property bool cardSurfaceHeld: false
+    property var pendingCardAction: null
     readonly property bool surfaceOpening: pendingSurfaceActions.length > 0
     readonly property real restingSurfaceHeight: Math.ceil(Math.max(
         K.Style.barH + K.Style.s2 + Math.ceil(K.Style.label * 1.5)
@@ -164,6 +167,30 @@ Item {
         for (let index = 0; index < pending.length; ++index)
             pending[index].action();
         scene.pendingSurfaceActions = [];
+    }
+
+    function requestCardSurface(action) {
+        if (scene.cardSurfaceHeld) {
+            action();
+            return;
+        }
+        scene.cardSurfaceHeld = true;
+        scene.pendingCardAction = action;
+        cardSurfaceReadyTimer.restart();
+    }
+
+    function cancelCardSurfaceRequest() {
+        cardSurfaceReadyTimer.stop();
+        scene.pendingCardAction = null;
+        if (liquidBody.cardProgress <= 0.001)
+            scene.cardSurfaceHeld = false;
+    }
+
+    function finishPendingCardAction() {
+        const action = scene.pendingCardAction;
+        scene.pendingCardAction = null;
+        if (action)
+            action();
     }
 
 
@@ -300,7 +327,7 @@ Item {
         if (!scene.validCardKey(value))
             return;
         const nextArgs = args && typeof args === "object" ? args : ({});
-        scene.requestFullSurface("card", function() {
+        scene.requestCardSurface(function() {
             hoverOpenTimer.stop();
             scene.hoverCandidate = "";
             scene.hoverCandidateAnchor = null;
@@ -317,7 +344,7 @@ Item {
             return;
         scene.captureOrigin(anchorItem);
         const nextArgs = args && typeof args === "object" ? args : ({});
-        scene.requestFullSurface("card", function() {
+        scene.requestCardSurface(function() {
             hoverOpenTimer.stop();
             scene.hoverCandidate = "";
             scene.hoverCandidateAnchor = null;
@@ -339,7 +366,7 @@ Item {
             return;
         scene.markHoverSwitch(value);
         scene.captureOrigin(anchorItem);
-        scene.requestFullSurface("card", function() {
+        scene.requestCardSurface(function() {
             if (scene.hoverStates[value] !== true) {
                 scene.hoverSwitchedKey = "";
                 scene.hoverSwitchedAt = 0;
@@ -375,7 +402,7 @@ Item {
     }
 
     function closeCard() {
-        scene.cancelFullSurfaceRequest("card");
+        scene.cancelCardSurfaceRequest();
         hoverOpenTimer.stop();
         hoverCloseTimer.stop();
         scene.hoverCandidate = "";
@@ -515,6 +542,13 @@ Item {
         onTriggered: scene.finishPendingSurfaceActions()
     }
 
+    Timer {
+        id: cardSurfaceReadyTimer
+        interval: 16
+        repeat: false
+        onTriggered: scene.finishPendingCardAction()
+    }
+
     C.Morph {
         id: morphAnimation
         target: win
@@ -578,8 +612,7 @@ Item {
         anchors { top: true; left: true; right: true }
         implicitHeight: frameLayer.extent
         WlrLayershell.layer: WlrLayer.Top
-        WlrLayershell.keyboardFocus: scene.cardKey !== ""
-            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
         WlrLayershell.namespace: "ryoku-bar"
 
         property string layoutSpan: "islands"
@@ -592,8 +625,6 @@ Item {
         readonly property bool fused: layoutSpan === "fused"
         readonly property bool full: layoutSpan === "full"
         readonly property bool needsFullHeight: scene.surfaceOpening
-            || scene.cardKey !== "" || cards.retainedKey !== ""
-            || liquidBody.cardProgress > 0
             || scene.settingsSurfaceHeld || morphAnimation.running
 
         readonly property real inset: 8 * K.Style.scale
@@ -699,16 +730,10 @@ Item {
 
         mask: Region {
             Region {
-                x: 0
-                y: 0
-                width: scene.cardKey !== "" ? win.width : 0
-                height: scene.cardKey !== "" ? win.height : 0
-            }
-            Region {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedFullBandRect.x)
                 y: Math.round(win.framedFullBandRect.y)
-                width: scene.cardKey === "" && !scene.autoHidden && win.full
+                width: !scene.autoHidden && win.full
                     ? Math.round(win.framedFullBandRect.width) : 0
                 height: Math.round(win.framedFullBandRect.height)
             }
@@ -716,7 +741,7 @@ Item {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedLeftRect.x)
                 y: Math.round(win.framedLeftRect.y)
-                width: scene.cardKey === "" && !scene.autoHidden
+                width: !scene.autoHidden
                     ? Math.round(win.framedLeftRect.width) : 0
                 height: Math.round(win.framedLeftRect.height)
             }
@@ -724,7 +749,7 @@ Item {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedVoiceRect.x)
                 y: Math.round(win.framedVoiceRect.y)
-                width: scene.cardKey === "" && !scene.autoHidden
+                width: !scene.autoHidden
                     ? Math.round(win.framedVoiceRect.width) : 0
                 height: Math.round(win.framedVoiceRect.height)
             }
@@ -732,7 +757,7 @@ Item {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedRightRect.x)
                 y: Math.round(win.framedRightRect.y)
-                width: scene.cardKey === "" && !scene.autoHidden
+                width: !scene.autoHidden
                     ? Math.round(win.framedRightRect.width) : 0
                 height: Math.round(win.framedRightRect.height)
             }
@@ -740,8 +765,7 @@ Item {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedLeftBubbleRect.x)
                 y: Math.round(win.framedLeftBubbleRect.y)
-                width: scene.cardKey === "" && !scene.autoHidden
-                    && win.leftBubbleVisible
+                width: !scene.autoHidden && win.leftBubbleVisible
                     ? Math.round(win.framedLeftBubbleRect.width) : 0
                 height: Math.round(win.framedLeftBubbleRect.height)
             }
@@ -749,8 +773,7 @@ Item {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedRightBubbleRect.x)
                 y: Math.round(win.framedRightBubbleRect.y)
-                width: scene.cardKey === "" && !scene.autoHidden
-                    && win.rightBubbleVisible
+                width: !scene.autoHidden && win.rightBubbleVisible
                     ? Math.round(win.framedRightBubbleRect.width) : 0
                 height: Math.round(win.framedRightBubbleRect.height)
             }
@@ -758,34 +781,19 @@ Item {
                 intersection: Intersection.Combine
                 x: Math.round(win.framedRevealRect.x)
                 y: Math.round(win.framedRevealRect.y)
-                width: scene.cardKey === "" && scene.prefs.autoHide !== "off"
+                width: scene.prefs.autoHide !== "off"
                     ? Math.round(win.framedRevealRect.width) : 0
-                height: scene.cardKey === "" && scene.prefs.autoHide !== "off"
+                height: scene.prefs.autoHide !== "off"
                     ? Math.round(win.framedRevealRect.height) : 0
             }
         }
 
-        Shortcut {
-            sequences: [StandardKey.Cancel]
-            enabled: scene.cardKey !== ""
-            onActivated: scene.closeCard()
-        }
 
         FocusScope {
             id: focusSurface
             anchors.fill: parent
             focus: scene.cardKey !== ""
 
-            MouseArea {
-                z: 0
-                anchors.fill: parent
-                enabled: scene.cardKey !== ""
-                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                onPressed: mouse => {
-                    mouse.accepted = true;
-                    Qt.callLater(scene.closeCard);
-                }
-            }
 
             StageFramedLayer {
                 id: frameLayer
@@ -1003,15 +1011,6 @@ Item {
                     HoverHandler { id: rightBubbleHover }
                 }
 
-                C.CardHost {
-                    id: cards
-                    parent: focusSurface
-                    z: 3
-                    scene: scene
-                    body: liquidBody
-                    cardKey: scene.cardKey
-                    cardArgs: scene.cardArgs
-                }
             }
 
             Item {
@@ -1041,6 +1040,113 @@ Item {
                     }
                 }
                 HoverHandler { id: bandHover }
+            }
+        }
+    }
+
+    // Cards use their own full-output dismiss surface so opening one never
+    // resizes the bar's layer surface and invalidates its visible buffer.
+    PanelWindow {
+        id: cardWindow
+
+        visible: scene.cardSurfaceHeld
+        screen: scene.screen
+        color: "transparent"
+        exclusionMode: ExclusionMode.Ignore
+        exclusiveZone: 0
+        anchors { top: true; bottom: true; left: true; right: true }
+        WlrLayershell.layer: WlrLayer.Top
+        WlrLayershell.keyboardFocus: scene.cardKey !== ""
+            ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.namespace: "ryoku-bar-card"
+
+        mask: Region {
+            Region {
+                width: scene.cardKey !== "" ? cardWindow.width : 0
+                height: scene.cardKey !== "" ? cardWindow.height : 0
+            }
+            Region {
+                intersection: Intersection.Subtract
+                width: cardWindow.width
+                height: K.Style.barH
+            }
+        }
+
+        FocusScope {
+            anchors.fill: parent
+            focus: scene.cardKey !== ""
+
+            Shortcut {
+                sequences: [StandardKey.Cancel]
+                enabled: scene.cardKey !== ""
+                onActivated: scene.closeCard()
+            }
+
+            MouseArea {
+                z: 0
+                anchors.fill: parent
+                enabled: scene.cardKey !== ""
+                acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                onPressed: mouse => {
+                    mouse.accepted = true;
+                    Qt.callLater(scene.closeCard);
+                }
+            }
+
+            Item {
+                id: cardPaper
+
+                z: 1
+                x: liquidBody.cardX
+                y: liquidBody.cardY
+                width: liquidBody.cardCurW
+                height: liquidBody.cardCurH
+                visible: liquidBody.cardActive
+                opacity: liquidBody.opacity
+
+                BlobGroup {
+                    id: cardLiquid
+                    color: K.Style.base
+                    smoothing: liquidBody.smoothing
+                    borderWidth: scene.prefs.rim ? 1 : 0
+                    borderColor: K.Style.rim
+                    shadowStrength: 0
+                    shadowSize: 0
+                }
+
+                BlobRect {
+                    group: cardLiquid
+                    width: cardPaper.width
+                    height: cardPaper.height
+                    topLeftRadius: liquidBody.leftOverhang ? liquidBody.radius : 0
+                    topRightRadius: liquidBody.rightOverhang ? liquidBody.radius : 0
+                    bottomLeftRadius: liquidBody.edgeRadius(
+                        liquidBody.cardX, liquidBody.cardCurW, "left")
+                    bottomRightRadius: liquidBody.edgeRadius(
+                        liquidBody.cardX, liquidBody.cardCurW, "right")
+                    stiffness: 180
+                    damping: 16
+                    deformScale: 0
+                    sinks: false
+                }
+            }
+
+            C.CardHost {
+                id: cards
+                z: 2
+                scene: scene
+                body: liquidBody
+                cardKey: scene.cardKey
+                cardArgs: scene.cardArgs
+            }
+        }
+
+        Connections {
+            target: liquidBody
+            function onCardProgressChanged() {
+                if (liquidBody.cardProgress <= 0.001 && scene.cardKey === ""
+                        && scene.pendingCardAction === null)
+                    scene.cardSurfaceHeld = false;
             }
         }
     }

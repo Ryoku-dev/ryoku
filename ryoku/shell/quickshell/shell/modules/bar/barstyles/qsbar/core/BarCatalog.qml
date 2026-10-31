@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell.Io
+import Ryoku.Ui
 
 // The single source of truth for the qsbar's built-in widgets: it loads the
 // shipped widgets.json (the same file the daemon reads) and hands out the id
@@ -26,6 +26,21 @@ Item {
     property var _idOfGid: ({})
     property var _gidOfId: ({})
 
+    function _load(content) {
+        var parsed
+        try {
+            parsed = JSON.parse(content || "[]")
+        } catch (error) {
+            console.warn("qsbar catalogue: widgets.json could not be parsed:", error)
+            return
+        }
+        if (!Array.isArray(parsed)) {
+            console.warn("qsbar catalogue: widgets.json is not an array")
+            return
+        }
+        catalog._reindex(parsed)
+    }
+
     function _reindex(list) {
         var byId = ({})
         var idOfGid = ({})
@@ -46,15 +61,11 @@ Item {
     function gidOf(id) { return catalog._gidOfId[id] !== undefined ? catalog._gidOfId[id] : "" }
     function idOf(gid) { return catalog._idOfGid[gid] !== undefined ? catalog._idOfGid[gid] : "" }
 
-    FileView {
-        id: file
+    DeferredFileView {
         path: Qt.resolvedUrl("widgets.json")
         blockLoading: true
         printErrors: false
-        onLoaded: {
-            var parsed = []
-            try { parsed = JSON.parse(file.text() || "[]") } catch (e) { parsed = [] }
-            catalog._reindex(Array.isArray(parsed) ? parsed : [])
-        }
+        readLabel: "qsbar widgets.json"
+        onTextReady: content => catalog._load(content)
     }
 }

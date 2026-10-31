@@ -230,6 +230,112 @@ function sortOmarchyPlugins(items, mode) {
     return sorted;
 }
 
+function appMetric(item, mode) {
+    var meta = (item && item.metadata) || {};
+    if (mode === "popular")
+        return Number(meta.installsLastMonth || 0);
+    if (mode === "trending")
+        return Number(meta.trending || 0);
+    if (mode === "new")
+        return String(item && item.listedAt || "");
+    if (mode === "updated")
+        return String(meta.updatedAt || (item && item.listedAt) || "");
+    return 0;
+}
+
+function sortApps(items, mode) {
+    var sorted = (Array.isArray(items) ? items : []).slice();
+    var key = mode || "trending";
+    if (key === "a-z")
+        return sortAlphabetical(sorted);
+    sorted.sort(function(a, b) {
+        var av = appMetric(a, key);
+        var bv = appMetric(b, key);
+        var cmp = typeof av === "number" && typeof bv === "number"
+                ? bv - av
+                : String(bv).localeCompare(String(av));
+        return cmp !== 0 ? cmp
+                : String(a.name || a.id || "").localeCompare(String(b.name || b.id || ""));
+    });
+    return sorted;
+}
+
+function featuredApps(items, count, seed) {
+    var source = Array.isArray(items) ? items : [];
+    var size = Math.max(1, Number(count) || 1);
+    var pool = source.filter(function(item) { return item && item.art && !isInstalled(item); });
+    if (!pool.length)
+        pool = source.filter(function(item) { return item && item.art; });
+    if (!pool.length)
+        pool = source;
+    // A wider pool than the shelf keeps the daily rotation on the strongest apps.
+    var top = sortApps(pool, "trending").slice(0, Math.max(size, 5));
+    if (!top.length)
+        return [];
+    var start = (Number(seed) || 0) % top.length;
+    if (start < 0)
+        start += top.length;
+    return top.slice(start).concat(top.slice(0, start)).slice(0, size);
+}
+
+// AVAILABLE is the absence of state, so it never becomes a chip.
+function statusTag(item) {
+    var labels = statusLabels(item);
+    return labels.length > 0 && labels[0] !== "AVAILABLE" ? labels[0] : "";
+}
+
+function initials(item, title) {
+    var explicit = String(item && item.initials || "").trim();
+    if (explicit !== "")
+        return explicit.slice(0, 3).toUpperCase();
+    var name = String(title || (item && (item.name || item.id)) || "").trim();
+    var words = name.split(/\s+/);
+    return (words.length > 1 ? words[0][0] + words[words.length - 1][0]
+                             : name.slice(0, 2)).toUpperCase();
+}
+
+// Flathub's main categories, in the API's own order. An app carries them as
+// tags, so the market tabs need no backend field.
+var appCategoryLabels = {
+    "audiovideo": "AUDIO & VIDEO",
+    "development": "DEVELOPMENT",
+    "education": "EDUCATION",
+    "game": "GAMES",
+    "graphics": "GRAPHICS",
+    "network": "NETWORK",
+    "office": "OFFICE",
+    "science": "SCIENCE",
+    "system": "SYSTEM",
+    "utility": "UTILITY"
+};
+
+function appCategories(items) {
+    var counts = {};
+    (Array.isArray(items) ? items : []).forEach(function(item) {
+        if (!item || item.category !== "flatpak")
+            return;
+        var tags = item.tags || [];
+        Object.keys(appCategoryLabels).forEach(function(key) {
+            if (tags.indexOf(key) !== -1)
+                counts[key] = (counts[key] || 0) + 1;
+        });
+    });
+    return Object.keys(appCategoryLabels).filter(function(key) {
+        return counts[key] > 0;
+    }).map(function(key) {
+        return { key: key, label: appCategoryLabels[key], note: String(counts[key]) };
+    });
+}
+
+function sortAlphabetical(items) {
+    return (Array.isArray(items) ? items : []).slice().sort(function(a, b) {
+        var an = String(a && (a.name || a.id) || "").toLocaleLowerCase();
+        var bn = String(b && (b.name || b.id) || "").toLocaleLowerCase();
+        var byName = an.localeCompare(bn);
+        return byName || itemKey(a).localeCompare(itemKey(b));
+    });
+}
+
 function collection(items, options) {
     var opts = options || {};
     var filtered = filter(items, {
@@ -237,10 +343,15 @@ function collection(items, options) {
         installedOnly: opts.view === "library" || opts.installedOnly === true,
         provider: opts.provider || "",
         pluginKind: opts.pluginKind || "",
+        tag: opts.tag || "",
         query: opts.query || ""
     });
-    if (opts.categoryID === "omarchy-plugins")
+    if (opts.appSort)
+        filtered = sortApps(filtered, opts.appSort);
+    else if (opts.categoryID === "omarchy-plugins")
         filtered = sortOmarchyPlugins(filtered, opts.omarchySort || "popular");
+    else if (opts.categoryID && opts.categoryID !== "flatpak")
+        filtered = sortAlphabetical(filtered);
     if (opts.view !== "library" && !opts.categoryID && !opts.query) {
         var seed = Number(opts.seed) || 0;
         var lead = featured(filtered, seed);
@@ -285,6 +396,17 @@ function primaryAction(item) {
     return isInstalled(item) ? "INSTALLED" : "INSTALL";
 }
 
+function competingActionLabel(busyKey, actionKey, installStage) {
+    if (String(busyKey || "") === "" || String(busyKey) === String(actionKey || ""))
+        return "";
+    var stage = String(installStage || "").toUpperCase();
+    if (stage.indexOf("REMOV") !== -1)
+        return "REMOVING ANOTHER ITEM";
+    if (stage.indexOf("ENABL") !== -1 || stage.indexOf("DISABL") !== -1)
+        return "CHANGING ANOTHER ITEM";
+    return "DOWNLOADING ANOTHER ITEM";
+}
+
 function secondaryAction(item) {
     return (item && item.hasSettings && isInstalled(item)) ? "OPEN IN SETTINGS" : "";
 }
@@ -301,4 +423,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, collection, selectionKey, categoryPlates, primaryAction, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
+    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, sortAlphabetical, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, competingActionLabel, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };

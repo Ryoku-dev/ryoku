@@ -4,6 +4,7 @@ hl.config({
         -- off the focused monitor comes up un-typeable (Discord, Vivaldi)
         focus_on_activate = true,
         disable_hyprland_logo = true,
+        disable_splash_rendering = true,
         force_default_wallpaper = 0,
         -- Input is the compositor-native way out of DPMS. hypridle still runs
         -- the neutral output.power on action when its idle cycle resumes, but

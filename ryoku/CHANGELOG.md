@@ -3,6 +3,23 @@
 ## Unreleased
 
 ### Fixed
+- **The login screen appears without a six-second black screen, at the
+  panel's top refresh rate.** The greeter asked `modetest` for the card by
+  `/dev/dri` path, which its `-D` (a legacy bus id) never opens, so every boot
+  polled until the settle deadline and then fell back to weston's preferred
+  mode. It now probes by DRM driver, keeps only connectors sysfs reports on the
+  chosen card, and starts weston at once when the card cannot be probed
+  (`lockscreen/sddm/ryoku-greeter`).
+- **Super+Arrow crosses screens from fullscreen windows again.** The shortcuts
+  now use Hyprland's width and height fields and fall back to normal directional
+  focus when monitor geometry is unavailable (`hyprland/modules/binds.lua`).
+- **Fullscreen browsers no longer make some HDR displays go black.** Automatic
+  HDR switching starts off on Hyprland, while Settings offers an opt-in switch
+  for panels that handle the mode change (`hyprland/modules/render.lua`,
+  `wm/hyprland/`).
+- **Hyprland no longer draws its splash text at startup.** Splash rendering is
+  off beside the already disabled logo, so the first frame is the wallpaper
+  (`hyprland/modules/misc.lua`, contributed by feelyourwarmth).
 - **Holding a mute, mic-mute or play key on niri toggles once.** niri repeats
   binds while a key is held, so a slightly long press could mute and unmute
   the microphone again or pause and resume playback; these toggles now ignore

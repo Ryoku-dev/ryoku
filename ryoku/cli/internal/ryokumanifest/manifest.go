@@ -32,6 +32,44 @@ type Manifest struct {
 	FirstParty  []string            `json:"firstParty"`           // release/packages/*, pinned to Version
 	Compositor  map[string][]string `json:"compositor,omitempty"` // provider -> its packages, from its caps
 	Provisioned []string            `json:"provisioned"`          // apps doctor delivers once and never re-adds
+	// CachyOSReplaces names what the CachyOS layer replaces
+	// (system/packages/cachyos.replaces). Older manifests omit it.
+	CachyOSReplaces []string `json:"cachyosReplaces,omitempty"`
+}
+
+// ForCachyOS is the manifest a CachyOS box converges to: the base, dev,
+// hardware and AUR lanes without the names its own layer replaces (the stock
+// kernel, the AUR yay-bin). The ISO keeps them off a CachyOS install through
+// the provisioned ledger, but a box converted in place has no such entries, so
+// without this `ryoku update` delivers them as "never delivered" names.
+func (m Manifest) ForCachyOS() Manifest {
+	if len(m.CachyOSReplaces) == 0 {
+		return m
+	}
+	drop := map[string]bool{}
+	for _, n := range m.CachyOSReplaces {
+		drop[n] = true
+	}
+	keep := func(names []string) []string {
+		var out []string
+		for _, n := range names {
+			if !drop[n] {
+				out = append(out, n)
+			}
+		}
+		return out
+	}
+	m.Base = keep(m.Base)
+	m.Dev = keep(m.Dev)
+	m.AUR = keep(m.AUR)
+	if m.Hardware != nil {
+		hardware := make(map[string][]string, len(m.Hardware))
+		for section, names := range m.Hardware {
+			hardware[section] = keep(names)
+		}
+		m.Hardware = hardware
+	}
+	return m
 }
 
 // Names returns the manifest's full package-name set: every lane's names plus
@@ -160,11 +198,11 @@ type App struct {
 	What string `json:"what"`
 }
 
-// Membership rule: a standalone application whose absence costs only itself.
-// Tools the shell calls by name (grim, playerctl, matugen, cava, mpv for the
-// launcher's radio, the pill's OCR/capture backends) stay hard depends, because
-// losing them breaks a Ryoku surface the user never touched. Ryotunes has its
-// own official-release install/reconciliation path.
+// Membership rule: a standalone application or optional surface whose absence
+// can be explained where it is used. Tools required by an unguarded shell
+// surface (grim, playerctl, matugen, cava, and the pill's OCR/capture backends)
+// stay hard dependencies. Ryotunes has its own official-release
+// install/reconciliation path.
 func Apps() []App {
 	return []App{
 		{"kitty", "the default terminal (Settings > App Overrides repoints the terminal role)"},
@@ -177,6 +215,8 @@ func Apps() []App {
 		{"nautilus", "the graphical file manager"},
 		{"nautilus-python", "the Ryoku stash actions in Nautilus' right-click menu"},
 		{"waifu2x-ncnn-vulkan", "AI upscale behind ryoshot Beautify HD and ryowalls Enhance"},
+		{"mpv", "playback for the launcher's radio"},
+		{"mpv-mpris", "media controls for the launcher's radio"},
 		{"ryoku-rashin", "Rashin, the AI agent: Ask, the Rashin window and the bar's AI usage pill"},
 		{"ryomanager", "system monitor and task manager"},
 		{"pavucontrol", "the GUI mixer the bar's Open audio button launches"},

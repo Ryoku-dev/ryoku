@@ -16,6 +16,7 @@ FocusScope {
     property bool reducedMotion: false
     property string contentKey: ""
     property int entranceEpoch: 0
+    property bool compact: false
 
     signal previewRequested(var item)
     signal selectionRequested(var item)
@@ -23,9 +24,12 @@ FocusScope {
 
     activeFocusOnTab: true
 
-    readonly property int columns: Math.max(2, Math.floor(view.width / 300))
+    readonly property int columns: grid.compact
+            ? Math.max(2, Math.min(4, Math.floor(view.width / 270)))
+            : Math.max(2, Math.floor(view.width / 300))
     readonly property real cellW: view.width / grid.columns
-    readonly property real cellH: Math.round(grid.cellW * 0.84)
+    readonly property real cellH: grid.compact
+            ? Tokens.px(96) : Math.round(grid.cellW * 0.84)
     property alias contentY: view.contentY
     property bool restoring: false
 
@@ -145,6 +149,7 @@ FocusScope {
             required property int index
             width: grid.cellW
             height: grid.cellH
+            readonly property bool isSelected: StoreLogic.itemKey(modelData) === grid.selectedKey
             property real entranceProgress: 1
             opacity: entranceProgress
 
@@ -190,20 +195,37 @@ FocusScope {
 
             Component.onCompleted: reveal()
 
-            ProductCard {
+            Loader {
                 anchors.fill: parent
-                item: tile.modelData
-                selected: StoreLogic.itemKey(tile.modelData) === grid.selectedKey
-                focusVisible: grid.activeFocus
-                        && StoreLogic.itemKey(tile.modelData) === grid.selectedKey
-                reducedMotion: grid.reducedMotion
-                onHoverChanged: hovered => {
-                    if (hovered) {
-                        grid.pendingPreview = tile.modelData;
-                        dwell.restart();
+                sourceComponent: grid.compact ? appTile : coverTile
+            }
+
+            Component {
+                id: coverTile
+                ProductCard {
+                    item: tile.modelData
+                    selected: tile.isSelected
+                    focusVisible: grid.activeFocus && tile.isSelected
+                    reducedMotion: grid.reducedMotion
+                    onHoverChanged: hovered => {
+                        if (hovered) {
+                            grid.pendingPreview = tile.modelData;
+                            dwell.restart();
+                        }
                     }
+                    onActivated: grid.activated(tile.modelData)
                 }
-                onActivated: grid.activated(tile.modelData)
+            }
+
+            Component {
+                id: appTile
+                AppsTile {
+                    item: tile.modelData
+                    selected: tile.isSelected
+                    focusVisible: grid.activeFocus && tile.isSelected
+                    reducedMotion: grid.reducedMotion
+                    onActivated: grid.activated(tile.modelData)
+                }
             }
         }
     }

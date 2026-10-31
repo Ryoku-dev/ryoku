@@ -146,7 +146,8 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `mirror` | boolean | `true` | Mirror the spectrum around the centre. |
 | `feel` | `fluid` or `tight` | `fluid` | Set the wave spring and damping. |
 | `workspaceStyle` | `dots`, `numbers`, `kanji`, `greek`, `dashes`, or `icons` | `dots` | Choose the workspace marks. |
-| `workspaceShowEmpty` | boolean | `true` | Include empty workspaces. Where workspaces are numbered, gaps fill in and one free slot follows the last used. |
+| `workspaceShowEmpty` | boolean | `true` | Include empty workspaces. Where workspaces are numbered, gaps fill in and one free slot follows the last used unless `workspaceSpare` is off. |
+| `workspaceSpare` | boolean | `true` | With `workspaceShowEmpty` on, add one free slot after the last used workspace. Off ends the strip at the last workspace that exists. |
 | `showDate` | boolean | `true` | Show the date under the idle time. |
 | `seconds` | boolean | `false` | Show seconds in the idle time. |
 | `voiceWeather` | boolean | `true` | Show the weather beside the idle time. |
@@ -160,6 +161,7 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `actions` | subset of `launcher`, `ask`, `overview`, `clipboard`, `capture`, `wallpaper`, `hub` | `["launcher","capture","clipboard"]` | Choose shortcut actions. |
 | `trayLimit` | `3` to `12` | `6` | Set the visible tray item limit. |
 | `statusItems` | subset of `wifi`, `bluetooth`, `volume`, `mic` | all four | Choose the icons in the Controls module. |
+| `aiTools` | subset of `claude`, `codex`, `opencode` | all three | Choose which coding agents the AI usage module counts. Modules page, AI usage. An empty list hides the module. |
 
 The name is Orpheus, the musician of Greek myth whose lyre moved rivers and
 stones. Made by neur0map.

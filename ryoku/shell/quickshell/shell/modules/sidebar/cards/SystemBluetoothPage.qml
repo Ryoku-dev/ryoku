@@ -1,8 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Bluetooth
 import Quickshell.Io
 import shell.services
 import Ryoku.Ui.Singletons
@@ -15,18 +13,18 @@ Item {
     required property bool active
     signal backRequested()
 
-    readonly property var adapter: Bluetooth.defaultAdapter
+    readonly property var adapter: BluetoothPower.adapter
     readonly property bool adapterAvailable: BluetoothPower.available
-    readonly property bool adapterEnabled: root.adapter !== null && root.adapter.enabled
-    readonly property bool scanning: root.adapterEnabled && root.adapter.discovering
+    readonly property bool adapterEnabled: BluetoothPower.enabled
+    readonly property bool scanning: root.adapter !== null && root.adapterEnabled && root.adapter.discovering
     property var discoveryAdapter: null
     property string busyAddress: ""
     property string errorText: ""
     readonly property bool busy: linkProcess.running
     readonly property bool motionAllowed: root.active && !Tokens.reduceMotion && !Motion.reduce
 
-    readonly property var devices: !root.adapterEnabled || !Bluetooth.devices
-        ? [] : (Bluetooth.devices.values || []).filter(device => !!device)
+    readonly property var devices: root.adapterEnabled
+        ? BluetoothPower.devices.filter(device => !!device) : []
     readonly property var connectedDevices: root.devices.filter(device => device && device.connected)
     readonly property var pairedDevices: root.devices.filter(device => device && !device.connected && (device.paired || device.bonded))
     readonly property var discoveredDevices: root.devices.filter(device => device && !device.connected && !device.paired && !device.bonded)

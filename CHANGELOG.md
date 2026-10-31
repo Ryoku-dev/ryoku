@@ -14,6 +14,16 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Fedora installs keep existing RPM Fusion FFmpeg and Docker CE packages, and
+  no longer request the nonexistent `util-linux-libs` package.
+- RyoStore no longer leaves other products with inert download buttons while an
+  install is running; their actions are disabled and say that another item is
+  downloading until the single-flight operation completes.
+- RyoStore category pages now list products A to Z and include a search field
+  that filters only the open category. The Apps marketplace keeps its Flathub
+  rankings and adds an explicit A-to-Z sort.
+- The Apps marketplace gives its sort chips and scoped search separate rows on
+  narrow windows, so neither overlaps the compact app grid.
 - Users on filtered networks can route `ryoku update` and pacman through a
   local HTTP proxy without weakening package signature checks.
 - Screenshots no longer pick up the animated pointer when a cursor effect has

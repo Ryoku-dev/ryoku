@@ -247,7 +247,7 @@ const ryokuOverwriteGlob = "/usr/bin/ryoku-*," +
 // to drift out of sync.
 var bootChainSkip = map[string]bool{
 	"base": true, "base-devel": true, "linux": true, "linux-firmware": true,
-	"mkinitcpio": true, "sudo": true, "btrfs-progs": true, "cryptsetup": true,
+	"linux-headers": true, "mkinitcpio": true, "sudo": true, "btrfs-progs": true,
 	"dosfstools": true, "efibootmgr": true, "limine": true, "plymouth": true,
 	"snapper": true, "snap-pac": true,
 	// the limine hook packages pull limine + mkinitcpio back as depends and ship
@@ -573,8 +573,8 @@ type engine struct {
 	state           *runState
 	freshAccount    bool
 	installedPkg    func(string) bool
-
-	steps []estep
+	availablePkg    func(string) bool
+	steps           []estep
 }
 
 func newEngine(f *facts, p *plan, dry bool, ref, payloadOverride string) *engine {
@@ -1819,6 +1819,38 @@ func stepRepo(e *engine) error {
 	return e.sudo("pacman", "-Sy")
 }
 
+var installerKernelModulesDir = "/usr/lib/modules"
+
+func availableKernelHeaderPackages(modulesDir string, installed, available func(string) bool) ([]string, error) {
+	entries, err := os.ReadDir(modulesDir)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var headers []string
+	for _, entry := range entries {
+		data, err := os.ReadFile(filepath.Join(modulesDir, entry.Name(), "pkgbase"))
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read kernel metadata for %s: %w", entry.Name(), err)
+		}
+		kernel := strings.TrimSpace(string(data))
+		if !strings.HasPrefix(kernel, "linux") || strings.ContainsAny(kernel, " \t\r\n/") ||
+			!installed(kernel) {
+			continue
+		}
+		header := kernel + "-headers"
+		if !seen[header] && available(header) {
+			seen[header] = true
+			headers = append(headers, header)
+		}
+	}
+	sort.Strings(headers)
+	return headers, nil
+}
+
 // readBasePackages parses system/packages/base.packages from the payload (the
 // same manifest the ISO pacstraps): one package per line, '#' comments and
 // blank lines dropped, boot-chain entries skipped. This is the single source of
@@ -1897,7 +1929,8 @@ func selectedInstallPackages(p *plan) []string {
 		if !availability.Available || !p.componentOn(component.ID) {
 			continue
 		}
-		if component.Group == "ryoku-apps" || component.Step == installerplan.ComponentRashin ||
+		if component.Group == "ryoku-apps" || component.ID == "radio" ||
+			component.Step == installerplan.ComponentRashin ||
 			(component.Step == installerplan.StepGaming && !component.NeedsNetwork) {
 			packages = append(packages, component.Packages...)
 		}
@@ -2008,6 +2041,7 @@ func stepPackages(e *engine) error {
 		if err != nil {
 			return err
 		}
+		pkgs = e.dropSatisfied(pkgs)
 		return installPackagePlan(e, d, pkgs)
 	}
 	base, err := e.readBasePackages()
@@ -2017,6 +2051,11 @@ func stepPackages(e *engine) error {
 		}
 		e.say(i18n.T("DRYRUN: payload not cloned; would read system/packages/base.packages"))
 	}
+	headers, err := availableKernelHeaderPackages(installerKernelModulesDir, d.installedPkg, e.packageAvailable)
+	if err != nil {
+		return fmt.Errorf("inspect installed kernels: %w", err)
+	}
+	base = append(base, headers...)
 	var pkgs []string
 	if d.fromSource {
 		// no [ryoku] repository here: the desktop is built from the payload, so
@@ -2188,23 +2227,46 @@ func uniquePackages(pkgs []string) []string {
 	return out
 }
 
-// dropSatisfied keeps only what no installed provider satisfies (pacman -T
-// prints the unmet names), so a provides-conflict like qt6ct-kde cannot
-// abort the install under --noconfirm.
+var fedoraProviderAlternatives = map[string]string{
+	"ffmpeg-free": "/usr/bin/ffmpeg",
+	"moby-engine": "docker",
+}
+
+func filterFedoraSatisfied(pkgs []string, provided func(string) bool) []string {
+	keep := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		capability, hasAlternative := fedoraProviderAlternatives[pkg]
+		if hasAlternative && provided(capability) {
+			continue
+		}
+		keep = append(keep, pkg)
+	}
+	return keep
+}
+
+// dropSatisfied keeps package names whose requirement is not already met by
+// an installed provider, avoiding package-name conflicts during installation.
 func (e *engine) dropSatisfied(pkgs []string) []string {
 	if e.dry || len(pkgs) == 0 {
 		return pkgs
 	}
-	if e.d().id != "arch" {
+	var keep []string
+	switch e.d().id {
+	case "arch":
+		out, err := exec.Command("pacman", append([]string{"-T"}, pkgs...)...).Output()
+		// exit 127 aside, pacman -T exits 1 when any target is unmet; the list
+		// on stdout is the answer either way, so only a total failure falls back.
+		if len(out) == 0 && err != nil {
+			return pkgs
+		}
+		keep = filterByUnmet(pkgs, string(out))
+	case "fedora":
+		keep = filterFedoraSatisfied(pkgs, func(capability string) bool {
+			return exec.Command("rpm", "-q", "--whatprovides", capability).Run() == nil
+		})
+	default:
 		return pkgs
 	}
-	out, err := exec.Command("pacman", append([]string{"-T"}, pkgs...)...).Output()
-	// exit 127 aside, pacman -T exits 1 when any target is unmet; the list on
-	// stdout is the answer either way, so only a total failure falls back.
-	if len(out) == 0 && err != nil {
-		return pkgs
-	}
-	keep := filterByUnmet(pkgs, string(out))
 	if len(keep) < len(pkgs) {
 		e.say(i18n.Tf("%d of %d packages already satisfied by installed providers", len(pkgs)-len(keep), len(pkgs)))
 	}
@@ -2941,6 +3003,16 @@ func (e *engine) packageInstalled(pkg string) bool {
 	}
 	local := e.d().local(pkg)
 	return local != "" && e.d().installedPkg(local)
+}
+
+func (e *engine) packageAvailable(pkg string) bool {
+	if e.availablePkg != nil {
+		return e.availablePkg(pkg)
+	}
+	if e.dry {
+		return true
+	}
+	return exec.Command("pacman", "-Si", pkg).Run() == nil
 }
 
 func (e *engine) writeProvisionedLedger() error {

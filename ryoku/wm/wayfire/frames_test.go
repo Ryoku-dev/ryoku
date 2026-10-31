@@ -98,6 +98,10 @@ func TestWorkspaceAndWindowFrames(t *testing.T) {
 	ids := map[string]bool{}
 	for _, w := range ws {
 		ids[w.ID] = true
+		_, x, y, _ := parseWorkspaceHandle(w.ID)
+		if want := y*3 + x + 1; w.Index != want {
+			t.Errorf("workspace %s index = %d, want %d", w.ID, w.Index, want)
+		}
 		if w.Active {
 			active++
 			if w.ID != "1:1:0" {

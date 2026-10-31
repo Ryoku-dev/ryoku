@@ -164,6 +164,7 @@ PanelWindow {
             onBackgroundClicked: () => pickerState.goBack()
         }
 
+        WorkshopCardChrome { anchors.fill: parent; state: pickerState }
         CardChrome { anchors.fill: parent; state: pickerState }
         EmptyState { anchors.fill: parent; state: pickerState }
 

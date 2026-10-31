@@ -270,6 +270,7 @@ Item {
         case "ready": return p.enabled ? I18n.tr("ON AT START") : I18n.tr("READY");
         case "stale": return I18n.tr("NEEDS REBUILD");
         case "failed": return I18n.tr("FAILED TO LOAD");
+        case "unreachable": return I18n.tr("COMPOSITOR OFFLINE");
         case "missing": return I18n.tr("NOT INSTALLED");
         }
         return "";
@@ -388,7 +389,7 @@ Item {
                                 width: 8; height: 8; radius: 4
                                 color: !card.p ? Tokens.inkFaint
                                      : card.p.status === "running" ? Tokens.sun
-                                     : (card.p.status === "stale" || card.p.status === "failed") ? Tokens.alert
+                                     : (card.p.status === "stale" || card.p.status === "failed" || card.p.status === "unreachable") ? Tokens.alert
                                      : card.p.status === "missing" ? Tokens.inkFaint : Tokens.inkMuted
                             }
                             Text {
@@ -408,7 +409,7 @@ Item {
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
                             readonly property bool on: card.p && card.p.status === "running"
-                            readonly property bool bad: card.p && (card.p.status === "stale" || card.p.status === "failed")
+                            readonly property bool bad: card.p && (card.p.status === "stale" || card.p.status === "failed" || card.p.status === "unreachable")
                             width: pill.implicitWidth + 16
                             height: 20
                             radius: Tokens.radius
@@ -437,7 +438,7 @@ Item {
                         width: parent.width
                         text: card.p ? card.p.detail : ""
                         wrapMode: Text.WordWrap
-                        color: card.p && (card.p.status === "stale" || card.p.status === "failed") ? Tokens.alert : Tokens.ink
+                        color: card.p && (card.p.status === "stale" || card.p.status === "failed" || card.p.status === "unreachable") ? Tokens.alert : Tokens.ink
                         font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                     }
                     // provenance is file-truth, so mono

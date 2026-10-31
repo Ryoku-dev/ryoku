@@ -17,6 +17,13 @@
   headless one exits at once.
 
 ### Fixed
+- `bluetooth/ryoku-bluetooth-power`: **Bluetooth stays off after login when it
+  was turned off.** The login reset restarts bluetoothd, and BlueZ's
+  `AutoEnable` is still powering the new controller on when `restore` runs, so
+  `power off` was refused with `org.bluez.Error.Busy`, the radio came up on, and
+  `ryoku-bluetooth-reset.service` failed. Turning off now waits for the
+  controller and retries until BlueZ reports it off, as turning on already
+  waited. Covered by `tests/bluetooth-power-persist.sh`.
 - `network/50-ryoku-dns.rules`: **the passwordless DNS grant no longer matches
   any path ending in `ryoku-dns`.** The rule tested the program with a basename
   regex, so any executable a local wheel user placed at a path ending in

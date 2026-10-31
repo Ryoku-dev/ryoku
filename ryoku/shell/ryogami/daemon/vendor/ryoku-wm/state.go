@@ -67,7 +67,10 @@ type Workspace struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Output string `json:"output,omitempty"`
-	Active bool   `json:"active,omitempty"`
+	// Index is the one-based presentation rank inside Output. Zero means the
+	// provider cannot report an order, so consumers preserve frame order.
+	Index  int  `json:"index,omitempty"`
+	Active bool `json:"active,omitempty"`
 	// Windows is a count, which is all the wallpaper occupancy gate needs.
 	Windows    int  `json:"windows"`
 	Fullscreen bool `json:"fullscreen,omitempty"`

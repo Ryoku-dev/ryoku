@@ -166,6 +166,11 @@ add_lane ryoku-keyring desktop
 add_lane ryoku-palette-bridge desktop
 add_lane udev desktop
 for pkg in dualsensectl dbus hidapi libusb; do add_lane "$pkg" optional; done
+# The radio player remains in Arch's base set so ISO pacstrap installs it, but
+# Void owns it through the default-on radio component rather than the desktop
+# package. It must not re-enter the Void desktop lane as a hard package.
+for pkg in mpv mpv-mpris; do expected_lanes[$pkg]='|optional|'; done
+
 # The GPU helper still requests Nouveau on demand; the gaming component owns
 # its baseline Mesa and Vulkan packages.
 add_lane lib32-vulkan-nouveau optional

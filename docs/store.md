@@ -71,6 +71,18 @@ product keeps an artwork stage, while a responsive editorial grid exposes the
 rest of the collection. A card may animate its cover only while hovered.
 Status and actions always belong to the committed selection.
 
+The Apps catalogue is the marketplace surface. It opens with a featured shelf,
+a row of Flathub category plates, a `TRENDING / POPULAR / NEW / UPDATED`
+strip, and compact icon and text tiles in a responsive grid. The category
+plates come from the main category tags the provider already carries and show
+their counts, so a plate exists only when the catalogue has something in it.
+The field beside the sort strip narrows the loaded catalogue in place, and the
+shelf steps aside while a category or a filter is active. The strip sorts the
+union of Flathub's popular, trending, recently added and recently updated
+collections by the matching ranking field, so the tabs describe the catalogue
+rather than reshuffling one popular page. A header search for Flathub keeps
+its relevance order and uses the same compact tiles.
+
 The rail exposes one semantic route order:
 
 ```text
@@ -168,15 +180,21 @@ ryoku/apps/ryostore/
     provider_bars.go
     provider_shell_qml.go
     provider_fastfetch.go
+    provider_flatpak.go
   quickshell/
     shell.qml
     App.qml
     StoreHeader.qml
     ShowroomStage.qml
-    Filmstrip.qml
-    SearchLayer.qml
+    AppsHero.qml
+    AppsTile.qml
+    AppsSearch.qml
     ProductDetail.qml
     ProductCover.qml
+    ProductMedia.qml
+    ProductGrid.qml
+    ProductCard.qml
+    ProviderTabs.qml
     StatusReadout.qml
     lib/
       store.js
@@ -262,6 +280,16 @@ lives under `modules/bar/barstyles/<id>/`, a qylock theme under the qylock theme
 and a plugin in the plugin data directory. Ryostore owns their catalogue adapter
 and installation, not a second runtime copy.
 
+Install, update, removal, and enablement are single-flight so receipts and package
+manager state cannot race. While one product is active, every other product keeps
+its action visible but disabled and names the operation that is already running;
+the active product continues to show the backend's real byte or step progress.
+Within a category, products are ordered by display name and a local search field
+filters only that category. Marketplace categories with explicit ranking controls
+keep those controls; Apps also offers **A to Z** alongside Flathub's Trending,
+Popular, New, and Updated rankings.
+
+
 ## Provider behavior
 
 - **Lockscreens:** fetch the qylock catalogue, preview cache, and install-only
@@ -288,14 +316,18 @@ and installation, not a second runtime copy.
   the category offers Popular, New, and Verified orderings and global search.
   Its thousands of preview and gallery URLs deliberately bypass eager asset
   warming; only visible delegates request their remote media.
-- **Apps (Flatpak):** list up to 300 of the most popular desktop applications
-  from the Flathub collection API, joined with `flatpak list`, so an installed
-  Flathub application outside that ranking is still listed and removable.
-  Flathub is a third-party source: it does not pass through the `ryostore`
-  registry or its screening. The detail labels Flathub's verified or
-  unverified state when known (or unknown for installed-only items) and warns
-  before installation; verification is not a Ryostore safety review. New apps
-  use the system Flatpak installation and its shared runtimes when its
+- **Apps (Flatpak):** list the union of Flathub's popular, trending, recently
+  added and recently updated collections (up to 300 each), joined with
+  `flatpak list`, so an installed Flathub application outside those rankings is
+  still listed and removable. Each hit carries its trending score, monthly
+  installs, listing date and update date for the marketplace strip. The union is
+  cached as one snapshot and served flagged offline when Flathub is
+  unreachable; a partial fetch keeps the collections that answered and leaves
+  the complete cache in place. Flathub is a third-party source: it does not pass
+  through the `ryostore` registry or its screening. The detail labels Flathub's
+  verified or unverified state when known (or unknown for installed-only items)
+  and warns before installation; verification is not a Ryostore safety review.
+  New apps use the system Flatpak installation and its shared runtimes when its
   `flathub` remote is valid; if only the user installation has a valid remote,
   they install there instead. System installs may ask for authorization.
   The store never adds a remote. When neither installation has a valid remote,

@@ -24,6 +24,7 @@ ryoku_deploy() {
 
   ryoku_deploy_repo              # [ryoku] stanza + mirrorlist + keyring trust (local)
   ryoku_deploy_packages          # pacman -S the desktop set (needs net)
+  ryoku_seed_login_shell_config
   ryoku_seed_initcpio_hook       # the HOOKS-named trim hook, if that set never came
   ryoku_seed_keymap              # chosen kb_layout into the neutral store
   ryoku_deploy_chown "$u"        # the store seed creates ~/.config as root; hand
@@ -33,6 +34,33 @@ ryoku_deploy() {
   ryoku_deploy_seed "$h"         # unpackaged assets and first-login rice marker
   ryoku_deploy_chown "$u"        # own root-seeded files before the user steps
   ryoku_deploy_qylock            # qylock writes user files as the now-owning user
+}
+
+ryoku_seed_login_shell_config() {
+  local root=${RYOKU_TARGET_ROOT:-/mnt} template user target
+  [[ ${RYOKU_LOGIN_SHELL:-fish} == zsh ]] || return 0
+  template="$root/usr/share/ryoku/zsh/zshrc"
+
+  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
+    for user in "${RYOKU_ACCOUNT_NAMES[@]}"; do
+      log 'DRYRUN: seed %s from %s when missing' "$root/home/$user/.zshrc" "$template"
+    done
+    return 0
+  fi
+  if [[ ! -f $template ]]; then
+    log 'WARNING: zsh is the login shell but its Ryoku startup template is missing at %s' "$template"
+    return 0
+  fi
+
+  for user in "${RYOKU_ACCOUNT_NAMES[@]}"; do
+    target="$root/home/$user/.zshrc"
+    [[ ! -e $target && ! -L $target ]] || continue
+    install -Dm644 "$template" "$target"
+    if [[ $root == /mnt ]]; then
+      run "$RYOKU_TARGET_CHROOT" /mnt chown "$user:$user" "/home/$user/.zshrc"
+    fi
+    log 'seeded the zsh login config for %s' "$user"
+  done
 }
 
 # deploy_file: one config file, mode 644, parents made.

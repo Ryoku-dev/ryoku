@@ -12,6 +12,23 @@ import (
 	wm "ryoku-wm"
 )
 
+// writeNlFakeBackend writes the fake night-light backend: a script that stays
+// alive under its own name for the requested seconds. Its comm is the script's
+// basename, the name the watcher greps for. It is not a renamed copy of sleep:
+// on uutils coreutils (Ubuntu 26.04 runners) sleep is a multicall binary that
+// dispatches on argv[0], so a copy under another name exits at once.
+func writeNlFakeBackend(t *testing.T, path string) {
+	t.Helper()
+	script := "#!/bin/sh\n" +
+		"sleep \"${1:-600}\" &\n" +
+		"child=$!\n" +
+		"trap 'kill \"$child\" 2>/dev/null; exit 0' TERM INT HUP\n" +
+		"wait \"$child\"\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestNightlightWatcherEndToEnd drives the real watcher: a fake backend binary,
 // a fake provider that names it in caps, a PATH-shimmed ryoku-cmd-nightlight that
 // starts/stops it and writes the marker and temp files, and the inotify loop
@@ -26,17 +43,7 @@ func TestNightlightWatcherEndToEnd(t *testing.T) {
 
 	bin := t.TempDir()
 	fake := filepath.Join(bin, backend)
-	sleep, err := exec.LookPath("sleep")
-	if err != nil {
-		t.Skip("no sleep binary")
-	}
-	raw, err := os.ReadFile(sleep)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(fake, raw, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeNlFakeBackend(t, fake)
 
 	// The daemon's caps probe runs ryoku-wm-<name> caps; this fake reports the
 	// backend name the watcher must grep for, injected through the same wmc the
@@ -183,20 +190,10 @@ func buildNlFake(t *testing.T, backend string, capsFailFirst bool) nlFake {
 	state := t.TempDir()
 	bin := t.TempDir()
 
-	// A renamed copy of sleep is the fake backend: its comm is <backend>, the
-	// name the watcher greps for and the provider reports.
-	sleep, err := exec.LookPath("sleep")
-	if err != nil {
-		t.Skip("no sleep binary")
-	}
-	raw, err := os.ReadFile(sleep)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The fake backend stays alive under <backend>, the name the watcher greps
+	// for and the provider reports.
 	fake := filepath.Join(bin, backend)
-	if err := os.WriteFile(fake, raw, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	writeNlFakeBackend(t, fake)
 
 	fail := "0"
 	if capsFailFirst {

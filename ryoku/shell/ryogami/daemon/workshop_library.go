@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -408,29 +410,133 @@ func projectTags(doc map[string]interface{}) string {
 	return strings.Join(tags, ", ")
 }
 
-func findPreview(itemDir string, doc map[string]interface{}) string {
-	if file, ok := doc["preview"].(string); ok {
-		if joined, ok := safeItemJoin(itemDir, file); ok && fileExists(joined) {
-			return joined
-		}
+func previewSource(path string) bool {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
+	return imageExts[ext] || videoExts[ext]
+}
+
+func declaredPreview(dir string, doc map[string]interface{}) string {
+	file, _ := doc["preview"].(string)
+	joined, ok := safeItemJoin(dir, file)
+	if !ok || !fileExists(joined) || !previewSource(joined) {
+		return ""
 	}
-	entries, err := os.ReadDir(itemDir)
+	return joined
+}
+
+func namedPreview(dir string) string {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return ""
 	}
-	var names []string
-	for _, e := range entries {
-		if strings.HasPrefix(strings.ToLower(e.Name()), "preview.") {
-			names = append(names, e.Name())
-		}
-	}
-	sort.Strings(names)
-	for _, name := range names {
-		if joined, ok := safeItemJoin(itemDir, name); ok && fileExists(joined) {
-			return joined
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(strings.ToLower(name), "preview.") {
+			if joined, ok := safeItemJoin(dir, name); ok && fileExists(joined) && previewSource(joined) {
+				return joined
+			}
 		}
 	}
 	return ""
+}
+
+func fallbackPreview(dir string) string {
+	var found string
+	_ = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if path == dir {
+				return err
+			}
+			return nil
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		switch strings.ToLower(filepath.Ext(entry.Name())) {
+		case ".jpg", ".jpeg", ".png":
+			found = path
+			return fs.SkipAll
+		default:
+			return nil
+		}
+	})
+	return found
+}
+
+func findPreview(itemDir string, project *weProject) string {
+	dirs := []string{itemDir}
+	docs := []map[string]interface{}{nil}
+	if doc, err := readProject(itemDir); err == nil {
+		docs[0] = doc
+	}
+	if project != nil && project.source != itemDir {
+		dirs = append(dirs, project.source)
+		docs = append(docs, project.document)
+	} else if project != nil {
+		docs[0] = project.document
+	}
+	for i, dir := range dirs {
+		if preview := declaredPreview(dir, docs[i]); preview != "" {
+			return preview
+		}
+	}
+	for _, dir := range dirs {
+		if preview := namedPreview(dir); preview != "" {
+			return preview
+		}
+	}
+	for _, dir := range dirs {
+		if preview := fallbackPreview(dir); preview != "" {
+			return preview
+		}
+	}
+	return ""
+}
+
+func projectSchemeColor(doc map[string]interface{}) (int, int, bool) {
+	general, _ := doc["general"].(map[string]interface{})
+	properties, _ := general["properties"].(map[string]interface{})
+	raw := properties["schemecolor"]
+	if object, ok := raw.(map[string]interface{}); ok {
+		raw = object["value"]
+	}
+	value, _ := raw.(string)
+	parts := strings.Fields(value)
+	if len(parts) < 3 {
+		return 0, 0, false
+	}
+	r, errR := strconv.ParseFloat(parts[0], 64)
+	g, errG := strconv.ParseFloat(parts[1], 64)
+	b, errB := strconv.ParseFloat(parts[2], 64)
+	if errR != nil || errG != nil || errB != nil {
+		return 0, 0, false
+	}
+	r = math.Max(0, math.Min(1, r))
+	g = math.Max(0, math.Min(1, g))
+	b = math.Max(0, math.Min(1, b))
+	high := math.Max(r, math.Max(g, b))
+	low := math.Min(r, math.Min(g, b))
+	delta := high - low
+	lightness := (high + low) / 2
+	var saturation float64
+	if delta > 0 {
+		saturation = delta / (1 - math.Abs(2*lightness-1))
+	}
+	var hue float64
+	switch {
+	case delta == 0:
+	case high == r:
+		hue = 60 * math.Mod((g-b)/delta, 6)
+	case high == g:
+		hue = 60 * ((b-r)/delta + 2)
+	default:
+		hue = 60 * ((r-g)/delta + 4)
+	}
+	if hue < 0 {
+		hue += 360
+	}
+	sat := int(math.Round(saturation * 100))
+	return int(hueBucket(uint16(math.Round(hue))%360, uint16(sat))), sat, true
 }
 
 func (w *workshopLib) downloadedIDs() []string {
@@ -495,7 +601,7 @@ func (w *workshopLib) scanEntries(cacheDir string, prior map[string]Entry, onIte
 		if err != nil {
 			continue
 		}
-		preview := findPreview(itemDir, project.document)
+		preview := findPreview(itemDir, project)
 		e := Entry{
 			Key:     key,
 			Name:    firstNonEmpty(readProjectTitle(itemDir), id),
@@ -506,6 +612,10 @@ func (w *workshopLib) scanEntries(cacheDir string, prior map[string]Entry, onIte
 			Preview: preview,
 			Path:    itemDir,
 			Mtime:   mtime,
+		}
+		if hue, sat, ok := projectSchemeColor(project.document); ok {
+			e.Hue = hue
+			e.Sat = sat
 		}
 		if p, ok := prior[key]; ok {
 			e.Favourite = p.Favourite
@@ -543,11 +653,20 @@ func generateWeThumb(preview, thumb, thumbSm string) error {
 	if err := os.MkdirAll(filepath.Dir(thumb), 0o755); err != nil {
 		return err
 	}
+	source := preview
+	if needsFirstFrame(preview) {
+		frame, err := extractFirstFrame(preview)
+		if err != nil {
+			return fmt.Errorf("first frame: %w", err)
+		}
+		defer os.Remove(frame)
+		source = frame
+	}
 	tmp := tmpPath(thumb)
 	ctx, cancel := context.WithTimeout(context.Background(), cmdTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "magick",
-		fmt.Sprintf("%s[0]", preview),
+		fmt.Sprintf("%s[0]", source),
 		"-resize", fmt.Sprintf("%dx%d^", thumbW, thumbH),
 		"-gravity", "center",
 		"-extent", fmt.Sprintf("%dx%d", thumbW, thumbH),

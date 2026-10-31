@@ -142,6 +142,11 @@ add_lane udev desktop
 for pkg in dualsensectl dbus hidapi libusb; do add_lane "$pkg" optional; done
 # ryoku-gpu-lib32 installs the 32-bit GPU baseline on demand for games.
 for pkg in lib32-mesa lib32-vulkan-icd-loader lib32-vulkan-nouveau; do add_lane "$pkg" optional; done
+# The radio player remains in Arch's base set so ISO pacstrap installs it, but
+# Fedora owns it through RPM weak dependencies and the default-on radio
+# component. It must not re-enter the Fedora desktop lane as a hard package.
+for pkg in mpv mpv-mpris; do expected_lanes[$pkg]='|optional|'; done
+
 
 canonical_lanes() {
 	local encoded=$1 lane out=
@@ -215,6 +220,18 @@ spec_field() {
 	' "$path"
 }
 
+hard_dependency_satisfied() {
+	local arch_dep=$1 expected_dep=$2 file_requirement
+	[[ -n ${hard[$expected_dep]:-}${provided[$expected_dep]:-} ]] && return 0
+	case $arch_dep in
+		ffmpeg)
+			file_requirement=/usr/bin/ffmpeg
+			[[ -n ${hard[$file_requirement]:-} ]]
+			;;
+		*) return 1 ;;
+	esac
+}
+
 declare -A spec_names=() spec_paths=() spec_refs=()
 spec_count=0
 for spec in "$SPECS"/*.spec; do
@@ -258,7 +275,7 @@ for spec_pkg in "${!spec_names[@]}"; do
 		mapping=${row_fedora[$arch_dep]}
 		[[ $mapping != - ]] || continue
 		for expected_dep in $mapping; do
-			[[ -n ${hard[$expected_dep]:-}${provided[$expected_dep]:-} ]] \
+			hard_dependency_satisfied "$arch_dep" "$expected_dep" \
 				|| fail "$spec_pkg spec misses translated dependency $expected_dep (from $arch_dep)"
 		done
 	done < <(pkgbuild_field "$pkgbuild" depends)

@@ -39,8 +39,9 @@ type swapDevice struct {
 }
 
 type memoryProcess struct {
-	name   string
-	rssKiB uint64
+	pid, ppid int
+	name      string
+	rssKiB    uint64
 }
 
 type memoryDiagnostics struct {
@@ -122,6 +123,10 @@ func parseProcessStatus(raw string) (memoryProcess, bool) {
 		switch key {
 		case "Name":
 			process.name = strings.TrimSpace(value)
+		case "Pid":
+			process.pid, _ = strconv.Atoi(strings.TrimSpace(value))
+		case "PPid":
+			process.ppid, _ = strconv.Atoi(strings.TrimSpace(value))
 		case "VmRSS":
 			fields := strings.Fields(value)
 			if len(fields) > 0 {
@@ -139,7 +144,8 @@ func cgroupProcesses(cgroupDir, procRoot string) []memoryProcess {
 	}
 	var processes []memoryProcess
 	for _, pid := range strings.Fields(string(raw)) {
-		if _, err := strconv.ParseUint(pid, 10, 64); err != nil {
+		pidValue, err := strconv.Atoi(pid)
+		if err != nil {
 			continue
 		}
 		status, err := os.ReadFile(filepath.Join(procRoot, pid, "status"))
@@ -147,6 +153,7 @@ func cgroupProcesses(cgroupDir, procRoot string) []memoryProcess {
 			continue
 		}
 		if process, ok := parseProcessStatus(string(status)); ok {
+			process.pid = pidValue
 			processes = append(processes, process)
 		}
 	}
@@ -320,15 +327,40 @@ func memoryReportLines(diagnostic memoryDiagnostics) []string {
 
 func looksLikeUserApp(name string) bool {
 	name = strings.ToLower(name)
-	return name != "qs" && name != "adb" && name != "cliphist" &&
-		!strings.HasPrefix(name, "ryoku-") && !strings.HasPrefix(name, "ryogami") &&
+	switch name {
+	case "qs", "adb", "cliphist", "flock", "bash", "sh", "dbus-monitor",
+		"ryoku", "lspci", "grep":
+		return false
+	}
+	return !strings.HasPrefix(name, "ryoku-") && !strings.HasPrefix(name, "ryogami") &&
 		!strings.HasPrefix(name, "wl-") && !strings.HasPrefix(name, "python3")
 }
 
-func userAppsInShell(processes []memoryProcess) []memoryProcess {
+func inProcessTree(process memoryProcess, rootPID int, processes map[int]memoryProcess) bool {
+	if rootPID <= 0 || process.pid <= 0 {
+		return false
+	}
+	for range len(processes) + 1 {
+		if process.pid == rootPID || process.ppid == rootPID {
+			return true
+		}
+		parent, ok := processes[process.ppid]
+		if !ok {
+			return false
+		}
+		process = parent
+	}
+	return false
+}
+
+func userAppsInShell(processes []memoryProcess, doctorPID int) []memoryProcess {
+	byPID := make(map[int]memoryProcess, len(processes))
+	for _, process := range processes {
+		byPID[process.pid] = process
+	}
 	apps := make([]memoryProcess, 0, len(processes))
 	for _, process := range processes {
-		if looksLikeUserApp(process.name) {
+		if looksLikeUserApp(process.name) && !inProcessTree(process, doctorPID, byPID) {
 			apps = append(apps, process)
 		}
 	}
@@ -344,7 +376,7 @@ func reconcileMemoryHealth(_ bool) recResult {
 	} else if diagnostic.cgroupOOMKills > 0 {
 		problems = append(problems, fmt.Sprintf(i18n.T("the shell service recorded %d memory kill(s)"), diagnostic.cgroupOOMKills))
 	}
-	if apps := userAppsInShell(diagnostic.processes); len(apps) > 0 {
+	if apps := userAppsInShell(diagnostic.processes, os.Getpid()); len(apps) > 0 {
 		problems = append(problems, fmt.Sprintf(i18n.T("user apps are still inside the shell service: %s"), memoryProcessList(apps, 5)))
 	}
 	if len(problems) > 0 {

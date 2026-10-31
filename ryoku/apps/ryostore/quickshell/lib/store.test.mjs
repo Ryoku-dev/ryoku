@@ -25,6 +25,15 @@ eq(Store.collection(products, { view: "discover", query: "hero" }).map(Store.ite
 eq(Store.selectionKey(products, "lockscreens:lock", 0), "lockscreens:lock", "preserve valid selection");
 eq(Store.selectionKey(products, "missing:item", 1), "lockscreens:lock", "fallback by bounded index");
 eq(Store.selectionKey([], "missing:item", 0), "", "empty selection");
+eq(Store.collection([
+    { id: "z", category: "lockscreens", name: "Zen" },
+    { id: "a", category: "lockscreens", name: "Amber" },
+    { id: "m", category: "lockscreens", name: "Moss" }
+], { view: "discover", categoryID: "lockscreens" }).map(item => item.name), ["Amber", "Moss", "Zen"], "category collections sort A to Z");
+eq(Store.collection([
+    { id: "z", category: "lockscreens", name: "Zen" },
+    { id: "a", category: "lockscreens", name: "Amber" }
+], { view: "discover", categoryID: "lockscreens", query: "zen" }).map(item => item.name), ["Zen"], "category search stays scoped to the open category");
 
 const activeUpdate = { active: true, installed: true, updateAvailable: true };
 eq(Store.statusLabels(activeUpdate), ["UPDATE", "ACTIVE"], "update and active are both explicit");
@@ -83,6 +92,10 @@ eq(Store.primaryAction({ installed: false, busy: true }), "INSTALLING", "busy ac
 eq(Store.secondaryAction({ installed: true, hasSettings: true }), "OPEN IN SETTINGS", "management handoff when the product has a settings page");
 eq(Store.secondaryAction({ installed: true }), "", "installed product without a settings page has no handoff");
 eq(Store.secondaryAction({ installed: false }), "", "available item has no management handoff");
+eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "FETCHING"), "DOWNLOADING ANOTHER ITEM", "another product explains the single-flight download");
+eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:clock", "FETCHING"), "", "the active product keeps its own progress stage");
+eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "REMOVING"), "REMOVING ANOTHER ITEM", "another product explains a removal");
+eq(Store.competingActionLabel("", "lockscreens:broken", ""), "", "idle actions keep their ordinary label");
 eq(
     Store.filter(items, { query: "plugin update" }).map(item => item.id),
     ["market"],
@@ -182,13 +195,13 @@ eq(
 );
 eq(
     Store.collection(plugins, { view: "discover", categoryID: "plugins", pluginKind: "bar" }).map(Store.itemKey),
-    ["plugins:vpn", "plugins:clockbar"],
-    "plugins BAR collection filters through the pluginKind option"
+    ["plugins:clockbar", "plugins:vpn"],
+    "plugins BAR collection filters and sorts A to Z"
 );
 eq(
     Store.collection(plugins, { view: "discover", categoryID: "plugins" }).map(item => item.id),
-    ["vpn", "clockbar", "widget", "popout", "bare"],
-    "plugins ALL collection keeps every plugin in source order"
+    ["bare", "clockbar", "popout", "vpn", "widget"],
+    "plugins ALL collection sorts A to Z"
 );
 
 const omarchyPlugins = [
@@ -213,6 +226,36 @@ eq(
 );
 eq(Store.filter(omarchyPlugins, { query: "widgets bar mit" }).map(item => item.id), ["clock", "weather"], "Omarchy metadata participates in search");
 
+const apps = [
+    { id: "graphics", category: "flatpak", name: "Graphics", art: "a.png", tags: ["graphics", "photography"], listedAt: "2026-01-02T00:00:00Z", metadata: { trending: 3, installsLastMonth: 900, updatedAt: "2026-01-05T00:00:00Z" } },
+    { id: "browser", category: "flatpak", name: "Browser", art: "b.png", tags: ["network"], listedAt: "2026-01-05T00:00:00Z", metadata: { trending: 9, installsLastMonth: 100, updatedAt: "2026-01-03T00:00:00Z" } },
+    { id: "player", category: "flatpak", name: "Player", art: "c.png", tags: ["audiovideo", "player"], listedAt: "2026-01-03T00:00:00Z", metadata: { trending: 6, installsLastMonth: 500, updatedAt: "2026-01-04T00:00:00Z" } },
+    { id: "bare", category: "flatpak", name: "Bare" }
+];
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "trending" }).map(i => i.id), ["browser", "player", "graphics", "bare"], "Apps Trending sorts by the Flathub trending score");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "popular" }).map(i => i.id), ["graphics", "player", "browser", "bare"], "Apps Popular sorts by monthly installs");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "new" }).map(i => i.id), ["browser", "player", "graphics", "bare"], "Apps New sorts by listing date");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "updated" }).map(i => i.id), ["graphics", "player", "browser", "bare"], "Apps Updated sorts by update date");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "a-z" }).map(i => i.id), ["bare", "browser", "graphics", "player"], "Apps A to Z sorts by display name");
+eq(Store.collection(apps, { categoryID: "flatpak", query: "a" }).map(i => i.id), ["graphics", "browser", "player", "bare"], "a search keeps Flathub relevance order");
+eq(Store.appCategories(apps).map(c => c.key), ["audiovideo", "graphics", "network"], "market tabs list the categories the catalogue carries");
+eq(Store.appCategories(apps)[1].note, "1", "a tab carries its app count");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "trending", tag: "network" }).map(i => i.id), ["browser"], "a tab narrows the market to its tag");
+eq(Store.collection(apps, { categoryID: "flatpak", appSort: "popular", tag: "audiovideo", query: "play" }).map(i => i.id), ["player"], "a tab and a search combine");
+eq(Store.featuredApps(apps, 2, 0).map(i => i.id), ["browser", "player"], "featured apps take the top trending entries");
+eq(Store.featuredApps(apps, 2, 1).map(i => i.id), ["player", "graphics"], "the daily seed rotates the featured set");
+eq(Store.featuredApps(apps.concat([{ id: "owned", category: "flatpak", name: "Owned", art: "o.png", installed: true, metadata: { trending: 99 } }]), 2, 0).map(i => i.id), ["browser", "player"], "installed apps are not featured");
+const appsSnapshot = JSON.stringify(apps);
+Store.sortApps(apps, "popular");
+Store.featuredApps(apps, 3, 4);
+eq(JSON.stringify(apps), appsSnapshot, "app sorting and featured picks do not mutate the source");
+
+eq(Store.statusTag({ id: "x", installed: true }), "INSTALLED", "a compact tile chips installed state");
+eq(Store.statusTag({ id: "x" }), "", "an available app carries no chip");
+eq(Store.initials({ name: "Google Chrome" }), "GC", "initials take the outer words of a name");
+eq(Store.initials({ name: "VLC", initials: "vlc" }), "VLC", "an explicit monogram wins");
+eq(Store.initials({ name: "" }), "", "a nameless item has no monogram");
+
 console.log("RYOSTORE-STORE-HELPERS-PASS");
 
 // Classification affects discovery only; receipts, library and actions keep
@@ -228,10 +271,10 @@ const shellProducts = [
     { id: "launcher", category: "launchers", installed: true }
 ];
 eq(Store.collection(shellProducts, { categoryID: "subshells" }).map(i => i.id),
-   ["python", "gokko", "tansu", "caelestia"], "subshell browse tab");
+   ["caelestia", "gokko", "python", "tansu"], "subshell browse tab sorts A to Z");
 eq(Store.collection(shellProducts, { categoryID: "barstyles" }).map(i => i.id),
-   ["python", "gokko", "tansu", "caelestia", "obi", "chroma", "nacre"],
-   "barstyle browse tab includes subshells");
+   ["caelestia", "chroma", "gokko", "nacre", "obi", "python", "tansu"],
+   "barstyle browse tab includes subshells and sorts A to Z");
 eq(Store.collection(shellProducts, { view: "library" }).map(i => i.id),
    ["python", "tansu", "obi", "chroma", "launcher"], "library unchanged");
 eq(Store.barCategories([{ id: "barstyles", name: "Bar styles", count: 7, group: "wear" }], shellProducts)

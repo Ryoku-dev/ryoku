@@ -33,6 +33,7 @@ optional("monitors")
 -- wins. see monitors_user.lua.example.
 optional("monitors_user")
 require("modules.displays")
+require("modules.render")
 require("modules.input")
 require("modules.touchpad")
 require("modules.misc")

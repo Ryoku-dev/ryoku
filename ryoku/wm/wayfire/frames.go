@@ -427,6 +427,7 @@ func (s *stage) workspaceFrame() []wm.Workspace {
 					ID:         handle,
 					Name:       workspaceName(x, y, gridW),
 					Output:     ws.OutputName,
+					Index:      y*gridW + x + 1,
 					Active:     attached && onCurrent.X == x && onCurrent.Y == y,
 					Windows:    counts[handle],
 					Fullscreen: fullscreen[handle],

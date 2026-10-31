@@ -52,6 +52,7 @@ add_card() {
   mkdir -p "$card/device/drm" "$tmp/drm/card$1-eDP-1"
   printf '1\n' >"$card/device/boot_vga"
   printf '0x1002\n' >"$card/device/vendor"
+  printf 'DRIVER=amdgpu\n' >"$card/device/uevent"
   : >"$card/device/drm/renderD128"
   printf 'connected\n' >"$tmp/drm/card$1-eDP-1/status"
 }

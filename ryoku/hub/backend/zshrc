@@ -1,0 +1,1 @@
+[ -r "$HOME/.config/zsh/ryoku.zsh" ] && . "$HOME/.config/zsh/ryoku.zsh"

@@ -9,7 +9,7 @@
 # this dir from a full checkout, so the repo root is three levels up.
 pkgname=ryoku-desktop
 pkgver=${RYOKU_PKGVER:-0.1.0}
-pkgrel=3
+pkgrel=5
 pkgdesc="Ryoku desktop: Quickshell configuration, helpers, and runtime (compositor-neutral base)"
 # package() compiles Go helpers (ryovm-fetch), so the payload is arch-specific.
 arch=('x86_64')
@@ -102,10 +102,6 @@ depends=(
   # tools the shipped autostart, pill, ryoshot, and helper scripts call by name
   'brightnessctl'
   'playerctl'
-  # the launcher's "@" live radio: mpv plays the stream, mpv-mpris puts it on
-  # the players bus, yt-dlp resolves the Lofi Girl live page at play time.
-  'mpv'
-  'mpv-mpris'
   'yt-dlp'
   'wl-clipboard'
   'wl-clip-persist'
@@ -201,19 +197,19 @@ depends=(
   'hypridle'             # idle daemon ryoku-idle renders a config for (ext-idle-notify-v1)
   'hyprpicker'           # screen color picker (ryoku-cmd-color-picker, Super+Shift+C)
   # Game controllers: xpadneo-dkms (Xbox One/Series Bluetooth pads, from the AUR
-  # step) is a DKMS module, so it needs the kernel headers and the DKMS build
-  # system to compile its module; without them the build silently fails and the
-  # pad is not detected at all (users had to install linux-headers + dkms by
-  # hand). linux-headers matches the base `linux` kernel; dkms's alpm hooks then
-  # (re)build the module whenever headers land, so `ryoku update` pulling these
-  # onto an existing box rebuilds an already-installed pad driver.
-  'linux-headers'
+  # step) needs DKMS and headers for every installed kernel. The installer pairs
+  # each shipped kernel with its headers, and doctor fills a missing
+  # <kernel>-headers package on existing Arch and CachyOS boxes. Keeping only
+  # dkms here avoids forcing stock linux-headers onto a box that has no stock
+  # linux kernel.
   'dkms'
 )
 optdepends=(
   # The applications Ryoku ships. Optional here on purpose: the ISO pacstraps
   # them and `ryoku doctor` delivers them once to an existing box, so pacman
   # never has a missing dependency to "repair" and a deleted app stays deleted.
+  'mpv: playback for the launcher radio'
+  'mpv-mpris: media controls for the launcher radio'
   'kitty: the default terminal'
   'fish: optional interactive shell'
   'blesh: Bash line editor'

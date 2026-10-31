@@ -1,6 +1,28 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor repairs a missing Zsh startup file without replacing custom config.**
+  It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
+  template exists and the user has no startup file of their own.
+- **`ryoku update` no longer installs the stock kernel on a converted CachyOS
+  box.** A box converted in place by `ryoku-shell-install` never got the
+  provisioned-ledger entries the ISO writes for `cachyos.replaces`, so the
+  manifest reconciler treated `linux` and `yay-bin` as never delivered and
+  installed them next to `linux-cachyos` and CachyOS's `yay`. The manifest now
+  carries `cachyosReplaces`, and a CachyOS host reads the base, dev, hardware
+  and AUR lanes without those names (`internal/ryokumanifest/manifest.go`,
+  `internal/updater/manifest.go`, `cmd/ryoku-manifest`).
+- **Doctor no longer mistakes Settings helpers for memory-heavy user apps.** It
+  recognizes the Hub's wrappers and ignores its own process tree when System
+  Check runs inside the desktop service (`internal/doctor/memory.go`).
+- **`mpv` and `mpv-mpris` are delivered once instead of forced back.** Doctor
+  installs both on boxes that have never received them, records the delivery,
+  and honours a later removal (`internal/ryokumanifest/manifest.go`,
+  `internal/doctor/reconcile_shipped_apps.go`).
+- **Doctor installs headers for the kernels that are actually installed.**
+  On Arch and CachyOS it reads each installed kernel's `pkgbase`, checks the
+  matching `<kernel>-headers` package, and installs only missing matches that
+  pacman's enabled repositories provide (`internal/doctor/reconcile_kernel_headers.go`).
 - **Phone installs use headers for the installed kernels, not driver modules.**
   Pacman reads each kernel's pkgbase and no longer adds stock headers on systems
   without the stock kernel (`internal/host/phone.go`, `internal/host/phone_test.go`).
@@ -13,6 +35,11 @@
   report lists RAM, swap, zram, OOM activity and the shell cgroup's largest
   processes, and warns only about memory kills or user apps left in that cgroup
   (`internal/doctor/memory.go`, `internal/doctor/report.go`).
+- **Doctor names the installed Hermes agent version without claiming it is
+  current.** Hermes is installed once from its official installer, then remains
+  user-owned, so the new note points users back to that install's update method
+  instead of fetching release state during a health check
+  (`internal/doctor/reconcile_hermes_agent.go`).
 - **`ryoku-host users` manages local accounts on every edition.** The typed
   JSON API lists human users, roles, curated permissions, sessions and Btrfs
   home usage; privileged verbs add, remove and edit accounts without putting

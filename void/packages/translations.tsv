@@ -143,8 +143,8 @@ matugen	matugen	desktop
 mesa	mesa-dri mesa-vaapi	desktop	
 mise	mise	dev	
 mkinitcpio	dracut	system	
-mpv	mpv	desktop	
-mpv-mpris	mpv-mpris	desktop	
+mpv	mpv	optional	
+mpv-mpris	mpv-mpris	optional	
 nautilus	nautilus	desktop	
 nautilus-python	nautilus-python	desktop	
 neovim	neovim	desktop	

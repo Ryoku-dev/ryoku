@@ -657,7 +657,8 @@ ShellRoot {
             break;
         case "search":
             root.shutter();
-            searchProc.run(path);
+            searchProc.run(path, false);
+            root.quitSoon();
             break;
         default:
             root.shutter();
@@ -692,13 +693,15 @@ ShellRoot {
         runOcr({ x: g.x, y: g.y }, { x: g.x + g.w, y: g.y + g.h });
     }
 
-    // Crop, upload, then hand the URL to a reverse-image search, matching iRiS.
+    // Allocate the capture before writing it so its mode and ownership are fixed.
     function doSearchRegion() {
-        grabTo("/tmp/ryoshot-search.png", function (ok) {
-            if (!ok) { Qt.quit(); return; }
-            root.shutter();
-            searchProc.run("/tmp/ryoshot-search.png");
-        });
+        if (runtimeDir.length === 0) {
+            root.notifySend(I18n.tr("Image search failed"),
+                I18n.tr("Private temporary storage is unavailable"));
+            root.quitSoon();
+            return;
+        }
+        searchTempProc.run();
     }
 
     // Hand the region to the shell's recorder; the daemon owns
@@ -1360,8 +1363,8 @@ ShellRoot {
         stdout: StdioCollector { id: uploadOut }
         function run(file) {
             command = ["curl", "-sf", "--max-time", "30", "-A", "Mozilla/5.0", "-F", "reqtype=fileupload",
-                "-F", "time=72h", "-F", "fileToUpload=@" + file,
-                "https://litterbox.catbox.moe/resources/internals/api.php"];
+                "-F", "fileToUpload=@" + file,
+                "https://catbox.moe/user/api.php"];
             running = true;
         }
         onExited: (code) => {
@@ -1482,28 +1485,44 @@ ShellRoot {
         }
     }
 
-    // Upload the crop, then open a reverse-image search on the hosted URL. Bing is
-    // the default engine iRiS settled on (Google and Yandex paste endpoints broke).
-    Process {
+    QtObject {
         id: searchProc
-        stdout: StdioCollector { id: searchOut }
-        readonly property string engine: "https://www.bing.com/images/search?view=detailv2&iss=sbi&form=SBIVSP&sbisrc=UrlPaste&q=imgurl:"
-        function run(file) {
-            command = ["curl", "-sf", "--max-time", "30", "-A", "Mozilla/5.0", "-F", "reqtype=fileupload",
-                "-F", "time=1h", "-F", "fileToUpload=@" + file,
-                "https://litterbox.catbox.moe/resources/internals/api.php"];
+        function run(file, removeInput) {
+            var args = ["ryoku-cmd-google-lens", "--file", file];
+            if (removeInput) args.push("--remove-input");
+            Spawn.runApp(args, { label: "image-search" });
+        }
+    }
+
+    Process {
+        id: searchTempProc
+        stdout: StdioCollector { id: searchTempOut; waitForEnd: true }
+        stderr: StdioCollector { waitForEnd: true }
+
+        function run() {
+            command = ["mktemp", "--tmpdir=" + root.runtimeDir,
+                "ryoshot-search-XXXXXXXX.png"];
             running = true;
         }
+
         onExited: (code) => {
-            var url = searchOut.text.trim();
-            console.log("ryoshot: search upload exit " + code + " url=" + JSON.stringify(url));
-            if (code === 0 && url.indexOf("http") === 0) {
-                root.exported = true;
-                Spawn.runApp(["xdg-open", searchProc.engine + url], { label: "browser" });
-            } else {
-                root.notifySend(I18n.tr("Image search failed"), I18n.tr("Could not upload the image"));
+            var path = searchTempOut.text.trim();
+            if (code !== 0 || path.length === 0) {
+                root.notifySend(I18n.tr("Image search failed"),
+                    I18n.tr("Could not prepare a private capture"));
+                root.quitSoon();
+                return;
             }
-            root.quitSoon();
+            root.grabTo(path, function (ok) {
+                if (!ok) {
+                    Quickshell.execDetached(["rm", "-f", "--", path]);
+                    root.quitSoon();
+                    return;
+                }
+                root.shutter();
+                searchProc.run(path, true);
+                root.quitSoon();
+            });
         }
     }
 

@@ -84,6 +84,8 @@ Item {
     Process { id: saveInterval }
 
     property bool systemFull: false
+    readonly property bool pendingAction: Updates.available
+        || (pg.systemFull && Updates.packages.length > 0)
     property bool systemTouched: false
     property bool systemSavePending: false
 
@@ -247,9 +249,10 @@ Item {
     }
 
     // hand the fixing to Rashin: with no TTY here `ryoku-rashin fix doctor` opens
-    // the agent in a terminal that investigates and repairs. detached, as always.
+    // the agent in a terminal that investigates and repairs. runApp keeps that
+    // terminal outside the Settings process tree.
     function fixWithAI() {
-        Spawn.run(["ryoku-rashin", "fix", "doctor"]);
+        Spawn.runApp(["ryoku-rashin", "fix", "doctor"], { label: "ryoku-fix" });
     }
 
     // the fill fraction for the shared progress track: the run's own reading
@@ -453,6 +456,8 @@ Item {
     // in the background and returns, and the run reports through the
     // run-state, asking this page for its password and its questions.
     function startUpdate() {
+        if (!pg.pendingAction)
+            return;
         pg.starting = true;
         pg.actionError = "";
         pg.keepWaiting = false;
@@ -1251,10 +1256,10 @@ Item {
                 Btn {
                     id: updateBtn
                     anchors.fill: parent
-                    enabled: Updates.buildState !== "building"
+                    enabled: pg.pendingAction && Updates.buildState !== "building"
                     opacity: enabled ? 1 : 0.5
-                    text: I18n.tr("UPDATE NOW")
-                    primary: true
+                    text: pg.pendingAction ? I18n.tr("UPDATE NOW") : I18n.tr("UP TO DATE")
+                    primary: pg.pendingAction
                     onAct: pg.startUpdate()
                 }
 
@@ -1266,7 +1271,9 @@ Item {
                 }
 
                 ToolTip.visible: updateDisabledHover.containsMouse
-                ToolTip.text: I18n.tr("Updates are held until the channel build finishes.")
+                ToolTip.text: pg.pendingAction
+                    ? I18n.tr("Updates are held until the channel build finishes.")
+                    : I18n.tr("No updates are waiting.")
             }
             Btn {
                 anchors.verticalCenter: parent.verticalCenter

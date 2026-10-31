@@ -3,6 +3,28 @@
 ## Unreleased
 
 ### Fixed
+- Fastfetch renderer and recolor markers survive Settings saves. Renderer based
+  styles keep their readout, and wallpaper recoloring keeps its palette roles.
+  Rows are locked for styles that provide their own renderer.
+- **Fix with AI no longer leaves its terminal inside the desktop service.** The
+  repair session launches in its own application scope
+  (`quickshell/pages/UpdatesPage.qml`).
+- **Window Manager > Display can control automatic HDR.** The new switch starts
+  off and saves through the active provider, so fullscreen HDR content cannot
+  unexpectedly blank a panel; users whose display handles the switch can opt in
+  (`../wm/hyprland/schema.json`, `../wm/hyprland/config_settings.go`).
+- **Glass windows is active from login.** The saved plugin settings are
+  reconciled once Hyprland finishes loading its startup plugins, so the glass
+  effect no longer needs to be switched off and on after each login
+  (`../wm/hyprland/config_plugins.go`).
+- **Updates does not offer an empty run.** A current box labels the action
+  `UP TO DATE` and disables it; selecting `INCLUDE SYSTEM` enables `UPDATE NOW`
+  only when system packages are waiting (`quickshell/pages/UpdatesPage.qml`).
+- **Plugin failures tell the truth.** A stopped or replaced Hyprland instance is
+  shown as offline instead of making every enabled plugin look broken, stale
+  session handles are rebound before commands run, and plugin setup errors are
+  written to the compositor log (`quickshell/pages/PluginsPage.qml`,
+  `../wm/hyprland/`).
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).
@@ -46,12 +68,33 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Rashin shows the installed Hermes agent version and its update owner.**
+  Existing installs stay untouched, so the page points users to their Hermes
+  installer or checkout instead of offering an updater that Ryoku does not own
+  (`quickshell/pages/RashinPage.qml`).
+- **Choose your profile picture.** Global > Users shows each person's picture
+  instead of a letter when they have one, and your own card has a PROFILE PICTURE
+  row to choose, change or remove it. The image is cropped to a 512 px square,
+  kept in `~/.face`, and set through AccountsService so login managers and other
+  settings apps show the same one (`quickshell/pages/users/`).
 - **Update now can include the system packages.** Updates has an INCLUDE SYSTEM
   switch, off by default, saved as `update_system` in the Hub config. When it is
   on, Update now runs `ryoku update --gui --system`, so the distribution
   upgrade, kernel included, rides along with the Ryoku packages
   (`backend/config.go`, `quickshell/pages/UpdatesPage.qml`,
   `quickshell/schema/UpdatesPage.js`).
+- **The settings search is navigable by keyboard.** Typing in the rail search
+  now keeps a cursor over its results: Up and Down walk the hits (wrapping at
+  the ends), Enter opens the selected one instead of always the top hit, and
+  the header shows `N / TOTAL` so a long list is legible. The cursor resets on
+  every edit and on dismissal, so refining a query or reopening the field
+  never leaves a stale row selected. Moving the pointer over a row also moves
+  the cursor, and the keyboard and pointer highlights share one state, so a
+  click after a key press looks like a continuation rather than a jump
+  (`quickshell/Hub.ml`).
+- **`Ctrl + F` also opens the settings search.** The rail finder answered only
+  to `Ctrl + K`; it now accepts `Ctrl + F` as well, the shortcut a user
+  instinctively reaches for in a settings app (`quickshell/Hub.ml`).
 - **General manages people on this computer.** The Users tab lists local
   accounts, sign-in state, roles, permissions and home storage, and lets an
   administrator add or remove people, reset passwords and set storage limits

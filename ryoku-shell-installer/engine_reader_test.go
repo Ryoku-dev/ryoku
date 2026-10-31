@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -401,7 +402,41 @@ func TestVoidDefaultsToFirstPackagedProvider(t *testing.T) {
 	}
 }
 
-func TestEditionPackagePlansIncludeSelectedFileManagerAndRyokuApps(t *testing.T) {
+func TestAvailableKernelHeaderPackagesMatchInstalledKernels(t *testing.T) {
+	root := t.TempDir()
+	for version, pkgbase := range map[string]string{
+		"7.2.11-arch1-1":         "linux",
+		"7.3.0-cachyos-bore-lto": "linux-cachyos-bore-lto",
+		"7.3.0-custom":           "linux-custom",
+		"stale":                  "linux-zen",
+	} {
+		dir := filepath.Join(root, version)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "pkgbase"), []byte(pkgbase+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	installed := map[string]bool{
+		"linux": true, "linux-cachyos-bore-lto": true, "linux-custom": true,
+	}
+	available := map[string]bool{
+		"linux-headers": true, "linux-cachyos-bore-lto-headers": true,
+	}
+	got, err := availableKernelHeaderPackages(root,
+		func(name string) bool { return installed[name] },
+		func(name string) bool { return available[name] })
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"linux-cachyos-bore-lto-headers", "linux-headers"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("headers = %v, want %v", got, want)
+	}
+}
+
+func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T) {
 	root := filepath.Clean("..")
 	for _, editionName := range []string{"void", "fedora"} {
 		t.Run(editionName, func(t *testing.T) {
@@ -425,7 +460,7 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAndRyokuApps(t *testing.T)
 				t.Fatal(err)
 			}
 			set := packageSet(packages)
-			for _, pkg := range []string{"dolphin", "ryotunes", "ryomanager", "ryoku-rashin"} {
+			for _, pkg := range []string{"dolphin", "ryotunes", "ryomanager", "ryoku-rashin", "mpv", "mpv-mpris"} {
 				if !set[pkg] {
 					t.Errorf("selected package %s is missing from %v", pkg, packages)
 				}

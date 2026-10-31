@@ -27,7 +27,6 @@ BuildRequires:  pulseaudio-libs-devel
 BuildRequires:  vulkan-headers
 BuildRequires:  wayland-devel
 Requires:       bash
-Requires:       ffmpeg-free
 Requires:       libcap
 Requires:       libjpeg-turbo
 Requires:       mesa-dri-drivers

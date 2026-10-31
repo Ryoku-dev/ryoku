@@ -37,6 +37,7 @@ void_deploy_user() {
   local user=$RYOKU_USERNAME
   local home=/mnt/home/$user
 
+  ryoku_seed_login_shell_config
   ryoku_seed_keymap
   ryoku_deploy_chown "$user"
   ryoku_deploy_materialize "$user"

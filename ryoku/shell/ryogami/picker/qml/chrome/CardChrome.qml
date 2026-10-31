@@ -108,6 +108,7 @@ Item {
         }
 
         Rectangle {
+            visible: chrome.state.collection !== "workshop"
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom

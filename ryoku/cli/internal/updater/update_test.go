@@ -239,6 +239,43 @@ func TestPromptAnswerRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPackagedBuildVersionComparison(t *testing.T) {
+	tests := []struct {
+		name      string
+		installed string
+		latest    string
+		wantSame  bool
+	}{
+		{
+			name:      "reporter stable package matches channel build",
+			installed: "1.0.6.r5626.ge24972a-3",
+			latest:    "1.0.6.r5626.ge24972a",
+			wantSame:  true,
+		},
+		{
+			name:      "fresh stable box",
+			installed: "1.0.6.r5626.ge24972a-3",
+			latest:    "1.0.6.r5626.ge24972a-3",
+			wantSame:  true,
+		},
+		{
+			name:      "new channel build",
+			installed: "1.0.6.r5626.ge24972a-3",
+			latest:    "1.0.7.r5639.g4042923-1",
+			wantSame:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotSame := shortCommit(tt.installed) == shortCommit(tt.latest)
+			if gotSame != tt.wantSame {
+				t.Errorf("builds match = %v, want %v (%q vs %q)",
+					gotSame, tt.wantSame, tt.installed, tt.latest)
+			}
+		})
+	}
+}
+
 // An up-to-date packaged box (installed == latest) reports nothing pending but
 // lists the recent history the installed commit contains, so the Hub's Updates
 // page still has content. packagedStatus is the pure core of buildStatus, so

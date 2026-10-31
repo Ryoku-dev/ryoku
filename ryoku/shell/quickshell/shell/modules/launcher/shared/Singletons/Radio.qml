@@ -15,6 +15,8 @@ import "../lib/radio.js" as RadioLib
 Singleton {
     id: root
 
+    property bool available: false
+    property bool availabilityKnown: false
     property bool on: false
     property string station: ""
     property string label: ""
@@ -45,10 +47,10 @@ Singleton {
     // an explicit tune-in means the radio has the floor: pause whatever real
     // player is sounding (never a live wallpaper) instead of instantly losing
     // to it, the collision watcher only referees music that starts LATER.
-    // Whoever was sounding at tune-in is grandfathered: if its pause doesn't
+    // Whoever was sounding at tune-in is tolerated: if its pause doesn't
     // take (canPause=false, or a stream that shrugs off MPRIS Pause), it still
     // never parks the radio the user explicitly chose over it.
-    property var _grandfathered: ({})
+    property var _tolerated: ({})
     function _quellRivals() {
         var g = {};
         var list = Players.realPlayers();
@@ -60,7 +62,7 @@ Singleton {
             if (p.canPause)
                 p.pause();
         }
-        _grandfathered = g;
+        _tolerated = g;
     }
     function start(id) { _quellRivals(); _grace.restart(); _run(["start"].concat(id ? [id] : [])); }
     function stop() { _run(["stop"]); }
@@ -94,6 +96,8 @@ Singleton {
             onStreamFinished: {
                 try {
                     var s = JSON.parse(text);
+                    root.available = s.available === true;
+                    root.availabilityKnown = true;
                     root.on = s.on === true;
                     root.station = s.station || "";
                     root.label = s.label || "";
@@ -121,7 +125,7 @@ Singleton {
             // later resume of the same player is fresh music and parks the
             // radio like anything else. Pruned here, not in the binding,
             // bindings must not mutate state.
-            var g = root._grandfathered;
+            var g = root._tolerated;
             var changed = false;
             var list = Players.realPlayers();
             var playing = {};
@@ -131,7 +135,7 @@ Singleton {
             for (var k in g)
                 if (!playing[k]) { delete g[k]; changed = true; }
             if (changed)
-                root._grandfathered = g;
+                root._tolerated = g;
         }
     }
     Component.onCompleted: refresh()
@@ -153,9 +157,9 @@ Singleton {
             // radio's own player must never read as the rival that kills it.
             if (!RadioLib.countsAsMusic(p.trackTitle))
                 continue;
-            // the music the user tuned in over stays grandfathered until it
+            // the music the user tuned in over stays tolerated until it
             // actually stops; only fresh (or resumed) music parks the radio.
-            if (_grandfathered[String(p.dbusName || "")] === true)
+            if (_tolerated[String(p.dbusName || "")] === true)
                 continue;
             return true;
         }

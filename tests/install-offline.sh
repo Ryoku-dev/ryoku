@@ -53,12 +53,14 @@ EOF
   chmod +x "$trip/$cmd"
 done
 
-# run_offline <repo> <online> [variant]: the backend in dry-run. Leaves output
-# in $out and the exit code in $rc. PATH is prefixed with the tripwires.
+# run_offline <repo> <online> [variant] [login-shell]: the backend in dry-run.
+# Leaves output in $out and the exit code in $rc. PATH is prefixed with the
+# tripwires.
 run_offline() {
   rc=0
   out="$(PATH="$trip:$PATH" RYOKU_DRYRUN=1 RYOKU_REPO="$root" \
-    RYOKU_VARIANT="${3:-plain}" RYOKU_ONLINE="$2" RYOKU_OFFLINE_REPO="$1" \
+    RYOKU_VARIANT="${3:-plain}" RYOKU_LOGIN_SHELL="${4:-}" \
+    RYOKU_ONLINE="$2" RYOKU_OFFLINE_REPO="$1" \
     RYOKU_DISK=/dev/vda RYOKU_PASSWORD_HASH='$6$fake$hash' \
     RYOKU_DISK_STRATEGY=whole RYOKU_ENCRYPT=0 RYOKU_SWAP_GIB=8 \
     bash "$root/installation/backend/ryoku-install" 2>&1)" || rc=$?
@@ -222,8 +224,8 @@ done < <(grep -rnE '^[^#]*run arch-chroot /mnt ryoku-[a-z-]+' "$root/installatio
 )
 
 # ---- 8. a CachyOS install drops the names CachyOS replaces --------------------
-# the stock kernel joins the drop list, which keeps it out of pacstrap and puts it
-# in the provisioning ledger, so `ryoku update` never delivers it afterwards.
+# The stock kernel and headers join the drop list, which keeps them out of
+# pacstrap and the update manifest after the CachyOS kernel pairs replace them.
 # shellcheck disable=SC2329
 (
   log() { :; }
@@ -234,9 +236,9 @@ done < <(grep -rnE '^[^#]*run arch-chroot /mnt ryoku-[a-z-]+' "$root/installatio
   export RYOKU_REPO=$root
   RYOKU_DROP_PACKAGES=chromium
   ryoku_cachyos_drops
-  [[ $RYOKU_DROP_PACKAGES == chromium,linux,yay-bin ]] || fail "CachyOS drop list is '$RYOKU_DROP_PACKAGES'"
+  [[ $RYOKU_DROP_PACKAGES == chromium,linux,linux-headers,yay-bin ]] || fail "CachyOS drop list is '$RYOKU_DROP_PACKAGES'"
   ryoku_cachyos_drops
-  [[ $RYOKU_DROP_PACKAGES == chromium,linux,yay-bin ]] || fail "CachyOS drops are not idempotent: '$RYOKU_DROP_PACKAGES'"
+  [[ $RYOKU_DROP_PACKAGES == chromium,linux,linux-headers,yay-bin ]] || fail "CachyOS drops are not idempotent: '$RYOKU_DROP_PACKAGES'"
 )
 
 # ---- 9. CachyOS identity is applied without a second first-login welcome -----
@@ -257,5 +259,45 @@ run_offline "$baked" 0 plain
   || fail "plain install applied CachyOS branding: $out"
 ! grep -qF 'cachyos-hello.desktop' <<<"$out" \
   || fail "plain install suppressed a CachyOS-only autostart: $out"
+
+# ---- 10. zsh installs seed the packaged startup file on every ISO flavour -----
+for variant in plain cachyos; do
+  run_offline "$baked" 0 "$variant" zsh
+  [[ $rc -eq 0 ]] || fail "$variant zsh dry run exited $rc: $out"
+  grep -qF 'seed /mnt/home/ryoku/.zshrc from /mnt/usr/share/ryoku/zsh/zshrc when missing' <<<"$out" \
+    || fail "$variant zsh install did not plan the startup config seed: $out"
+
+  target="$tmp/zsh-$variant"
+  mkdir -p "$target/usr/share/ryoku/zsh" "$target/home/ryoku"
+  cp "$root/ryoku/hub/backend/zshrc" "$target/usr/share/ryoku/zsh/zshrc"
+  ROOT="$root" TARGET="$target" bash -c '
+    # shellcheck source=/dev/null
+    source "$ROOT/installation/backend/lib/common.sh"
+    # shellcheck source=/dev/null
+    source "$ROOT/installation/backend/lib/deploy.sh"
+    RYOKU_TARGET_ROOT=$TARGET
+    RYOKU_LOGIN_SHELL=zsh
+    RYOKU_DRYRUN=
+    RYOKU_ACCOUNT_NAMES=(ryoku)
+    ryoku_seed_login_shell_config
+  ' || fail "$variant zsh seed failed against the fake target"
+  cmp "$root/ryoku/hub/backend/zshrc" "$target/home/ryoku/.zshrc" \
+    || fail "$variant zsh seed did not copy the packaged template"
+
+  printf 'custom zsh config\n' >"$target/home/ryoku/.zshrc"
+  ROOT="$root" TARGET="$target" bash -c '
+    # shellcheck source=/dev/null
+    source "$ROOT/installation/backend/lib/common.sh"
+    # shellcheck source=/dev/null
+    source "$ROOT/installation/backend/lib/deploy.sh"
+    RYOKU_TARGET_ROOT=$TARGET
+    RYOKU_LOGIN_SHELL=zsh
+    RYOKU_DRYRUN=
+    RYOKU_ACCOUNT_NAMES=(ryoku)
+    ryoku_seed_login_shell_config
+  ' || fail "$variant existing zsh config check failed"
+  [[ $(<"$target/home/ryoku/.zshrc") == 'custom zsh config' ]] \
+    || fail "$variant zsh seed overwrote an existing config"
+done
 
 echo "install-offline: OK"

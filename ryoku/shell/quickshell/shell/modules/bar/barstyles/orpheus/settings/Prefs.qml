@@ -132,6 +132,7 @@ Singleton {
             feel: "fluid",
             workspaceStyle: "dots",
             workspaceShowEmpty: true,
+            workspaceSpare: true,
             showDate: true,
             seconds: false,
             voiceWeather: true,
@@ -143,7 +144,8 @@ Singleton {
             sysmonItems: ["cpu", "mem", "temp"],
             actions: ["launcher", "capture", "clipboard"],
             trayLimit: 6,
-            statusItems: ["wifi", "bluetooth", "volume", "mic"]
+            statusItems: ["wifi", "bluetooth", "volume", "mic"],
+            aiTools: ["claude", "codex", "opencode"]
         };
     }
 
@@ -183,6 +185,7 @@ Singleton {
         case "workspaceStyle": return choice(value,
             ["dots", "numbers", "kanji", "greek", "dashes", "icons"], "dots");
         case "workspaceShowEmpty": return flag(value, true);
+        case "workspaceSpare": return flag(value, true);
         case "showDate": return flag(value, true);
         case "seconds": return flag(value, false);
         case "voiceWeather": return flag(value, true);
@@ -200,6 +203,8 @@ Singleton {
         case "statusItems": return subset(value,
             ["wifi", "bluetooth", "volume", "mic"],
             ["wifi", "bluetooth", "volume", "mic"]);
+        case "aiTools": return subset(value,
+            ["claude", "codex", "opencode"], ["claude", "codex", "opencode"]);
         default: return value;
         }
     }
@@ -219,6 +224,7 @@ Singleton {
     readonly property string feel: clean("feel", value("feel"))
     readonly property string workspaceStyle: clean("workspaceStyle", value("workspaceStyle"))
     readonly property bool workspaceShowEmpty: clean("workspaceShowEmpty", value("workspaceShowEmpty"))
+    readonly property bool workspaceSpare: clean("workspaceSpare", value("workspaceSpare"))
     readonly property bool showDate: clean("showDate", value("showDate"))
     readonly property bool seconds: clean("seconds", value("seconds"))
     readonly property bool voiceWeather: clean("voiceWeather", value("voiceWeather"))
@@ -231,6 +237,7 @@ Singleton {
     readonly property var actions: clean("actions", value("actions"))
     readonly property int trayLimit: clean("trayLimit", value("trayLimit"))
     readonly property var statusItems: clean("statusItems", value("statusItems"))
+    readonly property var aiTools: clean("aiTools", value("aiTools"))
     readonly property bool clock12h: own(_previews, "clock12h")
         ? _previews.clock12h === true : !TimeFormat.is24h
 

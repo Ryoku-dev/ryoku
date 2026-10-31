@@ -33,8 +33,6 @@ depends="
  syntax-highlighting
  brightnessctl
  playerctl
- mpv
- mpv-mpris
  yt-dlp
  wl-clipboard
  wl-clip-persist

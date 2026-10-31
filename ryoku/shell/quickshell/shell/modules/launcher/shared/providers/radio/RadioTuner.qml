@@ -23,6 +23,8 @@ Provider {
     Connections {
         target: Radio
         function onTuningChanged() { Dispatcher.notifyAsync(); }
+        function onAvailableChanged() { Dispatcher.notifyAsync(); }
+        function onAvailabilityKnownChanged() { Dispatcher.notifyAsync(); }
     }
 
     function rowFor(r) {
@@ -46,8 +48,29 @@ Provider {
         };
     }
 
+    function missingPlayerRow() {
+        return [{
+            id: "radio:install-mpv",
+            title: I18n.tr("Radio is not installed"),
+            subtitle: I18n.tr("Install mpv to use the radio"),
+            icon: "",
+            type: "Radio",
+            score: -30,
+            actions: [{
+                id: "install",
+                name: I18n.tr("Install mpv"),
+                icon: "",
+                execute: function () {
+                    Spawn.runApp(["kitty", "-e", "gpk", "install", "mpv", "mpv-mpris"], { label: "kitty" });
+                }
+            }]
+        }];
+    }
+
     function query(text) {
         var t = (text || "").trim();
+        if (Radio.availabilityKnown && !Radio.available)
+            return missingPlayerRow();
         // "@stop" / "@off" tunes out, or lets a parked station go, from
         // anywhere, no list browsing needed; "@resume" picks a parked one up.
         if (t === "stop" || t === "off") {

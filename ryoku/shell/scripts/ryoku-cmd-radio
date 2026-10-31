@@ -98,7 +98,8 @@ cmd_stations() {
 }
 
 cmd_status() {
-	local on=false station="" label="" live=false fellback=false art="" pgid aside=null
+	local on=false station="" label="" live=false fellback=false art="" pgid aside=null available=false
+	command -v "$mpv_bin" >/dev/null 2>&1 && available=true
 	if [ -f "$state_file" ]; then
 		pgid="$(state_get pgid)"
 		if group_alive "$pgid" || { [ "${pgid:-0}" = "0" ] && state_fresh; }; then
@@ -112,9 +113,9 @@ cmd_status() {
 		fi
 	fi
 	[ -s "$aside_file" ] && aside="$(cat "$aside_file")"
-	jq -cn --argjson on "$on" --arg station "$station" --arg label "$label" \
+	jq -cn --argjson available "$available" --argjson on "$on" --arg station "$station" --arg label "$label" \
 		--argjson live "$live" --argjson fellBack "$fellback" --arg art "$art" --argjson aside "$aside" \
-		'{on:$on,station:$station,label:$label,live:$live,fellBack:$fellBack,art:$art,aside:$aside}'
+		'{available:$available,on:$on,station:$station,label:$label,live:$live,fellBack:$fellBack,art:$art,aside:$aside}'
 }
 
 # shellcheck disable=SC2120  # --aside arrives through the with_lock indirection

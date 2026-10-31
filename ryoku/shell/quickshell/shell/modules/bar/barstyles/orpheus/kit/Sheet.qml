@@ -1,9 +1,12 @@
 import QtQuick
+import QtQuick.Controls as Controls
+import Ryoku.Ui as Ui
 
 Item {
     id: root
 
     property real pageWidth: 360
+    property real maxHeight: 0
     property string title: ""
     property bool backVisible: false
     property list<Item> trailing
@@ -15,12 +18,20 @@ Item {
     // is shown, so the header never hides on their account.
     readonly property bool headerVisible: backVisible || title.length > 0 || trailing.length > 0
     readonly property real padding: Style.s4
+    readonly property real headerHeight: headerVisible
+        ? Math.max(32, headerRow.implicitHeight) + Style.s3 : 0
+    readonly property real contentHeight: contentColumn.implicitHeight
+    readonly property real naturalHeight: padding * 2 + headerHeight + contentHeight
+    readonly property real sheetHeight: maxHeight > 0
+        ? Math.min(naturalHeight, maxHeight) : naturalHeight
+    readonly property real bodyHeight: Math.max(0,
+        sheetHeight - padding * 2 - headerHeight)
+    readonly property bool scrollable: contentHeight > bodyHeight + 0.5
 
     implicitWidth: pageWidth
-    implicitHeight: padding * 2 + contentColumn.implicitHeight
-        + (headerVisible ? Math.max(32, headerRow.implicitHeight) + Style.s3 : 0)
+    implicitHeight: naturalHeight
     width: implicitWidth
-    height: implicitHeight
+    height: sheetHeight
 
     function adoptTrailing() {
         for (let index = 0; index < trailing.length; ++index) {
@@ -74,11 +85,30 @@ Item {
         }
     }
 
-    Column {
-        id: contentColumn
+    Flickable {
+        id: body
+
         x: root.padding
-        y: root.padding + (root.headerVisible ? headerRow.height + Style.s3 : 0)
+        y: root.padding + root.headerHeight
         width: Math.max(0, root.width - root.padding * 2)
-        spacing: Style.s4
+        height: root.bodyHeight
+        contentWidth: width
+        contentHeight: contentColumn.implicitHeight
+        clip: root.scrollable
+        interactive: root.scrollable
+        boundsBehavior: Flickable.StopAtBounds
+        flickDeceleration: 3000
+
+        Column {
+            id: contentColumn
+            width: body.width
+            spacing: Style.s4
+        }
+
+        Ui.WheelScroll {}
+
+        Controls.ScrollBar.vertical: Ui.ScrollRail {
+            policy: root.scrollable ? Controls.ScrollBar.AsNeeded : Controls.ScrollBar.AlwaysOff
+        }
     }
 }

@@ -128,9 +128,10 @@ func genApps(o Overrides) string {
 // diffed-away "us" would silently win over what the UI shows.
 func genConfig(o Overrides, follow bool) string {
 	d := defaultOverrides()
-	var general, deco, input, cursor, misc, gestures, dwindle, master []string
+	var general, render, deco, input, cursor, misc, gestures, dwindle, master []string
 
 	a, da := o.Appearance, d.Appearance
+	r, dr := o.Render, d.Render
 	if a.GapsIn != da.GapsIn {
 		general = append(general, fmt.Sprintf("gaps_in = %d", a.GapsIn))
 	}
@@ -173,6 +174,9 @@ func genConfig(o Overrides, follow bool) string {
 	}
 	if a.GapsWorkspaces != da.GapsWorkspaces {
 		general = append(general, fmt.Sprintf("gaps_workspaces = %d", a.GapsWorkspaces))
+	}
+	if r.AutoHDR != dr.AutoHDR {
+		render = append(render, fmt.Sprintf("cm_auto_hdr = %d", boolToInt(r.AutoHDR)))
 	}
 
 	if a.Rounding != da.Rounding {
@@ -419,6 +423,9 @@ func genConfig(o Overrides, follow bool) string {
 	if len(general) > 0 {
 		sections = append(sections, "  general = { "+strings.Join(general, ", ")+" }")
 	}
+	if len(render) > 0 {
+		sections = append(sections, "  render = { "+strings.Join(render, ", ")+" }")
+	}
 	if len(dwindle) > 0 {
 		sections = append(sections, "  dwindle = { "+strings.Join(dwindle, ", ")+" }")
 	}
@@ -647,7 +654,7 @@ func genStartHook(o Overrides) string {
 // the preview eval forces the exact state, including a value moved back to its
 // default.
 func fullConfigLua(o Overrides, follow bool) string {
-	a, in, c := o.Appearance, o.Input, o.Cursor
+	a, in, c, r := o.Appearance, o.Input, o.Cursor, o.Render
 	dw, ms := o.Dwindle, o.Master
 	general := []string{
 		fmt.Sprintf("gaps_in = %d", a.GapsIn),
@@ -708,6 +715,7 @@ func fullConfigLua(o Overrides, follow bool) string {
 	}
 	return "hl.config({\n" +
 		"  general = { " + strings.Join(general, ", ") + " },\n" +
+		"  render = { cm_auto_hdr = " + fmt.Sprintf("%d", boolToInt(r.AutoHDR)) + " },\n" +
 		"  decoration = { " + strings.Join(deco, ", ") + " },\n" +
 		"  input = { " + strings.Join(input, ", ") + " },\n" +
 		fmt.Sprintf("  cursor = { inactive_timeout = %d, hide_on_key_press = %t },\n", c.InactiveTimeout, c.HideOnKeyPress) +

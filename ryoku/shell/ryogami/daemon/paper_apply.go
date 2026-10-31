@@ -156,7 +156,7 @@ func (d *daemon) weStill(weID, itemDir string) string {
 		}
 	}
 	if project, err := resolveProject(itemDir); err == nil {
-		if p := findPreview(itemDir, project.document); p != "" {
+		if p := findPreview(itemDir, project); p != "" {
 			return p
 		}
 	}

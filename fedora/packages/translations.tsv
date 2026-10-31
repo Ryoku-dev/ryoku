@@ -139,8 +139,8 @@ matugen	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
 mesa	mesa-dri-drivers mesa-libGL	desktop	
 mise	mise	dev	Ryoku-owned RPM.
 mkinitcpio	dracut	system	
-mpv	mpv	desktop	
-mpv-mpris	mpv-mpris	desktop	
+mpv	mpv	optional	
+mpv-mpris	mpv-mpris	optional	
 nautilus	nautilus	desktop	
 nautilus-python	nautilus-python	desktop	
 neovim	neovim	desktop	
@@ -254,7 +254,7 @@ ttf-readex-pro	ttf-readex-pro	desktop	Ryoku-owned RPM.
 ttf-rubik-vf	google-rubik-fonts	desktop	
 udev	systemd-udev	desktop	
 upower	upower	desktop	
-util-linux-libs	util-linux-libs	hyprland	
+util-linux-libs	-	hyprland	Fedora splits these libraries; RPM soname dependencies install the required providers.
 uv	uv	desktop	
 v4l2loopback-dkms	v4l2loopback v4l2loopback-dkms	optional	Provided by a restricted COPR.
 vdirsyncer	vdirsyncer	desktop	

@@ -1,7 +1,6 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell.Bluetooth
 import Ryoku.Ui.Singletons
 import shell.services
 
@@ -17,9 +16,8 @@ Item {
     readonly property bool showVpn: SidebarState.elementVisible("vpn")
     signal openPage(string page)
 
-    readonly property var adapter: root.showBluetooth ? Bluetooth.defaultAdapter : null
-    readonly property var connectedDevices: root.showBluetooth && Bluetooth.devices && Bluetooth.devices.values
-        ? Bluetooth.devices.values.filter(device => device && device.connected) : []
+    readonly property var connectedDevices: root.showBluetooth
+        ? BluetoothPower.devices.filter(device => device && device.connected) : []
     readonly property var activeAccessPoint: {
         if (!root.showWifi)
             return null;
@@ -46,8 +44,8 @@ Item {
             : I18n.tr("%1 · %2%").arg(Network.activeSsid).arg(strength);
     }
     readonly property string bluetoothDetail: BluetoothPower.blocked ? I18n.tr("Blocked")
-        : !root.adapter ? I18n.tr("No adapter")
-        : !root.adapter.enabled ? I18n.tr("Radio off")
+        : !BluetoothPower.available ? I18n.tr("No adapter")
+        : !BluetoothPower.enabled ? I18n.tr("Radio off")
         : root.connectedDevices.length === 1 ? BtLink.label(root.connectedDevices[0])
         : root.connectedDevices.length > 1 ? I18n.tr("%1 connected").arg(root.connectedDevices.length)
         : I18n.tr("No devices connected")
@@ -103,11 +101,11 @@ Item {
             active: root.active
             label: I18n.tr("Bluetooth")
             detail: root.bluetoothDetail
-            glyph: root.adapter && root.adapter.enabled ? "bluetooth" : "bluetooth_disabled"
+            glyph: BluetoothPower.enabled ? "bluetooth" : "bluetooth_disabled"
             kind: "bluetooth"
             connected: root.connectedDevices.length > 0
-            radioOn: !!(root.adapter && root.adapter.enabled)
-            available: root.adapter !== null
+            radioOn: BluetoothPower.enabled
+            available: BluetoothPower.available
             connectedCount: root.connectedDevices.length
             onSelected: root.openPage("bluetooth")
             onToggleRequested: Toggles.toggleBt()

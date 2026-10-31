@@ -30,12 +30,29 @@ controller_available() {
   bluetoothctl list 2>/dev/null | command grep -q '^Controller[[:space:]]'
 }
 
+powered() {
+  bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*yes'
+}
+
+powered_off() {
+  bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*no'
+}
+
 apply_state() {
   local state=$1 attempt
   case $state in
     off)
-      command -v bluetoothctl >/dev/null 2>&1 \
-        && bluetoothctl power off >/dev/null 2>&1
+      command -v bluetoothctl >/dev/null 2>&1 || return 1
+      # Right after bluetoothd (re)starts, AutoEnable is still powering the
+      # controller on: power off fails with org.bluez.Error.Busy and the radio
+      # comes up on against the saved choice. Retry until BlueZ reports it off.
+      for ((attempt = 0; attempt < 50; attempt++)); do
+        if controller_available && bluetoothctl power off >/dev/null 2>&1 && powered_off; then
+          return 0
+        fi
+        ((attempt == 49)) || sleep 0.1
+      done
+      return 1
       ;;
     on)
       if command -v rfkill >/dev/null 2>&1; then
@@ -65,8 +82,7 @@ case ${1:-} in
     set_state "$1"
     ;;
   toggle)
-    if command -v bluetoothctl >/dev/null 2>&1 \
-        && bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*yes'; then
+    if command -v bluetoothctl >/dev/null 2>&1 && powered; then
       set_state off
     else
       set_state on
@@ -79,8 +95,7 @@ case ${1:-} in
     saved_state
     ;;
   is-on)
-    command -v bluetoothctl >/dev/null 2>&1 \
-      && bluetoothctl show 2>/dev/null | command grep -q '^[[:space:]]*Powered:[[:space:]]*yes'
+    command -v bluetoothctl >/dev/null 2>&1 && powered
     ;;
   *)
     echo 'Usage: ryoku-bluetooth-power <on|off|toggle|restore|state|is-on>' >&2

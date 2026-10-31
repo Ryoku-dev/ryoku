@@ -2,6 +2,7 @@ import QtQuick
 import Ryoku.Ui.Singletons
 import shell.services
 import "../kit" as K
+import "../settings" as S
 
 Item {
     id: root
@@ -9,12 +10,17 @@ Item {
     required property var scene
     required property string lane
 
-    property bool present: AiUsage.available
+    // Tools the Modules page left on; a tool with no usage data stays hidden
+    // either way.
+    readonly property var shown: AiUsage.present.filter(
+        id => S.Prefs.aiTools.indexOf(id) >= 0)
+
+    property bool present: root.shown.length > 0
 
     readonly property string leadId: {
         let bestId = "";
         let highest = -1;
-        for (const id of AiUsage.present) {
+        for (const id of root.shown) {
             const tool = AiUsage.tool(id);
             if (tool.has5h && tool.pct5h > highest) {
                 highest = tool.pct5h;
@@ -25,7 +31,7 @@ Item {
     }
     readonly property var lead: root.leadId.length > 0
         ? AiUsage.tool(root.leadId) : null
-    readonly property bool hot: AiUsage.present.some(id => {
+    readonly property bool hot: root.shown.some(id => {
         const tool = AiUsage.tool(id);
         return tool.blocked || (tool.has5h && tool.pct5h >= 80)
             || (tool.has7d && tool.pct7d >= 80);
@@ -52,7 +58,7 @@ Item {
             + (resetText.length > 0 ? " (resets " + resetText + ")" : "");
     }
 
-    readonly property string hintText: AiUsage.present.map(id => {
+    readonly property string hintText: root.shown.map(id => {
         const tool = AiUsage.tool(id);
         const name = AiUsage.labels[id] || id;
         const state = tool.blocked ? "limit reached, " : "";

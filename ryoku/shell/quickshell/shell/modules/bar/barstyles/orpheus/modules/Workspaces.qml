@@ -36,6 +36,7 @@ Item {
         const parts = [
             field(S.Prefs.workspaceStyle),
             S.Prefs.workspaceShowEmpty ? "1" : "0",
+            S.Prefs.workspaceSpare ? "1" : "0",
             field(Wm.workspaceModel),
             field(scene.screenName),
             outputsReported ? "1" : "0"
@@ -63,8 +64,9 @@ Item {
                     }
                 }
             }
-            parts.push(field(key), field(workspace.name || key),
-                field(workspace.idx !== undefined ? workspace.idx : index + 1),
+            const rank = workspace.index !== undefined ? workspace.index
+                : workspace.idx !== undefined ? workspace.idx : index + 1;
+            parts.push(field(key), field(workspace.name || key), field(rank),
                 workspace.active === true ? "1" : "0",
                 workspace.occupied === true ? "1" : "0",
                 workspace.urgent === true ? "1" : "0",
@@ -120,10 +122,12 @@ Item {
             if (!S.Prefs.workspaceShowEmpty && !occupied && workspace.active !== true)
                 continue;
 
+            const rank = workspace.index !== undefined ? Number(workspace.index)
+                : workspace.idx !== undefined ? Number(workspace.idx) : index + 1;
             shown.push({
                 key: key,
                 label: String(workspace.name || key),
-                index: workspace.idx !== undefined ? Number(workspace.idx) : index + 1,
+                index: Number.isFinite(rank) && rank > 0 ? rank : index + 1,
                 active: workspace.active === true,
                 occupied: occupied,
                 urgent: workspace.urgent === true,
@@ -131,14 +135,22 @@ Item {
                 windowCount: count
             });
         }
+        shown.sort((left, right) => {
+            const leftIndex = Number(left.index);
+            const rightIndex = Number(right.index);
+            if (!Number.isFinite(leftIndex) || !Number.isFinite(rightIndex))
+                return 0;
+            return leftIndex - rightIndex;
+        });
         return S.Prefs.workspaceShowEmpty && Wm.workspaceModel === "fixed"
             ? root.padded(shown) : shown;
     }
 
 
     // A fixed workspace model numbers its slots, yet only the ones in use are
-    // reported. Fill the holes, plus one fresh slot after the last occupied
-    // one, so empty workspaces show the way the setting promises.
+    // reported. Fill the holes, plus (unless workspaceSpare is off) one fresh slot
+    // after the last occupied one, so empty workspaces show the way the setting
+    // promises.
     function padded(shown) {
         const byNumber = ({});
         let last = 0;
@@ -151,7 +163,7 @@ Item {
         }
         if (last === 0)
             return shown;
-        const end = byNumber[last].occupied ? last + 1 : last;
+        const end = S.Prefs.workspaceSpare && byNumber[last].occupied ? last + 1 : last;
         const filled = [];
         for (let number = 1; number <= end; ++number) {
             const row = byNumber[number];

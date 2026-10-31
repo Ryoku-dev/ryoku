@@ -28,6 +28,24 @@ func foldEvents(t *testing.T, s *session, wants func(wm.FrameKind) bool, events 
 
 func allKinds(wm.FrameKind) bool { return true }
 
+func TestWorkspaceFrameCarriesPerOutputIndex(t *testing.T) {
+	s := &session{workspaces: []niriWorkspace{
+		{ID: 20, Idx: 3, Output: "eDP-1"},
+		{ID: 2, Idx: 1, Output: "eDP-1"},
+		{ID: 10, Idx: 2, Output: "eDP-1"},
+	}}
+	got := map[string]int{}
+	for _, workspace := range s.workspaceFrame() {
+		got[workspace.ID] = workspace.Index
+	}
+	want := map[string]int{"2": 1, "10": 2, "20": 3}
+	for id, index := range want {
+		if got[id] != index {
+			t.Errorf("workspace %s index = %d, want %d", id, got[id], index)
+		}
+	}
+}
+
 // The overview state is what gates the backdrop's blur pass, so the fold must
 // carry is_open straight onto a FrameOverview and keep it on the session for a
 // later connect replay.
@@ -80,6 +98,30 @@ func TestWindowEventCarriesProcessID(t *testing.T) {
 	})
 	if len(frames) == 0 || len(frames[0].Windows) != 1 || frames[0].Windows[0].Pid != 4242 {
 		t.Fatalf("window frames = %+v, want pid 4242", frames)
+	}
+}
+
+// The shell joins a window's workspace to the active workspace carried by its
+// output. WorkspaceActivated must refresh both frames or an empty workspace
+// switch leaves the output pointing at the workspace just left.
+func TestWorkspaceActivationRefreshesOutputWorkspace(t *testing.T) {
+	s := &session{
+		outputs: []wm.Output{{Name: "DP-1", ActiveWorkspace: "1"}},
+		workspaces: []niriWorkspace{
+			{ID: 1, Output: "DP-1", IsActive: true, IsFocused: true},
+			{ID: 2, Output: "DP-1"},
+		},
+	}
+
+	frames := foldEvents(t, s, allKinds, map[string]any{
+		"WorkspaceActivated": map[string]any{"id": 2, "focused": true},
+	})
+	if len(frames) != 3 {
+		t.Fatalf("activation frames = %+v, want workspace, output and focus", frames)
+	}
+	if frames[1].Kind != wm.FrameOutputs || len(frames[1].Outputs) != 1 ||
+		frames[1].Outputs[0].ActiveWorkspace != "2" {
+		t.Fatalf("output frame = %+v, want active workspace 2", frames[1])
 	}
 }
 

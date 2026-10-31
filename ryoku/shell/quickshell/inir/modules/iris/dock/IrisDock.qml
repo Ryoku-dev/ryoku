@@ -44,7 +44,7 @@ Item {
     readonly property bool atRight: root.edge === "right"
     readonly property bool vertical: root.atLeft || root.atRight
     readonly property real thickness: root.iconSize + 10 * root.d
-    readonly property real extraEdgeGap: Math.round(Math.max(0, Math.min(64,
+    readonly property real extraEdgeGap: Math.round(Math.max(-24, Math.min(64,
         Number(Ryoku.Dock.cfg("edgeGap", 0)))) * root.d)
     readonly property int edgeOrigin: root.atTop ? Item.Top : root.atLeft ? Item.Left : root.atRight ? Item.Right : Item.Bottom
     function edgeX(span: real, size: real, margin: real): real {
@@ -313,7 +313,7 @@ Item {
             // Notch: the body rests on the band's inner line and melts into it.
             // Plain: it floats, keeping its own air above the band.
             readonly property real bodyAir: (root.notch ? 0 : 10 * root.d) + root.extraEdgeGap
-            readonly property real edgeGap: IrisFrame.band + window.bodyAir
+            readonly property real edgeGap: Math.max(0, IrisFrame.band + window.bodyAir)
             readonly property real headroom: root.magnify ? root.iconSize * root.magnifyGain + 30 * root.d : 30 * root.d
             readonly property string material: {
                 const chosen = String(root.options?.material ?? "inherit")
@@ -357,7 +357,7 @@ Item {
                 StageEditor.GlobalStates.setDockInset(root.screen?.name ?? "",
                     root.stageEditing && window.visible
                         ? (root.atTop ? "top" : root.atBottom ? "bottom" : root.atLeft ? "left" : "right") : "",
-                    root.thickness + window.bodyAir)
+                    Math.max(0, root.thickness + window.bodyAir))
             }
             onVisibleChanged: window.publishInset()
             Connections {

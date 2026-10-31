@@ -7,6 +7,7 @@ SettingCard 1.0 SettingCard.qml
 Grain 1.0 Grain.qml
 Btn 1.0 Btn.qml
 ActionBar 1.0 ActionBar.qml
+AvatarImage 1.0 AvatarImage.qml
 Preview 1.0 Preview.qml
 Barcode 1.0 Barcode.qml
 Field 1.0 Field.qml
@@ -38,6 +39,7 @@ DitherImage 1.0 DitherImage.qml
 HeroCrop 1.0 HeroCrop.qml
 PickFile 1.0 PickFile.qml
 FileDialogHost 1.0 FileDialogHost.qml
+DeferredFileView 1.0 DeferredFileView.qml
 AppPicker 1.0 AppPicker.qml
 AuraField 1.0 AuraField.qml
 SpectrumField 1.0 SpectrumField.qml

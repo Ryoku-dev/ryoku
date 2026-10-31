@@ -60,19 +60,27 @@ stop_owned() {
             owns_pid "$pid" "$start" || break
             sleep 0.05
         done
+        if owns_pid "$pid" "$start"; then
+            kill -KILL "$pid" 2>/dev/null || true
+        fi
     fi
     state_matches "$token" "$pid" "$start" && rm -f "$state"
 }
 reap_after_exit() {
     local token="$1" pid="$2" start="$3"
+    local ticks="${RYOKU_RELOAD_COVER_WATCHDOG_TICKS:-600}"
+    [[ $ticks =~ ^[1-9][0-9]*$ ]] || ticks=600
     (
-        for _ in $(seq 1 600); do
+        for _ in $(seq 1 "$ticks"); do
             owns_pid "$pid" "$start" || {
                 state_matches "$token" "$pid" "$start" && rm -f "$state"
                 exit 0
             }
             sleep 0.1
         done
+        # The QML deadline cannot run when a graphics failure wedges its event
+        # loop. This process watchdog still returns the session to a bare desktop.
+        stop_owned "$token" "$pid" "$start"
     ) >/dev/null 2>&1 &
 }
 reclaim_state() {

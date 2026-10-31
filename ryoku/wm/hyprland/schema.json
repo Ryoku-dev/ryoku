@@ -1,5 +1,15 @@
 [
   {
+    "tab": "Display",
+    "group": "HDR",
+    "key": "wm.hyprland.render.autoHdr",
+    "label": "Switch to HDR for fullscreen HDR content",
+    "desc": "Let fullscreen HDR apps switch the display mode automatically; leave this off if the panel blanks during the switch",
+    "ctl": "sw",
+    "src": "desktop.json",
+    "page": "windowmanager"
+  },
+  {
     "tab": "Layout",
     "group": "SETTINGS WINDOW",
     "key": "wm.hyprland.settingsWindow.mode",

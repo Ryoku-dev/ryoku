@@ -1,6 +1,51 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A failed graphics process cannot leave the login cover on screen forever.**
+  The cover launcher now removes a wedged surface after one minute even when
+  its own animation timer cannot run (`scripts/ryoku-reload-cover`).
+- **The auto-hidden Ryoku dock reveals at the screen edge over open windows.**
+  With auto-hide on it sits above maximized, tiled, and floating apps, so the
+  pointer reaches its edge; a dock without auto-hide stays below them
+  (`quickshell/shell/modules/dock/DockSurface.qml`).
+- **Wallpaper previews recolour desktop widgets reliably.** Preview palettes now
+  replace their runtime file in one step, so the shell never catches an empty
+  file while a downloaded wallpaper is hovered (`ryogami/daemon/preview.go`).
+- **Dock designs can sit closer to the screen edge.** The Stage Editor's edge
+  gap now accepts negative values while every design keeps its hover and reserved
+  regions inside the screen (`quickshell/{stage,shell/modules/dock,inir/modules/iris/dock}/`).
+- **Wallpaper Engine scenes show their real preview and name in Workshop.**
+  Animated previews reduce to a still, unsupported project textures fall back
+  to a bundled image, and scenes without artwork keep a labelled colour card
+  (`ryogami/{daemon,picker}/`).
+- **QS Bar keeps its saved widgets on a cold login.** Blocking file reads now
+  wait until Quickshell's reader is ready, retry brief startup races, and apply
+  the stored layout when the widget catalogue arrives
+  (`quickshell/shell/modules/bar/barstyles/qsbar/`, `../ui/DeferredFileView.qml`).
+- **Ryoshot opens image searches directly in Google Lens again.** Captures now
+  use a private local form, honour the chosen browser before system fallbacks,
+  and clean up after the browser has read it. Contributed by Ronin-CK
+  (`quickshell/ryoshot/shell.qml`, `scripts/ryoku-cmd-google-lens`).
+- **The launcher radio explains when its player is absent.** The `@` provider
+  offers an Install mpv row instead of starting a silent, doomed broadcast
+  (`quickshell/shell/modules/launcher/shared/{Singletons,providers}/`,
+  `scripts/ryoku-cmd-radio`).
+- **Bluetooth controls follow the active radio when it appears or is replaced.**
+  The shared radio state now follows adapter-model and BlueZ lifecycle events,
+  so a controller that registers after shell startup or a service restart no
+  longer stays marked missing (`quickshell/shell/{services,modules/sidebar}/`).
+- **The desktop visualizer stays behind apps and the dock after Super+M.** Its
+  ordinary on/off toggle no longer creates the separate Above windows surface
+  while the desktop renderer catches up (`quickshell/shell/shell.qml`).
+- **Opening an Orpheus card leaves the bar steady.** Cards now open on their own
+  dismiss surface instead of resizing and briefly invalidating the bar surface
+  (`quickshell/shell/modules/bar/barstyles/orpheus/Scene.qml`).
+- **Long Orpheus tray menus can be scrolled to their last row.** Tray cards now
+  stay within the display and scroll only when their contents exceed that space
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{kit/Sheet,cards/TrayCard}.qml`).
+- **Orpheus workspace marks stay in workspace order.** The strip now follows
+  each output's numeric workspace positions when providers report them out of
+  sequence (`quickshell/shell/modules/bar/barstyles/orpheus/modules/Workspaces.qml`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service
@@ -78,6 +123,24 @@
 - **Desktop frost blurs the wallpaper and widgets with a visualizer on.**
   The plain visualizer stays sharp above the glass in the same desktop surface
   (`quickshell/shell/modules/desktop/Desktop.qml`).
+- **The Orpheus AI usage module can leave out coding agents.** Modules > AI usage
+  picks which of Claude, Codex and OpenCode the module counts (`aiTools`), as QS
+  Bar's AI widget already does; none selected hides the module
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Ai.qml,settings/}`).
+- **The Orpheus workspace strip can drop its spare empty workspace.** With Show
+  empty on, Modules > Workspaces has a new "Spare workspace at the end" switch
+  (`workspaceSpare`, default on, so nothing changes): off ends the strip at the last
+  workspace that exists instead of adding one more
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Workspaces.qml,settings/}`).
+- **The window title no longer keeps showing a window from the workspace you left.**
+  After a switch to an empty workspace nothing is activated, and the
+  last-focused fallback in `Wm.focusedWindow` returned the previous workspace's
+  window; it now only accepts a window on the workspace its output is showing
+  (`ui/Singletons/Wm.qml`).
+- **The sidebar shows your profile picture.** The round avatar in the Controls
+  header draws the AccountsService icon (or `~/.face`) instead of the first
+  letter of your user name, and keeps the letter when there is none
+  (`quickshell/shell/modules/sidebar/{ControlsHero,AvatarImage}.qml`).
 - **Game Mode reports a failed compositor strip instead of showing On.** It
   persists the request before the strip, and a failed restore no longer skips
   the power, tune or Wi-Fi cleanup (`scripts/ryoku-cmd-game-mode`).
