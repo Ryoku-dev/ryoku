@@ -38,7 +38,7 @@ Scope {
         const concaveCrossPad = (opts.isFullWidthConcave ?? false) ? Math.max(0, opts.concaveCornerRadius || 0) : 0
         const isAttached = opts.isAttachedToEdge ?? false
         const gapsOut = opts.gapsOut
-        const edgeGap = Math.max(0, Math.min(64, Number(opts.edgeGap || 0)))
+        const configuredEdgeGap = Math.max(-24, Math.min(64, Number(opts.edgeGap || 0)))
         const shadowPad = Math.round(Appearance.sizes.elevationMargin * 1.2)
 
         const concaveReserve = isDynamic ? Math.max(0, opts.concaveCornerRadius || 0) : 0
@@ -47,6 +47,9 @@ Scope {
         const floatingPad = isAttached ? 0 : shadowPad
         const mainPad = isDynamic ? (concaveReserve * 2) : (isHug ? (shadowPad * 2) : (floatingPad * 2))
         const crossPad = isAttached ? ((isHug || isFullWidth) ? shadowPad : 0) : (floatingPad * 2)
+        // Keep enough shadow envelope in the layer surface while allowing the
+        // visible tray to move all the way to the screen edge.
+        const edgeGap = Math.max(-floatingPad, configuredEdgeGap)
 
         // Full width is the screen's own edge: the window and the visible tray
         // both take the whole main axis, and the tray's body is the silhouette
@@ -93,8 +96,8 @@ Scope {
             dockWidth: fullDockW,
             dockHeight: fullDockH,
             dockThickness: opts.isVertical ? fullDockW : fullDockH,
-            unmagnifiedThickness: (opts.isVertical ? baseContentW + (isFullWidth ? 0 : crossPad) : baseContentH + (isFullWidth ? 0 : crossPad)) + edgeGap,
-            surfaceMargin: floatingPad + edgeGap,
+            unmagnifiedThickness: Math.max(0, (opts.isVertical ? baseContentW + (isFullWidth ? 0 : crossPad) : baseContentH + (isFullWidth ? 0 : crossPad)) + edgeGap),
+            surfaceMargin: Math.max(0, floatingPad + edgeGap),
             // Main-axis room the tray keeps from the window edge for its shadow.
             mainEdgePad: isDynamic ? 0 : mainPad / 2,
             backgroundWidth: bgW,
@@ -362,7 +365,7 @@ Scope {
             readonly property real actualWindowWidth: width
             readonly property real actualWindowHeight: height
 
-            exclusiveZone: (dock.pinned && reveal) ? unmagnifiedThickness : 0
+            exclusiveZone: (dock.pinned && reveal) ? Math.max(0, unmagnifiedThickness) : 0
             WlrLayershell.namespace: "quickshell:dock"
             // Pinned docks remain part of the desktop. An auto-hidden dock must
             // own its edge above app windows or neither its reveal strip nor the

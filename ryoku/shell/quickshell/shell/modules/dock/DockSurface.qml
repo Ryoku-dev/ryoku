@@ -32,7 +32,8 @@ PanelWindow {
 
     // ── sizing ────────────────────────────────────────────────────────────────
     readonly property bool autohide: Dock.cfg("autohide", false)
-    readonly property real edgeGap: 8 + Math.max(0, Math.min(64, Number(Dock.cfg("edgeGap", 0))))
+    readonly property real configuredEdgeGap: Math.max(-24, Math.min(64, Number(Dock.cfg("edgeGap", 0))))
+    readonly property real edgeGap: Math.max(0, 8 + dock.configuredEdgeGap)
     readonly property real peek: 3
     readonly property real depth: band.baseSize
     // Inner clearance for a magnified icon to rise into, plus room for the hover
@@ -60,7 +61,7 @@ PanelWindow {
     exclusionMode: ExclusionMode.Normal
     // A pinned (non-autohide) dock reserves its depth; an autohiding one floats
     // over the desktop and reserves nothing.
-    exclusiveZone: (!dock.autohide && dock.visible) ? (dock.depth + dock.edgeGap) : 0
+    exclusiveZone: (!dock.autohide && dock.visible) ? Math.max(0, dock.depth + dock.edgeGap) : 0
 
     anchors {
         left: dock.horizontal || dock.edge === "left"

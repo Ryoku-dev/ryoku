@@ -115,9 +115,9 @@ StyledFlickable {
             subtitle: Translation.tr("Extra space from the screen edge")
             trailingKind: "stepper"
             valueText: Math.round(Number(root.cfg("edgeGap", 0))) + " px"
-            stepDownEnabled: Number(root.cfg("edgeGap", 0)) > 0
+            stepDownEnabled: Number(root.cfg("edgeGap", 0)) > -24
             stepUpEnabled: Number(root.cfg("edgeGap", 0)) < 64
-            onStepDown: root.setCfg("edgeGap", Math.max(0, Number(root.cfg("edgeGap", 0)) - 1))
+            onStepDown: root.setCfg("edgeGap", Math.max(-24, Number(root.cfg("edgeGap", 0)) - 1))
             onStepUp: root.setCfg("edgeGap", Math.min(64, Number(root.cfg("edgeGap", 0)) + 1))
         }
 
