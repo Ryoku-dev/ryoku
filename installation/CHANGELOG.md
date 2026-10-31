@@ -1,6 +1,10 @@
 # Changelog: installation/
 
 ## Unreleased
+- **Fresh installs keep the launcher radio while leaving its player removable.**
+  The default-on Apps list owns `mpv` and `mpv-mpris` on Fedora and Void;
+  Arch and CachyOS continue to install both from their base set
+  (`installerplan/components.tsv`, `../ryoku-shell-installer/engine.go`).
 
 ### Added
 - **The Arch, CachyOS and Void ISOs have one edition-appropriate Gaming

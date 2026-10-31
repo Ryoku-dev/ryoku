@@ -52,8 +52,6 @@ Requires:       papirus-icon-theme
 Requires:       kf6-syntax-highlighting
 Requires:       brightnessctl
 Requires:       playerctl
-Requires:       mpv
-Requires:       mpv-mpris
 Requires:       yt-dlp
 Requires:       wl-clipboard
 Requires:       grim
@@ -105,6 +103,8 @@ Requires:       kernel-headers
 Requires:       dkms
 
 Recommends:     power-profiles-daemon
+Suggests:       mpv
+Suggests:       mpv-mpris
 Suggests:       kitty
 Suggests:       fish
 Suggests:       blesh

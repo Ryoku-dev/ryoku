@@ -401,7 +401,7 @@ func TestVoidDefaultsToFirstPackagedProvider(t *testing.T) {
 	}
 }
 
-func TestEditionPackagePlansIncludeSelectedFileManagerAndRyokuApps(t *testing.T) {
+func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T) {
 	root := filepath.Clean("..")
 	for _, editionName := range []string{"void", "fedora"} {
 		t.Run(editionName, func(t *testing.T) {
@@ -425,7 +425,7 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAndRyokuApps(t *testing.T)
 				t.Fatal(err)
 			}
 			set := packageSet(packages)
-			for _, pkg := range []string{"dolphin", "ryotunes", "ryomanager", "ryoku-rashin"} {
+			for _, pkg := range []string{"dolphin", "ryotunes", "ryomanager", "ryoku-rashin", "mpv", "mpv-mpris"} {
 				if !set[pkg] {
 					t.Errorf("selected package %s is missing from %v", pkg, packages)
 				}

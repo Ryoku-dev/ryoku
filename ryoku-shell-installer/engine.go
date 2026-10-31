@@ -1897,7 +1897,8 @@ func selectedInstallPackages(p *plan) []string {
 		if !availability.Available || !p.componentOn(component.ID) {
 			continue
 		}
-		if component.Group == "ryoku-apps" || component.Step == installerplan.ComponentRashin ||
+		if component.Group == "ryoku-apps" || component.ID == "radio" ||
+			component.Step == installerplan.ComponentRashin ||
 			(component.Step == installerplan.StepGaming && !component.NeedsNetwork) {
 			packages = append(packages, component.Packages...)
 		}

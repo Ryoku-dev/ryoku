@@ -15,6 +15,8 @@ import "../lib/radio.js" as RadioLib
 Singleton {
     id: root
 
+    property bool available: false
+    property bool availabilityKnown: false
     property bool on: false
     property string station: ""
     property string label: ""
@@ -94,6 +96,8 @@ Singleton {
             onStreamFinished: {
                 try {
                     var s = JSON.parse(text);
+                    root.available = s.available === true;
+                    root.availabilityKnown = true;
                     root.on = s.on === true;
                     root.station = s.station || "";
                     root.label = s.label || "";

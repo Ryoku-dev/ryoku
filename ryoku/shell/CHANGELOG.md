@@ -23,6 +23,10 @@
   use a private local form, honour the chosen browser before system fallbacks,
   and clean up after the browser has read it. Contributed by Ronin-CK
   (`quickshell/ryoshot/shell.qml`, `scripts/ryoku-cmd-google-lens`).
+- **The launcher radio explains when its player is absent.** The `@` provider
+  offers an Install mpv row instead of starting a silent, doomed broadcast
+  (`quickshell/shell/modules/launcher/shared/{Singletons,providers}/`,
+  `scripts/ryoku-cmd-radio`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service

@@ -11,6 +11,7 @@ yazi	Yazi	terminal	Terminal	yazi	-	on	apps	false	*	-	-	terminal file manager
 cli-tools	Modern CLI tools	terminal	Terminal	eza,bat,fzf,zoxide	-	on	apps	false	*	-	-	ls and cat replacements; fuzzy history and directory search
 git-tools	Git tools	terminal	Terminal	github-cli,lazygit	-	on	apps	false	*	-	-	the gh CLI and lazygit terminal UI
 pavucontrol	PulseAudio GUI	media	Media & tools	pavucontrol	-	on	apps	false	*	-	-	the mixer the bar's audio button opens
+radio	Launcher radio	media	Media & tools	mpv,mpv-mpris	-	on	apps	false	*	-	-	live radio in the launcher
 songrec	Songrec	media	Media & tools	songrec	-	on	apps	false	*	-	-	Recognize Music in the launcher
 openrgb	OpenRGB	media	Media & tools	openrgb	-	on	apps	false	*	-	-	keyboard and mouse lighting follows the wallpaper palette
 upscale	AI upscale	media	Media & tools	waifu2x-ncnn-vulkan	-	on	apps	false	*	-	-	ryoshot Beautify HD and ryowalls Enhance

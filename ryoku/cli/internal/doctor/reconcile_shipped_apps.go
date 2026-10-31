@@ -14,11 +14,11 @@ import (
 )
 
 // shippedApp is one deliver-once package: installed once, then left alone if
-// the user removes it. Membership rule: a standalone application whose absence
-// costs only itself. Tools the shell calls by name (grim, playerctl, matugen,
-// cava, mpv for the launcher's radio, the pill's OCR/capture backends) stay hard
-// depends, because losing them breaks a Ryoku surface the user never touched.
-// Ryotunes has its own official-release install/reconciliation path.
+// the user removes it. Membership rule: a standalone application or optional
+// surface whose absence can be explained where it is used. Tools required by
+// an unguarded shell surface (grim, playerctl, matugen, cava, and the pill's
+// OCR/capture backends) stay hard dependencies. Ryotunes has its own
+// official-release install/reconciliation path.
 type shippedApp struct {
 	pkg  string
 	what string

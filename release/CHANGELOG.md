@@ -1,6 +1,10 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The launcher radio's player can be removed.** `mpv` and `mpv-mpris` are
+  optional desktop packages delivered once on a fresh Ryoku box. Removing them
+  now sticks across upgrades, and the radio offers an install hint instead of
+  failing silently.
 
 ### Added
 - **The shell installs its equalizer backend automatically.** `ryoku-shell`

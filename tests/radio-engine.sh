@@ -64,10 +64,10 @@ else
 fi
 
 # ---- off status --------------------------------------------------------------
-if "$radio" status | jq -e '.on==false and .aside==null' >/dev/null; then
-  ok "silent status"
+if "$radio" status | jq -e '.available==true and .on==false and .aside==null' >/dev/null; then
+  ok "silent status reports the player"
 else
-  bad "silent status" "$("$radio" status)"
+  bad "silent status reports the player" "$("$radio" status)"
 fi
 
 # ---- start: resolves and hands mpv the stream --------------------------------
@@ -172,6 +172,15 @@ if "$radio" status | jq -e '.on==false' >/dev/null \
 else
   bad "rapid toggle pair lands off" "$("$radio" status); $(pgrep -af '_supervise lofi' || true)"
 fi
+# ---- missing player is explicit ----------------------------------------------
+mv "$work/bin/mpv" "$work/bin/mpv.off"
+if "$radio" status | jq -e '.available==false and .on==false' >/dev/null; then
+  ok "missing mpv is explicit in status"
+else
+  bad "missing mpv is explicit in status" "$("$radio" status)"
+fi
+mv "$work/bin/mpv.off" "$work/bin/mpv"
+
 
 # ---- one title prefix across the stack ----------------------------------------
 # the engine's forced title, the launcher's matcher and the media service's copy

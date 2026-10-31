@@ -198,11 +198,11 @@ type App struct {
 	What string `json:"what"`
 }
 
-// Membership rule: a standalone application whose absence costs only itself.
-// Tools the shell calls by name (grim, playerctl, matugen, cava, mpv for the
-// launcher's radio, the pill's OCR/capture backends) stay hard depends, because
-// losing them breaks a Ryoku surface the user never touched. Ryotunes has its
-// own official-release install/reconciliation path.
+// Membership rule: a standalone application or optional surface whose absence
+// can be explained where it is used. Tools required by an unguarded shell
+// surface (grim, playerctl, matugen, cava, and the pill's OCR/capture backends)
+// stay hard dependencies. Ryotunes has its own official-release
+// install/reconciliation path.
 func Apps() []App {
 	return []App{
 		{"kitty", "the default terminal (Settings > App Overrides repoints the terminal role)"},
@@ -215,6 +215,8 @@ func Apps() []App {
 		{"nautilus", "the graphical file manager"},
 		{"nautilus-python", "the Ryoku stash actions in Nautilus' right-click menu"},
 		{"waifu2x-ncnn-vulkan", "AI upscale behind ryoshot Beautify HD and ryowalls Enhance"},
+		{"mpv", "playback for the launcher's radio"},
+		{"mpv-mpris", "media controls for the launcher's radio"},
 		{"ryoku-rashin", "Rashin, the AI agent: Ask, the Rashin window and the bar's AI usage pill"},
 		{"ryomanager", "system monitor and task manager"},
 		{"pavucontrol", "the GUI mixer the bar's Open audio button launches"},

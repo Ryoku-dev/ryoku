@@ -12,6 +12,10 @@
 - **Doctor no longer mistakes Settings helpers for memory-heavy user apps.** It
   recognizes the Hub's wrappers and ignores its own process tree when System
   Check runs inside the desktop service (`internal/doctor/memory.go`).
+- **`mpv` and `mpv-mpris` are delivered once instead of forced back.** Doctor
+  installs both on boxes that have never received them, records the delivery,
+  and honours a later removal (`internal/ryokumanifest/manifest.go`,
+  `internal/doctor/reconcile_shipped_apps.go`).
 - **Phone installs use headers for the installed kernels, not driver modules.**
   Pacman reads each kernel's pkgbase and no longer adds stock headers on systems
   without the stock kernel (`internal/host/phone.go`, `internal/host/phone_test.go`).

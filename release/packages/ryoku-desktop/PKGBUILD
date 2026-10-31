@@ -9,7 +9,7 @@
 # this dir from a full checkout, so the repo root is three levels up.
 pkgname=ryoku-desktop
 pkgver=${RYOKU_PKGVER:-0.1.0}
-pkgrel=3
+pkgrel=4
 pkgdesc="Ryoku desktop: Quickshell configuration, helpers, and runtime (compositor-neutral base)"
 # package() compiles Go helpers (ryovm-fetch), so the payload is arch-specific.
 arch=('x86_64')
@@ -102,10 +102,6 @@ depends=(
   # tools the shipped autostart, pill, ryoshot, and helper scripts call by name
   'brightnessctl'
   'playerctl'
-  # the launcher's "@" live radio: mpv plays the stream, mpv-mpris puts it on
-  # the players bus, yt-dlp resolves the Lofi Girl live page at play time.
-  'mpv'
-  'mpv-mpris'
   'yt-dlp'
   'wl-clipboard'
   'wl-clip-persist'
@@ -214,6 +210,8 @@ optdepends=(
   # The applications Ryoku ships. Optional here on purpose: the ISO pacstraps
   # them and `ryoku doctor` delivers them once to an existing box, so pacman
   # never has a missing dependency to "repair" and a deleted app stays deleted.
+  'mpv: playback for the launcher radio'
+  'mpv-mpris: media controls for the launcher radio'
   'kitty: the default terminal'
   'fish: optional interactive shell'
   'blesh: Bash line editor'

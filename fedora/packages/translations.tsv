@@ -139,8 +139,8 @@ matugen	ryoku-extras	desktop	Bundled by the Ryoku extras RPM.
 mesa	mesa-dri-drivers mesa-libGL	desktop	
 mise	mise	dev	Ryoku-owned RPM.
 mkinitcpio	dracut	system	
-mpv	mpv	desktop	
-mpv-mpris	mpv-mpris	desktop	
+mpv	mpv	optional	
+mpv-mpris	mpv-mpris	optional	
 nautilus	nautilus	desktop	
 nautilus-python	nautilus-python	desktop	
 neovim	neovim	desktop	
