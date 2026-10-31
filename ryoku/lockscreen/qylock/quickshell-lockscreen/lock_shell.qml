@@ -367,6 +367,9 @@ ShellRoot {
                                 focusTheme();
                         }
 
+                        onScreenChanged: focusTheme()
+                        Component.onCompleted: focusTheme()
+
                         // Absorb unhandled gestures (scroll, pinch) so they
                         // don't leak through to the desktop underneath.
                         PinchHandler { target: null }

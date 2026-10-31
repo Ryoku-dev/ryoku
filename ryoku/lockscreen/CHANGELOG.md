@@ -20,6 +20,11 @@
 - The built-in in-session clockwork lockscreen follows the global 12/24-hour preference, including AM/PM.
 
 ### Fixed
+- **The password field is ready after waking a locked display.** The shared
+  session-lock host restores theme focus when an output reconnects, not only
+  when the lock first appears, so suspending with the display powered down no
+  longer leaves the password field waiting for a click
+  (`qylock/quickshell-lockscreen/lock_shell.qml`).
 - **A saved Shima clock choice reaches the lock screen after updating.** Shima
   now retires its duplicate `inir.time.format` value into the global clock
   preference once, then every bar style and the lock read that one setting
