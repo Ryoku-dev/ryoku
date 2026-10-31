@@ -45,6 +45,7 @@ printf '#!/bin/sh\nexit 0\n' >"$gtmp/bin/weston"
 # eDP. Mode lines follow modetest's real columns (index name refresh ...).
 cat >"$gtmp/bin/modetest" <<'STUB'
 #!/bin/sh
+[ "${RYOKU_TEST_MODETEST_FAIL:-0}" = 1 ] && exit 255
 printf 'Connectors:\nid\tencoder\tstatus\t\tname\t\tsize (mm)\tmodes\tencoders\n'
 printf '393\t392\tconnected\tHDMI-A-1     \t610x350\t\t2\t392\n'
 printf '  modes:\n\tindex name refresh (Hz) hdisp hss hse htot vdisp vss vse vtot\n'
@@ -61,6 +62,7 @@ drm=$gtmp/drm
 mkdir -p "$drm/card0/device/drm/renderD128" "$drm/card0-HDMI-A-1" "$drm/card0-eDP-1"
 printf 'connected\n' >"$drm/card0-HDMI-A-1/status"
 printf 'connected\n' >"$drm/card0-eDP-1/status"
+printf 'DRIVER=amdgpu\n' >"$drm/card0/device/uevent"
 gdry() {
   PATH="$gtmp/bin:$PATH" RYOKU_GREETER_DRYRUN=1 RYOKU_GREETER_CONF="$gtmp/none.conf" \
     RYOKU_GREETER_DRM_ROOT="$drm" RYOKU_GREETER_NUMLOCK_FILE="$gtmp/no-numlock" \
@@ -106,5 +108,18 @@ pinned "$gini" eDP-1 || fail "a stale hand-off must fall back to the internal pa
 # The operator override still outranks everything.
 gini=$(gdry RYOKU_GREETER_PRIMARY_FILE="$gtmp/primary" RYOKU_GREETER_PRIMARY=eDP-1)
 pinned "$gini" eDP-1 || fail "RYOKU_GREETER_PRIMARY must outrank the session hand-off"
+
+# modetest opens a card by driver name, so with two cards on one driver it can
+# answer for the other one: only connectors sysfs reports connected on the
+# selected card may become [output] blocks.
+printf 'disconnected\n' >"$drm/card0-HDMI-A-1/status"
+gini=$(gdry)
+grep -Fq 'name=HDMI-A-1' <<<"$gini" && fail "greeter configured a connector sysfs reports disconnected on its card"
+grep -Fq 'name=eDP-1' <<<"$gini" || fail "greeter dropped the panel sysfs reports connected"
+printf 'connected\n' >"$drm/card0-HDMI-A-1/status"
+
+# A card modetest cannot open leaves weston on its preferred modes.
+gini=$(gdry RYOKU_TEST_MODETEST_FAIL=1)
+grep -Fq '[output]' <<<"$gini" && fail "greeter wrote [output] blocks from a probe that failed"
 
 printf 'sddm-wayland: PASS\n'
