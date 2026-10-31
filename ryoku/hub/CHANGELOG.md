@@ -13,6 +13,10 @@
   off and saves through the active provider, so fullscreen HDR content cannot
   unexpectedly blank a panel; users whose display handles the switch can opt in
   (`../wm/hyprland/schema.json`, `../wm/hyprland/config_settings.go`).
+- **Glass windows is active from login.** The saved plugin settings are
+  reconciled once Hyprland finishes loading its startup plugins, so the glass
+  effect no longer needs to be switched off and on after each login
+  (`../wm/hyprland/config_plugins.go`).
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).

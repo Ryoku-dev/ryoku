@@ -206,6 +206,37 @@ func TestPluginBlockConfigLua(t *testing.T) {
 	}
 }
 
+// A session starts with no plugins loaded, so the guarded config beside a load
+// declaration cannot apply its values on the first config pass. The startup
+// callback must run after that declaration and reconcile the saved values.
+func TestGenPluginsSyncsSavedValuesAtStartup(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	plugin := filepath.Join(home, ".local", "lib", "hyprland", "plugins", "hyprglass.so")
+	if err := os.MkdirAll(filepath.Dir(plugin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plugin, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	o := defaultOverrides()
+	o.Plugins.Hyprglass.Enabled = true
+	got := genPlugins(o)
+	loadAt := strings.Index(got, `hl.plugin.load("`)
+	configAt := strings.Index(got, `if ryoku_plugin_loaded("hyprglass")`)
+	syncAt := strings.Index(got, `hl.on("hyprland.start"`)
+	if loadAt < 0 || configAt < 0 || syncAt < 0 {
+		t.Fatalf("generated plugin startup block is incomplete:\n%s", got)
+	}
+	if !(loadAt < configAt && configAt < syncAt) {
+		t.Fatalf("plugin startup order is load=%d config=%d sync=%d:\n%s", loadAt, configAt, syncAt, got)
+	}
+	if strings.Count(got, "ryoku-wm-hyprland plugins sync") != 1 {
+		t.Fatalf("startup sync count is not one:\n%s", got)
+	}
+}
+
 // Every bundled plugin's toggle has to reach the roster through the store, or a
 // plugin the user enabled would never be loaded by the status probe.
 func TestPluginEnabledCoversBundled(t *testing.T) {

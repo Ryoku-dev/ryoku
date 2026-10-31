@@ -119,9 +119,15 @@ end
 
 `
 
-// genPlugins renders the enabled plugins for settings.lua: per plugin an
-// hl.plugin.load plus its config behind the loaded guard, inside a pcall so a
-// missing or ABI-mismatched .so degrades to "off" instead of aborting the file.
+const luaPluginStartupSync = `hl.on("hyprland.start", function()
+  hl.exec_cmd("ryoku-wm-hyprland plugins sync >/dev/null 2>&1")
+end)
+
+`
+
+// genPlugins renders the enabled plugins for settings.lua. Hyprland resolves
+// hl.plugin.load declarations after the first config pass; the startup sync
+// then loads anything still missing and applies the saved plugin values.
 func genPlugins(o Overrides) string {
 	var b strings.Builder
 	blocks := pluginBlocks(o)
@@ -137,6 +143,9 @@ func genPlugins(o Overrides) string {
 		fmt.Fprintf(&b, "  hl.plugin.load(%s)\n", luaStr(pb.so))
 		b.WriteString(pb.configLua("  "))
 		b.WriteString("end)\n\n")
+	}
+	if len(blocks) > 0 {
+		b.WriteString(luaPluginStartupSync)
 	}
 	b.WriteString(genScrolling(o))
 	return b.String()
