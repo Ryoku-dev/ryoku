@@ -144,7 +144,8 @@ edits stage in the canvas and only touch the live screens on Apply.
 
 ## Search
 
-A global fuzzy finder lives in the sidebar (focus it with `Ctrl + K`). Typing
+A global fuzzy finder lives in the sidebar (focus it with `Ctrl + K`, or the
+more familiar `Ctrl + F`). Typing
 searches content across every section: it ranks matching keybinds (each tagged
 with its category) and lists matching section names you can jump to. The matcher
 is a small subsequence scorer in `quickshell/fuzzy.js`.
