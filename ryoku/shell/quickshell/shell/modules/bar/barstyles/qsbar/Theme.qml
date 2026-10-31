@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Services.UPower
 import shell.services
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "core"
 import "Palette.js" as Palette
@@ -270,6 +271,7 @@ Item {
     property bool barLayoutReady: false
     property bool _barLayoutInitialized: false
     readonly property var barLayout: _normalizeLayout(_storedLayout)
+    property bool _catalogPopulated: false
 
     // The set of ids that may hold a place in the bar: every built-in (always,
     // even hidden) plus every plugin currently enabled and hosted on the bar.
@@ -287,6 +289,15 @@ Item {
     // after the id set changes, and a handler on the ids ran before that
     // re-derivation and handed the bars the old arrays (the plugin never drew).
     onBarLayoutChanged: if (barLayoutReady) _applyLayoutToBars("")
+    Connections {
+        target: barCat
+        function onEntriesChanged() {
+            const populated = barCat.entries.length > 0
+            if (populated && !theme._catalogPopulated && theme.barLayoutReady)
+                theme._applyLayoutToBars("")
+            theme._catalogPopulated = populated
+        }
+    }
 
     function _eligibleIds() {
         var m = ({})
@@ -1685,34 +1696,39 @@ Item {
         storageTotalBytes = Math.max(0, total)
     }
 
-    FileView {
+    DeferredFileView {
         id: systemCpuFile
         path: "/proc/stat"
-        onLoaded: theme.parseSystemCpu(systemCpuFile.text())
+        readLabel: "/proc/stat"
+        onTextReady: content => theme.parseSystemCpu(content)
     }
 
-    FileView {
+    DeferredFileView {
         id: systemCpuInfoFile
         path: "/proc/cpuinfo"
-        onLoaded: theme.parseCpuInfo(systemCpuInfoFile.text())
+        readLabel: "/proc/cpuinfo"
+        onTextReady: content => theme.parseCpuInfo(content)
     }
 
-    FileView {
+    DeferredFileView {
         id: systemLoadFile
         path: "/proc/loadavg"
-        onLoaded: theme.parseSystemLoad(systemLoadFile.text())
+        readLabel: "/proc/loadavg"
+        onTextReady: content => theme.parseSystemLoad(content)
     }
 
-    FileView {
+    DeferredFileView {
         id: kernelReleaseFile
         path: "/proc/sys/kernel/osrelease"
-        onLoaded: theme.kernelRelease = String(kernelReleaseFile.text() || "").trim()
+        readLabel: "/proc/sys/kernel/osrelease"
+        onTextReady: content => theme.kernelRelease = String(content || "").trim()
     }
 
-    FileView {
+    DeferredFileView {
         id: systemMemFile
         path: "/proc/meminfo"
-        onLoaded: theme.parseSystemMem(systemMemFile.text())
+        readLabel: "/proc/meminfo"
+        onTextReady: content => theme.parseSystemMem(content)
     }
 
     Process {
@@ -2091,14 +2107,15 @@ Item {
         }
     }
 
-    FileView {
+    DeferredFileView {
         id: notificationsStateFile
         path: theme.notificationsStatePath
         watchChanges: theme._notifRyokuShellSystem
         printErrors: false
+        readLabel: "notification state"
         onFileChanged: notificationsStateFile.reload()
-        onLoaded: {
-            if (theme._notifRyokuShellSystem) theme.parseNotificationsState(notificationsStateFile.text())
+        onTextReady: content => {
+            if (theme._notifRyokuShellSystem) theme.parseNotificationsState(content)
         }
         onLoadFailed: {
             if (theme._notifRyokuShellSystem) theme.notifSilenced = false
@@ -3093,10 +3110,9 @@ Item {
             if (w.battery        !== undefined) modBattery        = w.battery
             if (w.layout         !== undefined) modLayout         = w.layout
         }
-        // Bar layout (design section 1): apply the stored document, and on the
-        // first load without one migrate the retired cache (or write the shipped
-        // default) exactly once. A normalised incoming equal to the live layout
-        // is our own persist echo, so skip re-applying it.
+        // Compare the persisted document itself, not two catalogue-filtered
+        // views. During startup an empty catalogue must not make a real layout
+        // look like an empty persist echo.
         if (q.layout && q.layout.left !== undefined) {
             var incoming = {
                 version: 1,
@@ -3104,7 +3120,8 @@ Item {
                 center: q.layout.center || [],
                 right: q.layout.right || []
             }
-            if (JSON.stringify(_normalizeLayout(incoming)) !== JSON.stringify(barLayout)) {
+            var stored = _storedLayout ? _cloneLayout(_storedLayout) : null
+            if (!stored || JSON.stringify(incoming) !== JSON.stringify(stored)) {
                 _commitLayout(incoming, false)
                 _applyLayoutToBars("")
             } else {
@@ -3357,18 +3374,19 @@ Item {
 
     // Ryoku writes theme.name immediately after the complete theme directory
     // swap, before its slower application retint commands and final hooks.
-    FileView {
+    DeferredFileView {
         id: currentThemeNameWatcher
         path: theme.themeNamePath
         watchChanges: theme.omarchyCurrentRootResolved
         printErrors: false
-        onLoaded: {
-            theme.setCurrentThemeName(currentThemeNameWatcher.text())
+        readLabel: "current theme name"
+        onTextReady: content => {
+            theme.setCurrentThemeName(content)
             theme.reloadCurrentThemeFiles()
         }
         onLoadFailed: theme.setCurrentThemeName("")
         onFileChanged: {
-            reload()
+            currentThemeNameWatcher.reload()
             theme.reloadCurrentThemeFiles()
         }
     }
@@ -3416,39 +3434,48 @@ Item {
         onFileChanged: { paletteWatcher.reload(); theme.reloadCurrentThemeFiles() }
     }
 
-    FileView {
+    DeferredFileView {
         id: previewWatcher
         path: theme.previewColorsPath
         blockLoading: true
         watchChanges: true
         printErrors: false
-        onFileChanged: reload()
-        onLoaded: {
-            theme._previewColors = Palette.parseAll(text()) || {};
+        readLabel: "wallpaper preview palette"
+        onFileChanged: previewWatcher.reload()
+        onTextReady: content => {
+            theme._previewColors = Palette.parseAll(content) || {};
             theme._applyPalette();
         }
     }
 
     // A fixed named theme publishes its palette here; retint when it changes.
-    FileView {
+    DeferredFileView {
         id: namedPaletteWatcher
         path: theme.shellConfigPath
         blockLoading: true
         watchChanges: true
         printErrors: false
-        onFileChanged: reload()
-        onLoaded: { theme._namedPalette = Palette.parseNamed(namedPaletteWatcher.text()); theme._applyPalette(); }
+        readLabel: "shell theme palette"
+        onFileChanged: namedPaletteWatcher.reload()
+        onTextReady: content => {
+            theme._namedPalette = Palette.parseNamed(content)
+            theme._applyPalette()
+        }
     }
 
     // The follow-the-wallpaper master gates whether the live palette applies.
-    FileView {
+    DeferredFileView {
         id: followWallpaperWatcher
         path: theme.themeJsonPath
         blockLoading: true
         watchChanges: true
         printErrors: false
-        onFileChanged: reload()
-        onLoaded: { theme._followWallpaper = Palette.parseFollow(followWallpaperWatcher.text()); theme._applyPalette(); }
+        readLabel: "theme settings"
+        onFileChanged: followWallpaperWatcher.reload()
+        onTextReady: content => {
+            theme._followWallpaper = Palette.parseFollow(content)
+            theme._applyPalette()
+        }
     }
 
     function ipcApplyTheme(payload) {

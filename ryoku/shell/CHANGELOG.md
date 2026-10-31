@@ -15,6 +15,10 @@
   Animated previews reduce to a still, unsupported project textures fall back
   to a bundled image, and scenes without artwork keep a labelled colour card
   (`ryogami/{daemon,picker}/`).
+- **QS Bar keeps its saved widgets on a cold login.** Blocking file reads now
+  wait until Quickshell's reader is ready, retry brief startup races, and apply
+  the stored layout when the widget catalogue arrives
+  (`quickshell/shell/modules/bar/barstyles/qsbar/`, `../ui/DeferredFileView.qml`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service
