@@ -2,11 +2,13 @@
 set -euo pipefail
 
 : "${RYOKU_FETCH_TREE:?}"
-commit=326252a13e7bef4f1c35d08ef0189b5af6f8ba02
-dest="$RYOKU_FETCH_TREE/.rpm-ryoku-keysounds-profiles/mechvibes"
+package=ryoku-keysounds-profiles
+bundle="$RYOKU_FETCH_TREE/release/packages/$package/mechvibes.bundle"
+commit=8d18b40792c7ce859a898ce0e840a0c01112888c
+dest="$RYOKU_FETCH_TREE/.rpm-$package/mechvibes"
 rm -rf "$dest"
 mkdir -p "${dest%/*}"
-git clone -q https://github.com/hainguyents13/mechvibes.git "$dest"
+git clone -q "$bundle" "$dest"
 git -C "$dest" checkout -q --detach "$commit"
 [[ $(git -C "$dest" rev-parse HEAD) == "$commit" ]]
 printf '%s\n' "$commit" > "$dest/.ryoku-source-commit"

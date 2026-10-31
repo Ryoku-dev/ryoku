@@ -17,8 +17,10 @@ endif
 CXXFLAGS ?= -O2
 CXXFLAGS += -shared -fPIC -std=c++2b -Wall
 
-MECHVIBES_URL    = https://github.com/hainguyents13/mechvibes.git
-MECHVIBES_COMMIT = 326252a13e7bef4f1c35d08ef0189b5af6f8ba02
+# The packs come from the vendored bundle beside the profiles package (see
+# release/packages/ryoku-keysounds-profiles/payload.sh for why).
+MECHVIBES_BUNDLE = $(CURDIR)/../../../../release/packages/ryoku-keysounds-profiles/mechvibes.bundle
+MECHVIBES_COMMIT = 8d18b40792c7ce859a898ce0e840a0c01112888c
 MECHVIBES ?= $(or $(XDG_CACHE_HOME),$(HOME)/.cache)/ryoku/mechvibes
 PROFILES ?= $(CURDIR)/../../../keysounds/profiles.txt
 IMPORTER ?= $(shell command -v ryoku-keysounds-import 2>/dev/null || echo $(CURDIR)/../../../keysounds/ryoku-keysounds-import)
@@ -29,9 +31,8 @@ keysounds.so: main.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(EXTRA_FLAGS) main.cpp -o keysounds.so `pkg-config --cflags --libs hyprland pixman-1 libdrm libcanberra`
 
 $(MECHVIBES)/src/audio:
-	git init -q "$(MECHVIBES)"
-	git -C "$(MECHVIBES)" fetch -q --depth 1 "$(MECHVIBES_URL)" "$(MECHVIBES_COMMIT)"
-	git -C "$(MECHVIBES)" checkout -q FETCH_HEAD
+	git clone -q "$(MECHVIBES_BUNDLE)" "$(MECHVIBES)"
+	git -C "$(MECHVIBES)" checkout -q "$(MECHVIBES_COMMIT)"
 
 sounds: $(PROFILES) $(MECHVIBES)/src/audio
 	rm -rf sounds

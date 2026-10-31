@@ -7,9 +7,12 @@
 # /usr/bin/ryoku-keysounds-import no matter which, or both, are installed.
 #
 # The profiles are real switch recordings cut from the MIT-licensed Mechvibes
-# packs (github.com/hainguyents13/mechvibes, src/audio), fetched here as a
-# pinned git source and sliced by ryoku-keysounds-import (see
-# ryoku/keysounds/profiles.txt for the pack behind each profile).
+# packs (github.com/hainguyents13/mechvibes, src/audio) and sliced by
+# ryoku-keysounds-import (see ryoku/keysounds/profiles.txt for the pack behind
+# each profile). The packs come from mechvibes.bundle beside this recipe: a
+# git bundle of the eleven packs and licence at upstream commit 326252a1,
+# which upstream's Mechvibes 3 history rewrite made unreachable. Refresh it
+# with payload.sh's bundle notes and update sha256sums.
 pkgname=ryoku-keysounds-profiles
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
@@ -17,11 +20,17 @@ pkgdesc="Key-sound sample profiles (real switch recordings) and the Mechvibes im
 arch=('x86_64')
 url="https://ryoku.dev"
 license=('GPL-3.0-or-later' 'MIT')
-# python runs the importer, ffmpeg cuts and normalises each sample, git fetches
-# the pinned Mechvibes tree.
+# python runs the importer, ffmpeg cuts and normalises each sample, git opens
+# the vendored Mechvibes bundle.
 makedepends=('git' 'python' 'ffmpeg')
-source=("mechvibes::git+https://github.com/hainguyents13/mechvibes.git#commit=326252a13e7bef4f1c35d08ef0189b5af6f8ba02")
-sha256sums=('SKIP')
+source=("mechvibes.bundle")
+noextract=("mechvibes.bundle")
+sha256sums=('5ec21776bc0989cb3a4bbcdf88084bf7d1caa9a2a9e1dd7084ad76f1e8095e32')
+
+prepare() {
+  git clone -q "$srcdir/mechvibes.bundle" "$srcdir/mechvibes"
+  git -C "$srcdir/mechvibes" checkout -q 8d18b40792c7ce859a898ce0e840a0c01112888c
+}
 
 _repo="$startdir/../../.."
 

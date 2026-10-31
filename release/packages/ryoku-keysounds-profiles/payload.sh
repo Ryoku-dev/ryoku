@@ -8,8 +8,15 @@ set -euo pipefail
 _repo=$RYOKU_SRC
 _keysounds="$_repo/ryoku/keysounds"
 
-MECHVIBES_URL=https://github.com/hainguyents13/mechvibes.git
-MECHVIBES_COMMIT=326252a13e7bef4f1c35d08ef0189b5af6f8ba02
+# mechvibes.bundle holds the eleven packs profiles.txt names plus the MIT
+# licence, as one commit cut from upstream 326252a13e7bef4f1c35d08ef0189b5af6f8ba02
+# (src/audio). Upstream rewrote its history for Mechvibes 3 on 2026-10-31 and
+# that commit no longer exists there, so every lane builds from the bundle. To
+# refresh: copy the packs and LICENSE into a fresh repo, commit, then
+# `git bundle create mechvibes.bundle main` and update the commit and the
+# PKGBUILD sha256sums.
+MECHVIBES_BUNDLE="$_repo/release/packages/ryoku-keysounds-profiles/mechvibes.bundle"
+MECHVIBES_COMMIT=8d18b40792c7ce859a898ce0e840a0c01112888c
 
 stage_prebuilt() {
   [[ -n ${RYOKU_PREBUILT_DIR:-} ]] || return 1
@@ -20,13 +27,12 @@ stage_prebuilt() {
 # The real switch recordings, cut from the MIT-licensed Mechvibes packs named in
 # profiles.txt by ryoku-keysounds-import. The recipe is the [ryoku] build's, and
 # Void's and Fedora's too, so it lives here once. MECHVIBES names a checkout;
-# unset, one is cloned at the pinned commit (Arch hands in its makepkg source).
+# unset, one is cloned from the vendored bundle (Arch hands in its makepkg source).
 sounds() {
   local mech=${MECHVIBES:-$RYOKU_BUILD_DIR/mechvibes}
   if [[ ! -d $mech/src/audio ]]; then
-    git init -q "$mech"
-    git -C "$mech" fetch -q --depth 1 "$MECHVIBES_URL" "$MECHVIBES_COMMIT"
-    git -C "$mech" checkout -q FETCH_HEAD
+    git clone -q "$MECHVIBES_BUNDLE" "$mech"
+    git -C "$mech" checkout -q "$MECHVIBES_COMMIT"
   fi
   rm -rf "$RYOKU_BUILD_DIR/sounds"
   local name pack
