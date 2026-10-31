@@ -1746,7 +1746,7 @@ Rectangle {
         x: rail.x + railHead.x + searchField.x
         y: rail.y + railHead.y + searchField.y + searchField.height + Tokens.s2
         width: Math.min(480, hub.width - x - Tokens.s5)
-        height: Math.min(440, list.contentHeight + head.height + Tokens.s3 * 2 + Tokens.s1)
+        height: Math.min(440, searchList.contentHeight + head.height + Tokens.s3 * 2 + Tokens.s1)
 
         Rectangle {
             anchors.fill: parent
