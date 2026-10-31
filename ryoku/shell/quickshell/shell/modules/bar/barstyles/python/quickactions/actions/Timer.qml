@@ -214,6 +214,8 @@ Item {
         stateInitProc.running = true;
     }
 
+    property string exportedStateKey: ""
+
     function updateExportedState() {
         let list = [];
 
@@ -227,6 +229,9 @@ Item {
             list.push({ icon: "\uF085", time: root.formatTime(stateCache.pomoRemainingMs, false), colorType: stateCache.pomoState !== 0 ? "green" : "mauve" });
         }
 
+        let key = JSON.stringify(list);
+        if (key === root.exportedStateKey) return;
+        root.exportedStateKey = key;
         TimerState.entries = list;
     }
 
@@ -322,7 +327,7 @@ Item {
 
         Timer {
             id: globalTicker
-            interval: 32
+            interval: (root.visible && root.isActiveTab && stateCache.activeMode === 1 && stateCache.swStartEpoch > 0) ? 32 : 200
             repeat: true
             running: root.anyTimerActive
             onTriggered: {
@@ -559,8 +564,6 @@ Item {
                                     height: root.s(32)
                                     radius: ThemeBackend.borderRadius
                                     color: lapGlass.active ? "transparent" : Qt.alpha(ThemeBackend.surface0, ThemeBackend.elementOpacity)
-                                    border.width: 1
-                                    border.color: ThemeBackend.surface1
 
                                     GlassFill {
                                         id: lapGlass
@@ -711,8 +714,6 @@ Item {
                         height: root.s(160)
                         radius: ThemeBackend.borderRadius
                         color: pomoGlass.active ? "transparent" : Qt.alpha(ThemeBackend.surface0, ThemeBackend.elementOpacity)
-                        border.width: 1
-                        border.color: ThemeBackend.surface1
                         visible: pomodoroView.showSettings
 
                         GlassFill {

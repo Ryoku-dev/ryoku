@@ -864,9 +864,8 @@ ShellRoot {
     Connections {
         target: Polkit
         function onActiveChanged() {
-            // The iRiS bar style draws this prompt in its own dialog.
             if (Polkit.active) {
-                if (Config.barStyle !== "iris")
+                if (Config.barStyle !== "iris" && Config.barStyle !== "python")
                     ShellState.requestSurface("polkit", "", undefined);
             } else {
                 ShellState.closeSurface("polkit", "");

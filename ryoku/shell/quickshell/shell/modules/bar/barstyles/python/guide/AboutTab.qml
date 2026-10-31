@@ -8,24 +8,13 @@ import Ryoku.Ui.Singletons
 import "../"
 import "../reusables"
 
-Item {
+GuideTab {
     id: aboutTabRoot
-    required property var rootObj
-    required property int tabIndex
-
-    anchors.fill: parent
-    visible: rootObj.currentTab === tabIndex
-    opacity: visible ? 1.0 : 0.0
-    property real slideY: visible ? 0 : rootObj.s(10)
-
-    Behavior on slideY { NumberAnimation { duration: 250; easing.type: Easing.OutQuart } }
-    transform: Translate { y: slideY }
-    Behavior on opacity { NumberAnimation { duration: 250 } }
 
     property real updateTransitionProgress: Updater.updateAvailable ? 1.0 : 0.0
     Behavior on updateTransitionProgress {
         NumberAnimation {
-            duration: 450
+            duration: 400
             easing.type: Easing.OutQuint
         }
     }
@@ -92,9 +81,14 @@ Item {
                             width: rootObj.s(160)
                             height: width
 
-                            Item {
-                                id: aboutLogoMask
+                            Image {
+                                id: aboutLogo
                                 anchors.fill: parent
+                                source: "file://" + Caching.assetsPath + "/logo.svg"
+                                sourceSize: Qt.size(512, 512)
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                                antialiasing: true
                                 visible: false
                                 layer.enabled: true
 
@@ -123,9 +117,10 @@ Item {
 
                             MultiEffect {
                                 anchors.fill: parent
-                                source: aboutLogoColor
-                                maskEnabled: true
-                                maskSource: aboutLogoMask
+                                source: aboutLogo
+                                brightness: 1.0
+                                colorization: 1.0
+                                colorizationColor: ThemeBackend.mauve
                                 autoPaddingEnabled: false
                             }
                         }
@@ -269,7 +264,6 @@ Item {
                                 tintColor: Qt.alpha(ThemeBackend.surface0, 0.4)
                                 tintAmount: 0.25
                             }
-                            border.width: 0
 
                             RowLayout {
                                 id: rowHwLayout
@@ -349,7 +343,6 @@ Item {
                                 tintColor: Qt.alpha(ThemeBackend.surface0, 0.4)
                                 tintAmount: 0.25
                             }
-                            border.width: 0
 
                             RowLayout {
                                 id: rowSysLayout

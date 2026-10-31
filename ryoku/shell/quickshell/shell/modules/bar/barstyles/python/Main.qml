@@ -87,6 +87,10 @@ PanelWindow {
             NotificationManager.clearNotifications();
         }
 
+        function embeddedSettings(action: string, tab: string): void {
+            masterWindow.handleEmbeddedSettings(action || "toggle", tab || "");
+        }
+
         function handleCommand(cmd: string, targetWidget: string, arg: string): void {
             cmd = cmd || "";
             targetWidget = targetWidget || "";
@@ -97,18 +101,20 @@ PanelWindow {
                 return;
             }
 
-            // Ryoku owns the launcher and the clipboard history: the style's
-            // buttons hand over to the shell's own surfaces rather than
-            // drawing serpantinum's.
             if (cmd === "launcher" || targetWidget === "launcher") {
                 if (cmd !== "close")
-                    Quickshell.execDetached(["ryoku-shell", "launcher"]);
+                    RyokuServices.ShellState.requestSurface("launcher", Wm.focusedOutput, undefined);
                 return;
             }
 
             if (cmd === "clipboard" || targetWidget === "clipboard" || cmd === "clip" || targetWidget === "clip") {
                 if (cmd !== "close")
-                    Quickshell.execDetached(["ryoku-shell", "clipboard"]);
+                    RyokuServices.ShellState.requestSurface("clipboard", Wm.focusedOutput, undefined);
+                return;
+            }
+
+            if (cmd === "settings" || targetWidget === "settings" || cmd === "guide") {
+                RyokuServices.ShellState.requestSurface("settings", Wm.focusedOutput, undefined);
                 return;
             }
 
@@ -194,6 +200,27 @@ PanelWindow {
     property var rawBarSettings: (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar) ? Config.rawSettings.bar : ({})
     property string barPosition: (rawBarSettings && rawBarSettings.position !== undefined) ? rawBarSettings.position : "top"
     property bool barAutohide: (rawBarSettings && rawBarSettings.autohide !== undefined) ? Boolean(rawBarSettings.autohide) : false
+    readonly property bool settingsSeparateWindow: (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.general) ? Boolean(Config.rawSettings.general.settingsSeparateWindow) : false
+
+    function handleEmbeddedSettings(action, tab) {
+        let isOpen = masterWindow.targetActive === "guide";
+        if (action === "close") {
+            if (isOpen) switchWidget("hidden", "");
+            return;
+        }
+        if (!isOpen) {
+            let t = getLayout("guide");
+            if (t) switchWidget("guide", tab);
+            return;
+        }
+        let item = widgetCache["guide"] || widgetStack.currentItem;
+        if (tab !== "" && (action === "open" || tab !== masterWindow.activeArg)) {
+            masterWindow.activeArg = tab;
+            if (item && item.gotoTab !== undefined) item.gotoTab(tab);
+        } else if (action === "toggle") {
+            switchWidget("hidden", "");
+        }
+    }
 
     readonly property bool isFullscreenActive: {
         try {
@@ -209,7 +236,7 @@ PanelWindow {
     readonly property bool screenReady: masterWindow.width >= 100 && masterWindow.height >= 100
     readonly property bool isCurrentDraggable: {
         let t = getLayout(masterWindow.currentActive);
-        return Boolean(t && t.draggable) || masterWindow.currentActive === "guide";
+        return Boolean(t && t.draggable);
     }
 
     Item {
@@ -608,6 +635,8 @@ PanelWindow {
     }
 
     function switchWidget(newWidget, arg) {
+        if (newWidget === "hidden" && masterWindow.isClosing) return;
+
         masterWindow.switchGeneration++;
         let gen = masterWindow.switchGeneration;
         masterWindow.targetActive = newWidget;

@@ -125,7 +125,7 @@ Item {
             radius: width / 2
 
             scale: pwrMa.pressed ? 0.95 : (pwrMa.containsMouse ? 1.05 : 1.0)
-            Behavior on scale { enabled: window.visible; NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+            Behavior on scale { enabled: window.visible; NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
     
             color: (window.currentPower || powerGlass.active) ? "transparent" : Qt.alpha(pwrMa.containsMouse ? Qt.lighter(ThemeBackend.base, 1.6) : Qt.lighter(ThemeBackend.base, 1.3), ThemeBackend.elementOpacity)
             Behavior on color { enabled: window.visible; ColorAnimation { duration: 200 } }
@@ -142,7 +142,7 @@ Item {
                 tintColor: window.currentPower ? window.activeColor : ThemeBackend.surface0
                 tintAmount: window.currentPower ? 0.45 : 0.3
                 press: pwrMa.pressed ? 0.8 : (pwrMa.containsMouse ? 0.25 : 0)
-                Behavior on press { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                Behavior on press { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 Behavior on tintAmount { NumberAnimation { duration: 800; easing.type: Easing.InOutQuint } }
             }
 

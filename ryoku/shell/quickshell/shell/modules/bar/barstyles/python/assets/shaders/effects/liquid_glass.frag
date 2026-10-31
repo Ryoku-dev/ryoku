@@ -38,7 +38,13 @@ layout(binding = 1) uniform sampler2D src;
 
 const int TAPS = 10;
 const float GOLDEN = 2.39996323;
-const float DARKEN = 0.15;
+const float LENS_ZOOM = 0.045;
+const float LENS_FULL = 180.0;
+const float LENS_NONE = 420.0;
+const float FRESNEL = 0.55;
+const float INNER_SHADOW = 0.16;
+const float BROAD_SPEC = 0.2;
+const float GRAIN = 0.004;
 const vec2 lightDir = vec2(-0.55, -0.83);
 
 float sdRoundBox(vec2 p, vec2 b, vec4 r) {
@@ -91,13 +97,13 @@ float hash12(vec2 p) {
 }
 
 float blurLod(float rad, int taps) {
-    float R = max(rad, 0.5) * 1.5;
+    float R = max(rad, 0.5) * 0.9;
     float gap = R * sqrt(3.14159265 / float(taps));
-    return clamp(log2(max(gap, 1.0)) + 0.35, 0.0, 6.0);
+    return clamp(log2(max(gap, 1.0)) - 0.15, 0.0, 6.0);
 }
 
 vec3 blurredAt(vec2 p, float rad, float lod, int taps) {
-    float R = max(rad, 0.5) * 1.5;
+    float R = max(rad, 0.5) * 0.9;
     float rot = ign(gl_FragCoord.xy) * 6.2831853;
     vec4 acc = vec4(0.0);
     float wsum = 0.0;
@@ -172,8 +178,9 @@ void main() {
     vec2 glassSize = itemSize - 2.0 * glassPad;
     vec2 zq = p / max(glassSize * 0.5, vec2(1.0));
     float zr = clamp(length(zq), 0.0, 1.0);
-    float zoomAmt = 0.129 * clamp(energy, 0.0, 1.0) + 0.064 * motion;
-    vec2 ps = vec2(p.x, p.y * (1.0 - 0.08 * 1.5)) * (1.0 - zoomAmt * (1.0 - zr * zr));
+    float zoomAmt = LENS_ZOOM * (1.0 - 0.5 * nest) + 0.129 * clamp(energy, 0.0, 1.0) + 0.064 * motion;
+    float lensK = 1.0 - smoothstep(LENS_FULL, LENS_NONE, max(glassSize.x, glassSize.y) * 0.5);
+    vec2 ps = p + (vec2(p.x, p.y * (1.0 - 0.08 * 1.5)) * (1.0 - zoomAmt * (1.0 - zr * zr)) - p) * lensK;
     vec2 follow = clamp((cursor - itemSize * 0.5) / max(itemSize * 0.5, vec2(1.0)), vec2(-1.0), vec2(1.0));
     ps -= follow * 6.0 * near * morph * (1.0 - zr * zr * 0.5);
     bool interior = t >= bz && near < 0.02;
@@ -190,7 +197,6 @@ void main() {
     float l = dot(col, vec3(0.2126, 0.7152, 0.0722));
     col = mix(vec3(l), col, saturation);
 
-    float ty = clamp((p.y + glassSize.y * 0.5) / glassSize.y, 0.0, 1.0);
     col *= 1.0 - (1.0 - nest) * 0.06 * exp(-t / 6.0) * clamp(g.y, 0.0, 1.0);
     col *= 1.0 - (1.0 - nest) * 0.025 * exp(-t / (bz * 0.45));
 
@@ -198,9 +204,20 @@ void main() {
     vec2 L = normalize(mix(normalize(lightDir), cursorDir, hover * 0.4));
     float facing = dot(g, L);
     float spec = pow(max(facing, 0.0), 1.6) + 0.55 * pow(max(-facing, 0.0), 2.2);
+
+    float fres = pow(1.0 - normal.z, 1.5) * (1.0 - 0.6 * nest);
+    if (fres > 0.001) {
+        vec4 e = fetchLod4(p + g * (t + bz * 1.4), min(lod + 2.0, 6.0));
+        vec3 env = e.a > 1e-3 ? e.rgb / e.a : col;
+        env = env * 1.12 + 0.03;
+        col = mix(col, env, clamp(fres * FRESNEL * (0.4 + 0.6 * max(facing, 0.0)), 0.0, 0.6));
+    }
+    float counter = exp(-t / (bz * 0.55)) * max(-facing, 0.0);
+    col *= 1.0 - INNER_SHADOW * counter * (1.0 - 0.7 * nest);
     float hair = exp(-t / 1.1);
     float wide = exp(-t / 5.0);
     float edgeHi = (hair * (0.18 + 0.78 * spec) + wide * 0.10 * (0.30 + spec)) * rim * (1.0 + 0.5 * near + 0.9 * energy);
+    float broad = exp(-t / (bz * 0.45)) * pow(max(facing, 0.0), 2.0) * BROAD_SPEC * rim * (1.0 + 0.5 * near);
     float mx = (t - bz * 0.5) / (bz * 0.2 + 1.0);
     float men = exp(-mx * mx) * 0.07 * (0.35 + spec) * rim;
     vec3 fringe = vec3(0.0);
@@ -208,34 +225,24 @@ void main() {
         float fb = (t - bz * 0.42) / (bz * 0.22 + 1.0);
         float fringeBand = exp(-fb * fb);
         float fringePhase = dot(g, vec2(0.7, 0.45)) * 0.9 + t / (bz * 1.6) + 0.15 * dot(p, vec2(0.004, 0.003));
-        fringe = (spectrum(fringePhase) - 0.5) * fringeBand * (0.018 + 0.036 * spec) * rim * (1.0 + 3.0 * motion);
+        fringe = (spectrum(fringePhase) - 0.5) * fringeBand * (0.04 + 0.08 * spec) * rim * (1.0 + 3.0 * motion);
     }
-    float chroma = max(tintColor.r, max(tintColor.g, tintColor.b)) - min(tintColor.r, min(tintColor.g, tintColor.b));
-    float neutralK = 1.0 - smoothstep(0.10, 0.18, chroma);
-    vec3 tcol = mix(tintColor.rgb, vec3(0.5), neutralK);
-    float tAmt = tintAmount * mix(1.0, 0.6, neutralK);
-    float dark = 1.0 - clamp(dot(tcol, vec3(0.2126, 0.7152, 0.0722)) * 2.0, 0.0, 1.0);
-    float lift = mix(mix(0.07, 0.04, dark), mix(0.03, 0.02, dark), clear) * (1.0 - 0.85 * nest);
-    float sheen = (1.0 - ty) * mix(0.03, 0.02, clear) * (1.0 - 0.8 * nest);
-    vec3 light = vec3(edgeHi + men + sheen + near * 0.015 * rim + energy * 0.03);
-    light += fringe;
-    light += vec3(lift) * mix(1.0, smoothstep(0.0, 1.0, length(dG) * 0.5), clear);
-
-    float tA = clamp(tAmt * (0.7 + 0.6 * l), 0.0, 1.0);
+    vec3 tcol = tintColor.rgb;
+    float tA = clamp(tintAmount * (0.7 + 0.6 * l), 0.0, 1.0);
     float lensA = smoothstep(0.0, 1.0, length(dG) * 0.5);
-    vec3 opaqueRgb = mix(col, tcol, tA);
+    vec3 light = vec3(edgeHi + men + broad + energy * 0.03) + fringe;
+    light += vec3(0.02 * clear * lensA);
+
+    vec3 opaqueRgb = col * mix(vec3(1.0), tcol, tA);
     vec3 clearRgb = col * lensA * (1.0 - tA) + tcol * tA;
     float clearA = lensA * (1.0 - tA) + tA;
 
     vec3 premul = mix(opaqueRgb, clearRgb, clear);
-    float veil = DARKEN * smoothstep(0.35, 0.9, l) * (1.0 - clear) * (1.0 - nest);
-    premul *= 1.0 - veil;
     premul += light;
     float alpha = mix(1.0, clearA, clear);
-    alpha += veil * (1.0 - alpha);
 
     float gn = hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.xy * 1.7 + 17.0) - 1.0;
-    premul += vec3(gn * 0.03 * (1.0 - 0.7 * nest)) * alpha;
+    premul += vec3(gn * GRAIN * (1.0 - 0.7 * nest)) * alpha;
 
     float a = coverage * qt_Opacity;
     float outA = clamp(alpha, 0.0, 1.0) * coverage + shadow * (1.0 - coverage);

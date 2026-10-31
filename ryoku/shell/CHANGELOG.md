@@ -14,6 +14,12 @@
   universal dock's active design, visibility, edge, material and icon settings
   instead of stale Shima-only values
   (`quickshell/inir/modules/iris/preview/IrisGroupPreview.qml`).
+- **Python catches up with Serpantinum 2.3.1.** The resync brings the redesigned
+  searchable settings, launcher search and converters, clipboard and policy
+  prompt presentation, clock and media fixes, notes, wellbeing limits and
+  widget history while preserving Ryoku's compositor, wallpaper, capture,
+  lock, dock and desktop seams
+  (`quickshell/shell/modules/bar/barstyles/python/`).
 - **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
   and Super+K open the active style's launcher, clipboard, settings and
   cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's

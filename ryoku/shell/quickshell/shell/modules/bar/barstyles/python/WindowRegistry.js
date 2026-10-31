@@ -1,8 +1,7 @@
 .pragma library
 
-// The python widget stage's layout table, ported 1:1 from serpantinum.
-// The launcher, clipboard and wallpaper rows are gone: those surfaces are
-// Ryoku's own (Super+Space, the clipboard history, ryogami at Super+W).
+// Python mounts launcher and clipboard as standalone surfaces. Wallpaper remains
+// a Ryogami handoff and does not enter this widget-stage layout table.
 
 function getScale(mw, mh, userScale) {
     return (userScale !== undefined && userScale !== null) ? userScale : 1.0;

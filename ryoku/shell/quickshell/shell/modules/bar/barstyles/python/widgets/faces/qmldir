@@ -6,10 +6,12 @@ ClockFaceMaterial 1.0 clock/ClockFaceMaterial.qml
 ClockFaceMaterialAnalog 1.0 clock/ClockFaceMaterialAnalog.qml
 ClockFaceMaterialLumen 1.0 clock/ClockFaceMaterialLumen.qml
 ClockFaceMinimal 1.0 clock/ClockFaceMinimal.qml
+ClockFaceStretched 1.0 clock/ClockFaceStretched.qml
 GithubFace 1.0 github/GithubFace.qml
 ImageFaceRect 1.0 image/ImageFaceRect.qml
 ImageFaceRound 1.0 image/ImageFaceRound.qml
 ImageFaceRounded 1.0 image/ImageFaceRounded.qml
+NotesFace 1.0 notes/NotesFace.qml
 MusicFace 1.0 music/MusicFace.qml
 MusicFaceLyrics 1.0 music/MusicFaceLyrics.qml
 MusicFaceLyricsSimple 1.0 music/MusicFaceLyricsSimple.qml

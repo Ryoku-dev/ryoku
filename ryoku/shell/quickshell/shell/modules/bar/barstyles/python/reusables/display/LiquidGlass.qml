@@ -14,7 +14,7 @@ ShaderEffect {
     property real bezel: Math.max(5, Math.min(26, Math.min(width, height) * 0.36))
     property real thickness: bezel * 1.15
     property real ior: 1.5
-    property real dispersion: 0.06
+    property real dispersion: 0.11
     property real frost: 1.5
     property real rim: 0.45
     property real saturation: 1.25

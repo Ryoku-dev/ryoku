@@ -4,7 +4,7 @@ import "../"
 import "../reusables"
 import Ryoku.Ui.Singletons as Ui
 
-Item {
+GuideTab {
     id: dockTabRoot
     required property var rootObj
     required property int tabIndex

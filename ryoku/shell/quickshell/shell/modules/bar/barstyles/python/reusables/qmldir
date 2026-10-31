@@ -5,12 +5,14 @@ ScreenPositionSelector 1.0 behavior/ScreenPositionSelector.qml
 Draggable 1.0 behavior/Draggable.qml
 
 ClickButton 1.0 buttons/ClickButton.qml
+CloseButton 1.0 buttons/CloseButton.qml
 DeleteButton 1.0 buttons/DeleteButton.qml
 FillButton 1.0 buttons/FillButton.qml
 IconButton 1.0 buttons/IconButton.qml
 
 FlipIcon 1.0 display/FlipIcon.qml
 ImageBox 1.0 display/ImageBox.qml
+BoundedImage 1.0 display/BoundedImage.qml
 LoaderIcon 1.0 display/LoaderIcon.qml
 NotificationBox 1.0 display/NotificationBox.qml
 SystemUsageCard 1.0 display/SystemUsageCard.qml
@@ -22,6 +24,7 @@ WallpaperBlur 1.0 display/WallpaperBlur.qml
 LiquidGlass 1.0 display/LiquidGlass.qml
 GlassFillets 1.0 display/GlassFillets.qml
 GlassFill 1.0 display/GlassFill.qml
+MaterialDigitGrid 1.0 display/MaterialDigitGrid.qml
 GlassLens 1.0 display/GlassLens.qml
 
 LyricsView 1.0 media/LyricsView.qml

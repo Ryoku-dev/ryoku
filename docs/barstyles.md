@@ -866,23 +866,31 @@ never replaces Ryoku Settings.
 
 ## Python Settings
 
-Python tracks Serpantinum past 2.2.12 (commit `cfdd810`). Open its guide from the bar's gear pill or
-with `qs -c shell ipc call main handleCommand toggle guide`. The guide controls
-bar layout, module faces, theme, OSD, notifications, quick actions, media
-presentation and wellbeing views. It writes the `python` key in `shell.json`
-through the shell daemon and applies changes live. Bar Studio's
-**OPEN PYTHON SETTINGS** button routes to the same guide.
+Python tracks Serpantinum 2.3.1 (commit `3619689`). Open its guide from the
+bar's gear pill, with Super+comma, or with `qs -c shell ipc call main
+handleCommand toggle guide`. The same searchable, keyboard-navigable settings
+UI can run as a standalone window. It controls bar layout, module faces, theme,
+OSD, notifications, quick actions, media presentation and wellbeing views,
+writes the `python` key in `shell.json` through the shell daemon, and applies
+changes live. Bar Studio's **OPEN PYTHON SETTINGS** button routes there too.
 
-The port uses Serpantinum's orientation-aware module registry. Top,
-bottom and side bars share module definitions while choosing the appropriate
-face. New settings include bar thickness, edge-aware centering, music channel
-balance and the expanded face choices. Existing `python.*` settings remain
-valid.
+The port uses Serpantinum's orientation-aware module registry. Top, bottom and
+side bars share module definitions while choosing the appropriate face. It
+includes Serpantinum's clock variants, calculator, unit and currency
+converters, launcher web search, notes, app-limit views, widget undo and redo,
+shared media watchers and the 2.3.1 media, lyrics and blue-light fixes.
+Existing `python.*` settings remain valid.
 
-What stays Ryoku's while Python is the bar: the app launcher (Super+Space), the
-clipboard history, the wallpaper picker (Super+W, Ryogami), the lock screen,
-screen capture, updates, notification server, idle service and desktop widget
-host. The bar's buttons hand over to those surfaces. Python still draws its
+Python draws its own Serpantinum launcher, clipboard and settings surfaces.
+The launcher reads Ryoku's application catalogue and routes web, calculator
+and converter results without starting Serpantinum services. The clipboard
+reads and mutates Ryoku's daemon-backed history, and the Serpantinum-styled
+policy prompt presents requests from Ryoku's single policy agent.
+
+What stays Ryoku's while Python is the bar: the wallpaper picker (Super+W,
+Ryogami), qylock, screen capture and recording, updates, quick settings
+(Super+Escape), notification server, idle service, universal dock and desktop
+widget host. Their bar buttons keep using Ryoku's verbs. Python still draws its
 ported notification banners and OSD while active; switching
 `python.general.notifications` or `python.general.osd` off returns those roles
 to Ryoku.
