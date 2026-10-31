@@ -19,7 +19,6 @@ GuideTab {
     }
 
     property alias fontPickerPopup: fontPickerPopup
-    property alias wallpaperDirScanner: wallpaperDirScanner
     property alias borderRadiusDebounceTimer: borderRadiusDebounceTimer
     property alias elementOpacityDebounceTimer: elementOpacityDebounceTimer
 
@@ -31,9 +30,6 @@ GuideTab {
     property bool currentBlurBackground: themeSettings.blurBackground !== undefined ? Boolean(themeSettings.blurBackground) : false
     property string currentPreset: themeSettings.activePreset !== undefined ? themeSettings.activePreset : "Matugen"
     property bool useMatugen: themeSettings.matugen !== undefined ? themeSettings.matugen : true
-
-    property string currentWallpaperDir: Config.getSetting("wallpaperDir", "") || Config.getSetting("wallpaper_dir", "") || Quickshell.env("WALLPAPER_DIR") || (Quickshell.env("HOME") + "/Pictures/Wallpapers")
-    property var availableWallpaperDirs: []
 
     property var curatedFonts: [ThemeBackend.fontFamily, ThemeBackend.iconFont]
     property var blockedFontPatterns: [".notdef", "cursor", "emoji", "symbol", "pcf"]
@@ -226,60 +222,11 @@ GuideTab {
         }
     }
 
-    Process {
-        id: wallpaperDirScanner
-        running: false
-        command: [
-            "bash", "-c",
-            "python3 -c '\n" +
-            "import os\n" +
-            "home = os.path.expanduser(\"~\")\n" +
-            "exts = {\".jpg\", \".jpeg\", \".png\", \".webp\", \".bmp\", \".mp4\", \".mkv\", \".mov\", \".webm\"}\n" +
-            "dirs = set()\n" +
-            "candidates = [\n" +
-            "    os.path.join(home, \"Pictures\"),\n" +
-            "    os.path.join(home, \"Pictures\", \"Wallpapers\"),\n" +
-            "    os.path.join(home, \"Wallpapers\"),\n" +
-            "    os.path.join(home, \"Videos\"),\n" +
-            "    os.path.join(home, \"Videos\", \"Wallpapers\"),\n" +
-            "    os.path.join(home, \".local/share/wallpapers\"),\n" +
-            "    \"/usr/share/backgrounds\",\n" +
-            "    \"/usr/share/wallpapers\"\n" +
-            "]\n" +
-            "for c in candidates:\n" +
-            "    if not os.path.isdir(c):\n" +
-            "        continue\n" +
-            "    dirs.add(c)\n" +
-            "    for root, subdirs, files in os.walk(c, followlinks=True):\n" +
-            "        depth = root[len(c):].count(os.sep)\n" +
-            "        if depth > 3:\n" +
-            "            subdirs[:] = []\n" +
-            "            continue\n" +
-            "        subdirs[:] = [d for d in subdirs if not d.startswith(\".\")]\n" +
-            "        if any(os.path.splitext(f)[1].lower() in exts for f in files):\n" +
-            "            dirs.add(root)\n" +
-            "sorted_dirs = sorted(list(dirs), key=lambda x: (x.count(os.sep), x.lower()))\n" +
-            "print(\"\\n\".join(sorted_dirs))\n" +
-            "'"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let lines = this.text.trim().split("\n").map(s => s.trim()).filter(s => s.length > 0);
-                if (themeTabRoot.currentWallpaperDir && lines.indexOf(themeTabRoot.currentWallpaperDir) === -1) {
-                    lines.unshift(themeTabRoot.currentWallpaperDir);
-                }
-                themeTabRoot.availableWallpaperDirs = lines;
-            }
-        }
-    }
-
     Timer {
         id: activateDebounceTimer
         interval: 220
         repeat: false
         onTriggered: {
-            wallpaperDirScanner.running = false;
-            wallpaperDirScanner.running = true;
             if (themeTabRoot._needsReload) {
                 themeTabRoot._needsReload = false;
                 themeTabRoot.reloadThemes();
@@ -430,16 +377,7 @@ GuideTab {
             themeTabRoot.currentPreset = ts.activePreset !== undefined ? ts.activePreset : "Matugen";
             themeTabRoot.useMatugen = ts.matugen !== undefined ? ts.matugen : true;
             themeTabRoot.themeSettings = ts;
-
-            let wpDir = Config.getSetting("wallpaperDir", "") || Config.getSetting("wallpaper_dir", "");
-            if (wpDir && wpDir !== "") {
-                themeTabRoot.currentWallpaperDir = wpDir;
-            }
         }
-    }
-
-    function updateWallpaperDirSetting() {
-        Config.setSetting("wallpaperDir", themeTabRoot.currentWallpaperDir);
     }
 
     function updateFontSetting() {

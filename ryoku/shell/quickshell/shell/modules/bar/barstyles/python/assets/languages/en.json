@@ -1032,7 +1032,8 @@
     "tab_emojis": "Emojis",
     "placeholder_emojis": "Search emojis by name or keyword...",
     "search_run": "Search {provider}",
-    "search_hint": "Type to search with {provider}"
+    "search_hint": "Type to search with {provider}",
+    "calc_result": "Calculation result (Enter to copy)"
   },
   "calendar": {
     "loading": "Loading...",

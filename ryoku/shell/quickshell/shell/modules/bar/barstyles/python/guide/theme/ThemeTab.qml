@@ -5,7 +5,6 @@ ThemeTabState {
     id: themeTabRoot
 
     property alias fontDropdown: appearanceSection.fontDropdown
-    property alias wpDirDropdown: wallpaperDirRow.wpDirDropdown
     property alias themeEditorPopup: themeEditorPopup
 
     property real gridAvailableWidth: Math.max(0, settingsCol.width - rootObj.s(24))
@@ -14,7 +13,6 @@ ThemeTabState {
     onVisibleChanged: {
         if (!visible) {
             if (fontDropdown.isOpen) fontDropdown.closePopup();
-            if (wpDirDropdown.isOpen) wpDirDropdown.closePopup();
             themeEditorPopup.close();
         }
     }
@@ -46,8 +44,6 @@ ThemeTabState {
             spacing: rootObj.s(6)
 
             ThemeWallpaperPreview { tab: themeTabRoot }
-
-            ThemeWallpaperDirRow { id: wallpaperDirRow; tab: themeTabRoot }
 
             ThemeAppearanceSection { id: appearanceSection; tab: themeTabRoot }
 
