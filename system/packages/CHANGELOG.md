@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Changed
+- `cachyos.replaces`: **CachyOS leaves out stock `linux-headers` with stock
+  `linux`.** Its package set already carries matching headers for both CachyOS
+  kernels, while doctor derives matches for any additional installed kernel.
 - `cachyos.packages`: **the CachyOS edition now carries CachyOS's current
   defaults and identity.** `shelly`, `lsb-release`, and `cachyos-hello` join
   the kernel pair, repositories, hooks, `chwd`, tuning, schedulers, and desktop

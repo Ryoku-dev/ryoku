@@ -222,8 +222,8 @@ done < <(grep -rnE '^[^#]*run arch-chroot /mnt ryoku-[a-z-]+' "$root/installatio
 )
 
 # ---- 8. a CachyOS install drops the names CachyOS replaces --------------------
-# the stock kernel joins the drop list, which keeps it out of pacstrap and puts it
-# in the provisioning ledger, so `ryoku update` never delivers it afterwards.
+# The stock kernel and headers join the drop list, which keeps them out of
+# pacstrap and the update manifest after the CachyOS kernel pairs replace them.
 # shellcheck disable=SC2329
 (
   log() { :; }
@@ -234,9 +234,9 @@ done < <(grep -rnE '^[^#]*run arch-chroot /mnt ryoku-[a-z-]+' "$root/installatio
   export RYOKU_REPO=$root
   RYOKU_DROP_PACKAGES=chromium
   ryoku_cachyos_drops
-  [[ $RYOKU_DROP_PACKAGES == chromium,linux,yay-bin ]] || fail "CachyOS drop list is '$RYOKU_DROP_PACKAGES'"
+  [[ $RYOKU_DROP_PACKAGES == chromium,linux,linux-headers,yay-bin ]] || fail "CachyOS drop list is '$RYOKU_DROP_PACKAGES'"
   ryoku_cachyos_drops
-  [[ $RYOKU_DROP_PACKAGES == chromium,linux,yay-bin ]] || fail "CachyOS drops are not idempotent: '$RYOKU_DROP_PACKAGES'"
+  [[ $RYOKU_DROP_PACKAGES == chromium,linux,linux-headers,yay-bin ]] || fail "CachyOS drops are not idempotent: '$RYOKU_DROP_PACKAGES'"
 )
 
 # ---- 9. CachyOS identity is applied without a second first-login welcome -----

@@ -247,7 +247,7 @@ const ryokuOverwriteGlob = "/usr/bin/ryoku-*," +
 // to drift out of sync.
 var bootChainSkip = map[string]bool{
 	"base": true, "base-devel": true, "linux": true, "linux-firmware": true,
-	"mkinitcpio": true, "sudo": true, "btrfs-progs": true, "cryptsetup": true,
+	"linux-headers": true, "mkinitcpio": true, "sudo": true, "btrfs-progs": true,
 	"dosfstools": true, "efibootmgr": true, "limine": true, "plymouth": true,
 	"snapper": true, "snap-pac": true,
 	// the limine hook packages pull limine + mkinitcpio back as depends and ship
@@ -1819,6 +1819,38 @@ func stepRepo(e *engine) error {
 	return e.sudo("pacman", "-Sy")
 }
 
+var installerKernelModulesDir = "/usr/lib/modules"
+
+func installedKernelHeaderPackages(modulesDir string, installed func(string) bool) ([]string, error) {
+	entries, err := os.ReadDir(modulesDir)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var headers []string
+	for _, entry := range entries {
+		data, err := os.ReadFile(filepath.Join(modulesDir, entry.Name(), "pkgbase"))
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read kernel metadata for %s: %w", entry.Name(), err)
+		}
+		kernel := strings.TrimSpace(string(data))
+		if !strings.HasPrefix(kernel, "linux") || strings.ContainsAny(kernel, " \t\r\n/") ||
+			!installed(kernel) {
+			continue
+		}
+		header := kernel + "-headers"
+		if !seen[header] {
+			seen[header] = true
+			headers = append(headers, header)
+		}
+	}
+	sort.Strings(headers)
+	return headers, nil
+}
+
 // readBasePackages parses system/packages/base.packages from the payload (the
 // same manifest the ISO pacstraps): one package per line, '#' comments and
 // blank lines dropped, boot-chain entries skipped. This is the single source of
@@ -2019,6 +2051,11 @@ func stepPackages(e *engine) error {
 		}
 		e.say(i18n.T("DRYRUN: payload not cloned; would read system/packages/base.packages"))
 	}
+	headers, err := installedKernelHeaderPackages(installerKernelModulesDir, d.installedPkg)
+	if err != nil {
+		return fmt.Errorf("inspect installed kernels: %w", err)
+	}
+	base = append(base, headers...)
 	var pkgs []string
 	if d.fromSource {
 		// no [ryoku] repository here: the desktop is built from the payload, so

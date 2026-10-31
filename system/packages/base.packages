@@ -11,12 +11,10 @@ base-devel
 rust
 linux
 linux-firmware
-# linux-headers + dkms: the shipped kernel's headers and the DKMS build system,
-# so out-of-tree driver modules build (e.g. xpadneo-dkms, the Xbox One/Series
-# Bluetooth pads; see aur.packages). ryoku-desktop hard-depends on both, and a
-# DKMS module fails to build without matching headers. The CachyOS kernel is an
-# opt-in post-install (the CachyOS Layer extras bundle), never baked into the
-# base, so the base ships and boots the stock linux kernel.
+# The base boots stock linux, so its matching headers and DKMS build shipped
+# modules such as xpadneo-dkms during installation. The CachyOS edition replaces
+# both kernel and headers with its own pairs; doctor derives <kernel>-headers
+# from every installed kernel's pkgbase on existing Arch and CachyOS boxes.
 linux-headers
 dkms
 mkinitcpio

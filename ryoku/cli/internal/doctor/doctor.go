@@ -322,6 +322,7 @@ func reconcilers() []reconciler {
 		{i18n.T("retired Shima frame music key"), reconcileShimaFrameMusic},
 		{i18n.T("retired Shima battery warning thresholds"), reconcileIrisBatteryThresholds},
 		{i18n.T("shipped app packages"), reconcileShippedApps},
+		{i18n.T("kernel header packages"), reconcileKernelHeaders},
 		{i18n.T("retired app packages"), reconcileRetiredApps},
 		{i18n.T("retired compositor"), reconcileRetiredCompositor},
 		{i18n.T("release control manifest"), reconcileManifest},

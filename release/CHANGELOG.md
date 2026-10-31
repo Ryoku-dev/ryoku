@@ -5,6 +5,10 @@
   optional desktop packages delivered once on a fresh Ryoku box. Removing them
   now sticks across upgrades, and the radio offers an install hint instead of
   failing silently.
+- **Desktop packages no longer force stock Arch kernel headers.**
+  `ryoku-desktop` keeps DKMS but leaves headers to the installed kernels. The
+  CachyOS installer replaces both stock kernel packages, and doctor installs
+  each installed Arch or CachyOS kernel's matching header package.
 
 ### Added
 - **The shell installs its equalizer backend automatically.** `ryoku-shell`

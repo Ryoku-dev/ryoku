@@ -5,6 +5,10 @@
   The default-on Apps list owns `mpv` and `mpv-mpris` on Fedora and Void;
   Arch and CachyOS continue to install both from their base set
   (`installerplan/components.tsv`, `../ryoku-shell-installer/engine.go`).
+- **Shell conversions install headers for their existing kernels.** The
+  installer skips stock `linux-headers` with the rest of the replacement boot
+  chain, reads each installed kernel's `pkgbase`, and adds only matching header
+  packages (`../ryoku-shell-installer/engine.go`).
 
 ### Added
 - **The Arch, CachyOS and Void ISOs have one edition-appropriate Gaming
