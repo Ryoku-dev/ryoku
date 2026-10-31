@@ -31,6 +31,9 @@
   The shared radio state now follows adapter-model and BlueZ lifecycle events,
   so a controller that registers after shell startup or a service restart no
   longer stays marked missing (`quickshell/shell/{services,modules/sidebar}/`).
+- **The desktop visualizer stays behind apps and the dock after Super+M.** Its
+  ordinary on/off toggle no longer creates the separate Above windows surface
+  while the desktop renderer catches up (`quickshell/shell/shell.qml`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service

@@ -243,11 +243,14 @@ ShellRoot {
                 }
             }
 
-            // Only Above windows needs a separate surface; the plain look stays on the desktop.
+            // Build the separate window only for the explicit Above windows
+            // mode. Inferring it from the inline hosts races their bindings when
+            // the ordinary toggle enables the visualizer.
             LazyLoader {
                 id: vizLoader
                 activeAsync: VizCfg.Config.enabled && Perf.visualizerResident
-                    && !desktop.hostsVisualizer && !desktop.plainVisualizer
+                    && perScreen.st && perScreen.st.visualizerOverlay
+                    && !desktop.hostsVisualizer
                 Visualizer {
                     id: perScreenViz
                     screen: perScreen.modelData
