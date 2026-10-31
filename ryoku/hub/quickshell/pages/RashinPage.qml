@@ -44,6 +44,7 @@ Item {
     property bool vaultExists: false
     property int vaultFiles: 0
     property bool hermesInstalled: false
+    property string hermesVersion: ""
     property bool hermesConfigured: false
     property int agentsPresent: 0
     property int agentsWired: 0
@@ -108,6 +109,7 @@ Item {
                     pg.vaultFiles = (typeof v.files === "number") ? v.files : 0;
                     var h = o.hermes || ({});
                     pg.hermesInstalled = h.installed === true;
+                    pg.hermesVersion = h.version || "";
                     pg.hermesConfigured = h.configured === true;
                     var ags = o.agents || [];
                     var present = 0, wired = 0;
@@ -828,7 +830,9 @@ Item {
 
                 Text {
                     width: parent.width
-                    text: I18n.tr("Set up Hermes once: it installs the agent if you don't have it, wires it to the vault, and points your other coding agents at the same map. An existing Hermes install is left untouched.")
+                    text: pg.hermesInstalled && pg.hermesVersion !== ""
+                        ? I18n.tr("Hermes v%1 is installed. Ryoku leaves it untouched; update it through its own installer or checkout, then re-run setup to refresh the vault wiring.").arg(pg.hermesVersion)
+                        : I18n.tr("Set up Hermes once: it installs the agent if you don't have it, wires it to the vault, and points your other coding agents at the same map. An existing Hermes install is left untouched.")
                     color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12; wrapMode: Text.WordWrap; lineHeight: 1.4
                 }
 

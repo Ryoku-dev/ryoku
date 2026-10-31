@@ -52,6 +52,10 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Rashin shows the installed Hermes agent version and its update owner.**
+  Existing installs stay untouched, so the page points users to their Hermes
+  installer or checkout instead of offering an updater that Ryoku does not own
+  (`quickshell/pages/RashinPage.qml`).
 - **Update now can include the system packages.** Updates has an INCLUDE SYSTEM
   switch, off by default, saved as `update_system` in the Hub config. When it is
   on, Update now runs `ryoku update --gui --system`, so the distribution
