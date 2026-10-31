@@ -12,10 +12,14 @@ Item {
     id: root
 
     property bool isChecking: false
-    property string localVersion: Updates.installed || "..."
-    property string remoteVersion: Updates.latest || ""
+    property string localVersion: root.bare(Updates.installed) || "..."
+    property string remoteVersion: root.bare(Updates.latest)
     readonly property bool updateAvailable: Updates.pending > 0
     property string lastNotifiedVersion: ""
+
+    function bare(version) {
+        return String(version || "").replace(/^v/, "");
+    }
 
     function checkUpdate() {
         Updates.check();
@@ -31,8 +35,8 @@ Item {
     Connections {
         target: Updates
         function onFrameChanged() {
-            root.localVersion = Updates.installed || "...";
-            root.remoteVersion = Updates.latest || "";
+            root.localVersion = root.bare(Updates.installed) || "...";
+            root.remoteVersion = root.bare(Updates.latest);
         }
     }
 }

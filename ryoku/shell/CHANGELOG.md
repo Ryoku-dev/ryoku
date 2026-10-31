@@ -20,11 +20,6 @@
   widget history while preserving Ryoku's compositor, wallpaper, capture,
   lock, dock and desktop seams
   (`quickshell/shell/modules/bar/barstyles/python/`).
-- **Python's owned surfaces stay open after their first frame.** The launcher
-  and clipboard no longer arm their idle unload while their windows are being
-  constructed, and the settings, quick-actions and bar hosts resolve the
-  resynced types and layout ids
-  (`quickshell/shell/modules/bar/barstyles/python/`).
 - **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
   and Super+K open the active style's launcher, clipboard, settings and
   cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's
