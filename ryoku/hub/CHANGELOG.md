@@ -72,6 +72,11 @@
   Existing installs stay untouched, so the page points users to their Hermes
   installer or checkout instead of offering an updater that Ryoku does not own
   (`quickshell/pages/RashinPage.qml`).
+- **Choose your profile picture.** Global > Users shows each person's picture
+  instead of a letter when they have one, and your own card has a PROFILE PICTURE
+  row to choose, change or remove it. The image is cropped to a 512 px square,
+  kept in `~/.face`, and set through AccountsService so login managers and other
+  settings apps show the same one (`quickshell/pages/users/`).
 - **Update now can include the system packages.** Updates has an INCLUDE SYSTEM
   switch, off by default, saved as `update_system` in the Hub config. When it is
   on, Update now runs `ryoku update --gui --system`, so the distribution
