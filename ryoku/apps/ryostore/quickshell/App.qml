@@ -139,6 +139,7 @@ Rectangle {
     property string categoryQuery: ""
     readonly property bool appsScope: appsBrowse || remoteScope
     readonly property bool narrowAppsTools: width < 980
+            || (Window.window && Window.window.width < 980)
     property string appsTag: ""
     property string appsQuery: ""
     readonly property bool appsFiltered: app.appsBrowse && (app.appsTag !== "" || app.appsQuery !== "")
@@ -801,48 +802,49 @@ Rectangle {
         onPicked: key => app.setAppTag(key)
     }
 
-    ProviderTabs {
-        id: appsSort
-        objectName: "ryostore-apps-sort"
-        anchors {
-            left: header.right
-            right: app.narrowAppsTools ? parent.right : appsSearch.left
-            top: appsTabs.bottom
-        }
+    Item {
+        id: appsTools
+        objectName: "ryostore-apps-tools"
+        anchors { left: header.right; right: parent.right; top: appsTabs.bottom }
         visible: app.appsBrowse
-        height: visible ? implicitHeight : 0
+        height: visible ? (app.narrowAppsTools ? 88 : 44) : 0
         enabled: !app.detailOpen
-        providers: app.appSortTabs
-        active: app.appSort
-        allLabel: ""
-        trailingLabel: ""
-        installableCount: 0
-        reducedMotion: app.reducedMotion
-        onPicked: key => app.setAppSort(key)
-    }
 
-    CategorySearch {
-        id: appsSearch
-        objectName: "ryostore-apps-search"
-        anchors {
-            right: parent.right; rightMargin: Tokens.s6
-            top: app.narrowAppsTools ? appsSort.bottom : undefined
-            topMargin: app.narrowAppsTools ? Tokens.s2 : 0
-            verticalCenter: app.narrowAppsTools ? undefined : appsSort.verticalCenter
+        ProviderTabs {
+            id: appsSort
+            objectName: "ryostore-apps-sort"
+            anchors {
+                left: parent.left
+                right: app.narrowAppsTools ? parent.right : appsSearch.left
+                top: parent.top
+            }
+            height: 44
+            providers: app.appSortTabs
+            active: app.appSort
+            allLabel: ""
+            trailingLabel: ""
+            installableCount: 0
+            reducedMotion: app.reducedMotion
+            onPicked: key => app.setAppSort(key)
         }
-        width: Tokens.px(240)
-        height: 36
-        visible: app.appsBrowse
-        enabled: !app.detailOpen
-        value: app.appsQuery
-        placeholder: I18n.tr("Search apps")
-        fieldObjectName: "ryostore-apps-search-field"
-        onEdited: value => app.setAppsQuery(value)
-        onCleared: {
-            app.setAppsQuery("");
-            productGrid.forceActiveFocus();
+
+        CategorySearch {
+            id: appsSearch
+            objectName: "ryostore-apps-search"
+            anchors { right: parent.right; rightMargin: Tokens.s6 }
+            y: app.narrowAppsTools ? 52 : 4
+            width: Tokens.px(240)
+            height: 36
+            value: app.appsQuery
+            placeholder: I18n.tr("Search apps")
+            fieldObjectName: "ryostore-apps-search-field"
+            onEdited: value => app.setAppsQuery(value)
+            onCleared: {
+                app.setAppsQuery("");
+                productGrid.forceActiveFocus();
+            }
+            onAccepted: if (app.selectedItem) app.openSelectedDetail()
         }
-        onAccepted: if (app.selectedItem) app.openSelectedDetail()
     }
 
     ProductGrid {
@@ -850,9 +852,7 @@ Rectangle {
         objectName: "ryostore-grid"
         anchors {
             left: header.right; leftMargin: Tokens.s6
-            top: app.appsBrowse
-                    ? (app.narrowAppsTools ? appsSearch.bottom : appsSort.bottom)
-                    : stage.bottom
+            top: app.appsBrowse ? appsTools.bottom : stage.bottom
             right: parent.right; rightMargin: Tokens.s6
             bottom: actionBar.top
             topMargin: app.appsBrowse ? Tokens.s3 : 0

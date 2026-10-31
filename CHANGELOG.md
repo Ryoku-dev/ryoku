@@ -22,6 +22,8 @@ for finer detail.
 - RyoStore category pages now list products A to Z and include a search field
   that filters only the open category. The Apps marketplace keeps its Flathub
   rankings and adds an explicit A-to-Z sort.
+- The Apps marketplace gives its sort chips and scoped search separate rows on
+  narrow windows, so neither overlaps the compact app grid.
 - Users on filtered networks can route `ryoku update` and pacman through a
   local HTTP proxy without weakening package signature checks.
 - Screenshots no longer pick up the animated pointer when a cursor effect has

@@ -80,6 +80,15 @@ ShellRoot {
             if (root.phase === 1) {
                 if (!app.appsBrowse)
                     return;
+                if (root.captureWidth < 980) {
+                    root.require(app.narrowAppsTools, "narrow Apps tools breakpoint");
+                    const tools = root.findObject(app, "ryostore-apps-tools");
+                    const search = root.findObject(app, "ryostore-apps-search");
+                    root.require(tools && search && tools.height >= 88,
+                                 "narrow Apps tools reserve a second row");
+                    root.require(search.y >= 44,
+                                 "narrow Apps search sits below the sort chips");
+                }
                 root.require(root.findObject(app, "ryostore-apps-hero") !== null, "featured hero is mounted");
                 root.require(root.findObject(app, "ryostore-apps-sort") !== null, "sort strip is mounted");
                 const grid = root.findObject(app, "ryostore-grid");
@@ -119,7 +128,7 @@ ShellRoot {
             }
 
             if (root.phase === 4) {
-                if (app.detailOpen || !app.appsBrowse)
+                if (app.detailOpen || app.detailItem !== null || !app.appsBrowse)
                     return;
                 root.require(app.selectedKey === "flatpak:org.example.Beta", "closing the detail restores the app selection");
                 root.require(app.appSort === "popular", "closing the detail keeps the chosen sort");
