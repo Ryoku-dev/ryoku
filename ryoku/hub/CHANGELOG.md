@@ -17,6 +17,9 @@
   reconciled once Hyprland finishes loading its startup plugins, so the glass
   effect no longer needs to be switched off and on after each login
   (`../wm/hyprland/config_plugins.go`).
+- **Updates does not offer an empty run.** A current box labels the action
+  `UP TO DATE` and disables it; selecting `INCLUDE SYSTEM` enables `UPDATE NOW`
+  only when system packages are waiting (`quickshell/pages/UpdatesPage.qml`).
 - **Bluetooth can recover when rfkill hides the adapter.** Connections shows
   the software-blocked state and keeps its power switch available so the shared
   helper can bring the controller back (`quickshell/pages/ConnectionsPage.qml`).
