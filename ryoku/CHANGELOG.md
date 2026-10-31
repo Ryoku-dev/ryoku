@@ -17,6 +17,9 @@
   HDR switching starts off on Hyprland, while Settings offers an opt-in switch
   for panels that handle the mode change (`hyprland/modules/render.lua`,
   `wm/hyprland/`).
+- **Hyprland no longer draws its splash text at startup.** Splash rendering is
+  off beside the already disabled logo, so the first frame is the wallpaper
+  (`hyprland/modules/misc.lua`, contributed by feelyourwarmth).
 - **Holding a mute, mic-mute or play key on niri toggles once.** niri repeats
   binds while a key is held, so a slightly long press could mute and unmute
   the microphone again or pause and resume playback; these toggles now ignore
