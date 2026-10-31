@@ -11,6 +11,10 @@
 - **Dock designs can sit closer to the screen edge.** The Stage Editor's edge
   gap now accepts negative values while every design keeps its hover and reserved
   regions inside the screen (`quickshell/{stage,shell/modules/dock,inir/modules/iris/dock}/`).
+- **Wallpaper Engine scenes show their real preview and name in Workshop.**
+  Animated previews reduce to a still, unsupported project textures fall back
+  to a bundled image, and scenes without artwork keep a labelled colour card
+  (`ryogami/{daemon,picker}/`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service
