@@ -97,6 +97,9 @@ func readInputs(repo, release, version, commit, channel string) (ryokumanifest.I
 	if in.AUR, err = read("system/packages/aur.packages"); err != nil {
 		return in, fmt.Errorf("aur.packages: %w", err)
 	}
+	if in.CachyOSReplaces, err = read("system/packages/cachyos.replaces"); err != nil {
+		return in, fmt.Errorf("cachyos.replaces: %w", err)
+	}
 	if in.FirstParty, err = readDirBodies(filepath.Join(repo, "release/packages"), "PKGBUILD"); err != nil {
 		return in, fmt.Errorf("release/packages: %w", err)
 	}
