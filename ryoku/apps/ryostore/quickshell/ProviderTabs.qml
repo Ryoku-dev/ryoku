@@ -26,9 +26,11 @@ Item {
     component Plate: Rectangle {
         id: plate
         property string label: ""
+        property string note: ""
         property bool on: false
         signal chose()
-        width: plateText.implicitWidth + Tokens.s4
+        width: plateText.implicitWidth + (noteText.visible ? noteText.implicitWidth + Tokens.s2 : 0)
+                + Tokens.s4
         height: 30
         radius: Tokens.radius
         color: plate.on ? Tokens.bone
@@ -58,18 +60,31 @@ Item {
                 event.accepted = true;
             }
         }
-        Text {
-            id: plateText
+        Row {
             anchors.centerIn: parent
-            text: I18n.tr(plate.label)
-            color: plate.on ? Tokens.inkOnBone : (plate.activeFocus ? Tokens.ink : Tokens.inkDim)
-            font.family: Tokens.ui
-            font.pixelSize: 11
-            font.weight: Font.Medium
-            font.letterSpacing: Tokens.trackLabel
-            Behavior on color {
-                enabled: !tabs.reducedMotion
-                ColorAnimation { duration: Tokens.snap }
+            spacing: Tokens.s2
+
+            Text {
+                id: plateText
+                text: I18n.tr(plate.label)
+                color: plate.on ? Tokens.inkOnBone : (plate.activeFocus ? Tokens.ink : Tokens.inkDim)
+                font.family: Tokens.ui
+                font.pixelSize: 11
+                font.weight: Font.Medium
+                font.letterSpacing: Tokens.trackLabel
+                Behavior on color {
+                    enabled: !tabs.reducedMotion
+                    ColorAnimation { duration: Tokens.snap }
+                }
+            }
+            Text {
+                id: noteText
+                visible: plate.note !== ""
+                text: plate.note
+                color: plate.on ? Tokens.inkOnBone : Tokens.inkMuted
+                font.family: Tokens.mono
+                font.pixelSize: Tokens.fTiny
+                font.letterSpacing: Tokens.trackLabel
             }
         }
         HoverHandler { id: ph; cursorShape: Qt.PointingHandCursor }
@@ -112,6 +127,7 @@ Item {
                             ? String(modelData.label) : String(modelData)
                     objectName: "ryostore-provider-" + entryKey
                     label: entryLabel.toUpperCase()
+                    note: modelData && modelData.note !== undefined ? String(modelData.note) : ""
                     on: tabs.active === entryKey
                     onChose: tabs.picked(entryKey)
                 }
@@ -124,6 +140,16 @@ Item {
                 onChose: tabs.picked(tabs.trailingKey)
             }
         }
+
+        WheelHandler {
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: event => {
+                const maxX = Math.max(0, strip.contentWidth - strip.width);
+                strip.contentX = Math.max(0, Math.min(maxX,
+                        strip.contentX - event.angleDelta.y - event.angleDelta.x));
+                event.accepted = true;
+            }
+        }
     }
 
     Btn {
@@ -131,6 +157,7 @@ Item {
         objectName: "ryostore-provider-install-all"
         anchors { right: parent.right; rightMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
         visible: tabs.active !== "" && tabs.active !== "__mine__" && tabs.installableCount > 0
+        width: visible ? implicitWidth : 0
         text: tabs.busy ? I18n.tr("INSTALLING") : (I18n.tr("INSTALL ALL / ") + tabs.installableCount)
         armed: !tabs.busy
         onAct: tabs.installAll()

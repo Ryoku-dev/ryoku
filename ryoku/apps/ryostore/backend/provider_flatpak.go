@@ -16,6 +16,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -29,10 +30,14 @@ const (
 	flathubSearchHits  = 30
 	flathubQueryMin    = 2
 	flathubQueryMax    = 100
-	flathubCache       = "flathub-popular.json"
+	flathubCache       = "flathub-catalogue.json"
 	flatpakTimeout     = 30 * time.Minute
 	flatpakUpdateProbe = 20 * time.Second
 )
+
+// The four collections the store ranks by. Popular stays first so an
+// unrequested order matches the old catalogue.
+var flathubCollections = []string{"popular", "trending", "recently-added", "recently-updated"}
 
 var flatpakIDPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$`)
 
@@ -52,6 +57,8 @@ type flathubHit struct {
 	Verified          bool     `json:"verification_verified"`
 	Arches            []string `json:"arches"`
 	AddedAt           int64    `json:"added_at"`
+	UpdatedAt         int64    `json:"updated_at"`
+	Trending          float64  `json:"trending"`
 	InstallsLastMonth int64    `json:"installs_last_month"`
 }
 
@@ -128,7 +135,7 @@ func (flatpakProvider) Category() Category {
 		ID:          flatpakCategory,
 		Name:        "Apps",
 		Group:       "EXTEND",
-		Description: "Popular applications from Flathub, installed with Flatpak. Flathub is a third-party source: Ryostore does not review these.",
+		Description: "Applications from Flathub, installed with Flatpak. Flathub is a third-party source: Ryostore does not review these.",
 	}
 }
 
@@ -161,7 +168,7 @@ func parseFlatpakList(out []byte) []installedFlatpak {
 }
 
 func (p flatpakProvider) Load(ctx context.Context, refresh bool) ([]Item, SourceState, error) {
-	hits, state, err := p.popular(ctx, refresh)
+	hits, state, err := p.catalogue(ctx, refresh)
 	var installed []installedFlatpak
 	if p.present() && p.installed != nil {
 		installed, _ = p.installed(ctx)
@@ -335,7 +342,7 @@ func hasArch(arches []string, arch string) bool {
 	return false
 }
 
-func (p flatpakProvider) popular(ctx context.Context, refresh bool) ([]flathubHit, SourceState, error) {
+func (p flatpakProvider) catalogue(ctx context.Context, refresh bool) ([]flathubHit, SourceState, error) {
 	file := filepath.Join(extrasCacheDir(), flathubCache)
 	if !refresh {
 		if info, err := os.Stat(file); err == nil && time.Since(info.ModTime()) < 6*time.Hour {
@@ -344,14 +351,14 @@ func (p flatpakProvider) popular(ctx context.Context, refresh bool) ([]flathubHi
 			}
 		}
 	}
-	raw, err := p.fetchPopular(ctx)
+	hits, complete, err := p.fetchCollections(ctx)
 	if err == nil {
-		if hits, derr := decodeFlathub(raw); derr == nil {
-			_ = atomicWrite(file, raw, 0o644)
-			return hits, SourceState{}, nil
-		} else {
-			err = derr
+		if complete {
+			if raw, merr := json.Marshal(flathubCollection{Hits: hits}); merr == nil {
+				_ = atomicWrite(file, raw, 0o644)
+			}
 		}
+		return hits, SourceState{}, nil
 	}
 	if archived := mustRead(file); len(archived) > 0 {
 		if hits, derr := decodeFlathub(archived); derr == nil {
@@ -363,6 +370,59 @@ func (p flatpakProvider) popular(ctx context.Context, refresh bool) ([]flathubHi
 		}
 	}
 	return nil, SourceState{}, fmt.Errorf("flathub: %w", err)
+}
+
+// fetchCollections merges the ranking collections by app id. A partial failure
+// keeps the collections that answered and reports complete as false.
+func (p flatpakProvider) fetchCollections(ctx context.Context) ([]flathubHit, bool, error) {
+	type result struct {
+		hits []flathubHit
+		err  error
+	}
+	results := make([]result, len(flathubCollections))
+	var wg sync.WaitGroup
+	for i, name := range flathubCollections {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			raw, err := p.fetchCollection(ctx, name)
+			if err != nil {
+				results[i].err = err
+				return
+			}
+			hits, err := decodeFlathub(raw)
+			results[i] = result{hits: hits, err: err}
+		}()
+	}
+	wg.Wait()
+
+	var merged []flathubHit
+	seen := map[string]bool{}
+	complete := true
+	var firstErr error
+	for _, r := range results {
+		if r.err != nil {
+			complete = false
+			if firstErr == nil {
+				firstErr = r.err
+			}
+			continue
+		}
+		for _, hit := range r.hits {
+			if seen[hit.AppID] {
+				continue
+			}
+			seen[hit.AppID] = true
+			merged = append(merged, hit)
+		}
+	}
+	if len(merged) == 0 {
+		if firstErr == nil {
+			firstErr = errors.New("empty collection")
+		}
+		return nil, false, firstErr
+	}
+	return merged, complete, nil
 }
 
 func mustRead(path string) []byte {
@@ -389,8 +449,8 @@ func decodeFlathub(raw []byte) ([]flathubHit, error) {
 	return c.Hits, nil
 }
 
-func (p flatpakProvider) fetchPopular(ctx context.Context) ([]byte, error) {
-	return p.flathub(ctx, http.MethodGet, fmt.Sprintf("/collection/popular?page=1&per_page=%d", flathubPageSize), nil)
+func (p flatpakProvider) fetchCollection(ctx context.Context, name string) ([]byte, error) {
+	return p.flathub(ctx, http.MethodGet, fmt.Sprintf("/collection/%s?page=1&per_page=%d", url.PathEscape(name), flathubPageSize), nil)
 }
 
 func (p flatpakProvider) flathub(ctx context.Context, method, path string, payload any) ([]byte, error) {
@@ -453,6 +513,16 @@ func flatpakItem(hit flathubHit, owned installedFlatpak, unavailable string) Ite
 	if hit.Verified {
 		verification = "verified"
 	}
+	metadata := map[string]any{
+		"provider":          "Flathub",
+		"installsLastMonth": hit.InstallsLastMonth,
+	}
+	if hit.Trending > 0 {
+		metadata["trending"] = hit.Trending
+	}
+	if hit.UpdatedAt > 0 {
+		metadata["updatedAt"] = time.Unix(hit.UpdatedAt, 0).UTC().Format(time.RFC3339)
+	}
 	item := Item{
 		ID:                 hit.AppID,
 		Category:           flatpakCategory,
@@ -468,10 +538,7 @@ func flatpakItem(hit flathubHit, owned installedFlatpak, unavailable string) Ite
 		Tags:               flathubTags(hit),
 		Installed:          owned.ID != "",
 		InstalledVersion:   owned.Version,
-		Metadata: map[string]any{
-			"provider":          "Flathub",
-			"installsLastMonth": hit.InstallsLastMonth,
-		},
+		Metadata:           metadata,
 	}
 	if hit.AddedAt > 0 {
 		item.ListedAt = time.Unix(hit.AddedAt, 0).UTC().Format(time.RFC3339)
