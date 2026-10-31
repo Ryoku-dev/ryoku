@@ -19,6 +19,10 @@
   wait until Quickshell's reader is ready, retry brief startup races, and apply
   the stored layout when the widget catalogue arrives
   (`quickshell/shell/modules/bar/barstyles/qsbar/`, `../ui/DeferredFileView.qml`).
+- **Ryoshot opens image searches directly in Google Lens again.** Captures now
+  use a private local form, honour the chosen browser before system fallbacks,
+  and clean up after the browser has read it. Contributed by Ronin-CK
+  (`quickshell/ryoshot/shell.qml`, `scripts/ryoku-cmd-google-lens`).
 - **Shima and Python dock icons stay visible and clickable with the Shima bar.**
   Their icon surfaces now stay above Shima's full-output chassis, and Python
   reads each pinned app's bound entry before launching through the shared service

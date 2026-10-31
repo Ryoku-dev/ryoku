@@ -657,7 +657,7 @@ ShellRoot {
             break;
         case "search":
             root.shutter();
-            searchProc.run(path);
+            searchProc.run(path, false);
             root.quitSoon();
             break;
         default:
@@ -693,15 +693,15 @@ ShellRoot {
         runOcr({ x: g.x, y: g.y }, { x: g.x + g.w, y: g.y + g.h });
     }
 
-    // Crop, upload, then hand the URL to a reverse-image search, matching iRiS.
+    // Allocate the capture before writing it so its mode and ownership are fixed.
     function doSearchRegion() {
-        var tmp = "/tmp/ryoshot-search-" + Date.now() + ".png";
-        grabTo(tmp, function (ok) {
-            if (!ok) { Qt.quit(); return; }
-            root.shutter();
-            searchProc.run(tmp);
+        if (runtimeDir.length === 0) {
+            root.notifySend(I18n.tr("Image search failed"),
+                I18n.tr("Private temporary storage is unavailable"));
             root.quitSoon();
-        });
+            return;
+        }
+        searchTempProc.run();
     }
 
     // Hand the region to the shell's recorder; the daemon owns
@@ -1485,26 +1485,44 @@ ShellRoot {
         }
     }
 
-    // Direct Google Lens reverse search via local auto-submitting form.
-    Process {
+    QtObject {
         id: searchProc
-        function run(file) {
-            command = ["sh", "-c",
-                "crop=\"/tmp/ryoshot-lens-$$.jpg\"\n" +
-                "html=\"/tmp/ryoshot-lens-$$.html\"\n" +
-                "magick \"$1\" -resize '1000x1000>' -strip -quality 85 \"$crop\" 2>/dev/null || crop=\"$1\"\n" +
-                "b64=$(base64 -w0 \"$crop\" 2>/dev/null || base64 \"$crop\")\n" +
-                "cat <<EOF > \"$html\"\n" +
-                "<!DOCTYPE html><html><body style=\"margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:#fff;font-family:system-ui\"><p>Searching with Google Lens…</p><form id=\"f\" method=\"POST\" enctype=\"multipart/form-data\" action=\"https://lens.google.com/v3/upload\"></form><script>var b=atob(\"$b64\"),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);var d=new DataTransfer();d.items.add(new File([a],\"i.jpg\",{type:\"image/jpeg\"}));var inp=document.createElement(\"input\");inp.type=\"file\";inp.name=\"encoded_image\";inp.files=d.files;document.getElementById(\"f\").appendChild(inp);document.getElementById(\"f\").submit();</script></body></html>\n" +
-                "EOF\n" +
-                "b=$(xdg-settings get default-web-browser 2>/dev/null)\n" +
-                "cls=\"${b%.desktop}\"\n" +
-                "( gtk-launch \"$b\" \"$html\" 2>/dev/null || xdg-open \"$html\" ) &\n" +
-                "sleep 0.15\n" +
-                "hyprctl dispatch \"hl.dsp.focus({ window = \\\"class:${cls:-zen}\\\" })\" >/dev/null 2>&1 || true\n" +
-                "(sleep 15; rm -f -- \"$1\" \"$crop\" \"$html\") &\n",
-                "sh", file];
+        function run(file, removeInput) {
+            var args = ["ryoku-cmd-google-lens", "--file", file];
+            if (removeInput) args.push("--remove-input");
+            Spawn.runApp(args, { label: "image-search" });
+        }
+    }
+
+    Process {
+        id: searchTempProc
+        stdout: StdioCollector { id: searchTempOut; waitForEnd: true }
+        stderr: StdioCollector { waitForEnd: true }
+
+        function run() {
+            command = ["mktemp", "--tmpdir=" + root.runtimeDir,
+                "ryoshot-search-XXXXXXXX.png"];
             running = true;
+        }
+
+        onExited: (code) => {
+            var path = searchTempOut.text.trim();
+            if (code !== 0 || path.length === 0) {
+                root.notifySend(I18n.tr("Image search failed"),
+                    I18n.tr("Could not prepare a private capture"));
+                root.quitSoon();
+                return;
+            }
+            root.grabTo(path, function (ok) {
+                if (!ok) {
+                    Quickshell.execDetached(["rm", "-f", "--", path]);
+                    root.quitSoon();
+                    return;
+                }
+                root.shutter();
+                searchProc.run(path, true);
+                root.quitSoon();
+            });
         }
     }
 

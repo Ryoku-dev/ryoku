@@ -1,46 +1,143 @@
 #!/usr/bin/env bash
-# grab a region, dump it to uguu.se, hand the URL to Google Lens. grim+slurp
-# pick, curl+jq do the upload + read back the URL, xdg-open opens the search.
-# --file IMAGE skips the grab.
 set -euo pipefail
 
 app="Google Lens"
-need() { command -v "$1" >/dev/null 2>&1 || { notify-send -u normal "$app" "$1 is not installed"; exit 1; }; }
-
 input_file=""
-if [[ ${1:-} == "--file" ]]; then
-  [[ -n ${2:-} ]] || { notify-send -u critical "$app" "Missing image path"; exit 2; }
-  input_file="$2"; shift 2
+remove_input=false
+
+notify_failure() {
+	notify-send -u critical "$app" "$1" 2>/dev/null || true
+}
+
+while (( $# > 0 )); do
+	case "$1" in
+	--file)
+		[[ -n ${2:-} ]] || { notify_failure "Missing image path"; exit 2; }
+		input_file="$2"
+		shift 2
+		;;
+	--remove-input)
+		remove_input=true
+		shift
+		;;
+	*)
+		notify_failure "Usage: ryoku-cmd-google-lens [--file IMAGE] [--remove-input]"
+		exit 2
+		;;
+	esac
+done
+
+runtime="${XDG_RUNTIME_DIR:-}"
+if [[ -z $runtime || ! -d $runtime || ! -w $runtime || ! -O $runtime ]]; then
+	notify_failure "Private temporary storage is unavailable"
+	exit 1
 fi
-(( $# == 0 )) || { notify-send -u critical "$app" "Usage: ryoku-cmd-google-lens [--file IMAGE]"; exit 2; }
 
-for c in curl jq notify-send xdg-open; do need "$c"; done
-
-tmp="$input_file"
-if [[ -z $tmp ]]; then
-  for c in grim slurp; do need "$c"; done
-  tmp="$(mktemp "${XDG_RUNTIME_DIR:-/tmp}/ryoku-google-lens.XXXXXX.png")"
-  trap 'rm -f "$tmp"' EXIT
+umask 077
+if [[ -z $input_file ]]; then
+	for command in grim slurp; do
+		command -v "$command" >/dev/null 2>&1 || {
+			notify_failure "$command is not installed"
+			exit 1
+		}
+	done
+	input_file=$(mktemp --tmpdir="$runtime" ryoku-google-lens-XXXXXXXX.png)
+	remove_input=true
+	geometry=$(slurp 2>/dev/null) || {
+		rm -f -- "$input_file"
+		exit 130
+	}
+	[[ -n $geometry ]] || {
+		rm -f -- "$input_file"
+		exit 0
+	}
+	ryoku-cmd-grim -g "$geometry" "$input_file"
 fi
 
-if [[ -n $input_file ]]; then
-  [[ -r $tmp ]] || { notify-send -u critical "$app" "Cannot read image at $tmp"; exit 1; }
+[[ -r $input_file ]] || {
+	notify_failure "Could not read the captured image"
+	exit 1
+}
+crop=""
+html=""
+cleanup() {
+	[[ -z $crop ]] || rm -f -- "$crop"
+	[[ -z $html ]] || rm -f -- "$html"
+	if $remove_input; then
+		rm -f -- "$input_file"
+	fi
+}
+trap cleanup EXIT HUP INT TERM
+
+crop=$(mktemp --tmpdir="$runtime" ryoshot-lens-XXXXXXXX.jpg)
+html=$(mktemp --tmpdir="$runtime" ryoshot-lens-XXXXXXXX.html)
+
+if command -v magick >/dev/null 2>&1; then
+	magick "$input_file" -resize '1000x1000>' -strip -quality 85 "$crop" 2>/dev/null ||
+		cp -- "$input_file" "$crop"
 else
-  # slurp nonzero = Esc/cancel. bail quietly.
-  geometry="$(slurp 2>/dev/null)" || exit 130
-  [[ -n $geometry ]] || exit 0
-  ryoku-cmd-grim -g "$geometry" "$tmp"
+	cp -- "$input_file" "$crop"
 fi
 
-notify-send -u low "$app" "Uploading region and opening Google Lens"
-
-if ! response="$(curl -fsS --connect-timeout 10 --max-time 45 -F "files[]=@$tmp" https://uguu.se/upload)"; then
-  notify-send -u critical "$app" "Image upload failed"
-  exit 1
+if ! b64=$(base64 -w0 "$crop" 2>/dev/null); then
+	b64=$(base64 "$crop" 2>/dev/null | tr -d '\n') || {
+		notify_failure "Could not prepare the captured image"
+		exit 1
+	}
 fi
 
-remote_url="$(printf '%s' "$response" | jq -r '.files[0].url // .files[0].src // empty')"
-[[ -n $remote_url ]] || { notify-send -u critical "$app" "Upload response had no image URL"; exit 1; }
+cat >"$html" <<EOF
+<!DOCTYPE html><html><body style="margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#111;color:#fff;font-family:system-ui"><p>Searching with Google Lens…</p><form id="f" method="POST" enctype="multipart/form-data" action="https://lens.google.com/v3/upload"></form><script>var b=atob("$b64"),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);var d=new DataTransfer();d.items.add(new File([a],"i.jpg",{type:"image/jpeg"}));var inp=document.createElement("input");inp.type="file";inp.name="encoded_image";inp.files=d.files;document.getElementById("f").appendChild(inp);document.getElementById("f").submit();</script></body></html>
+EOF
 
-encoded_url="$(jq -nr --arg url "$remote_url" '$url|@uri')"
-xdg-open "https://www.google.com/searchbyimage?image_url=$encoded_url" >/dev/null 2>&1
+url="file://$html"
+
+launch_command() {
+	local command_string="$1"
+	local -a argv=()
+	read -r -a argv <<<"$command_string"
+	[[ ${#argv[@]} -gt 0 ]] || return 1
+	command -v "${argv[0]}" >/dev/null 2>&1 || return 1
+	"${argv[@]}" "$url" >/dev/null 2>&1 &
+}
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+configured=""
+if command -v jq >/dev/null 2>&1; then
+	configured=$(jq -r '.desktop.apps.browser // empty' \
+		"$config_home/ryoku/desktop.json" 2>/dev/null || true)
+fi
+
+opened=false
+if [[ -n $configured ]] && launch_command "$configured"; then
+	opened=true
+fi
+
+if ! $opened && command -v xdg-settings >/dev/null 2>&1 &&
+	command -v gtk-launch >/dev/null 2>&1; then
+	desktop=$(xdg-settings get default-web-browser 2>/dev/null || true)
+	if [[ $desktop == *.desktop ]] &&
+		gtk-launch "$desktop" "$url" >/dev/null 2>&1; then
+		opened=true
+	fi
+fi
+
+if ! $opened && [[ -n ${BROWSER:-} ]] && launch_command "${BROWSER%%:*}"; then
+	opened=true
+fi
+
+if ! $opened; then
+	for candidate in firefox chromium zen zen-browser google-chrome; do
+		if launch_command "$candidate"; then
+			opened=true
+			break
+		fi
+	done
+fi
+
+if ! $opened; then
+	notify_failure "No web browser is available. Pick one in Settings > Default Apps."
+	exit 1
+fi
+
+sleep 15
