@@ -84,6 +84,7 @@ Singleton {
         && !(root.nomarchy && root.nomarchy.notifications === false))
         || (barStyle === "iris" && (root.inir?.iris?.modules?.notificationPopup ?? true))
         || barStyle === "tansu"
+        || barStyle === "caelestia"
         || (barStyle === "gokko" && BarProducts.gokkoReady)
     // Only a style that plays its own notification sound silences the shell's
     // cue; Nomarchy and Tansu draw banners but play nothing themselves.
@@ -95,6 +96,7 @@ Singleton {
         || (barStyle === "nomarchy"
         && !(root.nomarchy && root.nomarchy.osd === false))
         || (barStyle === "iris" && (root.inir?.iris?.modules?.osd ?? true))
+        || barStyle === "caelestia"
 
     // Super+Space, Super+V, Super+comma and Super+K reach the active style's
     // own surface when it has one; otherwise the shell's own surface opens.
