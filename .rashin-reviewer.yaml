@@ -21,10 +21,12 @@ tools:
 
 rules:
   allow:
-    # Wallpapers, fonts and the prebuilt shell installer are large on purpose.
+    # Wallpapers, fonts, the prebuilt shell installer and vendored upstream
+    # source bundles are large on purpose.
     large-file:
       - "ryoku/assets/wallpapers/**"
       - "**/fonts/**"
       - "ryoku-shell-installer/ryoku-shell-install"
+      - "release/packages/*/*.bundle"
     # The R2 retention Worker logs through console.log; wrangler tail reads it.
     debug-leftover: ["release/r2-retention/**"]

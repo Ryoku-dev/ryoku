@@ -1,6 +1,11 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The key-sound profiles build from a vendored Mechvibes bundle.** Upstream
+  rewrote its history for Mechvibes 3 and the pinned commit vanished, which
+  failed every publish at `ryoku-keysounds-profiles`. The eleven packs and
+  their licence now ship as `mechvibes.bundle` beside the recipe, used by the
+  Arch, Fedora, Void and Nix builds and the plugin Makefile.
 - **The desktop package carries the Zsh startup template.** Fresh installers and
   Doctor can seed it without relying on CachyOS skeleton files or replacing a
   user's `.zshrc`.

@@ -4,16 +4,16 @@
 }:
 
 let
-  mechvibesSrc = pkgs.fetchFromGitHub {
-    owner = "hainguyents13";
-    repo = "mechvibes";
-
-    rev = "326252a13e7bef4f1c35d08ef0189b5af6f8ba02";
-
-    # Exact source used by Ryoku 0.59.7 for the shipped switch
-    # recording profiles.
-    hash = "sha256-+pEyeTzOLQXwGltFuRGGzTl0jFz8Jwbj2/u8Yiu6nmE=";
-  };
+  # The eleven Mechvibes packs the shipped profiles use, vendored as a git
+  # bundle beside the Arch recipe (upstream rewrote its history for Mechvibes 3
+  # and the pinned commit is gone), unpacked here without touching the network.
+  mechvibesSrc = pkgs.runCommand "mechvibes-src" {
+    nativeBuildInputs = [ pkgs.git ];
+  } ''
+    git clone -q ${src}/release/packages/ryoku-keysounds-profiles/mechvibes.bundle $out
+    git -C $out checkout -q 8d18b40792c7ce859a898ce0e840a0c01112888c
+    rm -rf $out/.git
+  '';
 in
 
 pkgs.hyprlandPlugins.mkHyprlandPlugin {
