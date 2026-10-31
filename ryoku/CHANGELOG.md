@@ -10,6 +10,9 @@
   mode. It now probes by DRM driver, keeps only connectors sysfs reports on the
   chosen card, and starts weston at once when the card cannot be probed
   (`lockscreen/sddm/ryoku-greeter`).
+- **Super+Arrow crosses screens from fullscreen windows again.** The shortcuts
+  now use Hyprland's width and height fields and fall back to normal directional
+  focus when monitor geometry is unavailable (`hyprland/modules/binds.lua`).
 - **Holding a mute, mic-mute or play key on niri toggles once.** niri repeats
   binds while a key is held, so a slightly long press could mute and unmute
   the microphone again or pause and resume playback; these toggles now ignore
