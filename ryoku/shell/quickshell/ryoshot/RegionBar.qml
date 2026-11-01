@@ -20,6 +20,30 @@ Item {
     property bool keypressesOn: false
     property bool webcamOn: false
     property int delaySeconds: 0
+    property bool hintsVisible: true
+
+    Timer {
+        id: hintTimer
+        interval: 1400
+        onTriggered: bar.hintsVisible = false
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            hintsVisible = true;
+            hintTimer.restart();
+        } else {
+            hintTimer.stop();
+            hintsVisible = false;
+        }
+    }
+
+    Component.onCompleted: {
+        if (visible) {
+            hintsVisible = true;
+            hintTimer.restart();
+        }
+    }
 
     signal actionPicked(string id)
     signal colorPickRequested()
@@ -67,6 +91,7 @@ Item {
                             id: tab
                             required property var modelData
                             readonly property bool current: bar.activeAction === modelData.id
+                            readonly property bool showKey: bar.hintsVisible && !!(tab.modelData && tab.modelData.key)
                             width: tabContent.implicitWidth + 22
                             height: 34
                             radius: height / 2
@@ -77,6 +102,7 @@ Item {
                                 id: tabContent
                                 anchors.centerIn: parent
                                 spacing: 6
+
                                 Icon {
                                     anchors.verticalCenter: parent.verticalCenter
                                     name: tab.modelData.icon
@@ -84,14 +110,50 @@ Item {
                                     tint: tab.current ? Theme.accentInk
                                         : (tabMa.containsMouse ? Theme.ink : Theme.inkDim)
                                 }
-                                Text {
+                                Row {
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: tab.modelData.label
-                                    font.family: Theme.ui
-                                    font.pixelSize: 13
-                                    font.weight: tab.current ? Font.DemiBold : Font.Normal
-                                    color: tab.current ? Theme.accentInk
-                                        : (tabMa.containsMouse ? Theme.ink : Theme.inkDim)
+                                    spacing: tab.showKey ? 5 : 0
+                                    Behavior on spacing {
+                                        NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: tab.modelData.label
+                                        font.family: Theme.ui
+                                        font.pixelSize: 13
+                                        font.weight: tab.current ? Font.DemiBold : Font.Normal
+                                        color: tab.current ? Theme.accentInk
+                                            : (tabMa.containsMouse ? Theme.ink : Theme.inkDim)
+                                    }
+                                    Item {
+                                        id: keySlot
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: tab.showKey ? keyText.implicitWidth : 0
+                                        height: keyText.implicitHeight
+                                        clip: true
+                                        visible: tab.showKey || width > 0
+
+                                        Behavior on width {
+                                            NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                                        }
+
+                                        Text {
+                                            id: keyText
+                                            anchors.centerIn: parent
+                                            text: (tab.modelData && tab.modelData.key ? tab.modelData.key : "").toUpperCase()
+                                            font.family: Theme.mono
+                                            font.pixelSize: 10
+                                            font.weight: Font.Medium
+                                            color: tab.current ? Theme.accentInk
+                                                : (tabMa.containsMouse ? Theme.inkDim : Theme.inkFaint)
+                                            opacity: tab.showKey ? (tab.current ? 0.8 : 0.55) : 0
+
+                                            Behavior on opacity {
+                                                NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -189,13 +251,13 @@ Item {
             IconButton {
                 Layout.alignment: Qt.AlignVCenter
                 icon: "eyedropper"
-                tooltip: I18n.tr("Pick a colour")
+                tooltip: I18n.tr("Pick a colour") + "  (C)"
                 onClicked: bar.colorPickRequested()
             }
             IconButton {
                 Layout.alignment: Qt.AlignVCenter
                 icon: "fullscreen"
-                tooltip: I18n.tr("Capture this monitor")
+                tooltip: I18n.tr("Capture this monitor") + "  (Enter)"
                 onClicked: bar.fullscreenRequested()
             }
             IconButton {
