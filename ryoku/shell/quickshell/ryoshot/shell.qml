@@ -122,11 +122,11 @@ ShellRoot {
     // capture and colour pick know which output the cursor sits on.
     property var lastPointer: null
     readonly property var frontActions: [
-        { id: "shot",   icon: "camera", label: I18n.tr("Shot") },
-        { id: "edit",   icon: "pen",    label: I18n.tr("Edit") },
-        { id: "ocr",    icon: "ocr",    label: I18n.tr("OCR") },
-        { id: "search", icon: "magnify", label: I18n.tr("Search") },
-        { id: "record", icon: "video",  label: I18n.tr("Record") }
+        { id: "shot",   icon: "camera",  label: I18n.tr("Shot"),   key: "s" },
+        { id: "edit",   icon: "pen",     label: I18n.tr("Edit"),   key: "e" },
+        { id: "ocr",    icon: "ocr",     label: I18n.tr("OCR"),    key: "o" },
+        { id: "search", icon: "magnify", label: I18n.tr("Search"), key: "f" },
+        { id: "record", icon: "video",   label: I18n.tr("Record"), key: "r" }
     ]
     // RYOSHOT_OPEN=<path>: skip selection and open that image straight in the
     // beautify editor. fromFile makes Escape / close quit, since there is no live
@@ -1467,15 +1467,29 @@ ShellRoot {
             }
             return false;
         }
+        var ctrl = (e.modifiers & Qt.ControlModifier) !== 0;
+        var alt = (e.modifiers & Qt.AltModifier) !== 0;
+        var shift = (e.modifiers & Qt.ShiftModifier) !== 0;
+
         if (e.key === Qt.Key_Space) { root.cycleTarget(); return true; }
-        if (e.key === Qt.Key_A && (e.modifiers & Qt.ControlModifier)) { root.wholeMonitor(); return true; }
-        if (e.key === Qt.Key_Question) { root.shortcutsOpen = !root.shortcutsOpen; return true; }
-        // Number keys pick the action; the count matches frontActions.
+        if (ctrl && e.key === Qt.Key_A) { root.wholeMonitor(); return true; }
+        if (e.key === Qt.Key_Question || (shift && e.key === Qt.Key_Slash)) {
+            root.shortcutsOpen = !root.shortcutsOpen;
+            return true;
+        }
+        if (ctrl || alt) return false;
+
+        // Number keys or action mnemonics pick the action.
         if (e.key >= Qt.Key_1 && e.key <= Qt.Key_5) {
             var d = root.frontActions[e.key - Qt.Key_1];
             if (d) { root.setFrontAction(d.id); return true; }
             return false;
         }
+        if (e.key === Qt.Key_S) { root.setFrontAction("shot"); return true; }
+        if (e.key === Qt.Key_E) { root.setFrontAction("edit"); return true; }
+        if (e.key === Qt.Key_O) { root.setFrontAction("ocr"); return true; }
+        if (e.key === Qt.Key_F) { root.setFrontAction("search"); return true; }
+        if (e.key === Qt.Key_R) { root.setFrontAction("record"); return true; }
         if (e.key === Qt.Key_C) { root.startColorPick(); return true; }
         if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
             var m = root.lastPointer ? root.monitorAt(root.lastPointer.x, root.lastPointer.y) : null;
