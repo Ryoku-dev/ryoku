@@ -62,9 +62,19 @@ Rectangle {
     property bool isWindup: false
     property real uiOpacity: 0
     property string authInfo: ""
-    readonly property bool fidoInfo: authInfo.toLowerCase().indexOf("fido") >= 0 || authInfo.toLowerCase().indexOf("authenticator") >= 0 || authInfo.toLowerCase().indexOf("pin") >= 0
+    // The in-session lock runs the security key itself and reports its state;
+    // the greeter only relays PAM text through authInfo.
+    readonly property bool lockKeyPrompts: typeof sddm !== "undefined" && sddm.keyPrompts === true
+    readonly property string lockKeyState: lockKeyPrompts ? sddm.keyState : "off"
+    readonly property bool fidoInfo: lockKeyState === "pin" || lockKeyState === "verifying" || authInfo.toLowerCase().indexOf("fido") >= 0 || authInfo.toLowerCase().indexOf("authenticator") >= 0 || authInfo.toLowerCase().indexOf("pin") >= 0
     readonly property bool touchInfo: authInfo.toLowerCase().indexOf("touch") >= 0
-    readonly property string inputHint: authInfo !== "" ? authInfo.toUpperCase() : I18n.tr("TYPE PASSWORD OR FIDO PIN")
+    readonly property string lockHint: lockKeyState === "pin" ? I18n.tr("SECURITY KEY PIN")
+        : lockKeyState === "verifying" ? I18n.tr("TOUCH YOUR KEY")
+        : lockKeyState === "touch" ? I18n.tr("TOUCH KEY OR ENTER PASSWORD")
+        : I18n.tr("TYPE PASSWORD")
+    readonly property string inputHint: lockKeyPrompts ? lockHint : (authInfo !== "" ? authInfo.toUpperCase() : I18n.tr("TYPE PASSWORD OR FIDO PIN"))
+    readonly property string lockKeyButton: (lockKeyState === "pin" || lockKeyState === "verifying") ? I18n.tr("USE PASSWORD")
+        : (lockKeyState === "off" && lockKeyPrompts && sddm.keyReady && sddm.keyPasswordMode) ? I18n.tr("USE SECURITY KEY") : ""
     readonly property real marginR: 80 * s
 
     property bool clock24h: true
@@ -173,6 +183,9 @@ Rectangle {
     Component.onCompleted: {
         root.sampleClock()
         keyboard.numLock = true
+        // lockHint and lockKeyButton draw sddm.keyState, so this skin may take the PIN
+        if (typeof sddm !== "undefined" && sddm.fingerprintHint === true)
+            sddm.keyPrompts = true
         if (typeof sessionModel !== "undefined")
             root.sessionIndex = preferredSessionIndex()
         // in-session lock paints only once secure; the greeter is up at load
@@ -422,11 +435,12 @@ Rectangle {
             }
             Item {
                 width: parent.width; height: 40 * s
+                visible: !root.lockKeyPrompts || passInput.text.length > 0 || root.lockKeyButton !== ""
                 Text {
-                    id: loginBtn; anchors.right: parent.right; anchors.rightMargin: btnMa.containsMouse ? 25 * s : 0; text: passInput.text.length > 0 ? I18n.tr("UNLOCK") : (root.touchInfo ? I18n.tr("TOUCH KEY") : I18n.tr("TRY TOUCH ONLY")); font.family: outfitFont.name; font.pixelSize: 11 * s; font.letterSpacing: 4 * s; font.weight: Font.Bold; color: btnMa.containsMouse ? root.mainText : root.dimText; opacity: 1.0; Behavior on anchors.rightMargin { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                    id: loginBtn; anchors.right: parent.right; anchors.rightMargin: btnMa.containsMouse ? 25 * s : 0; text: passInput.text.length > 0 ? I18n.tr("UNLOCK") : (root.lockKeyPrompts ? root.lockKeyButton : (root.touchInfo ? I18n.tr("TOUCH KEY") : I18n.tr("TRY TOUCH ONLY"))); font.family: outfitFont.name; font.pixelSize: 11 * s; font.letterSpacing: 4 * s; font.weight: Font.Bold; color: btnMa.containsMouse ? root.mainText : root.dimText; opacity: 1.0; Behavior on anchors.rightMargin { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                 }
                 Text { text: "✦"; anchors.left: loginBtn.right; anchors.leftMargin: 8 * s; anchors.verticalCenter: loginBtn.verticalCenter; color: root.mainText; opacity: btnMa.containsMouse ? 1.0 : 0; font.pixelSize: 10 * s; Behavior on opacity { NumberAnimation { duration: 200 } } }
-                MouseArea { id: btnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { startLoginSequence() } }
+                MouseArea { id: btnMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { if (root.lockKeyPrompts && passInput.text.length === 0) switchKeyMode(); else startLoginSequence() } }
             }
             Text { id: errText; width: parent.width; height: 15 * s; verticalAlignment: Text.AlignBottom; horizontalAlignment: Text.AlignRight; text: ""; color: "#ff4444"; font.family: outfitFont.name; font.pixelSize: 10 * s; font.letterSpacing: 2 * s }
         }
@@ -441,6 +455,13 @@ Rectangle {
             passInput.forceActiveFocus()
             return
         }
+        // A PIN is only the first half of a key unlock: hand it over without
+        // the reveal so the touch prompt that follows stays readable.
+        if (root.lockKeyState === "pin") {
+            sddm.login(loginName(), passInput.text, root.sessionIndex)
+            passInput.text = ""
+            return
+        }
         if (root.enableWindup) {
             isWindup = true
             windupAnim.start()
@@ -449,13 +470,22 @@ Rectangle {
             doLogin()
         }
     }
+    function switchKeyMode() {
+        errText.text = ""
+        if (root.lockKeyState === "pin" || root.lockKeyState === "verifying")
+            sddm.usePassword()
+        else if (root.lockKeyButton !== "")
+            sddm.useKey()
+        passInput.forceActiveFocus()
+    }
+    function loginName() { return (userHelper.currentItem && userHelper.currentItem.uLogin) ? userHelper.currentItem.uLogin : (typeof userModel !== "undefined" ? userModel.lastUser : "user") }
     // ── race condition guard ────────────────────────────────────────────────
     // _unlocked prevents boomSequence.onFinished: doLogin() from firing a
     // second PAM auth if the fingerprint wins mid-windup (after
     // boomTriggerTimer at 1450ms). boomSequence.stop() kills the animation.
     property bool _unlocked: false
     property bool _sensorWindup: false
-    function doLogin() { if (_unlocked) return; _unlocked = true; root.authInfo = ""; var uname = (userHelper.currentItem && userHelper.currentItem.uLogin) ? userHelper.currentItem.uLogin : (typeof userModel !== "undefined" ? userModel.lastUser : "user"); if (typeof sddm !== "undefined") sddm.login(uname, passInput.text, root.sessionIndex); authWatchdog.restart() }
+    function doLogin() { if (_unlocked) return; _unlocked = true; root.authInfo = ""; if (typeof sddm !== "undefined") sddm.login(loginName(), passInput.text, root.sessionIndex); authWatchdog.restart() }
     // The flash stays up until auth answers; the watchdog lowers it if it never does.
     function clearUnlockFlash() {
         _unlocked = false; _sensorWindup = false; isWindup = false
@@ -495,6 +525,7 @@ Rectangle {
                 playUnlockReveal()
             }
         }
+        function onKeyTimedOut() { errText.text = I18n.tr("KEY TIMED OUT"); passInput.forceActiveFocus() }
         function onLoginFailed() { authWatchdog.stop(); clearUnlockFlash(); root.authInfo = ""; errText.text = I18n.tr("ACCESS DENIED"); passInput.text = ""; passInput.forceActiveFocus(); shake.start() }
     }
     SequentialAnimation {

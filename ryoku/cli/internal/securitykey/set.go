@@ -35,7 +35,7 @@ func requireEnrollment(target string) error {
 
 func runSet(args []string) error {
 	if len(args) != 2 {
-		return fmt.Errorf(i18n.T("usage: ryoku security-key set <sudo|polkit|login> <on|off>|mode <either|mfa>|touch-required <on|off>|pin-verification <on|off>|user-verification <on|off>"))
+		return fmt.Errorf(i18n.T("usage: ryoku security-key set <sudo|polkit|login|lock> <on|off>|mode <either|mfa>|touch-required <on|off>|pin-verification <on|off>|user-verification <on|off>"))
 	}
 	subject := args[0]
 	if subject == "mode" {
@@ -50,6 +50,9 @@ func runSet(args []string) error {
 		}
 		if err := rewriteEnabledTargets(); err != nil {
 			fmt.Printf(i18n.T("note: policy saved; re-apply enabled PAM targets with sudo (%v)\n"), err)
+		}
+		if err := rewriteLock(); err != nil {
+			fmt.Printf(i18n.T("note: policy saved; could not update the lock screen (%v)\n"), err)
 		}
 		fmt.Printf(i18n.T("security key mode set to %s\n"), mode)
 		return nil
@@ -73,6 +76,9 @@ func runSet(args []string) error {
 		if err := rewriteEnabledTargets(); err != nil {
 			fmt.Printf(i18n.T("note: policy saved; re-apply enabled PAM targets with sudo (%v)\n"), err)
 		}
+		if err := rewriteLock(); err != nil {
+			fmt.Printf(i18n.T("note: policy saved; could not update the lock screen (%v)\n"), err)
+		}
 		fmt.Printf(i18n.T("security key %s %s\n"), subject, map[bool]string{true: i18n.T("enabled"), false: i18n.T("disabled")}[on])
 		return nil
 	}
@@ -80,6 +86,13 @@ func runSet(args []string) error {
 	on, err := parseOnOff(args[1])
 	if err != nil {
 		return err
+	}
+	if target == TargetLock {
+		if err := setLock(on); err != nil {
+			return err
+		}
+		fmt.Printf(i18n.T("security key %s for %s\n"), map[bool]string{true: i18n.T("enabled"), false: i18n.T("disabled")}[on], target)
+		return nil
 	}
 	if _, err := targetName(target); err != nil {
 		return err

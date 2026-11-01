@@ -13,7 +13,7 @@ The vendored core skin carries `themes/clockwork/orbital/preview.gif`, the
 dark-mode segment of upstream `Assets/clockwork.gif`. Optional skins and their
 catalogue previews are owned by `ryostore`; they are not duplicated here.
 
-The in-session shim diverges from upstream in two places:
+The in-session shim diverges from upstream in three places:
 
 1. **Skin compatibility** — `quickshell-lockscreen/shim/SddmShim.qml` (plus the
    matching `keyboard` export in `lock_shell.qml`). Upstream omits
@@ -39,5 +39,14 @@ The in-session shim diverges from upstream in two places:
    A password conversation that ends before PAM ever prompts is a stack that
    cannot run, not a wrong password, so it re-arms on a doubling delay (1s to
    30s) instead of restarting on the same tick.
+
+3. **Security key conversation**: when `ryoku security-key set lock on` has
+   written `~/.config/qylock/pam/ryoku-lock-key`, the shim runs a third
+   `PamContext` (pam_u2f) from it, armed when the lock secures and on a
+   `hidraw` plug-in. The shim reports `sddm.keyState` (`off`, `pin`,
+   `verifying`, `touch`) and `sddm.usePassword()` / `sddm.useKey()`. A PIN
+   request reaches the field only if the skin sets `sddm.keyPrompts`; the
+   Orbital skin does, and draws its hint and USE PASSWORD / USE SECURITY KEY
+   button from that state, handing the PIN over without its unlock wind-up.
 
 Everything else is upstream verbatim.

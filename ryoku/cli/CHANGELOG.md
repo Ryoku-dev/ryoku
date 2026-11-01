@@ -1,6 +1,13 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **`ryoku security-key set lock on|off` wires the key into the lock screen.**
+  It needs an enrolled key, writes a user-owned PAM file with the same policy as
+  the other targets, rewrites it when the policy changes, and is refused in
+  `mfa` mode (switching to `mfa` turns it off, with a note). `status` reports
+  the lock and whether it will ask for a PIN, counting a credential's `+pin`
+  flag that pam_u2f enforces whatever the PAM line says
+  (`internal/securitykey/lock.go`).
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.
