@@ -20,6 +20,13 @@
 - The built-in in-session clockwork lockscreen follows the global 12/24-hour preference, including AM/PM.
 
 ### Fixed
+- **The login field types in the system keyboard layout.** `ryoku-greeter`
+  handed the layout to weston through `XKB_DEFAULT_*`, but weston ignores that
+  environment and loads its own `us` default when its ini names no keymap, so
+  an AZERTY or QWERTZ password failed at the login field (#224). The layout,
+  variant and options now go into weston's `[keyboard]` section as
+  `keymap_layout`, `keymap_variant` and `keymap_options`
+  (`tests/sddm-wayland.sh`).
 - **The password field is ready after waking a locked display.** The shared
   session-lock host restores theme focus when an output reconnects, not only
   when the lock first appears, so suspending with the display powered down no

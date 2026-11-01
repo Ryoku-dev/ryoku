@@ -66,7 +66,8 @@ printf 'DRIVER=amdgpu\n' >"$drm/card0/device/uevent"
 gdry() {
   PATH="$gtmp/bin:$PATH" RYOKU_GREETER_DRYRUN=1 RYOKU_GREETER_CONF="$gtmp/none.conf" \
     RYOKU_GREETER_DRM_ROOT="$drm" RYOKU_GREETER_NUMLOCK_FILE="$gtmp/no-numlock" \
-    RYOKU_GREETER_PRIMARY_FILE="$gtmp/no-primary" env "$@" "$greeter" 2>/dev/null
+    RYOKU_GREETER_PRIMARY_FILE="$gtmp/no-primary" RYOKU_GREETER_KB_CONF="$gtmp/no-kb" \
+    RYOKU_GREETER_VCONSOLE="$gtmp/no-vconsole" env "$@" "$greeter" 2>/dev/null
 }
 
 # With no hand-off yet (a first login, or a PIN that must reach the field as
@@ -91,6 +92,28 @@ pinned() { awk -v want="$2" '/^\[output\]/{f=0} /^name=/{f=($0=="name="want)} f&
 unpinned() { awk -v want="$2" '/^\[output\]/{f=0} /^name=/{f=($0=="name="want)} f&&/^app-ids=/{found=1} END{exit found}' <<<"$1"; }
 pinned "$gini" eDP-1 || fail "greeter did not pin the login form to the internal panel"
 unpinned "$gini" HDMI-A-1 || fail "greeter pinned the form to the external panel without a hand-off"
+
+# The system layout reaches weston through its ini: weston ignores XKB_DEFAULT_*
+# and falls back to us, so a non-us password fails at the login field (#224).
+grep -Fq 'keymap_layout=' <<<"$gini" && fail "greeter set a keymap with no system layout"
+cat >"$gtmp/kb" <<'KB'
+Section "InputClass"
+        Identifier "system-keyboard"
+        MatchIsKeyboard "on"
+        Option "XkbLayout" "fr,us"
+        Option "XkbVariant" "oss,"
+        Option "XkbOptions" "compose:ralt"
+EndSection
+KB
+gini=$(gdry RYOKU_GREETER_KB_CONF="$gtmp/kb")
+for line in keymap_layout=fr keymap_variant=oss keymap_options=compose:ralt; do
+  grep -Fxq "$line" <<<"$gini" || fail "greeter config omits $line from the X11 keyboard config"
+done
+printf 'KEYMAP=de-latin1\n' >"$gtmp/vconsole"
+gini=$(gdry RYOKU_GREETER_VCONSOLE="$gtmp/vconsole")
+grep -Fxq 'keymap_layout=de' <<<"$gini" || fail "greeter config omits the console keymap's layout"
+awk '/^\[keyboard\]/{f=1;next} /^\[/{f=0} f&&/^keymap_layout=/{ok=1} END{exit !ok}' <<<"$gini" ||
+  fail "keymap_layout is not inside the [keyboard] section"
 
 # The session's Displays apply publishes the chosen main; it must outrank the
 # internal-panel heuristic, so a docked laptop whose main is the external gets
