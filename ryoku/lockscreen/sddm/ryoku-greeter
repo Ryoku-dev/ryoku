@@ -122,8 +122,10 @@ weston_args=()
 
 # weston reads no X11 keyboard config, so without one the greeter comes up on
 # weston's built-in us map and a non-us password fails at the login field. Read
-# the layout the system records and hand it to weston through the libxkbcommon
-# defaults, which weston honours when its own config names no keymap.
+# the layout the system records and write it into weston's [keyboard] section.
+# The XKB_DEFAULT_* environment does not reach the map: with no keymap_layout in
+# its ini, weston passes its own "us" default to libxkbcommon
+# (weston_compositor_set_xkb_rule_names), so the variables are never consulted.
 #
 # /etc/X11/xorg.conf.d/00-keyboard.conf is the richest source (layout, variant,
 # options) but localectl only writes it when a layout is applied system-wide;
@@ -169,7 +171,8 @@ console_to_xkb() {
 layout=""
 variant=""
 options=""
-kb_conf=/etc/X11/xorg.conf.d/00-keyboard.conf
+kb_conf=${RYOKU_GREETER_KB_CONF:-/etc/X11/xorg.conf.d/00-keyboard.conf}
+vconsole_conf=${RYOKU_GREETER_VCONSOLE:-/etc/vconsole.conf}
 if [ -r "$kb_conf" ]; then
   xkb_opt() { sed -n "s/.*Option[[:space:]]*\"$1\"[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$kb_conf" | head -n1; }
   layout=$(xkb_opt XkbLayout); layout=${layout%%,*}
@@ -178,15 +181,10 @@ if [ -r "$kb_conf" ]; then
     options=$(xkb_opt XkbOptions)
   fi
 fi
-if [ -z "$layout" ] && [ -r /etc/vconsole.conf ]; then
-  keymap=$(sed -n 's/^[[:space:]]*KEYMAP[[:space:]]*=[[:space:]]*//p' /etc/vconsole.conf | tail -n1)
+if [ -z "$layout" ] && [ -r "$vconsole_conf" ]; then
+  keymap=$(sed -n 's/^[[:space:]]*KEYMAP[[:space:]]*=[[:space:]]*//p' "$vconsole_conf" | tail -n1)
   keymap=${keymap%\"}; keymap=${keymap#\"}
   layout=$(console_to_xkb "$keymap")
-fi
-if [ -n "$layout" ]; then
-  export XKB_DEFAULT_LAYOUT="$layout"
-  [ -n "$variant" ] && export XKB_DEFAULT_VARIANT="$variant"
-  [ -n "$options" ] && export XKB_DEFAULT_OPTIONS="$options"
 fi
 
 # Operator config for where the login form lands. env wins over the file; the
@@ -253,7 +251,13 @@ keyboard_ini() {
       *) on=true ;;
     esac
   fi
-  printf '[keyboard]\nnumlock-on=%s\n\n' "$on"
+  printf '[keyboard]\nnumlock-on=%s\n' "$on"
+  if [ -n "$layout" ]; then
+    printf 'keymap_layout=%s\n' "$layout"
+    [ -n "$variant" ] && printf 'keymap_variant=%s\n' "$variant"
+    [ -n "$options" ] && printf 'keymap_options=%s\n' "$options"
+  fi
+  printf '\n'
 }
 
 # Match the session's touchpad feel: Hyprland enables tap-to-click by default,
