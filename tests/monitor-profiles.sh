@@ -9,6 +9,9 @@ here="$(cd "$(dirname "$0")" && pwd)"
 mon="$here/../ryoku/hyprland/scripts/ryoku-monitor"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
+# Never read the clamshell state of the machine that runs the test.
+export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
+export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
 
 conf="$tmp/monitors.lua"
 profiles="$tmp/profiles"

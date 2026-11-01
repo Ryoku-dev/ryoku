@@ -21,6 +21,9 @@ export RYOKU_MONITORS_DIR="$tmp/profiles"
 export RYOKU_MONITORS_APPLIED="$tmp/applied.json"
 export RYOKU_MONITORS_USER="$tmp/none-user.lua"
 export RYOKU_MONITOR_VM=0
+# Never read the clamshell state of the machine that runs the test.
+export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
+export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 has() { grep -qF -- "$2" "$1" || fail "$3"; }
@@ -155,5 +158,46 @@ cat >"$tmp/misflagged.json" <<'JSON'
 JSON
 flagval="$(RYOKU_MONITOR_JSON="$tmp/misflagged.json" "$mon" list | jq -r '.[0].disabled')"
 [[ $flagval == "false" ]] || fail "an active output flagged disabled by Hyprland listed as off"
+
+# --- docked lid close: the clamshell turns the panel off, and the hotplug
+# autoscale that follows must not recall the saved layout over it (the panel
+# came back on under the shut lid and flapped). The saved preference stays
+# enabled, and the panel returns once the lid opens. -------------------------
+cat >"$tmp/lid-closed.json" <<'JSON'
+[
+  {"name":"eDP-1","make":"Acme","model":"Panel","serial":"LP01","width":2560,"height":1600,"refreshRate":60.0,"x":0,"y":0,"scale":1.6,"transform":0,"vrr":false,"disabled":true,"focused":false,"activeWorkspace":{"id":0,"name":""},"mirrorOf":"none","physicalWidth":300,"physicalHeight":188,"availableModes":["2560x1600@60.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0},
+  {"name":"HDMI-A-1","make":"LG Electronics","model":"LG TV SSCR2","serial":"","width":1920,"height":1080,"refreshRate":60.0,"x":2560,"y":0,"scale":1.0,"transform":0,"vrr":false,"disabled":false,"focused":true,"activeWorkspace":{"id":1,"name":"1"},"mirrorOf":"none","physicalWidth":1600,"physicalHeight":900,"availableModes":["3840x2160@60.00Hz","1920x1080@60.00Hz","1920x1080@120.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0}
+]
+JSON
+apply_both
+printf 'closed\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+printf 'eDP-1\n' >"$RYOKU_CLAMSHELL_PANEL_STATE"
+login lid-closed.json
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "a hotplug autoscale turned the clamshell's covered panel back on"
+has "$conf" 'output = "HDMI-A-1", mode = "1920x1080@60"' \
+  "the external display lost its layout while the lid was shut"
+RYOKU_MONITOR_JSON="$tmp/lid-closed.json" "$mon" apply "$layout" >/dev/null
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "an Apply turned the covered panel on under the shut lid"
+[[ $(jq -r '.monitors[] | select(.output == "eDP-1") | .disabled' "$RYOKU_MONITORS_APPLIED") == false ]] ||
+  fail "a shut lid overwrote the saved panel preference"
+printf 'open\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+login lid-closed.json
+has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
+  "the panel did not return to its saved layout when the lid opened"
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE"
+
+# --- an unchanged layout leaves monitors.lua untouched. Hyprland reloads its
+# config on every write, even an identical one, and the reload hooks start the
+# next autoscale, so a rewrite of the same layout kept a reload loop alive. ---
+login both.json
+before="$(stat -c '%i %Y.%y' "$conf")"
+login both.json
+[[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
+  fail "an autoscale with no layout change rewrote monitors.lua"
+RYOKU_MONITOR_JSON="$tmp/both.json" "$mon" apply "$layout" >/dev/null
+[[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
+  fail "an Apply of the same layout rewrote monitors.lua"
 
 echo "monitor-persist: all checks passed"
