@@ -41,6 +41,7 @@ applied_layout="${RYOKU_MONITORS_APPLIED:-${XDG_CONFIG_HOME:-$HOME/.config}/ryok
 # clamshell turned off. A layout recall must not turn them on under the lid.
 clamshell_lid_state="${RYOKU_CLAMSHELL_LID_EVENT_STATE:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell-${UID:-$(id -u)}.lid}"
 clamshell_panel_state="${RYOKU_CLAMSHELL_PANEL_STATE:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell-${UID:-$(id -u)}.panels}"
+lid_switch_glob="${RYOKU_LID_STATE_GLOB:-/proc/acpi/button/lid/*/state}"
 
 # jq prelude for every scale-touching path. Hyprland only accepts a scale that
 # is a 1/120 multiple AND divides the mode's pixel width and height into whole
@@ -601,9 +602,17 @@ sanitize_layout() {
 # ensure_connected_output, so a panel is still the fallback when nothing else
 # is connected.
 hold_covered_panels() {
-  local covered='[]'
-  if [[ -r $clamshell_lid_state && -r $clamshell_panel_state &&
-        $(<"$clamshell_lid_state") == closed ]]; then
+  local covered='[]' lid="" f
+  if [[ -r $clamshell_lid_state ]]; then
+    lid="$(<"$clamshell_lid_state")"
+  else
+    # A clamshell restart clears its edge file but leaves the panel off under
+    # the shut lid. The firmware switch tells whether the lid is still shut.
+    for f in $lid_switch_glob; do
+      [[ -r $f && $(<"$f") == *closed* ]] && lid=closed
+    done
+  fi
+  if [[ $lid == closed && -r $clamshell_panel_state ]]; then
     covered="$(jq -Rsc 'split("\n") | map(select(. != ""))' "$clamshell_panel_state")"
   fi
   jq -c --argjson covered "$covered" '

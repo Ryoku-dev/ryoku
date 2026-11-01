@@ -12,6 +12,7 @@ trap 'rm -rf "$tmp"' EXIT
 # Never read the clamshell state of the machine that runs the test.
 export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
 export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
+export RYOKU_LID_STATE_GLOB="$tmp/lid-switch"
 
 conf="$tmp/monitors.lua"
 profiles="$tmp/profiles"

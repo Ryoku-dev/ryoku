@@ -24,6 +24,7 @@ export RYOKU_MONITOR_VM=0
 # Never read the clamshell state of the machine that runs the test.
 export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
 export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
+export RYOKU_LID_STATE_GLOB="$tmp/lid-switch"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 has() { grep -qF -- "$2" "$1" || fail "$3"; }
@@ -186,7 +187,18 @@ printf 'open\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
 login lid-closed.json
 has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
   "the panel did not return to its saved layout when the lid opened"
-rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE"
+# A clamshell restart clears the edge file while the lid stays shut. The
+# firmware switch then keeps the panel off, and an open switch lets it return.
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+printf 'state:      closed\n' >"$RYOKU_LID_STATE_GLOB"
+login lid-closed.json
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "a clamshell restart let a hotplug turn the covered panel on"
+printf 'state:      open\n' >"$RYOKU_LID_STATE_GLOB"
+login lid-closed.json
+has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
+  "an open lid switch did not let the panel return"
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE" "$RYOKU_LID_STATE_GLOB"
 
 # --- an unchanged layout leaves monitors.lua untouched. Hyprland reloads its
 # config on every write, even an identical one, and the reload hooks start the
