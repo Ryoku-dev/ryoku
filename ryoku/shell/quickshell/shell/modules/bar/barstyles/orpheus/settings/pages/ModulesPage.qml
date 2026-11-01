@@ -388,6 +388,97 @@ Item {
                     }
                 }
             }
+
+            SettingRow {
+                width: parent.width
+                label: "Window"
+                desc: "Choose the quota window the bar shows. Closest to the limit picks the fullest of the 5 h and weekly windows."
+                block: true
+                divider: true
+
+                K.Segmented {
+                    anchors.fill: parent
+                    model: [
+                        { value: "5h", label: "5 hours", icon: "schedule" },
+                        { value: "weekly", label: "Weekly", icon: "date_range" },
+                        { value: "closest", label: "Closest to limit", icon: "speed" }
+                    ]
+                    value: S.Prefs.aiWindow
+                    onPicked: value => S.Prefs.set("aiWindow", value)
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                label: "Pace"
+                desc: "Compare usage with an even burn rate over the window. Shows a trend arrow, whether you are ahead or behind, and when the quota would run out."
+                controlWidth: 54
+                divider: true
+
+                K.Switch {
+                    anchors.right: parent.right
+                    checked: S.Prefs.aiPace
+                    onToggled: value => S.Prefs.set("aiPace", value)
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                label: "Bar figure"
+                desc: "Show the share used, or the points ahead (+) or behind (−) pace. Needs Pace on and a known reset time."
+                block: true
+                divider: true
+                enabled: S.Prefs.aiPace
+
+                K.Segmented {
+                    anchors.fill: parent
+                    model: [
+                        { value: "used", label: "Used", icon: "percent" },
+                        { value: "pace", label: "Versus pace", icon: "trending_up" }
+                    ]
+                    value: S.Prefs.aiFigure
+                    onPicked: value => S.Prefs.set("aiFigure", value)
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                label: "Pace tolerance"
+                desc: "Points of drift from the even rate before the bar calls you ahead or behind."
+                value: String(S.Prefs.aiTolerance)
+                unit: "pts"
+                controlWidth: 58
+                divider: true
+                enabled: S.Prefs.aiPace
+
+                Step {
+                    anchors.right: parent.right
+                    value: S.Prefs.aiTolerance
+                    from: 0
+                    to: 30
+                    stepBy: 5
+                    onModified: value => S.Prefs.set("aiTolerance", value)
+                }
+            }
+
+            SettingRow {
+                width: parent.width
+                label: "Alert level"
+                desc: "Turn the icon red once a window is this full."
+                value: String(S.Prefs.aiAlertAt)
+                unit: "%"
+                controlWidth: 58
+                divider: true
+
+                Step {
+                    anchors.right: parent.right
+                    value: S.Prefs.aiAlertAt
+                    from: 50
+                    to: 100
+                    stepBy: 5
+                    onModified: value => S.Prefs.set("aiAlertAt", value)
+                }
+            }
         }
 
         SettingCard {

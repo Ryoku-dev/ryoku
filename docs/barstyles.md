@@ -169,6 +169,11 @@ Its settings use the `orpheus` namespace in `shell.json`:
 | `trayLimit` | `3` to `12` | `6` | Set the visible tray item limit. |
 | `statusItems` | subset of `wifi`, `bluetooth`, `volume`, `mic` | all four | Choose the icons in the Controls module. |
 | `aiTools` | subset of `claude`, `codex`, `opencode` | all three | Choose which coding agents the AI usage module counts. Modules page, AI usage. An empty list hides the module. |
+| `aiWindow` | `5h`, `weekly`, `closest` | `5h` | Choose the quota window the AI usage module shows; `closest` picks the fullest. |
+| `aiPace` | boolean | `true` | Compare AI usage with an even burn rate: trend arrow, ahead or behind in the tooltip, and the time the quota would run out. |
+| `aiFigure` | `used`, `pace` | `used` | Show the share used, or the points ahead or behind pace (needs `aiPace`). |
+| `aiTolerance` | `0` to `30` | `10` | Points of drift from the even rate before AI usage counts as ahead or behind. |
+| `aiAlertAt` | `50` to `100` | `80` | Share of a window at which the AI usage icon turns to the alert colour. |
 
 The name is Orpheus, the musician of Greek myth whose lyre moved rivers and
 stones. Made by neur0map.
