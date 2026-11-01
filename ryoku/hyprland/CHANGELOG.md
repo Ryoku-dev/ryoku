@@ -29,6 +29,17 @@
   starts off because the display-mode switch can blank some AMD DisplayPort
   panels; users with a working HDR path can turn it back on in Settings
   (`modules/render.lua`, `../wm/hyprland/`).
+- **A docked lid close keeps the laptop panel off.** The clamshell turned the
+  covered panel off, the hotplug autoscale that followed recalled the saved
+  layout and turned it back on, and every rewrite of `monitors.lua` reloaded
+  the config, whose lid sync turned it off again. The loop flapped the panel
+  several times a second, stalled the compositor and queued hundreds of lid
+  syncs. Autoscale, Apply, save and profile load now keep a panel the
+  clamshell covers disabled while the lid stays shut (the saved layout keeps
+  its preference). After a clamshell restart clears its lid state, the
+  firmware lid switch keeps the panel held. `monitors.lua` is written only
+  when its content changes (`scripts/ryoku-monitor`,
+  `tests/monitor-persist.sh`).
 - **Game Mode keeps compositor blur, shadows and animations off across reloads.**
   The live action and config both load one strip; tiled windows keep their faint
   tint without blurring the moving desktop, while floating glass still blurs

@@ -155,6 +155,7 @@ export RYOKU_CLAMSHELL_LID_EVENT_STATE="$event_state"
 export RYOKU_CLAMSHELL_EVENT_FIFO="$event_fifo"
 export RYOKU_CLAMSHELL_ACTIVITY_STATE="$activity_state"
 export RYOKU_CLAMSHELL_PANEL_STATE="$panel_state"
+export RYOKU_CLAMSHELL_SYNC_LOCK="$run/clamshell.sync.lock"
 export RYOKU_CLAMSHELL_SUSPEND_STATE="$suspend_state"
 export RYOKU_PGREP_BIN="$bin/pgrep"
 export RYOKU_BIN="$bin/ryoku"
@@ -607,6 +608,19 @@ expect_events $'ryoku wm state\nryoku wm act output.enable eDP-1 off'
 export UPOWER_LID_STATE=open
 run_helper lid sync
 expect_events $'ryoku wm state\nryoku wm act output.enable eDP-1 off\nryoku wm act output.enable eDP-1 on'
+# A sync that starts while another sync runs exits at once and changes nothing.
+# In a config reload loop, hundreds of syncs queued on the panel lock.
+export UPOWER_LID_STATE=closed
+: >"$events"
+exec {sync_hold}>"$RYOKU_CLAMSHELL_SYNC_LOCK"
+flock "$sync_hold"
+if ! timeout 5 "$helper" lid sync >"$tmp/helper.out" 2>&1; then
+  printf 'a sync behind a running sync did not exit at once\n' >&2
+  cat "$tmp/helper.out" >&2
+  exit 1
+fi
+expect_events ''
+exec {sync_hold}>&-
 kill "$holder" 2>/dev/null || true
 wait "$holder" 2>/dev/null || true
 holder=""
