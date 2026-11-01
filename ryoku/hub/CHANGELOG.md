@@ -68,6 +68,11 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Lockscreen > security key gains a Lock screen switch.** It turns the key on
+  for the in-session lock without a polkit prompt, says what the key will ask
+  for (from the enrolled credentials as well as the PIN switch), and greys out
+  with the reason in security key + password mode. The note that lock screen
+  unlock was not wired yet is gone (`quickshell/pages/LockscreenPage.qml`).
 - **Rashin shows the installed Hermes agent version and its update owner.**
   Existing installs stay untouched, so the page points users to their Hermes
   installer or checkout instead of offering an updater that Ryoku does not own
