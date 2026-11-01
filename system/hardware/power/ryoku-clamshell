@@ -39,6 +39,7 @@ ACTIVITY_STATE="${RYOKU_CLAMSHELL_ACTIVITY_STATE:-$RUNTIME_DIR/ryoku-clamshell-$
 OWNER_MONITOR_STATE="${RYOKU_CLAMSHELL_OWNER_MONITOR_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.login1-monitor}"
 PANEL_STATE="${RYOKU_CLAMSHELL_PANEL_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.panels}"
 PANEL_LOCK="${RYOKU_CLAMSHELL_PANEL_LOCK:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.panel.lock}"
+SYNC_LOCK="${RYOKU_CLAMSHELL_SYNC_LOCK:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.sync.lock}"
 SUSPEND_STATE="${RYOKU_CLAMSHELL_SUSPEND_STATE:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend}"
 SUSPEND_LOCK="${RYOKU_CLAMSHELL_SUSPEND_LOCK:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend.lock}"
 SUSPEND_REASON="${RYOKU_CLAMSHELL_SUSPEND_REASON:-$RUNTIME_DIR/ryoku-clamshell-${UID:-$(id -u)}.suspend.reason}"
@@ -1190,7 +1191,7 @@ cmd_policy() {
 }
 
 cmd_lid() {
-  local action="${1:-}" panel_fd
+  local action="${1:-}" panel_fd sync_fd
   case "$action" in
     close)
       # Publish the edge before waiting for an older panel transaction so a
@@ -1223,6 +1224,12 @@ cmd_lid() {
         return 0
       fi
       panel_session_active || return 0
+      # Every config reload starts a sync. When reloads come faster than a sync
+      # ends, the extra syncs must not queue on the panel lock (hundreds did in
+      # a reload loop). The running sync reads the lid state itself, and lid
+      # edges have their own binds, so an extra sync can exit.
+      exec {sync_fd}>"$SYNC_LOCK"
+      flock -n "$sync_fd" || return 0
       # The compositor's startup callback can race the user service. Wait for
       # the lid owner rather than treating a docked close as non-docked while
       # logind still owns the switch.

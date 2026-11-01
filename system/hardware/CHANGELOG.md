@@ -24,6 +24,11 @@
   `ryoku-bluetooth-reset.service` failed. Turning off now waits for the
   controller and retries until BlueZ reports it off, as turning on already
   waited. Covered by `tests/bluetooth-power-persist.sh`.
+- `power/ryoku-clamshell`: **lid syncs no longer pile up behind each other.**
+  Every compositor config reload starts `lid sync`, and in a reload loop
+  hundreds of them queued on the panel lock. A sync that starts while another
+  runs now exits at once: the running one reads the lid state itself, and lid
+  edges keep their own binds. Covered by `tests/clamshell-policy.sh`.
 - `network/50-ryoku-dns.rules`: **the passwordless DNS grant no longer matches
   any path ending in `ryoku-dns`.** The rule tested the program with a basename
   regex, so any executable a local wheel user placed at a path ending in
