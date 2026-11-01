@@ -241,6 +241,10 @@ Singleton {
     readonly property bool clock12h: own(_previews, "clock12h")
         ? _previews.clock12h === true : !TimeFormat.is24h
 
+    // Raised by the "orpheus" IPC target below; the scene on the focused
+    // output answers it. An empty page opens the default page, "close" closes.
+    signal settingsRequested(string page)
+
     readonly property real waveStiffness: feel === "tight" ? 320 : 170
     readonly property real waveDamping: feel === "tight" ? 26 : 13
 
@@ -485,6 +489,15 @@ Singleton {
         interval: Object.keys(prefs._writeDue).length > 0 ? 20 : 250
         repeat: true
         onTriggered: prefs._settle()
+    }
+
+    // `qs -c shell ipc call orpheus settings [page]`: the Hub's Bar Studio and
+    // any keybind or script open Orpheus settings without going through the logo.
+    IpcHandler {
+        target: "orpheus"
+        function settings(page: string): void {
+            prefs.settingsRequested(page);
+        }
     }
 
     readonly property string _sockPath:

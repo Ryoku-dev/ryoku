@@ -68,6 +68,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
+  card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
+  (`quickshell/pages/BarStudioPage.qml`).
 - **Rashin shows the installed Hermes agent version and its update owner.**
   Existing installs stay untouched, so the page points users to their Hermes
   installer or checkout instead of offering an updater that Ryoku does not own
