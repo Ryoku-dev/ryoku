@@ -17,6 +17,12 @@
   headless one exits at once.
 
 ### Fixed
+- `bluetooth/ryoku-bluetooth-power`: **a saved on choice survives the login
+  reset.** The same `AutoEnable` window refuses `bluetoothctl power on` with
+  `org.bluez.Error.Busy`, and the on path returned that refusal after a single
+  try, so `ryoku-bluetooth-reset.service` failed at every session start for the
+  default saved choice. Powering on now retries the window the off path already
+  waited out. Covered by `tests/bluetooth-power-persist.sh`.
 - `bluetooth/ryoku-bluetooth-power`: **Bluetooth stays off after login when it
   was turned off.** The login reset restarts bluetoothd, and BlueZ's
   `AutoEnable` is still powering the new controller on when `restore` runs, so

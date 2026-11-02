@@ -42,19 +42,18 @@ case ${1:-} in
     fi
     ;;
   power)
+    # BlueZ answers org.bluez.Error.Busy while AutoEnable is still powering a
+    # freshly registered controller on, for power on and power off alike.
+    busy=0
+    if IFS= read -r busy <"$RYOKU_TEST_BUSY"; then :; fi
+    if ((busy > 0)); then
+      printf '%s\n' "$((busy - 1))" >"$RYOKU_TEST_BUSY"
+      exit 1
+    fi
     if [[ ${2:-} == on ]]; then
       polls=0
       if IFS= read -r polls <"$RYOKU_TEST_POLLS"; then :; fi
       ((polls >= RYOKU_TEST_APPEAR_AFTER)) || exit 1
-    else
-      # BlueZ answers org.bluez.Error.Busy while AutoEnable is still powering a
-      # freshly registered controller on; the radio stays on.
-      busy=0
-      if IFS= read -r busy <"$RYOKU_TEST_BUSY"; then :; fi
-      if ((busy > 0)); then
-        printf '%s\n' "$((busy - 1))" >"$RYOKU_TEST_BUSY"
-        exit 1
-      fi
     fi
     printf '%s\n' "$2" >"$RYOKU_TEST_LIVE"
     ;;
@@ -199,5 +198,17 @@ reset_commands
 assert_eq on "$(<"$LIVE")" 'restore recovers legacy soft block'
 assert_eq $'rfkill unblock bluetooth\nbluetoothctl list\nbluetoothctl list\nbluetoothctl list\nbluetoothctl power on' \
   "$(<"$LOG")" 'legacy restore command sequence'
+
+# The login reset races AutoEnable the same way when the saved choice is on:
+# power on is refused with Busy until the controller accepts it.
+export RYOKU_TEST_APPEAR_AFTER=1
+"$POWER" on
+reset_commands
+printf '2\n' >"$BUSY"
+"$RESET" || { printf 'FAIL: login reset failed on a busy power-on\n' >&2; exit 1; }
+assert_eq on "$(<"$LIVE")" 'on after a busy power-on'
+assert_eq on "$(<"$STATE")" 'saved on choice survives a busy power-on'
+assert_eq $'systemctl restart bluetooth.service\nrfkill unblock bluetooth\nbluetoothctl list\nbluetoothctl power on\nbluetoothctl list\nbluetoothctl power on\nbluetoothctl list\nbluetoothctl power on' \
+  "$(<"$LOG")" 'busy power-on command sequence'
 
 printf 'bluetooth power persistence checks passed\n'
