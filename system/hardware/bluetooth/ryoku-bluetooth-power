@@ -59,10 +59,11 @@ apply_state() {
         rfkill unblock bluetooth >/dev/null 2>&1 || true
       fi
       command -v bluetoothctl >/dev/null 2>&1 || return 1
+      # The same Busy window refuses power on, so retry until the controller
+      # accepts it.
       for ((attempt = 0; attempt < 50; attempt++)); do
-        if controller_available; then
-          bluetoothctl power on >/dev/null 2>&1
-          return
+        if controller_available && bluetoothctl power on >/dev/null 2>&1; then
+          return 0
         fi
         ((attempt == 49)) || sleep 0.1
       done
