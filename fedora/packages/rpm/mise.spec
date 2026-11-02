@@ -1,5 +1,5 @@
 Name:           mise
-Version:        2026.10.7
+Version:        2026.10.25
 Release:        1%{?dist}
 Summary:        Front end for development environments
 License:        MIT

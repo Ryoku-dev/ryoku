@@ -1,8 +1,8 @@
 %global ryoku_vendor cargo
 
 Name:           songrec
-Version:        0.7.5
-Release:        2%{?dist}
+Version:        0.8.0
+Release:        1%{?dist}
 Summary:        Unofficial Shazam client for Linux
 License:        GPL-3.0-only
 URL:            https://github.com/marin-m/SongRec

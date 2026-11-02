@@ -1,5 +1,5 @@
 Name:           voxtype
-Version:        1.1.0
+Version:        1.1.1
 Release:        1%{?dist}
 Summary:        Push-to-talk voice-to-text for Wayland compositors
 License:        MIT

@@ -2,8 +2,8 @@
 %global module_version v%{version}
 
 Name:           xpadneo-dkms
-Version:        0.10.4
-Release:        2%{?dist}
+Version:        0.10.5
+Release:        1%{?dist}
 Summary:        Advanced Linux driver for Xbox One wireless gamepads
 License:        GPL-2.0-only AND GPL-3.0-or-later
 URL:            https://github.com/atar-axis/xpadneo

@@ -1,5 +1,5 @@
 Name:           gpu-screen-recorder
-Version:        6.1.3
+Version:        6.1.6
 Release:        1%{?dist}
 Summary:        Fast GPU-accelerated screen recorder for Linux
 License:        GPL-3.0-only

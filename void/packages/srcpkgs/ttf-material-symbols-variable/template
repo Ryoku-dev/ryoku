@@ -2,7 +2,7 @@
 pkgname=ttf-material-symbols-variable
 version=2.874
 revision=1
-_commit=bb04090f930e272697f2a1f0d7b352d92dfeee43
+_commit=10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7
 create_wrksrc=yes
 skip_extraction="MaterialSymbolsOutlined.ttf MaterialSymbolsRounded.ttf MaterialSymbolsSharp.ttf LICENSE"
 short_desc="Google Material Symbols four-axis variable fonts"
@@ -14,10 +14,9 @@ distfiles="
  https://raw.githubusercontent.com/google/material-design-icons/${_commit}/variablefont/MaterialSymbolsRounded%5BFILL,GRAD,opsz,wght%5D.ttf>MaterialSymbolsRounded.ttf
  https://raw.githubusercontent.com/google/material-design-icons/${_commit}/variablefont/MaterialSymbolsSharp%5BFILL,GRAD,opsz,wght%5D.ttf>MaterialSymbolsSharp.ttf
  https://raw.githubusercontent.com/google/material-design-icons/${_commit}/LICENSE>LICENSE"
-checksum="
- fb0d00bfa03507fe6712348604aea33741b41f97643e109ad4e582b1a15865b9
- d719f22fdee27e344b07e46e6fa8b50b1fce3cfcb03d4a84f03fafbf0812fc22
- e76edbb72b8cbca2380c507cd17ea5cb4023cf3e01a9dcfeddd670da8c495f37
+checksum=" f7837ba8573d9a7a74931618ced8307bc81f96d49af296bf6c8052c772ed5282
+ 7e74e36533ccee12c2b81e75bfcf3ccf123d3bb7e7e46d65d94445f23db0c97c
+ 1fd72f99ec1f44ec461c74f99341c1dcfa8c140d7087a2902e747d4ee01e379b
  58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
 provides="material-symbols-font-${version}_${revision}"
 

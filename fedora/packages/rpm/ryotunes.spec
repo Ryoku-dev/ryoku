@@ -3,7 +3,7 @@
 
 Name:           ryotunes
 Epoch:          1
-Version:        1.1.6
+Version:        1.2.5
 Release:        1%{?dist}
 Summary:        Native music app for the Ryoku desktop
 License:        GPL-3.0-or-later

@@ -1,7 +1,7 @@
 %global ryoku_vendor cargo
 
 Name:           asusctl
-Version:        6.4.0
+Version:        6.5.0
 Release:        1%{?dist}
 Summary:        ASUS laptop control daemon and Aura lighting CLI
 License:        MPL-2.0

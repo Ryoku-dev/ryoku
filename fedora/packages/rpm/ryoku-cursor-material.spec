@@ -1,9 +1,9 @@
 %global bibata_commit f4ccfe8abb63fddc7b3ce51a866fd8378395cb3d
-%global recipe_commit af45724500f503692faeb8db5cd0bf06bb19fec0
+%global recipe_commit fd19156df0ce100d6a7f02685e6afcafe36a2fa7
 
 Name:           ryoku-cursor-material
-Version:        1.0.0
-Release:        2%{?dist}
+Version:        1.5.0
+Release:        1%{?dist}
 Summary:        Material Bibata cursor following the Ryoku accent
 License:        GPL-3.0-or-later AND MIT
 URL:            https://github.com/SakibShahariar/material-bibata-cursor

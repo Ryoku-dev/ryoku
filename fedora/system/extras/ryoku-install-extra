@@ -19,9 +19,9 @@ RELEASES = {
     "matugen": ("4.2.0", "https://github.com/InioX/matugen/releases/download/v4.2.0/matugen-4.2.0-x86_64.tar.gz", "a2e3b50e49ed6439999ba3c252ed04fabd98ee4e9d12e5e5dff2e66370569751", "bin/matugen"),
     "bibata": ("2.0.7", "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata.tar.xz", "172e33c4ae415278384dcecc7d1a9b7a024266bc944bc751fd86532be1cc6251", "share/icons"),
     "space-grotesk": ("2.0.0", "https://github.com/floriankarsten/space-grotesk/releases/download/2.0.0/SpaceGrotesk-2.0.0.zip", "53b415577d4139248555300710bea0d268c7a5be67b93de53b716a9736cabffd", "share/fonts/SpaceGrotesk"),
-    "material-symbols": ("27e9ef1d", "https://raw.githubusercontent.com/google/material-design-icons/27e9ef1dbeedc13d682fece4a58e1eda4cb0961a/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf", "7f3a16d9aa1b6f367eadc1614ad27308ae2c0e91e617e2069f122afd9f0c3c58", "share/fonts/MaterialSymbolsRounded.ttf"),
-    "jetbrains-mono-nerd-fonts": ("3.3.0", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/JetBrainsMono.tar.xz", "7d171ea3884be22fc08bf1a1aee640a3dc93f031989c27f6f9ceb30a6a668de1", "share/fonts/JetBrainsMonoNerdFont"),
-    "space-mono-nerd-fonts": ("3.3.0", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.3.0/SpaceMono.tar.xz", "a2058cfc43eee5a170208c6e90fa77d8f0aa755e0d213e795f70781f7d807942", "share/fonts/SpaceMonoNerdFont"),
+    "material-symbols": ("10ecc147", "https://raw.githubusercontent.com/google/material-design-icons/10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7/variablefont/MaterialSymbolsRounded%5BFILL%2CGRAD%2Copsz%2Cwght%5D.ttf", "7e74e36533ccee12c2b81e75bfcf3ccf123d3bb7e7e46d65d94445f23db0c97c", "share/fonts/MaterialSymbolsRounded.ttf"),
+    "jetbrains-mono-nerd-fonts": ("3.5.1", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.tar.xz", "04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf", "share/fonts/JetBrainsMonoNerdFont"),
+    "space-mono-nerd-fonts": ("3.5.1", "https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/SpaceMono.tar.xz", "c7d7ac234030c008dbd7a47bc577e624b8d9ae367860c0b4ba148b33374e74a1", "share/fonts/SpaceMonoNerdFont"),
 }
 FONTS = ("space-grotesk", "material-symbols", "jetbrains-mono-nerd-fonts", "space-mono-nerd-fonts")
 
