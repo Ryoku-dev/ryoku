@@ -38,8 +38,11 @@
   clamshell covers disabled while the lid stays shut (the saved layout keeps
   its preference). After a clamshell restart clears its lid state, the
   firmware lid switch keeps the panel held. `monitors.lua` is written only
-  when its content changes (`scripts/ryoku-monitor`,
-  `tests/monitor-persist.sh`).
+  when its content changes. A display that returns while the lid stays
+  shut (a resume or re-dock) now runs the lid sync itself instead of
+  relying on that rewrite's reload (`scripts/ryoku-monitor`,
+  `modules/lid.lua`, `tests/monitor-persist.sh`,
+  `tests/hyprland-lid-hooks.lua`).
 - **Game Mode keeps compositor blur, shadows and animations off across reloads.**
   The live action and config both load one strip; tiled windows keep their faint
   tint without blurring the moving desktop, while floating glass still blurs
