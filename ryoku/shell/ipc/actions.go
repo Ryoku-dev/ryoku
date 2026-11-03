@@ -48,6 +48,11 @@ func menuID(cmd string) (string, bool) {
 // qsSelect: qs config selector for a component. by repo path in dev, by config
 // name when deployed.
 func qsSelect(name string) []string {
+	if name == "shell" {
+		if root, ok := activeShimaRoot.Load().(string); ok && root != "" {
+			return []string{"-p", root}
+		}
+	}
 	if shellDir != "" {
 		return []string{"-p", filepath.Join(shellDir, "quickshell", name)}
 	}
