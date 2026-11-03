@@ -141,9 +141,21 @@ Item {
                                     || wallpaperPathRaw.endsWith(".mkv")
                                     || wallpaperPathRaw.endsWith(".avi")
                                     || wallpaperPathRaw.endsWith(".mov")
-    property string wallpaperPath: root.orbitMode
-        ? WallpaperListener.wallpaperUrlForScreen(root.panelWindow?.screen ?? null)
-        : (wallpaperIsVideo ? wallpaperThumbnailPath : wallpaperPathRaw)
+    readonly property string wallpaperPath: {
+        const monitor = root.outputName
+        const hostPath = RyokuHost.ready ? RyokuHost.pathFor(monitor) : ""
+        if (hostPath.length > 0) {
+            const still = Wallpapers.stillUrlFor(hostPath)
+            if (still.length > 0)
+                return still
+        }
+        const configured = WallpaperListener.wallpaperUrlForScreen(root.panelWindow?.screen ?? null)
+        if (configured.length > 0)
+            return configured
+        return wallpaperIsVideo
+            ? Wallpapers.stillUrlFor(wallpaperThumbnailPath)
+            : Wallpapers.stillUrlFor(wallpaperPathRaw)
+    }
 
     property var outputs: NiriService.outputs
 

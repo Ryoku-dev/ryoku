@@ -57,3 +57,27 @@ Arch installation. Passing a nested test on a NixOS build host does not
 establish Arch ABI compatibility. Keep this branch out of the release
 until a clean Arch install passes these gates. SDDM and independent iNiR
 login services are explicitly outside this integration.
+
+
+## Launcher, overview and Ricelin controls
+
+Ricelin's settings surface now includes a collapsible **Switch shell & bar**
+entry. Users can choose iRiS, Material ii or Waffle, and switch the bar
+between Classic, Islands, Scenic, Frame, M3 and Pill. Advanced bar settings
+remain available in their original page.
+
+Ryoku's `shell openSurface ... launcher` request now goes to a dedicated
+launcher route rather than piggybacking on the overview command. Family
+launchers keep their native behaviour: iRiS palette, Waffle Start and
+Material ii's Pill launcher when Pill is selected. The default Material ii
+overview remains its non-Pill launcher.
+
+The default Niri overview uses the subscribed Ryogami wallpaper for the
+correct output, with the existing iNiR still-image and multi-monitor
+resolver as fallback. Video wallpapers are represented by an available
+still frame rather than passed directly to Qt's Image renderer.
+
+These changes passed a separate nested Niri test of all three launchers,
+the default overview wallpaper, family switching, crash recovery and
+process cleanup. A real Arch installation is still required before
+releasing the upstream runtime by default.

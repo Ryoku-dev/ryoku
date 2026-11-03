@@ -82,6 +82,33 @@ class ShimaUpstreamParityTest(unittest.TestCase):
                 0, str(path),
             )
 
+    def test_ricelin_switcher_keeps_all_family_and_bar_choices(self):
+        qml = (RUNTIME / "modules/pill/PillSettings.qml").read_text()
+        self.assertIn('text: Translation.tr("Switch shell & bar")', qml)
+        self.assertIn('root.switcherOpen = !root.switcherOpen', qml)
+        self.assertIn('Config.setNestedValue("bar.appearanceStyle", style)', qml)
+        self.assertIn('Quickshell.shellPath("scripts/inir"), "panelFamily", "set", family', qml)
+        for family in ('"iris"', '"ii"', '"waffle"'):
+            self.assertIn('id: ' + family, qml)
+        for style in ('"classic"', '"islands"', '"scenic"', '"frame"', '"m3"', '"pill"'):
+            self.assertIn('id: ' + style, qml)
+
+    def test_default_overview_uses_ryogami_wallpaper(self):
+        qml = (RUNTIME / "modules/overview/OverviewNiriWidget.qml").read_text()
+        self.assertIn('RyokuHost.ready ? RyokuHost.pathFor(monitor)', qml)
+        self.assertIn('Wallpapers.stillUrlFor(hostPath)', qml)
+        self.assertIn('WallpaperListener.wallpaperUrlForScreen', qml)
+        self.assertIn('source: root.wallpaperPath', qml)
+
+    def test_launcher_is_distinct_from_overview(self):
+        qml = (RUNTIME / "shell.qml").read_text()
+        self.assertIn('case "launcher": return ryokuLauncher', qml)
+        self.assertIn('case "overview": return ryokuOverview', qml)
+        self.assertIn('id: ryokuLauncher; target: "launcher"', qml)
+        self.assertIn('GlobalStates.pillSurfaceCommand("open", "launcher")', qml)
+        self.assertIn('GlobalStates.searchOpen = true', qml)
+        self.assertIn('GlobalStates.openOverview("")', qml)
+
     def test_required_arch_dependencies(self):
         packages = (ROOT / "system/packages/base.packages").read_text().splitlines()
         for package in ("quickshell", "cava", "matugen", "qt6-imageformats",

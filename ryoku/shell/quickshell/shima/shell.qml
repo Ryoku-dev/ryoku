@@ -46,7 +46,8 @@ ShellRoot {
     function ryokuSurfaceHandler(surface: string): var {
             const family = Config.options?.panelFamily ?? "iris"
             switch (surface) {
-            case "launcher": case "overview": return ryokuOverview
+            case "launcher": return ryokuLauncher
+            case "overview": return ryokuOverview
             case "clipboard": return ryokuClipboard
             case "settings": return ryokuSettings
             case "sidebar-left": case "controls":
@@ -845,6 +846,68 @@ ShellRoot {
                 else _openIrisClipboard()
             }
             else GlobalStates.clipboardOpen = !GlobalStates.clipboardOpen
+        }
+    }
+
+    IpcHandler {
+        id: ryokuLauncher; target: "launcher"
+
+        function mode(): string {
+            const family = Config.options?.panelFamily ?? "ii"
+            if (family === "iris" || family === "waffle")
+                return "search"
+            return (Config.options?.bar?.appearanceStyle ?? "classic") === "pill"
+                ? "pill" : "overview"
+        }
+
+        function isOpen(): var {
+            const target = mode()
+            if (target === "search") return GlobalStates.searchOpen
+            if (target === "pill") return null
+            return GlobalStates.overviewOpen
+        }
+
+        function toggle(): void {
+            const target = mode()
+            if (target === "search") {
+                GlobalStates.searchOpen = !GlobalStates.searchOpen
+            } else if (target === "pill") {
+                GlobalStates.pillSurfaceCommand("toggle", "launcher")
+            } else {
+                GlobalStates.overviewSearchPrefix = ""
+                GlobalStates.toggleOverview("")
+            }
+        }
+
+        function open(): void {
+            const target = mode()
+            if (target === "search") {
+                GlobalStates.searchOpen = true
+            } else if (target === "pill") {
+                GlobalStates.pillSurfaceCommand("open", "launcher")
+            } else {
+                GlobalStates.overviewSearchPrefix = ""
+                GlobalStates.openOverview("")
+            }
+        }
+
+        function close(): void {
+            const target = mode()
+            if (target === "search") {
+                GlobalStates.searchOpen = false
+            } else if (target === "pill") {
+                GlobalStates.pillSurfaceCommand("close", "launcher")
+            } else {
+                GlobalStates.closeOverview()
+            }
+        }
+
+        function status(): string {
+            return JSON.stringify({
+                family: Config.options?.panelFamily ?? "ii",
+                mode: mode(),
+                open: isOpen()
+            })
         }
     }
 
