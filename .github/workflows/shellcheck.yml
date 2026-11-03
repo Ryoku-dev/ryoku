@@ -87,6 +87,9 @@ jobs:
               [[ -f $file ]] || continue
               [[ $file == ryoku/lockscreen/qylock/* ]] && continue
               [[ $file == */vendor/* ]] && continue
+              # This is pinned upstream iNiR, not first-party Ryoku shell code.
+              # Validate its interpreter paths, QML syntax and runtime separately.
+              [[ $file == ryoku/shell/quickshell/shima/* ]] && continue
 
               # skip non-shell interpreters that share these dirs (e.g.
               # python under bin/). shellcheck would parse them as bash

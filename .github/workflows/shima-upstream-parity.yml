@@ -1,0 +1,46 @@
+name: Shima upstream parity
+
+on:
+  push:
+    branches:
+      - feat/shima-upstream-parity
+    paths:
+      - 'ryoku/shell/quickshell/shima/**'
+      - 'ryoku/shell/ipc/shima*.go'
+      - 'ryoku/shell/scripts/ryoku-shima*'
+      - 'tests/test_shima_upstream_parity.py'
+      - 'system/packages/base.packages'
+      - '.github/workflows/shima-upstream-parity.yml'
+  pull_request:
+    paths:
+      - 'ryoku/shell/quickshell/shima/**'
+      - 'ryoku/shell/ipc/shima*.go'
+      - 'ryoku/shell/scripts/ryoku-shima*'
+      - 'tests/test_shima_upstream_parity.py'
+      - 'system/packages/base.packages'
+      - '.github/workflows/shima-upstream-parity.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify vendored runtime and launcher contract
+        run: python3 -m unittest discover -s tests -p test_shima_upstream_parity.py
+
+  supervisor:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ryoku/shell/ipc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: ryoku/shell/ipc/go.mod
+          cache-dependency-path: ryoku/shell/ipc/go.sum
+      - name: Verify Shima lifecycle without a graphical session
+        run: go test ./... -run '^TestShima' -count=1
