@@ -18,9 +18,10 @@ class ShimaPinnedSourceTest(unittest.TestCase):
     def test_source_and_runtime_integrity(self):
         meta = json.loads((OVERLAY / "upstream.json").read_text())
         self.assertEqual(meta["version"], "2.33.0")
-        self.assertEqual(meta["runtime_files"], 2408)
+        self.assertEqual(meta["runtime_files"], 2409)
         self.assertEqual(len(meta["revision"]), 40)
         self.assertEqual(hashlib.sha256((OVERLAY / "runtime.patch").read_bytes()).hexdigest(), meta["patch_sha256"])
+        self.assertEqual(hashlib.sha256((OVERLAY / "shima-overview-terminal.patch").read_bytes()).hexdigest(), meta["overview_patch_sha256"])
 
     def test_legacy_shell_remains_untouched(self):
         self.assertFalse((ROOT / "ryoku/shell/quickshell/shima").exists())
@@ -73,6 +74,10 @@ class ShimaPinnedSourceTest(unittest.TestCase):
             self.assertEqual(run("verify").returncode, 0)
             self.assertTrue((current / "shell.qml").is_file())
             self.assertTrue((current / "ShellWafflePanels.qml").is_file())
+            self.assertTrue((current / "ShimaOverviewBackdrop.qml").is_file())
+            self.assertIn("overview_patch_sha256", json.loads((current / "runtime.json").read_text()))
+            self.assertIn("ryoku-overview-backdrop", (current / "ShimaOverviewBackdrop.qml").read_text())
+            self.assertIn("property bool enableTerminal: false", (current / "modules/common/Config.qml").read_text())
             self.assertFalse((current / "assets/systemd/inir.service").exists())
             launcher = subprocess.run([str(SCRIPTS / "ryoku-shima"), "--version"], env=env, capture_output=True, text=True)
             self.assertEqual(launcher.returncode, 0, launcher.stderr)
