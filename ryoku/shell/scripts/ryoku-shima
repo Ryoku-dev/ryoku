@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source_root="${RYOKU_SHIMA_RUNTIME_DIR:-${RYOKU_SHIMA_SOURCE:-${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/shima}}"
+if [[ ! -r "$source_root/shell.qml" || ! -f "$source_root/ryoku-launcher.py" ]]; then
+  printf 'Shima runtime is not installed: %s\n' "$source_root" >&2
+  exit 1
+fi
+
+export RYOKU_SHIMA_SOURCE="$source_root"
+exec python3 "$source_root/ryoku-launcher.py" "$@"

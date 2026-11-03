@@ -131,6 +131,9 @@ qt6-svg
 qt6-multimedia
 qt6-multimedia-ffmpeg
 qt6-quick3d
+qt6-imageformats
+kirigami
+syntax-highlighting
 gst-plugins-base
 gst-plugins-good
 gst-plugins-bad
