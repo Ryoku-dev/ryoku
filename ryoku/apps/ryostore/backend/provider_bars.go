@@ -66,8 +66,14 @@ func (p barProvider) Load(ctx context.Context, refresh bool) ([]Item, SourceStat
 	if registryErr != nil && !productRegistryUnavailable(registryErr) {
 		return nil, state, registryErr
 	}
-	seen := make(map[string]bool, len(entries))
+	seen := make(map[string]bool, len(entries)+len(items))
+	for _, item := range items {
+		seen[item.ID] = true
+	}
 	for _, entry := range entries {
+		if seen[entry.ID] {
+			continue
+		}
 		item, err := productEntryItem(p.cache.base, "barstyles", entry)
 		if err != nil {
 			return nil, state, fmt.Errorf("barstyles/%s: installed state: %w", entry.ID, err)
@@ -146,6 +152,9 @@ func builtinBarStyles() []Item {
 	}, {
 		ID: "iris", Category: "barstyles", Name: "Shima",
 		Summary:     "Based on iNiR by snowarch",
+		Author:      "snowarch & aethctl",
+		Upstream:    "https://github.com/snowarch/iNiR",
+		Art:         "https://raw.githubusercontent.com/Ryoku-dev/ryostore/main/barstyles/iris/assets/preview.webp",
 		Description: "An island on any screen edge that grows into whatever you clicked: morphing glass, bubbles, a dock, a studio and its own settings.",
 		Tags:        []string{"island", "frame", "built-in"},
 		Installed:   true,
