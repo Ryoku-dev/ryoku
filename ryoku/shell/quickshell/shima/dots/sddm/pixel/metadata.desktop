@@ -1,0 +1,12 @@
+[SddmGreeterTheme]
+Name=ii-pixel
+Description=iNiR SDDM login screen — Material You dynamic colors
+Author=iNiR Project
+Type=sddm-theme
+Version=1.0
+Website=https://github.com/snowarch/iNiR
+MainScript=Main.qml
+ConfigFile=theme.conf
+Theme-Id=ii-pixel
+Theme-API=2.0
+QtVersion=6

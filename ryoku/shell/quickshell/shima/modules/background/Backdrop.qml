@@ -1,0 +1,555 @@
+pragma ComponentBehavior: Bound
+
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions as CF
+import qs.modules.common.models
+import QtQuick
+import QtQuick.Effects
+import QtMultimedia
+import Qt5Compat.GraphicalEffects as GE
+import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
+
+Variants {
+    id: root
+    model: Quickshell.screens
+
+    PanelWindow {
+        id: backdropWindow
+        required property var modelData
+
+        screen: modelData
+
+        WlrLayershell.layer: WlrLayer.Background
+        WlrLayershell.namespace: "quickshell:iiBackdrop"
+        WlrLayershell.exclusionMode: ExclusionMode.Ignore
+
+        anchors.top: true
+        anchors.bottom: true
+        anchors.left: true
+        anchors.right: true
+
+        color: "transparent"
+        visible: true
+
+        // Material ii backdrop config (independent)
+        readonly property var iiBackdrop: Config.options?.background?.backdrop ?? {}
+
+        readonly property int backdropBlurRadius: iiBackdrop.blurRadius ?? 32
+
+        // Backdrop still needs a full-quality source before blur is applied. A
+        // half-resolution decode was noticeably soft on low-resolution images and
+        // HiDPI outputs because the result was enlarged again to cover the screen.
+        // Include the blur-overflow margin so the source is never upscaled merely
+        // to feed the edge-compensation area.
+        readonly property int backdropDecodeOverflow: 64
+        readonly property real backdropDecodeScale: Math.max(1, backdropWindow.devicePixelRatio ?? 1)
+        readonly property size backdropSourceSize: Qt.size(
+            Math.ceil(((screen?.width ?? 1920) + backdropDecodeOverflow * 2) * backdropDecodeScale),
+            Math.ceil(((screen?.height ?? 1080) + backdropDecodeOverflow * 2) * backdropDecodeScale))
+        // A live wallpaper plays from the cached copy at the output's height, not a 4K original.
+        readonly property string videoSource: {
+            const path = wallpaperIsVideo ? Wallpapers.videoPlaybackPath(wallpaperPathRaw, Math.ceil((screen?.height ?? 1080) * backdropDecodeScale)) : ""
+            return !path ? "" : path.startsWith("file://") ? path : ("file://" + path)
+        }
+        readonly property int thumbnailBlurStrength: Config.options?.background?.effects?.thumbnailBlurStrength ?? 50
+        readonly property bool enableAnimatedBlur: iiBackdrop.enableAnimatedBlur ?? false
+        // Niri's backdrop is a full-screen visual layer, not a photo viewer. It
+        // must always cover the output; persisted legacy `fit` values are ignored.
+        readonly property int imageFillMode: Image.PreserveAspectCrop
+        readonly property int videoFillMode: VideoOutput.PreserveAspectCrop
+        readonly property int backdropDim: iiBackdrop.dim ?? 35
+        readonly property real backdropSaturation: iiBackdrop.saturation ?? 0
+        readonly property real backdropContrast: iiBackdrop.contrast ?? 0
+        readonly property bool vignetteEnabled: iiBackdrop.vignetteEnabled ?? false
+        readonly property real vignetteIntensity: iiBackdrop.vignetteIntensity ?? 0.5
+        readonly property real vignetteRadius: iiBackdrop.vignetteRadius ?? 0.7
+        readonly property bool useAuroraStyle: iiBackdrop.useAuroraStyle ?? false
+        readonly property real auroraOverlayOpacity: iiBackdrop.auroraOverlayOpacity ?? 0.38
+        readonly property bool enableAnimation: iiBackdrop.enableAnimation ?? false
+
+        // Per-monitor main wallpaper path (resolves per-monitor when multi-monitor enabled)
+        readonly property string _perMonitorMainPath: {
+            if (WallpaperListener.multiMonitorEnabled) {
+                const monName = WallpaperListener.getMonitorName(backdropWindow.modelData)
+                const data = WallpaperListener.effectivePerMonitor[monName]
+                if (data && data.path) return data.path
+            }
+            return Config.options?.background?.wallpaperPath ?? ""
+        }
+
+        // Per-monitor backdrop path (if multi-monitor enabled and monitor has custom backdrop)
+        readonly property string _perMonitorBackdropPath: {
+            if (WallpaperListener.multiMonitorEnabled) {
+                const monName = WallpaperListener.getMonitorName(backdropWindow.modelData)
+                const data = WallpaperListener.effectivePerMonitor[monName]
+                if (data && data.backdropPath) return data.backdropPath
+            }
+            return ""
+        }
+
+        // Raw wallpaper path (before thumbnail substitution)
+        readonly property string wallpaperPathRaw: {
+            const useMain = iiBackdrop.useMainWallpaper ?? true;
+            const mainPath = _perMonitorMainPath;
+            // Per-monitor backdrop takes priority, then global backdrop, then main wallpaper
+            if (!useMain) {
+                const perMonBd = _perMonitorBackdropPath
+                if (perMonBd) return perMonBd
+                const globalBd = iiBackdrop.wallpaperPath || ""
+                if (globalBd) return globalBd
+            }
+            return mainPath;
+        }
+        
+        readonly property bool wallpaperIsVideo: {
+            const lowerPath = wallpaperPathRaw.toLowerCase();
+            return lowerPath.endsWith(".mp4") || lowerPath.endsWith(".webm") || lowerPath.endsWith(".mkv") || lowerPath.endsWith(".avi") || lowerPath.endsWith(".mov");
+        }
+        
+        readonly property bool wallpaperIsGif: {
+            return wallpaperPathRaw.toLowerCase().endsWith(".gif");
+        }
+
+        readonly property string effectiveWallpaperPath: wallpaperPathRaw
+        readonly property string frozenVideoFramePath: {
+            const _dep = Wallpapers.videoFirstFrames
+            if (!wallpaperIsVideo || enableAnimation)
+                return ""
+            const frame = Wallpapers.getVideoFirstFramePath(wallpaperPathRaw)
+            if (!frame) {
+                Wallpapers.ensureVideoFirstFrame(wallpaperPathRaw)
+                return ""
+            }
+            return frame.startsWith("file://") ? frame : ("file://" + frame)
+        }
+        readonly property bool useFrozenVideoFrame: frozenVideoFramePath.length > 0
+
+        // For ColorQuantizer: needs an image source (can't decode video files)
+        // Uses first-frame cache for videos, config thumbnail as fallback
+        readonly property string colorSourcePath: {
+            if (wallpaperIsVideo)
+                return Wallpapers.stillUrlFor(wallpaperPathRaw)
+            return wallpaperPathRaw
+        }
+
+        // Color quantizer for aurora-style adaptive colors
+        ColorQuantizer {
+            id: backdropColorQuantizer
+            source: (Appearance.auroraEverywhere || Appearance.angelEverywhere)
+                ? (backdropWindow.colorSourcePath
+                    ? (backdropWindow.colorSourcePath.startsWith("file://")
+                        ? backdropWindow.colorSourcePath
+                        : "file://" + backdropWindow.colorSourcePath)
+                    : "")
+                : ""
+            depth: 0
+            rescaleSize: 10
+        }
+
+        readonly property color wallpaperDominantColor: (backdropColorQuantizer?.colors?.[0] ?? Appearance.colors.colPrimary)
+        readonly property QtObject blendedColors: AdaptedMaterialScheme {
+            color: CF.ColorUtils.mix(backdropWindow.wallpaperDominantColor, Appearance.colors.colPrimaryContainer, 0.8) || Appearance.colors.colSecondaryContainer
+        }
+
+        Item {
+            anchors.fill: parent
+            clip: true
+
+            // Blur edge compensation: MultiEffect fades at boundaries because the
+            // Gaussian kernel has no pixels beyond the item edge. To fix this, all
+            // wallpaper source items are oversized by blurMax (64px) on every side,
+            // and this parent clips the result to exact screen bounds.
+            readonly property int blurOverflow: backdropWindow.backdropDecodeOverflow
+            readonly property int mediaMargin: -blurOverflow
+
+            // Overview/backdrop is a settled resource, not a second transition
+            // owner. It follows the configured path without replaying the desktop
+            // animation, so the hidden Overview resource can settle independently.
+            WallpaperCrossfader {
+                id: wallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                fillMode: backdropWindow.imageFillMode
+                source: backdropWindow.effectiveWallpaperPath && !backdropWindow.wallpaperIsGif && !backdropWindow.wallpaperIsVideo
+                        && !Wallpapers.isVideoFile(backdropWindow.effectiveWallpaperPath)
+                    ? (backdropWindow.effectiveWallpaperPath.startsWith("file://")
+                        ? backdropWindow.effectiveWallpaperPath
+                        : "file://" + backdropWindow.effectiveWallpaperPath)
+                    : ""
+                visible: !backdropWindow.useAuroraStyle && !backdropWindow.wallpaperIsGif && !backdropWindow.wallpaperIsVideo
+                sourceSize: backdropWindow.backdropSourceSize
+                enableTransitions: false
+            }
+
+            MultiEffect {
+                anchors.fill: wallpaper
+                source: wallpaper
+                visible: wallpaper.ready && !backdropWindow.useAuroraStyle && !backdropWindow.wallpaperIsGif && !backdropWindow.wallpaperIsVideo
+                blurEnabled: backdropWindow.backdropBlurRadius > 0
+                blur: backdropWindow.backdropBlurRadius / 100.0
+                blurMax: 64
+                saturation: backdropWindow.backdropSaturation
+                contrast: backdropWindow.backdropContrast
+            }
+            
+            // Animated GIF wallpaper
+            // Always loaded for GIFs: plays when animation enabled, frozen (first frame) when disabled
+            AnimatedImage {
+                id: gifWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                fillMode: backdropWindow.imageFillMode
+                source: backdropWindow.wallpaperIsGif && backdropWindow.wallpaperPathRaw
+                    ? (backdropWindow.wallpaperPathRaw.startsWith("file://")
+                        ? backdropWindow.wallpaperPathRaw
+                        : "file://" + backdropWindow.wallpaperPathRaw)
+                    : ""
+                asynchronous: true
+                cache: false
+                smooth: true
+                mipmap: false
+                visible: !backdropWindow.useAuroraStyle && backdropWindow.wallpaperIsGif
+                playing: visible && backdropWindow.enableAnimation && !GlobalStates.screenLocked && !Appearance._gameModeActive && !Wallpapers.batteryPauseActive
+                    && (!CompositorService.isNiri || NiriService.inOverview)
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                    && backdropWindow.enableAnimatedBlur
+                    && backdropWindow.backdropBlurRadius > 0
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blur: (backdropWindow.backdropBlurRadius * Math.max(0, Math.min(1, backdropWindow.thumbnailBlurStrength / 100))) / 100.0
+                    blurMax: 64
+                    saturation: backdropWindow.backdropSaturation
+                    contrast: backdropWindow.backdropContrast
+                }
+            }
+
+            // A disabled animated backdrop is visually a still image. Once the
+            // representative frame exists, render that image and release FFmpeg
+            // instead of retaining a paused fullscreen decoder indefinitely.
+            Image {
+                id: frozenVideoWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                visible: !backdropWindow.useAuroraStyle && backdropWindow.useFrozenVideoFrame
+                source: visible ? backdropWindow.frozenVideoFramePath : ""
+                fillMode: backdropWindow.imageFillMode
+                asynchronous: true
+                cache: false
+                smooth: true
+                sourceSize: backdropWindow.backdropSourceSize
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                    && backdropWindow.enableAnimatedBlur
+                    && backdropWindow.backdropBlurRadius > 0
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blur: (backdropWindow.backdropBlurRadius * Math.max(0, Math.min(1, backdropWindow.thumbnailBlurStrength / 100))) / 100.0
+                    blurMax: 64
+                    saturation: backdropWindow.backdropSaturation
+                    contrast: backdropWindow.backdropContrast
+                }
+            }
+
+            // Video wallpaper. Keep the decoder only while animation is enabled,
+            // or briefly while the cached still frame is being generated.
+            Video {
+                id: videoWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                visible: !backdropWindow.useAuroraStyle && backdropWindow.wallpaperIsVideo
+                    && !backdropWindow.useFrozenVideoFrame
+                source: {
+                    // The Aurora branch owns its own player. Keep this pipeline
+                    // completely unloaded while that style is visible.
+                    if (!videoWallpaper.visible || !backdropWindow.wallpaperIsVideo) return "";
+                    return backdropWindow.videoSource;
+                }
+                fillMode: backdropWindow.videoFillMode
+                loops: MediaPlayer.Infinite
+                muted: true
+                autoPlay: true
+
+                readonly property bool shouldPlay: backdropWindow.enableAnimation && !GlobalStates.screenLocked && !Appearance._gameModeActive && !Wallpapers.batteryPauseActive
+                    && (!CompositorService.isNiri || NiriService.inOverview)
+
+                // Leaving the Overview holds the frame; only a still backdrop shows the first one.
+                function pausePlayback() {
+                    pause()
+                    if (!backdropWindow.enableAnimation) seek(0)
+                }
+
+                onPlaybackStateChanged: {
+                    if (playbackState === MediaPlayer.PlayingState && !shouldPlay) {
+                        pausePlayback()
+                    }
+                    if (playbackState === MediaPlayer.StoppedState && visible && shouldPlay) {
+                        play()
+                    }
+                }
+
+                onShouldPlayChanged: {
+                    if (visible && backdropWindow.wallpaperIsVideo) {
+                        if (shouldPlay) play()
+                        else pausePlayback()
+                    }
+                }
+
+                onVisibleChanged: {
+                    if (visible && backdropWindow.wallpaperIsVideo) {
+                        if (shouldPlay) play()
+                        else pausePlayback()
+                    } else {
+                        pause()
+                    }
+                }
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                    && backdropWindow.enableAnimatedBlur
+                    && backdropWindow.backdropBlurRadius > 0
+                layer.effect: MultiEffect {
+                    blurEnabled: true
+                    blur: (backdropWindow.backdropBlurRadius * Math.max(0, Math.min(1, backdropWindow.thumbnailBlurStrength / 100))) / 100.0
+                    blurMax: 64
+                    saturation: backdropWindow.backdropSaturation
+                    contrast: backdropWindow.backdropContrast
+                }
+            }
+
+            // Aurora-style blur (same as sidebars)
+            Image {
+                id: auroraWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                fillMode: backdropWindow.imageFillMode
+                // Decoded only when it can show: off, it held a hidden half-size copy of the wallpaper per output.
+                source: backdropWindow.useAuroraStyle && !backdropWindow.wallpaperIsGif && !backdropWindow.wallpaperIsVideo
+                    ? wallpaper.source : ""
+                asynchronous: true
+                cache: false
+                smooth: true
+                mipmap: false
+                visible: backdropWindow.useAuroraStyle && status === Image.Ready && !backdropWindow.wallpaperIsGif && !backdropWindow.wallpaperIsVideo
+                // Aurora is always blurred at full strength, so both the decoded
+                // source and the effect's own texture run at half resolution. The
+                // blur radius is halved with them (blurMax counts source pixels),
+                // which keeps the visible blur identical.
+                sourceSize.width: Math.round((backdropWindow.screen?.width ?? 1920) * 0.5)
+                sourceSize.height: Math.round((backdropWindow.screen?.height ?? 1080) * 0.5)
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                layer.smooth: true
+                layer.textureSize: Qt.size(Math.round(width * 0.5), Math.round(height * 0.5))
+                layer.effect: MultiEffect {
+                    source: auroraWallpaper
+                    anchors.fill: source
+                    saturation: Appearance.angelEverywhere
+                        ? Appearance.angel.blurSaturation
+                        : (Appearance.effectsEnabled ? 0.2 : 0)
+                    blurEnabled: Appearance.effectsEnabled
+                    blurMax: 32
+                    blur: Appearance.effectsEnabled ? 1 : 0
+                }
+            }
+            
+            // Aurora-style for GIFs
+            AnimatedImage {
+                id: auroraGifWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                fillMode: backdropWindow.imageFillMode
+                source: backdropWindow.useAuroraStyle && backdropWindow.wallpaperIsGif ? gifWallpaper.source : ""
+                asynchronous: true
+                cache: false
+                smooth: true
+                mipmap: false
+                visible: backdropWindow.useAuroraStyle && backdropWindow.wallpaperIsGif
+                playing: visible && backdropWindow.enableAnimation && !GlobalStates.screenLocked && !Appearance._gameModeActive && !Wallpapers.batteryPauseActive
+                    && (!CompositorService.isNiri || NiriService.inOverview)
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                    && backdropWindow.enableAnimatedBlur
+                layer.effect: MultiEffect {
+                    source: auroraGifWallpaper
+                    anchors.fill: source
+                    saturation: Appearance.angelEverywhere
+                        ? Appearance.angel.blurSaturation
+                        : (Appearance.effectsEnabled ? 0.2 : 0)
+                    blurEnabled: Appearance.effectsEnabled
+                    blurMax: 64
+                    blur: Appearance.effectsEnabled ? 1 : 0
+                }
+            }
+
+            Image {
+                id: auroraFrozenVideoWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                visible: backdropWindow.useAuroraStyle && backdropWindow.useFrozenVideoFrame
+                source: visible ? backdropWindow.frozenVideoFramePath : ""
+                fillMode: backdropWindow.imageFillMode
+                asynchronous: true
+                cache: false
+                smooth: true
+                sourceSize.width: Math.round((backdropWindow.screen?.width ?? 1920) * 0.5)
+                sourceSize.height: Math.round((backdropWindow.screen?.height ?? 1080) * 0.5)
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                layer.smooth: true
+                layer.textureSize: Qt.size(Math.round(width * 0.5), Math.round(height * 0.5))
+                layer.effect: MultiEffect {
+                    source: auroraFrozenVideoWallpaper
+                    anchors.fill: source
+                    saturation: Appearance.angelEverywhere
+                        ? Appearance.angel.blurSaturation
+                        : (Appearance.effectsEnabled ? 0.2 : 0)
+                    blurEnabled: Appearance.effectsEnabled
+                    blurMax: 64
+                    blur: Appearance.effectsEnabled ? 1 : 0
+                }
+            }
+
+            // Aurora-style for Videos
+            Video {
+                id: auroraVideoWallpaper
+                anchors.fill: parent
+                anchors.margins: parent.mediaMargin
+                visible: backdropWindow.useAuroraStyle && backdropWindow.wallpaperIsVideo
+                    && !backdropWindow.useFrozenVideoFrame
+                source: {
+                    // Do not borrow videoWallpaper.source: that kept the hidden
+                    // non-Aurora MediaPlayer loaded as a second decoder.
+                    if (!auroraVideoWallpaper.visible) return "";
+                    return backdropWindow.videoSource;
+                }
+                fillMode: backdropWindow.videoFillMode
+                loops: MediaPlayer.Infinite
+                muted: true
+                autoPlay: true
+
+                readonly property bool shouldPlay: backdropWindow.enableAnimation && !GlobalStates.screenLocked && !Appearance._gameModeActive && !Wallpapers.batteryPauseActive
+                    && (!CompositorService.isNiri || NiriService.inOverview)
+
+                function pausePlayback() {
+                    pause()
+                    if (!backdropWindow.enableAnimation) seek(0)
+                }
+
+                onPlaybackStateChanged: {
+                    if (playbackState === MediaPlayer.PlayingState && !shouldPlay) {
+                        pausePlayback()
+                    }
+                    if (playbackState === MediaPlayer.StoppedState && visible && shouldPlay) {
+                        play()
+                    }
+                }
+
+                onShouldPlayChanged: {
+                    if (visible && backdropWindow.wallpaperIsVideo) {
+                        if (shouldPlay) play()
+                        else pausePlayback()
+                    }
+                }
+
+                onVisibleChanged: {
+                    if (visible && backdropWindow.wallpaperIsVideo) {
+                        if (shouldPlay) play()
+                        else pausePlayback()
+                    } else {
+                        pause()
+                    }
+                }
+
+                layer.enabled: visible && Appearance.effectsEnabled
+                    && backdropWindow.enableAnimatedBlur
+                layer.effect: MultiEffect {
+                    source: auroraVideoWallpaper
+                    anchors.fill: source
+                    saturation: Appearance.angelEverywhere
+                        ? Appearance.angel.blurSaturation
+                        : (Appearance.effectsEnabled ? 0.2 : 0)
+                    blurEnabled: Appearance.effectsEnabled
+                    blurMax: 64
+                    blur: Appearance.effectsEnabled ? 1 : 0
+                }
+            }
+
+            // Aurora-style color overlay
+            Rectangle {
+                anchors.fill: parent
+                visible: backdropWindow.useAuroraStyle
+                color: CF.ColorUtils.transparentize(
+                    (backdropWindow.blendedColors?.colLayer0 ?? Appearance.colors.colLayer0Base), 
+                    backdropWindow.auroraOverlayOpacity
+                )
+            }
+
+            // Legacy dim overlay (non-aurora)
+            Rectangle {
+                anchors.fill: parent
+                visible: !backdropWindow.useAuroraStyle
+                color: "black"
+                opacity: backdropWindow.backdropDim / 100.0
+            }
+
+            // Vignette effect at bar level
+            Rectangle {
+                id: barVignette
+                readonly property bool isVertical: Config.options?.bar?.vertical ?? false
+                readonly property bool isBarAtTop: !isVertical && !(Config.options?.bar?.bottom ?? false)
+                readonly property bool isBarAtLeft: isVertical && !(Config.options?.bar?.bottom ?? false)
+                readonly property bool barVignetteEnabled: Config.options?.bar?.vignette?.enabled ?? false
+                readonly property real barVignetteIntensity: Config.options?.bar?.vignette?.intensity ?? 0.6
+                readonly property real barVignetteRadius: Config.options?.bar?.vignette?.radius ?? 0.5
+
+                anchors {
+                    left: isVertical ? (isBarAtLeft ? parent.left : undefined) : parent.left
+                    right: isVertical ? (isBarAtLeft ? undefined : parent.right) : parent.right
+                    top: isVertical ? parent.top : (isBarAtTop ? parent.top : undefined)
+                    bottom: isVertical ? parent.bottom : (isBarAtTop ? undefined : parent.bottom)
+                }
+
+                width: isVertical ? Math.max(200, backdropWindow.modelData.width * barVignetteRadius) : undefined
+                height: isVertical ? undefined : Math.max(200, backdropWindow.modelData.height * barVignetteRadius)
+                visible: barVignetteEnabled
+                
+                gradient: Gradient {
+                    orientation: barVignette.isVertical ? Gradient.Horizontal : Gradient.Vertical
+                    
+                    GradientStop { 
+                        position: 0.0
+                        color: (barVignette.isBarAtTop || barVignette.isBarAtLeft)
+                            ? Qt.rgba(0, 0, 0, barVignette.barVignetteIntensity)
+                            : "transparent"
+                    }
+                    GradientStop { 
+                        position: barVignette.barVignetteRadius
+                        color: "transparent"
+                    }
+                    GradientStop { 
+                        position: 1.0
+                        color: (barVignette.isBarAtTop || barVignette.isBarAtLeft)
+                            ? "transparent"
+                            : Qt.rgba(0, 0, 0, barVignette.barVignetteIntensity)
+                    }
+                }
+            }
+            
+            // Legacy vignette effect (bottom gradient)
+            Rectangle {
+                anchors.fill: parent
+                visible: backdropWindow.vignetteEnabled
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: "transparent" }
+                    GradientStop { position: backdropWindow.vignetteRadius; color: "transparent" }
+                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, backdropWindow.vignetteIntensity) }
+                }
+            }
+        }
+    }
+}

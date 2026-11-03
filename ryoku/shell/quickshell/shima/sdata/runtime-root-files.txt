@@ -1,0 +1,4 @@
+setup
+VERSION
+CHANGELOG.md
+go.mod

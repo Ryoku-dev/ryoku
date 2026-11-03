@@ -1,0 +1,47 @@
+# Quickshell and Qt6 dependencies for iNiR
+# Based on upstream packaging patterns from end-4
+
+pkgname=inir-quickshell
+pkgver=1.0
+pkgrel=1
+pkgdesc='iNiR - Quickshell and Qt6 dependency bundle'
+arch=(any)
+license=('GPL-3.0-only')
+depends=(
+  # Quickshell - NOW IN OFFICIAL REPOS (extra)! No compilation needed!
+  quickshell
+  
+  # Core Qt6
+  qt6-declarative
+  qt6-base
+  qt6-svg
+  qt6-wayland
+  
+  # Qt6 extras for ii
+  qt6-5compat
+  qt6-imageformats
+  qt6-multimedia
+  qt6-tools
+  qt6-translations
+  
+  # System libs for Quickshell
+  jemalloc
+  libpipewire
+  libxcb
+  wayland
+  libdrm
+  mesa
+  
+  # KDE integration
+  kirigami
+  kdialog
+  syntax-highlighting
+  
+  # Qt theming (kvantum is in inir-fonts, qt6ct configures Qt without Plasma)
+  qt6ct
+  breeze-icons  # lightweight icon theme (no Plasma deps)
+)
+
+# AUR dependencies (installed separately, minimal compilation)
+# qt6-avif-image-plugin
+# NOTE: quickshell is now in official repos (extra) - no AUR needed!

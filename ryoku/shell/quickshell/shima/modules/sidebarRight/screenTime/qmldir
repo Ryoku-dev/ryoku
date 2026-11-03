@@ -1,0 +1,2 @@
+module qs.modules.sidebarRight.screenTime
+ScreenTimeWidget 1.0 ScreenTimeWidget.qml

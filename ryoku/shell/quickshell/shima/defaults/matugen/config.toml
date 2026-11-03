@@ -1,0 +1,16 @@
+# iNiR theming template configuration
+#
+# Templates are rendered by generate_colors_material.py (--render-templates flag).
+# The Python pipeline generates Material You colors AND renders all templates in
+# a single pass, replacing the previous matugen + Python split.
+#
+# Template syntax (compatible with former matugen templates):
+#   {{colors.primary.dark.hex}}            → "#rrggbb" (dark variant)
+#   {{colors.primary.light.hex}}           → "#rrggbb" (light variant)
+#   {{colors.primary.default.hex}}         → current mode variant
+#   {{colors.primary.default.hex_stripped}} → "rrggbb" (no #)
+#   {{colors.primary.dark.rgb}}            → "R, G, B" (decimal triplet)
+#   {{image}}                              → wallpaper path
+#
+# Template manifest: templates.json (declares input/output paths)
+# Active templates (processed on every wallpaper/color change):

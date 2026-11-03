@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=iNiR Shell
+Comment=iNiR desktop shell session
+Exec=inir service restart
+Icon=inir
+Terminal=false
+NoDisplay=true
+Categories=System;

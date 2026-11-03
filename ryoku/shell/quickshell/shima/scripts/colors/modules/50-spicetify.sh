@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib/module-runtime.sh"
+COLOR_MODULE_ID="spicetify"
+
+main() {
+  local enable_spicetify
+  enable_spicetify=$(config_bool '.appearance.wallpaperTheming.enableSpicetify' true)
+  [[ "$enable_spicetify" == 'true' ]] || exit 0
+  command -v spicetify &>/dev/null || exit 0
+  local theme
+  theme=$(config_json '.appearance.wallpaperTheming.spicetifyTheme // "Inir"' 'Inir')
+  "$SCRIPT_DIR/apply-spicetify-theme.sh" --theme "$theme"
+}
+
+main "$@"

@@ -1,0 +1,457 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Effects
+import Quickshell
+import Qt5Compat.GraphicalEffects as GE
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.iris.style
+import qs.modules.common.functions
+import qs.modules.common.widgets
+import qs.modules.common.widgets.widgetCanvas
+
+/*
+ * To make an overlay widget:
+ * 1. Create a modules/overlay/<yourWidget>/<YourWidget>.qml, using this as the base class and declare your widget content as contentItem
+ * 2. Add an entry to OverlayContext.availableWidgets with identifier=<yourWidgetIdentifier>
+ * 3. Add an entry in Persistent.states.overlay.<yourWidgetIdentifier> with x, y, width, height, pinned, clickthrough properties set to reasonable defaults
+ * 4. Add an entry in OverlayWidgetDelegateChooser with roleValue=<yourWidgetIdentifier> and Declare your widget in there
+ * Use existing entries as reference.
+ */
+AbstractOverlayWidget {
+    id: root
+
+    // To be defined by subclasses
+    required property Item contentItem
+    property bool fancyBorders: true
+    property bool showCenterButton: false
+    property bool showClickabilityButton: true
+    property string titlebarActionSymbol: ""
+    property string titlebarActionTooltip: ""
+    signal titlebarActionClicked()
+
+    // Defaults n stuff
+    required property var modelData
+    readonly property string identifier: modelData.identifier
+    readonly property string materialSymbol: modelData.materialSymbol ?? "widgets"
+    property string title: identifier.replace(/([A-Z])/g, " $1").replace(/^./, function(str){ return str.toUpperCase(); })
+    property var persistentStateEntry: Persistent.states.overlay[identifier]
+    property real radius: OverlayLook.iris ? IrisStyle.radiusSheet
+        : Appearance.regaliaEverywhere ? Appearance.regalia.roundLarge : Appearance.rounding.windowRounding
+    property real minimumWidth: contentItem.implicitWidth
+    property real minimumHeight: contentItem.implicitHeight
+    property real resizeMargin: 8
+    property real padding: 6
+    property real contentRadius: radius - padding
+
+    // Resizing
+    function getXResizeDirection(x) {
+        return (x < root.resizeMargin) ? -1 : (x > root.width - root.resizeMargin) ? 1 : 0
+    }
+    function getYResizeDirection(y) {
+        return (y < root.resizeMargin) ? -1 : (y > root.height - root.resizeMargin) ? 1 : 0
+    }
+    hoverEnabled: true
+    property bool resizable: true
+    property bool resizing: false
+    property int resizeXDirection: getXResizeDirection(mouseX)
+    property int resizeYDirection: getYResizeDirection(mouseY)
+    draggable: GlobalStates.overlayOpen
+    drag.target: undefined
+    animateXPos: !dragHandler.active
+    animateYPos: !dragHandler.active
+    z: dragHandler.active ? 2 : 1
+    cursorShape: {
+        if (dragHandler.active) return root.resizing ? cursorShape : Qt.ArrowCursor;
+        if (resizeMargin < mouseX && mouseX < width - resizeMargin &&
+            resizeMargin < mouseY && mouseY < height - resizeMargin) {
+            return Qt.ArrowCursor;
+        } else {
+            if (!root.resizable) return Qt.ArrowCursor;
+            const dragIsLeft = mouseX < width / 2
+            const dragIsTop = mouseY < height / 2
+            if ((dragIsLeft && dragIsTop) || (!dragIsLeft && !dragIsTop)) {
+                return Qt.SizeFDiagCursor
+            } else {
+                return Qt.SizeBDiagCursor
+            }
+        }
+    }
+
+    // Positioning & sizing
+    x: Math.round(persistentStateEntry.x) // Round or it'll be blurry
+    y: Math.round(persistentStateEntry.y) // Round or it'll be blurry
+    pinned: persistentStateEntry.pinned
+    clickthrough: persistentStateEntry.clickthrough
+    drag {
+        minimumX: 0
+        minimumY: 0
+        maximumX: root.parent?.width - root.width
+        maximumY: root.parent?.height - root.height
+    }
+    // Opacidad global del widget de overlay:
+    // - backgroundOpacity controla cuán sólido es el panel cuando el overlay está abierto o el widget no es clickthrough
+    // - clickthroughOpacity sigue aplicándose como factor extra cuando el widget está anclado y en modo atraversable
+    property real panelOpacityOverride: -1
+    readonly property real panelBaseOpacity: {
+        const override = Number(root.panelOpacityOverride)
+        const fallback = Number(Config.options?.overlay?.backgroundOpacity ?? 1.0)
+        const value = isFinite(override) && override >= 0 ? override : fallback
+        return Math.max(0, Math.min(1, isFinite(value) ? value : 1.0))
+    }
+    opacity: (GlobalStates.overlayOpen || !clickthrough)
+             ? 1
+             : (Config.options?.overlay?.clickthroughOpacity ?? 0.8)
+    Behavior on opacity {
+        animation: NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+    }
+
+    // Guarded states & registration funcs
+    property bool open: Persistent.states.overlay.open
+    property bool actuallyPinned: pinned && open
+    property bool actuallyClickable: !clickthrough && actuallyPinned && open
+    onActuallyPinnedChanged: reportPinnedState();
+    onActuallyClickableChanged: reportClickableState();
+    function reportPinnedState() {
+        OverlayContext.pin(identifier, actuallyPinned);
+    }
+    function reportClickableState() {
+        OverlayContext.registerClickableWidget(contentItem, actuallyClickable);
+    }
+
+    // Self-registeration with OverlayContext
+    Component.onCompleted: {
+        reportPinnedState();
+        reportClickableState();
+    }
+
+    // Hooks
+    onPressed: (event) => {
+        // We're only interested in handling resize here
+        // Early returns
+        if (!root.resizable) return;
+        if (root.resizeMargin < event.x && event.x < root.width - root.resizeMargin &&
+            root.resizeMargin < event.y && event.y < root.height - root.resizeMargin) {
+            return;
+        }
+        // Resizing setup
+        root.resizing = true;
+        root.resizeXDirection = getXResizeDirection(event.x);
+        root.resizeYDirection = getYResizeDirection(event.y);
+        if (root.resizeYDirection !== 0 && root.resizeXDirection === 0) {
+            root.resizeXDirection = event.x < root.width / 2 ? -1 : 1;
+        } else if (root.resizeXDirection !== 0 && root.resizeYDirection === 0) {
+            root.resizeYDirection = event.y < root.height / 2 ? -1 : 1;
+        }
+    }
+    onPositionChanged: (event) => {
+        if (!resizing) return;
+        contentContainer.implicitWidth = Math.max(root.persistentStateEntry.width + dragHandler.xAxis.activeValue * root.resizeXDirection, root.minimumWidth);
+        contentContainer.implicitHeight = Math.max(root.persistentStateEntry.height + dragHandler.yAxis.activeValue * root.resizeYDirection, root.minimumHeight);
+        const negativeXDrag = root.resizeXDirection === -1;
+        const negativeYDrag = root.resizeYDirection === -1;
+        const wantedX = root.persistentStateEntry.x + (negativeXDrag ? dragHandler.xAxis.activeValue : 0)
+        const wantedY = root.persistentStateEntry.y + (negativeYDrag ? dragHandler.yAxis.activeValue : 0)
+        const negativeXDragLimit = root.persistentStateEntry.x + root.persistentStateEntry.width - contentContainer.implicitWidth;
+        const negativeYDragLimit = root.persistentStateEntry.y + root.persistentStateEntry.height - contentContainer.implicitHeight;
+        root.x = negativeXDrag ? Math.min(wantedX, negativeXDragLimit) : wantedX;
+        root.y = negativeYDrag ? Math.min(wantedY, negativeYDragLimit) : wantedY;
+    }
+    DragHandler {
+        id: dragHandler
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        target: (root.draggable && !root.resizing) ? root : null
+        onActiveChanged: { // Handle drag release
+            if (!active) {
+                root.resizing = false;
+                root.savePosition();
+            }
+        }
+        xAxis.minimum: 0
+        xAxis.maximum: root.parent?.width - root.width
+        yAxis.minimum: 0
+        yAxis.maximum: root.parent?.height - root.height
+    }
+
+    function close() {
+        Persistent.states.overlay.open = Persistent.states.overlay.open.filter(type => type !== root.identifier);
+    }
+
+    function togglePinned() {
+        persistentStateEntry.pinned = !persistentStateEntry.pinned;
+    }
+
+    function toggleClickthrough() {
+        persistentStateEntry.clickthrough = !persistentStateEntry.clickthrough;
+    }
+
+    function savePosition(xPos = root.x, yPos = root.y, width = contentContainer.implicitWidth, height = contentContainer.implicitHeight) {
+        persistentStateEntry.x = Math.round(xPos);
+        persistentStateEntry.y = Math.round(yPos);
+        persistentStateEntry.width = Math.round(width);
+        persistentStateEntry.height = Math.round(height);
+    }
+
+    function center() {
+        const targetX = (root.parent.width - contentColumn.width) / 2 - root.resizeMargin
+        const targetY = (root.parent.height - contentContainer.height) / 2 - titleBar.implicitHeight + border.border.width - root.resizeMargin
+        root.x = targetX
+        root.y = targetY
+        root.savePosition(targetX, targetY)
+    }
+
+    visible: GlobalStates.overlayOpen || actuallyPinned
+    implicitWidth: contentColumn.implicitWidth + resizeMargin * 2
+    implicitHeight: contentColumn.implicitHeight + resizeMargin * 2
+
+    RectangularShadow {
+        visible: OverlayLook.iris && root.fancyBorders && GlobalStates.overlayOpen
+        anchors.fill: border
+        anchors.topMargin: Math.round(4 * IrisStyle.density)
+        radius: border.radius
+        blur: Math.round(24 * IrisStyle.density)
+        spread: -Math.round(4 * IrisStyle.density)
+        color: IrisStyle.shadow
+    }
+    Rectangle {
+        id: border
+        anchors {
+            fill: parent
+            margins: root.resizeMargin
+        }
+        color: {
+            if (Appearance.angelEverywhere || Appearance.regaliaEverywhere)
+                return "transparent"
+            const baseColor = OverlayLook.iris ? IrisStyle.bodySurface
+                            : Appearance.inirEverywhere ? Appearance.inir.colLayer1
+                            : Appearance.auroraEverywhere ? Appearance.colors.colLayer1Base
+                            : Appearance.colors.colLayer1
+            return root.fancyBorders && GlobalStates.overlayOpen
+                ? ColorUtils.applyAlpha(baseColor, root.panelBaseOpacity)
+                : "transparent"
+        }
+        radius: Appearance.regaliaEverywhere ? Appearance.regalia.roundLarge
+            : Appearance.angelEverywhere ? Appearance.angel.roundingNormal : root.radius
+        border.color: Appearance.regaliaEverywhere ? "transparent"
+            : Appearance.angelEverywhere ? Appearance.angel.colBorder
+            : ColorUtils.transparentize(OverlayLook.iris ? IrisStyle.border : Appearance.colors.colOutlineVariant, GlobalStates.overlayOpen ? 0 : 1)
+        border.width: Appearance.regaliaEverywhere ? 0
+            : Appearance.angelEverywhere ? Appearance.angel.cardBorderWidth : 1
+        clip: true
+
+        RegaliaPlate {
+            anchors.fill: parent
+            visible: root.fancyBorders && Appearance.regaliaEverywhere && GlobalStates.overlayOpen
+            opacity: root.panelBaseOpacity
+            fillColor: Appearance.regalia.bg1
+            radius: border.radius
+            inset: Appearance.regalia.panelInset
+            deepFrame: true
+            glassEnabled: true
+        }
+
+        // Wallpaper blur for angel style — same technique as GlassBackground
+        Image {
+            id: widgetBlurWallpaper
+            x: -(root.x + root.resizeMargin)
+            y: -(root.y + root.resizeMargin)
+            width: Quickshell.screens[0]?.width ?? 1920
+            height: Quickshell.screens[0]?.height ?? 1080
+            visible: root.fancyBorders && Appearance.angelEverywhere && GlobalStates.overlayOpen
+            opacity: root.panelBaseOpacity
+            source: visible ? Wallpapers.effectiveWallpaperUrl : ""
+            fillMode: Image.PreserveAspectCrop
+            cache: true
+            sourceSize.width: Quickshell.screens[0]?.width ?? 1920
+            sourceSize.height: Quickshell.screens[0]?.height ?? 1080
+            asynchronous: true
+            layer.enabled: Appearance.effectsEnabled && Appearance.angelEverywhere
+            layer.effect: MultiEffect {
+                source: widgetBlurWallpaper
+                anchors.fill: source
+                saturation: Appearance.angel.blurSaturation * Appearance.angel.colorStrength
+                blurEnabled: Appearance.effectsEnabled
+                blurMax: 64
+                blur: Appearance.effectsEnabled ? Appearance.angel.blurIntensity : 0
+            }
+        }
+        Rectangle {
+            anchors.fill: parent
+            visible: root.fancyBorders && Appearance.angelEverywhere && GlobalStates.overlayOpen
+            color: ColorUtils.applyAlpha(
+                ColorUtils.transparentize(Appearance.colors.colLayer0Base, Appearance.angel.overlayOpacity),
+                root.panelBaseOpacity)
+        }
+
+        AngelPartialBorder {
+            targetRadius: border.radius
+            visible: root.fancyBorders && Appearance.angelEverywhere && GlobalStates.overlayOpen
+            coverage: 0.5
+        }
+
+        layer.enabled: GlobalStates.overlayOpen
+        layer.effect: GE.OpacityMask {
+            maskSource: Rectangle {
+                width: border.width
+                height: border.height
+                radius: root.radius
+            }
+        }
+
+        ColumnLayout {
+            id: contentColumn
+            z: root.fancyBorders ? 0 : -1
+            anchors.fill: parent
+            spacing: 0
+
+            // Title bar
+            Rectangle {
+                id: titleBar
+                opacity: GlobalStates.overlayOpen ? 1 : 0
+                Layout.fillWidth: true
+                implicitWidth: titleBarRow.implicitWidth + root.padding * 2
+                implicitHeight: titleBarRow.implicitHeight + root.padding * 2
+                color: root.fancyBorders || Appearance.regaliaEverywhere ? "transparent"
+                     : Appearance.angelEverywhere ? Appearance.angel.colGlassCard
+                     : Appearance.inirEverywhere ? Appearance.inir.colLayer1
+                     : Appearance.auroraEverywhere ? Appearance.colors.colLayer1Base
+                     : Appearance.colors.colLayer1
+                // border.color: Appearance.colors.colOutlineVariant
+                // border.width: 1
+                Behavior on opacity {
+                    animation: NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+                }
+                
+                RowLayout {
+                    id: titleBarRow
+                    anchors {
+                        fill: parent
+                        margins: root.padding
+                    }
+                    spacing: 2
+
+                    MaterialSymbol {
+                        text: root.materialSymbol
+                        Layout.leftMargin: 6
+                        iconSize: OverlayLook.iris ? Math.round(18 * IrisStyle.density) : 20
+                        Layout.alignment: Qt.AlignVCenter
+                        Layout.rightMargin: 4
+                        Binding on color { when: OverlayLook.iris; value: IrisStyle.textSecondary }
+                    }
+                    
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: OverlayLook.iris ? Translation.tr(OverlayLook.titles[root.identifier] ?? root.title) : root.title
+                        elide: Text.ElideRight
+                        Binding on color { when: OverlayLook.iris; value: IrisStyle.text }
+                        Binding on font.family { when: OverlayLook.iris; value: IrisStyle.fontMain }
+                        Binding on font.pixelSize { when: OverlayLook.iris; value: 13 * IrisStyle.typeScale }
+                        Binding on font.weight { when: OverlayLook.iris; value: Font.DemiBold }
+                    }
+
+                    TitlebarButton {
+                        visible: root.titlebarActionSymbol.length > 0
+                        materialSymbol: root.titlebarActionSymbol
+                        onClicked: root.titlebarActionClicked()
+                        StyledToolTip {
+                            text: root.titlebarActionTooltip
+                        }
+                    }
+
+                    TitlebarButton {
+                        visible: root.showCenterButton
+                        materialSymbol: "recenter"
+                        onClicked: root.center()
+                        StyledToolTip {
+                            text: Translation.tr("Center")
+                        }
+                    }
+
+                    TitlebarButton {
+                        visible: (root.pinned && root.showClickabilityButton)
+                        materialSymbol: "mouse"
+                        toggled: !root.clickthrough
+                        onClicked: root.toggleClickthrough()
+                        StyledToolTip {
+                            text: Translation.tr("Clickable when pinned")
+                        }
+                    }
+
+                    TitlebarButton {
+                        materialSymbol: "keep"
+                        toggled: root.pinned
+                        onClicked: root.togglePinned()
+                        StyledToolTip {
+                            text: Translation.tr("Pin")
+                        }
+                    }
+
+                    TitlebarButton {
+                        materialSymbol: "close"
+                        onClicked: root.close()
+                        StyledToolTip {
+                            text: Translation.tr("Close")
+                        }
+                    }
+                }
+            }
+
+            // Content
+            Item {
+                id: contentContainer
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.margins: root.fancyBorders ? root.padding : 0
+                Layout.topMargin: -border.border.width // Border of a rectangle is drawn inside its bounds, so we do this to make the gap not too big
+                Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                implicitWidth: Math.max(root.persistentStateEntry.width, root.minimumWidth)
+                implicitHeight: Math.max(root.persistentStateEntry.height, root.minimumHeight)
+                children: [root.contentItem]
+            }
+        }
+    }
+
+
+    component TitlebarButton: RippleButton {
+        id: titlebarButton
+        required property string materialSymbol
+        buttonRadius: height / 2
+        implicitHeight: contentItem.implicitHeight
+        implicitWidth: implicitHeight
+        padding: 0
+
+        Binding on colBackground { when: OverlayLook.iris; value: ColorUtils.applyAlpha(IrisStyle.fill, 0) }
+        Binding on colBackgroundHover { when: OverlayLook.iris; value: IrisStyle.fillHover }
+        Binding on colRipple { when: OverlayLook.iris; value: IrisStyle.fillActive }
+        colBackgroundToggled: OverlayLook.iris ? IrisStyle.tintFill(IrisStyle.accent)
+            : Appearance.angelEverywhere ? Appearance.angel.colGlassCardHover
+            : Appearance.colors.colSecondaryContainer
+        colBackgroundToggledHover: OverlayLook.iris ? IrisStyle.tintFillHover(IrisStyle.accent)
+            : Appearance.angelEverywhere ? Appearance.angel.colGlassCardActive
+            : Appearance.colors.colSecondaryContainerHover
+        colRippleToggled: OverlayLook.iris ? IrisStyle.tintFillHover(IrisStyle.accent)
+            : Appearance.angelEverywhere ? Appearance.angel.colGlassCardActive
+            : Appearance.colors.colSecondaryContainerActive
+
+        contentItem: Item {
+            anchors.centerIn: parent
+            implicitWidth: OverlayLook.iris ? Math.round(28 * IrisStyle.density) : 30
+            implicitHeight: OverlayLook.iris ? Math.round(28 * IrisStyle.density) : 30
+
+            MaterialSymbol {
+                id: iconWidget
+                anchors.centerIn: parent
+                iconSize: OverlayLook.iris ? Math.round(17 * IrisStyle.density) : 20
+                text: titlebarButton.materialSymbol
+                fill: titlebarButton.toggled
+                animateFill: true
+                color: OverlayLook.iris ? (titlebarButton.toggled ? IrisStyle.accent : titlebarButton.buttonHovered ? IrisStyle.text : IrisStyle.textSecondary)
+                    : titlebarButton.toggled
+                    ? (Appearance.angelEverywhere ? Appearance.angel.colPrimary : Appearance.colors.colOnSecondaryContainer)
+                    : (Appearance.angelEverywhere ? Appearance.angel.colText : Appearance.colors.colOnSurface)
+            }
+        }
+    }
+}

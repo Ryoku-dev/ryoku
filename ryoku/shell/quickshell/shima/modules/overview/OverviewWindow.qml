@@ -1,0 +1,154 @@
+pragma ComponentBehavior: Bound
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.functions
+import Qt5Compat.GraphicalEffects
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Wayland
+
+Item { // Window
+    id: root
+    property var toplevel
+    property var windowData
+    property var monitorData
+    property var scale
+    property bool restrictToWorkspace: true
+    property real widthRatio: {
+        const widgetWidth = widgetMonitor.transform & 1 ? widgetMonitor.height : widgetMonitor.width;
+        const monitorWidth = monitorData.transform & 1 ? monitorData.height : monitorData.width;
+        return (widgetWidth * monitorData.scale) / (monitorWidth * widgetMonitor.scale);
+    }
+    property real heightRatio: {
+        const widgetHeight = widgetMonitor.transform & 1 ? widgetMonitor.width : widgetMonitor.height;
+        const monitorHeight = monitorData.transform & 1 ? monitorData.width : monitorData.height;
+        return (widgetHeight * monitorData.scale) / (monitorHeight * widgetMonitor.scale);
+    }
+    property real initX: {
+        return Math.max((windowData?.at[0] - (monitorData?.x ?? 0) - monitorData?.reserved[0]) * widthRatio * root.scale, 0) + xOffset;
+    }
+
+    property real initY: {
+        return Math.max((windowData?.at[1] - (monitorData?.y ?? 0) - monitorData?.reserved[1]) * heightRatio * root.scale, 0) + yOffset;
+    }
+    property real xOffset: 0
+    property real yOffset: 0
+    property var widgetMonitor
+    property int widgetMonitorId: widgetMonitor.id
+
+    property var targetWindowWidth: windowData?.size[0] * scale * widthRatio
+    property var targetWindowHeight: windowData?.size[1] * scale * heightRatio
+    property bool hovered: false
+    property bool pressed: false
+
+    property bool centerIcons: Config.options?.overview?.centerIcons ?? false
+    property real iconGapRatio: 0.06
+    property real iconToWindowRatio: centerIcons ? 0.35 : 0.15
+    property real xwaylandIndicatorToIconRatio: 0.35
+    property real iconToWindowRatioCompact: 0.6
+    property string iconPath: AppSearch.getIconSource(windowData?.class ?? "")
+    property bool compactMode: Appearance.font.pixelSize.smaller * 4 > targetWindowHeight || Appearance.font.pixelSize.smaller * 4 > targetWindowWidth
+
+    property bool indicateXWayland: windowData?.xwayland ?? false
+
+    x: initX
+    y: initY
+    width: targetWindowWidth
+    height: targetWindowHeight
+    opacity: windowData.monitor == widgetMonitorId ? 1 : 0.4
+
+    property real topLeftRadius
+    property real topRightRadius
+    property real bottomLeftRadius
+    property real bottomRightRadius
+
+    layer.enabled: true
+    layer.effect: OpacityMask {
+        maskSource: Rectangle {
+            width: root.width
+            height: root.height
+            topLeftRadius: root.topLeftRadius
+            topRightRadius: root.topRightRadius
+            bottomRightRadius: root.bottomRightRadius
+            bottomLeftRadius: root.bottomLeftRadius
+        }
+    }
+
+    Behavior on x {
+        enabled: Appearance.animationsEnabled
+        animation: NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve }
+    }
+    Behavior on y {
+        enabled: Appearance.animationsEnabled
+        animation: NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve }
+    }
+    Behavior on width {
+        enabled: Appearance.animationsEnabled
+        animation: NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve }
+    }
+    Behavior on height {
+        enabled: Appearance.animationsEnabled
+        animation: NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve }
+    }
+
+    ScreencopyView {
+        id: windowPreview
+        anchors.fill: parent
+        // Fullscreen GameMode must not retain a live screencopy source.
+        captureSource: (GlobalStates.overviewOpen && !GameMode.active)
+            ? root.toplevel : null
+        // Pause during recording to avoid lag
+        live: !RecorderStatus.isRecording && !GameMode.active
+
+        // Color overlay for interactions
+        Rectangle {
+            anchors.fill: parent
+            topLeftRadius: root.topLeftRadius
+            topRightRadius: root.topRightRadius
+            bottomRightRadius: root.bottomRightRadius
+            bottomLeftRadius: root.bottomLeftRadius
+            color: pressed ? ColorUtils.transparentize(Appearance.colors.colLayer2Active, 0.5) : 
+                hovered ? ColorUtils.transparentize(Appearance.colors.colLayer2Hover, 0.7) : 
+                ColorUtils.transparentize(Appearance.colors.colLayer2)
+            border.color : ColorUtils.transparentize(Appearance.colors.colOutline, 0.88)
+            border.width : 1
+        }
+
+        Image {
+            id: windowIcon
+            property real baseSize: Math.min(root.targetWindowWidth, root.targetWindowHeight)
+            anchors {
+                top: root.centerIcons ? undefined : parent.top
+                left: root.centerIcons ? undefined : parent.left
+                centerIn: root.centerIcons ? parent : undefined
+                margins: baseSize * root.iconGapRatio
+            }
+            property var iconSize: {
+                var size = baseSize * (root.compactMode ? root.iconToWindowRatioCompact : root.iconToWindowRatio);
+                const ov = Config.options?.overview;
+                const min = ov?.iconMinSize ?? 0;
+                const max = ov?.iconMaxSize ?? 0;
+                if (min > 0) size = Math.max(size, min);
+                if (max > 0) size = Math.min(size, max);
+                return size;
+            }
+            // mipmap: true
+            Layout.alignment: Qt.AlignHCenter
+            source: root.iconPath
+            width: iconSize
+            height: iconSize
+            sourceSize: Qt.size(iconSize, iconSize)
+
+            Behavior on width {
+                enabled: Appearance.animationsEnabled
+                animation: NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve }
+            }
+            Behavior on height {
+                enabled: Appearance.animationsEnabled
+                animation: NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve }
+            }
+        }
+    }
+}

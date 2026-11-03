@@ -1,0 +1,3123 @@
+#!/usr/bin/env bash
+# iNiR setup - installer and maintenance entrypoint
+# Commands: install, update, status, migrate, doctor, rollback, my-changes, uninstall (or TUI if no args)
+
+resolve_bootstrap_repo_root() {
+    local script_dir="$1"
+
+    if [[ -e "${script_dir}/.git" && -f "${script_dir}/setup" && -f "${script_dir}/shell.qml" ]]; then
+        printf '%s' "$script_dir"
+        return
+    fi
+
+    local xdg_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local config_new="${xdg_config_home}/inir"
+    local config_legacy="${xdg_config_home}/illogical-impulse"
+    local config_dir=""
+
+    if [[ -L "$config_legacy" && -d "$config_new" ]]; then
+        config_dir="$config_new"
+    elif [[ -d "$config_legacy" ]]; then
+        config_dir="$config_legacy"
+    elif [[ -d "$config_new" ]]; then
+        config_dir="$config_new"
+    else
+        config_dir="$config_new"
+    fi
+
+    local version_file="${config_dir}/version.json"
+    local stored_repo=""
+
+    if [[ -f "$version_file" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            stored_repo=$(jq -r '.repoPath // .repo_path // empty' "$version_file" 2>/dev/null || true)
+        else
+            stored_repo=$(sed -n 's/.*"repoPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$version_file" | head -1)
+            [[ -n "$stored_repo" ]] || stored_repo=$(sed -n 's/.*"repo_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$version_file" | head -1)
+        fi
+    fi
+
+    stored_repo="${stored_repo/#\~/$HOME}"
+
+    if [[ -n "$stored_repo" && -e "${stored_repo}/.git" && -f "${stored_repo}/setup" && -f "${stored_repo}/shell.qml" ]]; then
+        printf '%s' "$stored_repo"
+        return
+    fi
+
+    printf '%s' "$script_dir"
+}
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(resolve_bootstrap_repo_root "$SCRIPT_DIR")"
+
+if [[ ! -d "$REPO_ROOT" || ! -f "$REPO_ROOT/shell.qml" ]]; then
+    echo "Error: Could not find iNiR repository (resolved to: ${REPO_ROOT:-<empty>})" >&2
+    echo "Run this script from the iNiR repo directory, or fix ~/.config/inir/version.json" >&2
+    exit 1
+fi
+
+INVOKED_FROM="$PWD"
+cd "$REPO_ROOT"
+
+# Handle Ctrl+C gracefully
+cleanup() {
+    type _tui_kill_spinner &>/dev/null && _tui_kill_spinner 2>/dev/null || true
+    echo ""
+    echo -e "\033[33mCancelled.\033[0m"
+    rm -rf /tmp/buildyay /tmp/buildparu 2>/dev/null
+    exit 130
+}
+
+###############################################################################
+# Migrate
+###############################################################################
+run_migrate() {
+    echo ""
+    tui_title "iNiR Migrations"
+    echo ""
+
+    sync_launcher_from_repo
+
+    # Always apply REQUIRED migrations first
+    run_migrations_auto
+
+    local pending=$(count_pending_migrations 2>/dev/null || echo "0")
+    if [[ "$pending" -gt 0 ]]; then
+        tui_warn "$pending pending migration(s)"
+        run_migrations_interactive
+    else
+        tui_success "No pending migrations"
+    fi
+
+    show_session_impact_notices
+}
+trap cleanup INT
+trap 'type _tui_kill_spinner &>/dev/null && _tui_kill_spinner 2>/dev/null || true; rm -rf /tmp/buildyay /tmp/buildparu 2>/dev/null' EXIT TERM
+
+# Load core libraries
+source ./sdata/lib/environment-variables.sh
+source ./sdata/lib/functions.sh
+source ./sdata/lib/tui.sh
+source ./sdata/lib/package-installers.sh
+source ./sdata/lib/dist-determine.sh
+source ./sdata/lib/conflicts.sh
+source ./sdata/lib/versioning.sh
+source ./sdata/lib/migrations.sh
+source ./sdata/lib/robust-update.sh
+source ./sdata/lib/extras.sh
+source ./sdata/lib/doctor.sh
+source ./sdata/lib/snapshots.sh
+source ./sdata/lib/uninstall.sh
+source ./sdata/lib/user-modifications.sh
+
+prevent_sudo_or_root
+
+# Defaults
+ask=true
+quiet=false
+assume_yes=false
+
+# Auto-detect non-interactive context (no terminal on stdin).
+# Forces non-interactive mode when launched from QML Process, cron, systemd, etc.
+# This is defense-in-depth alongside the -y flag.
+if ! [ -t 0 ]; then
+    ask=false
+    quiet=true
+fi
+
+# DISABLED: webapps — requires quickshell-webengine rebuild, re-enable when ready
+# _build_install_qs_webengine() {
+#     local build_script="${REPO_ROOT}/scripts/quickshell-webengine/build-quickshell-webengine.sh"
+#     local pkgbuild_dir="${REPO_ROOT}/scripts/quickshell-webengine"
+#
+#     if pacman -Q quickshell &>/dev/null 2>&1 && ! pacman -Q quickshell-webengine-git &>/dev/null 2>&1; then
+#         tui_info "Removing stock quickshell (will be replaced by webengine build)..."
+#         pkg_sudo pacman -Rdd --noconfirm quickshell 2>/dev/null || true
+#     fi
+#
+#     if command -v makepkg >/dev/null 2>&1 && [[ -f "${pkgbuild_dir}/PKGBUILD" ]]; then
+#         tui_info "Building with PKGBUILD (Arch)..."
+#         (cd "$pkgbuild_dir" && makepkg -sif --noconfirm) && tui_success "quickshell-webengine installed!" || tui_warn "Build failed — see errors above"
+#     elif [[ -f "$build_script" ]]; then
+#         tui_info "Building with generic script..."
+#         bash "$build_script" --install && tui_success "quickshell-webengine installed!" || tui_warn "Build failed — see errors above"
+#     else
+#         tui_warn "No build method available"
+#     fi
+# }
+
+# Check privilege escalation availability
+_check_privilege_prereqs() {
+  # Load the package installers to get access to privilege detection
+  source ./sdata/lib/package-installers.sh 2>/dev/null
+  
+  local can_escalate=false
+  local method=""
+  
+  # Check each method
+  if command -v sudo &>/dev/null && sudo -n true 2>/dev/null; then
+    can_escalate=true
+    method="sudo"
+  elif command -v pkexec &>/dev/null && ( [[ -n "${DBUS_SESSION_BUS_ADDRESS}" ]] || [[ -n "${DISPLAY}" ]] || [[ -n "${WAYLAND_DISPLAY}" ]] ); then
+    can_escalate=true
+    method="pkexec"
+  elif command -v su &>/dev/null && [[ -z "${DISPLAY}" ]] && [[ -z "${WAYLAND_DISPLAY}" ]]; then
+    can_escalate=true
+    method="su"
+  fi
+  
+  if ! $can_escalate; then
+    echo ""
+    tui_warn "No privilege escalation method detected!"
+    echo ""
+    echo "This may cause installation to fail if sudo credentials are not cached."
+    echo ""
+    echo "Detected environment:"
+    [[ -n "${DISPLAY}" ]] && echo "  - DISPLAY: ${DISPLAY}" || echo "  - DISPLAY: (not set)"
+    [[ -n "${WAYLAND_DISPLAY}" ]] && echo "  - WAYLAND: ${WAYLAND_DISPLAY}" || echo "  - WAYLAND: (not set)"
+    [[ -n "${DBUS_SESSION_BUS_ADDRESS}" ]] && echo "  - D-Bus: available" || echo "  - D-Bus: (not set)"
+    echo "  - sudo: $(command -v sudo &>/dev/null && echo 'available' || echo 'not found')"
+    echo "  - pkexec: $(command -v pkexec &>/dev/null && echo 'available' || echo 'not found')"
+    echo "  - su: $(command -v su &>/dev/null && echo 'available' || echo 'not found')"
+    echo ""
+    
+    # Only warn in non-interactive mode, otherwise let user decide
+    if [[ "$1" == "install" ]] && [[ "$ask" == "false" ]]; then
+      tui_warn "Running in non-interactive mode - may fail. Consider:"
+      echo "  1. Running interactively: ./setup install"
+      echo "  2. Configure sudo first: sudo visudo"
+      echo "  3. Or use a graphical terminal with polkit agent"
+      echo ""
+    fi
+  fi
+}
+
+sync_launcher_from_repo() {
+    local launcher_target="${XDG_BIN_HOME}/inir"
+    local launcher_source="${REPO_ROOT}/scripts/inir"
+    [[ -f "$launcher_source" ]] || return 1
+
+    mkdir -p "$XDG_BIN_HOME"
+
+    local source_real target_real install_mode launcher_tmp
+    source_real="$(readlink -f "$launcher_source" 2>/dev/null || printf '%s' "$launcher_source")"
+    target_real="$(readlink -f "$launcher_target" 2>/dev/null || true)"
+    install_mode="$(get_installed_install_mode 2>/dev/null || true)"
+    if [[ -z "$install_mode" || "$install_mode" == "unknown" ]]; then
+        install_mode="$(get_install_mode 2>/dev/null || true)"
+    fi
+
+    if [[ "$install_mode" == "repo-link" ]]; then
+        if [[ ! -L "$launcher_target" || "$source_real" != "$target_real" ]]; then
+            rm -f "$launcher_target"
+            ln -s "$launcher_source" "$launcher_target"
+        fi
+    elif [[ -L "$launcher_target" ]] || [[ ! -f "$launcher_target" ]] \
+            || ! cmp -s "$launcher_source" "$launcher_target" 2>/dev/null; then
+        # repo-copy owns a real launcher file. `cp -f` follows an existing
+        # symlink, which can silently update an old target while leaving the
+        # launcher itself pointed at the wrong checkout/runtime. Replace the
+        # directory entry atomically so topology and contents are both correct.
+        launcher_tmp="${launcher_target}.tmp.$$"
+        rm -f "$launcher_tmp"
+        install -m755 "$launcher_source" "$launcher_tmp" || return 1
+        mv -f "$launcher_tmp" "$launcher_target" || {
+            rm -f "$launcher_tmp"
+            return 1
+        }
+    fi
+
+    chmod +x "$launcher_source"
+    [[ "$install_mode" == "repo-link" ]] || chmod +x "$launcher_target"
+    ensure_launcher_path_in_shells "$XDG_BIN_HOME"
+    # Tab completion in the person's own shell: a link to the runtime's file, never over one of theirs.
+    "$launcher_target" completions install "$(basename "${SHELL:-bash}")" >/dev/null 2>&1 || true
+    printf '%s\n' "$launcher_target"
+}
+
+sync_user_inir_service_from_repo_if_present() {
+    INIR_SERVICE_SYNC_CHANGED=0
+    local service_asset="${REPO_ROOT}/assets/systemd/inir.service"
+    local service_target_dir="${XDG_CONFIG_HOME}/systemd/user"
+    local service_target="${service_target_dir}/inir.service"
+    local launcher_target="${XDG_BIN_HOME}/inir"
+    local tmp_file install_mode
+    local changed=false
+
+    [[ -f "$service_asset" ]] || return 1
+    inir_user_service_is_masked && return 2
+
+    mkdir -p "$service_target_dir"
+    mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+    local service_dropin_dir="${service_target_dir}/inir.service.d"
+    local service_override="${service_dropin_dir}/override.conf"
+    install_mode="$(get_installed_install_mode 2>/dev/null || true)"
+    if [[ -z "$install_mode" || "$install_mode" == "unknown" ]]; then
+        install_mode="$(get_install_mode 2>/dev/null || true)"
+    fi
+
+    if [[ "$install_mode" == "repo-link" ]]; then
+        local service_asset_real service_target_real override_tmp
+        service_asset_real="$(readlink -f "$service_asset" 2>/dev/null || printf '%s' "$service_asset")"
+        service_target_real="$(readlink -f "$service_target" 2>/dev/null || true)"
+        if [[ ! -L "$service_target" || "$service_asset_real" != "$service_target_real" ]]; then
+            rm -f "$service_target"
+            ln -s "$service_asset" "$service_target"
+            changed=true
+            INIR_SERVICE_SYNC_CHANGED=1
+        fi
+
+        mkdir -p "$service_dropin_dir"
+        override_tmp="${XDG_CACHE_HOME:-$HOME/.cache}/inir.service.override.$$"
+        cat > "$override_tmp" <<EOF
+# Managed locally: iNiR repo-link launcher override
+[Service]
+ExecStart=
+ExecStart=${launcher_target} run --session
+ExecStopPost=
+ExecStopPost=-${launcher_target} cleanup-orphans
+EOF
+        if [[ ! -f "$service_override" ]] || ! cmp -s "$override_tmp" "$service_override"; then
+            cp -f "$override_tmp" "$service_override"
+            changed=true
+            INIR_SERVICE_SYNC_CHANGED=1
+        fi
+        rm -f "$override_tmp"
+
+        # The symlink target can change after git pull without changing the link.
+        # Reload every repo-link sync so systemd sees the current checkout unit.
+        has_usable_systemd_user_manager && systemctl --user daemon-reload >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    tmp_file="${XDG_CACHE_HOME:-$HOME/.cache}/inir.service.$$"
+    sed -e "s|^ExecStart=.*|ExecStart=${launcher_target//&/\\&} run --session|" \
+        -e "s|^ExecStopPost=-.*|ExecStopPost=-${launcher_target//&/\\&} cleanup-orphans|" \
+        "$service_asset" > "$tmp_file"
+
+    if [[ -L "$service_target" ]] || [[ ! -f "$service_target" ]] || ! cmp -s "$tmp_file" "$service_target"; then
+        rm -f "$service_target"
+        cp -f "$tmp_file" "$service_target"
+        changed=true
+        INIR_SERVICE_SYNC_CHANGED=1
+    fi
+
+    if [[ -f "$service_override" ]] && grep -q '^# Managed locally:' "$service_override"; then
+        rm -f "$service_override"
+        rmdir "$service_dropin_dir" 2>/dev/null || true
+        changed=true
+        INIR_SERVICE_SYNC_CHANGED=1
+    fi
+
+    rm -f "$tmp_file"
+
+    if [[ "$changed" == true ]] && has_usable_systemd_user_manager; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+    fi
+
+    return 0
+}
+
+ensure_user_inir_service_enabled() {
+    INIR_SERVICE_WIRING_CHANGED=0
+    has_usable_systemd_user_manager || return 1
+
+    local installed_strategy service_path
+    installed_strategy="$(get_installed_update_strategy 2>/dev/null || true)"
+    service_path="${XDG_CONFIG_HOME}/systemd/user/inir.service"
+    inir_user_service_is_masked && return 2
+
+    if [[ "$installed_strategy" == "package-manager" ]]; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        service_path="$(systemctl --user show -p FragmentPath --value inir.service 2>/dev/null || true)"
+    fi
+
+    [[ -f "$service_path" ]] || return 1
+    systemctl --user cat niri.service &>/dev/null || return 1
+
+    local systemd_user_dir="${XDG_CONFIG_HOME}/systemd/user"
+    local correct_wants_dir="${systemd_user_dir}/niri.service.wants"
+    local wants_dir link
+    for wants_dir in "$systemd_user_dir"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        link="$wants_dir/inir.service"
+        [[ -e "$link" || -L "$link" ]] || continue
+        [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]] && continue
+        rm -f "$link" || return 1
+        INIR_SERVICE_WIRING_CHANGED=1
+    done
+
+    mkdir -p "$correct_wants_dir" || return 1
+    link="$correct_wants_dir/inir.service"
+    local service_real link_real
+    service_real="$(readlink -f "$service_path" 2>/dev/null || printf '%s' "$service_path")"
+    link_real="$(readlink -f "$link" 2>/dev/null || true)"
+    if [[ ! -L "$link" || "$link_real" != "$service_real" ]]; then
+        ln -sf "$service_path" "$link" || return 1
+        INIR_SERVICE_WIRING_CHANGED=1
+    fi
+
+    if [[ "$INIR_SERVICE_WIRING_CHANGED" -gt 0 ]]; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || return 1
+    fi
+    [[ -e "$link" || -L "$link" ]]
+}
+
+repair_update_owned_state() {
+    local include_repo_integration="${1:-true}"
+
+    if ! repair_legacy_quickshell_malloc_environment; then
+        tui_warn "Could not clean legacy Quickshell allocator environment"
+    elif [[ "${INIR_LEGACY_MALLOC_ENV_REPAIRED:-0}" -gt 0 ]]; then
+        tui_success "Removed legacy global Quickshell allocator tuning"
+    fi
+
+    if [[ "$include_repo_integration" == "true" ]]; then
+        if repair_legacy_niri_shell_startup; then
+            [[ "${INIR_LEGACY_NIRI_STARTUP_REPAIRED:-0}" -gt 0 ]] && tui_success "Removed legacy Niri shell startup"
+        else
+            tui_warn "Could not repair legacy Niri shell startup"
+        fi
+        sync_launcher_from_repo >/dev/null 2>&1 || tui_warn "Could not refresh the inir launcher"
+        if sync_user_desktop_integration_from_repo; then
+            [[ "${INIR_DESKTOP_INTEGRATION_CHANGED:-0}" -gt 0 ]] && tui_success "Refreshed desktop integration"
+        else
+            tui_warn "Could not refresh desktop integration"
+        fi
+        if inir_user_service_is_masked; then
+            tui_warn "User inir.service is masked; leaving it unchanged (restore with: inir service install && inir service enable)"
+        else
+            if sync_user_inir_service_from_repo_if_present; then
+                [[ "${INIR_SERVICE_SYNC_CHANGED:-0}" -gt 0 ]] && tui_success "Refreshed user inir.service"
+            else
+                tui_warn "Could not refresh user inir.service"
+            fi
+            if [[ -f "${XDG_CONFIG_HOME}/systemd/user/inir.service" ]]; then
+                ensure_user_inir_service_enabled >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
+}
+
+###############################################################################
+# Help
+###############################################################################
+setup_current_branch() {
+    git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown"
+}
+
+setup_tracked_branch() {
+    get_update_tracking_branch 2>/dev/null || echo "main"
+}
+
+setup_service_link_summary() {
+    local links=()
+    local wants_dir
+    for wants_dir in "${XDG_CONFIG_HOME}/systemd/user"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        [[ -e "$wants_dir/inir.service" || -L "$wants_dir/inir.service" ]] || continue
+        links+=("$(basename "${wants_dir%.wants}")")
+    done
+
+    if [[ ${#links[@]} -eq 0 ]]; then
+        printf '%s' "not enabled"
+        return
+    fi
+
+    local IFS=', '
+    printf '%s' "${links[*]}"
+}
+
+setup_remote_state_summary() {
+    local installed_strategy
+    installed_strategy="$(get_installed_update_strategy)"
+
+    if [[ "$installed_strategy" == "package-manager" ]]; then
+        printf '%s' "package-managed"
+        return
+    fi
+
+    if [[ ! -e "${REPO_ROOT}/.git" ]] || ! declare -F check_remote_updates >/dev/null 2>&1; then
+        printf '%s' "unavailable"
+        return
+    fi
+
+    local rc=0
+    check_remote_updates || rc=$?
+    case "$rc" in
+        0) printf '%s' "update available" ;;
+        1) printf '%s' "up to date" ;;
+        2) printf '%s' "offline or missing remote" ;;
+        3) printf '%s' "ahead of remote" ;;
+        4) printf '%s' "diverged" ;;
+        *) printf '%s' "unknown" ;;
+    esac
+}
+
+setup_runtime_change_summary() {
+    local installed_mode runtime_dir manifest mod_files add_files mod_count=0 add_count=0
+    installed_mode="$(get_installed_install_mode)"
+    runtime_dir="$(get_runtime_shell_dir)"
+
+    case "$installed_mode" in
+        package-managed)
+            printf '%s' "externally managed"
+            return
+            ;;
+        repo-link)
+            if [[ -e "${REPO_ROOT}/.git" ]]; then
+                local dirty_count
+                dirty_count="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+                if [[ "${dirty_count:-0}" -eq 0 ]]; then
+                    printf '%s' "clean"
+                else
+                    printf '%s' "${dirty_count} local repo change(s)"
+                fi
+                return
+            fi
+            ;;
+        repo-copy)
+            [[ -n "$runtime_dir" && -d "$runtime_dir" ]] || { printf '%s' "runtime missing"; return; }
+            manifest="$(find_runtime_manifest_file "$runtime_dir" 2>/dev/null || true)"
+            if [[ -n "$manifest" ]] && manifest_has_checksums "$manifest"; then
+                mod_files="$(detect_user_modifications "$runtime_dir" "$manifest")"
+                add_files="$(detect_user_additions "$runtime_dir" "$manifest")"
+            else
+                mod_files="$(detect_user_modifications_by_source_comparison "$runtime_dir" "$REPO_ROOT")"
+                add_files=""
+            fi
+            [[ -n "$mod_files" ]] && mod_count="$(printf '%s\n' "$mod_files" | grep -c . || true)"
+            [[ -n "$add_files" ]] && add_count="$(printf '%s\n' "$add_files" | grep -c . || true)"
+            if [[ "$mod_count" -eq 0 && "$add_count" -eq 0 ]]; then
+                printf '%s' "clean"
+            else
+                printf '%s' "${mod_count} modified, ${add_count} added"
+            fi
+            return
+            ;;
+    esac
+
+    printf '%s' "unknown"
+}
+
+setup_preserved_mods_summary() {
+    if [[ ! -d "$USER_MODS_DIR" ]]; then
+        printf '%s' "0 backups"
+        return
+    fi
+
+    local count
+    count="$(find "$USER_MODS_DIR" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
+    printf '%s' "${count:-0} backups"
+}
+
+show_setup_context_card() {
+    local title="${1:-Current Context}"
+    local installed_ver installed_commit installed_mode update_strategy runtime_dir current_branch tracked_branch launcher_path service_links remote_state runtime_state
+    installed_ver="$(get_installed_version)"
+    installed_commit="$(get_installed_commit)"
+    installed_mode="$(get_installed_install_mode)"
+    update_strategy="$(get_installed_update_strategy)"
+    runtime_dir="$(get_runtime_shell_dir)"
+    current_branch="$(setup_current_branch)"
+    tracked_branch="$(setup_tracked_branch)"
+    launcher_path="$(command -v inir 2>/dev/null || echo "${XDG_BIN_HOME}/inir")"
+    service_links="$(setup_service_link_summary)"
+    remote_state="$(setup_remote_state_summary)"
+    runtime_state="$(setup_runtime_change_summary)"
+
+    local pairs=(
+        "Installed:${installed_ver} (${installed_commit})"
+        "Mode:${installed_mode}"
+        "Updates:${update_strategy}"
+        "Remote:${remote_state}"
+        "Runtime State:${runtime_state}"
+        "Runtime:${runtime_dir:-"(missing)"}"
+        "Launcher:${launcher_path}"
+        "Service:${service_links}"
+    )
+
+    if [[ -e "${REPO_ROOT}/.git" ]]; then
+        pairs+=("Branch:${current_branch}")
+        [[ "$current_branch" == "HEAD" ]] && pairs+=("Tracks:origin/${tracked_branch}")
+    fi
+
+    tui_summary_card "$title" "${pairs[@]}"
+
+    if [[ "$remote_state" == "diverged" ]] && declare -F show_repo_realign_guidance >/dev/null 2>&1; then
+        echo ""
+        tui_warn "This checkout and origin/${tracked_branch} no longer share one update path."
+        show_repo_realign_guidance "$tracked_branch"
+    fi
+}
+
+show_help() {
+    echo ""
+    tui_hero_card "iNiR setup" \
+        "Install, update, repair and inspect the shell without guessing which component owns what." \
+        "Use inir for everyday control. Use ./setup for installation, recovery and maintenance."
+
+    tui_key_value "Usage:" "./setup [command] [options]"
+    show_setup_context_card "Setup Overview"
+
+    tui_section_start "What setup owns"
+    tui_list_item "Install flow, runtime sync, migrations, snapshots, and service refresh"
+    tui_list_item "Repo-aware updates for repo-link and repo-copy installs"
+    tui_list_item "Health diagnostics and safe automatic fixes"
+    tui_section_end
+
+    tui_section_start "Everyday maintenance"
+    tui_list_item "(none)      Interactive menu"
+    tui_list_item "install     Full installation (deps + config + files)"
+    tui_list_item "update      Check remote, pull, sync, restart shell"
+    tui_list_item "doctor      Diagnose and fix common breakage"
+    tui_list_item "status      Show install mode, update strategy, and health"
+    tui_list_item "logs        View recent runtime logs"
+    tui_list_item "info        System and shell details dashboard"
+    tui_section_end
+
+    tui_section_start "Recovery and history"
+    tui_list_item "migrate     Review/apply config migrations"
+    tui_list_item "backup      Create a manual snapshot"
+    tui_list_item "rollback    Restore a previous snapshot"
+    tui_list_item "my-changes  View or restore preserved user modifications"
+    tui_list_item "reinstall   Re-run install pipeline for current setup"
+    tui_list_item "uninstall   Remove iNiR from the system"
+    tui_section_end
+
+    tui_section_start "Customization"
+    tui_list_item "config      View and edit shell settings"
+    tui_list_item "theme       Change wallpaper and color scheme"
+    tui_list_item "extras      Install optional extras (iNiR-Walls / SDDM / YAMIS icons)"
+    tui_section_end
+
+    tui_section_start "Options"
+    tui_list_item "-y, --yes              Skip prompts (auto-yes)"
+    tui_list_item "-q, --quiet            Minimal output"
+    tui_list_item "--local                Sync local repo to install (skip git pull)"
+    tui_list_item "--realign              Safely realign an old published checkout after rewritten remote history (update only)"
+    tui_list_item "--simulate             Walk the update flow visually without touching files (update only)"
+    tui_list_item "--set-default-shell    Set Fish as default shell (uses chsh)"
+    tui_list_item "-h, --help             Show this help"
+    tui_section_end
+
+    tui_section_start "Good defaults"
+    tui_list_item "./setup install      Install iNiR once"
+    tui_list_item "./setup update       Pull, sync, and restart"
+    tui_list_item "./setup doctor       Diagnose weird runtime breakage"
+    tui_list_item "./setup status       See what is installed and what is drifting"
+    tui_list_item "inir run             Start the shell"
+    tui_list_item "inir logs            Read what the shell is complaining about"
+    tui_section_end
+    echo ""
+}
+
+###############################################################################
+# Version Status Display
+###############################################################################
+show_version_info() {
+    local installed_ver=$(get_installed_version)
+    local installed_commit=$(get_installed_commit)
+    local installed_mode=$(get_installed_install_mode)
+    local update_strategy=$(get_installed_update_strategy)
+    local installed_repo_path=$(get_installed_repo_path)
+    local repo_ver
+    local repo_commit
+    local runtime_dir
+    runtime_dir="$(get_runtime_shell_dir)"
+    local runtime_dir_display="${runtime_dir:-"(missing)"}"
+
+    if [[ -n "$installed_repo_path" && -f "${installed_repo_path}/VERSION" ]]; then
+        repo_ver="$(head -1 "${installed_repo_path}/VERSION" | tr -d '[:space:]')"
+        repo_commit="$(git -C "$installed_repo_path" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+    else
+        repo_ver=$(get_repo_version)
+        repo_commit=$(get_repo_commit)
+    fi
+
+    # Badge row for quick glance
+    echo ""
+    local badges_args=("Version" "$installed_ver" "accent")
+    badges_args+=("Mode" "$installed_mode" "info")
+    badges_args+=("Updates" "$update_strategy" "muted")
+    tui_badge_row "${badges_args[@]}"
+
+    echo ""
+    tui_status_line "Installed:" "$installed_ver ($installed_commit)" "ok"
+    tui_status_line "Runtime:" "$runtime_dir_display" ""
+
+    if [[ "$update_strategy" == "package-manager" ]]; then
+        local update_hint
+        update_hint=$(get_installed_package_update_hint)
+        [[ -n "$update_hint" ]] && tui_status_line "Command:" "$update_hint" ""
+    elif [[ "$installed_mode" != "repo-link" ]]; then
+        # For repo-copy: show what the local repo has vs what's deployed
+        tui_status_line "Available:" "$repo_ver ($repo_commit)" ""
+    fi
+
+    # Check for pending migrations
+    local pending=$(count_pending_migrations 2>/dev/null || echo "0")
+    if [[ "$pending" -gt 0 ]]; then
+        tui_status_line "Migrations:" "$pending pending" "warn"
+    fi
+
+    # Shell running status (resolve symlinks so qs -p matches the running instance)
+    if [[ -n "$runtime_dir" && -f "$runtime_dir/shell.qml" ]]; then
+        local running_output resolved_runtime_dir
+        resolved_runtime_dir="$(readlink -f "$runtime_dir" 2>/dev/null || printf '%s' "$runtime_dir")"
+        running_output="$(qs -p "$resolved_runtime_dir" list 2>/dev/null || true)"
+        if [[ -n "$running_output" && "$running_output" != No\ running\ instances* ]]; then
+            tui_status_line "Shell:" "running" "ok"
+        else
+            tui_status_line "Shell:" "stopped" "warn"
+        fi
+    fi
+
+    # Check for updates
+    if [[ "$update_strategy" != "package-manager" && "$installed_commit" != "$repo_commit" ]]; then
+        echo ""
+        tui_alert "info" "Update available" "Run './setup update' or 'inir update' to apply."
+    fi
+}
+
+###############################################################################
+# TUI Menu
+###############################################################################
+tui_menu() {
+    clear
+    tui_banner
+
+    # Detect current state
+    local is_installed=false
+    [[ -f "${FIRSTRUN_FILE}" ]] && is_installed=true
+
+    if $is_installed; then
+        show_version_info
+        echo ""
+        tui_divider
+    fi
+
+    echo ""
+
+    # Menu options based on state with rich descriptions
+    local choice
+    if $is_installed; then
+        choice=$(tui_choose_rich "What would you like to do?" \
+            "${ICON_ARROW}|Update|Check for updates and apply them" \
+            "${ICON_CHECK}|Doctor|Diagnose and fix problems" \
+            "${ICON_DOT}|Config|View and edit shell settings" \
+            "${ICON_STAR}|Theme|Change wallpaper and color scheme" \
+            "${ICON_DOT}|Extras|Install optional extras (iNiR-Walls / SDDM / YAMIS icons)" \
+            "${ICON_INFO}|Info|System and shell details dashboard" \
+            "${ICON_DOT}|Logs|View recent runtime logs" \
+            "${ICON_DOT}|Migrate|Review and apply config migrations" \
+            "${ICON_DOT}|Backup|Create a manual snapshot" \
+            "${ICON_DOT}|Rollback|Restore a previous snapshot" \
+            "${ICON_DOT}|My Changes|View your preserved modifications" \
+            "${ICON_DOT}|Reinstall|Full reinstall from scratch" \
+            "${ICON_CROSS}|Uninstall|Remove iNiR from the system" \
+            "${ICON_CIRCLE}|Help|Show commands and usage" \
+            "${ICON_CIRCLE}|Exit|")
+    else
+        choice=$(tui_choose_rich "What would you like to do?" \
+            "${ICON_STAR}|Install|Full installation with dependencies" \
+            "${ICON_CIRCLE}|Help|Show commands and usage" \
+            "${ICON_CIRCLE}|Exit|")
+    fi
+
+    case "$choice" in
+        Install) run_install ;;
+        Reinstall) IS_UPDATE=true run_install ;;
+        Update) run_update ;;
+        Theme) run_theme ;;
+        Extras) run_extras ;;
+        Config) run_config ;;
+        Info) show_info; read -rp "Press Enter to continue..." ;;
+        Migrate) run_migrate ;;
+        Doctor) run_doctor ;;
+        Backup) run_backup ;;
+        Rollback) run_rollback ;;
+        "My Changes") run_my_changes ;;
+        Logs) run_logs ;;
+        Uninstall) run_uninstall ;;
+        Help) show_help; read -rp "Press Enter to continue..." ;;
+        Exit|"") return 1 ;;
+        *) return 1 ;;
+    esac
+
+    return 0
+}
+
+###############################################################################
+# Status Command
+###############################################################################
+show_status_boot_timing() {
+    local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/inir/last-boot.json"
+    if [[ ! -s "$cache_file" ]]; then
+        return 0
+    fi
+
+    # Phase timestamps (ms since epoch) — written by shell.qml at deferred phase end.
+    local component_ms config_ms entry_ms deferred_ms
+    component_ms=$(jq -r '.componentCompletedAt // 0' "$cache_file" 2>/dev/null)
+    config_ms=$(jq -r '.configReadyAt // 0' "$cache_file" 2>/dev/null)
+    entry_ms=$(jq -r '.shellEntryAt // 0' "$cache_file" 2>/dev/null)
+    deferred_ms=$(jq -r '.deferredReadyAt // 0' "$cache_file" 2>/dev/null)
+    [[ -z "$component_ms" || "$component_ms" == "0" ]] && return 0
+
+    # Process & service start — these often dominate perceived startup time.
+    local service_start_ms=0 qs_start_ms=0
+    if declare -F has_usable_systemd_user_manager >/dev/null 2>&1 \
+            && has_usable_systemd_user_manager; then
+        local exec_start
+        exec_start=$(systemctl --user show inir.service -p ExecMainStartTimestamp --value 2>/dev/null)
+        if [[ -n "$exec_start" && "$exec_start" != "n/a" ]]; then
+            # systemctl prints "Tue 2026-05-19 11:38:37 -03"; date -d understands it.
+            service_start_ms=$(date -d "$exec_start" +%s%3N 2>/dev/null || echo 0)
+        fi
+    fi
+    # qs process start time (best-effort: read /proc/<pid>/stat starttime if running)
+    local qs_pid
+    qs_pid=$(pgrep -u "$USER" -fn '/usr/bin/qs.*shell\.qml|/usr/bin/qs -n -p' 2>/dev/null | head -1)
+    [[ -z "$qs_pid" ]] && qs_pid=$(pgrep -u "$USER" -fn 'qs -n' 2>/dev/null | head -1)
+    if [[ -n "$qs_pid" && -r "/proc/$qs_pid/stat" ]]; then
+        # field 22 = starttime in clock ticks since boot
+        local starttime_ticks btime hz
+        starttime_ticks=$(awk '{print $22}' "/proc/$qs_pid/stat")
+        btime=$(awk '/^btime / {print $2}' /proc/stat)
+        hz=$(getconf CLK_TCK)
+        if [[ -n "$starttime_ticks" && -n "$btime" && -n "$hz" && "$hz" -gt 0 ]]; then
+            qs_start_ms=$(( btime * 1000 + (starttime_ticks * 1000 / hz) ))
+        fi
+    fi
+
+    tui_title "Last Boot Timing"
+
+    # Format helper: render a delta in ms or s.
+    _fmt_ms() {
+        local ms=$1
+        if [[ "$ms" -lt 0 ]]; then printf -- '—'; return; fi
+        if [[ "$ms" -ge 1000 ]]; then
+            printf '%d.%02ds' "$((ms / 1000))" "$(((ms % 1000) / 10))"
+        else
+            printf '%dms' "$ms"
+        fi
+    }
+
+    # last-boot.json is rewritten on every shell (re)load, including hot reloads,
+    # so its epochs can describe a newer in-process reload than the running
+    # service/process birth. Mixing them produced multi-hour "boot" times.
+    # Only mix sources when they describe the same run.
+    local cache_shell_pid cache_origin_ms live_start_ms coherent=1
+    cache_shell_pid=$(jq -r '.shellPid // 0' "$cache_file" 2>/dev/null)
+    cache_origin_ms=$component_ms
+    if [[ "$config_ms" -gt 0 && "$config_ms" -lt "$cache_origin_ms" ]]; then
+        cache_origin_ms=$config_ms
+    fi
+    live_start_ms=$service_start_ms
+    [[ "$qs_start_ms" -gt "$live_start_ms" ]] && live_start_ms=$qs_start_ms
+    if [[ "${cache_shell_pid:-0}" -gt 0 && -n "$qs_pid" && "$cache_shell_pid" != "$qs_pid" ]]; then
+        coherent=0
+    elif [[ "$live_start_ms" -gt 0 ]]; then
+        local epoch_gap=$(( cache_origin_ms - live_start_ms ))
+        (( epoch_gap < 0 )) && epoch_gap=$(( -epoch_gap ))
+        (( epoch_gap > 120000 )) && coherent=0
+    fi
+
+    local origin
+    if (( coherent )); then
+        origin=$live_start_ms
+        if [[ "$origin" == "0" || "$origin" -gt "$cache_origin_ms" ]]; then
+            origin=$cache_origin_ms
+        fi
+    else
+        origin=$cache_origin_ms
+    fi
+
+    if (( ! coherent )); then
+        tui_info "(phases are from the most recent shell load, not this process start)"
+    fi
+    tui_table_header "Phase" "Elapsed from start" 22 28
+    if (( coherent )) && [[ "$service_start_ms" -gt 0 ]]; then
+        tui_table_row "systemd ExecStart" "$(_fmt_ms 0) (T+0)" 22 28
+    fi
+    if (( coherent )) && [[ "$qs_start_ms" -gt 0 && "$service_start_ms" -gt 0 ]]; then
+        tui_table_row "qs process started" "$(_fmt_ms $((qs_start_ms - origin)))" 22 28
+    fi
+    tui_table_row "QML evaluated" "$(_fmt_ms $((component_ms - origin)))" 22 28
+    [[ "$config_ms" -gt 0 ]] && tui_table_row "Config ready" "$(_fmt_ms $((config_ms - origin)))" 22 28
+    [[ "$entry_ms" -gt 0 ]] && tui_table_row "Bar visible" "$(_fmt_ms $((entry_ms - origin)))" 22 28
+    [[ "$deferred_ms" -gt 0 ]] && tui_table_row "Services warm" "$(_fmt_ms $((deferred_ms - origin)))" 22 28
+    tui_table_footer 22 28
+
+    # Triage hints based on which phase ate the time. Thresholds chosen empirically:
+    # > 5s on cold boot is probably user-data driven (icon cache, network), > 10s is
+    # almost certainly something wrong (Qt ABI mismatch, env race, slow disk).
+    local total_ms=$((deferred_ms > 0 ? deferred_ms - origin : 0))
+    if [[ "$total_ms" -gt 10000 ]]; then
+        echo ""
+        tui_check_warn "Boot took $(_fmt_ms $total_ms) — unusually slow."
+        tui_info "  Common culprits: Qt/Quickshell ABI mismatch, missing WAYLAND_DISPLAY env, slow icon cache, network-bound services on first run."
+        tui_info "  Run 'inir doctor' to auto-detect, or share the table above when filing an issue."
+    elif [[ "$total_ms" -gt 5000 ]]; then
+        echo ""
+        tui_check_skip "Boot took $(_fmt_ms $total_ms) — a bit slow on first run; subsequent boots should be faster."
+    fi
+}
+
+show_status_environment() {
+    # Versions and system info — the things we always end up asking users for
+    # in support threads. Print once so they can paste their `inir status` output.
+    tui_title "System & Quickshell"
+    tui_table_header "Property" "Value" 22 42
+
+    # Distro
+    local distro="unknown"
+    if [[ -r /etc/os-release ]]; then
+        # shellcheck disable=SC1091
+        local pretty
+        pretty=$(. /etc/os-release && printf '%s' "${PRETTY_NAME:-${NAME:-unknown}}")
+        [[ -n "$pretty" ]] && distro="$pretty"
+    fi
+    tui_table_row "Distro" "$distro" 22 42
+
+    # Kernel
+    local kernel
+    kernel="$(uname -srm 2>/dev/null || echo unknown)"
+    tui_table_row "Kernel" "$kernel" 22 42
+
+    # Compositor + version
+    local compositor="unknown" comp_ver=""
+    if [[ -n "${NIRI_SOCKET:-}" ]] && command -v niri >/dev/null 2>&1; then
+        compositor="niri"
+        comp_ver="$(niri --version 2>/dev/null | grep -oP '\d+\.\d+(\.\d+)?' | head -1)"
+    elif [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]] && command -v Hyprland >/dev/null 2>&1; then
+        compositor="hyprland"
+        comp_ver="$(Hyprland --version 2>/dev/null | grep -oP 'v\d+\.\d+(\.\d+)?' | head -1 | tr -d 'v')"
+    elif command -v niri >/dev/null 2>&1 && niri msg --json version >/dev/null 2>&1; then
+        compositor="niri (offline)"
+    fi
+    [[ -n "$comp_ver" ]] && compositor="${compositor} ${comp_ver}"
+    tui_table_row "Compositor" "$compositor" 22 42
+
+    # Panel family
+    local panel_family="ii"
+    local user_cfg="$HOME/.config/illogical-impulse/config.json"
+    if [[ -r "$user_cfg" ]] && command -v jq >/dev/null 2>&1; then
+        local pf
+        pf="$(jq -r '.panelFamily // "ii"' "$user_cfg" 2>/dev/null)"
+        [[ -n "$pf" && "$pf" != "null" ]] && panel_family="$pf"
+    fi
+    tui_table_row "Panel Family" "$panel_family" 22 42
+
+    # Quickshell binary + version + revision + distributor
+    local qs_path qs_version_line
+    qs_path="$(command -v qs 2>/dev/null || command -v quickshell 2>/dev/null || true)"
+    if [[ -n "$qs_path" ]]; then
+        qs_version_line="$($qs_path --version 2>&1 | head -1 | tr -d '\r')"
+        # Strip ANSI just in case
+        qs_version_line="$(printf '%s' "$qs_version_line" | sed 's/\x1b\[[0-9;]*m//g')"
+        tui_table_row "Quickshell" "${qs_version_line:-unknown}" 22 42
+    else
+        tui_table_row "Quickshell" "not installed" 22 42
+    fi
+
+    # Quickshell package origin. We want to tell users if their binary came from
+    # a repo (in which case the maintainer rebuilds on Qt updates) or from AUR
+    # (in which case THEY have to rebuild on Qt updates). Force LANG=C so we don't
+    # depend on the user's locale (Spanish pacman prints 'Versión' / 'Nada').
+    if command -v pacman >/dev/null 2>&1; then
+        local qs_pkg
+        for cand in quickshell-git quickshell-bin quickshell; do
+            if pacman -Qi "$cand" &>/dev/null; then
+                local ver origin=""
+                ver="$(LANG=C pacman -Qi "$cand" 2>/dev/null | awk -F': +' '/^Version/ {print $2; exit}')"
+                if pacman -Qmq "$cand" &>/dev/null; then
+                    origin="AUR / locally built"
+                else
+                    local repo
+                    repo="$(LANG=C pacman -Si "$cand" 2>/dev/null | awk -F': +' '/^Repository/ {print $2; exit}')"
+                    if [[ -n "$repo" ]]; then
+                        origin="repo: ${repo}"
+                    else
+                        origin="repo"
+                    fi
+                fi
+                qs_pkg="${cand} ${ver} (${origin})"
+                break
+            fi
+        done
+        [[ -n "$qs_pkg" ]] && tui_table_row "QS Package" "$qs_pkg" 22 42
+    elif command -v xbps-query >/dev/null 2>&1 \
+            && xbps-query -p pkgver quickshell >/dev/null 2>&1; then
+        local qs_pkgver qs_repo
+        qs_pkgver="$(xbps-query -p pkgver quickshell 2>/dev/null || true)"
+        qs_repo="$(xbps-query -p repository quickshell 2>/dev/null || true)"
+        if [[ -n "$qs_pkgver" ]]; then
+            if [[ -n "$qs_repo" ]]; then
+                tui_table_row "QS Package" "${qs_pkgver} (repo: ${qs_repo})" 22 42
+            else
+                tui_table_row "QS Package" "$qs_pkgver (XBPS)" 22 42
+            fi
+        fi
+    fi
+
+    # Qt build-time vs runtime (the ABI mismatch witness)
+    if [[ -n "$qs_path" ]] && command -v strings >/dev/null 2>&1; then
+        local buildtime_qt runtime_qt
+        buildtime_qt="$(strings "$qs_path" 2>/dev/null | grep -P '^6\.\d+\.\d+$' | head -1)"
+        if [[ -L /usr/lib/libQt6Core.so.6 ]]; then
+            runtime_qt="$(readlink -f /usr/lib/libQt6Core.so.6 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+$')"
+        fi
+        [[ -z "$runtime_qt" ]] && command -v pkg-config >/dev/null 2>&1 && \
+            runtime_qt="$(pkg-config --modversion Qt6Core 2>/dev/null)"
+        local qt_display="build=${buildtime_qt:-?}  runtime=${runtime_qt:-?}"
+        if [[ -n "$buildtime_qt" && -n "$runtime_qt" && "$buildtime_qt" != "$runtime_qt" ]]; then
+            qt_display="${qt_display}  ⚠ ABI mismatch"
+        fi
+        tui_table_row "Qt" "$qt_display" 22 42
+    fi
+
+    # Active session details
+    local session_type="${XDG_SESSION_TYPE:-?}"
+    local wayland_disp="${WAYLAND_DISPLAY:-(unset)}"
+    tui_table_row "Session" "$session_type ($wayland_disp)" 22 42
+
+    # Config namespace location — reminds users where the user config lives
+    if [[ -f "$user_cfg" ]]; then
+        tui_table_row "User Config" "$user_cfg" 22 42
+    else
+        tui_table_row "User Config" "(missing) ${user_cfg}" 22 42
+    fi
+
+    tui_table_footer 22 42
+}
+
+show_status() {
+    local installed_ver=$(get_installed_version)
+    local installed_commit=$(get_installed_commit)
+    local installed_mode=$(get_installed_install_mode)
+    local update_strategy=$(get_installed_update_strategy)
+    local installed_repo_path=$(get_installed_repo_path)
+    local update_hint=$(get_installed_package_update_hint)
+    local installed_version_file=$(get_installed_version_file)
+    local repo_ver
+    local repo_commit
+    local runtime_dir=$(get_runtime_shell_dir)
+    local runtime_version_file=""
+    local running_output
+    local runtime_dir_display="${runtime_dir:-"(missing)"}"
+    local repo_path_display="$installed_repo_path"
+    local branch_display="$(setup_current_branch)"
+    local tracked_branch="$(setup_tracked_branch)"
+    local remote_state="$(setup_remote_state_summary)"
+    local runtime_state="$(setup_runtime_change_summary)"
+    local preserved_mods="$(setup_preserved_mods_summary)"
+
+    if [[ -n "$runtime_dir" ]]; then
+        runtime_version_file="$(get_runtime_version_file)"
+    fi
+
+    if [[ -n "$repo_path_display" ]]; then
+        repo_path_display="$(realpath "$repo_path_display" 2>/dev/null || printf '%s' "$repo_path_display")"
+    fi
+
+    if [[ -n "$runtime_dir" && -L "$runtime_dir" ]]; then
+        local runtime_target
+        runtime_target="$(readlink -f "$runtime_dir" 2>/dev/null || true)"
+        if [[ -n "$runtime_target" && "$runtime_target" != "$runtime_dir" ]]; then
+            runtime_dir_display="${runtime_dir} -> ${runtime_target}"
+        fi
+    fi
+
+    if [[ -n "$installed_repo_path" && -f "${installed_repo_path}/VERSION" ]]; then
+        repo_ver="$(head -1 "${installed_repo_path}/VERSION" | tr -d '[:space:]')"
+        repo_commit="$(git -C "$installed_repo_path" rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+    else
+        repo_ver=$(get_repo_version)
+        repo_commit=$(get_repo_commit)
+    fi
+
+    tui_hero_card "Status" \
+        "What is installed, what is running, and whether this checkout still matches reality." \
+        "If any of this looks cursed, run ./setup doctor before you start randomly editing files."
+
+    tui_table_header "Property" "Value" 18 36
+    tui_table_row "Installed Version" "$installed_ver" 18 36
+    tui_table_row "Installed Commit" "$installed_commit" 18 36
+    tui_table_row "Install Mode" "$installed_mode" 18 36
+    tui_table_row "Updates" "$update_strategy" 18 36
+    tui_table_row "Branch" "$branch_display" 18 36
+    tui_table_row "Tracks" "origin/${tracked_branch}" 18 36
+    tui_table_row "Remote State" "$remote_state" 18 36
+    tui_table_row "Local Changes" "$runtime_state" 18 36
+    tui_table_row "Runtime Path" "$runtime_dir_display" 18 36
+    tui_table_row "Launcher" "inir run" 18 36
+    [[ -n "$repo_path_display" ]] && tui_table_row "Repo Path" "$repo_path_display" 18 36
+    if [[ "$update_strategy" == "package-manager" ]]; then
+        [[ -n "$update_hint" ]] && tui_table_row "Update Cmd" "$update_hint" 18 36
+        tui_table_row "Workspace Ver" "$repo_ver" 18 36
+        tui_table_row "Workspace SHA" "$repo_commit" 18 36
+    else
+        tui_table_row "Repo Version" "$repo_ver" 18 36
+        tui_table_row "Repo Commit" "$repo_commit" 18 36
+    fi
+    tui_table_footer 18 36
+
+    if [[ "$update_strategy" == "package-manager" ]]; then
+        echo ""
+        tui_info "This installation is externally managed. './setup update' will not sync repo files into the runtime."
+    fi
+
+    show_status_environment
+
+    tui_title "Health Checks"
+
+    # Check shell status (resolve symlinks so qs -p matches the running instance)
+    if [[ -n "$runtime_dir" && -f "$runtime_dir/shell.qml" ]]; then
+        local resolved_runtime_dir
+        resolved_runtime_dir="$(readlink -f "$runtime_dir" 2>/dev/null || printf '%s' "$runtime_dir")"
+        running_output="$(qs -p "$resolved_runtime_dir" list 2>/dev/null || true)"
+        if [[ -n "$running_output" && "$running_output" != No\ running\ instances* ]]; then
+            tui_check_ok "Shell is running"
+        else
+            tui_check_warn "Shell is not running"
+        fi
+    else
+        tui_check_warn "Runtime payload missing"
+    fi
+
+    local launcher_path
+    launcher_path="$(command -v inir 2>/dev/null || true)"
+    if [[ -n "$launcher_path" || -x "${REPO_ROOT}/scripts/inir" ]]; then
+        tui_check_ok "Launcher available${launcher_path:+: $launcher_path}"
+    else
+        tui_check_warn "Launcher not available in PATH"
+    fi
+
+    local service_path="${XDG_CONFIG_HOME}/systemd/user/inir.service"
+    local service_links
+    service_links="$(setup_service_link_summary)"
+    if [[ -f "$service_path" ]]; then
+        tui_check_ok "User service installed (${service_links})"
+    else
+        tui_check_warn "User service not installed"
+    fi
+
+    case "$remote_state" in
+        "up to date") tui_check_ok "Repo remote state: ${remote_state}" ;;
+        "update available"|"ahead of remote"|"offline or missing remote") tui_check_warn "Repo remote state: ${remote_state}" ;;
+        "diverged") tui_check_fail "Repo remote state: ${remote_state}" ;;
+    esac
+
+    if [[ -f "$runtime_version_file" ]]; then
+        tui_check_ok "Runtime metadata present"
+    elif [[ "$installed_mode" == "repo-link" && -n "$installed_version_file" ]] && version_file_has_core_metadata "$installed_version_file"; then
+        tui_check_ok "Repo-link metadata present via config tracking"
+    else
+        tui_check_warn "Runtime metadata missing"
+    fi
+
+    # Check Niri
+    if [[ -n "$NIRI_SOCKET" ]]; then
+        tui_check_ok "Niri compositor detected"
+    else
+        tui_check_warn "Not running in Niri session"
+    fi
+
+    # Pending migrations
+    local pending=$(count_pending_migrations 2>/dev/null || echo "0")
+    if [[ "$pending" -gt 0 ]]; then
+        tui_check_warn "$pending pending migration(s)"
+        tui_info "Run './setup migrate' to review"
+    else
+        tui_check_ok "No pending migrations"
+    fi
+
+    if [[ "$runtime_state" == "clean" || "$runtime_state" == "externally managed" ]]; then
+        tui_check_ok "Runtime payload state: ${runtime_state}"
+    else
+        tui_check_warn "Runtime payload state: ${runtime_state}"
+    fi
+
+    # Snapshots
+    local snapshot_count=$(list_snapshots 2>/dev/null | wc -l)
+    if [[ "$snapshot_count" -gt 0 ]]; then
+        tui_check_ok "$snapshot_count snapshot(s) available"
+    else
+        tui_check_skip "No snapshots"
+    fi
+
+    if [[ "$preserved_mods" == "0 backups" ]]; then
+        tui_check_skip "Preserved modifications: ${preserved_mods}"
+    else
+        tui_check_warn "Preserved modifications: ${preserved_mods}"
+    fi
+
+    # Last boot timing breakdown — helps users self-triage "my shell takes 15s to start".
+    # Pulls T0 from systemd, T1 from `qs list`, T2-T5 from ~/.cache/inir/last-boot.json
+    # (written by shell.qml at end of deferred phase).
+    show_status_boot_timing
+    echo ""
+}
+
+###############################################################################
+# Info — Rich system & shell details dashboard (Ink StatusMessage-inspired)
+###############################################################################
+show_info() {
+    echo ""
+    tui_hero_card "iNiR System Information" \
+        "The useful stuff: platform, runtime, launcher, and the shell state that usually matters when something gets weird." \
+        "This is the quick dashboard. Doctor is the one that actually gets its hands dirty."
+
+    # System detection
+    local distro_name="Unknown"
+    local distro_id="unknown"
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        distro_name="${PRETTY_NAME:-$NAME}"
+        distro_id="${ID}"
+    fi
+
+    local current_shell
+    current_shell=$(basename "${SHELL:-unknown}")
+    local session_type="${XDG_SESSION_TYPE:-unknown}"
+
+    local compositor="Not detected"
+    if [[ -n "$NIRI_SOCKET" ]]; then
+        compositor="Niri"
+    elif [[ -n "$HYPRLAND_INSTANCE_SIGNATURE" ]]; then
+        compositor="Hyprland"
+    elif [[ -n "$SWAYSOCK" ]]; then
+        compositor="Sway"
+    elif [[ -n "$XDG_CURRENT_DESKTOP" ]]; then
+        compositor="$XDG_CURRENT_DESKTOP"
+    fi
+
+    local kernel
+    kernel=$(uname -r 2>/dev/null || echo "unknown")
+
+    # iNiR details
+    local installed_ver=$(get_installed_version)
+    local installed_commit=$(get_installed_commit)
+    local installed_mode=$(get_installed_install_mode)
+    local runtime_dir
+    runtime_dir="$(get_runtime_shell_dir)"
+    local config_dir
+    config_dir="$(resolve_inir_config_dir)"
+    local config_file="${config_dir}/config.json"
+    local state_dir="${XDG_STATE_HOME}/quickshell/user/generated"
+    local remote_state="$(setup_remote_state_summary)"
+    local runtime_state="$(setup_runtime_change_summary)"
+    local preserved_mods="$(setup_preserved_mods_summary)"
+
+    # Panel family detection
+    local panel_family="unknown"
+    if [[ -f "$config_file" ]]; then
+        if command -v jq &>/dev/null; then
+            panel_family=$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null || echo "ii")
+        else
+            panel_family=$(sed -n 's/.*"panelFamily"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$config_file" 2>/dev/null | head -1)
+            [[ -z "$panel_family" ]] && panel_family="ii"
+        fi
+    fi
+
+    # Current wallpaper
+    local current_wallpaper="none"
+    local theme_meta="${state_dir}/theme-meta.json"
+    if [[ -f "$theme_meta" ]]; then
+        if command -v jq &>/dev/null; then
+            current_wallpaper=$(jq -r '.wallpaper // .source_path // "none"' "$theme_meta" 2>/dev/null || echo "none")
+        else
+            current_wallpaper=$(sed -n 's/.*"wallpaper"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$theme_meta" 2>/dev/null | head -1)
+            [[ -n "$current_wallpaper" ]] || current_wallpaper=$(sed -n 's/.*"source_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$theme_meta" 2>/dev/null | head -1)
+        fi
+        [[ -n "$current_wallpaper" && "$current_wallpaper" != "null" ]] && current_wallpaper="$(basename "$current_wallpaper")"
+    fi
+
+    show_setup_context_card "Runtime Snapshot"
+
+    local sys_info
+    sys_info=$(printf '%s\n%s\n%s\n%s\n%s' \
+        "Distro:      $distro_name" \
+        "Kernel:      $kernel" \
+        "Session:     $session_type" \
+        "Compositor:  $compositor" \
+        "Shell:       $current_shell")
+
+    local shell_info
+    shell_info=$(printf '%s\n%s\n%s\n%s\n%s\n%s' \
+        "Version:     $installed_ver ($installed_commit)" \
+        "Mode:        $installed_mode" \
+        "Family:      $panel_family" \
+        "Wallpaper:   $current_wallpaper" \
+        "Config:      $config_dir" \
+        "Runtime:     ${runtime_dir:-"(missing)"}")
+
+    tui_columns "$sys_info" "$shell_info" 2
+
+    echo ""
+
+    # Paths
+    tui_subtitle "Paths"
+    tui_key_value "Config:" "$config_file"
+    tui_key_value "State:" "$state_dir"
+    tui_key_value "Runtime:" "${runtime_dir:-"(not set)"}"
+    tui_key_value "Repo:" "$REPO_ROOT"
+    tui_key_value "Launcher:" "$(command -v inir 2>/dev/null || echo "${XDG_BIN_HOME}/inir")"
+    tui_key_value "Remote:" "$remote_state"
+    tui_key_value "Runtime State:" "$runtime_state"
+    tui_key_value "Preserved Mods:" "$preserved_mods"
+
+    echo ""
+
+    # Quick health (resolve symlinks so qs -p matches the running instance)
+    tui_subtitle "Quick Health"
+    if [[ -n "$runtime_dir" && -f "$runtime_dir/shell.qml" ]]; then
+        local running_output resolved_runtime_dir
+        resolved_runtime_dir="$(readlink -f "$runtime_dir" 2>/dev/null || printf '%s' "$runtime_dir")"
+        running_output="$(qs -p "$resolved_runtime_dir" list 2>/dev/null || true)"
+        if [[ -n "$running_output" && "$running_output" != No\ running\ instances* ]]; then
+            tui_check_ok "Shell is running"
+        else
+            tui_check_warn "Shell is not running"
+        fi
+    else
+        tui_check_warn "Runtime payload missing"
+    fi
+
+    local pending=$(count_pending_migrations 2>/dev/null || echo "0")
+    if [[ "$pending" -gt 0 ]]; then
+        tui_check_warn "$pending pending migration(s)"
+    else
+        tui_check_ok "No pending migrations"
+    fi
+
+    local snapshot_count=$(list_snapshots 2>/dev/null | wc -l)
+    tui_check_ok "$snapshot_count snapshot(s) available"
+
+    local service_path="${XDG_CONFIG_HOME}/systemd/user/inir.service"
+    if [[ -f "$service_path" ]]; then
+        tui_check_ok "User service file present"
+    else
+        tui_check_warn "User service file missing"
+    fi
+
+    local launcher_path
+    launcher_path="$(command -v inir 2>/dev/null || true)"
+    if [[ -n "$launcher_path" ]]; then
+        tui_check_ok "Launcher resolves to $launcher_path"
+    else
+        tui_check_warn "Launcher not found in PATH"
+    fi
+
+    case "$remote_state" in
+        "diverged") tui_check_fail "Repo remote state: ${remote_state}" ;;
+        "up to date") tui_check_ok "Repo remote state: ${remote_state}" ;;
+        *) tui_check_warn "Repo remote state: ${remote_state}" ;;
+    esac
+
+    if [[ "$runtime_state" == "clean" || "$runtime_state" == "externally managed" ]]; then
+        tui_check_ok "Runtime payload state: ${runtime_state}"
+    else
+        tui_check_warn "Runtime payload state: ${runtime_state}"
+    fi
+
+    echo ""
+}
+
+###############################################################################
+# Config — View and edit shell settings (Ink Select-inspired interactive)
+###############################################################################
+run_config() {
+    echo ""
+    tui_title "iNiR Configuration"
+    echo ""
+
+    local config_dir
+    config_dir="$(resolve_inir_config_dir)"
+    local config_file="${config_dir}/config.json"
+
+    if [[ ! -f "$config_file" ]]; then
+        tui_warn "Config file not found: $config_file"
+        tui_info "Run './setup install' first."
+        echo ""
+        read -rp "Press Enter to continue..."
+        return 0
+    fi
+
+    # Keys as Config.qml names them; a missing key shows the fresh-install value from defaults/config.json.
+    local panel_family="ii" global_style="?" bar_place="?" clock_format="?" search_url="?"
+    if command -v jq &>/dev/null; then
+        local defaults="${REPO_ROOT}/defaults/config.json"
+        # Not jq's `//`: it skips false too, and a switch that is off is a value.
+        read_key() { jq -r --slurpfile d "$defaults" "[($1), (\$d[0] | $1)] | map(select(. != null)) | if length > 0 then .[0] else \"?\" end" "$config_file" 2>/dev/null; }
+        panel_family=$(read_key '.panelFamily')
+        global_style=$(read_key '.appearance.globalStyle')
+        clock_format=$(read_key '.time.format')
+        search_url=$(read_key '.search.engineBaseUrl')
+        if [[ "$(read_key '.bar.vertical')" == "true" ]]; then bar_place="vertical"
+        elif [[ "$(read_key '.bar.bottom')" == "true" ]]; then bar_place="bottom"
+        else bar_place="top"; fi
+    fi
+
+    tui_summary_card "Current Settings" \
+        "Panel Family:$panel_family" \
+        "Global Style (ii):$global_style" \
+        "Bar (ii):$bar_place" \
+        "Clock Format:$clock_format" \
+        "Search:${search_url%%\?*}"
+
+    echo ""
+
+    local action
+    action=$(tui_choose_rich "Configuration" \
+        "${ICON_ARROW}|Edit in Editor|Open config.json in your editor" \
+        "${ICON_DOT}|Panel Family|Switch between Material ii, Waffle and iRiS" \
+        "${ICON_DOT}|Open Config Dir|Open the config directory" \
+        "${ICON_DOT}|Reset to Defaults|Restore default configuration" \
+        "${ICON_CIRCLE}|Back|Return to main menu")
+
+    case "$action" in
+        "Edit in Editor")
+            local editor="${EDITOR:-${VISUAL:-nano}}"
+            tui_info "Opening $config_file with $editor..."
+            "$editor" "$config_file"
+            tui_success "Config saved; a running shell applies it as soon as the file changes"
+            ;;
+        "Panel Family")
+            echo ""
+            local new_family
+            new_family=$(tui_choose "Select panel family:" "ii" "waffle" "iris")
+            if [[ -n "$new_family" && "$new_family" != "$panel_family" ]]; then
+                # A running shell owns the config in memory and would overwrite a direct write: ask it.
+                if bash "${REPO_ROOT}/scripts/inir" panelFamily set "$new_family" &>/dev/null; then
+                    tui_success "Panel family set to: $new_family"
+                elif command -v jq &>/dev/null; then
+                    local tmp_file
+                    tmp_file=$(mktemp)
+                    jq --arg f "$new_family" '.panelFamily = $f' "$config_file" > "$tmp_file" && mv "$tmp_file" "$config_file"
+                    tui_success "Panel family set to: $new_family (applies when the shell starts)"
+                else
+                    tui_warn "jq required to edit config programmatically"
+                    tui_info "Edit $config_file manually"
+                fi
+            else
+                tui_info "No change"
+            fi
+            ;;
+        "Open Config Dir")
+            if command -v xdg-open &>/dev/null; then
+                xdg-open "$config_dir" &>/dev/null &
+                tui_success "Opened in file manager"
+            else
+                tui_info "Path: $config_dir"
+            fi
+            ;;
+        "Reset to Defaults")
+            tui_warn "This will replace your config with defaults."
+            if tui_confirm "Are you sure?" "no"; then
+                if [[ -f "${REPO_ROOT}/defaults/config.json" ]]; then
+                    cp "$config_file" "${config_file}.backup.$(date +%Y%m%d%H%M%S)"
+                    cp "${REPO_ROOT}/defaults/config.json" "$config_file"
+                    tui_success "Config reset to defaults (backup created); a running shell applies it now"
+                else
+                    tui_error "Default config not found"
+                fi
+            fi
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    echo ""
+    read -rp "Press Enter to continue..."
+}
+
+###############################################################################
+# Theme — Quick wallpaper and color scheme operations
+###############################################################################
+run_theme() {
+    echo ""
+    tui_title "Theme & Wallpaper"
+    echo ""
+
+    local state_dir="${XDG_STATE_HOME}/quickshell/user/generated"
+    local theme_meta="${state_dir}/theme-meta.json"
+    local colors_file="${state_dir}/colors.json"
+    local wallpaper_state_path="${state_dir}/wallpaper/path.txt"
+
+    resolve_switchwall_script() {
+        local candidate="${REPO_ROOT}/scripts/colors/switchwall.sh"
+        if [[ -x "$candidate" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+
+        if command -v inir &>/dev/null; then
+            local runtime_dir
+            runtime_dir="$(inir path 2>/dev/null || true)"
+            candidate="${runtime_dir}/scripts/colors/switchwall.sh"
+            if [[ -x "$candidate" ]]; then
+                printf '%s' "$candidate"
+                return 0
+            fi
+        fi
+
+        return 1
+    }
+
+    # Show current theme info
+    local current_wallpaper="none"
+    local current_scheme="unknown"
+    if [[ -f "$theme_meta" ]]; then
+        if command -v jq &>/dev/null; then
+            current_wallpaper=$(jq -r '.wallpaper // .source_path // "none"' "$theme_meta" 2>/dev/null)
+            current_scheme=$(jq -r '.scheme // .variant // "unknown"' "$theme_meta" 2>/dev/null)
+        else
+            current_wallpaper=$(sed -n 's/.*"wallpaper"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$theme_meta" 2>/dev/null | head -1)
+            [[ -n "$current_wallpaper" ]] || current_wallpaper=$(sed -n 's/.*"source_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$theme_meta" 2>/dev/null | head -1)
+            current_scheme=$(sed -n 's/.*"scheme"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$theme_meta" 2>/dev/null | head -1)
+            [[ -n "$current_scheme" ]] || current_scheme="unknown"
+        fi
+    fi
+
+    local display_wallpaper="$current_wallpaper"
+    [[ "$current_wallpaper" != "none" && -n "$current_wallpaper" && "$current_wallpaper" != "null" ]] && display_wallpaper="$(basename "$current_wallpaper")"
+
+    tui_summary_card "Current Theme" \
+        "Wallpaper:${display_wallpaper}" \
+        "Scheme:${current_scheme}"
+
+    echo ""
+
+    local action
+    action=$(tui_choose_rich "Theme Options" \
+        "${ICON_STAR}|Browse Defaults|Pick from default wallpapers" \
+        "${ICON_DOT}|Regenerate|Rebuild colors from current wallpaper" \
+        "${ICON_CIRCLE}|Back|Return to main menu")
+
+    case "$action" in
+        "Regenerate")
+            echo ""
+            tui_info "Regenerating theme from current wallpaper..."
+            local switchwall
+            switchwall="$(resolve_switchwall_script || true)"
+            local regen_wallpaper="$current_wallpaper"
+            if [[ ( -z "$regen_wallpaper" || "$regen_wallpaper" == "none" || ! -f "$regen_wallpaper" ) && -f "$wallpaper_state_path" ]]; then
+                regen_wallpaper="$(<"$wallpaper_state_path")"
+            fi
+
+            if [[ -n "$switchwall" && -n "$regen_wallpaper" && -f "$regen_wallpaper" ]]; then
+                bash "$switchwall" "$regen_wallpaper" 2>/dev/null &
+                disown
+                tui_success "Color regeneration started"
+            else
+                tui_warn "Cannot regenerate — wallpaper path unknown or switchwall.sh missing"
+            fi
+            ;;
+        "Browse Defaults")
+            echo ""
+            local defaults_dir="${REPO_ROOT}/defaults/wallpapers"
+            if [[ ! -d "$defaults_dir" ]]; then
+                # Try alternate paths
+                for try_dir in \
+                    "${REPO_ROOT}/assets/wallpapers" \
+                    "${REPO_ROOT}/defaults/backgrounds" \
+                    "${DOTS_CORE_CONFDIR}/wallpapers"; do
+                    [[ -d "$try_dir" ]] && defaults_dir="$try_dir" && break
+                done
+            fi
+
+            if [[ -d "$defaults_dir" ]]; then
+                local wallpapers=()
+                while IFS= read -r f; do
+                    wallpapers+=("$(basename "$f")")
+                done < <(find "$defaults_dir" -maxdepth 1 -type f \( -name "*.jpg" -o -name "*.jpeg" -o -name "*.png" -o -name "*.webp" \) | sort)
+
+                if [[ ${#wallpapers[@]} -eq 0 ]]; then
+                    tui_info "No wallpapers found in $defaults_dir"
+                else
+                    local chosen_wall
+                    chosen_wall=$(printf '%s\n' "${wallpapers[@]}" | tui_filter "Search wallpapers...")
+                    if [[ -n "$chosen_wall" ]]; then
+                        local full_path="${defaults_dir}/${chosen_wall}"
+                        tui_info "Applying: $chosen_wall"
+                        local switchwall
+                        switchwall="$(resolve_switchwall_script || true)"
+                        if [[ -n "$switchwall" ]]; then
+                            bash "$switchwall" "$full_path" 2>/dev/null &
+                            disown
+                            tui_success "Wallpaper pipeline started"
+                        else
+                            tui_error "switchwall.sh not found or not executable"
+                        fi
+                    fi
+                fi
+            else
+                tui_info "No default wallpapers directory found"
+            fi
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    echo ""
+    read -rp "Press Enter to continue..."
+}
+
+###############################################################################
+# Extras — Optional post-install components
+###############################################################################
+run_extras() {
+    detect_distro
+    echo ""
+    tui_title "Optional Extras"
+    echo ""
+
+    local action
+    local -a extra_choices=(
+        "${ICON_DOT}|Install iNiR-Walls|Download optional wallpaper pack and copy image files"
+        "${ICON_DOT}|Install ii-pixel-sddm|Install/apply iNiR SDDM login theme"
+        "${ICON_DOT}|Install YAMIS icons|Install/update yet-another-monochrome-icon-set (GPL-3, ~23 MiB)"
+        "${ICON_DOT}|Install mascot pack|Kira mascot art pack (optional download, feature stays opt-in)"
+    )
+    if [[ "${OS_GROUP_ID:-}" == void ]]; then
+        extra_choices+=("${ICON_DOT}|Install/update Cloudflare WARP|Void glibc x86_64 only; official Cloudflare package, optional")
+    fi
+    extra_choices+=(
+        "${ICON_DOT}|Install all|Run all non-networking optional installers"
+        "${ICON_CIRCLE}|Back|Return to main menu"
+    )
+    action=$(tui_choose_rich "Extras" "${extra_choices[@]}")
+
+    case "$action" in
+        "Install iNiR-Walls")
+            echo ""
+            extras_install_inir_walls
+            ;;
+        "Install ii-pixel-sddm")
+            echo ""
+            extras_install_sddm_theme "ask"
+            ;;
+        "Install YAMIS icons")
+            echo ""
+            extras_install_yamis_icons
+            ;;
+        "Install mascot pack")
+            echo ""
+            extras_install_mascot_pack
+            ;;
+        "Install/update Cloudflare WARP")
+            echo ""
+            extras_install_void_warp
+            ;;
+        "Install all")
+            echo ""
+            extras_install_inir_walls
+            echo ""
+            extras_install_sddm_theme "ask"
+            echo ""
+            extras_install_yamis_icons
+            echo ""
+            extras_install_mascot_pack
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    echo ""
+    read -rp "Press Enter to continue..."
+}
+
+###############################################################################
+# Backup — Create a manual snapshot
+###############################################################################
+run_backup() {
+    echo ""
+    tui_title "Manual Backup"
+    echo ""
+
+    # Show existing snapshots
+    local snapshot_count=$(list_snapshots 2>/dev/null | wc -l)
+    tui_info "$snapshot_count existing snapshot(s)"
+    echo ""
+
+    if tui_confirm "Create a new snapshot of the current state?"; then
+        echo ""
+        tui_info "Creating snapshot..."
+
+        local current_ver=$(get_installed_version)
+        local current_commit=$(get_installed_commit)
+        local snapshot_id
+        snapshot_id=$(create_snapshot "manual" "Manual backup via setup TUI" "$current_commit")
+
+        if [[ -n "$snapshot_id" ]]; then
+            tui_alert "success" "Snapshot created" "ID: $snapshot_id\nVersion: $current_ver ($current_commit)\nRestore with: ./setup rollback"
+        else
+            tui_error "Failed to create snapshot"
+        fi
+    else
+        tui_info "Cancelled"
+    fi
+
+    echo ""
+    read -rp "Press Enter to continue..."
+}
+
+###############################################################################
+# Logs — View recent runtime logs via pager
+###############################################################################
+run_logs() {
+    echo ""
+    tui_title "Runtime Logs"
+    echo ""
+
+    # `inir logs` owns the shell's log; this menu only picks a view of it.
+    local inir_cmd
+    inir_cmd=$(command -v inir 2>/dev/null || echo "${REPO_ROOT}/scripts/inir")
+    local labels=("Shell: what went wrong since it started" "Shell: last 200 lines")
+    command -v journalctl &>/dev/null && labels+=("Niri: last 100 lines")
+    labels+=("Back")
+
+    local choice
+    choice=$(tui_choose "Select log:" "${labels[@]}")
+    echo ""
+    local pager=(less -R)
+    $HAS_GUM && pager=(gum pager)
+    case "$choice" in
+        "Shell: what went wrong since it started") bash "$inir_cmd" logs --issues 2>&1 | "${pager[@]}" ;;
+        "Shell: last 200 lines") bash "$inir_cmd" logs -n 200 2>&1 | "${pager[@]}" ;;
+        "Niri: last 100 lines") journalctl --user -u niri --no-pager -n 100 2>/dev/null | "${pager[@]}" ;;
+        *) return 0 ;;
+    esac
+}
+
+###############################################################################
+# Install completion: short, and it ends on the one thing nobody may skip
+###############################################################################
+show_reboot_notice() {
+    local reasons=("${INIR_REBOOT_REASONS[@]}") reason
+    local bar="══════════════════════════════════════════════════════════════"
+    local reboot_cmd="systemctl reboot"
+    if [[ "${OS_GROUP_ID:-}" == void ]]; then
+        reboot_cmd="loginctl reboot"
+    elif ! command -v systemctl >/dev/null 2>&1 && command -v loginctl >/dev/null 2>&1; then
+        reboot_cmd="loginctl reboot"
+    fi
+    echo ""
+    echo -e "  ${STY_YELLOW}${STY_BOLD}╔${bar}╗${STY_RST}"
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" ""
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" "    RESTART YOUR COMPUTER BEFORE USING iNiR"
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" "    Not a suggestion. Half of it isn't live until you do."
+    printf "  ${STY_YELLOW}${STY_BOLD}║%-62s║${STY_RST}\n" ""
+    echo -e "  ${STY_YELLOW}${STY_BOLD}╚${bar}╝${STY_RST}"
+    if [[ ${#reasons[@]} -gt 0 ]]; then
+        echo ""
+        echo -e "    ${STY_BOLD}Why:${STY_RST}"
+        for reason in "${reasons[@]}"; do
+            echo "$reason" | fold -s -w 64 | sed '1s/^/    • /; 2,$s/^/      /'
+        done
+    fi
+    echo ""
+    echo -e "    Then pick ${STY_BOLD}Niri${STY_RST} at the login screen and you're in."
+    echo -e "    ${STY_FAINT}Reboot now:${STY_RST} ${STY_BOLD}${reboot_cmd}${STY_RST}"
+    echo ""
+}
+
+show_install_completion() {
+    local version distro package_manager host gpu ram compositor
+    version="$(get_repo_version)"
+    distro="${DETECTED_DISTRO:-${OS_PRETTY_NAME:-Linux}}"
+    package_manager="${DETECTED_PACKAGE_MANAGER:-$(get_package_manager 2>/dev/null || echo unknown)}"
+    host="${DETECTED_PORTABLE:-desktop}"
+    [[ "${DETECTED_VIRT:-none}" != "none" ]] && host+=" / ${DETECTED_VIRT} VM"
+    gpu="${DETECTED_GPU:-unknown}"
+    ram="${DETECTED_RAM_GIB:-?} GiB"
+    compositor="${DETECTED_DE:-${XDG_CURRENT_DESKTOP:-not detected}}"
+
+    tui_summary_card "iNiR ${version}" \
+        "Distro:${distro}" \
+        "Packages:${package_manager}" \
+        "Host:${host}" \
+        "GPU:${gpu}" \
+        "RAM:${ram}" \
+        "Session:${compositor}"
+
+    tui_section_start "After that"
+    tui_list_item "Super+/ lists every shortcut, Super+, opens Settings"
+    tui_list_item "Something off? inir doctor, then inir logs"
+    tui_list_item "Regret it? ./setup rollback"
+    tui_section_end
+
+    if [[ "${IS_UPDATE}" != "true" || ${#INIR_REBOOT_REASONS[@]} -gt 0 ]]; then
+        show_reboot_notice
+    fi
+}
+
+show_update_completion() {
+    local version="$1" commit="$2"
+    tui_alert "success" "Update applied" \
+        "iNiR ${version} (${commit}) is synced. The shell restart was requested when the session allowed it."
+
+    tui_section_start "If something looks off"
+    tui_list_item "Verify the result: inir status"
+    tui_list_item "Run diagnostics: inir doctor"
+    tui_list_item "Undo this update: ./setup rollback"
+    tui_section_end
+}
+
+###############################################################################
+# Install
+###############################################################################
+run_install() {
+    detect_distro
+    local dependency_repair_only=false
+    [[ -n "${ONLY_MISSING_DEPS:-}" ]] && dependency_repair_only=true
+    # Filled by the install steps with what only a fresh login or a reboot applies.
+    INIR_REBOOT_REASONS=()
+
+    # Greeting & system info
+    source ./sdata/subcmd-install/0.greeting.sh
+
+    # Check conflicts
+    check_conflicts
+
+    # Show tasuku-style task overview before starting
+    echo ""
+    tui_subtitle "Installation progress"
+    echo ""
+    tui_task_init \
+        "Install dependencies" \
+        "System configuration" \
+        "Install config files" \
+        "Version tracking"
+
+    # 1. Dependencies
+    if [[ "${SKIP_ALLDEPS}" != "true" ]]; then
+        tui_task_run 0 "packages, runtime, compositor"
+        tui_task_finalize
+        tui_step 1 3 "Installing dependencies" "Package managers, shell runtime pieces, and compositor requirements."
+        if ! source ./sdata/subcmd-install/1.deps-router.sh; then
+            tui_error "Dependency installation failed"
+            return 1
+        fi
+        # Reinit after step output to show updated state
+        echo ""
+        tui_task_init \
+            "Install dependencies" \
+            "System configuration" \
+            "Install config files" \
+            "Version tracking"
+        _TUI_TASK_STATES[0]="done"
+        _TUI_TASK_DETAILS[0]="complete"
+        tui_task_render
+    else
+        tui_task_skip 0 "skipped"
+    fi
+
+    # 2. System setup (groups, services)
+    if [[ "${SKIP_ALLSETUPS}" != "true" ]]; then
+        tui_task_run 1 "groups, services, permissions"
+        tui_task_finalize
+        tui_step 2 3 "System configuration" "Groups, services, permissions, and machine-level integration."
+        source ./sdata/subcmd-install/2.setups.sh
+        echo ""
+        tui_task_init \
+            "Install dependencies" \
+            "System configuration" \
+            "Install config files" \
+            "Version tracking"
+        _TUI_TASK_STATES[0]="done"
+        _TUI_TASK_DETAILS[0]="complete"
+        _TUI_TASK_STATES[1]="done"
+        _TUI_TASK_DETAILS[1]="complete"
+        tui_task_render
+    else
+        tui_task_skip 1 "skipped"
+    fi
+
+    # 3. Config files
+    if [[ "${SKIP_ALLFILES}" != "true" ]]; then
+        tui_task_run 2 "configs, backups, theming"
+        tui_task_finalize
+        tui_step 3 3 "Installing config files" "User configs, backups, wallpaper defaults, and generated theme inputs."
+        source ./sdata/subcmd-install/3.files.sh
+        echo ""
+        tui_task_init \
+            "Install dependencies" \
+            "System configuration" \
+            "Install config files" \
+            "Version tracking"
+        _TUI_TASK_STATES[0]="done"
+        _TUI_TASK_DETAILS[0]="complete"
+        _TUI_TASK_STATES[1]="done"
+        _TUI_TASK_DETAILS[1]="complete"
+        _TUI_TASK_STATES[2]="done"
+        _TUI_TASK_DETAILS[2]="complete"
+        tui_task_render
+    else
+        tui_task_skip 2 "skipped"
+    fi
+
+    # DISABLED: webapps — requires quickshell-webengine rebuild, re-enable when ready
+    # # WebApp Plugins: check if quickshell has WebEngine support
+    # if [[ -d "${REPO_ROOT}/defaults/plugins" ]]; then
+    #     echo ""
+    #     tui_title "WebApp Plugins"
+    #     echo ""
+    #
+    #     local has_webengine=false
+    #     if pacman -Q qt6-webengine &>/dev/null 2>&1; then
+    #         has_webengine=true
+    #     elif dpkg -s qt6-webengine-dev &>/dev/null 2>&1; then
+    #         has_webengine=true
+    #     elif rpm -q qt6-qtwebengine-devel &>/dev/null 2>&1; then
+    #         has_webengine=true
+    #     fi
+    #
+    #     # Check if quickshell was compiled with our WebEngine patch
+    #     local qs_has_patch=false
+    #     if strings "$(which qs 2>/dev/null || echo /usr/bin/quickshell)" 2>/dev/null | grep -q "EnableQtWebEngineQuick" 2>/dev/null; then
+    #         qs_has_patch=true
+    #     fi
+    #
+    #     if $qs_has_patch; then
+    #         tui_success "Quickshell has WebEngine support"
+    #         tui_info "Enable Web Apps in Settings → Interface → Sidebars"
+    #     elif $has_webengine; then
+    #         tui_info "qt6-webengine is installed but quickshell needs to be recompiled"
+    #         tui_info "Web Apps (Discord, YouTube Music, etc.) require a patched quickshell"
+    #         if $ask; then
+    #             if tui_confirm "Build and install quickshell with WebEngine support?"; then
+    #                 echo ""
+    #                 _build_install_qs_webengine
+    #             fi
+    #         else
+    #             tui_info "Run: cd ${REPO_ROOT}/scripts/quickshell-webengine && makepkg -si"
+    #         fi
+    #     else
+    #         tui_info "WebApp plugins available (Discord, YouTube Music with adblock)"
+    #         tui_info "Requires: qt6-webengine + patched quickshell"
+    #         if $ask; then
+    #             if tui_confirm "Install qt6-webengine and build patched quickshell?"; then
+    #                 echo ""
+    #                 if command -v pacman >/dev/null 2>&1; then
+    #                     tui_info "Installing qt6-webengine..."
+    #                     pkg_sudo pacman -S --needed --noconfirm qt6-webengine || true
+    #                 fi
+    #                 _build_install_qs_webengine
+    #             fi
+    #         else
+    #             tui_info "To enable: pacman -S qt6-webengine"
+    #             tui_info "Then: cd ${REPO_ROOT}/scripts/quickshell-webengine && makepkg -si"
+    #         fi
+    #     fi
+    # fi
+
+    # A targeted dependency/provider repair must not claim the current checkout
+    # became the installed source. This path is also used by Doctor and the
+    # provider idempotency checks from temporary worktrees.
+    if $dependency_repair_only; then
+        tui_task_skip 3 "unchanged"
+        tui_task_finalize
+        echo ""
+        tui_success "Dependency/provider repair complete"
+        return 0
+    fi
+
+    # Set version tracking for a real install.
+    tui_task_run 3 "recording version"
+    set_installed_version "$(get_repo_version)" "$(get_repo_commit)" "setup"
+    tui_task_done 3 "$(get_repo_version)"
+    tui_task_finalize
+
+    echo ""
+    show_install_completion
+
+    # On Void, enabling a runit service starts it immediately. NetworkManager
+    # may replace the installer-provided dhcpcd/wpa_supplicant stack and briefly
+    # interrupt networking, while SDDM may take over the display. Offer both
+    # only after every install task and version-tracking write has completed.
+    if [[ "${OS_GROUP_ID:-}" == void ]]; then
+        echo ""
+        if ! configure_void_networkmanager_service; then
+            tui_warn "NetworkManager could not be enabled; existing Void networking was preserved when possible"
+        fi
+        echo ""
+        if ! configure_void_sddm_service; then
+            tui_warn "SDDM could not be enabled; use 'niri --session' from a local TTY and inspect the SDDM service"
+        fi
+    fi
+}
+
+###############################################################################
+# My Changes - View and restore preserved user modifications
+###############################################################################
+run_my_changes() {
+    echo ""
+    tui_title "Your Preserved Modifications"
+    echo ""
+
+    # Check if any preserved modifications exist
+    if [[ ! -d "$USER_MODS_DIR" ]] || [[ -z "$(ls -A "$USER_MODS_DIR" 2>/dev/null)" ]]; then
+        tui_info "No preserved modifications found."
+        echo ""
+        tui_dim "When you update and have local changes, they are saved here."
+        tui_dim "You can then restore them after the update completes."
+        echo ""
+        read -rp "Press Enter to continue..."
+        return 0
+    fi
+
+    # List available preserved modifications
+    local mods_list=($(ls -1t "$USER_MODS_DIR" 2>/dev/null))
+
+    if [[ ${#mods_list[@]} -eq 0 ]]; then
+        tui_info "No preserved modifications found."
+        read -rp "Press Enter to continue..."
+        return 0
+    fi
+
+    # Build options with details
+    local options=()
+    for mod_dir in "${mods_list[@]}"; do
+        local meta="${USER_MODS_DIR}/${mod_dir}/metadata.json"
+        if [[ -f "$meta" ]]; then
+            local mod_count=$(grep -o '"modified_count": [0-9]*' "$meta" 2>/dev/null | grep -o '[0-9]*' || echo 0)
+            local add_count=$(grep -o '"additions_count": [0-9]*' "$meta" 2>/dev/null | grep -o '[0-9]*' || echo 0)
+            local date_formatted=$(echo "$mod_dir" | sed 's/\([0-9]\{4\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)-\([0-9]\{2\}\)\([0-9]\{2\}\)\([0-9]\{2\}\)/\1-\2-\3 \4:\5/')
+            options+=("$date_formatted (${mod_count} modified, ${add_count} added)")
+        else
+            options+=("$mod_dir")
+        fi
+    done
+    options+=("Back")
+
+    local choice
+    choice=$(tui_choose "Select a backup to view/restore:" "${options[@]}")
+
+    [[ "$choice" == "Back" ]] && return 0
+
+    # Find which backup was selected
+    local selected_idx=0
+    for i in "${!options[@]}"; do
+        if [[ "${options[$i]}" == "$choice" ]]; then
+            selected_idx=$i
+            break
+        fi
+    done
+
+    local selected_dir="${mods_list[$selected_idx]}"
+    local selected_path="${USER_MODS_DIR}/${selected_dir}"
+
+    # Show contents of selected backup
+    echo ""
+    tui_subtitle "Contents of $selected_dir"
+    echo ""
+
+    # List modified files
+    if [[ -d "$selected_path" ]]; then
+        local files_found=false
+
+        # Show modified files (excluding _additions and metadata)
+        while IFS= read -r file; do
+            [[ "$file" == *"metadata.json" ]] && continue
+            [[ "$file" == *"_additions"* ]] && continue
+            files_found=true
+            local rel_path="${file#$selected_path/}"
+            echo "    [modified] $rel_path"
+        done < <(find "$selected_path" -type f 2>/dev/null)
+
+        # Show additions
+        if [[ -d "$selected_path/_additions" ]]; then
+            while IFS= read -r file; do
+                files_found=true
+                local rel_path="${file#$selected_path/_additions/}"
+                echo "    [added]    $rel_path"
+            done < <(find "$selected_path/_additions" -type f 2>/dev/null)
+        fi
+
+        if ! $files_found; then
+            tui_dim "    (no files found)"
+        fi
+    fi
+
+    echo ""
+
+    # Action menu
+    local action
+    action=$(tui_choose "What would you like to do?" \
+        "Restore All" \
+        "Restore Single File" \
+        "Open in File Manager" \
+        "Delete This Backup" \
+        "Back")
+
+    case "$action" in
+        "Restore All")
+            echo ""
+            tui_warn "This will copy all preserved files back to your installation."
+            tui_info "Existing files will be overwritten."
+            if tui_confirm "Continue?" "no"; then
+                restore_all_user_mods "$selected_path"
+            fi
+            ;;
+        "Restore Single File")
+            restore_single_user_mod "$selected_path"
+            ;;
+        "Open in File Manager")
+            if command -v xdg-open &>/dev/null; then
+                xdg-open "$selected_path" &>/dev/null &
+                tui_success "Opened in file manager"
+            else
+                tui_info "Path: $selected_path"
+            fi
+            ;;
+        "Delete This Backup")
+            if tui_confirm "Delete this backup permanently?" "no"; then
+                rm -rf "$selected_path"
+                tui_success "Backup deleted"
+            fi
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    echo ""
+    read -rp "Press Enter to continue..."
+}
+
+# Helper: Restore all files from a user-mods backup
+restore_all_user_mods() {
+    local backup_path="$1"
+    local target
+    target="$(get_runtime_shell_dir)"
+    local restored=0
+
+    # Restore modified files
+    while IFS= read -r file; do
+        [[ "$file" == *"metadata.json" ]] && continue
+        [[ "$file" == *"_additions"* ]] && continue
+
+        local rel_path="${file#$backup_path/}"
+        local dest="${target}/${rel_path}"
+
+        mkdir -p "$(dirname "$dest")"
+        cp "$file" "$dest"
+        ((restored++))
+        tui_dim "  Restored: $rel_path"
+    done < <(find "$backup_path" -type f 2>/dev/null)
+
+    # Restore additions
+    if [[ -d "$backup_path/_additions" ]]; then
+        while IFS= read -r file; do
+            local rel_path="${file#$backup_path/_additions/}"
+            local dest="${target}/${rel_path}"
+
+            mkdir -p "$(dirname "$dest")"
+            cp "$file" "$dest"
+            ((restored++))
+            tui_dim "  Restored: $rel_path"
+        done < <(find "$backup_path/_additions" -type f 2>/dev/null)
+    fi
+
+    echo ""
+    tui_success "Restored $restored file(s)"
+    tui_info "Restart the shell to apply changes: inir restart"
+}
+
+# Helper: Restore a single file from user-mods backup
+restore_single_user_mod() {
+    local backup_path="$1"
+    local target
+    target="$(get_runtime_shell_dir)"
+
+    # Build list of files
+    local files=()
+    while IFS= read -r file; do
+        [[ "$file" == *"metadata.json" ]] && continue
+        [[ "$file" == *"_additions"* ]] && continue
+        local rel_path="${file#$backup_path/}"
+        files+=("$rel_path")
+    done < <(find "$backup_path" -type f 2>/dev/null)
+
+    # Add files from _additions
+    if [[ -d "$backup_path/_additions" ]]; then
+        while IFS= read -r file; do
+            local rel_path="${file#$backup_path/_additions/}"
+            files+=("[added] $rel_path")
+        done < <(find "$backup_path/_additions" -type f 2>/dev/null)
+    fi
+
+    if [[ ${#files[@]} -eq 0 ]]; then
+        tui_warn "No files to restore"
+        return 1
+    fi
+
+    files+=("Cancel")
+
+    local choice
+    choice=$(tui_choose "Select file to restore:" "${files[@]}")
+
+    [[ "$choice" == "Cancel" ]] && return 0
+
+    # Handle [added] prefix
+    local src_file dest_file
+    if [[ "$choice" == "[added] "* ]]; then
+        local rel_path="${choice#\[added\] }"
+        src_file="$backup_path/_additions/$rel_path"
+        dest_file="$target/$rel_path"
+    else
+        src_file="$backup_path/$choice"
+        dest_file="$target/$choice"
+    fi
+
+    mkdir -p "$(dirname "$dest_file")"
+    cp "$src_file" "$dest_file"
+    tui_success "Restored: $choice"
+    tui_info "Restart the shell to apply changes: inir restart"
+}
+
+###############################################################################
+# Update
+###############################################################################
+
+# Progress reporting for shell UI — writes structured markers to the update
+# status file so ShellUpdates.qml can show live progress in the bar indicator.
+# Format: progress:STEP:TOTAL:MESSAGE
+# Called only during automated updates (setup -y -q update from ShellUpdates).
+_update_status_file="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/update-status"
+_update_total_steps=7
+
+_write_update_status() {
+    local status="$1"
+    local status_dir
+    status_dir="$(dirname "$_update_status_file")"
+    mkdir -p "$status_dir" 2>/dev/null || return 0
+    printf '%s\n' "$status" > "$_update_status_file" 2>/dev/null || true
+}
+
+_report_progress() {
+    local step="$1" msg="$2"
+    _write_update_status "progress:${step}:${_update_total_steps}:${msg}"
+}
+
+_report_update_failure() {
+    local code="$1" msg="$2"
+    _write_update_status "failed:${code}:${msg}"
+}
+
+_reexec_update_after_repo_change() {
+    local reexec_args=()
+    $ask || reexec_args+=("-y")
+    $quiet && reexec_args+=("-q")
+    reexec_args+=("update")
+    export _II_POST_PULL=1
+    exec "$REPO_ROOT/setup" "${reexec_args[@]}"
+}
+
+# Composed helpers: write the status marker AND start the animated visual line.
+# Use these in run_update for any phase that should show as one of the 7 steps;
+# fall back to bare _report_progress if you want the marker without the spinner
+# (rare — almost everything user-facing should use these).
+_step_phase_start() {
+    local step="$1" msg="$2"
+    _report_progress "$step" "$msg"
+    tui_step_start "$step" "$_update_total_steps" "$msg"
+}
+
+_step_phase_done() { tui_step_done "${1:-}"; }
+_step_phase_fail() { tui_step_fail "${1:-}"; }
+_step_phase_warn() { tui_step_warn "${1:-}"; }
+_step_phase_skip() { tui_step_skip "${1:-}"; }
+
+# Header-only variant: writes the status marker AND prints the dot indicator +
+# step counter, but no spinner. Use for phases where verbose output (per-file
+# rsync, per-dependency check, per-package install) would compete with the
+# spinner animation. Each verbose line still uses the existing tui_* primitives.
+_step_phase_header() {
+    local step="$1" msg="$2"
+    _report_progress "$step" "$msg"
+    local dots
+    dots="$(_tui_step_dots "$step" "$_update_total_steps")"
+    printf '\n  %b %b[%d/%d]%b %b%s%b\n\n' \
+        "$dots" \
+        "$STY_FAINT" "$step" "$_update_total_steps" "$STY_RST" \
+        "$STY_PURPLE" "$msg" "$STY_RST"
+}
+
+# Simulated update: same step pacing and visuals as the real flow, but with
+# sleeps in place of git pull / rsync / migrations / makepkg. Writes the same
+# progress markers so ShellUpdates resume logic can be exercised end-to-end
+# without touching the user's installation. Triggered by `setup update --simulate`.
+run_update_simulated() {
+    local started=$SECONDS
+
+    tui_hero_card "Simulated Update" \
+        "Walks the seven update phases with the real visuals — no files touched, no git pull, no shell restart." \
+        "Status markers are still written to update-status so the bar indicator and resume logic can be exercised."
+
+    tui_warn "Simulation mode — the installation will not change."
+
+    # Step 1 — fast atomic op: animated spinner
+    _step_phase_start 1 "Pulling changes"
+    sleep 2
+    _step_phase_done "Pulled 4 commits from origin/prerelease"
+
+    # Step 2 — verbose op: header + simulated per-file lines
+    _step_phase_header 2 "Syncing files"
+    tui_info "Syncing iNiR..."
+    sleep 1
+    tui_check_ok "scripts/inir         (current)"
+    tui_check_ok "modules/bar          (3 files updated)"
+    tui_check_ok "services/Audio.qml   (current)"
+    tui_check_ok "translations/es.json (current)"
+    sleep 1
+    tui_success "Synced 1247 files (12 modified, 3 added)"
+
+    # Step 3 — fast atomic op: animated spinner
+    _step_phase_start 3 "Running migrations"
+    sleep 1
+    _step_phase_done "All migrations up to date (0 pending)"
+
+    # Step 4 — verbose op: header + simulated service-refresh lines
+    _step_phase_header 4 "Finalizing"
+    tui_info "Refreshing systemd unit..."
+    sleep 1
+    tui_check_ok "inir.service reloaded"
+    tui_check_ok "Launcher path verified"
+    tui_success "Service file refreshed"
+
+    # Step 5 — verbose op: header + simulated dependency-check lines
+    _step_phase_header 5 "Checking dependencies"
+    sleep 1
+    tui_check_ok "pipewire             (installed)"
+    tui_check_ok "niri                 (installed)"
+    tui_check_ok "matugen              (installed)"
+    tui_check_ok "millennium           (installed)"
+    tui_check_ok "fish                 (installed)"
+    sleep 1
+    tui_success "All 48 runtime dependencies satisfied"
+
+    # Step 6 — verbose op: header + simulated python-pkg lines
+    _step_phase_header 6 "Python packages"
+    sleep 1
+    tui_check_ok "matugen              (current)"
+    tui_check_ok "mutagen              (current)"
+    tui_check_ok "requests             (current)"
+    sleep 1
+    tui_success "Python venv up to date"
+
+    # Step 7 — fast atomic op: animated spinner
+    _step_phase_start 7 "Restarting shell"
+    sleep 1
+    _step_phase_done "Shell restart skipped in simulation"
+    # Unlike the real update, simulation does not restart the shell. Leave a
+    # terminal success marker instead of a stale step-7 progress marker that
+    # resume logic could mistake for an interrupted update on the next boot.
+    _write_update_status "success"
+
+    echo ""
+    tui_alert "success" "Simulation complete" \
+        "Total elapsed: $(tui_elapsed "$started"). Run './setup update' (without --simulate) for the real thing."
+}
+
+refresh_sddm_theme_on_update() {
+    local ask_mode="${1:-true}"
+
+    if ! command -v sddm >/dev/null 2>&1; then
+        return 0
+    fi
+    # SDDM installed but not the login screen: the person chose another display manager. An update
+    # leaves it alone (re-enabling SDDM here put some machines on a black screen at every update).
+    if command -v systemctl >/dev/null 2>&1 && [[ -d /run/systemd/system ]] \
+            && ! systemctl is-enabled sddm.service >/dev/null 2>&1; then
+        return 0
+    fi
+
+    # Always refresh on update — settings like InputMethod may have changed
+    local auto_apply_mode="yes"
+    if [[ "$ask_mode" == "true" ]]; then
+        # Interactive: let installer ask if switching from another theme
+        auto_apply_mode="ask"
+    fi
+
+    echo ""
+    tui_info "Refreshing ii-pixel SDDM theme..."
+
+    if ! extras_install_sddm_theme "$auto_apply_mode" no keep; then
+        tui_warn "SDDM theme refresh failed — you may need to run manually:"
+        tui_dim "  sudo bash ${REPO_ROOT}/scripts/sddm/install-pixel-sddm.sh"
+    fi
+}
+
+run_update() {
+    # Short-circuit to the simulated walkthrough — no git pull, no rsync,
+    # no migrations, no shell restart. Useful for previewing the new TUI
+    # visuals or exercising the resume-from-status-file logic.
+    if [[ "${INIR_SIMULATE_UPDATE:-}" == "1" ]]; then
+        run_update_simulated
+        return $?
+    fi
+
+    echo ""
+    tui_title "Checking for updates..."
+    echo ""
+
+    # Show current branch for awareness
+    local current_branch
+    local tracked_branch
+    current_branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+    tracked_branch="$(get_update_tracking_branch 2>/dev/null || echo "main")"
+    if [[ "$current_branch" == "HEAD" ]]; then
+        tui_warn "Detached HEAD checkout. Updates will track origin/${tracked_branch}."
+    elif [[ "$current_branch" != "main" && "$current_branch" != "master" && "$current_branch" != "unknown" ]]; then
+        tui_warn "On branch '$current_branch' (non-release). Updates will track this branch."
+    else
+        tui_info "Branch: $tracked_branch"
+    fi
+
+    tui_info "Repo: $REPO_ROOT"
+    local invoked_from="${INIR_INVOKED_FROM:-${INVOKED_FROM:-$PWD}}"
+    if [[ "$invoked_from" != "$REPO_ROOT" && -e "${invoked_from}/.git" && -f "${invoked_from}/shell.qml" ]]; then
+        tui_warn "Updating that repo, not the one you are standing in:"
+        tui_dim "    you are in: $invoked_from"
+        tui_dim "    repo path comes from ~/.config/inir/version.json"
+    fi
+
+    local installed_mode=$(get_installed_install_mode)
+    local installed_strategy=$(get_installed_update_strategy)
+    local package_name=$(get_installed_package_name)
+    local update_hint=$(get_installed_package_update_hint)
+
+    if [[ "$installed_strategy" == "package-manager" ]]; then
+        tui_warn "This iNiR installation is package-managed"
+        tui_status_line "Install Mode:" "$installed_mode" ""
+        [[ -n "$package_name" ]] && tui_status_line "Package:" "$package_name" ""
+        if [[ -n "$update_hint" ]]; then
+            tui_info "Update the shell payload with: $update_hint"
+        else
+            tui_info "Update the shell payload with your package manager."
+        fi
+
+        local pending=$(count_pending_migrations 2>/dev/null || echo "0")
+        if [[ "$pending" -gt 0 ]]; then
+            echo ""
+            run_migrations_auto
+            pending=$(count_pending_migrations 2>/dev/null || echo "0")
+            if [[ "$pending" -gt 0 ]]; then
+                tui_warn "$pending optional migration(s) available"
+                if $ask && tui_confirm "Review and apply now?"; then
+                    run_migrations_interactive
+                fi
+            fi
+        fi
+
+        repair_update_owned_state false
+
+        if inir_user_service_is_masked; then
+            tui_warn "User inir.service is masked; package-managed update left it unchanged"
+        else
+            ensure_user_inir_service_enabled >/dev/null 2>&1 || true
+            # Only start inir if we're running under a supported compositor.
+            # WAYLAND_DISPLAY alone is not enough — KDE/GNOME set it too.
+            # The shipped unit is Niri-owned (PartOf/Requisite=niri.service).
+            if has_usable_systemd_user_manager \
+                    && { [[ -n "${NIRI_SOCKET:-}" ]] || systemctl --user is-active --quiet niri.service >/dev/null 2>&1; }; then
+                systemctl --user reset-failed inir.service >/dev/null 2>&1 || true
+                systemctl --user start inir.service >/dev/null 2>&1 || true
+            fi
+        fi
+
+        # Even on package-managed installs, refresh the shipped ii-pixel theme from
+        # the current checkout so SDDM import/theme fixes are not stranded behind
+        # the separate extras flow.
+        refresh_sddm_theme_on_update "$ask"
+        extras_refresh_yamis_icons_on_update
+        extras_refresh_mascot_pack_on_update
+        extras_refresh_void_warp_on_update
+
+        echo ""
+        tui_success "Package-managed installation left unchanged"
+        _write_update_status "success"
+        return 0
+    fi
+
+    # After a git pull, the setup script re-execs itself so that updated library
+    # code (doctor, migrations, etc.) is loaded fresh. _II_POST_PULL signals that
+    # we already pulled and should skip straight to the sync phase.
+    # Values: "1" = re-exec after pull, "local" = --local flag (skip pull entirely)
+    if [[ "${_II_POST_PULL:-}" == "1" ]]; then
+        unset _II_POST_PULL
+        tui_success "Libraries reloaded after pull"
+    elif [[ "${_II_POST_PULL:-}" == "local" ]]; then
+        unset _II_POST_PULL
+        tui_info "Syncing from local repo (git pull skipped)"
+        # Still create a snapshot before sync
+        local repo_commit=$(get_repo_commit)
+        local snapshot_id=$(create_snapshot "update" "Before local sync to ${repo_commit}" "$repo_commit")
+        tui_success "Snapshot: $snapshot_id"
+    else
+        local update_rc=0
+        check_remote_updates || update_rc=$?
+
+        if [[ "$update_rc" -eq 0 ]]; then
+            # Updates available
+            show_pending_commits
+
+            if [[ "$current_branch" == "HEAD" ]]; then
+                tui_error "Detached HEAD checkout cannot pull updates automatically."
+                tui_info "Check out a branch first, then run ./setup update again."
+                return 1
+            fi
+
+            if $ask; then
+                if ! tui_confirm "Pull and apply these updates?"; then
+                    echo "Cancelled."
+                    return 0
+                fi
+            fi
+
+            # Create snapshot BEFORE pulling
+            tui_info "Creating snapshot..."
+            local remote_commit=$(get_remote_commit)
+            local snapshot_id=$(create_snapshot "update" "Before update to ${remote_commit}" "$remote_commit")
+            tui_success "Snapshot: $snapshot_id"
+
+            # Pull changes
+            _step_phase_start 1 "Pulling changes"
+            local pull_log
+            pull_log="$(mktemp)"
+            if ! LC_ALL=C git -C "$REPO_ROOT" pull --ff-only origin "$tracked_branch" 2>"$pull_log"; then
+                _step_phase_fail "Git pull failed"
+                tui_error "Git pull from origin/${tracked_branch} failed in ${REPO_ROOT}"
+                if [[ -s "$pull_log" ]]; then
+                    echo ""
+                    while IFS= read -r line; do
+                        tui_dim "    $line"
+                    done < "$pull_log"
+                    echo ""
+                fi
+                if grep -qi "untracked working tree files" "$pull_log"; then
+                    tui_info "Untracked files are in the way. Move or remove the files listed above,"
+                    tui_info "or stash them too: git -C \"$REPO_ROOT\" stash -u"
+                    tui_dim "    (plain 'git stash' never touches untracked files)"
+                else
+                    tui_info "Try: git -C \"$REPO_ROOT\" stash && ./setup update"
+                fi
+                rm -f "$pull_log"
+                return 1
+            fi
+            rm -f "$pull_log"
+            _step_phase_done "Pulled changes from origin/${tracked_branch}"
+
+            # Re-exec to pick up updated library code from the pull.
+            # Without this, functions sourced at startup (doctor, migrations, etc.)
+            # would still be the OLD versions in memory.
+            _reexec_update_after_repo_change
+        elif [[ "$update_rc" -eq 3 ]]; then
+            tui_warn "Local checkout is ahead of origin/${tracked_branch}. Skipping git pull."
+            show_local_ahead_commits
+            tui_info "Syncing from the current local repo state..."
+        elif [[ "$update_rc" -eq 4 ]]; then
+            show_diverged_commits
+            local rewrite_detected=false
+            local realign_requested=false
+            is_upstream_rewrite_divergence "$tracked_branch" && rewrite_detected=true
+            [[ "${INIR_REALIGN_REMOTE:-0}" == "1" ]] && realign_requested=true
+
+            if $rewrite_detected || $realign_requested; then
+                if ! repo_worktree_is_clean; then
+                    _report_update_failure 21 "Repository history changed, but this checkout has uncommitted changes. Stash them first, then retry: inir update --realign"
+                    tui_error "Repository history changed, but this checkout has local changes."
+                    tui_info "Nothing was reset. Your files were left untouched."
+                    show_repo_realign_guidance "$tracked_branch"
+                    return 21
+                fi
+
+                if $rewrite_detected; then
+                    tui_warn "Detected an upstream force-push on origin/${tracked_branch}."
+                    tui_info "This clean checkout is still on the previously published lineage, so iNiR can recover it safely."
+                else
+                    tui_warn "Explicit repository realignment requested for origin/${tracked_branch}."
+                fi
+
+                _step_phase_start 1 "Realigning repository"
+                local realign_rc=0
+                realign_repo_to_remote "$tracked_branch" || realign_rc=$?
+                if [[ "$realign_rc" -eq 6 ]]; then
+                    _step_phase_fail "Repository contains local history"
+                    _report_update_failure 23 "Realignment refused because this checkout has local commits, is detached, or no previous remote lineage can prove the reset safe. Nothing was changed"
+                    tui_error "Realignment refused: iNiR cannot prove this checkout contains only the old published history."
+                    tui_info "Nothing was reset. Local commits and detached checkouts are preserved."
+                    return 23
+                elif [[ "$realign_rc" -ne 0 ]]; then
+                    _step_phase_fail "Repository realignment failed"
+                    _report_update_failure 22 "Could not realign the checkout to origin/${tracked_branch}. Run: inir doctor"
+                    tui_error "Could not realign this checkout to origin/${tracked_branch}."
+                    tui_info "No update was installed. Run: inir doctor"
+                    return 22
+                fi
+
+                _step_phase_done "Realigned to origin/${tracked_branch}"
+                tui_success "Repository recovered without recloning"
+                tui_dim "  Recovery ref: ${INIR_REPO_RECOVERY_REF}"
+                _reexec_update_after_repo_change
+            fi
+
+            _report_update_failure 20 "Repository history diverged from origin/${tracked_branch}. Run: inir update --realign"
+            tui_error "This checkout diverged from origin/${tracked_branch}, and iNiR cannot prove it was only an upstream rewrite."
+            tui_info "Refusing to destroy local commits automatically."
+            show_repo_realign_guidance "$tracked_branch"
+            return 20
+        elif [[ "$update_rc" -eq 2 ]]; then
+            # Could not check remote (offline/no git/missing tracked branch)
+            tui_warn "Could not check for remote updates (offline, not a git repo, or missing tracked branch)"
+            tui_info "Checking local repo vs installed version..."
+        fi
+        # Fall through: rc=1 (no updates) or rc=2 (error) — check local repo vs installed
+
+        # Check if local repo is ahead of installed
+        local installed_ver=$(get_installed_version)
+        local installed_commit=$(get_installed_commit)
+        local repo_ver=$(get_repo_version)
+        local repo_commit=$(get_repo_commit)
+
+        if [[ "$installed_ver" == "0.0.0" ]] && [[ -f "${FIRSTRUN_FILE}" ]]; then
+            tui_info "Detected existing installation without version tracking"
+        elif [[ "$installed_commit" == "$repo_commit" ]]; then
+            tui_success "Already up to date ($installed_ver)"
+            _write_update_status "success"
+
+            local pending=$(count_pending_migrations)
+            if [[ "$pending" -gt 0 ]]; then
+                echo ""
+                run_migrations_auto
+                pending=$(count_pending_migrations)
+                if [[ "$pending" -gt 0 ]]; then
+                    tui_warn "$pending optional migration(s) available"
+                    if $ask && tui_confirm "Apply migrations now?"; then
+                        run_migrations_interactive
+                    fi
+                fi
+            fi
+            repair_update_owned_state true
+            return 0
+        else
+            # Local repo ahead of installed - create snapshot
+            tui_info "Creating snapshot..."
+            local snapshot_id=$(create_snapshot "update" "Before sync to ${repo_commit}" "$repo_commit")
+            tui_success "Snapshot: $snapshot_id"
+        fi
+    fi
+
+    # Sync files
+    local repo_ver=$(get_repo_version)
+    local repo_commit=$(get_repo_commit)
+
+    _step_phase_header 2 "Syncing files"
+    tui_info "Syncing iNiR..."
+
+    II_SOURCE="${REPO_ROOT}"
+    II_TARGET="${XDG_CONFIG_HOME}/quickshell/inir"
+    local legacy_runtime_dir="${XDG_CONFIG_HOME}/quickshell/ii"
+
+    for dir in "$XDG_BIN_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$II_TARGET"; do
+        [[ -n "$dir" ]] && mkdir -p "$dir"
+    done
+
+    # Check if source and target are the same (dev setup)
+    local src_real=$(realpath "$II_SOURCE" 2>/dev/null || echo "$II_SOURCE")
+    local tgt_real=$(realpath "$II_TARGET" 2>/dev/null || echo "$II_TARGET")
+
+    if [[ "$src_real" != "$tgt_real" ]]; then
+        local runtime_compare_dir="$II_TARGET"
+        local runtime_manifest=""
+        local legacy_transition=false
+
+        if [[ ! -f "${II_TARGET}/shell.qml" ]] && [[ -f "${legacy_runtime_dir}/shell.qml" ]]; then
+            runtime_compare_dir="$legacy_runtime_dir"
+            legacy_transition=true
+            tui_info "Detected legacy quickshell/ii runtime"
+        fi
+
+        PRESERVED_MODS_DIR=""
+        runtime_manifest=$(find_runtime_manifest_file "$runtime_compare_dir" 2>/dev/null || true)
+        if [[ -n "$runtime_manifest" ]] && manifest_has_checksums "$runtime_manifest"; then
+            echo ""
+            tui_info "Checking for local modifications..."
+
+            local modified_files_str
+            local added_files_str
+            modified_files_str=$(detect_user_modifications "$runtime_compare_dir" "$runtime_manifest")
+            added_files_str=$(detect_user_additions "$runtime_compare_dir" "$runtime_manifest")
+
+            local mod_count=0
+            local add_count=0
+            [[ -n "$modified_files_str" ]] && mod_count=$(echo "$modified_files_str" | grep -c . || echo 0)
+            [[ -n "$added_files_str" ]] && add_count=$(echo "$added_files_str" | grep -c . || echo 0)
+            local total_mods=$((mod_count + add_count))
+
+            if [[ $total_mods -gt 0 ]]; then
+                if ! handle_user_modifications "$modified_files_str" "$added_files_str" "$runtime_compare_dir"; then
+                    return 1  # User cancelled
+                fi
+            else
+                tui_success "No local modifications detected"
+            fi
+        elif [[ "$legacy_transition" == "true" ]]; then
+            echo ""
+            tui_info "Preserving legacy quickshell/ii runtime..."
+            PRESERVED_MODS_DIR=$(preserve_runtime_tree "$runtime_compare_dir" "legacy-runtime")
+            tui_success "Legacy runtime preserved"
+        elif [[ -f "${runtime_compare_dir}/shell.qml" ]]; then
+            # No checksum manifest (v1 or missing) — compare installed files
+            # directly against repo to catch user modifications before first v2 update
+            echo ""
+            tui_info "No checksum manifest — comparing installed files against repo..."
+
+            local modified_files_str
+            modified_files_str=$(detect_user_modifications_by_source_comparison "$runtime_compare_dir" "$REPO_ROOT")
+
+            local mod_count=0
+            [[ -n "$modified_files_str" ]] && mod_count=$(echo "$modified_files_str" | grep -c . || echo 0)
+
+            if [[ $mod_count -gt 0 ]]; then
+                if ! handle_user_modifications "$modified_files_str" "" "$runtime_compare_dir"; then
+                    return 1  # User cancelled
+                fi
+            else
+                tui_success "No local modifications detected"
+            fi
+        fi
+
+        echo ""
+        tui_info "Syncing files..."
+
+        python3 "${II_SOURCE}/sdata/lib/runtime-payload.py" copy \
+            --root "$II_SOURCE" --target "$II_TARGET" --delete || return 1
+
+        # Cleanup deprecated files
+        [[ -f "${II_TARGET}/requirements.txt" ]] && rm -f "${II_TARGET}/requirements.txt"
+
+        # Show preservation reminder after sync
+        if [[ -n "$PRESERVED_MODS_DIR" ]]; then
+            echo ""
+            tui_info "Reminder: Your modifications were saved to:"
+            tui_dim "    $PRESERVED_MODS_DIR"
+        fi
+    fi
+
+    # Generate manifest
+    generate_manifest "$II_SOURCE" "${II_TARGET}/.inir-manifest" || return 1
+
+    # Remove orphan files left from previous versions
+    cleanup_orphans "$II_TARGET" "${II_TARGET}/.inir-manifest" || return 1
+
+    # Fix runtime command permissions without turning test modules into executables.
+    find "$II_TARGET/scripts" \( -name "*.sh" -o -name "*.fish" -o \( -name "*.py" ! -name "test-*.py" \) \) -exec chmod +x {} \; 2>/dev/null || true
+    [[ -f "${II_TARGET}/setup" ]] && chmod +x "${II_TARGET}/setup"
+
+    local launcher_target="${XDG_BIN_HOME}/inir"
+    if [[ -f "${REPO_ROOT}/scripts/inir" ]]; then
+        sync_launcher_from_repo >/dev/null || tui_warn "Could not refresh the inir launcher"
+        if ! command -v inir &>/dev/null && [[ ":$PATH:" != *":${XDG_BIN_HOME}:"* ]]; then
+            tui_warn "Launcher installed to ${launcher_target}, but ${XDG_BIN_HOME} is not in PATH for this shell"
+        fi
+    fi
+
+    local _service_refresh_status=1
+
+    if sync_user_desktop_integration_from_repo; then
+        [[ "${INIR_DESKTOP_INTEGRATION_CHANGED:-0}" -gt 0 ]] && tui_success "Desktop integration updated"
+    else
+        tui_warn "Could not refresh desktop integration"
+    fi
+
+    # Update version
+    set_installed_version "$repo_ver" "$repo_commit" "update"
+
+    # Write runtime version.json only for repo-copy (separate target dir).
+    # For repo-link (src==tgt) this would pollute the repo root — skip it;
+    # the canonical tracking is already in the config dir via set_installed_version.
+    if [[ -d "$II_TARGET" && "$src_real" != "$tgt_real" ]]; then
+        write_version_info_json "${II_TARGET}/version.json" "$repo_ver" "$repo_commit" "setup-update"
+    fi
+
+    tui_success "Files synced"
+
+    # Refresh ii-pixel SDDM theme on update (keeps shipped theme in sync with fixes)
+    # Interactive mode can prompt before switching Current theme; non-interactive
+    # mode only refreshes the installed theme files.
+    refresh_sddm_theme_on_update "$ask"
+    extras_refresh_yamis_icons_on_update
+    extras_refresh_mascot_pack_on_update
+    extras_refresh_void_warp_on_update
+
+    # Update Vesktop themes (themes live outside quickshell/ii tree)
+    if [[ -d "${REPO_ROOT}/dots/.config/vesktop/themes" ]]; then
+        echo ""
+        tui_info "Updating Vesktop themes..."
+
+        mkdir -p "${XDG_CONFIG_HOME}/vesktop/themes"
+        mkdir -p "${XDG_CONFIG_HOME}/Vesktop/themes"
+
+        OLD_VESKTOP_THEMES=(
+            "midnight-ii.theme.css"
+            "dms-midnight.theme.css"
+            "system24-ii.theme.css"
+            "system24-palette.css"
+            "ii-palette.css"
+            "ii-system24.theme.css"
+        )
+        for old_theme in "${OLD_VESKTOP_THEMES[@]}"; do
+            [[ -f "${XDG_CONFIG_HOME}/vesktop/themes/${old_theme}" ]] && rm -f "${XDG_CONFIG_HOME}/vesktop/themes/${old_theme}"
+            [[ -f "${XDG_CONFIG_HOME}/Vesktop/themes/${old_theme}" ]] && rm -f "${XDG_CONFIG_HOME}/Vesktop/themes/${old_theme}"
+        done
+
+        install_dir "${REPO_ROOT}/dots/.config/vesktop/themes" "${XDG_CONFIG_HOME}/vesktop/themes"
+        install_dir "${REPO_ROOT}/dots/.config/vesktop/themes" "${XDG_CONFIG_HOME}/Vesktop/themes"
+
+        tui_success "Vesktop themes updated"
+    fi
+
+    # Migrations
+    _step_phase_header 3 "Running migrations"
+    local pending=$(count_pending_migrations)
+    if [[ "$pending" -gt 0 ]]; then
+        echo ""
+        # Always apply REQUIRED migrations automatically, then offer optional migrations.
+        run_migrations_auto
+        pending=$(count_pending_migrations)
+        if [[ "$pending" -gt 0 ]]; then
+            tui_warn "$pending optional migration(s) available"
+            if $ask && tui_confirm "Review and apply?"; then
+                run_migrations_interactive
+            fi
+        fi
+    fi
+
+    repair_update_owned_state false
+
+    _step_phase_header 4 "Finalizing"
+    if has_usable_systemd_user_manager; then
+        if inir_user_service_is_masked; then
+            tui_warn "User inir.service is masked; leaving it unchanged (restore with: inir service install && inir service enable)"
+        else
+            _service_refresh_status=1
+            if sync_user_inir_service_from_repo_if_present; then
+                _service_refresh_status=0
+            else
+                _service_refresh_status=$?
+            fi
+            if [[ $_service_refresh_status -eq 0 && "${INIR_SERVICE_SYNC_CHANGED:-0}" -gt 0 ]]; then
+                tui_success "Updated existing user inir.service"
+            fi
+
+            if ensure_user_inir_service_enabled; then
+                if [[ "${INIR_SERVICE_WIRING_CHANGED:-0}" -gt 0 ]]; then
+                    tui_success "Repaired user inir.service autostart wiring"
+                else
+                    tui_success "User inir.service autostart verified"
+                fi
+            else
+                tui_warn "Could not wire inir.service to the compositor — run 'inir service enable'"
+            fi
+        fi
+    fi
+
+    local niri_config="${XDG_CONFIG_HOME}/niri/config.kdl"
+    local niri_startup_cfg="${XDG_CONFIG_HOME}/niri/config.d/50-startup.kdl"
+    local niri_binds_cfg="${XDG_CONFIG_HOME}/niri/config.d/70-binds.kdl"
+    if [[ -f "$niri_config" && -x "${XDG_BIN_HOME}/inir" ]]; then
+        if niri_can_resolve_launcher_dir "$XDG_BIN_HOME"; then
+            if [[ -f "$niri_binds_cfg" ]]; then
+                sed -i \
+                    -e 's|spawn "bash" "-lc" "exec \"\$(inir path)/scripts/launch-terminal.sh\""|spawn "inir" "terminal"|' \
+                    -e 's|spawn "bash" "-lc" "exec \"\$(inir path)/scripts/close-window.sh\""|spawn "inir" "close-window"|' \
+                    -e 's|spawn "[^"]*/inir" "|spawn "inir" "|g' \
+                    "$niri_binds_cfg"
+            else
+                sed -i \
+                    -e 's|spawn "bash" "-lc" "exec \"\$(inir path)/scripts/launch-terminal.sh\""|spawn "inir" "terminal"|' \
+                    -e 's|spawn "bash" "-lc" "exec \"\$(inir path)/scripts/close-window.sh\""|spawn "inir" "close-window"|' \
+                    -e 's|spawn "[^"]*/inir" "|spawn "inir" "|g' \
+                    "$niri_config"
+            fi
+        else
+            tui_warn "Niri is still running without ${XDG_BIN_HOME} in PATH; preserving existing launcher paths until the next session"
+        fi
+    fi
+
+    # DISABLED: webapps — requires quickshell-webengine rebuild, re-enable when ready
+    # # Install default WebApp plugins for existing users
+    # if [[ -d "${REPO_ROOT}/defaults/plugins" ]]; then
+    #     local plugins_dir="${XDG_CONFIG_HOME}/illogical-impulse/plugins"
+    #     mkdir -p "$plugins_dir"
+    #     local new_plugins=0
+    #     for plugin_src in "${REPO_ROOT}/defaults/plugins"/*/; do
+    #         local pname=$(basename "$plugin_src")
+    #         local pdest="${plugins_dir}/${pname}"
+    #         if [[ ! -d "$pdest" ]]; then
+    #             cp -r "$plugin_src" "$pdest"
+    #             ((new_plugins++))
+    #         else
+    #             # Update userscripts only (don't overwrite user manifest/icon)
+    #             if [[ -d "${plugin_src}scripts" ]]; then
+    #                 mkdir -p "${pdest}/scripts"
+    #                 cp -r "${plugin_src}scripts/"* "${pdest}/scripts/" 2>/dev/null || true
+    #             fi
+    #         fi
+    #     done
+    #     [[ $new_plugins -gt 0 ]] && tui_success "Installed $new_plugins default WebApp plugin(s)"
+    # fi
+
+    # Post-update: check for missing dependencies and offer to install them
+    _step_phase_header 5 "Checking dependencies"
+    check_dependencies
+    if [[ ${#doctor_missing_deps[@]} -gt 0 ]]; then
+        tui_warn "Missing packages detected: ${doctor_missing_deps[*]}"
+        if $ask; then
+            # Interactive mode: offer to install
+            if tui_confirm "Install missing packages now?"; then
+                detect_distro
+                SKIP_SYSUPDATE=true
+                ONLY_MISSING_DEPS="${doctor_missing_deps[*]}"
+                if ! source ./sdata/subcmd-install/1.deps-router.sh; then
+                    tui_error "Dependency installation failed"
+                    return 1
+                fi
+                tui_success "Dependencies installed"
+            else
+                tui_info "Skipped dependency installation"
+            fi
+        elif can_elevate; then
+            # Non-interactive mode but can elevate (pkexec available) — install via graphical auth
+            tui_info "Installing missing packages via graphical authentication..."
+            detect_distro
+            SKIP_SYSUPDATE=true
+            ONLY_MISSING_DEPS="${doctor_missing_deps[*]}"
+            USE_ELEVATE=true  # Signal deps-router to use elevate() instead of sudo
+            if ! source ./sdata/subcmd-install/1.deps-router.sh; then
+                tui_error "Dependency installation failed"
+                return 1
+            fi
+            tui_success "Dependencies installed"
+        else
+            # No way to elevate — just inform
+            tui_info "Run './setup doctor' to install missing packages"
+        fi
+    else
+        tui_success "All required commands available"
+    fi
+
+    # Run after dependency repair so newly installed providers get supervised
+    # during the same update.
+    source "$REPO_ROOT/sdata/lib/functions.sh" 2>/dev/null || true
+    if [[ "${OS_GROUP_ID:-}" == void ]] && ! configure_void_ydotool_uinput; then
+        tui_error "Could not configure the ydotool provider"
+        return 1
+    fi
+    if ! reconcile_inir_supervisor >/dev/null; then
+        tui_error "Could not reconcile the iNiR supervisor"
+        return 1
+    fi
+
+    # DISABLED: webapps — requires quickshell-webengine rebuild, re-enable when ready
+    # # WebApp plugins: check if quickshell has WebEngine support
+    # if [[ -d "${REPO_ROOT}/defaults/plugins" ]]; then
+    #     echo ""
+    #     tui_title "WebApp Plugins"
+    #     echo ""
+    #
+    #     local has_webengine=false
+    #     if pacman -Q qt6-webengine &>/dev/null 2>&1; then
+    #         has_webengine=true
+    #     elif dpkg -s qt6-webengine-dev &>/dev/null 2>&1; then
+    #         has_webengine=true
+    #     elif rpm -q qt6-qtwebengine-devel &>/dev/null 2>&1; then
+    #         has_webengine=true
+    #     fi
+    #
+    #     # Check if quickshell was compiled with our WebEngine patch
+    #     local qs_has_patch=false
+    #     if strings "$(which qs 2>/dev/null || echo /usr/bin/quickshell)" 2>/dev/null | grep -q "EnableQtWebEngineQuick" 2>/dev/null; then
+    #         qs_has_patch=true
+    #     fi
+    #
+    #     if $qs_has_patch; then
+    #         tui_success "Quickshell has WebEngine support"
+    #         tui_info "Enable Web Apps in Settings → Interface → Sidebars"
+    #     elif $has_webengine; then
+    #         tui_info "qt6-webengine is installed but quickshell needs to be recompiled"
+    #         tui_info "Web Apps (Discord, YouTube Music, etc.) require a patched quickshell"
+    #         if $ask; then
+    #             if tui_confirm "Build and install quickshell with WebEngine support?"; then
+    #                 echo ""
+    #                 _build_install_qs_webengine
+    #             fi
+    #         else
+    #             tui_info "Run: cd ${REPO_ROOT}/scripts/quickshell-webengine && makepkg -si"
+    #         fi
+    #     else
+    #         tui_info "WebApp plugins available (Discord, YouTube Music with adblock)"
+    #         tui_info "Requires: qt6-webengine + patched quickshell"
+    #         if $ask; then
+    #             if tui_confirm "Install qt6-webengine and build patched quickshell?"; then
+    #                 echo ""
+    #                 if command -v pacman >/dev/null 2>&1; then
+    #                     tui_info "Installing qt6-webengine..."
+    #                     pkg_sudo pacman -S --needed --noconfirm qt6-webengine || true
+    #                 fi
+    #                 _build_install_qs_webengine
+    #             fi
+    #         else
+    #             tui_info "To enable: pacman -S qt6-webengine"
+    #             tui_info "Then: cd ${REPO_ROOT}/scripts/quickshell-webengine && makepkg -si"
+    #         fi
+    #     fi
+    # fi
+
+    # Keep update semantics identical to fresh install: the managed Python venv
+    # owns ytmusicapi, and Deno is repaired as part of the YT playback runtime.
+    _step_phase_header 6 "Python / YT runtime"
+    install-python-packages
+    ensure-ytmusic-js-runtime
+
+    # Signal success to the shell UI before restart
+    _write_update_status "success"
+
+    # Restart shell (only if we have access to the session)
+    if [[ -n "$NIRI_SOCKET" ]] || [[ -n "$WAYLAND_DISPLAY" ]]; then
+        _step_phase_start 7 "Restarting shell"
+        if inir_user_service_is_masked; then
+            _step_phase_done "Shell restart skipped: inir.service is masked"
+        elif has_usable_systemd_user_manager && systemctl --user cat inir.service >/dev/null 2>&1; then
+            restart_shell_and_verify 30
+            case $? in
+                0) _step_phase_done "Shell restarted on the new version" ;;
+                1) _step_phase_done "The shell did not load the new version"
+                   tui_warn "Run './setup rollback' to go back to the previous version" ;;
+                *) _step_phase_done "Shell restart requested; 'inir logs' shows how it went" ;;
+            esac
+        elif [[ -x "${II_TARGET}/scripts/inir" ]]; then
+            nohup bash "${II_TARGET}/scripts/inir" restart -c "${II_TARGET}" >/dev/null 2>&1 &
+            disown
+            _step_phase_done "Shell restart triggered"
+        else
+            qs -p "${II_TARGET}" kill 2>/dev/null || true
+            sleep 1
+            nohup qs -p "${II_TARGET}" >/dev/null 2>&1 &
+            disown
+            _step_phase_done "Shell restart triggered"
+        fi
+    else
+        _step_phase_header 7 "Restarting shell"
+        tui_warn "Not in graphical session - shell restart skipped"
+        tui_info "The shell will use new files on next restart"
+        tui_info "Or run: inir restart"
+    fi
+
+    show_session_impact_notices
+
+    echo ""
+    show_update_completion "$repo_ver" "$repo_commit"
+}
+
+###############################################################################
+# Doctor
+###############################################################################
+run_doctor() {
+    detect_distro
+    echo ""
+    tui_hero_card "iNiR Doctor" \
+        "Diagnosing and auto-fixing your shell setup."
+    show_setup_context_card "Doctor Context"
+    run_doctor_with_fixes
+}
+
+###############################################################################
+# Parse args
+###############################################################################
+COMMAND=""
+SUBCMD_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        install|reinstall|update|migrate|doctor|rollback|my-changes|uninstall|status|config|theme|info|backup|logs|extras)
+            COMMAND="$1"; shift
+            SUBCMD_ARGS=("$@")
+            break
+            ;;
+        -y|--yes) ask=false; assume_yes=true; shift ;;
+        -q|--quiet) quiet=true; shift ;;
+        --local) export _II_POST_PULL=local; shift ;;
+        --realign) export INIR_REALIGN_REMOTE=1; shift ;;
+        --set-default-shell) export INIR_SET_DEFAULT_SHELL=true; shift ;;
+        -h|--help) show_help; exit 0 ;;
+        *) echo "Unknown: $1"; show_help; exit 1 ;;
+    esac
+done
+
+# Subcommand help must be non-destructive. `inir update --help` delegates here,
+# so consume help before install privilege checks or any maintenance workflow runs.
+for _arg in "${SUBCMD_ARGS[@]}"; do
+    case "$_arg" in
+        -h|--help) show_help; exit 0 ;;
+    esac
+done
+
+# Check prerequisites for install command (after parsing flags)
+if [[ "$COMMAND" == "install" ]]; then
+  # Source install-specific option parser if there are subcommand args
+  if [[ ${#SUBCMD_ARGS[@]} -gt 0 ]]; then
+    source ./sdata/subcmd-install/options.sh "${SUBCMD_ARGS[@]}"
+  fi
+  _check_privilege_prereqs "install"
+fi
+
+###############################################################################
+# Run
+###############################################################################
+case "$COMMAND" in
+    install) run_install ;;
+    reinstall)
+        for _arg in "${SUBCMD_ARGS[@]}"; do
+            case "$_arg" in
+                -y|--yes) ask=false; assume_yes=true ;;
+                -q|--quiet) quiet=true ;;
+            esac
+        done
+        IS_UPDATE=true
+        run_install
+        ;;
+    update)
+        for _arg in "${SUBCMD_ARGS[@]}"; do
+            case "$_arg" in
+                -y|--yes) ask=false; assume_yes=true ;;
+                -q|--quiet) quiet=true ;;
+                --local) export _II_POST_PULL=local ;;
+                --realign) export INIR_REALIGN_REMOTE=1 ;;
+                --simulate|--dry-run) export INIR_SIMULATE_UPDATE=1 ;;
+            esac
+        done
+        run_update
+        ;;
+    migrate) run_migrate ;;
+    doctor) run_doctor ;;
+    rollback) run_rollback ;;
+    my-changes) run_my_changes ;;
+    uninstall) run_uninstall ;;
+    status) show_status ;;
+    config) run_config ;;
+    theme) run_theme ;;
+    info) show_info ;;
+    backup) run_backup ;;
+    logs) run_logs ;;
+    extras) run_extras ;;
+    "") while tui_menu; do :; done ;;
+esac

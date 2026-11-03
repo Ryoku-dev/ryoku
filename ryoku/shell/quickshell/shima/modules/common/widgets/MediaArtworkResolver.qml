@@ -1,0 +1,502 @@
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import qs.modules.common
+
+QtObject {
+    id: root
+
+    property string sourceUrl: ""
+    property string title: ""
+    property string artist: ""
+    property string album: ""
+    property string cacheDirectory: Directories.coverArt
+    property int localReloadPasses: 8
+    property bool ready: false
+    property string displaySource: ""
+
+    readonly property string normalizedSourceUrl: root._normalizeUrl(root.sourceUrl)
+    readonly property bool isLocalFile: root.normalizedSourceUrl.startsWith("file://")
+    readonly property bool isDataUri: root.normalizedSourceUrl.startsWith("data:")
+    readonly property bool isRemote: root.normalizedSourceUrl.startsWith("http://") || root.normalizedSourceUrl.startsWith("https://")
+    readonly property string metadataKey: [root.normalizedSourceUrl, root.title, root.artist, root.album].join("\u001f")
+    readonly property string localFilePath: root.isLocalFile ? root._pathFromFileUrl(root.normalizedSourceUrl) : ""
+    readonly property string localCachedArtFileName: root.isLocalFile && root.localFilePath.length > 0 ? root._cacheFileName(root.metadataKey, root.localFilePath) : ""
+    readonly property string localCachedArtFilePath: root.localCachedArtFileName.length > 0 ? `${root.cacheDirectory}/${root.localCachedArtFileName}` : ""
+    readonly property bool localFileInCache: root.localFilePath.length > 0 && root.localFilePath.startsWith(`${root.cacheDirectory}/`)
+    readonly property bool isBase64DataUri: root.isDataUri && root.normalizedSourceUrl.includes(";base64,")
+    readonly property string artFileName: {
+        if (root.isRemote && root.normalizedSourceUrl.length > 0)
+            return root._cacheFileName(root.metadataKey, root.normalizedSourceUrl);
+        if (root.isBase64DataUri)
+            return `${Qt.md5(root.metadataKey)}${root._dataUriExtension(root.normalizedSourceUrl)}`;
+        return "";
+    }
+    readonly property string artFilePath: root.artFileName.length > 0 ? `${root.cacheDirectory}/${root.artFileName}` : ""
+
+    property int _generation: 0
+    property string _lastBase: ""
+    property string _adoptBase: ""
+    property int _retryCount: 0
+    readonly property int _maxRetries: 3
+    property int _localReloadsLeft: 0
+    property bool _completed: false
+    property string _pendingDisplaySource: ""
+    property int _pendingDisplayGeneration: 0
+    property int _pendingDisplayChecksLeft: 0
+
+    function _normalizeUrl(url): string {
+        if (!url)
+            return "";
+
+        const value = url.toString();
+        if (!value.length)
+            return "";
+
+        if (value.startsWith("data:") && value.length > 100000)
+            return "";
+
+        if (value.startsWith("/"))
+            return "file://" + value;
+
+        return value;
+    }
+
+    function _pathFromFileUrl(url: string): string {
+        if (!url.startsWith("file://"))
+            return "";
+
+        const cleanUrl = url.split("?")[0].split("#")[0];
+        const path = cleanUrl.replace(/^file:\/\/localhost/, "").replace(/^file:\/\//, "");
+        return decodeURIComponent(path.startsWith("/") ? path : "/" + path);
+    }
+
+    function _cacheFileName(key: string, path: string): string {
+        return `${Qt.md5(key)}${root._imageExtension(path)}`;
+    }
+
+    function _dataUriExtension(uri: string): string {
+        const match = uri.match(/^data:image\/(jpeg|png|webp|gif|bmp)/);
+        if (!match)
+            return ".jpg";
+        return match[1] === "jpeg" ? ".jpg" : `.${match[1]}`;
+    }
+
+    function _imageExtension(path: string): string {
+        const cleanPath = (path ?? "").toLowerCase().split("?")[0].split("#")[0];
+        const match = cleanPath.match(/\.(png|jpe?g|webp|gif|bmp|svg)$/);
+        return match ? match[0] : ".jpg";
+    }
+
+    function _cacheBust(url: string): string {
+        if (!url)
+            return "";
+
+        const value = url.toString();
+        if (value.startsWith("data:"))
+            return value;
+
+        const separator = value.indexOf("?") >= 0 ? "&" : "?";
+        return `${value}${separator}inir_art=${Qt.md5(root.metadataKey + ":" + root._generation)}`;
+    }
+
+    function _setReadySource(url: string): void {
+        const value = url.toString();
+        if (root._adoptBase.length > 0) {
+            const adopted = root._adoptBase;
+            root._adoptBase = "";
+            if (value === adopted && root.displaySource.length > 0) {
+                root.ready = true;
+                return;
+            }
+        }
+        root._lastBase = value;
+        root._generation += 1;
+        const generation = root._generation;
+        const nextSource = root._cacheBust(value);
+
+        if (value.startsWith("file://")) {
+            root._pendingDisplaySource = nextSource;
+            root._pendingDisplayGeneration = generation;
+            root._pendingDisplayChecksLeft = 5;
+            if (!root.displaySource.length)
+                root.ready = false;
+            fileSourceReadyChecker.running = false;
+            fileSourcePublishTimer.restart();
+            return;
+        }
+
+        if (root.ready && root.displaySource === nextSource)
+            return;
+
+        root.ready = true;
+        root.displaySource = nextSource;
+    }
+
+    function _stopWorkers(): void {
+        if (!root._completed)
+            return;
+
+        artExistsChecker.running = false;
+        artworkDownloader.running = false;
+        dataUriWriter.running = false;
+        localFileCacher.running = false;
+        localExistsChecker.running = false;
+        fileSourceReadyChecker.running = false;
+        retryTimer.stop();
+        localReloadTimer.stop();
+        fileSourcePublishTimer.stop();
+    }
+
+    function _reset(preserveDisplay: bool): void {
+        root._stopWorkers();
+        if (preserveDisplay) {
+            root.ready = root.displaySource.length > 0;
+        } else {
+            root.ready = false;
+            root.displaySource = "";
+        }
+        root._pendingDisplaySource = "";
+        root._pendingDisplayGeneration = 0;
+        root._pendingDisplayChecksLeft = 0;
+        root._retryCount = 0;
+        root._localReloadsLeft = root.localReloadPasses;
+    }
+
+    function _publishLocalFile(): void {
+        if (root.localFileInCache || !root.localCachedArtFilePath.length) {
+            root._setReadySource(root.normalizedSourceUrl);
+            return;
+        }
+
+        localFileCacher.sourceFilePath = root.localFilePath;
+        localFileCacher.artFilePath = root.localCachedArtFilePath;
+        localFileCacher.running = false;
+        localFileCacher.running = true;
+    }
+
+    function refresh(): void {
+        if (!root._completed)
+            return;
+
+        metadataRefreshTimer.restart();
+    }
+
+    function _refreshNow(): void {
+        const url = root.normalizedSourceUrl;
+        if (!url.length) {
+            root._reset(false);
+            return;
+        }
+
+        if (root.isDataUri) {
+            // Cache base64 payloads to a file so ColorQuantizer (file-only)
+            // can read them; non-base64 data URIs go straight to Image.
+            if (root.isBase64DataUri && root.artFilePath.length > 0) {
+                artExistsChecker.artFilePath = root.artFilePath;
+                artExistsChecker.running = false;
+                artExistsChecker.running = true;
+            } else {
+                root._setReadySource(url);
+            }
+            return;
+        }
+
+        if (root.isLocalFile) {
+            if (!root.localFilePath.length) {
+                root._setReadySource(url);
+                return;
+            }
+
+            localExistsChecker.filePath = root.localFilePath;
+            localExistsChecker.running = false;
+            localExistsChecker.running = true;
+            return;
+        }
+
+        if (root.isRemote && root.artFilePath.length > 0) {
+            artExistsChecker.artFilePath = root.artFilePath;
+            artExistsChecker.running = false;
+            artExistsChecker.running = true;
+            return;
+        }
+
+        root._setReadySource(url);
+    }
+
+    onMetadataKeyChanged: {
+        if (!root._completed)
+            return;
+
+        root.refresh();
+    }
+
+    onCacheDirectoryChanged: {
+        if (!root._completed)
+            return;
+
+        metadataRefreshTimer.stop();
+        root._reset(false);
+        root._refreshNow();
+    }
+
+    onDisplaySourceChanged: {
+        if (root.displaySource.length > 0)
+            MediaArtworkCache.remember(root.metadataKey, root._lastBase, root.displaySource);
+    }
+
+    Component.onCompleted: {
+        const cached = MediaArtworkCache.lookup(root.metadataKey);
+        if (cached) {
+            root._lastBase = cached.base;
+            root._adoptBase = cached.base;
+            root.displaySource = cached.source;
+            root.ready = true;
+        }
+        root._completed = true;
+        root._localReloadsLeft = root.localReloadPasses;
+        root._refreshNow();
+    }
+
+    property var metadataRefreshTimer: Timer {
+        interval: 500
+        repeat: false
+        onTriggered: {
+            root._reset(root.normalizedSourceUrl.length > 0);
+            root._refreshNow();
+        }
+    }
+
+    property var localReloadTimer: Timer {
+        interval: 250
+        repeat: false
+        onTriggered: {
+            if (!root.normalizedSourceUrl.length || !root.isLocalFile)
+                return;
+
+            root._refreshNow();
+        }
+    }
+
+    property var fileSourcePublishTimer: Timer {
+        interval: 120
+        repeat: false
+        onTriggered: {
+            if (root._pendingDisplayGeneration !== root._generation || !root._pendingDisplaySource.length)
+                return;
+
+            fileSourceReadyChecker.filePath = root._pathFromFileUrl(root._pendingDisplaySource);
+            fileSourceReadyChecker.checkedGeneration = root._pendingDisplayGeneration;
+            fileSourceReadyChecker.running = false;
+            fileSourceReadyChecker.running = true;
+        }
+    }
+
+    property var fileSourceReadyChecker: Process {
+        property string filePath: ""
+        property int checkedGeneration: 0
+
+        command: ["bash", "-c", `
+            path="$1"
+            if [ -z "$path" ]; then exit 1; fi
+            [ -s "$path" ] || exit 1
+            size1=$(stat -c%s -- "$path" 2>/dev/null) || exit 1
+            sleep 0.2
+            [ -s "$path" ] || exit 1
+            size2=$(stat -c%s -- "$path" 2>/dev/null) || exit 1
+            [ "$size1" = "$size2" ] || exit 1
+        `, "_", filePath]
+
+        onExited: (exitCode, exitStatus) => {
+            if (checkedGeneration !== root._pendingDisplayGeneration || checkedGeneration !== root._generation)
+                return;
+            if (filePath !== root._pathFromFileUrl(root._pendingDisplaySource))
+                return;
+
+            if (exitCode === 0) {
+                root.ready = true;
+                root.displaySource = root._pendingDisplaySource;
+                root._pendingDisplaySource = "";
+                root._pendingDisplayGeneration = 0;
+                root._pendingDisplayChecksLeft = 0;
+            } else if (root._pendingDisplayChecksLeft > 0) {
+                root._pendingDisplayChecksLeft -= 1;
+                fileSourcePublishTimer.restart();
+            } else if (!root.displaySource.length) {
+                root.ready = false;
+            }
+        }
+    }
+
+    property var retryTimer: Timer {
+        interval: 350 * Math.max(1, root._retryCount)
+        repeat: false
+        onTriggered: root._refreshNow()
+    }
+
+    property var localExistsChecker: Process {
+        property string filePath: ""
+
+        command: ["bash", "-c", `
+            path="$1"
+            cached="$2"
+            [ -s "$path" ] || exit 1
+            mime=$(file -b --mime-type -- "$path" 2>/dev/null) || exit 1
+            case "$mime" in
+                image/*) exit 0 ;;
+                *) [ -n "$cached" ] && rm -f -- "$cached"; exit 2 ;;
+            esac
+        `, "_", filePath, root.localCachedArtFilePath]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0 && exitCode !== 1 && exitCode !== 2)
+                return;
+
+            if (filePath !== root.localFilePath)
+                return;
+
+            if (exitCode === 0) {
+                root._localReloadsLeft = 0;
+                root._publishLocalFile();
+            } else if (exitCode === 2) {
+                root._localReloadsLeft = 0;
+                const displayedPath = root._pathFromFileUrl(root.displaySource);
+                if (displayedPath === root.localFilePath || displayedPath === root.localCachedArtFilePath) {
+                    root.ready = false;
+                    root.displaySource = "";
+                }
+            } else if (root._localReloadsLeft > 0) {
+                root._localReloadsLeft -= 1;
+                localReloadTimer.restart();
+            }
+        }
+    }
+
+    property var localFileCacher: Process {
+        property string sourceFilePath: ""
+        property string artFilePath: ""
+
+        command: ["bash", "-c", `
+            src="$1"
+            out="$2"
+            dir="$3"
+            if [ -z "$src" ] || [ -z "$out" ]; then exit 1; fi
+            if [ "$src" = "$out" ]; then exit 0; fi
+            [ -s "$src" ] || exit 1
+            file -b --mime-type -- "$src" 2>/dev/null | grep -q '^image/' || { rm -f -- "$out"; exit 2; }
+            mkdir -p "$dir"
+            tmp="$out.tmp.$$"
+            cp -f -- "$src" "$tmp" && \
+            [ -s "$tmp" ] && mv -f "$tmp" "$out" || { rm -f "$tmp"; exit 1; }
+        `, "_", sourceFilePath, artFilePath, root.cacheDirectory]
+
+        onExited: (exitCode) => {
+            if (sourceFilePath !== root.localFilePath || artFilePath !== root.localCachedArtFilePath)
+                return;
+
+            if (exitCode === 0) {
+                root._setReadySource(Qt.resolvedUrl(artFilePath));
+            } else if (exitCode === 2) {
+                const displayedPath = root._pathFromFileUrl(root.displaySource);
+                if (displayedPath === artFilePath) {
+                    root.ready = false;
+                    root.displaySource = "";
+                }
+            } else if (!root.displaySource.length) {
+                root.ready = false;
+            }
+        }
+    }
+
+    property var artExistsChecker: Process {
+        property string artFilePath: ""
+
+        command: ["test", "-s", artFilePath]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0 && exitCode !== 1)
+                return;
+
+            if (artFilePath !== root.artFilePath)
+                return;
+
+            if (exitCode === 0) {
+                root._setReadySource(Qt.resolvedUrl(artFilePath));
+            } else if (root.isBase64DataUri) {
+                dataUriWriter.payload = root.normalizedSourceUrl.split(";base64,")[1] ?? "";
+                dataUriWriter.artFilePath = artFilePath;
+                dataUriWriter.running = false;
+                dataUriWriter.running = true;
+            } else {
+                artworkDownloader.targetFile = root.normalizedSourceUrl;
+                artworkDownloader.artFilePath = artFilePath;
+                artworkDownloader.running = false;
+                artworkDownloader.running = true;
+            }
+        }
+    }
+
+    property var dataUriWriter: Process {
+        property string payload: ""
+        property string artFilePath: ""
+
+        command: ["bash", "-c", `
+            b64="$1"
+            out="$2"
+            dir="$3"
+            if [ -z "$b64" ] || [ -z "$out" ]; then exit 1; fi
+            if [ -s "$out" ]; then exit 0; fi
+            mkdir -p "$dir"
+            tmp="$out.tmp.$$"
+            printf '%s' "$b64" | base64 -d > "$tmp" 2>/dev/null && \
+            file -b --mime-type "$tmp" | grep -q '^image/' && \
+            mv -f "$tmp" "$out" || { rm -f "$tmp"; exit 1; }
+        `, "_", payload, artFilePath, root.cacheDirectory]
+
+        onExited: (exitCode) => {
+            if (artFilePath !== root.artFilePath)
+                return;
+
+            if (exitCode === 0) {
+                root._setReadySource(Qt.resolvedUrl(artFilePath));
+            } else {
+                // Undecodable payload: let Image try the raw data URI.
+                root._setReadySource(root.normalizedSourceUrl);
+            }
+        }
+    }
+
+    property var artworkDownloader: Process {
+        property string targetFile: ""
+        property string artFilePath: ""
+
+        command: ["bash", "-c", `
+            target="$1"
+            out="$2"
+            dir="$3"
+            if [ -z "$target" ] || [ -z "$out" ]; then exit 1; fi
+            if [ -s "$out" ]; then exit 0; fi
+            mkdir -p "$dir"
+            tmp="$out.tmp.$$"
+            curl -fsSL --connect-timeout 4 --max-time 12 "$target" -o "$tmp" && \
+            [ -s "$tmp" ] && file -b --mime-type "$tmp" | grep -q '^image/' && \
+            mv -f "$tmp" "$out" || { rm -f "$tmp"; exit 1; }
+        `, "_", targetFile, artFilePath, root.cacheDirectory]
+
+        onExited: (exitCode) => {
+            if (artFilePath !== root.artFilePath)
+                return;
+
+            if (exitCode === 0) {
+                root._retryCount = 0;
+                root._setReadySource(Qt.resolvedUrl(artFilePath));
+            } else if (root._retryCount < root._maxRetries) {
+                root._retryCount += 1;
+                retryTimer.restart();
+            } else if (root._pathFromFileUrl(root.displaySource) === artFilePath) {
+                root.ready = false;
+                root.displaySource = "";
+            }
+        }
+    }
+}

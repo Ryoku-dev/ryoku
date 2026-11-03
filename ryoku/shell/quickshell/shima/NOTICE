@@ -1,0 +1,10 @@
+Shima packages iNiR by snowarch and its contributors.
+Upstream: https://github.com/snowarch/iNiR
+Revision: 48cdcecb0f6089cfbb7019054602eab28e154b3b (2.33.0)
+iNiR is licensed under GPL-3.0-only. Its LICENSE and original notices are retained.
+This standalone runtime carries Ryoku's tested integration patches from
+Ryoku-on-NixOS, including the panel families, visualisers, wallpaper,
+theme/colour bridges and managed session hooks. Arch starts the bundled
+runtime only through the Ryoku shell supervisor. Arch's previous embedded
+iRiS source is retained intact for fallback and compatibility.
+This complete runtime remains opt-in pending validation on an Arch session.

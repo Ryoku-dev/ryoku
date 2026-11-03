@@ -1,0 +1,1466 @@
+pragma ComponentBehavior: Bound
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions
+import qs.modules.common.models
+import Qt5Compat.GraphicalEffects as GE
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Effects
+import Quickshell
+import Quickshell.Io
+import Quickshell.Services.Mpris
+import "root:"
+
+Item {
+    id: root
+
+    readonly property bool angelStyle: Appearance.angelEverywhere
+    readonly property bool inirStyle: Appearance.inirEverywhere
+    readonly property bool auroraStyle: Appearance.auroraEverywhere
+    readonly property bool zzzStyle: Appearance.zzzEverywhere
+    property bool panelVisible: true
+    readonly property bool useWallpaperBackdrop: root.panelVisible && (root.angelStyle || root.auroraStyle) && !root.inirStyle && root.wallpaperUrl.length > 0
+
+    // ── Screen & wallpaper for blur (angel/aurora) ──
+    property int screenWidth: root.QsWindow?.window?.screen?.width ?? 1920
+    property int screenHeight: root.QsWindow?.window?.screen?.height ?? 1080
+    property real availableWidth: root.screenWidth
+    property real availableHeight: root.screenHeight
+    readonly property string wallpaperUrl: Wallpapers.effectiveWallpaperUrl
+
+    // ── Config shortcuts ──
+    readonly property var dashCfg: Config.options?.overview?.dashboard
+    readonly property bool cfgToggles: dashCfg?.showToggles ?? true
+    readonly property bool cfgMedia: dashCfg?.showMedia ?? true
+    readonly property bool cfgVolume: dashCfg?.showVolume ?? true
+    readonly property bool cfgWeather: dashCfg?.showWeather ?? true
+    readonly property bool cfgSystem: dashCfg?.showSystem ?? true
+
+    // ── Brightness ──
+    property var screen: root.QsWindow?.window?.screen ?? null
+    property var brightnessMonitor: screen ? Brightness.getMonitorForScreen(screen) : null
+    property bool hasBrightness: brightnessMonitor !== null
+
+    // ── Greeting based on time ──
+    readonly property string greeting: {
+        const hour = DateTime.clock.hours
+        if (hour < 6) return Translation.tr("Good night")
+        if (hour < 12) return Translation.tr("Good morning")
+        if (hour < 18) return Translation.tr("Good afternoon")
+        return Translation.tr("Good evening")
+    }
+
+    // ── Media player state (MediaSection pattern) ──
+    readonly property MprisPlayer player: MprisController.activePlayer
+    readonly property bool isYtMusic: MprisController.isYtMusicActive
+    readonly property bool hasPlayer: (player && MprisController.titleOf(player)) || (isYtMusic && YtMusic.currentVideoId)
+    readonly property string effectiveTitle: isYtMusic ? YtMusic.currentTitle : (MprisController.titleOf(player) ?? "")
+    readonly property string effectiveArtist: isYtMusic ? YtMusic.currentArtist : (MprisController.artistOf(player) ?? "")
+    readonly property string effectiveArtUrl: isYtMusic && YtMusic.currentThumbnail ? YtMusic.currentThumbnail : (MprisController.artUrlOf(player) ?? "")
+    readonly property bool effectiveIsPlaying: isYtMusic ? YtMusic.isPlaying : (player?.isPlaying ?? false)
+    readonly property real effectivePosition: isYtMusic ? YtMusic.currentPosition : MprisController.positionOf(player)
+    readonly property real effectiveLength: isYtMusic ? YtMusic.currentDuration : MprisController.lengthOf(player)
+    readonly property bool effectiveCanSeek: isYtMusic ? YtMusic.canSeek : (player?.canSeek ?? false)
+
+    // ── Cover art download ──
+    property string artDownloadLocation: Directories.coverArt
+    readonly property bool downloaded: MediaArtwork.ready
+    property string displayedArtFilePath: MediaArtwork.displaySource
+
+    function checkAndDownloadArt(): void {
+        MediaArtwork.refresh()
+    }
+
+    // ── Adaptive colors from album art ──
+    ColorQuantizer {
+        id: colorQuantizer
+        source: root.downloaded ? root.displayedArtFilePath : ""
+        depth: 0; rescaleSize: 1
+    }
+    property color artDominantColor: ColorUtils.mix(
+        colorQuantizer?.colors[0] ?? Appearance.colors.colPrimary,
+        Appearance.colors.colPrimaryContainer, 0.7
+    )
+    property QtObject blendedColors: AdaptedMaterialScheme { color: root.artDominantColor }
+
+    // ── Style tokens ──
+    readonly property color colText: angelStyle ? Appearance.angel.colText : inirStyle ? Appearance.inir.colText : Appearance.colors.colOnLayer1
+    readonly property color colSubtext: angelStyle ? Appearance.angel.colTextSecondary : inirStyle ? Appearance.inir.colTextSecondary : Appearance.colors.colSubtext
+    readonly property color colCardBg: angelStyle
+        ? ColorUtils.transparentize(Appearance.colors.colLayer0Base, Appearance.angel.overlayOpacity)
+        : inirStyle ? Appearance.inir.colLayer0
+        : auroraStyle ? ColorUtils.transparentize(
+            Appearance.colors.colLayer0Base,
+            Math.max(0.10, Appearance.aurora.overlayTransparentize - 0.12)
+        )
+        : Appearance.colors.colBackgroundSurfaceContainer
+    readonly property color colCard: angelStyle
+        ? ColorUtils.transparentize(Appearance.colors.colLayer1Base, Appearance.angel.overlayOpacity)
+        : inirStyle ? Appearance.inir.colLayer1
+        : auroraStyle ? ColorUtils.transparentize(
+            Appearance.colors.colLayer1Base,
+            Math.max(0.18, Appearance.aurora.subSurfaceTransparentize - 0.14)
+        )
+        : Appearance.colors.colLayer1
+    readonly property color colBorder: angelStyle ? Appearance.angel.colBorder
+        : inirStyle ? Appearance.inir.colBorder
+        : auroraStyle ? ColorUtils.transparentize(Appearance.colors.colOutlineVariant, 0.72)
+        : Appearance.colors.colLayer0Border
+    readonly property color colPrimary: angelStyle ? Appearance.angel.colPrimary : inirStyle ? Appearance.inir.colPrimary : Appearance.colors.colPrimary
+    readonly property color colOnPrimary: angelStyle ? Appearance.angel.colOnPrimary : inirStyle ? Appearance.inir.colOnPrimary : Appearance.colors.colOnPrimary
+    readonly property color colCardHover: angelStyle ? Appearance.angel.colGlassCardHover : inirStyle ? Appearance.inir.colLayer2Hover
+        : auroraStyle ? (Appearance.aurora?.colSubSurfaceHover ?? Appearance.colors.colLayer2Hover) : Appearance.colors.colLayer2Hover
+    readonly property color colLayer2: angelStyle ? Appearance.angel.colGlassCard : inirStyle ? Appearance.inir.colLayer2
+        : auroraStyle ? (Appearance.aurora?.colSubSurface ?? Appearance.colors.colLayer2) : Appearance.colors.colLayer2
+    readonly property color panelGlassTint: angelStyle
+        ? ColorUtils.transparentize(Appearance.angel.colGlassCard, 0.80)
+        : inirStyle ? root.colCard
+        : auroraStyle ? ColorUtils.transparentize(root.colCard, 0.36)
+        : ColorUtils.transparentize(root.colCard, 0.32)
+    readonly property real cardRadius: angelStyle ? Appearance.angel.roundingSmall : inirStyle ? Appearance.inir.roundingSmall : Appearance.rounding.normal
+    readonly property real containerRadius: angelStyle ? Appearance.angel.roundingNormal : inirStyle ? Appearance.inir.roundingNormal : Appearance.rounding.large
+    readonly property int bw: (angelStyle || inirStyle || auroraStyle) ? 1 : 1
+    readonly property int dashboardMaxWidth: 560
+    readonly property int dashboardHorizontalPadding: 12
+    readonly property int dashboardVerticalPadding: 12
+    readonly property real dashboardSafeHeight: Math.max(260, root.availableHeight - (dashboardVerticalPadding * 2))
+
+    // ── Media-adaptive colors ──
+    readonly property color mediaBg: {
+        if (!hasPlayer) return colCard
+        if (angelStyle) return Appearance.angel.colGlassCard
+        if (inirStyle) return Appearance.inir.colLayer1
+        if (auroraStyle) return ColorUtils.mix(
+            Appearance.aurora.colSubSurface,
+            blendedColors?.colLayer1 ?? Appearance.colors.colLayer1,
+            0.22
+        )
+        return blendedColors?.colLayer0 ?? Appearance.colors.colLayer0
+    }
+    readonly property color mediaText: hasPlayer ? (angelStyle ? Appearance.angel.colText : inirStyle ? Appearance.inir.colText
+        : (blendedColors?.colOnLayer0 ?? Appearance.colors.colOnLayer0)) : colText
+    readonly property color mediaSub: hasPlayer ? (angelStyle ? Appearance.angel.colTextSecondary : inirStyle ? Appearance.inir.colTextSecondary
+        : (blendedColors?.colSubtext ?? Appearance.colors.colSubtext)) : colSubtext
+    readonly property color mediaAccent: hasPlayer ? (angelStyle ? Appearance.angel.colPrimary : inirStyle ? Appearance.inir.colPrimary
+        : (blendedColors?.colPrimary ?? Appearance.colors.colPrimary)) : colPrimary
+    readonly property color mediaTrack: angelStyle ? Appearance.angel.colGlassCard : inirStyle ? Appearance.inir.colLayer2
+        : zzzStyle ? Appearance.colors.colLayer2
+        : (blendedColors?.colSecondaryContainer ?? Appearance.colors.colSecondaryContainer)
+    readonly property color mediaHover: angelStyle ? Appearance.angel.colGlassCardHover : inirStyle ? Appearance.inir.colLayer2Hover
+        : ColorUtils.transparentize(blendedColors?.colLayer1 ?? Appearance.colors.colLayer1, 0.5)
+    readonly property int weatherSystemMinHeight: 190
+    readonly property int weatherCardMinHeight: 132
+
+    implicitWidth: dashContainer.implicitWidth + Appearance.sizes.elevationMargin * 2
+    implicitHeight: dashContainer.implicitHeight + Appearance.sizes.elevationMargin * 2
+
+    property QtObject resourceMonitor: ResourceUsageMonitor { target: root; active: root.cfgSystem }
+
+    Timer {
+        running: root.effectiveIsPlaying
+        interval: 1000; repeat: true
+        onTriggered: { if (!root.isYtMusic && root.player) root.player.positionChanged() }
+    }
+
+    StyledRectangularShadow {
+        target: dashContainer
+        visible: !root.inirStyle && !root.auroraStyle
+        blur: 0.32 * Appearance.sizes.elevationMargin
+    }
+
+    // ── Inline component: Blurred wallpaper card background (angel/aurora) ──
+    // Matches ControlPanelContent pattern exactly
+    component BlurredCardBg: Item {
+        id: blurBg
+        required property Item targetCard
+        anchors.fill: parent
+        visible: root.useWallpaperBackdrop
+
+        Image {
+            id: blurBgImage
+            anchors.centerIn: parent
+            width: root.screenWidth
+            height: root.screenHeight
+            source: root.useWallpaperBackdrop ? root.wallpaperUrl : ""
+            fillMode: Image.PreserveAspectCrop
+            cache: true
+            sourceSize.width: root.screenWidth
+            sourceSize.height: root.screenHeight
+            asynchronous: true
+
+            layer.enabled: Appearance.effectsEnabled && root.useWallpaperBackdrop
+            layer.effect: MultiEffect {
+                source: blurBgImage
+                anchors.fill: source
+                saturation: root.angelStyle ? Appearance.angel.blurSaturation : 0.14
+                blurEnabled: Appearance.effectsEnabled
+                blurMax: 64
+                blur: Appearance.effectsEnabled ? 1.12 : 0
+            }
+
+            // Dark overlay (same as ControlPanelContent)
+            Rectangle {
+                anchors.fill: parent
+                color: root.angelStyle
+                    ? ColorUtils.transparentize(Appearance.colors.colLayer0Base, Appearance.angel.overlayOpacity)
+                    : ColorUtils.transparentize(
+                        Appearance.colors.colLayer0Base,
+                        Math.max(0.08, Appearance.aurora.overlayTransparentize - 0.14)
+                    )
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: blurBg.targetCard?.radius ?? root.cardRadius
+                color: root.panelGlassTint
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════
+    // MAIN CONTAINER — transparent, no floating panel
+    // ═══════════════════════════════════════════════════
+    ZzzPlate {
+        anchors.fill: dashContainer
+        visible: Appearance.zzzEverywhere
+        fillColor: Appearance.colors.colLayer0
+        strokeColor: Appearance.zzz.hairlineStrong
+        strokeWidth: Appearance.zzz.hairlineThick
+        chamfer: Appearance.zzz.cutCorner
+    }
+
+    GlassBackground {
+        id: dashContainer
+        anchors.centerIn: parent
+        width: Math.min(root.dashboardMaxWidth, root.availableWidth - (root.dashboardHorizontalPadding * 2))
+        implicitWidth: width
+        implicitHeight: Math.min(mainCol.implicitHeight + 24, root.dashboardSafeHeight)
+        height: implicitHeight
+        radius: root.containerRadius
+        fallbackColor: Appearance.zzzEverywhere ? "transparent" : Appearance.colors.colBackgroundSurfaceContainer
+        inirColor: root.inirStyle ? Appearance.inir.colLayer1 : root.colCardBg
+        auroraTransparency: Math.max(0.16, Appearance.aurora.popupTransparentize - 0.12)
+        wallpaperBackdropEnabled: root.panelVisible
+        border.width: Appearance.zzzEverywhere ? 0
+            : root.angelStyle || root.inirStyle || root.auroraStyle ? 1 : 0
+        border.color: root.angelStyle ? Appearance.angel.colCardBorder
+            : root.inirStyle ? Appearance.inir.colBorder
+            : root.auroraStyle ? ColorUtils.transparentize(Appearance.colors.colOutlineVariant, 0.70)
+            : root.colBorder
+        Behavior on border.width {
+            enabled: Appearance.animationsEnabled
+            NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+        }
+        Behavior on border.color {
+            enabled: Appearance.animationsEnabled
+            ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+        }
+        clip: true
+
+        AngelPartialBorder { visible: root.angelStyle; targetRadius: dashContainer.radius; coverage: 0.4 }
+
+        ZzzPanelBackdrop {
+            anchors.fill: parent
+            label: "OVERVIEW"
+            index: "DB"
+            ghostText: "GRID"
+            accentColor: Appearance.zzz.accent
+            showBurst: false
+            showTicks: false
+            z: 0
+        }
+
+        Flickable {
+            id: dashboardFlick
+            anchors.fill: parent
+            anchors.margins: 0
+            contentWidth: width
+            contentHeight: mainCol.implicitHeight + 24
+            clip: true
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
+
+            ScrollBar.vertical: ScrollBar {
+                policy: dashboardFlick.interactive ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+            }
+
+            ColumnLayout {
+                id: mainCol
+                x: (dashboardFlick.width - width) / 2
+                y: 12
+                spacing: 10
+                width: Math.max(320, dashboardFlick.width - 20)
+
+            // ═══════════════════════════════════════
+            // 0. HEADER: Time + Greeting + Actions
+            // ═══════════════════════════════════════
+            Rectangle {
+                id: headerCard
+                Layout.fillWidth: true
+                implicitHeight: headerRow.implicitHeight + 16
+                radius: root.cardRadius
+                color: root.inirStyle ? root.colCard : "transparent"
+                border.width: root.bw
+                border.color: root.colBorder
+                clip: true
+
+                layer.enabled: root.useWallpaperBackdrop
+                layer.effect: GE.OpacityMask {
+                    maskSource: Rectangle { width: headerCard.width; height: headerCard.height; radius: headerCard.radius }
+                }
+
+                // Blurred wallpaper background (angel/aurora)
+                Image {
+                    anchors.centerIn: parent
+                    width: root.screenWidth
+                    height: root.screenHeight
+                    visible: root.useWallpaperBackdrop
+                    source: root.useWallpaperBackdrop ? root.wallpaperUrl : ""
+                    fillMode: Image.PreserveAspectCrop
+                    cache: true
+                    sourceSize.width: root.screenWidth
+                    sourceSize.height: root.screenHeight
+                    asynchronous: true
+
+                    layer.enabled: Appearance.effectsEnabled && root.useWallpaperBackdrop
+                    layer.effect: MultiEffect {
+                        saturation: root.angelStyle ? Appearance.angel.blurSaturation : 0.2
+                        blurEnabled: Appearance.effectsEnabled
+                        blurMax: 64
+                        blur: 1
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        color: root.angelStyle
+                            ? ColorUtils.transparentize(Appearance.colors.colLayer0Base, Appearance.angel.overlayOpacity)
+                            : ColorUtils.transparentize(
+                                Appearance.colors.colLayer0Base,
+                                Math.max(0.08, Appearance.aurora.overlayTransparentize - 0.14)
+                            )
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: headerCard.radius
+                        color: root.panelGlassTint
+                    }
+                }
+
+                // Solid background for material/inir
+                Rectangle {
+                    anchors.fill: parent
+                    radius: headerCard.radius
+                    visible: !root.angelStyle && !root.auroraStyle
+                    color: Appearance.editorialEverywhere ? Appearance.editorial.ink : root.colCard
+                }
+
+                AngelPartialBorder { targetRadius: parent.radius; coverage: 0.45 }
+
+                RowLayout {
+                    id: headerRow
+                    anchors { fill: parent; margins: 10 }
+                    spacing: 12
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 0
+
+                        StyledText {
+                            text: DateTime.time
+                            font {
+                                pixelSize: Appearance.font.pixelSize.huge * 1.8
+                                weight: Appearance.editorialEverywhere ? Appearance.editorial.titleWeight : Font.Light
+                                family: Appearance.font.family.numbers
+                            }
+                            color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colText
+                        }
+                        StyledText {
+                            text: root.greeting
+                            font { pixelSize: Appearance.font.pixelSize.normal; weight: Font.Medium }
+                            color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colPrimary
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                        spacing: 2
+
+                        StyledText {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            horizontalAlignment: Text.AlignRight
+                            text: Qt.formatDate(DateTime.clock.date, "dddd, MMMM")
+                            elide: Text.ElideRight
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colSubtext
+                        }
+
+                        RowLayout {
+                            Layout.alignment: Qt.AlignRight
+                            spacing: 6
+
+                            Rectangle {
+                                Layout.preferredWidth: 30
+                                Layout.preferredHeight: 26
+                                radius: Appearance.rounding.small
+                                color: root.inirStyle ? Appearance.inir.colPrimary
+                                    : root.angelStyle ? ColorUtils.applyAlpha(root.colPrimary, 0.18)
+                                    : Appearance.colors.colPrimaryContainer
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: Qt.formatDate(DateTime.clock.date, "d")
+                                    font {
+                                        family: Appearance.font.family.numbers
+                                        pixelSize: Appearance.font.pixelSize.normal
+                                        weight: Font.DemiBold
+                                    }
+                                    color: root.inirStyle ? Appearance.inir.colOnPrimary
+                                        : root.angelStyle ? root.colPrimary
+                                        : Appearance.colors.colOnPrimaryContainer
+                                }
+                            }
+
+                            Revealer {
+                                reveal: Notifications.list.length > 0
+                            Row {
+                                spacing: 4
+                                MaterialSymbol {
+                                    text: "notifications"
+                                    iconSize: 14
+                                    color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colSubtext
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                StyledText {
+                                    text: Notifications.list.length.toString()
+                                    font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers }
+                                    color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colSubtext
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            }
+
+                            Revealer {
+                                reveal: Notifications.silent
+                            Row {
+                                spacing: 4
+                                MaterialSymbol {
+                                    text: "do_not_disturb_on"
+                                    iconSize: 14
+                                    fill: 1
+                                    color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colPrimary
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                StyledText {
+                                    text: Translation.tr("DND")
+                                    font.pixelSize: Appearance.font.pixelSize.smallest
+                                    color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colPrimary
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            }
+                        }
+                    }
+
+                    RippleButton {
+                        Layout.preferredWidth: 32
+                        Layout.preferredHeight: 32
+                        Layout.alignment: Qt.AlignVCenter
+                        buttonRadius: root.angelStyle ? Appearance.angel.roundingSmall : 16
+                        colBackground: "transparent"
+                        colBackgroundHover: Appearance.editorialEverywhere ? ColorUtils.applyAlpha(Appearance.editorial.paperOnInk, 0.12) : root.colCardHover
+                        onClicked: Quickshell.execDetached([Quickshell.shellPath("scripts/inir"), "settings"])
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            text: "settings"
+                            iconSize: 18
+                            color: Appearance.editorialEverywhere ? Appearance.editorial.paperOnInk : root.colSubtext
+                        }
+                        StyledToolTip { text: Translation.tr("Settings") }
+                    }
+                }
+            }
+
+              // ═══════════════════════════════════════
+              // 1. QUICK TOGGLES (with labels)
+              // ═══════════════════════════════════════
+              Rectangle {
+                  id: togglesCard
+                  Layout.fillWidth: true
+                  visible: root.cfgToggles
+                  implicitHeight: togglesGrid.implicitHeight + 20
+                  radius: root.cardRadius
+                  color: root.inirStyle ? root.colCard : "transparent"
+                  border.width: root.bw
+                  border.color: root.colBorder
+                  clip: true
+
+                  layer.enabled: (root.angelStyle || root.auroraStyle) && !root.inirStyle
+                  layer.effect: GE.OpacityMask {
+                      maskSource: Rectangle { width: togglesCard.width; height: togglesCard.height; radius: togglesCard.radius }
+                  }
+
+                  BlurredCardBg { targetCard: togglesCard }
+                  Rectangle { anchors.fill: parent; radius: togglesCard.radius; visible: !root.angelStyle && !root.auroraStyle; color: root.colCard }
+
+                  GridLayout {
+                      id: togglesGrid
+                      anchors { fill: parent; margins: 10 }
+                      columns: 4
+                      rowSpacing: 10
+                      columnSpacing: 10
+
+                      QuickToggle {
+                          icon: Audio.sink?.audio?.muted ? "volume_off" : "volume_up"
+                          label: Translation.tr("Sound")
+                          active: !(Audio.sink?.audio?.muted ?? true)
+                          onClicked: Audio.toggleMute()
+                      }
+                      QuickToggle {
+                          icon: Network.wifiEnabled ? "wifi" : "wifi_off"
+                          label: Translation.tr("Wi-Fi")
+                          active: Network.wifiEnabled
+                          onClicked: Network.toggleWifi()
+                      }
+                      Revealer {
+                          reveal: BluetoothStatus.available
+                      QuickToggle {
+                          icon: BluetoothStatus.enabled ? "bluetooth" : "bluetooth_disabled"
+                          label: Translation.tr("Bluetooth")
+                          active: BluetoothStatus.enabled
+                          onClicked: BluetoothStatus.toggle()
+                      }
+                      }
+                      QuickToggle {
+                          icon: Notifications.silent ? "notifications_off" : "notifications"
+                          label: Translation.tr("DND")
+                          active: Notifications.silent
+                          onClicked: Notifications.toggleSilent()
+                      }
+                      QuickToggle {
+                          icon: "dark_mode"
+                          label: Appearance.m3colors.darkmode ? Translation.tr("Dark") : Translation.tr("Light")
+                          active: Appearance.m3colors.darkmode
+                          onClicked: Appearance.toggleDarkMode()
+                      }
+                      QuickToggle {
+                          icon: "coffee"
+                          label: Translation.tr("Caffeine")
+                          active: Idle.inhibit
+                          onClicked: Idle.toggleInhibit()
+                      }
+                      QuickToggle {
+                          icon: "sports_esports"
+                          label: Translation.tr("Gaming")
+                          active: GameMode.active
+                          onClicked: GameMode.toggle()
+                      }
+                      QuickToggle {
+                          icon: "nightlight"
+                          label: Translation.tr("Night")
+                          active: Hyprsunset.active
+                          onClicked: Hyprsunset.toggle()
+                      }
+                  }
+              }
+
+            // ═══════════════════════════════════════
+            // 2. SLIDERS: Volume + Brightness (MiniSlider pattern)
+            // ═══════════════════════════════════════
+            Rectangle {
+                id: slidersCard
+                Layout.fillWidth: true
+                visible: root.cfgVolume
+                implicitHeight: slidersRow.implicitHeight + 12
+                radius: root.cardRadius
+                color: root.inirStyle ? root.colCard : "transparent"
+                border.width: root.bw
+                border.color: root.colBorder
+                clip: true
+
+                layer.enabled: (root.angelStyle || root.auroraStyle) && !root.inirStyle
+                layer.effect: GE.OpacityMask {
+                    maskSource: Rectangle { width: slidersCard.width; height: slidersCard.height; radius: slidersCard.radius }
+                }
+
+                BlurredCardBg { targetCard: slidersCard }
+                Rectangle { anchors.fill: parent; radius: slidersCard.radius; visible: !root.angelStyle && !root.auroraStyle; color: root.colCard }
+                AngelPartialBorder { targetRadius: parent.radius; coverage: 0.45 }
+
+                RowLayout {
+                    id: slidersRow
+                    anchors.fill: parent
+                    anchors.margins: 6
+                    spacing: 4
+
+                    // Brightness
+                    Loader {
+                        Layout.fillWidth: true
+                        visible: active
+                        active: root.hasBrightness
+                        sourceComponent: DashMiniSlider {
+                            icon: {
+                                const b = root.brightnessMonitor?.brightness ?? 0
+                                return b < 0.33 ? "brightness_4" : b < 0.66 ? "brightness_5" : "brightness_7"
+                            }
+                            value: root.brightnessMonitor?.brightness ?? 0
+                            onMoved: (val) => { if (root.brightnessMonitor) root.brightnessMonitor.setBrightness(val) }
+                        }
+                    }
+
+                    // Volume
+                    Loader {
+                        Layout.fillWidth: true
+                        visible: active
+                        active: true
+                        sourceComponent: DashMiniSlider {
+                            icon: Audio.sink?.audio?.muted ? "volume_off" : "volume_up"
+                            value: Audio.sink?.audio?.volume ?? 0
+                            onMoved: (val) => Audio.setSinkVolume(val)
+                            onIconClicked: Audio.toggleMute()
+                        }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // 3. MEDIA PLAYER
+            // ═══════════════════════════════════════
+            Rectangle {
+                id: mediaCard
+                Layout.fillWidth: true
+                visible: implicitHeight > 0
+                implicitHeight: (root.cfgMedia && root.hasPlayer) ? (mediaContent.implicitHeight + 24) : 0
+                Behavior on implicitHeight { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve } }
+                radius: root.cardRadius
+                color: root.inirStyle ? root.colCard : "transparent"
+                border.width: root.bw
+                border.color: root.colBorder
+                clip: true
+
+                layer.enabled: true
+                layer.effect: GE.OpacityMask {
+                    maskSource: Rectangle { width: mediaCard.width; height: mediaCard.height; radius: mediaCard.radius }
+                }
+
+                // Blurred wallpaper background (angel/aurora)
+                BlurredCardBg { targetCard: mediaCard }
+
+                // Solid background for material/inir
+                Rectangle { anchors.fill: parent; radius: mediaCard.radius; visible: !root.angelStyle && !root.auroraStyle; color: root.colCard }
+
+                // Blurred album art overlay
+                Image {
+                    anchors.fill: parent
+                    source: root.downloaded ? root.displayedArtFilePath : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: false
+                    visible: root.displayedArtFilePath !== "" && status === Image.Ready
+                    opacity: root.inirStyle ? 0.15 : (root.auroraStyle ? 0.25 : 0.4)
+                    layer.enabled: Appearance.effectsEnabled
+                    layer.effect: MultiEffect { blurEnabled: true; blur: 0.4; blurMax: 40; saturation: 0.3 }
+                }
+
+                RowLayout {
+                    id: mediaContent
+                    anchors { fill: parent; margins: 12 }
+                    spacing: 14
+
+                    // Cover art — larger (96px) with subtle shadow
+                    Item {
+                        Layout.preferredWidth: 96
+                        Layout.preferredHeight: 96
+                        Layout.alignment: Qt.AlignVCenter
+
+                        // Shadow under art
+                        Rectangle {
+                            anchors { fill: artImage; margins: -2 }
+                            radius: artImage.radius + 2
+                            color: "transparent"
+                            visible: root.downloaded
+                            layer.enabled: true
+                            layer.effect: GE.DropShadow {
+                                horizontalOffset: 0; verticalOffset: 2
+                                radius: 8; samples: 17
+                                color: Qt.rgba(0, 0, 0, 0.35)
+                                spread: 0
+                            }
+                        }
+
+                        Rectangle {
+                            id: artImage
+                            width: 96; height: 96
+                            radius: root.cardRadius
+                            color: "transparent"
+                            clip: true
+
+                            layer.enabled: true
+                            layer.effect: GE.OpacityMask {
+                                maskSource: Rectangle { width: 96; height: 96; radius: artImage.radius }
+                            }
+
+                            Image {
+                                anchors.fill: parent
+                                source: root.downloaded ? root.displayedArtFilePath : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: false
+                                sourceSize { width: 192; height: 192 }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: !root.downloaded
+                                color: root.angelStyle ? Appearance.angel.colGlassCard
+                                    : root.inirStyle ? Appearance.inir.colLayer2
+                                    : (root.blendedColors?.colLayer1 ?? Appearance.colors.colLayer1)
+                                MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "music_note"
+                                    iconSize: 36
+                                    color: root.mediaSub
+                                }
+                            }
+                        }
+                    }
+
+                    // Track info + controls
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 3
+
+                        // Title
+                        StyledText {
+                            Layout.fillWidth: true
+                            text: StringUtils.cleanMusicTitle(root.effectiveTitle) || Translation.tr("No media")
+                            font { pixelSize: 16; weight: Font.DemiBold }
+                            color: root.mediaText
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                        }
+
+                        // Artist
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: root.effectiveArtist.length > 0
+                            text: root.effectiveArtist
+                            font { pixelSize: Appearance.font.pixelSize.smaller; weight: Font.Normal }
+                            color: root.mediaSub
+                            elide: Text.ElideRight
+                        }
+
+                        Item { Layout.preferredHeight: 6 }
+
+                        // Seekable slider
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
+
+                            StyledSlider {
+                                id: mediaSeekSlider
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 16
+                                configuration: StyledSlider.Configuration.Wavy
+                                wavy: root.effectiveIsPlaying
+                                animateWave: root.effectiveIsPlaying
+                                highlightColor: root.mediaAccent
+                                trackColor: root.mediaTrack
+                                handleColor: root.mediaAccent
+                                scrollable: true
+                                enabled: root.effectiveCanSeek
+                                value: root.effectiveLength > 0 ? root.effectivePosition / root.effectiveLength : 0
+                                onMoved: {
+                                    if (root.isYtMusic) YtMusic.seek(value * root.effectiveLength)
+                                    else if (root.player) MprisController.seek(root.player, value * MprisController.lengthOf(root.player))
+                                }
+
+                                Binding {
+                                    target: mediaSeekSlider
+                                    property: "value"
+                                    value: root.effectiveLength > 0 ? root.effectivePosition / root.effectiveLength : 0
+                                    when: !mediaSeekSlider.pressed && !mediaSeekSlider._userInteracting
+                                    restoreMode: Binding.RestoreNone
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                StyledText {
+                                    text: StringUtils.friendlyTimeForSeconds(root.effectivePosition)
+                                    font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers }
+                                    color: root.mediaSub
+                                }
+                                Item { Layout.fillWidth: true }
+                                StyledText {
+                                    text: StringUtils.friendlyTimeForSeconds(root.effectiveLength)
+                                    font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers }
+                                    color: root.mediaSub
+                                }
+                            }
+                        }
+
+                        // Controls
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.topMargin: 2
+                            spacing: 4
+
+                            Item { Layout.fillWidth: true }
+
+                            RippleButton {
+                                implicitWidth: 36
+                                implicitHeight: 36
+                                enabled: MprisController.canGoPrevious
+                                buttonRadius: 18
+                                colBackground: "transparent"
+                                colBackgroundHover: root.mediaHover
+                                onClicked: MprisController.previous()
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "skip_previous"
+                                    iconSize: 22
+                                    fill: 1
+                                    color: root.mediaText
+                                }
+                            }
+
+                            RippleButton {
+                                implicitWidth: 48
+                                implicitHeight: 48
+                                buttonRadius: 24
+                                colBackground: ColorUtils.transparentize(root.mediaAccent, 0.82)
+                                colBackgroundHover: ColorUtils.transparentize(root.mediaAccent, 0.7)
+                                onClicked: MprisController.togglePlaying()
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: root.effectiveIsPlaying ? "pause" : "play_arrow"
+                                    iconSize: 26
+                                    fill: 1
+                                    color: root.mediaAccent
+                                    Behavior on color {
+                                        enabled: Appearance.animationsEnabled
+                                        animation: ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+                                    }
+                                }
+                            }
+
+                            RippleButton {
+                                implicitWidth: 36
+                                implicitHeight: 36
+                                enabled: MprisController.canGoNext
+                                buttonRadius: 18
+                                colBackground: "transparent"
+                                colBackgroundHover: root.mediaHover
+                                onClicked: MprisController.next()
+                                contentItem: MaterialSymbol {
+                                    anchors.centerIn: parent
+                                    text: "skip_next"
+                                    iconSize: 22
+                                    fill: 1
+                                    color: root.mediaText
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+                        }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // 4. WEATHER — full-width rich card
+            // ═══════════════════════════════════════
+            Rectangle {
+                id: weatherCard
+                Layout.fillWidth: true
+                visible: implicitHeight > 0
+                implicitHeight: (root.cfgWeather && Weather.enabled && (Weather.data?.temp ?? "") !== "" && !(Weather.data?.temp ?? "").startsWith("--")) ? Math.max(weatherContent.implicitHeight + 24, root.weatherCardMinHeight) : 0
+                Behavior on implicitHeight { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveEnter.duration; easing.type: Appearance.animation.elementMoveEnter.type; easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve } }
+                radius: root.cardRadius
+                color: root.inirStyle ? root.colCard : "transparent"
+                border.width: root.bw
+                border.color: root.colBorder
+                clip: true
+
+                layer.enabled: (root.angelStyle || root.auroraStyle) && !root.inirStyle
+                layer.effect: GE.OpacityMask {
+                    maskSource: Rectangle { width: weatherCard.width; height: weatherCard.height; radius: weatherCard.radius }
+                }
+
+                BlurredCardBg { targetCard: weatherCard }
+                Rectangle { anchors.fill: parent; radius: weatherCard.radius; visible: !root.angelStyle && !root.auroraStyle; color: root.colCard }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: Weather.getData()
+                }
+
+                ColumnLayout {
+                    id: weatherContent
+                    anchors { fill: parent; leftMargin: 14; rightMargin: 14; topMargin: 14; bottomMargin: 12 }
+                    spacing: 12
+
+                    // Hero: compact cluster + flex spacer + trailing refresh (M3 toolbar alignment)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 14
+
+                        MaterialSymbol {
+                            Layout.alignment: Qt.AlignTop
+                            text: Icons.getWeatherIcon(Weather.data?.wCode, Weather.isNightNow()) ?? "cloud"
+                            iconSize: root.angelStyle ? 40 : 48
+                            fill: root.angelStyle ? 0 : 1
+                            color: root.colPrimary
+                        }
+
+                        ColumnLayout {
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 2
+
+                            StyledText {
+                                text: Weather.data?.description ?? Translation.tr("Weather")
+                                font {
+                                    pixelSize: Appearance.font.pixelSize.small
+                                    weight: Font.Medium
+                                    family: Appearance.font.family.title
+                                }
+                                color: root.colSubtext
+                                elide: Text.ElideRight
+                                Layout.maximumWidth: Math.max(120, weatherCard.width - 120)
+                            }
+
+                            StyledText {
+                                text: Weather.data?.temp ?? "--°"
+                                font {
+                                    pixelSize: Appearance.font.pixelSize.huge * 1.35
+                                    weight: Font.Light
+                                    family: Appearance.font.family.numbers
+                                }
+                                color: root.colText
+                                lineHeight: 0.92
+                            }
+
+                            StyledText {
+                                text: Weather.visibleCity
+                                opacity: Weather.showVisibleCity ? 1 : 0
+                                visible: opacity > 0
+                                Behavior on opacity {
+                                    enabled: Appearance.animationsEnabled
+                                    NumberAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.OutCubic }
+                                }
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                color: root.colSubtext
+                                elide: Text.ElideRight
+                                Layout.maximumWidth: Math.max(120, weatherCard.width - 120)
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        RippleButton {
+                            Layout.alignment: Qt.AlignTop
+                            implicitWidth: 36
+                            implicitHeight: 36
+                            buttonRadius: root.angelStyle ? Appearance.angel.roundingSmall
+                                : root.inirStyle ? Appearance.inir.roundingSmall : Appearance.rounding.full
+                            colBackground: root.angelStyle ? ColorUtils.transparentize(root.colPrimary, 0.82)
+                                : root.inirStyle ? Appearance.inir.colLayer2
+                                : ColorUtils.transparentize(Appearance.colors.colPrimaryContainer, 0.35)
+                            colBackgroundHover: root.colCardHover
+                            onClicked: Weather.forceRefresh()
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                text: "refresh"
+                                iconSize: 20
+                                fill: 0
+                                color: root.colPrimary
+                            }
+                            StyledToolTip { text: Translation.tr("Refresh") }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: root.colBorder
+                        opacity: root.angelStyle ? 0.35 : 0.55
+                    }
+
+                    Flow {
+                        id: weatherChipsFlow
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        WeatherChip { icon: "thermostat"; value: Translation.tr("Feels %1").arg(Weather.data?.tempFeelsLike ?? "--"); visible: (Weather.data?.tempFeelsLike ?? "").length > 0 && !(Weather.data?.tempFeelsLike ?? "").startsWith("--") }
+                        WeatherChip { icon: "humidity_percentage"; value: Weather.data?.humidity ?? "" }
+                        WeatherChip { icon: "air"; value: Weather.data?.wind ?? "" }
+                        WeatherChip { icon: "wb_sunny"; value: Weather.data?.sunrise ?? ""; visible: (Weather.data?.sunrise ?? "") !== "--:--" }
+                        WeatherChip { icon: "wb_twilight"; value: Weather.data?.sunset ?? ""; visible: (Weather.data?.sunset ?? "") !== "--:--" }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════
+            // 5. SYSTEM STATS — compact progress bars
+            // ═══════════════════════════════════════
+            Rectangle {
+                id: sysCard
+                Layout.fillWidth: true
+                visible: root.cfgSystem
+                implicitHeight: Math.max(sysContent.implicitHeight + 16, root.weatherSystemMinHeight)
+                radius: root.cardRadius
+                color: root.inirStyle ? root.colCard : "transparent"
+                border.width: root.bw
+                border.color: root.colBorder
+                clip: true
+
+                layer.enabled: (root.angelStyle || root.auroraStyle) && !root.inirStyle
+                layer.effect: GE.OpacityMask {
+                    maskSource: Rectangle { width: sysCard.width; height: sysCard.height; radius: sysCard.radius }
+                }
+
+                BlurredCardBg { targetCard: sysCard }
+                Rectangle { anchors.fill: parent; radius: sysCard.radius; visible: !root.angelStyle && !root.auroraStyle; color: root.colCard }
+
+                ColumnLayout {
+                    id: sysContent
+                    anchors { fill: parent; margins: 12 }
+                    spacing: 8
+
+                    // CPU + RAM side by side
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        // CPU
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                CircularProgress {
+                                    implicitSize: 32
+                                    lineWidth: 3
+                                    value: ResourceUsage.cpuUsage
+                                    colPrimary: ResourceUsage.cpuUsage > 0.8 ? Appearance.colors.colError : root.colPrimary
+                                    colSecondary: root.angelStyle ? Appearance.angel.colGlassCard
+                                        : root.inirStyle ? Appearance.inir.colLayer2
+                                        : root.zzzStyle ? Appearance.colors.colLayer2
+                                        : Appearance.colors.colSecondaryContainer
+                                    enableAnimation: Appearance.animationsEnabled
+                                    animationDuration: 600
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+                                        StyledText {
+                                            text: "CPU"
+                                            font { pixelSize: Appearance.font.pixelSize.smallest; weight: Font.Medium }
+                                            color: root.colText
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        StyledText {
+                                            text: Math.round(ResourceUsage.cpuUsage * 100) + "%"
+                                            font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers; weight: Font.Bold }
+                                            color: ResourceUsage.cpuUsage > 0.8 ? Appearance.colors.colError : root.colPrimary
+                                        }
+                                    }
+
+                                    StyledText {
+                                        opacity: ResourceUsage.cpuTemp > 0 ? 1 : 0
+                                        visible: opacity > 0
+                                        Behavior on opacity { enabled: Appearance.animationsEnabled; NumberAnimation { duration: Appearance.animation.elementMoveFast.duration } }
+                                        text: ResourceUsage.cpuTemp + "°C"
+                                        font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers }
+                                        color: ResourceUsage.cpuTemp > 80 ? Appearance.colors.colError
+                                            : ResourceUsage.cpuTemp > 60 ? Appearance.colors.colTertiary
+                                            : root.colSubtext
+                                    }
+                                }
+                            }
+
+                            Graph {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 24
+                                values: ResourceUsage.cpuUsageHistory
+                                points: Math.min(ResourceUsage.cpuUsageHistory.length, 30)
+                                color: ResourceUsage.cpuUsage > 0.8 ? Appearance.colors.colError : root.colPrimary
+                                fillOpacity: 0.15
+                                alignment: Graph.Alignment.Right
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 1
+                            Layout.fillHeight: true
+                            color: root.colBorder
+                            opacity: 0.4
+                        }
+
+                        // RAM
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 3
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                CircularProgress {
+                                    implicitSize: 32
+                                    lineWidth: 3
+                                    value: ResourceUsage.memoryUsedPercentage
+                                    colPrimary: ResourceUsage.memoryUsedPercentage > 0.85 ? Appearance.colors.colError : Appearance.colors.colSecondary
+                                    colSecondary: root.angelStyle ? Appearance.angel.colGlassCard
+                                        : root.inirStyle ? Appearance.inir.colLayer2
+                                        : root.zzzStyle ? Appearance.colors.colLayer2
+                                        : Appearance.colors.colSecondaryContainer
+                                    enableAnimation: Appearance.animationsEnabled
+                                    animationDuration: 600
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+                                        StyledText {
+                                            text: "RAM"
+                                            font { pixelSize: Appearance.font.pixelSize.smallest; weight: Font.Medium }
+                                            color: root.colText
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        StyledText {
+                                            text: Math.round(ResourceUsage.memoryUsedPercentage * 100) + "%"
+                                            font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers; weight: Font.Bold }
+                                            color: ResourceUsage.memoryUsedPercentage > 0.85 ? Appearance.colors.colError : Appearance.colors.colSecondary
+                                        }
+                                    }
+
+                                    StyledText {
+                                        text: ResourceUsage.kbToGbString(ResourceUsage.memoryUsed) + " / " + ResourceUsage.maxAvailableMemoryString
+                                        font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers }
+                                        color: root.colSubtext
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+                            }
+
+                            Graph {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 24
+                                values: ResourceUsage.memoryUsageHistory
+                                points: Math.min(ResourceUsage.memoryUsageHistory.length, 30)
+                                color: ResourceUsage.memoryUsedPercentage > 0.85 ? Appearance.colors.colError : Appearance.colors.colSecondary
+                                fillOpacity: 0.15
+                                alignment: Graph.Alignment.Right
+                            }
+                        }
+                    }
+
+                    // Disk + Battery compact row
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+                        visible: ResourceUsage.diskTotal > 1 || Battery.available
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 1
+                            color: root.colBorder
+                            opacity: 0.4
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        visible: ResourceUsage.diskTotal > 1 || Battery.available
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            visible: ResourceUsage.diskTotal > 1
+
+                            MaterialSymbol {
+                                text: "storage"
+                                iconSize: 14
+                                color: root.colSubtext
+                            }
+                            StyledText {
+                                text: Translation.tr("Disk")
+                                font { pixelSize: Appearance.font.pixelSize.smallest; weight: Font.Medium }
+                                color: root.colSubtext
+                            }
+                            Item { Layout.fillWidth: true }
+                            StyledText {
+                                text: Math.round(ResourceUsage.diskUsedPercentage * 100) + "%"
+                                font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers; weight: Font.Medium }
+                                color: ResourceUsage.diskUsedPercentage > 0.9 ? Appearance.colors.colError : root.colSubtext
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 1
+                            Layout.preferredHeight: 12
+                            visible: ResourceUsage.diskTotal > 1 && Battery.available
+                            color: root.colBorder
+                            opacity: 0.4
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: Battery.available
+                            spacing: 5
+
+                            MaterialSymbol {
+                                text: Battery.isCharging ? "battery_charging_full"
+                                    : ((Battery.percentage * 100) ?? 0) > 80 ? "battery_full"
+                                    : ((Battery.percentage * 100) ?? 0) > 60 ? "battery_5_bar"
+                                    : ((Battery.percentage * 100) ?? 0) > 40 ? "battery_3_bar"
+                                    : ((Battery.percentage * 100) ?? 0) > 20 ? "battery_2_bar" : "battery_1_bar"
+                                iconSize: 14
+                                fill: 1
+                                color: (Battery.percentage * 100) <= 20 && !Battery.isCharging ? Appearance.colors.colError
+                                    : Battery.isCharging ? Appearance.colors.colTertiary
+                                    : root.colSubtext
+                            }
+                            StyledText {
+                                text: ((Battery.percentage * 100) ?? 0) + "%"
+                                font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers; weight: Font.Medium }
+                                color: (Battery.percentage * 100) <= 20 && !Battery.isCharging ? Appearance.colors.colError
+                                    : Battery.isCharging ? Appearance.colors.colTertiary
+                                    : root.colSubtext
+                            }
+                            Revealer {
+                                reveal: Battery.isCharging
+                                StyledText {
+                                    text: "· " + Translation.tr("Charging")
+                                    font.pixelSize: Appearance.font.pixelSize.smallest
+                                    color: Appearance.colors.colTertiary
+                                }
+                            }
+                            Item { Layout.fillWidth: true }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 1
+                            Layout.preferredHeight: 12
+                            visible: (ResourceUsage.diskTotal > 1 || Battery.available) && (DateTime.uptime ?? "").length > 0
+                            color: root.colBorder
+                            opacity: 0.4
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            visible: (DateTime.uptime ?? "").length > 0
+                            spacing: 5
+
+                            MaterialSymbol {
+                                text: "schedule"
+                                iconSize: 14
+                                color: root.colSubtext
+                            }
+                            StyledText {
+                                text: Translation.tr("Uptime")
+                                font { pixelSize: Appearance.font.pixelSize.smallest; weight: Font.Medium }
+                                color: root.colSubtext
+                            }
+                            Item { Layout.fillWidth: true }
+                            StyledText {
+                                text: DateTime.uptime
+                                font { pixelSize: Appearance.font.pixelSize.smallest; family: Appearance.font.family.numbers; weight: Font.Medium }
+                                color: root.colSubtext
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    }
+
+    // ═══════════════════════════════════════
+    // INLINE COMPONENTS
+    // ═══════════════════════════════════════
+
+    component QuickToggle: Rectangle {
+        id: toggle
+        property string icon
+        property string label
+        property bool active: false
+        signal clicked()
+
+        Layout.fillWidth: true
+        implicitHeight: toggleCol.implicitHeight + 16
+        radius: root.angelStyle ? Appearance.angel.roundingSmall : root.inirStyle ? Appearance.inir.roundingSmall : Appearance.rounding.normal
+
+        color: toggleArea.containsMouse
+            ? (active ? ColorUtils.transparentize(root.colPrimary, 0.25) : root.colCardHover)
+            : (active ? root.colPrimary : root.colLayer2)
+
+        border.width: root.bw
+        border.color: root.angelStyle ? "transparent"
+            : root.inirStyle ? (active ? Appearance.inir.colPrimary : Appearance.inir.colBorderSubtle)
+            : "transparent"
+
+        Behavior on color {
+            enabled: Appearance.animationsEnabled
+            animation: ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+        }
+
+        ColumnLayout {
+            id: toggleCol
+            anchors.centerIn: parent
+            spacing: 3
+
+            MaterialSymbol {
+                Layout.alignment: Qt.AlignHCenter
+                text: toggle.icon
+                iconSize: 22
+                fill: toggle.active ? 1 : 0
+                animateFill: true
+                color: toggle.active ? root.colOnPrimary
+                    : (root.angelStyle ? Appearance.angel.colText
+                        : root.inirStyle ? Appearance.inir.colText
+                        : Appearance.colors.colOnLayer1)
+                Behavior on color {
+                    enabled: Appearance.animationsEnabled
+                    animation: ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+                }
+            }
+
+            StyledText {
+                Layout.alignment: Qt.AlignHCenter
+                text: toggle.label
+                font.pixelSize: Appearance.font.pixelSize.smallest
+                color: toggle.active ? root.colOnPrimary
+                    : (root.angelStyle ? Appearance.angel.colTextSecondary
+                        : root.inirStyle ? Appearance.inir.colTextSecondary
+                        : Appearance.colors.colSubtext)
+
+                Behavior on color {
+                    enabled: Appearance.animationsEnabled
+                    animation: ColorAnimation { duration: Appearance.animation.elementMoveFast.duration; easing.type: Appearance.animation.elementMoveFast.type; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve }
+                }
+            }
+        }
+
+        MouseArea {
+            id: toggleArea
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: toggle.clicked()
+        }
+    }
+
+    component DashMiniSlider: RowLayout {
+        id: miniSlider
+        property string icon
+        property real value: 0
+        signal moved(real val)
+        signal iconClicked()
+
+        spacing: 4
+
+        RippleButton {
+            implicitWidth: 28
+            implicitHeight: 28
+            buttonRadius: root.angelStyle ? Appearance.angel.roundingSmall
+                : root.inirStyle ? Appearance.inir.roundingSmall : Appearance.rounding.full
+            colBackground: "transparent"
+            colBackgroundHover: root.angelStyle ? Appearance.angel.colGlassCardHover
+                : root.inirStyle ? Appearance.inir.colLayer2Hover
+                : root.auroraStyle ? (Appearance.aurora?.colSubSurfaceHover ?? Appearance.colors.colLayer2Hover)
+                : Appearance.colors.colLayer2Hover
+            onClicked: miniSlider.iconClicked()
+            contentItem: MaterialSymbol {
+                anchors.centerIn: parent
+                text: miniSlider.icon
+                iconSize: 16
+                color: root.angelStyle ? Appearance.angel.colText
+                    : root.inirStyle ? Appearance.inir.colText
+                    : root.auroraStyle ? Appearance.colors.colOnLayer1
+                    : Appearance.colors.colOnLayer1
+            }
+        }
+
+        StyledSlider {
+            id: dashSlider
+            Layout.fillWidth: true
+            configuration: StyledSlider.Configuration.M
+            stopIndicatorValues: []
+            scrollable: true
+            value: miniSlider.value
+            onMoved: miniSlider.moved(value)
+
+            Binding {
+                target: dashSlider
+                property: "value"
+                value: miniSlider.value
+                when: !dashSlider.pressed && !dashSlider._userInteracting
+                restoreMode: Binding.RestoreNone
+            }
+        }
+    }
+
+    component WeatherChip: Rectangle {
+        id: weatherChipRoot
+        property string icon
+        property string value
+
+        implicitHeight: chipRow.implicitHeight + 10
+        implicitWidth: chipRow.implicitWidth + 20
+        radius: Appearance.editorialEverywhere ? Appearance.rounding.small : Appearance.rounding.full
+        color: root.angelStyle ? ColorUtils.transparentize(root.colPrimary, 0.78)
+            : root.inirStyle ? Appearance.inir.colLayer2
+            : root.auroraStyle ? ColorUtils.transparentize(Appearance.colors.colSecondaryContainer, 0.45)
+            : root.zzzStyle ? Appearance.colors.colLayer2
+            : Appearance.colors.colSecondaryContainer
+        border.width: root.inirStyle ? 1 : 0
+        border.color: root.inirStyle ? Appearance.inir.colBorderSubtle : "transparent"
+
+        Row {
+            id: chipRow
+            anchors.centerIn: parent
+            spacing: 5
+
+            MaterialSymbol {
+                text: weatherChipRoot.icon
+                iconSize: 14
+                fill: root.angelStyle ? 0 : 1
+                color: root.colPrimary
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            StyledText {
+                text: weatherChipRoot.value
+                font { pixelSize: Appearance.font.pixelSize.smallest; weight: Font.Medium; family: Appearance.font.family.numbers }
+                color: root.colText
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+pkgname=inir-audio
+pkgver=1.0
+pkgrel=1
+pkgdesc='iNiR - audio dependency bundle'
+arch=(any)
+license=('GPL-3.0-only')
+depends=(
+  # PipeWire audio stack
+  pipewire
+  pipewire-pulse
+  pipewire-alsa
+  wireplumber
+
+  # Media control
+  playerctl
+  pavucontrol
+
+  # Audio visualizer
+  cava
+
+  # Audio effects
+  easyeffects
+  lsp-plugins-lv2
+
+  # Media playback
+  mpv
+  mpv-mpris
+  yt-dlp
+  yt-dlp-ejs
+  deno
+  socat
+)
+

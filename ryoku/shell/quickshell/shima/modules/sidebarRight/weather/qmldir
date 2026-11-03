@@ -1,0 +1,2 @@
+module qs.modules.sidebarRight.weather
+WeatherDetailWidget 1.0 WeatherDetailWidget.qml

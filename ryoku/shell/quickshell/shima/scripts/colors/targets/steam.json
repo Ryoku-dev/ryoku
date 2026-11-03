@@ -1,0 +1,9 @@
+{
+  "id": "steam",
+  "label": "Steam (Millennium)",
+  "module": "70-steam.sh",
+  "category": "app",
+  "inputs": ["app-palette.json", "palette.json", "colors.json"],
+  "description": "Apply Material You colors to Steam via Millennium Material-Theme.",
+  "configKey": "appearance.wallpaperTheming.enableSteam"
+}

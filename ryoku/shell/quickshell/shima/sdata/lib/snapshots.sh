@@ -1,0 +1,515 @@
+# Snapshot system for iNiR
+# Time-machine style backups before updates
+# This script is meant to be sourced.
+
+# shellcheck shell=bash
+
+SNAPSHOTS_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/snapshots"
+MAX_SNAPSHOTS=10
+INIR_CONFIG_DIR="${DOTS_CORE_CONFDIR:-${XDG_CONFIG_HOME}/illogical-impulse}"
+
+# Paths to snapshot
+SNAPSHOT_PATHS=(
+    "${XDG_CONFIG_HOME}/quickshell/inir"
+    "${INIR_CONFIG_DIR}/config.json"
+    "${XDG_CONFIG_HOME}/niri/config.kdl"
+    "${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/desktop-items.json"
+)
+
+###############################################################################
+# Create snapshot
+###############################################################################
+create_snapshot() {
+    local reason="${1:-manual}"
+    local description="${2:-}"
+    local commit_after="${3:-}"
+    
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local commit_before=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    local version_before=$(get_installed_version 2>/dev/null || echo "unknown")
+    local snapshot_id="${timestamp}-${commit_before}"
+    local snapshot_dir="${SNAPSHOTS_DIR}/${snapshot_id}"
+    
+    mkdir -p "$snapshot_dir"
+    
+    # Copy QML code
+    if [[ -d "${XDG_CONFIG_HOME}/quickshell/inir" ]]; then
+        rsync -a --exclude='.inir-manifest' "${XDG_CONFIG_HOME}/quickshell/inir/" "${snapshot_dir}/inir/"
+    fi
+
+    if [[ -d "${XDG_CONFIG_HOME}/quickshell/ii" ]]; then
+        rsync -a --exclude='.ii-manifest' "${XDG_CONFIG_HOME}/quickshell/ii/" "${snapshot_dir}/ii/"
+    fi
+    
+    # Copy user config
+    if [[ -f "${INIR_CONFIG_DIR}/config.json" ]]; then
+        cp "${INIR_CONFIG_DIR}/config.json" "${snapshot_dir}/"
+    fi
+    
+    # Copy niri config
+    if [[ -f "${XDG_CONFIG_HOME}/niri/config.kdl" ]]; then
+        cp "${XDG_CONFIG_HOME}/niri/config.kdl" "${snapshot_dir}/niri-config.kdl"
+    fi
+    
+    # Copy migrations state
+    if [[ -f "${INIR_CONFIG_DIR}/migrations.json" ]]; then
+        cp "${INIR_CONFIG_DIR}/migrations.json" "${snapshot_dir}/"
+    fi
+
+    # Copy managed desktop-item state. It lives in XDG state, not the config
+    # tree, so include it explicitly in snapshots and restores.
+    local desktop_items_state="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/desktop-items.json"
+    if [[ -f "$desktop_items_state" ]]; then
+        cp "$desktop_items_state" "${snapshot_dir}/desktop-items.json"
+    fi
+    
+    # Create metadata
+    cat > "${snapshot_dir}/snapshot.json" << EOF
+{
+  "id": "${snapshot_id}",
+  "created_at": "$(date -Iseconds)",
+  "commit_before": "${commit_before}",
+  "commit_after": "${commit_after:-pending}",
+  "version_before": "${version_before}",
+  "reason": "${reason}",
+  "description": "${description:-Auto snapshot before ${reason}}"
+}
+EOF
+    
+    # Cleanup old snapshots
+    cleanup_old_snapshots
+    
+    echo "$snapshot_id"
+}
+
+###############################################################################
+# List snapshots
+###############################################################################
+list_snapshots() {
+    [[ ! -d "$SNAPSHOTS_DIR" ]] && return
+    
+    for dir in $(ls -1t "$SNAPSHOTS_DIR" 2>/dev/null); do
+        local meta="${SNAPSHOTS_DIR}/${dir}/snapshot.json"
+        [[ -f "$meta" ]] && echo "$dir"
+    done
+}
+
+show_snapshots() {
+    local snapshots=($(list_snapshots))
+    
+    if [[ ${#snapshots[@]} -eq 0 ]]; then
+        echo -e "${STY_YELLOW}No snapshots found${STY_RST}"
+        return 1
+    fi
+    
+    echo -e "${STY_CYAN}${STY_BOLD}Available Snapshots${STY_RST}"
+    echo ""
+    
+    local i=1
+    for snap in "${snapshots[@]}"; do
+        local meta="${SNAPSHOTS_DIR}/${snap}/snapshot.json"
+        if [[ -f "$meta" ]] && command -v jq &>/dev/null; then
+            local date=$(jq -r '.created_at' "$meta" | cut -d'T' -f1,2 | tr 'T' ' ')
+            local commit=$(jq -r '.commit_before' "$meta")
+            local reason=$(jq -r '.reason' "$meta")
+            local desc=$(jq -r '.description' "$meta")
+            echo -e "  ${STY_BOLD}[$i]${STY_RST} ${date} (${commit}) - ${reason}"
+            echo -e "      ${STY_FAINT}${desc}${STY_RST}"
+        else
+            echo -e "  ${STY_BOLD}[$i]${STY_RST} ${snap}"
+        fi
+        ((i++))
+    done
+    echo ""
+}
+
+###############################################################################
+# Restore snapshot
+###############################################################################
+restore_snapshot() {
+    local snapshot_id="$1"
+    local snapshot_dir="${SNAPSHOTS_DIR}/${snapshot_id}"
+    local installed_strategy
+    installed_strategy=$(get_installed_update_strategy)
+
+    if [[ "$installed_strategy" == "package-manager" ]]; then
+        log_error "Snapshot rollback is unavailable for package-managed installs"
+        local update_hint
+        update_hint=$(get_installed_package_update_hint)
+        [[ -n "$update_hint" ]] && tui_info "Use your package manager for shell payload changes: $update_hint"
+        return 1
+    fi
+    
+    if [[ ! -d "$snapshot_dir" ]]; then
+        log_error "Snapshot not found: $snapshot_id"
+        return 1
+    fi
+    
+    local meta="${snapshot_dir}/snapshot.json"
+    local commit_before=""
+    if [[ -f "$meta" ]] && command -v jq &>/dev/null; then
+        commit_before=$(jq -r '.commit_before' "$meta")
+    fi
+    
+    echo -e "${STY_CYAN}Restoring snapshot: ${snapshot_id}${STY_RST}"
+    
+    # Stop through the runtime launcher so a supervisor cannot respawn the shell
+    # while the snapshot files are being restored.
+    local runtime_target="${XDG_CONFIG_HOME}/quickshell/inir"
+    local runtime_launcher="${runtime_target}/scripts/inir"
+    if [[ ! -f "$runtime_launcher" ]]; then
+        log_error "Runtime launcher not found: ${runtime_launcher}"
+        return 1
+    fi
+    if ! bash "$runtime_launcher" stop -c "$runtime_target"; then
+        log_error "Could not stop the shell before restoring the snapshot"
+        return 1
+    fi
+    
+    # Restore QML code
+    if [[ -d "${snapshot_dir}/inir" ]]; then
+        log_info "Restoring QML code..."
+        rsync -a --delete "${snapshot_dir}/inir/" "${XDG_CONFIG_HOME}/quickshell/inir/"
+    elif [[ -d "${snapshot_dir}/ii" ]]; then
+        log_info "Restoring QML code..."
+        rsync -a --delete "${snapshot_dir}/ii/" "${XDG_CONFIG_HOME}/quickshell/inir/"
+    fi
+    
+    # Restore user config
+    if [[ -f "${snapshot_dir}/config.json" ]]; then
+        log_info "Restoring user config..."
+        mkdir -p "${INIR_CONFIG_DIR}"
+        cp "${snapshot_dir}/config.json" "${INIR_CONFIG_DIR}/"
+    fi
+    
+    # Restore niri config
+    if [[ -f "${snapshot_dir}/niri-config.kdl" ]]; then
+        log_info "Restoring niri config..."
+        cp "${snapshot_dir}/niri-config.kdl" "${XDG_CONFIG_HOME}/niri/config.kdl"
+    fi
+    
+    # Restore migrations state
+    if [[ -f "${snapshot_dir}/migrations.json" ]]; then
+        mkdir -p "${INIR_CONFIG_DIR}"
+        cp "${snapshot_dir}/migrations.json" "${INIR_CONFIG_DIR}/"
+    fi
+
+    if [[ -f "${snapshot_dir}/desktop-items.json" ]]; then
+        log_info "Restoring managed desktop items..."
+        mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user"
+        cp "${snapshot_dir}/desktop-items.json" \
+            "${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/desktop-items.json"
+    fi
+    
+    # Checkout git to that commit (stay on branch if possible)
+    if [[ -n "$commit_before" && "$commit_before" != "unknown" ]]; then
+        log_info "Checking out commit ${commit_before}..."
+        # Try to find a branch containing this commit to avoid detached HEAD
+        local branch=$(git -C "$REPO_ROOT" branch --contains "$commit_before" 2>/dev/null | grep -v "HEAD detached" | head -1 | sed 's/^[* ]*//')
+        if [[ -n "$branch" ]]; then
+            git -C "$REPO_ROOT" checkout "$branch" 2>/dev/null || true
+            git -C "$REPO_ROOT" reset --hard "$commit_before" 2>/dev/null || true
+        else
+            git -C "$REPO_ROOT" checkout "$commit_before" 2>/dev/null || true
+        fi
+    fi
+    
+    # Update version tracking
+    local version=$(jq -r '.version_before // "unknown"' "$meta" 2>/dev/null || echo "unknown")
+    set_installed_version "$version" "$commit_before" "rollback"
+    
+    # Restart shell (only if we have access to the session)
+    if [[ -n "$NIRI_SOCKET" ]] || [[ -n "$WAYLAND_DISPLAY" ]]; then
+        log_info "Restarting shell..."
+        if [[ ! -f "$runtime_launcher" ]]; then
+            tui_warn "Snapshot restored, but its runtime launcher is missing"
+            tui_info "Run: inir doctor"
+        elif bash "$runtime_launcher" restart -c "$runtime_target"; then
+            tui_success "Snapshot restored and shell restarted"
+        else
+            tui_warn "Snapshot restored, but the shell did not restart cleanly"
+            tui_info "Run: inir logs"
+        fi
+    else
+        tui_warn "Not in graphical session - shell restart skipped"
+        tui_info "Run: inir start (in your Niri session)"
+        tui_success "Snapshot restored"
+    fi
+}
+
+###############################################################################
+# Interactive rollback
+###############################################################################
+run_rollback() {
+    local installed_strategy
+    installed_strategy=$(get_installed_update_strategy)
+
+    if [[ "$installed_strategy" == "package-manager" ]]; then
+        echo ""
+        tui_warn "Rollback snapshots are only available for repo-managed update flows"
+        local update_hint
+        update_hint=$(get_installed_package_update_hint)
+        [[ -n "$update_hint" ]] && tui_info "Use your package manager for shell payload changes: $update_hint"
+        return 1
+    fi
+
+    local snapshots=($(list_snapshots))
+    
+    if [[ ${#snapshots[@]} -eq 0 ]]; then
+        tui_warn "No snapshots available"
+        tui_info "Snapshots are created automatically before updates"
+        return 1
+    fi
+    
+    echo ""
+    tui_title "Available Snapshots"
+    echo ""
+    
+    # Build options array with details
+    local options=()
+    local i=1
+    for snap in "${snapshots[@]}"; do
+        local meta="${SNAPSHOTS_DIR}/${snap}/snapshot.json"
+        if [[ -f "$meta" ]] && command -v jq &>/dev/null; then
+            local date=$(jq -r '.created_at' "$meta" 2>/dev/null | cut -d'T' -f1)
+            local time=$(jq -r '.created_at' "$meta" 2>/dev/null | cut -d'T' -f2 | cut -d'-' -f1 | cut -d'+' -f1)
+            local commit=$(jq -r '.commit_before' "$meta" 2>/dev/null)
+            local reason=$(jq -r '.reason' "$meta" 2>/dev/null)
+            options+=("$date $time - $reason ($commit)")
+        else
+            options+=("$snap")
+        fi
+        ((i++))
+    done
+    options+=("Cancel")
+    
+    local choice
+    if $HAS_GUM; then
+        choice=$(gum choose --header "Select snapshot to restore:" "${options[@]}")
+    else
+        echo "Select snapshot to restore:"
+        select c in "${options[@]}"; do
+            choice="$c"
+            break
+        done
+    fi
+    
+    [[ "$choice" == "Cancel" || -z "$choice" ]] && return 0
+    
+    # Find the index of the selected option
+    local idx=-1
+    for ((i=0; i<${#options[@]}; i++)); do
+        if [[ "${options[$i]}" == "$choice" ]]; then
+            idx=$i
+            break
+        fi
+    done
+    
+    if [[ $idx -ge 0 && $idx -lt ${#snapshots[@]} ]]; then
+        local snapshot_id="${snapshots[$idx]}"
+        local meta="${SNAPSHOTS_DIR}/${snapshot_id}/snapshot.json"
+        
+        echo ""
+        tui_warn "This will restore your system to:"
+        if [[ -f "$meta" ]] && command -v jq &>/dev/null; then
+            tui_status_line "Commit:" "$(jq -r '.commit_before' "$meta")" ""
+            tui_status_line "Reason:" "$(jq -r '.reason' "$meta")" ""
+            tui_status_line "Date:" "$(jq -r '.created_at' "$meta" | cut -d'T' -f1)" ""
+        fi
+        echo ""
+        
+        if tui_confirm "Continue with rollback?" "no"; then
+            restore_snapshot "$snapshot_id"
+        else
+            echo "Cancelled."
+        fi
+    else
+        tui_error "Invalid selection"
+    fi
+}
+
+###############################################################################
+# Cleanup
+###############################################################################
+cleanup_old_snapshots() {
+    [[ ! -d "$SNAPSHOTS_DIR" ]] && return
+    
+    local snapshots=($(list_snapshots))
+    local count=${#snapshots[@]}
+    
+    if [[ $count -gt $MAX_SNAPSHOTS ]]; then
+        local to_delete=$((count - MAX_SNAPSHOTS))
+        for snap in "${snapshots[@]: -$to_delete}"; do
+            rm -rf "${SNAPSHOTS_DIR}/${snap}"
+        done
+    fi
+}
+
+###############################################################################
+# Check remote for updates
+###############################################################################
+get_update_tracking_branch() {
+    local branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)
+    [[ -z "$branch" || "$branch" == "HEAD" ]] && branch="main"
+    printf '%s' "$branch"
+}
+
+repo_worktree_is_clean() {
+    [[ -e "${REPO_ROOT}/.git" ]] || return 1
+    [[ -z "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=normal 2>/dev/null)" ]]
+}
+
+get_previous_remote_tip() {
+    local branch="${1:-$(get_update_tracking_branch)}"
+    git -C "$REPO_ROOT" rev-parse "refs/remotes/origin/${branch}@{1}" 2>/dev/null
+}
+
+repo_checkout_matches_rewritten_remote_history() {
+    # Realignment is allowed only when HEAD is still part of the last recorded
+    # origin/<branch> lineage. A clean worktree is not enough: local commits also
+    # make `git status` clean, and must never be discarded by a recovery command.
+    local branch="${1:-$(get_update_tracking_branch)}"
+    local current_branch remote previous_remote
+
+    current_branch="$(git -C "$REPO_ROOT" symbolic-ref --quiet --short HEAD 2>/dev/null)" || return 1
+    [[ "$current_branch" == "$branch" ]] || return 1
+
+    remote="origin/${branch}"
+    previous_remote="$(get_previous_remote_tip "$branch")" || return 1
+    git -C "$REPO_ROOT" merge-base --is-ancestor HEAD "$previous_remote" >/dev/null 2>&1 || return 1
+    git -C "$REPO_ROOT" merge-base --is-ancestor "$previous_remote" "$remote" >/dev/null 2>&1 && return 1
+    return 0
+}
+
+is_upstream_rewrite_divergence() {
+    # Automatic recovery additionally requires Git to have recorded the latest
+    # remote movement as a forced update. Manual --realign may relax that label,
+    # but it still uses repo_checkout_matches_rewritten_remote_history() and can
+    # never erase branch-visible local commits or a detached checkout.
+    local branch="${1:-$(get_update_tracking_branch)}"
+    local reflog_subject
+
+    reflog_subject="$(git -C "$REPO_ROOT" reflog show -1 --format='%gs' "refs/remotes/origin/${branch}" 2>/dev/null || true)"
+    [[ "$reflog_subject" == *"forced-update"* ]] || return 1
+    repo_checkout_matches_rewritten_remote_history "$branch"
+}
+
+create_repo_recovery_ref() {
+    local branch="${1:-$(get_update_tracking_branch)}"
+    local stamp sha ref
+    stamp="$(date +%Y%m%d-%H%M%S)"
+    sha="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null)" || return 1
+    ref="refs/inir/recovery/${branch}-${stamp}-${sha:0:8}"
+    git -C "$REPO_ROOT" update-ref "$ref" "$sha" || return 1
+    printf '%s' "$ref"
+}
+
+realign_repo_to_remote() {
+    local branch="${1:-$(get_update_tracking_branch)}"
+    local remote="origin/${branch}"
+    local recovery_ref
+
+    git -C "$REPO_ROOT" rev-parse --verify "$remote" >/dev/null 2>&1 || return 2
+    repo_worktree_is_clean || return 3
+    repo_checkout_matches_rewritten_remote_history "$branch" || return 6
+    recovery_ref="$(create_repo_recovery_ref "$branch")" || return 4
+    git -C "$REPO_ROOT" reset --hard "$remote" >/dev/null 2>&1 || return 5
+    INIR_REPO_RECOVERY_REF="$recovery_ref"
+    return 0
+}
+
+show_repo_realign_guidance() {
+    local branch="${1:-$(get_update_tracking_branch)}"
+    tui_info "Recovery check: inir update --realign"
+    tui_dim "  iNiR realigns only a clean ${branch} checkout that Git can prove still belongs to the previous origin/${branch} history."
+    tui_dim "  Stash uncommitted changes first. Local commits and detached checkouts are never reset by this recovery path."
+}
+
+check_remote_updates() {
+    # Returns:
+    #   0 = remote ahead (safe fast-forward pull available)
+    #   1 = up to date
+    #   2 = error (offline/no git/no tracked remote branch)
+    #   3 = local ahead of remote
+    #   4 = diverged
+    if [[ ! -e "${REPO_ROOT}/.git" ]]; then
+        return 2
+    fi
+
+    if ! git -C "$REPO_ROOT" fetch origin --quiet 2>/dev/null; then
+        return 2
+    fi
+
+    local branch
+    branch="$(get_update_tracking_branch)"
+
+    local counts
+    counts="$(git -C "$REPO_ROOT" rev-list --left-right --count "HEAD...origin/${branch}" 2>/dev/null)" || return 2
+
+    local local_only=0
+    local remote_only=0
+    read -r local_only remote_only <<< "$counts"
+
+    if [[ "$local_only" -eq 0 && "$remote_only" -eq 0 ]]; then
+        return 1
+    fi
+    if [[ "$local_only" -eq 0 ]]; then
+        return 0
+    fi
+    if [[ "$remote_only" -eq 0 ]]; then
+        return 3
+    fi
+
+    return 4
+}
+
+show_pending_commits() {
+    local branch
+    branch="$(get_update_tracking_branch)"
+    local remote="origin/${branch}"
+    
+    echo -e "${STY_CYAN}New commits available:${STY_RST}"
+    echo ""
+    git -C "$REPO_ROOT" log --oneline HEAD..${remote} 2>/dev/null | head -10 | while read -r line; do
+        echo -e "  ${STY_GREEN}+${STY_RST} $line"
+    done
+    echo ""
+}
+
+show_local_ahead_commits() {
+    local branch
+    branch="$(get_update_tracking_branch)"
+    local remote="origin/${branch}"
+
+    echo -e "${STY_CYAN}Local commits not on ${remote}:${STY_RST}"
+    echo ""
+    git -C "$REPO_ROOT" log --oneline "${remote}..HEAD" 2>/dev/null | head -10 | while read -r line; do
+        echo -e "  ${STY_YELLOW}-${STY_RST} $line"
+    done
+    echo ""
+}
+
+show_diverged_commits() {
+    local branch
+    branch="$(get_update_tracking_branch)"
+    local remote="origin/${branch}"
+
+    echo -e "${STY_CYAN}${remote} has commits this checkout does not:${STY_RST}"
+    echo ""
+    git -C "$REPO_ROOT" log --oneline "HEAD..${remote}" 2>/dev/null | head -10 | while read -r line; do
+        echo -e "  ${STY_GREEN}+${STY_RST} $line"
+    done
+    echo ""
+    echo -e "${STY_CYAN}This checkout has commits not on ${remote}:${STY_RST}"
+    echo ""
+    git -C "$REPO_ROOT" log --oneline "${remote}..HEAD" 2>/dev/null | head -10 | while read -r line; do
+        echo -e "  ${STY_YELLOW}-${STY_RST} $line"
+    done
+    echo ""
+}
+
+get_remote_commit() {
+    local branch
+    branch="$(get_update_tracking_branch)"
+    git -C "$REPO_ROOT" rev-parse --short "origin/${branch}" 2>/dev/null || echo "unknown"
+}

@@ -1,0 +1,51 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// iNiR — Niri Compositor Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// This config is split into modular files under config.d/ so you can edit
+// individual sections without touching the rest. Niri auto-reloads on save.
+//
+//   10  Input, touchpad, mouse, cursor
+//   20  Layout, gaps, borders, shadows, overview
+//   30  Window rules (corner radius, per-app tweaks)
+//   40  Environment variables (Qt, XDG, theming)
+//   50  Processes spawned at login
+//   60  Animations (spring physics tuning)
+//   70  Key bindings (iNiR shell + window management)
+//   80  Layer rules (backdrop surfaces for iNiR panels)
+//   90  Your personal overrides (never touched by updates)
+//
+// Docs: https://niri-wm.github.io/niri/Configuration:-Introduction
+// KDL format: https://kdl.dev
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Ask apps to drop client-side decorations so Niri draws borders around them.
+// This also fixes border/focus-ring rendering behind semitransparent windows.
+// Restart apps after toggling this.
+prefer-no-csd
+
+// Hide the built-in hotkey cheatsheet on startup (iNiR has its own: Mod+/).
+hotkey-overlay {
+    skip-at-startup
+}
+
+// Honor activation tokens even with invalid serials — lets apps like VS Code,
+// Firefox, etc. steal focus when another app requests it (e.g. Nautilus open-with).
+debug {
+    honor-xdg-activation-with-invalid-serial
+}
+
+// Where native Niri screenshots land (Print key).
+// iNiR's region selector (Mod+Shift+S) uses its own path.
+screenshot-path "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png"
+
+// ── Modular includes ────────────────────────────────────────────────────────
+include "config.d/10-input-and-cursor.kdl"
+include "config.d/20-layout-and-overview.kdl"
+include "config.d/30-window-rules.kdl"
+include "config.d/40-environment.kdl"
+include "config.d/50-startup.kdl"
+include "config.d/60-animations.kdl"
+include "config.d/70-binds.kdl"
+include "config.d/80-layer-rules.kdl"
+include "config.d/90-user-extra.kdl"

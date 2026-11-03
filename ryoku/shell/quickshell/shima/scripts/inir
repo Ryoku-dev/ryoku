@@ -1,0 +1,4871 @@
+#!/usr/bin/env bash
+case "${1:-}" in
+    lock) exec ryoku-shell lock ;;
+    run|start|stop|service|install|uninstall|setup|update)
+        echo "Shima lifecycle and packages are managed by Ryoku on NixOS." >&2
+        exit 2 ;;
+    restart|reload) exec ryoku-shell reload ;;
+esac
+set -euo pipefail
+
+qs_bin="/usr/bin/qs"
+user_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/inir"
+system_config_dir="${INIR_SYSTEM_RUNTIME_DIR:-/usr/local/share/quickshell/inir}"
+fallback_system_config_dir="${INIR_FALLBACK_SYSTEM_RUNTIME_DIR:-/usr/share/quickshell/inir}"
+config_dir="${INIR_RUNTIME_DIR:-}"
+poll_delay="${INIR_RESTART_POLL_DELAY:-0.1}"
+max_polls="${INIR_RESTART_MAX_POLLS:-60}"
+max_rapid_restarts="${INIR_MAX_RAPID_RESTARTS:-5}"
+restart_window="${INIR_RESTART_WINDOW:-60}"
+systemd_user_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+launcher_root="$(cd -- "$script_dir/.." 2>/dev/null && pwd || printf '%s' "$script_dir")"
+
+source_config_path_helper() {
+    local helper_candidates=(
+        "$script_dir/lib/config-path.sh"
+        "$launcher_root/share/quickshell/inir/scripts/lib/config-path.sh"
+        "$user_config_dir/scripts/lib/config-path.sh"
+        "$system_config_dir/scripts/lib/config-path.sh"
+        "$fallback_system_config_dir/scripts/lib/config-path.sh"
+    )
+
+    local helper_path
+    for helper_path in "${helper_candidates[@]}"; do
+        if [[ -f "$helper_path" ]]; then
+            # shellcheck source=/dev/null
+            source "$helper_path"
+            return
+        fi
+    done
+
+    echo "Unable to locate config-path helper (scripts/lib/config-path.sh)." >&2
+    exit 1
+}
+
+source_config_path_helper
+
+source_niri_session_env_helper() {
+    local helper_candidates=(
+        "$script_dir/lib/niri-session-env.sh"
+        "$launcher_root/share/quickshell/inir/scripts/lib/niri-session-env.sh"
+        "$user_config_dir/scripts/lib/niri-session-env.sh"
+        "$system_config_dir/scripts/lib/niri-session-env.sh"
+        "$fallback_system_config_dir/scripts/lib/niri-session-env.sh"
+    )
+
+    local helper_path
+    for helper_path in "${helper_candidates[@]}"; do
+        if [[ -f "$helper_path" ]]; then
+            source "$helper_path"
+            return
+        fi
+    done
+
+    inir_resolve_niri_service_environment() { return 1; }
+}
+
+source_niri_session_env_helper
+
+_ipc_registry_loaded=false
+
+source_ipc_registry() {
+    if [[ "$_ipc_registry_loaded" == true ]]; then
+        return
+    fi
+
+    local registry_candidates=(
+        "$script_dir/lib/ipc-registry.sh"
+        "$launcher_root/share/quickshell/inir/scripts/lib/ipc-registry.sh"
+        "$user_config_dir/scripts/lib/ipc-registry.sh"
+        "$system_config_dir/scripts/lib/ipc-registry.sh"
+        "$fallback_system_config_dir/scripts/lib/ipc-registry.sh"
+    )
+
+    local registry_path
+    for registry_path in "${registry_candidates[@]}"; do
+        if [[ -f "$registry_path" ]]; then
+            # shellcheck source=/dev/null
+            source "$registry_path"
+            _ipc_registry_loaded=true
+            return
+        fi
+    done
+
+    # Registry not found — not fatal, features degrade gracefully.
+    return 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: inir <command> [options]
+
+Quick start:
+  inir run               Start the shell
+  inir settings          Toggle settings
+  inir welcome           Re-open the welcome wizard (first-run tour)
+  inir restart           Restart the shell
+  inir logs              View runtime logs (--issues: every warning/error since start, grouped; -n N: last N lines; --full: all categories; --debug: foreground debug)
+  inir status            Shell status info
+  inir doctor            Health checks (--perf: runtime graphics/media snapshot)
+
+EOF
+
+    print_cli_context
+
+    # Dynamic IPC target listing from registry
+    if source_ipc_registry 2>/dev/null; then
+        printf 'IPC targets (inir <target> <function>):\n'
+        _usage_print_targets "  Shared:" "shared"
+        _usage_print_targets "  ii panel family:" "ii"
+        _usage_print_targets "  waffle panel family:" "waffle"
+        printf '\n  Run '\''inir <target> --help'\'' for available functions.\n\n'
+    else
+        cat <<'EOF'
+IPC targets (inir <target> <function>):
+  Use 'inir <target> --help' for available functions.
+  See docs/IPC.md for the full reference.
+
+EOF
+    fi
+
+    cat <<'EOF'
+Runtime:
+  start, stop, run, restart, kill, terminal, browser, close-window, colorpicker
+
+Maintenance (delegates to setup):
+  install, reinstall, update, doctor, status, migrate, rollback, my-changes, uninstall
+  config, info, backup, logs, setup
+
+Other:
+  version [--json]
+  theme <list-targets|inspect|doctor|apply|scaffold> [args...]
+  completions <bash|zsh|fish|install>
+  bind [--add|--remove|--list|--examples] <keys> <call…>   Niri keybinds for any inir call
+  service <install|uninstall|enable|disable|start|stop|restart|status|logs>
+  repair, path, test-local, settings-window, waffle-settings-window
+EOF
+}
+
+read_version_field() {
+    local version_file="$1"
+    local jq_expr="$2"
+    local fallback_regex="$3"
+
+    [[ -n "$version_file" && -f "$version_file" ]] || return 1
+
+    if command -v jq >/dev/null 2>&1; then
+        jq -r "${jq_expr} // empty" "$version_file" 2>/dev/null || true
+        return 0
+    fi
+
+    sed -n "s/.*${fallback_regex}.*/\\1/p" "$version_file" 2>/dev/null | head -1
+}
+
+current_install_mode() {
+    local version_file install_mode
+    local candidates=(
+        "$(inir_version_file 2>/dev/null || true)"
+        "$user_config_dir/version.json"
+        "$system_config_dir/version.json"
+        "$fallback_system_config_dir/version.json"
+    )
+
+    for version_file in "${candidates[@]}"; do
+        [[ -f "$version_file" ]] || continue
+        install_mode="$(read_version_field "$version_file" '.installMode // .install_mode' '"installMode"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+        [[ -z "$install_mode" ]] && install_mode="$(read_version_field "$version_file" '.install_mode' '"install_mode"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+        if [[ -n "$install_mode" ]]; then
+            printf '%s\n' "$install_mode"
+            return 0
+        fi
+    done
+}
+
+resolve_live_version_context() {
+    local version_file="$1"
+    local runtime_path="$2"
+
+    local install_mode=""
+    install_mode="$(read_version_field "$version_file" '.installMode // .install_mode' '"installMode"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    [[ -z "$install_mode" ]] && install_mode="$(read_version_field "$version_file" '.install_mode' '"install_mode"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+
+    local repo_dir=""
+    repo_dir="$(read_version_field "$version_file" '.repoPath // .repo_path' '"repoPath"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    [[ -z "$repo_dir" ]] && repo_dir="$(read_version_field "$version_file" '.repo_path' '"repo_path"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    repo_dir="${repo_dir/#\~/$HOME}"
+
+    if [[ "$install_mode" == "repo-link" ]]; then
+        if [[ -n "$runtime_path" && -e "$runtime_path/.git" ]]; then
+            printf '%s' "$runtime_path"
+            return 0
+        fi
+        if [[ -n "$repo_dir" && -e "$repo_dir/.git" ]]; then
+            printf '%s' "$repo_dir"
+            return 0
+        fi
+        if [[ -n "$launcher_root" && -e "$launcher_root/.git" ]]; then
+            printf '%s' "$launcher_root"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+detect_runtime_path_for_help() {
+    local candidate
+    for candidate in "$config_dir" "$user_config_dir" "$system_config_dir" "$fallback_system_config_dir"; do
+        if [[ -n "$candidate" && -f "$candidate/shell.qml" ]]; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+service_link_summary() {
+    if ! command -v systemctl >/dev/null 2>&1; then
+        printf '%s' "unknown"
+        return
+    fi
+
+    local links=()
+    local wants_dir
+    for wants_dir in "$systemd_user_dir"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        [[ -e "$wants_dir/inir.service" || -L "$wants_dir/inir.service" ]] || continue
+        [[ "$(basename "$wants_dir")" == "graphical-session.target.wants" ]] && continue
+        links+=("$(basename "${wants_dir%.wants}")")
+    done
+
+    if [[ ${#links[@]} -eq 0 ]]; then
+        printf '%s' "disabled"
+        return
+    fi
+
+    local IFS=', '
+    printf '%s' "${links[*]}"
+}
+
+print_cli_context() {
+    local version_file version install_mode update_strategy runtime_path setup_dir launcher_path branch service_state
+    version_file="$(inir_version_file 2>/dev/null || true)"
+    version="$(read_version_field "$version_file" '.version' '"version"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    install_mode="$(read_version_field "$version_file" '.installMode // .install_mode' '"installMode"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    [[ -z "$install_mode" ]] && install_mode="$(read_version_field "$version_file" '.install_mode' '"install_mode"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    update_strategy="$(read_version_field "$version_file" '.updateStrategy // .update_strategy' '"updateStrategy"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+    [[ -z "$update_strategy" ]] && update_strategy="$(read_version_field "$version_file" '.update_strategy' '"update_strategy"[[:space:]]*:[[:space:]]*"\([^"]*\)"')"
+
+    resolve_config_dir
+    runtime_path="$(detect_runtime_path_for_help || true)"
+    setup_dir="$(resolve_setup_dir 2>/dev/null || true)"
+    launcher_path="$(resolve_launcher_path)"
+    service_state="$(service_link_summary)"
+
+    local live_repo=""
+    live_repo="$(resolve_live_version_context "$version_file" "$runtime_path" || true)"
+    if [[ -n "$live_repo" ]]; then
+        [[ -f "$live_repo/VERSION" ]] && version="$(tr -d '[:space:]' < "$live_repo/VERSION")"
+        install_mode="repo-link"
+    fi
+
+    printf 'Current context:\n'
+    [[ -n "$version" ]] && printf '  version: %s\n' "$version"
+    [[ -n "$install_mode" ]] && printf '  install mode: %s\n' "$install_mode"
+    [[ -n "$update_strategy" ]] && printf '  update strategy: %s\n' "$update_strategy"
+    [[ -n "$runtime_path" ]] && printf '  runtime: %s\n' "$runtime_path"
+    [[ -n "$setup_dir" ]] && printf '  setup: %s\n' "$setup_dir"
+    printf '  launcher: %s\n' "$launcher_path"
+    printf '  service: %s\n' "$service_state"
+
+    if [[ -n "$setup_dir" && -e "$setup_dir/.git" ]]; then
+        branch="$(git -C "$setup_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        if [[ -n "$branch" ]]; then
+            printf '  branch: %s\n' "$branch"
+            [[ "$branch" != "main" && "$branch" != "master" ]] && printf '  note: non-release branch\n'
+        fi
+    fi
+
+    printf '\n'
+}
+
+service_usage() {
+    local service_state
+    service_state="$(service_link_summary)"
+    cat <<EOF
+Usage: inir service <install|uninstall|enable|disable|start|stop|restart|status|logs> [args...]
+
+What it does:
+  install     Ensure the service unit matches the current install mode
+  enable      Wire inir.service to the detected compositor service
+  disable     Remove compositor wants links
+  start       Start the user service
+  stop        Stop the user service
+  restart     Restart the user service
+  status      Show systemd status
+  logs        Tail journal logs for the service
+
+Current service state:
+  wiring: $service_state
+  unit: ${systemd_user_dir}/inir.service
+
+This never falls back to graphical-session.target, because that would be
+stupid and start iNiR under desktops that should not touch it.
+EOF
+}
+
+repair_usage() {
+    cat <<'EOF'
+Usage: inir repair [-c PATH]
+
+What it does:
+  1. runs setup doctor inline
+  2. restarts the shell if a graphical session is available
+  3. prints recent logs plus filtered errors
+
+Use this when the shell feels cursed but you do not want to manually chain
+doctor, restart, and log inspection yourself.
+EOF
+}
+
+_usage_print_targets() {
+    local header="$1"
+    local family="$2"
+    local targets=()
+    local t
+
+    for t in "${IPC_ALL_TARGETS[@]}"; do
+        if [[ "${IPC_TARGET_FAMILY[$t]:-}" == "$family" ]]; then
+            targets+=("$t")
+        fi
+    done
+
+    if [[ ${#targets[@]} -eq 0 ]]; then
+        return
+    fi
+
+    printf '%s\n' "$header"
+    for t in "${targets[@]}"; do
+        local desc="${IPC_TARGET_DESC[$t]:-}"
+        # Truncate description to first sentence for compact display
+        desc="${desc%%.*}"
+        if [[ -n "$desc" ]]; then
+            printf '    %-24s %s\n' "$t" "$desc"
+        else
+            printf '    %s\n' "$t"
+        fi
+    done
+}
+
+usage_short() {
+    cat <<'EOF'
+Most people only need:
+  ./setup install
+  inir run
+  inir settings
+  inir update
+  inir status
+  inir doctor
+  inir overview toggle
+  inir terminal
+  inir browser
+  inir colorpicker
+  inir logs
+  inir repair
+  inir theme list-targets
+  inir theme inspect terminals
+  inir theme doctor
+  inir theme scaffold myapp
+  inir theme apply terminals
+  ./setup
+EOF
+}
+
+find_qs() {
+    if [[ ! -x "$qs_bin" ]]; then
+        qs_bin="$(command -v qs || true)"
+    fi
+
+    if [[ -z "${qs_bin:-}" || ! -x "$qs_bin" ]]; then
+        echo "qs not found" >&2
+        exit 1
+    fi
+}
+
+# Lazy qs resolution: only validate qs binary for commands that actually need it.
+# Non-runtime commands (install, update, doctor, status, help, version, etc.)
+# must work without Quickshell installed.
+require_qs() {
+    if [[ -z "${_qs_resolved:-}" ]]; then
+        find_qs
+        _qs_resolved=1
+    fi
+}
+
+# --- Stale local Quickshell detection ---------------------------------------
+# Returns 0 and prints a message if a stale quickshell binary in ~/.local/bin
+# or /usr/local/bin shadows the system package. This is the #1 cause of
+# "quickshell always reports 0.2" after an update.
+_inir_detect_stale_local_qs() {
+    local qs_path
+    qs_path="$(command -v qs 2>/dev/null || command -v quickshell 2>/dev/null || true)"
+    [[ -z "$qs_path" ]] && return 1
+
+    local qs_real
+    qs_real="$(readlink -f "$qs_path" 2>/dev/null || printf '%s' "$qs_path")"
+
+    # Only care about local builds that shadow system packages
+    case "$qs_real" in
+        "$HOME"/.local/bin/*|/usr/local/bin/*) ;;
+        *) return 1 ;;
+    esac
+
+    # Check if a system quickshell also exists
+    local system_qs=""
+    if [[ -x /usr/bin/qs ]]; then
+        system_qs="/usr/bin/qs"
+    elif [[ -x /usr/bin/quickshell ]]; then
+        system_qs="/usr/bin/quickshell"
+    fi
+    [[ -z "$system_qs" ]] && return 1
+
+    # Compare versions via strings
+    if command -v strings >/dev/null 2>&1; then
+        local local_ver system_ver
+        local_ver="$(strings "$qs_real" 2>/dev/null | grep -oP '\b0\.\d+\.\d+\b' | head -1 || true)"
+        system_ver="$(strings "$system_qs" 2>/dev/null | grep -oP '\b0\.\d+\.\d+\b' | head -1 || true)"
+        if [[ -n "$local_ver" && -n "$system_ver" && "$local_ver" != "$system_ver" ]]; then
+            printf '%s' "$qs_real"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# --- Quickshell install-kind detection ----------------------------------------
+# Returns "kind:pkgname". Used by check_qs_abi() and `inir doctor --fix-abi`.
+# Quickshell uses Qt internals and asks to be rebuilt after every Qt update. The repair rebuilds
+# what is installed against the installed Qt, never a different project:
+#   arch-repo       quickshell (Arch, CachyOS)   -> the same version from Arch's recipe
+#   arch-git        quickshell-git               -> rebuilt from its AUR recipe
+#   arch-provider   a fork or quickshell-bin providing quickshell
+#                                                -> quickshell from Arch's recipe replaces it (pacman asks)
+#   void-xbps, fedora-pkg, nixos                 -> the distro's own update
+#   debian, source, unknown                      -> no automatic path
+_inir_quickshell_install_kind() {
+    if command -v pacman >/dev/null 2>&1; then
+        # pacman -Q answers with whichever package provides the name, so read the real one.
+        local owner
+        owner="$(pacman -Qq quickshell 2>/dev/null | head -1)"
+        case "$owner" in
+            quickshell)     printf 'arch-repo:quickshell'; return ;;
+            quickshell-git) printf 'arch-git:quickshell-git'; return ;;
+            ?*)             printf 'arch-provider:%s' "$owner"; return ;;
+        esac
+    elif command -v xbps-query >/dev/null 2>&1 \
+            && xbps-query -p pkgver quickshell >/dev/null 2>&1; then
+        printf 'void-xbps:quickshell'; return
+    elif command -v rpm >/dev/null 2>&1; then
+        local q
+        q="$(rpm -qa 2>/dev/null | grep -E '^quickshell(-git)?-[0-9]' | head -1)"
+        if [[ -n "$q" ]]; then
+            printf 'fedora-pkg:%s' "${q%%-[0-9]*}"; return
+        fi
+    elif [[ -d /etc/nixos ]] || [[ -L /run/current-system ]]; then
+        printf 'nixos:quickshell'; return
+    elif command -v dpkg >/dev/null 2>&1 && dpkg -s quickshell &>/dev/null; then
+        printf 'debian:quickshell'; return
+    elif [[ -x /usr/local/bin/quickshell || -x /usr/local/bin/qs ]]; then
+        printf 'source:'; return
+    fi
+    printf 'unknown:'
+}
+
+_INIR_QS_ARCH_RECIPE="https://gitlab.archlinux.org/archlinux/packaging/packages/quickshell.git"
+_INIR_QS_AUR_GIT_RECIPE="https://aur.archlinux.org/quickshell-git.git"
+
+# What the repair does for a kind:pkg pair, in words. Empty when there is no automatic path.
+_inir_quickshell_fix_plan() {
+    local pkg="${1#*:}"
+    case "${1%%:*}" in
+        arch-repo)     printf "rebuild quickshell %s from Arch's recipe" "$(pacman -Q quickshell 2>/dev/null | awk '{print $2}')" ;;
+        arch-git)      printf 'rebuild quickshell-git from its AUR recipe' ;;
+        arch-provider) printf "replace %s with quickshell built from Arch's recipe (pacman asks first)" "$pkg" ;;
+        void-xbps)     printf 'reinstall quickshell with xbps-install' ;;
+        fedora-pkg)    printf 'upgrade %s with dnf' "$pkg" ;;
+        nixos)         printf 'run nixos-rebuild switch --upgrade' ;;
+    esac
+}
+
+# Builds a quickshell package from its recipe against the installed Qt and installs it with pacman,
+# which asks before replacing another provider. A rebuild of the installed version gets a pkgrel one
+# step above it, so the next distro rebuild still replaces it as usual.
+_inir_quickshell_makepkg() {
+    local url="$1" mode="$2" dir rc=0
+    local -a flags=(--syncdeps --install --rmdeps)
+    [[ "$mode" == noninteractive ]] && flags+=(--noconfirm)
+    if ! command -v git >/dev/null 2>&1 || ! command -v makepkg >/dev/null 2>&1; then
+        echo "iNiR: rebuilding Quickshell needs git and makepkg: sudo pacman -S --needed git base-devel" >&2
+        return 1
+    fi
+    dir="$(mktemp -d "${TMPDIR:-/tmp}/inir-quickshell.XXXXXX")" || return 1
+    if ! git clone --quiet --depth 1 "$url" "$dir/pkg"; then
+        echo "iNiR: could not download the recipe from $url" >&2
+        rm -rf "$dir"
+        return 1
+    fi
+    local name installed pkgver rel
+    name="$(sed -n 's/^pkgname=//p' "$dir/pkg/PKGBUILD" | head -1)"
+    pkgver="$(sed -n 's/^pkgver=//p' "$dir/pkg/PKGBUILD" | head -1)"
+    installed="$(pacman -Q "$name" 2>/dev/null | awk -v n="$name" '$1 == n {print $2}')"
+    if [[ -n "$installed" && "${installed%-*}" == "$pkgver" ]]; then
+        # makepkg allows integer[.integer]: 1 -> 1.1, 1.1 -> 1.2.
+        rel="${installed##*-}"
+        if [[ "$rel" == *.* ]]; then rel="${rel%.*}.$(( ${rel##*.} + 1 ))"; else rel="$rel.1"; fi
+        sed -i "s/^pkgrel=.*/pkgrel=$rel/" "$dir/pkg/PKGBUILD"
+    fi
+    # Keeps sudo's credentials fresh through the build so the install step does not stop on a prompt.
+    local keepalive=""
+    if sudo -n true 2>/dev/null; then
+        ( while sleep 50; do sudo -n -v 2>/dev/null || exit 0; done ) &
+        keepalive=$!
+    fi
+    (cd "$dir/pkg" && makepkg "${flags[@]}") || rc=$?
+    [[ -n "$keepalive" ]] && kill "$keepalive" 2>/dev/null
+    rm -rf "$dir"
+    return "$rc"
+}
+
+# Runs the repair for a kind:pkg pair. $2 = interactive | noninteractive (answers package prompts).
+_inir_quickshell_fix_run() {
+    local kind="${1%%:*}" pkg="${1#*:}" mode="$2"
+    local yes=""
+    [[ "$mode" == noninteractive ]] && yes="-y"
+    case "$kind" in
+        arch-repo|arch-provider) _inir_quickshell_makepkg "$_INIR_QS_ARCH_RECIPE" "$mode" ;;
+        arch-git)                _inir_quickshell_makepkg "$_INIR_QS_AUR_GIT_RECIPE" "$mode" ;;
+        void-xbps)               sudo xbps-install -Sf $yes quickshell ;;
+        fedora-pkg)              sudo dnf upgrade --refresh $yes "$pkg" ;;
+        nixos)                   sudo nixos-rebuild switch --upgrade ;;
+        *)                       return 2 ;;
+    esac
+}
+
+# Pure ABI detection: returns 0 if compatible, 1 if mismatched. Sets globals
+# _inir_abi_buildtime / _inir_abi_runtime / _inir_abi_msg for callers to use.
+_inir_quickshell_abi_status() {
+    _inir_abi_buildtime=""
+    _inir_abi_runtime=""
+    _inir_abi_msg=""
+    local qs_bin
+    qs_bin="$(command -v qs 2>/dev/null || command -v quickshell 2>/dev/null)"
+    [[ -z "$qs_bin" ]] && return 0  # No qs installed = no mismatch to detect
+
+    local qs_output
+    qs_output="$("$qs_bin" --version 2>&1 || true)"
+    if echo "$qs_output" | grep -qiE "built against Qt|Qt.*mismatch|incompatible Qt"; then
+        _inir_abi_msg="$(echo "$qs_output" | grep -iE "built against Qt|Qt.*mismatch|incompatible Qt" | head -1)"
+        _inir_abi_msg="${_inir_abi_msg#*WARN: }"
+        _inir_abi_msg="${_inir_abi_msg#*WARN: }"
+        return 1
+    fi
+
+    if command -v strings >/dev/null 2>&1; then
+        _inir_abi_buildtime="$(strings "$qs_bin" 2>/dev/null | grep -P '^6\.\d+\.\d+$' | head -1 || true)"
+        local qt_lib_path=""
+        [[ -e /usr/lib/libQt6Core.so.6 ]] && qt_lib_path="/usr/lib/libQt6Core.so.6"
+        [[ -z "$qt_lib_path" && -e /usr/lib64/libQt6Core.so.6 ]] && qt_lib_path="/usr/lib64/libQt6Core.so.6"
+        if [[ -n "$qt_lib_path" ]]; then
+            _inir_abi_runtime="$(readlink -f "$qt_lib_path" 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+        fi
+        if [[ -z "$_inir_abi_runtime" ]] && command -v pkg-config >/dev/null 2>&1; then
+            _inir_abi_runtime="$(pkg-config --modversion Qt6Core 2>/dev/null || true)"
+        fi
+        if [[ -n "$_inir_abi_buildtime" && -n "$_inir_abi_runtime" && "$_inir_abi_buildtime" != "$_inir_abi_runtime" ]]; then
+            _inir_abi_msg="Quickshell built against Qt $_inir_abi_buildtime but system has Qt $_inir_abi_runtime"
+            return 1
+        fi
+    fi
+    return 0
+}
+
+# Rebuilds Quickshell against the installed Qt. Returns 0 on success.
+# $1 = "interactive" (default: asks first, package prompts stay on screen) | "noninteractive"
+# Side effect: invalidates ~/.cache/inir/abi-check after a successful rebuild so
+# subsequent check_qs_abi calls re-scan the fresh binary.
+_inir_run_quickshell_rebuild() {
+    local mode="${1:-interactive}"
+
+    # Precheck: don't waste minutes rebuilding when nothing is wrong.
+    if _inir_quickshell_abi_status; then
+        echo "iNiR: Quickshell matches the installed Qt, nothing to do." >&2
+        if [[ -n "$_inir_abi_buildtime" ]]; then
+            echo "      Build-time Qt: $_inir_abi_buildtime  ≡  Runtime Qt: $_inir_abi_runtime" >&2
+        fi
+        return 0
+    fi
+
+    echo "iNiR: $_inir_abi_msg" >&2
+
+    local kind_pkg plan
+    kind_pkg="$(_inir_quickshell_install_kind)"
+    plan="$(_inir_quickshell_fix_plan "$kind_pkg")"
+    if [[ -z "$plan" ]]; then
+        echo "iNiR: no automatic rebuild for this Quickshell install (${kind_pkg%%:*})." >&2
+        echo "      See: https://quickshell.org/docs/master/guide/install-setup" >&2
+        return 1
+    fi
+    echo "iNiR: the fix is to $plan." >&2
+
+    if [[ "$mode" == "interactive" && -t 0 && -t 1 ]]; then
+        local resp
+        read -r -p "Rebuild it now? [Y/n] " resp || true
+        case "${resp:-}" in
+            ""|[Yy]*) ;;
+            *) echo "iNiR: nothing was rebuilt." >&2; return 1 ;;
+        esac
+    else
+        mode="noninteractive"
+    fi
+
+    echo "" >&2
+    echo "iNiR: rebuilding Quickshell. It compiles for a few minutes and the build output shows below." >&2
+    echo "      Ctrl+C stops it; the installed Quickshell stays until the new one is built." >&2
+    echo "" >&2
+
+    # Ask for the password before the build so its install step doesn't stop on a prompt
+    # minutes later. Anything that reads the terminal runs in the foreground: `timeout`
+    # without --foreground moves it to a background process group, where sudo cannot hide
+    # the password and its read never returns.
+    if ! sudo -n true 2>/dev/null; then
+        if [[ ! -t 0 || ! -t 1 ]]; then
+            echo "iNiR: the rebuild needs your password and there is no terminal to ask in." >&2
+            echo "      Run in a terminal: inir doctor --fix-abi" >&2
+            return 1
+        fi
+        echo "iNiR: the rebuild needs your password." >&2
+        if ! timeout --foreground 120 sudo -v; then
+            echo "iNiR: no password, nothing was rebuilt." >&2
+            return 1
+        fi
+        echo "" >&2
+    fi
+
+    local rebuild_rc=0
+    _inir_quickshell_fix_run "$kind_pkg" "$mode" || rebuild_rc=$?
+
+    if [[ "$rebuild_rc" -ne 0 ]]; then
+        echo "" >&2
+        echo "iNiR: the rebuild stopped (exit $rebuild_rc). Run it again: inir doctor --fix-abi" >&2
+        return 1
+    fi
+
+    # Post-rebuild verification: did the mismatch actually get fixed?
+    rm -f "${XDG_CACHE_HOME:-$HOME/.cache}/inir/abi-check" 2>/dev/null
+    if _inir_quickshell_abi_status; then
+        echo "" >&2
+        echo "iNiR: Quickshell is rebuilt for the installed Qt." >&2
+        echo "      Run 'inir restart' to use it." >&2
+        return 0
+    fi
+
+    echo "" >&2
+    echo "iNiR: the rebuild finished but the mismatch persists: $_inir_abi_msg" >&2
+    local stale_qs
+    if stale_qs="$(_inir_detect_stale_local_qs)" && [[ -n "$stale_qs" ]]; then
+        echo "      A stale local binary shadows the package: $stale_qs" >&2
+        echo "      Remove it: rm $stale_qs" >&2
+    fi
+    return 1
+}
+
+_inir_perf_sensor_label() {
+    local path="$1" base label name dir type_dir type
+    if [[ "$path" == /sys/class/hwmon/*/temp*_input ]]; then
+        base="${path%_input}"
+        dir="$(dirname -- "$path")"
+        label="$(cat "${base}_label" 2>/dev/null || true)"
+        name="$(cat "$dir/name" 2>/dev/null || true)"
+        if [[ -n "$name" && -n "$label" ]]; then
+            printf '%s/%s' "$name" "$label"
+        elif [[ -n "$name" ]]; then
+            printf '%s' "$name"
+        elif [[ -n "$label" ]]; then
+            printf '%s' "$label"
+        else
+            printf '(unlabeled hwmon)'
+        fi
+        return
+    fi
+
+    if [[ "$path" == /sys/class/thermal/thermal_zone*/temp ]]; then
+        type_dir="$(dirname -- "$path")"
+        type="$(cat "$type_dir/type" 2>/dev/null || true)"
+        printf '%s' "${type:-thermal_zone}"
+        return
+    fi
+
+    printf '(unknown)'
+}
+
+_inir_perf_temp_celsius() {
+    local path="$1" raw
+    raw="$(cat "$path" 2>/dev/null || true)"
+    if [[ "$raw" =~ ^-?[0-9]+$ ]]; then
+        printf '%d' "$((raw / 1000))"
+    else
+        printf '?'
+    fi
+}
+
+_inir_perf_detect_temp_paths() {
+    local cpu_path="" gpu_path="" cpu_priority=0
+    local hwmon name temp f label priority_level gpu_edge lf gl tz type
+
+    for hwmon in /sys/class/hwmon/hwmon*; do
+        [[ -f "$hwmon/name" ]] || continue
+        name="$(cat "$hwmon/name" 2>/dev/null || true)"
+
+        temp=""
+        if [[ "$name" == "k10temp" || "$name" == "zenpower" ]]; then
+            for f in "$hwmon"/temp*_label; do
+                [[ -f "$f" ]] || continue
+                label="$(cat "$f" 2>/dev/null || true)"
+                if [[ "$label" == "Tdie" ]]; then
+                    temp="${f%_label}_input"
+                    break
+                fi
+            done
+        fi
+        if [[ -z "$temp" ]]; then
+            for f in "$hwmon"/temp1_input "$hwmon"/temp*_input; do
+                [[ -f "$f" ]] && temp="$f" && break
+            done
+        fi
+        [[ -n "$temp" ]] || continue
+
+        priority_level=0
+        case "$name" in
+            coretemp|k10temp|zenpower|cpu_thermal|fam15h_power|via_cputemp) priority_level=3 ;;
+            thinkpad|dell_smm|hp_wmi|asus_ec|it87|nct6775|w83627ehf|lm75|lm78|lm85) priority_level=2 ;;
+            acpitz|pch_*) priority_level=1 ;;
+        esac
+
+        if [[ "$priority_level" -gt "$cpu_priority" ]]; then
+            cpu_priority="$priority_level"
+            cpu_path="$temp"
+        fi
+
+        case "$name" in
+            amdgpu|radeon|nvidia|nouveau|i915|xe|panfrost|lima|v3d|vc4)
+                if [[ -z "$gpu_path" ]]; then
+                    gpu_edge=""
+                    for lf in "$hwmon"/temp*_label; do
+                        [[ -f "$lf" ]] || continue
+                        gl="$(cat "$lf" 2>/dev/null || true)"
+                        [[ "$gl" == "edge" ]] && gpu_edge="$lf" && break
+                    done
+                    if [[ -n "$gpu_edge" ]]; then
+                        gpu_path="${gpu_edge%_label}_input"
+                    else
+                        gpu_path="$temp"
+                    fi
+                fi
+                ;;
+        esac
+    done
+
+    if [[ -z "$cpu_path" || -z "$gpu_path" ]]; then
+        for tz in /sys/class/thermal/thermal_zone*; do
+            [[ -f "$tz/temp" ]] || continue
+            type="$(cat "$tz/type" 2>/dev/null | tr '[:upper:]' '[:lower:]' || true)"
+
+            if [[ -z "$cpu_path" ]]; then
+                case "$type" in
+                    *cpu*|x86_pkg_temp|acpitz|*soc*|*core*|*package*|*processor*|int3400*|pch*|b0d4*)
+                        cpu_path="$tz/temp" ;;
+                esac
+            fi
+
+            if [[ -z "$gpu_path" ]]; then
+                case "$type" in
+                    *gpu*|*radeon*|*amdgpu*|*nvidia*)
+                        gpu_path="$tz/temp" ;;
+                esac
+            fi
+        done
+    fi
+
+    [[ -n "$cpu_path" ]] && printf 'cpu:%s:%s:%s\n' "$cpu_path" "$(_inir_perf_sensor_label "$cpu_path")" "$(_inir_perf_temp_celsius "$cpu_path")"
+    [[ -n "$gpu_path" ]] && printf 'gpu:%s:%s:%s\n' "$gpu_path" "$(_inir_perf_sensor_label "$gpu_path")" "$(_inir_perf_temp_celsius "$gpu_path")"
+    return 0
+}
+
+_inir_perf_detect_gpu_usage_source() {
+    local nvidia_path="" is_nvidia="" vendor_file vendor card path name
+    if command -v nvidia-smi >/dev/null 2>&1; then
+        nvidia_path="$(command -v nvidia-smi)"
+    fi
+
+    for vendor_file in /sys/class/drm/card*/device/vendor; do
+        [[ -f "$vendor_file" ]] || continue
+        vendor="$(cat "$vendor_file" 2>/dev/null || true)"
+        [[ "$vendor" == "0x10de" ]] && is_nvidia=1 && break
+    done
+
+    if [[ -n "$is_nvidia" && -n "$nvidia_path" ]]; then
+        printf 'nvidia-smi:%s\n' "$nvidia_path"
+        return
+    fi
+
+    for card in /sys/class/drm/card*; do
+        [[ -d "$card" ]] || continue
+        name="$(basename -- "$card")"
+        [[ "$name" =~ ^card[0-9]+$ ]] || continue
+        path="$card/device/gpu_busy_percent"
+        if [[ -f "$path" ]]; then
+            printf 'sysfs:%s\n' "$path"
+            return
+        fi
+    done
+
+    if [[ -n "$nvidia_path" ]]; then
+        printf 'nvidia-smi:%s\n' "$nvidia_path"
+    else
+        printf 'none\n'
+    fi
+}
+
+_inir_perf_detect_hybrid_runtime() {
+    local igpu_found="" dgpu_runtime="" card name bvga_file bvga runtime
+    for card in /sys/class/drm/card*/; do
+        [[ -d "$card" ]] || continue
+        name="$(basename -- "$card")"
+        [[ "$name" =~ ^card[0-9]+$ ]] || continue
+        bvga_file="${card}device/boot_vga"
+        [[ -f "$bvga_file" ]] || continue
+        bvga="$(cat "$bvga_file" 2>/dev/null || true)"
+        if [[ "$bvga" == "1" ]]; then
+            igpu_found=1
+        elif [[ "$bvga" == "0" ]]; then
+            runtime="${card}device/power/runtime_status"
+            [[ -f "$runtime" ]] && dgpu_runtime="$runtime"
+        fi
+    done
+
+    if [[ -n "$igpu_found" && -n "$dgpu_runtime" ]]; then
+        printf 'dgpu:%s\n' "$dgpu_runtime"
+    else
+        printf 'none\n'
+    fi
+}
+
+_inir_perf_proc_env_entry() {
+    local pid="$1" key="$2"
+    [[ -r "/proc/$pid/environ" ]] || return 0
+    tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | awk -v key="$key" '
+        index($0, key "=") == 1 { print; exit }
+    '
+}
+
+_inir_perf_observed_rhi() {
+    local pid="$1" maps="/proc/$pid/maps" threads has_vulkan=false has_opengl=false
+    threads="$(ps -T -p "$pid" -o comm= 2>/dev/null || true)"
+    if grep -q '^qs:vk' <<< "$threads"; then
+        printf 'vulkan (renderer thread)\n'
+        return
+    fi
+    if grep -q '^qs:gl' <<< "$threads"; then
+        printf 'opengl (renderer thread)\n'
+        return
+    fi
+    if [[ -r "$maps" ]]; then
+        grep -q '/libvulkan\.so' "$maps" 2>/dev/null && has_vulkan=true
+        grep -Eq '/lib(EGL|GLX)|/radeonsi_dri\.so' "$maps" 2>/dev/null && has_opengl=true
+    fi
+    if $has_vulkan && ! $has_opengl; then
+        printf 'vulkan (renderer library)\n'
+    elif $has_opengl && ! $has_vulkan; then
+        printf 'opengl (renderer library)\n'
+    elif $has_vulkan && $has_opengl; then
+        printf 'ambiguous (OpenGL and Vulkan libraries loaded)\n'
+    else
+        printf 'unknown\n'
+    fi
+}
+
+_inir_perf_drm_devices() {
+    local card card_name device_path render render_path render_name driver vendor device boot access
+    for card in /sys/class/drm/card[0-9]*; do
+        card_name="$(basename -- "$card")"
+        [[ "$card_name" =~ ^card[0-9]+$ ]] || continue
+        [[ -d "$card/device" ]] || continue
+        device_path="$(readlink -f "$card/device" 2>/dev/null || true)"
+        [[ -n "$device_path" ]] || continue
+        render_name="none"
+        for render in /sys/class/drm/renderD*; do
+            [[ -d "$render/device" ]] || continue
+            render_path="$(readlink -f "$render/device" 2>/dev/null || true)"
+            if [[ "$render_path" == "$device_path" ]]; then
+                render_name="$(basename -- "$render")"
+                break
+            fi
+        done
+        driver="$(basename -- "$(readlink -f "$card/device/driver" 2>/dev/null || printf unknown)")"
+        vendor="$(cat "$card/device/vendor" 2>/dev/null || printf unknown)"
+        device="$(cat "$card/device/device" 2>/dev/null || printf unknown)"
+        boot="$(cat "$card/device/boot_vga" 2>/dev/null || printf unknown)"
+        access="no"
+        [[ "$render_name" != none && -r "/dev/dri/$render_name" && -w "/dev/dri/$render_name" ]] && access="yes"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+            "$card_name" "$render_name" "$driver" "$vendor" "$device" "$boot" "$access"
+    done
+}
+
+_inir_perf_open_media() {
+    local pid="$1" fd target lower
+    declare -A counts=()
+    for fd in "/proc/$pid"/fd/*; do
+        [[ -e "$fd" ]] || continue
+        target="$(readlink "$fd" 2>/dev/null || true)"
+        [[ -n "$target" ]] || continue
+        target="${target% (deleted)}"
+        lower="${target,,}"
+        case "$lower" in
+            *.mp4|*.webm|*.mkv|*.avi|*.mov|*.gif|*.m4v|*.mpeg|*.mpg)
+                counts["$target"]=$(( ${counts["$target"]:-0} + 1 ))
+                ;;
+        esac
+    done
+    for target in "${!counts[@]}"; do
+        printf '%s\t%s\n' "${counts[$target]}" "$target"
+    done | sort -k2
+}
+
+_inir_perf_layer_names() {
+    local pid="$1" socket_entry socket
+    command -v niri >/dev/null 2>&1 || return 0
+    socket_entry="$(_inir_perf_proc_env_entry "$pid" NIRI_SOCKET)"
+    socket="${socket_entry#*=}"
+    [[ -n "$socket_entry" && -n "$socket" ]] || return 0
+    env NIRI_SOCKET="$socket" niri msg layers 2>/dev/null | awk -F'"' '/Namespace:/ { print $2 }'
+}
+
+# Print a runtime perf snapshot of the running shell. Used by support triage
+# when users report "shell uses too much RAM / CPU / heats up the laptop".
+# Prints process stats, graphics/media ownership, top heap/file mappings,
+# child processes, enabled features, and heuristic recommendations.
+_inir_doctor_perf() {
+    local pid=""
+    if command -v "$qs_bin" >/dev/null 2>&1; then
+        pid="$("$qs_bin" list --all 2>/dev/null | awk '
+            /^Instance / { candidate="" }
+            /Process ID:/ { candidate=$3 }
+            /Shell ID:[[:space:]]*inir/ { print candidate; exit }
+            /^iNiR/ { found=1 }
+            found && /^[[:space:]]*PID:/ { print $2; exit }
+        ')"
+    fi
+    if [[ -n "$pid" && ( ! "$pid" =~ ^[0-9]+$ || ! -d "/proc/$pid" ) ]]; then
+        pid=""
+    fi
+    if [[ -z "$pid" ]]; then
+        pid="$(ps -eo pid=,args= 2>/dev/null | awk -v self="$$" '
+            $1 != self && $0 ~ /(^|\/)qs([[:space:]]|$)/ && $0 ~ /inir/ { print $1; exit }
+        ')"
+    fi
+    if [[ -z "$pid" ]] || ! [[ -d "/proc/$pid" ]]; then
+        echo "iNiR: no running shell found. Start it with 'inir' or 'inir restart' first." >&2
+        return 1
+    fi
+
+    local recommendations=()
+
+    printf '=== iNiR perf snapshot ===\n'
+    printf 'Date:       %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
+
+    resolve_config_dir 2>/dev/null || true
+
+    local inir_version="(unknown)"
+    if [[ -n "$config_dir" && -f "$config_dir/VERSION" ]]; then
+        inir_version="$(tr -d '[:space:]' < "$config_dir/VERSION" 2>/dev/null || true)"
+    fi
+    [[ -z "$inir_version" ]] && inir_version="(unknown)"
+    local inir_commit="(unknown)"
+    if [[ -n "$config_dir" ]] && command -v git >/dev/null 2>&1; then
+        inir_commit="$(git -C "$config_dir" rev-parse --short HEAD 2>/dev/null || echo '(unknown)')"
+    fi
+    local qs_ver="(unknown)" qt_ver="(unknown)"
+    if command -v "$qs_bin" >/dev/null 2>&1; then
+        qs_ver="$("$qs_bin" --version 2>&1 | awk 'NR==1{print $2; exit}' || true)"
+        [[ -z "$qs_ver" ]] && qs_ver="(unknown)"
+    fi
+    if [[ -L /usr/lib/libQt6Core.so.6 ]]; then
+        qt_ver="$(readlink /usr/lib/libQt6Core.so.6 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+        [[ -z "$qt_ver" ]] && qt_ver="(unknown)"
+    fi
+    local compositor="unknown"
+    if [[ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then compositor="hyprland"
+    elif [[ -n "${NIRI_SOCKET:-}" ]]; then compositor="niri"
+    elif [[ -n "${XDG_CURRENT_DESKTOP:-}" ]]; then compositor="$XDG_CURRENT_DESKTOP"
+    fi
+    printf 'Version:    %s (%s)\n' "$inir_version" "$inir_commit"
+    printf 'Quickshell: %s | Qt: %s | Compositor: %s\n' "$qs_ver" "$qt_ver" "$compositor"
+    printf '\n'
+
+    printf '=== Shell process (PID %s) ===\n' "$pid"
+    if [[ -r "/proc/$pid/status" ]]; then
+        local vmrss vmsize swap threads swap_note=""
+        vmrss="$(awk '/^VmRSS:/{print $2}' "/proc/$pid/status" 2>/dev/null || true)"
+        vmsize="$(awk '/^VmSize:/{print $2}' "/proc/$pid/status" 2>/dev/null || true)"
+        swap="$(awk '/^VmSwap:/{print $2}' "/proc/$pid/status" 2>/dev/null || true)"
+        threads="$(awk '/^Threads:/{print $2}' "/proc/$pid/status" 2>/dev/null || true)"
+        vmrss="${vmrss:-0}"
+        vmsize="${vmsize:-0}"
+        swap="${swap:-0}"
+        threads="${threads:-?}"
+        [[ "$swap" =~ ^[0-9]+$ && "$swap" -gt 51200 ]] && swap_note='  (swapping — perf degrades)'
+        printf '  RSS:        %d MB\n' "$((vmrss / 1024))"
+        printf '  VmSize:     %d MB\n' "$((vmsize / 1024))"
+        printf '  Swap:       %d MB%s\n' "$((swap / 1024))" "$swap_note"
+        if [[ "$vmrss" =~ ^[0-9]+$ && "$vmrss" -gt 614400 ]]; then
+            recommendations+=("High RSS (>600 MB). See #156 for known causes and active sub-issues.")
+        fi
+        printf '  Threads:    %s\n' "$threads"
+    fi
+    local fd_count maps_count
+    fd_count="$(ls "/proc/$pid/fd" 2>/dev/null | wc -l | tr -d ' ')"
+    maps_count="$(wc -l < "/proc/$pid/maps" 2>/dev/null || true)"
+    maps_count="${maps_count:-0}"
+    printf '  FDs open:   %s\n' "$fd_count"
+    printf '  Maps:       %s\n' "$maps_count"
+
+    local cpu_pct etime
+    cpu_pct="$(ps -p "$pid" -o %cpu= 2>/dev/null | tr -d ' ')"
+    etime="$(ps -p "$pid" -o etime= 2>/dev/null | tr -d ' ')"
+    printf '  CPU avg:    %s%% over %s\n' "${cpu_pct:-?}" "${etime:-?}"
+    printf '\n'
+
+    printf '=== Top memory segments ===\n'
+    if [[ -r "/proc/$pid/smaps" ]]; then
+        awk '
+            /^[0-9a-f]+-[0-9a-f]+/ { name="[anon]"; if (NF >= 6) name=$6 }
+            /^Rss:/ {
+                rss=$2
+                if (rss >= 5000) printf "  %6d MB  %s\n", rss/1024, name
+            }
+        ' "/proc/$pid/smaps" 2>/dev/null | sort -rn | head -8
+    fi
+    printf '\n'
+
+    printf '=== JS heap footprint ===\n'
+    if [[ -r "/proc/$pid/smaps" ]]; then
+        local jsgc_maps jsgc_deleted jsgc_rss_kb
+        read -r jsgc_maps jsgc_deleted jsgc_rss_kb < <(awk '
+            /^[0-9a-f]+-[0-9a-f]+/ { is_jsgc=($0 ~ /JSGCHeap/); is_deleted=($0 ~ /\(deleted\)/) }
+            is_jsgc && /^Rss:/ { maps++; if (is_deleted) deleted++; rss+=$2 }
+            END { printf "%d %d %d\n", maps+0, deleted+0, rss+0 }
+        ' "/proc/$pid/smaps" 2>/dev/null)
+        printf '  JSGCHeap RSS:       %d MB\n' "$((jsgc_rss_kb / 1024))"
+        printf '  JSGCHeap mappings:  %s total, %s deleted\n' "$jsgc_maps" "$jsgc_deleted"
+        if [[ "$jsgc_deleted" -ge 50 ]]; then
+            recommendations+=("Many deleted JSGCHeap mappings ($jsgc_deleted). This points at QML Loader/context churn; see #163/#164.")
+        fi
+    else
+        printf '  (smaps is not readable)\n'
+    fi
+    printf '\n'
+
+    printf '=== Font cache footprint ===\n'
+    if [[ -r "/proc/$pid/smaps" ]]; then
+        local font_total font_unique
+        font_total="$(awk '
+            /^[0-9a-f]+-/ { name=""; if (NF>=6) name=$6 }
+            /^Rss:/ { if (name ~ /\.(ttf|otf)$/) total+=$2 }
+            END { print int(total/1024) }
+        ' "/proc/$pid/smaps" 2>/dev/null)"
+        font_unique="$(awk '
+            /^[0-9a-f]+-/ { name=""; if (NF>=6) name=$6 }
+            /^Rss:/ { if (name ~ /\.(ttf|otf)$/) seen[name]++ }
+            END { for (k in seen) printf "%4d× %s\n", seen[k], k }
+        ' "/proc/$pid/smaps" 2>/dev/null | sort -rn | head -5)"
+        printf '  Total fonts RSS:  %s MB\n' "${font_total:-0}"
+        printf '  Top fonts (mappings × file):\n'
+        if [[ -n "$font_unique" ]]; then
+            printf '%s\n' "$font_unique" | sed 's/^/    /'
+        else
+            printf '    (none)\n'
+        fi
+        local material_maps
+        material_maps="$(awk '/MaterialSymbolsRounded\.(ttf|otf)( \(deleted\))?$/{c++} END{print c+0}' "/proc/$pid/maps" 2>/dev/null)"
+        if [[ "$material_maps" -ge 10 ]]; then
+            recommendations+=("MaterialSymbolsRounded mapped $material_maps times — variable font cache thrash. See #158.")
+        fi
+    fi
+    printf '\n'
+
+    printf '=== Sensor selection ===\n'
+    local cfg_path monitor_gpu sensor_lines gpu_usage_source hybrid_runtime runtime_path runtime_status
+    cfg_path="$(inir_config_file)"
+    monitor_gpu="(unknown)"
+    if [[ -f "$cfg_path" ]] && command -v jq >/dev/null 2>&1; then
+        monitor_gpu="$(jq -r '.resources.monitorGpu // true' "$cfg_path" 2>/dev/null || echo '(unknown)')"
+    fi
+    sensor_lines="$(_inir_perf_detect_temp_paths)"
+    if [[ -n "$sensor_lines" ]]; then
+        while IFS=: read -r sensor_type sensor_path sensor_label sensor_temp; do
+            case "$sensor_type" in
+                cpu) printf '  CPU temp:       %s = %s°C (%s)\n' "$sensor_path" "$sensor_temp" "$sensor_label" ;;
+                gpu) printf '  GPU temp:       %s = %s°C (%s)\n' "$sensor_path" "$sensor_temp" "$sensor_label" ;;
+            esac
+        done <<< "$sensor_lines"
+    else
+        printf '  CPU/GPU temp:   no hwmon or thermal_zone sensor selected\n'
+    fi
+    gpu_usage_source="$(_inir_perf_detect_gpu_usage_source)"
+    case "$gpu_usage_source" in
+        sysfs:*) printf '  GPU usage:      sysfs %s\n' "${gpu_usage_source#sysfs:}" ;;
+        nvidia-smi:*) printf '  GPU usage:      nvidia-smi %s\n' "${gpu_usage_source#nvidia-smi:}" ;;
+        *) printf '  GPU usage:      none\n' ;;
+    esac
+    hybrid_runtime="$(_inir_perf_detect_hybrid_runtime)"
+    if [[ "$hybrid_runtime" == dgpu:* ]]; then
+        runtime_path="${hybrid_runtime#dgpu:}"
+        runtime_status="$(cat "$runtime_path" 2>/dev/null || true)"
+        printf '  Hybrid dGPU:    %s = %s\n' "$runtime_path" "${runtime_status:-unknown}"
+        if [[ "$monitor_gpu" == "true" && "$runtime_status" == "active" ]]; then
+            recommendations+=("GPU monitoring is enabled while the dGPU is active. Try disabling Resource Monitor GPU polling to test idle temperature.")
+        fi
+    else
+        printf '  Hybrid dGPU:    none detected\n'
+    fi
+    printf '  GPU monitoring: %s\n' "$monitor_gpu"
+    printf '\n'
+
+    printf '=== Graphics and media ===\n'
+    local rhi_entry rhi_request render_loop_entry render_loop qt_platform_entry qt_platform
+    local wayland_entry wayland_display ffmpeg_entry ffmpeg_policy ffmpeg_hwaccels
+    local qsg_threads ffmpeg_demuxers ffmpeg_video_renderers ffmpeg_audio_renderers decoder_workers
+    local libva_loaded="no" render_node_fds
+    rhi_entry="$(_inir_perf_proc_env_entry "$pid" QSG_RHI_BACKEND)"
+    rhi_request="${rhi_entry#*=}"
+    [[ -n "$rhi_entry" ]] || rhi_request="auto"
+    render_loop_entry="$(_inir_perf_proc_env_entry "$pid" QSG_RENDER_LOOP)"
+    render_loop="${render_loop_entry#*=}"
+    [[ -n "$render_loop_entry" ]] || render_loop="auto"
+    qt_platform_entry="$(_inir_perf_proc_env_entry "$pid" QT_QPA_PLATFORM)"
+    qt_platform="${qt_platform_entry#*=}"
+    [[ -n "$qt_platform_entry" ]] || qt_platform="auto"
+    wayland_entry="$(_inir_perf_proc_env_entry "$pid" WAYLAND_DISPLAY)"
+    wayland_display="${wayland_entry#*=}"
+    [[ -n "$wayland_entry" ]] || wayland_display="unset"
+    ffmpeg_entry="$(_inir_perf_proc_env_entry "$pid" QT_FFMPEG_DECODING_HW_DEVICE_TYPES)"
+    if [[ -z "$ffmpeg_entry" ]]; then
+        ffmpeg_policy="auto"
+    elif [[ -z "${ffmpeg_entry#*=}" ]]; then
+        ffmpeg_policy="disabled (empty backend list)"
+        recommendations+=("Qt FFmpeg hardware decoding is disabled by an empty QT_FFMPEG_DECODING_HW_DEVICE_TYPES value.")
+    else
+        ffmpeg_policy="${ffmpeg_entry#*=}"
+    fi
+
+    qsg_threads="$(ps -T -p "$pid" -o comm= 2>/dev/null | awk '$0 ~ /^QSGRenderThread/ {count++} END {print count+0}')"
+    ffmpeg_demuxers="$(ps -T -p "$pid" -o comm= 2>/dev/null | awk '$0 ~ /^QFFmpeg::Demuxe/ {count++} END {print count+0}')"
+    ffmpeg_video_renderers="$(ps -T -p "$pid" -o comm= 2>/dev/null | awk '$0 ~ /^QFFmpeg::VideoR/ {count++} END {print count+0}')"
+    ffmpeg_audio_renderers="$(ps -T -p "$pid" -o comm= 2>/dev/null | awk '$0 ~ /^QFFmpeg::AudioR/ {count++} END {print count+0}')"
+    decoder_workers="$(ps -T -p "$pid" -o comm= 2>/dev/null | awk '$0 ~ /^av:/ {count++} END {print count+0}')"
+    [[ -r "/proc/$pid/maps" ]] && grep -q '/libva[^/]*\.so' "/proc/$pid/maps" 2>/dev/null && libva_loaded="yes"
+    render_node_fds="$(for fd in "/proc/$pid"/fd/*; do
+        [[ -e "$fd" ]] || continue
+        readlink "$fd" 2>/dev/null || true
+    done | awk '$0 ~ /^\/dev\/dri\/renderD[0-9]+$/ {count++} END {print count+0}')"
+
+    printf '  RHI requested:        %s\n' "$rhi_request"
+    printf '  RHI observed:         %s\n' "$(_inir_perf_observed_rhi "$pid")"
+    if [[ "$render_loop" == auto && "$qsg_threads" -gt 0 ]]; then
+        render_loop="threaded (observed)"
+    fi
+    printf '  Render loop:          %s (%s QSG render threads)\n' "$render_loop" "$qsg_threads"
+    printf '  Qt platform:          %s | Wayland display: %s\n' "$qt_platform" "$wayland_display"
+    printf '  Qt FFmpeg policy:     %s\n' "$ffmpeg_policy"
+    if command -v ffmpeg >/dev/null 2>&1; then
+        ffmpeg_hwaccels="$(ffmpeg -hide_banner -hwaccels 2>/dev/null | awk 'NR > 1 && NF { values = values (values ? ", " : "") $1 } END { print values }')"
+        printf '  FFmpeg hwaccels:      %s\n' "${ffmpeg_hwaccels:-(none reported)}"
+    else
+        printf '  FFmpeg hwaccels:      ffmpeg unavailable\n'
+    fi
+
+    local vaapi_drivers="" va_driver va_name
+    declare -A vaapi_seen=()
+    for va_driver in /usr/lib/dri/*_drv_video.so /usr/lib64/dri/*_drv_video.so; do
+        [[ -f "$va_driver" ]] || continue
+        va_name="$(basename -- "$va_driver")"
+        [[ -n "${vaapi_seen[$va_name]:-}" ]] && continue
+        vaapi_seen[$va_name]=1
+        vaapi_drivers+="${vaapi_drivers:+, }$va_name"
+    done
+    printf '  VA-API drivers:       %s\n' "${vaapi_drivers:-(none found)}"
+    printf '  VA-API runtime:       libva loaded=%s, render-node FDs=%s\n' "$libva_loaded" "$render_node_fds"
+    printf '  Qt Multimedia:        %s demuxer, %s video, %s audio, %s codec workers\n' \
+        "$ffmpeg_demuxers" "$ffmpeg_video_renderers" "$ffmpeg_audio_renderers" "$decoder_workers"
+
+    printf '  DRM devices:\n'
+    local drm_rows drm_card drm_render drm_driver drm_vendor drm_device drm_boot drm_access
+    drm_rows="$(_inir_perf_drm_devices)"
+    if [[ -n "$drm_rows" ]]; then
+        while IFS=$'\t' read -r drm_card drm_render drm_driver drm_vendor drm_device drm_boot drm_access; do
+            printf '    %s -> %s, driver=%s, vendor=%s, device=%s, boot_vga=%s, render_access=%s\n' \
+                "$drm_card" "$drm_render" "$drm_driver" "$drm_vendor" "$drm_device" "$drm_boot" "$drm_access"
+        done <<< "$drm_rows"
+    else
+        printf '    (none found)\n'
+    fi
+
+    printf '  Open media files:\n'
+    local media_rows media_count media_path duplicate_media=false
+    media_rows="$(_inir_perf_open_media "$pid")"
+    if [[ -n "$media_rows" ]]; then
+        while IFS=$'\t' read -r media_count media_path; do
+            printf '    %s× %s\n' "$media_count" "$media_path"
+            [[ "$media_count" =~ ^[0-9]+$ && "$media_count" -gt 1 ]] && duplicate_media=true
+        done <<< "$media_rows"
+    else
+        printf '    (none)\n'
+    fi
+    $duplicate_media && recommendations+=("The same media file is open more than once inside Quickshell; inspect duplicate visible video surfaces or retained decoders.")
+
+    printf '  Mapped layer surfaces:\n'
+    local layer_names layer_count
+    layer_names="$(_inir_perf_layer_names "$pid")"
+    if [[ -n "$layer_names" ]]; then
+        layer_count="$(printf '%s\n' "$layer_names" | awk 'NF {count++} END {print count+0}')"
+        printf '    %s total: %s\n' "$layer_count" "$(printf '%s\n' "$layer_names" | awk 'NF { value = value (value ? ", " : "") $0 } END { print value }')"
+    else
+        printf '    unavailable (not Niri, missing socket, or compositor query failed)\n'
+    fi
+    printf '\n'
+
+    printf '=== Child processes ===\n'
+    { pgrep -P "$pid" -a 2>/dev/null || true; } | awk '{
+        cmd=""
+        for (i=2; i<=NF; i++) cmd = cmd (i>2 ? " " : "") $i
+        printf "  PID %s  %s\n", $1, cmd
+    }'
+    local cava_count
+    cava_count="$({ pgrep -P "$pid" cava 2>/dev/null || true; } | wc -l | tr -d ' ')"
+    if [[ "$cava_count" -ge 2 ]]; then
+        recommendations+=("Cava duplication ($cava_count processes for one audio stream). See #160.")
+    fi
+    printf '\n'
+
+    printf '=== inir.service cgroup ===\n'
+    local unit_info unit_cgroup unit_main_pid unit_memory cgroup_rows=""
+    local saw_awww=false saw_wlcopy=false saw_possible_app=false
+    unit_info=""
+    if has_usable_systemd_user_manager; then
+        unit_info="$(systemctl --user show -p MainPID -p ControlGroup -p MemoryCurrent inir.service 2>/dev/null || true)"
+    fi
+    unit_main_pid="$(printf '%s\n' "$unit_info" | awk -F= '$1=="MainPID"{print $2}')"
+    unit_cgroup="$(printf '%s\n' "$unit_info" | awk -F= '$1=="ControlGroup"{print $2}')"
+    unit_memory="$(printf '%s\n' "$unit_info" | awk -F= '$1=="MemoryCurrent"{print $2}')"
+    [[ -n "$unit_memory" && "$unit_memory" =~ ^[0-9]+$ ]] && printf '  MemoryCurrent: %d MB\n' "$((unit_memory / 1024 / 1024))"
+    [[ -n "$unit_cgroup" ]] && printf '  ControlGroup:  %s\n' "$unit_cgroup"
+    [[ -n "$unit_main_pid" && "$unit_main_pid" != "0" ]] && printf '  MainPID:       %s\n' "$unit_main_pid"
+
+    local proc_dir proc_pid proc_cgroup proc_comm proc_cmd proc_rss proc_ppid proc_note proc_rss_mb
+    for proc_dir in /proc/[0-9]*; do
+        proc_pid="${proc_dir##*/}"
+        proc_cgroup="$(cat "$proc_dir/cgroup" 2>/dev/null || true)"
+        if [[ -n "$unit_cgroup" ]]; then
+            [[ "$proc_cgroup" == *"$unit_cgroup"* ]] || continue
+        else
+            [[ "$proc_cgroup" == */inir.service* ]] || continue
+        fi
+        proc_comm="$(cat "$proc_dir/comm" 2>/dev/null || true)"
+        proc_cmd="$(tr '\0' ' ' < "$proc_dir/cmdline" 2>/dev/null || true)"
+        proc_cmd="${proc_cmd% }"
+        proc_cmd="${proc_cmd//$'\t'/ }"
+        [[ -n "$proc_cmd" ]] || proc_cmd="[$proc_comm]"
+        proc_rss="$(awk '/^VmRSS:/{print $2}' "$proc_dir/status" 2>/dev/null || true)"
+        proc_ppid="$(awk '/^PPid:/{print $2}' "$proc_dir/status" 2>/dev/null || true)"
+        proc_rss="${proc_rss:-0}"
+        proc_ppid="${proc_ppid:-?}"
+        proc_rss_mb="$((proc_rss / 1024))"
+        proc_note=""
+        if [[ "$proc_comm" == "qs" ]]; then
+            proc_note="shell"
+        elif [[ "$proc_comm" == "awww-daemon" ]]; then
+            proc_note="wallpaper daemon counted under iNiR"
+            saw_awww=true
+        elif [[ "$proc_comm" == "wl-copy" ]]; then
+            proc_note="clipboard helper counted under iNiR"
+            saw_wlcopy=true
+        elif [[ "$proc_comm" == "cava" ]]; then
+            proc_note="audio visualizer helper"
+        elif [[ "$proc_comm" == "nmcli" ]]; then
+            proc_note="NetworkManager monitor"
+        elif [[ "$proc_cmd" == *"keyboard_lock_state_daemon.py"* ]]; then
+            proc_note="keyboard lock daemon"
+        elif [[ "$proc_comm" == "bash" ]]; then
+            proc_note="shell helper"
+        else
+            proc_note="possible launched app/helper inside iNiR cgroup"
+            saw_possible_app=true
+        fi
+        if ((${#proc_cmd} > 120)); then
+            proc_cmd="${proc_cmd:0:117}..."
+        fi
+        cgroup_rows+="${proc_pid}"$'\t'"${proc_ppid}"$'\t'"${proc_rss_mb}"$'\t'"${proc_comm}"$'\t'"${proc_note}"$'\t'"${proc_cmd}"$'\n'
+    done
+
+    if [[ -n "$cgroup_rows" ]]; then
+        printf '  %-7s %-7s %-7s %-18s %-42s %s\n' PID PPID RSS_MB COMM NOTE COMMAND
+        printf '%s' "$cgroup_rows" | sort -n | while IFS=$'\t' read -r row_pid row_ppid row_rss row_comm row_note row_cmd; do
+            [[ -n "$row_pid" ]] || continue
+            printf '  %-7s %-7s %-7s %-18s %-42s %s\n' "$row_pid" "$row_ppid" "$row_rss" "$row_comm" "$row_note" "$row_cmd"
+        done
+    else
+        printf '  (no processes found under inir.service)\n'
+    fi
+    $saw_awww && recommendations+=("awww-daemon is inside inir.service, so cgroup tools count wallpaper daemon memory/CPU as iNiR.")
+    $saw_wlcopy && recommendations+=("wl-copy is inside inir.service; clipboard helpers may appear as iNiR resource usage.")
+    $saw_possible_app && recommendations+=("Non-shell processes are inside inir.service. Check #167 before trusting cgroup-level app totals.")
+    printf '\n'
+
+    if [[ -f "$cfg_path" ]] && command -v jq >/dev/null 2>&1; then
+        printf '=== Enabled features ===\n'
+        local style family animations effects_blur compositor_blur
+        style="$(jq -r '.appearance.globalStyle // "material"' "$cfg_path" 2>/dev/null)"
+        family="$(jq -r '.panelFamily // "ii"' "$cfg_path" 2>/dev/null)"
+        animations="$(jq -r 'if (.performance.reduceAnimations // false) then false else true end' "$cfg_path" 2>/dev/null)"
+        effects_blur="$(jq -r '.background.effects.enableBlur // false' "$cfg_path" 2>/dev/null)"
+        compositor_blur="$(jq -r '.performance.compositorBlur // true' "$cfg_path" 2>/dev/null)"
+        printf '  Config file:     %s\n' "$cfg_path"
+        printf '  Style:           %s\n' "$style"
+        printf '  Panel family:    %s\n' "$family"
+        printf '  Animations:      %s\n' "$animations"
+        printf '  Background blur: %s\n' "$effects_blur"
+        printf '  Compositor blur: %s\n' "$compositor_blur"
+        local enabled_widgets
+        enabled_widgets="$(jq -r '
+            .background.widgets // {} | to_entries[]
+            | select((.value | type) == "object" and .value.enable == true)
+            | .key
+        ' "$cfg_path" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')" || enabled_widgets=""
+        printf '  Widgets enabled: %s\n' "${enabled_widgets:-(none)}"
+        printf '\n'
+
+        if [[ "$effects_blur" == "true" && "$compositor_blur" == "false" ]]; then
+            recommendations+=("Background blur on without compositor blur — using QML blur (more expensive). Toggle compositor blur in settings for cheaper rendering.")
+        fi
+    fi
+
+    if [[ ${#recommendations[@]} -gt 0 ]]; then
+        printf '=== Recommendations ===\n'
+        local r
+        for r in "${recommendations[@]}"; do
+            printf '  - %s\n' "$r"
+        done
+        printf '\n'
+    else
+        printf '=== Recommendations ===\n  (no issues flagged by heuristics)\n\n'
+    fi
+
+    printf 'Tracker: https://github.com/snowarch/iNiR/issues/156\n'
+}
+
+check_qs_abi() {
+    # Quickshell uses Qt private APIs — any Qt minor version bump (e.g. 6.10→6.11)
+    # breaks ABI and crashes the shell on any UI interaction.
+    # This pre-check catches the issue before starting a crash loop.
+    # See: https://github.com/snowarch/iNiR/issues/93
+    local mismatch_detected=false
+    local mismatch_msg=""
+
+    # Primary: qs --version may print mismatch warning on stderr
+    local qs_output
+    qs_output="$("$qs_bin" --version 2>&1 || true)"
+    if echo "$qs_output" | grep -qiE "built against Qt|Qt.*mismatch|incompatible Qt"; then
+        mismatch_detected=true
+        mismatch_msg="$(echo "$qs_output" | grep -iE "built against Qt|Qt.*mismatch|incompatible Qt" | head -1)"
+    fi
+
+    # Secondary: compare compile-time Qt (from binary strings) vs runtime Qt (from lib symlink).
+    # Cache the result keyed on binary mtimes to avoid re-running `strings` on every start.
+    if ! $mismatch_detected && command -v strings >/dev/null 2>&1; then
+        local abi_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/inir"
+        local abi_cache_file="$abi_cache_dir/abi-check"
+        local qs_mtime qt_mtime abi_cache_key
+        qs_mtime="$(stat -c %Y "$qs_bin" 2>/dev/null || echo 0)"
+        local qt_lib_path=""
+        if [[ -e /usr/lib/libQt6Core.so.6 ]]; then
+            qt_lib_path="/usr/lib/libQt6Core.so.6"
+        elif [[ -e /usr/lib64/libQt6Core.so.6 ]]; then
+            qt_lib_path="/usr/lib64/libQt6Core.so.6"
+        fi
+        qt_mtime="$(stat -c %Y "$(readlink -f "$qt_lib_path" 2>/dev/null || echo "$qt_lib_path")" 2>/dev/null || echo 0)"
+        # v2 prefix invalidates pre-fix caches that passed under major.minor-only comparison
+        # (those would have wrongly cached a pass for e.g. 6.11.0 -> 6.11.1 patch bumps).
+        abi_cache_key="v2:${qs_mtime}:${qt_mtime}"
+
+        if [[ -f "$abi_cache_file" ]] && [[ "$(<"$abi_cache_file")" == "$abi_cache_key" ]]; then
+            # Cached pass — same binaries as last successful check
+            return 0
+        fi
+
+        local buildtime_qt=""
+        local runtime_qt=""
+        buildtime_qt="$(strings "$qs_bin" 2>/dev/null | grep -P '^6\.\d+\.\d+$' | head -1 || true)"
+        if [[ -n "$qt_lib_path" ]]; then
+            runtime_qt="$(readlink -f "$qt_lib_path" 2>/dev/null | grep -oP '[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+        fi
+        if [[ -z "$runtime_qt" ]] && command -v pkg-config >/dev/null 2>&1; then
+            runtime_qt="$(pkg-config --modversion Qt6Core 2>/dev/null || true)"
+        fi
+        # Compare full version (major.minor.patch). Quickshell warns on patch bumps too
+        # (private API changes between 6.11.0 and 6.11.1 are common), so iNiR must match.
+        if [[ -n "$buildtime_qt" && -n "$runtime_qt" && "$buildtime_qt" != "$runtime_qt" ]]; then
+            mismatch_detected=true
+            mismatch_msg="Quickshell built against Qt $buildtime_qt but system has Qt $runtime_qt"
+        fi
+
+        # Cache successful result so next start skips the expensive strings scan
+        if ! $mismatch_detected; then
+            mkdir -p "$abi_cache_dir" 2>/dev/null || true
+            printf '%s' "$abi_cache_key" > "$abi_cache_file" 2>/dev/null || true
+        fi
+    fi
+
+    if ! $mismatch_detected; then
+        return 0
+    fi
+
+    echo "" >&2
+    echo "WARNING: Quickshell was built for another Qt version" >&2
+    echo "  $mismatch_msg" >&2
+
+    # Detect stale local binary shadowing the system package
+    local stale_qs
+    if stale_qs="$(_inir_detect_stale_local_qs)" && [[ -n "$stale_qs" ]]; then
+        echo "" >&2
+        echo "NOTE: A stale local quickshell binary is shadowing the system package:" >&2
+        echo "      $stale_qs" >&2
+        echo "      Remove it: rm $stale_qs" >&2
+    fi
+
+    echo "" >&2
+    echo "Quickshell uses Qt internals and asks to be rebuilt after every Qt update. Until then it can crash." >&2
+
+    # A terminal can rebuild now. Nothing blocks the start: the shell usually runs, and a
+    # session start has no terminal to rebuild in.
+    if [[ -t 0 && -t 1 && "${_session_boot:-}" != "true" ]]; then
+        _inir_run_quickshell_rebuild interactive && return 0
+    fi
+    echo "Fix: inir doctor --fix-abi" >&2
+    echo "" >&2
+    return 0
+}
+
+# Warn if code version differs from what setup last installed.
+# Catches the case where a user does `git pull` in a repo-link checkout
+# without running `./setup update` — new QML loads via hot-reload but
+# infrastructure (launcher, migrations, config dir) stays stale.
+check_setup_version_sync() {
+    local dir="$1"
+    local code_version=""
+    local installed_version=""
+
+    # Read VERSION from the code about to be loaded
+    if [[ -f "$dir/VERSION" ]]; then
+        code_version="$(<"$dir/VERSION")"
+        code_version="${code_version%%[[:space:]]*}"
+    fi
+
+    [[ -z "$code_version" ]] && return 0
+
+    # Read version from version.json (written by setup at install/update time)
+    local version_json
+    version_json="$(inir_version_file 2>/dev/null || echo "")"
+    [[ -z "$version_json" || ! -f "$version_json" ]] && return 0
+
+    if command -v jq >/dev/null 2>&1; then
+        installed_version="$(jq -r '.version // empty' "$version_json" 2>/dev/null || true)"
+    else
+        installed_version="$(grep -o '"version"[[:space:]]*:[[:space:]]*"[^"]*"' "$version_json" 2>/dev/null \
+            | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/' || true)"
+    fi
+
+    [[ -z "$installed_version" ]] && return 0
+
+    if [[ "$code_version" != "$installed_version" ]]; then
+        echo "" >&2
+        echo "WARNING: Code version ($code_version) differs from installed version ($installed_version)" >&2
+        echo "  This usually means you updated the code (git pull) without running setup." >&2
+        echo "  Run: ./setup update   or   inir update" >&2
+        echo "" >&2
+    fi
+}
+
+canonicalize_path() {
+    local candidate="${1:-}"
+    if [[ -z "$candidate" ]]; then
+        printf '%s' "$candidate"
+        return
+    fi
+    if command -v readlink >/dev/null 2>&1; then
+        readlink -f "$candidate" 2>/dev/null || printf '%s' "$candidate"
+    else
+        printf '%s' "$candidate"
+    fi
+}
+
+detect_running_instance_dir() {
+    # Find the config directory of an already-running iNiR shell instance.
+    # Returns 0 and prints the dir if found, returns 1 otherwise.
+    local running_path=""
+
+    if command -v jq >/dev/null 2>&1; then
+        local json_output
+        json_output="$($qs_bin list --all --json 2>/dev/null || true)"
+        if [[ -n "$json_output" && "$json_output" != "[]" ]]; then
+            running_path="$(printf '%s' "$json_output" | jq -r '
+                [.[] | (.config_path // .configPath // empty) | select(endswith("/shell.qml"))]
+                | .[0] // empty
+            ' 2>/dev/null || true)"
+        fi
+    fi
+
+    # Fallback: parse text output
+    if [[ -z "$running_path" ]]; then
+        local text_output
+        text_output="$($qs_bin list --all 2>/dev/null || true)"
+        if [[ -n "$text_output" ]]; then
+            running_path="$(printf '%s' "$text_output" | sed -n 's/^[[:space:]]*Config path:[[:space:]]*//p' | grep '/shell\.qml$' | head -1)"
+        fi
+    fi
+
+    if [[ -n "$running_path" ]]; then
+        local dir="${running_path%/shell.qml}"
+        if [[ -d "$dir" && -f "$dir/shell.qml" ]]; then
+            printf '%s' "$dir"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
+apply_shell_scale() {
+    # Shell scaling is now handled entirely in QML via appearance.typography.sizeScale
+    # (live, no restart required). QT_SCALE_FACTOR must always be 1 to avoid geometry
+    # bugs where the compositor surface is larger than the Qt-rendered content area,
+    # which causes wallpaper/blur layers to appear smaller than the screen.
+    export QT_SCALE_FACTOR=1
+
+    # Qt6 changed the default rounding policy from Round to PassThrough, which
+    # allows fractional DPR but causes blurry rendering when the compositor uses
+    # fractional scaling (e.g. 1.25). RoundPreferFloor rounds 1.25→1, 1.75→2,
+    # ensuring Qt renders at integer scale and the compositor doesn't need to
+    # resample the buffer. The shell handles its own scaling in QML, so this
+    # gives us crisp pixel-perfect rendering regardless of compositor scale.
+    export QT_SCALE_FACTOR_ROUNDING_POLICY=RoundPreferFloor
+
+    # Unset DPI-forcing variables that cause blurry rendering when inherited from
+    # the user's shell environment. These override the compositor's native DPI
+    # and create a mismatch between the Qt logical size and the Wayland buffer
+    # physical size — resulting in blurry surfaces (dock, bar, tray, etc).
+    # Niri already handles HiDPI correctly; Qt should
+    # use its native DPI detection via the Wayland protocol, not forced values.
+    unset QT_WAYLAND_FORCE_DPI 2>/dev/null || true
+    unset QT_FONT_DPI 2>/dev/null || true
+    unset QT_AUTO_SCREEN_SCALE_FACTOR 2>/dev/null || true
+    unset QT_SCREEN_SCALE_FACTORS 2>/dev/null || true
+    unset GDK_SCALE 2>/dev/null || true
+    unset GDK_DPI_SCALE 2>/dev/null || true
+}
+
+wait_for_wayland_socket() {
+    # Niri is the authority for WAYLAND_DISPLAY.  Never guess another compositor
+    # socket from XDG_RUNTIME_DIR: nested compositors and gamescope can coexist.
+    if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
+        echo "Error: WAYLAND_DISPLAY is missing from the Niri session environment" >&2
+        return 1
+    fi
+
+    local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    local socket_path="$WAYLAND_DISPLAY"
+    [[ "$socket_path" == /* ]] || socket_path="$runtime_dir/$socket_path"
+    [[ -S "$socket_path" ]] && return 0
+
+    local max_polls=50  # 50 × 0.2s = 10 seconds max
+    local i=0
+
+    while (( i < max_polls )); do
+        [[ -S "$socket_path" ]] && return 0
+        sleep 0.2
+        (( i++ )) || true
+    done
+
+    echo "Error: Niri WAYLAND_DISPLAY socket did not appear: $socket_path" >&2
+    return 1
+}
+
+apply_hot_reload_policy_for_dir() {
+    local dir="$1"
+
+    if [[ -n "${INIR_DISABLE_HOT_RELOAD+x}" || -z "$dir" ]]; then
+        return
+    fi
+
+    # Developer checkouts keep .git; deployed runtime payloads do not.
+    # Disable file watching for deployed payloads to reduce startup overhead,
+    # while preserving hot reload when running directly from a git checkout.
+    if [[ -e "$dir/.git" ]]; then
+        return
+    fi
+
+    export INIR_DISABLE_HOT_RELOAD=1
+}
+
+# Cached systemd user environment. Niri publishes compositor-owned session
+# values such as WAYLAND_DISPLAY/NIRI_SOCKET here; app-facing policy can remain
+# only in Niri's KDL environment block and is mirrored separately below.
+_cached_systemd_env=""
+_cached_systemd_env_fetched=false
+
+_get_systemd_user_env() {
+    is_using_runit_supervisor && return 0
+    if [[ "$_cached_systemd_env_fetched" == true ]]; then
+        printf '%s' "$_cached_systemd_env"
+        return 0
+    fi
+    _cached_systemd_env_fetched=true
+    # Keep the lookup bounded for manual invocations outside the supervised path.
+    _cached_systemd_env="$(timeout 3s systemctl --user show-environment 2>/dev/null)" || true
+    printf '%s' "$_cached_systemd_env"
+}
+
+# The socket exists only while the user manager runs. A probe that times out is a busy manager, still systemd:
+# falling back to runit there would drive `sv` on a host that has none.
+has_usable_systemd_user_manager() {
+  [[ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/systemd/private" ]] || return 1
+  timeout 3s systemctl --user show-environment >/dev/null 2>&1
+  local rc=$?
+  [[ $rc -eq 0 || $rc -eq 124 ]]
+}
+
+is_using_runit_supervisor() {
+  ! has_usable_systemd_user_manager
+}
+
+_niri_app_environment_file() {
+    local niri_dir="${XDG_CONFIG_HOME:-$HOME/.config}/niri"
+    local root_cfg="${niri_dir}/config.kdl"
+    local modular_cfg="${niri_dir}/config.d/40-environment.kdl"
+
+    if [[ -f "$modular_cfg" ]] && { [[ ! -f "$root_cfg" ]] \
+            || grep -Eq '^[[:space:]]*include[[:space:]]+"config\.d/40-environment\.kdl"[[:space:]]*$' "$root_cfg"; }; then
+        printf '%s' "$modular_cfg"
+    elif [[ -f "$root_cfg" ]]; then
+        printf '%s' "$root_cfg"
+    fi
+}
+
+_niri_app_environment_value() {
+    local name="$1"
+    local cfg="$2"
+    [[ -n "$name" && -f "$cfg" ]] || return 0
+    sed -nE "s/^[[:space:]]*${name}[[:space:]]+\"([^\"]*)\".*/\\1/p" "$cfg" | tail -1
+}
+
+apply_niri_app_environment() {
+    local cfg
+    cfg="$(_niri_app_environment_file)"
+    [[ -n "$cfg" ]] || return 0
+
+    local name value
+    for name in XDG_MENU_PREFIX QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME \
+                QT_STYLE_OVERRIDE ELECTRON_OZONE_PLATFORM_HINT; do
+        value="$(_niri_app_environment_value "$name" "$cfg")"
+        [[ -n "$value" ]] && export "${name}=${value}"
+    done
+}
+
+apply_gpu_policy() {
+    # Pin Qt/Mesa to the iGPU on hybrid laptops so the dGPU can stay in
+    # runtime PM suspend.  Coupled to resources.monitorGpu (Settings UI):
+    # only fires when the user disabled GPU monitoring.  See #106, #136.
+    # Hard opt-out: INIR_GPU_FORCE_DEFAULT=1.
+    [[ "${INIR_GPU_FORCE_DEFAULT:-0}" == "1" ]] && return
+
+    local monitor_gpu="true"
+    if command -v jq >/dev/null 2>&1; then
+        local _gpu_cfg
+        _gpu_cfg="$(inir_config_file 2>/dev/null)"
+        if [[ -n "$_gpu_cfg" && -f "$_gpu_cfg" ]]; then
+            monitor_gpu="$(jq -r '.resources.monitorGpu // true' "$_gpu_cfg" 2>/dev/null || true)"
+            [[ -z "$monitor_gpu" ]] && monitor_gpu="true"
+        fi
+    fi
+    [[ "$monitor_gpu" == "true" ]] && return
+
+    # Hybrid detection via DRM boot_vga (1=iGPU primary, 0=dGPU secondary).
+    local igpu_pci="" has_dgpu=""
+    local card bvga_file boot_vga dev_link
+    for card in /sys/class/drm/card*; do
+        [[ -d "$card" ]] || continue
+        bvga_file="${card}/device/boot_vga"
+        [[ -f "$bvga_file" ]] || continue
+        boot_vga=$(cat "$bvga_file" 2>/dev/null)
+        if [[ "$boot_vga" == "1" && -z "$igpu_pci" ]]; then
+            dev_link=$(readlink -f "${card}/device" 2>/dev/null)
+            igpu_pci=$(printf '%s\n' "$dev_link" | grep -oE '[0-9a-f]{4}:[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]' | tail -1)
+        elif [[ "$boot_vga" == "0" ]]; then
+            has_dgpu=1
+        fi
+    done
+    [[ -z "$has_dgpu" || -z "$igpu_pci" ]] && return
+
+    # Track only variables iNiR injects for the shell. App launchers use this
+    # marker to remove shell-only GPU policy before starting user applications,
+    # so Steam/Wine/compute workloads retain the user's normal GPU selection.
+    local _gpu_policy_vars=""
+
+    # Vulkan loader: skip NVIDIA's ICD entirely (loader 1.3.207+).  Without
+    # this the loader dlopens libnvidia-* during enumeration, which is what
+    # opens the /dev/nvidia* fds in #136's lsof.
+    if [[ -z "${VK_LOADER_DRIVERS_DISABLE:-}" ]]; then
+        export VK_LOADER_DRIVERS_DISABLE="*nvidia*"
+        _gpu_policy_vars+=" VK_LOADER_DRIVERS_DISABLE"
+    fi
+    # Mesa Vulkan device-select: prefer the iGPU PCI bus.
+    if [[ -z "${MESA_VK_DEVICE_SELECT:-}" ]]; then
+        export MESA_VK_DEVICE_SELECT="pci-$igpu_pci"
+        _gpu_policy_vars+=" MESA_VK_DEVICE_SELECT"
+    fi
+    if [[ -z "${MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE:-}" ]]; then
+        export MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE=1
+        _gpu_policy_vars+=" MESA_VK_DEVICE_SELECT_FORCE_DEFAULT_DEVICE"
+    fi
+    # GLVND: OpenGL via Mesa, not NVIDIA's libGLX.
+    if [[ -z "${__GLX_VENDOR_LIBRARY_NAME:-}" ]]; then
+        export __GLX_VENDOR_LIBRARY_NAME=mesa
+        _gpu_policy_vars+=" __GLX_VENDOR_LIBRARY_NAME"
+    fi
+    if [[ -z "${__NV_PRIME_RENDER_OFFLOAD:-}" ]]; then
+        export __NV_PRIME_RENDER_OFFLOAD=0
+        _gpu_policy_vars+=" __NV_PRIME_RENDER_OFFLOAD"
+    fi
+    # Qt FFmpeg: keep the NVIDIA decoder paths out without disabling hardware
+    # decoding altogether. VAAPI uses the Mesa iGPU selected above; when VAAPI
+    # is unavailable Qt falls back to software decoding instead of waking CUDA.
+    if [[ -z "${QT_FFMPEG_DECODING_HW_DEVICE_TYPES+x}" ]]; then
+        export QT_FFMPEG_DECODING_HW_DEVICE_TYPES=vaapi
+        _gpu_policy_vars+=" QT_FFMPEG_DECODING_HW_DEVICE_TYPES"
+    fi
+    # NVIDIA optimus Vulkan layer: pretend iGPU only.
+    if [[ -z "${__VK_LAYER_NV_optimus:-}" ]]; then
+        export __VK_LAYER_NV_optimus=non_NVIDIA_only
+        _gpu_policy_vars+=" __VK_LAYER_NV_optimus"
+    fi
+    # Block legacy NVIDIA VDPAU probing; Qt Multimedia still has VAAPI above.
+    if [[ -z "${VDPAU_DRIVER:-}" ]]; then
+        export VDPAU_DRIVER=none
+        _gpu_policy_vars+=" VDPAU_DRIVER"
+    fi
+
+    if [[ -n "$_gpu_policy_vars" ]]; then
+        export INIR_SHELL_GPU_POLICY_VARS="${_gpu_policy_vars# }"
+    fi
+}
+
+apply_qt_runtime_env() {
+    # Must run before Qt reads env at QGuiApplication construction.
+    apply_gpu_policy
+    # inir.service is started by systemd, not as a direct Niri child. Mirror
+    # Niri's app-facing policy so Quickshell and apps launched through it see
+    # the same Qt platform/style values as direct compositor spawns.
+    apply_niri_app_environment
+
+    # Scene graph texture atlas.  Qt allocates one atlas per QQuickWindow, and
+    # the shell runs ~9 of them (bar, background, backdrop, dock, strip, pill,
+    # plus instantiated-but-hidden panels).  The 2048x2048 default costs 16 MB
+    # of GPU memory each — 144 MB of atlas before drawing anything.  1024x1024
+    # holds every icon/glyph the shell actually batches; measured 1007 MB ->
+    # 785 MB RSS with no visual change.  Qt spills to additional atlases if one
+    # fills, so nothing breaks if a texture doesn't fit.
+    [[ -z "${QSG_ATLAS_WIDTH:-}" ]] && export QSG_ATLAS_WIDTH=1024
+    [[ -z "${QSG_ATLAS_HEIGHT:-}" ]] && export QSG_ATLAS_HEIGHT=1024
+
+    # Quickshell links jemalloc, whose defaults (4 arenas per core, 10 s dirty
+    # decay) keep what the QML engine and the video decoders free: ~290 MB on a
+    # 16-thread machine with a live wallpaper. Two arenas and a 1 s decay give
+    # it back with no measurable CPU cost.
+    [[ -z "${MALLOC_CONF:-}" ]] && export MALLOC_CONF="background_thread:true,narenas:2,dirty_decay_ms:1000,muzzy_decay_ms:0,tcache_max:4096"
+    # Mesa's GL worker thread buys nothing behind Qt's own render threads and
+    # costs ~50 MB across the shell's windows. The mesa_glthread variable prints
+    # a notice for every GL context (~2000 journal lines a day), so it is turned
+    # off through a driconf app profile: the system drirc.d plus one file.
+    if [[ -z "${mesa_glthread:-}" && -z "${DRIRC_CONFIGDIR:-}" ]]; then
+        local _drirc_sys _drirc_dir="${XDG_RUNTIME_DIR:-/tmp}/inir/drirc.d"
+        for _drirc_sys in /usr/share/drirc.d /usr/local/share/drirc.d /run/opengl-driver/share/drirc.d ""; do
+            [[ -n "$_drirc_sys" && -d "$_drirc_sys" ]] && break
+        done
+        if [[ -n "$_drirc_sys" ]] && rm -rf "$_drirc_dir" && mkdir -p "$_drirc_dir" \
+                && ln -s "$_drirc_sys"/*.conf "$_drirc_dir"/ 2>/dev/null \
+                && printf '%s\n' '<?xml version="1.0" standalone="yes"?>' '<driconf><device>' \
+                    '<application name="Quickshell" executable="qs"><option name="mesa_glthread_app_profile" value="0"/></application>' \
+                    '<application name="Quickshell" executable="quickshell"><option name="mesa_glthread_app_profile" value="0"/></application>' \
+                    '</device></driconf>' > "$_drirc_dir/99-inir.conf"; then
+            export DRIRC_CONFIGDIR="$_drirc_dir"
+        else
+            export mesa_glthread=false
+        fi
+    fi
+
+    # Qt platform theme drives icon resolution (QIcon::fromTheme) and widget styling.
+    # Override via INIR_QT_QPA_PLATFORMTHEME / INIR_QT_STYLE_OVERRIDE if needed.
+    if [[ -n "${INIR_QT_QPA_PLATFORMTHEME+x}" ]]; then
+        export QT_QPA_PLATFORMTHEME="$INIR_QT_QPA_PLATFORMTHEME"
+    elif [[ -z "${QT_QPA_PLATFORMTHEME:-}" ]]; then
+        # Session doesn't provide a platform theme — detect a sane default.
+        # Without this, Qt can't resolve icon themes and all icons show as missing.
+        if command -v kwriteconfig6 &>/dev/null \
+                || [[ -f /usr/lib/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so ]] \
+                || [[ -f /usr/lib64/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so ]] \
+                || [[ -f /usr/lib/x86_64-linux-gnu/qt6/plugins/platformthemes/KDEPlasmaPlatformTheme6.so ]]; then
+            export QT_QPA_PLATFORMTHEME=kde
+        elif command -v gsettings &>/dev/null && [[ -f /usr/lib/qt6/plugins/platformthemes/libqgtk3.so || -f /usr/lib64/qt6/plugins/platformthemes/libqgtk3.so ]]; then
+            export QT_QPA_PLATFORMTHEME=gtk3
+        fi
+    fi
+
+    if [[ -n "${INIR_QT_STYLE_OVERRIDE+x}" ]]; then
+        export QT_STYLE_OVERRIDE="$INIR_QT_STYLE_OVERRIDE"
+    fi
+
+    # Ensure XDG_DATA_DIRS includes standard icon paths — some sessions omit it.
+    if [[ -z "${XDG_DATA_DIRS:-}" ]]; then
+        export XDG_DATA_DIRS="/usr/local/share:/usr/share"
+        [[ -d "$HOME/.local/share/flatpak/exports/share" ]] && \
+            XDG_DATA_DIRS="$HOME/.local/share/flatpak/exports/share:$XDG_DATA_DIRS"
+        [[ -d "/var/lib/flatpak/exports/share" ]] && \
+            XDG_DATA_DIRS="/var/lib/flatpak/exports/share:$XDG_DATA_DIRS"
+        true
+    fi
+
+    # Import missing session values from the user manager.  Niri is the sole
+    # authority for compositor-owned variables; this only copies published state
+    # into manual/recovery invocations and never probes sockets to manufacture it.
+    local _qs_sys_env
+    _qs_sys_env="$(_get_systemd_user_env)"
+    if [[ -n "$_qs_sys_env" ]]; then
+        local _qs_var _qs_val
+        for _qs_var in WAYLAND_DISPLAY NIRI_SOCKET DISPLAY \
+                       XDG_SESSION_TYPE XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION \
+                       XCURSOR_THEME XCURSOR_SIZE \
+                       LANG LC_ALL XDG_MENU_PREFIX \
+                       ELECTRON_OZONE_PLATFORM_HINT QT_STYLE_OVERRIDE \
+                       GDK_BACKEND; do
+            if [[ -z "${!_qs_var:-}" ]]; then
+                _qs_val="$(grep "^${_qs_var}=" <<< "$_qs_sys_env" | head -1 | cut -d= -f2- || true)"
+                [[ -n "$_qs_val" ]] && export "${_qs_var}=${_qs_val}"
+            fi
+        done
+        # Use the manager's rich PATH (set by compositor + PAM login) which
+        # includes user dirs (~/.local/bin, flatpak exports, nvm, pnpm, etc.)
+        # absent from the minimal systemd unit PATH. ShellExec repeats this
+        # synchronization at user-app launch time to avoid a stale snapshot.
+        local _qs_sys_path
+        _qs_sys_path="$(grep '^PATH=' <<< "$_qs_sys_env" | head -1 | cut -d= -f2- || true)"
+        if [[ -n "$_qs_sys_path" && "$_qs_sys_path" != "$PATH" ]]; then
+            local _qs_merged="$_qs_sys_path"
+            for _qs_p in /usr/local/bin /usr/bin; do
+                case ":${_qs_merged}:" in
+                    *":${_qs_p}:"*) ;;
+                    *) _qs_merged="${_qs_merged}:${_qs_p}" ;;
+                esac
+            done
+            export PATH="$_qs_merged"
+        fi
+    fi
+
+    if inir_resolve_niri_service_environment; then
+        export NIRI_SOCKET="$INIR_RESOLVED_NIRI_SOCKET"
+        export WAYLAND_DISPLAY="$INIR_RESOLVED_WAYLAND_DISPLAY"
+    fi
+
+    # Electron Wayland hint for the shell's startup environment and legacy
+    # internal child paths. User-facing apps take the live user-manager value
+    # through ShellExec, so this fallback never becomes a forced app policy.
+    if [[ -z "${ELECTRON_OZONE_PLATFORM_HINT:-}" ]]; then
+        export ELECTRON_OZONE_PLATFORM_HINT=auto
+    fi
+
+}
+
+apply_qt_logging_rules() {
+    local extra_rules="quickshell.dbus.properties=false;qt.qml.settings.warning=false;qt.core.qsettings.warning=false;kf.xmlgui=false;kf.coreaddons=false;kf.config.core=false;kf.iconthemes=false;qt.qpa.wayland.textinput.warning=false"
+
+    if [[ -z "${QT_LOGGING_RULES:-}" ]]; then
+        export QT_LOGGING_RULES="$extra_rules"
+        return
+    fi
+
+    case ";${QT_LOGGING_RULES};" in
+        *";qt.qpa.wayland.textinput.warning=false;"*)
+            ;;
+        *)
+            export QT_LOGGING_RULES="${QT_LOGGING_RULES};${extra_rules}"
+            ;;
+    esac
+}
+
+resolve_config_dir() {
+    if [[ -n "$config_dir" ]]; then
+        if [[ ! -f "$config_dir/shell.qml" ]]; then
+            echo "Invalid iNiR config path: $config_dir" >&2
+            exit 1
+        fi
+        config_dir="$(canonicalize_path "$config_dir")"
+        return
+    fi
+
+    # Prefer the path of an already-running instance to avoid path-identity
+    # mismatches where the launcher would target a different path than the
+    # running shell (e.g. dev repo vs setup-installed symlink).
+    # Skip this probe during session boot (no running instance, saves a qs subprocess).
+    if [[ "${_skip_running_detect:-}" != true ]]; then
+        local running
+        if running="$(detect_running_instance_dir)"; then
+            config_dir="$(canonicalize_path "$running")"
+            return
+        fi
+    fi
+
+    local candidate
+    for candidate in "$user_config_dir" "$system_config_dir" "$fallback_system_config_dir"; do
+        if [[ -n "$candidate" && -f "$candidate/shell.qml" ]]; then
+            config_dir="$(canonicalize_path "$candidate")"
+            return
+        fi
+    done
+
+    echo "Could not find an iNiR shell payload" >&2
+    exit 1
+}
+
+list_instances() {
+    local -a args=(-p "$1" list)
+    if [[ -z "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" ]]; then
+        args+=(--any-display)
+    fi
+    "$qs_bin" "${args[@]}" 2>/dev/null || true
+}
+
+import_running_instance_environment() {
+    local dir="$1"
+
+    # Outside a graphical session, recover the authoritative environment from the live shell.
+    if [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]; then
+        return 0
+    fi
+
+    local target_qml pid env_file proc_root
+    target_qml="$(readlink -f "$dir/shell.qml" 2>/dev/null || printf '%s' "$dir/shell.qml")"
+    pid="$("$qs_bin" list --all 2>/dev/null | awk -v target="$target_qml" '
+        /^[[:space:]]*Process ID:/ { candidate=$3 }
+        /^[[:space:]]*Config path:/ {
+            path=$0
+            sub(/^[[:space:]]*Config path:[[:space:]]*/, "", path)
+            if (path == target && candidate != "") { print candidate; exit }
+            candidate=""
+        }
+    ')"
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+
+    proc_root="${INIR_PROC_ROOT:-/proc}"
+    env_file="$proc_root/$pid/environ"
+    [[ -r "$env_file" ]] || return 1
+
+    local key value
+    while IFS='=' read -r key value; do
+        case "$key" in
+            XDG_RUNTIME_DIR|WAYLAND_DISPLAY|NIRI_SOCKET|DBUS_SESSION_BUS_ADDRESS|QT_QPA_PLATFORM|XDG_SESSION_TYPE|XDG_CURRENT_DESKTOP|XDG_SESSION_DESKTOP|PATH|LANG|LC_ALL)
+                export "$key=$value"
+                ;;
+        esac
+    done < <(tr '\0' '\n' < "$env_file")
+
+    [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]
+}
+
+has_instances() {
+    local output
+    output="$(list_instances "$1")"
+    [[ -n "$output" && "$output" != No\ running\ instances* ]]
+}
+
+qml_window_pids() {
+    local qml_path="$1"
+    "$qs_bin" list --all 2>/dev/null | awk -v target="$qml_path" '
+        /^[[:space:]]*Process ID:/ { pid=$3 }
+        /^[[:space:]]*Config path:/ {
+            path=$0
+            sub(/^[[:space:]]*Config path:[[:space:]]*/, "", path)
+            if (path == target && pid != "") print pid
+            pid=""
+        }
+    '
+}
+
+has_qml_window_instance() {
+    [[ -n "$(qml_window_pids "$1")" ]]
+}
+
+terminate_qml_window() {
+    local qml_path="$1"
+    local signal="${2:-TERM}"
+    local pid
+    while IFS= read -r pid; do
+        [[ -n "$pid" ]] || continue
+        kill -s "$signal" "$pid" >/dev/null 2>&1 || true
+    done < <(qml_window_pids "$qml_path")
+}
+
+ensure_running_instance() {
+    local dir="$1"
+
+    import_running_instance_environment "$dir" >/dev/null 2>&1 || true
+
+    if has_instances "$dir"; then
+        return 0
+    fi
+
+    apply_shell_scale
+    apply_qt_runtime_env
+    apply_qt_logging_rules
+    check_qs_abi
+    start_background "$dir"
+    wait_for_start "$dir"
+}
+
+ensure_running_instance_for_ipc() {
+    local dir="$1"
+    local function_name="${2:-}"
+
+    import_running_instance_environment "$dir" >/dev/null 2>&1 || true
+
+    if has_instances "$dir"; then
+        return 0
+    fi
+
+    case "$function_name" in
+        close|hide|deactivate|dismiss)
+            return 0
+            ;;
+    esac
+
+    ensure_running_instance "$dir"
+}
+
+wait_for_start() {
+    local dir="$1"
+    local poll
+    for ((poll = 0; poll < max_polls; poll++)); do
+        if has_instances "$dir"; then
+            return 0
+        fi
+        sleep "$poll_delay"
+    done
+    return 1
+}
+
+wait_for_stop() {
+    local dir="$1"
+    local poll
+    for ((poll = 0; poll < max_polls; poll++)); do
+        local output
+        output="$(list_instances "$dir")"
+        if [[ "$output" == No\ running\ instances* ]]; then
+            return 0
+        fi
+        sleep "$poll_delay"
+    done
+    return 1
+}
+
+wait_for_qml_window_stop() {
+    local qml_path="$1"
+    local poll
+    for ((poll = 0; poll < max_polls; poll++)); do
+        if ! has_qml_window_instance "$qml_path"; then
+            return 0
+        fi
+        sleep "$poll_delay"
+    done
+    return 1
+}
+
+is_inir_service_enabled() {
+    if is_using_runit_supervisor; then
+        # For runit, check if the service directory exists and has an executable run script
+        [[ -x "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir/run" ]]
+        return $?
+    fi
+
+    if ! command -v systemctl >/dev/null 2>&1; then
+        return 1
+    fi
+
+    # The unit has no [Install] section — enablement is managed by a wants link
+    # under the compositor service (e.g. niri.service.wants/inir.service).
+    # Only count links under compositor-specific dirs, not graphical-session.target
+    # (which fires under any DE including KDE/GNOME).
+    local wants_dir
+    for wants_dir in "$systemd_user_dir"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        # Skip graphical-session.target.wants — it's not compositor-specific
+        [[ "$(basename "$wants_dir")" == "graphical-session.target.wants" ]] && continue
+        if [[ -e "$wants_dir/inir.service" || -L "$wants_dir/inir.service" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+detect_compositor_service() {
+    # iNiR is a Niri shell.  niri.service is the only valid lifecycle owner;
+    # never fall back to graphical-session.target or another compositor unit.
+    if systemctl --user cat niri.service &>/dev/null; then
+        printf 'niri.service\n'
+        return 0
+    fi
+    return 1
+}
+
+start_inir_service_if_enabled() {
+    if is_inir_service_enabled; then
+        if is_using_runit_supervisor; then
+            sv up "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" >/dev/null 2>&1
+            return 0
+        fi
+        ensure_service_unit_available
+        systemctl --user reset-failed inir.service >/dev/null 2>&1 || true
+        systemctl --user start inir.service >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    return 1
+}
+
+start_background() {
+    local dir="$1"
+    if is_inir_service_enabled; then
+        if is_using_runit_supervisor; then
+            sv up "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" >/dev/null 2>&1
+            return 0
+        fi
+        ensure_service_unit_available
+        systemctl --user reset-failed inir.service >/dev/null 2>&1 || true
+        systemctl --user start inir.service >/dev/null 2>&1 || true
+        return 0
+    fi
+
+    apply_hot_reload_policy_for_dir "$dir"
+    nohup "$qs_bin" -n -d -p "$dir" >/dev/null 2>&1 &
+}
+
+kill_wrapper() {
+    return 0
+}
+
+# Clean up stale Quickshell runtime entries and orphaned qs processes.
+# Called by ExecStopPost in inir.service after crashes where KillMode=process
+# only terminated the main PID, leaving child processes and runtime artifacts.
+cleanup_orphans() {
+    local qs_runtime_dir="/run/user/$(id -u)/quickshell"
+
+    [[ -d "$qs_runtime_dir" ]] || return 0
+
+    # Phase 1: Prune stale by-pid entries (PIDs that no longer exist).
+    # by-pid/PID is a symlink to by-id/INSTANCE_ID.
+    if [[ -d "$qs_runtime_dir/by-pid" ]]; then
+        for pidfile in "$qs_runtime_dir/by-pid"/*; do
+            [[ -e "$pidfile" || -L "$pidfile" ]] || continue
+            local pid
+            pid="$(basename "$pidfile")"
+            if ! kill -0 "$pid" 2>/dev/null; then
+                rm -rf "$pidfile" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    # Phase 2: Prune orphaned by-id instance directories.
+    # An instance dir is orphaned if no by-pid symlink points to it.
+    if [[ -d "$qs_runtime_dir/by-id" ]]; then
+        local live_targets=()
+        # Collect targets of surviving by-pid symlinks
+        for pidfile in "$qs_runtime_dir/by-pid"/*; do
+            [[ -L "$pidfile" ]] || continue
+            local target
+            target="$(readlink -f "$pidfile" 2>/dev/null || true)"
+            [[ -n "$target" ]] && live_targets+=("$target")
+        done
+
+        for iddir in "$qs_runtime_dir/by-id"/*/; do
+            [[ -d "$iddir" ]] || continue
+            local idpath
+            idpath="$(realpath "$iddir" 2>/dev/null || true)"
+            # Keep if referenced by a live by-pid symlink
+            local is_live=false
+            for t in "${live_targets[@]}"; do
+                if [[ "$t" == "$idpath" ]]; then
+                    is_live=true
+                    break
+                fi
+            done
+            if [[ "$is_live" == false ]]; then
+                rm -rf "$iddir" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    # Phase 3: Prune stale by-shell entries (dangling symlinks or empty dirs)
+    if [[ -d "$qs_runtime_dir/by-shell" ]]; then
+        for shelldir in "$qs_runtime_dir/by-shell"/*; do
+            [[ -d "$shelldir" ]] || continue
+            for entry in "$shelldir"/*; do
+                [[ -e "$entry" || -L "$entry" ]] || continue
+                # Remove dangling symlinks
+                if [[ -L "$entry" && ! -e "$entry" ]]; then
+                    rm -f "$entry" 2>/dev/null || true
+                fi
+            done
+            # Remove shelldir if empty
+            rmdir "$shelldir" 2>/dev/null || true
+        done
+    fi
+
+    # Phase 4: Kill only orphaned Quickshell processes that still belong to
+    # inir.service. A foreground `qs -p ...` or another Quickshell config is not
+    # owned by this service and must survive its ExecStopPost cleanup.
+    local alive_pids service_main_pid=""
+    if has_usable_systemd_user_manager; then
+        service_main_pid="$(systemctl --user show -p MainPID inir.service 2>/dev/null | cut -d= -f2 || true)"
+    elif command -v sv >/dev/null 2>&1; then
+        service_main_pid="$(sv status "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" 2>/dev/null | sed -n 's/.*(pid \([0-9][0-9]*\)).*/\1/p')"
+    fi
+    alive_pids="$(pgrep -x 'quickshell|qs' 2>/dev/null || true)"
+    if [[ -n "$alive_pids" ]]; then
+        while IFS= read -r pid; do
+            [[ -n "$pid" ]] || continue
+            [[ "$pid" == "$service_main_pid" ]] && continue
+            local qs_cgroup
+            qs_cgroup="$(cat "/proc/$pid/cgroup" 2>/dev/null || true)"
+            [[ "$qs_cgroup" == *"/inir.service"* ]] || continue
+            kill "$pid" 2>/dev/null || true
+        done <<< "$alive_pids"
+    fi
+
+    # Runit reparents helpers to PID 1, so runtime paths are the ownership boundary.
+    local _pid _cgroup _ppid _cmdline _runtime_root _owned
+    local _using_runit=false
+    is_using_runit_supervisor && _using_runit=true
+    while IFS= read -r _pid; do
+        [[ -n "$_pid" ]] || continue
+        _ppid="$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -d ' ' || true)"
+        # Skip processes owned by the live service main pid or its children
+        if [[ -n "$service_main_pid" && "$service_main_pid" != "0" ]]; then
+            [[ "$_ppid" == "$service_main_pid" ]] && continue
+        fi
+
+        if [[ "$_using_runit" == true ]]; then
+            [[ "$_ppid" == "1" ]] || continue
+            _cmdline="$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null || true)"
+            _owned=false
+            for _runtime_root in "$user_config_dir" "$system_config_dir" "$fallback_system_config_dir"; do
+                if [[ "$_cmdline" == *"$_runtime_root/scripts/daemon/keyboard_lock_state_daemon.py"* ]] \
+                        || { [[ "$_cmdline" == *"/swayidle -w"* ]] && [[ "$_cmdline" == *"$_runtime_root/scripts/inir"* ]]; }; then
+                    _owned=true
+                    break
+                fi
+            done
+            [[ "$_owned" == true ]] || continue
+        else
+            _cgroup="$(cat /proc/$_pid/cgroup 2>/dev/null || true)"
+            [[ "$_cgroup" == *"inir.service"* ]] || continue
+        fi
+        kill "$_pid" 2>/dev/null || true
+    done < <(pgrep -f 'keyboard_lock_state_daemon\.py|nmcli monitor|/usr/bin/swayidle -w' 2>/dev/null || true)
+
+    # Phase 6: Thumbnail generation uses a multiprocessing pool. Older runs
+    # could outlive qs because KillMode=process intentionally preserves apps
+    # launched from the shell. Limit cleanup to iNiR's own thumbnail commands
+    # inside this service cgroup; never match arbitrary Python or user jobs.
+    local _thumb_pattern='scripts/thumbnails/(thumbgen-venv\.sh|thumbgen\.py|generate-thumbnails-magick\.sh)'
+    local _thumb_pids=()
+    while IFS= read -r _pid; do
+        [[ -n "$_pid" ]] || continue
+        _thumb_pids+=("$_pid")
+        kill "$_pid" 2>/dev/null || true
+    done < <(pgrep -f "$_thumb_pattern" 2>/dev/null || true)
+
+    if (( ${#_thumb_pids[@]} > 0 )); then
+        sleep 0.2
+        for _pid in "${_thumb_pids[@]}"; do
+            kill -0 "$_pid" 2>/dev/null || continue
+            kill -KILL "$_pid" 2>/dev/null || true
+        done
+    fi
+}
+
+kill_shell() {
+    local dir="$1"
+    # Kill the wrapper first so it doesn't respawn qs after we kill it.
+    kill_wrapper "$dir"
+    # qs kill only kills one instance per invocation — loop until all are gone.
+    local attempts=0
+    while (( attempts < 10 )); do
+        "$qs_bin" -p "$dir" kill >/dev/null 2>&1 || break
+        attempts=$((attempts + 1))
+        sleep 0.2
+    done
+    # Fallback: if qs kill didn't clean up, send SIGTERM to remaining qs processes.
+    local remaining escaped_dir
+    escaped_dir="$(printf '%s' "$dir" | sed 's/[.[\*^$()+|/]/\\&/g')"
+    remaining="$(pgrep -f "${qs_bin}.*-p.*${escaped_dir}" 2>/dev/null || true)"
+    if [[ -n "$remaining" ]]; then
+        while IFS= read -r pid; do
+            [[ -n "$pid" ]] || continue
+            kill "$pid" >/dev/null 2>&1 || true
+        done <<< "$remaining"
+    fi
+}
+
+restart_shell() {
+    local dir="$1"
+    local quiet="${2:-}"
+
+    if is_inir_service_enabled; then
+        if ! is_using_runit_supervisor; then
+            ensure_service_unit_available
+        fi
+        [[ -z "$quiet" ]] && printf 'Restarting iNiR service... '
+        restart_inir_service_or_fail "$dir" "$quiet"
+        return 0
+    fi
+
+    if has_instances "$dir"; then
+        [[ -z "$quiet" ]] && printf 'Stopping iNiR... '
+        kill_shell "$dir"
+        if ! wait_for_stop "$dir"; then
+            echo "Timed out waiting for iNiR to stop" >&2
+            exit 1
+        fi
+        [[ -z "$quiet" ]] && printf 'done.\n'
+    fi
+
+    [[ -z "$quiet" ]] && printf 'Starting iNiR... '
+    start_background "$dir"
+    if ! wait_for_start "$dir"; then
+        echo "Timed out waiting for iNiR to start" >&2
+        exit 1
+    fi
+    [[ -z "$quiet" ]] && printf 'done.\n'
+
+    if [[ -z "$quiet" ]]; then
+        # Brief pause to let QML initialization settle before checking logs
+        sleep 1
+        local errors
+        errors="$("$qs_bin" -p "$dir" log 2>/dev/null | grep -iE 'error|ReferenceError|TypeError|binding loop' | tail -10 || true)"
+        if [[ -n "$errors" ]]; then
+            printf '\n\033[33m── errors in recent logs ──\033[0m\n'
+            printf '%s\n' "$errors"
+        fi
+    fi
+}
+
+open_settings() {
+    local dir="$1"
+
+    if ! ensure_running_instance "$dir"; then
+        echo "Timed out waiting for iNiR to start" >&2
+        exit 1
+    fi
+
+    exec "$qs_bin" -p "$dir" ipc call settings open
+}
+
+toggle_settings() {
+    local dir="$1"
+
+    if ! ensure_running_instance "$dir"; then
+        echo "Timed out waiting for iNiR to start" >&2
+        exit 1
+    fi
+
+    exec "$qs_bin" -p "$dir" ipc call settings toggle
+}
+
+open_detached_qml_window() {
+    local dir="$1"
+    local entry="$2"
+    local mode="${3:-open}"
+    local qml_path="$dir/$entry"
+
+    if [[ ! -f "$qml_path" ]]; then
+        echo "Could not find $entry in $dir" >&2
+        exit 1
+    fi
+
+    # Serialize concurrent launches of the same entry point (e.g. rapid
+    # keyboard-shortcut presses while the shell is unresponsive).  The lock
+    # covers only the check-kill-launch window; it is released before exec
+    # so child processes of qs (e.g. kde-material-you-colors) don't inherit
+    # and leak it.
+    local lock_file="${TMPDIR:-/tmp}/inir-launch-${entry%.qml}.lock"
+    exec 9>"$lock_file"
+    if ! flock -n 9; then
+        echo "$entry launch already in progress" >&2
+        exit 0
+    fi
+
+    if has_qml_window_instance "$qml_path"; then
+        if [[ "$mode" != "toggle" ]]; then
+            exec 9>&-
+            return 0
+        fi
+
+        terminate_qml_window "$qml_path"
+        if ! wait_for_qml_window_stop "$qml_path"; then
+            terminate_qml_window "$qml_path" KILL
+            if ! wait_for_qml_window_stop "$qml_path"; then
+                echo "Timed out waiting for $entry to stop" >&2
+                exit 1
+            fi
+        fi
+        exec 9>&-
+        return 0
+    fi
+
+    apply_qt_runtime_env
+    apply_qt_logging_rules
+    exec 9>&-
+    exec "$qs_bin" -n -p "$qml_path"
+}
+
+resolve_setup_dir() {
+    if [[ -x "$launcher_root/setup" && -f "$launcher_root/shell.qml" ]]; then
+        printf '%s' "$launcher_root"
+        return
+    fi
+
+    local version_file
+    version_file="$(inir_version_file)"
+    local stored_repo=""
+    if [[ -f "$version_file" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            stored_repo=$(jq -r '.repoPath // .repo_path // empty' "$version_file" 2>/dev/null || true)
+        else
+            stored_repo=$(sed -n 's/.*"repoPath"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$version_file" | head -1)
+            [[ -n "$stored_repo" ]] || stored_repo=$(sed -n 's/.*"repo_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$version_file" | head -1)
+        fi
+    fi
+
+    stored_repo="${stored_repo/#\~/$HOME}"
+    if [[ -n "$stored_repo" && -e "${stored_repo}/.git" && -x "${stored_repo}/setup" && -f "${stored_repo}/shell.qml" ]]; then
+        printf '%s' "$stored_repo"
+        return
+    fi
+
+    resolve_config_dir
+    printf '%s' "$config_dir"
+}
+
+run_setup_command() {
+    local dir="$1"
+    shift
+    local setup_script="$dir/setup"
+
+    if [[ ! -x "$setup_script" ]]; then
+        echo "setup not found in $dir" >&2
+        exit 1
+    fi
+
+    export INIR_INVOKED_FROM="$PWD"
+    cd "$dir"
+    exec ./setup "$@"
+}
+
+run_setup_inline() {
+    local dir="$1"
+    shift
+    local setup_script="$dir/setup"
+
+    if [[ ! -x "$setup_script" ]]; then
+        echo "setup not found in $dir" >&2
+        exit 1
+    fi
+
+    (
+        cd "$dir"
+        ./setup "$@"
+    )
+}
+
+resolve_launcher_path() {
+    local candidate="${INIR_LAUNCHER_PATH:-}"
+    if [[ -n "$candidate" ]]; then
+        printf '%s' "$candidate"
+        return
+    fi
+
+    candidate="$(command -v inir 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        printf '%s' "$candidate"
+        return
+    fi
+
+    if command -v readlink >/dev/null 2>&1; then
+        readlink -f "$0" 2>/dev/null || printf '%s' "$0"
+    else
+        printf '%s' "$0"
+    fi
+}
+
+show_logs() {
+    resolve_config_dir
+
+    # --debug restarts the shell in the FOREGROUND with QS_DEBUG=1 and no category
+    # filtering, so the internal _log() telemetry and every framework category are
+    # actually EMITTED to stdout (the service unit's Environment= would otherwise
+    # re-impose filtering). Ctrl+C stops it; the normal service can be restarted after.
+    if [[ "${1:-}" == "--debug" ]]; then
+        echo "Stopping shell and relaunching in foreground with full debug logging." >&2
+        echo "(QS_DEBUG=1, no QT_LOGGING_RULES filtering — Ctrl+C to stop, then 'inir restart')" >&2
+        if ! stop_inir_service_if_active; then
+            echo "Unable to stop the supervised iNiR service" >&2
+            return 1
+        fi
+        kill_shell "$config_dir"
+        sleep 1
+        exec env QS_DEBUG=1 QT_LOGGING_RULES= "$qs_bin" -p "$config_dir"
+    fi
+
+    if [[ $# -eq 0 ]] && is_using_runit_supervisor; then
+        exec sv status "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir"
+    fi
+
+    # --full decodes the ENTIRE qslog with no category filtering. Quickshell records
+    # every message regardless of the process QT_LOGGING_RULES; the filter only hides
+    # categories at decode time. Passing *=true surfaces everything that was logged,
+    # including the kf.*/qt.qml.*/dbus.properties categories hidden by the default view.
+    if [[ "${1:-}" == "--full" ]]; then
+        shift
+        exec "$qs_bin" -p "$config_dir" log --rules "*=true" "$@"
+    fi
+
+    if [[ "${1:-}" == "--issues" ]]; then
+        "$qs_bin" -p "$config_dir" log 2>&1 \
+            | sed -E 's/\x1b\[[0-9;]*m//g' \
+            | awk '
+                /(WARN|ERROR|CRIT|FATAL)/ || /Binding loop|TypeError|ReferenceError|is not a type|unavailable|non-existent/ {
+                    line = $0
+                    gsub(/0x[0-9a-f]+/, "0x_", line)
+                    gsub(/^[[:space:]]+/, "", line)
+                    if (!(line in count)) order[++n] = line
+                    count[line]++
+                }
+                END {
+                    if (n == 0) { print "No warnings or errors since the shell started."; exit }
+                    for (i = 1; i <= n; i++) printf "%5d  %s\n", count[order[i]], order[i]
+                }'
+        return
+    fi
+
+    local lines=50
+    if [[ "${1:-}" == "-n" && -n "${2:-}" ]]; then
+        lines="$2"
+    fi
+    "$qs_bin" -p "$config_dir" log | tail -n "$lines"
+}
+
+run_repair() {
+    local dir="$1"
+
+    printf '\n== running doctor ==\n'
+    run_setup_inline "$dir" doctor
+
+    if [[ -z "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" && -z "${NIRI_SOCKET:-}" ]]; then
+        printf '\n== no graphical session ==\n'
+        printf 'doctor finished, but restart was skipped because there is no live display.\n'
+        return
+    fi
+
+    printf '\n== restarting shell ==\n'
+    kill_shell "$dir"
+    sleep 1
+    apply_shell_scale
+    start_background "$dir"
+    if ! wait_for_start "$dir"; then
+        echo "Timed out waiting for iNiR to start during repair" >&2
+        exit 1
+    fi
+
+    printf 'repair restart finished\n'
+    printf '\n== recent logs ==\n'
+    show_logs
+    printf '\n== filtered errors ==\n'
+    "$qs_bin" -p "$dir" log | grep -iE 'error|ReferenceError|TypeError|binding loop' | tail -80 || true
+}
+
+run_local_test() {
+    local dir="$1"
+    shift
+    local test_script="$dir/scripts/test-local-distribution.sh"
+
+    if [[ ! -x "$test_script" ]]; then
+        echo "local test script not found in $dir" >&2
+        exit 1
+    fi
+
+    INIR_RUNTIME_DIR="$dir" INIR_LAUNCHER_PATH="$0" exec "$test_script" "$@"
+}
+
+run_runtime_script() {
+    local dir="$1"
+    local relative_path="$2"
+    shift 2
+    local script_path="$dir/$relative_path"
+
+    if [[ ! -x "$script_path" ]]; then
+        echo "runtime script not found or not executable: $script_path" >&2
+        exit 1
+    fi
+
+    exec "$script_path" "$@"
+}
+
+normalize_ipc_target() {
+    # Try registry aliases first (comprehensive, auto-generated).
+    if source_ipc_registry 2>/dev/null && [[ -n "${IPC_KEBAB_ALIASES[$1]+_}" ]]; then
+        printf '%s\n' "${IPC_KEBAB_ALIASES[$1]}"
+        return
+    fi
+
+    # Hardcoded fallback for when registry is unavailable.
+    case "$1" in
+        alt-switcher) printf '%s\n' "altSwitcher" ;;
+        close-confirm) printf '%s\n' "closeConfirm" ;;
+        control-panel) printf '%s\n' "controlPanel" ;;
+        media-controls) printf '%s\n' "mediaControls" ;;
+        osd-volume) printf '%s\n' "osdVolume" ;;
+        panel-family) printf '%s\n' "panelFamily" ;;
+        shell-update) printf '%s\n' "shellUpdate" ;;
+        sidebar-left) printf '%s\n' "sidebarLeft" ;;
+        sidebar-right) printf '%s\n' "sidebarRight" ;;
+        voice-search) printf '%s\n' "voiceSearch" ;;
+        wallpaper-selector) printf '%s\n' "wallpaperSelector" ;;
+        *)
+            printf '%s\n' "$1"
+            ;;
+    esac
+}
+
+# --- IPC target help and validation (Steps 5-7) ---
+
+ipc_target_help() {
+    local target="$1"
+
+    if ! source_ipc_registry 2>/dev/null; then
+        printf '%s — no registry available. See docs/IPC.md.\n' "$target" >&2
+        return 1
+    fi
+
+    if [[ -z "${IPC_TARGET_FUNCTIONS[$target]+_}" ]]; then
+        return 1
+    fi
+
+    local desc="${IPC_TARGET_DESC[$target]:-}"
+    local family="${IPC_TARGET_FAMILY[$target]:-shared}"
+    local funcs_str="${IPC_TARGET_FUNCTIONS[$target]:-}"
+    local example="${IPC_TARGET_EXAMPLE[$target]:-}"
+
+    # Header
+    if [[ -n "$desc" ]]; then
+        printf '%s — %s\n' "$target" "$desc"
+    else
+        printf '%s\n' "$target"
+    fi
+    printf '\n'
+
+    # Functions
+    if [[ -n "$funcs_str" ]]; then
+        printf 'Available functions:\n'
+        local fn
+        for fn in $funcs_str; do
+            local fn_desc="${IPC_FUNCTION_DESC["$target:$fn"]:-}"
+            local fn_args="${IPC_FUNCTION_ARGS["$target:$fn"]:-}"
+            local display_name="$fn"
+            if [[ -n "$fn_args" ]]; then
+                display_name="$fn $fn_args"
+            fi
+            if [[ -n "$fn_desc" ]]; then
+                printf '  %-28s %s\n' "$display_name" "$fn_desc"
+            else
+                printf '  %s\n' "$display_name"
+            fi
+        done
+        printf '\n'
+    fi
+
+    # Family
+    case "$family" in
+        shared) printf 'Family: shared (works across panel families)\n' ;;
+        ii)     printf 'Family: ii panel family only\n' ;;
+        waffle) printf 'Family: waffle panel family only\n' ;;
+        iris)   printf 'Family: iris panel family only\n' ;;
+    esac
+
+    # Example keybind
+    if [[ -n "$example" ]]; then
+        printf '\nExample keybind:\n'
+        local line
+        while IFS= read -r line; do
+            printf '  %s\n' "$line"
+        done <<< "$example"
+    fi
+}
+
+suggest_ipc_target() {
+    local input="$1"
+
+    if ! source_ipc_registry 2>/dev/null; then
+        return 1
+    fi
+
+    local suggestions=()
+    local t
+
+    # 1. Exact kebab alias match (already handled by normalize, but just in case)
+    if [[ -n "${IPC_KEBAB_ALIASES[$input]+_}" ]]; then
+        suggestions+=("${IPC_KEBAB_ALIASES[$input]}")
+    fi
+
+    # 2. Substring match
+    for t in "${IPC_ALL_TARGETS[@]}"; do
+        if [[ "$t" == *"$input"* || "${t,,}" == *"${input,,}"* ]]; then
+            local already=false
+            local s
+            for s in "${suggestions[@]+"${suggestions[@]}"}"; do
+                if [[ "$s" == "$t" ]]; then already=true; break; fi
+            done
+            if [[ "$already" == false ]]; then
+                suggestions+=("$t")
+            fi
+        fi
+    done
+
+    # 3. Prefix match (first 3+ chars)
+    if [[ ${#input} -ge 3 ]]; then
+        local prefix="${input:0:3}"
+        for t in "${IPC_ALL_TARGETS[@]}"; do
+            if [[ "${t:0:3}" == "$prefix" || "${t,,}" == "${prefix,,}"* ]]; then
+                local already=false
+                local s
+                for s in "${suggestions[@]+"${suggestions[@]}"}"; do
+                    if [[ "$s" == "$t" ]]; then already=true; break; fi
+                done
+                if [[ "$already" == false ]]; then
+                    suggestions+=("$t")
+                fi
+            fi
+        done
+    fi
+
+    if [[ ${#suggestions[@]} -eq 0 ]]; then
+        return 1
+    fi
+
+    printf 'Did you mean?\n'
+    for t in "${suggestions[@]}"; do
+        local desc="${IPC_TARGET_DESC[$t]:-}"
+        desc="${desc%%.*}"
+        if [[ -n "$desc" ]]; then
+            printf '  %-24s %s\n' "$t" "$desc"
+        else
+            printf '  %s\n' "$t"
+        fi
+    done
+    return 0
+}
+
+validate_ipc_function() {
+    local target="$1"
+    local func="$2"
+
+    # Only validate if registry is available and target is known.
+    # Unknown targets pass through for plugin extensibility.
+    if ! source_ipc_registry 2>/dev/null; then
+        return 0
+    fi
+
+    if [[ -z "${IPC_TARGET_FUNCTIONS[$target]+_}" ]]; then
+        # Target not in registry — could be a plugin target, pass through.
+        return 0
+    fi
+
+    local funcs_str="${IPC_TARGET_FUNCTIONS[$target]}"
+    local fn
+    for fn in $funcs_str; do
+        if [[ "$fn" == "$func" ]]; then
+            return 0
+        fi
+    done
+
+    # Function not found — show available functions
+    printf "Unknown function '%s' for target '%s'.\n\n" "$func" "$target" >&2
+    ipc_target_help "$target" >&2
+    exit 1
+}
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "$1 not found" >&2
+        exit 1
+    fi
+}
+
+is_inir_service_active() {
+    if is_using_runit_supervisor; then
+        sv status "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" 2>/dev/null | grep -q '^run:'
+        return $?
+    fi
+    if ! command -v systemctl >/dev/null 2>&1; then
+        return 1
+    fi
+
+    systemctl --user is-active --quiet inir.service >/dev/null 2>&1
+}
+
+is_current_process_inir_service() {
+    if is_using_runit_supervisor; then
+        return 1
+    fi
+    grep -q '/inir\.service' "/proc/$$/cgroup" 2>/dev/null
+}
+
+stop_inir_service_if_active() {
+    if is_using_runit_supervisor; then
+        is_inir_service_active || return 0
+        sv down "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" >/dev/null 2>&1
+        return $?
+    fi
+    is_inir_service_active || return 0
+    systemctl --user stop inir.service >/dev/null 2>&1
+    return $?
+}
+
+restart_inir_service_if_active() {
+    # Only check — actual restart is done by restart_inir_service_or_fail.
+    is_inir_service_active
+}
+
+report_inir_service_failure() {
+    local lines="${1:-20}"
+
+    if is_using_runit_supervisor; then
+        printf '\n\033[31m── inir runit service status ──\033[0m\n' >&2
+        sv status "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" 2>&1 | sed -n '1,18p' >&2 || true
+        return 0
+    fi
+
+    if ! command -v systemctl >/dev/null 2>&1; then
+        return 1
+    fi
+
+    printf '\n\033[31m── inir.service status ──\033[0m\n' >&2
+    systemctl --user status inir.service --no-pager 2>&1 | sed -n '1,18p' >&2 || true
+
+    if command -v journalctl >/dev/null 2>&1; then
+        printf '\n\033[31m── recent inir.service logs ──\033[0m\n' >&2
+        journalctl --user-unit inir.service -n "$lines" --no-pager 2>&1 >&2 || true
+    fi
+
+    return 0
+}
+
+restart_inir_service_or_fail() {
+    local dir="$1"
+    local quiet="${2:-}"
+
+    if is_using_runit_supervisor; then
+        if ! sv restart "${XDG_CONFIG_HOME:-$HOME/.config}/service/inir" >/dev/null 2>&1; then
+            echo "Unable to restart the runit iNiR service" >&2
+            exit 1
+        fi
+        if ! wait_for_start "$dir"; then
+            echo "Timed out waiting for iNiR to start" >&2
+            report_inir_service_failure
+            exit 1
+        fi
+        if ! is_inir_service_active; then
+            echo "iNiR service failed to start" >&2
+            report_inir_service_failure
+            exit 1
+        fi
+        [[ -z "$quiet" ]] && printf 'done.\n'
+        return 0
+    fi
+
+    ensure_service_unit_available
+    systemctl --user reset-failed inir.service >/dev/null 2>&1 || true
+    systemctl --user restart inir.service >/dev/null 2>&1 || true
+
+    if ! wait_for_start "$dir"; then
+        echo "Timed out waiting for iNiR to start" >&2
+        report_inir_service_failure
+        exit 1
+    fi
+
+    if ! systemctl --user is-active --quiet inir.service >/dev/null 2>&1; then
+        echo "iNiR service failed to start" >&2
+        report_inir_service_failure
+        exit 1
+    fi
+
+    [[ -z "$quiet" ]] && printf 'done.\n'
+    return 0
+}
+
+install_user_service() {
+    local setup_dir
+    local asset_path
+    local launcher_path
+    local tmp_file
+    local version_file install_mode
+
+    require_command systemctl
+    setup_dir="$(canonicalize_path "$(resolve_setup_dir)")"
+    asset_path="$setup_dir/assets/systemd/inir.service"
+    launcher_path="$(resolve_launcher_path)"
+    version_file="$(inir_version_file 2>/dev/null || true)"
+    install_mode="$(current_install_mode)"
+    if [[ -z "$install_mode" || "$install_mode" == "unknown" ]]; then
+        local launcher_real repo_launcher_real
+        launcher_real="$(readlink -f "$launcher_path" 2>/dev/null || true)"
+        repo_launcher_real="$(readlink -f "$setup_dir/scripts/inir" 2>/dev/null || true)"
+        if [[ -e "$setup_dir/.git" && -n "$launcher_real" && "$launcher_real" == "$repo_launcher_real" ]]; then
+            install_mode="repo-link"
+        fi
+    fi
+
+    if [[ ! -f "$asset_path" ]]; then
+        echo "service asset not found in $setup_dir" >&2
+        exit 1
+    fi
+
+    if [[ "$install_mode" == "package-managed" ]]; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        local fragment_path
+        fragment_path="$(systemctl --user show -p FragmentPath --value inir.service 2>/dev/null || true)"
+        if [[ ! -f "$fragment_path" ]]; then
+            echo "packaged inir.service is not available; reinstall the iNiR package" >&2
+            return 1
+        fi
+        printf '%s\n' "$fragment_path"
+        return 0
+    fi
+
+    mkdir -p "$systemd_user_dir"
+    mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}"
+    local service_state
+    service_state="$(systemctl --user is-enabled inir.service 2>/dev/null || true)"
+    if [[ "$service_state" == "masked" || "$service_state" == "masked-runtime" ]]; then
+        systemctl --user unmask inir.service >/dev/null 2>&1 || true
+        systemctl --user unmask --runtime inir.service >/dev/null 2>&1 || true
+    fi
+    local service_dropin_dir="$systemd_user_dir/inir.service.d"
+    local service_override="$service_dropin_dir/override.conf"
+    if [[ "$install_mode" == "repo-link" ]]; then
+        # Developer installs stay live: both launcher and unit resolve directly
+        # to the checkout.  Keep launcher-specific Exec paths in a tiny drop-in
+        # so the portable package template remains valid at /usr/bin/inir.
+        rm -f "$systemd_user_dir/inir.service"
+        ln -s "$asset_path" "$systemd_user_dir/inir.service"
+        mkdir -p "$service_dropin_dir"
+        tmp_file="${XDG_CACHE_HOME:-$HOME/.cache}/inir.service.override.$$"
+        cat > "$tmp_file" <<EOF
+# Managed locally: iNiR repo-link launcher override
+[Service]
+ExecStart=
+ExecStart=${launcher_path} run --session
+ExecStopPost=
+ExecStopPost=-${launcher_path} cleanup-orphans
+EOF
+        cp -f "$tmp_file" "$service_override"
+        rm -f "$tmp_file"
+    else
+        tmp_file="${XDG_CACHE_HOME:-$HOME/.cache}/inir.service.$$"
+        local escaped_launcher="${launcher_path//&/\\&}"
+        sed -e "s|^ExecStart=.*|ExecStart=${escaped_launcher} run --session|" \
+            -e "s|^ExecStopPost=-.*|ExecStopPost=-${escaped_launcher} cleanup-orphans|" \
+            "$asset_path" > "$tmp_file"
+        rm -f "$systemd_user_dir/inir.service"
+        cp -f "$tmp_file" "$systemd_user_dir/inir.service"
+        rm -f "$tmp_file"
+
+        if [[ -f "$service_override" ]] && grep -q '^# Managed locally:' "$service_override"; then
+            rm -f "$service_override"
+            rmdir "$service_dropin_dir" 2>/dev/null || true
+        fi
+    fi
+
+    # Migrate: remove old WantedBy=graphical-session.target symlink left by
+    # previous versions that used [Install] + systemctl enable.  This is the
+    # link that caused inir to spawn under KDE/GNOME.
+    cleanup_stale_wants_links
+
+    systemctl --user daemon-reload
+    printf '%s\n' "$systemd_user_dir/inir.service"
+}
+
+cleanup_stale_wants_links() {
+    # Remove inir.service wants links from targets it should NOT be wired to.
+    # Previous versions used WantedBy=graphical-session.target which caused
+    # inir to start under any DE.  Remove that, and only keep the link if it
+    # lives under the detected compositor service.
+    local correct_target
+    correct_target="$(detect_compositor_service 2>/dev/null)" || correct_target=""
+    local correct_wants_dir=""
+    [[ -n "$correct_target" ]] && correct_wants_dir="$systemd_user_dir/${correct_target}.wants"
+
+    local wants_dir
+    for wants_dir in "$systemd_user_dir"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        local link="$wants_dir/inir.service"
+        [[ -e "$link" || -L "$link" ]] || continue
+        # Keep the link if it's under the correct compositor
+        if [[ -n "$correct_wants_dir" ]] && \
+           [[ "$(realpath "$wants_dir" 2>/dev/null)" == "$(realpath "$correct_wants_dir" 2>/dev/null)" ]]; then
+            continue
+        fi
+        rm -f "$link"
+    done
+}
+
+enable_inir_service() {
+    # Wire inir.service to the compositor's wants directory so it starts
+    # only when that specific compositor starts — not under KDE/GNOME/etc.
+    require_command systemctl
+    ensure_service_unit_available
+
+    local target
+    target="$(detect_compositor_service 2>/dev/null)" || true
+
+    if [[ -z "$target" ]]; then
+        echo "ERROR: niri.service is not available." >&2
+        echo "       Start Niri as a managed session, then re-run 'inir service enable'." >&2
+        return 1
+    fi
+
+    local wants_dir="$systemd_user_dir/${target}.wants"
+    local service_path
+    service_path="$(systemctl --user show -p FragmentPath --value inir.service 2>/dev/null || true)"
+    [[ -f "$service_path" ]] || service_path="$systemd_user_dir/inir.service"
+
+    mkdir -p "$wants_dir"
+    ln -sf "$service_path" "$wants_dir/inir.service"
+    systemctl --user daemon-reload
+
+    printf 'Enabled inir.service (wired to %s)\n' "$target"
+}
+
+disable_inir_service() {
+    # Remove all wants links for inir.service and stop the service.
+    require_command systemctl
+
+    systemctl --user stop inir.service 2>/dev/null || true
+
+    local found=false
+    local wants_dir
+    for wants_dir in "$systemd_user_dir"/*.wants; do
+        [[ -d "$wants_dir" ]] || continue
+        local link="$wants_dir/inir.service"
+        if [[ -e "$link" || -L "$link" ]]; then
+            rm -f "$link"
+            found=true
+        fi
+    done
+
+    systemctl --user daemon-reload
+
+    if [[ "$found" == true ]]; then
+        echo "Disabled inir.service"
+    else
+        echo "inir.service was not enabled"
+    fi
+}
+
+ensure_service_unit_available() {
+    # Always reinstall the service template to pick up improvements (e.g. KillMode,
+    # rate limits). install_user_service is cheap — just a sed + cp + daemon-reload.
+    install_user_service >/dev/null
+
+    # Warn if effective KillMode isn't process — child apps (e.g. mpv) would be
+    # killed on shell restart until the user runs 'inir service install'.
+    local effective_killmode
+    effective_killmode=$(systemctl --user show -p KillMode inir.service 2>/dev/null | cut -d= -f2)
+    if [ -n "$effective_killmode" ] && [ "$effective_killmode" != "process" ]; then
+        echo "WARNING: inir.service KillMode is '$effective_killmode' (expected 'process') — run 'inir service install' to fix" >&2
+    fi
+}
+
+run_service_command() {
+    local action="${1:-status}"
+    shift || true
+
+    local runit_service_dir="${XDG_CONFIG_HOME:-$HOME/.config}/service/inir"
+
+    if is_using_runit_supervisor; then
+        require_command sv
+        if [[ ! -x "$runit_service_dir/run" ]]; then
+            echo "runit service not installed at $runit_service_dir" >&2
+            return 1
+        fi
+        case "$action" in
+            install)
+                echo "Runit service already installed at $runit_service_dir"
+                ;;
+            uninstall|remove)
+                sv down "$runit_service_dir" >/dev/null 2>&1 || true
+                rm -rf "$runit_service_dir"
+                echo "Removed runit service"
+                ;;
+            enable)
+                sv up "$runit_service_dir" >/dev/null 2>&1
+                echo "Enabled runit service"
+                ;;
+            disable)
+                sv down "$runit_service_dir" >/dev/null 2>&1
+                echo "Disabled runit service"
+                ;;
+            start)
+                exec sv up "$runit_service_dir"
+                ;;
+            stop)
+                exec sv down "$runit_service_dir"
+                ;;
+            restart)
+                exec sv restart "$runit_service_dir"
+                ;;
+            status)
+                exec sv status "$runit_service_dir" "$@"
+                ;;
+            logs)
+                exec sv status "$runit_service_dir" "$@"
+                ;;
+            -h|--help|"")
+                service_usage
+                exit 0
+                ;;
+            *)
+                echo "Unknown service action: $action" >&2
+                exit 1
+                ;;
+        esac
+        return 0
+    fi
+
+    case "$action" in
+        install)
+            install_user_service
+            ;;
+        uninstall|remove)
+            disable_inir_service 2>/dev/null || true
+            require_command systemctl
+            rm -f "$systemd_user_dir/inir.service"
+            if [[ -f "$systemd_user_dir/inir.service.d/override.conf" ]] \
+                    && grep -q '^# Managed locally:' "$systemd_user_dir/inir.service.d/override.conf"; then
+                rm -f "$systemd_user_dir/inir.service.d/override.conf"
+                rmdir "$systemd_user_dir/inir.service.d" 2>/dev/null || true
+            fi
+            systemctl --user daemon-reload
+            echo "Uninstalled inir.service"
+            ;;
+        enable)
+            enable_inir_service
+            ;;
+        disable)
+            disable_inir_service
+            ;;
+        start)
+            ensure_service_unit_available
+            exec systemctl --user start inir.service
+            ;;
+        stop)
+            exec systemctl --user stop inir.service
+            ;;
+        restart)
+            ensure_service_unit_available
+            exec systemctl --user restart inir.service
+            ;;
+        status)
+            exec systemctl --user status inir.service "$@"
+            ;;
+        logs)
+            require_command journalctl
+            if [[ "${1:-}" == "--full" ]]; then
+                shift
+                local cfg_path
+                cfg_path="$(readlink -f "${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/inir" 2>/dev/null)"
+                [[ -z "$cfg_path" ]] && cfg_path="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/inir"
+                exec qs -p "$cfg_path" log --rules "*=true" "$@"
+            fi
+            exec journalctl --user-unit inir.service "$@"
+            ;;
+        -h|--help|"")
+            service_usage
+            exit 0
+            ;;
+        *)
+            echo "Unknown service action: $action" >&2
+            exit 1
+            ;;
+    esac
+}
+
+show_version() {
+    local json=false
+    local runtime_path=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --json)
+                json=true
+                shift
+                ;;
+            -h|--help)
+                echo "Usage: inir version [--json]" >&2
+                exit 0
+                ;;
+            *)
+                echo "Unknown option: $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+
+    # Prefer running instance path for accurate version display
+    local running
+    if running="$(detect_running_instance_dir)"; then
+        runtime_path="$(canonicalize_path "$running")"
+    else
+        local candidate
+        for candidate in "$config_dir" "$user_config_dir" "$system_config_dir" "$fallback_system_config_dir"; do
+            if [[ -n "$candidate" && -f "$candidate/shell.qml" ]]; then
+                runtime_path="$candidate"
+                break
+            fi
+        done
+    fi
+
+    local runtime_version_file=""
+    local local_version_file
+    local_version_file="$(inir_version_file)"
+    local version_file=""
+
+    if [[ -n "$runtime_path" ]]; then
+        runtime_version_file="$runtime_path/version.json"
+    fi
+
+    local runtime_install_mode=""
+    if [[ -n "$runtime_version_file" && -f "$runtime_version_file" ]] && command -v jq >/dev/null 2>&1; then
+        runtime_install_mode="$(jq -r '.installMode // .install_mode // empty' "$runtime_version_file" 2>/dev/null || true)"
+    fi
+
+    if [[ -n "${INIR_RUNTIME_DIR:-}" && -n "$runtime_version_file" && -f "$runtime_version_file" ]]; then
+        version_file="$runtime_version_file"
+    elif [[ "$runtime_install_mode" == "package-managed" ]]; then
+        version_file="$runtime_version_file"
+    elif [[ -f "$local_version_file" ]]; then
+        version_file="$local_version_file"
+    elif [[ -n "$runtime_version_file" && -f "$runtime_version_file" ]]; then
+        version_file="$runtime_version_file"
+    fi
+
+    local live_repo=""
+    live_repo="$(resolve_live_version_context "$version_file" "$runtime_path" || true)"
+
+    if [[ -n "$live_repo" ]]; then
+        local live_version live_commit live_branch
+        live_version="$(tr -d '[:space:]' < "$live_repo/VERSION" 2>/dev/null || echo unknown)"
+        live_commit="$(git -C "$live_repo" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+        live_branch="$(git -C "$live_repo" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+
+        if [[ "$json" == true ]]; then
+            printf '{\n'
+            printf '  "version": "%s",\n' "$live_version"
+            printf '  "commit": "%s",\n' "$live_commit"
+            printf '  "installMode": "repo-link",\n'
+            printf '  "updateStrategy": "repo-setup",\n'
+            printf '  "runtime": "%s",\n' "${runtime_path:-$live_repo}"
+            printf '  "repoPath": "%s",\n' "$live_repo"
+            printf '  "branch": "%s"\n' "${live_branch:-unknown}"
+            printf '}\n'
+            return
+        fi
+
+        printf 'iNiR %s\n' "$live_version"
+        printf 'commit: %s\n' "$live_commit"
+        printf 'install mode: repo-link\n'
+        printf 'update strategy: repo-setup\n'
+        printf 'source: live checkout\n'
+        printf 'runtime: %s\n' "${runtime_path:-$live_repo}"
+        printf 'repo: %s\n' "$live_repo"
+        if [[ -n "$live_branch" ]]; then
+            printf 'branch: %s\n' "$live_branch"
+            if [[ "$live_branch" != "main" && "$live_branch" != "master" ]]; then
+                printf 'note: non-release branch\n'
+            fi
+        fi
+        return
+    fi
+
+    if [[ -n "$version_file" && -f "$version_file" ]]; then
+        if [[ "$json" == true ]]; then
+            cat "$version_file"
+            return
+        fi
+
+        if command -v jq >/dev/null 2>&1; then
+            printf 'iNiR %s\n' "$(jq -r '.version // "unknown"' "$version_file")"
+            printf 'commit: %s\n' "$(jq -r '.commit // "unknown"' "$version_file")"
+            printf 'install mode: %s\n' "$(jq -r '.installMode // .install_mode // "unknown"' "$version_file")"
+            printf 'update strategy: %s\n' "$(jq -r '.updateStrategy // .update_strategy // "unknown"' "$version_file")"
+            printf 'source: %s\n' "$(jq -r '.source // "unknown"' "$version_file")"
+            printf 'runtime: %s\n' "$runtime_path"
+            # Show git branch if in a repo
+            local repo_dir=""
+            repo_dir="$(jq -r '.repoPath // empty' "$version_file" 2>/dev/null || true)"
+            [[ -z "$repo_dir" ]] && repo_dir="$runtime_path"
+            if [[ -n "$repo_dir" && -e "$repo_dir/.git" ]]; then
+                local git_branch
+                git_branch="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+                if [[ -n "$git_branch" ]]; then
+                    printf 'branch: %s\n' "$git_branch"
+                    if [[ "$git_branch" != "main" && "$git_branch" != "master" ]]; then
+                        printf 'note: non-release branch\n'
+                    fi
+                fi
+            fi
+            return
+        fi
+    fi
+
+    local setup_dir
+    setup_dir="$(resolve_setup_dir)"
+    if [[ "$json" == true ]]; then
+        printf '{\n  "version": "%s",\n  "runtime": "%s"\n}\n' "$(tr -d '[:space:]' < "$setup_dir/VERSION")" "${runtime_path:-$setup_dir}"
+        return
+    fi
+
+    printf 'iNiR %s\n' "$(tr -d '[:space:]' < "$setup_dir/VERSION")"
+    printf 'runtime: %s\n' "${runtime_path:-$setup_dir}"
+}
+
+# ── inir bind: Niri keybinds for any inir call ────────────────────────────────
+# The binds a person adds live in one marked block of their own Niri file
+# (90-user-extra.kdl, the file updates never touch). Niri lets a later `binds`
+# block replace a key bound earlier (niri-config/src/lib.rs, "binds"), so a bind
+# here overrides iNiR's default for the same keys; inside one block a key must
+# appear once, which is why the block is rewritten rather than appended to.
+_BIND_BEGIN='// >>> inir bind: added with `inir bind --add`, removed with `inir bind --remove <keys>` >>>'
+_BIND_END='// <<< inir bind <<<'
+_BIND_RUNTIME_COMMANDS="close-window terminal browser settings settings-window colorpicker restart"
+
+_bind_niri_dir() { printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/niri"; }
+
+# Where the block goes: the personal file when the main config includes it, else the main config.
+_bind_file() {
+    local dir; dir="$(_bind_niri_dir)"
+    if [[ -f "$dir/config.kdl" ]] && grep -qE '^[[:space:]]*include[[:space:]]+"config\.d/90-user-extra\.kdl"' "$dir/config.kdl"; then
+        printf '%s\n' "$dir/config.d/90-user-extra.kdl"
+    else
+        printf '%s\n' "$dir/config.kdl"
+    fi
+}
+
+# Keys compared the way Niri reads them: modifiers in any order, case-insensitive.
+_bind_norm() {
+    local IFS='+' part key mods=()
+    read -ra parts <<< "$1"
+    key="${parts[-1],,}"
+    for part in "${parts[@]:0:${#parts[@]}-1}"; do
+        part="${part,,}"
+        [[ "$part" == control ]] && part=ctrl
+        mods+=("$part")
+    done
+    printf '%s\n' "$(printf '%s\n' "${mods[@]}" | sort | tr '\n' '+')${key}"
+}
+
+# Lines that already bind these keys, as "file:line: text", comments and our own block's copy aside.
+_bind_existing() {
+    local want="$1" dir file n line first
+    dir="$(_bind_niri_dir)"
+    for file in "$dir/config.kdl" "$dir"/config.d/*.kdl; do
+        [[ -f "$file" ]] || continue
+        n=0
+        while IFS= read -r line; do
+            ((n++))
+            [[ "$line" =~ ^[[:space:]]*// ]] && continue
+            [[ "$line" =~ ^[[:space:]]*([A-Za-z0-9_+-]+)[[:space:]]*([a-z-]+=[^{]*)?\{ ]] || continue
+            first="${BASH_REMATCH[1]}"
+            [[ "$first" == *+* || "$first" =~ ^(XF86|F[0-9]|Print|Escape) ]] || continue
+            [[ "$(_bind_norm "$first")" == "$want" ]] && printf '%s:%s: %s\n' "$file" "$n" "$(sed 's/^[[:space:]]*//' <<< "$line")"
+        done < "$file"
+    done
+}
+
+_bind_kdl_string() { local s="${1//\\/\\\\}"; printf '"%s"' "${s//\"/\\\"}"; }
+
+# Checks the call against the registry. Prints warnings; fails only on what cannot work.
+_bind_check_call() {
+    local asked="${1:-}" target="${1:-}" fn="${2:-}"; shift 2 2>/dev/null || shift $#
+    local -a args=("$@")
+    if [[ " $_BIND_RUNTIME_COMMANDS " == *" $target "* ]]; then
+        return 0
+    fi
+    if ! source_ipc_registry 2>/dev/null; then
+        printf 'note: the IPC registry was not found, so the call is not checked.\n' >&2
+        return 0
+    fi
+    [[ -n "${IPC_KEBAB_ALIASES[$target]+_}" ]] && target="${IPC_KEBAB_ALIASES[$target]}"
+    if [[ -z "${IPC_TARGET_FUNCTIONS[$target]+_}" ]]; then
+        printf "'%s' is not something inir knows. 'inir help' lists them.\n" "$asked" >&2
+        return 1
+    fi
+    if [[ -z "$fn" || " ${IPC_TARGET_FUNCTIONS[$target]} " != *" $fn "* ]]; then
+        printf "%s has no '%s'. It takes: %s\n" "$target" "$fn" "${IPC_TARGET_FUNCTIONS[$target]}" >&2
+        return 1
+    fi
+    local key="$target:$fn"
+    local -a hint=( ${IPC_FUNCTION_ARGS[$key]:-} )
+    # Quickshell refuses a call with a value missing, so a bind without one would do nothing.
+    if (( ${#args[@]} != ${#hint[@]} )); then
+        if (( ${#hint[@]} == 0 )); then
+            printf "%s %s takes no values.\n" "$target" "$fn" >&2
+        else
+            printf "%s %s takes %s: %s%s. Pass \"\" for one you leave empty.\n" "$target" "$fn" \
+                "${#hint[@]} value(s)" "${IPC_FUNCTION_ARGS[$key]}" "${IPC_FUNCTION_VALUES[$key]:+ (e.g. ${IPC_FUNCTION_VALUES[$key]})}" >&2
+        fi
+        return 1
+    fi
+    local values="${IPC_FUNCTION_VALUES[$key]:-}" arg v ok
+    if [[ -n "$values" ]]; then
+        for arg in "${args[@]}"; do
+            ok=false
+            for v in $values; do
+                if [[ "$arg" == "$v" || ( "$v" == *: && "$arg" == "$v"* ) ]]; then ok=true; break; fi
+            done
+            [[ "$ok" == true ]] || printf "note: '%s' is not one of the values %s %s names (%s); it is kept as typed.\n" "$arg" "$target" "$fn" "$values" >&2
+        done
+    fi
+    return 0
+}
+
+# The KDL line for a call: toggles and opens do not repeat while held; steps (volume, next…) do.
+# No title: Niri's hotkey overlay already shows the command a bind spawns.
+_bind_line() {
+    local keys="$1"; shift
+    local fn="${2:-}" word spawn=""
+    for word in "$@"; do spawn+=" $(_bind_kdl_string "$word")"; done
+    local repeat=' repeat=false'
+    [[ "$fn" =~ ^(volumeUp|volumeDown|increment|decrement|next|previous|prev|zoomIn|zoomOut|up|down)$ ]] && repeat=''
+    printf '%s%s { spawn "inir"%s; }\n' "$keys" "$repeat" "$spawn"
+}
+
+# The block's bind lines, one per line.
+_bind_block_lines() {
+    local file="$1"
+    [[ -f "$file" ]] || return 0
+    awk -v b="$_BIND_BEGIN" -v e="$_BIND_END" '
+        $0 == b { inb = 1; next } $0 == e { inb = 0; next }
+        inb && $0 !~ /^[[:space:]]*(binds[[:space:]]*\{|\})[[:space:]]*$/ && $0 ~ /[^[:space:]]/ { sub(/^[[:space:]]+/, ""); print }
+    ' "$file"
+}
+
+# Rewrites the block from the given lines (none: the block goes away), keeping the rest of the file.
+_bind_write_block() {
+    local file="$1"; shift
+    local tmp; tmp="$(mktemp "${file}.XXXXXX")" || return 1
+    if [[ -f "$file" ]]; then
+        awk -v b="$_BIND_BEGIN" -v e="$_BIND_END" '$0 == b { skip = 1; next } $0 == e { skip = 0; next } !skip' "$file" > "$tmp"
+    fi
+    # No trailing blank lines before the block.
+    sed -i -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$tmp"
+    if (( $# > 0 )); then
+        {
+            [[ -s "$tmp" ]] && printf '\n'
+            printf '%s\n' "$_BIND_BEGIN" 'binds {'
+            printf '    %s\n' "$@"
+            printf '}\n%s\n' "$_BIND_END"
+        } >> "$tmp"
+    fi
+    cat "$tmp" > "$file" && rm -f "$tmp"
+}
+
+# Validates Niri's whole config after a change and puts the file back if Niri rejects it.
+_bind_commit() {
+    local file="$1" backup="$2"
+    if command -v niri >/dev/null 2>&1; then
+        local out
+        if ! out="$(niri validate 2>&1)"; then
+            cp -f "$backup" "$file"; rm -f "$backup"
+            printf 'Niri rejected the change, so the file is as it was:\n%s\n' "$out" >&2
+            return 1
+        fi
+    fi
+    rm -f "$backup"
+}
+
+_bind_examples() {
+    local family="${1:-}"
+    if [[ -z "$family" ]]; then
+        family="$(jq -r '.panelFamily // "ii"' "$(inir_config_file 2>/dev/null)" 2>/dev/null || echo ii)"
+    fi
+    # keys | call | what it does | families
+    local rows='Mod+O|orbit toggle|Orbit: every workspace and window, and a search|iris ii
+Mod+Space|iris spotlight|Spotlight: apps, files, actions and settings|iris
+Mod+A|iris focus toggle|The Focus panel on the left|iris
+Mod+N|iris today toggle|The Today panel on the right|iris
+Mod+S|iris controlCenter toggle|The Control Center|iris
+Mod+M|iris page media|The Island on the player|iris
+Mod+D|iris dock toggle|Show or hide the Dock|iris
+Mod+Comma|iris settings general|iRiS Settings|iris
+Mod+E|iris edit toggle|Customize iRiS where it is|iris
+Mod+Tab|overview toggle|The overview|ii
+Mod+A|sidebarLeft toggle|Left sidebar: AI chat and apps|ii
+Mod+N|sidebarRight toggle|Right sidebar: toggles, notes and settings|ii
+Mod+Slash|cheatsheet toggle|Keyboard shortcuts|ii
+Mod+Space|search toggle|Start menu and search|waffle
+Mod+A|wactionCenter toggle|Action center|waffle
+Mod+N|wnotificationCenter toggle|Notification center|waffle
+Mod+W|wwidgets toggle|Widgets|waffle
+Mod+V|clipboard toggle|Clipboard history|all
+Mod+Shift+S|region screenshot|Screenshot a region|all
+Mod+Shift+T|region ocr|Copy the text in a region|all
+Mod+Shift+R|region record|Record a region|all
+Mod+Alt+L|colorMode set toggle|Light or dark|all
+Mod+F12|gamemode toggle|Game mode|all
+Mod+Shift+Escape|session toggle|Power menu|all
+Mod+Alt+Space|mpris playPause|Play or pause|all
+XF86AudioRaiseVolume|audio volumeUp|Louder|all
+XF86AudioLowerVolume|audio volumeDown|Quieter|all'
+    # The key a call is already on, if any.
+    _bind_key_of_call() {
+        local spawn="spawn \"inir\"" word dir file
+        for word in $1; do spawn+=" \"$word\""; done
+        spawn+=";"
+        dir="$(_bind_niri_dir)"
+        for file in "$dir/config.kdl" "$dir"/config.d/*.kdl; do
+            [[ -f "$file" ]] || continue
+            { grep -hF -- "$spawn" "$file" || true; } | { grep -vE '^[[:space:]]*//' || true; } | head -1 | sed -E 's/^[[:space:]]*([^[:space:]{]+).*/\1/'
+        done | head -1
+    }
+    local keys call what fams bound taken free="" have=""
+    while IFS='|' read -r keys call what fams; do
+        [[ "$fams" == all || " $fams " == *" $family "* || "$family" == all ]] || continue
+        bound="$(_bind_key_of_call "$call")"
+        if [[ -n "$bound" ]]; then
+            have+="$(printf '  %-22s %-30s %s' "$bound" "$call" "$what")"$'\n'
+            continue
+        fi
+        taken="$(_bind_existing "$(_bind_norm "$keys")" | head -1 || true)"
+        if [[ -z "$taken" ]]; then
+            free+="$(printf '  %-50s %s' "inir bind --add $keys $call" "$what")"$'\n'
+        else
+            free+="$(printf '  %-50s %s (%s is taken)' "inir bind --add <keys> $call" "$what" "$keys")"$'\n'
+        fi
+    done <<< "$rows"
+    printf 'Binds for %s.\n' "$family"
+    if [[ -n "$free" ]]; then printf '\nNot on a key yet:\n%s' "$free"; fi
+    if [[ -n "$have" ]]; then printf '\nAlready on a key:\n%s' "$have"; fi
+    printf '\nAny other call works the same way; tab completion lists them all.\n'
+}
+
+# Links the completion file for a shell where that shell loads completions by itself. A link, so an
+# update of iNiR updates the completions too. zsh has no per-user directory on its path by default:
+# the one used is reported with the line to add when it is not there.
+install_completions() {
+    local shell="${1:-$(basename "${SHELL:-bash}")}" source="" candidate dest
+    for candidate in \
+        "$script_dir/completions/inir.${shell}" \
+        "$launcher_root/share/quickshell/inir/scripts/completions/inir.${shell}" \
+        "$user_config_dir/scripts/completions/inir.${shell}"; do
+        [[ -f "$candidate" ]] && { source="$(readlink -f "$candidate")"; break; }
+    done
+    case "$shell" in
+        bash) dest="${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/inir" ;;
+        zsh) dest="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/site-functions/_inir" ;;
+        fish) dest="${XDG_CONFIG_HOME:-$HOME/.config}/fish/completions/inir.fish" ;;
+        *) printf 'Completions exist for bash, zsh and fish, not %s.\n' "$shell" >&2; return 1 ;;
+    esac
+    if [[ -z "$source" ]]; then
+        printf 'The %s completion file was not found next to inir.\n' "$shell" >&2
+        return 1
+    fi
+    if [[ -e "$dest" && ! -L "$dest" ]]; then
+        printf 'Left %s as it is: it is a file of your own, not a link inir made.\n' "$dest"
+        return 0
+    fi
+    mkdir -p "$(dirname "$dest")"
+    ln -sfn "$source" "$dest"
+    printf 'Installed %s completions: %s\n' "$shell" "$dest"
+    case "$shell" in
+        bash)
+            if ! [[ -f /usr/share/bash-completion/bash_completion || -f /etc/bash_completion ]]; then
+                printf 'bash-completion is not installed; install it (package bash-completion) so bash loads them.\n'
+            fi
+            printf 'Open a new terminal to use them.\n' ;;
+        zsh)
+            if command -v zsh >/dev/null 2>&1 && ! zsh -ic 'print -l -- $fpath' 2>/dev/null | grep -qxF "$(dirname "$dest")"; then
+                printf 'Add this line to ~/.zshrc before compinit, then open a new terminal:\n  fpath=(%s $fpath)\n' "$(dirname "$dest")"
+            else
+                printf 'Open a new terminal to use them.\n'
+            fi ;;
+        fish) printf 'fish loads them in new terminals.\n' ;;
+    esac
+}
+
+run_bind_command() {
+    local mode=preview
+    case "${1:-}" in
+    lock) exec ryoku-shell lock ;;
+        --add) mode=add; shift ;;
+        --remove) mode=remove; shift ;;
+        --list) mode=list; shift ;;
+        --examples) shift; _bind_examples "${1:-}"; return ;;
+        -h|--help|"")
+            cat <<'USAGE'
+Usage: inir bind [--add] <keys> <call…>
+       inir bind --remove <keys> | --list | --examples [iris|ii|waffle|all]
+
+Makes a Niri keybind for any inir call and tells you what those keys do now.
+  inir bind Mod+O orbit toggle            the line, checked, and any bind it would replace
+  inir bind --add Mod+O orbit toggle      saves it in your own block of 90-user-extra.kdl
+  inir bind --remove Mod+O                takes it back out
+Niri reloads its config by itself; a bind you add replaces iNiR's default for the same keys.
+USAGE
+            return 0 ;;
+    esac
+    local file; file="$(_bind_file)"
+    case "$mode" in
+        list)
+            local lines; lines="$(_bind_block_lines "$file")"
+            if [[ -z "$lines" ]]; then printf 'No binds added with inir bind yet (%s).\n' "$file"; else printf '%s\n' "$lines"; fi
+            return 0 ;;
+        remove)
+            local keys="${1:-}" want kept=() line removed=false
+            [[ -n "$keys" ]] || { printf 'Usage: inir bind --remove <keys>\n' >&2; return 1; }
+            want="$(_bind_norm "$keys")"
+            while IFS= read -r line; do
+                [[ -z "$line" ]] && continue
+                if [[ "$(_bind_norm "${line%%[[:space:]{]*}")" == "$want" ]]; then removed=true; else kept+=("$line"); fi
+            done < <(_bind_block_lines "$file")
+            [[ "$removed" == true ]] || { printf 'No bind for %s in your block.\n' "$keys" >&2; return 1; }
+            local backup="$file.inir-bind.bak"; cp -f "$file" "$backup"
+            _bind_write_block "$file" "${kept[@]}" && _bind_commit "$file" "$backup" || return 1
+            printf 'Removed %s. Whatever iNiR binds there by default is back.\n' "$keys"
+            return 0 ;;
+    esac
+    local keys="${1:-}"; shift || true
+    if [[ -z "$keys" || $# -eq 0 ]]; then
+        printf 'Usage: inir bind [--add] <keys> <call…>  (e.g. inir bind Mod+O orbit toggle)\n' >&2
+        return 1
+    fi
+    if [[ ! "$keys" =~ ^[A-Za-z0-9_+-]+$ ]]; then
+        printf "'%s' does not look like Niri keys (e.g. Mod+O, Mod+Shift+S, XF86AudioMute).\n" "$keys" >&2
+        return 1
+    fi
+    _bind_check_call "$@" || return 1
+    local line want existing
+    line="$(_bind_line "$keys" "$@")"
+    want="$(_bind_norm "$keys")"
+    existing="$(_bind_existing "$want" | grep -vF "$line" || true)"
+    if [[ "$mode" == preview ]]; then
+        printf '%s\n' "$line"
+        if [[ -n "$existing" ]]; then
+            printf '\n%s already does something:\n' "$keys"
+            sed 's|^|  |' <<< "$existing"
+            printf 'Adding it replaces that (a bind in your block wins).\n'
+        fi
+        printf '\nSave it with: inir bind --add %s %s\n' "$keys" "$*"
+        return 0
+    fi
+    # add
+    local -a lines=() kept=()
+    local l
+    while IFS= read -r l; do
+        [[ -z "$l" ]] && continue
+        [[ "$(_bind_norm "${l%%[[:space:]{]*}")" == "$want" ]] || kept+=("$l")
+    done < <(_bind_block_lines "$file")
+    kept+=("$line")
+    mkdir -p "$(dirname "$file")"
+    local backup="$file.inir-bind.bak"
+    if [[ -f "$file" ]]; then cp -f "$file" "$backup"; else : > "$backup"; fi
+    _bind_write_block "$file" "${kept[@]}" && _bind_commit "$file" "$backup" || return 1
+    printf 'Added: %s\n' "$line"
+    [[ -n "$existing" ]] && printf 'It replaces: %s\n' "$(head -1 <<< "$existing" | sed -E 's/^[^:]+:[0-9]+: //')"
+    printf 'Saved in %s. Niri picks it up now.\n' "$file"
+}
+
+run_theme_command() {
+    local action="${1:-}"
+    shift || true
+
+    local setup_dir
+    setup_dir="$(resolve_setup_dir)"
+    local colors_dir="$setup_dir/scripts/colors"
+
+    case "$action" in
+        list-targets)
+            exec python3 "$colors_dir/list-targets.py" list "$@"
+            ;;
+        inspect)
+            if [[ $# -lt 1 ]]; then
+                echo "Usage: inir theme inspect <target-id>" >&2
+                exit 1
+            fi
+            exec python3 "$colors_dir/list-targets.py" inspect "$@"
+            ;;
+        doctor)
+            exec python3 "$colors_dir/list-targets.py" doctor "$@"
+            ;;
+        scaffold)
+            if [[ $# -lt 1 ]]; then
+                echo "Usage: inir theme scaffold <target-id> [--label ... --category ... --inputs ...]" >&2
+                exit 1
+            fi
+            exec python3 "$colors_dir/list-targets.py" scaffold "$@"
+            ;;
+        apply)
+            if [[ $# -eq 0 ]]; then
+                echo "Usage: inir theme apply <target-id ...|all>" >&2
+                exit 1
+            fi
+            exec bash "$colors_dir/apply-targets.sh" "$@"
+            ;;
+        -h|--help|"")
+            cat <<'EOF' >&2
+Usage: inir theme <command> [args...]
+
+Commands:
+  list-targets          List declared theming targets
+  inspect <id>          Show manifest, module, and resolved input info for a target
+  doctor [id]           Validate all targets, or a specific one
+  scaffold <id>         Create a new target manifest and module stub
+  apply <ids...|all>    Apply one or more theming targets
+EOF
+            exit 0
+            ;;
+        *)
+            echo "Unknown theme action: $action" >&2
+            exit 1
+            ;;
+    esac
+}
+
+run_ipc_target_command() {
+    local target
+    target="$(normalize_ipc_target "$1")"
+    shift
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -c|--config)
+                parse_config_flag "$@"
+                shift 2
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -h|--help)
+                if ipc_target_help "$target"; then
+                    exit 0
+                fi
+                echo "Usage: inir $target [-c PATH] <function> [args...]" >&2
+                exit 0
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+
+    if [[ $# -lt 1 ]]; then
+        # No function given — show target help instead of bare error.
+        if ipc_target_help "$target" 2>/dev/null; then
+            exit 1
+        fi
+        echo "Usage: inir $target <function> [args...]" >&2
+        exit 1
+    fi
+
+    # Validate function name against registry before forwarding to qs.
+    validate_ipc_function "$target" "$1"
+
+    # Some IPC owners are intentionally optional. The equalizer target is only
+    # constructed while the iiEqualizer panel is enabled, so report that state
+    # explicitly instead of leaking Quickshell's generic "Target not found".
+    if [[ "$target" == "equalizer" ]]; then
+        local user_cfg
+        user_cfg="$(inir_config_file)"
+        if [[ -f "$user_cfg" ]] && command -v jq >/dev/null 2>&1 \
+                && ! jq -e '(.enabledPanels // []) | index("iiEqualizer") != null' "$user_cfg" >/dev/null 2>&1; then
+            echo "EasyEffects Equalizer is disabled." >&2
+            echo "Open Settings with: inir settings" >&2
+            echo "Then go to: Modules → Optional → EasyEffects Equalizer" >&2
+            echo "Enable that switch, then run this command again." >&2
+            exit 1
+        fi
+    fi
+
+    resolve_config_dir
+    if ! ensure_running_instance_for_ipc "$config_dir" "${1:-}"; then
+        echo "Timed out waiting for iNiR to start" >&2
+        exit 1
+    fi
+
+    # swayidle -w relies on its before-sleep command not returning until the
+    # session is actually protected. Quickshell's IPC call itself is synchronous,
+    # but WlSessionLock becomes secure asynchronously after the compositor has
+    # acknowledged lock surfaces for every output.
+    if [[ "$target" == "lock" && "${1:-}" == "prepareSleep" ]]; then
+        local response state attempt swaylock_bin=""
+        if ! response="$("$qs_bin" -p "$config_dir" ipc call lock prepareSleep 2>/dev/null)"; then
+            # Lock is loaded after the first shell frame. A lid close during that
+            # short boot window must fail closed instead of returning to logind
+            # with no locker registered yet.
+            swaylock_bin="$(command -v swaylock 2>/dev/null || true)"
+            if [[ -n "$swaylock_bin" ]] && "$swaylock_bin" -f -c 1a1a2e; then
+                printf 'fallback\n'
+                return 0
+            fi
+
+            for ((attempt = 0; attempt < 20; attempt++)); do
+                sleep 0.1
+                if response="$("$qs_bin" -p "$config_dir" ipc call lock prepareSleep 2>/dev/null)"; then
+                    break
+                fi
+                response=""
+            done
+            if [[ -z "$response" ]]; then
+                echo "Lock IPC was unavailable before sleep and no fallback could secure the session" >&2
+                return 1
+            fi
+        fi
+
+        case "$response" in
+            secure|external)
+                printf '%s\n' "$response"
+                return 0
+                ;;
+        esac
+
+        # A WlSessionLock should become secure almost immediately while swayidle
+        # still holds logind's delay inhibitor. Keep comfortably inside logind's
+        # usual inhibitor deadline and fall back to swaylock if QS cannot secure.
+        for ((attempt = 0; attempt < 20; attempt++)); do
+            sleep 0.05
+            state="$("$qs_bin" -p "$config_dir" ipc call lock status 2>/dev/null || true)"
+            if [[ "$state" == "secure" ]]; then
+                printf 'secure\n'
+                return 0
+            fi
+        done
+
+        [[ -n "$swaylock_bin" ]] || swaylock_bin="$(command -v swaylock 2>/dev/null || true)"
+        if [[ -n "$swaylock_bin" ]]; then
+            "$qs_bin" -p "$config_dir" ipc call lock deactivate >/dev/null 2>&1 || true
+
+            # Do not race a second ext-session-lock client against QS while its
+            # protocol object is still being released.
+            for ((attempt = 0; attempt < 10; attempt++)); do
+                state="$("$qs_bin" -p "$config_dir" ipc call lock status 2>/dev/null || true)"
+                [[ "$state" == "unlocked" ]] && break
+                sleep 0.05
+            done
+
+            if [[ "$state" == "unlocked" ]] && "$swaylock_bin" -f -c 1a1a2e; then
+                printf 'fallback\n'
+                return 0
+            fi
+
+            # If the external fallback could not take the lock, restore the QS
+            # lock request before spending the remaining inhibitor budget.
+            "$qs_bin" -p "$config_dir" ipc call lock prepareSleep >/dev/null 2>&1 || true
+        fi
+
+        # No external fallback is available. Continue waiting for QS rather than
+        # releasing the inhibitor at the first transient delay.
+        for ((attempt = 0; attempt < 40; attempt++)); do
+            sleep 0.05
+            state="$("$qs_bin" -p "$config_dir" ipc call lock status 2>/dev/null || true)"
+            if [[ "$state" == "secure" ]]; then
+                printf 'secure\n'
+                return 0
+            fi
+        done
+
+        echo "Lock did not become secure before sleep" >&2
+        return 1
+    fi
+
+    # IPC handlers for most panels register ~500ms after shell start (deferred panel
+    # loading at boot). If the first call fails while the shell is still initializing,
+    # retry once after a brief wait before giving up.
+    if ! "$qs_bin" -p "$config_dir" ipc call "$target" "$@" 2>/dev/null; then
+        has_instances "$config_dir" && sleep 0.5
+        exec "$qs_bin" -p "$config_dir" ipc call "$target" "$@"
+    fi
+}
+
+run_dev_audit() {
+    local include_all_families=false include_all_destinations=false
+    local -a requested_destinations=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --all-families) include_all_families=true; shift ;;
+            --all) include_all_destinations=true; shift ;;
+            -h|--help)
+                cat <<'EOF'
+Usage: inir dev audit [--all] [--all-families] [DESTINATION...]
+
+Audit destinations related to changed worktree files, or the destinations
+named explicitly. --all restores the exhaustive audit. The active panel
+family is used by default; --all-families audits ii, waffle, and iris.
+EOF
+                return 0
+                ;;
+            --*) echo "Unknown option: $1" >&2; return 1 ;;
+            *) requested_destinations+=("$1"); shift ;;
+        esac
+    done
+
+    require_qs
+    resolve_config_dir
+    ensure_running_instance_for_ipc "$config_dir" list || {
+        echo "Timed out waiting for iNiR to start" >&2
+        return 1
+    }
+    command -v jq >/dev/null 2>&1 || {
+        echo "inir dev audit requires jq" >&2
+        return 1
+    }
+
+    local config_file family original_family inventory log_before log_after fresh id settle response failures=0 visited=0
+    config_file="$(inir_config_file)"
+    family="$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null || printf 'ii')"
+    original_family="$family"
+    inventory="$("$qs_bin" -p "$config_dir" ipc call dev list)"
+    if ! jq -e 'type == "array"' >/dev/null 2>&1 <<<"$inventory"; then
+        echo "dev list did not return a JSON array" >&2
+        return 1
+    fi
+
+    local -A selected_ids=()
+    local destination changed_path area normalized_area normalized_id
+    select_destination() {
+        local candidate="$1"
+        if ! jq -e --arg id "$candidate" '.[] | select(.id == $id and .safe == true)' >/dev/null <<<"$inventory"; then
+            echo "Unknown or unsafe development destination: $candidate" >&2
+            return 1
+        fi
+        selected_ids["$candidate"]=1
+    }
+    select_prefix() {
+        local prefix="$1"
+        while IFS= read -r destination; do
+            [[ -n "$destination" ]] && selected_ids["$destination"]=1
+        done < <(jq -r --arg prefix "$prefix" '.[] | select(.safe == true and (.id == $prefix or (.id | startswith($prefix + "/")))) | .id' <<<"$inventory")
+        return 0
+    }
+    select_all_destinations() {
+        while IFS= read -r destination; do
+            [[ -n "$destination" ]] && selected_ids["$destination"]=1
+        done < <(jq -r '.[] | select(.safe == true) | .id' <<<"$inventory")
+        return 0
+    }
+    select_settings_area() {
+        normalized_area="$(tr '[:upper:]' '[:lower:]' <<<"$1" | tr -cd '[:alnum:]')"
+        while IFS= read -r destination; do
+            normalized_id="$(tr '[:upper:]' '[:lower:]' <<<"${destination#settings/}" | tr -cd '[:alnum:]')"
+            [[ "$normalized_id" == "$normalized_area" ]] && selected_ids["$destination"]=1
+        done < <(jq -r '.[] | select(.safe == true and (.id | startswith("settings/"))) | .id' <<<"$inventory")
+        return 0
+    }
+
+    if [[ ${#requested_destinations[@]} -gt 0 ]]; then
+        for destination in "${requested_destinations[@]}"; do
+            select_destination "$destination" || return 1
+        done
+    elif [[ "$include_all_destinations" == true ]]; then
+        select_all_destinations
+    elif git -C "$launcher_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        while IFS= read -r -d '' changed_path; do
+            case "$changed_path" in
+                GlobalStates.qml|ShellIiPanels.qml|ShellWafflePanels.qml|ShellIrisPanels.qml|shell.qml|settings.qml|waffleSettings.qml|defaults/config.json|modules/common/Config.qml|modules/common/Appearance.qml|modules/common/Looks.qml|modules/common/widgets/*)
+                    : ;; # Broad files do not turn a focused audit into an exhaustive one.
+                modules/iris/*) select_prefix "iris" ;;
+                modules/sidebarLeft/aiChat/*|modules/sidebarLeft/AiChat.qml|modules/sidebarLeft/ApiInputBoxIndicator.qml|services/Ai.qml|services/ai/*)
+                    select_prefix "sidebar-left/ai"; select_prefix "settings/ai" ;;
+                modules/sidebarLeft/widgets/*|modules/sidebarLeft/WidgetsView.qml)
+                    select_prefix "sidebar-left/widgets" ;;
+                modules/sidebarLeft/*)
+                    area="${changed_path#modules/sidebarLeft/}"
+                    area="${area%%/*}"
+                    case "$area" in
+                        *AnimeSchedule*) select_prefix "sidebar-left/anime-schedule" ;;
+                        *Anime*) select_prefix "sidebar-left/anime" ;;
+                        *News*) select_prefix "sidebar-left/news" ;;
+                        *Software*) select_prefix "sidebar-left/software" ;;
+                        *YtMusic*|innertune) select_prefix "sidebar-left/ytmusic" ;;
+                        *Translator*) select_prefix "sidebar-left/translator" ;;
+                        *Wallhaven*) select_prefix "sidebar-left/wallhaven" ;;
+                        *Tools*|plugins) select_prefix "sidebar-left/tools" ;;
+                        *) : ;;
+                    esac ;;
+                modules/sidebarRight/notifications/*) select_prefix "sidebar-right/notifications" ;;
+                modules/sidebarRight/events/*) select_prefix "sidebar-right/events" ;;
+                modules/sidebarRight/todo/*) select_prefix "sidebar-right/todo" ;;
+                modules/sidebarRight/notepad/*) select_prefix "sidebar-right/notepad" ;;
+                modules/sidebarRight/calculator/*) select_prefix "sidebar-right/calculator" ;;
+                modules/sidebarRight/weather/*) select_prefix "sidebar-right/weather" ;;
+                modules/sidebarRight/*) : ;;
+                modules/controlPanel/*) select_prefix "control-panel" ;;
+                modules/dashboard/*) select_prefix "dashboard" ;;
+                modules/mediaControls/*) select_prefix "media-controls" ;;
+                modules/clipboard/*) select_prefix "clipboard"; select_prefix "overview/clipboard" ;;
+                modules/cheatsheet/*) select_prefix "cheatsheet" ;;
+                modules/overview/*) select_prefix "overview" ;;
+                modules/wallpaperSelector/*) select_prefix "wallpaper" ;;
+                modules/tilingAssistance/*) select_prefix "tiling" ;;
+                modules/waffle/startMenu/*) select_prefix "waffle/start"; select_prefix "waffle/all-apps"; select_prefix "waffle/search" ;;
+                modules/waffle/actionCenter/*) select_prefix "waffle/action-center" ;;
+                modules/waffle/notificationCenter/*) select_prefix "waffle/notification-center" ;;
+                modules/waffle/widgets/*) select_prefix "waffle/widgets" ;;
+                modules/waffle/taskView/*) select_prefix "waffle/taskview" ;;
+                modules/settings/SettingsOverlay.qml|modules/settings/SettingsPageRegistry.qml)
+                    : ;;
+                modules/settings/*Config.qml)
+                    area="${changed_path##*/}"; area="${area%Config.qml}"; select_settings_area "$area" ;;
+                modules/waffle/settings/pages/W*Page.qml)
+                    area="${changed_path##*/}"; area="${area#W}"; area="${area%Page.qml}"; select_settings_area "$area" ;;
+                services/Notifications.qml) select_prefix "sidebar-right/notifications"; select_prefix "waffle/notification-center" ;;
+                services/Weather.qml) select_prefix "sidebar-right/weather"; select_prefix "dashboard" ;;
+                services/Events.qml|services/Calendar*.qml) select_prefix "sidebar-right/calendar"; select_prefix "sidebar-right/events"; select_prefix "dashboard" ;;
+                services/Todo.qml) select_prefix "sidebar-right/todo"; select_prefix "dashboard" ;;
+                services/*) : ;;
+            esac
+        done < <({ git -C "$launcher_root" diff --name-only -z HEAD; git -C "$launcher_root" ls-files --others --exclude-standard -z; } | sort -zu)
+    fi
+
+    if [[ ${#selected_ids[@]} -eq 0 ]]; then
+        echo "No changed UI areas were detected. Pass a destination or use --all."
+        return 0
+    fi
+
+    local selected_json
+    selected_json="$(printf '%s\n' "${!selected_ids[@]}" | sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+    printf 'Scope: %s\n' "$(jq -r 'join(", ")' <<<"$selected_json")"
+
+    local error_pattern='WARN scene:|ReferenceError|TypeError|Unable to assign|Binding loop|Cannot assign|Cannot open|Failed to load|Error loading'
+    trap '"$qs_bin" -p "$config_dir" ipc call dev close >/dev/null 2>&1 || true; current_family="$(jq -r '\''.panelFamily // "ii"'\'' "$config_file" 2>/dev/null)"; if [[ "$current_family" != "$original_family" ]]; then "$qs_bin" -p "$config_dir" ipc call panelFamily set "$original_family" >/dev/null 2>&1 || true; fi' INT TERM
+
+    local families=("$family")
+    $include_all_families && families=(ii waffle iris)
+    for family in "${families[@]}"; do
+        if [[ "$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null)" != "$family" ]]; then
+            response="$("$qs_bin" -p "$config_dir" ipc call panelFamily set "$family" 2>&1 || true)"
+            local family_wait
+            for family_wait in {1..20}; do
+                [[ "$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null)" == "$family" ]] && break
+                sleep 0.25
+            done
+            if [[ "$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null)" != "$family" ]]; then
+                printf 'FAIL family/%-35s %s\n' "$family" "$response"
+                failures=$((failures + 1))
+                continue
+            fi
+        fi
+
+        printf '\nFamily: %s\n' "$family"
+        # Family loaders register/unregister their lightweight IPC routers
+        # asynchronously. Keep those transition logs out of the first view's
+        # attribution window.
+        sleep 1.5
+        while IFS=$'\t' read -r id settle; do
+            [[ -n "$id" ]] || continue
+            visited=$((visited + 1))
+            log_before="$(mktemp)"
+            log_after="$(mktemp)"
+            fresh="$(mktemp)"
+            "$0" logs --full >"$log_before" 2>/dev/null || true
+
+            response="$("$qs_bin" -p "$config_dir" ipc call dev open "$id" 2>&1 || true)"
+            if [[ "$response" != "ok:$id" ]]; then
+                printf 'FAIL %-42s %s\n' "$id" "$response"
+                failures=$((failures + 1))
+                rm -f "$log_before" "$log_after" "$fresh"
+                continue
+            fi
+
+            sleep "$(printf '%d.%03d' $((settle / 1000)) $((settle % 1000)))"
+            "$0" logs --full >"$log_after" 2>/dev/null || true
+            tail -n +$(( $(wc -l <"$log_before") + 1 )) "$log_after" >"$fresh"
+            if rg -n "$error_pattern" "$fresh"; then
+                printf 'FAIL %s\n' "$id"
+                failures=$((failures + 1))
+            else
+                printf 'PASS %s\n' "$id"
+            fi
+            "$qs_bin" -p "$config_dir" ipc call dev close >/dev/null 2>&1 || true
+            rm -f "$log_before" "$log_after" "$fresh"
+        done < <(jq -r --arg family "$family" --argjson selected "$selected_json" '.[] | select(.safe == true and (.family == "shared" or .family == $family) and (.id as $id | $selected | index($id))) | [.id, (.settleMs // 350)] | @tsv' <<<"$inventory")
+    done
+
+    "$qs_bin" -p "$config_dir" ipc call dev close >/dev/null 2>&1 || true
+    if [[ "$(jq -r '.panelFamily // "ii"' "$config_file" 2>/dev/null)" != "$original_family" ]]; then
+        "$qs_bin" -p "$config_dir" ipc call panelFamily set "$original_family" >/dev/null 2>&1 || true
+    fi
+    trap - INT TERM
+
+    printf '\nVisited: %d  Failures: %d  Original family: %s\n' "$visited" "$failures" "$original_family"
+    [[ "$failures" -eq 0 ]]
+}
+
+launch_configured_browser() {
+    local config_file
+    config_file="$(inir_config_file)"
+    local browser=""
+
+    if [[ -f "$config_file" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            browser="$(jq -r '.apps.browser // empty' "$config_file" 2>/dev/null || true)"
+        else
+            browser="$(sed -n 's/.*"browser"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$config_file" | head -1)"
+        fi
+    fi
+
+    browser="${browser:-xdg-open}"
+
+    if command -v "$browser" >/dev/null 2>&1; then
+        if [[ $# -gt 0 ]]; then
+            exec "$browser" "$@"
+        fi
+        exec "$browser"
+    fi
+
+    if command -v xdg-open >/dev/null 2>&1; then
+        if [[ $# -gt 0 ]]; then
+            exec xdg-open "$@"
+        fi
+        exec xdg-open "https://"
+    fi
+
+    echo "No browser launcher found" >&2
+    exit 1
+}
+
+parse_config_flag() {
+    if [[ $# -lt 2 ]]; then
+        echo "Missing path after $1" >&2
+        exit 1
+    fi
+    config_dir="$2"
+}
+
+command_name="${1:-help}"
+shift || true
+
+case "$command_name" in
+    install)
+        setup_dir="$(resolve_setup_dir)"
+        run_setup_command "$setup_dir" install "$@"
+        ;;
+    start)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    repair_usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        apply_shell_scale
+        apply_qt_runtime_env
+        check_qs_abi
+        check_setup_version_sync "$config_dir"
+        if has_instances "$config_dir"; then
+            echo "iNiR is already running. Use 'inir restart' to restart." >&2
+            exit 0
+        fi
+        start_background "$config_dir"
+        ;;
+    stop)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        if ! stop_inir_service_if_active; then
+            echo "Unable to stop the supervised iNiR service" >&2
+            exit 1
+        fi
+        kill_shell "$config_dir"
+        ;;
+    run)
+        require_qs
+        foreground=true
+        _session_boot=false
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                --daemon)
+                    foreground=false
+                    shift
+                    ;;
+                --foreground)
+                    foreground=true
+                    shift
+                    ;;
+                --session)
+                    foreground=true
+                    _session_boot=true
+                    shift
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+
+        if [[ "$_session_boot" == true ]]; then
+            # ── Session boot fast path ──
+            # The service unit pre-seeds QT_SCALE_FACTOR and QT_LOGGING_RULES, so
+            # apply_shell_scale / apply_qt_logging_rules are no-ops here.
+            # Systemd manages lifecycle (Restart=on-failure) and I/O priority.
+            _skip_running_detect=true
+            resolve_config_dir
+            # Clean helpers orphaned by the previous supervised shell.
+            cleanup_orphans
+            apply_hot_reload_policy_for_dir "$config_dir"
+            check_qs_abi
+            apply_qt_runtime_env          # import Niri-owned session env if needed
+            wait_for_wayland_socket       # validate the exact Niri-owned socket
+            exec "$qs_bin" -n -p "$config_dir"
+        fi
+
+        # ── Normal run path (manual invocation) ──
+        resolve_config_dir
+        apply_hot_reload_policy_for_dir "$config_dir"
+        apply_shell_scale
+        apply_qt_runtime_env
+        apply_qt_logging_rules
+        check_qs_abi
+        check_setup_version_sync "$config_dir"
+        if has_instances "$config_dir"; then
+            echo "iNiR is already running. Use 'inir restart' to restart." >&2
+            exit 0
+        fi
+        if [[ "$foreground" == true ]] && is_inir_service_active; then
+            if ! is_current_process_inir_service; then
+                echo "iNiR is managed by a supervisor. Stop it first before running manually." >&2
+                exit 1
+            fi
+        fi
+        if [[ "$foreground" == true ]]; then
+            exec "$qs_bin" -n -p "$config_dir"
+        fi
+        if is_inir_service_enabled; then
+            start_inir_service_if_enabled
+            exit 0
+        fi
+        exec "$qs_bin" -n -d -p "$config_dir"
+        ;;
+    restart)
+        require_qs
+        restart_quiet=""
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -q|--quiet)
+                    restart_quiet="1"
+                    shift
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        apply_shell_scale
+        apply_qt_runtime_env
+        apply_qt_logging_rules
+        check_qs_abi
+        if restart_inir_service_if_active; then
+            [[ -z "$restart_quiet" ]] && printf 'Restarting iNiR service... '
+            restart_inir_service_or_fail "$config_dir" "$restart_quiet"
+            exit 0
+        fi
+        restart_shell "$config_dir" "$restart_quiet"
+        ;;
+    kill)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        if ! stop_inir_service_if_active; then
+            echo "Unable to stop the supervised iNiR service" >&2
+            exit 1
+        fi
+        kill_shell "$config_dir"
+        ;;
+    logs)
+        require_qs
+        if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+            usage
+            exit 0
+        fi
+        show_logs "$@"
+        ;;
+    terminal)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                --)
+                    shift
+                    break
+                    ;;
+                -h|--help)
+                    echo "Usage: inir terminal [-c PATH] [args...]" >&2
+                    exit 0
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        run_runtime_script "$config_dir" "scripts/launch-terminal.sh" "$@"
+        ;;
+    browser)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                --)
+                    shift
+                    break
+                    ;;
+                -h|--help)
+                    echo "Usage: inir browser [-c PATH] [url]" >&2
+                    exit 0
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        launch_configured_browser "$@"
+        ;;
+    close-window)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    echo "Usage: inir close-window [-c PATH]" >&2
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        run_runtime_script "$config_dir" "scripts/close-window.sh"
+        ;;
+    colorpicker)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    echo "Usage: inir colorpicker" >&2
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        if ! command -v hyprpicker >/dev/null 2>&1; then
+            echo "hyprpicker not found — install it to use colorpicker" >&2
+            exit 1
+        fi
+        exec hyprpicker -a
+        ;;
+    ipc)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                --)
+                    shift
+                    break
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        if [[ $# -lt 2 ]]; then
+            echo "Usage: inir ipc <target> <function> [args...]" >&2
+            exit 1
+        fi
+        resolve_config_dir
+        if ! ensure_running_instance_for_ipc "$config_dir" "${2:-}"; then
+            echo "Timed out waiting for iNiR to start" >&2
+            exit 1
+        fi
+        if ! "$qs_bin" -p "$config_dir" ipc call "$@" 2>/dev/null; then
+            has_instances "$config_dir" && sleep 0.5
+            exec "$qs_bin" -p "$config_dir" ipc call "$@"
+        fi
+        ;;
+    dev)
+        if [[ "${1:-}" == "audit" ]]; then
+            shift
+            run_dev_audit "$@"
+        else
+            require_qs
+            run_ipc_target_command dev "$@"
+        fi
+        ;;
+    settings)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        toggle_settings "$config_dir"
+        ;;
+    open)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        open_settings "$config_dir"
+        ;;
+    settings-window)
+        require_qs
+        window_mode="open"
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --toggle)
+                    window_mode="toggle"
+                    shift
+                    ;;
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        open_detached_qml_window "$config_dir" "settings.qml" "$window_mode"
+        ;;
+    waffle-settings-window)
+        require_qs
+        window_mode="open"
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --toggle)
+                    window_mode="toggle"
+                    shift
+                    ;;
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        open_detached_qml_window "$config_dir" "waffleSettings.qml" "$window_mode"
+        ;;
+    welcome)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        open_detached_qml_window "$config_dir" "welcome.qml"
+        ;;
+    repair)
+        require_qs
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    repair_usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        run_repair "$config_dir"
+        ;;
+    path)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown option: $1" >&2
+                    exit 1
+                    ;;
+            esac
+        done
+        resolve_config_dir
+        printf '%s\n' "$config_dir"
+        ;;
+    test-local)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                --with-runtime)
+                    break
+                    ;;
+                -h|--help)
+                    usage
+                    exit 0
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        setup_dir="$(resolve_setup_dir)"
+        run_local_test "$setup_dir" "$@"
+        ;;
+    setup)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        setup_dir="$(resolve_setup_dir)"
+        run_setup_command "$setup_dir" "$@"
+        ;;
+    service)
+        run_service_command "$@"
+        ;;
+    cleanup-orphans)
+        cleanup_orphans
+        ;;
+    doctor)
+        # Doctor may run outside the graphical session; reuse the live shell environment.
+        resolve_config_dir
+        import_running_instance_environment "$config_dir" >/dev/null 2>&1 || true
+        # Quick path: `inir doctor --fix-abi` rebuilds quickshell directly without
+        # running the full 22-step pipeline. Useful for pacman hooks and scripts.
+        # `inir doctor --perf` dumps a runtime perf snapshot for triage — see
+        # _inir_doctor_perf above. Neither flag delegates to the setup pipeline.
+        fix_abi_only=false
+        perf_only=false
+        fix_abi_mode=interactive
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --fix-abi)
+                    fix_abi_only=true
+                    shift
+                    ;;
+                --perf)
+                    perf_only=true
+                    shift
+                    ;;
+                -n|--noninteractive|--non-interactive|-y|--yes)
+                    fix_abi_mode=noninteractive
+                    shift
+                    ;;
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        if $perf_only; then
+            require_qs
+            _inir_doctor_perf
+            exit $?
+        fi
+        if $fix_abi_only; then
+            require_qs
+            _inir_run_quickshell_rebuild "$fix_abi_mode"
+            exit $?
+        fi
+        setup_dir="$(resolve_setup_dir)"
+        run_setup_command "$setup_dir" "$command_name" "$@"
+        ;;
+    migrate|status|update|reinstall|rollback|my-changes|uninstall|config|info|backup|logs)
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -c|--config)
+                    parse_config_flag "$@"
+                    shift 2
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
+        setup_dir="$(resolve_setup_dir)"
+        run_setup_command "$setup_dir" "$command_name" "$@"
+        ;;
+    version)
+        show_version "$@"
+        ;;
+    theme)
+        run_theme_command "$@"
+        ;;
+    bind)
+        run_bind_command "$@"
+        ;;
+    completions)
+        _comp_shell="${1:-}"
+        if [[ "$_comp_shell" == install ]]; then
+            install_completions "${2:-}"
+            exit $?
+        fi
+        case "$_comp_shell" in
+            bash|zsh|fish)
+                _comp_candidates=(
+                    "$script_dir/completions/inir.${_comp_shell}"
+                    "$launcher_root/share/quickshell/inir/scripts/completions/inir.${_comp_shell}"
+                    "$user_config_dir/scripts/completions/inir.${_comp_shell}"
+                    "$system_config_dir/scripts/completions/inir.${_comp_shell}"
+                    "$fallback_system_config_dir/scripts/completions/inir.${_comp_shell}"
+                )
+                _comp_file=""
+                for _cand in "${_comp_candidates[@]}"; do
+                    if [[ -f "$_cand" ]]; then
+                        _comp_file="$_cand"
+                        break
+                    fi
+                done
+                if [[ -n "$_comp_file" ]]; then
+                    cat "$_comp_file"
+                else
+                    printf "Error: %s completion file not found. Searched:\n" "$_comp_shell" >&2
+                    for _cand in "${_comp_candidates[@]}"; do
+                        printf "  %s\n" "$_cand" >&2
+                    done
+                    exit 1
+                fi
+                ;;
+            "")
+                printf "Usage: inir completions <bash|zsh|fish>\n\n"
+                printf "Print shell completion script to stdout.\n\n"
+                printf "Examples:\n"
+                printf "  eval \"\$(inir completions bash)\"     # Add to .bashrc\n"
+                printf "  inir completions zsh > ~/.zsh/completions/_inir\n"
+                printf "  inir completions fish | source        # Add to config.fish\n\n"
+                printf "Or let inir put them where your shell looks:\n"
+                printf "  inir completions install [bash|zsh|fish]\n"
+                ;;
+            *)
+                printf "Unknown shell: '%s'. Supported: bash, zsh, fish\n" "$_comp_shell" >&2
+                exit 1
+                ;;
+        esac
+        ;;
+    help|-h|--help|"")
+        usage_short
+        printf '\n'
+        usage
+        ;;
+    *)
+        # Pre-validate: if registry is available and target is completely unknown,
+        # show suggestions before forwarding to Quickshell's bare "Target not found."
+        normalized="$(normalize_ipc_target "$command_name")"
+
+        if source_ipc_registry 2>/dev/null; then
+            # Check if target is known in registry
+            if [[ -z "${IPC_TARGET_FUNCTIONS[$normalized]+_}" ]]; then
+                # Unknown target — try to suggest similar ones
+                printf "Unknown command: '%s'\n\n" "$command_name" >&2
+                if ! suggest_ipc_target "$normalized" >&2; then
+                    printf "Run 'inir help' for all commands.\n" >&2
+                else
+                    printf "\nRun 'inir help' for all commands.\n" >&2
+                fi
+                exit 1
+            fi
+        fi
+
+        require_qs
+        run_ipc_target_command "$command_name" "$@"
+        ;;
+esac

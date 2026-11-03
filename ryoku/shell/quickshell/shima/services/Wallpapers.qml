@@ -1,0 +1,1425 @@
+pragma Singleton
+pragma ComponentBehavior: Bound
+
+import qs.modules.common
+import qs.modules.common.models
+import qs.modules.common.functions
+import qs.services
+import QtQuick
+import Qt.labs.folderlistmodel
+import Quickshell
+import Quickshell.Io
+import "root:"
+import "root:modules/common/functions/md5.js" as MD5
+
+Singleton {
+    id: root
+
+    signal wallpaperBlurTransitionRequested(var targetMonitors, int durationMs)
+
+    readonly property bool _debugWallpaperUrls: (Quickshell.env("INIR_DEBUG_WALLPAPER_URLS") ?? "") === "1"
+
+    // Suppression flag: prevents ThemeService from firing a duplicate
+    // switchwall.sh run while a direct apply() is already in progress.
+    property bool _applyInProgress: false
+    property string _queuedApplyPath: ""
+    property bool _queuedApplyDarkMode: Appearance.m3colors.darkmode
+    property bool _queuedApplyNoSwitch: false
+    readonly property string backendProvider: "awww"
+    readonly property bool awwwBackendEnabled: false
+
+    // Single gate for all animated wallpaper surfaces (background, backdrops, lock):
+    // freeze video/GIF playback while discharging to save power.
+    readonly property bool batteryPauseActive: (Config.options?.background?.pauseAnimationOnBattery ?? true) && Battery.onBattery
+
+    // ─── Transient wallpaper preview ───
+    // Single entry point for pickers that show a wallpaper before it is applied.
+    // Nothing here writes Config or starts the colour pipeline.
+    //
+    // Which engine is visible depends on the file and the configuration: awww
+    // paints static images, while the internal Video/AnimatedImage/crossfader
+    // paints videos, GIFs, and everything else whenever awww is disabled,
+    // unavailable, or displaced by dynamic parallax. Rather than guess the
+    // owner, the preview is published to both — the visible one shows it and
+    // the other is a no-op. Crucially this only supplies a path; it never
+    // suppresses externalMainWallpaperEligible, so the engine that renders
+    // while browsing is the same one that renders after applying.
+    property string internalPreviewPath: ""
+    property string internalPreviewMonitor: ""
+    readonly property bool internalPreviewActive: internalPreviewPath.length > 0
+
+    function previewWallpaper(path: string, monitorName = ""): void {
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!normalizedPath) {
+            root.cancelWallpaperPreview()
+            return
+        }
+
+        root.internalPreviewMonitor = String(monitorName ?? "")
+        root.internalPreviewPath = normalizedPath
+        // Internal shader previews are owned completely by the in-shell
+        // crossfader. Do not ask awww to repaint underneath while browsing:
+        // Qt.callLater only waits for another event-loop turn, not for the QML
+        // overlay to reach the compositor. On a busy/large decode that allowed
+        // the target awww frame to appear for a few refreshes before the
+        // outgoing shader overlay was actually presented (target -> old ->
+        // shader), which is the visible "flash" users report.
+        //
+        // Keep awww on the configured wallpaper until Apply. The QML shader
+        // already owns both outgoing/incoming textures, so this also makes
+        // preview timing independent of image resolution and GPU scheduling.
+        if (AwwwBackend.internalShaderTransitionActive)
+            return
+
+        // Native awww transitions still preview through the backend that owns
+        // the visible desktop so browsing and applying remain identical.
+        AwwwBackend.previewImage(normalizedPath, monitorName)
+    }
+
+    // Restore whatever the config says without repainting through a different
+    // engine. Called from every launcher exit path that is not an apply.
+    function cancelWallpaperPreview(): void {
+        root._clearInternalPreview()
+        AwwwBackend.cancelPreview()
+    }
+
+    // The caller has committed the preview. Visible static targets may already
+    // have been adopted by AwwwBackend, so releasing transient state here must
+    // not imply another repaint.
+    function clearWallpaperPreview(): void {
+        root._clearInternalPreview()
+        AwwwBackend.clearPreview()
+    }
+
+    function _clearInternalPreview(): void {
+        root.internalPreviewPath = ""
+        root.internalPreviewMonitor = ""
+    }
+
+    function _previewMatches(path: string, monitorName = ""): bool {
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        return root.internalPreviewActive
+            && root.internalPreviewPath === normalizedPath
+            && root.internalPreviewMonitor === String(monitorName ?? "")
+    }
+
+    function _adoptVisiblePreview(path: string, monitorName = ""): bool {
+        if (!root._previewMatches(path, monitorName))
+            return false
+        return AwwwBackend.adoptPreview(path, monitorName)
+    }
+
+    function internalPreviewFor(monitorName: string, fallbackPath: string): string {
+        if (!root.internalPreviewActive)
+            return fallbackPath
+        if (root.internalPreviewMonitor
+                && root.internalPreviewMonitor !== String(monitorName ?? ""))
+            return fallbackPath
+        return root.internalPreviewPath
+    }
+
+    // How the wallpaper meets the screen (`background.fillMode`), one answer for every family's desktop and for awww:
+    // fill crops, fit shows bars, stretch ignores the aspect, tile repeats, center keeps the picture's own size, span
+    // lays one picture across every screen. Span on a single screen is fill.
+    readonly property var fillModes: ["fill", "fit", "stretch", "tile", "center", "span"]
+    readonly property string fillMode: {
+        const mode = String(Config.options?.background?.fillMode ?? "fill")
+        if (!root.fillModes.includes(mode)) return "fill"
+        return mode === "span" && Quickshell.screens.length < 2 ? "fill" : mode
+    }
+    function imageFillFor(mode: string): int {
+        switch (mode) {
+        case "fit": return Image.PreserveAspectFit
+        case "stretch": return Image.Stretch
+        case "tile": return Image.Tile
+        case "center": return Image.Pad
+        default: return Image.PreserveAspectCrop
+        }
+    }
+    // A video has no tile or natural size: those keep the cover. Values are VideoOutput's (Qt.AspectRatioMode).
+    function videoFillFor(mode: string): int {
+        switch (mode) {
+        case "fit": return Qt.KeepAspectRatio
+        case "stretch": return Qt.IgnoreAspectRatio
+        default: return Qt.KeepAspectRatioByExpanding
+        }
+    }
+    // Span's canvas: the box around every screen, in the same logical coordinates as each screen's x and y.
+    readonly property rect spanArea: {
+        const screens = Quickshell.screens
+        if (screens.length === 0) return Qt.rect(0, 0, 0, 0)
+        let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity
+        for (const screen of screens) {
+            left = Math.min(left, screen.x)
+            top = Math.min(top, screen.y)
+            right = Math.max(right, screen.x + screen.width)
+            bottom = Math.max(bottom, screen.y + screen.height)
+        }
+        return Qt.rect(left, top, right - left, bottom - top)
+    }
+
+    // Wallpaper path resolution for aurora/backdrop
+    readonly property bool isWaffleFamily: (Config.options?.panelFamily ?? "ii") === "waffle"
+    readonly property bool useBackdropWallpaper: isWaffleFamily
+        ? ((Config.options?.waffles?.background?.backdrop?.enable ?? false) && (Config.options?.waffles?.background?.backdrop?.hideWallpaper ?? false))
+        : ((Config.options?.background?.backdrop?.enable ?? false) && (Config.options?.background?.backdrop?.hideWallpaper ?? false))
+    readonly property bool backdropOnlyShadowOverrideWanted: Config.ready && CompositorService.isNiri && useBackdropWallpaper
+    property bool _backdropShadowSyncQueued: false
+
+    function _scheduleBackdropShadowSync(): void {
+        if (!Config.ready || !CompositorService.isNiri)
+            return
+        backdropShadowSyncTimer.restart()
+    }
+
+    onBackdropOnlyShadowOverrideWantedChanged: root._scheduleBackdropShadowSync()
+
+    Connections {
+        target: Config
+        function onReadyChanged(): void {
+            if (Config.ready)
+                root._scheduleBackdropShadowSync()
+        }
+    }
+
+    Timer {
+        id: backdropShadowSyncTimer
+        interval: 80
+        repeat: false
+        onTriggered: {
+            if (backdropShadowSyncProcess.running) {
+                root._backdropShadowSyncQueued = true
+                return
+            }
+            backdropShadowSyncProcess.command = [
+                "python3",
+                Quickshell.shellPath("scripts/niri-config.py"),
+                "sync-backdrop-overview-shadow",
+                root.backdropOnlyShadowOverrideWanted ? "on" : "off"
+            ]
+            backdropShadowSyncProcess.running = true
+        }
+    }
+
+    Process {
+        id: backdropShadowSyncProcess
+        onExited: (exitCode) => {
+            if (exitCode !== 0)
+                console.warn("Wallpapers: failed to sync Niri backdrop overview shadow")
+            if (root._backdropShadowSyncQueued) {
+                root._backdropShadowSyncQueued = false
+                backdropShadowSyncTimer.restart()
+            }
+        }
+    }
+
+    // Resolve the "main" wallpaper path — multi-monitor aware
+    // When multi-monitor is enabled, uses the focused monitor's wallpaper
+    // so Aurora blur/glass on all panels matches what's actually on screen.
+    readonly property string _resolvedMainWallpaperPath: {
+        if (WallpaperListener.multiMonitorEnabled) {
+            const focused = WallpaperListener.getFocusedMonitor()
+            if (focused) {
+                const data = WallpaperListener.effectivePerMonitor[focused]
+                if (data && data.path) return data.path
+            }
+        }
+        return Config.options?.background?.wallpaperPath ?? ""
+    }
+
+    readonly property bool useBackdropForColors: Config.options?.appearance?.wallpaperTheming?.useBackdropForColors ?? false
+
+    function currentThemingWallpaperPath(monitorName = ""): string {
+        const targetMonitor = monitorName || (WallpaperListener.multiMonitorEnabled ? WallpaperListener.getFocusedMonitor() : "")
+        const mainPath = currentMainWallpaperPath(targetMonitor)
+        const waffleMainPath = currentWaffleWallpaperPath(targetMonitor)
+
+        if (root.useBackdropWallpaper || root.useBackdropForColors) {
+            if (root.isWaffleFamily) {
+                const waffleBackdrop = Config.options?.waffles?.background?.backdrop ?? {}
+                return (waffleBackdrop.useMainWallpaper ?? true) ? waffleMainPath : (waffleBackdrop.wallpaperPath || waffleMainPath)
+            }
+
+            const iiBackdrop = Config.options?.background?.backdrop ?? {}
+            if (iiBackdrop.useMainWallpaper ?? true)
+                return mainPath
+            if (WallpaperListener.multiMonitorEnabled && targetMonitor) {
+                const monitorData = WallpaperListener.effectivePerMonitor[targetMonitor] ?? null
+                if (monitorData && monitorData.backdropPath)
+                    return monitorData.backdropPath
+            }
+            return iiBackdrop.wallpaperPath || mainPath
+        }
+
+        return root.isWaffleFamily ? waffleMainPath : mainPath
+    }
+
+    readonly property string effectiveWallpaperPath: {
+        return root.currentThemingWallpaperPath()
+    }
+
+    readonly property string effectiveWallpaperUrl: root.stillUrlFor(root.effectiveWallpaperPath)
+
+    // An image-safe URL for a wallpaper: the file itself, or a video's cached still frame.
+    // Empty until that frame exists, so Image consumers never request a missing file.
+    function stillUrlFor(path: string): string {
+        const clean = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!clean) return ""
+        if (!root.isVideoFile(clean)) return "file://" + clean
+        const frame = root.videoFirstFrames[clean]
+        if (frame) return frame.startsWith("file://") ? frame : "file://" + frame
+        // Caching writes videoFirstFrames, which the calling binding just read: deferred, or it loops.
+        Qt.callLater(root.ensureVideoFirstFrame, clean)
+        return ""
+    }
+
+    onEffectiveWallpaperUrlChanged: {
+        if (root._debugWallpaperUrls) {
+            console.log("[Wallpapers] effectiveWallpaperPath=", root.effectiveWallpaperPath)
+            console.log("[Wallpapers] effectiveWallpaperUrl=", root.effectiveWallpaperUrl)
+        }
+        // Schedule a deferred GC pass to reclaim orphaned pixmaps/textures
+        // from the previous wallpaper.  The delay gives the scene graph one
+        // frame to drop references before we collect.
+        _gcTimer.restart()
+    }
+
+    Timer {
+        id: _gcTimer
+        interval: 2000
+        onTriggered: gc()
+    }
+
+    // Whether a live wallpaper may animate on an output: "never" pauses nothing,
+    // "fullscreen" pauses behind a fullscreen window, "covered" also once tiled windows span the output.
+    readonly property string videoPauseMode: Config.options?.background?.videoPause ?? "covered"
+    function videoMotionAllowedOn(outputName: string): bool {
+        if (root.videoPauseMode === "never") return true
+        const output = String(outputName ?? "")
+        if (output.length > 0 ? GameMode.hasFullscreenOnOutput(output) : GameMode.hasVisibleFullscreenWindow) return false
+        return root.videoPauseMode !== "covered" || !(CompositorService.isNiri && output.length > 0 && NiriService.activeWorkspaceCovers(output))
+    }
+
+    // ── Video first-frame system ──────────────────────────────────────────
+    // Generates and caches first-frame JPGs for video wallpapers
+    readonly property string _videoThumbDir: {
+        const xdgCache = Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")
+        return xdgCache + "/quickshell/video_thumbnails"
+    }
+
+    property var videoFirstFrames: ({})
+
+    function isVideoFile(path: string): bool {
+        if (!path) return false
+        const lp = path.toLowerCase()
+        return lp.endsWith(".mp4") || lp.endsWith(".webm") || lp.endsWith(".mkv") || lp.endsWith(".avi") || lp.endsWith(".mov")
+    }
+
+    function getVideoFirstFramePath(videoPath: string): string {
+        if (!videoPath) return ""
+        return root.videoFirstFrames[videoPath] ?? ""
+    }
+
+    property var _ffPending: ({})
+
+    function ensureVideoFirstFrame(videoPath: string) {
+        if (!videoPath || !isVideoFile(videoPath)) return
+        if (root.videoFirstFrames[videoPath]) return
+        if (root._ffPending[videoPath]) return
+
+        // Check config thumbnailPath (global wallpaper match)
+        const configWp = Config.options?.background?.wallpaperPath ?? ""
+        const configThumb = Config.options?.background?.thumbnailPath ?? ""
+        if (configWp === videoPath && configThumb) {
+            const expected = root._videoThumbDir + "/" + MD5.hash(videoPath) + ".jpg"
+            const thumbPath = FileUtils.trimFileProtocol(configThumb)
+            if (thumbPath === expected) {
+                _cacheFirstFrame(videoPath, expected)
+                return
+            }
+        }
+
+        // Queue async check → generate (with dedup)
+        root._ffPending[videoPath] = true
+        // Use md5 hash of full path to match switchwall.sh and avoid basename collisions
+        const hash = MD5.hash(videoPath)
+        const expectedPath = root._videoThumbDir + "/" + hash + ".jpg"
+        root._ffQueue.push({ videoPath: videoPath, outputPath: expectedPath })
+        if (!_ffGenProc.running) _processNextFF()
+    }
+
+    function _cacheFirstFrame(videoPath: string, imagePath: string) {
+        const copy = Object.assign({}, root.videoFirstFrames)
+        copy[videoPath] = imagePath
+        root.videoFirstFrames = copy
+
+        if (root._debugWallpaperUrls) {
+            console.log("[Wallpapers] Cached first-frame:", videoPath, "->", imagePath)
+        }
+    }
+
+    property var _ffQueue: []
+
+    function _processNextFF() {
+        if (root._ffQueue.length === 0) return
+        const item = root._ffQueue.shift()
+        _ffGenProc._videoPath = item.videoPath
+        _ffGenProc._outputPath = item.outputPath
+        // Wallpaper loops usually fade in from black, so frame 0 gives this file a nearly black
+        // palette, and this frame is what theming quantizes: pick a representative one.
+        _ffGenProc.command = ["sh", "-c",
+            '[ -s "$2" ] && exit 0; mkdir -p "$(dirname "$2")" || exit 1; '
+            + 'ffmpeg -hide_banner -loglevel error -y -ss 1 -i "$1" -vf thumbnail=n=30 -frames:v 1 -update 1 -q:v 2 "$2" '
+            + '|| ffmpeg -hide_banner -loglevel error -y -i "$1" -vframes 1 -update 1 -q:v 2 "$2"',
+            "sh", item.videoPath, item.outputPath]
+        _ffGenProc.running = true
+    }
+
+    Process {
+        id: _ffGenProc
+        property string _videoPath
+        property string _outputPath
+        onExited: (exitCode) => {
+            if (exitCode === 0) {
+                root._cacheFirstFrame(_ffGenProc._videoPath, _ffGenProc._outputPath)
+            }
+            root._processNextFF()
+        }
+    }
+    // ── End video first-frame system ──────────────────────────────────────
+
+    // A live wallpaper is decoded no larger than it is drawn: a 4K file behind a 1080p output, or
+    // under blurred glass, plays from a cached copy at that height. Copies for glass-sized
+    // consumers also drop to 30 fps: each of their frames redraws the whole chassis window.
+    readonly property string _videoPlaybackDir: {
+        const xdgCache = Quickshell.env("XDG_CACHE_HOME") || (Quickshell.env("HOME") + "/.cache")
+        return xdgCache + "/quickshell/video_playback"
+    }
+    readonly property var _videoPlaybackHeights: [360, 540, 720, 1080, 1440, 2160]
+    // key -> "" while checking, "building" while the copy is made, the path to play, or "original"
+    property var videoPlaybackCopies: ({})
+    property var _videoPlaybackQueue: []
+
+    function videoPlaybackPath(path: string, height: int): string {
+        const clean = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!clean || !root.isVideoFile(clean) || height <= 0) return clean
+        const tier = root._videoPlaybackHeights.find(h => h >= height) ?? 0
+        if (!tier) return clean
+        const key = clean + "@" + tier
+        const state = root.videoPlaybackCopies[key]
+        if (state === undefined) {
+            // Recording the request writes videoPlaybackCopies, which the calling binding just read.
+            Qt.callLater(root._requestVideoPlaybackCopy, clean, tier)
+            return ""
+        }
+        if (state === "") return ""
+        if (state === "building" || state === "original") return clean
+        return state
+    }
+
+    function _setVideoPlaybackState(key: string, state: string): void {
+        const copy = Object.assign({}, root.videoPlaybackCopies)
+        copy[key] = state
+        root.videoPlaybackCopies = copy
+    }
+
+    function _requestVideoPlaybackCopy(path: string, tier: int): void {
+        const key = path + "@" + tier
+        if (root.videoPlaybackCopies[key] !== undefined) return
+        root._setVideoPlaybackState(key, "")
+        root._videoPlaybackQueue.push({ key: key, path: path, tier: tier,
+            fps: tier <= 540 ? 30 : 0,
+            output: root._videoPlaybackDir + "/" + MD5.hash(path) + "-" + tier + (tier <= 540 ? "-30" : "") + ".mp4", check: true })
+        root._runVideoPlaybackQueue()
+    }
+
+    function _runVideoPlaybackQueue(): void {
+        if (_videoPlaybackProc.running || root._videoPlaybackQueue.length === 0) return
+        // Checks jump the queue: a cached copy should never wait behind a transcode.
+        const next = root._videoPlaybackQueue.findIndex(job => job.check)
+        const job = root._videoPlaybackQueue.splice(next >= 0 ? next : 0, 1)[0]
+        _videoPlaybackProc.job = job
+        _videoPlaybackProc.command = [root._videoPlaybackScript].concat(job.check ? ["--check"] : [])
+            .concat([job.path, job.output, String(job.tier), String(job.fps)])
+        _videoPlaybackProc.running = true
+    }
+
+    readonly property string _videoPlaybackScript: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/videos/video-playback-copy.sh`
+
+    Process {
+        id: _videoPlaybackProc
+        property var job: null
+        onExited: exitCode => {
+            const job = _videoPlaybackProc.job
+            if (job?.check && exitCode === 1) {
+                root._setVideoPlaybackState(job.key, "building")
+                root._videoPlaybackQueue.push(Object.assign({}, job, { check: false }))
+            } else if (job) {
+                root._setVideoPlaybackState(job.key, exitCode === 0 ? job.output : "original")
+            }
+            root._runVideoPlaybackQueue()
+        }
+    }
+
+    property string thumbgenScriptPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/thumbnails/thumbgen-venv.sh`
+    property string generateThumbnailsMagickScriptPath: `${FileUtils.trimFileProtocol(Directories.scriptPath)}/thumbnails/generate-thumbnails-magick.sh`
+    
+    // Calculate standard Freedesktop thumbnail path
+    // size: "normal" (128), "large" (256), "x-large" (512), "xx-large" (1024)
+    function getExpectedThumbnailPath(filePath: string, size = "large"): string {
+        if (!filePath) return ""
+        // Ensure path is absolute and clean
+        let cleanPath = FileUtils.trimFileProtocol(filePath)
+        if (!cleanPath.startsWith("/")) cleanPath = Quickshell.env("PWD") + "/" + cleanPath
+        
+        // Encode URI path segments (similar to python urllib.parse.quote(p, safe=""))
+        // JS encodeURIComponent encodes everything except A-Za-z0-9-_.!~*'()
+        // We need to match Python's behavior for strict path encoding
+        const parts = cleanPath.split("/")
+        const encodedParts = parts.map(p => {
+            // Manual encoding for characters that encodeURIComponent misses or handles differently if needed
+            // But standard encodeURIComponent is usually close enough for file paths
+            return encodeURIComponent(p).replace(/[!'()*]/g, function(c) {
+                return '%' + c.charCodeAt(0).toString(16);
+            });
+        })
+        const url = "file://" + encodedParts.join("/")
+        
+        const md5Hash = MD5.hash(url)
+        const cacheDir = Quickshell.env("HOME") + "/.cache/thumbnails/" + size
+        return cacheDir + "/" + md5Hash + ".png"
+    }
+
+    property alias directory: folderModel.folder
+    readonly property string effectiveDirectory: FileUtils.trimFileProtocol(folderModel.folder.toString())
+    property url defaultFolder: Qt.resolvedUrl(Directories.wallpapersPath)
+    property alias folderModel: folderModel
+    property bool _folderModelTransitioning: false
+    readonly property bool folderModelReady: !root._folderModelTransitioning
+        && folderModel.status === FolderListModel.Ready
+    property string searchQuery: ""
+    readonly property list<string> extensions: ["jpg", "jpeg", "png", "webp", "avif", "bmp", "svg", "gif", "mp4", "webm", "mkv", "avi", "mov"]
+    property list<string> wallpapers: []
+    property int _wallpaperCacheIndex: 0
+    readonly property bool thumbnailGenerationRunning: thumbgenProc.running
+    property real thumbnailGenerationProgress: 0
+    property var _knownThumbnailOutputs: ({})
+
+    signal changed()
+    signal folderChanged()
+    signal thumbnailGenerated(directory: string)
+    signal thumbnailGeneratedFile(filePath: string)
+
+    function hasKnownThumbnail(outputPath: string): bool {
+        const normalizedPath = FileUtils.trimFileProtocol(String(outputPath ?? ""))
+        return normalizedPath.length > 0 && !!root._knownThumbnailOutputs[normalizedPath]
+    }
+
+    function rememberThumbnail(outputPath: string): void {
+        const normalizedPath = FileUtils.trimFileProtocol(String(outputPath ?? ""))
+        if (!normalizedPath || root._knownThumbnailOutputs[normalizedPath]) return
+        const nextKnown = Object.assign({}, root._knownThumbnailOutputs)
+        nextKnown[normalizedPath] = true
+        root._knownThumbnailOutputs = nextKnown
+    }
+
+    function forgetThumbnail(outputPath: string): void {
+        const normalizedPath = FileUtils.trimFileProtocol(String(outputPath ?? ""))
+        if (!normalizedPath || !root._knownThumbnailOutputs[normalizedPath]) return
+        const nextKnown = Object.assign({}, root._knownThumbnailOutputs)
+        delete nextKnown[normalizedPath]
+        root._knownThumbnailOutputs = nextKnown
+    }
+
+    // Sources the generator could not turn into a thumbnail this session. Asking again would only
+    // spawn the same failing magick/ffmpeg every time a tile reloads.
+    property var _failedThumbnailOutputs: ({})
+    function thumbnailFailed(outputPath: string): bool {
+        return !!root._failedThumbnailOutputs[FileUtils.trimFileProtocol(String(outputPath ?? ""))]
+    }
+
+    // Whether thumbnails exist is asked for many paths per process, never one process per tile:
+    // a folder of a few hundred wallpapers used to start a few hundred `test -f` at once and ran
+    // the shell out of file descriptors.
+    signal thumbnailsChecked(var found)
+    property var _thumbnailCheckQueue: ({})
+    property int _thumbnailCheckRetryMs: 0
+    function requestThumbnailCheck(outputPath: string): void {
+        const normalizedPath = FileUtils.trimFileProtocol(String(outputPath ?? ""))
+        if (!normalizedPath) return
+        root._thumbnailCheckQueue[normalizedPath] = true
+        if (!thumbnailCheckProc.running && !thumbnailCheckRetry.running) thumbnailCheckFlush.restart()
+    }
+    function _runThumbnailCheck(): void {
+        if (thumbnailCheckProc.running) return
+        const paths = Object.keys(root._thumbnailCheckQueue).slice(0, 400)
+        if (paths.length === 0) return
+        paths.forEach(path => delete root._thumbnailCheckQueue[path])
+        thumbnailCheckProc.paths = paths
+        thumbnailCheckProc.lines = []
+        thumbnailCheckProc.finished = false
+        thumbnailCheckProc.command = ["sh", "-c", 'for p do [ -s "$p" ] && printf "%s\\n" "$p"; done; echo __done__', "sh"].concat(paths)
+        thumbnailCheckProc.running = true
+    }
+    function _requeueThumbnailCheck(paths: var): void {
+        paths.forEach(path => root._thumbnailCheckQueue[path] = true)
+        root._thumbnailCheckRetryMs = Math.min(8000, Math.max(1000, root._thumbnailCheckRetryMs * 2))
+        thumbnailCheckRetry.interval = root._thumbnailCheckRetryMs
+        thumbnailCheckRetry.restart()
+    }
+    Timer { id: thumbnailCheckFlush; interval: 40; onTriggered: root._runThumbnailCheck() }
+    Timer { id: thumbnailCheckRetry; onTriggered: root._runThumbnailCheck() }
+    Process {
+        id: thumbnailCheckProc
+        property var paths: []
+        property var lines: []
+        property bool finished: false
+        stdout: SplitParser {
+            onRead: line => thumbnailCheckProc.lines.push(line)
+        }
+        onExited: (exitCode, exitStatus) => {
+            thumbnailCheckProc.finished = true
+            const paths = thumbnailCheckProc.paths
+            if (!thumbnailCheckProc.lines.includes("__done__")) {
+                root._requeueThumbnailCheck(paths)
+                return
+            }
+            root._thumbnailCheckRetryMs = 0
+            const existing = new Set(thumbnailCheckProc.lines)
+            const found = {}
+            const nextKnown = Object.assign({}, root._knownThumbnailOutputs)
+            paths.forEach(path => {
+                found[path] = existing.has(path)
+                if (found[path]) nextKnown[path] = true
+                else delete nextKnown[path]
+            })
+            root._knownThumbnailOutputs = nextKnown
+            root.thumbnailsChecked(found)
+            if (Object.keys(root._thumbnailCheckQueue).length > 0) thumbnailCheckFlush.restart()
+        }
+        // Out of descriptors or processes, the check never starts and never exits: try it later
+        // instead of reading that as "no thumbnail" and queueing generation for every tile.
+        onRunningChanged: if (!running) thumbnailCheckStartGuard.restart()
+    }
+    Timer {
+        id: thumbnailCheckStartGuard
+        interval: 0
+        onTriggered: if (!thumbnailCheckProc.finished) root._requeueThumbnailCheck(thumbnailCheckProc.paths)
+    }
+
+    function load() {}
+    function refresh() {} // Compatibility - FolderListModel auto-refreshes
+
+    function _beginFolderModelTransition(): void {
+        root._folderModelTransitioning = true
+    }
+
+    function _scheduleFolderModelTransitionEnd(): void {
+        if (folderModel.status === FolderListModel.Ready)
+            folderModelTransitionTimer.restart()
+    }
+
+    function _setFolderModelDirectory(path: url): void {
+        root._beginFolderModelTransition()
+        root.directory = path
+        root._scheduleFolderModelTransitionEnd()
+    }
+
+    function rebuildWallpapersCache(): void {
+        root.wallpapers = []
+        root._wallpaperCacheIndex = 0
+        wallpaperCacheTimer.restart()
+    }
+
+    function appendWallpapersCacheBatch(): void {
+        const nextBatch = root.wallpapers.slice()
+        const batchEnd = Math.min(folderModel.count, root._wallpaperCacheIndex + 64)
+        for (let i = root._wallpaperCacheIndex; i < batchEnd; i++) {
+            const path = folderModel.get(i, "filePath") || FileUtils.trimFileProtocol(folderModel.get(i, "fileURL"))
+            if (path && path.length)
+                nextBatch.push(path)
+        }
+        root.wallpapers = nextBatch
+        root._wallpaperCacheIndex = batchEnd
+        if (root._wallpaperCacheIndex < folderModel.count)
+            wallpaperCacheTimer.restart()
+    }
+
+    function currentMainWallpaperPath(monitorName = ""): string {
+        if (RyokuHost.ready) return RyokuHost.pathFor(monitorName)
+        const targetMonitor = monitorName || (WallpaperListener.multiMonitorEnabled ? WallpaperListener.getFocusedMonitor() : "")
+        if (WallpaperListener.multiMonitorEnabled && targetMonitor) {
+            const data = WallpaperListener.effectivePerMonitor[targetMonitor] ?? null
+            if (data && data.path)
+                return data.path
+        }
+        return Config.options?.background?.wallpaperPath ?? ""
+    }
+
+    function currentWaffleWallpaperPath(monitorName = ""): string {
+        const mainPath = currentMainWallpaperPath(monitorName)
+        const waffleBackground = Config.options?.waffles?.background ?? {}
+        return (waffleBackground.useMainWallpaper ?? true) ? mainPath : (waffleBackground.wallpaperPath || mainPath)
+    }
+
+    // The image the desktop actually shows on an output: the backdrop's when it replaces the wallpaper
+    // ("show only the backdrop", ii and iRiS), the main wallpaper otherwise. Glass and Lume read this one,
+    // or they sample a wallpaper nobody sees.
+    readonly property bool desktopShowsBackdrop: !root.isWaffleFamily && root.useBackdropWallpaper
+    readonly property real desktopDim: root.desktopShowsBackdrop
+        ? Math.max(0, Math.min(1, Number(Config.options?.background?.backdrop?.dim ?? 35) / 100)) : 0
+    readonly property real desktopSaturation: root.desktopShowsBackdrop ? Number(Config.options?.background?.backdrop?.saturation ?? 0) : 0
+    readonly property real desktopContrast: root.desktopShowsBackdrop ? Number(Config.options?.background?.backdrop?.contrast ?? 0) : 0
+    function desktopWallpaperPath(monitorName = ""): string {
+        if (root.desktopShowsBackdrop)
+            return currentWallpaperPathForTarget("backdrop", monitorName)
+        return currentMainWallpaperPath(monitorName)
+    }
+
+    function currentWallpaperPathForTarget(target = "main", monitorName = ""): string {
+        const normalizedTarget = target && target.length > 0 ? target : "main"
+        const mainPath = currentMainWallpaperPath(monitorName)
+
+        switch (normalizedTarget) {
+        case "backdrop": {
+            const iiBackdrop = Config.options?.background?.backdrop ?? {}
+            const useMainWallpaper = iiBackdrop.useMainWallpaper ?? true
+            if (useMainWallpaper)
+                return mainPath
+            if (WallpaperListener.multiMonitorEnabled && monitorName) {
+                const monitorData = WallpaperListener.effectivePerMonitor[monitorName] ?? null
+                if (monitorData && monitorData.backdropPath)
+                    return monitorData.backdropPath
+            }
+            return iiBackdrop.wallpaperPath || mainPath
+        }
+        case "waffle": {
+            return currentWaffleWallpaperPath(monitorName)
+        }
+        case "waffle-backdrop": {
+            const waffleBackdrop = Config.options?.waffles?.background?.backdrop ?? {}
+            const waffleMain = currentWaffleWallpaperPath(monitorName)
+            if (waffleBackdrop.useMainWallpaper ?? true)
+                return waffleMain
+            if (WallpaperListener.multiMonitorEnabled && monitorName) {
+                const monitorData = WallpaperListener.effectivePerMonitor[monitorName] ?? null
+                if (monitorData && monitorData.backdropPath)
+                    return monitorData.backdropPath
+            }
+            return waffleBackdrop.wallpaperPath || waffleMain
+        }
+        default:
+            return mainPath
+        }
+    }
+
+    function isCurrentWallpaperPath(path: string, target = "main", monitorName = ""): bool {
+        const currentPath = FileUtils.trimFileProtocol(String(currentWallpaperPathForTarget(target, monitorName) ?? ""))
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        return currentPath.length > 0 && currentPath === normalizedPath
+    }
+
+    function _applyRequestKey(path: string, darkMode: bool, noSwitch: bool): string {
+        return [noSwitch ? "noswitch" : "switch", FileUtils.trimFileProtocol(String(path ?? "")), darkMode ? "dark" : "light"].join("|")
+    }
+
+    function _allMonitorNames(): var {
+        const names = []
+        for (const screen of Quickshell.screens) {
+            const name = WallpaperListener.getMonitorName(screen)
+            if (name && name.length > 0)
+                names.push(name)
+        }
+        return names
+    }
+
+    function _transitionTargetMonitors(monitorName = ""): var {
+        if (monitorName && monitorName.length > 0)
+            return [monitorName]
+        return _allMonitorNames()
+    }
+
+    function _wallpaperTransitionSettleMs(): int {
+        return Math.max(
+            AwwwBackend.active ? (AwwwBackend.transitionDurationMs + 400) : 0,
+            Appearance.calcEffectiveDuration(Config.options?.background?.transition?.duration ?? 800)
+        )
+    }
+
+    function requestWallpaperBlurTransition(monitorName = ""): void {
+        root.wallpaperBlurTransitionRequested(_transitionTargetMonitors(monitorName), _wallpaperTransitionSettleMs())
+    }
+
+    function _runWallpaperScript(path: string, darkMode: bool, noSwitch: bool): void {
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!normalizedPath || normalizedPath.length === 0)
+            return
+
+        root._applyInProgress = true
+        _applySuppressTimer.restart()
+        applyProc.activeRequestKey = root._applyRequestKey(normalizedPath, darkMode, noSwitch)
+        const command = [
+            Directories.wallpaperSwitchScriptPath,
+            "--image", normalizedPath,
+            "--mode", (darkMode ? "dark" : "light"),
+            "--skip-config-write"
+        ]
+        if (noSwitch)
+            command.splice(command.length - 1, 0, "--noswitch")
+        applyProc.exec(command)
+    }
+
+    function _queueWallpaperScript(path: string, darkMode: bool, noSwitch: bool): void {
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!normalizedPath || normalizedPath.length === 0)
+            return
+
+        const requestKey = root._applyRequestKey(normalizedPath, darkMode, noSwitch)
+        if (applyProc.running) {
+            if (applyProc.activeRequestKey === requestKey || applyProc.pendingRequestKey === requestKey)
+                return
+
+            root._queuedApplyPath = normalizedPath
+            root._queuedApplyDarkMode = darkMode
+            root._queuedApplyNoSwitch = noSwitch
+            applyProc.pendingRequestKey = requestKey
+            root._applyInProgress = true
+            _applySuppressTimer.restart()
+            return
+        }
+
+        root._queuedApplyPath = ""
+        applyProc.pendingRequestKey = ""
+        root._runWallpaperScript(normalizedPath, darkMode, noSwitch)
+    }
+
+    Process {
+        id: applyProc
+        property string activeRequestKey: ""
+        property string pendingRequestKey: ""
+
+        onExited: {
+            const nextKey = pendingRequestKey
+            const nextPath = root._queuedApplyPath
+            const nextDarkMode = root._queuedApplyDarkMode
+            const nextNoSwitch = root._queuedApplyNoSwitch
+
+            activeRequestKey = ""
+            pendingRequestKey = ""
+            root._queuedApplyPath = ""
+
+            if (nextKey !== "" && nextPath !== "") {
+                root._runWallpaperScript(nextPath, nextDarkMode, nextNoSwitch)
+                return
+            }
+
+            root._applyInProgress = false
+        }
+    }
+
+    // Clears _applyInProgress after switchwall.sh has had time to start.
+    // 3 seconds is enough for the script to begin; ThemeService debounce is 260ms.
+    Timer {
+        id: _applySuppressTimer
+        interval: 3000
+        onTriggered: {
+            if (!applyProc.running && applyProc.pendingRequestKey === "")
+                root._applyInProgress = false
+        }
+    }
+
+    function openFallbackPicker(darkMode = Appearance.m3colors.darkmode) {
+        applyProc.exec([Directories.wallpaperSwitchScriptPath, "--mode", (darkMode ? "dark" : "light")])
+    }
+
+    function applySelectionTarget(path, target = "main", darkMode = Appearance.m3colors.darkmode, monitorName = "") {
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!normalizedPath || normalizedPath.length === 0) return
+
+        const normalizedTarget = target && target.length > 0 ? target : "main"
+        const lowerPath = normalizedPath.toLowerCase()
+        const isVideo = lowerPath.endsWith(".mp4") || lowerPath.endsWith(".webm") || lowerPath.endsWith(".mkv")
+            || lowerPath.endsWith(".avi") || lowerPath.endsWith(".mov")
+        const isGif = lowerPath.endsWith(".gif")
+        const needsThumbnail = isVideo || isGif
+        const thumbnailPath = needsThumbnail ? root.getExpectedThumbnailPath(normalizedPath, "large") : ""
+
+        switch (normalizedTarget) {
+        case "backdrop":
+            Config.setNestedValue("background.backdrop.useMainWallpaper", false)
+            Config.setNestedValue("background.backdrop.wallpaperPath", normalizedPath)
+            Config.setNestedValue("background.backdrop.thumbnailPath", thumbnailPath)
+            if (needsThumbnail)
+                root.ensureThumbnailForPath(normalizedPath, "large")
+            if (Config.options?.appearance?.wallpaperTheming?.useBackdropForColors)
+                Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--noswitch"])
+            root.changed()
+            return
+        case "waffle":
+            const waffleVisible = (Config.options?.panelFamily ?? "ii") === "waffle"
+            const adoptedWafflePreview = waffleVisible
+                ? root._adoptVisiblePreview(normalizedPath, monitorName)
+                : false
+            if (waffleVisible && !adoptedWafflePreview)
+                root.requestWallpaperBlurTransition("")
+            Config.setNestedValue("waffles.background.useMainWallpaper", false)
+            Config.setNestedValue("waffles.background.wallpaperPath", normalizedPath)
+            Config.setNestedValue("waffles.background.thumbnailPath", thumbnailPath)
+            if (adoptedWafflePreview)
+                root._clearInternalPreview()
+            if (needsThumbnail)
+                root.ensureThumbnailForPath(normalizedPath, "large")
+            // Regen colors from this wallpaper when waffle is active
+            if ((Config.options?.panelFamily ?? "ii") === "waffle") {
+                root._applyInProgress = true
+                _applySuppressTimer.restart()
+                root._queueWallpaperScript(normalizedPath, darkMode, true)
+            }
+            root.changed()
+            return
+        case "waffle-backdrop":
+            Config.setNestedValue("waffles.background.backdrop.useMainWallpaper", false)
+            Config.setNestedValue("waffles.background.backdrop.wallpaperPath", normalizedPath)
+            Config.setNestedValue("waffles.background.backdrop.thumbnailPath", thumbnailPath)
+            if (needsThumbnail)
+                root.ensureThumbnailForPath(normalizedPath, "large")
+            if ((Config.options?.panelFamily ?? "ii") === "waffle"
+                    && (Config.options?.appearance?.wallpaperTheming?.useBackdropForColors ?? false)) {
+                root._applyInProgress = true
+                _applySuppressTimer.restart()
+                root._queueWallpaperScript(normalizedPath, darkMode, true)
+            }
+            root.changed()
+            return
+        default:
+            root.apply(normalizedPath, darkMode, monitorName)
+            return
+        }
+    }
+
+    function apply(path, darkMode = Appearance.m3colors.darkmode, monitorName = "") {
+        const normalizedPath = FileUtils.trimFileProtocol(String(path ?? ""))
+        if (!normalizedPath || normalizedPath.length === 0) return
+
+        const adoptedPreview = root._adoptVisiblePreview(normalizedPath, monitorName)
+        if (!adoptedPreview)
+            root.requestWallpaperBlurTransition(monitorName)
+
+        if (monitorName !== "") {
+            // Per-monitor: update config directly in QML to avoid race condition
+            // (switchwall.sh and QML both write config.json — the 50ms write timer causes data loss)
+            updatePerMonitorConfig(normalizedPath, monitorName)
+            Quickshell.execDetached(["ryoku-shima-wallpaper", "--screen", monitorName, normalizedPath])
+            if (adoptedPreview)
+                root._clearInternalPreview()
+            root.changed()
+            return
+        }
+
+        // Suppress ThemeService duplicate regeneration while switchwall.sh runs
+        root._applyInProgress = true
+        _applySuppressTimer.restart()
+
+        if (root.awwwBackendEnabled && AwwwBackend.supportsMainWallpaper(normalizedPath)) {
+            Config.setNestedValue("background.wallpaperPath", normalizedPath)
+            Config.setNestedValue("background.thumbnailPath", "")
+            if (adoptedPreview)
+                root._clearInternalPreview()
+            root._queueWallpaperScript(normalizedPath, darkMode, false)
+            root.changed()
+            return
+        }
+
+        // Always set wallpaper path from QML to avoid race condition with Config write timer
+        Config.setNestedValue("background.wallpaperPath", normalizedPath)
+        Config.setNestedValue("background.thumbnailPath", "")
+        if (adoptedPreview)
+            root._clearInternalPreview()
+        root._queueWallpaperScript(normalizedPath, darkMode, false)
+        root.changed()
+    }
+
+    // Apply only the color scheme from an image without changing the active wallpaper
+    function applyColorsOnly(imagePath, darkMode = Appearance.m3colors.darkmode) {
+        const normalizedPath = FileUtils.trimFileProtocol(String(imagePath ?? ""))
+        if (!normalizedPath || normalizedPath.length === 0) return
+
+        Config.setNestedValue("appearance.wallpaperTheming.previewSourcePath", normalizedPath)
+
+        root._applyInProgress = true
+        _applySuppressTimer.restart()
+
+        root._queueWallpaperScript(normalizedPath, darkMode, true)
+    }
+
+    function updatePerMonitorConfig(path: string, monitorName: string) {
+        const currentArray = Config.options?.background?.wallpapersByMonitor ?? []
+        const newArray = []
+        let currentEntry = null
+        for (const entry of currentArray) {
+            if (entry && entry.monitor === monitorName) {
+                currentEntry = entry
+            } else if (entry) {
+                newArray.push(entry)
+            }
+        }
+
+        let wsFirst = 1, wsLast = 10
+        if (CompositorService.isNiri) {
+            const range = detectNiriWorkspaceRange(monitorName)
+            if (range) { wsFirst = range.first; wsLast = range.last }
+        }
+
+        newArray.push(Object.assign({}, currentEntry ?? {}, {
+            monitor: monitorName,
+            path: path,
+            workspaceFirst: wsFirst,
+            workspaceLast: wsLast
+        }))
+
+        Config.setNestedValue("background.wallpapersByMonitor", newArray)
+    }
+
+    function updatePerMonitorBackdropConfig(backdropPath: string, monitorName: string) {
+        const currentArray = Config.options?.background?.wallpapersByMonitor ?? []
+        const newArray = []
+        let found = false
+        for (const entry of currentArray) {
+            if (!entry) continue
+            if (entry.monitor === monitorName) {
+                found = true
+                newArray.push(Object.assign({}, entry, { backdropPath: backdropPath }))
+            } else {
+                newArray.push(entry)
+            }
+        }
+        if (!found) {
+            // Monitor not in array yet — create entry with global wallpaper as main path
+            let wsFirst = 1, wsLast = 10
+            if (CompositorService.isNiri) {
+                const range = detectNiriWorkspaceRange(monitorName)
+                if (range) { wsFirst = range.first; wsLast = range.last }
+            }
+            newArray.push({
+                monitor: monitorName,
+                path: Config.options?.background?.wallpaperPath ?? "",
+                workspaceFirst: wsFirst,
+                workspaceLast: wsLast,
+                backdropPath: backdropPath
+            })
+        }
+        Config.setNestedValue("background.wallpapersByMonitor", newArray)
+    }
+
+    Process {
+        id: selectProc
+        property string filePath: ""
+        property bool darkMode: Appearance.m3colors.darkmode
+        property string monitorName: ""
+        property string target: ""
+        function select(filePath, darkMode = Appearance.m3colors.darkmode, monitorName = "", target = "") {
+            selectProc.filePath = filePath
+            selectProc.darkMode = darkMode
+            selectProc.monitorName = monitorName
+            selectProc.target = target
+            selectProc.exec(["test", "-d", FileUtils.trimFileProtocol(filePath)])
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                setDirectory(selectProc.filePath)
+                return
+            }
+            const target = root.resolveSelectionTarget(selectProc.target, selectProc.monitorName)
+            if (target !== "main") {
+                root.applySelectionTarget(selectProc.filePath, target, selectProc.darkMode, selectProc.monitorName)
+                return
+            }
+            root.apply(selectProc.filePath, selectProc.darkMode, selectProc.monitorName)
+        }
+    }
+
+    function resolveSelectionTarget(target = "", monitorName = ""): string {
+        const normalizedTarget = String(target ?? "")
+        if (normalizedTarget.length > 0)
+            return normalizedTarget
+        if (monitorName && monitorName.length > 0)
+            return "main"
+        return currentSelectionTarget()
+    }
+
+    function currentSelectionTarget(): string {
+        const configTarget = Config.options?.wallpaperSelector?.selectionTarget ?? "main"
+        if (configTarget && configTarget !== "main")
+            return configTarget
+
+        const globalTarget = GlobalStates.wallpaperSelectionTarget ?? "main"
+        if (globalTarget && globalTarget !== "main")
+            return globalTarget
+
+        if ((Config.options?.panelFamily ?? "ii") === "waffle")
+            return (Config.options?.waffles?.background?.useMainWallpaper ?? true) ? "main" : "waffle"
+
+        return "main"
+    }
+
+    function select(filePath, darkMode = Appearance.m3colors.darkmode, monitorName = "", target = "") {
+        const perMonitor = (Config.options?.background?.multiMonitor?.enable ?? false) ? monitorName : ""
+        selectProc.select(filePath, darkMode, perMonitor, target)
+    }
+
+    function randomFromCurrentFolder(darkMode = Appearance.m3colors.darkmode, monitorName = "", target = "") {
+        const currentPath = Config.options?.background?.wallpaperPath ?? ""
+        const files = []
+        for (let i = 0; i < folderModel.count; ++i) {
+            if (folderModel.get(i, "fileIsDir")) continue
+            const path = folderModel.get(i, "filePath")
+            if (path && path !== currentPath) files.push(path)
+        }
+        if (files.length === 0) return
+        root.select(files[Math.floor(Math.random() * files.length)], darkMode, monitorName, target)
+    }
+
+    // Detect workspace range for a monitor (Niri-specific)
+    function detectNiriWorkspaceRange(monitorName: string): var {
+        if (!CompositorService.isNiri) return null
+
+        const workspaces = NiriService.workspaces ?? {}
+        const outputWorkspaces = []
+
+        for (const wsId in workspaces) {
+            const ws = workspaces[wsId]
+            if (ws && ws.output === monitorName) {
+                outputWorkspaces.push(ws.idx)
+            }
+        }
+
+        if (outputWorkspaces.length === 0) return null
+
+        outputWorkspaces.sort((a, b) => a - b)
+        return {
+            first: outputWorkspaces[0],
+            last: outputWorkspaces[outputWorkspaces.length - 1]
+        }
+    }
+
+    Process {
+        id: validateDirProc
+        property string nicePath: ""
+        property bool _pendingFileCheck: false
+        function setDirectoryIfValid(path) {
+            validateDirProc.nicePath = FileUtils.trimFileProtocol(path).replace(/\/+$/, "")
+            if (/^\/*$/.test(validateDirProc.nicePath)) validateDirProc.nicePath = "/"
+            validateDirProc._pendingFileCheck = false
+            validateDirProc.exec(["test", "-d", validateDirProc.nicePath])
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (!validateDirProc._pendingFileCheck) {
+                if (exitCode === 0) {
+                    root._setFolderModelDirectory(Qt.resolvedUrl(validateDirProc.nicePath))
+                    return
+                }
+                validateDirProc._pendingFileCheck = true
+                validateDirProc.exec(["test", "-f", validateDirProc.nicePath])
+                return
+            }
+            if (exitCode === 0) {
+                root._setFolderModelDirectory(Qt.resolvedUrl(FileUtils.parentDirectory(validateDirProc.nicePath)))
+            } else {
+                root._scheduleFolderModelTransitionEnd()
+            }
+        }
+    }
+
+    function setDirectory(path) {
+        root._beginFolderModelTransition()
+        validateDirProc.setDirectoryIfValid(path)
+    }
+    function navigateUp() {
+        root._beginFolderModelTransition()
+        folderModel.navigateUp()
+        root._scheduleFolderModelTransitionEnd()
+    }
+    function navigateBack() {
+        root._beginFolderModelTransition()
+        folderModel.navigateBack()
+        root._scheduleFolderModelTransitionEnd()
+    }
+    function navigateForward() {
+        root._beginFolderModelTransition()
+        folderModel.navigateForward()
+        root._scheduleFolderModelTransitionEnd()
+    }
+
+    FolderListModelWithHistory {
+        id: folderModel
+        folder: Qt.resolvedUrl(root.defaultFolder)
+        caseSensitive: false
+        nameFilters: {
+            const query = root.searchQuery.trim().toLowerCase()
+            // Check if query is an extension filter (e.g., ".gif", ".mp4")
+            if (query.startsWith(".")) {
+                const ext = query.slice(1)
+                if (root.extensions.includes(ext)) return [`*.${ext}`]
+            }
+            // Normal search: apply query to all extensions
+            const searchParts = query.split(" ").filter(s => s.length > 0).map(s => `*${s}*`).join("")
+            return root.extensions.map(ext => `*${searchParts}*.${ext}`)
+        }
+        showDirs: true
+        showDotAndDotDot: false
+        showOnlyReadable: true
+        sortField: FolderListModel.Time
+        sortReversed: false
+        onCountChanged: root.rebuildWallpapersCache()
+        onFolderChanged: {
+            root.folderChanged()
+            root._scheduleFolderModelTransitionEnd()
+        }
+        onStatusChanged: {
+            if (folderModel.status === FolderListModel.Loading)
+                root._beginFolderModelTransition()
+            else if (folderModel.status === FolderListModel.Ready)
+                root._scheduleFolderModelTransitionEnd()
+        }
+    }
+
+    Timer {
+        id: folderModelTransitionTimer
+        interval: 0
+        repeat: false
+        onTriggered: {
+            if (folderModel.status === FolderListModel.Ready)
+                root._folderModelTransitioning = false
+        }
+    }
+
+    Timer {
+        id: wallpaperCacheTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.appendWallpapersCacheBatch()
+    }
+
+    property string _pendingThumbnailSize: ""
+    property string _pendingThumbnailDir: ""
+    property var _singleThumbPending: ({})
+    property var _singleThumbQueue: []
+    
+    function generateThumbnail(size: string) {
+        if (!["normal", "large", "x-large", "xx-large"].includes(size)) throw new Error("Invalid thumbnail size")
+        root._pendingThumbnailSize = size
+        root._pendingThumbnailDir = FileUtils.trimFileProtocol(root.directory)
+        thumbgenDebounce.restart()
+    }
+
+    // A still frame owned by iNiR, not the shared freedesktop thumbnail cache.
+    // Both write to ~/.cache/thumbnails/<size>/<md5>.png, and the desktop's own
+    // video thumbnailer decorates its output with a film-strip border — whoever
+    // wrote first won, so a surface that wants a clean frame could not rely on
+    // that path. The generator here is the same ffmpeg call, private location.
+    function videoStillPath(filePath: string): string {
+        const clean = FileUtils.trimFileProtocol(String(filePath ?? ""))
+        if (!clean) return ""
+        return `${Directories.stateUserPath}/generated/wallpaper/still-${MD5.hash(clean)}.png`
+    }
+
+    function ensureVideoStill(filePath: string, replace = false): void {
+        const clean = FileUtils.trimFileProtocol(String(filePath ?? ""))
+        if (!clean || !root.isVideoFile(clean)) return
+        const outputPath = root.videoStillPath(clean)
+        if (!outputPath || (!replace && root.thumbnailFailed(outputPath))) return
+
+        const key = `still:${clean}`
+        if (root._singleThumbPending[key]) return
+        const pending = Object.assign({}, root._singleThumbPending)
+        pending[key] = true
+        root._singleThumbPending = pending
+        root._singleThumbQueue.push({ key: key, filePath: clean, size: "large", outputPath: outputPath, replace: replace })
+        if (!_singleThumbProc.running)
+            _processNextSingleThumb()
+    }
+
+    function ensureThumbnailForPath(filePath: string, size = "large", replace = false) {
+        const normalizedPath = FileUtils.trimFileProtocol(String(filePath ?? ""))
+        if (!normalizedPath || normalizedPath.length === 0) return
+        if (!["normal", "large", "x-large", "xx-large"].includes(size)) return
+
+        const outputPath = root.getExpectedThumbnailPath(normalizedPath, size)
+        if (!outputPath || outputPath.length === 0) return
+        if (!replace && root.thumbnailFailed(outputPath)) return
+
+        const key = `${size}:${normalizedPath}`
+        if (root._singleThumbPending[key]) return
+
+        const pending = Object.assign({}, root._singleThumbPending)
+        pending[key] = true
+        root._singleThumbPending = pending
+        root._singleThumbQueue.push({ key: key, filePath: normalizedPath, size: size, outputPath: outputPath, replace: replace })
+
+        if (!_singleThumbProc.running)
+            _processNextSingleThumb()
+    }
+
+    function _processNextSingleThumb() {
+        if (root._singleThumbQueue.length === 0) return
+
+        const item = root._singleThumbQueue.shift()
+        const maxSize = Images.thumbnailSizes[item.size] ?? 256
+        const outputDir = FileUtils.parentDirectory(item.outputPath)
+        // 0: it was already there · 10: made now · anything else: the source could not be read.
+        // Paths go in as arguments, never pasted into the script.
+        const script = 'mkdir -p "$(dirname "$2")" || exit 20; '
+            + 'if [ "$4" != 1 ] && [ -s "$2" ]; then exit 0; fi; rm -f "$2"; '
+            + (root.isVideoFile(item.filePath)
+                ? 'ffmpeg -hide_banner -loglevel error -y -i "$1" -vf "thumbnail=n=100,scale=\'min($3,iw)\':\'min($3,ih)\':force_original_aspect_ratio=decrease" -frames:v 1 -update 1 "$2" >/dev/null 2>&1'
+                : 'magick "$1[0]" -resize "${3}x${3}" "$2" >/dev/null 2>&1')
+            + ' && [ -s "$2" ] && exit 10; rm -f "$2"; exit 20'
+
+        _singleThumbProc._key = item.key
+        _singleThumbProc._filePath = item.filePath
+        _singleThumbProc._outputPath = item.outputPath
+        _singleThumbProc.command = ["sh", "-c", script, "sh", item.filePath, item.outputPath, String(maxSize), item.replace ? "1" : "0"]
+        _singleThumbProc.running = true
+    }
+
+    function _finishSingleThumb(key: string) {
+        const pending = Object.assign({}, root._singleThumbPending)
+        delete pending[key]
+        root._singleThumbPending = pending
+    }
+    
+    Timer {
+        id: thumbgenDebounce
+        interval: 300
+        onTriggered: {
+            if (thumbgenProc.running) return
+            thumbgenProc.directory = root._pendingThumbnailDir
+            thumbgenProc._size = root._pendingThumbnailSize
+            thumbgenProc.command = [thumbgenScriptPath, "--size", root._pendingThumbnailSize, "--workers", "4", "--machine_progress", "-d", root._pendingThumbnailDir]
+            root.thumbnailGenerationProgress = 0
+            thumbgenProc.running = true
+        }
+    }
+
+    Process {
+        id: thumbgenProc
+        property string directory
+        property string _size: ""
+        environment: ({
+            "INIR_VENV": Quickshell.env("INIR_VENV") || Quickshell.env("HOME") + "/.local/state/quickshell/.venv",
+            "ILLOGICAL_IMPULSE_VIRTUAL_ENV": Quickshell.env("INIR_VENV") || Quickshell.env("HOME") + "/.local/state/quickshell/.venv"
+        })
+        stdout: SplitParser {
+            onRead: data => {
+                let match = data.match(/PROGRESS (\d+)\/(\d+)/)
+                if (match) root.thumbnailGenerationProgress = parseInt(match[1]) / parseInt(match[2])
+                match = data.match(/FILE (.+)/)
+                if (match) root.thumbnailGeneratedFile(match[1])
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                thumbgenFallbackProc.command = [generateThumbnailsMagickScriptPath, "--size", thumbgenProc._size, "-d", FileUtils.trimFileProtocol(thumbgenProc.directory)]
+                thumbgenFallbackProc.running = true
+                return
+            }
+            root.thumbnailGenerated(thumbgenProc.directory)
+        }
+    }
+
+    Process {
+        id: thumbgenFallbackProc
+        onExited: root.thumbnailGenerated(thumbgenProc.directory)
+    }
+
+    Process {
+        id: _singleThumbProc
+        property string _key: ""
+        property string _filePath: ""
+        property string _outputPath: ""
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0 || exitCode === 10)
+                root.rememberThumbnail(_singleThumbProc._outputPath)
+            if (exitCode === 10)
+                root.thumbnailGeneratedFile(_singleThumbProc._filePath)
+            if (exitCode === 20) {
+                const failed = Object.assign({}, root._failedThumbnailOutputs)
+                failed[_singleThumbProc._outputPath] = true
+                root._failedThumbnailOutputs = failed
+            }
+            root._finishSingleThumb(_singleThumbProc._key)
+            root._processNextSingleThumb()
+        }
+    }
+
+    // ── Auto wallpaper cycling ──────────────────────────────────────────
+    readonly property bool autoWallpaperEnabled: Config.options?.background?.autoWallpaper?.enable ?? false
+    readonly property int autoWallpaperInterval: Config.options?.background?.autoWallpaper?.intervalMinutes ?? 30
+    readonly property bool autoWallpaperGenerateColors: Config.options?.background?.autoWallpaper?.generateColors ?? true
+    readonly property string autoWallpaperFolder: Config.options?.background?.autoWallpaper?.folder ?? ""
+    readonly property int shuffleCount: shuffleModel.count
+    readonly property string shuffleFolder: {
+        const own = FileUtils.trimFileProtocol(root.autoWallpaperFolder).replace(/^~(?=\/|$)/, Directories.homePath)
+        if (own.length > 0) return own
+        const current = FileUtils.trimFileProtocol(Config.options?.background?.wallpaperPath ?? "")
+        return current.length > 0 ? FileUtils.parentDirectory(current) : root.effectiveDirectory
+    }
+
+    Timer {
+        id: autoWallpaperTimer
+        interval: root.autoWallpaperInterval * 60 * 1000
+        // Not under a game: a new wallpaper regenerates every colour, mid-match, for nobody to see.
+        running: root.autoWallpaperEnabled && !GlobalStates.screenLocked && !GameMode.active
+        repeat: true
+        onTriggered: root._cycleAutoWallpaper()
+    }
+
+    // The shuffle and Next wallpaper read their own listing: files only (a folder is never a wallpaper), no search
+    // filter, and the picker keeps the folder it is showing. Next wallpaper once drew from the picker's folder, which
+    // is ~/Pictures/Wallpapers after every start, and did nothing when that folder was missing or elsewhere.
+    FolderListModel {
+        id: shuffleModel
+        folder: Qt.resolvedUrl(root.shuffleFolder)
+        nameFilters: root.extensions.map(ext => `*.${ext}`)
+        caseSensitive: false
+        showDirs: false
+        showDotAndDotDot: false
+        showOnlyReadable: true
+    }
+
+    function _cycleAutoWallpaper() {
+        _pickRandomAndApply()
+    }
+
+    function nextWallpaper(darkMode = Appearance.m3colors.darkmode, monitorName = ""): string {
+        const filePath = root._pickShuffleFile()
+        if (!filePath) return ""
+        root.select(filePath, darkMode, monitorName)
+        return filePath
+    }
+
+    function _pickShuffleFile(): string {
+        if (shuffleModel.count === 0) return ""
+        const currentPath = Config.options?.background?.wallpaperPath ?? ""
+        let attempts = 0
+        let filePath
+        do {
+            filePath = shuffleModel.get(Math.floor(Math.random() * shuffleModel.count), "filePath")
+            attempts++
+        } while (filePath === currentPath && attempts < 5 && shuffleModel.count > 1)
+        return filePath ?? ""
+    }
+
+    function _pickRandomAndApply() {
+        const filePath = root._pickShuffleFile()
+        if (!filePath) return
+
+        if (root.autoWallpaperGenerateColors) {
+            root.select(filePath, Appearance.m3colors.darkmode)
+        } else {
+            // Just change wallpaper path without running color generation
+            Config.setNestedValue("background.wallpaperPath", filePath)
+        }
+    }
+    // ── End auto wallpaper cycling ──────────────────────────────────────
+}

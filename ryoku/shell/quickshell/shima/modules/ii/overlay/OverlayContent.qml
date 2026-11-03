@@ -1,0 +1,78 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Widgets
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.iris.frame
+import qs.modules.iris.style
+import qs.modules.common.widgets
+import qs.modules.common.widgets.widgetCanvas
+
+Item {
+    id: root
+    focus: true
+    readonly property bool usePasswordChars: !PolkitService.flow?.responseVisible ?? true
+
+    Keys.onPressed: (event) => { // Esc to close
+        if (event.key === Qt.Key_Escape) {
+            GlobalStates.overlayOpen = false;
+        }
+    }
+
+    property real initScale: Config.options.overlay.openingZoomAnimation ? (OverlayLook.iris ? 1.03 : 1.08) : 1.000001
+    scale: initScale
+    Component.onCompleted: {
+        scale = 1
+    }
+    Behavior on scale {
+        NumberAnimation {
+            duration: Config.options?.overlay?.animationDurationMs ?? Appearance.animation.elementMoveEnter.duration
+            easing.type: Appearance.animation.elementMoveEnter.type
+            easing.bezierCurve: Appearance.animation.elementMoveEnter.bezierCurve
+        }
+    }
+
+    Rectangle {
+        id: bg
+        anchors.fill: parent
+        color: OverlayLook.iris ? IrisStyle.scrim : Appearance.colors.colScrim
+        visible: Config.options.overlay.darkenScreen && opacity > 0
+        opacity: (GlobalStates.overlayOpen && root.scale !== initScale)
+                 ? (Config.options.overlay.scrimDim / 100)
+                 : 0
+        Behavior on opacity {
+            animation: NumberAnimation {
+                duration: OverlayLook.iris ? IrisStyle.emergeDuration : Config.options.overlay.scrimAnimationDurationMs ?? Appearance.animation.elementMoveFast.duration
+                easing.type: Appearance.animation.elementMoveFast.type
+                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+            }
+        }
+    }
+
+    WidgetCanvas {
+        anchors.fill: parent
+        onClicked: GlobalStates.overlayOpen = false
+
+        OverlayTaskbar {
+            anchors {
+                horizontalCenter: parent.horizontalCenter
+                top: parent.top
+                topMargin: OverlayLook.iris ? IrisFrame.inset("top") + Math.round(14 * IrisStyle.density) : 50
+            }
+        }
+
+        Repeater {
+            model: ScriptModel {
+                values: Persistent.states.overlay.open.map(identifier => {
+                    return OverlayContext.availableWidgets.find(w => w.identifier === identifier);
+                }).filter(w => w !== undefined && w !== null)
+                objectProp: "identifier"
+            }
+            delegate: OverlayWidgetDelegateChooser {
+                
+            }
+        }
+    }
+}

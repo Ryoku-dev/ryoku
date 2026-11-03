@@ -1,0 +1,41 @@
+pragma ComponentBehavior: Bound
+
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import QtQuick
+
+Column {
+    id: root
+    property list<string> clockNumbers: DateTime.time.split(/[: ]/)
+    property bool isEnabled: Config.getNestedValue("background.widgets.clock.cookie.timeIndicators", false)
+    property color color: Appearance.colors.colOnSecondaryContainer
+
+    property bool hourMarksEnabled: Config.getNestedValue("background.widgets.clock.cookie.hourMarks", false)
+    spacing: -16
+
+    Repeater {
+        model: root.clockNumbers
+
+        delegate: StyledText {
+            required property string modelData
+            text: modelData.padStart(2, "0")
+            property bool isAmPm: !text.match(/\d{2}/i)
+            property real numberSizeWithoutGlow: isAmPm ? 26 : 68
+            property real numberSizeWithGlow: isAmPm ? 20 : 40
+            property real numberSize: root.hourMarksEnabled ? numberSizeWithGlow : numberSizeWithoutGlow
+
+            anchors.horizontalCenter: root.horizontalCenter
+            color: root.color
+            font {
+                family: Config.getNestedValue("background.widgets.clock.fontFamily", "Space Grotesk")
+                weight: Font.Bold
+                pixelSize: numberSize
+            }
+
+            Behavior on numberSize {
+                animation: NumberAnimation { duration: Appearance.animation.elementResize.duration; easing.type: Appearance.animation.elementResize.type; easing.bezierCurve: Appearance.animation.elementResize.bezierCurve }
+            }
+        }
+    }
+}
