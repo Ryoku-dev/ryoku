@@ -290,6 +290,48 @@ func TestBarProviderLoadRecoversInterruptedTransaction(t *testing.T) {
 	}
 }
 
+func TestBarProviderIgnoresCatalogueDuplicateShima(t *testing.T) {
+	fixture := newBarProviderFixture(t)
+	registryShima := fixture.entry
+	registryShima.ID = "iris"
+	registryShima.Name = "Nonfunctional metadata-only Shima"
+	registryShima.Path = "barstyles/iris"
+	registryShima.DownloadPaused = true
+	fixture.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/barstyles/registry.json" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"schema": 1, "barstyles": []ProductEntry{fixture.entry, registryShima},
+			})
+			return
+		}
+		http.NotFound(w, r)
+	})
+	provider := barProvider{cache: fixture.cache, shellConfig: defaultShellConfigPath()}
+	items, _, err := provider.Load(context.Background(), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, item := range items {
+		if item.ID != "iris" {
+			continue
+		}
+		count++
+		if !item.Installed || item.Metadata["core"] != true || item.Name != "Shima" {
+			t.Fatalf("registry replaced the native Shima: %+v", item)
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected one native Shima, got %d", count)
+	}
+	if err := provider.Install(context.Background(), "iris"); err == nil {
+		t.Fatal("native Shima unexpectedly accepted a store install")
+	}
+	if err := provider.Remove(context.Background(), "iris"); err == nil {
+		t.Fatal("native Shima unexpectedly accepted a store removal")
+	}
+}
+
 func TestBarProviderRefusesBuiltinRemoval(t *testing.T) {
 	if err := (barProvider{}).Remove(context.Background(), "sumi"); err == nil {
 		t.Fatal("built-in Sumi was removable")
