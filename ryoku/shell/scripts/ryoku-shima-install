@@ -37,6 +37,8 @@ def load_metadata():
     meta = json.loads((directory / "upstream.json").read_text())
     if sha256_file(directory / "runtime.patch") != meta["patch_sha256"]:
         raise RuntimeError("Shima integration patch does not match its pinned digest")
+    if sha256_file(directory / "shima-overview-terminal.patch") != meta["overview_patch_sha256"]:
+        raise RuntimeError("Shima overview patch does not match its pinned digest")
     paths = (directory / "runtime-files.txt").read_text().splitlines()
     if len(paths) != len(set(paths)) or len(paths) != 2403:
         raise RuntimeError("Shima runtime file list is incomplete or duplicated")
@@ -70,6 +72,8 @@ def verified_generation(root, meta):
         if info["archive_sha256"] != meta["archive_sha256"]:
             return False
         if info["patch_sha256"] != meta["patch_sha256"]:
+            return False
+        if info["overview_patch_sha256"] != meta["overview_patch_sha256"]:
             return False
         digest, count = runtime_digest(root)
         return digest == meta["runtime_sha256"] and count == meta["runtime_files"]
@@ -157,6 +161,16 @@ def apply_patch(directory, patch):
             raise RuntimeError("Shima patch validation failed: " + process.stderr.strip()[-850:])
 
 
+def apply_overview_patch(directory, patch):
+    if not shutil.which("git"):
+        raise RuntimeError("Git is required to apply the Shima overview patch")
+    for flag in (["--check"], []):
+        command = ["git", "apply", "--unidiff-zero", *flag, str(patch)]
+        process = subprocess.run(command, cwd=directory, capture_output=True, text=True)
+        if process.returncode:
+            raise RuntimeError("Shima overview patch validation failed: " + process.stderr.strip()[-850:])
+
+
 def activate(root, generation):
     current = root / "current"
     if current.exists() and not current.is_symlink():
@@ -176,7 +190,8 @@ def install(meta, files, directory, archive_arg):
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     generations = root / "generations"
     generations.mkdir(mode=0o700, exist_ok=True)
-    generation = meta["revision"][:12] + "-" + meta["patch_sha256"][:12]
+    combined_patch = hashlib.sha256((meta["patch_sha256"] + meta["overview_patch_sha256"]).encode()).hexdigest()
+    generation = meta["revision"][:12] + "-" + combined_patch[:12]
     target = generations / generation
     with (root / ".install.lock").open("a+") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -191,6 +206,7 @@ def install(meta, files, directory, archive_arg):
         try:
             extract_runtime(archive, stage, files, meta["revision"])
             apply_patch(stage, directory / "runtime.patch")
+            apply_overview_patch(stage, directory / "shima-overview-terminal.patch")
             digest, count = runtime_digest(stage)
             if digest != meta["runtime_sha256"] or count != meta["runtime_files"]:
                 raise RuntimeError("Assembled Shima runtime differs from the tested pinned build")
@@ -198,6 +214,7 @@ def install(meta, files, directory, archive_arg):
                 "revision": meta["revision"],
                 "archive_sha256": meta["archive_sha256"],
                 "patch_sha256": meta["patch_sha256"],
+                "overview_patch_sha256": meta["overview_patch_sha256"],
             }, indent=2) + "\n")
             stage.rename(target)
         finally:
