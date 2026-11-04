@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Obsidian follows the Matugen accent again.** Derive HSL components from the
+  primary color's hex value so app rendering works with Ryoku's palette carrier
+  (`matugen/templates/obsidian.css`).
 - **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,
   clipboard, settings and shortcuts keys now open Shima surfaces, while
   `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,
