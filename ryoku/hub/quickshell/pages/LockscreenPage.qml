@@ -175,6 +175,8 @@ Item {
     property bool skLoginOn: false
     property bool skLockOn: false
     property bool skLockSupported: false
+    property string skLockReason: ""
+    property bool skLockPin: false
     property string skAuthMode: "either"
     property bool skTouchRequired: true
     property bool skPinVerification: false
@@ -193,6 +195,15 @@ Item {
         if (pg.skUserVerification)
             parts.push(I18n.tr("user verification required"));
         return parts.join("  \u00b7  ");
+    }
+
+    // Says what the lock will ask for, since it follows the shared key policy.
+    readonly property string skLockLine: {
+        if (!pg.skLockSupported)
+            return I18n.tr("Unavailable: %1").arg(pg.skLockReason);
+        if (pg.skLockPin)
+            return I18n.tr("Use your security key on the lock screen  \u00b7  asks for %1. The PIN needs a lock skin that shows key prompts, such as Orbital").arg(pg.skTouchRequired ? I18n.tr("PIN, then touch") : I18n.tr("PIN"));
+        return I18n.tr("Use your security key on the lock screen  \u00b7  asks for %1 (follows the behavior below)").arg(pg.skTouchRequired ? I18n.tr("touch") : I18n.tr("key present"));
     }
 
     readonly property string skStatusLine: {
@@ -710,6 +721,8 @@ Item {
                     pg.skLoginOn = o.login === true;
                     pg.skLockOn = o.lock === true;
                     pg.skLockSupported = o.lockSupported === true;
+                    pg.skLockReason = o.lockReason || "";
+                    pg.skLockPin = o.lockPin === true;
                     pg.skAuthMode = o.authMode || "either";
                     pg.skTouchRequired = o.touchRequired !== false;
                     pg.skPinVerification = o.pinVerification === true;
@@ -1508,6 +1521,33 @@ Item {
                                     onToggled: (v) => pg.sktoggle("login", v)
                                 }
                             }
+
+                            Item {
+                                width: parent.width
+                                height: Math.max(skLockCol.height, skLockSw.implicitHeight)
+                                visible: pg.skSupported
+                                Column {
+                                    id: skLockCol
+                                    anchors { left: parent.left; right: skLockSw.left; rightMargin: Tokens.s4; verticalCenter: parent.verticalCenter }
+                                    spacing: 2
+                                    Text { text: I18n.tr("Lock screen"); color: Tokens.ink; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall }
+                                    Text {
+                                        width: parent.width
+                                        text: pg.skLockLine
+                                        color: Tokens.inkDim; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+                                Sw {
+                                    id: skLockSw
+                                    anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                                    enabled: pg.skLockSupported
+                                    opacity: !enabled || (pg.skPending === "toggle" && pg.skPendingTarget === "lock") ? 0.4 : 1
+                                    Behavior on opacity { NumberAnimation { duration: Tokens.snap } }
+                                    on: pg.skLockOn
+                                    onToggled: (v) => pg.sktoggle("lock", v)
+                                }
+                            }
                         }
 
                         Rectangle { width: parent.width; height: Tokens.border; color: Tokens.lineSoft }
@@ -1621,7 +1661,7 @@ Item {
                         Text {
                             width: parent.width
                             visible: pg.skSupported
-                            text: I18n.tr("Lock screen security-key unlock is not wired yet. This version handles enrollment plus sudo, admin prompts, and the sign-in screen.")
+                            text: I18n.tr("The security key covers sudo, admin prompts, the sign-in screen and the lock screen. On the lock screen it works beside your password, which always stays available.")
                             color: Tokens.inkMuted; font.family: Tokens.ui; font.pixelSize: Tokens.fSmall
                             wrapMode: Text.WordWrap
                         }

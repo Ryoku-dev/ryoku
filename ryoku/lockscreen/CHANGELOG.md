@@ -3,6 +3,18 @@
 ## Unreleased
 
 ### Added
+- **A security key unlocks the in-session lock.** `ryoku security-key set lock
+  on` (or the Hub's Lockscreen row) writes `~/.config/qylock/pam/ryoku-lock-key`,
+  and the lock runs it as a third PAM conversation beside password and
+  fingerprint, armed when the lock secures and when a key is plugged in. A
+  touch-only key unlocks on touch while the password stays available. A key that
+  asks for a PIN takes the field, with USE PASSWORD to hand it back; a wrong PIN
+  or a touch that has not come within 10s drops to the password, so typed
+  passwords never spend PIN attempts. Only a skin that draws `sddm.keyState`
+  (`sddm.keyPrompts`, set by Orbital) is given the PIN; under any other skin the
+  request is dropped unseen and the password works as before
+  (`qylock/quickshell-lockscreen/shim/SddmShim.qml`,
+  `qylock/themes/clockwork/orbital/Main.qml`).
 - **The login screen comes back when its greeter dies.** SDDM 0.21 reports a
   Wayland greeter that died, compositor or greeter client, crash or exit, as a
   finished login (`sddm-helper-start-wayland` quits with 0, the daemon reads

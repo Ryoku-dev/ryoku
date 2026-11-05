@@ -38,6 +38,8 @@ type Status struct {
 	Login            bool         `json:"login"`
 	Lock             bool         `json:"lock"`
 	LockSupported    bool         `json:"lockSupported"`
+	LockReason       string       `json:"lockReason,omitempty"`
+	LockPIN          bool         `json:"lockPin"`
 	AuthMode         string       `json:"authMode"`
 	TouchRequired    bool         `json:"touchRequired"`
 	PinVerification  bool         `json:"pinVerification"`
@@ -58,8 +60,10 @@ func gatherStatus() Status {
 		Sudo:             pamEnabled(TargetSudo),
 		Polkit:           pamEnabled(TargetPolkit),
 		Login:            pamEnabled(TargetLogin),
-		Lock:             false,
-		LockSupported:    false,
+		Lock:             lockEnabled(),
+		LockSupported:    lockUnsupportedReason(p) == "",
+		LockReason:       lockUnsupportedReason(p),
+		LockPIN:          lockAsksPIN(p, a.creds),
 		AuthMode:         p.Mode,
 		TouchRequired:    p.TouchRequired,
 		PinVerification:  p.PinVerification,
@@ -179,7 +183,25 @@ func printStatus(st Status) {
 	fmt.Printf(i18n.T("sudo:        %s\n"), yesno(st.Sudo))
 	fmt.Printf(i18n.T("polkit:      %s\n"), yesno(st.Polkit))
 	fmt.Printf(i18n.T("login:       %s\n"), yesno(st.Login))
-	fmt.Printf(i18n.T("lockscreen:  unavailable\n"))
+	fmt.Printf(i18n.T("lockscreen:  %s\n"), lockLine(st))
+}
+
+func lockLine(st Status) string {
+	if !st.LockSupported {
+		return fmt.Sprintf(i18n.T("unavailable (%s)"), st.LockReason)
+	}
+	if !st.Lock {
+		return i18n.T("no")
+	}
+	switch {
+	case st.LockPIN && st.TouchRequired:
+		return i18n.T("yes (PIN, then touch; the PIN needs a lock skin that shows key prompts, such as Orbital)")
+	case st.LockPIN:
+		return i18n.T("yes (PIN; the PIN needs a lock skin that shows key prompts, such as Orbital)")
+	case st.TouchRequired:
+		return i18n.T("yes (touch)")
+	}
+	return i18n.T("yes")
 }
 
 func yesno(b bool) string {
