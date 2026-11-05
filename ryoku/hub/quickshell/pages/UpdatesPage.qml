@@ -264,7 +264,7 @@ Item {
 
     Process {
         id: fixProc
-        command: ["ryoku-rashin", "fix", "doctor"]
+        command: ["/bin/sh", "-c", 'exec ryoku-rashin "$@"', "sh", "fix", "doctor"]
         environment: Spawn.env
         stdout: StdioCollector { id: fixOut }
         stderr: StdioCollector { id: fixErr }
@@ -469,6 +469,8 @@ Item {
     function dismiss() {
         Quickshell.execDetached(["sh", "-c", "printf '%s' '{\"phase\":\"idle\"}' > \"$1\"", "sh", pg.statePath]);
         pg.phase = "idle";
+        pg.fixState = "";
+        pg.fixMsg = "";
         pg.runStartedAt = 0;
         pg.reportFresh = false;
         pg.showLog = false;
