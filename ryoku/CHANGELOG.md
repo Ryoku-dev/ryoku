@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Fix with AI can use Codex with a repair-specific model and reasoning effort.
+  Terminal launches now precede the health scan so progress and errors stay visible.
 - **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now
   report the configured choice instead of whether the panel happens to be using
   adaptive sync at that moment, so a later Apply cannot turn it off.

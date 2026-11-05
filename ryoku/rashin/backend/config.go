@@ -23,8 +23,10 @@ type Config struct {
 	// ChatAgent selects which agent drives the Super+S chat's interactive
 	// session. Empty means the recommended default (hermes). Only agents with
 	// an ACP adapter present can drive it; see chatBackends.
-	ChatAgent      string   `json:"chatAgent,omitempty"`
-	ProwlHarnesses []string `json:"prowlHarnesses,omitempty"`
+	ChatAgent string `json:"chatAgent,omitempty"`
+	// Fix picks the harness Fix with AI opens instead of the chat agent.
+	Fix            FixSettings `json:"fix,omitzero"`
+	ProwlHarnesses []string    `json:"prowlHarnesses,omitempty"`
 	// Approvals is how the chat agent's tool calls are approved: "read-only"
 	// (the default when empty) runs calls that only read the machine without
 	// asking and asks for everything else; "ask" asks for every call the agent
@@ -40,6 +42,14 @@ type Config struct {
 	Habits struct {
 		History *bool `json:"history,omitempty"`
 	} `json:"habits,omitzero"`
+}
+
+// FixSettings is the harness a repair opens and how it starts. An empty field
+// keeps the harness's own default; only Codex takes Model and Effort.
+type FixSettings struct {
+	Agent  string `json:"agent,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Effort string `json:"effort,omitempty"`
 }
 
 func (c Config) HasProwlHarness(id string) bool {

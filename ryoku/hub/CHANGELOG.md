@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- Updates acknowledges Fix with AI immediately, prevents duplicate pending launches,
+  and displays the terminal launch result or error.
 - **Displays reads the saved adaptive-sync choice.** An idle panel no longer
   makes an enabled setting look off, and applying another display change keeps
   the choice intact.
