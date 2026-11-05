@@ -28,6 +28,8 @@ func TestRoute(t *testing.T) {
 		{"quicksettings", "shell", "shell", "openSurface"},
 		{"wallpaper-menu", "shell", "shell", "openSurface"},
 		{"clipboard", "shell", "shell", "openSurface"},
+		{"settings", "shell", "shell", "openSurface"},
+		{"cheatsheet", "shell", "shell", "openSurface"},
 		{"screenshot", "shell", "shell", "openSurface"},
 	}
 	for _, c := range cases {

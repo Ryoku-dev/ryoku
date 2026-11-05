@@ -112,7 +112,7 @@ PanelWindow {
             }
 
             if (cmd === "settings" || targetWidget === "settings" || cmd === "guide") {
-                RyokuServices.ShellState.requestSurface("settings", Wm.focusedOutput, undefined);
+                RyokuServices.ShellState.requestSurface("python-settings", Wm.focusedOutput, undefined);
                 return;
             }
 

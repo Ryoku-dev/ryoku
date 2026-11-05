@@ -9,10 +9,10 @@
 // primary output. The bar's own Variants still fan one band per screen; a
 // screen whose bar is hidden in the Hub gets no band.
 //
-// Ryogami, ryoshot, qylock, the Super+Escape sidebar, updates, idle and the
-// shared dock and desktop-widget hosts stay Ryoku-owned. Python provides its
-// launcher, clipboard, settings window, policy prompt, banners and OSD while
-// the style is active.
+// Ryogami, ryoshot, qylock, the launcher selected in Ryoku Settings, the
+// clipboard, Super+Escape sidebar, Hub, updates, idle and the shared dock and
+// desktop-widget hosts stay Ryoku-owned. Python provides its own bar settings,
+// policy prompt, banners and OSD while the style is active.
 //
 // Every surface below keeps Serpantinum's layout and motion; only the data
 // plane (the window-manager seam, the daemon's settings store, the palette
@@ -28,10 +28,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import "."
-import Ryoku.Ui.Singletons
 import shell.services as ShellServices
-import "launcher" as PythonLauncher
-import "clipboard" as PythonClipboard
 import "guide" as PythonGuide
 import "polkit" as PythonPolkit
 import "../../../../services/lib/screens.js" as Screens
@@ -61,31 +58,14 @@ Item {
                 Bar {}
                 PopoutManager {}
 
-                PythonLauncher.LauncherHost { id: launcherHost }
-                PythonClipboard.ClipboardHost { id: clipboardHost }
                 PythonGuide.SettingsWindow { id: settingsHost }
                 PythonPolkit.PythonPolkit {}
 
                 Connections {
                     target: ShellServices.ShellState
                     function onSurfaceRequested(id, mon, ctx) {
-                        switch (id) {
-                        case "launcher":
-                            clipboardHost.hide();
-                            settingsHost.hide();
-                            launcherHost.toggle(mon);
-                            break;
-                        case "clipboard":
-                            launcherHost.hide();
-                            settingsHost.hide();
-                            clipboardHost.toggle(mon);
-                            break;
-                        case "settings":
-                            launcherHost.hide();
-                            clipboardHost.hide();
+                        if (id === "python-settings")
                             settingsHost.toggle();
-                            break;
-                        }
                     }
                 }
 

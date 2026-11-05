@@ -87,24 +87,6 @@ Item {
                     target: Ryoku.ShellState
                     function onSurfaceRequested(id, mon, ctx): void {
                         switch (id) {
-                        case "launcher":
-                            GlobalStates.searchOpen = !GlobalStates.searchOpen
-                            break
-                        case "clipboard":
-                            if (GlobalStates.searchOpen) {
-                                GlobalStates.searchOpen = false
-                            } else {
-                                LauncherSearch.ensurePrefix(Config.options?.search?.prefix?.clipboard ?? ";")
-                                GlobalStates.irisSpotlightQuery = LauncherSearch.query
-                                GlobalStates.searchOpen = true
-                            }
-                            break
-                        case "settings":
-                            if (GlobalStates.settingsOverlayOpen)
-                                GlobalStates.settingsOverlayOpen = false
-                            else
-                                GlobalStates.openSettings()
-                            break
                         case "cheatsheet":
                             GlobalStates.cheatsheetOpen = !GlobalStates.cheatsheetOpen
                             break

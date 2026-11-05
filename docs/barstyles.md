@@ -774,48 +774,48 @@ A style with no settings omits all of this.
 
 ## What a style may own
 
-Three surfaces are Ryoku's under every style: screen capture (ryoshot,
-Super+Shift+S), the wallpaper picker (Ryogami, Super+W) and the quick-settings
-sidebar (Super+Escape). Everything else a ported shell brings is that style's
-while it is active. `Config.qml` says which style owns which key:
+Desktop-wide shortcuts stay with Ryoku under every style:
 
-| Key | Gate | Falls back to |
+| Key | Ryoku surface |
+|---|---|
+| Super+Space | the launcher selected in Ryoku Settings |
+| Super+V | clipboard history |
+| Super+comma | Ryoku Settings |
+| Super+Escape | the quick-settings sidebar |
+| Alt+Space | Rashin Ask |
+
+Styles may still substitute their notification banners and volume/brightness
+feedback while active. `Config.qml` keeps those presentation-only gates:
+
+| Style surface | Gate | Falls back to |
 |---|---|---|
-| Super+Space | `styleOwnsLauncher` | Ryoku's launcher |
-| Super+V | `styleOwnsClipboard` | Ryoku's clipboard history |
-| Super+comma | `styleOwnsSettings` | Ryoku Hub |
-| Super+K | `styleOwnsCheatsheet` | Kit |
-| banners | `styleOwnsBanners` | the shell's notification column |
+| notification banners | `styleOwnsBanners` | the shell's notification column |
 | volume and brightness OSD | `styleOwnsFeedback` | the shell's OSD |
 
-Every bind spawns `ryoku-shell <launcher|clipboard|settings|cheatsheet>`;
-Hyprland's in-process global shortcuts land on the same bus. The shell handles
-the request itself only when the active style does not own it, so a Scene that
-owns a key listens on `ShellState.surfaceRequested` from its primary host:
+A bar may still open its own settings or other local features from controls on
+the bar. It may not redirect these desktop shortcuts. The selected launcher is
+read from `launcher.json`, so Python and Spotlight open from Super+Space only
+when the user selects them on Ryoku Settings' App Launcher page.
+
+Every compositor dispatches launcher, clipboard and settings through
+`ryoku-shell`; the shell resolves them to Ryoku's resident surfaces. Shima's
+shortcuts sheet is the one style-specific keyboard substitute because it adds
+features Kit does not have:
 
 ```qml
 Connections {
     target: ShellState
     function onSurfaceRequested(id, mon, ctx) {
-        if (id === "launcher")
-            GlobalStates.searchOpen = !GlobalStates.searchOpen
+        if (id === "cheatsheet")
+            GlobalStates.cheatsheetOpen = !GlobalStates.cheatsheetOpen
     }
 }
 ```
 
-A style's opt-out key (Shima's `inir.iris.modules.palette`, Python's
-`python.general.notifications`) hands the key back to Ryoku.
-
 ### Shima surfaces
 
-Shima owns the four routed keys while `iris` is active:
-
-| Key | Surface |
-|---|---|
-| Super+Space | Spotlight |
-| Super+V | Spotlight in clipboard-history mode |
-| Super+comma | Shima Settings, using its configured overlay or window host |
-| Super+K | Shima's shortcuts sheet, populated from Ryoku's active keybind catalogue |
+Super+K opens Shima's shortcuts sheet while `iris` is active. The sheet is
+populated from Ryoku's active keybind catalogue; every other style opens Kit.
 
 Run `ryoku-shell tools` to open Shima's floating tools. There is no default
 chord; the same entry is listed as **Floating tools** in Spotlight. The tray

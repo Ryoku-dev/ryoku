@@ -23,6 +23,10 @@
 - **Shima and Ryoku Settings share one battery charge-limit writer.** Shima now
   reads and updates the host power capability instead of carrying a second
   privileged sysfs implementation.
+- **Desktop shortcuts stay with Ryoku under every bar style.** Super+comma
+  opens Ryoku Settings, Super+V opens Ryoku's clipboard, Super+Escape opens
+  quick settings and Super+Space opens the launcher selected in Ryoku Settings
+  (`quickshell/shell/{shell.qml,services/,modules/bar/barstyles/}`, `ipc/`).
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.

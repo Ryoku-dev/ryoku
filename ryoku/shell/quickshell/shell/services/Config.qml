@@ -5,6 +5,8 @@ import Quickshell.Io
 import Ryoku.FrameBars
 import Ryoku.Ui.Singletons
 
+import "lib/surface-routes.js" as SurfaceRoutes
+
 // live shell appearance config. one source of truth for the look knobs Ryoku
 // Settings' Shell section edits, plus the shipped defaults the shell falls back
 // to. JSON at ~/.config/ryoku/shell.json, watched, so a save in Settings
@@ -99,25 +101,10 @@ Singleton {
         || (barStyle === "iris" && (root.inir?.iris?.modules?.osd ?? true))
         || barStyle === "caelestia"
 
-    // Super+Space, Super+V, Super+comma and Super+K reach the active style's
-    // own surface when it has one; otherwise the shell's own surface opens.
-    readonly property bool styleOwnsLauncher: barStyle === "python"
-        || barStyle === "caelestia"
-        || (barStyle === "iris" && (root.inir?.iris?.modules?.palette ?? true))
-    readonly property bool styleOwnsClipboard: barStyle === "python"
-        || (barStyle === "iris" && (root.inir?.iris?.modules?.palette ?? true))
-    readonly property bool styleOwnsSettings: barStyle === "python"
-        || barStyle === "caelestia"
-        || barStyle === "iris"
-    readonly property bool styleOwnsCheatsheet: barStyle === "iris"
+    // Desktop-wide shortcuts stay with Ryoku. Shima substitutes its own
+    // shortcuts sheet because it adds a style-only element view.
     function styleOwns(surface) {
-        switch (surface) {
-        case "launcher": return styleOwnsLauncher
-        case "clipboard": return styleOwnsClipboard
-        case "settings": return styleOwnsSettings
-        case "cheatsheet": return styleOwnsCheatsheet
-        }
-        return false
+        return SurfaceRoutes.styleOwns(surface, barStyle)
     }
 
     // Shima's banner slider owns the fallback only while Shima draws the banners.
