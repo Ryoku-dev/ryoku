@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Super+Space, Super+V and Super+comma stay Ryoku's under every bar style.**
+  A style listening for them no longer opens its own launcher, clipboard or
+  settings panel next to Ryoku's on niri, matching Hyprland.
 - **Visualizers follow newly connected audio outputs.** Bar and desktop
   visualizers retarget when the default output changes without a shell reload.
 - **A crashed lock screen comes back after display-link churn.** Once qylock has

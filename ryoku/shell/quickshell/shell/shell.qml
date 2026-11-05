@@ -890,6 +890,11 @@ ShellRoot {
         // An empty monitor means "wherever focus is": the daemon sends "" when
         // its focused-output cache is cold.
         function openSurface(mon: string, id: string): void {
+            // these keys are Ryoku's under every style, so they skip the bus styles listen on, same as the Hyprland shortcuts
+            if (id === "launcher" || id === "clipboard" || id === "settings") {
+                root.toggleSurface(id);
+                return;
+            }
             if (mon && mon.length > 0)
                 ShellState.requestSurface(id, mon, undefined);
             else
