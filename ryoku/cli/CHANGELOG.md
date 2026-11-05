@@ -415,14 +415,9 @@
   retired-apps reconciler removes it (`pacman -Rns --noconfirm ryomotion`); a box
   that never had it is left untouched
   (`internal/doctor/reconcile_retired_apps.go`).
-- **`ryoku doctor` names the reverse-PRIME first-commit hazard.** On a laptop
-  whose connected panel is driven by the iGPU while the render pin puts NVIDIA
-  first, the session's very first cross-GPU commit fails once on some kernels
-  and the panel stays black until reboot (#270). The pin is deliberate Ryoku
-  policy, so this is a note, never a change: it names the combination and both
-  ways out (`ryoku-gpu disable` clears the pin, `ryoku-gpu persist` restores
-  it), so a black-panel report carries its own suspect
-  (`internal/doctor/reconcile_gpu_pin_panel.go`).
+- **`ryoku doctor` clears unsafe cross-GPU render pins.** Old dGPU-first pins
+  over iGPU panels are removed for the next login; deliberate force overrides
+  remain (`internal/doctor/reconcile_gpu_pin.go`).
 - **`ryoku wm caps` prints the active provider's capabilities as JSON**, the
   same payload the daemon and the Hub gate on, so a script can read the night
   light backend or a capability without spelling a compositor. `ryoku wm act`

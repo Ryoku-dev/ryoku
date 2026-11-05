@@ -27,6 +27,10 @@
   try, so `ryoku-bluetooth-reset.service` failed at every session start for the
   default saved choice. Powering on now retries the window the off path already
   waited out. Covered by `tests/bluetooth-power-persist.sh`.
+- `gpu/ryoku-gpu`: **hybrid laptops no longer pin a renderer that does not own
+  the internal panel.** Default and Performance avoid Aquamarine's blank
+  login/DPMS path; doctor clears old managed pins. Covered by
+  `tests/gpu-pin-policy.sh`.
 - `bluetooth/ryoku-bluetooth-power`: **Bluetooth stays off after login when it
   was turned off.** The login reset restarts bluetoothd, and BlueZ's
   `AutoEnable` is still powering the new controller on when `restore` runs, so

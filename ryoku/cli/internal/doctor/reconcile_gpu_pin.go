@@ -8,26 +8,7 @@ import (
 	wm "ryoku-wm"
 )
 
-// ---- reconciler: GPU render pin drift ---------------------------------------
-//
-// ryoku-gpu pins the strongest GPU as Hyprland's primary renderer on every
-// multi-GPU machine, laptops included: GPU work on a laptop's iGPU heats the
-// same die the CPU does, so video playback and compositing push the package
-// past its thermal limits while a parked discrete GPU cools on the side. A
-// machine installed under the old laptop-unpinned policy (or one whose pin was
-// cleared by hand) keeps the missing hl.env line forever, since nothing else
-// owns gpu.lua; conversely, a machine whose user explicitly chose Hybrid
-// (battery) or Passthrough must never have that pin re-added under it.
-//
-// The verdict lives in `ryoku-gpu check-pin`, right beside the policy it
-// audits, so this reconciler never re-implements laptop or GPU detection:
-//   ok               pin matches the policy and the stored mode choice
-//   forced           the pin carries the RYOKU_GPU_FORCE marker; user intent
-//   stale-pin SLOT   policy says unpinned; `ryoku-gpu disable` clears it
-//   missing-pin      policy says pinned; `ryoku-gpu persist` writes it
-//
-// The repair rewrites only the managed gpu.lua (through the owning tool) and
-// takes effect at the next Hyprland login; doctor never restarts the session.
+// Aquamarine can lose an iGPU panel when a dGPU-first pin crosses GPUs.
 
 var (
 	gpuPinProviderInstalled = func(name string) bool {
@@ -69,12 +50,21 @@ func planGpuPin(verdict string, verdictErr error, checkOnly bool, disable, persi
 		return okRes(i18n.T("the GPU render pin is a deliberate RYOKU_GPU_FORCE override; kept"))
 	case verdict == "missing-pin":
 		if checkOnly {
-			return wouldRes(i18n.T("gpu.lua carries no render pin, but ryoku-gpu policy pins the strongest GPU: desktop GPU work runs on the integrated GPU, which shares the CPU die and heats the whole package. `ryoku-gpu persist` writes the pin (takes effect on the next Hyprland login; keep the battery-first routing instead with `ryoku-gpu mode hybrid`)"))
+			return wouldRes(i18n.T("gpu.lua carries no render pin, but ryoku-gpu can safely pin the strongest GPU. `ryoku-gpu persist` writes the pin (takes effect on the next Hyprland login; keep compositor selection instead with `ryoku-gpu mode hybrid`)"))
 		}
 		if err := persist(); err != nil {
 			return failRes(i18n.T("could not write the GPU render pin: %v (write it by hand with `ryoku-gpu persist`)"), err)
 		}
-		return fixedRes(i18n.T("pinned the strongest GPU as the primary renderer; the desktop leaves the integrated GPU's heat budget after the next Hyprland login (opt out with `ryoku-gpu mode hybrid`)"))
+		return fixedRes(i18n.T("pinned the strongest panel-safe GPU as the primary renderer for the next Hyprland login (opt out with `ryoku-gpu mode hybrid`)"))
+	case strings.HasPrefix(verdict, "unsafe-pin"):
+		slot := strings.TrimSpace(strings.TrimPrefix(verdict, "unsafe-pin"))
+		if checkOnly {
+			return wouldRes(i18n.T("gpu.lua puts %s first while the connected internal panel is wired to another GPU. Aquamarine's cross-GPU scanout can leave that panel black at login or after DPMS; `ryoku-gpu disable` returns selection to the compositor on the next Hyprland login"), slot)
+		}
+		if err := disable(); err != nil {
+			return failRes(i18n.T("could not clear the unsafe GPU render pin: %v (clear it by hand with `ryoku-gpu disable`)"), err)
+		}
+		return fixedRes(i18n.T("cleared the unsafe GPU render pin on %s; Hyprland will choose the panel-safe renderer on the next login"), slot)
 	case strings.HasPrefix(verdict, "stale-pin"):
 		slot := strings.TrimSpace(strings.TrimPrefix(verdict, "stale-pin"))
 		if checkOnly {

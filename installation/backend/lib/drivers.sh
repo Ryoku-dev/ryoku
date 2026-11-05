@@ -49,8 +49,8 @@ ryoku_drivers() {
 # ryoku_gpu_mode: apply the TUI's GPU-mode pick (RYOKU_GPU_MODE) end-to-end --
 # the TUI collects it on hybrid (iGPU + dGPU) machines but nothing consumed it.
 # map the UI names to ryoku-gpu's host graphics modes:
-#   offload -> hybrid       (no pin; Hyprland's iGPU-first default, for battery)
-#   sync    -> performance  (pin the dGPU as the primary renderer)
+#   offload -> hybrid       (no pin; compositor chooses the panel-safe renderer)
+#   sync    -> performance  (dGPU pin, only when the dGPU owns the laptop panel)
 #   vfio    -> passthrough  (pin the iGPU alone, freeing the dGPU for a VM)
 # run `ryoku-gpu mode <mapped>` as the user against the provider's render pin,
 # via runuser like deploy.sh's materialize. the pin file is the seam's answer
@@ -65,11 +65,11 @@ ryoku_drivers() {
 #
 # config path = gpu.lua (GPU_CONF_DEFAULT), NOT user.lua. Hyprland autostart runs
 # `ryoku-gpu persist` every login, which rewrites gpu.lua from the policy in
-# ryoku-gpu-detect beneficial(): pin the strongest GPU on any multi-GPU box,
-# unless the file carries a stored `-- ryoku-gpu-mode: hybrid|passthrough`
-# stamp, in which case persist honours that choice and leaves the file alone.
-# `ryoku-gpu mode <m>` writes the stamp, so the installer's pick survives every
-# login. gpu.lua is also the single file the Hub GPU page, `ryoku doctor`, and
+# ryoku-gpu-detect beneficial(): pin the strongest GPU only when it also owns a
+# laptop's internal panel. Stored hybrid/passthrough choices remain unpinned;
+# Performance is refused until a hardware MUX routes the panel to the dGPU.
+# `ryoku-gpu mode <m>` writes the accepted choice, so it survives every login.
+# gpu.lua is also the single file the Hub GPU page, `ryoku doctor`, and
 # `ryoku materialize` all manage; user.lua would survive persist on every box
 # but the Hub can neither see nor rewrite it, stranding the mode as an override
 # no tool owns.
