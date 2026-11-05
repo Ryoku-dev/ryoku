@@ -108,13 +108,23 @@ func TestDockEdgeGapValidation(t *testing.T) {
 		t.Fatalf("default dock.edgeGap = %v, want %d", got, dockEdgeGapDefault)
 	}
 	store := newTestStore(t)
+	if err := store.patch("dock", rm(`{"edgeGap":-15}`)); err != nil {
+		t.Fatal(err)
+	}
+	if got := frameNum(t, store.frameLocked(), "dock.edgeGap"); got != -15 {
+		t.Fatalf("dock.edgeGap = %v, want -15", got)
+	}
+	store = newSettingsStore(store.path)
+	if got := frameNum(t, store.frameLocked(), "dock.edgeGap"); got != -15 {
+		t.Fatalf("reloaded dock.edgeGap = %v, want -15", got)
+	}
 	if err := store.patch("dock.edgeGap", rm("24")); err != nil {
 		t.Fatal(err)
 	}
 	if got := frameNum(t, store.frameLocked(), "dock.edgeGap"); got != 24 {
 		t.Fatalf("dock.edgeGap = %v, want 24", got)
 	}
-	for _, value := range []string{"-1", "65", "1.5", `"wide"`} {
+	for _, value := range []string{"-25", "65", "1.5", `"wide"`} {
 		if err := store.patch("dock.edgeGap", rm(value)); err == nil {
 			t.Fatalf("dock.edgeGap accepted %s", value)
 		}
@@ -129,12 +139,17 @@ func TestDockEdgeGapValidation(t *testing.T) {
 		t.Fatalf("rejected dock object changed dock.edgeGap to %v", got)
 	}
 
-	raw := map[string]any{"dock": map[string]any{"edgeGap": float64(80)}}
-	if err := normalizeDockSettings(raw, false); err != nil {
-		t.Fatal(err)
-	}
-	if got := raw["dock"].(map[string]any)["edgeGap"]; got != dockEdgeGapMax {
-		t.Fatalf("lenient dock.edgeGap = %v, want %d", got, dockEdgeGapMax)
+	for _, value := range []struct {
+		gap  float64
+		want int
+	}{{80, dockEdgeGapMax}, {-30, dockEdgeGapMin}} {
+		raw := map[string]any{"dock": map[string]any{"edgeGap": value.gap}}
+		if err := normalizeDockSettings(raw, false); err != nil {
+			t.Fatal(err)
+		}
+		if got := raw["dock"].(map[string]any)["edgeGap"]; got != value.want {
+			t.Fatalf("lenient dock.edgeGap = %v, want %d", got, value.want)
+		}
 	}
 }
 

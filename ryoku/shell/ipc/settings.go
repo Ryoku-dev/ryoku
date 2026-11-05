@@ -60,7 +60,7 @@ var contractKeys = map[string]bool{
 
 const (
 	dockEdgeGapDefault = 0
-	dockEdgeGapMin     = 0
+	dockEdgeGapMin     = -24
 	dockEdgeGapMax     = 64
 )
 

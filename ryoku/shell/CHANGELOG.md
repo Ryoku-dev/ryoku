@@ -50,6 +50,9 @@
 - **Wallpaper previews recolour desktop widgets reliably.** Preview palettes now
   replace their runtime file in one step, so the shell never catches an empty
   file while a downloaded wallpaper is hovered (`ryogami/daemon/preview.go`).
+- **Shima keeps dock edge spacing after sign-in.** Negative edge gaps now pass
+  through the shell's settings writer instead of living only in the current
+  session (`ipc/{settings.go,settings_test.go}`).
 - **Dock designs can sit closer to the screen edge.** The Stage Editor's edge
   gap now accepts negative values while every design keeps its hover and reserved
   regions inside the screen (`quickshell/{stage,shell/modules/dock,inir/modules/iris/dock}/`).
