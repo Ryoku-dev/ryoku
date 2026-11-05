@@ -44,7 +44,7 @@ func TestHermesFixResumesOnlyItsOwnFirstTurn(t *testing.T) {
 			hermes = h
 		}
 	}
-	argv := hermes.argv(bin, "persona", "Fix with AI: x\n\nbrief with 'quotes' and $(no expansion)")
+	argv := hermes.argv(bin, "persona", "Fix with AI: x\n\nbrief with 'quotes' and $(no expansion)", FixSettings{})
 	for _, c := range []struct {
 		exit string
 		want []string
@@ -214,5 +214,36 @@ func TestFixEndpointRefusesOtherSites(t *testing.T) {
 		if rec.Code != c.want {
 			t.Errorf("%s: status %d, want %d", c.name, rec.Code, c.want)
 		}
+	}
+}
+
+// Fix with AI runs the agent, model and effort the fix setting names, even
+// when another harness is installed and the chat agent is unset.
+func TestFixOpensTheConfiguredCodexModelAndEffort(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cfgHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfgHome)
+	bin := t.TempDir()
+	for _, name := range []string{"claude", "codex"} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", bin)
+	cfg := `{"enabled":true,"port":3600,"fix":{"agent":"codex","model":"gpt-6.1-sol","effort":"low"}}`
+	if err := os.MkdirAll(filepath.Join(cfgHome, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgHome, "ryoku", "rashin.json"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	l, err := planFix("Fix with AI: x", "brief")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{filepath.Join(bin, "codex"), "-m", "gpt-6.1-sol", "-c", `model_reasoning_effort="low"`, needlePersona + "\n\nFix with AI: x\n\nbrief"}
+	if l.Harness != "Codex" || strings.Join(l.Argv, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("launch = %s %q, want Codex %q", l.Harness, l.Argv, want)
 	}
 }
