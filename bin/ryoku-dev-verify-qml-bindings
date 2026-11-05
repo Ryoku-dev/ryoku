@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""ryoku-dev-verify-qml-bindings [file.qml ...]: fail when one QML object sets a property twice.
+
+QML refuses such a file at load ("Property value set multiple times") and qmllint says
+nothing, so this reads Qt's own code model (qmldom). No args checks every tracked QML file.
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+
+NORMAL = 0  # qmldom BindingType::Normal; "Behavior on x" style bindings are OnBinding
+
+
+def qmldom_binary():
+    for candidate in (os.environ.get("QMLDOM_BIN", ""), "/usr/lib/qt6/bin/qmldom", shutil.which("qmldom") or ""):
+        if candidate and os.access(candidate, os.X_OK):
+            return candidate
+    return ""
+
+
+def duplicates(node, found):
+    if isinstance(node, dict):
+        bindings = node.get("bindings")
+        if isinstance(bindings, dict):
+            defs = node.get("propertyDefs") if isinstance(node.get("propertyDefs"), dict) else {}
+            for name, entries in bindings.items():
+                if isinstance(entries, list):
+                    normal = [e for e in entries if isinstance(e, dict) and e.get("bindingType", NORMAL) == NORMAL]
+                    # an alias declared here keeps its target as one binding, and one more binding on it is legal
+                    alias = any(isinstance(d, dict) and d.get("isAlias") for d in defs.get(name) or [])
+                    if len(normal) > (2 if alias else 1):
+                        found.append((name, len(normal) - (1 if alias else 0)))
+        for value in node.values():
+            duplicates(value, found)
+    elif isinstance(node, list):
+        for value in node:
+            duplicates(value, found)
+
+
+def check(binary, path):
+    try:
+        dump = subprocess.run([binary, "-d", path], capture_output=True, timeout=60).stdout
+        model = json.loads(dump)
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError):
+        return path, None
+    found = []
+    duplicates(model, found)
+    return path, found
+
+
+def line_of(path, name):
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        hits = [str(i) for i, line in enumerate(handle, 1) if line.strip().startswith(name + ":")]
+    return ",".join(hits) or "?"
+
+
+def understands(binary):
+    # another Qt's dump may look different, so only trust it when it reads a known bad and good file right
+    samples = {
+        "bad.qml": "import QtQuick\nItem {\n    onWidthChanged: x()\n    onWidthChanged: y()\n}\n",
+        "good.qml": "import QtQuick\nItem {\n    property alias t: inner.text\n    t: \"x\"\n    Text { id: inner }\n}\n",
+    }
+    with tempfile.TemporaryDirectory() as directory:
+        results = {}
+        for name, text in samples.items():
+            path = os.path.join(directory, name)
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(text)
+            results[name] = check(binary, path)[1]
+    return bool(results["bad.qml"]) and results["good.qml"] == []
+
+
+def main():
+    binary = qmldom_binary()
+    if not binary or not understands(binary):
+        print("ryoku-dev-verify-qml-bindings: no usable qmldom here; skipping", file=sys.stderr)
+        return 0
+    quiet = "--quiet" in sys.argv[1:]
+    files = [arg for arg in sys.argv[1:] if arg != "--quiet"]
+    if not files:
+        out = subprocess.run(["git", "ls-files", "-z", "*.qml"], capture_output=True, check=True).stdout
+        files = [f for f in out.decode().split("\0") if f and not f.startswith("ryoku/lockscreen/qylock/")]
+    failed = False
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
+        for path, found in pool.map(lambda f: check(binary, f), files):
+            for name, count in found or []:
+                failed = True
+                print(f"{path}:{line_of(path, name)}: {name} is set {count} times in one object; QML refuses to load it")
+    if failed:
+        return 1
+    if not quiet:
+        print(f"qml-bindings: no property is set twice in {len(files)} files")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

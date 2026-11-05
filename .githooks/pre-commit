@@ -65,7 +65,14 @@ bin/ryoku-dev-verify-delivery --quiet \
 bin/ryoku-dev-verify-wm-isolation --quiet \
 	|| fail "compositor specifics leak outside ryoku/wm (see above); gate on a capability or route through wm.Client."
 
-# 6. review gate (rashin-reviewer, settings in .rashin-reviewer.yaml): no
+# 6. a QML object that sets a property twice never loads, and qmllint misses it.
+mapfile -t staged_qml < <(printf '%s\n' "${staged[@]}" | grep -E '\.qml$' | grep -vE '^ryoku/lockscreen/qylock/' || true)
+if ((${#staged_qml[@]})); then
+	bin/ryoku-dev-verify-qml-bindings --quiet "${staged_qml[@]}" \
+		|| fail "a QML object sets the same property or handler twice (see above); merge them into one."
+fi
+
+# 7. review gate (rashin-reviewer, settings in .rashin-reviewer.yaml): no
 #    secrets or conflict markers, no JSON, YAML, TOML, Python, Lua or QML file
 #    the commit leaves unparseable, and ShellCheck (CI's flags) and gofmt clean
 #    on the added lines. A clone that sets `git config ryoku.reviewGate

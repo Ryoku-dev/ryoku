@@ -14,6 +14,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- A QML object that sets the same property or handler twice can no longer be
+  committed or pass QML Lint. qmllint never flagged it, yet the file refuses to
+  load, and one such slip in the audio service kept the desktop from starting.
 - Fedora installs keep existing RPM Fusion FFmpeg and Docker CE packages, and
   no longer request the nonexistent `util-linux-libs` package.
 - RyoStore no longer leaves other products with inert download buttons while an

@@ -373,7 +373,8 @@ downgrades.
 
 - `bin/` repo tooling: the release version helpers (`ryoku-release-version`,
   `ryoku-release-bump`), the CI and hook checks
-  (`ryoku-dev-scan-slop`, `ryoku-dev-audit-shell-binds`), the
+  (`ryoku-dev-scan-slop`, `ryoku-dev-audit-shell-binds`,
+  `ryoku-dev-verify-qml-bindings`), the
   `ryoku-edition-parity` package coverage gate, the delivery gates the
   workflows share (`ryoku-ci-gate` waits for every required check on a commit;
   `ryoku-channel-status` and `ryoku-checked-pointer` write a channel's
