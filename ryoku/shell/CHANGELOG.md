@@ -20,6 +20,9 @@
   commands and suggestions keep their contrast.
 - **Notifications follow the shell shape and palette.** Their cards use the
   configured corner radius, and the countdown border uses the active accent.
+- **Shima and Ryoku Settings share one battery charge-limit writer.** Shima now
+  reads and updates the host power capability instead of carrying a second
+  privileged sysfs implementation.
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.

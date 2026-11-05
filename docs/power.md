@@ -216,15 +216,18 @@ ryoku-power charge-limit get
 ryoku-power charge-limit set 80
 ```
 
-80 % is the usual sweet spot for a machine that lives on AC. The kernel returns
-"No data available" for this attribute until something writes it once, so an
-unset limit reads as `unset` rather than as `100`.
+80 % is the usual sweet spot for a machine that lives on AC. The Machine page
+shows the same control when the laptop exposes either the standard kernel
+threshold or a supported vendor battery-care interface. Firmware with fixed
+choices shows only those choices instead of a slider.
 
-This costs you 20 % of runtime per charge and buys back a large multiple of that
-in cell lifetime. Set it back to 100 before a trip.
+The kernel returns "No data available" for the standard attribute until
+something writes it once, so an unset limit reads as `unset` rather than as
+`100`. The charge ceiling does not survive a reboot, so `ryoku-power apply`
+runs at login to push a stored choice back.
 
-The charge ceiling is a plain sysfs value and does not survive a reboot, so
-`ryoku-power apply` runs at login to push a stored choice back.
+This costs you some runtime per charge and buys back a large multiple of that
+in cell lifetime. Clear the limit before a trip.
 
 ### PCIe link power
 

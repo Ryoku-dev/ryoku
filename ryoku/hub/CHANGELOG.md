@@ -9,6 +9,9 @@
 - **Performance is unavailable until a hybrid laptop routes its panel to the
   discrete GPU.** Graphics & Power shows the MUX requirement instead of offering
   a mode that would leave the internal screen black.
+- **Battery charge limits appear on every supported laptop.** The Machine page
+  now receives standard and vendor battery-care capabilities through the same
+  host power seam, including fixed firmware choices.
 - Fastfetch renderer and recolor markers survive Settings saves. Renderer based
   styles keep their readout, and wallpaper recoloring keeps its palette roles.
   Rows are locked for styles that provide their own renderer.

@@ -34,6 +34,10 @@
 - `gpu/ryoku-gpu status --json`: **the Hub can gate Performance from the owning
   GPU policy.** It reports availability and the MUX action without duplicating
   panel detection in the UI.
+- `power/ryoku-power`: **vendor battery-care controls reach the charge-limit
+  backend.** Standard stop thresholds, SMAPI, IdeaPad, LG, Samsung, Sony and
+  Huawei interfaces are capability-gated and normalized to the choices their
+  firmware supports. Covered by `tests/power.sh`.
 - `bluetooth/ryoku-bluetooth-power`: **Bluetooth stays off after login when it
   was turned off.** The login reset restarts bluetoothd, and BlueZ's
   `AutoEnable` is still powering the new controller on when `restore` runs, so

@@ -154,7 +154,7 @@ var rows = [
         "label": "Charge limit",
         "desc": "Stop charging here to preserve battery health.",
         "ctl": "slid",
-        "src": "ryoku-host power charge-limit (charge_control_end_threshold, power.json)"
+        "src": "ryoku-host power charge-limit (kernel or vendor battery threshold, power.json)"
     },
     {
         "tab": "",

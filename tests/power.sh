@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # hermetic test for ryoku-power: the battery charge-limit and PCIe ASPM levers.
-# All four seams point at tmp fixtures -- RYOKU_POWER_SUPPLY_DIR (battery),
-# RYOKU_ASPM_POLICY_FILE (policy), RYOKU_POWER_CONFIG (the desired-state JSON),
-# and RYOKU_ASSUME_LAPTOP (the ryoku-hw-laptop gate) -- so no real sysfs is read
-# or written and no root is needed: the tmp attribute files are writable, so the
-# privileged writes go direct and never reach sudo. RYOKU_POWER_CONFIG is kept
-# inside the tmp dir precisely so the real ~/.config/ryoku/power.json is never
-# created or touched (asserted at the end).
+# Every hardware seam points at tmp fixtures, including RYOKU_SYSFS_ROOT for
+# vendor battery controls, so no real sysfs is read or written and no root is
+# needed. Writable fake attributes keep privileged writes direct rather than
+# reaching polkit.
+# RYOKU_POWER_CONFIG also stays inside tmp, so the real user config remains
+# untouched.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -49,6 +48,14 @@ rp() { # <ps> <aspm> <cfg> <laptop:1|0> [args...]
   RYOKU_POWER_SUPPLY_DIR="$ps" RYOKU_ASPM_POLICY_FILE="$aspm" \
     RYOKU_POWER_CONFIG="$cfg" RYOKU_ASSUME_LAPTOP="$lap" \
     RYOKU_CPU_DIR="$tmp/no-cpu" RYOKU_PLATFORM_PROFILE_FILE="$tmp/no-pp/platform_profile" \
+    RYOKU_SHELL_BIN="$shell_stub" "$helper" "$@"
+}
+
+rp_root() { # <fake-sysfs-root> <cfg> [args...]
+  local root="$1" cfg="$2"; shift 2
+  mkdir -p "$root/class/power_supply"
+  RYOKU_SYSFS_ROOT="$root" RYOKU_POWER_SUPPLY_DIR="$root/class/power_supply" \
+    RYOKU_POWER_CONFIG="$cfg" RYOKU_ASSUME_LAPTOP=1 \
     RYOKU_SHELL_BIN="$shell_stub" "$helper" "$@"
 }
 
@@ -123,6 +130,47 @@ if rp "$nops" "$noaspm" "$cfgD" 1 charge-limit get >/dev/null 2>&1; then
   fail "charge-limit get succeeded with no battery"
 fi
 rp "$nops" "$noaspm" "$cfgD" 1 apply || fail "apply errored on a machine with no knobs"
+
+# --- alternate kernel/vendor threshold paths use the same backend --------------
+vendor_charge_case() { # name path initial request normalized raw options clear-raw
+  local name="$1" rel="$2" initial="$3" request="$4" normalized="$5"
+  local raw="$6" options="$7" clear_raw="$8"
+  local root="$tmp/vendor-$name" file cfg="$tmp/vendor-$name.json" caps
+  file="$root/$rel"
+  mkdir -p "$(dirname "$file")"
+  printf '%s\n' "$initial" >"$file"
+
+  rp_root "$root" "$cfg" charge-limit set "$request"
+  [[ "$(cat "$file")" == "$raw" ]] || fail "$name wrote $(cat "$file"), want $raw"
+  jq -e --argjson n "$normalized" '.chargeLimit == $n' "$cfg" >/dev/null \
+    || fail "$name did not persist normalized limit $normalized"
+  [[ "$(rp_root "$root" "$cfg" charge-limit get)" == "$normalized" ]] \
+    || fail "$name did not read back normalized limit $normalized"
+
+  caps="$(rp_root "$root" "$cfg" capabilities --json)"
+  jq -e --argjson n "$normalized" '.battery.chargeLimit.current == $n' <<<"$caps" >/dev/null \
+    || fail "$name was missing from charge capabilities"
+  [[ "$(jq -r '.battery.chargeLimit.options // [] | join(" ")' <<<"$caps")" == "$options" ]] \
+    || fail "$name capability choices were wrong"
+
+  rp_root "$root" "$cfg" charge-limit clear
+  [[ "$(cat "$file")" == "$clear_raw" ]] || fail "$name clear wrote $(cat "$file"), want $clear_raw"
+}
+
+vendor_charge_case stop \
+  class/power_supply/BAT0/charge_stop_threshold 70 85 85 85 "" 100
+vendor_charge_case smapi \
+  devices/platform/smapi/BAT0/stop_charge_thresh 70 75 75 75 "" 100
+vendor_charge_case ideapad \
+  bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode 0 80 60 1 "60 100" 0
+vendor_charge_case lg \
+  devices/platform/lg-laptop/battery_care_limit 100 85 80 80 "80 100" 100
+vendor_charge_case samsung \
+  devices/platform/samsung/battery_life_extender 0 85 80 1 "80 100" 0
+vendor_charge_case sony \
+  devices/platform/sony-laptop/battery_care_limiter 100 75 80 80 "50 80 100" 100
+vendor_charge_case huawei \
+  devices/platform/huawei-wmi/charge_control_thresholds "40 70" 85 85 "0 85" "" "0 100"
 
 # --- aspm: get unwraps [selected], set validates against the offered list -----
 aspmE="$tmp/aspmE/policy"; mk_aspm "$aspmE" '[default] performance powersave powersupersave'
