@@ -6,6 +6,9 @@
 - **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now
   report the configured choice instead of whether the panel happens to be using
   adaptive sync at that moment, so a later Apply cannot turn it off.
+- **Long Rashin conversations open at their newest message.** Restored history
+  stays behind one loading state, and rapid session choices settle on the last
+  selected conversation (`rashin/backend/`, `rashin/web/`).
 - **The login screen appears without a six-second black screen, at the
   panel's top refresh rate.** The greeter asked `modetest` for the card by
   `/dev/dri` path, which its `-D` (a legacy bus id) never opens, so every boot

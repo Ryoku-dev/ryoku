@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { tick } from "svelte";
   import type { Item, Permission } from "$chatstate";
   import type { BannerState } from "$lib/chat/protocol";
   import type { ChatLane } from "$lib/chat/store.svelte";
@@ -21,19 +21,23 @@
     permissions: Permission[];
     banner: { state: BannerState; error: string };
     replaying: boolean;
+    waitingForSession: boolean;
     busy: boolean;
     onnew: () => void;
     onanswer: (requestId: string, optionId: string) => void;
     onsuggest: (text: string) => void;
   }
 
-  let { lane, items, seed, harnessName, permissions, banner, replaying, busy, onnew, onanswer, onsuggest }: Props = $props();
+  let { lane, items, seed, harnessName, permissions, banner, replaying, waitingForSession, busy, onnew, onanswer, onsuggest }: Props = $props();
   let scroller: HTMLDivElement | undefined = $state();
   let pinned = $state(true);
+  let held = $state(true);
+  let settleGeneration = 0;
 
   const unmatchedPermissions = $derived.by(() => permissions.filter((permission) =>
     !items.some((item) => item.kind === "tool" && item.id === permission.toolId),
   ));
+  const restoring = $derived(replaying || waitingForSession);
 
   function jumpToLatest(behavior: ScrollBehavior = "smooth") {
     if (!scroller) return;
@@ -49,14 +53,29 @@
   $effect(() => {
     void items;
     void permissions;
-    if (!pinned) return;
-    void tick().then(() => jumpToLatest("instant"));
+    const generation = ++settleGeneration;
+    if (restoring) {
+      held = true;
+      pinned = true;
+      return;
+    }
+    if (!held && !pinned) return;
+    void tick().then(() => {
+      if (generation !== settleGeneration || restoring || (!held && !pinned)) return;
+      jumpToLatest("instant");
+      held = false;
+    });
   });
-
-  onMount(() => jumpToLatest("instant"));
 </script>
 
-<div class="transcript" bind:this={scroller} onscroll={noteScroll}>
+{#if held && restoring}
+  <section class="replay-status" aria-live="polite">
+    <ThinkingOrb mode="weaving" size={20} label="Restoring" />
+    <span>Restoring this conversation</span>
+  </section>
+{/if}
+
+<div class="transcript" class:held bind:this={scroller} onscroll={noteScroll} aria-hidden={held}>
   <div class="transcript-inner">
     {#if banner.state === "dead"}
       <section class="banner dead" role="alert">
@@ -73,14 +92,7 @@
       </section>
     {/if}
 
-    {#if replaying && items.length === 0}
-      <section class="banner starting" aria-live="polite">
-        <ThinkingOrb mode="weaving" size={20} label="Restoring" />
-        <span>Restoring this conversation</span>
-      </section>
-    {/if}
-
-    {#if items.length === 0 && banner.state !== "starting" && !replaying}
+    {#if items.length === 0 && banner.state !== "starting" && !restoring}
       <section class="empty-chat">
         {#if lane === "ryoku"}
           <NeedleFace {seed} size={72} mood={banner.state === "dead" ? "sleeping" : "idle"} label="The Needle" />
@@ -120,7 +132,7 @@
   </div>
 </div>
 
-{#if !pinned}
+{#if !pinned && !held}
   <button class="jump" type="button" onclick={() => jumpToLatest()}>
     <Icon name="chevronDown" size={14} />
     Jump to latest
@@ -129,6 +141,19 @@
 
 <style>
   .transcript { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .transcript.held { visibility: hidden; }
+  .replay-status {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s3);
+    background: var(--paper);
+    color: var(--ink-mute);
+    font-size: var(--f-small);
+  }
   .transcript-inner { width: min(100%, var(--measure)); min-height: 100%; margin: 0 auto; padding: var(--s6) var(--s5) var(--s7); }
   .items { display: flex; flex-direction: column; gap: var(--s5); }
   .banner {

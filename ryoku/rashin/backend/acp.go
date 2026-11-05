@@ -100,6 +100,7 @@ type acpConn struct {
 
 	killProcess func() error
 	writeMu     sync.Mutex
+	sessionMu   sync.Mutex
 	nextID      atomic.Int64
 
 	mu           sync.Mutex
@@ -652,8 +653,7 @@ func (c *acpConn) applyInitResult(res json.RawMessage) {
 	c.promptImages = out.AgentCapabilities.PromptCapabilities.Image
 }
 
-// openSession issues new/load and installs the returned session id.
-func (c *acpConn) openSession(method string, params map[string]any) error {
+func (c *acpConn) openSessionLocked(method string, params map[string]any) error {
 	c.mu.Lock()
 	c.sessionReady = false
 	c.mu.Unlock()
@@ -687,6 +687,13 @@ func (c *acpConn) openSession(method string, params map[string]any) error {
 	return nil
 }
 
+// openSession issues new/load and installs the returned session id.
+func (c *acpConn) openSession(method string, params map[string]any) error {
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+	return c.openSessionLocked(method, params)
+}
+
 // NewSession abandons the current session for a fresh one in the same cwd.
 func (c *acpConn) NewSession() error {
 	return c.openSession("session/new", map[string]any{"cwd": c.cwd, "mcpServers": prowlMCPServers()})
@@ -698,11 +705,13 @@ func (c *acpConn) LoadSession(id string) error {
 	if !c.loadSession {
 		return errors.New("this agent does not support loading past sessions")
 	}
-	c.emit(AcpEvent{Type: "replay_start"})
-	err := c.openSession("session/load", map[string]any{
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+	c.emit(AcpEvent{Type: "replay_start", SessionID: id})
+	err := c.openSessionLocked("session/load", map[string]any{
 		"sessionId": id, "cwd": c.cwd, "mcpServers": prowlMCPServers(),
 	})
-	c.emit(AcpEvent{Type: "replay_end"})
+	c.emit(AcpEvent{Type: "replay_end", SessionID: id})
 	return err
 }
 
