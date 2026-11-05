@@ -109,6 +109,10 @@ type suspendRequest struct {
 }
 
 type daemon struct {
+	desktopChangeMu sync.Mutex
+	shimaPrevious   string
+	shimaBlocked    bool
+
 	mu           sync.Mutex
 	sup          map[string]bool      // components that already have a supervisor goroutine
 	proc         map[string]*exec.Cmd // current live process per component
@@ -172,6 +176,7 @@ type daemon struct {
 	sleep        *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
 	suspendReqMu sync.Mutex
 	suspendReq   map[string]*suspendRequest
+	lockRecovery *lockRecoveryPolicy
 }
 
 func (d *daemon) currentSleepCycle() *sleepCycle {
@@ -450,6 +455,7 @@ func setupQmlImportPath() {
 // components.
 func (d *daemon) bootstrap() {
 	d.startSettings()
+	d.startLockRecovery()
 	d.startPresence()
 	d.startKeypress()
 	d.startRecord()
@@ -1032,6 +1038,15 @@ func (d *daemon) supervise(name string) {
 		ensureStoreIndexDir()
 		cmd := exec.Command("qs", qsSelect(name)...)
 		cmd.Env = qsEnv()
+		var desktop *desktopRun
+		if name == "shell" {
+			var err error
+			cmd, desktop, err = d.desktopCommand()
+			if err != nil {
+				d.fallbackShima(err.Error())
+				continue
+			}
+		}
 		// Keep the surface's own output: a config that fails to load reports on
 		// stdout and a loader failure on stderr, and without both a black screen
 		// has no reason attached anywhere.
@@ -1042,6 +1057,10 @@ func (d *daemon) supervise(name string) {
 			cmd.Stderr = logFile
 		}
 		if err := cmd.Start(); err != nil {
+			if desktop != nil && desktop.shima {
+				os.Remove(desktop.ready)
+				d.fallbackShima(err.Error())
+			}
 			time.Sleep(backoff)
 			backoff = capDur(backoff*2, 30*time.Second)
 			continue
@@ -1053,7 +1072,10 @@ func (d *daemon) supervise(name string) {
 			d.markHidden(name)
 		}
 		exited := make(chan struct{})
-		if name == "shell" {
+		if desktop != nil {
+			go d.watchDesktop(cmd, desktop, exited, 30*time.Second)
+		}
+		if name == "shell" && (desktop == nil || !desktop.shima) {
 			// A shell that stays up past its crash window is the desktop coming
 			// back after a boot; record it for the boot guard (ryoku boot-guard),
 			// which reverts an update whose next boots never get here.
@@ -1065,6 +1087,9 @@ func (d *daemon) supervise(name string) {
 		start := time.Now()
 		_ = cmd.Wait()
 		close(exited)
+		if desktop != nil {
+			d.restoreAfterShima(desktop, cmd)
+		}
 		killedHolding := <-heldAtKill
 		if name == "shell" && d.keypress != nil {
 			d.keypress.configure(false, d.keypress.currentMode())
@@ -1095,6 +1120,10 @@ func (d *daemon) supervise(name string) {
 		case <-d.quit:
 			return
 		default:
+		}
+		if desktop != nil && desktop.intentional.Load() {
+			backoff = time.Second
+			continue
 		}
 		if killedHolding > 0 {
 			why := fmt.Sprintf("killed holding %d MiB, over its %d MiB memory ceiling",
@@ -1270,6 +1299,9 @@ var surfaceCommands = map[string]string{
 	"quicksettings":       "sidebar-left",
 	"wallpaper-menu":      "wallpaper",
 	"clipboard":           "clipboard",
+	"settings":            "settings",
+	"cheatsheet":          "cheatsheet",
+	"tools":               "tools",
 	"screenshot":          "screenshot",
 	"ask":                 "ask",
 	"ask chat":            "ask#chat",
@@ -1387,6 +1419,18 @@ func (d *daemon) dispatch(line string) string {
 	switch cmd {
 	case "voice":
 		return d.voice()
+	case "shima-family":
+		if len(args) < 2 {
+			return "err shima-family: expected family and panels JSON"
+		}
+		var panels []string
+		if err := json.Unmarshal([]byte(strings.Join(args[1:], " ")), &panels); err != nil {
+			return "err shima-family: invalid panels"
+		}
+		if err := d.changeShimaFamily(args[0], panels); err != nil {
+			return "err shima-family: " + err.Error()
+		}
+		return "ok"
 	case "barstyle":
 		if len(args) != 1 || !validBarStyleID(args[0]) {
 			return "err barstyle: expected one product id"
@@ -1422,6 +1466,9 @@ func (d *daemon) dispatch(line string) string {
 				return "err lock: requested login1 session is not owned by this daemon"
 			}
 			reply := lockSession()
+			if reply == "ok" {
+				d.confirmLockRecovery()
+			}
 			d.kickQylockGuardWatcher()
 			return reply
 		}
@@ -1429,6 +1476,9 @@ func (d *daemon) dispatch(line string) string {
 			return "err lock: expected no arguments, status, or session <id>"
 		}
 		reply := lockSession()
+		if reply == "ok" {
+			d.confirmLockRecovery()
+		}
 		d.kickQylockGuardWatcher()
 		return reply
 	case "unlock-prepare":

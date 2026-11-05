@@ -169,6 +169,11 @@ Singleton {
 
     function build(): var {
         const out = []
+        out.push(root.prepare({ name: Translation.tr("Floating tools"), english: "Floating tools",
+            detail: Translation.tr("Notes, resources, mixer and game helpers"), area: "tools", areaName: Translation.tr("Tools"),
+            words: "overlay notes image crosshair resources volume mixer fps game discord notifications",
+            icon: "widgets", tint: IrisStyle.identity.purple, kind: "run", keepOpen: false, priority: 20,
+            run: () => GlobalStates.overlayOpen = true }))
         const quick = IrisOptions.quickActions()
         for (const action of quick) out.push(root.prepare({
             name: action.name, english: action.english ?? "", detail: action.detail, area: action.area ?? "", areaName: action.areaName ?? "",

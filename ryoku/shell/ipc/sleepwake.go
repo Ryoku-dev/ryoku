@@ -170,6 +170,8 @@ type sleepCycle struct {
 	delay           sleepDelay
 	block           sleepInhibitor
 	lock            func(time.Time) error
+	lockConfirmed   func()
+	unlockPrepared  func()
 	wake            func(context.Context)
 	lighting        func(context.Context)
 	suspend         func(context.Context) error
@@ -325,6 +327,9 @@ func (s *sleepCycle) ready() bool {
 
 func (s *sleepCycle) secureLock(deadline time.Time) error {
 	err := s.lock(deadline)
+	if err == nil && s.lockConfirmed != nil {
+		s.lockConfirmed()
+	}
 	if s.guardKick != nil {
 		s.guardKick()
 	}
@@ -462,7 +467,13 @@ func (s *sleepCycle) prepareUnlock() error {
 	if err != nil {
 		return fmt.Errorf("session became inactive before unlock: %w", err)
 	}
+	if s.unlockPrepared != nil {
+		s.unlockPrepared()
+	}
 	if err := clearCurrentLockProof(); err != nil {
+		if s.lockConfirmed != nil {
+			s.lockConfirmed()
+		}
 		return err
 	}
 	s.activeMu.Lock()
@@ -932,17 +943,19 @@ func (d *daemon) connectSleepGuard() (_ *connectedSleepGuard, err error) {
 		why:  "finish securing the session lock before suspend",
 	}}
 	cycle := &sleepCycle{
-		delay:        delay,
-		block:        block,
-		lock:         ensureSessionLocked,
-		wake:         d.holdAwake,
-		lighting:     applyWakeLighting,
-		guardKick:    d.kickQylockGuardWatcher,
-		resumeKick:   d.kickSunMode,
-		retryProtect: make(chan struct{}, 1),
-		disconnected: conn.Context().Done(),
-		sessionPath:  sessionPath,
-		sessionID:    sessionID,
+		delay:          delay,
+		block:          block,
+		lock:           ensureSessionLocked,
+		lockConfirmed:  d.confirmLockRecovery,
+		unlockPrepared: d.stopLockRecovery,
+		wake:           d.holdAwake,
+		lighting:       applyWakeLighting,
+		guardKick:      d.kickQylockGuardWatcher,
+		resumeKick:     d.kickSunMode,
+		retryProtect:   make(chan struct{}, 1),
+		disconnected:   conn.Context().Done(),
+		sessionPath:    sessionPath,
+		sessionID:      sessionID,
 		activeCheck: func(ctx context.Context) (bool, error) {
 			value, err := login1SessionProperty(ctx, conn, sessionPath, "Active")
 			if err != nil {

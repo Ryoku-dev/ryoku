@@ -62,10 +62,6 @@ input_path = "~/.config/matugen/templates/papirus-color"
 output_path = "~/.cache/matugen/papirus-color"
 post_hook = "which papirus-folders >/dev/null 2>&1 && papirus-folders -c $(cat ~/.cache/matugen/papirus-color) || true"
 
-[templates.fish]
-input_path = "~/.config/matugen/templates/colors.fish"
-output_path = "~/.config/fish/conf.d/ryoku-colors.fish"
-
 [templates.yazi]
 input_path = "~/.config/matugen/templates/yazi.toml"
 output_path = "~/.config/yazi/theme.toml"

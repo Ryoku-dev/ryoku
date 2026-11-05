@@ -41,6 +41,7 @@ type swapDevice struct {
 type memoryProcess struct {
 	pid, ppid int
 	name      string
+	cmdline   string
 	rssKiB    uint64
 }
 
@@ -154,6 +155,8 @@ func cgroupProcesses(cgroupDir, procRoot string) []memoryProcess {
 		}
 		if process, ok := parseProcessStatus(string(status)); ok {
 			process.pid = pidValue
+			cmdline, _ := os.ReadFile(filepath.Join(procRoot, pid, "cmdline"))
+			process.cmdline = string(cmdline)
 			processes = append(processes, process)
 		}
 	}
@@ -336,6 +339,42 @@ func looksLikeUserApp(name string) bool {
 		!strings.HasPrefix(name, "wl-") && !strings.HasPrefix(name, "python3")
 }
 
+func isShellMemoryHelper(cmdline string) bool {
+	argv := strings.Split(strings.TrimRight(cmdline, "\x00"), "\x00")
+	if len(argv) == 0 {
+		return false
+	}
+	switch filepath.Base(argv[0]) {
+	case "inotifywait":
+		for _, arg := range argv[1:] {
+			if strings.Contains(arg, "ryoku-python") || strings.Contains(arg, "ryoku/python") {
+				return true
+			}
+		}
+	case "python3", "python":
+		for _, arg := range argv[1:] {
+			if strings.Contains(arg, "keyboard_lock_state_daemon.py") ||
+				strings.Contains(arg, "ryoku-python") ||
+				strings.Contains(arg, "/sys/class/leds/*capslock*") {
+				return true
+			}
+		}
+	case "bash":
+		for _, arg := range argv[1:] {
+			if strings.Contains(arg, "kb_locks.sh") {
+				return true
+			}
+		}
+	case "cava":
+		for _, arg := range argv[1:] {
+			if strings.Contains(arg, "ryoku-cava") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func inProcessTree(process memoryProcess, rootPID int, processes map[int]memoryProcess) bool {
 	if rootPID <= 0 || process.pid <= 0 {
 		return false
@@ -360,7 +399,8 @@ func userAppsInShell(processes []memoryProcess, doctorPID int) []memoryProcess {
 	}
 	apps := make([]memoryProcess, 0, len(processes))
 	for _, process := range processes {
-		if looksLikeUserApp(process.name) && !inProcessTree(process, doctorPID, byPID) {
+		if looksLikeUserApp(process.name) && !isShellMemoryHelper(process.cmdline) &&
+			!inProcessTree(process, doctorPID, byPID) {
 			apps = append(apps, process)
 		}
 	}

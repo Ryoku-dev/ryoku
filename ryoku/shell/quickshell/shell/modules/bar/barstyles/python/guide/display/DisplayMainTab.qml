@@ -467,7 +467,7 @@ Item {
 
     Flickable {
         anchors.fill: parent
-        anchors.topMargin: rootObj.s(4)
+        anchors.topMargin: rootObj.s(8)
         anchors.leftMargin: rootObj.s(8)
         anchors.rightMargin: rootObj.s(8)
         anchors.bottomMargin: rootObj.s(4)

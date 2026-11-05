@@ -815,6 +815,10 @@ if command -v sudo >/dev/null 2>&1; then
   _priv_install "$here/../lockscreen/sddm/ryoku-greeter-guard" \
     /usr/share/ryoku/lockscreen/ryoku-greeter-guard 755
   if [ -d /run/systemd/system ]; then
+    _priv_install "$here/systemd/environment.d/98-ryoku-dbus.conf" \
+      /usr/lib/environment.d/98-ryoku-dbus.conf 644
+    _priv_install "$here/xdg/dbus-1/services/org.freedesktop.secrets.service" \
+      /usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service 644
     _priv_install "$here/../lockscreen/sddm/ryoku-greeter-guard.service" \
       /usr/lib/systemd/system/ryoku-greeter-guard.service 644
     sudo systemctl enable --quiet ryoku-greeter-guard.service || true

@@ -163,9 +163,11 @@ Item {
     // Ryoku Hub owns every machine-level settings page; the frame carries only
     // its own, so the registry seam resolves to just that.
     readonly property var pages: [
+        { key: "shortcuts", name: Translation.tr("Shortcuts"), component: Directories.payloadPath(root.irisPageFor("shortcuts")) },
         { key: "about", name: Translation.tr("About"), component: Directories.payloadPath(root.irisPageFor("about")) }
     ]
     function irisPageFor(key: string): string {
+        if (key === "shortcuts") return "modules/iris/settings/IrisShortcutsPage.qml"
         if (key === "about") return "modules/iris/settings/IrisAboutPage.qml"
         return ""
     }

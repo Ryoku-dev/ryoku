@@ -3063,7 +3063,7 @@ func browserDesktopKeys(browser string) []string {
 
 func browserRoleCommand(browser string) string {
 	if browser == "zen" {
-		return "zen"
+		return "zen-browser"
 	}
 	return browser
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,6 +31,27 @@ func TestClassifyMode(t *testing.T) {
 func TestSlotToken(t *testing.T) {
 	if got := slotToken("0000:01:00.0"); got != "0000-01-00-0" {
 		t.Errorf("slotToken = %q, want 0000-01-00-0", got)
+	}
+}
+
+func TestGpuPerformanceAvailability(t *testing.T) {
+	old := gpuPolicyStatusOutput
+	t.Cleanup(func() { gpuPolicyStatusOutput = old })
+
+	gpuPolicyStatusOutput = func() ([]byte, error) {
+		return []byte(`{"performance_available":false,"performance_reason":"Switch the laptop's graphics MUX to discrete first."}`), nil
+	}
+	available, reason := gpuPerformanceAvailability()
+	if available || reason != "Switch the laptop's graphics MUX to discrete first." {
+		t.Fatalf("availability = %v, %q", available, reason)
+	}
+
+	gpuPolicyStatusOutput = func() ([]byte, error) {
+		return nil, errors.New("older ryoku-gpu")
+	}
+	available, reason = gpuPerformanceAvailability()
+	if !available || reason != "" {
+		t.Fatalf("failed status = %v, %q; want compatible available default", available, reason)
 	}
 }
 

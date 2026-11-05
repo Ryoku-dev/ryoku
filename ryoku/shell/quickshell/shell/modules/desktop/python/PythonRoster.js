@@ -2,8 +2,9 @@
 
 var faces = [
     { id: "visualizer", prefix: "pythonVisualizer", label: "Python Visualizer", icon: "graphic_eq",         gloss: "音波", variants: ["bars", "continuous"] },
-    { id: "time",       prefix: "pythonTime",       label: "Python Clock",      icon: "schedule",           gloss: "時計", variants: ["digital", "analog", "minimal", "material", "materialAnalog", "lumen"] },
+    { id: "time",       prefix: "pythonTime",       label: "Python Clock",      icon: "schedule",           gloss: "時計", variants: ["digital", "analog", "minimal", "material", "materialAnalog", "lumen", "stretched"] },
     { id: "music",      prefix: "pythonMusic",      label: "Python Music",      icon: "music_note",         gloss: "音楽", variants: ["full", "round", "lyrics", "simpleLyrics"] },
+    { id: "notes",      prefix: "pythonNotes",      label: "Python Notes",      icon: "notes",              gloss: "付箋", variants: ["default"] },
     { id: "weather",    prefix: "pythonWeather",    label: "Python Weather",    icon: "partly_cloudy_day",  gloss: "天気", variants: ["compact", "full", "round"] },
     { id: "image",      prefix: "pythonImage",      label: "Python Image",      icon: "image",              gloss: "画像", variants: ["rect", "rounded", "round"] },
     { id: "user",       prefix: "pythonUser",       label: "Python User",       icon: "account_circle",     gloss: "人物", variants: ["default"] },

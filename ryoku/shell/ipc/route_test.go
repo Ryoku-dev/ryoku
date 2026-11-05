@@ -9,6 +9,7 @@ func TestRoute(t *testing.T) {
 		cmd, config, target, fn string
 	}{
 		{"launcher", "shell", "shell", "openSurface"},
+		{"tools", "shell", "shell", "openSurface"},
 		{"overview", "shell", "shell", "openSurface"},
 		{"visualizer", "shell", "shell", "openSurface"},
 		{"visualizer-overlay", "shell", "shell", "openSurface"},
@@ -27,6 +28,8 @@ func TestRoute(t *testing.T) {
 		{"quicksettings", "shell", "shell", "openSurface"},
 		{"wallpaper-menu", "shell", "shell", "openSurface"},
 		{"clipboard", "shell", "shell", "openSurface"},
+		{"settings", "shell", "shell", "openSurface"},
+		{"cheatsheet", "shell", "shell", "openSurface"},
 		{"screenshot", "shell", "shell", "openSurface"},
 	}
 	for _, c := range cases {

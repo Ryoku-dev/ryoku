@@ -19,6 +19,13 @@
 //   7. A failed scan re-arms after 1s; a wrong password re-prompts immediately
 //      without starving the other method; a password stack that fails before
 //      it ever prompts re-arms on a doubling delay instead of looping
+//   8. With a security key enabled (`ryoku security-key set lock on`), a third
+//      conversation (pamKey) runs from the user's own PAM file. It arms when
+//      the lock secures and when a key is plugged in. A touch-only key unlocks
+//      beside the password; a key that asks for a PIN takes the field until
+//      the user picks the password (sddm.usePassword), a PIN misses, or the
+//      touch times out. Only a skin that draws sddm.keyState (sddm.keyPrompts)
+//      gets the PIN; under any other skin the request is dropped unseen
 
 import QtQuick
 import Quickshell
@@ -67,6 +74,14 @@ Item {
     // 30s cap and drops back once the stack reaches a prompt again.
     property int pwBackoffMs: 1000
 
+    // ── security key state ──────────────────────────────────────────────────
+    readonly property string keyConfigDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/qylock/pam"
+    property bool keyEnabled: false          // the user's ryoku-lock-key file exists
+    property bool keyTyped: false            // a PIN was fed to the key conversation
+    property bool keyPasswordMode: false     // the user, a miss, or a timeout chose the password
+    property string keyState: "off"          // off | pin | verifying | touch
+    property real keyArmTs: 0                // ms epoch the key conversation started
+
     // arm the moment the lock secures; probes alone race and lose it.
     onArmWhenReadyChanged: {
         if (shim.armWhenReady)
@@ -90,6 +105,11 @@ Item {
         pamFp.abort();
         pamPw.pendingPassword = "";
         pamPw.abort();
+        keyHotplugDelay.stop();
+        keyRearmTimer.stop();
+        shim.keyTyped = false;
+        pamKey.abort();
+        shim.keyState = "off";
         shim.unlocked = false;
         shim.fingerprintState = "idle";
     }
@@ -288,6 +308,25 @@ Item {
         property string hostName: shim.hostName
         signal loginFailed()
         signal loginSucceeded()
+        signal keyTimedOut()
+        // A skin that draws keyState sets this; until one does, the key may
+        // unlock by touch but never takes typed input.
+        property bool keyPrompts: false
+        readonly property bool keyReady: shim.keyEnabled
+        readonly property string keyState: shim.keyState
+        readonly property bool keyPasswordMode: shim.keyPasswordMode
+
+        function usePassword() {
+            shim.keyPasswordMode = true;
+            shim.keyTyped = false;
+            keyRearmTimer.stop();
+            pamKey.abort();
+            shim.keyState = "off";
+        }
+        function useKey() {
+            shim.keyPasswordMode = false;
+            shim.armKey();
+        }
         // lock_shell emits this once the secure surface is shown
         signal surfaceRevealed()
 
@@ -300,17 +339,17 @@ Item {
         property string fingerprintState: shim.fingerprintState
         property bool fingerprintUnlock: shim.fingerprintUnlock
 
-        // login() is called by the theme when the user submits a password.
-        // The key always goes to the dedicated password conversation
-        // (pamPw): respond at once if its prompt is up, stash it if the
-        // prompt has not arrived yet (onResponseRequiredChanged feeds it),
-        // or start the conversation if it died.
+        // login() is only the password channel. Security-key PINs use the
+        // explicit loginKeyPin() path below, so a typed password can never be
+        // forwarded to pam_u2f.
         function login(user, password, sessionIndex) {
             if (!shim.armWhenReady || !shim.loginSessionActive || shim.unlocked) {
                 pamPw.pendingPassword = "";
                 shim.sddm.loginFailed();
                 return;
             }
+            if (password === "" && shim.keyEnabled)
+                return;
             pamPw.user = user;
             if (pamPw.active) {
                 if (pamPw.responseRequired) {
@@ -326,9 +365,21 @@ Item {
             pamPw.pendingPassword = password;
             if (password === "" && !shim.fingerprintReady)
                 return;
-            // a typed key gets its attempt now, not after the backoff
             pwRetryTimer.stop();
             shim.startPw();
+        }
+
+        function loginKeyPin(user, pin) {
+            if (!shim.armWhenReady || !shim.loginSessionActive || shim.unlocked
+                    || !keyPrompts || shim.keyState !== "pin" || pin === ""
+                    || !pamKey.active || !pamKey.responseRequired) {
+                shim.sddm.loginFailed();
+                return;
+            }
+            pamKey.user = user;
+            shim.keyTyped = true;
+            shim.keyState = "verifying";
+            pamKey.respond(pin);
         }
 
         // ryoku-host picks systemctl or loginctl for the running init, like
@@ -428,10 +479,9 @@ Item {
     }
 
     // ── PAM conversations ────────────────────────────────────────────────────
-    // TWO independent conversations race for the unlock — pam_fprintd's man
-    // page: serialised stacks ⇒ separate conversations for parallel methods.
-    // configDirectory is the lock's own assets/pam/, so no root edit of
-    // /etc/pam.d is needed — both services ship with the lock screen itself.
+    // THREE independent conversations race for the unlock. pam_fprintd's man
+    // page requires separate conversations for parallel methods, and pam_u2f
+    // must never receive the password conversation's responses.
     PamContext {
         id: pamFp
         config: "ryoku-lock"
@@ -453,6 +503,7 @@ Item {
                 shim.fingerprintUnlock = true;
                 shim.fingerprintState = "success";
                 pamPw.abort();
+                pamKey.abort();
                 shim.sddm.loginSucceeded();
             } else if (result === PamResult.Success) {
                 shim.unlocked = false;
@@ -498,6 +549,7 @@ Item {
                 shim.fingerprintUnlock = false;
                 shim.fingerprintState = "success";
                 pamFp.abort();
+                pamKey.abort();
                 shim.sddm.loginSucceeded();
             } else if (result === PamResult.Success) {
                 shim.unlocked = false;
@@ -511,6 +563,138 @@ Item {
                 return;
             shim.notePwFailure();
         }
+    }
+
+    // Security key conversation, from the file `ryoku security-key set lock`
+    // writes: pam_u2f, then deny. It starts from armKey() only: the secure
+    // lock, a plug-in, sddm.useKey(), or a touch-only wait re-arming itself.
+    PamContext {
+        id: pamKey
+        config: "ryoku-lock-key"
+        configDirectory: shim.keyConfigDir
+
+        onPamMessage: {
+            if (responseRequired) {
+                if (!shim.sddm.keyPrompts) {
+                    console.warn("[key] the lock skin does not draw key prompts; dropping the PIN request");
+                    abort();
+                    shim.keyState = "off";
+                    return;
+                }
+                shim.keyState = "pin";
+            } else if (!messageIsError && shim.keyState !== "verifying") {
+                // pam_u2f's touch cue with no PIN asked first: a touch-only
+                // key, which unlocks beside the password.
+                shim.keyState = "touch";
+            }
+        }
+
+        onCompleted: (result) => {
+            if (shim.unlocked || result === PamResult.Error)
+                return;
+            if (result === PamResult.Success && shim.armWhenReady && shim.loginSessionActive) {
+                shim.unlocked = true;
+                // Skins that take the PIN hand it over without the wind-up,
+                // so a key win always plays the sensor reveal.
+                shim.fingerprintUnlock = true;
+                shim.fingerprintState = "success";
+                shim.keyTyped = false;
+                shim.keyState = "off";
+                pamFp.abort();
+                pamPw.abort();
+                shim.sddm.loginSucceeded();
+                return;
+            }
+            shim.parkKey();
+        }
+        onError: (error) => {
+            if (!shim.armWhenReady || shim.unlocked)
+                return;
+            shim.parkKey();
+        }
+    }
+
+    // pam_u2f's own wait can outlast the user; the lock gives up first and
+    // hands the field back to the password.
+    Timer {
+        id: keyTouchTimer
+        interval: 10000
+        running: shim.keyState === "verifying"
+        onTriggered: {
+            console.warn("[key] no touch within", interval, "ms; back to the password");
+            shim.keyTyped = false;
+            shim.keyPasswordMode = true;
+            pamKey.abort();
+            shim.keyState = "off";
+            shim.sddm.keyTimedOut();
+        }
+    }
+
+    // A wrong PIN shakes the field like a wrong password and hands it to the
+    // password. A touch-only wait that ran its course re-arms; one that died at
+    // once had no key to talk to, so it waits for the next plug-in instead.
+    function parkKey() {
+        var typed = shim.keyTyped;
+        var waited = shim.keyState === "touch" && Date.now() - shim.keyArmTs > 1500;
+        shim.keyTyped = false;
+        shim.keyState = "off";
+        if (typed) {
+            shim.keyPasswordMode = true;
+            shim.sddm.loginFailed();
+        } else if (waited) {
+            keyRearmTimer.restart();
+        }
+    }
+
+    Timer {
+        id: keyRearmTimer
+        interval: 1000
+        onTriggered: shim.armKey()
+    }
+
+    // The CLI validates ownership, mode, type and exact contents at every arm.
+    // Turning the key on or off therefore applies to the next lock without a
+    // shell restart, while an altered or unsafe file fails closed.
+    Process {
+        id: keyProbeProc
+        command: ["ryoku", "security-key", "check-lock"]
+        stderr: StdioCollector {}
+        onExited: (code) => {
+            shim.keyEnabled = code === 0;
+            if (!shim.keyEnabled || !shim.armWhenReady || !shim.loginSessionActive || shim.unlocked || pamKey.active)
+                return;
+            pamKey.user = Quickshell.env("USER") || "traveler";
+            shim.keyArmTs = Date.now();
+            if (!pamKey.start())
+                console.warn("[key] pamKey.start() failed: config=", pamKey.config,
+                    "dir=", pamKey.configDirectory, "user=", pamKey.user);
+        }
+    }
+
+    // A key plugged in while locked arms the conversation, so its PIN prompt
+    // appears without a keypress. udev reports the node after its ACL is set.
+    Process {
+        id: keyHotplugProc
+        running: shim.keyEnabled && shim.armWhenReady && shim.loginSessionActive
+        command: ["udevadm", "monitor", "--udev", "--subsystem-match=hidraw"]
+        stdout: SplitParser {
+            onRead: (line) => {
+                if (line.indexOf(" add ") !== -1)
+                    keyHotplugDelay.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: keyHotplugDelay
+        interval: 500
+        onTriggered: shim.armKey()
+    }
+
+    function armKey() {
+        if (!shim.armWhenReady || !shim.loginSessionActive || shim.unlocked || shim.keyPasswordMode || pamKey.active || keyProbeProc.running)
+            return;
+        keyProbeProc.running = true;
     }
 
     // A key that reached PAM and failed is a wrong password: shake the field
@@ -647,8 +831,14 @@ Item {
         fpProbeTimer.stop();
         rearmTimer.stop();
         pwRetryTimer.stop();
+        keyHotplugDelay.stop();
+        keyRearmTimer.stop();
+        shim.keyTyped = false;
+        shim.keyPasswordMode = false;
         pamFp.abort();
         pamPw.abort();
+        pamKey.abort();
+        shim.keyState = "off";
         if (shim.fingerprintState !== "idle")
             shim.fingerprintState = "idle";
     }
@@ -659,6 +849,7 @@ Item {
         shim.startPw();
         if (shim.fingerprintReady && !pamFp.active)
             shim.armFingerprint();
+        shim.armKey();
     }
 
     // Once the secure proof is published and this login1 session owns the

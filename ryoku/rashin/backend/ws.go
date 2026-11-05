@@ -384,9 +384,9 @@ func (h *chatHub) pump(c *acpConn) {
 		case "usage":
 			h.broadcast(wsOut{Type: "usage", Size: ev.UsageSize, Used: ev.UsageUsed})
 		case "replay_start":
-			h.broadcast(wsOut{Type: "replay_start"})
+			h.broadcast(wsOut{Type: "replay_start", SessionID: ev.SessionID})
 		case "replay_end":
-			h.broadcast(wsOut{Type: "replay_end"})
+			h.broadcast(wsOut{Type: "replay_end", SessionID: ev.SessionID})
 		}
 	}
 	h.releasePerms()

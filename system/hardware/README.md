@@ -6,9 +6,10 @@ in the machine, and do not waste power doing it.
 
 ## What's here
 
-- `gpu/` Picks the strongest GPU and pins it as Hyprland's main renderer.
+- `gpu/` Picks the strongest panel-safe GPU and, where safe, pins it as
+  Hyprland's main renderer.
   - `ryoku-gpu` The command. `detect` lists every GPU strongest first and names
-    the chosen primary; `persist` writes the Hyprland pin; `install-udev`
+    the chosen primary; `persist` writes a safe Hyprland pin; `install-udev`
     installs the stable device names; `status` shows the current state;
     `disable` clears the pin.
   - `ryoku-gpu-detect` The detection helper the command sources. It reads the
@@ -138,16 +139,18 @@ in the machine, and do not waste power doing it.
 ## How the strongest GPU is chosen
 
 Many machines have two GPUs: a fast discrete card (NVIDIA or AMD) next to the
-slower one built into the CPU. If the desktop renders on the slow one it feels
-sluggish even on a fast screen. `ryoku-gpu` ranks the GPUs (an external GPU beats
-a discrete card, which beats an integrated one) and makes the strongest one
+slower one built into the CPU. `ryoku-gpu` ranks them (an external GPU beats a
+discrete card, which beats an integrated one) and can make the strongest one
 Hyprland's primary renderer through `AQ_DRM_DEVICES`. Every GPU stays in the
 list, so a monitor plugged into a different GPU still works.
 
-On a laptop the integrated GPU stays primary by default, because that is easier
-on the battery and is what Hyprland itself recommends. An external GPU is always
-preferred (you plugged it in on purpose). To force the discrete GPU on a laptop,
-run `RYOKU_GPU_FORCE=1 ryoku-gpu persist`.
+On a laptop, Ryoku pins only when the strongest GPU also owns the connected
+internal panel. A dGPU-first pin over an iGPU panel makes every frame cross GPUs;
+Aquamarine can lose that panel at login or while rebuilding it after DPMS.
+Performance mode is therefore refused until a hardware MUX routes the panel to
+the dGPU. Hybrid leaves selection to the compositor, and doctor clears legacy
+pins with this unsafe topology. `RYOKU_GPU_FORCE=1` remains an advanced override
+for testing known-working hardware.
 
 ## How display scaling works
 

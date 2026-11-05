@@ -5,6 +5,8 @@ import Quickshell.Io
 import Ryoku.FrameBars
 import Ryoku.Ui.Singletons
 
+import "lib/surface-routes.js" as SurfaceRoutes
+
 // live shell appearance config. one source of truth for the look knobs Ryoku
 // Settings' Shell section edits, plus the shipped defaults the shell falls back
 // to. JSON at ~/.config/ryoku/shell.json, watched, so a save in Settings
@@ -58,6 +60,7 @@ Singleton {
     property alias barStyle: adapter.barStyle
     property alias notifications: adapter.notifications
     readonly property var sounds: adapter.sounds
+    readonly property var themeSizing: adapter.theme?.attributes?.sizing ?? ({})
 
     // obi: per-widget visibility for the Obi bar style, edited in Bar Studio.
     // A map of widgetId -> bool; an absent key reads as shown, so the bar is
@@ -84,6 +87,7 @@ Singleton {
         && !(root.nomarchy && root.nomarchy.notifications === false))
         || (barStyle === "iris" && (root.inir?.iris?.modules?.notificationPopup ?? true))
         || barStyle === "tansu"
+        || barStyle === "caelestia"
         || (barStyle === "gokko" && BarProducts.gokkoReady)
     // Only a style that plays its own notification sound silences the shell's
     // cue; Nomarchy and Tansu draw banners but play nothing themselves.
@@ -94,6 +98,14 @@ Singleton {
         && !(root.python && root.python.general && root.python.general.osd === false))
         || (barStyle === "nomarchy"
         && !(root.nomarchy && root.nomarchy.osd === false))
+        || (barStyle === "iris" && (root.inir?.iris?.modules?.osd ?? true))
+        || barStyle === "caelestia"
+
+    // Desktop-wide shortcuts stay with Ryoku. Shima substitutes its own
+    // shortcuts sheet because it adds a style-only element view.
+    function styleOwns(surface) {
+        return SurfaceRoutes.styleOwns(surface, barStyle)
+    }
 
     // Shima's banner slider owns the fallback only while Shima draws the banners.
     readonly property int styleNotificationMs: {
@@ -328,6 +340,14 @@ Singleton {
             property string screenShader: ""
             property var frameBars: FrameBars.defaultConfig()
             property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
+            property var theme: ({
+                "attributes": {
+                    "sizing": {
+                        "radius_widget": 8,
+                        "radius_window": 8
+                    }
+                }
+            })
             property var notifications: ({
                 "notification_position": "Right",
                 "popup_window_margins": 0,

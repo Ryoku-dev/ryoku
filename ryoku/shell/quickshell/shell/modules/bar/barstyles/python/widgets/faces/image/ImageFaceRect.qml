@@ -27,7 +27,7 @@ Item {
         color: (root.ryokuBare || root.imagePath !== "") ? "transparent" : ThemeBackend.surface0
         clip: true
 
-        AnimatedImage {
+        BoundedImage {
             id: srcImage
             anchors.fill: parent
             source: root.imagePath !== "" ? (root.imagePath.startsWith("file://") ? root.imagePath : "file://" + root.imagePath) : ""
@@ -35,7 +35,6 @@ Item {
             asynchronous: true
             cache: true
             smooth: true
-            mipmap: true
             antialiasing: true
             playing: root.visible
             visible: status === Image.Ready

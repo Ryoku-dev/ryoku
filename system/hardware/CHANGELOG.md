@@ -17,6 +17,27 @@
   headless one exits at once.
 
 ### Fixed
+- `display/ryoku-hw-backlight-fix`: **ASUS TUF A15 FA507XV brightness keeps
+  using its working EC control.** The native-backlight override is now limited
+  to the confirmed FA506NCG quirk. An update removes the old broad drop-in from
+  every other board and rebuilds its Limine entry.
+- `bluetooth/ryoku-bluetooth-power`: **a saved on choice survives the login
+  reset.** The same `AutoEnable` window refuses `bluetoothctl power on` with
+  `org.bluez.Error.Busy`, and the on path returned that refusal after a single
+  try, so `ryoku-bluetooth-reset.service` failed at every session start for the
+  default saved choice. Powering on now retries the window the off path already
+  waited out. Covered by `tests/bluetooth-power-persist.sh`.
+- `gpu/ryoku-gpu`: **hybrid laptops no longer pin a renderer that does not own
+  the internal panel.** Default and Performance avoid Aquamarine's blank
+  login/DPMS path; doctor clears old managed pins. Covered by
+  `tests/gpu-pin-policy.sh`.
+- `gpu/ryoku-gpu status --json`: **the Hub can gate Performance from the owning
+  GPU policy.** It reports availability and the MUX action without duplicating
+  panel detection in the UI.
+- `power/ryoku-power`: **vendor battery-care controls reach the charge-limit
+  backend.** Standard stop thresholds, SMAPI, IdeaPad, LG, Samsung, Sony and
+  Huawei interfaces are capability-gated and normalized to the choices their
+  firmware supports. Covered by `tests/power.sh`.
 - `bluetooth/ryoku-bluetooth-power`: **Bluetooth stays off after login when it
   was turned off.** The login reset restarts bluetoothd, and BlueZ's
   `AutoEnable` is still powering the new controller on when `restore` runs, so
@@ -24,6 +45,11 @@
   `ryoku-bluetooth-reset.service` failed. Turning off now waits for the
   controller and retries until BlueZ reports it off, as turning on already
   waited. Covered by `tests/bluetooth-power-persist.sh`.
+- `power/ryoku-clamshell`: **lid syncs no longer pile up behind each other.**
+  Every compositor config reload starts `lid sync`, and in a reload loop
+  hundreds of them queued on the panel lock. A sync that starts while another
+  runs now exits at once: the running one reads the lid state itself, and lid
+  edges keep their own binds. Covered by `tests/clamshell-policy.sh`.
 - `network/50-ryoku-dns.rules`: **the passwordless DNS grant no longer matches
   any path ending in `ryoku-dns`.** The rule tested the program with a basename
   regex, so any executable a local wheel user placed at a path ending in

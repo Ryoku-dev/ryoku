@@ -1,6 +1,83 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Visualizers follow newly connected audio outputs.** Bar and desktop
+  visualizers retarget when the default output changes without a shell reload.
+- **A crashed lock screen comes back after display-link churn.** Once qylock has
+  confirmed a secure lock, the shell retries its launcher across a 42-second
+  window if that client disappears, and stops immediately after confirmation or
+  an authenticated unlock (`ipc/lockrecovery.go`, `ipc/sleepwake.go`).
+- **Notification popups keep their full cards and saved screen margin.** Wrapped
+  text, images and store designs now grow the popup to their real height.
+- **QS Bar's now-playing title can use more room.** The widget settings now
+  offer an 88 to 400 px title width, and the marquee stays still when the title
+  fits.
+- **Missing default-app commands now show a notification.** A broken saved
+  browser, terminal, editor or file-manager command no longer fails silently.
+- **The wallpaper picker remembers its view and opens where it matters.** Layout,
+  sort and filter choices survive restarts, and the current wallpaper is brought
+  into view with the newest matching item as the fallback (`ryogami/`).
+- **Terminal syntax follows light and dark wallpaper palettes.** Matugen now
+  renders Fish, Bash and Zsh colours beside the terminal theme so typed input,
+  commands and suggestions keep their contrast.
+- **Notifications follow the shell shape and palette.** Their cards use the
+  configured corner radius, and the countdown border uses the active accent.
+- **Shima and Ryoku Settings share one battery charge-limit writer.** Shima now
+  reads and updates the host power capability instead of carrying a second
+  privileged sysfs implementation.
+- **Desktop shortcuts stay with Ryoku under every bar style.** Super+comma
+  opens Ryoku Settings, Super+V opens Ryoku's clipboard, Super+Escape opens
+  quick settings and Super+Space opens the launcher selected in Ryoku Settings
+  (`quickshell/shell/{shell.qml,services/,modules/bar/barstyles/}`, `ipc/`).
+- **USB tethering no longer leaves the bar offline.** Every bar style now reads
+  the primary NetworkManager connection from the shell service, including phone
+  links exposed as wired, modem or USB-backed devices.
+- **The ii dock can stay above app windows.** Dock design & settings >
+  Behaviour > Stay above windows keeps a pinned dock over windows while you
+  switch workspaces. It is off by default. Contributed by wolf1999h.
+- **Obsidian follows the Matugen accent again.** Derive HSL components from the
+  primary color's hex value so app rendering works with Ryoku's palette carrier
+  (`matugen/templates/obsidian.css`).
+- **Orpheus settings open through an IPC target.**
+  `qs -c shell ipc call orpheus settings [page|close]` opens the settings on a
+  page, or closes them, on the focused output, so a keybind, script or Ryoku
+  Hub can reach them without the logo
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{Scene.qml,settings/Prefs.qml}`).
+- **Orpheus AI usage shows whether you are ahead of pace.** The module adds an
+  always-on trend arrow and lists the points ahead or behind and the projected
+  fill time in its tooltip. The Modules page keeps one alert-level control
+  instead of separate switches for each part of the same reading
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Ai.qml,settings/}`,
+  `quickshell/shell/services/AiUsage.qml`).
+- **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,
+  clipboard, settings and shortcuts keys now open Shima surfaces, while
+  `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,
+  gaming, Discord and notification tray (`quickshell/{inir,shell/modules/bar/barstyles/iris}/`,
+  `ipc/`).
+- **Shima themes reach the dock users actually see.** Theme presets now send
+  notch, material, icon-size and magnification choices through the universal
+  dock owner instead of writing retired Shima-only settings
+  (`quickshell/inir/modules/iris/settings/IrisThemes.qml`).
+- **Shima's dock previews match the live dock.** Settings previews now read the
+  universal dock's active design, visibility, edge, material and icon settings
+  instead of stale Shima-only values
+  (`quickshell/inir/modules/iris/preview/IrisGroupPreview.qml`).
+- **Python catches up with Serpantinum 2.3.1.** The resync brings the redesigned
+  searchable settings, launcher search and converters, clipboard and policy
+  prompt presentation, clock and media fixes, notes, wellbeing limits and
+  widget history while preserving Ryoku's compositor, wallpaper, capture,
+  lock, dock and desktop seams
+  (`quickshell/shell/modules/bar/barstyles/python/`).
+- **Caelestia keeps its desktop-wide surfaces alive from the primary output.**
+  The store style is treated as a frame family, so its launcher, panels and
+  notifications remain hosted when the bar is hidden on that display
+  (`quickshell/shell/services/BarProducts.qml`).
+- **A ported bar style answers its own keys.** Super+Space, Super+V, Super+comma
+  and Super+K open the active style's launcher, clipboard, settings and
+  cheatsheet when it has them, and Ryoku's own surfaces otherwise; Shima's
+  island feedback replaces the shell's OSD while it is the bar
+  (`quickshell/shell/{shell.qml,services/Config.qml}`, `ipc/daemon.go`,
+  `wm/{niri,wayfire}/config_binds.go`, `hyprland/modules/binds.lua`).
 - **A failed graphics process cannot leave the login cover on screen forever.**
   The cover launcher now removes a wedged surface after one minute even when
   its own animation timer cannot run (`scripts/ryoku-reload-cover`).
@@ -11,6 +88,9 @@
 - **Wallpaper previews recolour desktop widgets reliably.** Preview palettes now
   replace their runtime file in one step, so the shell never catches an empty
   file while a downloaded wallpaper is hovered (`ryogami/daemon/preview.go`).
+- **Shima keeps dock edge spacing after sign-in.** Negative edge gaps now pass
+  through the shell's settings writer instead of living only in the current
+  session (`ipc/{settings.go,settings_test.go}`).
 - **Dock designs can sit closer to the screen edge.** The Stage Editor's edge
   gap now accepts negative values while every design keeps its hover and reserved
   regions inside the screen (`quickshell/{stage,shell/modules/dock,inir/modules/iris/dock}/`).

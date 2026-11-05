@@ -18,6 +18,7 @@ Variants {
         PanelWindow {
             id: barWindow
             visible: barConfigReady
+            readonly property var barWindowRoot: barWindow
 
             property bool pendingReload: false
             property bool startupFilesReady: false
@@ -26,14 +27,14 @@ Variants {
                 barWindow.screen ? barWindow.screen.name : "")
 
             onIsFullscreenActiveChanged: {
-                if (barWindow.isFullscreenActive) {
+                if (barWindowRoot.isFullscreenActive) {
                     OsdController.isFullscreen = true;
-                } else if (!OsdController.screen || OsdController.screen === barWindow.screen) {
+                } else if (!OsdController.screen || OsdController.screen === barWindowRoot.screen) {
                     OsdController.isFullscreen = false;
                 }
             }
 
-            WlrLayershell.keyboardFocus: (barWindow.isNotifOpen || barWindow.isSysOpen)
+            WlrLayershell.keyboardFocus: (barWindowRoot.isNotifOpen || barWindowRoot.isSysOpen)
                 ? WlrKeyboardFocus.OnDemand
                 : WlrKeyboardFocus.None
 
@@ -42,19 +43,19 @@ Variants {
             Connections {
                 target: (typeof Config !== "undefined") ? Config : null
                 function onSettingsLoaded() {
-                    barWindow.configRevision++;
+                    barWindowRoot.configRevision++;
                 }
                 function onDataReadyChanged() {
-                    barWindow.configRevision++;
+                    barWindowRoot.configRevision++;
                 }
                 function onRawSettingsChanged() {
-                    barWindow.configRevision++;
+                    barWindowRoot.configRevision++;
                 }
             }
 
             Component.onCompleted: {
                 if (typeof Config !== "undefined" && Config.dataReady) {
-                    barWindow.configRevision++;
+                    barWindowRoot.configRevision++;
                 }
             }
 
@@ -111,11 +112,11 @@ Variants {
 
             Timer {
                 id: hideTimer
-                interval: barWindow.autohideTimeout
+                interval: barWindowRoot.autohideTimeout
             }
 
             function checkHideTimer() {
-                if (!barHover.hovered && barWindow.autohide) {
+                if (!barHover.hovered && barWindowRoot.autohide) {
                     hideTimer.restart();
                 } else {
                     hideTimer.stop();
@@ -124,7 +125,7 @@ Variants {
 
             Connections {
                 target: barHover
-                function onHoveredChanged() { barWindow.checkHideTimer(); }
+                function onHoveredChanged() { barWindowRoot.checkHideTimer(); }
             }
 
             property bool isRevealed: {
@@ -138,7 +139,7 @@ Variants {
             Timer {
                 interval: 50
                 running: true
-                onTriggered: barWindow.startupFilesReady = true
+                onTriggered: barWindowRoot.startupFilesReady = true
             }
 
             IpcHandler {
@@ -146,9 +147,7 @@ Variants {
                 // Ryoku seam: no whole-shell reload from inside the resident
                 // Ryoku instance; the style's settings apply live through the
                 // daemon frames. The verbs stay so the ported scripts land.
-                function forceReload() {
-                    console.info("python: settings apply live; shell reload skipped")
-                }
+                function forceReload() {}
                 function queueReload() {
                     barWindow.pendingReload = false
                 }
@@ -184,11 +183,14 @@ Variants {
             property real effectiveBarHeight: Math.round(!isVertical ? barContentHeight : ((barContentHeight - (autohide ? edgePadding * 2 : 0)) * (barWidthPercent / 100.0)))
             property real verticalOffset: Math.round(!isVertical ? 0 : ((barContentHeight - effectiveBarHeight) / 2))
 
-            property real currentBarMinX: (contentWrapper && contentWrapper.dynamicMaxX > contentWrapper.dynamicMinX) ? contentWrapper.dynamicMinX : horizontalOffset
-            property real currentBarMaxX: (contentWrapper && contentWrapper.dynamicMaxX > contentWrapper.dynamicMinX) ? contentWrapper.dynamicMaxX : (horizontalOffset + effectiveBarWidth)
+            readonly property var horizontalLayout: contentWrapper
+            readonly property var verticalLayout: verticalWrapper
 
-            property real currentBarMinY: (verticalWrapper && verticalWrapper.dynamicMaxY > verticalWrapper.dynamicMinY) ? verticalWrapper.dynamicMinY : verticalOffset
-            property real currentBarMaxY: (verticalWrapper && verticalWrapper.dynamicMaxY > verticalWrapper.dynamicMinY) ? verticalWrapper.dynamicMaxY : (verticalOffset + effectiveBarHeight)
+            property real currentBarMinX: (horizontalLayout && horizontalLayout.dynamicMaxX > horizontalLayout.dynamicMinX) ? horizontalLayout.dynamicMinX : horizontalOffset
+            property real currentBarMaxX: (horizontalLayout && horizontalLayout.dynamicMaxX > horizontalLayout.dynamicMinX) ? horizontalLayout.dynamicMaxX : (horizontalOffset + effectiveBarWidth)
+
+            property real currentBarMinY: (verticalLayout && verticalLayout.dynamicMaxY > verticalLayout.dynamicMinY) ? verticalLayout.dynamicMinY : verticalOffset
+            property real currentBarMaxY: (verticalLayout && verticalLayout.dynamicMaxY > verticalLayout.dynamicMinY) ? verticalLayout.dynamicMaxY : (verticalOffset + effectiveBarHeight)
 
             property bool fillAttached: isFill && (isVertical
                 ? (currentBarMinY > 0.5 || currentBarMaxY < barContentHeight - 0.5)
@@ -197,11 +199,11 @@ Variants {
             Timer {
                 id: positionChangeTimer
                 interval: 200
-                onTriggered: barWindow.positionChanging = false
+                onTriggered: barWindowRoot.positionChanging = false
             }
 
             onBarPositionChanged: {
-                barWindow.positionChanging = true;
+                barWindowRoot.positionChanging = true;
                 positionChangeTimer.restart();
             }
 
@@ -241,10 +243,10 @@ Variants {
             }
 
             anchors {
-                top: barPosition === "top" || barWindow.isVertical
-                bottom: barPosition === "bottom" || barWindow.isVertical
-                left: barPosition === "left" || !barWindow.isVertical
-                right: barPosition === "right" || !barWindow.isVertical
+                top: barPosition === "top" || barWindowRoot.isVertical
+                bottom: barPosition === "bottom" || barWindowRoot.isVertical
+                left: barPosition === "left" || !barWindowRoot.isVertical
+                right: barPosition === "right" || !barWindowRoot.isVertical
             }
 
             implicitHeight: barWindow.isVertical ? 0 : frameLayer.extent
@@ -312,7 +314,7 @@ Variants {
 
             FileView {
                 id: widgetWatcher
-                path: (barWindow.startupFilesReady && Caching.runDir) ? (Caching.runDir + "/current_widget") : ""
+                path: (barWindowRoot.startupFilesReady && Caching.runDir) ? (Caching.runDir + "/current_widget") : ""
                 watchChanges: true
                 onFileChanged: reload()
                 onLoaded: {
@@ -332,7 +334,7 @@ Variants {
                         widget = txt;
                     }
 
-                    let myScreenName = (barWindow.screen && barWindow.screen.name) ? barWindow.screen.name : "";
+                    let myScreenName = (barWindowRoot.screen && barWindowRoot.screen.name) ? barWindowRoot.screen.name : "";
                     let effectiveWidget = "";
                     if (widget === "notifications" || widget === "system") {
                         if (!targetScreen || targetScreen === myScreenName) {
@@ -340,17 +342,17 @@ Variants {
                         }
                     }
 
-                    if (barWindow.activeWidget !== effectiveWidget) {
-                        barWindow.activeWidget = effectiveWidget;
+                    if (barWindowRoot.activeWidget !== effectiveWidget) {
+                        barWindowRoot.activeWidget = effectiveWidget;
                     }
                 }
             }
 
             property bool isStartupReady: false
-            Timer { interval: 10; running: true; onTriggered: barWindow.isStartupReady = true }
+            Timer { interval: 10; running: true; onTriggered: barWindowRoot.isStartupReady = true }
 
             property bool startupCascadeFinished: false
-            Timer { interval: 1050; running: true; onTriggered: barWindow.startupCascadeFinished = true }
+            Timer { interval: 1050; running: true; onTriggered: barWindowRoot.startupCascadeFinished = true }
 
             property bool fastPollerLoaded: false
             property bool isDataReady: fastPollerLoaded

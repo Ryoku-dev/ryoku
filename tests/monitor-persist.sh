@@ -21,6 +21,11 @@ export RYOKU_MONITORS_DIR="$tmp/profiles"
 export RYOKU_MONITORS_APPLIED="$tmp/applied.json"
 export RYOKU_MONITORS_USER="$tmp/none-user.lua"
 export RYOKU_MONITOR_VM=0
+# Never read the clamshell state of the machine that runs the test.
+export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
+export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
+export RYOKU_LID_STATE_GLOB="$tmp/lid-switch"
+export RYOKU_MONITOR_TOGGLE_STATE="$tmp/toggle.json"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 has() { grep -qF -- "$2" "$1" || fail "$3"; }
@@ -76,6 +81,8 @@ has "$conf" 'output = "HDMI-A-1", mode = "1920x1080@60"' \
 has "$conf" 'position = "2560x0"' "the absent TV lost its saved position"
 has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
   "the panel lost its own applied settings"
+grep 'output = "eDP-1"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "login trusted HDR support on an output without HDR enabled"
 
 # --- identity: a drifting serial still resolves to the same TV by make|model ---
 apply_both
@@ -155,5 +162,134 @@ cat >"$tmp/misflagged.json" <<'JSON'
 JSON
 flagval="$(RYOKU_MONITOR_JSON="$tmp/misflagged.json" "$mon" list | jq -r '.[0].disabled')"
 [[ $flagval == "false" ]] || fail "an active output flagged disabled by Hyprland listed as off"
+
+# --- docked lid close: the clamshell turns the panel off, and the hotplug
+# autoscale that follows must not recall the saved layout over it (the panel
+# came back on under the shut lid and flapped). The saved preference stays
+# enabled, and the panel returns once the lid opens. -------------------------
+cat >"$tmp/lid-closed.json" <<'JSON'
+[
+  {"name":"eDP-1","make":"Acme","model":"Panel","serial":"LP01","width":2560,"height":1600,"refreshRate":60.0,"x":0,"y":0,"scale":1.6,"transform":0,"vrr":false,"disabled":true,"focused":false,"activeWorkspace":{"id":0,"name":""},"mirrorOf":"none","physicalWidth":300,"physicalHeight":188,"availableModes":["2560x1600@60.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0},
+  {"name":"HDMI-A-1","make":"LG Electronics","model":"LG TV SSCR2","serial":"","width":1920,"height":1080,"refreshRate":60.0,"x":2560,"y":0,"scale":1.0,"transform":0,"vrr":false,"disabled":false,"focused":true,"activeWorkspace":{"id":1,"name":"1"},"mirrorOf":"none","physicalWidth":1600,"physicalHeight":900,"availableModes":["3840x2160@60.00Hz","1920x1080@60.00Hz","1920x1080@120.00Hz"],"colorManagementPreset":"srgb","sdrBrightness":1.0}
+]
+JSON
+apply_both
+printf 'closed\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+printf 'eDP-1\n' >"$RYOKU_CLAMSHELL_PANEL_STATE"
+login lid-closed.json
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "a hotplug autoscale turned the clamshell's covered panel back on"
+has "$conf" 'output = "HDMI-A-1", mode = "1920x1080@60"' \
+  "the external display lost its layout while the lid was shut"
+RYOKU_MONITOR_JSON="$tmp/lid-closed.json" "$mon" apply "$layout" >/dev/null
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "an Apply turned the covered panel on under the shut lid"
+[[ $(jq -r '.monitors[] | select(.output == "eDP-1") | .disabled' "$RYOKU_MONITORS_APPLIED") == false ]] ||
+  fail "a shut lid overwrote the saved panel preference"
+printf 'open\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+login lid-closed.json
+has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
+  "the panel did not return to its saved layout when the lid opened"
+# A clamshell restart clears the edge file while the lid stays shut. The
+# firmware switch then keeps the panel off, and an open switch lets it return.
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+printf 'state:      closed\n' >"$RYOKU_LID_STATE_GLOB"
+login lid-closed.json
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "a clamshell restart let a hotplug turn the covered panel on"
+printf 'state:      open\n' >"$RYOKU_LID_STATE_GLOB"
+login lid-closed.json
+has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
+  "an open lid switch did not let the panel return"
+# Systems without a firmware lid file use the clamshell owner's UPower-backed
+# physical state when its edge file is absent.
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_LID_STATE_GLOB"
+cat >"$tmp/clamshell-state" <<'SH'
+#!/usr/bin/env bash
+[[ ${1:-} == status ]] && printf 'lid=closed\n'
+SH
+chmod +x "$tmp/clamshell-state"
+export RYOKU_CLAMSHELL_BIN="$tmp/clamshell-state"
+login lid-closed.json
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "a laptop without an ACPI lid file let the covered panel return"
+unset RYOKU_CLAMSHELL_BIN
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE" "$RYOKU_LID_STATE_GLOB"
+
+# A migrated monitors_user.lua pin stays out of the generated file. Closing the
+# lid changes only that pinned panel, so autoscale must not rewrite monitors.lua
+# and reload the pin over the live clamshell handoff.
+rm -f "$RYOKU_MONITORS_APPLIED"
+cat >"$RYOKU_MONITORS_USER" <<'LUA'
+-- migrated by ryoku-shell-install
+hl.monitor({ output = "eDP-1", mode = "highrr", position = "auto", scale = 1.25 })
+LUA
+login both.json
+hasnt "$conf" 'output = "eDP-1"' "autoscale copied a pinned panel into monitors.lua"
+before="$(stat -c '%i %Y.%y' "$conf")"
+printf 'closed\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+printf 'eDP-1\n' >"$RYOKU_CLAMSHELL_PANEL_STATE"
+login lid-closed.json
+[[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
+  fail "a covered pinned panel rewrote monitors.lua and reloaded its pin"
+rm -f "$RYOKU_MONITORS_USER" "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE"
+apply_both
+
+# --- an unchanged layout leaves monitors.lua untouched. Hyprland reloads its
+# config on every write, even an identical one, and the reload hooks start the
+# next autoscale, so a rewrite of the same layout kept a reload loop alive. ---
+login both.json
+before="$(stat -c '%i %Y.%y' "$conf")"
+login both.json
+[[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
+  fail "an autoscale with no layout change rewrote monitors.lua"
+RYOKU_MONITOR_JSON="$tmp/both.json" "$mon" apply "$layout" >/dev/null
+[[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
+  fail "an Apply of the same layout rewrote monitors.lua"
+
+# --- Super+P is an undoable session-only mirror. The first toggle snapshots
+# the exact applied layout without rewriting monitors.lua. The second restores
+# the saved modes, positions and scales, then consumes the snapshot. ------------
+apply_both
+before_sum="$(sha256sum "$conf" | cut -d' ' -f1)"
+RYOKU_MONITOR_JSON="$tmp/both.json" "$mon" toggle >/dev/null
+[[ -s $RYOKU_MONITOR_TOGGLE_STATE ]] || fail "the mirror toggle did not snapshot the applied layout"
+[[ $(sha256sum "$conf" | cut -d' ' -f1) == "$before_sum" ]] ||
+  fail "the mirror toggle persisted its temporary layout"
+hasnt "$conf" 'mirror =' "the temporary mirror reached monitors.lua"
+
+jq '.[1].mirrorOf = "eDP-1"' "$tmp/both.json" >"$tmp/mirrored.json"
+RYOKU_MONITOR_JSON="$tmp/mirrored.json" "$mon" toggle >/dev/null
+[[ ! -e $RYOKU_MONITOR_TOGGLE_STATE ]] || fail "restoring the pre-mirror layout left a stale snapshot"
+has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
+  "the second toggle did not restore the panel layout"
+has "$conf" 'output = "HDMI-A-1", mode = "1920x1080@60", position = "2560x0", scale = 1' \
+  "the second toggle did not restore the TV layout"
+hasnt "$conf" 'mirror =' "the restored layout stayed mirrored"
+
+# Mirroring keeps each target's current below-native mode and fractional scale.
+# Override only the live apply seam so the exact rule is visible in fixture mode.
+jq '.[1].scale = 1.25' "$tmp/both.json" >"$tmp/mixed.json"
+mirror_rule="$(RYOKU_MONITOR_JSON="$tmp/mixed.json" \
+  RYOKU_MONITOR_TOGGLE_STATE="$tmp/direct-toggle.json" \
+  bash -c 'source "$1"; apply_monitor() { printf "%s\n" "$1"; }; cmd_mirror eDP-1' _ "$mon")"
+grep -qF 'output = "HDMI-A-1", mode = "1920x1080@60.0", position = "auto", scale = 1.25, mirror = "eDP-1"' \
+  <<<"$mirror_rule" || fail "mirror replaced the target's current mode or scale: $mirror_rule"
+grep -qF 'mode = "preferred"' <<<"$mirror_rule" &&
+  fail "mirror raised a below-native target to its preferred mode"
+
+# Atomic updates follow a user-owned symlink instead of replacing it, and keep
+# the target's mode.
+backing="$tmp/user-monitors.lua"
+linked="$tmp/linked-monitors.lua"
+cp "$conf" "$backing"
+printf '%s\n' '-- stale' >>"$backing"
+chmod 0600 "$backing"
+ln -s "$(basename "$backing")" "$linked"
+export RYOKU_MONITORS_CONF="$linked"
+login both.json
+[[ -L $linked ]] || fail "an atomic monitor write replaced a user-owned symlink"
+[[ $(stat -c '%a' "$backing") == 600 ]] || fail "an atomic monitor write changed the target mode"
+hasnt "$backing" '-- stale' "an atomic monitor write did not refresh the symlink target"
 
 echo "monitor-persist: all checks passed"

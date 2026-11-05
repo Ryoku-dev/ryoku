@@ -205,6 +205,8 @@ void Library::fetchWallpapers()
             wallpapers.append(Entry::fromJson(v.toObject()));
         m_wallpapers = std::move(wallpapers);
         rebuildWallIndex();
+        if (!m_rawOutputs.isEmpty())
+            assembleOutputs();
         Q_EMIT changed(kWallpapers);
     });
 }

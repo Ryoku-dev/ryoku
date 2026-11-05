@@ -290,6 +290,31 @@ Singleton {
         root.reloadRequested(selected);
     }
 
+    function pace(id, weekly, nowSec) {
+        const data = root.tool(id);
+        const seconds = weekly ? 604800 : 18000;
+        const used = weekly ? data.pct7d : data.pct5h;
+        const reset = weekly ? data.reset7d : data.reset5h;
+        const none = { available: false, used: used, expected: 0, delta: 0,
+            exhaustTs: 0 };
+        const now = Number(nowSec);
+        if (!isFinite(now) || !(weekly ? data.has7d : data.has5h)
+                || !(reset > 0))
+            return none;
+        const left = reset - now;
+        if (left <= 0 || left > seconds + 60)
+            return none;
+        const elapsed = 1 - Math.min(left, seconds) / seconds;
+        const expected = elapsed * 100;
+        let exhaustTs = 0;
+        if (elapsed >= 0.05 && used > 0 && used < 100) {
+            const full = now + (100 - used) / used * elapsed * seconds;
+            exhaustTs = full < reset ? full : 0;
+        }
+        return { available: true, used: used, expected: Math.round(expected),
+            delta: Math.round(used - expected), exhaustTs: exhaustTs };
+    }
+
     function refresh() {
         if (root.refreshing)
             return;
@@ -376,6 +401,7 @@ Singleton {
             root.refreshing = false;
         }
     }
+
 
     Timer {
         id: refreshTimeout

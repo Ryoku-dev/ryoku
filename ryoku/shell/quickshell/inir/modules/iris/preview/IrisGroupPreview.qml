@@ -8,6 +8,7 @@ import Quickshell
 import Quickshell.Services.SystemTray
 import Quickshell.Widgets
 import inir
+import shell.services as Ryoku
 import inir.services
 import inir.modules.common
 import inir.modules.common.functions
@@ -298,18 +299,18 @@ ClippingRectangle {
             readonly property bool vertical: dockRoot.edge === "left" || dockRoot.edge === "right"
             readonly property real naturalWidth: Math.round((dockRoot.vertical ? 620 : 760) * root.d)
             readonly property real naturalHeight: dockRoot.vertical ? Math.max(Math.round(300 * root.d), Math.round(dockRoot.length + 64 * root.d)) : Math.round(300 * root.d)
-            readonly property bool enabledDock: root.opt("iris.dock.enable", true)
-            readonly property bool autoHide: root.opt("iris.dock.autoHide", false)
-            readonly property bool reserve: !dockRoot.autoHide && root.opt("iris.dock.reserveSpace", true)
-            readonly property bool revealOnEmpty: root.opt("iris.dock.revealOnEmpty", true)
-            readonly property bool notch: root.opt("iris.dock.notch", true)
-            readonly property string material: String(root.opt("iris.dock.material", "inherit"))
+            readonly property bool enabledDock: Ryoku.Dock.cfg("enabled", false) && Ryoku.Dock.design === "shima"
+            readonly property bool autoHide: Ryoku.Dock.cfg("autohide", false)
+            readonly property bool reserve: !dockRoot.autoHide && Ryoku.Dock.designCfg("shima", "reserveSpace", true)
+            readonly property bool revealOnEmpty: Ryoku.Dock.designCfg("shima", "revealOnEmpty", true)
+            readonly property bool notch: Ryoku.Dock.designCfg("shima", "notch", true)
+            readonly property string material: String(Ryoku.Dock.designCfg("shima", "material", "inherit"))
             readonly property bool blur: dockRoot.material === "glass" || dockRoot.material === "blur"
-                || (dockRoot.material === "inherit" && (root.opt("iris.dock.blur", false) || IrisStyle.glassy))
-            readonly property bool badges: root.opt("iris.dock.badges", true)
-            readonly property bool launcher: root.opt("iris.dock.launcher", true)
-            readonly property bool magnify: root.opt("iris.dock.magnification", false)
-            readonly property real icon: Math.max(28, Math.min(64, Number(root.opt("iris.dock.iconSize", 40)))) * root.d
+                || (dockRoot.material === "inherit" && (Ryoku.Dock.designCfg("shima", "blur", false) || IrisStyle.glassy))
+            readonly property bool badges: Ryoku.Dock.designCfg("shima", "badges", true)
+            readonly property bool launcher: Ryoku.Dock.designCfg("shima", "launcher", true)
+            readonly property bool magnify: Ryoku.Dock.cfg("magnify", true)
+            readonly property real icon: Math.max(28, Math.min(64, Number(Ryoku.Dock.cfg("size", 44)))) * root.d
             readonly property var apps: (TaskbarApps.apps ?? []).filter(app => app && !app.separator && String(app.appId ?? "").length > 0 && app.appId !== "SEPARATOR").slice(0, 6)
             readonly property int count: dockRoot.apps.length + (dockRoot.launcher ? 1 : 0)
             readonly property real length: dockRoot.count * (dockRoot.icon + 10 * root.d) + 16 * root.d
@@ -861,7 +862,7 @@ ClippingRectangle {
             readonly property real naturalWidth: Math.round(440 * root.d)
             readonly property real naturalHeight: Math.round(260 * root.d)
             readonly property bool notch: root.opt("iris.bar.notch", false)
-            readonly property bool dockNotch: root.opt("iris.dock.notch", false)
+            readonly property bool dockNotch: Ryoku.Dock.designCfg("shima", "notch", true)
             readonly property real rest: IrisFrame.islandBand
             readonly property real gap: shapeRoot.notch ? 0 : Math.round(14 * root.d)
             readonly property real dockThick: IrisFrame.dockBand

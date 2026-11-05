@@ -1,26 +1,6 @@
 #!/usr/bin/env bash
 #
-# ryoku-gpu: pin the strongest GPU as Hyprland's primary render device.
-#
-# multi-GPU box (dGPU Radeon / GeForce + the CPU's iGPU): Hyprland renders on
-# whichever GPU drives the connected display. if that's the weak iGPU the
-# desktop renders there while the dGPU idles -- high-res / high-refresh feels
-# sluggish. fix = pin the strong one as primary via AQ_DRM_DEVICES.
-#
-# leftmost in AQ_DRM_DEVICES = primary renderer; every GPU stays in the list so
-# monitors wired to another keep working through render-offload (reverse PRIME).
-# Mesa clients follow the compositor's primary, so apps render on the strong GPU
-# too.
-# policy: pin the strong GPU on every multi-GPU machine, laptops included: on a
-# laptop the iGPU shares the CPU die, so GPU work there heats the die the fans
-# steer by. Hybrid (battery) is the explicit opt-out: `ryoku-gpu mode hybrid`.
-#
-# unpinned does not mean the iGPU renders. with no pin the compositor picks, and
-# on a MUX laptop in discrete mode the panel is wired to the dGPU, so that is
-# what it picks and the dGPU can never runtime-suspend. no AQ_DRM_DEVICES value
-# fixes that: the iGPU has no connected connector to drive. the hardware MUX
-# decides it, so see ryoku-gpu-mux for the knob that actually matters.
-#
+# Aquamarine can lose an internal panel after cross-GPU commits, so panel ownership gates pins.
 # stable device names: AQ_DRM_DEVICES uses ':' as separator, so the colon-laden
 # by-path names are out, and bare /dev/dri/cardN can shuffle across boots.
 # 90-ryoku-gpu.rules symlinks each GPU by PCI slot to a colon-free, boot-stable
@@ -109,10 +89,10 @@ emit_snippet() {
   fi
   cat <<EOF
 -- Managed by ryoku-gpu. Pins Hyprland's primary render device to the strongest
--- GPU so the desktop renders on it instead of a weak integrated one. The leftmost
--- device is the primary renderer; the rest stay listed so monitors wired to them
--- keep working through render-offload (reverse PRIME). The env is read once at
--- compositor start, so a change takes effect on the next Hyprland login.
+-- GPU when that GPU also owns the laptop panel. The leftmost device is the
+-- primary renderer; the rest stay listed so monitors wired to them work through
+-- render offload. The env is read once at compositor start, so a change takes
+-- effect on the next Hyprland login.
 -- ryoku-gpu-primary: $primary
 ${mode:+-- ryoku-gpu-mode: $mode
 }${forced_marker}hl.env("AQ_DRM_DEVICES", "$value")
@@ -130,10 +110,9 @@ emit_disabled() {
   cat <<'EOF'
 -- Managed by ryoku-gpu. Empty by default: Hyprland uses its own GPU selection.
 --
--- On a multi-GPU machine (a discrete Radeon or GeForce beside the CPU's
--- integrated GPU), `ryoku-gpu persist` rewrites this file with an
--- hl.env("AQ_DRM_DEVICES", ...) call that pins the strongest GPU as the primary
--- renderer. Reset to Hyprland's default selection with `ryoku-gpu disable`.
+-- On a multi-GPU machine, `ryoku-gpu persist` pins the strongest GPU only when
+-- doing so does not make a laptop panel cross GPUs. Reset to Hyprland's default
+-- selection with `ryoku-gpu disable`.
 --
 -- Changes take effect on the next Hyprland login (the env is read at start).
 EOF
@@ -220,6 +199,10 @@ cmd_detect() {
   if beneficial; then
     echo "Chosen primary renderer: ${_slots[0]} (pinned)"
     echo "AQ_DRM_DEVICES = $(aq_value_symlinks)"
+  elif reverse_prime_panel_risk; then
+    echo "Chosen primary renderer: left to the compositor"
+    echo "Internal panel GPU: $(internal_panel_slot) (a dGPU-first pin would use unsafe cross-GPU scanout)"
+    echo "Performance mode becomes available after a hardware MUX routes the panel to the dGPU."
   elif (( _ngpu >= 2 )); then
     echo "Chosen primary renderer: left to the compositor (explicit hybrid/passthrough choice)"
     echo "Pin the discrete GPU with: ryoku-gpu mode performance"
@@ -267,7 +250,10 @@ cmd_persist() {
   # on every machine, pin or no pin.
   [[ $dest == "-" ]] || write_niri_snippet
   if ! beneficial; then
-    if (( _ngpu >= 2 )); then
+    if reverse_prime_panel_risk; then
+      echo "ryoku-gpu: ${_slots[0]} is not pinned because the internal panel is wired to" \
+        "$(internal_panel_slot); dGPU-first cross-GPU scanout is unsafe." >&2
+    elif (( _ngpu >= 2 )); then
       echo "ryoku-gpu: strongest GPU is ${_slots[0]} but it is not pinned" \
         "(an explicit hybrid/passthrough mode choice, or no discrete GPU to pin;" \
         "switch with: ryoku-gpu mode performance)." >&2
@@ -341,12 +327,10 @@ cmd_install_udev() {
 }
 
 # check-pin audits the written pin against today's policy, for `ryoku doctor`.
-# The policy pins the strongest GPU on every multi-GPU machine unless the user
-# explicitly chose hybrid (battery) or passthrough. A box left unpinned by an
-# older release drifts from that policy forever: nothing else owns gpu.lua.
 # Prints exactly one verdict line:
 #   ok               pin matches the policy and the stored mode choice
 #   forced           pin carries the RYOKU_GPU_FORCE marker; user intent, kept
+#   unsafe-pin SLOT  strongest-first pin crosses GPUs to the internal panel
 #   stale-pin SLOT   policy says unpinned; `ryoku-gpu disable` clears it
 #   missing-pin      policy says pinned; `ryoku-gpu persist` writes it
 cmd_check_pin() {
@@ -368,16 +352,33 @@ cmd_check_pin() {
     return 0
   fi
   analyze
+  local slot
+  slot="$(sed -n 's/^-- ryoku-gpu-primary: //p' "$dest" | head -n1)"
+  if reverse_prime_panel_risk && [[ $slot == "${_slots[0]}" ]]; then
+    echo "unsafe-pin ${slot:-unknown}"
+    return 0
+  fi
   if beneficial; then
     echo ok
     return 0
   fi
-  local slot
-  slot="$(sed -n 's/^-- ryoku-gpu-primary: //p' "$dest" | head -n1)"
   echo "stale-pin ${slot:-unknown}"
 }
 
+cmd_status_json() {
+  analyze
+  if reverse_prime_panel_risk; then
+    printf '%s\n' "{\"performance_available\":false,\"performance_reason\":\"Switch the laptop's graphics MUX to discrete first.\"}"
+    return 0
+  fi
+  printf '%s\n' '{"performance_available":true,"performance_reason":""}'
+}
+
 cmd_status() {
+  if [[ ${1:-} == "--json" ]]; then
+    cmd_status_json
+    return 0
+  fi
   cmd_detect
   echo
   if [[ -f $GPU_CONF_DEFAULT ]] && grep -q 'hl\.env("AQ_DRM_DEVICES"' "$GPU_CONF_DEFAULT"; then
@@ -441,19 +442,16 @@ cmd_mode() {
       cmd_disable "$dest" hybrid
       ;;
     performance)
+      if [[ ${RYOKU_GPU_FORCE:-0} != "1" ]] && reverse_prime_panel_risk; then
+        echo "ryoku-gpu: Performance is unavailable while the internal panel is wired to" \
+          "$(internal_panel_slot) instead of ${_slots[0]}." >&2
+        echo "ryoku-gpu: switch the hardware MUX to discrete, reboot, then retry;" \
+          "keeping the compositor's safe GPU selection." >&2
+        return 1
+      fi
       # RYOKU_GPU_MODE_SET overrides the stored choice for this call; the
       # stamp written below becomes the stored choice from here on.
       ( export RYOKU_GPU_MODE_SET=performance; cmd_persist "$dest" )
-      # On a MUX-capable laptop the pin moves rendering to the dGPU, but the
-      # panel still scans out through the iGPU, so every frame crosses the
-      # PCIe bus (reverse PRIME). Full performance routing needs the MUX
-      # flipped to discrete, which stays a deliberate, reboot-gated action.
-      if command -v ryoku-gpu-mux >/dev/null 2>&1 && ryoku-gpu-mux capable >/dev/null 2>&1 \
-        && [[ "$(ryoku-gpu-mux get 2>/dev/null)" == hybrid ]]; then
-        echo "ryoku-gpu: this laptop's GPU MUX is still hybrid: for the dGPU to" \
-          "also drive the panel (no cross-GPU copies), run" \
-          "'ryoku-gpu-mux set discrete' and reboot." >&2
-      fi
       ;;
     passthrough)
       for i in "${!_classes[@]}"; do
@@ -478,7 +476,7 @@ usage() {
   cat <<'USAGE'
 Usage: ryoku-gpu <command>
 
-Pin the strongest GPU as Hyprland's primary render device on multi-GPU machines.
+Pin the strongest safe GPU as Hyprland's primary render device.
 
 Commands:
   detect [--json]  Show detected GPUs (strongest first) and the chosen primary.
@@ -489,8 +487,9 @@ Commands:
   persist [PATH]  Write the Hyprland pin (Lua) to PATH, to ~/.config/hypr/gpu.lua
                   by default, or to stdout when PATH is '-'.
   disable [PATH]  Reset the pin file to a managed comment-only placeholder.
-  check-pin [PATH] Audit the pin against policy: ok | forced | stale-pin SLOT |
-                 missing-pin.
+  check-pin [PATH] Audit the pin against policy: ok | forced | unsafe-pin SLOT |
+                 stale-pin SLOT | missing-pin.
+  status [--json] Show the current policy; JSON reports Performance availability.
   mode <m> [PATH]  Set host graphics mode: hybrid | performance | passthrough.
 
 The pin takes effect on the next Hyprland login (AQ_DRM_DEVICES is read at start).
@@ -506,7 +505,7 @@ case "${1:-status}" in
   order) cmd_order "${2:-}" ;;
   persist) cmd_persist "${2:-}" ;;
   install-udev) cmd_install_udev ;;
-  status) cmd_status ;;
+  status) cmd_status "${2:-}" ;;
   disable | clear) cmd_disable "${2:-}" ;;
   check-pin) cmd_check_pin "${2:-}" ;;
   mode) cmd_mode "${2:-}" "${3:-}" ;;

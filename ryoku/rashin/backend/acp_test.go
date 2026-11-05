@@ -392,7 +392,10 @@ func TestACPV2ImagesModelsSessions(t *testing.T) {
 	// load replays: replay_start, replayed user chunk, replay_end.
 	loadDone := make(chan error, 1)
 	go func() { loadDone <- conn.LoadSession("old1") }()
-	expectEvent(t, conn.Events(), "replay_start")
+	ev = expectEvent(t, conn.Events(), "replay_start")
+	if ev.SessionID != "old1" {
+		t.Fatalf("replay_start session %q, want old1", ev.SessionID)
+	}
 	loadReq := fa.read()
 	if loadReq.Method != "session/load" {
 		t.Fatalf("got %q, want session/load", loadReq.Method)
@@ -410,7 +413,59 @@ func TestACPV2ImagesModelsSessions(t *testing.T) {
 		t.Fatalf("LoadSession: %v", err)
 	}
 	expectEvent(t, conn.Events(), "models")
-	expectEvent(t, conn.Events(), "replay_end")
+	ev = expectEvent(t, conn.Events(), "replay_end")
+	if ev.SessionID != "old1" {
+		t.Fatalf("replay_end session %q, want old1", ev.SessionID)
+	}
+}
+
+func TestLoadSessionSerializesReplays(t *testing.T) {
+	conn, fa := newTestPair(t)
+	defer conn.Close()
+	conn.loadSession = true
+
+	firstDone := make(chan error, 1)
+	go func() { firstDone <- conn.LoadSession("first") }()
+	firstStart := expectEvent(t, conn.Events(), "replay_start")
+	if firstStart.SessionID != "first" {
+		t.Fatalf("first replay session %q", firstStart.SessionID)
+	}
+	firstReq := fa.read()
+
+	secondDone := make(chan error, 1)
+	go func() { secondDone <- conn.LoadSession("second") }()
+	select {
+	case ev := <-conn.Events():
+		t.Fatalf("second replay started before the first ended: %+v", ev)
+	case req := <-fa.lines:
+		t.Fatalf("second load started before the first ended: %+v", req)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	fa.respond(*firstReq.ID, map[string]any{"sessionId": "first"})
+	if err := <-firstDone; err != nil {
+		t.Fatalf("first LoadSession: %v", err)
+	}
+	expectEvent(t, conn.Events(), "models")
+	firstEnd := expectEvent(t, conn.Events(), "replay_end")
+	if firstEnd.SessionID != "first" {
+		t.Fatalf("first replay end session %q", firstEnd.SessionID)
+	}
+
+	secondStart := expectEvent(t, conn.Events(), "replay_start")
+	if secondStart.SessionID != "second" {
+		t.Fatalf("second replay session %q", secondStart.SessionID)
+	}
+	secondReq := fa.read()
+	fa.respond(*secondReq.ID, map[string]any{"sessionId": "second"})
+	if err := <-secondDone; err != nil {
+		t.Fatalf("second LoadSession: %v", err)
+	}
+	expectEvent(t, conn.Events(), "models")
+	secondEnd := expectEvent(t, conn.Events(), "replay_end")
+	if secondEnd.SessionID != "second" {
+		t.Fatalf("second replay end session %q", secondEnd.SessionID)
+	}
 }
 
 func TestMergeHermesSessionsUsesStoredWorkspace(t *testing.T) {

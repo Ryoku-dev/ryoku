@@ -3,6 +3,17 @@
 ## Unreleased
 
 ### Fixed
+- Updates acknowledges Fix with AI immediately, prevents duplicate pending launches,
+  and displays the terminal launch result or error.
+- **Displays reads the saved adaptive-sync choice.** An idle panel no longer
+  makes an enabled setting look off, and applying another display change keeps
+  the choice intact.
+- **Performance is unavailable until a hybrid laptop routes its panel to the
+  discrete GPU.** Graphics & Power shows the MUX requirement instead of offering
+  a mode that would leave the internal screen black.
+- **Battery charge limits appear on every supported laptop.** The Machine page
+  now receives standard and vendor battery-care capabilities through the same
+  host power seam, including fixed firmware choices.
 - Fastfetch renderer and recolor markers survive Settings saves. Renderer based
   styles keep their readout, and wallpaper recoloring keeps its palette roles.
   Rows are locked for styles that provide their own renderer.
@@ -68,6 +79,14 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
+  card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
+  (`quickshell/pages/BarStudioPage.qml`).
+- **Lockscreen > security key gains a Lock screen switch.** It turns the key on
+  for the in-session lock without a polkit prompt, says what the key will ask
+  for (from the enrolled credentials as well as the PIN switch), and greys out
+  with the reason in security key + password mode. The note that lock screen
+  unlock was not wired yet is gone (`quickshell/pages/LockscreenPage.qml`).
 - **Rashin shows the installed Hermes agent version and its update owner.**
   Existing installs stay untouched, so the page points users to their Hermes
   installer or checkout instead of offering an updater that Ryoku does not own

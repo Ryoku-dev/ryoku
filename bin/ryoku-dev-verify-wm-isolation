@@ -18,8 +18,9 @@ cd "$repo"
 
 # excluded from every scan: this gate holds the patterns, docs must name what they
 # ban, CHANGELOGs and the generated translation catalog only mirror source that is
-# scanned at its real home, .prowl is a generated cache, and a Go vendor/ tree
-# carries a legitimate copy of the wm module.
+# scanned at its real home, .prowl is a generated cache, a Go vendor/ tree carries
+# a legitimate copy of the wm module, and the Shima patches edit the pinned
+# upstream shell, which keeps its own compositor code.
 ex=(
 	':(exclude)bin/ryoku-dev-verify-wm-isolation'
 	':(exclude)*.md'
@@ -27,6 +28,8 @@ ex=(
 	':(exclude).prowl/'
 	':(exclude)*/vendor/*'
 	':(exclude)ryoku/i18n/catalog/'
+	':(exclude)ryoku/shell/quickshell/shima-overlay/*.patch'
+	':(exclude)ryoku/shell/quickshell/inir/patches/*.patch'
 )
 
 fail=0

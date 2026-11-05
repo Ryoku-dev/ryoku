@@ -22,13 +22,15 @@ type KeyringFile struct {
 // from, the system wiring (PAM, autologin, daemon), and the keyring files that
 // matter. The Hub decides from this whether a mode switch is blocked.
 type Status struct {
-	Mode        string        `json:"mode"`
-	ModeSource  string        `json:"mode_source"` // "configured" or "inferred"
-	PamPresent  bool          `json:"pam_present"`
-	Autologin   bool          `json:"autologin"`
-	DaemonAlive bool          `json:"daemon_alive"`
-	Keyrings    []KeyringFile `json:"keyrings"`
-	Notes       []string      `json:"notes"`
+	Mode          string        `json:"mode"`
+	ModeSource    string        `json:"mode_source"` // "configured" or "inferred"
+	PamPresent    bool          `json:"pam_present"`
+	PamWired      bool          `json:"pam_wired"`
+	PamDuplicates bool          `json:"pam_duplicates"`
+	Autologin     bool          `json:"autologin"`
+	DaemonAlive   bool          `json:"daemon_alive"`
+	Keyrings      []KeyringFile `json:"keyrings"`
+	Notes         []string      `json:"notes"`
 }
 
 // autologinConfigured scans the SDDM config for a non-empty [Autologin] User.
@@ -115,12 +117,14 @@ func gatherStatus() Status {
 	}
 
 	st := Status{
-		Mode:        mode,
-		ModeSource:  source,
-		PamPresent:  pam,
-		Autologin:   autologinConfigured(sddmConfRoot()),
-		DaemonAlive: daemonAlive(),
-		Keyrings:    kfs,
+		Mode:          mode,
+		ModeSource:    source,
+		PamPresent:    pam,
+		PamWired:      pamWired(string(pamContent)),
+		PamDuplicates: pamHasDuplicates(string(pamContent)),
+		Autologin:     autologinConfigured(sddmConfRoot()),
+		DaemonAlive:   daemonAlive(),
+		Keyrings:      kfs,
 	}
 	st.Notes = statusNotes(st)
 	return st

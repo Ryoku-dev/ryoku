@@ -12,6 +12,7 @@ export class ChatStore {
   state = $state.raw<ChatState>(initialState());
   connected = $state(false);
   draft = $state("");
+  loadingSessionId = $state("");
   readonly lane: ChatLane;
   private outbox: WsIn[] = [];
   private socket: JsonSocket<WsOut> | null = null;
@@ -51,6 +52,9 @@ export class ChatStore {
 
   apply(frame: WsOut): void {
     this.state = applyEvent(this.state, frame);
+    if (frame.type === "replay_end" && frame.sessionId === this.loadingSessionId) {
+      this.loadingSessionId = "";
+    }
   }
 
   private post(cmd: WsIn): void {
@@ -88,7 +92,10 @@ export class ChatStore {
   }
 
   switchSession(id: string): void {
-    if (id) this.post({ type: "load", sessionId: id });
+    if (!id) return;
+    this.loadingSessionId = id;
+    this.apply({ type: "replay_start", sessionId: id });
+    this.post({ type: "load", sessionId: id });
   }
 
   setModel(id: string): void {

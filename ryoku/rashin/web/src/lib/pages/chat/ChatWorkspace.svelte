@@ -138,6 +138,7 @@
           permissions={store.state.permissions}
           banner={store.state.banner}
           replaying={store.state.replaying}
+          waitingForSession={store.loadingSessionId !== ""}
           busy={store.state.busy}
           onnew={newChat}
           onanswer={(requestId, optionId) => store.answerPermission(requestId, optionId)}

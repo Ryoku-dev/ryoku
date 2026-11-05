@@ -163,6 +163,7 @@ func runDaemon() error {
 	d.paper = newPaperClient(d)
 	d.workshop = newWorkshopLib(d)
 	d.migrateLegacyConfig()
+	d.migratePickerState()
 	cfg = d.config()
 	// A finished pipeline replaced sources on disk, so the catalog rescans;
 	// every pipeline event also reaches subscribed clients untouched.

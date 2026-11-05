@@ -166,6 +166,8 @@ Singleton {
         onMonochromeIconsChanged: if (DockStore.commit("monochromeIcons", monochromeIcons)) monochromeIcons = DockStore.rebind("monochromeIcons", false)
         property string notificationAnimation: DockStore.pull("notificationAnimation", "bounce")
         onNotificationAnimationChanged: if (DockStore.commit("notificationAnimation", notificationAnimation)) notificationAnimation = DockStore.rebind("notificationAnimation", "bounce")
+        property bool onTop: DockStore.pull("onTop", false)
+        onOnTopChanged: if (DockStore.commit("onTop", onTop)) onTop = DockStore.rebind("onTop", false)
         property var order: DockStore.pull("order", ["pin", "app:org.kde.dolphin", "app:kitty", "runningApps", "media", "weather", "sports", "livePreview", "phone", "trash", "overview"])
         onOrderChanged: if (DockStore.commit("order", order)) order = DockStore.rebind("order", ["pin", "app:org.kde.dolphin", "app:kitty", "runningApps", "media", "weather", "sports", "livePreview", "phone", "trash", "overview"])
         property var pinnedApps: DockStore.pull("pinnedApps", ["org.kde.dolphin", "kitty"])

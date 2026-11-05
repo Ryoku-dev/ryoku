@@ -33,6 +33,29 @@ func TestPlanGpuPin(t *testing.T) {
 		}
 	})
 
+	t.Run("unsafe panel pin reports in check mode", func(t *testing.T) {
+		r := planGpuPin("unsafe-pin 0000:02:00.0", nil, true, noDisable, noPersist)
+		if r.status != recWouldFix {
+			t.Fatalf("status = %v, want would-fix", r.status)
+		}
+		for _, want := range []string{"0000:02:00.0", "cross-GPU", "ryoku-gpu disable", "next Hyprland login"} {
+			if !strings.Contains(r.detail, want) {
+				t.Fatalf("detail %q missing %q", r.detail, want)
+			}
+		}
+	})
+
+	t.Run("unsafe panel pin repairs in apply mode", func(t *testing.T) {
+		ran := false
+		r := planGpuPin("unsafe-pin 0000:02:00.0", nil, false, func() error { ran = true; return nil }, noPersist)
+		if !ran || r.status != recFixed {
+			t.Fatalf("ran=%v status=%v", ran, r.status)
+		}
+		if !strings.Contains(r.detail, "panel-safe renderer") {
+			t.Fatalf("detail = %q", r.detail)
+		}
+	})
+
 	t.Run("stale pin reports in check mode", func(t *testing.T) {
 		r := planGpuPin("stale-pin 0000:01:00.0", nil, true, noDisable, noPersist)
 		if r.status != recWouldFix {

@@ -410,6 +410,20 @@ QVariantMap LibraryView::get(int row) const
     return out;
 }
 
+int LibraryView::newestIndex() const
+{
+    int newest = -1;
+    qint64 newestMtime = 0;
+    for (int i = 0; i < m_view.size(); ++i) {
+        const qint64 mtime = m_rows[m_view[i]].mtime;
+        if (newest < 0 || mtime > newestMtime) {
+            newest = i;
+            newestMtime = mtime;
+        }
+    }
+    return newest;
+}
+
 int LibraryView::rowCount(const QModelIndex &parent) const
 {
     return parent.isValid() ? 0 : m_view.size();

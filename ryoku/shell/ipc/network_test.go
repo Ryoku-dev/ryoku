@@ -90,6 +90,71 @@ func TestPreferredDevice(t *testing.T) {
 	}
 }
 
+func TestSummarizePrimaryConnection(t *testing.T) {
+	cases := []struct {
+		name         string
+		connectivity uint32
+		devices      []primaryDevice
+		want         networkConnection
+	}{
+		{
+			name:         "USB tether",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceEthernet, state: 100}},
+			want:         networkConnection{Kind: "ethernet", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "phone modem tether",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: 8, state: 100}},
+			want:         networkConnection{Kind: "ethernet", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "wired",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceEthernet, state: 100}},
+			want:         networkConnection{Kind: "ethernet", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "wifi",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceWifi, state: 100}},
+			want:         networkConnection{Kind: "wifi", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "VPN over wifi",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceWifi, state: 100}},
+			want:         networkConnection{Kind: "wifi", Connectivity: "full", Online: true},
+		},
+		{
+			name:         "no connection",
+			connectivity: nmConnectivityNone,
+			want:         networkConnection{Connectivity: "none"},
+		},
+		{
+			name:         "full without connected primary device",
+			connectivity: nmConnectivityFull,
+			devices:      []primaryDevice{{typ: nmDeviceEthernet, state: 20}},
+			want:         networkConnection{Connectivity: "full"},
+		},
+		{
+			name:         "portal",
+			connectivity: nmConnectivityPortal,
+			devices:      []primaryDevice{{typ: nmDeviceWifi, state: 100}},
+			want:         networkConnection{Connectivity: "portal"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := summarizePrimaryConnection(c.connectivity, c.devices); got != c.want {
+				t.Fatalf("summarizePrimaryConnection() = %#v, want %#v", got, c.want)
+			}
+		})
+	}
+}
+
 // wifiConnectSettings omits the security block for an open network, derives
 // key-mgmt from the resolved AP's security (sae for WPA3, wpa-psk otherwise),
 // pins the band only when the caller supplied a BSSID and the AP is known, and

@@ -64,6 +64,8 @@ source "$tmp/chroot.sh"
 ryoku_hooks_defer_mkinitcpio
 [[ -L $hooks/90-mkinitcpio-install.hook ]] \
   || fail "mask did not replace the hook with a /dev/null symlink"
+[[ $(readlink "$hooks/90-mkinitcpio-install.hook") == /dev/null ]] \
+  || fail "mask points somewhere other than /dev/null"
 [[ -f $hooks/90-mkinitcpio-install.hook.ryoku-off ]] \
   || fail "the packaged hook was clobbered instead of moved aside"
 
@@ -74,18 +76,35 @@ ryoku_hooks_restore
   || fail "restored hook has the wrong contents"
 [[ ! -e $hooks/90-mkinitcpio-install.hook.ryoku-off ]] \
   || fail "restore left the .ryoku-off copy behind"
+[[ ! -e $hooks/60-mkinitcpio-remove.hook ]] \
+  || fail "restore left the mkinitcpio remove mask behind"
+
+# A package transaction can reclaim an override path while the install is still
+# running. Keep that newer hook and discard only the parked stale copy.
+ryoku_hooks_defer_mkinitcpio
+printf 'newer limine hook\n' >"$tmp/new-hook"
+mv -f "$tmp/new-hook" "$hooks/90-mkinitcpio-install.hook"
+ryoku_hooks_restore
+[[ $(cat "$hooks/90-mkinitcpio-install.hook") == "newer limine hook" ]] \
+  || fail "restore replaced a hook written by a later package transaction"
+[[ ! -e $hooks/90-mkinitcpio-install.hook.ryoku-off ]] \
+  || fail "restore kept the parked hook after a package reclaimed its path"
 
 # 4. the pacstrap-time offenders are masked and handed back.
+printf 'local snap hook\n' >"$hooks/05-snap-pac-pre.hook"
 for h in 05-snap-pac-pre.hook zz-snap-pac-post.hook 80-limine-efi-deploy.hook; do
   [[ " ${RYOKU_MASKED_HOOKS[*]} " == *" $h "* ]] \
     || fail "$h is not in RYOKU_MASKED_HOOKS"
 done
 ryoku_hooks_quiet
 for h in 05-snap-pac-pre.hook zz-snap-pac-post.hook 80-limine-efi-deploy.hook; do
-  [[ -L $hooks/$h ]] || fail "$h was not masked with a /dev/null symlink"
+  [[ -L $hooks/$h && $(readlink "$hooks/$h") == /dev/null ]] \
+    || fail "$h was not masked with a /dev/null symlink"
 done
 ryoku_hooks_restore
-for h in 05-snap-pac-pre.hook zz-snap-pac-post.hook 80-limine-efi-deploy.hook; do
+[[ $(cat "$hooks/05-snap-pac-pre.hook") == "local snap hook" ]] \
+  || fail "restore did not preserve a local hook override"
+for h in zz-snap-pac-post.hook 80-limine-efi-deploy.hook; do
   [[ ! -e $hooks/$h ]] || fail "restore left the $h mask behind"
 done
 

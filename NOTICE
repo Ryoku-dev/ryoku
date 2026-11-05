@@ -51,15 +51,19 @@ released under the GNU General Public License version 3 with additional section
 ryoku/shell/quickshell/inir/.
 
 The Python bar style (ryoku/shell/quickshell/shell/modules/bar/barstyles/python/)
-is based on Serpantinum at commit cfdd810 (after 2.2.12) by ilyamiro and contributors
-(https://github.com/ilyamiro/serpantinum). It is a modified version: Ryoku
-renamed it, gave it its own mark, runs its data plane through Ryoku's neutral
-window-manager seam and services, and keeps the launcher, clipboard, wallpaper,
-lock, capture, notification server, policy agent, idle service, updater,
-first-run flow and desktop-widget host as Ryoku's own. Serpantinum is released
-under the GNU Affero General Public License version 3 or later; the ported
-portions keep that license (see the NOTICE and LICENSE beside the code), and
-AGPL-3.0 section 13 permits their combination with Ryoku's GPL-3 distribution.
+is based on Serpantinum at commit 3619689 (release 2.3.1) by ilyamiro and
+contributors (https://github.com/ilyamiro/serpantinum). It is a modified
+version: Ryoku renamed it, gave it its own mark, runs its data plane through
+Ryoku's neutral window-manager seam and services, and uses Ryoku's application
+catalogue, clipboard history, policy agent, recorder, wallpaper, settings
+store, dock and desktop-widget host. The launcher, clipboard, standalone
+settings window and policy prompt use Serpantinum's presentation. Ski, its file
+picker and pins, lock editing, fingerprint and PAM code, screenshot and OCR
+features, Tesseract, installers and packaging, telemetry, updater and first-run
+flow are not included. Serpantinum is released under the GNU Affero General
+Public License version 3 or later; the ported portions keep that license (see
+the NOTICE and LICENSE beside the code), and AGPL-3.0 section 13 permits their
+combination with Ryoku's GPL-3 distribution.
 
 The Stage Editor (ryoku/shell/quickshell/stage/) is based on the Edit Mode of
 ii-p3drovfx by P3DROVFX and contributors

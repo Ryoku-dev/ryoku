@@ -18,17 +18,15 @@ import (
 // The boot guard reverts a packaged update whose next boots never bring the
 // desktop up. The pieces:
 //
-//   - stage2 arms it: pendingFile records the release the box ran before, the
-//     one it moved to, the pre-update snapshot, and the boot the update ran in.
-//   - the shell daemon records a good boot: once the shell has stayed up past
-//     its crash window it writes bootOKDir/ok-<uid> with the boot id.
-//   - ryoku-boot-guard.service runs `ryoku boot-guard` early in every boot,
-//     as root. With a marker present and no ok file from a boot after the
-//     update, it counts the boot; on the second such boot it tracks the
-//     previous release back in one package transaction, re-materializes every
-//     user's config from it, and leaves a notice the doctor surfaces. On a
-//     third it points the boot menu at the pre-update snapshot, which is the
-//     last resort when the packages were not the problem.
+//   - stage2 arms it: pendingFile records the releases, snapshot, and current
+//     boot.
+//   - the shell daemon records a good boot after its crash window.
+//   - ryoku-boot-guard.service judges the boot that just ended, never the one
+//     currently starting. On the second completed boot without a good marker it
+//     tracks the previous release back, re-materializes every user's config,
+//     and leaves a notice the doctor surfaces. On a third it points the boot
+//     menu at the pre-update snapshot, which is the last resort when the
+//     packages were not the problem.
 //
 // Nothing here needs the user session, so it works when the session is what
 // broke.
@@ -45,17 +43,25 @@ var (
 
 var effectiveUID = os.Geteuid
 
+var (
+	readBootID          = bootID
+	removePendingFile   = os.Remove
+	materializeHomeGlob = "/home/*/.config/ryoku"
+	runUserMaterialize  = materializeUser
+)
+
 type pendingUpdate struct {
 	From string `json:"from"`
 	To   string `json:"to"`
 	// Channel is what the box tracked before the update (stable, testing, or a
 	// frozen version). The revert pins the previous version, but the user gets
 	// back onto updates with `ryoku track <Channel>`.
-	Channel   string `json:"channel,omitempty"`
-	Snapshot  string `json:"snapshot,omitempty"`
-	ArmedBoot string `json:"armedBoot"`
-	Boots     int    `json:"boots"`
-	At        string `json:"at"`
+	Channel     string `json:"channel,omitempty"`
+	Snapshot    string `json:"snapshot,omitempty"`
+	ArmedBoot   string `json:"armedBoot"`
+	CheckedBoot string `json:"checkedBoot,omitempty"`
+	Boots       int    `json:"boots"`
+	At          string `json:"at"`
 }
 
 // bootNotice is what the doctor shows after the guard acted.
@@ -77,6 +83,27 @@ func bootID() string {
 	return strings.TrimSpace(string(b))
 }
 
+// provenAfter reports whether any session recorded a good boot other than the
+// one the update ran in; arming clears older records.
+func provenAfter(armedBoot string) bool {
+	matches, _ := filepath.Glob(filepath.Join(bootOKDir, "ok-*"))
+	for _, match := range matches {
+		body, err := os.ReadFile(match)
+		if id := strings.TrimSpace(string(body)); err == nil && id != "" && id != armedBoot {
+			return true
+		}
+	}
+	return false
+}
+
+func writePendingUpdate(p pendingUpdate) error {
+	body, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(pendingFile, append(body, '\n'), 0o644)
+}
+
 // armBootGuard is called by stage2 on a packaged box once the packages are in.
 // RYOKU_UPDATE_FROM carries the version the first stage read before the package
 // move; the marker is written only when a frozen version actually changed.
@@ -89,10 +116,17 @@ func armBootGuard(snapshot string) {
 	if from == "" || to == "" || from == to || !sys.IsFrozenVersion(from) {
 		return
 	}
-	p := pendingUpdate{From: from, To: to, Channel: packagedChannel(), Snapshot: snapshot, ArmedBoot: bootID(), At: time.Now().UTC().Format(time.RFC3339)}
+	armedBoot := readBootID()
+	p := pendingUpdate{
+		From:        from,
+		To:          to,
+		Channel:     packagedChannel(),
+		Snapshot:    snapshot,
+		ArmedBoot:   armedBoot,
+		CheckedBoot: armedBoot,
+		At:          time.Now().UTC().Format(time.RFC3339),
+	}
 	b, _ := json.MarshalIndent(p, "", "  ")
-	// earlier ok files would read as proof of a boot after this update; clear
-	// them so only a boot from here on counts.
 	if matches, _ := filepath.Glob(filepath.Join(bootOKDir, "ok-*")); len(matches) > 0 {
 		_ = sys.Sudo(append([]string{"rm", "-f"}, matches...)...)
 	}
@@ -129,9 +163,22 @@ func BootGuard(args []string) error {
 		fmt.Printf(i18n.T("boot guard: %s came up after the update; disarmed\n"), p.To)
 		return disarmBootGuard("")
 	}
+	current := readBootID()
+	previous := p.CheckedBoot
+	if previous == "" {
+		previous = p.ArmedBoot
+	}
+	if current == "" || current == previous {
+		return nil
+	}
+	p.CheckedBoot = current
+	if previous == "" || previous == p.ArmedBoot {
+		return writePendingUpdate(p)
+	}
 	p.Boots++
-	b, _ := json.MarshalIndent(p, "", "  ")
-	_ = os.WriteFile(pendingFile, append(b, '\n'), 0o644)
+	if err := writePendingUpdate(p); err != nil {
+		return err
+	}
 	fmt.Printf(i18n.T("boot guard: boot %d after %s -> %s without the desktop coming up\n"), p.Boots, p.From, p.To)
 	switch {
 	case p.Boots < 2:
@@ -143,24 +190,10 @@ func BootGuard(args []string) error {
 	}
 }
 
-// provenAfter reports whether any session recorded a good boot other than
-// the one the update ran in.
-func provenAfter(armedBoot string) bool {
-	matches, _ := filepath.Glob(filepath.Join(bootOKDir, "ok-*"))
-	for _, m := range matches {
-		b, err := os.ReadFile(m)
-		if err != nil {
-			continue
-		}
-		if id := strings.TrimSpace(string(b)); id != "" && id != armedBoot {
-			return true
-		}
-	}
-	return false
-}
-
 func disarmBootGuard(why string) error {
-	_ = os.Remove(pendingFile)
+	if err := removePendingFile(pendingFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf(i18n.T("boot guard: could not disarm: %w"), err)
+	}
 	if why != "" {
 		fmt.Println("boot guard:", why)
 	}
@@ -193,14 +226,23 @@ func revertRelease(p pendingUpdate) error {
 			// next boot rather than escalating to the snapshot.
 			fmt.Println(i18n.T("boot guard: package channel unreachable; retrying the revert next boot"))
 			p.Boots--
-			b, _ := json.MarshalIndent(p, "", "  ")
-			_ = os.WriteFile(pendingFile, append(b, '\n'), 0o644)
+			if writeErr := writePendingUpdate(p); writeErr != nil {
+				return writeErr
+			}
 			return nil
 		}
 		return writeNotice(bootNotice{Action: "revert-failed", From: p.From, To: p.To, Channel: p.Channel, Snapshot: p.Snapshot, Detail: err.Error(), At: now()})
 	}
-	rematerializeUsers()
-	_ = os.Remove(pendingFile)
+	if err := rematerializeUsers(); err != nil {
+		p.Boots--
+		if writeErr := writePendingUpdate(p); writeErr != nil {
+			return errors.Join(err, writeErr)
+		}
+		return fmt.Errorf(i18n.T("boot guard: packages reverted but user configuration was not repaired: %w"), err)
+	}
+	if err := disarmBootGuard(""); err != nil {
+		return err
+	}
 	back := p.Channel
 	if back == "" {
 		back = sys.ChannelStable
@@ -220,13 +262,29 @@ func revertRelease(p pendingUpdate) error {
 // rematerializeUsers lays the (now previous) release's base config into every
 // home that has a Ryoku config, as that user, so the session matches the
 // packages it will start under.
-func rematerializeUsers() {
-	homes, _ := filepath.Glob("/home/*/.config/ryoku")
-	for _, h := range homes {
-		home := filepath.Dir(filepath.Dir(h))
-		user := filepath.Base(home)
-		_ = sys.Run("runuser", "-u", user, "--", "env", "HOME="+home, "USER="+user, "LOGNAME="+user, "ryoku", "materialize")
+func rematerializeUsers() error {
+	homes, err := filepath.Glob(materializeHomeGlob)
+	if err != nil {
+		return err
 	}
+	var failures []error
+	for _, config := range homes {
+		home := filepath.Dir(filepath.Dir(config))
+		user := filepath.Base(home)
+		if err := runUserMaterialize(user, home); err != nil {
+			failures = append(failures, fmt.Errorf("%s: %w", user, err))
+		}
+	}
+	return errors.Join(failures...)
+}
+
+func materializeUser(user, home string) error {
+	return sys.Run("runuser", "-u", user, "--", "env",
+		"HOME="+home,
+		"USER="+user,
+		"LOGNAME="+user,
+		"XDG_CONFIG_HOME="+filepath.Join(home, ".config"),
+		"ryoku", "materialize")
 }
 
 // pointBootMenuAtSnapshot makes the pre-update snapshot the default boot

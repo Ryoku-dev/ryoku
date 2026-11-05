@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -41,6 +42,63 @@ func (d *daemon) migrateLegacyConfig() {
 		d.reloadConfig()
 	}
 	_ = os.Rename(oldPath, oldPath+".migrated")
+}
+
+func (d *daemon) migratePickerState() {
+	if d.store == nil {
+		return
+	}
+	tree := loadRyogamiTree()
+	if tree == nil {
+		tree = map[string]interface{}{}
+	}
+	legacyKeys := []string{
+		"filterBar.last.type",
+		"filterBar.last.folder",
+		"filterBar.last.color",
+		"filterBar.last.sort",
+		"filterBar.last.favourites",
+	}
+	values := map[string]interface{}{}
+	for _, key := range []string{"type", "folder", "sort"} {
+		if value, ok := d.store.stateGet("filterBar.last." + key); ok {
+			values["filterBar.last."+key] = value
+		}
+	}
+	if value, ok := d.store.stateGet("filterBar.last.color"); ok {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			values["filterBar.last.color"] = parsed
+		}
+	}
+	if value, ok := d.store.stateGet("filterBar.last.favourites"); ok {
+		values["filterBar.last.favourites"] = value == "1" || value == "true"
+	}
+
+	changed := false
+	for key, value := range values {
+		if _, exists := lookupDotted(tree, key); exists || validateSetting(key, value) != nil {
+			continue
+		}
+		setDotted(tree, key, value)
+		changed = true
+	}
+	if changed {
+		out, err := json.MarshalIndent(tree, "", "  ")
+		if err != nil {
+			return
+		}
+		if err := os.MkdirAll(ryokuConfigDir(), 0o755); err != nil {
+			return
+		}
+		if err := settingsAtomicWrite(configPath(), out); err != nil {
+			return
+		}
+		setSettingsBaseline(flattenSettings(tree))
+		d.reloadConfig()
+	}
+	for _, key := range legacyKeys {
+		d.store.stateSet(key, nil)
+	}
 }
 
 // The old strip's card shape and saved presets stay behind so the rebuilt picker opens on its own look.

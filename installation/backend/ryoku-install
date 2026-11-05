@@ -165,6 +165,8 @@ fi
 # an encrypt request can't wipe + partition + luksFormat only to die at `open`.
 # luks.sh keeps the same check as defense in depth for a direct backend call.
 [[ ${RYOKU_ENCRYPT:-} != 1 || -n $RYOKU_LUKS_PASSPHRASE ]] || die "RYOKU_ENCRYPT=1 but RYOKU_LUKS_PASSPHRASE is unset"
+ryoku_validate_timezone "$RYOKU_TIMEZONE"
+RYOKU_TIMEZONE=$RYOKU_VALIDATED_TIMEZONE
 ryoku_accounts_validate
 
 main() {

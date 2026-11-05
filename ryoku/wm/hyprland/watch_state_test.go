@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -29,6 +31,32 @@ func TestMonitorOutputsDisabledState(t *testing.T) {
 	}
 	if outputs[3].Disabled {
 		t.Fatal("a mirroring output was reported off")
+	}
+}
+
+func TestMonitorOutputsUseConfiguredVRR(t *testing.T) {
+	applied := filepath.Join(t.TempDir(), "monitors-applied.json")
+	t.Setenv("RYOKU_MONITORS_APPLIED", applied)
+	if err := os.WriteFile(applied, []byte(`{"monitors":[
+		{"output":"DP-1","vrr":1},
+		{"output":"DP-2","vrr":0}
+	]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	outputs := monitorOutputs([]hyprMonitor{
+		{Name: "DP-1", Width: 1920, Height: 1080, VRR: false},
+		{Name: "DP-2", Width: 1920, Height: 1080, VRR: true},
+		{Name: "DP-3", Width: 1920, Height: 1080, VRR: true},
+	}, true)
+	if !outputs[0].VRR {
+		t.Error("saved on mode read back as off while the link was idle")
+	}
+	if outputs[1].VRR {
+		t.Error("saved off mode read back as active live state")
+	}
+	if !outputs[2].VRR {
+		t.Error("output absent from the saved layout did not fall back to live state")
 	}
 }
 

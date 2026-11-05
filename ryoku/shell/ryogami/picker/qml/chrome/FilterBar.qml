@@ -20,7 +20,14 @@ Item {
     property int settingsRev: 0
     Connections {
         target: Settings
-        function onChanged(key, value) { root.settingsRev++ }
+        function onChanged(key, value) {
+            root.settingsRev++
+            if (key === "filterBar.sticky") {
+                root._initialized = false
+                root.applyInitial()
+            }
+        }
+        function onReadyChanged() { root.applyInitial() }
     }
     function val(key, def) {
         root.settingsRev
@@ -132,30 +139,30 @@ Item {
     readonly property bool light: root.val("theme.mode", "dark") === "light"
     readonly property bool followWall: root.val("theme.policy", "wallpaper") === "wallpaper"
 
-    readonly property bool sticky: root.val("filterBar.sticky", false) === true
+    readonly property bool sticky: root.val("filterBar.sticky", true) === true
     property bool _restoring: false
     function save(name, value) {
         if (root._restoring || !root.sticky) return
-        Daemon.call("state.set", { key: "filterBar.last." + name, value: String(value) }, function () {})
+        Settings.set("filterBar.last." + name, value)
     }
     property bool _initialized: false
     function applyInitial() {
-        if (!root.view || root._initialized) return
+        if (!root.view || !Settings.ready || root._initialized) return
         root._initialized = true
+        root._restoring = true
+        var v = root.view
         if (root.sticky) {
-            root._restoring = true
-            var v = root.view
-            Daemon.call("state.get", { key: "filterBar.last.type" }, function (r) { if (r && r.value !== null && r.value !== undefined) v.typeFilter = r.value })
-            Daemon.call("state.get", { key: "filterBar.last.folder" }, function (r) { if (r && r.value !== null && r.value !== undefined) v.folder = r.value })
-            Daemon.call("state.get", { key: "filterBar.last.color" }, function (r) { if (r && r.value !== null && r.value !== undefined) v.hueFilter = parseInt(r.value) })
-            Daemon.call("state.get", { key: "filterBar.last.sort" }, function (r) { if (r && r.value !== null && r.value !== undefined && r.value !== "") v.sort = r.value })
-            Daemon.call("state.get", { key: "filterBar.last.favourites" }, function (r) {
-                if (r && r.value !== null && r.value !== undefined) v.favouritesOnly = (r.value === "1" || r.value === "true")
-                root._restoring = false
-            })
+            v.typeFilter = String(root.val("filterBar.last.type", ""))
+            v.folder = String(root.val("filterBar.last.folder", "*"))
+            v.hueFilter = Number(root.val("filterBar.last.color", -1))
+            v.sort = String(root.val("filterBar.last.sort", "color"))
+            v.favouritesOnly = root.val("filterBar.last.favourites", false) === true
         } else {
-            root.view.folder = root.val("filterBar.defaultFolder", "*")
+            v.folder = String(root.val("filterBar.defaultFolder", "*"))
         }
+        root._restoring = false
+        if (root.state)
+            root.state.filtersReady = true
     }
     Component.onCompleted: { root.refreshRotation(); root.applyInitial() }
     onViewChanged: root.applyInitial()
@@ -167,7 +174,7 @@ Item {
         function onFolderChanged() { root.save("folder", root.view.folder) }
         function onHueFilterChanged() { root.save("color", root.view.hueFilter) }
         function onSortChanged() { root.save("sort", root.view.sort) }
-        function onFavouritesOnlyChanged() { root.save("favourites", root.view.favouritesOnly ? "1" : "0") }
+        function onFavouritesOnlyChanged() { root.save("favourites", root.view.favouritesOnly) }
     }
 
     // The seal stamps in each time the picker opens: the one moment the masthead performs.

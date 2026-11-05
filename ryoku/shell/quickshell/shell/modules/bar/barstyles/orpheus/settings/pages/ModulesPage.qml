@@ -388,6 +388,24 @@ Item {
                     }
                 }
             }
+
+            SettingRow {
+                width: parent.width
+                label: "Alert level"
+                desc: "Turn the icon red once a window is this full. Pace and trend details are always shown when reset data is available."
+                value: String(S.Prefs.aiAlertAt)
+                unit: "%"
+                controlWidth: 58
+
+                Step {
+                    anchors.right: parent.right
+                    value: S.Prefs.aiAlertAt
+                    from: 50
+                    to: 100
+                    stepBy: 5
+                    onModified: value => S.Prefs.set("aiAlertAt", value)
+                }
+            }
         }
 
         SettingCard {

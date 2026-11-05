@@ -1,6 +1,9 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The compositor isolation check runs in CI and passes again.** The pinned
+  Shima patches carry upstream code, so the check skips them, and the delivery
+  workflow now runs it on every push instead of only in local hooks.
 - **The key-sound profiles build from a vendored Mechvibes bundle.** Upstream
   rewrote its history for Mechvibes 3 and the pinned commit vanished, which
   failed every publish at `ryoku-keysounds-profiles`. The eleven packs and

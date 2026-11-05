@@ -41,9 +41,10 @@ type segmentCap struct {
 }
 
 type sliderCap struct {
-	Min     float64 `json:"min"`
-	Max     float64 `json:"max"`
-	Current float64 `json:"current"`
+	Min     float64  `json:"min"`
+	Max     float64  `json:"max"`
+	Current float64  `json:"current"`
+	Options []string `json:"options"`
 }
 
 // idleCaps mirrors `ryoku-power capabilities --json` .idle: the merged idle
@@ -207,12 +208,18 @@ func cpuTunables(caps cpuCaps, def profileDef) []Tunable {
 	}
 	if caps.Battery != nil && caps.Battery.ChargeLimit != nil {
 		cl := caps.Battery.ChargeLimit
-		out = append(out, Tunable{
+		tunable := Tunable{
 			GPU: "battery", ID: "chargeLimit", Label: "Charge limit",
 			Kind: "slider", Unit: "%",
 			Min: cl.Min, Max: cl.Max, Current: cl.Current,
-			Risk: "safe", Src: "charge_control_end_threshold", Desc: batDesc,
-		})
+			Risk: "safe", Src: "battery charge threshold", Desc: batDesc,
+		}
+		if len(cl.Options) > 0 {
+			tunable.Kind = "segment"
+			tunable.Options = cl.Options
+			tunable.Value = strconv.Itoa(int(cl.Current))
+		}
+		out = append(out, tunable)
 	}
 	if caps.ASPM != nil {
 		out = append(out, Tunable{

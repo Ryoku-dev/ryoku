@@ -453,7 +453,12 @@ func genConfig(o Overrides, follow bool) string {
 	if len(sections) == 0 {
 		return ""
 	}
-	return "hl.config({\n" + strings.Join(sections, ",\n") + ",\n})\n\n"
+	config := "hl.config({\n" + strings.Join(sections, ",\n") + ",\n})\n\n"
+	if a.BlurEnabled && (a.ActiveOpacity < 1 || a.InactiveOpacity < da.InactiveOpacity) {
+		config += "-- the Hub made tiled windows translucent so blur should win\n"
+		config += `hl.window_rule({ name = "tiled-blur", match = { float = false }, no_blur = false })` + "\n\n"
+	}
+	return config
 }
 
 // dwindleForceSplit maps the friendly force-split labels onto Hyprland's
@@ -608,6 +613,8 @@ func genAppOverride(i int, a AppOverride) string {
 	}
 	if a.Blur == "off" {
 		props = append(props, "no_blur = true")
+	} else if a.Opacity >= 0 && a.Opacity < 1 {
+		props = append(props, "no_blur = false")
 	}
 	if a.Shadow == "off" {
 		props = append(props, "no_shadow = true")

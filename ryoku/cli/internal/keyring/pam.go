@@ -29,24 +29,59 @@ func pamFilePath() string {
 	return "/etc/pam.d/sddm"
 }
 
-// pamHasKeyring reports whether the stack already carries a pam_gnome_keyring
-// module of the given kind ("auth" or "session"), regardless of its exact form,
-// so an insert never duplicates and status can read the true state.
-func pamHasKeyring(content, kind string) bool {
-	for _, l := range strings.Split(content, "\n") {
-		f := strings.Fields(l)
-		if len(f) > 0 &&
-			strings.TrimPrefix(f[0], "-") == kind &&
-			strings.Contains(l, "pam_gnome_keyring.so") {
-			return true
+func pamKeyringLine(line string) (kind string, dashed bool, ok bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 3 {
+		return "", false, false
+	}
+	kind = strings.TrimPrefix(fields[0], "-")
+	if kind != "auth" && kind != "session" {
+		return "", false, false
+	}
+	for _, field := range fields[1:] {
+		if filepath.Base(field) == "pam_gnome_keyring.so" {
+			return kind, strings.HasPrefix(fields[0], "-"), true
 		}
 	}
-	return false
+	return "", false, false
 }
 
-// pamPresent reports whether the stack wires pam_gnome_keyring at all.
+func pamKeyringCounts(content string) (auth, session int) {
+	for _, line := range strings.Split(content, "\n") {
+		kind, _, ok := pamKeyringLine(line)
+		if !ok {
+			continue
+		}
+		if kind == "auth" {
+			auth++
+		} else {
+			session++
+		}
+	}
+	return auth, session
+}
+
+func pamHasKeyring(content, kind string) bool {
+	auth, session := pamKeyringCounts(content)
+	if kind == "auth" {
+		return auth > 0
+	}
+	return kind == "session" && session > 0
+}
+
 func pamPresent(content string) bool {
-	return pamHasKeyring(content, "auth") || pamHasKeyring(content, "session")
+	auth, session := pamKeyringCounts(content)
+	return auth > 0 || session > 0
+}
+
+func pamWired(content string) bool {
+	auth, session := pamKeyringCounts(content)
+	return auth > 0 && session > 0
+}
+
+func pamHasDuplicates(content string) bool {
+	auth, session := pamKeyringCounts(content)
+	return auth > 1 || session > 1
 }
 
 // insertAfterInclude puts line immediately after the `<kind> include
@@ -66,16 +101,39 @@ func insertAfterInclude(content, kind, line string) (string, bool) {
 	return content, false
 }
 
-// stripKeyring removes every pam_gnome_keyring line, preserving the rest of the
-// stack byte-for-byte.
 func stripKeyring(content string) string {
 	lines := strings.Split(content, "\n")
 	out := lines[:0]
-	for _, l := range lines {
-		if strings.Contains(l, "pam_gnome_keyring.so") {
+	for _, line := range lines {
+		if _, _, ok := pamKeyringLine(line); ok {
 			continue
 		}
-		out = append(out, l)
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
+func dedupeKeyring(content string) string {
+	lines := strings.Split(content, "\n")
+	keep := make(map[string]int, 2)
+	dashed := make(map[string]bool, 2)
+	for i, line := range lines {
+		kind, isDashed, ok := pamKeyringLine(line)
+		if !ok {
+			continue
+		}
+		if _, found := keep[kind]; !found || isDashed && !dashed[kind] {
+			keep[kind] = i
+			dashed[kind] = isDashed
+		}
+	}
+	out := lines[:0]
+	for i, line := range lines {
+		kind, _, ok := pamKeyringLine(line)
+		if ok && keep[kind] != i {
+			continue
+		}
+		out = append(out, line)
 	}
 	return strings.Join(out, "\n")
 }
@@ -88,7 +146,7 @@ func applyPAMText(content string, want bool) (out string, missing []string) {
 	if !want {
 		return stripKeyring(content), nil
 	}
-	out = content
+	out = dedupeKeyring(content)
 	if !pamHasKeyring(out, "auth") {
 		var ok bool
 		if out, ok = insertAfterInclude(out, "auth", pamAuthLine); !ok {

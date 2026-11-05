@@ -16,6 +16,7 @@ Singleton {
     // --- raw topic state (defaults are the pre-daemon "empty" frame) ---
     property var wifi: ({ present: false, enabled: false, connectivity: "Disconnected", ssid: "", strength: 0 })
     property var wired: ({ present: false, connectivity: "Disconnected" })
+    property var connection: ({ kind: "", connectivity: "unknown", online: false })
     property var accessPoints: []
     property var wgTunnels: []
     // Saved NetworkManager VPN profiles (OpenVPN, OpenConnect, ...), service
@@ -24,8 +25,11 @@ Singleton {
     property var dns: ({ provider: "dhcp", servers: [] })
 
     // --- derived status the rail + collapsed row bind to (preserved interface) ---
-    readonly property string kind: root.wired.connectivity === "Connected" ? "ethernet"
+    readonly property string kind: root.connection.online === true && root.connection.kind
+        ? root.connection.kind
+        : root.wired.connectivity === "Connected" ? "ethernet"
         : root.wifi.connectivity === "Connected" ? "wifi" : ""
+    readonly property string connectivity: root.connection.connectivity || "unknown"
     readonly property real level: Math.max(0, Math.min(1, (root.wifi.strength || 0) / 100))
     readonly property bool wifiRadio: root.wifi.enabled === true
     readonly property string activeSsid: root.wifi.ssid || ""
@@ -105,6 +109,7 @@ Singleton {
             const f = JSON.parse(line);
             if (f.wifi) root.wifi = f.wifi;
             if (f.wired) root.wired = f.wired;
+            if (f.connection) root.connection = f.connection;
             root.accessPoints = Array.isArray(f.accessPoints) ? f.accessPoints : [];
             root.wgTunnels = Array.isArray(f.wireguard) ? f.wireguard : [];
             root.vpnProfiles = Array.isArray(f.vpn) ? f.vpn : [];

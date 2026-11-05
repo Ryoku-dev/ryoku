@@ -9,6 +9,8 @@ Item {
 
     readonly property string i18nDir: Caching.assetsPath + "/languages"
     property string currentLang: systemLanguage()
+    // Locale for dates: "ua" is not an ISO language code, Qt knows Ukrainian as uk_UA.
+    readonly property string qtLocaleName: currentLang === "ua" ? "uk_UA" : currentLang
     readonly property var rtlLanguages: ["ar", "fa", "ur", "he", "iw", "ps", "ug", "ckb", "yi"]
     readonly property bool rtl: rtlLanguages.indexOf(currentLang) !== -1
     readonly property bool isRtl: rtl

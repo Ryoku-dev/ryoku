@@ -22,7 +22,6 @@ Variants {
     property bool stageEditing: false
     model: targetScreen ? [targetScreen] : Quickshell.screens
     delegate: Component {
-        id: dockDelegate
         Scope {
             id: dockScope
             required property var modelData

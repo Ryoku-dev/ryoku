@@ -37,8 +37,7 @@ PanelWindow {
 
     property string position: Config.notifications && Config.notifications.notification_position
         ? Config.notifications.notification_position : "Right"
-    // popup_window_margins (contract 07 sec 8), default 0.
-    property real margin: 0
+    readonly property real margin: (Config.notifications?.popup_window_margins ?? 0) * win.us
 
     // Base breathing room off the screen corner, on top of the configurable
     // popup margin, so the toast column floats instead of sitting flush.
@@ -76,10 +75,8 @@ PanelWindow {
     margins.bottom: inset + margin
 
     implicitWidth: 400 * win.us
-    // The surface is as tall as its cards, but never shorter than a card that is
-    // still leaving: the window clips, so collapsing to 1 px under the last toast
-    // wiped its exit slide instead of letting it glide off the edge.
-    implicitHeight: Math.max(1, list.contentHeight, exitFloor)
+    // ListView can keep a delegate's first measurement after its card grows.
+    implicitHeight: Math.max(1, list.measuredHeight, exitFloor)
     // Height held for a leaving card, released once its exit has finished. This
     // must outlast the whole dismiss: the flicked card slides out over notifOut,
     // then the cards below wait that long and rise over durFastSpatial. Releasing
@@ -167,10 +164,12 @@ PanelWindow {
 
     ListView {
         id: list
+        readonly property real measuredHeight: Math.max(contentHeight,
+            contentItem.childrenRect.y + contentItem.childrenRect.height)
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: contentHeight
+        height: measuredHeight
         spacing: 14 * win.us
         interactive: false
         model: cards

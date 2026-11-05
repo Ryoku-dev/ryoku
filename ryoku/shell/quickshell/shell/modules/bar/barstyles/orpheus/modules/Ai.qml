@@ -15,27 +15,44 @@ Item {
     readonly property var shown: AiUsage.present.filter(
         id => S.Prefs.aiTools.indexOf(id) >= 0)
 
+    property real nowSec: Date.now() / 1000
+    readonly property int paceTolerance: 10
+
     property bool present: root.shown.length > 0
 
-    readonly property string leadId: {
-        let bestId = "";
-        let highest = -1;
+    readonly property var lead: {
+        let best = null;
         for (const id of root.shown) {
             const tool = AiUsage.tool(id);
-            if (tool.has5h && tool.pct5h > highest) {
-                highest = tool.pct5h;
-                bestId = id;
+            if (tool.has5h && (best === null || tool.pct5h > best.used)) {
+                best = { id: id, weekly: false, used: tool.pct5h,
+                    pace: AiUsage.pace(id, false, root.nowSec) };
             }
         }
-        return bestId;
+        return best;
     }
-    readonly property var lead: root.leadId.length > 0
-        ? AiUsage.tool(root.leadId) : null
-    readonly property bool hot: root.shown.some(id => {
+    readonly property bool pacing: root.lead !== null
+        && root.lead.pace.available
+    readonly property string trend: {
+        if (!root.pacing)
+            return "";
+        const delta = root.lead.pace.delta;
+        return delta > root.paceTolerance ? "ahead"
+            : delta < -root.paceTolerance ? "behind" : "even";
+    }
+    readonly property bool hot: root.shown.some(id => AiUsage.tool(id).blocked
+        || root.windowHot(id, false) || root.windowHot(id, true))
+
+    function windowHot(id, weekly) {
         const tool = AiUsage.tool(id);
-        return tool.blocked || (tool.has5h && tool.pct5h >= 80)
-            || (tool.has7d && tool.pct7d >= 80);
-    })
+        if (!(weekly ? tool.has7d : tool.has5h))
+            return false;
+        if ((weekly ? tool.pct7d : tool.pct5h) >= S.Prefs.aiAlertAt)
+            return true;
+        const pace = AiUsage.pace(id, weekly, root.nowSec);
+        return pace.available && pace.exhaustTs > 0
+            && pace.delta > root.paceTolerance;
+    }
 
     function clock(timestamp) {
         if (!(timestamp > 0))
@@ -46,7 +63,19 @@ Item {
             + TimeFormat.format(date);
     }
 
-    function windowText(tool, weekly) {
+    function paceText(pace) {
+        if (!pace.available)
+            return "";
+        const points = Math.abs(pace.delta);
+        let text = points <= root.paceTolerance ? "on pace"
+            : points + " pts " + (pace.delta > 0 ? "ahead of" : "behind") + " pace";
+        if (pace.exhaustTs > 0 && pace.delta > root.paceTolerance)
+            text += ", full ~" + root.clock(pace.exhaustTs);
+        return text;
+    }
+
+    function windowText(id, weekly) {
+        const tool = AiUsage.tool(id);
         const available = weekly ? tool.has7d : tool.has5h;
         const label = weekly ? "weekly" : "5 h";
         if (!available)
@@ -54,16 +83,23 @@ Item {
         const percent = weekly ? tool.pct7d : tool.pct5h;
         const reset = weekly ? tool.reset7d : tool.reset5h;
         const resetText = root.clock(reset);
+        const paceText = root.paceText(AiUsage.pace(id, weekly, root.nowSec));
+        const detail = [resetText.length > 0 ? "resets " + resetText : "",
+            paceText].filter(part => part.length > 0).join(", ");
         return label + " " + percent + "%"
-            + (resetText.length > 0 ? " (resets " + resetText + ")" : "");
+            + (detail.length > 0 ? " (" + detail + ")" : "");
+    }
+
+    function figure() {
+        return root.lead === null ? "-" : root.lead.used + "%";
     }
 
     readonly property string hintText: root.shown.map(id => {
         const tool = AiUsage.tool(id);
         const name = AiUsage.labels[id] || id;
         const state = tool.blocked ? "limit reached, " : "";
-        return name + " " + state + root.windowText(tool, false)
-            + ", " + root.windowText(tool, true);
+        return name + " " + state + root.windowText(id, false)
+            + ", " + root.windowText(id, true);
     }).join(" · ")
 
     implicitWidth: present ? body.implicitWidth + 2 * K.Style.hitPad : 0
@@ -85,10 +121,18 @@ Item {
 
         K.Label {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.lead ? root.lead.pct5h + "%" : "—"
+            text: root.figure()
             role: "bar"
             numeric: true
             strong: true
+        }
+
+        K.Glyph {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.trend === "ahead" || root.trend === "behind"
+            name: root.trend === "ahead" ? "trending_up" : "trending_down"
+            size: Math.round(K.Style.barIcon * 0.8)
+            tone: root.trend === "ahead" ? "alert" : "dim"
         }
     }
 
@@ -102,5 +146,13 @@ Item {
         target: root
         text: root.hintText
         shown: root.present && press.hovered && root.hintText.length > 0
+    }
+
+    Timer {
+        interval: 30000
+        repeat: true
+        running: root.present && root.visible && !root.scene.autoHidden
+        onRunningChanged: if (running) root.nowSec = Date.now() / 1000
+        onTriggered: root.nowSec = Date.now() / 1000
     }
 }

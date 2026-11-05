@@ -108,7 +108,7 @@ hl.bind(K(mod .. " + J"),         hl.dsp.exec_cmd("ryotunes"))                  
 hl.bind(K(mod .. " + Space"),     hl.dsp.global("ryoku:launcher"))                 -- open the app launcher
 hl.bind(K("ALT + Space"),         hl.dsp.global("ryoku:ask"))                      -- ask Rashin
 hl.bind(K(mod .. " + ALT + Space"), hl.dsp.exec_cmd("ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app")) -- Rashin app: the AI companion window (a second press focuses it)
-hl.bind(K(mod .. " + K"),         hl.dsp.exec_cmd("pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys")) -- Kit: toggle (press to open, press again to close)
+hl.bind(K(mod .. " + K"),         hl.dsp.exec_cmd("ryoku-shell cheatsheet"))          -- Kit, or the bar style's own cheatsheet
 hl.bind(K(mod .. " + L"),         hl.dsp.exec_cmd("ryoku-shell lock"))             -- lock the screen
 hl.bind(K(mod .. " + Escape"),    hl.dsp.global("ryoku:quicksettings"), { dont_inhibit = true }) -- quick settings: power, logout, restart, shutdown, wifi
 hl.bind(K(mod .. " + W"),         hl.dsp.exec_cmd("ryogami wallpaper ui"))     -- ryogami wallpaper picker (full-screen browser: hero cards, colour filters, effects); the frame-blob menu stays on the bar logo
@@ -121,7 +121,7 @@ hl.bind(K(mod .. " + M"),         hl.dsp.global("ryoku:visualizer"))        -- t
 hl.bind(K(mod .. " + SHIFT + M"), hl.dsp.global("ryoku:visualizer-overlay")) -- raise the visualiser over windows (flip back to desktop)
 hl.bind(K(mod .. " + ALT + M"),   hl.dsp.global("ryoku:visualizer-place"))   -- move the audio visualiser: drag the ring or orb into place
 hl.bind(K(mod .. " + grave"),     hl.dsp.exec_cmd("ryoku-shell voice"))             -- voice typing: speech-to-text with a mic wave (tap again to stop)
-hl.bind(K(mod .. " + comma"),     hl.dsp.exec_cmd("ryoku-shell hub open"))     -- ryoku settings
+hl.bind(K(mod .. " + comma"),     hl.dsp.exec_cmd("ryoku-shell settings"))      -- settings
 hl.bind(K(mod .. " + SHIFT + D"), hl.dsp.exec_cmd("ryoku-shell hub open widgets")) -- Stage Editor: edit the desktop on the focused screen
 hl.bind(K(mod .. " + SHIFT + S"), hl.dsp.exec_cmd("ryoku-cmd-ryoshot")) -- screenshot: capture, annotate and beautify
 hl.bind(K(mod .. " + SHIFT + C"), hl.dsp.exec_cmd("hyprpicker -a"))                 -- pick a color

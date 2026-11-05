@@ -9,12 +9,10 @@
 // primary output. The bar's own Variants still fan one band per screen; a
 // screen whose bar is hidden in the Hub gets no band.
 //
-// What Ryoku keeps for itself: the app launcher (Super+Space), the wallpaper
-// picker (Super+W, ryogami), the clipboard history, the lock screen, screen
-// capture, updates, the notification server and the desktop widgets. Those
-// serpantinum surfaces are not ported; the bar's buttons for them ride
-// Ryoku's own paths, and while Python is the active style the shell's own
-// banner column and OSD pills hold back so the ported ones draw alone.
+// Ryogami, ryoshot, qylock, the launcher selected in Ryoku Settings, the
+// clipboard, Super+Escape sidebar, Hub, updates, idle and the shared dock and
+// desktop-widget hosts stay Ryoku-owned. Python provides its own bar settings,
+// policy prompt, banners and OSD while the style is active.
 //
 // Every surface below keeps Serpantinum's layout and motion; only the data
 // plane (the window-manager seam, the daemon's settings store, the palette
@@ -30,7 +28,9 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import "."
-import Ryoku.Ui.Singletons
+import shell.services as ShellServices
+import "guide" as PythonGuide
+import "polkit" as PythonPolkit
 import "../../../../services/lib/screens.js" as Screens
 
 Item {
@@ -54,12 +54,20 @@ Item {
         active: scene.isPrimary
         sourceComponent: Component {
             Item {
-                // The widget stage, the banner queue, the tray host, the song
-                // pill and the brightness/volume pills, plus the bar itself.
                 Main {}
                 Bar {}
                 PopoutManager {}
 
+                PythonGuide.SettingsWindow { id: settingsHost }
+                PythonPolkit.PythonPolkit {}
+
+                Connections {
+                    target: ShellServices.ShellState
+                    function onSurfaceRequested(id, mon, ctx) {
+                        if (id === "python-settings")
+                            settingsHost.toggle();
+                    }
+                }
 
                 Loader {
                     active: Config.getSetting("general", {}).quickactions !== false

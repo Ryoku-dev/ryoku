@@ -1,0 +1,1396 @@
+import QtQuick
+import QtQuick.Window
+import QtQuick.Layouts
+import QtQuick.Controls
+import QtQuick.Shapes
+import QtQuick.Effects
+import Quickshell
+import Quickshell.Wayland
+import shell.services as RyokuServices
+import Ryoku.Ui.Singletons
+import ".."
+import "../reusables"
+PanelWindow {
+    id: clipboardWindow
+
+    required property var host
+    screen: host.hostScreen
+
+    signal closeRequested()
+
+    WlrLayershell.namespace: "qs-clipboard"
+    WlrLayershell.layer: WlrLayer.Overlay
+    focusable: clipboardWindow.isVisible
+    exclusionMode: ExclusionMode.Ignore
+    color: "transparent"
+
+    mask: Region { item: topBarHole; intersection: Intersection.Xor }
+
+    anchors {
+        top: true
+        bottom: true
+        left: true
+        right: true
+    }
+
+    function s(val) {
+        return (typeof Scaler !== "undefined" && Scaler.s) ? Scaler.s(val) : val;
+    }
+
+    function closeClipboard() {
+        clipboardWindow.closeRequested();
+    }
+
+    property bool isVisible: host.hostVisible
+    property int configRevision: 0
+    property bool isDirty: true
+
+    Connections {
+        target: (typeof Config !== "undefined") ? Config : null
+        function onSettingsLoaded() {
+            clipboardWindow.closeClipboard();
+            clipboardWindow.configRevision++;
+        }
+    }
+
+    property var rawBarSettings: {
+        let dummy = configRevision;
+        return (typeof Config !== "undefined" && Config.rawSettings && Config.rawSettings.bar) ? Config.rawSettings.bar : ({});
+    }
+    property string barPosition: (rawBarSettings && rawBarSettings.position !== undefined) ? rawBarSettings.position : "top"
+    property bool barAutohide: (rawBarSettings && rawBarSettings.autohide !== undefined) ? Boolean(rawBarSettings.autohide) : false
+
+    readonly property bool isFullscreenActive: Wm.outputHasFullscreen(screen ? screen.name : "")
+    readonly property bool isBarEffectivelyHidden: barAutohide || isFullscreenActive
+
+    property string attachEdge: {
+        if (barPosition === "bottom") return "top";
+        if (barPosition === "left") return "right";
+        if (barPosition === "right") return "left";
+        return "bottom";
+    }
+
+    onBarPositionChanged: closeClipboard()
+
+    property bool isSideAttached: attachEdge === "left" || attachEdge === "right"
+
+    property real cornerRadius: ThemeBackend.borderRadius <= 16 ? ThemeBackend.borderRadius * 2 : Math.min(32, 32 - 16 * Math.exp(-(ThemeBackend.borderRadius - 16) / 12))
+    property real outerCornerRadius: cornerRadius
+
+    property real baseLauncherWidth: isSideAttached ? Math.round(s(460) / 1.1) : Math.round(s(680) / 1.15)
+    property int maxVisibleClips: isSideAttached ? 7 : 6
+
+    property real targetLauncherHeight: {
+        let count = Math.min(clipBoxModel.count, maxVisibleClips);
+        if (count <= 0) {
+            return s(64);
+        }
+        let hasPinned = false;
+        let hasUnpinned = false;
+        for (let i = 0; i < count; i++) {
+            let item = clipBoxModel.get(i);
+            if (item) {
+                if (item.pinned) hasPinned = true;
+                else hasUnpinned = true;
+            }
+        }
+        let sectionCount = (hasPinned ? 1 : 0) + (hasUnpinned ? 1 : 0);
+        let sectionH = sectionCount === 2 ? s(48) : (sectionCount === 1 ? s(22) : 0);
+        return s(70) + sectionH + (count * s(56));
+    }
+
+    property real animatedLauncherHeight: targetLauncherHeight
+    Behavior on animatedLauncherHeight {
+        NumberAnimation {
+            duration: 250
+            easing.type: Easing.OutCubic
+        }
+    }
+
+    visible: isVisible || container.animProgress > 0.001
+
+    property var allFetchedClips: []
+    property bool hasMoreClips: false
+
+    property string expandedClipId: ""
+    property string expandedClipFullText: ""
+    property bool isClearingClips: false
+
+    property bool isKeyboardNav: false
+    property string pendingQuery: ""
+
+    function grabInputFocus() {
+        if (searchInput.hasFocus) return;
+        searchInput.forceActiveFocus();
+        if (typeof searchInput.forceInputFocus === "function") {
+            searchInput.forceInputFocus();
+        }
+    }
+
+    function toggleExpandCurrent() {
+        if (clipList.currentIndex >= 0 && clipList.currentItem && typeof clipList.currentItem.toggleExpand === "function") {
+            clipList.currentItem.toggleExpand();
+        }
+    }
+
+    ListModel {
+        id: clipBoxModel
+    }
+
+    function fetchFullText(id) {
+        clipboardWindow.expandedClipId = id ? id.toString() : "";
+        for (let i = 0; i < clipboardWindow.allFetchedClips.length; i++) {
+            const item = clipboardWindow.allFetchedClips[i];
+            if (item.id.toString() === clipboardWindow.expandedClipId) {
+                clipboardWindow.expandedClipFullText = item.content || "";
+                return;
+            }
+        }
+        clipboardWindow.expandedClipFullText = "";
+    }
+
+    function isSubsequence(sub, str) {
+        let i = 0;
+        let j = 0;
+        while (i < sub.length && j < str.length) {
+            if (sub[i] === str[j]) {
+                i++;
+            }
+            j++;
+        }
+        return i === sub.length;
+    }
+
+    function syncClipBoxModel(targetItems) {
+        for (let i = 0; i < targetItems.length; i++) {
+            let item = targetItems[i];
+            if (i < clipBoxModel.count) {
+                let cur = clipBoxModel.get(i);
+                if (cur.id !== item.id || cur.pinned !== item.pinned || cur.content !== item.content || cur.type !== item.type || cur.sectionCategory !== item.sectionCategory || cur.score !== item.score) {
+                    clipBoxModel.set(i, item);
+                }
+            } else {
+                clipBoxModel.append(item);
+            }
+        }
+
+        while (clipBoxModel.count > targetItems.length) {
+            clipBoxModel.remove(clipBoxModel.count - 1);
+        }
+    }
+
+    function executeClipFilter(query) {
+        clipboardWindow.isKeyboardNav = false;
+        if (keyboardNavTimer.running) keyboardNavTimer.stop();
+
+        let rawTrimmed = (query || "").trim();
+        let q = rawTrimmed.toLowerCase();
+        let filtered = [];
+
+        let pinnedLabel = typeof I18n !== "undefined" ? I18n.t("clipboard.pinned", "Pinned") : "Pinned";
+        let recentLabel = typeof I18n !== "undefined" ? I18n.t("clipboard.recent", "Recent") : "Recent";
+
+        for (let i = 0; i < clipboardWindow.allFetchedClips.length; i++) {
+            let item = clipboardWindow.allFetchedClips[i];
+            let contentLower = (item.content || "").toLowerCase();
+            let matchQuality = 0;
+            let matches = false;
+
+            if (q.length === 0) {
+                matches = true;
+            } else {
+                if (contentLower === q) {
+                    matchQuality = 100000;
+                    matches = true;
+                } else if (contentLower.startsWith(q)) {
+                    matchQuality = 50000;
+                    matches = true;
+                } else if (contentLower.includes(q)) {
+                    matchQuality = 10000;
+                    matches = true;
+                } else if (isSubsequence(q, contentLower)) {
+                    matchQuality = 1000;
+                    matches = true;
+                }
+            }
+
+            if (matches) {
+                filtered.push({
+                    id: item.id,
+                    pinned: Boolean(item.pinned),
+                    content: item.content || "",
+                    type: item.type || "text",
+                    sectionCategory: item.pinned ? pinnedLabel : recentLabel,
+                    score: (item.pinned ? 500000 : 0) + matchQuality
+                });
+            }
+        }
+
+        if (q.length > 0) {
+            filtered.sort(function(a, b) {
+                if (a.score !== b.score) {
+                    return b.score - a.score;
+                }
+                return 0;
+            });
+        } else {
+            let pinnedItems = [];
+            let unpinnedItems = [];
+            for (let i = 0; i < filtered.length; i++) {
+                if (filtered[i].pinned) pinnedItems.push(filtered[i]);
+                else unpinnedItems.push(filtered[i]);
+            }
+            filtered = pinnedItems.concat(unpinnedItems);
+        }
+
+        syncClipBoxModel(filtered);
+
+        clipList.resetScroll();
+
+        if (clipBoxModel.count > 0) {
+            clipList.currentIndex = 0;
+        } else {
+            clipList.currentIndex = -1;
+        }
+    }
+
+    function filterClips(query) {
+        clipboardWindow.pendingQuery = query;
+        filterDebounceTimer.restart();
+    }
+
+    Timer {
+        id: filterDebounceTimer
+        interval: 80
+        repeat: false
+        onTriggered: {
+            clipboardWindow.executeClipFilter(clipboardWindow.pendingQuery);
+        }
+    }
+
+    function refreshClips() {
+        const source = Array.from(RyokuServices.Clipboard.entries || []);
+        clipboardWindow.allFetchedClips = source.map(entry => ({
+            id: Number(entry.id),
+            pinned: entry.starred === true,
+            content: entry.kind === "image" ? String(entry.thumb || "") : String(entry.preview || ""),
+            type: String(entry.kind || "text")
+        }));
+        clipboardWindow.executeClipFilter(searchInput.text);
+        clipboardWindow.isDirty = false;
+    }
+
+    function fetchNextClipPage() {
+    }
+
+    function copyClip(id, isPinned) {
+        if (typeof Sounds !== "undefined") Sounds.playSfx("system/quick_click.wav");
+        RyokuServices.Clipboard.copy(Number(id));
+        closeClipboard();
+    }
+
+    function pinClip(id, index) {
+        let starred = false;
+        for (let i = 0; i < clipboardWindow.allFetchedClips.length; i++) {
+            const item = clipboardWindow.allFetchedClips[i];
+            if (item.id.toString() === id.toString()) {
+                starred = item.pinned;
+                break;
+            }
+        }
+        RyokuServices.Clipboard.star(Number(id), !starred);
+    }
+
+    function deleteClip(id, index) {
+        RyokuServices.Clipboard.del(Number(id));
+    }
+
+    function clearAllClips() {
+        RyokuServices.Clipboard.clear();
+    }
+
+    Connections {
+        target: RyokuServices.Clipboard
+        function onEntriesChanged() {
+            clipboardWindow.refreshClips();
+        }
+    }
+
+    Component.onCompleted: refreshClips()
+
+    Timer {
+        id: clearFinishTimer
+        interval: 300
+        repeat: false
+        onTriggered: {
+            clipboardWindow.clearAllClips();
+            clipboardWindow.isClearingClips = false;
+        }
+    }
+
+    function animateClear() {
+        if (clipboardWindow.isClearingClips || clipBoxModel.count === 0) return;
+        clipboardWindow.isClearingClips = true;
+
+        let visibleDelegates = [];
+        for (let i = 0; i < clipList.contentItem.children.length; i++) {
+            let child = clipList.contentItem.children[i];
+            if (child && typeof child.triggerClearSlide === "function") {
+                if (child.y + child.height >= clipList.contentY && child.y <= clipList.contentY + clipList.height) {
+                    visibleDelegates.push(child);
+                }
+            }
+        }
+
+        visibleDelegates.sort((a, b) => a.y - b.y);
+
+        if (visibleDelegates.length === 0) {
+            clipboardWindow.clearAllClips();
+            clipboardWindow.isClearingClips = false;
+            return;
+        }
+
+        let step = 50;
+        let totalTime = 0;
+        for (let i = 0; i < visibleDelegates.length; i++) {
+            let d = i * step;
+            visibleDelegates[i].triggerClearSlide(d);
+            totalTime = d + 220;
+        }
+
+        clearFinishTimer.interval = totalTime + 40;
+        clearFinishTimer.start();
+    }
+
+    function activateIndex(index) {
+        if (index < 0 || index >= clipBoxModel.count) return;
+        let item = clipBoxModel.get(index);
+        if (!item) return;
+        copyClip(item.id, item.pinned);
+    }
+
+    Item {
+        id: topBarHole
+
+        property real thicknessRatio: {
+            let h = (clipboardWindow.rawBarSettings && clipboardWindow.rawBarSettings.height !== undefined) ? Number(clipboardWindow.rawBarSettings.height) : 40;
+            if (isNaN(h)) h = 40;
+            return Math.max(28, Math.min(48, h)) / 40;
+        }
+        property int barThickness: Math.round(48 * thicknessRatio)
+        property string bp: clipboardWindow.barPosition
+        property bool activeBar: !clipboardWindow.isBarEffectivelyHidden
+
+        x: {
+            if (!activeBar) return 0;
+            if (bp === "left") return 0;
+            if (bp === "right") return clipboardWindow.width - barThickness;
+            return 0;
+        }
+
+        y: {
+            if (!activeBar) return 0;
+            if (bp === "top") return 0;
+            if (bp === "bottom") return clipboardWindow.height - barThickness;
+            return 0;
+        }
+
+        width: {
+            if (!activeBar) return 0;
+            if (bp === "left" || bp === "right") return barThickness;
+            return clipboardWindow.width;
+        }
+
+        height: {
+            if (!activeBar) return 0;
+            if (bp === "top" || bp === "bottom") return barThickness;
+            return clipboardWindow.height;
+        }
+    }
+
+    Timer {
+        id: focusTimer
+        interval: 80
+        repeat: false
+        onTriggered: {
+            clipboardWindow.grabInputFocus();
+        }
+    }
+
+    Timer {
+        id: keyboardNavTimer
+        interval: 500
+        repeat: false
+        onTriggered: {
+            clipboardWindow.isKeyboardNav = false;
+        }
+    }
+
+    onIsVisibleChanged: {
+        if (isVisible) {
+            searchInput.clear();
+            filterDebounceTimer.stop();
+            if (clipboardWindow.isDirty || clipboardWindow.allFetchedClips.length === 0) {
+                clipboardWindow.isDirty = false;
+                refreshClips();
+            } else {
+                executeClipFilter("");
+            }
+            focusTimer.restart();
+        } else {
+            clipList.resetScroll();
+            clipboardWindow.expandedClipId = "";
+            filterDebounceTimer.stop();
+            focusTimer.stop();
+            keyboardNavTimer.stop();
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        enabled: clipboardWindow.isVisible
+        onClicked: closeClipboard()
+    }
+
+    Item {
+        id: container
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        property real animProgress: clipboardWindow.isVisible ? 1.0 : 0.0
+        Behavior on animProgress {
+            NumberAnimation {
+                duration: clipboardWindow.isVisible ? 300 : 200
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        property real dynamicCornerRadius: Math.round(Math.max(0, Math.min(clipboardWindow.outerCornerRadius, (clipboardWindow.isSideAttached ? width : height))))
+
+        x: {
+            if (clipboardWindow.attachEdge === "left") return 0;
+            if (clipboardWindow.attachEdge === "right") return clipboardWindow.width - width;
+            return Math.floor((clipboardWindow.width - width) / 2);
+        }
+        y: {
+            if (clipboardWindow.attachEdge === "top") return 0;
+            if (clipboardWindow.attachEdge === "bottom") return clipboardWindow.height - height;
+            return Math.floor((clipboardWindow.height - height) / 2);
+        }
+        width: clipboardWindow.isSideAttached
+               ? (clipboardWindow.baseLauncherWidth * animProgress)
+               : clipboardWindow.baseLauncherWidth
+        height: !clipboardWindow.isSideAttached
+                ? (clipboardWindow.animatedLauncherHeight * animProgress)
+                : clipboardWindow.animatedLauncherHeight
+
+        opacity: (clipboardWindow.isVisible || animProgress > 0.001) ? 1.0 : 0.0
+
+        GlassFillets {
+            id: clipboardFillets
+            card: bgCard
+            filletRadius: container.dynamicCornerRadius
+            filletDir: clipboardWindow.attachEdge === "top" ? Qt.vector2d(0, -1)
+                     : clipboardWindow.attachEdge === "bottom" ? Qt.vector2d(0, 1)
+                     : clipboardWindow.attachEdge === "left" ? Qt.vector2d(-1, 0)
+                     : Qt.vector2d(1, 0)
+        }
+
+        ShaderEffect {
+            visible: container.dynamicCornerRadius > 0.5
+            x: {
+                if (clipboardWindow.attachEdge === "left") return 0;
+                if (clipboardWindow.attachEdge === "right") return parent.width - container.dynamicCornerRadius;
+                return -container.dynamicCornerRadius;
+            }
+            y: {
+                if (clipboardWindow.attachEdge === "bottom") return parent.height - container.dynamicCornerRadius;
+                if (clipboardWindow.attachEdge === "left" || clipboardWindow.attachEdge === "right") return -container.dynamicCornerRadius;
+                return 0;
+            }
+            width: container.dynamicCornerRadius
+            height: container.dynamicCornerRadius
+            property vector2d itemSize: Qt.vector2d(width, height)
+            property real cornerIndex: {
+                if (clipboardWindow.attachEdge === "bottom") return 3.0;
+                if (clipboardWindow.attachEdge === "left") return 2.0;
+                if (clipboardWindow.attachEdge === "right") return 3.0;
+                return 1.0;
+            }
+            property color color: Qt.alpha(ThemeBackend.base, ThemeBackend.elementOpacity)
+            fragmentShader: "file://" + Caching.payloadDir + "/assets/shaders/ui/corner_cutout.frag.qsb"
+        }
+
+        ShaderEffect {
+            visible: container.dynamicCornerRadius > 0.5
+            x: {
+                if (clipboardWindow.attachEdge === "left") return 0;
+                if (clipboardWindow.attachEdge === "right") return parent.width - container.dynamicCornerRadius;
+                return parent.width;
+            }
+            y: {
+                if (clipboardWindow.attachEdge === "bottom") return parent.height - container.dynamicCornerRadius;
+                if (clipboardWindow.attachEdge === "left" || clipboardWindow.attachEdge === "right") return parent.height;
+                return 0;
+            }
+            width: container.dynamicCornerRadius
+            height: container.dynamicCornerRadius
+            property vector2d itemSize: Qt.vector2d(width, height)
+            property real cornerIndex: {
+                if (clipboardWindow.attachEdge === "bottom") return 2.0;
+                if (clipboardWindow.attachEdge === "left") return 0.0;
+                if (clipboardWindow.attachEdge === "right") return 1.0;
+                return 0.0;
+            }
+            property color color: Qt.alpha(ThemeBackend.base, ThemeBackend.elementOpacity)
+            fragmentShader: "file://" + Caching.payloadDir + "/assets/shaders/ui/corner_cutout.frag.qsb"
+        }
+        Rectangle {
+            id: bgCard
+            anchors.fill: parent
+            radius: clipboardWindow.cornerRadius
+            topLeftRadius: (clipboardWindow.attachEdge === "top" || clipboardWindow.attachEdge === "left") ? 0 : clipboardWindow.cornerRadius
+            topRightRadius: (clipboardWindow.attachEdge === "top" || clipboardWindow.attachEdge === "right") ? 0 : clipboardWindow.cornerRadius
+            bottomLeftRadius: (clipboardWindow.attachEdge === "bottom" || clipboardWindow.attachEdge === "left") ? 0 : clipboardWindow.cornerRadius
+            bottomRightRadius: (clipboardWindow.attachEdge === "bottom" || clipboardWindow.attachEdge === "right") ? 0 : clipboardWindow.cornerRadius
+            color: Qt.alpha(ThemeBackend.base, ThemeBackend.elementOpacity)
+            clip: true
+
+            WallpaperBlur {
+                z: -1
+                anchors.fill: parent
+                topLeftRadius: parent.topLeftRadius
+                topRightRadius: parent.topRightRadius
+                bottomLeftRadius: parent.bottomLeftRadius
+                bottomRightRadius: parent.bottomRightRadius
+                filletRadius: clipboardFillets.filletRadius
+                filletDir: clipboardFillets.filletDir
+            }
+
+            Item {
+                id: contentContainer
+                x: clipboardWindow.attachEdge === "right" ? (parent.width - width - clipboardWindow.s(14)) : clipboardWindow.s(14)
+                y: clipboardWindow.s(14)
+                width: clipboardWindow.baseLauncherWidth - (clipboardWindow.s(14) * 2)
+                height: Math.max(0, parent.height - (clipboardWindow.s(14) * 2))
+
+                readonly property bool isSearchAtBottom: clipboardWindow.attachEdge === "bottom"
+
+                RowLayout {
+                    id: searchRow
+                    z: 10
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    y: contentContainer.isSearchAtBottom ? (parent.height - height) : 0
+                    height: clipboardWindow.s(36)
+                    spacing: clipboardWindow.s(8)
+
+                    Input {
+                        id: searchInput
+                        focus: true
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        Layout.preferredHeight: clipboardWindow.s(36)
+
+                        baseColor: ThemeBackend.surface0
+                        bgOpacity: ThemeBackend.glassActive ? 0.0 : 1.0
+                        accentColor: ThemeBackend.mauve
+                        textColor: ThemeBackend.text
+                        subTextColor: ThemeBackend.subtext0
+                        borderColor: Qt.alpha(ThemeBackend.surface2, 0.6)
+                        cornerRadius: Math.min(ThemeBackend.borderRadius, clipboardWindow.s(10))
+                        fontPixelSize: clipboardWindow.s(12)
+                        charSpacing: 1
+
+                        placeholderText: typeof I18n !== "undefined" ? I18n.t("clipboard.search", "Search clipboard") : "Search clipboard"
+                        showClearButton: true
+
+                        onHasFocusChanged: {
+                            if (!searchInput.hasFocus && clipboardWindow.isVisible) {
+                                clipList.forceActiveFocus();
+                            }
+                        }
+
+                        onTextEdited: function(newText) {
+                            filterClips(newText);
+                        }
+                        onCleared: filterClips("")
+
+                        Keys.onDownPressed: function(event) {
+                            clipboardWindow.isKeyboardNav = true;
+                            keyboardNavTimer.restart();
+                            if (clipList.currentIndex < clipBoxModel.count - 1) {
+                                clipList.currentIndex++;
+                            }
+                            event.accepted = true;
+                        }
+                        Keys.onUpPressed: function(event) {
+                            clipboardWindow.isKeyboardNav = true;
+                            keyboardNavTimer.restart();
+                            if (clipList.currentIndex > 0) {
+                                clipList.currentIndex--;
+                            }
+                            event.accepted = true;
+                        }
+                        Keys.onTabPressed: function(event) {
+                            clipboardWindow.toggleExpandCurrent();
+                            event.accepted = true;
+                        }
+                        Keys.onBacktabPressed: function(event) {
+                            clipboardWindow.toggleExpandCurrent();
+                            event.accepted = true;
+                        }
+                        Keys.onReturnPressed: function(event) {
+                            activateIndex(clipList.currentIndex);
+                            event.accepted = true;
+                        }
+                        Keys.onDeletePressed: function(event) {
+                            if (clipList.currentIndex >= 0 && clipList.currentIndex < clipBoxModel.count) {
+                                let item = clipBoxModel.get(clipList.currentIndex);
+                                if (item) {
+                                    deleteClip(item.id, clipList.currentIndex);
+                                }
+                            }
+                            event.accepted = true;
+                        }
+                        Keys.onEscapePressed: function(event) {
+                            closeClipboard();
+                            event.accepted = true;
+                        }
+                    }
+
+                    ClickButton {
+                        id: clearBtn
+                        enabled: !clipboardWindow.isClearingClips && clipBoxModel.count > 0
+                        Layout.preferredWidth: clipboardWindow.s(80)
+                        Layout.preferredHeight: clipboardWindow.s(36)
+                        horizontalPadding: clipboardWindow.s(10)
+                        cornerRadius: Math.min(ThemeBackend.borderRadius, clipboardWindow.s(10))
+                        buttonText: typeof I18n !== "undefined" ? (I18n.t("clipboard.clear") || "Clear") : "Clear"
+                        textFontSize: clipboardWindow.s(11)
+                        buttonIcon: "󰆴"
+                        iconFontSize: clipboardWindow.s(14)
+                        accentColor: ThemeBackend.surface0
+                        bgOpacity: ThemeBackend.glassActive ? 0.0 : 1.0
+                        textColor: ThemeBackend.text
+                        visible: true
+
+                        onTriggered: {
+                            clipboardWindow.animateClear();
+                        }
+                    }
+                }
+
+                Item {
+                    id: listContainer
+                    z: 1
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    y: contentContainer.isSearchAtBottom ? 0 : (searchRow.height + clipboardWindow.s(10))
+                    height: Math.max(0, parent.height - searchRow.height - clipboardWindow.s(10))
+                    clip: true
+
+                    NumberAnimation {
+                        id: scrollAnim
+                        target: clipList
+                        property: "contentY"
+                        duration: 250
+                        easing.type: Easing.OutCubic
+                    }
+
+                    ListView {
+                        id: clipList
+                        anchors.fill: parent
+                        clip: true
+                        model: clipBoxModel
+                        spacing: clipboardWindow.s(4)
+                        currentIndex: 0
+                        boundsBehavior: Flickable.StopAtBounds
+                        cacheBuffer: clipboardWindow.s(600)
+                        interactive: !clipboardWindow.isClearingClips && (contentHeight > height)
+
+                        highlightFollowsCurrentItem: false
+
+                        Keys.forwardTo: [searchInput]
+
+                        Keys.onPressed: function(event) {
+                            if (event.key === Qt.Key_Backspace) {
+                                clipboardWindow.grabInputFocus();
+                                if (searchInput.text.length > 0) {
+                                    searchInput.text = searchInput.text.slice(0, -1);
+                                }
+                                event.accepted = true;
+                                return;
+                            }
+                            if (event.text && event.text.length > 0 && event.key !== Qt.Key_Return && event.key !== Qt.Key_Enter && event.key !== Qt.Key_Escape && event.key !== Qt.Key_Tab && event.key !== Qt.Key_Backtab && event.key !== Qt.Key_Delete) {
+                                clipboardWindow.grabInputFocus();
+                                searchInput.text += event.text;
+                                event.accepted = true;
+                            }
+                        }
+
+                        function resetScroll() {
+                            scrollAnim.stop();
+                            positionViewAtBeginning();
+                            contentY = 0;
+                        }
+
+                        function getItemBounds(idx) {
+                            if (idx < 0 || idx >= clipBoxModel.count) return null;
+                            let secH = clipboardWindow.s(22);
+                            let defaultH = clipboardWindow.s(52);
+                            let itemObj = itemAtIndex(idx);
+                            let isFirstInSection = false;
+                            let curItem = clipBoxModel.get(idx);
+                            if (curItem) {
+                                if (idx === 0) {
+                                    isFirstInSection = (curItem.sectionCategory !== undefined && curItem.sectionCategory !== "");
+                                } else {
+                                    let prevItem = clipBoxModel.get(idx - 1);
+                                    if (prevItem && curItem.sectionCategory !== prevItem.sectionCategory) {
+                                        isFirstInSection = true;
+                                    }
+                                }
+                            }
+
+                            if (itemObj) {
+                                let topY = Math.max(0, itemObj.y - (isFirstInSection ? secH : 0));
+                                let botY = itemObj.y + itemObj.height;
+                                return { top: topY, bottom: botY };
+                            }
+
+                            let curY = 0;
+                            let prevSec = "";
+                            for (let i = 0; i <= idx; i++) {
+                                let m = clipBoxModel.get(i);
+                                if (!m) break;
+                                let sec = m.sectionCategory || "";
+                                let hasSec = (sec !== "" && sec !== prevSec);
+                                if (hasSec) {
+                                    curY += secH;
+                                    prevSec = sec;
+                                }
+                                let h = defaultH;
+                                let obj = itemAtIndex(i);
+                                if (obj) {
+                                    h = obj.height;
+                                }
+                                if (i === idx) {
+                                    let topY = Math.max(0, curY - (hasSec ? secH : 0));
+                                    let botY = curY + h;
+                                    return { top: topY, bottom: botY };
+                                }
+                                curY += h + spacing;
+                            }
+                            return { top: Math.max(0, curY), bottom: curY + defaultH };
+                        }
+
+                        function ensureVisible(idx, animated) {
+                            if (idx < 0 || clipBoxModel.count === 0) return;
+                            let bounds = getItemBounds(idx);
+                            if (!bounds) return;
+
+                            let curContentY = scrollAnim.running ? scrollAnim.to : contentY;
+                            let maxScroll = Math.max(0, Math.max(contentHeight, bounds.bottom) - height);
+                            let newContentY = curContentY;
+
+                            if (bounds.top < curContentY) {
+                                newContentY = bounds.top;
+                            } else if (bounds.bottom > curContentY + height) {
+                                newContentY = bounds.bottom - height;
+                            }
+
+                            newContentY = Math.max(0, Math.min(maxScroll, newContentY));
+
+                            if (Math.abs(newContentY - contentY) > 0.5) {
+                                if (animated) {
+                                    scrollAnim.stop();
+                                    scrollAnim.from = contentY;
+                                    scrollAnim.to = newContentY;
+                                    scrollAnim.start();
+                                } else {
+                                    scrollAnim.stop();
+                                    contentY = newContentY;
+                                }
+                            }
+                        }
+
+                        onMovementStarted: {
+                            scrollAnim.stop();
+                        }
+
+                        onCurrentIndexChanged: {
+                            if (currentIndex >= 0) {
+                                ensureVisible(currentIndex, clipboardWindow.isKeyboardNav);
+                            }
+                        }
+
+                        section.property: "sectionCategory"
+                        section.criteria: ViewSection.FullString
+                        section.delegate: Item {
+                            width: ListView.view ? ListView.view.width : 0
+                            height: clipboardWindow.s(22)
+                            Text {
+                                anchors.fill: parent
+                                anchors.leftMargin: clipboardWindow.s(4)
+                                anchors.rightMargin: clipboardWindow.s(4)
+                                verticalAlignment: Text.AlignVCenter
+                                horizontalAlignment: I18n.textAlignment
+                                text: section
+                                font.family: ThemeBackend.fontFamily
+                                font.weight: Font.Bold
+                                font.pixelSize: clipboardWindow.s(10.5)
+                                color: ThemeBackend.subtext0
+                                opacity: 0.85
+                            }
+                        }
+
+                        add: Transition {
+                            NumberAnimation {
+                                property: "opacity"
+                                from: 0.0
+                                to: 1.0
+                                duration: 250
+                                easing.type: Easing.OutCubic
+                            }
+                            NumberAnimation {
+                                property: "scale"
+                                from: 0.96
+                                to: 1.0
+                                duration: 270
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        remove: Transition {
+                            NumberAnimation {
+                                property: "opacity"
+                                to: 0.0
+                                duration: 170
+                                easing.type: Easing.OutCubic
+                            }
+                            NumberAnimation {
+                                property: "scale"
+                                to: 0.96
+                                duration: 170
+                                easing.type: Easing.OutCubic
+                            }
+                        }
+
+                        displaced: null
+
+                        onContentYChanged: {
+                            if (contentY < 0 && !moving && !flicking) {
+                                contentY = 0;
+                            }
+                        }
+
+                        ScrollBar.vertical: ScrollBar {
+                            active: clipList.moving || clipList.movingVertically
+                            width: clipboardWindow.s(4)
+                            policy: ScrollBar.AsNeeded
+                            contentItem: Rectangle { implicitWidth: clipboardWindow.s(4); radius: clipboardWindow.s(2); color: ThemeBackend.surface2 }
+                        }
+
+                        delegate: Item {
+                            id: clipDelegateWrapper
+                            width: ListView.view ? ListView.view.width : 0
+                            height: clipDelegateCard.height
+                            z: isSelected ? 2 : 1
+
+                            property bool isSelected: index === clipList.currentIndex
+                            property real selectFlash: 0.0
+
+                            onIsSelectedChanged: {
+                                if (isSelected && rowGlass.active) selectFlashAnim.restart();
+                            }
+
+                            NumberAnimation {
+                                id: selectFlashAnim
+                                target: clipDelegateWrapper
+                                property: "selectFlash"
+                                from: 1.0
+                                to: 0.0
+                                duration: 520
+                                easing.type: Easing.OutCubic
+                            }
+
+                            scale: clipCardMa.pressed ? 0.98 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutQuint } }
+
+                            property bool itemExpanded: false
+                            property real itemExpandProgress: itemExpanded ? 1.0 : 0.0
+                            Behavior on itemExpandProgress {
+                                enabled: !clipCardMa.draggingV
+                                NumberAnimation {
+                                    duration: 250
+                                    easing.type: Easing.OutQuart
+                                    onRunningChanged: {
+                                        if (!running && clipDelegateWrapper.isSelected) {
+                                            clipList.ensureVisible(clipList.currentIndex, true);
+                                        }
+                                    }
+                                }
+                            }
+
+                            property string clipIdString: (typeof model !== "undefined" && model && model.id !== undefined) ? model.id.toString() : (clipBoxModel.get(index) ? clipBoxModel.get(index).id.toString() : "")
+
+                            onClipIdStringChanged: {
+                                itemExpanded = false;
+                                dragX = 0;
+                            }
+
+                            property real dragX: 0
+                            property bool isDismissing: false
+
+                            property real clearDelay: 0
+                            NumberAnimation {
+                                id: clearSlideAnim
+                                target: clipDelegateWrapper
+                                property: "dragX"
+                                to: clipList.width * 1.2
+                                duration: 250
+                                easing.type: Easing.OutQuad
+                            }
+                            Timer {
+                                id: clearSlideTimer
+                                interval: clipDelegateWrapper.clearDelay
+                                onTriggered: clearSlideAnim.start()
+                            }
+                            function triggerClearSlide(delayMs) {
+                                clearDelay = delayMs;
+                                clearSlideTimer.start();
+                            }
+
+                            Text {
+                                id: textMeasure
+                                visible: false
+                                width: Math.max(10, clipboardWindow.baseLauncherWidth - clipboardWindow.s(96))
+                                text: (model && model.content) ? model.content : ""
+                                font.family: ThemeBackend.fontFamily
+                                font.pixelSize: clipboardWindow.s(12)
+                                wrapMode: Text.Wrap
+                                textFormat: Text.PlainText
+                            }
+
+                            function toggleExpand() {
+                                if (!clipDelegateCard.canExpand) return;
+                                if (!itemExpanded && model.type !== "image") {
+                                    clipboardWindow.fetchFullText(clipDelegateWrapper.clipIdString);
+                                }
+                                itemExpanded = !itemExpanded;
+                                itemExpandProgress = Qt.binding(() => itemExpanded ? 1.0 : 0.0);
+                            }
+
+                            onItemExpandedChanged: {
+                                if (itemExpanded) {
+                                    clipList.currentIndex = index;
+                                    if (model.type !== "image" && clipboardWindow.expandedClipId !== clipIdString) {
+                                        clipboardWindow.fetchFullText(clipIdString);
+                                    }
+                                    clipList.ensureVisible(index, true);
+                                }
+                            }
+
+                            NumberAnimation {
+                                id: clipResetAnim
+                                target: clipDelegateWrapper
+                                property: "dragX"
+                                from: clipDelegateWrapper.dragX
+                                to: 0
+                                duration: 250
+                                easing.type: Easing.OutCubic
+                            }
+
+                            NumberAnimation {
+                                id: clipDismissAnim
+                                target: clipDelegateWrapper
+                                property: "dragX"
+                                from: clipDelegateWrapper.dragX
+                                to: 0
+                                duration: 250
+                                easing.type: Easing.OutQuad
+                                onFinished: clipboardWindow.deleteClip(clipDelegateWrapper.clipIdString, index)
+                            }
+
+                            Rectangle {
+                                id: cardMask
+                                width: clipDelegateCard.width
+                                height: clipDelegateCard.height
+                                radius: clipDelegateCard.radius
+                                visible: false
+                                layer.enabled: clipDelegateCard.isImage
+                            }
+
+                            Rectangle {
+                                id: clipDelegateCard
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+
+                                layer.enabled: clipDelegateCard.isImage
+                                layer.effect: MultiEffect {
+                                    maskEnabled: true
+                                    maskSource: cardMask
+                                }
+
+                                readonly property bool isImage: model.type === "image"
+                                readonly property bool canExpand: {
+                                    if (isImage) return true;
+                                    let c = (model && model.content) ? model.content : "";
+                                    if (c.indexOf("\n") !== -1) return true;
+                                    if (c.length > 45) return true;
+                                    if (textMeasure.lineCount >= 2) return true;
+                                    if (textMeasure.paintedHeight > clipboardWindow.s(18)) return true;
+                                    return false;
+                                }
+                                readonly property real baseH: clipboardWindow.s(52)
+                                readonly property real expandedH: isImage ? clipboardWindow.s(250) : clipboardWindow.s(172)
+                                height: baseH + (expandedH - baseH) * clipDelegateWrapper.itemExpandProgress
+
+                                transform: Translate { x: clipDelegateWrapper.dragX }
+                                opacity: Math.max(0.0, 1.0 - (Math.abs(clipDelegateWrapper.dragX) / (clipDelegateCard.width * 0.75)))
+
+                                radius: Math.min(ThemeBackend.borderRadius, clipboardWindow.s(12))
+                                readonly property bool glassRow: !isImage && ThemeBackend.liquidGlass
+                                color: {
+                                    if (glassRow) return "transparent";
+                                    if (clipDelegateWrapper.isSelected) {
+                                        return isImage ? ThemeBackend.surface0 : Qt.tint(ThemeBackend.surface1, Qt.alpha(Qt.tint(ThemeBackend.mauve, Qt.alpha(ThemeBackend.text, 0.22)), 0.15));
+                                    }
+                                    return isImage ? ThemeBackend.surface0 : (clipCardMa.containsMouse ? Qt.lighter(ThemeBackend.surface1, 1.04) : ThemeBackend.surface1);
+                                }
+                                clip: true
+
+                                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                                GlassFill {
+                                    id: rowGlass
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    allowed: !clipDelegateCard.isImage
+                                    forceClear: clipDelegateWrapper.isSelected
+                                    tintColor: clipDelegateWrapper.isSelected ? ThemeBackend.text : ThemeBackend.surface1
+                                    tintAmount: clipDelegateWrapper.isSelected ? 0.1 : 0.3
+                                    tintStrength: 1.0
+                                    press: clipCardMa.pressed ? 0.8 : (clipDelegateWrapper.isSelected ? 0.6 : (clipCardMa.containsMouse ? 0.25 : 0))
+                                    pulse: clipDelegateWrapper.selectFlash
+                                }
+
+                                Image {
+                                    id: clipCardCropImg
+                                    anchors.fill: parent
+                                    source: (clipDelegateCard.isImage && model.content) ? (model.content.startsWith("file://") ? model.content : "file://" + model.content) : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    smooth: true
+                                    cache: false
+                                    sourceSize: Qt.size(Math.round(clipboardWindow.baseLauncherWidth * (Screen.devicePixelRatio || 1)), Math.round(clipboardWindow.s(250) * (Screen.devicePixelRatio || 1)))
+                                    visible: clipDelegateCard.isImage && opacity > 0.01
+                                    opacity: 1.0 - (clipDelegateWrapper.itemExpandProgress * 0.85)
+                                }
+
+                                Image {
+                                    id: clipCardFitImg
+                                    anchors.fill: parent
+                                    anchors.margins: clipboardWindow.s(6) * clipDelegateWrapper.itemExpandProgress
+                                    source: (clipDelegateCard.isImage && model.content && clipDelegateWrapper.itemExpandProgress > 0.01) ? (model.content.startsWith("file://") ? model.content : "file://" + model.content) : ""
+                                    fillMode: Image.PreserveAspectFit
+                                    asynchronous: true
+                                    smooth: true
+                                    cache: false
+                                    sourceSize: Qt.size(Math.round(clipboardWindow.baseLauncherWidth * (Screen.devicePixelRatio || 1)), Math.round(clipboardWindow.s(250) * (Screen.devicePixelRatio || 1)))
+                                    visible: clipDelegateCard.isImage && clipDelegateWrapper.itemExpandProgress > 0.01
+                                    opacity: clipDelegateWrapper.itemExpandProgress
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: clipDelegateCard.radius
+                                    color: Qt.rgba(0, 0, 0, clipCardMa.containsMouse ? 0.15 : 0.0)
+                                    visible: clipDelegateCard.isImage
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+
+                                Rectangle {
+                                    id: imageSelectionBorder
+                                    anchors.fill: parent
+                                    radius: clipDelegateCard.radius
+                                    color: (clipDelegateWrapper.isSelected && clipDelegateCard.isImage) ? Qt.alpha(Qt.tint(ThemeBackend.mauve, Qt.alpha(ThemeBackend.text, 0.22)), 0.10) : "transparent"
+                                    z: 10
+                                    visible: clipDelegateCard.isImage
+
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+
+                                MouseArea {
+                                    id: clipCardMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    enabled: !clipboardWindow.isClearingClips
+                                    cursorShape: Qt.PointingHandCursor
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                                    property real startRootX: 0
+                                    property real startRootY: 0
+                                    property bool draggingH: false
+                                    property bool draggingV: false
+
+                                    onPressed: (mouse) => {
+                                        clipList.currentIndex = index;
+                                        let pt = mapToItem(container, mouse.x, mouse.y);
+                                        startRootX = pt.x;
+                                        startRootY = pt.y;
+                                        draggingH = false;
+                                        draggingV = false;
+                                        clipResetAnim.stop();
+                                        if (model.type !== "image" && clipDelegateCard.canExpand) {
+                                            clipboardWindow.fetchFullText(clipDelegateWrapper.clipIdString);
+                                        }
+                                    }
+
+                                    onPositionChanged: (mouse) => {
+                                        if (!pressed) return;
+                                        let pt = mapToItem(container, mouse.x, mouse.y);
+                                        let dx = pt.x - startRootX;
+                                        let dy = pt.y - startRootY;
+
+                                        if (!draggingH && !draggingV) {
+                                            if (Math.abs(dx) > clipboardWindow.s(6) && Math.abs(dx) > Math.abs(dy)) {
+                                                draggingH = true;
+                                                clipCardMa.preventStealing = true;
+                                            } else if (clipDelegateCard.canExpand && Math.abs(dy) > clipboardWindow.s(6) && Math.abs(dy) >= Math.abs(dx)) {
+                                                draggingV = true;
+                                                clipCardMa.preventStealing = true;
+                                                if (model.type !== "image" && clipboardWindow.expandedClipId !== clipDelegateWrapper.clipIdString) {
+                                                    clipboardWindow.fetchFullText(clipDelegateWrapper.clipIdString);
+                                                }
+                                            }
+                                        }
+
+                                        if (draggingH) {
+                                            clipDelegateWrapper.dragX = dx;
+                                        } else if (draggingV && clipDelegateCard.canExpand) {
+                                            let dragDist = clipboardWindow.s(120);
+                                            let targetProg = clipDelegateWrapper.itemExpanded
+                                                ? Math.max(0.0, Math.min(1.0, 1.0 + (dy / dragDist)))
+                                                : Math.max(0.0, Math.min(1.0, dy / dragDist));
+                                            clipDelegateWrapper.itemExpandProgress = targetProg;
+                                        }
+                                    }
+
+                                    onReleased: (mouse) => {
+                                        clipCardMa.preventStealing = false;
+                                        if (draggingH) {
+                                            let threshold = clipDelegateCard.width * 0.25;
+                                            if (Math.abs(clipDelegateWrapper.dragX) > threshold) {
+                                                clipDelegateWrapper.isDismissing = true;
+                                                clipDismissAnim.from = clipDelegateWrapper.dragX;
+                                                clipDismissAnim.to = clipDelegateWrapper.dragX > 0 ? clipDelegateCard.width * 1.2 : -clipDelegateCard.width * 1.2;
+                                                clipDismissAnim.start();
+                                            } else {
+                                                clipResetAnim.from = clipDelegateWrapper.dragX;
+                                                clipResetAnim.start();
+                                            }
+                                            draggingH = false;
+                                        } else if (draggingV && clipDelegateCard.canExpand) {
+                                            if (!clipDelegateWrapper.itemExpanded && clipDelegateWrapper.itemExpandProgress > 0.35) {
+                                                clipDelegateWrapper.itemExpanded = true;
+                                            } else if (clipDelegateWrapper.itemExpanded && clipDelegateWrapper.itemExpandProgress < 0.65) {
+                                                clipDelegateWrapper.itemExpanded = false;
+                                            }
+                                            clipDelegateWrapper.itemExpandProgress = Qt.binding(() => clipDelegateWrapper.itemExpanded ? 1.0 : 0.0);
+                                            draggingV = false;
+                                        } else {
+                                            let ptE = mapToItem(clipItemExpandIcon, mouse.x, mouse.y);
+                                            let inE = clipItemExpandIcon.visible && ptE.x >= 0 && ptE.y >= 0 && ptE.x <= clipItemExpandIcon.width && ptE.y <= clipItemExpandIcon.height;
+                                            if (!inE) {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    clipboardWindow.pinClip(clipDelegateWrapper.clipIdString, index);
+                                                } else {
+                                                    clipboardWindow.copyClip(clipDelegateWrapper.clipIdString, model.pinned);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    onCanceled: {
+                                        clipCardMa.preventStealing = false;
+                                        if (draggingH) {
+                                            clipResetAnim.from = clipDelegateWrapper.dragX;
+                                            clipResetAnim.start();
+                                            draggingH = false;
+                                        }
+                                        if (draggingV && clipDelegateCard.canExpand) {
+                                            clipDelegateWrapper.itemExpandProgress = Qt.binding(() => clipDelegateWrapper.itemExpanded ? 1.0 : 0.0);
+                                            draggingV = false;
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: clipTypeIcon
+                                    x: I18n.rtl ? (parent.width - width - clipboardWindow.s(8)) : clipboardWindow.s(8)
+                                    y: clipboardWindow.s(11)
+                                    width: clipboardWindow.s(30)
+                                    height: clipboardWindow.s(30)
+                                    radius: clipboardWindow.s(8)
+                                    color: clipDelegateCard.glassRow ? "transparent" : ThemeBackend.surface2
+                                    clip: true
+                                    z: 3
+                                    visible: (clipDelegateCard.isImage || clipDelegateWrapper.itemExpandProgress < 0.99) && opacity > 0.001
+                                    opacity: clipDelegateCard.isImage ? 1.0 : Math.max(0.0, 1.0 - clipDelegateWrapper.itemExpandProgress * 2.0)
+
+                                    Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+
+                                    GlassFill {
+                                        anchors.fill: parent
+                                        radius: parent.radius
+                                        allowed: clipDelegateCard.glassRow
+                                        forceClear: clipDelegateWrapper.isSelected
+                                        tintColor: clipDelegateWrapper.isSelected ? ThemeBackend.text : ThemeBackend.surface2
+                                        tintAmount: clipDelegateWrapper.isSelected ? 0.1 : 0.3
+                                        tintStrength: 1.0
+                                    }
+
+                                    Image {
+                                        id: clipThumbImg
+                                        anchors.fill: parent
+                                        anchors.margins: clipboardWindow.s(2)
+                                        source: (!clipDelegateCard.isImage && model.type === "image" && model.content) ? (model.content.startsWith("file://") ? model.content : "file://" + model.content) : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        smooth: true
+                                        cache: false
+                                        sourceSize: Qt.size(Math.round(clipboardWindow.s(60) * (Screen.devicePixelRatio || 1)), Math.round(clipboardWindow.s(60) * (Screen.devicePixelRatio || 1)))
+                                        visible: model.type === "image" && status === Image.Ready
+                                    }
+
+                                    Text {
+                                        id: delegateFontIcon
+                                        anchors.centerIn: parent
+                                        font.family: ThemeBackend.iconFont
+                                        font.pixelSize: clipboardWindow.s(14)
+                                        color: (!clipDelegateCard.isImage && clipDelegateWrapper.isSelected) || ThemeBackend.liquidGlass ? ThemeBackend.text : ThemeBackend.subtext0
+                                        text: model.type === "image" ? "󰋩" : "󰈙"
+                                        visible: model.type !== "image" || (!model.content || clipThumbImg.status !== Image.Ready)
+
+                                        Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+
+                                FlipIcon {
+                                    id: clipItemExpandIcon
+                                    z: 4
+                                    x: I18n.rtl ? clipboardWindow.s(8) : (parent.width - width - clipboardWindow.s(8))
+                                    y: clipboardWindow.s(12.8)
+                                    size: clipboardWindow.s(26.4)
+                                    cornerRadius: clipboardWindow.s(6.6)
+                                    accentColor: ThemeBackend.surface2
+                                    iconColor: isHoveredOrHighlighted ? ThemeBackend.text : ThemeBackend.subtext1
+                                    autoToggle: false
+                                    visible: clipDelegateCard.canExpand
+                                    flipped: clipDelegateWrapper.itemExpandProgress > 0.5
+                                    onClicked: {
+                                        clipList.currentIndex = index;
+                                        clipDelegateWrapper.toggleExpand();
+                                    }
+                                }
+
+                                Item {
+                                    id: clipSummaryContainer
+                                    z: 2
+                                    x: !I18n.rtl ? (clipTypeIcon.x + clipTypeIcon.width + clipboardWindow.s(8)) : (clipDelegateCard.canExpand ? clipboardWindow.s(38) : clipboardWindow.s(12))
+                                    width: Math.max(0, parent.width - x - (!I18n.rtl ? (clipDelegateCard.canExpand ? clipboardWindow.s(38) : clipboardWindow.s(12)) : (clipTypeIcon.width + clipboardWindow.s(16))))
+                                    y: clipboardWindow.s(10)
+                                    height: clipboardWindow.s(32)
+                                    visible: !clipDelegateCard.isImage && clipDelegateWrapper.itemExpandProgress < 0.99 && opacity > 0.001
+                                    opacity: Math.max(0.0, 1.0 - clipDelegateWrapper.itemExpandProgress * 2.0)
+                                    clip: true
+
+                                    Text {
+                                        id: clipSummaryText
+                                        anchors.fill: parent
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: model.content || ""
+                                        font.family: ThemeBackend.fontFamily
+                                        font.pixelSize: clipboardWindow.s(12)
+                                        font.weight: clipDelegateWrapper.isSelected ? Font.Bold : Font.Normal
+                                        color: ThemeBackend.text
+                                        horizontalAlignment: I18n.textAlignment
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 2
+                                        wrapMode: Text.Wrap
+                                        textFormat: Text.PlainText
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+
+                                Item {
+                                    id: clipTextExpandArea
+                                    z: 3
+                                    visible: !clipDelegateCard.isImage && clipDelegateWrapper.itemExpandProgress > 0.01
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.bottom: parent.bottom
+                                    anchors.leftMargin: I18n.rtl ? (clipDelegateCard.canExpand ? clipboardWindow.s(42) : clipboardWindow.s(10)) : clipboardWindow.s(10)
+                                    anchors.topMargin: clipboardWindow.s(10)
+                                    anchors.bottomMargin: clipboardWindow.s(10)
+                                    anchors.rightMargin: I18n.rtl ? clipboardWindow.s(10) : (clipDelegateCard.canExpand ? clipboardWindow.s(42) : clipboardWindow.s(10))
+                                    clip: true
+                                    opacity: Math.max(0.0, (clipDelegateWrapper.itemExpandProgress - 0.15) / 0.85)
+
+                                    Flickable {
+                                        id: clipFlickable
+                                        anchors.fill: parent
+                                        contentWidth: width
+                                        contentHeight: clipPreviewText.implicitHeight
+                                        boundsBehavior: Flickable.StopAtBounds
+                                        interactive: contentHeight > height
+                                        clip: true
+
+                                        ScrollBar.vertical: ScrollBar {
+                                            width: clipboardWindow.s(3)
+                                            policy: ScrollBar.AsNeeded
+                                            contentItem: Rectangle { radius: clipboardWindow.s(1.5); color: ThemeBackend.surface2 }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            onClicked: (mouse) => {
+                                                clipList.currentIndex = index;
+                                                if (mouse.button === Qt.RightButton) {
+                                                    clipboardWindow.pinClip(clipDelegateWrapper.clipIdString, index);
+                                                } else {
+                                                    clipboardWindow.copyClip(clipDelegateWrapper.clipIdString, model.pinned);
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            id: clipPreviewText
+                                            width: clipFlickable.width
+                                            horizontalAlignment: I18n.textAlignment
+                                            text: clipDelegateWrapper.itemExpandProgress > 0.01 ? ((clipboardWindow.expandedClipId === clipDelegateWrapper.clipIdString && clipboardWindow.expandedClipFullText !== "") ? clipboardWindow.expandedClipFullText : ((model && model.content) ? model.content : "")) : ""
+                                            font.family: ThemeBackend.fontFamily
+                                            font.pixelSize: clipboardWindow.s(12)
+                                            font.weight: Font.Normal
+                                            color: ThemeBackend.text
+                                            wrapMode: Text.Wrap
+                                            textFormat: Text.PlainText
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

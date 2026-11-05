@@ -3,16 +3,20 @@ Python (ryoku/shell/quickshell/shell/modules/bar/barstyles/python/)
 Python is a Ryoku bar style based on Serpantinum, created by ilyamiro and
 contributors (https://github.com/ilyamiro/serpantinum). It is a modified
 version: the QML surfaces are ported near-verbatim, while the data plane runs
-through Ryoku's window-manager seam, settings daemon, palette and services,
-and the launcher, clipboard, wallpaper, lock, screenshot and update surfaces
-are Ryoku's own and are not part of this port.
+through Ryoku's window-manager seam, settings daemon, palette and services.
 
-This port tracks Serpantinum at commit cfdd810, past 2.2.12. Ryoku carries the
-upstream bar registry, orientation-aware faces, shader effects, liquid-glass
-material, settings guide, popups and widget-face library. It leaves out
-Serpantinum's launcher, clipboard, wallpaper, lock, capture, notification
-server, policy agent, idle service, updater, first-run flow, compositor
-trackers and desktop-widget host because Ryoku provides those facilities.
+This port tracks Serpantinum at commit 3619689, release 2.3.1. It includes the
+upstream bars, faces, media surfaces, guide and standalone settings window,
+launcher, clipboard presentation, policy prompt presentation, quick actions,
+wellbeing views and widget-face library. Ryoku supplies the application
+catalogue, clipboard history, policy agent, recorder, notifications, wallpaper,
+window-manager state, configuration storage, dock host and widget host.
+
+The port intentionally leaves out Ski and its file picker and pins, the lock
+editor, fingerprint and PAM code, Serpantinum's screenshot and OCR stack,
+Tesseract integration, installers and AUR or Nix packaging, telemetry, updater
+and first-run flow. Wallpaper, capture, qylock, idle, updates, Super+Escape,
+desktop widgets and the universal dock remain Ryoku surfaces.
 
 Serpantinum is released under the GNU Affero General Public License, version 3
 or later (https://www.gnu.org/licenses/agpl-3.0.html); LICENSE beside this file
