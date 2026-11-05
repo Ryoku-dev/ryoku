@@ -160,10 +160,8 @@ Item {
     function openQsBarSettings() {
         Quickshell.execDetached(["ryoku-shell", "bar", "settings"]);
     }
-    // Orpheus opens its settings through its own `orpheus` IPC target, on the
-    // focused output.
     function openOrpheusSettings() {
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "orpheus", "settings", ""]);
+        Spawn.run(["qs", "-c", "shell", "ipc", "call", "orpheus", "settings", ""]);
     }
     function openDockSettings() {
         Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "desktop", "editSection", "dock", ""]);
