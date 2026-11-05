@@ -18,6 +18,8 @@
 - **Terminal syntax follows light and dark wallpaper palettes.** Matugen now
   renders Fish, Bash and Zsh colours beside the terminal theme so typed input,
   commands and suggestions keep their contrast.
+- **Notifications follow the shell shape and palette.** Their cards use the
+  configured corner radius, and the countdown border uses the active accent.
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.

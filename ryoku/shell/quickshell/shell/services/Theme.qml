@@ -25,8 +25,8 @@ import Ryoku.Ui.Singletons as Ui
  * binding, leaving the colour at transparent black; naming the property as a
  * string in a Binding sidesteps that grab.
  *
- * Sizing and fonts are compiled defaults; opacity takes its value from the
- * Config frameOpacity knob.
+ * Sizing reads the configured theme values with compiled fallbacks; fonts stay
+ * compiled defaults. Opacity takes its value from the Config frameOpacity knob.
  */
 Singleton {
     id: root
@@ -187,9 +187,9 @@ Singleton {
     // Hard offset for the brutalist drop shadow (opaque, no blur).
     readonly property int shadowOffset: 3
 
-    // --- sizing (compiled defaults; frameOpacity is the Config knob) ----------
-    readonly property int  radiusWidget: 8
-    readonly property int  radiusWindow: 8
+    // --- sizing (config values with compiled fallbacks) ------------------------
+    readonly property int  radiusWidget: Config.themeSizing.radius_widget ?? 8
+    readonly property int  radiusWindow: Config.themeSizing.radius_window ?? 8
     readonly property int  borderWidth: 2
     readonly property int  paddingSm: 4
     readonly property int  paddingMd: 8

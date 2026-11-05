@@ -58,6 +58,7 @@ Singleton {
     property alias barStyle: adapter.barStyle
     property alias notifications: adapter.notifications
     readonly property var sounds: adapter.sounds
+    readonly property var themeSizing: adapter.theme?.attributes?.sizing ?? ({})
 
     // obi: per-widget visibility for the Obi bar style, edited in Bar Studio.
     // A map of widgetId -> bool; an absent key reads as shown, so the bar is
@@ -352,6 +353,14 @@ Singleton {
             property string screenShader: ""
             property var frameBars: FrameBars.defaultConfig()
             property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
+            property var theme: ({
+                "attributes": {
+                    "sizing": {
+                        "radius_widget": 8,
+                        "radius_window": 8
+                    }
+                }
+            })
             property var notifications: ({
                 "notification_position": "Right",
                 "popup_window_margins": 0,

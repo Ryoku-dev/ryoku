@@ -434,7 +434,7 @@ Rectangle {
             ctx.arcTo(o, o, o + rad, o, rad);
             ctx.lineTo(o + w / 2, o);
             ctx.lineWidth = sw;
-            ctx.strokeStyle = Theme.flameGlow;
+            ctx.strokeStyle = Theme.primary;
             ctx.lineCap = "butt";
             ctx.setLineDash([drawn, perim + 1]);
             ctx.stroke();
