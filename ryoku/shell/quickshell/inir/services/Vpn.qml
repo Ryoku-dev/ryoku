@@ -13,8 +13,8 @@ import inir.services
  * connection profiles (OpenVPN, WireGuard, IPSec, anything with an NM plugin)
  * and Tailscale, which runs beside NetworkManager rather than inside it.
  *
- * There is no background polling: refreshes follow nmcli monitor through
- * Network.networkChanged and callers asking; a timer runs only while a surface holds
+ * There is no background polling: refreshes follow the daemon network topic
+ * through Network.networkChanged and callers asking; a timer runs only while a surface holds
  * the service alive, because Tailscale changes do not reach NetworkManager.
  */
 Singleton {

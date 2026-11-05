@@ -1,11 +1,7 @@
 import QtQuick
-import QtQuick.Layouts
 import QtQuick.Window
-import QtQuick.Controls
 import Quickshell
-import Quickshell.Io
-import Quickshell.Wayland
-import Quickshell.Networking
+import shell.services
 import "../../../reusables"
 import "../../../"
 
@@ -79,235 +75,29 @@ Item {
         return true;
     }
 
-    property bool isDesktop: false
-    property string ethStatus: "Ethernet"
-    property string wifiStatus: isPreview ? "Enabled" : "Off"
-    property string wifiIcon: isPreview ? "󰤨" : "󰤮"
-    property string wifiSsid: isPreview ? "Home-WiFi" : ""
-    property bool isWifiOn: isPreview ? true : Networking.wifiEnabled
-    property bool showEthernet: !isPreview && (ethStatus === "Connected" || (isDesktop && !isWifiOn))
+    property string ethStatus: isPreview || Network.kind !== "ethernet" ? "Ethernet" : "Connected"
+    property string wifiStatus: isPreview || Network.wifiRadio ? "Enabled" : "Off"
+    property string wifiSsid: isPreview ? "Home-WiFi" : Network.activeSsid
+    property bool isWifiOn: isPreview || Network.wifiRadio
+    property bool showEthernet: !isPreview && Network.kind === "ethernet"
     property bool showLayout: (!barWindow || isPreview) ? true : ((!module || module.moduleActive) && barWindow.isStartupReady && barWindow.isDataReady)
     readonly property var wifiPill: pillLoader.item
 
-    property var ethDevice: null
-    property var wifiDevice: null
-
-    Component.onCompleted: {
-        findDevices();
-        updateNetworkData();
+    property string wifiIcon: {
+        if (isPreview)
+            return "󰤨";
+        if (!Network.wifiRadio)
+            return "󰤮";
+        if (Network.kind !== "wifi")
+            return "󰤯";
+        const signal = Math.round(Network.level * 100);
+        if (signal >= 80) return "󰤨";
+        if (signal >= 60) return "󰤥";
+        if (signal >= 40) return "󰤢";
+        if (signal >= 20) return "󰤟";
+        return "󰤯";
     }
 
-    Connections {
-        target: module || null
-        function onModuleActiveChanged() {
-            if (module && !module.moduleActive) {
-                chassisDetector.running = false;
-            } else {
-                chassisDetector.running = true;
-                root.findDevices();
-                root.updateNetworkData();
-            }
-        }
-    }
-
-    Process {
-        id: chassisDetector
-        running: !module || module.moduleActive
-        command: ["bash", "-c", "if ls /sys/class/power_supply/BAT* 1> /dev/null 2>&1; then echo 'laptop'; else echo 'desktop'; fi"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.isDesktop = (this.text.trim() === "desktop");
-            }
-        }
-    }
-
-    function isEthDevice(dev) {
-        return !!dev && dev.type === DeviceType.Wired;
-    }
-
-    function isWifiDevice(dev) {
-        return !!dev && dev.type === DeviceType.Wifi;
-    }
-
-    function findDevices() {
-        if (!Networking || !Networking.devices) return;
-        let devs = Networking.devices.values || Networking.devices;
-        let count = devs.length !== undefined ? devs.length : (devs.count !== undefined ? devs.count : 0);
-        let bestEth = null;
-        let bestRank = -1;
-        let wifi = null;
-        for (let i = 0; i < count; i++) {
-            let d = devs[i] !== undefined ? devs[i] : (devs.get ? devs.get(i) : null);
-            if (!d) continue;
-            if (isEthDevice(d)) {
-                let rank = d.connected ? 2 : (d.hasLink ? 1 : 0);
-                if (rank > bestRank) {
-                    bestEth = d;
-                    bestRank = rank;
-                }
-            } else if (!wifi && isWifiDevice(d)) {
-                wifi = d;
-            }
-        }
-        if (root.wifiDevice !== wifi) root.wifiDevice = wifi;
-        if (root.ethDevice !== bestEth) root.ethDevice = bestEth;
-    }
-
-    function getWifiNetworksList() {
-        if (!wifiDevice || !wifiDevice.networks) return [];
-        let nets = wifiDevice.networks.values || wifiDevice.networks;
-        let list = [];
-        let count = nets.length !== undefined ? nets.length : (nets.count !== undefined ? nets.count : 0);
-        for (let i = 0; i < count; i++) {
-            let n = nets[i] !== undefined ? nets[i] : (nets.get ? nets.get(i) : null);
-            if (n) list.push(n);
-        }
-        return list;
-    }
-
-    function updateNetworkData() {
-        findDevices();
-
-        let isWifiEnabled = Networking.wifiEnabled;
-        wifiStatus = isWifiEnabled ? "Enabled" : "Off";
-
-        if (ethDevice) {
-            if (ethDevice.connected) {
-                ethStatus = "Connected";
-            } else if (ethDevice.hasLink) {
-                ethStatus = "Disconnected";
-            } else {
-                ethStatus = "Ethernet";
-            }
-        } else {
-            ethStatus = "Ethernet";
-        }
-
-        if (!isWifiEnabled) {
-            wifiSsid = "";
-            wifiIcon = "󰤮";
-            return;
-        }
-
-        let connectedNet = null;
-        let netList = getWifiNetworksList();
-        for (let i = 0; i < netList.length; i++) {
-            let n = netList[i];
-            if (n && n.connected) {
-                connectedNet = n;
-                break;
-            }
-        }
-
-        if (connectedNet) {
-            wifiSsid = connectedNet.name || connectedNet.ssid || "";
-            let sig = connectedNet.signalStrength !== undefined ? Math.round(connectedNet.signalStrength * (connectedNet.signalStrength <= 1 ? 100 : 1)) : 100;
-            if (sig >= 80) wifiIcon = "󰤨";
-            else if (sig >= 60) wifiIcon = "󰤥";
-            else if (sig >= 40) wifiIcon = "󰤢";
-            else if (sig >= 20) wifiIcon = "󰤟";
-            else wifiIcon = "󰤯";
-        } else {
-            wifiSsid = "";
-            wifiIcon = "󰤯";
-        }
-    }
-
-    Item {
-        visible: false
-
-        Connections {
-            target: Networking
-            ignoreUnknownSignals: true
-            function onWifiEnabledChanged() { root.updateNetworkData(); }
-            function onDevicesChanged() {
-                root.findDevices();
-                root.updateNetworkData();
-            }
-        }
-
-        Connections {
-            target: Networking.devices || null
-            ignoreUnknownSignals: true
-            function onObjectInsertedPost(object, index) {
-                root.findDevices();
-                root.updateNetworkData();
-            }
-            function onObjectRemovedPost(object, index) {
-                root.findDevices();
-                root.updateNetworkData();
-            }
-            function onCountChanged() {
-                root.findDevices();
-                root.updateNetworkData();
-            }
-        }
-
-        Connections {
-            target: root.ethDevice || null
-            ignoreUnknownSignals: true
-            function onConnectedChanged() { root.updateNetworkData(); }
-            function onStateChanged() { root.updateNetworkData(); }
-            function onHasLinkChanged() { root.updateNetworkData(); }
-        }
-
-        Connections {
-            target: root.wifiDevice || null
-            ignoreUnknownSignals: true
-            function onConnectedChanged() { root.updateNetworkData(); }
-            function onStateChanged() { root.updateNetworkData(); }
-            function onNetworksChanged() { root.updateNetworkData(); }
-        }
-
-        Connections {
-            target: (root.wifiDevice && root.wifiDevice.networks) ? root.wifiDevice.networks : null
-            ignoreUnknownSignals: true
-            function onObjectInsertedPost(object, index) { root.updateNetworkData(); }
-            function onObjectRemovedPost(object, index) { root.updateNetworkData(); }
-            function onCountChanged() { root.updateNetworkData(); }
-        }
-
-        Repeater {
-            id: netDeviceRepeater
-            model: Networking.devices
-            Item {
-                property var device: modelData
-                Component.onCompleted: {
-                    if (device && device.type === DeviceType.Wired) {
-                        root.findDevices();
-                    } else if (device && device.type === DeviceType.Wifi) {
-                        root.wifiDevice = device;
-                    }
-                    root.updateNetworkData();
-                }
-                Connections {
-                    target: device || null
-                    ignoreUnknownSignals: true
-                    function onStateChanged() { root.updateNetworkData(); }
-                    function onConnectedChanged() { root.updateNetworkData(); }
-                    function onHasLinkChanged() { root.updateNetworkData(); }
-                }
-            }
-        }
-
-        Repeater {
-            id: wifiNetworkRepeater
-            model: root.wifiDevice ? root.wifiDevice.networks : null
-            Item {
-                property var network: modelData
-                Component.onCompleted: root.updateNetworkData()
-                Connections {
-                    target: network || null
-                    ignoreUnknownSignals: true
-                    function onSignalStrengthChanged() { root.updateNetworkData(); }
-                    function onStateChanged() { root.updateNetworkData(); }
-                    function onConnectedChanged() { root.updateNetworkData(); }
-                    function onNameChanged() { root.updateNetworkData(); }
-                    function onSsidChanged() { root.updateNetworkData(); }
-                }
-            }
-        }
-    }
 
     property string effectiveIcon: root.showEthernet ? "󰈀" : root.wifiIcon
     property string effectiveName: root.showEthernet ? root.ethStatus : ((root.isWifiOn ? (root.wifiSsid !== "" ? root.wifiSsid : "On") : "Off"))

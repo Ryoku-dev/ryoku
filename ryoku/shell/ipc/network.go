@@ -48,6 +48,14 @@ const (
 	nmDeviceWifi     = 2
 )
 
+const (
+	nmConnectivityUnknown = 0
+	nmConnectivityNone    = 1
+	nmConnectivityPortal  = 2
+	nmConnectivityLimited = 3
+	nmConnectivityFull    = 4
+)
+
 // networkState holds the one system-bus connection and the topic the network
 // frames publish to.
 type networkState struct {
@@ -61,6 +69,17 @@ type networkState struct {
 type networkSnapshot struct {
 	frame map[string]any
 	aps   map[dbus.ObjectPath]map[string]any
+}
+
+type networkConnection struct {
+	Kind         string `json:"kind"`
+	Connectivity string `json:"connectivity"`
+	Online       bool   `json:"online"`
+}
+
+type primaryDevice struct {
+	typ   uint32
+	state uint32
 }
 
 // apInfo is one access point flattened to the fields the reveal renders.
@@ -405,10 +424,13 @@ func (n *networkState) snapshotState() *networkSnapshot {
 		wired["connectivity"] = connectivityFromState(n.uintProp(n.obj(wiredDev), nmDeviceIface+".State"))
 	}
 
+	connection := n.primaryConnection()
+
 	return &networkSnapshot{
 		frame: map[string]any{
 			"wifi":         wifi,
 			"wired":        wired,
+			"connection":   connection,
 			"accessPoints": aps,
 			"wireguard":    n.wireguardTunnels(saved, active),
 			"vpn":          vpnProfileFrames(saved, n.vpnLiveState(saved, active)),
@@ -467,6 +489,60 @@ func deviceRank(state uint32) int {
 	default:
 		return 0
 	}
+}
+
+func summarizePrimaryConnection(connectivity uint32, devices []primaryDevice) networkConnection {
+	summary := networkConnection{Connectivity: networkManagerConnectivity(connectivity)}
+	if connectivity != nmConnectivityFull {
+		return summary
+	}
+	for _, device := range devices {
+		if device.state != 100 {
+			continue
+		}
+		summary.Online = true
+		if device.typ == nmDeviceWifi {
+			summary.Kind = "wifi"
+		} else {
+			summary.Kind = "ethernet"
+		}
+		break
+	}
+	return summary
+}
+
+func networkManagerConnectivity(connectivity uint32) string {
+	switch connectivity {
+	case nmConnectivityNone:
+		return "none"
+	case nmConnectivityPortal:
+		return "portal"
+	case nmConnectivityLimited:
+		return "limited"
+	case nmConnectivityFull:
+		return "full"
+	default:
+		return "unknown"
+	}
+}
+
+func (n *networkState) primaryConnection() networkConnection {
+	connectivity := n.uintProp(n.obj(nmPath), nmIface+".Connectivity")
+	primary := n.pathProp(n.obj(nmPath), nmIface+".PrimaryConnection")
+	if primary == "" || primary == "/" {
+		return summarizePrimaryConnection(connectivity, nil)
+	}
+
+	paths := n.pathSliceProp(n.obj(primary), nmActiveIface+".Devices")
+	devices := make([]primaryDevice, 0, len(paths))
+	for _, path := range paths {
+		device := n.obj(path)
+		devices = append(devices, primaryDevice{
+			typ:   n.uintProp(device, nmDeviceIface+".DeviceType"),
+			state: n.uintProp(device, nmDeviceIface+".State"),
+		})
+	}
+	return summarizePrimaryConnection(connectivity, devices)
 }
 
 // apPaths lists the access points the wifi device currently sees, in service
@@ -1003,6 +1079,15 @@ func (n *networkState) pathProp(o dbus.BusObject, name string) dbus.ObjectPath {
 	}
 	p, _ := v.Value().(dbus.ObjectPath)
 	return p
+}
+
+func (n *networkState) pathSliceProp(o dbus.BusObject, name string) []dbus.ObjectPath {
+	v, err := o.GetProperty(name)
+	if err != nil {
+		return nil
+	}
+	paths, _ := v.Value().([]dbus.ObjectPath)
+	return paths
 }
 
 // --- pure helpers (unit-tested) ---

@@ -27,6 +27,9 @@
   opens Ryoku Settings, Super+V opens Ryoku's clipboard, Super+Escape opens
   quick settings and Super+Space opens the launcher selected in Ryoku Settings
   (`quickshell/shell/{shell.qml,services/,modules/bar/barstyles/}`, `ipc/`).
+- **USB tethering no longer leaves the bar offline.** Every bar style now reads
+  the primary NetworkManager connection from the shell service, including phone
+  links exposed as wired, modem or USB-backed devices.
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.
