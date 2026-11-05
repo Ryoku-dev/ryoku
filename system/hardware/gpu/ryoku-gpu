@@ -365,7 +365,20 @@ cmd_check_pin() {
   echo "stale-pin ${slot:-unknown}"
 }
 
+cmd_status_json() {
+  analyze
+  if reverse_prime_panel_risk; then
+    printf '%s\n' "{\"performance_available\":false,\"performance_reason\":\"Switch the laptop's graphics MUX to discrete first.\"}"
+    return 0
+  fi
+  printf '%s\n' '{"performance_available":true,"performance_reason":""}'
+}
+
 cmd_status() {
+  if [[ ${1:-} == "--json" ]]; then
+    cmd_status_json
+    return 0
+  fi
   cmd_detect
   echo
   if [[ -f $GPU_CONF_DEFAULT ]] && grep -q 'hl\.env("AQ_DRM_DEVICES"' "$GPU_CONF_DEFAULT"; then
@@ -474,8 +487,9 @@ Commands:
   persist [PATH]  Write the Hyprland pin (Lua) to PATH, to ~/.config/hypr/gpu.lua
                   by default, or to stdout when PATH is '-'.
   disable [PATH]  Reset the pin file to a managed comment-only placeholder.
-  check-pin [PATH] Audit the pin against policy: ok | forced | stale-pin SLOT |
-                 missing-pin.
+  check-pin [PATH] Audit the pin against policy: ok | forced | unsafe-pin SLOT |
+                 stale-pin SLOT | missing-pin.
+  status [--json] Show the current policy; JSON reports Performance availability.
   mode <m> [PATH]  Set host graphics mode: hybrid | performance | passthrough.
 
 The pin takes effect on the next Hyprland login (AQ_DRM_DEVICES is read at start).
@@ -491,7 +505,7 @@ case "${1:-status}" in
   order) cmd_order "${2:-}" ;;
   persist) cmd_persist "${2:-}" ;;
   install-udev) cmd_install_udev ;;
-  status) cmd_status ;;
+  status) cmd_status "${2:-}" ;;
   disable | clear) cmd_disable "${2:-}" ;;
   check-pin) cmd_check_pin "${2:-}" ;;
   mode) cmd_mode "${2:-}" "${3:-}" ;;

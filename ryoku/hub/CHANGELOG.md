@@ -6,6 +6,9 @@
 - **Displays reads the saved adaptive-sync choice.** An idle panel no longer
   makes an enabled setting look off, and applying another display change keeps
   the choice intact.
+- **Performance is unavailable until a hybrid laptop routes its panel to the
+  discrete GPU.** Graphics & Power shows the MUX requirement instead of offering
+  a mode that would leave the internal screen black.
 - Fastfetch renderer and recolor markers survive Settings saves. Renderer based
   styles keep their readout, and wallpaper recoloring keeps its palette roles.
   Rows are locked for styles that provide their own renderer.

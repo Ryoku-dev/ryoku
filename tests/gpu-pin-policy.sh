@@ -57,6 +57,9 @@ detect_json="$(run detect --json)"
 # --- 1. risky laptop default: leave selection to the compositor
 rm -f "$conf"
 [[ "$(verdict)" == "ok" ]] || fail "panel-crossing laptop must be safe while unpinned, got $(verdict)"
+policy="$(run status --json)"
+[[ $policy == '{"performance_available":false,"performance_reason":"Switch the laptop'\''s graphics MUX to discrete first."}' ]] \
+  || fail "unsafe topology reported the wrong status JSON: $policy"
 run persist 2>"$tmp/err" >/dev/null
 grep -Eq '^hl\.env\("AQ_DRM_DEVICES"' "$conf" 2>/dev/null \
   && fail "default persist pinned a dGPU that does not own the internal panel"
@@ -86,6 +89,9 @@ printf 'disconnected\n' >"$drm/card0-eDP-1/status"
 mkdir -p "$drm/card1-eDP-1"
 printf 'connected\n' >"$drm/card1-eDP-1/status"
 run mode performance >/dev/null
+policy="$(run status --json)"
+[[ $policy == '{"performance_available":true,"performance_reason":""}' ]] \
+  || fail "panel-owning dGPU was not reported as Performance-capable: $policy"
 grep -Eq '^hl\.env\("AQ_DRM_DEVICES"' "$conf" || fail "safe Performance wrote no pin"
 grep -q 'ryoku-gpu-mode: performance' "$conf" || fail "Performance did not stamp the mode"
 grep -q 'ryoku-gpu-primary: 0000:02:00.0' "$conf" || fail "Performance primary is not the dGPU"

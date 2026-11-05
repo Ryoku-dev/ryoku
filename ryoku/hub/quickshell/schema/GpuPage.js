@@ -4,6 +4,12 @@
 // Descriptions are written by hand; the inventory carries engineering
 // notes, which are not user copy.
 
+function graphicsModeOptions(performanceAvailable) {
+    return performanceAvailable
+        ? ["Hybrid", "Performance", "Passthrough"]
+        : ["Hybrid", "Passthrough"];
+}
+
 var rows = [
     {
         "tab": "",
@@ -11,6 +17,8 @@ var rows = [
         "key": "AQ_DRM_DEVICES",
         "label": "Graphics mode",
         "desc": "Which GPU renders the desktop; next login",
+        "gate": "ryoku-gpu status --json: performance_available",
+        "unavailable": "Switch the laptop's graphics MUX to discrete first.",
         "ctl": "seg",
         "src": "gpu.lua (override path via $RYOKU_GPU_CONF; base honours $XDG_CONFIG_HOME)",
         "opts": [

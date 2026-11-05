@@ -31,6 +31,9 @@
   the internal panel.** Default and Performance avoid Aquamarine's blank
   login/DPMS path; doctor clears old managed pins. Covered by
   `tests/gpu-pin-policy.sh`.
+- `gpu/ryoku-gpu status --json`: **the Hub can gate Performance from the owning
+  GPU policy.** It reports availability and the MUX action without duplicating
+  panel detection in the UI.
 - `bluetooth/ryoku-bluetooth-power`: **Bluetooth stays off after login when it
   was turned off.** The login reset restarts bluetoothd, and BlueZ's
   `AutoEnable` is still powering the new controller on when `restore` runs, so
