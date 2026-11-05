@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The shell starts again after the visualizer sink fix.** `services/Audio.qml`
+  declared `onSinkChanged` twice, which QML rejects as "Property value set
+  multiple times", so the shell died at launch. The two handlers are now one.
 - **Visualizers follow newly connected audio outputs.** Bar and desktop
   visualizers retarget when the default output changes without a shell reload.
 - **A crashed lock screen comes back after display-link churn.** Once qylock has
