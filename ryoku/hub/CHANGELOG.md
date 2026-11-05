@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Displays reads the saved adaptive-sync choice.** An idle panel no longer
+  makes an enabled setting look off, and applying another display change keeps
+  the choice intact.
 - Fastfetch renderer and recolor markers survive Settings saves. Renderer based
   styles keep their readout, and wallpaper recoloring keeps its palette roles.
   Rows are locked for styles that provide their own renderer.

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -277,11 +278,42 @@ func readMonitors() ([]hyprMonitor, error) {
 	return mons, nil
 }
 
+func configuredHyprVRR() map[string]bool {
+	path := os.Getenv("RYOKU_MONITORS_APPLIED")
+	if path == "" {
+		path = filepath.Join(configHome(), "ryoku", "monitors-applied.json")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var saved struct {
+		Monitors []struct {
+			Output string `json:"output"`
+			VRR    int    `json:"vrr"`
+		} `json:"monitors"`
+	}
+	if json.Unmarshal(raw, &saved) != nil {
+		return nil
+	}
+	out := make(map[string]bool, len(saved.Monitors))
+	for _, monitor := range saved.Monitors {
+		if monitor.Output != "" {
+			out[monitor.Output] = monitor.VRR != 0
+		}
+	}
+	return out
+}
+
 // Position always rides the frame because Wm.windows uses global logical
 // geometry and consumers need an output origin to recover output-local placement.
 // full adds rotation, VRR and physical modes for the display editor.
 func monitorOutputs(mons []hyprMonitor, full bool) []wm.Output {
 	outputs := make([]wm.Output, 0, len(mons))
+	var configuredVRR map[string]bool
+	if full {
+		configuredVRR = configuredHyprVRR()
+	}
 	for _, m := range mons {
 		o := wm.Output{
 			Name:            m.Name,
@@ -299,6 +331,10 @@ func monitorOutputs(mons []hyprMonitor, full bool) []wm.Output {
 		}
 		if full {
 			o.Transform = m.Transform
+			o.VRR = m.VRR
+			if configured, ok := configuredVRR[m.Name]; ok {
+				o.VRR = configured
+			}
 			modes := make([]string, 0, len(m.AvailableModes))
 			for _, am := range m.AvailableModes {
 				modes = append(modes, hyprModeString(am))
