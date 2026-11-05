@@ -81,6 +81,8 @@ has "$conf" 'output = "HDMI-A-1", mode = "1920x1080@60"' \
 has "$conf" 'position = "2560x0"' "the absent TV lost its saved position"
 has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
   "the panel lost its own applied settings"
+grep 'output = "eDP-1"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "login trusted HDR support on an output without HDR enabled"
 
 # --- identity: a drifting serial still resolves to the same TV by make|model ---
 apply_both

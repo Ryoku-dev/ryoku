@@ -27,6 +27,9 @@
 ### Fixed
 - **Translucent tiled windows blur again.** The default near-opaque tiles keep
   their cheaper path while lower opacity from the Hub restores blur.
+- **Hyprland 0.57 desktops keep drawing on older Intel and NVIDIA displays.**
+  Ryoku keeps compatible render formats available and ignores a monitor's HDR
+  claim until HDR is selected for that output (#705, #706).
 - **Fullscreen browsers no longer switch HDR on automatically.** Automatic HDR
   starts off because the display-mode switch can blank some AMD DisplayPort
   panels; users with a working HDR path can turn it back on in Settings

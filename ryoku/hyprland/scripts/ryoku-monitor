@@ -97,6 +97,12 @@ jq_id_lib='
   def id_mm($id): ($id | split("|") | .[0:2] | join("|"));
 '
 
+# shellcheck disable=SC2016  # jq program: $cm is a jq var, not shell
+jq_hdr_lib='
+  def hdr_support($cm):
+    if ($cm == "hdr" or $cm == "hdredid") then 0 else -1 end;
+'
+
 # Stamp the live hardware identity onto every layout entry that lacks one, so
 # the persisted applied/profile layouts are always identity-keyed. The Hub's
 # Displays page builds its payload from the neutral seam, which carries no id;
@@ -268,7 +274,7 @@ write_monitors_conf() {
     printf '%s\n' "-- overrides in ~/.config/hypr/monitors_user.lua (see monitors_user.lua.example),"
     printf '%s\n' "-- which is loaded after this file, wins, and is never rewritten."
     printf '\n'
-    monitors_json | jq -r --argjson pinned "$pinned_json" '
+    monitors_json | jq -r --argjson pinned "$pinned_json" "$jq_hdr_lib"'
       .[] | select(.name as $n | ($pinned | index($n)) == null) |
       if .disabled then
         "hl.monitor({ output = \(.name|@json), disabled = true })"
@@ -277,6 +283,7 @@ write_monitors_conf() {
         + (if .transform != 0 then ", transform = \(.transform)" else "" end)
         + (if .vrr then ", vrr = 1" else "" end)
         + (if (.mirrorOf // "none") != "none" then ", mirror = \(.mirrorOf|@json)" else "" end)
+        + ", supports_hdr = \(hdr_support(.colorManagementPreset // "srgb"))"
         + " })"
       end
     '
@@ -289,7 +296,7 @@ write_monitors_conf() {
     printf '%s\n' "-- its preferred mode (always valid on an untrained link, unlike highrr, which"
     printf '%s\n' "-- errors until the link resolves; autoscale + settle then raise it to highrr),"
     printf '%s\n' "-- placed to the right at 1x, never mirrored."
-    printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })'
+    printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1, supports_hdr = -1 })'
   } | replace_if_changed "$monitors_conf"
 }
 
@@ -319,7 +326,17 @@ replace_if_changed() {
 # changes go via `hyprctl eval` against the hl.monitor API.
 apply_monitor() {
   [[ -n ${RYOKU_MONITOR_JSON:-} ]] && return 0
-  hyprctl eval "hl.monitor({ $1 })" >/dev/null 2>&1
+  local args="$1"
+  if [[ $args != *"supports_hdr ="* ]]; then
+    local output preset supports_hdr=-1
+    output="${args#*output = \"}"
+    output="${output%%\"*}"
+    preset="$(monitors_json | jq -r --arg output "$output" \
+      'first(.[] | select(.name == $output) | .colorManagementPreset) // "srgb"')"
+    if [[ $preset == hdr || $preset == hdredid ]]; then supports_hdr=0; fi
+    args+=", supports_hdr = $supports_hdr"
+  fi
+  hyprctl eval "hl.monitor({ $args })" >/dev/null 2>&1
 }
 
 # per-output intended mode from the generated monitors.lua as a JSON object
@@ -674,7 +691,7 @@ apply_specs() {
   while IFS= read -r args; do
     [[ -n $args ]] || continue
     apply_monitor "$args"
-  done < <(jq -r '
+  done < <(jq -r "$jq_hdr_lib"'
     # @json renders a string as a quoted, escaped literal (valid Lua too), so a
     # crafted .output/.mirror in the incoming layout JSON cannot break out of
     # the Lua string and inject into the hl.monitor(...) call.
@@ -684,7 +701,7 @@ apply_specs() {
       + (if (.transform // 0) != 0 then ", transform = \(.transform)" else "" end)
       + (if (.vrr // 0) != 0 then ", vrr = \(.vrr)" else "" end)
       + (if (.mirror // "") != "" and (.mirror // "") != "none" then ", mirror = \(.mirror|@json)" else "" end)
-      + ((.cm // "srgb") as $cm | ", cm = \($cm|@json), bitdepth = \(if $cm == "srgb" then 8 else 10 end), sdrbrightness = \(if $cm == "hdr" then (.sdrbrightness // 1) else 1 end)")
+      + ((.cm // "srgb") as $cm | ", cm = \($cm|@json), bitdepth = \(if $cm == "srgb" then 8 else 10 end), sdrbrightness = \(if $cm == "hdr" then (.sdrbrightness // 1) else 1 end), supports_hdr = \(hdr_support($cm))")
     end')
 }
 
@@ -904,7 +921,7 @@ write_monitors_explicit() {
     printf '%s\n' "-- here are lost: put durable manual overrides in ~/.config/hypr/monitors_user.lua"
     printf '%s\n' "-- (see monitors_user.lua.example), which is loaded after this file and wins."
     printf '\n'
-    printf '%s' "$specs" | jq -r '
+    printf '%s' "$specs" | jq -r "$jq_hdr_lib"'
       .[] |
       if .disabled then
         "hl.monitor({ output = \(.output|@json), disabled = true })"
@@ -913,7 +930,7 @@ write_monitors_explicit() {
         + (if (.transform // 0) != 0 then ", transform = \(.transform)" else "" end)
         + (if (.vrr // 0) != 0 then ", vrr = \(.vrr)" else "" end)
         + (if (.mirror // "") != "" and (.mirror // "") != "none" then ", mirror = \(.mirror|@json)" else "" end)
-        + ((.cm // "srgb") as $cm | ", cm = \($cm|@json), bitdepth = \(if $cm == "srgb" then 8 else 10 end), sdrbrightness = \(if $cm == "hdr" then (.sdrbrightness // 1) else 1 end)")
+        + ((.cm // "srgb") as $cm | ", cm = \($cm|@json), bitdepth = \(if $cm == "srgb" then 8 else 10 end), sdrbrightness = \(if $cm == "hdr" then (.sdrbrightness // 1) else 1 end), supports_hdr = \(hdr_support($cm))")
         + " })"
       end'
     printf '\n'
@@ -924,7 +941,7 @@ write_monitors_explicit() {
     printf '%s\n' "-- Catch-all for monitors not listed above. A hotplugged display comes up at"
     printf '%s\n' "-- its preferred mode (always valid on an untrained link; autoscale + settle"
     printf '%s\n' "-- then raise it to highrr), placed to the right at 1x, never mirrored."
-    printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })'
+    printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1, supports_hdr = -1 })'
   } | replace_if_changed "$monitors_conf"
 }
 

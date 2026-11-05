@@ -66,6 +66,15 @@ run list | jq -e '.[0].cm == "hdr" and .[0].sdrbrightness == 1.3' >/dev/null \
   || fail "list did not map the HDR colour mode and SDR brightness"
 run list | jq -e '.[1].cm == "wide"' >/dev/null || fail "list did not map the wide-gamut colour mode"
 
+# Persisted rules only trust HDR on an output already using it.
+run persist >/dev/null
+grep 'output = "DP-1"' "$conf" | grep -qF 'supports_hdr = 0' \
+  || fail "persist disabled HDR on the output already using HDR"
+grep 'output = "DP-2"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "persist trusted HDR support on a non-HDR output"
+grep 'output = ""' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "persist left automatic HDR enabled on the hotplug fallback"
+
 # --- apply: explicit modes preserved (not highrr) -------------------------
 run apply "$layout" >/dev/null
 has "$conf" 'mode = "3840x2160@60"' "apply did not keep the chosen 4K mode"
@@ -80,6 +89,12 @@ grep -q 'highrr' <(grep 'DP-1' "$conf") && fail "DP-1 was written as highrr, not
 # outside HDR so turning HDR off in the hub clears the elevated value live.
 has "$conf" 'cm = "hdr", bitdepth = 10, sdrbrightness = 1.3' "apply dropped the HDR colour mode / brightness"
 has "$conf" 'cm = "wide", bitdepth = 10, sdrbrightness = 1' "apply dropped the wide-gamut mode or left SDR brightness elevated"
+grep 'output = "DP-1"' "$conf" | grep -qF 'supports_hdr = 0' \
+  || fail "apply disabled HDR after the user selected HDR"
+grep 'output = "DP-2"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "apply trusted HDR support on the wide-gamut output"
+grep 'output = ""' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "apply left automatic HDR enabled on the hotplug fallback"
 
 # --- save + profiles ------------------------------------------------------
 run save desk "$layout" >/dev/null
@@ -118,6 +133,8 @@ grep -qF 'scale = 1.5' "$conf" && fail "apply persisted the invalid scale 1.5"
 # A layout with no colour mode is plain sRGB at 8-bit with SDR brightness reset,
 # so switching a display back from HDR fully clears the 10-bit / bright state.
 has "$conf" 'cm = "srgb", bitdepth = 8, sdrbrightness = 1' "apply did not write the sRGB reset (8-bit, SDR brightness 1)"
+grep 'output = "HDMI-A-1"' "$conf" | grep -qF 'supports_hdr = -1' \
+  || fail "plain sRGB did not disable the output's advertised HDR support"
 jq -e '.monitors[0].scale == 1.6' "$tmp/tv-applied.json" >/dev/null \
   || fail "the applied layout recorded the invalid scale instead of the snapped one"
 runT save tv "$tvlayout" >/dev/null
