@@ -220,6 +220,17 @@ if [ -x /usr/bin/ryoku-polkit-reload ] &&
     "ryoku-desktop post-transaction authorization-rule reload failed" \
     >/dev/null 2>&1 || :
 fi
+# No package owns the skin in the greeter dir. An upgrade from one that did erases
+# the host files around a picked skin, and a first install has nothing there yet.
+# ryoku doctor then corrects the clock format.
+greeter=%{_datadir}/sddm/themes/ryoku
+if [ ! -f "$greeter/Main.qml" ]; then
+  skin=%{_datadir}/ryoku/lockscreen/qylock/themes/clockwork/orbital
+  [ -f "$greeter/theme/Main.qml" ] && skin="$greeter/theme"
+  %{_datadir}/ryoku/lockscreen/qylock/sddm-host/install-greeter-theme \
+    "$skin" "$greeter" false >/dev/null 2>&1 || \
+    logger -t ryoku-greeter "could not lay the SDDM greeter skin" >/dev/null 2>&1 || :
+fi
 [ -d /run/systemd/system ] || exit 0
 systemd-detect-virt --quiet --chroot && exit 0
 systemctl start --no-block ryoku-snapshot-menu.path ryoku-snapshot-menu.service >/dev/null 2>&1 || :
