@@ -44,6 +44,24 @@ func previewTestStill(t *testing.T, d *daemon, name string) string {
 	return p
 }
 
+// A keyed preview publishes its palette from a goroutine that reads the
+// generator global when it runs. A test that previews by key waits for that
+// palette, or the goroutine lands in the next test's generator stub.
+func waitForPreviewPalette(t *testing.T, path, want string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		b, err := os.ReadFile(path)
+		if err == nil && strings.Contains(string(b), want) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("preview palette did not reach the shell-only runtime file")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 func TestPreviewPaintsFlaggedAndRecordsNothing(t *testing.T) {
 	d := previewTestDaemon(t)
 	committed := previewTestStill(t, d, "committed.png")
@@ -295,6 +313,13 @@ func TestPreviewRejectsNonStaticAndMissing(t *testing.T) {
 }
 
 func TestPreviewByKeyResolvesEntry(t *testing.T) {
+	runtimeDir := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtimeDir)
+	oldGenerator := previewColorGenerator
+	t.Cleanup(func() { previewColorGenerator = oldGenerator })
+	previewColorGenerator = func(string) (map[string]string, error) {
+		return map[string]string{"primary": "#a1b2c3"}, nil
+	}
 	d := previewTestDaemon(t)
 	still := previewTestStill(t, d, "still.png")
 	clip := filepath.Join(d.config().wallpaperDir(), "clip.mp4")
@@ -323,6 +348,7 @@ func TestPreviewByKeyResolvesEntry(t *testing.T) {
 	if st := d.preview; st == nil || st.path != still {
 		t.Fatalf("preview state=%+v, want it still tracking the keyed still after the rejections", st)
 	}
+	waitForPreviewPalette(t, filepath.Join(runtimeDir, "ryoku-wall-preview.json"), "#a1b2c3")
 }
 
 func TestPreviewPaletteIsIsolatedCachedAndRestored(t *testing.T) {
@@ -361,17 +387,7 @@ func TestPreviewPaletteIsIsolatedCachedAndRestored(t *testing.T) {
 		if err := d.previewWallpaperKey("new.png", nil); err != nil {
 			t.Fatal(err)
 		}
-		deadline := time.Now().Add(time.Second)
-		for {
-			b, err := os.ReadFile(previewPath)
-			if err == nil && strings.Contains(string(b), "#abcdef") {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("preview palette did not reach the shell-only runtime file")
-			}
-			time.Sleep(5 * time.Millisecond)
-		}
+		waitForPreviewPalette(t, previewPath, "#abcdef")
 		if err := d.clearPreview(); err != nil {
 			t.Fatal(err)
 		}
