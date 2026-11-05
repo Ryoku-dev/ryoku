@@ -824,35 +824,30 @@ Variants {
                 onRunningInfoRevisionChanged: dockWindow._syncRunningApps()
                 onShowRunningAppsChanged: dockWindow._syncRunningApps()
 
+                // Rows change in place: an emptied model, even for one frame, unmaps the
+                // dock and its exclusive zone, and tiled windows jump into the dock area.
+                // A desktop-entry rescan settles over a few passes, so this runs several
+                // times for one change.
                 function loadApps() {
                     let customApps = rawDockSettings.apps;
                     if (!customApps || !Array.isArray(customApps)) customApps = [];
-                    if (dockAppsModel.count === customApps.length) {
-                        let matches = true;
-                        for (let i = 0; i < customApps.length; i++) {
-                            let cur = dockAppsModel.get(i);
-                            let app = customApps[i];
-                            let id = app.desktop_id || app.id || "";
-                            if (!cur || cur.desktop_id !== id || cur.name !== (app.name || "") || cur.icon !== (app.icon || "")) {
-                                matches = false;
-                                break;
-                            }
-                        }
-                        if (matches) {
-                            dockWindow._syncRunningApps();
-                            return;
-                        }
-                    }
-                    dockAppsModel.clear();
                     for (let k = 0; k < customApps.length; k++) {
-                        let app = customApps[k];
-                        dockAppsModel.append({
+                        const app = customApps[k];
+                        const row = {
                             name: app.name || "",
                             comment: app.comment || "",
                             desktop_id: app.desktop_id || app.id || "",
                             icon: app.icon || ""
-                        });
+                        };
+                        const cur = k < dockAppsModel.count ? dockAppsModel.get(k) : null;
+                        if (!cur)
+                            dockAppsModel.append(row);
+                        else if (cur.desktop_id !== row.desktop_id || cur.name !== row.name
+                                 || cur.icon !== row.icon || cur.comment !== row.comment)
+                            dockAppsModel.set(k, row);
                     }
+                    if (dockAppsModel.count > customApps.length)
+                        dockAppsModel.remove(customApps.length, dockAppsModel.count - customApps.length);
                     dockWindow._syncRunningApps();
                 }
 

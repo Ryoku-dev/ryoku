@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Python dock stays put while app entries rescan.** It updates its pins in
+  place instead of emptying and refilling them, so the dock and its reserved
+  space no longer vanish for a moment and windows stop jumping into the dock area.
 - **Ryogami auto-rotate keeps rotating after a restart.** The filter bar button
   and Ctrl+R now flip the saved Rotate automatically switch, so rotation comes
   back after a reboot, and "Favourites only" with no favourites rotates through
