@@ -1,6 +1,10 @@
 # Changelog: installation/
 
 ## Unreleased
+- **Time zone choices are checked before installation starts.** The picker
+  searches the system Region/City list and accepts fixed offsets such as
+  `UTC-3` as `Etc/GMT+3`, explaining tzdata's reversed Etc/GMT signs instead of
+  silently replacing an unknown value with UTC.
 - **Zsh installs open with Ryoku's configured prompt on the first boot.** The
   Arch, CachyOS and Void installers copy the packaged startup template after
   selecting Zsh, while leaving an existing `.zshrc` untouched.

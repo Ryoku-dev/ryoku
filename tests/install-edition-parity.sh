@@ -175,4 +175,55 @@ for edition in arch void; do
     || fail "$edition attempted timezone geolocation while offline"
 done
 
+timezone_check=$(
+  (
+    # shellcheck source=installation/backend/lib/common.sh
+    source "$INSTALL_DRYRUN_ROOT/installation/backend/lib/common.sh"
+    ryoku_validate_timezone UTC-3
+    printf 'normalized=%s\n' "$RYOKU_VALIDATED_TIMEZONE"
+    ryoku_validate_timezone America/Sao_Paulo
+    printf 'region=%s\n' "$RYOKU_VALIDATED_TIMEZONE"
+  )
+)
+grep -qF 'UTC-3 maps to Etc/GMT+3 because Etc/GMT signs are reversed' <<<"$timezone_check" \
+  || fail "UTC-3 did not explain the inverted Etc/GMT sign"
+grep -qF 'normalized=Etc/GMT+3' <<<"$timezone_check" \
+  || fail "UTC-3 did not normalize to Etc/GMT+3"
+grep -qF 'region=America/Sao_Paulo' <<<"$timezone_check" \
+  || fail "a zoneinfo Region/City was not accepted"
+
+if invalid_timezone=$(
+  (
+    # shellcheck source=installation/backend/lib/common.sh
+    source "$INSTALL_DRYRUN_ROOT/installation/backend/lib/common.sh"
+    ryoku_validate_timezone UTC-15
+  ) 2>&1
+); then
+  fail "an unknown timezone was accepted"
+fi
+grep -qF "unknown timezone 'UTC-15'" <<<"$invalid_timezone" \
+  || fail "an unknown timezone did not produce a useful error"
+
+for edition in arch void; do
+  if install_dryrun_run "$edition" "$tmp/$edition-invalid-timezone.out" \
+    "${answers[@]}" RYOKU_TIMEZONE=UTC-15; then
+    fail "$edition accepted an unknown timezone"
+  fi
+  grep -qF "unknown timezone 'UTC-15'" "$tmp/$edition-invalid-timezone.out" \
+    || fail "$edition did not show the timezone error"
+  ! grep -qF '@@RYOKU_STEP partition' "$tmp/$edition-invalid-timezone.out" \
+    || fail "$edition touched the disk before rejecting the timezone"
+done
+
+for edition in arch void; do
+  install_dryrun_run "$edition" "$tmp/$edition-offset-timezone.out" \
+    "${answers[@]}" RYOKU_TIMEZONE=UTC-3
+  grep -qF 'UTC-3 maps to Etc/GMT+3 because Etc/GMT signs are reversed' \
+    "$tmp/$edition-offset-timezone.out" \
+    || fail "$edition did not explain the fixed-offset mapping"
+  grep -qF '/usr/share/zoneinfo/Etc/GMT+3 /mnt/etc/localtime' \
+    "$tmp/$edition-offset-timezone.out" \
+    || fail "$edition did not install the normalized fixed-offset zone"
+done
+
 printf 'installer edition parity: ok\n'

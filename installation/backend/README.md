@@ -62,7 +62,7 @@ With defaults:
 | `RYOKU_LOGIN_SHELL`       | `fish`             | Login-shell key: `fish`, `zsh`, or `bash`. The account uses `/usr/bin/<key>` and the other two shell stacks are dropped. |
 | `RYOKU_KEYMAP`            | `us`               | Console keymap (`vconsole.conf`).        |
 | `RYOKU_LOCALE`            | `en_US.UTF-8`      | Locale (`locale.gen` + `locale.conf`).   |
-| `RYOKU_TIMEZONE`          | `UTC`              | `Region/City`, or `auto` (ipinfo.io).    |
+| `RYOKU_TIMEZONE`          | `UTC`              | Zoneinfo `Region/City`, whole-hour offset such as `UTC-3`, or `auto` (IP geolocation). |
 | `RYOKU_PROFILE`           | `vm`               | `amd-nvidia` \| `amd` \| `intel` \| `vm`. |
 | `RYOKU_ESP_GIB`           | `1`                | Whole-disk ESP size in GiB (alongside boot is a fixed 2 GiB). |
 | `RYOKU_ESP_MODE`          | `auto`             | Alongside boot target: `auto`, `shared`, or `dedicated`. Auto uses dedicated when the existing ESP has less than 8 MiB free. |

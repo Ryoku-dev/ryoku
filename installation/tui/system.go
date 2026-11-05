@@ -188,6 +188,56 @@ func promoteKbLocales(items []item, keymap string) []item {
 	return promote(items, prefer)
 }
 
+var timezoneOffsetRe = regexp.MustCompile(`^(?:UTC|GMT)([+-])([0-9]{1,2})$`)
+
+func normalizeTimezone(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "auto" {
+		return value, nil
+	}
+	if match := timezoneOffsetRe.FindStringSubmatch(value); match != nil {
+		hour, _ := strconv.Atoi(match[2])
+		if hour == 0 {
+			value = "UTC"
+		} else if match[1] == "-" {
+			value = fmt.Sprintf("Etc/GMT+%d", hour)
+		} else {
+			value = fmt.Sprintf("Etc/GMT-%d", hour)
+		}
+	}
+	if value == "" || filepath.IsAbs(value) || strings.Contains(value, "..") {
+		return "", fmt.Errorf("unknown timezone %q", value)
+	}
+	if _, err := time.LoadLocation(value); err != nil {
+		return "", fmt.Errorf("unknown timezone %q; choose a Region/City or a whole-hour offset such as UTC-3", value)
+	}
+	return value, nil
+}
+
+func timezoneOffsetAliases(zones map[string]bool) []item {
+	var aliases []item
+	for offset := -12; offset <= 14; offset++ {
+		if offset == 0 {
+			continue
+		}
+		sign := "-"
+		zoneSign := "+"
+		hour := -offset
+		if offset > 0 {
+			sign, zoneSign, hour = "+", "-", offset
+		}
+		zone := fmt.Sprintf("Etc/GMT%s%d", zoneSign, hour)
+		if zones[zone] {
+			aliases = append(aliases, item{
+				key:   zone,
+				label: fmt.Sprintf("UTC%s%d", sign, hour),
+				hint:  fmt.Sprintf("%s · Etc/GMT signs are reversed", zone),
+			})
+		}
+	}
+	return aliases
+}
+
 // sysTimezones lists time zones, with the auto-detect entry first.
 func sysTimezones() []item {
 	out, ok := run("timedatectl", "list-timezones")
@@ -195,13 +245,15 @@ func sysTimezones() []item {
 		return nil
 	}
 	items := []item{{"auto", i18n.T("Detect automatically"), i18n.T("via IP, also sets the clock")}}
+	zones := make(map[string]bool)
 	for _, l := range strings.Split(out, "\n") {
 		c := strings.TrimSpace(l)
 		if c != "" {
 			items = append(items, item{c, c, ""})
+			zones[c] = true
 		}
 	}
-	return items
+	return append(items, timezoneOffsetAliases(zones)...)
 }
 
 // lsblkPairs parses `lsblk -P` key="value" lines into maps.
@@ -1184,6 +1236,10 @@ func (m model) installEnvChecked() ([]string, error) {
 		return "0"
 	}
 	xkbLay, xkbVar := xkbFromKeymap(m.picks["keyboard"])
+	timezone, err := normalizeTimezone(def(m.picks["timezone"], "UTC"))
+	if err != nil {
+		return nil, fmt.Errorf("time zone: %w", err)
+	}
 	env := []string{
 		"RYOKU_DISK=" + m.diskDev,
 		// No default for the disk strategy: an empty value MUST reach the backend so
@@ -1200,7 +1256,7 @@ func (m model) installEnvChecked() ([]string, error) {
 		// The backend's shell reads RYOKU_LANG (lib/i18n.sh) so its progress log
 		// speaks the language the user picked in the TUI.
 		"RYOKU_LANG=" + i18n.Lang(),
-		"RYOKU_TIMEZONE=" + def(m.picks["timezone"], "UTC"),
+		"RYOKU_TIMEZONE=" + timezone,
 		"RYOKU_PROFILE=" + def(m.picks["profile"], "vm"),
 		"RYOKU_ESP_GIB=" + strconv.Itoa(m.espG),
 		"RYOKU_SWAP_GIB=" + strconv.Itoa(m.swapG),
