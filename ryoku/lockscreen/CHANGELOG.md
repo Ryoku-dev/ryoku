@@ -20,6 +20,9 @@
 - The built-in in-session clockwork lockscreen follows the global 12/24-hour preference, including AM/PM.
 
 ### Fixed
+- **The Orbital login prompts read naturally in French.** Security-key,
+  fingerprint, password and power actions use concise instructions instead of
+  literal machine translations.
 - **The login field types in the system keyboard layout.** `ryoku-greeter`
   handed the layout to weston through `XKB_DEFAULT_*`, but weston ignores that
   environment and loads its own `us` default when its ini names no keymap, so
