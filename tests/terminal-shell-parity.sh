@@ -106,9 +106,22 @@ run_shell() {
         { cat "$out" >&2; fail "$shell $mode startup failed"; }
       ;;
     bash)
+      bash_session() {
+        script -qec "env -u EDITOR -u VISUAL HOME='$home' XDG_CACHE_HOME='$home/.cache' USER='${USER:-nero}' LANG=C.UTF-8 TERM=xterm-256color PATH='$stub:/usr/bin' RYOKU_SHELL_LOG='$1' bash --noprofile --rcfile '$repo/ryoku/apps/bash/ryoku.bash' -i" /dev/null
+      }
+      # ble.sh builds its caches on a first start and drops input typed meanwhile, so warm them first and pace the lines
+      printf 'exit\n' | bash_session /dev/null >/dev/null 2>&1
       # shellcheck disable=SC2016
-      printf 'printf "ENV=%%s|%%s|%%s|%%s\\\\n" "$GOBIN" "$CARGO_INSTALL_ROOT" "$EDITOR" "$VISUAL"\nalias ls\nble-face --color=never syntax_default syntax_command\nexit\n' |
-        script -qec "env -u EDITOR -u VISUAL HOME='$home' XDG_CACHE_HOME='$home/.cache' USER='${USER:-nero}' LANG=C.UTF-8 TERM=xterm-256color PATH='$stub:/usr/bin' RYOKU_SHELL_LOG='$log' bash --noprofile --rcfile '$repo/ryoku/apps/bash/ryoku.bash' -i" /dev/null >"$out" 2>&1 ||
+      {
+        sleep 1
+        printf 'printf "ENV=%%s|%%s|%%s|%%s\\\\n" "$GOBIN" "$CARGO_INSTALL_ROOT" "$EDITOR" "$VISUAL"\n'
+        sleep 0.3
+        printf 'alias ls\n'
+        sleep 0.3
+        printf 'ble-face --color=never syntax_default syntax_command\n'
+        sleep 0.5
+        printf 'exit\n'
+      } | bash_session "$log" >"$out" 2>&1 ||
         { cat "$out" >&2; fail "$shell $mode startup failed"; }
       ;;
     zsh)
