@@ -21,6 +21,8 @@ Singleton {
 
     property var tools: ({})
     property bool refreshing: false
+    // Seconds since the epoch, advanced by `clock` so pace readings follow time.
+    property real nowSec: Date.now() / 1000
     signal reloadRequested(var selected)
 
     readonly property var present: root.toolIds.filter(id => root.tool(id).has)
@@ -290,6 +292,36 @@ Singleton {
         root.reloadRequested(selected);
     }
 
+    // Where a quota window stands against an even burn rate. `expected` is the
+    // share of the window already elapsed, `delta` is used minus expected in
+    // points (positive: ahead of pace), `exhaustTs` is when the window fills at
+    // the current rate, or 0 when it will not fill before it resets. Needs a
+    // live reset time; a window that has not started or whose reset has passed
+    // reports `available: false`. The first 5% of a window is too short to
+    // extrapolate from, so there `exhaustTs` stays 0.
+    function pace(id, weekly) {
+        const data = root.tool(id);
+        const seconds = weekly ? 604800 : 18000;
+        const used = weekly ? data.pct7d : data.pct5h;
+        const reset = weekly ? data.reset7d : data.reset5h;
+        const none = { available: false, used: used, expected: 0, delta: 0,
+            exhaustTs: 0 };
+        if (!(weekly ? data.has7d : data.has5h) || !(reset > 0))
+            return none;
+        const left = reset - root.nowSec;
+        if (left <= 0 || left > seconds + 60)
+            return none;
+        const elapsed = 1 - Math.min(left, seconds) / seconds;
+        const expected = elapsed * 100;
+        let exhaustTs = 0;
+        if (elapsed >= 0.05 && used > 0 && used < 100) {
+            const full = root.nowSec + (100 - used) / used * elapsed * seconds;
+            exhaustTs = full < reset ? full : 0;
+        }
+        return { available: true, used: used, expected: Math.round(expected),
+            delta: Math.round(used - expected), exhaustTs: exhaustTs };
+    }
+
     function refresh() {
         if (root.refreshing)
             return;
@@ -375,6 +407,14 @@ Singleton {
             root.reload();
             root.refreshing = false;
         }
+    }
+
+    Timer {
+        id: clock
+        interval: 30000
+        repeat: true
+        running: root.available
+        onTriggered: root.nowSec = Date.now() / 1000
     }
 
     Timer {

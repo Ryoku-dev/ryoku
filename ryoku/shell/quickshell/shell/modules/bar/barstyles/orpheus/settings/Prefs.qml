@@ -145,7 +145,12 @@ Singleton {
             actions: ["launcher", "capture", "clipboard"],
             trayLimit: 6,
             statusItems: ["wifi", "bluetooth", "volume", "mic"],
-            aiTools: ["claude", "codex", "opencode"]
+            aiTools: ["claude", "codex", "opencode"],
+            aiWindow: "5h",
+            aiPace: true,
+            aiFigure: "used",
+            aiTolerance: 10,
+            aiAlertAt: 80
         };
     }
 
@@ -205,6 +210,11 @@ Singleton {
             ["wifi", "bluetooth", "volume", "mic"]);
         case "aiTools": return subset(value,
             ["claude", "codex", "opencode"], ["claude", "codex", "opencode"]);
+        case "aiWindow": return choice(value, ["5h", "weekly", "closest"], "5h");
+        case "aiPace": return flag(value, true);
+        case "aiFigure": return choice(value, ["used", "pace"], "used");
+        case "aiTolerance": return Math.round(clamp(value, 0, 30, 10));
+        case "aiAlertAt": return Math.round(clamp(value, 50, 100, 80));
         default: return value;
         }
     }
@@ -238,6 +248,11 @@ Singleton {
     readonly property int trayLimit: clean("trayLimit", value("trayLimit"))
     readonly property var statusItems: clean("statusItems", value("statusItems"))
     readonly property var aiTools: clean("aiTools", value("aiTools"))
+    readonly property string aiWindow: clean("aiWindow", value("aiWindow"))
+    readonly property bool aiPace: clean("aiPace", value("aiPace"))
+    readonly property string aiFigure: clean("aiFigure", value("aiFigure"))
+    readonly property int aiTolerance: clean("aiTolerance", value("aiTolerance"))
+    readonly property int aiAlertAt: clean("aiAlertAt", value("aiAlertAt"))
     readonly property bool clock12h: own(_previews, "clock12h")
         ? _previews.clock12h === true : !TimeFormat.is24h
 

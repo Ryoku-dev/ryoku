@@ -17,25 +17,56 @@ Item {
 
     property bool present: root.shown.length > 0
 
-    readonly property string leadId: {
-        let bestId = "";
-        let highest = -1;
-        for (const id of root.shown) {
-            const tool = AiUsage.tool(id);
-            if (tool.has5h && tool.pct5h > highest) {
-                highest = tool.pct5h;
-                bestId = id;
+    // The window the bar shows: the 5 h or weekly one the Modules page picked
+    // (the other when the chosen one has no data), or whichever is fullest.
+    readonly property var lead: {
+        const choice = S.Prefs.aiWindow;
+        const groups = choice === "closest" ? [[false, true]]
+            : choice === "weekly" ? [[true], [false]] : [[false], [true]];
+        for (const group of groups) {
+            let best = null;
+            for (const id of root.shown) {
+                const tool = AiUsage.tool(id);
+                for (const weekly of group) {
+                    if (!(weekly ? tool.has7d : tool.has5h))
+                        continue;
+                    const used = weekly ? tool.pct7d : tool.pct5h;
+                    if (best === null || used > best.used) {
+                        best = { id: id, weekly: weekly, used: used,
+                            pace: AiUsage.pace(id, weekly) };
+                    }
+                }
             }
+            if (best !== null)
+                return best;
         }
-        return bestId;
+        return null;
     }
-    readonly property var lead: root.leadId.length > 0
-        ? AiUsage.tool(root.leadId) : null
-    readonly property bool hot: root.shown.some(id => {
+    readonly property bool pacing: S.Prefs.aiPace && root.lead !== null
+        && root.lead.pace.available
+    readonly property string trend: {
+        if (!root.pacing)
+            return "";
+        const delta = root.lead.pace.delta;
+        return delta > S.Prefs.aiTolerance ? "ahead"
+            : delta < -S.Prefs.aiTolerance ? "behind" : "even";
+    }
+    readonly property bool hot: root.shown.some(id => AiUsage.tool(id).blocked
+        || root.windowHot(id, false) || root.windowHot(id, true))
+
+    // Past the alert level, or burning fast enough to fill before the reset.
+    function windowHot(id, weekly) {
         const tool = AiUsage.tool(id);
-        return tool.blocked || (tool.has5h && tool.pct5h >= 80)
-            || (tool.has7d && tool.pct7d >= 80);
-    })
+        if (!(weekly ? tool.has7d : tool.has5h))
+            return false;
+        if ((weekly ? tool.pct7d : tool.pct5h) >= S.Prefs.aiAlertAt)
+            return true;
+        if (!S.Prefs.aiPace)
+            return false;
+        const pace = AiUsage.pace(id, weekly);
+        return pace.available && pace.exhaustTs > 0
+            && pace.delta > S.Prefs.aiTolerance;
+    }
 
     function clock(timestamp) {
         if (!(timestamp > 0))
@@ -46,7 +77,19 @@ Item {
             + TimeFormat.format(date);
     }
 
-    function windowText(tool, weekly) {
+    function paceText(pace) {
+        if (!S.Prefs.aiPace || !pace.available)
+            return "";
+        const points = Math.abs(pace.delta);
+        let text = points <= S.Prefs.aiTolerance ? "on pace"
+            : points + " pts " + (pace.delta > 0 ? "ahead of" : "behind") + " pace";
+        if (pace.exhaustTs > 0 && pace.delta > S.Prefs.aiTolerance)
+            text += ", full ~" + root.clock(pace.exhaustTs);
+        return text;
+    }
+
+    function windowText(id, weekly) {
+        const tool = AiUsage.tool(id);
         const available = weekly ? tool.has7d : tool.has5h;
         const label = weekly ? "weekly" : "5 h";
         if (!available)
@@ -54,16 +97,29 @@ Item {
         const percent = weekly ? tool.pct7d : tool.pct5h;
         const reset = weekly ? tool.reset7d : tool.reset5h;
         const resetText = root.clock(reset);
+        const paceText = root.paceText(AiUsage.pace(id, weekly));
+        const detail = [resetText.length > 0 ? "resets " + resetText : "",
+            paceText].filter(part => part.length > 0).join(", ");
         return label + " " + percent + "%"
-            + (resetText.length > 0 ? " (resets " + resetText + ")" : "");
+            + (detail.length > 0 ? " (" + detail + ")" : "");
+    }
+
+    function figure() {
+        if (root.lead === null)
+            return "-";
+        if (root.pacing && S.Prefs.aiFigure === "pace") {
+            const delta = root.lead.pace.delta;
+            return (delta > 0 ? "+" : delta < 0 ? "−" : "") + Math.abs(delta);
+        }
+        return root.lead.used + "%";
     }
 
     readonly property string hintText: root.shown.map(id => {
         const tool = AiUsage.tool(id);
         const name = AiUsage.labels[id] || id;
         const state = tool.blocked ? "limit reached, " : "";
-        return name + " " + state + root.windowText(tool, false)
-            + ", " + root.windowText(tool, true);
+        return name + " " + state + root.windowText(id, false)
+            + ", " + root.windowText(id, true);
     }).join(" · ")
 
     implicitWidth: present ? body.implicitWidth + 2 * K.Style.hitPad : 0
@@ -85,10 +141,18 @@ Item {
 
         K.Label {
             anchors.verticalCenter: parent.verticalCenter
-            text: root.lead ? root.lead.pct5h + "%" : "—"
+            text: root.figure()
             role: "bar"
             numeric: true
             strong: true
+        }
+
+        K.Glyph {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: root.trend === "ahead" || root.trend === "behind"
+            name: root.trend === "ahead" ? "trending_up" : "trending_down"
+            size: Math.round(K.Style.barIcon * 0.8)
+            tone: root.trend === "ahead" ? "alert" : "dim"
         }
     }
 
