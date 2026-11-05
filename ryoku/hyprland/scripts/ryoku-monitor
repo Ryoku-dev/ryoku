@@ -44,6 +44,19 @@ clamshell_panel_state="${RYOKU_CLAMSHELL_PANEL_STATE:-${XDG_RUNTIME_DIR:-/tmp}/r
 lid_switch_glob="${RYOKU_LID_STATE_GLOB:-/proc/acpi/button/lid/*/state}"
 clamshell_bin="${RYOKU_CLAMSHELL_BIN:-ryoku-clamshell}"
 
+# Super+P keeps its undo layout only for this login. The mirror itself never
+# reaches monitors.lua.
+monitor_runtime_dir="${RYOKU_MONITOR_RUNTIME_DIR:-${XDG_RUNTIME_DIR:-/tmp}}"
+toggle_layout="${RYOKU_MONITOR_TOGGLE_STATE:-$monitor_runtime_dir/ryoku-monitor-${UID:-$(id -u)}.toggle.json}"
+
+# A hot-unplug waits briefly before waking a deliberately disabled output.
+# The marker makes repeated hotplug hooks share the same completed fallback.
+fallback_state="${RYOKU_MONITOR_FALLBACK_STATE:-$monitor_runtime_dir/ryoku-monitor-${UID:-$(id -u)}.fallback}"
+fallback_lock="${RYOKU_MONITOR_FALLBACK_LOCK:-$monitor_runtime_dir/ryoku-monitor-${UID:-$(id -u)}.fallback.lock}"
+fallback_delay="${RYOKU_MONITOR_FALLBACK_DELAY:-3}"
+drm_root="${RYOKU_MONITOR_DRM_ROOT:-/sys/class/drm}"
+gpu_bin="${RYOKU_MONITOR_GPU:-ryoku-gpu}"
+
 # jq prelude for every scale-touching path. Hyprland only accepts a scale that
 # is a 1/120 multiple AND divides the mode's pixel width and height into whole
 # logical pixels (src/output/Monitor.cpp: exact integer check, no epsilon);
@@ -473,39 +486,128 @@ cmd_settle() {
   settle_modes "${1:-}"
 }
 
-# mirror every other enabled monitor onto SRC (default: the focused one), then
-# persist so it survives a relogin.
+# Capture the current arrangement in the same shape as a saved layout. A
+# matching profile or applied layout keeps settings Hyprland cannot report
+# faithfully while idle, such as configured VRR.
+current_layout() {
+  local vrrmap='{}'
+  if [[ -f $applied_layout ]]; then
+    vrrmap="$(jq -c '[ .monitors[] | select(.output) | { key: .output, value: (.vrr // 0) } ] | from_entries' \
+      "$applied_layout" 2>/dev/null || echo '{}')"
+    [[ -n $vrrmap ]] || vrrmap='{}'
+  fi
+  monitors_json | jq -c --argjson vrrmap "$vrrmap" "$jq_id_lib"'[
+    .[] | {
+      id: mon_id,
+      output: .name,
+      mode: (if .disabled then "preferred"
+             else "\(.width)x\(.height)@\(.refreshRate)" end),
+      position: "\(.x)x\(.y)",
+      scale: (.scale // 1),
+      transform: (.transform // 0),
+      vrr: ($vrrmap[.name] // (if .vrr then 1 else 0 end)),
+      mirror: (.mirrorOf // "none"),
+      cm: (
+        (.colorManagementPreset // "srgb") as $p
+        | if ($p == "hdr" or $p == "hdredid") then "hdr"
+          elif ($p == "" or $p == "srgb" or $p == "auto") then "srgb"
+          else "wide" end),
+      sdrbrightness: (.sdrBrightness // 1),
+      disabled
+    }
+  ]'
+}
+
+save_toggle_layout() {
+  local live prof monitors payload tmp
+  live="$(monitors_json)"
+  if prof="$(matching_profile)" && [[ -n $prof ]]; then
+    monitors="$(resolve_layout "$live" "$monitors_dir/$prof.json" | jq -c '.monitors')"
+    payload="$(jq -cn --arg profile "$prof" --argjson monitors "$monitors" \
+      '{profile: $profile, monitors: $monitors}')"
+  elif layout_covers "$live" "$applied_layout"; then
+    monitors="$(resolve_layout "$live" "$applied_layout" | jq -c '.monitors')"
+    payload="$(jq -cn --argjson monitors "$monitors" '{monitors: $monitors}')"
+  else
+    monitors="$(current_layout)"
+    payload="$(jq -cn --argjson monitors "$monitors" '{monitors: $monitors}')"
+  fi
+  mkdir -p "$(dirname "$toggle_layout")"
+  tmp="$(mktemp "$toggle_layout.XXXXXX")"
+  printf '%s\n' "$payload" >"$tmp"
+  chmod 0600 "$tmp"
+  mv -f "$tmp" "$toggle_layout"
+}
+
+restore_toggle_layout() {
+  [[ -s $toggle_layout ]] || return 1
+  local profile
+  profile="$(jq -r '.profile // empty' "$toggle_layout" 2>/dev/null || true)"
+  if [[ -n $profile && -f $monitors_dir/$profile.json ]]; then
+    cmd_load "$profile" || return
+  else
+    load_layout_file "$toggle_layout" || return
+    echo "ryoku-monitor: restored the pre-mirror layout"
+  fi
+  rm -f "$toggle_layout"
+}
+
+# Mirror every other enabled monitor onto SRC (default: the focused one). Each
+# output keeps the mode and scale it was already using.
 cmd_mirror() {
   require_hyprctl
   require_jq
-  local src="${1:-}"
-  [[ -n $src ]] || src="$(monitors_json | jq -r 'first(.[] | select(.focused) | .name) // empty')"
+  local src="${1:-}" enabled
+  [[ -n $src ]] || src="$(monitors_json | jq -r 'first(.[] | select(.focused and (.disabled | not)) | .name) // empty')"
   [[ -n $src ]] || src="$(monitors_json | jq -r 'first(.[] | select(.disabled | not) | .name) // empty')"
   [[ -n $src ]] || { echo "ryoku-monitor: no monitor to mirror" >&2; return 1; }
-  local name n=0
-  while IFS= read -r name; do
+  enabled="$(monitors_json | jq '[.[] | select(.disabled | not)] | length')"
+  if (( enabled < 2 )); then
+    echo "ryoku-monitor: only one display; nothing to mirror"
+    return 0
+  fi
+  save_toggle_layout
+  local name mode scale n=0
+  while IFS=$'\t' read -r name mode scale; do
     [[ -n $name && $name != "$src" ]] || continue
-    if apply_monitor "output = \"$name\", mode = \"preferred\", position = \"auto\", scale = 1, mirror = \"$src\""; then
+    if apply_monitor "output = \"$name\", mode = \"$mode\", position = \"auto\", scale = $scale, mirror = \"$src\""; then
       echo "ryoku-monitor: $name mirrors $src"
       n=$((n + 1))
     fi
-  done < <(monitors_json | jq -r '.[] | select(.disabled | not) | .name')
-  if (( n > 0 )); then cmd_persist >/dev/null; else echo "ryoku-monitor: only one display; nothing to mirror"; fi
+  done < <(monitors_json | jq -r '
+    .[] | select(.disabled | not)
+    | [ .name, "\(.width)x\(.height)@\(.refreshRate)", (.scale // 1) ] | @tsv')
+  (( n > 0 )) || rm -f "$toggle_layout"
 }
 
-# clear mirroring, lay them side by side again, DPI-scaled.
+# Clear mirroring by restoring the arrangement captured by the previous mirror.
+# An old persisted mirror without a snapshot still prefers the user's profile or
+# applied layout over a new automatic arrangement.
 cmd_extend() {
   require_hyprctl
   require_jq
-  local name
-  while IFS= read -r name; do
+  restore_toggle_layout && return 0
+  local prof
+  if prof="$(matching_profile)" && [[ -n $prof ]]; then
+    cmd_load "$prof"
+    return
+  fi
+  if applied_matches; then
+    load_layout_file "$applied_layout"
+    echo "ryoku-monitor: recalled the applied layout -> $monitors_conf"
+    return
+  fi
+  local name mode position scale
+  while IFS=$'\t' read -r name mode position scale; do
     [[ -n $name ]] || continue
-    apply_monitor "output = \"$name\", mode = \"preferred\", position = \"auto\", scale = 1, mirror = \"none\""
-  done < <(monitors_json | jq -r '.[] | select(.disabled | not) | .name')
-  cmd_autoscale --no-profile
+    apply_monitor "output = \"$name\", mode = \"$mode\", position = \"$position\", scale = $scale, mirror = \"none\""
+  done < <(monitors_json | jq -r '
+    .[] | select(.disabled | not)
+    | [ .name, "\(.width)x\(.height)@\(.refreshRate)", "\(.x)x\(.y)", (.scale // 1) ] | @tsv')
+  cmd_autoscale
 }
 
-# mirror <-> extend (the Super+P switch).
+# mirror <-> restore (the Super+P switch).
 cmd_toggle() {
   require_hyprctl
   require_jq
@@ -604,9 +706,7 @@ sanitize_layout() {
 
 # Keep the panels that a docked lid close handed off disabled while the lid stays
 # shut. Only the applied copy changes: the saved layout keeps the user's
-# preference, and the lid-open restore turns the panel on again. Runs before
-# ensure_connected_output, so a panel is still the fallback when nothing else
-# is connected.
+# preference, and the lid-open restore turns the panel on again.
 hold_covered_panels() {
   local covered lid="" f key value
   [[ -r $clamshell_panel_state ]] || { cat; return; }
@@ -632,37 +732,115 @@ hold_covered_panels() {
         then .disabled = true else . end)'
 }
 
-# Keep the saved disabled state as the preference, but never apply it when every
-# output the layout enables is unplugged. The generated config is rebuilt again
-# on monitor add/remove, so the fallback panel returns to disabled as soon as a
-# configured enabled output is connected.
-# A disabled stanza may carry no geometry, so the fallback falls back to the
-# panel's preferred mode instead of writing nulls Hyprland rejects.
-ensure_connected_output() {
-  local live
-  live="$(monitors_json)"
-  jq -c --argjson live "$live" '
+layout_has_connected_output() {
+  local layout="$1" live="$2"
+  jq -nr --argjson layout "$layout" --argjson live "$live" '
     ($live | map(.name)) as $connected
-    | ([.[] |
-        .output as $name |
-        select((($connected | index($name)) != null)
-               and (((.disabled // false) | not))) ] | length) as $enabled
-    | if $enabled > 0 then .
-      else
-        ([to_entries[] |
-          .value.output as $name |
-          select((.value.disabled // false)
-                 and (($connected | index($name)) != null)) |
-          . + { panel: ($name | test("^(eDP|LVDS|DSI)-")) }]
-         | sort_by([if .panel then 0 else 1 end, .key])
-         | .[0].key // null) as $fallback
-        | if $fallback == null then .
-          else .[$fallback] |= (.disabled = false
-                                | .mode = (.mode // "preferred")
-                                | .position = (.position // "auto")
-                                | .scale = (.scale // 1))
-          end
-      end'
+    | any($layout[];
+        . as $monitor
+        | (($monitor.disabled // false) | not)
+          and (($connected | index($monitor.output)) != null))'
+}
+
+output_card() {
+  local output="$1" connector base
+  for connector in "$drm_root"/card*-"$output"; do
+    [[ -e $connector ]] || continue
+    base="${connector##*/}"
+    printf '%s\n' "${base%%-*}"
+    return 0
+  done
+  return 1
+}
+
+primary_render_card() {
+  local order node resolved
+  order="$("$gpu_bin" order --effective 2>/dev/null)" || return 1
+  node="${order%%:*}"
+  [[ -n $node ]] || return 1
+  resolved="$(readlink -f "$node" 2>/dev/null)" || return 1
+  [[ ${resolved##*/} == card* ]] || return 1
+  printf '%s\n' "${resolved##*/}"
+}
+
+panel_uses_primary_gpu() {
+  local output="$1" panel_card primary_card
+  panel_card="$(output_card "$output" 2>/dev/null)" || return 0
+  primary_card="$(primary_render_card 2>/dev/null)" || return 0
+  [[ $panel_card == "$primary_card" ]]
+}
+
+fallback_candidate() {
+  local layout="$1" live="$2" candidate
+  while IFS= read -r candidate; do
+    [[ -n $candidate ]] || continue
+    if [[ $candidate =~ ^(eDP|LVDS|DSI)- ]] && ! panel_uses_primary_gpu "$candidate"; then
+      continue
+    fi
+    printf '%s\n' "$candidate"
+    return 0
+  done < <(jq -nr --argjson layout "$layout" --argjson live "$live" '
+    ($live | map(.name)) as $connected
+    | [ $layout | to_entries[] |
+        .value.output as $name |
+        select((.value.disabled // false)
+               and (($connected | index($name)) != null)) |
+        . + { panel: ($name | test("^(eDP|LVDS|DSI)-")) } ]
+    | sort_by([if .panel then 0 else 1 end, .key])
+    | .[].value.output')
+  return 1
+}
+
+enable_layout_output() {
+  local layout="$1" output="$2"
+  jq -cn --argjson layout "$layout" --arg output "$output" '
+    $layout | map(if .output == $output
+      then .disabled = false
+        | .mode = (.mode // "preferred")
+        | .position = (.position // "auto")
+        | .scale = (.scale // 1)
+      else . end)'
+}
+
+# Keep the saved disabled state as the preference. A transient disconnect gets
+# a short headless grace period, and a cross-GPU panel is never woken.
+ensure_connected_output() {
+  local layout live candidate marker=""
+  layout="$(cat)"
+  live="$(monitors_json)"
+  if [[ $(layout_has_connected_output "$layout" "$live") == true ]]; then
+    rm -f "$fallback_state"
+    printf '%s' "$layout"
+    return
+  fi
+  candidate="$(fallback_candidate "$layout" "$live" 2>/dev/null || true)"
+  [[ -n $candidate ]] || { rm -f "$fallback_state"; printf '%s' "$layout"; return; }
+  [[ -r $fallback_state ]] && marker="$(<"$fallback_state")"
+  if [[ $marker == "$candidate" ]]; then
+    enable_layout_output "$layout" "$candidate"
+    return
+  fi
+
+  mkdir -p "$(dirname "$fallback_lock")"
+  exec 7>>"$fallback_lock"
+  flock -n 7 || { printf '%s' "$layout"; return; }
+  if [[ -r $fallback_state && $(<"$fallback_state") == "$candidate" ]]; then
+    enable_layout_output "$layout" "$candidate"
+    return
+  fi
+  sleep "$fallback_delay"
+  live="$(monitors_json)"
+  if [[ $(layout_has_connected_output "$layout" "$live") == true ]]; then
+    rm -f "$fallback_state"
+    printf '%s' "$layout"
+    return
+  fi
+  candidate="$(fallback_candidate "$layout" "$live" 2>/dev/null || true)"
+  [[ -n $candidate ]] || { rm -f "$fallback_state"; printf '%s' "$layout"; return; }
+  mkdir -p "$(dirname "$fallback_state")"
+  printf '%s\n' "$candidate" >"$fallback_state"
+  chmod 0600 "$fallback_state"
+  enable_layout_output "$layout" "$candidate"
 }
 
 # Force a custom resolution the panel does not advertise. The Hub sends a plain
@@ -936,8 +1114,8 @@ Usage: ryoku-monitor <command>
   settle      Re-assert each display's intended mode, recovering a link that came
               up at a fallback resolution (--check reports drift, changes nothing).
   mirror [SRC] Mirror every other display onto SRC (default: the focused one).
-  extend      Clear mirroring and lay displays side by side, DPI-scaled.
-  toggle      Switch between mirror and extend.
+  extend      Restore the layout captured before mirroring.
+  toggle      Mirror the current layout, then restore it on the next press.
   list        Print the connected monitors as JSON (for Ryoku Settings).
   apply JSON  Apply an explicit layout live (JSON array of monitor specs).
               Scales snap to the nearest Hyprland-valid value for each mode.

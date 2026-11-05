@@ -25,6 +25,7 @@ export RYOKU_MONITOR_VM=0
 export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
 export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
 export RYOKU_LID_STATE_GLOB="$tmp/lid-switch"
+export RYOKU_MONITOR_TOGGLE_STATE="$tmp/toggle.json"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 has() { grep -qF -- "$2" "$1" || fail "$3"; }
@@ -243,6 +244,37 @@ login both.json
 RYOKU_MONITOR_JSON="$tmp/both.json" "$mon" apply "$layout" >/dev/null
 [[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
   fail "an Apply of the same layout rewrote monitors.lua"
+
+# --- Super+P is an undoable session-only mirror. The first toggle snapshots
+# the exact applied layout without rewriting monitors.lua. The second restores
+# the saved modes, positions and scales, then consumes the snapshot. ------------
+apply_both
+before_sum="$(sha256sum "$conf" | cut -d' ' -f1)"
+RYOKU_MONITOR_JSON="$tmp/both.json" "$mon" toggle >/dev/null
+[[ -s $RYOKU_MONITOR_TOGGLE_STATE ]] || fail "the mirror toggle did not snapshot the applied layout"
+[[ $(sha256sum "$conf" | cut -d' ' -f1) == "$before_sum" ]] ||
+  fail "the mirror toggle persisted its temporary layout"
+hasnt "$conf" 'mirror =' "the temporary mirror reached monitors.lua"
+
+jq '.[1].mirrorOf = "eDP-1"' "$tmp/both.json" >"$tmp/mirrored.json"
+RYOKU_MONITOR_JSON="$tmp/mirrored.json" "$mon" toggle >/dev/null
+[[ ! -e $RYOKU_MONITOR_TOGGLE_STATE ]] || fail "restoring the pre-mirror layout left a stale snapshot"
+has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
+  "the second toggle did not restore the panel layout"
+has "$conf" 'output = "HDMI-A-1", mode = "1920x1080@60", position = "2560x0", scale = 1' \
+  "the second toggle did not restore the TV layout"
+hasnt "$conf" 'mirror =' "the restored layout stayed mirrored"
+
+# Mirroring keeps each target's current below-native mode and fractional scale.
+# Override only the live apply seam so the exact rule is visible in fixture mode.
+jq '.[1].scale = 1.25' "$tmp/both.json" >"$tmp/mixed.json"
+mirror_rule="$(RYOKU_MONITOR_JSON="$tmp/mixed.json" \
+  RYOKU_MONITOR_TOGGLE_STATE="$tmp/direct-toggle.json" \
+  bash -c 'source "$1"; apply_monitor() { printf "%s\n" "$1"; }; cmd_mirror eDP-1' _ "$mon")"
+grep -qF 'output = "HDMI-A-1", mode = "1920x1080@60.0", position = "auto", scale = 1.25, mirror = "eDP-1"' \
+  <<<"$mirror_rule" || fail "mirror replaced the target's current mode or scale: $mirror_rule"
+grep -qF 'mode = "preferred"' <<<"$mirror_rule" &&
+  fail "mirror raised a below-native target to its preferred mode"
 
 # Atomic updates follow a user-owned symlink instead of replacing it, and keep
 # the target's mode.

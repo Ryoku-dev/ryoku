@@ -13,6 +13,12 @@ trap 'rm -rf "$tmp"' EXIT
 export RYOKU_CLAMSHELL_LID_EVENT_STATE="$tmp/clamshell.lid"
 export RYOKU_CLAMSHELL_PANEL_STATE="$tmp/clamshell.panels"
 export RYOKU_LID_STATE_GLOB="$tmp/lid-switch"
+export RYOKU_MONITOR_FALLBACK_STATE="$tmp/fallback.state"
+export RYOKU_MONITOR_FALLBACK_LOCK="$tmp/fallback.lock"
+export RYOKU_MONITOR_FALLBACK_DELAY=0
+export RYOKU_MONITOR_LOCK_DIR="$tmp"
+export RYOKU_MONITOR_DRM_ROOT="$tmp/no-drm"
+export RYOKU_MONITOR_GPU="$tmp/no-ryoku-gpu"
 
 conf="$tmp/monitors.lua"
 profiles="$tmp/profiles"
@@ -290,6 +296,74 @@ JSON
 runD "$tmp/dock-boot.json" autoscale >/dev/null
 eDP | grep -qF 'mode = "2560x1600@165"' || fail "booting undocked left the panel off behind the FALLBACK output"
 grep -qF '"FALLBACK"' "$conf" && fail "the FALLBACK placeholder was written into monitors.lua"
+
+# --- fallback debounce: a returning enabled output wins before the disabled
+# panel is woken. Repeated hotplug hooks share one wait and one fallback. --------
+debounce_live="$tmp/debounce-live.json"
+debounce_state="$tmp/debounce.state"
+debounce_lock="$tmp/debounce.lock"
+cp "$tmp/dock-panel.json" "$debounce_live"
+rm -f "$debounce_state" "$debounce_lock"
+RYOKU_MONITOR_JSON="$debounce_live" RYOKU_MONITORS_CONF="$conf" \
+  RYOKU_MONITORS_DIR="$tmp/none-debounce" RYOKU_MONITORS_APPLIED="$dock_applied" \
+  RYOKU_MONITOR_FALLBACK_STATE="$debounce_state" RYOKU_MONITOR_FALLBACK_LOCK="$debounce_lock" \
+  RYOKU_MONITOR_FALLBACK_DELAY=0.2 "$mon" autoscale >/dev/null &
+debounce_pid=$!
+/usr/bin/sleep 0.05
+cp "$tmp/dock-both.json" "$debounce_live.next"
+mv -f "$debounce_live.next" "$debounce_live"
+wait "$debounce_pid"
+eDP | grep -qF 'disabled = true' ||
+  fail "fallback woke the panel before the external output finished returning"
+[[ ! -e $debounce_state ]] || fail "a recovered output left a stale fallback marker"
+
+mkdir -p "$tmp/sleep-bin"
+cat >"$tmp/sleep-bin/sleep" <<'SLEEP'
+#!/usr/bin/env bash
+printf 'wait\n' >>"$RYOKU_SLEEP_LOG"
+exec /usr/bin/sleep "$@"
+SLEEP
+chmod +x "$tmp/sleep-bin/sleep"
+cp "$tmp/dock-panel.json" "$debounce_live"
+sleep_log="$tmp/fallback-sleeps"
+: >"$sleep_log"
+rm -f "$debounce_state" "$debounce_lock"
+pids=()
+for _ in 1 2 3; do
+  PATH="$tmp/sleep-bin:$PATH" RYOKU_SLEEP_LOG="$sleep_log" \
+    RYOKU_MONITOR_JSON="$debounce_live" RYOKU_MONITORS_CONF="$conf" \
+    RYOKU_MONITORS_DIR="$tmp/none-debounce" RYOKU_MONITORS_APPLIED="$dock_applied" \
+    RYOKU_MONITOR_FALLBACK_STATE="$debounce_state" RYOKU_MONITOR_FALLBACK_LOCK="$debounce_lock" \
+    RYOKU_MONITOR_FALLBACK_DELAY=0.2 "$mon" autoscale >/dev/null &
+  pids+=("$!")
+done
+for pid in "${pids[@]}"; do wait "$pid"; done
+[[ $(wc -l <"$sleep_log") == 1 ]] ||
+  fail "repeated hotplug hooks stacked fallback waits: $(wc -l <"$sleep_log") waits"
+eDP | grep -qF 'mode = "2560x1600@165"' ||
+  fail "a stable disconnect did not enable the fallback after the debounce"
+
+# A panel wired to another DRM card is not a safe live fallback when the
+# compositor renders on the primary card selected by ryoku-gpu.
+mkdir -p "$tmp/drm/card0" "$tmp/drm/card1-eDP-1" "$tmp/dev"
+: >"$tmp/dev/card0"
+: >"$tmp/dev/card1"
+cat >"$tmp/ryoku-gpu" <<'GPU'
+#!/usr/bin/env bash
+[[ ${1:-} == order && ${2:-} == --effective ]] || exit 1
+printf '%s\n' "$RYOKU_TEST_GPU_ORDER"
+GPU
+chmod +x "$tmp/ryoku-gpu"
+rm -f "$debounce_state" "$debounce_lock"
+RYOKU_MONITOR_JSON="$tmp/dock-panel.json" RYOKU_MONITORS_CONF="$conf" \
+  RYOKU_MONITORS_DIR="$tmp/none-gpu" RYOKU_MONITORS_APPLIED="$dock_applied" \
+  RYOKU_MONITOR_FALLBACK_STATE="$debounce_state" RYOKU_MONITOR_FALLBACK_LOCK="$debounce_lock" \
+  RYOKU_MONITOR_FALLBACK_DELAY=0 RYOKU_MONITOR_DRM_ROOT="$tmp/drm" \
+  RYOKU_MONITOR_GPU="$tmp/ryoku-gpu" \
+  RYOKU_TEST_GPU_ORDER="$tmp/dev/card0:$tmp/dev/card1" "$mon" autoscale >/dev/null
+eDP | grep -qF 'disabled = true' ||
+  fail "fallback woke an internal panel on a non-primary GPU"
+[[ ! -e $debounce_state ]] || fail "a skipped cross-GPU fallback left a marker"
 
 # --- settle: recover a display a degraded link left below its resolution -------
 # settle re-asserts each output's intended mode from monitors.lua; --check reports

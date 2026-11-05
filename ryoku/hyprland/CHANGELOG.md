@@ -44,6 +44,22 @@
   shut (a resume or re-dock) runs the lid sync itself instead of relying on
   that rewrite's reload (`scripts/ryoku-monitor`, `modules/lid.lua`,
   `tests/monitor-persist.sh`, `tests/hyprland-lid-hooks.lua`).
+  its preference). After a clamshell restart clears its lid state, the
+  firmware lid switch keeps the panel held. `monitors.lua` is written only
+  when its content changes. A display that returns while the lid stays
+  shut (a resume or re-dock) now runs the lid sync itself instead of
+  relying on that rewrite's reload (`scripts/ryoku-monitor`,
+  `modules/lid.lua`, `tests/monitor-persist.sh`,
+  `tests/hyprland-lid-hooks.lua`).
+- **Super+P restores the layout it mirrored.** Mirroring keeps each display's
+  current mode and scale, stays temporary, and the next press restores the
+  exact saved arrangement instead of replacing it with automatic defaults
+  (`scripts/ryoku-monitor`, `tests/monitor-persist.sh`).
+- **A sleeping external monitor no longer wakes an unsafe laptop panel.**
+  The fallback waits for a transient disconnect to settle, coalesces repeated
+  hotplug hooks, and leaves an internal panel off when it belongs to a GPU other
+  than the primary renderer (`scripts/ryoku-monitor`,
+  `tests/monitor-profiles.sh`).
 - **Game Mode keeps compositor blur, shadows and animations off across reloads.**
   The live action and config both load one strip; tiled windows keep their faint
   tint without blurring the moving desktop, while floating glass still blurs
