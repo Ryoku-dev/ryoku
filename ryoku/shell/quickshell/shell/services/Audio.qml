@@ -162,7 +162,6 @@ Singleton {
     onLiveCaptureStreamsChanged: listSettle.restart()
     onLiveLinksChanged: listSettle.restart()
 
-    onSinkChanged: listSettle.restart()
     Component.onCompleted: root.syncAudioLists()
 
     function setOutput(n) { if (n) Pipewire.preferredDefaultAudioSink = n; }
@@ -235,7 +234,11 @@ Singleton {
 
     readonly property bool sinkIsBluez: root.isBluez(root.sink)
     onSinkIsBluezChanged: root.refreshBtCard()
-    onSinkChanged: if (root.sinkIsBluez) root.refreshBtCard()
+    onSinkChanged: {
+        listSettle.restart();
+        if (root.sinkIsBluez)
+            root.refreshBtCard();
+    }
 
     // MAC from a bluez node name (bluez_output.<MAC>.<profile>), colon-formatted.
     function btMac(n) {
