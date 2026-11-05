@@ -252,6 +252,7 @@ func reconcilers() []reconciler {
 			reconciler{i18n.T("limine boot entry"), reconcileLimineBootEntry},
 			reconciler{i18n.T("alongside boot entry"), reconcileAlongsideBootEntry},
 			reconciler{i18n.T("limine UKI boot tree"), reconcileLimineUKITree},
+			reconciler{i18n.T("installer pacman hook masks"), reconcileInstallerPacmanHooks},
 			reconciler{i18n.T("limine kernel boot images"), reconcileLimineKernelImages},
 			reconciler{i18n.T("boot menu dead entries"), reconcileLimineDeadEntries},
 			reconciler{i18n.T("boot partition headroom"), reconcileBootSpace},

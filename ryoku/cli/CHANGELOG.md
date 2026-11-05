@@ -14,6 +14,10 @@
   `apply-pam` recognizes and preserves distro-provided lines while removing
   duplicates. Systemd editions route Secret Service activation through the
   existing keyring user unit; Void keeps its native session activation.
+- **Doctor repairs pacman hooks left disabled by an earlier ISO install.** On
+  Arch and CachyOS it removes the installer's `/dev/null` masks, restores parked
+  mkinitcpio hooks without replacing newer package copies, and reuses the Limine
+  kernel-image repair when the ESP image is stale.
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.
