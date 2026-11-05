@@ -21,11 +21,10 @@
   page, or closes them, on the focused output, so a keybind, script or Ryoku
   Hub can reach them without the logo
   (`quickshell/shell/modules/bar/barstyles/orpheus/{Scene.qml,settings/Prefs.qml}`).
-- **Orpheus AI usage shows whether you are ahead of pace.** The module compares
-  each quota window with an even burn rate, adds a trend arrow, and lists in its
-  tooltip the points ahead or behind and when the window would fill. The Modules
-  page gains the window shown (5 h, weekly, closest), a pace switch, the bar
-  figure (used or versus pace), the pace tolerance and the alert level
+- **Orpheus AI usage shows whether you are ahead of pace.** The module adds an
+  always-on trend arrow and lists the points ahead or behind and the projected
+  fill time in its tooltip. The Modules page keeps one alert-level control
+  instead of separate switches for each part of the same reading
   (`quickshell/shell/modules/bar/barstyles/orpheus/{modules/Ai.qml,settings/}`,
   `quickshell/shell/services/AiUsage.qml`).
 - **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,

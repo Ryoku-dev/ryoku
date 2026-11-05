@@ -15,57 +15,43 @@ Item {
     readonly property var shown: AiUsage.present.filter(
         id => S.Prefs.aiTools.indexOf(id) >= 0)
 
+    property real nowSec: Date.now() / 1000
+    readonly property int paceTolerance: 10
+
     property bool present: root.shown.length > 0
 
-    // The window the bar shows: the 5 h or weekly one the Modules page picked
-    // (the other when the chosen one has no data), or whichever is fullest.
     readonly property var lead: {
-        const choice = S.Prefs.aiWindow;
-        const groups = choice === "closest" ? [[false, true]]
-            : choice === "weekly" ? [[true], [false]] : [[false], [true]];
-        for (const group of groups) {
-            let best = null;
-            for (const id of root.shown) {
-                const tool = AiUsage.tool(id);
-                for (const weekly of group) {
-                    if (!(weekly ? tool.has7d : tool.has5h))
-                        continue;
-                    const used = weekly ? tool.pct7d : tool.pct5h;
-                    if (best === null || used > best.used) {
-                        best = { id: id, weekly: weekly, used: used,
-                            pace: AiUsage.pace(id, weekly) };
-                    }
-                }
+        let best = null;
+        for (const id of root.shown) {
+            const tool = AiUsage.tool(id);
+            if (tool.has5h && (best === null || tool.pct5h > best.used)) {
+                best = { id: id, weekly: false, used: tool.pct5h,
+                    pace: AiUsage.pace(id, false, root.nowSec) };
             }
-            if (best !== null)
-                return best;
         }
-        return null;
+        return best;
     }
-    readonly property bool pacing: S.Prefs.aiPace && root.lead !== null
+    readonly property bool pacing: root.lead !== null
         && root.lead.pace.available
     readonly property string trend: {
         if (!root.pacing)
             return "";
         const delta = root.lead.pace.delta;
-        return delta > S.Prefs.aiTolerance ? "ahead"
-            : delta < -S.Prefs.aiTolerance ? "behind" : "even";
+        return delta > root.paceTolerance ? "ahead"
+            : delta < -root.paceTolerance ? "behind" : "even";
     }
     readonly property bool hot: root.shown.some(id => AiUsage.tool(id).blocked
         || root.windowHot(id, false) || root.windowHot(id, true))
 
-    // Past the alert level, or burning fast enough to fill before the reset.
     function windowHot(id, weekly) {
         const tool = AiUsage.tool(id);
         if (!(weekly ? tool.has7d : tool.has5h))
             return false;
         if ((weekly ? tool.pct7d : tool.pct5h) >= S.Prefs.aiAlertAt)
             return true;
-        if (!S.Prefs.aiPace)
-            return false;
-        const pace = AiUsage.pace(id, weekly);
+        const pace = AiUsage.pace(id, weekly, root.nowSec);
         return pace.available && pace.exhaustTs > 0
-            && pace.delta > S.Prefs.aiTolerance;
+            && pace.delta > root.paceTolerance;
     }
 
     function clock(timestamp) {
@@ -78,12 +64,12 @@ Item {
     }
 
     function paceText(pace) {
-        if (!S.Prefs.aiPace || !pace.available)
+        if (!pace.available)
             return "";
         const points = Math.abs(pace.delta);
-        let text = points <= S.Prefs.aiTolerance ? "on pace"
+        let text = points <= root.paceTolerance ? "on pace"
             : points + " pts " + (pace.delta > 0 ? "ahead of" : "behind") + " pace";
-        if (pace.exhaustTs > 0 && pace.delta > S.Prefs.aiTolerance)
+        if (pace.exhaustTs > 0 && pace.delta > root.paceTolerance)
             text += ", full ~" + root.clock(pace.exhaustTs);
         return text;
     }
@@ -97,7 +83,7 @@ Item {
         const percent = weekly ? tool.pct7d : tool.pct5h;
         const reset = weekly ? tool.reset7d : tool.reset5h;
         const resetText = root.clock(reset);
-        const paceText = root.paceText(AiUsage.pace(id, weekly));
+        const paceText = root.paceText(AiUsage.pace(id, weekly, root.nowSec));
         const detail = [resetText.length > 0 ? "resets " + resetText : "",
             paceText].filter(part => part.length > 0).join(", ");
         return label + " " + percent + "%"
@@ -105,13 +91,7 @@ Item {
     }
 
     function figure() {
-        if (root.lead === null)
-            return "-";
-        if (root.pacing && S.Prefs.aiFigure === "pace") {
-            const delta = root.lead.pace.delta;
-            return (delta > 0 ? "+" : delta < 0 ? "−" : "") + Math.abs(delta);
-        }
-        return root.lead.used + "%";
+        return root.lead === null ? "-" : root.lead.used + "%";
     }
 
     readonly property string hintText: root.shown.map(id => {
@@ -166,5 +146,13 @@ Item {
         target: root
         text: root.hintText
         shown: root.present && press.hovered && root.hintText.length > 0
+    }
+
+    Timer {
+        interval: 30000
+        repeat: true
+        running: root.present && root.visible && !root.scene.autoHidden
+        onRunningChanged: if (running) root.nowSec = Date.now() / 1000
+        onTriggered: root.nowSec = Date.now() / 1000
     }
 }
