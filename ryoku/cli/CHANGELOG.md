@@ -1,6 +1,12 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor recognizes the shell's own visualizer and file watchers.** Memory
+  checks no longer report those helpers as user apps left inside the desktop
+  service (`internal/doctor/memory.go`).
+- **Doctor rebuilds only stale plugins that are enabled.** A disabled plugin
+  can no longer fail an update just because another enabled plugin needs a
+  rebuild (`internal/doctor/reconcile_wm_plugins.go`).
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.

@@ -101,6 +101,8 @@ func TestLooksLikeUserApp(t *testing.T) {
 		{name: "ryoku"},
 		{name: "lspci"},
 		{name: "grep"},
+		{name: "cava", userApp: true},
+		{name: "inotifywait", userApp: true},
 		{name: "electron", userApp: true},
 		{name: "firefox", userApp: true},
 	}
@@ -110,6 +112,49 @@ func TestLooksLikeUserApp(t *testing.T) {
 				t.Errorf("looksLikeUserApp(%q) = %t, want %t", test.name, got, test.userApp)
 			}
 		})
+	}
+}
+
+func TestShellMemoryHelperMatchesShellWatchers(t *testing.T) {
+	joined := func(argv ...string) string {
+		return strings.Join(append(append([]string{}, argv...), ""), "\x00") + "\x00"
+	}
+	helpers := [][]string{
+		{"python3", "-u", "-c", "# ryoku-python kb_locks watcher\nimport sys\n"},
+		{"python3", "-u", "/home/u/.config/quickshell/inir/scripts/daemon/keyboard_lock_state_daemon.py"},
+		{"python3", "-u", "-c", "import glob\nlast_caps = read_sysfs(\"/sys/class/leds/*capslock*/brightness\")\n"},
+		{"bash", "/home/u/.config/quickshell/shell/watchers/kb_locks.sh", "watch"},
+		{"inotifywait", "-m", "-e", "modify", "/home/u/.cache/ryoku/python/recording"},
+		{"cava", "-p", "/run/user/1000/ryoku-cava-101.conf"},
+	}
+	for _, argv := range helpers {
+		if !isShellMemoryHelper(joined(argv...)) {
+			t.Errorf("doctor misses the shell helper %q", argv[0]+" "+argv[len(argv)-1])
+		}
+	}
+	notHelpers := [][]string{
+		{"python3", "-m", "http.server"},
+		{"bash", "-c", "sleep 1"},
+		{"inotifywait", "-m", "/home/u/projects"},
+		{"cava"},
+	}
+	for _, argv := range notHelpers {
+		if isShellMemoryHelper(joined(argv...)) {
+			t.Errorf("doctor ignores an unrelated %q", argv[0])
+		}
+	}
+}
+
+func TestUserAppsInShellExcludesShellOwnedCavaAndInotify(t *testing.T) {
+	processes := []memoryProcess{
+		{pid: 100, name: "cava", cmdline: "cava\x00-p\x00/run/user/1000/ryoku-cava-100.conf\x00"},
+		{pid: 200, name: "inotifywait", cmdline: "inotifywait\x00-m\x00/home/u/.cache/ryoku/python/recording\x00"},
+		{pid: 300, name: "cava", cmdline: "cava\x00"},
+		{pid: 400, name: "inotifywait", cmdline: "inotifywait\x00-m\x00/home/u/projects\x00"},
+	}
+	want := processes[2:]
+	if got := userAppsInShell(processes, 0); !reflect.DeepEqual(got, want) {
+		t.Fatalf("user apps = %#v, want %#v", got, want)
 	}
 }
 
