@@ -135,10 +135,9 @@ _wifi_regdom() {
   ryoku-wifi-regdom apply >/dev/null 2>&1 || true
 }
 
-# ASUS AMD+NVIDIA panels register only nvidia_wmi_ec_backlight and hide
-# amdgpu_bl0, so brightness will not lower. ryoku-hw-backlight-fix adds
-# acpi_backlight=native (hardware-gated + idempotent, a no-op on every other
-# box) and bakes it into the UKI. Takes effect on the next reboot.
+# FA506NCG needs its hidden native AMD backlight forced at boot. The helper
+# allowlists that confirmed quirk and removes the former broad override from
+# every other board, then bakes the result into the UKI for the next reboot.
 _backlight_fix() {
   command -v ryoku-hw-backlight-fix >/dev/null 2>&1 || return 0
   ryoku-hw-backlight-fix >/dev/null 2>&1 || true

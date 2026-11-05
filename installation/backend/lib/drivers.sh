@@ -30,9 +30,9 @@ ryoku_drivers() {
 		run rm -f "/mnt/root/$name"
 	done
 
-	# ASUS AMD+NVIDIA panels register only nvidia_wmi_ec_backlight and hide
-	# amdgpu_bl0; ryoku-hw-backlight-fix adds acpi_backlight=native (gated on that
-	# exact case) so brightness works after reboot. self-gating -> safe everywhere.
+	# FA506NCG needs its hidden native AMD backlight forced at boot. The helper
+	# allowlists that confirmed quirk and defaults every other board to the
+	# kernel's selected backlight.
 	local bl="$RYOKU_REPO/system/hardware/display/ryoku-hw-backlight-fix"
 	if [[ -f $bl ]]; then
 		run cp "$bl" /mnt/root/ryoku-hw-backlight-fix

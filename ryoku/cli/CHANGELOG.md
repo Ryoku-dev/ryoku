@@ -7,6 +7,9 @@
 - **Doctor rebuilds only stale plugins that are enabled.** A disabled plugin
   can no longer fail an update just because another enabled plugin needs a
   rebuild (`internal/doctor/reconcile_wm_plugins.go`).
+- **Doctor points ASUS AMD and NVIDIA laptops at their EC backlight.** Its
+  no-backlight hint suggests `acpi_backlight=nvidia_wmi_ec` instead of native,
+  which disables working brightness control on affected TUF boards.
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.
