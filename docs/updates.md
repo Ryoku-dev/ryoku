@@ -278,10 +278,12 @@ release, new release, pre-update snapshot, and current boot. The shell daemon
 records a good boot once the shell has stayed up for 45 seconds.
 
 The early-boot service is `ryoku-boot-guard.service` on Arch/CachyOS and
-Fedora, and the `ryoku-boot-guard` runit service on Void. After two boots where
-the desktop never came up, it pins the previous tagged release, moves the whole
-Ryoku set back in one native package transaction, re-materializes every user's
-config, and leaves the distribution base and kernel untouched. On
+Fedora, and the `ryoku-boot-guard` runit service on Void. It records the current
+boot and judges it only when the following boot begins. After two completed
+boots where the desktop never came up, it pins the previous tagged release,
+moves the whole Ryoku set back in one native package transaction,
+re-materializes every user's config, and leaves the distribution base and
+kernel untouched. On
 snapshot-capable Arch and Void installs, a third failed boot selects the full
 pre-update snapshot path and clears Limine's remembered EFI entry so the
 fallback wins. Fedora keeps the package downgrade and sends only the next boot

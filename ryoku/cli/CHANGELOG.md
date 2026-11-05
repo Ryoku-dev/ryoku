@@ -21,6 +21,10 @@
 - **Doctor repairs saved default apps whose executable name changed.** It uses
   the Settings app catalogue to replace a missing known alias, then regenerates
   the active compositor's environment through the normal settings save path.
+- **The boot guard judges completed boots instead of the boot currently
+  starting.** A short interrupted boot can no longer combine with the healthy
+  boot that follows to trigger rollback. Reverts repair every user's config
+  before disarming, and read-only snapshots no longer claim disarm succeeded.
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.
