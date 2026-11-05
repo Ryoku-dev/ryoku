@@ -2,15 +2,27 @@
 
 # colors.json (the shell's own palette) is authored by the Go control plane;
 # matugen fans that same palette into the core desktop surface below. These
-# templates always render: the terminal, the Hyprland frame, the system
-# monitor, and the Qt toolkit the shell itself is built on. The GTK / GUI-app
-# fan-out lives in apps.toml, gated by the "Theme apps" toggle (theme.json
-# themeApps), so a user can keep third-party apps stock while the shell tracks
-# the palette.
+# templates always render: the terminal and its shell syntax, the window frame,
+# the system monitor, and the Qt toolkit the shell itself is built on. The GTK /
+# GUI-app fan-out lives in apps.toml, gated by the "Theme apps" toggle
+# (theme.json themeApps), so a user can keep third-party apps stock while the
+# shell tracks the palette.
 
 [templates.kitty]
 input_path = "~/.config/matugen/templates/kitty-colors.conf"
 output_path = "~/.config/kitty/current-theme.conf"
+
+[templates.fish]
+input_path = "~/.config/matugen/templates/colors.fish"
+output_path = "~/.config/fish/conf.d/ryoku-colors.fish"
+
+[templates.bash]
+input_path = "~/.config/matugen/templates/colors.bash"
+output_path = "~/.config/bash/ryoku-colors.bash"
+
+[templates.zsh]
+input_path = "~/.config/matugen/templates/colors.zsh"
+output_path = "~/.config/zsh/ryoku-colors.zsh"
 
 [templates.hypr]
 input_path = "~/.config/matugen/templates/hypr-colors.lua"

@@ -22,28 +22,6 @@ fzf_line=$(grep -n 'fzf --bash' "$bash_cfg" | sed -n '1s/:.*//p')
 ble_line=$(grep -n '/usr/share/blesh/ble.sh' "$bash_cfg" | sed -n '1s/:.*//p')
 (( fzf_line < ble_line )) || fail "Bash must initialize fzf before ble.sh"
 starship_line=$(grep -n 'starship init bash' "$bash_cfg" | sed -n '1s/:.*//p')
-for rule in \
-  'command_alias fg=#e2342a' \
-  'command_function fg=#e2342a' \
-  'command_file fg=#e2342a' \
-  'syntax_varname fg=#93D4E0' \
-  'syntax_quoted fg=#A3C293' \
-  'syntax_error fg=#FF6B6B' \
-  'auto_complete fg=#949699'; do
-  grep -Fq "$rule" "$bash_cfg" || fail "Bash palette missing $rule"
-done
-
-zsh_cfg=$repo/ryoku/apps/zsh/ryoku.zsh
-for rule in \
-  "ZSH_HIGHLIGHT_STYLES[alias]='fg=#e2342a'" \
-  "ZSH_HIGHLIGHT_STYLES[builtin]='fg=#e2342a'" \
-  "ZSH_HIGHLIGHT_STYLES[function]='fg=#e2342a'" \
-  "ZSH_HIGHLIGHT_STYLES[single-hyphen-option]='fg=#CCD0CF'" \
-  "ZSH_HIGHLIGHT_STYLES[redirection]='fg=#8AA9CC'" \
-  "ZSH_HIGHLIGHT_STYLES[commandseparator]='fg=#e83b30'" \
-  "ZSH_HIGHLIGHT_STYLES[globbing]='fg=#93D4E0'"; do
-  grep -Fq "$rule" "$zsh_cfg" || fail "Zsh palette missing $rule"
-done
 grep -Fxq 'pkgver=0.4.0_devel3' "$repo/release/packages/blesh/PKGBUILD" ||
   fail "ble.sh 0.4 or newer is required for Starship prompt integration"
 (( ble_line < starship_line )) || fail "Bash must initialize Starship after ble.sh"
@@ -86,41 +64,97 @@ STUB
   chmod +x "$stub/$tool"
 done
 
+write_generated_palette() {
+  local shell=$1 home=$2
+  case $shell in
+    fish)
+      mkdir -p "$home/.config/fish/conf.d"
+      cat >"$home/.config/fish/conf.d/ryoku-colors.fish" <<'PALETTE'
+set -g fish_color_normal 121212
+set -g fish_color_command 345678
+PALETTE
+      ;;
+    bash)
+      mkdir -p "$home/.config/bash"
+      cat >"$home/.config/bash/ryoku-colors.bash" <<'PALETTE'
+ble-face -s syntax_default fg=#121212
+ble-face -s syntax_command fg=#345678
+PALETTE
+      ;;
+    zsh)
+      mkdir -p "$home/.config/zsh"
+      cat >"$home/.config/zsh/ryoku-colors.zsh" <<'PALETTE'
+if (( ${+parameters[ZSH_HIGHLIGHT_STYLES]} )); then
+  ZSH_HIGHLIGHT_STYLES[default]='fg=#121212'
+  ZSH_HIGHLIGHT_STYLES[command]='fg=#345678'
+fi
+PALETTE
+      ;;
+  esac
+}
+
 run_shell() {
-  local shell=$1 home="$tmp/$1" out="$tmp/$1.out" log="$tmp/$1.log"
-  mkdir -p "$home/.config/fish" "$home/.config/bash" "$home/.config/zsh" "$home/.local/bin"
+  local shell=$1 mode=$2
+  local home="$tmp/$shell-$mode" out="$tmp/$shell-$mode.out" log="$tmp/$shell-$mode.log"
+  mkdir -p "$home/.config/fish" "$home/.config/bash" "$home/.config/zsh" "$home/.cache" "$home/.local/bin"
+  [[ $mode == generated ]] && write_generated_palette "$shell" "$home"
   : >"$log"
   case $shell in
     fish)
       env -u EDITOR -u VISUAL HOME="$home" PATH="$stub:/usr/bin" RYOKU_SHELL_LOG="$log" fish -i -c \
-        "source '$repo/ryoku/apps/fish/config.fish'; printf 'ENV=%s|%s|%s|%s\n' \"\$GOBIN\" \"\$CARGO_INSTALL_ROOT\" \"\$EDITOR\" \"\$VISUAL\"; functions ls; set -q fish_color_command; and echo EDIT=fish" >"$out" 2>&1 ||
-        { cat "$out" >&2; fail "$shell startup failed"; }
+        "source '$repo/ryoku/apps/fish/config.fish'; printf 'ENV=%s|%s|%s|%s\n' \"\$GOBIN\" \"\$CARGO_INSTALL_ROOT\" \"\$EDITOR\" \"\$VISUAL\"; printf 'PALETTE=%s|%s\n' \"\$fish_color_normal\" \"\$fish_color_command\"; functions ls; set -q fish_color_command; and echo EDIT=fish" >"$out" 2>&1 ||
+        { cat "$out" >&2; fail "$shell $mode startup failed"; }
       ;;
     bash)
-      script -qec "env -u EDITOR -u VISUAL HOME='$home' PATH='$stub:/usr/bin' RYOKU_SHELL_LOG='$log' bash --noprofile --rcfile '$repo/ryoku/apps/bash/ryoku.bash' -i -c 'printf \"ENV=%s|%s|%s|%s\\n\" \"\$GOBIN\" \"\$CARGO_INSTALL_ROOT\" \"\$EDITOR\" \"\$VISUAL\"; alias ls'" /dev/null >"$out" 2>&1 ||
-        { cat "$out" >&2; fail "$shell startup failed"; }
+      # shellcheck disable=SC2016
+      printf 'printf "ENV=%%s|%%s|%%s|%%s\\\\n" "$GOBIN" "$CARGO_INSTALL_ROOT" "$EDITOR" "$VISUAL"\nalias ls\nble-face --color=never syntax_default syntax_command\nexit\n' |
+        script -qec "env -u EDITOR -u VISUAL HOME='$home' XDG_CACHE_HOME='$home/.cache' USER='${USER:-nero}' LANG=C.UTF-8 TERM=xterm-256color PATH='$stub:/usr/bin' RYOKU_SHELL_LOG='$log' bash --noprofile --rcfile '$repo/ryoku/apps/bash/ryoku.bash' -i" /dev/null >"$out" 2>&1 ||
+        { cat "$out" >&2; fail "$shell $mode startup failed"; }
       ;;
     zsh)
       env -u EDITOR -u VISUAL HOME="$home" PATH="$stub:/usr/bin" RYOKU_SHELL_LOG="$log" ZDOTDIR="$home/.config/zsh" zsh -dfi -c \
-        "source '$repo/ryoku/apps/zsh/ryoku.zsh'; printf 'ENV=%s|%s|%s|%s\\n' \"\$GOBIN\" \"\$CARGO_INSTALL_ROOT\" \"\$EDITOR\" \"\$VISUAL\"; alias ls; (( \$+functions[_zsh_highlight] )) && print EDIT=zsh" >"$out" 2>&1 ||
-        { cat "$out" >&2; fail "$shell startup failed"; }
+        "source '$repo/ryoku/apps/zsh/ryoku.zsh'; printf 'ENV=%s|%s|%s|%s\\n' \"\$GOBIN\" \"\$CARGO_INSTALL_ROOT\" \"\$EDITOR\" \"\$VISUAL\"; printf 'PALETTE=%s|%s\\n' \"\${ZSH_HIGHLIGHT_STYLES[default]}\" \"\${ZSH_HIGHLIGHT_STYLES[command]}\"; alias ls; (( \$+functions[_zsh_highlight] )) && print EDIT=zsh" >"$out" 2>&1 ||
+        { cat "$out" >&2; fail "$shell $mode startup failed"; }
       ;;
   esac
   if grep -Fq 'unsupported readline function' "$out"; then
-    fail "$shell startup emitted unsupported Readline warnings"
+    fail "$shell $mode startup emitted unsupported Readline warnings"
   fi
-  grep -Fq "ENV=$home/.local/bin|$home/.local|nvim|nvim" "$out" || fail "$shell environment mismatch"
-  grep -q "eza -lh --group-directories-first" "$out" || fail "$shell ls alias missing"
-  test "$(grep -c '^ryoku-fastfetch ' "$log")" -eq 1 || fail "$shell fastfetch count"
-  grep -Fq "starship init $shell" "$log" || fail "$shell starship init"
+  grep -Fq "ENV=$home/.local/bin|$home/.local|nvim|nvim" "$out" || fail "$shell $mode environment mismatch"
+  grep -q "eza -lh --group-directories-first" "$out" || fail "$shell $mode ls alias missing"
+  test "$(grep -c '^ryoku-fastfetch ' "$log")" -eq 1 || fail "$shell $mode fastfetch count"
+  grep -Fq "starship init $shell" "$log" || fail "$shell $mode starship init"
   case $shell in
-    fish) grep -Fq 'EDIT=fish' "$out" || fail "fish editing layer" ;;
-    bash) test -r /usr/share/blesh/ble.sh || fail "bash editing layer" ;;
-    zsh) grep -Fq 'EDIT=zsh' "$out" || fail "zsh editing layer" ;;
+    fish)
+      grep -Fq 'EDIT=fish' "$out" || fail "fish editing layer"
+      if [[ $mode == generated ]]; then
+        grep -Fq 'PALETTE=121212|345678' "$out" || fail "fish generated palette"
+      else
+        grep -Fq 'PALETTE=F1F3E4|e2342a' "$out" || fail "fish fallback palette"
+      fi
+      ;;
+    bash)
+      grep -Fq 'ble-face syntax_default=fg=#' "$out" || fail "bash editing layer"
+      if [[ $mode == generated ]]; then
+        grep -Fq 'ble-face syntax_default=fg=#121212' "$out" || fail "bash generated default"
+        grep -Fq 'ble-face syntax_command=fg=#345678' "$out" || fail "bash generated command"
+      else
+        grep -Fiq 'ble-face syntax_default=fg=#F1F3E4' "$out" || fail "bash fallback default"
+        grep -Fiq 'ble-face syntax_command=fg=#e2342a' "$out" || fail "bash fallback command"
+      fi
+      ;;
+    zsh)
+      grep -Fq 'EDIT=zsh' "$out" || fail "zsh editing layer"
+      if [[ $mode == generated ]]; then
+        grep -Fq 'PALETTE=fg=#121212|fg=#345678' "$out" || fail "zsh generated palette"
+      else
+        grep -Fq 'PALETTE=fg=#F1F3E4|fg=#e2342a' "$out" || fail "zsh fallback palette"
+      fi
+      ;;
   esac
-  grep -Fq "zoxide init $shell --cmd cd" "$log" || fail "$shell zoxide init"
-  grep -Fq "mise activate $shell" "$log" || fail "$shell mise init"
-  grep -Fq "fzf --$shell" "$log" || fail "$shell fzf init"
+  grep -Fq "zoxide init $shell --cmd cd" "$log" || fail "$shell $mode zoxide init"
+  grep -Fq "mise activate $shell" "$log" || fail "$shell $mode mise init"
+  grep -Fq "fzf --$shell" "$log" || fail "$shell $mode fzf init"
 }
 
 run_zsh_omz() {
@@ -142,8 +176,11 @@ OMZ
   fi
 }
 
-run_shell fish
-run_shell bash
-run_shell zsh
+run_shell fish fallback
+run_shell fish generated
+run_shell bash fallback
+run_shell bash generated
+run_shell zsh fallback
+run_shell zsh generated
 run_zsh_omz
 printf 'terminal shell parity: fish bash zsh passed\n'

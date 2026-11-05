@@ -137,14 +137,14 @@ Apps Omarchy themes that Ryoku does not, most visible first:
 | Browser (chromium / brave) | Omarchy sets it through a managed policy file |
 | Neovim | `neovim.lua` in the theme dir |
 | VS Code / Codium | written into the app's settings, not a config file |
-| Fish shell + fzf | `colors.fish`, `fzf.fish` |
 | hyprlock | Ryoku has qylock, which takes no palette yet |
 | superfile | file manager |
 
 Omarchy also themes waybar, walker, mako and swayosd. Ryoku replaces all four
 with its own surfaces, which already read the palette directly -- no gap.
 
-Ryoku covers what Omarchy does not: telegram, heroic, obs, micro, qt5ct/qt6ct.
+Ryoku covers what Omarchy does not: telegram, heroic, obs, micro, qt5ct/qt6ct,
+plus Fish, Bash and Zsh syntax colours.
 
 ## Supporting a third-party theme folder (later)
 

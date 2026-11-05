@@ -1886,6 +1886,8 @@ func matugenEnsureDirs() {
 		filepath.Join(cfg, "heroic", "store", "styles"),
 		filepath.Join(cfg, "cava"),
 		filepath.Join(cfg, "fish", "conf.d"),
+		filepath.Join(cfg, "bash"),
+		filepath.Join(cfg, "zsh"),
 		filepath.Join(cfg, "yazi"),
 		filepath.Join(cfg, "ghostty"),
 		filepath.Join(cfg, "micro", "colorschemes"),

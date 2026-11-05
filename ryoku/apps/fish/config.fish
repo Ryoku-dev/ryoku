@@ -19,23 +19,25 @@ end
 if status is-interactive
   set -g fish_greeting
 
-  # legible fish syntax colours. fish applies a palette-tied default before
-  # config.fish runs (in our case with a malformed flag that made typed input
-  # the same colour as the background). pin a fixed scheme unconditionally so
-  # it always wins, regardless of the palette.
-  set -g fish_color_normal         F1F3E4
-  set -g fish_color_command        e2342a
-  set -g fish_color_keyword        e83b30
-  set -g fish_color_param          F1F3E4
-  set -g fish_color_option         CCD0CF
-  set -g fish_color_quote          A3C293
-  set -g fish_color_redirection    8AA9CC
-  set -g fish_color_end            e83b30
-  set -g fish_color_error          FF6B6B
-  set -g fish_color_comment        949699
-  set -g fish_color_operator       93D4E0
-  set -g fish_color_escape         93D4E0
-  set -g fish_color_autosuggestion 949699
+  set -l _ryoku_palette $__fish_config_dir/conf.d/ryoku-colors.fish
+  if test -r $_ryoku_palette
+    source $_ryoku_palette
+  else
+    set -g fish_color_normal         F1F3E4
+    set -g fish_color_command        e2342a
+    set -g fish_color_keyword        e83b30
+    set -g fish_color_param          F1F3E4
+    set -g fish_color_option         CCD0CF
+    set -g fish_color_quote          A3C293
+    set -g fish_color_redirection    8AA9CC
+    set -g fish_color_end            e83b30
+    set -g fish_color_error          FF6B6B
+    set -g fish_color_comment        949699
+    set -g fish_color_operator       93D4E0
+    set -g fish_color_escape         93D4E0
+    set -g fish_color_autosuggestion 949699
+  end
+  set -e _ryoku_palette
 
   # branded system readout on terminal open.
   if command -v ryoku-fastfetch >/dev/null 2>&1

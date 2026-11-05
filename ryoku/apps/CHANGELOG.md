@@ -200,6 +200,9 @@
   v0.56.0-beta.19") via `ryoku version --pretty` (`config.jsonc`).
 
 ### Fixed
+- `fish/`, `bash/`, `zsh/`: **Light terminal palettes keep typed commands
+  readable.** Shell syntax now follows the same generated wallpaper colours as
+  the terminal, with the existing dark scheme kept as the offline fallback.
 - `fastfetch/`: **The terminal greeting shows the Ryoku logo image in Ghostty.**
   The greeting kept the image only in kitty, so Ghostty, which speaks the same
   graphics protocol, fell back to a text logo or none (`ryoku-fastfetch`).
