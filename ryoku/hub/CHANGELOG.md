@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- Shortcut names, hints, categories and "not on" reasons follow the interface
+  language in Keybinds and in Kit. The shortcut catalogue now enters the
+  translation catalog, and the Keybinds page translates what it shows
+  (`pages/KeybindsPage.qml`, `ryoku/i18n/tools/sync.py`).
 - Updates acknowledges Fix with AI immediately, prevents duplicate pending launches,
   and displays the terminal launch result or error.
 - **Displays reads the saved adaptive-sync choice.** An idle panel no longer

@@ -39,6 +39,21 @@ class ShimaExtractionTest(unittest.TestCase):
         self.assertEqual(fields, ["Pieces", "Choose what Shima shows."])
 
 
+class ShortcutCatalogueExtractionTest(unittest.TestCase):
+    def test_bind_row_copy_is_catalogued(self):
+        row = '{ID: "shell.launcher", Category: "Shell", Label: "App launcher", Hint: "Open apps", Chord: "SUPER + Space"}'
+        self.assertEqual(sync.BIND_FIELD.findall(row), ["Shell", "App launcher", "Open apps"])
+
+    def test_compositor_reasons_are_catalogued(self):
+        niri = '"window.pin": {reason: "niri has no pin-window action."},'
+        self.assertEqual(sync.BIND_FIELD.findall(niri), ["niri has no pin-window action."])
+        hypr = ('var hyprUnhonored = map[string]string{\n'
+                '\t"column.first": "Hyprland has no column model.",\n}\n')
+        blocks = sync.UNHONORED_MAP.findall(hypr)
+        self.assertEqual([v for b in blocks for v in sync.MAP_VALUE.findall(b)],
+                         ["Hyprland has no column model."])
+
+
 class LLMUnavailableTest(unittest.TestCase):
     def test_cmd_sync_returns_three_without_writing_catalog(self):
         lang = next(iter(sync.TARGETS))

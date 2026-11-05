@@ -109,6 +109,13 @@ GO_CALL = re.compile(r'\b(?:i18n\.)?Tf?\(\s*"((?:\\.|[^"\\])*)"')
 SH_CALL = re.compile(
     r"""(?:^|[|(&;`$]|\s)(?:tf?|log|die)\s+(["'])((?:\\.|(?!\1).)*)\1""", re.M)
 SCHEMA_FIELD = re.compile(r'"(?:tab|label|desc|group)"\s*:\s*"((?:\\.|[^"\\])*)"')
+# the shortcut catalogue (ryoku/wm/binds.go) and each compositor's reason for a
+# bind it cannot honour are Go data that Kit and the Hub show through I18n.tr.
+WM_ROOT = os.path.join(REPO, "ryoku", "wm")
+WM_BIND_FILES = ("binds.go", "config_binds.go", "legend.go")
+BIND_FIELD = re.compile(r'\b(?:Category|Label|Hint|reason):\s*"((?:\\.|[^"\\])*)"')
+UNHONORED_MAP = re.compile(r'Unhonored = map\[string\]string\{(.*?)\n\}', re.S)
+MAP_VALUE = re.compile(r'"[^"\n]*":\s*"((?:\\.|[^"\\])*)"')
 
 
 
@@ -270,6 +277,19 @@ def extract_keys():
                     s = _unescape(body).strip()
                     if _copy(s):
                         keys.add(s)
+    for root, dirs, files in os.walk(WM_ROOT):
+        dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
+        for f in files:
+            if f not in WM_BIND_FILES:
+                continue
+            text = open(os.path.join(root, f), encoding="utf-8", errors="ignore").read()
+            bodies = BIND_FIELD.findall(text)
+            for block in UNHONORED_MAP.findall(text):
+                bodies += MAP_VALUE.findall(block)
+            for body in bodies:
+                s = _unescape(body).strip()
+                if _copy(s):
+                    keys.add(s)
     for root_dir in SH_ROOTS:
         for root, dirs, files in os.walk(root_dir):
             dirs[:] = [d for d in dirs if d not in ("vendor", "testdata", ".git")]
