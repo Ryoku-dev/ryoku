@@ -83,11 +83,13 @@ func bootID() string {
 	return strings.TrimSpace(string(b))
 }
 
-func bootProven(id string) bool {
+// provenAfter reports whether any session recorded a good boot other than the
+// one the update ran in; arming clears older records.
+func provenAfter(armedBoot string) bool {
 	matches, _ := filepath.Glob(filepath.Join(bootOKDir, "ok-*"))
 	for _, match := range matches {
 		body, err := os.ReadFile(match)
-		if err == nil && strings.TrimSpace(string(body)) == id {
+		if id := strings.TrimSpace(string(body)); err == nil && id != "" && id != armedBoot {
 			return true
 		}
 	}
@@ -157,6 +159,10 @@ func BootGuard(args []string) error {
 		_ = os.Remove(pendingFile)
 		return nil
 	}
+	if provenAfter(p.ArmedBoot) {
+		fmt.Printf(i18n.T("boot guard: %s came up after the update; disarmed\n"), p.To)
+		return disarmBootGuard("")
+	}
 	current := readBootID()
 	previous := p.CheckedBoot
 	if previous == "" {
@@ -168,10 +174,6 @@ func BootGuard(args []string) error {
 	p.CheckedBoot = current
 	if previous == "" || previous == p.ArmedBoot {
 		return writePendingUpdate(p)
-	}
-	if bootProven(previous) {
-		fmt.Printf(i18n.T("boot guard: %s came up after the update; disarmed\n"), p.To)
-		return disarmBootGuard("")
 	}
 	p.Boots++
 	if err := writePendingUpdate(p); err != nil {

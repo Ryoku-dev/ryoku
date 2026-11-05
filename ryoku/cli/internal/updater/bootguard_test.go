@@ -210,6 +210,24 @@ func TestBootGuardInterruptedBootThenGoodBootNeverReverts(t *testing.T) {
 	}
 }
 
+func TestBootGuardDisarmsOnFirstRunWhenALaterBootProvedTheDesktop(t *testing.T) {
+	setupBootGuardPaths(t)
+	if err := os.MkdirAll(bootOKDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	readBootID = func() string { return "this-boot" }
+	writePendingForTest(t, pendingUpdate{From: "v1.0.6", To: "v1.0.7", ArmedBoot: "armed-boot"})
+	if err := os.WriteFile(filepath.Join(bootOKDir, "ok-1000"), []byte("later-boot\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := BootGuard(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(pendingFile); !os.IsNotExist(err) {
+		t.Fatalf("a boot proven after the update did not disarm the guard: %v", err)
+	}
+}
+
 func TestBootGuardDisarmReportsReadOnlyPendingState(t *testing.T) {
 	setupBootGuardPaths(t)
 	writePendingForTest(t, pendingUpdate{From: "v1.0.6", To: "v1.0.7"})
