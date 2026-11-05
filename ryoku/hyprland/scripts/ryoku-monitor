@@ -36,6 +36,13 @@ monitors_user="${RYOKU_MONITORS_USER:-${XDG_CONFIG_HOME:-$HOME/.config}/hypr/mon
 # forced DPI pass wipes it.
 applied_layout="${RYOKU_MONITORS_APPLIED:-${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/monitors-applied.json}"
 
+# ryoku-clamshell's runtime state (same paths and overrides as the clamshell).
+# While a docked lid is shut, the panel file lists the internal panels the
+# clamshell turned off. A layout recall must not turn them on under the lid.
+clamshell_lid_state="${RYOKU_CLAMSHELL_LID_EVENT_STATE:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell-${UID:-$(id -u)}.lid}"
+clamshell_panel_state="${RYOKU_CLAMSHELL_PANEL_STATE:-${XDG_RUNTIME_DIR:-/tmp}/ryoku-clamshell-${UID:-$(id -u)}.panels}"
+lid_switch_glob="${RYOKU_LID_STATE_GLOB:-/proc/acpi/button/lid/*/state}"
+
 # jq prelude for every scale-touching path. Hyprland only accepts a scale that
 # is a 1/120 multiple AND divides the mode's pixel width and height into whole
 # logical pixels (src/output/Monitor.cpp: exact integer check, no epsilon);
@@ -269,7 +276,24 @@ write_monitors_conf() {
     printf '%s\n' "-- errors until the link resolves; autoscale + settle then raise it to highrr),"
     printf '%s\n' "-- placed to the right at 1x, never mirrored."
     printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })'
-  } >"$monitors_conf"
+  } | replace_if_changed "$monitors_conf"
+}
+
+# Replace a generated config file only when its content changes. Hyprland
+# reloads its config on every write to the file, even an identical one, and the
+# reload hooks can start another autoscale. Rewriting the same layout kept such
+# a reload loop alive. The rename also stops Hyprland from reading a half-written
+# file.
+replace_if_changed() {
+  local target="$1" tmp
+  tmp="$(mktemp "$target.XXXXXX")"
+  cat >"$tmp"
+  if cmp -s "$tmp" "$target"; then
+    rm -f "$tmp"
+    return 0
+  fi
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$target"
 }
 
 # apply one rule live. the Lua config manager rejects `hyprctl keyword`, so live
@@ -572,6 +596,30 @@ sanitize_layout() {
         end)'
 }
 
+# Keep the panels that a docked lid close handed off disabled while the lid stays
+# shut. Only the applied copy changes: the saved layout keeps the user's
+# preference, and the lid-open restore turns the panel on again. Runs before
+# ensure_connected_output, so a panel is still the fallback when nothing else
+# is connected.
+hold_covered_panels() {
+  local covered='[]' lid="" f
+  if [[ -r $clamshell_lid_state ]]; then
+    lid="$(<"$clamshell_lid_state")"
+  else
+    # A clamshell restart clears its edge file but leaves the panel off under
+    # the shut lid. The firmware switch tells whether the lid is still shut.
+    for f in $lid_switch_glob; do
+      [[ -r $f && $(<"$f") == *closed* ]] && lid=closed
+    done
+  fi
+  if [[ $lid == closed && -r $clamshell_panel_state ]]; then
+    covered="$(jq -Rsc 'split("\n") | map(select(. != ""))' "$clamshell_panel_state")"
+  fi
+  jq -c --argjson covered "$covered" '
+    map(if (.output as $o | $covered | index($o)) != null
+        then .disabled = true else . end)'
+}
+
 # Keep the saved disabled state as the preference, but never apply it when every
 # output the layout enables is unplugged. The generated config is rebuilt again
 # on monitor add/remove, so the fallback panel returns to disabled as soon as a
@@ -687,7 +735,7 @@ write_monitors_explicit() {
     printf '%s\n' "-- its preferred mode (always valid on an untrained link; autoscale + settle"
     printf '%s\n' "-- then raise it to highrr), placed to the right at 1x, never mirrored."
     printf '%s\n' 'hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })'
-  } >"$monitors_conf"
+  } | replace_if_changed "$monitors_conf"
 }
 
 # When a display is set in Ryoku Settings, drop the matching output from an
@@ -725,7 +773,7 @@ cmd_apply() {
   json="$(printf '%s' "$json" | sanitize_layout)"
   json="$(printf '%s' "$json" | expand_custom_modes)"
   json="$(printf '%s' "$json" | with_ids)"
-  effective="$(printf '%s' "$json" | ensure_connected_output)"
+  effective="$(printf '%s' "$json" | hold_covered_panels | ensure_connected_output)"
   printf '%s' "$effective" | apply_specs
   printf '%s' "$effective" | write_monitors_explicit
   mkdir -p "$(dirname "$applied_layout")"
@@ -747,7 +795,7 @@ cmd_save() {
   json="$(printf '%s' "$json" | with_ids)"
   mkdir -p "$monitors_dir"
   printf '%s' "$json" | jq '{monitors: .}' >"$monitors_dir/$name.json"
-  effective="$(printf '%s' "$json" | ensure_connected_output)"
+  effective="$(printf '%s' "$json" | hold_covered_panels | ensure_connected_output)"
   printf '%s' "$effective" | apply_specs
   printf '%s' "$effective" | write_monitors_explicit
   retire_carried_pins "$json"
@@ -817,7 +865,7 @@ matching_profile() {
 # shared by named-profile load and the implicit applied-layout recall.
 load_layout_file() {
   local file="$1" resolved
-  resolved="$(resolve_layout "$(monitors_json)" "$file" | jq -c '.monitors' | sanitize_layout | ensure_connected_output)"
+  resolved="$(resolve_layout "$(monitors_json)" "$file" | jq -c '.monitors' | sanitize_layout | hold_covered_panels | ensure_connected_output)"
   printf '%s' "$resolved" | apply_specs
   printf '%s' "$resolved" | write_monitors_explicit
 }
