@@ -35,7 +35,8 @@ const catalogueFixture = `[
                   { "key": "weatherImperial", "type": "toggle", "label": "Fahrenheit" },
                   { "key": "weather", "type": "toggle", "label": "Weather", "visKey": true } ] },
   { "id": "media",      "gid": "G9",  "label": "Now playing",     "visKey": "mpris",
-    "settings": [ { "key": "mprisBarStyle", "type": "choice", "label": "Style", "options": ["default", "full"] } ] },
+    "settings": [ { "key": "mprisBarStyle", "type": "choice", "label": "Style", "options": ["default", "full"] },
+                  { "key": "mprisTitleWidth", "type": "int", "label": "Title width", "min": 88, "max": 400 } ] },
   { "id": "quick",      "gid": "G10", "label": "Quick",           "visKey": "quick",    "desc": "keep awake, media, theme" },
   { "id": "network",    "gid": "G11", "label": "Network",         "visKey": "network" },
   { "id": "battery",    "gid": "G12", "label": "Battery",         "visKey": "battery" },
@@ -230,6 +231,7 @@ func TestValidateBuiltinSetting(t *testing.T) {
 		{name: "multi bad member", s: catalogSetting{Type: "multi", Options: []string{"claude"}}, raw: "claude,gemini", wantErr: true},
 		{name: "int ok", s: catalogSetting{Type: "int", Min: &min, Max: &max}, raw: "5", want: `5`},
 		{name: "int too high", s: catalogSetting{Type: "int", Min: &min, Max: &max}, raw: "99", wantErr: true},
+		{name: "int too low", s: catalogSetting{Type: "int", Min: &min, Max: &max}, raw: "-1", wantErr: true},
 		{name: "int not a number", s: catalogSetting{Type: "int"}, raw: "five", wantErr: true},
 		{name: "text ok", s: catalogSetting{Type: "text"}, raw: "hi there", want: `"hi there"`},
 		{name: "unknown type", s: catalogSetting{Type: "colour"}, raw: "x", wantErr: true},
@@ -401,6 +403,16 @@ func TestBarVerbsThroughStore(t *testing.T) {
 	}
 	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["audioBoost"] != true {
 		t.Fatalf("qsbar.audioBoost = %v, want true", qs["audioBoost"])
+	}
+
+	if got := d.dispatch("bar set media mprisTitleWidth 300"); got != "ok" {
+		t.Fatalf("bar set title width: %s", got)
+	}
+	if qs, _ := d.frame(t)["qsbar"].(map[string]any); qs["mprisTitleWidth"] != float64(300) {
+		t.Fatalf("qsbar.mprisTitleWidth = %v, want 300", qs["mprisTitleWidth"])
+	}
+	if got := d.dispatch("bar set media mprisTitleWidth 401"); !strings.HasPrefix(got, "err bar") {
+		t.Fatalf("out-of-range title width should error, got %s", got)
 	}
 
 	// Position and form patch their presentation keys.

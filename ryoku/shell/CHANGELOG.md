@@ -7,6 +7,9 @@
   an authenticated unlock (`ipc/lockrecovery.go`, `ipc/sleepwake.go`).
 - **Notification popups keep their full cards and saved screen margin.** Wrapped
   text, images and store designs now grow the popup to their real height.
+- **QS Bar's now-playing title can use more room.** The widget settings now
+  offer an 88 to 400 px title width, and the marquee stays still when the title
+  fits.
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.

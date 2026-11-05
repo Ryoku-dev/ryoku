@@ -165,6 +165,11 @@ beside the title keep their own clicks, so the widget stays a remote control and
 the card is what a click on the widget itself asks for. Escape, the close mark, or
 a click outside dismisses it, and Space toggles playback while it is focused.
 
+The default style starts with an 88 px title lane. In QS Bar Settings, expand
+Now playing and set **Title width** anywhere from 88 to 400 px; the same setting
+is available as `ryoku-shell bar set media mprisTitleWidth 300`. The title
+scrolls only when it is wider than the chosen lane.
+
 The card is the record on the left (the artwork, the grooves, and the playback
 spectrum ringing it) and the track on the right: title, artist, album, the output
 device and the player it came from, a seekable progress bar, and the transport.
