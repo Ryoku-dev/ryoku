@@ -7,7 +7,6 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1054,7 +1053,6 @@ func matugenCarrier(pal map[string]string) map[string]any {
 			g, _ = strconv.ParseInt(stripped[2:4], 16, 0)
 			b, _ = strconv.ParseInt(stripped[4:6], 16, 0)
 		}
-		h, s, l := rgbToHSL(r, g, b)
 		co := map[string]any{
 			"hex":          hex,
 			"hex_stripped": stripped,
@@ -1062,10 +1060,6 @@ func matugenCarrier(pal map[string]string) map[string]any {
 			"green":        strconv.FormatInt(g, 10),
 			"blue":         strconv.FormatInt(b, 10),
 			"rgb":          fmt.Sprintf("%d, %d, %d", r, g, b),
-			"hue":          strconv.Itoa(h),
-			"saturation":   strconv.Itoa(s),
-			"lightness":    strconv.Itoa(l),
-			"hsl":          fmt.Sprintf("hsl(%d, %d%%, %d%%)", h, s, l),
 		}
 		entry := map[string]any{"default": co, "dark": co, "light": co}
 		for key, val := range co {
@@ -1078,42 +1072,6 @@ func matugenCarrier(pal map[string]string) map[string]any {
 		put(k+"_argb", "#ff"+strings.TrimPrefix(v, "#"))
 	}
 	return map[string]any{"colors": colors}
-}
-
-// rgbToHSL converts an 8-bit sRGB triple to HSL as hue in degrees [0,360) and
-// saturation/lightness in whole percent, the units CSS hsl() and Obsidian's
-// --accent-h/s/l expect. The carrier is hex/rgb only in matugen json mode, so a
-// template that needs the accent as an HSL triple (Obsidian derives its whole
-// accent chain from --accent-h/s/l) gets it from here rather than a hook.
-func rgbToHSL(r, g, b int64) (int, int, int) {
-	rf, gf, bf := float64(r)/255, float64(g)/255, float64(b)/255
-	max := math.Max(rf, math.Max(gf, bf))
-	min := math.Min(rf, math.Min(gf, bf))
-	l := (max + min) / 2
-	if max == min {
-		return 0, 0, int(math.Round(l * 100)) // achromatic: hue and saturation undefined
-	}
-	d := max - min
-	var s float64
-	if l > 0.5 {
-		s = d / (2 - max - min)
-	} else {
-		s = d / (max + min)
-	}
-	var h float64
-	switch max {
-	case rf:
-		h = (gf - bf) / d
-		if gf < bf {
-			h += 6
-		}
-	case gf:
-		h = (bf-rf)/d + 2
-	default:
-		h = (rf-gf)/d + 4
-	}
-	h /= 6
-	return int(math.Round(h * 360)), int(math.Round(s * 100)), int(math.Round(l * 100))
 }
 
 // templateGroup maps a matugen template block name to its roster key, so one
