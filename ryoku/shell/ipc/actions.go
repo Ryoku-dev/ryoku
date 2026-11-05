@@ -393,9 +393,9 @@ func ensureSessionLocked(deadline time.Time) error {
 	}
 }
 
-// spawnLocker starts the long-lived qylock wrapper. The wrapper owns crash
-// recovery so its budget cannot be multiplied by a second daemon-side retry
-// loop; this goroutine only reaps it when the lock cycle ends.
+// spawnLocker starts the long-lived qylock wrapper. The wrapper handles client
+// crashes while it lives; the daemon watchdog relaunches this wrapper if the
+// whole launcher disappears before an authenticated unlock.
 func spawnLocker(_ int) error {
 	launcher, err := exec.LookPath("ryoku-qylock-lock")
 	if err != nil {

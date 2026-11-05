@@ -176,6 +176,7 @@ type daemon struct {
 	sleep        *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
 	suspendReqMu sync.Mutex
 	suspendReq   map[string]*suspendRequest
+	lockRecovery *lockRecoveryPolicy
 }
 
 func (d *daemon) currentSleepCycle() *sleepCycle {
@@ -454,6 +455,7 @@ func setupQmlImportPath() {
 // components.
 func (d *daemon) bootstrap() {
 	d.startSettings()
+	d.startLockRecovery()
 	d.startPresence()
 	d.startKeypress()
 	d.startRecord()
@@ -1464,6 +1466,9 @@ func (d *daemon) dispatch(line string) string {
 				return "err lock: requested login1 session is not owned by this daemon"
 			}
 			reply := lockSession()
+			if reply == "ok" {
+				d.confirmLockRecovery()
+			}
 			d.kickQylockGuardWatcher()
 			return reply
 		}
@@ -1471,6 +1476,9 @@ func (d *daemon) dispatch(line string) string {
 			return "err lock: expected no arguments, status, or session <id>"
 		}
 		reply := lockSession()
+		if reply == "ok" {
+			d.confirmLockRecovery()
+		}
 		d.kickQylockGuardWatcher()
 		return reply
 	case "unlock-prepare":

@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A crashed lock screen comes back after display-link churn.** Once qylock has
+  confirmed a secure lock, the shell retries its launcher across a 42-second
+  window if that client disappears, and stops immediately after confirmation or
+  an authenticated unlock (`ipc/lockrecovery.go`, `ipc/sleepwake.go`).
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.
