@@ -189,7 +189,7 @@ Rectangle {
         "dictation": "voice typing speech transcribe whisper microphone stt",
         "windowmanager": "compositor window manager wm wayland switch change swap session provider window windows rounding corners softness gaps border borders thickness colour tiling layout opacity transparency transparent dim blur shadow float snap resize animation spread offset",
         "plugins": "plugin plugins hyprland compositor hyprpm title bar titlebar hyprbars glass hyprglass image border imgborders cursor motion dynamic cursors focus flash hyprfocus key sound sounds keyboard keysounds typing click clicky thock creamy cherry mx topre mechvibes switch version abi mismatch rebuild build update add git repository install",
-        "subshells": "subshell full shell gokko caelestia tansu python macshell serpantinum desktop panels dock launcher quick settings bar",
+        "subshells": "subshell full shell gokko caelestia tansu python imi macshell serpantinum desktop panels dock launcher quick settings bar",
         "bar-studio": "bar frame rails zones widgets menus surfaces style catalogue layout framebars sidebar dock dockapps pinned pin magnify autohide auto-hide media chip peek labels edge taskbar",
         "desktop": "desktop brand logo mark name wallpaper picker clipboard sidebar sidebars controls today panel corner",
         "controls": "controls quick settings super escape sidebar panel layout sections order graph vitals levels media plugins",
