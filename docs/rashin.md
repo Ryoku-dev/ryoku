@@ -461,7 +461,10 @@ agent picked in Rashin, when it can open a repair (Hermes, Oh My Pi, Claude
 Code, or Codex), otherwise the first of those installed. For Codex, `fix.model`
 and `fix.effort` set the model and reasoning effort of that session only, for
 example `"fix": {"agent": "codex", "model": "gpt-6.1-sol", "effort": "low"}`;
-Codex's own config stays as it is. It starts in the vault,
+Codex's own config stays as it is. Run without a terminal (the Updates page
+button), `ryoku-rashin fix` opens the terminal at once and answers with the
+harness it will start; the health check and any error then show in that
+terminal, which stays open on a failure. It starts in the vault,
 so the machine map is its working directory, with the Needle persona as extra
 system prompt (Hermes and Codex, which take none, get it at the top of the message) and
 the problem as its first message: a one-line `Fix with AI: <problem>` and a brief

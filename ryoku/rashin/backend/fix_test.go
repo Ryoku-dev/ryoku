@@ -247,3 +247,47 @@ func TestFixOpensTheConfiguredCodexModelAndEffort(t *testing.T) {
 		t.Fatalf("launch = %s %q, want Codex %q", l.Harness, l.Argv, want)
 	}
 }
+
+// Fix with AI pressed outside a terminal (the Settings button) must answer at
+// once: it opens the terminal running the fix itself, so the slow health check
+// and any error it hits happen on screen, not in a hidden process.
+func TestFixOffATerminalOpensTheTerminalBeforeTheHealthCheck(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	cfgHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", cfgHome)
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "codex"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin)
+	if err := os.MkdirAll(filepath.Join(cfgHome, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgHome, "ryoku", "rashin.json"), []byte(`{"fix":{"agent":"codex"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldTerm, oldLookPath, oldRun := onTerminal, terminalLookPath, terminalRun
+	t.Cleanup(func() { onTerminal, terminalLookPath, terminalRun = oldTerm, oldLookPath, oldRun })
+	onTerminal = func() bool { return false }
+	terminalLookPath = func(name string) (string, error) { return "/test/bin/" + name, nil }
+	var got []string
+	terminalRun = func(_ string, args []string) ([]byte, error) {
+		got = append([]string(nil), args...)
+		return nil, nil
+	}
+
+	if err := cmdFix([]string{"doctor"}); err != nil {
+		t.Fatalf("no ryoku on PATH, so a health check before the terminal would fail: %v", err)
+	}
+	self, _ := os.Executable()
+	tail := strings.Join(got, "\x00")
+	if !strings.HasSuffix(tail, "\x00"+self+"\x00fix\x00doctor") || !strings.Contains(tail, "/test/bin/ryoku-app\x00terminal\x00--\x00sh\x00-c") {
+		t.Fatalf("terminal args = %q, want the held fix command %s fix doctor", got, self)
+	}
+
+	t.Setenv("PATH", t.TempDir())
+	got = nil
+	if err := cmdFix([]string{"doctor"}); err == nil || got != nil {
+		t.Fatalf("with no harness installed: err %v, terminal %q; want an error and no terminal", err, got)
+	}
+}

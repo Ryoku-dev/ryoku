@@ -101,7 +101,9 @@ type fixLaunch struct {
 	Argv    []string
 }
 
-func planFix(display, brief string) (fixLaunch, error) {
+// pickConfiguredHarness resolves the agent the fix setting, else the chat
+// setting, names.
+func pickConfiguredHarness() (fixHarness, string, Config, error) {
 	cfg := LoadConfig()
 	want := cfg.Fix.Agent
 	if want == "" {
@@ -109,7 +111,15 @@ func planFix(display, brief string) (fixLaunch, error) {
 	}
 	h, bin, ok := pickFixHarness(want, fixHarnesses())
 	if !ok {
-		return fixLaunch{}, errors.New("no agent harness to open; install Hermes or Oh My Pi")
+		return h, "", cfg, errors.New("no agent harness to open; install Codex, Claude Code, Hermes or Oh My Pi")
+	}
+	return h, bin, cfg, nil
+}
+
+func planFix(display, brief string) (fixLaunch, error) {
+	h, bin, cfg, err := pickConfiguredHarness()
+	if err != nil {
+		return fixLaunch{}, err
 	}
 	return fixLaunch{Harness: h.Name, Argv: h.argv(bin, needlePersona, display+"\n\n"+brief, cfg.Fix)}, nil
 }
