@@ -265,24 +265,25 @@ const shellProducts = [
     { id: "gokko", category: "barstyles", installed: false },
     { id: "tansu", category: "barstyles", installed: true },
     { id: "caelestia", category: "barstyles", installed: false },
+    { id: "imi", category: "barstyles", installed: false },
     { id: "obi", category: "barstyles", installed: true },
     { id: "chroma", category: "barstyles", installed: true },
     { id: "nacre", category: "barstyles", installed: false },
     { id: "launcher", category: "launchers", installed: true }
 ];
 eq(Store.collection(shellProducts, { categoryID: "subshells" }).map(i => i.id),
-   ["caelestia", "gokko", "python", "tansu"], "subshell browse tab sorts A to Z");
+   ["caelestia", "gokko", "imi", "python", "tansu"], "subshell browse tab sorts A to Z");
 eq(Store.collection(shellProducts, { categoryID: "barstyles" }).map(i => i.id),
-   ["caelestia", "chroma", "gokko", "nacre", "obi", "python", "tansu"],
+   ["caelestia", "chroma", "gokko", "imi", "nacre", "obi", "python", "tansu"],
    "barstyle browse tab includes subshells and sorts A to Z");
 eq(Store.collection(shellProducts, { view: "library" }).map(i => i.id),
    ["python", "tansu", "obi", "chroma", "launcher"], "library unchanged");
-eq(Store.barCategories([{ id: "barstyles", name: "Bar styles", count: 7, group: "wear" }], shellProducts)
-  .map(cat => [cat.id, cat.count]), [["subshells", 4], ["barstyles", 7]],
+eq(Store.barCategories([{ id: "barstyles", name: "Bar styles", count: 8, group: "wear" }], shellProducts)
+  .map(cat => [cat.id, cat.count]), [["subshells", 5], ["barstyles", 8]],
    "barstyles count keeps every bar style");
 eq(Store.categoryName(shellProducts[0], { name: "Bar styles" }), "Subshell",
    "subshell cards carry a small marker");
-eq(Store.categoryName(shellProducts[4], { name: "Bar styles" }), "Bar styles",
+eq(Store.categoryName(shellProducts[5], { name: "Bar styles" }), "Bar styles",
    "ordinary barstyle cards keep their category");
 
 eq(

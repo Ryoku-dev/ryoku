@@ -88,6 +88,7 @@ Singleton {
         || (barStyle === "iris" && (root.inir?.iris?.modules?.notificationPopup ?? true))
         || barStyle === "tansu"
         || barStyle === "caelestia"
+        || barStyle === "imi"
         || (barStyle === "gokko" && BarProducts.gokkoReady)
     // Only a style that plays its own notification sound silences the shell's
     // cue; Nomarchy and Tansu draw banners but play nothing themselves.
@@ -100,6 +101,7 @@ Singleton {
         && !(root.nomarchy && root.nomarchy.osd === false))
         || (barStyle === "iris" && (root.inir?.iris?.modules?.osd ?? true))
         || barStyle === "caelestia"
+        || barStyle === "imi"
 
     // Desktop-wide shortcuts stay with Ryoku. Shima substitutes its own
     // shortcuts sheet because it adds a style-only element view.

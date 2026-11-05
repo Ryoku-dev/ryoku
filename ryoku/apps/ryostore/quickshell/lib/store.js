@@ -105,7 +105,7 @@ function matchesQuery(item, query) {
     return terms.every(function(term) { return haystack.indexOf(term) !== -1; });
 }
 
-const subshellIds = ["gokko", "caelestia", "tansu", "python"];
+const subshellIds = ["gokko", "caelestia", "tansu", "python", "imi"];
 function isSubshell(item) {
     return Boolean(item && item.category === "barstyles"
         && subshellIds.indexOf(String(item.id || "")) >= 0);
