@@ -4,8 +4,8 @@
   "revision": "48cdcecb0f6089cfbb7019054602eab28e154b3b",
   "archive_sha256": "8fdc4a837cc6828e76004b0b1bcdaa68889de20a6a01a28e25e86acca3aa53fa",
   "version": "2.33.0",
-  "patch_sha256": "f7790ca4db7931110a37f0b48a7827a394d1a384b5f3ad5a4eb5f69e4caa2979",
-  "runtime_sha256": "419f81403d7453d119bf3c9e1937eb7eca0420c570aad407aa35e2631bca334b",
+  "patch_sha256": "254d6117d47f60900b06d735833bc82728a679e5e9ac6ab24bffe521ed15158d",
+  "runtime_sha256": "045a2ea065204f2fe9cda826d37272b05d96a9e8d72d2e15cad626cae6ee5cf1",
   "runtime_files": 2409,
   "overview_patch_sha256": "f3fe7d2ade2c1fc44dc2343f2901d739aee5d9a9bd8d3c886ee4136788fead10"
 }

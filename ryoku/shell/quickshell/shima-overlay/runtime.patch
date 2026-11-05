@@ -6961,7 +6961,7 @@
 +singleton RyokuVisualizerPalette 1.0 RyokuVisualizerPalette.qml
 --- a/shell.qml
 +++ b/shell.qml
-@@ -24,6 +24,62 @@
+@@ -24,6 +24,59 @@
  ShellRoot {
      id: root
  
@@ -6990,7 +6990,6 @@
 +            case "launcher": return ryokuLauncher
 +            case "overview": return ryokuOverview
 +            case "clipboard": return ryokuClipboard
-+            case "settings": return ryokuSettings
 +            case "sidebar-left": case "controls":
 +                return family === "waffle" ? ryokuWactionCenter : family === "iris" ? ryokuSidebarRight : ryokuControlPanel
 +            case "sidebar-right": case "notifications":
@@ -7006,13 +7005,11 @@
 +    IpcHandler {
 +        target: "shell"
 +        function openSurface(mon: string, surface: string): void {
-+            const handler = root.ryokuSurfaceHandler(surface)
-+            if (handler) handler.toggle()
-+            else if (surface === "wallpaper") {
-+                GlobalStates.wallpaperSelectorTargetMonitor = mon
-+                GlobalStates.wallpaperSelectorOpen = !GlobalStates.wallpaperSelectorOpen
-+            } else if (surface === "theme") GlobalStates.openSettings()
-+            else if (surface === "screenshot") GlobalStates.openRegionScreenshot()
++            // Ryoku keeps its settings, wallpaper and capture tools under every subshell
++            const ryoku = { settings: ["ryoku-shell", "hub", "open"], wallpaper: ["ryogami", "wallpaper", "ui"], theme: ["ryogami", "wallpaper", "ui"], screenshot: ["ryoku-cmd-ryoshot"] }[surface]
++            const handler = ryoku ? null : root.ryokuSurfaceHandler(surface)
++            if (ryoku) Quickshell.execDetached(ryoku)
++            else if (handler) handler.toggle()
 +        }
 +        function closeSurface(mon: string, surface: string): void {
 +            const handler = root.ryokuSurfaceHandler(surface)
@@ -7024,7 +7021,7 @@
      readonly property bool disableHotReload: Quickshell.env("INIR_DISABLE_HOT_RELOAD") === "1"
          || Quickshell.env("INIR_DISABLE_HOT_RELOAD") === "true"
  
-@@ -32,8 +88,8 @@
+@@ -32,8 +85,8 @@
      }
  
      // Force singleton instantiation — startup-critical only
@@ -7035,7 +7032,7 @@
      property var _devNavigationService: DevNavigation
      property var _shellEditSessionService: ShellEditSession
      // Acquire org.kde.StatusNotifierWatcher before graphical-session.target
-@@ -82,8 +138,8 @@
+@@ -82,8 +135,8 @@
      function _ensureLateFamilyServices(): void {
          const family = Config.options?.panelFamily ?? "ii"
          root._shellUpdatesService = ShellUpdates
@@ -7046,7 +7043,7 @@
          if (family !== "iris") {
              root._calendarSyncService = CalendarSync
              root._todoService = Todo
-@@ -119,8 +175,8 @@
+@@ -119,8 +172,8 @@
          console.info("[Boot] T+0ms: Component.onCompleted (shell.qml ready)");
          // Tier 0: startup-critical singletons (no delay)
          root._log("[Boot] Tier 0: startup-critical singletons");
@@ -7057,7 +7054,7 @@
          // Force MemoryPressureService instantiation for IPC (#164)
          void MemoryPressureService.enabled;
          // Same reason: GlobalActions owns the `globalActions` IPC target and is
-@@ -352,7 +408,7 @@
+@@ -352,7 +405,7 @@
      // three bars only toggle GlobalStates.barOpen, so a single shared handler is
      // family-agnostic and serves the horizontal bar, vertical bar and waffle.
      IpcHandler {
@@ -7066,7 +7063,7 @@
          function mediaWidth(px: string): string {
              const value = parseInt(px)
              if (value >= 120 && value <= 640) Config.setNestedValue("bar.media.maxWidth", value)
-@@ -431,21 +487,21 @@
+@@ -431,21 +484,21 @@
      // ii interaction routers stay resident with the root so commands remain
      // available while the heavier family panel tree is deferred.
      IpcHandler {
@@ -7091,7 +7088,7 @@
          function toggle(): void { GlobalStates.toggleSidebarLeft("") }
          function close(): void { GlobalStates.closeSidebarLeft() }
          function open(): void { GlobalStates.openSidebarLeft("") }
-@@ -475,7 +531,7 @@
+@@ -475,7 +528,7 @@
      }
  
      IpcHandler {
@@ -7100,7 +7097,7 @@
          function toggle(): void { GlobalStates.toggleSidebarRight("") }
          function close(): void { GlobalStates.closeSidebarRight() }
          function open(): void { GlobalStates.openSidebarRight("") }
-@@ -504,14 +560,14 @@
+@@ -504,14 +557,14 @@
      }
  
      IpcHandler {
@@ -7117,7 +7114,7 @@
          function toggle(): void { GlobalStates.waffleNotificationCenterOpen = !GlobalStates.waffleNotificationCenterOpen }
          function close(): void { GlobalStates.waffleNotificationCenterOpen = false }
          function open(): void { GlobalStates.waffleNotificationCenterOpen = true }
-@@ -614,7 +670,7 @@
+@@ -614,7 +667,7 @@
      // IPC for settings - overlay mode or separate window based on config
      // Note: waffle family ALWAYS uses its own window (waffleSettings.qml), never the Material overlay
      IpcHandler {
@@ -7126,7 +7123,7 @@
          function open(): void {
              GlobalStates.openSettings()
          }
-@@ -752,21 +808,21 @@
+@@ -752,21 +805,21 @@
      }
  
      IpcHandler {
@@ -7151,7 +7148,7 @@
          function _isWaffle(): bool { return (Config.options?.panelFamily ?? "ii") === "waffle" }
          function _isIris(): bool { return (Config.options?.panelFamily ?? "ii") === "iris" }
          function _openIrisClipboard(): void {
-@@ -794,7 +850,69 @@
+@@ -794,7 +847,69 @@
      }
  
      IpcHandler {
@@ -7222,7 +7219,7 @@
          function _usesPalette(): bool {
              const family = Config.options?.panelFamily ?? "ii"
              return family === "waffle" || family === "iris"
-@@ -851,7 +969,7 @@
+@@ -851,7 +966,7 @@
      LazyLoader {
          loading: Config.ready && !root._familyPanelsSuspended && (Config.options?.panelFamily ?? "ii") === "ii"
          activeAsync: Config.ready && !root._familyPanelsSuspended && (Config.options?.panelFamily ?? "ii") === "ii"
@@ -7231,7 +7228,7 @@
      }
  
      LazyLoader {
-@@ -861,13 +979,13 @@
+@@ -861,13 +976,13 @@
              && (Config.options?.panelFamily ?? "ii") === "ii"
          loading: enabled
          activeAsync: enabled
@@ -7247,7 +7244,7 @@
      }
  
      LazyLoader {
-@@ -877,13 +995,13 @@
+@@ -877,13 +992,13 @@
              && (Config.options?.panelFamily ?? "ii") === "waffle"
          loading: enabled
          activeAsync: enabled
@@ -7263,7 +7260,7 @@
      }
  
      LazyLoader {
-@@ -893,7 +1011,7 @@
+@@ -893,7 +1008,7 @@
              && (Config.options?.panelFamily ?? "ii") === "iris"
          loading: enabled
          activeAsync: enabled

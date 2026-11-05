@@ -1,6 +1,8 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Shima's upstream runtime keeps Ryoku Settings, Ryogami and Ryoshot.** Super+comma,
+  the wallpaper picker and screenshots open Ryoku's tools instead of the runtime's own.
 - **Super+Space, Super+V and Super+comma stay Ryoku's under every bar style.**
   A style listening for them no longer opens its own launcher, clipboard or
   settings panel next to Ryoku's on niri, matching Hyprland.
