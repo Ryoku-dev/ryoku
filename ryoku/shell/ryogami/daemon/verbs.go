@@ -218,6 +218,11 @@ func typeOf(path string) string {
 // pickRandom returns a random source path different from the current one.
 func (d *daemon) pickRandom(types []string, favouritesOnly bool) string {
 	candidates := d.candidatePaths(types, favouritesOnly)
+	// "Favourites only" is on by default, so a library without favourites would
+	// leave rotation running with nothing to show. The whole pool stands in.
+	if len(candidates) == 0 && favouritesOnly {
+		candidates = d.candidatePaths(types, false)
+	}
 	current := d.currentName()
 	filtered := candidates[:0]
 	for _, c := range candidates {

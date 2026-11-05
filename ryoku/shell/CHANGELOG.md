@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Ryogami auto-rotate keeps rotating after a restart.** The filter bar button
+  and Ctrl+R now flip the saved Rotate automatically switch, so rotation comes
+  back after a reboot, and "Favourites only" with no favourites rotates through
+  the whole library instead of reporting active while nothing changes.
 - **The quick settings gear opens and closes its settings every time.** The
   popup stays above the bar instead of covering the gear on shorter screens,
   and a second click on the gear closes it rather than reopening it.

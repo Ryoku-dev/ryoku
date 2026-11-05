@@ -72,26 +72,22 @@ Item {
     Connections {
         target: Daemon
         function onEvent(name, data) {
-            if (name === "ryogami.wall.random_started") root.rotationActive = true
-            else if (name === "ryogami.wall.random_stopped") root.rotationActive = false
+            if (name === "ryogami.wall.random_started" || name === "ryogami.wall.random_stopped")
+                root.refreshRotation()
         }
         function onReconnected() { root.refreshRotation() }
     }
+    // The daemon's randomRotate action flips the saved switch, so a rotation
+    // started here resumes after a restart, and Ctrl+R runs the same action.
     function toggleRotation() {
-        if (root.rotationActive) { Daemon.call("wall.rotation_stop", {}, function () {}); return }
-        var types = []
-        if (root.val("general.randomIncludeStatic", true) === true) types.push("static")
-        if (root.val("general.randomIncludeVideo", true) === true) types.push("video")
-        if (root.val("general.randomIncludeWE", true) === true) types.push("we")
-        if (types.length === 0) {
+        if (!root.rotationActive
+                && root.val("general.randomIncludeStatic", true) !== true
+                && root.val("general.randomIncludeVideo", true) !== true
+                && root.val("general.randomIncludeWE", true) !== true) {
             if (root.state) root.state.toast(I18n.tr("Select at least one random source category in settings"), "error")
             return
         }
-        Daemon.call("wall.random_start", {
-            interval: Number(root.val("general.randomInterval", 300)),
-            types: types,
-            favourites_only: root.val("general.randomIncludeFavourites", false) === true
-        }, function () {})
+        Daemon.call("settings.action", { id: "randomRotate" }, function () { root.refreshRotation() })
     }
 
     function cycleShape() {
