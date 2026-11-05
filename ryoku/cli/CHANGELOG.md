@@ -10,6 +10,10 @@
 - **Doctor points ASUS AMD and NVIDIA laptops at their EC backlight.** Its
   no-backlight hint suggests `acpi_backlight=nvidia_wmi_ec` instead of native,
   which disables working brightness control on affected TUF boards.
+- **Login starts one GNOME keyring daemon and runs each PAM hook once.**
+  `apply-pam` recognizes and preserves distro-provided lines while removing
+  duplicates. Systemd editions route Secret Service activation through the
+  existing keyring user unit; Void keeps its native session activation.
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.

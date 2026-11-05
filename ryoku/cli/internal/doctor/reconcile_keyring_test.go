@@ -78,6 +78,31 @@ func TestReconcileKeyringWarnsOnPamDrift(t *testing.T) {
 	}
 }
 
+func TestReconcileKeyringWarnsOnDuplicatePamLines(t *testing.T) {
+	kySetup(t, stockSDDM+
+		"auth optional pam_gnome_keyring.so\n"+
+		"-auth optional pam_gnome_keyring.so\n"+
+		"session optional pam_gnome_keyring.so auto_start\n"+
+		"-session optional pam_gnome_keyring.so auto_start\n")
+	writeKeyringConfig(t, "unlock-on-login")
+	r := reconcileKeyring(false)
+	if r.status != recWarn {
+		t.Fatalf("duplicate PAM wiring must warn, got %s (%s)", r.status.label(), r.detail)
+	}
+	if r.remedy != "sudo ryoku keyring apply-pam unlock-on-login" {
+		t.Fatalf("warning must carry the deduplication command, got %q", r.remedy)
+	}
+}
+
+func TestReconcileKeyringWarnsOnPartialPamWiring(t *testing.T) {
+	kySetup(t, stockSDDM+"-auth optional pam_gnome_keyring.so\n")
+	writeKeyringConfig(t, "unlock-on-login")
+	r := reconcileKeyring(false)
+	if r.status != recWarn {
+		t.Fatalf("partial PAM wiring must warn, got %s (%s)", r.status.label(), r.detail)
+	}
+}
+
 // autologin + unlock-on-login is a conflict the reconciler flags.
 func TestReconcileKeyringWarnsAutologinConflict(t *testing.T) {
 	kySetup(t, stockSDDM+"auth optional pam_gnome_keyring.so\nsession optional pam_gnome_keyring.so auto_start\n")

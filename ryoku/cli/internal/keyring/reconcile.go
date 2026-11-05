@@ -56,12 +56,15 @@ func Reconcile(checkOnly bool) Drift {
 	// PAM drift: the stack is a root file, so doctor only warns and hands over
 	// the exact privileged command.
 	wantPAM := st.Mode == ModeUnlockOnLogin
-	if st.PamPresent != wantPAM {
-		verb := i18n.T("still carries")
-		if wantPAM {
-			verb = i18n.T("does not carry")
-		}
-		d.Warnings = append(d.Warnings, fmt.Sprintf(i18n.T("the SDDM PAM stack %s pam_gnome_keyring but mode is %s"), verb, st.Mode))
+	switch {
+	case wantPAM && !st.PamWired:
+		d.Warnings = append(d.Warnings, fmt.Sprintf(i18n.T("the SDDM PAM stack does not carry both pam_gnome_keyring lines but mode is %s"), st.Mode))
+		d.Remedy = fmt.Sprintf("sudo ryoku keyring apply-pam %s", st.Mode)
+	case wantPAM && st.PamDuplicates:
+		d.Warnings = append(d.Warnings, i18n.T("the SDDM PAM stack carries duplicate pam_gnome_keyring lines"))
+		d.Remedy = fmt.Sprintf("sudo ryoku keyring apply-pam %s", st.Mode)
+	case !wantPAM && st.PamPresent:
+		d.Warnings = append(d.Warnings, fmt.Sprintf(i18n.T("the SDDM PAM stack still carries pam_gnome_keyring but mode is %s"), st.Mode))
 		d.Remedy = fmt.Sprintf("sudo ryoku keyring apply-pam %s", st.Mode)
 	}
 

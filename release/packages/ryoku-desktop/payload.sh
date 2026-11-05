@@ -353,6 +353,13 @@ EOF
     install -Dm644 "$_repo/ryoku/shell/environment.d/ryoku-session.conf" \
       "$pkgdir/usr/lib/environment.d/99-ryoku-session.conf"
 
+    # Route Secret Service activation through the socket-backed user unit.
+    install -Dm644 "$_repo/ryoku/shell/systemd/environment.d/98-ryoku-dbus.conf" \
+      "$pkgdir/usr/lib/environment.d/98-ryoku-dbus.conf"
+    install -Dm644 \
+      "$_repo/ryoku/shell/xdg/dbus-1/services/org.freedesktop.secrets.service" \
+      "$pkgdir/usr/share/ryoku/xdg/dbus-1/services/org.freedesktop.secrets.service"
+
     # Resolve localized XDG directories into the systemd user environment.
     install -Dm755 "$_repo/ryoku/shell/systemd/user-environment-generators/60-ryoku-xdg-dirs" \
       "$pkgdir/usr/lib/systemd/user-environment-generators/60-ryoku-xdg-dirs"
