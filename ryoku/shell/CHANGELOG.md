@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The quick settings gear opens and closes its settings every time.** The
+  popup stays above the bar instead of covering the gear on shorter screens,
+  and a second click on the gear closes it rather than reopening it.
 - **Shima's upstream runtime keeps Ryoku Settings, Ryogami and Ryoshot.** Super+comma,
   the wallpaper picker and screenshots open Ryoku's tools instead of the runtime's own.
 - **Super+Space, Super+V and Super+comma stay Ryoku's under every bar style.**

@@ -169,22 +169,25 @@ Item {
 
     ControlsSettingsPopup {
         id: settings
-        parent: QQC.Overlay.overlay
+        parent: root
         x: {
-            if (!parent)
+            if (!host)
                 return 0;
-            const anchor = root.mapToItem(parent, root.width, 0);
-            return Math.max(0, Math.min(parent.width - width, anchor.x - width));
+            const origin = root.mapToItem(host, 0, 0);
+            return Math.max(0, Math.min(host.width - width, origin.x + root.width - width)) - origin.x;
         }
         y: {
-            if (!parent)
+            if (!host)
                 return 0;
-            const anchor = root.mapToItem(parent, root.width, 0);
-            const preferred = anchor.y - height - Tokens.s2 * root.s;
-            return Math.max(0, Math.min(parent.height - height, preferred));
+            const origin = root.mapToItem(host, 0, 0);
+            const preferred = origin.y - height - Tokens.s2 * root.s;
+            return Math.max(0, Math.min(host.height - height, preferred)) - origin.y;
         }
         s: root.s
         active: root.active
+        // keep the popup wholly above the bar so it never covers the gear that closes
+        // it, measured on every open because the bar settles after the popup exists
+        onAboutToShow: maxHeight = host ? Math.max(1, root.mapToItem(host, 0, 0).y - Tokens.s2 * root.s) : hostHeight
         onOpenExtensions: root.openExtensions()
         onRequestClose: root.requestClose()
     }
