@@ -107,6 +107,7 @@ public:
 
     Q_INVOKABLE QVariantMap get(int row) const;
     Q_INVOKABLE int indexOfKey(const QString &key) const { return m_keyToView.value(key, -1); }
+    Q_INVOKABLE int newestIndex() const;
 
     int cardCount() const override { return m_view.size(); }
     QString cardKey(int row) const override;

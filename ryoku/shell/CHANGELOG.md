@@ -12,6 +12,9 @@
   fits.
 - **Missing default-app commands now show a notification.** A broken saved
   browser, terminal, editor or file-manager command no longer fails silently.
+- **The wallpaper picker remembers its view and opens where it matters.** Layout,
+  sort and filter choices survive restarts, and the current wallpaper is brought
+  into view with the newest matching item as the fallback (`ryogami/`).
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.

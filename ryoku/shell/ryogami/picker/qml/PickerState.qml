@@ -18,6 +18,8 @@ QtObject {
     // The setting decides how each open starts; the keymap toggle flips it until the picker hides.
     property bool filterBarToggled: false
     readonly property bool filterBarShown: state._bool(state._barAlwaysVisible) !== state.filterBarToggled
+    property bool filtersReady: false
+    property bool _startPending: false
     property bool searchOpen: false
     property string searchMode: "tags"   // "tags" | "describe"
     property bool helpOpen: false
@@ -226,18 +228,54 @@ QtObject {
             state.hideRequested()
     }
 
+    function _currentWallpaperKey() {
+        var current = Library.currentByOutput
+        var key = current[state.monitor]
+        if (!key) {
+            for (var output in current) {
+                key = current[output]
+                break
+            }
+        }
+        return key || ""
+    }
+
+    function _settleStartPosition(allowFallback) {
+        if (!state._startPending || !state.shown || !state.filtersReady
+                || !state.field || !state.view || state.view.count <= 0)
+            return
+        var key = state._currentWallpaperKey()
+        if (!key && !allowFallback)
+            return
+        var index = key ? state.view.indexOfKey(key) : -1
+        if (index < 0)
+            index = state.view.newestIndex()
+        state.field.currentIndex = index >= 0 ? index : 0
+        state._startPending = false
+    }
+
     function applyStartPosition() {
         if (!state.field || !state.view)
             return
-        var mode = state._startPosition.value ? String(state._startPosition.value) : "beginning"
+        var mode = state._startPosition.value ? String(state._startPosition.value) : "applied"
+        state._startPending = false
         if (mode === "browsing")
             return
-        if (mode === "applied") {
-            var k = state._lastApplied.value ? String(state._lastApplied.value) : ""
-            var i = k ? state.view.indexOfKey(k) : -1
-            if (i >= 0) { state.field.currentIndex = i; return }
+        if (mode === "beginning") {
+            state.field.currentIndex = 0
+            return
         }
-        state.field.currentIndex = 0
+        state._startPending = true
+        Library.refreshOutputs()
+        state._settleStartPosition(false)
+    }
+
+    onFiltersReadyChanged: if (state.filtersReady) state._settleStartPosition(false)
+
+    property Connections _libraryConn: Connections {
+        target: Library
+        function onCurrentChanged() { state._settleStartPosition(true) }
+        function onChanged(collection) { state._settleStartPosition(false) }
     }
 
     readonly property bool _hoverActive: state.shown && state.sheet === "" && !state.multipickerOpen
@@ -295,6 +333,7 @@ QtObject {
             state.filterBarToggled = false
             state.applyStartPosition()
         } else {
+            state._startPending = false
             state._hoverDwell.stop()
             if (Theme.previewPalette)
                 Theme.previewPalette = null
