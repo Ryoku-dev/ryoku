@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The ii dock can stay above app windows.** Dock design & settings >
+  Behaviour > Stay above windows keeps a pinned dock over windows while you
+  switch workspaces. It is off by default. Contributed by wolf1999h.
 - **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,
   clipboard, settings and shortcuts keys now open Shima surfaces, while
   `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,

@@ -505,6 +505,12 @@ is the top-level `dock` object in `shell.json`.
 - `dock list [--json]` report the dock's enabled, edge, autohide, and pinned
   state. `ryoku-shell dock list --json`
 
+The ii design also offers **Dock design & settings > Behaviour > Stay above
+windows** (`dock.ii.onTop`, default `false`). It keeps a pinned dock above normal
+app windows, including during workspace transitions, without changing auto-hide,
+reserved space, or **Not over fullscreen**. Turn it off to restore the pinned
+dock's desktop layer.
+
 ## Environment and state
 
 Overrides (mostly for `deploy` and tests):
