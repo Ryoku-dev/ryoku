@@ -1,6 +1,8 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Visualizers follow newly connected audio outputs.** Bar and desktop
+  visualizers retarget when the default output changes without a shell reload.
 - **A crashed lock screen comes back after display-link churn.** Once qylock has
   confirmed a secure lock, the shell retries its launcher across a 42-second
   window if that client disappears, and stops immediately after confirmation or
