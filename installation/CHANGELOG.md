@@ -30,6 +30,9 @@
   (`installerplan/components.tsv`, `tui/main.go`, `backend/lib/deploy.sh`).
 
 ### Fixed
+- **Zen opens from the browser shortcut after a fresh install.** The Arch,
+  CachyOS and Void installers store the `zen-browser` executable shipped by
+  the selected package instead of the absent `zen` command.
 - **ISO installs finish the sign-in screen setup again.** mkarchiso copies the
   baked payload without file modes, so the greeter helper that 1.0.6 added
   (`sddm-host/install-greeter-theme`) reached the target as 0644 and every ISO

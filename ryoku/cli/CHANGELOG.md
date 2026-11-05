@@ -18,6 +18,9 @@
   Arch and CachyOS it removes the installer's `/dev/null` masks, restores parked
   mkinitcpio hooks without replacing newer package copies, and reuses the Limine
   kernel-image repair when the ESP image is stale.
+- **Doctor repairs saved default apps whose executable name changed.** It uses
+  the Settings app catalogue to replace a missing known alias, then regenerates
+  the active compositor's environment through the normal settings save path.
 - **Doctor repairs a missing Zsh startup file without replacing custom config.**
   It seeds `.zshrc` only when Zsh is the account login shell, the packaged Ryoku
   template exists and the user has no startup file of their own.

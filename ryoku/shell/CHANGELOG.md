@@ -10,6 +10,8 @@
 - **QS Bar's now-playing title can use more room.** The widget settings now
   offer an 88 to 400 px title width, and the marquee stays still when the title
   fits.
+- **Missing default-app commands now show a notification.** A broken saved
+  browser, terminal, editor or file-manager command no longer fails silently.
 - **The ii dock can stay above app windows.** Dock design & settings >
   Behaviour > Stay above windows keeps a pinned dock over windows while you
   switch workspaces. It is off by default. Contributed by wolf1999h.
