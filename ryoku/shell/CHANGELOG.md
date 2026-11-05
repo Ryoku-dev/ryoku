@@ -1,6 +1,9 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Windows reach the Shima dock again.** Under the Shima bar style the frame and
+  the dock both reserved the dock's band, which left a dock-tall gap between
+  windows and the dock. The frame's reservation is now the only one there.
 - **The Python dock stays put while app entries rescan.** It updates its pins in
   place instead of emptying and refilling them, so the dock and its reserved
   space no longer vanish for a moment and windows stop jumping into the dock area.
