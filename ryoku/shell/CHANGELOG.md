@@ -16,6 +16,11 @@
 - **Obsidian follows the Matugen accent again.** Derive HSL components from the
   primary color's hex value so app rendering works with Ryoku's palette carrier
   (`matugen/templates/obsidian.css`).
+- **Orpheus settings open through an IPC target.**
+  `qs -c shell ipc call orpheus settings [page|close]` opens the settings on a
+  page, or closes them, on the focused output, so a keybind, script or Ryoku
+  Hub can reach them without the logo
+  (`quickshell/shell/modules/bar/barstyles/orpheus/{Scene.qml,settings/Prefs.qml}`).
 - **Shima carries Ryoku's shortcuts and floating tools.** Its routed launcher,
   clipboard, settings and shortcuts keys now open Shima surfaces, while
   `ryoku-shell tools` opens the notes, image, crosshair, resources, mixer,

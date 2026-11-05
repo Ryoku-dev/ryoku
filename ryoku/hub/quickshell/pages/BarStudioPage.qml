@@ -160,6 +160,11 @@ Item {
     function openQsBarSettings() {
         Quickshell.execDetached(["ryoku-shell", "bar", "settings"]);
     }
+    // Orpheus opens its settings through its own `orpheus` IPC target, on the
+    // focused output.
+    function openOrpheusSettings() {
+        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "orpheus", "settings", ""]);
+    }
     function openDockSettings() {
         Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "desktop", "editSection", "dock", ""]);
     }
@@ -375,6 +380,38 @@ Item {
                         Btn {
                             text: I18n.tr("OPEN QS BAR SETTINGS")
                             onAct: page.openQsBarSettings()
+                        }
+                    }
+                }
+            }
+
+            // ── ORPHEUS: its layout, modules, form and sound live in its own settings
+            SettingCard {
+                id: orpheusSect
+                width: col.colWidth
+                visible: page.showActiveDetails && page.activeStyle === "orpheus"
+                title: I18n.tr("ORPHEUS")
+                kana: "響"
+
+                Item {
+                    width: parent.width
+                    height: orpheusBody.height + Tokens.s3 + Tokens.s4
+                    Column {
+                        id: orpheusBody
+                        anchors { left: parent.left; right: parent.right; top: parent.top }
+                        anchors.leftMargin: Tokens.s4; anchors.rightMargin: Tokens.s4; anchors.topMargin: Tokens.s3
+                        spacing: Tokens.s3
+                        Text {
+                            width: parent.width
+                            text: I18n.tr("Orpheus arranges its layout, modules, form and sound in its own settings. Left-click the bar logo to open them, or use the button below.")
+                            color: Tokens.inkMuted
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fBody
+                            wrapMode: Text.WordWrap
+                        }
+                        Btn {
+                            text: I18n.tr("OPEN ORPHEUS SETTINGS")
+                            onAct: page.openOrpheusSettings()
                         }
                     }
                 }

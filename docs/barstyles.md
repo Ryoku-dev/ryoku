@@ -117,7 +117,9 @@ cover media, weather, notifications grouped by app, tray menus, power, system,
 and session. Right-click empty bar space to open Controls.
 
 Left-click the 力 logo to open settings, and right-click it to open the
-launcher. The settings pages are Bar, Layout, Modules, Sound, and About. A choice
+launcher. Ryoku Hub > Bar Studio has an OPEN ORPHEUS SETTINGS button, and
+`qs -c shell ipc call orpheus settings [page]` opens them from a keybind or
+script. The settings pages are Bar, Layout, Modules, Sound, and About. A choice
 applies at once and is written through the shell daemon; the foot of the
 settings rail reads Saved, Saving, or Not saved, and hovering Not saved shows
 why. On Layout, drag a module between the left, centre, and right lanes, or into
