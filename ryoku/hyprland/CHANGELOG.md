@@ -25,6 +25,8 @@
   (`modules/binds.lua`, `modules/ryoshot.lua`).
 
 ### Fixed
+- **Translucent tiled windows blur again.** The default near-opaque tiles keep
+  their cheaper path while lower opacity from the Hub restores blur.
 - **Fullscreen browsers no longer switch HDR on automatically.** Automatic HDR
   starts off because the display-mode switch can blank some AMD DisplayPort
   panels; users with a working HDR path can turn it back on in Settings

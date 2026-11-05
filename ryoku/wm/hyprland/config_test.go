@@ -119,6 +119,54 @@ func TestDefaultFollowMouseMatchesShippedInput(t *testing.T) {
 	}
 }
 
+func TestGenConfigTiledBlurRule(t *testing.T) {
+	const rule = `hl.window_rule({ name = "tiled-blur", match = { float = false }, no_blur = false })`
+	tests := []struct {
+		name      string
+		configure func(*Overrides)
+		want      int
+	}{
+		{name: "default", want: 0},
+		{name: "translucent active", configure: func(o *Overrides) {
+			o.Appearance.ActiveOpacity = 0.85
+		}, want: 1},
+		{name: "blur disabled", configure: func(o *Overrides) {
+			o.Appearance.ActiveOpacity = 0.85
+			o.Appearance.BlurEnabled = false
+		}, want: 0},
+		{name: "translucent inactive", configure: func(o *Overrides) {
+			o.Appearance.InactiveOpacity = 0.8
+		}, want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := defaultOverrides()
+			if tt.configure != nil {
+				tt.configure(&o)
+			}
+			if got := strings.Count(genConfig(o, false), rule); got != tt.want {
+				t.Fatalf("tiled blur rule count = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGenAppOverrideTranslucentBlur(t *testing.T) {
+	base := AppOverride{
+		Class: "kitty", Opacity: 0.9, Rounding: -1, BorderSize: -1, Blur: "inherit",
+	}
+	want := `hl.window_rule({ name = "ryoku-app-1", match = { class = "kitty" }, opacity = 0.9, no_blur = false })` + "\n"
+	if got := genAppOverride(0, base); got != want {
+		t.Fatalf("inherited blur:\n got %q\nwant %q", got, want)
+	}
+
+	base.Blur = "off"
+	want = `hl.window_rule({ name = "ryoku-app-1", match = { class = "kitty" }, opacity = 0.9, no_blur = true })` + "\n"
+	if got := genAppOverride(0, base); got != want {
+		t.Fatalf("disabled blur:\n got %q\nwant %q", got, want)
+	}
+}
+
 // Automatic HDR stays opt-in because a fullscreen browser can make some
 // DisplayPort panels lose signal during the mode switch. The base module owns
 // the safe default, while the generated user overlay must still be able to

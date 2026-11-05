@@ -9,6 +9,8 @@
 - **Long Rashin conversations open at their newest message.** Restored history
   stays behind one loading state, and rapid session choices settle on the last
   selected conversation (`rashin/backend/`, `rashin/web/`).
+- **Translucent tiled windows blur on Hyprland again.** The Hub now restores
+  blur after lowering window opacity, including per-app opacity overrides.
 - **The login screen appears without a six-second black screen, at the
   panel's top refresh rate.** The greeter asked `modetest` for the card by
   `/dev/dri` path, which its `-D` (a legacy bus id) never opens, so every boot
