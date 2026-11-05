@@ -36,13 +36,14 @@
   several times a second, stalled the compositor and queued hundreds of lid
   syncs. Autoscale, Apply, save and profile load now keep a panel the
   clamshell covers disabled while the lid stays shut (the saved layout keeps
-  its preference). After a clamshell restart clears its lid state, the
-  firmware lid switch keeps the panel held. `monitors.lua` is written only
-  when its content changes. A display that returns while the lid stays
-  shut (a resume or re-dock) now runs the lid sync itself instead of
-  relying on that rewrite's reload (`scripts/ryoku-monitor`,
-  `modules/lid.lua`, `tests/monitor-persist.sh`,
-  `tests/hyprland-lid-hooks.lua`).
+  its preference). Migrated or hand-written panel pins no longer restart the
+  reload loop. After a clamshell restart clears its edge, the firmware switch
+  or the shared UPower fallback keeps the panel held. `monitors.lua` is written
+  only when its content changes, follows an existing user-owned symlink, and
+  keeps that target's permissions. A display that returns while the lid stays
+  shut (a resume or re-dock) runs the lid sync itself instead of relying on
+  that rewrite's reload (`scripts/ryoku-monitor`, `modules/lid.lua`,
+  `tests/monitor-persist.sh`, `tests/hyprland-lid-hooks.lua`).
 - **Game Mode keeps compositor blur, shadows and animations off across reloads.**
   The live action and config both load one strip; tiled windows keep their faint
   tint without blurring the moving desktop, while floating glass still blurs

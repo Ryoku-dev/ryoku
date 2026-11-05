@@ -198,7 +198,39 @@ printf 'state:      open\n' >"$RYOKU_LID_STATE_GLOB"
 login lid-closed.json
 has "$conf" 'output = "eDP-1", mode = "2560x1600@60", position = "0x0", scale = 1.6' \
   "an open lid switch did not let the panel return"
+# Systems without a firmware lid file use the clamshell owner's UPower-backed
+# physical state when its edge file is absent.
+rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_LID_STATE_GLOB"
+cat >"$tmp/clamshell-state" <<'SH'
+#!/usr/bin/env bash
+[[ ${1:-} == status ]] && printf 'lid=closed\n'
+SH
+chmod +x "$tmp/clamshell-state"
+export RYOKU_CLAMSHELL_BIN="$tmp/clamshell-state"
+login lid-closed.json
+has "$conf" 'hl.monitor({ output = "eDP-1", disabled = true })' \
+  "a laptop without an ACPI lid file let the covered panel return"
+unset RYOKU_CLAMSHELL_BIN
 rm -f "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE" "$RYOKU_LID_STATE_GLOB"
+
+# A migrated monitors_user.lua pin stays out of the generated file. Closing the
+# lid changes only that pinned panel, so autoscale must not rewrite monitors.lua
+# and reload the pin over the live clamshell handoff.
+rm -f "$RYOKU_MONITORS_APPLIED"
+cat >"$RYOKU_MONITORS_USER" <<'LUA'
+-- migrated by ryoku-shell-install
+hl.monitor({ output = "eDP-1", mode = "highrr", position = "auto", scale = 1.25 })
+LUA
+login both.json
+hasnt "$conf" 'output = "eDP-1"' "autoscale copied a pinned panel into monitors.lua"
+before="$(stat -c '%i %Y.%y' "$conf")"
+printf 'closed\n' >"$RYOKU_CLAMSHELL_LID_EVENT_STATE"
+printf 'eDP-1\n' >"$RYOKU_CLAMSHELL_PANEL_STATE"
+login lid-closed.json
+[[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
+  fail "a covered pinned panel rewrote monitors.lua and reloaded its pin"
+rm -f "$RYOKU_MONITORS_USER" "$RYOKU_CLAMSHELL_LID_EVENT_STATE" "$RYOKU_CLAMSHELL_PANEL_STATE"
+apply_both
 
 # --- an unchanged layout leaves monitors.lua untouched. Hyprland reloads its
 # config on every write, even an identical one, and the reload hooks start the
@@ -211,5 +243,19 @@ login both.json
 RYOKU_MONITOR_JSON="$tmp/both.json" "$mon" apply "$layout" >/dev/null
 [[ $(stat -c '%i %Y.%y' "$conf") == "$before" ]] ||
   fail "an Apply of the same layout rewrote monitors.lua"
+
+# Atomic updates follow a user-owned symlink instead of replacing it, and keep
+# the target's mode.
+backing="$tmp/user-monitors.lua"
+linked="$tmp/linked-monitors.lua"
+cp "$conf" "$backing"
+printf '%s\n' '-- stale' >>"$backing"
+chmod 0600 "$backing"
+ln -s "$(basename "$backing")" "$linked"
+export RYOKU_MONITORS_CONF="$linked"
+login both.json
+[[ -L $linked ]] || fail "an atomic monitor write replaced a user-owned symlink"
+[[ $(stat -c '%a' "$backing") == 600 ]] || fail "an atomic monitor write changed the target mode"
+hasnt "$backing" '-- stale' "an atomic monitor write did not refresh the symlink target"
 
 echo "monitor-persist: all checks passed"
