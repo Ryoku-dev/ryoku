@@ -25,6 +25,9 @@
   starting.** A short interrupted boot can no longer combine with the healthy
   boot that follows to trigger rollback. Reverts repair every user's config
   before disarming, and read-only snapshots no longer claim disarm succeeded.
+- **Lock-screen security-key PAM files now fail closed.** The CLI writes the
+  service atomically with user-only permissions and refuses missing, altered,
+  symlinked, incorrectly owned or unsafe files and parent directories.
 - **`ryoku security-key set lock on|off` wires the key into the lock screen.**
   It needs an enrolled key, writes a user-owned PAM file with the same policy as
   the other targets, rewrites it when the policy changes, and is refused in

@@ -458,7 +458,7 @@ Rectangle {
         // A PIN is only the first half of a key unlock: hand it over without
         // the reveal so the touch prompt that follows stays readable.
         if (root.lockKeyState === "pin") {
-            sddm.login(loginName(), passInput.text, root.sessionIndex)
+            sddm.loginKeyPin(loginName(), passInput.text)
             passInput.text = ""
             return
         }

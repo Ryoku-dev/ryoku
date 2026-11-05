@@ -339,23 +339,13 @@ Item {
         property string fingerprintState: shim.fingerprintState
         property bool fingerprintUnlock: shim.fingerprintUnlock
 
-        // login() is called by the theme when the user submits a password.
-        // The key always goes to the dedicated password conversation
-        // (pamPw): respond at once if its prompt is up, stash it if the
-        // prompt has not arrived yet (onResponseRequiredChanged feeds it),
-        // or start the conversation if it died.
+        // login() is only the password channel. Security-key PINs use the
+        // explicit loginKeyPin() path below, so a typed password can never be
+        // forwarded to pam_u2f.
         function login(user, password, sessionIndex) {
             if (!shim.armWhenReady || !shim.loginSessionActive || shim.unlocked) {
                 pamPw.pendingPassword = "";
                 shim.sddm.loginFailed();
-                return;
-            }
-            // While the key asks for its PIN, the field answers the key; one
-            // wrong PIN drops to the password.
-            if (shim.keyState === "pin" && password !== "") {
-                shim.keyTyped = true;
-                shim.keyState = "verifying";
-                pamKey.respond(password);
                 return;
             }
             if (password === "" && shim.keyEnabled)
@@ -375,9 +365,21 @@ Item {
             pamPw.pendingPassword = password;
             if (password === "" && !shim.fingerprintReady)
                 return;
-            // a typed key gets its attempt now, not after the backoff
             pwRetryTimer.stop();
             shim.startPw();
+        }
+
+        function loginKeyPin(user, pin) {
+            if (!shim.armWhenReady || !shim.loginSessionActive || shim.unlocked
+                    || !keyPrompts || shim.keyState !== "pin" || pin === ""
+                    || !pamKey.active || !pamKey.responseRequired) {
+                shim.sddm.loginFailed();
+                return;
+            }
+            pamKey.user = user;
+            shim.keyTyped = true;
+            shim.keyState = "verifying";
+            pamKey.respond(pin);
         }
 
         // ryoku-host picks systemctl or loginctl for the running init, like
@@ -477,10 +479,9 @@ Item {
     }
 
     // ── PAM conversations ────────────────────────────────────────────────────
-    // TWO independent conversations race for the unlock — pam_fprintd's man
-    // page: serialised stacks ⇒ separate conversations for parallel methods.
-    // configDirectory is the lock's own assets/pam/, so no root edit of
-    // /etc/pam.d is needed — both services ship with the lock screen itself.
+    // THREE independent conversations race for the unlock. pam_fprintd's man
+    // page requires separate conversations for parallel methods, and pam_u2f
+    // must never receive the password conversation's responses.
     PamContext {
         id: pamFp
         config: "ryoku-lock"
@@ -651,11 +652,13 @@ Item {
         onTriggered: shim.armKey()
     }
 
-    // The file is probed at every arm, so turning the key on or off applies to
-    // the next lock without restarting it.
+    // The CLI validates ownership, mode, type and exact contents at every arm.
+    // Turning the key on or off therefore applies to the next lock without a
+    // shell restart, while an altered or unsafe file fails closed.
     Process {
         id: keyProbeProc
-        command: ["test", "-r", shim.keyConfigDir + "/ryoku-lock-key"]
+        command: ["ryoku", "security-key", "check-lock"]
+        stderr: StdioCollector {}
         onExited: (code) => {
             shim.keyEnabled = code === 0;
             if (!shim.keyEnabled || !shim.armWhenReady || !shim.loginSessionActive || shim.unlocked || pamKey.active)

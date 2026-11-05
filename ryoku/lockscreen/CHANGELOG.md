@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Fixed
+- **Unsafe security-key services can no longer arm the lock.** Every attempt
+  validates the CLI-generated service before PAM sees it, and password submits
+  now have a separate path from security-key PIN responses.
+
 ### Added
 - **A security key unlocks the in-session lock.** `ryoku security-key set lock
   on` (or the Hub's Lockscreen row) writes `~/.config/qylock/pam/ryoku-lock-key`,

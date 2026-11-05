@@ -43,6 +43,8 @@ func Run(args []string) error {
 		return runSet(args[1:])
 	case "apply-pam":
 		return runApplyPAM(args[1:])
+	case "check-lock":
+		return runCheckLock(args[1:])
 	case "-h", "--help", "help":
 		fmt.Print(usageText())
 		return nil
