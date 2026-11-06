@@ -31,6 +31,7 @@ command below.
 |---|---|---|---|
 |`update [--wait] [--force]`|Snapshot when supported, then bring the system current and redeploy; held while the channel is still building|both|you|
 |`status [--json]`|Version, how far behind, the channel's build or check state, snapshot count when supported|both|you, the Hub|
+|`channel [--json]`|Print the effective update channel without using the network|both|you, Ryostore|
 |`rollback [id]`|List releases; on snapshot-capable hosts, guide a boot-menu restore|both|you|
 |`snapshots`|List snapshots when the host provides them|both|you|
 |`reload`|Restart the shell and reload Hyprland|both|you|
@@ -40,6 +41,7 @@ command below.
 |`recovery`|Last resort: reset to main and redeploy|both|you, when broken|
 |`doctor`|Run idempotent reconcilers for stateful drift|both|you, the updater|
 |`plugin <cmd>`|Install, remove, list, or validate a shell plugin from git|both|you, an agent|
+|`profile <verb>`|Inspect, repair or scope the profile attached to this account|profile account|you, session hooks|
 
 ## Everyday commands
 
@@ -151,6 +153,44 @@ package move fails.
 stable package repository; with `unstable` it changes nothing, since unstable
 is the source lane already.
 
+
+### `ryoku channel [--json]`
+
+Prints the effective source or package channel without contacting the network.
+Plain output is the display name. `--json` returns `channel`, `display` and
+`stable`; Ryostore uses `stable` to decide whether its experimental Profiles
+category exists. `main`, `stable` and version pins beginning with `v` are
+stable. The `unstable-dev` source branch displays as `unstable`.
+
+The packaged repository setting wins over a stale source environment. On a
+source install the tracked channel wins over `RYOKU_CHANNEL`, then the
+environment value is used, with `main` as the fallback.
+
+### `ryoku profile <verb>`
+
+These commands run as the current profile account:
+
+- `status [--json]` reports whether this account has an active profile and, in
+  JSON mode, includes its account receipt.
+- `scope [--dry-run] [--json]` refreshes per-user desktop-entry overrides so
+  the launcher shows Ryoku essentials and this profile's selected apps. The
+  path unit runs it again when system application entries change.
+- `reset [--dry-run] [--json]` restores the files managed by the profile from
+  its staged payload. It never touches user-data folders or anything the
+  profile did not lay.
+- `check [--session] [--json]` checks selected tools, managed files,
+  environment, rice, wordlists and capability copies, then writes
+  `~/.local/state/ryoku/profile/check.json`. `--session` skips package queries,
+  logs failures with tag `ryoku-profile` and does not fail login.
+- `first-run` starts the profile's one-time welcome command and notification.
+- `session-stop` disconnects NetworkManager VPNs owned by this account. The
+  profile session unit runs it on logout.
+- `lay --payload <dir> --system-receipt <path> [--json]` is the internal
+  account-side apply step used by `ryoku-host`; users do not run it directly.
+
+`status`, `scope`, `reset` and `check` are safe troubleshooting surfaces.
+Profile creation, tool changes, checkpoints and removal go through the reviewed
+Hub flow because they change the machine.
 
 ### `ryoku rollback [id]`
 
@@ -270,6 +310,59 @@ verbs include:
   signed-in user, or the last Administrator, and refuses to demote the last
   Administrator. Btrfs homes are individual subvolumes with optional qgroup
   limits; other filesystems report storage limits as unsupported.
+- `users provision <name> [--rice <slug>] [--rashin] [--hide-app <id>]...
+  [--skip-welcome]` is the root-side account provisioner. It validates the
+  managed account, then uses `runuser` to enter that account.
+- `users seed-self [--rice <slug>] [--rashin] [--hide-app <id>]...
+  [--skip-welcome]` is the account-side half. It copies the shipped desktop,
+  application and session config with the account's ownership; root does not
+  write those files into an existing home. `users add` calls `provision` after
+  creating the home.
+
+Profile host verbs return JSON lines:
+
+- `profile api` reports the supported profile API.
+- `profile status [--account <name>]` lists applied accounts, profile versions,
+  selected packages, repositories, desktop-app bleed, checkpoints and whether
+  each account is logged in.
+- `profile plan --source <dir> --account <name> [--component <name>]...
+  [--no-component <name>]... [--extra <package>]...` resolves the complete
+  change without applying it. Core components are selected by default.
+- `profile apply` takes the same source, account and selection plus
+  `--digest <hex>`. Run it through `pkexec`; a new account password is one line
+  on standard input. It refuses blockers or any plan that changed after review.
+- `profile plan-remove --account <name> [--keep-account] [--erase-files]`
+  previews account, package, repository, system-file, user-data and checkpoint
+  changes. `profile remove` takes the same options and reviewed `--digest`;
+  run it through `pkexec`.
+- `profile reset --account <name> [--dry-run]` runs the account-side reset as
+  that user. Run the host verb through `pkexec`.
+- `profile checkpoint save|list|revert|delete` manages btrfs home checkpoints.
+  Every action takes `--account`; save accepts `--label`, and revert/delete
+  require `--id`. Only list is unprivileged. Revert refuses a logged-in
+  account.
+- `profile refresh` is the root-only pacman-hook target that refreshes
+  capability copies and extracted wordlists after their packages change.
+
+The lab hosts seam is separate from general host-file editing:
+
+- `hosts list` reports the managed entries and suffixes declared by applied
+  profiles.
+- `hosts add <ip> <name>...`, `remove <name>...` and `clear` run through
+  `pkexec`. They rewrite only the marked Ryoku block in `/etc/hosts`. Addresses
+  must be private, CGNAT or ULA, and names must be lowercase DNS names ending
+  in an applied profile's allowed suffix.
+
+### `ryoku-pkg-blackarch`
+
+`ryoku-pkg-blackarch enable|disable|sync|status [--json]` owns Ryoku's marked
+BlackArch repository block on pacman systems. `enable`, `disable` and `sync`
+require root. Enable verifies the keyring package against pinned BlackArch
+fingerprints, installs the signed mirror-list package and keeps BlackArch last
+in `pacman.conf`. Sync uses a temporary config containing only BlackArch, so it
+never performs a partial whole-system refresh. Disable removes only the block
+with Ryoku's marker and keeps support packages when another installed package
+still requires them. Status reports `enabled`, `ours` and `keyring`.
 
 ### `ryoku materialize`
 

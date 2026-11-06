@@ -22,6 +22,9 @@ snapshot-menu	system	boot	ryoku-snapshot-menu.path	-	none
 snapshot-restored	system	boot	ryoku-snapshot-restored.service	-	none
 snapper-cleanup	system	on-demand	snapper-cleanup.timer	snapper-cleanup	preserve
 ryoku-bootstrap	user	session-global	ryoku-bootstrap.service	ryoku-bootstrap	none
+ryoku-profile-scope	user	session-global	ryoku-profile-scope.service	-	none
+ryoku-profile-scope-path	user	session-global	ryoku-profile-scope.path	-	none
+ryoku-profile-session	user	session-global	ryoku-profile-session.service	-	none
 ryogami	user	session-global	ryogami.service	ryogami	none
 ryoku-shell	user	session-global	ryoku-shell.service	ryoku-shell	none
 ryoku-palette-bridge	user	on-demand	ryoku-palette-bridge.service	ryoku-palette-bridge	preserve

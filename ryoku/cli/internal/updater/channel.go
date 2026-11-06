@@ -3,6 +3,7 @@ package updater
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,42 @@ import (
 // behind origin/<channel>; `ryoku update` pulls the channel in and redeploys.
 // A packaged install has no checkout, so these report "no channel" and the
 // caller falls back to the pacman view of the [ryoku] repo.
+
+type channelReport struct {
+	Channel string `json:"channel"`
+	Display string `json:"display"`
+	Stable  bool   `json:"stable"`
+}
+
+// Channel reports the effective source or package channel without contacting
+// the network.
+func Channel(args []string) error {
+	asJSON := false
+	switch {
+	case len(args) == 0:
+	case len(args) == 1 && args[0] == "--json":
+		asJSON = true
+	default:
+		return fmt.Errorf(i18n.T("usage: ryoku channel [--json]"))
+	}
+
+	channel := ryokuChannel()
+	display := sys.DisplayChannel(channel)
+	if channel == "unstable-dev" {
+		display = sys.ChannelUnstable
+	}
+	report := channelReport{
+		Channel: channel,
+		Display: display,
+		Stable: channel == "main" || channel == sys.ChannelStable ||
+			strings.HasPrefix(channel, "v"),
+	}
+	if asJSON {
+		return json.NewEncoder(os.Stdout).Encode(report)
+	}
+	_, err := fmt.Fprintln(os.Stdout, report.Display)
+	return err
+}
 
 // ryokuChannel: the channel update tracks. A packaged box's channel is
 // authoritative -- the [ryoku] Server it points at (stable, testing, or a

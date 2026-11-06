@@ -75,6 +75,40 @@ consume_default_rice() {
 	return 0
 }
 
+consume_profile_welcome() {
+	local profile_state="$state/profile"
+	local receipt="$profile_state/receipt.json"
+	local check="$profile_state/check.json"
+	local notified="$profile_state/check-notified-at"
+	local at="" notified_at="" failure=""
+
+	[[ -r $receipt ]] || return 0
+	if command -v ryoku >/dev/null 2>&1; then
+		ryoku profile first-run ||
+			log_intro "profile first-run could not finish; it will retry next login"
+	fi
+
+	[[ -r $check ]] || return 0
+	at=$(jq -r 'select(.ok == false) | .at // empty' "$check" 2>/dev/null) || return 0
+	[[ -n $at ]] || return 0
+	if [[ -r $notified ]]; then
+		IFS= read -r notified_at <"$notified" || true
+	fi
+	[[ $at != "$notified_at" ]] || return 0
+	command -v notify-send >/dev/null 2>&1 || return 0
+
+	failure=$(jq -r \
+		'.failures[0].detail // .failures[0].kind // "Profile check failed."' \
+		"$check" 2>/dev/null) || failure="Profile check failed."
+	mkdir -p "$profile_state"
+	printf '%s\n' "$at" >"$notified"
+	(
+		timeout 15 notify-send -a Ryoku -t 12000 \
+			"Profile check found a problem" \
+			"$failure Run 'ryoku profile check' to see all." >/dev/null 2>&1 || true
+	) &
+}
+
 consume_rashin_setup() {
 	local marker="$state/rashin-setup-pending"
 	[[ -e $marker ]] || return 0
@@ -102,6 +136,7 @@ consume_rashin_setup() {
 case "${1:-}" in
 welcome)
 	consume_default_rice || true
+	consume_profile_welcome || true
 	seen=0
 	if [[ -r $state/welcome-seen ]]; then
 		v=$(head -n1 "$state/welcome-seen")

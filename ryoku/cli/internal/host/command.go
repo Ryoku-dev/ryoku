@@ -46,6 +46,26 @@ Phone:
   phone enable|disable
   phone plan-enable|plan-disable
 
+Profiles:
+  profile api
+  profile status [--account <name>]
+  profile plan --source <dir> --account <name> [--component <c>]... [--no-component <c>]... [--extra <pkg>]...
+  profile apply --source <dir> --account <name> [selection options] --digest <hex>
+  profile plan-remove --account <name> [--keep-account] [--erase-files]
+  profile remove --account <name> [--keep-account] [--erase-files] --digest <hex>
+  profile reset --account <name> [--dry-run]
+  profile checkpoint save --account <name> [--label <s>]
+  profile checkpoint list --account <name>
+  profile checkpoint revert --account <name> --id <id>
+  profile checkpoint delete --account <name> --id <id>
+  profile refresh
+
+Lab hosts:
+  hosts list
+  hosts add <ip> <name>...
+  hosts remove <name>...
+  hosts clear
+
 Users:
   users list
   users caps
@@ -171,6 +191,10 @@ func (a *App) Execute(args []string) int {
 		return a.Phone(args[1:])
 	case "users":
 		return a.Users(args[1:])
+	case "profile":
+		return a.Profile(args[1:])
+	case "hosts":
+		return a.Hosts(args[1:])
 	default:
 		fmt.Fprint(a.cfg.Stderr, Usage)
 		return ExitUsage

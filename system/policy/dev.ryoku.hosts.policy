@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Ryoku</vendor>
+  <vendor_url>https://ryoku.dev</vendor_url>
+  <action id="dev.ryoku.hosts.manage">
+    <description>Manage lab host names</description>
+    <message>Authentication is required to manage lab host names</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/ryoku-host</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">hosts</annotate>
+  </action>
+</policyconfig>

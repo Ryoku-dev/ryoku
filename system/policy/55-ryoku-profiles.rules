@@ -1,0 +1,9 @@
+// Exact path and argv annotations keep these grants limited to the typed host APIs.
+polkit.addRule(function (action, subject) {
+    if ((action.id === "dev.ryoku.profiles.manage" ||
+         action.id === "dev.ryoku.hosts.manage") &&
+        action.lookup("program") === "/usr/bin/ryoku-host" &&
+        subject.local && subject.active) {
+        return polkit.Result.AUTH_ADMIN_KEEP;
+    }
+});

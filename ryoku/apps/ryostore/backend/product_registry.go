@@ -135,6 +135,9 @@ func assertProductInstallable(ctx context.Context, cache *Cache, category, id st
 	if err != nil {
 		return err
 	}
+	if category == profilesCategory && !entry.Official {
+		return fmt.Errorf("unknown product %q", id)
+	}
 	if ok, running := productWindowManagerGate(entry.WindowManager); !ok {
 		if entry.WindowManagerReason != "" {
 			return fmt.Errorf("%s/%s: written for %s, not %s: %s",

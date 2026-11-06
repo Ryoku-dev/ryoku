@@ -334,10 +334,20 @@ EOF
     # enablement reaches accounts that do not exist when the package is installed.
     local unit
     for unit in ryoku-bootstrap.service ryoku-session.target ryoku-shell.service \
-      ryoku-idle.service ryoku-clamshell.service; do
+      ryoku-idle.service ryoku-clamshell.service ryoku-profile-scope.service \
+      ryoku-profile-scope.path ryoku-profile-session.service; do
       install -Dm644 "$_repo/ryoku/shell/systemd/user/$unit" \
         "$pkgdir/usr/lib/systemd/user/$unit"
     done
+    install -dm755 \
+      "$pkgdir/usr/lib/systemd/user/default.target.wants" \
+      "$pkgdir/usr/lib/systemd/user/paths.target.wants"
+    ln -s ../ryoku-profile-scope.service \
+      "$pkgdir/usr/lib/systemd/user/default.target.wants/ryoku-profile-scope.service"
+    ln -s ../ryoku-profile-session.service \
+      "$pkgdir/usr/lib/systemd/user/default.target.wants/ryoku-profile-session.service"
+    ln -s ../ryoku-profile-scope.path \
+      "$pkgdir/usr/lib/systemd/user/paths.target.wants/ryoku-profile-scope.path"
 
     # Materialized copies let a checkout deploy override packaged units.
     install -dm755 "$cfg/systemd/user"
@@ -566,6 +576,12 @@ EOF
     "$pkgdir/usr/share/polkit-1/actions/dev.ryoku.users.policy"
   install -Dm644 "$_repo/system/policy/54-ryoku-users.rules" \
     "$pkgdir/usr/share/polkit-1/rules.d/54-ryoku-users.rules"
+  install -Dm644 "$_repo/system/policy/dev.ryoku.profiles.policy" \
+    "$pkgdir/usr/share/polkit-1/actions/dev.ryoku.profiles.policy"
+  install -Dm644 "$_repo/system/policy/dev.ryoku.hosts.policy" \
+    "$pkgdir/usr/share/polkit-1/actions/dev.ryoku.hosts.policy"
+  install -Dm644 "$_repo/system/policy/55-ryoku-profiles.rules" \
+    "$pkgdir/usr/share/polkit-1/rules.d/55-ryoku-profiles.rules"
 
   install -Dm755 "$_repo/system/policy/ryoku-polkit-reload" \
     "$pkgdir/usr/bin/ryoku-polkit-reload"

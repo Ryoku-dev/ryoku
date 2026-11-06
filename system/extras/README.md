@@ -33,6 +33,10 @@ fetches and caches that catalogue; the helpers here do the work.
   `"requires": ["cachyos"]` (CachyOS Kernel). Additive and idempotent: it never
   touches `[core]`/`[extra]` or the stock kernel, and leaves out the baseline
   `[cachyos]` repo and its forked pacman.
+- `ryoku-pkg-blackarch` enable, disable, refresh, or report the signed
+  `[blackarch]` repository used by installable profiles. It verifies the keyring
+  against pinned BlackArch fingerprints, installs the packaged mirror list, and
+  refreshes only BlackArch metadata.
 - `ryoku-cmd-present` the one presence test (`command -v`) shared by the actuator
   and the catalogue's installer scripts.
 
@@ -59,6 +63,8 @@ the other editions, with the catalogue's sentence as the reason.
 ## Boundaries
 
 `ryoku-hub` owns all network and disk for the catalogue (fetch, cache, installer
-resolution); these scripts never fetch. Package transactions go through
-`ryoku-host` and, on Arch and CachyOS, the AUR helper; this subsystem does not
-reimplement them.
+resolution); the catalogue helpers never fetch it themselves. Bundle package
+transactions go through `ryoku-host` and, on Arch and CachyOS, the AUR helper.
+The BlackArch helper fetches only its database, keyring package, and detached
+signature over HTTPS; it accepts the keyring only from pinned signers, and its
+mirror list comes from the repository as a signed package.

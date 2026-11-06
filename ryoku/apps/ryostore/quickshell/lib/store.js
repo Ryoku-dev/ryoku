@@ -389,6 +389,8 @@ function primaryAction(item) {
         return "UNDER CONSTRUCTION";
     if (item && item.busy)
         return "INSTALLING";
+    if (item && String(item.category || "") === "profiles")
+        return item.installed === true ? "CREATE ACCOUNT" : "INSTALL";
     if (item && item.updateAvailable)
         return "UPDATE";
     if (item && Number(item.installedCount || 0) > 0 && Number(item.totalCount || 0) > Number(item.installedCount || 0))
@@ -408,6 +410,8 @@ function competingActionLabel(busyKey, actionKey, installStage) {
 }
 
 function secondaryAction(item) {
+    if (item && String(item.category || "") === "profiles")
+        return item.installed === true ? "REMOVE" : "";
     return (item && item.hasSettings && isInstalled(item)) ? "OPEN IN SETTINGS" : "";
 }
 

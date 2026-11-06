@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- `ryostore/`: **Profiles is an unstable-channel Store category.** It reads
+  official definitions from `ryostore-revamped`, installs them separately from
+  account activation, and hands Create account to Global > Users in the Hub.
 - `ryostore/`: **Apps is a marketplace page.** The Apps catalogue opens with a
   featured shelf, a row of Flathub category plates with counts, a Trending /
   Popular / New / Updated strip, a filter field, and compact icon and text

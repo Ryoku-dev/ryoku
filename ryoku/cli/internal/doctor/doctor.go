@@ -265,6 +265,7 @@ func reconcilers() []reconciler {
 			reconciler{i18n.T("pacman database lock"), reconcilePacmanLock},
 			reconciler{i18n.T("pacman progress bar"), reconcilePacmanCandy},
 			reconciler{i18n.T("multilib repository"), reconcileMultilibRepo},
+			reconciler{i18n.T("BlackArch repository"), reconcileBlackArchRepo},
 			reconciler{i18n.T("conflicting Ryoku files"), reconcileConflictingRyokuFiles},
 		)
 	}

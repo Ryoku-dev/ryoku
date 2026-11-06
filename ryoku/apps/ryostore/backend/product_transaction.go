@@ -523,7 +523,7 @@ func removeProduct(_ context.Context, category, id string) error {
 
 func recoverStoreTransactions() error {
 	root := storeTransactionsDir()
-	for _, category := range []string{"rices", "lockscreens", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch", "plugins", "bundles", vesktopThemesCategory} {
+	for _, category := range []string{"rices", "lockscreens", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch", "plugins", "bundles", "profiles", vesktopThemesCategory} {
 		directory := filepath.Join(root, category)
 		entries, err := os.ReadDir(directory)
 		if os.IsNotExist(err) {
@@ -1146,4 +1146,8 @@ func (pluginProvider) Remove(ctx context.Context, id string) error {
 
 func (bundleProvider) Remove(ctx context.Context, id string) error {
 	return removeProduct(ctx, "bundles", id)
+}
+
+func (profilesProvider) Remove(ctx context.Context, id string) error {
+	return removeProduct(ctx, profilesCategory, id)
 }

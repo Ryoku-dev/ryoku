@@ -1,0 +1,399 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly blackarch_marker='# added by ryoku-pkg-blackarch'
+readonly blackarch_include='/etc/pacman.d/blackarch-mirrorlist'
+readonly -a blackarch_mirrors=(
+  'https://www.blackarch.org/blackarch'
+  'https://ftp.halifax.rwth-aachen.de/blackarch'
+  'https://mirror.cyberbits.eu/blackarch'
+)
+readonly -a blackarch_fingerprints=(
+  '8F9A9793CB8591147C2EC70566E0CDBD1E01F333'
+  'A0917C4147A37007CB54C1CFD295AA940EFDDF62'
+  '4345771566D76038C7FEB43863EC0ADBEA87E4E3'
+  'F9A6E68A711354D84A9B91637533BAFE69A25079'
+)
+readonly -a blackarch_keyservers=(
+  'hkps://keyserver.ubuntu.com'
+  'hkps://keys.openpgp.org'
+  'hkps://pgp.mit.edu'
+)
+
+blackarch_repo_enabled() {
+  local conf=$1
+  awk '
+    {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line == "[blackarch]") found = 1
+    }
+    END { exit !found }
+  ' "$conf"
+}
+
+blackarch_repo_ours() {
+  local conf=$1
+  grep -Fqx "$blackarch_marker" "$conf"
+}
+
+blackarch_replace_conf() {
+  local conf=$1 source=$2
+  cat "$source" >"$conf"
+}
+
+blackarch_append_server() (
+  local conf=$1 mirror=$2 tmp
+  blackarch_repo_enabled "$conf" && return 0
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  cat "$conf" >"$tmp"
+  printf '\n%s\n[blackarch]\nServer = %s\n' \
+    "$blackarch_marker" "$mirror/\$repo/os/\$arch" >>"$tmp"
+  blackarch_replace_conf "$conf" "$tmp"
+)
+
+blackarch_switch_to_include() (
+  local conf=$1 tmp
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  awk -v marker="$blackarch_marker" -v mirrorlist="$blackarch_include" '
+    $0 == marker {
+      owned = 1
+      print
+      next
+    }
+    owned && $0 == "[blackarch]" {
+      section = 1
+      print
+      print "Include = " mirrorlist
+      next
+    }
+    section && /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+      owned = 0
+      section = 0
+    }
+    section { next }
+    { print }
+  ' "$conf" >"$tmp"
+  blackarch_replace_conf "$conf" "$tmp"
+)
+
+blackarch_remove_owned() (
+  local conf=$1 tmp
+  tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
+  awk -v marker="$blackarch_marker" '
+    $0 == marker {
+      if (pending && previous != "") print previous
+      pending = 0
+      after_marker = 1
+      next
+    }
+    after_marker && /^[[:space:]]*$/ { next }
+    after_marker && $0 == "[blackarch]" {
+      after_marker = 0
+      section = 1
+      next
+    }
+    after_marker { after_marker = 0 }
+    section && /^[[:space:]]*\[[^]]+\][[:space:]]*$/ { section = 0 }
+    section { next }
+    {
+      if (pending) print previous
+      previous = $0
+      pending = 1
+    }
+    END {
+      if (pending) print previous
+    }
+  ' "$conf" >"$tmp"
+  blackarch_replace_conf "$conf" "$tmp"
+)
+
+blackarch_write_sync_config() {
+  local conf=$1 output=$2
+  {
+    printf '[options]\n'
+    awk '
+      /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+        line = $0
+        sub(/^[[:space:]]+/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        in_options = (line == "[options]")
+        next
+      }
+      in_options && /^[[:space:]]*(Architecture|SigLevel|CacheDir|DBPath)[[:space:]]*=/ {
+        print
+      }
+    ' "$conf"
+    printf '\n'
+    awk '
+      /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+        line = $0
+        sub(/^[[:space:]]+/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        if (in_repo && line != "[blackarch]") exit
+        in_repo = (line == "[blackarch]")
+      }
+      in_repo { print }
+    ' "$conf"
+  } >"$output"
+}
+
+if [[ ${RYOKU_BLACKARCH_LIB:-0} == 1 ]]; then
+  if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+    exit 0
+  fi
+  return 0
+fi
+
+conf=${RYOKU_PACMAN_CONF:-/etc/pacman.conf}
+
+usage() {
+  echo 'usage: ryoku-pkg-blackarch enable|disable|sync|status [--json]' >&2
+  exit 2
+}
+
+pacman_only() {
+  local manager
+  manager=$(ryoku-host pkgmgr 2>/dev/null || true)
+  if [[ -n $manager && $manager != pacman ]]; then
+    echo "ryoku-pkg-blackarch: BlackArch is available only on pacman hosts (this host uses $manager)" >&2
+    exit 5
+  fi
+}
+
+require_root() {
+  if (( EUID != 0 )); then
+    echo 'ryoku-pkg-blackarch: this action must run as root' >&2
+    exit 1
+  fi
+}
+
+lock_pacman_conf() {
+  if [[ ! -f $conf ]]; then
+    echo "ryoku-pkg-blackarch: pacman configuration not found at $conf" >&2
+    exit 1
+  fi
+  exec 9<>"$conf"
+  flock 9
+}
+
+find_blackarch_mirror() {
+  local destination=$1 arch=$2 mirror
+  for mirror in "${blackarch_mirrors[@]}"; do
+    if curl --proto '=https' --tlsv1.2 -fsSL \
+      "$mirror/blackarch/os/$arch/blackarch.db" -o "$destination"; then
+      printf '%s\n' "$mirror"
+      return 0
+    fi
+  done
+  echo 'ryoku-pkg-blackarch: no BlackArch mirror served blackarch.db; run ryoku update first and try again' >&2
+  return 1
+}
+
+keyring_filename() {
+  local database=$1 member
+  member=$(bsdtar -tf "$database" | awk '/^blackarch-keyring-[^/]+\/desc$/ { print; exit }')
+  [[ -n $member ]] || return 1
+  bsdtar -xOf "$database" "$member" |
+    awk '$0 == "%FILENAME%" { getline; print; exit }'
+}
+
+blackarch_verified_fingerprint=
+
+verify_keyring_package() {
+  local package=$1 signature=$2 gnupg=$3 fingerprint server status primary pin imported=0
+  mkdir -m 700 "$gnupg"
+
+  for fingerprint in "${blackarch_fingerprints[@]}"; do
+    for server in "${blackarch_keyservers[@]}"; do
+      if GNUPGHOME="$gnupg" gpg --batch --keyserver "$server" --recv-keys "$fingerprint"; then
+        imported=1
+        break
+      fi
+    done
+  done
+  if (( ! imported )); then
+    echo 'ryoku-pkg-blackarch: could not receive any pinned BlackArch signing key' >&2
+    return 1
+  fi
+
+  if ! status=$(GNUPGHOME="$gnupg" gpg --batch --status-fd 1 --verify "$signature" "$package"); then
+    echo 'ryoku-pkg-blackarch: the blackarch-keyring package signature is invalid' >&2
+    return 1
+  fi
+  primary=$(awk '
+    /^\[GNUPG:\] VALIDSIG / {
+      fingerprint = $NF
+      if (fingerprint !~ /^[[:xdigit:]]{40}$/) fingerprint = $3
+      print toupper(fingerprint)
+      exit
+    }
+  ' <<<"$status")
+  for pin in "${blackarch_fingerprints[@]}"; do
+    if [[ $primary == "$pin" ]]; then
+      blackarch_verified_fingerprint=$primary
+      return 0
+    fi
+  done
+  echo "ryoku-pkg-blackarch: signature used unpinned primary key ${primary:-unknown}" >&2
+  return 1
+}
+
+blackarch_selected_mirror=
+
+bootstrap_blackarch_keyring() {
+  local work=$1 arch=$2 database mirror filename package signature
+  database="$work/blackarch.db"
+  mirror=$(find_blackarch_mirror "$database" "$arch")
+  filename=$(keyring_filename "$database")
+  case $filename in
+    blackarch-keyring-*.pkg.tar.*) ;;
+    *)
+      echo 'ryoku-pkg-blackarch: blackarch.db did not name a safe blackarch-keyring package' >&2
+      return 1
+      ;;
+  esac
+
+  package="$work/$filename"
+  signature="$package.sig"
+  if ! curl --proto '=https' --tlsv1.2 -fsSL \
+    "$mirror/blackarch/os/$arch/$filename" -o "$package" ||
+    ! curl --proto '=https' --tlsv1.2 -fsSL \
+      "$mirror/blackarch/os/$arch/$filename.sig" -o "$signature"; then
+    echo 'ryoku-pkg-blackarch: the selected BlackArch mirror is stale; run ryoku update first and try again' >&2
+    return 1
+  fi
+  verify_keyring_package "$package" "$signature" "$work/gnupg"
+  GNUPGHOME="$work/gnupg" gpg --batch --export "$blackarch_verified_fingerprint" \
+    >"$work/signer.gpg"
+  [[ -s $work/signer.gpg ]] || {
+    echo 'ryoku-pkg-blackarch: could not export the verified BlackArch signing key' >&2
+    return 1
+  }
+  pacman-key --add "$work/signer.gpg"
+  pacman-key --lsign-key "$blackarch_verified_fingerprint"
+  pacman -U --noconfirm "$package"
+  pacman-key --populate blackarch
+  blackarch_selected_mirror=$mirror
+}
+
+sync_blackarch() (
+  local work config
+  work=$(mktemp -d)
+  trap 'rm -rf "$work"' EXIT
+  config="$work/pacman.conf"
+  blackarch_write_sync_config "$conf" "$config"
+  if ! grep -qE '^\[blackarch\][[:space:]]*$' "$config"; then
+    echo 'ryoku-pkg-blackarch: [blackarch] is not configured' >&2
+    return 1
+  fi
+  pacman --config "$config" -Sy
+)
+
+enable_blackarch() {
+  local work arch mirror
+  if blackarch_repo_enabled "$conf"; then
+    echo 'blackarch: repository already configured'
+    return 0
+  fi
+
+  work=$(mktemp -d)
+  trap 'rm -rf "$work"' EXIT
+  arch=$(uname -m)
+  echo '==> Verifying and installing the BlackArch keyring'
+  bootstrap_blackarch_keyring "$work" "$arch"
+  mirror=$blackarch_selected_mirror
+  blackarch_append_server "$conf" "$mirror"
+
+  echo '==> Synchronizing only the BlackArch package database'
+  if ! sync_blackarch; then
+    blackarch_remove_owned "$conf"
+    echo 'ryoku-pkg-blackarch: BlackArch metadata could not be refreshed; run ryoku update first and try again' >&2
+    return 1
+  fi
+  if ! pacman -S --needed --noconfirm blackarch-mirrorlist; then
+    blackarch_remove_owned "$conf"
+    echo 'ryoku-pkg-blackarch: blackarch-mirrorlist could not be installed; run ryoku update first and try again' >&2
+    return 1
+  fi
+  blackarch_switch_to_include "$conf"
+  trap - EXIT
+  rm -rf "$work"
+  echo 'blackarch: repository enabled'
+}
+
+package_unrequired() {
+  local package=$1
+  pacman -Qq "$package" >/dev/null 2>&1 && pacman -Qtq "$package" >/dev/null 2>&1
+}
+
+disable_blackarch() {
+  local had_marker=0 package
+  if blackarch_repo_ours "$conf"; then
+    had_marker=1
+    blackarch_remove_owned "$conf"
+  fi
+  if (( ! had_marker )); then
+    echo 'blackarch: no Ryoku-managed repository block found'
+    return 0
+  fi
+  if blackarch_repo_enabled "$conf"; then
+    echo 'blackarch: Ryoku-managed block removed; user repository and support packages kept'
+    return 0
+  fi
+
+  for package in blackarch-mirrorlist blackarch-keyring; do
+    if package_unrequired "$package"; then
+      pacman -R --noconfirm "$package"
+    fi
+  done
+  echo 'blackarch: Ryoku-managed repository disabled'
+}
+
+status_blackarch() {
+  local json=${1:-} enabled=false ours=false keyring=false
+  blackarch_repo_enabled "$conf" && enabled=true
+  blackarch_repo_ours "$conf" && ours=true
+  pacman -Qq blackarch-keyring >/dev/null 2>&1 && keyring=true
+  if [[ $json == --json ]]; then
+    printf '{"enabled":%s,"ours":%s,"keyring":%s}\n' "$enabled" "$ours" "$keyring"
+  else
+    printf 'enabled: %s\nours: %s\nkeyring: %s\n' "$enabled" "$ours" "$keyring"
+  fi
+}
+
+pacman_only
+(( $# >= 1 )) || usage
+verb=$1
+shift
+case $verb in
+  enable)
+    (( $# == 0 )) || usage
+    require_root
+    lock_pacman_conf
+    enable_blackarch
+    ;;
+  disable)
+    (( $# == 0 )) || usage
+    require_root
+    lock_pacman_conf
+    disable_blackarch
+    ;;
+  sync)
+    (( $# == 0 )) || usage
+    require_root
+    lock_pacman_conf
+    sync_blackarch
+    ;;
+  status)
+    (( $# <= 1 )) || usage
+    [[ $# == 0 || $1 == --json ]] || usage
+    status_blackarch "${1:-}"
+    ;;
+  *) usage ;;
+esac

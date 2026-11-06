@@ -59,6 +59,8 @@ Rectangle {
     // ── which page ───────────────────────────────────────────────────────
     property string section: "windowmanager"
     property string connectionSub: ""
+    property bool usersOpenPending: false
+    property string usersProfileId: ""
     // remember the last section so a reopen lands where you left, not the default.
     // Read once at startup by `sectionGet` below; written here on every change.
     onSectionChanged: Quickshell.execDetached(["ryoku-hub", "config", "set", "section", hub.section])
@@ -81,9 +83,21 @@ Rectangle {
         if (s === "sidebar" || s === "sidebars-left" || s === "sidebars-right") return "controls";
         return s;
     }
+    function openUsersProfile(profileId) {
+        hub.navigated = true;
+        hub.usersProfileId = String(profileId || "");
+        hub.usersOpenPending = true;
+        hub.section = "global";
+        usersOpenTimer.tries = 0;
+        usersOpenTimer.restart();
+    }
     // An explicit jump must win over the remembered section. `sectionGet` is
     // asynchronous, so navigation latches before changing the current page.
     function navigate(target) {
+        if (target === "users") {
+            hub.openUsersProfile("");
+            return;
+        }
         var editorSection = hub.editorSectionFor(target);
         if (editorSection !== "") {
             hub.navigated = true;
@@ -178,7 +192,7 @@ Rectangle {
     // schema rows (Connections, Rashin) and cover synonyms the copy avoids
     // (transparency->opacity, startup->autostart, screensaver->lockscreen).
     readonly property var sectionKeywords: ({
-        "global": "language locale region formats format date time number currency text size font scale icons icon theme appearance location city weather timezone international i18n l10n",
+        "global": "language locale region formats format date time number currency text size font scale icons icon theme appearance location city weather timezone international i18n l10n users accounts people profile",
         "profile": "dashboard status overview telemetry hostname cpu gpu memory uptime specs",
         "displays": "monitor screen resolution refresh scale rotation arrange mirror hidpi dual second external multiple",
         "connections": "wifi wi-fi wireless bluetooth network hotspot tether internet ethernet pair pairing device phone android kde connect scrcpy mirror webcam microphone clipboard adb",
@@ -1736,6 +1750,30 @@ Rectangle {
             var it = pageHost.front ? pageHost.front.item : null;
             if (it && typeof it.focusKey === "function") { it.focusKey(hub.pendingFocusKey); hub.pendingFocusKey = ""; focusTimer.tries = 0; return; }
             if (focusTimer.tries < 15) { focusTimer.tries++; focusTimer.restart(); } else focusTimer.tries = 0;
+        }
+    }
+
+    Timer {
+        id: usersOpenTimer
+        interval: 90
+        repeat: false
+        property int tries: 0
+        onTriggered: {
+            if (!hub.usersOpenPending)
+                return;
+            var page = pageHost.front ? pageHost.front.item : null;
+            if (page && typeof page.openUsers === "function") {
+                var profileId = hub.usersProfileId;
+                hub.usersOpenPending = false;
+                hub.usersProfileId = "";
+                usersOpenTimer.tries = 0;
+                page.openUsers(profileId);
+                return;
+            }
+            if (usersOpenTimer.tries < 50) {
+                usersOpenTimer.tries++;
+                usersOpenTimer.restart();
+            }
         }
     }
 

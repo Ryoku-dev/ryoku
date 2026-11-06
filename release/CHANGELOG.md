@@ -22,6 +22,9 @@
   each installed Arch or CachyOS kernel's matching header package.
 
 ### Added
+- **The desktop payload includes installable-profile support.** Packages ship
+  the BlackArch helper, profile and hosts polkit actions, profile user units,
+  account/session hooks, and the CLI and Hub profile surfaces together.
 - **The shell installs its equalizer backend automatically.** `ryoku-shell`
   requires EasyEffects and the LSP and Calf LV2 plugins on Arch, Void and Fedora,
   so Python's built-in audio controls do not depend on a manual package install.

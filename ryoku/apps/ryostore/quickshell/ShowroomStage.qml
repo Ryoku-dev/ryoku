@@ -21,6 +21,7 @@ Item {
     property var shownHero: ({})
     property var outgoingHero: ({})
     property real heroProgress: 1
+    property bool profileRemoveArmed: false
 
     function safeAccent(value) {
         const raw = String(value || "").trim().toLowerCase();
@@ -50,6 +51,7 @@ Item {
             : (competingLabel !== "" ? competingLabel : StoreLogic.primaryAction(actionItem))
     readonly property string secondaryLabel: StoreLogic.secondaryAction(actionItem)
     readonly property bool hasActionItem: item !== null && item !== undefined
+    readonly property bool isProfile: String(actionItem.category || "") === "profiles"
     readonly property color stageSurface: displayItem.surface || Tokens.paper
     readonly property color stageAccent: safeAccent(displayItem.accent)
     function heroItem(value) {
@@ -75,6 +77,12 @@ Item {
     clip: true
 
     function triggerInstall() {
+        if (!hasActionItem || busyKey !== "")
+            return;
+        if (StoreLogic.primaryAction(actionItem) === "CREATE ACCOUNT") {
+            settingsRequested(actionItem);
+            return;
+        }
         if (hasActionItem && StoreLogic.primaryAction(actionItem) !== "INSTALLED" && busyKey === ""
                 && !StoreLogic.isDownloadPaused(actionItem) && !StoreLogic.isUnavailable(actionItem))
             installRequested(actionItem);
@@ -86,13 +94,24 @@ Item {
     }
 
     function triggerSettings() {
-        if (hasActionItem && secondaryLabel !== "")
-            settingsRequested(actionItem);
+        if (!hasActionItem || secondaryLabel === "" || busyKey !== "")
+            return;
+        if (secondaryLabel === "REMOVE") {
+            if (!profileRemoveArmed) {
+                profileRemoveArmed = true;
+                return;
+            }
+            triggerRemove();
+            return;
+        }
+        settingsRequested(actionItem);
     }
 
     function triggerRemove() {
-        if (hasActionItem && busyKey === "" && StoreLogic.isInstalled(actionItem))
+        if (hasActionItem && busyKey === "" && StoreLogic.isInstalled(actionItem)) {
+            profileRemoveArmed = false;
             removeRequested(actionItem);
+        }
     }
 
     function syncHero() {
@@ -122,7 +141,10 @@ Item {
     }
 
     onDisplayItemChanged: syncHero()
-    onActionItemChanged: syncHero()
+    onActionItemChanged: {
+        profileRemoveArmed = false;
+        syncHero();
+    }
     onReducedMotionChanged: {
         if (reducedMotion) {
             heroFade.stop();
@@ -332,6 +354,18 @@ Item {
             elide: Text.ElideRight
         }
 
+        Text {
+            objectName: "ryostore-stage-profile-remove-confirmation"
+            width: parent.width
+            visible: stage.profileRemoveArmed
+            text: I18n.tr("Remove this profile definition? Existing accounts keep working.")
+            color: Tokens.inkDim
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+        }
+
         Flow {
             width: parent.width
             spacing: Tokens.s2
@@ -365,9 +399,11 @@ Item {
 
             Btn {
                 objectName: "ryostore-stage-settings"
-                text: I18n.tr(stage.secondaryLabel)
-                visible: text !== ""
-                armed: visible && stage.hasActionItem
+                text: stage.profileRemoveArmed
+                        ? I18n.tr("CONFIRM REMOVE")
+                        : I18n.tr(stage.secondaryLabel)
+                visible: stage.secondaryLabel !== ""
+                armed: visible && stage.hasActionItem && stage.busyKey === ""
                 Accessible.role: Accessible.Button
                 Accessible.name: text
                 onAct: stage.triggerSettings()
@@ -377,7 +413,7 @@ Item {
             Btn {
                 objectName: "ryostore-stage-remove"
                 text: I18n.tr("REMOVE")
-                visible: StoreLogic.isInstalled(stage.actionItem)
+                visible: StoreLogic.isInstalled(stage.actionItem) && !stage.isProfile
                 armed: visible && stage.busyKey === ""
                 Accessible.role: Accessible.Button
                 Accessible.name: text

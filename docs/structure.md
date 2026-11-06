@@ -21,9 +21,9 @@ Start with the guide that matches the job:
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
   rules](ui-ux.md), [bar styles](barstyles.md), [sidebars](sidebars.md),
   [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
-  [Ryogami](ryogami.md), [RyoStore](store.md), [profiles](profile.md),
-  [theming](theming.md), [performance](performance.md), [power](power.md) and
-  [plugins](plugins.md).
+  [Ryogami](ryogami.md), [RyoStore](store.md), [installable
+  profiles](profiles.md), [the Profile plate](profile.md), [theming](theming.md),
+  [performance](performance.md), [power](power.md) and [plugins](plugins.md).
 - **Work on the repository:** [conventions](conventions.md),
   [development](development.md), [internationalization](i18n.md),
   [compositors](compositors.md), [adding a window
@@ -109,12 +109,12 @@ truth for the live desktop.
   `ryoku-cmd-*` screen and recorder tools, `ryoku-sysinfo`/`ryoku-profile-stats`,
   `ryoku-app`, `ryostage`, and the stash `.sh` helpers, shipped with the shell so
   they resolve on PATH under any compositor),
-  `systemd/` (the user session target), `ipc/` (`ryoku-shell`, the Go shell
-  daemon that supervises the Quickshell components, owns wallpaper/clipboard/
-  lock and the GNOME keyring password prompt (it registers as the keyring system
+  `systemd/` (the user session target plus profile-account launcher-scope,
+  package-change and logout hooks), `ipc/` (`ryoku-shell`, the Go shell daemon
+  that supervises the Quickshell components, owns wallpaper/clipboard/lock and
+  the GNOME keyring password prompt (it registers as the keyring system
   prompter; see `ipc/prompter.go` and `ipc/secretexchange.go`), and serves the
-  control socket). `deploy.sh` and `dev-*.sh` are the live
-  dev-loop tools.
+  control socket). `deploy.sh` and `dev-*.sh` are the live dev-loop tools.
 - `ui/` `Ryoku.Ui`, the shared QML module the shell, the Hub and the apps all
   import for one look: the design tokens (`Singletons/Tokens.qml`), the shared
   primitives, and the wallpaper palette. It also hosts the desktop spectrum
@@ -138,14 +138,15 @@ truth for the live desktop.
   (`ui/Singletons/I18n.qml`), the Go runtime and the installer's shell
   (`installation/backend/lib/i18n.sh`) all read. See `docs/i18n.md`.
 - `cli/` the user-facing control CLI and the host seam. `ryoku` provides
-  `update`, `rollback`, `snapshots`, `status`, `materialize`, and `reload`;
-  `main.go` is a thin dispatcher over `internal/updater`, `internal/doctor`, and
-  the shared primitives in `internal/sys`. `cmd/ryoku-host` builds
-  `/usr/bin/ryoku-host`, the one runtime boundary for init-system and package
-  manager operations. Its implementation in `internal/host` selects systemd or
-  runit and pacman, XBPS, or DNF, so scripts, daemons, QML, and other Go modules
-  do not grow host checks. Per-command reference, user- vs developer-facing, is
-  in `docs/cli.md`.
+  `update`, `rollback`, `snapshots`, `status`, `channel`, `profile`,
+  `materialize`, and `reload`; `main.go` is a thin dispatcher over
+  `internal/updater`, `internal/doctor`, `internal/profile`, and the shared
+  primitives in `internal/sys`. `cmd/ryoku-host` builds
+  `/usr/bin/ryoku-host`, the one runtime boundary for init-system, package
+  manager, user, profile and managed lab-host operations. Its implementation in
+  `internal/host` selects systemd or runit and pacman, XBPS, or DNF, so scripts,
+  daemons, QML, and other Go modules do not grow host checks. Per-command
+  reference, user- vs developer-facing, is in `docs/cli.md`.
 - `hub/` Ryoku Settings, the central control-center GUI (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go data plane that reads the keybind legend from the live
   Hyprland config, generates the `settings.lua` overlay (in `user_edits`) from JSON, and
@@ -204,10 +205,11 @@ System-level definition installed into the target.
   group, and the single `ryoku-cobalt` container, and exposes no docker
   passthrough on purpose: the polkit grant is passwordless, so every action is a
   fixed argument vector.
-- `extras/` the helpers behind the Hub's Extras section, shipped to `/usr/bin` by
+- `extras/` the helpers behind the Hub and Ryostore, shipped to `/usr/bin` by
   `ryoku-desktop`: `ryostore-install` (installs, removes, and reports the
   optional bundles from the `ryostore` catalogue), the `ryoku-pkg-*` routing
-  wrappers (repo, AUR, remove, multilib), and `ryoku-cmd-present`.
+  wrappers (repo, AUR, remove, multilib and the pinned BlackArch profile
+  repository), and `ryoku-cmd-present`.
 - `packages/` the package sets: `base.packages` (every machine, pacstrapped),
   `hardware.packages` (per-profile microcode and GPU drivers), `dev.packages`
   (language toolchains, pacstrapped), `aur.packages` (built post-install), and
@@ -215,6 +217,11 @@ System-level definition installed into the target.
 - `services/manifest.tsv` is the activation source for systemd and runit. It
   records each service's scope, lifecycle, two implementations, and the rule
   that keeps an explicit user disable intact.
+- `policy/` contains the narrow polkit actions and rules for privileged desktop
+  seams. Profile management and managed lab hosts use
+  `dev.ryoku.profiles.manage`, `dev.ryoku.hosts.manage` and
+  `55-ryoku-profiles.rules`; both require administrator authentication from a
+  local active session and permit only the matching `ryoku-host` verb.
 
 ## `installation/` the build
 

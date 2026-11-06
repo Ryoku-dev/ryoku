@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"os/exec"
 	"sync"
 	"time"
 )
@@ -17,12 +19,17 @@ type Provider interface {
 	Remove(ctx context.Context, id string) error
 }
 
-// providers is the ordered catalogue registry in rail order. Each later task
-// appends its provider here; BuildCatalog preserves this order. All providers
-// share one cache so a single probe fetches each source once.
+// providers is the ordered catalogue registry in rail order. BuildCatalog
+// preserves this order. Providers from the same source share a cache; profiles
+// use the revamped catalogue's separate base and cache namespace.
 func providers() []Provider {
+	return providersWithProfileGate(profileChannelEnabled)
+}
+
+func providersWithProfileGate(profileEnabled func() bool) []Provider {
 	c := newCache()
-	return []Provider{
+	providers := make([]Provider, 0, 20)
+	providers = append(providers,
 		newLockProvider(c),
 		newRiceProvider(c),
 		newColorschemeProvider(c),
@@ -39,10 +46,28 @@ func providers() []Provider {
 		newOmarchyPluginProvider(),
 		newFlatpakProvider(),
 		bundleProvider{cache: c, status: defaultBundleStatus, launch: launchBundleInstall},
+	)
+	if profileEnabled != nil && profileEnabled() {
+		providers = append(providers, newProfilesProvider(newRevampedCache()))
+	}
+	return append(providers,
 		newDecorProvider(c),
 		newLauncherImageProvider(c),
 		newFastfetchEmblemProvider(c),
+	)
+}
+
+func profileChannelEnabled() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 750*time.Millisecond)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "ryoku", "channel", "--json").Output()
+	if err != nil {
+		return false
 	}
+	var channel struct {
+		Stable *bool `json:"stable"`
+	}
+	return json.Unmarshal(out, &channel) == nil && channel.Stable != nil && !*channel.Stable
 }
 
 // owned reports whether the item is present on the machine: fully installed, or

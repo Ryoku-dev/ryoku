@@ -282,7 +282,7 @@ func productUpdateAvailable(installedVersion, availableVersion string) bool {
 func validProductCategory(category string) bool {
 	switch category {
 	case "rices", "lockscreens", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch",
-		"plugins", "bundles", "decors", "launcher-images", "fastfetch-emblems", "ryotunes-skins", vesktopThemesCategory:
+		"plugins", "bundles", "profiles", "decors", "launcher-images", "fastfetch-emblems", "ryotunes-skins", vesktopThemesCategory:
 		return true
 	default:
 		return false

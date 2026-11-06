@@ -32,7 +32,7 @@ them (see below), never as dead settings.
 | Rail name | `hub open` key | Page | What it owns |
 |---|---|---|---|
 | Profile | `profile` | ProfilePage.qml | the user profile, avatar, and hero |
-| General | `global` | GlobalPage.qml | language, regional formats, time zone and units, the system font and its size, and the blur and dim behind open windows |
+| General | `global` | GlobalPage.qml | language, regional formats, time zone and units, the system font and its size, blur and dim behind open windows, and Users account management |
 | Updates | `updates` | UpdatesPage.qml | system updates and the release channel |
 | Displays | `displays` | DisplaysPage.qml | monitors, resolution, arrangement, night light (gated: `monitorConfig`) |
 | Connections | `connections` | ConnectionsPage.qml | wifi and bluetooth |
@@ -72,6 +72,28 @@ compositor, send them to Settings -> General -> Appearance -> *Blur and dim
 behind windows*. Off removes both the blur and the darkening; it is not the
 window shadow, which lives on Window Manager -> Look.
 
+## Installable profiles
+
+Profile discovery starts in **Ryostore > Profiles**. **Install** places the
+official profile definition. **Create account** then opens **Ryoku Hub > Global
+> Users > Add person > From a profile**, where the user chooses the separate
+standard account, tools and extra packages, reviews the complete plan, and
+approves it.
+
+An applied profile account has a Profile tools section on its Users card:
+
+- **Edit tools** changes core, optional and extra packages through a new plan.
+- **Reset settings** previews and restores profile-managed files. It never
+  touches user-data folders or anything the profile did not lay.
+- **Checkpoints** saves, lists, reverts or deletes btrfs home checkpoints.
+  Revert is unavailable while the account is logged in.
+- **Remove profile** previews packages and system pieces before offering
+  Archive home, Keep account or Erase home.
+
+The profile account's own Global > Users view also has a Profile account card
+for reset preview, reset and checkpoint save. A profile account stays standard
+and cannot manage users.
+
 ## Surfaces outside the Hub
 
 Wallpaper, theme, the bar, the launcher, Controls, ryoshot, and Ask are outside
@@ -86,6 +108,7 @@ the Hub. Reach them here:
 | Screenshots and recordings | ryoshot capture bar | Super+Shift+S | `ryoku-shell screenshot` |
 | Read-only answers, the persistent machine Agent, tools, and web search | Rashin bar | Alt+Space | `ryoku-shell ask`, `ryoku-shell ask chat`, `ryoku-shell ask tools`, `ryoku-shell compress`, `ryoku-shell install` |
 | Agent, Ask, plain Chat, vault, models, and Prowl controls | Rashin console | Super+Alt+Space | `rashin-app` (single-instance: a second press focuses it) |
+| Install or create a separate account profile | Ryostore > Profiles, then Ryoku Hub > Global > Users | open Ryostore, choose Profiles | `ryostore settings profiles <id>` hands off to the Hub's `users fromProfile` IPC |
 
 QS Bar Settings routes are `bars`, `layout`, `widgets`, `dock`, and `community`,
 so `ryoku-shell bar settings layout` opens straight to the layout lanes. The bar

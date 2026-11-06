@@ -1,0 +1,13 @@
+[Unit]
+Description=Watch application menus for Ryoku profile scope changes
+ConditionUser=!@system
+ConditionPathExists=%h/.local/state/ryoku/profile/receipt.json
+
+[Path]
+PathChanged=/usr/share/applications
+PathChanged=/usr/local/share/applications
+PathChanged=/var/lib/flatpak/exports/share/applications
+Unit=ryoku-profile-scope.service
+
+[Install]
+WantedBy=paths.target

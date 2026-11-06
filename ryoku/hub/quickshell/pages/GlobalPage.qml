@@ -20,6 +20,11 @@ Item {
     readonly property string soundsTab: "Sounds"
     readonly property string usersTab: I18n.tr("Users")
     function focusKey(k) { sp.focusKey(k) }
+    function openUsers(profileId) {
+        sp.tab = pg.usersTab;
+        if (profileId)
+            usersPanel.openProfile(profileId);
+    }
     function resetDefaults() {
         if (!pg.hub)
             return;
@@ -145,6 +150,7 @@ Item {
         }
 
         Users.UsersTab {
+            id: usersPanel
             width: parent.width
             visible: sp.tab === pg.usersTab
         }

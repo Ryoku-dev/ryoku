@@ -86,6 +86,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Installed Ryostore profiles appear under Add person.** Global > Users
+  reviews tools and system changes, then gives the account tool editing, reset,
+  checkpoints and removal while keeping its role standard.
 - **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
   card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
   (`quickshell/pages/BarStudioPage.qml`).

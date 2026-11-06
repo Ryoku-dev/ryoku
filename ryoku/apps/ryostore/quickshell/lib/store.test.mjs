@@ -92,6 +92,11 @@ eq(Store.primaryAction({ installed: false, busy: true }), "INSTALLING", "busy ac
 eq(Store.secondaryAction({ installed: true, hasSettings: true }), "OPEN IN SETTINGS", "management handoff when the product has a settings page");
 eq(Store.secondaryAction({ installed: true }), "", "installed product without a settings page has no handoff");
 eq(Store.secondaryAction({ installed: false }), "", "available item has no management handoff");
+eq(Store.primaryAction({ category: "profiles", installed: false }), "INSTALL", "profile definition install action");
+eq(Store.primaryAction({ category: "profiles", installed: true }), "CREATE ACCOUNT", "installed profile opens account creation");
+eq(Store.primaryAction({ category: "profiles", installed: true, updateAvailable: true }), "CREATE ACCOUNT", "installed profile keeps its account action");
+eq(Store.secondaryAction({ category: "profiles", installed: true, hasSettings: true }), "REMOVE", "installed profile removes its definition secondarily");
+eq(Store.secondaryAction({ category: "profiles", installed: false, active: true, hasSettings: true }), "", "an account without its definition has no remove action");
 eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "FETCHING"), "DOWNLOADING ANOTHER ITEM", "another product explains the single-flight download");
 eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:clock", "FETCHING"), "", "the active product keeps its own progress stage");
 eq(Store.competingActionLabel("lockscreens:clock", "lockscreens:broken", "REMOVING"), "REMOVING ANOTHER ITEM", "another product explains a removal");

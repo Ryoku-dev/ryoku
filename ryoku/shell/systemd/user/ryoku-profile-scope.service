@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Ryoku profile launcher scope
+ConditionUser=!@system
+ConditionPathExists=%h/.local/state/ryoku/profile/receipt.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ryoku profile scope
+
+[Install]
+WantedBy=default.target

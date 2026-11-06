@@ -35,6 +35,31 @@ already present.
   its state with it. All the guest's code lives in `ryostore`, not here, so
   the shell stays a host and the catalogue stays independent.
 
+## Profiles category
+
+**Profiles** installs official account-profile definitions from
+`ryoku-dev/ryostore-revamped`, a separate source from the main `ryostore`
+catalogue. It is available only when `ryoku channel --json` reports
+`"stable": false`; a failed or invalid channel check hides the category.
+Profiles currently require pacman, so Arch and CachyOS can install them while
+other editions show the catalogue's unavailable reason.
+
+Installing a profile places its definition under
+`$XDG_DATA_HOME/ryoku/profiles/<id>/`. It does not create an account or install
+the profile's tools. The next action is **Create account**, which opens Ryoku
+Hub at Global > Users and starts the reviewed account flow. Removing the
+definition leaves applied accounts working from their staged system copy. See
+[installable profiles](profiles.md) for the account, isolation and removal
+rules.
+
+The default source is
+`https://raw.githubusercontent.com/ryoku-dev/ryostore-revamped/main`.
+`RYOSTORE_REVAMPED_BASE` overrides it for the current process. A one-line base
+URL, `file://` path or plain local path in
+`${XDG_CONFIG_HOME:-~/.config}/ryoku/ryostore-revamped-base` is the persistent
+override. Each non-default source gets its own cache namespace under
+`$XDG_CACHE_HOME/ryoku/ryostore-revamped/sources/`.
+
 ## Decision: build Ryostore
 
 The conditions for a standalone store are now present. The catalogue spans six
@@ -90,7 +115,7 @@ Search
 Discover
 Lockscreens · Rices · Themes · Bar styles · Docks · App launchers
 On-screen displays · Notifications · Sidebars · Fastfetch · Plugins
-Omarchy plugins · Bundles
+Omarchy plugins · Bundles · Profiles
 Library
 ```
 
@@ -181,6 +206,7 @@ ryoku/apps/ryostore/
     provider_shell_qml.go
     provider_fastfetch.go
     provider_flatpak.go
+    provider_profiles.go
   quickshell/
     shell.qml
     App.qml

@@ -73,6 +73,11 @@ ShellRoot {
         function section(): string { return hubItem.section; }
     }
 
+    IpcHandler {
+        target: "users"
+        function fromProfile(id: string): void { hubItem.openUsersProfile(id); }
+    }
+
     // the daemon's `hub close` verb: same exit as the in-app dismissals (the
     // unsaved-restore then quit), so the flock releases and the next open
     // starts clean.

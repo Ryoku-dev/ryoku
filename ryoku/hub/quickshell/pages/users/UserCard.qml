@@ -16,6 +16,8 @@ Item {
     property var selectedPermissions: []
     property int avatarRevision: 0
     property bool avatarBusy: false
+    property var profileStatus: null
+    property string profileName: ""
 
     signal avatarChooseRequested()
     signal avatarRemoveRequested()
@@ -24,6 +26,10 @@ Item {
     signal passwordRequested(string name)
     signal limitRequested(string name, double currentBytes)
     signal removeRequested(string name)
+    signal profileEditRequested(var status)
+    signal profileResetRequested(string name)
+    signal profileCheckpointsRequested(var status)
+    signal profileRemoveRequested(var status)
 
     implicitHeight: card.implicitHeight
 
@@ -80,6 +86,7 @@ Item {
         ? Math.max(0, Math.min(1, Number(storage.usedBytes || 0) / Number(storage.limitBytes))) : 0
     readonly property bool isSelf: String(cardRoot.userData.name || "") === cardRoot.selfName
     readonly property bool lastAdministrator: cardRoot.userData.role === "admin" && cardRoot.adminCount <= 1
+    readonly property bool profileManaged: cardRoot.profileStatus !== null
 
     onUserDataChanged: syncPermissions()
     Component.onCompleted: syncPermissions()
@@ -146,6 +153,24 @@ Item {
                             id: roleText
                             anchors.centerIn: parent
                             text: cardRoot.userData.role === "admin" ? I18n.tr("Administrator") : I18n.tr("Standard")
+                            color: Tokens.inkDim
+                            font.family: Tokens.ui
+                            font.pixelSize: Tokens.fMicro
+                            font.weight: Font.Medium
+                        }
+                    }
+                    Rectangle {
+                        visible: cardRoot.profileManaged
+                        width: profileBadgeText.implicitWidth + Tokens.s3
+                        height: 22
+                        radius: Tokens.radius
+                        color: "transparent"
+                        border.width: Tokens.border
+                        border.color: Tokens.line
+                        Text {
+                            id: profileBadgeText
+                            anchors.centerIn: parent
+                            text: I18n.tr("%1 profile").arg(cardRoot.profileName)
                             color: Tokens.inkDim
                             font.family: Tokens.ui
                             font.pixelSize: Tokens.fMicro
@@ -380,6 +405,62 @@ Item {
             }
         }
 
+        Rectangle { visible: cardRoot.canManage && cardRoot.profileManaged; width: parent.width; height: 1; color: Tokens.lineSoft }
+
+        Item {
+            visible: cardRoot.canManage && cardRoot.profileManaged
+            width: parent.width
+            implicitHeight: visible ? profileColumn.implicitHeight + Tokens.s4 * 2 : 0
+
+            Column {
+                id: profileColumn
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: Tokens.s4 }
+                spacing: Tokens.s3
+
+                Text {
+                    text: I18n.tr("PROFILE TOOLS")
+                    color: Tokens.inkDim
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fMicro
+                    font.weight: Font.Medium
+                    font.letterSpacing: Tokens.trackLabel
+                }
+                Text {
+                    width: parent.width
+                    text: I18n.tr("This profile account stays standard. Tool changes are reviewed before they are applied.")
+                    color: Tokens.inkMuted
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fSmall
+                    wrapMode: Text.WordWrap
+                }
+                Flow {
+                    width: parent.width
+                    spacing: Tokens.s2
+                    Btn {
+                        compact: true
+                        text: I18n.tr("EDIT TOOLS")
+                        onAct: cardRoot.profileEditRequested(cardRoot.profileStatus)
+                    }
+                    Btn {
+                        compact: true
+                        text: I18n.tr("RESET SETTINGS")
+                        onAct: cardRoot.profileResetRequested(String(cardRoot.userData.name || ""))
+                    }
+                    Btn {
+                        compact: true
+                        text: I18n.tr("CHECKPOINTS")
+                        onAct: cardRoot.profileCheckpointsRequested(cardRoot.profileStatus)
+                    }
+                    Btn {
+                        compact: true
+                        text: I18n.tr("REMOVE PROFILE")
+                        armed: !cardRoot.isSelf
+                        onAct: cardRoot.profileRemoveRequested(cardRoot.profileStatus)
+                    }
+                }
+            }
+        }
+
         Rectangle { visible: cardRoot.canManage; width: parent.width; height: 1; color: Tokens.lineSoft }
 
         Item {
@@ -407,7 +488,7 @@ Item {
                         options: ["admin", "standard"]
                         labels: ({ "admin": I18n.tr("Administrator"), "standard": I18n.tr("Standard") })
                         current: String(cardRoot.userData.role || "standard")
-                        enabled: !cardRoot.lastAdministrator
+                        enabled: !cardRoot.lastAdministrator && !cardRoot.profileManaged
                         opacity: enabled ? 1 : 0.5
                         onChose: role => {
                             if (role !== cardRoot.userData.role)
@@ -431,6 +512,7 @@ Item {
                         onAct: cardRoot.limitRequested(String(cardRoot.userData.name), Number(cardRoot.storage.limitBytes || 0))
                     }
                     Btn {
+                        visible: !cardRoot.profileManaged
                         compact: true
                         text: I18n.tr("REMOVE")
                         armed: !cardRoot.isSelf && !cardRoot.lastAdministrator

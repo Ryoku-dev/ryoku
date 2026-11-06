@@ -15,6 +15,8 @@ import (
 // with it already exported keeps working.
 const defaultExtrasBase = "https://raw.githubusercontent.com/ryoku-dev/ryostore/main"
 
+const defaultRevampedBase = "https://raw.githubusercontent.com/ryoku-dev/ryostore-revamped/main"
+
 // extrasBaseOverride returns the environment source override, preferring the
 // current RYOSTORE_BASE and falling back to the legacy RYOKU_EXTRAS_BASE.
 func extrasBaseOverride() string {
@@ -34,6 +36,20 @@ func extrasBase() string {
 	return defaultExtrasBase
 }
 
+func revampedBaseOverride() string {
+	return os.Getenv("RYOSTORE_REVAMPED_BASE")
+}
+
+func revampedBase() string {
+	if b := revampedBaseOverride(); b != "" {
+		return strings.TrimRight(b, "/")
+	}
+	if b := configuredRevampedBase(); b != "" {
+		return strings.TrimRight(b, "/")
+	}
+	return defaultRevampedBase
+}
+
 // configuredExtrasBase reads a persistent source override from
 // ${XDG_CONFIG_HOME:-~/.config}/ryoku/ryostore-base (one line: a base URL or a
 // file:// path). It lets a dev checkout, fork, or mirror be selected without a
@@ -46,13 +62,23 @@ func configuredExtrasBase() string {
 	return strings.TrimSpace(string(b))
 }
 
-// localBase reports whether the extras base is a local tree (file:// URL) and
-// returns its root path. A local base lets a fork or a checkout under test serve
-// the catalogue straight off disk, with no network and no CDN, so browsing is
-// instant and art loads from the same tree.
+func configuredRevampedBase() string {
+	b, err := os.ReadFile(filepath.Join(configHome(), "ryoku", "ryostore-revamped-base"))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// localBase reports whether a catalogue base is a file:// URL or plain local
+// path and returns its root. Local bases let a checkout under test serve the
+// catalogue straight off disk, with no network or CDN.
 func localBase(base string) (string, bool) {
 	if strings.HasPrefix(base, "file://") {
 		return strings.TrimPrefix(base, "file://"), true
+	}
+	if base != "" && !strings.Contains(base, "://") {
+		return filepath.Clean(base), true
 	}
 	return "", false
 }
@@ -78,6 +104,15 @@ func extrasCacheDir() string {
 		return root
 	}
 	sum := sha256.Sum256([]byte(extrasBase()))
+	return filepath.Join(root, "sources", hex.EncodeToString(sum[:8]))
+}
+
+func revampedCacheDir() string {
+	root := filepath.Join(xdgCacheHome(), "ryoku", "ryostore-revamped")
+	if revampedBase() == defaultRevampedBase {
+		return root
+	}
+	sum := sha256.Sum256([]byte(revampedBase()))
 	return filepath.Join(root, "sources", hex.EncodeToString(sum[:8]))
 }
 

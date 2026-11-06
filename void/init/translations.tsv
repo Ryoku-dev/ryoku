@@ -10,6 +10,9 @@ ryoku/shell/systemd/user/ryoku-bt-agent.service	translated	void/init/user/ryoku-
 ryoku/rashin/systemd/ryoku-ai-usage.service	translated	void/init/user/ryoku-ai-usage	loop service: the timer's schedule becomes a run loop with env-overridable delays
 ryoku/rashin/systemd/ryoku-ai-usage.timer	translated	void/init/user/ryoku-ai-usage	OnBootSec/OnUnitActiveSec/Persistent fold into the loop service above; runit has no timer units
 ryoku/shell/systemd/user/ryoku-bootstrap.service	translated	void/init/user/ryoku-bootstrap	oneshot: run does the work then exec sv down; ConditionPathExists markers kept; the session entrypoint restarts it before the rest of the user-service roster
+ryoku/shell/systemd/user/ryoku-profile-scope.service	accepted-loss	-	Profiles are available only on Arch and CachyOS; Void does not run profile launcher scoping
+ryoku/shell/systemd/user/ryoku-profile-scope.path	accepted-loss	-	Profiles are available only on Arch and CachyOS; Void does not watch application directories for profile scoping
+ryoku/shell/systemd/user/ryoku-profile-session.service	accepted-loss	-	Profiles are available only on Arch and CachyOS; Void has no profile account session resources
 ryoku/shell/systemd/user/ryoku-session.target	translated	system/services/manifest.tsv	runit has no targets; session activation rows define the ordered roster that ryoku-host writes for each user
 ryoku/shell/systemd/user/niri.service.d/ryoku-bootstrap.conf	translated	void/init/user/ryoku-bootstrap	the drop-in's Wants/After=ryoku-bootstrap is folded into the roster ordering, where bootstrap runs first
 ryoku/shell/systemd/user/xdg-desktop-portal-gnome.service.d/10-ryoku.conf	accepted-loss	-	UnsetEnvironment=GDK_BACKEND is a systemd drop-in on a foreign unit; Void portals are D-Bus activated and do not use this user-manager drop-in

@@ -22,6 +22,17 @@ Column {
     property string loadError: ""
     property string actionError: ""
     property int avatarRevision: 0
+    property var profileDefinitions: []
+    property var profileAccounts: []
+    property string pendingProfileId: ""
+
+    readonly property string dataRoot: Quickshell.env("XDG_DATA_HOME")
+        || ((Quickshell.env("HOME") || "/") + "/.local/share")
+    readonly property string stateRoot: Quickshell.env("XDG_STATE_HOME")
+        || ((Quickshell.env("HOME") || "/") + "/.local/state")
+    readonly property var installedProfiles: root.profileDefinitions.filter(function(definition) {
+        return definition.installed === true;
+    })
 
     readonly property bool supported: Host.supports("users")
     readonly property string unsupportedReason: Host.reason("users") !== ""
@@ -32,7 +43,8 @@ Column {
                 return root.users[i];
         return null;
     }
-    readonly property bool canManage: root.selfAccount !== null && root.selfAccount.role === "admin"
+    readonly property bool canManage: !root.inProfileAccount
+        && root.selfAccount !== null && root.selfAccount.role === "admin"
     readonly property int adminCount: {
         let count = 0;
         for (let i = 0; i < root.users.length; i++)
@@ -40,12 +52,110 @@ Column {
                 count++;
         return count;
     }
+    readonly property var currentProfileStatus: root.profileStatusFor(root.selfName)
+    readonly property bool inProfileAccount: root.currentProfileStatus !== null
 
     function roleFor(name) {
         for (var i = 0; i < root.users.length; i++)
             if (String(root.users[i].name || "") === name)
                 return String(root.users[i].role || "standard");
         return "standard";
+    }
+
+    function profileStatusFor(name) {
+        for (var i = 0; i < root.profileAccounts.length; i++)
+            if (String(root.profileAccounts[i].account || "") === String(name || ""))
+                return root.profileAccounts[i];
+        return null;
+    }
+
+    function profileDefinition(id) {
+        for (var i = 0; i < root.profileDefinitions.length; i++)
+            if (String(root.profileDefinitions[i].id || "") === String(id || ""))
+                return root.profileDefinitions[i];
+        return null;
+    }
+
+    function profileNameFor(id) {
+        var definition = root.profileDefinition(id);
+        if (definition)
+            return String(definition.name || definition.id || id);
+        var text = String(id || "").replace(/-/g, " ");
+        return text.length > 0 ? text.charAt(0).toUpperCase() + text.slice(1) : I18n.tr("Profile");
+    }
+
+    function upsertDefinition(kind, source, manifest) {
+        if (!manifest || !manifest.id)
+            return;
+        var row = {
+            id: String(manifest.id),
+            name: String(manifest.name || manifest.id),
+            version: String(manifest.version || ""),
+            source: source,
+            installed: kind === "installed",
+            manifest: manifest
+        };
+        var next = root.profileDefinitions.slice();
+        for (var i = 0; i < next.length; i++) {
+            if (String(next[i].id || "") !== row.id)
+                continue;
+            if (next[i].installed === true && !row.installed)
+                return;
+            next[i] = row;
+            root.profileDefinitions = next;
+            return;
+        }
+        next.push(row);
+        root.profileDefinitions = next;
+    }
+
+    function parseDefinitionLine(raw) {
+        var line = String(raw || "");
+        var first = line.indexOf("\t");
+        var second = first >= 0 ? line.indexOf("\t", first + 1) : -1;
+        if (first < 0 || second < 0)
+            return;
+        try {
+            root.upsertDefinition(line.slice(0, first), line.slice(first + 1, second),
+                                  JSON.parse(line.slice(second + 1)));
+        } catch (e) {
+            root.loadError = I18n.tr("Could not read an installed profile.");
+        }
+    }
+
+    function refreshProfiles() {
+        if (profileDiscoverProc.running)
+            return;
+        profileDiscoverProc.running = true;
+    }
+
+    function refreshProfileStatus() {
+        if (profileStatusProc.running)
+            return;
+        profileStatusProc.running = true;
+    }
+
+    function openProfile(id) {
+        var definition = root.profileDefinition(id);
+        if (!definition || definition.installed !== true) {
+            root.pendingProfileId = String(id || "");
+            root.refreshProfiles();
+            return;
+        }
+        root.pendingProfileId = "";
+        profileSetup.openFor(definition, null);
+    }
+
+    function editProfile(status) {
+        if (!status)
+            return;
+        var definition = root.profileDefinition(status.profile);
+        if (!definition) {
+            root.actionError = I18n.tr("The staged profile definition could not be found.");
+            root.refreshProfiles();
+            return;
+        }
+        profileSetup.openFor(definition, status);
     }
 
     function parseError(text, fallback) {
@@ -77,6 +187,8 @@ Column {
     }
 
     function startIfSupported() {
+        root.refreshProfiles();
+        root.refreshProfileStatus();
         if (!root.supported)
             return;
         root.refresh();
@@ -165,6 +277,10 @@ Column {
         passwordDialog.close();
         limitDialog.close();
         removeDialog.close();
+        profileSetup.close();
+        profileRemove.close();
+        profileCheckpoints.close();
+        profileReset.close();
     }
 
     function finishMutation(exitCode, output) {
@@ -235,6 +351,68 @@ Column {
                 root.capsLoaded = true;
             } catch (e) {
                 root.loadError = String(e.message || e);
+            }
+        }
+    }
+
+    Process {
+        id: profileDiscoverProc
+        command: ["sh", "-c", [
+            "emit() { kind=$1; manifest=$2; source=${manifest%/profile.json};",
+            "  printf '%s\\t%s\\t' \"$kind\" \"$source\"",
+            "  tr -d '\\n\\r' < \"$manifest\"",
+            "  printf '\\n'",
+            "}",
+            "for manifest in /var/lib/ryoku/profiles/*/payload/*/profile.json; do",
+            "  [ -f \"$manifest\" ] && emit staged \"$manifest\"",
+            "done",
+            "for manifest in \"$1\"/ryoku/profiles/*/profile.json; do",
+            "  [ -f \"$manifest\" ] || continue",
+            "  id=${manifest%/profile.json}; id=${id##*/}",
+            "  [ -f \"$2/ryoku/store/profiles/$id.json\" ] && emit installed \"$manifest\"",
+            "done"
+        ].join("\n"), "sh", root.dataRoot, root.stateRoot]
+        environment: Spawn.env
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: line => root.parseDefinitionLine(line)
+        }
+        stderr: StdioCollector { }
+        onStarted: root.profileDefinitions = []
+        onExited: function(code) {
+            if (code !== 0)
+                root.loadError = I18n.tr("Could not find installed profiles.");
+            if (root.pendingProfileId !== "") {
+                var requested = root.pendingProfileId;
+                root.pendingProfileId = "";
+                var definition = root.profileDefinition(requested);
+                if (definition && definition.installed === true)
+                    profileSetup.openFor(definition, null);
+                else
+                    root.actionError = I18n.tr("That profile is not installed.");
+            }
+        }
+    }
+
+    Process {
+        id: profileStatusProc
+        command: ["ryoku-host", "profile", "status"]
+        environment: Spawn.env
+        stdout: StdioCollector { id: profileStatusOut }
+        stderr: StdioCollector { id: profileStatusErr }
+        onExited: function(code) {
+            if (code !== 0) {
+                root.loadError = root.parseError(profileStatusOut.text || profileStatusErr.text,
+                                                 I18n.tr("Could not load profile accounts."));
+                return;
+            }
+            try {
+                var value = JSON.parse(String(profileStatusOut.text || "{}"));
+                if (value.error)
+                    throw new Error(String(value.error));
+                root.profileAccounts = value.accounts instanceof Array ? value.accounts : [];
+            } catch (e) {
+                root.loadError = I18n.tr(String(e.message || e));
             }
         }
     }
@@ -323,8 +501,19 @@ Column {
         }
     }
 
+    ProfileAccountPanel {
+        visible: root.supported && root.inProfileAccount
+        width: parent.width
+        profileStatus: root.currentProfileStatus || ({})
+        profileName: root.profileNameFor(root.currentProfileStatus ? root.currentProfileStatus.profile : "")
+        onChanged: {
+            root.actionError = "";
+            root.refreshProfileStatus();
+        }
+    }
+
     SettingCard {
-        visible: root.supported
+        visible: root.supported && !root.inProfileAccount
         width: parent.width
         title: I18n.tr("PEOPLE")
         kana: "人"
@@ -389,7 +578,7 @@ Column {
     }
 
     Text {
-        visible: root.supported && !root.listLoaded && root.loadError === ""
+        visible: root.supported && !root.inProfileAccount && !root.listLoaded && root.loadError === ""
         width: parent.width
         text: I18n.tr("Loading people…")
         color: Tokens.inkMuted
@@ -398,7 +587,7 @@ Column {
     }
 
     Text {
-        visible: root.supported && root.listLoaded && root.users.length === 0 && root.loadError === ""
+        visible: root.supported && !root.inProfileAccount && root.listLoaded && root.users.length === 0 && root.loadError === ""
         width: parent.width
         text: I18n.tr("No user accounts were found.")
         color: Tokens.inkMuted
@@ -407,7 +596,7 @@ Column {
     }
 
     Repeater {
-        model: root.supported ? root.users : []
+        model: root.supported && !root.inProfileAccount ? root.users : []
         delegate: UserCard {
             required property var modelData
             width: root.width
@@ -419,6 +608,8 @@ Column {
             canManage: root.canManage
             avatarRevision: root.avatarRevision
             avatarBusy: avatarProc.running
+            profileStatus: root.profileStatusFor(String(modelData.name || ""))
+            profileName: root.profileNameFor(profileStatus ? profileStatus.profile : "")
             onAvatarChooseRequested: avatarPicker.open()
             onAvatarRemoveRequested: root.removeAvatar()
             onRoleRequested: (name, role) => root.setRole(name, role)
@@ -435,6 +626,19 @@ Column {
                 root.actionError = "";
                 removeDialog.openFor(name);
             }
+            onProfileEditRequested: status => root.editProfile(status)
+            onProfileResetRequested: name => {
+                root.actionError = "";
+                profileReset.openFor(name);
+            }
+            onProfileCheckpointsRequested: status => {
+                root.actionError = "";
+                profileCheckpoints.openFor(String(status.account || ""), status.loggedIn === true);
+            }
+            onProfileRemoveRequested: status => {
+                root.actionError = "";
+                profileRemove.openFor(status, root.profileNameFor(status.profile));
+            }
         }
     }
 
@@ -442,10 +646,12 @@ Column {
         id: addDialog
         permissionDefs: root.permissionDefs
         storageCaps: root.storageCaps
+        installedProfiles: root.installedProfiles
         busy: actionProc.running
         error: root.actionError
         onSubmitted: (name, fullName, role, password, permissions, limitBytes) =>
             root.addPerson(name, fullName, role, password, permissions, limitBytes)
+        onProfileRequested: profile => profileSetup.openFor(profile, null)
     }
 
     PasswordDialog {
@@ -467,5 +673,31 @@ Column {
         busy: actionProc.running
         error: root.actionError
         onSubmitted: (name, eraseFiles) => root.removePerson(name, eraseFiles)
+    }
+
+    ProfileSetupSheet {
+        id: profileSetup
+        onCompleted: {
+            root.refresh();
+            root.refreshProfileStatus();
+        }
+    }
+
+    ProfileResetSheet {
+        id: profileReset
+        onCompleted: root.refreshProfileStatus()
+    }
+
+    ProfileCheckpointsDialog {
+        id: profileCheckpoints
+        onChanged: root.refreshProfileStatus()
+    }
+
+    ProfileRemoveSheet {
+        id: profileRemove
+        onCompleted: {
+            root.refresh();
+            root.refreshProfileStatus();
+        }
     }
 }

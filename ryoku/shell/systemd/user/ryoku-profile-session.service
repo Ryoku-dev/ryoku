@@ -1,0 +1,13 @@
+[Unit]
+Description=Manage Ryoku profile session resources
+ConditionUser=!@system
+ConditionPathExists=%h/.local/state/ryoku/profile/receipt.json
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/usr/bin/ryoku profile session-stop
+
+[Install]
+WantedBy=default.target

@@ -130,6 +130,9 @@ lay_missing_config() {
 import_session_environment
 apply_panel_gpu_environment
 lay_missing_config
+if command -v ryoku >/dev/null 2>&1 && command -v logger >/dev/null 2>&1; then
+  (ryoku profile check --session 2>&1 | logger -t ryoku-profile) &
+fi
 
 if needs_software_renderer; then
   export LIBGL_ALWAYS_SOFTWARE=1

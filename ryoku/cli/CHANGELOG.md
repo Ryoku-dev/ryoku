@@ -2335,6 +2335,13 @@
   `0.1.0-3`.
 
 ### Added
+- **`ryoku channel` reports the effective lane without using the network.** Its
+  JSON form gives Ryostore the stable gate for installable profiles.
+- **Installable profiles have reviewed user and host commands.** `ryoku profile`
+  checks and repairs the current account while `ryoku-host profile` plans,
+  applies, updates, resets, checkpoints and removes profile accounts.
+- **`ryoku-host hosts` owns lab names without taking over `/etc/hosts`.** It
+  limits addresses and suffixes, then rewrites only Ryoku's marked block.
 - **New accounts use one user-side provisioner.** `users provision` enters the
   account through `runuser`, and `users seed-self` writes the desktop with the
   account's ownership.

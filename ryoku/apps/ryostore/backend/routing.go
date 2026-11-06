@@ -11,7 +11,7 @@ var storeSections = map[string]struct{}{
 	"subshells": {}, "barstyles": {}, "docks": {}, "launchers": {}, "osds": {}, "notifications": {}, "sidebars": {},
 	"fastfetch": {}, "plugins": {}, "bundles": {}, "decors": {},
 	"launcher-images": {}, "fastfetch-emblems": {}, "ryotunes-skins": {},
-	"vesktop-themes": {}, "flatpak": {},
+	"vesktop-themes": {}, "flatpak": {}, "profiles": {},
 }
 
 func storeSection(section string) bool {
@@ -36,6 +36,7 @@ func settingsSection(category string) (string, bool) {
 		"notifications": "overlays",
 		"sidebars":      "overlays",
 		"fastfetch":     "fastfetch",
+		"profiles":      "users",
 	}[category]
 	return section, ok
 }
@@ -64,6 +65,18 @@ func runSettings(args []string) error {
 	if len(args) < 1 || len(args) > 2 {
 		return fmt.Errorf("settings needs <category> [id]")
 	}
+	if args[0] == profilesCategory {
+		if len(args) != 2 || !productIDPattern.MatchString(args[1]) {
+			return fmt.Errorf("settings profiles needs a valid profile id")
+		}
+		if err := openConfig("hub", "/tmp/ryoku-hub.lock", "users"); err != nil {
+			return err
+		}
+		if err := retryConfigCall("hub", "users", "fromProfile", args[1]); err != nil {
+			return fmt.Errorf("open profile %q in hub: %w", args[1], err)
+		}
+		return nil
+	}
 	if section, ok := editorSection(args[0]); ok {
 		return openEditorSection(section)
 	}
@@ -90,9 +103,17 @@ func openConfig(config, lock, section string) error {
 	}
 	_ = start.Process.Release()
 
+	if err := retryConfigCall(config, "nav", "open", section); err != nil {
+		return fmt.Errorf("open %s section %q: %w", config, section, err)
+	}
+	return nil
+}
+
+func retryConfigCall(config string, args ...string) error {
 	var last error
-	for attempt := 0; attempt < 30; attempt++ {
-		call := exec.Command("qs", "-c", config, "ipc", "call", "nav", "open", section)
+	command := append([]string{"-c", config, "ipc", "call"}, args...)
+	for range 30 {
+		call := exec.Command("qs", command...)
 		if err := call.Run(); err == nil {
 			return nil
 		} else {
@@ -100,5 +121,5 @@ func openConfig(config, lock, section string) error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("open %s section %q: %w", config, section, last)
+	return last
 }

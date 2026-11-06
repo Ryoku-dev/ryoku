@@ -26,7 +26,13 @@ FocusScope {
     property bool lightboxActualPixels: false
     readonly property bool lightboxOpen: lightboxIndex >= 0 && lightboxIndex < galleryCount
     readonly property int filmstripHeight: galleryCount > 1 ? 82 : 0
-    onOpenChanged: if (!open) { lightboxIndex = -1; lightboxActualPixels = false; }
+    onOpenChanged: {
+        if (!open) {
+            lightboxIndex = -1;
+            lightboxActualPixels = false;
+            profileRemoveArmed = false;
+        }
+    }
 
     function focusInitialAction() {
         closeButton.forceActiveFocus(Qt.OtherFocusReason);
@@ -73,6 +79,7 @@ FocusScope {
             && !!(actionItem.metadata && actionItem.metadata.community === true)
     readonly property bool isOmarchyPlugin: String(actionItem.category || "") === "omarchy-plugins"
     readonly property bool isFlathubApp: String(actionItem.category || "") === "flatpak"
+    readonly property bool isProfile: String(actionItem.category || "") === "profiles"
     readonly property bool isUnsandboxedPlugin: isCommunityPlugin || isOmarchyPlugin
     readonly property string trustLabel: isFlathubApp
             ? I18n.tr("FLATHUB %1").arg(String(actionItem.verificationStatus || "unverified").toUpperCase())
@@ -112,10 +119,15 @@ FocusScope {
     readonly property var optionalGroups: groupSections(optionalComponents)
     property var sel: ({})
     property var lastComponents: null
+    property bool profileRemoveArmed: false
     readonly property var selectedNames: components.filter(c => sel[String(c.name)] === true && c.available !== false).map(c => String(c.name))
     // A part this edition cannot have is listed but never sent to the installer.
     readonly property var allNames: components.filter(c => c.available !== false).map(c => String(c.name))
-    onItemChanged: { rebuildSelection(); galleryIndex = 0; }
+    onItemChanged: {
+        rebuildSelection();
+        galleryIndex = 0;
+        profileRemoveArmed = false;
+    }
     readonly property real targetX: Tokens.s6
     readonly property real targetY: Tokens.s6
     // An art-only product's dossier carries only text, so the hero can take more
@@ -127,7 +139,7 @@ FocusScope {
     // Bundle component lists need the dossier body. Media stays in the adjacent
     // gallery plate; richer dossiers still pin copy and actions to opposite ends.
     readonly property bool hasBodyContent: isBundle
-    readonly property bool dossierAnchored: isBundle || screenshotCount > 0 || isUnsandboxedPlugin || isFlathubApp
+    readonly property bool dossierAnchored: isBundle || isProfile || screenshotCount > 0 || isUnsandboxedPlugin || isFlathubApp
     readonly property real targetHeight: Math.max(1, height - Tokens.s6 * 2)
     readonly property rect effectiveOrigin: originRect.width > 0 && originRect.height > 0
             ? originRect
@@ -150,7 +162,14 @@ FocusScope {
     }
 
     function triggerInstall() {
-        if (item && busyKey === "" && StoreLogic.primaryAction(actionItem) !== "INSTALLED"
+        if (!item || busyKey !== "")
+            return;
+        const action = StoreLogic.primaryAction(actionItem);
+        if (action === "CREATE ACCOUNT") {
+            settingsRequested(actionItem);
+            return;
+        }
+        if (action !== "INSTALLED"
                 && !StoreLogic.isDownloadPaused(actionItem) && !StoreLogic.isUnavailable(actionItem)) {
             lastComponents = null;
             installRequested(actionItem, ditherOn, null);
@@ -200,13 +219,25 @@ FocusScope {
     }
 
     function triggerSettings() {
-        if (item && StoreLogic.secondaryAction(actionItem) !== "")
+        if (!item || busyKey !== "")
+            return;
+        if (StoreLogic.secondaryAction(actionItem) === "REMOVE") {
+            if (!profileRemoveArmed) {
+                profileRemoveArmed = true;
+                return;
+            }
+            triggerRemove();
+            return;
+        }
+        if (StoreLogic.secondaryAction(actionItem) !== "")
             settingsRequested(actionItem);
     }
 
     function triggerRemove() {
-        if (item && busyKey === "" && StoreLogic.isInstalled(actionItem))
+        if (item && busyKey === "" && StoreLogic.isInstalled(actionItem)) {
+            profileRemoveArmed = false;
             removeRequested(actionItem);
+        }
     }
 
     function triggerEnabled(enabled) {
@@ -609,6 +640,48 @@ FocusScope {
                 elide: Text.ElideRight
             }
 
+            Rectangle {
+                objectName: "ryostore-detail-profile-isolation"
+                width: parent.width
+                visible: detail.isProfile
+                implicitHeight: profileIsolation.implicitHeight + Tokens.s3 * 2
+                height: implicitHeight
+                radius: Tokens.radius
+                color: Tokens.tint5
+                border.width: Tokens.border
+                border.color: Tokens.line
+
+                Column {
+                    id: profileIsolation
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                        margins: Tokens.s3
+                    }
+                    spacing: Tokens.s2
+
+                    Text {
+                        width: parent.width
+                        text: I18n.tr("A profile is a separate account, not a sandbox.")
+                        color: Tokens.ink
+                        font.family: Tokens.display
+                        font.pixelSize: Tokens.fSmall
+                        font.weight: Font.Medium
+                        wrapMode: Text.Wrap
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: I18n.tr("Its menus, dock and default apps show only its own tools, but programs installed for the whole computer can still be started from its terminal. Apps it installs also appear in the other accounts on this computer. Files in other accounts stay private: each home folder is readable only by its owner.")
+                        color: Tokens.inkDim
+                        font.family: Tokens.ui
+                        font.pixelSize: Tokens.fSmall
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+
             Flow {
                 objectName: "ryostore-detail-tags"
                 width: parent.width
@@ -811,6 +884,18 @@ FocusScope {
                 textFormat: Text.PlainText
             }
 
+            Text {
+                objectName: "ryostore-detail-profile-remove-confirmation"
+                width: parent.width
+                visible: detail.profileRemoveArmed
+                text: I18n.tr("Remove this profile definition? Existing accounts keep working.")
+                color: Tokens.inkDim
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+                wrapMode: Text.Wrap
+                textFormat: Text.PlainText
+            }
+
             Flow {
                 width: parent.width
                 spacing: Tokens.s2
@@ -910,7 +995,7 @@ FocusScope {
                 Btn {
                     objectName: "ryostore-detail-remove"
                     text: I18n.tr("REMOVE")
-                    visible: StoreLogic.isInstalled(detail.actionItem)
+                    visible: StoreLogic.isInstalled(detail.actionItem) && !detail.isProfile
                     armed: visible && detail.busyKey === ""
                     Accessible.role: Accessible.Button
                     Accessible.name: text
@@ -919,9 +1004,11 @@ FocusScope {
                 }
                 Btn {
                     objectName: "ryostore-detail-settings"
-                    text: I18n.tr("OPEN IN SETTINGS")
+                    text: detail.profileRemoveArmed
+                            ? I18n.tr("CONFIRM REMOVE")
+                            : I18n.tr(StoreLogic.secondaryAction(detail.actionItem))
                     visible: StoreLogic.secondaryAction(detail.actionItem) !== ""
-                    armed: visible
+                    armed: visible && detail.busyKey === ""
                     Accessible.role: Accessible.Button
                     Accessible.name: text
                     onAct: detail.triggerSettings()

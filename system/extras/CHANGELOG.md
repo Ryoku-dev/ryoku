@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Added
+- **`ryoku-pkg-blackarch` manages the repository used by profiles.** It pins
+  accepted signing keys, installs the signed mirror list, keeps BlackArch last,
+  and refreshes only its own package database.
 - **`install bundle <id> --only name1,name2,...` installs a chosen subset.** The
   store's bundle preview passes the user's manual selection; without `--only`
   the whole-bundle install is unchanged. `bundle_items` filters to the

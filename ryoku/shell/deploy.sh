@@ -790,11 +790,24 @@ if command -v sudo >/dev/null 2>&1; then
     cmp -s "$1" "$2" && return 0
     sudo install -Dm"$3" "$1" "$2" || true
   }
+  _priv_link() { # target dest
+    [[ -L $2 && $(readlink "$2") == "$1" ]] && return 0
+    sudo install -d -m755 "$(dirname "$2")" || return 0
+    sudo ln -sfn "$1" "$2" || true
+  }
   _priv_tree() { # src dest
     sudo install -d -m755 "$2" || return 0
     sudo cp -a "$1/." "$2/" || true
   }
   _priv_install "$here/../cli/ryoku-host" /usr/bin/ryoku-host 755
+  _priv_install "$repo_root/system/extras/ryoku-pkg-blackarch" \
+    /usr/bin/ryoku-pkg-blackarch 755
+  _priv_install "$repo_root/system/policy/dev.ryoku.profiles.policy" \
+    /usr/share/polkit-1/actions/dev.ryoku.profiles.policy 644
+  _priv_install "$repo_root/system/policy/dev.ryoku.hosts.policy" \
+    /usr/share/polkit-1/actions/dev.ryoku.hosts.policy 644
+  _priv_install "$repo_root/system/policy/55-ryoku-profiles.rules" \
+    /usr/share/polkit-1/rules.d/55-ryoku-profiles.rules 644
   _priv_install "$repo_root/ryoku/apps/npm/npmrc" /usr/share/ryoku/npmrc 644
   _priv_tree "$repo_root/ryoku/assets/brand" /usr/share/ryoku/brand
   # `ryoku-host svc` and the doctor read the manifest ryoku-desktop ships; a
@@ -821,6 +834,16 @@ if command -v sudo >/dev/null 2>&1; then
   _priv_install "$here/../lockscreen/sddm/ryoku-greeter-guard" \
     /usr/share/ryoku/lockscreen/ryoku-greeter-guard 755
   if [ -d /run/systemd/system ]; then
+    for unit in ryoku-profile-scope.service ryoku-profile-scope.path \
+      ryoku-profile-session.service; do
+      _priv_install "$here/systemd/user/$unit" "/usr/lib/systemd/user/$unit" 644
+    done
+    _priv_link ../ryoku-profile-scope.service \
+      /usr/lib/systemd/user/default.target.wants/ryoku-profile-scope.service
+    _priv_link ../ryoku-profile-session.service \
+      /usr/lib/systemd/user/default.target.wants/ryoku-profile-session.service
+    _priv_link ../ryoku-profile-scope.path \
+      /usr/lib/systemd/user/paths.target.wants/ryoku-profile-scope.path
     _priv_install "$here/systemd/environment.d/98-ryoku-dbus.conf" \
       /usr/lib/environment.d/98-ryoku-dbus.conf 644
     _priv_install "$here/xdg/dbus-1/services/org.freedesktop.secrets.service" \
@@ -1483,6 +1506,8 @@ if [ -d /run/systemd/system ]; then
   dev_bin_dropin ryoku-shell.service
   dev_bin_dropin ryoku-idle.service
   dev_bin_dropin ryoku-clamshell.service
+  dev_bin_dropin ryoku-profile-scope.service
+  dev_bin_dropin ryoku-profile-session.service
   dev_bin_dropin ryoku-ai-usage.service
   # Ryogami resolves the staged picker from XDG_DATA_HOME when it starts.
   dev_bin_dropin ryogami.service

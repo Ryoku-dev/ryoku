@@ -186,6 +186,10 @@ Singleton {
         // separate flow and stays allowed.
         if (!item || busyKey !== "" || item.downloadPaused === true || item.unavailable === true)
             return;
+        if (String(item.category || "") === "profiles" && item.installed === true) {
+            openSettings(item);
+            return;
+        }
         busyKey = itemKey(item);
         root._op = "install";
         installStage = "FETCHING";

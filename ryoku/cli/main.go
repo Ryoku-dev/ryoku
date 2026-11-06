@@ -36,6 +36,7 @@ import (
 	"ryoku-cli/internal/importer"
 	"ryoku-cli/internal/keyboard"
 	"ryoku-cli/internal/keyring"
+	"ryoku-cli/internal/profile"
 	"ryoku-cli/internal/securitykey"
 	"ryoku-cli/internal/sys"
 	"ryoku-cli/internal/updater"
@@ -70,6 +71,10 @@ func main() {
 		err = updater.Snapshots()
 	case "status":
 		err = updater.Status(os.Args[2:])
+	case "channel":
+		err = updater.Channel(os.Args[2:])
+	case "profile":
+		os.Exit(profile.UserMain(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	case "version", "--version", "-v":
 		err = updater.Version(os.Args[2:])
 	case "reload":
@@ -114,7 +119,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Print(i18n.T("Usage: ryoku <command>\n\n  update         update the Ryoku packages (or channel commits), redeploy, reload\n  update --system  the same, plus your distribution's package upgrade\n  update --wait wait for a channel build or source check to finish\n  update --force  update despite an in-progress build or source check\n  update -v      the same, streaming the full raw output instead of the summary\n  update --gui   run the update in the background, driven from Ryoku Hub\n  track <chan>   packages: stable|unstable|v<tag>; add --source to build from a checkout\n  rollback       list releases and snapshots; --to <tag> moves back to a release; [id] guides a snapshot restore\n  status         show channel, installed/latest version, pending changes, snapshot count\n  version        <version> [<commit>]; --pretty -> <version> · <commit>, --branch -> channel\n  owner          <path>... [--json] | --map: classify config ownership\n  materialize    (internal) compose immutable base + user_edits into ~/.config\n  doctor         converge drift (--check reports only; --explain shows every reconciler)\n  wm             list|status|caps|config|act ... (provider-backed window-manager seam)\n  host           internal host abstraction used by scripts and the Hub\n  bind            set|reset <action> <chord>; list [--json]\n  plugin          new|validate|add|remove|share ...\n  bar             add|remove|move|show|hide|list|settings|position|form ...\n  help           show this help\n"))
+	fmt.Print(i18n.T("Usage: ryoku <command>\n\n  update         update the Ryoku packages (or channel commits), redeploy, reload\n  update --system  the same, plus your distribution's package upgrade\n  update --wait wait for a channel build or source check to finish\n  update --force  update despite an in-progress build or source check\n  update -v      the same, streaming the full raw output instead of the summary\n  update --gui   run the update in the background, driven from Ryoku Hub\n  track <chan>   packages: stable|unstable|v<tag>; add --source to build from a checkout\n  rollback       list releases and snapshots; --to <tag> moves back to a release; [id] guides a snapshot restore\n  status         show channel, installed/latest version, pending changes, snapshot count\n  channel        show the effective update channel; --json for machine-readable output\n  profile        status|scope|reset|check|first-run|session-stop|lay ...\n  version        <version> [<commit>]; --pretty -> <version> · <commit>, --branch -> channel\n  owner          <path>... [--json] | --map: classify config ownership\n  materialize    (internal) compose immutable base + user_edits into ~/.config\n  doctor         converge drift (--check reports only; --explain shows every reconciler)\n  wm             list|status|caps|config|act ... (provider-backed window-manager seam)\n  host           internal host abstraction used by scripts and the Hub\n  bind            set|reset <action> <chord>; list [--json]\n  plugin          new|validate|add|remove|share ...\n  bar             add|remove|move|show|hide|list|settings|position|form ...\n  help           show this help\n"))
 }
 
 func die(format string, a ...any) {

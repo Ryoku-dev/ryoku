@@ -13,9 +13,11 @@ Popup {
     property bool busy: false
     property string error: ""
     property var selectedPermissions: []
+    property var installedProfiles: []
     property string localError: ""
 
     signal submitted(string name, string fullName, string role, string password, var permissions, double limitBytes)
+    signal profileRequested(var profile)
 
     parent: Overlay.overlay
     anchors.centerIn: parent
@@ -140,6 +142,55 @@ Popup {
                     font.family: Tokens.ui
                     font.pixelSize: Tokens.fSmall
                     wrapMode: Text.WordWrap
+                }
+            }
+
+            Column {
+                visible: dialog.installedProfiles.length > 0
+                width: parent.width
+                spacing: Tokens.s2
+                Text {
+                    text: I18n.tr("FROM A PROFILE")
+                    color: Tokens.inkDim
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fMicro
+                    font.weight: Font.Medium
+                    font.letterSpacing: Tokens.trackLabel
+                }
+                Text {
+                    width: parent.width
+                    text: I18n.tr("Create a separate account from an installed Ryostore profile.")
+                    color: Tokens.inkMuted
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fSmall
+                    wrapMode: Text.WordWrap
+                }
+                Flow {
+                    width: parent.width
+                    spacing: Tokens.s2
+                    Repeater {
+                        model: dialog.installedProfiles
+                        delegate: Btn {
+                            required property var modelData
+                            text: I18n.tr("CREATE %1").arg(String(modelData.name || modelData.id || "").toUpperCase())
+                            onAct: {
+                                dialog.close();
+                                dialog.profileRequested(modelData);
+                            }
+                        }
+                    }
+                }
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: Tokens.lineSoft
+                }
+                Text {
+                    text: I18n.tr("OR CREATE A BLANK ACCOUNT")
+                    color: Tokens.inkFaint
+                    font.family: Tokens.mono
+                    font.pixelSize: Tokens.fTiny
+                    font.letterSpacing: Tokens.trackLabel
                 }
             }
 

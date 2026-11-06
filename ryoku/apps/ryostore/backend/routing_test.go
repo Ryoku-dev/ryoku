@@ -20,6 +20,7 @@ func TestSettingsSectionRoutesStoreCategories(t *testing.T) {
 		"notifications": "overlays",
 		"sidebars":      "overlays",
 		"fastfetch":     "fastfetch",
+		"profiles":      "users",
 	}
 	for category, want := range cases {
 		got, ok := settingsSection(category)
@@ -65,7 +66,7 @@ func TestDockSettingsOpenTheDesktopEditor(t *testing.T) {
 }
 
 func TestStoreSectionIncludesShowroomRoutesAndEveryCategory(t *testing.T) {
-	for _, section := range []string{"discover", "library", "rices", "lockscreens", "subshells", "barstyles", "docks", "launchers", "fastfetch", "plugins", "bundles", "ryotunes-skins"} {
+	for _, section := range []string{"discover", "library", "rices", "lockscreens", "subshells", "barstyles", "docks", "launchers", "fastfetch", "plugins", "bundles", "ryotunes-skins", "profiles"} {
 		if !storeSection(section) {
 			t.Fatalf("storeSection(%q) = false", section)
 		}
@@ -94,6 +95,39 @@ func TestDispatchRoutesHandoffCommands(t *testing.T) {
 				t.Fatalf("dispatch(%q): %v", args, err)
 			}
 		})
+	}
+}
+
+func TestProfileSettingsPassesIDToUsersPage(t *testing.T) {
+	dir := t.TempDir()
+	log := filepath.Join(dir, "argv")
+	for name, body := range map[string]string{
+		"flock": "#!/bin/sh\nexit 0\n",
+		"qs":    "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"" + log + "\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	if err := dispatch([]string{"settings", "profiles", "hacker"}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	want := []string{
+		"-c hub ipc call nav open users",
+		"-c hub ipc call users fromProfile hacker",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("qs calls = %q, want %q", got, want)
+	}
+	if err := dispatch([]string{"settings", "profiles"}); err == nil {
+		t.Fatal("profile settings accepted no profile id")
 	}
 }
 

@@ -283,6 +283,12 @@
   (`quickshell/shell/modules/launcher/variants/hero/`).
 
 ### Added
+- **Profile accounts keep their launcher scope and session resources current.**
+  User units rescope app entries after package changes, disconnect account-owned
+  VPNs on logout, and run only when a profile receipt exists.
+- **Profile login opens its guide once and reports failed health checks.** The
+  session intro runs the profile first-use action, while the session launcher
+  records a quick `ryoku profile check` without blocking login.
 - Clipboard history and Starred can be navigated and acted on from the keyboard. Tab switches panes; arrows, Page Up/Down, Home/End and Ctrl+J/K or Ctrl+N/P move the selection; Enter copies, Ctrl/Alt+S toggles a star, and Delete removes an item.
 
 ### Fixed

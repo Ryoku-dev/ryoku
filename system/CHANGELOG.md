@@ -190,6 +190,9 @@
   (`system/hardware/gpu/ryoku-gpu`, `tests/gpu-pin-policy.sh`).
 
 ### Added
+- **Profile and lab-host changes have narrow polkit actions.** Local active
+  sessions authenticate as an administrator for only the matching
+  `ryoku-host profile` or `ryoku-host hosts` command.
 - `hardware/gpu/ryoku-gpu`: `order --effective [PATH]` prints the AQ_DRM_DEVICES
   value the compositor would actually read, straight from the pin file, while
   the plain `order` keeps reporting the policy's recommendation (and keeps

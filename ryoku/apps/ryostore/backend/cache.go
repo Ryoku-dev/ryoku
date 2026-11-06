@@ -12,11 +12,11 @@ import (
 	"time"
 )
 
-// Cache is the shared fetch every provider uses to pull a relative path from the
-// extras base. It answers a repeated path from an in-process memo, writes each
-// live result to disk atomically, and falls back to the last disk copy (flagged
-// Offline, with the cache's timestamp) when the fetch fails, so a dead source
-// degrades to its archive instead of blanking the catalogue.
+// Cache is a source-scoped fetch for a catalogue base. It answers a repeated
+// path from an in-process memo, writes each live result to disk atomically, and
+// falls back to the last disk copy (flagged Offline, with the cache's timestamp)
+// when the fetch fails, so a dead source degrades to its archive instead of
+// blanking the catalogue.
 type Cache struct {
 	client *http.Client
 	// download serves the product-install path (fetchProductFile), where a file
@@ -66,12 +66,25 @@ func newCache() *Cache {
 	if base != defaultExtrasBase && extrasBaseOverride() == "" {
 		fallback = defaultExtrasBase
 	}
+	return newSourceCache(base, fallback, extrasCacheDir())
+}
+
+func newRevampedCache() *Cache {
+	base := revampedBase()
+	fallback := ""
+	if base != defaultRevampedBase && revampedBaseOverride() == "" {
+		fallback = defaultRevampedBase
+	}
+	return newSourceCache(base, fallback, revampedCacheDir())
+}
+
+func newSourceCache(base, fallback, dir string) *Cache {
 	return &Cache{
 		client:   &http.Client{Timeout: cacheTimeout},
 		download: &http.Client{Timeout: productDownloadTimeout},
 		base:     base,
 		fallback: fallback,
-		dir:      extrasCacheDir(),
+		dir:      dir,
 		memo:     map[string]memoEntry{},
 	}
 }
