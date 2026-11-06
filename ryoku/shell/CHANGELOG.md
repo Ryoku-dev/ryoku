@@ -286,6 +286,9 @@
 - Clipboard history and Starred can be navigated and acted on from the keyboard. Tab switches panes; arrows, Page Up/Down, Home/End and Ctrl+J/K or Ctrl+N/P move the selection; Enter copies, Ctrl/Alt+S toggles a star, and Delete removes an item.
 
 ### Fixed
+- **A brand-new account's first login no longer breaks Stage Editor config.**
+  The first seed text is staged before readback, so Settings no longer reports
+  "Config file is broken" or blocks saves (`quickshell/stage/modules/common/Config.qml`).
 - **Image notifications keep their full body, actions and bottom edge visible.**
   A thumbnail that finishes loading can no longer leave the popup surface at
   the card's shorter pre-image height

@@ -1275,8 +1275,14 @@ Singleton {
             }
             payloadObject = root.mergeDeclaredValues(raw, declared, root.defaultOptions);
         }
-        configFileView.setText(JSON.stringify(payloadObject, null, 2));
+        const text = JSON.stringify(payloadObject, null, 2);
+        configFileView.setText(text);
         root._adapterMatchesDisk();
+        // a first write into a missing file reads back empty until the watcher reloads it, so the seed's own save merges onto the staged text
+        if (seedDefaults) {
+            root._stagedText = text;
+            root._stagedTextCurrent = true;
+        }
         return true;
     }
 
