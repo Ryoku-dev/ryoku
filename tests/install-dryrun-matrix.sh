@@ -130,16 +130,16 @@ grep -qF 'DRYRUN: set firefox as the default web browser' <<<"$out" \
   || fail "the empty browser choice did not default to firefox"
 grep -qF 'useradd -M -U -d /home/ryoku -s /usr/bin/fish -G wheel,input,video ryoku' <<<"$out" \
   || fail "the empty login-shell choice did not create the user with fish"
-grep -qF 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/default-rice-pending:' <<<"$out" \
-  || fail "the first-boot default-rice marker write was not narrated"
-grep -qF '        | default' <<<"$out" \
-  || fail "the first-boot default-rice marker did not contain default"
+seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
+[[ -n $seed_intent ]] || fail "the delegated account seed was not narrated"
+[[ $seed_intent == *" rice=default "* ]] \
+  || fail "the delegated account seed did not request the default rice: $seed_intent"
+[[ $seed_intent == *" rashin=1 "* ]] \
+  || fail "the delegated account seed did not request the first-login Rashin marker: $seed_intent"
 grep -qF 'DRYRUN: set nautilus as the default file manager (inode/directory + desktop.apps.files)' <<<"$out" \
   || fail "the empty file-manager choice did not default to nautilus"
 grep -qF 'ryoku-rashin ryotunes ryomanager nautilus nautilus-python' <<<"$out" \
   || fail "fresh-install app and file-manager packages were not in the desktop transaction"
-grep -qF 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/rashin-setup-pending:' <<<"$out" \
-  || fail "the first-login Rashin setup marker write was not narrated"
 base_n=$(pcount "$out")
 [[ -n $base_n ]] || fail "no pacstrap package count in the default dry run"
 
@@ -151,15 +151,15 @@ grep -qF 'DRYRUN: set chromium as the default web browser' <<<"$out" \
   || fail "RYOKU_BROWSER=chromium did not narrate chromium"
 grep -qF 'useradd -M -U -d /home/ryoku -s /usr/bin/zsh -G wheel,input,video ryoku' <<<"$out" \
   || fail "RYOKU_LOGIN_SHELL=zsh did not reach useradd"
-ledger="$(grep -F 'DRYRUN: seed /mnt/home/ryoku/.local/state/ryoku/provisioned with the dropped packages' <<<"$out" | tail -n1)"
-[[ -n $ledger ]] || fail "the drop list did not narrate provisioning-ledger seeding"
-ledger_pkgs="${ledger##*packages (}"
-ledger_pkgs="${ledger_pkgs%)}"
+seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
+[[ -n $seed_intent ]] || fail "the drop list did not reach delegated account seeding"
+ledger_pkgs="${seed_intent##* provisioned-ledger=}"
+ledger_pkgs="${ledger_pkgs//,/ }"
 for pkg in firefox zen-browser-bin fish blesh; do
-  [[ " $ledger_pkgs " == *" $pkg "* ]] || fail "chromium/zsh ledger is missing $pkg: $ledger"
+  [[ " $ledger_pkgs " == *" $pkg "* ]] || fail "chromium/zsh ledger is missing $pkg: $seed_intent"
 done
 for pkg in chromium zsh zsh-autosuggestions zsh-history-substring-search zsh-syntax-highlighting ryoku-oh-my-zsh; do
-  [[ " $ledger_pkgs " != *" $pkg "* ]] || fail "chromium/zsh ledger drops selected package $pkg: $ledger"
+  [[ " $ledger_pkgs " != *" $pkg "* ]] || fail "chromium/zsh ledger drops selected package $pkg: $seed_intent"
 done
 
 for shell in fish zsh bash; do
@@ -202,22 +202,17 @@ grep -qF 'DRYRUN: set dolphin as the default file manager (inode/directory + des
   || fail "RYOKU_FILE_MANAGER=dolphin did not reach the files role"
 grep -qF 'ryomanager dolphin' <<<"$out" \
   || fail "dolphin and the default apps were not in the desktop transaction"
-grep -qF '/home/ryoku/.local/share/applications/ryovm.desktop' <<<"$out" \
-  || fail "ryovm.desktop hidden entry was not narrated"
-grep -qF '/home/ryoku/.local/share/applications/ryotunes.desktop' <<<"$out" \
-  || fail "ryotunes.desktop hidden entry was not narrated"
-grep -qF '        | [Desktop Entry]' <<<"$out" \
-  || fail "hidden desktop entry did not contain a Desktop Entry section"
-grep -qF '        | Hidden=true' <<<"$out" \
-  || fail "hidden desktop entry did not set Hidden=true"
-grep -qF 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/rashin-setup-pending:' <<<"$out" \
-  && fail "RYOKU_RASHIN=0 wrote the Rashin setup marker"
-ledger="$(grep -F 'DRYRUN: seed /mnt/home/ryoku/.local/state/ryoku/provisioned with the dropped packages' <<<"$out" | tail -n1)"
-ledger=${ledger//[()]/ }
+seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
+[[ $seed_intent == *" hidden-apps=ryovm.desktop,ryotunes.desktop "* ]] \
+  || fail "the delegated account seed missed hidden launcher ids: $seed_intent"
+[[ $seed_intent == *" rashin=0 "* ]] \
+  || fail "RYOKU_RASHIN=0 did not disable the delegated Rashin marker: $seed_intent"
+ledger="${seed_intent##* provisioned-ledger=}"
+ledger=${ledger//,/ }
 for pkg in nautilus nautilus-python thunar ryoku-rashin; do
-  [[ " $ledger " == *" $pkg "* ]] || fail "dolphin/Rashin-off ledger is missing $pkg: $ledger"
+  [[ " $ledger " == *" $pkg "* ]] || fail "dolphin/Rashin-off ledger is missing $pkg: $seed_intent"
 done
-[[ " $ledger " != *" dolphin "* ]] || fail "dolphin/Rashin-off ledger drops selected dolphin: $ledger"
+[[ " $ledger " != *" dolphin "* ]] || fail "dolphin/Rashin-off ledger drops selected dolphin: $seed_intent"
 
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole RYOKU_FILE_MANAGER=pcmanfm \
@@ -334,8 +329,8 @@ grep -qxF '        | linux' <<<"$out" \
 grep -qF '        | /Arch Linux (fallback)' <<<"$out" \
   && fail "missing CachyOS component row still added the layer fallback entry"
 
-# Void applies the same file-manager/apps/hidden-marker/Rashin contract and
-# ignores the CachyOS-only switch.
+# Void applies the same file-manager, apps, hidden-launcher and Rashin contract
+# and ignores the CachyOS-only switch.
 void_out=$tmp/void.out
 install_dryrun_run void "$void_out" \
   RYOKU_DISK_STRATEGY=whole RYOKU_FIRMWARE_MODE=uefi \
@@ -350,15 +345,16 @@ grep -qF 'DRYRUN: set thunar as the default file manager (inode/directory + desk
   || fail "Void did not set the selected file-manager role"
 grep -qF 'ryotunes' <<<"$out" && grep -qF 'ryomanager' <<<"$out" && grep -qF 'Thunar' <<<"$out" \
   || fail "Void desktop transaction missed ryotunes, ryomanager, or Thunar"
-grep -qF '/home/ryoku/.local/share/applications/ryovm.desktop' <<<"$out" \
-  || fail "Void did not narrate the hidden Ryoport launcher"
+seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
+[[ $seed_intent == *" hidden-apps=ryovm.desktop "* ]] \
+  || fail "Void did not delegate the hidden Ryoport launcher: $seed_intent"
+[[ $seed_intent == *" rashin=0 "* ]] \
+  || fail "Void RYOKU_RASHIN=0 did not disable the delegated Rashin marker: $seed_intent"
 transactions=$(grep -F 'xbps-install -r /mnt' <<<"$out")
 grep -qw 'ryoku-rashin' <<<"$transactions" \
   && fail "Void installed ryoku-rashin with RYOKU_RASHIN=0"
-ledger="$(grep -F 'DRYRUN: seed /mnt/home/ryoku/.local/state/ryoku/provisioned with the dropped packages' <<<"$out" | tail -n1)"
-[[ " ${ledger//[()]/ } " == *" ryoku-rashin "* ]] || fail "Void Rashin-off ledger is missing ryoku-rashin: $ledger"
-grep -qF 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/rashin-setup-pending:' <<<"$out" \
-  && fail "Void RYOKU_RASHIN=0 wrote the Rashin setup marker"
+ledger="${seed_intent##* provisioned-ledger=}"
+[[ " ${ledger//,/ } " == *" ryoku-rashin "* ]] || fail "Void Rashin-off ledger is missing ryoku-rashin: $seed_intent"
 
 # Void's desktop package does not pull Rashin in; the installer names it.
 install_dryrun_run void "$void_out" \
@@ -370,8 +366,9 @@ out=$(<"$void_out")
 transactions=$(grep -F 'xbps-install -r /mnt' <<<"$out")
 grep -qw 'ryoku-rashin' <<<"$transactions" \
   || fail "Void did not install ryoku-rashin by default"
-grep -qF 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/rashin-setup-pending:' <<<"$out" \
-  || fail "Void did not leave the Rashin first-login marker"
+seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
+[[ $seed_intent == *" rice=default "* && $seed_intent == *" rashin=1 "* ]] \
+  || fail "Void did not delegate the default rice and Rashin first-login marker: $seed_intent"
 
 echo "install-dryrun-matrix: browser/shell/app-choice checks passed"
 echo "install-dryrun-matrix: all checks passed"

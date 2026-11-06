@@ -117,7 +117,12 @@ func (a *App) Users(args []string) int {
 			return a.usersFail(i18n.T("users caps does not accept arguments."))
 		}
 		return a.usersCaps()
-	case "add", "delete", "set-role", "set-perms", "set-password", "set-limit":
+	case "seed-self":
+		if a.cfg.UID == 0 {
+			return a.usersFail(i18n.T("seed-self must run as the account being provisioned."))
+		}
+		return a.usersSeedSelf(args[1:])
+	case "add", "delete", "set-role", "set-perms", "set-password", "set-limit", "provision":
 		if a.cfg.UID != 0 {
 			return a.usersFail(i18n.T("Administrator authentication is required."))
 		}
@@ -135,8 +140,10 @@ func (a *App) Users(args []string) int {
 		return a.usersSetPermissions(args[1:])
 	case "set-password":
 		return a.usersSetPassword(args[1:])
-	default:
+	case "set-limit":
 		return a.usersSetLimit(args[1:])
+	default:
+		return a.usersProvision(args[1:])
 	}
 }
 
@@ -211,6 +218,10 @@ func (a *App) usersCapability() usersCapability {
 }
 
 func (a *App) usersAdd(args []string) int {
+	args, noProvision, err := takeNoProvision(args)
+	if err != nil {
+		return a.usersFail(err.Error())
+	}
 	name, fullName, role, permissions, limit, err := parseUsersAdd(args)
 	if err != nil {
 		return a.usersFail(err.Error())
@@ -312,7 +323,29 @@ func (a *App) usersAdd(args []string) int {
 		a.rollbackAddedUser(name, home, createdSubvolume)
 		return a.usersFail(err.Error())
 	}
+	if !noProvision {
+		if err := a.provisionAccount(name, ProvisionOptions{Rice: "default"}); err != nil {
+			a.rollbackAddedUser(name, home, createdSubvolume)
+			return a.usersFail(fmt.Sprintf(i18n.T("Provision %s: %v"), name, err))
+		}
+	}
 	return a.usersOK()
+}
+
+func takeNoProvision(args []string) ([]string, bool, error) {
+	filtered := make([]string, 0, len(args))
+	seen := false
+	for _, arg := range args {
+		if arg != "--no-provision" {
+			filtered = append(filtered, arg)
+			continue
+		}
+		if seen {
+			return nil, false, fmt.Errorf(i18n.T("--no-provision can be used only once."))
+		}
+		seen = true
+	}
+	return filtered, seen, nil
 }
 
 func (a *App) usersDelete(args []string) int {

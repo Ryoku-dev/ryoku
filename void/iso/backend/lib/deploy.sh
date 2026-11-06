@@ -34,56 +34,36 @@ void_desktop_install() {
 }
 
 void_deploy_user() {
-  local user=$RYOKU_USERNAME
-  local home=/mnt/home/$user
+  local user=$RYOKU_USERNAME home=/mnt/home/$RYOKU_USERNAME
+  local shell=/usr/bin/fish id account
+  local -a args=(users seed-self --rice default)
 
-  ryoku_seed_login_shell_config
+  case ${RYOKU_LOGIN_SHELL:-fish} in
+    zsh) shell=/usr/bin/zsh ;;
+    bash) shell=/usr/bin/bash ;;
+  esac
+  [[ ${RYOKU_RASHIN:-1} == 1 ]] && args+=(--rashin)
+  if [[ -n ${RYOKU_HIDE_APPS:-} ]]; then
+    local -a hidden=()
+    IFS=, read -ra hidden <<<"$RYOKU_HIDE_APPS"
+    for id in "${hidden[@]}"; do args+=(--hide-app "$id"); done
+  fi
+
   ryoku_seed_keymap
+  ryoku_seed_wallpapers "$home"
   ryoku_deploy_chown "$user"
-  ryoku_deploy_materialize "$user"
-  ryoku_seed_provisioned "$user"
-  ryoku_deploy_seed "$home"
-  ryoku_deploy_chown "$user"
-
-  log 'initializing XDG user directories and recordings for %s' "$user"
-  run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$user:$user" \
-    env "HOME=/home/$user" "USER=$user" "LOGNAME=$user" \
-    "XDG_CONFIG_HOME=/home/$user/.config" "LANG=$RYOKU_LOCALE" \
-    xdg-user-dirs-update
-  run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$user:$user" \
-    env "HOME=/home/$user" "USER=$user" "LOGNAME=$user" \
-    "XDG_CONFIG_HOME=/home/$user/.config" sh -eu -c '
-      config=$XDG_CONFIG_HOME/ryoku/recording.json
-      recordings=
-      if [ -r "$config" ]; then
-        recordings=$(jq -r '"'"'if (.directory? | type) == "string" then .directory | gsub("^\\s+|\\s+$"; "") else empty end'"'"' "$config" 2>/dev/null || :)
-      fi
-      case $recordings in "~/"*) recordings=$HOME/${recordings#~/} ;; esac
-      if [ -z "$recordings" ]; then
-        videos=$(xdg-user-dir VIDEOS)
-        [ -n "$videos" ] || videos=$HOME/Videos
-        recordings=$videos/Recordings
-      fi
-      mkdir -p -- "$recordings"
-    '
-
-  log 'wiring the Rashin agent skill for %s' "$user"
-  run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$user:$user" \
-    env "HOME=/home/$user" "USER=$user" "LOGNAME=$user" \
-    "XDG_CONFIG_HOME=/home/$user/.config" sh -c \
-    'command -v ryoku-rashin >/dev/null 2>&1 || exit 0; exec ryoku-rashin wire'
-  ryoku_deploy_qylock
-
-  local service_user
-  for service_user in "${RYOKU_ACCOUNT_NAMES[@]}"; do
-    log 'provisioning Turnstile user services for %s' "$service_user"
-    run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$service_user:$service_user" \
-      env "HOME=/home/$service_user" "USER=$service_user" "LOGNAME=$service_user" \
-      "RYOKU_HOST_INIT=runit" ryoku-host session ensure --user
-    run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$service_user:$service_user" \
-      env "HOME=/home/$service_user" "USER=$service_user" "LOGNAME=$service_user" \
-      "RYOKU_HOST_INIT=runit" ryoku-host svc reconcile --user
+  for account in "${RYOKU_ACCOUNT_NAMES[@]}"; do
+    ryoku_narrate_seed_self "$account" default "${RYOKU_RASHIN:-1}" \
+      "${RYOKU_HIDE_APPS:-}" "${RYOKU_DROP_PACKAGES:-}" "$shell" runit \
+      "${RYOKU_LOCALE:-C.UTF-8}"
+    log 'provisioning the Ryoku desktop for %s' "$account"
+    run "$RYOKU_TARGET_CHROOT" /mnt chpst -u "$account:$account" \
+      env -i "HOME=/home/$account" "USER=$account" "LOGNAME=$account" "SHELL=$shell" \
+      "PATH=/usr/local/bin:/usr/bin:/bin" "LANG=${RYOKU_LOCALE:-C.UTF-8}" \
+      "RYOKU_HOST_INIT=runit" "RYOKU_DROP_PACKAGES=${RYOKU_DROP_PACKAGES:-}" \
+      /usr/bin/ryoku-host "${args[@]}"
   done
+  ryoku_deploy_qylock
 }
 
 void_services() {

@@ -790,7 +790,13 @@ if command -v sudo >/dev/null 2>&1; then
     cmp -s "$1" "$2" && return 0
     sudo install -Dm"$3" "$1" "$2" || true
   }
+  _priv_tree() { # src dest
+    sudo install -d -m755 "$2" || return 0
+    sudo cp -a "$1/." "$2/" || true
+  }
   _priv_install "$here/../cli/ryoku-host" /usr/bin/ryoku-host 755
+  _priv_install "$repo_root/ryoku/apps/npm/npmrc" /usr/share/ryoku/npmrc 644
+  _priv_tree "$repo_root/ryoku/assets/brand" /usr/share/ryoku/brand
   # `ryoku-host svc` and the doctor read the manifest ryoku-desktop ships; a
   # Fedora checkout box has no such package. Void lays it with its runit tree.
   if [[ $package_manager == dnf ]]; then

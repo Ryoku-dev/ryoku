@@ -24,6 +24,10 @@ set -uo pipefail
 state="${XDG_STATE_HOME:-$HOME/.local/state}/ryoku"
 qml_env=(QML_IMPORT_PATH="$HOME/.local/lib/qt6/qml" QML2_IMPORT_PATH="$HOME/.local/lib/qt6/qml")
 welcome_version=19
+if [[ ${1:-} == version ]]; then
+	printf '%s\n' "$welcome_version"
+	exit 0
+fi
 
 log_intro() {
 	logger -t ryoku-session-intro -- "$*"

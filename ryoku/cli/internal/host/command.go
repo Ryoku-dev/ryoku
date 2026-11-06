@@ -49,12 +49,14 @@ Phone:
 Users:
   users list
   users caps
-  users add <name> --full-name <s> --role <admin|standard> [--perm id]... [--limit bytes]
+  users add <name> --full-name <s> --role <admin|standard> [--perm id]... [--limit bytes] [--no-provision]
   users delete <name> <--keep-files|--erase-files>
   users set-role <name> <admin|standard>
   users set-perms <name> <id,id,...>
   users set-password <name>
   users set-limit <name> <bytes|0>
+  users provision <name> [--rice <slug>] [--rashin] [--hide-app <id>]... [--skip-welcome]
+  users seed-self [--rice <slug>] [--rashin] [--hide-app <id>]... [--skip-welcome]
 
 Packages (names use the Arch/Ryoku catalogue):
   pkg [--overlay TABLE] <verb> ...   TABLE (or RYOKU_HOST_PKG_OVERLAY) maps names

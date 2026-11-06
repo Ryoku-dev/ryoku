@@ -15,15 +15,14 @@ fail() {
 }
 
 # These are the only host-adapter differences accepted by the neutral contract.
-# Arch uses arch-chroot and first-login XDG autostart; Void uses chroot and
-# initializes XDG directories eagerly for Turnstile. Account roles and
-# permissions use the same shared mapping. Boot and package-manager commands
-# are outside the neutral manifest.
+# Both editions delegate XDG initialization and the other account-owned writes
+# to seed-self. Account roles and permissions use the same shared mapping. Boot
+# and package-manager commands are outside the neutral manifest.
 declare -A adapter_allowlist=(
   [arch:target-runner]=arch-chroot
   [void:target-runner]=chroot
-  [arch:xdg-driver]=first-login
-  [void:xdg-driver]=installer
+  [arch:xdg-driver]=seed-self
+  [void:xdg-driver]=seed-self
   [arch:extra-groups]=''
   [void:extra-groups]=''
 )
@@ -75,15 +74,17 @@ normalize_groups() {
 write_contract() {
   local edition=$1
   local out=$tmp/$edition.out contract=$tmp/$edition.contract
-  local runner=${adapter_allowlist[$edition:target-runner]}
-  local user_line groups normalized_groups materialize_count
+  local user_line groups normalized_groups seed_count seed_line seed_inputs
 
-  materialize_count=$(grep -cF "DRYRUN: $runner /mnt runuser -u ryoku -- env HOME=/home/ryoku ryoku materialize" "$out" || true)
-  [[ $materialize_count == 1 ]] || fail "$edition planned $materialize_count materialize calls"
+  seed_count=$(grep -cF 'DRYRUN: users seed-self account=ryoku ' "$out" || true)
+  [[ $seed_count == 1 ]] || fail "$edition planned $seed_count delegated account seeds"
+  seed_line=$(grep -F 'DRYRUN: users seed-self account=ryoku ' "$out")
+  [[ $seed_line == *" rice=default "* ]] \
+    || fail "$edition delegated seed did not select the default rice"
+  seed_inputs=${seed_line#* account=}
+  seed_inputs=${seed_inputs/ init=systemd / }
+  seed_inputs=${seed_inputs/ init=runit / }
   require_fixed "$edition" 'desktop.input.kbLayout=de kbVariant=' 'the neutral keymap seed'
-  require_fixed "$edition" 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/default-rice-pending:' 'the default-rice marker'
-  grep -A1 -F 'DRYRUN: write /mnt/home/ryoku/.local/state/ryoku/default-rice-pending:' "$out" \
-    | grep -qF '        | default' || fail "$edition default-rice marker did not select default"
   require_fixed "$edition" "$INSTALL_DRYRUN_ROOT/ryoku/assets/wallpapers /mnt/home/ryoku/Pictures/Wallpapers" 'the seeded wallpaper set'
   require_fixed "$edition" 'deploying qylock bundle + SDDM clockwork theme' 'qylock and SDDM theme selection'
   require_fixed "$edition" 'RYOKU_QYLOCK_BUNDLE=/usr/share/ryoku/qylock RYOKU_QYLOCK_MODE=live SUDO_USER=ryoku' 'the qylock installer environment'
@@ -109,17 +110,14 @@ write_contract() {
   grep -Eq '(^| )xdg-user-dirs( |$)' "$out" \
     || fail "$edition package plan omitted xdg-user-dirs"
   case ${adapter_allowlist[$edition:xdg-driver]} in
-    installer)
-      require_fixed "$edition" 'XDG_CONFIG_HOME=/home/ryoku/.config LANG=en_US.UTF-8 xdg-user-dirs-update' 'XDG directory initialization'
-      ;;
-    first-login)
+    seed-self)
       grep -qF 'xdg-user-dirs-update' "$out" \
-        && fail "$edition unexpectedly changed the allow-listed XDG initialization path"
+        && fail "$edition unexpectedly initialized XDG directories outside the delegated account seed"
       ;;
   esac
 
   {
-    printf 'materialize\tuser=ryoku home=/home/ryoku\n'
+    printf 'seed-self\t%s\n' "$seed_inputs"
     printf 'keymap\tlayout=de variant=\n'
     printf 'default-rice-pending\tdefault\n'
     printf 'wallpapers\tshipped-set -> /home/ryoku/Pictures/Wallpapers\n'

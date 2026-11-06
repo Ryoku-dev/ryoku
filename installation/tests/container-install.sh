@@ -126,8 +126,8 @@ for unit in ryoku-bootstrap.service ryogami.service ryoku-shell.service \
 done
 [[ -f /usr/lib/systemd/user/ryoku-session.target ]] \
   || die "system user session target is missing"
-# 4. materialize as a throwaway user, forcing HOME/USER like deploy.sh's
-#    ryoku_deploy_materialize (runuser keeps root's env otherwise).
+# 4. materialize as a throwaway user with the clean account environment that
+#    users seed-self supplies before it delegates to `ryoku materialize`.
 id "$TESTUSER" &>/dev/null || useradd --create-home "$TESTUSER"
 log "materializing config as $TESTUSER"
 runuser -u "$TESTUSER" -- env \

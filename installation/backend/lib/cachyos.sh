@@ -21,10 +21,9 @@ ryoku_cachyos_replaced() {
   grep -vE '^[[:space:]]*(#|$)' "$file"
 }
 
-# ryoku_cachyos_drops: leave the replaced names out the way a deselected app is
-# left out: RYOKU_DROP_PACKAGES keeps them out of pacstrap, and the provisioning
-# ledger it seeds (deploy.sh ryoku_seed_provisioned) keeps `ryoku update` from
-# delivering them later.
+# ryoku_cachyos_drops leaves replaced names out like deselected apps.
+# RYOKU_DROP_PACKAGES keeps them out of pacstrap, then users seed-self records
+# them in the provisioning ledger so `ryoku update` does not deliver them later.
 ryoku_cachyos_drops() {
   local p
   while IFS= read -r p; do

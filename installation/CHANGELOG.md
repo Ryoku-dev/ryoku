@@ -34,6 +34,9 @@
   (`installerplan/components.tsv`, `tui/main.go`, `backend/lib/deploy.sh`).
 
 ### Fixed
+- **Installer account seeding uses `ryoku-host users seed-self`.** The root
+  deploy step now enters each account through the shared provisioner, so fresh
+  accounts and Hub-created accounts receive the same user-owned desktop.
 - **Zen opens from the browser shortcut after a fresh install.** The Arch,
   CachyOS and Void installers store the `zen-browser` executable shipped by
   the selected package instead of the absent `zen` command.

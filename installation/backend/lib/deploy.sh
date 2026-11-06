@@ -8,71 +8,31 @@
 # dotfile, all pacman. `ryoku materialize` then lays the dotfiles out from
 # /usr/share/ryoku/config.
 #
-# a few user-data bits no package owns yet are still seeded from the repo
-# payload here: brand assets + wallpapers (shell reads them from $HOME),
-# ~/.npmrc prefix, the nvim default-editor registration, qylock + the SDDM
-# theme. runs in the "configure" stage after chroot.sh, through the dry-run
-# wrappers, and tolerates offline / partial installs (the desktop set then
-# turns up on the first `ryoku update`).
+# The ISO keeps the full wallpaper library outside ryoku-desktop so normal
+# package updates stay small. This stage seeds that library, delegates the
+# account-owned desktop state to ryoku-host, and applies the machine-wide
+# qylock and SDDM setup. It runs after chroot.sh through the dry-run wrappers
+# and tolerates an offline partial install.
 
 : "${RYOKU_TARGET_CHROOT:=arch-chroot}"
 
 ryoku_deploy() {
-  local u=$RYOKU_USERNAME
-  local h="/mnt/home/$u"
+  local u=$RYOKU_USERNAME h="/mnt/home/$RYOKU_USERNAME" account
   log 'deploying the Ryoku desktop for user %s' "$u"
 
-  ryoku_deploy_repo              # [ryoku] stanza + mirrorlist + keyring trust (local)
-  ryoku_deploy_packages          # pacman -S the desktop set (needs net)
-  ryoku_seed_login_shell_config
-  ryoku_seed_initcpio_hook       # the HOOKS-named trim hook, if that set never came
-  ryoku_seed_keymap              # chosen kb_layout into the neutral store
-  ryoku_deploy_chown "$u"        # the store seed creates ~/.config as root; hand
-                                 # it to the user before materialize writes in it
-  ryoku_deploy_materialize "$u"  # `ryoku materialize` as the user
-  ryoku_seed_provisioned "$u"    # tell the doctor every dropped package is intentional
-  ryoku_deploy_seed "$h"         # unpackaged assets and first-login rice marker
-  ryoku_deploy_chown "$u"        # own root-seeded files before the user steps
-  ryoku_deploy_qylock            # qylock writes user files as the now-owning user
-}
-
-ryoku_seed_login_shell_config() {
-  local root=${RYOKU_TARGET_ROOT:-/mnt} template user target
-  [[ ${RYOKU_LOGIN_SHELL:-fish} == zsh ]] || return 0
-  template="$root/usr/share/ryoku/zsh/zshrc"
-
-  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    for user in "${RYOKU_ACCOUNT_NAMES[@]}"; do
-      log 'DRYRUN: seed %s from %s when missing' "$root/home/$user/.zshrc" "$template"
-    done
-    return 0
-  fi
-  if [[ ! -f $template ]]; then
-    log 'WARNING: zsh is the login shell but its Ryoku startup template is missing at %s' "$template"
-    return 0
-  fi
-
-  for user in "${RYOKU_ACCOUNT_NAMES[@]}"; do
-    target="$root/home/$user/.zshrc"
-    [[ ! -e $target && ! -L $target ]] || continue
-    install -Dm644 "$template" "$target"
-    if [[ $root == /mnt ]]; then
-      run "$RYOKU_TARGET_CHROOT" /mnt chown "$user:$user" "/home/$user/.zshrc"
-    fi
-    log 'seeded the zsh login config for %s' "$user"
+  ryoku_deploy_repo
+  ryoku_deploy_packages
+  ryoku_seed_initcpio_hook
+  ryoku_seed_keymap
+  ryoku_seed_wallpapers "$h"
+  ryoku_deploy_chown "$u"
+  for account in "${RYOKU_ACCOUNT_NAMES[@]}"; do
+    ryoku_deploy_seed "$account"
   done
+  ryoku_deploy_qylock
 }
 
-# deploy_file: one config file, mode 644, parents made.
-deploy_file() {
-  local src=$1 dst=$2
-  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    printf 'DRYRUN: install -Dm644 %s %s\n' "$src" "$dst"
-    return 0
-  fi
-  [[ -f $src ]] || { log 'skip: %s not present' "$src"; return 0; }
-  install -Dm644 "$src" "$dst"
-}
+
 
 # repo prep: add [ryoku] to /mnt/etc/pacman.conf, drop the live ISO's
 # known-good mirrorlist into the target (the default mirrorlist ships every
@@ -303,25 +263,6 @@ ryoku_deploy_version_skew() {
   log 'WARNING: this ISO'\''s baked payload is version '\''%s'\'' but [ryoku] publishes ryoku-desktop '\''%s'\''. The installed desktop matches the repo; reinstall from a current ISO if anything looks off.' "$baked" "$repo"
 }
 
-# materialize: lay the base config (/usr/share/ryoku/config, owned by
-# ryoku-desktop) into ~/.config by running `ryoku materialize` as the user.
-# HOME/USER/LOGNAME forced because runuser keeps root's env (same dance as
-# aur.sh). skipped when the `ryoku` CLI is absent (offline / partial pkgs).
-ryoku_deploy_materialize() {
-  local u=$1
-  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    log "DRYRUN: $RYOKU_TARGET_CHROOT /mnt runuser -u $u -- env HOME=/home/$u ryoku materialize"
-    return 0
-  fi
-  if [[ ! -x /mnt/usr/bin/ryoku ]]; then
-    log "materialize: skipped (ryoku CLI not installed)"
-    return 0
-  fi
-  log 'materializing the Ryoku config into /home/%s/.config' "$u"
-  "$RYOKU_TARGET_CHROOT" /mnt runuser -u "$u" -- \
-    env "HOME=/home/$u" "USER=$u" "LOGNAME=$u" ryoku materialize \
-    || log "materialize: warning, ryoku materialize failed (continuing)"
-}
 
 # The HOOKS drop-in (chroot.sh) names these Ryoku hooks, and mkinitcpio aborts
 # on a hook it cannot find, so the files have to be there before the bootloader
@@ -388,78 +329,52 @@ ryoku_seed_keymap() {
   log 'seeded keyboard layout into the store: %s%s' "$xkbl" "${xkbv:+ ($xkbv)}"
 }
 
-# seed the user data nothing else owns: brand assets, wallpapers, ~/.npmrc, and
-# the one-shot first-login marker. Missing payload sources are fine.
-ryoku_deploy_seed() {
-  local h=$1 u=$RYOKU_USERNAME
-  local state="/home/$u/.local/state/ryoku"
-  local marker="/mnt$state/default-rice-pending"
-  log 'seeding brand assets, wallpapers, decor art, and ~/.npmrc into %s' "$h"
-  deploy_dir "$RYOKU_REPO/ryoku/assets/brand" "$h/.local/share/ryoku/assets/brand"
-  # The first session applies one shipped rice and chooses a wallpaper from this
-  # set. The marker is user-owned before that session starts.
-  deploy_dir "$RYOKU_REPO/ryoku/assets/wallpapers" "$h/Pictures/Wallpapers"
-  deploy_dir "$RYOKU_REPO/ryoku/assets/ryodecors" "$h/Pictures/ryodecors"
-  deploy_file "$RYOKU_REPO/ryoku/apps/npm/npmrc" "$h/.npmrc"
-  run "$RYOKU_TARGET_CHROOT" /mnt install -d -o "$u" -g "$u" \
-    "/home/$u/.local" "/home/$u/.local/state" "$state"
-  write_file "$marker" <<'EOF'
-default
-EOF
-  run "$RYOKU_TARGET_CHROOT" /mnt chown "$u:$u" "$state/default-rice-pending"
-  local rashin_marker="/mnt$state/rashin-setup-pending"
-  if [[ ${RYOKU_RASHIN:-1} == 1 ]]; then
-    write_file "$rashin_marker" <<'EOF'
-pending
-EOF
-    run "$RYOKU_TARGET_CHROOT" /mnt chown "$u:$u" "$state/rashin-setup-pending"
-  else
-    run rm -f "$rashin_marker"
-  fi
-  ryoku_seed_hidden_apps "$u"
-  ryoku_seed_launcher_overrides "$u"
+# The wallpaper library is an ISO payload, not a package payload. Keeping this
+# installer-only avoids adding hundreds of megabytes to every desktop update.
+ryoku_seed_wallpapers() {
+  local home=$1
+  log 'seeding the ISO wallpaper library into %s' "$home"
+  deploy_dir "$RYOKU_REPO/ryoku/assets/wallpapers" "$home/Pictures/Wallpapers"
 }
 
-# The neovim package's nvim.desktop and Ryoku's ryoku-nvim.desktop both say
-# Neovim, so launchers listed it twice. Same ledgered override the doctor's
-# duplicate-launcher reconciler writes, laid now so the first login is clean.
-ryoku_seed_launcher_overrides() {
-  local u=$1 apps=/mnt/usr/share/applications
-  local appdir="/home/$u/.local/share/applications" state="/home/$u/.local/state/ryoku"
-  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    log 'DRYRUN: hide the neovim package launcher for %s (ryoku-nvim.desktop replaces it)' "$u"
+ryoku_narrate_seed_self() {
+  [[ -n ${RYOKU_DRYRUN:-} ]] || return 0
+  local user=$1 rice=$2 rashin=$3 hidden=${4:-} dropped=${5:-}
+  local shell=$6 init=$7 locale=$8
+  [[ -n $hidden ]] || hidden=none
+  [[ -n $dropped ]] || dropped=none
+  log 'DRYRUN: users seed-self account=%s rice=%s rashin=%s hidden-apps=%s shell=%s init=%s locale=%s provisioned-ledger=%s' \
+    "$user" "$rice" "$rashin" "$hidden" "$shell" "$init" "$locale" "$dropped"
+}
+
+ryoku_deploy_seed() {
+  local user=$1 shell=/usr/bin/fish id
+  local -a args=(users seed-self --rice default)
+  case ${RYOKU_LOGIN_SHELL:-fish} in
+    zsh) shell=/usr/bin/zsh ;;
+    bash) shell=/usr/bin/bash ;;
+  esac
+  [[ ${RYOKU_RASHIN:-1} == 1 ]] && args+=(--rashin)
+  if [[ -n ${RYOKU_HIDE_APPS:-} ]]; then
+    local -a hidden=()
+    IFS=, read -ra hidden <<<"$RYOKU_HIDE_APPS"
+    for id in "${hidden[@]}"; do args+=(--hide-app "$id"); done
+  fi
+  ryoku_narrate_seed_self "$user" default "${RYOKU_RASHIN:-1}" \
+    "${RYOKU_HIDE_APPS:-}" "${RYOKU_DROP_PACKAGES:-}" "$shell" systemd \
+    "${RYOKU_LOCALE:-C.UTF-8}"
+  if [[ ! -x /mnt/usr/bin/ryoku-host && -z ${RYOKU_DRYRUN:-} ]]; then
+    log 'account provisioning: skipped (ryoku-host not installed)'
     return 0
   fi
-  [[ -f $apps/nvim.desktop && -f $apps/ryoku-nvim.desktop ]] || return 0
-  [[ ! -e /mnt$appdir/nvim.desktop ]] || return 0
-  run "$RYOKU_TARGET_CHROOT" /mnt install -d -o "$u" -g "$u" \
-    "/home/$u/.local/share" "$appdir" "$state"
-  awk '/^\[/ { group = $0; print; if (group == "[Desktop Entry]") print "NoDisplay=true"; next }
-    group == "[Desktop Entry]" && /^NoDisplay=/ { next } { print }' \
-    "$apps/nvim.desktop" >"/mnt$appdir/nvim.desktop"
-  printf 'nvim.desktop\n' >>"/mnt$state/launcher-overrides"
-  run "$RYOKU_TARGET_CHROOT" /mnt chown "$u:$u" "$appdir/nvim.desktop" "$state/launcher-overrides"
-  log 'hid the duplicate Neovim launcher for %s' "$u"
+  log 'provisioning the Ryoku desktop for %s' "$user"
+  run "$RYOKU_TARGET_CHROOT" /mnt runuser -u "$user" -- \
+    env -i "HOME=/home/$user" "USER=$user" "LOGNAME=$user" "SHELL=$shell" \
+    "PATH=/usr/local/bin:/usr/bin:/bin" "LANG=${RYOKU_LOCALE:-C.UTF-8}" \
+    "RYOKU_HOST_INIT=systemd" "RYOKU_DROP_PACKAGES=${RYOKU_DROP_PACKAGES:-}" \
+    /usr/bin/ryoku-host "${args[@]}"
 }
 
-ryoku_seed_hidden_apps() {
-  local u=$1 id path
-  local appdir="/mnt/home/$u/.local/share/applications"
-  [[ -n ${RYOKU_HIDE_APPS:-} ]] || return 0
-  run "$RYOKU_TARGET_CHROOT" /mnt install -d -o "$u" -g "$u" \
-    "/home/$u/.local/share" "/home/$u/.local/share/applications"
-  local -a ids=()
-  IFS=, read -ra ids <<<"$RYOKU_HIDE_APPS"
-  for id in "${ids[@]}"; do
-    path="$appdir/$id"
-    write_file "$path" <<'EOF'
-[Desktop Entry]
-Hidden=true
-EOF
-    run "$RYOKU_TARGET_CHROOT" /mnt chown "$u:$u" "/home/$u/.local/share/applications/$id"
-    log 'hidden app: %s for %s' "$id" "$u"
-  done
-}
 
 # Set the selected file manager in both places desktop applications read:
 # xdg-mime owns inode/directory, while the neutral desktop store owns the files
@@ -510,36 +425,9 @@ ryoku_default_file_manager() {
   fi
 }
 
-# seed_provisioned: the installer's drop list is recorded in the doctor's
-# provisioning ledger (~/.local/state/ryoku/provisioned) BEFORE the user ever
-# logs in. The ledger's rule is "a recorded name that is now missing means the
-# user removed it, so nothing puts it back" -- writing the dropped packages
-# into it is how the installer's answer survives `ryoku update`: the
-# deliver-once reconciler (reconcileShippedApps) sees them as user-removed and
-# honours it, instead of reinstalling on first boot. The later chown pass owns
-# the file. No drops -> no write.
-ryoku_seed_provisioned() {
-  local u=$1
-  local ledger="/mnt/home/$u/.local/state/ryoku/provisioned" p
-  [[ -n ${RYOKU_DROP_PACKAGES:-} ]] || return 0
-  if [[ -n ${RYOKU_DRYRUN:-} ]]; then
-    log "DRYRUN: seed $ledger with the dropped packages (${RYOKU_DROP_PACKAGES//,/ })"
-    return 0
-  fi
-  mkdir -p "$(dirname "$ledger")" || return 0
-  local -a seen=()
-  [[ -f $ledger ]] && mapfile -t seen < "$ledger"
-  for p in ${RYOKU_DROP_PACKAGES//,/ }; do
-    [[ " ${seen[*]-} " == *" $p "* ]] && continue
-    printf '%s\n' "$p" >>"$ledger"
-    seen+=("$p")
-  done
-  log 'recorded the dropped packages in the provisioning ledger (ryoku doctor will not reinstall them)'
-}
 
-# qylock: install the lockscreen bundle + the SDDM clockwork theme. not yet
-# packaged, so the bundle ships in the payload and its two installers run
-# in the chroot.
+# The account provisioner installs qylock's user half. The installer still
+# applies the machine-wide SDDM greeter from the ISO payload.
 ryoku_deploy_qylock() {
   log "deploying qylock bundle + SDDM clockwork theme"
   deploy_dir "$RYOKU_REPO/ryoku/lockscreen/qylock" /mnt/usr/share/ryoku/qylock

@@ -260,44 +260,13 @@ run_offline "$baked" 0 plain
 ! grep -qF 'cachyos-hello.desktop' <<<"$out" \
   || fail "plain install suppressed a CachyOS-only autostart: $out"
 
-# ---- 10. zsh installs seed the packaged startup file on every ISO flavour -----
+# ---- 10. zsh installs delegate the packaged startup-file seed ----------------
 for variant in plain cachyos; do
   run_offline "$baked" 0 "$variant" zsh
   [[ $rc -eq 0 ]] || fail "$variant zsh dry run exited $rc: $out"
-  grep -qF 'seed /mnt/home/ryoku/.zshrc from /mnt/usr/share/ryoku/zsh/zshrc when missing' <<<"$out" \
-    || fail "$variant zsh install did not plan the startup config seed: $out"
-
-  target="$tmp/zsh-$variant"
-  mkdir -p "$target/usr/share/ryoku/zsh" "$target/home/ryoku"
-  cp "$root/ryoku/hub/backend/zshrc" "$target/usr/share/ryoku/zsh/zshrc"
-  ROOT="$root" TARGET="$target" bash -c '
-    # shellcheck source=/dev/null
-    source "$ROOT/installation/backend/lib/common.sh"
-    # shellcheck source=/dev/null
-    source "$ROOT/installation/backend/lib/deploy.sh"
-    RYOKU_TARGET_ROOT=$TARGET
-    RYOKU_LOGIN_SHELL=zsh
-    RYOKU_DRYRUN=
-    RYOKU_ACCOUNT_NAMES=(ryoku)
-    ryoku_seed_login_shell_config
-  ' || fail "$variant zsh seed failed against the fake target"
-  cmp "$root/ryoku/hub/backend/zshrc" "$target/home/ryoku/.zshrc" \
-    || fail "$variant zsh seed did not copy the packaged template"
-
-  printf 'custom zsh config\n' >"$target/home/ryoku/.zshrc"
-  ROOT="$root" TARGET="$target" bash -c '
-    # shellcheck source=/dev/null
-    source "$ROOT/installation/backend/lib/common.sh"
-    # shellcheck source=/dev/null
-    source "$ROOT/installation/backend/lib/deploy.sh"
-    RYOKU_TARGET_ROOT=$TARGET
-    RYOKU_LOGIN_SHELL=zsh
-    RYOKU_DRYRUN=
-    RYOKU_ACCOUNT_NAMES=(ryoku)
-    ryoku_seed_login_shell_config
-  ' || fail "$variant existing zsh config check failed"
-  [[ $(<"$target/home/ryoku/.zshrc") == 'custom zsh config' ]] \
-    || fail "$variant zsh seed overwrote an existing config"
+  seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
+  [[ $seed_intent == *" shell=/usr/bin/zsh "* ]] \
+    || fail "$variant zsh install did not delegate the zsh startup-file seed: $seed_intent"
 done
 
 echo "install-offline: OK"

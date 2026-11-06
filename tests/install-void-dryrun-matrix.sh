@@ -78,12 +78,22 @@ run_case() {
   grep -q 'xbps-install -r /mnt -R /run/initramfs/live/ryoku/repo -i -Sy' "$out"
   grep -q 'ryoku-desktop-niri' "$out"
   grep -q 'ryoku-host session ensure --system' "$out"
-  grep -q 'ryoku-host session ensure --user' "$out"
   grep -q 'desktop.input.kbLayout=de' "$out"
-  grep -q '/.local/state/ryoku/provisioned' "$out"
-  grep -q '/.local/state/ryoku/default-rice-pending' "$out"
   grep -q '/Pictures/Wallpapers' "$out"
-  grep -q 'ryoku materialize' "$out"
+  local seed_intent
+  seed_intent=$(grep -F 'DRYRUN: users seed-self account=ryoku ' "$out" | tail -n1)
+  [[ -n $seed_intent ]] \
+    || { printf '%s: materialize, XDG, recordings and account-service setup were not delegated\n' "$name" >&2; exit 1; }
+  [[ $seed_intent == *" hidden-apps=none "* ]] \
+    || { printf '%s: default install delegated unexpected hidden launchers: %s\n' "$name" "$seed_intent" >&2; exit 1; }
+  [[ $seed_intent == *" rice=default "* ]] \
+    || { printf '%s: default rice was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
+  [[ $seed_intent == *" rashin=1 "* ]] \
+    || { printf '%s: Rashin first-login setup was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
+  [[ $seed_intent == *" init=runit "* ]] \
+    || { printf '%s: Turnstile user-service setup was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
+  [[ $seed_intent == *" provisioned-ledger="* ]] \
+    || { printf '%s: provisioning-ledger intent was not delegated: %s\n' "$name" "$seed_intent" >&2; exit 1; }
   ! grep -q 'XBPS_REPOSITORY=' "$out"
   ! grep -q 'Snapshots are not available on Void Linux' "$out"
   if [[ $snapshots == 1 ]]; then
@@ -117,33 +127,21 @@ run_case() {
     ! grep -q 'write /mnt/etc/default/limine' "$out"
   fi
 
-  local package_line keymap_line materialize_line ledger_line marker_line
-  local qylock_line user_services_line xdg_dirs_line recordings_line rashin_wire_line
-  local -a chown_lines=()
+  local package_line keymap_line wallpapers_line chown_line seed_line
+  local qylock_line system_services_line
   package_line=$(grep -n -m1 'installing Ryoku desktop' "$out" | cut -d: -f1)
   keymap_line=$(grep -n -m1 'desktop.input.kbLayout=de' "$out" | cut -d: -f1)
-  mapfile -t chown_lines < <(grep -n 'fixing ownership of /home/' "$out" | cut -d: -f1)
-  materialize_line=$(grep -n -m1 'ryoku materialize' "$out" | cut -d: -f1)
-  ledger_line=$(grep -n -m1 '/.local/state/ryoku/provisioned' "$out" | cut -d: -f1)
-  marker_line=$(grep -n -m1 '/.local/state/ryoku/default-rice-pending' "$out" | cut -d: -f1)
+  wallpapers_line=$(grep -n -m1 '/Pictures/Wallpapers' "$out" | cut -d: -f1)
+  chown_line=$(grep -n -m1 'fixing ownership of /home/' "$out" | cut -d: -f1)
+  seed_line=$(grep -n -m1 'DRYRUN: users seed-self account=ryoku ' "$out" | cut -d: -f1)
   qylock_line=$(grep -n -m1 'deploying qylock bundle' "$out" | cut -d: -f1)
-  user_services_line=$(grep -n -m1 'ryoku-host session ensure --user' "$out" | cut -d: -f1)
-  xdg_dirs_line=$(grep -n -m1 'xdg-user-dirs-update' "$out" | cut -d: -f1)
-  recordings_line=$(grep -n -m1 'config=.*recording.json' "$out" | cut -d: -f1)
-  rashin_wire_line=$(grep -n -m1 'exec ryoku-rashin wire' "$out" | cut -d: -f1)
-  [[ ${#chown_lines[@]} == 2 ]] \
-    || { printf '%s: expected two ownership passes\n' "$name" >&2; exit 1; }
+  system_services_line=$(grep -n -m1 'ryoku-host session ensure --system' "$out" | cut -d: -f1)
   (( package_line < keymap_line &&
-     keymap_line < chown_lines[0] &&
-     chown_lines[0] < materialize_line &&
-     materialize_line < ledger_line &&
-     ledger_line < marker_line &&
-     marker_line < chown_lines[1] &&
-     chown_lines[1] < xdg_dirs_line &&
-     xdg_dirs_line < recordings_line &&
-     recordings_line < rashin_wire_line &&
-     rashin_wire_line < qylock_line &&
-     qylock_line < user_services_line )) \
+     keymap_line < wallpapers_line &&
+     wallpapers_line < chown_line &&
+     chown_line < seed_line &&
+     seed_line < qylock_line &&
+     qylock_line < system_services_line )) \
     || { printf '%s: desktop provisioning order regressed\n' "$name" >&2; exit 1; }
   if [[ $online == 0 ]]; then
     local mask_line drivers_line unmask_line final_repo_line

@@ -2335,6 +2335,9 @@
   `0.1.0-3`.
 
 ### Added
+- **New accounts use one user-side provisioner.** `users provision` enters the
+  account through `runuser`, and `users seed-self` writes the desktop with the
+  account's ownership.
 - `doctor`: a "Hyprland config integrity" reconciler. It validates that the
   runtime-generated Hyprland drop-ins (`monitors.lua`, `gpu.lua`) still parse and,
   in a live session, reads `hyprctl configerrors`. A corrupt drop-in (a crash or a

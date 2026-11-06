@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Hub-created users now receive a complete desktop.** Account creation runs
+  the shared user-side provisioner, so config, session services, the selected
+  rice and first-login state belong to the new user instead of root.
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
