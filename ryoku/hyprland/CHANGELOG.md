@@ -9,6 +9,9 @@
   app windows (`modules/binds.lua`, `modules/window_rules.lua`).
 
 ### Changed
+- **Super+Q follows the active subshell or bar style.** The close goes through
+  the shell only when the active item takes over window closing, and the volume
+  keys read the shared `audio.boost` (`modules/binds.lua`).
 - **Login raises the reload cover.** The session autostart chain calls
   `ryoku-reload-cover begin boot` after the environment push and before
   `session-start` restarts the shell services, so the desktop is covered from

@@ -2,15 +2,15 @@ local mod = "SUPER"
 
 local K = require("modules.rebind")
 
--- The Shima frame can ask before a window closes. Only route through the shell
--- when that is switched on, so every other close stays a native dispatch with
--- no process in the way (reading shell.json here costs no fork).
+-- The active subshell or bar style can take over the close (it owns
+-- "windowClose" in the shells index and may ask first). Every other close stays
+-- a native dispatch with no process in the way (reading the index costs no fork).
 local function close_active()
-    local f = io.open((os.getenv("XDG_CONFIG_HOME") or (os.getenv("HOME") .. "/.config")) .. "/ryoku/shell.json")
+    local f = io.open((os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/ryoku/store/shells.json")
     local s = f and f:read("a") or ""
     if f then f:close() end
-    local style = s:match('"barStyle"%s*:%s*"([^"]*)"') or "orpheus"
-    if style == "iris" and s:find('"closeConfirm"%s*:%s*{[^{}]*"enabled"%s*:%s*true') then
+    local owns = s:match('"activeOwns"%s*:%s*%[([^%]]*)%]') or ""
+    if owns:find('"windowClose"', 1, true) then
         hl.exec_cmd("qs -c shell ipc call closeConfirm trigger")
     else
         hl.dispatch(hl.dsp.window.close())
@@ -18,7 +18,7 @@ local function close_active()
 end
 
 -- Windows
-hl.bind(K(mod .. " + Q"),         close_active)                                    -- close active window (Shima asks first when set to)
+hl.bind(K(mod .. " + Q"),         close_active)                                    -- close active window (the active shell may ask first)
 hl.bind(K(mod .. " + F"),         hl.dsp.window.fullscreen())                      -- fullscreen
 hl.bind(K(mod .. " + SHIFT + P"), hl.dsp.window.pin())                             -- pin a floating window
 hl.bind(K(mod .. " + A"),         function() hl.dispatch(hl.dsp.window.float({ action = "toggle" })); hl.dispatch(hl.dsp.window.resize({ x = 1000, y = 660, exact = true })); hl.dispatch(hl.dsp.window.center()) end) -- float at 1000x660, centred (press again to tile back)
@@ -166,8 +166,8 @@ for i = 1, 10 do
     hl.bind(K(mod .. " + SHIFT + " .. kp_off[i]), hl.dsp.exec_cmd(ws_helper .. " movesilent " .. i))  -- move window quietly to workspace 1-10, number pad NumLock off
 end
 
--- Media and volume keys. ryoku-volume honours the volume panel's BOOST toggle
--- (Config.qsbar.audioBoost in shell.json): off = safe 100% cap, on = 150%.
+-- Media and volume keys. ryoku-volume honours audio.boost in shell.json:
+-- off = safe 100% cap, on = 150%.
 hl.bind(K("XF86AudioRaiseVolume"), hl.dsp.exec_cmd("ryoku-volume up"),   { locked = true, repeating = true }) -- raise the volume
 hl.bind(K("XF86AudioLowerVolume"), hl.dsp.exec_cmd("ryoku-volume down"), { locked = true, repeating = true }) -- lower the volume
 hl.bind(K("XF86AudioMute"),        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true })

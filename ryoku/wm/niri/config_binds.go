@@ -74,9 +74,9 @@ func defaultBinds() map[string]niriBind {
 func shippedBinds() map[string]niriBind {
 	return map[string]niriBind{
 		// Windows
-		// The iRiS frame can ask before a window closes; only when that is on and
-		// iRiS is the bar style does the close go through the shell.
-		"window.close":      {action: spawnSh(wm.IrisCloseCheck + " && qs -c shell ipc call closeConfirm trigger || niri msg action close-window"), noRepeat: true},
+		// The active subshell or bar style can take over the close (it may ask
+		// first); every other close stays niri's own action.
+		"window.close":      {action: spawnSh(wm.ShellCloseCheck + " && qs -c shell ipc call closeConfirm trigger || niri msg action close-window"), noRepeat: true},
 		"window.fullscreen": {action: "fullscreen-window"},
 		// The catalogue names this "Float or tile", which is niri's mechanic too.
 		"window.float": {action: "toggle-window-floating"},

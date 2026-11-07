@@ -110,13 +110,14 @@ func (c CatalogBind) Missing(has func(string) bool) string {
 	return fmt.Sprintf("%s is not installed.", c.Needs)
 }
 
-// IrisCloseCheck succeeds when the iRiS frame is the bar style and its close
-// confirmation is switched on, so a close bind can ask the shell first and fall
-// through to the compositor. QmlEnv is the module path a bind-spawned qs
-// surface needs: it never passes through ryoku-shell's daemon, which is what
-// injects the path into the configs it supervises. Both are shell strings the
-// emitting providers concatenate into a spawn command.
-const IrisCloseCheck = `jq -e '(.barStyle // "qsbar") == "iris" and .inir.closeConfirm.enabled == true' "${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json" >/dev/null 2>&1`
+// ShellCloseCheck succeeds when the active subshell or bar style handles the
+// close keybind itself (it owns "windowClose" in the shells index), so a close
+// bind can hand the close to the shell and fall through to the compositor.
+// QmlEnv is the module path a bind-spawned qs surface needs: it never passes
+// through ryoku-shell's daemon, which is what injects the path into the configs
+// it supervises. Both are shell strings the emitting providers concatenate into
+// a spawn command.
+const ShellCloseCheck = `jq -e '.activeOwns | index("windowClose")' "${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/store/shells.json" >/dev/null 2>&1`
 
 const QmlEnv = `env QML_IMPORT_PATH="$HOME/.local/lib/qt6/qml" QML2_IMPORT_PATH="$HOME/.local/lib/qt6/qml"`
 

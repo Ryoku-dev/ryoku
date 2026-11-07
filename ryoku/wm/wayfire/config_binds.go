@@ -204,7 +204,7 @@ func shippedBinds() map[string]wayfireBind {
 		// Windows
 		"window.close": {
 			key: "window_close", extra: "<alt> KEY_F4",
-			cmd: wm.IrisCloseCheck + " && qs -c shell ipc call closeConfirm trigger || ryoku-wm-wayfire act window.close focused",
+			cmd: wm.ShellCloseCheck + " && qs -c shell ipc call closeConfirm trigger || ryoku-wm-wayfire act window.close focused",
 		},
 		"window.fullscreen":   {section: "wm-actions", key: "toggle_fullscreen"},
 		"window.float":        {key: "window_float", cmd: "ryoku-wm-wayfire act window.float focused", hint: "Float the window at 1000x660, centred, or tile it back"},
