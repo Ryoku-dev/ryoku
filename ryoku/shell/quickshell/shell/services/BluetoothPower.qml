@@ -1,101 +1,188 @@
 pragma Singleton
 
 import QtQuick
+import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Io
+import "BluetoothRfkill.js" as Rfkill
+import "BluetoothFeed.js" as Feed
 
 Singleton {
     id: root
 
-    readonly property var adapter: {
-        if (!root.cliAvailable)
-            return null;
+    readonly property var quickshellAdapter: {
         const adapters = Bluetooth.adapters.values;
         if (adapters.length === 0)
             return null;
         const preferred = Bluetooth.defaultAdapter;
         return preferred && adapters.indexOf(preferred) >= 0 ? preferred : adapters[0];
     }
+    // The daemon's `bluetooth` frame covers what Quickshell's BlueZ client cannot:
+    // bluetoothd started after the shell, or gone while Quickshell keeps the adapter.
+    property var feed: null
+    readonly property var view: Feed.resolve(root.quickshellAdapter !== null,
+        root.quickshellAdapter?.enabled ?? false, root.feed)
+    readonly property var adapter: root.view.useQuickshell ? root.quickshellAdapter : null
     readonly property var devices: root.adapter !== null && Bluetooth.devices
         ? Bluetooth.devices.values : []
-    readonly property bool enabled: root.adapter !== null ? root.adapter.enabled : root.cliEnabled
-    readonly property bool available: root.adapter !== null || root.cliAvailable || root.blocked
+    readonly property bool enabled: root.view.enabled
+    readonly property bool available: root.view.present || root.blocked
     readonly property bool blocked: root.softBlocked || root.hardBlocked
         || root.adapter?.state === BluetoothAdapterState.Blocked
-    property bool cliAvailable: false
-    property bool cliEnabled: false
     property bool softBlocked: false
     property bool hardBlocked: false
 
+    // Last power choice made here: -1 none, 0 off, 1 on.
+    property int wanted: -1
+    readonly property bool settled: Rfkill.settled(root.wanted, root.enabled, root.blocked)
+    readonly property int adapterState: root.adapter?.state ?? -1
+    readonly property int adapterCount: Bluetooth.adapters.values.length
+    readonly property string rfkillFolder: "file:///sys/class/rfkill"
+
     function setEnabled(on: bool): void {
+        root.wanted = on ? 1 : 0;
         Quickshell.execDetached(["ryoku-bluetooth-power", on ? "on" : "off"]);
+        root.rescanRfkill();
+        recheck.interval = Rfkill.firstRecheck;
+        recheck.restart();
     }
 
     function toggle(): void {
         setEnabled(!enabled);
     }
 
-    Component.onCompleted: adapterState.running = true
+    function rescanRfkill(): void {
+        rfkillRescan.restart();
+    }
 
-    onAdapterChanged: {
-        rfkillState.running = true;
-        adapterRefresh.restart();
+    function collectRfkill(): void {
+        if (rfkillDir.status !== FolderListModel.Ready || rfkillEntries.count !== rfkillDir.count)
+            return;
+        const entries = [];
+        for (let i = 0; i < rfkillEntries.count; i++)
+            entries.push(rfkillEntries.objectAt(i));
+        const state = Rfkill.blockState(entries);
+        if (state === null)
+            return;
+        root.softBlocked = state.soft;
+        root.hardBlocked = state.hard;
+    }
+
+    onAdapterChanged: root.rescanRfkill()
+    onAdapterCountChanged: root.rescanRfkill()
+    onAdapterStateChanged: root.rescanRfkill()
+    onFeedChanged: root.rescanRfkill()
+
+    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
+
+    function applyFeed(line: string): void {
+        const frame = Feed.parseFrame(line);
+        if (frame === null) {
+            if (line.startsWith("err"))
+                feedRetry.interval = Feed.nextRetry(feedRetry.interval, true);
+            return;
+        }
+        feedRetry.interval = Feed.firstRetry;
+        if (JSON.stringify(frame) !== JSON.stringify(root.feed))
+            root.feed = frame;
+    }
+
+    Socket {
+        id: feedSocket
+        path: root.sockPath
+        parser: SplitParser { onRead: line => root.applyFeed(line) }
+        Component.onCompleted: connected = true
+        onConnectionStateChanged: {
+            if (connected) {
+                write("subscribe bluetooth\n");
+                flush();
+            } else {
+                root.feed = null;
+                feedRetry.restart();
+            }
+        }
     }
 
     Timer {
-        id: adapterRefresh
-        interval: 100
+        id: feedRetry
+        interval: Feed.firstRetry
+        onTriggered: if (!feedSocket.connected) feedSocket.connected = true
+    }
+    onSettledChanged: if (root.settled) recheck.stop()
+
+    Timer {
+        id: rfkillRescan
+        interval: 150
         onTriggered: {
-            adapterState.running = false;
-            adapterState.running = true;
+            rfkillDir.folder = "";
+            rfkillDir.folder = root.rfkillFolder;
         }
     }
 
-    Process {
-        id: adapterState
-        command: ["bluetoothctl", "--timeout", "2", "show"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.cliAvailable = text.indexOf("Controller") >= 0
-                    && text.indexOf("No default controller") < 0;
-                root.cliEnabled = /Powered:[^\\n]*yes/i.test(text);
-            }
-        }
-    }
-
-    Process {
-        id: adapterMonitor
-        command: [
-            "dbus-monitor", "--system",
-            "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.ObjectManager'",
-            "type='signal',sender='org.bluez',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',arg0='org.bluez.Adapter1'",
-            "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bluez'"
-        ]
-        running: true
-        stdout: SplitParser {
-            onRead: adapterRefresh.restart()
-        }
-        onExited: adapterMonitorRestart.restart()
-    }
-
+    // A platform switch can flip rfkill while its controller is gone from BlueZ, with no signal.
     Timer {
-        id: adapterMonitorRestart
-        interval: 1000
-        onTriggered: if (!adapterMonitor.running) adapterMonitor.running = true
-    }
-
-    Process {
-        id: rfkillState
-        command: ["rfkill", "-n", "-o", "TYPE,SOFT,HARD", "list", "bluetooth"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const rows = text.trim().split("\n").map(line => line.trim().split(/\s+/))
-                    .filter(fields => fields[0] === "bluetooth");
-                root.softBlocked = rows.some(fields => fields[1] === "blocked");
-                root.hardBlocked = rows.some(fields => fields[2] === "blocked");
+        id: recheck
+        interval: Rfkill.firstRecheck
+        onTriggered: {
+            if (root.settled)
+                return;
+            root.rescanRfkill();
+            const next = Rfkill.nextRecheck(interval);
+            if (next > 0) {
+                interval = next;
+                restart();
             }
         }
+    }
+
+    FolderListModel {
+        id: rfkillDir
+        folder: root.rfkillFolder
+        showDotAndDotDot: false
+        showHidden: false
+        sortField: FolderListModel.Unsorted
+        onStatusChanged: Qt.callLater(root.collectRfkill)
+        onCountChanged: Qt.callLater(root.collectRfkill)
+    }
+
+    Instantiator {
+        id: rfkillEntries
+        model: rfkillDir
+        delegate: QtObject {
+            id: entry
+
+            required property string filePath
+            property int pending: 3
+            property string type: ""
+            property string soft: ""
+            property string hard: ""
+
+            function settle(): void {
+                entry.pending -= 1;
+                if (entry.pending === 0)
+                    Qt.callLater(root.collectRfkill);
+            }
+
+            property FileView typeFile: FileView {
+                path: entry.filePath + "/type"
+                printErrors: false
+                onLoaded: { entry.type = text().trim(); entry.settle(); }
+                onLoadFailed: entry.settle()
+            }
+            property FileView softFile: FileView {
+                path: entry.filePath + "/soft"
+                printErrors: false
+                onLoaded: { entry.soft = text().trim(); entry.settle(); }
+                onLoadFailed: entry.settle()
+            }
+            property FileView hardFile: FileView {
+                path: entry.filePath + "/hard"
+                printErrors: false
+                onLoaded: { entry.hard = text().trim(); entry.settle(); }
+                onLoadFailed: entry.settle()
+            }
+        }
+        onObjectAdded: Qt.callLater(root.collectRfkill)
     }
 }
