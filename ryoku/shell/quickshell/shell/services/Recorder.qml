@@ -93,6 +93,7 @@ Singleton {
     Component.onCompleted: {
         if (!recPrefsFile.text())
             recPrefsFile.writeAdapter();
+        root.refreshStatus();
     }
 
     // Read-only mirror of the daemon-owned recording settings. The daemon is the
@@ -347,13 +348,14 @@ Singleton {
         }
     }
 
-    // The status file is authoritative for starts and orderly exits. While a
-    // capture is live, IPC also advances the clock and catches an abrupt backend
-    // death; while idle it is only a slow stale-state watchdog.
+    // The status file is authoritative for starts and orderly exits; the start-up
+    // check above settles whether the backend exists. While a capture is live, IPC
+    // also advances the clock and catches an abrupt backend death. Idle, nothing
+    // polls.
     Timer {
         id: tick
-        interval: root.anyActive ? 1000 : 60000
-        running: root.available
+        interval: 1000
+        running: root.available && root.anyActive
         repeat: true
         onTriggered: {
             if (root.anyActive && root.startedAt > 0)
