@@ -552,13 +552,13 @@ func matugenFollows() bool {
 
 // refreshFolderIcons retints the folder icons to the palette the shell just
 // committed. Folder icons are a desktop surface, not a Qt or optional
-// app-theme template. The rebuild takes a few hundred milliseconds and waits
-// on its own lock, so it runs beside the template fan-out instead of in front
-// of it. The helper reads colors.json once it holds that lock, so a burst of
-// palette changes always ends on the newest one.
+// app-theme template. A rebuild waits on its own lock, so it runs beside the
+// template fan-out instead of in front of it. The palette is read once that
+// lock is held, so a burst of palette changes always ends on the newest one.
 func refreshFolderIcons() {
+	tint := defaultFolderTint()
 	go func() {
-		if err := runCommand("ryoku-cmd-folders"); err != nil {
+		if _, err := tint.apply("", false); err != nil {
 			fmt.Fprintf(os.Stderr, "matugen: folder icons: %v\n", err)
 		}
 	}()
@@ -1278,15 +1278,13 @@ func matugenReload(mode string, emitter kdePaletteSignalEmitter) {
 	nudgePalette()
 }
 
-// nudgePalette tells the shell's bar to re-read the palette just written to
-// colors.json. The bar and frame chrome otherwise learn of a palette change only
-// through a colors.json file watch, which can miss an atomic-rename replacement
-// and strand them on a stale palette until the next change (or a manual
-// re-theme). This socket push over the bar's `theme` IpcHandler is the reliable
-// path; the file watch stays as a best-effort fallback. Fire-and-forget so a
-// restarting or absent bar never stalls the paint worker.
+// nudgePalette tells the shell to re-read the palette just written to
+// colors.json. Its readers otherwise learn of a change only through a file
+// watch, which can miss an atomic-rename replacement and strand them on a stale
+// palette; the watch stays as the fallback. Fire-and-forget so a restarting or
+// absent shell never stalls the paint worker.
 func nudgePalette() {
-	go ipcCall("shell", "theme", "reload", "")
+	go shellIpc("reloadPalette")
 }
 
 // applyBorderColors lands the palette's border colours on the live compositor

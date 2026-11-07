@@ -3958,11 +3958,25 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.state",
+      "id": "ryoku.ryoku-shell.ipc.call",
       "group": "ryoku-internal",
-      "title": "Report palette visibility",
-      "command": "ryoku-shell state <name> <visibility>",
-      "description": "Updates the daemon's idle-unload state for one shell palette.",
+      "title": "Call a shell IPC function",
+      "command": "ryoku-shell ipc call <target> <function> [args...]",
+      "description": "Runs one IpcHandler function on the running shell and prints its return value. Exits 1 when the target or function is missing, no shell is running, or the call times out.",
+      "tool": "ryoku-shell",
+      "level": "internal",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.ipc.get",
+      "group": "ryoku-internal",
+      "title": "Read a shell IPC property",
+      "command": "ryoku-shell ipc get <target> <property>",
+      "description": "Prints one IpcHandler property of the running shell. Exits 1 when the target or property is missing, no shell is running, or the read times out.",
       "tool": "ryoku-shell",
       "level": "internal",
       "compositors": [

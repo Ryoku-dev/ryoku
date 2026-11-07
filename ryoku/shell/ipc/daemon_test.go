@@ -120,3 +120,22 @@ func TestSignatureCommandNoProvider(t *testing.T) {
 		t.Fatalf("dispatch(signature) with no provider = %q, want empty", got)
 	}
 }
+
+func TestStartsAtBoot(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	if err := os.MkdirAll(filepath.Join(dir, "ryoku"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !startsAtBoot(component{"shell", true}) {
+		t.Error("a persistent component starts at boot")
+	}
+	if startsAtBoot(component{"launcher", false}) {
+		t.Error("an on-demand component does not start at boot")
+	}
+	_ = os.WriteFile(filepath.Join(dir, "ryoku", "performance.json"),
+		[]byte(`{"disabledComponents":["launcher"]}`), 0o644)
+	if startsAtBoot(component{"launcher", true}) {
+		t.Error("a disabled component never starts at boot")
+	}
+}

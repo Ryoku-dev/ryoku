@@ -108,11 +108,15 @@ func hubSelect() []string {
 	return []string{"-c", "hub"}
 }
 
-// hubNav points a running Hub at a section; true when an instance answered.
-func hubNav(section string) bool {
-	argv := append(hubSelect(), "ipc", "call", "nav", "open", section)
-	return exec.Command("qs", argv...).Run() == nil
+// hubCall runs one Hub IpcHandler call; true when the instance answered it.
+func hubCall(target, fn string, args ...string) bool {
+	argv := append(hubSelect(), "ipc", "call", target, fn)
+	_, err := qsIpcOnce(append(argv, args...))
+	return err == nil
 }
+
+// hubNav points a running Hub at a section; true when an instance answered.
+func hubNav(section string) bool { return hubCall("nav", "open", section) }
 
 // Retired Hub links now name their owning Stage Editor catalogue.
 func hubEditorSection(section string) string {
@@ -128,10 +132,7 @@ func hubEditorSection(section string) string {
 }
 
 // hubAlive: a running Hub answers its nav ipc.
-func hubAlive() bool {
-	argv := append(hubSelect(), "ipc", "call", "nav", "section")
-	return exec.Command("qs", argv...).Run() == nil
-}
+func hubAlive() bool { return hubCall("nav", "section") }
 
 // hubRaise brings the Hub window to the focused workspace. The Hub is the only
 // floating org.quickshell client the shell spawns, so app-id targeting is
@@ -140,18 +141,34 @@ func (d *daemon) hubRaise() {
 	_ = d.wmc.Act(wm.ActionAppFocus, "org.quickshell")
 }
 
-func (d *daemon) hub(sub, section string) string {
-	switch sub {
+// hub serves `hub open [section]`, `hub open users <profile-id>` (the Users
+// page opened on one profile) and `hub close`.
+func (d *daemon) hub(args []string) string {
+	const usage = "err hub: expected open [section], open users <profile-id>, or close"
+	if len(args) == 0 || len(args) > 3 {
+		return usage
+	}
+	switch args[0] {
 	case "open":
-		if editorSection := hubEditorSection(section); editorSection != "" {
+		section := ""
+		if len(args) >= 2 {
+			section = args[1]
+		}
+		navigate := func() bool { return section == "" || hubNav(section) }
+		if len(args) == 3 {
+			if section != "users" {
+				return usage
+			}
+			profile := args[2]
+			navigate = func() bool { return hubCall("users", "fromProfile", profile) }
+		}
+		if editorSection := hubEditorSection(section); editorSection != "" && len(args) == 2 {
 			go ipcCallN("shell", "desktop", "editSection", editorSection, "")
 			return "ok"
 		}
 		go func() {
 			if hubAlive() {
-				if section != "" {
-					hubNav(section)
-				}
+				navigate()
 				d.hubRaise()
 				return
 			}
@@ -164,23 +181,22 @@ func (d *daemon) hub(sub, section string) string {
 			if err := cmd.Start(); err != nil {
 				return
 			}
-			if section != "" {
-				// The fresh instance answers IPC once its root loads; nudge the
-				// section as soon as it does.
-				for range 40 {
-					time.Sleep(250 * time.Millisecond)
-					if hubNav(section) {
-						break
-					}
+			// The fresh instance answers IPC once its root loads.
+			for range 40 {
+				time.Sleep(250 * time.Millisecond)
+				if navigate() {
+					break
 				}
 			}
 			_ = cmd.Wait()
 		}()
 		return "ok"
 	case "close":
-		argv := append(hubSelect(), "ipc", "call", "hub", "close")
-		go func() { _ = exec.Command("qs", argv...).Run() }()
+		if len(args) != 1 {
+			return usage
+		}
+		go hubCall("hub", "close")
 		return "ok"
 	}
-	return "err hub: expected open [section] or close"
+	return usage
 }

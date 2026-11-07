@@ -79,14 +79,6 @@ func (d *daemon) onWMFrame(f wm.Frame) {
 	d.wmVersions[string(f.Kind)]++
 	d.wmMu.Unlock()
 
-	switch f.Kind {
-	case wm.FrameOutputs, wm.FrameWorkspaces:
-		select {
-		case d.widgetSig <- struct{}{}:
-		default:
-		}
-	}
-
 	// A hotplug (dock/undock, lid, VT resume) moves the output set. The night
 	// light self-heals from it: the compositor can revoke a running backend's
 	// gamma ownership on a connector change without telling it, which leaves

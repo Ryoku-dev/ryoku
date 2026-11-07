@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	wm "ryoku-wm"
 )
 
 // The audio verb steps volume by the reference literal (5% of the [0,1] range),
@@ -76,6 +80,9 @@ func TestDispatchControlErrors(t *testing.T) {
 		"brightness sideways":             "err brightness",
 		"hub":                             "err hub",
 		"hub bogus":                       "err hub",
+		"hub open display users":          "err hub",
+		"hub close now":                   "err hub",
+		"hub open users a b":              "err hub",
 		"lock-quiesce now":                "err lock-quiesce",
 		"sleep-ready":                     "err sleep-ready",
 		"sleep-ready now":                 "err sleep-ready",
@@ -91,6 +98,27 @@ func TestDispatchControlErrors(t *testing.T) {
 		if !strings.HasPrefix(got, prefix) {
 			t.Errorf("dispatch(%q) = %q, want prefix %q", cmd, got, prefix)
 		}
+	}
+}
+
+// `hub open users <profile-id>` lands a running Hub on that profile's Users
+// page rather than a plain section open.
+func TestHubOpenUsersProfile(t *testing.T) {
+	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	if got := d.dispatch("hub open users hacker"); got != "ok" {
+		t.Fatalf("dispatch = %q, want ok", got)
+	}
+	want := [][]string{
+		{"-c", "hub", "ipc", "call", "nav", "section"},
+		{"-c", "hub", "ipc", "call", "users", "fromProfile", "hacker"},
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for len(calls()) < len(want) && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := calls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("hub qs calls = %q, want %q", got, want)
 	}
 }
 

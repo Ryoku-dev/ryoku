@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -76,37 +77,58 @@ func main() {
 		// daemon socket; it reads colors.json directly.
 		os.Exit(runBrowserHost())
 	}
+	if args[0] == "folders" {
+		// Login autostart runs this before the daemon is up, so it builds the
+		// folder-icon theme in this process instead of forwarding.
+		os.Exit(runFolders(args[1:]))
+	}
+	if args[0] == "ipc" {
+		os.Exit(runIPC(args[1:]))
+	}
 	if err := sendCommand(strings.Join(args, " ")); err != nil {
 		fmt.Fprintln(os.Stderr, "ryoku-shell:", err)
 		os.Exit(1)
 	}
 }
 
-// sendCommand: forward one command line to the daemon and print any reply that
-// isn't a bare "ok".
-func sendCommand(line string) error {
+// roundTrip sends one command line to the daemon and returns its raw reply.
+func roundTrip(line string) (string, error) {
 	conn, err := net.DialTimeout("unix", sockPath(), 2*time.Second)
 	if err != nil {
-		fields := strings.Fields(line)
-		if len(fields) > 0 && fields[0] == "powerprofiles" {
-			return directPowerProfilesCLI(fields[1:])
-		}
-		return fmt.Errorf("daemon not reachable at %s (is `ryoku-shell daemon` running?)", sockPath())
+		return "", fmt.Errorf("%w at %s (is `ryoku-shell daemon` running?)", errDaemonUnreachable, sockPath())
 	}
 	defer conn.Close()
 	// Generous: a reload waits for the surface to come back and report, and a
 	// client that times out first turns a real failure into a silent success.
 	_ = conn.SetDeadline(time.Now().Add(45 * time.Second))
 	if _, err := fmt.Fprintln(conn, line); err != nil {
-		return err
+		return "", err
 	}
-	// The daemon writes one reply line and closes, so read to EOF rather than a
+	// The daemon writes one reply and closes, so read to EOF rather than a
 	// fixed buffer.
 	data, readErr := io.ReadAll(conn)
 	if len(data) == 0 && readErr != nil {
-		return fmt.Errorf("no reply from the daemon: %v", readErr)
+		return "", fmt.Errorf("no reply from the daemon: %v", readErr)
 	}
-	resp := strings.TrimSpace(string(data))
+	return string(data), nil
+}
+
+var errDaemonUnreachable = errors.New("daemon not reachable")
+
+// sendCommand: forward one command line to the daemon and print any reply that
+// isn't a bare "ok".
+func sendCommand(line string) error {
+	data, err := roundTrip(line)
+	if errors.Is(err, errDaemonUnreachable) {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == "powerprofiles" {
+			return directPowerProfilesCLI(fields[1:])
+		}
+	}
+	if err != nil {
+		return err
+	}
+	resp := strings.TrimSpace(data)
 	if strings.HasPrefix(resp, "err ") {
 		return fmt.Errorf("%s", strings.TrimPrefix(resp, "err "))
 	}
@@ -114,6 +136,34 @@ func sendCommand(line string) error {
 		fmt.Println(resp)
 	}
 	return nil
+}
+
+// runIPC is `ryoku-shell ipc call|get`: the daemon runs it against the running
+// shell and the value lands on stdout. Every failure exits 1 with `err ...`.
+func runIPC(words []string) int {
+	if !(len(words) >= 3 && words[0] == "call") && !(len(words) == 3 && words[0] == "get") {
+		fmt.Fprintln(os.Stderr, "usage: ryoku-shell ipc call <target> <function> [args...]")
+		fmt.Fprintln(os.Stderr, "       ryoku-shell ipc get <target> <property>")
+		return 2
+	}
+	data, err := roundTrip(encodeIPCRequest(words))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "err ipc:", err)
+		return 1
+	}
+	resp := strings.TrimRight(data, "\n")
+	value, ok := strings.CutPrefix(resp, "ok")
+	if !ok || (value != "" && value[0] != '\n') {
+		if !strings.HasPrefix(resp, "err ") {
+			resp = "err ipc: unexpected reply: " + resp
+		}
+		fmt.Fprintln(os.Stderr, resp)
+		return 1
+	}
+	if value = strings.TrimPrefix(value, "\n"); value != "" {
+		fmt.Println(value)
+	}
+	return 0
 }
 
 func usage() {
@@ -132,5 +182,8 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-shell barstyle <id>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell shells <sync|commit>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell powerprofiles <state|set PROFILE>")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell ipc call <target> <function> [args...]")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell ipc get <target> <property>")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell folders [accent]")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <reload|status|ping|quit>")
 }

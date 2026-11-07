@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -54,104 +53,26 @@ func qsSelect(name string) []string {
 	return []string{"-c", name}
 }
 
-// ipcCall: invoke a Quickshell IpcHandler function. component may have just
-// been started, so it retries briefly until the instance answers.
+// ipcCall invokes a Quickshell IpcHandler function with at most one argument;
+// an empty arg is dropped. Retries follow qsIpc: only a shell that is starting
+// or reloading is retried, a missing target or function never is.
 func ipcCall(config, target, fn, arg string) string {
-	var argv []string
-	if arg != "" {
-		argv = ipcArgv(config, target, fn, arg)
-	} else {
-		argv = ipcArgv(config, target, fn)
+	if arg == "" {
+		return ipcCallN(config, target, fn)
 	}
-	var out []byte
-	var err error
-	for i := 0; i < 10; i++ {
-		out, err = exec.Command("qs", argv...).CombinedOutput()
-		if err == nil {
-			return "ok"
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
-	msg := strings.TrimSpace(string(out))
-	if msg == "" {
-		msg = err.Error()
-	}
-	return "err qs ipc " + config + "/" + fn + ": " + msg
+	return ipcCallN(config, target, fn, arg)
 }
 
-// ipcCallN = ipcCall for IpcHandler functions that take more than one arg
-// (e.g. pluginPopout(mon, id)). empty trailing args still go positionally.
+// ipcCallN = ipcCall for IpcHandler functions that take more than one arg.
+// Empty trailing args still go positionally.
 func ipcCallN(config, target, fn string, args ...string) string {
-	argv := ipcArgv(config, target, fn, args...)
-	var out []byte
-	var err error
-	for i := 0; i < 10; i++ {
-		out, err = exec.Command("qs", argv...).CombinedOutput()
-		if err == nil {
-			return "ok"
-		}
-		time.Sleep(150 * time.Millisecond)
+	if _, err := qsIpc(ipcArgv(config, target, fn, args...)); err != nil {
+		return "err qs ipc " + config + "/" + fn + ": " + err.Error()
 	}
-	msg := strings.TrimSpace(string(out))
-	if msg == "" {
-		msg = err.Error()
-	}
-	return "err qs ipc " + config + "/" + fn + ": " + msg
+	return "ok"
 }
 
-// ryoku: the pill was consolidated into the single shell instance, which serves
-// no command socket (its shell.qml omits the SocketServer fast path). The pill
-// socket helpers below and pillIpc are therefore dead in production; they are
-// retained (and still covered by pillipc_test.go) for the retire phase rather
-// than deleted here, to keep this cutover minimal and reversible.
-// pillSockPath: the pill's command socket. The pill (a persistent Quickshell
-// component) serves it; the daemon writes a surface command here to skip the
-// `qs ipc call` subprocess on the keybind hot path.
-func pillSockPath() string {
-	dir := os.Getenv("XDG_RUNTIME_DIR")
-	if dir == "" {
-		dir = "/tmp"
-	}
-	return filepath.Join(dir, "ryoku-pill.sock")
-}
-
-// pillSocketCall writes one command line to the pill socket and reports whether
-// the pill acknowledged with "ok". A miss (socket down, pill restarting, an
-// unknown command) returns false so the caller falls back to the qs client.
-func pillSocketCall(line string) bool {
-	conn, err := net.DialTimeout("unix", pillSockPath(), 200*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(time.Second))
-	if _, err := fmt.Fprintln(conn, line); err != nil {
-		return false
-	}
-	buf := make([]byte, 16)
-	n, _ := conn.Read(buf)
-	return strings.TrimSpace(string(buf[:n])) == "ok"
-}
-
-// pillIpc invokes a pill IpcHandler function, preferring the command socket and
-// falling back to the qs client when it is unreachable. Empty args drop out of
-// the socket line; the qs fallback keeps the same positional argv.
-func pillIpc(fn string, args ...string) string {
-	line := fn
-	for _, a := range args {
-		if a != "" {
-			line += " " + a
-		}
-	}
-	if pillSocketCall(line) {
-		return "ok"
-	}
-	return ipcCallN("pill", "pill", fn, args...)
-}
-
-// shellIpc invokes a "shell" IpcHandler function through the qs client. Unlike
-// the pill, the single consolidated shell serves no command socket, so there is
-// no socket fast path to prefer: every call goes straight to the qs client. A
+// shellIpc invokes a "shell" IpcHandler function through the qs client. A
 // package var so tests can capture the emitted call in place of a live
 // Quickshell.
 var shellIpc = func(fn string, args ...string) string {

@@ -133,9 +133,7 @@ type daemon struct {
 	stageLast    *stageJobResult
 	stageJobNext int64
 	ledsSig      chan struct{} // coalescing wake for the OpenRGB worker
-	widgetSig    chan struct{} // coalescing wake for the widget-occupancy gate
 	guardKick    chan struct{} // coalescing wake for the qylock fallback-guard watcher
-	parkSig      chan struct{} // coalescing wake for palette idle deadlines and saver changes
 	sunSig       chan struct{} // wakes the sun-mode worker on knob/window changes
 	quit         chan struct{}
 	closed       bool
@@ -162,26 +160,21 @@ type daemon struct {
 	wmVersions   map[string]int // frame kind -> publishes since daemon start
 	wmTopic      *stateTopic
 	wmFocusTopic *stateTopic
-	nightlight   *nightlightState         // night-light self-heal (nil until started)
-	gateMu       sync.Mutex               // guards gateWant / gateWake
-	gateWant     map[string]bool          // component -> may run now (absent = yes)
-	gateWake     map[string]chan struct{} // wakes a parked supervisor when its gate opens
-	parkMu       sync.Mutex               // guards hiddenSince
-	hiddenSince  map[string]time.Time     // parkable palette -> when it last went hidden (absent = shown)
-	topicsMu     sync.Mutex               // guards topics
-	topics       map[string]*stateTopic   // subsystem name -> pub/sub state topic
-	callsMu      sync.Mutex               // guards calls
-	calls        map[string]callFunc      // "topic.method" -> control handler
-	clip         *clipState               // clipboard history state (nil until started)
-	tray         *trayState               // system tray watcher/host state (nil until started)
-	ryoWallMu    sync.Mutex               // guards ryoWall
-	ryoWall      ryogamiFrame             // last wallpaper frame seen from ryogami; feeds the stage worker
-	polkit       *polkitAgent             // PolicyKit1 authentication agent (nil when unavailable)
-	settings     *settingsStore           // shell.json store (nil until startSettings)
-	pp           *powerProfilesState      // power-profiles-daemon bus state
-	keypress     *keypressManager         // evdev key stream while the overlay is enabled
-	mousemap     *mouseMapManager         // per-mouse evdev grab + uinput clone remapper
-	sun          *sunState                // latest weather sunrise/sunset window
+	nightlight   *nightlightState       // night-light self-heal (nil until started)
+	topicsMu     sync.Mutex             // guards topics
+	topics       map[string]*stateTopic // subsystem name -> pub/sub state topic
+	callsMu      sync.Mutex             // guards calls
+	calls        map[string]callFunc    // "topic.method" -> control handler
+	clip         *clipState             // clipboard history state (nil until started)
+	tray         *trayState             // system tray watcher/host state (nil until started)
+	ryoWallMu    sync.Mutex             // guards ryoWall
+	ryoWall      ryogamiFrame           // last wallpaper frame seen from ryogami; feeds the stage worker
+	polkit       *polkitAgent           // PolicyKit1 authentication agent (nil when unavailable)
+	settings     *settingsStore         // shell.json store (nil until startSettings)
+	pp           *powerProfilesState    // power-profiles-daemon bus state
+	keypress     *keypressManager       // evdev key stream while the overlay is enabled
+	mousemap     *mouseMapManager       // per-mouse evdev grab + uinput clone remapper
+	sun          *sunState              // latest weather sunrise/sunset window
 	sleepMu      sync.RWMutex
 	sleep        *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
 	suspendReqMu sync.Mutex
@@ -322,22 +315,17 @@ func runDaemon() error {
 	}
 
 	d := &daemon{
-		sup:         map[string]bool{},
-		proc:        map[string]*exec.Cmd{},
-		paintSig:    make(chan struct{}, 1),
-		stageSig:    make(chan struct{}, 1),
-		ledsSig:     make(chan struct{}, 1),
-		widgetSig:   make(chan struct{}, 1),
-		guardKick:   make(chan struct{}, 1),
-		parkSig:     make(chan struct{}, 1),
-		sunSig:      make(chan struct{}, 1),
-		quit:        make(chan struct{}),
-		gateWant:    map[string]bool{},
-		gateWake:    map[string]chan struct{}{},
-		hiddenSince: map[string]time.Time{},
-		lastFail:    map[string]string{},
-		wmc:         wmc,
-		sun:         daySun,
+		sup:       map[string]bool{},
+		proc:      map[string]*exec.Cmd{},
+		paintSig:  make(chan struct{}, 1),
+		stageSig:  make(chan struct{}, 1),
+		ledsSig:   make(chan struct{}, 1),
+		guardKick: make(chan struct{}, 1),
+		sunSig:    make(chan struct{}, 1),
+		quit:      make(chan struct{}),
+		lastFail:  map[string]string{},
+		wmc:       wmc,
+		sun:       daySun,
 	}
 	d.ln = ln
 	d.lock = lock // held for the process lifetime: closing it would free the guard
@@ -479,6 +467,7 @@ func (d *daemon) bootstrap() {
 	d.startCalendar()
 	d.startPowerProfiles()
 	d.startNetwork()
+	d.startBluez()
 	d.startNightlight()
 	go d.watchSunMode()
 	d.startOsd()
@@ -497,8 +486,6 @@ func (d *daemon) bootstrap() {
 	d.startWM()
 	go d.watchPowerSounds()
 	go d.watchAutoPowerSaver()
-	go d.widgetGateWorker()
-	go d.idlePark()
 	d.startSleepWake()
 	go d.startComponents()
 }
@@ -1018,37 +1005,19 @@ func (d *daemon) supervise(name string) {
 			return
 		default:
 		}
-		// Park while an idle-freeable component's gate is closed. A fresh open
-		// wakes the supervisor; the timeout is only a safety re-check.
-		for !d.gateAllows(name) {
-			select {
-			case <-d.quit:
-				return
-			case <-d.gateWaitCh(name):
-			case <-time.After(5 * time.Second):
-			}
-		}
 		// Never start a second copy of a surface: anything already rendering this
 		// component is a leftover (our own child is tracked, so it is excluded),
 		// and it goes before we draw over it.
 		d.reapStrays()
 		ensureStoreIndexDir()
-		var desktop *desktopRun
-		var cmd *exec.Cmd
-		if name == "shell" {
-			var err error
-			cmd, desktop, err = d.desktopCommand()
-			if err != nil {
-				if desktop != nil {
-					d.fallbackRuntime(desktop.item, err.Error())
-				}
-				time.Sleep(backoff)
-				backoff = nextRuntimeBackoff(backoff)
-				continue
+		cmd, desktop, err := d.desktopCommand()
+		if err != nil {
+			if desktop != nil {
+				d.fallbackRuntime(desktop.item, err.Error())
 			}
-		} else {
-			cmd = exec.Command("qs", qsSelect(name)...)
-			cmd.Env = qsEnv()
+			time.Sleep(backoff)
+			backoff = nextRuntimeBackoff(backoff)
+			continue
 		}
 		// Keep the surface's own output: a config that fails to load reports on
 		// stdout and a loader failure on stderr, and without both a black screen
@@ -1082,9 +1051,6 @@ func (d *daemon) supervise(name string) {
 		d.mu.Unlock()
 		if name == "shell" {
 			d.captureShellSnapshot()
-		}
-		if parkable(name) {
-			d.markHidden(name)
 		}
 		exited := make(chan struct{})
 		if desktop != nil && desktop.runtime {
@@ -1173,60 +1139,6 @@ func (d *daemon) supervise(name string) {
 	}
 }
 
-// gateAllows reports whether the supervisor may (re)start name now. Any
-// component without a gate defaults to true, so gating is strictly opt-in and a
-// cleared gate never blocks a start.
-func (d *daemon) gateAllows(name string) bool {
-	d.gateMu.Lock()
-	defer d.gateMu.Unlock()
-	w, ok := d.gateWant[name]
-	return !ok || w
-}
-
-// gateWaitCh returns name's wake channel, creating it on first use so a parked
-// supervisor can block until its gate opens.
-func (d *daemon) gateWaitCh(name string) chan struct{} {
-	d.gateMu.Lock()
-	defer d.gateMu.Unlock()
-	ch := d.gateWake[name]
-	if ch == nil {
-		ch = make(chan struct{}, 1)
-		d.gateWake[name] = ch
-	}
-	return ch
-}
-
-// setGate opens or closes a component's run gate. Opening wakes a parked
-// supervisor; closing SIGTERMs the live process so its supervisor parks instead
-// of respawning. Only real state changes act.
-func (d *daemon) setGate(name string, want bool) {
-	d.gateMu.Lock()
-	prev, ok := d.gateWant[name]
-	d.gateWant[name] = want
-	ch := d.gateWake[name]
-	if ch == nil {
-		ch = make(chan struct{}, 1)
-		d.gateWake[name] = ch
-	}
-	d.gateMu.Unlock()
-	if ok && prev == want {
-		return
-	}
-	if want {
-		select {
-		case ch <- struct{}{}:
-		default:
-		}
-		return
-	}
-	d.mu.Lock()
-	cmd := d.proc[name]
-	d.mu.Unlock()
-	if cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Signal(syscall.SIGTERM)
-	}
-}
-
 func (d *daemon) signalQuit() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1303,6 +1215,11 @@ func (d *daemon) handle(conn net.Conn) {
 		fmt.Fprintln(conn, d.clipCopy(cmd))
 		return
 	}
+	// `ryoku-shell ipc` args ride as JSON so empty and spaced ones survive.
+	if strings.HasPrefix(cmd, "ipc ") {
+		fmt.Fprintln(conn, ipcRequest(strings.TrimPrefix(cmd, "ipc ")))
+		return
+	}
 	fmt.Fprintln(conn, d.dispatch(cmd))
 }
 
@@ -1333,19 +1250,14 @@ var surfaceCommands = map[string]string{
 	"menu app-launcher":   "launcher",
 }
 
-// route resolves an IPC-style command to the single shell's IpcHandler config,
-// target, and function it triggers. The consolidated shell renders every surface
-// in-process, so a matched command always resolves to config and target "shell"
-// and the openSurface entry point on its surface bus. ok is false for commands
-// that need more than one IPC call (wallpaper, reload, status, ...).
-func route(cmd string) (config, target, fn string, ok bool) {
-	if _, ok := surfaceCommands[cmd]; ok {
-		return "shell", "shell", "openSurface", true
+// route resolves a surface command to the openSurface id the single shell
+// routes it to. ok is false for commands that are not one surface toggle
+// (wallpaper, reload, status, ...).
+func route(cmd string) (id string, ok bool) {
+	if id, ok := surfaceCommands[cmd]; ok {
+		return id, true
 	}
-	if _, ok := menuID(cmd); ok {
-		return "shell", "shell", "openSurface", true
-	}
-	return "", "", "", false
+	return menuID(cmd)
 }
 
 func validBarStyleID(id string) bool {
@@ -1397,30 +1309,9 @@ func (d *daemon) dispatch(line string) string {
 	case "powerprofiles":
 		return d.powerProfilesCLI(args)
 	}
-	if config, target, fn, ok := route(routeCmd); ok {
-		if componentDisabled(config) {
-			// the user turned this component off; its keybind is a silent no-op
-			// rather than a failed ipc call to a process that will never start.
-			return "ok"
-		}
-		d.ensure(config)
-		if parkable(config) {
-			// An explicit open wins over the idle-unload gate, then ipcCall
-			// retries until the palette's fresh process answers.
-			d.setGate(config, true)
-		}
-		mon := d.activeMonitor()
-		if config == "shell" {
-			if fn == "openSurface" {
-				id, menu := menuID(routeCmd)
-				if !menu {
-					id = surfaceCommands[routeCmd]
-				}
-				return shellIpc(fn, mon, id)
-			}
-			return shellIpc(fn, mon)
-		}
-		return ipcCall(config, target, fn, mon)
+	if id, ok := route(routeCmd); ok {
+		d.ensure("shell")
+		return shellIpc("openSurface", d.activeMonitor(), id)
 	}
 
 	switch cmd {
@@ -1556,13 +1447,7 @@ func (d *daemon) dispatch(line string) string {
 		}
 		return d.brightness(args[0])
 	case "hub":
-		switch len(args) {
-		case 1:
-			return d.hub(args[0], "")
-		case 2:
-			return d.hub(args[0], args[1])
-		}
-		return "err hub: expected open [section] or close"
+		return d.hub(args)
 	case "stage":
 		stageLine, wall, scoped := splitStageWall(line)
 		stageFields := strings.Fields(stageLine)
@@ -1775,15 +1660,6 @@ func (d *daemon) dispatch(line string) string {
 			return "ok"
 		}
 		return "err plugins: unknown action"
-	case "state":
-		// a parkable palette (launcher/overview) reporting its open state for the
-		// idle-park worker: `state <name> <0|1>`. 1 shows (cancels the park grace),
-		// 0 hides (starts it).
-		if len(args) < 2 {
-			return "err state: need <name> <0|1>"
-		}
-		d.setPaletteVisible(args[0], args[1] == "1")
-		return "ok"
 	case "sound":
 		// an event cue from a config outside the daemon (ryoshot fires the
 		// shutter on capture). The daemon owns the assets and playback; it only

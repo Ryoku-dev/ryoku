@@ -1,6 +1,3 @@
-//@ pragma UseQApplication
-//@ pragma DefaultEnv QSG_RENDER_LOOP = basic
-
 import QtQuick
 import QtQuick.Effects
 import Quickshell

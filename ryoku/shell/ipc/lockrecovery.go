@@ -21,6 +21,7 @@ type lockRecoveryPolicy struct {
 	mu         sync.Mutex
 	now        func() time.Time
 	launch     func() error
+	wake       chan struct{} // rouses watch when a lock is confirmed
 	held       bool
 	recovering bool
 	started    time.Time
@@ -28,7 +29,7 @@ type lockRecoveryPolicy struct {
 }
 
 func newLockRecoveryPolicy(now func() time.Time, launch func() error) *lockRecoveryPolicy {
-	return &lockRecoveryPolicy{now: now, launch: launch}
+	return &lockRecoveryPolicy{now: now, launch: launch, wake: make(chan struct{}, 1)}
 }
 
 func (p *lockRecoveryPolicy) confirmed() {
@@ -37,6 +38,10 @@ func (p *lockRecoveryPolicy) confirmed() {
 	p.recovering = false
 	p.attempts = 0
 	p.mu.Unlock()
+	select {
+	case p.wake <- struct{}{}:
+	default:
+	}
 }
 
 func (p *lockRecoveryPolicy) unlocked() {
@@ -82,6 +87,40 @@ func (p *lockRecoveryPolicy) step(secure bool) (bool, error) {
 	return true, launch()
 }
 
+// watch polls the lock proof only while a session lock is held; otherwise it
+// sleeps until confirmed() wakes it. skip pauses steps (generation cutover).
+func (p *lockRecoveryPolicy) watch(quit <-chan struct{}, poll time.Duration, skip, secure func() bool) {
+	for {
+		if !p.active() {
+			select {
+			case <-quit:
+				return
+			case <-p.wake:
+			}
+			continue
+		}
+		ticker := time.NewTicker(poll)
+		for p.active() {
+			select {
+			case <-quit:
+				ticker.Stop()
+				return
+			case <-ticker.C:
+			}
+			if skip() {
+				continue
+			}
+			launched, err := p.step(secure())
+			if err != nil {
+				log.Printf("ryoku-shell: relaunch qylock while session lock is held: %v", err)
+			} else if launched {
+				log.Printf("ryoku-shell: qylock proof disappeared while session lock is held; relaunching")
+			}
+		}
+		ticker.Stop()
+	}
+}
+
 func (d *daemon) confirmLockRecovery() {
 	if d.lockRecovery != nil {
 		d.lockRecovery.confirmed()
@@ -99,24 +138,5 @@ func (d *daemon) startLockRecovery() {
 	if lockProofValid() {
 		d.lockRecovery.confirmed()
 	}
-	go func() {
-		ticker := time.NewTicker(lockRecoveryPoll)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-d.quit:
-				return
-			case <-ticker.C:
-				if d.lockQuiesced.Load() || !d.lockRecovery.active() {
-					continue
-				}
-				launched, err := d.lockRecovery.step(lockProofValid())
-				if err != nil {
-					log.Printf("ryoku-shell: relaunch qylock while session lock is held: %v", err)
-				} else if launched {
-					log.Printf("ryoku-shell: qylock proof disappeared while session lock is held; relaunching")
-				}
-			}
-		}
-	}()
+	go d.lockRecovery.watch(d.quit, lockRecoveryPoll, d.lockQuiesced.Load, lockProofValid)
 }

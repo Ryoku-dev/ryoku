@@ -905,13 +905,13 @@ ShellRoot {
             Keyring.clear();
             ShellState.closeSurface("keyring", "");
         }
-        function voiceShow(mon: string): void { ShellState.requestSurface("voice", mon, undefined); }
-        function voiceOff(mon: string): void { ShellState.requestSurface("voice-off", mon, undefined); }
-        function voiceHide(): void { ShellState.closeSurface("voice", ""); }
-        function pluginPopout(mon: string, id: string): void { ShellState.requestSurface("plugin:" + id, mon, undefined); }
-        function bar(mon: string, id: string): void { ShellState.requestSurface(id, mon, undefined); }
         function closeAllMenus(mon: string): void { ShellState.closeSurface("", mon); }
-        function sessionConfirm(mon: string, action: string): void { ShellState.askSessionAction(action, mon); }
+        // The daemon's push after it writes colors.json; both palette readers
+        // re-read the file in case their watch missed the rename.
+        function reloadPalette(): void {
+            Tokens.reloadPalette();
+            Scheme.reload();
+        }
     }
 
     // The Hub's "Place on the desktop" button lands here: a slider cannot let a

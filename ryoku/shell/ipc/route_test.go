@@ -6,39 +6,39 @@ import "testing"
 // entry silently opens the wrong surface, so pin every command.
 func TestRoute(t *testing.T) {
 	cases := []struct {
-		cmd, config, target, fn string
+		cmd, id string
 	}{
-		{"launcher", "shell", "shell", "openSurface"},
-		{"tools", "shell", "shell", "openSurface"},
-		{"overview", "shell", "shell", "openSurface"},
-		{"visualizer", "shell", "shell", "openSurface"},
-		{"visualizer-overlay", "shell", "shell", "openSurface"},
-		{"menu app-launcher", "shell", "shell", "openSurface"},
-		{"menu quick-settings", "shell", "shell", "openSurface"},
-		{"menu theme", "shell", "shell", "openSurface"},
-		{"menu wallpaper", "shell", "shell", "openSurface"},
-		{"menu screenshot", "shell", "shell", "openSurface"},
-		{"install", "shell", "shell", "openSurface"},
-		{"compress", "shell", "shell", "openSurface"},
-		{"ask", "shell", "shell", "openSurface"},
-		{"ask chat", "shell", "shell", "openSurface"},
-		{"ask tools", "shell", "shell", "openSurface"},
-		{"bar-toggle", "shell", "shell", "openSurface"},
-		{"visualizer-place", "shell", "shell", "openSurface"},
-		{"quicksettings", "shell", "shell", "openSurface"},
-		{"wallpaper-menu", "shell", "shell", "openSurface"},
-		{"clipboard", "shell", "shell", "openSurface"},
-		{"settings", "shell", "shell", "openSurface"},
-		{"cheatsheet", "shell", "shell", "openSurface"},
-		{"screenshot", "shell", "shell", "openSurface"},
+		{"launcher", "launcher"},
+		{"tools", "tools"},
+		{"overview", "overview"},
+		{"visualizer", "visualizer"},
+		{"visualizer-overlay", "visualizer-overlay"},
+		{"menu app-launcher", "launcher"},
+		{"menu quick-settings", "sidebar-left"},
+		{"menu theme", "theme"},
+		{"menu wallpaper", "wallpaper"},
+		{"menu screenshot", "screenshot"},
+		{"install", "ask#tools/install"},
+		{"compress", "ask#tools/compress"},
+		{"ask", "ask"},
+		{"ask chat", "ask#chat"},
+		{"ask tools", "ask#tools"},
+		{"bar-toggle", "barToggle"},
+		{"visualizer-place", "visualizer-place"},
+		{"quicksettings", "sidebar-left"},
+		{"wallpaper-menu", "wallpaper"},
+		{"clipboard", "clipboard"},
+		{"settings", "settings"},
+		{"cheatsheet", "cheatsheet"},
+		{"screenshot", "screenshot"},
 	}
 	for _, c := range cases {
-		config, target, fn, ok := route(c.cmd)
+		id, ok := route(c.cmd)
 		if !ok {
 			t.Fatalf("route(%q) not ok", c.cmd)
 		}
-		if config != c.config || target != c.target || fn != c.fn {
-			t.Fatalf("route(%q) = (%s,%s,%s), want (%s,%s,%s)", c.cmd, config, target, fn, c.config, c.target, c.fn)
+		if id != c.id {
+			t.Fatalf("route(%q) = %q, want %q", c.cmd, id, c.id)
 		}
 	}
 	for _, cmd := range []string{
@@ -47,13 +47,9 @@ func TestRoute(t *testing.T) {
 		"voice", "lock", "wallpaper", "wallpaper-switcher", "reload", "status",
 		"ping", "quit", "bogus", "", "power", "menu system", "menu recording",
 		"menu clipboard", "menu stash", "stash",
+		"menu", "menu bogus", "menu clock extra", "bar", "bar left", "bar left toggle",
 	} {
-		if _, _, _, ok := route(cmd); ok {
-			t.Fatalf("route(%q) should not be a single IPC call", cmd)
-		}
-	}
-	for _, cmd := range []string{"menu", "menu bogus", "menu clock extra", "bar", "bar left", "bar left toggle"} {
-		if _, _, _, ok := route(cmd); ok {
+		if _, ok := route(cmd); ok {
 			t.Fatalf("route(%q) should not be a single IPC call", cmd)
 		}
 	}

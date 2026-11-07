@@ -269,6 +269,9 @@ Singleton {
         }
         blendWalk.restart();
     }
+    // The daemon's palette push: re-read colors.json when the file watch missed
+    // an atomic-rename replacement.
+    function reloadPalette() { paletteFile.reload(); }
     function refreshNamed() {
         var pal = null;
         var scale = 1.0;

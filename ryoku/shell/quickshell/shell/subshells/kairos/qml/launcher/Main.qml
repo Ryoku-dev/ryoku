@@ -4,8 +4,6 @@
 //
 // The window maps at full size so the pill can morph without buffer resizes.
 
-//@ pragma UseQApplication
-
 import QtQuick
 import QtQuick.Effects
 import QtQuick.Layouts

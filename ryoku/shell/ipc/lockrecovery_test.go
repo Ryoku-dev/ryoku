@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -83,5 +84,45 @@ func TestLockRecoveryStopsWhenUnlockStarts(t *testing.T) {
 	}
 	if launches != 1 {
 		t.Fatalf("launches after unlock = %d, want 1", launches)
+	}
+}
+
+// The proof is only polled while a session lock is held: an unlocked session
+// costs no wakeups, a confirmed lock starts the poll, and an unlock stops it.
+func TestLockRecoveryWatchPollsOnlyWhileHeld(t *testing.T) {
+	policy := newLockRecoveryPolicy(time.Now, func() error { return nil })
+	var checks atomic.Int64
+	secure := func() bool { checks.Add(1); return true }
+	quit := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		policy.watch(quit, time.Millisecond, func() bool { return false }, secure)
+		close(done)
+	}()
+	defer func() {
+		close(quit)
+		<-done
+	}()
+
+	time.Sleep(40 * time.Millisecond)
+	if n := checks.Load(); n != 0 {
+		t.Fatalf("unlocked session polled the proof %d times, want 0", n)
+	}
+
+	policy.confirmed()
+	deadline := time.Now().Add(2 * time.Second)
+	for checks.Load() == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("confirmed lock never polled the proof")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	policy.unlocked()
+	time.Sleep(20 * time.Millisecond)
+	settled := checks.Load()
+	time.Sleep(40 * time.Millisecond)
+	if n := checks.Load(); n != settled {
+		t.Fatalf("proof polled %d more times after unlock, want 0", n-settled)
 	}
 }

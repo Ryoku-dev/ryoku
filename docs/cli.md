@@ -571,8 +571,24 @@ See `docs/subshells.md` for the model.
 
 `ryoku-shell bar ...` is gone. A bar layout belongs to the item that draws it:
 QS Bar answers on its own IPC target `qsbar` while it is active, for example
-`qs -c shell ipc call qsbar move clock right after:media`. The calls are listed
+`ryoku-shell ipc call qsbar move clock right after:media`. The calls are listed
 in the QS Bar item's README in the catalogue repo.
+
+### `ryoku-shell ipc`
+
+Calls into the running shell's IPC handlers, the same ones `qs ipc` reaches,
+through the daemon, so it also finds a subshell that replaced the resident
+shell.
+
+- `ipc call <target> <function> [args...]` runs one function and prints what it
+  returns. Every argument is passed as is, empty ones included.
+  `ryoku-shell ipc call desktop editSection widgets ""`
+- `ipc get <target> <property>` prints one property.
+  `ryoku-shell ipc get camera active`
+
+It exits 1 with an `err ...` line when the target, function or property does
+not exist, no shell is running, a call takes longer than 3 seconds, or `qs`
+fails. A shell that is still starting or reloading gets 1.5 seconds to answer.
 
 ### `ryoku-shell dock`
 
