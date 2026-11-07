@@ -14,6 +14,10 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Matugen template rendering now preserves distinct `dark` and `light` buckets in
+  the carrier data instead of duplicating the active palette into both, allowing
+  multi-theme applications like Zed editor to render both dark and light themes
+  accurately under any wallpaper brightness.
 - A QML object that sets the same property or handler twice can no longer be
   committed or pass QML Lint. qmllint never flagged it, yet the file refuses to
   load, and one such slip in the audio service kept the desktop from starting.
