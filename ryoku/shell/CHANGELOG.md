@@ -1,6 +1,26 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Each shell process keeps one connection to the daemon.** The shell,
+  ryoshot, ryopin and welcome used up to twenty sockets each (one per topic and
+  per service); `Bus` in `Ryoku.Ui` now carries every subscription, call and
+  daemon verb over one, parses each frame once, and reconnects and resyncs on
+  its own. Settings changes arrive as small patches instead of the whole file,
+  and each process reads settings through one `ShellSettings`
+  (`ipc/bus.go`, `ryoku/ui/Singletons/Bus.qml`).
+- **Keybinds open shell surfaces without a helper per press on niri and
+  Wayfire.** The daemon reaches the shell's IPC targets over that connection
+  instead of starting a `qs ipc` client, and the shell no longer starts
+  `ryoku-shell` to run its own verbs; launcher actions that open a shell
+  surface open it in process.
+- **Weather, holidays and update checks run only while something shows them.**
+  The daemon stops fetching and checking when nothing subscribes, and catches
+  up at once when something does. The night light and the sun theme still get
+  their sunrise and sunset.
+- **The keypress and mouse feeds can no longer stall the daemon.** A slow
+  reader loses its oldest events instead of blocking the input readers.
+- The Stage depth pick reads the sampled depth again; the daemon's reply was
+  being parsed with its status word attached.
 - **The daemon stops reconnecting to logind ten times a second.** When no
   graphical session is registered the sleep guard retries quickly for two
   seconds, then backs off to 30 s, keeps one system bus connection, and

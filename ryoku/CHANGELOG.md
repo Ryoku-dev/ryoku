@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Window actions reuse one provider process.** Each compositor provider has
+  a `serve` verb, and the daemon keeps one warm, so a dock click or a
+  workspace switch no longer starts a provider process (`wm/serve.go`,
+  `wm/warm.go`).
 - **Rashin's shell commands use `ryoku-shell ipc`.** Its GUI map, QS Bar
   command block and skills name `ryoku-shell ipc call`, it probes the QS Bar
   catalogue only while QS Bar is active, and its read-only classifier knows the

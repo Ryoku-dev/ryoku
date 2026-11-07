@@ -9,6 +9,11 @@
   app windows (`modules/binds.lua`, `modules/window_rules.lua`).
 
 ### Changed
+- **Workspace keys run in Lua.** Super+1..0 with Alt, Shift and the number
+  pad, Super+H and Super+Alt+H no longer run the `ryoku-workspace` helper; the
+  per-desktop slots and the scratchpad live in `modules/workspaces.lua`, so a
+  press starts no process. `scripts/ryoku-workspace` stays as a front end for
+  Kit's commands.
 - **Super+Q follows the active subshell or bar style.** The close goes through
   the shell only when the active item takes over window closing, and the volume
   keys read the shared `audio.boost` (`modules/binds.lua`).

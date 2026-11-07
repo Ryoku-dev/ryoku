@@ -36,6 +36,20 @@ The shell, the Hub and the daemon read what an item is, owns and provides from
 namespaces in `Config.qml` hold data only, and data migrations are the one
 exception. See `docs/subshells.md`.
 
+## The daemon is reached through Bus, one connection per process
+
+QML talks to `ryoku-shell` only through `Bus` and `ShellSettings` in
+`Ryoku.Ui.Singletons` (and `BusTopic`, `BusIpcHandler`, `ShellSetting` in
+`Ryoku.Ui`). A topic is `Bus.subscribe` or a `BusTopic`, a control method is
+`Bus.call`, a daemon verb is `Bus.run("hub open controls")`, never a spawned
+`ryoku-shell <verb>`, and a call into another process's IPC target is
+`Bus.ipc`. Settings are read from `ShellSettings`, never from a FileView on
+`shell.json`. An IPC target the daemon or another process calls is a
+`BusIpcHandler`, so the call arrives over the open connection instead of a new
+`qs ipc` client. Something the shell itself would end up handling (opening one
+of its surfaces) is a direct call, not a round trip through the daemon. The
+protocol is described at the top of `ryoku/shell/ipc/bus.go`.
+
 ## Launching a process goes through Spawn
 
 Anything a surface starts that can end up running Quickshell (an app, a desktop

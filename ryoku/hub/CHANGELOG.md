@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Opening a Hub page reaches a running Hub with one call.** The Hub keeps
+  one bus connection to the daemon, serves its navigation over it, and a cold
+  start waits for the Hub to register instead of probing it with a `qs` client
+  every 250 ms.
 - **Dragging a Hub slider no longer writes the settings file on every step.**
   Writes to the same setting are coalesced for 120 ms (at most 400 ms during a
   long drag), the control moves at once, and pending writes are sent before
