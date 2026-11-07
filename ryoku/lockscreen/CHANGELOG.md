@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **A picked skin stays on the Fedora sign-in screen.** `sddm-theme-ryoku` owned
+  the skin files in `/usr/share/sddm/themes/ryoku`, so each package update put
+  Orbital back while the Hub still named the pick. The package now owns only the
+  directory, and `ryoku-desktop` rebuilds the host around the skin already there.
 - **Unsafe security-key services can no longer arm the lock.** Every attempt
   validates the CLI-generated service before PAM sees it, and password submits
   now have a separate path from security-key PIN responses.
