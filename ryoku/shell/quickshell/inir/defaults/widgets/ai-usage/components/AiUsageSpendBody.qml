@@ -31,23 +31,40 @@ Item {
         spacing: body.page.step * 3
 
         Item {
+            id: titleRow
             width: parent.width
             height: spendTitle.implicitHeight
             IrisText {
                 id: spendTitle
                 anchors.left: parent.left
+                anchors.right: spendPeriod.left
+                anchors.rightMargin: Math.round(6 * IrisStyle.density)
                 anchors.verticalCenter: parent.verticalCenter
-                text: "Spending"
+                text: body.page.activeTool === "codex" ? "Est. Spending" : "Spending"
+                elide: Text.ElideRight
+                maximumLineCount: 1
                 font.pixelSize: Math.round(12 * IrisStyle.density)
                 font.weight: IrisStyle.weight(Font.DemiBold)
             }
             IrisText {
+                id: spendPeriod
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: "This month"
+                text: "This month" + (body.page.activeTool === "codex"
+                    && (body.page.monthly.partial || body.page.monthly.stale) ? "*" : "")
+            }
+            MouseArea {
+                id: helpArea
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+                StyledToolTip {
+                    extraVisibleCondition: helpArea.containsMouse
+                    text: body.page.spendHelp
+                }
             }
         }
 
@@ -56,16 +73,23 @@ Item {
             height: spendMetric.implicitHeight
             Row {
                 id: spendRow
+                width: parent.width
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Math.round(6 * IrisStyle.density)
                 IrisText {
                     id: spendMetric
                     role: IrisText.Metric
-                    text: body.page.money(body.page.monthly.current)
+                    text: body.page.monthly.available === false ? "—"
+                        : body.page.money(body.page.monthly.current)
+                    width: Math.min(implicitWidth,
+                        Math.max(0, spendRow.width - spendMonth.implicitWidth - spendRow.spacing))
+                    fontSizeMode: Text.Fit
+                    minimumPixelSize: Math.round(14 * IrisStyle.density)
                     font.pixelSize: Math.round(24 * IrisStyle.density)
                 }
                 IrisText {
+                    id: spendMonth
                     anchors.baseline: spendMetric.baseline
                     role: IrisText.Meta
                     color: IrisStyle.muted

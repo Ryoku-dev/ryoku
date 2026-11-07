@@ -64,7 +64,10 @@ AbstractBackgroundWidget {
         }
 
         StyledText {
-            text: root.usage.has ? root.usage.percent7d + "% used" : "—"
+            text: !usage.has ? "—"
+                : usage.hasPlan && usage.windows.length > 0
+                    ? usage.windows[0].pct + "% · " + usage.windows[0].label
+                    : usage.kmg(usage.today) + " tokens today"
             font {
                 pixelSize: Math.round(Appearance.font.pixelSize.large * root.scaleFactor)
                 family: Appearance.font.family.numbers
@@ -79,9 +82,9 @@ AbstractBackgroundWidget {
             height: Math.round(4 * root.scaleFactor)
             radius: height / 2
             color: ColorUtils.applyAlpha(root.colText, 0.15)
-            visible: root.usage.has
+            visible: usage.has && usage.hasPlan && usage.windows.length > 0
             Rectangle {
-                width: parent.width * Math.max(0, Math.min(100, root.usage.percent7d)) / 100
+                width: parent.width * (usage.windows[0]?.pct ?? 0) / 100
                 height: parent.height
                 radius: parent.radius
                 color: root.colText

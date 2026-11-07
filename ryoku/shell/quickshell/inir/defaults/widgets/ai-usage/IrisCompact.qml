@@ -113,12 +113,33 @@ Item {
     // This month's spend from the day buckets (cost is per assistant turn).
     readonly property var monthly: {
         const key = Qt.formatDate(new Date(), "yyyy-MM")
+        if (root.activeTool === "codex") {
+            const estimate = usageModel.spending
+            const available = estimate?.kind === "api-equivalent" && estimate?.month === key
+                && estimate?.amount !== null && estimate?.amount !== undefined
+                && Number.isFinite(Number(estimate.amount)) && Number(estimate.amount) >= 0
+            return ({ current: available ? Number(estimate.amount) : 0,
+                label: root.monthLabel(key), available: available,
+                partial: estimate?.partial === true, stale: estimate?.stale_prices === true })
+        }
         let total = 0
         for (const day of usageModel.days) {
             if (String(day?.date ?? "").slice(0, 7) === key)
                 total += Number(day?.cost ?? 0)
         }
         return ({ current: total, label: root.monthLabel(key) })
+    }
+    readonly property string spendHelp: {
+        if (root.activeTool !== "codex") return "This month's recorded usage cost."
+        const estimate = usageModel.spending
+        let text = "Estimated cost at standard API rates.\nNot a bill or wallet balance."
+        if (usageModel.plan.toLowerCase() === "plus")
+            text += "\nYour Plus usage is covered by your plan."
+        if (root.monthly.partial) text += "\nOnly days with saved prices are included."
+        if (estimate?.price_date) text += "\nLatest saved prices: " + estimate.price_date + "."
+        if (root.monthly.stale) text += "\nPrice refresh pending; saved rates are in use."
+        if (!root.monthly.available) text += "\nNo priced usage is available yet."
+        return text
     }
     readonly property bool hasCostHistory: usageModel.days.some(day => Number(day?.cost ?? 0) > 0)
     readonly property real periodCost: root.activePeriod

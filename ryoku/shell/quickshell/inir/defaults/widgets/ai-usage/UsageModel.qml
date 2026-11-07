@@ -36,6 +36,7 @@ Item {
     property var sessions: []          // [{id, title, directory, started, updated, tokens, cost, running}]
     property var periods: ({})         // "7"/"30"/"all" → {tokens, cacheRate, cost, sessions, models}
     property var windows: []           // [{label, pct, caption, resetTs}] server-reported quota windows
+    property var spending: ({})
     readonly property var runningSessions: root.sessions.filter(s => s && s.running)
     // A provider plan is what makes a 5h/7d window meaningful. The local
     // OpenCode collector says "local messages" and invents its budgets, so
@@ -170,6 +171,7 @@ Item {
         root.sessions = []
         root.periods = ({})
         root.windows = []
+        root.spending = ({})
     }
 
     function pct(value: string): int {
@@ -233,6 +235,8 @@ Item {
                 : ""
             root.windows = root.normalizeWindows(data)
             root.today = Number(data._today_tokens) || 0
+            root.spending = data._spending && typeof data._spending === "object"
+                ? data._spending : ({})
             if (data._recent_days instanceof Array) {
                 const days = data._recent_days
                 root.recent = days.slice(Math.max(0, days.length - 7))

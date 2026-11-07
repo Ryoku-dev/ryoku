@@ -721,7 +721,7 @@ Item {
                             colBackground: ColorUtils.applyAlpha(root.accentInk, 0.08)
                             colBackgroundHover: ColorUtils.applyAlpha(root.accentInk, 0.14)
                             colRipple: ColorUtils.applyAlpha(root.accentInk, 0.12)
-                            releaseAction: () => { CustomWidgets.installShipped(modelData.id); CustomWidgets.reload() }
+                            releaseAction: () => CustomWidgets.installShipped(modelData.id)
                             cancelAction: () => {}
                             contentItem: MaterialSymbol { anchors.centerIn: parent; text: "download"; iconSize: 16; color: root.accentInk }
                             StyledToolTip { text: Translation.tr("Install %1").arg(modelData.name) }

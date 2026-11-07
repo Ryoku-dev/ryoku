@@ -252,9 +252,15 @@ Singleton {
 
     // Copy a shipped widget from defaults into the user's widgets directory
     function installShipped(widgetId: string): void {
-        if (!widgetId || widgetId.length === 0) return;
+        if (typeof widgetId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(widgetId)
+                || _installShippedProcess.running) return;
         _installShippedProcess.widgetId = widgetId;
         _installShippedProcess.running = true;
+    }
+
+    // Keep the original entry point for callers that install the example.
+    function installExample(): void {
+        root.installShipped("example-widget");
     }
 
     // Open widget directory in file manager
@@ -469,14 +475,22 @@ IRIS_QML
         property string widgetId: ""
         running: false
         command: ["bash", "-c", `
-            src="${root.shippedWidgetsDir}/${_installShippedProcess.widgetId}"
-            dest="${root.widgetsDir}/${_installShippedProcess.widgetId}"
+            set -eu
+            src="$1/$3"
+            dest="$2/$3"
             [ -d "$src" ] || { echo "fail"; exit 1; }
-            [ -e "$dest" ] && { echo "exists"; exit 0; }
-            mkdir -p "$dest"
-            cp -r "$src"/. "$dest"/
-            echo "done"
-        `]
+            if [ -e "$dest" ] || [ -L "$dest" ]; then
+                echo "exists"
+                exit 0
+            fi
+            mkdir -p "$2"
+            staging=$(mktemp -d "$2/.install-$3.XXXXXX")
+            trap 'rm -rf -- "$staging"' EXIT
+            cp -r "$src"/. "$staging"/
+            mv -Tn -- "$staging" "$dest"
+            if [ -d "$staging" ]; then echo "exists"; else echo "done"; fi
+        `, "install-shipped-widget", root.shippedWidgetsDir, root.widgetsDir,
+            _installShippedProcess.widgetId]
         stdout: StdioCollector {
             onStreamFinished: root.reload()
         }

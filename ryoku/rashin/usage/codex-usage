@@ -8,7 +8,8 @@ recorded session rollout. Codex can expose multiple independent limit buckets,
 so the cache stores bucket/window metadata instead of assuming Claude's fixed
 5h/7d model.
 """
-import hashlib, json, os, select, shutil, subprocess, sys, time
+import fcntl, hashlib, json, math, os, select, shutil, subprocess, sys, tempfile, time
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -18,6 +19,9 @@ ACTIVITY_FILE = Path(os.environ.get("CODEX_USAGE_ACTIVITY_FILE") or (Path.home()
 ACTIVITY_SCHEMA_VERSION = 4
 RESET_PLAUSIBILITY_SLOP_SECS = 600
 EVENT_CLOCK_SKEW_SECS = 120
+PRICE_URL = "https://models.dev/api.json"
+SPENDING_DIR = Path(os.environ.get("CODEX_USAGE_STATE_DIR") or
+                    (Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "ai-usage"))
 
 
 def now_epoch() -> float:
@@ -29,9 +33,18 @@ def now_epoch() -> float:
 
 def atomic_write_json(path: Path, obj: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(obj, separators=(",", ":")) + "\n")
-    os.replace(tmp, path)
+    tmp = None
+    try:
+        # mkstemp permissions stay private even when the caller has umask 022.
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent,
+                                         prefix=f".{path.name}.", delete=False) as handle:
+            tmp = Path(handle.name)
+            json.dump(obj, handle, separators=(",", ":"))
+            handle.write("\n")
+        os.replace(tmp, path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
 
 
 def runtime_env() -> dict:
@@ -86,20 +99,37 @@ def rpc_request(proc, request_id, method, params=None, timeout=8):
     proc.stdin.write(json.dumps({"id": request_id, "method": method,
                                  "params": params or {}}) + "\n")
     proc.stdin.flush()
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        ready, _, _ = select.select([proc.stdout], [], [], 0.25)
-        if not ready:
-            continue
-        line = proc.stdout.readline()
-        if not line:
-            break
-        try:
-            msg = json.loads(line)
-        except Exception:
-            continue
-        if msg.get("id") == request_id:
+    deadline = time.monotonic() + timeout
+    pending = getattr(proc, "_usage_rpc_pending", b"")
+    try:
+        while time.monotonic() < deadline:
+            if b"\n" not in pending:
+                ready, _, _ = select.select([proc.stdout], [], [],
+                                            min(0.25, max(0, deadline - time.monotonic())))
+                if not ready:
+                    continue
+                chunk = os.read(proc.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                pending += chunk
+            line, separator, remainder = pending.partition(b"\n")
+            if len(line) > 1024 * 1024:
+                raise RuntimeError("RPC response exceeds size limit")
+            if not separator:
+                continue
+            pending = remainder
+            try:
+                msg = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if not isinstance(msg, dict) or msg.get("id") != request_id:
+                continue
+            if "error" in msg:
+                # Error bodies belong to the provider and may contain secrets.
+                raise RuntimeError(f"{method} failed")
             return msg
+    finally:
+        proc._usage_rpc_pending = pending
     raise TimeoutError(method)
 
 
@@ -111,43 +141,57 @@ def fetch_rpc() -> dict | None:
         return None
     try:
         proc = subprocess.Popen(
-            [codex, "-s", "read-only", "-a", "never", "app-server"],
+            [codex, "-s", "read-only", "-a", "never", "app-server", "--listen", "stdio://"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, env=ENV)
-    except Exception as e:
-        sys.stderr.write(f"app-server spawn failed: {e}\n")
-        return None
-    try:
-        rpc_request(proc, 1, "initialize",
-                    {"clientInfo": {"name": "codex-usage", "version": "1"}}, timeout=15)
-        proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
-        proc.stdin.flush()
-    except Exception as e:
-        sys.stderr.write(f"rpc error: {e}\n")
-        return None
-    # The account call only supplies a plan fallback; the rate limits carry
-    # planType themselves. A slow or unauthenticated account read must not
-    # cost the live percentages.
-    account = {}
-    try:
-        account = (rpc_request(proc, 2, "account/read", timeout=6)
-                   .get("result") or {}).get("account") or {}
     except Exception:
-        pass
-    try:
-        rate_limits_result = (rpc_request(proc, 3, "account/rateLimits/read", timeout=10)
-                              .get("result") or {})
-    except Exception as e:
-        sys.stderr.write(f"rpc error: {e}\n")
+        sys.stderr.write("app-server spawn failed\n")
         return None
+    try:
+        try:
+            rpc_request(proc, 1, "initialize",
+                        {"clientInfo": {"name": "codex-usage", "version": "1"}}, timeout=15)
+            proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+            proc.stdin.flush()
+        except Exception:
+            sys.stderr.write("rpc error: initialize\n")
+            return None
+        # The account call only supplies a plan fallback; the rate limits carry
+        # planType themselves. A slow or unauthenticated account read must not
+        # cost the live percentages.
+        account = {}
+        try:
+            account = (rpc_request(proc, 2, "account/read", timeout=6)
+                       .get("result") or {}).get("account") or {}
+        except Exception:
+            pass
+        if str(account.get("type") or "").lower() in ("apikey", "amazonbedrock"):
+            # These accounts have no ChatGPT plan windows. An explicit empty
+            # result prevents historical ChatGPT rollouts becoming live quotas.
+            return {"rateLimits": {}, "rateLimitsByLimitId": None,
+                    "plan": "", "source": "rpc"}
+        try:
+            rate_limits_result = (rpc_request(proc, 3, "account/rateLimits/read", timeout=10)
+                                  .get("result") or {})
+        except Exception:
+            sys.stderr.write("rpc error: account/rateLimits/read\n")
+            return None
     finally:
         try:
-            proc.terminate(); proc.wait(timeout=1)
+            proc.terminate()
+            proc.wait(timeout=1)
         except Exception:
             try:
                 proc.kill()
+                proc.wait(timeout=1)
             except Exception:
                 pass
+        for stream in (proc.stdin, proc.stdout):
+            if stream is not None:
+                try:
+                    stream.close()
+                except OSError:
+                    pass
 
     limits = rate_limits_result.get("rateLimits") or {}
     by_limit = rate_limits_result.get("rateLimitsByLimitId")
@@ -766,6 +810,8 @@ def history_records() -> tuple[list[dict], dict]:
             last_total = 0
             last_cached = 0
             last_output = 0
+            last_write = 0
+            service_tier = "standard"
             lifecycle_ts = 0.0
             lifecycle_running = None
             try:
@@ -801,9 +847,11 @@ def history_records() -> tuple[list[dict], dict]:
                             settings = payload.get("thread_settings") or {}
                             model_id = str(settings.get("model") or model_id)
                             provider_id = str(settings.get("model_provider_id") or provider_id)
+                            service_tier = str(settings.get("service_tier") or service_tier)
                             continue
                         if kind == "turn_context":
                             model_id = str(payload.get("model") or model_id)
+                            service_tier = str(payload.get("service_tier") or service_tier)
                             continue
                         if kind == "event_msg":
                             turn_event = str(payload.get("type") or "")
@@ -833,12 +881,15 @@ def history_records() -> tuple[list[dict], dict]:
                         total = as_int(cumulative.get("total_tokens"))
                         cached = as_int(cumulative.get("cached_input_tokens"))
                         output = as_int(cumulative.get("output_tokens"))
+                        written = as_int(cumulative.get("cache_write_input_tokens"))
                         delta = total - last_total if total >= last_total else total
                         cached_delta = cached - last_cached if cached >= last_cached else cached
                         output_delta = output - last_output if output >= last_output else output
+                        write_delta = written - last_write if written >= last_write else written
                         last_total = total
                         last_cached = cached
                         last_output = output
+                        last_write = written
                         identity = token_event_key(session_id, event)
                         if identity in seen:
                             continue
@@ -848,6 +899,7 @@ def history_records() -> tuple[list[dict], dict]:
                         if tokens <= 0 and cached_delta <= 0:
                             continue
                         records.append({
+                            "event_id": identity,
                             "session_id": session_id,
                             "model_id": model_id,
                             "provider_id": provider_id,
@@ -860,6 +912,9 @@ def history_records() -> tuple[list[dict], dict]:
                             "total_with_cache_read": tokens + max(0, cached_delta),
                             "cost": 0.0,
                             "time": int(stamp * 1000),
+                            "pricing_input": max(0, tokens - output_tokens - write_delta),
+                            "pricing_write": max(0, write_delta),
+                            "service_tier": service_tier,
                         })
             except OSError:
                 continue
@@ -1083,10 +1138,188 @@ def published_codes() -> dict:
         return {}
 
 
+def normalize_prices(catalog: dict) -> dict:
+    """Keep only numeric OpenAI token rates and explicit context tiers."""
+    models = (catalog.get("openai") or {}).get("models") or {}
+    result = {}
+
+    def rates(cost):
+        clean = {}
+        for key in ("input", "output", "cache_read", "cache_write"):
+            value = cost.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool) \
+                    and math.isfinite(value) and 0 <= value <= 1_000_000:
+                clean[key] = float(value)
+        return clean if "input" in clean and "output" in clean else None
+
+    for name, model in models.items():
+        if not isinstance(model, dict) or not isinstance(model.get("cost"), dict):
+            continue
+        cost = model["cost"]
+        clean = rates(cost)
+        if clean is None:
+            continue
+        tiers = []
+        valid = True
+        for tier in cost.get("tiers") or []:
+            spec = tier.get("tier") or {}
+            row = rates(tier)
+            size = as_int(spec.get("size"))
+            if spec.get("type") != "context" or size <= 0 or row is None:
+                valid = False
+                break
+            tiers.append(dict(row, above=size))
+        if valid:
+            result[str(name)] = dict(clean, tiers=sorted(tiers, key=lambda row: row["above"]))
+    return result
+
+
+def fetch_prices() -> dict | None:
+    """Public metadata only: no Codex credentials, proxies or redirects."""
+    fixture = os.environ.get("CODEX_USAGE_PRICES_JSON")
+    try:
+        if fixture is not None:
+            return normalize_prices(json.loads(fixture)) or None
+        if os.environ.get("CODEX_USAGE_DISABLE_PRICES") == "1":
+            return None
+
+        class NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+        request = urllib.request.Request(PRICE_URL, headers={
+            "Accept": "application/json", "User-Agent": "ryoku-ai-usage/1"})
+        with opener.open(request, timeout=8) as response:
+            raw = response.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            return None
+        return normalize_prices(json.loads(raw)) or None
+    except Exception:
+        return None
+
+
+def spending_ledger(month: str) -> dict | None:
+    path = SPENDING_DIR / f"spending-{month}.json"
+    try:
+        value = json.loads(path.read_text())
+        if value.get("schemaVersion") == 1 and value.get("month") == month \
+                and isinstance(value.get("days"), dict) and isinstance(value.get("events"), dict):
+            return value
+    except FileNotFoundError:
+        return {"schemaVersion": 1, "month": month, "currency": "USD", "days": {}, "events": {}}
+    except Exception:
+        pass
+    # Never overwrite an unreadable historical price ledger.
+    return None
+
+
+def price_event(event: dict, prices: dict) -> float | None:
+    if event.get("provider") not in ("", "openai") \
+            or event.get("service_tier") not in ("standard", "default", "auto"):
+        return None
+    rate = prices.get(event["model"])
+    if not isinstance(rate, dict):
+        return None
+    for tier in rate.get("tiers", []):
+        if event["context_input"] > tier["above"]:
+            rate = tier
+    total = 0.0
+    for key in ("input", "output", "cache_read", "cache_write"):
+        count = event[key]
+        value = rate.get(key)
+        if count and (value is None or not math.isfinite(value) or value < 0):
+            return None
+        total += count * (value or 0) / 1_000_000
+    return round(total, 10)
+
+
+def estimate_spending(messages: list[dict]) -> dict:
+    now = now_epoch()
+    today = datetime.fromtimestamp(now).astimezone().strftime("%Y-%m-%d")
+    month = today[:7]
+    summary = {"kind": "api-equivalent", "month": month, "currency": "USD", "amount": None,
+               "partial": True, "priced_tokens": 0, "unpriced_tokens": 0,
+               "priced_days": [], "unpriced_days": [], "stale_prices": False}
+    grouped = {}
+    for message in messages:
+        day = datetime.fromtimestamp(message["time"] / 1000).astimezone().strftime("%Y-%m-%d")
+        grouped.setdefault(day[:7], []).append((day, message))
+    grouped.setdefault(month, [])
+    SPENDING_DIR.mkdir(parents=True, mode=0o700, exist_ok=True)
+    for key, rows in sorted(grouped.items()):
+        ledger = spending_ledger(key)
+        if ledger is None:
+            continue
+        days, events = ledger["days"], ledger["events"]
+        if key == month:
+            snapshot = days.setdefault(today, {})
+            if (not snapshot.get("prices") or snapshot.get("stale_prices")) \
+                    and now - snapshot.get("last_attempt", 0) >= 900:
+                snapshot["last_attempt"] = now
+                prices = fetch_prices()
+                if prices:
+                    snapshot.update(prices=prices, price_date=today, fetched_at=now,
+                                    source=PRICE_URL, stale_prices=False)
+                elif not snapshot.get("prices"):
+                    candidates = [value for date, value in days.items()
+                                  if date < today and value.get("prices")]
+                    if not candidates:
+                        previous_month = (datetime.fromtimestamp(now).astimezone().date()
+                                          .replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+                        previous = spending_ledger(previous_month)
+                        candidates = [value for value in (previous or {}).get("days", {}).values()
+                                      if value.get("prices")]
+                    if candidates:
+                        old = max(candidates, key=lambda row: row.get("fetched_at", 0))
+                        snapshot.update(prices=old["prices"], price_date=old["price_date"],
+                                        fetched_at=old["fetched_at"], source=PRICE_URL, stale_prices=True)
+        for day, message in rows:
+            events[message["event_id"]] = {
+                "date": day, "model": message["model_id"], "provider": message["provider_id"],
+                "input": message["pricing_input"], "output": message["output"],
+                "cache_read": message["cache_read"], "cache_write": message["pricing_write"],
+                "context_input": message["input"] + message["cache_read"],
+                "service_tier": message["service_tier"]}
+            days.setdefault(day, {})
+        for day in days:
+            days[day].update(cost=0.0, priced_tokens=0, unpriced_tokens=0, models={})
+        for event in events.values():
+            day = days[event["date"]]
+            price = price_event(event, day.get("prices", {}))
+            tokens = sum(event[name] for name in ("input", "output", "cache_read", "cache_write"))
+            model = day["models"].setdefault(event["model"], {
+                "input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "cost": 0.0})
+            for name in ("input", "output", "cache_read", "cache_write"):
+                model[name] += event[name]
+            if price is None:
+                day["unpriced_tokens"] += tokens
+            else:
+                day["priced_tokens"] += tokens
+                day["cost"] += price
+                model["cost"] += price
+        for day in days.values():
+            day["cost"] = round(day["cost"], 8)
+            day["partial"] = day["unpriced_tokens"] > 0
+        ledger["updated_at"] = now
+        atomic_write_json(SPENDING_DIR / f"spending-{key}.json", ledger)
+        if key == month:
+            priced = [date for date, value in days.items() if value["priced_tokens"] > 0]
+            missing = [date for date, value in days.items() if value["unpriced_tokens"] > 0]
+            summary.update(
+                amount=round(sum(value["cost"] for value in days.values()), 6) if priced else None,
+                partial=bool(missing), priced_tokens=sum(value["priced_tokens"] for value in days.values()),
+                unpriced_tokens=sum(value["unpriced_tokens"] for value in days.values()),
+                priced_days=sorted(priced), unpriced_days=sorted(missing),
+                stale_prices=any(value.get("stale_prices", False) for value in days.values()),
+                price_date=days.get(today, {}).get("price_date", ""))
+    return summary
+
+
 def main():
     data = fetch_env() or fetch_rpc() or fetch_rollout()
-
-    if not data:
+    messages, sessions = history_records()
+    if not data and not messages:
         # keep the last numbers on screen, marked stale
         if CACHE_FILE.exists():
             try:
@@ -1097,6 +1330,8 @@ def main():
                 pass
         return
 
+    data = data or {"source": "local", "plan": ""}
+
     buckets = normalize_buckets(data)
     recent_tok, today_tok, session_windows, recent_days_list = scan_activity()
     # Honour the selected snapshot as a whole. Filling its absent windows from
@@ -1106,7 +1341,10 @@ def main():
     max_util, quota_bucket, quota_window_label = quota_window(general)
     reached_type = str(general.get("rateLimitReachedType") or "")
 
-    messages, sessions = history_records()
+    try:
+        spending = estimate_spending(messages)
+    except Exception:
+        spending = {"kind": "api-equivalent", "amount": None, "partial": True}
     previous = published_codes()
     days = merge_published("_days", history_days(messages), previous)
     hours = merge_published("_hours", history_hours(messages), previous)
@@ -1135,6 +1373,7 @@ def main():
         "_today_tokens":  today_tok,
         "_recent_days":   recent_days_list,
         "_days":          days,
+        "_spending":      spending,
         "_hours":         hours,
         "_sessions":      history_sessions(sessions),
         "_windows":      windows,
@@ -1162,4 +1401,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = os.open(str(CACHE_FILE) + ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            sys.exit(0)
+        main()
+    finally:
+        os.close(lock_fd)

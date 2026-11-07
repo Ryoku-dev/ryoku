@@ -112,6 +112,8 @@ PY
 cache="$d/home/.cache/codex-usage.json"
 HOME="$d/home" CODEX_HOME="$d/home/.codex" \
   CODEX_USAGE_DISABLE_RPC=1 \
+  CODEX_USAGE_DISABLE_PRICES=1 \
+  CODEX_USAGE_STATE_DIR="$d/home/.local/state/ai-usage" \
   CODEX_USAGE_CACHE_FILE="$cache" \
   CODEX_USAGE_ACTIVITY_FILE="$d/home/.cache/codex-usage-activity.json" \
   "$collector"

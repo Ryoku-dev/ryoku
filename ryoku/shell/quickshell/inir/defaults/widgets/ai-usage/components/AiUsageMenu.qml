@@ -7,6 +7,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Widgets
 import inir.modules.common
+import inir.modules.common.widgets
 import inir.modules.iris.style
 import inir.modules.iris.components
 
