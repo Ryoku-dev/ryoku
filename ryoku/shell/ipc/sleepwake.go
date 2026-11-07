@@ -36,9 +36,15 @@ var (
 	// login1 can reject Inhibit briefly while the previous sleep operation is
 	// still finishing. Retry in-order so an acquire can never overtake a later
 	// PrepareForSleep(true) edge.
-	sleepGuardRetry    = 2 * time.Second
-	login1CallWait     = 2 * time.Second
-	sleepReconnectStep = 100 * time.Millisecond
+	sleepGuardRetry = 2 * time.Second
+	login1CallWait  = 2 * time.Second
+	// A lost guard usually comes back within moments (logind restart, session
+	// handoff), so retry fast at first; a box with no graphical session for this
+	// uid must not keep probing login1 ten times a second forever.
+	sleepReconnectStep       = 100 * time.Millisecond
+	sleepReconnectFastWindow = 2 * time.Second
+	sleepReconnectMax        = 30 * time.Second
+	sleepReconnectLogEvery   = 5 * time.Minute
 	// The released block fd is observed by logind asynchronously (it polls
 	// the fd); Suspend must not overtake that observation or login1 denies
 	// the daemon's own transaction. Poll its inhibitor list to confirm.
@@ -855,30 +861,188 @@ func runSleepSignals(
 	}
 }
 
-type connectedSleepGuard struct {
-	conn  *dbus.Conn
-	sigs  chan *dbus.Signal
-	cycle *sleepCycle
+// sleepBus is the supervisor's one system-bus connection. It outlives failed
+// guard attempts and owner restarts, and carries the login1 signals that wake a
+// pending reconnect, so a missing session costs no new connection per retry.
+type sleepBus struct {
+	conn *dbus.Conn
+	sigs chan *dbus.Signal
+	done <-chan struct{}
+	lost bool
 }
 
-func (g *connectedSleepGuard) release() {
-	g.cycle.stopWake()
-	g.cycle.delay.release()
-	g.cycle.block.release()
-	_ = g.conn.Close()
-}
-
-func (d *daemon) connectSleepGuard() (_ *connectedSleepGuard, err error) {
+func dialSleepBus() (*sleepBus, error) {
 	conn, err := dbus.ConnectSystemBus()
 	if err != nil {
 		return nil, fmt.Errorf("connect to the system bus: %w", err)
 	}
-	keep := false
-	defer func() {
-		if !keep {
+	sigs := make(chan *dbus.Signal, 16)
+	conn.Signal(sigs)
+	for _, m := range []struct {
+		what string
+		opts []dbus.MatchOption
+	}{
+		{"sleep signal", login1ManagerMatch("PrepareForSleep")},
+		{"session removal", login1ManagerMatch("SessionRemoved")},
+		{"session creation", login1ManagerMatch("SessionNew")},
+		{"login1 owner", []dbus.MatchOption{
+			dbus.WithMatchSender("org.freedesktop.DBus"),
+			dbus.WithMatchObjectPath(dbus.ObjectPath("/org/freedesktop/DBus")),
+			dbus.WithMatchInterface("org.freedesktop.DBus"),
+			dbus.WithMatchMember("NameOwnerChanged"),
+			dbus.WithMatchArg(0, login1Bus),
+		}},
+	} {
+		if err := conn.AddMatchSignal(m.opts...); err != nil {
 			_ = conn.Close()
+			return nil, fmt.Errorf("install %s match: %w", m.what, err)
 		}
-	}()
+	}
+	return &sleepBus{conn: conn, sigs: sigs, done: conn.Context().Done()}, nil
+}
+
+func login1ManagerMatch(member string) []dbus.MatchOption {
+	return []dbus.MatchOption{
+		dbus.WithMatchSender(login1Bus),
+		dbus.WithMatchObjectPath(login1Path),
+		dbus.WithMatchInterface(login1Interface),
+		dbus.WithMatchMember(member),
+	}
+}
+
+func (b *sleepBus) healthy() bool {
+	return !b.lost && b.conn.Connected()
+}
+
+// drain drops signals queued before an attempt; the attempt reads login1's
+// current session and sleep phase itself.
+func (b *sleepBus) drain() {
+	for {
+		select {
+		case _, ok := <-b.sigs:
+			if !ok {
+				b.lost = true
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
+func (b *sleepBus) close() {
+	_ = b.conn.Close()
+}
+
+// login1ReconnectSignal reports login1 changes that can let a pending guard
+// attempt succeed: a session appearing or going, logind restarting, or a sleep
+// edge (resume, or a sleep starting that the guard should still lock).
+func login1ReconnectSignal(sig *dbus.Signal) bool {
+	if login1OwnerChanged(sig) {
+		return true
+	}
+	if sig == nil || sig.Path != login1Path {
+		return false
+	}
+	switch sig.Name {
+	case login1Interface + ".SessionNew",
+		login1Interface + ".SessionRemoved",
+		login1Interface + ".PrepareForSleep":
+		return true
+	}
+	return false
+}
+
+// sleepReconnectBackoff keeps retries at sleepReconnectStep for the fast window
+// after a loss, then doubles the wait up to sleepReconnectMax.
+type sleepReconnectBackoff struct {
+	since time.Time
+	wait  time.Duration
+}
+
+func (b *sleepReconnectBackoff) restart(now time.Time) {
+	b.since = now
+	b.wait = 0
+}
+
+func (b *sleepReconnectBackoff) next(now time.Time) time.Duration {
+	if now.Sub(b.since) < sleepReconnectFastWindow {
+		return sleepReconnectStep
+	}
+	if b.wait < sleepReconnectStep {
+		b.wait = sleepReconnectStep
+	}
+	b.wait *= 2
+	if b.wait > sleepReconnectMax {
+		b.wait = sleepReconnectMax
+	}
+	return b.wait
+}
+
+type sleepReconnectWake uint8
+
+const (
+	sleepReconnectDue sleepReconnectWake = iota
+	sleepReconnectSignalled
+	sleepReconnectQuit
+)
+
+// waitSleepReconnect sleeps out one backoff step, ending it early on a login1
+// change. A bus lost meanwhile is marked for redial at the step's end, so a
+// connection that keeps dying cannot turn the wait into a hot loop.
+func waitSleepReconnect(bus *sleepBus, quit <-chan struct{}, wait time.Duration) sleepReconnectWake {
+	var sigs <-chan *dbus.Signal
+	var done <-chan struct{}
+	if bus != nil && !bus.lost {
+		sigs, done = bus.sigs, bus.done
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	for {
+		select {
+		case <-quit:
+			return sleepReconnectQuit
+		case <-timer.C:
+			return sleepReconnectDue
+		case <-done:
+			bus.lost = true
+			sigs, done = nil, nil
+		case sig, ok := <-sigs:
+			if !ok {
+				bus.lost = true
+				sigs, done = nil, nil
+				continue
+			}
+			if login1ReconnectSignal(sig) {
+				return sleepReconnectSignalled
+			}
+		}
+	}
+}
+
+type connectedSleepGuard struct {
+	conn     *dbus.Conn
+	sigs     chan *dbus.Signal
+	cycle    *sleepCycle
+	activity []dbus.MatchOption
+}
+
+// release drops the guard's inhibitors and its session match; the shared bus
+// stays open for the next attempt.
+func (g *connectedSleepGuard) release() {
+	g.cycle.stopWake()
+	g.cycle.delay.release()
+	g.cycle.block.release()
+	if g.activity != nil && g.conn.Connected() {
+		ctx, cancel := context.WithTimeout(context.Background(), login1CallWait)
+		_ = g.conn.RemoveMatchSignalContext(ctx, g.activity...)
+		cancel()
+	}
+	g.activity = nil
+}
+
+func (d *daemon) connectSleepGuard(bus *sleepBus) (*connectedSleepGuard, error) {
+	conn := bus.conn
 
 	sessionCtx, sessionCancel := context.WithTimeout(context.Background(), login1CallWait)
 	sessionID, sessionPath, sessionActive, err := ownGraphicalLogin1Session(sessionCtx, conn)
@@ -893,43 +1057,17 @@ func (d *daemon) connectSleepGuard() (_ *connectedSleepGuard, err error) {
 	} else if current != sessionID {
 		return nil, fmt.Errorf("selected graphical session %s does not match XDG_SESSION_ID %s", sessionID, current)
 	}
-	if err := conn.AddMatchSignal(
-		dbus.WithMatchSender(login1Bus),
-		dbus.WithMatchObjectPath(login1Path),
-		dbus.WithMatchInterface(login1Interface),
-		dbus.WithMatchMember("PrepareForSleep"),
-	); err != nil {
-		return nil, fmt.Errorf("install sleep signal match: %w", err)
-	}
-	if err := conn.AddMatchSignal(
-		dbus.WithMatchSender(login1Bus),
-		dbus.WithMatchObjectPath(login1Path),
-		dbus.WithMatchInterface(login1Interface),
-		dbus.WithMatchMember("SessionRemoved"),
-		dbus.WithMatchArg(0, sessionID),
-	); err != nil {
-		return nil, fmt.Errorf("install session removal match: %w", err)
-	}
-	if err := conn.AddMatchSignal(
+	activity := []dbus.MatchOption{
 		dbus.WithMatchSender(login1Bus),
 		dbus.WithMatchObjectPath(sessionPath),
 		dbus.WithMatchInterface(propertiesInterface),
 		dbus.WithMatchMember("PropertiesChanged"),
-	); err != nil {
+	}
+	if err := conn.AddMatchSignal(activity...); err != nil {
 		return nil, fmt.Errorf("install session activity match: %w", err)
 	}
-	if err := conn.AddMatchSignal(
-		dbus.WithMatchSender("org.freedesktop.DBus"),
-		dbus.WithMatchObjectPath(dbus.ObjectPath("/org/freedesktop/DBus")),
-		dbus.WithMatchInterface("org.freedesktop.DBus"),
-		dbus.WithMatchMember("NameOwnerChanged"),
-		dbus.WithMatchArg(0, login1Bus),
-	); err != nil {
-		return nil, fmt.Errorf("install login1 owner match: %w", err)
-	}
 
-	sigs := make(chan *dbus.Signal, 16)
-	conn.Signal(sigs)
+	sigs := bus.sigs
 	block := &login1Inhibitor{
 		conn: conn,
 		mode: "block",
@@ -1009,19 +1147,25 @@ func (d *daemon) connectSleepGuard() (_ *connectedSleepGuard, err error) {
 	}
 	cycle.setSessionActive(sessionActive)
 	cycle.markWakeOffset()
-	keep = true
-	return &connectedSleepGuard{conn: conn, sigs: sigs, cycle: cycle}, nil
+	return &connectedSleepGuard{conn: conn, sigs: sigs, cycle: cycle, activity: activity}, nil
 }
 
 func (d *daemon) superviseSleepWake() {
+	var bus *sleepBus
 	var stale *connectedSleepGuard
+	var backoff sleepReconnectBackoff
+	var lastFailure string
 	var lastFailureLog time.Time
 	defer func() {
 		d.setSleepCycle(nil)
 		if stale != nil {
 			stale.release()
 		}
+		if bus != nil {
+			bus.close()
+		}
 	}()
+	backoff.restart(time.Now())
 
 	for {
 		select {
@@ -1030,7 +1174,21 @@ func (d *daemon) superviseSleepWake() {
 		default:
 		}
 
-		guard, err := d.connectSleepGuard()
+		if bus != nil {
+			bus.drain()
+			if !bus.healthy() {
+				bus.close()
+				bus = nil
+			}
+		}
+		var guard *connectedSleepGuard
+		var err error
+		if bus == nil {
+			bus, err = dialSleepBus()
+		}
+		if err == nil {
+			guard, err = d.connectSleepGuard(bus)
+		}
 		if err == nil {
 			activeCtx, activeCancel := context.WithTimeout(context.Background(), login1CallWait)
 			active, activeErr := guard.cycle.activeCheck(activeCtx)
@@ -1065,22 +1223,21 @@ func (d *daemon) superviseSleepWake() {
 			if guard != nil {
 				guard.release()
 			}
-			if time.Since(lastFailureLog) >= 2*time.Second {
+			if msg := err.Error(); msg != lastFailure || time.Since(lastFailureLog) >= sleepReconnectLogEvery {
 				log.Printf("ryoku-shell: sleep guard reconnect pending: %v", err)
+				lastFailure = msg
 				lastFailureLog = time.Now()
 			}
-			timer := time.NewTimer(sleepReconnectStep)
-			select {
-			case <-d.quit:
-				if !timer.Stop() {
-					<-timer.C
-				}
+			switch waitSleepReconnect(bus, d.quit, backoff.next(time.Now())) {
+			case sleepReconnectQuit:
 				return
-			case <-timer.C:
-				continue
+			case sleepReconnectSignalled:
+				backoff.restart(time.Now())
 			}
+			continue
 		}
 
+		lastFailure = ""
 		d.setSleepCycle(guard.cycle)
 		if stale != nil {
 			stale.release()
@@ -1097,6 +1254,7 @@ func (d *daemon) superviseSleepWake() {
 			return
 		}
 		log.Printf("ryoku-shell: sleep guard reconnecting: %v", err)
+		backoff.restart(time.Now())
 		if errors.Is(err, errLogin1OwnerRestart) {
 			// The old FDs died with logind, but its phase and suspend-clock
 			// baseline still identify a missed resume on the replacement.
@@ -1106,6 +1264,7 @@ func (d *daemon) superviseSleepWake() {
 			// A lost signal stream does not invalidate login1's inhibitor FDs.
 			// Keep the old hard block until its replacement is fully protected.
 			stale = guard
+			bus.lost = true
 		}
 	}
 }

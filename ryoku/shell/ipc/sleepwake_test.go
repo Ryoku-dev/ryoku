@@ -1597,3 +1597,173 @@ func TestUnlockFallbackGuardReleasedOnlyByReadyOwningSession(t *testing.T) {
 		t.Fatal("unlock fallback watcher stopped after its first guard")
 	}
 }
+
+// A box with no graphical session must stop probing login1 ten times a second:
+// fast retries last only the first two seconds after a loss, then the wait
+// doubles to a 30 s cap, and a restart (new loss or login1 change) is fast again.
+func TestSleepReconnectBackoffSchedule(t *testing.T) {
+	start := time.Unix(1000, 0)
+	var b sleepReconnectBackoff
+	b.restart(start)
+
+	now := start
+	fast := 0
+	for now.Sub(start) < sleepReconnectFastWindow {
+		wait := b.next(now)
+		if wait != sleepReconnectStep {
+			t.Fatalf("wait %v after %v, want fast %v", wait, now.Sub(start), sleepReconnectStep)
+		}
+		fast++
+		now = now.Add(wait)
+	}
+	if fast != 20 {
+		t.Fatalf("fast attempts = %d, want 20 inside the first 2 s", fast)
+	}
+
+	want := []time.Duration{
+		200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond,
+		1600 * time.Millisecond, 3200 * time.Millisecond, 6400 * time.Millisecond,
+		12800 * time.Millisecond, 25600 * time.Millisecond,
+		30 * time.Second, 30 * time.Second, 30 * time.Second,
+	}
+	for i, w := range want {
+		got := b.next(now)
+		if got != w {
+			t.Fatalf("backoff step %d = %v, want %v", i, got, w)
+		}
+		now = now.Add(got)
+	}
+
+	attempts := 0
+	for hour := now.Add(time.Hour); now.Before(hour); attempts++ {
+		now = now.Add(b.next(now))
+	}
+	if attempts != 120 {
+		t.Fatalf("attempts in an hour at the cap = %d, want 120", attempts)
+	}
+
+	b.restart(now)
+	if got := b.next(now); got != sleepReconnectStep {
+		t.Fatalf("wait after restart = %v, want fast %v", got, sleepReconnectStep)
+	}
+	if got := b.next(now.Add(sleepReconnectFastWindow)); got != 2*sleepReconnectStep {
+		t.Fatalf("first backoff after restart = %v, want %v", got, 2*sleepReconnectStep)
+	}
+}
+
+func testSleepBus() *sleepBus {
+	return &sleepBus{sigs: make(chan *dbus.Signal, 4), done: make(chan struct{})}
+}
+
+// A pending reconnect waits out its backoff step unless login1 reports a
+// change that can make the next attempt succeed.
+func TestSleepReconnectWakesOnLogin1Change(t *testing.T) {
+	wakes := map[string]*dbus.Signal{
+		"session new": {
+			Path: login1Path, Name: login1Interface + ".SessionNew",
+			Body: []any{"4", dbus.ObjectPath("/org/freedesktop/login1/session/_34")},
+		},
+		"session removed": {
+			Path: login1Path, Name: login1Interface + ".SessionRemoved",
+			Body: []any{"4", dbus.ObjectPath("/org/freedesktop/login1/session/_34")},
+		},
+		"owner lost": {
+			Path: "/org/freedesktop/DBus", Name: "org.freedesktop.DBus.NameOwnerChanged",
+			Body: []any{login1Bus, ":1.4", ""},
+		},
+		"owner back": {
+			Path: "/org/freedesktop/DBus", Name: "org.freedesktop.DBus.NameOwnerChanged",
+			Body: []any{login1Bus, "", ":1.9"},
+		},
+		"resume": {
+			Path: login1Path, Name: login1Interface + ".PrepareForSleep", Body: []any{false},
+		},
+		"sleep start": {
+			Path: login1Path, Name: login1Interface + ".PrepareForSleep", Body: []any{true},
+		},
+	}
+	for name, sig := range wakes {
+		t.Run(name, func(t *testing.T) {
+			bus := testSleepBus()
+			got := make(chan sleepReconnectWake, 1)
+			go func() { got <- waitSleepReconnect(bus, make(chan struct{}), time.Minute) }()
+			bus.sigs <- sig
+			select {
+			case wake := <-got:
+				if wake != sleepReconnectSignalled {
+					t.Fatalf("wake = %v, want signalled", wake)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("login1 change did not end the backoff wait")
+			}
+		})
+	}
+}
+
+func TestSleepReconnectIgnoresUnrelatedSignals(t *testing.T) {
+	bus := testSleepBus()
+	unrelated := []*dbus.Signal{
+		nil,
+		{
+			Path: "/org/freedesktop/login1/session/_34", Name: propertiesInterface + ".PropertiesChanged",
+			Body: []any{login1SessionInterface, map[string]dbus.Variant{"Active": dbus.MakeVariant(true)}, []string{}},
+		},
+		{
+			Path: "/org/freedesktop/DBus", Name: "org.freedesktop.DBus.NameOwnerChanged",
+			Body: []any{"org.example.Other", "", ":1.7"},
+		},
+		{
+			Path: "/org/freedesktop/login1/session/_34", Name: login1Interface + ".SessionNew",
+			Body: []any{"4", dbus.ObjectPath("/x")},
+		},
+	}
+	for _, sig := range unrelated {
+		bus.sigs <- sig
+	}
+	began := time.Now()
+	if wake := waitSleepReconnect(bus, make(chan struct{}), 150*time.Millisecond); wake != sleepReconnectDue {
+		t.Fatalf("wake = %v, want due", wake)
+	}
+	if waited := time.Since(began); waited < 150*time.Millisecond {
+		t.Fatalf("unrelated signal ended the wait after %v", waited)
+	}
+	if bus.lost {
+		t.Fatal("unrelated signals marked a healthy bus lost")
+	}
+}
+
+// A bus that dies during the wait is redialled at the end of the step, never
+// in a tight loop.
+func TestSleepReconnectLostBusWaitsOutTheStep(t *testing.T) {
+	for name, kill := range map[string]func(sigs chan *dbus.Signal, done chan struct{}){
+		"stream closed": func(sigs chan *dbus.Signal, _ chan struct{}) { close(sigs) },
+		"disconnected":  func(_ chan *dbus.Signal, done chan struct{}) { close(done) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			sigs, done := make(chan *dbus.Signal, 1), make(chan struct{})
+			bus := &sleepBus{sigs: sigs, done: done}
+			kill(sigs, done)
+			began := time.Now()
+			if wake := waitSleepReconnect(bus, make(chan struct{}), 100*time.Millisecond); wake != sleepReconnectDue {
+				t.Fatalf("wake = %v, want due", wake)
+			}
+			if waited := time.Since(began); waited < 100*time.Millisecond {
+				t.Fatalf("lost bus ended the wait after %v", waited)
+			}
+			if !bus.lost {
+				t.Fatal("lost bus was not marked for redial")
+			}
+		})
+	}
+}
+
+func TestSleepReconnectWaitHonoursQuit(t *testing.T) {
+	quit := make(chan struct{})
+	close(quit)
+	if wake := waitSleepReconnect(nil, quit, time.Minute); wake != sleepReconnectQuit {
+		t.Fatalf("wake = %v, want quit", wake)
+	}
+	if wake := waitSleepReconnect(nil, make(chan struct{}), time.Millisecond); wake != sleepReconnectDue {
+		t.Fatalf("wake without a bus = %v, want due", wake)
+	}
+}
