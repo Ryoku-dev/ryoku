@@ -1200,6 +1200,12 @@ func (d *daemon) handle(conn net.Conn) {
 		fmt.Fprintln(conn, d.keyringRespond(cmd, strings.TrimRight(secret, "\r\n")))
 		return
 	}
+	// One bus connection per Quickshell process multiplexes everything below
+	// (bus.go).
+	if strings.HasPrefix(cmd, "bus ") {
+		d.serveBus(conn, r, strings.TrimPrefix(cmd, "bus "))
+		return
+	}
 	// Typed subsystem state rides the same socket: a long-lived subscription
 	// stream, or a request/response control call. Both outlive the one-shot
 	// command deadline, which they clear for themselves.

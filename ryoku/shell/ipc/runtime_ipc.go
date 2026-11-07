@@ -169,6 +169,34 @@ func qsIpc(argv []string) (string, error) {
 	}
 }
 
+// ipcInvoke routes one IpcHandler call (prop == "") or property read for
+// config c: a ready item runtime replaces the resident shell and is reached by
+// its pid; otherwise the newest bus client named c that serves target; else
+// qs. A cmd delivered over the bus is never retried through qs, so a call
+// never runs twice.
+func ipcInvoke(c, target, fn, prop string, args []string) (string, error) {
+	if c == "shell" {
+		ready, _ := runtimeIPCReadyFile.Load().(string)
+		if pid, ok := runtimeIPCPid(ready); ok {
+			if value, sent, err := busInvoke("", pid, target, fn, prop, args); sent {
+				return value, err
+			}
+			return qsInvoke(c, target, fn, prop, args)
+		}
+	}
+	if value, sent, err := busInvoke(c, 0, target, fn, prop, args); sent {
+		return value, err
+	}
+	return qsInvoke(c, target, fn, prop, args)
+}
+
+func qsInvoke(c, target, fn, prop string, args []string) (string, error) {
+	if prop != "" {
+		return qsIpc(ipcPropArgv(c, target, prop))
+	}
+	return qsIpc(ipcArgv(c, target, fn, args...))
+}
+
 // encodeIPCRequest is the control line for `ryoku-shell ipc`. The words ride
 // as one JSON array so empty and spaced args survive the line split.
 func encodeIPCRequest(words []string) string {
@@ -184,16 +212,16 @@ func ipcRequest(payload string) string {
 	if err := json.Unmarshal([]byte(payload), &words); err != nil {
 		return "err ipc: malformed request"
 	}
-	var argv []string
+	var value string
+	var err error
 	switch {
 	case len(words) >= 3 && words[0] == "call":
-		argv = ipcArgv("shell", words[1], words[2], words[3:]...)
+		value, err = ipcInvoke("shell", words[1], words[2], "", words[3:])
 	case len(words) == 3 && words[0] == "get":
-		argv = ipcPropArgv("shell", words[1], words[2])
+		value, err = ipcInvoke("shell", words[1], "", words[2], nil)
 	default:
 		return "err ipc: expected call <target> <function> [args...] or get <target> <property>"
 	}
-	value, err := qsIpc(argv)
 	if err != nil {
 		return "err ipc " + words[1] + " " + words[2] + ": " + err.Error()
 	}

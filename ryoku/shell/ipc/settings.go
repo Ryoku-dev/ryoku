@@ -1568,7 +1568,7 @@ func (s *settingsStore) watch(quit <-chan struct{}, ready chan struct{}) {
 func (d *daemon) startSettings() {
 	store := newSettingsStore(filepath.Join(ryokuConfigDir(), "shell.json"))
 	d.settings = store
-	t := d.registerTopic("settings")
+	t := d.registerDeltaTopic("settings")
 
 	// The Hub gates its settings surface off this frame, so the gating state
 	// rides with it. Both are fixed for the daemon's life, so the providers are

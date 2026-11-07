@@ -45,17 +45,21 @@ func menuID(cmd string) (string, bool) {
 }
 
 // qsSelect: qs config selector for a component. by repo path in dev, by config
-// name when deployed.
+// name when deployed. The Hub lives outside the shell's quickshell tree.
 func qsSelect(name string) []string {
 	if shellDir != "" {
+		if name == "hub" {
+			return []string{"-p", filepath.Join(shellDir, "..", "hub", "quickshell")}
+		}
 		return []string{"-p", filepath.Join(shellDir, "quickshell", name)}
 	}
 	return []string{"-c", name}
 }
 
 // ipcCall invokes a Quickshell IpcHandler function with at most one argument;
-// an empty arg is dropped. Retries follow qsIpc: only a shell that is starting
-// or reloading is retried, a missing target or function never is.
+// an empty arg is dropped. Routing and retries follow ipcInvoke: only a shell
+// that is starting or reloading is retried, a missing target or function never
+// is.
 func ipcCall(config, target, fn, arg string) string {
 	if arg == "" {
 		return ipcCallN(config, target, fn)
@@ -66,13 +70,13 @@ func ipcCall(config, target, fn, arg string) string {
 // ipcCallN = ipcCall for IpcHandler functions that take more than one arg.
 // Empty trailing args still go positionally.
 func ipcCallN(config, target, fn string, args ...string) string {
-	if _, err := qsIpc(ipcArgv(config, target, fn, args...)); err != nil {
+	if _, err := ipcInvoke(config, target, fn, "", args); err != nil {
 		return "err qs ipc " + config + "/" + fn + ": " + err.Error()
 	}
 	return "ok"
 }
 
-// shellIpc invokes a "shell" IpcHandler function through the qs client. A
+// shellIpc invokes a "shell" IpcHandler function on the running shell. A
 // package var so tests can capture the emitted call in place of a live
 // Quickshell.
 var shellIpc = func(fn string, args ...string) string {

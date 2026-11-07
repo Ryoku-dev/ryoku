@@ -7,25 +7,48 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
-// updates.go runs the background update check the Hub's Updates section and the
-// bar's update glyph read, so a check happens whether or not the Hub is open.
-// It polls `ryoku status --json` on the configured cadence (hub.toml
-// update_interval), publishes the frame on the "updates" topic, and caches it.
+// updates.go runs the update check the Hub's Updates section and the bar's
+// update glyph read. It runs `ryoku status --json` on the configured cadence
+// (hub.toml update_interval) while the "updates" topic has a subscriber,
+// publishes the frame on the topic, and caches it.
 type updatesState struct {
-	topic *stateTopic
-	wake  chan struct{}
-	quit  chan struct{}
+	topic  *stateTopic
+	wake   chan struct{}
+	demand chan struct{}
+	quit   chan struct{}
+
+	now      func() time.Time
+	after    func(time.Duration) (<-chan time.Time, func() bool)
+	interval func() time.Duration
+	check    func()
+
+	mu     sync.Mutex
+	active bool
+
+	last time.Time // owned by run; zero until this daemon's first check
+}
+
+func newUpdatesState(topic *stateTopic, quit chan struct{}) *updatesState {
+	s := &updatesState{
+		topic:    topic,
+		wake:     make(chan struct{}, 1),
+		demand:   make(chan struct{}, 1),
+		quit:     quit,
+		now:      time.Now,
+		after:    wallTimer,
+		interval: updateCheckInterval,
+	}
+	s.check = s.runStatus
+	return s
 }
 
 func (d *daemon) startUpdates() {
-	s := &updatesState{
-		topic: d.registerTopic("updates"),
-		wake:  make(chan struct{}, 1),
-		quit:  d.quit,
-	}
+	s := newUpdatesState(d.registerTopic("updates"), d.quit)
+	s.topic.onDemand(s.setActive)
 	d.registerCall("updates.check", func(json.RawMessage) (any, error) {
 		select {
 		case s.wake <- struct{}{}:
@@ -36,36 +59,73 @@ func (d *daemon) startUpdates() {
 	go s.run()
 }
 
-// run checks once at startup for a login baseline, then on the interval or a
-// forced wake. "off" disables the periodic tick but still answers a manual check.
+// setActive is the topic's demand hook.
+func (s *updatesState) setActive(active bool) {
+	s.mu.Lock()
+	s.active = active
+	s.mu.Unlock()
+	select {
+	case s.demand <- struct{}{}:
+	default:
+	}
+}
+
+// run checks on the interval or a forced wake. The first subscriber after the
+// daemon starts gets a check at once (the login baseline), and so does one
+// arriving after the interval has passed; "off" keeps that baseline but drops
+// the periodic check. A manual check runs with or without a subscriber.
 func (s *updatesState) run() {
-	s.check()
 	for {
-		d := updateCheckInterval()
-		if d <= 0 {
-			select {
-			case <-s.quit:
-				return
-			case <-s.wake:
-				s.check()
-			}
+		wait, armed := s.plan(s.now())
+		if armed && wait <= 0 {
+			s.runCheck()
 			continue
 		}
-		t := time.NewTimer(d)
+		var fire <-chan time.Time
+		stop := func() bool { return false }
+		if armed {
+			fire, stop = s.after(wait)
+		}
 		select {
 		case <-s.quit:
-			t.Stop()
+			stop()
 			return
 		case <-s.wake:
-			t.Stop()
-			s.check()
-		case <-t.C:
-			s.check()
+			stop()
+			s.runCheck()
+		case <-s.demand:
+			stop()
+		case <-fire:
+			s.runCheck()
 		}
 	}
 }
 
-func (s *updatesState) check() {
+// plan reports how long until the next check, or armed=false when nobody
+// subscribes or the periodic check is off after its baseline.
+func (s *updatesState) plan(now time.Time) (wait time.Duration, armed bool) {
+	s.mu.Lock()
+	active := s.active
+	s.mu.Unlock()
+	if !active {
+		return 0, false
+	}
+	if s.last.IsZero() {
+		return 0, true
+	}
+	d := s.interval()
+	if d <= 0 {
+		return 0, false
+	}
+	return s.last.Add(d).Sub(now), true
+}
+
+func (s *updatesState) runCheck() {
+	s.check()
+	s.last = s.now()
+}
+
+func (s *updatesState) runStatus() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, "ryoku", "status", "--json").Output()

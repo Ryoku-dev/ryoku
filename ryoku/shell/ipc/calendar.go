@@ -52,7 +52,15 @@ type calendarState struct {
 
 	mu         sync.Mutex
 	generation uint64
+	configured bool // a configure call has named the region and years
+	region     string
+	years      []int
+	loadedGen  uint64    // generation of the last finished load
+	loadedAt   time.Time // when that load finished
 }
+
+// calendarRefreshAge matches the holiday cache's freshness window.
+const calendarRefreshAge = 24 * time.Hour
 
 func resolveCalendarRegion(override string) (string, string, bool) {
 	value := strings.TrimSpace(override)
@@ -176,6 +184,7 @@ func (d *daemon) startCalendar() {
 		baseURL: calendarAPI, cacheDir: calendarCacheDir(), now: time.Now,
 	}
 	s.publish(calendarFrame{Status: "loading", Days: []calendarHoliday{}})
+	s.topic.onDemand(s.setActive)
 	d.registerCall("calendar.configure", func(raw json.RawMessage) (any, error) {
 		var request struct {
 			Region string `json:"region"`
@@ -189,7 +198,28 @@ func (d *daemon) startCalendar() {
 	})
 }
 
+// setActive is the topic's demand hook. Nothing loads while nobody
+// subscribes; a subscriber arriving once the last load is older than the
+// holiday cache window reloads the configured region.
+func (s *calendarState) setActive(active bool) {
+	if !active {
+		return
+	}
+	s.mu.Lock()
+	stale := s.configured && s.loadedGen == s.generation && s.now().Sub(s.loadedAt) >= calendarRefreshAge
+	region, years := s.region, s.years
+	s.mu.Unlock()
+	if stale {
+		s.configure(region, years)
+	}
+}
+
 func (s *calendarState) configure(region string, years []int) {
+	s.mu.Lock()
+	s.configured = true
+	s.region, s.years = region, append([]int(nil), years...)
+	s.mu.Unlock()
+
 	country, subdivision, valid := resolveCalendarRegion(region)
 	validationError := ""
 	if !valid && strings.TrimSpace(region) != "" {
@@ -197,6 +227,9 @@ func (s *calendarState) configure(region string, years []int) {
 		country, subdivision, valid = resolveCalendarRegion("")
 	}
 	if !valid {
+		s.mu.Lock()
+		s.loadedGen, s.loadedAt = s.generation, s.now()
+		s.mu.Unlock()
 		s.publish(calendarFrame{Status: "unavailable", Error: "No supported system locale", Days: []calendarHoliday{}})
 		return
 	}
@@ -233,6 +266,9 @@ func (s *calendarState) configure(region string, years []int) {
 		}
 		s.mu.Lock()
 		current := generation == s.generation
+		if current {
+			s.loadedGen, s.loadedAt = generation, s.now()
+		}
 		s.mu.Unlock()
 		if !current {
 			return

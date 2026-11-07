@@ -195,6 +195,7 @@ func (n *nightlightState) nextScheduleWait(now time.Time) time.Duration {
 	case nlSchedSun:
 		sunrise, sunset, ok := daySun.window()
 		if !ok {
+			wantSunWindow()
 			return nlSunDataReconcile
 		}
 		return nextSunScheduleEdge(now, sunrise, sunset, time.Duration(margin)*time.Minute)

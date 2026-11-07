@@ -543,35 +543,71 @@ type wxState struct {
 	sun        *sunState // the day window published to the sun-following features
 	sunChanged func()
 
-	mu  sync.Mutex
-	cfg wxConfig
-	loc *wxLocation // last resolved place, reused while the query is unchanged
+	mu     sync.Mutex
+	cfg    wxConfig
+	loc    *wxLocation // last resolved place, reused while the query is unchanged
+	active bool        // the topic has subscribers
 
-	wake chan struct{}
-	quit chan struct{}
+	wake    chan struct{}
+	demand  chan struct{}   // the subscriber count crossed zero
+	sunWant <-chan struct{} // a sun-following feature found no window
+	quit    chan struct{}
+
+	now   func() time.Time
+	after func(time.Duration) (<-chan time.Time, func() bool)
+	fetch func() bool
+
+	// Owned by run.
+	sunNeed     bool
+	healthy     bool // the last attempt landed a loaded frame
+	lastAttempt time.Time
+	lastOK      time.Time
 }
 
-// hasSubscribers reports whether any client is subscribed to the topic, so a
-// poll tick can be skipped when the menu is closed (reference behavior).
-func (t *stateTopic) hasSubscribers() bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return len(t.subs) > 0
+// sunWindowWanted carries wantSunWindow's requests to the weather worker.
+var sunWindowWanted = make(chan struct{}, 1)
+
+// wantSunWindow is how the sun-following features (sun theme mode, the night
+// light sun schedule) ask for a forecast when no sun window is known yet. The
+// weather worker then fetches, and heals on failure, until a window lands even
+// with no weather subscriber.
+func wantSunWindow() {
+	select {
+	case sunWindowWanted <- struct{}{}:
+	default:
+	}
+}
+
+// wallTimer is the production timer behind the demand-driven producers.
+func wallTimer(d time.Duration) (<-chan time.Time, func() bool) {
+	t := time.NewTimer(d)
+	return t.C, t.Stop
+}
+
+func newWxState(topic *stateTopic, sun *sunState, quit chan struct{}) *wxState {
+	s := &wxState{
+		topic:   topic,
+		client:  &http.Client{Timeout: wxHTTPTimeout},
+		cfg:     wxConfig{unit: "auto", clock24: true},
+		sun:     sun,
+		wake:    make(chan struct{}, 1),
+		demand:  make(chan struct{}, 1),
+		sunWant: sunWindowWanted,
+		quit:    quit,
+		now:     time.Now,
+		after:   wallTimer,
+	}
+	s.fetch = s.fetchOnce
+	return s
 }
 
 // startWeather registers the weather topic and its control calls, publishes the
 // initial loading frame, and starts the poll loop.
 func (d *daemon) startWeather() {
-	s := &wxState{
-		topic:      d.registerTopic("weather"),
-		client:     &http.Client{Timeout: wxHTTPTimeout},
-		cfg:        wxConfig{unit: "auto", clock24: true},
-		sun:        d.sun,
-		sunChanged: d.kickSunMode,
-		wake:       make(chan struct{}, 1),
-		quit:       d.quit,
-	}
+	s := newWxState(d.registerTopic("weather"), d.sun, d.quit)
+	s.sunChanged = d.kickSunMode
 	s.publishFrame(wxFrame{Status: "loading", Hourly: []wxHour{}, Daily: []wxDay{}})
+	s.topic.onDemand(s.setActive)
 
 	d.registerCall("weather.configure", func(raw json.RawMessage) (any, error) {
 		var a struct {
@@ -609,6 +645,18 @@ func (d *daemon) startWeather() {
 	go s.run()
 }
 
+// setActive is the topic's demand hook: the poll runs only while someone
+// subscribes.
+func (s *wxState) setActive(active bool) {
+	s.mu.Lock()
+	s.active = active
+	s.mu.Unlock()
+	select {
+	case s.demand <- struct{}{}:
+	default:
+	}
+}
+
 // configure swaps the live config. A changed location query drops the cached
 // resolved place so the next fetch re-geocodes; any change kicks a fresh fetch.
 func (s *wxState) configure(next wxConfig) {
@@ -632,52 +680,78 @@ func (s *wxState) signalWake() {
 	}
 }
 
-// run is the poll loop. It fetches immediately, then on the 15-minute poll
-// (skipped when nothing is subscribed) and whenever configure/retry wake it. A
-// fetch that does not land a loaded frame - the common case is the daemon
-// starting before the network is up at login - arms a short recovery ticker that
-// re-tries every wxRecoverInterval until data lands, so the readout heals on its
-// own instead of waiting out the 15-minute poll or a manual retry.
+// run is the poll loop. Nothing is fetched while nobody wants the forecast,
+// meaning no subscriber and no sun-following feature still waiting for its
+// first window. When demand starts, a reading older than the 15-minute poll is
+// refreshed at once and a fresh one waits out the remainder. Configure and
+// retry fetch whether or not anyone subscribes. A fetch that does not land a
+// loaded frame (the common case is the daemon starting before the network is
+// up at login) re-tries every wxRecoverInterval while demand lasts, so the
+// readout heals on its own instead of waiting out the poll or a manual retry.
 func (s *wxState) run() {
-	poll := time.NewTicker(wxPollInterval)
-	defer poll.Stop()
-	heal := time.NewTicker(wxRecoverInterval)
-	heal.Stop()
-	defer heal.Stop()
-	recovering := false
-	arm := func(loaded bool) {
-		want := !loaded
-		if want == recovering {
-			return
-		}
-		recovering = want
-		if want {
-			heal.Reset(wxRecoverInterval)
-		} else {
-			heal.Stop()
-		}
-	}
-	arm(s.fetchOnce())
 	for {
+		wait, armed := s.plan(s.now())
+		if armed && wait <= 0 {
+			s.attempt()
+			continue
+		}
+		var fire <-chan time.Time
+		stop := func() bool { return false }
+		if armed {
+			fire, stop = s.after(wait)
+		}
 		select {
 		case <-s.quit:
+			stop()
 			return
 		case <-s.wake:
-			arm(s.fetchOnce())
-		case <-poll.C:
-			if !s.topic.hasSubscribers() {
-				continue
-			}
-			arm(s.fetchOnce())
-		case <-heal.C:
-			arm(s.fetchOnce())
+			stop()
+			s.attempt()
+		case <-s.demand:
+			stop()
+		case <-s.sunWant:
+			stop()
+			s.sunNeed = true
+		case <-fire:
+			s.attempt()
 		}
+	}
+}
+
+// plan reports how long until the next fetch, or armed=false when nothing
+// wants one.
+func (s *wxState) plan(now time.Time) (wait time.Duration, armed bool) {
+	s.mu.Lock()
+	active := s.active
+	s.mu.Unlock()
+	if s.sunNeed && (s.sun == nil || s.sun.windowObserved()) {
+		s.sunNeed = false
+	}
+	if !active && !s.sunNeed {
+		return 0, false
+	}
+	if !s.healthy {
+		if s.lastAttempt.IsZero() {
+			return 0, true
+		}
+		return s.lastAttempt.Add(wxRecoverInterval).Sub(now), true
+	}
+	return s.lastOK.Add(wxPollInterval).Sub(now), true
+}
+
+func (s *wxState) attempt() {
+	ok := s.fetch()
+	now := s.now()
+	s.lastAttempt = now
+	s.healthy = ok
+	if ok {
+		s.lastOK = now
 	}
 }
 
 // fetchOnce resolves the location if needed and fetches the forecast with the
 // retry ladder, publishing the loaded frame or an error frame. It reports
-// whether a loaded frame was published, so run can arm its recovery ticker.
+// whether a loaded frame was published, so run can schedule its recovery retry.
 func (s *wxState) fetchOnce() bool {
 	s.mu.Lock()
 	cfg := s.cfg

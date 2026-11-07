@@ -1729,6 +1729,7 @@ func (d *daemon) watchSunMode() {
 		}
 		sunrise, sunset, ok := daySun.window()
 		if !ok {
+			wantSunWindow()
 			select {
 			case <-d.quit:
 				return

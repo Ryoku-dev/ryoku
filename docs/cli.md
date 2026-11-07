@@ -577,8 +577,9 @@ in the QS Bar item's README in the catalogue repo.
 ### `ryoku-shell ipc`
 
 Calls into the running shell's IPC handlers, the same ones `qs ipc` reaches,
-through the daemon, so it also finds a subshell that replaced the resident
-shell.
+through the daemon: over the shell's bus connection when the shell serves that
+target there, otherwise through `qs ipc`. Either way it also finds a subshell
+that replaced the resident shell.
 
 - `ipc call <target> <function> [args...]` runs one function and prints what it
   returns. Every argument is passed as is, empty ones included.
