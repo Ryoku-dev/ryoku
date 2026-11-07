@@ -106,6 +106,11 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- **AI usage comes to Shima.** Install a widget for OpenCode and Codex
+  sessions, token trends, model usage, activity and available plan limits.
+  OpenCode shows recorded costs. Codex shows Est. Spending from saved daily
+  API prices, with incomplete coverage marked. Estimates are not bills or
+  wallet balances.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar
