@@ -65,7 +65,7 @@ ShellRoot {
             property var sidebarRightPanes: ["notifications","calendar","media","weather","recording"]
             property real sidebarWidth: 340
             property var frameBars: ({})
-            property string barStyle: "sumi"
+            property string barStyle: "orpheus"
         }
     }
 
@@ -87,7 +87,7 @@ ShellRoot {
                                        "top": [], "center": [], "bottom": [] } },
                 "menus": {}, "dock": { "pinned": [] }
             });
-            root.edit("barStyle", "nacre");
+            root.edit("barStyle", "kairos");
             root.edit("sidebarRightPanes", ["notifications","calendar"]); // set
             root.flush();
             quit.start();

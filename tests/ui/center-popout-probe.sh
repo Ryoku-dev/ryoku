@@ -4,9 +4,8 @@
 # still docks, and the plugin host wires a centred placement end to end: the
 # manager carries the modal's rect in `pluginMask`, and a built-in centre surface
 # takes the screen from it instead of overlapping it. Loads the real shell
-# components against a faithful mirror of shell/ used as the config folder, the
-# way nacre-popup-probe.sh does, so their deep relative imports resolve.
-# Commit nothing.
+# components against a faithful mirror of shell/ used as the config folder, so
+# their deep relative imports resolve. Commit nothing.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

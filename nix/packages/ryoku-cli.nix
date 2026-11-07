@@ -70,7 +70,6 @@ pkgs.stdenv.mkDerivation {
       "$out/bin/ryoku" \
       --set RYOKU_CONFIG_BASE "${desktopData}/share/ryoku/config" \
       --set RYOKU_I18N_DIR "${desktopData}/share/ryoku/i18n" \
-      --set RYOKU_NOMARCHY_SOURCE "${desktopData}/share/ryoku/nomarchy" \
       --set RYOKU_UPDATE_BACKEND nix \
       --set RYOKU_NIX_VERSION "${version}" \
       --set RYOKU_NIX_CHANNEL nix

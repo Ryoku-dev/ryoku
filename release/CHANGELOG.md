@@ -1,6 +1,9 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The desktop and shell packages no longer carry the store bar styles.**
+  Python's AGPL code, the Nomarchy tree and the Shima build optdepends left with
+  them, and Orpheus and Kairos still ship in the desktop.
 - **The compositor isolation check runs in CI and passes again.** The pinned
   Shima patches carry upstream code, so the check skips them, and the delivery
   workflow now runs it on every push instead of only in local hooks.

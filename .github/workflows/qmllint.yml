@@ -119,10 +119,10 @@ jobs:
           one="$(mktemp)"
           while IFS= read -r -d '' f; do
             echo "::group::qmllint $f"
-            # qmllint itself can spin forever on valid QML (the vendored
-            # Nomarchy network panel does), and one such file used to hold
-            # the whole job until the runner's six-hour limit. Actions runs
-            # this with -e, so the status is caught rather than failing.
+            # qmllint itself can spin forever on valid QML, and one such file
+            # used to hold the whole job until the runner's six-hour limit.
+            # Actions runs this with -e, so the status is caught rather than
+            # failing.
             rc=0
             timeout 120 "$QMLLINT_BIN" "$f" >"$one" 2>&1 || rc=$?
             tee -a "$out" <"$one"

@@ -20,8 +20,6 @@ depends=('quickshell' 'ffmpeg' 'wayland' 'jq' 'python' 'uv' 'socat' 'gum' 'qrenc
 makedepends=('go' 'wayland' 'wayland-protocols' 'ffmpeg')
 optdepends=(
   'kdeconnect: send ryoshot captures to paired devices'
-  'git: build the optional pinned Shima runtime'
-  'qt6-imageformats: decode extra Shima image formats'
 )
 source=()
 

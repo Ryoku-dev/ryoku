@@ -11,7 +11,7 @@ ln -s "$repo/ryoku/ui" "$work/Ryoku/Ui"
 ln -s "$repo/ryoku/shell/framebars" "$work/Ryoku/FrameBars"
 cp -a "$repo/ryoku/hub/quickshell" "$work/hub"
 cp "$here/ryostore-handoff-probe.qml" "$work/probe.qml"
-printf '%s\n' '{"barStyle":"sumi"}' >"$work/cfg/ryoku/shell.json"
+printf '%s\n' '{"barStyle":"orpheus"}' >"$work/cfg/ryoku/shell.json"
 printf '%s\n' '[]' >"$work/shell/quickshell/plugins/discover-data.json"
 cat >"$work/shell/quickshell/plugins/discover.sh" <<'DISCOVER'
 #!/usr/bin/env bash
@@ -44,7 +44,7 @@ bundles) cat <<'JSON'
 JSON
 ;;
 barstyles) cat <<'JSON'
-{"items":[{"id":"sumi","category":"barstyles","name":"Sumi","summary":"Ink spine","installed":true,"active":true},{"id":"obi","category":"barstyles","name":"Obi","summary":"Floating sash","installed":true},{"id":"nacre","category":"barstyles","name":"Nacre","summary":"Instrument archipelago","installed":true}]}
+{"items":[{"id":"sample-one","category":"barstyles","name":"Sample One","summary":"First sample","installed":true,"active":true},{"id":"sample-two","category":"barstyles","name":"Sample Two","summary":"Second sample","installed":true},{"id":"sample-three","category":"barstyles","name":"Sample Three","summary":"Third sample","installed":true}]}
 JSON
 ;;
 *) printf '%s\n' '{"items":[]}' ;;

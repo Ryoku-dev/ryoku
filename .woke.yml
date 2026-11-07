@@ -19,9 +19,6 @@ ignore_files:
   # the typing test's word lists are frequency dictionaries of English, not prose
   # we write, so a common word in them is data.
   - ryoku/shell/quickshell/keys/typing/assets/languages/**
-  # the Python bar style's weather script is Serpantinum's, kept verbatim so
-  # upstream syncs stay clean.
-  - ryoku/shell/quickshell/shell/modules/bar/barstyles/python/scripts/weather.sh
 
 # `blacklist` is the exact modprobe.d directive Ryoku writes and greps for to keep
 # nouveau from racing the NVIDIA driver (system/hardware/drivers/*, the doctor's

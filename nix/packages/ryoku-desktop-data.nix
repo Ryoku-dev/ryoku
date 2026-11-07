@@ -95,31 +95,6 @@ pkgs.stdenv.mkDerivation {
       exit 1
     fi
 
-    # iNiR's shared app launcher is written for FHS distributions and uses
-    # absolute /usr/bin paths. NixOS intentionally has no /usr/bin/bash,
-    # systemd-run or gtk-launch. Patch only the packaged payload so Shima and
-    # Spotlight keep upstream's launch semantics with generation-owned tools.
-    shell_exec="$cfg/quickshell/inir/modules/common/functions/ShellExec.qml"
-    substituteInPlace "$shell_exec" \
-      --replace-fail '"/usr/bin/fish"' '"${pkgs.fish}/bin/fish"' \
-      --replace-fail '"/usr/bin/bash"' '"${pkgs.bash}/bin/bash"' \
-      --replace-fail '"/usr/bin/systemd-run"' '"${pkgs.systemd}/bin/systemd-run"' \
-      --replace-fail '"/usr/bin/gtk-launch"' '"${pkgs.gtk3}/bin/gtk-launch"' \
-      --replace-fail '["/usr/bin/test",' '["${pkgs.coreutils}/bin/test",' \
-      --replace-fail '[ -x /usr/bin/systemctl ]' '[ -x ${pkgs.systemd}/bin/systemctl ]' \
-      --replace-fail '[ -x /usr/bin/timeout ]' '[ -x ${pkgs.coreutils}/bin/timeout ]' \
-      --replace-fail '/usr/bin/timeout 3s /usr/bin/systemctl' '${pkgs.coreutils}/bin/timeout 3s ${pkgs.systemd}/bin/systemctl'
-
-    if grep -Eq '/usr/bin/(bash|fish|systemd-run|systemctl|timeout|gtk-launch|test)' "$shell_exec"; then
-      echo "Ryoku Nix launcher guard: FHS executable path survived ShellExec packaging" >&2
-      exit 1
-    fi
-
-    # Nomarchy is a shell-owned compatibility payload. Arch exposes it under
-    # /usr/share/ryoku; Nix keeps the same data layout inside desktop-data.
-    mkdir -p "$out/share/ryoku/nomarchy"
-    cp -a ryoku/shell/nomarchy/. "$out/share/ryoku/nomarchy/"
-    patchShebangs "$out/share/ryoku/nomarchy"
 
     # ── Ryoku Settings / Hub ───────────────────────────────────
 
@@ -435,13 +410,8 @@ user chmod -R u+w "$QYLOCK_DIR/themes/clockwork/orbital"'
 
     # ── Nix runtime path normalization ─────────────────────────
     #
-    # Upstream iNiR is developed on FHS distributions and many QML Process{}
-    # call sites use absolute /usr/bin paths. Ryoku's Nix user service already
-    # exposes this toolset deliberately, but an absolute Arch path bypasses the
-    # service PATH entirely. Normalize only commands guaranteed by runtimePackages
-    # (plus optional commands to bare names) in the packaged payload. Upstream
-    # source stays distro-neutral and future syncs cannot silently resurrect the
-    # same NixOS failure class.
+    # Normalize executable paths in the packaged payload so shell and lockscreen
+    # helpers use the generation-owned runtime tools available on NixOS.
     #
     # The qylock payload gets the same treatment. ryoku-qylock-materialize copies
     # it into the home for the in-session lock, and its helpers run outside the

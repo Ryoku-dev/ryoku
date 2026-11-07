@@ -4,12 +4,8 @@ import Ryoku.Blobs
 import "modules/bar/popouts" as PillPopouts
 import "services" as PillSingletons
 
-// Built-in half of the nacre popup probe: verifies the consolidated bar popout
-// (shell/modules/bar/popouts/Popout.qml) and the Media singleton
-// (shell/services/Media.qml) resolve and behave against the merged shell tree.
-// The external nacre/obi barstyle products are exercised separately in
-// nacre-popup-probe.barstyles.qml, because they still import the retired pill.*
-// namespace (see the header of nacre-popup-probe.sh).
+// Verifies the consolidated bar popout and Media singleton resolve and behave
+// against the merged shell tree.
 ShellRoot {
     id: root
 
@@ -32,7 +28,7 @@ ShellRoot {
             const pausedPlayer = { isPlaying: false, trackTitle: "Paused track" };
             if (PillSingletons.Media.pick([blankPlayer, pausedPlayer]) !== pausedPlayer)
                 throw new Error("MEDIA-PAUSED-PLAYER-PROBE-FAIL");
-            console.log("NACRE-POPUP-PROBE-PASS");
+            console.log("SHELL-POPOUT-PROBE-PASS");
             Qt.quit();
         }
     }

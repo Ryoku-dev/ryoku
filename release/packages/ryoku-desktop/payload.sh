@@ -354,7 +354,7 @@ EOF
     cp -a "$_repo/ryoku/shell/systemd/user/." "$cfg/systemd/user/"
   fi
 
-  # The AI-usage collectors behind the qsbar AI pill ship with ryoku-rashin.
+  # Session environment and activation files ship with the desktop.
   if [[ $RYOKU_INIT_MODE == systemd ]]; then
     # The globally enabled bootstrap lays a missing config before the first
     # compositor reads it; the remaining session units are installed above.

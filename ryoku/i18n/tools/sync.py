@@ -40,11 +40,15 @@ too. Placeholders (%1, %2, ...) are shielded so they survive translation, and
 overrides/<lang>.json always wins, so a human fix is never overwritten.
 
   python3 sync.py extract
+  python3 sync.py extract --store ../ryostore-revamped
   python3 sync.py sync                       # all targets, Google
   python3 sync.py sync --engine llm          # all targets, LLM
   python3 sync.py sync --engine llm --force  # full LLM re-translate
   python3 sync.py check --strict             # length guard
   python3 sync.py cost                       # price the next full pass
+
+`--store` adds an official catalogue checkout to extraction. The
+`RYOKU_STORE_SRC` environment variable provides the same source root.
 """
 
 import concurrent.futures
@@ -88,7 +92,6 @@ RTL = {l["code"] for l in LANGS if l.get("dir") == "rtl"}
 # desktop; the Go and shell roots are the two installers and the CLI, which
 # speak the same catalog through ryoku/i18n/i18n.go and ryoku/i18n/i18n.sh.
 QML_ROOT = os.path.join(REPO, "ryoku")
-SHIMA_ROOT = os.path.join(QML_ROOT, "shell", "quickshell", "inir")
 SCHEMA_DIR = os.path.join(REPO, "ryoku", "hub", "quickshell", "schema")
 GO_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/tui", "ryoku-shell-installer", "ryoku/cli",
@@ -96,7 +99,7 @@ GO_ROOTS = [os.path.join(REPO, p) for p in
 SH_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/backend", "ryoku-shell-installer")]
 
-# QML/JS: the shared I18n lookup, Shima's Translation bridge and Qt's qsTr
+# QML/JS: the shared I18n lookup, catalogue translation bridges and Qt's qsTr
 # marker. Quickshell has no qsTr loader, but matching it still keeps a stray
 # marker in the catalog.
 TR_CALL = re.compile(r"""(?:I18n\.tr|Translation\.tr|qsTr)\(\s*(["'])((?:\\.|(?!\1).)*)\1""")
@@ -147,8 +150,8 @@ PAGE_OPTS = re.compile(r'\boptions\s*:\s*\[([^\]]*)\]', re.S)   # inline page op
 STR_LIT = re.compile(r'"((?:\\.|[^"\\])*)"')
 # data-model display fields, key quoted ("label":) or not (label:).
 MODEL_LABEL = re.compile(r'\b(?:label|name|desc|altLabel)"?\s*:\s*"((?:\\.|[^"\\])*)"')
-# Shima data tables are translated where their values are rendered, so their
-# English literals have no direct tr() call for the extractor to see.
+# Catalogue data tables are translated where their values are rendered, so
+# their English literals have no direct tr() call for the extractor to see.
 QML_MODEL_FIELD = re.compile(
     r'\b(?:label|description|desc|group|title|subtitle|tip|detail|button|placeholder|'
     r'zeroLabel|emptyText|caption|heading|message|note|summary|blurb|eyebrow)\s*:\s*'
@@ -190,9 +193,8 @@ def _copy(s):
 
 
 
-def extract_keys():
-    keys = set()
-    for root, _, files in os.walk(QML_ROOT):
+def _scan_qml(keys, root_dir, include_model_fields=False):
+    for root, _, files in os.walk(root_dir):
         for f in files:
             if not f.endswith(".qml"):
                 continue
@@ -206,12 +208,38 @@ def extract_keys():
             for _, body in TR_CALL.findall(text):
                 s = _unescape(body).strip()
                 if s:
-                    keys.add(s)          # explicit tr() calls are always kept
-            if os.path.commonpath((path, SHIMA_ROOT)) == SHIMA_ROOT:
+                    keys.add(s)
+            if include_model_fields:
                 for body in QML_MODEL_FIELD.findall(text):
                     s = _unescape(body).strip()
                     if s and not _noise(s) and not _brand(s):
                         keys.add(s)
+
+
+def _catalogue_qml_roots(store_root=None):
+    root = store_root if store_root is not None else os.environ.get("RYOKU_STORE_SRC", "")
+    if not root:
+        return []
+    root = os.path.abspath(os.path.expanduser(root))
+    if not os.path.isdir(root):
+        raise ValueError(f"store source root does not exist: {root}")
+    roots = []
+    for category in ("subshells", "barstyles"):
+        category_root = os.path.join(root, category)
+        if not os.path.isdir(category_root):
+            continue
+        for item in sorted(os.listdir(category_root)):
+            qml = os.path.join(category_root, item, "qml")
+            if os.path.isdir(qml):
+                roots.append(qml)
+    return roots
+
+
+def extract_keys(store_root=None):
+    keys = set()
+    _scan_qml(keys, QML_ROOT)
+    for root in _catalogue_qml_roots(store_root):
+        _scan_qml(keys, root, include_model_fields=True)
     if os.path.isdir(SCHEMA_DIR):
         for f in os.listdir(SCHEMA_DIR):
             if not f.endswith(".js"):
@@ -339,8 +367,8 @@ def write_json(path, obj):
         fh.write("\n")
 
 
-def cmd_extract():
-    keys = extract_keys()
+def cmd_extract(store_root=None):
+    keys = extract_keys(store_root)
     write_json(os.path.join(TRANS, "en.json"), {k: k for k in keys})
     print(f"extract: {len(keys)} strings -> catalog/en.json")
 
@@ -965,8 +993,34 @@ def cmd_langs():
     return 0
 
 
+def _parse_store_arg(args):
+    store_root = None
+    remaining = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--store":
+            if i + 1 >= len(args):
+                raise ValueError("--store requires a directory")
+            store_root = args[i + 1]
+            i += 2
+        elif arg.startswith("--store="):
+            store_root = arg.split("=", 1)[1]
+            if not store_root:
+                raise ValueError("--store requires a directory")
+            i += 1
+        else:
+            remaining.append(arg)
+            i += 1
+    return store_root, remaining
+
+
 def main():
-    args = sys.argv[1:]
+    try:
+        store_root, args = _parse_store_arg(sys.argv[1:])
+    except ValueError as exc:
+        print(f"sync.py: {exc}", file=sys.stderr)
+        return 2
     cmds = ("extract", "sync", "check", "llm", "ensure", "cost", "langs")
     if not args or args[0] not in cmds:
         print(__doc__)
@@ -976,7 +1030,11 @@ def main():
     if args[0] == "ensure":
         return cmd_ensure()
     if args[0] == "extract":
-        cmd_extract()
+        try:
+            cmd_extract(store_root)
+        except ValueError as exc:
+            print(f"extract: {exc}", file=sys.stderr)
+            return 2
         return 0
     if args[0] == "check":
         return cmd_check(args[1:])

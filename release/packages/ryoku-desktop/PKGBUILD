@@ -14,10 +14,9 @@ pkgdesc="Ryoku desktop: Quickshell configuration, helpers, and runtime (composit
 # package() compiles Go helpers (ryovm-fetch), so the payload is arch-specific.
 arch=('x86_64')
 url="https://ryoku.dev"
-# The Python bar style's ported QML stays AGPL-3.0-or-later (Serpantinum) and
-# the Ryoku Discord theme for Vesktop is MIT; the rest of the package is
-# GPL-3.0-or-later. AGPL-3.0 s13 permits the combination.
-license=('GPL-3.0-or-later' 'AGPL-3.0-or-later' 'MIT')
+# The Ryoku Discord theme for Vesktop is MIT; the rest of the package is
+# GPL-3.0-or-later.
+license=('GPL-3.0-or-later' 'MIT')
 # go builds the app helpers (ryovm-fetch); cmake+Qt6 build any compiled ryoku/apps app.
 makedepends=('go' 'cmake' 'ninja')
 depends=(

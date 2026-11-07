@@ -6,6 +6,9 @@ for finer detail.
 ## Unreleased
 
 ### Removed
+- Every bar style and subshell except Orpheus and Kairos left this repository
+  for the `Ryoku-dev/ryostore-revamped` catalogue, along with the Shima pinned
+  source workflow and the Nomarchy tree. Users install them from Ryostore.
 - The mango compositor is gone: its provider, config tree, packages,
   installer choice, deploy steps, tests and docs. Ryoku ships Hyprland and
   niri. A box that still carries the mango variant is moved onto the variant

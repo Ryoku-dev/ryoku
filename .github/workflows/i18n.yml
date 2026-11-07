@@ -32,9 +32,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - name: Checkout
+      - name: Checkout Ryoku
         uses: actions/checkout@v4
+        with:
+          path: ryoku
 
+      - name: Checkout shell catalogue
+        uses: actions/checkout@v4
+        with:
+          repository: Ryoku-dev/ryostore-revamped
+          path: ryostore-revamped
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -50,8 +57,9 @@ jobs:
           RYOKU_I18N_MODEL: ${{ vars.RYOKU_I18N_MODEL || 'google/gemini-2.5-flash' }}
           RYOKU_I18N_KEY: ${{ secrets.RYOKU_I18N_KEY }}
           FORCE: ${{ inputs.force }}
+        working-directory: ryoku
         run: |
-          python3 ryoku/i18n/tools/sync.py extract
+          python3 ryoku/i18n/tools/sync.py extract --store ../ryostore-revamped
           flag=""
           [ "$FORCE" = "true" ] && flag="--force"
           if [ -n "$RYOKU_I18N_KEY" ]; then
@@ -66,6 +74,7 @@ jobs:
           python3 ryoku/i18n/tools/sync.py cost || true
 
       - name: Commit updated translations
+        working-directory: ryoku
         run: |
           if git diff --quiet -- ryoku/i18n/catalog; then
             echo "Translations already current."

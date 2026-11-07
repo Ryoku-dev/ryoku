@@ -10,7 +10,6 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/Ryoku" "$work/shell/modules" "$work/cfg/ryoku" \
     "$work/home" "$work/xdg"
 ln -s "$repo/ryoku/ui" "$work/Ryoku/Ui"
-ln -s "$repo/ryoku/shell/quickshell/inir" "$work/inir"
 ln -s "$repo/ryoku/shell/quickshell/stage" "$work/stage"
 for child in "$src"/*; do
     name="$(basename "$child")"

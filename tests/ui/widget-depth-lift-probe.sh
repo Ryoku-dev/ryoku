@@ -14,8 +14,6 @@ ln -s "$repo/ryoku/ui" "$work/Ryoku/Ui"
 ln -s "$repo/ryoku/shell/framebars" "$work/Ryoku/FrameBars" 2>/dev/null || true
 # The widget menu's size stepper reads the Stage Editor's island module.
 ln -s "$repo/ryoku/shell/quickshell/stage" "$work/stage"
-# The universal dock service imports the iRiS port's services module.
-ln -s "$repo/ryoku/shell/quickshell/inir" "$work/inir"
 for child in "$src"/*; do
     name="$(basename "$child")"
     [[ "$name" == modules ]] && continue

@@ -36,8 +36,6 @@ install)
 		[ -f "$script" ] || continue
 		install -Dm755 "$script" "$destdir/usr/bin/${script##*/}"
 	done
-	install -d "$destdir/usr/share/ryoku/nomarchy"
-	cp -a "$RYOKU_SRC/ryoku/shell/nomarchy/." "$destdir/usr/share/ryoku/nomarchy/"
 	install -d "$destdir/usr/share/ryoku/reload-cover"
 	cp -a "$RYOKU_SRC/ryoku/shell/quickshell/reload-cover/." "$destdir/usr/share/ryoku/reload-cover/"
 	;;

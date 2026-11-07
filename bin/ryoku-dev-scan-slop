@@ -18,10 +18,10 @@ case "$mode" in
     base=${2:-}
     head=${3:?usage: ryoku-dev-scan-slop --range <base> <head>}
     [[ -n $base ]] || base=$empty_tree
-    diff=$(git diff --diff-filter=ACM -U0 "$base" "$head" -- . ':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/shell/quickshell/shell/modules/bar/barstyles/qsbar' ':(glob,exclude)**/vendor/**')
+    diff=$(git diff --diff-filter=ACM -U0 "$base" "$head" -- . ':(exclude)ryoku/lockscreen/qylock' ':(glob,exclude)**/vendor/**')
     ;;
   --staged)
-    diff=$(git diff --cached --diff-filter=ACM -U0 -- . ':(exclude)ryoku/lockscreen/qylock' ':(exclude)ryoku/shell/quickshell/shell/modules/bar/barstyles/qsbar' ':(glob,exclude)**/vendor/**')
+    diff=$(git diff --cached --diff-filter=ACM -U0 -- . ':(exclude)ryoku/lockscreen/qylock' ':(glob,exclude)**/vendor/**')
     ;;
   *)
     echo "usage: ryoku-dev-scan-slop --range <base> <head> | --staged" >&2

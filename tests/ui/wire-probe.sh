@@ -32,7 +32,7 @@ d = json.load(open(sys.argv[1]))
 frame_bars = d.get("frameBars")
 want = {
     "frameBorder": 88,
-    "barStyle": "nacre",
+    "barStyle": "kairos",
     "frameBars.rails.top.size": 38,
     "frameBars.rails.left.center": ["dock"],
     "sidebarRightPanes": ["notifications", "calendar"],

@@ -1,14 +1,8 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 #
-# ttf-rubik-vf = Rubik, the slightly-rounded sans the Shima frame renders every
-# numeral with (IrisStyle.fontNumbers: island clock, card metrics, gauges).
-#
-# Shipped from [ryoku], not the AUR, on purpose, like otf-space-grotesk before
-# it: the face is hardcoded in shell QML, so a box without it silently falls
-# back to Noto Sans and the frame's number layout shifts (tight card rows clip
-# their unit glyphs). Prebuilt TTFs from a pinned upstream commit: no build to
-# fail, it always resolves, and it reaches every box on install (pacstrapped
-# from base.packages) and on `ryoku update`.
+# Rubik is packaged from a pinned upstream commit for shell catalogue items and
+# other UI that select it. Prebuilt TTFs need no build and keep the package
+# reproducible.
 #
 # fixed-version package: it tracks the upstream Rubik release, not the monorepo
 # RYOKU_PKGVER. GitHub raw assets at a commit are immutable, so the checksum is
@@ -16,7 +10,7 @@
 pkgname=ttf-rubik-vf
 pkgver=2.3.0
 pkgrel=2
-pkgdesc="Rubik variable TTF (the Shima frame's numerals face)"
+pkgdesc="Rubik variable TTF"
 arch=('any')
 url="https://github.com/googlefonts/rubik"
 license=('OFL-1.1')

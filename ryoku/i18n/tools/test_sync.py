@@ -28,15 +28,44 @@ class CopyDetectionTest(unittest.TestCase):
 
 
 
-class ShimaExtractionTest(unittest.TestCase):
+class CatalogueExtractionTest(unittest.TestCase):
     def test_translation_bridge_call_is_catalogued(self):
         calls = sync.TR_CALL.findall('text: Translation.tr("Dock settings")')
         self.assertEqual([body for _, body in calls], ["Dock settings"])
 
-    def test_dynamic_model_copy_is_catalogued(self):
-        fields = sync.QML_MODEL_FIELD.findall(
-            '{ label: "Pieces", description: "Choose what Shima shows." }')
-        self.assertEqual(fields, ["Pieces", "Choose what Shima shows."])
+    def test_catalogue_qml_and_dynamic_model_copy_are_catalogued(self):
+        with tempfile.TemporaryDirectory() as store:
+            qml = os.path.join(store, "barstyles", "demo", "qml", "panels")
+            os.makedirs(qml)
+            with open(os.path.join(qml, "Panel.qml"), "w", encoding="utf-8") as fh:
+                fh.write('text: I18n.tr("Open panel")\n'
+                         'property var rows: [{ label: "Pieces", '
+                         'description: "Choose what this shell shows." }]\n')
+            ignored = os.path.join(store, "profiles", "demo", "qml")
+            os.makedirs(ignored)
+            with open(os.path.join(ignored, "Ignored.qml"), "w", encoding="utf-8") as fh:
+                fh.write('text: I18n.tr("Ignore profile QML")\n')
+
+            keys = set()
+            for root in sync._catalogue_qml_roots(store):
+                sync._scan_qml(keys, root, include_model_fields=True)
+
+        self.assertEqual(keys, {
+            "Open panel", "Pieces", "Choose what this shell shows.",
+        })
+
+    def test_store_environment_selects_catalogue_root(self):
+        with tempfile.TemporaryDirectory() as store:
+            qml = os.path.join(store, "subshells", "demo", "qml")
+            os.makedirs(qml)
+            with mock.patch.dict(os.environ, {"RYOKU_STORE_SRC": store}):
+                self.assertEqual(sync._catalogue_qml_roots(), [qml])
+
+    def test_store_argument_is_removed_from_command_arguments(self):
+        root, args = sync._parse_store_arg(
+            ["sync", "--engine", "llm", "--store", "../ryostore-revamped"])
+        self.assertEqual(root, "../ryostore-revamped")
+        self.assertEqual(args, ["sync", "--engine", "llm"])
 
 
 class ShortcutCatalogueExtractionTest(unittest.TestCase):

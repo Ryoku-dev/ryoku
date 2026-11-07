@@ -9,8 +9,8 @@ cp -r "$root/ryoku/lockscreen/qylock" "$tmp/qylock"
 cp "$root/tests/lock-time-format.qml" "$tmp/shell.qml"
 printf '%s\n' '{}' > "$tmp/config/ryoku/shell.json"
 XDG_RUNTIME_DIR="$tmp/runtime" QT_QPA_PLATFORM=offscreen QML_XHR_ALLOW_FILE_READ=1 \
-    QML_IMPORT_PATH="$tmp/imports:$root/ryoku/shell/quickshell:$tmp/qylock/quickshell-lockscreen/imports:${QML_IMPORT_PATH:-}" \
-    QML2_IMPORT_PATH="$tmp/imports:$root/ryoku/shell/quickshell:$tmp/qylock/quickshell-lockscreen/imports:${QML2_IMPORT_PATH:-}" \
+    QML_IMPORT_PATH="$tmp/imports:$tmp/qylock/quickshell-lockscreen/imports:${QML_IMPORT_PATH:-}" \
+    QML2_IMPORT_PATH="$tmp/imports:$tmp/qylock/quickshell-lockscreen/imports:${QML2_IMPORT_PATH:-}" \
     XDG_CONFIG_HOME="$tmp/config" timeout 15s qs -p "$tmp/shell.qml" > "$tmp/output" 2>&1 || {
         cat "$tmp/output"
         exit 1

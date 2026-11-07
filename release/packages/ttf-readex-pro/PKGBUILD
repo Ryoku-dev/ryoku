@@ -1,21 +1,16 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 #
-# ttf-readex-pro = Readex Pro, the display sans the Shima frame renders its
-# headlines and titles with (IrisStyle.fontTitle: island clock face, card
-# headers, the studio's titles).
-#
-# Shipped from [ryoku], not the AUR, for the same reason as ttf-rubik-vf: the
-# face is hardcoded in shell QML, and a box without it falls back to Noto Sans
-# with different metrics. The upstream repo has no release assets, so this
-# installs the variable TTF from a pinned commit, like the AUR recipe does; the
-# commit is immutable and the checksum is pinned for real.
+# Readex Pro is packaged from a pinned upstream commit for shell catalogue
+# items and other UI that select it. The upstream repo has no release assets,
+# so this installs the variable TTF from an immutable commit with a pinned
+# checksum.
 #
 # fixed-version package: it tracks the upstream Readex Pro release, not the
 # monorepo RYOKU_PKGVER. bump pkgver + _commit + sha256sums for a new release.
 pkgname=ttf-readex-pro
 pkgver=1.204
 pkgrel=2
-pkgdesc="Readex Pro variable TTF (the Shima frame's title face)"
+pkgdesc="Readex Pro variable TTF"
 arch=('any')
 url="https://github.com/ThomasJockin/readexpro"
 license=('OFL-1.1')

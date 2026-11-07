@@ -2,7 +2,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons as Clock
-import inir.modules.common as Inir
 ShellRoot {
     id: root
     property var keyboard: ({numLock: false})
@@ -22,11 +21,6 @@ ShellRoot {
             if (!Clock.TimeFormat.is24HourPattern("HH:mm 'at'")
                     || Clock.TimeFormat.is24HourPattern("h:mm AP")) {
                 console.error("FAIL: clock pattern classification"); Qt.quit(); return;
-            }
-            Inir.Config.setNestedValue("time.format", "h:mm AP");
-            if (Inir.Config.pending["general.clock_format_24_h"] !== false
-                    || Inir.Config.pending["inir.time.format"] !== undefined) {
-                console.error("FAIL: Shima 12-hour setting did not route exclusively to the global clock"); Qt.quit(); return;
             }
             root.writeFormat("en_US", false);
             root.phase = 0;
@@ -58,11 +52,6 @@ ShellRoot {
                         || !root.hasText(theme.item, "06 DIC 2026") || !root.hasText(theme.item, "DOMINGO")) {
                     console.error("FAIL: Spanish 12-hour theme"); Qt.quit(); return;
                 }
-                Inir.Config.setNestedValue("time.format", "HH:mm");
-                if (Inir.Config.pending["general.clock_format_24_h"] !== true
-                        || Inir.Config.pending["inir.time.format"] !== undefined) {
-                    console.error("FAIL: Shima 24-hour setting did not route exclusively to the global clock"); Qt.quit(); return;
-                }
                 root.writeFormat("en_US", true); root.phase++;
             } else if (root.phase === 2 && Clock.TimeFormat.formatLocale === "en_US" && theme.item.clock24h) {
                 if (!root.hasText(theme.item, "23") || root.hasText(theme.item, "PM")
@@ -75,7 +64,7 @@ ShellRoot {
                         || !root.hasText(theme.item, "06 DIC 2026") || !root.hasText(theme.item, "DOMINGO")) {
                     console.error("FAIL: Spanish 24-hour theme"); Qt.quit(); return;
                 }
-                console.log("PASS: Shima and the stock lockscreen share English and Spanish 12/24-hour time"); Qt.quit();
+                console.log("PASS: the stock lockscreen renders English and Spanish 12/24-hour time"); Qt.quit();
             }
         }
     }
