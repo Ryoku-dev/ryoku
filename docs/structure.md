@@ -407,9 +407,11 @@ downgrades.
   message CI posts to the Ryoku Discord), `ryoku-track` (the source
   lane behind `ryoku track unstable`), `ryoku-dev-perf-baseline` (what the
   running desktop costs in memory, CPU, wakeups, GPU and power, per process and
-  per surface; see `docs/performance.md`), and `art/` for art authoring
-  (`ryodither` bakes an image or gif into a 1-bit bone-on-transparent decor;
-  `tiling-demos` generates the Appearance tiling-layout preview loops).
+  per surface, and with `--budget` the gate that fails when the base desktop
+  exceeds `ryoku/shell/perf-budget.json`; see `docs/performance.md`), and
+  `art/` for art authoring (`ryodither` bakes an image or gif into a 1-bit
+  bone-on-transparent decor; `tiling-demos` generates the Appearance
+  tiling-layout preview loops).
 - `tests/` standalone CI check scripts (install chroot-safety, shell tool
   availability).
 - `.github/` the workflows and issue/PR templates; `.githooks/` the commit gates.

@@ -109,6 +109,11 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- **A resource gate for the base desktop.** `bin/ryoku-dev-perf-baseline
+  --budget ryoku/shell/perf-budget.json` fails when the platform with Orpheus
+  or Kairos costs more memory, GPU memory, CPU or wakeups than recorded, or
+  starts any process while idle; `docs/performance.md` explains how to run it
+  on a test box and how to update the numbers.
 - **Resource tiers in RyoStore.** Every subshell and bar style carries the tier
   the catalogue measured against Orpheus (Light, Standard or Heavy), shown on
   its card and, with the measured difference, in its detail. On a machine with

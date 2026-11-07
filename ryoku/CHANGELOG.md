@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **The warm provider process leaves when idle.** It starts with the first
+  window action and exits after 30 s without one, so an idle desktop keeps
+  only the provider's event watcher (`wm/warm.go`).
 - **Window actions reuse one provider process.** Each compositor provider has
   a `serve` verb, and the daemon keeps one warm, so a dock click or a
   workspace switch no longer starts a provider process (`wm/serve.go`,
