@@ -1,6 +1,11 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **`ryoku-blobs` ships the `Ryoku.Bus` module and `ryoku-desktop` ships
+  Ryoku.Ui compiled.** The bus client is C++ now, and Ryoku.Ui is a
+  qmlcachegen-built plugin instead of plain QML files, on Arch, Fedora, Void
+  and Nix. Building `ryoku-desktop` needs the Qt 6 Declarative development
+  files.
 - **The desktop and shell packages no longer carry the store bar styles.**
   Python's AGPL code, the Nomarchy tree and the Shima build optdepends left with
   them, and Orpheus and Kairos still ship in the desktop.

@@ -1,6 +1,20 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The desktop starts about a third faster.** Quickshell never disk-caches
+  its root file or what the root reaches by relative import, so most of the
+  shell was compiled again on every start; the body now loads as the `shell`
+  module and lands in Qt's cache (`shell.qml`, `ShellBody.qml`).
+- **Lists update one row at a time.** Workspace pills, the frame bar's
+  workspace rail, the overview, the launcher's window rail, the clipboard
+  surface, the Wi-Fi page and the Kairos tray read keyed rows from the new
+  `Ryoku.Bus` module, so a title change or a new clip no longer rebuilds every
+  entry, and the bus connection itself runs off the GUI thread.
+- **Hidden OSD and notification windows are not kept.** They are built when
+  something shows and released after they slide out; the phone bridge is built
+  only once phone support is on.
+- The recorder no longer checks its backend once a minute while nothing
+  records; an idle desktop starts no processes.
 - **Each shell process keeps one connection to the daemon.** The shell,
   ryoshot, ryopin and welcome used up to twenty sockets each (one per topic and
   per service); `Bus` in `Ryoku.Ui` now carries every subscription, call and
