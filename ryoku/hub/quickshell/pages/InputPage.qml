@@ -106,16 +106,15 @@ Item {
             return;
         pg.tab = t;
         if (t === "MOUSE")
-            mouseCtl.send("mouse.state", {});
+            pg.mouseSend("mouse.state", {});
         tabHost.travel();
     }
 
     // ── mouse tab: the shell daemon's evdev remapper ─────────────────────
-    // One subscription for frames (devices, maps, captured presses), one
-    // control line per call; the daemon owns mousemap.json and the grabs, so
-    // the page never touches a file. Same socket grammar the Recording page
-    // uses for the keypress overlay.
-    readonly property string shellSockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
+    // The `mouse` topic carries frames (devices, maps, captured presses) and
+    // each change is a bus call; the daemon owns mousemap.json and the grabs,
+    // so the page never touches a file. Same grammar the Recording page uses
+    // for the keypress overlay.
     property var mouseDevices: []
     property var mouseMaps: ({})
     property bool mouseDaemonSeen: false
@@ -131,82 +130,40 @@ Item {
     property double macroLastAt: 0
     readonly property bool capturing: pg.captureFor !== null || pg.macroKeyCapture || pg.macroRecording
 
-    function applyMouseFrame(line) {
-        try {
-            var frame = JSON.parse(line);
-            if (!frame || !frame.devices)
+    // frame is the bus's shared parsed frame: read it, never mutate it.
+    function applyMouseFrame(frame) {
+        if (!frame || !frame.devices)
+            return;
+        pg.mouseDaemonSeen = true;
+        pg.mouseDevices = frame.devices;
+        pg.mouseMaps = frame.maps || {};
+        var p = frame.pressed;
+        if (p && pg.capturing && pg.captureWaitClick) {
+            if (p.device === "" && p.button === 0) {
+                // the daemon's waiter expired; re-arm so the overlay keeps
+                // listening until the user presses something or cancels.
+                pg.mouseSend("mouse.capture", { timeoutMs: 8000 });
                 return;
-            pg.mouseDaemonSeen = true;
-            pg.mouseDevices = frame.devices;
-            pg.mouseMaps = frame.maps || {};
-            var p = frame.pressed;
-            if (p && pg.capturing && pg.captureWaitClick) {
-                if (p.device === "" && p.button === 0) {
-                    // the daemon's waiter expired; re-arm so the overlay keeps
-                    // listening until the user presses something or cancels.
-                    mouseCtl.send("mouse.capture", { timeoutMs: 8000 });
-                    return;
-                }
-                pg.captureFor = { "device": p.device, "button": p.button };
-                pg.captureWaitClick = false;
             }
-        } catch (e) {}
+            pg.captureFor = { "device": p.device, "button": p.button };
+            pg.captureWaitClick = false;
+        }
     }
 
-    function applyMouseReply(line) {
-        try {
-            var reply = JSON.parse(line);
-            if (reply.ok) {
-                pg.mouseError = "";
-                if (reply.result && reply.result.devices)
-                    pg.applyMouseFrame(JSON.stringify(reply.result));
-                return;
-            }
-            pg.mouseError = reply.error || I18n.tr("The mouse remapper refused the change.");
-            if (reply.result && reply.result.devices)
-                pg.applyMouseFrame(JSON.stringify(reply.result));
-        } catch (e) {}
+    function applyMouseReply(ok, result, error) {
+        pg.mouseError = ok ? "" : (error || I18n.tr("The mouse remapper refused the change."));
+        if (result && result.devices)
+            pg.applyMouseFrame(result);
     }
 
-    Socket {
-        id: mouseSub
-        path: pg.shellSockPath
-        parser: SplitParser { onRead: line => pg.applyMouseFrame(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe mouse\n");
-                flush();
-            } else {
-                mouseSubRetry.restart();
-            }
-        }
+    function mouseSend(method, args) {
+        Bus.call(method, args, (ok, result, error) => pg.applyMouseReply(ok, result, error));
     }
-    Timer {
-        id: mouseSubRetry
-        interval: 2000
-        onTriggered: if (!mouseSub.connected) mouseSub.connected = true
-    }
-    Socket {
-        id: mouseCtl
-        path: pg.shellSockPath
-        property string queued: ""
-        parser: SplitParser { onRead: line => pg.applyMouseReply(line) }
-        function send(method, args) {
-            queued += "call " + method + " " + JSON.stringify(args) + "\n";
-            if (connected)
-                flushQueued();
-            else
-                connected = true;
-        }
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-        onConnectionStateChanged: if (connected) flushQueued()
+
+    BusTopic {
+        id: mouseTopic
+        topic: "mouse"
+        onUpdated: pg.applyMouseFrame(mouseTopic.data)
     }
 
     function mouseDevice(device) {
@@ -318,7 +275,7 @@ Item {
         pg.captureFor = { "device": "", "button": 0 };
         pg.captureWaitClick = true;
         pg.captureForming = "";
-        mouseCtl.send("mouse.capture", { timeoutMs: 8000 });
+        pg.mouseSend("mouse.capture", { timeoutMs: 8000 });
         pg.enterRecordSubmap();
         recordTimeout.restart();
     }
@@ -336,15 +293,15 @@ Item {
             pg.mouseError = I18n.tr("That key is outside the bindable set.");
             return;
         }
-        mouseCtl.send("mouse.map", { "device": c.device, "button": c.button,
+        pg.mouseSend("mouse.map", { "device": c.device, "button": c.button,
             "target": { "kind": "chord", "keys": keys } });
     }
     function setDisabled(device, code) {
-        mouseCtl.send("mouse.map", { "device": device, "button": code,
+        pg.mouseSend("mouse.map", { "device": device, "button": code,
             "target": { "kind": "disabled" } });
     }
     function clearBinding(device, code) {
-        mouseCtl.send("mouse.map", { "device": device, "button": code, "target": null });
+        pg.mouseSend("mouse.map", { "device": device, "button": code, "target": null });
     }
     function openMacro(device, code) {
         var current = pg.mapFor(device, code);
@@ -453,13 +410,13 @@ Item {
     }
     function saveMacro() {
         if (!pg.macroEditor || pg.macroEditor.target.sequence.length === 0) return;
-        mouseCtl.send("mouse.map", { "device": pg.macroEditor.device,
+        pg.mouseSend("mouse.map", { "device": pg.macroEditor.device,
             "button": pg.macroEditor.button, "target": pg.macroEditor.target });
         pg.macroEditor = null;
     }
     function testMacro() {
         if (pg.macroEditor && pg.macroEditor.target.sequence.length > 0)
-            mouseCtl.send("mouse.test", { "target": pg.macroEditor.target });
+            pg.mouseSend("mouse.test", { "target": pg.macroEditor.target });
     }
     function addMacroDelay() {
         pg.addMacroStep({ "kind": "delay", "delayMs": 100 });
@@ -2005,7 +1962,7 @@ Item {
                         anchors.verticalCenter: parent.verticalCenter
                         text: I18n.tr("RE-DETECT")
                         armed: pg.mouseDaemonSeen
-                        onAct: mouseCtl.send("mouse.state", {})
+                        onAct: pg.mouseSend("mouse.state", {})
                     }
                 }
                 SettingRow {

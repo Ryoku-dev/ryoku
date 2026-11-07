@@ -17,7 +17,7 @@ FileView {
     }
 
     function requestSync() {
-        Spawn.run(["ryoku-shell", "shells", "sync"]);
+        Bus.run("shells sync");
     }
 
     path: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state"))

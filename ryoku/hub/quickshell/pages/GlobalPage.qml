@@ -99,15 +99,9 @@ Item {
         id: shellRestart
         command: ["ryoku-host", "svc", "restart", "ryoku-shell"]
         onExited: function(code) {
-            if (code === 4) {
-                shellReload.running = false;
-                shellReload.running = true;
-            }
+            if (code === 4)
+                Bus.run("reload");
         }
-    }
-    Process {
-        id: shellReload
-        command: ["ryoku-shell", "reload"]
     }
     Process {
         id: tzApply

@@ -133,8 +133,8 @@ Item {
     // ── night light (a display-wide comfort setting on the daemon topic) ─────
     // The daemon owns the on/off truth (the provider's backend process) and the
     // saved temperature; the page reads the pushed frame and sends the intent
-    // back on a second socket, the split the Settings singleton uses. Gated on
-    // the nightLight capability, so a compositor with no backend shows no group.
+    // back as a nightlight.set bus call. Gated on the nightLight capability,
+    // so a compositor with no backend shows no group.
     property bool nightOn: false
     property int nightTemp: 4000
     // "off" | "sun" | "clock": the daemon's schedule, carried on the same
@@ -146,31 +146,25 @@ Item {
     property int nightStartAt: 22 * 60
     property int nightStopAt: 7 * 60
 
-    function applyNightFrame(line) {
-        try {
-            var f = JSON.parse(line);
-            if (f && typeof f === "object" && !Array.isArray(f)) {
-                pg.nightOn = f.on === true;
-                if (typeof f.temperature === "number" && f.temperature > 0)
-                    pg.nightTemp = f.temperature;
-                if (f.schedule === "off" || f.schedule === "sun" || f.schedule === "clock")
-                    pg.nightSchedule = f.schedule;
-                if (typeof f.marginMin === "number" && f.marginMin >= 0)
-                    pg.nightMargin = f.marginMin;
-                if (typeof f.startAt === "number" && f.startAt >= 0 && f.startAt < 1440)
-                    pg.nightStartAt = f.startAt;
-                if (typeof f.stopAt === "number" && f.stopAt >= 0 && f.stopAt < 1440)
-                    pg.nightStopAt = f.stopAt;
-            }
-        } catch (e) {}
+    // f is the bus's shared parsed frame: read it, never mutate it.
+    function applyNightFrame(f) {
+        if (!f || typeof f !== "object" || Array.isArray(f))
+            return;
+        pg.nightOn = f.on === true;
+        if (typeof f.temperature === "number" && f.temperature > 0)
+            pg.nightTemp = f.temperature;
+        if (f.schedule === "off" || f.schedule === "sun" || f.schedule === "clock")
+            pg.nightSchedule = f.schedule;
+        if (typeof f.marginMin === "number" && f.marginMin >= 0)
+            pg.nightMargin = f.marginMin;
+        if (typeof f.startAt === "number" && f.startAt >= 0 && f.startAt < 1440)
+            pg.nightStartAt = f.startAt;
+        if (typeof f.stopAt === "number" && f.stopAt >= 0 && f.stopAt < 1440)
+            pg.nightStopAt = f.stopAt;
     }
 
     function sendNight(obj) {
-        nlCtl.queued += "call nightlight.set " + JSON.stringify(obj) + "\n";
-        if (nlCtl.connected)
-            nlCtl.flushQueued();
-        else
-            nlCtl.connected = true;
+        Bus.call("nightlight.set", obj);
     }
 
     // Optimistic so the switch and stepper read back instantly; the confirming
@@ -249,37 +243,10 @@ Item {
         pg.sendNight({ schedule: pg.nightSchedule, stopAt: mins });
     }
 
-    Socket {
-        id: nlSub
-        path: Settings.sockPath
-        parser: SplitParser { onRead: line => pg.applyNightFrame(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe nightlight\n");
-                flush();
-            } else {
-                nlRetry.restart();
-            }
-        }
-    }
-    Timer {
-        id: nlRetry
-        interval: 2000
-        onTriggered: if (!nlSub.connected) nlSub.connected = true
-    }
-    Socket {
-        id: nlCtl
-        path: Settings.sockPath
-        property string queued: ""
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-        onConnectionStateChanged: if (connected) flushQueued()
+    BusTopic {
+        id: nightTopic
+        topic: "nightlight"
+        onUpdated: pg.applyNightFrame(nightTopic.data)
     }
 
     // ── data load: the seam's output list + saved profiles ──────────────────

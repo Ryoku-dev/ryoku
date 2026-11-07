@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -101,10 +102,12 @@ func TestDispatchControlErrors(t *testing.T) {
 	}
 }
 
-// `hub open users <profile-id>` lands a running Hub on that profile's Users
-// page rather than a plain section open.
+// A Hub that is not a bus client (an older build, or one whose bus never
+// connected) is still found by the qs probe and driven through qs ipc:
+// `hub open users <profile-id>` lands it on that profile's Users page.
 func TestHubOpenUsersProfile(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
+	launches := fakeHubLaunch(t, nil)
 	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
 	if got := d.dispatch("hub open users hacker"); got != "ok" {
 		t.Fatalf("dispatch = %q, want ok", got)
@@ -113,12 +116,151 @@ func TestHubOpenUsersProfile(t *testing.T) {
 		{"-c", "hub", "ipc", "call", "nav", "section"},
 		{"-c", "hub", "ipc", "call", "users", "fromProfile", "hacker"},
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for len(calls()) < len(want) && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
+	hubWaitFor(t, func() bool { return len(calls()) >= len(want) })
 	if got := calls(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("hub qs calls = %q, want %q", got, want)
+	}
+	if n := launches(); n != 0 {
+		t.Fatalf("a running Hub was launched again (%d)", n)
+	}
+}
+
+// A Hub on the bus takes an open as exactly one cmd: no qs probe, no qs call
+// and no second instance.
+func TestHubOpenWarmBusSendsOneCmd(t *testing.T) {
+	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
+	launches := fakeHubLaunch(t, nil)
+	fb := fakeBusClient(t, "hub", 4242, "nav", "users", "hub")
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	for _, tc := range []struct {
+		line string
+		want busCmd
+	}{
+		{"hub open appearance", busCmd{Target: "nav", Fn: "open", Args: []string{"appearance"}}},
+		{"hub open users hacker", busCmd{Target: "users", Fn: "fromProfile", Args: []string{"hacker"}}},
+	} {
+		before := len(fb.cmds())
+		if got := d.dispatch(tc.line); got != "ok" {
+			t.Fatalf("dispatch %q = %q, want ok", tc.line, got)
+		}
+		hubWaitFor(t, func() bool { return len(fb.cmds()) > before })
+		time.Sleep(50 * time.Millisecond)
+		cmds := fb.cmds()[before:]
+		if len(cmds) != 1 || !sameBusCmd(cmds[0], tc.want) {
+			t.Fatalf("%s: bus cmds = %+v, want one %+v", tc.line, cmds, tc.want)
+		}
+	}
+	if got := calls(); len(got) != 0 {
+		t.Fatalf("warm open ran qs: %q", got)
+	}
+	if n := launches(); n != 0 {
+		t.Fatalf("warm open launched the Hub (%d)", n)
+	}
+}
+
+// A cold open starts the Hub once, waits for it to serve nav on the bus, and
+// only then sends the navigation; the qs probe is the only qs it runs.
+func TestHubOpenColdStartsOnceThenSendsOnBus(t *testing.T) {
+	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
+		return nil, []byte("No running instances for this config.\n"), nil
+	})
+	prevWait := hubStartWait
+	hubStartWait = 3 * time.Second
+	t.Cleanup(func() { hubStartWait = prevWait })
+	registered := make(chan *fakeBus, 1)
+	launches := fakeHubLaunch(t, func() {
+		time.Sleep(100 * time.Millisecond)
+		registered <- fakeBusClient(t, "hub", 4343, "nav", "users", "hub")
+	})
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	if got := d.dispatch("hub open appearance"); got != "ok" {
+		t.Fatalf("dispatch = %q, want ok", got)
+	}
+	var fb *fakeBus
+	select {
+	case fb = <-registered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the cold open never launched the Hub")
+	}
+	hubWaitFor(t, func() bool { return len(fb.cmds()) >= 1 })
+	time.Sleep(50 * time.Millisecond)
+	want := busCmd{Target: "nav", Fn: "open", Args: []string{"appearance"}}
+	if cmds := fb.cmds(); len(cmds) != 1 || !sameBusCmd(cmds[0], want) {
+		t.Fatalf("bus cmds = %+v, want one %+v", cmds, want)
+	}
+	probe := [][]string{{"-c", "hub", "ipc", "call", "nav", "section"}}
+	if got := calls(); !reflect.DeepEqual(got, probe) {
+		t.Fatalf("qs calls = %q, want only the probe %q", got, probe)
+	}
+	if n := launches(); n != 1 {
+		t.Fatalf("launches = %d, want 1", n)
+	}
+}
+
+// `hub close` reaches a bus Hub as one cmd.
+func TestHubCloseOverBus(t *testing.T) {
+	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
+	fb := fakeBusClient(t, "hub", 4444, "nav", "users", "hub")
+	d := &daemon{wmc: wm.OpenNamed("does-not-exist")}
+	if got := d.dispatch("hub close"); got != "ok" {
+		t.Fatalf("dispatch = %q, want ok", got)
+	}
+	hubWaitFor(t, func() bool { return len(fb.cmds()) >= 1 })
+	want := busCmd{Target: "hub", Fn: "close"}
+	if cmds := fb.cmds(); len(cmds) != 1 || !sameBusCmd(cmds[0], want) {
+		t.Fatalf("bus cmds = %+v, want one %+v", cmds, want)
+	}
+	if got := calls(); len(got) != 0 {
+		t.Fatalf("close ran qs: %q", got)
+	}
+}
+
+// fakeHubLaunch replaces the flock qs start: it counts launches, runs start
+// (the fake Hub coming up) in the background, and blocks the returned wait
+// until the test ends.
+func fakeHubLaunch(t *testing.T, start func()) func() int {
+	t.Helper()
+	prev := hubLaunch
+	done := make(chan struct{})
+	var mu sync.Mutex
+	n := 0
+	hubLaunch = func() (func() error, error) {
+		mu.Lock()
+		n++
+		mu.Unlock()
+		if start != nil {
+			go start()
+		}
+		return func() error { <-done; return nil }, nil
+	}
+	t.Cleanup(func() {
+		close(done)
+		hubLaunch = prev
+	})
+	return func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return n
+	}
+}
+
+func sameBusCmd(got, want busCmd) bool {
+	if got.Target != want.Target || got.Fn != want.Fn || got.Prop != want.Prop || len(got.Args) != len(want.Args) {
+		return false
+	}
+	for i := range want.Args {
+		if got.Args[i] != want.Args[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func hubWaitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !cond() && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

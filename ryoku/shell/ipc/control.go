@@ -3,7 +3,6 @@ package main
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	wm "ryoku-wm"
@@ -94,24 +93,29 @@ func (d *daemon) menuClose() string {
 	return shellIpc("closeAllMenus", d.activeMonitor())
 }
 
-// hub opens or closes Ryoku Hub, which replaces the reference settings window.
-// The Hub is one app: Bar Studio and every other page are sections inside it,
-// reached by in-app navigation, never separate processes. Open on a running
-// Hub navigates (when a section is named) and raises the window; open on a
-// cold Hub spawns the single flock-guarded instance and then navigates.
-// Close asks a running Hub to quit. All fire-and-forget, like the reference's
-// void settings open/close.
-func hubSelect() []string {
-	if shellDir != "" {
-		return []string{"-p", filepath.Join(shellDir, "..", "hub", "quickshell")}
+// hubStartWait bounds how long a cold open waits for the fresh Hub to
+// register its targets on the bus.
+var hubStartWait = 10 * time.Second
+
+// hubLaunch starts the single flock-guarded Hub and returns a wait for its
+// exit. A package var so tests start a fake Hub instead of qs.
+var hubLaunch = func() (func() error, error) {
+	// -o, or the Hub's own children inherit the locked descriptor: one
+	// detached grandchild (ryostore, a kitty, xdg-open) then held
+	// /tmp/ryoku-hub.lock for the rest of the session and every later open
+	// silently did nothing.
+	argv := append([]string{"-n", "-o", "/tmp/ryoku-hub.lock", "qs"}, qsSelect("hub")...)
+	cmd := exec.Command("flock", argv...)
+	if err := cmd.Start(); err != nil {
+		return nil, err
 	}
-	return []string{"-c", "hub"}
+	return cmd.Wait, nil
 }
 
 // hubCall runs one Hub IpcHandler call; true when the instance answered it.
+// A Hub on the bus takes it as one cmd; one that is not still gets qs ipc.
 func hubCall(target, fn string, args ...string) bool {
-	argv := append(hubSelect(), "ipc", "call", target, fn)
-	_, err := qsIpcOnce(append(argv, args...))
+	_, err := ipcInvoke("hub", target, fn, "", args)
 	return err == nil
 }
 
@@ -131,8 +135,15 @@ func hubEditorSection(section string) string {
 	return ""
 }
 
-// hubAlive: a running Hub answers its nav ipc.
-func hubAlive() bool { return hubCall("nav", "section") }
+// hubAlive: a running Hub serves nav on the bus, or, when it is not a bus
+// client, answers its nav ipc to a single qs probe.
+func hubAlive() bool {
+	if busServing("hub", "nav") {
+		return true
+	}
+	_, err := qsIpcOnce(ipcArgv("hub", "nav", "section"))
+	return err == nil
+}
 
 // hubRaise brings the Hub window to the focused workspace. The Hub is the only
 // floating org.quickshell client the shell spawns, so app-id targeting is
@@ -141,7 +152,15 @@ func (d *daemon) hubRaise() {
 	_ = d.wmc.Act(wm.ActionAppFocus, "org.quickshell")
 }
 
-// hub serves `hub open [section]`, `hub open users <profile-id>` (the Users
+// hub opens or closes Ryoku Hub, which replaces the reference settings window.
+// The Hub is one app: Bar Studio and every other page are sections inside it,
+// reached by in-app navigation, never separate processes. Open on a running
+// Hub navigates (when a section is named) and raises the window; open on a
+// cold Hub spawns the single flock-guarded instance and then navigates.
+// Close asks a running Hub to quit. All fire-and-forget, like the reference's
+// void settings open/close.
+//
+// It serves `hub open [section]`, `hub open users <profile-id>` (the Users
 // page opened on one profile) and `hub close`.
 func (d *daemon) hub(args []string) string {
 	const usage = "err hub: expected open [section], open users <profile-id>, or close"
@@ -154,12 +173,16 @@ func (d *daemon) hub(args []string) string {
 		if len(args) >= 2 {
 			section = args[1]
 		}
+		// target is the IpcHandler the open lands on; a cold Hub is ready for
+		// it once that target is served.
+		target := "nav"
 		navigate := func() bool { return section == "" || hubNav(section) }
 		if len(args) == 3 {
 			if section != "users" {
 				return usage
 			}
 			profile := args[2]
+			target = "users"
 			navigate = func() bool { return hubCall("users", "fromProfile", profile) }
 		}
 		if editorSection := hubEditorSection(section); editorSection != "" && len(args) == 2 {
@@ -172,23 +195,18 @@ func (d *daemon) hub(args []string) string {
 				d.hubRaise()
 				return
 			}
-			// -o, or the Hub's own children inherit the locked descriptor:
-			// one detached grandchild (ryostore, a kitty, xdg-open) then held
-			// /tmp/ryoku-hub.lock for the rest of the session and every later
-			// open silently did nothing.
-			argv := append([]string{"-n", "-o", "/tmp/ryoku-hub.lock", "qs"}, hubSelect()...)
-			cmd := exec.Command("flock", argv...)
-			if err := cmd.Start(); err != nil {
+			wait, err := hubLaunch()
+			if err != nil {
 				return
 			}
-			// The fresh instance answers IPC once its root loads.
-			for range 40 {
-				time.Sleep(250 * time.Millisecond)
-				if navigate() {
-					break
-				}
+			// The fresh instance registers its targets once its root loads. A
+			// Hub that never does (not a bus client) still gets the call, which
+			// then goes through qs ipc.
+			if section != "" {
+				busAwaitServing("hub", target, hubStartWait)
+				navigate()
 			}
-			_ = cmd.Wait()
+			_ = wait()
 		}()
 		return "ok"
 	case "close":

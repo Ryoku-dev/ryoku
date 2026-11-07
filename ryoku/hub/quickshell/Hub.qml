@@ -83,7 +83,7 @@ Rectangle {
         hub.barStyleSwitchPending = false;
         hub.runningBarStyle = "";
         Settings.flushWrites();
-        Spawn.run(["ryoku-shell", "shells", "commit"]);
+        Settings.afterWrites(() => Bus.run("shells commit"));
         return true;
     }
     // remember the last section so a reopen lands where you left, not the default.
@@ -130,9 +130,7 @@ Rectangle {
         var editorSection = hub.editorSectionFor(target);
         if (editorSection !== "") {
             hub.navigated = true;
-            editorHandoff.command = ["ryoku-shell", "ipc", "call",
-                "desktop", "editSection", editorSection, ""];
-            editorHandoff.running = true;
+            Bus.ipc("desktop", "editSection", [editorSection, ""]);
             return;
         }
         if (target === "phone") {
@@ -896,7 +894,6 @@ Rectangle {
     }
 
     Component.onCompleted: rebase()
-    Process { id: editorHandoff }
     Process {
         id: sectionGet
         command: ["ryoku-hub", "config", "get", "section"]

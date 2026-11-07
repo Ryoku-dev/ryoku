@@ -1,16 +1,14 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui.Singletons
 
 // Updates view for the Hub, fed by the daemon "updates" topic (ryoku status
 // --json). The daemon owns the background check; check() forces a fresh run.
 Singleton {
     id: root
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
     property var frame: ({})
-
 
     property bool available: false
     property string currentVersion: ""
@@ -66,71 +64,28 @@ Singleton {
     }
 
 
-    function check() { root.send("updates.check", {}); }
+    function check() { Bus.call("updates.check", {}); }
 
-    function apply(t) {
-        try {
-            var o = JSON.parse(t);
-            root.frame = o;
+    // o is the bus's shared parsed frame: read it, never mutate it.
+    function apply(o) {
+        if (!o || typeof o !== "object")
+            return;
+        root.frame = o;
 
-            // a packaged box on a named release: show the release names,
-            // else the commit pair a checkout reports.
-            var named = !!(o.release && o.channelRelease);
-            root.currentVersion = named ? o.release : (o.installedVersion || "");
-            root.latestVersion = named ? o.channelRelease : (o.latestVersion || "");
-            root.currentName = o.releaseName || "";
-            root.latestName = o.channelReleaseName || "";
-            root.branch = o.channel || "main";
-            root.behind = o.pendingUpdates || 0;
-            root.updates = o.updates || [];
-            root.recent = o.recent || [];
-            root.packages = o.packages || [];
-            root.available = o.available === true;
-            root.lastChecked = new Date();
-        } catch (e) {}
-    }
-
-    function send(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
-    }
-
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe updates\n");
-                flush();
-            } else {
-                retry.restart();
-            }
-        }
-    }
-
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-        onConnectionStateChanged: if (connected) flushQueued()
+        // a packaged box on a named release: show the release names,
+        // else the commit pair a checkout reports.
+        var named = !!(o.release && o.channelRelease);
+        root.currentVersion = named ? o.release : (o.installedVersion || "");
+        root.latestVersion = named ? o.channelRelease : (o.latestVersion || "");
+        root.currentName = o.releaseName || "";
+        root.latestName = o.channelReleaseName || "";
+        root.branch = o.channel || "main";
+        root.behind = o.pendingUpdates || 0;
+        root.updates = o.updates || [];
+        root.recent = o.recent || [];
+        root.packages = o.packages || [];
+        root.available = o.available === true;
+        root.lastChecked = new Date();
     }
 
     Timer {
@@ -140,5 +95,8 @@ Singleton {
         onTriggered: root.tick++
     }
 
-    Component.onCompleted: root.check()
+    Component.onCompleted: {
+        Bus.subscribe("updates", data => root.apply(data));
+        root.check();
+    }
 }

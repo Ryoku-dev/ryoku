@@ -1,6 +1,6 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
 // Ryoku Settings entry point. A normal floating window (not a layer-shell
@@ -66,14 +66,15 @@ ShellRoot {
         }
     }
 
-    // Drive navigation from the CLI (`qs -c hub ipc call nav open <key>`).
-    IpcHandler {
+    // Drive navigation from the daemon (`ryoku-shell hub open <key>`, over the
+    // bus) or the CLI (`qs -c hub ipc call nav open <key>`).
+    BusIpcHandler {
         target: "nav"
         function open(section: string): void { hubItem.navigate(section); }
         function section(): string { return hubItem.section; }
     }
 
-    IpcHandler {
+    BusIpcHandler {
         target: "users"
         function fromProfile(id: string): void { hubItem.openUsersProfile(id); }
     }
@@ -81,7 +82,7 @@ ShellRoot {
     // the daemon's `hub close` verb: same exit as the in-app dismissals (the
     // unsaved-restore then quit), so the flock releases and the next open
     // starts clean.
-    IpcHandler {
+    BusIpcHandler {
         target: "hub"
         function close(): void { hubItem.requestQuit(); }
     }

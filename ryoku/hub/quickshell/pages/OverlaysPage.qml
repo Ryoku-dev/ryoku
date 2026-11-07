@@ -20,7 +20,7 @@ Item {
     }
 
     function tryOsd() {
-        Quickshell.execDetached(["ryoku-shell", "ipc", "call", "osd", "preview"]);
+        Bus.ipc("osd", "preview", []);
     }
 
     function tryNotification() {
@@ -32,7 +32,7 @@ Item {
     }
 
     function trySidebar() {
-        Quickshell.execDetached(["ryoku-shell", "quicksettings"]);
+        Bus.run("quicksettings");
     }
 
     SchemaPage {

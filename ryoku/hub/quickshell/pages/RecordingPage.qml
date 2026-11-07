@@ -19,8 +19,8 @@ import Ryoku.Ui.Singletons
 // own dirty status + Reset/Revert/Save bar.
 //
 // The daemon owns recording.json and is its sole writer: this page reads the
-// merged settings over the shell socket (`call record.settings`) on open and
-// writes the whole draft back through `ryoku-shell record settings` on Save, so
+// merged settings over the shell bus (`call record.settings`) on open and
+// writes the whole draft back through the same call on Save, so
 // nothing lands on disk until Save and no two writers can race. Types matter --
 // fps/bitrate/audioBitrate/keyint ride the wire as ints and cursor as a bool, or
 // the daemon rejects the write; the coerce() helper keeps the draft wire-correct.
@@ -81,7 +81,6 @@ Item {
     property bool keyActive: false
     property string keyBackendStatus: "disabled"
     property string keyBackendError: ""
-    readonly property string shellSockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
     property real keyPreviewRevision: 0
     property int callSerial: 0
     property int pendingKeySaveId: 0
@@ -260,6 +259,7 @@ Item {
     Component.onCompleted: {
         if (pg.keyCommitted === null)
             pg.adoptKey("");
+        pg.requestRecording();
     }
 
     FileView {
@@ -284,46 +284,36 @@ Item {
         onLoadFailed: pg.reduceMotion = false
     }
 
+    // every call carries a page serial so a reply only lands on the request
+    // still waiting for it (a retried read supersedes the earlier one).
     function sendCall(method, args) {
-        var payload = {};
-        for (var k in args)
-            payload[k] = args[k];
-        payload.id = ++pg.callSerial;
-        ctl.queued += "call " + method + " " + JSON.stringify(payload) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
-        return payload.id;
+        var id = ++pg.callSerial;
+        Bus.call(method, args, (ok, result, error) => pg.applyReply(id, { ok: ok, result: result, error: error }));
+        return id;
     }
 
-    function applyKeyFrame(line) {
-        try {
-            const frame = JSON.parse(line);
-            pg.keyBackendStatus = frame.status || "disabled";
-            pg.keyBackendError = frame.error || "";
-            pg.keyActive = pg.keyBackendStatus !== "disabled";
-        } catch (e) {}
+    // frame is the bus's shared parsed frame: read it, never mutate it.
+    function applyKeyFrame(frame) {
+        if (!frame || typeof frame !== "object")
+            return;
+        pg.keyBackendStatus = frame.status || "disabled";
+        pg.keyBackendError = frame.error || "";
+        pg.keyActive = pg.keyBackendStatus !== "disabled";
     }
 
-    // one reply parser for the shared control socket: match the echoed id to the
-    // in-flight read, recording save, or key-press save and route it. An id that
-    // matches nothing (a fire-and-forget call like reset-placement) is dropped.
-    function applyReply(line) {
-        try {
-            const reply = JSON.parse(line);
-            var id = reply.id;
-            if (id === pg.pendingReadId) {
-                pg.pendingReadId = 0;
-                pg.applyRecordRead(reply);
-            } else if (id === pg.pendingSaveId) {
-                pg.pendingSaveId = 0;
-                pg.applyRecordSave(reply);
-            } else if (id === pg.pendingKeySaveId) {
-                pg.pendingKeySaveId = 0;
-                pg.applyKeySave(reply);
-            }
-        } catch (e) {}
+    // route a reply to the in-flight read, recording save, or key-press save
+    // by its serial; anything else (superseded) is dropped.
+    function applyReply(id, reply) {
+        if (id === pg.pendingReadId) {
+            pg.pendingReadId = 0;
+            pg.applyRecordRead(reply);
+        } else if (id === pg.pendingSaveId) {
+            pg.pendingSaveId = 0;
+            pg.applyRecordSave(reply);
+        } else if (id === pg.pendingKeySaveId) {
+            pg.pendingKeySaveId = 0;
+            pg.applyKeySave(reply);
+        }
     }
 
     function applyRecordRead(reply) {
@@ -364,81 +354,47 @@ Item {
         pg.keyPreviewRevision = Math.max(pg.keyPreviewRevision + 1, Date.now() * 1000);
         const revision = String(pg.keyPreviewRevision);
         if (show) {
-            Spawn.run([
-                "ryoku-shell", "ipc", "call", "keypresses", "activate",
+            Bus.ipc("keypresses", "activate", [
                 pg.keyDraft ? pg.keyDraft.theme : "dark",
                 pg.keyDraft ? pg.keyDraft.mode : "all",
                 revision
             ]);
         } else {
-            Spawn.run([
-                "ryoku-shell", "ipc", "call", "keypresses", "deactivate",
-                revision
-            ]);
+            Bus.ipc("keypresses", "deactivate", [revision]);
         }
     }
 
-    Socket {
-        id: keySub
-        path: pg.shellSockPath
-        parser: SplitParser { onRead: line => pg.applyKeyFrame(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe keypress\n");
-                flush();
-            } else {
-                keySubRetry.restart();
-            }
-        }
+    BusTopic {
+        id: keyTopic
+        topic: "keypress"
+        onUpdated: pg.applyKeyFrame(keyTopic.data)
     }
 
-    Timer {
-        id: keySubRetry
-        interval: 2000
-        onTriggered: if (!keySub.connected) keySub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: pg.shellSockPath
-        property string queued: ""
-        parser: SplitParser { onRead: line => pg.applyReply(line) }
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
+    // A fresh bus connection re-reads; losing it before a good read shows the
+    // page as unavailable.
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (Bus.connected)
                 pg.requestRecording();
-                flushQueued();
-            } else if (pg.recordStatus !== "ready") {
+            else if (pg.recordStatus !== "ready")
                 pg.recordStatus = "unavailable";
-            }
         }
     }
 
-    // while the daemon is out of reach, keep trying: reconnect when the socket is
-    // down, re-read when it is up but the page never got a good reply. Stops once
-    // a read succeeds (recordStatus "ready").
+    // while the daemon is out of reach, keep trying: re-read when the bus is up
+    // but the page never got a good reply. Stops once a read succeeds
+    // (recordStatus "ready"); the bus reconnects on its own.
     Timer {
         id: ctlRetry
         interval: 2000
         repeat: true
         running: pg.recordStatus !== "ready"
         onTriggered: {
-            if (ctl.connected)
+            if (Bus.connected)
                 pg.requestRecording();
-            else {
+            else
                 pg.recordStatus = "unavailable";
-                ctl.connected = true;
-            }
         }
     }
 
