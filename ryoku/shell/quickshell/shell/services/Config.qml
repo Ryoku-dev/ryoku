@@ -8,10 +8,10 @@ import Ryoku.Ui.Singletons
 
 // live shell appearance config. one source of truth for the look knobs Ryoku
 // Settings' Shell section edits, plus the shipped defaults the shell falls back
-// to. JSON at ~/.config/ryoku/shell.json, watched, so a save in Settings
-// retunes the running shell on the next file event. no reload. defaults here
-// are canonical; Settings mirrors them for reset-to-default and seeds nothing
-// of its own.
+// to. A view of ShellSettings (the daemon's `settings` frame of
+// ~/.config/ryoku/shell.json), so a save in Settings retunes the running shell
+// as soon as the daemon publishes it. no reload. defaults here are canonical;
+// Settings mirrors them for reset-to-default and seeds nothing of its own.
 //
 // geometry = unscaled base pixels at 1080p. osd values are multiplied by the
 // per-monitor scale `s` where they're read.
@@ -131,12 +131,7 @@ Singleton {
         const next = Object.assign({}, root.controls);
         next[key] = value;
         root.controls = next;
-        shaderCtl.queued += "call settings.patch "
-            + JSON.stringify({ path: "controls." + key, value: value }) + "\n";
-        if (shaderCtl.connected)
-            shaderCtl.flushQueued();
-        else
-            shaderCtl.connected = true;
+        ShellSettings.patch("controls." + key, value);
     }
 
     readonly property var askBubble: {
@@ -167,12 +162,7 @@ Singleton {
         const next = Object.assign({}, root.askBubble);
         next[key] = clean;
         adapter.ask = { bubble: next };
-        shaderCtl.queued += "call settings.patch "
-            + JSON.stringify({ path: "ask.bubble." + key, value: clean }) + "\n";
-        if (shaderCtl.connected)
-            shaderCtl.flushQueued();
-        else
-            shaderCtl.connected = true;
+        ShellSettings.patch("ask.bubble." + key, clean);
     }
 
     // typography: a scale that grows or shrinks the whole shell (the bar text
@@ -209,12 +199,7 @@ Singleton {
     function setScreenShader(name) {
         const pick = root.screenShaders.indexOf(name) >= 0 ? name : "";
         root.screenShader = pick;
-        shaderCtl.queued += "call settings.patch "
-            + JSON.stringify({ path: "screenShader", value: pick }) + "\n";
-        if (shaderCtl.connected)
-            shaderCtl.flushQueued();
-        else
-            shaderCtl.connected = true;
+        ShellSettings.patch("screenShader", pick);
         Wm.setScreenShader(pick);
     }
 
@@ -225,12 +210,7 @@ Singleton {
     function setLauncherTarget(v) {
         const pick = (v === "quick") ? "quick" : "studio";
         root.launcherTarget = pick;
-        shaderCtl.queued += "call settings.patch "
-            + JSON.stringify({ path: "launcherTarget", value: pick }) + "\n";
-        if (shaderCtl.connected)
-            shaderCtl.flushQueued();
-        else
-            shaderCtl.connected = true;
+        ShellSettings.patch("launcherTarget", pick);
     }
 
     // resolved Qt locale: the chosen region, else the system default. the
@@ -249,31 +229,78 @@ Singleton {
 
     // themePalette: the active static theme's palette (role token -> hex), which
     // the daemon resolves and writes as a top-level key in shell.json; absent for
-    // the two dynamic variants (Default, Wallpaper). The shared JsonAdapter can't
-    // represent a removed key -- it only overwrites keys still present -- so read
-    // presence straight from the frame text: a missing key resolves to null, and
-    // Theme.namedScheme then falls back to the wallpaper or base palette.
+    // the two dynamic variants (Default, Wallpaper). A missing key resolves to
+    // null, and Theme.namedScheme then falls back to the wallpaper or base palette.
     property var themePalette: null
     function refreshThemePalette() {
-        var pal = null;
-        var nextControls = root.defaultControls;
-        var parsed = {};
-        var t = file.text();
-        if (t) {
-            try {
-                var o = JSON.parse(t);
-                if (o && typeof o === "object")
-                    parsed = o;
-                if (o && typeof o.themePalette === "object" && o.themePalette !== null)
-                    pal = o.themePalette;
-                if (o && typeof o.controls === "object" && o.controls !== null)
-                    nextControls = o.controls;
-            } catch (e) {
-            }
+        const o = root.settingsFrame();
+        root.themePalette = typeof o.themePalette === "object" && o.themePalette !== null ? o.themePalette : null;
+        root.controls = typeof o.controls === "object" && o.controls !== null ? o.controls : root.defaultControls;
+    }
+
+    function settingsFrame() {
+        const d = ShellSettings.data;
+        return d && typeof d === "object" ? d : ({});
+    }
+
+    // The adapter keys, each read from the frame by its top-level name. A key
+    // that is absent or of the wrong type reads as its shipped default, which is
+    // the adapter's initial value captured once at start.
+    readonly property var adapterKeys: [
+        "frameEnabled", "frameOpacity", "frameThickness", "frameCorner", "osdRadius",
+        "osdOpacity", "deckFrostEnabled", "deckFrost", "fontScale", "fontFamily",
+        "terminalFontFamily", "fontSize", "weatherLocation", "weatherUnit", "formatLocale",
+        "screenShader", "frameBars", "batteryAlerts", "theme", "notifications", "sounds",
+        "audio", "barStyle", "launcherTarget", "obi", "nacre", "qsbar", "kairos",
+        "orpheus", "python", "inir", "dock", "designs", "clipboard", "phone", "ask"
+    ]
+    property var adapterDefaults: ({})
+
+    function settingValue(frame, key) {
+        const def = root.adapterDefaults[key];
+        const v = frame[key];
+        if (v === undefined || v === null)
+            return def;
+        switch (typeof def) {
+        case "boolean":
+            return typeof v === "boolean" ? v : def;
+        case "number": {
+            const n = Number(v);
+            return isFinite(n) ? n : def;
         }
-        frame = parsed;
-        themePalette = pal;
-        controls = nextControls;
+        case "string":
+            return typeof v === "string" ? v : def;
+        default:
+            return v;
+        }
+    }
+
+    // paths: null for a full frame, else the changed paths (arrays of keys).
+    // Only the touched top-level keys are re-read, so an object-valued setting
+    // keeps its identity (and its bindings stay quiet) when something else moved.
+    function applySettings(paths) {
+        const frame = root.settingsFrame();
+        let keys = root.adapterKeys;
+        let palette = true;
+        if (Array.isArray(paths) && !paths.some(p => !Array.isArray(p) || p.length === 0)) {
+            const touched = {};
+            for (const p of paths)
+                touched[String(p[0])] = true;
+            keys = root.adapterKeys.filter(k => touched[k] === true);
+            palette = touched.themePalette === true || touched.controls === true;
+        }
+        for (const k of keys)
+            adapter[k] = root.settingValue(frame, k);
+        root.frame = frame;
+        if (palette)
+            root.refreshThemePalette();
+        root.settingsLoaded();
+    }
+
+    Connections {
+        target: ShellSettings
+        // lastPaths, not the signal argument, which arrives as a QML sequence.
+        function onChanged() { root.applySettings(ShellSettings.lastPaths); }
     }
 
     // brand: the desktop's mark + name, user-overridable from Ryoku Settings ->
@@ -287,179 +314,165 @@ Singleton {
     property alias markTint:  brandAdapter.markTint
     property alias brandName: brandAdapter.name
 
-    FileView {
-        id: file
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        atomicWrites: true
-        onFileChanged: reload()
-        onLoaded: {
-            root.refreshThemePalette();
-            root.settingsLoaded();
-        }
-
-        JsonAdapter {
-            id: adapter
-            property bool frameEnabled: true
-            property real frameOpacity: 1
-            property real frameThickness: 2
-            property real frameCorner: 8
-            property real osdRadius: 0
-            property real osdOpacity: 1
-            property bool deckFrostEnabled: true
-            property real deckFrost: 0.45
-            property real fontScale: 1.3
-            property string fontFamily: "Space Grotesk"
-            property string terminalFontFamily: "JetBrainsMono Nerd Font"
-            property int fontSize: 11
-            property string weatherLocation: ""
-            property string weatherUnit: "auto"
-            property string formatLocale: ""
-            property string screenShader: ""
-            property var frameBars: FrameBars.defaultConfig()
-            property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
-            property var theme: ({
-                "attributes": {
-                    "sizing": {
-                        "radius_widget": 8,
-                        "radius_window": 8
-                    }
+    QtObject {
+        id: adapter
+        property bool frameEnabled: true
+        property real frameOpacity: 1
+        property real frameThickness: 2
+        property real frameCorner: 8
+        property real osdRadius: 0
+        property real osdOpacity: 1
+        property bool deckFrostEnabled: true
+        property real deckFrost: 0.45
+        property real fontScale: 1.3
+        property string fontFamily: "Space Grotesk"
+        property string terminalFontFamily: "JetBrainsMono Nerd Font"
+        property int fontSize: 11
+        property string weatherLocation: ""
+        property string weatherUnit: "auto"
+        property string formatLocale: ""
+        property string screenShader: ""
+        property var frameBars: FrameBars.defaultConfig()
+        property var batteryAlerts: ({ enabled: true, warningEnabled: true, criticalEnabled: true, warningPercent: 25, criticalPercent: 10 })
+        property var theme: ({
+            "attributes": {
+                "sizing": {
+                    "radius_widget": 8,
+                    "radius_window": 8
                 }
-            })
-            property var notifications: ({
-                "notification_position": "Right",
-                "popup_window_margins": 0,
-                "show_images": false
-            })
-            property var sounds: ({})
-            property var audio: ({ "boost": false })
-            property string barStyle: "orpheus"
-            property string launcherTarget: "studio"
-            property var obi: ({})
-            property var nacre: NacreConfig.defaultConfig()
-            property var qsbar: ({})
-            property var kairos: ({})
-            property var orpheus: ({})
-            property var python: ({})
-            property var inir: ({})
-            property var dock: ({
-                "enabled": false,
-                "design": "ryoku",
-                "edge": "auto",
-                "edgeGap": 0,
-                "autohide": false,
+            }
+        })
+        property var notifications: ({
+            "notification_position": "Right",
+            "popup_window_margins": 0,
+            "show_images": false
+        })
+        property var sounds: ({})
+        property var audio: ({ "boost": false })
+        property string barStyle: "orpheus"
+        property string launcherTarget: "studio"
+        property var obi: ({})
+        property var nacre: NacreConfig.defaultConfig()
+        property var qsbar: ({})
+        property var kairos: ({})
+        property var orpheus: ({})
+        property var python: ({})
+        property var inir: ({})
+        property var dock: ({
+            "enabled": false,
+            "design": "ryoku",
+            "edge": "auto",
+            "edgeGap": 0,
+            "autohide": false,
+            "revealOnEmpty": true,
+            "size": 44,
+            "pinned": [],
+            "magnify": true,
+            "style": "islands",
+            "frost": true,
+            "shadow": true,
+            "labels": true,
+            "media": false,
+            "python": {
+                "onTop": true,
+                "floating": false,
+                "opacity": 100,
+                "exclusive": false,
+                "smartAutohide": true,
+                "autohideTimeout": 1000,
+                "overrideBoundsCorrection": false,
+                "enableScrolling": false,
+                "visibleElements": 7,
+                "hoverScale": 120,
+                "cascadeScale": false
+            },
+            "shima": {
+                "shape": "auto",
+                "notch": true,
+                "material": "inherit",
+                "magnifySize": 150,
+                "launcher": true,
+                "reserveSpace": true,
                 "revealOnEmpty": true,
-                "size": 44,
-                "pinned": [],
-                "magnify": true,
-                "style": "islands",
-                "frost": true,
-                "shadow": true,
-                "labels": true,
-                "media": false,
-                "python": {
-                    "onTop": true,
-                    "floating": false,
-                    "opacity": 100,
-                    "exclusive": false,
-                    "smartAutohide": true,
-                    "autohideTimeout": 1000,
-                    "overrideBoundsCorrection": false,
-                    "enableScrolling": false,
-                    "visibleElements": 7,
-                    "hoverScale": 120,
-                    "cascadeScale": false
+                "badges": true
+            }
+        })
+        property var designs: ({
+            "osd": "ryoku",
+            "notification": "ryoku",
+            "sidebar": "ryoku"
+        })
+        property var clipboard: ({
+            "widthPercent": 65,
+            "heightPercent": 42,
+            "bottomPercent": 0,
+            "panelRadius": 18,
+            "paneRadius": 12,
+            "cardRadius": 9,
+            "pruneWeekly": false
+        })
+        property var phone: ({
+            "enabled": false,
+            "desktopNotifications": true,
+            "contacts": {
+                "enabled": true,
+                "hideUnnamed": true
+            },
+            "scrcpy": {
+                "useWireless": false,
+                "autoWirelessIp": true,
+                "wirelessIp": "",
+                "wirelessPort": 5555,
+                "pinAdbPort": false,
+                "maxSize": 0,
+                "maxFps": 60,
+                "videoBitRate": "8M",
+                "audio": true,
+                "turnScreenOff": false,
+                "stayAwake": true,
+                "showTouches": false,
+                "clipboardSync": true,
+                "keyboardMode": "uhid",
+                "autoResume": true,
+                "appMode": {
+                    "showAppIcons": true,
+                    "autoUnlock": true,
+                    "flexDisplay": false,
+                    "displayWidth": 1280,
+                    "displayHeight": 960,
+                    "displayDpi": 240,
+                    "onSessionEnd": "home"
                 },
-                "shima": {
-                    "shape": "auto",
-                    "notch": true,
-                    "material": "inherit",
-                    "magnifySize": 150,
-                    "launcher": true,
-                    "reserveSpace": true,
-                    "revealOnEmpty": true,
-                    "badges": true
-                }
-            })
-            property var designs: ({
-                "osd": "ryoku",
-                "notification": "ryoku",
-                "sidebar": "ryoku"
-            })
-            property var clipboard: ({
-                "widthPercent": 65,
-                "heightPercent": 42,
-                "bottomPercent": 0,
-                "panelRadius": 18,
-                "paneRadius": 12,
-                "cardRadius": 9,
-                "pruneWeekly": false
-            })
-            property var phone: ({
+                "recording": { "folder": "" }
+            },
+            "webcam": {
+                "cameraFacing": "back",
+                "width": 1280,
+                "height": 720,
+                "fps": 30,
+                "videoDevice": ""
+            },
+            "microphone": {
                 "enabled": false,
-                "desktopNotifications": true,
-                "contacts": {
-                    "enabled": true,
-                    "hideUnnamed": true
-                },
-                "scrcpy": {
-                    "useWireless": false,
-                    "autoWirelessIp": true,
-                    "wirelessIp": "",
-                    "wirelessPort": 5555,
-                    "pinAdbPort": false,
-                    "maxSize": 0,
-                    "maxFps": 60,
-                    "videoBitRate": "8M",
-                    "audio": true,
-                    "turnScreenOff": false,
-                    "stayAwake": true,
-                    "showTouches": false,
-                    "clipboardSync": true,
-                    "keyboardMode": "uhid",
-                    "autoResume": true,
-                    "appMode": {
-                        "showAppIcons": true,
-                        "autoUnlock": true,
-                        "flexDisplay": false,
-                        "displayWidth": 1280,
-                        "displayHeight": 960,
-                        "displayDpi": 240,
-                        "onSessionEnd": "home"
-                    },
-                    "recording": { "folder": "" }
-                },
-                "webcam": {
-                    "cameraFacing": "back",
-                    "width": 1280,
-                    "height": 720,
-                    "fps": 30,
-                    "videoDevice": ""
-                },
-                "microphone": {
-                    "enabled": false,
-                    "micGain": 100,
-                    "monitor": false,
-                    "setDefault": false
-                },
-                "alarm": {
-                    "enabled": true,
-                    "pollMinutes": 10,
-                    "clockApps": [],
-                    "ignorePackages": []
-                }
-            })
-            property var ask: ({
-                "bubble": {
-                    "enabled": false,
-                    "x": 0.94,
-                    "y": 0.68,
-                    "screen": ""
-                }
-            })
-        }
+                "micGain": 100,
+                "monitor": false,
+                "setDefault": false
+            },
+            "alarm": {
+                "enabled": true,
+                "pollMinutes": 10,
+                "clockApps": [],
+                "ignorePackages": []
+            }
+        })
+        property var ask: ({
+            "bubble": {
+                "enabled": false,
+                "x": 0.94,
+                "y": 0.68,
+                "screen": ""
+            }
+        })
     }
 
     // The colour-source master lives in theme.json (single source: the daemon,
@@ -493,27 +506,25 @@ Singleton {
         }
     }
 
-    // The daemon's control socket: shell.json is read-only here (the daemon owns
-    // it and serialises every writer), so a persisted write goes through it.
-    Socket {
-        id: shaderCtl
-        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-        property string queued: ""
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-        onConnectionStateChanged: if (connected) flushQueued()
+    // First-run seed only: the daemon owns shell.json and serialises every
+    // writer, so the shell writes it just when the start-up read found nothing.
+    FileView {
+        id: seedFile
+        preload: false
+        printErrors: false
+        atomicWrites: true
     }
 
-    // seed only on a genuine first run (nothing to load), so a slow or failed
-    // load can't overwrite a present file with defaults.
     Component.onCompleted: {
-        if (!file.text()) file.writeAdapter();
+        const defaults = {};
+        for (const k of root.adapterKeys)
+            defaults[k] = adapter[k];
+        root.adapterDefaults = defaults;
+        if (ShellSettings.fileMissing) {
+            seedFile.path = (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json";
+            seedFile.setText(JSON.stringify(defaults, null, 2) + "\n");
+        }
         if (!brandFile.text()) brandFile.writeAdapter();
-        root.refreshThemePalette();
+        root.applySettings(null);
     }
 }

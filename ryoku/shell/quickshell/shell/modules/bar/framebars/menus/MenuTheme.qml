@@ -1,11 +1,10 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import "../.." as Pill
 import shell.services
 import "../../../../components"
+import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 
 // The colour-scheme picker (contract 08 sec 2.2/2.3/4.2): a horizontally
@@ -33,15 +32,12 @@ Item {
     property bool open: false
     signal requestClose()
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-
     // The preview catalog the cards render from (the extension point). A future
     // Go `theme` topic replaces this with a subscribed frame.
     readonly property var schemes: schemeSource.catalog
 
-    // The applied scheme id. Reflected from daemon settings when the topic is
-    // live (see the subscription below) and set optimistically on click so the
-    // badge tracks the pick immediately.
+    // The applied scheme id. Reflected from daemon settings and set
+    // optimistically on click so the badge tracks the pick immediately.
     property string activeId: ""
 
     implicitHeight: col.implicitHeight
@@ -54,58 +50,22 @@ Item {
         if (id.length === 0)
             return;
         root.activeId = id;
-        ctl.queued += "call settings.patch " + JSON.stringify({ path: "theme.theme", value: id }) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
+        ShellSettings.patch("theme.theme", id);
     }
 
-    // Read the applied theme from the daemon so the badge reflects real state
-    // (one-way, read-only). The settings frame is owned by the settings layer;
-    // parse defensively so an unexpected or absent frame leaves the optimistic
-    // selection untouched rather than wedging the picker.
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser {
-            onRead: line => {
-                try {
-                    const frame = JSON.parse(line);
-                    if (frame && frame.theme && typeof frame.theme.theme === "string")
-                        root.activeId = frame.theme.theme;
-                } catch (e) {
-                }
-            }
-        }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe settings\n");
-                flush();
-            } else {
-                retry.restart();
-            }
-        }
+    // An absent or non-string value leaves the optimistic selection untouched
+    // rather than wedging the picker.
+    function syncActive() {
+        if (typeof appliedTheme.value === "string")
+            root.activeId = appliedTheme.value;
     }
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
+    RyokuUi.ShellSetting {
+        id: appliedTheme
+        path: "theme.theme"
+        fallback: null
+        onValueChanged: root.syncActive()
     }
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-        onConnectionStateChanged: if (connected) flushQueued()
-    }
+    Component.onCompleted: root.syncActive()
 
     Column {
         id: col

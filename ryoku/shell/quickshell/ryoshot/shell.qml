@@ -603,13 +603,13 @@ ShellRoot {
     function toggleKeypresses() {
         keypressesTouched = true;
         keypressesActive = !keypressesActive;
-        Quickshell.execDetached(["ryoku-shell", "ipc", "call", "keypresses", "toggle"]);
+        Bus.ipc("keypresses", "toggle", []);
     }
 
     function toggleWebcam() {
         webcamTouched = true;
         webcamActive = !webcamActive;
-        Quickshell.execDetached(["ryoku-shell", "ipc", "call", "camera", "toggle"]);
+        Bus.ipc("camera", "toggle", []);
     }
 
     function openScreenshotsFolder() {
@@ -709,12 +709,12 @@ ShellRoot {
     function doRecordRegion() {
         var region = layoutRegion();
         if (!region) { Qt.quit(); return; }
-        var args = ["ryoku-shell", "record", "start", "--region", "--geometry", region.record];
-        if (root.recordAudio) args.push("--with-desktop-audio");
-        if (Config.recordMic) args.push("--with-microphone-audio");
+        var line = "record start --region --geometry " + region.record;
+        if (root.recordAudio) line += " --with-desktop-audio";
+        if (Config.recordMic) line += " --with-microphone-audio";
         root.exported = true;
-        console.log("ryoshot: record " + args.join(" "));
-        Quickshell.execDetached(args);
+        console.log("ryoshot: record " + line);
+        Bus.run(line);
         root.quitSoon();
     }
 
@@ -825,7 +825,7 @@ ShellRoot {
 
     // shutter cue: the daemon owns the shell's event sounds, so a completed
     // capture asks it to play rather than shipping an asset in this config.
-    function shutter() { Quickshell.execDetached(["ryoku-shell", "sound", "shutter"]); }
+    function shutter() { Bus.run("sound shutter"); }
 
     Timer { id: quitTimer; interval: 250; onTriggered: Qt.quit() }
     function quitSoon() { quitTimer.restart(); }
@@ -908,38 +908,53 @@ ShellRoot {
         root.quitSoon();
     }
 
-    Process {
+    QtObject {
         id: clipCopyProc
-        environment: Spawn.env
+        property int request: -1
         property string notice: ""
         property string savedPath: ""
         property string successValue: ""
         property string tempFile: ""
-        stderr: StdioCollector { id: clipCopyErr; waitForEnd: true }
 
         function start(mime, file, notice_, savedPath_, value_, tempFile_) {
             notice = notice_;
             savedPath = savedPath_;
             successValue = value_;
             tempFile = tempFile_;
-            command = ["ryoku-shell", "clip-copy", mime, file];
-            running = true;
+            request = Bus.run("clip-copy " + mime + " " + file, (ok, output, error) => {
+                clipCopyProc.request = -1;
+                clipCopyProc.finish(ok, ok ? "" : "ryoku-shell: " + error);
+            });
+            clipCopyGuard.restart();
         }
 
-        onExited: (code) => {
+        function finish(ok, detail) {
+            clipCopyGuard.stop();
             var finishedNotice = notice;
             var finishedSavedPath = savedPath;
             var finishedValue = successValue;
             var finishedTemp = tempFile;
-            var detail = clipCopyErr.text.trim();
             notice = "";
             savedPath = "";
             successValue = "";
             tempFile = "";
             if (finishedTemp.length > 0)
                 Quickshell.execDetached(["rm", "-f", "--", finishedTemp]);
-            root.clipboardCopyFinished(code === 0, finishedNotice,
+            root.clipboardCopyFinished(ok, finishedNotice,
                 finishedSavedPath, finishedValue, detail);
+        }
+    }
+
+    // The bus queues calls while the daemon is away; the copy fails after the
+    // CLI's old dial timeout instead, so the guard and the notice still work.
+    Timer {
+        id: clipCopyGuard
+        interval: 2000
+        onTriggered: {
+            if (!Bus.cancel(clipCopyProc.request)) return;
+            clipCopyProc.request = -1;
+            clipCopyProc.finish(false, "ryoku-shell: daemon not reachable at "
+                + (root.runtimeDir || "/tmp") + "/ryoku-shell.sock (is `ryoku-shell daemon` running?)");
         }
     }
 
@@ -1278,27 +1293,20 @@ ShellRoot {
         Component.onCompleted: running = true
     }
 
-    Process {
-        id: keypressStateProc
-        command: ["ryoku-shell", "ipc", "get", "keypresses", "active"]
-        stdout: StdioCollector { id: keypressStateOut }
-        Component.onCompleted: running = true
-        onExited: (code) => {
-            if (code !== 0 || root.keypressesTouched) return;
-            var value = keypressStateOut.text.trim().toLowerCase();
-            root.keypressesActive = value === "true" || value === "1";
-        }
+    // Seed the keypress and webcam toggles from the shell; a toggle pressed
+    // before the answer lands wins.
+    function readToggle(target, apply) {
+        Bus.ipcGet(target, "active", (ok, value) => {
+            if (!ok) return;
+            var v = String(value).trim().toLowerCase();
+            apply(v === "true" || v === "1");
+        });
     }
 
-    Process {
-        id: webcamStateProc
-        command: ["ryoku-shell", "ipc", "get", "camera", "active"]
-        stdout: StdioCollector { id: webcamStateOut }
-        Component.onCompleted: running = true
-        onExited: (code) => {
-            if (code !== 0 || root.webcamTouched) return;
-            var value = webcamStateOut.text.trim().toLowerCase();
-            root.webcamActive = value === "true" || value === "1";
+    QtObject {
+        Component.onCompleted: {
+            root.readToggle("keypresses", active => { if (!root.keypressesTouched) root.keypressesActive = active; });
+            root.readToggle("camera", active => { if (!root.webcamTouched) root.webcamActive = active; });
         }
     }
 

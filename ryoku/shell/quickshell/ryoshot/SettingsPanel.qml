@@ -222,7 +222,7 @@ Item {
                     HoverHandler { id: recordingHover }
                     TapHandler {
                         onTapped: {
-                            Quickshell.execDetached(["ryoku-shell", "hub", "open", "recording"]);
+                            Bus.run("hub open recording");
                             panel.closeRequested();
                         }
                     }

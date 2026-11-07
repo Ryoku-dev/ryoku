@@ -174,7 +174,7 @@ Singleton {
     }
 
     function _finishCapture(mode, outputPath, savedPath, beautify, copied, detail) {
-        Spawn.run(["ryoku-shell", "sound", "shutter"]);
+        Bus.run("sound shutter");
         if (!copied) {
             var reason = String(detail || "").trim();
             if (reason.length === 0) reason = I18n.tr("Clipboard command failed");
@@ -209,42 +209,19 @@ Singleton {
             if (code !== 0)
                 return;
             if (copyWanted)
-                captureClipCopy.start(outputPath, mode, savedPath, beautify);
+                root._clipCopy(outputPath, mode, savedPath, beautify);
             else
                 root._finishCapture(mode, outputPath, savedPath, beautify, true, "");
         }
     }
 
-    Process {
-        id: captureClipCopy
-        environment: Spawn.env
-        property string mode: ""
-        property string outputPath: ""
-        property string savedPath: ""
-        property bool beautify: false
-        stderr: StdioCollector { id: captureClipCopyErr; waitForEnd: true }
-
-        function start(path, mode_, savedPath_, beautify_) {
-            mode = mode_;
-            outputPath = path;
-            savedPath = savedPath_;
-            beautify = beautify_;
-            command = ["ryoku-shell", "clip-copy", "image/png", path];
-            running = true;
-        }
-
-        onExited: (code) => {
-            var finishedMode = mode;
-            var finishedPath = outputPath;
-            var finishedSavedPath = savedPath;
-            var finishedBeautify = beautify;
-            var detail = captureClipCopyErr.text.trim();
-            mode = "";
-            outputPath = "";
-            savedPath = "";
-            beautify = false;
-            root._finishCapture(finishedMode, finishedPath, finishedSavedPath,
-                finishedBeautify, code === 0, detail);
-        }
+    // The daemon owns the copy (clip-copy reads the file and holds the
+    // selection), so it outlives this request. The detail reads as the CLI's
+    // stderr did, so the notification text is unchanged.
+    function _clipCopy(path, mode, savedPath, beautify) {
+        Bus.run("clip-copy image/png " + path, (ok, output, error) => {
+            root._finishCapture(mode, path, savedPath, beautify, ok === true,
+                ok === true ? "" : "ryoku-shell: " + String(error || ""));
+        });
     }
 }

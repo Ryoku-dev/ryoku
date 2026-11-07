@@ -531,7 +531,7 @@ Item {
     }
 
     function openHub(section) {
-        Spawn.run(["ryoku-shell", "hub", "open", section]);
+        Bus.run(["hub", "open", section].join(" "));
     }
 
     onCardKeyChanged: if (cardKey !== "") {

@@ -90,7 +90,7 @@ Item {
                 Accessible.name: I18n.tr("Ryoku Hub")
                 onClicked: {
                     root.closeRequested();
-                    Spawn.run(["ryoku-shell", "hub", "open", "controls"]);
+                    Bus.run("hub open controls");
                 }
             }
             CornerButton {

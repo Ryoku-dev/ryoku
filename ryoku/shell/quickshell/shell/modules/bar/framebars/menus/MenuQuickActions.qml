@@ -5,6 +5,7 @@ import Quickshell
 import "../.." as Pill
 import shell.services
 import "../../../../components"
+import Ryoku.Ui.Singletons
 
 // One quick-action row (contract 06 sec 2.11): a centred horizontal row of
 // 48x48 surface tiles, 12px apart, one per configured action. Toggle actions
@@ -51,8 +52,8 @@ Item {
         case "airplane": Toggles.toggleWifi(); return;
         case "night-light": Toggles.toggleNight(); return;
         case "color": Quickshell.execDetached(["ryoku-cmd-color-picker"]); root.requestClose(); return;
-        case "settings": Quickshell.execDetached(["ryoku-shell", "hub", "open"]); root.requestClose(); return;
-        case "lock": Quickshell.execDetached(["ryoku-shell", "lock"]); root.requestClose(); return;
+        case "settings": Bus.run("hub open"); root.requestClose(); return;
+        case "lock": Bus.run("lock"); root.requestClose(); return;
         case "logout": SessionActions.run("logout"); return;
         case "reboot": Quickshell.execDetached(["systemctl", "reboot"]); return;
         case "shutdown": Quickshell.execDetached(["systemctl", "poweroff"]); return;

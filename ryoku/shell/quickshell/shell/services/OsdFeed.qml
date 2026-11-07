@@ -2,7 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui
 
 // QML view of the daemon `osd` topic. The volume and mic OSDs read PipeWire
 // directly (Ryoku owns the audio graph in QML), but brightness has no
@@ -38,7 +38,7 @@ Singleton {
     signal mediaRequested(string action)
     signal hideRequested()
 
-    IpcHandler {
+    BusIpcHandler {
         target: "osd"
         function preview(): void { root.previewSeq++; }
         function volume(): void { root.volumeRequested(); }
@@ -54,43 +54,22 @@ Singleton {
         }
         function hide(): void { root.hideRequested(); }
     }
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
-    function apply(line) {
-        try {
-            const b = JSON.parse(line).brightness;
-            if (b) {
-                if (typeof b.value === "number")
-                    root.brightness = Math.max(0, Math.min(1, b.value));
-                if (typeof b.seq === "number")
-                    root.brightnessSeq = b.seq;
-            }
-        } catch (e) {
-            // A malformed frame must never wedge the OSD; keep the last value.
+    function apply(frame) {
+        const b = frame ? frame.brightness : null;
+        if (b) {
+            if (typeof b.value === "number")
+                root.brightness = Math.max(0, Math.min(1, b.value));
+            if (typeof b.seq === "number")
+                root.brightnessSeq = b.seq;
         }
     }
 
     // Subscribe once for the whole shell; every screen's brightness OSD reads
-    // this singleton rather than opening its own socket.
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe osd\n");
-                flush();
-            } else {
-                retry.restart();
-            }
-        }
-    }
-
-    // The daemon may be down at load or restart under the shell; retry quietly.
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
+    // this singleton rather than subscribing itself.
+    BusTopic {
+        id: topicFeed
+        topic: "osd"
+        onUpdated: root.apply(topicFeed.data)
     }
 }

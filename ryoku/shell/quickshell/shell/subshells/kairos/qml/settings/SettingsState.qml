@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui as RyokuUi
 
 Singleton {
     id: root
@@ -21,7 +21,7 @@ Singleton {
         root.screen = null;
     }
 
-    IpcHandler {
+    RyokuUi.BusIpcHandler {
         target: "kairos"
         function settings(): void {
             root.show(null);

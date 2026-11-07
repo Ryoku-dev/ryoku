@@ -1,20 +1,26 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import Ryoku.Ui.Singletons
 import Quickshell
-import Quickshell.Io
-import shell.services
+import Ryoku.Ui as RyokuUi
+import Ryoku.Ui.Singletons
 import "../IslandMetrics.js" as M
 
-// Kairos' own settings (shell.json "kairos"), read through Config and written
-// back through the shell daemon, the one writer of shell.json. An absent key
-// reads as the shipped metric, so the island is whole until a value changes it.
+// Kairos' own settings (shell.json "kairos"), read through ShellSettings and
+// written back through the shell daemon, the one writer of shell.json. An
+// absent key reads as the shipped metric, so the island is whole until a value
+// changes it.
 Scope {
     id: s
 
-    readonly property var raw: (Config.kairos && typeof Config.kairos === "object")
-        ? Config.kairos : ({})
+    readonly property var raw: (kairosSetting.value && typeof kairosSetting.value === "object")
+        ? kairosSetting.value : ({})
+
+    RyokuUi.ShellSetting {
+        id: kairosSetting
+        path: "kairos"
+        fallback: ({})
+    }
 
     function num(key, fallback) {
         var v = s.raw[key];
@@ -73,23 +79,6 @@ Scope {
         s._queue("kairos", s.defaults());
     }
     function _queue(path, value) {
-        _ctl.queued += "call settings.patch "
-            + JSON.stringify({ path: path, value: value }) + "\n";
-        if (_ctl.connected) _ctl.flushQueued();
-        else _ctl.connected = true;
-    }
-
-    readonly property string _sockPath:
-        (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-
-    Socket {
-        id: _ctl
-        path: s._sockPath
-        property string queued: ""
-        function flushQueued() {
-            if (queued.length === 0) return
-            write(queued); flush(); queued = ""
-        }
-        onConnectionStateChanged: if (connected) flushQueued()
+        ShellSettings.patch(path, value);
     }
 }

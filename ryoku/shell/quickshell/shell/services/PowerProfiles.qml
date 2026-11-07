@@ -1,13 +1,14 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui
+import Ryoku.Ui.Singletons
 import "../utils/menupoll.js" as MenuPoll
 
 // QML view of the daemon `powerprofiles` topic. The D-Bus provider lives behind
-// ryoku-shell (powerprofiles.go), so QML never starts a second client:
-// `subscribe powerprofiles` streams {active_profile, profiles} on every change,
-// and `call powerprofiles.setProfile` sends the intent back. The list is service
+// ryoku-shell (powerprofiles.go), so QML never starts a second client: the bus
+// streams {active_profile, profiles} on every change, and the
+// `powerprofiles.setProfile` call sends the intent back. The list is service
 // order with no client sort (contract 06 sec 2.9 / contract 11 sec 3.1).
 Singleton {
     id: root
@@ -34,62 +35,30 @@ Singleton {
         root.call("powerprofiles.setProfile", { profile: name });
     }
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-
-    function apply(line) {
-        try {
-            const f = JSON.parse(line);
-            root.profile = typeof f.active_profile === "string" ? f.active_profile : "";
-            root.profiles = Array.isArray(f.profiles) ? f.profiles : [];
-        } catch (e) {
-            // A malformed frame keeps the last good state.
-        }
+    function apply(f) {
+        if (!f || typeof f !== "object")
+            return;
+        root.profile = typeof f.active_profile === "string" ? f.active_profile : "";
+        root.profiles = Array.isArray(f.profiles) ? f.profiles : [];
     }
 
     function call(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
+        Bus.call(method, args);
     }
 
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe powerprofiles\n");
-                flush();
-            } else {
+    BusTopic {
+        id: topicFeed
+        topic: "powerprofiles"
+        onUpdated: root.apply(topicFeed.data)
+    }
+
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (!Bus.connected) {
                 root.profile = "";
                 root.profiles = [];
-                retry.restart();
             }
         }
-    }
-
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
     }
 }

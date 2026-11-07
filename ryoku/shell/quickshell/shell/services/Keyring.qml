@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui.Singletons
 
 /**
  * Live state for the keyring island, driven by the ryoku-shell daemon's GNOME
@@ -11,10 +11,10 @@ import Quickshell.Io
  * the pill grows the KeyringSurface island instead of gcr drawing a centred GTK
  * dialog.
  *
- * The typed secret goes back over the daemon's control socket on its own line,
- * never as a process argument, so it cannot leak through the world-readable
- * /proc/<pid>/cmdline. The daemon owns the secret exchange and encrypts it before
- * it touches the bus.
+ * The typed secret goes to the daemon as the bus request's stdin, never as a
+ * process argument or on the command line, so it cannot leak through the
+ * world-readable /proc/<pid>/cmdline. The daemon owns the secret exchange and
+ * encrypts it before it reaches D-Bus.
  */
 Singleton {
     id: root
@@ -33,8 +33,6 @@ Singleton {
     property bool passwordNew: false         // choosing a new password (confirm field)
     property string continueLabel: ""
     property string cancelLabel: ""
-
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
     // Fired when a fresh prompt arrives so the surface resets its fields and
     // takes focus, even when the island is already open (a wrong-password retry).
@@ -95,31 +93,6 @@ Singleton {
     }
 
     function respond(action, secret, choice) {
-        var head = "keyring-respond " + root.promptId + " " + action + " " + (choice ? "1" : "0") + "\n";
-        sock.queued = head + secret + "\n";
-        if (sock.connected) {
-            sock.flushQueued();
-        } else {
-            sock.connected = true;
-        }
-    }
-
-    Socket {
-        id: sock
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-            // The daemon reads the command + secret and closes the connection
-            // itself; disconnecting here races the write and would truncate the
-            // secret's second line.
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
+        Bus.run("keyring-respond " + root.promptId + " " + action + " " + (choice ? "1" : "0"), null, secret);
     }
 }

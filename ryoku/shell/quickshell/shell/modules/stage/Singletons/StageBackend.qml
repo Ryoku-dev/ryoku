@@ -3,11 +3,12 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 
 // The single door to the daemon `stage` topic and the `ryostage` engine
-// (docs/stage.md): it subscribes to the per-wallpaper frame, turns editor
-// gestures into `ryoku-shell stage` intents, and reads the engine directly.
+// (docs/stage.md): it follows the per-wallpaper frame, turns editor gestures
+// into daemon `stage` verbs over the bus, and reads the engine directly.
 Singleton {
     id: root
 
@@ -202,7 +203,6 @@ Singleton {
         }
     }
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
     property var frame: ({ current: "", busy: false, job: null, last: null, walls: {} })
 
     readonly property string current: root.frame.current || ""
@@ -214,15 +214,11 @@ Singleton {
     // Key optimistic values by wallpaper so a monitor switch cannot retarget a pending flush.
     property var _opt: ({})
 
-    function apply(line) {
-        var f;
-        try {
-            f = JSON.parse(line);
-        } catch (e) {
-            return;
-        }
+    // The frame is shared with every bus subscriber in this process, so it is
+    // copied rather than patched when walls is missing.
+    function apply(f) {
         if (!f || typeof f !== "object") return;
-        if (!f.walls) f.walls = {};
+        if (!f.walls) f = Object.assign({}, f, { walls: {} });
         root.frame = f;
 
         const keep = {};
@@ -470,13 +466,13 @@ Singleton {
         return i === 0 ? I18n.tr("Subject") : I18n.tr("Layer %1").arg(i + 1);
     }
 
-    // Topic republish, not process exit, confirms fire-and-forget verbs.
+    // Topic republish, not the verb's reply, confirms fire-and-forget verbs.
     function call(verb, args, wall) {
-        const cmd = ["ryoku-shell", "stage", verb];
+        const words = ["stage", verb];
         const values = args || [];
-        for (var i = 0; i < values.length; i++) cmd.push("" + values[i]);
-        if (wall) cmd.push("--", "" + wall);
-        Quickshell.execDetached(cmd);
+        for (var i = 0; i < values.length; i++) words.push("" + values[i]);
+        if (wall) words.push("--", "" + wall);
+        Bus.run(words.join(" "));
     }
     function setEffect(e, wall) {
         if (["off", "depth", "parallax", "spatial"].indexOf(e) >= 0)
@@ -534,27 +530,14 @@ Singleton {
         }
     }
 
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe stage\n");
-                flush();
-            } else {
-                retry.restart();
-            }
-        }
-    }
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
+    RyokuUi.BusTopic {
+        id: stageTopic
+        topic: "stage"
+        onUpdated: root.apply(stageTopic.data)
     }
 
     Component.onCompleted: {
+        root.apply(stageTopic.data);
         root.recheck();
         root.recheckSpatial();
     }

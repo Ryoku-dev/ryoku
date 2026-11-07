@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "Singletons"
@@ -19,8 +18,6 @@ Rectangle {
     property string barStyle: "orpheus"
     property real arrival: 0
     readonly property int lastStep: steps.length - 1
-    readonly property string socketPath:
-        (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
     readonly property var steps: [
         { label: I18n.tr("Hello"), next: I18n.tr("Show me around") },
         { label: I18n.tr("Your bar"), next: I18n.tr("Make it mine") },
@@ -41,15 +38,19 @@ Rectangle {
             step--
     }
 
+    // The commit outlives this window, which quits at once, so it stays a
+    // detached CLI rather than a bus call that the quit could drop.
     function finish() {
-        runCommand(["ryoku-shell", "shells", "commit"])
+        Spawn.run(["ryoku-shell", "shells", "commit"])
         Qt.quit()
     }
 
     function runCommand(argv) {
         if (!argv || argv.length === 0)
             return
-        if (["ryostore", "ryoku-kit", "ryoku-app"].includes(argv[0]))
+        if (argv[0] === "ryoku-shell")
+            Bus.run(argv.slice(1).join(" "))
+        else if (["ryostore", "ryoku-kit", "ryoku-app"].includes(argv[0]))
             Spawn.runApp(argv, { label: argv[0] })
         else
             Spawn.run(argv)
@@ -57,23 +58,19 @@ Rectangle {
 
     function chooseBar(styleId) {
         barStyle = styleId
-        control.queued += "call settings.patch "
-            + JSON.stringify({ path: "barStyle", value: styleId }) + "\n"
-        if (control.connected)
-            control.flushQueued()
-        else
-            control.connected = true
+        ShellSettings.patch("barStyle", styleId)
     }
 
-    function applySettings(line) {
-        try {
-            const frame = JSON.parse(line)
-            const liveStyle = frame && typeof frame.barStyle === "string"
-                ? frame.barStyle : ""
-            if (["kairos", "orpheus"].indexOf(liveStyle) >= 0)
-                barStyle = liveStyle
-        } catch (e) {
-        }
+    function applyLiveStyle(liveStyle) {
+        if (["kairos", "orpheus"].indexOf(liveStyle) >= 0)
+            barStyle = liveStyle
+    }
+
+    ShellSetting {
+        path: "barStyle"
+        fallback: ""
+        onValueChanged: root.applyLiveStyle(value)
+        Component.onCompleted: root.applyLiveStyle(value)
     }
 
     Keys.onEscapePressed: finish()
@@ -81,43 +78,6 @@ Rectangle {
     Keys.onRightPressed: advance()
     Keys.onReturnPressed: advance()
     Keys.onEnterPressed: advance()
-
-    Socket {
-        id: settings
-        path: root.socketPath
-        parser: SplitParser { onRead: line => root.applySettings(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe settings\n")
-                flush()
-            } else {
-                reconnect.restart()
-            }
-        }
-    }
-
-    Timer {
-        id: reconnect
-        interval: 2000
-        onTriggered: if (!settings.connected) settings.connected = true
-    }
-
-    Socket {
-        id: control
-        path: root.socketPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return
-            write(queued)
-            flush()
-            queued = ""
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
-    }
 
     Item {
         id: topBar

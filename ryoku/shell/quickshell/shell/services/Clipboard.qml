@@ -2,13 +2,14 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui
+import Ryoku.Ui.Singletons
 
 // QML view of the daemon `clipboard` topic. The selection watcher and the whole
 // history live in ryoku-shell (clipboard.go), so QML never runs an external
-// history tool: `subscribe clipboard` streams a full {entries:[...]} frame,
-// newest first, on every change, and copy/delete/clear intents ride back over a
-// second connection. Each entry already carries its resolved view: a "text"
+// history tool: the bus streams a full {entries:[...]} frame, newest first, on
+// every change, and copy/delete/clear intents ride back as bus calls. Each
+// entry already carries its resolved view: a "text"
 // entry has a 200-character preview, an "image" entry has a persisted thumbnail
 // file and size (thumb, thumbW/thumbH) plus its source pixel size (w/h), and a
 // "binary" entry has its mime and byte size.
@@ -18,15 +19,9 @@ Singleton {
     id: root
 
     property var entries: []
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
-    function apply(line) {
-        try {
-            const frame = JSON.parse(line);
-            root.entries = Array.isArray(frame.entries) ? frame.entries : [];
-        } catch (e) {
-            // A malformed frame must never wedge the panel; keep the last good set.
-        }
+    function apply(frame) {
+        root.entries = frame && Array.isArray(frame.entries) ? frame.entries : [];
     }
 
     // Copy re-sets the Wayland selection to this entry and promotes it to the
@@ -40,52 +35,22 @@ Singleton {
     function star(id, starred) { root.send("clipboard.star", { entry: id, starred: starred }); }
 
     function send(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
+        Bus.call(method, args);
     }
 
-    // Subscription: connect, ask once, then stream. A second write to this
-    // connection would half-close the stream (daemon rule), so calls use ctl.
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe clipboard\n");
-                flush();
-            } else {
+    BusTopic {
+        id: topicFeed
+        topic: "clipboard"
+        onUpdated: root.apply(topicFeed.data)
+    }
+
+    // The history lives in the daemon; clear it while the daemon is away and let
+    // the bus resync the panel when it returns.
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (!Bus.connected)
                 root.entries = [];
-                retry.restart();
-            }
         }
-    }
-
-    // The daemon may be down when the shell loads (or restart under it); retry
-    // quietly so the panel repopulates once it returns.
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
     }
 }

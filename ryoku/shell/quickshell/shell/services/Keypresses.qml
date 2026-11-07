@@ -12,7 +12,6 @@ import Ryoku.Ui
 Singleton {
     id: root
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
     readonly property string cfgPath: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/keypresses.json"
 
     property bool active: false
@@ -50,32 +49,25 @@ Singleton {
         root.loaded = true;
     }
 
-    function applyFrame(line) {
-        try {
-            const frame = JSON.parse(line);
-            root.backendStatus = frame.status || "disabled";
-            root.backendError = frame.error || "";
-            if (!Array.isArray(frame.keys) || frame.keys.length === 0)
-                return;
-            const state = frame.state === "pressed" || frame.state === "released"
-                ? frame.state : "tap";
-            const signature = frame.serial ? String(frame.serial)
-                : JSON.stringify([frame.time || 0, frame.repeat === true, state, frame.keys]);
-            if (signature === root.lastEventSignature)
-                return;
-            root.lastEventSignature = signature;
-            root.chord(frame.keys, frame.repeat === true, state, frame.time || Date.now());
-        } catch (e) {
-            // Keep the last good state if a daemon frame is truncated.
-        }
+    function applyFrame(frame) {
+        if (!frame || typeof frame !== "object")
+            return;
+        root.backendStatus = frame.status || "disabled";
+        root.backendError = frame.error || "";
+        if (!Array.isArray(frame.keys) || frame.keys.length === 0)
+            return;
+        const state = frame.state === "pressed" || frame.state === "released"
+            ? frame.state : "tap";
+        const signature = frame.serial ? String(frame.serial)
+            : JSON.stringify([frame.time || 0, frame.repeat === true, state, frame.keys]);
+        if (signature === root.lastEventSignature)
+            return;
+        root.lastEventSignature = signature;
+        root.chord(frame.keys, frame.repeat === true, state, frame.time || Date.now());
     }
 
     function send(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
+        Bus.call(method, args);
     }
 
 
@@ -195,41 +187,21 @@ Singleton {
         onLoadFailed: if (!root.loaded) root.applySettings("")
     }
 
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.applyFrame(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe keypress\n");
-                flush();
+    BusTopic {
+        id: topicFeed
+        topic: "keypress"
+        onUpdated: root.applyFrame(topicFeed.data)
+    }
+
+    // The capture runs in the daemon only while it is told to; a restarted
+    // daemon hears the current activation again.
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (Bus.connected)
                 root.sendConfigure();
-            } else {
-                retry.restart();
-            }
         }
     }
 
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
-    }
+    Component.onCompleted: if (Bus.connected) root.sendConfigure()
 }

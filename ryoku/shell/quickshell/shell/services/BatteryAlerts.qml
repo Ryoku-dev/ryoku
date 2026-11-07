@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "BatteryAlertPolicy.js" as Policy
 
@@ -29,7 +30,7 @@ Singleton {
     property bool testing: false
 
     // The Hub tests the same notification path without changing discharge state.
-    IpcHandler {
+    BusIpcHandler {
         target: "battery-alerts-native"
         function test(): void { svc.testNotification(); }
         function status(): string {

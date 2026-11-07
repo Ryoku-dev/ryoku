@@ -2,7 +2,7 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui.Singletons
 
 // Fires the session actions the Controls bar's hold buttons complete. Lock and
 // sleep are the daemon's own verbs, the same `ryoku-shell lock` the Super+L
@@ -15,34 +15,12 @@ import Quickshell.Io
 Singleton {
     id: root
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-
     // action is one of "lock" | "suspend" | "logout" | "reboot" | "shutdown".
     function run(action) {
         if (action === "lock" || action === "suspend") {
-            Quickshell.execDetached(["ryoku-shell", action]);
+            Bus.run(action);
             return;
         }
-        ctl.queued += "call session." + action + " {}\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
+        Bus.call("session." + action, {});
     }
 }

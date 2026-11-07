@@ -5,6 +5,8 @@ import Qt.labs.folderlistmodel
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Io
+import Ryoku.Ui
+import Ryoku.Ui.Singletons
 import "BluetoothRfkill.js" as Rfkill
 import "BluetoothFeed.js" as Feed
 
@@ -74,40 +76,26 @@ Singleton {
     onAdapterStateChanged: root.rescanRfkill()
     onFeedChanged: root.rescanRfkill()
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-
-    function applyFeed(line: string): void {
-        const frame = Feed.parseFrame(line);
-        if (frame === null) {
-            if (line.startsWith("err"))
-                feedRetry.interval = Feed.nextRetry(feedRetry.interval, true);
-            return;
-        }
-        feedRetry.interval = Feed.firstRetry;
-        if (JSON.stringify(frame) !== JSON.stringify(root.feed))
+    function applyFeed(data: var): void {
+        const frame = Feed.frameFrom(data);
+        if (frame !== null && JSON.stringify(frame) !== JSON.stringify(root.feed))
             root.feed = frame;
     }
 
-    Socket {
-        id: feedSocket
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.applyFeed(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe bluetooth\n");
-                flush();
-            } else {
-                root.feed = null;
-                feedRetry.restart();
-            }
-        }
+    // A daemon without the topic never sends a frame, so feed stays null and
+    // Quickshell's own adapter view is used, as with no daemon at all.
+    BusTopic {
+        id: topicFeed
+        topic: "bluetooth"
+        onUpdated: root.applyFeed(topicFeed.data)
     }
 
-    Timer {
-        id: feedRetry
-        interval: Feed.firstRetry
-        onTriggered: if (!feedSocket.connected) feedSocket.connected = true
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (!Bus.connected)
+                root.feed = null;
+        }
     }
     onSettledChanged: if (root.settled) recheck.stop()
 

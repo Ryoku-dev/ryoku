@@ -1,15 +1,9 @@
 // BluetoothPower.qml and its regression tests share this policy for the daemon's
 // `bluetooth` topic: {running, adapters: [{path, name, address, powered}]}.
 
-// Returns the frame, or null for an error line ("err unknown topic: ...") or junk.
-function parseFrame(line) {
-    var f;
-    try {
-        f = JSON.parse(line);
-    } catch (e) {
-        return null;
-    }
-    if (!f || typeof f.running !== "boolean")
+// Returns a clean copy of the bus frame f (already parsed), or null for junk.
+function frameFrom(f) {
+    if (!f || typeof f !== "object" || typeof f.running !== "boolean")
         return null;
     var adapters = Array.isArray(f.adapters) ? f.adapters.filter(function (a) {
         return a && typeof a.path === "string";
@@ -29,16 +23,5 @@ function resolve(qsAdapter, qsEnabled, feed) {
     return { useQuickshell: false, present: fallback !== null, enabled: fallback !== null && fallback.powered === true };
 }
 
-var firstRetry = 2000;
-var maxRetry = 60000;
-
-// A dropped stream (daemon restarting) retries at the base delay; a daemon that
-// does not know the topic backs off, so an older daemon is not reconnected every 2 s.
-function nextRetry(previous, unknownTopic) {
-    if (!unknownTopic)
-        return firstRetry;
-    return Math.min(maxRetry, Math.max(firstRetry, previous * 2));
-}
-
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { parseFrame, resolve, nextRetry, firstRetry, maxRetry };
+    module.exports = { frameFrom, resolve };

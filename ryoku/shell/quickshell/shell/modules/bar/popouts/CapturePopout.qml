@@ -734,7 +734,7 @@ Item {
                 }
             }
             HoverHandler { id: moreHov; cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: Quickshell.execDetached(["ryoku-shell", "hub", "open", "recording"]) }
+            TapHandler { onTapped: Bus.run("hub open recording") }
         }
 
         // RECENT - screenshots and recordings in separate labelled groups; a click

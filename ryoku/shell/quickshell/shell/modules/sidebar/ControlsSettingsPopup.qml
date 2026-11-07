@@ -36,7 +36,7 @@ QQC.Popup {
     function openHub(section): void {
         root.close();
         root.requestClose();
-        Spawn.run(["ryoku-shell", "hub", "open", section]);
+        Bus.run(["hub", "open", section].join(" "));
     }
 
     SidebarPlugins {

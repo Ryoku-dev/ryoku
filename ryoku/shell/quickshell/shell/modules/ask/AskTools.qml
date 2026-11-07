@@ -101,7 +101,7 @@ Item {
         } else if (id === "clear") {
             Stash.clearAll();
         } else if (id === "dashboard") {
-            Spawn.run(["ryoku-shell", "hub", "open", "rashin"]);
+            Bus.run("hub open rashin");
         }
     }
 

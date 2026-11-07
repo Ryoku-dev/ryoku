@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Bluetooth
 import shell.services
+import Ryoku.Ui.Singletons
 
 // One renderer parameterised by statusId, exactly as the reference treats each
 // status widget as its own type. The battery, network, bluetooth and the speaker
@@ -112,7 +113,7 @@ Item {
     // only); input is a silent direct set on the source.
     function scrollBy(steps) {
         if (audioOut) {
-            Quickshell.execDetached(["ryoku-shell", "audio", steps > 0 ? "up" : "down"]);
+            Bus.run(steps > 0 ? "audio up" : "audio down");
         } else if (audioIn && Audio.source && Audio.source.audio) {
             const v = Audio.source.audio.volume + (steps > 0 ? 0.05 : -0.05);
             const next = Math.max(0, Math.min(1, v));

@@ -130,7 +130,7 @@ Singleton {
         if (hints["suppress-sound"] === true)
             return;
         const critical = n.urgency === NotificationUrgency.Critical;
-        Quickshell.execDetached(["ryoku-shell", "sound", critical ? "notification-critical" : "notification"]);
+        Bus.run("sound " + (critical ? "notification-critical" : "notification"));
     }
 
     function addPopup(n) {

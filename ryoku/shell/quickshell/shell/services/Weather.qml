@@ -1,21 +1,19 @@
 pragma Singleton
 import QtQuick
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import Quickshell
-import Quickshell.Io
 import "lib/weather.js" as Model
 
 // QML view of the daemon `weather` topic. The Open-Meteo fetch, geocoding, IP
 // fallback, retry ladder, WMO-code and icon mapping and unit conversion all live
-// in ryoku-shell (weather.go), so QML makes no HTTP call: `subscribe weather`
-// streams a full frame on every change, and location/unit intent rides back over
-// a second connection. The daemon ships every display string ready to bind; this
-// singleton just parses the frame and re-exposes it, deriving the compact glyph
+// in ryoku-shell (weather.go), so QML makes no HTTP call: the bus streams a full
+// frame on every change, and location/unit intent rides back as bus calls. The
+// daemon ships every display string ready to bind; this
+// singleton just keeps the frame and re-exposes it, deriving the compact glyph
 // and short label for the quick-settings and calendar views from the WMO code.
 Singleton {
     id: root
-
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
     // The whole frame, plus the parts callers bind directly.
     property var frame: ({ status: "loading", hourly: [], daily: [] })
@@ -44,17 +42,16 @@ Singleton {
     readonly property string condition: root.current ? Model.labelFor(root.current.code) : ""
     readonly property string glyph: root.current ? Model.glyphFor(root.current.code) : "cloud"
 
-    function apply(line) {
-        try {
-            const f = JSON.parse(line);
-            if (!Array.isArray(f.hourly))
-                f.hourly = [];
-            if (!Array.isArray(f.daily))
-                f.daily = [];
+    function apply(f) {
+        if (!f || typeof f !== "object")
+            return;
+        if (Array.isArray(f.hourly) && Array.isArray(f.daily))
             root.frame = f;
-        } catch (e) {
-            // A malformed frame must never wedge the readout; keep the last good one.
-        }
+        else
+            root.frame = Object.assign({}, f, {
+                hourly: Array.isArray(f.hourly) ? f.hourly : [],
+                daily: Array.isArray(f.daily) ? f.daily : []
+            });
     }
 
     // The error-state Retry button re-kicks the daemon's poll.
@@ -63,11 +60,11 @@ Singleton {
     // Switch the temperature unit from the surface. The persisted weatherUnit is
     // patched through the daemon's settings seam (the sole writer of shell.json,
     // so themePalette and the other keys survive), and a re-fetch in the new unit
-    // is kicked now so the surface re-renders live without waiting on the file
-    // round-trip; Config's file watch fires sendConfigure again once the patch
-    // lands, which the daemon dedupes.
+    // is kicked now so the surface re-renders live without waiting on the
+    // settings round-trip; Config's weatherUnit change fires sendConfigure again
+    // once the patch lands, which the daemon dedupes.
     function setUnit(unit) {
-        root.send("settings.patch", { path: "weatherUnit", value: unit });
+        ShellSettings.patch("weatherUnit", unit);
         root.send("weather.configure", { location: Config.weatherLocation, unit: unit, clock24: TimeFormat.is24h });
     }
 
@@ -82,11 +79,7 @@ Singleton {
     }
 
     function send(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
+        Bus.call(method, args);
     }
 
     Connections {
@@ -100,43 +93,21 @@ Singleton {
         function onWeatherUnitChanged() { root.sendConfigure(); }
     }
 
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe weather\n");
-                flush();
+    BusTopic {
+        id: topicFeed
+        topic: "weather"
+        onUpdated: root.apply(topicFeed.data)
+    }
+
+    // The daemon owns the fetch but not the location: hand it over again on
+    // every (re)connect so a restarted daemon fetches the right place.
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (Bus.connected)
                 root.sendConfigure();
-            } else {
-                retry.restart();
-            }
         }
     }
 
-    // The daemon may be down when the shell loads (or restart under it); retry
-    // quietly so the readout repopulates once it returns.
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
-    }
+    Component.onCompleted: if (Bus.connected) root.sendConfigure()
 }

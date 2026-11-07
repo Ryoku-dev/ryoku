@@ -2,7 +2,6 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import Ryoku.Ui.Singletons
 import shell.services
 import "lib/dock.js" as DockList
@@ -263,11 +262,7 @@ Singleton {
     function writeCfg(next) {
         Config.dock = next;
         root.configRevision++;
-        cfgCtl.queued += "call settings.patch " + JSON.stringify({ path: "dock", value: next }) + "\n";
-        if (cfgCtl.connected)
-            cfgCtl.flushQueued();
-        else
-            cfgCtl.connected = true;
+        ShellSettings.patch("dock", next);
     }
     function setCfg(key, value) {
         const cur = Config.dock || {};
@@ -317,21 +312,6 @@ Singleton {
             return "left";
         return "bottom";
     }
-    // The daemon's control socket, connected only when there is something to say.
-    Socket {
-        id: cfgCtl
-        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-        property string queued: ""
-        function flushQueued() {
-            if (cfgCtl.queued.length === 0)
-                return;
-            cfgCtl.write(cfgCtl.queued);
-            cfgCtl.flush();
-            cfgCtl.queued = "";
-        }
-        onConnectionStateChanged: if (cfgCtl.connected) cfgCtl.flushQueued()
-    }
-
     // Starter pins are only a first-run fallback. Once the user has edited the
     // list, an empty list is deliberate and must survive a shell reload.
     function pinnedOrStarter() {

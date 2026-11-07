@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui.Singletons
 import "lib/screens.js" as Screens
 
 // Screen recording state + control for GPU Screen Recorder. The backend
@@ -11,8 +12,9 @@ import "lib/screens.js" as Screens
 // capture card, ryoshot, the CLI) and carries the launch time, so the clock is
 // right from its first frame and survives a shell reload. GSR's IPC socket is
 // polled as the backstop for a stale file. Control goes through the one command
-// API -- `ryoku-shell record start|stop|pause|resume` and `record settings` --
-// so nothing here builds a recorder invocation of its own.
+// API -- the daemon's `record start|stop|pause|resume` and `record settings`
+// verbs, sent over the bus -- so nothing here builds a recorder invocation of
+// its own.
 // The capture popout and the floating record island share this single source of truth.
 Singleton {
     id: root
@@ -127,10 +129,10 @@ Singleton {
     // Route one setting change through the daemon, which validates it and rewrites
     // the whole merged file; the mirror above then reloads from the watch.
     function setSetting(key, value) {
-        Quickshell.execDetached(["ryoku-shell", "record", "settings", key, String(value)]);
+        Bus.run(["record", "settings", key, String(value)].join(" "));
     }
 
-    // desktop-audio + mic flags -> ryoku-shell record args, shared by the card and
+    // desktop-audio + mic flags -> record start args, shared by the card and
     // any other trigger so the argument list is never built two ways.
     function recordArgs() {
         var a = [];
@@ -262,7 +264,7 @@ Singleton {
         } else {
             root.regionGeom = "";
         }
-        Quickshell.execDetached(["ryoku-shell", "record", "start"].concat(a));
+        Bus.run(["record", "start"].concat(a).join(" "));
         // Optimistic, so the island shows at once; the backend's status file then
         // supplies the launch time and the poll confirms the recorder came up.
         root.active = true;
@@ -274,7 +276,7 @@ Singleton {
     // Pause/resume the live capture through the daemon (which relays to GSR's IPC
     // socket). Optimistic: flipped here, and the poll resets it when a capture ends.
     function togglePause() {
-        Quickshell.execDetached(["ryoku-shell", "record", root.paused ? "resume" : "pause"]);
+        Bus.run(root.paused ? "record resume" : "record pause");
         root.paused = !root.paused;
     }
 
@@ -285,7 +287,7 @@ Singleton {
             root.cancelCountdown();
             return;
         }
-        Quickshell.execDetached(["ryoku-shell", "record", "stop"]);
+        Bus.run("record stop");
         root.active = false;
         root.paused = false;
         root.regionGeom = "";

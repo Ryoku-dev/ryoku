@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
+import shell.services as Svc
 import "../../Singletons"
 import "../../../../../utils/fuzzy.js" as Fuzzy
 import "catalog.js" as Catalog
@@ -8,8 +9,9 @@ import ".."
 
 // System-action provider: the "/" prefix lists fire-and-forget commands (lock,
 // wallpaper, screenshot, night light, media keys, settings...) from the catalog,
-// fuzzy-filtered. Each action runs its catalog `exec` argv detached. The active
-// category tab (set by the view) narrows the list.
+// fuzzy-filtered. Each action opens its shell surface in-process, sends its
+// daemon verb over the bus, or runs its argv detached. The active category tab
+// (set by the view) narrows the list.
 Provider {
     id: actions
 
@@ -20,6 +22,27 @@ Provider {
     property string activeCategory: "All"
     onActiveCategoryChanged: Dispatcher.notifyAsync()
 
+    // The shell's openSurface route on the active monitor, run once the
+    // launcher has closed, where the daemon round trip used to land. The
+    // clipboard is Ryoku's under every style, so it skips the surface bus.
+    function openSurface(id) {
+        if (id === "clipboard") {
+            const st = Svc.ShellState.forActive();
+            if (st)
+                st.clipboardOpen = !st.clipboardOpen;
+            return;
+        }
+        Svc.ShellState.requestSurfaceActive(id, undefined);
+    }
+
+    function run(entry) {
+        if (entry.surface)
+            Qt.callLater(actions.openSurface, entry.surface);
+        else if (entry.verb)
+            Bus.run(entry.verb);
+        else
+            Spawn.run(entry.exec);
+    }
 
     function rowFor(entry) {
         return {
@@ -34,7 +57,7 @@ Provider {
                 id: "run",
                 name: I18n.tr("Run"),
                 icon: "",
-                execute: function () { Spawn.run(entry.exec); }
+                execute: function () { actions.run(entry); }
             }]
         };
     }

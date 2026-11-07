@@ -216,11 +216,11 @@ Item {
         Config.setFor(menu.monitor, menu.scope + "Scale", 1);
     }
     function openSettings() {
-        Spawn.run(["ryoku-shell", "hub", "open"]);
+        Bus.run("hub open");
         menu.close();
     }
     function refreshShell() {
-        Quickshell.execDetached(["ryoku-shell", "reload"]);
+        Bus.run("reload");
         menu.close();
     }
 

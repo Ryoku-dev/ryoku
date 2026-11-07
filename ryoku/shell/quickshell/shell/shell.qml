@@ -34,6 +34,7 @@ import "modules/notifications"
 import "modules/capture"
 import "modules/ask"
 import "modules/confirm"
+import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import stage.modules.common as StageIsland
 import stage as Stage
@@ -616,7 +617,7 @@ ShellRoot {
                 st.clipboardOpen = !st.clipboardOpen;
             break;
         case "settings":
-            Spawn.run(["ryoku-shell", "hub", "open"]);
+            Bus.run("hub open");
             break;
         case "cheatsheet":
             Quickshell.execDetached(["sh", "-c", "pkill -x -f 'qs -c keys' 2>/dev/null || flock -n -o /tmp/ryoku-keys.lock qs -c keys"]);
@@ -873,12 +874,10 @@ ShellRoot {
         function onAuthStepAside(mon, id) { ShellState.closeSurface(id, mon); }
     }
 
-    // Daemon-facing surface channel (Phase 10 points the daemon here). Target
-    // "shell" avoids the live pill's "pill" target; each call maps onto the
-    // ShellState surface bus. Ported from pill/shell.qml 341-364; the SocketServer
-    // fast path (pill 402-411) is deliberately omitted so this instance owns no
-    // runtime socket and produces zero live side effects alongside the daemon.
-    IpcHandler {
+    // Daemon-facing surface channel. Target "shell" avoids the live pill's
+    // "pill" target; each call maps onto the ShellState surface bus. The daemon
+    // reaches it over its bus connection, `qs ipc` still works for scripts.
+    BusIpcHandler {
         target: "shell"
         // An empty monitor means "wherever focus is": the daemon sends "" when
         // its focused-output cache is cold.
@@ -916,7 +915,7 @@ ShellRoot {
 
     // The Hub's "Place on the desktop" button lands here: a slider cannot let a
     // user drop a ring where they want it, so the shell hands them the shape.
-    IpcHandler {
+    BusIpcHandler {
         target: "visualizer"
         function place(): string {
             const st = ShellState.forActive();
@@ -962,7 +961,7 @@ ShellRoot {
 
     // Ryoku Settings edits the Stage file through the shell's canonical typed
     // service. The Hub never becomes a second writer for stage.json.
-    IpcHandler {
+    BusIpcHandler {
         target: "stage-settings"
         function setCutModel(mode: string, id: string): string {
             StageCfg.Config.setCutModel(mode, id);
@@ -1017,7 +1016,7 @@ ShellRoot {
     // Enter or leave the desktop-widget editor without the right-click menu, so
     // a keybind or the daemon can open it. niri has no global-shortcut protocol,
     // so every shell surface is driven this way; the editor is no exception.
-    IpcHandler {
+    BusIpcHandler {
         id: desktopIpc
         target: "desktop"
         function editWidgets(mon: string): void {
@@ -1064,7 +1063,7 @@ ShellRoot {
         }
     }
 
-    IpcHandler {
+    BusIpcHandler {
         target: "keypresses"
         readonly property bool active: Keypresses.active
         readonly property string status: Keypresses.backendStatus
@@ -1080,7 +1079,7 @@ ShellRoot {
         }
         function toggle(): void { Keypresses.toggle(); }
     }
-    IpcHandler {
+    BusIpcHandler {
         target: "camera"
         readonly property bool active: Camera.active
         function toggle(): void { Camera.toggle(); }

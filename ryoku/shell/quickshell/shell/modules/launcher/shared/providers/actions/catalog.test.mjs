@@ -24,20 +24,21 @@ ok(validate(CATALOG.concat([CATALOG[0]])).some(p => p.indexOf("duplicate") !== -
 ok(validate([{ id: "x", name: "X", category: "System", exec: [] }]).some(p => p.indexOf("empty exec") !== -1), "validate flags empty exec");
 // validate catches an unknown category.
 ok(validate([{ id: "y", name: "Y", category: "Nope", exec: ["a"] }]).some(p => p.indexOf("unknown category") !== -1), "validate flags unknown category");
+// validate wants exactly one action per entry.
+ok(validate([{ id: "z", name: "Z", category: "System" }]).some(p => p.indexOf("exactly one") !== -1), "validate flags an entry with no action");
+ok(validate([{ id: "w", name: "W", category: "System", verb: "lock", exec: ["a"] }]).some(p => p.indexOf("exactly one") !== -1), "validate flags an entry with two actions");
+ok(validate([{ id: "v", name: "V", category: "System", surface: "" }]).some(p => p.indexOf("empty surface") !== -1), "validate flags an empty surface");
+// daemon verbs ride the bus rather than a spawned client.
+ok(validate([{ id: "u", name: "U", category: "System", exec: ["ryoku-shell", "lock"] }]).some(p => p.indexOf("instead of a verb") !== -1), "validate flags a spawned ryoku-shell");
 
-const execFor = id => CATALOG.find(action => action.id === id)?.exec;
-ok(
-    JSON.stringify(execFor("open-clipboard")) === JSON.stringify(["ryoku-shell", "clipboard"]),
-    "Clipboard History uses the dedicated clipboard surface"
-);
-ok(
-    JSON.stringify(execFor("open-sysinfo")) === JSON.stringify(["ryoku-shell", "quicksettings"]),
-    "System Info opens the left sidebar"
-);
-ok(
-    JSON.stringify(execFor("open-toolkit")) === JSON.stringify(["ryoku-shell", "quicksettings"]),
-    "Control Deck opens the left sidebar"
-);
+const entry = id => CATALOG.find(action => action.id === id) || {};
+ok(entry("open-clipboard").surface === "clipboard", "Clipboard History uses the dedicated clipboard surface");
+ok(entry("open-sysinfo").surface === "sidebar-left", "System Info opens the left sidebar");
+ok(entry("open-toolkit").surface === "sidebar-left", "Control Deck opens the left sidebar");
+ok(entry("media-visualizer").surface === "visualizer", "Audio Visualizer toggles the visualizer surface");
+ok(entry("lock-screen").verb === "lock", "Lock Screen asks the daemon to lock");
+ok(entry("screen-record").verb === "record", "Screen Record asks the daemon to record");
+ok(entry("reload-shell").verb === "reload", "Reload Shell asks the daemon to reload");
 ok(
     CATALOG.filter(action => String(action.exec?.[0] || "").startsWith("ryoku-cmd-"))
         .every(action => !String(action.exec[0]).includes("/")),

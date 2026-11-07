@@ -1,7 +1,8 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui
+import Ryoku.Ui.Singletons
 import "../utils/menupoll.js" as MenuPoll
 
 // The enriched now-playing track: the full-size cover the daemon resolved and
@@ -17,8 +18,6 @@ import "../utils/menupoll.js" as MenuPoll
 // steps.
 Singleton {
     id: root
-
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
     property var frame: ({})
     readonly property string source: root.frame.source || ""
@@ -176,21 +175,13 @@ Singleton {
         });
     }
 
-    function apply(line) {
-        try {
-            const f = JSON.parse(line);
+    function apply(f) {
+        if (f && typeof f === "object")
             root.frame = f;
-        } catch (e) {
-            // A malformed frame must never wedge the sheet; keep the last one.
-        }
     }
 
     function send(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
+        Bus.call(method, args);
     }
 
     onPlayerChanged: {
@@ -211,43 +202,21 @@ Singleton {
         }
     }
 
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root.apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe music\n");
-                flush();
+    BusTopic {
+        id: topicFeed
+        topic: "music"
+        onUpdated: root.apply(topicFeed.data)
+    }
+
+    // The daemon resolves art and lyrics for the pick it was last told about, so
+    // a restarted daemon hears the current track again.
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (Bus.connected)
                 root.push();
-            } else {
-                retry.restart();
-            }
         }
     }
 
-    // The daemon may be down when the shell loads (or restart under it); retry
-    // quietly so the sheet repopulates once it returns.
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: if (!sub.connected) sub.connected = true
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
-    }
+    Component.onCompleted: if (Bus.connected) root.push()
 }

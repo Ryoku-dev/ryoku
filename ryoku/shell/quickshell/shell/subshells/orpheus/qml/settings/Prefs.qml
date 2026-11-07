@@ -3,9 +3,8 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
-import shell.services
 import "../modules/Registry.js" as Registry
 
 Singleton {
@@ -26,8 +25,14 @@ Singleton {
         : Object.keys(_inflight).length > 0 || Object.keys(_writeDue).length > 0
             ? "saving" : "saved"
 
-    readonly property var raw: Config.orpheus && typeof Config.orpheus === "object"
-        ? Config.orpheus : ({})
+    readonly property var raw: orpheusSetting.value && typeof orpheusSetting.value === "object"
+        ? orpheusSetting.value : ({})
+
+    RyokuUi.ShellSetting {
+        id: orpheusSetting
+        path: "orpheus"
+        fallback: ({})
+    }
 
     function clone(value) {
         try {
@@ -372,35 +377,34 @@ Singleton {
     function _send(path, value, key) {
         const id = "orpheus-" + (++prefs._nextId);
         const inflight = Object.assign({}, prefs._inflight);
-        inflight[id] = { path: path, value: value, key: key, sentAt: Date.now(), tries: 1 };
+        inflight[id] = { path: path, value: value, key: key, sentAt: Date.now(), tries: 1, queued: true };
         prefs._inflight = inflight;
         prefs._write(id, path, value);
     }
 
     function _write(id, path, value) {
-        control.queued += "call settings.patch "
-            + JSON.stringify({ id: id, path: path, value: value }) + "\n";
-        if (control.connected)
-            control.flushQueued();
-        else
-            control.connected = true;
+        Bus.call("settings.patch", { path: path, value: value }, function (ok, result, error) {
+            prefs._onReply(id, ok, error);
+        });
     }
 
-    function _onReply(line) {
-        let reply = null;
-        try {
-            reply = JSON.parse(line);
-        } catch (error) {
+    function _onReply(id, ok, error) {
+        if (!own(prefs._inflight, id))
+            return;
+        const entry = prefs._inflight[id];
+        const inflight = Object.assign({}, prefs._inflight);
+        // A write lost with its connection stays in flight; the settle loop
+        // sends it again once the bus is back.
+        if (ok !== true && error === "disconnected") {
+            inflight[id] = Object.assign({}, entry, { queued: false });
+            prefs._inflight = inflight;
+            settleTimer.start();
             return;
         }
-        if (!reply || typeof reply.id !== "string" || !own(prefs._inflight, reply.id))
-            return;
-        const entry = prefs._inflight[reply.id];
-        const inflight = Object.assign({}, prefs._inflight);
-        delete inflight[reply.id];
+        delete inflight[id];
         prefs._inflight = inflight;
-        if (reply.ok === false) {
-            prefs.saveError = String(reply.error || "The shell service refused the change.");
+        if (ok !== true) {
+            prefs.saveError = String(error || "The shell service refused the change.");
             console.warn("orpheus: could not save " + entry.path + ": " + prefs.saveError);
             const refused = {};
             if (entry.key === "")
@@ -429,8 +433,9 @@ Singleton {
         settleTimer.start();
     }
 
-    // Unanswered writes go out again on a fresh connection, backing off to every
-    // 30 s; they are idempotent, and the choice stays applied meanwhile.
+    // Unanswered writes go out again, backing off to every 30 s; they are
+    // idempotent, and the choice stays applied meanwhile. While the bus is down
+    // a write already waiting in its queue is not queued twice.
     function _resendStalled(now) {
         const ids = Object.keys(prefs._inflight);
         let stalled = false;
@@ -442,22 +447,24 @@ Singleton {
         if (!stalled)
             return;
         const inflight = Object.assign({}, prefs._inflight);
-        control.queued = "";
+        const resend = [];
         for (let i = 0; i < ids.length; ++i) {
             const entry = Object.assign({}, inflight[ids[i]]);
             entry.tries += 1;
             entry.sentAt = now;
+            if (Bus.connected || !entry.queued) {
+                entry.queued = true;
+                resend.push(ids[i]);
+            }
             inflight[ids[i]] = entry;
-            control.queued += "call settings.patch "
-                + JSON.stringify({ id: ids[i], path: entry.path, value: entry.value }) + "\n";
             if (entry.tries === 3) {
                 prefs.saveError = "The shell service is not answering.";
                 console.warn("orpheus: still saving " + entry.path);
             }
         }
         prefs._inflight = inflight;
-        control.connected = false;
-        Qt.callLater(function() { control.connected = true; });
+        for (let i = 0; i < resend.length; ++i)
+            prefs._write(resend[i], inflight[resend[i]].path, inflight[resend[i]].value);
     }
 
     function _settle() {
@@ -496,33 +503,10 @@ Singleton {
 
     // `qs -c shell ipc call orpheus settings [page]`: the Hub's Bar Studio and
     // any keybind or script open Orpheus settings without going through the logo.
-    IpcHandler {
+    RyokuUi.BusIpcHandler {
         target: "orpheus"
         function settings(page: string): void {
             prefs.settingsRequested(page);
         }
-    }
-
-    readonly property string _sockPath:
-        (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-
-    Socket {
-        id: control
-        path: prefs._sockPath
-        property string queued: ""
-
-        function flushQueued() {
-            if (!connected || queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-
-        parser: SplitParser {
-            onRead: line => prefs._onReply(line)
-        }
-
-        onConnectionStateChanged: if (connected) flushQueued()
     }
 }

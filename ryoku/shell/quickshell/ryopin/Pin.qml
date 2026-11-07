@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
 import "Singletons"
@@ -85,10 +86,16 @@ PanelWindow {
         Spawn.run(["env", "RYOSHOT_OPEN=" + entry.path, "ryoku-cmd-ryoshot"]);
         pin.closeSelf();
     }
-    function copyShot() { Quickshell.execDetached(["ryoku-shell", "clip-copy", "image/png", entry.path]); }
-    function copyLink() {
-        Quickshell.execDetached(["sh", "-c", "printf %s \"$1\" > \"$2\"; ryoku-shell clip-copy text/plain \"$2\"",
-            "sh", entry.path, "/tmp/ryopin-path.txt"]);
+    function copyShot() { Bus.run("clip-copy image/png " + entry.path); }
+    function copyLink() { linkFile.setText(String(entry.path)); }
+
+    // The daemon copies from a file, so the path is written out first.
+    FileView {
+        id: linkFile
+        path: "/tmp/ryopin-path.txt"
+        preload: false
+        printErrors: false
+        onSaved: Bus.run("clip-copy text/plain " + linkFile.path)
     }
     function closeSelf() { pin.closed(entry.path); }
 

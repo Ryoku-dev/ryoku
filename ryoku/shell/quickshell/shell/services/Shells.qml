@@ -218,6 +218,6 @@ Singleton {
     Timer {
         id: syncDebounce
         interval: 150
-        onTriggered: Spawn.run(["ryoku-shell", "shells", "sync"])
+        onTriggered: Bus.run("shells sync")
     }
 }

@@ -37,6 +37,14 @@ pragma Singleton
 import QtQuick
 QtObject { function tr(text) { return text; } }
 QML
+cat > "$work/Ryoku/Ui/qmldir" <<'QML'
+module Ryoku.Ui
+BusIpcHandler 1.0 BusIpcHandler.qml
+QML
+cat > "$work/Ryoku/Ui/BusIpcHandler.qml" <<'QML'
+import Quickshell.Io
+IpcHandler {}
+QML
 cat > "$work/bin/notify-send" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$BATTERY_PROBE_LOG"

@@ -96,11 +96,11 @@ Item {
         menu.close();
     }
     function openSettings() {
-        Spawn.run(["ryoku-shell", "hub", "open"]);
+        Bus.run("hub open");
         menu.close();
     }
     function refreshShell() {
-        Quickshell.execDetached(["ryoku-shell", "reload"]);
+        Bus.run("reload");
         menu.close();
     }
     function confirmSessionAction(action) {

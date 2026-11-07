@@ -32,8 +32,9 @@ Item {
     enabled: pick.on
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
+    // The daemon answers `ok <value>`.
     function receiveSample(text, commitSample) {
-        const value = parseFloat(("" + text).trim());
+        const value = parseFloat(("" + text).trim().replace(/^ok\s+/, ""));
         if (!isFinite(value) || value < 0 || value > 1)
             return;
         pick.sample = value;
@@ -41,18 +42,23 @@ Item {
             pick.commit(StageSession.depthPick, value);
     }
 
+    // A newer preview supersedes an older one still in flight, and a newer
+    // commit an older commit, as restarting their old processes did.
+    property int sampleSeq: 0
+    property int commitSeq: 0
     function request(mx, my, commitSample) {
         if (pick.wallPath === "" || pick.width < 2 || pick.height < 2)
             return;
         pick.cursor = Qt.point(Math.max(0, Math.min(pick.width - 1, mx)),
             Math.max(0, Math.min(pick.height - 1, my)));
-        const proc = commitSample ? commitProc : sampleProc;
-        proc.running = false;
-        proc.command = ["ryoku-shell", "stage", "depth-sample", pick.wallPath,
+        const seq = commitSample ? ++pick.commitSeq : ++pick.sampleSeq;
+        Bus.run(["stage", "depth-sample", pick.wallPath,
             "" + (pick.cursor.x / pick.width), "" + (pick.cursor.y / pick.height),
             "" + Math.round(pick.width), "" + Math.round(pick.height),
-            pick.cover ? "Cover" : "Fill"];
-        proc.running = true;
+            pick.cover ? "Cover" : "Fill"].join(" "), function (ok, output) {
+            if (ok && seq === (commitSample ? pick.commitSeq : pick.sampleSeq))
+                pick.receiveSample(output, commitSample);
+        });
     }
 
     function commit(dest, value) {
@@ -69,20 +75,6 @@ Item {
 
     Process {
         id: writer
-    }
-
-    Process {
-        id: sampleProc
-        stdout: StdioCollector {
-            onStreamFinished: pick.receiveSample(this.text, false)
-        }
-    }
-
-    Process {
-        id: commitProc
-        stdout: StdioCollector {
-            onStreamFinished: pick.receiveSample(this.text, true)
-        }
     }
 
     Image {
