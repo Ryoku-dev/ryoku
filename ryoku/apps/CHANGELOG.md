@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Changed
+- `ryostore/`: **`ryostore settings` opens Ryoku Settings through the daemon.**
+  Routes go to `ryoku-shell hub open <section>` (and `ryoku-shell ipc call` for
+  the dock editor) instead of starting `qs` clients with a retry loop, and a
+  refusal is reported to the caller.
+
 ### Added
 - `ryostore/`: **Subshells and bar styles install from the ryostore-revamped
   catalogue and stay packed until used.** Installed ones show Apply, Orpheus and

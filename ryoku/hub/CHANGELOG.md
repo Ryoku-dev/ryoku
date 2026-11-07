@@ -3,6 +3,13 @@
 ## Unreleased
 
 ### Fixed
+- **Dragging a Hub slider no longer writes the settings file on every step.**
+  Writes to the same setting are coalesced for 120 ms (at most 400 ms during a
+  long drag), the control moves at once, and pending writes are sent before
+  the page changes or the Hub closes (`Singletons/SettingsWrites.js`).
+- The Hub reaches the shell through `ryoku-shell ipc call`, so Bar Studio, the
+  Overlays preview and the keypress overlay work when an item runtime replaces
+  the resident shell.
 - **Hub-created users now receive a complete desktop.** Account creation runs
   the shared user-side provisioner, so config, session services, the selected
   rice and first-login state belong to the new user instead of root.

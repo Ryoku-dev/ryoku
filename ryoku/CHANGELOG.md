@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Rashin's shell commands use `ryoku-shell ipc`.** Its GUI map, QS Bar
+  command block and skills name `ryoku-shell ipc call`, it probes the QS Bar
+  catalogue only while QS Bar is active, and its read-only classifier knows the
+  new verb (`rashin/backend`).
 - Fix with AI can use Codex with a repair-specific model and reasoning effort.
   Terminal launches now precede the health scan so progress and errors stay visible.
 - **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now

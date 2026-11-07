@@ -1,6 +1,42 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The daemon stops reconnecting to logind ten times a second.** When no
+  graphical session is registered the sleep guard retries quickly for two
+  seconds, then backs off to 30 s, keeps one system bus connection, and
+  retries at once when logind reports a session or restarts
+  (`ipc/sleepwake.go`).
+- **Folder icons recolour in process.** A palette change used to start about
+  400 helper processes to rebuild the folder icon theme; the build now runs
+  inside the daemon, starts at most two tools, and does nothing when the folder
+  colour is unchanged. `ryoku-cmd-folders` still works and runs
+  `ryoku-shell folders` (`ipc/folders.go`).
+- **A palette change reloads the shell's colours once.** The daemon called a
+  shell target that did not exist and retried it ten times; the shell now has
+  `reloadPalette`, called once without retries.
+- **`ryoku-shell ipc call|get` reaches the running shell.** It follows an item
+  runtime when one replaces the resident shell, times out after 3 s, and fails
+  with a message when the target or function does not exist instead of
+  reporting success. Ryoshot, Kit's phone pane, the store, Rashin and the
+  Super+Q binds use it, so Super+Q on niri and Wayfire closes the window
+  natively when the owning item cannot answer.
+- **Bluetooth state needs no helper processes.** The shell reads the adapter
+  from Quickshell, the radio blocks from rfkill in sysfs, and BlueZ starting or
+  stopping from a new daemon `bluetooth` topic, so `dbus-monitor`,
+  `bluetoothctl` and `rfkill` no longer run at rest or on every adapter signal.
+- **The launcher shows the shell's weather.** It reads the daemon's weather
+  topic instead of fetching the forecast and the location on its own every 15
+  minutes.
+- **Audio analysis pauses while the screen is locked or off.** Visualizers and
+  the Orpheus drops stop reading audio and the music clock stops ticking until
+  the desktop is visible again.
+- **Ryogami starts `pactl` only for its mute-on-other-audio setting.** With the
+  setting off nothing runs; with it on one watcher runs and restarts with a
+  growing delay instead of every second when no audio server answers.
+- Removed daemon code that no longer did anything: the launcher and overview
+  palette parking, the desktop widget gate, the pill socket, and six shell IPC
+  functions nothing called. The lock recovery watcher now sleeps unless a lock
+  is held.
 - **Bar styles and subshells moved to Ryostore and only run while in use.**
   Orpheus and Kairos ship as subshells and Welcome offers those two, everything
   else installs on demand and stays packed until selected. Notifications, the

@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor keeps the QML disk cache bounded.** `ryoku doctor` removes cache
+  files under `~/.cache/quickshell/qmlcache` that have not been used for 30
+  days; Qt recompiles any it needs (`internal/doctor/reconcile_qmlcache.go`).
 - **Doctor installs a selected subshell or bar style that is missing.** One the
   store no longer offers falls back to Orpheus, the old QS Bar volume boost moves
   to the shared `audio.boost`, and profiles install the store items they list.
