@@ -27,10 +27,12 @@ owns for one window (60 s here) and records, per process and per group:
 - proportional memory (PSS, never summed RSS: shared Qt and driver pages would
   count once per process);
 - CPU per thread and wakeups (context switches per second);
-- GPU time and VRAM from `nvidia-smi pmon` and the DRM fdinfo counters;
+- GPU time and GPU memory (VRAM and GTT) from `nvidia-smi pmon` and the DRM
+  fdinfo counters;
 - package and core power (RAPL), the amdgpu PPT sensor and NVIDIA board power;
 - the active power profile, because Power Saver changes clocks and the shell's
   own effects;
+- the active bar style;
 - with `--spawns`, every process launch per minute and who started it, from the
   kernel's exec tracepoint;
 - with `--frames`, frames per shell window from Qt's render loop;
@@ -303,8 +305,119 @@ ryoku-dev-perf-baseline --restart --settle 120 --spawns          # who launches 
 ryoku-dev-perf-baseline --surfaces --window 15 --settle 30       # which surface draws
 ryoku-dev-perf-baseline --startup                                # restart to config loaded
 ryoku-dev-perf-baseline --compare before.json after.json
+ryoku-dev-perf-baseline --budget ryoku/shell/perf-budget.json   # the budget gate, below
 ```
 
 Set the scenario up first (bar style, music, open surfaces), keep the power
 profile the same between runs (`--compare` warns when it differs), and stop
 anything heavy the desktop does not own.
+
+## The budget gate
+
+`--budget FILE` turns a run into a pass or fail check of the base desktop at
+rest, so the gains above stay. The budget is `ryoku/shell/perf-budget.json`.
+After the usual report the tool prints one line per check (the value, the
+limit, PASS or FAIL) and exits 1 if anything failed, 2 if it could not check at
+all (a malformed budget, a group the tool does not report, a bar style the
+budget has no entry for, a run with no active style).
+
+**What it checks.** Per base group (`shell-ui`, `shell-daemon`,
+`shell-helpers`, `wm-provider`, `wallpaper`, `compositor`, `session-daemons`
+and any other base group the run reports): PSS, GPU memory (VRAM plus GTT),
+CPU, wakeups and launches per minute. Then the base desktop's launches per
+minute in total, which also catches a launch from a process that exited during
+the window. A base group that runs without a budget entry fails as
+unbudgeted, so a new base process is a decision; a budgeted group that is not
+running fails unless the entry says `optional`. Launches the run could not
+trace (no ftrace) fail too.
+
+Layer surfaces are not part of the gate: helpers reach a compositor only
+through `ryoku wm`, which has no layer query. `--surfaces` counts them instead:
+it reads the shell's own Wayland traffic, so it works under every compositor,
+and lists each layer surface that drew in its window by namespace. It restarts
+the shell with a debug log, so run it apart from the gate.
+
+**The idle-spawn test.** `--budget` implies `--spawns`. Every base group's
+launch budget is 0: at rest the base desktop starts no process at all, and a
+timer that runs a command shows up as a FAIL naming the parent and the binary.
+
+**The file** holds measured values, not limits. Each limit is the value plus
+the file's margins, so an update pastes in what was read:
+
+| margin | meaning |
+|---|---|
+| `memoryPct` 15, `memoryMinMB` 2 | PSS and GPU memory may grow 15 %, and at least 2 MB, which keeps the small helpers from failing on page-sized noise |
+| `cpuPct` 0.2 | CPU may grow 0.2 percentage points of one core |
+| `wakeupsPerSec` 3 | wakeups may grow by 3 a second |
+| (none) | launches per minute must not grow at all |
+
+`groups` are common to both styles; `styles.orpheus` and `styles.kairos` carry
+the `shell-ui` and `compositor` entries, which replace the common ones whole.
+The entry is chosen by the run's active item (`active` in
+`store/shells.json`), or by `--style`. Each entry has a `source` saying where
+its numbers come from:
+
+| entry | what it is | measured (lab) |
+|---|---|---|
+| `shell-ui` | the `qs -c shell` process: the bar style, desktop, dock and overlays | Orpheus 292 to 299 MB PSS, 238 to 242 MB GPU, 0.1 % CPU, 8.2 to 8.5 wakeups/s; Kairos 282 MB, 247 MB, 0.1 %, 11.9 |
+| `shell-daemon` | `ryoku-shell daemon` | 18 MB, 0.1 %, 35 wakeups/s on bare metal, 34 to 44 in the lab |
+| `shell-helpers` | what the daemon and the shell start, today `wl-clip-persist` | 0.4 to 1.8 MB |
+| `wm-provider` | the `ryoku-wm-niri watch` processes of the daemon and Ryogami | 6.3 to 6.7 MB |
+| `wallpaper` | Ryogami with a still wallpaper | 13.3 to 14.3 MB, 0.2 wakeups/s |
+| `compositor` | niri (nested in the lab) | 66 to 67 MB and 107 to 114 MB GPU under Orpheus, 59 MB and 133 MB under Kairos |
+| `session-daemons` | Ryoku's user units, today `ryoku-bt-agent` | 1.7 MB; its `tail -f /dev/null` polls once a second |
+
+**Lab allowances.** A number that only the container produces sits in the
+entry's `lab` block with a `why`, and applies when the run was recorded inside a
+container (the run records `/run/systemd/container`) or with `--lab`. Today
+there is one: in the container the shell daemon's input watch falls back to a
+2 s poll, so its wakeups are budgeted at 44 there against 35 on bare metal.
+
+**The reference machine.** The numbers are from the Hyperion lab: nested niri
+at 1920×1080 on headless Weston, an AMD iGPU, the default 4K still wallpaper,
+idle after a 120 s settle, a 60 s window. Resolution, scale, GPU and driver move
+the shell's and the compositor's memory a long way (the NVIDIA laptop above
+holds about 580 MB in the shell), so on a different test box copy the file,
+measure that box and gate against the copy.
+
+**On a test box** (sudo for ftrace, the scenario set up: the style active, an
+empty workspace, no music, nothing open):
+
+```sh
+ryoku-shell barstyle orpheus
+ryoku-dev-perf-baseline --restart --settle 120 --label orpheus --json orpheus.json \
+  --budget ryoku/shell/perf-budget.json
+ryoku-shell barstyle kairos
+ryoku-dev-perf-baseline --restart --settle 120 --label kairos --json kairos.json \
+  --budget ryoku/shell/perf-budget.json
+ryoku-dev-perf-baseline --budget ryoku/shell/perf-budget.json --input orpheus.json   # again, offline
+```
+
+**In a container** such as the Hyperion lab, ftrace is out of reach, so the
+launches are traced from the host for the same window: `--uid` measures
+another user's processes from outside (the container's root services are
+counted, the host's are not), and `--spawns-from` merges its launch counts into
+the run recorded inside. With the script copied to the lab's captures
+directory:
+
+```sh
+C=/dev/shm/hyperion/lab/captures
+cp bin/ryoku-dev-perf-baseline "$C/bench/"
+bin/ryoku-dev-perf-baseline --uid 1002 --spawns --window 63 --label orpheus-host \
+  --json "$C/gate-orpheus.host.json" >/dev/null &
+sudo -n /dev/shm/hyperion/lab/bin/lab-user tester -- /mnt/hyperion-lab-captures/bench/ryoku-dev-perf-baseline \
+  --window 60 --label orpheus --json /mnt/hyperion-lab-captures/gate-orpheus.json >/dev/null
+wait
+bin/ryoku-dev-perf-baseline --budget ryoku/shell/perf-budget.json \
+  --input "$C/gate-orpheus.json" --spawns-from "$C/gate-orpheus.host.json"
+```
+
+**Updating the budget** after a change meant to move a number, or for a new
+reference machine: take three idle runs per style with `--json`, put the
+highest of the three for each group into its entry, update its `source` and
+`reference.measured`, and keep `launchesPerMin` at 0 unless a launch at rest is
+intended. Do not widen a margin to let a regression through; the margins are
+for run-to-run noise. `tests/perf-budget.sh` feeds a recorded lab run
+(`tests/perf-budget/orpheus-idle.json`) and changed copies of it through the
+comparison without measuring anything; it checks that the recorded run passes
+the shipped budget, so refresh the recording when the budget moves below it.

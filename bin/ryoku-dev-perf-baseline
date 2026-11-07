@@ -5,15 +5,18 @@
 # Samples every process the desktop owns for one window (default 60 s) and
 # prints, per process and per group: proportional memory (PSS), CPU, wakeups,
 # GPU time and VRAM. Alongside it records the machine's power and GPU readings
-# (RAPL package energy, the amdgpu PPT sensor, nvidia-smi) and the power
-# profile. It asks the compositor nothing, so it reads the same on every
-# compositor. It measures whatever state the desktop is in, so set the scenario
-# up first (bar style, music, open surfaces).
+# (RAPL package energy, the amdgpu PPT sensor, nvidia-smi), the power profile
+# and the active bar style. It asks the compositor nothing, so it reads the
+# same on every compositor. It measures whatever state the desktop is in, so
+# set the scenario up first (bar style, music, open surfaces).
 #
 #   ryoku-dev-perf-baseline [--window 60] [--settle 0] [--restart]
 #                           [--frames|--surfaces] [--startup] [--spawns]
-#                           [--label NAME] [--json OUT]
+#                           [--label NAME] [--json OUT] [--uid UID]
+#                           [--budget FILE [--style NAME] [--lab]]
 #   ryoku-dev-perf-baseline --compare BEFORE.json AFTER.json
+#   ryoku-dev-perf-baseline --budget FILE --input RUN.json
+#                           [--spawns-from RUN.json] [--style NAME] [--lab]
 #
 # --restart   restart ryoku-shell first, then wait --settle seconds (default 120)
 # --frames    restart the shell with QSG_RENDER_TIMING=1 and count rendered
@@ -24,10 +27,23 @@
 #             surface keeps the compositor busy. Same caveat as --frames
 # --startup   time a shell restart until its configuration has loaded
 # --spawns    count process launches (exec) per owner through ftrace (needs sudo)
+# --uid       measure another user's desktop (for example a container's, from
+#             the host, where ftrace works); memory reads go through sudo -n
+# --budget    after the run, check every base group against the budget file
+#             (ryoku/shell/perf-budget.json): one line per check, exit 1 on any
+#             FAIL, 2 on a malformed budget. Implies --spawns: at idle the base
+#             launches nothing
+# --input     check a recorded --json run instead of measuring
+# --spawns-from  take the launch counts from another recorded run of the same
+#             window (a host-side --uid --spawns run beside a container run)
+# --style     the bar style whose budget applies (default: the run's active one)
+# --lab       apply the budget's lab-only allowances (default: when the run was
+#             recorded inside a container)
 #
 # Tooling is excluded: anything under herdr, omp or this script. RSS is never
 # summed (shared Qt and driver pages would count once per process); totals are
-# PSS. See docs/performance.md for the scenarios and the recorded numbers.
+# PSS. See docs/performance.md for the scenarios, the recorded numbers and the
+# budget gate.
 exec python3 - "$0" "$@" <<'PY'
 import argparse
 import glob
@@ -176,6 +192,8 @@ def classify(procs):
         if p["comm"] in ("herdr", "omp") or p["cmd"].startswith(("/home/", "herdr", "omp")) and \
                 re.search(r"(^|/)(herdr|omp)( |$)", p["cmd"].split(" ")[0] + " "):
             roots.add(pid)
+        elif "ryoku-dev-perf-baseline" in p["cmd"]:
+            roots.add(pid)  # another run of this script, e.g. inside a container
     roots.add(me)
     docker = docker_names()
 
@@ -189,6 +207,10 @@ def classify(procs):
         return False
 
     rashin = {pid for pid, p in procs.items() if p["unit"] == "ryoku-rashin.service"}
+    # The shell daemon and Ryogami outside their units (a lab or a session
+    # without systemd): their process trees are theirs all the same.
+    daemons = {pid for pid, p in procs.items() if p["comm"] == "ryoku-shell" and " daemon" in p["cmd"] + " "}
+    ryogamis = {pid for pid, p in procs.items() if p["comm"] == "ryogami" and p["cmd"].split(" ")[1:2] == ["daemon"]}
     for pid, p in procs.items():
         cmd, comm, unit = p["cmd"], p["comm"], p["unit"]
         g = None
@@ -207,14 +229,14 @@ def classify(procs):
             g = "rashin"
         elif unit == "ryoku-prowl.service":
             g = "prowl"
-        elif unit == "ryoku-shell.service":
+        elif unit == "ryoku-shell.service" or under(pid, daemons):
             if comm in ("qs", "quickshell"):
                 g = "hub" if " -c hub" in cmd else "shell-ui" if " -c shell" in cmd or cmd.endswith("shell") else "shell-helpers"
             elif comm == "ryoku-shell":
                 g = "shell-daemon"
             else:
                 g = "shell-helpers"
-        elif unit == "ryogami.service":
+        elif unit == "ryogami.service" or under(pid, ryogamis):
             g = "wallpaper"
         elif p.get("system"):
             g = "system-daemons"
@@ -231,20 +253,34 @@ def classify(procs):
         p["group"] = g
 
 
+def scope_of(pid):
+    """The cgroup path above the user or system slice: empty for the host's own
+    processes, the machine scope for a container's."""
+    path = read(f"/proc/{pid}/cgroup").strip().split("::")[-1]
+    m = re.match(r"(.*?)/(?:user|system)\.slice(?:/|$)", path)
+    return m.group(1) if m else path
+
+
 def snapshot():
-    procs = {}
+    mine, foreign = [], []
     for d in os.listdir("/proc"):
         if not d.isdigit():
             continue
         pid = int(d)
-        system = False
-        if owner_of(pid) != UID:
-            unit = unit_of(pid)
-            # docker containers run as other users but Ryoku owns ryoku-cobalt;
-            # the base system's own root services count as the desktop's too
-            system = unit.startswith("ryoku-") or unit in SYSTEM_UNITS
-            if not (unit.startswith("docker-") or system):
-                continue
+        if owner_of(pid) == UID:
+            mine.append((pid, False))
+            continue
+        unit = unit_of(pid)
+        # docker containers run as other users but Ryoku owns ryoku-cobalt;
+        # the base system's own root services count as the desktop's too
+        system = unit.startswith("ryoku-") or unit in SYSTEM_UNITS
+        if unit.startswith("docker-") or system:
+            foreign.append((pid, system))
+    # Only the measured user's machine: a host run with --uid for a container's
+    # user must not count the host's own services, nor the reverse.
+    scopes = {scope_of(pid) for pid, _ in mine}
+    procs = {}
+    for pid, system in mine + [(pid, system) for pid, system in foreign if scope_of(pid) in scopes]:
         st = stat_of(pid)
         if not st:
             continue
@@ -388,6 +424,21 @@ def proc_stat_totals():
     ctxt = int(re.search(r"^ctxt (\d+)", s, re.M).group(1))
     intr = int(re.search(r"^intr (\d+)", s, re.M).group(1))
     return {"total": sum(cpu[:8]), "idle": idle, "ctxt": ctxt, "intr": intr}
+
+
+def active_style():
+    """The active subshell or bar style, from the store's shells index."""
+    state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    try:
+        return json.loads(read(f"{state}/ryoku/store/shells.json") or "{}").get("active") or None
+    except (ValueError, AttributeError):
+        return None
+
+
+def container():
+    """The container manager this run is inside (systemd-nspawn, docker), if any."""
+    return read("/run/systemd/container").strip() or os.environ.get("container") or None
+
 
 
 def power_profile():
@@ -545,11 +596,14 @@ def measure(window, frames_from=None, spawns=False, commits_from=None):
         power["battery_w"] = statistics.mean(sampler.bat)
     if gpu:
         power["nvidia_w"] = gpu["power_w"]
+    own = UID == os.getuid()  # another user's style is in their home, not ours
     system = {
         "window_s": dt, "cpu_busy_cores": busy / cpu_total * os.cpu_count() if cpu_total else 0.0,
         "ctxt_s": (sys1["ctxt"] - sys0["ctxt"]) / dt, "intr_s": (sys1["intr"] - sys0["intr"]) / dt,
         "tctl_c": statistics.mean(sampler.tctl) if sampler.tctl else None,
         "power": power, "nvidia": gpu, "profile": power_profile(),
+        "uid": UID, "container": container(),
+        "style": active_style() if own else None,
     }
     if log0 is not None and frames_from:
         system["frames"] = count_frames(log0, dt)
@@ -669,19 +723,21 @@ def startup():
     return {"spawned_s": spawned, "config_loaded_s": loaded}
 
 
+SUMS = ("pss", "private", "swap_pss", "cpu_pct", "wakeups_s", "gpu_pct", "vram_mb", "gtt_mb")
+
+
 def summarize(rows):
     groups = {}
     for r in rows:
-        g = groups.setdefault(r["group"], {"procs": 0, "pss": 0.0, "private": 0.0, "swap_pss": 0.0,
-                                           "cpu_pct": 0.0, "wakeups_s": 0.0, "gpu_pct": 0.0, "vram_mb": 0.0})
+        g = groups.setdefault(r["group"], {"procs": 0, **{k: 0.0 for k in SUMS}})
         g["procs"] += 1
-        for k in ("pss", "private", "swap_pss", "cpu_pct", "wakeups_s", "gpu_pct", "vram_mb"):
+        for k in SUMS:
             g[k] += r.get(k, 0.0) or 0.0
     return groups
 
 
 def total(groups, names):
-    t = {"procs": 0, "pss": 0.0, "private": 0.0, "swap_pss": 0.0, "cpu_pct": 0.0, "wakeups_s": 0.0, "gpu_pct": 0.0, "vram_mb": 0.0}
+    t = {"procs": 0, **{k: 0.0 for k in SUMS}}
     for n in names:
         for k in t:
             t[k] += groups.get(n, {}).get(k, 0)
@@ -794,7 +850,159 @@ def compare(a_path, b_path):
         print(f"- shell surface frames: {ca.get('total_frames_s', 0):.1f} -> {cb.get('total_frames_s', 0):.1f} per second")
 
 
+# ---- budget gate -------------------------------------------------------------
+# The budget file (ryoku/shell/perf-budget.json) holds measured values, not
+# limits: each limit is the measured value plus the file's margins, so a new
+# measurement is pasted in as it was read. docs/performance.md explains it.
+
+BUDGET_METRICS = (  # key, label, margin kind, decimals
+    ("pssMB", "PSS MB", "memory", 1),
+    ("gpuMB", "GPU MB", "memory", 1),
+    ("cpuPct", "CPU %", "cpu", 2),
+    ("wakeupsPerSec", "wakeups/s", "wakeups", 1),
+    ("launchesPerMin", "launches/min", "exact", 1),
+)
+MARGINS = ("memoryPct", "memoryMinMB", "cpuPct", "wakeupsPerSec")
+NOT_TRACED = "not measured: launches need ftrace (sudo), or --spawns-from"
+
+
+class BudgetError(Exception):
+    """The budget or the run cannot be checked at all (exit 2)."""
+
+
+def load_budget(path):
+    try:
+        with open(path) as f:
+            budget = json.load(f)
+    except (OSError, ValueError) as e:
+        raise BudgetError(f"cannot read {path}: {e}")
+    margins = budget.get("margins") or {}
+    bad = [k for k in MARGINS if not isinstance(margins.get(k), (int, float))]
+    if bad:
+        raise BudgetError(f"{path}: margins lack {', '.join(bad)}")
+    styles = budget.get("styles") or {}
+    if not styles:
+        raise BudgetError(f"{path}: no styles")
+    entries = [("groups", budget.get("groups") or {})]
+    for name, st in styles.items():
+        entries.append((f"styles.{name}.groups", st.get("groups") or {}))
+    for where, groups in entries:
+        unknown = sorted(set(groups) - set(BASE_GROUPS))
+        if unknown:
+            raise BudgetError(f"{path}: {where} names groups this script does not report: "
+                              f"{', '.join(unknown)} (base groups: {', '.join(BASE_GROUPS)})")
+        for name, spec in groups.items():
+            lack = [k for k, *_ in BUDGET_METRICS if not isinstance(spec.get(k), (int, float))]
+            lab = spec.get("lab") or {}
+            lack += [f"lab.{k}" for k in lab if k != "why" and not isinstance(lab[k], (int, float))]
+            if lab and not lab.get("why"):
+                lack.append("lab.why")
+            if lack:
+                raise BudgetError(f"{path}: {where}.{name} lacks {', '.join(lack)}")
+    return budget
+
+
+def budget_limit(kind, measured, margins):
+    if kind == "memory":
+        return max(measured * (1 + margins["memoryPct"] / 100), measured + margins["memoryMinMB"])
+    if kind == "cpu":
+        return measured + margins["cpuPct"]
+    if kind == "wakeups":
+        return measured + margins["wakeupsPerSec"]
+    return measured
+
+
+def check_budget(res, budget, style=None, lab=None):
+    """Every check of one run: (check, value, limit, ok, note, decimals)."""
+    system = res.get("system") or {}
+    styles = budget["styles"]
+    style = style or system.get("style")
+    if not style:
+        raise BudgetError("the run records no active bar style; pass --style")
+    if style not in styles:
+        raise BudgetError(f"the budget has no entry for bar style {style!r} "
+                          f"(it has {', '.join(sorted(styles))}); pass --style")
+    if lab is None:
+        lab = bool(system.get("container"))
+    margins = budget["margins"]
+    # a style's entry for a group replaces the common one whole
+    specs = {**(budget.get("groups") or {}), **(styles[style].get("groups") or {})}
+    groups = summarize(res.get("rows") or [])
+    spawns = system.get("spawns")
+    per_min = (spawns or {}).get("per_min") or {}
+    checks = []
+    for name in BASE_GROUPS:
+        spec, got = specs.get(name), groups.get(name)
+        if spec is None:
+            if got or per_min.get(name):
+                checks.append((name, "running", "none", False, "unbudgeted base group: budget it or stop it", 0))
+            continue
+        if got is None:
+            if not spec.get("optional"):
+                checks.append((name, "absent", "running", False, "budgeted group is not running", 0))
+            continue
+        allow = (spec.get("lab") or {}) if lab else {}
+        values = {"pssMB": got["pss"], "gpuMB": got["vram_mb"] + got["gtt_mb"], "cpuPct": got["cpu_pct"],
+                  "wakeupsPerSec": got["wakeups_s"],
+                  "launchesPerMin": per_min.get(name, 0.0) if spawns is not None else None}
+        for key, label, kind, nd in BUDGET_METRICS:
+            base, note = spec[key], ""
+            if key in allow:
+                base, note = allow[key], f"lab allowance: {allow['why']}"
+            limit = round(budget_limit(kind, float(base), margins), nd)
+            v = values[key]
+            if v is None:
+                checks.append((f"{name} {label}", None, limit, False, NOT_TRACED, nd))
+            else:
+                checks.append((f"{name} {label}", v, limit, round(v, nd) <= limit, note, nd))
+    # Every base launch counts, also from a group that has since exited.
+    allowed = sum(float(s["launchesPerMin"]) for s in specs.values())
+    if spawns is None:
+        checks.append(("base launches/min", None, allowed, False, NOT_TRACED, 1))
+    else:
+        launched = sum(v for g, v in per_min.items() if g in BASE_GROUPS)
+        who = [f"{k} {n}/min" for k, n in spawns.get("top") or [] if k.split(":")[0] in BASE_GROUPS]
+        checks.append(("base launches/min", launched, allowed, round(launched, 1) <= allowed, "; ".join(who[:3]), 1))
+    return style, lab, checks
+
+
+def gate(path, res, style=None, lab=None):
+    """Print the budget table for one run; the exit status of the gate."""
+    try:
+        budget = load_budget(path)
+        style, lab, checks = check_budget(res, budget, style, lab)
+    except BudgetError as e:
+        print(f"budget: {e}", file=sys.stderr)
+        return 2
+    why = res.get("system", {}).get("container")
+    mode = f"lab allowances on ({why})" if lab and why else "lab allowances on" if lab else "lab allowances off"
+    print(f"## budget {path}: {style}, {mode}; run {res.get('label', '?')} at {res.get('when', '?')}\n")
+    print("| check | value | limit | result | note |")
+    print("|---|---:|---:|---|---|")
+    for check, v, limit, ok, note, nd in checks:
+        cell = lambda x: x if isinstance(x, str) else "n/a" if x is None else f"{x:.{nd}f}"
+        print(f"| {check} | {cell(v)} | {cell(limit)} | {'PASS' if ok else 'FAIL'} | {note} |")
+    failed = sum(1 for c in checks if not c[3])
+    print(f"\nbudget: {len(checks)} checks, {failed} failed")
+    return 1 if failed else 0
+
+
+def die(msg):
+    """A run or budget the gate cannot check at all: exit 2, as argparse does."""
+    print(f"budget: {msg}", file=sys.stderr)
+    sys.exit(2)
+
+
+def load_run(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError) as e:
+        die(f"cannot read {path}: {e}")
+
+
 def main():
+    global UID
     ap = argparse.ArgumentParser(prog="ryoku-dev-perf-baseline")
     ap.add_argument("--window", type=float, default=60)
     ap.add_argument("--settle", type=float, default=None)
@@ -805,11 +1013,41 @@ def main():
     ap.add_argument("--spawns", action="store_true")
     ap.add_argument("--label", default="desktop")
     ap.add_argument("--json")
+    ap.add_argument("--uid", type=int)
     ap.add_argument("--compare", nargs=2, metavar=("BEFORE", "AFTER"))
+    ap.add_argument("--budget", metavar="FILE")
+    ap.add_argument("--input", metavar="RUN.json")
+    ap.add_argument("--spawns-from", metavar="RUN.json")
+    ap.add_argument("--style")
+    ap.add_argument("--lab", action="store_true", default=None)
     args = ap.parse_args(sys.argv[2:])
     if args.compare:
         compare(*args.compare)
         return
+    if (args.input or args.style or args.lab) and not args.budget:
+        ap.error("--input, --style and --lab go with --budget")
+    if args.spawns_from and not args.input:
+        ap.error("--spawns-from goes with --input: merge it into a recorded run")
+    if args.input:
+        res = load_run(args.input)
+        if args.spawns_from:
+            spawns = (load_run(args.spawns_from).get("system") or {}).get("spawns")
+            if spawns is None:
+                die(f"{args.spawns_from} has no launch counts (record it with --spawns)")
+            res.setdefault("system", {})["spawns"] = spawns
+        sys.exit(gate(args.budget, res, args.style, args.lab))
+    if args.budget:
+        try:
+            load_budget(args.budget)  # fail before the window, not after it
+        except BudgetError as e:
+            die(str(e))
+        if args.frames or args.surfaces:
+            ap.error("--budget measures the desktop at rest; --frames and --surfaces run a debug log")
+        args.spawns = True  # at idle the base launches nothing, and that is a check
+    if args.uid is not None and args.uid != os.getuid():
+        if args.restart or args.frames or args.surfaces or args.startup:
+            ap.error("--uid measures another user's desktop as it is; it cannot restart its shell")
+        UID = args.uid
     res = {"label": args.label, "when": time.strftime("%Y-%m-%d %H:%M:%S")}
     if args.startup:
         res["startup"] = startup()
@@ -839,6 +1077,9 @@ def main():
         with open(args.json, "w") as f:
             json.dump(res, f, indent=1)
     report(res)
+    if args.budget:
+        print()
+        sys.exit(gate(args.budget, res, args.style, args.lab))
 
 
 main()

@@ -1,0 +1,32 @@
+name: Perf budget
+
+on:
+  pull_request:
+    paths:
+      - 'bin/ryoku-dev-perf-baseline'
+      - 'ryoku/shell/perf-budget.json'
+      - 'tests/perf-budget.sh'
+      - 'tests/perf-budget/**'
+      - '.github/workflows/perf-budget.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+    paths:
+      - 'bin/ryoku-dev-perf-baseline'
+      - 'ryoku/shell/perf-budget.json'
+      - 'tests/perf-budget.sh'
+      - 'tests/perf-budget/**'
+      - '.github/workflows/perf-budget.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  budget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Budget comparison
+        run: bash tests/perf-budget.sh
