@@ -144,7 +144,7 @@ PanelWindow {
             rankFetcher.running = true;
         }
         loadApps();
-        appsLoaded = true;
+        // Note: appsLoaded is managed inside loadApps() — do NOT set it here
         if (currentTabIndex === 0) {
             executeFilter("");
         } else {
@@ -518,9 +518,10 @@ PanelWindow {
         if (isVisible) {
             tabSwitch.currentIndex = launcherWindow.currentTabIndex;
             restartItemsIntro();
-            if (!launcherWindow.appsLoaded) {
+            // Attempt to load if not loaded yet, or if previous load came back empty (race condition at startup)
+            if (!launcherWindow.appsLoaded || launcherWindow.allApps.length === 0) {
                 launcherWindow.loadApps();
-                launcherWindow.appsLoaded = true;
+                // Note: appsLoaded is set inside loadApps() to avoid overriding an empty-result early return
             }
             if (searchInput.text !== "") {
                 searchInput.clear();
@@ -732,6 +733,15 @@ PanelWindow {
         }
 
         launcherWindow.allApps = finalArr;
+
+        // loadApps() is the sole authority over appsLoaded.
+        // Only mark loaded when we actually have entries; otherwise keep false so the
+        // next visibility event retries (handles async DesktopEntries race condition).
+        if (finalArr.length > 0) {
+            launcherWindow.appsLoaded = true;
+        } else {
+            launcherWindow.appsLoaded = false;
+        }
     }
 
     ListModel {
