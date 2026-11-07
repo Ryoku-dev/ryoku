@@ -14,6 +14,7 @@ const (
 	osdTransactionKey          = "ryoStoreOsdTransaction"
 	notificationTransactionKey = "ryoStoreNotificationTransaction"
 	sidebarTransactionKey      = "ryoStoreSidebarTransaction"
+	barStyleTransactionKey     = "ryoStoreBarStyleTransaction"
 )
 
 // productSelection is the user setting that wears a product: shell.json names
@@ -36,8 +37,8 @@ type productSelection struct {
 
 func selectionFor(category string) (productSelection, bool) {
 	switch category {
-	case "barstyles":
-		return productSelection{path: defaultShellConfigPath, key: "barStyle", fallback: "sumi", marker: barStyleTransactionKey}, true
+	case "subshells", "barstyles":
+		return productSelection{path: defaultShellConfigPath, key: "barStyle", fallback: "orpheus", marker: barStyleTransactionKey}, true
 	case "launchers":
 		// An empty variant opens the launcher the shell ships as its default.
 		return productSelection{path: defaultLauncherConfigPath, key: "variant", fallback: "", marker: launcherTransactionKey}, true
@@ -55,6 +56,20 @@ func selectionFor(category string) (productSelection, bool) {
 
 func defaultLauncherConfigPath() string {
 	return filepath.Join(configHome(), "ryoku", "launcher.json")
+}
+
+func defaultShellConfigPath() string {
+	return filepath.Join(configHome(), "ryoku", "shell.json")
+}
+
+func writeBarStyleSelection(path, id string) error {
+	return mutateConfigState(path, func(state map[string]any) bool {
+		if state["barStyle"] == id {
+			return false
+		}
+		state["barStyle"] = id
+		return true
+	})
 }
 
 // holder is the object that carries the setting, or nil when its section is

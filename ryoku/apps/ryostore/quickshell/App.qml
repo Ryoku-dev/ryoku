@@ -32,15 +32,6 @@ Rectangle {
     property var detailContext: null
     property rect detailOriginRect: Qt.rect(0, 0, 0, 0)
     property bool reducedMotion: performance.lowPowerMode || performance.reduceMotion
-    readonly property bool nomarchyActive: shellSettings.barStyle === "nomarchy"
-    onNomarchyActiveChanged: {
-        if (nomarchyActive) {
-            nomarchyRefresh.restart();
-        } else if (categoryID === "omarchy-plugins"
-                   || (detailItem && String(detailItem.category || "") === "omarchy-plugins")) {
-            openRoute("discover");
-        }
-    }
     readonly property bool catalogLoading: Store.loading && Store.items.length === 0
     readonly property bool catalogError: !Store.loading && Store.items.length === 0 && Store.error !== ""
     // A nav-open (from `ryostore open` / `settings`) can arrive before the
@@ -86,7 +77,6 @@ Rectangle {
     }
 
     readonly property var searchableItems: Store.items.concat(app.remoteExtras)
-            .filter(item => String(item.category || "") !== "omarchy-plugins" || app.nomarchyActive)
             .map(item => {
                 const copy = {};
                 Object.keys(item).forEach(key => copy[key] = item[key]);
@@ -102,10 +92,9 @@ Rectangle {
     // categories because they install into different folders, but the header
     // shows one plate and the subtab strip switches between them.
     readonly property var decorFamily: ["decors", "launcher-images", "fastfetch-emblems"]
-    readonly property var navigationCategories: StoreLogic.barCategories(Store.categories, Store.items)
+    readonly property var navigationCategories: StoreLogic.sortCategories(Store.categories)
             .filter(category => Number(category.count || 0) > 0
-                    && app.decorFamily.indexOf(String(category.id || "")) <= 0
-                    && (String(category.id || "") !== "omarchy-plugins" || app.nomarchyActive))
+                    && app.decorFamily.indexOf(String(category.id || "")) <= 0)
     // Discover rotates daily: the day number seeds the hero pick and the order in
     // StoreLogic.collection, so the landing holds still while you browse but
     // changes each day. Absent on category/search/library views, which ignore it.
@@ -157,9 +146,7 @@ Rectangle {
         appSort,
         appsTag
     ].join("|")
-    readonly property var currentCategory: categoryID === "subshells"
-        ? app.navigationCategories.find(category => category.id === "subshells")
-        : (categoryID !== "" ? Store.category(categoryID) : null)
+    readonly property var currentCategory: categoryID !== "" ? Store.category(categoryID) : null
     readonly property string pageTitle: searchOpen ? I18n.tr("Search")
             : (view === "library" ? I18n.tr("Library")
                : (currentCategory ? I18n.tr(String(currentCategory.name || currentCategory.id))
@@ -283,10 +270,8 @@ Rectangle {
     }
 
     function validRoute(route) {
-        if (route === "discover" || route === "library" || route === "subshells")
+        if (route === "discover" || route === "library")
             return true;
-        if (route === "omarchy-plugins" && !app.nomarchyActive)
-            return false;
         return Store.categories.some(category => category.id === route);
     }
 
@@ -515,32 +500,6 @@ Rectangle {
         id: detailClear
         interval: Tokens.swap
         onTriggered: app.detailItem = null
-    }
-    Timer {
-        id: nomarchyRefresh
-        interval: 100
-        onTriggered: {
-            if (Store.loading) {
-                restart();
-                return;
-            }
-            const category = Store.category("omarchy-plugins");
-            if (category && Number(category.count || 0) > 0)
-                return;
-            Store.refresh(true);
-        }
-    }
-
-    FileView {
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
-              + "/ryoku/shell.json"
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        JsonAdapter {
-            id: shellSettings
-            property string barStyle: "orpheus"
-        }
     }
 
     FileView {

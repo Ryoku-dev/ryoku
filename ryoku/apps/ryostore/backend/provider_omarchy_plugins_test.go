@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -14,21 +15,6 @@ import (
 	"testing"
 	"time"
 )
-
-func writeOmarchyShellStyle(t *testing.T, configHome, style string) {
-	t.Helper()
-	path := filepath.Join(configHome, "ryoku", "shell.json")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	raw, err := json.Marshal(map[string]any{"barStyle": style})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, raw, 0o644); err != nil {
-		t.Fatal(err)
-	}
-}
 
 func writeInstalledOmarchyPlugin(t *testing.T, configHome, dirName, id, version string) {
 	t.Helper()
@@ -71,6 +57,8 @@ func omarchyFixtureCatalogue() omarchyPluginCatalogue {
 	}
 }
 
+// newOmarchyFixtureProvider finds the omarchy tool; a test that needs it absent
+// replaces lookPath.
 func newOmarchyFixtureProvider(t *testing.T, serverURL, configHome string, run func(context.Context, string, ...string) ([]byte, error)) *omarchyPluginProvider {
 	t.Helper()
 	return &omarchyPluginProvider{
@@ -80,12 +68,12 @@ func newOmarchyFixtureProvider(t *testing.T, serverURL, configHome string, run f
 		configHome: configHome,
 		now:        func() time.Time { return time.Date(2026, 10, 7, 18, 0, 0, 0, time.UTC) },
 		run:        run,
+		lookPath:   func(string) (string, error) { return "/usr/bin/omarchy", nil },
 	}
 }
 
 func TestOmarchyPluginProviderNormalizesInstalledStateAndFilters(t *testing.T) {
 	configHome := t.TempDir()
-	writeOmarchyShellStyle(t, configHome, "nomarchy")
 	writeInstalledOmarchyPlugin(t, configHome, "checkout-name", "clock.card", "1.0.0")
 	fixture := omarchyFixtureCatalogue()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -148,28 +136,42 @@ func TestOmarchyPluginProviderNormalizesInstalledStateAndFilters(t *testing.T) {
 	}
 }
 
-func TestOmarchyPluginProviderHiddenOutsideNomarchy(t *testing.T) {
+func TestOmarchyPluginProviderHiddenWithoutTheOmarchyTool(t *testing.T) {
 	configHome := t.TempDir()
-	writeOmarchyShellStyle(t, configHome, "another-style")
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests++ }))
 	defer server.Close()
 	provider := newOmarchyFixtureProvider(t, server.URL, configHome, func(context.Context, string, ...string) ([]byte, error) {
-		t.Fatal("inactive provider must not run plugin commands")
+		t.Fatal("a provider without the omarchy tool must not run plugin commands")
 		return nil, nil
 	})
+	var looked []string
+	provider.lookPath = func(name string) (string, error) {
+		looked = append(looked, name)
+		return "", exec.ErrNotFound
+	}
 	items, _, err := provider.Load(context.Background(), true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(items) != 0 || requests != 0 {
-		t.Fatalf("inactive provider returned %d items after %d requests", len(items), requests)
+		t.Fatalf("provider without omarchy returned %d items after %d requests", len(items), requests)
+	}
+	for _, err := range []error{
+		provider.Install(context.Background(), "clock.card"),
+		provider.Remove(context.Background(), "clock.card"),
+	} {
+		if err == nil || err.Error() != "Omarchy plugins are available only while Nomarchy is active" {
+			t.Fatalf("change without omarchy = %v", err)
+		}
+	}
+	if len(looked) == 0 || looked[0] != "omarchy" {
+		t.Fatalf("looked up %v, want the omarchy tool", looked)
 	}
 }
 
 func TestOmarchyPluginProviderUsesConditionalCacheAndOfflineFallback(t *testing.T) {
 	configHome := t.TempDir()
-	writeOmarchyShellStyle(t, configHome, "nomarchy")
 	fixture := omarchyFixtureCatalogue()
 	var mu sync.Mutex
 	requests := 0
@@ -222,7 +224,6 @@ func TestOmarchyPluginProviderUsesConditionalCacheAndOfflineFallback(t *testing.
 
 func TestOmarchyPluginProviderDispatchesInstallUpdateAndRemove(t *testing.T) {
 	configHome := t.TempDir()
-	writeOmarchyShellStyle(t, configHome, "nomarchy")
 	fixture := omarchyFixtureCatalogue()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(fixture)

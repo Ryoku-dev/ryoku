@@ -79,12 +79,14 @@ Item {
     function triggerInstall() {
         if (!hasActionItem || busyKey !== "")
             return;
-        if (StoreLogic.primaryAction(actionItem) === "CREATE ACCOUNT") {
+        const action = StoreLogic.primaryAction(actionItem);
+        if (action === "CREATE ACCOUNT") {
             settingsRequested(actionItem);
             return;
         }
-        if (hasActionItem && StoreLogic.primaryAction(actionItem) !== "INSTALLED" && busyKey === ""
-                && !StoreLogic.isDownloadPaused(actionItem) && !StoreLogic.isUnavailable(actionItem))
+        // Store.install wears an installed subshell or bar style instead of fetching it.
+        if (action === "APPLY" || (!StoreLogic.primaryDone(actionItem)
+                && !StoreLogic.isDownloadPaused(actionItem) && !StoreLogic.isUnavailable(actionItem)))
             installRequested(actionItem);
     }
 
@@ -375,14 +377,15 @@ Item {
                 text: I18n.tr(stage.primaryLabel)
                 primary: true
                 busy: stage.busyKey === stage.actionKey
-                installed: StoreLogic.primaryAction(stage.actionItem) === "INSTALLED"
+                installed: StoreLogic.primaryDone(stage.actionItem)
                 reducedMotion: stage.reducedMotion
                 progressDone: stage.installProgressDone
                 progressTotal: stage.installProgressTotal
                 armed: stage.hasActionItem
                         && stage.busyKey === ""
                         && !installed
-                        && !StoreLogic.isDownloadPaused(stage.actionItem)
+                        && (StoreLogic.primaryAction(stage.actionItem) === "APPLY"
+                            || !StoreLogic.isDownloadPaused(stage.actionItem))
                         && !StoreLogic.isUnavailable(stage.actionItem)
                 onAct: stage.triggerInstall()
             }

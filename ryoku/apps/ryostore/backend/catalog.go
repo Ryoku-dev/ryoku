@@ -28,12 +28,14 @@ func providers() []Provider {
 
 func providersWithProfileGate(profileEnabled func() bool) []Provider {
 	c := newCache()
-	providers := make([]Provider, 0, 20)
+	revamped := newRevampedCache()
+	providers := make([]Provider, 0, 21)
 	providers = append(providers,
 		newLockProvider(c),
 		newRiceProvider(c),
 		newColorschemeProvider(c),
-		newBarProvider(c),
+		newShellItemProvider("subshells", revamped),
+		newShellItemProvider("barstyles", revamped),
 		newShellQMLProvider(dockProducts, c),
 		newShellQMLProvider(launcherProducts, c),
 		newShellQMLProvider(osdProducts, c),
@@ -48,7 +50,7 @@ func providersWithProfileGate(profileEnabled func() bool) []Provider {
 		bundleProvider{cache: c, status: defaultBundleStatus, launch: launchBundleInstall},
 	)
 	if profileEnabled != nil && profileEnabled() {
-		providers = append(providers, newProfilesProvider(newRevampedCache()))
+		providers = append(providers, newProfilesProvider(revamped))
 	}
 	return append(providers,
 		newDecorProvider(c),

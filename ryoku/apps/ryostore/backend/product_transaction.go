@@ -49,15 +49,25 @@ type productTransactionJournal struct {
 // installProduct runs the install transaction fetching the manifest and file
 // bytes from the cache.
 func installProduct(ctx context.Context, cache *Cache, category string, entry ProductEntry) error {
-	return installProductFrom(ctx, cache, category, entry, nil)
+	return installProductTransaction(ctx, cache, category, entry, nil, false)
 }
 
-// installProductFrom is the install transaction. With local nil it fetches the
+// migrateProduct is installProduct for a migration that replaces something the
+// user already has: a paused download does not stop it.
+func migrateProduct(ctx context.Context, cache *Cache, category string, entry ProductEntry) error {
+	return installProductTransaction(ctx, cache, category, entry, nil, true)
+}
+
+func installProductFrom(ctx context.Context, cache *Cache, category string, entry ProductEntry, local *localProductSource) error {
+	return installProductTransaction(ctx, cache, category, entry, local, false)
+}
+
+// installProductTransaction is the install transaction. With local nil it fetches the
 // manifest and every file from the cache; with local set it takes the manifest
 // and reads the file bytes from a local directory instead. Every other check is
 // identical either way: destination allowlist, symlink rejection, per-file hash
 // verification, receipt, journal, setPluginPlacementEnabled, and syncProductDerivedState.
-func installProductFrom(ctx context.Context, cache *Cache, category string, entry ProductEntry, local *localProductSource) error {
+func installProductTransaction(ctx context.Context, cache *Cache, category string, entry ProductEntry, local *localProductSource, allowPaused bool) error {
 	dst, expectedDestination, err := productDestination(category, entry.ID)
 	if err != nil {
 		return err
@@ -71,7 +81,7 @@ func installProductFrom(ctx context.Context, cache *Cache, category string, entr
 	// client-supplied field) and refuse before any manifest or payload byte is
 	// fetched. A local install carries no registry and skips it.
 	if local == nil {
-		if err := assertProductInstallable(ctx, cache, category, entry.ID); err != nil {
+		if err := assertProductInstallable(ctx, cache, category, entry.ID, allowPaused); err != nil {
 			return err
 		}
 	}
@@ -184,75 +194,15 @@ func installProductFrom(ctx context.Context, cache *Cache, category string, entr
 		reportProgressNow(ctx, "download", 0, downloadTotal)
 	}
 
-	type stagedProductFile struct {
-		temporary string
-		target    string
+	var receiptFiles []ReceiptFile
+	if shellCategory(category) {
+		receiptFiles, err = stageShellBundle(ctx, stage, cache, entry, manifest, local, downloadTotal)
+	} else {
+		receiptFiles, err = stageProductFiles(ctx, stage, cache, category, entry, manifest, local, installFileCount, downloadTotal)
 	}
-	payloadDir, err := os.MkdirTemp(stage, ".payload-*")
 	if err != nil {
 		return err
 	}
-	receiptFiles := make([]ReceiptFile, 0, installFileCount)
-	stagedFiles := make([]stagedProductFile, 0, installFileCount)
-	downloadDone := int64(0)
-	for index, file := range manifest.Files {
-		if !file.Install {
-			continue
-		}
-		var data []byte
-		if local != nil {
-			data, err = readLocalProductFile(local.root, file.Source, file.Size, file.SHA256)
-		} else {
-			rel := path.Join(entry.Path, file.Source)
-			data, err = fetchProductFileProgress(ctx, cache, rel, file.Size, file.SHA256, downloadDone, downloadTotal)
-		}
-		if err != nil {
-			return fmt.Errorf("%s/%s: files[%d] %s: %w", category, entry.ID, index, file.Source, err)
-		}
-		if local == nil {
-			downloadDone += int64(len(data))
-			reportProgress(ctx, "download", downloadDone, downloadTotal)
-		}
-		mode := os.FileMode(0o644)
-		if file.Mode == "0755" {
-			mode = 0o755
-		}
-		temporary := filepath.Join(payloadDir, fmt.Sprintf("%d", index))
-		if err := os.WriteFile(temporary, data, mode); err != nil {
-			return err
-		}
-		if err := os.Chmod(temporary, mode); err != nil {
-			return err
-		}
-		stagedFiles = append(stagedFiles, stagedProductFile{
-			temporary: temporary,
-			target:    filepath.Join(stage, filepath.FromSlash(file.Destination)),
-		})
-		receiptFiles = append(receiptFiles, ReceiptFile{
-			Source:      file.Source,
-			Destination: file.Destination,
-			SHA256:      file.SHA256,
-			Mode:        file.Mode,
-			Size:        file.Size,
-		})
-	}
-	if local == nil {
-		reportProgressNow(ctx, "download", downloadDone, downloadTotal)
-	}
-	reportProgress(ctx, "extract", 0, int64(installFileCount))
-	for index, file := range stagedFiles {
-		if err := os.MkdirAll(filepath.Dir(file.target), 0o755); err != nil {
-			return err
-		}
-		if err := os.Rename(file.temporary, file.target); err != nil {
-			return err
-		}
-		reportProgress(ctx, "extract", int64(index+1), int64(installFileCount))
-	}
-	if err := os.Remove(payloadDir); err != nil {
-		return err
-	}
-	reportProgressNow(ctx, "extract", int64(installFileCount), int64(installFileCount))
 
 	receipt := Receipt{
 		Category:    category,
@@ -261,7 +211,12 @@ func installProductFrom(ctx context.Context, cache *Cache, category string, entr
 		Destination: expectedDestination,
 		Files:       receiptFiles,
 	}
-	if err := verifyProductStage(ctx, stage, receiptFiles); err != nil {
+	if shellCategory(category) {
+		receipt.Name = entry.Name
+		receipt.Summary = entry.Summary
+		receipt.Shell = manifest.Shell
+	}
+	if err := verifyProductStage(ctx, stage, receipt); err != nil {
 		return err
 	}
 	operation := "install"
@@ -376,6 +331,81 @@ func installProductFrom(ctx context.Context, cache *Cache, category string, entr
 	return nil
 }
 
+// stageProductFiles writes every installable manifest file into stage at its
+// destination and returns the receipt rows for them.
+func stageProductFiles(ctx context.Context, stage string, cache *Cache, category string, entry ProductEntry, manifest ProductManifest, local *localProductSource, installFileCount int, downloadTotal int64) ([]ReceiptFile, error) {
+	type stagedProductFile struct {
+		temporary string
+		target    string
+	}
+	payloadDir, err := os.MkdirTemp(stage, ".payload-*")
+	if err != nil {
+		return nil, err
+	}
+	receiptFiles := make([]ReceiptFile, 0, installFileCount)
+	stagedFiles := make([]stagedProductFile, 0, installFileCount)
+	downloadDone := int64(0)
+	for index, file := range manifest.Files {
+		if !file.Install {
+			continue
+		}
+		var data []byte
+		if local != nil {
+			data, err = readLocalProductFile(local.root, file.Source, file.Size, file.SHA256)
+		} else {
+			rel := path.Join(entry.Path, file.Source)
+			data, err = fetchProductFileProgress(ctx, cache, rel, file.Size, file.SHA256, downloadDone, downloadTotal)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%s/%s: files[%d] %s: %w", category, entry.ID, index, file.Source, err)
+		}
+		if local == nil {
+			downloadDone += int64(len(data))
+			reportProgress(ctx, "download", downloadDone, downloadTotal)
+		}
+		mode := os.FileMode(0o644)
+		if file.Mode == "0755" {
+			mode = 0o755
+		}
+		temporary := filepath.Join(payloadDir, fmt.Sprintf("%d", index))
+		if err := os.WriteFile(temporary, data, mode); err != nil {
+			return nil, err
+		}
+		if err := os.Chmod(temporary, mode); err != nil {
+			return nil, err
+		}
+		stagedFiles = append(stagedFiles, stagedProductFile{
+			temporary: temporary,
+			target:    filepath.Join(stage, filepath.FromSlash(file.Destination)),
+		})
+		receiptFiles = append(receiptFiles, ReceiptFile{
+			Source:      file.Source,
+			Destination: file.Destination,
+			SHA256:      file.SHA256,
+			Mode:        file.Mode,
+			Size:        file.Size,
+		})
+	}
+	if local == nil {
+		reportProgressNow(ctx, "download", downloadDone, downloadTotal)
+	}
+	reportProgress(ctx, "extract", 0, int64(installFileCount))
+	for index, file := range stagedFiles {
+		if err := os.MkdirAll(filepath.Dir(file.target), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.Rename(file.temporary, file.target); err != nil {
+			return nil, err
+		}
+		reportProgress(ctx, "extract", int64(index+1), int64(installFileCount))
+	}
+	if err := os.Remove(payloadDir); err != nil {
+		return nil, err
+	}
+	reportProgressNow(ctx, "extract", int64(installFileCount), int64(installFileCount))
+	return receiptFiles, nil
+}
+
 func removeProduct(_ context.Context, category, id string) error {
 	dst, expectedDestination, err := productDestination(category, id)
 	if err != nil {
@@ -408,7 +438,7 @@ func removeProduct(_ context.Context, category, id string) error {
 	if receipt.Destination != expectedDestination {
 		return fmt.Errorf("receipt destination %q is outside the category allowlist", receipt.Destination)
 	}
-	for _, file := range receipt.Files {
+	for _, file := range receiptPhysicalFiles(receipt) {
 		source := filepath.Join(dst, filepath.FromSlash(file.Destination))
 		if err := rejectSymlinkPath(dst, filepath.FromSlash(file.Destination)); err != nil {
 			return err
@@ -465,7 +495,7 @@ func removeProduct(_ context.Context, category, id string) error {
 	if err := os.MkdirAll(hold, 0o700); err != nil {
 		return rollback(err)
 	}
-	for _, file := range receipt.Files {
+	for _, file := range receiptPhysicalFiles(receipt) {
 		source := filepath.Join(dst, filepath.FromSlash(file.Destination))
 		if _, err := os.Lstat(source); os.IsNotExist(err) {
 			continue
@@ -480,7 +510,7 @@ func removeProduct(_ context.Context, category, id string) error {
 			return rollback(err)
 		}
 	}
-	pruneEmptyProductDirs(dst, receipt.Files)
+	pruneEmptyProductDirs(dst, receiptPhysicalFiles(receipt))
 	journal.Phase = "remove-files-moved"
 	if err := writeProductJournal(journal); err != nil {
 		return rollback(err)
@@ -523,7 +553,7 @@ func removeProduct(_ context.Context, category, id string) error {
 
 func recoverStoreTransactions() error {
 	root := storeTransactionsDir()
-	for _, category := range []string{"rices", "lockscreens", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch", "plugins", "bundles", "profiles", vesktopThemesCategory} {
+	for _, category := range []string{"rices", "lockscreens", "subshells", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch", "plugins", "bundles", "profiles", vesktopThemesCategory} {
 		directory := filepath.Join(root, category)
 		entries, err := os.ReadDir(directory)
 		if os.IsNotExist(err) {
@@ -679,7 +709,7 @@ func rollbackProductJournal(journal productTransactionJournal) error {
 		if holdExists && (!holdInfo.IsDir() || holdInfo.Mode()&os.ModeSymlink != 0) {
 			return fmt.Errorf("removal hold %s is not a directory", hold)
 		}
-		for _, file := range journal.PriorReceipt.Files {
+		for _, file := range receiptPhysicalFiles(*journal.PriorReceipt) {
 			relative := filepath.FromSlash(file.Destination)
 			if err := rejectSymlinkPath(hold, relative); err != nil {
 				return err
@@ -700,7 +730,7 @@ func rollbackProductJournal(journal productTransactionJournal) error {
 				return err
 			}
 		}
-		for _, file := range journal.PriorReceipt.Files {
+		for _, file := range receiptPhysicalFiles(*journal.PriorReceipt) {
 			relative := filepath.FromSlash(file.Destination)
 			source := filepath.Join(hold, relative)
 			if _, err := os.Lstat(source); os.IsNotExist(err) {
@@ -848,10 +878,9 @@ func syncProductDerivedState(journal productTransactionJournal, committed bool) 
 		return syncVesktopTheme(journal, committed)
 	case "plugins":
 		return writePluginIndexLocked()
-	case "barstyles":
-		if err := writeBarStyleIndexLocked(); err != nil {
-			return err
-		}
+	case "subshells", "barstyles":
+		// The shells index is rebuilt once the transaction has committed; only
+		// the barStyle fallback below belongs to the transaction itself.
 	default:
 		product, ok := shellQMLProductFor(journal.Category)
 		if !ok {
@@ -1028,33 +1057,21 @@ func validateProductPayload(data []byte, size int64, expectedHash string) error 
 	return nil
 }
 
-func verifyProductStage(ctx context.Context, root string, files []ReceiptFile) error {
-	total := int64(len(files))
+func verifyProductStage(ctx context.Context, root string, receipt Receipt) error {
+	if shellCategory(receipt.Category) {
+		reportProgress(ctx, "verify", 0, int64(len(receipt.Files)))
+		err := verifyShellBundle(filepath.Join(root, shellBundleName), receipt, "")
+		if err == nil {
+			reportProgressNow(ctx, "verify", int64(len(receipt.Files)), int64(len(receipt.Files)))
+		}
+		return err
+	}
+	total := int64(len(receipt.Files))
 	reportProgress(ctx, "verify", 0, total)
-	for index, file := range files {
+	for index, file := range receipt.Files {
 		target := filepath.Join(root, filepath.FromSlash(file.Destination))
-		info, err := os.Lstat(target)
-		if err != nil {
+		if err := verifyReceiptFile(target, file); err != nil {
 			return err
-		}
-		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() != file.Size {
-			return fmt.Errorf("staged file %s does not match manifest", target)
-		}
-		handle, err := os.Open(target)
-		if err != nil {
-			return err
-		}
-		hash := sha256.New()
-		_, copyErr := io.Copy(hash, handle)
-		closeErr := handle.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-		if fmt.Sprintf("%x", hash.Sum(nil)) != file.SHA256 {
-			return fmt.Errorf("staged file %s failed verification", target)
 		}
 		reportProgress(ctx, "verify", int64(index+1), total)
 	}
@@ -1070,14 +1087,12 @@ func verifyInstalledReceipt(dst string, receipt Receipt) error {
 	if stored.Version != receipt.Version || stored.Destination != receipt.Destination || len(stored.Files) != len(receipt.Files) {
 		return fmt.Errorf("installed receipt did not persist")
 	}
+	if shellCategory(receipt.Category) {
+		return verifyShellBundle(filepath.Join(dst, shellBundleName), receipt, "")
+	}
 	for _, file := range receipt.Files {
-		path := filepath.Join(dst, filepath.FromSlash(file.Destination))
-		info, err := os.Lstat(path)
-		if err != nil {
+		if err := verifyReceiptFile(filepath.Join(dst, filepath.FromSlash(file.Destination)), file); err != nil {
 			return err
-		}
-		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Size() != file.Size {
-			return fmt.Errorf("installed file %s does not match receipt", path)
 		}
 	}
 	return nil

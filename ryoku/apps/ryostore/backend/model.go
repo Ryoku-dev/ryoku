@@ -86,13 +86,15 @@ type Item struct {
 	// one. UnavailableEdition names the cause: set when it is this edition (its
 	// package manager, or a bundle with no part to offer here), clear when it is
 	// the window manager.
-	RequiredWindowManager   string         `json:"requiredWindowManager,omitempty"`
-	RequiredPackageManagers []string       `json:"requiredPackageManagers,omitempty"`
-	Unavailable             bool           `json:"unavailable"`
-	UnavailableEdition      bool           `json:"unavailableEdition,omitempty"`
-	UnavailableReason       string         `json:"unavailableReason,omitempty"`
-	HasSettings             bool           `json:"hasSettings,omitempty"`
-	Metadata                map[string]any `json:"metadata,omitempty"`
+	RequiredWindowManager   string           `json:"requiredWindowManager,omitempty"`
+	RequiredPackageManagers []string         `json:"requiredPackageManagers,omitempty"`
+	Unavailable             bool             `json:"unavailable"`
+	UnavailableEdition      bool             `json:"unavailableEdition,omitempty"`
+	UnavailableReason       string           `json:"unavailableReason,omitempty"`
+	HasSettings             bool             `json:"hasSettings,omitempty"`
+	Metadata                map[string]any   `json:"metadata,omitempty"`
+	Provides                *ProductProvides `json:"provides,omitempty"`
+	Settings                *ShellSettings   `json:"settings,omitempty"`
 }
 
 // SourceState is a provider's fetch outcome: whether it fell back to cached data

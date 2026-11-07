@@ -23,8 +23,8 @@ Item {
             return I18n.tr("Switch it in Ryoku Hub → Appearance → Rices.");
         if (category === "decors")
             return I18n.tr("Choose it in Ryoku Hub → Profile → Hero.");
-        if (category === "barstyles")
-            return I18n.tr("Switch it in Ryoku Hub → Bar Studio.");
+        if (category === "barstyles" || category === "subshells")
+            return I18n.tr("Press Apply to wear it, or switch it in Ryoku Hub.");
         return "";
     }
     readonly property bool showingHint: !active && activationHint !== ""
@@ -42,7 +42,7 @@ Item {
             return I18n.tr("Extracting — preparing the downloaded files.");
         if (stage === "verify")
             return I18n.tr("Verifying — checking the install before it is applied.");
-        if (stage === "apply" && category === "barstyles")
+        if (stage === "apply" && (category === "barstyles" || category === "subshells"))
             return I18n.tr("Applying — your bar may reload when done.");
         if (stage === "apply")
             return I18n.tr("Applying — finishing the install.");

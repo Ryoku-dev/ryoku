@@ -45,7 +45,7 @@ func shellQMLCases() []shellQMLCase {
 			},
 		},
 		{
-			product: dockProducts, id: "engawa", shipped: "shima",
+			product: dockProducts, id: "engawa", shipped: "ii",
 			wear: func(t *testing.T, id string) {
 				writeTestConfig(t, defaultShellConfigPath(), map[string]any{
 					"barStyle": "orpheus",

@@ -20,7 +20,6 @@ type productViews struct {
 
 var (
 	pluginViews   = productViews{category: "plugins", root: "plugin-views"}
-	barStyleViews = productViews{category: "barstyles", root: "barstyle-views"}
 	launcherViews = productViews{category: "launchers", root: "launcher-views"}
 	dockViews     = productViews{category: "docks", root: "dock-views"}
 	// The overlays every bar style shares: designs.osd, .notification and

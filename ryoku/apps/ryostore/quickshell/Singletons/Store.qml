@@ -52,6 +52,8 @@ Singleton {
             return "ENABLING";
         if (op === "disable")
             return "DISABLING";
+        if (op === "apply")
+            return "APPLYING";
         return "INSTALLING";
     }
 
@@ -94,6 +96,8 @@ Singleton {
             return I18n.tr("Enabling failed");
         if (op === "disable")
             return I18n.tr("Disabling failed");
+        if (op === "apply")
+            return I18n.tr("Applying failed");
         return I18n.tr("Installation failed");
     }
 
@@ -180,11 +184,21 @@ Singleton {
     }
 
     function install(item, dither, components) {
+        if (!item || busyKey !== "")
+            return;
+        // An installed subshell or bar style is worn, never fetched again, so a
+        // paused download does not stop it.
+        if (isShellItem(item) && item.installed === true && item.unavailable !== true
+                && (item.updateAvailable !== true || item.downloadPaused === true)) {
+            if (item.active !== true)
+                apply(item);
+            return;
+        }
         // A paused item, or one written for another window manager, stays listed
         // but never downloads: install and update are refused here so no UI path
         // (button, keyboard, or accessibility) can start a fetch. Remove is a
         // separate flow and stays allowed.
-        if (!item || busyKey !== "" || item.downloadPaused === true || item.unavailable === true)
+        if (item.downloadPaused === true || item.unavailable === true)
             return;
         if (String(item.category || "") === "profiles" && item.installed === true) {
             openSettings(item);
@@ -206,6 +220,25 @@ Singleton {
         if (Array.isArray(components) && components.length > 0)
             cmd.push("--only", components.join(","));
         installProc.command = cmd;
+        installProc.running = true;
+    }
+
+    function isShellItem(item) {
+        const category = String(item && item.category || "");
+        return category === "subshells" || category === "barstyles";
+    }
+
+    // apply makes an installed subshell or bar style the active barStyle; the
+    // shell daemon unpacks it and restarts the shell under its reload cover.
+    function apply(item) {
+        busyKey = itemKey(item);
+        root._op = "apply";
+        installStage = "APPLYING";
+        installError = "";
+        installErrorKey = "";
+        root._failedOp = "";
+        _installError = "";
+        installProc.command = ["ryoku-shell", "barstyle", String(item.id)];
         installProc.running = true;
     }
 
@@ -258,6 +291,8 @@ Singleton {
             setOmarchyEnabled(item, failed === "enable");
         else if (failed === "remove")
             remove(item);
+        else if (failed === "apply")
+            apply(item);
         else
             install(item, dither, components);
     }

@@ -105,44 +105,25 @@ function matchesQuery(item, query) {
     return terms.every(function(term) { return haystack.indexOf(term) !== -1; });
 }
 
-const subshellIds = ["gokko", "caelestia", "tansu", "python", "imi"];
-function isSubshell(item) {
-    return Boolean(item && item.category === "barstyles"
-        && subshellIds.indexOf(String(item.id || "")) >= 0);
+// Subshells and bar styles are worn through shell.json barStyle: an installed
+// one is applied, and one that ships with Ryoku (metadata.core) is never removed.
+function isShellItem(item) {
+    var category = String(item && item.category || "");
+    return category === "subshells" || category === "barstyles";
+}
+function isShipped(item) {
+    return Boolean(item && item.metadata && item.metadata.core === true);
 }
 function categoryName(item, category) {
-    return isSubshell(item) ? "Subshell"
-        : String(category && category.name || item && item.category || "");
-}
-
-function barCategories(categories, items) {
-    const source = Array.isArray(items) ? items : [];
-    const subshellCount = source.filter(isSubshell).length;
-    const barCount = source.filter(item => item.category === "barstyles").length;
-    const result = [];
-    for (const category of sortCategories(categories)) {
-        if (String(category.id) !== "barstyles") {
-            result.push(category);
-            continue;
-        }
-        if (subshellCount > 0) result.push({ id: "subshells", name: "Subshells", group: category.group,
-            count: subshellCount, description: "Complete shell experiences, docks, panels and tools." });
-        if (barCount > 0) result.push(Object.assign({}, category, { count: barCount }));
-    }
-    return result;
+    return String(category && category.name || item && item.category || "");
 }
 
 function filter(items, options) {
     var source = Array.isArray(items) ? items : [];
     var opts = options || {};
     return source.filter(function(item) {
-        if (opts.category === "subshells") {
-            if (!isSubshell(item)) return false;
-        } else if (opts.category === "barstyles") {
-            if (item.category !== "barstyles") return false;
-        } else if (opts.category && item.category !== opts.category) {
+        if (opts.category && item.category !== opts.category)
             return false;
-        }
         if (opts.installedOnly && !isInstalled(item))
             return false;
         if (opts.updatesOnly && !item.updateAvailable)
@@ -385,6 +366,9 @@ function categoryPlates(categories) {
 function primaryAction(item) {
     if (isUnavailable(item))
         return unavailableLabel(item);
+    // A pause stops downloads only: an installed subshell or bar style can still be worn.
+    if (isShellItem(item) && isInstalled(item) && !(item.updateAvailable && !isDownloadPaused(item)) && !item.busy)
+        return item.active ? "ACTIVE" : "APPLY";
     if (isDownloadPaused(item))
         return "UNDER CONSTRUCTION";
     if (item && item.busy)
@@ -396,6 +380,12 @@ function primaryAction(item) {
     if (item && Number(item.installedCount || 0) > 0 && Number(item.totalCount || 0) > Number(item.installedCount || 0))
         return "INSTALL " + String(Number(item.totalCount) - Number(item.installedCount)) + " ITEMS";
     return isInstalled(item) ? "INSTALLED" : "INSTALL";
+}
+
+// A finished action: nothing left to start from the primary button.
+function primaryDone(item) {
+    var action = primaryAction(item);
+    return action === "INSTALLED" || action === "ACTIVE";
 }
 
 function competingActionLabel(busyKey, actionKey, installStage) {
@@ -427,4 +417,4 @@ function sortCategories(categories) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, sortAlphabetical, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, competingActionLabel, secondaryAction, sortCategories, shuffleSeeded, isSubshell, categoryName, barCategories };
+    module.exports = { statusLabels, statusTag, initials, isInstalled, isDownloadPaused, downloadPauseReason, isUnavailable, unavailableLabel, unavailableReason, pluginKind, searchText, matchesQuery, filter, groupSearch, featured, installed, itemKey, sortOmarchyPlugins, sortApps, sortAlphabetical, featuredApps, appCategories, collection, selectionKey, categoryPlates, primaryAction, primaryDone, competingActionLabel, secondaryAction, sortCategories, shuffleSeeded, isShellItem, isShipped, categoryName };

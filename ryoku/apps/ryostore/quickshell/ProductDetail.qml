@@ -169,7 +169,12 @@ FocusScope {
             settingsRequested(actionItem);
             return;
         }
-        if (action !== "INSTALLED"
+        // Store.install wears an installed subshell or bar style instead of fetching it.
+        if (action === "APPLY") {
+            installRequested(actionItem, false, null);
+            return;
+        }
+        if (!StoreLogic.primaryDone(actionItem)
                 && !StoreLogic.isDownloadPaused(actionItem) && !StoreLogic.isUnavailable(actionItem)) {
             lastComponents = null;
             installRequested(actionItem, ditherOn, null);
@@ -952,14 +957,15 @@ FocusScope {
                                : I18n.tr(StoreLogic.primaryAction(detail.actionItem)))
                     primary: true
                     busy: detail.busyKey === detail.actionKey
-                    installed: StoreLogic.primaryAction(detail.actionItem) === "INSTALLED"
+                    installed: StoreLogic.primaryDone(detail.actionItem)
                     reducedMotion: detail.reducedMotion
                     progressDone: detail.installProgressDone
                     progressTotal: detail.installProgressTotal
                     armed: detail.item !== null
                             && detail.busyKey === ""
                             && !installed
-                            && !StoreLogic.isDownloadPaused(detail.actionItem)
+                            && (StoreLogic.primaryAction(detail.actionItem) === "APPLY"
+                                || !StoreLogic.isDownloadPaused(detail.actionItem))
                             && !StoreLogic.isUnavailable(detail.actionItem)
                     onAct: detail.triggerInstall()
                 }
@@ -996,6 +1002,7 @@ FocusScope {
                     objectName: "ryostore-detail-remove"
                     text: I18n.tr("REMOVE")
                     visible: StoreLogic.isInstalled(detail.actionItem) && !detail.isProfile
+                            && !StoreLogic.isShipped(detail.actionItem)
                     armed: visible && detail.busyKey === ""
                     Accessible.role: Accessible.Button
                     Accessible.name: text

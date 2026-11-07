@@ -70,7 +70,7 @@ A shell *surface* is a fourth thing and does not live here. `ryoshot` and
   tunnels, web apps and Proxmox controls through `ryossh`. **Looking Glass**
   manages GPU-passthrough guests and reads their live libvirt metrics. Sampling
   stops when its plate is hidden. Engines: `ryovm`, `ryovm-mon` and `ryossh`.
-- `ryostore/` The store: discover and install lockscreens, rices, bar styles,
+- `ryostore/` The store: discover and install lockscreens, rices, subshells, bar styles,
   plugins and bundles. Engine: the `ryostore` Go backend.
 
 ## Single-instance launch

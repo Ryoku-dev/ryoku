@@ -132,9 +132,8 @@ func runCatalog(w io.Writer, provs []Provider, args []string) error {
 		// cache, so this never does worse than serving the snapshot. A snapshot
 		// built under another window manager is stale the same way: it answers
 		// which products run here, and after a compositor switch that answer is
-		// the old one. One whose built-in styles read differently predates this
-		// binary.
-		if data, err := os.ReadFile(snapshot); err == nil && len(data) > 0 && !snapshotOffline(data) && !snapshotForeignWindowManager(data) && !snapshotStaleBuiltins(data) && !snapshotProviderMismatch(data, provs) && !snapshotFlatpakRemoteMismatch(data, provs) {
+		// the old one.
+		if data, err := os.ReadFile(snapshot); err == nil && len(data) > 0 && !snapshotOffline(data) && !snapshotForeignWindowManager(data) && !snapshotProviderMismatch(data, provs) && !snapshotFlatpakRemoteMismatch(data, provs) {
 			_, err := w.Write(data)
 			return err
 		}
@@ -451,10 +450,11 @@ func runRemove(provs []Provider, args []string) error {
 	return p.Remove(context.Background(), id)
 }
 
-// runInternal namespaces commands the extras actuator and Settings call
-// directly: the browse cache directory, this edition's bundle package table, an
-// on-demand script installer path, and the guest install/remove primitives.
-// These are not public UI commands.
+// runInternal namespaces commands the extras actuator, Settings, the shell
+// daemon and doctor call directly: the browse cache directory, this edition's
+// bundle package table, an on-demand script installer path, the guest
+// install/remove primitives, and the shells index. These are not public UI
+// commands.
 func runInternal(args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("internal needs a subcommand")
@@ -504,6 +504,10 @@ func runInternal(args []string) error {
 			return fmt.Errorf("internal apply-fastfetch needs <id>")
 		}
 		return applyFastfetchStyle(args[1])
+	case "shells-sync":
+		return runShellsSyncCommand(os.Stdout, args[1:])
+	case "shells-require":
+		return runShellsRequireCommand(os.Stdout, args[1:])
 	default:
 		return fmt.Errorf("unknown internal command %q", args[0])
 	}

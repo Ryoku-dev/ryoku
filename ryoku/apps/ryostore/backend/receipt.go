@@ -17,6 +17,8 @@ type ReceiptFile struct {
 	SHA256      string `json:"sha256"`
 	Mode        string `json:"mode"`
 	Size        int64  `json:"size"`
+	// ArchiveMember marks a file packed inside bundle.tar.gz rather than on disk.
+	ArchiveMember bool `json:"archiveMember,omitempty"`
 }
 
 // ReceiptComponent records bundle ownership without claiming pre-existing or
@@ -36,6 +38,11 @@ type Receipt struct {
 	Destination string             `json:"destination"`
 	Files       []ReceiptFile      `json:"files"`
 	Components  []ReceiptComponent `json:"components,omitempty"`
+	// Name, Summary and Shell describe a packed subshell or bar style, so the
+	// shells index is built without unpacking or fetching anything.
+	Name    string         `json:"name,omitempty"`
+	Summary string         `json:"summary,omitempty"`
+	Shell   *ShellManifest `json:"shell,omitempty"`
 }
 
 // StoreRevision is the last committed Store change. Revision increases once for
@@ -120,23 +127,55 @@ func validateReceipt(category, id string, receipt Receipt) error {
 		return fmt.Errorf("receipt %s has forbidden destination %q", label, receipt.Destination)
 	}
 	seen := make(map[string]struct{}, len(receipt.Files))
+	bundleCount := 0
+	archiveMemberCount := 0
 	for index, file := range receipt.Files {
 		if !validProductPath(file.Source) || !validProductPath(file.Destination) {
 			return fmt.Errorf("receipt %s file %d has invalid path", label, index)
 		}
-		if _, ok := seen[file.Destination]; ok {
+		key := file.Destination
+		if file.ArchiveMember {
+			key = "archive:" + key
+			archiveMemberCount++
+		}
+		if _, ok := seen[key]; ok {
 			return fmt.Errorf("receipt %s has duplicate destination %q", label, file.Destination)
 		}
-		seen[file.Destination] = struct{}{}
+		seen[key] = struct{}{}
 		if !productHashPattern.MatchString(file.SHA256) || (file.Mode != "0644" && file.Mode != "0755") || file.Size < 0 || file.Size > maxProductFileSize {
 			return fmt.Errorf("receipt %s file %d is invalid", label, index)
 		}
+		if !file.ArchiveMember && file.Destination == shellBundleName {
+			bundleCount++
+		}
+	}
+	if shellCategory(category) {
+		legacyLoose := bundleCount == 0 && archiveMemberCount == 0 && receipt.Shell == nil
+		if !legacyLoose {
+			if bundleCount != 1 || archiveMemberCount == 0 || receipt.Shell == nil || receipt.Name == "" {
+				return fmt.Errorf("receipt %s has invalid shell bundle metadata", label)
+			}
+			if err := validateShellManifest(label, *receipt.Shell); err != nil {
+				return err
+			}
+		}
+	} else if receipt.Shell != nil || bundleCount != 0 || archiveMemberCount != 0 {
+		return fmt.Errorf("receipt %s has unexpected shell bundle metadata", label)
 	}
 	if category == vesktopThemesCategory {
 		_, err := vesktopThemeReceiptFile(receipt.Files)
 		return err
 	}
 	return nil
+}
+
+func receiptOwnsFile(receipt Receipt, destination string) bool {
+	for _, file := range receipt.Files {
+		if file.Destination == destination {
+			return true
+		}
+	}
+	return false
 }
 
 func writeStoreRevision(change StoreRevision) error {

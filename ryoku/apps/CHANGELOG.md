@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Added
+- `ryostore/`: **Subshells and bar styles install from the ryostore-revamped
+  catalogue and stay packed until used.** Installed ones show Apply, Orpheus and
+  Kairos show as shipped and cannot be removed, and bar styles installed by an
+  older release are reinstalled packed from the catalogue.
 - `ryostore/`: **Profiles is an unstable-channel Store category.** It reads
   official definitions from `ryostore-revamped`, installs them separately from
   account activation, and hands Create account to Global > Users in the Hub.

@@ -24,6 +24,98 @@ var (
 	productColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 )
 
+type ProductProvides struct {
+	Dock           []string `json:"dock,omitempty"`
+	Launcher       []string `json:"launcher,omitempty"`
+	DesktopWidgets []string `json:"desktopWidgets,omitempty"`
+}
+
+type ShellSettings struct {
+	IPC       string   `json:"ipc" toml:"ipc"`
+	Call      string   `json:"call" toml:"call"`
+	Args      []string `json:"args" toml:"args"`
+	HubEditor string   `json:"hubEditor" toml:"hubEditor"`
+}
+
+type ShellDockContribution struct {
+	ID    string `json:"id" toml:"id"`
+	Name  string `json:"name" toml:"name"`
+	Entry string `json:"entry" toml:"entry"`
+}
+
+type ShellLauncherContribution struct {
+	ID          string `json:"id" toml:"id"`
+	Name        string `json:"name" toml:"name"`
+	Description string `json:"description" toml:"description"`
+	Entry       string `json:"entry" toml:"entry"`
+	Preview     string `json:"preview" toml:"preview"`
+}
+
+type ShellDesktopWidgetContribution struct {
+	ID            string           `json:"id" toml:"id"`
+	Widget        string           `json:"widget" toml:"widget"`
+	Options       string           `json:"options,omitempty" toml:"options"`
+	Roster        string           `json:"roster" toml:"roster"`
+	RosterRecords []map[string]any `json:"rosterRecords" toml:"-"`
+}
+
+type ShellProvides struct {
+	Dock           []ShellDockContribution          `json:"dock"`
+	Launcher       []ShellLauncherContribution      `json:"launcher"`
+	DesktopWidgets []ShellDesktopWidgetContribution `json:"desktopWidgets"`
+}
+
+type ShellLifecycle struct {
+	Activate   string `json:"activate,omitempty" toml:"activate"`
+	Deactivate string `json:"deactivate,omitempty" toml:"deactivate"`
+	Palette    string `json:"palette,omitempty" toml:"palette"`
+}
+
+type ShellRuntime struct {
+	Check   string `json:"check,omitempty" toml:"check"`
+	Install string `json:"install,omitempty" toml:"install"`
+	Start   string `json:"start,omitempty" toml:"start"`
+}
+
+type ShellManifest struct {
+	Entry     string   `json:"entry"`
+	FrameHost string   `json:"frameHost"`
+	Owns      []string `json:"owns"`
+	// OwnsSetting maps an owned surface to the dotted shell.json key that
+	// switches the item's own version of it on or off.
+	OwnsSetting map[string]string `json:"ownsSetting"`
+	Modules     []string          `json:"modules"`
+	Settings    ShellSettings     `json:"settings"`
+	Provides    ShellProvides     `json:"provides"`
+	Lifecycle   ShellLifecycle    `json:"lifecycle"`
+	Runtime     ShellRuntime      `json:"runtime"`
+	// Env is the item's [shell.env], kept unexpanded; the daemon expands it.
+	Env map[string]string `json:"env"`
+}
+
+// shellOwnedSurfaces are the Ryoku surfaces an item may draw itself while active.
+var shellOwnedSurfaces = map[string]bool{
+	"notifications": true, "notificationSound": true, "osd": true, "polkit": true,
+	"dock": true, "widgets": true, "cheatsheet": true, "windowClose": true,
+}
+
+func shellCategory(category string) bool {
+	return category == "subshells" || category == "barstyles"
+}
+
+func strictJSONFields(data []byte, allowed map[string]bool) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for name := range fields {
+		if !allowed[name] {
+			return fmt.Errorf("unknown field %q", name)
+		}
+	}
+	return nil
+}
+
 // ProductEntry is the common registry envelope shared by every extras category.
 type ProductEntry struct {
 	ID                  string   `json:"id"`
@@ -61,6 +153,33 @@ type ProductEntry struct {
 	// that project's community. Both surface as links on the detail page.
 	Upstream string `json:"upstream"`
 	Discord  string `json:"discord,omitempty"`
+	// Provides lists the contribution ids a subshell or bar style offers;
+	// RequiresQmlModules is accepted from the registry and not used here.
+	Provides           *ProductProvides `json:"provides,omitempty"`
+	RequiresQmlModules []string         `json:"requiresQmlModules,omitempty"`
+}
+
+func (entry *ProductEntry) UnmarshalJSON(data []byte) error {
+	allowed := map[string]bool{
+		"id": true, "name": true, "version": true, "path": true, "author": true,
+		"summary": true, "description": true, "tags": true, "screenshots": true,
+		"accent": true, "surface": true, "preview": true, "previewRaw": true,
+		"manifest": true, "manifestSha256": true, "official": true, "tagline": true,
+		"icon": true, "hosts": true, "lastUpdated": true, "downloadPaused": true,
+		"downloadPauseReason": true, "windowManager": true, "windowManagerReason": true,
+		"packageManagers": true, "packageManagersReason": true, "upstream": true,
+		"discord": true, "provides": true, "requiresQmlModules": true,
+	}
+	if err := strictJSONFields(data, allowed); err != nil {
+		return err
+	}
+	type plain ProductEntry
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*entry = ProductEntry(decoded)
+	return nil
 }
 
 // ProductFile is one manifest-owned source and its installed destination.
@@ -75,12 +194,29 @@ type ProductFile struct {
 
 // ProductManifest is the complete, versioned file contract for one product.
 type ProductManifest struct {
-	Schema      int           `json:"schema"`
-	ID          string        `json:"id"`
-	Category    string        `json:"category"`
-	Version     string        `json:"version"`
-	Destination string        `json:"destination"`
-	Files       []ProductFile `json:"files"`
+	Schema      int            `json:"schema"`
+	ID          string         `json:"id"`
+	Category    string         `json:"category"`
+	Version     string         `json:"version"`
+	Destination string         `json:"destination"`
+	Files       []ProductFile  `json:"files"`
+	Shell       *ShellManifest `json:"shell,omitempty"`
+}
+
+func (manifest *ProductManifest) UnmarshalJSON(data []byte) error {
+	if err := strictJSONFields(data, map[string]bool{
+		"schema": true, "id": true, "category": true, "version": true,
+		"destination": true, "files": true, "shell": true,
+	}); err != nil {
+		return err
+	}
+	type plain ProductManifest
+	var decoded plain
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*manifest = ProductManifest(decoded)
+	return nil
 }
 
 func (file *ProductFile) UnmarshalJSON(data []byte) error {
@@ -116,6 +252,12 @@ func (file *ProductFile) UnmarshalJSON(data []byte) error {
 }
 
 func loadProductManifest(ctx context.Context, cache *Cache, category string, entry ProductEntry) (ProductManifest, error) {
+	return loadProductManifestFrom(ctx, cache, category, entry, true)
+}
+
+// loadProductManifestFrom reads the manifest live when refresh is set, else it
+// may answer from the process memo; the registry hash check applies either way.
+func loadProductManifestFrom(ctx context.Context, cache *Cache, category string, entry ProductEntry, refresh bool) (ProductManifest, error) {
 	if cache == nil {
 		return ProductManifest{}, fmt.Errorf("%s/%s: manifest cache is nil", category, entry.ID)
 	}
@@ -124,7 +266,7 @@ func loadProductManifest(ctx context.Context, cache *Cache, category string, ent
 	}
 
 	rel := path.Join(entry.Path, entry.Manifest)
-	raw, _, err := cache.Fetch(ctx, rel, true)
+	raw, _, err := cache.Fetch(ctx, rel, refresh)
 	if err != nil {
 		return ProductManifest{}, fmt.Errorf("%s/%s: fetch manifest: %w", category, entry.ID, err)
 	}
@@ -183,7 +325,10 @@ func validateProductEntry(category string, entry ProductEntry) error {
 	for name, value := range map[string]string{
 		"accent": entry.Accent, "surface": entry.Surface,
 	} {
-		if !productColorPattern.MatchString(value) {
+		if value != "" && !productColorPattern.MatchString(value) {
+			return fmt.Errorf("%s: invalid %s %q", label, name, value)
+		}
+		if value == "" && !shellCategory(category) {
 			return fmt.Errorf("%s: invalid %s %q", label, name, value)
 		}
 	}
@@ -195,6 +340,25 @@ func validateProductEntry(category string, entry ProductEntry) error {
 	for _, tag := range entry.Tags {
 		if tag == "" {
 			return fmt.Errorf("%s: empty tag", label)
+		}
+	}
+	if entry.Provides != nil {
+		for kind, ids := range map[string][]string{
+			"dock": entry.Provides.Dock, "launcher": entry.Provides.Launcher,
+			"desktopWidgets": entry.Provides.DesktopWidgets,
+		} {
+			seen := map[string]bool{}
+			for _, id := range ids {
+				if !productIDPattern.MatchString(id) || seen[id] {
+					return fmt.Errorf("%s: invalid %s contribution %q", label, kind, id)
+				}
+				seen[id] = true
+			}
+		}
+	}
+	for _, module := range entry.RequiresQmlModules {
+		if module == "" || strings.ContainsAny(module, "/\\\x00") {
+			return fmt.Errorf("%s: invalid required QML module %q", label, module)
 		}
 	}
 	if !productHashPattern.MatchString(entry.ManifestSHA256) {
@@ -228,6 +392,16 @@ func validateProductManifest(category string, entry ProductEntry, manifest Produ
 	}
 	if len(manifest.Files) == 0 || len(manifest.Files) > maxProductFiles {
 		return fmt.Errorf("%s: manifest has %d files", label, len(manifest.Files))
+	}
+	if shellCategory(category) {
+		if manifest.Shell == nil {
+			return fmt.Errorf("%s: manifest has no shell block", label)
+		}
+		if err := validateShellManifest(label, *manifest.Shell); err != nil {
+			return err
+		}
+	} else if manifest.Shell != nil {
+		return fmt.Errorf("%s: non-shell manifest has a shell block", label)
 	}
 
 	sources := make(map[string]struct{}, len(manifest.Files))
@@ -275,13 +449,82 @@ func validateProductManifest(category string, entry ProductEntry, manifest Produ
 	return nil
 }
 
+func validateShellManifest(label string, shell ShellManifest) error {
+	if !validProductPath(shell.Entry) {
+		return fmt.Errorf("%s: invalid shell entry %q", label, shell.Entry)
+	}
+	if shell.FrameHost != "each" && shell.FrameHost != "primary" {
+		return fmt.Errorf("%s: invalid shell frame host %q", label, shell.FrameHost)
+	}
+	owned := map[string]bool{}
+	for _, surface := range shell.Owns {
+		if !shellOwnedSurfaces[surface] || owned[surface] {
+			return fmt.Errorf("%s: invalid owned surface %q", label, surface)
+		}
+		owned[surface] = true
+	}
+	for surface, key := range shell.OwnsSetting {
+		if !owned[surface] || key == "" || strings.ContainsAny(key, " \x00") {
+			return fmt.Errorf("%s: invalid owns setting %q", label, surface)
+		}
+	}
+	for _, module := range shell.Modules {
+		if !validProductPath(module) || strings.Contains(module, "/") {
+			return fmt.Errorf("%s: invalid shell module %q", label, module)
+		}
+	}
+	for _, value := range append(append([]string{}, shell.Settings.Args...), shell.Settings.IPC, shell.Settings.Call, shell.Settings.HubEditor) {
+		if strings.ContainsRune(value, '\x00') {
+			return fmt.Errorf("%s: invalid shell setting", label)
+		}
+	}
+	seen := map[string]bool{}
+	for _, dock := range shell.Provides.Dock {
+		if !productIDPattern.MatchString(dock.ID) || dock.Name == "" || !validProductPath(dock.Entry) || seen["dock/"+dock.ID] {
+			return fmt.Errorf("%s: invalid dock contribution %q", label, dock.ID)
+		}
+		seen["dock/"+dock.ID] = true
+	}
+	for _, launcher := range shell.Provides.Launcher {
+		if !productIDPattern.MatchString(launcher.ID) || launcher.Name == "" || !validProductPath(launcher.Entry) || seen["launcher/"+launcher.ID] {
+			return fmt.Errorf("%s: invalid launcher contribution %q", label, launcher.ID)
+		}
+		if launcher.Preview != "" && !validProductPath(launcher.Preview) {
+			return fmt.Errorf("%s: invalid launcher preview %q", label, launcher.Preview)
+		}
+		seen["launcher/"+launcher.ID] = true
+	}
+	for _, widgets := range shell.Provides.DesktopWidgets {
+		if !productIDPattern.MatchString(widgets.ID) || !validProductPath(widgets.Widget) || seen["desktopWidgets/"+widgets.ID] {
+			return fmt.Errorf("%s: invalid desktop widget contribution %q", label, widgets.ID)
+		}
+		if widgets.Options != "" && !validProductPath(widgets.Options) {
+			return fmt.Errorf("%s: invalid desktop widget options %q", label, widgets.Options)
+		}
+		if widgets.Roster != "" && !validProductPath(widgets.Roster) {
+			return fmt.Errorf("%s: invalid desktop widget roster %q", label, widgets.Roster)
+		}
+		seen["desktopWidgets/"+widgets.ID] = true
+	}
+	for name, command := range map[string]string{
+		"activate": shell.Lifecycle.Activate, "deactivate": shell.Lifecycle.Deactivate,
+		"palette": shell.Lifecycle.Palette, "check": shell.Runtime.Check,
+		"install": shell.Runtime.Install, "start": shell.Runtime.Start,
+	} {
+		if command != "" && !validProductPath(command) {
+			return fmt.Errorf("%s: invalid %s command %q", label, name, command)
+		}
+	}
+	return nil
+}
+
 func productUpdateAvailable(installedVersion, availableVersion string) bool {
 	return installedVersion != "" && availableVersion != "" && installedVersion != availableVersion
 }
 
 func validProductCategory(category string) bool {
 	switch category {
-	case "rices", "lockscreens", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch",
+	case "rices", "lockscreens", "subshells", "barstyles", "launchers", "docks", "osds", "notifications", "sidebars", "fastfetch",
 		"plugins", "bundles", "profiles", "decors", "launcher-images", "fastfetch-emblems", "ryotunes-skins", vesktopThemesCategory:
 		return true
 	default:

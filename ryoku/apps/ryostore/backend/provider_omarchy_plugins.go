@@ -31,6 +31,8 @@ type omarchyPluginProvider struct {
 	configHome string
 	now        func() time.Time
 	run        func(context.Context, string, ...string) ([]byte, error)
+	// lookPath resolves the omarchy tool; nil means exec.LookPath.
+	lookPath func(string) (string, error)
 }
 
 type omarchyPluginCatalogue struct {
@@ -102,7 +104,7 @@ func (*omarchyPluginProvider) Category() Category {
 }
 
 func (p *omarchyPluginProvider) Load(ctx context.Context, refresh bool) ([]Item, SourceState, error) {
-	if !p.nomarchyActive() {
+	if !p.omarchyAvailable() {
 		return nil, SourceState{}, nil
 	}
 	catalogue, state, err := p.loadCatalogue(ctx, refresh)
@@ -130,7 +132,7 @@ func (p *omarchyPluginProvider) Load(ctx context.Context, refresh bool) ([]Item,
 }
 
 func (p *omarchyPluginProvider) Install(ctx context.Context, id string) error {
-	if !p.nomarchyActive() {
+	if !p.omarchyAvailable() {
 		return fmt.Errorf("Omarchy plugins are available only while Nomarchy is active")
 	}
 	entry, err := p.catalogueEntry(ctx, id)
@@ -152,7 +154,7 @@ func (p *omarchyPluginProvider) Remove(ctx context.Context, id string) error {
 	if !validOmarchyPluginID(id) {
 		return fmt.Errorf("invalid plugin id %q", id)
 	}
-	if !p.nomarchyActive() {
+	if !p.omarchyAvailable() {
 		return fmt.Errorf("Omarchy plugins are available only while Nomarchy is active")
 	}
 	return p.runChecked(ctx, "omarchy", "plugin", "remove", id, "--yes")
@@ -186,15 +188,15 @@ func (p *omarchyPluginProvider) catalogueEntry(ctx context.Context, id string) (
 	return omarchyPluginCatalogueItem{}, fmt.Errorf("plugin %q is not installable", id)
 }
 
-func (p *omarchyPluginProvider) nomarchyActive() bool {
-	raw, err := os.ReadFile(filepath.Join(p.configHome, "ryoku", "shell.json"))
-	if err != nil {
-		return false
+// omarchyAvailable reports whether the omarchy tool is on PATH: the active
+// item's lifecycle links it in and out, and a real Omarchy install has it too.
+func (p *omarchyPluginProvider) omarchyAvailable() bool {
+	lookPath := p.lookPath
+	if lookPath == nil {
+		lookPath = exec.LookPath
 	}
-	var settings struct {
-		BarStyle string `json:"barStyle"`
-	}
-	return json.Unmarshal(raw, &settings) == nil && settings.BarStyle == "nomarchy"
+	_, err := lookPath("omarchy")
+	return err == nil
 }
 
 func (p *omarchyPluginProvider) cachePaths() (string, string) {

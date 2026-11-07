@@ -126,7 +126,8 @@ func productRegistryAbsent(err error) bool {
 // authoritative registry so a stale provider cache cannot hide the refusal,
 // checks the entry by id alone so a client request carries no bypass, and leaves
 // the product listed and removable: only fetching new payload is blocked.
-func assertProductInstallable(ctx context.Context, cache *Cache, category, id string) error {
+// allowPaused lets a migration replace an install the user already has.
+func assertProductInstallable(ctx context.Context, cache *Cache, category, id string, allowPaused bool) error {
 	entries, _, err := loadProductRegistry(ctx, cache, category, true)
 	if err != nil {
 		return err
@@ -150,7 +151,7 @@ func assertProductInstallable(ctx context.Context, cache *Cache, category, id st
 		return fmt.Errorf("%s/%s: not available on this system: %s",
 			category, id, packageManagerReason(entry.PackageManagersReason))
 	}
-	if !entry.DownloadPaused {
+	if !entry.DownloadPaused || allowPaused {
 		return nil
 	}
 	if entry.DownloadPauseReason != "" {
