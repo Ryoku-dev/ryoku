@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../lib/buspath.js" as BusPath
 
 // The one place Ryoku's look is defined. Everything that draws imports this;
 // nothing hardcodes a hex, a size or a duration.
@@ -17,12 +18,12 @@ import Quickshell.Io
 Singleton {
     id: t
 
-    // Follow-the-wallpaper master (theme.json), the static named scheme's palette
-    // (shell.json themePalette; null for the dynamic variants) and the live
-    // wallpaper roles (colors.json), each parsed straight from the file text: the
-    // "on" role names defeat JsonAdapter's signal-handler grammar, a removed
-    // themePalette key only reads as absent from raw text, and a bare adapter does
-    // not repopulate reliably for a lazily-created singleton.
+    // Follow-the-wallpaper master (theme.json) and the live wallpaper roles
+    // (colors.json) are parsed straight from the file text: the "on" role names
+    // defeat JsonAdapter's signal-handler grammar and a bare adapter does not
+    // repopulate reliably for a lazily-created singleton. The static named
+    // scheme's palette (shell.json themePalette; null for the dynamic variants)
+    // comes off the shared settings frame.
     property bool matchWallpaper: true
     property var namedScheme: null
     property var wall: ({})
@@ -273,6 +274,7 @@ Singleton {
     // an atomic-rename replacement.
     function reloadPalette() { paletteFile.reload(); }
     function refreshNamed() {
+        const o = ShellSettings.data;
         var pal = null;
         var scale = 1.0;
         var reduce = false;
@@ -281,32 +283,26 @@ Singleton {
         var widgets = ({});
         var monoFont = "SpaceMono Nerd Font";
         var uiFont = "Space Grotesk";
-        try {
-            const txt = shellFile.text();
-            if (txt) {
-                const o = JSON.parse(txt);
-                if (o && typeof o.themePalette === "object" && o.themePalette !== null)
-                    pal = o.themePalette;
-                const m = o && o.theme && o.theme.motion;
-                if (m) {
-                    if (typeof m.scale === "number" && m.scale > 0)
-                        scale = m.scale;
-                    reduce = m.reduce === true;
-                }
-                const displays = o && o.displays;
-                const u = displays && displays.ui_scale;
-                if (u && typeof u === "object" && u !== null)
-                    scales = u;
-                const b = displays && displays.bar;
-                if (b && typeof b === "object" && b !== null)
-                    bars = b;
-                const w = displays && displays.widgets;
-                if (w && typeof w === "object" && w !== null)
-                    widgets = w;
-                if (typeof o.fontFamily === "string" && o.fontFamily.length) { uiFont = o.fontFamily; monoFont = o.fontFamily; }
+        if (o) {
+            if (typeof o.themePalette === "object" && o.themePalette !== null)
+                pal = o.themePalette;
+            const m = o.theme && o.theme.motion;
+            if (m) {
+                if (typeof m.scale === "number" && m.scale > 0)
+                    scale = m.scale;
+                reduce = m.reduce === true;
             }
-        } catch (e) {
-            pal = null;
+            const displays = o.displays;
+            const u = displays && displays.ui_scale;
+            if (u && typeof u === "object")
+                scales = u;
+            const b = displays && displays.bar;
+            if (b && typeof b === "object")
+                bars = b;
+            const w = displays && displays.widgets;
+            if (w && typeof w === "object")
+                widgets = w;
+            if (typeof o.fontFamily === "string" && o.fontFamily.length) { uiFont = o.fontFamily; monoFont = o.fontFamily; }
         }
         t.namedScheme = pal;
         t.motionScale = scale;
@@ -316,6 +312,20 @@ Singleton {
         t.widgetVisibility = widgets;
         t.ui = uiFont;
         t.mono = monoFont;
+    }
+    // The keys refreshNamed reads; any other settings change leaves the
+    // palette, motion and per-output state alone.
+    readonly property var _namedPaths: ["themePalette", "theme.motion", "displays.ui_scale", "displays.bar", "displays.widgets", "fontFamily"]
+    Connections {
+        target: ShellSettings
+        function onChanged(paths) {
+            for (let i = 0; i < t._namedPaths.length; i++) {
+                if (BusPath.touches(t._namedPaths[i], paths)) {
+                    t.refreshNamed();
+                    return;
+                }
+            }
+        }
     }
     function refreshMatch() {
         try {
@@ -338,15 +348,6 @@ Singleton {
         printErrors: false
         onFileChanged: reload()
         onLoaded: t.refreshMatch()
-    }
-    FileView {
-        id: shellFile
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        onLoaded: t.refreshNamed()
     }
     FileView {
         id: paletteFile

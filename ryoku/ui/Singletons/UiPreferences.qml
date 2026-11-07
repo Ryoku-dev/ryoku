@@ -1,10 +1,10 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import "../lib/buspath.js" as BusPath
 
-// Cross-surface presentation preferences from the daemon-owned shell store.
-// Readers watch the file; the daemon remains its only writer.
+// Cross-surface presentation preferences from the daemon-owned shell store,
+// read off the shared settings frame.
 Singleton {
     id: root
 
@@ -32,19 +32,16 @@ Singleton {
     }
 
     function load() {
-        var data = {};
-        try { data = JSON.parse(store.text()) || {}; } catch (e) {}
-        root.showJapaneseGloss = data.showJapaneseGloss !== false;
+        root.showJapaneseGloss = ShellSettings.get("showJapaneseGloss", true) !== false;
     }
 
-    FileView {
-        id: store
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: root.load()
-        onFileChanged: reload()
-        onLoadFailed: root.showJapaneseGloss = true
+    Connections {
+        target: ShellSettings
+        function onChanged(paths) {
+            if (BusPath.touches("showJapaneseGloss", paths))
+                root.load();
+        }
     }
+
+    Component.onCompleted: root.load()
 }

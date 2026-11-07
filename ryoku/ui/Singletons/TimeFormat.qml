@@ -1,10 +1,10 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import Quickshell.Io
+import "../lib/buspath.js" as BusPath
 
 // One wall-clock preference for the shell, Hub and lockscreen. The daemon is
-// the sole writer; watching its store also keeps separate QML processes in sync.
+// the sole writer; its settings topic keeps separate QML processes in sync.
 Singleton {
     id: root
 
@@ -50,39 +50,22 @@ Singleton {
     }
 
     function set24h(value) {
-        ctl.queued += "call settings.patch " + JSON.stringify({
-            path: "general.clock_format_24_h", value: value === true
-        }) + "\n";
-        if (ctl.connected) ctl.flushQueued();
-        else ctl.connected = true;
+        ShellSettings.patch("general.clock_format_24_h", value === true);
     }
 
     function load() {
-        var data = {};
-        try { data = JSON.parse(store.text()) || {}; } catch (e) {}
-        root.is24h = !!(data.general && data.general.clock_format_24_h === true);
-        root.formatLocale = typeof data.formatLocale === "string" ? data.formatLocale.trim() : "";
+        root.is24h = ShellSettings.get("general.clock_format_24_h", false) === true;
+        const fl = ShellSettings.get("formatLocale", "");
+        root.formatLocale = typeof fl === "string" ? fl.trim() : "";
     }
 
-    FileView {
-        id: store
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: root.load()
-        onFileChanged: reload()
-        onLoadFailed: { root.is24h = false; root.formatLocale = ""; }
-    }
-
-    Socket {
-        id: ctl
-        property string queued: ""
-        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
-        function flushQueued() {
-            if (!connected || !queued.length) return;
-            write(queued); flush(); queued = "";
+    Connections {
+        target: ShellSettings
+        function onChanged(paths) {
+            if (BusPath.touches("general.clock_format_24_h", paths) || BusPath.touches("formatLocale", paths))
+                root.load();
         }
-        onConnectionStateChanged: if (connected) flushQueued()
     }
+
+    Component.onCompleted: root.load()
 }

@@ -46,6 +46,9 @@ SpectrumField 1.0 SpectrumField.qml
 Keycap 1.0 Keycap.qml
 KeyChord 1.0 KeyChord.qml
 KeypressStack 1.0 KeypressStack.qml
+BusTopic 1.0 BusTopic.qml
+BusIpcHandler 1.0 BusIpcHandler.qml
+ShellSetting 1.0 ShellSetting.qml
 SpectrumMath 1.0 lib/spectrum.js
 PlaceMath 1.0 lib/place.js
 KeypressMath 1.0 lib/keypress.js

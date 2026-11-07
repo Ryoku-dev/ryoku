@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "../lib/buspath.js" as BusPath
 
 // The one translation lookup, shared by every Ryoku surface (Hub, shell, apps,
 // the wallpaper picker, the greeter). Source-string-as-key:
@@ -12,10 +13,12 @@ import Quickshell.Io
 // ever writes English.
 //
 // The language is a global shell setting (shell.json "language"), set from the
-// Hub's Global page and watched here, so changing it retranslates every open
-// surface live -- no relogin. The same catalog serves the Go installers and the
-// installer's shell (ryoku/i18n/i18n.go, installation/backend/lib/i18n.sh), so
-// there is one set of strings for the whole system, at /usr/share/ryoku/i18n
+// Hub's Global page and read off the shared settings frame (read synchronously
+// at start, so the first frame is already in the right language); changing it
+// retranslates every open surface live -- no relogin. The same catalog serves
+// the Go installers and the installer's shell (ryoku/i18n/i18n.go,
+// installation/backend/lib/i18n.sh), so there is one set of strings for the
+// whole system, at /usr/share/ryoku/i18n
 // (a dev checkout points RYOKU_I18N_DIR at ryoku/i18n/catalog). Brand kana
 // (力, 描画, seals) are never wrapped, so they stay put.
 Singleton {
@@ -130,16 +133,13 @@ Singleton {
         return (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/i18n/" + l + ".json";
     }
 
-    // the global config; language lives under "language", watched for live switch.
-    FileView {
-        id: cfg
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        atomicWrites: true
-        printErrors: false
-        onFileChanged: { reload(); i18n._loadCfg(); }
-        onLoadFailed: i18n.configLang = "auto"
+    // the global config; language lives under "language".
+    Connections {
+        target: ShellSettings
+        function onChanged(paths) {
+            if (BusPath.touches("language", paths))
+                i18n._loadCfg();
+        }
     }
 
     // the language table. Loaded before anything else needs it (blockLoading),
@@ -203,11 +203,8 @@ Singleton {
         }
     }
     function _loadCfg() {
-        try {
-            i18n.configLang = (JSON.parse(cfg.text()) || {}).language || "auto";
-        } catch (e) {
-            i18n.configLang = "auto";
-        }
+        const v = ShellSettings.get("language", "auto");
+        i18n.configLang = typeof v === "string" && v ? v : "auto";
     }
     function _loadMap() {
         try {

@@ -118,5 +118,6 @@ their own formatting.
 
 The shell daemon persists this existing setting as
 `general.clock_format_24_h` in `shell.json`; `Ryoku.Ui.Singletons.TimeFormat`
-watches it across processes. Legacy per-surface `clock12h` / `clock24h` values
-no longer override the global preference.
+follows it across processes through the daemon's settings topic. Legacy
+per-surface `clock12h` / `clock24h` values no longer override the global
+preference.

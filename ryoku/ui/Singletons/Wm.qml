@@ -2,7 +2,6 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import Quickshell.WindowManager
 import Quickshell.Wayland
 
@@ -12,7 +11,7 @@ import Quickshell.Wayland
 Singleton {
     id: root
 
-    readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
+    readonly property string sockPath: Bus.sockPath
 
     // Provider state is versioned by section. The ordinary topic carries
     // coalesced snapshots; focused-output changes use a compact topic because
@@ -311,7 +310,6 @@ Singleton {
     }
 
     on_FocusedCandidateChanged: root._adoptFocused()
-    Component.onCompleted: root._adoptFocused()
 
     function windowsOnWorkspace(key) {
         const workspace = root._wsId(key);
@@ -334,30 +332,44 @@ Singleton {
 
     // Request/response variant: cb receives the wm.act result string, "" on a
     // gated-out call or failure. Used where an action reports state to restore.
-    property var _pending: ({})
-    property int _nextId: 0
     function _actResult(action, cap, args, cb) {
         if (cap !== "" && root.caps[cap] !== true) {
             if (cb) cb("");
             return;
         }
-        const id = ++root._nextId;
-        root._pending[id] = cb;
-        root._call("wm.act", { action: action, args: args, id: id });
+        Bus.call("wm.act", { action: action, args: args }, (ok, result) => {
+            if (cb) cb(ok && typeof result === "string" ? result : "");
+        });
     }
 
     // Acknowledged action variant for mutations that must not be persisted
     // until the compositor confirms them. cb(success, error) runs exactly once
     // for a reply; capability rejection is an immediate failure.
+    property var _pending: ({})
+    property int _nextId: 0
     function _actStatus(action, cap, args, cb) {
         if (cap !== "" && root.caps[cap] !== true) {
             if (cb) cb(false, "unsupported capability: " + cap);
             return;
         }
         const id = ++root._nextId;
-        root._pending[id] = { status: true, callback: cb, deadline: Date.now() + 8000 };
+        const pending = { status: true, callback: cb, deadline: Date.now() + 8000, request: 0 };
+        root._pending[id] = pending;
         statusExpiry.running = true;
-        root._call("wm.act", { action: action, args: args, id: id });
+        pending.request = Bus.call("wm.act", { action: action, args: args }, (ok, result, error) => {
+            if (root._pending[id] !== pending)
+                return;
+            delete root._pending[id];
+            statusExpiry.running = root._hasStatusPending();
+            if (!pending.callback)
+                return;
+            if (ok)
+                pending.callback(true, "");
+            else
+                pending.callback(false, error === "disconnected"
+                    ? "window-manager control connection closed"
+                    : String(error || "window-manager action failed"));
+        });
     }
 
     function focusWindow(id) { root._act("window.focus", "", [String(id)]); }
@@ -413,8 +425,9 @@ Singleton {
     // ---- transport ----
     // The full topic moves only the sections that changed. Focus arrives on a
     // compact topic so crossing an output never makes the GUI thread parse the
-    // output, workspace and window lists again. Versions make the two sockets
-    // safe to apply in either order during reconnect.
+    // output, workspace and window lists again. Versions make the two topics
+    // safe to apply in either order; they count from daemon start, so a
+    // reconnect forgets them and takes the resync frames whole.
     function _version(frameVersions, key) {
         const n = frameVersions ? frameVersions[key] : undefined;
         return typeof n === "number" ? n : 0;
@@ -431,9 +444,8 @@ Singleton {
         root._v[key] = root._version(frameVersions, key);
     }
 
-    function _apply(line) {
+    function _apply(frame) {
         try {
-            const frame = JSON.parse(line);
             if (!frame || typeof frame !== "object" || Array.isArray(frame))
                 return;
             const v = frame.versions;
@@ -490,9 +502,8 @@ Singleton {
         }
     }
 
-    function _applyFocus(line) {
+    function _applyFocus(frame) {
         try {
-            const frame = JSON.parse(line);
             if (!frame || typeof frame !== "object" || Array.isArray(frame))
                 return;
             const v = typeof frame.version === "number" ? frame.version : 0;
@@ -508,29 +519,7 @@ Singleton {
     }
 
     function _call(method, args) {
-        ctl.queued += "call " + method + " " + JSON.stringify(args) + "\n";
-        if (ctl.connected)
-            ctl.flushQueued();
-        else
-            ctl.connected = true;
-    }
-
-    function _reply(line) {
-        try {
-            const r = JSON.parse(line);
-            if (r && r.id !== undefined && root._pending[r.id] !== undefined) {
-                const pending = root._pending[r.id];
-                delete root._pending[r.id];
-                if (typeof pending === "function") {
-                    pending((r.ok && typeof r.result === "string") ? r.result : "");
-                } else if (pending && pending.status === true && pending.callback) {
-                    pending.callback(r.ok === true, r.ok === true ? "" : String(r.error || "window-manager action failed"));
-                }
-            }
-            if (!root._hasStatusPending())
-                statusExpiry.running = false;
-        } catch (e) {
-        }
+        Bus.call(method, args);
     }
 
     function _hasStatusPending() {
@@ -543,34 +532,10 @@ Singleton {
         return false;
     }
 
-    function _dropQueuedStatusCalls(failed) {
-        if (!ctl.queued.length)
-            return;
-        const kept = [];
-        const lines = ctl.queued.split("\n");
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (!line.length)
-                continue;
-            const jsonAt = line.indexOf(" ", 5);
-            if (jsonAt < 0) {
-                kept.push(line);
-                continue;
-            }
-            try {
-                const args = JSON.parse(line.slice(jsonAt + 1));
-                if (args && failed[String(args.id)] === true)
-                    continue;
-            } catch (e) {
-            }
-            kept.push(line);
-        }
-        ctl.queued = kept.length ? kept.join("\n") + "\n" : "";
-    }
-
+    // An expired call still waiting in the bus queue is withdrawn, so a
+    // reconnect does not apply a mutation its caller already saw fail.
     function _failStatusPending(error, expiredOnly) {
         const now = Date.now();
-        const failed = ({});
         const ids = Object.keys(root._pending);
         for (let i = 0; i < ids.length; i++) {
             const id = ids[i];
@@ -578,12 +543,11 @@ Singleton {
             if (!pending || pending.status !== true
                     || (expiredOnly === true && pending.deadline > now))
                 continue;
-            failed[String(id)] = true;
             delete root._pending[id];
+            Bus.cancel(pending.request);
             if (pending.callback)
                 pending.callback(false, error);
         }
-        root._dropQueuedStatusCalls(failed);
         statusExpiry.running = root._hasStatusPending();
     }
 
@@ -594,65 +558,17 @@ Singleton {
         onTriggered: root._failStatusPending("window-manager action timed out", true)
     }
 
-    Socket {
-        id: sub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root._apply(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe wm\n");
-                flush();
-            } else {
-                retry.restart();
-            }
+    Connections {
+        target: Bus
+        function onConnectedChanged() {
+            if (!Bus.connected)
+                root._v = null;
         }
     }
 
-    Socket {
-        id: focusSub
-        path: root.sockPath
-        parser: SplitParser { onRead: line => root._applyFocus(line) }
-        Component.onCompleted: connected = true
-        onConnectionStateChanged: {
-            if (connected) {
-                write("subscribe wm.focus\n");
-                flush();
-            } else {
-                retry.restart();
-            }
-        }
-    }
-
-    Timer {
-        id: retry
-        interval: 2000
-        onTriggered: {
-            if (!sub.connected)
-                sub.connected = true;
-            if (!focusSub.connected)
-                focusSub.connected = true;
-        }
-    }
-
-    Socket {
-        id: ctl
-        path: root.sockPath
-        property string queued: ""
-        parser: SplitParser { onRead: line => root._reply(line) }
-        function flushQueued() {
-            if (queued.length === 0)
-                return;
-            write(queued);
-            flush();
-            queued = "";
-        }
-        onConnectionStateChanged: {
-            if (connected) {
-                flushQueued();
-            } else {
-                root._failStatusPending("window-manager control connection closed");
-            }
-        }
+    Component.onCompleted: {
+        root._adoptFocused();
+        Bus.subscribe("wm", root._apply);
+        Bus.subscribe("wm.focus", root._applyFocus);
     }
 }
