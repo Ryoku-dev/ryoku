@@ -6,7 +6,7 @@ viz="$root/ryoku/shell/quickshell/shell/modules/visualizer/Visualizer.qml"
 grip="$root/ryoku/shell/quickshell/shell/modules/visualizer/VisualizerGrip.qml"
 config="$root/ryoku/shell/quickshell/shell/modules/visualizer/Singletons/Config.qml"
 desktop="$root/ryoku/shell/quickshell/shell/modules/desktop/Desktop.qml"
-shell="$root/ryoku/shell/quickshell/shell/shell.qml"
+shell="$root/ryoku/shell/quickshell/shell/ShellBody.qml"
 
 fail() { printf 'visualizer placement: %s\n' "$*" >&2; exit 1; }
 

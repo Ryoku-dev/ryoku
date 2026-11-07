@@ -5,7 +5,7 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 tmp="$(mktemp -d)"
 renderer="$root/ryoku/shell/quickshell/reload-cover/ReloadCover.qml"
 media="$root/ryoku/shell/quickshell/reload-cover/ReloadMedia.qml"
-shell="$root/ryoku/shell/quickshell/shell/shell.qml"
+shell="$root/ryoku/shell/quickshell/shell/ShellBody.qml"
 cover_shell="$root/ryoku/shell/quickshell/reload-cover/shell.qml"
 
 # The hold deadline is mode-based: a reload gets the supervised-restart

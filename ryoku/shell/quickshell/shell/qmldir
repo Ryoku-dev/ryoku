@@ -1,0 +1,3 @@
+# shell.qml imports ShellBody through this module so it loads by file URL.
+module shell
+ShellBody 1.0 ShellBody.qml

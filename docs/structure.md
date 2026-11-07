@@ -84,7 +84,10 @@ truth for the live desktop.
   `install-qylock`, and `sddm/` (the greeter setup).
 - `shell/` the desktop shell subsystem: `quickshell/` (the QML UI. Every surface
   runs in-process in a single `qs -c shell` instance under `shell/`, drawn per
-  monitor from one scene (`shell.qml`): `modules/` is one directory per surface
+  monitor from one scene (`ShellBody.qml`, which `shell.qml` loads through the
+  `shell` module so it and everything it imports are read by file URL and kept
+  in Qt's qmlcache; `shell.qml` itself holds only the root-only pragmas and the
+  `ShellRoot`): `modules/` is one directory per surface
   (`bar` the scene host that loads the active subshell or bar style
   (`Frame.qml`), plus the frame-bar kit other items build on: the four-edge
   rails, the bounded menu manager and the rail status popout cards
@@ -112,7 +115,9 @@ truth for the live desktop.
   host carries desktop placements, and `kit/` is the `Ryoku.PluginKit` QML module
   a plugin imports for the signature look; see `docs/plugins.md`)),
   `plugin/` (`Ryoku.Blobs`, the C++/QML SDF metaball module the frame renders
-  with; `build.sh` builds it, and it ships prebuilt), `matugen/` (palette
+  with, `Ryoku.Spatial3D`, the Stage depth mesh, and `Ryoku.Bus`, the native
+  daemon bus client with its keyed list models; `build.sh` builds them, and
+  they ship prebuilt), `matugen/` (palette
   templates rendered on every wallpaper change),
   `qt6ct/`
   (the Qt icon theme, `qt6ct.conf`),
@@ -136,7 +141,9 @@ truth for the live desktop.
   looks, and `lib/spectrum.js` (with `spectrum.test.mjs` beside it) is the pure
   band math, `lib/place.js` (with `place.test.mjs`) the placement math for a box that turns
   and leans, `lib/aura.js` (with `aura.test.mjs`) the sector folding for the field.
-  Installs to `/usr/lib/qt6/qml/Ryoku/Ui`.
+  Packages install it compiled to `/usr/lib/qt6/qml/Ryoku/Ui` (`CMakeLists.txt`
+  and `build.sh`, run by the ryoku-desktop build); a dev box copies the sources
+  (`install.sh`).
 - `i18n/` the translation catalog and the three runtimes that read it. English
   source strings are the keys, so a developer only ever writes English and a
   missing translation shows English rather than nothing: `langs.json` is the one
