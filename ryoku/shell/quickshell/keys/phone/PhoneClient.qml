@@ -118,10 +118,7 @@ Item {
     }
 
     function argv(fn, args) {
-        const shellDir = Quickshell.env("RYOKU_SHELL_DIR");
-        const command = shellDir
-            ? ["qs", "-p", shellDir + "/quickshell/shell", "ipc", "call", "phone", String(fn)]
-            : ["qs", "-c", "shell", "ipc", "call", "phone", String(fn)];
+        const command = ["ryoku-shell", "ipc", "call", "phone", String(fn)];
         const values = Array.isArray(args) ? args : [];
         for (let i = 0; i < values.length; i++)
             command.push(String(values[i]));

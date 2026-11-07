@@ -322,7 +322,7 @@ max_layers = 8
 maximized_front_scale = 0.9
 
 [command]
-command_window_close = jq -e '.activeOwns | index("windowClose")' "${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/store/shells.json" >/dev/null 2>&1 && qs -c shell ipc call closeConfirm trigger || ryoku-wm-wayfire act window.close focused
+command_window_close = jq -e '.activeOwns | index("windowClose")' "${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/store/shells.json" >/dev/null 2>&1 && ryoku-shell ipc call closeConfirm trigger || ryoku-wm-wayfire act window.close focused
 binding_window_close = <super> KEY_Q | <alt> KEY_F4
 command_window_float = ryoku-wm-wayfire act window.float focused
 binding_window_float = <super> KEY_A

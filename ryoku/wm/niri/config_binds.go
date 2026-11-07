@@ -76,7 +76,7 @@ func shippedBinds() map[string]niriBind {
 		// Windows
 		// The active subshell or bar style can take over the close (it may ask
 		// first); every other close stays niri's own action.
-		"window.close":      {action: spawnSh(wm.ShellCloseCheck + " && qs -c shell ipc call closeConfirm trigger || niri msg action close-window"), noRepeat: true},
+		"window.close":      {action: spawnSh(wm.ShellCloseCheck + " && ryoku-shell ipc call closeConfirm trigger || niri msg action close-window"), noRepeat: true},
 		"window.fullscreen": {action: "fullscreen-window"},
 		// The catalogue names this "Float or tile", which is niri's mechanic too.
 		"window.float": {action: "toggle-window-floating"},

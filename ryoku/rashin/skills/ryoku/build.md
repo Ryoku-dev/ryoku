@@ -5,7 +5,7 @@ order:
 
 1. Search Ryostore with `ryostore catalog`.
 2. Check this machine with `ryoku plugin list` and the active bar's own widget
-   list (QS Bar: `qs -c shell ipc call qsbar catalog` and `... qsbar list`, only
+   list (QS Bar: `ryoku-shell ipc call qsbar catalog` and `... qsbar list`, only
    while QS Bar is active).
 3. See whether existing built-ins compose the result.
 4. Only then build a shell plugin.

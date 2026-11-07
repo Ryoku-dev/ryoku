@@ -48,7 +48,7 @@ func itemSettingsCommand(item shellsIndexItem) string {
 	if item.Settings.IPC == "" || item.Settings.Call == "" {
 		return "-"
 	}
-	parts := []string{"qs", "-c", "shell", "ipc", "call", item.Settings.IPC, item.Settings.Call}
+	parts := []string{"ryoku-shell", "ipc", "call", item.Settings.IPC, item.Settings.Call}
 	for _, a := range item.Settings.Args {
 		if a == "" {
 			a = `""`
@@ -76,8 +76,12 @@ type barSetting struct {
 // loadQsbarCatalog asks a running QS Bar for its widget catalogue. It returns
 // nil when QS Bar is not the active bar style or the shell does not answer.
 // The call is read-only.
-func loadQsbarCatalog() []barWidget {
-	out, ok := probe(5, "qs", "-c", "shell", "ipc", "call", "qsbar", "catalog")
+func loadQsbarCatalog(index *shellsIndex) []barWidget {
+	// The index names the active item, so nothing runs while another one is.
+	if index != nil && index.Active != "" && index.Active != "qsbar" {
+		return nil
+	}
+	out, ok := probe(5, "ryoku-shell", "ipc", "call", "qsbar", "catalog")
 	if !ok {
 		return nil
 	}
@@ -117,7 +121,8 @@ func barSectionBody() string {
 	b.WriteString("`shell.json`; change it through these commands, never by editing the file.\n\n")
 
 	b.WriteString("### Installed shells\n\n")
-	if index := loadShellsIndex(); index == nil || len(index.Items) == 0 {
+	index := loadShellsIndex()
+	if index == nil || len(index.Items) == 0 {
 		b.WriteString("(shells index not found; `ryoku-shell shells sync` writes it)\n\n")
 	} else {
 		b.WriteString("| id | name | category | source | active | settings (while active) |\n|---|---|---|---|---|---|\n")
@@ -137,15 +142,15 @@ func barSectionBody() string {
 	b.WriteString("in `shell.json` under `qsbar.layout` (ordered id lists for left, center and\n")
 	b.WriteString("right) and it answers on its own IPC target:\n\n")
 	b.WriteString("```\n")
-	b.WriteString("qs -c shell ipc call qsbar list | catalog | layout\n")
-	b.WriteString("qs -c shell ipc call qsbar move <id> <left|center|right> <placement>\n")
-	b.WriteString("qs -c shell ipc call qsbar show <id> | hide <id> | set <id> <key> <value>\n")
-	b.WriteString("qs -c shell ipc call qsbar position top|bottom | form full|fit|dock|notch|islands | defaults\n")
-	b.WriteString("qs -c shell ipc call qsbar settings <route>\n")
+	b.WriteString("ryoku-shell ipc call qsbar list | catalog | layout\n")
+	b.WriteString("ryoku-shell ipc call qsbar move <id> <left|center|right> <placement>\n")
+	b.WriteString("ryoku-shell ipc call qsbar show <id> | hide <id> | set <id> <key> <value>\n")
+	b.WriteString("ryoku-shell ipc call qsbar position top|bottom | form full|fit|dock|notch|islands | defaults\n")
+	b.WriteString("ryoku-shell ipc call qsbar settings <route>\n")
 	b.WriteString("```\n\n")
 	b.WriteString("A placement is empty (the end), an index, `before:<id>` or `after:<id>`.\n")
 	b.WriteString("`settings \"\"` opens QS Bar Settings and `settings close` closes it.\n\n")
-	if widgets := loadQsbarCatalog(); len(widgets) == 0 {
+	if widgets := loadQsbarCatalog(index); len(widgets) == 0 {
 		b.WriteString("(QS Bar is not the active bar style, so its widget catalogue is not listed)\n\n")
 	} else {
 		b.WriteString("| id | label | kind | shown | section | settings keys |\n|---|---|---|---|---|---|\n")
@@ -178,7 +183,7 @@ func barSectionBody() string {
 	b.WriteString("Installed plugins live in `~/.local/share/ryoku/plugins/<id>/`; their bar\n")
 	b.WriteString("placement and settings persist in `~/.config/ryoku/plugins.json`. While QS Bar\n")
 	b.WriteString("is active a bar plugin shows on it and under QS Bar Settings > Community\n")
-	b.WriteString("(`qs -c shell ipc call qsbar settings community`); `ryoku plugin remove <id>`\n")
+	b.WriteString("(`ryoku-shell ipc call qsbar settings community`); `ryoku plugin remove <id>`\n")
 	b.WriteString("takes it off again, and `ryoku plugin share <id>` (only when the user asks to\n")
 	b.WriteString("publish) opens the Ryostore pull request that lists it for everyone.\n")
 	b.WriteString(vaultBarFenceEnd + "\n")

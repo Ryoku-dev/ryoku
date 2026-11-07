@@ -788,7 +788,7 @@ guides stay honest without the gestures having to invert a projection.
 
 Each visualizer instance is placed by hand rather than by numbers.
 `Super+Alt+M` or
-`qs -c shell ipc call desktop editSection visualizer` opens the Stage Editor's
+`ryoku-shell ipc call desktop editSection visualizer` opens the Stage Editor's
 Visualizer catalogue with an instance selected. Every instance has its own
 frame and grip (`visualizer:<index>`); selecting one retargets the catalogue.
 Dragging moves it, a corner sizes it, and the top handle turns it. The preview

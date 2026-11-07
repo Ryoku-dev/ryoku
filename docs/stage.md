@@ -306,7 +306,7 @@ temporary detail page rather than another top-level catalogue.
 The IPC entry point is:
 
 ```
-qs -c shell ipc call desktop editSection <section>[/<page>] [monitor]
+ryoku-shell ipc call desktop editSection <section>[/<page>] [monitor]
 ```
 
 It opens the editor on catalogues such as `visualizer`, `depth`, `wallpaper`,

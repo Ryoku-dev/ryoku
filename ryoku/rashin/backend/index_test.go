@@ -17,7 +17,7 @@ func TestDesktopBodyGUIMap(t *testing.T) {
 		"Graphics & Power",
 		"ryogami wallpaper ui",
 		"ryoku-shell barstyle <id>",
-		"qs -c shell ipc call qsbar settings",
+		"ryoku-shell ipc call qsbar settings",
 		"ryoku-shell dock list",
 	} {
 		if !strings.Contains(body, want) {

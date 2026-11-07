@@ -147,7 +147,7 @@ ryoku --help                              # the ryoku CLI surface
 ryostore catalog --category subshells     # shipped and store subshells
 ryostore catalog --category barstyles     # store bar styles
 ryoku-shell dock list                     # the dock state
-qs -c shell ipc call qsbar catalog        # QS Bar's widgets, only while QS Bar is active
+ryoku-shell ipc call qsbar catalog        # QS Bar's widgets, only while QS Bar is active
 ryogami wallpaper --help
 ```
 
@@ -174,7 +174,7 @@ When a request would change the system, in order:
    lands through the command that page wraps, so read on.
 2. **Is there a command for it?** Use it. Switching the bar is
    `ryoku-shell barstyle <id>`, the dock is `ryoku-shell dock ...`, and QS Bar's
-   layout is `qs -c shell ipc call qsbar ...` while QS Bar is active (see
+   layout is `ryoku-shell ipc call qsbar ...` while QS Bar is active (see
    `bar.md`); wallpaper has `ryogami wallpaper set`; updates have `ryoku update`.
 3. **Is it a config edit with no command?** Ask `ryoku owner <path>`, then edit
    the override it names, never the shipped file. Use `wm.md` for the
@@ -206,13 +206,13 @@ When a request would change the system, in order:
   `ryoku-shell barstyle <id>`
 - "Open the bar settings" -> Bar Studio > OPEN SETTINGS for the active item, or
   its own click (Orpheus: left-click the 力 logo); scripted, the call desktop.md
-  lists for it, e.g. `qs -c shell ipc call orpheus settings ""`
+  lists for it, e.g. `ryoku-shell ipc call orpheus settings ""`
 - "Put the bar at the bottom" (QS Bar active) -> QS Bar Settings > Bar, or
-  `qs -c shell ipc call qsbar position bottom`
+  `ryoku-shell ipc call qsbar position bottom`
 - "Move the clock to the right" (QS Bar active) -> QS Bar Settings > Layout, or
-  `qs -c shell ipc call qsbar move clock right ""`
+  `ryoku-shell ipc call qsbar move clock right ""`
 - "Hide the GPU widget" (QS Bar active) -> QS Bar Settings > Widgets, or
-  `qs -c shell ipc call qsbar hide gpu`
+  `ryoku-shell ipc call qsbar hide gpu`
 - "Add a crypto price applet to the bar" -> climb `feature.md`:
   `ryostore catalog` (a store plugin may already do it), then the active item's
   widget list (a hidden built-in?), then `ryoku plugin new` and the plugin

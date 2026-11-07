@@ -1988,6 +1988,11 @@ func roRyokuShell(args []string) (bool, string) {
 			return true, ""
 		}
 		return false, "`ryoku-shell dock` with that action changes the dock"
+	case "ipc":
+		if roShellIpcRead(rest[1:]) {
+			return true, ""
+		}
+		return false, "`ryoku-shell ipc` with that call can change the desktop"
 	}
 	return false, "`ryoku-shell " + rest[0] + "` is not a read-only command"
 }
@@ -2008,17 +2013,20 @@ func roQs(args []string) (bool, string) {
 		if a == "list" || a == "log" {
 			return true, ""
 		}
-		if a == "ipc" && roQsbarRead(args[i+1:]) {
-			return true, ""
+		if a == "ipc" {
+			return false, "`qs ipc` bypasses the shell daemon; read through `ryoku-shell ipc`"
 		}
 		return false, "`qs " + a + "` is not a read-only command"
 	}
 	return false, "`qs` needs the list or log subcommand"
 }
 
-// roQsbarRead admits the QS Bar item's query calls; every other call on its
-// IPC target edits the bar.
-func roQsbarRead(rest []string) bool {
+// roShellIpcRead admits property reads and the QS Bar item's query calls;
+// every other function call can act on the desktop.
+func roShellIpcRead(rest []string) bool {
+	if len(rest) == 3 && rest[0] == "get" {
+		return true
+	}
 	if len(rest) != 3 || rest[0] != "call" || rest[1] != "qsbar" {
 		return false
 	}

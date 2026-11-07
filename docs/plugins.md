@@ -210,7 +210,7 @@ island.
 - The bar handles the **island pill, spacing, and the bar's width arithmetic**.
 - A bar glyph **is a layout entry**, the same kind of entry as a built-in widget:
   it lives in `shell.json` `qsbar.layout`, so a user drags it between lanes in QS
-  Bar Settings' Layout route or moves it from a terminal with `qs -c shell ipc
+  Bar Settings' Layout route or moves it from a terminal with `ryoku-shell ipc
   call qsbar move <id> <left|center|right> ""`. It shows once it is enabled with
   `host: topbarGlyph` in `plugins.json`.
 

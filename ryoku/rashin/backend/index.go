@@ -234,8 +234,8 @@ func guiMapBody() string {
 	b.WriteString("| Want to change | Open | Deep link | Command behind it |\n|---|---|---|---|\n")
 	b.WriteString("| Wallpaper or theme | Wallpaper picker (Super+W), or the bar Wallpaper widget | - | `ryogami wallpaper ui` |\n")
 	b.WriteString("| Subshell or bar style | Ryoku Hub: Bar Studio | `ryoku-shell hub open bar-studio` | `ryoku-shell barstyle <id>` |\n")
-	b.WriteString("| QS Bar layout (while QS Bar is active) | QS Bar Settings | - | `qs -c shell ipc call qsbar settings \"\"` |\n")
-	b.WriteString("| Dock | Stage Editor (Super+Shift+D), Dock section | `qs -c shell ipc call desktop editSection dock \"\"` | `ryoku-shell dock list` |\n")
+	b.WriteString("| QS Bar layout (while QS Bar is active) | QS Bar Settings | - | `ryoku-shell ipc call qsbar settings \"\"` |\n")
+	b.WriteString("| Dock | Stage Editor (Super+Shift+D), Dock section | `ryoku-shell ipc call desktop editSection dock \"\"` | `ryoku-shell dock list` |\n")
 	b.WriteString("| Launch an app | App launcher (Super+Space) | - | - |\n")
 	for _, s := range guiSections {
 		fmt.Fprintf(&b, "| Ryoku Hub: %s | Super+comma | `ryoku-shell hub open %s` | - |\n", s.name, s.key)

@@ -11,7 +11,7 @@ local function close_active()
     if f then f:close() end
     local owns = s:match('"activeOwns"%s*:%s*%[([^%]]*)%]') or ""
     if owns:find('"windowClose"', 1, true) then
-        hl.exec_cmd("qs -c shell ipc call closeConfirm trigger")
+        hl.exec_cmd("ryoku-shell ipc call closeConfirm trigger || hyprctl dispatch 'hl.dsp.window.close()'")
     else
         hl.dispatch(hl.dsp.window.close())
     end

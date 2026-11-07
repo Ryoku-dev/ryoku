@@ -37,6 +37,29 @@ func TestSettingsSectionRoutesStoreCategories(t *testing.T) {
 	}
 }
 
+// fakeRyokuShell puts a ryoku-shell on PATH that logs each call's argv, one
+// bracketed entry per argument so an empty argument stays visible.
+func fakeRyokuShell(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	log := filepath.Join(dir, "argv")
+	script := "#!/bin/sh\n{ printf '[%s]' \"$@\"; printf '\\n'; } >> \"" + log + "\"\n" + body
+	if err := os.WriteFile(filepath.Join(dir, "ryoku-shell"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return log
+}
+
+func shellCalls(t *testing.T, log string) []string {
+	t.Helper()
+	raw, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(raw)), "\n")
+}
+
 // A dock is worn from the desktop editor, so its "open in settings" reaches the
 // Stage Editor's Dock catalogue in the running shell and never the Hub.
 func TestDockSettingsOpenTheDesktopEditor(t *testing.T) {
@@ -46,22 +69,22 @@ func TestDockSettingsOpenTheDesktopEditor(t *testing.T) {
 	if !hasSettingsSection("docks") {
 		t.Fatal("docks offer no settings route")
 	}
-	dir := t.TempDir()
-	log := filepath.Join(dir, "argv")
-	qs := filepath.Join(dir, "qs")
-	if err := os.WriteFile(qs, []byte("#!/bin/sh\necho \"$@\" >> \""+log+"\"\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	log := fakeRyokuShell(t, "")
 	if err := dispatch([]string{"settings", "docks", "engawa"}); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(log)
-	if err != nil {
-		t.Fatal(err)
+	want := "[ipc][call][desktop][editSection][dock][]"
+	if got := shellCalls(t, log); len(got) != 1 || got[0] != want {
+		t.Fatalf("ryoku-shell calls = %q, want [%q]", got, want)
 	}
-	if got := strings.TrimSpace(string(raw)); got != "-c shell ipc call desktop editSection dock" {
-		t.Fatalf("qs argv = %q", got)
+}
+
+// A daemon refusal (no shell, unknown section) reaches the caller with its reason.
+func TestSettingsReportsTheDaemonRefusal(t *testing.T) {
+	fakeRyokuShell(t, "echo 'err ryoku-shell is not running' >&2\nexit 1\n")
+	err := dispatch([]string{"settings", "rices"})
+	if err == nil || !strings.Contains(err.Error(), "ryoku-shell is not running") {
+		t.Fatalf("settings error = %v, want the daemon's reason", err)
 	}
 }
 
@@ -79,10 +102,12 @@ func TestStoreSectionIncludesShowroomRoutesAndEveryCategory(t *testing.T) {
 }
 
 func TestDispatchRoutesHandoffCommands(t *testing.T) {
+	fakeRyokuShell(t, "")
 	dir := t.TempDir()
-	qs := filepath.Join(dir, "qs")
-	if err := os.WriteFile(qs, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"qs", "flock"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 
@@ -99,32 +124,13 @@ func TestDispatchRoutesHandoffCommands(t *testing.T) {
 }
 
 func TestProfileSettingsPassesIDToUsersPage(t *testing.T) {
-	dir := t.TempDir()
-	log := filepath.Join(dir, "argv")
-	for name, body := range map[string]string{
-		"flock": "#!/bin/sh\nexit 0\n",
-		"qs":    "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"" + log + "\"\n",
-	} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-
+	log := fakeRyokuShell(t, "")
 	if err := dispatch([]string{"settings", "profiles", "hacker"}); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := os.ReadFile(log)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Split(strings.TrimSpace(string(raw)), "\n")
-	want := []string{
-		"-c hub ipc call nav open users",
-		"-c hub ipc call users fromProfile hacker",
-	}
-	if strings.Join(got, "\n") != strings.Join(want, "\n") {
-		t.Fatalf("qs calls = %q, want %q", got, want)
+	want := "[hub][open][users][hacker]"
+	if got := shellCalls(t, log); len(got) != 1 || got[0] != want {
+		t.Fatalf("ryoku-shell calls = %q, want [%q]", got, want)
 	}
 	if err := dispatch([]string{"settings", "profiles"}); err == nil {
 		t.Fatal("profile settings accepted no profile id")
@@ -133,18 +139,7 @@ func TestProfileSettingsPassesIDToUsersPage(t *testing.T) {
 
 // Bar-style routes stay complete while the dedicated Subshells route remains.
 func TestBarStyleSettingsHandoff(t *testing.T) {
-	dir := t.TempDir()
-	log := filepath.Join(dir, "navigation.log")
-	t.Setenv("RYOKU_TEST_QS_LOG", log)
-	for filename, body := range map[string]string{
-		"flock": "#!/bin/sh\nexit 0\n",
-		"qs":    "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$RYOKU_TEST_QS_LOG\"\n",
-	} {
-		if err := os.WriteFile(filepath.Join(dir, filename), []byte(body), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	log := fakeRyokuShell(t, "")
 	for _, tc := range []struct{ category, id, expected string }{
 		{"barstyles", "python", "bar-studio"},
 		{"barstyles", "gokko", "bar-studio"},
@@ -156,14 +151,9 @@ func TestBarStyleSettingsHandoff(t *testing.T) {
 		if err := runSettings([]string{tc.category, tc.id}); err != nil {
 			t.Fatalf("settings %s %s: %v", tc.category, tc.id, err)
 		}
-		raw, err := os.ReadFile(log)
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := "-c hub ipc call nav open " + tc.expected
-		got := strings.TrimSpace(string(raw))
-		if !strings.HasSuffix(got, want) {
-			t.Fatalf("settings %s %s routed to %q, want suffix %q", tc.category, tc.id, got, want)
+		want := "[hub][open][" + tc.expected + "]"
+		if got := shellCalls(t, log); len(got) != 1 || got[0] != want {
+			t.Fatalf("settings %s %s routed to %q, want [%q]", tc.category, tc.id, got, want)
 		}
 		if err := os.Remove(log); err != nil {
 			t.Fatal(err)

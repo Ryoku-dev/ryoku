@@ -15,7 +15,7 @@ func barTestEnv(t *testing.T, shells string) {
 	t.Setenv("HOME", h)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(h, ".local", "state"))
-	t.Setenv("PATH", "") // loadQsbarCatalog finds no qs
+	t.Setenv("PATH", "") // loadQsbarCatalog finds no ryoku-shell
 	if shells == "" {
 		return
 	}
@@ -40,10 +40,10 @@ func TestBarSectionListsShellsAndCommands(t *testing.T) {
 		vaultBarFenceBegin,
 		vaultBarFenceEnd,
 		"## Bar and dock",
-		"| orpheus | Orpheus | subshells | shipped | yes | `qs -c shell ipc call orpheus settings` |",
-		"| qsbar | QS Bar | barstyles | store | no | `qs -c shell ipc call qsbar settings \"\"` |",
+		"| orpheus | Orpheus | subshells | shipped | yes | `ryoku-shell ipc call orpheus settings` |",
+		"| qsbar | QS Bar | barstyles | store | no | `ryoku-shell ipc call qsbar settings \"\"` |",
 		"ryoku-shell barstyle <id>",
-		"qs -c shell ipc call qsbar move <id> <left|center|right> <placement>",
+		"ryoku-shell ipc call qsbar move <id> <left|center|right> <placement>",
 		"ryoku-shell dock show|hide",
 		"QS Bar is not the active bar style",
 	} {
@@ -61,6 +61,47 @@ func TestBarSectionDegradesWithoutShellsIndex(t *testing.T) {
 	}
 	if !strings.Contains(body, "shells index not found") {
 		t.Fatalf("section should note the missing shells index:\n%s", body)
+	}
+}
+
+// fakeQsbarShell puts a ryoku-shell on PATH that answers the catalogue call and
+// records that it ran.
+func fakeQsbarShell(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	ran := filepath.Join(dir, "ran")
+	script := "#!/bin/sh\necho \"$*\" >> \"" + ran + "\"\n" +
+		"echo '[{\"id\":\"clock\",\"label\":\"Clock\",\"kind\":\"builtin\",\"shown\":true,\"section\":\"right\"}]'\n"
+	if err := os.WriteFile(filepath.Join(dir, "ryoku-shell"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	return ran
+}
+
+// Another active item has no qsbar target, so the section never asks for one.
+func TestBarSectionSkipsTheCatalogueUnderAnotherItem(t *testing.T) {
+	barTestEnv(t, `{"schema":1,"active":"orpheus","items":[{"id":"orpheus","category":"subshells","source":"shipped","name":"Orpheus"}]}`)
+	ran := fakeQsbarShell(t)
+	body := barSectionBody()
+	if _, err := os.Stat(ran); err == nil {
+		t.Fatal("the catalogue was queried while Orpheus is active")
+	}
+	if !strings.Contains(body, "QS Bar is not the active bar style") {
+		t.Fatalf("section should say QS Bar is inactive:\n%s", body)
+	}
+}
+
+func TestBarSectionListsTheLiveCatalogueWhileQsbarIsActive(t *testing.T) {
+	barTestEnv(t, `{"schema":1,"active":"qsbar","items":[{"id":"qsbar","category":"barstyles","source":"store","name":"QS Bar"}]}`)
+	ran := fakeQsbarShell(t)
+	body := barSectionBody()
+	raw, err := os.ReadFile(ran)
+	if err != nil || strings.TrimSpace(string(raw)) != "ipc call qsbar catalog" {
+		t.Fatalf("catalogue call = %q (%v)", raw, err)
+	}
+	if !strings.Contains(body, "| clock | Clock | builtin | true | right | (none) |") {
+		t.Fatalf("section should list the live catalogue:\n%s", body)
 	}
 }
 

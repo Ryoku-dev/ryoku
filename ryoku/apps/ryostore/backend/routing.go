@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -61,6 +62,8 @@ func runOpen(args []string) error {
 	return openConfig("ryostore", "/tmp/ryostore.lock", args[0])
 }
 
+// runSettings hands every settings route to the shell daemon, which owns the
+// Hub's single instance (start, navigate, raise) and the shell's IPC.
 func runSettings(args []string) error {
 	if len(args) < 1 || len(args) > 2 {
 		return fmt.Errorf("settings needs <category> [id]")
@@ -69,29 +72,26 @@ func runSettings(args []string) error {
 		if len(args) != 2 || !productIDPattern.MatchString(args[1]) {
 			return fmt.Errorf("settings profiles needs a valid profile id")
 		}
-		if err := openConfig("hub", "/tmp/ryoku-hub.lock", "users"); err != nil {
-			return err
-		}
-		if err := retryConfigCall("hub", "users", "fromProfile", args[1]); err != nil {
-			return fmt.Errorf("open profile %q in hub: %w", args[1], err)
-		}
-		return nil
+		return ryokuShell("hub", "open", "users", args[1])
 	}
 	if section, ok := editorSection(args[0]); ok {
-		return openEditorSection(section)
+		// The empty monitor is the focused one.
+		return ryokuShell("ipc", "call", "desktop", "editSection", section, "")
 	}
 	section, ok := settingsSection(args[0])
 	if !ok {
 		return fmt.Errorf("unknown settings category %q", args[0])
 	}
-	return openConfig("hub", "/tmp/ryoku-hub.lock", section)
+	return ryokuShell("hub", "open", section)
 }
 
-// openEditorSection opens the Stage Editor on one catalogue of the focused
-// monitor. The shell is resident, so there is nothing to start first.
-func openEditorSection(section string) error {
-	if err := exec.Command("qs", "-c", "shell", "ipc", "call", "desktop", "editSection", section, "").Run(); err != nil {
-		return fmt.Errorf("open the desktop editor's %s section: %w", section, err)
+func ryokuShell(args ...string) error {
+	out, err := exec.Command("ryoku-shell", args...).CombinedOutput()
+	if err != nil {
+		if msg := strings.TrimSpace(string(out)); msg != "" {
+			return fmt.Errorf("ryoku-shell %s: %s", strings.Join(args, " "), msg)
+		}
+		return fmt.Errorf("ryoku-shell %s: %w", strings.Join(args, " "), err)
 	}
 	return nil
 }

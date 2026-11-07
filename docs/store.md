@@ -460,7 +460,7 @@ Popular, New, and Updated rankings.
   They are picked in Settings -> Overlays, the `overlays` page in the DESKTOP
   group after Controls; `ryostore settings osds`, `ryostore settings
   notifications`, and `ryostore settings sidebars` all open it. The page has a
-  Try action for each surface, and its OSD action calls `qs -c shell ipc call
+  Try action for each surface, and its OSD action calls `ryoku-shell ipc call
   osd preview` to flash the volume OSD.
 
   Installing never selects a product. Removing one that is worn moves its
@@ -500,8 +500,8 @@ Store-specific code moves out of the Hub instead of being copied:
   `BROWSE RYOSTORE` route where appropriate;
 - existing callers of moved commands migrate to `/usr/bin/ryostore`, with no
   compatibility shim or duplicated command left in `ryoku-hub`;
-- `ryostore settings` starts or focuses Ryoku Settings and uses the Hub's
-  existing `nav` IPC target to open the correct management section.
+- `ryostore settings` hands the route to `ryoku-shell hub open <section>`, which
+  starts or focuses Ryoku Settings on the correct management section.
 
 This is a clean cutover. Ryostore is the only browse surface after the migration.
 

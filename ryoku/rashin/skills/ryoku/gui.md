@@ -66,7 +66,7 @@ them (see below), never as dead settings.
 When someone asks about the look of an OSD, a notification card, or the
 Super+Escape sidebar, send them to Settings -> Overlays. The page keeps
 installation separate from selection and has a Try action for each surface; the
-OSD action flashes the volume display through `qs -c shell ipc call osd
+OSD action flashes the volume display through `ryoku-shell ipc call osd
 preview`.
 
 When someone says the desktop blurs or darkens behind an open app, on any
@@ -105,9 +105,9 @@ Controls, ryoshot, and Ask are outside the Hub. Reach them here:
 |---|---|---|---|
 | Change wallpaper or theme | Wallpaper picker | Super+W | `ryogami wallpaper ui` (picker), `ryogami wallpaper set\|next\|random` |
 | Pick the subshell or bar style | Ryoku Hub > Subshells or Bar Studio | `ryoku-shell hub open subshells`, `ryoku-shell hub open bar-studio` | `ryostore install <subshells\|barstyles> <id>`, then `ryoku-shell barstyle <id>` |
-| The active item's own settings (bar layout, modules, look) | Its settings window: Bar Studio > OPEN SETTINGS, or the item's own click (Orpheus: left-click its 力 logo) | only while that item is active | the call desktop.md lists for it, e.g. `qs -c shell ipc call orpheus settings ""`, `qs -c shell ipc call kairos settings`, `qs -c shell ipc call qsbar settings ""` |
-| QS Bar layout and widgets (while QS Bar is active) | QS Bar Settings | the bar's launcher mark, or `qs -c shell ipc call qsbar settings <route>` | `qs -c shell ipc call qsbar ...` (see bar.md) |
-| Dock | Stage Editor (Super+Shift+D), Dock section; Bar Studio > OPEN DOCK SETTINGS lands there too | `qs -c shell ipc call desktop editSection dock ""` | `ryoku-shell dock ...` (see bar.md) |
+| The active item's own settings (bar layout, modules, look) | Its settings window: Bar Studio > OPEN SETTINGS, or the item's own click (Orpheus: left-click its 力 logo) | only while that item is active | the call desktop.md lists for it, e.g. `ryoku-shell ipc call orpheus settings ""`, `ryoku-shell ipc call kairos settings`, `ryoku-shell ipc call qsbar settings ""` |
+| QS Bar layout and widgets (while QS Bar is active) | QS Bar Settings | the bar's launcher mark, or `ryoku-shell ipc call qsbar settings <route>` | `ryoku-shell ipc call qsbar ...` (see bar.md) |
+| Dock | Stage Editor (Super+Shift+D), Dock section; Bar Studio > OPEN DOCK SETTINGS lands there too | `ryoku-shell ipc call desktop editSection dock ""` | `ryoku-shell dock ...` (see bar.md) |
 | Launch an app | App launcher | Super+Space | the shell launcher (the App Launcher page tunes it and picks launchers installed items provide) |
 | System activity, connections, levels, and session actions | Controls (its look is picked in Hub > Overlays) | Super+Escape | `ryoku-shell quicksettings` |
 | Screenshots and recordings | ryoshot capture bar | Super+Shift+S | `ryoku-shell screenshot` |

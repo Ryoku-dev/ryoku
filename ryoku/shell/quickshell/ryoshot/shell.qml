@@ -603,13 +603,13 @@ ShellRoot {
     function toggleKeypresses() {
         keypressesTouched = true;
         keypressesActive = !keypressesActive;
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "keypresses", "toggle"]);
+        Quickshell.execDetached(["ryoku-shell", "ipc", "call", "keypresses", "toggle"]);
     }
 
     function toggleWebcam() {
         webcamTouched = true;
         webcamActive = !webcamActive;
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "camera", "toggle"]);
+        Quickshell.execDetached(["ryoku-shell", "ipc", "call", "camera", "toggle"]);
     }
 
     function openScreenshotsFolder() {
@@ -1280,7 +1280,7 @@ ShellRoot {
 
     Process {
         id: keypressStateProc
-        command: ["qs", "-c", "shell", "ipc", "prop", "get", "keypresses", "active"]
+        command: ["ryoku-shell", "ipc", "get", "keypresses", "active"]
         stdout: StdioCollector { id: keypressStateOut }
         Component.onCompleted: running = true
         onExited: (code) => {
@@ -1292,7 +1292,7 @@ ShellRoot {
 
     Process {
         id: webcamStateProc
-        command: ["qs", "-c", "shell", "ipc", "prop", "get", "camera", "active"]
+        command: ["ryoku-shell", "ipc", "get", "camera", "active"]
         stdout: StdioCollector { id: webcamStateOut }
         Component.onCompleted: running = true
         onExited: (code) => {

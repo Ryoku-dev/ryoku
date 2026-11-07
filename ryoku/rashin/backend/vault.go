@@ -69,7 +69,7 @@ const AgentsTemplate = "# Ryoku system vault\n" +
 	"first, act through commands, never edit shipped files. When the ask is a\n" +
 	"feature the desktop does not have, climb the ladder in the skill's\n" +
 	"`feature.md` before writing code: `ryostore catalog`, then the active bar\n" +
-	"style's own widget list (QS Bar: `qs -c shell ipc call qsbar catalog`), then\n" +
+	"style's own widget list (QS Bar: `ryoku-shell ipc call qsbar catalog`), then\n" +
 	"`ryoku plugin list`, then build a plugin per `plugins.md`. Never rebuild what\n" +
 	"the store or a hidden built-in already ships.\n" +
 	"\n" +

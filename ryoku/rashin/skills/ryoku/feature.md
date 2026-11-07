@@ -33,14 +33,14 @@ stop. A subshell or bar style still needs selecting: Ryoku Hub > Bar Studio, or
 
 ```bash
 ryoku plugin list                    # installed plugins and their host and enabled state
-qs -c shell ipc call qsbar catalog   # QS Bar's widgets, builtin or plugin, with settings
-qs -c shell ipc call qsbar list      # QS Bar's live layout, per section, with shown state
+ryoku-shell ipc call qsbar catalog   # QS Bar's widgets, builtin or plugin, with settings
+ryoku-shell ipc call qsbar list      # QS Bar's live layout, per section, with shown state
 ```
 
 The two `qsbar` calls answer only while QS Bar is the active bar style; under
 another item, check its own settings window (Orpheus: the Layout page lists its
 optional modules). A QS Bar widget that exists but is hidden needs
-`qs -c shell ipc call qsbar show <id>`, not code. A plugin installed but not
+`ryoku-shell ipc call qsbar show <id>`, not code. A plugin installed but not
 placed needs `ryoku plugin` or QS Bar Settings. Check before you build; half of
 "missing" features are switched off.
 

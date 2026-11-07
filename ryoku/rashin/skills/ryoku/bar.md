@@ -87,13 +87,13 @@ none is in the default layout. Its keys live under `orpheus` in `shell.json` and
 are listed in `docs/subshells.md`.
 
 While Orpheus is active its settings window also opens with
-`qs -c shell ipc call orpheus settings ""`.
+`ryoku-shell ipc call orpheus settings ""`.
 
 ## Kairos
 
 Kairos keeps a compact clock island at rest and grows it into music, quick
 settings and its own launcher. While it is active its settings open with
-`qs -c shell ipc call kairos settings`. Its launcher is a part: pick it on Ryoku
+`ryoku-shell ipc call kairos settings`. Its launcher is a part: pick it on Ryoku
 Hub > App Launcher.
 
 ## QS Bar
@@ -106,11 +106,11 @@ this exists while another item is active, and there is no `ryoku-shell bar`
 command any more.
 
 ```
-qs -c shell ipc call qsbar list | catalog | layout
-qs -c shell ipc call qsbar move <id> <left|center|right> <placement>
-qs -c shell ipc call qsbar show <id> | hide <id> | set <id> <key> <value>
-qs -c shell ipc call qsbar position top|bottom | form full|fit|dock|notch|islands | defaults
-qs -c shell ipc call qsbar settings <route>
+ryoku-shell ipc call qsbar list | catalog | layout
+ryoku-shell ipc call qsbar move <id> <left|center|right> <placement>
+ryoku-shell ipc call qsbar show <id> | hide <id> | set <id> <key> <value>
+ryoku-shell ipc call qsbar position top|bottom | form full|fit|dock|notch|islands | defaults
+ryoku-shell ipc call qsbar settings <route>
 ```
 
 Pass every argument. A placement is `""` (the end), a 0-based index,
@@ -121,11 +121,11 @@ and `settings close` closes it. Writes answer `ok` or `err qsbar: <reason>`;
 are always shown, so `show` and `hide` refuse them.
 
 ```bash
-qs -c shell ipc call qsbar move clock right 0
-qs -c shell ipc call qsbar hide gpu
-qs -c shell ipc call qsbar set cputemp barTemperatureSource gpu
-qs -c shell ipc call qsbar position bottom
-qs -c shell ipc call qsbar form islands
+ryoku-shell ipc call qsbar move clock right 0
+ryoku-shell ipc call qsbar hide gpu
+ryoku-shell ipc call qsbar set cputemp barTemperatureSource gpu
+ryoku-shell ipc call qsbar position bottom
+ryoku-shell ipc call qsbar form islands
 ```
 
 Volume boost is platform policy at `audio.boost` in `shell.json`, shared by every
@@ -143,7 +143,7 @@ Ryoku's own dock is platform: it works under every subshell and bar style,
 unless the active item draws its own. Its GUI is the **Stage Editor**
 (Super+Shift+D, then its Dock section), also reached from Ryoku Hub > Bar
 Studio > OPEN DOCK SETTINGS or straight with
-`qs -c shell ipc call desktop editSection dock ""`. Installed items can add dock
+`ryoku-shell ipc call desktop editSection dock ""`. Installed items can add dock
 designs; they show under PARTS FROM ITEMS and in the Stage Editor.
 
 ```

@@ -169,7 +169,7 @@ Item settings data stays in `Config.qml` namespaces (`orpheus`, `kairos`,
 how to open an item's own settings:
 
 - `ipc`, `call`, `args`: Bar Studio's **ACTIVE ITEM** card has **OPEN
-  SETTINGS**, which runs `qs -c shell ipc call <ipc> <call> <args...>`. Inactive
+  SETTINGS**, which runs `ryoku-shell ipc call <ipc> <call> <args...>`. Inactive
   items are not loaded and their IPC targets do not exist, so for a selected
   item that is not running yet the card offers **SWITCH NOW** instead.
 - `hubEditor`: one of the built-in Hub editors `frame-rails` (Sumi's frame and
@@ -217,7 +217,7 @@ and session. Right-click empty bar space to open Controls.
 
 Left-click the 力 logo to open settings, and right-click it to open the
 launcher. Bar Studio's OPEN SETTINGS button opens them too, and
-`qs -c shell ipc call orpheus settings <page|close>` does the same from a
+`ryoku-shell ipc call orpheus settings <page|close>` does the same from a
 keybind or script; pass `""` to open the default Bar page. The settings pages
 are Bar, Layout, Modules, Sound, and About. A choice applies at once and is
 written through the shell daemon; the foot of the
@@ -286,7 +286,7 @@ it, and Super+Space grows the same island into its own app launcher when the
 Kairos launcher is picked (`docs/launcher.md`).
 
 Its settings open from the gear in the top-right of the expanded clock island,
-from Bar Studio's OPEN SETTINGS, or with `qs -c shell ipc call kairos settings`.
+from Bar Studio's OPEN SETTINGS, or with `ryoku-shell ipc call kairos settings`.
 The window is styled like the island, near-black with a hairline rim and the
 same accent, and has three routes over the same `shell.json` namespace:
 
