@@ -4,7 +4,7 @@
   "reference": {
     "machine": "Hyperion lab: systemd-nspawn, nested niri at 1920x1080 on headless Weston, AMD iGPU, still 4K wallpaper (rices/default/wall.webp)",
     "scenario": "idle: empty workspace, no music, nothing open, 120 s settle, 60 s window",
-    "measured": "2026-11-07: Hyperion step 2 lab runs (Orpheus, Orpheus after three reloads, Kairos); session-daemons read in the lab the same day"
+    "measured": "2026-11-07: five runs of this script's gate on a fresh desktop each (three Orpheus, two Kairos), Hyperion ad9146fd4 with the tree's ryoku-wm-niri and niri config; each number is the highest of those runs"
   },
   "margins": {
     "memoryPct": 15,
@@ -14,90 +14,90 @@
   },
   "groups": {
     "shell-daemon": {
-      "pssMB": 18.5,
+      "pssMB": 22.9,
       "gpuMB": 0,
       "cpuPct": 0.1,
       "wakeupsPerSec": 35,
       "launchesPerMin": 0,
-      "source": "PSS and CPU from the lab (18.0 to 18.5 MB); wakeups from the bare-metal at-rest run in docs/performance.md",
+      "source": "PSS and CPU from the lab (20.7 to 22.9 MB); wakeups from the bare-metal at-rest run in docs/performance.md",
       "lab": {
         "wakeupsPerSec": 44,
         "why": "in the container the daemon's input watch falls back to a 2 s poll (34 to 44 wakeups/s measured)"
       }
     },
     "shell-helpers": {
-      "pssMB": 1.8,
+      "pssMB": 2.1,
       "gpuMB": 0,
       "cpuPct": 0,
       "wakeupsPerSec": 0,
       "launchesPerMin": 0,
       "optional": true,
-      "source": "wl-clip-persist, 0.4 to 1.8 MB"
+      "source": "wl-clip-persist, 2.0 to 2.1 MB"
     },
     "wm-provider": {
-      "pssMB": 6.7,
+      "pssMB": 9.8,
       "gpuMB": 0,
       "cpuPct": 0,
-      "wakeupsPerSec": 0,
+      "wakeupsPerSec": 0.1,
       "launchesPerMin": 0,
-      "source": "the daemon's and Ryogami's ryoku-wm-niri watch, 6.3 to 6.7 MB together"
+      "source": "the daemon's and Ryogami's ryoku-wm-niri watch, 9.7 to 9.8 MB together; the daemon's warm act child leaves after 30 s without an action, so it is not here at rest"
     },
     "wallpaper": {
-      "pssMB": 14.3,
+      "pssMB": 15.7,
       "gpuMB": 0,
       "cpuPct": 0,
-      "wakeupsPerSec": 0.2,
+      "wakeupsPerSec": 0.9,
       "launchesPerMin": 0,
-      "source": "ryogami daemon with a still wallpaper, 13.3 to 14.3 MB"
+      "source": "ryogami daemon with a still wallpaper, 15.4 to 15.7 MB"
     },
     "session-daemons": {
-      "pssMB": 1.7,
+      "pssMB": 2.1,
       "gpuMB": 0,
-      "cpuPct": 0,
-      "wakeupsPerSec": 1,
+      "cpuPct": 0.02,
+      "wakeupsPerSec": 0.0,
       "launchesPerMin": 0,
       "optional": true,
-      "source": "ryoku-bt-agent (sh, tail -f /dev/null, bluetoothctl --agent); tail polls /dev/null once a second"
+      "source": "ryoku-bt-agent (sh, sleep infinity, bluetoothctl --agent); nothing in it wakes at rest"
     }
   },
   "styles": {
     "orpheus": {
       "groups": {
         "shell-ui": {
-          "pssMB": 299,
-          "gpuMB": 242,
+          "pssMB": 319.7,
+          "gpuMB": 249.5,
           "cpuPct": 0.1,
-          "wakeupsPerSec": 8.5,
+          "wakeupsPerSec": 8.2,
           "launchesPerMin": 0,
-          "source": "qs -c shell: 292 to 299 MB PSS, 238 to 242 MB VRAM plus GTT, 8.2 to 8.5 wakeups/s; the one launch a minute then (the recorder's gsr-cli poll) is gone"
+          "source": "qs -c shell: 314 to 320 MB PSS, 245 to 250 MB VRAM plus GTT, 7.9 to 8.2 wakeups/s"
         },
         "compositor": {
-          "pssMB": 67.2,
-          "gpuMB": 113.7,
-          "cpuPct": 0.05,
-          "wakeupsPerSec": 7.1,
+          "pssMB": 77.6,
+          "gpuMB": 107.6,
+          "cpuPct": 0.08,
+          "wakeupsPerSec": 7.3,
           "launchesPerMin": 0,
-          "source": "nested niri under Orpheus"
+          "source": "nested niri under Orpheus, 75 to 78 MB PSS"
         }
       }
     },
     "kairos": {
       "groups": {
         "shell-ui": {
-          "pssMB": 282,
-          "gpuMB": 247,
-          "cpuPct": 0.12,
-          "wakeupsPerSec": 11.9,
+          "pssMB": 310.2,
+          "gpuMB": 251.1,
+          "cpuPct": 0.08,
+          "wakeupsPerSec": 8.0,
           "launchesPerMin": 0,
-          "source": "qs -c shell under Kairos"
+          "source": "qs -c shell under Kairos: 309 to 310 MB PSS, 247 to 251 MB, 8.0 wakeups/s"
         },
         "compositor": {
-          "pssMB": 59.1,
-          "gpuMB": 133.3,
+          "pssMB": 79.1,
+          "gpuMB": 118.9,
           "cpuPct": 0.07,
-          "wakeupsPerSec": 9.2,
+          "wakeupsPerSec": 7.5,
           "launchesPerMin": 0,
-          "source": "nested niri under Kairos"
+          "source": "nested niri under Kairos, 77 to 79 MB PSS"
         }
       }
     }

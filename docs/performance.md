@@ -359,13 +359,13 @@ its numbers come from:
 
 | entry | what it is | measured (lab) |
 |---|---|---|
-| `shell-ui` | the `qs -c shell` process: the bar style, desktop, dock and overlays | Orpheus 292 to 299 MB PSS, 238 to 242 MB GPU, 0.1 % CPU, 8.2 to 8.5 wakeups/s; Kairos 282 MB, 247 MB, 0.1 %, 11.9 |
-| `shell-daemon` | `ryoku-shell daemon` | 18 MB, 0.1 %, 35 wakeups/s on bare metal, 34 to 44 in the lab |
-| `shell-helpers` | what the daemon and the shell start, today `wl-clip-persist` | 0.4 to 1.8 MB |
-| `wm-provider` | the `ryoku-wm-niri watch` processes of the daemon and Ryogami | 6.3 to 6.7 MB |
-| `wallpaper` | Ryogami with a still wallpaper | 13.3 to 14.3 MB, 0.2 wakeups/s |
-| `compositor` | niri (nested in the lab) | 66 to 67 MB and 107 to 114 MB GPU under Orpheus, 59 MB and 133 MB under Kairos |
-| `session-daemons` | Ryoku's user units, today `ryoku-bt-agent` | 1.7 MB; its `tail -f /dev/null` polls once a second |
+| `shell-ui` | the `qs -c shell` process: the bar style, desktop, dock and overlays | Orpheus 314 to 320 MB PSS, 245 to 250 MB GPU, 0.1 % CPU, 7.9 to 8.2 wakeups/s; Kairos 309 to 310 MB, 247 to 251 MB, 0.1 %, 8.0 |
+| `shell-daemon` | `ryoku-shell daemon` | 21 to 23 MB, 0.1 %, 35 wakeups/s on bare metal, 33 to 37 in the lab |
+| `shell-helpers` | what the daemon and the shell start, today `wl-clip-persist` | 2.0 to 2.1 MB |
+| `wm-provider` | the `ryoku-wm-niri watch` processes of the daemon and Ryogami; the warm act child leaves after 30 s without an action | 9.7 to 9.8 MB |
+| `wallpaper` | Ryogami with a still wallpaper | 15.4 to 15.7 MB, under 1 wakeup/s |
+| `compositor` | niri (nested in the lab) | 75 to 78 MB and 108 MB GPU under Orpheus, 77 to 79 MB and 114 to 119 MB under Kairos |
+| `session-daemons` | Ryoku's user units, today `ryoku-bt-agent` | 2.1 MB, no wakeups |
 
 **Lab allowances.** A number that only the container produces sits in the
 entry's `lab` block with a `why`, and applies when the run was recorded inside a

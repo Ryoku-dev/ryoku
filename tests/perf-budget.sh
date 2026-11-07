@@ -123,11 +123,12 @@ check "a required group that is not running fails" 1 '^\| wallpaper \| absent \|
 mutate nobt "$fixture" 'd["rows"] = [r for r in rows if r["group"] != "session-daemons"]'
 check "an optional group may be absent" 0 'budget: 31 checks, 0 failed' --budget "$budget" --input "$work/nobt.json"
 
-# The active bar style selects its own entry.
-mutate kairos "$fixture" 'system["style"] = "kairos"; group("shell-ui")[0].update(pss=282.0, vram_mb=227.0, gtt_mb=20.1, cpu_pct=0.117, wakeups_s=11.9)'
-check "Kairos is checked against the Kairos entry" 0 "$(row 'shell-ui wakeups/s' 11.9 PASS)" \
+# The active bar style selects its own entry: Kairos's compositor draws more
+# GPU memory than Orpheus's, so 130 MB passes under Kairos and fails under Orpheus.
+mutate kairos "$fixture" 'system["style"] = "kairos"; group("shell-ui")[0].update(pss=310.2, vram_mb=231.0, gtt_mb=20.1, cpu_pct=0.08, wakeups_s=8.0); group("compositor")[0].update(vram_mb=130.0, gtt_mb=0.0)'
+check "Kairos is checked against the Kairos entry" 0 "$(row 'compositor GPU MB' 130.0 PASS)" \
   --budget "$budget" --input "$work/kairos.json"
-check "--style overrides the run's style" 1 "$(row 'shell-ui wakeups/s' 11.9 FAIL)" \
+check "--style overrides the run's style" 1 "$(row 'compositor GPU MB' 130.0 FAIL)" \
   --budget "$budget" --input "$work/kairos.json" --style orpheus
 mutate nacre "$fixture" 'system["style"] = "nacre"'
 check "a style without a budget is an error" 2 "no entry for bar style 'nacre'" --budget "$budget" --input "$work/nacre.json"
