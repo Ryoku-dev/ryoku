@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.WindowManager
 import Quickshell.Wayland
+import Ryoku.Bus
 
 // Capability-shaped view of the window manager. The daemon provider owns the
 // workspace and window state; Wayland protocols enrich it with handles and
@@ -256,6 +257,18 @@ Singleton {
             });
         }
         return out;
+    }
+
+    // One row per window with its identity fields, straight from the provider
+    // frame (parsed off the GUI thread): a move, resize or focus change emits
+    // nothing, a retitle updates one row. No toplevel handle and no defaults:
+    // a field the provider leaves out reads undefined. Views that need the
+    // handle or the exact `windows` entry key their own model off `windows`.
+    readonly property BusListModel windowRows: BusListModel {
+        topic: "wm"
+        path: "windows"
+        key: "id"
+        roles: ["id", "appId", "title", "workspace", "output"]
     }
 
     // The foreign-toplevel activated flag marks the focused window on every

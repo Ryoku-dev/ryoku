@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Ryoku.Bus
 import Ryoku.Ui.Singletons
 import "../../../../components"
 import shell.services
@@ -48,6 +49,14 @@ Item {
             (a.output > b.output ? 1 : Number(a.name) - Number(b.name)));
         return out;
     }
+    // The pills follow a keyed copy of entries, so a workspace frame keeps every
+    // pill (and its icon row) that is still there.
+    BusListModel {
+        id: entryModel
+        key: "name"
+        roles: ["name", "output"]
+        rows: root.entries
+    }
 
     // Active set is per-output (the active workspace shown on each output).
     readonly property var activeIds: {
@@ -90,7 +99,7 @@ Item {
         Row {
             spacing: 4 * root.scale
             Repeater {
-                model: root.entries
+                model: entryModel
                 delegate: pillComp
             }
         }
@@ -100,7 +109,7 @@ Item {
         Column {
             spacing: 4 * root.scale
             Repeater {
-                model: root.entries
+                model: entryModel
                 delegate: pillComp
             }
         }

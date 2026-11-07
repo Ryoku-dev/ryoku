@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Ryoku.Bus
 import "Singletons"
 import Ryoku.Ui.Singletons
 
@@ -186,6 +187,14 @@ Item {
         return out;
     }
     readonly property int slotCount: root.slotModel.length
+    // The cells follow a keyed copy of slotModel, so a workspace frame keeps
+    // each cell, its captures and its glide state while the slot stays.
+    BusListModel {
+        id: slotRows
+        key: "wsId"
+        roles: ["pos", "wsId", "add", "full"]
+        rows: root.slotModel
+    }
 
     // ---- desktop card geometry (shared with DesktopStrip + the drag hit-test) -
     readonly property real deskCardW: 122 * root.s
@@ -488,7 +497,7 @@ Item {
         height: root.availH
 
         Repeater {
-            model: root.slotModel
+            model: slotRows
             delegate: WorkspaceCell {
                 id: cell
                 required property var modelData

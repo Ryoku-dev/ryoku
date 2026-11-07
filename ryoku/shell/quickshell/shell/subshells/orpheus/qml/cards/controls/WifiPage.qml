@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Bus
 import shell.services
 import "../../kit" as K
 
@@ -30,6 +31,16 @@ Item {
             return Number(right.strength || 0) - Number(left.strength || 0);
         });
         return source.filter(function(ap) { return ap && !ap.active; });
+    }
+    // The rows follow a keyed copy of accessPoints: a scan or a strength change
+    // moves and updates rows in place, so an open password field keeps its
+    // focus and text while the list re-sorts under it.
+    BusListModel {
+        id: accessPointRows
+        key: "bssid"
+        roles: ["ssid", "strength", "security", "bssid", "frequency", "band", "saved",
+            "active", "autoconnect"]
+        rows: page.accessPoints
     }
 
     function openNetwork(ap) {
@@ -212,7 +223,7 @@ Item {
             spacing: K.Style.s2
 
             Repeater {
-                model: page.accessPoints
+                model: accessPointRows
 
                 delegate: Item {
                     id: accessPoint

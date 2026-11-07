@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
+import Ryoku.Bus
 import "Singletons"
 import Ryoku.Ui.Singletons
 import shell.services as Svc
@@ -46,6 +47,15 @@ Item {
         running: !!cell.ov && cell.ov.active && cell.ov.dataReady && !cell.appeared
         repeat: false
         onTriggered: cell.appeared = true
+    }
+    // The overview is resident and its cells now outlive a workspace frame, so
+    // each settles back out once the surface has unmapped and every open plays
+    // the entrance again.
+    Timer {
+        interval: Motion.window
+        running: !!cell.ov && !cell.ov.active && cell.appeared
+        repeat: false
+        onTriggered: cell.appeared = false
     }
     opacity: cell.appeared ? 1 : 0
     scale: cell.appeared ? 1 : 0.92
@@ -102,9 +112,20 @@ Item {
     readonly property bool tape: cell.geom.tape
     readonly property var viewportFrac: cell.geom.vp
 
+    // The tiles follow a keyed copy of cards: a retitle or a frame for another
+    // workspace leaves every tile and its one-shot capture in place, and a moved
+    // window glides to its new box.
+    BusListModel {
+        id: cardRows
+        key: "addr"
+        roles: ["addr", "tl", "cls", "fx", "fy", "fw", "fh"]
+        rows: cell.cards
+    }
+
     // distinct app icons open on this workspace (dedup by class, capped), for the
-    // small roster under the number badge.
-    readonly property var appIcons: {
+    // small roster under the number badge. Adopted only when the list differs,
+    // so the roster is not rebuilt for an unrelated frame.
+    readonly property var _liveAppIcons: {
         var seen = ({});
         var out = [];
         for (var i = 0; i < cell.cards.length && out.length < 6; i++) {
@@ -119,6 +140,14 @@ Item {
         }
         return out;
     }
+    property var appIcons: []
+    function _adoptAppIcons() {
+        var next = cell._liveAppIcons;
+        if (next.join("\u0000") !== cell.appIcons.join("\u0000"))
+            cell.appIcons = next;
+    }
+    on_LiveAppIconsChanged: cell._adoptAppIcons()
+    Component.onCompleted: cell._adoptAppIcons()
 
     // hard offset shadow behind EVERY cell (solid black, no blur; the depth is
     // the offset, per docs/ui-ux.md). Deepens as the cell lifts.
@@ -305,7 +334,7 @@ Item {
 
         // ---- live window tiles ----
         Repeater {
-            model: cell.cards
+            model: cardRows
             delegate: Rectangle {
                 id: tile
                 required property var modelData

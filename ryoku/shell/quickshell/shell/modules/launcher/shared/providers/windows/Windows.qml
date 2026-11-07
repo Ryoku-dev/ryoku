@@ -34,9 +34,14 @@ Provider {
         });
     }
 
+    // Wm.windowRows carries only the identity fields the signature reads, so a
+    // geometry or focus frame emits nothing and never rebuilds the entries.
     Connections {
-        target: Wm
-        function onWindowsChanged() { windows.queueLiveUpdate(); }
+        target: Wm.windowRows
+        function onRowsInserted() { windows.queueLiveUpdate(); }
+        function onRowsRemoved() { windows.queueLiveUpdate(); }
+        function onDataChanged() { windows.queueLiveUpdate(); }
+        function onModelReset() { windows.queueLiveUpdate(); }
     }
 
     // Focusing must wait until the palette's close morph unmaps its exclusive-

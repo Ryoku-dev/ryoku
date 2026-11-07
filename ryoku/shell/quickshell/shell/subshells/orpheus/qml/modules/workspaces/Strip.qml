@@ -10,7 +10,11 @@ Item {
     id: root
 
     property string style: "dots"
+    // model drives the slot delegates: a plain array (the settings preview) or
+    // a keyed list model. rows is the same content as an array, for the active
+    // slot and the width; it is the model itself when that is an array.
     property var model: []
+    property var rows: Array.isArray(model) ? model : []
     property bool interactive: true
     property real unit: K.Style.barH
     property bool square: false
@@ -33,7 +37,7 @@ Item {
         ? style : "dots"
     readonly property string mode: requestedMode === "kanji" && !UiPreferences.showJapaneseGloss ? "numbers" : requestedMode
     readonly property int activeIndex: {
-        const rows = model || [];
+        const rows = root.rows || [];
         for (let index = 0; index < rows.length; ++index) {
             if (rows[index].active === true)
                 return index;
@@ -50,7 +54,7 @@ Item {
     property real rightEdge: 0
     property int settledIndex: -1
 
-    implicitWidth: (model ? model.length : 0) * pitch
+    implicitWidth: (rows ? rows.length : 0) * pitch
     implicitHeight: unit
     width: implicitWidth
     height: implicitHeight

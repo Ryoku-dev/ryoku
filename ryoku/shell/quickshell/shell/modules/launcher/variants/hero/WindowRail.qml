@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Widgets
+import Ryoku.Bus
 import "../../shared/Singletons"
 import Ryoku.Ui.Singletons
 import shell.services as Svc
@@ -65,6 +66,14 @@ Item {
     readonly property bool hasWindows: windows.length > 0
     readonly property int windowCount: windows.length
     readonly property var windowAddresses: windows.map(window => window.address)
+    // The tiles follow a keyed copy of windows, so a retitle or a geometry
+    // frame keeps the tiles and their selection colour instead of rebuilding.
+    BusListModel {
+        id: railRows
+        key: "address"
+        roles: ["address", "title", "cls", "workspace"]
+        rows: root.windows
+    }
     // Leave a real breathing gap below the ledger: the rail reads as a small
     // overview floater, not a continuation of the result list.
     readonly property real targetHeight: open && hasWindows ? 96 * s : 0
@@ -158,7 +167,7 @@ Item {
         orientation: ListView.Horizontal
         spacing: 7 * root.s
         clip: true
-        model: root.windows
+        model: railRows
         boundsBehavior: Flickable.StopAtBounds
 
         delegate: Rectangle {

@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Bus
 import Ryoku.Ui.Singletons
 import "../kit" as K
 import "../settings" as S
@@ -14,6 +15,14 @@ Item {
     property bool present: true
 
     property var rows: []
+    // The strip's delegates follow this keyed copy of rows, so a switch or a
+    // new window updates the slots it touches instead of rebuilding all of them.
+    BusListModel {
+        id: rowModel
+        key: "key"
+        roles: ["key", "label", "index", "active", "occupied", "urgent", "apps", "windowCount"]
+        rows: root.rows
+    }
     property string appliedSignature: ""
     readonly property string rowSignature: workspaceSignature()
 
@@ -193,7 +202,8 @@ Item {
         anchors.centerIn: parent
         style: S.Prefs.workspaceStyle
         square: S.Prefs.form === "square"
-        model: root.rows
+        rows: root.rows
+        model: rowModel
         onActivated: key => Wm.focusWorkspace(key)
         onOverviewRequested: Wm.toggleOverview()
         onScrolled: steps => Wm.cycleWorkspace(steps > 0 ? -1 : 1)

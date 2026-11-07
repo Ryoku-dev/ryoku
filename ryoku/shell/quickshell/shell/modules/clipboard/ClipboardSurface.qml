@@ -5,6 +5,7 @@ import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
 import shell.services
+import Ryoku.Bus
 import Ryoku.Ui.Singletons
 import "../../components"
 import "../../utils/fuzzy.js" as Fuzzy
@@ -58,10 +59,31 @@ Scope {
 
     readonly property string focusedMon: Wm.focusedOutput
 
-    // Two panes off one warm resident topic: history is everything unstarred,
-    // Starred is everything starred. Both recompute when the daemon republishes.
-    readonly property var historyEntries: (Clipboard.entries || []).filter(e => e && e.starred !== true)
-    readonly property var starredEntries: (Clipboard.entries || []).filter(e => e && e.starred === true)
+    // Two panes off one warm resident topic, each a keyed view of it: history is
+    // everything unstarred, Starred is everything starred. A republish touches
+    // only the cards whose entry changed. Both empty while the daemon is away,
+    // as the Clipboard service does.
+    readonly property string feed: Bus.connected ? "clipboard" : ""
+    readonly property var entryRoles: ["id", "kind", "mime", "size", "preview", "thumb",
+        "thumbW", "thumbH", "w", "h", "starred"]
+    BusListModel {
+        id: historyRows
+        topic: root.feed
+        path: "entries"
+        key: "id"
+        roles: root.entryRoles
+        filterRole: "starred"
+        filterValue: false
+    }
+    BusListModel {
+        id: starredRows
+        topic: root.feed
+        path: "entries"
+        key: "id"
+        roles: root.entryRoles
+        filterRole: "starred"
+        filterValue: true
+    }
 
     // Free-text filter over the history. The query must appear as an ordered
     // subsequence of the entry's text -- its preview for a text entry, its mime
@@ -71,10 +93,10 @@ Scope {
     property string query: ""
     readonly property bool searching: root.query.trim().length > 0
     readonly property var shownHistory: {
-        const items = root.historyEntries;
         const q = root.query.trim().toLowerCase();
         if (q.length === 0)
-            return items;
+            return [];
+        const items = (Clipboard.entries || []).filter(e => e && e.starred !== true);
         const hits = [];
         for (let i = 0; i < items.length; i++) {
             const e = items[i];
@@ -85,6 +107,14 @@ Scope {
         }
         hits.sort((a, b) => a.score !== b.score ? a.score - b.score : a.at - b.at);
         return hits.map(h => h.entry);
+    }
+    // The ranked matches as rows, so narrowing the query drops cards instead of
+    // rebuilding the ones that still match.
+    BusListModel {
+        id: searchRows
+        key: "id"
+        roles: root.entryRoles
+        rows: root.shownHistory
     }
 
     // 0 = History pane (left), 1 = Starred pane (right)
@@ -142,7 +172,13 @@ Scope {
         property real s: 1
         property string title: ""
         property string glyph: ""
-        property var items: []
+        // The entries this pane lists, a keyed row model: a new clip inserts one
+        // card and a star moves one between the panes, the rest stay put.
+        property var model: null
+        readonly property int itemCount: model ? model.count : 0
+        function itemAt(i) {
+            return model && i >= 0 && i < itemCount ? model.get(i) : null;
+        }
         property string emptyGlyph: ""
         property string emptyText: ""
         // The pane that owns a search field: its header carries the input, bound
@@ -161,28 +197,27 @@ Scope {
         signal paneClicked()
 
         function syncSelectedEntryId() {
-            selectedEntryId = selectedIndex >= 0 && items && selectedIndex < items.length
-                ? String(items[selectedIndex].id)
-                : "";
+            const entry = itemAt(selectedIndex);
+            selectedEntryId = entry ? String(entry.id) : "";
         }
 
         onSelectedIndexChanged: syncSelectedEntryId()
 
         function moveSelection(delta) {
-            if (!items || items.length === 0) {
+            if (itemCount === 0) {
                 selectedIndex = -1;
                 return;
             }
             if (selectedIndex < 0) {
-                selectedIndex = delta > 0 ? 0 : items.length - 1;
+                selectedIndex = delta > 0 ? 0 : itemCount - 1;
             } else {
-                selectedIndex = Math.max(0, Math.min(items.length - 1, selectedIndex + delta));
+                selectedIndex = Math.max(0, Math.min(itemCount - 1, selectedIndex + delta));
             }
             cards.positionViewAtIndex(selectedIndex, ListView.Contain);
         }
 
         function selectHome() {
-            if (!items || items.length === 0) {
+            if (itemCount === 0) {
                 selectedIndex = -1;
                 return;
             }
@@ -191,16 +226,16 @@ Scope {
         }
 
         function selectEnd() {
-            if (!items || items.length === 0) {
+            if (itemCount === 0) {
                 selectedIndex = -1;
                 return;
             }
-            selectedIndex = items.length - 1;
+            selectedIndex = itemCount - 1;
             cards.positionViewAtIndex(selectedIndex, ListView.End);
         }
 
         function selectFirst() {
-            if (!items || items.length === 0) {
+            if (itemCount === 0) {
                 selectedIndex = -1;
                 return;
             }
@@ -209,61 +244,57 @@ Scope {
         }
 
         function activateSelected() {
-            if (selectedIndex >= 0 && items && selectedIndex < items.length) {
-                const entry = items[selectedIndex];
-                if (entry && entry.id !== undefined) {
-                    Clipboard.copy(Number(entry.id));
-                    pane.closeRequested();
-                }
+            const entry = itemAt(selectedIndex);
+            if (entry && entry.id !== undefined) {
+                Clipboard.copy(Number(entry.id));
+                pane.closeRequested();
             }
         }
 
         function starSelected() {
-            if (selectedIndex >= 0 && items && selectedIndex < items.length) {
-                const entry = items[selectedIndex];
-                if (entry && entry.id !== undefined) {
-                    Clipboard.star(Number(entry.id), !(entry.starred === true));
-                }
+            const entry = itemAt(selectedIndex);
+            if (entry && entry.id !== undefined) {
+                Clipboard.star(Number(entry.id), !(entry.starred === true));
             }
         }
 
         function deleteSelected() {
-            if (selectedIndex >= 0 && items && selectedIndex < items.length) {
-                const entry = items[selectedIndex];
-                if (entry && entry.id !== undefined) {
-                    Clipboard.del(Number(entry.id));
-                }
+            const entry = itemAt(selectedIndex);
+            if (entry && entry.id !== undefined) {
+                Clipboard.del(Number(entry.id));
             }
         }
 
         onQueryChanged: {
             selectedEntryId = "";
-            selectedIndex = items && items.length > 0 ? 0 : -1;
+            selectedIndex = itemCount > 0 ? 0 : -1;
             syncSelectedEntryId();
         }
 
-        onItemsChanged: {
+        // The selection follows its entry across inserts, removals and moves;
+        // a changed preview or star leaves every row where it was.
+        function reconcileSelection() {
             const previousId = selectedEntryId;
             let preservedIndex = -1;
-            if (previousId && items) {
-                for (let i = 0; i < items.length; i++) {
-                    if (String(items[i].id) === previousId) {
+            if (previousId) {
+                for (let i = 0; i < itemCount; i++) {
+                    if (String(itemAt(i).id) === previousId) {
                         preservedIndex = i;
                         break;
                     }
                 }
             }
 
-            if (!items || items.length === 0) {
+            if (itemCount === 0) {
                 selectedIndex = -1;
             } else if (preservedIndex >= 0) {
                 selectedIndex = preservedIndex;
             } else if (pane.active) {
                 selectedIndex = selectedIndex < 0
                     ? 0
-                    : Math.min(selectedIndex, items.length - 1);
-            } else if (selectedIndex >= items.length) {
-                selectedIndex = items.length - 1;
+                    : Math.min(selectedIndex, itemCount - 1);
+            } else if (selectedIndex >= itemCount) {
+                selectedIndex = itemCount - 1;
             }
 
             syncSelectedEntryId();
@@ -271,9 +302,18 @@ Scope {
                 cards.positionViewAtIndex(selectedIndex, ListView.Contain);
         }
 
+        onModelChanged: reconcileSelection()
+        Connections {
+            target: pane.model
+            function onRowsInserted() { pane.reconcileSelection(); }
+            function onRowsRemoved() { pane.reconcileSelection(); }
+            function onRowsMoved() { pane.reconcileSelection(); }
+            function onModelReset() { pane.reconcileSelection(); }
+        }
+
         onActiveChanged: {
             if (pane.active) {
-                if (selectedIndex < 0 && items && items.length > 0)
+                if (selectedIndex < 0 && itemCount > 0)
                     selectedIndex = 0;
                 if (selectedIndex >= 0)
                     cards.positionViewAtIndex(selectedIndex, ListView.Contain);
@@ -492,7 +532,7 @@ Scope {
                 id: countChip
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
-                visible: pane.items.length > 0
+                visible: pane.itemCount > 0
                 height: Math.round(20 * pane.s)
                 width: Math.max(height, cnt.implicitWidth + Math.round(12 * pane.s))
                 radius: height / 2
@@ -501,7 +541,7 @@ Scope {
                 Text {
                     id: cnt
                     anchors.centerIn: parent
-                    text: pane.items.length
+                    text: pane.itemCount
                     color: Theme.onSurfaceVariant
                     font.family: Theme.fontPrimary
                     font.pixelSize: Math.round((Theme.fontSm - 2) * pane.s)
@@ -521,7 +561,7 @@ Scope {
             height: 1
             color: Theme.outlineVariant
             opacity: 0.6
-            visible: pane.items.length > 0
+            visible: pane.itemCount > 0
         }
 
         ListView {
@@ -545,11 +585,11 @@ Scope {
             anchors.bottomMargin: Math.round(14 * pane.s)
             clip: true
             spacing: Math.round(10 * pane.s)
-            model: pane.items
+            model: pane.model
             reuseItems: true
             cacheBuffer: Math.max(0, height)
             boundsBehavior: Flickable.StopAtBounds
-            visible: pane.items.length > 0
+            visible: pane.itemCount > 0
 
             delegate: ClipboardCard {
                 required property var modelData
@@ -572,7 +612,7 @@ Scope {
             anchors.centerIn: parent
             width: parent.width - Math.round(40 * pane.s)
             spacing: Math.round(8 * pane.s)
-            visible: pane.items.length === 0
+            visible: pane.itemCount === 0
 
             MaterialIcon {
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -757,7 +797,7 @@ Scope {
                         hot: win.shown && win.isFocused
                         query: root.query
                         onQueryEdited: text => root.query = text
-                        items: root.shownHistory
+                        model: root.searching ? searchRows : historyRows
                         emptyGlyph: root.searching ? "search_off" : "content_paste_off"
                         emptyText: root.searching
                             ? I18n.tr("Nothing here matches that search.")
@@ -774,7 +814,7 @@ Scope {
                         glyph: "star"
                         title: I18n.tr("Starred")
                         active: root.activePane === 1
-                        items: root.starredEntries
+                        model: starredRows
                         emptyGlyph: "star_outline"
                         emptyText: I18n.tr("Tap the star on an item to keep it here.")
                         onCloseRequested: root.hide()

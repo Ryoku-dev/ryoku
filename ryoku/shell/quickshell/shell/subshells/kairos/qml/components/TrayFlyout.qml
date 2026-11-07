@@ -8,6 +8,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Ryoku.Bus
 import shell.services
 import shell.barkit as Pill
 import Ryoku.Ui.Singletons
@@ -90,12 +91,31 @@ Item {
             if (!c || c.visible === false) continue;
             var sep = c.type === "separator";
             var hasKids = !sep && Array.isArray(c.children) && c.children.length > 0;
-            out.push({ node: c, depth: depth, sep: sep, hasKids: hasKids });
+            out.push({ id: c.id, node: c, depth: depth, sep: sep, hasKids: hasKids });
             if (hasKids && flyout.expanded[c.id]) flyout.rowsFor(c, depth + 1, out);
         }
         return out;
     }
     readonly property var menuRows: flyout.menuTree ? flyout.rowsFor(flyout.menuTree, 0, []) : []
+
+    // The icon row and the open menu follow keyed views of the tray: a frame
+    // for one app (a status or icon change) updates that icon and leaves the
+    // rest, and the open menu keeps its entries while the app republishes it.
+    // Empty while the daemon is away, as the Tray service is.
+    BusListModel {
+        id: trayRows
+        topic: Bus.connected ? "tray" : ""
+        path: "items"
+        key: "service"
+        roles: ["service", "id", "title", "status", "category", "iconName", "iconPath",
+            "tooltip", "itemIsMenu", "menu"]
+    }
+    BusListModel {
+        id: menuRowModel
+        key: "id"
+        roles: ["id", "node", "depth", "sep", "hasKids"]
+        rows: flyout.menuRows
+    }
 
     // ── sizing ───────────────────────────────────────────────────────────────
     // caretBand is the sliver already reserved beneath the date wheel at rest
@@ -198,7 +218,7 @@ Item {
             height: flyout.rowH
             spacing: 12
             Repeater {
-                model: Tray.items
+                model: trayRows
 
                 delegate: Item {
                     id: trayIcon
@@ -306,7 +326,7 @@ Item {
                 width: parent.width
 
                 Repeater {
-                    model: flyout.menuRows
+                    model: menuRowModel
 
                     delegate: Item {
                         id: entryRow
