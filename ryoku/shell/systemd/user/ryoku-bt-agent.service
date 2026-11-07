@@ -14,9 +14,10 @@ Type=simple
 # pair with: they confirm a numeric passkey, and bluetoothd denies the bond
 # when no agent can answer (#308). Devices that need nothing (headphones,
 # Just Works) are unaffected. bluetoothctl exits at stdin EOF when it is not
-# attached to a terminal, so hold stdin open; the agent then sits idle and
+# attached to a terminal, so hold stdin open with a writer that never wakes
+# (tail -f /dev/null polls once a second); the agent then sits idle and
 # auto-confirms the comparison prompts bluetoothd sends it.
-ExecStart=/bin/sh -c 'tail -f /dev/null | bluetoothctl --agent KeyboardDisplay'
+ExecStart=/bin/sh -c 'sleep infinity | bluetoothctl --agent KeyboardDisplay'
 Restart=on-failure
 RestartSec=2
 Slice=session.slice

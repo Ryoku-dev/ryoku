@@ -4,5 +4,6 @@ exec 2>&1
 load_session_env
 wait_service bluetoothd "${RYOKU_WAIT_BLUETOOTHD:-60}" || exec sv down .
 
-# Keep stdin open so bluetoothctl remains registered as the pairing agent.
-exec /bin/sh -c 'tail -f /dev/null | exec bluetoothctl --agent KeyboardDisplay'
+# Keep stdin open so bluetoothctl remains registered as the pairing agent;
+# sleep never wakes, where tail -f /dev/null polls once a second.
+exec /bin/sh -c 'sleep infinity | exec bluetoothctl --agent KeyboardDisplay'
