@@ -275,9 +275,11 @@ const shellProducts = [
     { id: "launcher", category: "launchers", installed: true }
 ];
 eq(Store.collection(shellProducts, { categoryID: "subshells" }).map(i => i.id),
-   ["caelestia", "gokko", "orpheus", "python"], "subshell tab lists the subshells category A to Z");
+   ["orpheus", "python", "gokko", "caelestia"], "subshell tab keeps the backend's recommendation order");
 eq(Store.collection(shellProducts, { categoryID: "barstyles" }).map(i => i.id),
-   ["chroma", "obi"], "bar style tab lists only bar styles");
+   ["obi", "chroma"], "bar style tab lists only bar styles, in the backend's order");
+eq(Store.collection(shellProducts, { categoryID: "subshells", query: "on" }).map(i => i.id),
+   ["python", "caelestia"], "a category search keeps that order too");
 eq(Store.categoryName(shellProducts[1], { name: "Subshells" }), "Subshells", "cards carry their category name");
 eq(Store.primaryAction(shellProducts[0]), "ACTIVE", "the worn subshell reads active");
 eq(Store.primaryDone(shellProducts[0]), true, "an active subshell has nothing left to start");
@@ -304,3 +306,40 @@ eq(
     0,
     "a live search result still respects the category filter"
 );
+
+// Resource tiers come from the catalogue's measurements; the backend decides
+// what a modest machine is not recommended for, and the app only presents it.
+const measured = { id: "obi", category: "barstyles", name: "Obi", art: "obi.png",
+    metadata: { resourceTier: "heavy", resourceDelta: { pssMB: 96.4, gpuMB: 40, cpuPct: 0.66, wakeupsPerSec: -1.25, launchesPerMin: 0 } } };
+eq(Store.resourceTier(measured), "heavy", "the published tier is read from metadata");
+eq(Store.resourceTier({ metadata: { resourceTier: "massive" } }), "", "an unknown tier reads as unmeasured");
+eq(Store.resourceTier({ id: "x" }), "", "no metadata is unmeasured");
+eq(Store.resourceDelta(measured), { pssMB: 96.4, gpuMB: 40, cpuPct: 0.66, wakeupsPerSec: -1.25, launchesPerMin: 0 }, "the measured delta is kept whole");
+eq(Store.resourceDelta({ metadata: { resourceDelta: { pssMB: 1 } } }), null, "a partial delta is not shown");
+eq(Store.resourceDelta({ metadata: { resourceDelta: { pssMB: "1", gpuMB: 0, cpuPct: 0, wakeupsPerSec: 0, launchesPerMin: 0 } } }), null, "a non-numeric delta is not shown");
+eq(Store.signedNumber(96.4, 0), "+96", "memory deltas print whole megabytes with a sign");
+eq(Store.signedNumber(0.66, 1), "+0.7", "CPU deltas keep one decimal");
+eq(Store.signedNumber(-1.25, 1), "-1.3", "a lighter item prints a minus");
+eq(Store.signedNumber(0.04, 1), "0", "a delta that rounds away prints 0");
+
+const flagged = Object.assign({}, measured, { notRecommended: true });
+eq(Store.isNotRecommended(flagged), true, "the backend's advice is read as is");
+eq(Store.isNotRecommended(measured), false, "a heavy item on a capable machine carries no advice");
+eq(Store.statusTag(flagged), "NOT RECOMMENDED", "an available item chips the advice");
+eq(Store.statusTag(Object.assign({}, flagged, { installed: true })), "INSTALLED", "an owned item keeps its state chip");
+eq(Store.primaryAction(flagged), "INSTALL", "advice never blocks the install");
+
+const discover = [
+    flagged,
+    { id: "sumi", category: "barstyles", name: "Sumi", art: "sumi.png", metadata: { resourceTier: "light" } },
+    { id: "paper", category: "rices", name: "Paper", art: "paper.png" },
+    Object.assign({}, flagged, { id: "orbit", name: "Orbit", art: "orbit.png" })
+];
+for (const seed of [0, 1, 7, 20260101]) {
+    const order = Store.collection(discover, { view: "discover", seed: seed }).map(i => i.id);
+    eq(order.length, discover.length, "Discover keeps every item (seed " + seed + ")");
+    assert.ok(!["obi", "orbit"].includes(order[0]), "Discover never leads with an item this machine is not recommended for (seed " + seed + ")");
+    eq(order.slice(-2).sort(), ["obi", "orbit"], "not-recommended items sit at the end of Discover (seed " + seed + ")");
+}
+eq(Store.featured([flagged]).id, "obi", "with nothing else to show, a not-recommended item can still lead");
+console.log("RYOSTORE-STORE-TIERS-PASS");

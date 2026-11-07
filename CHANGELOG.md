@@ -109,6 +109,12 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- **Resource tiers in RyoStore.** Every subshell and bar style carries the tier
+  the catalogue measured against Orpheus (Light, Standard or Heavy), shown on
+  its card and, with the measured difference, in its detail. On a machine with
+  under 8 GB of memory or no discrete GPU, heavy ones are marked not
+  recommended (they still install) and the lighter ones are listed first. Bar
+  Studio marks standard items with △ beside the existing ▲ for heavy ones.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar

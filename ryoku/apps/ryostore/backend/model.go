@@ -16,6 +16,9 @@ type Catalog struct {
 	Offline       bool       `json:"offline"`
 	Categories    []Category `json:"categories"`
 	Items         []Item     `json:"items"`
+	// Machine is this computer's headroom (machine.go), which the subshell and
+	// bar style advice on Items was worked out for.
+	Machine Machine `json:"machine"`
 }
 
 // Category is one product kind. Count and InstalledCount are derived by
@@ -95,6 +98,9 @@ type Item struct {
 	Metadata                map[string]any   `json:"metadata,omitempty"`
 	Provides                *ProductProvides `json:"provides,omitempty"`
 	Settings                *ShellSettings   `json:"settings,omitempty"`
+	// NotRecommended marks a heavy subshell or bar style on a modest Machine. It
+	// is advice for the store to show, never a gate: install and apply work.
+	NotRecommended bool `json:"notRecommended,omitempty"`
 }
 
 // SourceState is a provider's fetch outcome: whether it fell back to cached data

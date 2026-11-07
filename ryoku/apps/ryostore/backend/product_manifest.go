@@ -157,6 +157,9 @@ type ProductEntry struct {
 	// RequiresQmlModules is accepted from the registry and not used here.
 	Provides           *ProductProvides `json:"provides,omitempty"`
 	RequiresQmlModules []string         `json:"requiresQmlModules,omitempty"`
+	// Metadata carries a subshell's or bar style's measured resource tier and
+	// its delta against Orpheus (resource_tier.go). Optional.
+	Metadata *ProductMetadata `json:"metadata,omitempty"`
 }
 
 func (entry *ProductEntry) UnmarshalJSON(data []byte) error {
@@ -168,7 +171,7 @@ func (entry *ProductEntry) UnmarshalJSON(data []byte) error {
 		"icon": true, "hosts": true, "lastUpdated": true, "downloadPaused": true,
 		"downloadPauseReason": true, "windowManager": true, "windowManagerReason": true,
 		"packageManagers": true, "packageManagersReason": true, "upstream": true,
-		"discord": true, "provides": true, "requiresQmlModules": true,
+		"discord": true, "provides": true, "requiresQmlModules": true, "metadata": true,
 	}
 	if err := strictJSONFields(data, allowed); err != nil {
 		return err
@@ -360,6 +363,9 @@ func validateProductEntry(category string, entry ProductEntry) error {
 		if module == "" || strings.ContainsAny(module, "/\\\x00") {
 			return fmt.Errorf("%s: invalid required QML module %q", label, module)
 		}
+	}
+	if err := validateProductMetadata(category, entry.Metadata); err != nil {
+		return fmt.Errorf("%s: %w", label, err)
 	}
 	if !productHashPattern.MatchString(entry.ManifestSHA256) {
 		return fmt.Errorf("%s: invalid manifest SHA-256", label)

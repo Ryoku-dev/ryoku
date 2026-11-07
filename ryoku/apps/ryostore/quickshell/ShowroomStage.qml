@@ -1,6 +1,7 @@
 import QtQuick
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "Singletons"
 import "lib/store.js" as StoreLogic
 
 Item {
@@ -271,7 +272,9 @@ Item {
 
         Text {
             width: parent.width
+            readonly property string tier: Store.resourceTierLabel(stage.displayItem)
             text: String(stage.displayItem && (stage.displayItem.categoryName || stage.displayItem.category) || "").toUpperCase()
+                  + (tier !== "" ? " / " + tier : "")
             color: Tokens.inkDim
             font.family: Tokens.mono
             font.pixelSize: Tokens.fMicro
@@ -333,6 +336,20 @@ Item {
             text: StoreLogic.unavailableReason(stage.displayItem).length > 0
                 ? StoreLogic.unavailableReason(stage.displayItem)
                 : StoreLogic.unavailableLabel(stage.displayItem)
+            color: Tokens.inkDim
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall
+            wrapMode: Text.Wrap
+            textFormat: Text.PlainText
+            maximumLineCount: 3
+            elide: Text.ElideRight
+        }
+
+        Text {
+            objectName: "ryostore-stage-not-recommended"
+            width: parent.width
+            text: Store.notRecommendedNote(stage.displayItem)
+            visible: text !== ""
             color: Tokens.inkDim
             font.family: Tokens.ui
             font.pixelSize: Tokens.fSmall

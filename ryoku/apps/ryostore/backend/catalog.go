@@ -103,6 +103,7 @@ func BuildCatalog(ctx context.Context, provs []Provider, refresh bool) Catalog {
 	cat := Catalog{
 		GeneratedAt:   time.Now().UTC().Format(time.RFC3339),
 		WindowManager: runningWindowManager(),
+		Machine:       probeMachine(),
 		Categories:    make([]Category, len(provs)),
 		Items:         []Item{},
 	}
@@ -126,6 +127,9 @@ func BuildCatalog(ctx context.Context, provs []Provider, refresh bool) Catalog {
 				if !isBuiltinCatalogItem(r.items[j]) {
 					hasRemoteItems = true
 				}
+			}
+			if shellCategory(c.ID) {
+				adviseShellItems(r.items, cat.Machine)
 			}
 			cat.Items = append(cat.Items, r.items...)
 		}

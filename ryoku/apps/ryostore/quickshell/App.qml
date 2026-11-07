@@ -665,9 +665,14 @@ Rectangle {
         visible: shown
         enabled: !app.detailOpen
 
+        // Subshells and bar styles on a modest machine come lightest first
+        // (backend resource_tier.go); every other category is A to Z.
         Text {
+            objectName: "ryostore-category-order"
             anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: parent.verticalCenter }
-            text: I18n.tr("A TO Z")
+            text: StoreLogic.isShellItem({ category: app.categoryID }) && Store.catalog.machine
+                    && Store.catalog.machine.modest === true
+                ? I18n.tr("LIGHTEST FIRST FOR THIS COMPUTER") : I18n.tr("A TO Z")
             color: Tokens.inkMuted
             font.family: Tokens.mono
             font.pixelSize: Tokens.fTiny

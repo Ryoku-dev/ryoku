@@ -1,6 +1,7 @@
 import QtQuick
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "Singletons"
 import "lib/store.js" as StoreLogic
 
 FocusScope {
@@ -62,6 +63,9 @@ FocusScope {
     readonly property var tags: Array.isArray(actionItem.tags) ? actionItem.tags : []
     readonly property string errorText: installErrorKey === actionKey ? installError : ""
     readonly property string transitionMode: reducedMotion ? "immediate" : "shared"
+    readonly property string resourceTierText: Store.resourceTierLabel(actionItem)
+    readonly property var resourceDelta: StoreLogic.resourceDelta(actionItem)
+    readonly property string notRecommendedNote: Store.notRecommendedNote(actionItem)
     readonly property string metadataText: [
         actionItem.author ? I18n.tr("AUTHOR / %1").arg(actionItem.author) : "",
         actionItem.version ? I18n.tr("VERSION / %1").arg(actionItem.version) : "",
@@ -70,7 +74,14 @@ FocusScope {
         Number(actionItem.stars || 0) > 0 ? I18n.tr("STARS / %1").arg(actionItem.stars) : "",
         actionItem.size ? I18n.tr("SIZE / %1").arg(actionItem.size) : "",
         actionItem.compatibility ? I18n.tr("COMPATIBILITY / %1").arg(valueText(actionItem.compatibility)) : "",
-        actionItem.contents ? I18n.tr("CONTENTS / %1").arg(valueText(actionItem.contents)) : ""
+        actionItem.contents ? I18n.tr("CONTENTS / %1").arg(valueText(actionItem.contents)) : "",
+        resourceDelta ? I18n.tr("VS ORPHEUS / %1 MB MEMORY, %2 MB GPU, %3 % CPU")
+                .arg(StoreLogic.signedNumber(resourceDelta.pssMB, 0))
+                .arg(StoreLogic.signedNumber(resourceDelta.gpuMB, 0))
+                .arg(StoreLogic.signedNumber(resourceDelta.cpuPct, 1)) : "",
+        resourceDelta ? I18n.tr("VS ORPHEUS / %1 WAKEUPS A SECOND, %2 LAUNCHES A MINUTE")
+                .arg(StoreLogic.signedNumber(resourceDelta.wakeupsPerSec, 1))
+                .arg(StoreLogic.signedNumber(resourceDelta.launchesPerMin, 1)) : ""
     ].filter(Boolean).join("\n")
     readonly property bool isBundle: String(actionItem.category || "") === "bundles"
     // Third-party plugin badges distinguish marketplace verification from the
@@ -630,6 +641,30 @@ FocusScope {
                         font.letterSpacing: Tokens.trackLabel
                     }
                 }
+
+                // The catalogue's measured tier, the same outline as the trust tag;
+                // heavy reads in full ink so it is the one that stands out.
+                Rectangle {
+                    objectName: "ryostore-detail-resource-tier"
+                    visible: detail.resourceTierText !== ""
+                    readonly property bool heavy: StoreLogic.resourceTier(detail.actionItem) === "heavy"
+                    width: resourceTierLabel.implicitWidth + Tokens.s3 * 2
+                    height: resourceTierLabel.implicitHeight + Tokens.s2
+                    radius: Tokens.radius
+                    color: "transparent"
+                    border.width: Tokens.border
+                    border.color: heavy ? Tokens.lineStrong : Tokens.line
+
+                    Text {
+                        id: resourceTierLabel
+                        anchors.centerIn: parent
+                        text: detail.resourceTierText
+                        color: parent.heavy ? Tokens.ink : Tokens.inkDim
+                        font.family: Tokens.mono
+                        font.pixelSize: Tokens.fMicro
+                        font.letterSpacing: Tokens.trackLabel
+                    }
+                }
             }
 
             Text {
@@ -863,6 +898,18 @@ FocusScope {
                 textFormat: Text.PlainText
                 maximumLineCount: 3
                 elide: Text.ElideRight
+            }
+
+            Text {
+                objectName: "ryostore-detail-not-recommended"
+                width: parent.width
+                visible: text !== ""
+                text: detail.notRecommendedNote
+                color: Tokens.inkDim
+                font.family: Tokens.ui
+                font.pixelSize: Tokens.fSmall
+                wrapMode: Text.Wrap
+                textFormat: Text.PlainText
             }
 
             Text {

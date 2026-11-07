@@ -3,6 +3,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
+import "../lib/store.js" as StoreLogic
 
 Singleton {
     id: root
@@ -99,6 +100,34 @@ Singleton {
         if (op === "apply")
             return I18n.tr("Applying failed");
         return I18n.tr("Installation failed");
+    }
+
+    // The catalogue's measured tier for a subshell or bar style, as one word.
+    function resourceTierLabel(item) {
+        const tier = StoreLogic.resourceTier(item);
+        if (tier === "light")
+            return I18n.tr("LIGHT");
+        if (tier === "standard")
+            return I18n.tr("STANDARD");
+        if (tier === "heavy")
+            return I18n.tr("HEAVY");
+        return "";
+    }
+
+    // Why the backend advises against an item here, from the machine the
+    // catalogue was built on. A note only; nothing is refused.
+    function notRecommendedNote(item) {
+        if (!StoreLogic.isNotRecommended(item))
+            return "";
+        const machine = root.catalog && root.catalog.machine || {};
+        const memory = Number(machine.memoryGB || 0);
+        const lowMemory = memory > 0 && memory < 8;
+        const noDiscrete = machine.graphics === "integrated" || machine.graphics === "none";
+        if (lowMemory && noDiscrete)
+            return I18n.tr("Not recommended with %1 GB of memory and no discrete GPU: it measured heavy next to Orpheus. You can still install it.").arg(memory);
+        if (lowMemory)
+            return I18n.tr("Not recommended with %1 GB of memory: it measured heavy next to Orpheus. You can still install it.").arg(memory);
+        return I18n.tr("Not recommended without a discrete GPU: it measured heavy next to Orpheus. You can still install it.");
     }
 
     function itemKey(item) {

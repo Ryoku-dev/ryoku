@@ -15,15 +15,23 @@ import (
 // (generatedAt, offline flags, local install state) so it changes only when
 // upstream content does -- a new item, a version bump, a changed manifest, a
 // pause/resume, a product newly declaring (or dropping) the window manager it is
-// written for, or a product (re)naming its upstream or community invite. The
-// store compares it against the last acknowledged revision to light the refresh
-// dot only on a genuine ryostore change.
+// written for, or a product (re)naming its upstream or community invite, or a
+// subshell or bar style moving to another resource tier (its measured delta
+// alone moves with every lab run, so it is left out). The store compares it
+// against the last acknowledged revision to light the refresh dot only on a
+// genuine ryostore change.
 func catalogRevision(cat Catalog) string {
 	lines := make([]string, 0, len(cat.Items))
 	for i := range cat.Items {
 		it := &cat.Items[i]
-		lines = append(lines, strings.Join([]string{it.Category, it.ID, it.Version, it.ManifestSHA256,
-			gateFingerprint(it), provenanceFingerprint(it)}, "\x1f"))
+		line := strings.Join([]string{it.Category, it.ID, it.Version, it.ManifestSHA256,
+			gateFingerprint(it), provenanceFingerprint(it)}, "\x1f")
+		// Appended only when present, so an unmeasured item keeps its revision.
+		// The tier is one of three validated words and cannot forge a boundary.
+		if tier := itemResourceTier(it); tier != "" {
+			line += "\x1ftier:" + tier
+		}
+		lines = append(lines, line)
 	}
 	sort.Strings(lines)
 	sum := sha256.Sum256([]byte(strings.Join(lines, "\n")))

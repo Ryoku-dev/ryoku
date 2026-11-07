@@ -66,6 +66,7 @@ func productEntryItem(base, category string, entry ProductEntry) (Item, error) {
 		Upstream: entry.Upstream, Discord: entry.Discord,
 		DownloadPaused: entry.DownloadPaused, DownloadPauseReason: entry.DownloadPauseReason,
 		RequiredWindowManager: entry.WindowManager, RequiredPackageManagers: entry.PackageManagers,
+		Metadata: itemMetadata(entry.Metadata),
 	}
 	if ok, running := productWindowManagerGate(entry.WindowManager); !ok {
 		item.Unavailable = true

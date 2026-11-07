@@ -99,6 +99,39 @@ Two internal verbs serve the shell, the daemon, doctor and the Hub:
   `--install` installs the ones the catalogue offers, and `--fallback` moves the
   rest to safe defaults.
 
+### Resource tiers
+
+The catalogue measures every subshell and bar style against Orpheus in the
+Hyperion lab and publishes the result on its registry row as
+`metadata.resourceTier` (`light`, `standard` or `heavy`) with the measured
+`metadata.resourceDelta` (`pssMB`, `gpuMB`, `cpuPct`, `wakeupsPerSec`,
+`launchesPerMin`). The tier rule lives with the measurements in
+`ryostore-revamped`. The backend accepts exactly those keys, only on the two
+shell categories; anything else fails the registry like any unknown field. An
+unmeasured item simply has no tier.
+
+- A card names its tier beside its category (`BAR STYLES / HEAVY`), the
+  showroom stage does the same, and the detail shows the tier as a tag and the
+  delta as two `VS ORPHEUS` lines under the metadata.
+- The backend works out the machine once per catalogue build and records it as
+  `machine` (`memoryGB`, `graphics`, `modest`): MemTotal from `/proc/meminfo`
+  rounded up to whole GiB, and the DRM cards classified with the same rule as
+  `system/hardware/gpu/ryoku-gpu-detect` (`machine.go`; a test runs the shell
+  detector on the same fixture trees). It reads sysfs only and never wakes a
+  sleeping discrete GPU. A machine with under 8 GB or no discrete GPU is modest.
+- On a modest machine a heavy item comes back `notRecommended`. That is a
+  note, never a gate: the card chips `NOT RECOMMENDED` while it is not
+  installed, the stage and the detail say why, and install and apply work as
+  usual. The two shell categories are then listed shipped and light first,
+  then standard, then unmeasured, then heavy; on any other machine they stay
+  A to Z. Discover never leads with a not-recommended item when there is
+  another, and puts them last.
+- A snapshot built on another machine, or before the store recorded the
+  machine, is rebuilt instead of served. A change of tier moves the catalogue
+  revision (a new delta inside the same tier does not).
+- Bar Studio and the Subshells page mark heavy items `▲` and standard items
+  `△` in the tile corner (`ryoku/hub/quickshell/barstudio/ResourceTier.js`).
+
 ## Decision: build Ryostore
 
 The conditions for a standalone store are now present. The catalogue spans six
@@ -250,6 +283,8 @@ ryoku/apps/ryostore/
     provider_fastfetch.go
     provider_flatpak.go
     provider_profiles.go
+    machine.go
+    resource_tier.go
   quickshell/
     shell.qml
     App.qml
@@ -284,6 +319,10 @@ The Go backend builds to `/usr/bin/ryostore` through the existing first-party ap
 packaging loop. It normalizes all providers into one JSON contract:
 
 ```text
+Catalog
+  generatedAt, revision, windowManager, offline, categories, items
+  machine: memoryGB, graphics, modest
+
 Category
   id, name, group, description, count, installedCount
 
@@ -294,7 +333,7 @@ Item
   installed, active, enabled, installedCount, totalCount
   updateAvailable, downloadPaused, downloadPauseReason
   requiredWindowManager, requiredPackageManagers, unavailable,
-  unavailableEdition, unavailableReason, metadata
+  unavailableEdition, unavailableReason, notRecommended, metadata
 ```
 
 A source may pause a product's downloads without delisting it: the registry
@@ -359,7 +398,9 @@ manager state cannot race. While one product is active, every other product keep
 its action visible but disabled and names the operation that is already running;
 the active product continues to show the backend's real byte or step progress.
 Within a category, products are ordered by display name and a local search field
-filters only that category. Marketplace categories with explicit ranking controls
+filters only that category; subshells and bar styles arrive in the backend's
+order instead, which is the same A to Z except on a modest machine (see
+Resource tiers). Marketplace categories with explicit ranking controls
 keep those controls; Apps also offers **A to Z** alongside Flathub's Trending,
 Popular, New, and Updated rankings.
 

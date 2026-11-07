@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
+import "../barstudio/ResourceTier.js" as Tier
 
 Item {
     id: gallery
@@ -60,7 +61,7 @@ Item {
             unavailableReason: "",
             requiredWindowManager: "",
             downloadPaused: false,
-            resourceTier: entry.resourceTier || "",
+            resourceTier: Tier.tierOf(entry.resourceTier),
             downloadPauseReason: "",
             source: "shipped",
             settings: ({})
@@ -153,8 +154,7 @@ Item {
                     unavailableReason: item.unavailableReason || "",
                     requiredWindowManager: item.requiredWindowManager || "",
                     downloadPaused: item.downloadPaused === true,
-                    resourceTier: (item.metadata && item.metadata.resourceTier)
-                        || (Array.isArray(item.tags) && item.tags.indexOf("heavy") !== -1 ? "heavy" : ""),
+                    resourceTier: Tier.tierOf(item.metadata && item.metadata.resourceTier),
                     downloadPauseReason: item.downloadPauseReason || "",
                     source: item.metadata && item.metadata.shipped === true ? "shipped" : "store",
                     settings: item.settings || ({})
@@ -247,7 +247,8 @@ Item {
                     readonly property bool updatable: designCard.modelData.updateAvailable === true
                         && designCard.modelData.version.length > 0
                         && !designCard.modelData.unavailable && !designCard.modelData.downloadPaused
-                    readonly property bool heavy: designCard.modelData.resourceTier === "heavy"
+                    // ▲ heavy, △ standard, nothing for light or unmeasured.
+                    readonly property string tierMark: Tier.markOf(designCard.modelData.resourceTier)
                     readonly property bool subshell: designCard.modelData.category === "subshells"
                     readonly property string subText: {
                         if (designCard.updatable) {
@@ -282,7 +283,7 @@ Item {
 
                     Rectangle {
                         id: resourceMark
-                        visible: designCard.heavy
+                        visible: designCard.tierMark !== ""
                         width: 18
                         height: 18
                         radius: 3
@@ -294,7 +295,7 @@ Item {
 
                         Text {
                             anchors.centerIn: parent
-                            text: "▲"
+                            text: designCard.tierMark
                             color: Tokens.bone
                             font.family: Tokens.mono
                             font.pixelSize: 10
