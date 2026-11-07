@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **The app launcher recovers when opened before desktop entries finish scanning.**
+  `loadApps()` is now the sole authority over the `appsLoaded` flag; callers
+  no longer override it unconditionally. If `DesktopEntries` has not finished
+  scanning at the time the launcher opens, `appsLoaded` stays `false` and the
+  next open or entry update retries (`python/launcher/Launcher.qml`).
 - Fix with AI can use Codex with a repair-specific model and reasoning effort.
   Terminal launches now precede the health scan so progress and errors stay visible.
 - **Adaptive sync keeps its saved state in Displays.** Hyprland and niri now
