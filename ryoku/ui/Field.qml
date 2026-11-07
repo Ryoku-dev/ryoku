@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // The text input. Both apps had one, at different heights, with different
 // focus tells. Content follows the mono/grotesk boundary: a path or a key is

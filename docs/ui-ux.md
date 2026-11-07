@@ -155,6 +155,25 @@ it under `~/.local/lib/qt6/qml`, and only the daemon injects that path
 `QML_IMPORT_PATH`. `hyprland/modules/env.lua` sets it for the session. If an
 import fails in dev and works on an installed box, that is why.
 
+Packages ship it compiled. `ryoku/ui/CMakeLists.txt` reads the two `qmldir`
+files and builds `Ryoku.Ui` and `Ryoku.Ui.Singletons` as plugin-only QML modules,
+so qmlcachegen turns every file into bytecode inside one `.so` per module (bytecode
+only, no generated C++; the CMake file has the measurements). The ryoku-desktop
+build runs `ryoku/ui/build.sh`, which installs only `qmldir`, the qmltypes and
+the `.so`. A dev box keeps copying the
+sources (`ryoku/ui/install.sh`, from deploy.sh), which Qt's disk cache compiles on
+first load, so an edit shows up on the next reload with no build. Both scripts
+empty `Ryoku/Ui` first, so one import root never holds both forms, and
+`Ryoku.Ui.Singletons` always resolves from the same root as `Ryoku.Ui`.
+
+Two rules follow from compiling. The qmldir files stay the one list of types, so
+a new type is a qmldir line, as before; an entry the CMake file does not know
+stops the build. And a file in the module imports the singletons as
+`import Ryoku.Ui.Singletons`, never `import "Singletons"`, and a singleton never
+reaches outside `Singletons/` by relative path: in the compiled form each module
+is its own resource tree, and a directory import into the other one finds
+nothing until that module's plugin happens to be loaded.
+
 ### The web dashboard is a Ryoku surface too
 
 Rashin's console (`ryoku/rashin/web`, a Svelte app served on `127.0.0.1:3600`

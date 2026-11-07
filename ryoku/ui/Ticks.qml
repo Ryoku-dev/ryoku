@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // HUD corner ticks: four L-brackets registering a block's corners, the line
 // vocabulary of the reference sheet. Ornament with a job: it marks a surface

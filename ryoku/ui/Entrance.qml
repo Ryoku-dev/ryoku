@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // A stagger-reveal wrapper: lifts its content a step and fades it in, delayed by
 // `index`, so a column arrives one card after another instead of popping in.

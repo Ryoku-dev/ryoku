@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 import "lib/keypress.js" as KeypressPolicy
 
 Item {

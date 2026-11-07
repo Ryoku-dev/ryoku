@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 Item {
     id: keycap

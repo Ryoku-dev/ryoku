@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // Visual options: where no label carries the difference. "Engraved bracket
 // cells" and "three islands with concave dips" are both true and both useless

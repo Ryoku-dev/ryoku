@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Effects
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // A faint, soft background typographic watermark: the section's kanji set huge
 // and bled off an edge, sitting far behind the content as ambient texture, never

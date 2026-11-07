@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // A titled group of setting rows, drawn as one bordered sheet whose rows read
 // top to bottom parted by hairlines -- the drawer the reference shells use to

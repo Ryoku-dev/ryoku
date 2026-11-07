@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // bounded integer. the value itself lives in the cell's numeral; this is only
 // the pair of buttons. holding repeats, and an exhausted bound disables.

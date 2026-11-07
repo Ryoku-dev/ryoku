@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // the catalogue overlay. a 25-entry font list cannot be browsed, so the filter
 // is the interface; Enter takes the top match.

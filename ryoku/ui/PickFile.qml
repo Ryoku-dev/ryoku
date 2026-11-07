@@ -4,7 +4,6 @@ import QtQuick
 import QtQuick.Controls
 import Qt.labs.folderlistmodel
 import Quickshell
-import "Singletons"
 import Ryoku.Ui.Singletons
 
 // A monochrome file/folder picker modal (DESIGN.md section 6 overlay:

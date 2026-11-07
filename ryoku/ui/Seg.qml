@@ -1,7 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // 2-4 exclusive named modes. Each segment hugs its own label with side padding,
 // so a long translation is never clipped inside its button; the group wraps to a

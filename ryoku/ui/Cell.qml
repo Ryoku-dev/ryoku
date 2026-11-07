@@ -1,5 +1,4 @@
 import QtQuick
-import "Singletons"
 import Ryoku.Ui.Singletons
 
 // One setting, drawn. A cell never places itself: Section flows it, and its

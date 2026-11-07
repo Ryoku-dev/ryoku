@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // The empty state as a plate: the reference sheet's ring ornament around 空,
 // the kanji for emptiness, over the caption. An empty zone is dressed, never

@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // A small 1-bit pixel-art glyph on an 8x8 grid, drawn from the brand's own
 // vocabulary -- Greek and Japanese, never arcade-alien: a meander (Greek key), a

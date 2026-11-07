@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // Code 39, drawn as ink bars, and it scans: tests/ui/barcode.sh reads it back
 // with zbarimg. Give it room. A clipped barcode loses its stop bars and stops

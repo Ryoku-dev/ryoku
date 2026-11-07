@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // set membership -- not a choice. members toggle independently, so a member
 // carries its own in/out mark rather than borrowing the exclusive grammar.

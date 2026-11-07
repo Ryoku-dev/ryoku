@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // A named group of settings. The section owns packing: cells declare a span
 // and Flow places them. Nothing in this file knows where a cell goes, which is

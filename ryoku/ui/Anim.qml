@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // Material 3 motion primitive: pick a `type` and it carries that role's duration
 // and easing curve from Tokens (so global speed and reduce-motion reach it via

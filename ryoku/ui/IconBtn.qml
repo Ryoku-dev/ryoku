@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // The square utility button. It was an inline component in both apps, and an
 // inline component is private, so having one in two apps means having two.

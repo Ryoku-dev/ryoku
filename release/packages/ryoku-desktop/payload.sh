@@ -147,14 +147,17 @@ EOF
 
   # Ryoku.Ui: the design system the shell, the Hub and the apps all import.
   # In /usr/lib/qt6/qml so Qt resolves it without an import path, whichever
-  # way a surface was launched.
+  # way a surface was launched. It ships compiled (the build step's
+  # ryoku/ui/build.sh): qmldir, qmltypes and one .so per module carrying the
+  # qmlcachegen bytecode and the sources. No plain .qml is installed beside them.
+  local ui_build="${RYOKU_BUILD_DIR:?set RYOKU_BUILD_DIR to the build directory}/qml/Ryoku/Ui"
+  [[ -f $ui_build/qmldir && -f $ui_build/Singletons/qmldir ]] || {
+    printf 'payload.sh: %s has no compiled Ryoku.Ui; run the build step first\n' "$ui_build" >&2
+    exit 1
+  }
   install -d "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui"
-  cp -a "$_repo/ryoku/ui/." "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui/"
-  # install.sh is an authoring-time helper, not runtime QML, so it stays off
-  # the Qt import path. The catalog it used to carry now lives once at
-  # /usr/share/ryoku/i18n, which every runtime reads.
-  rm -f "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui/install.sh"
-  rm -rf "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui/__pycache__"
+  cp -a "$ui_build/." "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui/"
+  chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6/qml/Ryoku/Ui"
   chmod -R u=rwX,go=rX "$pkgdir/usr/lib/qt6/qml/Ryoku/PluginKit"
 
   # Ryoku.FrameBars: the shared frame-bar schema + menu/bar catalogs every
@@ -670,6 +673,10 @@ EOF
 }
 case "${1:-}" in
   build)
+    : "${RYOKU_BUILD_DIR:?set RYOKU_BUILD_DIR to the build directory}"
+    mkdir -p "$RYOKU_BUILD_DIR"
+    RYOKU_UI_BUILD="$RYOKU_BUILD_DIR/ui-build" \
+      "$_repo/ryoku/ui/build.sh" "$RYOKU_BUILD_DIR/qml"
     ;;
   install)
     pkgdir=${2:?install requires a destination root}

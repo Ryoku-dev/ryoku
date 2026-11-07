@@ -1,5 +1,4 @@
 import QtQuick
-import "Singletons"
 import Ryoku.Ui.Singletons
 
 // The bar every settings page needs before it needs anything else. A page that

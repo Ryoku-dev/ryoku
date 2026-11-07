@@ -1,6 +1,5 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import "Singletons"
 import Ryoku.Ui.Singletons
 
 // A live keyboard diagram: it draws a keyboard and reflects the caller's input

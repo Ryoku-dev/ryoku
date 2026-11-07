@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // The tab bar, once. Selection is typography, not a coloured bar: the active
 // plate inverts to bone and its label takes the sheet's // lead, the reference

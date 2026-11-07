@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // A square thumb. Qt's pill is the only rounded thing left on a radius-2
 // surface, so ryovm drew its own; this is that, shared. Every Flickable,

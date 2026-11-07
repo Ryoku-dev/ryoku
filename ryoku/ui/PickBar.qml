@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // the foot bar of a catalogue cell. the catalogue itself is a Picker overlay:
 // nine or more options is never inline, whatever the layout.

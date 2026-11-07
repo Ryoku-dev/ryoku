@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // 5-8 exclusive named options. wraps; the selected chip inverts.
 Flow {

@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // ratio. for quantities where the felt effect outranks the number. the track
 // is 42% of the cell; the cell's numeral is the readout, so this stays mute.

@@ -980,10 +980,12 @@ if command -v cmake >/dev/null 2>&1 && command -v ninja >/dev/null 2>&1; then
   fi
   "$here/plugin/build.sh" "$qmldir"
   [ -n "$qtver" ] && printf '%s\n' "$qtver" > "$qtstamp"
-  say "installed Ryoku.Blobs -> $qmldir/Ryoku/Blobs"
+  say "installed Ryoku.Blobs, Ryoku.Spatial3D and Ryoku.Bus -> $qmldir/Ryoku"
   piece_end
 else
-  say "skipping Ryoku.Blobs plugin (cmake/ninja not found)"
+  # Ryoku.Ui's bus client imports Ryoku.Bus, so without these plugins the shell,
+  # the Hub and every Ryoku surface fail to load on this box.
+  say "cmake/ninja not found: Ryoku.Bus, Ryoku.Blobs and Ryoku.Spatial3D are not built, and the shell cannot load without Ryoku.Bus" >&2
   piece_end skipped
 fi
 
@@ -1065,11 +1067,14 @@ compile_app "$here/../rashin/app/" rashin-app
 
 piece modules "shell and Hub modules"
 # Install the Ryoku.Ui QML module: the design system every surface imports --
-# the shell's configs, the Hub and the first-party apps. Pure QML, a plain copy.
+# the shell's configs, the Hub and the first-party apps. The dev box gets the
+# checkout's sources as a plain copy (Qt's disk cache compiles them on first
+# load), so an edit needs a deploy or copy, never a compile. Packages ship the
+# compiled module instead (ryoku/ui/build.sh) in /usr/lib/qt6/qml; this root
+# comes first on the daemon's import path, so a dev box never mixes the two.
 # Note the import path only reaches `qs` when the daemon launches it; a Hub
 # started from a keybind needs QML_IMPORT_PATH from the session
-# (hyprland/modules/env.lua). An installed system puts it in /usr/lib/qt6/qml
-# instead, which Qt finds unaided.
+# (hyprland/modules/env.lua).
 say "installing Ryoku.Ui module"
 "$here/../ui/install.sh" "$qmldir"
 

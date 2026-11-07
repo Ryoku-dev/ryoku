@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // Line ornaments from the reference sheet, drawn in ink: concentric rings, a
 // stepped pyramid, a starburst, a dither block. They dress a genuinely empty

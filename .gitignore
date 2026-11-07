@@ -26,6 +26,7 @@
 /ryoku/shell/plugin/build/
 /ryoku/shell/sidebarfx/build/
 /ryoku/shell/ryogami/picker/build/
+/ryoku/ui/build/
 /ryoku/shell/plugin/dist/
 /release/repo/out/
 *.iso

@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import "Singletons"
 import Ryoku.Ui.Singletons
 
 // Modal command picker: a filterable list of installed applications (each app's

@@ -199,11 +199,8 @@ let
       };
     };
 
-  ui = mkPureQmlModule {
-    pname = "ryoku-ui";
-    moduleName = "Ui";
-    sourcePath = "/ryoku/ui";
-    description = "Shared Ryoku Qt/QML user interface module";
+  ui = import ./ryoku-ui.nix {
+    inherit pkgs src qmlRoot;
   };
 
   pluginKit = mkPureQmlModule {
@@ -258,6 +255,7 @@ let
     cp -a \
       ${blobs}/${qmlRoot}/Ryoku/Blobs \
       ${blobs}/${qmlRoot}/Ryoku/Spatial3D \
+      ${blobs}/${qmlRoot}/Ryoku/Bus \
       "$out/${qmlRoot}/Ryoku/"
   '';
 

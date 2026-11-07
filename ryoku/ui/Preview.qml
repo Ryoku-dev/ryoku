@@ -1,5 +1,4 @@
 import QtQuick
-import "Singletons"
 import Ryoku.Ui.Singletons
 
 // The block a page puts a live preview in. Shell, Widgets, Appearance and

@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // The registration sheet: the reference HUD's backdrop, drawn once. A faint
 // dot grid with sparse + marks at the intersections, and four print-register

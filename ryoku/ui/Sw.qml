@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Ui.Singletons
 
 // boolean. two named modes are a Seg, not a switch.
 Rectangle {
