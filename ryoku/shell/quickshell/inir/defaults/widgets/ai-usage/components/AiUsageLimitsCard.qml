@@ -58,6 +58,7 @@ AiUsageGlassCard {
             height: todayRow.implicitHeight
             Row {
                 id: todayRow
+                width: parent.width
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Math.round(7 * IrisStyle.density)
@@ -67,12 +68,28 @@ AiUsageGlassCard {
                     text: usage.kmg(usage.today)
                     font.pixelSize: Math.round(26 * IrisStyle.density)
                 }
-                IrisText {
-                    anchors.baseline: todayMetric.baseline
-                    role: IrisText.Meta
-                    color: IrisStyle.muted
-                    font.pixelSize: Math.round(10 * IrisStyle.density)
-                    text: "tokens today · incl. cached"
+                Column {
+                    width: Math.max(0, todayRow.width - todayMetric.width - todayRow.spacing)
+                    anchors.verticalCenter: todayMetric.verticalCenter
+                    spacing: 0
+                    IrisText {
+                        width: parent.width
+                        role: IrisText.Meta
+                        color: IrisStyle.muted
+                        font.pixelSize: Math.round(10 * IrisStyle.density)
+                        text: "tokens today"
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
+                    IrisText {
+                        width: parent.width
+                        role: IrisText.Meta
+                        color: IrisStyle.muted
+                        font.pixelSize: Math.round(10 * IrisStyle.density)
+                        text: "(incl. cached)"
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
                 }
             }
         }
