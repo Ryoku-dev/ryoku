@@ -67,6 +67,13 @@ prepare_prebuilt() {
         done
       done
       shopt -u nullglob
+      mkdir -p "$dir/qml/Ryoku/Ui/Singletons"
+      printf 'module Ryoku.Ui\n' > "$dir/qml/Ryoku/Ui/qmldir"
+      printf '// fixture\n' > "$dir/qml/Ryoku/Ui/ryoku-ui.qmltypes"
+      fake_binary "$dir/qml/Ryoku/Ui/libryoku-ui.so"
+      printf 'module Ryoku.Ui.Singletons\n' > "$dir/qml/Ryoku/Ui/Singletons/qmldir"
+      printf '// fixture\n' > "$dir/qml/Ryoku/Ui/Singletons/ryoku-ui-singletons.qmltypes"
+      fake_binary "$dir/qml/Ryoku/Ui/Singletons/libryoku-ui-singletons.so"
       ;;
     ryoku-desktop-niri)
       fake_binary "$dir/ryoku-wm-niri"

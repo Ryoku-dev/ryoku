@@ -675,8 +675,16 @@ case "${1:-}" in
   build)
     : "${RYOKU_BUILD_DIR:?set RYOKU_BUILD_DIR to the build directory}"
     mkdir -p "$RYOKU_BUILD_DIR"
-    RYOKU_UI_BUILD="$RYOKU_BUILD_DIR/ui-build" \
-      "$_repo/ryoku/ui/build.sh" "$RYOKU_BUILD_DIR/qml"
+    # A lane that builds once and stages for every init system hands the compiled
+    # module over, like the Go helpers, so all lanes ship the same bytes.
+    if [[ -n ${RYOKU_PREBUILT_DIR:-} && -f $RYOKU_PREBUILT_DIR/qml/Ryoku/Ui/qmldir ]]; then
+      mkdir -p "$RYOKU_BUILD_DIR/qml/Ryoku"
+      rm -rf "$RYOKU_BUILD_DIR/qml/Ryoku/Ui"
+      cp -a "$RYOKU_PREBUILT_DIR/qml/Ryoku/Ui" "$RYOKU_BUILD_DIR/qml/Ryoku/"
+    else
+      RYOKU_UI_BUILD="$RYOKU_BUILD_DIR/ui-build" \
+        "$_repo/ryoku/ui/build.sh" "$RYOKU_BUILD_DIR/qml"
+    fi
     ;;
   install)
     pkgdir=${2:?install requires a destination root}

@@ -1,0 +1,45 @@
+name: Ryoku.Bus tests
+
+on:
+  pull_request:
+    paths:
+      - 'ryoku/shell/plugin/**'
+      - '.github/workflows/ryoku-bus-tests.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+    paths:
+      - 'ryoku/shell/plugin/**'
+      - '.github/workflows/ryoku-bus-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Install git for checkout
+        run: pacman -Sy --noconfirm --needed git
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install the Qt toolchain
+        run: |
+          pacman -Syu --noconfirm --needed base-devel cmake ninja \
+            qt6-base qt6-declarative qt6-shadertools qt6-multimedia qt6-quick3d
+      - name: Build with tests
+        run: |
+          cmake -S ryoku/shell/plugin -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DRYOKU_PLUGIN_TESTS=ON
+          cmake --build build
+      - name: Unit tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ctest --test-dir build --output-on-failure
