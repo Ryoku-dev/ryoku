@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -156,7 +157,7 @@ func TestApplyingSystemRiceCopiesItToUserStore(t *testing.T) {
 		},
 		Look: map[string]map[string]any{
 			"hypr":     {},
-			"shell":    {"barStyle": "qsbar"},
+			"shell":    {"barStyle": "kairos"},
 			"launcher": {},
 		},
 	}
@@ -181,6 +182,11 @@ func TestApplyingSystemRiceCopiesItToUserStore(t *testing.T) {
 	userDir := filepath.Join(ricesDir(), "default")
 	if !isFile(filepath.Join(userDir, "rice.json")) || !isFile(filepath.Join(userDir, "fastfetch.jsonc")) {
 		t.Fatalf("packaged rice was not copied into %s", userDir)
+	}
+	requireCall := slices.Index(calls, "ryostore internal shells-require --install")
+	commitCall := slices.Index(calls, "ryoku-shell shells commit")
+	if requireCall < 0 || commitCall <= requireCall {
+		t.Fatalf("rice shell install/commit order is wrong: %v", calls)
 	}
 	for _, call := range calls {
 		if strings.Contains(call, "wallpaper set") {
@@ -982,7 +988,7 @@ func TestCaptureAppliesThemeFastfetchAndLock(t *testing.T) {
 	w(qylockThemePref(), slug+"\n")
 
 	writeDesktopStore(t, `{"appearance":{"rounding":6},"dwindle":{"mfact":0.6}}`)
-	w(shellStorePath(), `{"barStyle":"qsbar"}`)
+	w(shellStorePath(), `{"barStyle":"kairos"}`)
 	w(launcherStorePath(), `{}`)
 	w(themeStatePath(), `{"followWallpaper":false,"scheme":"mono","gtkTheme":"adwaita","themeApps":true}`)
 	w(ryogamiStorePath(), `{"matugen":{"mode":"dark","schemeType":"scheme-fidelity"},"resource_tier":"high"}`)

@@ -15,10 +15,9 @@ test("resource indicators keep gallery tiles compact", () => {
     assert.doesNotMatch(gallery, /May need more CPU, GPU and memory|Tokens\.alert/);
 });
 
-test("Ricelin and Sukunabikona receive resource triangles", () => {
-    assert.match(gallery, /\["ricelin", "sukunabikona"\]/);
-    assert.match(gallery, /gallery\.category === "barstyles"/);
-    assert.match(gallery, /String\(designCard\.modelData\.id \|\| ""\)/);
+test("resource triangles follow catalogue metadata", () => {
+    assert.match(gallery, /modelData\.resourceTier === "heavy"/);
+    assert.doesNotMatch(gallery, /modelData\.id.*resource/);
 });
 
 test("Bar Studio and Subshells share one readable resource legend", () => {
@@ -29,6 +28,6 @@ test("Bar Studio and Subshells share one readable resource legend", () => {
 
 test("gallery selection and Store actions remain unchanged", () => {
     assert.match(gallery, /gallery\.wear\(designCard\.modelData\.id\)/);
-    assert.match(gallery, /"ryostore", "install", gallery\.category, id/);
+    assert.match(gallery, /"ryostore", "install", item\.category, item\.id/);
     assert.match(gallery, /"ryostore", "open", gallery\.browseCategory/);
 });

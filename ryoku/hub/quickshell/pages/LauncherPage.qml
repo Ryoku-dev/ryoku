@@ -9,6 +9,7 @@ import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import ".."
 import "../LauncherSettings.js" as LauncherSettings
+import "../ShellIndex.js" as ShellIndex
 
 Item {
     id: pg
@@ -46,6 +47,19 @@ Item {
     property string updatingId: ""
     readonly property string storeRoot: (Quickshell.env("XDG_STATE_HOME")
         || (Quickshell.env("HOME") + "/.local/state")) + "/ryoku/store"
+    // Launchers an installed shell item contributes. A packed item's launcher
+    // can be chosen; it previews the default until shells sync unpacks it.
+    readonly property var shellLaunchers: ShellIndex.contributions(
+        shellsIndex.index, "launcher").map(entry => ({
+            id: entry.id,
+            name: entry.name,
+            description: entry.description,
+            contribution: true,
+            prepared: entry.prepared,
+            previewUrl: ShellIndex.fileUrl(entry.record, entry.preview, shellsIndex.shellRoot),
+            itemName: entry.itemName,
+            capabilities: []
+        }))
 
     property var draft: pg.clone(pg.factory)
     property var committed: pg.clone(pg.factory)
@@ -61,18 +75,27 @@ Item {
         return pg.catalog && Array.isArray(pg.catalog.variants)
             ? pg.catalog.variants : [];
     }
-    // Every launcher Super+Space can open here: the shipped ones, then each one
-    // installed from RyoStore that runs on this desktop.
+    // Every launcher Super+Space can open here: the shipped ones, each one
+    // installed from RyoStore that runs on this desktop, then the ones shell
+    // items contribute.
     function wearableVariants() {
         return pg.catalogVariants().concat(pg.storeLaunchers.filter(function (entry) {
             return entry.installed && !entry.unavailable;
-        }));
+        })).concat(pg.shellLaunchers);
+    }
+    function contributionEntry(id) {
+        var requested = String(id || "");
+        for (var i = 0; i < pg.shellLaunchers.length; i++)
+            if (pg.shellLaunchers[i].id === requested)
+                return pg.shellLaunchers[i];
+        return null;
     }
     function variantEntry(id) {
         var variants = pg.wearableVariants();
         var requested = String(id || "");
         for (var i = 0; i < variants.length; i++)
-            if (String(variants[i].id || "") === requested)
+            if (String(variants[i].id || "") === requested
+                    && (variants[i].contribution !== true || variants[i].prepared === true))
                 return variants[i];
         var defaultId = String(pg.catalog && pg.catalog.default || "");
         for (var j = 0; j < variants.length; j++)
@@ -180,10 +203,20 @@ Item {
         pg.committed = c;
     }
     function save() {
+        const variantChanged = !pg.same(pg.draft.variant, pg.committed.variant);
         for (var i = 0; i < pg.keys.length; i++)
             cfgA[pg.keys[i]] = pg.draft[pg.keys[i]];
         cfg.writeAdapter();
         pg.committed = pg.clone(pg.draft);
+        if (!variantChanged)
+            return;
+        // A contributed launcher counts toward its item being in use, so the
+        // shell restart on commit has to see the new selection.
+        if (pg.hub && pg.hub.markShellSelectionChanged)
+            pg.hub.markShellSelectionChanged();
+        const picked = pg.contributionEntry(pg.committed.variant);
+        if (picked && !picked.prepared)
+            shellsIndex.requestSync();
     }
     function revert() { pg.draft = pg.clone(pg.committed); }
     function resetDefaults() { pg.draft = pg.clone(pg.factory); }
@@ -200,6 +233,8 @@ Item {
         printErrors: true
         onLoaded: pg.catalog = JSON.parse(text())
     }
+
+    ShellIndexFile { id: shellsIndex }
 
     Process {
         id: storeCatalog
@@ -376,7 +411,7 @@ Item {
                     : 1
                 source: {
                     var entry = previewStage.entry;
-                    if (entry.store)
+                    if (entry.store || entry.contribution)
                         return entry.previewUrl || "";
                     var file = String(entry.preview || "");
                     return file.length > 0
@@ -451,14 +486,15 @@ Item {
                             id: styleRow
                             width: parent.width
                             spacing: Tokens.s2
-                            readonly property string worn: String(pg.variantEntry(pg.draft.variant).id || "")
+                            readonly property string worn: pg.contributionEntry(pg.draft.variant)
+                                ? String(pg.draft.variant) : String(pg.variantEntry(pg.draft.variant).id || "")
                             readonly property int perRow: Math.max(2, Math.floor((width + Tokens.s2) / 210))
                             readonly property int tileH: 64
                             readonly property int rowCount: Math.max(1, Math.ceil(styleRep.count / perRow))
                             height: rowCount * tileH + (rowCount - 1) * spacing
                             Repeater {
                                 id: styleRep
-                                model: pg.catalogVariants().concat(pg.storeLaunchers)
+                                model: pg.catalogVariants().concat(pg.storeLaunchers).concat(pg.shellLaunchers)
                                 delegate: Rectangle {
                                     id: styleTile
                                     required property var modelData
@@ -524,12 +560,13 @@ Item {
                                                 font.weight: Font.Medium
                                                 font.letterSpacing: Tokens.trackLabel
                                             }
-                                            // marks community work apart from the
-                                            // launchers the shell ships
+                                            // marks community work and item contributions
+                                            // apart from the launchers the shell ships
                                             Text {
-                                                visible: styleTile.fromStore
+                                                visible: styleTile.fromStore || styleTile.modelData.contribution === true
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: I18n.tr("STORE")
+                                                text: styleTile.fromStore ? I18n.tr("STORE")
+                                                    : I18n.tr("FROM %1").arg(String(styleTile.modelData.itemName || "").toUpperCase())
                                                 color: styleTile.on ? Tokens.inkOnBoneDim : Tokens.inkFaint
                                                 font.family: Tokens.mono
                                                 font.pixelSize: Tokens.fTiny

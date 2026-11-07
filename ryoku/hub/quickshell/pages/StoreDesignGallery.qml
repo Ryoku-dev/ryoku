@@ -5,7 +5,6 @@ import Quickshell
 import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
-import "../barstudio/Subshells.js" as Subshells
 
 Item {
     id: gallery
@@ -13,16 +12,32 @@ Item {
     required property string category
     required property string wornId
     required property var shippedDesigns
-    property bool onlySubshells: false
+    property var categories: [gallery.category]
     property string browseCategory: gallery.category
-    function isSubshellStyle(id) {
-        return Subshells.isStyle(id);
+    // Installed and shipped shell items from shells.json; the catalogue only
+    // adds what is not installed yet and the update state.
+    property var shellItems: []
+    property var barstyleDesigns: []
+    property var subshellDesigns: []
+    property var otherDesigns: []
+    readonly property var catalogueDesigns: {
+        let out = [];
+        if (gallery.categories.indexOf("subshells") !== -1)
+            out = out.concat(gallery.subshellDesigns);
+        if (gallery.categories.indexOf("barstyles") !== -1)
+            out = out.concat(gallery.barstyleDesigns);
+        if (gallery.categories.indexOf(gallery.category) !== -1
+                && gallery.category !== "subshells"
+                && gallery.category !== "barstyles")
+            out = out.concat(gallery.otherDesigns);
+        return out;
     }
-    property var catalogueDesigns: []
-    readonly property string cardObjectPrefix: gallery.category === "barstyles"
-        ? "bar-style-" : "store-design-" + gallery.category + "-"
-    readonly property string updateObjectPrefix: gallery.category === "barstyles"
-        ? "bar-style-update-" : "store-design-update-" + gallery.category + "-"
+    readonly property bool shellGallery: gallery.categories.indexOf("subshells") !== -1
+        || gallery.categories.indexOf("barstyles") !== -1
+    readonly property string cardObjectPrefix: gallery.shellGallery
+        ? "shell-item-" : "store-design-" + gallery.category + "-"
+    readonly property string updateObjectPrefix: gallery.shellGallery
+        ? "shell-item-update-" : "store-design-update-" + gallery.category + "-"
     property string updatingId: ""
     property string extraActionText: ""
     readonly property var designs: gallery.cardModel()
@@ -35,6 +50,7 @@ Item {
             id: entry.id,
             name: entry.name || entry.id,
             desc: entry.description || entry.desc || "",
+            category: entry.category || gallery.category,
             installed: true,
             version: "",
             installedVersion: "",
@@ -45,8 +61,26 @@ Item {
             requiredWindowManager: "",
             downloadPaused: false,
             resourceTier: entry.resourceTier || "",
-            downloadPauseReason: ""
+            downloadPauseReason: "",
+            source: "shipped",
+            settings: ({})
         };
+    }
+
+    function shellCard(entry, listed) {
+        const card = listed ? Object.assign({}, listed) : gallery.shippedCard({
+            id: entry.id,
+            name: entry.name,
+            description: entry.summary,
+            category: entry.category
+        });
+        card.installed = true;
+        card.source = entry.source || "store";
+        card.installedVersion = entry.version || card.installedVersion || "";
+        if (!card.version)
+            card.version = card.installedVersion;
+        card.settings = entry.settings || card.settings || ({});
+        return card;
     }
 
     function cardModel() {
@@ -61,6 +95,19 @@ Item {
             out.push(card);
         }
         const catalogue = Array.isArray(gallery.catalogueDesigns) ? gallery.catalogueDesigns : [];
+        const listed = {};
+        for (let k = 0; k < catalogue.length; k++)
+            if (catalogue[k].id)
+                listed[catalogue[k].id] = catalogue[k];
+        const local = Array.isArray(gallery.shellItems) ? gallery.shellItems : [];
+        for (let m = 0; m < local.length; m++) {
+            const entry = local[m];
+            if (!entry || !entry.id || seen[entry.id]
+                    || gallery.categories.indexOf(entry.category) === -1)
+                continue;
+            seen[entry.id] = true;
+            out.push(gallery.shellCard(entry, listed[entry.id] || null));
+        }
         for (let j = 0; j < catalogue.length; j++) {
             const item = catalogue[j];
             if (!item.id || seen[item.id])
@@ -68,57 +115,89 @@ Item {
             seen[item.id] = true;
             out.push(item);
         }
-        return Subshells.visibleStyles(out, gallery.onlySubshells);
+        return out;
     }
 
     function browse() {
         Spawn.runApp(["ryostore", "open", gallery.browseCategory], { label: "ryostore" });
     }
 
-    function updateDesign(id) {
-        if (!id || gallery.updatingId !== "")
+    function updateDesign(item) {
+        if (!item || !item.id || !item.category || gallery.updatingId !== "")
             return;
-        gallery.updatingId = id;
-        updateProcess.command = ["ryostore", "install", gallery.category, id];
+        gallery.updatingId = item.id;
+        updateProcess.command = ["ryostore", "install", item.category, item.id];
         updateProcess.running = true;
     }
 
+    function cards(text, category) {
+        try {
+            const catalog = JSON.parse(text || "{}");
+            // Every shell item stays visible, dimmed with its reason when this
+            // desktop cannot run it; other designs hide what can never be worn.
+            return (catalog.items || [])
+                .filter(item => item.category === category
+                    && (gallery.shellGallery
+                        || !(item.unavailable === true && item.installed !== true)))
+                .map(item => ({
+                    id: item.id,
+                    category: category,
+                    name: item.name || item.id,
+                    desc: item.summary || item.description || "",
+                    installed: item.installed === true,
+                    version: item.version || "",
+                    installedVersion: item.installedVersion || "",
+                    updateAvailable: item.updateAvailable === true,
+                    unavailable: item.unavailable === true,
+                    unavailableEdition: item.unavailableEdition === true,
+                    unavailableReason: item.unavailableReason || "",
+                    requiredWindowManager: item.requiredWindowManager || "",
+                    downloadPaused: item.downloadPaused === true,
+                    resourceTier: (item.metadata && item.metadata.resourceTier)
+                        || (Array.isArray(item.tags) && item.tags.indexOf("heavy") !== -1 ? "heavy" : ""),
+                    downloadPauseReason: item.downloadPauseReason || "",
+                    source: item.metadata && item.metadata.shipped === true ? "shipped" : "store",
+                    settings: item.settings || ({})
+                }));
+        } catch (e) {
+            return [];
+        }
+    }
+
     function refresh() {
-        catalogueProcess.running = false;
-        catalogueProcess.running = true;
+        barstylesCatalog.running = false;
+        subshellsCatalog.running = false;
+        otherCatalog.running = false;
+        barstylesCatalog.running = gallery.categories.indexOf("barstyles") !== -1;
+        subshellsCatalog.running = gallery.categories.indexOf("subshells") !== -1;
+        otherCatalog.running = gallery.category !== "barstyles"
+            && gallery.category !== "subshells";
     }
 
     Process {
-        id: catalogueProcess
-        command: ["ryostore", "catalog", "--category", gallery.category]
-        running: gallery.category !== ""
+        id: barstylesCatalog
+        command: ["ryostore", "catalog", "--category", "barstyles"]
+        running: gallery.categories.indexOf("barstyles") !== -1
         stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const catalog = JSON.parse(this.text || "{}");
-                    gallery.catalogueDesigns = (catalog.items || [])
-                        .filter(item => item.category === gallery.category
-                            && !(item.unavailable === true && item.installed !== true))
-                        .map(item => ({
-                            id: item.id,
-                            name: item.name || item.id,
-                            desc: item.summary || item.description || "",
-                            installed: item.installed === true,
-                            version: item.version || "",
-                            installedVersion: item.installedVersion || "",
-                            updateAvailable: item.updateAvailable === true,
-                            unavailable: item.unavailable === true,
-                            unavailableEdition: item.unavailableEdition === true,
-                            unavailableReason: item.unavailableReason || "",
-                            requiredWindowManager: item.requiredWindowManager || "",
-                            downloadPaused: item.downloadPaused === true,
-                            resourceTier: (item.metadata && item.metadata.resourceTier) || "",
-                            downloadPauseReason: item.downloadPauseReason || ""
-                        }));
-                } catch (e) {
-                    gallery.catalogueDesigns = [];
-                }
-            }
+            onStreamFinished: gallery.barstyleDesigns = gallery.cards(this.text, "barstyles")
+        }
+    }
+
+    Process {
+        id: subshellsCatalog
+        command: ["ryostore", "catalog", "--category", "subshells"]
+        running: gallery.categories.indexOf("subshells") !== -1
+        stdout: StdioCollector {
+            onStreamFinished: gallery.subshellDesigns = gallery.cards(this.text, "subshells")
+        }
+    }
+
+    Process {
+        id: otherCatalog
+        command: ["ryostore", "catalog", "--category", gallery.category]
+        running: gallery.category !== "barstyles" && gallery.category !== "subshells"
+        stdout: StdioCollector {
+            onStreamFinished: gallery.otherDesigns = gallery.cards(this.text, gallery.category)
         }
     }
 
@@ -169,11 +248,7 @@ Item {
                         && designCard.modelData.version.length > 0
                         && !designCard.modelData.unavailable && !designCard.modelData.downloadPaused
                     readonly property bool heavy: designCard.modelData.resourceTier === "heavy"
-                        || (gallery.category === "barstyles"
-                            && ["ricelin", "sukunabikona"].indexOf(
-                                String(designCard.modelData.id || "")) !== -1)
-                    readonly property bool subshell: gallery.category === "barstyles"
-                        && gallery.isSubshellStyle(designCard.modelData.id)
+                    readonly property bool subshell: designCard.modelData.category === "subshells"
                     readonly property string subText: {
                         if (designCard.updatable) {
                             const current = designCard.modelData.installedVersion.length > 0
@@ -293,7 +368,7 @@ Item {
                         text: gallery.updatingId === designCard.modelData.id
                             ? I18n.tr("UPDATING") : I18n.tr("UPDATE")
                         objectName: gallery.updateObjectPrefix + designCard.modelData.id
-                        onAct: gallery.updateDesign(designCard.modelData.id)
+                        onAct: gallery.updateDesign(designCard.modelData)
                     }
                 }
             }

@@ -61,9 +61,44 @@ Rectangle {
     property string connectionSub: ""
     property bool usersOpenPending: false
     property string usersProfileId: ""
+    property bool shellSelectionPending: false
+    // The running shell keeps its item until commit, so its IPC targets stay
+    // those of the style that was active when the first switch was staged.
+    property bool barStyleSwitchPending: false
+    property string runningBarStyle: ""
+    function markShellSelectionChanged() {
+        hub.shellSelectionPending = true;
+    }
+    function markBarStyleChanged(previous) {
+        if (!hub.barStyleSwitchPending) {
+            hub.runningBarStyle = String(previous || "");
+            hub.barStyleSwitchPending = true;
+        }
+        hub.markShellSelectionChanged();
+    }
+    function commitShellSelection() {
+        if (!hub.shellSelectionPending)
+            return false;
+        hub.shellSelectionPending = false;
+        hub.barStyleSwitchPending = false;
+        hub.runningBarStyle = "";
+        if (hub.livePending.barStyle) {
+            Settings.patch("barStyle", hub.val("barStyle"));
+            const pending = {};
+            for (const key in hub.livePending)
+                if (key !== "barStyle")
+                    pending[key] = true;
+            hub.livePending = pending;
+        }
+        Spawn.run(["ryoku-shell", "shells", "commit"]);
+        return true;
+    }
     // remember the last section so a reopen lands where you left, not the default.
     // Read once at startup by `sectionGet` below; written here on every change.
-    onSectionChanged: Quickshell.execDetached(["ryoku-hub", "config", "set", "section", hub.section])
+    onSectionChanged: {
+        hub.commitShellSelection();
+        Quickshell.execDetached(["ryoku-hub", "config", "set", "section", hub.section]);
+    }
     // Retired page names stay useful as entry points, but the desktop owns the
     // editors now. A direct navigation call hands off without changing the
     // already-open Hub's current page.
@@ -203,12 +238,12 @@ Rectangle {
         "dictation": "voice typing speech transcribe whisper microphone stt",
         "windowmanager": "compositor window manager wm wayland switch change swap session provider window windows rounding corners softness gaps border borders thickness colour tiling layout opacity transparency transparent dim blur shadow float snap resize animation spread offset",
         "plugins": "plugin plugins hyprland compositor hyprpm title bar titlebar hyprbars glass hyprglass image border imgborders cursor motion dynamic cursors focus flash hyprfocus key sound sounds keyboard keysounds typing click clicky thock creamy cherry mx topre mechvibes switch version abi mismatch rebuild build update add git repository install",
-        "subshells": "subshell full shell gokko caelestia tansu python imi macshell serpantinum desktop panels dock launcher quick settings bar",
+        "subshells": "subshell full shell catalogue desktop panels dock launcher quick settings bar",
         "bar-studio": "bar frame rails zones widgets menus surfaces style catalogue layout framebars sidebar dock dockapps pinned pin magnify autohide auto-hide media chip peek labels edge taskbar",
         "desktop": "desktop brand logo mark name wallpaper picker clipboard sidebar sidebars controls today panel corner",
         "controls": "controls quick settings super escape sidebar panel layout sections order graph vitals levels media plugins",
         "overlays": "osd volume popup brightness popup notifications popups toasts sidebar super escape quick settings design designs store",
-        "launcher": "launcher spotlight command palette greeting weather home",
+        "launcher": "launcher search command palette greeting weather home",
         "fastfetch": "fetch neofetch terminal system info logo ascii emblem readout",
         "lockscreen": "lock screensaver signin greeter skin theme login",
         "animations": "animation animations motion transition bezier curve speed feel wobbly disable enable toggle",
@@ -594,7 +629,7 @@ Rectangle {
         "weatherLocation": "", "weatherUnit": "auto", "formatLocale": "",
         "general.clock_format_24_h": false,
         "reloadCover": ReloadCoverModel.empty(),
-        "language": "Auto", "barStyle": "orpheus", "showJapaneseGloss": true, "obi": {}, "nacre": NacreConfig.defaultConfig(), "qsbar": {}, "dock": {},
+        "language": "Auto", "barStyle": "orpheus", "showJapaneseGloss": true, "obi": {}, "nacre": NacreConfig.defaultConfig(), "dock": {},
         "notifications.show_images": false,
         "deckFrostEnabled": true, "deckFrost": 0.45,
         "clipboard.widthPercent": 65, "clipboard.heightPercent": 42, "clipboard.bottomPercent": 0,
@@ -718,7 +753,7 @@ Rectangle {
     // against liveBaseline: the state at open, re-snapshotted on every Save.
     // Quit and Revert walk the desktop back to that baseline through the same
     // channel, so an unsaved close leaves no residue.
-    readonly property var liveKeys: ["frameBars", "frameEnabled", "frameOpacity", "frameThickness", "frameCorner", "fontFamily", "terminalFontFamily", "fontSize", "barStyle", "obi", "nacre", "qsbar", "dock", "clipboard.widthPercent", "clipboard.heightPercent", "clipboard.bottomPercent", "clipboard.panelRadius", "clipboard.paneRadius", "clipboard.cardRadius"]
+    readonly property var liveKeys: ["frameBars", "frameEnabled", "frameOpacity", "frameThickness", "frameCorner", "fontFamily", "terminalFontFamily", "fontSize", "barStyle", "obi", "nacre", "dock", "clipboard.widthPercent", "clipboard.heightPercent", "clipboard.bottomPercent", "clipboard.panelRadius", "clipboard.paneRadius", "clipboard.cardRadius"]
     property var liveBaseline: null
     property var livePending: ({})
     function captureLiveBaseline() {
@@ -766,13 +801,17 @@ Rectangle {
         var changed = hub.liveChanges;
         if (!changed.length) return false;
         var d = {};
+        var shellSelectionRestored = false;
         for (var x in hub.draft) d[x] = hub.draft[x];
         for (var i = 0; i < changed.length; i++) {
             var k = changed[i];
             Settings.patch(k, hub.liveBaseline[k]);
             d[k] = JSON.parse(JSON.stringify(hub.liveBaseline[k]));
+            shellSelectionRestored = shellSelectionRestored || k === "barStyle";
         }
         hub.draft = d;
+        if (shellSelectionRestored)
+            hub.markShellSelectionChanged();
         return true;
     }
 
@@ -1017,6 +1056,7 @@ Rectangle {
         // puts the saved state back through the same channel before the Hub
         // goes, whichever way it was closed.
         var restored = hub.restoreLiveUnsaved();
+        hub.commitShellSelection();
         if (hub.wmLoaded && hub.hyprChanges().length) {
             hub.quitting = true;
             hyprRestore.command = ["ryoku-hub", "desktop", "restore"];

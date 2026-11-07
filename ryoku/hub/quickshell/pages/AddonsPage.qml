@@ -31,6 +31,7 @@ Item {
     property bool bundlesLoaded: false
     property var omarchyPlugins: []
     property bool omarchyLoaded: false
+    property bool omarchyAvailable: false
     property string omarchyBusyId: ""
     property string omarchyMutation: ""
     property string confirmKind: ""
@@ -100,12 +101,9 @@ Item {
             return hay.indexOf(q) !== -1;
         });
     }
-    readonly property string barStyle: shellAdapter.barStyle
-    readonly property bool allLoaded: pg.loaded && pg.bundlesLoaded
-        && (pg.barStyle !== "nomarchy" || pg.omarchyLoaded)
+    readonly property bool allLoaded: pg.loaded && pg.bundlesLoaded && pg.omarchyLoaded
     readonly property bool allSectionsEmpty: pg.plugins.length === 0
-        && pg.bundles.length === 0
-        && (pg.barStyle !== "nomarchy" || pg.omarchyPlugins.length === 0)
+        && pg.bundles.length === 0 && pg.omarchyPlugins.length === 0
 
     readonly property string shellDir: Quickshell.env("RYOKU_SHELL_DIR")
     readonly property string script: (pg.shellDir && pg.shellDir.length > 0)
@@ -234,7 +232,7 @@ Item {
             bundleProc.running = true;
     }
     function loadOmarchy() {
-        if (pg.barStyle === "nomarchy" && !omarchyListProc.running)
+        if (!omarchyListProc.running)
             omarchyListProc.running = true;
     }
     function browseStore() {
@@ -491,29 +489,6 @@ Item {
         Qt.callLater(() => pg.loadBundleStatus(target));
     }
 
-    FileView {
-        id: shellFile
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config"))
-            + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-
-        JsonAdapter {
-            id: shellAdapter
-            property string barStyle: "orpheus"
-        }
-    }
-
-    onBarStyleChanged: {
-        if (pg.barStyle === "nomarchy")
-            pg.loadOmarchy();
-        else {
-            pg.omarchyPlugins = [];
-            pg.omarchyLoaded = false;
-        }
-    }
 
     Component.onCompleted: {
         pg.refresh();
@@ -760,21 +735,24 @@ Item {
     }
     Process {
         id: omarchyListProc
-        command: ["omarchy", "plugin", "list", "--json"]
+        // The omarchy command exists only while an item that ships it is active.
+        command: ["sh", "-c", "command -v omarchy >/dev/null 2>&1 || exit 127; exec omarchy plugin list --json"]
         environment: Spawn.env
         stdout: StdioCollector { id: omarchyListOut }
         stderr: StdioCollector { id: omarchyListErr }
         onExited: code => {
+            pg.omarchyLoaded = true;
             if (code !== 0) {
-                pg.showError("omarchy-read",
-                    pg.compactError(omarchyListErr.text,
-                        I18n.tr("Couldn't read Omarchy add-ons (exit %1)."), code));
+                pg.omarchyAvailable = false;
+                pg.omarchyPlugins = [];
+                pg.clearError("omarchy-read");
                 return;
             }
             try {
                 const rows = JSON.parse(omarchyListOut.text || "[]");
                 if (!Array.isArray(rows))
                     throw new Error("not an array");
+                pg.omarchyAvailable = true;
                 pg.omarchyPlugins = rows.filter(plugin => plugin.firstParty !== true)
                     .map(plugin => {
                         const item = Object.assign({}, plugin);
@@ -785,10 +763,10 @@ Item {
                         item.blockedReason = plugin.blockedReason || "";
                         return item;
                     });
-                pg.omarchyLoaded = true;
                 pg.clearError("omarchy-read");
             } catch (error) {
-                pg.showError("omarchy-read", I18n.tr("Couldn't read Omarchy add-ons."));
+                pg.omarchyAvailable = false;
+                pg.omarchyPlugins = [];
             }
         }
     }
@@ -1144,7 +1122,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Tokens.s3
-                    visible: pg.barStyle === "nomarchy"
+                    visible: pg.omarchyAvailable
 
                     AddonSectionHeader {
                         width: parent.width
@@ -1348,8 +1326,8 @@ Item {
                     width: dflick.width - Tokens.s3
                     spacing: Tokens.s5
 
-                    // A plugin Ryoku did not write says so first: the same
-                    // warning the Store and QS Bar Settings print.
+                    // Community plugins use the same provenance warning across
+                    // the Store and item settings.
                     Rectangle {
                         width: parent.width
                         visible: detail.man.official !== true

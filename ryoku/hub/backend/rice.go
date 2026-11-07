@@ -1291,6 +1291,12 @@ func applyRice(slug string, layers []string) error {
 			return fmt.Errorf("apply profile: %w", err)
 		}
 	}
+	if err := riceRun("ryostore", "internal", "shells-require", "--install"); err != nil {
+		return fmt.Errorf("install rice shell items: %w", err)
+	}
+	if err := riceRun("ryoku-shell", "shells", "commit"); err != nil {
+		return fmt.Errorf("commit rice shell selection: %w", err)
+	}
 
 	_, _ = desktopClient().Apply(desktopStorePath())
 	riceReload()

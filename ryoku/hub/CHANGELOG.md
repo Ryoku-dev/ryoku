@@ -86,6 +86,10 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Subshells and Bar Studio show every shipped, installed and Ryostore item.**
+  A pick switches the desktop when you leave the page, the selected item gets its
+  own settings button, and a parts card hands its docks, launchers and widget
+  sets to the Stage Editor or the App Launcher page.
 - **Installed Ryostore profiles appear under Add person.** Global > Users
   reviews tools and system changes, then gives the account tool editing, reset,
   checkpoints and removal while keeping its role standard.

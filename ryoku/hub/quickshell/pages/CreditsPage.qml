@@ -31,21 +31,23 @@ Item {
         { "name": "ActivSpot",    "by": "Devvvmn",        "role": I18n.tr("window spotlight"),     "url": "https://github.com/Devvvmn/ActivSpot" },
         { "name": "hyprmod",      "by": "BlueManCZ",      "role": I18n.tr("Hyprland tooling"),     "url": "https://github.com/BlueManCZ/hyprmod" },
         { "name": "dotfiles",     "by": "matteogini",     "role": I18n.tr("dotfile craft"),        "url": "https://github.com/matteogini/dotfiles" },
-        { "name": "inir",         "by": "snowarch",       "role": I18n.tr("launcher grid"),        "url": "" },
         { "name": "noctalia",     "by": "noctalia-dev",   "role": I18n.tr("shell polish"),         "url": "https://github.com/noctalia-dev/noctalia-shell" },
         { "name": "DankMaterial", "by": "AvengeMedia",    "role": I18n.tr("material shell"),       "url": "https://github.com/AvengeMedia/DankMaterialShell" },
-        { "name": "Omarchy",      "by": "37signals / DHH", "role": I18n.tr("Nomarchy shell source (MIT)"), "url": "https://github.com/basecamp/omarchy" },
         { "name": "CachyOS",      "by": "CachyOS team",   "role": I18n.tr("performance-focused distribution"), "url": "" },
-        { "name": "Ricelin",      "by": "Gakuseei",       "role": I18n.tr("washi warping pill"),   "url": "https://github.com/Gakuseei/Ricelin" },
-        { "name": "nixos-configuration", "by": "ilyamiro", "role": I18n.tr("legacy island bar"),   "url": "https://github.com/ilyamiro/nixos-configuration" },
-        { "name": "dotfiles",     "by": "Jules3182",     "role": I18n.tr("dyad dual-edge bar"),   "url": "https://github.com/Jules3182/dotfiles" },
         { "name": "NibrasShell",  "by": "Ahmed Saadi",    "role": I18n.tr("depth effect engine"),  "url": "https://github.com/AhmedSaadi0/NibrasShell" },
         { "name": "skwd-wall",    "by": "liixini",        "role": I18n.tr("ryogami wallpaper engine"), "url": "https://github.com/liixini/skwd-wall" },
         { "name": "ii-p3drovfx",  "by": "P3DROVFX",       "role": I18n.tr("Stage Editor, ii dock, Kit, Phone (GPL-3.0)"), "url": "https://github.com/P3DROVFX/ii-p3drovfx" },
+        { "name": "ii-vynx",      "by": "vaguesyntax",     "role": I18n.tr("Stage Editor lineage (GPL-3.0)"), "url": "https://github.com/vaguesyntax/ii-vynx" },
+        { "name": "illogical-impulse", "by": "end-4",      "role": I18n.tr("Stage Editor and dock lineage (GPL-3.0)"), "url": "https://github.com/end-4/dots-hyprland" },
+        { "name": "iNiR",         "by": "snowarch",       "role": I18n.tr("Stage Editor icons (GPL-3.0)"), "url": "https://github.com/snowarch/inir" },
         { "name": "Monkeytype",   "by": "Miodec",         "role": I18n.tr("typing test words and sounds (GPL-3.0)"), "url": "https://github.com/monkeytypegame/monkeytype" },
-        { "name": "Quickshell Rise", "by": "HANCORE-linux", "role": I18n.tr("QS Bar source (MIT)"), "url": "https://github.com/HANCORE-linux/quickshell-dots" },
+        { "name": "freedesktop.org sound theme", "by": "freedesktop.org contributors", "role": I18n.tr("desktop sound cues"), "url": "https://freedesktop.org/wiki/Specifications/sound-theme-spec/" },
         { "name": "voxtype-redux-adapter", "by": "Sipper1236", "role": I18n.tr("Redux dictation adapter (MIT)"), "url": "https://github.com/Sipper1236/voxtype-redux-adapter" },
-        { "name": "ryoku-discord", "by": "Ron (niqqudim)", "role": I18n.tr("default Discord theme (MIT)"), "url": "https://github.com/niqqudim/ryoku-discord" }
+        { "name": "parakeet.cpp", "by": "parakeet.cpp authors", "role": I18n.tr("dictation engine (MIT)"), "url": "https://github.com/mudler/parakeet.cpp" },
+        { "name": "Parakeet TDT 0.6B v3", "by": "NVIDIA", "role": I18n.tr("dictation model lineage (CC-BY-4.0)"), "url": "https://catalog.ngc.nvidia.com/orgs/nvidia/teams/nemo/models/parakeet-tdt-0_6b-v3" },
+        { "name": "ryoku-discord", "by": "Ron (niqqudim)", "role": I18n.tr("default Discord theme (MIT)"), "url": "https://github.com/niqqudim/ryoku-discord" },
+        { "name": "midnight", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/midnight-discord" },
+        { "name": "system24", "by": "refact0r", "role": I18n.tr("Discord theme foundation (MIT)"), "url": "https://github.com/refact0r/system24" }
     ]
 
     // the alpha/beta crew, constantly stress-testing and filing bugs. each name
