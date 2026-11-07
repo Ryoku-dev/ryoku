@@ -771,6 +771,16 @@ def history_records() -> tuple[list[dict], dict]:
             try:
                 with path.open(errors="replace") as handle:
                     for raw in handle:
+                        # Skip large tool and message records with one substring
+                        # test instead of parsing every line as JSON. The title
+                        # scan stops once a real user message has named the
+                        # session.
+                        if ('"session_meta"' not in raw
+                                and '"thread_settings_applied"' not in raw
+                                and '"turn_context"' not in raw
+                                and '"event_msg"' not in raw
+                                and (title or '"response_item"' not in raw)):
+                            continue
                         try:
                             event = json.loads(raw)
                         except ValueError:
@@ -886,7 +896,6 @@ def history_records() -> tuple[list[dict], dict]:
         if not session["title"]:
             directory = str(session["directory"] or "").rstrip("/")
             session["title"] = directory.rsplit("/", 1)[-1] if directory else "Codex session"
-        now = now_epoch()
         state = session.pop("_running_state", None)
         session.pop("_lifecycle_ts", None)
         if state is None:
