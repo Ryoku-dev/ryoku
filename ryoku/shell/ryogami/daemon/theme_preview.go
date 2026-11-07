@@ -206,7 +206,7 @@ func writeColorsFile(colors map[string]string) {
 }
 
 func themeReloadNudge() {
-	go func() { _ = exec.Command("qs", "-c", "shell", "ipc", "call", "theme", "reload").Run() }()
+	go func() { _ = exec.Command("ryoku-shell", "ipc", "call", "shell", "reloadPalette").Run() }()
 }
 
 func (d *daemon) paletteHover(p map[string]interface{}) (map[string]interface{}, error) {
