@@ -81,6 +81,9 @@ Scope {
     }
 
     // The dismiss surface never animates. Only the small corner buffer redraws.
+    // Since it does not redraw, a mask edited after its first frame never reaches
+    // the compositor, so its hole is the panel's whole column, which stays fixed
+    // while an inline drawer or section grows the panel inside it.
     PanelWindow {
         id: dismiss
         screen: root.screen
@@ -99,9 +102,9 @@ Scope {
             Region {
                 intersection: Intersection.Subtract
                 x: root.panelX
-                y: root.panelY
+                y: root.roomY
                 width: root.wantedWidth
-                height: root.wantedHeight
+                height: root.availableHeight
             }
             Region { intersection: Intersection.Subtract; width: dismiss.width; height: root.clearances.top }
             Region { intersection: Intersection.Subtract; y: dismiss.height - root.clearances.bottom; width: dismiss.width; height: root.clearances.bottom }
@@ -125,17 +128,33 @@ Scope {
         exclusionMode: ExclusionMode.Ignore
         exclusiveZone: 0
         anchors { top: true; left: true }
-        margins.top: root.panelY
+        margins.top: root.roomY
         margins.left: root.panelX
         implicitWidth: root.wantedWidth
-        implicitHeight: root.wantedHeight
+        implicitHeight: root.availableHeight
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.namespace: "ryoku-sidebar-left"
         WlrLayershell.keyboardFocus: root.active ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
 
+        // The dismiss hole spans the whole column, so a press in its clear part
+        // above or below the panel has to dismiss here instead.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+            onPressed: mouse => {
+                if (mouse.y >= surface.y && mouse.y < surface.y + surface.height) {
+                    mouse.accepted = false;
+                    return;
+                }
+                Qt.callLater(() => SidebarState.close(root.screen));
+            }
+        }
+
         FocusScope {
             id: surface
-            anchors.fill: parent
+            y: root.panelY - root.roomY
+            width: parent.width
+            height: root.wantedHeight
             opacity: root.reveal
             scale: 0.985 + root.reveal * 0.015
             transformOrigin: root.panelTransformOrigin

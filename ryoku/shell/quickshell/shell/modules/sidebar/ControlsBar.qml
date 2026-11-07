@@ -11,6 +11,8 @@ Item {
     required property real s
     required property var screen
     required property bool active
+    // the panel's window can reach past its card, so the card bounds the settings popup
+    property Item card: null
     signal session(string action)
     signal openExtensions()
     signal requestClose()
@@ -169,25 +171,26 @@ Item {
 
     ControlsSettingsPopup {
         id: settings
+        readonly property Item bounds: root.card ?? host
         parent: root
         x: {
-            if (!host)
+            if (!bounds)
                 return 0;
-            const origin = root.mapToItem(host, 0, 0);
-            return Math.max(0, Math.min(host.width - width, origin.x + root.width - width)) - origin.x;
+            const origin = root.mapToItem(bounds, 0, 0);
+            return Math.max(0, Math.min(bounds.width - width, origin.x + root.width - width)) - origin.x;
         }
         y: {
-            if (!host)
+            if (!bounds)
                 return 0;
-            const origin = root.mapToItem(host, 0, 0);
+            const origin = root.mapToItem(bounds, 0, 0);
             const preferred = origin.y - height - Tokens.s2 * root.s;
-            return Math.max(0, Math.min(host.height - height, preferred)) - origin.y;
+            return Math.max(0, Math.min(bounds.height - height, preferred)) - origin.y;
         }
         s: root.s
         active: root.active
         // keep the popup wholly above the bar so it never covers the gear that closes
         // it, measured on every open because the bar settles after the popup exists
-        onAboutToShow: maxHeight = host ? Math.max(1, root.mapToItem(host, 0, 0).y - Tokens.s2 * root.s) : hostHeight
+        onAboutToShow: maxHeight = bounds ? Math.max(1, root.mapToItem(bounds, 0, 0).y - Tokens.s2 * root.s) : hostHeight
         onOpenExtensions: root.openExtensions()
         onRequestClose: root.requestClose()
     }

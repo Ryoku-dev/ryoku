@@ -14,6 +14,7 @@ Item {
     required property var screen
     required property bool active
     property string page: "controls"
+    property Item card: null
     signal requestClose()
 
     readonly property string currentPage: ["wifi", "bluetooth"].indexOf(page) >= 0 ? page : "controls"
@@ -136,6 +137,7 @@ Item {
             height: implicitHeight
             s: root.s
             screen: root.screen
+            card: root.card
             active: root.overviewActive
             onSession: action => root.session(action)
             onOpenExtensions: root.showPage("plugins")

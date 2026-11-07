@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Clicking an expanded Controls drawer no longer closes the panel.** Opening the
+  Brightness or Volume drawer grew the panel, but clicks on the newly grown part
+  still counted as clicks outside it. The whole drawer now takes clicks, and the
+  settings popup stays inside the panel when it is centred.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
