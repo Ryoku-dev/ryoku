@@ -111,11 +111,11 @@ Item {
     }
 
     // A DDC/CI read that overlaps the panel's layers mapping stalled every
-    // output's frames for 45-200 ms on each open (seen on NVIDIA I2C), so the
-    // live level is read once the reveal has settled.
+    // output's frames for 45-200 ms on each open (seen on NVIDIA I2C); from
+    // 100 ms on there were none, so the live level is read after the map.
     Timer {
         id: externalReadDelay
-        interval: SidebarState.enterDuration + 400
+        interval: 250
         onTriggered: root.readExternalBrightness()
     }
 
