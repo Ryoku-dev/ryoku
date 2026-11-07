@@ -52,7 +52,7 @@ QML running against a stale plugin.
 | `ryoku-hub` | Ryoku Settings, the control center (Appearance, Animations, Displays, Connections, GPU, Keybinds, and the rest) |
 | `ryoku` | The `ryoku` CLI: `update`, `doctor`, `materialize`, rollback, snapshots |
 | `ryoku-rashin` | Rashin, the AI agent: the system-map vault, Ask, the Rashin window and the bar's AI usage pill. Installed by default but optional: untick it in the installer's Apps & tools, or remove it later, and Ryoku does not put it back |
-| `ryoku-blobs` | The shared `Ryoku.Blobs` QML plugin |
+| `ryoku-blobs` | The shared `Ryoku.Blobs`, `Ryoku.Spatial3D` and `Ryoku.Bus` QML plugins |
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
 | `ryomanager` | RyoManager, the system monitor and process manager. It is selected by default in the installer and can be removed without doctor putting it back |

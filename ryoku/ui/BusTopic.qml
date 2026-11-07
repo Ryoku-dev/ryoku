@@ -1,5 +1,5 @@
 import QtQuick
-import "Singletons"
+import Ryoku.Bus
 
 // One daemon topic as a QML object. `data` is the latest frame (shared with
 // every other reader in the process; never mutate it) and `info` describes it
@@ -32,11 +32,11 @@ QtObject {
 
     function _sync() {
         if (topicView._token !== 0) {
-            Bus.unsubscribe(topicView._token);
+            BusClient.unsubscribe(topicView._token);
             topicView._token = 0;
         }
         if (topicView._complete && topicView.active && topicView.topic !== "")
-            topicView._token = Bus.subscribe(topicView.topic, topicView._deliver);
+            topicView._token = BusClient.subscribe(topicView.topic, topicView._deliver);
     }
 
     onActiveChanged: topicView._sync()
@@ -51,6 +51,6 @@ QtObject {
     }
     Component.onDestruction: {
         if (topicView._token !== 0)
-            Bus.unsubscribe(topicView._token);
+            BusClient.unsubscribe(topicView._token);
     }
 }

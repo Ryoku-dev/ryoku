@@ -236,13 +236,13 @@ log "Building ryoku-hub from $REPO_ROOT/ryoku/hub/backend"
 install -d "$AIROOTFS/usr/share/ryoku/ryoku/hub/backend"
 ( cd "$REPO_ROOT/ryoku/hub/backend" && CGO_ENABLED=0 go build -trimpath -ldflags '-s -w -buildid=' -o "$AIROOTFS/usr/share/ryoku/ryoku/hub/backend/ryoku-hub" . )
 
-# 4c. prebuild the Ryoku.Blobs and Ryoku.Spatial3D QML plugins (the frame
-#     renderer and the Stage depth mesh) into the payload, same model as
-#     ryoku-shell. target has no build toolchain; build deps live on the build
-#     host only.
+# 4c. prebuild the Ryoku.Blobs, Ryoku.Spatial3D and Ryoku.Bus QML plugins (the
+#     frame renderer, the Stage depth mesh and the daemon bus client) into the
+#     payload, same model as ryoku-shell. target has no build toolchain; build
+#     deps live on the build host only.
 command -v cmake >/dev/null 2>&1 || die "cmake is required to build the Ryoku QML plugins (pacman -S cmake ninja qt6-shadertools qt6-quick3d)"
 command -v ninja >/dev/null 2>&1 || die "ninja is required to build the Ryoku QML plugins (pacman -S cmake ninja)"
-log "Building Ryoku.Blobs and Ryoku.Spatial3D plugins from $REPO_ROOT/ryoku/shell/plugin"
+log "Building the Ryoku QML plugins from $REPO_ROOT/ryoku/shell/plugin"
 RYOKU_BLOBS_BUILD="$STAGE_DIR/blobs-build" \
   "$REPO_ROOT/ryoku/shell/plugin/build.sh" \
   "$AIROOTFS/usr/share/ryoku/ryoku/shell/plugin/dist"

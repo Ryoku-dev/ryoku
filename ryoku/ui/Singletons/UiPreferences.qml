@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import "../lib/buspath.js" as BusPath
+import "buspath.js" as BusPath
 
 // Cross-surface presentation preferences from the daemon-owned shell store,
 // read off the shared settings frame.

@@ -36,16 +36,18 @@ pkgs.stdenv.mkDerivation {
     cp -a \
       qml/Ryoku/Blobs \
       qml/Ryoku/Spatial3D \
+      qml/Ryoku/Bus \
       "$out/${qmlRoot}/Ryoku/"
 
     rm -f "$out/${qmlRoot}/Ryoku/Blobs/"*.qrc \
-      "$out/${qmlRoot}/Ryoku/Spatial3D/"*.qrc
+      "$out/${qmlRoot}/Ryoku/Spatial3D/"*.qrc \
+      "$out/${qmlRoot}/Ryoku/Bus/"*.qrc
 
     runHook postInstall
   '';
 
   meta = {
-    description = "Ryoku.Blobs and Ryoku.Spatial3D Qt/QML rendering modules";
+    description = "Ryoku.Blobs, Ryoku.Spatial3D and Ryoku.Bus Qt/QML modules";
     homepage = "https://github.com/Ryoku-dev/ryoku-arch";
     license = pkgs.lib.licenses.gpl3Only;
     platforms = [ "x86_64-linux" ];

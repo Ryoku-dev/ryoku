@@ -1,6 +1,6 @@
 import QtQuick
 import Quickshell.Io
-import "Singletons"
+import Ryoku.Bus
 
 // An IpcHandler that the daemon can also reach over the bus, so a keybind or
 // `ryoku-shell ipc call` lands without spawning a `qs ipc` client. `qs ipc`
@@ -11,8 +11,8 @@ import "Singletons"
 IpcHandler {
     id: handler
 
-    onTargetChanged: Bus._serveAs(handler, handler.enabled ? handler.target : "")
-    onEnabledChanged: Bus._serveAs(handler, handler.enabled ? handler.target : "")
-    Component.onCompleted: Bus._serveAs(handler, handler.enabled ? handler.target : "")
-    Component.onDestruction: Bus._serveAs(handler, "")
+    onTargetChanged: BusClient.serveAs(handler, handler.enabled ? handler.target : "")
+    onEnabledChanged: BusClient.serveAs(handler, handler.enabled ? handler.target : "")
+    Component.onCompleted: BusClient.serveAs(handler, handler.enabled ? handler.target : "")
+    Component.onDestruction: BusClient.serveAs(handler, "")
 }

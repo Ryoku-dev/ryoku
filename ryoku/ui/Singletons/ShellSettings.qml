@@ -3,14 +3,16 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../lib/buspath.js" as BusPath
+import Ryoku.Bus
+import "buspath.js" as BusPath
 
 // The daemon's settings frame (shell.json plus caps, deadKeys and
 // windowRuleActions), parsed once per process for every reader. The file is
 // read synchronously at construction, so the first frame already has the right
 // language and theme; the daemon's settings topic takes over from there. While
 // the daemon is unreachable the file is watched directly, so an edit still
-// lands.
+// lands. A file read goes to the bus as a seed, so a BusValue on the settings
+// topic (ShellSetting) sees it too.
 Singleton {
     id: root
 
@@ -44,14 +46,7 @@ Singleton {
 
     // cb(ok, result, error), optional.
     function patch(path, value, cb) {
-        return Bus.call("settings.patch", { path: BusPath.join(path), value: value }, cb);
-    }
-
-    function _set(next, paths) {
-        root._data = next;
-        root._lastPaths = paths;
-        root._ready = true;
-        root.changed(paths);
+        return BusClient.call("settings.patch", { path: BusPath.join(path), value: value }, cb);
     }
 
     function _fromFile(atStart) {
@@ -75,13 +70,17 @@ Singleton {
         for (let i = 0; i < keep.length; i++)
             if (!(keep[i] in next) && root._data && keep[i] in root._data)
                 next[keep[i]] = root._data[keep[i]];
-        root._set(next, null);
+        // Comes back through _onFrame, unless the daemon's frame is already in.
+        BusClient.seed("settings", next);
     }
 
     function _onFrame(data, info) {
         if (data === null || typeof data !== "object" || Array.isArray(data))
             return;
-        root._set(data, info ? info.paths : null);
+        root._data = data;
+        root._lastPaths = info ? info.paths : null;
+        root._ready = true;
+        root.changed(root._lastPaths);
     }
 
     FileView {
@@ -89,17 +88,17 @@ Singleton {
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
         blockLoading: true
         printErrors: false
-        watchChanges: root._started && !Bus.connected
+        watchChanges: root._started && !BusClient.connected
         onFileChanged: reload()
         onLoaded: {
-            if (root._started && !Bus.connected)
+            if (root._started && !BusClient.connected)
                 root._fromFile(false);
         }
     }
 
     Component.onCompleted: {
+        BusClient.subscribe("settings", root._onFrame);
         root._fromFile(true);
         root._started = true;
-        Bus.subscribe("settings", root._onFrame);
     }
 }

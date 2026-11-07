@@ -1,38 +1,24 @@
 import QtQuick
-import "Singletons"
-import "lib/buspath.js" as BusPath
+import Ryoku.Bus
+import Ryoku.Ui.Singletons
 
 // One shell setting as a bindable value. `value` moves only when a change
-// reaches its path (the key itself, inside it, or an ancestor), so a binding on
-// bar.style sleeps through every unrelated settings patch.
+// reaches its path (the key itself, inside it, or an ancestor) and the value
+// there differs, so a binding on bar.style sleeps through every unrelated
+// settings patch. The path check and the comparison run natively (BusValue).
 QtObject {
     id: setting
 
     property var path: ""
     property var fallback: undefined
-    readonly property var value: setting._value
+    readonly property var value: setting._value.value
 
-    // Bound only until completion, so a reader during construction already
-    // sees the value; then assigned, since a binding would re-run on every
-    // settings frame.
-    property var _value: ShellSettings.get(setting.path, setting.fallback)
-
-    function _refresh() {
-        const next = ShellSettings.get(setting.path, setting.fallback);
-        if (next === setting._value && (next === null || typeof next !== "object"))
-            return;
-        setting._value = next;
+    property BusValue _value: BusValue {
+        topic: "settings"
+        path: setting.path
+        fallback: setting.fallback
     }
-
-    onPathChanged: setting._refresh()
-    onFallbackChanged: setting._refresh()
-    Component.onCompleted: setting._value = ShellSettings.get(setting.path, setting.fallback)
-
-    property Connections _watch: Connections {
-        target: ShellSettings
-        function onChanged(paths) {
-            if (BusPath.touches(setting.path, paths))
-                setting._refresh();
-        }
-    }
+    // ShellSettings seeds the settings topic from shell.json before the daemon
+    // answers; reading it makes sure it exists.
+    readonly property bool _seeded: ShellSettings.ready
 }

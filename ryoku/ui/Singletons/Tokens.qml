@@ -3,7 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../lib/buspath.js" as BusPath
+import "buspath.js" as BusPath
 
 // The one place Ryoku's look is defined. Everything that draws imports this;
 // nothing hardcodes a hex, a size or a duration.

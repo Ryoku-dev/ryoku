@@ -1,6 +1,8 @@
 // Settings paths for the daemon bus. A path is "bar.style" or ["bar", "style"];
 // a delta frame names what it changed as key arrays. Plain module (no
-// `.pragma library`) so node can test it, like its siblings in ryoku/ui/lib.
+// `.pragma library`) so node can test it, like the helpers in ryoku/ui/lib. It
+// sits beside the singletons that import it so the compiled Ryoku.Ui.Singletons
+// module carries it in its own resources.
 
 // A key list that crossed a QML `var` signal parameter arrives as a sequence
 // (array-like, but Array.isArray is false), so anything with a length that is

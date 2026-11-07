@@ -2,7 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import "../lib/buspath.js" as BusPath
+import "buspath.js" as BusPath
 
 // The one translation lookup, shared by every Ryoku surface (Hub, shell, apps,
 // the wallpaper picker, the greeter). Source-string-as-key:

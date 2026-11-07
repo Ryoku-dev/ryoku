@@ -47,8 +47,11 @@ QML talks to `ryoku-shell` only through `Bus` and `ShellSettings` in
 `shell.json`. An IPC target the daemon or another process calls is a
 `BusIpcHandler`, so the call arrives over the open connection instead of a new
 `qs ipc` client. Something the shell itself would end up handling (opening one
-of its surfaces) is a direct call, not a round trip through the daemon. The
-protocol is described at the top of `ryoku/shell/ipc/bus.go`.
+of its surfaces) is a direct call, not a round trip through the daemon. A list
+rendered from a topic is a `BusListModel` and one value inside a topic a
+`BusValue` (both `Ryoku.Bus`, the native client under `ryoku/shell/plugin/`
+that `Bus` sits on), so a frame changes only the rows and values that moved.
+The protocol is described at the top of `ryoku/shell/ipc/bus.go`.
 
 ## Launching a process goes through Spawn
 

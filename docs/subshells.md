@@ -319,10 +319,10 @@ update an item), `docs/items.md` (`item.toml` and the folder layout),
 runtime, translations) and `templates/`. Items reach Ryoku's platform through
 `shell.services` (import it qualified, `import shell.services as Ryoku`),
 `shell.barkit`, `shell.modules.stage.frame`, `stage`, `Ryoku.Ui`,
-`Ryoku.Ui.Singletons`, `Ryoku.Blobs`, `Ryoku.PluginKit` and `Ryoku.FrameBars`,
-plus Qt and Quickshell modules. Window-manager state comes only from `Wm` in
-`Ryoku.Ui.Singletons`, never a compositor module, so an item runs on Hyprland,
-niri and Wayfire alike.
+`Ryoku.Ui.Singletons`, `Ryoku.Blobs`, `Ryoku.Bus`, `Ryoku.PluginKit` and
+`Ryoku.FrameBars`, plus Qt and Quickshell modules. Window-manager state comes
+only from `Wm` in `Ryoku.Ui.Singletons`, never a compositor module, so an item
+runs on Hyprland, niri and Wayfire alike.
 
 To change Orpheus or Kairos, edit `ryoku/shell/quickshell/shell/subshells/<id>/`
 here. A new file or import inside a loaded Scene needs a shell restart

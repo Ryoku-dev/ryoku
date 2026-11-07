@@ -1,7 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
-import "../lib/buspath.js" as BusPath
+import "buspath.js" as BusPath
 
 // One wall-clock preference for the shell, Hub and lockscreen. The daemon is
 // the sole writer; its settings topic keeps separate QML processes in sync.
