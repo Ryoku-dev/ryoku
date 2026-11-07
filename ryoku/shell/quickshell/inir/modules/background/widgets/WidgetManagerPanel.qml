@@ -240,13 +240,6 @@ Item {
     onCanvasWidthChanged: Qt.callLater(root.clampToCanvas)
     onCanvasHeightChanged: Qt.callLater(root.clampToCanvas)
 
-    readonly property bool _exampleInstalled: {
-        if (!CustomWidgets.ready) return false;
-        for (let i = 0; i < CustomWidgets.widgets.length; i++)
-            if (CustomWidgets.widgets[i].id === "example-widget") return true;
-        return false;
-    }
-
     // Block clicks from reaching desktop
     MouseArea { anchors.fill: parent; z: -1; acceptedButtons: Qt.AllButtons; propagateComposedEvents: false }
 
@@ -717,16 +710,22 @@ Item {
                         contentItem: MaterialSymbol { anchors.centerIn: parent; text: "folder_open"; iconSize: 16; color: root.ink }
                         StyledToolTip { text: Translation.tr("Open widgets folder") }
                     }
-                    RippleButton {
-                        visible: !root._exampleInstalled
-                        width: 28; height: 28; buttonRadius: Appearance.rounding.full
-                        colBackground: ColorUtils.applyAlpha(root.accentInk, 0.08)
-                        colBackgroundHover: ColorUtils.applyAlpha(root.accentInk, 0.14)
-                        colRipple: ColorUtils.applyAlpha(root.accentInk, 0.12)
-                        releaseAction: () => { CustomWidgets.installExample(); CustomWidgets.reload() }
-                        cancelAction: () => {}
-                        contentItem: MaterialSymbol { anchors.centerIn: parent; text: "download"; iconSize: 16; color: root.accentInk }
-                        StyledToolTip { text: Translation.tr("Install example widget") }
+                    Repeater {
+                        model: CustomWidgets.shippedWidgets
+                        RippleButton {
+                            required property var modelData
+                            visible: !CustomWidgets.isInstalled(modelData.id)
+                            width: visible ? 28 : 0
+                            height: 28
+                            buttonRadius: Appearance.rounding.full
+                            colBackground: ColorUtils.applyAlpha(root.accentInk, 0.08)
+                            colBackgroundHover: ColorUtils.applyAlpha(root.accentInk, 0.14)
+                            colRipple: ColorUtils.applyAlpha(root.accentInk, 0.12)
+                            releaseAction: () => { CustomWidgets.installShipped(modelData.id); CustomWidgets.reload() }
+                            cancelAction: () => {}
+                            contentItem: MaterialSymbol { anchors.centerIn: parent; text: "download"; iconSize: 16; color: root.accentInk }
+                            StyledToolTip { text: Translation.tr("Install %1").arg(modelData.name) }
+                        }
                     }
                 }
             }

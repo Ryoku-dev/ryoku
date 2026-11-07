@@ -13,14 +13,20 @@ Singleton {
 
     // Discovered custom widgets: [{ id, name, icon, qmlPath, dirPath, ... }]
     property list<var> widgets: []
+    // Widgets the shell ships, offered for install: [{ id, name, icon, description }]
+    property list<var> shippedWidgets: []
     readonly property bool ready: _scanDone
     readonly property string widgetsDir: `${Directories.configPath}/inir/widgets`
+    readonly property string shippedWidgetsDir: FileUtils.trimFileProtocol(Directories.payloadPath("defaults/widgets"))
 
     property bool _scanDone: false
     // Qt caches a component by URL for the engine lifetime. Reload through a fresh path so an updated widget compiles again.
     property int _generation: 0
 
-    Component.onCompleted: _scan()
+    Component.onCompleted: {
+        _scan();
+        _scanShipped();
+    }
     Connections {
         target: Config
         function onReadyChanged() {
@@ -36,6 +42,39 @@ Singleton {
         root._scanDone = false;
         root.widgets = [];
         _scan();
+    }
+
+    function _scanShipped(): void {
+        _shippedScan.running = false;
+        _shippedScan.running = true;
+    }
+
+    function _parseShipped(output: string): void {
+        try {
+            const entries = JSON.parse(output || "[]");
+            const list = [];
+            for (const entry of entries) {
+                const manifest = entry.manifest || {};
+                if (!manifest.name)
+                    continue;
+                list.push({
+                    id: entry.id,
+                    name: manifest.name,
+                    icon: manifest.icon || "widgets",
+                    description: manifest.description || ""
+                });
+            }
+            root.shippedWidgets = list;
+        } catch (e) {
+            console.warn("[CustomWidgets] Failed to parse shipped manifests:", e);
+        }
+    }
+
+    function isInstalled(widgetId: string): bool {
+        for (let i = 0; i < root.widgets.length; i++)
+            if (root.widgets[i].id === widgetId)
+                return true;
+        return false;
     }
 
     function _scan(): void {
@@ -211,9 +250,11 @@ Singleton {
         _removeProcess.running = true;
     }
 
-    // Install the built-in example widget
-    function installExample(): void {
-        _installExampleProcess.running = true;
+    // Copy a shipped widget from defaults into the user's widgets directory
+    function installShipped(widgetId: string): void {
+        if (!widgetId || widgetId.length === 0) return;
+        _installShippedProcess.widgetId = widgetId;
+        _installShippedProcess.running = true;
     }
 
     // Open widget directory in file manager
@@ -411,20 +452,29 @@ IRIS_QML
         }
     }
 
-    // Path to shipped example widget
-    readonly property string _exampleWidgetPath: FileUtils.trimFileProtocol(Directories.payloadPath("defaults/widgets/example-widget"))
-
-    // Copy example widget from defaults
+    // Shipped widget manifests, read from the same scanner as the user widget dir
     Process {
-        id: _installExampleProcess
+        id: _shippedScan
+        running: false
+        command: [Directories.scriptsPath + "/scan-widgets.sh", root.shippedWidgetsDir]
+        stdout: StdioCollector {
+            id: _shippedScanCollector
+            onStreamFinished: root._parseShipped(_shippedScanCollector.text ?? "")
+        }
+    }
+
+    // Copy a shipped widget from defaults
+    Process {
+        id: _installShippedProcess
+        property string widgetId: ""
         running: false
         command: ["bash", "-c", `
-            src="${root._exampleWidgetPath}"
-            dest="${root.widgetsDir}/example-widget"
+            src="${root.shippedWidgetsDir}/${_installShippedProcess.widgetId}"
+            dest="${root.widgetsDir}/${_installShippedProcess.widgetId}"
             [ -d "$src" ] || { echo "fail"; exit 1; }
             [ -e "$dest" ] && { echo "exists"; exit 0; }
             mkdir -p "$dest"
-            cp -r "$src"/* "$dest"/
+            cp -r "$src"/. "$dest"/
             echo "done"
         `]
         stdout: StdioCollector {

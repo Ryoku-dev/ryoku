@@ -13,7 +13,12 @@ on:
   pull_request:
     paths:
       - 'ryoku/rashin/usage/opencode-usage'
+      - 'ryoku/rashin/usage/codex-usage'
+      - 'ryoku/shell/quickshell/inir/defaults/widgets/ai-usage/**'
       - 'tests/opencode-usage.sh'
+      - 'tests/codex-usage.sh'
+      - 'tests/codex-usage-regression.py'
+      - 'tests/ai-usage-cache.py'
       - '.github/workflows/ai-usage-collector.yml'
   push:
     branches:
@@ -21,7 +26,12 @@ on:
       - unstable-dev
     paths:
       - 'ryoku/rashin/usage/opencode-usage'
+      - 'ryoku/rashin/usage/codex-usage'
+      - 'ryoku/shell/quickshell/inir/defaults/widgets/ai-usage/**'
       - 'tests/opencode-usage.sh'
+      - 'tests/codex-usage.sh'
+      - 'tests/codex-usage-regression.py'
+      - 'tests/ai-usage-cache.py'
       - '.github/workflows/ai-usage-collector.yml'
   workflow_dispatch:
 
@@ -39,3 +49,19 @@ jobs:
       - name: Store-layout fixture test
         shell: bash
         run: bash tests/opencode-usage.sh
+
+      - name: Codex rollout fixture test
+        shell: bash
+        run: bash tests/codex-usage.sh
+
+      - name: Set up Node for widget parser checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Codex replay and quota-window regression tests
+        run: python3 tests/codex-usage-regression.py
+
+      - name: Widget cache contract
+        shell: bash
+        run: python3 tests/ai-usage-cache.py
