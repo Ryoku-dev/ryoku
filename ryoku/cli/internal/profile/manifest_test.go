@@ -24,7 +24,8 @@ func validTestManifest(t *testing.T) (string, *Manifest) {
 		Wordlists:    Wordlists{Links: []WordlistLink{{Name: "seclists", Target: "/usr/share/seclists"}}, Extract: []WordlistExtract{{Archive: "/usr/share/seclists/rockyou.tar.gz", Member: "rockyou.txt", Name: "rockyou.txt"}}},
 		Hosts:        HostsSpec{Suffixes: []string{"htb"}}, Env: []EnvVar{{Key: "WORDLISTS", Value: "/usr/share/wordlists"}},
 		Path: []string{"@PROFILE_BIN@", "@HOME@/go/bin"}, Launcher: LauncherSpec{Allow: []string{"kitty.desktop"}},
-		Expand: []string{"template.txt"}, SeedOnce: []string{"seed.txt"}, UserData: []string{"notes"}, Rice: "hacker",
+		StoreItems: []StoreItem{{Category: "barstyles", ID: "qsbar"}},
+		Expand:     []string{"template.txt"}, SeedOnce: []string{"seed.txt"}, UserData: []string{"notes"}, Rice: "hacker",
 		FirstRun: FirstRun{Command: []string{"obsidian"}, Message: "Ready."},
 	}
 	return dir, m
@@ -67,6 +68,8 @@ func TestManifestValidationRules(t *testing.T) {
 		{"group", "account.groups", func(m *Manifest) { m.Account.Groups = []string{"wheel"} }},
 		{"shell", "account.shell", func(m *Manifest) { m.Account.Shell = "bash" }},
 		{"repo", "repos", func(m *Manifest) { m.Repos = []string{"aur"} }},
+		{"store item category", "storeItems[0].category", func(m *Manifest) { m.StoreItems[0].Category = "plugins" }},
+		{"store item id", "storeItems[0].id", func(m *Manifest) { m.StoreItems[0].ID = "Bad ID" }},
 		{"component type", "components[0].type", func(m *Manifest) { m.Components[0].Type = "script" }},
 		{"package name", "components[0].name", func(m *Manifest) { m.Components[0].Name = "bad name" }},
 		{"detect", "components[0].detect", func(m *Manifest) { m.Components[0].Detect = "bad/path" }},

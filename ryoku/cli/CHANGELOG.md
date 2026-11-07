@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Doctor installs a selected subshell or bar style that is missing.** One the
+  store no longer offers falls back to Orpheus, the old QS Bar volume boost moves
+  to the shared `audio.boost`, and profiles install the store items they list.
 - **Doctor recognizes the shell's own visualizer and file watchers.** Memory
   checks no longer report those helpers as user apps left inside the desktop
   service (`internal/doctor/memory.go`).

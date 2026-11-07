@@ -29,15 +29,6 @@ var knownHosts = map[string]bool{"framePopout": true, "desktopWidget": true, "to
 // alphanumerics and dashes, not starting with a dash.
 var pluginIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
-// builtinWidgetIDs is the reserved built-in widget id set (contract 1). It is
-// the fallback when the catalogue file cannot be found, so a manifest can never
-// claim a built-in id even before the catalogue ships.
-var builtinWidgetIDs = []string{
-	"launcher", "workspaces", "status", "memory", "cpu", "volume", "ai", "clock",
-	"media", "quick", "network", "battery", "brightness", "power", "bluetooth",
-	"cputemp", "gpu", "storage", "layout",
-}
-
 // manifest is the validated subset of a plugin manifest the CLI reasons about.
 type manifest struct {
 	ID      string
@@ -93,23 +84,38 @@ func pluginsInstallRoot() string {
 	return filepath.Join(sys.Xdg("XDG_DATA_HOME", ".local/share"), "ryoku", "plugins")
 }
 
-// catalogPath resolves the widget catalogue: the packaged base (or
-// RYOKU_CONFIG_BASE) first, then a dev checkout via ResolveRepo.
+// catalogPath resolves an installed shell item's widget catalogue through the
+// generated shells index. Packed and absent items have no live catalogue.
 func catalogPath() string {
-	rel := filepath.Join("quickshell", "shell", "modules", "bar", "barstyles", "qsbar", "core", "widgets.json")
-	if p := filepath.Join(sys.BaseConfigDir(), rel); sys.Exists(p) {
-		return p
+	indexPath := filepath.Join(sys.Xdg("XDG_STATE_HOME", ".local/state"), "ryoku", "store", "shells.json")
+	body, err := os.ReadFile(indexPath)
+	if err != nil {
+		return ""
 	}
-	if repo := sys.ResolveRepo(); repo != "" {
-		if p := filepath.Join(repo, "ryoku", "shell", rel); sys.Exists(p) {
-			return p
+	var index struct {
+		Items []struct {
+			Source   string `json:"source"`
+			Dir      string `json:"dir"`
+			Prepared bool   `json:"prepared"`
+		} `json:"items"`
+	}
+	if json.Unmarshal(body, &index) != nil {
+		return ""
+	}
+	for _, item := range index.Items {
+		if item.Source != "store" || !item.Prepared || !filepath.IsAbs(item.Dir) {
+			continue
+		}
+		path := filepath.Join(item.Dir, "qml", "core", "widgets.json")
+		if sys.Exists(path) {
+			return path
 		}
 	}
-	return filepath.Join(sys.BaseConfigDir(), rel)
+	return ""
 }
 
-// reservedIDs is the set of ids a plugin may not claim: the built-in widgets
-// from the catalogue, or the fixed built-in set when the catalogue is absent.
+// reservedIDs returns ids from the installed widget catalogue. Without that
+// item, validation skips this collision check.
 func reservedIDs() map[string]bool {
 	out := map[string]bool{}
 	if b, err := os.ReadFile(catalogPath()); err == nil {
@@ -122,11 +128,6 @@ func reservedIDs() map[string]bool {
 					out[w.ID] = true
 				}
 			}
-		}
-	}
-	if len(out) == 0 {
-		for _, id := range builtinWidgetIDs {
-			out[id] = true
 		}
 	}
 	return out

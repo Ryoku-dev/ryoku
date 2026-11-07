@@ -121,7 +121,8 @@ func TestShellMemoryHelperMatchesShellWatchers(t *testing.T) {
 	}
 	helpers := [][]string{
 		{"python3", "-u", "-c", "# ryoku-python kb_locks watcher\nimport sys\n"},
-		{"python3", "-u", "/home/u/.config/quickshell/inir/scripts/daemon/keyboard_lock_state_daemon.py"},
+		{"python3", "-u", "/home/u/.local/state/ryoku/store/unpacked/barstyles/iris/0f3a/qml/inir/scripts/daemon/keyboard_lock_state_daemon.py"},
+		{"sh", "/home/u/.local/state/ryoku/store/unpacked/subshells/caelestia/9b1c/qml/scripts/poll.sh"},
 		{"python3", "-u", "-c", "import glob\nlast_caps = read_sysfs(\"/sys/class/leds/*capslock*/brightness\")\n"},
 		{"bash", "/home/u/.config/quickshell/shell/watchers/kb_locks.sh", "watch"},
 		{"inotifywait", "-m", "-e", "modify", "/home/u/.cache/ryoku/python/recording"},

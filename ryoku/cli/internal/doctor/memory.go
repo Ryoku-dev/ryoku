@@ -344,6 +344,12 @@ func isShellMemoryHelper(cmdline string) bool {
 	if len(argv) == 0 {
 		return false
 	}
+	// Anything running from an unpacked store item belongs to the active shell.
+	for _, arg := range argv[1:] {
+		if strings.Contains(arg, "/ryoku/store/unpacked/") {
+			return true
+		}
+	}
 	switch filepath.Base(argv[0]) {
 	case "inotifywait":
 		for _, arg := range argv[1:] {

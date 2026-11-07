@@ -1674,6 +1674,37 @@ func TestBarStyleDefaultsToOrpheus(t *testing.T) {
 	}
 }
 
+func TestMigrateAudioBoost(t *testing.T) {
+	out, changed, err := migrateDockStore([]byte(`{"qsbar":{"audioBoost":true,"barGapTop":3},"audio":{}}`))
+	if err != nil || !changed {
+		t.Fatalf("migrateDockStore: changed=%v err=%v", changed, err)
+	}
+	var config map[string]any
+	if err := json.Unmarshal(out, &config); err != nil {
+		t.Fatal(err)
+	}
+	if config["audio"].(map[string]any)["boost"] != true {
+		t.Fatalf("audio.boost was not migrated: %v", config)
+	}
+	if _, exists := config["qsbar"].(map[string]any)["audioBoost"]; exists {
+		t.Fatalf("qsbar.audioBoost survived: %v", config)
+	}
+	if _, again, err := migrateDockStore(out); err != nil || again {
+		t.Fatalf("migration is not idempotent: changed=%v err=%v", again, err)
+	}
+
+	out, changed, err = migrateDockStore([]byte(`{"qsbar":{"audioBoost":true},"audio":{"boost":false}}`))
+	if err != nil || !changed {
+		t.Fatalf("existing target migration: changed=%v err=%v", changed, err)
+	}
+	if err := json.Unmarshal(out, &config); err != nil {
+		t.Fatal(err)
+	}
+	if config["audio"].(map[string]any)["boost"] != false {
+		t.Fatalf("existing audio.boost was overwritten: %v", config)
+	}
+}
+
 // The dock migration converges QS, Python, iRiS and frame-bar stores on the
 // universal shell object without changing pin order or overwriting current keys.
 func TestMigrateDockStore(t *testing.T) {

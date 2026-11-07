@@ -36,6 +36,7 @@ type Manifest struct {
 	UserData     []string         `json:"userData"`
 	Rice         string           `json:"rice"`
 	FirstRun     FirstRun         `json:"firstRun"`
+	StoreItems   []StoreItem      `json:"storeItems,omitempty"`
 }
 
 type Requires struct {
@@ -61,6 +62,11 @@ type Component struct {
 	Group          string   `json:"group"`
 	Summary        string   `json:"summary"`
 	DesktopEntries []string `json:"desktopEntries"`
+}
+
+type StoreItem struct {
+	Category string `json:"category"`
+	ID       string `json:"id"`
 }
 
 type CapabilitySpec struct {
@@ -199,22 +205,23 @@ type BleedEntry struct {
 }
 
 type Plan struct {
-	Schema   int              `json:"schema"`
-	Profile  PlanProfile      `json:"profile"`
-	Account  PlanAccount      `json:"account"`
-	Repos    []RepoPlan       `json:"repos"`
-	Packages []PackageRef     `json:"packages"`
-	Remove   []RemovalPackage `json:"remove"`
-	Totals   PlanTotals       `json:"totals"`
-	System   []SystemPlan     `json:"system"`
-	Files    FilesPlan        `json:"files"`
-	Env      []EnvVar         `json:"env"`
-	Bleed    []BleedEntry     `json:"bleed"`
-	Warnings []string         `json:"warnings"`
-	Blockers []string         `json:"blockers"`
-	Digest   string           `json:"digest"`
-	manifest *Manifest
-	source   Source
+	Schema     int              `json:"schema"`
+	Profile    PlanProfile      `json:"profile"`
+	Account    PlanAccount      `json:"account"`
+	Repos      []RepoPlan       `json:"repos"`
+	Packages   []PackageRef     `json:"packages"`
+	Remove     []RemovalPackage `json:"remove"`
+	Totals     PlanTotals       `json:"totals"`
+	StoreItems []StoreItem      `json:"storeItems"`
+	System     []SystemPlan     `json:"system"`
+	Files      FilesPlan        `json:"files"`
+	Env        []EnvVar         `json:"env"`
+	Bleed      []BleedEntry     `json:"bleed"`
+	Warnings   []string         `json:"warnings"`
+	Blockers   []string         `json:"blockers"`
+	Digest     string           `json:"digest"`
+	manifest   *Manifest
+	source     Source
 }
 
 type Pinned struct {
@@ -233,6 +240,7 @@ type Pinned struct {
 	Repos        []string         `json:"repos"`
 	Targets      []string         `json:"targets"`
 	Removals     []string         `json:"removals"`
+	StoreItems   []StoreItem      `json:"storeItems,omitempty"`
 	Capabilities []CapabilitySpec `json:"capabilities"`
 	Wordlists    Wordlists        `json:"wordlists"`
 	Hosts        HostsSpec        `json:"hosts"`

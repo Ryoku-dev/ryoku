@@ -12,8 +12,9 @@ import (
 )
 
 func BuildPlan(m *Manifest, src Source, acct AccountTarget, sel Selection, host HostFacts, prev *SystemReceipt, res Resolver) (*Plan, error) {
-	p := &Plan{Schema: API, Repos: []RepoPlan{}, Packages: []PackageRef{}, Remove: []RemovalPackage{}, System: []SystemPlan{}, Env: []EnvVar{}, Bleed: []BleedEntry{}, Warnings: []string{}, Blockers: []string{}, manifest: m, source: src}
+	p := &Plan{Schema: API, Repos: []RepoPlan{}, Packages: []PackageRef{}, Remove: []RemovalPackage{}, StoreItems: []StoreItem{}, System: []SystemPlan{}, Env: []EnvVar{}, Bleed: []BleedEntry{}, Warnings: []string{}, Blockers: []string{}, manifest: m, source: src}
 	p.Profile = PlanProfile{ID: m.ID, Version: m.Version, Name: m.Name, ManifestSHA256: src.ManifestSHA256, Source: src.Dir}
+	p.StoreItems = append(p.StoreItems, m.StoreItems...)
 	homeRoot := host.HomeRoot
 	if homeRoot == "" {
 		homeRoot = "/home"

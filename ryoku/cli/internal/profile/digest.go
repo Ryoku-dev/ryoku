@@ -25,6 +25,7 @@ func (p *Plan) Pinned() Pinned {
 	for _, pkg := range p.Remove {
 		out.Removals = append(out.Removals, pkg.Name)
 	}
+	out.StoreItems = append([]StoreItem(nil), p.StoreItems...)
 	if p.manifest != nil {
 		out.Capabilities = append([]CapabilitySpec{}, p.manifest.Capabilities...)
 		out.Wordlists.Links = append([]WordlistLink{}, p.manifest.Wordlists.Links...)
@@ -53,6 +54,7 @@ func normalizePinned(p Pinned) Pinned {
 	p.Repos = append([]string{}, p.Repos...)
 	p.Targets = append([]string{}, p.Targets...)
 	p.Removals = append([]string{}, p.Removals...)
+	p.StoreItems = append([]StoreItem(nil), p.StoreItems...)
 	p.Capabilities = append([]CapabilitySpec{}, p.Capabilities...)
 	p.Wordlists.Links = append([]WordlistLink{}, p.Wordlists.Links...)
 	p.Wordlists.Extract = append([]WordlistExtract{}, p.Wordlists.Extract...)
@@ -65,6 +67,12 @@ func normalizePinned(p Pinned) Pinned {
 	sort.Strings(p.Repos)
 	sort.Strings(p.Targets)
 	sort.Strings(p.Removals)
+	sort.Slice(p.StoreItems, func(i, j int) bool {
+		if p.StoreItems[i].Category != p.StoreItems[j].Category {
+			return p.StoreItems[i].Category < p.StoreItems[j].Category
+		}
+		return p.StoreItems[i].ID < p.StoreItems[j].ID
+	})
 	sort.Slice(p.Capabilities, func(i, j int) bool {
 		if p.Capabilities[i].Tool == p.Capabilities[j].Tool {
 			return p.Capabilities[i].Caps < p.Capabilities[j].Caps

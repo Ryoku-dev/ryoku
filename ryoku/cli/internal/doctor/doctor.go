@@ -302,7 +302,7 @@ func reconcilers() []reconciler {
 		{i18n.T("Material Symbols icon font"), reconcileIconFont},
 		{i18n.T("frame bar style name"), reconcileFrameBarsStyle},
 		{i18n.T("shell config schema"), reconcileShellConfig},
-		{i18n.T("Nomarchy command activation"), reconcileNomarchyCommands},
+		{i18n.T("selected shells and parts are installed"), reconcileShellRequirements},
 		{i18n.T("login shell source"), reconcileLoginShell},
 		{i18n.T("zsh login config"), reconcileZshrc},
 		{i18n.T("shell style knobs"), reconcileLegacyStyleKnobs},
@@ -1875,6 +1875,24 @@ func migrateDockStore(raw []byte) ([]byte, bool, error) {
 			return nil, false, err
 		}
 		moved := false
+		if boost, ok := qsbar["audioBoost"]; ok {
+			audio, err := decodeObject(top["audio"])
+			if err != nil {
+				return nil, false, err
+			}
+			if audio == nil {
+				audio = map[string]json.RawMessage{}
+			}
+			if _, exists := audio["boost"]; !exists {
+				audio["boost"] = boost
+				top["audio"], err = encodeObject(audio)
+				if err != nil {
+					return nil, false, err
+				}
+			}
+			delete(qsbar, "audioBoost")
+			moved = true
+		}
 		for old, want := range oldDockKeys {
 			if value, ok := qsbar[old]; ok {
 				if want == "pinned" {

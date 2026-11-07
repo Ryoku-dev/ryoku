@@ -16,6 +16,17 @@ import (
 	i18n "ryoku-i18n"
 )
 
+var profileStoreInstall = func(category, id string) error {
+	cmd := exec.Command("ryostore", "install", category, id)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if detail := strings.TrimSpace(string(output)); detail != "" {
+			return fmt.Errorf("%s", detail)
+		}
+	}
+	return err
+}
+
 func UserMain(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	_ = stdin
 	if len(args) == 0 {
@@ -177,6 +188,19 @@ func userCheck(home string, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
+func installProfileStoreItems(items []StoreItem) []Finding {
+	warnings := make([]Finding, 0)
+	for _, item := range items {
+		if err := profileStoreInstall(item.Category, item.ID); err != nil {
+			warnings = append(warnings, Finding{
+				Kind:   "storeItem",
+				Detail: fmt.Sprintf(i18n.T("Could not install %s/%s: %v"), item.Category, item.ID, err),
+			})
+		}
+	}
+	return warnings
+}
+
 func userLay(home string, args []string, stdout, stderr io.Writer) int {
 	payload, systemPath, jsonOut, ok := layArgs(args)
 	if !ok {
@@ -242,7 +266,9 @@ func userLay(home string, args []string, stdout, stderr io.Writer) int {
 	if err != nil {
 		return userError(stderr, err.Error())
 	}
+	storeWarnings := installProfileStoreItems(m.StoreItems)
 	check := Check(home, m, r, false)
+	check.Warnings = append(check.Warnings, storeWarnings...)
 	if err := WriteCheck(home, check); err != nil {
 		return userError(stderr, err.Error())
 	}

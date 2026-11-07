@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,19 +149,37 @@ func TestSafeRel(t *testing.T) {
 	}
 }
 
-// TestReservedIDsFallback checks that with no catalogue file the built-in id set
-// is still reserved, so a manifest can never claim one before the catalogue
-// ships.
-func TestReservedIDsFallback(t *testing.T) {
-	t.Setenv("RYOKU_CONFIG_BASE", t.TempDir()) // empty: no widgets.json
-	r := reservedIDs()
-	for _, id := range []string{"clock", "launcher", "cputemp", "ai"} {
-		if !r[id] {
-			t.Errorf("built-in id %q not reserved in the fallback set", id)
-		}
+func TestReservedIDsUseInstalledShellCatalogue(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	if got := reservedIDs(); len(got) != 0 {
+		t.Fatalf("reserved ids without shells index = %#v", got)
 	}
-	if r["totally-made-up"] {
-		t.Error("a non-built-in id must not be reserved")
+
+	item := t.TempDir()
+	catalogue := filepath.Join(item, "qml", "core", "widgets.json")
+	if err := os.MkdirAll(filepath.Dir(catalogue), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(catalogue, []byte(`[{"id":"clock"},{"id":"launcher"}]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	indexDir := filepath.Join(state, "ryoku", "store")
+	if err := os.MkdirAll(indexDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	index, err := json.Marshal(map[string]any{"items": []map[string]any{{
+		"id": "catalogue", "source": "store", "dir": item, "prepared": true,
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(indexDir, "shells.json"), index, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := reservedIDs()
+	if !got["clock"] || !got["launcher"] || got["totally-made-up"] {
+		t.Fatalf("reserved ids = %#v", got)
 	}
 }
 

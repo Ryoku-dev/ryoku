@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -34,6 +35,7 @@ func pinnedFixture() Pinned {
 	p.Repos = []string{"blackarch"}
 	p.Targets = []string{"nmap", "burpsuite"}
 	p.Removals = []string{"zaproxy"}
+	p.StoreItems = []StoreItem{{Category: "barstyles", ID: "qsbar"}, {Category: "subshells", ID: "python"}}
 	p.Capabilities = []CapabilitySpec{{Tool: "nmap", Caps: AllowedCapabilities["nmap"]}}
 	p.Wordlists.Links = []WordlistLink{{Name: "seclists", Target: "/usr/share/seclists"}}
 	p.Hosts.Suffixes = []string{"thm", "htb"}
@@ -49,6 +51,7 @@ func TestPinnedDigestSortsContractSets(t *testing.T) {
 	reverseStrings(b.Account.Permissions)
 	reverseStrings(b.Account.Groups)
 	reverseStrings(b.Targets)
+	b.StoreItems[0], b.StoreItems[1] = b.StoreItems[1], b.StoreItems[0]
 	reverseStrings(b.Hosts.Suffixes)
 	b.Files[0], b.Files[1] = b.Files[1], b.Files[0]
 	if a.Digest() != b.Digest() {
@@ -63,6 +66,7 @@ func TestPinnedDigestIncludesEveryPinnedField(t *testing.T) {
 		func(p *Pinned) { p.Account.Name = "other" }, func(p *Pinned) { p.Account.Role = "other" }, func(p *Pinned) { p.Account.Permissions[0] = "containers" },
 		func(p *Pinned) { p.Account.Groups[0] = "other" }, func(p *Pinned) { p.Account.Shell = "/bin/zsh" }, func(p *Pinned) { p.Repos[0] = "other" },
 		func(p *Pinned) { p.Targets[0] = "other" }, func(p *Pinned) { p.Removals[0] = "other" }, func(p *Pinned) { p.Capabilities[0].Caps = "other" },
+		func(p *Pinned) { p.StoreItems[0].ID = "other" },
 		func(p *Pinned) { p.Wordlists.Links[0].Target = "/usr/share/other" }, func(p *Pinned) { p.Hosts.Suffixes[0] = "vl" }, func(p *Pinned) { p.Env[0].Value = "other" },
 		func(p *Pinned) { p.Path[0] = "/other" }, func(p *Pinned) { p.Files[0].SHA256 = "other" },
 	}
@@ -73,6 +77,29 @@ func TestPinnedDigestIncludesEveryPinnedField(t *testing.T) {
 		if candidate.Digest() == want {
 			t.Fatalf("mutation %d did not change digest", i)
 		}
+	}
+}
+
+func TestBuildPlanListsStoreItems(t *testing.T) {
+	_, manifest := validTestManifest(t)
+	host := HostFacts{PackageManager: "pacman", ManagedHomes: true, Shells: []string{"/bin/bash"}}
+	resolver := fakeResolver{
+		refs:      []PackageRef{{Name: "nmap", Target: true}},
+		installed: map[string]bool{},
+	}
+	plan, err := BuildPlan(manifest, Source{}, AccountTarget{Name: "hacker"}, Selection{}, host, nil, resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(plan.StoreItems, manifest.StoreItems) {
+		t.Fatalf("store items = %#v, want %#v", plan.StoreItems, manifest.StoreItems)
+	}
+	body, err := json.Marshal(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), `"storeItems":[{"category":"barstyles","id":"qsbar"}]`) {
+		t.Fatalf("plan JSON does not list store items: %s", body)
 	}
 }
 

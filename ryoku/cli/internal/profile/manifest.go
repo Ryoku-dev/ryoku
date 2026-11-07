@@ -97,6 +97,15 @@ func (m *Manifest) Validate(dir string) error {
 			return fieldError(fmt.Sprintf("repos[%d]", i), "is not allowed")
 		}
 	}
+	for i, item := range m.StoreItems {
+		field := fmt.Sprintf("storeItems[%d]", i)
+		if !contains([]string{"subshells", "barstyles"}, item.Category) {
+			return fieldError(field+".category", "must be subshells or barstyles")
+		}
+		if !profileIDPattern.MatchString(item.ID) {
+			return fieldError(field+".id", "must match ^[a-z][a-z0-9-]{1,30}$")
+		}
+	}
 	components := map[string]Component{}
 	binaries := map[string]bool{}
 	for i, c := range m.Components {
