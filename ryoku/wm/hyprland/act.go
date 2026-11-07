@@ -143,10 +143,10 @@ func runAct(args []string) error {
 			return err
 		}
 		if id == "focused" {
-			// The workspace helper owns the focused case: a silent move still
+			// The workspaces module owns the focused case: a silent move still
 			// pulls focus into the scratchpad, so it closes the special
 			// workspace again and refocuses where the window came from.
-			return runWorkspaceHelper("hide")
+			return evalLua(`require("modules.workspaces").hide()`)
 		}
 		return dispatch(`hl.dsp.window.move({ workspace = "special:` + scratchName + `", window = ` + luaStr("address:"+id) + `, follow = false })`)
 
@@ -729,9 +729,10 @@ func nightlightTemp(args []string) int {
 }
 
 // nightlightStart replaces any running backend with a fresh one warmed to the
-// temperature. The backend is detached (its own session, stdio to /dev/null,
-// released) so it outlives this short-lived invocation and holds the gamma
-// until it is killed; Hyprland restores the gamma when it goes away.
+// temperature. The backend is detached (its own session, stdio to /dev/null)
+// so it outlives this invocation and holds the gamma until it is killed;
+// Hyprland restores the gamma when it goes away. It is waited on, not
+// released, so a warm serve process reaps it instead of keeping a zombie.
 func nightlightStart(argv ...string) error {
 	nightlightStop(argv[0])
 	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
@@ -745,7 +746,8 @@ func nightlightStart(argv ...string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	return cmd.Process.Release()
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // nightlightStop signals every process of this uid whose comm is name, which is
@@ -771,12 +773,6 @@ func nightlightStop(name string) {
 	}
 }
 
-// scratchName is the special workspace the shipped scratchpad binds use; the
-// workspace helper names it the same way.
+// scratchName is the special workspace the shipped scratchpad binds use;
+// modules/workspaces.lua names it the same way.
 const scratchName = "scratch"
-
-// runWorkspaceHelper runs the shipped workspace helper the scratchpad binds
-// call, so window.hide on the focused window behaves exactly like Super+H.
-var runWorkspaceHelper = func(args ...string) error {
-	return exec.Command(filepath.Join(hyprConfigDir(), "scripts", "ryoku-workspace"), args...).Run()
-}

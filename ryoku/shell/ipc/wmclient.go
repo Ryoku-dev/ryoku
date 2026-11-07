@@ -10,9 +10,11 @@ import (
 
 // The daemon reaches the compositor only through d.wmc and the state its watcher
 // keeps warm. activeMonitor resolves on the keybind hot path, so it is a mutex
-// read with no fork.
+// read with no fork, and actions go to one warm provider process rather than a
+// provider start per keybind.
 
 func (d *daemon) startWM() {
+	d.wmc.EnableServe()
 	d.wmTopic = d.registerTopic("wm")
 	d.wmFocusTopic = d.registerTopic("wm.focus")
 	d.publishWM()

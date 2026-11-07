@@ -14,6 +14,7 @@ import (
 //
 //	caps            capability manifest
 //	act <id> [args] one neutral action
+//	serve           act and caps as JSON lines on stdin, until EOF
 //	watch           state frames, newline-delimited JSON
 //	apply <store>   write the config from the neutral store, report what it
 //	                could not honour
@@ -36,6 +37,8 @@ func main() {
 		err = runCaps()
 	case "act":
 		err = runAct(os.Args[2:])
+	case "serve":
+		err = runServe(os.Stdin, os.Stdout)
 	case "watch":
 		err = runWatch(os.Args[2:])
 	case "apply":
@@ -82,6 +85,7 @@ func usage() {
 
   caps             capability manifest (JSON)
   act <id> [args]  perform a neutral action
+  serve            answer act and caps requests on stdin (JSON lines)
   state            one state snapshot (JSON)
   session          the wayland-session desktop entry
   schema           exclusive settings rows the Hub renders (JSON)

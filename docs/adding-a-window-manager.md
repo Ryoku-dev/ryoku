@@ -45,7 +45,7 @@ existing provider is closer to yours, and do not invent a second shape:
 `ryoku/wm/niri/` if your compositor has a socket and a declarative config,
 `ryoku/wm/hyprland/` if it has a CLI and a scripted config.
 
-The ten verbs, in plain terms:
+The eleven verbs, in plain terms:
 
 |Verb|What it means|
 |---|---|
@@ -53,6 +53,7 @@ The ten verbs, in plain terms:
 |`state`|"Here is everything right now": outputs, workspaces, windows, keyboard.|
 |`watch`|The same, streamed, one JSON object per line, forever.|
 |`act <id>`|"Do this one thing": close a window, focus a workspace, exit the session.|
+|`serve`|"Keep me running and send me `act` and `caps` as lines." `wm.Serve` does the loop; a provider only routes the two verbs.|
 |`apply <store>`|"Turn these settings into my config file."|
 |`defaults`|"Here is my baseline for those settings."|
 |`schema`|"Here are the settings only I have, so the Hub can draw them."|

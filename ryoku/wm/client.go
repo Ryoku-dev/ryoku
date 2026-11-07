@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -38,6 +39,8 @@ type Client struct {
 	capsMu sync.Mutex
 	capsOK bool
 	caps   Caps
+
+	warm atomic.Pointer[warmProvider]
 }
 
 // Open resolves the active provider without running it, so constructing one in
@@ -89,7 +92,7 @@ func (c *Client) CapsContext(ctx context.Context) (Caps, error) {
 	if c.bin == "" {
 		return c.caps, ErrNoProvider
 	}
-	out, err := c.runContext(ctx, "caps")
+	out, err := c.call(ctx, "caps")
 	if err != nil {
 		return c.caps, err
 	}
@@ -148,7 +151,7 @@ func (c *Client) ActContext(ctx context.Context, a Action, args ...string) error
 		}
 	}
 	argv := append([]string{"act", string(a)}, args...)
-	_, err := c.runContext(ctx, argv...)
+	_, err := c.call(ctx, argv...)
 	return err
 }
 
@@ -171,7 +174,7 @@ func (c *Client) ActOutputContext(ctx context.Context, a Action, args ...string)
 			return "", fmt.Errorf("%w: %s", ErrUnsupported, a)
 		}
 	}
-	out, err := c.runContext(ctx, append([]string{"act", string(a)}, args...)...)
+	out, err := c.call(ctx, append([]string{"act", string(a)}, args...)...)
 	if err != nil {
 		return "", err
 	}

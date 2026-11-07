@@ -19,7 +19,7 @@ signature, or an `isNiri`-style test anywhere else. Consumers ask what the
 compositor *can do*, never which one it is.
 
 A provider is one binary, `ryoku-wm-<name>`, shipped by
-`ryoku-desktop-<name>`. It implements eleven verbs:
+`ryoku-desktop-<name>`. It implements twelve verbs:
 
 |Verb|Answers|
 |---|---|
@@ -27,6 +27,7 @@ A provider is one binary, `ryoku-wm-<name>`, shipped by
 |`state`|one snapshot: outputs, workspaces, windows, keyboard|
 |`watch`|the same as a stream of frames, one JSON object per line|
 |`act <id>`|one neutral action (`window.close`, `workspace.focus`, ...)|
+|`serve`|`act` and `caps` as JSON lines on stdin, one reply line each, until EOF|
 |`apply <store>`|write the compositor's config from the neutral settings store|
 |`defaults`|the provider's baseline subtree of that store|
 |`schema`|the settings rows only this compositor has, for the Hub to render|
@@ -34,6 +35,17 @@ A provider is one binary, `ryoku-wm-<name>`, shipped by
 |`outputs <layout>`|apply a display layout|
 |`session`|the `wayland-session` desktop entry|
 |`environment <pid>`|export the provider's opaque handle from one verified session process|
+
+`serve` keeps a provider warm for the shell daemon. Each stdin line is
+`{"id":N,"argv":["act",...]}` (or `["caps"]`); the provider answers in request
+order with `{"id":N,"ok":bool,"out":"...","err":"..."}`, where `out` is what the
+one-shot verb prints and `err` its error. Verbs that stream or write config
+(`watch`, `apply`, ...) are refused and stay one process each. `wm.Client`
+uses it only after `EnableServe()`: the daemon calls that, so a keybind costs a
+pipe write instead of a provider start. A busy, dead or older provider falls
+back to the one-shot exec for that call; a dead one is restarted on a later
+call with backoff, a replaced binary (a package update) is restarted on the
+next call, and a call whose context ends kills the child.
 
 Ordinary workspace frames carry a one-based `index` inside their output. The
 handle in `id` remains the only action argument; `index` is presentation order,
@@ -427,7 +439,7 @@ while another compositor is active.
 This is the checklist. The walkthrough named at the top is the same job in
 prose, with the traps; read that if you are doing this rather than reviewing it.
 
-1. `ryoku/wm/<name>/`, a `package main` implementing the ten verbs. Mirror
+1. `ryoku/wm/<name>/`, a `package main` implementing the twelve verbs. Mirror
    the nearest existing provider rather than inventing a second shape. Pin the
    compositor's own dialect in a test: the argv or request a provider emits is
    its contract, and getting it wrong usually fails silently.
