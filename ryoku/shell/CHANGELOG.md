@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Opening Controls no longer makes the whole screen hitch.** With an external
+  monitor on DDC/CI, the panel read its brightness the moment it opened, and that
+  read stalled every display for a fraction of a second. It now reads once the
+  panel has finished opening, so the external brightness slider fills in a moment later.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
