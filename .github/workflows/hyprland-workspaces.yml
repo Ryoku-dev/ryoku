@@ -1,0 +1,32 @@
+name: Hyprland workspaces
+
+on:
+  pull_request:
+    paths:
+      - 'ryoku/hyprland/modules/workspaces.lua'
+      - 'tests/hyprland-workspaces.lua'
+      - '.github/workflows/hyprland-workspaces.yml'
+  push:
+    branches:
+      - main
+      - unstable-dev
+    paths:
+      - 'ryoku/hyprland/modules/workspaces.lua'
+      - 'tests/hyprland-workspaces.lua'
+      - '.github/workflows/hyprland-workspaces.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workspaces:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Workspace grid and scratchpad
+        run: |
+          luac5.4 -p ryoku/hyprland/modules/workspaces.lua tests/hyprland-workspaces.lua
+          lua5.4 tests/hyprland-workspaces.lua

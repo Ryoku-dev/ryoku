@@ -618,7 +618,7 @@ type.*
   previews. Drag windows between workspaces or up onto the top desktop strip,
   cycle spaces (scroll or Tab) and desktops (Alt+Tab). A "desktop" is a block of
   ten workspace ids, so each desktop keeps its own 01..10; the same grouping
-  drives the desktop-relative `Super+N` binds (`scripts/ryoku-workspace`). The
+  drives the desktop-relative `Super+N` binds (`hyprland/modules/workspaces.lua`). The
   gesture legend sits along the bottom margin as marginalia, not as buttons.
 - **Controls** is a compact top-left panel. Vitals is a native mini system
   monitor with per-core load, temperatures, memory, GPU, network and disk.

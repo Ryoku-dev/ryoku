@@ -51,12 +51,15 @@ truth for the live desktop.
   entry point and `require`s each module. `keyboard.lua`, `gpu.lua`,
   `monitors.lua` are hardware-managed seeds, and `monitors_user.lua.example` shows
   how to hand-pin a display that autoscale must leave alone. `modules/` is one concern per file
-  (`env`, `input`, `displays`, `decoration`, `animations`, `binds`, `ryoshot`,
-  `window_rules`, `fullscreen`, `autostart`). `scripts/` holds Hyprland's own
-  leaf helpers, the ones bound to the compositor: `ryoku-monitor` (output
-  arrangement) and `ryoku-workspace`. The neutral screen and UI helpers the
-  shell drives by bare name (the `ryoku-cmd-*` tools, `ryoku-sysinfo`, the
-  recorder chain) moved to the shell tree, so every compositor ships them.
+  (`env`, `input`, `displays`, `decoration`, `animations`, `binds`, `workspaces`
+  (the per-desktop workspace grid and the scratchpad behind Super+N and
+  Super+H), `ryoshot`, `window_rules`, `fullscreen`, `autostart`). `scripts/`
+  holds Hyprland's own leaf helpers, the ones bound to the compositor:
+  `ryoku-monitor` (output arrangement) and `ryoku-workspace` (the grid's
+  command line, which runs `modules/workspaces.lua` through `hyprctl eval`).
+  The neutral screen and UI helpers the shell drives by bare name (the
+  `ryoku-cmd-*` tools, `ryoku-sysinfo`, the recorder chain) moved to the shell
+  tree, so every compositor ships them.
   `plugins/` holds the one compositor plugin Ryoku authors, `keysounds` (C++
   against the Hyprland plugin API, with its `hyprpm.toml` recipe; see
   `docs/hyprland-plugins.md`); it ships as a package, not with the config. The

@@ -131,18 +131,18 @@ hl.bind(K(mod .. " + mouse:272"), hl.dsp.window.drag(),   { mouse = true })
 hl.bind(K(mod .. " + mouse:273"), hl.dsp.window.resize(), { mouse = true })
 
 -- Workspaces. Super+N focuses the Nth workspace OF THE CURRENT DESKTOP (a
--- desktop is a block of 10 workspace ids; see scripts/ryoku-workspace and the
+-- desktop is a block of 10 workspace ids; see modules/workspaces.lua and the
 -- overview). On desktop 2, Super+3 -> ws13, never ws3, so each desktop keeps its
--- own 1..10 and windows never jump desktops. The helper also pulls the target to
--- the monitor under the cursor, so the keys drive whichever screen the mouse is
--- on. Super+Alt+N sends the active window to that slot, staying on this desktop.
-local ws_helper = (os.getenv("HOME") or "") .. "/.config/hypr/scripts/ryoku-workspace"
+-- own 1..10 and windows never jump desktops. Super+Alt+N sends the active window
+-- to that slot, staying on this desktop. All of it runs in the compositor, with
+-- no process per press.
+local grid = require("modules.workspaces")
 
-hl.bind(K(mod .. " + H"),          hl.dsp.exec_cmd(ws_helper .. " hide"))          -- hide the focused window in the scratchpad (press again on it to bring it back)
--- Through the helper, not toggle_special directly: hiding the scratchpad has to
--- hand keyboard focus back to a visible window, or the next bar panel to close
--- refocuses the hidden one and pops the scratchpad open with it.
-hl.bind(K(mod .. " + ALT + H"),    hl.dsp.exec_cmd(ws_helper .. " scratch"))       -- show or hide the scratchpad (special workspace)
+hl.bind(K(mod .. " + H"),          function() grid.hide() end)                      -- hide the focused window in the scratchpad (press again on it to bring it back)
+-- Not toggle_special directly: hiding the scratchpad has to hand keyboard focus
+-- back to a visible window, or the next bar panel to close refocuses the hidden
+-- one and pops the scratchpad open with it.
+hl.bind(K(mod .. " + ALT + H"),    function() grid.scratch() end)                   -- show or hide the scratchpad (special workspace)
 hl.bind(K(mod .. " + mouse_up"),   hl.dsp.focus({ workspace = "r-1" }))            -- previous workspace
 hl.bind(K(mod .. " + mouse_down"), hl.dsp.focus({ workspace = "r+1" }))            -- next workspace
 hl.bind(K(mod .. " + Prior"),         hl.dsp.focus({ workspace = "r-1" }))            -- Previous workspace
@@ -155,15 +155,15 @@ hl.bind(K(mod .. " + SHIFT + Next"),  hl.dsp.window.move({ workspace = "r+1" }))
 local kp_off = { "KP_End", "KP_Down", "KP_Next", "KP_Left", "KP_Begin", "KP_Right", "KP_Home", "KP_Up", "KP_Prior", "KP_Insert" }
 for i = 1, 10 do
     local key = i % 10 -- 10 maps to the 0 key
-    hl.bind(K(mod .. " + " .. key),             hl.dsp.exec_cmd(ws_helper .. " focus " .. i))       -- focus workspace 1-10 on this desktop
-    hl.bind(K(mod .. " + ALT + " .. key),       hl.dsp.exec_cmd(ws_helper .. " move " .. i))        -- move window to workspace 1-10 on this desktop
-    hl.bind(K(mod .. " + SHIFT + " .. key),     hl.dsp.exec_cmd(ws_helper .. " movesilent " .. i))  -- move window silently to workspace 1-10 on this desktop
-    hl.bind(K(mod .. " + KP_" .. key),          hl.dsp.exec_cmd(ws_helper .. " focus " .. i))       -- focus workspace 1-10, number pad
-    hl.bind(K(mod .. " + ALT + KP_" .. key),    hl.dsp.exec_cmd(ws_helper .. " move " .. i))        -- move window to workspace 1-10, number pad
-    hl.bind(K(mod .. " + SHIFT + KP_" .. key),  hl.dsp.exec_cmd(ws_helper .. " movesilent " .. i))  -- move window quietly to workspace 1-10, number pad
-    hl.bind(K(mod .. " + " .. kp_off[i]),         hl.dsp.exec_cmd(ws_helper .. " focus " .. i))       -- focus workspace 1-10, number pad NumLock off
-    hl.bind(K(mod .. " + ALT + " .. kp_off[i]),   hl.dsp.exec_cmd(ws_helper .. " move " .. i))        -- move window to workspace 1-10, number pad NumLock off
-    hl.bind(K(mod .. " + SHIFT + " .. kp_off[i]), hl.dsp.exec_cmd(ws_helper .. " movesilent " .. i))  -- move window quietly to workspace 1-10, number pad NumLock off
+    hl.bind(K(mod .. " + " .. key),             function() grid.focus(i) end)        -- focus workspace 1-10 on this desktop
+    hl.bind(K(mod .. " + ALT + " .. key),       function() grid.move(i) end)         -- move window to workspace 1-10 on this desktop
+    hl.bind(K(mod .. " + SHIFT + " .. key),     function() grid.movesilent(i) end)   -- move window silently to workspace 1-10 on this desktop
+    hl.bind(K(mod .. " + KP_" .. key),          function() grid.focus(i) end)        -- focus workspace 1-10, number pad
+    hl.bind(K(mod .. " + ALT + KP_" .. key),    function() grid.move(i) end)         -- move window to workspace 1-10, number pad
+    hl.bind(K(mod .. " + SHIFT + KP_" .. key),  function() grid.movesilent(i) end)   -- move window quietly to workspace 1-10, number pad
+    hl.bind(K(mod .. " + " .. kp_off[i]),         function() grid.focus(i) end)      -- focus workspace 1-10, number pad NumLock off
+    hl.bind(K(mod .. " + ALT + " .. kp_off[i]),   function() grid.move(i) end)       -- move window to workspace 1-10, number pad NumLock off
+    hl.bind(K(mod .. " + SHIFT + " .. kp_off[i]), function() grid.movesilent(i) end) -- move window quietly to workspace 1-10, number pad NumLock off
 end
 
 -- Media and volume keys. ryoku-volume honours audio.boost in shell.json:

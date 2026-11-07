@@ -11,7 +11,8 @@ desktop. See `docs/structure.md` for the repo-wide map.
   `hyprland.lua` natively). `hyprland.lua` is the entry point and `require`s each
   module. `keyboard.lua`, `gpu.lua`, `monitors.lua` are hardware-managed seeds;
   `modules/` is one concern per file (env, input, displays, decoration,
-  animations, binds, ryoshot, window rules, fullscreen, autostart); `scripts/`
+  animations, binds, the workspace grid and scratchpad, ryoshot, window rules,
+  fullscreen, autostart); `scripts/`
   holds only the helpers that speak Hyprland's own IPC (`ryoku-monitor`,
   `ryoku-workspace`, the cursor tracker). The compositor-neutral helpers the UI
   calls (`ryoku-app`, the `ryoku-cmd-*` tools, the recorder, sysinfo) live in
