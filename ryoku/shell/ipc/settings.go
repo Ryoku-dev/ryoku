@@ -1036,7 +1036,6 @@ type settingsStore struct {
 	// in the frame beside caps/deadKeys so the Hub's window-rules editor offers
 	// only ids this compositor can apply. Empty when no provider answers.
 	windowRuleActions []string
-	nomarchyLifecycle func(bool) error
 }
 
 func settingsInode(fi os.FileInfo) uint64 {
@@ -1054,22 +1053,6 @@ func newSettingsStore(path string) *settingsStore {
 		s.inode = settingsInode(fi)
 	}
 	return s
-}
-
-func nomarchySelectedIn(raw map[string]any) bool {
-	style, _ := raw["barStyle"].(string)
-	return style == "nomarchy"
-}
-
-func (s *settingsStore) reconcileNomarchyStartup() error {
-	s.mu.Lock()
-	active := nomarchySelectedIn(s.raw)
-	lifecycle := s.nomarchyLifecycle
-	s.mu.Unlock()
-	if lifecycle == nil {
-		return nil
-	}
-	return lifecycle(active)
 }
 
 // loadSettingsFile reads the file into the in-memory pair. A missing file yields
@@ -1091,7 +1074,7 @@ func loadSettingsFile(path string) (map[string]any, *settings, time.Time) {
 	var raw map[string]any
 	parsed := json.Unmarshal(b, &raw) == nil && raw != nil
 	// never reduce an existing file to defaults over a transient/corrupt read:
-	// that drops qsbar and the other passthrough knobs on the next patch.
+	// that drops passthrough item settings on the next patch.
 	for i := 0; !parsed && i < 3; i++ {
 		time.Sleep(50 * time.Millisecond)
 		if b2, e := os.ReadFile(path); e == nil {
@@ -1279,14 +1262,6 @@ func (s *settingsStore) patch(path string, value json.RawMessage) error {
 			}
 		}
 	}
-	wasNomarchy := nomarchySelectedIn(diskRaw)
-	isNomarchy := nomarchySelectedIn(full)
-	barStyleChanged := len(segs) == 1 && segs[0] == "barStyle" && wasNomarchy != isNomarchy
-	if barStyleChanged && isNomarchy && s.nomarchyLifecycle != nil {
-		if err := s.nomarchyLifecycle(true); err != nil {
-			return err
-		}
-	}
 	newCur := diskCur
 	if contract {
 		ns, err := buildSettings(full, true)
@@ -1298,21 +1273,11 @@ func (s *settingsStore) patch(path string, value json.RawMessage) error {
 		newCur = ns
 	}
 	if err := s.persistLocked(full); err != nil {
-		if barStyleChanged && isNomarchy && s.nomarchyLifecycle != nil {
-			if rollbackErr := s.nomarchyLifecycle(wasNomarchy); rollbackErr != nil {
-				log.Printf("ryoku-shell: roll back Nomarchy activation: %v", rollbackErr)
-			}
-		}
 		return err
 	}
 	s.raw = full
 	s.cur = newCur
 	s.notify(s.frameLocked())
-	if barStyleChanged && !isNomarchy && s.nomarchyLifecycle != nil {
-		if err := s.nomarchyLifecycle(false); err != nil {
-			log.Printf("ryoku-shell: Nomarchy deactivation after bar-style change: %v", err)
-		}
-	}
 	return nil
 }
 
@@ -1398,16 +1363,6 @@ func (s *settingsStore) reload() {
 		s.mu.Unlock()
 		return
 	}
-	wasNomarchy := nomarchySelectedIn(s.raw)
-	isNomarchy := nomarchySelectedIn(raw)
-	barStyleChanged := wasNomarchy != isNomarchy
-	if barStyleChanged && isNomarchy && s.nomarchyLifecycle != nil {
-		if err := s.nomarchyLifecycle(true); err != nil {
-			s.mu.Unlock()
-			log.Printf("ryoku-shell: activate Nomarchy after settings reload: %v", err)
-			return
-		}
-	}
 	if fi, e := os.Stat(s.path); e == nil {
 		s.mtime = fi.ModTime()
 		s.inode = settingsInode(fi)
@@ -1416,11 +1371,6 @@ func (s *settingsStore) reload() {
 	frame := s.frameLocked()
 	s.mu.Unlock()
 	s.notify(frame)
-	if barStyleChanged && !isNomarchy && s.nomarchyLifecycle != nil {
-		if err := s.nomarchyLifecycle(false); err != nil {
-			log.Printf("ryoku-shell: deactivate Nomarchy after settings reload: %v", err)
-		}
-	}
 }
 
 const settingsFallbackInterval = 5 * time.Minute
@@ -1617,10 +1567,6 @@ func (s *settingsStore) watch(quit <-chan struct{}, ready chan struct{}) {
 // every patch, reset, or external edit.
 func (d *daemon) startSettings() {
 	store := newSettingsStore(filepath.Join(ryokuConfigDir(), "shell.json"))
-	store.nomarchyLifecycle = setNomarchyActive
-	if err := store.reconcileNomarchyStartup(); err != nil {
-		log.Printf("ryoku-shell: reconcile Nomarchy at startup: %v", err)
-	}
 	d.settings = store
 	t := d.registerTopic("settings")
 
@@ -1642,8 +1588,13 @@ func (d *daemon) startSettings() {
 	// only layers the re-theme trigger on top of it.
 	lastThemeSig := matugenThemeSig(frame)
 	lastFontSig := fontSig(frame)
+	lastShellSelectionSig := shellSelectionSig(frame)
 	store.onChange = func(f []byte) {
 		t.publish(f)
+		if sig := shellSelectionSig(f); sig != lastShellSelectionSig {
+			lastShellSelectionSig = sig
+			d.scheduleShellsSync()
+		}
 		if sig := matugenThemeSig(f); sig != lastThemeSig {
 			lastThemeSig = sig
 			d.scheduleTheme()

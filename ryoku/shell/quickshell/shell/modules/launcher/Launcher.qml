@@ -3,6 +3,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import shell.services
 import "shared/Singletons"
 import "shared/providers" as SharedProviders
 import "shared/lib/catalog.js" as Catalog
@@ -37,6 +38,7 @@ Scope {
     readonly property var catalog: builtinCatalog && LauncherProducts.ready
         ? Catalog.withStore(builtinCatalog, LauncherProducts.rows, LauncherProducts.stateRoot)
         : null
+    readonly property var launcherContributions: Shells.contributions("launcher")
     property string activeId: ""
     // The URL the active variant runs from: a Store update keeps the id and
     // moves the view, so a changed URL is a switch too.
@@ -49,7 +51,10 @@ Scope {
         variantLoader.status === Loader.Ready && variantLoader.item !== null
 
     function selectEntry(id) {
-        return catalog ? Catalog.entry(catalog, id) : null;
+        var resolved = Catalog.resolve(catalog, id, launcherContributions);
+        if (resolved.pending)
+            Shells.requestSync();
+        return resolved.entry;
     }
 
     function sourceOf(entry) {
@@ -125,6 +130,7 @@ Scope {
             requestVariant(requestedId);
     }
     onRequestedIdChanged: if (catalog) requestVariant(requestedId)
+    onLauncherContributionsChanged: if (catalog) requestVariant(requestedId)
 
     Loader {
         id: variantLoader

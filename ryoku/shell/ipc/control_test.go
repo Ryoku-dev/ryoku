@@ -7,32 +7,6 @@ import (
 	"testing"
 )
 
-// parseBarEdge is the whole grammar of `bar <edge|all> <toggle|reveal|hide>`; a
-// wrong edge or action must not reach the frame, and a missing one must not be
-// silently accepted as a default.
-func TestParseBarEdge(t *testing.T) {
-	for _, edge := range []string{"top", "bottom", "left", "right", "all"} {
-		for _, action := range []string{"toggle", "reveal", "hide"} {
-			e, a, ok := parseBarEdge([]string{edge, action})
-			if !ok || e != edge || a != action {
-				t.Errorf("parseBarEdge(%s %s) = (%q,%q,%v), want (%q,%q,true)", edge, action, e, a, ok, edge, action)
-			}
-		}
-	}
-	for _, args := range [][]string{
-		{},
-		{"left"},
-		{"left", "toggle", "extra"},
-		{"sideways", "toggle"},
-		{"left", "sideways"},
-		{"toggle", "left"},
-	} {
-		if _, _, ok := parseBarEdge(args); ok {
-			t.Errorf("parseBarEdge(%v) accepted, want rejection", args)
-		}
-	}
-}
-
 // The audio verb steps volume by the reference literal (5% of the [0,1] range),
 // clamps the rise at 1.0, and toggles mute; those argv are the behaviour, so
 // pin them.
@@ -96,10 +70,6 @@ func TestDispatchControlErrors(t *testing.T) {
 	cases := map[string]string{
 		"menu":                            "err menu",
 		"menu bogus":                      "err menu",
-		"bar":                             "err bar",
-		"bar left":                        "err bar",
-		"bar sideways toggle":             "err bar",
-		"bar left sideways":               "err bar",
 		"audio":                           "err audio",
 		"audio sideways":                  "err audio",
 		"brightness":                      "err brightness",

@@ -11,7 +11,7 @@ import stage.modules.common.functions
 import stage.modules.common.widgets
 import stage.services
 import stage.modules.common.models
-import inir.services as InirServices
+import shell.services as Ryoku
 import "./widgets"
 import "."
 
@@ -62,18 +62,18 @@ Item {
         : (Appearance.rounding.windowRounding + 12)
 
     // ── Media Player State ────────────────────────────────────────────────
-    readonly property MprisPlayer currentPlayer: InirServices.MprisController.activePlayer
+    readonly property MprisPlayer currentPlayer: Ryoku.Media.player
     readonly property bool hasPlayer: !!currentPlayer
     readonly property bool isPlaying: currentPlayer?.isPlaying ?? false
     readonly property string title: StringUtils.cleanMusicTitle(
-        InirServices.MprisController.titleOf(root.currentPlayer))
+        String(root.currentPlayer?.trackTitle ?? ""))
         || Translation.tr("No media")
-    readonly property string artist: InirServices.MprisController.artistOf(root.currentPlayer)
+    readonly property string artist: String(root.currentPlayer?.trackArtist ?? "")
         || Translation.tr("Unknown Artist")
-    readonly property string artUrl: InirServices.MprisController.artUrlOf(root.currentPlayer)
+    readonly property string artUrl: String(root.currentPlayer?.trackArtUrl ?? "")
     readonly property string identity: currentPlayer ? (currentPlayer.identity ?? "") : ""
     readonly property bool hasTrack: hasPlayer
-        && InirServices.MprisController.titleOf(root.currentPlayer).length > 0
+        && String(root.currentPlayer?.trackTitle ?? "").length > 0
 
     property string displayTitle: ""
     property string displayArtist: ""
@@ -224,9 +224,12 @@ Item {
 
     // ── Track Text Transition Animation ────────────────────────────────────
     Connections {
-        target: InirServices.MprisController
-        function onTrackChanged(reverse) {
+        target: root.currentPlayer
+        function onTrackTitleChanged() {
             root.displayTitle = root.title;
+            root.displayArtist = root.artist;
+        }
+        function onTrackArtistChanged() {
             root.displayArtist = root.artist;
         }
     }
@@ -504,11 +507,13 @@ Item {
                     if (event.button === Qt.LeftButton) {
                         root.toggleMediaControls();
                     } else if (event.button === Qt.MiddleButton) {
-                        InirServices.MprisController.togglePlaying();
+                        Ryoku.Media.toggle();
                     } else if (event.button === Qt.RightButton || event.button === Qt.ForwardButton) {
-                        InirServices.MprisController.next();
+                        if (root.currentPlayer?.canGoNext)
+                            root.currentPlayer.next();
                     } else if (event.button === Qt.BackButton) {
-                        InirServices.MprisController.previous();
+                        if (root.currentPlayer?.canGoPrevious)
+                            root.currentPlayer.previous();
                     }
                 }
                 onCanceled: {
@@ -610,11 +615,11 @@ Item {
                         MouseArea {
                             id: albumArtMouseArea
                             anchors.fill: parent
-                            enabled: InirServices.MprisController.canTogglePlaying
+                            enabled: root.currentPlayer?.canTogglePlaying ?? false
                             hoverEnabled: true
                             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                             preventStealing: true
-                            onClicked: InirServices.MprisController.togglePlaying()
+                            onClicked: Ryoku.Media.toggle()
                         }
                     }
 
@@ -684,7 +689,7 @@ Item {
                             }
 
                             scale: playBtnMouseArea.pressed ? 0.92 : (playBtnMouseArea.containsMouse ? 1.06 : 1.0)
-                            opacity: InirServices.MprisController.canTogglePlaying ? 1.0 : 0.55
+                            opacity: root.currentPlayer?.canTogglePlaying ? 1.0 : 0.55
                             Behavior on scale {
                                 enabled: !Appearance.reducedMotion
                                 NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
@@ -735,14 +740,14 @@ Item {
                             MouseArea {
                                 id: playBtnMouseArea
                                 anchors.fill: parent
-                                enabled: InirServices.MprisController.canTogglePlaying
+                                enabled: root.currentPlayer?.canTogglePlaying ?? false
                                 hoverEnabled: true
                                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 preventStealing: true
 
                                 onClicked: {
                                     playRippleAnim.restart();
-                                    InirServices.MprisController.togglePlaying();
+                                    Ryoku.Media.toggle();
                                 }
                             }
                         }
@@ -753,7 +758,7 @@ Item {
                             readonly property real targetWidth: Math.max(26, Math.min(30, cardBg.height - 14))
                             implicitHeight: targetWidth
                             Layout.alignment: Qt.AlignVCenter
-                            Layout.preferredWidth: root.mediaHovered && InirServices.MprisController.canGoNext ? targetWidth : 0
+                            Layout.preferredWidth: root.mediaHovered && root.currentPlayer?.canGoNext ? targetWidth : 0
                             radius: targetWidth / 2
                             clip: true
                             opacity: root.mediaHovered ? 1.0 : 0.0
@@ -836,7 +841,8 @@ Item {
                                     if (!Appearance.reducedMotion) {
                                         nextNudgeAnim.restart();
                                     }
-                                    InirServices.MprisController.next();
+                                    if (root.currentPlayer?.canGoNext)
+                                        root.currentPlayer.next();
                                 }
                             }
                         }

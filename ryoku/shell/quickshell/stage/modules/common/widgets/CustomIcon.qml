@@ -9,7 +9,7 @@ Item {
     property bool colorize: false
     property color color
     property string source: ""
-    property string iconFolder: Qt.resolvedUrl("../../../../inir/assets/icons")
+    property string iconFolder: Qt.resolvedUrl("../../../assets/icons")
     width: 30
     height: 30
     

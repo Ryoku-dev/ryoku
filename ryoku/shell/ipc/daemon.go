@@ -109,9 +109,19 @@ type suspendRequest struct {
 }
 
 type daemon struct {
-	desktopChangeMu sync.Mutex
-	shimaPrevious   string
-	shimaBlocked    bool
+	shellSyncMu      sync.Mutex
+	shellSyncTimer   *time.Timer
+	shellSyncRunMu   sync.Mutex
+	shellIndexMu     sync.RWMutex
+	shellIndex       *shellIndex
+	shellSnapshotMu  sync.Mutex
+	shellSnapshot    shellSnapshot
+	shellSnapshotSet bool
+	shellSeen        map[string]bool
+	runtimeInstallMu sync.Mutex
+	runtimeInstalled map[string]bool
+	runtimeRunMu     sync.Mutex
+	runtimeRun       *desktopRun
 
 	mu           sync.Mutex
 	sup          map[string]bool      // components that already have a supervisor goroutine
@@ -414,10 +424,9 @@ func quitStaleDaemon(path string) {
 	}
 }
 
-// setupQmlImportPath puts the active shell config root and home-installed
-// Ryoku plugins on the import path inherited by supervised Quickshell
-// processes. External Store scenes import stable modules from the config root;
-// dev sessions point at the checkout instead of a materialized copy.
+// setupQmlImportPath puts the active shell config root, home-installed Ryoku
+// plugins and the prepared Store module root on the import path inherited by
+// supervised Quickshell processes.
 func setupQmlImportPath() {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -438,6 +447,7 @@ func setupQmlImportPath() {
 	} else if _, err := os.Stat("/usr/lib/qt6/qml/Ryoku/Blobs/qmldir"); err != nil {
 		dirs = append(dirs, filepath.Join(home, ".local", "lib", "qt6", "qml"))
 	}
+	dirs = append(dirs, filepath.Join(stateDir(), "ryoku", "store", "qml"))
 	prefix := strings.Join(dirs, string(os.PathListSeparator))
 	for _, name := range []string{"QML2_IMPORT_PATH", "QML_IMPORT_PATH"} {
 		value := prefix
@@ -455,6 +465,8 @@ func setupQmlImportPath() {
 // components.
 func (d *daemon) bootstrap() {
 	d.startSettings()
+	d.loadShellIndexAtStart()
+	d.scheduleShellsSync()
 	d.startLockRecovery()
 	d.startPresence()
 	d.startKeypress()
@@ -579,29 +591,14 @@ func orphanedWatchers() []int {
 	return out
 }
 
-// isShellWatcher recognises the helper processes the shell spawns: the ryoku
-// python inotifywait watchers, the keyboard-lock daemons (the packaged script
-// and the python watcher it execs), and the cava analyser.
+// isShellWatcher recognises the shell's keyboard-lock and audio-analysis
+// helpers, which can outlive a crashed surface.
 func isShellWatcher(cmdline string) bool {
 	argv := strings.Split(strings.TrimRight(cmdline, "\x00"), "\x00")
 	if len(argv) == 0 {
 		return false
 	}
 	switch filepath.Base(argv[0]) {
-	case "inotifywait":
-		for _, a := range argv[1:] {
-			if strings.Contains(a, "ryoku-python") || strings.Contains(a, "ryoku/python") {
-				return true
-			}
-		}
-	case "python3", "python":
-		for _, a := range argv[1:] {
-			if strings.Contains(a, "keyboard_lock_state_daemon.py") ||
-				strings.Contains(a, "ryoku-python") ||
-				strings.Contains(a, "/sys/class/leds/*capslock*") {
-				return true
-			}
-		}
 	case "bash":
 		for _, a := range argv[1:] {
 			if strings.Contains(a, "kb_locks.sh") {
@@ -953,7 +950,7 @@ const jemallocConf = "narenas:2,background_thread:true,dirty_decay_ms:5000,muzzy
 // surface with nothing new to draw stays quiet, and one that does still paces
 // itself on the compositor's callbacks.
 func qsEnv() []string {
-	env := nomarchyEnv()
+	env := os.Environ()
 	if os.Getenv("MALLOC_CONF") == "" {
 		env = append(env, "MALLOC_CONF="+jemallocConf)
 	}
@@ -1036,16 +1033,22 @@ func (d *daemon) supervise(name string) {
 		// and it goes before we draw over it.
 		d.reapStrays()
 		ensureStoreIndexDir()
-		cmd := exec.Command("qs", qsSelect(name)...)
-		cmd.Env = qsEnv()
 		var desktop *desktopRun
+		var cmd *exec.Cmd
 		if name == "shell" {
 			var err error
 			cmd, desktop, err = d.desktopCommand()
 			if err != nil {
-				d.fallbackShima(err.Error())
+				if desktop != nil {
+					d.fallbackRuntime(desktop.item, err.Error())
+				}
+				time.Sleep(backoff)
+				backoff = nextRuntimeBackoff(backoff)
 				continue
 			}
+		} else {
+			cmd = exec.Command("qs", qsSelect(name)...)
+			cmd.Env = qsEnv()
 		}
 		// Keep the surface's own output: a config that fails to load reports on
 		// stdout and a loader failure on stderr, and without both a black screen
@@ -1057,25 +1060,37 @@ func (d *daemon) supervise(name string) {
 			cmd.Stderr = logFile
 		}
 		if err := cmd.Start(); err != nil {
-			if desktop != nil && desktop.shima {
-				os.Remove(desktop.ready)
-				d.fallbackShima(err.Error())
+			if desktop != nil && desktop.runtime {
+				if desktop.ready != "" {
+					os.Remove(desktop.ready)
+				}
+				d.fallbackRuntime(desktop.item, err.Error())
 			}
 			time.Sleep(backoff)
-			backoff = capDur(backoff*2, 30*time.Second)
+			if desktop != nil && desktop.runtime {
+				backoff = nextRuntimeBackoff(backoff)
+			} else {
+				backoff = capDur(backoff*2, 30*time.Second)
+			}
 			continue
+		}
+		if desktop != nil && desktop.runtime {
+			d.setRuntimeRun(desktop)
 		}
 		d.mu.Lock()
 		d.proc[name] = cmd
 		d.mu.Unlock()
+		if name == "shell" {
+			d.captureShellSnapshot()
+		}
 		if parkable(name) {
 			d.markHidden(name)
 		}
 		exited := make(chan struct{})
-		if desktop != nil {
-			go d.watchDesktop(cmd, desktop, exited, 30*time.Second)
+		if desktop != nil && desktop.runtime {
+			go d.watchDesktop(cmd, desktop, exited, runtimeReadyTimeout)
 		}
-		if name == "shell" && (desktop == nil || !desktop.shima) {
+		if name == "shell" && (desktop == nil || !desktop.runtime) {
 			// A shell that stays up past its crash window is the desktop coming
 			// back after a boot; record it for the boot guard (ryoku boot-guard),
 			// which reverts an update whose next boots never get here.
@@ -1088,8 +1103,9 @@ func (d *daemon) supervise(name string) {
 		_ = cmd.Wait()
 		close(exited)
 		if desktop != nil {
-			d.restoreAfterShima(desktop, cmd)
+			d.restoreAfterDesktop(desktop, cmd)
 		}
+		d.clearRuntimeRun(desktop)
 		killedHolding := <-heldAtKill
 		if name == "shell" && d.keypress != nil {
 			d.keypress.configure(false, d.keypress.currentMode())
@@ -1143,7 +1159,11 @@ func (d *daemon) supervise(name string) {
 				fmt.Fprintf(os.Stderr, "%s died at once: %s\n", name, line)
 			}
 			// Back off exponentially so a crash loop cannot spin the CPU.
-			backoff = capDur(backoff*2, 30*time.Second)
+			if desktop != nil && desktop.runtime {
+				backoff = nextRuntimeBackoff(backoff)
+			} else {
+				backoff = capDur(backoff*2, 30*time.Second)
+			}
 			time.Sleep(backoff)
 		} else {
 			// Healthy run that exited (a reload or SIGTERM): respawn at once so
@@ -1372,19 +1392,6 @@ func (d *daemon) dispatch(line string) string {
 			break
 		}
 		return "err ask: expected chat or tools"
-	case "bar":
-		// The data-layout verbs (list/catalog/move/show/hide/set/position/form/
-		// defaults/settings) take a verb first; the reveal grammar takes an edge
-		// first, so the first word disambiguates the two without collision.
-		if len(args) >= 1 && barCLIVerbs[args[0]] {
-			return d.barCLI(args)
-		}
-		// bar <edge|all> <toggle|reveal|hide> drives the bar reveal state.
-		edge, action, ok := parseBarEdge(args)
-		if !ok {
-			return "err bar: expected <top|bottom|left|right|all> <toggle|reveal|hide>, or a widget verb (list|catalog|move|show|hide|set|position|form|defaults|settings)"
-		}
-		return d.barToggle(edge, action)
 	case "dock":
 		return d.dockCLI(args)
 	case "powerprofiles":
@@ -1419,18 +1426,19 @@ func (d *daemon) dispatch(line string) string {
 	switch cmd {
 	case "voice":
 		return d.voice()
-	case "shima-family":
-		if len(args) < 2 {
-			return "err shima-family: expected family and panels JSON"
+	case "shells":
+		if len(args) != 1 {
+			return "err shells: expected sync or commit"
 		}
-		var panels []string
-		if err := json.Unmarshal([]byte(strings.Join(args[1:], " ")), &panels); err != nil {
-			return "err shima-family: invalid panels"
+		switch args[0] {
+		case "sync":
+			d.scheduleShellsSync()
+			return "ok"
+		case "commit":
+			return d.commitShells()
+		default:
+			return "err shells: expected sync or commit"
 		}
-		if err := d.changeShimaFamily(args[0], panels); err != nil {
-			return "err shima-family: " + err.Error()
-		}
-		return "ok"
 	case "barstyle":
 		if len(args) != 1 || !validBarStyleID(args[0]) {
 			return "err barstyle: expected one product id"
@@ -1442,7 +1450,7 @@ func (d *daemon) dispatch(line string) string {
 		if err := d.settings.patch("barStyle", value); err != nil {
 			return "err barstyle: " + err.Error()
 		}
-		return "ok"
+		return d.commitShells()
 	case "lock-quiesce":
 		if len(args) != 0 {
 			return "err lock-quiesce: takes no arguments"
@@ -1852,6 +1860,9 @@ func (d *daemon) reload() string {
 		}
 	}
 	d.mu.Unlock()
+	if was["shell"] != 0 {
+		d.markRuntimeRunIntentional()
+	}
 	for _, c := range procs {
 		_ = c.Process.Signal(syscall.SIGTERM)
 	}

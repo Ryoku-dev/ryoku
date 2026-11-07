@@ -59,10 +59,6 @@ import stage as Stage
  */
 ShellRoot {
     id: root
-    // Keep native surfaces until Gokko's root has completed, not merely while
-    // its outer Store Scene exists; a nested load error must still fall back.
-    readonly property bool gokkoRunning: Config.barStyle === "gokko"
-        && BarProducts.gokkoReady
     property var desktopLayersReady: ({})
     function markDesktopLayerReady(name) {
         const next = Object.assign({}, desktopLayersReady);
@@ -76,6 +72,8 @@ ShellRoot {
             if (!desktopLayersReady[screen.name]) return false;
         return true;
     }
+    // The active subshell or bar style may draw its own dock instead.
+    readonly property bool itemOwnsDock: Shells.owns("dock")
     // One deferred-build wave for the cheap event-driven surfaces (the OSDs and
     // the notification column), armed 1.5 s into boot so a keypress or an
     // arriving toast never waits on a component build. Everything heavier is
@@ -215,8 +213,6 @@ ShellRoot {
                 onSurfaceReadyChanged: if (surfaceReady) root.markDesktopLayerReady(perScreen.modelData.name)
                 active: true
                 widgetsEnabled: Tokens.widgetsEnabledFor(perScreen.modelData.name)
-                    && !root.gokkoRunning
-                gokkoActive: root.gokkoRunning
                 wallpaperUrl: wallpaper.wallpaperUrl
                 wallpaperPath: wallpaper.wallpaperPath
                 wallpaperFit: wallpaper.fit
@@ -262,10 +258,6 @@ ShellRoot {
             // The frame bar (Phase 2): reads its own reveal from this slice.
             Frame {
                 modelData: perScreen.modelData
-                // park the record island flush beside this monitor's dock band
-                dockLaneEdge: dockLoader.item ? dockLoader.item.edge : ""
-                dockLaneSize: dockLoader.item ? dockLoader.item.bandSize : 0
-                dockLaneCenter: dockLoader.item ? dockLoader.item.bandCenter : 0
             }
 
             LazyLoader {
@@ -328,7 +320,7 @@ ShellRoot {
             UniversalDockHost {
                 id: dockLoader
                 screen: perScreen.modelData
-                surfaceVisible: !root.gokkoRunning && desktop.surfaceReady
+                surfaceVisible: desktop.surfaceReady && !root.itemOwnsDock
             }
 
             // The dock's right-click context menu: a full-screen overlay on the
@@ -336,7 +328,7 @@ ShellRoot {
             // The Ryoku design and docks installed from RyoStore share it.
             LazyLoader {
                 id: dockMenuLoader
-                property bool open: !root.gokkoRunning
+                property bool open: !root.itemOwnsDock
                     && (Dock.design === "ryoku" || Dock.storeDesign)
                     && Dock.menuOpen && Dock.menuScreen === perScreen.modelData.name
                 activeAsync: open || dockMenuHold.running
@@ -572,8 +564,8 @@ ShellRoot {
     // The ii host publishes actions and mounts its auxiliary surfaces only for
     // the selected, enabled design. Other docks do not instantiate the port.
     LazyLoader {
-        active: !root.gokkoRunning && root.docksMayMount
-            && Dock.design === "ii" && Dock.cfg("enabled", false)
+        active: root.docksMayMount && !root.itemOwnsDock && Dock.design === "ii"
+            && Dock.cfg("enabled", false)
         LazyLoader {
             activeAsync: true
             IiDockHost {}
@@ -655,8 +647,10 @@ ShellRoot {
             case "launcher":
             case "clipboard":
             case "settings":
+                root.toggleSurface(id);
+                break;
             case "cheatsheet":
-                if (!Config.styleOwns(id))
+                if (!Shells.owns("cheatsheet"))
                     root.toggleSurface(id);
                 break;
             case "barToggle":
@@ -860,16 +854,15 @@ ShellRoot {
     }
 
     // The polkit agent streams its prompt on a topic rather than pushing a
-    // surface, so raise and drop the island from the state itself. (pill 321-329)
+    // surface, so raise and drop the island from the state itself, unless the
+    // active subshell or bar style draws its own prompt. (pill 321-329)
     Connections {
         target: Polkit
         function onActiveChanged() {
-            if (Polkit.active) {
-                if (Config.barStyle !== "iris" && Config.barStyle !== "python")
-                    ShellState.requestSurface("polkit", "", undefined);
-            } else {
+            if (Polkit.active && !Shells.owns("polkit"))
+                ShellState.requestSurface("polkit", "", undefined);
+            else
                 ShellState.closeSurface("polkit", "");
-            }
         }
     }
 

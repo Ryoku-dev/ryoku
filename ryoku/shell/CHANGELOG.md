@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Bar styles and subshells moved to Ryostore and only run while in use.**
+  Orpheus and Kairos ship as subshells and Welcome offers those two, everything
+  else installs on demand and stays packed until selected. Notifications, the
+  OSD, polkit prompts, the dock, desktop widgets and the window close follow
+  the active item, and `ryoku-shell bar` is replaced by QS Bar's own `qsbar` IPC
+  target while QS Bar is active.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

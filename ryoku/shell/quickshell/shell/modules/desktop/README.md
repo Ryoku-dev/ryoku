@@ -20,8 +20,11 @@ surfaces. Run `ryoku-shell reload` after changing QML.
     WidgetMenu.qml           desktop and clock right-click actions
     PluginDesktopSlot.qml    one placed third-party widget
     PluginWidgetMenu.qml     third-party widget actions
+    ContributedWidgets.js    widget sets installed items provide (Shells index)
+    WindowPresence.js        window count behind the deck frost
     Singletons/
       Config.qml             ~/.config/ryoku/widgets.json
+      WidgetKeys.js          suffix rules and defaults for item-provided keys
       Registry.qml           enabled plugin catalogue
       Theme.qml              widget tokens
       Scheme.qml             live wallpaper palette
@@ -35,6 +38,27 @@ The clock reads its settings directly from `Config`. `WidgetSlot` owns placement
 and the optional card, while `Clock.qml` selects the face. Enabled third-party
 widgets use `PluginDesktopSlot` on the same monitor layer so they do not compete
 for wallpaper input.
+
+## Widgets from installed items
+
+A subshell or bar style can ship a widget set (`[[provides.desktopWidgets]]` in
+its `item.toml`). `Desktop.qml` reads every set from
+`Services.Shells.contributions("desktopWidgets")` and hosts one `WidgetSlot` per
+roster record, loading the set's `widget` file only while that record's
+`<prefix>Enabled` is on and the item is unpacked (`prepared`). Selecting a record
+of a packed item writes widgets.json and then asks for `ryoku-shell shells sync`,
+which unpacks it. Nothing here names an item.
+
+Roster records are `{id, prefix, label, icon, gloss, kind, sizes}`. The widget
+root declares `faceId`, `kind`, `prefix`, `screen`, `hostX`, `hostY`,
+`scaleCfg`, `sizeCfg`, `inkColorA`, `ryokuStyle`, `radiusCfg` and
+`optionOverrides` (the parsed `<prefix>Opts`). Option pages live in the set's
+`options` folder as `<Prefix>Options.qml` and receive `widget` and `config`.
+
+Item-provided keys are not adapter properties: `Config` keeps them under
+`contributed` in widgets.json and serves them through `get`/`set`, with the
+defaults in `Singletons/WidgetKeys.js`. Read them with `Config.get(key)`, never
+`Config[key]`.
 
 ## Visual rules
 

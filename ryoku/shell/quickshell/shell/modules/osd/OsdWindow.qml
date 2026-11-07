@@ -15,12 +15,11 @@ PanelWindow {
     required property var modelData
     required property string kind
 
-    // Logical sizes follow this output's UI scale. Nacre's independent OSD
-    // scale applies only to the shipped panel and its slide headroom.
+    // Logical sizes follow this output's UI scale. The active item's OSD scale
+    // (Shells.osdScale) applies only to the shipped panel and its slide headroom.
     readonly property real us: Tokens.uiScaleFor(modelData ? modelData.name : "")
     readonly property real pad: 16 * win.us
-    readonly property real osdScale: Config.barStyle === "nacre"
-        ? Config.normalizedNacre.osdScale : 1
+    readonly property real osdScale: Shells.osdScale
     readonly property real slide: 18 * win.us
     // Store designs own their size and edge choice while the shell keeps the
     // window, input policy and timing.

@@ -5,7 +5,6 @@ import Quickshell.Io
 import Ryoku.FrameBars
 import Ryoku.Ui.Singletons
 
-import "lib/surface-routes.js" as SurfaceRoutes
 
 // live shell appearance config. one source of truth for the look knobs Ryoku
 // Settings' Shell section edits, plus the shipped defaults the shell falls back
@@ -52,14 +51,13 @@ Singleton {
     property alias frameBars: adapter.frameBars
     readonly property var normalizedFrameBars: FrameBars.normalize(frameBars, BarCatalog, MenuCatalog)
 
-    // barStyle: which bar design renders. "orpheus" is the shipped default,
-    // provided by modules/bar/barstyles/orpheus. "sumi" is the built-in painted
-    // left rail; other ids select another shipped or installed folder style.
-    // Each style owns its own bar, popouts and settings.
+    // barStyle selects one shipped or installed item through Shells.
+    // Orpheus is the fallback and the active item owns its own presentation.
     property alias batteryAlerts: adapter.batteryAlerts
     property alias barStyle: adapter.barStyle
     property alias notifications: adapter.notifications
     readonly property var sounds: adapter.sounds
+    readonly property var audio: adapter.audio
     readonly property var themeSizing: adapter.theme?.attributes?.sizing ?? ({})
 
     // obi: per-widget visibility for the Obi bar style, edited in Bar Studio.
@@ -74,48 +72,24 @@ Singleton {
 
     // Style stores are loaded here, but each style persists through the daemon.
     property alias python: adapter.python
-    property alias nomarchy: adapter.nomarchy
     readonly property var inir: adapter.inir
 
+    readonly property bool styleOwnsBanners: Shells.owns("notifications")
+    readonly property bool styleOwnsNotificationSound: Shells.owns("notificationSound")
+    readonly property bool styleOwnsFeedback: Shells.owns("osd")
 
-    // A folder style may draw its own notification banners and its own volume/
-    // brightness OSD. While it is active and does not opt out, the shell's
-    // resident banners and OSD windows hold back so exactly one of each paints.
-    readonly property bool styleOwnsBanners: (barStyle === "python"
-        && !(root.python && root.python.general && root.python.general.notifications === false))
-        || (barStyle === "nomarchy"
-        && !(root.nomarchy && root.nomarchy.notifications === false))
-        || (barStyle === "iris" && (root.inir?.iris?.modules?.notificationPopup ?? true))
-        || barStyle === "tansu"
-        || barStyle === "caelestia"
-        || barStyle === "imi"
-        || (barStyle === "gokko" && BarProducts.gokkoReady)
-    // Only a style that plays its own notification sound silences the shell's
-    // cue; Nomarchy and Tansu draw banners but play nothing themselves.
-    readonly property bool styleOwnsNotificationSound: (barStyle === "python"
-        && !(root.python && root.python.general && root.python.general.notifications === false))
-        || (barStyle === "gokko" && BarProducts.gokkoReady)
-    readonly property bool styleOwnsFeedback: (barStyle === "python"
-        && !(root.python && root.python.general && root.python.general.osd === false))
-        || (barStyle === "nomarchy"
-        && !(root.nomarchy && root.nomarchy.osd === false))
-        || (barStyle === "iris" && (root.inir?.iris?.modules?.osd ?? true))
-        || barStyle === "caelestia"
-        || barStyle === "imi"
-
-    // Desktop-wide shortcuts stay with Ryoku. Shima substitutes its own
-    // shortcuts sheet because it adds a style-only element view.
-    function styleOwns(surface) {
-        return SurfaceRoutes.styleOwns(surface, barStyle)
-    }
-
-    // Shima's banner slider owns the fallback only while Shima draws the banners.
-    readonly property int styleNotificationMs: {
-        if (barStyle !== "iris")
-            return 0
-        const raw = Number(root.inir?.iris?.notifications?.duration ?? 4000)
-        const seconds = isFinite(raw) ? raw / 1000 : 4
-        return Math.round(Math.max(2, Math.min(12, seconds)) * 1000)
+    // frame: the whole parsed shell.json, for keys the adapter does not declare
+    // (an item's own switches). value() reads it by dotted path.
+    property var frame: ({})
+    function value(path) {
+        let node = root.frame;
+        const parts = String(path || "").split(".");
+        for (let i = 0; i < parts.length; ++i) {
+            if (node === null || typeof node !== "object")
+                return undefined;
+            node = node[parts[i]];
+        }
+        return node;
     }
 
     // dock: the universal app dock store. It is top-level because design,
@@ -283,10 +257,13 @@ Singleton {
     function refreshThemePalette() {
         var pal = null;
         var nextControls = root.defaultControls;
+        var parsed = {};
         var t = file.text();
         if (t) {
             try {
                 var o = JSON.parse(t);
+                if (o && typeof o === "object")
+                    parsed = o;
                 if (o && typeof o.themePalette === "object" && o.themePalette !== null)
                     pal = o.themePalette;
                 if (o && typeof o.controls === "object" && o.controls !== null)
@@ -294,6 +271,7 @@ Singleton {
             } catch (e) {
             }
         }
+        frame = parsed;
         themePalette = pal;
         controls = nextControls;
     }
@@ -356,6 +334,7 @@ Singleton {
                 "show_images": false
             })
             property var sounds: ({})
+            property var audio: ({ "boost": false })
             property string barStyle: "orpheus"
             property string launcherTarget: "studio"
             property var obi: ({})
@@ -364,10 +343,6 @@ Singleton {
             property var kairos: ({})
             property var orpheus: ({})
             property var python: ({})
-            property var nomarchy: ({
-                "notifications": true,
-                "osd": true
-            })
             property var inir: ({})
             property var dock: ({
                 "enabled": false,

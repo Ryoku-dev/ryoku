@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+- `audio/ryoku-volume`: **Volume boost reads the shared `audio.boost` setting.**
+  The 150% limit no longer depends on which bar is active.
+
 ### Added
 - `display/ryoku-monitor`: **a hand-entered resolution is forced, not ignored.**
   When a layout carries a `WxH@rate` mode the panel does not advertise (the Hub's

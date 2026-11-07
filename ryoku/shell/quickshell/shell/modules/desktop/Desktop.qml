@@ -15,12 +15,10 @@ import "weather"
 import "notes"
 import "dayprogress"
 import "shape"
-import "iris"
-import "iris/IrisRoster.js" as IrisRoster
-import "python"
 import "ii"
 import "ii/IiRoster.js" as IiRoster
-import "python/PythonRoster.js" as PythonRoster
+import "ContributedWidgets.js" as ContributedWidgets
+import "WindowPresence.js" as WindowPresence
 import Ryoku.PluginKit
 import shell.services as Services
 import "../stage"
@@ -35,10 +33,6 @@ import stage.services as StageServices
 import "../visualizer/Singletons" as VizCfg
 import "../visualizer" as Viz
 import "../wallpaper" as WallpaperMod
-// The iRiS frame singleton reports the dock's edge and its visible vs reserved
-// depth, so the Edit widgets bar can clear a bottom dock that reserves nothing.
-import inir.modules.iris.frame
-import inir.services
 
 // desktop widgets layer: WlrLayer.Bottom (below windows), instantiated once per
 // monitor by the main shell, carrying the clock. only clicks on bare wallpaper
@@ -55,7 +49,10 @@ Scope {
     // controller hook; the desktop layer defaults on.
     property bool active: true
     property bool widgetsEnabled: true
-    property bool gokkoActive: false
+    // The active subshell or bar style draws its own desktop widgets, so
+    // Ryoku's widgets and the deck frost stay off while it does.
+    readonly property bool itemOwnsWidgets: Services.Shells.owns("widgets")
+    readonly property bool widgetsShown: root.widgetsEnabled && !root.itemOwnsWidgets
     property string wallpaperUrl: ""
     property string wallpaperPath: ""
     property string wallpaperFit: "Cover"
@@ -98,6 +95,18 @@ Scope {
         && !root.hostsVisualizer
         && !(root.stageState && root.stageState.visualizerOverlay)
     readonly property string monitorName: root.screen ? root.screen.name : ""
+    readonly property var contributedWidgetSets: Services.Shells.contributions("desktopWidgets")
+    // The store reads widgets.json to decide what to unpack, so a selected
+    // widget whose item is still packed asks for a sync once the file is written.
+    function requestContributedSync() {
+        if (ContributedWidgets.needsSync(root.contributedWidgetSets,
+                prefix => root.widgetValue(prefix, "Enabled") === true))
+            Services.Shells.requestSync();
+    }
+    Connections {
+        target: Config
+        function onSaved() { root.requestContributedSync(); }
+    }
     // Edit widgets lifts this desktop above open windows. Per-widget locks stay
     // authoritative and can be toggled from the canvas.
     readonly property bool stageComposing: StageCfg.StageSession.onMonitor(root.monitorName)
@@ -125,9 +134,9 @@ Scope {
     // its user switch is off or its strength is zero.
     readonly property bool deckFrostEnabled: Services.Config.deckFrostEnabled !== false
         && Number(Services.Config.deckFrost) > 0
-    readonly property int deckFrostCount: (root.deckFrostEnabled
-        && !root.gokkoActive && !root.stageComposing && !root.stageEditing)
-        ? CompositorService.windowsOnActiveWorkspace(root.monitorName)
+    readonly property int deckFrostCount: (root.deckFrostEnabled && !root.itemOwnsWidgets
+        && !root.stageComposing && !root.stageEditing)
+        ? WindowPresence.countOnActiveWorkspace(Wm.windows, Wm.workspaces, root.monitorName)
         : 0
     property real deckFrost: root.deckFrostCount > 0
         ? Services.Config.deckFrostIntensity(root.deckFrostCount)
@@ -149,13 +158,16 @@ Scope {
     // a workspace switch moves only `blur` instead of rebuilding a full-output
     // FBO.
     readonly property bool deckFrostGlassPossible: root.deckFrostEnabled
-        && !root.gokkoActive && !root.stageComposing && !root.stageEditing
+        && !root.itemOwnsWidgets && !root.stageComposing && !root.stageEditing
         && !Performance.blurDisabled && !root.deckFrostHasMotion
     property bool deckFrostLayered: false
     onDeckFrostBlurChanged: if (root.deckFrostGlassPossible && root.deckFrostBlur > 0.01)
         root.deckFrostLayered = true
     onDeckFrostGlassPossibleChanged: if (!root.deckFrostGlassPossible) root.deckFrostLayered = false
-    Component.onCompleted: root.deckFrostLayered = root.deckFrostBlur > 0.01
+    Component.onCompleted: {
+        root.deckFrostLayered = root.deckFrostBlur > 0.01;
+        root.requestContributedSync();
+    }
     readonly property real deckFrostFloor: Math.max(0, Math.min(0.6,
         root.deckFrost - 1))
     readonly property rect deckFocusRect: {
@@ -177,18 +189,14 @@ Scope {
             win.width, win.height,
             Stage.GlobalStates.editProgress, Stage.GlobalStates.editDrawerProgress)
         : Qt.matrix4x4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
-    // Human titles for every framed widget: the built-ins by name, then the
-    // hosted rosters' own labels, so a frame never reads "irisClock".
+    // Human titles for every framed widget come from the built-in and contributed rosters.
     function widgetTitle(w) {
         const n = { clock: "Clock", calendar: "Calendar", music: "Music", aio: "All-in-one", stats: "System stats", weather: "Weather", notes: "Notes", dayprogress: "Day Progress", shape: "Shape", visualizer: "Visualizer" };
         if (n[w])
             return n[w];
-        const iris = IrisRoster.byPrefix(w);
-        if (iris)
-            return iris.label;
-        const py = PythonRoster.byPrefix(w);
-        if (py)
-            return py.label;
+        const contributed = ContributedWidgets.find(root.contributedWidgetSets, w);
+        if (contributed)
+            return contributed.record.label;
         const ii = IiRoster.byPrefix(w);
         if (ii)
             return ii.label;
@@ -251,22 +259,22 @@ Scope {
             });
         }
         const out = bi.slice();
-        // the vendored iRiS faces: one roster row each, on/off from widgets.json,
-        // grouped so the Hub's Add drop-down keeps them together.
-        const irisFaces = IrisRoster.faces;
-        for (var k = 0; k < irisFaces.length; k++) {
-            const f = irisFaces[k];
-            out.push({ id: f.prefix, label: f.label, icon: f.icon, enabled: root.widgetValue(f.prefix, "Enabled") === true, group: "Shima widgets" });
+        const contributed = ContributedWidgets.records(root.contributedWidgetSets);
+        for (var k = 0; k < contributed.length; k++) {
+            const entry = contributed[k];
+            const f = entry.record;
+            out.push({
+                id: f.prefix,
+                label: f.label,
+                icon: f.icon,
+                enabled: root.widgetValue(f.prefix, "Enabled") === true,
+                group: entry.set.name
+            });
         }
         const iiFaces = IiRoster.faces;
         for (var q = 0; q < iiFaces.length; q++) {
             const f = iiFaces[q];
             out.push({ id: f.prefix, label: f.label, icon: f.icon, enabled: root.widgetValue(f.prefix, "Enabled") === true, group: "ii widgets" });
-        }
-        const pythonFaces = PythonRoster.faces;
-        for (var p = 0; p < pythonFaces.length; p++) {
-            const f = pythonFaces[p];
-            out.push({ id: f.prefix, label: f.label, icon: f.icon, enabled: root.widgetValue(f.prefix, "Enabled") === true, group: "Python widgets" });
         }
         for (var g = 0; g < order.length; g++) {
             const rows = byGroup[order[g]];
@@ -290,15 +298,11 @@ Scope {
         case "dayprogress": return dayprogressLoader.item;
         case "shape": return shapeLoader.item;
         }
-        for (var i = 0; i < irisRepeater.count; i++) {
-            const ld = irisRepeater.itemAt(i);
-            if (ld && ld.item && ld.modelData && ld.modelData.prefix === w)
+        for (var i = 0; i < contributedRepeater.count; i++) {
+            const ld = contributedRepeater.itemAt(i);
+            if (ld && ld.item && ld.modelData && ld.modelData.record
+                    && ld.modelData.record.prefix === w)
                 return ld.item;
-        }
-        for (var j = 0; j < pythonRepeater.count; j++) {
-            const pd = pythonRepeater.itemAt(j);
-            if (pd && pd.item && pd.modelData && pd.modelData.prefix === w)
-                return pd.item;
         }
         for (var k = 0; k < iiRepeater.count; k++) {
             const id = iiRepeater.itemAt(k);
@@ -784,17 +788,18 @@ Scope {
             videoPaused: root.videoPaused
         }
 
-        // Host Gokko widgets beside the wallpaper, below ordinary windows.
-        // A Store package cannot create a second competing Bottom surface.
+        // The active item's own widgets paint beside the wallpaper, below
+        // ordinary windows, so an item never needs a second Bottom surface.
         Loader {
-            id: gokkoCanvas
+            id: itemCanvas
             z: 3
             anchors.fill: parent
-            readonly property var controller: Services.BarProducts.gokkoWidgets
-            active: root.gokkoActive && controller !== null && controller.ready
+            readonly property var controller: Services.Shells.desktopCanvas
+            active: root.itemOwnsWidgets && controller !== null && controller !== undefined
+                && controller.ready === true
                 && controller.widgetOutput === root.monitorName
-                && (controller.widgetCount > 0 || controller.editing)
-            sourceComponent: controller ? controller.desktopCanvasComponent : undefined
+                && (controller.widgetCount > 0 || controller.editing === true)
+            sourceComponent: controller ? controller.desktopCanvasComponent : null
         }
 
         StageBackdrop {
@@ -886,7 +891,7 @@ Scope {
         // Glass only needs colour and broad wallpaper structure. Keep one
         // quarter-linear decode while a visible glass consumer exists; the
         // widget-local crop performs the blur at its final size.
-        readonly property bool glassWanted: root.widgetsEnabled && root.videoUrl === ""
+        readonly property bool glassWanted: root.widgetsShown && root.videoUrl === ""
             && ((calendarLoader.active && calendarLoader.visible
                     && calendarLoader.item !== null && Config.calendarStyle === "glass")
                 || (musicLoader.active && musicLoader.visible
@@ -1001,7 +1006,7 @@ Scope {
             id: clockLoader
             anchors.fill: parent
             z: root.widgetZ("clock")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("clock", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("clock", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1041,7 +1046,7 @@ Scope {
             id: calendarLoader
             anchors.fill: parent
             z: root.widgetZ("calendar")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("calendar", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("calendar", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1088,7 +1093,7 @@ Scope {
             id: musicLoader
             anchors.fill: parent
             z: root.widgetZ("music")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("music", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("music", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1138,7 +1143,7 @@ Scope {
             id: aioLoader
             anchors.fill: parent
             z: root.widgetZ("aio")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("aio", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("aio", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1179,7 +1184,7 @@ Scope {
             id: statsLoader
             anchors.fill: parent
             z: root.widgetZ("stats")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("stats", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("stats", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1219,7 +1224,7 @@ Scope {
             id: weatherLoader
             anchors.fill: parent
             z: root.widgetZ("weather")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("weather", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("weather", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1260,7 +1265,7 @@ Scope {
             id: notesLoader
             anchors.fill: parent
             z: root.widgetZ("notes")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("notes", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("notes", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1307,7 +1312,7 @@ Scope {
             id: dayprogressLoader
             anchors.fill: parent
             z: root.widgetZ("dayprogress")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("dayprogress", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("dayprogress", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1346,7 +1351,7 @@ Scope {
             id: shapeLoader
             anchors.fill: parent
             z: root.widgetZ("shape")
-            active: root.widgetsEnabled && root.reloadReady && root.widgetValue("shape", "Enabled")
+            active: root.widgetsShown && root.reloadReady && root.widgetValue("shape", "Enabled")
             sourceComponent: Component {
             Item {
                 anchors.fill: parent
@@ -1381,65 +1386,84 @@ Scope {
             }
         }
 
-        // one IrisFaceWidget slot per enabled iRiS face. Same host contract as
-        // the built-ins -- WidgetSlot owns placement/size/lock/backing and the
-        // colour modes; the adapter renders the vendored inir face in Ryoku's
-        // look. Driven by the shared roster so a face is registered once.
         Repeater {
-            id: irisRepeater
-            model: IrisRoster.faces
+            id: contributedRepeater
+            model: ContributedWidgets.records(root.contributedWidgetSets)
             delegate: Loader {
-                id: irisLoader
+                id: contributedLoader
                 required property var modelData
                 anchors.fill: parent
-                z: root.widgetZ(irisLoader.modelData.prefix)
-                active: root.widgetsEnabled && root.reloadReady
-                    && (root.widgetValue(irisLoader.modelData.prefix, "Enabled") === true)
+                readonly property var set: modelData.set
+                readonly property var record: modelData.record
+                readonly property string prefix: String(record.prefix || "")
+                readonly property string defaultSize: Array.isArray(record.sizes)
+                    && record.sizes.length > 0 ? String(record.sizes[0]) : ""
+                z: root.widgetZ(prefix)
+                active: root.widgetsShown && root.reloadReady && set.prepared === true
+                    && String(set.widgetUrl || "").length > 0
+                    && root.widgetValue(prefix, "Enabled") === true
+
                 sourceComponent: Component {
                     Item {
                         anchors.fill: parent
                         WidgetSlot {
-                            id: irisSlot
-                            widget: irisLoader.modelData.prefix
+                            id: contributedSlot
+                            widget: contributedLoader.prefix
                             monitor: root.monitorName
-                            depthV: root.widgetDepth(irisLoader.modelData.prefix)
+                            depthV: root.widgetDepth(contributedLoader.prefix)
                             spatial: root.stageSpatial
                             mouseNX: StageCfg.StageBackend.cursorNXFor(root.screen.name)
                             mouseNY: StageCfg.StageBackend.cursorNYFor(root.screen.name)
-                            z: root.widgetZ(irisLoader.modelData.prefix)
+                            z: root.widgetZ(contributedLoader.prefix)
                             visible: true
-                            anchor: root.widgetValue(irisLoader.modelData.prefix, "Anchor")
-                            freeX: root.widgetValue(irisLoader.modelData.prefix, "X")
-                            freeY: root.widgetValue(irisLoader.modelData.prefix, "Y")
-                            locked: root.widgetValue(irisLoader.modelData.prefix, "Locked")
+                            anchor: root.widgetValue(contributedLoader.prefix, "Anchor")
+                            freeX: root.widgetValue(contributedLoader.prefix, "X")
+                            freeY: root.widgetValue(contributedLoader.prefix, "Y")
+                            locked: root.widgetValue(contributedLoader.prefix, "Locked")
                             composing: root.stageComposing
                             stageController: stageSelection
                             gridSize: root.editGridSize
                             snapEnabled: root.editGridSnap
-                            // iNiR style: the face owns its plate, so the slot draws no
-                            // backing. Ryoku style: the slot draws the chosen backing.
-                            bg: Config[irisLoader.modelData.prefix + "Style"] === "ryoku"
-                                ? Config[irisLoader.modelData.prefix + "Bg"] : "none"
-                            scaleCfg: root.widgetValue(irisLoader.modelData.prefix, "Scale")
-                            // per-widget geometry (Ryoku-style backing / iNiR plate radius)
-                            radiusOverride: Config[irisLoader.modelData.prefix + "Radius"]
-                            pad: Config[irisLoader.modelData.prefix + "Pad"] >= 0
-                                ? Config[irisLoader.modelData.prefix + "Pad"] : 0
-                            borderWidth: Config[irisLoader.modelData.prefix + "Border"]
-                            borderOpacity: Config[irisLoader.modelData.prefix + "BorderOpacity"]
-                            backingOpacity: Config[irisLoader.modelData.prefix + "BackingOpacity"]
+                            readonly property bool ryokuStyle:
+                                root.widgetValue(contributedLoader.prefix, "Style") === "ryoku"
+                            bg: ryokuStyle
+                                ? root.widgetValue(contributedLoader.prefix, "Bg") : "none"
+                            scaleCfg: root.widgetValue(contributedLoader.prefix, "Scale")
+                            radiusOverride: root.widgetValue(contributedLoader.prefix, "Radius")
+                            pad: root.widgetValue(contributedLoader.prefix, "Pad") >= 0
+                                ? root.widgetValue(contributedLoader.prefix, "Pad") : 0
+                            borderWidth: root.widgetValue(contributedLoader.prefix, "Border")
+                            borderOpacity: root.widgetValue(contributedLoader.prefix, "BorderOpacity")
+                            backingOpacity: root.widgetValue(contributedLoader.prefix, "BackingOpacity")
                             onMenuRequested: (x, y, w) => root.openWidgetMenu(w, x, y)
-                            onDropped: (box) => { win.flashDrop(box); root.stageRecordGesture(irisSlot); }
-                            onResized: root.stageRecordGesture(irisSlot)
-                            IrisFaceWidget {
-                                faceId: irisLoader.modelData.id
-                                kind: irisLoader.modelData.kind
-                                prefix: irisLoader.modelData.prefix
-                                scaleCfg: root.widgetValue(irisLoader.modelData.prefix, "Scale")
-                                sizeCfg: root.widgetValue(irisLoader.modelData.prefix, "Size")
-                                screen: root.screen
-                                hostX: irisSlot.x
-                                hostY: irisSlot.y
+                            onDropped: box => {
+                                win.flashDrop(box);
+                                root.stageRecordGesture(contributedSlot);
+                            }
+                            onResized: root.stageRecordGesture(contributedSlot)
+
+                            Loader {
+                                id: contributedWidget
+                                property string inkColorA: ""
+                                source: contributedLoader.set.widgetUrl
+                            }
+                            Binding { target: contributedWidget.item; property: "faceId"; value: contributedLoader.record.id; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "kind"; value: contributedLoader.record.kind; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "prefix"; value: contributedLoader.prefix; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "screen"; value: root.screen; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "hostX"; value: contributedSlot.x; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "hostY"; value: contributedSlot.y; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "scaleCfg"; value: root.widgetValue(contributedLoader.prefix, "Scale"); when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "sizeCfg"; value: root.widgetValue(contributedLoader.prefix, "Size") || contributedLoader.defaultSize; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "inkColorA"; value: contributedWidget.inkColorA; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "ryokuStyle"; value: contributedSlot.ryokuStyle; when: contributedWidget.item !== null }
+                            Binding { target: contributedWidget.item; property: "radiusCfg"; value: root.widgetValue(contributedLoader.prefix, "Radius"); when: contributedWidget.item !== null }
+                            Binding {
+                                target: contributedWidget.item
+                                property: "optionOverrides"
+                                value: ContributedWidgets.options(
+                                    root.widgetValue(contributedLoader.prefix, "Opts"))
+                                when: contributedWidget.item !== null
                             }
                         }
                     }
@@ -1458,7 +1482,7 @@ Scope {
                 required property var modelData
                 anchors.fill: parent
                 z: root.widgetZ(iiLoader.modelData.prefix)
-                active: root.widgetsEnabled && root.reloadReady
+                active: root.widgetsShown && root.reloadReady
                     && (root.widgetValue(iiLoader.modelData.prefix, "Enabled") === true)
                 sourceComponent: Component {
                     Item {
@@ -1503,63 +1527,6 @@ Scope {
             }
         }
 
-        // Serpantinum's face library uses the same global slot contract: Ryoku
-        // owns placement and chrome while the selected Python face paints inside.
-        Repeater {
-            id: pythonRepeater
-            model: PythonRoster.faces
-            delegate: Loader {
-                id: pythonLoader
-                required property var modelData
-                anchors.fill: parent
-                z: root.widgetZ(pythonLoader.modelData.prefix)
-                active: root.widgetsEnabled && root.reloadReady
-                    && (root.widgetValue(pythonLoader.modelData.prefix, "Enabled") === true)
-                sourceComponent: Component {
-                    Item {
-                        anchors.fill: parent
-                        WidgetSlot {
-                            id: pythonSlot
-                            widget: pythonLoader.modelData.prefix
-                            monitor: root.monitorName
-                            depthV: root.widgetDepth(pythonLoader.modelData.prefix)
-                            spatial: root.stageSpatial
-                            mouseNX: StageCfg.StageBackend.cursorNXFor(root.screen.name)
-                            mouseNY: StageCfg.StageBackend.cursorNYFor(root.screen.name)
-                            z: root.widgetZ(pythonLoader.modelData.prefix)
-                            visible: true
-                            anchor: root.widgetValue(pythonLoader.modelData.prefix, "Anchor")
-                            freeX: root.widgetValue(pythonLoader.modelData.prefix, "X")
-                            freeY: root.widgetValue(pythonLoader.modelData.prefix, "Y")
-                            locked: root.widgetValue(pythonLoader.modelData.prefix, "Locked")
-                            composing: root.stageComposing
-                            stageController: stageSelection
-                            gridSize: root.editGridSize
-                            snapEnabled: root.editGridSnap
-                            bg: Config[pythonLoader.modelData.prefix + "Style"] === "ryoku"
-                                ? Config[pythonLoader.modelData.prefix + "Bg"] : "none"
-                            scaleCfg: root.widgetValue(pythonLoader.modelData.prefix, "Scale")
-                            radiusOverride: Config[pythonLoader.modelData.prefix + "Radius"]
-                            pad: Config[pythonLoader.modelData.prefix + "Pad"] >= 0
-                                ? Config[pythonLoader.modelData.prefix + "Pad"] : 0
-                            borderWidth: Config[pythonLoader.modelData.prefix + "Border"]
-                            borderOpacity: Config[pythonLoader.modelData.prefix + "BorderOpacity"]
-                            backingOpacity: Config[pythonLoader.modelData.prefix + "BackingOpacity"]
-                            onMenuRequested: (x, y, w) => root.openWidgetMenu(w, x, y)
-                            onDropped: (box) => { win.flashDrop(box); root.stageRecordGesture(pythonSlot); }
-                            onResized: root.stageRecordGesture(pythonSlot)
-                            PythonFaceWidget {
-                                faceId: pythonLoader.modelData.id
-                                scaleCfg: root.widgetValue(pythonLoader.modelData.prefix, "Scale")
-                                prefix: pythonLoader.modelData.prefix
-                                screen: root.screen
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         // one draggable PluginDesktopSlot per enabled desktopWidget plugin.
         // drag = write free pos. resize bracket = write scale. right-click
         // = per-tile menu. each commit goes through its own Process so a
@@ -1567,7 +1534,7 @@ Scope {
         // `persist`.
         Repeater {
             id: pluginRepeater
-            model: root.widgetsEnabled ? win.desktopPluginIds : []
+            model: root.widgetsShown ? win.desktopPluginIds : []
             delegate: PluginDesktopSlot {
                 id: slot
                 required property string modelData

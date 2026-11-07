@@ -22,10 +22,13 @@ singleton Tray Tray.qml
 singleton Dock Dock.qml
 singleton DockPreview DockPreview.qml
 singleton MusicPreview MusicPreview.qml
-singleton BarProducts BarProducts.qml
+singleton Shells Shells.qml
 singleton DockProducts DockProducts.qml
 singleton Designs Designs.qml
 StoreIndex StoreIndex.qml
+Screens 1.0 lib/screens.js
+Calendar 1.0 lib/calendar.js
+WeatherFormat 1.0 lib/weather.js
 singleton Devices Devices.qml
 singleton Weather Weather.qml
 singleton Updates Updates.qml
@@ -58,3 +61,4 @@ singleton StatsFeed StatsFeed.qml
 singleton AppLaunch AppLaunch.qml
 singleton Icons Icons.qml
 singleton BatteryAlerts BatteryAlerts.qml
+singleton Visualizer Visualizer.qml

@@ -104,9 +104,6 @@ func TestPhoneDefaultsMatchContract(t *testing.T) {
 }
 
 func TestDockEdgeGapValidation(t *testing.T) {
-	if got := defaultDock()["edgeGap"]; got != dockEdgeGapDefault {
-		t.Fatalf("default dock.edgeGap = %v, want %d", got, dockEdgeGapDefault)
-	}
 	store := newTestStore(t)
 	if err := store.patch("dock", rm(`{"edgeGap":-15}`)); err != nil {
 		t.Fatal(err)
@@ -782,11 +779,11 @@ func TestFrameBarsPatchPreservesSubtrees(t *testing.T) {
 
 func TestPatchMergesAConcurrentSynchronizedWriter(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "shell.json")
-	if err := os.WriteFile(path, []byte("{\"barStyle\":\"obi\",\"keep\":true}\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("{\"barStyle\":\"alpha\",\"keep\":true}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	store := newSettingsStore(path)
-	if err := os.WriteFile(path, []byte("{\"barStyle\":\"sumi\",\"keep\":true,\"external\":1}\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("{\"barStyle\":\"beta\",\"keep\":true,\"external\":1}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.patch("weatherLocation", json.RawMessage(`"Oslo"`)); err != nil {
@@ -800,27 +797,39 @@ func TestPatchMergesAConcurrentSynchronizedWriter(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got["barStyle"] != "sumi" || got["keep"] != true || got["external"] != float64(1) || got["weatherLocation"] != "Oslo" {
+	if got["barStyle"] != "beta" || got["keep"] != true || got["external"] != float64(1) || got["weatherLocation"] != "Oslo" {
 		t.Fatalf("merged settings = %#v", got)
 	}
 }
 
-func TestBarStyleCommandUsesSettingsStore(t *testing.T) {
+func TestBarStyleCommandUsesSettingsStoreAndCommits(t *testing.T) {
 	store := newTestStore(t)
-	if err := store.patch(barStyleTransactionKey, json.RawMessage(`"remove-obi"`)); err != nil {
+	if err := store.patch(barStyleTransactionKey, json.RawMessage(`"remove-alpha"`)); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	oldSync := runRyostoreShellsSync
+	t.Cleanup(func() { runRyostoreShellsSync = oldSync })
+	runRyostoreShellsSync = func(bool) error {
+		index := shellIndex{Schema: 1, Active: "beta", Fallback: "beta", Items: []shellItem{{ID: "beta", Category: "subshells", InUse: true}}}
+		body, _ := json.Marshal(index)
+		path := shellsIndexPath()
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(path, body, 0o600)
+	}
 	d := daemon{settings: store}
-	if got := d.dispatch("barstyle sumi"); got != "ok" {
+	if got := d.dispatch("barstyle beta"); got != "ok" {
 		t.Fatalf("barstyle command = %q", got)
 	}
-	if got := frameGet(t, store.frameLocked(), "barStyle"); got != "sumi" {
+	if got := frameGet(t, store.frameLocked(), "barStyle"); got != "beta" {
 		t.Fatalf("barStyle = %v", got)
 	}
 	if frameHas(t, store.frameLocked(), barStyleTransactionKey) {
 		t.Fatal("explicit barstyle selection retained transaction marker")
 	}
-	if got := d.dispatch("barstyle ../obi"); !strings.HasPrefix(got, "err ") {
+	if got := d.dispatch("barstyle ../alpha"); !strings.HasPrefix(got, "err ") {
 		t.Fatalf("invalid barstyle command = %q", got)
 	}
 }
@@ -878,7 +887,7 @@ func TestDesignEditDropsOnlyItsStoreRemovalMarker(t *testing.T) {
 
 func TestPatchRejectsMalformedConcurrentWriter(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "shell.json")
-	if err := os.WriteFile(path, []byte("{\"barStyle\":\"obi\",\"keep\":true}\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("{\"barStyle\":\"alpha\",\"keep\":true}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	store := newSettingsStore(path)
@@ -891,24 +900,23 @@ func TestPatchRejectsMalformedConcurrentWriter(t *testing.T) {
 	if raw, err := os.ReadFile(path); err != nil || string(raw) != "{" {
 		t.Fatalf("malformed settings overwritten: %q, err=%v", raw, err)
 	}
-	if store.raw["barStyle"] != "obi" || store.raw["keep"] != true {
+	if store.raw["barStyle"] != "alpha" || store.raw["keep"] != true {
 		t.Fatalf("last-good settings changed: %#v", store.raw)
 	}
 }
 
 // TestLoadCorruptFileIsBackedUp: an existing but unparseable shell.json is
 // preserved to <path>.corrupt instead of being silently reduced to defaults, so
-// a transient or corrupt read never destroys the user's passthrough keys (qsbar
-// and the other native look knobs) unrecoverably.
+// a transient read never destroys the user's passthrough keys.
 func TestLoadCorruptFileIsBackedUp(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "shell.json")
-	junk := []byte(`{"barStyle":"qsbar","qsbar":{"barShellStyle":"full"}`) // truncated: unparseable
+	junk := []byte(`{"barStyle":"alpha","customShell":{"shape":"full"}`)
 	if err := os.WriteFile(path, junk, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	raw, _, _ := loadSettingsFile(path)
-	if _, ok := raw["qsbar"]; ok {
-		t.Fatalf("unparseable file should fall back to defaults (no qsbar), got %v", raw)
+	if _, ok := raw["customShell"]; ok {
+		t.Fatalf("unparseable file should fall back to defaults, got %v", raw)
 	}
 	b, err := os.ReadFile(path + ".corrupt")
 	if err != nil {

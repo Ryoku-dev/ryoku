@@ -1,5 +1,0 @@
-module inir.modules.background.widgets.clock.minuteMarks
-BigHourNumbers 1.0 BigHourNumbers.qml
-Dots 1.0 Dots.qml
-Lines 1.0 Lines.qml
-MinuteMarks 1.0 MinuteMarks.qml

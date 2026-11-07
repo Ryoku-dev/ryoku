@@ -7,15 +7,6 @@ David Heinemeier Hansson and contributors (https://github.com/basecamp/omarchy).
 The beta tree was pruned and rebuilt from an empty root; its installer, shell,
 theming, boot art, tooling and system definition are Ryoku's own.
 
-The Nomarchy bar style at
-ryoku/shell/quickshell/shell/modules/bar/barstyles/nomarchy/ is adapted from the
-Omarchy quattro shell at commit d9b970dd. The port keeps its bar, panels,
-widgets, plugin ABI, menu, notifications, OSD, reminders and media services.
-Window management crosses Ryoku's neutral provider, while Ryoku keeps ownership
-of wallpaper, capture, recording, lock, clipboard, policy authentication, idle
-inhibition, night light and updates. Omarchy is released under the MIT License.
-The upstream license and a detailed notice ship beside the port.
-
 The Ryoku shell is an original, custom shell. Its frame-blob rendering (the
 Ryoku.Blobs QML/C++ plugin) and parts of its animation and motion curves are
 adapted from the Caelestia shell:
@@ -41,30 +32,6 @@ and Bar Studio workflow are adapted from OkShell by John Oberhauser:
 OkShell is released under the GNU General Public License version 3. The adapted
 frame-bar areas remain GPL-3.0-compatible with Ryoku's GPL-3 distribution.
 
-The Shima bar style (ryoku/shell/quickshell/inir/) is based on iNiR by snowarch
-(https://github.com/snowarch/inir). It is a modified version: Ryoku renamed it,
-gave it its own mark, dropped the Kira mascot, and runs it through Ryoku's
-neutral window-manager layer on Hyprland, niri and Wayfire. It is not iNiR or
-iRiS, and those names, logos and the Kira mascot belong to snowarch. iNiR is
-released under the GNU General Public License version 3 with additional section
-7 terms; its NOTICE and LICENSE ship unchanged beside the code in
-ryoku/shell/quickshell/inir/.
-
-The Python bar style (ryoku/shell/quickshell/shell/modules/bar/barstyles/python/)
-is based on Serpantinum at commit 3619689 (release 2.3.1) by ilyamiro and
-contributors (https://github.com/ilyamiro/serpantinum). It is a modified
-version: Ryoku renamed it, gave it its own mark, runs its data plane through
-Ryoku's neutral window-manager seam and services, and uses Ryoku's application
-catalogue, clipboard history, policy agent, recorder, wallpaper, settings
-store, dock and desktop-widget host. The launcher, clipboard, standalone
-settings window and policy prompt use Serpantinum's presentation. Ski, its file
-picker and pins, lock editing, fingerprint and PAM code, screenshot and OCR
-features, Tesseract, installers and packaging, telemetry, updater and first-run
-flow are not included. Serpantinum is released under the GNU Affero General
-Public License version 3 or later; the ported portions keep that license (see
-the NOTICE and LICENSE beside the code), and AGPL-3.0 section 13 permits their
-combination with Ryoku's GPL-3 distribution.
-
 The Stage Editor (ryoku/shell/quickshell/stage/) is based on the Edit Mode of
 ii-p3drovfx by P3DROVFX and contributors
 (https://github.com/P3DROVFX/ii-p3drovfx), which builds on ii-vynx by
@@ -74,6 +41,12 @@ version: Ryoku runs it over its own desktop, widgets, wallpaper, visualizer and
 depth services, gives it the Ryoku look, and leaves out its lock screen, bar and
 dock editing. ii-p3drovfx is released under the GNU General Public License
 version 3; the ported portions keep that license, compatible with Ryoku's GPL-3.
+
+The Stage Editor's symbolic icons (ryoku/shell/quickshell/stage/assets/icons/)
+come from end-4's illogical-impulse (https://github.com/end-4/dots-hyprland) by
+way of iNiR by snowarch (https://github.com/snowarch/inir). They are released
+under the GNU General Public License version 3 and keep that license and their
+authors' credit; PROVENANCE.txt in that folder lists them.
 
 The ii dock design (ryoku/shell/quickshell/shell/modules/dock/ii/) is based on
 the dock of the same shell, ii-p3drovfx by P3DROVFX, Scrimas and contributors
@@ -115,20 +88,6 @@ volume-change (audio-volume-change) by Lucas McCallister, both Creative Commons
 Attribution-ShareAlike; the warning, plug, unplug and device sounds
 (dialog-warning, power-plug, power-unplug, device-added, device-removed) are by
 Ivica Bukvic, Creative Commons Attribution-ShareAlike.
-
-The QS Bar style at
-ryoku/shell/quickshell/shell/modules/bar/barstyles/qsbar/ is a port of
-Quickshell Rise by HANCORE-linux
-(https://github.com/HANCORE-linux/quickshell-dots). It is a modified version:
-Ryoku keeps Rise's island, full, fit, dock and notch forms, widgets, pop-up
-panels, settings panel and draggable editing, while replacing its Omarchy data
-and command integrations with Ryoku's wallpaper palette, neutral
-window-manager and host-service seams, package updates, wallpaper, media,
-audio, power and capture paths. Ryoku also rebrands the shell, merges its two
-runtime variants into one bar, and adds Ryoku settings and per-display
-controls. Quickshell Rise is released under the MIT License; that license is
-compatible with Ryoku's GPL-3 distribution, and the upstream license ships
-unchanged beside the port.
 
 The Redux dictation adapter (ryoku/hub/backend/assets/redux/adapter.py) is
 voxtype-redux-adapter v0.2.0 by Sipper1236

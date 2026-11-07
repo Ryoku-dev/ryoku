@@ -1,0 +1,3 @@
+singleton SettingsState 1.0 SettingsState.qml
+IslandSettings 1.0 IslandSettings.qml
+SettingsWindow 1.0 SettingsWindow.qml

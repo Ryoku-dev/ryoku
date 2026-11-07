@@ -4,7 +4,6 @@ import Quickshell
 import Ryoku.Ui.Singletons
 import shell.services as Services
 import "../stage/Singletons" as StageCfg
-import inir
 import "Singletons"
 import stage.modules.ii.background.shortcuts as StageShortcuts
 
@@ -108,25 +107,9 @@ Item {
         Services.ShellState.askSessionAction(action, menu.activeMonitor());
     }
 
-    // iRiS-only conveniences, reachable from the desktop menu on the iris bar
-    // style. Studio is the live appearance editor; Edit iRiS arranges the bar in
-    // place. Both drive inir's GlobalStates in-process, the way the iris bar
-    // scene and the launcher already reach it.
-    function openIrisStudio() {
-        GlobalStates.irisStudioOpen = true;
-        menu.close();
-    }
-    function editIris() {
-        GlobalStates.irisEdit = true;
-        menu.close();
-    }
-
     // The wallpaper thumbnail for the Wallpaper tile: the still the desktop paints
     // (a poster for a video wall), so the tile shows what is on screen.
     readonly property string wallpaperThumb: menu.desktop ? (menu.desktop.wallpaperPath || "") : ""
-
-    // The iRiS conveniences below show only while its bar style is on screen.
-    readonly property bool iris: Services.Config.barStyle === "iris"
 
     DesktopMenu {
         id: shell
@@ -160,10 +143,6 @@ Item {
             onTriggered: menu.newApplication()
         }
         MenuRow { visible: menu.page === ""; icon: "tune"; label: I18n.tr("Quick controls"); onTriggered: menu.quickControls() }
-        // iRiS conveniences: Studio and Edit iRiS on the iris bar style only. On
-        // every other style they hide, and the Column skips them with no gap.
-        MenuRow { visible: menu.page === "" && menu.iris; icon: "palette"; label: I18n.tr("Shima Studio"); onTriggered: menu.openIrisStudio() }
-        MenuRow { visible: menu.page === "" && menu.iris; icon: "edit"; label: I18n.tr("Edit Shima"); onTriggered: menu.editIris() }
 
         MenuSection { visible: menu.page === "" }
         MenuRow { visible: menu.page === ""; icon: "settings"; label: I18n.tr("General settings"); accent: true; closeOnTrigger: false; onTriggered: menu.openSettings() }

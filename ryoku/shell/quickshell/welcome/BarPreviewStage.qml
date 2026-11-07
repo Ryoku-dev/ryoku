@@ -6,7 +6,7 @@ import "Singletons"
 Rectangle {
     id: root
 
-    property string styleId: "qsbar"
+    property string styleId: "orpheus"
     property string styleName: ""
     property string renderedStyle: styleId
 

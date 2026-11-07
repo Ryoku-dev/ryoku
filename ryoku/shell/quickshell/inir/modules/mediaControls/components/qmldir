@@ -1,9 +1,0 @@
-module inir.modules.mediaControls.components
-MediaOrganicEdgeAura 1.0 MediaOrganicEdgeAura.qml
-MediaVisualizerOverlay 1.0 MediaVisualizerOverlay.qml
-PlayerArtwork 1.0 PlayerArtwork.qml
-PlayerBase 1.0 PlayerBase.qml
-PlayerControls 1.0 PlayerControls.qml
-PlayerInfo 1.0 PlayerInfo.qml
-PlayerLyrics 1.0 PlayerLyrics.qml
-PlayerProgress 1.0 PlayerProgress.qml

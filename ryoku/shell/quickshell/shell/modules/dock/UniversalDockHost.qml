@@ -2,21 +2,36 @@ import QtQuick
 import shell.services
 import "../stage/Singletons" as StageCfg
 import stage as Stage
-import "../bar/barstyles/python/dock" as PythonDock
-import inir.modules.iris.dock as ShimaDock
 Item {
     id: root
 
     required property var screen
     property bool surfaceVisible: true
     readonly property string design: Dock.design
-    // A dock installed from RyoStore runs the Dock.qml of its own view. A
-    // design the Store has not installed draws the Ryoku dock, and so does one
-    // whose view failed to load, until an update names another view.
-    readonly property string storeUrl: Dock.storeDesign ? DockProducts.urlFor(root.design) : ""
+    readonly property var contribution: {
+        const choices = Shells.contributions("dock");
+        return choices.find(choice => choice.id === root.design) ?? null;
+    }
+    readonly property bool contributionSelected: root.contribution !== null
+    readonly property bool contributionPending: root.contributionSelected
+        && (root.contribution.prepared !== true || String(root.contribution.entryUrl ?? "") === "")
+    readonly property string contributionUrl: root.contributionSelected
+        && !root.contributionPending ? String(root.contribution.entryUrl) : ""
+    readonly property string storeUrl: !root.contributionSelected && Dock.storeDesign
+        ? DockProducts.urlFor(root.design) : ""
+    readonly property string selectedUrl: root.contributionUrl !== ""
+        ? root.contributionUrl : root.storeUrl
     property string failedUrl: ""
-    readonly property bool storeRuns: root.storeUrl !== "" && root.storeUrl !== root.failedUrl
+    readonly property bool externalRuns: root.selectedUrl !== ""
+        && root.selectedUrl !== root.failedUrl
     readonly property var item: designLoader.item?.surface ?? null
+    function requestContribution(): void {
+        if (root.contributionPending)
+            Shells.requestSync();
+    }
+    onContributionChanged: root.requestContribution()
+    onSelectedUrlChanged: root.failedUrl = ""
+    Component.onCompleted: root.requestContribution()
     // The Stage Editor frames this monitor: every design stays mounted,
     // revealed and drawn inside the editor's card, and publishes the edge it
     // occupies for layouts that keep clear of it (desktop icons). The dock
@@ -32,46 +47,44 @@ Item {
 
     Loader {
         id: designLoader
-        // A saved store design waits for the Store's index rather than drawing
-        // the Ryoku dock first and swapping a moment later.
-        active: root.surfaceVisible && Dock.cfg("enabled", false) && root.design !== "none" && root.design !== "ii"
-            && (!Dock.storeDesign || DockProducts.ready)
+        active: root.surfaceVisible && Dock.cfg("enabled", false)
+            && root.design !== "none" && root.design !== "ii"
+            && (root.contributionSelected || !Dock.storeDesign || DockProducts.ready)
         asynchronous: true
-        sourceComponent: root.storeRuns ? storeDesign
-            : root.design === "python" ? pythonDesign
-            : root.design === "shima" ? shimaDesign : ryokuDesign
+        sourceComponent: root.externalRuns ? externalDesign : ryokuDesign
     }
 
     Component {
-        id: storeDesign
+        id: externalDesign
         Loader {
-            id: storeLoader
-            readonly property string url: root.storeUrl
+            id: externalLoader
+            readonly property string url: root.selectedUrl
+            readonly property var surface: item?.surface ?? null
             asynchronous: true
-            onUrlChanged: storeLoader.load()
-            Component.onCompleted: storeLoader.load()
-            function load() {
-                storeLoader.setSource(storeLoader.url, {
+            onUrlChanged: externalLoader.load()
+            Component.onCompleted: externalLoader.load()
+            function load(): void {
+                externalLoader.setSource(externalLoader.url, {
                     screen: root.screen,
                     surfaceVisible: root.surfaceVisible,
                     stageEditing: root.stageEditing
                 });
             }
             onStatusChanged: {
-                if (storeLoader.status !== Loader.Error)
+                if (externalLoader.status !== Loader.Error)
                     return;
-                console.warn("dock: the store dock " + root.design + " did not load; drawing the Ryoku dock");
-                root.failedUrl = storeLoader.url;
+                console.warn("dock: " + root.design + " did not load; drawing the Ryoku dock");
+                root.failedUrl = externalLoader.url;
             }
             Binding {
-                when: storeLoader.item !== null
-                target: storeLoader.item
+                when: externalLoader.item !== null
+                target: externalLoader.item
                 property: "surfaceVisible"
                 value: root.surfaceVisible
             }
             Binding {
-                when: storeLoader.item !== null
-                target: storeLoader.item
+                when: externalLoader.item !== null
+                target: externalLoader.item
                 property: "stageEditing"
                 value: root.stageEditing
             }
@@ -93,30 +106,4 @@ Item {
         }
     }
 
-    Component {
-        id: pythonDesign
-        Item {
-            width: 0
-            height: 0
-            PythonDock.Dock {
-                targetScreen: root.screen
-                surfaceVisible: root.surfaceVisible
-                stageEditing: root.stageEditing
-            }
-        }
-    }
-
-    Component {
-        id: shimaDesign
-        Item {
-            width: 0
-            height: 0
-            ShimaDock.IrisDockSurface {
-                screen: root.screen
-                surfaceVisible: root.surfaceVisible
-                stageEditing: root.stageEditing
-                frameReserves: Config.barStyle === "iris"
-            }
-        }
-    }
 }

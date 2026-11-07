@@ -3,15 +3,13 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import inir.services as InirServices
 import Ryoku.Ui.Singletons
 import shell.services
 import "lib/dock.js" as DockList
 
 // Shared dock model: canonical desktop-entry pins, running windows and actions
-// for the three universal dock designs and Sumi's in-rail RailDock. The list
-// maths live in the tested lib/dock.js; settings persist in shell.json's one
-// top-level dock object.
+// for Ryoku docks and contribution hosts. The list maths live in the tested
+// lib/dock.js; settings persist in shell.json's one top-level dock object.
 Singleton {
     id: root
 
@@ -77,7 +75,7 @@ Singleton {
     }
     function entryFor(value) {
         void root.iconRev
-        return InirServices.AppSearch.lookupDesktopEntry(root.plainId(value), true)
+        return DesktopEntries.heuristicLookup(root.plainId(value))
     }
     function canonicalId(value) {
         const id = root.plainId(value);
@@ -246,10 +244,9 @@ Singleton {
     ]
     readonly property string design: String(root.cfg("design", "ryoku"))
     onDesignChanged: root.closeMenu()
-    // The designs the shell ships. Any other design names a dock installed from
-    // RyoStore (DockProducts), which UniversalDockHost runs from its own view and
-    // which shares the Ryoku design's context menu below.
-    readonly property var builtinDesigns: ["ryoku", "python", "shima", "ii", "none"]
+    // Ryoku and ii ship with the platform. Every other design is either a
+    // selected shell contribution or a standalone RyoStore dock.
+    readonly property var builtinDesigns: ["ryoku", "ii", "none"]
     readonly property bool storeDesign: !root.builtinDesigns.includes(root.design)
 
     function cfg(key, fallback) {
@@ -257,8 +254,6 @@ Singleton {
         const d = Config.dock;
         if (d && d[key] !== undefined && d[key] !== null)
             return d[key];
-        if (key === "design" && Config.barStyle === "iris")
-            return "shima";
         return fallback;
     }
     function designCfg(designName, key, fallback) {
@@ -313,8 +308,13 @@ Singleton {
         const edge = String(root.cfg("edge", "auto"));
         if (["top", "bottom", "left", "right"].includes(edge))
             return edge;
-        if (Config.barStyle === "qsbar")
-            return Config.qsbar?.barPosition === "bottom" ? "top" : "bottom";
+        const barEdge = Shells.activeBarEdge;
+        if (barEdge === "bottom")
+            return "top";
+        if (barEdge === "left")
+            return "right";
+        if (barEdge === "right")
+            return "left";
         return "bottom";
     }
     // The daemon's control socket, connected only when there is something to say.

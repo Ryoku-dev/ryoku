@@ -5,7 +5,7 @@ import "Singletons"
 Item {
     id: root
 
-    property string styleId: "sumi"
+    property string styleId: "orpheus"
     property bool selected: false
     readonly property color ink: selected ? Tokens.inkOnBone : Tokens.ink
     readonly property color dim: selected ? Tokens.inkOnBoneDim : Tokens.inkFaint
@@ -42,17 +42,7 @@ Item {
             c.strokeStyle = root.dim
             c.lineWidth = 1
 
-            if (root.styleId === "sumi") {
-                c.fillRect(6, 5, 7, h - 10)
-                c.fillRect(17, 8, 3, 15)
-                c.fillRect(17, h - 23, 3, 15)
-                c.strokeRect(26, 7, w - 32, h - 14)
-            } else if (root.styleId === "qsbar") {
-                c.fillRect(7, 6, w - 14, 8)
-                for (let i = 0; i < 7; i++)
-                    c.fillRect(13 + i * ((w - 34) / 7), 20, Math.max(4, (w - 52) / 7), 5)
-                c.strokeRect(7, 31, w - 14, h - 37)
-            } else if (root.styleId === "kairos") {
+            if (root.styleId === "kairos") {
                 c.beginPath()
                 root.pill(c, w * 0.31, 5, w * 0.38, 15, 7)
                 c.fill()
@@ -62,29 +52,6 @@ Item {
                 c.fill()
                 c.strokeStyle = root.dim
                 c.strokeRect(7, 28, w - 14, h - 34)
-            } else if (root.styleId === "nomarchy") {
-                c.strokeRect(7, 5, w - 14, 10)
-                for (let i = 0; i < 4; i++) {
-                    c.beginPath()
-                    c.arc(14 + i * 7, 10, 1.5, 0, Math.PI * 2)
-                    c.fill()
-                }
-                c.beginPath()
-                root.pill(c, w * 0.45, 8, w * 0.1, 4, 2)
-                c.fill()
-                for (let i = 0; i < 3; i++)
-                    c.fillRect(w - 31 + i * 7, 8, 3, 4)
-                c.strokeStyle = root.dim
-                c.strokeRect(7, 22, w - 14, h - 28)
-            } else if (root.styleId === "iris") {
-                c.beginPath()
-                root.pill(c, w * 0.18, 5, w * 0.64, 13, 7)
-                c.fill()
-                c.beginPath()
-                root.pill(c, w * 0.35, h - 15, w * 0.3, 9, 5)
-                c.fill()
-                c.strokeStyle = root.dim
-                c.strokeRect(7, 24, w - 14, h - 45)
             } else {
                 for (let i = 0; i < 5; i++) {
                     c.beginPath()

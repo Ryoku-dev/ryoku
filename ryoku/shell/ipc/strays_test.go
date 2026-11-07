@@ -215,19 +215,12 @@ func TestTailLineReadsTheLastRealLine(t *testing.T) {
 	}
 }
 
-// The python barstyle's keyboard watcher execs python3 -u -c with the script
-// body inline, so the reaper must recognise it by the marker in its source,
-// and the bash fallback by the script name it runs.
-func TestIsShellWatcherCoversKeyboardWatcherForms(t *testing.T) {
+func TestIsShellWatcherCoversOwnedHelpers(t *testing.T) {
 	joined := func(argv ...string) string {
 		return strings.Join(append(append([]string{}, argv...), ""), "\x00") + "\x00"
 	}
 	watchers := [][]string{
-		{"python3", "-u", "-c", "# ryoku-python kb_locks watcher\nimport sys\n"},
-		{"python3", "-u", "/home/u/.config/quickshell/inir/scripts/daemon/keyboard_lock_state_daemon.py"},
-		{"python3", "-u", "-c", "import glob\nlast_caps = read_sysfs(\"/sys/class/leds/*capslock*/brightness\")\n"},
 		{"bash", "/home/u/.config/quickshell/shell/.../watchers/kb_locks.sh", "watch"},
-		{"inotifywait", "-m", "-e", "modify", "/home/u/.cache/ryoku/python/recording"},
 		{"cava", "-p", "/tmp/ryoku-cava.piper"},
 	}
 	for _, argv := range watchers {
@@ -236,7 +229,6 @@ func TestIsShellWatcherCoversKeyboardWatcherForms(t *testing.T) {
 		}
 	}
 	notWatchers := [][]string{
-		{"python3", "-m", "http.server"},
 		{"bash", "-c", "sleep 1"},
 		{"inotifywait", "-m", "/home/u/projects"},
 		{"cava"},

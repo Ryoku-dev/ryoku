@@ -193,61 +193,6 @@ StyledFlickable {
         }
 
         EditPanelSectionLabel {
-            visible: root.design === "python"
-            text: Translation.tr("Python design")
-        }
-
-        Repeater {
-            model: root.design === "python" ? [
-                { key: "floating", title: Translation.tr("Float from the edge"), symbol: "space_bar", fallback: false },
-                { key: "onTop", title: Translation.tr("Stay above windows"), symbol: "vertical_align_top", fallback: true },
-                { key: "exclusive", title: Translation.tr("Reserve room for windows"), symbol: "crop_free", fallback: false },
-                { key: "smartAutohide", title: Translation.tr("Hide only when a workspace is busy"), symbol: "auto_awesome", fallback: true },
-                { key: "cascadeScale", title: Translation.tr("Magnify neighbouring icons"), symbol: "filter_center_focus", fallback: false },
-                { key: "enableScrolling", title: Translation.tr("Scroll long docks"), symbol: "swipe", fallback: false },
-                { key: "overrideBoundsCorrection", title: Translation.tr("Allow edge overflow"), symbol: "open_in_full", fallback: false }
-            ] : []
-            delegate: EditPanelRow {
-                required property var modelData
-                required property int index
-                Layout.fillWidth: true
-                first: index === 0
-                last: index === 6
-                symbol: modelData.symbol
-                title: modelData.title
-                trailingKind: "switch"
-                switchChecked: root.designCfg(modelData.key, modelData.fallback)
-                onActivated: root.setDesignCfg(modelData.key, !root.designCfg(modelData.key, modelData.fallback))
-            }
-        }
-
-        Repeater {
-            model: root.design === "python" ? [
-                { key: "opacity", title: Translation.tr("Surface opacity"), symbol: "opacity", fallback: 100, min: 20, max: 100, step: 5, unit: " %" },
-                { key: "hoverScale", title: Translation.tr("Hover scale"), symbol: "zoom_in", fallback: 120, min: 100, max: 180, step: 5, unit: " %" },
-                { key: "autohideTimeout", title: Translation.tr("Hide delay"), symbol: "timer", fallback: 1000, min: 250, max: 5000, step: 250, unit: " ms" },
-                { key: "visibleElements", title: Translation.tr("Visible icons while scrolling"), symbol: "apps", fallback: 7, min: 3, max: 15, step: 1, unit: "" }
-            ] : []
-            delegate: EditPanelRow {
-                required property var modelData
-                required property int index
-                Layout.fillWidth: true
-                first: false
-                last: index === 3
-                symbol: modelData.symbol
-                title: modelData.title
-                trailingKind: "stepper"
-                valueText: Math.round(Number(root.designCfg(modelData.key, modelData.fallback))) + modelData.unit
-                stepDownEnabled: Number(root.designCfg(modelData.key, modelData.fallback)) > modelData.min
-                stepUpEnabled: Number(root.designCfg(modelData.key, modelData.fallback)) < modelData.max
-                onStepDown: root.setDesignCfg(modelData.key, Math.max(modelData.min,
-                    Number(root.designCfg(modelData.key, modelData.fallback)) - modelData.step))
-                onStepUp: root.setDesignCfg(modelData.key, Math.min(modelData.max,
-                    Number(root.designCfg(modelData.key, modelData.fallback)) + modelData.step))
-            }
-        }
-
-        EditPanelSectionLabel {
             visible: root.design === "shima"
             text: Translation.tr("Shima design")
         }

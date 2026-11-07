@@ -2946,259 +2946,6 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.bar.list",
-      "group": "ryoku-bar",
-      "title": "List bar widgets",
-      "command": "ryoku-shell bar list",
-      "description": "Shows every bar widget, section, index, and visibility state.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.list.json",
-      "group": "ryoku-bar",
-      "title": "List bar widgets as JSON",
-      "command": "ryoku-shell bar list --json",
-      "description": "Prints the current bar layout as JSON.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.catalog",
-      "group": "ryoku-bar",
-      "title": "List available bar widgets",
-      "command": "ryoku-shell bar catalog",
-      "description": "Shows built-in and installed plugin widgets and their settings.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.catalog.json",
-      "group": "ryoku-bar",
-      "title": "Read the bar catalogue as JSON",
-      "command": "ryoku-shell bar catalog --json",
-      "description": "Prints the bar widget catalogue as JSON.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.move",
-      "group": "ryoku-bar",
-      "title": "Move a bar widget",
-      "command": "ryoku-shell bar move <id> --section <section> --index <number>",
-      "description": "Moves a widget to a section and position in the active bar layout.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.move.before",
-      "group": "ryoku-bar",
-      "title": "Place a widget before another",
-      "command": "ryoku-shell bar move <id> --section <section> --before <other-id>",
-      "description": "Moves a bar widget directly before another widget.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.move.after",
-      "group": "ryoku-bar",
-      "title": "Place a widget after another",
-      "command": "ryoku-shell bar move <id> --section <section> --after <other-id>",
-      "description": "Moves a bar widget directly after another widget.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.show",
-      "group": "ryoku-bar",
-      "title": "Show a bar widget",
-      "command": "ryoku-shell bar show <id>",
-      "description": "Makes a bar widget visible.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.hide",
-      "group": "ryoku-bar",
-      "title": "Hide a bar widget",
-      "command": "ryoku-shell bar hide <id>",
-      "description": "Hides a bar widget without removing its settings.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.set",
-      "group": "ryoku-bar",
-      "title": "Change a bar widget setting",
-      "command": "ryoku-shell bar set <id> <key> <value>",
-      "description": "Writes one setting for a built-in or installed bar widget.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.position",
-      "group": "ryoku-bar",
-      "title": "Move the bar to an edge",
-      "command": "ryoku-shell bar position <edge>",
-      "description": "Places the active bar at the top or bottom of the display.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.form",
-      "group": "ryoku-bar",
-      "title": "Choose the bar form",
-      "command": "ryoku-shell bar form <form>",
-      "description": "Changes the active bar's overall layout form.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.defaults",
-      "group": "ryoku-bar",
-      "title": "Restore the default bar",
-      "command": "ryoku-shell bar defaults",
-      "description": "Restores the shipped widget layout and visibility. Custom bar placement is overwritten.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ],
-      "danger": true
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.settings",
-      "group": "ryoku-bar",
-      "title": "Open bar settings",
-      "command": "ryoku-shell bar settings",
-      "description": "Opens QS Bar Settings, optionally at a named route.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.settings.close",
-      "group": "ryoku-bar",
-      "title": "Close bar settings",
-      "command": "ryoku-shell bar settings close",
-      "description": "Closes the QS Bar Settings surface.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.toggle",
-      "group": "ryoku-bar",
-      "title": "Toggle bars on an edge",
-      "command": "ryoku-shell bar <edge> toggle",
-      "description": "Toggles the bar surfaces on one edge or every edge.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.reveal",
-      "group": "ryoku-bar",
-      "title": "Reveal bars on an edge",
-      "command": "ryoku-shell bar <edge> reveal",
-      "description": "Reveals the bar surfaces on one edge or every edge.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.conceal",
-      "group": "ryoku-bar",
-      "title": "Hide bars on an edge",
-      "command": "ryoku-shell bar <edge> hide",
-      "description": "Hides the bar surfaces on one edge or every edge.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
       "id": "ryoku.ryoku-shell.dock.show",
       "group": "ryoku-bar",
       "title": "Show the dock",
@@ -3302,6 +3049,34 @@
       "title": "Read dock settings as JSON",
       "command": "ryoku-shell dock list --json",
       "description": "Prints the dock configuration as JSON.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.barstyle",
+      "group": "ryoku-bar",
+      "title": "Switch the bar style",
+      "command": "ryoku-shell barstyle <id>",
+      "description": "Selects a subshell or bar style by id and restarts the shell under the reload cover when the active item changes.",
+      "tool": "ryoku-shell",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
+      "id": "ryoku.ryoku-shell.shells.commit",
+      "group": "ryoku-bar",
+      "title": "Apply shell selections",
+      "command": "ryoku-shell shells commit",
+      "description": "Restarts the shell under the reload cover when the active bar style or the items in use changed since it started, then unpacks only what is still in use.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -4071,11 +3846,11 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-shell.barstyle",
+      "id": "ryoku.ryoku-shell.shells.sync",
       "group": "ryoku-internal",
-      "title": "Set the active bar style",
-      "command": "ryoku-shell barstyle <id>",
-      "description": "Writes the selected bar-style product identifier.",
+      "title": "Sync the shells index",
+      "command": "ryoku-shell shells sync",
+      "description": "Prepares the selected subshells, bar styles and their parts and rewrites the shells index the shell reads.",
       "tool": "ryoku-shell",
       "level": "internal",
       "compositors": [
@@ -9385,15 +9160,6 @@
         "hyprland",
         "niri"
       ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.bar.settings.route",
-      "group": "ryoku-look",
-      "title": "Open a bar settings route",
-      "command": "ryoku-shell bar settings <route>",
-      "description": "Opens the settings page for the selected bar route.",
-      "tool": "ryoku-shell",
-      "level": "advanced"
     },
     {
       "id": "ryoku.ryoku-shell.icons.named",

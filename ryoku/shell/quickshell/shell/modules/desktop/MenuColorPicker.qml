@@ -50,7 +50,7 @@ Item {
         pick.vv = c.hsvValue;
     }
     function seedFromKey() {
-        const v = Config[pick.activeKey];
+        const v = Config.get(pick.activeKey);
         pick.seed((v && v.length > 0) ? Qt.color(v) : pick.accent);
     }
     function selectStop(which) { pick.editing = which; pick.seedFromKey(); }
@@ -81,7 +81,7 @@ Item {
                     width: Theme.s5
                     height: Theme.s5
                     radius: Theme.menuTileRadius
-                    readonly property string val: Config[stop.modelData.key] || ""
+                    readonly property string val: Config.get(stop.modelData.key) || ""
                     color: stop.val.length > 0 ? stop.val : pick.accent
                     border.width: pick.editing === stop.modelData.id ? 2 : 1
                     border.color: pick.editing === stop.modelData.id ? Theme.ink : Theme.line

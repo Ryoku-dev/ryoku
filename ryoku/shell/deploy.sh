@@ -684,10 +684,6 @@ say "installed $bindir/ryogami"
 
 # The daemon finds the picker entry from the session's XDG data home at runtime.
 datadir="${XDG_DATA_HOME:-$HOME/.local/share}"
-nomarchy_source="$datadir/ryoku/nomarchy-package"
-rm -rf "$nomarchy_source"
-mkdir -p "$nomarchy_source"
-cp -a "$here/nomarchy/." "$nomarchy_source/"
 install -Dm644 "$here/ryogami/picker/shell.qml" "$datadir/ryogami/shell.qml"
 say "installed ryogami picker entry -> $datadir/ryogami/shell.qml"
 # The retired wall-ui picker ran from its own tree; the daemon restart below keeps
@@ -768,9 +764,8 @@ done
 # above no longer matches it, so install it by name.
 install -m755 "$here/../../system/extras/ryostore-install" "$bindir/ryostore-install"
 install -m755 "$here/quickshell/plugins/ryoku-plugins-place" "$bindir/ryoku-plugins-place"
-# AI-usage guard and collectors: refresh the caches for the qsbar AI pill,
-# driven by the timer installed below. The package ships them to /usr/bin; the
-# dev loop puts the current copies on PATH.
+# AI-usage collectors refresh the caches consumed by optional shell items. The
+# package ships them to /usr/bin; the dev loop puts current copies on PATH.
 for s in "$here/../rashin/usage"/ryoku-ai-usage \
   "$here/../rashin/usage"/claude-usage "$here/../rashin/usage"/codex-usage \
   "$here/../rashin/usage"/opencode-usage; do
@@ -781,9 +776,8 @@ say "installed Ryoku CLI and hardware helpers"
 
 # Privileged network helpers + their polkit rules. A packaged install ships these
 # to /usr/bin and /usr/share/polkit-1/rules.d; a dev box has neither, so pkexec
-# has no rule to match and the qsbar DNS/wifi toggles silently fail. Install them
-# here when sudo is available (skipped cleanly in a sudo-less/CI env), and skip
-# each dest that already matches so a redeploy is a no-op.
+# network controls cannot match a rule. Install them here when sudo is available
+# (skipped cleanly in a sudo-less/CI env), and skip matching destinations.
 if command -v sudo >/dev/null 2>&1; then
   netdir="$here/../../system/hardware/network"
   _priv_install() { # src dest mode

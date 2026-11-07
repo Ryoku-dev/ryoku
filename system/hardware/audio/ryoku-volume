@@ -3,7 +3,7 @@ set -euo pipefail
 
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/shell.json"
 lim=1
-if jq -e '.qsbar.audioBoost == true' "$cfg" >/dev/null 2>&1; then
+if jq -e '.audio.boost == true' "$cfg" >/dev/null 2>&1; then
 	lim=1.5
 fi
 

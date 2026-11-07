@@ -1,4 +1,0 @@
-module inir.modules.background.widgets.japaneseTypography
-JapaneseTypographyWidget 1.0 JapaneseTypographyWidget.qml
-VerticalJapaneseText 1.0 VerticalJapaneseText.qml
-JapaneseTypographyPresets 1.0 JapaneseTypographyPresets.js

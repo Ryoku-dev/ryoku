@@ -613,15 +613,13 @@ func (d *daemon) matugenApply(img string) error {
 	}
 
 	// Fan the same palette into the app suite through matugen's templating pass,
-	// gated by the per-app roster and the app-suite toggle. Nomarchy's generated
-	// theme is published only after the template pass completes.
-	if matugenRenderTemplates(matugenShellPalette(pal), readMatugenKnobs(), true) {
-		refreshNomarchyWallpaperTheme()
-	}
+	// gated by the per-app roster and the app-suite toggle.
+	matugenRenderTemplates(matugenShellPalette(pal), readMatugenKnobs())
 
 	// Toolkit nudges so running apps re-read the regenerated configs. Hyprland is
 	// reloaded by the caller (paintWorker).
 	matugenReload(mode, d.kdePaletteEmitter())
+	d.runActivePaletteHook()
 	return nil
 }
 
@@ -711,8 +709,9 @@ func (d *daemon) matugenApplyStatic(name string) error {
 	}
 	refreshFolderIcons()
 	k := readMatugenKnobs()
-	matugenRenderTemplates(matugenShellPalette(shell), k, false)
+	matugenRenderTemplates(matugenShellPalette(shell), k)
 	matugenReload(staticPaletteMode(shell), d.kdePaletteEmitter())
+	d.runActivePaletteHook()
 	// A catalog theme has no ramps, so the last wallpaper's are now wrong. The
 	// file's absence is the gate: Ink re-lights the theme's own roles instead.
 	_ = os.Remove(matugenTonesPath())
@@ -1116,29 +1115,21 @@ func filterMatugenConfig(toml string, enabled func(group string) bool) string {
 	return strings.Join(out, "\n")
 }
 
-// matugenRenderTemplates fans the palette into the deployed templates. The core
-// surface (config.toml: kitty, the window frame, btop, Qt) always themes,
-// per-app roster gated. The GTK / GUI-app suite (apps.toml) themes only when the
-// app-suite toggle is on; off blanks the GTK stylesheets so those apps fall back
-// to stock. includeNomarchy is false for fixed Ryoku schemes: Nomarchy's
-// Wallpaper theme follows wallpaper generation, not Ryoku's independent scheme
-// picker.
-func matugenRenderTemplates(shell map[string]string, k matugenKnobs, includeNomarchy bool) bool {
+// matugenRenderTemplates writes the core palette and, when the app-suite toggle
+// is on, every enabled application template.
+func matugenRenderTemplates(shell map[string]string, k matugenKnobs) {
 	dir := matugenTemplateDir()
 	matugenEnsureDirs()
 	carrierPath := filepath.Join(matugenCacheHome(), "ryoku", "matugen-carrier.json")
 	if err := writeJSONFile(carrierPath, matugenCarrier(shell)); err != nil {
 		fmt.Fprintf(os.Stderr, "matugen carrier: %v\n", err)
-		return false
+		return
 	}
 	// A roster key the user explicitly turned off stays off; a group ABSENT from
 	// their roster is one that shipped after they last saved it, and defaults on.
 	// Absent-means-off would have kept every app added from here on dark for
 	// everyone who had ever opened the appearance page.
 	enabled := func(group string) bool {
-		if group == "nomarchy" {
-			return includeNomarchy
-		}
 		if group == "steam" && !steamThemeReady() {
 			return false
 		}
@@ -1147,7 +1138,7 @@ func matugenRenderTemplates(shell map[string]string, k matugenKnobs, includeNoma
 		}
 		return true
 	}
-	coreRendered := matugenRenderFiltered(filepath.Join(dir, "config.toml"), carrierPath, enabled)
+	matugenRenderFiltered(filepath.Join(dir, "config.toml"), carrierPath, enabled)
 	// Two switches gate the app suite and both have to agree: the appearance
 	// page's per-group roster (themeRyokuApps) and the master "Theme apps" in
 	// theme.json. The Hub blanks the stylesheets when the master goes off, so
@@ -1165,7 +1156,6 @@ func matugenRenderTemplates(shell map[string]string, k matugenKnobs, includeNoma
 	} else {
 		blankGtk(matugenConfigHome())
 	}
-	return coreRendered
 }
 
 // nudgeObsidian re-links the palette snippet inside every registered Obsidian
@@ -1241,38 +1231,6 @@ func matugenRender(config, carrier string) bool {
 		return false
 	}
 	return true
-}
-
-func refreshNomarchyWallpaperTheme() {
-	choice := ""
-	for _, path := range []string{
-		filepath.Join(matugenConfigHome(), "omarchy", "current-theme"),
-		filepath.Join(matugenStateHome(), "omarchy", "current", "theme.name"),
-	} {
-		if data, err := os.ReadFile(path); err == nil {
-			choice = strings.TrimSpace(string(data))
-			if choice != "" {
-				break
-			}
-		}
-	}
-	if choice != "" && choice != "ryoku" {
-		return
-	}
-
-	root := os.Getenv("OMARCHY_PATH")
-	if root == "" {
-		root = filepath.Join(matugenDataHome(), "ryoku", "nomarchy")
-	}
-	helper := filepath.Join(root, "bin", "omarchy-theme-set")
-	if info, err := os.Stat(helper); err != nil || info.IsDir() {
-		return
-	}
-	cmd := exec.Command(helper, "ryoku")
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "nomarchy wallpaper theme: %v\n", err)
-	}
 }
 
 // runCommand / runCommandOutput are the process shims the reload and luminance

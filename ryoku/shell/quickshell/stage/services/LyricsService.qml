@@ -3,18 +3,21 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
-import inir.services as InirServices
+import shell.services as Ryoku
 
 Singleton {
     id: root
 
     property bool isInitialized: false
-    readonly property var syncedLines: InirServices.LyricsService.lyricsLines ?? []
-    readonly property int currentIndex: InirServices.LyricsService.activeIndex
+    readonly property var syncedLines: (Ryoku.Music.lines ?? []).map(line => ({
+        time: Number(line.t ?? line.time ?? 0),
+        text: String(line.text ?? "")
+    }))
+    readonly property int currentIndex: Ryoku.Music.index
     readonly property bool hasSyncedLines: root.syncedLines.length > 0
     readonly property string statusText: root.currentIndex >= 0 && root.currentIndex < root.syncedLines.length
-        ? String(root.syncedLines[root.currentIndex].text ?? "") : ""
-    readonly property string status: InirServices.LyricsService.status
+        ? root.syncedLines[root.currentIndex].text : ""
+    readonly property string status: Ryoku.Music.status
     readonly property bool searching: root.status === "loading"
     readonly property bool hasAnyLyrics: root.hasSyncedLines
 
@@ -22,7 +25,7 @@ Singleton {
         if (root.isInitialized)
             return;
         root.isInitialized = true;
-        InirServices.LyricsService.subscribe();
+        Ryoku.Music.hold(root, true);
     }
 
     function initializeLyrics(): void { root.initiliazeLyrics(); }
@@ -39,13 +42,11 @@ Singleton {
     function changeDurationToIndex(index): void {
         if (index < 0 || index >= root.syncedLines.length)
             return;
-        const player = InirServices.MprisController.activePlayer;
-        if (player)
-            player.position = Number(root.syncedLines[index].time ?? 0);
+        Ryoku.Music.seek(root.syncedLines[index].time);
     }
 
     Component.onDestruction: {
         if (root.isInitialized)
-            InirServices.LyricsService.unsubscribe();
+            Ryoku.Music.hold(root, false);
     }
 }

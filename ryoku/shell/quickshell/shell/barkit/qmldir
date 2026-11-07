@@ -1,16 +1,22 @@
 module shell.barkit
-# Stable barstyle-product API: the non-singleton shell types a bar product may
-# build on, re-exported from their real locations so a product imports one module
-# instead of scraping internal relative paths. Singletons come from shell.services
-# (a product must share the shell's live instances, e.g. the one notification
-# server). See docs/barstyles.md. Each re-exported file resolves its own
-# shell.services import, so products share the shell's singletons.
+# Stable API for subshells and bar styles: the non-singleton shell types an item
+# may build on, re-exported from their real locations so an item imports one
+# module instead of scraping internal relative paths. Singletons come from
+# shell.services (an item must share the shell's live instances, e.g. the one
+# notification server). See docs/subshells.md. Each re-exported file resolves its
+# own shell.services import, so items share the shell's singletons.
 AudioAppRow ../components/AudioAppRow.qml
 BrandMark ../components/BrandMark.qml
 GlyphIcon ../components/GlyphIcon.qml
 HFader ../components/HFader.qml
 MaterialIcon ../components/MaterialIcon.qml
 SymbolIcon ../components/SymbolIcon.qml
+SumiEdge ../components/SumiEdge.qml
+FrameEdge ../modules/bar/FrameEdge.qml
+FrameChrome ../modules/bar/FrameChrome.qml
+Bar ../modules/bar/Bar.qml
+FrameMenuManager ../modules/bar/FrameMenuManager.qml
+FrameSurfaceLifecycle ../modules/bar/FrameSurfaceLifecycle.qml
 MusicBars ../modules/bar/MusicBars.qml
 TrayMenu ../modules/bar/TrayMenu.qml
 NotificationCard ../modules/notifications/NotificationCard.qml

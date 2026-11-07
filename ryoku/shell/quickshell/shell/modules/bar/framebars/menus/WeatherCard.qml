@@ -7,7 +7,7 @@ import "../../../../components"
 
 // The single quiet-card primitive every section of the weather surface is built
 // from: a transparent surface at the widget radius, a hairline outline, a lit
-// sumi top edge, and the 8px inner padding of the pill idiom. An optional
+// top edge, and the 8px inner padding of the pill idiom. An optional
 // eyebrow (the vermilion tick, 力 seal, mono label) names the section; the
 // default content stacks below it on the 4px rhythm.
 Item {

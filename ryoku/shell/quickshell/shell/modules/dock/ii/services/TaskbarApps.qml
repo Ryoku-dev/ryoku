@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import stage.services
-import inir.services as InirServices
 import ".."
 import Ryoku.Ui.Singletons as RyokuUi
 
@@ -18,7 +17,7 @@ Singleton {
         if (!appId) return null
         if (_desktopEntryCache.hasOwnProperty(appId))
             return _desktopEntryCache[appId]
-        const entry = InirServices.AppSearch.lookupDesktopEntry(appId, true)
+        const entry = AppSearch.lookupDesktopEntry(appId, true)
         _desktopEntryCache[appId] = entry ?? null
         return _desktopEntryCache[appId]
     }
@@ -33,11 +32,7 @@ Singleton {
     }
 
     Connections {
-        target: DesktopEntries
-        function onApplicationsChanged() { root.invalidateDesktopEntryCache() }
-    }
-    Connections {
-        target: InirServices.AppSearch
+        target: AppSearch
         function onListChanged() { root.invalidateDesktopEntryCache() }
     }
 

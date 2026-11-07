@@ -4,7 +4,6 @@ import QtQuick
 import Quickshell
 import Quickshell.Wayland
 import Ryoku.Ui.Singletons
-import inir.modules.mediaControls as InirMedia
 import stage.services as StageServices
 import stage as Stage
 import shell.services
@@ -190,9 +189,7 @@ Scope {
         active: root.active
         asynchronous: true
         sourceComponent: Component {
-            InirMedia.MediaControls {
-                dockAnchorRequest: Stage.GlobalStates.mediaControlsDockAnchor
-            }
+            DockMediaPopup {}
         }
     }
 }

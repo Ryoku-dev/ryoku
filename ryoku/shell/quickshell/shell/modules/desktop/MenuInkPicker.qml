@@ -6,8 +6,8 @@ import "Singletons"
 // idiom and sharing MenuColorPicker's anatomy (an SV square, a hue rail, a hex
 // field and preset swatches). Unlike MenuColorPicker, which is bound to the
 // desktop Config's <scope>Color keys, this one is store-agnostic: a caller wires
-// `readColor`/`writeColor` so it can drive the vendored iRiS palette roles the
-// same way -- the caller keeps the write on the daemon's single settings path.
+// `readColor`/`writeColor` to drive any set of palette roles, keeping the
+// write on its own settings path.
 // A row of role swatches picks which role the square edits, mirroring the
 // gradient A/B stops. Edits write on drag so the widget recolours in place.
 Item {

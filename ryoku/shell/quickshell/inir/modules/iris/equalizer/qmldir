@@ -1,4 +1,0 @@
-module inir.modules.iris.equalizer
-IrisEqualizerPanel 1.0 IrisEqualizerPanel.qml
-IrisEqBands 1.0 IrisEqBands.qml
-IrisEqPresets 1.0 IrisEqPresets.qml

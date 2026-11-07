@@ -42,6 +42,7 @@ Rectangle {
     }
 
     function finish() {
+        runCommand(["ryoku-shell", "shells", "commit"])
         Qt.quit()
     }
 
@@ -69,7 +70,7 @@ Rectangle {
             const frame = JSON.parse(line)
             const liveStyle = frame && typeof frame.barStyle === "string"
                 ? frame.barStyle : ""
-            if (["sumi", "qsbar", "kairos", "orpheus", "iris", "python"].indexOf(liveStyle) >= 0)
+            if (["kairos", "orpheus"].indexOf(liveStyle) >= 0)
                 barStyle = liveStyle
         } catch (e) {
         }

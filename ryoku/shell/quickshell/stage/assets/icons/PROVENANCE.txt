@@ -1,0 +1,8 @@
+The top-level *-symbolic.svg icons and illogical-impulse.svg in this folder were
+copied from the iNiR tree Ryoku vendored before Hyperion (assets/icons), which
+carries them from end-4's illogical-impulse
+(https://github.com/end-4/dots-hyprland). Based on iNiR by snowarch
+(https://github.com/snowarch/inir). They are released under the GNU General
+Public License version 3 and keep that license and their authors' credit.
+
+google-weather/ came with the ii desktop-widget library port and is not covered here.

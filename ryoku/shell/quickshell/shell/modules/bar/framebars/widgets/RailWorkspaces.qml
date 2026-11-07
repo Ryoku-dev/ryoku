@@ -12,7 +12,7 @@ import shell.services
 // occupied pills are compact and dimmed; empty workspaces are a small dot.
 // Click switches workspace, vertical wheel cycles. Monitor dividers are dropped
 // in favour of letting the pill sizes carry the visual weight.
-// Caelestia-inspired approach, Ryoku design vocabulary.
+// Uses the same restrained spacing as the rest of the rail kit.
 // Contract 03 sec 2.3/2.4/4.3/4.4.
 Item {
     id: root

@@ -1,4 +1,0 @@
-module inir.modules.iris.dock
-IrisDock 1.0 IrisDock.qml
-singleton IrisDockOrder 1.0 IrisDockOrder.qml
-IrisDockSurface 1.0 IrisDockSurface.qml

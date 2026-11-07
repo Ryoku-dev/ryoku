@@ -295,11 +295,11 @@ Item {
     // paints only the ink (text/marks), never a card; a gradient is layered on top
     // via the mask, but only for card-less widgets (calendar/music/aio keep their
     // card, so they take the solid colour, never the mask). Empty = adaptive.
-    readonly property string inkColorA: slot.bg === "none" ? (Config[slot.widget + "Color"] || "") : ""
-    readonly property string inkColorB: Config[slot.widget + "Color2"] || ""
+    readonly property string inkColorA: slot.bg === "none" ? (Config.get(slot.widget + "Color") || "") : ""
+    readonly property string inkColorB: Config.get(slot.widget + "Color2") || ""
     readonly property bool cardWidget: slot.widget === "calendar" || slot.widget === "music" || slot.widget === "aio"
     readonly property bool inkGradient: slot.inkColorA !== ""
-        && (Config[slot.widget + "Gradient"] === true)
+        && (Config.get(slot.widget + "Gradient") === true)
         && slot.inkColorB !== ""
     readonly property bool inkMaskOn: slot.inkGradient && !slot.cardWidget
 
@@ -405,7 +405,7 @@ Item {
     Behavior on y { enabled: !slot.holding; NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
 
-    opacity: Math.max(0.2, Math.min(1, Config[slot.widget + "Opacity"]))
+    opacity: Math.max(0.2, Math.min(1, Config.get(slot.widget + "Opacity")))
         * (1 - 0.75 * slot.stageFramingDim) * (slot._hovered ? 0.85 : 1)
     Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 

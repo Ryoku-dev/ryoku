@@ -1,0 +1,24 @@
+id = "orpheus"
+name = "Orpheus"
+version = "1.0.0"
+summary = "A fluid edge shell shaped by music and motion."
+description = "Orpheus brings a responsive music-aware bar, focused cards, quick controls, and its own settings to the Ryoku desktop."
+license = "GPL-3.0-or-later"
+authors = ["Ryoku Team"]
+tags = ["music", "controls", "cards"]
+accent = "#e6ddd0"
+surface = "#11100f"
+preview = "preview.webp"
+official = true
+
+[shell]
+entry = "qml/Scene.qml"
+frameHost = "each"
+owns = []
+modules = []
+
+[shell.settings]
+ipc = "orpheus"
+call = "settings"
+args = [""]
+hubEditor = ""

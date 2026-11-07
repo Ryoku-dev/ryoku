@@ -161,6 +161,9 @@
   after the first update (`palette-bridge/vesktop/quickcss.sh`).
 
 ### Added
+- **The default rice wears Kairos and Rashin knows the new shell model.** Noc
+  keeps Orpheus, Ask and Agent point at Bar Studio, Subshells and the Stage Editor,
+  and niri's close bind follows the active item like Hyprland (`rashin/`, `wm/`).
 - **Ryogami offers opt-in Spotify styling and palette bridge controls.**
   Integrations > Palette bridge adds neutral Spotify styling, accent strength,
   surface brightness, separate sidebar/player/card tint, independent button,

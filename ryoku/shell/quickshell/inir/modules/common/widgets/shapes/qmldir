@@ -1,3 +1,0 @@
-module inir.modules.common.widgets.shapes
-ShapeCanvas 1.0 ShapeCanvas.qml
-material-shapes 1.0 material-shapes.js

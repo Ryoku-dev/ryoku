@@ -22,9 +22,9 @@ Singleton {
     property bool dnd: false
 
     // popup_duration: the reference wayle builder default unless the active
-    // bar style supplies its own fallback.
-    readonly property int popupDuration: Config.styleNotificationMs > 0
-        ? Config.styleNotificationMs : 5000
+    // subshell or bar style draws the banners with its own duration.
+    readonly property int popupDuration: Shells.notificationMs > 0
+        ? Shells.notificationMs : 5000
 
 
     // Arrival wall-clock per id, for newest-first ordering and expiry math.

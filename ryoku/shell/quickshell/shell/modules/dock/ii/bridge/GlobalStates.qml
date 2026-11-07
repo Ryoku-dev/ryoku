@@ -4,7 +4,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import stage as Stage
-import inir as Inir
 import shell.services
 import shell.modules.phone
 import "../../../stage/Singletons" as StageCfg
@@ -35,19 +34,10 @@ Singleton {
     readonly property bool presetBarHidden: Stage.GlobalStates.presetBarHidden
     readonly property bool barOpen: Stage.GlobalStates.barOpen
     readonly property bool overviewOpen: Stage.GlobalStates.overviewOpen
-    property bool mediaControlsOpen: Inir.GlobalStates.mediaControlsOpen
+    property bool mediaControlsOpen: Stage.GlobalStates.mediaControlsOpen
     onMediaControlsOpenChanged: {
-        if (Inir.GlobalStates.mediaControlsOpen !== root.mediaControlsOpen)
-            Inir.GlobalStates.mediaControlsOpen = root.mediaControlsOpen;
         if (Stage.GlobalStates.mediaControlsOpen !== root.mediaControlsOpen)
             Stage.GlobalStates.mediaControlsOpen = root.mediaControlsOpen;
-    }
-    Connections {
-        target: Inir.GlobalStates
-        function onMediaControlsOpenChanged() {
-            if (root.mediaControlsOpen !== Inir.GlobalStates.mediaControlsOpen)
-                root.mediaControlsOpen = Inir.GlobalStates.mediaControlsOpen;
-        }
     }
     Connections {
         target: Stage.GlobalStates

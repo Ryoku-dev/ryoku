@@ -10,31 +10,11 @@ import (
 )
 
 // control.go adds the reference control surface to the CLI over the existing
-// socket transport: the menu, bar, audio, brightness, lock-status, and hub
-// verbs. Each mirrors one reference control method (menu <name> / close-all,
-// per-edge bar toggle and the toggle/reveal/hide-all trio, audio
+// socket transport: the menu, audio, brightness, lock-status, and hub verbs.
+// Each mirrors one reference control method (menu <name> / close-all, audio
 // volume-up/down/mute, brightness up/down, lock check, settings open/close).
 // The volume and brightness steps are the reference literals: 5% of the [0,1]
 // output-volume range and 5 of the [0,100] brightness range.
-
-// barEdges are the four frame edges plus "all". The reference offered per-edge
-// toggles and a toggle/reveal/hide-all trio whose -x flag excluded bars marked
-// hidden-by-default; that flag's meaning was inverted from its name (with -x set
-// it acted ONLY on reveal-by-default bars). Ryoku drops the flag for an explicit
-// edge list, so "all" is every edge (the reference's default, non-excluding
-// path) and a named edge is just that one.
-var barEdges = map[string]bool{"top": true, "bottom": true, "left": true, "right": true, "all": true}
-
-// barActions are the three reveal operations a bar edge accepts.
-var barActions = map[string]bool{"toggle": true, "reveal": true, "hide": true}
-
-// parseBarEdge validates a `bar <edge> <action>` pair.
-func parseBarEdge(args []string) (edge, action string, ok bool) {
-	if len(args) != 2 || !barEdges[args[0]] || !barActions[args[1]] {
-		return "", "", false
-	}
-	return args[0], args[1], true
-}
 
 // audioArgv maps an audio subcommand to the wpctl invocation that carries it
 // out: up/down step 5% of the sink volume, up clamps at 1.0 (100%) to match the
@@ -112,20 +92,6 @@ func isLocked() bool {
 func (d *daemon) menuClose() string {
 	d.ensure("shell")
 	return shellIpc("closeAllMenus", d.activeMonitor())
-}
-
-// barToggle drives the per-edge bar reveal state (reference bar toggle/reveal/
-// hide, per edge or across all).
-//
-// ryoku: the shell exposes no setBar IPC function. Its bar reveal is a single
-// whole-bar toggle driven in-process by the global:ryoku:barToggle keybind
-// (CustomShortcut -> ShellState.barRevealed), with no per-edge reveal/hide
-// grammar. This CLI verb still emits setBar on the shell target, so it is a
-// no-op pending the retire phase (add a shell IPC fn there, or drop the verb).
-// Do NOT invent a shell IPC function here.
-func (d *daemon) barToggle(edge, action string) string {
-	d.ensure("shell")
-	return shellIpc("setBar", d.activeMonitor(), edge, action)
 }
 
 // hub opens or closes Ryoku Hub, which replaces the reference settings window.

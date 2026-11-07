@@ -3,8 +3,8 @@ import QtQuick
 import QtQuick.Effects
 import "Singletons"
 import Ryoku.Ui.Singletons
-import "iris/IrisRoster.js" as IrisRoster
-import "python/PythonRoster.js" as PythonRoster
+import shell.services as Services
+import "ContributedWidgets.js" as ContributedWidgets
 import "ii/IiRoster.js" as IiRoster
 import "options/OptionsCatalog.js" as OptionsCatalog
 import stage.services
@@ -93,18 +93,22 @@ Item {
     function configValue(key) { return Config.get(key, Config.writeMonitor); }
 
     // ── widget identity: glyph, name and kanji seal for the title row ──────
-    readonly property var irisFace: IrisRoster.byPrefix(insp.scope)
-    readonly property bool isIris: insp.irisFace !== null
-    readonly property var pythonFace: PythonRoster.byPrefix(insp.scope)
-    readonly property bool isPython: insp.pythonFace !== null
+    readonly property var contributedMatch: ContributedWidgets.find(
+        Services.Shells.contributions("desktopWidgets"), insp.scope)
+    readonly property bool isContributed: insp.contributedMatch !== null
+    readonly property var contributedSet: insp.isContributed
+        ? insp.contributedMatch.set : null
+    readonly property var contributedRecord: insp.isContributed
+        ? insp.contributedMatch.record : null
     readonly property var iiFace: IiRoster.byPrefix(insp.scope)
     readonly property bool isIi: insp.iiFace !== null
     // An ii face draws its own card, so its slot plate is off by default and
     // the plate's shape rows only matter once one is chosen.
     readonly property bool iiPlate: insp.isIi && (insp.configValue(insp.scope + "Bg") || "none") !== "none"
-    readonly property var hostedFace: insp.isIris ? insp.irisFace
-        : insp.isPython ? insp.pythonFace : insp.iiFace
-    readonly property bool isCanvas: insp.isIris && insp.irisFace.kind === "canvas"
+    readonly property var hostedFace: insp.isContributed
+        ? insp.contributedRecord : insp.iiFace
+    readonly property bool isCanvas: insp.isContributed
+        && insp.contributedRecord.kind === "canvas"
     readonly property var builtinInfo: ({
         clock: { label: "Clock", icon: "schedule", gloss: "時計" },
         calendar: { label: "Calendar", icon: "calendar_month", gloss: "暦" },
@@ -133,9 +137,13 @@ Item {
     // Look tab (which writes widgets.json) would edit keys nothing reads; its
     // tabs come entirely from its options panel.
     readonly property bool isVisualizer: insp.scope === "visualizer"
-    readonly property bool isRyokuStyle: (insp.isIris || insp.isPython) && insp.configValue(insp.scope + "Style") === "ryoku"
-    readonly property string curIrisSize: insp.isIris ? (insp.configValue(insp.scope + "Size") || insp.irisFace.sizes[0]) : ""
-    readonly property string curPythonVariant: insp.isPython ? (insp.configValue(insp.scope + "Variant") || insp.pythonFace.variants[0]) : ""
+    readonly property bool isRyokuStyle: insp.isContributed
+        && insp.configValue(insp.scope + "Style") === "ryoku"
+    readonly property var facePresets: insp.isContributed
+        && Array.isArray(insp.contributedRecord.sizes)
+        ? insp.contributedRecord.sizes : []
+    readonly property string curFacePreset: insp.facePresets.length > 0
+        ? (insp.configValue(insp.scope + "Size") || insp.facePresets[0]) : ""
 
     readonly property var designLists: ({
         clock: ["digital", "minimal", "grand", "column", "outline", "banner", "analog", "flip", "rings", "bighour", "metal", "goodnight"],
@@ -149,7 +157,8 @@ Item {
     readonly property string designKey: insp.isCalendar || insp.isMusic || insp.isAio || insp.isDayprogress
         ? insp.scope + "Style" : insp.isShape ? insp.scope + "Kind" : insp.scope + "Design"
     readonly property string curDesign: insp.configValue(insp.designKey) ?? ""
-    readonly property bool hasDesign: !insp.isIris && !insp.isPython && (insp.designLists[insp.scope] !== undefined)
+    readonly property bool hasDesign: !insp.isContributed
+        && (insp.designLists[insp.scope] !== undefined)
 
     readonly property string curColor: insp.configValue(insp.scope + "Color") || ""
     readonly property bool curGradient: insp.configValue(insp.scope + "Gradient") === true
@@ -161,13 +170,12 @@ Item {
             return;
         Config.set(insp.designKey, d[(d.indexOf(insp.curDesign) + 1) % d.length]);
     }
-    function cycleIrisSize() {
-        const s = insp.irisFace.sizes;
-        Config.set(insp.scope + "Size", s[(s.indexOf(insp.curIrisSize) + 1) % s.length]);
-    }
-    function cyclePythonVariant() {
-        const v = insp.pythonFace.variants;
-        Config.set(insp.scope + "Variant", v[(v.indexOf(insp.curPythonVariant) + 1) % v.length]);
+    function cycleFacePreset() {
+        const presets = insp.facePresets;
+        if (presets.length < 2)
+            return;
+        const current = presets.indexOf(insp.curFacePreset);
+        Config.set(insp.scope + "Size", presets[(current + 1) % presets.length]);
     }
     function hexOf(c) {
         return "#" + [c.r, c.g, c.b].map(function (x) {
@@ -315,7 +323,10 @@ Item {
 
     readonly property bool iiHasOptions: insp.isIi
         && WidgetsRegistry.getConfigPagePath(insp.iiFace.id).toString().length > 0
-    readonly property bool hasOptions: OptionsCatalog.has(insp.scope) || insp.iiHasOptions
+    readonly property string contributedOptionsSource:
+        ContributedWidgets.optionSource(insp.contributedMatch)
+    readonly property bool hasOptions: OptionsCatalog.has(insp.scope)
+        || insp.iiHasOptions || insp.contributedOptionsSource.length > 0
 
     // ── tabs: Look, then one per MenuSection of the hosted panel ──
     // The section header items discovered in the hosted panel, in document order.
@@ -591,42 +602,30 @@ Item {
                         onTriggered: insp.cycleDesign()
                     }
                     MenuRow {
-                        visible: insp.isIris || insp.isPython
+                        visible: insp.isContributed
                         label: I18n.tr("Style")
                         value: insp.isRyokuStyle ? "Ryoku" : "Original"
                         on: insp.isRyokuStyle
                         closeOnTrigger: false
                         onTriggered: Config.set(insp.scope + "Style",
-                            insp.isRyokuStyle ? (insp.isPython ? "serp" : "inir") : "ryoku")
+                            insp.isRyokuStyle ? insp.contributedSet.id : "ryoku")
                     }
                     MenuRow {
-                        visible: insp.isIris && insp.irisFace.sizes.length > 1
-                        label: I18n.tr("Size preset")
-                        value: insp.cap(insp.curIrisSize)
+                        visible: insp.isContributed && insp.facePresets.length > 1
+                        label: I18n.tr("Preset")
+                        value: insp.cap(insp.curFacePreset)
                         closeOnTrigger: false
-                        onTriggered: insp.cycleIrisSize()
-                    }
-                    MenuRow {
-                        visible: insp.isPython && insp.pythonFace.variants.length > 1
-                        label: I18n.tr("Variant")
-                        value: insp.cap(insp.curPythonVariant)
-                        closeOnTrigger: false
-                        onTriggered: insp.cyclePythonVariant()
+                        onTriggered: insp.cycleFacePreset()
                     }
                     Text {
-                        // Canvas widgets carry no iRiS ink token, so the Ryoku skin
-                        // only wraps them in the slot backing; their own colours
-                        // stay. State it rather than ship a dead colour picker.
-                        visible: insp.isPython || (insp.isCanvas && insp.isRyokuStyle)
+                        visible: insp.isCanvas && insp.isRyokuStyle
                         width: parent.width
                         leftPadding: Theme.s3
                         rightPadding: Theme.s3
                         topPadding: Theme.s1
                         bottomPadding: Theme.s1
                         wrapMode: Text.WordWrap
-                        text: insp.isPython
-                            ? I18n.tr("Serpantinum faces follow the wallpaper palette; the Ryoku style adds the plate")
-                            : I18n.tr("Ryoku style wraps this widget; it keeps its own colours")
+                        text: I18n.tr("Ryoku style wraps this widget; it keeps its own colours")
                         color: Theme.inkDim
                         font.family: Theme.font
                         font.pixelSize: Theme.fSmall
@@ -780,7 +779,7 @@ Item {
                     }
 
                     MenuSection {
-                        visible: insp.isIris || insp.isPython || insp.isIi
+                        visible: insp.isContributed || insp.isIi
                         label: insp.isIi ? I18n.tr("Plate") : I18n.tr("Shape")
                         gloss: insp.isIi ? "台座" : "形状"
                     }
@@ -798,7 +797,7 @@ Item {
                     }
                     MenuSlider {
                         id: radiusSlider
-                        visible: insp.iiPlate || insp.isIris || (insp.isPython && insp.isRyokuStyle)
+                        visible: insp.iiPlate || (insp.isContributed && insp.isRyokuStyle)
                         label: I18n.tr("Corner radius")
                         from: 0; to: 120; step: 1
                         value: insp.configValue(insp.scope + "Radius") >= 0 ? insp.configValue(insp.scope + "Radius") : Theme.radius
@@ -808,7 +807,7 @@ Item {
                     }
                     MenuSlider {
                         id: padSlider
-                        visible: insp.iiPlate || insp.isIris || (insp.isPython && insp.isRyokuStyle)
+                        visible: insp.iiPlate || (insp.isContributed && insp.isRyokuStyle)
                         label: I18n.tr("Padding")
                         from: 0; to: 48; step: 1
                         value: insp.configValue(insp.scope + "Pad") >= 0 ? insp.configValue(insp.scope + "Pad") : 0
@@ -850,9 +849,9 @@ Item {
                     // The ii faces colour themselves from the vendored library's
                     // own scheme store, so the slot's ink push is inert: the
                     // Colour row would be a dead control.
-                    MenuSection { visible: !insp.isCanvas && !insp.isPython && !insp.isIi; label: I18n.tr("Colour"); gloss: "彩色" }
+                    MenuSection { visible: !insp.isCanvas && !insp.isIi; label: I18n.tr("Colour"); gloss: "彩色" }
                     Item {
-                        visible: !insp.isCanvas && !insp.isPython && !insp.isIi
+                        visible: !insp.isCanvas && !insp.isIi
                         width: parent.width
                         implicitHeight: !insp.isCanvas && !insp.isIi ? colorCol.implicitHeight : 0
                         Column {
@@ -908,6 +907,7 @@ Item {
                         width: parent.width
                         active: insp.hasOptions
                         source: !active ? "" : insp.isIi ? "options/IiFaceOptions.qml"
+                            : insp.isContributed ? insp.contributedOptionsSource
                             : "options/" + (OptionsCatalog.panelFile(insp.scope)
                                 || insp.cap(insp.scope) + "Options.qml")
                         onLoaded: insp.rescan()
@@ -919,6 +919,13 @@ Item {
                         value: insp.scope
                         when: optionsLoader.item !== null
                             && optionsLoader.item.hasOwnProperty("widget")
+                    }
+                    Binding {
+                        target: optionsLoader.item
+                        property: "config"
+                        value: Config
+                        when: insp.isContributed && optionsLoader.item !== null
+                            && optionsLoader.item.hasOwnProperty("config")
                     }
                 }
 

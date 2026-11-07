@@ -14,8 +14,8 @@ import "../.." as Pill
 // sec 2.1, 3.2 (system_tray, system_tray_item).
 //
 // Design: 4px rhythm gaps between cells, hover wash (on-surface 8%),
-// press dip (scale 0.88 + opacity 0.72), smooth color behavior. The
-// reveal strip sits behind a sumi-edged container (frameBorder outline).
+// press dip (scale 0.88 + opacity 0.72), smooth color behavior. The reveal
+// strip sits behind an outlined container.
 Item {
     id: root
 
@@ -56,8 +56,7 @@ Item {
                 icon: "tray"
                 onClicked: root.revealed = !root.revealed
             }
-            // Sumi-edged reveal strip: clipped container with a subtle outline
-            // so the icon strip feels anchored against the bar edge.
+            // Outlined reveal strip: clipped so it stays anchored to the edge.
             Item {
                 clip: true
                 height: root.cross
@@ -95,7 +94,7 @@ Item {
                 icon: "tray"
                 onClicked: root.revealed = !root.revealed
             }
-            // Sumi-edged reveal strip (vertical).
+            // Outlined reveal strip for a vertical rail.
             Item {
                 clip: true
                 width: root.cross

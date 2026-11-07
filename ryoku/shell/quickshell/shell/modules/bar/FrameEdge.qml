@@ -44,14 +44,12 @@ PanelWindow {
         left: edge !== "right"
         right: edge !== "left"
     }
-    // Never unmap while Sumi is up. The reservation stack order is fixed at map
-    // time and the exclusive-zone arrange gives corners to whoever reserves
-    // first, so the four edges MUST map in a fixed order (top, bottom, left,
-    // right, as Frame.qml declares them) for the horizontal edges to own the
-    // corners and the vertical ones to inset between them. Unmapping a collapsed
-    // edge and remapping it on reveal reorders the stack (the largest target
-    // crosses the map threshold first), which inverts the insets. So the surface
-    // stays mapped at a 1 px floor and only its exclusive zone drops to 0 when
+    // Keep the reservation scene mapped: layer order is fixed at map time, and
+    // the exclusive-zone arrangement gives corners to the first mapped edge.
+    // The fixed top, bottom, left, right order lets horizontal edges own the
+    // shared corners while vertical edges inset between them.
+    // Unmapping a collapsed edge and remapping it on reveal reorders the stack.
+    // Keep the surface at a 1 px floor and drop only its exclusive zone when
     // the bar hides.
     implicitWidth: horizontal ? 0 : frameLayer.extent
     implicitHeight: horizontal ? frameLayer.extent : 0

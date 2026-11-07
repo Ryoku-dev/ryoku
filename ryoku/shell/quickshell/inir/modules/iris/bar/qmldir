@@ -1,6 +1,0 @@
-module inir.modules.iris.bar
-IrisBar 1.0 IrisBar.qml
-IrisCustomModule 1.0 IrisCustomModule.qml
-IrisIsland 1.0 IrisIsland.qml
-IrisTools 1.0 IrisTools.qml
-IrisTray 1.0 IrisTray.qml

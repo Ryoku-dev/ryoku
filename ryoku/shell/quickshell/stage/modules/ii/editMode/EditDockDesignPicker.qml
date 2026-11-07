@@ -6,6 +6,7 @@ import Ryoku.Ui.Singletons
 import stage.modules.common
 import stage.modules.common.widgets
 import stage.services
+import shell.services as ShellServices
 
 ColumnLayout {
     id: root
@@ -19,13 +20,20 @@ ColumnLayout {
     property var storeDocks: []
     property string updatingId: ""
 
+    readonly property var contributionDocks: ShellServices.Shells.contributions("dock")
+    readonly property var contributionIds: root.contributionDocks.map(dock => dock.id)
     readonly property var designs: [
         { value: "ryoku", title: Translation.tr("Ryoku"), detail: Translation.tr("Paper islands"), glyph: "dock" },
-        { value: "python", title: Translation.tr("Python"), detail: Translation.tr("Flowing glass"), glyph: "blur_on" },
-        { value: "shima", title: Translation.tr("Shima"), detail: Translation.tr("Notched capsule"), glyph: "line_curve" },
         { value: "ii", title: Translation.tr("ii"), detail: Translation.tr("Islands, widgets, magnification"), glyph: "view_carousel" },
         { value: "none", title: Translation.tr("None"), detail: Translation.tr("No dock surface"), glyph: "block" }
-    ].concat(root.storeDocks.map(dock => ({
+    ].concat(root.contributionDocks.map(dock => ({
+        value: dock.id,
+        title: dock.name || dock.id,
+        detail: dock.record?.summary || Translation.tr("Shell contribution"),
+        glyph: "extension",
+        contribution: true,
+        prepared: dock.prepared === true
+    }))).concat(root.storeDocks.filter(dock => !root.contributionIds.includes(dock.id)).map(dock => ({
         value: dock.id,
         title: dock.name,
         detail: dock.installed ? dock.summary : Translation.tr("Install from RyoStore"),
@@ -153,7 +161,7 @@ ColumnLayout {
                         Rectangle {
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.bottom: parent.bottom
-                            width: card.modelData.value === "none" ? 42 : card.modelData.value === "python" ? 94 : 82
+                            width: card.modelData.value === "none" ? 42 : 82
                             height: card.modelData.value === "none" ? 2 : 30
                             radius: card.modelData.value === "ryoku" ? 7 : height / 2
                             color: card.modelData.value === "none"
@@ -171,7 +179,7 @@ ColumnLayout {
                                     Rectangle {
                                         width: 12
                                         height: 12
-                                        radius: card.modelData.value === "shima" ? 6 : 4
+                                        radius: card.modelData.contribution === true ? 6 : 4
                                         color: index === 1
                                             ? (card.chosen ? Appearance.colors.colLayer0
                                                 : Appearance.colors.colSecondary)

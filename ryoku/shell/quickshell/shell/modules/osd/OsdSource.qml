@@ -30,8 +30,8 @@ QtObject {
     readonly property bool muted: audio ? audio.muted : false
     // Audio boost can legitimately reach 150%, so the scale must keep unity
     // visible instead of making every boosted keypress look identical.
-    readonly property real maxValue: (isVolume && Config.qsbar
-        && Config.qsbar.audioBoost === true) ? 1.5 : 1.0
+    readonly property real maxValue: (isVolume && Config.audio
+        && Config.audio.boost === true) ? 1.5 : 1.0
     readonly property real value: isBrightness
         ? OsdFeed.brightness
         : ((isVolume || isMic) && audio

@@ -101,8 +101,7 @@ func sendCommand(line string) error {
 		return err
 	}
 	// The daemon writes one reply line and closes, so read to EOF rather than a
-	// fixed buffer: `bar catalog --json` and `bar list --json` can exceed one
-	// read's worth.
+	// fixed buffer.
 	data, readErr := io.ReadAll(conn)
 	if len(data) == 0 && readErr != nil {
 		return fmt.Errorf("no reply from the daemon: %v", readErr)
@@ -129,8 +128,9 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  ryoku-shell theme [<scheme>|catalog]")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell gtk apply <light|dark>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell voice")
-	fmt.Fprintln(os.Stderr, "  ryoku-shell bar <list|catalog|move|show|hide|set|position|form|defaults|settings>")
-	fmt.Fprintln(os.Stderr, "  ryoku-shell powerprofiles <state|set PROFILE>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell dock <show|hide|edge|autohide|pin|unpin|list>")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell barstyle <id>")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell shells <sync|commit>")
+	fmt.Fprintln(os.Stderr, "  ryoku-shell powerprofiles <state|set PROFILE>")
 	fmt.Fprintln(os.Stderr, "  ryoku-shell <reload|status|ping|quit>")
 }

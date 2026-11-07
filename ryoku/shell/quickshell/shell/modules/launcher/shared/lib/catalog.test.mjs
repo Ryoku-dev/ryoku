@@ -10,17 +10,16 @@ const raw = JSON.parse(readFileSync(
   "utf8"
 ));
 
-test("real catalog exposes its variants with the promised routing", () => {
+test("real catalog exposes only Ryoku launcher variants", () => {
   const catalog = Catalog.normalize(raw);
 
   assert.deepEqual(
     catalog.variants.map(variant => variant.id),
-    ["main", "hero", "okshell", "kairos", "spotlight", "python"]
+    ["main", "hero", "okshell"]
   );
   assert.equal(Catalog.defaultEntry(catalog).id, "hero");
   assert.equal(Catalog.fallbackEntry(catalog).id, "okshell");
   assert.equal(Catalog.entry(catalog, "main").id, "main");
-  assert.equal(Catalog.entry(catalog, "kairos").id, "kairos");
   assert.equal(Catalog.entry(catalog, "does-not-exist").id, "hero");
 });
 
@@ -131,4 +130,72 @@ test("Store rows that are malformed, borrowed or shadowing are dropped", () => {
 
   assert.deepEqual(variants.map(variant => [variant.id, variant.version]), [["tatami", "1.0.0"]]);
   assert.match(Catalog.entry(Catalog.withStore(Catalog.normalize(raw), rows, "/s"), "hero").entrypoint, /^variants\/hero\//);
+});
+
+const shellContribution = (id, prepared, extra = {}) => ({
+  id,
+  itemId: `owner-${id}`,
+  name: `${id} launcher`,
+  description: `${id} contribution`,
+  prepared,
+  entryUrl: prepared ? `file:///state/${id}/Main.qml` : "",
+  previewUrl: prepared ? `file:///state/${id}/Preview.qml` : "",
+  ...extra
+});
+
+test("a prepared shell contribution resolves to its lazy entry URLs", () => {
+  const catalog = Catalog.normalize(raw);
+  const result = Catalog.resolve(catalog, "spotlight", [
+    shellContribution("spotlight", true)
+  ]);
+
+  assert.equal(result.pending, false);
+  assert.deepEqual(result.entry, {
+    id: "spotlight",
+    name: "spotlight launcher",
+    description: "spotlight contribution",
+    contribution: true,
+    itemId: "owner-spotlight",
+    url: "file:///state/spotlight/Main.qml",
+    previewUrl: "file:///state/spotlight/Preview.qml",
+    capabilities: []
+  });
+});
+
+test("an unprepared shell contribution keeps the catalog default pending", () => {
+  const result = Catalog.resolve(Catalog.normalize(raw), "python", [
+    shellContribution("python", false)
+  ]);
+
+  assert.equal(result.pending, true);
+  assert.equal(result.entry.id, "hero");
+});
+
+test("an unknown contribution selection uses the catalog default", () => {
+  const result = Catalog.resolve(Catalog.normalize(raw), "missing", [
+    shellContribution("spotlight", true)
+  ]);
+
+  assert.equal(result.pending, false);
+  assert.equal(result.entry.id, "hero");
+});
+
+test("catalog variants cannot be shadowed by shell contributions", () => {
+  const result = Catalog.resolve(Catalog.normalize(raw), "hero", [
+    shellContribution("hero", true)
+  ]);
+
+  assert.equal(result.pending, false);
+  assert.equal(result.entry.id, "hero");
+  assert.equal(result.entry.contribution, undefined);
+});
+
+test("shell contributions take precedence over legacy Store rows", () => {
+  const catalog = Catalog.withStore(Catalog.normalize(raw), [storeRow("spotlight")], "/s");
+  const result = Catalog.resolve(catalog, "spotlight", [
+    shellContribution("spotlight", true)
+  ]);
+
+  assert.equal(result.entry.contribution, true);
+  assert.equal(result.entry.url, "file:///state/spotlight/Main.qml");
 });

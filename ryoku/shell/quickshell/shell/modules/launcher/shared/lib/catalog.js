@@ -46,6 +46,43 @@ function entry(catalog, requestedId) {
   return find(catalog, String(requestedId || "")) || defaultEntry(catalog);
 }
 
+function findContribution(contributions, id) {
+  var requested = String(id || "");
+  var rows = Array.isArray(contributions) ? contributions : [];
+  for (var i = 0; i < rows.length; i++)
+    if (String(rows[i] && rows[i].id || "") === requested) return rows[i];
+  return null;
+}
+
+function contributionEntry(contribution) {
+  return {
+    id: String(contribution.id || ""),
+    name: String(contribution.name || contribution.id || ""),
+    description: String(contribution.description || ""),
+    contribution: true,
+    itemId: String(contribution.itemId || ""),
+    url: String(contribution.entryUrl || ""),
+    previewUrl: String(contribution.previewUrl || ""),
+    capabilities: []
+  };
+}
+
+function resolve(catalog, requestedId, contributions) {
+  var requested = String(requestedId || "");
+  var catalogEntry = find(catalog, requested);
+  if (catalogEntry && catalogEntry.store !== true)
+    return { entry: catalogEntry, pending: false };
+
+  var contribution = findContribution(contributions, requested);
+  if (contribution) {
+    if (contribution.prepared !== true || String(contribution.entryUrl || "") === "")
+      return { entry: defaultEntry(catalog), pending: true };
+    return { entry: contributionEntry(contribution), pending: false };
+  }
+
+  return { entry: catalogEntry || defaultEntry(catalog), pending: false };
+}
+
 // A Store launcher runs from its receipt-owned view: launcher-views/<id>/<digest>
 // under the Store's state root, holding Main.qml and, when the product ships
 // one, Preview.qml.
@@ -90,4 +127,4 @@ function withStore(catalog, rows, stateRoot) {
 }
 
 if (typeof module !== "undefined" && module.exports)
-  module.exports = { safeQmlPath, normalize, find, entry, defaultEntry, fallbackEntry, storeVariants, withStore };
+  module.exports = { safeQmlPath, normalize, find, entry, defaultEntry, fallbackEntry, findContribution, contributionEntry, resolve, storeVariants, withStore };

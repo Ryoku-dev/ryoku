@@ -11,12 +11,7 @@ Item {
 
     readonly property var styles: [
         { id: "orpheus", name: I18n.tr("Orpheus"), description: I18n.tr("A liquid bar that moves with your music."), recommended: true },
-        { id: "sumi", name: I18n.tr("Sumi"), description: I18n.tr("The monochrome painted frame.") },
-        { id: "qsbar", name: I18n.tr("QS Bar"), description: I18n.tr("The full-colour wallpaper bar.") },
-        { id: "nomarchy", name: I18n.tr("Nomarchy"), description: I18n.tr("Omarchy's bar with its plugin library.") },
-        { id: "kairos", name: I18n.tr("Kairos"), description: I18n.tr("A clock island that grows with you.") },
-        { id: "iris", name: I18n.tr("Shima"), description: I18n.tr("An edge island that morphs into tools.") },
-        { id: "python", name: I18n.tr("Python"), description: I18n.tr("Pills that open into one stage.") }
+        { id: "kairos", name: I18n.tr("Kairos"), description: I18n.tr("A clock island that grows with you.") }
     ]
 
     function styleName(styleId) {
@@ -35,8 +30,8 @@ Item {
 
         PageTitle {
             width: parent.width
-            title: I18n.tr("Choose your edge")
-            description: I18n.tr("Pick any bar to try it now. The desktop switches while this window stays open.")
+            title: I18n.tr("Choose your shell")
+            description: I18n.tr("Try either included subshell. The desktop switches while this window stays open.")
         }
 
         BarPreviewStage {
@@ -55,7 +50,7 @@ Item {
 
                 BarCard {
                     required property var modelData
-                    width: Math.floor((selectors.width - selectors.spacing * 5) / 6)
+                    width: Math.floor((selectors.width - selectors.spacing) / 2)
                     styleId: modelData.id
                     name: modelData.name
                     description: modelData.description
@@ -64,6 +59,15 @@ Item {
                     onChosen: styleId => root.chose(styleId)
                 }
             }
+        }
+
+        Text {
+            width: parent.width
+            text: I18n.tr("Find more subshells and bar styles in Ryostore.")
+            color: Tokens.inkMuted
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }

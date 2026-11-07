@@ -48,11 +48,6 @@ func menuID(cmd string) (string, bool) {
 // qsSelect: qs config selector for a component. by repo path in dev, by config
 // name when deployed.
 func qsSelect(name string) []string {
-	if name == "shell" {
-		if root, ok := activeShimaRoot.Load().(string); ok && root != "" {
-			return []string{"-p", root}
-		}
-	}
 	if shellDir != "" {
 		return []string{"-p", filepath.Join(shellDir, "quickshell", name)}
 	}
@@ -62,9 +57,11 @@ func qsSelect(name string) []string {
 // ipcCall: invoke a Quickshell IpcHandler function. component may have just
 // been started, so it retries briefly until the instance answers.
 func ipcCall(config, target, fn, arg string) string {
-	argv := append(qsSelect(config), "ipc", "call", target, fn)
+	var argv []string
 	if arg != "" {
-		argv = append(argv, arg)
+		argv = ipcArgv(config, target, fn, arg)
+	} else {
+		argv = ipcArgv(config, target, fn)
 	}
 	var out []byte
 	var err error
@@ -85,8 +82,7 @@ func ipcCall(config, target, fn, arg string) string {
 // ipcCallN = ipcCall for IpcHandler functions that take more than one arg
 // (e.g. pluginPopout(mon, id)). empty trailing args still go positionally.
 func ipcCallN(config, target, fn string, args ...string) string {
-	argv := append(qsSelect(config), "ipc", "call", target, fn)
-	argv = append(argv, args...)
+	argv := ipcArgv(config, target, fn, args...)
 	var out []byte
 	var err error
 	for i := 0; i < 10; i++ {

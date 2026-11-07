@@ -38,30 +38,6 @@
       "entrypoint": "variants/okshell/Main.qml",
       "preview": "variants/okshell/Preview.qml",
       "capabilities": []
-    },
-    {
-      "id": "kairos",
-      "name": "Kairos",
-      "description": "The island launcher: the Kairos bar island opens into the clock, a rolling date wheel, and the apps.",
-      "entrypoint": "variants/kairos/Main.qml",
-      "preview": "variants/kairos/Preview.qml",
-      "capabilities": []
-    },
-    {
-      "id": "spotlight",
-      "name": "Spotlight",
-      "description": "The Shima launcher: the frame's morphing-glass search, with apps, actions, commands and web in one row.",
-      "entrypoint": "variants/spotlight/Main.qml",
-      "preview": "variants/spotlight/Preview.qml",
-      "capabilities": []
-    },
-    {
-      "id": "python",
-      "name": "Python",
-      "description": "The Python launcher: serpantinum's bar-attached search pill with usage ranking and a Files tab.",
-      "entrypoint": "variants/python/Main.qml",
-      "preview": "variants/python/Preview.qml",
-      "capabilities": []
     }
   ]
 }

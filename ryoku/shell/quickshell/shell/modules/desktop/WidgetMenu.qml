@@ -3,8 +3,8 @@ import QtQuick
 import Quickshell
 import "Singletons"
 import Ryoku.Ui.Singletons
-import "iris/IrisRoster.js" as IrisRoster
-import "python/PythonRoster.js" as PythonRoster
+import shell.services as Services
+import "ContributedWidgets.js" as ContributedWidgets
 import "ii/IiRoster.js" as IiRoster
 import "ii/IiQuickControls.js" as IiQuickControls
 import "../stage/Singletons" as StageCfg
@@ -67,28 +67,26 @@ Item {
         : menu.scope + "Design"
     readonly property string curDesign: menu.isWidget ? (menu.configValue(menu.designKey) ?? "") : ""
 
-    // Vendored face libraries hosted in Ryoku's slot: roster metadata, their
-    // upstream/Ryoku skin toggle, and the face-specific preset ladder.
-    readonly property var irisFace: IrisRoster.byPrefix(menu.scope)
-    readonly property bool isIris: menu.irisFace !== null
-    readonly property var pythonFace: PythonRoster.byPrefix(menu.scope)
-    readonly property bool isPython: menu.pythonFace !== null
+    readonly property var contributedMatch: ContributedWidgets.find(
+        Services.Shells.contributions("desktopWidgets"), menu.scope)
+    readonly property bool isContributed: menu.contributedMatch !== null
+    readonly property var contributedSet: menu.isContributed
+        ? menu.contributedMatch.set : null
+    readonly property var contributedRecord: menu.isContributed
+        ? menu.contributedMatch.record : null
     readonly property var iiFace: IiRoster.byPrefix(menu.scope)
     readonly property bool isIi: menu.iiFace !== null
-    readonly property var hostedFace: menu.isIris ? menu.irisFace
-        : menu.isPython ? menu.pythonFace : menu.iiFace
-    readonly property bool isHosted: menu.isIris || menu.isPython || menu.isIi
-    // The ii faces keep their own look always (they read the stage's option
-    // store); the Style row only exists for the libraries that carry a Ryoku
-    // skin: iris and python.
-    readonly property bool isRyokuStyle: (menu.isIris || menu.isPython)
+    readonly property var hostedFace: menu.isContributed
+        ? menu.contributedRecord : menu.iiFace
+    readonly property bool isHosted: menu.isContributed || menu.isIi
+    readonly property bool isRyokuStyle: menu.isContributed
         && menu.configValue(menu.scope + "Style") === "ryoku"
-    readonly property string curIrisSize: menu.isIris ? (menu.configValue(menu.scope + "Size") || menu.irisFace.sizes[0]) : ""
-    readonly property string curPythonVariant: menu.isPython ? (menu.configValue(menu.scope + "Variant") || menu.pythonFace.variants[0]) : ""
-    readonly property var facePresets: menu.isIris ? menu.irisFace.sizes
-        : menu.isPython ? menu.pythonFace.variants : []
-    readonly property string facePresetKey: menu.scope + (menu.isPython ? "Variant" : "Size")
-    readonly property string curFacePreset: menu.isPython ? menu.curPythonVariant : menu.curIrisSize
+    readonly property var facePresets: menu.isContributed
+        && Array.isArray(menu.contributedRecord.sizes)
+        ? menu.contributedRecord.sizes : []
+    readonly property string facePresetKey: menu.scope + "Size"
+    readonly property string curFacePreset: menu.facePresets.length > 0
+        ? (menu.configValue(menu.facePresetKey) || menu.facePresets[0]) : ""
 
     // the kanji seal each scope carries in the menu masthead (docs/ui-ux.md).
     readonly property var glosses: ({
@@ -122,7 +120,7 @@ Item {
         dayprogress: ["ring", "arc"],
         shape: ["dot", "ring", "diamond", "square"]
     })
-    readonly property bool hasDesign: menu.isWidget && !menu.isIris && !menu.isPython && !menu.isIi
+    readonly property bool hasDesign: menu.isWidget && !menu.isContributed && !menu.isIi
         && (menu.designLists[menu.scope] !== undefined)
 
     // The source menu and resize grip share the same named detents.
@@ -274,17 +272,17 @@ Item {
             onTriggered: menu.cycleDesign()
         }
         MenuRow {
-            visible: menu.isIris || menu.isPython
+            visible: menu.isContributed
             label: I18n.tr("Style")
             value: menu.isRyokuStyle ? "Ryoku" : "Original"
             on: menu.isRyokuStyle
             closeOnTrigger: false
             onTriggered: Config.set(menu.scope + "Style",
-                menu.isRyokuStyle ? (menu.isPython ? "serp" : "inir") : "ryoku")
+                menu.isRyokuStyle ? menu.contributedSet.id : "ryoku")
         }
         MenuRow {
-            visible: (menu.isIris || menu.isPython) && menu.facePresets.length > 1
-            label: menu.isPython ? I18n.tr("Variant") : I18n.tr("Face size")
+            visible: menu.isContributed && menu.facePresets.length > 1
+            label: I18n.tr("Preset")
             value: menu.cap(menu.curFacePreset)
             closeOnTrigger: false
             onTriggered: menu.cycleFacePreset()

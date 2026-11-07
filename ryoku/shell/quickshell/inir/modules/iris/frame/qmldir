@@ -1,4 +1,0 @@
-module inir.modules.iris.frame
-IrisFramePulse 1.0 IrisFramePulse.qml
-IrisReservations 1.0 IrisReservations.qml
-singleton IrisFrame 1.0 IrisFrame.qml

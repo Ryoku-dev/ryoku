@@ -81,8 +81,8 @@ func stubShellIpc(t *testing.T, calls chan<- string) {
 	t.Cleanup(func() { shellIpc = prev })
 }
 
-// dispatch routes every frame surface, the menu close-all, and the bar reveal
-// verbs onto the single shell's IpcHandler; a wrong entry opens the wrong surface.
+// dispatch routes every frame surface and the menu close-all onto the single
+// shell's IpcHandler; a wrong entry opens the wrong surface.
 func TestDispatchFrameSurface(t *testing.T) {
 	calls := make(chan string, len(frameBarMenuIDs)+2)
 	stubShellIpc(t, calls)
@@ -97,17 +97,11 @@ func TestDispatchFrameSurface(t *testing.T) {
 			t.Errorf("shell IPC = %q, want %q", got, "openSurface DP-1 "+id)
 		}
 	}
-	// menu close and bar edge toggles map to the reference close-all and the
-	// per-edge bar operations, each on its own shell function.
+	// menu close maps to the reference close-all on its own shell function.
 	if got := d.dispatch("menu close"); got != "ok" {
 		t.Errorf("dispatch(menu close) = %q, want ok", got)
 	} else if got := <-calls; got != "closeAllMenus DP-1" {
 		t.Errorf("menu close shell IPC = %q, want %q", got, "closeAllMenus DP-1")
-	}
-	if got := d.dispatch("bar left toggle"); got != "ok" {
-		t.Errorf("dispatch(bar left toggle) = %q, want ok", got)
-	} else if got := <-calls; got != "setBar DP-1 left toggle" {
-		t.Errorf("bar toggle shell IPC = %q, want %q", got, "setBar DP-1 left toggle")
 	}
 	for _, command := range []string{"bar", "bar left", "bar sideways toggle", "bar left sideways", "menu", "menu bogus", "menu clock extra"} {
 		if got := d.dispatch(command); got == "ok" {
