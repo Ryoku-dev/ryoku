@@ -1,8 +1,9 @@
 # The Ryoku GUI map
 
 Ryoku has a GUI for almost every setting: the Ryoku Hub for system and shell
-config, the wallpaper picker for looks, and QS Bar Settings for the bar and the
-dock. When a user asks how to change something, name the surface first, then give
+config, the wallpaper picker for looks, the Stage Editor for the desktop and the
+dock, and the active subshell or bar style's own settings window for its bar.
+When a user asks how to change something, name the surface first, then give
 the command the page wraps (SKILL.md, "Answer policy: GUI first"). This file is
 the lookup from an intent to its surface, its keybind, and the command behind it.
 
@@ -43,7 +44,8 @@ them (see below), never as dead settings.
 | Window Manager | `windowmanager` | WindowManagerPage.qml | gaps, borders, tiling (gated: needs a backing provider) |
 | Plugins | `plugins` | PluginsPage.qml | compositor plugins (gated: `plugins`) |
 | Layer Rules | `layerrules` | LayerRulesPage.qml | layer-shell rules (advanced; shows only with rules present) |
-| Bar Studio | `bar-studio` | BarStudioPage.qml | the bar style and its studio |
+| Subshells | `subshells` | SubshellsPage.qml | the gallery of complete shells (shipped Orpheus and Kairos, installed and Ryostore subshells) and the selected one's settings |
+| Bar Studio | `bar-studio` | BarStudioPage.qml | the gallery of subshells and bar styles, the selected item's settings, the parts installed items provide (dock designs, launchers, desktop widget sets), and the built-in editors some bar styles use (Sumi's frame and rails, Obi, Nacre) |
 | Desktop | `desktop` | DesktopPage.qml | the desktop stage and its surfaces |
 | Controls | `controls` | ControlsPage.qml | the Super+Escape panel's section order and visibility |
 | Overlays | `overlays` | OverlaysPage.qml | the worn OSD, notification card, and Super+Escape sidebar designs, with Try actions for each |
@@ -96,24 +98,28 @@ and cannot manage users.
 
 ## Surfaces outside the Hub
 
-Wallpaper, theme, the bar, the launcher, Controls, ryoshot, and Ask are outside
-the Hub. Reach them here:
+Wallpaper, theme, the dock, the active item's bar layout, the launcher,
+Controls, ryoshot, and Ask are outside the Hub. Reach them here:
 
 | Intent | GUI surface | How to open | The command behind it |
 |---|---|---|---|
 | Change wallpaper or theme | Wallpaper picker | Super+W | `ryogami wallpaper ui` (picker), `ryogami wallpaper set\|next\|random` |
-| Bar layout, widgets, dock | QS Bar Settings | `ryoku-shell bar settings [route]` | `ryoku-shell bar ...`, `ryoku-shell dock ...` (see bar.md) |
-| Launch an app | App launcher | Super+Space | the shell launcher (the App Launcher page tunes it) |
+| Pick the subshell or bar style | Ryoku Hub > Subshells or Bar Studio | `ryoku-shell hub open subshells`, `ryoku-shell hub open bar-studio` | `ryostore install <subshells\|barstyles> <id>`, then `ryoku-shell barstyle <id>` |
+| The active item's own settings (bar layout, modules, look) | Its settings window: Bar Studio > OPEN SETTINGS, or the item's own click (Orpheus: left-click its 力 logo) | only while that item is active | the call desktop.md lists for it, e.g. `qs -c shell ipc call orpheus settings ""`, `qs -c shell ipc call kairos settings`, `qs -c shell ipc call qsbar settings ""` |
+| QS Bar layout and widgets (while QS Bar is active) | QS Bar Settings | the bar's launcher mark, or `qs -c shell ipc call qsbar settings <route>` | `qs -c shell ipc call qsbar ...` (see bar.md) |
+| Dock | Stage Editor (Super+Shift+D), Dock section; Bar Studio > OPEN DOCK SETTINGS lands there too | `qs -c shell ipc call desktop editSection dock ""` | `ryoku-shell dock ...` (see bar.md) |
+| Launch an app | App launcher | Super+Space | the shell launcher (the App Launcher page tunes it and picks launchers installed items provide) |
 | System activity, connections, levels, and session actions | Controls (its look is picked in Hub > Overlays) | Super+Escape | `ryoku-shell quicksettings` |
 | Screenshots and recordings | ryoshot capture bar | Super+Shift+S | `ryoku-shell screenshot` |
 | Read-only answers, the persistent machine Agent, tools, and web search | Rashin bar | Alt+Space | `ryoku-shell ask`, `ryoku-shell ask chat`, `ryoku-shell ask tools`, `ryoku-shell compress`, `ryoku-shell install` |
 | Agent, Ask, plain Chat, vault, models, and Prowl controls | Rashin console | Super+Alt+Space | `rashin-app` (single-instance: a second press focuses it) |
 | Install or create a separate account profile | Ryostore > Profiles, then Ryoku Hub > Global > Users | open Ryostore, choose Profiles | `ryostore settings profiles <id>` hands off to the Hub's `users fromProfile` IPC |
 
-QS Bar Settings routes are `bars`, `layout`, `widgets`, `dock`, and `community`,
-so `ryoku-shell bar settings layout` opens straight to the layout lanes. The bar
-also carries a Wallpaper widget that opens the same picker. bar.md covers the bar
-and dock model in full.
+An item that is installed but not active is not loaded, so its settings window
+and IPC target do not exist; Bar Studio offers SWITCH NOW for it instead. QS Bar
+Settings routes are `bars`, `identity`, `layout`, `widgets`, `dock` and
+`community`; its Dock page hands off to the Stage Editor. bar.md covers
+subshells, bar styles and the dock in full.
 
 ## Compositor-gated pages
 

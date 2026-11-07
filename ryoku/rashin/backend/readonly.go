@@ -1983,11 +1983,6 @@ func roRyokuShell(args []string) (bool, string) {
 	switch rest[0] {
 	case "status":
 		return true, ""
-	case "bar":
-		if len(rest) >= 2 && (rest[1] == "list" || rest[1] == "catalog") {
-			return true, ""
-		}
-		return false, "`ryoku-shell bar` with that action changes the bar"
 	case "dock":
 		if len(rest) >= 2 && rest[1] == "list" {
 			return true, ""
@@ -2013,9 +2008,25 @@ func roQs(args []string) (bool, string) {
 		if a == "list" || a == "log" {
 			return true, ""
 		}
+		if a == "ipc" && roQsbarRead(args[i+1:]) {
+			return true, ""
+		}
 		return false, "`qs " + a + "` is not a read-only command"
 	}
 	return false, "`qs` needs the list or log subcommand"
+}
+
+// roQsbarRead admits the QS Bar item's query calls; every other call on its
+// IPC target edits the bar.
+func roQsbarRead(rest []string) bool {
+	if len(rest) != 3 || rest[0] != "call" || rest[1] != "qsbar" {
+		return false
+	}
+	switch rest[2] {
+	case "list", "catalog", "layout":
+		return true
+	}
+	return false
 }
 
 func roProwl(args []string) (bool, string) {

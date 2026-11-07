@@ -1,7 +1,7 @@
 # A feature that does not exist yet
 
 The user asks for something the desktop does not do: "add a crypto price applet
-to the QS Bar", "I want a clipboard history widget", "put a rainfall gauge on
+to the bar", "I want a clipboard history widget", "put a rainfall gauge on
 the desktop". The mistake is to start writing code. The right order is a ladder:
 check the store, check the machine, check the built-ins, and only then build.
 Each rung is one command, and each answer changes what you do next.
@@ -14,35 +14,43 @@ Each rung is one command, and each answer changes what you do next.
 ryostore catalog            # every category with counts and installedCount
 ```
 
-The catalog is one JSON document: categories (plugins, bar styles, rices,
-themes, lockscreens, widgets), each with an `installedCount`. Search its plugin
-and widget categories for the thing asked for. If it exists:
+The catalog is one JSON document: categories (plugins, subshells, bar styles,
+rices, themes, lockscreens, widgets), each with an `installedCount`. Search its
+plugin and widget categories for the thing asked for, and the subshells and bar
+styles when the ask is a whole bar or shell look
+(`ryostore catalog --category subshells`, `--category barstyles`). If it exists:
 
 ```bash
 ryostore install plugins <id>    # or the Hub: Add-ons page (Super+comma > Add-ons)
+ryostore install barstyles <id>  # a bar style; subshells the same way
 ```
 
 Say where it landed (the bar, the desktop, QS Bar Settings > Community) and
-stop. Never rebuild what the store delivers.
+stop. A subshell or bar style still needs selecting: Ryoku Hub > Bar Studio, or
+`ryoku-shell barstyle <id>`. Never rebuild what the store delivers.
 
 ### 2. Is it already on this machine, just hidden?
 
 ```bash
-ryoku-shell bar catalog      # every bar widget id, builtin or plugin, with settings
-ryoku-shell bar list         # the live bar, per section, with shown state
-ryoku plugin list            # installed plugins and their host and enabled state
+ryoku plugin list                    # installed plugins and their host and enabled state
+qs -c shell ipc call qsbar catalog   # QS Bar's widgets, builtin or plugin, with settings
+qs -c shell ipc call qsbar list      # QS Bar's live layout, per section, with shown state
 ```
 
-A widget that exists but is hidden needs `ryoku-shell bar show <id>`, not code.
-A plugin installed but not placed needs `ryoku plugin` or QS Bar Settings.
-Check before you build; half of "missing" features are switched off.
+The two `qsbar` calls answer only while QS Bar is the active bar style; under
+another item, check its own settings window (Orpheus: the Layout page lists its
+optional modules). A QS Bar widget that exists but is hidden needs
+`qs -c shell ipc call qsbar show <id>`, not code. A plugin installed but not
+placed needs `ryoku plugin` or QS Bar Settings. Check before you build; half of
+"missing" features are switched off.
 
 ### 3. Can the built-ins compose it?
 
-The bar's built-in set covers system state (cpu, memory, volume, battery,
-clock, workspaces, launcher, status, tray). Some asks decompose: a "system
-monitor applet" is three built-ins plus a panel. Read `bar.md` for the layout
-model and `plugins.md` for what a plugin can add on top.
+The active bar's built-in set covers system state (on QS Bar: cpu, memory,
+volume, battery, clock, workspaces, launcher, status; Orpheus has its own
+module list, tray included). Some asks decompose: a "system monitor applet" is three
+built-ins plus a panel. Read `bar.md` for the shell items and `plugins.md` for
+what a plugin can add on top.
 
 ### 4. Build it, as a plugin, the Ryoku way
 

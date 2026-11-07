@@ -1,146 +1,161 @@
-# The QS Bar and the dock
+# Bar styles, subshells and the dock
 
-The default Ryoku bar is **Orpheus** (`orpheus`): drops on the top edge with a
-voice in the middle for the time, music, notifications, and recordings. The
-Sound page's gain slider sets how much the bar reacts to music. Its Bar settings
-page picks a liquid or square form; the square one keeps crisp corners and shows
-sound as blocks. Left-click its 力 logo to open its settings, where the Layout
-page arranges its modules by drag and drop; right-click the logo for the
-launcher. Optional modules include coding-agent limits from the shared usage
-caches, a paired phone shortcut into Kit, and a VPN mark whose card switches
-Tailscale and NetworkManager VPN/WireGuard profiles; none is in the default
-layout.
-Its keys live under `orpheus` in `shell.json` and are listed in
-`docs/barstyles.md`. Pick another style with `ryoku-shell barstyle <id>`, for
-example `ryoku-shell barstyle qsbar`.
+One shell item draws the bar at a time, and `barStyle` in
+`~/.config/ryoku/shell.json` names it. There are two kinds:
 
-**QS Bar** (`qsbar`) remains a built-in choice. Its layout is data, not code: it
-lives in `~/.config/ryoku/shell.json` under `qsbar.layout`, and every built-in
-widget and every installed plugin is an entry in the same list. Drive it with
-`ryoku-shell bar ...`; the shell daemon is the only writer of `shell.json`, so
-never hand-edit the layout.
+- A **subshell** is a complete shell look: its bar plus its own panels, quick
+  settings and settings window.
+- A **bar style** is a bar design on Ryoku's own panels.
 
-The other shipped choices use their own models and are not covered here. Sumi
-is the monochrome frame rail, Kairos is a growing clock island, and Shima,
-Python, and Nomarchy are complete frame families.
+Ryoku ships two subshells, **Orpheus** (`orpheus`) and **Kairos** (`kairos`).
+The default rice wears Kairos, the Noc rice wears Orpheus, and Orpheus is the
+fallback whenever the selected item cannot load. Every other subshell and bar
+style (QS Bar, Shima, Sumi, Python, Nomarchy and the rest) is a Ryostore item
+the user installs when they want it.
 
-## The layout model
+An installed item that is not in use stays packed as
+`~/.local/share/ryoku/<category>/<id>/bundle.tar.gz` and costs nothing: no QML,
+timers or processes of it run. It is unpacked only while it is the active
+`barStyle` or one of its parts (a dock design, a launcher, a desktop widget set)
+is selected. That is also why an item's own IPC target, settings window and
+widgets exist only while it is active.
 
-```json
-"qsbar": {
-  "layout": {
-    "version": 1,
-    "left":   ["launcher", "workspaces", "status", "cpu", "volume", "memory", "ai"],
-    "center": ["clock"],
-    "right":  ["media", "quick", "network", "power", "battery", "brightness",
-               "cputemp", "storage", "gpu", "bluetooth", "layout"]
-  },
-  "widgets": { "status": true, "memory": true }
-}
-```
+## Picking one
 
-- An entry is a **widget id**: a built-in from the catalogue, or an installed
-  plugin's manifest id. Order within a section is the order on the bar.
-- **Placement and visibility are separate.** `qsbar.layout` holds only order and
-  section. Whether a built-in renders is `qsbar.widgets[<visKey>]` (a widget with
-  no visibility key is always shown). A plugin renders when
-  `~/.config/ryoku/plugins.json` has it `enabled` with `host: "topbarGlyph"`.
-  `ryoku-shell bar list` reports both as one `shown` flag, so you never have to
-  know which store answers.
-- Every id appears at most once. A known widget missing from the layout is
-  appended to `right` (or to its manifest's `defaults.bar.section`). Duplicates
-  are dropped.
-- Presentation keys keep their own homes and are not placement: `qsbar.barSeps`
-  (separators), `qsbar.iconOnlyGids` (density), `qsbar.widgetColorStyles`
-  (per-widget colour), and the bar-shell keys `barPosition`, `barShellStyle`,
-  `barScale`, `barCornerRadius`, `barBorderEnabled`, `barFrostEnabled`,
-  `barShadowEnabled`, `barAutoHide`, `barAnim`, `barGap*`.
+GUI first:
 
-## The catalogue
+- **Ryoku Hub > Subshells** (`ryoku-shell hub open subshells`) lists complete
+  shells.
+- **Ryoku Hub > Bar Studio** (`ryoku-shell hub open bar-studio`) lists subshells
+  and bar styles together.
 
-One file names every built-in widget: its id, its `G1..G19` internal slot, label,
-gloss, category, description, visibility key, and its own settings. The shell, the
-settings panel, the `ryoku-shell bar` CLI, and Rashin all read it, so nothing
-hand-lists widgets. It ships at
-`~/.config/quickshell/shell/modules/bar/barstyles/qsbar/core/widgets.json`.
+Both galleries show the shipped and installed items from the shells index and
+the catalogue items from Ryostore. A card marked SUBSHELL is a complete shell,
+and ▲ marks an item that uses more resources than the others. Clicking an
+installed card selects it; clicking one that is not installed opens Ryostore,
+where INSTALL fetches it and APPLY wears it. The desktop switches when the user
+leaves the page or closes the Hub, or right away with SWITCH NOW; the shell
+restarts under the reload cover.
 
-The eighteen shipped ids and their visibility keys (a blank key means always
-shown):
+Below the gallery, Bar Studio shows the selected item with OPEN SETTINGS (its own
+settings window, only once it is running), a PARTS FROM ITEMS card for the dock
+designs, launchers and desktop widget sets that installed items provide
+(CHOOSE hands off to the Stage Editor or the App Launcher page), and the
+built-in editors some bar styles use (Sumi's frame and rails, Obi's widgets,
+Nacre's layout).
 
-| id | label | visibility key (`qsbar.widgets.*`) |
-|---|---|---|
-| launcher | Launcher | (always) |
-| workspaces | Workspaces | (always) |
-| status | Status | status |
-| memory | Memory | memory |
-| cpu | CPU | cpu |
-| volume | Volume | volume |
-| ai | AI usage | claude |
-| clock | Clock | (always) |
-| media | Now playing | mpris |
-| quick | Quick | quick |
-| network | Network | network |
-| battery | Battery | battery |
-| brightness | Brightness | brightness |
-| power | Power | power |
-| bluetooth | Bluetooth | bluetooth |
-| cputemp | CPU temperature | cpuTemperature |
-| gpu | GPU | gpu |
-| storage | Storage | storage |
-| layout | Keyboard layout | layout |
-
-Run `ryoku-shell bar catalog` for the live list including each widget's own
-settings (and any installed plugins that ride the bar).
-
-## The bar CLI
-
-Every verb goes through the daemon's settings store; a bad id, key, or value is
-an error (`err bar: <reason>`), never a silent write.
-
-```
-bar list [--json]                 every widget: id, label, kind, section, index, shown
-bar catalog [--json]              built-ins and installed bar-capable plugins, with settings
-bar move <id> --section <s> [--index N | --before <id> | --after <id>]
-bar show <id> | bar hide <id>     toggle visibility, keeping placement
-bar set <id> <key> <value>        a catalogue setting (built-in) or a manifest setting (plugin)
-bar position top|bottom
-bar form full|fit|dock|notch|islands
-bar defaults                      shipped layout and visibility; presentation keys untouched
-bar settings [route]              open QS Bar Settings on the active monitor
-```
-
-`--json` shapes:
-
-- `bar list --json`: `[{"id","label","kind","section","index","shown"}]`, where
-  `kind` is `"builtin"` or `"plugin"` and `section` is `left|center|right`.
-- `bar catalog --json`: the merged catalogue, `{"id","label","gloss","category",
-  "desc","kind","settings":[...],"pluginDir"}` per widget, plus `{"hosts":[...]}`
-  for plugins.
-
-Examples:
+From a terminal:
 
 ```bash
-ryoku-shell bar move clock --section right --index 0
-ryoku-shell bar hide gpu
-ryoku-shell bar set cputemp barTemperatureSource gpu
-ryoku-shell bar set volume audioBoost true
-ryoku-shell bar position bottom
-ryoku-shell bar form islands
-ryoku-shell bar list --json
+ryostore catalog --category subshells     # shipped and store subshells
+ryostore catalog --category barstyles     # store bar styles
+ryostore install barstyles qsbar          # fetch one; it stays packed until used
+ryoku-shell barstyle qsbar                # select it and restart the shell on it
+ryostore remove barstyles qsbar           # remove it; a selection of it falls back to Orpheus
 ```
 
-## The dock CLI
+`ryoku-shell barstyle <id>` sets `barStyle` and commits. It does not install, so
+install a store item first. `ryoku-shell shells commit` applies a selection that
+was already written (the Hub runs it when you leave the page) and
+`ryoku-shell shells sync` rewrites the shells index. Orpheus and Kairos ship with
+Ryoku and cannot be removed.
+
+When a selected item is missing (a restored config, a rice that names a store
+item), `ryoku doctor` installs it when the catalogue offers it and otherwise
+falls back to Orpheus.
+
+## What the active item can take over
+
+An item may draw some of Ryoku's surfaces itself while it is active: the
+notification banners, the OSD, the polkit prompt, the dock, the desktop widgets,
+and the window close. The window close bind (Super+Q) asks the active item
+first only when it owns that; otherwise it closes the window directly. Switch
+away and Ryoku's own surfaces come back. An item can tie one of these to its own
+setting, so the user can hand a surface back to Ryoku without switching.
+
+## Orpheus
+
+Orpheus drops on the top edge with a voice in the middle for the time, music,
+notifications and recordings. Its Sound page's gain slider sets how much the bar
+reacts to music. Its Bar page picks a liquid or square form; the square one
+keeps crisp corners and shows sound as blocks. Left-click its 力 logo to open its
+settings, where the Layout page arranges its modules by drag and drop;
+right-click the logo for the launcher. Optional modules include coding-agent
+limits from the shared usage caches, a paired phone shortcut into Kit, and a VPN
+mark whose card switches Tailscale and NetworkManager VPN/WireGuard profiles;
+none is in the default layout. Its keys live under `orpheus` in `shell.json` and
+are listed in `docs/subshells.md`.
+
+While Orpheus is active its settings window also opens with
+`qs -c shell ipc call orpheus settings ""`.
+
+## Kairos
+
+Kairos keeps a compact clock island at rest and grows it into music, quick
+settings and its own launcher. While it is active its settings open with
+`qs -c shell ipc call kairos settings`. Its launcher is a part: pick it on Ryoku
+Hub > App Launcher.
+
+## QS Bar
+
+QS Bar (`qsbar`) is a store bar style (`ryostore install barstyles qsbar`). While
+it is active its layout is data in `shell.json` under `qsbar.layout` (ordered id
+lists for left, center and right), it carries **QS Bar Settings** (the bar's
+launcher mark opens it), and it answers on its own IPC target `qsbar`. Nothing of
+this exists while another item is active, and there is no `ryoku-shell bar`
+command any more.
 
 ```
-dock show | dock hide
-dock edge auto|top|bottom|left|right
-dock autohide on|off
-dock pin <app-id> | dock unpin <app-id>
-dock list [--json]
+qs -c shell ipc call qsbar list | catalog | layout
+qs -c shell ipc call qsbar move <id> <left|center|right> <placement>
+qs -c shell ipc call qsbar show <id> | hide <id> | set <id> <key> <value>
+qs -c shell ipc call qsbar position top|bottom | form full|fit|dock|notch|islands | defaults
+qs -c shell ipc call qsbar settings <route>
 ```
 
-`dock list --json`: `{"enabled","edge","autohide","pinned":[...]}`. Dock state
-lives under the `dock` object in `shell.json`.
+Pass every argument. A placement is `""` (the end), a 0-based index,
+`before:<id>` or `after:<id>`. `settings ""` opens QS Bar Settings, a route
+(`bars`, `identity`, `layout`, `widgets`, `dock`, `community`) opens that page,
+and `settings close` closes it. Writes answer `ok` or `err qsbar: <reason>`;
+`list`, `catalog` and `layout` answer JSON. `launcher`, `workspaces` and `clock`
+are always shown, so `show` and `hide` refuse them.
+
+```bash
+qs -c shell ipc call qsbar move clock right 0
+qs -c shell ipc call qsbar hide gpu
+qs -c shell ipc call qsbar set cputemp barTemperatureSource gpu
+qs -c shell ipc call qsbar position bottom
+qs -c shell ipc call qsbar form islands
+```
+
+Volume boost is platform policy at `audio.boost` in `shell.json`, shared by every
+bar; the QS Bar volume widget's `audioBoost` setting writes it. The doctor moves
+an old `qsbar.audioBoost` there.
+
+QS Bar is also the bar that hosts bar plugins (host `topbarGlyph`). A bar plugin
+shows on the bar and under QS Bar Settings > Community only while QS Bar is
+active. The full widget table and every call are in the item's README
+(`barstyles/qsbar/README.md` in the `Ryoku-dev/ryostore-revamped` catalogue).
+
+## The dock
+
+Ryoku's own dock is platform: it works under every subshell and bar style,
+unless the active item draws its own. Its GUI is the **Stage Editor**
+(Super+Shift+D, then its Dock section), also reached from Ryoku Hub > Bar
+Studio > OPEN DOCK SETTINGS or straight with
+`qs -c shell ipc call desktop editSection dock ""`. Installed items can add dock
+designs; they show under PARTS FROM ITEMS and in the Stage Editor.
+
+```
+ryoku-shell dock show | dock hide
+ryoku-shell dock edge auto|top|bottom|left|right
+ryoku-shell dock autohide on|off
+ryoku-shell dock pin <app-id> | dock unpin <app-id>
+ryoku-shell dock list [--json]
+```
+
+`dock list --json` returns the `dock` object from `shell.json`. A bad verb or
+value answers `err dock: <reason>`.
 
 ```bash
 ryoku-shell dock pin org.mozilla.firefox
@@ -148,15 +163,5 @@ ryoku-shell dock edge bottom
 ryoku-shell dock autohide on
 ```
 
-## Opening the settings panel
-
-The bar and the dock have their own GUI, **QS Bar Settings**, not a Ryoku Hub
-page; name it when a user asks how to change the bar from the desktop.
-
-`ryoku-shell bar settings [route]` raises **QS Bar Settings** on the active
-monitor (routes: `bars`, `layout`, `widgets`, `dock`, `community`). It is the
-same panel the bar's launcher mark opens; Escape closes it. Layout lists the
-three lanes side by side; a move there and a `bar move` from a terminal reach
-the same `qsbar.layout`. Community lists every installed bar plugin that is not
-Ryoku's own (a manifest without `"official": true`), with its author and a
-REMOVE action; a plugin you write for the user lands there.
+The shell daemon is the only writer of `shell.json`; change these through the
+GUI or the commands above, never by editing the file.

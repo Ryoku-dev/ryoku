@@ -7,50 +7,45 @@ import (
 	"testing"
 )
 
-// barTestEnv points the catalogue reader at a temp checkout carrying widgets.json
-// and neutralises PATH so the section never queries a live daemon.
-func barTestEnv(t *testing.T, catalogue string) {
+// barTestEnv points the shells index at a temp state home and neutralises PATH
+// so the section never queries a live shell.
+func barTestEnv(t *testing.T, shells string) {
 	t.Helper()
 	h := t.TempDir()
 	t.Setenv("HOME", h)
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config")) // no live config
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(h, ".local", "state"))
-	// no packaged base: on an installed box /usr/share/ryoku/config would
-	// shadow the temp catalogue (and defeat the missing-catalogue case).
-	t.Setenv("RYOKU_CONFIG_BASE", filepath.Join(h, "usr-share-absent"))
-	t.Setenv("PATH", "") // loadPluginWidgets finds no ryoku-shell
-	if catalogue == "" {
-		t.Setenv("RYOKU_RASHIN_REPO", "")
+	t.Setenv("PATH", "") // loadQsbarCatalog finds no qs
+	if shells == "" {
 		return
 	}
-	repo := t.TempDir()
-	dir := filepath.Join(repo, "ryoku", "shell", "quickshell", "shell",
-		"modules", "bar", "barstyles", "qsbar", "core")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	path := shellsIndexPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "widgets.json"), []byte(catalogue), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(shells), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("RYOKU_RASHIN_REPO", repo)
 }
 
-func TestBarSectionFromCatalogueFile(t *testing.T) {
-	barTestEnv(t, `[
-	  {"id":"launcher","gid":"G1","label":"Launcher","gloss":"kido","settings":[{"key":"launcherLogoMode","type":"choice"}]},
-	  {"id":"status","gid":"G3","label":"Status","visKey":"status","desc":"x"},
-	  {"id":"clock","gid":"G8","label":"Clock"}
-	]`)
+func TestBarSectionListsShellsAndCommands(t *testing.T) {
+	barTestEnv(t, `{"schema":1,"active":"orpheus","fallback":"orpheus","items":[
+	  {"id":"orpheus","category":"subshells","source":"shipped","name":"Orpheus",
+	   "settings":{"ipc":"orpheus","call":"settings","args":[]}},
+	  {"id":"qsbar","category":"barstyles","source":"store","name":"QS Bar",
+	   "settings":{"ipc":"qsbar","call":"settings","args":[""]}}
+	]}`)
 	body := barSectionBody()
 	for _, want := range []string{
 		vaultBarFenceBegin,
 		vaultBarFenceEnd,
 		"## Bar and dock",
-		"| id | label | visibility key | settings keys |",
-		"| launcher | Launcher | (always) | launcherLogoMode |",
-		"| status | Status | status | (none) |",
-		"| clock | Clock | (always) | (none) |",
-		"ryoku-shell bar move clock --section right",
+		"| orpheus | Orpheus | subshells | shipped | yes | `qs -c shell ipc call orpheus settings` |",
+		"| qsbar | QS Bar | barstyles | store | no | `qs -c shell ipc call qsbar settings \"\"` |",
+		"ryoku-shell barstyle <id>",
+		"qs -c shell ipc call qsbar move <id> <left|center|right> <placement>",
+		"ryoku-shell dock show|hide",
+		"QS Bar is not the active bar style",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("bar section missing %q\n---\n%s", want, body)
@@ -58,14 +53,14 @@ func TestBarSectionFromCatalogueFile(t *testing.T) {
 	}
 }
 
-func TestBarSectionDegradesWithoutCatalogue(t *testing.T) {
+func TestBarSectionDegradesWithoutShellsIndex(t *testing.T) {
 	barTestEnv(t, "")
 	body := barSectionBody()
 	if !strings.Contains(body, vaultBarFenceBegin) || !strings.Contains(body, "## Bar and dock") {
 		t.Fatal("section should still render its heading and fence")
 	}
-	if !strings.Contains(body, "widget catalogue not found") {
-		t.Fatalf("section should note the missing catalogue:\n%s", body)
+	if !strings.Contains(body, "shells index not found") {
+		t.Fatalf("section should note the missing shells index:\n%s", body)
 	}
 }
 

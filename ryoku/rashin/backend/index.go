@@ -174,12 +174,13 @@ func actingBody() string {
 	var b strings.Builder
 	b.WriteString("## Acting on this desktop\n\n")
 	b.WriteString("Answer a \"how do I\" question GUI-first: when the change has a GUI path (a\n")
-	b.WriteString("Ryoku Hub page, the wallpaper/theme picker, or QS Bar Settings; see the GUI\n")
-	b.WriteString("map below), name that path first with its keybind, then give the command as\n")
-	b.WriteString("the headless fallback. You still act through commands (`ryoku`, `ryoku-shell`,\n")
-	b.WriteString("`ryoku-hub`, `ryogami`, `ryoku wm act`), never by editing shipped files. The\n")
+	b.WriteString("Ryoku Hub page, the wallpaper/theme picker, or the active bar style's settings;\n")
+	b.WriteString("see the GUI map below), name that path first with its keybind, then give the\n")
+	b.WriteString("command as the headless fallback. You still act through commands (`ryoku`,\n")
+	b.WriteString("`ryoku-shell`, `ryoku-hub`, `ryogami`, `ryoku wm act`), never by editing\n")
+	b.WriteString("shipped files. The\n")
 	b.WriteString("`ryoku` skill is the contract for that: `SKILL.md` (rules and the command\n")
-	b.WriteString("catalogue), `gui.md` (the GUI map), `bar.md` (the QS Bar model), `plugins.md`\n")
+	b.WriteString("catalogue), `gui.md` (the GUI map), `bar.md` (bar styles and the dock), `plugins.md`\n")
 	b.WriteString("(how a new widget is written and installed), `feature.md` (the ladder:\n")
 	b.WriteString("check the store, then the machine, then build).\n")
 	if d := skillSourceDir(); d != "" {
@@ -220,9 +221,10 @@ var guiSections = []struct{ name, key string }{
 	{"Rashin", "rashin"},
 }
 
-// guiMapBody renders the GUI-first map: the wallpaper/theme picker, QS Bar
-// Settings, the app launcher, and every routinely-used Ryoku Hub page with its
-// deep link, so an agent names the GUI path before the command behind it.
+// guiMapBody renders the GUI-first map: the wallpaper/theme picker, the bar
+// style switch and its settings, the app launcher, and every routinely-used
+// Ryoku Hub page with its deep link, so an agent names the GUI path before the
+// command behind it.
 func guiMapBody() string {
 	var b strings.Builder
 	b.WriteString("## GUI map\n\n")
@@ -231,7 +233,9 @@ func guiMapBody() string {
 	b.WriteString("window manager cannot back them, so a row here may not appear on every box.\n\n")
 	b.WriteString("| Want to change | Open | Deep link | Command behind it |\n|---|---|---|---|\n")
 	b.WriteString("| Wallpaper or theme | Wallpaper picker (Super+W), or the bar Wallpaper widget | - | `ryogami wallpaper ui` |\n")
-	b.WriteString("| Bar or dock layout | QS Bar Settings | - | `ryoku-shell bar settings` |\n")
+	b.WriteString("| Subshell or bar style | Ryoku Hub: Bar Studio | `ryoku-shell hub open bar-studio` | `ryoku-shell barstyle <id>` |\n")
+	b.WriteString("| QS Bar layout (while QS Bar is active) | QS Bar Settings | - | `qs -c shell ipc call qsbar settings \"\"` |\n")
+	b.WriteString("| Dock | Stage Editor (Super+Shift+D), Dock section | `qs -c shell ipc call desktop editSection dock \"\"` | `ryoku-shell dock list` |\n")
 	b.WriteString("| Launch an app | App launcher (Super+Space) | - | - |\n")
 	for _, s := range guiSections {
 		fmt.Fprintf(&b, "| Ryoku Hub: %s | Super+comma | `ryoku-shell hub open %s` | - |\n", s.name, s.key)
@@ -275,168 +279,6 @@ func desktopBody() string {
 		b.WriteString("\n(no Ryoku packages installed; likely a dev checkout)\n")
 	}
 	b.WriteString(barSectionBody())
-	return b.String()
-}
-
-// ---- the QS Bar catalogue ---------------------------------------------------
-
-// barWidget mirrors one entry of the qsbar widget catalogue (widgets.json) and
-// the plugin rows `ryoku-shell bar catalog --json` adds. Only id and label are
-// guaranteed; a reader tolerates a widget that omits visKey or settings.
-type barWidget struct {
-	ID       string       `json:"id"`
-	Label    string       `json:"label"`
-	VisKey   string       `json:"visKey"`
-	Kind     string       `json:"kind"`
-	Hosts    []string     `json:"hosts"`
-	Settings []barSetting `json:"settings"`
-}
-
-type barSetting struct {
-	Key string `json:"key"`
-}
-
-// barCatalogFile resolves the shipped widgets.json: the live config first, then
-// the packaged base, then the dev checkout the deploy recorded. Returns "" when
-// none exists.
-func barCatalogFile() string {
-	const rel = "quickshell/shell/modules/bar/barstyles/qsbar/core/widgets.json"
-	cands := []string{
-		filepath.Join(configHome(), rel),
-		filepath.Join(baseConfigDir(), rel),
-	}
-	if repo := recordedCheckout(); repo != "" {
-		cands = append(cands, filepath.Join(repo, "ryoku", "shell", rel))
-	}
-	for _, p := range cands {
-		if fileExists(p) {
-			return p
-		}
-	}
-	return ""
-}
-
-// loadBuiltinWidgets reads the built-in widget catalogue. It stays the source of
-// the visibility key the daemon's JSON omits, so built-ins always come from the
-// file. Returns (nil, "") when the file is absent or unparseable.
-func loadBuiltinWidgets() ([]barWidget, string) {
-	path := barCatalogFile()
-	if path == "" {
-		return nil, ""
-	}
-	var ws []barWidget
-	if json.Unmarshal([]byte(readFileOrEmpty(path)), &ws) != nil {
-		return nil, ""
-	}
-	return ws, path
-}
-
-// loadPluginWidgets asks the daemon for installed bar-capable plugins. Without a
-// running daemon (or its bar CLI) it returns nil, so the section degrades to
-// built-ins only. The query is read-only.
-func loadPluginWidgets() []barWidget {
-	out, ok := probe(5, "ryoku-shell", "bar", "catalog", "--json")
-	if !ok {
-		return nil
-	}
-	var all []barWidget
-	if json.Unmarshal([]byte(out), &all) != nil {
-		return nil
-	}
-	var plugins []barWidget
-	for _, w := range all {
-		if w.Kind == "plugin" {
-			plugins = append(plugins, w)
-		}
-	}
-	return plugins
-}
-
-// settingKeys joins a catalogue widget's setting keys for the id table.
-func settingKeys(rows []barSetting) string {
-	keys := make([]string, 0, len(rows))
-	for _, r := range rows {
-		if r.Key != "" {
-			keys = append(keys, r.Key)
-		}
-	}
-	if len(keys) == 0 {
-		return "(none)"
-	}
-	return strings.Join(keys, ", ")
-}
-
-// barSectionBody renders the desktop map's fenced "Bar and dock" section:
-// built-ins from widgets.json (authoritative for the visibility key) and, when
-// the daemon answers, the installed bar plugins. It is fenced with its own
-// markers so the guide can be located and regenerated on its own.
-func barSectionBody() string {
-	var b strings.Builder
-	b.WriteString("\n## Bar and dock\n\n")
-	b.WriteString(vaultBarFenceBegin + "\n")
-	b.WriteString("The default bar is QS Bar (`qsbar`). Its layout is data in\n")
-	b.WriteString("`~/.config/ryoku/shell.json` under `qsbar.layout`:\n\n")
-	b.WriteString("```json\n")
-	b.WriteString("\"qsbar\": { \"layout\": { \"version\": 1,\n")
-	b.WriteString("  \"left\": [ids], \"center\": [ids], \"right\": [ids] } }\n")
-	b.WriteString("```\n\n")
-	b.WriteString("An entry is a widget id (a built-in below, or an installed plugin's id).\n")
-	b.WriteString("Placement and visibility are separate: a built-in renders when\n")
-	b.WriteString("`qsbar.widgets[<key>]` is true (a blank key is always shown); a plugin when\n")
-	b.WriteString("`~/.config/ryoku/plugins.json` has it `enabled` with `host: \"topbarGlyph\"`.\n")
-	b.WriteString("The shell daemon is the only writer of `shell.json`; change the bar with\n")
-	b.WriteString("`ryoku-shell bar ...`, never by editing the file.\n\n")
-
-	builtins, src := loadBuiltinWidgets()
-	b.WriteString("### Built-in widgets\n\n")
-	if len(builtins) == 0 {
-		b.WriteString("(widget catalogue not found; deploy or install the shell to populate it)\n\n")
-	} else {
-		b.WriteString("| id | label | visibility key | settings keys |\n|---|---|---|---|\n")
-		for _, w := range builtins {
-			vis := w.VisKey
-			if vis == "" {
-				vis = "(always)"
-			}
-			fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", w.ID, mdCell(w.Label), mdCell(vis), mdCell(settingKeys(w.Settings)))
-		}
-		fmt.Fprintf(&b, "\nSource: `%s`.\n\n", tildeAbbrev(src))
-	}
-
-	if plugins := loadPluginWidgets(); len(plugins) > 0 {
-		b.WriteString("### Installed bar plugins\n\n")
-		b.WriteString("| id | label | hosts | settings keys |\n|---|---|---|---|\n")
-		for _, w := range plugins {
-			fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", w.ID, mdCell(w.Label), mdCell(strings.Join(w.Hosts, ", ")), mdCell(settingKeys(w.Settings)))
-		}
-		b.WriteString("\n")
-	}
-
-	b.WriteString("### Commands\n\n")
-	b.WriteString("```\n")
-	b.WriteString("bar list [--json] | catalog [--json]\n")
-	b.WriteString("bar move <id> --section left|center|right [--index N | --before <id> | --after <id>]\n")
-	b.WriteString("bar show <id> | hide <id> | set <id> <key> <value>\n")
-	b.WriteString("bar position top|bottom | form full|fit|dock|notch|islands | defaults | settings [route]\n")
-	b.WriteString("dock show|hide | edge auto|top|bottom|left|right | autohide on|off | pin <app>|unpin <app> | list [--json]\n")
-	b.WriteString("```\n\n")
-	b.WriteString("Run these through `ryoku-shell` (e.g. `ryoku-shell bar move clock --section right`).\n")
-	b.WriteString("Installed plugins live in `~/.local/share/ryoku/plugins/<id>/`; their bar\n")
-	b.WriteString("placement and settings persist in `~/.config/ryoku/plugins.json`.\n\n")
-	b.WriteString("### Adding a widget\n\n")
-	b.WriteString("A widget that is not in the table above is a plugin, never an edit to the\n")
-	b.WriteString("shipped QML under `~/.config/quickshell/` or `/usr/share/ryoku/`. Read the\n")
-	b.WriteString("`ryoku` skill's `plugins.md` for the contract (manifest.json, service/Main.qml,\n")
-	b.WriteString("content/Widget.qml, host `topbarGlyph`), write it in its own directory, then:\n\n")
-	b.WriteString("```\n")
-	b.WriteString("ryoku plugin validate <dir>\n")
-	b.WriteString("ryoku plugin add <dir-or-git-url> --bar --yes\n")
-	b.WriteString("```\n\n")
-	b.WriteString("It lands on the bar and under QS Bar Settings > Community (`ryoku-shell bar\n")
-	b.WriteString("settings community`); `ryoku plugin remove <id>` takes it off again, and\n")
-	b.WriteString("`ryoku plugin share <id>` (only when the user asks to publish) opens the\n")
-	b.WriteString("Ryostore pull request that lists it for everyone.\n")
-	b.WriteString(vaultBarFenceEnd + "\n")
 	return b.String()
 }
 

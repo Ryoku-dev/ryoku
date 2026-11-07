@@ -35,7 +35,7 @@ const PointerBlock = pointerBegin + "\n" +
 	"seam, building the Ryoku way, and the command catalogue) is wired into this\n" +
 	"agent's skills directory; read it before customising the desktop, and cite the\n" +
 	"vault's `wiki/` pages to someone new. Answer a desktop \"how do I\" question\n" +
-	"GUI-first: name the Ryoku Hub page, shell picker, or QS Bar Settings before\n" +
+	"GUI-first: name the Ryoku Hub page, shell picker, or the active bar style's settings before\n" +
 	"naming any command.\n" +
 	pointerEnd
 

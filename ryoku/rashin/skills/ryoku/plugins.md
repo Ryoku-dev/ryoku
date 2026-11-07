@@ -21,7 +21,9 @@ plugin's code to install it.
 ```
 
 Installed plugins live at `~/.local/share/ryoku/plugins/<id>/` (receipt-owned;
-never author there). The three hosts are `topbarGlyph` (a mark on the QS Bar),
+never author there). The three hosts are `topbarGlyph` (a mark on a bar that
+hosts bar plugins, today the store bar styles QS Bar and Karuma; it shows only
+while one of them is active),
 `desktopWidget` (a tile on the wallpaper), and `framePopout` (a surface that
 grows from a screen edge, or floats centred).
 
@@ -38,7 +40,8 @@ grows from a screen edge, or floats centred).
   `content/Widget.qml`; optional `content/Panel.qml`; `README.md`; `LICENSE`;
   `assets/preview-widget.png` (a real capture); scripts only under `bin/` with a
   shebang and the exec bit. List every extra file in manifest `files`.
-- **R3 Id.** Lowercase `[a-z0-9][a-z0-9-]*`, unique, not a built-in widget id.
+- **R3 Id.** Lowercase `[a-z0-9][a-z0-9-]*`, unique, not a QS Bar built-in
+  widget id (checked when QS Bar is installed and unpacked).
 - **R4 Imports.** Only `QtQuick*`, `Quickshell*`, `Ryoku.PluginKit`,
   `Ryoku.PluginKit.Singletons`, and files inside the plugin folder. Never
   `shell.*`, `Ryoku.Ui*` internals, or a relative import that climbs out.
@@ -87,7 +90,8 @@ ryoku plugin share <id>
    through Ryostore's transaction, and enables it on the bar; the shell picks it
    up on the `plugins.json` change, no restart. `add` refuses blocking findings
    unless you pass `--allow-findings`.
-5. **Verify.** Confirm it on the bar and under QS Bar Settings > Community.
+5. **Verify.** With QS Bar active, confirm it on the bar and under QS Bar
+   Settings > Community.
 6. **Share.** `ryoku plugin share <id>` opens the Ryostore pull request. Run it
    only when the user asks to publish (see below).
 
@@ -183,7 +187,7 @@ ryoku plugin validate ~/Documents/ryoku-plugins/vpn
 ryoku plugin add ~/Documents/ryoku-plugins/vpn --bar --yes
 ```
 
-Then tell the user it is on the bar and under QS Bar Settings > Community, and
+Then tell the user it is on the bar (while QS Bar is active) and under QS Bar Settings > Community, and
 stop. Do not run `ryoku plugin share vpn` unless they ask to publish. The VPN
 plugin already in Ryostore is the reference safe bar plugin: a glyph that only
 reads state, a panel that acts on an explicit click, `pkexec` declared in
@@ -192,9 +196,9 @@ reads state, a panel that acts on an explicit click, `pkexec` declared in
 
 ## Ryostore
 
-Ryostore is the curated distribution front for plugins, bar styles, and rices;
-community plugins (not `"official": true`) list under a warning that Ryoku does
-not review or maintain them. Git and a local folder remain the open door for
+Ryostore is the curated distribution front for plugins, subshells, bar styles,
+and rices; community plugins (not `"official": true`) list under a warning that
+Ryoku does not review or maintain them. Git and a local folder remain the open door for
 anything not in the store. `ryoku plugin share <id>` is how a widget made here
 gets listed there. See `docs/plugins.md` in the Ryoku source for the full
 authoring contract.

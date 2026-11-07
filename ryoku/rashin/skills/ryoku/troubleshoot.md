@@ -48,6 +48,11 @@ writer and where the change belongs. Then:
 - If a Ryoku setting is wrong, drive it through its command or GUI (the tool that
   owns it is the one writer): `ryoku-shell` for the bar and dock, `ryogami` for
   wallpaper and colours, Ryoku Settings for the rest.
+- If the bar is gone or a different one came up, check which item is selected
+  (desktop.md's "Bar and dock" section). A selected subshell or bar style that
+  is not installed, or that failed to load, falls back to Orpheus; `ryoku doctor`
+  installs a missing selected item when Ryostore offers it and otherwise moves
+  the selection back to Orpheus, then restarts the shell on it.
 - If it is a real config edit, put it in the tool's own user file (the
   compositor's `user.*` file, `kitty/user.conf`, `fish/user.fish`; `ryoku owner`
   names it) or a fork under `~/.config/ryoku/user_edits/`, never in a shipped file.

@@ -68,9 +68,10 @@ const AgentsTemplate = "# Ryoku system vault\n" +
 	"`desktop.md` names its path and carries the GUI map): answer \"how do I\" GUI-\n" +
 	"first, act through commands, never edit shipped files. When the ask is a\n" +
 	"feature the desktop does not have, climb the ladder in the skill's\n" +
-	"`feature.md` before writing code: `ryostore catalog`, then\n" +
-	"`ryoku-shell bar catalog`, then `ryoku plugin list`, then build a plugin per\n" +
-	"`plugins.md`. Never rebuild what the store or a hidden built-in already ships.\n" +
+	"`feature.md` before writing code: `ryostore catalog`, then the active bar\n" +
+	"style's own widget list (QS Bar: `qs -c shell ipc call qsbar catalog`), then\n" +
+	"`ryoku plugin list`, then build a plugin per `plugins.md`. Never rebuild what\n" +
+	"the store or a hidden built-in already ships.\n" +
 	"\n" +
 	"## What is here\n" +
 	"\n" +
@@ -110,8 +111,9 @@ const AgentsTemplate = "# Ryoku system vault\n" +
 	"  `rashin:generated` markers is overwritten on every reindex; edits there are\n" +
 	"  lost. Write anything durable to `memory/` or `journal/` instead.\n" +
 	"- Answer a \"how do I\" desktop question GUI-first: name the Ryoku Hub page,\n" +
-	"  shell picker, or QS Bar Settings from desktop.md's GUI map (and the `ryoku`\n" +
-	"  skill's `gui.md`) before the command behind it. You still act through commands.\n" +
+	"  shell picker, or the active bar style's settings from desktop.md's GUI map\n" +
+	"  (and the `ryoku` skill's `gui.md`) before the command behind it. You still act\n" +
+	"  through commands.\n" +
 	"- Changes listed in `user.md` are the user's own; never revert them to\n" +
 	"  shipped defaults without being asked.\n" +
 	"- This file's generated body is refreshed on every reindex; add your own prose\n" +

@@ -4,8 +4,9 @@ Do not begin with code. Read [`feature.md`](feature.md) and climb its ladder in
 order:
 
 1. Search Ryostore with `ryostore catalog`.
-2. Check this machine with `ryoku-shell bar catalog`, `ryoku-shell bar list`, and
-   `ryoku plugin list`.
+2. Check this machine with `ryoku plugin list` and the active bar's own widget
+   list (QS Bar: `qs -c shell ipc call qsbar catalog` and `... qsbar list`, only
+   while QS Bar is active).
 3. See whether existing built-ins compose the result.
 4. Only then build a shell plugin.
 
@@ -56,8 +57,9 @@ ryoku plugin list
 
 `add` validates again, installs through Ryostore's receipt transaction, and
 updates placement. The shell watches `plugins.json`, so an installed change
-appears without a shell restart. Confirm the glyph on the bar, open its panel,
-and inspect it under QS Bar Settings > Community. Test every host listed in the
+appears without a shell restart. Bar plugins (`topbarGlyph`) draw on QS Bar (and Karuma), so
+with QS Bar active confirm the glyph on the bar, open its panel, and inspect it
+under QS Bar Settings > Community. Test every host listed in the
 manifest and every density it declares. Capture
 `assets/preview-widget.png` from the real surface. Run `ryoku plugin share` only
 when the user explicitly asks to publish.
