@@ -9,7 +9,7 @@ Singleton {
     id: root
 
     readonly property bool active: VizCfg.Config.enabled && Perf.visualizerResident
-        && VizCfg.Config.anyLine && (!Perf.visualizerFrozen || VizCfg.Spectrum.placementHolds > 0)
+        && VizCfg.Config.anyLine && (!Perf.visualizerFrozen || (VizCfg.Spectrum.placementHolds > 0 && !Perf.dark))
     readonly property list<real> samples: capture.samples
     readonly property bool running: capture.running
     readonly property bool silent: capture.silent

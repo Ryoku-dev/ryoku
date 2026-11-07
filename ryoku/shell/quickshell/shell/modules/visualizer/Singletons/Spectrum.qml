@@ -14,7 +14,7 @@ Singleton {
     property int placementHolds: 0
 
     readonly property bool analysing: root.active
-        && (!Perf.visualizerFrozen || root.placementHolds > 0)
+        && (!Perf.visualizerFrozen || (root.placementHolds > 0 && !Perf.dark))
     readonly property list<real> levels: feed.levels
     readonly property real energy: feed.energy
     readonly property bool silent: feed.silent

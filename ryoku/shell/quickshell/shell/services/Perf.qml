@@ -5,12 +5,13 @@ import Quickshell.Io
 
 // Perf is the shell's one performance-policy singleton and the single reader of
 // ~/.config/ryoku/performance.json (the file Ryoku Settings' Performance page
-// writes). It folds four inputs into the effective switches every surface obeys:
+// writes). It folds five inputs into the effective switches every surface obeys:
 //
 //   1. the explicit user toggles in performance.json (lowPowerMode is the master),
 //   2. the active power profile (PowerProfiles), when powerProfileEffects is on,
 //   3. the live battery state (Battery), for invisible savings while discharging,
-//   4. Game Mode (Flags.gameMode), which outranks all of them.
+//   4. Game Mode (Flags.gameMode), which outranks all of them,
+//   5. Presence.dark (locked, or displays off), which stops the audio analysers.
 //
 // Consumers read the derived booleans (blurDisabled, shadowsDisabled, reduceMotion,
 // visualizerFrozen, pillFrozen) instead of re-deriving `lowPower || flag`: the
@@ -156,8 +157,11 @@ Singleton {
     }
     // Performance keeps the analysers running even when playback detection misses a stream.
     readonly property bool idleFreeze: audioIdle && root.tier !== root.tierPerformance
-    readonly property bool visualizerFrozen: root.visualizerHardFrozen || root.idleFreeze
-    readonly property bool pillFrozen: root.visualizerHardFrozen || root.idleFreeze
+    // Nobody sees a locked or powered-off desktop, so the analysers stop on every
+    // tier; it is a binding, so they start again the moment the screen is back.
+    readonly property bool dark: Presence.dark
+    readonly property bool visualizerFrozen: root.visualizerHardFrozen || root.idleFreeze || root.dark
+    readonly property bool pillFrozen: root.visualizerHardFrozen || root.idleFreeze || root.dark
 
     // Ambient motion: the bar's stream drifting on a passive sine while the desktop
     // is SILENT (with audio playing it reacts regardless -- that is streamLive's

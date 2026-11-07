@@ -106,23 +106,36 @@ Singleton {
 
     // MPRIS reports position only when asked. Four polls a second keep the
     // anchor honest (a seek elsewhere, a stream stall) while the frame ticker
-    // below carries the motion.
+    // below carries the motion. Both pause while nobody can see the desktop.
+    readonly property bool ticking: root.held && root.playing && !Presence.dark
+    function refresh() {
+        root.player.positionChanged();
+        const reported = root.player.position;
+        if (Math.abs(reported - root.estimate()) > 0.35 || reported === 0)
+            root.reanchor(reported);
+    }
     Timer {
         interval: 250
         repeat: true
-        running: root.held && root.playing && root.player !== null
-        onTriggered: {
-            root.player.positionChanged();
-            const reported = root.player.position;
-            if (Math.abs(reported - root.estimate()) > 0.35 || reported === 0)
-                root.reanchor(reported);
-        }
+        running: root.ticking && root.player !== null
+        onTriggered: root.refresh()
     }
     Timer {
         interval: 60
         repeat: true
-        running: root.held && root.playing
+        running: root.ticking
         onTriggered: root.elapsed = root.estimate()
+    }
+    // Back from dark: land on the live position now instead of on the next tick.
+    Connections {
+        target: Presence
+        function onDarkChanged() {
+            if (Presence.dark || !root.held || !root.playing)
+                return;
+            if (root.player)
+                root.refresh();
+            root.elapsed = root.estimate();
+        }
     }
 
     // ── the current lyric line ───────────────────────────────────────────────
