@@ -4,7 +4,7 @@
   "reference": {
     "machine": "Hyperion lab: systemd-nspawn, nested niri at 1920x1080 on headless Weston, AMD iGPU, still 4K wallpaper (rices/default/wall.webp)",
     "scenario": "idle: empty workspace, no music, nothing open, 120 s settle, 60 s window",
-    "measured": "2026-11-07: five runs of this script's gate on a fresh desktop each (three Orpheus, two Kairos), Hyperion ad9146fd4 with the tree's ryoku-wm-niri and niri config; each number is the highest of those runs"
+    "measured": "2026-11-07: six runs of this script's gate on a fresh desktop each (four Orpheus, one of them right after the machine booted, and two Kairos), Hyperion ad9146fd4 and fdeb34608 with the tree's ryoku-wm-niri and niri config; each number is the highest of those runs"
   },
   "margins": {
     "memoryPct": 15,
@@ -16,7 +16,7 @@
     "shell-daemon": {
       "pssMB": 22.9,
       "gpuMB": 0,
-      "cpuPct": 0.1,
+      "cpuPct": 0.12,
       "wakeupsPerSec": 35,
       "launchesPerMin": 0,
       "source": "PSS and CPU from the lab (20.7 to 22.9 MB); wakeups from the bare-metal at-rest run in docs/performance.md",
@@ -26,7 +26,7 @@
       }
     },
     "shell-helpers": {
-      "pssMB": 2.1,
+      "pssMB": 2.2,
       "gpuMB": 0,
       "cpuPct": 0,
       "wakeupsPerSec": 0,
@@ -35,23 +35,23 @@
       "source": "wl-clip-persist, 2.0 to 2.1 MB"
     },
     "wm-provider": {
-      "pssMB": 9.8,
+      "pssMB": 12.5,
       "gpuMB": 0,
       "cpuPct": 0,
       "wakeupsPerSec": 0.1,
       "launchesPerMin": 0,
-      "source": "the daemon's and Ryogami's ryoku-wm-niri watch, 9.7 to 9.8 MB together; the daemon's warm act child leaves after 30 s without an action, so it is not here at rest"
+      "source": "the daemon's and Ryogami's ryoku-wm-niri watch, 9.6 to 12.6 MB together: each holds 1 to 4 MB of Go heap after a burst of compositor events; the daemon's warm act child leaves after 30 s without an action, so it is not here at rest"
     },
     "wallpaper": {
-      "pssMB": 15.7,
+      "pssMB": 19.8,
       "gpuMB": 0,
       "cpuPct": 0,
       "wakeupsPerSec": 0.9,
       "launchesPerMin": 0,
-      "source": "ryogami daemon with a still wallpaper, 15.4 to 15.7 MB"
+      "source": "ryogami daemon with a still wallpaper, 14.9 to 19.8 MB: the high end is shortly after it starts and sets the wallpaper, before Go returns that heap"
     },
     "session-daemons": {
-      "pssMB": 2.1,
+      "pssMB": 2.2,
       "gpuMB": 0,
       "cpuPct": 0.02,
       "wakeupsPerSec": 0.0,
@@ -64,7 +64,7 @@
     "orpheus": {
       "groups": {
         "shell-ui": {
-          "pssMB": 319.7,
+          "pssMB": 321.2,
           "gpuMB": 249.5,
           "cpuPct": 0.1,
           "wakeupsPerSec": 8.2,

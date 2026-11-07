@@ -359,11 +359,11 @@ its numbers come from:
 
 | entry | what it is | measured (lab) |
 |---|---|---|
-| `shell-ui` | the `qs -c shell` process: the bar style, desktop, dock and overlays | Orpheus 314 to 320 MB PSS, 245 to 250 MB GPU, 0.1 % CPU, 7.9 to 8.2 wakeups/s; Kairos 309 to 310 MB, 247 to 251 MB, 0.1 %, 8.0 |
-| `shell-daemon` | `ryoku-shell daemon` | 21 to 23 MB, 0.1 %, 35 wakeups/s on bare metal, 33 to 37 in the lab |
-| `shell-helpers` | what the daemon and the shell start, today `wl-clip-persist` | 2.0 to 2.1 MB |
-| `wm-provider` | the `ryoku-wm-niri watch` processes of the daemon and Ryogami; the warm act child leaves after 30 s without an action | 9.7 to 9.8 MB |
-| `wallpaper` | Ryogami with a still wallpaper | 15.4 to 15.7 MB, under 1 wakeup/s |
+| `shell-ui` | the `qs -c shell` process: the bar style, desktop, dock and overlays | Orpheus 314 to 321 MB PSS, 245 to 250 MB GPU, 0.1 % CPU, 7.9 to 8.2 wakeups/s; Kairos 309 to 310 MB, 247 to 251 MB, 0.1 %, 8.0 |
+| `shell-daemon` | `ryoku-shell daemon` | 20 to 23 MB, 0.1 %, 35 wakeups/s on bare metal, 33 to 37 in the lab |
+| `shell-helpers` | what the daemon and the shell start, today `wl-clip-persist` | 2.0 to 2.2 MB |
+| `wm-provider` | the `ryoku-wm-niri watch` processes of the daemon and Ryogami; the warm act child leaves after 30 s without an action | 9.6 to 12.6 MB: each watcher keeps 1 to 4 MB of Go heap for a while after a burst of compositor events |
+| `wallpaper` | Ryogami with a still wallpaper | 14.9 to 19.8 MB, under 1 wakeup/s; the high end is shortly after it starts and sets the wallpaper |
 | `compositor` | niri (nested in the lab) | 75 to 78 MB and 108 MB GPU under Orpheus, 77 to 79 MB and 114 to 119 MB under Kairos |
 | `session-daemons` | Ryoku's user units, today `ryoku-bt-agent` | 2.1 MB, no wakeups |
 
