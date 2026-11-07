@@ -21,12 +21,13 @@ While discharging, Ryoku sends “Battery low” at the warning level and “Bat
 critical” at the critical level, with “Battery at N%. Connect your charger.”
 Each level alerts once until AC power reconnects. Starting below the critical
 level sends only the critical alert. Delivery failures can retry without
-consuming that alert. The service runs regardless of the selected bar style
-or whether its battery indicator is visible.
+consuming that alert. The service runs regardless of the selected subshell or
+bar style or whether its battery indicator is visible.
 
 Alerts use the normal notification system and respect Do Not Disturb. The
-native service replaces the Python bar's separate low-battery reminders while
-preserving its full-charge notification. If you installed the Battery Alerts
+native service replaces the separate low-battery reminders of the Python
+subshell (a store item) while preserving its full-charge notification. If you
+installed the Battery Alerts
 community add-on, disable its alerts when enabling the native service to avoid
 duplicate reminders.
 
@@ -255,7 +256,7 @@ took the next layer off. On the same box, an idle desktop went from about 5,800
 process launches a minute to 13, playing music from 81% to 60% of a core for
 the base desktop with Orpheus (64% to 48% for the shell itself), and the RTX
 4060 from 16 W to 10.6 W while music plays. The bar styles, desktop widgets and
-iNiR services share one C++ cava feed (the line visualizer keeps its own), the
+Shima's iNiR services share one C++ cava feed (the line visualizer keeps its own), the
 Python waveform capture that ran even in silence is gone, system stats come from
 one native sampler, Orpheus rests at bar height, and a still wallpaper no longer
 loads the video stack (about 60 MB of the shell's memory).

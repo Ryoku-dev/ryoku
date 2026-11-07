@@ -165,7 +165,7 @@ with `ryoku owner <path>`, never edit a shipped file; a user override goes to
 `~/.config/ryoku/user_edits` or a
 command), the command catalogue (`ryoku`, `ryoku-shell`, `ryoku-hub`,
 `ryogami`, `ryoku-rashin`), the decision framework, and worked examples.
-`bar.md` is the QS Bar and dock guide; `plugins.md` is the plugin contract and
+`bar.md` is the guide to subshells, bar styles and the dock; `plugins.md` is the plugin contract and
 the `ryoku plugin` CLI; `feature.md` is the ladder for a feature the desktop
 does not have: `ryostore catalog` first, then the machine's own catalogues,
 and only then a new plugin; `troubleshoot.md` is the break/fix playbook (gather
@@ -415,7 +415,7 @@ vermillion. Fraunces sets titles, Space Grotesk the language and numerals,
 Space Mono the tracked labels and paths, Noto Sans CJK JP the kanji gloss
 beside every sheet name.
 
-Navigation is three floating islands, like the default QS Bar: the seal, the
+Navigation is three floating islands, like QS Bar's islands form: the seal, the
 sheets, and the daemon/hermes/prowl lamps with a clock. The Overview opens on
 the wallpaper that is on screen right now (`GET /api/wallpaper` serves the file
 `~/.local/state/ryoku-wallpaper` names; a live wallpaper plays muted while the

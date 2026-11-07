@@ -19,7 +19,7 @@ Start with the guide that matches the job:
   `ryoku` command](cli.md), [configuration import](config-import.md) and
   [kernels and CachyOS gaming](kernels.md).
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
-  rules](ui-ux.md), [bar styles](barstyles.md), [sidebars](sidebars.md),
+  rules](ui-ux.md), [subshells and bar styles](subshells.md), [frame bars](bar.md), [sidebars](sidebars.md),
   [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
   [Ryogami](ryogami.md), [RyoStore](store.md), [installable
   profiles](profiles.md), [the Profile plate](profile.md), [theming](theming.md),
@@ -82,19 +82,27 @@ truth for the live desktop.
 - `shell/` the desktop shell subsystem: `quickshell/` (the QML UI. Every surface
   runs in-process in a single `qs -c shell` instance under `shell/`, drawn per
   monitor from one scene (`shell.qml`): `modules/` is one directory per surface
-  (`bar` the four-edge frame bars with the bounded menu manager, rail status
-  popout cards (`bar/popouts/`), and pluggable bar styles (`bar/barstyles/`, see
-  `docs/barstyles.md`); `sidebar` the Controls and Companion screen-edge
+  (`bar` the scene host that loads the active subshell or bar style
+  (`Frame.qml`), plus the frame-bar kit other items build on: the four-edge
+  rails, the bounded menu manager and the rail status popout cards
+  (`bar/popouts/`), see `docs/bar.md`); `sidebar` the Controls and Companion screen-edge
   overlays, nine-section catalogue, settings editor, and
   `sidebarCard` plugin host (see `docs/sidebars.md`); `dock` the app dock on the
-  edge opposite the bar (its own surface, shared by every bar style), `launcher`,
+  edge opposite the bar (its own surface, shared by every subshell and bar
+  style), `launcher`,
   `overview` (`Super+Tab`),
   `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
   the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
   its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and
-  `desktop` the wallpaper clock and enabled third-party widgets); `services/`
-  holds the shared singletons every surface reads, `components/` the shared UI
-  primitives, and `utils/` the shared JS. Beside it are `ryoshot`, `welcome`
+  `desktop` the wallpaper clock and enabled third-party widgets); `subshells/`
+  holds the two shipped subshells, `orpheus/` and `kairos/`, each an item folder
+  (`item.toml`, `README.md`, `LICENSE`, `qml/`) loaded only while it is in use,
+  see `docs/subshells.md`; `services/`
+  holds the shared singletons every surface reads (`Shells.qml` reads the shells
+  index), `barkit/` the `shell.barkit` module items build on, `components/` the shared UI
+  primitives, and `utils/` the shared JS. Every other subshell and bar style
+  lives in the catalogue repo `Ryoku-dev/ryostore-revamped` and installs from
+  RyoStore. Beside it are `ryoshot`, `welcome`
   (the first-run
   guided tour), and `plugins` (the third-party shell plugin runtime:
   `discover.sh` merges the catalogue with the user's `plugins.json`, the widget

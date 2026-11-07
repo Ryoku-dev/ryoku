@@ -186,7 +186,9 @@ These commands run as the current profile account:
 - `session-stop` disconnects NetworkManager VPNs owned by this account. The
   profile session unit runs it on logout.
 - `lay --payload <dir> --system-receipt <path> [--json]` is the internal
-  account-side apply step used by `ryoku-host`; users do not run it directly.
+  account-side apply step used by `ryoku-host`; users do not run it directly. It
+  also installs the profile's `storeItems` with `ryostore install` as the
+  account.
 
 `status`, `scope`, `reset` and `check` are safe troubleshooting surfaces.
 Profile creation, tool changes, checkpoints and removal go through the reviewed
@@ -486,7 +488,9 @@ a finding never aborts the update.
 
 Current reconcilers live in `ryoku/cli/internal/doctor/`. Common checks cover
 desktop sessions, channel health, the keyring unlock policy, compositor config,
-backlights, pending package config, and orphaned packages. Host-specific checks
+backlights, pending package config, orphaned packages, and whether the selected
+subshell or bar style and its parts are installed (see `docs/subshells.md`).
+Host-specific checks
 stay on their host: pacman lock and progress settings on Arch/CachyOS, Turnstile
 and runit state on Void, and RPM repository metadata plus `.rpmnew` and
 `.rpmsave` files on Fedora. Fedora omits the snapper and Limine checks because
@@ -528,13 +532,15 @@ into the desktop (see `docs/plugins.md`). Ryostore stays the curated front;
   transaction writes the receipt, the content-hashed view, and the journal that
   `discover.sh` requires, into `~/.local/share/ryoku/plugins/<id>` and
   `~/.local/state/ryoku/store`. Validation refuses a manifest whose id is
-  malformed, is a reserved built-in widget id, or is already installed, whose
+  malformed, is a built-in widget id of an unpacked bar item (QS Bar's
+  `qml/core/widgets.json`), or is already installed, whose
   entry points are absolute, escape the tree with `..`, or do not exist, whose
   hosts are not a subset of `framePopout`, `desktopWidget`, `topbarGlyph`, or
   whose tree contains a symlink. A plugin runs unsandboxed inside your shell, so
   the command prints a warning and asks for confirmation (`--yes` skips the
   prompt; a non-interactive run without it declines). `--bar` enables it on the
-  bar. It never executes anything from the plugin.
+  bar (host `topbarGlyph`, drawn by QS Bar while it is active). It never
+  executes anything from the plugin.
   `ryoku plugin add https://github.com/you/weather-card --bar`
 - `ryoku plugin remove <id>` uninstalls through `ryostore remove plugins <id>`
   (dropping the receipt, view, and files together) and clears the plugin's
@@ -546,42 +552,27 @@ into the desktop (see `docs/plugins.md`). Ryostore stays the curated front;
 - `ryoku plugin validate <dir>` runs the same manifest checks against a local
   tree without installing it, for plugin authors. `ryoku plugin validate .`
 
-## The bar and dock CLI
+## Subshells, bar styles and the dock
 
-The bar layout is data: `shell.json` holds `qsbar.layout` as three ordered lists
-of stable widget ids (`left`, `center`, `right`), where built-in widgets and
-installed store plugins are entries of the same list. The daemon owns
-`shell.json`, so these verbs live on `ryoku-shell`, not `ryoku`. Every widget id
-comes from one catalogue file the shell, the settings panel and this CLI share,
-and every mutation is validated against it (an unknown id, an unknown setting
-key, or an option that is not in the list is an error, never a silent write) and
-written through the settings store. A script, a keybind, or an agent drives the
-bar without touching JSON.
+The daemon owns `shell.json`, so these verbs live on `ryoku-shell`, not `ryoku`.
+See `docs/subshells.md` for the model.
 
-### `ryoku-shell bar`
+- `ryoku-shell barstyle <id>` sets `barStyle` and commits the switch.
+  `ryoku-shell barstyle kairos`
+- `ryoku-shell shells sync` asks the daemon to run `ryostore internal
+  shells-sync`, which unpacks the items now in use and rewrites `shells.json`.
+- `ryoku-shell shells commit` restarts the shell under the reload cover when the
+  active item or the set of items in use changed, then prunes what is no longer
+  in use.
+- `ryostore internal shells-require [--install] [--fallback] [--json]` lists
+  selections that name an item that is not shipped or installed, installs the
+  ones the catalogue offers, and falls the rest back to safe defaults. Doctor
+  runs it.
 
-- `bar list [--json]` every widget with its section, index, and shown flag.
-  `ryoku-shell bar list --json`
-- `bar catalog [--json]` the built-in catalogue merged with installed
-  bar-capable plugins and their settings schema. `ryoku-shell bar catalog --json`
-- `bar move <id> --section <left|center|right> [--index N | --before <id> |
-  --after <id>]` reorder a widget within a lane or move it across lanes.
-  `ryoku-shell bar move clock --section right --after media`
-- `bar show <id>` / `bar hide <id>` toggle a widget's visibility (a built-in
-  keeps its place and stops rendering; a plugin is enabled or disabled on the
-  bar). `ryoku-shell bar hide battery`
-- `bar set <id> <key> <value>` set one of a widget's own settings, validated
-  against the catalogue (built-in) or the plugin manifest.
-  `ryoku-shell bar set launcher launcherLogoText arch`
-- `bar position top|bottom` move the bar to the top or bottom edge.
-  `ryoku-shell bar position bottom`
-- `bar form full|fit|dock|notch|islands` set the shell shape the bar takes.
-  `ryoku-shell bar form islands`
-- `bar defaults` restore the shipped layout and visibility, leaving presentation
-  keys (separators, density, per-widget colour) untouched. `ryoku-shell bar defaults`
-- `bar settings [route|close]` open QS Bar Settings on the active monitor,
-  optionally on a named route (`bars`, `layout`, `widgets`, `dock`, `community`); `close`
-  puts it away. `ryoku-shell bar settings layout`
+`ryoku-shell bar ...` is gone. A bar layout belongs to the item that draws it:
+QS Bar answers on its own IPC target `qsbar` while it is active, for example
+`qs -c shell ipc call qsbar move clock right after:media`. The calls are listed
+in the QS Bar item's README in the catalogue repo.
 
 ### `ryoku-shell dock`
 

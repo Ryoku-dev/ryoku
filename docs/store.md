@@ -1,11 +1,12 @@
 # The store
 
 Ryoku's extras are delivered through **RyoStore**: a browsable catalogue of
-rices, lockscreens, bar styles, docks, app launchers, OSDs, notification cards,
-sidebars, fastfetch styles, plugins, and bundles that install into the running
-desktop without activating themselves. Remote catalogues live in `ryostore`;
-RyoStore owns discovery and installation; Ryoku Settings manages what is
-already present.
+rices, lockscreens, subshells, bar styles, docks, app launchers, OSDs,
+notification cards, sidebars, fastfetch styles, plugins, and bundles that
+install into the running desktop without activating themselves. Remote
+catalogues live in `ryostore` and, for subshells, bar styles and profiles, in
+`ryostore-revamped`; RyoStore owns discovery and installation; Ryoku Settings
+manages what is already present.
 
 ## How it works today
 
@@ -60,6 +61,44 @@ URL, `file://` path or plain local path in
 override. Each non-default source gets its own cache namespace under
 `$XDG_CACHE_HOME/ryoku/ryostore-revamped/sources/`.
 
+## Subshells and bar styles
+
+**Subshells** and **Bar styles** come from `ryoku-dev/ryostore-revamped`, the
+same source and overrides as Profiles. Each item is a folder there with an
+`item.toml` and a generated `manifest.json`; the category's `registry.json`
+lists it. The shipped Orpheus and Kairos appear under Subshells as installed
+and cannot be removed. See `docs/subshells.md` for how an item is chosen and
+loaded.
+
+- **Install** downloads the manifest's files, checks each hash, stores them
+  packed as `$XDG_DATA_HOME/ryoku/<category>/<id>/bundle.tar.gz`, writes the
+  receipt and runs `ryostore internal shells-sync`. It does not unpack or select
+  the item.
+- **APPLY** on an installed item runs `ryoku-shell barstyle <id>`.
+- **Remove** deletes the bundle, its unpacked folders, module links and receipt,
+  and moves a worn `barStyle` back to `orpheus`.
+- An item with `listed = false` in its `item.toml` stays in the catalogue repo
+  for review but is left out of `registry.json`, so the Store never lists it.
+  `downloadPaused` with a `downloadPauseReason` keeps it listed and removable
+  but refuses install and update (see the pause rule below).
+- Older releases installed bar styles as loose files under
+  `$XDG_DATA_HOME/ryoku/barstyles/<id>/`. The provider reinstalls a verified
+  loose install from the catalogue as a packed item, under `subshells/` when the
+  catalogue lists the id there, then deletes the loose copy and the old
+  `barstyle-views` copies and `barstyles.json` index.
+
+Two internal verbs serve the shell, the daemon, doctor and the Hub:
+
+- `ryostore internal shells-sync [--prune] [--json]` works out what is in use
+  from `barStyle`, `dock.design`, the launcher `variant` and the desktop widget
+  keys, unpacks those items, links their QML modules and writes
+  `$XDG_STATE_HOME/ryoku/store/shells.json`. Only `--prune` deletes unpacked
+  folders and links that are no longer in use.
+- `ryostore internal shells-require [--install] [--fallback] [--json]` lists
+  selections that name an item that is neither shipped nor installed,
+  `--install` installs the ones the catalogue offers, and `--fallback` moves the
+  rest to safe defaults.
+
 ## Decision: build Ryostore
 
 The conditions for a standalone store are now present. The catalogue spans six
@@ -74,8 +113,8 @@ There is one door for discovery and catalogue transactions:
   installed-state summaries.
 - **Ryoku Settings manages what is active.** It owns activation, configuration,
   placement, and applied-state controls.
-- **Install never activates.** Installing a rice, lockscreen, plugin, bar style,
-  dock, app launcher, OSD, notification card, sidebar, or future fastfetch style
+- **Install never activates.** Installing a rice, lockscreen, plugin, subshell,
+  bar style, dock, app launcher, OSD, notification card, sidebar, or future fastfetch style
   must not change the desktop. Completion offers **Open in Settings** (for a
   dock, the Stage Editor's Dock section).
 
@@ -113,7 +152,7 @@ The rail exposes one semantic route order:
 ```text
 Search
 Discover
-Lockscreens · Rices · Themes · Bar styles · Docks · App launchers
+Lockscreens · Rices · Themes · Subshells · Bar styles · Docks · App launchers
 On-screen displays · Notifications · Sidebars · Fastfetch · Plugins
 Omarchy plugins · Bundles · Profiles
 Library
@@ -122,7 +161,7 @@ Library
 **Library** is a first-class cross-category collection. Every item writes its
 state explicitly:
 
-- `ACTIVE` for the rice, lockscreen, bar, dock, launcher, OSD, notification
+- `ACTIVE` for the rice, lockscreen, subshell or bar style, dock, launcher, OSD, notification
   card, sidebar, or fastfetch style currently worn;
 - `ENABLED` for a running plugin;
 - `INSTALLED` for an owned but inactive item;
@@ -202,7 +241,11 @@ ryoku/apps/ryostore/
     provider_omarchy_plugins.go
     provider_bundles.go
     provider_rices.go
-    provider_bars.go
+    provider_shell_items.go
+    shell_index.go
+    shell_require.go
+    shell_bundle.go
+    shell_migration.go
     provider_shell_qml.go
     provider_fastfetch.go
     provider_flatpak.go
@@ -214,7 +257,9 @@ ryoku/apps/ryostore/
     ShowroomStage.qml
     AppsHero.qml
     AppsTile.qml
-    AppsSearch.qml
+    CategorySearch.qml
+    InstallAction.qml
+    InstallProgress.qml
     ProductDetail.qml
     ProductCover.qml
     ProductMedia.qml
@@ -290,6 +335,7 @@ The public command surface is deliberately small:
 ```text
 ryostore catalog [--refresh]
 ryostore install <category> <id>
+ryostore remove <category> <id>
 ryostore search <category> <query>
 ryostore open <discover|library|category>
 ryostore settings <category> [id]
@@ -301,10 +347,12 @@ local manifest. Adding a category adds one provider and one header entry; the
 generic stage, filmstrip, search, Library projection, and detail surface need no
 new QML page.
 
-Runtime implementations remain with their owning subsystem. A bar style still
-lives under `modules/bar/barstyles/<id>/`, a qylock theme under the qylock theme tree,
-and a plugin in the plugin data directory. Ryostore owns their catalogue adapter
-and installation, not a second runtime copy.
+Runtime implementations remain with their owning subsystem. A qylock theme lives
+under the qylock theme tree and a plugin in the plugin data directory. A
+subshell or bar style stays packed until it is in use and is then unpacked
+under `$XDG_STATE_HOME/ryoku/store/unpacked/`, where the shell loads it through
+`shells.json`. Ryostore owns their catalogue adapter and installation, not a
+second runtime copy.
 
 Install, update, removal, and enablement are single-flight so receipts and package
 manager state cannot race. While one product is active, every other product keeps
@@ -329,7 +377,7 @@ Popular, New, and Updated rankings.
   running shell watches Store revisions and keys Loader URLs by installed
   version so updated content and services replace themselves without a reload.
 - **Omarchy plugins:** expose the installable entries from
-  `plugins.omarchy.org/catalog.json` only while Nomarchy is the active bar style.
+  `plugins.omarchy.org/catalog.json` only while the Nomarchy bar style is active.
   The provider keeps a conditional HTTP cache using ETag and Last-Modified,
   normalizes only the fields the store renders, and resolves marketplace preview
   paths against the site. Installed IDs and versions come from
@@ -391,9 +439,11 @@ Popular, New, and Updated rankings.
   converts it to its 34-role palette, so a downloaded scheme appears in the
   Color-scheme picker (Super+W and the Hub) and applies through `theme.theme`.
   Activation stays in that picker, never on install.
-- **Bar styles:** expose the shipped runtime style manifests and the active
-  `shell.json` value. The current development styles are all visible and report
-  installed state. Settings retains selection and configuration.
+- **Subshells and Bar styles:** fetch the `ryostore-revamped` registries, list
+  the shipped subshells as installed, keep installed items the source no longer
+  lists visible and removable, and mark the item `barStyle` names as active.
+  Install is packed, never activating (see
+  [Subshells and bar styles](#subshells-and-bar-styles)).
 - **Docks, App launchers, On-screen displays, Notifications and Sidebars:** one
   shell-QML provider (`provider_shell_qml.go`) serves all five. It fetches each
   category's `ryostore` registry, installs the product's receipt-owned folder
@@ -421,8 +471,9 @@ Popular, New, and Updated rankings.
 
   The shell still owns the windows, timing, data, and input for an OSD,
   notification, or sidebar; the installed design only draws. A design that
-  cannot load is replaced by Ryoku's own design. Bar styles that own their
-  banners or OSD, including Python, Nomarchy, Tansu, and Nacre, keep them.
+  cannot load is replaced by Ryoku's own design. A subshell or bar style that
+  lists `notifications` or `osd` in its `[shell] owns` (Python, Nomarchy, Tansu
+  and Nacre, among others) draws its own while it is active.
   The starter catalogue has Ito, an OSD drawn as a thread on the right edge;
   Tegami, a letter-shaped notification card; and Byobu, a full-height
   folding-screen sidebar. See `docs/ui-ux.md` and `docs/launcher.md`.

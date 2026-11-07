@@ -135,6 +135,12 @@ to add names for that IP through `ryoku-host hosts`. Allowed names end in
 changed. The **Lab status** bar widget shows the current target and `tun0`
 address on the QS Bar.
 
+QS Bar is a store bar style. The profile lists it under `storeItems` in its
+`profile.json` (`{"category": "barstyles", "id": "qsbar"}`), and the account
+side of the apply step installs it with `ryostore install` as the new account,
+so the profile's rice can wear it. A profile may list items from `subshells` or
+`barstyles` only.
+
 Console, SSH and other login shells get the same profile environment, including
 `PATH`, `WORDLISTS` and the other variables, because `~/.bash_profile` imports
 the systemd user environment, so `target`, `box`, `lab` and the profile copy of

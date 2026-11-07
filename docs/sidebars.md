@@ -1,6 +1,6 @@
 # Controls, ryoshot, and Ask
 
-Three global tools are available under every bar style and on both Hyprland and
+Three global tools are available under every subshell and bar style and on both Hyprland and
 niri:
 
 - `Super+Escape` opens **Controls** at the top-left of the focused display.
@@ -93,7 +93,7 @@ short. These choices live beside the panel arrangement in `shell.json` under
 `controls`.
 
 Controls remains a global shell surface. The same arrangement is used by every
-bar style and every supported compositor.
+subshell, bar style and supported compositor.
 
 ### Store designs
 

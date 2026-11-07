@@ -56,7 +56,7 @@ QML running against a stale plugin.
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
 | `ryomanager` | RyoManager, the system monitor and process manager. It is selected by default in the installer and can be removed without doctor putting it back |
-| `ryostore` | RyoStore: the catalogue of rices, bundles, and bar styles |
+| `ryostore` | RyoStore: the catalogue of rices, bundles, subshells and bar styles |
 | `ryowalls` | The wallpaper browser, preview, and AI enhancer |
 | `ryovm` | The virtual-machine manager |
 | `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `hypr-dynamic-cursors` | Hyprland compositor plugins the Hub can toggle |

@@ -26,6 +26,16 @@ View and logic stay apart: QML renders and animates, `ryoku-shell` (Go, in
 `ryoku/shell/ipc/`) decides. The UI asks the daemon over its socket; it does not
 embed policy.
 
+## Ryoku code never keys behaviour on a store item
+
+Subshells and bar styles are items: the shipped Orpheus and Kairos under
+`ryoku/shell/quickshell/shell/subshells/`, everything else in the catalogue repo.
+No Ryoku file imports item code, and no behaviour is keyed on a store item's id.
+The shell, the Hub and the daemon read what an item is, owns and provides from
+`shells.json` (`Shells` in QML), so a new item needs no Ryoku change. Settings
+namespaces in `Config.qml` hold data only, and data migrations are the one
+exception. See `docs/subshells.md`.
+
 ## Launching a process goes through Spawn
 
 Anything a surface starts that can end up running Quickshell (an app, a desktop

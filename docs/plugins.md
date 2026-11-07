@@ -97,7 +97,8 @@ to check, one to install, and one to publish:
 4. **Install.** `ryoku plugin add <dir> --bar --yes` validates again, installs
    through Ryostore's transaction, and enables it on the bar; the shell picks it
    up on the `plugins.json` change, no restart.
-5. **Verify.** Confirm it on the bar and under **QS Bar Settings > Community**.
+5. **Verify.** Confirm it on the bar and under **QS Bar Settings > Community**
+   (a bar plugin shows while the QS Bar bar style is active).
 6. **Share.** `ryoku plugin share <id>` opens the Ryostore pull request. Run it
    only when the user asks to publish.
 
@@ -197,18 +198,20 @@ rather than overlap.
 
 ### 3. Bar glyph - rides the bar
 
-It rides the top bar as its own module, in a section you choose (left, centre or
-right) and at the position in that lane you drag it to. Your content is rendered
+It rides QS Bar, the store bar style that hosts `topbarGlyph` plugins, as its
+own module, in a section you choose (left, centre or right) and at the position
+in that lane you drag it to. While another subshell or bar style is active the
+plugin stays installed and does not render. Your content is rendered
 at `glyph` density on the bar's axis, so it must stay small: report a mark-sized
-`implicitWidth`/`implicitHeight` (roughly the bar's inner height) and Ryoku
+`implicitWidth`/`implicitHeight` (roughly the bar's inner height) and the bar
 centres it and reserves exactly that much room; in islands form it gets its own
 island.
 
-- Ryoku handles the **island pill, spacing, and the bar's width arithmetic**.
+- The bar handles the **island pill, spacing, and the bar's width arithmetic**.
 - A bar glyph **is a layout entry**, the same kind of entry as a built-in widget:
   it lives in `shell.json` `qsbar.layout`, so a user drags it between lanes in QS
-  Bar Settings' Layout route or moves it from a terminal with `ryoku-shell bar
-  move <id> --section left|center|right`. It shows once it is enabled with
+  Bar Settings' Layout route or moves it from a terminal with `qs -c shell ipc
+  call qsbar move <id> <left|center|right> ""`. It shows once it is enabled with
   `host: topbarGlyph` in `plugins.json`.
 
 Declare `topbarGlyph` in `hosts`, and include `"glyph"` in

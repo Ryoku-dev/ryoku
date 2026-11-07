@@ -601,8 +601,8 @@ Spatial the normal flat lift remains.
 
 The depth is set from the widgets page: a slider for the current value and a
 Pick that opens `StageDepthPick.qml`, a tinted read-out of `depth.png` with a
-crosshair and live sample; a click commits the sampled value. Built-in and
-iris/python extension faces keep depth beside their position and size in the
+crosshair and live sample; a click commits the sampled value. Built-in faces and
+the faces store items contribute (Shima's, Python's) keep depth beside their position and size in the
 output-keyed `monitors` map in `widgets.json`, so one widget can sit at a
 different depth on each display. A legacy value in the top-level
 `widgetDepths` map remains the fallback until that output gets its own value.

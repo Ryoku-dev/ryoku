@@ -1,17 +1,16 @@
 # Frame bars
 
-This document describes **Sumi**, Ryoku's built-in painted-frame bar: one
-frame-bar system of four independent rails that share the monitor's frame
-scene. When Sumi is the active style,
+This document describes Ryoku's frame-bar kit: one frame-bar system of four
+independent rails that share the monitor's frame scene.
 `ryoku/shell/quickshell/shell/modules/bar/Bar.qml` creates a `FrameRail` for each
 edge and reads the normalized `frameBars` object from `~/.config/ryoku/shell.json`.
+The kit is platform: `shell.barkit` exports `Bar`, `FrameEdge`, `FrameChrome`,
+`FrameMenuManager` and the rest, and `Ryoku.FrameBars` carries the schema.
 
-Sumi is not the shipped default. The default is **orpheus**, a liquid top bar
-that loads from a self-contained folder under
-`shell/modules/bar/barstyles/`. `Frame.qml` draws Sumi's rails only while
-`barStyle` resolves to no folder scene (the id `"sumi"` or an empty value), and
-any other id mounts that folder style's `Scene.qml` instead. For style
-selection and QS Bar, see `docs/barstyles.md`.
+**Sumi** is the bar style built on it. It is a store item (`barstyles/sumi` in
+the catalogue repo) and draws only while `barStyle` is `"sumi"`. Ryoku itself
+ships the Orpheus and Kairos subshells. For how items are chosen and loaded, see
+`docs/subshells.md`.
 
 A rail is a thin interactive strip, not a second panel process. The monitor
 overlay owns its input region and the corresponding exclusive-zone reserve, so
@@ -19,12 +18,13 @@ tiled windows clear exactly the enabled edge rails.
 
 ## Default profile
 
-The shipped profile enables a compact top rail and a continuous left rail:
+The shipped profile (`FrameBars.js` `defaultConfig()`) enables only the left
+rail:
 
-- **Top**: centred clock.
-- **Left**: quick settings and workspaces at the top, dock in the centre, tray,
-  network, and clock at the bottom.
-- **Bottom and right**: configured but initially disabled.
+- **Left**: quick settings and workspaces at the top, dock in the centre,
+  recording, tray, audio input and output, Bluetooth, network, clock and battery
+  at the bottom.
+- **Top, bottom and right**: configured but disabled.
 
 Every edge has its own `enabled`, `size`, `reveal`, and three axis-appropriate
 zones. Horizontal rails use `start`, `center`, and `end`; vertical rails use
@@ -35,8 +35,9 @@ catalogued widgets that fit the target axis.
 
 ## Bar Studio
 
-Open **Bar Studio** with **Super+Period**. The shortcut records the Bar Studio
-section before opening the guarded Ryoku Settings process.
+Open **Bar Studio** from Ryoku Hub or with `ryoku-shell hub open bar-studio`.
+The FRAME, RAILS and rail WIDGETS cards show while the selected item declares
+`hubEditor = "frame-rails"`, which Sumi does.
 
 Bar Studio stages a complete immutable `frameBars` object through the normal Hub
 draft and Save flow, and its edits apply to the running desktop as you make them.
@@ -50,7 +51,7 @@ Pick an edge to work on that rail. It edits only what changes the running frame:
 
 The frame's material and colour come from the shell's look (`Theme` and the
 palette), not a user knob; picking a different bar style is a separate choice,
-covered in `docs/barstyles.md`.
+covered in `docs/subshells.md`.
 
 Every change is live on the desktop at once. Save keeps it and rebaselines;
 Revert, or closing the window with unsaved edits, walks the desktop back to the
@@ -80,7 +81,7 @@ share one skin from a card kit (`shell/modules/bar/popouts/PopoutCard.qml` and i
 so every card opens, reads, and dismisses the same way.
 
 Super+Escape and Super+S open Controls and Today in the top-left and top-right
-corners. They are not frame menus and their layout is shared by every bar style
+corners. They are not frame menus and their layout is shared by every subshell and bar style
 (`shell/modules/sidebar/`, see `docs/sidebars.md`). Installed sidebar plugins
 appear under Extensions; placement and enablement live in Ryoku Hub > Add-ons.
 
@@ -107,84 +108,15 @@ this same manager scene.
 Do not introduce a parallel renderer, unbounded component loader, or direct
 configuration writer.
 
-## QS Bar layout (`qsbar.layout`)
+## The 10-band equalizer
 
-The **qsbar** top bar (a built-in choice; style selection lives in
-`docs/barstyles.md`) keeps its widget order as data in
-`~/.config/ryoku/shell.json` under `qsbar.layout`, not in a cache file:
-
-```json
-"qsbar": {
-  "layout": {
-    "version": 1,
-    "left":   ["launcher", "workspaces", "status", "cpu", "volume", "memory", "ai"],
-    "center": ["clock"],
-    "right":  ["media", "quick", "network", "power", "battery", "brightness",
-               "cputemp", "storage", "gpu", "bluetooth", "layout"]
-  },
-  "widgets": { "status": true, "power": false, "...": true }
-}
-```
-
-- An **entry is a widget id**: a built-in id, or the manifest id of an installed
-  plugin enabled on the bar. The order within a section is the order on the bar.
-- The **built-in ids** (and their internal `G1..G19` slot gids, labels,
-  visibility keys and own settings) are catalogued once in
-  `shell/modules/bar/barstyles/qsbar/core/widgets.json`. That file is the single
-  source the shell, the daemon (`ryoku-shell bar ...`) and Rashin read; nothing
-  hand-lists widgets elsewhere. Built-in ids are reserved: `ryoku plugin add`
-  refuses a manifest that claims one.
-- **Visibility is separate from placement.** A built-in listed in the layout but
-  `false` in `qsbar.widgets` (keyed by the catalogue's `visKey`) keeps its place
-  and does not render. A plugin is shown when `~/.config/ryoku/plugins.json` has
-  it `enabled` with `host: "topbarGlyph"`. Widgets with no `visKey` (launcher,
-  workspaces, clock) are always shown.
-- Every id occurs **at most once**; duplicates are dropped, and a known widget
-  the layout omits is appended to `right` (a plugin honours its manifest
-  `defaults.bar.section` when it names one). A plugin enabled after the layout was
-  written lands at the end of its section.
-- Separators (`qsbar.barSeps`), density (`qsbar.iconOnlyGids`) and per-widget
-  colour (`qsbar.widgetColorStyles`) are presentation, keyed by gid, and are
-  untouched by a layout move or reset.
-- **Migration, once.** On first load with no `qsbar.layout`, the retired
-  `~/.cache/quickshell_barorder_v2` string (`B:G1,B:G16,...|B:G8|B:G9,...`) is
-  converted to ids through the catalogue's gid map, written to `qsbar.layout`,
-  and the cache file is deleted; empty cells are dropped. With no cache file, the
-  shipped default above is written instead. The `G1..G19` slot ids stay internal
-  to `BarSlot.qml`.
-- The layout is one document. A move rewrites the whole `qsbar.layout` through the
-  daemon's settings store (the sole writer of `shell.json`); the bar re-reads on
-  change and every monitor's bar follows.
-
-## Now playing and the equalizer (qsbar)
-
-Clicking the **qsbar** music widget (its title, its spectrum glyph, or anywhere on
-it in the `full` style) opens the now-playing card,
-`shell/modules/bar/barstyles/qsbar/panels/MprisPanel.qml`. The transport glyphs
-beside the title keep their own clicks, so the widget stays a remote control and
-the card is what a click on the widget itself asks for. Escape, the close mark, or
-a click outside dismisses it, and Space toggles playback while it is focused.
-
-The default style starts with an 88 px title lane. In QS Bar Settings, expand
-Now playing and set **Title width** anywhere from 88 to 400 px; the same setting
-is available as `ryoku-shell bar set media mprisTitleWidth 300`. The title
-scrolls only when it is wider than the chosen lane.
-
-The card is the record on the left (the artwork, the grooves, and the playback
-spectrum ringing it) and the track on the right: title, artist, album, the output
-device and the player it came from, a seekable progress bar, and the transport.
-The spectrum is the shell's one analyser, the `AudioBars` service, so it obeys the
-same policy as every other music surface and stays still under Power Saver, Game
-Mode, and low-power mode rather than holding a 30fps feed open.
-
-### The 10-band equalizer
-
-Under the track sits a 10-band graphic equalizer: ISO octave centres from 31 Hz to
+The equalizer is a platform service (`Equalizer` in `shell.services`, driven by
+`ryoku-eq`); the card that draws it belongs to an item, for example QS Bar's
+now-playing card. It has ten bands at the ISO octave centres from 31 Hz to
 16 kHz, +/-12 dB each, with the eight presets (Flat, Bass, Treble, Vocal, Pop,
 Rock, Jazz, Classic). Bands are live: a slider writes one PipeWire node param, so
-the curve changes mid-note. `Flat` releases the equalizer entirely; the `ON`/`OFF`
-chip beside the preset name is the bypass, for an A/B against the untouched
-signal.
+the curve changes mid-note. `Flat` releases the equalizer entirely, and turning
+it off is the bypass, for an A/B against the untouched signal.
 
 It is deliberately **not** a virtual sink. `ryoku/shell/scripts/ryoku-eq` renders a
 `libpipewire-module-filter-chain` graph of ten `bq_peaking` biquads and runs it as

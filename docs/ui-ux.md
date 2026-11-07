@@ -129,9 +129,10 @@ palette of their own:
 |`ryoshot/`, `ryopin/`, `welcome/`|`Tokens`|
 |`wallpaper/`, `wallpaper/switcher/`|the default paper only, for letterbox margins|
 
-Two files are genuinely their own thing and should stay that way:
-`barstyles/qsbar/Theme.qml` (a bar style's entire configuration surface, which
-owns its own look by contract, see `docs/barstyles.md`) and
+Two files are genuinely their own thing and should stay that way: an item's own
+`Theme.qml` (QS Bar's, in the catalogue repo, is that bar style's entire
+configuration surface and owns its own look by contract, see
+`docs/subshells.md`) and
 `hub/quickshell/Singletons/Theme.qml`, a leftover of the old website palette that
 survives in exactly one preview file and should go the next time that preview is
 touched.
@@ -211,9 +212,10 @@ doing that arithmetic itself.
 - **QS Bar is the one surface that wears the whole palette.** It retints every
   slot from the wallpaper's seven colour slots (`color01..color07`, mapped onto
   the ANSI roles), not just the accent, so it reads in full colour like a
-  terminal theme. It is a deliberate built-in exception; the default Orpheus
-  bar, the Hub, the apps, the frame, and the monochrome Sumi bar hold the line
-  above. See `docs/barstyles.md`.
+  terminal theme. It is a deliberate exception, and it is a store bar style, not
+  part of Ryoku; the shipped Orpheus and Kairos subshells, the Hub, the apps,
+  the frame, and the monochrome Sumi bar hold the line above. See
+  `docs/subshells.md`.
 
 So the rice wins inside an envelope the brand enforces. Write that down rather
 than the reverse: the envelope is the design.
@@ -367,7 +369,7 @@ options, 21 have 3, 9 have 4 to 6, one has 7, the font catalogue has 25, and
 `islandModules` is a true set. Five or more options is never a segmented; nine or
 more is never inline. `Spans.of()` then returns the column span and `Spans.pack()`
 bento-fills rows of twelve columns, so a sheet never ends on a ragged right edge.
-The bar styles are a `Gallery`, because no label distinguishes "engraved bracket
+Subshells and bar styles are a `Gallery`, because no label distinguishes "engraved bracket
 cells" from "three islands with concave dips".
 
 ## A page is its surfaces
@@ -487,37 +489,40 @@ and per-monitor visibility from `ShellState`.
 
 - **frame** the rounded screen border and the popouts that melt into it; the
   desktop's signature surface. See `docs/frame.md`.
-- **bar** the desktop's edge instrument, chosen by `barStyle`. Seven ship built
-  in. **Orpheus** is the default liquid top bar. **QS Bar**
-  (`barstyles/qsbar/`) is a full-colour top bar retinted from the wallpaper's
-  seven palette slots, and **Sumi** is the monochrome four-edge frame-bar system
-  in `shell/modules/bar/framebars/`. **Obi** and **Nacre** are folder styles you
-  install from Ryostore, and the Hub carries their controls (`OBI WIDGETS`,
-  `NACRE LAYOUT`) for when they are present. `BarProducts` resolves the id:
-  built in, or from
-  `~/.local/state/ryoku/store/barstyles.json`. Every style reads the same service
-  surfaces and grows the same popout cards from the kit under
-  `shell/modules/bar/popouts/`: clicking a status widget (network, Bluetooth,
-  battery, audio, system monitor, recording, music, voice) grows its live
-  controls out of the bar. The monitor-local menu manager owns those cards and
-  the bounded frame menus. The global Controls panel lives in
+- **bar** the desktop's edge instrument, drawn by the active subshell or bar
+  style that `barStyle` names. Ryoku ships two subshells: **Orpheus**, the
+  liquid top bar and the fallback, and **Kairos**, the clock island the default
+  rice wears. Everything else
+  installs from RyoStore: **QS Bar** is a full-colour top bar retinted from the
+  wallpaper's seven palette slots, **Sumi** is the monochrome frame-bar system
+  built on Ryoku's frame-bar kit (`docs/bar.md`), and **Obi** and **Nacre** have
+  Hub editors (`ITEM WIDGETS`, `NACRE LAYOUT`) that show while they are
+  selected. The `Shells` singleton resolves the id from
+  `~/.local/state/ryoku/store/shells.json`; see `docs/subshells.md`. Items built
+  on the kit grow the same popout cards from `shell/modules/bar/popouts/`:
+  clicking a status widget (network, Bluetooth, battery, audio, system monitor,
+  recording, music, voice) grows its live controls out of the bar, and the
+  monitor-local menu manager owns those cards and the bounded frame menus. The
+  global Controls panel lives in
   `ryoku/shell/quickshell/shell/modules/sidebar/`; see `docs/sidebars.md`.
-- **dock** a per-monitor shell surface that is independent of the selected bar
-  style. `UniversalDockHost.qml` loads exactly one design: Ryoku's paper islands,
-  the Python flowing dock, Shima's notched capsule, or none. All three consume
+- **dock** a per-monitor shell surface that is independent of the selected
+  subshell or bar style. `UniversalDockHost.qml` loads exactly one design:
+  Ryoku's paper islands, a dock an installed item provides (Python's flowing
+  dock, Shima's notched capsule), a store dock, or none. They all consume
   the same running-window model and canonical desktop-entry pins from the
   top-level `dock` object in `shell.json`, so changing designs keeps app order
   and aliases cannot create duplicate pins. The shared controls are enabled
   state, edge, autohide, icon size, magnification and pin order; each design's
-  own look lives below `dock.python`, `dock.shima`, or the Ryoku look keys.
+  own look lives below its own key (`dock.python`, `dock.shima`) or the Ryoku
+  look keys. An item that owns `dock` turns all of this off while it is active.
   Stage Editor's Dock section is the only settings surface. It carries design
   previews, shared placement and behaviour, each design's details, and pin
   ordering. Older dock pages only open that section. The selected design is
   loaded lazily; unselected designs do not create windows or models.
   Ryoku's design places pinned apps first, then a separator and running apps.
-  It can magnify, label and preview windows, and optionally show media. Sumi's
-  `RailDock` remains an in-bar alternative, but reads and writes the same shared
-  pins and app identities.
+  It can magnify, label and preview windows, and optionally show media. The
+  frame-bar kit's `RailDock` remains an in-bar alternative, but reads and writes
+  the same shared pins and app identities.
 
   Docks from RyoStore (the `docks/` catalogue of the ryostore repository, whose
   `docks/AUTHORING.md` is the author's guide) join the same picker. Installing

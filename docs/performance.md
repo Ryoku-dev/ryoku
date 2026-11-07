@@ -4,6 +4,10 @@ What the Ryoku desktop costs while it runs, how that was measured, and what the
 October 2026 pass changed. The numbers are from one machine; the method is the
 part to reuse.
 
+The pass predates Ryoku 2.0, which moved every bar style and subshell except
+Orpheus and Kairos into the catalogue repo (see `docs/subshells.md`). The rows
+for QS Bar, Python, Nomarchy, Shima and Sumi measure their in-tree versions.
+
 ## How it was measured
 
 **The machine.** Ryzen 7 7940HS with an RTX 4060 in MUX discrete mode (the
@@ -45,7 +49,7 @@ empty workspace:
 - *music*: mpv playing into a muted sink, so the analysers, the Orpheus drops
   and the visualizer all work as they do with sound;
 - *visualizer off*: idle with the line visualizer disabled;
-- *sweep*: every built-in bar style at idle;
+- *sweep*: every bar style then in the tree, at idle;
 - *startup*: three shell restarts.
 
 **The base desktop** is everything Ryoku ships and runs for everyone: the shell
@@ -189,7 +193,7 @@ instead of polling `adb`.
 **Audio.** Music ran three cava processes, a Python waveform capture and
 `pw-record`, and the Python capture and `pw-record` kept running in silence.
 Now one cava feed read in C++ (`CavaFeed`) serves every bar style, the desktop
-music widgets and the iNiR services; the line visualizer keeps its own feed (64
+music widgets and Shima's iNiR services; the line visualizer keeps its own feed (64
 bands at 60 fps, which its look needs) and reads its waveform through a C++
 capture (`WaveCapture`) instead of Python. With music that is two cava processes
 and `pw-record`; at idle none of them runs, and the visualizer rests instead of

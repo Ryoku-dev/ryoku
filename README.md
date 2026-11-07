@@ -106,11 +106,14 @@ path, starting from a stock Void installation.
 On first login a short welcome walks you through the handful of keybinds that
 open almost everything and lets you pick the interface scale, the bar and the
 desktop widgets. Everything else lives in the Ryoku Hub (`Super + ,`). The bar
-is a choice, not a given: **Orpheus** (the default, a liquid top bar), **QS Bar**
-(in full colour), **Sumi** (the monochrome rail), **Kairos** (one island carrying
-the clock), **Shima**, **Python** and **Nomarchy** all ship, and every one of them
-reads the desktop through the same window-manager seam rather than a
-compositor's own API ([`docs/barstyles.md`](docs/barstyles.md)).
+is a choice, not a given: Ryoku ships two subshells, **Orpheus** (a liquid top
+bar, and the fallback) and **Kairos** (one island carrying the clock, worn by
+the default rice), and RyoStore
+installs the rest, among them **QS Bar** (in full colour), **Sumi** (the
+monochrome rail), **Shima**, **Python** and **Nomarchy**. Every one of them reads
+the desktop through the same window-manager seam rather than a compositor's own
+API, and an installed one costs nothing until you pick it
+([`docs/subshells.md`](docs/subshells.md)).
 
 <div align="center">
   <a href="https://youtu.be/kx7VW4Mg0m4"><img src="https://img.youtube.com/vi/kx7VW4Mg0m4/maxresdefault.jpg" alt="Ryoku showcase on YouTube" width="560" /></a>
@@ -203,7 +206,7 @@ are in [`docs/installation-hardware.md`](docs/installation-hardware.md).
 | [`docs/ryoku.md`](docs/ryoku.md) | What Ryoku is and how the parts fit. |
 | [`docs/structure.md`](docs/structure.md) | The repo map: `ryoku/` is the desktop, `system/` the machine, `installation/`, `void/` and `fedora/` the installers and packaging, `release/` the signed repo. |
 | [`docs/compositors.md`](docs/compositors.md) | The window-manager seam: what each compositor can do, and how to add one. |
-| [`docs/barstyles.md`](docs/barstyles.md) | The seven bar styles, and how to ship another. |
+| [`docs/subshells.md`](docs/subshells.md) | Subshells and bar styles: what ships, what the store adds, and how they load. |
 | [`docs/updates.md`](docs/updates.md) | Channels: `main` is stable, `unstable-dev` is the gated preview, and how a change reaches an installed machine. |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | The commit gates and how to send a change. |
 
