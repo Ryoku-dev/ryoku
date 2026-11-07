@@ -16,7 +16,7 @@ Singleton {
     readonly property var current: Svc.Weather.current
     readonly property bool available: Svc.Weather.available
     readonly property string temp: root.current
-        ? Model.displayTemp(root.current.temperature, root.current.temp, root.unitOverride) : ""
+        ? Model.displayTemp(root.current.temperature, root.current.tempC, root.unitOverride) : ""
     readonly property string condition: Svc.Weather.condition
     readonly property string glyph: Svc.Weather.glyph
     readonly property string city: Svc.Weather.city

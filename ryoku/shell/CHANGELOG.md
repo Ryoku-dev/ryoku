@@ -1,6 +1,14 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The Bluetooth pairing agent no longer wakes once a second.** It held its
+  stdin open with `tail -f /dev/null`, which polls; `sleep infinity` holds it
+  the same way without waking (`systemd/user/ryoku-bt-agent.service`, and the
+  runit service on Void).
+- **The launcher's forced temperature unit is exact again.** The weather frame
+  carries the reading in celsius to a tenth (`tempC`), and the launcher
+  converts that instead of the other scale's rounded number, which could be a
+  degree off.
 - **A shell reload or a bar style switch no longer leaves helpers running.**
   Quickshell exits on SIGTERM without stopping the processes its `Process`
   objects started, so every reload left the old shell's watchers and the

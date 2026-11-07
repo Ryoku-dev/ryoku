@@ -3,9 +3,10 @@
 // them. Avoids Date.now()/Math.random() (both throw in the Quickshell JS engine).
 
 // The frame's display string in the launcher's unit. `shown` is the daemon's
-// formatted reading ("21°C"), `whole` its rounded number in that same unit, and
-// `override` the launcher setting ("" follows the frame, "C"/"F" force a scale).
-function displayTemp(shown, whole, override) {
+// formatted reading ("21°C"), `celsius` the measurement in celsius (the frame's
+// tempC), and `override` the launcher setting ("" follows the frame, "C"/"F"
+// force a scale).
+function displayTemp(shown, celsius, override) {
     var text = String(shown || "");
     if (text.length === 0)
         return "";
@@ -14,12 +15,14 @@ function displayTemp(shown, whole, override) {
         return text;
     if (override === frameUnit)
         return text;
-    var t = Number(whole);
-    if (!isFinite(t))
+    if (celsius === null || celsius === undefined || celsius === "")
+        return text;
+    var c = Number(celsius);
+    if (!isFinite(c))
         return text;
     if (override === "F")
-        return Math.round(t * 9 / 5 + 32) + "\u00b0F";
-    return Math.round((t - 32) * 5 / 9) + "\u00b0C";
+        return Math.round(c * 9 / 5 + 32) + "\u00b0F";
+    return Math.round(c) + "\u00b0C";
 }
 
 // "05:24" or "5:24 AM" (the daemon's 24h or 12h clock) -> seconds since local

@@ -466,6 +466,9 @@ type wxCurrent struct {
 	Temp      int `json:"temp"`
 	Feels     int `json:"feels"`
 	WindValue int `json:"windValue"`
+	// TempC is the reading in celsius to a tenth, so a surface showing the other
+	// scale converts the measurement rather than an already rounded number.
+	TempC float64 `json:"tempC"`
 }
 
 type wxHour struct {
@@ -1136,6 +1139,7 @@ func buildFrame(data *wxForecastResponse, air *wxAirResponse, loc wxLocation, un
 			Temp:        tempInt(celsius, unit),
 			Feels:       tempInt(feels, unit),
 			WindValue:   int(math.Round(windKmhInUnit(windKmh, unit))),
+			TempC:       math.Round(celsius*10) / 10,
 		}
 	}
 
