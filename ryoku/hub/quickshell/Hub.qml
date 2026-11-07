@@ -82,20 +82,14 @@ Rectangle {
         hub.shellSelectionPending = false;
         hub.barStyleSwitchPending = false;
         hub.runningBarStyle = "";
-        if (hub.livePending.barStyle) {
-            Settings.patch("barStyle", hub.val("barStyle"));
-            const pending = {};
-            for (const key in hub.livePending)
-                if (key !== "barStyle")
-                    pending[key] = true;
-            hub.livePending = pending;
-        }
+        Settings.flushWrites();
         Spawn.run(["ryoku-shell", "shells", "commit"]);
         return true;
     }
     // remember the last section so a reopen lands where you left, not the default.
     // Read once at startup by `sectionGet` below; written here on every change.
     onSectionChanged: {
+        Settings.flushWrites();
         hub.commitShellSelection();
         Quickshell.execDetached(["ryoku-hub", "config", "set", "section", hub.section]);
     }
@@ -136,7 +130,7 @@ Rectangle {
         var editorSection = hub.editorSectionFor(target);
         if (editorSection !== "") {
             hub.navigated = true;
-            editorHandoff.command = ["qs", "-c", "shell", "ipc", "call",
+            editorHandoff.command = ["ryoku-shell", "ipc", "call",
                 "desktop", "editSection", editorSection, ""];
             editorHandoff.running = true;
             return;
@@ -755,7 +749,6 @@ Rectangle {
     // channel, so an unsaved close leaves no residue.
     readonly property var liveKeys: ["frameBars", "frameEnabled", "frameOpacity", "frameThickness", "frameCorner", "fontFamily", "terminalFontFamily", "fontSize", "barStyle", "obi", "nacre", "dock", "clipboard.widthPercent", "clipboard.heightPercent", "clipboard.bottomPercent", "clipboard.panelRadius", "clipboard.paneRadius", "clipboard.cardRadius"]
     property var liveBaseline: null
-    property var livePending: ({})
     function captureLiveBaseline() {
         var b = {};
         for (var i = 0; i < hub.liveKeys.length; i++) {
@@ -767,19 +760,7 @@ Rectangle {
     }
     function stageLive(k, v) {
         hub.edit(k, v);
-        var p = {};
-        for (var x in hub.livePending) p[x] = true;
-        p[k] = true;
-        hub.livePending = p;
-        liveFlush.restart();
-    }
-    Timer {
-        id: liveFlush
-        interval: 130
-        onTriggered: {
-            for (var k in hub.livePending) Settings.patch(k, hub.val(k));
-            hub.livePending = ({});
-        }
+        Settings.patch(k, v);
     }
     // the live-applied keys that have drifted from the saved baseline
     readonly property var liveChanges: {
@@ -795,8 +776,6 @@ Rectangle {
     }
     // put the saved state back on the desktop; true if anything was patched
     function restoreLiveUnsaved() {
-        liveFlush.stop();
-        hub.livePending = ({});
         if (!hub.liveBaseline) return false;
         var changed = hub.liveChanges;
         if (!changed.length) return false;
@@ -844,6 +823,7 @@ Rectangle {
         }
         hub.captureLiveBaseline();
         hub.savePage();
+        Settings.flushWrites();
     }
     function revert() {
         hub.invalidatePageWork();
@@ -1042,7 +1022,7 @@ Rectangle {
         }
     }
     Process { id: hyprPreview }
-    Process { id: hyprRestore; onRunningChanged: if (!running && hub.quitting) Qt.quit() }
+    Process { id: hyprRestore; onRunningChanged: if (!running && hub.quitting) quitFlush.start() }
     function requestQuit() {
         if (hub.quitting) return;
         if (brandFV.loaded) {
@@ -1055,21 +1035,32 @@ Rectangle {
         // Bar Studio edits are already live on the desktop: an unsaved quit
         // puts the saved state back through the same channel before the Hub
         // goes, whichever way it was closed.
-        var restored = hub.restoreLiveUnsaved();
+        hub.restoreLiveUnsaved();
         hub.commitShellSelection();
+        Settings.flushWrites();
         if (hub.wmLoaded && hub.hyprChanges().length) {
             hub.quitting = true;
             hyprRestore.command = ["ryoku-hub", "desktop", "restore"];
             hyprRestore.running = true;
-        } else if (restored) {
-            // hold the door one beat so the control socket flushes the patches
+        } else if (Settings.writesUnsettled) {
             hub.quitting = true;
-            quitFlush.restart();
+            quitFlush.start();
         } else {
             Qt.quit();
         }
     }
-    Timer { id: quitFlush; interval: 120; onTriggered: Qt.quit() }
+    // Hold the door until the daemon has answered every settings write, capped
+    // so an absent daemon cannot keep the Hub alive.
+    Timer {
+        id: quitFlush
+        interval: 25
+        repeat: true
+        property int ticks: 0
+        onTriggered: {
+            if (!Settings.writesUnsettled || ++ticks >= 60)
+                Qt.quit();
+        }
+    }
 
     function hyprVal(path) { return hub.pathGet(hub.hyprDraft, path); }
     function hyprCommittedVal(path) { return hub.pathGet(hub.hyprCommitted, path); }

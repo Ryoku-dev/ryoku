@@ -18,8 +18,8 @@ import "ReloadCoverModel.js" as ReloadCoverModel
 // as one instrument sheet.
 //
 // The draft object holds live values and is the page's own; this only reads it
-// and reports edits back. The one file it writes is the weather resolver cache
-// (the picked place's coords the weather widgets read), on a location pick.
+// and reports edits back. A location pick stores the place name in the
+// weatherLocation setting; the shell daemon's weather topic resolves it.
 Item {
     id: sheet
 
@@ -955,7 +955,6 @@ Item {
                                         Item {
                                             id: locRoot
                                             anchors.fill: parent
-                                            readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/ryoku"
 
                                             Rectangle {
                                                 id: locField
@@ -1027,13 +1026,6 @@ Item {
                                                 }
                                             }
 
-                                            FileView {
-                                                id: locCache
-                                                path: locRoot.stateDir + "/weather-loc.json"
-                                                blockLoading: true
-                                                printErrors: false
-                                            }
-
                                             Popup {
                                                 id: locPop
                                                 parent: locField
@@ -1076,7 +1068,6 @@ Item {
                                                             onTapped: {
                                                                 lti.text = lrow.modelData.name;
                                                                 sheet.edited(srow.r.key, lrow.modelData.name);
-                                                                locCache.setText(JSON.stringify({ query: lrow.modelData.name, city: lrow.modelData.name, lat: lrow.modelData.lat, lon: lrow.modelData.lon }));
                                                                 locPop.close();
                                                             }
                                                         }

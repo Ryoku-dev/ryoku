@@ -167,18 +167,18 @@ Item {
             return;
         const args = Array.isArray(page.activeSettings.args)
             ? page.activeSettings.args.map(String) : [];
-        Spawn.run(["qs", "-c", "shell", "ipc", "call",
+        Spawn.run(["ryoku-shell", "ipc", "call",
             String(page.activeSettings.ipc), String(page.activeSettings.call)].concat(args));
     }
     function openDockSettings() {
-        Spawn.run(["qs", "-c", "shell", "ipc", "call",
+        Spawn.run(["ryoku-shell", "ipc", "call",
             "desktop", "editSection", "dock", ""]);
     }
     function openPart(part) {
         if (part.kind === "dock")
             page.openDockSettings();
         else if (part.kind === "desktopWidgets")
-            Spawn.run(["qs", "-c", "shell", "ipc", "call",
+            Spawn.run(["ryoku-shell", "ipc", "call",
                 "desktop", "editSection", "widgets", ""]);
         else if (page.hub && page.hub.navigate)
             page.hub.navigate("launcher");

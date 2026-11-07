@@ -365,14 +365,14 @@ Item {
         const revision = String(pg.keyPreviewRevision);
         if (show) {
             Spawn.run([
-                "qs", "-c", "shell", "ipc", "call", "keypresses", "activate",
+                "ryoku-shell", "ipc", "call", "keypresses", "activate",
                 pg.keyDraft ? pg.keyDraft.theme : "dark",
                 pg.keyDraft ? pg.keyDraft.mode : "all",
                 revision
             ]);
         } else {
             Spawn.run([
-                "qs", "-c", "shell", "ipc", "call", "keypresses", "deactivate",
+                "ryoku-shell", "ipc", "call", "keypresses", "deactivate",
                 revision
             ]);
         }

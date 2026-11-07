@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "SettingsWrites.js" as Writes
 
 // QML view of the daemon `settings` topic (ryoku/shell/ipc/settings.go). The
 // settings schema, its defaults, validation, clamping and migration for
@@ -25,7 +26,10 @@ Singleton {
     property var pendingCalls: ({})
     property int pendingCallCount: 0
     property int nextCallId: 0
-
+    // Coalesced patches (SettingsWrites.js). overlayRevision ticks whenever a
+    // staged or in-flight value changes, so get() bindings re-read at once.
+    property var writes: Writes.create()
+    property int overlayRevision: 0
 
     // Compositor gating, carried on the `settings` frame with the values it
     // gates. caps is behavioural (supports() -> a gated row is hidden, not
@@ -62,29 +66,73 @@ Singleton {
 
     readonly property string sockPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-shell.sock"
 
-    // Nested read by dotted path; undefined for any missing segment.
+    // Nested read by dotted path, with staged and in-flight writes laid over
+    // the daemon tree; undefined for any missing segment.
     function get(path) {
-        var cur = root.data;
-        var parts = String(path).split(".");
-        for (var i = 0; i < parts.length; i++) {
-            if (cur === undefined || cur === null || typeof cur !== "object")
-                return undefined;
-            cur = cur[parts[i]];
-        }
-        return cur;
+        root.overlayRevision;
+        return Writes.read(root.writes, root.data, path);
     }
 
-    // Intent -> daemon. Existing callers remain fire-and-forget; a caller that
-    // supplies `completion(ok, error)` gets the daemon acknowledgement or a
-    // bounded timeout and can keep its UI honest while the daemon is absent.
+    // Intent -> daemon. Writes to one path are coalesced (a drag sends its last
+    // value after a short rest, or every few hundred ms while it continues);
+    // get() shows the staged value at once. A caller that supplies
+    // `completion(ok, error)` gets the daemon acknowledgement or a bounded
+    // timeout and can keep its UI honest while the daemon is absent.
     function patch(path, value, completion) {
-        return root.send("settings.patch", { path: path, value: value }, completion);
+        Writes.stage(root.writes, path, value, completion, Date.now());
+        root.overlayRevision++;
+        var wait = Writes.dueAt(root.writes) - Date.now();
+        writeFlush.interval = Math.max(1, wait);
+        writeFlush.restart();
     }
     function reset(path, completion) {
         return root.send("settings.reset", { path: path }, completion);
     }
+    // Send every staged write now (page change, Save, quit). Returns how many
+    // writes went out.
+    function flushWrites() {
+        writeFlush.stop();
+        var ws = Writes.take(root.writes);
+        for (var i = 0; i < ws.length; i++)
+            root.sendWrite(ws[i]);
+        if (ws.length > 0)
+            root.overlayRevision++;
+        return ws.length;
+    }
+    // True while any write has not been answered by the daemon yet.
+    readonly property bool writesUnsettled: {
+        root.overlayRevision;
+        return Writes.unsent(root.writes) + Writes.unacked(root.writes) > 0;
+    }
+    function sendWrite(w) {
+        root.call("settings.patch", { path: w.path, value: w.value }, function(ok, error) {
+            var done = Writes.ack(root.writes, w.seq, ok, root.data, Date.now());
+            root.overlayRevision++;
+            root.scheduleSettle();
+            for (var i = 0; i < done.length; i++)
+                done[i](ok, error);
+        });
+    }
+    function scheduleSettle() {
+        var r = Writes.expire(root.writes, Date.now());
+        if (r.changed)
+            root.overlayRevision++;
+        if (r.next < 0) {
+            writeSettle.stop();
+        } else {
+            writeSettle.interval = Math.max(1, r.next - Date.now());
+            writeSettle.restart();
+        }
+    }
 
+    // Any other request goes out after the staged writes it may depend on (a
+    // sound preview after its volume, a reset after a patch of the same key).
     function send(method, args, completion) {
+        root.flushWrites();
+        return root.call(method, args, completion);
+    }
+
+    function call(method, args, completion) {
         var payload = {};
         var source = args || {};
         for (var key in source)
@@ -146,6 +194,9 @@ Singleton {
                 root.caps = frame.caps || ({});
                 root.deadKeys = frame.deadKeys || [];
                 root.windowRuleActions = frame.windowRuleActions || [];
+                // Retire acknowledged overlays in the same step the new tree
+                // lands, so rebase-on-revision reads the daemon's value for them.
+                Writes.frame(root.writes);
                 root.data = frame;
                 root.ready = true;
                 root.revision++;
@@ -185,6 +236,14 @@ Singleton {
         repeat: true
         running: root.pendingCallCount > 0
         onTriggered: root.expireCalls()
+    }
+    Timer {
+        id: writeFlush
+        onTriggered: root.flushWrites()
+    }
+    Timer {
+        id: writeSettle
+        onTriggered: root.scheduleSettle()
     }
 
 

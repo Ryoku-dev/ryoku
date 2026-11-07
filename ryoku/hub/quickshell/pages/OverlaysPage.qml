@@ -20,7 +20,7 @@ Item {
     }
 
     function tryOsd() {
-        Quickshell.execDetached(["qs", "-c", "shell", "ipc", "call", "osd", "preview"]);
+        Quickshell.execDetached(["ryoku-shell", "ipc", "call", "osd", "preview"]);
     }
 
     function tryNotification() {
