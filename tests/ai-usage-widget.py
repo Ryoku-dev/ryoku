@@ -213,6 +213,8 @@ assert.equal(monthly().available,undefined);
             platform = os.environ.get('AI_USAGE_QML_PLATFORM', 'offscreen')
             if SHIPPED.exists():
                 targets.append(ROOT / 'ryoku/shell/quickshell/inir/services/CustomWidgets.qml')
+                targets.append(ROOT / 'ryoku/shell/quickshell/inir/modules/iris/settings/IrisOptions.qml')
+                targets.append(ROOT / 'ryoku/shell/quickshell/inir/modules/iris/bar/IrisCustomModule.qml')
                 if platform == 'wayland':
                     targets.append(ROOT / 'ryoku/shell/quickshell/inir/modules/background/widgets/WidgetManagerPanel.qml')
             uris = json.dumps([path.as_uri() for path in targets])

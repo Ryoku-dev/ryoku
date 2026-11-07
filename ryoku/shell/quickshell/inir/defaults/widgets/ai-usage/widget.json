@@ -8,6 +8,7 @@
     "main": "AiUsageTile.qml",
     "iris": {
         "main": "IrisCompact.qml",
+        "builtin": true,
         "slots": [
             "island.desktop"
         ]

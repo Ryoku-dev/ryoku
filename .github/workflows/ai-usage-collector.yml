@@ -22,6 +22,8 @@ on:
       - 'tests/ai-usage-widget.py'
       - 'tests/custom-widget-install.py'
       - 'ryoku/shell/quickshell/inir/services/CustomWidgets.qml'
+      - 'ryoku/shell/quickshell/inir/modules/iris/settings/IrisOptions.qml'
+      - 'ryoku/shell/quickshell/inir/modules/iris/bar/IrisCustomModule.qml'
       - 'ryoku/shell/quickshell/inir/modules/background/widgets/WidgetManagerPanel.qml'
       - '.github/workflows/ai-usage-collector.yml'
   push:
@@ -39,6 +41,8 @@ on:
       - 'tests/ai-usage-widget.py'
       - 'tests/custom-widget-install.py'
       - 'ryoku/shell/quickshell/inir/services/CustomWidgets.qml'
+      - 'ryoku/shell/quickshell/inir/modules/iris/settings/IrisOptions.qml'
+      - 'ryoku/shell/quickshell/inir/modules/iris/bar/IrisCustomModule.qml'
       - 'ryoku/shell/quickshell/inir/modules/background/widgets/WidgetManagerPanel.qml'
       - '.github/workflows/ai-usage-collector.yml'
   workflow_dispatch:

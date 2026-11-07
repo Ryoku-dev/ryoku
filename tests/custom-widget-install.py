@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -19,7 +20,7 @@ def functions(source, names):
         start = source.index('    function ' + name + '(')
         end = source.index('\n    }', start) + len('\n    }')
         body = re.sub(r': (?:string|var|bool)(?=[,)])', '', source[start:end])
-        result.append(re.sub(r'\): (?:void|bool) \{', ') {', body))
+        result.append(re.sub(r'\): (?:void|bool|var) \{', ') {', body))
     return '\n'.join(result)
 
 
@@ -36,6 +37,107 @@ class SharedWidgetTest(unittest.TestCase):
                                 capture_output=True, text=True, timeout=15)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result.stdout
+
+    def module_catalog_script(self):
+        loader = LOADER.read_text()
+        options = (ROOT / 'ryoku/shell/quickshell/inir/modules/iris/settings/IrisOptions.qml').read_text()
+        host = (ROOT / 'ryoku/shell/quickshell/inir/modules/iris/bar/IrisCustomModule.qml').read_text()
+        script = functions(loader, ('_parseShipped', 'isInstalled'))
+        script += '\n' + functions(options, ('choicesOf',))
+        script += '\nconst assert=require("node:assert/strict");'
+        script += '\nconst root={ready:true,widgets:[],shippedWidgets:[],widgetId:"ai-usage"};'
+        script += '\nconst CustomWidgets=root, IrisStyle={ryokuFrontend:false};'
+        if 'readonly property var irisModules:' in loader:
+            binding = load_test('ai-usage-widget').binding(loader, 'irisModules')
+            script += '\nObject.defineProperty(root,"irisModules",{get:()=>{' + binding + '\n}});'
+        row = next(line.strip().rstrip(',') for line in options.splitlines()
+                   if 'path: "iris.bar.rightModules"' in line)
+        script += '\nconst spec=' + row + ';'
+        expression = re.search(r'readonly property var entry: ([\s\S]+?)\n    readonly property string sourcePath:', host).group(1)
+        script += '\nconst selected=()=>(' + expression + ');'
+        scan = subprocess.run(['bash', str(ROOT / 'ryoku/shell/quickshell/inir/scripts/scan-widgets.sh'),
+                               str(ROOT / 'ryoku/shell/quickshell/inir/defaults/widgets')],
+                              capture_output=True, text=True, check=True)
+        script += '\n_parseShipped(' + json.dumps(scan.stdout) + ');'
+        return script
+
+    def test_bundled_module_is_offered_and_loadable_on_a_fresh_profile(self):
+        script = self.module_catalog_script() + '''
+assert.deepEqual(root.widgets,[]);
+assert.equal(isInstalled('ai-usage'),false);
+assert.equal(spec.showIf(),true);
+assert.deepEqual(spec.fallback,[]);
+assert.deepEqual(choicesOf(spec).map(choice=>choice.value),['custom:ai-usage']);
+const entry=selected();
+assert.equal(entry.id,'ai-usage');
+assert(entry.irisQmlPath.includes('/defaults/widgets/ai-usage/IrisCompact.qml'));
+assert(require('node:fs').existsSync(new URL(entry.irisQmlPath)));
+'''
+        self.run_node(script)
+
+    def test_installed_modules_override_bundled_defaults_without_duplicates(self):
+        script = self.module_catalog_script() + '''
+const custom={id:'ai-usage',name:'My AI usage',irisQmlPath:'file:///custom/AI.qml'};
+const other={id:'other',name:'Other',irisQmlPath:'file:///custom/Other.qml'};
+root.widgets=[custom,other,{id:'desktop-only',irisQmlPath:''}];
+assert.deepEqual(choicesOf(spec).map(choice=>choice.value),['custom:ai-usage','custom:other']);
+assert.equal(selected(),custom);
+assert.equal(isInstalled('ai-usage'),true);
+root.widgets=[{id:'ai-usage',irisQmlPath:''}];
+assert.deepEqual(choicesOf(spec),[]);
+assert.equal(selected(),null);
+root.widgets=[];
+assert.equal(selected().id,'ai-usage');
+assert.equal(isInstalled('ai-usage'),false);
+'''
+        self.run_node(script)
+
+    @unittest.skipUnless(shutil.which('qs'), 'Quickshell required for typed-list runtime check')
+    def test_bundled_catalog_reacts_to_installed_copies_in_qml(self):
+        source = LOADER.read_text()
+        binding = load_test('ai-usage-widget').binding(source, 'irisModules')
+        manifest = json.loads((ROOT / 'ryoku/shell/quickshell/inir/defaults/widgets/ai-usage/widget.json').read_text())
+        entries = json.dumps([{'id': 'ai-usage', 'dir': '/bundled/ai-usage', 'manifest': manifest}])
+        qml = '''import QtQuick
+import Quickshell
+ShellRoot {
+    id: root
+    property list<var> widgets: []
+    property list<var> shippedWidgets: []
+    readonly property var irisModules: {''' + binding + '''
+    }
+''' + functions(source, ('_parseShipped',)) + '''
+    Component.onCompleted: _parseShipped(''' + json.dumps(entries) + ''')
+    Timer {
+        interval: 30; running: true; repeat: true
+        property int phase: 0
+        onTriggered: {
+            const expected = phase === 1 ? "file:///custom/AI.qml" : "file:///bundled/ai-usage/IrisCompact.qml";
+            if (root.irisModules.length !== 1 || root.irisModules[0].irisQmlPath !== expected) {
+                console.log("BUNDLED-MODULE-RUNTIME-FAIL", phase, JSON.stringify(root.irisModules));
+                Qt.quit(); return;
+            }
+            if (phase === 0) root.widgets = [{id:"ai-usage",irisQmlPath:"file:///custom/AI.qml"}];
+            else if (phase === 1) root.widgets = [];
+            else { console.log("BUNDLED-MODULE-RUNTIME-PASS"); Qt.quit(); }
+            phase++;
+        }
+    }
+}'''
+        with tempfile.TemporaryDirectory(prefix='bundled-module-qml-') as directory:
+            work = Path(directory)
+            runtime = work / 'runtime'
+            runtime.mkdir(mode=0o700)
+            (work / 'shell.qml').write_text(qml)
+            env = dict(os.environ, HOME=str(work / 'home'), XDG_CONFIG_HOME=str(work / 'config'),
+                       XDG_CACHE_HOME=str(work / 'cache'), XDG_STATE_HOME=str(work / 'state'),
+                       XDG_RUNTIME_DIR=str(runtime), QT_QPA_PLATFORM='offscreen', QS_DISABLE_CRASH_HANDLER='1')
+            result = subprocess.run(['qs', '-p', str(work / 'shell.qml')], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            output = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 0, output)
+            self.assertIn('BUNDLED-MODULE-RUNTIME-PASS', output)
+            self.assertNotIn('BUNDLED-MODULE-RUNTIME-FAIL', output)
 
     def test_original_example_api_and_install_guard(self):
         script = functions(LOADER.read_text(), ('installShipped', 'installExample'))

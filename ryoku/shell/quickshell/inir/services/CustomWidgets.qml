@@ -15,6 +15,16 @@ Singleton {
     property list<var> widgets: []
     // Widgets the shell ships, offered for install: [{ id, name, icon, description }]
     property list<var> shippedWidgets: []
+    // User copies take precedence; bundled modules remain available after updates.
+    readonly property var irisModules: {
+        const seen = new Set();
+        return root.widgets.concat(root.shippedWidgets.filter(widget => widget.irisBuiltin))
+            .filter(widget => {
+                if (seen.has(widget.id)) return false;
+                seen.add(widget.id);
+                return String(widget.irisQmlPath || "").length > 0;
+            });
+    }
     readonly property bool ready: _scanDone
     readonly property string widgetsDir: `${Directories.configPath}/inir/widgets`
     readonly property string shippedWidgetsDir: FileUtils.trimFileProtocol(Directories.payloadPath("defaults/widgets"))
@@ -57,11 +67,15 @@ Singleton {
                 const manifest = entry.manifest || {};
                 if (!manifest.name)
                     continue;
+                const iris = manifest.iris && typeof manifest.iris === "object" ? manifest.iris : {};
+                const irisFile = typeof iris.main === "string" ? iris.main.trim() : "";
                 list.push({
                     id: entry.id,
                     name: manifest.name,
                     icon: manifest.icon || "widgets",
-                    description: manifest.description || ""
+                    description: manifest.description || "",
+                    irisBuiltin: iris.builtin === true,
+                    irisQmlPath: irisFile.length > 0 ? `file://${entry.dir}/${irisFile}` : ""
                 });
             }
             root.shippedWidgets = list;
