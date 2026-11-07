@@ -1068,8 +1068,9 @@ func (d *daemon) supervise(name string) {
 		start := time.Now()
 		_ = cmd.Wait()
 		close(exited)
+		reapProcessGroup(cmd.Process.Pid)
 		if desktop != nil {
-			d.restoreAfterDesktop(desktop, cmd)
+			d.restoreAfterDesktop(desktop)
 		}
 		d.clearRuntimeRun(desktop)
 		killedHolding := <-heldAtKill
@@ -1177,10 +1178,15 @@ func (d *daemon) shutdown() {
 	if len(pids) == 0 {
 		return
 	}
-	signalAll(pids, syscall.SIGTERM)
+	for _, pid := range pids {
+		_ = syscall.Kill(-pid, syscall.SIGTERM)
+	}
 	if left := waitGone(pids, 3*time.Second); len(left) > 0 {
 		signalAll(left, syscall.SIGKILL)
 		waitGone(left, time.Second)
+	}
+	for _, pid := range pids {
+		reapProcessGroup(pid)
 	}
 }
 
@@ -1746,7 +1752,7 @@ func (d *daemon) reload() string {
 		d.markRuntimeRunIntentional()
 	}
 	for _, c := range procs {
-		_ = c.Process.Signal(syscall.SIGTERM)
+		_ = syscall.Kill(-c.Process.Pid, syscall.SIGTERM)
 	}
 	deadline := time.Now().Add(12 * time.Second)
 	for _, c := range components {

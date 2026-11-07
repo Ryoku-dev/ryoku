@@ -1066,6 +1066,9 @@ func gtkReloadEnv(t *testing.T, themeJSON, colorsJSON string) *[][]string {
 	if colorsJSON != "" {
 		writeFile(t, filepath.Join(cache, "colors.json"), colorsJSON)
 	}
+	// The reload ends with a fire-and-forget palette nudge; without the stub it
+	// would run a real qs against whatever shell the developer has running.
+	stubShellIpc(t, nil)
 	var got [][]string
 	origRun, origOut := runCommand, runCommandOutput
 	t.Cleanup(func() { runCommand, runCommandOutput = origRun, origOut })

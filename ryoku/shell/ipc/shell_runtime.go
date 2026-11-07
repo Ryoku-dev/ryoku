@@ -78,17 +78,13 @@ func (d *daemon) desktopCommand() (*exec.Cmd, *desktopRun, error) {
 	item := d.desktopSelection()
 	run := &desktopRun{item: item, runtime: item != nil}
 	if item == nil {
-		cmd := exec.Command("qs", qsSelect("shell")...)
-		cmd.Env = d.shellQsEnv()
-		return cmd, run, nil
+		return d.residentShell(), run, nil
 	}
 	env := shellItemEnv(item)
 	if item.Runtime.Check != "" {
 		if err := runItemScript(item.Runtime.Check, env); err != nil {
 			run.runtime = false
-			cmd := exec.Command("qs", qsSelect("shell")...)
-			cmd.Env = d.shellQsEnv()
-			return cmd, run, nil
+			return d.residentShell(), run, nil
 		}
 	}
 	if err := d.installRuntime(item, env); err != nil {
@@ -111,6 +107,15 @@ func (d *daemon) desktopCommand() (*exec.Cmd, *desktopRun, error) {
 	cmd.Env = runtimeEnv(item, run.ready)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	return cmd, run, nil
+}
+
+// residentShell is the plain `qs -c shell`. Like an item runtime it leads its
+// own process group, so stopping the shell reaches every helper it started.
+func (d *daemon) residentShell() *exec.Cmd {
+	cmd := exec.Command("qs", qsSelect("shell")...)
+	cmd.Env = d.shellQsEnv()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return cmd
 }
 
 func runtimeReady(path string, pid int) bool {
@@ -145,20 +150,14 @@ func (d *daemon) markRuntimeRunIntentional() {
 	d.runtimeRunMu.Unlock()
 }
 
-func terminateDesktop(cmd *exec.Cmd, group bool, exited <-chan struct{}) {
-	signal := func(sig syscall.Signal) {
-		if group {
-			_ = syscall.Kill(-cmd.Process.Pid, sig)
-		} else {
-			_ = cmd.Process.Signal(sig)
-		}
-	}
-	signal(syscall.SIGTERM)
+// terminateDesktop stops a shell run and the helpers in its process group.
+func terminateDesktop(cmd *exec.Cmd, exited <-chan struct{}) {
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	go func() {
 		select {
 		case <-exited:
 		case <-time.After(2 * time.Second):
-			signal(syscall.SIGKILL)
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
 	}()
 }
@@ -174,7 +173,7 @@ func (d *daemon) watchDesktop(cmd *exec.Cmd, run *desktopRun, exited <-chan stru
 			return
 		case <-d.quit:
 			run.intentional.Store(true)
-			terminateDesktop(cmd, run.runtime, exited)
+			terminateDesktop(cmd, exited)
 			return
 		case <-tick.C:
 			if !ready {
@@ -184,7 +183,7 @@ func (d *daemon) watchDesktop(cmd *exec.Cmd, run *desktopRun, exited <-chan stru
 				}
 				if !ready && time.Now().After(deadline) {
 					run.failed.Store(true)
-					terminateDesktop(cmd, true, exited)
+					terminateDesktop(cmd, exited)
 					return
 				}
 			}
@@ -192,13 +191,12 @@ func (d *daemon) watchDesktop(cmd *exec.Cmd, run *desktopRun, exited <-chan stru
 	}
 }
 
-func (d *daemon) restoreAfterDesktop(run *desktopRun, cmd *exec.Cmd) {
+func (d *daemon) restoreAfterDesktop(run *desktopRun) {
 	if !run.runtime {
 		return
 	}
 	defer os.Remove(run.ready)
 	cleanupRuntimeWindows(run.ready)
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	select {
 	case <-d.quit:
 		return

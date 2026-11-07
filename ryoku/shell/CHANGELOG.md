@@ -1,6 +1,13 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A shell reload or a bar style switch no longer leaves helpers running.**
+  Quickshell exits on SIGTERM without stopping the processes its `Process`
+  objects started, so every reload left the old shell's watchers and the
+  previous item's pollers running beside the new ones. The shell now leads its
+  own process group and the daemon ends the whole group whenever the shell
+  stops; apps opened from the shell run in their own session and are kept
+  (`ipc/shellgroup.go`).
 - **The desktop starts about a third faster.** Quickshell never disk-caches
   its root file or what the root reaches by relative import, so most of the
   shell was compiled again on every start; the body now loads as the `shell`
