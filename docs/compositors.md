@@ -45,7 +45,10 @@ uses it only after `EnableServe()`: the daemon calls that, so a keybind costs a
 pipe write instead of a provider start. A busy, dead or older provider falls
 back to the one-shot exec for that call; a dead one is restarted on a later
 call with backoff, a replaced binary (a package update) is restarted on the
-next call, and a call whose context ends kills the child.
+next call, and a call whose context ends kills the child. The child starts on
+the first call and leaves after 30 s without a request (the client closes its
+stdin), so an idle desktop runs only the `watch` process; the next call starts
+it again at once.
 
 Ordinary workspace frames carry a one-based `index` inside their output. The
 handle in `id` remains the only action argument; `index` is presentation order,

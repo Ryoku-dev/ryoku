@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -356,5 +357,85 @@ func TestOneShotClientNeverStartsServe(t *testing.T) {
 	}
 	if n := logs.count(logs.starts, "act echo x"); n != 3 {
 		t.Errorf("one-shot runs = %d, want 3", n)
+	}
+}
+
+// shortIdle shortens the idle timeout for clients enabled after it.
+func shortIdle(t *testing.T, d time.Duration) {
+	t.Helper()
+	prev := warmIdleTimeout
+	warmIdleTimeout = d
+	t.Cleanup(func() { warmIdleTimeout = prev })
+}
+
+func waitGone(t *testing.T, pid int, within time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(within)
+	for time.Now().Before(deadline) {
+		if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return false
+}
+
+// An idle desktop holds only the watch process: the warm child leaves on its
+// own after the idle timeout, and the next call starts a new one at once,
+// warm, with no backoff charged for the exit.
+func TestWarmProviderExitsWhenIdle(t *testing.T) {
+	shortIdle(t, 200*time.Millisecond)
+	_, logs := fakeProviderDir(t)
+	c := warmClient(t)
+	first := actPid(t, c)
+
+	if !waitGone(t, first, 3*time.Second) {
+		t.Fatal("the idle warm child is still running")
+	}
+	w := c.warm.Load()
+	w.mu.Lock()
+	child, retryAt := w.child, w.retryAt
+	w.mu.Unlock()
+	if child != nil {
+		t.Error("the retired child is still the current one")
+	}
+	if time.Now().Before(retryAt) {
+		t.Error("an idle exit was charged as a failure: respawn is held back")
+	}
+
+	second := actPid(t, c)
+	if second == first || second != actPid(t, c) {
+		t.Errorf("after an idle exit the next calls should share a new warm child (%d, %d)", first, second)
+	}
+	if n := logs.count(logs.starts, "serve"); n != 2 {
+		t.Errorf("serve starts = %d, want 2", n)
+	}
+	if n := logs.count(logs.starts, "act pid"); n != 0 {
+		t.Errorf("%d calls went one-shot; the respawn after an idle exit must be immediate", n)
+	}
+}
+
+// Requests that keep coming, and one that runs past the timeout, keep the
+// same child: the countdown starts only when a request finishes.
+func TestWarmProviderStaysWhileUsed(t *testing.T) {
+	shortIdle(t, 300*time.Millisecond)
+	_, logs := fakeProviderDir(t)
+	c := warmClient(t)
+	first := actPid(t, c)
+
+	for range 8 {
+		time.Sleep(100 * time.Millisecond)
+		if pid := actPid(t, c); pid != first {
+			t.Fatalf("a busy desktop lost its warm child (%d, then %d)", first, pid)
+		}
+	}
+	if out, err := c.ActOutput("sleep", "600ms"); err != nil || out != "slept" {
+		t.Fatalf("slow act = %q, %v", out, err)
+	}
+	if pid := actPid(t, c); pid != first {
+		t.Errorf("a request longer than the idle timeout retired its own child (%d, then %d)", first, pid)
+	}
+	if n := logs.count(logs.starts, "serve"); n != 1 {
+		t.Errorf("serve starts = %d, want 1", n)
 	}
 }

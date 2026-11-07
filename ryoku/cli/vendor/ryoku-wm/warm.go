@@ -36,16 +36,22 @@ const (
 // the text read the same either way.
 var errProviderExit = errors.New("exit status 1")
 
+// warmIdleTimeout ends a warm child that has had no request for this long, so
+// an idle desktop holds only the watch process; a burst of actions still
+// shares one child. A var so tests can shorten it.
+var warmIdleTimeout = 30 * time.Second
+
 // EnableServe makes act and caps go through one warm provider process started
-// on first use. A dead child is respawned on a later call, with backoff; until
-// then, and whenever the child is busy or the provider predates serve, calls
-// take the one-shot path. Safe to call more than once and concurrently with
-// other calls.
+// on first use and stopped after warmIdleTimeout without a request; the next
+// call starts it again. A dead child is respawned on a later call, with
+// backoff; until then, and whenever the child is busy or the provider predates
+// serve, calls take the one-shot path. Safe to call more than once and
+// concurrently with other calls.
 func (c *Client) EnableServe() {
 	if c.bin == "" {
 		return
 	}
-	c.warm.CompareAndSwap(nil, &warmProvider{bin: c.bin, slot: make(chan struct{}, 1)})
+	c.warm.CompareAndSwap(nil, &warmProvider{bin: c.bin, slot: make(chan struct{}, 1), idleAfter: warmIdleTimeout})
 }
 
 // Close stops the warm provider, if any. Later calls take the one-shot path.
@@ -78,6 +84,12 @@ type warmProvider struct {
 	backoff     time.Duration
 	retryAt     time.Time
 	unsupported binIdent
+	// busy is set while a request is with the child; lastUsed is when the last
+	// one finished. The idle timer reads both to decide whether to retire it.
+	busy      bool
+	lastUsed  time.Time
+	idle      *time.Timer
+	idleAfter time.Duration
 }
 
 // binIdent tells a binary a package update replaced from the one running, so
@@ -128,7 +140,9 @@ func (w *warmProvider) do(ctx context.Context, args []string) (out []byte, serve
 	}
 	w.nextID++
 	id := w.nextID
+	w.busy = true
 	w.mu.Unlock()
+	defer w.finished()
 
 	line, err := json.Marshal(ServeRequest{ID: id, Argv: args})
 	if err != nil {
@@ -214,6 +228,41 @@ func (w *warmProvider) ready() *warmChild {
 	return ch
 }
 
+// finished marks the request done and restarts the idle countdown.
+func (w *warmProvider) finished() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.busy = false
+	w.lastUsed = time.Now()
+	if w.child == nil || w.closed {
+		return
+	}
+	if w.idle == nil {
+		w.idle = time.AfterFunc(w.idleAfter, w.retireIdle)
+	} else {
+		w.idle.Reset(w.idleAfter)
+	}
+}
+
+// retireIdle closes an idle child's stdin so it leaves at EOF. It is not a
+// failure: the backoff is untouched, and the next call starts a child at once.
+func (w *warmProvider) retireIdle() {
+	w.mu.Lock()
+	ch := w.child
+	if ch == nil || w.busy || w.closed {
+		w.mu.Unlock()
+		return
+	}
+	if left := w.idleAfter - time.Since(w.lastUsed); left > 0 {
+		w.idle.Reset(left)
+		w.mu.Unlock()
+		return
+	}
+	w.child = nil
+	w.mu.Unlock()
+	_ = ch.stdin.Close()
+}
+
 // lose kills a child that stopped answering in order and waits for it.
 func (w *warmProvider) lose(ch *warmChild) {
 	ch.kill()
@@ -246,6 +295,9 @@ func (w *warmProvider) close() {
 	w.closed = true
 	ch := w.child
 	w.child = nil
+	if w.idle != nil {
+		w.idle.Stop()
+	}
 	w.mu.Unlock()
 	if ch != nil {
 		_ = ch.stdin.Close()
@@ -283,16 +335,21 @@ func startWarm(path string, ident binIdent) (*warmChild, error) {
 func (ch *warmChild) read(stdout io.Reader) {
 	scan := bufio.NewScanner(stdout)
 	scan.Buffer(make([]byte, 0, 4096), warmMaxReply)
+	broken := false
 	for scan.Scan() {
 		var r ServeReply
 		if json.Unmarshal(scan.Bytes(), &r) != nil {
+			broken = true
 			break
 		}
 		ch.replies <- r
 	}
 	close(ch.replies)
-	// A broken reply stream leaves nothing to talk to; reap the child.
-	ch.kill()
+	// A broken reply stream leaves nothing to talk to. A clean EOF is the
+	// child leaving on its own, so its process group is left alone.
+	if broken || scan.Err() != nil {
+		ch.kill()
+	}
 	_ = ch.cmd.Wait()
 	close(ch.exited)
 }
