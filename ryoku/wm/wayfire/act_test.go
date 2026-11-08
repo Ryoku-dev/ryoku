@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	wm "ryoku-wm"
 )
 
 // The act file's method names and payloads are pinned without a compositor:
@@ -814,6 +816,78 @@ func TestOutputCycleAndEnable(t *testing.T) {
 	})
 }
 
+func TestOutputRefreshChoosesCurrentResolution(t *testing.T) {
+	outputs := []wm.Output{{
+		Name: "eDP-1", Mode: "2560x1600@165.002",
+		Modes: []string{"1920x1200@60", "2560x1600@60.001", "2560x1600@165.002"},
+	}}
+	for _, tc := range []struct {
+		name string
+		hz   float64
+		want string
+	}{
+		{"exact", 165.002, "2560x1600@165.002"},
+		{"nearest", 60, "2560x1600@60.001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := closestOutputMode(outputs, "eDP-1", tc.hz)
+			if err != nil || got != tc.want {
+				t.Fatalf("closestOutputMode = %q, %v; want %q", got, err, tc.want)
+			}
+		})
+	}
+	if _, err := closestOutputMode([]wm.Output{{
+		Name: "eDP-1", Mode: "3840x2160@60", Modes: []string{"2560x1600@60"},
+	}}, "eDP-1", 60); err == nil || !strings.Contains(err.Error(), "current resolution") {
+		t.Errorf("no-resolution-match error = %v", err)
+	}
+	if _, err := outputRefreshHz("sixty"); err == nil ||
+		!strings.Contains(err.Error(), "positive decimal") {
+		t.Errorf("malformed-hz error = %v", err)
+	}
+	if _, err := closestOutputMode(outputs, "DP-9", 60); err == nil ||
+		!strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("missing-output error = %v", err)
+	}
+}
+
+func TestActOutputRefreshSetsOnlyMode(t *testing.T) {
+	calls := stubAct(t, stageReplies())
+	original := runWlrRandr
+	runWlrRandr = func() ([]byte, error) {
+		return []byte(`[{
+			"name":"HEADLESS-1","enabled":true,"scale":1,
+			"modes":[
+				{"width":1280,"height":720,"refresh":60.001},
+				{"width":1280,"height":720,"refresh":165.002,"current":true}
+			]
+		}]`), nil
+	}
+	t.Cleanup(func() { runWlrRandr = original })
+
+	if err := runAct([]string{"output.refresh", "HEADLESS-1", "60"}); err != nil {
+		t.Fatal(err)
+	}
+	wantCall(t, *calls, "wayfire/set-config-options",
+		`{"output:HEADLESS-1/mode":"1280x720@60001"}`)
+}
+
+func TestActOutputRefreshRejectsBadArgs(t *testing.T) {
+	for _, args := range [][]string{
+		{"output.refresh"},
+		{"output.refresh", "HEADLESS-1"},
+		{"output.refresh", "HEADLESS-1", "sixty"},
+	} {
+		calls := stubAct(t, stageReplies())
+		if err := runAct(args); err == nil {
+			t.Errorf("runAct(%v): expected an error", args)
+		}
+		if len(*calls) != 0 {
+			t.Errorf("runAct(%v): reached the compositor: %v", args, *calls)
+		}
+	}
+}
+
 // The absences are half the contract: an action whose capability the
 // manifest denies must say so by name instead of failing obscurely or,
 // worse, pretending.
@@ -1165,7 +1239,7 @@ func TestMaximizeFitsAndRestores(t *testing.T) {
 		b, _ := json.Marshal(map[string]any{
 			"id": 7, "title": "term", "app-id": "kitty", "output-name": "HEADLESS-1",
 			"geometry": map[string]float64{"x": x, "y": y, "width": w, "height": h},
-			"mapped": true, "role": "toplevel", "tiled-edges": edges, "wset-index": 1,
+			"mapped":   true, "role": "toplevel", "tiled-edges": edges, "wset-index": 1,
 		})
 		return string(b)
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -229,6 +230,37 @@ func runAct(args []string) error {
 			return perform(outputRequest(conn, "Off"))
 		}
 		return fmt.Errorf("act %s: state must be on or off, got %q", act, state)
+
+	case wm.ActionOutputRefresh:
+		conn, err := arg(rest, 0, "connector")
+		if err != nil {
+			return err
+		}
+		hzArg, err := arg(rest, 1, "hz")
+		if err != nil {
+			return err
+		}
+		hz, err := outputRefreshHz(hzArg)
+		if err != nil {
+			return err
+		}
+		workspaces, err := readWorkspaces()
+		if err != nil {
+			return err
+		}
+		outputs, err := readOutputs(workspaces, true)
+		if err != nil {
+			return err
+		}
+		mode, err := closestOutputMode(outputs, conn, hz)
+		if err != nil {
+			return err
+		}
+		modeAction, err := niriModeAction(mode)
+		if err != nil {
+			return err
+		}
+		return perform(outputRequest(conn, modeAction))
 	}
 
 	// A known action this compositor cannot perform names the capability, so a
@@ -244,11 +276,54 @@ func perform(req any) error {
 	return err
 }
 
-// outputRequest is niri's top-level Output request, not an Action: it turns one
-// named connector on or off. The action is a unit variant, so it serialises as
-// a bare string ("On" | "Off"), the shape act_test pins.
-func outputRequest(name, action string) map[string]any {
+// outputRequest is niri's top-level Output request, not an Action. Unit
+// variants serialize as bare strings while settings carry their value.
+func outputRequest(name string, action any) map[string]any {
 	return map[string]any{"Output": map[string]any{"output": name, "action": action}}
+}
+
+func outputRefreshHz(raw string) (float64, error) {
+	hz, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || hz <= 0 || math.IsNaN(hz) || math.IsInf(hz, 0) {
+		return 0, fmt.Errorf("act %s: hz must be a positive decimal, got %q", wm.ActionOutputRefresh, raw)
+	}
+	return hz, nil
+}
+
+func closestOutputMode(outputs []wm.Output, connector string, hz float64) (string, error) {
+	for _, output := range outputs {
+		if output.Name != connector {
+			continue
+		}
+		if mode, ok := wm.ClosestRefreshMode(output.Mode, output.Modes, hz); ok {
+			return mode, nil
+		}
+		return "", fmt.Errorf("act %s: output %q has no advertised mode at its current resolution", wm.ActionOutputRefresh, connector)
+	}
+	return "", fmt.Errorf("act %s: output %q does not exist", wm.ActionOutputRefresh, connector)
+}
+
+func niriModeAction(mode string) (map[string]any, error) {
+	at := strings.LastIndexByte(mode, '@')
+	x := strings.IndexByte(mode, 'x')
+	if x <= 0 || at <= x+1 || at == len(mode)-1 {
+		return nil, fmt.Errorf("act %s: malformed advertised mode %q", wm.ActionOutputRefresh, mode)
+	}
+	width, widthErr := strconv.Atoi(mode[:x])
+	height, heightErr := strconv.Atoi(mode[x+1 : at])
+	refresh, refreshErr := strconv.ParseFloat(mode[at+1:], 64)
+	if widthErr != nil || heightErr != nil || refreshErr != nil {
+		return nil, fmt.Errorf("act %s: malformed advertised mode %q", wm.ActionOutputRefresh, mode)
+	}
+	return map[string]any{
+		"Mode": map[string]any{
+			"mode": map[string]any{
+				"Specific": map[string]any{
+					"width": width, "height": height, "refresh": refresh,
+				},
+			},
+		},
+	}, nil
 }
 
 // touchpadAct locks or unlocks the touchpad the FN touchpad key drives. niri has

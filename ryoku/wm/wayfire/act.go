@@ -439,6 +439,35 @@ func runAct(args []string) error {
 			"output:" + conn + "/mode": mode,
 		})
 
+	case wm.ActionOutputRefresh:
+		conn, err := arg(rest, 0, "connector")
+		if err != nil {
+			return err
+		}
+		hzArg, err := arg(rest, 1, "hz")
+		if err != nil {
+			return err
+		}
+		hz, err := outputRefreshHz(hzArg)
+		if err != nil {
+			return err
+		}
+		stage, err := readStage()
+		if err != nil {
+			return err
+		}
+		details, err := readOutputDetails()
+		if err != nil {
+			return err
+		}
+		mode, err := closestOutputMode(enrichOutputs(stage.outputsFrame(), details), conn, hz)
+		if err != nil {
+			return err
+		}
+		return perform("wayfire/set-config-options", map[string]any{
+			"output:" + conn + "/mode": wayfireMode(mode),
+		})
+
 	case wm.ActionConfigReload:
 		// Deploy replaces the config directory, which leaves Wayfire's
 		// inotify watch attached to the old inode. The compositor's reload
@@ -463,6 +492,27 @@ func runAct(args []string) error {
 func perform(method string, data any) error {
 	_, err := request(method, data)
 	return err
+}
+
+func outputRefreshHz(raw string) (float64, error) {
+	hz, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || hz <= 0 || math.IsNaN(hz) || math.IsInf(hz, 0) {
+		return 0, fmt.Errorf("act %s: hz must be a positive decimal, got %q", wm.ActionOutputRefresh, raw)
+	}
+	return hz, nil
+}
+
+func closestOutputMode(outputs []wm.Output, connector string, hz float64) (string, error) {
+	for _, output := range outputs {
+		if output.Name != connector {
+			continue
+		}
+		if mode, ok := wm.ClosestRefreshMode(output.Mode, output.Modes, hz); ok {
+			return mode, nil
+		}
+		return "", fmt.Errorf("act %s: output %q has no advertised mode at its current resolution", wm.ActionOutputRefresh, connector)
+	}
+	return "", fmt.Errorf("act %s: output %q does not exist", wm.ActionOutputRefresh, connector)
 }
 
 // arg names the missing value, so a bad keybind reports it instead of an index.

@@ -123,63 +123,65 @@ type daemon struct {
 	runtimeRunMu     sync.Mutex
 	runtimeRun       *desktopRun
 
-	mu           sync.Mutex
-	sup          map[string]bool      // components that already have a supervisor goroutine
-	proc         map[string]*exec.Cmd // current live process per component
-	paintSig     chan struct{}        // coalescing wake for the palette/border worker
-	stageSig     chan struct{}        // coalescing wake for the Stage publish worker
-	stageJobMu   sync.Mutex
-	stageJob     *stageJobRun
-	stageLast    *stageJobResult
-	stageJobNext int64
-	ledsSig      chan struct{} // coalescing wake for the OpenRGB worker
-	guardKick    chan struct{} // coalescing wake for the qylock fallback-guard watcher
-	sunSig       chan struct{} // wakes the sun-mode worker on knob/window changes
-	quit         chan struct{}
-	closed       bool
-	ln           net.Listener
-	lock         *os.File    // exclusive single-daemon guard, held until exit
-	lockQuiesced atomic.Bool // rejects new lock launches during generation cutover
-	failMu       sync.Mutex
-	lastFail     map[string]string // component -> last line it died with
-	voiceMu      sync.Mutex        // serializes voice (Super+`) toggles
-	voiceWatchMu sync.Mutex        // allows only one live voxtype follow stream
-	voiceOn      bool              // dictation active; guarded by voiceMu
-	voiceStop    chan struct{}     // reaps the live voxtype state stream; nil when none
-	prompter     *prompter         // GNOME keyring system prompter (nil when unavailable)
-	wmc          *wm.Client        // sole path to the compositor
-	wmMu         sync.Mutex        // guards the compositor state the wm watcher keeps warm
-	activeMon    string            // focused output, kept warm by watchWindowManager
-	wmOutputs    []wm.Output
-	wmWorkspaces []wm.Workspace
-	wmWindows    []wm.Window
-	wmKbdLayout  string   // active xkb layout, kept warm by watchWindowManager
-	wmKbdList    []string // configured layouts, in switch order
-	wmOverview   bool     // the compositor's native overview is open (niri)
-	wmReady      bool
-	wmVersions   map[string]int // frame kind -> publishes since daemon start
-	wmTopic      *stateTopic
-	wmFocusTopic *stateTopic
-	nightlight   *nightlightState       // night-light self-heal (nil until started)
-	topicsMu     sync.Mutex             // guards topics
-	topics       map[string]*stateTopic // subsystem name -> pub/sub state topic
-	callsMu      sync.Mutex             // guards calls
-	calls        map[string]callFunc    // "topic.method" -> control handler
-	clip         *clipState             // clipboard history state (nil until started)
-	tray         *trayState             // system tray watcher/host state (nil until started)
-	ryoWallMu    sync.Mutex             // guards ryoWall
-	ryoWall      ryogamiFrame           // last wallpaper frame seen from ryogami; feeds the stage worker
-	polkit       *polkitAgent           // PolicyKit1 authentication agent (nil when unavailable)
-	settings     *settingsStore         // shell.json store (nil until startSettings)
-	pp           *powerProfilesState    // power-profiles-daemon bus state
-	keypress     *keypressManager       // evdev key stream while the overlay is enabled
-	mousemap     *mouseMapManager       // per-mouse evdev grab + uinput clone remapper
-	sun          *sunState              // latest weather sunrise/sunset window
-	sleepMu      sync.RWMutex
-	sleep        *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
-	suspendReqMu sync.Mutex
-	suspendReq   map[string]*suspendRequest
-	lockRecovery *lockRecoveryPolicy
+	mu              sync.Mutex
+	sup             map[string]bool      // components that already have a supervisor goroutine
+	proc            map[string]*exec.Cmd // current live process per component
+	paintSig        chan struct{}        // coalescing wake for the palette/border worker
+	stageSig        chan struct{}        // coalescing wake for the Stage publish worker
+	stageJobMu      sync.Mutex
+	stageJob        *stageJobRun
+	stageLast       *stageJobResult
+	stageJobNext    int64
+	ledsSig         chan struct{} // coalescing wake for the OpenRGB worker
+	guardKick       chan struct{} // coalescing wake for the qylock fallback-guard watcher
+	sunSig          chan struct{} // wakes the sun-mode worker on knob/window changes
+	quit            chan struct{}
+	closed          bool
+	ln              net.Listener
+	lock            *os.File    // exclusive single-daemon guard, held until exit
+	lockQuiesced    atomic.Bool // rejects new lock launches during generation cutover
+	failMu          sync.Mutex
+	lastFail        map[string]string // component -> last line it died with
+	voiceMu         sync.Mutex        // serializes voice (Super+`) toggles
+	voiceWatchMu    sync.Mutex        // allows only one live voxtype follow stream
+	voiceOn         bool              // dictation active; guarded by voiceMu
+	voiceStop       chan struct{}     // reaps the live voxtype state stream; nil when none
+	prompter        *prompter         // GNOME keyring system prompter (nil when unavailable)
+	wmc             *wm.Client        // sole path to the compositor
+	wmMu            sync.Mutex        // guards the compositor state the wm watcher keeps warm
+	activeMon       string            // focused output, kept warm by watchWindowManager
+	wmOutputs       []wm.Output
+	wmWorkspaces    []wm.Workspace
+	wmWindows       []wm.Window
+	wmKbdLayout     string   // active xkb layout, kept warm by watchWindowManager
+	wmKbdList       []string // configured layouts, in switch order
+	wmOverview      bool     // the compositor's native overview is open (niri)
+	wmReady         bool
+	wmVersions      map[string]int // frame kind -> publishes since daemon start
+	wmTopic         *stateTopic
+	wmFocusTopic    *stateTopic
+	nightlight      *nightlightState       // night-light self-heal (nil until started)
+	topicsMu        sync.Mutex             // guards topics
+	topics          map[string]*stateTopic // subsystem name -> pub/sub state topic
+	callsMu         sync.Mutex             // guards calls
+	calls           map[string]callFunc    // "topic.method" -> control handler
+	clip            *clipState             // clipboard history state (nil until started)
+	tray            *trayState             // system tray watcher/host state (nil until started)
+	ryoWallMu       sync.Mutex             // guards ryoWall
+	ryoWall         ryogamiFrame           // last wallpaper frame seen from ryogami; feeds the stage worker
+	polkit          *polkitAgent           // PolicyKit1 authentication agent (nil when unavailable)
+	settings        *settingsStore         // shell.json store (nil until startSettings)
+	pp              *powerProfilesState    // power-profiles-daemon bus state
+	keypress        *keypressManager       // evdev key stream while the overlay is enabled
+	mousemap        *mouseMapManager       // per-mouse evdev grab + uinput clone remapper
+	sun             *sunState              // latest weather sunrise/sunset window
+	sleepMu         sync.RWMutex
+	sleep           *sleepCycle // coordinated login1 suspend transaction; guarded by sleepMu
+	suspendReqMu    sync.Mutex
+	suspendReq      map[string]*suspendRequest
+	lockRecovery    *lockRecoveryPolicy
+	saverExtras     *saverExtrasController
+	saverExtrasKick chan struct{}
 }
 
 func (d *daemon) currentSleepCycle() *sleepCycle {
@@ -315,17 +317,18 @@ func runDaemon() error {
 	}
 
 	d := &daemon{
-		sup:       map[string]bool{},
-		proc:      map[string]*exec.Cmd{},
-		paintSig:  make(chan struct{}, 1),
-		stageSig:  make(chan struct{}, 1),
-		ledsSig:   make(chan struct{}, 1),
-		guardKick: make(chan struct{}, 1),
-		sunSig:    make(chan struct{}, 1),
-		quit:      make(chan struct{}),
-		lastFail:  map[string]string{},
-		wmc:       wmc,
-		sun:       daySun,
+		sup:             map[string]bool{},
+		proc:            map[string]*exec.Cmd{},
+		paintSig:        make(chan struct{}, 1),
+		stageSig:        make(chan struct{}, 1),
+		ledsSig:         make(chan struct{}, 1),
+		guardKick:       make(chan struct{}, 1),
+		sunSig:          make(chan struct{}, 1),
+		saverExtrasKick: make(chan struct{}, 1),
+		quit:            make(chan struct{}),
+		lastFail:        map[string]string{},
+		wmc:             wmc,
+		sun:             daySun,
 	}
 	d.ln = ln
 	d.lock = lock // held for the process lifetime: closing it would free the guard
@@ -486,6 +489,7 @@ func (d *daemon) bootstrap() {
 	d.startWM()
 	go d.watchPowerSounds()
 	go d.watchAutoPowerSaver()
+	go d.watchPerformanceFlags()
 	d.startSleepWake()
 	go d.startComponents()
 }

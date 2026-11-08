@@ -53,13 +53,33 @@ reference machine each profile writes exactly this:
 | Balanced | `balanced` | default | `balance_performance` | `powersave` | 5263 MHz |
 | Performance | `performance` | overboost | `performance` | `performance` | 5263 MHz |
 
-That is the whole of it. Power Saver's real effect is the 4001 MHz cap (nominal
-clock, no boost headroom) plus a quieter fan curve. It changes burst and
-single-threaded behaviour, and it changes noise.
+That is the whole of ppd's CPU-side effect. Power Saver's real effect there is
+the 4001 MHz cap (nominal clock, no boost headroom) plus a quieter fan curve. It
+changes burst and single-threaded behaviour, and it changes noise.
 
 What it does **not** do is change the temperature the chip settles at under a
-sustained all-core load. That is the next section, and it is the answer to
-"the power options don't seem to do much".
+sustained all-core load. That is covered below.
+
+### Ryoku's battery extras
+
+While the laptop is on battery and the active profile is Power Saver, Ryoku can
+also:
+
+- lower the keyboard backlight to its lowest non-zero level;
+- run each built-in panel at the advertised mode closest to 60 Hz without
+  changing its resolution or other display settings;
+- lower the screen backlight to 60% of its previous brightness.
+
+All three are enabled by default. The **Dim the keyboard in Power Saver**,
+**60 Hz in Power Saver** and **Dim the screen in Power Saver** switches on the
+Performance page control them separately. The changes are restored when AC
+returns or Power Saver ends, unless you changed that value while the policy was
+active; in that case Ryoku keeps your newer choice.
+
+The savings depend on the hardware and starting levels. On the reference ROG
+Zephyrus G14, full keyboard lighting cost about 3 W, moving the built-in panel
+from 165 Hz to 60 Hz saved about 2.4 W, and moving screen brightness from 100%
+to 40% saved about 4.5 W.
 
 ## Making the profiles yours
 

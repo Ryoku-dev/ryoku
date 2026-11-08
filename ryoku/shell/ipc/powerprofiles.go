@@ -92,6 +92,7 @@ func (d *daemon) startPowerProfiles() {
 			p.publish()
 			p.scheduleApply()
 			p.maybeHandleProfileChange()
+			d.kickSaverExtras()
 		}
 		if p.applyTimer != nil {
 			p.applyTimer.Stop()

@@ -42,12 +42,14 @@ Item {
     property var hub
     readonly property bool fullBleed: true
 
-    // factory defaults: every tweak off except the two that ship on. The single
-    // source RESET walks back to; it mirrors the JsonAdapter defaults below.
+    // Factory defaults mirror the JsonAdapter below. RESET returns to this map.
     readonly property var factory: ({
         "lowPowerMode": false,
         "powerProfileEffects": true,
         "autoPowerSaverOnBattery": false,
+        "saverDimKeyboard": true,
+        "saverPanel60": true,
+        "saverDimScreen": true,
         "reduceMotion": false,
         "disableBlur": false,
         "disableShadows": false,
@@ -101,6 +103,9 @@ Item {
             "lowPowerMode": cfgA.lowPowerMode,
             "powerProfileEffects": cfgA.powerProfileEffects,
             "autoPowerSaverOnBattery": cfgA.autoPowerSaverOnBattery,
+            "saverDimKeyboard": cfgA.saverDimKeyboard,
+            "saverPanel60": cfgA.saverPanel60,
+            "saverDimScreen": cfgA.saverDimScreen,
             "reduceMotion": cfgA.reduceMotion,
             "disableBlur": cfgA.disableBlur,
             "disableShadows": cfgA.disableShadows,
@@ -150,6 +155,9 @@ Item {
         cfgA.lowPowerMode = pg.draft.lowPowerMode;
         cfgA.powerProfileEffects = pg.draft.powerProfileEffects;
         cfgA.autoPowerSaverOnBattery = pg.draft.autoPowerSaverOnBattery;
+        cfgA.saverDimKeyboard = pg.draft.saverDimKeyboard;
+        cfgA.saverPanel60 = pg.draft.saverPanel60;
+        cfgA.saverDimScreen = pg.draft.saverDimScreen;
         cfgA.reduceMotion = pg.draft.reduceMotion;
         cfgA.disableBlur = pg.draft.disableBlur;
         cfgA.disableShadows = pg.draft.disableShadows;
@@ -195,6 +203,9 @@ Item {
             property bool lowPowerMode: false
             property bool powerProfileEffects: true
             property bool autoPowerSaverOnBattery: false
+            property bool saverDimKeyboard: true
+            property bool saverPanel60: true
+            property bool saverDimScreen: true
             property bool reduceMotion: false
             property bool disableBlur: false
             property bool disableShadows: false
@@ -223,6 +234,15 @@ Item {
         { "tab": "", "group": I18n.tr("POWER"), "key": "autoPowerSaverOnBattery", "ctl": "sw", "src": "performance",
           "label": I18n.tr("Auto power saver on battery"),
           "desc": I18n.tr("Switches to Power Saver when you unplug.") },
+        { "tab": "", "group": I18n.tr("POWER"), "key": "saverDimKeyboard", "ctl": "sw", "src": "performance",
+          "label": I18n.tr("Dim the keyboard in Power Saver"),
+          "desc": I18n.tr("On battery the keyboard light drops to its lowest level.") },
+        { "tab": "", "group": I18n.tr("POWER"), "key": "saverPanel60", "ctl": "sw", "src": "performance",
+          "label": I18n.tr("60 Hz in Power Saver"),
+          "desc": I18n.tr("On battery the built-in screen runs at 60 Hz.") },
+        { "tab": "", "group": I18n.tr("POWER"), "key": "saverDimScreen", "ctl": "sw", "src": "performance",
+          "label": I18n.tr("Dim the screen in Power Saver"),
+          "desc": I18n.tr("On battery the screen drops to 60% of its brightness.") },
 
         { "tab": "", "group": I18n.tr("EFFECTS"), "key": "lowPowerMode", "ctl": "sw", "src": "performance", "caps": "liveConfigEval",
           "label": I18n.tr("Low power mode"),

@@ -100,6 +100,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Power Saver has separate laptop dimming controls.** Performance can switch
+  keyboard dimming, built-in panel 60 Hz and screen dimming independently
+  (`quickshell/pages/PerformancePage.qml`).
 - **Subshells and Bar Studio show every shipped, installed and Ryostore item.**
   A pick switches the desktop when you leave the page, the selected item gets its
   own settings button, and a parts card hands its docks, launchers and widget

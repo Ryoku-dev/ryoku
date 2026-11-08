@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	wm "ryoku-wm"
 )
 
 // Every action is pinned to the exact hyprctl argv it emits, because the dialect
@@ -172,6 +174,87 @@ func TestActOutputEnablePreservesLayout(t *testing.T) {
 	}
 }
 
+func TestOutputRefreshChoosesCurrentResolution(t *testing.T) {
+	outputs := []wm.Output{{
+		Name: "eDP-1", Mode: "2560x1600@165.002",
+		Modes: []string{"1920x1200@60", "2560x1600@60.001", "2560x1600@165.002"},
+	}}
+	for _, tc := range []struct {
+		name string
+		hz   float64
+		want string
+	}{
+		{"exact", 165.002, "2560x1600@165.002"},
+		{"nearest", 60, "2560x1600@60.001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := closestOutputMode(outputs, "eDP-1", tc.hz)
+			if err != nil || got != tc.want {
+				t.Fatalf("closestOutputMode = %q, %v; want %q", got, err, tc.want)
+			}
+		})
+	}
+	if _, err := closestOutputMode([]wm.Output{{
+		Name: "eDP-1", Mode: "3840x2160@60", Modes: []string{"2560x1600@60"},
+	}}, "eDP-1", 60); err == nil || !strings.Contains(err.Error(), "current resolution") {
+		t.Errorf("no-resolution-match error = %v", err)
+	}
+	if _, err := outputRefreshHz("sixty"); err == nil ||
+		!strings.Contains(err.Error(), "positive decimal") {
+		t.Errorf("malformed-hz error = %v", err)
+	}
+	if _, err := closestOutputMode(outputs, "DP-9", 60); err == nil ||
+		!strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("missing-output error = %v", err)
+	}
+}
+
+func TestActOutputRefreshPreservesLayout(t *testing.T) {
+	var evals []string
+	restore := stubCtl(t, func(args ...string) ([]byte, error) {
+		switch {
+		case len(args) == 3 && args[0] == "monitors" && args[1] == "all":
+			return []byte(`[{
+				"name":"eDP-1","width":2560,"height":1600,"scale":1.5,
+				"refreshRate":165.002,
+				"availableModes":["2560x1600@60.001Hz","2560x1600@165.002Hz"]
+			}]`), nil
+		case len(args) == 2 && args[0] == "eval":
+			evals = append(evals, args[1])
+		}
+		return nil, nil
+	})
+	defer restore()
+
+	if err := runAct([]string{"output.refresh", "eDP-1", "60"}); err != nil {
+		t.Fatal(err)
+	}
+	want := `hl.monitor({ output = "eDP-1", mode = "2560x1600@60.001" })`
+	if len(evals) != 1 || evals[0] != want {
+		t.Fatalf("evals = %q, want one %q", evals, want)
+	}
+	for _, field := range []string{"position", "scale", "transform", "vrr", "disabled"} {
+		if strings.Contains(evals[0], field) {
+			t.Errorf("refresh payload %q changes %q", evals[0], field)
+		}
+	}
+}
+
+func TestActOutputRefreshRejectsMalformedHzBeforeIPC(t *testing.T) {
+	called := false
+	restore := stubCtl(t, func(...string) ([]byte, error) {
+		called = true
+		return nil, nil
+	})
+	defer restore()
+	if err := runAct([]string{"output.refresh", "eDP-1", "sixty"}); err == nil {
+		t.Fatal("expected an error for malformed hz")
+	}
+	if called {
+		t.Fatal("malformed hz reached the compositor")
+	}
+}
+
 // A missing argument must name the value, so a bad keybind is diagnosable, and
 // must never reach the compositor with an empty selector (which Hyprland applies
 // to the focused window).
@@ -185,6 +268,8 @@ func TestActRejectsMissingArgs(t *testing.T) {
 		{"cursor.set", "Bibata"},
 		{"cursor.visibility"},
 		{"output.power"},
+		{"output.refresh"},
+		{"output.refresh", "eDP-1"},
 		{"window.summon"},
 	} {
 		called := false

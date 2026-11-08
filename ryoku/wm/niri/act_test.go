@@ -81,6 +81,93 @@ func TestActEmitsNiriRequests(t *testing.T) {
 	}
 }
 
+func TestOutputRefreshChoosesCurrentResolution(t *testing.T) {
+	outputs := []wm.Output{{
+		Name: "eDP-1", Mode: "2560x1600@165.002",
+		Modes: []string{"1920x1200@60", "2560x1600@60.001", "2560x1600@165.002"},
+	}}
+	for _, tc := range []struct {
+		name string
+		hz   float64
+		want string
+	}{
+		{"exact", 165.002, "2560x1600@165.002"},
+		{"nearest", 60, "2560x1600@60.001"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := closestOutputMode(outputs, "eDP-1", tc.hz)
+			if err != nil || got != tc.want {
+				t.Fatalf("closestOutputMode = %q, %v; want %q", got, err, tc.want)
+			}
+		})
+	}
+	if _, err := closestOutputMode([]wm.Output{{
+		Name: "eDP-1", Mode: "3840x2160@60", Modes: []string{"2560x1600@60"},
+	}}, "eDP-1", 60); err == nil || !strings.Contains(err.Error(), "current resolution") {
+		t.Errorf("no-resolution-match error = %v", err)
+	}
+	if _, err := outputRefreshHz("sixty"); err == nil ||
+		!strings.Contains(err.Error(), "positive decimal") {
+		t.Errorf("malformed-hz error = %v", err)
+	}
+	if _, err := closestOutputMode(outputs, "DP-9", 60); err == nil ||
+		!strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("missing-output error = %v", err)
+	}
+}
+
+func TestActOutputRefreshEmitsModeRequest(t *testing.T) {
+	var got string
+	restore := stubRequest(t, func(req any) (json.RawMessage, error) {
+		if query, ok := req.(string); ok {
+			switch query {
+			case "Workspaces":
+				return json.RawMessage(`{"Workspaces":[]}`), nil
+			case "Outputs":
+				return json.RawMessage(`{"Outputs":{"eDP-1":{
+					"name":"eDP-1",
+					"modes":[
+						{"width":2560,"height":1600,"refresh_rate":60001},
+						{"width":2560,"height":1600,"refresh_rate":165002}
+					],
+					"current_mode":1,
+					"logical":{"x":0,"y":0,"width":1707,"height":1067,"scale":1.5,"transform":"normal"}
+				}}}`), nil
+			}
+		}
+		body, err := json.Marshal(req)
+		if err != nil {
+			return nil, err
+		}
+		got = string(body)
+		return nil, nil
+	})
+	defer restore()
+
+	if err := runAct([]string{"output.refresh", "eDP-1", "60"}); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"Output":{"action":{"Mode":{"mode":{"Specific":{"height":1600,"refresh":60.001,"width":2560}}}},"output":"eDP-1"}}`
+	if got != want {
+		t.Errorf("request mismatch\n got: %s\nwant: %s", got, want)
+	}
+}
+
+func TestActOutputRefreshRejectsMalformedHzBeforeIPC(t *testing.T) {
+	called := false
+	restore := stubRequest(t, func(any) (json.RawMessage, error) {
+		called = true
+		return nil, nil
+	})
+	defer restore()
+	if err := runAct([]string{"output.refresh", "eDP-1", "sixty"}); err == nil {
+		t.Fatal("expected an error for malformed hz")
+	}
+	if called {
+		t.Fatal("malformed hz reached the compositor")
+	}
+}
+
 // window.summon raises an already-open window to the current workspace and
 // focuses it, matched by exact title. niri focuses by id, so the title resolves
 // to the newest matching window, which is pulled onto the focused workspace in
@@ -181,6 +268,8 @@ func TestActRejectsMissingArgs(t *testing.T) {
 		{"workspace.focus"},
 		{"workspace.moveToOutput", "3"},
 		{"output.power"},
+		{"output.refresh"},
+		{"output.refresh", "eDP-1"},
 		{"app.focus"},
 		{"window.summon"},
 	} {

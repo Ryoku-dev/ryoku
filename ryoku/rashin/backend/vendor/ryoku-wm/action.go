@@ -1,5 +1,11 @@
 package wm
 
+import (
+	"math"
+	"strconv"
+	"strings"
+)
+
 // Actions are semantic ("close this window"), not a dispatcher passthrough. A
 // passthrough would re-export one compositor's command language through a
 // neutral door and callers would be writing Hyprland dispatchers again.
@@ -132,9 +138,12 @@ const (
 
 	// ActionOutputCycle steps the output arrangement one position, the display
 	// toggle key's job. ActionOutputEnable turns one named connector on or off.
-	// Both need CapMonitorConfig.
-	ActionOutputCycle  Action = "output.cycle"
-	ActionOutputEnable Action = "output.enable"
+	// ActionOutputRefresh sets one named connector to the advertised refresh
+	// closest to hz at its current physical resolution. Args are connector and
+	// a decimal hz string. All output actions need CapMonitorConfig.
+	ActionOutputCycle   Action = "output.cycle"
+	ActionOutputEnable  Action = "output.enable"
+	ActionOutputRefresh Action = "output.refresh"
 )
 
 // Capability returns what an action needs, so callers gate on one lookup
@@ -178,8 +187,57 @@ func (a Action) Capability() Capability {
 		return CapNightLight
 	case ActionInputTouchpad:
 		return CapTouchpadToggle
-	case ActionOutputCycle, ActionOutputEnable:
+	case ActionOutputCycle, ActionOutputEnable, ActionOutputRefresh:
 		return CapMonitorConfig
 	}
 	return ""
+}
+
+// ClosestRefreshMode returns the advertised mode at the current physical
+// resolution whose refresh is nearest hz. The original mode string is retained
+// so a provider can send the compositor's exact advertised value back.
+func ClosestRefreshMode(current string, modes []string, hz float64) (string, bool) {
+	if hz <= 0 || math.IsNaN(hz) || math.IsInf(hz, 0) {
+		return "", false
+	}
+	resolution, _, ok := splitRefreshMode(current)
+	if !ok {
+		return "", false
+	}
+	best := ""
+	bestDistance := math.MaxFloat64
+	for _, mode := range modes {
+		gotResolution, refresh, valid := splitRefreshMode(mode)
+		if !valid || gotResolution != resolution {
+			continue
+		}
+		distance := math.Abs(refresh - hz)
+		if distance < bestDistance {
+			best = mode
+			bestDistance = distance
+		}
+	}
+	return best, best != ""
+}
+
+func splitRefreshMode(mode string) (string, float64, bool) {
+	mode = strings.TrimSpace(mode)
+	at := strings.LastIndexByte(mode, '@')
+	if at <= 0 || at == len(mode)-1 {
+		return "", 0, false
+	}
+	resolution := mode[:at]
+	x := strings.IndexByte(resolution, 'x')
+	if x <= 0 || x == len(resolution)-1 {
+		return "", 0, false
+	}
+	width, widthErr := strconv.Atoi(resolution[:x])
+	height, heightErr := strconv.Atoi(resolution[x+1:])
+	refresh, refreshErr := strconv.ParseFloat(mode[at+1:], 64)
+	if widthErr != nil || heightErr != nil || refreshErr != nil ||
+		width <= 0 || height <= 0 || refresh <= 0 ||
+		math.IsNaN(refresh) || math.IsInf(refresh, 0) {
+		return "", 0, false
+	}
+	return resolution, refresh, true
 }

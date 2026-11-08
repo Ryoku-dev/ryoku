@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Power Saver now trims laptop display power on battery.** The daemon lowers
+  keyboard and screen backlights and asks built-in panels for about 60 Hz, then
+  restores values the user did not change. The new `output.refresh` WM action
+  changes refresh without disturbing other output settings
+  (`ipc/saverextras.go`, `../wm/`).
 - **Search and the music clock run natively.** The launcher, the Kairos
   launcher and clipboard search rank through `FuzzyRanker` in the new
   `Ryoku.Text` module, result for result the same as `fuzzy.js` (kept for

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"strings"
 	"time"
@@ -94,6 +95,7 @@ func addUPowerSignalMatch(conn *dbus.Conn) error {
 // watchdog is armed only after that event source is unavailable.
 func (d *daemon) watchAutoPowerSaver() {
 	if d.pp == nil || d.pp.conn == nil {
+		d.reconcileSaverExtras(context.Background(), false, "")
 		return
 	}
 	eventsHealthy := true
@@ -126,8 +128,11 @@ func (d *daemon) watchAutoPowerSaver() {
 		if to != "" {
 			if err := d.pp.setProfile(to); err != nil {
 				log.Printf("ryoku-shell: auto power profile: set %q failed: %v", to, err)
+			} else {
+				active = to
 			}
 		}
+		d.reconcileSaverExtras(context.Background(), onBattery, active)
 		prevAC, first = onAC, false
 	}
 
@@ -158,6 +163,7 @@ func (d *daemon) watchAutoPowerSaver() {
 			} else if !powerStateSignal(sig) {
 				continue
 			}
+		case <-d.saverExtrasKick:
 		case <-timerC:
 		}
 		reconcile()
