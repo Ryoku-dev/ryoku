@@ -1,15 +1,10 @@
 #!/bin/sh
-# Rashin owns the optional Prowl service.
+# Rashin brings the optional Prowl service up when it needs it, see gatewaydemand.go
 exec 2>&1
 
 . "${RYOKU_INIT_LIB:-/usr/lib/ryoku/runit}/wait-for"
 load_session_env
 BIN=${RYOKU_BIN_DIR:-/usr/bin}
-_here=$(dirname "$0")
 require_bin "$BIN/ryoku-rashin" || exec sv down .
-
-if [ -d "$_here/../ryoku-prowl" ]; then
-	sv up "$_here/../ryoku-prowl" >/dev/null 2>&1 || true
-fi
 
 exec "$BIN/ryoku-rashin" serve --if-enabled

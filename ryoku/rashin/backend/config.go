@@ -27,6 +27,8 @@ type Config struct {
 	// Fix picks the harness Fix with AI opens instead of the chat agent.
 	Fix            FixSettings `json:"fix,omitzero"`
 	ProwlHarnesses []string    `json:"prowlHarnesses,omitempty"`
+	// off, the gateway starts when Rashin needs it and stops once nothing has used it for gatewayIdle
+	KeepProwl bool `json:"keepProwl,omitempty"`
 	// Approvals is how the chat agent's tool calls are approved: "read-only"
 	// (the default when empty) runs calls that only read the machine without
 	// asking and asks for everything else; "ask" asks for every call the agent

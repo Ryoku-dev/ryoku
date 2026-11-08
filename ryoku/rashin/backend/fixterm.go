@@ -121,6 +121,7 @@ func planFix(display, brief string) (fixLaunch, error) {
 	if err != nil {
 		return fixLaunch{}, err
 	}
+	useGatewayFor(cfg, h.ID)
 	return fixLaunch{Harness: h.Name, Argv: h.argv(bin, needlePersona, display+"\n\n"+brief, cfg.Fix)}, nil
 }
 

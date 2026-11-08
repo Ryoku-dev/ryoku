@@ -84,6 +84,9 @@ type chatHub struct {
 	introduced bool
 	// pending survives session changes until the user's next Agent prompt.
 	pending *wsOut
+	// the agent leaves once no surface shows it, and its session comes back on the next start
+	agentIdle *time.Timer
+	resumeID  string
 
 	askCancel    func()
 	askGen       uint64
@@ -248,9 +251,15 @@ func (h *chatHub) broadcastExcept(m wsOut, skip *chatClient) {
 	h.mu.Unlock()
 }
 
+// agentIdleTimeout is how long an agent nobody is looking at keeps its memory, like a closed launcher
+var agentIdleTimeout = 2 * time.Minute
+
+var startLaneACP = startACP
+
 // ensureConn starts the lane's harness if there is no live session. Called
 // with h.mu held.
 func (h *chatHub) ensureConnLocked() (spawned bool) {
+	h.stopIdleLocked()
 	if h.conn != nil && h.conn.stale() {
 		old := h.conn
 		h.conn = nil
@@ -266,7 +275,7 @@ func (h *chatHub) ensureConnLocked() (spawned bool) {
 		go h.broadcast(h.last)
 		return false
 	}
-	conn, err := startACP(h.lane.Cwd)
+	conn, err := startLaneACP(h.lane.Cwd)
 	if err != nil {
 		h.conn = nil
 		h.last = wsOut{Type: "state", State: "dead", Error: err.Error()}
@@ -275,16 +284,78 @@ func (h *chatHub) ensureConnLocked() (spawned bool) {
 	}
 	h.conn = conn
 	h.introduced = false
+	resume := h.resumeID
+	h.resumeID = ""
+	if resume != "" {
+		// the session's own replay rebuilds the transcript
+		h.resetConversationLocked()
+	}
 	go func() {
-		if err := conn.Initialize(h.lane.Cwd); err != nil {
+		resumed, err := conn.InitializeResuming(h.lane.Cwd, resume)
+		if err != nil {
 			h.broadcast(wsOut{Type: "state", State: "dead", Error: err.Error()})
 			h.dropConn(conn)
 			return
+		}
+		if resumed {
+			h.mu.Lock()
+			h.introduced = true
+			h.mu.Unlock()
+		} else if resume != "" {
+			h.broadcast(wsOut{Type: "replay_start"})
+			h.broadcast(wsOut{Type: "replay_end"})
 		}
 		h.broadcast(wsOut{Type: "state", State: "ready"})
 	}()
 	go h.pump(conn)
 	return true
+}
+
+func (h *chatHub) stopIdleLocked() {
+	if h.agentIdle != nil {
+		h.agentIdle.Stop()
+		h.agentIdle = nil
+	}
+}
+
+// armIdleLocked starts the countdown once nothing shows the lane. h.mu held.
+func (h *chatHub) armIdleLocked() {
+	if h.lane.Name == laneAsk || h.conn == nil || len(h.clients) > 0 {
+		return
+	}
+	h.stopIdleLocked()
+	h.agentIdle = time.AfterFunc(agentIdleTimeout, h.retireIdle)
+}
+
+// retireIdle ends a harness nobody is using; a turn still running or an open
+// approval keeps it, and the end of that turn arms the countdown again.
+func (h *chatHub) retireIdle() {
+	h.mu.Lock()
+	h.agentIdle = nil
+	old := h.conn
+	if old == nil || len(h.clients) > 0 || h.last.State == "busy" || len(h.perms) > 0 {
+		h.mu.Unlock()
+		return
+	}
+	if _, sid := old.backendSession(); sid != "" && len(h.transcript) > 0 {
+		h.resumeID = sid
+	}
+	h.conn = nil
+	h.mu.Unlock()
+	old.Close()
+}
+
+// routedAgentLive reports whether a live agent reaches its model through Prowl's gateway
+func routedAgentLive(cfg Config) bool {
+	for _, h := range allHubs() {
+		h.mu.Lock()
+		c := h.conn
+		h.mu.Unlock()
+		if c != nil && cfg.HasProwlHarness(c.backend()) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *chatHub) dropConn(c *acpConn) {
@@ -363,6 +434,9 @@ func (h *chatHub) pump(c *acpConn) {
 		case "turn_end":
 			h.broadcast(wsOut{Type: "turn_end", StopReason: ev.StopReason})
 			h.broadcast(wsOut{Type: "state", State: "ready"})
+			h.mu.Lock()
+			h.armIdleLocked()
+			h.mu.Unlock()
 		case "models":
 			m := wsOut{
 				Type: "models", Models: ev.Models, Current: ev.CurrentModel,
@@ -537,6 +611,7 @@ func (h *chatHub) handle(ctx context.Context, ws *websocket.Conn) {
 	h.mu.Lock()
 	delete(h.clients, cl)
 	close(cl.out)
+	h.armIdleLocked()
 	h.mu.Unlock()
 	<-writerDone
 }

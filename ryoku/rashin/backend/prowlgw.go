@@ -84,6 +84,7 @@ func (e *prowlGatewayError) Error() string {
 }
 
 func prowlGatewayJSON(ctx context.Context, method, path string, in, out any) error {
+	noteGatewayUse()
 	var body io.Reader
 	if in != nil {
 		blob, err := json.Marshal(in)
@@ -250,8 +251,14 @@ func startGateway() error {
 
 func spawnGateway(bin string) error {
 	port := prowlGatewayPort()
-	if port == defaultProwlGatewayPort && gatewaySystemdPresent() {
-		return gatewaySpawn("systemctl", "--user", "start", "ryoku-prowl.service")
+	if port == defaultProwlGatewayPort {
+		if gatewaySystemdPresent() {
+			return gatewaySpawn("systemctl", "--user", "start", "ryoku-prowl.service")
+		}
+		// runit keeps the ryoku-prowl service down until asked
+		if gatewaySpawn("ryoku-host", "svc", "--user", "start", "ryoku-prowl.service") == nil {
+			return nil
+		}
 	}
 	return gatewaySpawn(bin, "gateway", "up", "--port", strconv.Itoa(port))
 }
@@ -260,6 +267,12 @@ func stopGateway() error {
 	bin, installed := findProwl()
 	if !installed {
 		return nil
+	}
+	if prowlGatewayPort() == defaultProwlGatewayPort {
+		if gatewaySystemdPresent() {
+			return gatewaySpawn("systemctl", "--user", "stop", "ryoku-prowl.service")
+		}
+		_ = gatewaySpawn("ryoku-host", "svc", "--user", "stop", "ryoku-prowl.service")
 	}
 	return gatewaySpawn(bin, "gateway", "down", "--port", strconv.Itoa(prowlGatewayPort()))
 }
@@ -310,6 +323,7 @@ func prowlProxyHandler(rashinPort int) http.HandlerFunc {
 			return
 		}
 
+		noteGatewayUse()
 		rawQuery := r.URL.RawQuery
 		if segment == "code" && !r.URL.Query().Has("repo") {
 			repoQuery := url.Values{"repo": []string{prowlRepo()}}.Encode()

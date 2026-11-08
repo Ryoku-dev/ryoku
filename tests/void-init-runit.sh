@@ -294,15 +294,19 @@ sleep 3
 [ "$(stat_of ryoku-idle)" = down ] || fail "ryoku-idle restarted after a clean exit"
 pass "Restart=on-failure parks on clean exit and stays parked"
 
-#### 7. BindsTo down-propagation: rashin brings prowl up (Wants) and down.
+#### 7. rashin leaves prowl down until it needs it, and takes it down with it (BindsTo).
 echo run > "$WORK/ctl/ryoku-rashin"; echo run > "$WORK/ctl/prowl"
 sv up "$WORK/svc/ryoku-rashin"
-wait_stat ryoku-prowl run || fail "prowl did not come up with rashin (Wants)"
+wait_count_ge 'ryoku-rashin serve' 1 || fail "rashin never started"
+sleep 2
+[ "$(stat_of ryoku-prowl)" = down ] || fail "prowl came up with rashin before anything needed it"
+sv up "$WORK/svc/ryoku-prowl"
+wait_stat ryoku-prowl run || fail "prowl did not come up on demand"
 wait_count_ge 'prowl gateway serve --port 8788' 1 || fail "prowl never served"
 [ "$(count 'prowl gateway down --port 8788')" -ge 1 ] || fail "prowl ExecStartPre (gateway down) did not run"
 sv down "$WORK/svc/ryoku-rashin"
 wait_stat ryoku-prowl down || fail "prowl did not go down when rashin stopped (BindsTo)"
-pass "Wants brings the child up; BindsTo takes it down with the parent"
+pass "prowl stays down until asked for and goes down with rashin"
 
 #### 8. timer translations fire their work on schedule.
 wait_count_ge 'claude-usage' 1 || fail "ai-usage loop never ran claude-usage"

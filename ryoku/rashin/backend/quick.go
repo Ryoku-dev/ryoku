@@ -596,16 +596,5 @@ func readCapped(resp *http.Response, n int) (string, error) {
 	return strings.TrimSpace(string(buf[:m])), err
 }
 
-// warm starts the persistent Agent lane at daemon boot so its first
-// interactive turn does not pay the harness cold start.
-func (h *chatHub) warm() {
-	if !HermesStatus().Configured {
-		return
-	}
-	h.mu.Lock()
-	h.ensureConnLocked()
-	h.mu.Unlock()
-}
-
 // quickTime bounds the fast lane; escalation needs time for real model calls.
 const quickTimeout = 75 * time.Second

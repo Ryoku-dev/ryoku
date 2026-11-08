@@ -19,10 +19,11 @@ const usage = `ryoku-rashin: the Ryoku agent OS daemon
   wire [agent]           apply vault pointers (all detected agents, or one)
   unwire [agent]         remove vault pointers
   status [--json]        report Rashin, Prowl, vault, Hermes, and wiring state
-  enable [--at-boot]     start Rashin and Prowl now and at every login; --at-boot
-                         adds user lingering so they start with the machine
+  enable [--at-boot]     start Rashin now and at every login; --at-boot
+                         adds user lingering so it starts with the machine
   disable                stop Rashin and Prowl and turn autostart off
-  ensure                 bring up Rashin and Prowl unless the user opted out
+  ensure                 bring up Rashin unless the user opted out
+  prowl keep on|off      keep Prowl's gateway running, or start it only while Rashin needs it
   backend [provider[:model]]  view or set the fast-lane assistant backend ('auto' follows hermes)
   paths [--json]         show every skill/vault/prowl path (and a paste snippet for any agent)
   agent [use <id>]       list agents + chat backends, or set which agent drives the chat
@@ -80,6 +81,8 @@ func main() {
 		err = cmdDisable()
 	case "ensure":
 		err = cmdEnsure()
+	case "prowl":
+		err = cmdProwl(os.Args[2:])
 	case "backend":
 		err = cmdBackend(os.Args[2:])
 	case "paths":
@@ -119,6 +122,8 @@ func dispatchRashin(args []string) error {
 			return cmdPaths(pathsFormat(args[1:]))
 		case "agent":
 			return cmdAgent(args[1:])
+		case "prowl":
+			return cmdProwl(args[1:])
 		case "setup":
 			return cmdSetup()
 		case "index":

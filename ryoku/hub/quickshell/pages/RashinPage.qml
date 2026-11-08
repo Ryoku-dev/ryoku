@@ -41,6 +41,7 @@ Item {
     property int prowlPort: 8788
     property string prowlUrl: ""
     property string prowlError: ""
+    property bool prowlKeep: false
     property bool vaultExists: false
     property int vaultFiles: 0
     property bool hermesInstalled: false
@@ -99,6 +100,7 @@ Item {
                         pg.port = o.port;
                     var p = o.prowl || ({});
                     pg.prowlInstalled = p.installed === true;
+                    pg.prowlKeep = p.keepRunning === true;
                     pg.prowlRunning = p.running === true;
                     if (typeof p.port === "number" && p.port > 0)
                         pg.prowlPort = p.port;
@@ -241,6 +243,12 @@ Item {
         }
     }
     Process { id: wireProc; onExited: pg.refresh() }
+    Process { id: prowlKeepProc; onExited: pg.refresh() }
+    function setProwlKeep(on) {
+        pg.prowlKeep = on;
+        prowlKeepProc.command = ["ryoku-rashin", "prowl", "keep", on ? "on" : "off"];
+        prowlKeepProc.running = true;
+    }
     Process { id: chatProc; onExited: pg.refresh() }
     // Wiring adds the Ryoku and Prowl skills to an agent (or every present
     // one); useChatAgent picks who answers in the Alt+Space bar.
@@ -637,10 +645,10 @@ Item {
                     color: Tokens.paperLift
                     border.width: 1
                     border.color: pg.prowlRunning ? Qt.rgba(Tokens.ink.r, Tokens.ink.g, Tokens.ink.b, 0.35) : Tokens.line
-                    Rectangle { x: 0; y: 0; width: 34; height: 3; color: pg.prowlRunning ? Tokens.ink : Tokens.alert }
+                    Rectangle { x: 0; y: 0; width: 34; height: 3; color: pg.prowlRunning ? Tokens.ink : (pg.prowlKeep ? Tokens.alert : Tokens.line) }
 
                     Column {
-                        anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 18 }
+                        anchors { left: parent.left; right: prowlSw.left; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 14 }
                         spacing: 6
                         Row {
                             spacing: Tokens.s2
@@ -653,17 +661,25 @@ Item {
                         Text {
                             width: parent.width
                             text: !pg.prowlInstalled ? I18n.tr("Not installed")
-                                : (pg.prowlRunning ? I18n.tr("Running · %1").arg(pg.prowlUrl || ("127.0.0.1:" + pg.prowlPort))
-                                   : I18n.tr("Offline · starts with Rashin"))
+                                : pg.prowlRunning ? I18n.tr("Running · %1").arg(pg.prowlUrl || ("127.0.0.1:" + pg.prowlPort))
+                                : I18n.tr("Off · starts when Rashin needs it")
                             color: pg.prowlRunning ? Tokens.ink : Tokens.inkDim
                             font.family: Tokens.mono; font.pixelSize: 11; elide: Text.ElideRight
                         }
                         Text {
                             width: parent.width
                             text: pg.prowlError ? pg.prowlError
-                                : I18n.tr("Models and code intelligence")
+                                : pg.prowlKeep ? I18n.tr("Kept running for other apps that use it")
+                                : I18n.tr("Stops after 15 minutes unused · switch on to keep it running")
                             color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 10; elide: Text.ElideRight
                         }
+                    }
+                    Sw {
+                        id: prowlSw
+                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                        enabled: pg.prowlInstalled
+                        on: pg.prowlKeep
+                        onToggled: (c) => pg.setProwlKeep(c)
                     }
                 }
             }

@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- **Rashin's agent only holds memory while you use it.** The chat agent starts
+  when a chat opens and leaves two minutes after the last one closes, then
+  loads the same conversation back next time (`rashin/backend/ws.go`).
+- **Prowl's gateway runs only when something needs it.** It stops 15 minutes
+  after its last use, and the Hub's Rashin page can keep it running for other
+  apps (`rashin/backend/gatewaydemand.go`).
 - **The warm provider process leaves when idle.** It starts with the first
   window action and exits after 30 s without one, so an idle desktop keeps
   only the provider's event watcher (`wm/warm.go`).

@@ -27,6 +27,8 @@ type ProwlStatus struct {
 	URL       string `json:"url"`
 	Repo      string `json:"repo"`
 	Error     string `json:"error"`
+	// KeepRunning is the user's switch; off, Running is only true while something uses the gateway
+	KeepRunning bool `json:"keepRunning"`
 }
 
 // VaultStatus is the vault summary embedded in Status.
@@ -64,9 +66,10 @@ func BuildStatus(cfg Config) Status {
 
 func prowlStatusNow() ProwlStatus {
 	status := ProwlStatus{
-		Port: prowlGatewayPort(),
-		URL:  prowlGatewayBase(),
-		Repo: prowlRepo(),
+		Port:        prowlGatewayPort(),
+		URL:         prowlGatewayBase(),
+		Repo:        prowlRepo(),
+		KeepRunning: LoadConfig().KeepProwl,
 	}
 	bin, installed := findProwl()
 	status.Installed = installed
@@ -77,7 +80,7 @@ func prowlStatusNow() ProwlStatus {
 	status.Bin = bin
 	status.Version = prowlVersion(bin)
 	status.Running = prowlGatewayRunning()
-	if !status.Running {
+	if !status.Running && status.KeepRunning {
 		status.Error = "Prowl's gateway is not running"
 	}
 	return status

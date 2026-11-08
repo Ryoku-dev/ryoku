@@ -49,7 +49,15 @@ func Serve(cfg Config) error {
 	}
 	defer os.Remove(pidfile)
 
-	go func() { _ = ensureGateway() }()
+	noteGatewayUse()
+	if cfg.KeepProwl {
+		go func() { _ = ensureGateway() }()
+	}
+	go func() {
+		for range time.Tick(time.Minute) {
+			retireIdleGateway(false)
+		}
+	}()
 
 	if err := EnsureVault(); err != nil {
 		return err
@@ -96,8 +104,6 @@ func Serve(cfg Config) error {
 	laneHubs = map[string]*chatHub{
 		laneRyoku: hub, laneChat: chatHubPlain, laneAsk: askHub,
 	}
-	// Keep the interactive Agent ready without creating an Ask session.
-	go hub.warm()
 	mux := http.NewServeMux()
 
 	sub, err := fs.Sub(webFS, "web/dist")
@@ -108,6 +114,10 @@ func Serve(cfg Config) error {
 
 	mux.HandleFunc("GET /api/ping", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, "ok")
+	})
+	mux.HandleFunc("POST /api/gateway/release", func(w http.ResponseWriter, r *http.Request) {
+		retireIdleGateway(true)
+		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, BuildStatus(cfg))
@@ -555,7 +565,7 @@ func cmdEnable(atBoot bool) error {
 				bootLingering = true
 			}
 		}
-		if err := startGateway(); err != nil {
+		if err := keptGateway(); err != nil {
 			return err
 		}
 		if bootLingering {
@@ -580,7 +590,7 @@ func cmdEnable(atBoot bool) error {
 		}
 		_ = cmd.Process.Release()
 	}
-	if err := startGateway(); err != nil {
+	if err := keptGateway(); err != nil {
 		return err
 	}
 	fmt.Println("rashin enabled")
@@ -618,7 +628,7 @@ func cmdEnsure() error {
 		return nil
 	}
 	if cfg.Enabled && rashinActive() {
-		return startGateway()
+		return keptGateway()
 	}
 	return cmdEnable(true)
 }

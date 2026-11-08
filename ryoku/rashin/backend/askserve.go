@@ -60,7 +60,9 @@ func (h *chatHub) handleAsk(w http.ResponseWriter, r *http.Request) {
 	gen := h.setAskCancel(cancel)
 	defer h.clearAskCancel(gen)
 
-	target, targetErr := resolveQuickTarget(LoadConfig())
+	cfg := LoadConfig()
+	useGateway(5 * time.Second)
+	target, targetErr := resolveQuickTarget(cfg)
 	if targetErr == nil {
 		sink.marker("working", "thinking ("+target.Label+")")
 		qctx, qcancel := context.WithTimeout(ctx, quickTimeout)

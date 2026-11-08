@@ -65,8 +65,10 @@ default. **Default to Prowl auto** is a separate switch. `ryoku update` and
 connected. They never change a harness default, replace the user's model pick,
 or restart the Agent.
 
-Prowl ships with Ryoku but stays off until Rashin starts. It stops with Rashin
-too. Its project indexes and gateway data remain available for the next start.
+Prowl ships with Ryoku but only runs while something needs it, and stops 15
+minutes after its last use. The Hub's Rashin page has a switch to keep it
+running for other apps. The chat agent also leaves two minutes after you close
+the chat, and picks the same conversation back up when you open it again.
 
 ## Approval modes
 

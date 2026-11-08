@@ -492,11 +492,18 @@ the `prowl` package and `/usr/bin/prowl`. The two stay separate processes so
 Prowl keeps its own gateway and index engine, while Rashin hosts its lifecycle
 and control surface.
 
-Both processes ship off. Starting or enabling Rashin starts
-`ryoku-prowl.service` on port 8788; stopping Rashin stops it. The Prowl unit has
-no install target, so it does not come up on its own. `ryoku-rashin ensure`
-recovers either process, and the detached fallback owns the same lifecycle on a
-machine without a systemd user manager.
+Both processes ship off, and Prowl starts only when something needs it: a quick
+ask, the console's Prowl pages, or an agent that reaches its model through
+Prowl. Rashin brings up `ryoku-prowl.service` (the runit service on Void) on
+port 8788 for that and stops it once nothing has used it for 15 minutes, no
+agent routed through it is running and no client holds a connection. **Keep
+Prowl running** on the Hub's Rashin page (`ryoku-rashin prowl keep on`) keeps
+it up for other apps that use the gateway directly. Stopping Rashin stops it.
+
+The chat agent works the same way. It starts when a chat surface opens and
+leaves two minutes after the last one closes and its turn ends, so an idle
+desktop carries only the small Rashin daemon. The next open loads the same
+session back.
 
 The `ryoku-rashin` package depends on `prowl`, so `pacman -Syu` updates them
 together. The Prowl binary is stamped as pacman-managed and will not overwrite

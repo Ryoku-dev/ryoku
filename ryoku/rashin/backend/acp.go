@@ -612,6 +612,12 @@ const acpClientVersion = 1
 // our client info and the version we speak, then records what the agent
 // negotiated back so optional methods stay gated to what the agent supports.
 func (c *acpConn) Initialize(cwd string) error {
+	_, err := c.InitializeResuming(cwd, "")
+	return err
+}
+
+// an agent retired while idle loads its old session back, reports whether it did
+func (c *acpConn) InitializeResuming(cwd, resume string) (bool, error) {
 	c.cwd = cwd
 	c.protoVersion = acpClientVersion
 	res, err := c.request("initialize", map[string]any{
@@ -625,10 +631,13 @@ func (c *acpConn) Initialize(cwd string) error {
 		},
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	c.applyInitResult(res)
-	return c.openSession("session/new", map[string]any{"cwd": cwd, "mcpServers": prowlMCPServers()})
+	if resume != "" && c.loadSession && c.LoadSession(resume) == nil {
+		return true, nil
+	}
+	return false, c.openSession("session/new", map[string]any{"cwd": cwd, "mcpServers": prowlMCPServers()})
 }
 
 // applyInitResult records the negotiated protocol version and the agent's
@@ -1291,10 +1300,12 @@ func (c *acpConn) handleUpdate(params json.RawMessage) {
 // working directory and the source of its context file. Hermes is the recommended default; resolveChatBackend
 // falls back to it when a chosen agent's adapter is absent.
 func startACP(cwd string) (*acpConn, error) {
-	b, ok := resolveChatBackend(LoadConfig())
+	cfg := LoadConfig()
+	b, ok := resolveChatBackend(cfg)
 	if !ok {
 		return nil, errors.New("no chat agent available; install Hermes (recommended) or a supported ACP agent")
 	}
+	useGatewayFor(cfg, b.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	routing := chatHarnessRouting(ctx, b.ID)
 	cancel()
