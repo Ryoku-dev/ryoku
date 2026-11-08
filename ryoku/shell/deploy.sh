@@ -735,20 +735,6 @@ fi
 piece cli "the ryoku command"
 build_go "$here/../cli" ryoku
 build_go "$here/../cli" ryoku-host ./cmd/ryoku-host
-# An app may carry Go helper(s): a subdir with a go.mod builds to a bin named
-# for the module (ryovm/fetch -> ryovm-fetch). They compile with the CLI piece
-# because they are command-line helpers rather than part of the app surface.
-for appdir in "$here"/../apps/*/; do
-  for gomod in "${appdir}"*/go.mod; do
-    [[ -f $gomod ]] || continue
-    helperdir=${gomod%/go.mod}
-    helper="$(sed -n -E 's/^module[[:space:]]+//p' "$gomod" | head -1)"
-    [[ -n $helper ]] || continue
-    say "building $helper"
-    build_go "$helperdir" "$helper"
-    install -m755 "$helperdir/$helper" "$bindir/$helper"
-  done
-done
 piece_end
 install -m755 "$here/../cli/ryoku" "$bindir/ryoku"
 # every system helper the package ships to /usr/bin, by the same globs, so a new

@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "라디오가 하드웨어 수준에서 꺼짐(rfkill), 토글로 해제",
   "The readout's lines: reorder, rename, remove": "리드아웃 라인: 재정렬, 이름 변경, 제거",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "원격 엔진(ryossh)이 설치되지 않음. ryoku/apps/ryovm/remote에서 빌드",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "우리가 자라난 뿌리, 이 빌드가 서 있는 모든 프로젝트, 배포판, 손",
   "The same asset is fitted independently on every monitor.": "동일한 자산이 모든 모니터에 독립적으로 맞춤",

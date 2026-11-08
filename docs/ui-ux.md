@@ -34,8 +34,8 @@ its place; if it does not, remove it.
   sits below 4.5:1, so any text is legible at any tier. Those four are the
   *signature defaults*; a theme may replace them, and the ramp's shape is what
   the design guarantees, not the exact hex.
-- **Emphasis is inversion, not colour.** App content (the Hub, ryowalls, ryovm,
-  ryostore) carries no accent at all. To stress a surface it flips to a bone
+- **Emphasis is inversion, not colour.** App content (the Hub, ryowalls,
+  Ryoport, ryostore) carries no accent at all. To stress a surface it flips to a bone
   plate with dark ink: the selected nav item, the connected network, the active
   tab. There is no second value. Even a destructive confirm is a bone plate and
   an unambiguous word, not a red one. The bone stock is the Material
@@ -224,8 +224,8 @@ doing that arithmetic itself.
   disappears and only the needle shows; that is the intended reversed form.
   The lockup (`rashin-lockup.svg`) sets Rashin in Space Grotesk Medium with
   the 羅針 gloss at a shared baseline; below 48 px tall use the mark alone.
-- **App content carries no accent at all.** The Hub, ryowalls, ryovm and ryostore
-  are paper and ink. Emphasis is inversion: a surface flips to bone and its ink
+- **App content carries no accent at all.** The Hub, ryowalls, Ryoport and
+  ryostore are paper and ink. Emphasis is inversion: a surface flips to bone and its ink
   flips to dark. The frame carries the accent; the content does not compete with
   it.
 - **QS Bar is the one surface that wears the whole palette.** It retints every
@@ -700,12 +700,11 @@ type.*
 - **Ryoku Settings (the Hub)** the settings app (`ryoku/hub/quickshell/`, run as
   `qs -c hub`). Its rail, page head and action bar set the pattern every page
   follows; see "A page is its surfaces" above.
-- **the apps** three standalone Quickshell apps under `ryoku/apps/`, each
-  `qs -c <name>`, each importing `Ryoku.Ui` and reading `Tokens`, each carrying no
-  Theme of its own: **ryostore** (the catalogue: rices, lockscreens, plugins, bar
-  styles, fastfetch presets, bundles), **ryowalls** (the wallpaper and live-wall
-  manager, with palette grading and a desktop preview) and **ryovm** (virtual
-  machines, VPS and SSH consoles). See `docs/store.md`.
+- **the apps** standalone Ryoku apps read the same tokens and carry no theme of
+  their own: **ryostore** is the catalogue for rices, lockscreens, plugins, bar
+  styles, fastfetch presets and bundles; **Ryoport** is the optional fleet
+  dashboard package for virtual machines, SSH servers and remote consoles. See
+  `docs/store.md`.
 - **welcome** the first-run guided tour, shown once on the first login: a
   floating window (`qs -c welcome`) over generated threshold art that walks a new
   user through the core keybinds, names each surface and how to summon it, and

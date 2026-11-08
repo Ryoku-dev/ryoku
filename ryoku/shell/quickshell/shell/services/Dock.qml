@@ -68,7 +68,7 @@ Singleton {
     // more than one identity. Persist desktop-entry ids, then resolve window
     // classes through the desktop database so every dock design groups the same
     // application and aliases do not create duplicate pins.
-    readonly property var quickshellApps: ({ "Ryoku Settings": "ryoku-hub", "Ryostore": "ryostore", "ryovm": "ryovm" })
+    readonly property var quickshellApps: ({ "Ryoku Settings": "ryoku-hub", "Ryostore": "ryostore" })
     function plainId(value) {
         return String(value ?? "").trim().replace(/\.desktop$/i, "");
     }

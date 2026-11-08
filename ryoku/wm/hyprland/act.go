@@ -83,11 +83,11 @@ func runAct(args []string) error {
 		return dispatch(`hl.dsp.window.move({ workspace = ` + luaStr(ws) + `, window = ` + luaStr("address:"+id) + ` })`)
 
 	case wm.ActionWindowSummon:
-		title, err := arg(rest, 0, "window title")
+		selector, err := arg(rest, 0, "window selector")
 		if err != nil {
 			return err
 		}
-		return summon(title)
+		return summon(selector)
 
 	case wm.ActionAppFocus:
 		class, err := arg(rest, 0, "app id")
@@ -398,48 +398,59 @@ func closestOutputMode(outputs []wm.Output, connector string, hz float64) (strin
 	return "", fmt.Errorf("act %s: output %q does not exist", wm.ActionOutputRefresh, connector)
 }
 
-// summon raises an already-open window to the current workspace and focuses it,
-// matched by exact title. Ported from ryoku-summon: a single-instance app
-// strands its window on whatever workspace it first opened on, and every
-// Quickshell window shares one app id, so the title is the only handle. The live
-// title is matched first and the initial title second, so a window that retitles
-// itself is still found. No match is an error, which is what lets the keybind
-// fall through to launching the app; a found window is always focused, so a
-// partial raise never triggers a duplicate launch.
-func summon(title string) error {
+// summon raises an already-open window to the current workspace and focuses it.
+// Titles remain the default selector for Quickshell surfaces that share one app
+// id; native applications can select their stable app id explicitly.
+func summon(selector string) error {
 	raw, err := query("clients")
 	if err != nil {
 		return err
 	}
 	var clients []struct {
 		Address      string `json:"address"`
+		Class        string `json:"class"`
+		InitialClass string `json:"initialClass"`
 		Title        string `json:"title"`
 		InitialTitle string `json:"initialTitle"`
 	}
 	if err := json.Unmarshal(raw, &clients); err != nil {
 		return err
 	}
+
+	value := selector
+	byAppID := false
+	if appID, ok := strings.CutPrefix(selector, "app-id:"); ok {
+		value, byAppID = appID, true
+	} else if title, ok := strings.CutPrefix(selector, "title:"); ok {
+		value = title
+	}
+	if value == "" {
+		return fmt.Errorf("act %s: empty window selector", wm.ActionWindowSummon)
+	}
+
 	addr := ""
 	for _, c := range clients {
-		if c.Title == title {
+		if (!byAppID && c.Title == value) || (byAppID && c.Class == value) {
 			addr = c.Address
 			break
 		}
 	}
 	if addr == "" {
 		for _, c := range clients {
-			if c.InitialTitle == title {
+			if (!byAppID && c.InitialTitle == value) || (byAppID && c.InitialClass == value) {
 				addr = c.Address
 				break
 			}
 		}
 	}
 	if addr == "" {
-		return fmt.Errorf("act %s: no window titled %q", wm.ActionWindowSummon, title)
+		if byAppID {
+			return fmt.Errorf("act %s: no window with app id %q", wm.ActionWindowSummon, value)
+		}
+		return fmt.Errorf("act %s: no window titled %q", wm.ActionWindowSummon, value)
 	}
 	sel := luaStr("address:" + addr)
-	// The active workspace is best effort, matching the script: the window is
-	// only moved when the current workspace reads, then always focused.
+	// The active workspace is best effort: a found window is always focused.
 	if raw, err := query("activeworkspace"); err == nil {
 		var ws struct {
 			ID int `json:"id"`
@@ -448,8 +459,7 @@ func summon(title string) error {
 			_ = dispatch(`hl.dsp.window.move({ workspace = ` + strconv.Itoa(ws.ID) + `, window = ` + sel + ` })`)
 		}
 	}
-	_ = dispatch(`hl.dsp.focus({ window = ` + sel + ` })`)
-	return nil
+	return dispatch(`hl.dsp.focus({ window = ` + sel + ` })`)
 }
 
 // touchpad locks or unlocks every touchpad the FN touchpad key drives. Ported

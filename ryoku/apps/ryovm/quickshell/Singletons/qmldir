@@ -1,3 +1,0 @@
-singleton Vm Vm.qml
-singleton Remotes Remotes.qml
-singleton Lg Lg.qml

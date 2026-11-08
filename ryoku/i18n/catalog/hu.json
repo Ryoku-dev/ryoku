@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "A rádió hardver szinten ki van (rfkill); a kapcsoló feloldja.",
   "The readout's lines: reorder, rename, remove": "A kiolvasott sorok: átrendezés, átnevezés, eltávolítás",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "A távolsági motor (ryossh) nincs telepítve. Építsd ryoku/apps/ryovm/remote-ből.",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "Az alapok, melyből nőtünk - minden projekt, disztribúció, kéz ezen építés alapján.",
   "The same asset is fitted independently on every monitor.": "Az eszköz minden monitoron függetlenül illeszkedik.",

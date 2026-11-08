@@ -305,7 +305,7 @@ func shippedBinds() map[string]wayfireBind {
 		"shell.quicksettings":     {key: "shell_quicksettings", cmd: "ryoku-shell quicksettings"},
 		"shell.wallpaper":         {key: "shell_wallpaper", cmd: "ryogami wallpaper ui"},
 		"shell.wallpaperRandom":   {key: "shell_wallpaper_random", cmd: "ryogami wallpaper random"},
-		"shell.ryovm":             {key: "shell_ryovm", cmd: "ryoku-summon ryovm " + wm.QmlEnv + " flock -n -o /tmp/ryovm.lock qs -c ryovm"},
+		"shell.ryoport":           {key: "shell_ryoport", cmd: "ryoku-summon --app-id dev.ryoku.ryoport ryoport"},
 		"shell.clipboard":         {key: "shell_clipboard", cmd: "ryoku-shell clipboard"},
 		"shell.visualizer":        {key: "shell_visualizer", cmd: "ryoku-shell visualizer"},
 		"shell.visualizerOverlay": {key: "shell_visualizer_overlay", cmd: "ryoku-shell visualizer-overlay"},

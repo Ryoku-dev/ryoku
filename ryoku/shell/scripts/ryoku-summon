@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 # Summon a single-instance window to the current workspace and focus it; launch
-# it if it isn't running yet. Single-instance apps (flock + qs) otherwise strand
-# their window on whatever workspace they first opened on, so re-pressing the
-# keybind from another workspace appears to do nothing.
+# it if it is not running yet.
 #   ryoku-summon <window-title> <launch command...>
+#   ryoku-summon --app-id <app-id> <launch command...>
 #
-# The raise path matches by title, which the app-focus seam key does not model:
-# it keys on app_id, and every Quickshell window shares org.quickshell, so a
-# title is the only thing that tells them apart. The window manager is reached
-# only through the seam: `ryoku wm act window.summon` raises the open window on
-# whichever compositor is live and exits non-zero when nothing matches, which is
-# what lets this fall through to the launch. The flock in the command then keeps
-# a second press from opening a duplicate.
+# Quickshell surfaces share one app id and use their title. Native applications
+# should use their stable app id. The window manager is reached only through the
+# neutral seam; a missing match falls through to the launch command.
 set -uo pipefail
 
-title="${1:?window title required}"; shift
+selector="${1:?window selector required}"; shift
+if [[ $selector == --app-id ]]; then
+	app_id="${1:?app id required}"; shift
+	selector="app-id:$app_id"
+else
+	selector="title:$selector"
+fi
 [ "$#" -gt 0 ] || { echo "ryoku-summon: launch command required" >&2; exit 2; }
 
 # The window manager is reached only through the seam, never by name.
 ryoku_bin="${RYOKU_BIN-$(command -v ryoku || true)}"
 
-# A live window matching the title is raised and focused through the seam; when
-# nothing matches the action exits non-zero and the launch command runs instead.
+# A live matching window is raised and focused through the seam.
 if [[ -n $ryoku_bin && -x $ryoku_bin ]]; then
-	"$ryoku_bin" wm act window.summon "$title" >/dev/null 2>&1 && exit 0
+	"$ryoku_bin" wm act window.summon "$selector" >/dev/null 2>&1 && exit 0
 fi
 
 exec "$@"

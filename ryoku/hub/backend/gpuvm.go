@@ -1,11 +1,11 @@
 package main
 
 // gpuvm.go: `ryoku-hub gpu vm ...`, the passthrough-VM manager behind Ryoport's
-// Looking Glass lane and the `ryovm lg` CLI. It generates a performance-tuned
-// libvirt domain named `ryoku-<name>` (so the existing vfio hook binds the dGPU
-// on start), defines/starts/stops/removes it via virsh, and launches
-// looking-glass-client on start. It is strictly for GPU passthrough displayed
-// through Looking Glass; plain VMs live in ryovm's quickemu path.
+// Looking Glass lane and the compatible `ryovm lg` CLI. It generates a
+// performance-tuned libvirt domain named `ryoku-<name>` (so the existing vfio
+// hook binds the dGPU on start), defines/starts/stops/removes it via virsh, and
+// launches looking-glass-client on start. It is strictly for GPU passthrough;
+// ordinary VMs use Ryoport's Quickemu backend.
 //
 // Design mirrors hwcaps.go: buildDomainXML and buildPinPlan are pure functions
 // of gathered inputs (unit-tested across hardware shapes); the messy probing
@@ -431,9 +431,8 @@ func atoiOr(s string, def int) int {
 }
 
 // findVirtioISO locates a virtio-win ISO so a Windows install sees the virtio
-// disk. ryovm keeps one validated copy in its shared images dir (fetched by
-// `ryovm virtio`); fall back to the usual system spots. Empty when none is
-// present (Linux guests need none).
+// disk. Ryoport keeps one validated copy in its shared images directory; fall
+// back to the usual system spots. Empty when none is present (Linux guests need none).
 func findVirtioISO() string {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {

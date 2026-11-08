@@ -36,11 +36,9 @@ maps to a place under `~/.config` (except the small helper script noted below).
 
 ## GUI apps
 
-These are full applications, not `~/.config` seeds. Two shapes live here:
-
-- a **Quickshell app** ships its `quickshell/` tree as `qs -c <name>`
-  (`ryovm`, `ryostore`);
-- a **compiled app** builds from a `CMakeLists.txt` to `/usr/bin/<name>`.
+These are full applications, not `~/.config` seeds. A Quickshell app ships its
+`quickshell/` tree as `qs -c <name>`; a compiled app builds from a
+`CMakeLists.txt` to `/usr/bin/<name>`.
 
 The Rashin companion window (`rashin-app`) is not here: it lives in
 `ryoku/rashin/app/` and ships with `ryoku-rashin`, so a box without Rashin has
@@ -51,31 +49,23 @@ native Quickshell client and libmpv daemon. `release/repo/import-ryotunes.sh`
 imports its checksummed release package unchanged and signs it for `[ryoku]`;
 the distro does not rebuild a separate music app.
 
+Ryoport lives in [its own repository](https://github.com/ryoku-dev/ryoport)
+and ships as the optional `ryoport` package. Run `ryoport` or press
+Super+Shift+V to open the fleet dashboard. The package also provides the
+compatible `ryovm`, `ryossh`, `ryovm-mon` and `ryovm-fetch` commands.
+
 A shell *surface* is a fourth thing and does not live here. `ryoshot` and
 `welcome` launch the same single-instance way but ship inside the shell at
 `ryoku/shell/quickshell/<name>/`, with no `.desktop` and no launcher entry.
 
 - Wallpaper browsing, grading, sources and the theme surface now live in the
   shell's wallpaper picker (Super+W), not here; ryowalls was sunset.
-- `ryovm/` **Ryoport**, the fleet dashboard for local virtual machines, remote
-  servers and SSH connections. Open it with Super+Shift+V or `qs -c ryovm`.
-  The runtime name stays `ryovm` for launch and single-instance compatibility;
-  the visible application identity is Ryoport.
-  The dashboard keeps a single resource list beside a fleet summary, live
-  CPU, memory, disk-I/O and network-I/O history, facts and activity. Machine
-  and remote details split overview, access, networking, snapshots or
-  workloads, settings and activity into focused tabs. The **Machines** page
-  uses quickemu/quickget for create, import, launch, console, snapshots, USB
-  and port forwarding. **Remotes** reads `~/.ssh/config`, adds health probes,
-  tunnels, web apps and Proxmox controls through `ryossh`. **Looking Glass**
-  manages GPU-passthrough guests and reads their live libvirt metrics. Sampling
-  stops when its plate is hidden. Engines: `ryovm`, `ryovm-mon` and `ryossh`.
 - `ryostore/` The store: discover and install lockscreens, rices, subshells, bar styles,
   plugins and bundles. Engine: the `ryostore` Go backend.
 
 ## Single-instance launch
 
-Every one of them launches behind a lock:
+Quickshell applications here launch behind a lock:
 
 ```
 flock -n -o /tmp/<name>.lock qs -c <name>
@@ -88,17 +78,17 @@ follows the app rather than the wrapper.
 A keybind needs more than that. Because `flock` exits nonzero on a held lock,
 pressing the key while the app already runs on another workspace does nothing
 visible: the window stays where it first opened, and the key reads as dead.
-`ryoku-summon` is the answer, and every keybind goes through it:
+`ryoku-summon` handles that case:
 
 ```
 ryoku-summon <window-title> <launch command...>
+ryoku-summon --app-id <app-id> <launch command...>
 ```
 
-It moves a matching window to the active workspace and focuses it, and execs the
-launch command only when nothing matches. It matches the live title first and the
-initial title second, since an app that retitles itself would otherwise fall
-through to the launcher. It ships from `hyprland/scripts/` and lands on `PATH`, so
-any app may call it.
+It moves a matching window to the active workspace and focuses it, and runs the
+launch command only when nothing matches. Quickshell surfaces match their title;
+native applications use their stable app ID. The script ships from
+`ryoku/shell/scripts/` and lands on `PATH`.
 
 ## Adding one
 

@@ -3,13 +3,11 @@ name: Go unit tests
 # Build + test gates for the Go modules no other workflow covered: the ryoku
 # CLI (update / doctor / materialize, the no-migrations delivery spine), the
 # shell IPC daemon, the window-manager seam (ryoku/wm, vendored into every Go
-# consumer), the standalone shell installer, the ryoport ssh helper, and the
-# four app backends (store, hub, rashin, ryossh). The build step alone is load-bearing: these ship as
-# prebuilt binaries or compile during ISO and package builds, and an ipc
-# compile break once reached unstable-dev unseen because nothing built the
-# package in CI. The store, hub and rashin backends carry 46 test files
-# between them that nothing ran, which is the same hole one step later:
-# ryoku-hub and ryoku-rashin ship as packages, so a break there reaches users.
+# consumer), the standalone shell installer, and the store, Hub, and Rashin
+# backends. The build step alone is load-bearing: these ship as prebuilt
+# binaries or compile during ISO and package builds, and an IPC compile break
+# once reached unstable-dev unseen because nothing built the package in CI.
+# The store, Hub, and Rashin backends carry tests that nothing else runs.
 # unstable-dev is in the push triggers for the same reason: that is the branch
 # integration happens on.
 
@@ -22,7 +20,6 @@ on:
       - 'ryoku-shell-installer/**'
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
-      - 'ryoku/apps/ryovm/remote/**'
       - 'ryoku/hub/backend/**'
       - 'ryoku/rashin/backend/**'
       - '.github/workflows/go-unit-tests.yml'
@@ -196,26 +193,6 @@ jobs:
       - name: Build, vet, and test
         shell: bash
         working-directory: ryoku/hub/backend
-        run: |
-          go build ./...
-          go vet ./...
-          go test ./...
-
-  ryossh:
-    name: ryoport ssh helper
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: ryoku/apps/ryovm/remote/go.mod
-
-      - name: Build, vet, and test
-        shell: bash
-        working-directory: ryoku/apps/ryovm/remote
         run: |
           go build ./...
           go vet ./...

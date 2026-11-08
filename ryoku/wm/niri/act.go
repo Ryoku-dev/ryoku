@@ -117,11 +117,11 @@ func runAct(args []string) error {
 		}))
 
 	case wm.ActionWindowSummon:
-		title, err := arg(rest, 0, "window title")
+		selector, err := arg(rest, 0, "window selector")
 		if err != nil {
 			return err
 		}
-		return summon(title)
+		return summon(selector)
 
 	case wm.ActionAppFocus:
 		appID, err := arg(rest, 0, "app id")
@@ -622,16 +622,11 @@ func newestWindowOf(appID string) (uint64, error) {
 	return best.ID, nil
 }
 
-// summon raises an already-open window to the current workspace and focuses it,
-// matched by exact title. niri focuses by id, so the title is resolved to a
-// window here and the newest match wins, mirroring newestWindowOf. Ported from
-// ryoku-summon: a single-instance app strands its window on the workspace it
-// first opened on, and every Quickshell window shares one app id, so the title
-// is the only handle. No match is an error, which lets the keybind fall through
-// to launching the app. MoveWindowToWorkspace pulls the window onto the focused
-// workspace and focuses it in one request, the shape window.moveToWorkspace pins.
-func summon(title string) error {
-	id, err := newestWindowByTitle(title)
+// summon raises an already-open window to the current workspace and focuses it.
+// MoveWindowToWorkspace pulls the selected window onto the focused workspace
+// and focuses it in one request.
+func summon(selector string) error {
+	id, err := newestWindowBySelector(selector)
 	if err != nil {
 		return err
 	}
@@ -646,9 +641,18 @@ func summon(title string) error {
 	}))
 }
 
-// newestWindowByTitle resolves an exact window title to a window id, newest
-// focused match first: the title twin of newestWindowOf.
-func newestWindowByTitle(title string) (uint64, error) {
+func newestWindowBySelector(selector string) (uint64, error) {
+	value := selector
+	byAppID := false
+	if appID, ok := strings.CutPrefix(selector, "app-id:"); ok {
+		value, byAppID = appID, true
+	} else if title, ok := strings.CutPrefix(selector, "title:"); ok {
+		value = title
+	}
+	if value == "" {
+		return 0, fmt.Errorf("act %s: empty window selector", wm.ActionWindowSummon)
+	}
+
 	wins, err := readWindows()
 	if err != nil {
 		return 0, err
@@ -656,7 +660,7 @@ func newestWindowByTitle(title string) (uint64, error) {
 	best := niriWindow{}
 	found := false
 	for _, w := range wins {
-		if w.Title != title {
+		if (!byAppID && w.Title != value) || (byAppID && w.AppID != value) {
 			continue
 		}
 		if !found || w.FocusTimestamp.after(best.FocusTimestamp) {
@@ -664,7 +668,10 @@ func newestWindowByTitle(title string) (uint64, error) {
 		}
 	}
 	if !found {
-		return 0, fmt.Errorf("act %s: no window titled %q", wm.ActionWindowSummon, title)
+		if byAppID {
+			return 0, fmt.Errorf("act %s: no window with app id %q", wm.ActionWindowSummon, value)
+		}
+		return 0, fmt.Errorf("act %s: no window titled %q", wm.ActionWindowSummon, value)
 	}
 	return best.ID, nil
 }

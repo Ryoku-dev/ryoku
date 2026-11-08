@@ -142,16 +142,34 @@ func runAct(args []string) error {
 		return hideWindow(id)
 
 	case wm.ActionWindowSummon:
-		title, err := arg(rest, 0, "window title")
+		selector, err := arg(rest, 0, "window selector")
 		if err != nil {
 			return err
 		}
-		view, ok, err := newestView(func(v wayfireView) bool { return v.Title == title })
+		value := selector
+		byAppID := false
+		if appID, ok := strings.CutPrefix(selector, "app-id:"); ok {
+			value, byAppID = appID, true
+		} else if title, ok := strings.CutPrefix(selector, "title:"); ok {
+			value = title
+		}
+		if value == "" {
+			return fmt.Errorf("act %s: empty window selector", act)
+		}
+		view, ok, err := newestView(func(v wayfireView) bool {
+			if byAppID {
+				return v.AppID == value
+			}
+			return v.Title == value
+		})
 		if err != nil {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("act %s: no window titled %q", act, title)
+			if byAppID {
+				return fmt.Errorf("act %s: no window with app id %q", act, value)
+			}
+			return fmt.Errorf("act %s: no window titled %q", act, value)
 		}
 		out, x, y, err := focusedCell()
 		if err != nil {

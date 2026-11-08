@@ -57,8 +57,8 @@ QML running against a stale plugin.
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |
 | `ryomanager` | RyoManager, the system monitor and process manager. It is selected by default in the installer and can be removed without doctor putting it back |
 | `ryostore` | RyoStore: the catalogue of rices, bundles, subshells and bar styles |
-| `ryowalls` | The wallpaper browser, preview, and AI enhancer |
-| `ryovm` | The virtual-machine manager |
+| `ryotunes` | Ryotunes, the music player. It is selected by default in the installer and remains optional |
+| `ryoport` | Ryoport, the fleet dashboard for virtual machines, SSH servers, and remote consoles. It is selected by default in the installer and remains optional |
 | `ryoku-hypr-plugins`, `hyprglass`, `imgborders`, `hypr-dynamic-cursors` | Hyprland compositor plugins the Hub can toggle |
 | `hyprland-preview-share-picker` | The screen-share source chooser the portal calls by name |
 | `ryoku-cursors`, `ryoku-cursor-material` | The Bibata cursor set (the default pointer) and the optional Material variant |

@@ -410,6 +410,19 @@ func TestWelcomeBuiltinWindowRule(t *testing.T) {
 	}
 }
 
+func TestRyoportBuiltinWindowRule(t *testing.T) {
+	out := string(genSettings(defaultStore()))
+	want := "window-rule {\n" +
+		"    match app-id=\"^dev\\\\.ryoku\\\\.ryoport$\"\n" +
+		"    open-floating true\n" +
+		"    default-column-width { fixed 1180; }\n" +
+		"    default-window-height { fixed 760; }\n" +
+		"}\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("Ryoport must open as a centred 1180x760 floating window\n%s", out)
+	}
+}
+
 func TestPhoneToolsBuiltinWindowRule(t *testing.T) {
 	out := string(genSettings(defaultStore()))
 	want := "window-rule {\n" +

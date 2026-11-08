@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "Der Funk ist auf Hardwareebene ausgeschaltet (rfkill); Der Schalter gibt die Sperre frei.",
   "The readout's lines: reorder, rename, remove": "Die Zeilen der Anzeige: neu anordnen, umbenennen, entfernen",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "Die Remote-Engine (ryossh) ist nicht installiert. Erstellen Sie es unter ryoku/apps/ryovm/remote.",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "Die Wurzeln, aus denen wir wachsen - jedes Projekt, jede Distribution und jede Hand, auf der dieser Build basiert.",
   "The same asset is fitted independently on every monitor.": "Das gleiche Asset wird unabhängig auf jedem Monitor angebracht.",

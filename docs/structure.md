@@ -47,6 +47,8 @@ truth for the live desktop.
   own `~/.config/mimeapps.list` (what "Set as default" writes), which always
   wins, and above the distro's, which no Ryoku package should fight over.
   `chromium-flags.conf` pins Chromium's keyring and Wayland backend.
+  Ryoport is not under `ryoku/apps/`; its standalone repository publishes the
+  optional `ryoport` package.
 - `hyprland/` the Hyprland config, authored in **Lua**. `hyprland.lua` is the
   entry point and `require`s each module. `keyboard.lua`, `gpu.lua`,
   `monitors.lua` are hardware-managed seeds, and `monitors_user.lua.example` shows

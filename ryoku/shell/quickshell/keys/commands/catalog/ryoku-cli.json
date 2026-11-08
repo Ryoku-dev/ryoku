@@ -1742,6 +1742,20 @@
       ]
     },
     {
+      "id": "ryoku.ryoku.wm.act.window.summon-app-id",
+      "group": "ryoku-wm",
+      "title": "Summon a window by app ID",
+      "command": "ryoku wm act window.summon app-id:<app-id>",
+      "description": "Raises the newest exact app-ID match on the current workspace.",
+      "tool": "ryoku",
+      "level": "advanced",
+      "compositors": [
+        "hyprland",
+        "niri",
+        "wayfire"
+      ]
+    },
+    {
       "id": "ryoku.ryoku.wm.act.app.focus",
       "group": "ryoku-wm",
       "title": "Focus an app window",

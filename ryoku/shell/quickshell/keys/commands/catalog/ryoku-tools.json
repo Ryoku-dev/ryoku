@@ -1761,8 +1761,8 @@
       "id": "ryoku.ryoku-summon.open",
       "group": "ryoku-internal",
       "title": "Summon a single window",
-      "command": "ryoku-summon <window-title> <program> <arguments>",
-      "description": "Moves an existing titled window to the current workspace, or launches it when absent.",
+      "command": "ryoku-summon [--app-id <app-id>] <window-title> <program> <arguments>",
+      "description": "Moves an existing window to the current workspace, or launches it when absent. Native apps can match their app ID.",
       "tool": "ryoku-summon",
       "level": "internal"
     },
@@ -2962,6 +2962,15 @@
       "description": "Prints live CPU, memory, disk, and network counters for a running passthrough machine.",
       "tool": "ryovm",
       "level": "advanced"
+    },
+    {
+      "id": "ryoku.ryoport.app",
+      "group": "ryoku-apps",
+      "title": "Open Ryoport",
+      "command": "ryoport",
+      "description": "Opens the fleet dashboard for virtual machines, servers, and remote consoles.",
+      "tool": "ryoport",
+      "level": "basic"
     },
     {
       "id": "ryoku.ryoport.open",

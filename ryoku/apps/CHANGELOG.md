@@ -832,11 +832,9 @@
   machine and remote tiles you act on in one tap), the **Machines** yard (the
   whole prior quickemu manager, moved intact), and a new **Remotes** fleet. The
   app is rebranded Ryoport (港, the harbour: a network *port* too) in the
-  masthead and `.desktop`; the `qs -c ryovm` config id and the `ryovm` VM engine
-  keep their names, so nothing in packaging, the keybind, or user data has to
-  migrate. Ctrl+1/2/3 switch plates, Ctrl+N opens a new connection
-  (`App.qml`, `Rail.qml`, `PageHead.qml`, `Dashboard.qml`, `Machines.qml`,
-  `FleetTile.qml`, `shell.qml`, `ryovm.desktop`).
+  masthead and desktop entry. Ctrl+1/2/3 switch plates, Ctrl+N opens a new
+  connection (`App.qml`, `Rail.qml`, `PageHead.qml`, `Dashboard.qml`,
+  `Machines.qml`, `FleetTile.qml`, `shell.qml`).
 - `ryovm/`: **Remotes: an SSH/VPS console with live health, the PuTTY a hub
   should have.** A new `ryossh` Go engine reads `~/.ssh/config` (and a ryoport
   include it owns, so hosts also work from a bare `ssh <alias>`, no lock-in),
@@ -1075,8 +1073,8 @@
 - `npm/` ships `~/.npmrc` (global prefix `~/.local`) and `pip/` ships
   `~/.config/pip/pip.conf` (`break-system-packages`), so `npm i -g` and
   `pip install --user` work without root.
-- `ryovm/` a virtual-machine manager (`qs -c ryovm`, Super+Shift+V), built on
-  quickemu/quickget. A **Library** of your machines and a **Catalog** of ~90
+- Ryoport began as the in-tree virtual-machine manager opened with
+  Super+Shift+V and built on quickemu/quickget. A **Library** of your machines and a **Catalog** of ~90
   operating systems (~770 release/edition combos: Windows, macOS, every major
   Linux, the BSDs, Android x86). Brand logos are prefetched in parallel and
   cached to `~/.cache/ryoku/ryovm-icons` (a negative cache skips the ~56 OSes

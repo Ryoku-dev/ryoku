@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "无线电在硬件级别关闭 (rfkill)；切换可解除阻止。",
   "The readout's lines: reorder, rename, remove": "读出行的重排序、重命名、删除",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "远程引擎 (ryossh) 未安装。从 ryoku/apps/ryovm/remote 构建。",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "我们的根基，此构建所依赖的每个项目、发行版和贡献者。",
   "The same asset is fitted independently on every monitor.": "同一资源在每个监视器上独立配置。",

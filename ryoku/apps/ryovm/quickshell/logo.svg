@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <title>Ryoport</title>
-  <rect width="64" height="64" fill="#cdc4ba"/>
-  <circle cx="32" cy="32" r="17" fill="none" stroke="#000000" stroke-width="4"/>
-  <circle cx="32" cy="32" r="3" fill="#000000"/>
-  <path d="M32 9v8M32 47v8M9 32h8M47 32h8" fill="none" stroke="#000000" stroke-width="3"/>
-  <path d="M22 42l8-12 12-8-8 12z" fill="#e2342a" stroke="#000000" stroke-width="2" stroke-linejoin="round"/>
-</svg>

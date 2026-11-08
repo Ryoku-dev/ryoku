@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "হার্ডওয়্যার স্তরে রেডিও বন্ধ (rfkill); টগল এটিকে আনব্লক করে।",
   "The readout's lines: reorder, rename, remove": "রিডআউটের লাইনগুলি: পুনর্বিন্যাস, নাম পরিবর্তন, মুছে ফেলা",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "রিমোট ইঞ্জিন (ryossh) ইনস্টল করা নেই। এটি ryoku/apps/ryovm/remote থেকে তৈরি করুন।",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "আমরা যে শিকড়গুলি থেকে বৃদ্ধি পাই - প্রতিটি প্রকল্প, ডিস্ট্রো, এবং হাত এই বিল্ডের উপর দাঁড়িয়ে আছে।",
   "The same asset is fitted independently on every monitor.": "একই সম্পদ প্রতিটি মনিটরে স্বাধীনভাবে লাগানো হয়.",

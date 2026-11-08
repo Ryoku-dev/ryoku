@@ -13,8 +13,8 @@ set -euo pipefail
 # Everything the desktop opens through here inherits this environment, and a
 # Quickshell instance that has crashed once leaves __QUICKSHELL_CRASH_INFO_FD in
 # it: the memfd of the config it came back from. Quickshell reads that variable
-# before it parses arguments, so `qs -c ryovm` run in the terminal we exec
-# would draw a second desktop instead of the app. Drop the handle once, here.
+# before it parses arguments, so a Quickshell app started in the terminal we
+# exec would draw a second desktop instead. Drop the handle once, here.
 unset __QUICKSHELL_CRASH_INFO_FD __QUICKSHELL_CRASH_DUMP_PID \
 	__QUICKSHELL_CRASH_DUMP_FD __QUICKSHELL_CRASH_LOG_FD __QUICKSHELL_CRASH_SIGNAL
 

@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# ryoport: the friendly name for Ryoport's Looking Glass GPU-passthrough VMs.
-# `ryoport <name>` starts that VM and opens Looking Glass; every other verb
-# (list|create|start|stop|remove|status) passes straight through to `ryovm lg`.
-exec ryovm lg "$@"

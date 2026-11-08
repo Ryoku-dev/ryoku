@@ -169,14 +169,14 @@ func TestActOutputRefreshRejectsMalformedHzBeforeIPC(t *testing.T) {
 }
 
 // window.summon raises an already-open window to the current workspace and
-// focuses it, matched by exact title. niri focuses by id, so the title resolves
-// to the newest matching window, which is pulled onto the focused workspace in
-// one MoveWindowToWorkspace request.
-func TestActSummonMovesNewestTitleMatch(t *testing.T) {
+// focuses it. The newest matching title or app id is pulled onto the focused
+// workspace in one MoveWindowToWorkspace request.
+func TestActSummonMovesNewestMatch(t *testing.T) {
 	const windows = `{"Windows":[
 		{"id":11,"title":"Ryoku Hub","app_id":"org.quickshell","focus_timestamp":{"secs":100,"nanos":0}},
 		{"id":22,"title":"Ryoku Hub","app_id":"org.quickshell","focus_timestamp":{"secs":200,"nanos":0}},
-		{"id":33,"title":"Other","app_id":"org.quickshell","focus_timestamp":{"secs":300,"nanos":0}}
+		{"id":33,"title":"Other","app_id":"org.quickshell","focus_timestamp":{"secs":300,"nanos":0}},
+		{"id":44,"title":"Ryoport","app_id":"dev.ryoku.ryoport","focus_timestamp":{"secs":400,"nanos":0}}
 	]}`
 	const workspaces = `{"Workspaces":[
 		{"id":3,"idx":1,"output":"eDP-1","is_active":true,"is_focused":true},
@@ -209,6 +209,15 @@ func TestActSummonMovesNewestTitleMatch(t *testing.T) {
 	want := `{"Action":{"MoveWindowToWorkspace":{"focus":true,"reference":{"Id":3},"window_id":22}}}`
 	if got != want {
 		t.Errorf("request mismatch\n got: %q\nwant: %q", got, want)
+	}
+
+	got = ""
+	if err := runAct([]string{"window.summon", "app-id:dev.ryoku.ryoport"}); err != nil {
+		t.Fatalf("summon by app id: %v", err)
+	}
+	want = `{"Action":{"MoveWindowToWorkspace":{"focus":true,"reference":{"Id":3},"window_id":44}}}`
+	if got != want {
+		t.Errorf("app-id request mismatch\n got: %q\nwant: %q", got, want)
 	}
 
 	// A title with no window is an error and emits no action, so the keybind

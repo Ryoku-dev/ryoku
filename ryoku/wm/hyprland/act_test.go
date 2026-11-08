@@ -289,14 +289,13 @@ func TestActRejectsMissingArgs(t *testing.T) {
 }
 
 // window.summon raises an already-open window to the current workspace and
-// focuses it, matched by exact title. The live title wins over the initial
-// title, and a title with no window is an error so the keybind launches the app
-// instead of raising nothing.
-func TestActSummonRaisesByTitle(t *testing.T) {
+// focuses it. Titles remain the default; native apps can use their app id.
+func TestActSummonRaisesMatchingWindow(t *testing.T) {
 	const clients = `[
-		{"address":"0xaaa","title":"Other","initialTitle":"Other"},
-		{"address":"0xbbb","title":"Ryoku Hub","initialTitle":"org.quickshell"},
-		{"address":"0xccc","title":"stale","initialTitle":"Ryoku Hub"}
+		{"address":"0xaaa","class":"other","title":"Other","initialTitle":"Other"},
+		{"address":"0xbbb","class":"org.quickshell","title":"Ryoku Hub","initialTitle":"org.quickshell"},
+		{"address":"0xccc","class":"org.quickshell","title":"stale","initialTitle":"Ryoku Hub"},
+		{"address":"0xddd","class":"dev.ryoku.ryoport","title":"Ryoport","initialTitle":"Ryoport"}
 	]`
 	const active = `{"id":5}`
 
@@ -327,6 +326,23 @@ func TestActSummonRaisesByTitle(t *testing.T) {
 	for i := range want {
 		if strings.Join(dispatched[i], "\x00") != strings.Join(want[i], "\x00") {
 			t.Errorf("dispatch %d\n got: %q\nwant: %q", i, dispatched[i], want[i])
+		}
+	}
+
+	dispatched = nil
+	if err := runAct([]string{"window.summon", "app-id:dev.ryoku.ryoport"}); err != nil {
+		t.Fatalf("summon by app id: %v", err)
+	}
+	want = [][]string{
+		{"dispatch", `hl.dsp.window.move({ workspace = 5, window = "address:0xddd" })`},
+		{"dispatch", `hl.dsp.focus({ window = "address:0xddd" })`},
+	}
+	if len(dispatched) != len(want) {
+		t.Fatalf("app-id dispatch count = %d, want %d: %q", len(dispatched), len(want), dispatched)
+	}
+	for i := range want {
+		if strings.Join(dispatched[i], "\x00") != strings.Join(want[i], "\x00") {
+			t.Errorf("app-id dispatch %d\n got: %q\nwant: %q", i, dispatched[i], want[i])
 		}
 	}
 

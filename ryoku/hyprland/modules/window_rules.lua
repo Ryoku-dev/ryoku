@@ -168,14 +168,11 @@ hl.window_rule({
 })
 
 hl.window_rule({
-    name   = "float-ryovm",
-    match  = { title = "^(ryovm)$" },
+    name   = "float-ryoport",
+    match  = { class = "^dev\\.ryoku\\.ryoport$" },
     float  = true,
     size   = fit(1180, 760),
     center = true,
-    -- qs paints its first frame slowly on this hybrid GPU (Mesa falls back off
-    -- the NVIDIA node), so the pop-in would reveal the uninitialised surface as
-    -- horizontal streaks; skip it and the (opaque, see shell.qml) window snaps in.
     no_anim = true,
 })
 

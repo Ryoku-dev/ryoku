@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "Radio tắt ở cấp phần cứng (rfkill), bật tắt mở khóa nó.",
   "The readout's lines: reorder, rename, remove": "Các dòng số đọc: sắp xếp, đổi tên, xóa",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "Engine từ xa (ryossh) không được cài đặt. Xây dựng từ ryoku/apps/ryovm/remote.",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "Rễ chúng ta phát triển từ, mọi dự án, distro và tay bản dựng này dựa vào.",
   "The same asset is fitted independently on every monitor.": "Tài sản tương tự được lắp độc lập trên mỗi màn hình.",

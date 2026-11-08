@@ -5329,7 +5329,6 @@
   "The preview failed.": "The preview failed.",
   "The radio is off at the hardware level (rfkill); the toggle unblocks it.": "Radio on pois käytöstä laitteistotasolla (rfkill); kytkin avaa sen.",
   "The readout's lines: reorder, rename, remove": "Lukeman rivit: järjestä, nimeä uudelleen, poista",
-  "The remote engine (ryossh) is not installed. Build it from ryoku/apps/ryovm/remote.": "Etämoottori (ryossh) ei ole asennettu. Rakenna se osoitteesta ryoku/apps/ryovm/remote.",
   "The request failed.": "The request failed.",
   "The roots we grow from - every project, distro, and hand this build stands on.": "Juuret, joista kasvamme - jokainen projekti, distro ja käsi, jolla tämä versio seisoo.",
   "The same asset is fitted independently on every monitor.": "Sama omaisuus sovitetaan itsenäisesti jokaiseen näyttöön.",

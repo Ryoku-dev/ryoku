@@ -33,10 +33,8 @@ const (
 	ActionWindowMoveToWorkspaceBy Action = "window.moveToWorkspaceBy" // <delta>
 
 	// ActionWindowSummon raises an already-open window to the current
-	// workspace and focuses it, matched by exact title. The desktop's summon
-	// keybind brings a single-instance window forward from wherever it first
-	// opened; a title is the only handle when every window of an app shares one
-	// app id, so the app-focus key cannot tell them apart.
+	// workspace and focuses it. Its selector is an exact title by default;
+	// app-id:<id> selects an application window instead.
 	ActionWindowSummon Action = "window.summon"
 	// ActionWindowHide moves the focused or named window into the provider's
 	// scratch workspace. Providers with native bindings may never call it.

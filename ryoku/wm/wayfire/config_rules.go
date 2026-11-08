@@ -205,7 +205,7 @@ var wayfireBuiltinRules = []wayfireBuiltinRule{
 	{key: "phone_tools", condition: `title contains "ryoku-phone-"`, action: phoneGeometry, floating: true},
 	{key: "update", condition: `app_id is "dev.ryoku.update"`, action: largeGeometry, floating: true},
 	{key: "ryostore_title", condition: `title is "Ryostore"`, action: largeGeometry, floating: true},
-	{key: "ryovm", condition: `title is "ryovm"`, action: largeGeometry, floating: true},
+	{key: "ryoport", condition: `app_id is "dev.ryoku.ryoport"`, action: largeGeometry, floating: true},
 	{key: "ryoport_ssh", condition: `app_id is "dev.ryoku.ryoport_ssh"`, action: compactGeometry, floating: true},
 	{key: "ryoport_spicy", condition: `app_id is "spicy"`, floating: true},
 	{key: "ryoport_console", condition: `app_id is "dev.ryoku.ryoport_console"`, floating: true},

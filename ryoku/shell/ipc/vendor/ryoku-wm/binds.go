@@ -215,7 +215,7 @@ var catalogue = []CatalogBind{
 	{ID: "shell.quicksettings", Category: "Shell", Label: "Quick settings", Hint: "Power, logout, restart, shutdown, wifi", Chord: "SUPER + Escape", Kind: BindShell},
 	{ID: "shell.wallpaper", Category: "Shell", Label: "Wallpaper picker", Chord: "SUPER + W", Kind: BindShell},
 	{ID: "shell.wallpaperRandom", Category: "Shell", Label: "Random wallpaper", Hint: "Random wallpaper with a random transition", Chord: "SUPER + SHIFT + W", Kind: BindShell},
-	{ID: "shell.ryovm", Category: "Shell", Label: "Ryovm", Hint: "Summon the VM window to this workspace", Chord: "SUPER + SHIFT + V", Kind: BindShell},
+	{ID: "shell.ryoport", Category: "Shell", Label: "Ryoport", Hint: "Summon the fleet dashboard to this workspace", Chord: "SUPER + SHIFT + V", Kind: BindShell},
 	{ID: "shell.clipboard", Category: "Shell", Label: "Clipboard", Chord: "SUPER + V", Kind: BindShell},
 	{ID: "shell.visualizer", Category: "Shell", Label: "Audio visualiser", Hint: "Toggle the desktop visualiser", Chord: "SUPER + M", Kind: BindShell},
 	{ID: "shell.visualizerOverlay", Category: "Shell", Label: "Visualiser over windows", Hint: "Raise it above windows; again to flip back", Chord: "SUPER + SHIFT + M", Kind: BindShell},

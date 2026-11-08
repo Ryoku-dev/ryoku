@@ -169,7 +169,7 @@ func shippedBinds() map[string]niriBind {
 		"shell.quicksettings":     {action: spawnArgs("ryoku-shell", "quicksettings"), ignoreInhibitor: true},
 		"shell.wallpaper":         {action: spawnArgs("ryogami", "wallpaper", "ui")},
 		"shell.wallpaperRandom":   {action: spawnArgs("ryogami", "wallpaper", "random")},
-		"shell.ryovm":             {action: spawnSh("ryoku-summon ryovm " + wm.QmlEnv + " flock -n -o /tmp/ryovm.lock qs -c ryovm")},
+		"shell.ryoport":           {action: spawnArgs("ryoku-summon", "--app-id", "dev.ryoku.ryoport", "ryoport")},
 		"shell.clipboard":         {action: spawnArgs("ryoku-shell", "clipboard")},
 		"shell.visualizer":        {action: spawnArgs("ryoku-shell", "visualizer")},
 		"shell.visualizerOverlay": {action: spawnArgs("ryoku-shell", "visualizer-overlay")},

@@ -291,6 +291,16 @@ func TestSummonAndAppFocus(t *testing.T) {
 			expectedCall{"window-rules/focus-view", `{"id":7}`})
 	})
 
+	t.Run("summon matches an app id", func(t *testing.T) {
+		calls := stubAct(t, stageReplies())
+		if err := runAct([]string{"window.summon", "app-id:kitty"}); err != nil {
+			t.Fatal(err)
+		}
+		wantOrder(t, *calls,
+			expectedCall{"vswitch/send-view", `{"view-id":7,"x":1,"y":0}`},
+			expectedCall{"window-rules/focus-view", `{"id":7}`})
+	})
+
 	t.Run("summon missing title", func(t *testing.T) {
 		stubAct(t, stageReplies())
 		err := runAct([]string{"window.summon", "not-a-title"})
