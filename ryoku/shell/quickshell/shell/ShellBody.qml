@@ -132,9 +132,14 @@ Scope {
     // bridge writes the real state, a blank file says the shell is up. (A
     // write of "" over a file that failed to load is skipped as unchanged.)
     FileView {
-        path: root.phoneBuilt || root.phoneOn ? "" : (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku/phone/state.json"
+        id: phoneStateStandIn
         printErrors: false
         onLoadFailed: if (!root.phoneBuilt) setText("\n")
+        // set once after startup, a path binding on phoneOn looped while the shell came up
+        Component.onCompleted: Qt.callLater(() => {
+            if (!root.phoneBuilt && !root.phoneOn)
+                phoneStateStandIn.path = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku/phone/state.json";
+        })
     }
 
     readonly property string reloadStatePath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-reload-cover.json"

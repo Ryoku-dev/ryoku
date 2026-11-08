@@ -329,19 +329,31 @@ Singleton {
         const desktop = root.entryFor(id);
         const byEntry = (desktop && desktop.icon) ? Icons.path(desktop.icon, true) : "";
         const resolved = byEntry !== "" ? byEntry : Icons.path(id.toLowerCase(), true);
-        const unresolved = new Map(root._unresolvedIcons);
-        if (resolved === "" && id.length > 0) {
-            if (!unresolved.has(id)) {
-                if (unresolved.size === 0)
-                    root._iconTries = 0;
-                unresolved.set(id, true);
-                root._unresolvedIcons = unresolved;
-            }
-        } else if (unresolved.has(id)) {
-            unresolved.delete(id);
-            root._unresolvedIcons = unresolved;
+        if (id.length > 0) {
+            root._iconNotes.queue.push({ id: id, missing: resolved === "" });
+            Qt.callLater(root._noteIcons);
         }
         return resolved;
+    }
+    // written after the binding that asked, writing it from inside the binding looped
+    readonly property var _iconNotes: ({ queue: [] })
+    function _noteIcons() {
+        let next = null;
+        for (const note of root._iconNotes.queue.splice(0)) {
+            if (note.missing === (next || root._unresolvedIcons).has(note.id))
+                continue;
+            if (next === null)
+                next = new Map(root._unresolvedIcons);
+            if (note.missing) {
+                if (next.size === 0)
+                    root._iconTries = 0;
+                next.set(note.id, true);
+            } else {
+                next.delete(note.id);
+            }
+        }
+        if (next !== null)
+            root._unresolvedIcons = next;
     }
 
     function launch(className) {
