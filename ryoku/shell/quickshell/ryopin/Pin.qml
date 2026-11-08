@@ -89,7 +89,7 @@ PanelWindow {
     function copyShot() { Bus.run("clip-copy image/png " + entry.path); }
     function copyLink() { linkFile.setText(String(entry.path)); }
 
-    // The daemon copies from a file, so the path is written out first.
+    // the daemon copies from a file so the path goes there first
     FileView {
         id: linkFile
         path: "/tmp/ryopin-path.txt"

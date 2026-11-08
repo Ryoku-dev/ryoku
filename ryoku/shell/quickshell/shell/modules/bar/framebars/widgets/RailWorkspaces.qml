@@ -49,8 +49,6 @@ Item {
             (a.output > b.output ? 1 : Number(a.name) - Number(b.name)));
         return out;
     }
-    // The pills follow a keyed copy of entries, so a workspace frame keeps every
-    // pill (and its icon row) that is still there.
     BusListModel {
         id: entryModel
         key: "name"

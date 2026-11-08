@@ -44,8 +44,6 @@ Singleton {
         onUpdated: root.apply(topicFeed.data)
     }
 
-    // The history lives in the daemon; clear it while the daemon is away and let
-    // the bus resync the panel when it returns.
     Connections {
         target: Bus
         function onConnectedChanged() {

@@ -665,8 +665,6 @@ Rectangle {
         visible: shown
         enabled: !app.detailOpen
 
-        // Subshells and bar styles on a modest machine come lightest first
-        // (backend resource_tier.go); every other category is A to Z.
         Text {
             objectName: "ryostore-category-order"
             anchors { left: parent.left; leftMargin: Tokens.s6; verticalCenter: parent.verticalCenter }

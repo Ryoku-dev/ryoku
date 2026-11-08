@@ -73,8 +73,6 @@ func TestIpcArgvRoutesShellCallsToReadyRuntime(t *testing.T) {
 	}
 }
 
-// fakeQs swaps the qs runner for reply, records every argv it sees, and
-// shrinks the retry and timeout windows so tests run fast.
 func fakeQs(t *testing.T, reply func(ctx context.Context, attempt int) ([]byte, []byte, error)) func() [][]string {
 	t.Helper()
 	prevRun, prevTimeout, prevWindow, prevEvery := qsRun, ipcAttemptTimeout, ipcRetryWindow, ipcRetryEvery
@@ -102,8 +100,6 @@ func fakeQs(t *testing.T, reply func(ctx context.Context, attempt int) ([]byte, 
 	}
 }
 
-// qs reports a missing target or function and still exits 0; that is final
-// and never retried.
 func TestQsIpcMissingTargetIsFinal(t *testing.T) {
 	for _, msg := range []string{"Target not found.", "function not found.", "PROPERTY NOT FOUND."} {
 		calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
@@ -123,8 +119,6 @@ func TestQsIpcMissingTargetIsFinal(t *testing.T) {
 	}
 }
 
-// A shell that is starting or reloading is retried, but only within the
-// retry window; one that comes up in time answers.
 func TestQsIpcRetriesNotRunningWithinWindow(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
 		return nil, []byte("No running instances for shell\n"), errors.New("exit status 255")
@@ -158,7 +152,6 @@ func TestQsIpcRetriesNotRunningWithinWindow(t *testing.T) {
 	}
 }
 
-// A hung qs is killed at the per-attempt timeout and not retried.
 func TestQsIpcAttemptTimesOut(t *testing.T) {
 	calls := fakeQs(t, func(ctx context.Context, _ int) ([]byte, []byte, error) {
 		<-ctx.Done()
@@ -178,7 +171,6 @@ func TestQsIpcAttemptTimesOut(t *testing.T) {
 	}
 }
 
-// Any other qs failure is reported with its message and not retried.
 func TestQsIpcOtherFailureIsFinal(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
 		return nil, []byte("Could not parse argument\n"), errors.New("exit status 1")
@@ -192,8 +184,6 @@ func TestQsIpcOtherFailureIsFinal(t *testing.T) {
 	}
 }
 
-// roundTripHandle sends one control line through the daemon's socket handler
-// and returns the raw reply.
 func roundTripHandle(t *testing.T, d *daemon, line string) string {
 	t.Helper()
 	client, server := net.Pipe()
@@ -209,8 +199,6 @@ func roundTripHandle(t *testing.T, d *daemon, line string) string {
 	return string(reply)
 }
 
-// `ryoku-shell ipc` carries every arg, empty or spaced, to qs positionally and
-// returns the function's stdout; failures come back as "err ...".
 func TestIPCRequestOverSocket(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
 		return []byte("ok\n"), nil, nil

@@ -59,9 +59,7 @@ QString BusClient::socketPath() const
     return dir + QStringLiteral("/ryoku-shell.sock");
 }
 
-// RYOKU_BUS_CLIENT, else the qs config this process is: the shell
-// directory's name. A dev checkout runs `qs -p ryoku/hub/quickshell`, so a
-// directory called quickshell stands for its parent.
+// a dev checkout runs qs -p ryoku/hub/quickshell so quickshell stands for its parent
 QString BusClient::clientName() const
 {
     if (!m_clientName.isEmpty())
@@ -86,7 +84,7 @@ QString BusClient::clientName() const
     return name;
 }
 
-// Opened on first use: a process that never touches the bus never dials.
+// opened on first use so a process that never touches the bus never dials
 void BusClient::ensure()
 {
     if (m_thread)
@@ -208,7 +206,7 @@ void BusClient::seed(const QString &topic, const QJSValue &data)
 void BusClient::notify(const QString &name, const QJSValue &data, const QJSValue &info,
                        const QJsonValue &json, const QList<QStringList> *paths, bool event)
 {
-    // A subscriber may unsubscribe itself or others, or drop the topic.
+    // a subscriber may unsubscribe itself or others, or drop the topic
     auto it = m_topics.find(name);
     if (it == m_topics.end())
         return;
@@ -426,8 +424,6 @@ void BusClient::receive(const QList<BusInbound> &batch)
     }
 }
 
-// The worker already sent the bus line, re-sub and re-serve; queued requests
-// follow them.
 void BusClient::onOpened()
 {
     m_open = true;
@@ -442,8 +438,7 @@ void BusClient::onOpened()
     post([bytes](BusWorker *w) { w->write(bytes); });
 }
 
-// Requests on the wire fail: the daemon may or may not have run them, so they
-// are not resent. Cached frames stay until the resync replaces them.
+// the daemon may or may not have run what was in flight, so it fails and is never resent
 void BusClient::onClosed()
 {
     m_open = false;

@@ -33,7 +33,6 @@ func installFakePactl(t *testing.T) *fakePactl {
 			f.mu.Unlock()
 			return nil, nil
 		},
-		// A healthy subscribe stays open until the watcher cancels it.
 		subscribe: func(ctx context.Context, _ string) (io.Reader, func() error, error) {
 			f.mu.Lock()
 			f.subscribes++
@@ -98,7 +97,6 @@ func TestDuckWatcherFollowsSetting(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("turning the setting on never started pactl subscribe")
 	}
-	// Setting it on again must not start a second subscribe.
 	if err := d.setSetting(duckSettingKey, true); err != nil {
 		t.Fatal(err)
 	}

@@ -33,7 +33,7 @@ var duckState struct {
 	ducked bool
 }
 
-// pactlRunner is every way the ducking code reaches pactl, so tests can count spawns.
+// a seam so tests can count pactl spawns
 type pactlRunner struct {
 	lookPath  func() string
 	list      func(ctx context.Context, bin string) ([]byte, error)
@@ -53,7 +53,7 @@ var duckPactl = pactlRunner{
 	},
 	subscribe: func(ctx context.Context, bin string) (io.Reader, func() error, error) {
 		cmd := exec.CommandContext(ctx, bin, "subscribe")
-		// The unit stops only the daemon, so the watcher must end with it rather than outlive it.
+		// the unit stops only the daemon, so the watcher has to die with it
 		cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGTERM}
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -175,7 +175,6 @@ func (d *daemon) restoreDuckedAudio() {
 	}
 }
 
-// duckWatcher owns the one pactl subscribe; it runs only while the setting is on.
 var duckWatcher struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -201,7 +200,7 @@ func (d *daemon) syncDuckWatcher() {
 	}()
 }
 
-// Waiting for the watcher means no pactl child is left once the setting reads off.
+// waits so no pactl child is left once the setting reads off
 func stopDuckWatcher() {
 	duckWatcher.mu.Lock()
 	defer duckWatcher.mu.Unlock()
@@ -213,10 +212,9 @@ func stopDuckWatcher() {
 	duckWatcher.cancel, duckWatcher.done = nil, nil
 }
 
-// restartBackoff spaces pactl restarts so a missing audio server costs nothing.
+// a missing audio server then costs next to nothing
 type restartBackoff struct{ next time.Duration }
 
-// after returns the wait before the next start, given how long the last run lasted.
 func (b *restartBackoff) after(ran time.Duration) time.Duration {
 	if b.next == 0 || ran >= duckHealthyRun {
 		b.next = duckRestartMin
@@ -257,7 +255,7 @@ func (d *daemon) subscribeOtherAudio(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	// Evaluated after the subscribe starts, so a change during the gap is not missed.
+	// after the subscribe starts so a change in the gap isn't missed
 	d.evaluateDuck(ctx)
 	pending := make(chan struct{}, 1)
 	var debounced sync.WaitGroup

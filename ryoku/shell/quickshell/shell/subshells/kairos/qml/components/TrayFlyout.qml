@@ -98,10 +98,6 @@ Item {
     }
     readonly property var menuRows: flyout.menuTree ? flyout.rowsFor(flyout.menuTree, 0, []) : []
 
-    // The icon row and the open menu follow keyed views of the tray: a frame
-    // for one app (a status or icon change) updates that icon and leaves the
-    // rest, and the open menu keeps its entries while the app republishes it.
-    // Empty while the daemon is away, as the Tray service is.
     BusListModel {
         id: trayRows
         topic: Bus.connected ? "tray" : ""

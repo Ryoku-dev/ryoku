@@ -102,9 +102,7 @@ func TestDispatchControlErrors(t *testing.T) {
 	}
 }
 
-// A Hub that is not a bus client (an older build, or one whose bus never
-// connected) is still found by the qs probe and driven through qs ipc:
-// `hub open users <profile-id>` lands it on that profile's Users page.
+// a Hub that isn't a bus client (older build, or its bus never connected) still gets found by the qs probe
 func TestHubOpenUsersProfile(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
 	launches := fakeHubLaunch(t, nil)
@@ -125,8 +123,6 @@ func TestHubOpenUsersProfile(t *testing.T) {
 	}
 }
 
-// A Hub on the bus takes an open as exactly one cmd: no qs probe, no qs call
-// and no second instance.
 func TestHubOpenWarmBusSendsOneCmd(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
 	launches := fakeHubLaunch(t, nil)
@@ -158,8 +154,6 @@ func TestHubOpenWarmBusSendsOneCmd(t *testing.T) {
 	}
 }
 
-// A cold open starts the Hub once, waits for it to serve nav on the bus, and
-// only then sends the navigation; the qs probe is the only qs it runs.
 func TestHubOpenColdStartsOnceThenSendsOnBus(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) {
 		return nil, []byte("No running instances for this config.\n"), nil
@@ -197,7 +191,6 @@ func TestHubOpenColdStartsOnceThenSendsOnBus(t *testing.T) {
 	}
 }
 
-// `hub close` reaches a bus Hub as one cmd.
 func TestHubCloseOverBus(t *testing.T) {
 	calls := fakeQs(t, func(context.Context, int) ([]byte, []byte, error) { return nil, nil, nil })
 	fb := fakeBusClient(t, "hub", 4444, "nav", "users", "hub")
@@ -215,9 +208,6 @@ func TestHubCloseOverBus(t *testing.T) {
 	}
 }
 
-// fakeHubLaunch replaces the flock qs start: it counts launches, runs start
-// (the fake Hub coming up) in the background, and blocks the returned wait
-// until the test ends.
 func fakeHubLaunch(t *testing.T, start func()) func() int {
 	t.Helper()
 	prev := hubLaunch

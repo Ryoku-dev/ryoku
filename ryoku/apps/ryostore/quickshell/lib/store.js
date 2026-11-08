@@ -118,16 +118,11 @@ function categoryName(item, category) {
     return String(category && category.name || item && item.category || "");
 }
 
-// The catalogue measures every subshell and bar style against Orpheus and
-// publishes a tier with the measured delta (docs/store.md). Anything else in
-// that field reads as unmeasured.
 function resourceTier(item) {
     var tier = String(item && item.metadata && item.metadata.resourceTier || "");
     return tier === "light" || tier === "standard" || tier === "heavy" ? tier : "";
 }
 
-// resourceDelta: the measured difference from Orpheus, or null when the item
-// has no complete, finite measurement.
 function resourceDelta(item) {
     var delta = item && item.metadata && item.metadata.resourceDelta;
     if (!delta || typeof delta !== "object")
@@ -143,10 +138,7 @@ function resourceDelta(item) {
     return out;
 }
 
-// signedNumber prints a delta with its sign and at most `digits` decimals, so
-// +12, -3.5 and 0 read as differences rather than totals. Halves round away
-// from zero either way, so a lighter item reads exactly as far below as a
-// heavier one reads above.
+// halves round away from zero so a lighter item reads as far below as a heavier one reads above
 function signedNumber(value, digits) {
     var number = Number(value);
     var places = Math.max(0, Number(digits) || 0);
@@ -157,8 +149,6 @@ function signedNumber(value, digits) {
     return (number > 0 ? "+" : "-") + String(magnitude);
 }
 
-// notRecommended: the backend's advice that a heavy item asks more of this
-// machine than it comfortably has. A note only; every action stays available.
 function isNotRecommended(item) {
     return Boolean(item && item.notRecommended);
 }
@@ -212,8 +202,7 @@ function shuffleSeeded(items, seed) {
 }
 
 // eligiblePool: the Discover hero candidates, best tier first (real art and not
-// installed, then any real art, then anything without a source error). Within
-// the first two, an item recommended for this machine wins over one that is not.
+// installed, then any real art, then anything without a source error).
 function eligiblePool(source) {
     var withArt = source.filter(function(x) { return !x.sourceError && x.art; });
     var fresh = withArt.filter(function(x) { return !isInstalled(x); });
@@ -309,8 +298,7 @@ function featuredApps(items, count, seed) {
     return top.slice(start).concat(top.slice(0, start)).slice(0, size);
 }
 
-// AVAILABLE is the absence of state, so it never becomes a chip; an available
-// item this machine is not recommended for chips that advice instead.
+// AVAILABLE is the absence of state, so it never becomes a chip.
 function statusTag(item) {
     var labels = statusLabels(item);
     if (labels.length > 0 && labels[0] !== "AVAILABLE")
@@ -384,8 +372,7 @@ function collection(items, options) {
         filtered = sortApps(filtered, opts.appSort);
     else if (opts.categoryID === "omarchy-plugins")
         filtered = sortOmarchyPlugins(filtered, opts.omarchySort || "popular");
-    // Subshells and bar styles keep the backend's order: A to Z, or on a modest
-    // machine lightest first (ryostore backend resource_tier.go).
+    // subshells and bar styles keep the backend's order, it sorts them by tier on a modest machine
     else if (opts.categoryID && opts.categoryID !== "flatpak" && !isShellItem({ category: opts.categoryID }))
         filtered = sortAlphabetical(filtered);
     if (opts.view !== "library" && !opts.categoryID && !opts.query) {
@@ -395,7 +382,6 @@ function collection(items, options) {
             return filtered;
         var rest = filtered.filter(function(item) { return itemKey(item) !== itemKey(lead); });
         rest = seed > 0 ? shuffleSeeded(rest, seed) : rest;
-        // What this machine is not recommended for sits behind everything else.
         return [lead].concat(rest.filter(function(item) { return !isNotRecommended(item); }),
                              rest.filter(isNotRecommended));
     }

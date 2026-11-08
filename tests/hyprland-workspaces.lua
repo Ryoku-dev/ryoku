@@ -1,6 +1,4 @@
--- The desktop grid and scratchpad (modules/workspaces.lua) against a fake hl:
--- each case sets the compositor state, runs one function and checks the exact
--- dispatches, the same ones the retired bash helper sent through hyprctl.
+-- expects the exact dispatches the retired bash helper sent through hyprctl
 local source = "ryoku/hyprland/modules/workspaces.lua"
 
 local state, sent

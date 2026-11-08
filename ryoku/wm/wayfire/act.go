@@ -1693,8 +1693,7 @@ func nightlightTemp(args []string) int {
 // high (-T) only satisfies the validation that high must exceed low. The
 // backend is detached (its own session, stdio to /dev/null) to outlive this
 // invocation; wayfire restores the gamma through wlr-gamma-control when it
-// goes away. It is waited on, not released, so a warm serve process reaps it
-// instead of keeping a zombie.
+// goes away.
 func nightlightStart(argv ...string) error {
 	nightlightStop(argv[0])
 	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
@@ -1708,6 +1707,7 @@ func nightlightStart(argv ...string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	// waited on so a warm serve process doesn't keep a zombie
 	go func() { _ = cmd.Wait() }()
 	return nil
 }

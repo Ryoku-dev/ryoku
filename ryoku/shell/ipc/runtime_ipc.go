@@ -50,13 +50,11 @@ func ipcBase(config string) []string {
 	return append(qsSelect(config), "ipc")
 }
 
-// ipcArgv builds the qs argv for an IpcHandler call on a component.
 func ipcArgv(config, target, fn string, args ...string) []string {
 	argv := append(ipcBase(config), "call", target, fn)
 	return append(argv, args...)
 }
 
-// ipcPropArgv builds the qs argv that reads one IpcHandler property.
 func ipcPropArgv(config, target, prop string) []string {
 	return append(ipcBase(config), "prop", "get", target, prop)
 }
@@ -67,7 +65,7 @@ var (
 	ipcRetryEvery     = 150 * time.Millisecond
 )
 
-// qsRun runs one qs invocation. A package var so tests inject a runner.
+// a package var so tests inject a runner
 var qsRun = func(ctx context.Context, argv []string) (stdout, stderr []byte, err error) {
 	var out, errOut bytes.Buffer
 	cmd := exec.CommandContext(ctx, "qs", argv...)
@@ -93,8 +91,6 @@ type ipcError struct {
 
 func (e *ipcError) Error() string { return e.msg }
 
-// qsLine returns the first output line that starts with one of the phrases,
-// case-insensitively, or "".
 func qsLine(phrases []string, outputs ...[]byte) string {
 	for _, out := range outputs {
 		for _, line := range strings.Split(string(out), "\n") {
@@ -115,8 +111,7 @@ var (
 	qsNotRunningPhrases = []string{"no running instances", "not ready"}
 )
 
-// classifyQs maps one qs attempt to an error, or nil on success. qs reports a
-// missing target or function on its output and still exits 0.
+// qs reports a missing target or function on its output and still exits 0
 func classifyQs(stdout, stderr []byte, err error, timedOut bool) *ipcError {
 	if timedOut {
 		return &ipcError{ipcTimedOut, "timed out after " + ipcAttemptTimeout.String()}
@@ -140,8 +135,6 @@ func classifyQs(stdout, stderr []byte, err error, timedOut bool) *ipcError {
 	return nil
 }
 
-// qsIpcOnce runs one qs ipc attempt, bounded by ipcAttemptTimeout, and returns
-// the call's stdout.
 func qsIpcOnce(argv []string) (string, *ipcError) {
 	ctx, cancel := context.WithTimeout(context.Background(), ipcAttemptTimeout)
 	defer cancel()
@@ -153,8 +146,6 @@ func qsIpcOnce(argv []string) (string, *ipcError) {
 	return strings.TrimRight(string(stdout), "\n"), nil
 }
 
-// qsIpc is qsIpcOnce that retries a shell which is not running or not ready
-// yet, within ipcRetryWindow. Every other failure is final.
 func qsIpc(argv []string) (string, error) {
 	deadline := time.Now().Add(ipcRetryWindow)
 	for {
@@ -169,11 +160,7 @@ func qsIpc(argv []string) (string, error) {
 	}
 }
 
-// ipcInvoke routes one IpcHandler call (prop == "") or property read for
-// config c: a ready item runtime replaces the resident shell and is reached by
-// its pid; otherwise the newest bus client named c that serves target; else
-// qs. A cmd delivered over the bus is never retried through qs, so a call
-// never runs twice.
+// a cmd delivered over the bus never retries through qs, so a call never runs twice
 func ipcInvoke(c, target, fn, prop string, args []string) (string, error) {
 	if c == "shell" {
 		ready, _ := runtimeIPCReadyFile.Load().(string)
@@ -197,16 +184,12 @@ func qsInvoke(c, target, fn, prop string, args []string) (string, error) {
 	return qsIpc(ipcArgv(c, target, fn, args...))
 }
 
-// encodeIPCRequest is the control line for `ryoku-shell ipc`. The words ride
-// as one JSON array so empty and spaced args survive the line split.
+// one JSON array so empty and spaced args survive the line split
 func encodeIPCRequest(words []string) string {
 	body, _ := json.Marshal(words)
 	return "ipc " + string(body)
 }
 
-// ipcRequest serves `ipc ["call",target,fn,args...]` and `ipc ["get",target,prop]`
-// against the running shell. The reply is "ok", a newline and the value, or
-// "err ...".
 func ipcRequest(payload string) string {
 	var words []string
 	if err := json.Unmarshal([]byte(payload), &words); err != nil {

@@ -78,8 +78,7 @@ func main() {
 		os.Exit(runBrowserHost())
 	}
 	if args[0] == "folders" {
-		// Login autostart runs this before the daemon is up, so it builds the
-		// folder-icon theme in this process instead of forwarding.
+		// login autostart runs this before the daemon is up, so build here instead of forwarding
 		os.Exit(runFolders(args[1:]))
 	}
 	if args[0] == "ipc" {
@@ -91,7 +90,6 @@ func main() {
 	}
 }
 
-// roundTrip sends one command line to the daemon and returns its raw reply.
 func roundTrip(line string) (string, error) {
 	conn, err := net.DialTimeout("unix", sockPath(), 2*time.Second)
 	if err != nil {
@@ -138,8 +136,6 @@ func sendCommand(line string) error {
 	return nil
 }
 
-// runIPC is `ryoku-shell ipc call|get`: the daemon runs it against the running
-// shell and the value lands on stdout. Every failure exits 1 with `err ...`.
 func runIPC(words []string) int {
 	if !(len(words) >= 3 && words[0] == "call") && !(len(words) == 3 && words[0] == "get") {
 		fmt.Fprintln(os.Stderr, "usage: ryoku-shell ipc call <target> <function> [args...]")

@@ -466,8 +466,7 @@ type wxCurrent struct {
 	Temp      int `json:"temp"`
 	Feels     int `json:"feels"`
 	WindValue int `json:"windValue"`
-	// TempC is the reading in celsius to a tenth, so a surface showing the other
-	// scale converts the measurement rather than an already rounded number.
+	// a tenth of a degree so the other scale converts the reading, not a rounded number
 	TempC float64 `json:"tempC"`
 }
 
@@ -560,20 +559,16 @@ type wxState struct {
 	after func(time.Duration) (<-chan time.Time, func() bool)
 	fetch func() bool
 
-	// Owned by run.
+	// owned by run
 	sunNeed     bool
 	healthy     bool // the last attempt landed a loaded frame
 	lastAttempt time.Time
 	lastOK      time.Time
 }
 
-// sunWindowWanted carries wantSunWindow's requests to the weather worker.
 var sunWindowWanted = make(chan struct{}, 1)
 
-// wantSunWindow is how the sun-following features (sun theme mode, the night
-// light sun schedule) ask for a forecast when no sun window is known yet. The
-// weather worker then fetches, and heals on failure, until a window lands even
-// with no weather subscriber.
+// sun theme and night light ask for a forecast here until a window lands, even with no weather subscriber
 func wantSunWindow() {
 	select {
 	case sunWindowWanted <- struct{}{}:
@@ -581,7 +576,6 @@ func wantSunWindow() {
 	}
 }
 
-// wallTimer is the production timer behind the demand-driven producers.
 func wallTimer(d time.Duration) (<-chan time.Time, func() bool) {
 	t := time.NewTimer(d)
 	return t.C, t.Stop
@@ -648,8 +642,6 @@ func (d *daemon) startWeather() {
 	go s.run()
 }
 
-// setActive is the topic's demand hook: the poll runs only while someone
-// subscribes.
 func (s *wxState) setActive(active bool) {
 	s.mu.Lock()
 	s.active = active
@@ -683,14 +675,7 @@ func (s *wxState) signalWake() {
 	}
 }
 
-// run is the poll loop. Nothing is fetched while nobody wants the forecast,
-// meaning no subscriber and no sun-following feature still waiting for its
-// first window. When demand starts, a reading older than the 15-minute poll is
-// refreshed at once and a fresh one waits out the remainder. Configure and
-// retry fetch whether or not anyone subscribes. A fetch that does not land a
-// loaded frame (the common case is the daemon starting before the network is
-// up at login) re-tries every wxRecoverInterval while demand lasts, so the
-// readout heals on its own instead of waiting out the poll or a manual retry.
+// a missed fetch (network not up yet at login) retries every wxRecoverInterval while demand lasts
 func (s *wxState) run() {
 	for {
 		wait, armed := s.plan(s.now())
@@ -721,8 +706,6 @@ func (s *wxState) run() {
 	}
 }
 
-// plan reports how long until the next fetch, or armed=false when nothing
-// wants one.
 func (s *wxState) plan(now time.Time) (wait time.Duration, armed bool) {
 	s.mu.Lock()
 	active := s.active

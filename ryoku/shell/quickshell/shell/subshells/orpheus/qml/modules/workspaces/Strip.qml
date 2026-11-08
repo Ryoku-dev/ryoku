@@ -10,9 +10,7 @@ Item {
     id: root
 
     property string style: "dots"
-    // model drives the slot delegates: a plain array (the settings preview) or
-    // a keyed list model. rows is the same content as an array, for the active
-    // slot and the width; it is the model itself when that is an array.
+    // an array in the settings preview, a keyed list model on the bar
     property var model: []
     property var rows: Array.isArray(model) ? model : []
     property bool interactive: true

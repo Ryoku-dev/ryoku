@@ -9,7 +9,6 @@ import (
 	"time"
 )
 
-// busCmd is one cmd a fake bus client received.
 type busCmd struct {
 	Target string
 	Fn     string
@@ -17,21 +16,15 @@ type busCmd struct {
 	Args   []string
 }
 
-// fakeBus is a real bus connection over net.Pipe that serves IpcHandler
-// targets the way a Quickshell process would, so routing tests exercise the
-// daemon's registry, cmd framing and done handling.
 type fakeBus struct {
 	conn net.Conn
-	// handle answers each cmd; nil acks with an empty result. It runs on its
-	// own goroutine, so it may block to simulate a hung client.
+	// runs on its own goroutine so it may block to fake a hung client
 	handle func(busCmd) (string, error)
 
 	mu  sync.Mutex
 	got []busCmd
 }
 
-// fakeBusClient connects a bus client named client with pid (0 for none)
-// serving targets, and waits until the daemon routes to it.
 func fakeBusClient(t *testing.T, client string, pid int, targets ...string) *fakeBus {
 	t.Helper()
 	c, s := net.Pipe()
@@ -110,7 +103,6 @@ func (fb *fakeBus) read() {
 	}
 }
 
-// cmds returns every cmd received so far.
 func (fb *fakeBus) cmds() []busCmd {
 	fb.mu.Lock()
 	defer fb.mu.Unlock()

@@ -393,8 +393,7 @@ Singleton {
             return;
         const entry = prefs._inflight[id];
         const inflight = Object.assign({}, prefs._inflight);
-        // A write lost with its connection stays in flight; the settle loop
-        // sends it again once the bus is back.
+        // a write lost with its connection stays in flight and the settle loop resends it
         if (ok !== true && error === "disconnected") {
             inflight[id] = Object.assign({}, entry, { queued: false });
             prefs._inflight = inflight;
@@ -433,9 +432,7 @@ Singleton {
         settleTimer.start();
     }
 
-    // Unanswered writes go out again, backing off to every 30 s; they are
-    // idempotent, and the choice stays applied meanwhile. While the bus is down
-    // a write already waiting in its queue is not queued twice.
+    // writes are idempotent so resending is safe
     function _resendStalled(now) {
         const ids = Object.keys(prefs._inflight);
         let stalled = false;

@@ -18,8 +18,8 @@ import "ReloadCoverModel.js" as ReloadCoverModel
 // as one instrument sheet.
 //
 // The draft object holds live values and is the page's own; this only reads it
-// and reports edits back. A location pick stores the place name in the
-// weatherLocation setting; the shell daemon's weather topic resolves it.
+// and reports edits back. A location pick only stores the place name, the
+// daemon's weather topic resolves it.
 Item {
     id: sheet
 

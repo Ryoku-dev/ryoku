@@ -187,8 +187,6 @@ Item {
         return out;
     }
     readonly property int slotCount: root.slotModel.length
-    // The cells follow a keyed copy of slotModel, so a workspace frame keeps
-    // each cell, its captures and its glide state while the slot stays.
     BusListModel {
         id: slotRows
         key: "wsId"

@@ -9,16 +9,13 @@ import Ryoku.Ui.Singletons
 // The keyboard layout readout is a passive top-centre overlay on every output.
 // Its shipped panel fades and slides without taking focus, and eased progress
 // keeps the window mapped until that exit has finished.
-//
-// The source stays resident; the window exists only from a layout switch until
-// its exit ends. A store design keeps its window, as in OsdWindow.
 Scope {
     id: host
 
     required property var modelData
 
     readonly property bool storeChosen: Designs.osd !== Designs.shipped && Designs.osdUrl !== ""
-    // Mirrors the window's eased presence, so the loader never reads its own item.
+    // mirrored here so the loader never reads its own item
     property bool lingering: false
 
     OsdSource {
@@ -47,7 +44,7 @@ Scope {
             onLingeringChanged: host.lingering = win.lingering
             Component.onDestruction: host.lingering = false
 
-            // Born at rest and bound once built, so the reveal animates in.
+            // starts at 0 and binds once built so the reveal animates in
             property real prog: 0
             Behavior on prog {
                 NumberAnimation {

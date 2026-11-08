@@ -1,11 +1,5 @@
-// Pure helpers for the launcher's view of the shell weather frame: the hero's
-// own unit override and the sun arc. No QML and no network, so node can test
-// them. Avoids Date.now()/Math.random() (both throw in the Quickshell JS engine).
+// no Date.now() or Math.random() here, both throw in the Quickshell JS engine
 
-// The frame's display string in the launcher's unit. `shown` is the daemon's
-// formatted reading ("21°C"), `celsius` the measurement in celsius (the frame's
-// tempC), and `override` the launcher setting ("" follows the frame, "C"/"F"
-// force a scale).
 function displayTemp(shown, celsius, override) {
     var text = String(shown || "");
     if (text.length === 0)
@@ -25,8 +19,6 @@ function displayTemp(shown, celsius, override) {
     return Math.round(c) + "\u00b0C";
 }
 
-// "05:24" or "5:24 AM" (the daemon's 24h or 12h clock) -> seconds since local
-// midnight, or -1 when unparseable.
 function clockToSec(clock) {
     var m = /^\s*(\d{1,2}):(\d{2})\s*(AM|PM)?\s*$/i.exec(String(clock || ""));
     if (!m)

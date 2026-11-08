@@ -36,8 +36,7 @@ func TestRegistryResourceMetadataIsStrict(t *testing.T) {
 	}
 }
 
-// measuredBarstyles publishes a bar style catalogue with every tier and one
-// item nobody has measured, named so that A to Z differs from tier order.
+// names picked so A to Z differs from tier order
 func measuredBarstyles(t *testing.T) {
 	f := newShellFixture(t)
 	for id, tier := range map[string]string{
@@ -76,7 +75,6 @@ func TestModestMachineListsLightFirstAndFlagsHeavy(t *testing.T) {
 	if want := []string{"aurora", "ember"}; !reflect.DeepEqual(flagged, want) {
 		t.Fatalf("not recommended = %v, want the heavy ones %v", flagged, want)
 	}
-	// Advice only: a flagged item stays installable.
 	for _, item := range cat.Items {
 		if item.NotRecommended && (item.Unavailable || item.DownloadPaused) {
 			t.Fatalf("%s is gated, advice must never block: %+v", item.ID, item)
@@ -109,8 +107,6 @@ func TestCapableMachineKeepsAToZ(t *testing.T) {
 	}
 }
 
-// The shipped base is what every tier is measured against, so on a modest
-// machine it leads alongside the light items even though it carries no tier.
 func TestShippedBaseLeadsOnModestMachine(t *testing.T) {
 	items := []Item{
 		{ID: "tansu", Name: "Tansu", Metadata: map[string]any{"resourceTier": tierHeavy}},

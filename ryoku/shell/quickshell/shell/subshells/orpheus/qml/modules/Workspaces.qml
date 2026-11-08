@@ -15,8 +15,6 @@ Item {
     property bool present: true
 
     property var rows: []
-    // The strip's delegates follow this keyed copy of rows, so a switch or a
-    // new window updates the slots it touches instead of rebuilding all of them.
     BusListModel {
         id: rowModel
         key: "key"

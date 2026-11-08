@@ -1,13 +1,8 @@
-// Coalesced settings.patch writes for Singletons/Settings.qml. A slider or drag
-// stages many values per second; each path keeps only its latest value and is
-// sent after a quiet spell (debounce) or, during a long drag, at most maxWait
-// after its first unsent value. Staged and in-flight values overlay the daemon
-// tree on read so a control never jumps back while its write is pending.
+// a drag stages many values a second, only each path's latest one goes out
 
 var DEBOUNCE_MS = 120;
 var MAX_WAIT_MS = 400;
-// After an acknowledged write whose frame has not matched yet (the daemon may
-// clamp it), the overlay waits this long for the frame, then yields to the tree.
+// the daemon may clamp a write, so the overlay waits this long for its frame
 var SETTLE_MS = 1000;
 
 function create() {
@@ -41,7 +36,6 @@ function splitPath(path) {
     return s === "" ? [] : s.split(".");
 }
 
-// Stage a value for path. Returns nothing; the caller schedules dueAt().
 function stage(state, path, value, completion, now) {
     var p = String(path);
     var idx = -1;
@@ -54,8 +48,7 @@ function stage(state, path, value, completion, now) {
     var entry;
     if (idx >= 0) {
         entry = state.pending[idx];
-        // A later overlapping write would land after this one; move it to the
-        // end so the daemon sees the writes in the order they were made.
+        // move it after any later overlapping write so the daemon sees them in order
         var overlapped = false;
         for (var j = idx + 1; j < state.pending.length; j++) {
             if (overlaps(state.pending[j].path, p)) {
@@ -77,7 +70,6 @@ function stage(state, path, value, completion, now) {
         entry.completions.push(completion);
 }
 
-// Earliest time a staged write must be sent, or -1 when nothing is staged.
 function dueAt(state) {
     var due = -1;
     for (var i = 0; i < state.pending.length; i++) {
@@ -89,8 +81,6 @@ function dueAt(state) {
     return due;
 }
 
-// Move every staged write in flight, in staging order. Each returned write
-// carries a seq for ack(); the caller sends { path, value }.
 function take(state) {
     var out = [];
     for (var i = 0; i < state.pending.length; i++) {
@@ -111,9 +101,6 @@ function removeInflight(state, seq) {
     return null;
 }
 
-// The daemon answered write seq. A failed write drops its overlay at once so
-// the control shows the daemon's value; an accepted one stays until the tree
-// agrees or SETTLE_MS passes. Returns the completions to call.
 function ack(state, seq, ok, data, now) {
     var w = null;
     for (var i = 0; i < state.inflight.length; i++) {
@@ -133,7 +120,6 @@ function ack(state, seq, ok, data, now) {
     return w.completions;
 }
 
-// A new daemon tree landed: acknowledged writes are settled now.
 function frame(state) {
     var kept = [];
     for (var i = 0; i < state.inflight.length; i++) {
@@ -145,8 +131,6 @@ function frame(state) {
     return changed;
 }
 
-// Drop acknowledged overlays whose settle window passed. Returns whether any
-// overlay changed, and the next retire time (-1 when none).
 function expire(state, now) {
     var kept = [];
     var next = -1;
@@ -176,8 +160,6 @@ function unacked(state) {
     return n;
 }
 
-// Read path from data with every in-flight then staged write laid over it, in
-// the order they were made.
 function read(state, data, path) {
     var parts = splitPath(path);
     var p = parts.join(".");

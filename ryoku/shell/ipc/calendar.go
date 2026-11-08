@@ -59,7 +59,6 @@ type calendarState struct {
 	loadedAt   time.Time // when that load finished
 }
 
-// calendarRefreshAge matches the holiday cache's freshness window.
 const calendarRefreshAge = 24 * time.Hour
 
 func resolveCalendarRegion(override string) (string, string, bool) {
@@ -198,9 +197,6 @@ func (d *daemon) startCalendar() {
 	})
 }
 
-// setActive is the topic's demand hook. Nothing loads while nobody
-// subscribes; a subscriber arriving once the last load is older than the
-// holiday cache window reloads the configured region.
 func (s *calendarState) setActive(active bool) {
 	if !active {
 		return

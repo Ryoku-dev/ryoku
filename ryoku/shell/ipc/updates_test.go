@@ -13,8 +13,7 @@ type updatesHarness struct {
 	interval atomic.Int64
 }
 
-// newUpdatesHarness builds an update checker on a fake clock whose check only
-// counts, so no `ryoku status` is ever spawned.
+// the check only counts so no ryoku status ever spawns
 func newUpdatesHarness(t *testing.T) *updatesHarness {
 	t.Helper()
 	h := &updatesHarness{clk: newFakeClock(), runs: newFakeRuns()}
@@ -29,8 +28,7 @@ func newUpdatesHarness(t *testing.T) *updatesHarness {
 	return h
 }
 
-// sync proves the loop is idle and has checked exactly want times: a manual
-// check must add exactly one on top.
+// a manual check must add exactly one on top, that proves the loop is idle
 func (h *updatesHarness) sync(t *testing.T, want int) {
 	t.Helper()
 	h.s.wake <- struct{}{}
@@ -48,7 +46,6 @@ func TestUpdatesNoSubscriberNoSpawnForADay(t *testing.T) {
 	if n := h.clk.created(); n != 0 {
 		t.Fatalf("armed %d timers with no subscriber", n)
 	}
-	// updates.check still runs with nobody subscribed.
 	h.sync(t, 0)
 }
 
@@ -69,7 +66,6 @@ func TestUpdatesResubscribeResumesOrChecks(t *testing.T) {
 	h.s.setActive(false)
 	h.clk.waitNoLive(t)
 
-	// Back within the interval: no check, the remainder is armed.
 	h.clk.advance(6 * time.Hour)
 	h.s.setActive(true)
 	if d := h.clk.waitArmed(t); d != 18*time.Hour {
@@ -81,7 +77,6 @@ func TestUpdatesResubscribeResumesOrChecks(t *testing.T) {
 	h.s.setActive(false)
 	h.clk.waitNoLive(t)
 
-	// Back after the interval: check at once.
 	h.clk.advance(30 * time.Hour)
 	h.s.setActive(true)
 	h.runs.wait(t)

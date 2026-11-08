@@ -284,15 +284,14 @@ Item {
         onLoadFailed: pg.reduceMotion = false
     }
 
-    // every call carries a page serial so a reply only lands on the request
-    // still waiting for it (a retried read supersedes the earlier one).
+    // the serial makes a retried read supersede the earlier one
     function sendCall(method, args) {
         var id = ++pg.callSerial;
         Bus.call(method, args, (ok, result, error) => pg.applyReply(id, { ok: ok, result: result, error: error }));
         return id;
     }
 
-    // frame is the bus's shared parsed frame: read it, never mutate it.
+    // shared bus frame, never mutate it
     function applyKeyFrame(frame) {
         if (!frame || typeof frame !== "object")
             return;
@@ -301,8 +300,7 @@ Item {
         pg.keyActive = pg.keyBackendStatus !== "disabled";
     }
 
-    // route a reply to the in-flight read, recording save, or key-press save
-    // by its serial; anything else (superseded) is dropped.
+    // anything superseded is dropped
     function applyReply(id, reply) {
         if (id === pg.pendingReadId) {
             pg.pendingReadId = 0;
@@ -370,8 +368,6 @@ Item {
         onUpdated: pg.applyKeyFrame(keyTopic.data)
     }
 
-    // A fresh bus connection re-reads; losing it before a good read shows the
-    // page as unavailable.
     Connections {
         target: Bus
         function onConnectedChanged() {
@@ -382,9 +378,7 @@ Item {
         }
     }
 
-    // while the daemon is out of reach, keep trying: re-read when the bus is up
-    // but the page never got a good reply. Stops once a read succeeds
-    // (recordStatus "ready"); the bus reconnects on its own.
+    // while the daemon is out of reach keep re-reading until one succeeds, the bus reconnects on its own
     Timer {
         id: ctlRetry
         interval: 2000

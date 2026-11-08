@@ -27,18 +27,13 @@
 #             surface keeps the compositor busy. Same caveat as --frames
 # --startup   time a shell restart until its configuration has loaded
 # --spawns    count process launches (exec) per owner through ftrace (needs sudo)
-# --uid       measure another user's desktop (for example a container's, from
-#             the host, where ftrace works); memory reads go through sudo -n
-# --budget    after the run, check every base group against the budget file
-#             (ryoku/shell/perf-budget.json): one line per check, exit 1 on any
-#             FAIL, 2 on a malformed budget. Implies --spawns: at idle the base
-#             launches nothing
+# --uid       measure another user's desktop, like a container's from the host
+# --budget    check every base group against a budget file, exit 1 on a FAIL and
+#             2 on a bad budget, turns on --spawns since the base launches nothing
 # --input     check a recorded --json run instead of measuring
-# --spawns-from  take the launch counts from another recorded run of the same
-#             window (a host-side --uid --spawns run beside a container run)
+# --spawns-from  take the launch counts from another run of the same window
 # --style     the bar style whose budget applies (default: the run's active one)
-# --lab       apply the budget's lab-only allowances (default: when the run was
-#             recorded inside a container)
+# --lab       apply the lab-only allowances (default: on inside a container)
 #
 # Tooling is excluded: anything under herdr, omp or this script. RSS is never
 # summed (shared Qt and driver pages would count once per process); totals are
@@ -207,8 +202,7 @@ def classify(procs):
         return False
 
     rashin = {pid for pid, p in procs.items() if p["unit"] == "ryoku-rashin.service"}
-    # The shell daemon and Ryogami outside their units (a lab or a session
-    # without systemd): their process trees are theirs all the same.
+    # a lab or a session without systemd runs these outside their units
     daemons = {pid for pid, p in procs.items() if p["comm"] == "ryoku-shell" and " daemon" in p["cmd"] + " "}
     ryogamis = {pid for pid, p in procs.items() if p["comm"] == "ryogami" and p["cmd"].split(" ")[1:2] == ["daemon"]}
     for pid, p in procs.items():
@@ -271,13 +265,12 @@ def snapshot():
             mine.append((pid, False))
             continue
         unit = unit_of(pid)
-        # docker containers run as other users but Ryoku owns ryoku-cobalt;
-        # the base system's own root services count as the desktop's too
+        # docker runs containers as other users but ryoku-cobalt and the base
+        # root services are still the desktop's
         system = unit.startswith("ryoku-") or unit in SYSTEM_UNITS
         if unit.startswith("docker-") or system:
             foreign.append((pid, system))
-    # Only the measured user's machine: a host run with --uid for a container's
-    # user must not count the host's own services, nor the reverse.
+    # a host run with --uid must not count the host's own services, or the reverse
     scopes = {scope_of(pid) for pid, _ in mine}
     procs = {}
     for pid, system in mine + [(pid, system) for pid, system in foreign if scope_of(pid) in scopes]:
@@ -850,10 +843,7 @@ def compare(a_path, b_path):
         print(f"- shell surface frames: {ca.get('total_frames_s', 0):.1f} -> {cb.get('total_frames_s', 0):.1f} per second")
 
 
-# ---- budget gate -------------------------------------------------------------
-# The budget file (ryoku/shell/perf-budget.json) holds measured values, not
-# limits: each limit is the measured value plus the file's margins, so a new
-# measurement is pasted in as it was read. docs/performance.md explains it.
+# the budget file holds measured values, each limit is that plus the margins
 
 BUDGET_METRICS = (  # key, label, margin kind, decimals
     ("pssMB", "PSS MB", "memory", 1),
@@ -925,7 +915,6 @@ def check_budget(res, budget, style=None, lab=None):
     if lab is None:
         lab = bool(system.get("container"))
     margins = budget["margins"]
-    # a style's entry for a group replaces the common one whole
     specs = {**(budget.get("groups") or {}), **(styles[style].get("groups") or {})}
     groups = summarize(res.get("rows") or [])
     spawns = system.get("spawns")
@@ -955,7 +944,7 @@ def check_budget(res, budget, style=None, lab=None):
                 checks.append((f"{name} {label}", None, limit, False, NOT_TRACED, nd))
             else:
                 checks.append((f"{name} {label}", v, limit, round(v, nd) <= limit, note, nd))
-    # Every base launch counts, also from a group that has since exited.
+    # a group that already exited still counts its launches
     allowed = sum(float(s["launchesPerMin"]) for s in specs.values())
     if spawns is None:
         checks.append(("base launches/min", None, allowed, False, NOT_TRACED, 1))

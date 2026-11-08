@@ -59,10 +59,6 @@ Scope {
 
     readonly property string focusedMon: Wm.focusedOutput
 
-    // Two panes off one warm resident topic, each a keyed view of it: history is
-    // everything unstarred, Starred is everything starred. A republish touches
-    // only the cards whose entry changed. Both empty while the daemon is away,
-    // as the Clipboard service does.
     readonly property string feed: Bus.connected ? "clipboard" : ""
     readonly property var entryRoles: ["id", "kind", "mime", "size", "preview", "thumb",
         "thumbW", "thumbH", "w", "h", "starred"]
@@ -108,8 +104,6 @@ Scope {
         hits.sort((a, b) => a.score !== b.score ? a.score - b.score : a.at - b.at);
         return hits.map(h => h.entry);
     }
-    // The ranked matches as rows, so narrowing the query drops cards instead of
-    // rebuilding the ones that still match.
     BusListModel {
         id: searchRows
         key: "id"
@@ -172,8 +166,6 @@ Scope {
         property real s: 1
         property string title: ""
         property string glyph: ""
-        // The entries this pane lists, a keyed row model: a new clip inserts one
-        // card and a star moves one between the panes, the rest stay put.
         property var model: null
         readonly property int itemCount: model ? model.count : 0
         function itemAt(i) {
@@ -271,8 +263,6 @@ Scope {
             syncSelectedEntryId();
         }
 
-        // The selection follows its entry across inserts, removals and moves;
-        // a changed preview or star leaves every row where it was.
         function reconcileSelection() {
             const previousId = selectedEntryId;
             let preservedIndex = -1;

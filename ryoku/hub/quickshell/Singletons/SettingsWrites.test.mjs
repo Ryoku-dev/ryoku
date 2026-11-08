@@ -5,8 +5,6 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const W = require("./SettingsWrites.js");
 
-// Drive the module the way Settings.qml does: stage on every change, send
-// whatever is staged once dueAt() passes.
 function drag(state, path, values, stepMs, start) {
     const sent = [];
     let now = start;
@@ -34,12 +32,11 @@ test("a long drag still lands at most every MAX_WAIT_MS", () => {
     const s = W.create();
     const values = Array.from({ length: 100 }, (_, i) => i);
     const { sent } = drag(s, "fontSize", values, 16, 0);
-    // 100 moves at 16 ms is 1.6 s of dragging: a write lands while it runs.
+    // 100 moves at 16 ms is 1.6 s of dragging so writes land while it runs
     assert.ok(sent.length >= 3, `sent ${sent.length}`);
     assert.ok(sent.length < 10, `sent ${sent.length}`);
     for (let i = 1; i < sent.length; i++)
         assert.ok(sent[i] > sent[i - 1]);
-    // The final value is never lost: it is staged or already sent.
     const tail = W.take(s).map((w) => w.value);
     assert.equal(tail.length ? tail[tail.length - 1] : sent[sent.length - 1], 99);
 });
@@ -70,22 +67,19 @@ test("reads show staged values at once and survive until the daemon tree agrees"
     assert.equal(W.read(s, tree, "frameOpacity"), 0.9);
     assert.deepEqual(W.read(s, tree, "clipboard"), { widthPercent: 70, heightPercent: 40 });
     assert.equal(W.read(s, tree, "clipboard.heightPercent"), 40);
-    // The overlay never mutates the daemon tree.
     assert.equal(tree.clipboard.widthPercent, 50);
 
     const ws = W.take(s);
-    // In flight: still the staged value, an older frame must not pull it back.
+    // in flight, an older frame must not pull it back
     assert.equal(W.read(s, tree, "frameOpacity"), 0.9);
     W.frame(s);
     assert.equal(W.read(s, tree, "frameOpacity"), 0.9);
 
-    // Acked and the tree already holds the value: retired.
     const landed = { ...tree, frameOpacity: 0.9 };
     W.ack(s, ws[0].seq, true, landed, 10);
     assert.equal(W.read(s, landed, "frameOpacity"), 0.9);
     assert.equal(W.unacked(s), 1);
 
-    // Acked before its frame: held until the next frame lands.
     W.ack(s, ws[1].seq, true, tree, 10);
     assert.equal(W.read(s, tree, "clipboard.widthPercent"), 70);
     W.frame(s);

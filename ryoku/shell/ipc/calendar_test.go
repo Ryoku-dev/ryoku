@@ -121,7 +121,6 @@ func (h *calendarHarness) advance(d time.Duration) {
 	h.mu.Unlock()
 }
 
-// settle waits for the configure in flight to publish.
 func (h *calendarHarness) settle(t *testing.T) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)

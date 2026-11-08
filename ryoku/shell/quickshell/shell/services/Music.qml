@@ -105,7 +105,7 @@ Singleton {
 
     // MPRIS reports position only when asked. Four polls a second keep the
     // anchor honest (a seek elsewhere, a stream stall) while the frame ticker
-    // below carries the motion. Both pause while nobody can see the desktop.
+    // below carries the motion.
     readonly property bool ticking: root.held && root.playing && !Presence.dark
     function refresh() {
         root.player.positionChanged();
@@ -125,7 +125,6 @@ Singleton {
         running: root.ticking
         onTriggered: root.elapsed = root.estimate()
     }
-    // Back from dark: land on the live position now instead of on the next tick.
     Connections {
         target: Presence
         function onDarkChanged() {
@@ -208,8 +207,7 @@ Singleton {
         onUpdated: root.apply(topicFeed.data)
     }
 
-    // The daemon resolves art and lyrics for the pick it was last told about, so
-    // a restarted daemon hears the current track again.
+    // a restarted daemon needs the current track again for art and lyrics
     Connections {
         target: Bus
         function onConnectedChanged() {

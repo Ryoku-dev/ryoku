@@ -243,8 +243,7 @@ Item {
             font.family: Tokens.display
             font.pixelSize: Tokens.fTitle
         }
-        // One compact legend serves both Subshells and Bar Studio. The marks are
-        // the catalogue's measured tiers (StoreDesignGallery, ResourceTier.js).
+        // One compact legend serves both Subshells and Bar Studio.
         Text {
             width: parent.width
             text: (page.subshellsOnly

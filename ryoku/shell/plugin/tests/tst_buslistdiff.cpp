@@ -70,7 +70,7 @@ private slots:
             QCOMPARE(countOf(ops, Op::Move), moves);
     }
 
-    // Every op must be valid at the moment it runs (what a model emits).
+    // every op must be valid at the moment it runs, like a model emits them
     void randomShuffles()
     {
         QRandomGenerator rng(7);

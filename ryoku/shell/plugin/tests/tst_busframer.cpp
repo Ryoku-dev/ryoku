@@ -39,7 +39,7 @@ private slots:
         QList<QByteArray> lines;
         for (char c : text)
             f.append(QByteArray(1, c), lines);
-        // the escaped \n stays inside its line; the empty line is dropped
+        // the escaped \n stays inside its line and the empty line is dropped
         QCOMPARE(lines, (QList<QByteArray>{"{\"a\":\"x\\ny\"}", "{\"b\":[1,2]}"}));
     }
 

@@ -11,8 +11,6 @@ import (
 
 const gib = uint64(1) << 30
 
-// fixtureCard is one DRM card in a fake /sys/class/drm tree, laid out the way
-// the kernel exposes it and the way tests/gpu-pin-policy.sh builds its cards.
 type fixtureCard struct {
 	name, driver, slot string
 	vram, visibleVRAM  uint64
@@ -54,7 +52,6 @@ func writeDRMTree(t *testing.T, cards ...fixtureCard) string {
 				t.Fatal(err)
 			}
 		}
-		// A connector subdevice beside every card, which must never count as a GPU.
 		connector := filepath.Join(root, card.name+"-eDP-1")
 		if err := os.MkdirAll(connector, 0o755); err != nil {
 			t.Fatal(err)
@@ -164,16 +161,12 @@ func TestProbeMachineModest(t *testing.T) {
 			}
 		})
 	}
-	// Nothing readable is unknown, never a guess that the machine is modest.
 	useMachine(t, filepath.Join(t.TempDir(), "absent"), filepath.Join(t.TempDir(), "absent"))
 	if got := probeMachine(); got != (Machine{Graphics: graphicsUnknown}) {
 		t.Fatalf("unreadable machine = %+v", got)
 	}
 }
 
-// TestClassifyGPUMatchesRyokuGPUDetect runs the shell detector Ryoku already
-// ships (system/hardware/gpu/ryoku-gpu-detect) over the same fixture cards, so
-// the Go port cannot drift from the rule the GPU tooling uses.
 func TestClassifyGPUMatchesRyokuGPUDetect(t *testing.T) {
 	detector, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "system", "hardware", "gpu", "ryoku-gpu-detect"))
 	if err != nil {

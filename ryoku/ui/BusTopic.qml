@@ -1,22 +1,16 @@
 import QtQuick
 import Ryoku.Bus
 
-// One daemon topic as a QML object. `data` is the latest frame (shared with
-// every other reader in the process; never mutate it) and `info` describes it
-// ({rev, paths} for state, {seq, dropped, event} for an event). `updated`
-// fires for each frame or event, including at once for a frame the process
-// already has. It carries no arguments on purpose: a QML `var` signal
-// argument is deep-copied into a variant, which costs milliseconds on a large
-// frame and turns arrays into sequences that fail Array.isArray. Read `data`
-// and `info` in the handler. active: false unsubscribes.
 QtObject {
     id: topicView
 
     property string topic: ""
     property bool active: true
+    // shared with every reader in the process, never mutate it
     readonly property var data: topicView._data
     readonly property var info: topicView._info
 
+    // no args on purpose, a var signal arg gets deep-copied and arrays stop passing Array.isArray
     signal updated()
 
     property var _data: null

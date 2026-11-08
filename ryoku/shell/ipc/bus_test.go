@@ -44,8 +44,6 @@ type busTestClient struct {
 	r    *bufio.Reader
 }
 
-// dialBus opens a bus connection to d over net.Pipe, sending the handshake
-// and any pipelined lines in one write.
 func dialBus(t *testing.T, d *daemon, handshake string, pipelined ...any) *busTestClient {
 	t.Helper()
 	client, server := net.Pipe()
@@ -94,7 +92,6 @@ func (c *busTestClient) read(wait time.Duration) (busMsg, error) {
 	return m, nil
 }
 
-// quiet asserts nothing arrives for a short while.
 func (c *busTestClient) quiet() {
 	c.t.Helper()
 	if m, err := c.read(80 * time.Millisecond); err == nil {
@@ -177,7 +174,6 @@ func TestBusSubSendsCurrentFramesAndResyncs(t *testing.T) {
 	d.topic("network").publish([]byte(`{"up":true}`))
 	c.quiet()
 
-	// A topic asked for before it registered attaches when it does.
 	d.registerTopic("nope").publish([]byte(`{"late":1}`))
 	if m := c.next(); m.Topic != "nope" || string(m.Data) != `{"late":1}` {
 		t.Fatalf("late topic frame = %+v", m)
@@ -218,10 +214,10 @@ func TestBusOrderedEventsDropOldestWithoutBlocking(t *testing.T) {
 	d := &daemon{}
 	topic := d.registerEventTopic("keypress")
 	c := shellHello(t, d, map[string]any{"op": "sub", "topics": []string{"keypress"}})
-	// The sub is applied once the hello has gone out and the reader moved on.
+	// the sub lands once the hello went out and the reader moved on
 	busWaitFor(t, "bus subscriber", func() bool { return topic.count() == 1 })
 
-	// One batch can sit in the writer's blocked Write besides the full queue.
+	// one batch can sit in the writer's blocked Write besides the full queue
 	const total = 3 * eventQueueDepth
 	start := time.Now()
 	for i := 1; i <= total; i++ {
@@ -279,7 +275,6 @@ func TestLegacyEventSubscriberNeverBlocksProducer(t *testing.T) {
 		t.Fatalf("dropped = %d, want 44", n)
 	}
 
-	// Over the socket too: a `subscribe` client that stops reading.
 	d := &daemon{}
 	keys := d.registerEventTopic("mouse")
 	client, server := net.Pipe()
@@ -465,8 +460,7 @@ func TestIpcInvokeRoutingOrder(t *testing.T) {
 		t.Fatalf("older client got %d cmds", n)
 	}
 
-	// A ready item runtime answers shell calls by pid, even over a newer
-	// client named shell; targets it does not serve go to qs --pid.
+	// a ready item runtime answers shell calls by pid even over a newer client named shell
 	pid := os.Getpid()
 	setRuntimeReady(t, pid)
 	runtime := fakeBusClient(t, "item", pid, "bar")
@@ -620,7 +614,6 @@ func TestOnDemandAcrossLegacyAndBus(t *testing.T) {
 	}
 }
 
-// applyPatch is a reference applier for the bus patch format.
 func applyPatch(t *testing.T, doc map[string]any, patch json.RawMessage) {
 	t.Helper()
 	var ops []struct {
@@ -700,7 +693,6 @@ func TestBusDeltaFramesReproduceFullFrame(t *testing.T) {
 		rev = m.Rev
 	}
 
-	// A change touching most of a small frame goes out full.
 	small := d.registerDeltaTopic("small")
 	small.publish([]byte(`{"a":1,"b":2}`))
 	c.send(map[string]any{"op": "sub", "topics": []string{"small"}})
@@ -710,7 +702,6 @@ func TestBusDeltaFramesReproduceFullFrame(t *testing.T) {
 		t.Fatalf("large patch went out as %+v", m)
 	}
 
-	// A resync answers with a full frame even for a delta topic.
 	c.send(map[string]any{"op": "sub", "topics": []string{"settings"}})
 	if m := c.next(); m.Patch != nil || m.Rev != rev || !reflect.DeepEqual(decodeFrame(t, m.Data), decodeFrame(t, []byte(frames[3]))) {
 		t.Fatalf("resync = %+v", m)

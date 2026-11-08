@@ -1598,9 +1598,6 @@ func TestUnlockFallbackGuardReleasedOnlyByReadyOwningSession(t *testing.T) {
 	}
 }
 
-// A box with no graphical session must stop probing login1 ten times a second:
-// fast retries last only the first two seconds after a loss, then the wait
-// doubles to a 30 s cap, and a restart (new loss or login1 change) is fast again.
 func TestSleepReconnectBackoffSchedule(t *testing.T) {
 	start := time.Unix(1000, 0)
 	var b sleepReconnectBackoff
@@ -1655,8 +1652,6 @@ func testSleepBus() *sleepBus {
 	return &sleepBus{sigs: make(chan *dbus.Signal, 4), done: make(chan struct{})}
 }
 
-// A pending reconnect waits out its backoff step unless login1 reports a
-// change that can make the next attempt succeed.
 func TestSleepReconnectWakesOnLogin1Change(t *testing.T) {
 	wakes := map[string]*dbus.Signal{
 		"session new": {
@@ -1732,8 +1727,6 @@ func TestSleepReconnectIgnoresUnrelatedSignals(t *testing.T) {
 	}
 }
 
-// A bus that dies during the wait is redialled at the end of the step, never
-// in a tight loop.
 func TestSleepReconnectLostBusWaitsOutTheStep(t *testing.T) {
 	for name, kill := range map[string]func(sigs chan *dbus.Signal, done chan struct{}){
 		"stream closed": func(sigs chan *dbus.Signal, _ chan struct{}) { close(sigs) },

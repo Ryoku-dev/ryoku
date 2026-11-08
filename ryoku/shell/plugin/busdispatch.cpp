@@ -20,8 +20,7 @@ bool readable(const QJSValue &handler, const QString &name)
         && !handler.property(name).isCallable();
 }
 
-// qs ipc refuses a call whose argument count differs from the declaration;
-// a typed QML function would otherwise see "undefined" for a missing string.
+// qs ipc refuses a wrong argument count, a typed QML function would see undefined for a missing string
 QString arityError(const QJSValue &want, int got)
 {
     if (!want.isNumber())

@@ -63,7 +63,6 @@ class TestBusListModel : public QObject
                             .toUtf8());
     }
 
-    // Waits until the model shows ids (in order).
     bool showsIds(QAbstractItemModel *m, const QStringList &ids)
     {
         return QTest::qWaitFor([&] { return column(m, "id") == ids; }, 3000);
@@ -117,7 +116,7 @@ private slots:
         QVERIFY(m->roleNames().values().contains("modelData"));
         s.clear();
 
-        // change: one dataChanged for the one row, only the roles that moved
+        // a changed row gets one dataChanged with only the roles that moved
         frame(R"([{"id":"a","title":"A","x":1},{"id":"b","title":"B2","x":2},{"id":"c","title":"C","x":3}])");
         QTRY_COMPARE(s.changed.size(), 1);
         QCOMPARE(s.structural(), 0);
@@ -128,7 +127,6 @@ private slots:
         QVERIFY(roles.contains(role(m.get(), "modelData")));
         s.clear();
 
-        // insert in the middle
         frame(R"([{"id":"a","title":"A","x":1},{"id":"n","title":"N"},{"id":"b","title":"B2","x":2},{"id":"c","title":"C","x":3}])");
         QVERIFY(showsIds(m.get(), {"a", "n", "b", "c"}));
         QCOMPARE(s.inserted.size(), 1);
@@ -137,14 +135,13 @@ private slots:
         QCOMPARE(s.changed.size(), 0);
         s.clear();
 
-        // remove
         frame(R"([{"id":"a","title":"A","x":1},{"id":"b","title":"B2","x":2},{"id":"c","title":"C","x":3}])");
         QVERIFY(showsIds(m.get(), {"a", "b", "c"}));
         QCOMPARE(s.removed.size(), 1);
         QCOMPARE(s.structural(), 1);
         s.clear();
 
-        // move: the last row to the front is one move, nothing else
+        // moving the last row to the front is one move, nothing else
         frame(R"([{"id":"c","title":"C","x":3},{"id":"a","title":"A","x":1},{"id":"b","title":"B2","x":2}])");
         QVERIFY(showsIds(m.get(), {"c", "a", "b"}));
         QCOMPARE(s.moved.size(), 1);
@@ -152,7 +149,6 @@ private slots:
         QCOMPARE(s.changed.size(), 0);
         s.clear();
 
-        // move and change together
         frame(R"([{"id":"a","title":"A","x":9},{"id":"b","title":"B2","x":2},{"id":"c","title":"C","x":3}])");
         QVERIFY(showsIds(m.get(), {"a", "b", "c"}));
         QCOMPARE(s.moved.size(), 1);
@@ -160,7 +156,7 @@ private slots:
         QCOMPARE(m->data(m->index(0, 0), role(m.get(), "x")).toInt(), 9);
         s.clear();
 
-        // duplicate keys are told apart by order: no reset
+        // duplicate keys are told apart by order so no reset
         frame(R"([{"id":"a","title":"A","x":9},{"id":"a","title":"A'"},{"id":"b","title":"B2","x":2},{"id":"c","title":"C","x":3}])");
         QVERIFY(showsIds(m.get(), {"a", "a", "b", "c"}));
         QCOMPARE(s.reset.size(), 0);
@@ -184,7 +180,6 @@ private slots:
         QVERIFY(showsIds(m.get(), {"a", "z"}));
         s.clear();
 
-        // get and indexOf
         QCOMPARE(m->indexOf(QStringLiteral("z")), 1);
         QCOMPARE(m->indexOf(QStringLiteral("q")), -1);
         QCOMPARE(engine->fromScriptValue<QJsonValue>(m->get(0)), QJsonValue(QJsonObject{{"id", "a"}, {"title", "A'"}}));
@@ -224,13 +219,13 @@ private slots:
         QCOMPARE(m->roleNames().size(), 3);
         QVERIFY(!m->data(m->index(0, 0), role(m.get(), "modelData")).value<QJsonObject>().contains("x"));
         s.clear();
-        // only a non-role key moved: nothing
+        // only a non-role key moved so nothing happens
         frame(R"([{"id":"a","ws":1,"title":"A","x":2},{"id":"b","ws":2,"title":"B"},{"id":"c","ws":1,"title":"C"}])");
         QTest::qWait(100);
         QCOMPARE(s.structural(), 0);
         QCOMPARE(s.changed.size(), 0);
         QCOMPARE(engine->fromScriptValue<QJsonObject>(m->get(0)).value("x").toInt(), 2);
-        // a row leaves the filter; another joins
+        // a row leaves the filter and another joins
         frame(R"([{"id":"a","ws":2,"title":"A"},{"id":"b","ws":1,"title":"B"},{"id":"c","ws":1,"title":"C"}])");
         QVERIFY(showsIds(m.get(), {"b", "c"}));
         QCOMPARE(s.reset.size(), 0);
@@ -275,7 +270,7 @@ private slots:
         QCOMPARE(m->count(), 2);
         QCOMPARE(m->data(m->index(0, 0), role(m, "handle")).value<QObject *>(), holder->property("one").value<QObject *>());
         s.clear();
-        // same values in a new array: nothing; a new handle or tag: that role
+        // same values in a new array do nothing, a new handle or tag changes that role
         m->setRows(engine->evaluate("(function (h) { return [{id: 1, handle: h.one, tags: ['x']}, {id: 2, handle: h.two, tags: []}]; })")
                        .call({engine->newQObject(holder.get())}));
         QCOMPARE(s.structural(), 0);

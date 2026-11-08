@@ -9,10 +9,7 @@ import Ryoku.Ui.Singletons
 // One passive overlay per output and kind. The shipped window spans the
 // desktop hole, centres its panel and rests it just above the bottom edge.
 // Its eased progress keeps the surface mapped until the slide-out has finished.
-//
-// The source stays resident so every trigger is seen; the window and its
-// panel exist only from a trigger until that slide-out ends. A store design
-// keeps its window, since it loads asynchronously and owns its own reveal.
+// a store design keeps its window since it loads async and owns its reveal
 Scope {
     id: host
 
@@ -20,7 +17,7 @@ Scope {
     required property string kind
 
     readonly property bool storeChosen: Designs.osd !== Designs.shipped && Designs.osdUrl !== ""
-    // Mirrors the window's eased presence, so the loader never reads its own item.
+    // mirrored here so the loader never reads its own item
     property bool lingering: false
 
     OsdSource {
@@ -50,8 +47,7 @@ Scope {
             onLingeringChanged: host.lingering = win.lingering
             Component.onDestruction: host.lingering = false
 
-            // Born at rest and bound once built, so the reveal animates in even
-            // though the trigger that built the window is already on.
+            // starts at 0 and binds once built, so the reveal animates in even though the trigger is already on
             property real prog: 0
             Behavior on prog {
                 NumberAnimation {

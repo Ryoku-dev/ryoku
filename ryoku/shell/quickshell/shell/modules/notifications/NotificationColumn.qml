@@ -23,9 +23,6 @@ import Ryoku.Ui.Singletons
 // plain view (no per-item add/remove animation). A local `cards` ListModel is
 // reconciled against it incrementally so the ListView's add/remove/displaced
 // transitions actually fire per card.
-//
-// NotificationPopups builds this surface on the first popup and drops it once
-// it has unmapped, so an idle desktop holds no popup column.
 PanelWindow {
     id: win
 
@@ -53,8 +50,7 @@ PanelWindow {
 
     readonly property var popups: Notifs.popups
     property bool mapped: false
-    // The host outlives this surface: it keeps the column built while mapped,
-    // and remembers a broken store card so it is not retried on every burst.
+    // the host outlives this window so it remembers a broken store card
     required property var host
     readonly property string notificationUrl: host.notificationUrl
     onMappedChanged: host.mapped = win.mapped
@@ -111,8 +107,7 @@ PanelWindow {
                 return i;
         return -1;
     }
-    // A view with no window yet takes inserts without their add transition,
-    // so cards wait for the surface (see Window.onWindowChanged below).
+    // inserts before the window exists skip the add transition, so the cards wait for it
     function sync() {
         if (!list.Window.window)
             return;
@@ -161,7 +156,6 @@ PanelWindow {
         }
         sync();
     }
-    // Built by the first popup: map now; the cards follow once the surface is up.
     Component.onCompleted: mapped = popups.length > 0
 
     Timer {

@@ -16,7 +16,6 @@
 class QLocalSocket;
 class QTimer;
 
-// One message from the worker to the GUI thread, already parsed.
 struct BusInbound {
     enum Kind { Opened, Closed, Hello, State, Event, Reply, Cmd, Error };
     Kind kind = Error;
@@ -24,23 +23,13 @@ struct BusInbound {
     qint64 rev = 0;
     qint64 seq = 0;
     qint64 dropped = 0;
-    // State: the topic's whole frame after any patch. Event: the event.
     QJsonValue data;
-    // State: the delta's ops when the frame came as a patch, else empty.
     QJsonArray patch;
     bool delta = false;
-    // Reply, Cmd and Error: the message itself.
     QJsonObject msg;
 };
 
-// The socket side of the bus, on its own thread: connect and reconnect with
-// backoff, the handshake with re-sub and re-serve, line framing, JSON parsing
-// and delta frames applied to the topic's copy with a resync on a rev gap.
-// What it reads waits in a hand-off queue the GUI thread drains with take()
-// after each ready(). While the GUI thread is busy, state frames of one topic
-// coalesce into the newest (events, replies and commands never do), as the
-// daemon coalesces for a connection that reads slowly. Every slot runs on the
-// worker thread; take() runs on the GUI thread.
+// every slot runs on the worker thread, only take() runs on the GUI thread
 class BusWorker : public QObject
 {
     Q_OBJECT
@@ -53,25 +42,23 @@ public:
     BusWorker(QString socketPath, QString client, qint64 pid);
     ~BusWorker() override;
 
-    // Worker thread only.
+    // worker thread only
     void start();
     void shutdown();
     void addTopic(const QString &topic);
     void removeTopic(const QString &topic);
     void addTarget(const QString &target);
     void removeTarget(const QString &target);
-    // Requests and replies; dropped when the socket is not up (the GUI side
-    // fails what it had in flight when it sees Closed).
+    // dropped while the socket is down, the GUI side fails what it had in flight on Closed
     void write(const QByteArray &bytes);
 
-    // GUI thread: everything queued since the last take.
+    // GUI thread
     QList<BusInbound> take();
-    // Adds in to a hand-off queue, folding a state frame into a queued one of
-    // the same topic (since the last Opened or Closed).
+    // coalesces state frames of one topic like the daemon does for a slow reader
     static void enqueue(QList<BusInbound> &queue, BusInbound in);
 
 signals:
-    // Something is waiting for take(); not sent again until it is taken.
+    // not sent again until take()
     void ready();
 
 private:

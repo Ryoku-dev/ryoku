@@ -1,12 +1,6 @@
-// Settings paths for the daemon bus. A path is "bar.style" or ["bar", "style"];
-// a delta frame names what it changed as key arrays. Plain module (no
-// `.pragma library`) so node can test it, like the helpers in ryoku/ui/lib. It
-// sits beside the singletons that import it so the compiled Ryoku.Ui.Singletons
-// module carries it in its own resources.
+// no .pragma library so node can test it
 
-// A key list that crossed a QML `var` signal parameter arrives as a sequence
-// (array-like, but Array.isArray is false), so anything with a length that is
-// not a string counts as a key list.
+// a key list that crossed a QML var signal is a sequence and Array.isArray says false
 function split(path) {
     if (path !== null && typeof path === "object" && typeof path.length === "number") {
         var out = [];
@@ -22,7 +16,6 @@ function join(path) {
     return split(path).join(".");
 }
 
-// The value at path, or fallback when any step is missing or not an object.
 function get(root, path, fallback) {
     var keys = split(path);
     var cur = root;
@@ -34,8 +27,6 @@ function get(root, path, fallback) {
     return cur === undefined ? fallback : cur;
 }
 
-// Whether a change at any of changed (null = everything) can move the value
-// at path: the change is at the path, inside it, or replaces an ancestor.
 function touches(path, changed) {
     if (changed === null || changed === undefined)
         return true;

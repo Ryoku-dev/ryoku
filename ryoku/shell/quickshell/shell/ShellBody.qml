@@ -9,9 +9,7 @@ import "components"
 import "modules/wallpaper"
 import "modules/wallpaper/Singletons" as WallCfg
 import "modules/desktop"
-// Qualified: this directory has no qmldir, and unqualified its Motion.qml and
-// Visualizer.qml would shadow the shell.services singletons of those names,
-// which makes Qt register them as singletons and refuse to load them.
+// qualified since an unqualified Motion.qml and Visualizer.qml shadow the shell.services singletons and fail to load
 import "modules/visualizer" as Viz
 import "modules/bar"
 import "modules/sidebar"
@@ -82,22 +80,14 @@ Scope {
         services: [ShellState, ScreenTime, Keypresses, KeyboardLayout, BatteryAlerts]
     }
 
-    // Phone support is off on most desktops, and the bridge pulls in every
-    // phone service (KDE Connect, scrcpy, camera, microphone, contacts, calls).
-    // It is built once the setting turns on, or on the first call Kit makes to
-    // the "phone" target while it is off (Kit's setup page reads the install
-    // state and turns the feature on through that target), and kept from then
-    // on: the services are singletons that stay anyway, and the bridge must be
-    // there to write the state it is turned off with. The component comes from
-    // the module at that moment, so a desktop without phone support never even
-    // compiles it, and its singletons stay the module's own instances.
+    // the phone bridge pulls in every phone service, so it's built on enable or on Kit's first call
+    // and kept after that since it has to write the off state
     readonly property bool phoneOn: Config.phone?.enabled ?? false
     property bool phoneBuilt: false
     onPhoneOnChanged: if (root.phoneOn) root.buildPhone()
     function buildPhone(): var {
         if (!root.phoneBuilt) {
-            // Quickshell ignores a second handler for a target, so the
-            // stand-in leaves before the bridge registers.
+            // quickshell ignores a second handler for a target so the stand-in leaves first
             phoneStandIn.enabled = false;
             root.phoneBuilt = true;
         }
@@ -128,9 +118,7 @@ Scope {
         active: root.phoneBuilt && phoneLoader.component !== null
         Component.onCompleted: if (root.phoneOn) root.buildPhone()
     }
-    // Kit reads a missing state file as a shell that is not running. Until the
-    // bridge writes the real state, a blank file says the shell is up. (A
-    // write of "" over a file that failed to load is skipped as unchanged.)
+    // Kit reads a missing state file as the shell not running, so a blank one says it's up
     FileView {
         id: phoneStateStandIn
         printErrors: false
@@ -953,8 +941,7 @@ Scope {
             ShellState.closeSurface("keyring", "");
         }
         function closeAllMenus(mon: string): void { ShellState.closeSurface("", mon); }
-        // The daemon's push after it writes colors.json; both palette readers
-        // re-read the file in case their watch missed the rename.
+        // the file watches can miss the rename, so re-read on the daemon's push
         function reloadPalette(): void {
             Tokens.reloadPalette();
             Scheme.reload();

@@ -2021,8 +2021,7 @@ func roQs(args []string) (bool, string) {
 	return false, "`qs` needs the list or log subcommand"
 }
 
-// roShellIpcRead admits property reads and the QS Bar item's query calls;
-// every other function call can act on the desktop.
+// any other function call can act on the desktop
 func roShellIpcRead(rest []string) bool {
 	if len(rest) == 3 && rest[0] == "get" {
 		return true

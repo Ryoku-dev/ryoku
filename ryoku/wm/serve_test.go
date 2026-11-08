@@ -12,8 +12,7 @@ import (
 	"time"
 )
 
-// Serve answers each request as it arrives, not when stdin ends: the daemon
-// waits on every reply before sending the next request.
+// the daemon waits on every reply before it sends the next request
 func TestServeAnswersEachRequestBeforeEOF(t *testing.T) {
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
@@ -51,9 +50,6 @@ func TestServeAnswersEachRequestBeforeEOF(t *testing.T) {
 	}
 }
 
-// One bad request costs only its own answer: a malformed line, an unserved
-// verb, a failing verb and a panicking verb each get an error reply, output a
-// failing verb printed stays with it, and the session carries on.
 func TestServeMapsFailuresPerRequest(t *testing.T) {
 	var verbBuf bytes.Buffer
 	verbOut := bufio.NewWriter(&verbBuf)

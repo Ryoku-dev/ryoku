@@ -13,17 +13,10 @@ import (
 	"time"
 )
 
-// The bus is one long-lived connection per Quickshell process that
-// multiplexes topic subscriptions, control calls, daemon verbs and IpcHandler
-// calls in both directions. It opens with `bus {"v":1,"client":...,"pid":...}`
-// and then carries one JSON object per line each way.
-
 const busVersion = 1
 
-// busCmdTimeout bounds how long a delivered cmd waits for the client's done.
 var busCmdTimeout = 3 * time.Second
 
-// busReq is any client message; each op reads the fields it needs.
 type busReq struct {
 	Op      string          `json:"op"`
 	ID      json.RawMessage `json:"id"`
@@ -56,8 +49,7 @@ type busErrorMsg struct {
 	Error string `json:"error"`
 }
 
-// busCmdMsg is one IpcHandler invocation the daemon sends a serving client.
-// Args is a pointer so a function call always carries an array, even empty.
+// Args is a pointer so a function call always carries an array, even empty
 type busCmdMsg struct {
 	Op     string    `json:"op"`
 	ID     uint64    `json:"id"`
@@ -72,9 +64,6 @@ type busDone struct {
 	err   error
 }
 
-// busOutbox queues one connection's outgoing messages. State topics keep
-// only their newest frame; event topics keep a bounded queue and count what
-// they drop. Pushing never blocks.
 type busOutbox struct {
 	mu     sync.Mutex
 	wake   chan struct{}
@@ -145,7 +134,6 @@ func (o *busOutbox) slotLocked(topic string) *busStateSlot {
 	return s
 }
 
-// resetState forgets what the client holds, so the next frame goes out full.
 func (o *busOutbox) resetState(topic string) {
 	o.mu.Lock()
 	o.slotLocked(topic).sent = 0
@@ -179,8 +167,7 @@ func (o *busOutbox) pushEvent(topic string, msg topicMsg) {
 		q = &busEventQueue{}
 		o.events[topic] = q
 	}
-	// A full queue loses its oldest event; its marker stays and now stands
-	// for the next one, so markers and queued events stay one to one.
+	// the dropped event's marker now stands for the next one so markers and events stay one to one
 	if len(q.queue) >= eventQueueDepth {
 		q.queue = q.queue[1:]
 		q.dropped++
@@ -207,8 +194,6 @@ func (o *busOutbox) close() {
 	o.signal()
 }
 
-// take renders everything queued into buf and reports whether the outbox is
-// still open.
 func (o *busOutbox) take(buf *bytes.Buffer) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -281,7 +266,6 @@ func writeEventMsg(buf *bytes.Buffer, topic string, msg topicMsg, dropped int) {
 	buf.WriteString("}\n")
 }
 
-// busConn is one bus client.
 type busConn struct {
 	d         *daemon
 	conn      net.Conn
@@ -330,8 +314,7 @@ func newBusConn(d *daemon, conn net.Conn, client string, pid int) *busConn {
 	}
 }
 
-// serveBus runs one bus connection. handshake is the JSON after "bus ".
-// Lines the client pipelined behind the handshake are already in r.
+// lines the client pipelined behind the handshake are already in r
 func (d *daemon) serveBus(conn net.Conn, r *bufio.Reader, handshake string) {
 	_ = conn.SetDeadline(time.Time{})
 	var h struct {
@@ -508,11 +491,9 @@ func (c *busConn) subscribe(name string) {
 	if c.subs == nil {
 		return
 	}
-	// Looked up under subMu: installTopic publishes the topic before it
-	// attaches waiting clients, so a registration racing this sub is not lost.
+	// look up under subMu, installTopic publishes the topic before it attaches waiting clients
 	t := c.d.topic(name)
 	if t == nil {
-		// Attached when the topic registers, so an early client still gets it.
 		c.wanted[name] = true
 		c.sendError(name, "unknown topic")
 		return
@@ -528,7 +509,6 @@ func (c *busConn) subscribe(name string) {
 	c.subs[name] = busTopicSub{topic: t, sub: t.subscribeBus(c, name)}
 }
 
-// attachWanted subscribes to a topic this client asked for before it existed.
 func (c *busConn) attachWanted(name string, t *stateTopic) {
 	c.subMu.Lock()
 	defer c.subMu.Unlock()
@@ -558,8 +538,6 @@ func (c *busConn) unsubscribe(name string) {
 	c.out.dropTopic(name)
 }
 
-// call runs a control method in order with the other calls of its namespace
-// (the method name up to the first dot); namespaces run in parallel.
 func (c *busConn) call(m busReq) {
 	ns := m.Method
 	if i := strings.IndexByte(ns, '.'); i >= 0 {
@@ -608,7 +586,6 @@ func (c *busConn) drain(ns string, w *busWorker) {
 	}
 }
 
-// run executes one daemon verb exactly as a control line would.
 func (c *busConn) run(m busReq) {
 	line := strings.TrimSpace(m.Line)
 	var out string
@@ -630,8 +607,6 @@ func (c *busConn) run(m busReq) {
 	c.reply(m.ID, result, err)
 }
 
-// runResult maps a verb's reply line: "ok" is an empty result, "err X" an
-// error X, anything else the result itself.
 func runResult(out string) (string, error) {
 	switch {
 	case out == "ok":
@@ -666,9 +641,7 @@ func (c *busConn) ipc(m busReq) {
 	c.reply(m.ID, value, nil)
 }
 
-// busArgStrings turns a JSON args array into positional strings the way
-// `qs ipc call` takes them: strings as they are, other values as their JSON
-// text.
+// same positional strings qs ipc call takes, other values as their JSON text
 func busArgStrings(raw json.RawMessage) ([]string, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
@@ -689,8 +662,6 @@ func busArgStrings(raw json.RawMessage) ([]string, error) {
 	return out, nil
 }
 
-// invoke sends one cmd and waits for its done. sent is false when the cmd
-// never reached the outbox, so the caller may still use another route.
 func (c *busConn) invoke(target, fn, prop string, args []string) (value string, sent bool, err error) {
 	id := busReg.nextID()
 	ch := make(chan busDone, 1)
@@ -734,7 +705,6 @@ func (c *busConn) forget(id uint64) {
 	c.pendMu.Unlock()
 }
 
-// finish delivers a client's done to the waiting cmd.
 func (c *busConn) finish(m busReq) {
 	var id uint64
 	if json.Unmarshal(m.ID, &id) != nil {
@@ -765,8 +735,7 @@ func busResultString(raw json.RawMessage) string {
 	return string(raw)
 }
 
-// busCmdError classifies a client's error the way classifyQs does, so a
-// missing target or function stays final for every caller.
+// classified like classifyQs so a missing target or function stays final for every caller
 func busCmdError(msg string) error {
 	lower := strings.ToLower(msg)
 	for _, p := range qsMissingPhrases {
@@ -777,7 +746,6 @@ func busCmdError(msg string) error {
 	return &ipcError{ipcFailed, msg}
 }
 
-// busRegistry tracks live bus connections in connect order.
 type busRegistry struct {
 	mu      sync.Mutex
 	conns   []*busConn
@@ -830,8 +798,6 @@ func (r *busRegistry) setServing(c *busConn, targets []string, on bool) {
 	r.notifyLocked()
 }
 
-// findLocked returns the newest connection serving target: by pid when pid
-// is set, else by client name.
 func (r *busRegistry) findLocked(client string, pid int, target string) *busConn {
 	for i := len(r.conns) - 1; i >= 0; i-- {
 		c := r.conns[i]
@@ -865,12 +831,10 @@ func (r *busRegistry) topicInstalled(d *daemon, name string, t *stateTopic) {
 	}
 }
 
-// busServing reports whether a bus client named c serves target right now.
 func busServing(c, target string) bool {
 	return busReg.find(c, 0, target) != nil
 }
 
-// busAwaitServing waits until a bus client named c serves target, or timeout.
 func busAwaitServing(c, target string, timeout time.Duration) bool {
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
@@ -890,8 +854,6 @@ func busAwaitServing(c, target string, timeout time.Duration) bool {
 	}
 }
 
-// busInvoke routes through a serving connection. ok is false when none took
-// the cmd, so the caller falls back to qs.
 func busInvoke(client string, pid int, target, fn, prop string, args []string) (string, bool, error) {
 	c := busReg.find(client, pid, target)
 	if c == nil {

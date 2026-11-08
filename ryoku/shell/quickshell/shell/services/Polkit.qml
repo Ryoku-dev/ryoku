@@ -72,8 +72,6 @@ Singleton {
         Bus.call(method, args);
     }
 
-    // The bus resyncs the prompt after a reconnect, so an authentication
-    // request still lands once a restarted daemon is back.
     BusTopic {
         id: topicFeed
         topic: "polkit"

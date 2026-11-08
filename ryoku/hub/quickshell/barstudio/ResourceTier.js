@@ -1,7 +1,4 @@
-// The catalogue measures every subshell and bar style against Orpheus and
-// publishes metadata.resourceTier (light, standard or heavy; see docs/store.md).
-// Bar Studio marks the costlier two in each tile's corner and leaves light and
-// unmeasured items bare, so the mark always means "uses more than the rest".
+// light and unmeasured stay bare so a mark always means it uses more than the rest
 
 function tierOf(value) {
     const tier = String(value || "");

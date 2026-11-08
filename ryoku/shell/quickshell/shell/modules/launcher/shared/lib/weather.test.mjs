@@ -16,8 +16,6 @@ function near(actual, expected, msg, eps) {
     else { failed++; console.log("FAIL " + msg + "\n  expected ~" + expected + " (eps " + eps + ")\n  got      " + actual); }
 }
 
-// displayTemp: the frame's own reading unless the launcher forces the other
-// scale, converted from the celsius measurement (the frame's tempC).
 eq(displayTemp("21\u00b0C", 21.2, ""), "21\u00b0C", "no override follows the frame (C)");
 eq(displayTemp("70\u00b0F", 21.2, ""), "70\u00b0F", "no override follows the frame (F)");
 eq(displayTemp("21\u00b0C", 21.2, "C"), "21\u00b0C", "override equal to the frame unit keeps the string");
@@ -32,7 +30,6 @@ eq(displayTemp(undefined, undefined, ""), "", "missing reading stays empty");
 eq(displayTemp("21\u00b0C", undefined, "F"), "21\u00b0C", "no measurement keeps the frame string");
 eq(displayTemp("21\u00b0C", null, "F"), "21\u00b0C", "a null measurement keeps the frame string");
 
-// clockToSec: the daemon's sunrise/sunset in either clock format.
 eq(clockToSec("05:24"), 5 * 3600 + 24 * 60, "24h clock");
 eq(clockToSec("00:00"), 0, "24h midnight");
 eq(clockToSec("23:59"), 23 * 3600 + 59 * 60, "24h 23:59");

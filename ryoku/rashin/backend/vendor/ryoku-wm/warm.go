@@ -15,38 +15,22 @@ import (
 	"time"
 )
 
-// A warm provider answers act and caps for a long-lived caller over one pipe,
-// so a keybind costs a line write instead of a process start. It is opt-in: a
-// CLI that asks one question and exits gains nothing from a child it would
-// immediately orphan.
-
 const (
-	// warmSlotWait is how long a caller waits for the warm child to finish the
-	// request ahead of it before taking today's one-shot path instead. Short,
-	// so a slow action never queues the keybinds behind it.
+	// short so a slow action never queues the keybinds behind it
 	warmSlotWait   = 50 * time.Millisecond
 	warmMinBackoff = 250 * time.Millisecond
 	warmMaxBackoff = 5 * time.Second
-	// warmMaxReply bounds one reply line; caps is a few kilobytes.
+	// caps is a few KB, this only stops a runaway line
 	warmMaxReply = 16 << 20
 )
 
-// errProviderExit words a served failure like the one-shot failure it replaces
-// ("<bin> act x: exit status 1: <bin>: <err>"), so logs and any caller matching
-// the text read the same either way.
+// worded like the one-shot failure so logs and anything matching the text read the same
 var errProviderExit = errors.New("exit status 1")
 
-// warmIdleTimeout ends a warm child that has had no request for this long, so
-// an idle desktop holds only the watch process; a burst of actions still
-// shares one child. A var so tests can shorten it.
+// an idle desktop keeps only the watch process, a var so tests can shorten it
 var warmIdleTimeout = 30 * time.Second
 
-// EnableServe makes act and caps go through one warm provider process started
-// on first use and stopped after warmIdleTimeout without a request; the next
-// call starts it again. A dead child is respawned on a later call, with
-// backoff; until then, and whenever the child is busy or the provider predates
-// serve, calls take the one-shot path. Safe to call more than once and
-// concurrently with other calls.
+// opt-in, a CLI that asks once and exits would only orphan the child
 func (c *Client) EnableServe() {
 	if c.bin == "" {
 		return
@@ -54,14 +38,12 @@ func (c *Client) EnableServe() {
 	c.warm.CompareAndSwap(nil, &warmProvider{bin: c.bin, slot: make(chan struct{}, 1), idleAfter: warmIdleTimeout})
 }
 
-// Close stops the warm provider, if any. Later calls take the one-shot path.
 func (c *Client) Close() {
 	if w := c.warm.Swap(nil); w != nil {
 		w.close()
 	}
 }
 
-// call runs one provider verb, through the warm child when it can answer.
 func (c *Client) call(ctx context.Context, args ...string) ([]byte, error) {
 	if w := c.warm.Load(); w != nil && Served(args[0]) {
 		if out, served, err := w.do(ctx, args); served {
@@ -73,8 +55,7 @@ func (c *Client) call(ctx context.Context, args ...string) ([]byte, error) {
 
 type warmProvider struct {
 	bin string
-	// slot is held for the length of one request: the child answers in order,
-	// so a second request may not start until the first is answered.
+	// the child answers in order, so one request at a time
 	slot chan struct{}
 
 	mu          sync.Mutex
@@ -84,16 +65,14 @@ type warmProvider struct {
 	backoff     time.Duration
 	retryAt     time.Time
 	unsupported binIdent
-	// busy is set while a request is with the child; lastUsed is when the last
-	// one finished. The idle timer reads both to decide whether to retire it.
+	// the idle timer reads busy and lastUsed to decide when to retire the child
 	busy      bool
 	lastUsed  time.Time
 	idle      *time.Timer
 	idleAfter time.Duration
 }
 
-// binIdent tells a binary a package update replaced from the one running, so
-// the warm child never outlives the code it was started from.
+// a package update swaps the file, so the child never outlives the code it started from
 type binIdent struct {
 	path       string
 	dev, ino   uint64
@@ -122,10 +101,7 @@ type warmChild struct {
 	served  bool
 }
 
-// do answers served == false when the warm path could not run the request at
-// all, and the caller then runs it one-shot. A request whose ctx ends first
-// kills the child, so the fallback reports the same cancellation a one-shot
-// call would.
+// served false means the caller runs it one-shot
 func (w *warmProvider) do(ctx context.Context, args []string) (out []byte, served bool, err error) {
 	if !w.acquire(ctx) {
 		return nil, false, nil
@@ -189,8 +165,7 @@ func (w *warmProvider) acquire(ctx context.Context) bool {
 	return false
 }
 
-// ready returns a live child running the installed binary, starting one when
-// none runs and backoff allows. Called with mu held.
+// called with mu held
 func (w *warmProvider) ready() *warmChild {
 	if w.closed {
 		return nil
@@ -203,7 +178,7 @@ func (w *warmProvider) ready() *warmChild {
 			if now, ok := identify(ch.ident.path); ok && now == ch.ident {
 				return ch
 			}
-			// Replaced or removed: stdin EOF ends the idle child on its own.
+			// replaced or removed, stdin EOF ends the idle child
 			_ = ch.stdin.Close()
 			w.child = nil
 		}
@@ -228,7 +203,6 @@ func (w *warmProvider) ready() *warmChild {
 	return ch
 }
 
-// finished marks the request done and restarts the idle countdown.
 func (w *warmProvider) finished() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -244,8 +218,7 @@ func (w *warmProvider) finished() {
 	}
 }
 
-// retireIdle closes an idle child's stdin so it leaves at EOF. It is not a
-// failure: the backoff is untouched, and the next call starts a child at once.
+// not a failure, the backoff stays and the next call starts a child at once
 func (w *warmProvider) retireIdle() {
 	w.mu.Lock()
 	ch := w.child
@@ -263,7 +236,6 @@ func (w *warmProvider) retireIdle() {
 	_ = ch.stdin.Close()
 }
 
-// lose kills a child that stopped answering in order and waits for it.
 func (w *warmProvider) lose(ch *warmChild) {
 	ch.kill()
 	<-ch.exited
@@ -272,13 +244,12 @@ func (w *warmProvider) lose(ch *warmChild) {
 	w.mu.Unlock()
 }
 
-// forget drops a dead child and schedules the next start. Called with mu held.
+// called with mu held
 func (w *warmProvider) forget(ch *warmChild) {
 	if w.child == ch {
 		w.child = nil
 	}
-	// A provider older than serve refuses the verb before answering anything;
-	// asking that same binary again would only fork twice per call.
+	// a provider older than serve refuses it, asking that binary again would fork twice per call
 	if !ch.served && strings.Contains(ch.stderr.String(), `unknown verb "serve"`) {
 		w.unsupported = ch.ident
 	}
@@ -345,8 +316,7 @@ func (ch *warmChild) read(stdout io.Reader) {
 		ch.replies <- r
 	}
 	close(ch.replies)
-	// A broken reply stream leaves nothing to talk to. A clean EOF is the
-	// child leaving on its own, so its process group is left alone.
+	// a clean EOF is the child leaving on its own, so its group is left alone
 	if broken || scan.Err() != nil {
 		ch.kill()
 	}
@@ -354,16 +324,14 @@ func (ch *warmChild) read(stdout io.Reader) {
 	close(ch.exited)
 }
 
-// kill takes the child's process group, so a compositor client it is waiting
-// on goes with it, as a cancelled one-shot call does.
+// the whole group, so a compositor client it waits on goes too, like a cancelled one-shot
 func (ch *warmChild) kill() {
 	if p := ch.cmd.Process; p != nil {
 		_ = syscall.Kill(-p.Pid, syscall.SIGKILL)
 	}
 }
 
-// headBuffer keeps the start of the child's stderr, where a provider that
-// predates serve names the verb it refused.
+// a provider older than serve names the verb it refused at the start of stderr
 type headBuffer struct {
 	mu  sync.Mutex
 	buf []byte

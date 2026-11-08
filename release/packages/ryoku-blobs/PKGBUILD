@@ -1,10 +1,8 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 #
 # Ryoku.Blobs = the SDF metaball QML plugin behind the screen frame
-# (docs/frame.md); Ryoku.Spatial3D = the Stage depth mesh; Ryoku.Bus = the
-# native client of the ryoku-shell daemon bus that Ryoku.Ui's Bus sits on
-# (ryoku-desktop depends on this package for it). standard Qt6 QML modules
-# loaded by Quickshell from the QML import path.
+# (docs/frame.md), Ryoku.Spatial3D is the Stage depth mesh and Ryoku.Bus the
+# daemon bus client that Ryoku.Ui needs, all loaded from the QML import path
 #
 # built in-repo from ryoku/shell/plugin via its build.sh (CMake/Ninja, bakes the
 # metaball shaders). self-contained: the plugin .so carries an $ORIGIN rpath to

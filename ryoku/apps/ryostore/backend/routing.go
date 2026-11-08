@@ -62,8 +62,7 @@ func runOpen(args []string) error {
 	return openConfig("ryostore", "/tmp/ryostore.lock", args[0])
 }
 
-// runSettings hands every settings route to the shell daemon, which owns the
-// Hub's single instance (start, navigate, raise) and the shell's IPC.
+// the shell daemon owns the Hub's single instance, so every route goes through it
 func runSettings(args []string) error {
 	if len(args) < 1 || len(args) > 2 {
 		return fmt.Errorf("settings needs <category> [id]")
@@ -75,7 +74,7 @@ func runSettings(args []string) error {
 		return ryokuShell("hub", "open", "users", args[1])
 	}
 	if section, ok := editorSection(args[0]); ok {
-		// The empty monitor is the focused one.
+		// an empty monitor means the focused one
 		return ryokuShell("ipc", "call", "desktop", "editSection", section, "")
 	}
 	section, ok := settingsSection(args[0])

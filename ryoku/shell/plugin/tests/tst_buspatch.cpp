@@ -74,7 +74,6 @@ private slots:
                  (QList<QStringList>{{"m", "7"}, {"a"}}));
     }
 
-    // The JS copy: untouched subtrees keep their identity.
     void jsKeepsUntouchedIdentity()
     {
         QJSEngine engine;

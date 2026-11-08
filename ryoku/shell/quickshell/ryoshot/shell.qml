@@ -945,8 +945,7 @@ ShellRoot {
         }
     }
 
-    // The bus queues calls while the daemon is away; the copy fails after the
-    // CLI's old dial timeout instead, so the guard and the notice still work.
+    // the bus queues calls while the daemon is away, so this stands in for the old CLI timeout
     Timer {
         id: clipCopyGuard
         interval: 2000
@@ -1293,8 +1292,7 @@ ShellRoot {
         Component.onCompleted: running = true
     }
 
-    // Seed the keypress and webcam toggles from the shell; a toggle pressed
-    // before the answer lands wins.
+    // a toggle pressed before the answer lands wins
     function readToggle(target, apply) {
         Bus.ipcGet(target, "active", (ok, value) => {
             if (!ok) return;

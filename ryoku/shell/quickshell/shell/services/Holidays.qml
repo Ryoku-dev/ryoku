@@ -61,8 +61,7 @@ Singleton {
         onUpdated: root.apply(topicFeed.data)
     }
 
-    // A restarted daemon has forgotten the region and years and would stay on
-    // "loading"; hand them over again whenever the bus (re)connects.
+    // a restarted daemon forgets the region and years, so hand them over again
     Connections {
         target: Bus
         function onConnectedChanged() {

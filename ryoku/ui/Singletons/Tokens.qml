@@ -18,12 +18,8 @@ import "buspath.js" as BusPath
 Singleton {
     id: t
 
-    // Follow-the-wallpaper master (theme.json) and the live wallpaper roles
-    // (colors.json) are parsed straight from the file text: the "on" role names
-    // defeat JsonAdapter's signal-handler grammar and a bare adapter does not
-    // repopulate reliably for a lazily-created singleton. The static named
-    // scheme's palette (shell.json themePalette; null for the dynamic variants)
-    // comes off the shared settings frame.
+    // theme.json and colors.json are parsed from raw text, the "on" role names break
+    // JsonAdapter and a bare adapter won't repopulate in a lazy singleton
     property bool matchWallpaper: true
     property var namedScheme: null
     property var wall: ({})
@@ -270,8 +266,7 @@ Singleton {
         }
         blendWalk.restart();
     }
-    // The daemon's palette push: re-read colors.json when the file watch missed
-    // an atomic-rename replacement.
+    // the file watch can miss an atomic-rename replacement
     function reloadPalette() { paletteFile.reload(); }
     function refreshNamed() {
         const o = ShellSettings.data;
@@ -313,8 +308,6 @@ Singleton {
         t.ui = uiFont;
         t.mono = monoFont;
     }
-    // The keys refreshNamed reads; any other settings change leaves the
-    // palette, motion and per-output state alone.
     readonly property var _namedPaths: ["themePalette", "theme.motion", "displays.ui_scale", "displays.bar", "displays.widgets", "fontFamily"]
     Connections {
         target: ShellSettings

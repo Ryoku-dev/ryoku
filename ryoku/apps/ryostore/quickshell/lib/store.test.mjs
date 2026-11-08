@@ -307,8 +307,7 @@ eq(
     "a live search result still respects the category filter"
 );
 
-// Resource tiers come from the catalogue's measurements; the backend decides
-// what a modest machine is not recommended for, and the app only presents it.
+// the backend decides what a modest machine isn't recommended, the app only shows it
 const measured = { id: "obi", category: "barstyles", name: "Obi", art: "obi.png",
     metadata: { resourceTier: "heavy", resourceDelta: { pssMB: 96.4, gpuMB: 40, cpuPct: 0.66, wakeupsPerSec: -1.25, launchesPerMin: 0 } } };
 eq(Store.resourceTier(measured), "heavy", "the published tier is read from metadata");

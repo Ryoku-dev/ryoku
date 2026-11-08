@@ -32,7 +32,6 @@ Item {
     enabled: pick.on
     Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
-    // The daemon answers `ok <value>`.
     function receiveSample(text, commitSample) {
         const value = parseFloat(("" + text).trim().replace(/^ok\s+/, ""));
         if (!isFinite(value) || value < 0 || value > 1)
@@ -42,8 +41,7 @@ Item {
             pick.commit(StageSession.depthPick, value);
     }
 
-    // A newer preview supersedes an older one still in flight, and a newer
-    // commit an older commit, as restarting their old processes did.
+    // a newer preview drops an older one still in flight, same for commits
     property int sampleSeq: 0
     property int commitSeq: 0
     function request(mx, my, commitSample) {

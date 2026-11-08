@@ -67,7 +67,6 @@ private slots:
         QVERIFY(found);
     }
 
-    // A settings patch reaches only the BusValue whose path it changed.
     void onlyMatchingPathChanges()
     {
         BusTestEnv env;
@@ -108,7 +107,7 @@ private slots:
         QCOMPARE(sizeSpy.size(), 2);
         QCOMPARE(barSpy.size(), 2);
 
-        // an ancestor replaced: the value follows; deleted: the fallback is back
+        // a replaced ancestor moves the value, a delete brings the fallback back
         daemon.send(obj(R"({"op":"state","topic":"settings","rev":5,"base":4,"patch":[{"p":["bar"],"v":{"style":"kairos"}}]})"));
         QTRY_COMPARE(styleSpy.size(), 2);
         QCOMPARE(style->property("value").value<QJSValue>().toString(), QStringLiteral("kairos"));

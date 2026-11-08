@@ -77,7 +77,6 @@ type barSetting struct {
 // nil when QS Bar is not the active bar style or the shell does not answer.
 // The call is read-only.
 func loadQsbarCatalog(index *shellsIndex) []barWidget {
-	// The index names the active item, so nothing runs while another one is.
 	if index != nil && index.Active != "" && index.Active != "qsbar" {
 		return nil
 	}

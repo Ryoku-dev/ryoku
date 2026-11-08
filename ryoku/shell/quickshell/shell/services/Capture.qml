@@ -215,9 +215,6 @@ Singleton {
         }
     }
 
-    // The daemon owns the copy (clip-copy reads the file and holds the
-    // selection), so it outlives this request. The detail reads as the CLI's
-    // stderr did, so the notification text is unchanged.
     function _clipCopy(path, mode, savedPath, beautify) {
         Bus.run("clip-copy image/png " + path, (ok, output, error) => {
             root._finishCapture(mode, path, savedPath, beautify, ok === true,

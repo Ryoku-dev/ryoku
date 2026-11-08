@@ -111,10 +111,7 @@ Item {
     }
 
     // ── mouse tab: the shell daemon's evdev remapper ─────────────────────
-    // The `mouse` topic carries frames (devices, maps, captured presses) and
-    // each change is a bus call; the daemon owns mousemap.json and the grabs,
-    // so the page never touches a file. Same grammar the Recording page uses
-    // for the keypress overlay.
+    // the daemon owns mousemap.json and the grabs so the page never touches a file
     property var mouseDevices: []
     property var mouseMaps: ({})
     property bool mouseDaemonSeen: false
@@ -130,7 +127,7 @@ Item {
     property double macroLastAt: 0
     readonly property bool capturing: pg.captureFor !== null || pg.macroKeyCapture || pg.macroRecording
 
-    // frame is the bus's shared parsed frame: read it, never mutate it.
+    // shared bus frame, never mutate it
     function applyMouseFrame(frame) {
         if (!frame || !frame.devices)
             return;

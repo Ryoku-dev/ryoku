@@ -15,8 +15,8 @@ import (
 
 // statestream carries typed subsystem state to QML over the same control socket
 // the CLI verbs use, so a QML singleton is a view of daemon state rather than an
-// independent poller. Two legacy message families ride the socket beside the
-// one-shot command lines:
+// independent poller. Two message families ride the socket beside the one-shot
+// command lines:
 //
 //	subscribe <topic>            long-lived: the daemon writes a full-state JSON
 //	                             frame at once, then a fresh frame on every
@@ -29,18 +29,12 @@ import (
 //	                             args is echoed back so a multiplexed client can
 //	                             correlate replies.
 //
-// A `bus` connection (bus.go) multiplexes both, plus verbs and IpcHandler
-// calls, over one socket per process.
-//
 // State flows one way (daemon to QML) through subscribe; intent flows the other
 // (QML to daemon) through call.
 
-// eventQueueDepth bounds the unread events one subscriber may hold. A slow
-// reader loses its oldest events instead of stalling the producer.
+// a slow reader loses its oldest events instead of stalling the producer
 const eventQueueDepth = 256
 
-// topicSubscriber is one subscription. A legacy line subscriber reads frames;
-// a bus subscriber (bus != nil) has frames pushed into its connection outbox.
 type topicSubscriber struct {
 	frames   chan []byte
 	done     chan struct{}
@@ -55,8 +49,6 @@ func (s *topicSubscriber) stop() {
 	s.stopOnce.Do(func() { close(s.done) })
 }
 
-// topicMsg is one published revision. For delta topics patch turns the frame
-// at base into data; it is nil when a full frame is the better send.
 type topicMsg struct {
 	rev   uint64
 	base  uint64
@@ -64,10 +56,7 @@ type topicMsg struct {
 	patch []byte
 }
 
-// stateTopic fans a subsystem's state out to subscribers. Ordinary state
-// topics coalesce unread snapshots; ordered topics keep every event in a
-// bounded queue per subscriber, because a later keypress cannot replace an
-// earlier one. Delivery never blocks the publisher.
+// ordered topics keep every event because a later keypress can't replace an earlier one
 type stateTopic struct {
 	mu      sync.Mutex
 	subs    map[*topicSubscriber]struct{}
@@ -95,10 +84,6 @@ func newDeltaTopic() *stateTopic {
 	return &stateTopic{subs: map[*topicSubscriber]struct{}{}, delta: true}
 }
 
-// onDemand registers fn to run with true when the first subscriber (legacy or
-// bus) arrives and false when the last leaves. Calls happen outside the topic
-// lock and in transition order. A topic that already has subscribers reports
-// true at once.
 func (t *stateTopic) onDemand(fn func(active bool)) {
 	t.mu.Lock()
 	t.demandFn = fn
@@ -109,16 +94,13 @@ func (t *stateTopic) onDemand(fn func(active bool)) {
 	t.drainDemand()
 }
 
-// count reports how many subscribers the topic has.
 func (t *stateTopic) count() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return len(t.subs)
 }
 
-// drainDemand runs queued demand transitions. Whoever finds the queue idle
-// drains it, so callbacks stay ordered and a callback that subscribes again
-// queues instead of deadlocking.
+// whoever finds the queue idle drains it, so a callback that subscribes again queues instead of deadlocking
 func (t *stateTopic) drainDemand() {
 	t.mu.Lock()
 	if t.draining {
@@ -140,7 +122,6 @@ func (t *stateTopic) drainDemand() {
 	t.mu.Unlock()
 }
 
-// addLocked registers sub and queues the demand transition it causes.
 func (t *stateTopic) addLocked(sub *topicSubscriber) {
 	t.subs[sub] = struct{}{}
 	if sub.bus != nil {
@@ -192,8 +173,7 @@ func (t *stateTopic) unsubscribe(sub *topicSubscriber) {
 	t.drainDemand()
 }
 
-// subscribeBus attaches a bus connection under the topic name it asked for
-// and queues the current frame, so no publish can slip in between.
+// replay under the same lock so no publish slips in between
 func (t *stateTopic) subscribeBus(c *busConn, name string) *topicSubscriber {
 	sub := &topicSubscriber{done: make(chan struct{}), bus: c, name: name}
 	t.mu.Lock()
@@ -204,7 +184,6 @@ func (t *stateTopic) subscribeBus(c *busConn, name string) *topicSubscriber {
 	return sub
 }
 
-// resync sends a bus subscriber the current frame in full again.
 func (t *stateTopic) resync(sub *topicSubscriber) {
 	t.mu.Lock()
 	if _, ok := t.subs[sub]; ok {
@@ -237,7 +216,6 @@ func (t *stateTopic) publish(frame []byte) {
 	prev := t.last
 	t.rev++
 	msg := topicMsg{rev: t.rev, data: frame}
-	// Patches only matter to bus subscribers; skip the diff when none listen.
 	if t.delta && prev != nil && t.busSubs > 0 {
 		msg.base = t.rev - 1
 		if patch := framePatch(prev, frame); patch != nil && 2*len(patch) <= len(frame) {
@@ -260,7 +238,7 @@ func (t *stateTopic) deliverLocked(sub *topicSubscriber, msg topicMsg) {
 		}
 		return
 	}
-	// Every send happens under t.mu, so after one receive there is room.
+	// every send happens under t.mu so after one receive there is room
 	select {
 	case sub.frames <- msg.data:
 		return
@@ -300,8 +278,6 @@ func (d *daemon) registerEventTopic(name string) *stateTopic {
 	return d.installTopic(name, newEventTopic())
 }
 
-// registerDeltaTopic creates a state topic whose bus subscribers receive
-// patches against the previous frame when that is clearly smaller.
 func (d *daemon) registerDeltaTopic(name string) *stateTopic {
 	return d.installTopic(name, newDeltaTopic())
 }
@@ -428,9 +404,6 @@ func callReply(id json.RawMessage, result any, err error) string {
 	return string(b)
 }
 
-// framePatch returns the patch ops that turn prev into next, as a JSON array,
-// or nil when either frame is not a JSON object. Unchanged subtrees are
-// skipped by comparing their bytes; arrays and scalars are replaced whole.
 func framePatch(prev, next []byte) []byte {
 	if !isJSONObject(prev) || !isJSONObject(next) {
 		return nil
@@ -449,8 +422,6 @@ func isJSONObject(b []byte) bool {
 	return len(b) > 0 && b[0] == '{'
 }
 
-// diffJSON appends the ops for one subtree. It reports false when a frame
-// does not parse, so the caller falls back to a full frame.
 func diffJSON(ops *bytes.Buffer, path []string, prev, next json.RawMessage) bool {
 	if bytes.Equal(prev, next) {
 		return true
@@ -491,7 +462,6 @@ func diffJSON(ops *bytes.Buffer, path []string, prev, next json.RawMessage) bool
 	return true
 }
 
-// writePatchOp appends a set op, or a delete op when value is nil.
 func writePatchOp(ops *bytes.Buffer, path []string, value json.RawMessage) {
 	if ops.Len() > 1 {
 		ops.WriteByte(',')

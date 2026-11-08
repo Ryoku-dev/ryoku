@@ -66,8 +66,6 @@ Item {
     readonly property bool hasWindows: windows.length > 0
     readonly property int windowCount: windows.length
     readonly property var windowAddresses: windows.map(window => window.address)
-    // The tiles follow a keyed copy of windows, so a retitle or a geometry
-    // frame keeps the tiles and their selection colour instead of rebuilding.
     BusListModel {
         id: railRows
         key: "address"

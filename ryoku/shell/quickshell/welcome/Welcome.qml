@@ -38,8 +38,7 @@ Rectangle {
             step--
     }
 
-    // The commit outlives this window, which quits at once, so it stays a
-    // detached CLI rather than a bus call that the quit could drop.
+    // stays a detached CLI since the window quits at once and would drop a bus call
     function finish() {
         Spawn.run(["ryoku-shell", "shells", "commit"])
         Qt.quit()

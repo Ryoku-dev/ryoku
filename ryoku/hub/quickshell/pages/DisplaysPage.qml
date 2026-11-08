@@ -146,7 +146,7 @@ Item {
     property int nightStartAt: 22 * 60
     property int nightStopAt: 7 * 60
 
-    // f is the bus's shared parsed frame: read it, never mutate it.
+    // shared bus frame, never mutate it
     function applyNightFrame(f) {
         if (!f || typeof f !== "object" || Array.isArray(f))
             return;

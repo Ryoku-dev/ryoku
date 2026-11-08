@@ -133,15 +133,11 @@ hl.bind(K(mod .. " + mouse:273"), hl.dsp.window.resize(), { mouse = true })
 -- Workspaces. Super+N focuses the Nth workspace OF THE CURRENT DESKTOP (a
 -- desktop is a block of 10 workspace ids; see modules/workspaces.lua and the
 -- overview). On desktop 2, Super+3 -> ws13, never ws3, so each desktop keeps its
--- own 1..10 and windows never jump desktops. Super+Alt+N sends the active window
--- to that slot, staying on this desktop. All of it runs in the compositor, with
--- no process per press.
+-- own 1..10 and windows never jump desktops.
 local grid = require("modules.workspaces")
 
 hl.bind(K(mod .. " + H"),          function() grid.hide() end)                      -- hide the focused window in the scratchpad (press again on it to bring it back)
--- Not toggle_special directly: hiding the scratchpad has to hand keyboard focus
--- back to a visible window, or the next bar panel to close refocuses the hidden
--- one and pops the scratchpad open with it.
+-- not toggle_special, hiding has to hand focus back or the next panel to close pops the scratchpad open again
 hl.bind(K(mod .. " + ALT + H"),    function() grid.scratch() end)                   -- show or hide the scratchpad (special workspace)
 hl.bind(K(mod .. " + mouse_up"),   hl.dsp.focus({ workspace = "r-1" }))            -- previous workspace
 hl.bind(K(mod .. " + mouse_down"), hl.dsp.focus({ workspace = "r+1" }))            -- next workspace

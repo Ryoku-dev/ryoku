@@ -1,8 +1,6 @@
 { pkgs, src, qmlRoot }:
 
-# Ryoku.Ui and Ryoku.Ui.Singletons compiled by qmlcachegen (ryoku/ui/CMakeLists.txt).
-# Only the qmldir, qmltypes and plugin of each module are installed; the QML
-# sources ride inside the plugin.
+# the QML sources ride inside the plugin, so only qmldir, qmltypes and the .so go out
 pkgs.stdenv.mkDerivation {
   pname = "ryoku-ui";
   version = "unstable";

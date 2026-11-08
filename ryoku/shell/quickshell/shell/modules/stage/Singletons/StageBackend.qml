@@ -214,8 +214,7 @@ Singleton {
     // Key optimistic values by wallpaper so a monitor switch cannot retarget a pending flush.
     property var _opt: ({})
 
-    // The frame is shared with every bus subscriber in this process, so it is
-    // copied rather than patched when walls is missing.
+    // the frame is shared with every bus subscriber, so copy it instead of patching
     function apply(f) {
         if (!f || typeof f !== "object") return;
         if (!f.walls) f = Object.assign({}, f, { walls: {} });

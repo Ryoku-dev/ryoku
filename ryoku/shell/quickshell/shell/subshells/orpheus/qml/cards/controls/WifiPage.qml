@@ -32,9 +32,7 @@ Item {
         });
         return source.filter(function(ap) { return ap && !ap.active; });
     }
-    // The rows follow a keyed copy of accessPoints: a scan or a strength change
-    // moves and updates rows in place, so an open password field keeps its
-    // focus and text while the list re-sorts under it.
+    // keyed so an open password field keeps its focus while the list re-sorts
     BusListModel {
         id: accessPointRows
         key: "bssid"

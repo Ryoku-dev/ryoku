@@ -10,12 +10,9 @@ import (
 	"testing"
 )
 
-// Tests reaching matugenApply must never retint the session they run inside.
+// tests reaching matugenApply must never retint the session they run inside
 func init() { folderIconsPapirus = filepath.Join(os.DevNull, "papirus") }
 
-// folderFixture is a scratch Papirus places dir shaped like the packaged one:
-// real colour files, the colourless names as symlinks into the blue set, and the
-// standard directory aliases pointing at folder.svg.
 func folderFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -47,8 +44,6 @@ func symlink(t *testing.T, target, path string) {
 	}
 }
 
-// folderEnv isolates a tint run: PATH holds only shims that log their argv, and
-// gsettings reports theme as the current icon theme.
 type folderEnv struct {
 	tint folderTint
 	log  string
@@ -116,8 +111,6 @@ func (e folderEnv) gens(t *testing.T) []string {
 	return names
 }
 
-// tree lists a theme dir as "name -> target" for symlinks and "name: content"
-// for files.
 func tree(t *testing.T, dir string) []string {
 	t.Helper()
 	var out []string
@@ -207,7 +200,7 @@ func TestFolderTintSameColourIsNoOp(t *testing.T) {
 	gen := e.live(t)
 	e.calls(t)
 
-	// A different accent that maps to the same folder colour.
+	// different accent, same folder colour
 	if mustApply(t, e.tint, "#ff0000", false) {
 		t.Error("same colour published a new generation")
 	}
@@ -218,7 +211,6 @@ func TestFolderTintSameColourIsNoOp(t *testing.T) {
 		t.Errorf("no-op run spawned %v", got)
 	}
 
-	// The login run still checks the setting, and nothing else.
 	if mustApply(t, e.tint, "#ff0000", true) {
 		t.Error("login run on the same colour published a new generation")
 	}
@@ -226,7 +218,7 @@ func TestFolderTintSameColourIsNoOp(t *testing.T) {
 		t.Errorf("login no-op calls = %v", got)
 	}
 
-	// A damaged live tree is rebuilt even on the same colour.
+	// a damaged tree gets rebuilt even on the same colour
 	if err := os.Remove(filepath.Join(e.tint.base, folderGensDir, gen, "places", "user-home.svg")); err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +228,7 @@ func TestFolderTintSameColourIsNoOp(t *testing.T) {
 }
 
 func TestFolderTintKeepsOnePreviousGeneration(t *testing.T) {
-	// The setting still names a legacy dir: that one stays until the next run.
+	// the setting still names a legacy dir, that one stays until the next run
 	e := newFolderEnv(t, "ryoku-folders-42")
 	base := e.tint.base
 	for _, d := range []string{"ryoku-folders-1700000000", "ryoku-folders-17x", "ryoku-folders-42", filepath.Join(folderGensDir, "build.1")} {
@@ -315,7 +307,6 @@ func TestFolderTintAccentSource(t *testing.T) {
 			t.Errorf("colors.json %q: tree %v, want %s", c.colors, got, c.want)
 		}
 	}
-	// An explicit accent wins over the palette.
 	writeFile(t, e.tint.colors, `{"primary": "#e02020"}`)
 	mustApply(t, e.tint, "#20e020", false)
 	if got := tree(t, filepath.Join(e.tint.base, folderGensDir, e.live(t))); !slices.Contains(got, "places/folder.svg: <svg>folder green</svg>") {
@@ -337,7 +328,7 @@ func TestFolderTintWithoutPapirusDoesNothing(t *testing.T) {
 	}
 }
 
-// folderColorAwk is the formula the shell helper used, verbatim.
+// the formula the old shell helper used, verbatim
 const folderColorAwk = `{ c=$0
     r=strtonum("0x" substr(c,2,2))/255; g=strtonum("0x" substr(c,4,2))/255; b=strtonum("0x" substr(c,6,2))/255
     mx=(r>g?(r>b?r:b):(g>b?g:b)); mn=(r<g?(r<b?r:b):(g<b?g:b)); d=mx-mn
@@ -346,8 +337,6 @@ const folderColorAwk = `{ c=$0
     print (s<0.10)?"grey":(h<15||h>=345)?"red":(h<45)?"orange":(h<70)?"yellow":(h<165)?"green":(h<195)?"teal":(h<215)?"cyan":(h<255)?"blue":(h<290)?"violet":(h<330)?"magenta":"pink"
 }`
 
-// folderColorTable pins one input per colour band and the malformed inputs;
-// TestFolderColorMatchesAwk also runs it through the awk formula.
 var folderColorTable = map[string]string{
 	"#ff0000": "red", "#ff3f00": "red", "#ff4000": "orange", "#ffbf00": "orange",
 	"#ffc000": "yellow", "#c0ff00": "green", "#00ff40": "green", "#00ffc0": "teal",
@@ -366,8 +355,6 @@ func TestFolderColorTable(t *testing.T) {
 	}
 }
 
-// TestFolderColorMatchesAwk sweeps the colour cube and the fixed table through
-// the original awk formula and requires the same answer for every input.
 func TestFolderColorMatchesAwk(t *testing.T) {
 	awk, err := exec.LookPath("/usr/bin/gawk")
 	if err != nil {
@@ -385,7 +372,6 @@ func TestFolderColorMatchesAwk(t *testing.T) {
 			}
 		}
 	}
-	// Hue boundaries at full and low saturation.
 	for h := range 360 {
 		inputs = append(inputs, hueHex(float64(h), 1), hueHex(float64(h), 0.11), hueHex(float64(h)+0.5, 0.6))
 	}

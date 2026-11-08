@@ -132,9 +132,8 @@ func runCatalog(w io.Writer, provs []Provider, args []string) error {
 		// cache, so this never does worse than serving the snapshot. A snapshot
 		// built under another window manager is stale the same way: it answers
 		// which products run here, and after a compositor switch that answer is
-		// the old one. Its subshell and bar style advice is likewise worked out for
-		// one machine, so a snapshot from before a memory or GPU change, or from
-		// before the store recorded the machine, is rebuilt too.
+		// the old one.
+		// the tier advice is per machine too, so a memory or GPU change rebuilds it
 		if data, err := os.ReadFile(snapshot); err == nil && len(data) > 0 && !snapshotOffline(data) && !snapshotForeignWindowManager(data) && !snapshotMachineChanged(data) && !snapshotProviderMismatch(data, provs) && !snapshotFlatpakRemoteMismatch(data, provs) {
 			_, err := w.Write(data)
 			return err
@@ -262,10 +261,7 @@ func snapshotForeignWindowManager(data []byte) bool {
 	return !strings.EqualFold(s.WindowManager, running)
 }
 
-// snapshotMachineChanged reports whether a cached catalogue's machine differs
-// from this one, counting a snapshot that never recorded it as different. The
-// probe reads /proc/meminfo and the DRM tree only, so the check stays cheap on
-// every launch.
+// cheap on every launch, the probe only reads meminfo and the DRM tree
 func snapshotMachineChanged(data []byte) bool {
 	var s struct {
 		Machine *Machine `json:"machine"`

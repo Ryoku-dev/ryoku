@@ -38,8 +38,7 @@ Singleton {
         catch (e) { previewRoles = {}; }
         roles = Object.keys(previewRoles).length ? previewRoles : committedRoles;
     }
-    // The daemon's palette push: re-read colors.json when the file watch missed
-    // an atomic-rename replacement.
+    // the daemon's palette push, the file watch can miss an atomic rename
     function reload() { file.reload(); }
 
     // Verbatim role when present, compiled default before the first write.

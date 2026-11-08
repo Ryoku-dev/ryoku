@@ -157,8 +157,6 @@ Singleton {
     }
     // Performance keeps the analysers running even when playback detection misses a stream.
     readonly property bool idleFreeze: audioIdle && root.tier !== root.tierPerformance
-    // Nobody sees a locked or powered-off desktop, so the analysers stop on every
-    // tier; it is a binding, so they start again the moment the screen is back.
     readonly property bool dark: Presence.dark
     readonly property bool visualizerFrozen: root.visualizerHardFrozen || root.idleFreeze || root.dark
     readonly property bool pillFrozen: root.visualizerHardFrozen || root.idleFreeze || root.dark

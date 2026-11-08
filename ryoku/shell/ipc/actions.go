@@ -56,10 +56,7 @@ func qsSelect(name string) []string {
 	return []string{"-c", name}
 }
 
-// ipcCall invokes a Quickshell IpcHandler function with at most one argument;
-// an empty arg is dropped. Routing and retries follow ipcInvoke: only a shell
-// that is starting or reloading is retried, a missing target or function never
-// is.
+// only a shell that is starting or reloading gets retried, a missing target or function never does
 func ipcCall(config, target, fn, arg string) string {
 	if arg == "" {
 		return ipcCallN(config, target, fn)

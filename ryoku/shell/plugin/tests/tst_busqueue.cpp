@@ -33,7 +33,6 @@ BusInbound other(BusInbound::Kind kind, const char *topic = "")
 
 }
 
-// The hand-off queue between the worker and the GUI thread.
 class TestBusQueue : public QObject
 {
     Q_OBJECT

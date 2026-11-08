@@ -13,15 +13,7 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
-// A list model over one array inside a topic frame, e.g. BusListModel {
-// topic: "wm"; path: "windows"; key: "id" }, or over a JS array given as rows
-// while topic is "". Each frame is diffed by key against the rows the model
-// holds, so a view sees inserts, removes, moves and per-role dataChanged, never
-// a reset; only a row without the key (or one that is not an object) resets.
-// Duplicate keys are told apart by their order. Roles are the given roles, or
-// the union of the keys of the first non-empty frame, plus modelData (the row,
-// or with roles given, just those roles); with roles given only they are
-// compared.
+// each frame is diffed by key so a view never sees a reset, only a row without the key resets
 class BusListModel : public QAbstractListModel, public QQmlParserStatus, public BusListener
 {
     Q_OBJECT
@@ -89,7 +81,6 @@ private:
     void attach();
     void detach();
     void reload();
-    // keyed is false when a row has no key or is not an object.
     QList<Row> fromJson(const QJsonValue &frame, bool *keyed) const;
     QList<Row> fromRows(bool *keyed) const;
     void deriveRoles(const QList<Row> &rows);

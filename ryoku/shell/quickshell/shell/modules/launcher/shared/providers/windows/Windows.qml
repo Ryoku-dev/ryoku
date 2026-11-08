@@ -34,8 +34,7 @@ Provider {
         });
     }
 
-    // Wm.windowRows carries only the identity fields the signature reads, so a
-    // geometry or focus frame emits nothing and never rebuilds the entries.
+    // windowRows only changes on identity fields, so geometry and focus frames don't rebuild
     Connections {
         target: Wm.windowRows
         function onRowsInserted() { windows.queueLiveUpdate(); }

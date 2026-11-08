@@ -15,29 +15,13 @@ import (
 	"time"
 )
 
-// folders.go tints the folder icons to the wallpaper accent. It builds a small
-// icon theme that inherits Papirus-Dark and overrides only the folder icons with
-// Papirus's matching colour set (root-free, never touches the packaged theme).
-// The accent (argument, else the palette's Material primary with color4
-// fallback) picks the nearest Papirus folder colour.
-//
-// The theme name consumers resolve to is fixed (ryoku-folders); only its content
-// changes. Each build lands in a temp dir and is published by renaming a symlink
-// over the old one, so a reader (a GTK app, or the shell resolving a folder icon)
-// sees either the whole old tree or the whole new one, never a theme half-swapped
-// from under it (the SIGABRT a fresh timestamped name per change caused, issue
-// #47). The previous generation is kept one extra cycle so an in-flight lookup of
-// it still resolves, and gtk-update-icon-cache busts GTK's on-disk cache.
-//
-// The daemon runs it in process on every palette change (refreshFolderIcons);
-// `ryoku-shell folders [accent]` runs it client-side at login.
+// the name stays fixed and each build swaps a symlink, a new name per change made GTK apps SIGABRT (#47)
 
 const (
 	folderTheme   = "ryoku-folders"  // fixed theme name consumers resolve to
 	folderGensDir = ".ryoku-folders" // hidden container: generations + temp builds
 )
 
-// folderIconsPapirus is the packaged theme the colour sets come from.
 var folderIconsPapirus = "/usr/share/icons/Papirus"
 
 const folderIndexTheme = `[Icon Theme]
@@ -53,8 +37,7 @@ Type=Scalable
 Context=Places
 `
 
-// A palette burst inside the daemon runs one build at a time; the file lock
-// below serialises against a login run in another process.
+// one build at a time in the daemon, the file lock covers a login run in another process
 var folderTintMu sync.Mutex
 
 type folderTint struct {
@@ -77,7 +60,6 @@ func defaultFolderTint() folderTint {
 	}
 }
 
-// runFolders is `ryoku-shell folders [accent]`.
 func runFolders(args []string) int {
 	accent := ""
 	if len(args) > 0 {
@@ -90,11 +72,7 @@ func runFolders(args []string) int {
 	return 0
 }
 
-// apply builds and publishes the theme for accent ("" reads the palette). It
-// reports whether a new generation was published. When the live generation
-// already holds the chosen colour nothing is rebuilt; ensureSetting still
-// re-selects the theme over a shipped default then, so a login run heals an
-// icon-theme setting reset behind its back.
+// ensureSetting reselects the theme even when nothing changed so a login run heals a reset setting
 func (f folderTint) apply(accent string, ensureSetting bool) (bool, error) {
 	src := filepath.Join(f.papirus, "64x64", "places")
 	if st, err := os.Stat(src); err != nil || !st.IsDir() {
@@ -131,7 +109,6 @@ func (f folderTint) apply(accent string, ensureSetting bool) (bool, error) {
 	}
 
 	cur := readIconTheme()
-	// The generation the live symlink points at now, kept one more cycle below.
 	prev := ""
 	if target, err := os.Readlink(link); err == nil && target != "" {
 		prev = filepath.Base(target)
@@ -143,8 +120,7 @@ func (f folderTint) apply(accent string, ensureSetting bool) (bool, error) {
 		_ = os.RemoveAll(tmp)
 		return false, err
 	}
-	// Bake the cache into the tree before publishing so GTK re-reads the new
-	// colours instead of the stale on-disk cache; the fixed name alone would not.
+	// bake the cache in before publishing, the fixed name alone leaves GTK on its stale cache
 	if bin, err := exec.LookPath("gtk-update-icon-cache"); err == nil {
 		_ = exec.Command(bin, "-qf", tmp).Run()
 	}
@@ -172,8 +148,7 @@ func (f folderTint) apply(accent string, ensureSetting bool) (bool, error) {
 	return true, nil
 }
 
-// lockFolderTint takes the cross-process lock; a lock file that cannot be
-// opened leaves the run unserialised rather than skipping it.
+// a lock file that can't be opened runs unserialised instead of skipping
 func lockFolderTint(path string) func() {
 	fh, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o666)
 	if err != nil {
@@ -193,8 +168,6 @@ var (
 	accentColor4Re  = regexp.MustCompile(`^.*"color4"[[:space:]]*:[[:space:]]*"(#[0-9A-Fa-f]{6})".*$`)
 )
 
-// paletteAccent reads the Material primary from colors.json, else color4: the
-// first line holding the key wins, the last occurrence on that line.
 func paletteAccent(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -211,9 +184,7 @@ func paletteAccent(path string) string {
 	return ""
 }
 
-// folderColor maps an accent to the nearest Papirus folder colour by hue.
-// Near-greyscale accents (saturation under 0.10) stay grey; anything with
-// perceptible hue tints, so a muted wallpaper still picks a folder colour.
+// the saturation cut is low so a muted wallpaper still picks a folder colour
 func folderColor(accent string) string {
 	r := accentChannel(accent, 1) / 255
 	g := accentChannel(accent, 3) / 255
@@ -265,8 +236,6 @@ func folderColor(accent string) string {
 	return "pink"
 }
 
-// accentChannel parses the two characters at byte offset off as hex, reading
-// leading hex digits only, so malformed input degrades to 0 per channel.
 func accentChannel(accent string, off int) float64 {
 	if off >= len(accent) {
 		return 0
@@ -295,10 +264,7 @@ func hexDigit(c byte) (int, bool) {
 	return 0, false
 }
 
-// folderPlan is one colour's theme content: the Papirus files copied under
-// their colourless names, and the standard directory names Papirus maps to
-// folder.svg, kept as local aliases so lookup never falls through to Papirus's
-// blue originals.
+// the aliases keep lookup from falling through to Papirus's blue originals
 type folderPlan struct {
 	copies  map[string]string // dest name -> source path
 	order   []string          // dest names in copy order
@@ -350,7 +316,6 @@ func planFolderTheme(src, color string) (folderPlan, error) {
 	return p, nil
 }
 
-// build writes the plan into dir as a complete theme tree.
 func (p folderPlan) build(dir string) error {
 	_ = os.RemoveAll(dir)
 	places := filepath.Join(dir, "places")
@@ -370,8 +335,6 @@ func (p folderPlan) build(dir string) error {
 	return os.WriteFile(filepath.Join(dir, "index.theme"), []byte(folderIndexTheme), 0o666)
 }
 
-// matches reports whether the generation link points at already holds exactly
-// this plan, so a palette change that keeps the folder colour rebuilds nothing.
 func (p folderPlan) matches(link string) bool {
 	target, err := os.Readlink(link)
 	if err != nil {
@@ -406,7 +369,6 @@ func (p folderPlan) matches(link string) bool {
 	return true
 }
 
-// copyFollowing copies src's content (through symlinks) to a fresh dst.
 func copyFollowing(src, dst string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -419,8 +381,7 @@ func copyFollowing(src, dst string) error {
 	return os.WriteFile(dst, data, st.Mode().Perm())
 }
 
-// readIconTheme reads the current icon-theme setting. Minimal Wayland sessions
-// can have dconf but no GSettings schemas.
+// minimal Wayland sessions can have dconf but no GSettings schemas
 func readIconTheme() string {
 	cur := ""
 	if bin, err := exec.LookPath("gsettings"); err == nil {
@@ -436,10 +397,7 @@ func readIconTheme() string {
 	return cur
 }
 
-// selectFolderTheme points consumers at the fixed name only over the shipped
-// defaults (or a stale generation name), and only when it is not already set,
-// so palette changes never churn the setting and a theme the user picked stays
-// theirs.
+// only over the shipped defaults so a theme the user picked stays theirs
 func selectFolderTheme(cur string) {
 	switch cur {
 	case folderTheme:
@@ -459,8 +417,7 @@ func selectFolderTheme(cur string) {
 	}
 }
 
-// pruneFolderGens keeps only the live and immediately previous generations; a
-// reader that resolved the old target before the swap still finds it.
+// keep the previous one too, a reader that resolved it before the swap still finds it
 func pruneFolderGens(gens, gen, prev string) {
 	entries, err := os.ReadDir(gens)
 	if err != nil {
@@ -479,8 +436,6 @@ func pruneFolderGens(gens, gen, prev string) {
 	}
 }
 
-// pruneLegacyFolderThemes removes the per-change ryoku-folders-<digits> dirs the
-// old naming scheme leaked, never the still-active one (dropped next run).
 func pruneLegacyFolderThemes(base, cur string) {
 	entries, err := os.ReadDir(base)
 	if err != nil {

@@ -642,8 +642,7 @@ FocusScope {
                     }
                 }
 
-                // The catalogue's measured tier, the same outline as the trust tag;
-                // heavy reads in full ink so it is the one that stands out.
+                // heavy reads in full ink so it's the one that stands out
                 Rectangle {
                     objectName: "ryostore-detail-resource-tier"
                     visible: detail.resourceTierText !== ""

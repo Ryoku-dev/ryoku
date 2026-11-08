@@ -10,9 +10,7 @@ import (
 	"time"
 )
 
-// startLeader runs script as a process-group leader, the way the daemon starts
-// a shell, reads the pids it prints (one per line, then "up"), and waits for
-// the leader to exit, leaving its children behind as Quickshell does on SIGTERM.
+// the leader exits and leaves its children behind, the way Quickshell does on SIGTERM
 func startLeader(t *testing.T, script string) (int, []int) {
 	t.Helper()
 	cmd := exec.Command("sh", "-c", script)
@@ -52,7 +50,7 @@ func TestReapProcessGroupEndsHelpersTheShellLeft(t *testing.T) {
 	shellGroupGrace = 300 * time.Millisecond
 	t.Cleanup(func() { shellGroupGrace = old })
 
-	// A plain watcher, and one that ignores SIGTERM and needs the SIGKILL.
+	// the second one ignores SIGTERM and needs the SIGKILL
 	leader, helpers := startLeader(t, `
 		sleep 300 >/dev/null 2>&1 & echo $!
 		sh -c 'trap "" TERM; while :; do sleep 1; done' >/dev/null 2>&1 & echo $!
@@ -70,8 +68,6 @@ func TestReapProcessGroupEndsHelpersTheShellLeft(t *testing.T) {
 	}
 }
 
-// Apps opened from the shell are detached into their own session and must
-// survive a reload.
 func TestReapProcessGroupLeavesDetachedSessions(t *testing.T) {
 	old := shellGroupGrace
 	shellGroupGrace = 300 * time.Millisecond

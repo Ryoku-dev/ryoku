@@ -13,7 +13,7 @@ namespace {
 constexpr int ModelDataRole = Qt::UserRole;
 constexpr int FirstRole = Qt::UserRole + 1;
 
-// Keys compare as JS === would: 5 and "5" differ, 5 and 5.0 do not.
+// keys compare like JS ===, 5 and "5" differ but 5 and 5.0 do not
 QString keyText(const QJsonValue &v)
 {
     switch (v.type()) {
@@ -55,7 +55,7 @@ bool isQObject(const QVariant &v)
     return v.metaType().flags() & QMetaType::PointerToQObject;
 }
 
-// A suffix that no key text can contain tells duplicates apart by order.
+// a suffix no key text can contain tells duplicates apart by order
 QString occurrence(QHash<QString, int> &seen, const QString &base)
 {
     const int n = seen[base]++;
@@ -128,7 +128,7 @@ void BusListModel::setRoles(const QStringList &roles)
         m_roles = roles;
         return;
     }
-    // Views read role names once; new names need a reset.
+    // views read role names once so new names need a reset
     beginResetModel();
     m_roles = roles;
     endResetModel();
@@ -260,8 +260,7 @@ QList<BusListModel::Row> BusListModel::fromRows(bool *keyed) const
         return out;
     const int n = m_source.property(QStringLiteral("length")).toInt();
     out.reserve(n);
-    // With roles given only those keys (and the key and filter) are read, not
-    // the whole object.
+    // with roles given only those fields are read, not the whole object
     QStringList fields;
     if (!m_explicitRoles.isEmpty()) {
         fields = m_explicitRoles;
@@ -341,8 +340,7 @@ bool BusListModel::fieldEqual(const Row &a, const Row &b, const QString &name) c
 QList<int> BusListModel::changedRoles(const Row &a, const Row &b) const
 {
     QList<int> out;
-    // One deep compare settles the common unchanged row; with roles given an
-    // equal row has equal roles too.
+    // one deep compare settles the common unchanged row
     if (a.isLocal == b.isLocal && (a.isLocal ? a.local == b.local : a.json == b.json))
         return out;
     for (int i = 0; i < m_roles.size(); ++i)
@@ -392,8 +390,7 @@ void BusListModel::apply(QList<Row> next, bool keyed)
             endInsertRows();
             break;
         case buslistdiff::Op::Move: {
-            // Qt names the destination as the row it lands before, counted
-            // before the move.
+            // Qt wants the row it lands before, counted before the move
             const int dest = op.to > op.row ? op.to + 1 : op.to;
             beginMoveRows({}, op.row, op.row, {}, dest);
             m_rows.move(op.row, op.to);

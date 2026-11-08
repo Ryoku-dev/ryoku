@@ -1278,11 +1278,7 @@ func matugenReload(mode string, emitter kdePaletteSignalEmitter) {
 	nudgePalette()
 }
 
-// nudgePalette tells the shell to re-read the palette just written to
-// colors.json. Its readers otherwise learn of a change only through a file
-// watch, which can miss an atomic-rename replacement and strand them on a stale
-// palette; the watch stays as the fallback. Fire-and-forget so a restarting or
-// absent shell never stalls the paint worker.
+// the colors.json file watch can miss an atomic-rename replacement, so push the reload too
 func nudgePalette() {
 	go shellIpc("reloadPalette")
 }

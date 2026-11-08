@@ -9,7 +9,7 @@ namespace buslistdiff {
 
 namespace {
 
-// Indices into seq of one longest strictly increasing subsequence.
+// longest strictly increasing subsequence, as indices into seq
 QList<int> longestRun(const QList<int> &seq)
 {
     QList<int> tails;  // index into seq of the smallest tail of each length
@@ -99,8 +99,7 @@ QList<Op> diff(const QStringList &before, const QStringList &after)
             const int j = int(cur.indexOf(k, i + 1));
             if (j < 0)
                 return ops;  // unreachable with unique keys
-            // k keeps its place on the stable run, so the row in its way
-            // left that run: park it at the bottom until its turn comes.
+            // k stays on the stable run so the row in its way left it, park that row at the bottom
             if (stable.contains(k) && !stable.contains(cur.at(i))) {
                 const int last = int(cur.size()) - 1;
                 ops.append({Op::Move, i, 1, last, 0});

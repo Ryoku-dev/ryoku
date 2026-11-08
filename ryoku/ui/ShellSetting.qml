@@ -2,10 +2,6 @@ import QtQuick
 import Ryoku.Bus
 import Ryoku.Ui.Singletons
 
-// One shell setting as a bindable value. `value` moves only when a change
-// reaches its path (the key itself, inside it, or an ancestor) and the value
-// there differs, so a binding on bar.style sleeps through every unrelated
-// settings patch. The path check and the comparison run natively (BusValue).
 QtObject {
     id: setting
 
@@ -18,7 +14,6 @@ QtObject {
         path: setting.path
         fallback: setting.fallback
     }
-    // ShellSettings seeds the settings topic from shell.json before the daemon
-    // answers; reading it makes sure it exists.
+    // reading ShellSettings makes it seed the topic from shell.json before the daemon answers
     readonly property bool _seeded: ShellSettings.ready
 }

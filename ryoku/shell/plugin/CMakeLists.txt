@@ -1,17 +1,14 @@
 # Ryoku.Blobs: the SDF metaball plugin behind the screen frame (see
 # docs/frame.md). Ryoku.Spatial3D: the depth-displaced wallpaper mesh behind the
-# Stage scene (docs/stage.md). Ryoku.Bus: the native client of the ryoku-shell
-# daemon bus (socket and parsing on a worker thread, keyed list models). All are
-# standard Qt6 QML modules: qt_add_qml_module + AUTOMOC + qmltyperegistrar
-# register the QML_ELEMENT types, and qt_add_shaders bakes the metaball shaders
-# into the Blobs module as :/shaders/*.qsb.
+# Stage scene (docs/stage.md). Ryoku.Bus: the ryoku-shell daemon bus client.
+# All are standard Qt6 QML modules: qt_add_qml_module
+# + AUTOMOC + qmltyperegistrar register the QML_ELEMENT types, and qt_add_shaders
+# bakes the metaball shaders into the Blobs module as :/shaders/*.qsb.
 #
-# They produce dynamically loadable modules under
-# <build>/qml/Ryoku/{Blobs,Spatial3D,Bus} that Quickshell picks up from
-# QML2_IMPORT_PATH. build.sh wraps the configure/build and copies the modules
-# onto a QML import path; they ship prebuilt (the target has no build
-# toolchain). -DRYOKU_PLUGIN_TESTS=ON adds the QtTest suites under tests/ (run
-# with ctest).
+# They produce dynamically loadable modules under <build>/qml/Ryoku/{Blobs,Spatial3D,Bus}
+# that Quickshell picks up from QML2_IMPORT_PATH. build.sh wraps the configure/build
+# and copies the modules onto a QML import path; they ship prebuilt (the target
+# has no build toolchain).
 cmake_minimum_required(VERSION 3.28)
 
 project(ryoku-blobs LANGUAGES CXX)
@@ -95,7 +92,7 @@ qt_add_qml_module(ryoku-bus
         buslistmodel.cpp buslistmodel.hpp
 )
 
-# Public so the test suites that link the backing library see Qt's headers.
+# public so the tests linking the backing library get Qt's headers
 target_link_libraries(ryoku-bus PUBLIC Qt6::Qml Qt6::Network)
 
 set_target_properties(ryoku-bus ryoku-busplugin PROPERTIES

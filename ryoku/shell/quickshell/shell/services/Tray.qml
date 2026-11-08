@@ -46,8 +46,6 @@ Singleton {
         onUpdated: root.apply(topicFeed.data)
     }
 
-    // A daemon that went away takes its tray host with it; the bus resyncs the
-    // strip when it returns.
     Connections {
         target: Bus
         function onConnectedChanged() {

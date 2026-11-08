@@ -99,8 +99,7 @@ Singleton {
         onUpdated: root.apply(topicFeed.data)
     }
 
-    // The daemon owns the fetch but not the location: hand it over again on
-    // every (re)connect so a restarted daemon fetches the right place.
+    // the daemon owns the fetch but not the location, so resend it on reconnect
     Connections {
         target: Bus
         function onConnectedChanged() {

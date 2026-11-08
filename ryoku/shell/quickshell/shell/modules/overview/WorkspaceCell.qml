@@ -48,9 +48,7 @@ Item {
         repeat: false
         onTriggered: cell.appeared = true
     }
-    // The overview is resident and its cells now outlive a workspace frame, so
-    // each settles back out once the surface has unmapped and every open plays
-    // the entrance again.
+    // cells outlive the overview closing, so they settle back out and every open plays the entrance again
     Timer {
         interval: Motion.window
         running: !!cell.ov && !cell.ov.active && cell.appeared
@@ -112,9 +110,6 @@ Item {
     readonly property bool tape: cell.geom.tape
     readonly property var viewportFrac: cell.geom.vp
 
-    // The tiles follow a keyed copy of cards: a retitle or a frame for another
-    // workspace leaves every tile and its one-shot capture in place, and a moved
-    // window glides to its new box.
     BusListModel {
         id: cardRows
         key: "addr"
@@ -123,8 +118,7 @@ Item {
     }
 
     // distinct app icons open on this workspace (dedup by class, capped), for the
-    // small roster under the number badge. Adopted only when the list differs,
-    // so the roster is not rebuilt for an unrelated frame.
+    // small roster under the number badge.
     readonly property var _liveAppIcons: {
         var seen = ({});
         var out = [];

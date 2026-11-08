@@ -66,8 +66,7 @@ ShellRoot {
         }
     }
 
-    // Drive navigation from the daemon (`ryoku-shell hub open <key>`, over the
-    // bus) or the CLI (`qs -c hub ipc call nav open <key>`).
+    // Drive navigation from the daemon or the CLI (`qs -c hub ipc call nav open <key>`).
     BusIpcHandler {
         target: "nav"
         function open(section: string): void { hubItem.navigate(section); }

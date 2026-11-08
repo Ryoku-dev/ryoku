@@ -7,8 +7,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-// A private runtime dir for the bus socket and an engine with Ryoku.Bus
-// loaded from the build tree, so tests never reach a live session's daemon.
+// private runtime dir so tests never reach a live session's daemon
 struct BusTestEnv {
     QTemporaryDir dir;
 
@@ -23,7 +22,6 @@ struct BusTestEnv {
         engine.addImportPath(QStringLiteral(RYOKU_BUS_QML_DIR));
     }
 
-    // Creates a QML object from source (the import line is added).
     static QObject *create(QQmlEngine &engine, const QByteArray &body)
     {
         QQmlComponent c(&engine);

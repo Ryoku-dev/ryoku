@@ -10,10 +10,6 @@
 #include <QStringList>
 #include <QtQml/qqmlregistration.h>
 
-// One value inside a topic frame, e.g. BusValue { topic: "settings"; path:
-// "bar.style" }. value changes only when the value at path does: a patch that
-// does not reach the path is skipped without a look, and a full frame that is
-// equal there changes nothing. fallback stands in while the path is missing.
 class BusValue : public QObject, public QQmlParserStatus, public BusListener
 {
     Q_OBJECT

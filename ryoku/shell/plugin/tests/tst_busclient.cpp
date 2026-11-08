@@ -18,7 +18,6 @@ class TestBusClient : public QObject
 {
     Q_OBJECT
 
-    // A JS collector: rec(...) appends its arguments to got.
     QJSValue collector(QQmlEngine &engine)
     {
         engine.globalObject().setProperty("got", engine.newArray());
@@ -100,7 +99,6 @@ private slots:
         QTRY_COMPARE(gotCount(engine), 2);
         QCOMPARE(gotAt(engine, 1, 0), QJsonValue(obj(R"({"bar":{"style":"k"},"dock":{"n":1}})")));
         QCOMPARE(gotAt(engine, 1, 1), QJsonValue(obj(R"({"rev":2,"paths":[["bar","style"]]})")));
-        // untouched subtrees keep their identity across the patch
         QJSValue first = got(engine).property(0).property(0);
         QJSValue second = got(engine).property(1).property(0);
         QVERIFY(first.property("dock").strictlyEquals(second.property("dock")));
@@ -115,7 +113,6 @@ private slots:
         daemon.send(obj(R"({"op":"state","topic":"settings","rev":6,"data":{"bar":{"style":"r"}}})"));
         QTRY_COMPARE(gotCount(engine), 3);
         QCOMPARE(gotAt(engine, 2, 1), QJsonValue(obj(R"({"rev":6,"paths":null})")));
-        // back in step: patches apply again
         daemon.send(obj(R"({"op":"state","topic":"settings","rev":7,"base":6,"patch":[{"p":["bar"],"x":true}]})"));
         QTRY_COMPARE(gotCount(engine), 4);
         QCOMPARE(gotAt(engine, 3, 0), QJsonValue(QJsonObject()));
@@ -178,7 +175,6 @@ private slots:
         QVERIFY(!bus->cancel(first));
         for (int i = 0; i < BusClient::QueueMax; ++i)
             bus->run(QStringLiteral("fill%1").arg(i), cb);
-        // the oldest is dropped with an error once the queue is full
         QCOMPARE(bus->queued(), BusClient::QueueMax);
         QCOMPARE(gotCount(engine), 1);
         QCOMPARE(gotAt(engine, 0, 2), QJsonValue("queue full"));

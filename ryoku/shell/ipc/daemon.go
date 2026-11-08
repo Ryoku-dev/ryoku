@@ -1206,8 +1206,6 @@ func (d *daemon) handle(conn net.Conn) {
 		fmt.Fprintln(conn, d.keyringRespond(cmd, strings.TrimRight(secret, "\r\n")))
 		return
 	}
-	// One bus connection per Quickshell process multiplexes everything below
-	// (bus.go).
 	if strings.HasPrefix(cmd, "bus ") {
 		d.serveBus(conn, r, strings.TrimPrefix(cmd, "bus "))
 		return
@@ -1227,7 +1225,6 @@ func (d *daemon) handle(conn net.Conn) {
 		fmt.Fprintln(conn, d.clipCopy(cmd))
 		return
 	}
-	// `ryoku-shell ipc` args ride as JSON so empty and spaced ones survive.
 	if strings.HasPrefix(cmd, "ipc ") {
 		fmt.Fprintln(conn, ipcRequest(strings.TrimPrefix(cmd, "ipc ")))
 		return
@@ -1262,9 +1259,6 @@ var surfaceCommands = map[string]string{
 	"menu app-launcher":   "launcher",
 }
 
-// route resolves a surface command to the openSurface id the single shell
-// routes it to. ok is false for commands that are not one surface toggle
-// (wallpaper, reload, status, ...).
 func route(cmd string) (id string, ok bool) {
 	if id, ok := surfaceCommands[cmd]; ok {
 		return id, true

@@ -9,9 +9,7 @@
 
 class QLocalSocket;
 
-// A stand-in for the ryoku-shell daemon socket: accepts bus connections on
-// <dir>/ryoku-shell.sock, records every line a client writes and sends what a
-// test hands it. Runs on the test thread; the QTRY_ macros spin its loop.
+// runs on the test thread, the QTRY_ macros spin its loop
 class FakeDaemon : public QObject
 {
     Q_OBJECT
@@ -21,9 +19,8 @@ public:
     bool listen();
     void close();
 
-    // Lines from the newest connection, the handshake ("bus {...}") first.
     QStringList lines() const { return m_lines; }
-    // Lines whose op is op, parsed; the bus line has op "bus".
+    // the bus line has op "bus"
     QList<QJsonObject> ops(const QString &op) const;
     int connections() const { return m_connections; }
     bool connected() const;

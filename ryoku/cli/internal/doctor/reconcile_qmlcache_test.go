@@ -8,8 +8,6 @@ import (
 	"time"
 )
 
-// qmlCacheFixture points XDG_CACHE_HOME at a scratch dir and returns the
-// qmlcache path inside it, not yet created.
 func qmlCacheFixture(t *testing.T) string {
 	t.Helper()
 	cache := t.TempDir()
@@ -37,8 +35,6 @@ func exists(p string) bool {
 	return err == nil
 }
 
-// TestQMLCacheMissingDir: a box that never ran the shell has nothing to prune,
-// and the doctor must not create the directory.
 func TestQMLCacheMissingDir(t *testing.T) {
 	dir := qmlCacheFixture(t)
 	for _, checkOnly := range []bool{true, false} {
@@ -51,9 +47,6 @@ func TestQMLCacheMissingDir(t *testing.T) {
 	}
 }
 
-// TestQMLCachePrunesOnlyUnused: files untouched for 30 days go; a file read
-// recently stays even with an old mtime, and a file rewritten recently stays
-// even with an old atime (noatime mounts).
 func TestQMLCachePrunesOnlyUnused(t *testing.T) {
 	dir := qmlCacheFixture(t)
 	now := time.Now()
@@ -99,8 +92,6 @@ func TestQMLCachePrunesOnlyUnused(t *testing.T) {
 	}
 }
 
-// TestQMLCacheLeavesNonFilesAlone: only regular files are cache units; a
-// symlink is never followed or removed.
 func TestQMLCacheLeavesNonFilesAlone(t *testing.T) {
 	dir := qmlCacheFixture(t)
 	old := time.Now().Add(-40 * 24 * time.Hour)

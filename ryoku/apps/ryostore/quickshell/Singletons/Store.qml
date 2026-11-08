@@ -102,7 +102,6 @@ Singleton {
         return I18n.tr("Installation failed");
     }
 
-    // The catalogue's measured tier for a subshell or bar style, as one word.
     function resourceTierLabel(item) {
         const tier = StoreLogic.resourceTier(item);
         if (tier === "light")
@@ -114,8 +113,6 @@ Singleton {
         return "";
     }
 
-    // Why the backend advises against an item here, from the machine the
-    // catalogue was built on. A note only; nothing is refused.
     function notRecommendedNote(item) {
         if (!StoreLogic.isNotRecommended(item))
             return "";

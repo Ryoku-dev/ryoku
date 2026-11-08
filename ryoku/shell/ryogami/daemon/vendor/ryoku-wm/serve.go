@@ -8,20 +8,12 @@ import (
 	"io"
 )
 
-// A provider's `serve` verb answers one-shot verbs over a pipe, so a daemon pays
-// one process start for a session of keybinds instead of one per key. Only the
-// verbs that read or act and then return are served: watch streams forever and
-// apply authors config files, and both keep their own process.
-
-// ServeRequest is one line on the provider's stdin.
 type ServeRequest struct {
 	ID   uint64   `json:"id"`
 	Argv []string `json:"argv"`
 }
 
-// ServeReply answers exactly one request on the provider's stdout, in request
-// order. Out is what the one-shot verb would have printed; Err is the error the
-// one-shot verb would have reported on stderr, without the program prefix.
+// Err is what the one-shot verb would print on stderr, without the program prefix
 type ServeReply struct {
 	ID  uint64 `json:"id"`
 	OK  bool   `json:"ok"`
@@ -29,17 +21,12 @@ type ServeReply struct {
 	Err string `json:"err,omitempty"`
 }
 
-// Served reports whether a warm provider answers verb.
+// watch never returns and apply writes config, so both keep their own process
 func Served(verb string) bool { return verb == "act" || verb == "caps" }
 
-// serveMaxLine bounds one request; argv is a handful of short tokens.
 const serveMaxLine = 1 << 20
 
-// Serve answers requests from in until EOF, one at a time and in order. verbOut
-// is the buffered writer the provider's verbs print to: while run executes it
-// points at a buffer of that request alone, so nothing a verb prints can land
-// between two reply lines or in another request's answer. A panic in run
-// answers that request with an error rather than ending the session.
+// verbOut writes into the running request's buffer, so a verb's output never lands in another reply
 func Serve(in io.Reader, out io.Writer, verbOut *bufio.Writer, run func(argv []string) error) error {
 	scan := bufio.NewScanner(in)
 	scan.Buffer(make([]byte, 0, 4096), serveMaxLine)
@@ -88,8 +75,7 @@ func serveOne(argv []string, buf *bytes.Buffer, verbOut *bufio.Writer, out io.Wr
 		if p := recover(); p != nil {
 			err = fmt.Errorf("panic: %v", p)
 		}
-		// Flush before pointing back at out, so a verb that printed a partial
-		// result and then failed still reports what it managed, as one-shot does.
+		// flush before switching back so a verb that failed halfway still reports its output, like one-shot
 		if ferr := verbOut.Flush(); err == nil {
 			err = ferr
 		}

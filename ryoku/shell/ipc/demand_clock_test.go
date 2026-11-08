@@ -6,9 +6,6 @@ import (
 	"time"
 )
 
-// fakeClock drives the demand-driven producers (weather, updates) in tests:
-// it records every timer the loop arms, and advance fires the ones that come
-// due.
 type fakeClock struct {
 	mu     sync.Mutex
 	t      time.Time
@@ -46,7 +43,6 @@ func (c *fakeClock) after(d time.Duration) (<-chan time.Time, func() bool) {
 	}
 }
 
-// created counts every timer ever armed.
 func (c *fakeClock) created() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -65,7 +61,6 @@ func (c *fakeClock) advance(d time.Duration) {
 	}
 }
 
-// live counts armed timers that are neither stopped nor fired.
 func (c *fakeClock) live() int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -78,9 +73,7 @@ func (c *fakeClock) live() int {
 	return n
 }
 
-// waitArmed waits until exactly one timer is live and returns how far ahead
-// of now it is due. The loop may re-arm an identical timer when a demand
-// signal races its start, so the live timer, not each arm, is what counts.
+// the loop may re-arm an identical timer when a demand signal races its start, so count live timers
 func (c *fakeClock) waitArmed(t *testing.T) time.Duration {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -115,7 +108,6 @@ func (c *fakeClock) waitNoLive(t *testing.T) {
 	}
 }
 
-// fakeRuns counts producer work (fetches, spawns) and lets a test wait for it.
 type fakeRuns struct {
 	mu   sync.Mutex
 	n    int

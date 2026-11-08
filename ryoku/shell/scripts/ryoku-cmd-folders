@@ -1,3 +1,2 @@
 #!/usr/bin/env bash
-# Tint the folder icons to the wallpaper accent (or the given colour).
 exec ryoku-shell folders "$@"

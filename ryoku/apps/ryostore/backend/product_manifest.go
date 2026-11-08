@@ -157,8 +157,7 @@ type ProductEntry struct {
 	// RequiresQmlModules is accepted from the registry and not used here.
 	Provides           *ProductProvides `json:"provides,omitempty"`
 	RequiresQmlModules []string         `json:"requiresQmlModules,omitempty"`
-	// Metadata carries a subshell's or bar style's measured resource tier and
-	// its delta against Orpheus (resource_tier.go). Optional.
+	// optional, measured against Orpheus by the catalogue
 	Metadata *ProductMetadata `json:"metadata,omitempty"`
 }
 

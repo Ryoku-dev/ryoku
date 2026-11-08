@@ -18,8 +18,6 @@ class QJSEngine;
 class QQmlEngine;
 class QThread;
 
-// A C++ reader of a topic (BusValue, BusListModel). paths is null for a full
-// frame, else the keys the patch changed. Events are not delivered.
 class BusListener
 {
 public:
@@ -27,11 +25,6 @@ public:
     virtual void busFrame(const QJsonValue &data, const QList<QStringList> *paths) = 0;
 };
 
-// The one connection this process keeps to the ryoku-shell daemon (wire
-// protocol in ryoku/shell/ipc/bus.go). Every topic subscription, daemon call
-// and verb, cross-process IpcHandler call and served target shares it. The
-// socket, framing and parsing run on a worker thread; this side converts a
-// frame to JS once, and only when a JS subscriber reads the topic.
 class BusClient : public QObject
 {
     Q_OBJECT
@@ -47,22 +40,16 @@ public:
     explicit BusClient(QJSEngine *engine, QObject *parent = nullptr);
     ~BusClient() override;
     static BusClient *create(QQmlEngine *qml, QJSEngine *js);
-    // The instance for the engine that owns obj, or null outside QML.
     static BusClient *of(QObject *obj);
 
     bool connected() const { return m_connected; }
     QString socketPath() const;
     QString clientName() const;
 
-    // fn(data, info): info is {rev, paths} for state (paths null on a full
-    // frame) or {seq, dropped, event: true} for an ordered event. Called at
-    // once with the cached frame. data is shared by every subscriber in the
-    // process; never mutate it.
+    // data is shared by every subscriber, never mutate it
     Q_INVOKABLE int subscribe(const QString &topic, const QJSValue &fn);
     Q_INVOKABLE void unsubscribe(int token);
 
-    // Each returns a request id; cancel(id) drops it while it is still queued
-    // (its callback is then never called) and reports whether it did.
     Q_INVOKABLE int call(const QString &method, const QJSValue &args = QJSValue(), const QJSValue &cb = QJSValue());
     Q_INVOKABLE int run(const QString &line, const QJSValue &cb = QJSValue(), const QJSValue &stdinText = QJSValue());
     Q_INVOKABLE int ipc(const QString &target, const QString &fn, const QJSValue &args = QJSValue(),
@@ -73,20 +60,16 @@ public:
 
     Q_INVOKABLE void serve(const QString &target, const QJSValue &handler);
     Q_INVOKABLE void unserve(const QString &target, const QJSValue &handler);
-    // handler serves exactly target from now on ("" = nothing).
     Q_INVOKABLE void serveAs(const QJSValue &handler, const QString &target);
 
-    // A frame from elsewhere (ShellSettings reads shell.json at start and while
-    // the daemon is away). Ignored once the daemon has sent the topic on the
-    // current connection; the next daemon frame replaces it.
+    // ShellSettings seeds from shell.json while the daemon is away, a daemon frame always wins
     Q_INVOKABLE void seed(const QString &topic, const QJSValue &data);
 
     void listen(const QString &topic, BusListener *listener);
     void unlisten(const QString &topic, BusListener *listener);
-    // The topic's current frame; false when there is none yet.
     bool frame(const QString &topic, QJsonValue *data) const;
 
-    // For tests.
+    // for tests
     int queued() const { return int(m_queue.size()); }
     bool isOpen() const { return m_open; }
 

@@ -20,8 +20,7 @@ Singleton {
         const preferred = Bluetooth.defaultAdapter;
         return preferred && adapters.indexOf(preferred) >= 0 ? preferred : adapters[0];
     }
-    // The daemon's `bluetooth` frame covers what Quickshell's BlueZ client cannot:
-    // bluetoothd started after the shell, or gone while Quickshell keeps the adapter.
+    // covers what Quickshell's BlueZ client misses, bluetoothd starting late or gone while the adapter stays
     property var feed: null
     readonly property var view: Feed.resolve(root.quickshellAdapter !== null,
         root.quickshellAdapter?.enabled ?? false, root.feed)
@@ -35,7 +34,7 @@ Singleton {
     property bool softBlocked: false
     property bool hardBlocked: false
 
-    // Last power choice made here: -1 none, 0 off, 1 on.
+    // -1 no choice yet, 0 off, 1 on
     property int wanted: -1
     readonly property bool settled: Rfkill.settled(root.wanted, root.enabled, root.blocked)
     readonly property int adapterState: root.adapter?.state ?? -1
@@ -82,8 +81,6 @@ Singleton {
             root.feed = frame;
     }
 
-    // A daemon without the topic never sends a frame, so feed stays null and
-    // Quickshell's own adapter view is used, as with no daemon at all.
     BusTopic {
         id: topicFeed
         topic: "bluetooth"
@@ -108,7 +105,7 @@ Singleton {
         }
     }
 
-    // A platform switch can flip rfkill while its controller is gone from BlueZ, with no signal.
+    // a platform switch can flip rfkill while its controller is gone from BlueZ, with no signal
     Timer {
         id: recheck
         interval: Rfkill.firstRecheck

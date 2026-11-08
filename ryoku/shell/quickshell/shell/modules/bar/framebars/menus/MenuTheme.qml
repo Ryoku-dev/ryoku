@@ -36,8 +36,6 @@ Item {
     // Go `theme` topic replaces this with a subscribed frame.
     readonly property var schemes: schemeSource.catalog
 
-    // The applied scheme id. Reflected from daemon settings and set
-    // optimistically on click so the badge tracks the pick immediately.
     property string activeId: ""
 
     implicitHeight: col.implicitHeight
@@ -53,8 +51,6 @@ Item {
         ShellSettings.patch("theme.theme", id);
     }
 
-    // An absent or non-string value leaves the optimistic selection untouched
-    // rather than wedging the picker.
     function syncActive() {
         if (typeof appliedTheme.value === "string")
             root.activeId = appliedTheme.value;

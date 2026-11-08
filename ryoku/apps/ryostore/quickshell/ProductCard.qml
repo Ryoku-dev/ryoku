@@ -83,7 +83,6 @@ Item {
 
                 Text {
                     id: position
-                    // A measured subshell or bar style names its tier beside its category.
                     readonly property string tier: Store.resourceTierLabel(card.item)
                     objectName: "ryostore-card-category"
                     text: String(card.item && (card.item.categoryName || card.item.category) || "").toUpperCase()

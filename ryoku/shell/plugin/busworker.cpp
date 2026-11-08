@@ -54,8 +54,7 @@ void BusWorker::start()
     connect(m_retry, &QTimer::timeout, this, &BusWorker::dial);
     connect(m_sock, &QLocalSocket::connected, this, &BusWorker::opened);
     connect(m_sock, &QLocalSocket::readyRead, this, &BusWorker::readable);
-    // A failed dial reports only an error, with the state still unconnected; a
-    // dropped peer reports the error and then the state change.
+    // a failed dial only reports an error, a dropped peer reports the error and then the state change
     connect(m_sock, &QLocalSocket::stateChanged, this, [this](QLocalSocket::LocalSocketState s) {
         if (s == QLocalSocket::UnconnectedState)
             down();
@@ -89,8 +88,7 @@ void BusWorker::dial()
     m_sock->connectToServer(m_path);
 }
 
-// Everything rides behind the bus line at once; the daemon reads the
-// connection in order, so nothing waits for hello.
+// the daemon reads the connection in order so nothing waits for hello
 void BusWorker::opened()
 {
     m_retry->stop();
@@ -216,8 +214,7 @@ void BusWorker::enqueue(QList<BusInbound> &queue, BusInbound in)
                 break;
             if (o.kind != BusInbound::State || o.topic != in.topic)
                 continue;
-            // The newest frame wins; a delta on top of a queued delta keeps
-            // both patches so the JS copy still applies them in order.
+            // a delta on a queued delta keeps both patches so the JS copy applies them in order
             if (in.delta && o.delta) {
                 for (const QJsonValue &op : std::as_const(in.patch))
                     o.patch.append(op);

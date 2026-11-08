@@ -109,8 +109,7 @@ func (d *daemon) desktopCommand() (*exec.Cmd, *desktopRun, error) {
 	return cmd, run, nil
 }
 
-// residentShell is the plain `qs -c shell`. Like an item runtime it leads its
-// own process group, so stopping the shell reaches every helper it started.
+// own process group like an item runtime, so stopping the shell reaches every helper it started
 func (d *daemon) residentShell() *exec.Cmd {
 	cmd := exec.Command("qs", qsSelect("shell")...)
 	cmd.Env = d.shellQsEnv()
@@ -150,7 +149,6 @@ func (d *daemon) markRuntimeRunIntentional() {
 	d.runtimeRunMu.Unlock()
 }
 
-// terminateDesktop stops a shell run and the helpers in its process group.
 func terminateDesktop(cmd *exec.Cmd, exited <-chan struct{}) {
 	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	go func() {

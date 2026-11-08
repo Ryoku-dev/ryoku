@@ -243,9 +243,7 @@ Singleton {
         return d && typeof d === "object" ? d : ({});
     }
 
-    // The adapter keys, each read from the frame by its top-level name. A key
-    // that is absent or of the wrong type reads as its shipped default, which is
-    // the adapter's initial value captured once at start.
+    // a missing or mistyped key falls back to the adapter's initial value
     readonly property var adapterKeys: [
         "frameEnabled", "frameOpacity", "frameThickness", "frameCorner", "osdRadius",
         "osdOpacity", "deckFrostEnabled", "deckFrost", "fontScale", "fontFamily",
@@ -275,9 +273,7 @@ Singleton {
         }
     }
 
-    // paths: null for a full frame, else the changed paths (arrays of keys).
-    // Only the touched top-level keys are re-read, so an object-valued setting
-    // keeps its identity (and its bindings stay quiet) when something else moved.
+    // only touched keys are re-read so object settings keep their identity and bindings stay quiet
     function applySettings(paths) {
         const frame = root.settingsFrame();
         let keys = root.adapterKeys;
@@ -299,7 +295,7 @@ Singleton {
 
     Connections {
         target: ShellSettings
-        // lastPaths, not the signal argument, which arrives as a QML sequence.
+        // lastPaths since the signal argument arrives as a QML sequence
         function onChanged() { root.applySettings(ShellSettings.lastPaths); }
     }
 
@@ -506,8 +502,7 @@ Singleton {
         }
     }
 
-    // First-run seed only: the daemon owns shell.json and serialises every
-    // writer, so the shell writes it just when the start-up read found nothing.
+    // first-run seed only, the daemon owns shell.json after that
     FileView {
         id: seedFile
         preload: false

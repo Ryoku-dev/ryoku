@@ -15,9 +15,7 @@ import (
 	"time"
 )
 
-// The warm-path tests run this test binary as the provider: with fakeProviderEnv
-// set it behaves as ryoku-wm-fakewm, logging every process start to
-// FAKE_STARTS and every verb it runs to FAKE_RUNS.
+// the test binary doubles as the provider when fakeProviderEnv is set
 const fakeProviderEnv = "RYOKU_WM_FAKE_PROVIDER"
 
 func TestMain(m *testing.M) {
@@ -109,8 +107,6 @@ func (l fakeLogs) count(path, line string) int {
 	return n
 }
 
-// fakeProviderDir puts ryoku-wm-fakewm first on PATH, pointing at this test
-// binary, and returns where its logs land.
 func fakeProviderDir(t *testing.T) (string, fakeLogs) {
 	t.Helper()
 	dir := t.TempDir()
@@ -150,8 +146,6 @@ func actPid(t *testing.T, c *Client) int {
 	return pid
 }
 
-// The point of the warm path: a hundred actions, plus the caps probe, cost one
-// provider start, each answer is its own, and caps is still asked only once.
 func TestWarmProviderServesManyActsFromOneProcess(t *testing.T) {
 	_, logs := fakeProviderDir(t)
 	c := warmClient(t)
@@ -182,7 +176,6 @@ func TestWarmProviderServesManyActsFromOneProcess(t *testing.T) {
 	}
 }
 
-// A served failure reads exactly like the one-shot failure it replaces.
 func TestWarmProviderFailureMatchesOneShot(t *testing.T) {
 	fakeProviderDir(t)
 	_, warmErr := warmClient(t).ActOutput("fail", "no", "session")
@@ -195,8 +188,6 @@ func TestWarmProviderFailureMatchesOneShot(t *testing.T) {
 	}
 }
 
-// A child that dies mid-request does not lose the call, and the next start
-// waits out the backoff instead of forking a fresh child per call.
 func TestWarmProviderRespawnsAfterDeath(t *testing.T) {
 	_, logs := fakeProviderDir(t)
 	c := warmClient(t)
@@ -229,8 +220,6 @@ func TestWarmProviderRespawnsAfterDeath(t *testing.T) {
 	}
 }
 
-// A request whose ctx ends kills the warm child, and the fallback reports the
-// cancellation without running the action a second time.
 func TestWarmProviderTimeoutKillsChild(t *testing.T) {
 	_, logs := fakeProviderDir(t)
 	c := warmClient(t)
@@ -255,7 +244,6 @@ func TestWarmProviderTimeoutKillsChild(t *testing.T) {
 	}
 }
 
-// While the warm child is busy, a concurrent call does not queue behind it.
 func TestWarmProviderBusyFallsBackToOneShot(t *testing.T) {
 	fakeProviderDir(t)
 	c := warmClient(t)
@@ -284,8 +272,6 @@ func TestWarmProviderBusyFallsBackToOneShot(t *testing.T) {
 	}
 }
 
-// A provider older than the serve verb refuses it once; after that the same
-// binary is asked one-shot only, even past the backoff.
 func TestWarmProviderOldProviderStaysOneShot(t *testing.T) {
 	_, logs := fakeProviderDir(t)
 	t.Setenv("FAKE_NO_SERVE", "1")
@@ -307,8 +293,6 @@ func TestWarmProviderOldProviderStaysOneShot(t *testing.T) {
 	}
 }
 
-// A package update replaces the provider binary; the next call runs the new
-// one instead of the process started from the old file.
 func TestWarmProviderRestartsOnReplacedBinary(t *testing.T) {
 	dir, logs := fakeProviderDir(t)
 	c := warmClient(t)
@@ -319,7 +303,7 @@ func TestWarmProviderRestartsOnReplacedBinary(t *testing.T) {
 	if err := os.Symlink(exe, next); err != nil {
 		t.Fatal(err)
 	}
-	// A copy, so the replacement is a different file, as pacman leaves it.
+	// a copy so it's a different file, like pacman leaves it
 	b, err := os.ReadFile(exe)
 	if err != nil {
 		t.Fatal(err)
@@ -343,7 +327,6 @@ func TestWarmProviderRestartsOnReplacedBinary(t *testing.T) {
 	}
 }
 
-// A client that never opts in keeps today's one process per call.
 func TestOneShotClientNeverStartsServe(t *testing.T) {
 	_, logs := fakeProviderDir(t)
 	c := OpenNamed("fakewm")
@@ -360,7 +343,6 @@ func TestOneShotClientNeverStartsServe(t *testing.T) {
 	}
 }
 
-// shortIdle shortens the idle timeout for clients enabled after it.
 func shortIdle(t *testing.T, d time.Duration) {
 	t.Helper()
 	prev := warmIdleTimeout
@@ -380,9 +362,6 @@ func waitGone(t *testing.T, pid int, within time.Duration) bool {
 	return false
 }
 
-// An idle desktop holds only the watch process: the warm child leaves on its
-// own after the idle timeout, and the next call starts a new one at once,
-// warm, with no backoff charged for the exit.
 func TestWarmProviderExitsWhenIdle(t *testing.T) {
 	shortIdle(t, 200*time.Millisecond)
 	_, logs := fakeProviderDir(t)
@@ -415,8 +394,6 @@ func TestWarmProviderExitsWhenIdle(t *testing.T) {
 	}
 }
 
-// Requests that keep coming, and one that runs past the timeout, keep the
-// same child: the countdown starts only when a request finishes.
 func TestWarmProviderStaysWhileUsed(t *testing.T) {
 	shortIdle(t, 300*time.Millisecond)
 	_, logs := fakeProviderDir(t)

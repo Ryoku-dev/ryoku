@@ -10,8 +10,6 @@ import (
 	wm "ryoku-wm"
 )
 
-// serveLines runs the serve verb over the given request lines and decodes every
-// reply it wrote before stdin ended.
 func serveLines(t *testing.T, lines ...string) []wm.ServeReply {
 	t.Helper()
 	prevOut := stdout
@@ -33,9 +31,6 @@ func serveLines(t *testing.T, lines ...string) []wm.ServeReply {
 	return replies
 }
 
-// A warm provider must answer exactly as the one-shot verbs do: same request to
-// wayfire, output kept to the request that printed it, the act error text
-// unchanged, and verbs it does not serve refused rather than run.
 func TestServeRunsActAndCapsInOrder(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 	replies := stageReplies()

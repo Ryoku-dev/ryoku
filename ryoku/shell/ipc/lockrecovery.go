@@ -87,8 +87,6 @@ func (p *lockRecoveryPolicy) step(secure bool) (bool, error) {
 	return true, launch()
 }
 
-// watch polls the lock proof only while a session lock is held; otherwise it
-// sleeps until confirmed() wakes it. skip pauses steps (generation cutover).
 func (p *lockRecoveryPolicy) watch(quit <-chan struct{}, poll time.Duration, skip, secure func() bool) {
 	for {
 		if !p.active() {

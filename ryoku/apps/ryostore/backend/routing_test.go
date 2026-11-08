@@ -37,8 +37,7 @@ func TestSettingsSectionRoutesStoreCategories(t *testing.T) {
 	}
 }
 
-// fakeRyokuShell puts a ryoku-shell on PATH that logs each call's argv, one
-// bracketed entry per argument so an empty argument stays visible.
+// one bracketed entry per argument so an empty one stays visible
 func fakeRyokuShell(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -79,7 +78,6 @@ func TestDockSettingsOpenTheDesktopEditor(t *testing.T) {
 	}
 }
 
-// A daemon refusal (no shell, unknown section) reaches the caller with its reason.
 func TestSettingsReportsTheDaemonRefusal(t *testing.T) {
 	fakeRyokuShell(t, "echo 'err ryoku-shell is not running' >&2\nexit 1\n")
 	err := dispatch([]string{"settings", "rices"})

@@ -7,11 +7,7 @@ import (
 	"strings"
 )
 
-// Resource tiers are measured by the catalogue, one record per subshell or bar
-// style against the shipped Orpheus (ryostore-revamped measurements/), and
-// published on the registry row as metadata.resourceTier with the measured
-// metadata.resourceDelta. Ryostore shows them and, on a modest Machine, advises
-// against the heavy ones; it never refuses one.
+// tiers come from the catalogue's lab runs against Orpheus (ryostore-revamped measurements/)
 const (
 	tierLight    = "light"
 	tierStandard = "standard"
@@ -22,16 +18,11 @@ func validResourceTier(tier string) bool {
 	return tier == tierLight || tier == tierStandard || tier == tierHeavy
 }
 
-// ProductMetadata is the registry row's metadata object. Only the measured
-// resource cost is defined; any other key fails the registry like any other
-// unknown field.
 type ProductMetadata struct {
 	ResourceTier  string         `json:"resourceTier"`
 	ResourceDelta *ResourceDelta `json:"resourceDelta,omitempty"`
 }
 
-// ResourceDelta is the measured difference from Orpheus on the lab machine:
-// proportional memory, GPU memory, CPU, wakeups and process launches.
 type ResourceDelta struct {
 	PSSMB          float64 `json:"pssMB"`
 	GPUMB          float64 `json:"gpuMB"`
@@ -81,8 +72,6 @@ func validateProductMetadata(category string, metadata *ProductMetadata) error {
 	return nil
 }
 
-// itemMetadata is the item-side copy of a registry row's metadata, in the
-// item's open metadata map the app and the Hub gallery read.
 func itemMetadata(metadata *ProductMetadata) map[string]any {
 	if metadata == nil {
 		return nil
@@ -102,11 +91,7 @@ func itemResourceTier(item *Item) string {
 	return ""
 }
 
-// recommendRank orders one shell category on a modest machine: the shipped
-// base (Orpheus, Kairos: what every tier is measured against, held by the
-// performance budget) and light items first, then standard, then items nobody
-// has measured yet, then heavy. A machine with headroom ranks everything the
-// same, so the category stays A to Z.
+// the shipped base leads since every tier is measured against it
 func recommendRank(item *Item, machine Machine) int {
 	if !machine.Modest || isBuiltinCatalogItem(*item) {
 		return 0
@@ -123,10 +108,7 @@ func recommendRank(item *Item, machine Machine) int {
 	}
 }
 
-// adviseShellItems marks the heavy subshells or bar styles of one category not
-// recommended on a modest machine and sorts the category into recommendation
-// order (rank, then display name, then id), which is the order the store and
-// the Hub gallery list them in.
+// the store and the Hub gallery both list a category in this order
 func adviseShellItems(items []Item, machine Machine) {
 	for i := range items {
 		items[i].NotRecommended = machine.Modest && itemResourceTier(&items[i]) == tierHeavy

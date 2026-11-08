@@ -247,7 +247,6 @@ Item {
                     readonly property bool updatable: designCard.modelData.updateAvailable === true
                         && designCard.modelData.version.length > 0
                         && !designCard.modelData.unavailable && !designCard.modelData.downloadPaused
-                    // ▲ heavy, △ standard, nothing for light or unmeasured.
                     readonly property string tierMark: Tier.markOf(designCard.modelData.resourceTier)
                     readonly property bool subshell: designCard.modelData.category === "subshells"
                     readonly property string subText: {

@@ -10,8 +10,6 @@ import (
 	wm "ryoku-wm"
 )
 
-// serveLines runs the serve verb over the given request lines and decodes every
-// reply it wrote before stdin ended.
 func serveLines(t *testing.T, lines ...string) []wm.ServeReply {
 	t.Helper()
 	prevOut := stdout
@@ -33,9 +31,6 @@ func serveLines(t *testing.T, lines ...string) []wm.ServeReply {
 	return replies
 }
 
-// A warm provider must answer exactly as the one-shot verbs do: same argv to
-// hyprctl, output kept to the request that printed it, the act error text
-// unchanged, and verbs it does not serve refused rather than run.
 func TestServeRunsActAndCapsInOrder(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	var sent [][]string
@@ -69,7 +64,7 @@ func TestServeRunsActAndCapsInOrder(t *testing.T) {
 		t.Errorf("workspace.focus reply = %+v, want ok and silent", r)
 	}
 	want := []string{"dispatch", `hl.dsp.focus({ workspace = "9" })`}
-	// caps asks hyprctl for the version later; the act must be the first call.
+	// caps asks hyprctl for the version later, so the act has to be the first call
 	if len(sent) == 0 || strings.Join(sent[0], "\x00") != strings.Join(want, "\x00") {
 		t.Errorf("hyprctl argv = %q, want %q first", sent, want)
 	}

@@ -13,8 +13,7 @@ QStringList split(const QJSValue &path)
 {
     if (path.isUndefined() || path.isNull())
         return {};
-    // A key list that crossed a QML var arrives as a sequence, which is not
-    // an Array, so anything with a length that is not a string is a key list.
+    // a key list that crossed a QML var is a sequence, not an Array, so go by its length
     if (!path.isString() && path.isObject() && path.property(QStringLiteral("length")).isNumber()) {
         const int n = path.property(QStringLiteral("length")).toInt();
         QStringList out;

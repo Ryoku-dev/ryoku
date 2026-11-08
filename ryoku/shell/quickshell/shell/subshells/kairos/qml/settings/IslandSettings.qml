@@ -6,10 +6,6 @@ import Ryoku.Ui as RyokuUi
 import Ryoku.Ui.Singletons
 import "../IslandMetrics.js" as M
 
-// Kairos' own settings (shell.json "kairos"), read through ShellSettings and
-// written back through the shell daemon, the one writer of shell.json. An
-// absent key reads as the shipped metric, so the island is whole until a value
-// changes it.
 Scope {
     id: s
 

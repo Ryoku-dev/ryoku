@@ -3,8 +3,7 @@ import QtQuick
 import Quickshell
 import "buspath.js" as BusPath
 
-// Cross-surface presentation preferences from the daemon-owned shell store,
-// read off the shared settings frame.
+// Cross-surface presentation preferences from the daemon-owned shell store.
 Singleton {
     id: root
 

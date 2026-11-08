@@ -259,11 +259,7 @@ Singleton {
         return out;
     }
 
-    // One row per window with its identity fields, straight from the provider
-    // frame (parsed off the GUI thread): a move, resize or focus change emits
-    // nothing, a retitle updates one row. No toplevel handle and no defaults:
-    // a field the provider leaves out reads undefined. Views that need the
-    // handle or the exact `windows` entry key their own model off `windows`.
+    // no toplevel handle and no defaults here, views that need those key their model off windows
     readonly property BusListModel windowRows: BusListModel {
         topic: "wm"
         path: "windows"
@@ -439,8 +435,7 @@ Singleton {
     // The full topic moves only the sections that changed. Focus arrives on a
     // compact topic so crossing an output never makes the GUI thread parse the
     // output, workspace and window lists again. Versions make the two topics
-    // safe to apply in either order; they count from daemon start, so a
-    // reconnect forgets them and takes the resync frames whole.
+    // safe to apply in either order, they reset when the daemon restarts
     function _version(frameVersions, key) {
         const n = frameVersions ? frameVersions[key] : undefined;
         return typeof n === "number" ? n : 0;
@@ -545,8 +540,7 @@ Singleton {
         return false;
     }
 
-    // An expired call still waiting in the bus queue is withdrawn, so a
-    // reconnect does not apply a mutation its caller already saw fail.
+    // cancel the queued call too or a reconnect applies a mutation the caller saw fail
     function _failStatusPending(error, expiredOnly) {
         const now = Date.now();
         const ids = Object.keys(root._pending);

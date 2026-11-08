@@ -13,10 +13,8 @@ import (
 	i18n "ryoku-i18n"
 )
 
-// Quickshell's QML disk cache keeps a compiled unit for every QML path it ever
-// loaded and never drops one, so deploys, item runtimes and retired shells grow
-// it without bound. Pruning is safe while the shell runs: a loaded unit stays
-// mapped, and Qt recompiles any entry it finds missing.
+// quickshell never drops a compiled unit so the cache grows forever, pruning
+// while the shell runs is fine since Qt recompiles anything missing
 
 const qmlCacheMaxIdle = 30 * 24 * time.Hour
 
@@ -36,9 +34,7 @@ type qmlCacheScan struct {
 	staleSize uint64
 }
 
-// scanQMLCache sizes the cache and lists the files last used before cutoff.
-// Entries that vanish or cannot be read mid-walk are skipped, since the shell
-// may be writing the cache at the same time.
+// the shell may be writing the cache mid-walk, so vanished entries get skipped
 func scanQMLCache(dir string, cutoff time.Time) (qmlCacheScan, error) {
 	var s qmlCacheScan
 	err := filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
@@ -67,8 +63,7 @@ func scanQMLCache(dir string, cutoff time.Time) (qmlCacheScan, error) {
 	return s, err
 }
 
-// qmlCacheLastUse is the later of atime and mtime: on a noatime mount atime only
-// records creation, and a rewritten unit is in use even if never read since.
+// noatime mounts only record creation in atime, and a rewritten unit counts as used
 func qmlCacheLastUse(info fs.FileInfo) time.Time {
 	last := info.ModTime()
 	if st, ok := info.Sys().(*syscall.Stat_t); ok {

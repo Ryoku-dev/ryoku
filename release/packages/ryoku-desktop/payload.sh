@@ -147,9 +147,7 @@ EOF
 
   # Ryoku.Ui: the design system the shell, the Hub and the apps all import.
   # In /usr/lib/qt6/qml so Qt resolves it without an import path, whichever
-  # way a surface was launched. It ships compiled (the build step's
-  # ryoku/ui/build.sh): qmldir, qmltypes and one .so per module carrying the
-  # qmlcachegen bytecode and the sources. No plain .qml is installed beside them.
+  # way a surface was launched.
   local ui_build="${RYOKU_BUILD_DIR:?set RYOKU_BUILD_DIR to the build directory}/qml/Ryoku/Ui"
   [[ -f $ui_build/qmldir && -f $ui_build/Singletons/qmldir ]] || {
     printf 'payload.sh: %s has no compiled Ryoku.Ui; run the build step first\n' "$ui_build" >&2
@@ -675,8 +673,7 @@ case "${1:-}" in
   build)
     : "${RYOKU_BUILD_DIR:?set RYOKU_BUILD_DIR to the build directory}"
     mkdir -p "$RYOKU_BUILD_DIR"
-    # A lane that builds once and stages for every init system hands the compiled
-    # module over, like the Go helpers, so all lanes ship the same bytes.
+    # a lane that builds once for every init system hands the module over, so all lanes ship the same bytes
     if [[ -n ${RYOKU_PREBUILT_DIR:-} && -f $RYOKU_PREBUILT_DIR/qml/Ryoku/Ui/qmldir ]]; then
       mkdir -p "$RYOKU_BUILD_DIR/qml/Ryoku"
       rm -rf "$RYOKU_BUILD_DIR/qml/Ryoku/Ui"

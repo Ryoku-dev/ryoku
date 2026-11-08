@@ -66,7 +66,7 @@ Singleton {
 
     function check() { Bus.call("updates.check", {}); }
 
-    // o is the bus's shared parsed frame: read it, never mutate it.
+    // shared bus frame, never mutate it
     function apply(o) {
         if (!o || typeof o !== "object")
             return;

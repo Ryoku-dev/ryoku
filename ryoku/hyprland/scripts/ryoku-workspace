@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
-# Command-line face of the per-desktop workspace grid and the scratchpad. The
-# logic lives in modules/workspaces.lua, which the Super+N, Super+H and
-# Super+Alt+H binds run inside the compositor; this runs the same functions
-# through `hyprctl eval` for the Kit command reference and hand use.
-#
-#   ryoku-workspace desktop             print the current desktop index (0-based)
-#   ryoku-workspace focus <slot>        focus the Nth workspace of the current desktop
-#   ryoku-workspace move <slot>         move the active window there (and follow it)
-#   ryoku-workspace movesilent <slot>   move the active window there and stay
-#   ryoku-workspace hide                stash the focused window in the scratchpad,
-#                                       or pull it back out if it is already there
-#   ryoku-workspace scratch             show the scratchpad, or hide it and hand
-#                                       keyboard focus back to what is on screen
+# the binds run modules/workspaces.lua in the compositor, this runs it through hyprctl eval for the Kit and by hand
 set -euo pipefail
 
 usage() {
@@ -19,7 +7,6 @@ usage() {
   exit 2
 }
 
-# eval prints "ok", or "error: <message>" with a non-zero exit for a Lua error.
 grid() {
   local out
   out=$(hyprctl eval "require(\"modules.workspaces\").$1") ||
@@ -28,8 +15,7 @@ grid() {
 
 case ${1-} in
   desktop)
-    # eval prints nothing but "ok" or the error text, so the value comes back
-    # as an error message.
+    # eval only prints ok or an error, so the value comes back as the error text
     out=$(hyprctl eval 'error(tostring(require("modules.workspaces").desktop()), 0)') || true
     out=${out#error: }
     [[ $out =~ ^[0-9]+$ ]] || { echo "ryoku-workspace: $out" >&2; exit 1; }

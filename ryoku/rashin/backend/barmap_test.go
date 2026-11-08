@@ -64,8 +64,6 @@ func TestBarSectionDegradesWithoutShellsIndex(t *testing.T) {
 	}
 }
 
-// fakeQsbarShell puts a ryoku-shell on PATH that answers the catalogue call and
-// records that it ran.
 func fakeQsbarShell(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -79,7 +77,6 @@ func fakeQsbarShell(t *testing.T) string {
 	return ran
 }
 
-// Another active item has no qsbar target, so the section never asks for one.
 func TestBarSectionSkipsTheCatalogueUnderAnotherItem(t *testing.T) {
 	barTestEnv(t, `{"schema":1,"active":"orpheus","items":[{"id":"orpheus","category":"subshells","source":"shipped","name":"Orpheus"}]}`)
 	ran := fakeQsbarShell(t)

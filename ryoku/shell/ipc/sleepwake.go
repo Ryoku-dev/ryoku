@@ -38,9 +38,7 @@ var (
 	// PrepareForSleep(true) edge.
 	sleepGuardRetry = 2 * time.Second
 	login1CallWait  = 2 * time.Second
-	// A lost guard usually comes back within moments (logind restart, session
-	// handoff), so retry fast at first; a box with no graphical session for this
-	// uid must not keep probing login1 ten times a second forever.
+	// a lost guard usually comes back in moments so retry fast first, then back off so a box with no session doesn't poll login1 forever
 	sleepReconnectStep       = 100 * time.Millisecond
 	sleepReconnectFastWindow = 2 * time.Second
 	sleepReconnectMax        = 30 * time.Second
@@ -861,9 +859,7 @@ func runSleepSignals(
 	}
 }
 
-// sleepBus is the supervisor's one system-bus connection. It outlives failed
-// guard attempts and owner restarts, and carries the login1 signals that wake a
-// pending reconnect, so a missing session costs no new connection per retry.
+// one connection across attempts so a missing session costs no new connection per retry
 type sleepBus struct {
 	conn *dbus.Conn
 	sigs chan *dbus.Signal
@@ -914,8 +910,7 @@ func (b *sleepBus) healthy() bool {
 	return !b.lost && b.conn.Connected()
 }
 
-// drain drops signals queued before an attempt; the attempt reads login1's
-// current session and sleep phase itself.
+// the attempt reads login1's current state itself, so older signals are stale
 func (b *sleepBus) drain() {
 	for {
 		select {
@@ -934,9 +929,6 @@ func (b *sleepBus) close() {
 	_ = b.conn.Close()
 }
 
-// login1ReconnectSignal reports login1 changes that can let a pending guard
-// attempt succeed: a session appearing or going, logind restarting, or a sleep
-// edge (resume, or a sleep starting that the guard should still lock).
 func login1ReconnectSignal(sig *dbus.Signal) bool {
 	if login1OwnerChanged(sig) {
 		return true
@@ -953,8 +945,6 @@ func login1ReconnectSignal(sig *dbus.Signal) bool {
 	return false
 }
 
-// sleepReconnectBackoff keeps retries at sleepReconnectStep for the fast window
-// after a loss, then doubles the wait up to sleepReconnectMax.
 type sleepReconnectBackoff struct {
 	since time.Time
 	wait  time.Duration
@@ -987,9 +977,7 @@ const (
 	sleepReconnectQuit
 )
 
-// waitSleepReconnect sleeps out one backoff step, ending it early on a login1
-// change. A bus lost meanwhile is marked for redial at the step's end, so a
-// connection that keeps dying cannot turn the wait into a hot loop.
+// a bus lost mid-wait is redialed at the step's end so a dying connection can't hot loop
 func waitSleepReconnect(bus *sleepBus, quit <-chan struct{}, wait time.Duration) sleepReconnectWake {
 	var sigs <-chan *dbus.Signal
 	var done <-chan struct{}
@@ -1027,8 +1015,6 @@ type connectedSleepGuard struct {
 	activity []dbus.MatchOption
 }
 
-// release drops the guard's inhibitors and its session match; the shared bus
-// stays open for the next attempt.
 func (g *connectedSleepGuard) release() {
 	g.cycle.stopWake()
 	g.cycle.delay.release()

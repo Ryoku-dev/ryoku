@@ -1046,8 +1046,7 @@ Rectangle {
             Qt.quit();
         }
     }
-    // Hold the door until the daemon has answered every settings write, capped
-    // so an absent daemon cannot keep the Hub alive.
+    // wait for the daemon to answer every settings write, capped so a dead daemon can't keep the Hub open
     Timer {
         id: quitFlush
         interval: 25

@@ -28,7 +28,6 @@ bool parse(const QJsonValue &raw, Op &op)
     return true;
 }
 
-// Returns false when a delete meets a missing step; obj is then unchanged.
 bool applyAt(QJsonObject &obj, const Op &op, qsizetype i)
 {
     const QString &k = op.keys.at(i);
@@ -90,8 +89,7 @@ QJSValue apply(QJSEngine *engine, const QJSValue &root, const QJsonArray &ops)
     if (ops.isEmpty())
         return root;
     QJSValue next = isObject(root) ? shallow(engine, root) : engine->newObject();
-    // Objects this patch already copied: a second op under the same parent
-    // writes into the copy instead of copying again.
+    // already copied here, so a second op under the same parent writes into the copy
     QList<QJSValue> fresh{next};
     const auto own = [&](QJSValue &parent, const QString &key) {
         const QJSValue child = parent.property(key);

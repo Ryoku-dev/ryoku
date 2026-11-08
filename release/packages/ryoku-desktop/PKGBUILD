@@ -17,8 +17,7 @@ url="https://ryoku.dev"
 # The Ryoku Discord theme for Vesktop is MIT; the rest of the package is
 # GPL-3.0-or-later.
 license=('GPL-3.0-or-later' 'MIT')
-# go builds the app helpers (ryovm-fetch); cmake+Qt6 build any compiled ryoku/apps app
-# and the compiled Ryoku.Ui module (qmlcachegen).
+# go builds the app helpers, cmake and Qt6 the compiled apps and Ryoku.Ui
 makedepends=('go' 'cmake' 'ninja' 'qt6-declarative')
 depends=(
   # Ryoku. the monorepo components are pinned to this build's own version:
@@ -287,8 +286,7 @@ package() {
     RYOKU_BUILD_DIR="$srcdir" \
     "$startdir/payload.sh" install "$pkgdir" systemd
 
-  # The compiled Ryoku.Ui is a Qt plugin, and Qt refuses one built against a
-  # newer minor than the one running, so tie the package to the build host's Qt.
+  # Qt refuses a plugin built on a newer minor than it runs, so pin the build host's Qt
   local qt; qt="$(pkg-config --modversion Qt6Core | cut -d. -f1,2)"
   depends+=("qt6-base>=$qt" "qt6-declarative>=$qt")
 }

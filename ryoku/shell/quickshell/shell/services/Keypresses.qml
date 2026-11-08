@@ -193,8 +193,7 @@ Singleton {
         onUpdated: root.applyFrame(topicFeed.data)
     }
 
-    // The capture runs in the daemon only while it is told to; a restarted
-    // daemon hears the current activation again.
+    // a restarted daemon only captures again once it's told
     Connections {
         target: Bus
         function onConnectedChanged() {

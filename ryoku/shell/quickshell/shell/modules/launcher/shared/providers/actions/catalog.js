@@ -1,13 +1,10 @@
 // The system-action catalog: each entry is a command the launcher can fire,
 // wired to a real Ryoku helper (a shell surface, a daemon verb, ryoku-cmd-*).
 // Data only, so the set is validated in a node test and the provider stays a
-// thin mapper. Each entry carries exactly one of: `surface`, a shell surface id
-// the launcher opens in-process on the active monitor; `verb`, a ryoku-shell
-// daemon verb sent over the bus; or `exec`, an argv array run detached.
-// Categories group the action-mode tabs (System / Appearance / Tools / Media /
-// Settings). An optional `caps` names a window-manager capability the action
-// needs; the provider hides the entry on a compositor that lacks it (a tool that
-// is not even installed there).
+// thin mapper. Categories group the action-mode tabs (System / Appearance /
+// Tools / Media / Settings). An optional `caps` names a window-manager
+// capability the action needs; the provider hides the entry on a compositor
+// that lacks it (a tool that is not even installed there).
 
 var CATALOG = [
     { id: "lock-screen",      name: "Lock Screen",        category: "System",     icon: "lock",        verb: "lock" },
@@ -44,9 +41,7 @@ var CATALOG = [
 var CATEGORIES = ["All", "System", "Appearance", "Tools", "Media", "Settings"];
 
 // Validate the catalog: unique ids, required fields, a known category, and
-// exactly one non-empty action (surface, verb or exec argv). A daemon verb goes
-// over the bus, never as a spawned ryoku-shell client. Returns an array of
-// problem strings (empty = valid).
+// exactly one non-empty action. Returns an array of problem strings (empty = valid).
 function validate(catalog) {
     var problems = [];
     var seen = {};

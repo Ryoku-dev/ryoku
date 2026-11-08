@@ -87,8 +87,6 @@ func TestLockRecoveryStopsWhenUnlockStarts(t *testing.T) {
 	}
 }
 
-// The proof is only polled while a session lock is held: an unlocked session
-// costs no wakeups, a confirmed lock starts the poll, and an unlock stops it.
 func TestLockRecoveryWatchPollsOnlyWhileHeld(t *testing.T) {
 	policy := newLockRecoveryPolicy(time.Now, func() error { return nil })
 	var checks atomic.Int64

@@ -14,8 +14,6 @@ type wxHarness struct {
 	sun  chan struct{}
 }
 
-// newWxHarness builds a weather worker on a fake clock with a counting fetch.
-// The worker loop is not started; start does that.
 func newWxHarness(t *testing.T) *wxHarness {
 	t.Helper()
 	h := &wxHarness{clk: newFakeClock(), runs: newFakeRuns(), sun: make(chan struct{}, 1)}
@@ -34,8 +32,7 @@ func newWxHarness(t *testing.T) *wxHarness {
 
 func (h *wxHarness) start() { go h.s.run() }
 
-// sync proves the loop is idle and has fetched exactly want times so far: an
-// explicit retry must add exactly one fetch on top.
+// an explicit retry must add exactly one fetch on top, that proves the loop is idle
 func (h *wxHarness) sync(t *testing.T, want int) {
 	t.Helper()
 	h.s.signalWake()
@@ -54,7 +51,6 @@ func TestWeatherNoSubscriberNoFetchForADay(t *testing.T) {
 	if n := h.clk.created(); n != 0 {
 		t.Fatalf("armed %d timers with no subscriber", n)
 	}
-	// weather.retry still fetches with nobody subscribed.
 	h.sync(t, 0)
 }
 
@@ -159,7 +155,6 @@ func TestWeatherSunNeedFetchesUntilWindowLands(t *testing.T) {
 	h.ok.Store(true)
 	h.clk.advance(wxRecoverInterval)
 	h.runs.wait(t)
-	// The window is known now, so nothing is armed and a day passes quietly.
 	for range 24 {
 		h.clk.advance(time.Hour)
 	}

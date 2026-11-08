@@ -11,13 +11,8 @@
 import Quickshell
 import shell as Shell
 
-// Quickshell reads the pragmas above from the root file only, so they stay here
-// (UseQApplication once for the whole shell: the tray needs Qt Widgets). The
-// root itself loads through Quickshell's qs: scheme, and Qt keeps no disk cache
-// for a non-file URL, nor for anything the root reaches by relative imports.
-// The body comes in through the `shell` module instead: it resolves on the
-// import path to a file URL, so the body and every file it imports get a
-// qmlcache entry, while a broken body still fails the root load as before.
+// quickshell reads pragmas from the root file only, so they stay here and the body
+// comes in through the shell module so Qt disk caches it, qs: urls get no cache
 ShellRoot {
     Shell.ShellBody {}
 }

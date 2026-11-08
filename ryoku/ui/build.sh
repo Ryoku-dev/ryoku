@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
-# build the compiled Ryoku.Ui and Ryoku.Ui.Singletons QML modules
-# (CMakeLists.txt) and install them onto a QML import path.
-#
-#   build.sh <qml-import-dir>
-#
-# drops <qml-import-dir>/Ryoku/Ui/{libryoku-ui.so, qmldir, ryoku-ui.qmltypes}
-# and the same three for Ryoku/Ui/Singletons, and nothing else: the QML sources
-# ride inside each .so, so no plain copy of the module can sit on that root. The
-# packages run this; a dev box copies the sources instead (install.sh), so a
-# checkout edit shows up on the next reload without a compile.
-#
-# RYOKU_UI_BUILD picks the CMake build dir (default ./build). build deps:
-# cmake, ninja, a c++20 compiler, Qt6 Qml/Quick dev files (qmlcachegen).
+# packages run this, a dev box copies the sources with install.sh so edits show on reload
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"

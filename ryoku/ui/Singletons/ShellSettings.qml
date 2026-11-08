@@ -6,30 +6,18 @@ import Quickshell.Io
 import Ryoku.Bus
 import "buspath.js" as BusPath
 
-// The daemon's settings frame (shell.json plus caps, deadKeys and
-// windowRuleActions), parsed once per process for every reader. The file is
-// read synchronously at construction, so the first frame already has the right
-// language and theme; the daemon's settings topic takes over from there. While
-// the daemon is unreachable the file is watched directly, so an edit still
-// lands. A file read goes to the bus as a seed, so a BusValue on the settings
-// topic (ShellSetting) sees it too.
 Singleton {
     id: root
 
     readonly property var data: root._data
     readonly property bool ready: root._ready
-    // True when the start-up read found no shell.json (a first run). Not
-    // updated afterwards.
+    // only set by the start-up read
     readonly property bool fileMissing: root._fileMissing
 
-    // paths: the changed key arrays, or null when anything may have changed.
-    // Through a signal they arrive as QML sequences (Array.isArray is false);
-    // test them with touches(), or read lastPaths, which holds the same list
-    // as plain JS arrays.
+    // paths arrive here as QML sequences, test them with touches() or read lastPaths
     signal changed(var paths)
     readonly property var lastPaths: root._lastPaths
 
-    // Whether a change at paths (null = everything) can move the value at path.
     function touches(path, paths) {
         return BusPath.touches(path, paths);
     }
@@ -44,7 +32,6 @@ Singleton {
         return BusPath.get(root._data, path, fallback);
     }
 
-    // cb(ok, result, error), optional.
     function patch(path, value, cb) {
         return BusClient.call("settings.patch", { path: BusPath.join(path), value: value }, cb);
     }
@@ -65,12 +52,12 @@ Singleton {
             root._fileMissing = next === null && !file.loaded;
         if (next === null)
             return;
-        // The file has no runtime keys; keep the last frame's.
+        // the file has no runtime keys so keep the last frame's
         const keep = ["caps", "deadKeys", "windowRuleActions"];
         for (let i = 0; i < keep.length; i++)
             if (!(keep[i] in next) && root._data && keep[i] in root._data)
                 next[keep[i]] = root._data[keep[i]];
-        // Comes back through _onFrame, unless the daemon's frame is already in.
+        // comes back through _onFrame unless the daemon's frame is already in
         BusClient.seed("settings", next);
     }
 

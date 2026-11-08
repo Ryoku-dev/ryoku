@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-// updates.go runs the update check the Hub's Updates section and the bar's
-// update glyph read. It runs `ryoku status --json` on the configured cadence
-// (hub.toml update_interval) while the "updates" topic has a subscriber,
-// publishes the frame on the topic, and caches it.
 type updatesState struct {
 	topic  *stateTopic
 	wake   chan struct{}
@@ -59,7 +55,6 @@ func (d *daemon) startUpdates() {
 	go s.run()
 }
 
-// setActive is the topic's demand hook.
 func (s *updatesState) setActive(active bool) {
 	s.mu.Lock()
 	s.active = active
@@ -70,10 +65,7 @@ func (s *updatesState) setActive(active bool) {
 	}
 }
 
-// run checks on the interval or a forced wake. The first subscriber after the
-// daemon starts gets a check at once (the login baseline), and so does one
-// arriving after the interval has passed; "off" keeps that baseline but drops
-// the periodic check. A manual check runs with or without a subscriber.
+// the first subscriber gets a check at once as the login baseline, "off" only drops the periodic one
 func (s *updatesState) run() {
 	for {
 		wait, armed := s.plan(s.now())
@@ -101,8 +93,6 @@ func (s *updatesState) run() {
 	}
 }
 
-// plan reports how long until the next check, or armed=false when nobody
-// subscribes or the periodic check is off after its baseline.
 func (s *updatesState) plan(now time.Time) (wait time.Duration, armed bool) {
 	s.mu.Lock()
 	active := s.active
