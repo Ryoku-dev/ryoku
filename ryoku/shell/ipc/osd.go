@@ -217,7 +217,8 @@ func (o *osdState) watchBacklightNode(dev string, maxb int) bool {
 			saveObservedBacklight(raw)
 		}
 	}
-	if _, err := readActual(fd, buf); err != nil {
+	// An unparsable first value still re-armed the notify, so keep the fd.
+	if _, err := readActual(fd, buf); err != nil && err != errBacklightValue {
 		return false
 	}
 	// A reopen publishes too: the level may have moved while the node was
