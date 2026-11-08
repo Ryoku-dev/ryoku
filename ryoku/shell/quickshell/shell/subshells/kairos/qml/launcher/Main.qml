@@ -372,7 +372,7 @@ Scope {
 
                                 IconImage {
                                     implicitSize: 20
-                                    source: Icons.path((appRow.modelData && appRow.modelData.icon)
+                                    source: Ryoku.Icons.path((appRow.modelData && appRow.modelData.icon)
                                         || "application-x-executable", true)
                                 }
                                 Text {
