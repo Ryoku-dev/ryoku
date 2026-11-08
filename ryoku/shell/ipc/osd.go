@@ -159,16 +159,19 @@ const (
 )
 
 // watchBacklight keeps a watcher on the primary backlight for the life of the
-// daemon. The saved level is restored once, at startup. When the watched node
-// disappears (the driver re-registered the device on resume) the watcher
-// re-resolves the device and reopens it, backing off while it is missing,
-// rather than polling a dead fd that reports POLLERR forever.
+// daemon. The saved level is restored once, at startup, and only when the
+// device was readable then. A device unreadable at startup is retried like one
+// that went away. When the watched node disappears (the driver re-registered
+// the device on resume) the watcher re-resolves the device and reopens it,
+// backing off while it is missing, rather than polling a dead fd that reports
+// POLLERR forever.
 func (o *osdState) watchBacklight(dev string) {
 	maxb, ok := readSysInt(filepath.Join(dev, "max_brightness"))
 	if !ok || maxb <= 0 {
-		return
+		dev = ""
+	} else {
+		restoreBacklight(dev, maxb)
 	}
-	restoreBacklight(dev, maxb)
 	delay := backlightRetryMin
 	for {
 		if o.watchBacklightNode(dev, maxb) {
