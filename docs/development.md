@@ -142,6 +142,12 @@ Where a change lives decides whether, and how, it reaches an installed machine.
   dropped by the next `ryoku update`** (they survive only in the reflog). Push
   them, or keep them on any other branch. Local edits to tracked files are never
   touched: the deploy runs on what is checked out.
+- **A line no channel publishes (`hyperion`, Ryoku v2).** Deploy it from its
+  checkout and `ryoku update` keeps redeploying that branch. The installed
+  `[ryoku]` packages still come from the channel, and when pacman upgrades
+  `ryoku-desktop` its hook materializes the channel's config over the deploy, so
+  hold the packages built from this repo with `IgnorePkg` in `/etc/pacman.conf`
+  while the box runs that line.
 - **The installer (`installation/`)** runs once from the ISO. Fixes here reach
   only new installs from a new ISO, never an existing machine.
 - **Package-set additions (`system/packages/`)** are pacstrapped at install.
