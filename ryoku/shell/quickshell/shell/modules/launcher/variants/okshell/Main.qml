@@ -61,24 +61,19 @@ Scope {
             catch (e) { root.preview = {} }
         }
     }
-    // the active coded theme's palette, resolved by the daemon into shell.json's
-    // top-level themePalette key (absent for the dynamic Wallpaper/Default variants).
-    FileView {
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                const o = JSON.parse(text());
-                root.named = (o && typeof o.themePalette === "object" && o.themePalette !== null)
-                    ? o.themePalette : null;
-            } catch (e) {
-                root.named = null;
-            }
+    // themePalette is absent for the dynamic Wallpaper and Default themes
+    function refreshNamed() {
+        const o = ShellSettings.get("themePalette", null);
+        root.named = o && typeof o === "object" && !Array.isArray(o) ? o : null;
+    }
+    Connections {
+        target: ShellSettings
+        function onChanged() {
+            if (ShellSettings.touches("themePalette", ShellSettings.lastPaths))
+                root.refreshNamed();
         }
     }
+    Component.onCompleted: root.refreshNamed()
 
     // ── tokens ──────────────────────────────────────────────────────────────
     // the sidebar's push: a clean positional slide, no spring and no scale.

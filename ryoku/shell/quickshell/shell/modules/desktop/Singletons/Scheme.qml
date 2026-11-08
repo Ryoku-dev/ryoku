@@ -17,13 +17,7 @@ import Ryoku.Ui.Singletons as Ui
 Singleton {
     id: root
 
-    // Follow-the-wallpaper master (theme.json), the static named scheme's palette
-    // (shell.json themePalette; null for the dynamic variants) and the live
-    // wallpaper roles (colors.json). All three are parsed straight from the file
-    // text: half the role names start with "on" (which JsonAdapter's
-    // signal-handler grammar rejects), a removed themePalette key only reads as
-    // absent from raw text, and a bare JsonAdapter does not repopulate reliably
-    // for a lazily-created singleton.
+    // theme.json and colors.json are parsed by hand, JsonAdapter rejects the "on" role names and doesn't repopulate in a lazy singleton
     property bool matchWallpaper: true
     property var namedScheme: null
     property var wall: ({})
@@ -125,18 +119,8 @@ Singleton {
         }
     }
     function refreshNamed() {
-        var pal = null;
-        try {
-            const t = shellFile.text();
-            if (t) {
-                const o = JSON.parse(t);
-                if (o && typeof o.themePalette === "object" && o.themePalette !== null)
-                    pal = o.themePalette;
-            }
-        } catch (e) {
-            pal = null;
-        }
-        root.namedScheme = pal;
+        const pal = Ui.ShellSettings.get("themePalette", null);
+        root.namedScheme = pal && typeof pal === "object" && !Array.isArray(pal) ? pal : null;
     }
     function refreshMatch() {
         try {
@@ -173,15 +157,6 @@ Singleton {
         }
     }
     FileView {
-        id: shellFile
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        onLoaded: root.refreshNamed()
-    }
-    FileView {
         id: themeFile
         path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/theme.json"
         blockLoading: true
@@ -189,6 +164,13 @@ Singleton {
         printErrors: false
         onFileChanged: reload()
         onLoaded: root.refreshMatch()
+    }
+    Connections {
+        target: Ui.ShellSettings
+        function onChanged() {
+            if (Ui.ShellSettings.touches("themePalette", Ui.ShellSettings.lastPaths))
+                root.refreshNamed();
+        }
     }
 
     Component.onCompleted: {

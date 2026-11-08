@@ -2,15 +2,30 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Ui.Singletons as Ui
 
-// Overview appearance config, a focused twin of the shell's Config: the two look
-// knobs this surface reads (the wallpaper-match colour master and the UI font)
-// come from the same JSON the pill and launcher watch, so the overview retunes
-// with the rest of the shell. No writes: the overview only ever reads.
 Singleton {
+    id: root
+
     property alias matchWallpaper: themeAdapter.followWallpaper
-    property alias fontFamily:     adapter.fontFamily
-    property alias fontScale:      adapter.fontScale
+    property string fontFamily: "Space Grotesk"
+    property real fontScale: 1.0
+
+    function refreshFonts() {
+        const family = Ui.ShellSettings.get("fontFamily", null);
+        root.fontFamily = typeof family === "string" ? family : "Space Grotesk";
+        const scale = Ui.ShellSettings.get("fontScale", null);
+        root.fontScale = scale !== null && isFinite(Number(scale)) ? Number(scale) : 1.0;
+    }
+    Connections {
+        target: Ui.ShellSettings
+        function onChanged() {
+            const paths = Ui.ShellSettings.lastPaths;
+            if (Ui.ShellSettings.touches("fontFamily", paths) || Ui.ShellSettings.touches("fontScale", paths))
+                root.refreshFonts();
+        }
+    }
+    Component.onCompleted: root.refreshFonts()
 
     // brand: the desktop's mark + name, user-overridable from Ryoku Settings ->
     // Shell -> Global. a small cross-cutting identity master (like theme.json).
@@ -46,19 +61,6 @@ Singleton {
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
-    }
-
-    FileView {
-        path: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/ryoku/shell.json"
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onFileChanged: reload()
-        JsonAdapter {
-            id: adapter
-            property string fontFamily: "Space Grotesk"
-            property real fontScale: 1.0
-        }
     }
 
     // The colour-source master (single source shared with the daemon, window
