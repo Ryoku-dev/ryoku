@@ -33,6 +33,8 @@ Singleton {
         samplePeriodMs: 1500
         historyLimit: 48
         includeVirtualNetwork: true
+        // GPU usage comes from the daemon's stats feed, so the shell needn't load NVIDIA's libraries.
+        gpu: false
         // Every reading here feeds something on screen, so nothing samples
         // while the session is locked or the displays are off.
         active: (root.active || root._statsActive) && !Presence.dark

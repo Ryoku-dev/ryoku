@@ -24,6 +24,7 @@ class SystemMonitor : public QObject {
     Q_PROPERTY(int historyLimit READ historyLimit WRITE setHistoryLimit NOTIFY historyLimitChanged)
     Q_PROPERTY(bool includeVirtualNetwork READ includeVirtualNetwork WRITE setIncludeVirtualNetwork
                    NOTIFY includeVirtualNetworkChanged)
+    Q_PROPERTY(bool gpu READ gpu WRITE setGpu NOTIFY gpuChanged)
     Q_PROPERTY(qreal cpuPercent READ cpuPercent NOTIFY samplesChanged)
     Q_PROPERTY(qreal memoryPercent READ memoryPercent NOTIFY samplesChanged)
     Q_PROPERTY(qreal gpuPercent READ gpuPercent NOTIFY samplesChanged)
@@ -90,6 +91,8 @@ public:
     void setHistoryLimit(int limit);
     bool includeVirtualNetwork() const { return m_includeVirtualNetwork.load(std::memory_order_relaxed); }
     void setIncludeVirtualNetwork(bool include);
+    bool gpu() const { return m_gpu.load(std::memory_order_relaxed); }
+    void setGpu(bool enabled);
 
     bool active() const { return m_active; }
     void setActive(bool active);
@@ -148,6 +151,7 @@ signals:
     void samplePeriodMsChanged();
     void historyLimitChanged();
     void includeVirtualNetworkChanged();
+    void gpuChanged();
     void samplesChanged();
 
 private:
@@ -227,6 +231,7 @@ private:
     std::atomic_int m_samplePeriodMs{SamplePeriodMs};
     int m_historyLimit = 0;
     std::atomic_bool m_includeVirtualNetwork{false};
+    std::atomic_bool m_gpu{true};
 
     bool m_active = false;
     std::atomic<quint64> m_generation{0};

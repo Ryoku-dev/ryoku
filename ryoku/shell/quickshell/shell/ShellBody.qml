@@ -4,7 +4,6 @@ import Quickshell
 import shell.services
 import "modules/visualizer/Singletons" as VizCfg
 import "modules/stage/Singletons" as StageCfg
-import "modules/stage" as StageEditor
 import "components"
 import "modules/wallpaper"
 import "modules/wallpaper/Singletons" as WallCfg
@@ -583,7 +582,9 @@ Scope {
     }
 
     // Keep the edit chrome alive through its closing transition, then release
-    // its component graph until another edit session starts.
+    // its component graph until another edit session starts. Both hosts below
+    // load by path: an inline component compiles its whole type graph at shell
+    // start (~250 files, 15-20 MB) even when it never opens.
     LazyLoader {
         id: stageEditorLoader
         activeAsync: StageCfg.StageSession.widgets
@@ -595,7 +596,7 @@ Scope {
             Stage.GlobalStates.openEditMode(StageCfg.StageSession.monitor);
             item.showSection();
         }
-        StageEditor.StageEditorHost {}
+        source: Qt.resolvedUrl("modules/stage/StageEditorHost.qml")
     }
 
     // The ii host publishes actions and mounts its auxiliary surfaces only for
@@ -605,7 +606,7 @@ Scope {
             && Dock.cfg("enabled", false)
         LazyLoader {
             activeAsync: true
-            IiDockHost {}
+            source: Qt.resolvedUrl("modules/dock/IiDockHost.qml")
         }
     }
 

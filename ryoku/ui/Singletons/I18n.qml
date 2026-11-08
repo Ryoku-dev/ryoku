@@ -168,15 +168,18 @@ Singleton {
     }
 
     // the active language's string map; path rebinds when `lang` changes.
+    // en.json maps every string to itself, and parsing it cost ~20 MB in every
+    // QML process, so English skips the file and tr() hands keys back as-is.
     FileView {
         id: tf
-        path: i18n._trPath(i18n.lang)
+        path: i18n.lang === "en" ? "" : i18n._trPath(i18n.lang)
         blockLoading: true
         watchChanges: true
         printErrors: false
+        onPathChanged: if (path === "") i18n.map = ({})
         onLoaded: i18n._loadMap()
         onFileChanged: { reload(); i18n._loadMap(); }
-        onLoadFailed: i18n.map = ({})      // no file (e.g. English) -> keys are the strings
+        onLoadFailed: i18n.map = ({})
     }
 
     // the user/AI-generated overlay for the active language; empty when absent.

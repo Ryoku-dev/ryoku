@@ -1,6 +1,21 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The overview backdrop holds its wallpaper only while it can be seen.**
+  The window stays mapped, but the decoded image loads when the overview opens
+  or a workspace switch happens and is dropped 20 s later, about 45 MB back at
+  2560x1600. The first switch after an idle spell shows niri's backdrop colour
+  in the gap (`quickshell/shell/modules/wallpaper/OverviewBackdrop.qml`).
+- **Widget glass reuses the wallpaper already on screen.** The calendar and
+  music glass sample the desktop backdrop at quarter size instead of decoding
+  the wallpaper file a second time (`modules/desktop/Desktop.qml`).
+- **The shell no longer loads NVIDIA's monitoring libraries for nothing.**
+  `SystemMonitor` gained a `gpu` switch and `Sysinfo` turns it off, since the
+  bars read GPU use from the daemon's stats feed; NVML pulled in `libcuda`, 15
+  to 25 MB (`plugin/systemmonitor.cpp`, `services/Sysinfo.qml`).
+- **The Stage Editor and the ii dock host compile on first use.** They were
+  inline components, so their ~250 files compiled at every start even on a
+  desktop that never opens them (`quickshell/shell/ShellBody.qml`).
 - **The Bluetooth pairing agent no longer wakes once a second.** It held its
   stdin open with `tail -f /dev/null`, which polls; `sleep infinity` holds it
   the same way without waking (`systemd/user/ryoku-bt-agent.service`, and the

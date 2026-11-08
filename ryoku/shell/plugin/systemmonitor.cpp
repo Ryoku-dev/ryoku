@@ -650,6 +650,8 @@ public:
 
     template<typename Cancelled>
     QString discover(Cancelled&& cancelled) {
+        if (cancelled())
+            return {};
         const QVector<GpuCandidate> candidates = discoverSysfsGpus();
         if (candidates.isEmpty() || cancelled())
             return {};
@@ -1217,6 +1219,17 @@ void SystemMonitor::setIncludeVirtualNetwork(bool include) {
     m_workerWake.notify_all();
 }
 
+void SystemMonitor::setGpu(bool enabled) {
+    if (m_gpu.load(std::memory_order_relaxed) == enabled)
+        return;
+    m_gpu.store(enabled, std::memory_order_relaxed);
+    m_generation.fetch_add(1, std::memory_order_relaxed);
+    clearValues();
+    emit samplesChanged();
+    emit gpuChanged();
+    m_workerWake.notify_all();
+}
+
 
 void SystemMonitor::clearValues() {
     m_cpuPercent = 0.0;
@@ -1286,6 +1299,7 @@ void SystemMonitor::startWorker() {
             const int periodMs = m_samplePeriodMs.load(std::memory_order_relaxed);
             const int rateWindowSamples = std::max(1, (1000 + periodMs - 1) / periodMs);
             const bool includeVirtualNetwork = m_includeVirtualNetwork.load(std::memory_order_relaxed);
+            const bool gpuEnabled = m_gpu.load(std::memory_order_relaxed);
 
             const QVector<HwmonTemperature> hwmonTemperatures = discoverHwmonTemperatures();
             const TemperatureSensor cpuTemperature = discoverCpuTemperature(hwmonTemperatures);
@@ -1301,7 +1315,8 @@ void SystemMonitor::startWorker() {
 
             IdentityResult identity;
             identity.cpuName = cpuModelName();
-            identity.gpuName = gpu.discover(cancelled);
+            if (gpuEnabled)
+                identity.gpuName = gpu.discover(cancelled);
             identity.userName = currentUserName();
             identity.hostName = currentHostName();
             if (cancelled())
@@ -1396,17 +1411,19 @@ void SystemMonitor::startWorker() {
                 result.storageUsedGiB = slow.storage.usedGiB;
                 result.storageTotalGiB = slow.storage.totalGiB;
 
-                const GpuReading gpuReading = gpu.sample(refreshSlow);
-                result.gpuPercent = gpuReading.percent;
-                result.gpuAvailable = gpuReading.available;
-                result.gpuTemp = gpuReading.temperature;
-                result.gpuTempAvailable = gpuReading.temperatureAvailable;
-                result.gpuMemoryUsedGiB = gpuReading.memoryUsedGiB;
-                result.gpuMemoryTotalGiB = gpuReading.memoryTotalGiB;
-                result.gpuMemoryAvailable = gpuReading.memoryAvailable;
-                if (refreshSlow)
-                    slow.gpuPowerWatts = gpuReading.powerWatts;
-                result.gpuPowerWatts = slow.gpuPowerWatts;
+                if (gpuEnabled && !cancelled()) {
+                    const GpuReading gpuReading = gpu.sample(refreshSlow);
+                    result.gpuPercent = gpuReading.percent;
+                    result.gpuAvailable = gpuReading.available;
+                    result.gpuTemp = gpuReading.temperature;
+                    result.gpuTempAvailable = gpuReading.temperatureAvailable;
+                    result.gpuMemoryUsedGiB = gpuReading.memoryUsedGiB;
+                    result.gpuMemoryTotalGiB = gpuReading.memoryTotalGiB;
+                    result.gpuMemoryAvailable = gpuReading.memoryAvailable;
+                    if (refreshSlow)
+                        slow.gpuPowerWatts = gpuReading.powerWatts;
+                    result.gpuPowerWatts = slow.gpuPowerWatts;
+                }
                 result.fanRpm = slow.fanRpm;
 
                 const NetworkReading networkReading = network.sample(result.monotonicMs);

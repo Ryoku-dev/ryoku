@@ -284,9 +284,18 @@ In the order to take them:
    scheduler: its work at rest is a memory sample every few seconds and a
    battery read when UPower reports a change. The recorder checks `gsr-cli
    status` once a minute as a stale-state watchdog.
-5. **Memory per window.** The shell holds about 580 MB at rest, and each mapped
-   window has its own render thread, GL context and swapchain on top of the QML
-   engine. Fewer, smaller surfaces is the lever, not QML size.
+5. **Memory.** A fresh shell with Orpheus, the clock and calendar widgets and the overview
+   backdrop measured 410 to 416 MB PSS at 2560x1600 on the NVIDIA laptop, and
+   318 to 321 MB after five changes: English skips its identity catalog
+   (`en.json`, ~20 MB in every QML process), `Sysinfo` no longer loads NVML and
+   `libcuda` for GPU numbers it never shows (15 to 25 MB), the Stage Editor and
+   the ii dock host compile on first use instead of at start (15 to 20 MB),
+   widget glass samples the desktop's wallpaper instead of decoding it again
+   (~10 MB), and the overview backdrop keeps its wallpaper only while the
+   overview is open or for 20 s after a workspace switch (~45 MB). A mapped but
+   empty window cost close to nothing; decoded images, driver libraries and
+   JavaScript data did. The live shell still grows by 100 to 200 MB over a
+   session while a fresh copy stays flat; that drift is not traced yet.
 6. **The discrete GPU drives the panel** in MUX discrete mode, so the RTX 4060
    idles at 4 to 5 W whatever the shell does; Hybrid mode is the saving there.
 7. **Startup** is 3.3 s to the configuration loaded; precompiling the QML

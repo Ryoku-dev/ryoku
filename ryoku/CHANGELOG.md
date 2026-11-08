@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **English no longer parses a catalog of itself.** `en.json` maps every
+  string to itself, and every QML process (shell, Hub, Ryogami picker,
+  RyoStore) spent about 20 MB holding it; English now skips the file and
+  returns the keys (`ui/Singletons/I18n.qml`).
 - **Rashin's agent only holds memory while you use it.** The chat agent starts
   when a chat opens and leaves two minutes after the last one closes, then
   loads the same conversation back next time (`rashin/backend/ws.go`).

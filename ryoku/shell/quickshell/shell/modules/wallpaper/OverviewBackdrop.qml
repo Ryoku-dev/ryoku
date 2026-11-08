@@ -4,22 +4,21 @@ import QtQuick
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Wayland
+import Ryoku.Ui.Singletons
 import "Singletons"
 
-// An extra Background-layer surface that draws the current wallpaper, blurred,
-// for the compositor to lift into the backdrop the user sees behind the
-// workspaces in its overview. The provider routes this exact namespace into that
-// backdrop region, so the surface is composited there.
+// An extra Background-layer surface that draws the current wallpaper for niri's
+// overview backdrop and the gaps it exposes during workspace switches.
 //
-// It sits BELOW the desktop's own opaque wallpaper (modules/desktop, the
-// ryoku-widgets Bottom-layer surface), so with the overview closed it is
-// completely covered and the desktop reads exactly as before; only the overview,
-// which exposes the backdrop, reveals it.
+// It sits below the desktop's opaque wallpaper (modules/desktop, the
+// ryoku-widgets Bottom-layer surface), so normal desktop use reads as before.
 //
-// Mapped only when the compositor advertises the overviewBackdrop capability and
-// the user enabled it in ryogami's picker. On a compositor with no backdrop to
-// place a surface in, a second full-screen wallpaper would just paint over the
-// desktop, so nothing maps there.
+// The window stays mapped because niri needs it before either animation starts.
+// The wallpaper decode lives while the overview is open or for 20 seconds after
+// a workspace switch. That decode was effectively the surface's whole ~45 MB
+// cost at 2560x1600. After an idle spell, the first switch shows the plain
+// backdrop colour while the image loads for following switches. Nothing maps on
+// a compositor with no overview backdrop.
 Item {
     id: root
 
@@ -33,11 +32,33 @@ Item {
     // pipeline to keep in sync.
     property string wallpaperUrl: ""
 
+    readonly property string screenWorkspaceId: {
+        const screenName = root.screen ? root.screen.name : "";
+        const output = screenName.length > 0 ? Wm.outputByName(screenName) : null;
+        const outputWorkspace = output ? String(output.activeWorkspace ?? "") : "";
+        if (outputWorkspace.length > 0)
+            return outputWorkspace;
+        const focused = Wm.focusedWorkspace;
+        return focused ? String(focused.id ?? focused.name ?? "") : "";
+    }
+
     readonly property bool shown: root.available && OverviewBackdropConfig.enabled
     readonly property bool active: root.shown && root.source.length > 0
+    readonly property bool imageWanted: root.active
+        && (root.overviewOpen || imageHold.running)
     readonly property bool blurWanted: root.active && root.overviewOpen
         && OverviewBackdropConfig.blurEnabled
     property bool blurHeld: false
+
+    onOverviewOpenChanged: {
+        if (!root.overviewOpen && root.active)
+            imageHold.restart();
+    }
+
+    onScreenWorkspaceIdChanged: {
+        if (root.screenWorkspaceId.length > 0)
+            imageHold.restart();
+    }
 
     onBlurWantedChanged: {
         if (root.blurWanted) {
@@ -53,6 +74,11 @@ Item {
         root.blurHeld = root.blurWanted;
         if (root.blurHeld)
             captureTimer.restart();
+    }
+
+    Timer {
+        id: imageHold
+        interval: 20000
     }
 
     Timer {
@@ -104,6 +130,15 @@ Item {
         Item {
             anchors.fill: parent
             clip: true
+            opacity: img.status === Image.Ready ? 1 : 0
+
+            Behavior on opacity {
+                enabled: !Motion.reduce
+                NumberAnimation {
+                    duration: Motion.wallpaperFade
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             // The sharp wallpaper is the workspace-switch backdrop. It is the
             // only file decode; the overview blur samples it into a reduced
@@ -112,7 +147,7 @@ Item {
                 id: img
                 anchors.fill: parent
                 anchors.margins: -64
-                source: root.source
+                source: root.imageWanted ? root.source : ""
                 fillMode: Image.PreserveAspectCrop
                 cache: false
                 asynchronous: true

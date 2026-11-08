@@ -888,35 +888,24 @@ Scope {
             }
         }
 
-        // Glass only needs colour and broad wallpaper structure. Keep one
-        // quarter-linear decode while a visible glass consumer exists; the
-        // widget-local crop performs the blur at its final size.
+        // Glass only needs colour and broad wallpaper structure, so it samples
+        // the backdrop already on screen at quarter size rather than decoding
+        // the file a second time (~10 MB). A hidden backdrop (ryogami-live)
+        // still renders into the sample, so the glass keeps its still.
         readonly property bool glassWanted: root.widgetsShown && root.videoUrl === ""
             && ((calendarLoader.active && calendarLoader.visible
                     && calendarLoader.item !== null && Config.calendarStyle === "glass")
                 || (musicLoader.active && musicLoader.visible
                     && musicLoader.item !== null && Config.musicStyle === "glass"))
-        Image {
+        ShaderEffectSource {
             id: glassBackdrop
             anchors.fill: parent
-            source: desktopContent.glassWanted ? root.wallpaperUrl : ""
-            cache: false
-            asynchronous: true
+            sourceItem: desktopContent.glassWanted ? backdrop : null
+            textureSize: Qt.size(Math.max(1, Math.ceil(width * backdrop.screenDpr / 4)),
+                Math.max(1, Math.ceil(height * backdrop.screenDpr / 4)))
+            hideSource: false
             smooth: true
-            sourceSize.width: Math.max(1, Math.ceil(width * backdrop.screenDpr / 4))
-            sourceSize.height: Math.max(1, Math.ceil(height * backdrop.screenDpr / 4))
-            visible: desktopContent.glassWanted
-            fillMode: {
-                switch (root.wallpaperFit) {
-                case "Contain": return Image.PreserveAspectFit;
-                case "Fill": return Image.Stretch;
-                case "ScaleDown":
-                    return backdrop.committedImageWidth <= width
-                            && backdrop.committedImageHeight <= height
-                        ? Image.Pad : Image.PreserveAspectFit;
-                default: return Image.PreserveAspectCrop;
-                }
-            }
+            visible: false
         }
 
         StageSelection {
