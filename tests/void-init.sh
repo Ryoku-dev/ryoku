@@ -17,10 +17,12 @@ fail() { echo "void-init: $*" >&2; exit 1; }
 # --- 1. completeness: every systemd artifact in the repo has a translation row.
 # The Arch ISO live-image units are covered by one glob row; the Void ISO has
 # its own runit live-image service set.
+# dbus activation files aren't units, the bus runs their Exec line on runit
 missing=()
 while IFS= read -r unit; do
 	case $unit in
 		installation/iso/airootfs/*) continue ;;
+		*/dbus-1/services/* | */dbus-1/system-services/*) continue ;;
 	esac
 	grep -qxF "$unit" <(cut -f1 "$MANIFEST" | grep -v '^#' | grep -v '^source$') \
 		|| missing+=("$unit")
