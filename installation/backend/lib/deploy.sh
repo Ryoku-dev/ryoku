@@ -135,7 +135,7 @@ ryoku_deploy_packages() {
   local -a pkgs=(ryoku-keyring ryoku-desktop "ryoku-desktop-$RYOKU_COMPOSITOR")
   local package
   # These apps are fresh-install defaults but remain independently removable.
-  for package in ryoku-rashin ryotunes ryomanager; do
+  for package in ryoku-rashin ryotunes ryoport ryomanager; do
     ryoku_drop_pkg "$package" || pkgs+=("$package")
   done
   # The base set already carries Nautilus. Repeating the selected packages here

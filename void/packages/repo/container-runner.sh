@@ -62,33 +62,22 @@ channel=${RYOKU_CHANNEL:-local}
 name=${RYOKU_NAME:-$(tr -d '[:space:]' < "$ROOT/CODENAME")}
 commit=$(git -C "$ROOT" rev-parse HEAD)
 
-# Ryotunes ships on its own release train. Build its latest stable release, as
-# the Arch importer and the Fedora fetch hook do; a pin in the template only
-# ever fell behind. The token stays on the host: only the version and the
-# release's own checksum enter the build container.
-latest_ryotunes() {
-	local api=${RYOKU_GITHUB_API:-https://api.github.com}
-	local download=${RYOKU_GITHUB_DL:-https://github.com}
-	local token=${GH_TOKEN:-${GITHUB_TOKEN:-}} release tag version sums sum file extra
-	local -a auth=()
-	[[ -z $token ]] || auth=(-H "Authorization: Bearer $token")
-	release=$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' \
-		"${auth[@]}" "$api/repos/Ryoku-dev/ryotunes/releases/latest") || return 1
-	[[ $(jq -r '.draft' <<<"$release") == false && $(jq -r '.prerelease' <<<"$release") == false ]] \
-		|| return 1
-	tag=$(jq -r '.tag_name // empty' <<<"$release")
-	[[ $tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
-	version=${tag#v}
-	sums=$(curl -fsSL --retry 3 \
-		"$download/Ryoku-dev/ryotunes/releases/download/$tag/ryotunes-$version.tar.gz.sha256") || return 1
-	[[ $(grep -c . <<<"$sums") == 1 ]] || return 1
-	read -r sum file extra <<<"$sums"
-	[[ $sum =~ ^[0-9a-fA-F]{64}$ && ${file#\*} == "ryotunes-$version.tar.gz" && -z ${extra:-} ]] \
-		|| return 1
-	printf '%s %s\n' "$version" "${sum,,}"
-}
-read -r ryotunes_version ryotunes_sha256 < <(latest_ryotunes) || {
+# Standalone apps ship on their own release trains. The token stays on the
+# host; only each release's version and checksum enter the build container.
+source "$SCRIPT_DIR/release-source.sh"
+
+read -r ryotunes_version ryotunes_sha256 < <(
+	latest_github_source ryotunes Ryoku-dev/ryotunes \
+		'^v[0-9]+\.[0-9]+\.[0-9]+$' "$source_tmp"
+) || {
 	printf 'container-runner.sh: could not resolve the latest Ryoku-dev/ryotunes release\n' >&2
+	exit 1
+}
+read -r ryoport_version ryoport_sha256 < <(
+	latest_github_source ryoport Ryoku-dev/ryoport \
+		'^v1\.[0-9]+\.[0-9]$' "$source_tmp"
+) || {
+	printf 'container-runner.sh: could not resolve the latest Ryoku-dev/ryoport release\n' >&2
 	exit 1
 }
 
@@ -118,7 +107,9 @@ run=("$ENGINE" run --rm --platform linux/amd64 --privileged
 	-e "RYOKU_XBPS_PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}"
 	-e "XBPS_PASSPHRASE=${XBPS_PASSPHRASE:-}"
 	-e "RYOKU_RYOTUNES_VERSION=$ryotunes_version"
-	-e "RYOKU_RYOTUNES_SHA256=$ryotunes_sha256")
+	-e "RYOKU_RYOTUNES_SHA256=$ryotunes_sha256"
+	-e "RYOKU_RYOPORT_VERSION=$ryoport_version"
+	-e "RYOKU_RYOPORT_SHA256=$ryoport_sha256")
 
 if [[ -n ${RYOKU_XBPS_KEY:-} ]]; then
 	[[ -f $RYOKU_XBPS_KEY ]] || { printf 'container-runner.sh: key not found: %s\n' "$RYOKU_XBPS_KEY" >&2; exit 1; }
@@ -176,6 +167,8 @@ inner='
 		XBPS_PASSPHRASE="$XBPS_PASSPHRASE" \
 		RYOKU_RYOTUNES_VERSION="$RYOKU_RYOTUNES_VERSION" \
 		RYOKU_RYOTUNES_SHA256="$RYOKU_RYOTUNES_SHA256" \
+		RYOKU_RYOPORT_VERSION="$RYOKU_RYOPORT_VERSION" \
+		RYOKU_RYOPORT_SHA256="$RYOKU_RYOPORT_SHA256" \
 		/ryoku/void/packages/repo/build-repo.sh
 '
 run+=("$IMAGE" sh -c 'set -e

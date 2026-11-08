@@ -1,7 +1,7 @@
-name: Refresh standalone Ryotunes package
+name: Refresh standalone app packages
 
-# Ryotunes releases independently of distro tags. Keep both mutable pacman
-# channels current without rebuilding the desktop or modifying frozen releases.
+# Ryotunes and Ryoport release independently of distro tags. Keep both mutable
+# pacman channels current without rebuilding the desktop or changing snapshots.
 on:
   schedule:
     - cron: '17 * * * *'
@@ -16,15 +16,14 @@ permissions:
 jobs:
   refresh:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    name: Refresh Ryotunes in ${{ matrix.channel }}
+    name: Refresh ${{ matrix.app }} in ${{ matrix.channel }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         channel: [stable, testing]
-    # Same lock as the full publisher: never edit a channel database while a
-    # distro publication is replacing it. Unchanged polls do no publishing.
+        app: [ryotunes, ryoport]
     concurrency:
       group: publish-repo-${{ matrix.channel }}
       cancel-in-progress: false
@@ -46,4 +45,5 @@ jobs:
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           RYOKU_CHANNEL: ${{ matrix.channel }}
+          RYOKU_APP: ${{ matrix.app }}
         run: bash release/repo/refresh-ryotunes.sh

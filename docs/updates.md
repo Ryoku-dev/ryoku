@@ -134,30 +134,31 @@ workflow pushes the built system to the binary cache installed systems trust.
 How a sync merges and how to resolve a conflicted one is in the port's
 `docs/nixos.md`.
 
-### Ryotunes by edition
+### Independent apps by edition
 
-Ryotunes releases independently on
-[ryoku-dev/ryotunes](https://github.com/ryoku-dev/ryotunes). Arch and CachyOS
-import the prebuilt package from that release lane. Void and Fedora package the
-same application in their signed Ryoku repositories, so XBPS and DNF install
-and update it with the rest of the native Ryoku set.
+Ryotunes and Ryoport release on their own cadence from
+[ryoku-dev/ryotunes](https://github.com/ryoku-dev/ryotunes) and
+[ryoku-dev/ryoport](https://github.com/ryoku-dev/ryoport). Arch and CachyOS
+import their official prebuilt packages into both mutable `[ryoku]` channels.
+Void and Fedora build the same releases in their signed native repositories, so
+XBPS and DNF update them with the rest of the Ryoku package set.
 
 On Arch and CachyOS:
 
-- **`ryoku update` installs a newer build.** It re-reads the latest release
-  fresh, verifies the download by sha256 and by its own pacman metadata (name,
-  version, `x86_64`), installs it with `pacman -U`, and only ever moves the
-  version forward. A build that is not strictly newer is left alone, so an
-  external build is never downgraded, and a box without Ryotunes installed gets
-  nothing.
-- **`ryoku doctor --check` reports a pending release** without installing
-  anything. Advisory findings also appear with `--verbose` and `--json`; plain
-  doctor remains quiet for advisory notes. Failed release lookups are reported
-  as unavailable rather than "up to date".
-- Ryotunes is **excluded from the `[ryoku]` update set** so the repo's base
-  build can never overwrite a newer external one. Only the trusted
-  `ryoku-dev/ryotunes` release path is used. The package lands through
-  `pacman -U`, which honours pacman's signature policy and file ownership.
+- **`ryoku update` installs a newer app build.** It resolves each installed
+  app's latest release fresh, checks its sha256 sidecar and pacman identity
+  (name, version and `x86_64`), then installs it with `pacman -U`. It only moves
+  forward. It never downgrades an external build or installs an app that is
+  absent.
+- **`ryoku doctor --check` reports a pending app release** without installing
+  it. Checks reuse release metadata for one hour. A failed lookup remains
+  unavailable rather than being called up to date.
+- The release client trusts only each app's `ryoku-dev` release path. Ryotunes
+  retains its epoch-1 package identity; Ryoport uses `ryoport <version>-1`
+  without an epoch.
+- The scheduled refresh imports both official packages byte for byte, signs
+  them with the Ryoku release key, and updates stable and testing without
+  rebuilding the desktop or changing frozen release snapshots.
 
 ## `ryoku update`
 

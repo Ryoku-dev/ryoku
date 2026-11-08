@@ -200,8 +200,13 @@ done
 # a cached distro build. The shared importer verifies checksum/identity/epoch
 # and re-signs the unchanged package; the scheduled refresh uses it too.
 log "Importing ryotunes from its GitHub release channel"
-RYOKU_REPO_KEY="$KEY_ID" "$SCRIPT_DIR/import-ryotunes.sh" "$ARCH_DIR" >/dev/null \
+RYOKU_APP=ryotunes RYOKU_REPO_KEY="$KEY_ID" \
+  "$SCRIPT_DIR/import-ryotunes.sh" "$ARCH_DIR" >/dev/null \
   || die "could not import the official ryotunes release into $ARCH_DIR"
+log "Importing ryoport from its GitHub release channel"
+RYOKU_APP=ryoport RYOKU_REPO_KEY="$KEY_ID" \
+  "$SCRIPT_DIR/import-ryotunes.sh" "$ARCH_DIR" >/dev/null \
+  || die "could not import the official ryoport release into $ARCH_DIR"
 
 # 4. collect built packages, confirm each is signed before indexing.
 packages=("$ARCH_DIR"/*.pkg.tar.zst)

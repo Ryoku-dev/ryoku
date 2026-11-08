@@ -632,7 +632,7 @@ func seedLauncherOverrides(home, applicationsRoot string, ids []string) error {
 		if err != nil {
 			return err
 		}
-		override, err := noDisplayDesktopEntry(body)
+		override, err := NoDisplayDesktopEntry(body)
 		if err != nil {
 			return fmt.Errorf(i18n.T("Prepare launcher override %s: %v"), id, err)
 		}
@@ -643,7 +643,8 @@ func seedLauncherOverrides(home, applicationsRoot string, ids []string) error {
 	return seedLineLedger(home, ".local/state/ryoku/launcher-overrides", ordered)
 }
 
-func noDisplayDesktopEntry(body []byte) ([]byte, error) {
+// NoDisplayDesktopEntry returns a user override that hides the desktop entry.
+func NoDisplayDesktopEntry(body []byte) ([]byte, error) {
 	lines := strings.Split(strings.ReplaceAll(string(body), "\r\n", "\n"), "\n")
 	groupStart, groupEnd := -1, len(lines)
 	for index, line := range lines {

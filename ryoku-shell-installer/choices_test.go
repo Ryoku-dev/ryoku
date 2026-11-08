@@ -399,10 +399,11 @@ func TestDropsDeselectedComponentsAndLosingFileManagers(t *testing.T) {
 	p := defaultPlanForEdition(&facts{}, edition)
 	p.fileManager = "dolphin"
 	p.setComponent("ryotunes", false)
+	p.setComponent("ryoport", false)
 	p.setComponent("ryomanager", false)
 	p.setComponent("rashin", false)
 	drops := packageSet(choiceDropPackages(p))
-	for _, pkg := range []string{"nautilus", "nautilus-python", "thunar", "ryotunes", "ryomanager", "ryoku-rashin"} {
+	for _, pkg := range []string{"nautilus", "nautilus-python", "thunar", "ryotunes", "ryoport", "ryomanager", "ryoku-rashin"} {
 		if !drops[pkg] {
 			t.Errorf("missing drop %s", pkg)
 		}
@@ -412,44 +413,14 @@ func TestDropsDeselectedComponentsAndLosingFileManagers(t *testing.T) {
 	}
 }
 
-func TestHiddenDesktopEntryWriteAndSafeRemoval(t *testing.T) {
-	home := t.TempDir()
+func TestDeselectedRyoportDropsPackageWithoutDesktopHide(t *testing.T) {
 	p := defaultPlanForEdition(&facts{}, sourceEditionChoices("Arch"))
 	p.setComponent("ryoport", false)
-	e := &engine{f: &facts{homeDir: home}, p: p}
-	if err := e.reconcileHiddenDesktopEntries(); err != nil {
-		t.Fatal(err)
+	if !packageSet(choiceDropPackages(p))["ryoport"] {
+		t.Fatal("deselected Ryoport package was not dropped")
 	}
-	path := filepath.Join(home, ".local/share/applications/ryovm.desktop")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != ryokuHiddenDesktopEntry {
-		t.Fatalf("hide file = %q", data)
-	}
-
-	p.setComponent("ryoport", true)
-	if err := e.reconcileHiddenDesktopEntries(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Fatalf("Ryoku hide file still exists: %v", err)
-	}
-
-	custom := "[Desktop Entry]\nHidden=false\nName=My VM launcher\n"
-	if err := os.WriteFile(path, []byte(custom), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := e.reconcileHiddenDesktopEntries(); err != nil {
-		t.Fatal(err)
-	}
-	data, err = os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != custom {
-		t.Fatalf("user override changed to %q", data)
+	if hidden := p.choiceEdition().HiddenDesktopIDs(p.componentSelections()); len(hidden) != 0 {
+		t.Fatalf("deselected Ryoport emitted desktop hide entries: %v", hidden)
 	}
 }
 

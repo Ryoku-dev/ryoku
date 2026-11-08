@@ -1,4 +1,4 @@
-package ryotunesrelease
+package apprelease
 
 import (
 	"context"
@@ -33,9 +33,9 @@ func (c *Client) installRelease(ctx context.Context, rel relInfo, ensure bool) e
 	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
 	defer cancel()
 
-	dir, err := os.MkdirTemp("", "ryotunes-release-")
+	dir, err := os.MkdirTemp("", c.app.Name+"-release-")
 	if err != nil {
-		return fmt.Errorf("ryotunes upgrade: staging dir: %w", err)
+		return fmt.Errorf("%s upgrade: staging dir: %w", c.app.Name, err)
 	}
 	// 0700 already from MkdirTemp; the whole tree goes at the end regardless of
 	// outcome.
@@ -52,8 +52,8 @@ func (c *Client) installRelease(ctx context.Context, rel relInfo, ensure bool) e
 		return err
 	}
 	if subtle.ConstantTimeCompare(digest, want) != 1 {
-		return fmt.Errorf("ryotunes upgrade: sha256 mismatch on %s (got %s, want %s)",
-			rel.PkgAsset, hex.EncodeToString(digest), hex.EncodeToString(want))
+		return fmt.Errorf("%s upgrade: sha256 mismatch on %s (got %s, want %s)",
+			c.app.Name, rel.PkgAsset, hex.EncodeToString(digest), hex.EncodeToString(want))
 	}
 
 	// The bytes are the ones the release vouches for; now confirm they are the
@@ -61,16 +61,16 @@ func (c *Client) installRelease(ctx context.Context, rel relInfo, ensure bool) e
 	// its filename.
 	meta, err := c.inspect(ctx, pkgPath)
 	if err != nil {
-		return fmt.Errorf("ryotunes upgrade: %w", err)
+		return fmt.Errorf("%s upgrade: %w", c.app.Name, err)
 	}
-	if meta.Name != pkgName {
-		return fmt.Errorf("ryotunes upgrade: package identifies as %q, not %q", meta.Name, pkgName)
+	if meta.Name != c.app.Name {
+		return fmt.Errorf("%s upgrade: package identifies as %q, not %q", c.app.Name, meta.Name, c.app.Name)
 	}
 	if meta.Arch != wantArch {
-		return fmt.Errorf("ryotunes upgrade: package architecture %q, want %q", meta.Arch, wantArch)
+		return fmt.Errorf("%s upgrade: package architecture %q, want %q", c.app.Name, meta.Arch, wantArch)
 	}
 	if meta.Version != rel.Version {
-		return fmt.Errorf("ryotunes upgrade: package version %q does not match the release %q", meta.Version, rel.Version)
+		return fmt.Errorf("%s upgrade: package version %q does not match the release %q", c.app.Name, meta.Version, rel.Version)
 	}
 
 	// Re-read the installed version immediately before installing, against the
@@ -78,23 +78,23 @@ func (c *Client) installRelease(ctx context.Context, rel relInfo, ensure bool) e
 	// advertised). The download took time; the state may have changed under us,
 	// and this fresh read -- not the hint captured when the call started -- is
 	// what the decision is made on.
-	current := c.installedVersion(pkgName)
+	current := c.installedVersion(c.app.Name)
 	if current == "" {
 		// Absent right before install. For Upgrade that means a removal during
 		// download, which stays removed. For Ensure an absent package is exactly
 		// what we are here to install, so a fresh install proceeds.
 		if !ensure {
-			return fmt.Errorf("ryotunes upgrade: %s was removed during download; not reinstalling", pkgName)
+			return fmt.Errorf("%s upgrade: %s was removed during download; not reinstalling", c.app.Name, c.app.Name)
 		}
 	} else {
 		// Already installed: only ever move forward, never downgrade, whether we
 		// were upgrading or ensuring.
 		newer, err := c.isNewer(meta.Version, current)
 		if err != nil {
-			return fmt.Errorf("ryotunes upgrade: %w", err)
+			return fmt.Errorf("%s upgrade: %w", c.app.Name, err)
 		}
 		if !newer {
-			return fmt.Errorf("ryotunes upgrade: refusing to install %s over installed %s (not newer)", meta.Version, current)
+			return fmt.Errorf("%s upgrade: refusing to install %s over installed %s (not newer)", c.app.Name, meta.Version, current)
 		}
 	}
 
@@ -102,7 +102,7 @@ func (c *Client) installRelease(ctx context.Context, rel relInfo, ensure bool) e
 	// the installer re-check the staged copy so nothing can be swapped in after
 	// this point.
 	if err := c.install(ctx, pkgPath, digest); err != nil {
-		return fmt.Errorf("ryotunes upgrade: %w", err)
+		return fmt.Errorf("%s upgrade: %w", c.app.Name, err)
 	}
 	return nil
 }
@@ -118,12 +118,12 @@ func (c *Client) downloadPackage(ctx context.Context, url, dst string) ([]byte, 
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ryotunes upgrade: download %s: GitHub returned %s", filepath.Base(url), resp.Status)
+		return nil, fmt.Errorf("%s upgrade: download %s: GitHub returned %s", c.app.Name, filepath.Base(url), resp.Status)
 	}
 
 	f, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("ryotunes upgrade: %w", err)
+		return nil, fmt.Errorf("%s upgrade: %w", c.app.Name, err)
 	}
 	defer f.Close()
 
@@ -132,13 +132,13 @@ func (c *Client) downloadPackage(ctx context.Context, url, dst string) ([]byte, 
 	// quietly cut to the limit.
 	n, err := io.Copy(io.MultiWriter(f, h), io.LimitReader(resp.Body, maxPkgBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("ryotunes upgrade: download %s: %w", filepath.Base(url), err)
+		return nil, fmt.Errorf("%s upgrade: download %s: %w", c.app.Name, filepath.Base(url), err)
 	}
 	if n > maxPkgBytes {
-		return nil, fmt.Errorf("ryotunes upgrade: %s exceeds the %d-byte size limit", filepath.Base(url), int64(maxPkgBytes))
+		return nil, fmt.Errorf("%s upgrade: %s exceeds the %d-byte size limit", c.app.Name, filepath.Base(url), int64(maxPkgBytes))
 	}
 	if err := f.Sync(); err != nil {
-		return nil, fmt.Errorf("ryotunes upgrade: %w", err)
+		return nil, fmt.Errorf("%s upgrade: %w", c.app.Name, err)
 	}
 	return h.Sum(nil), nil
 }
@@ -154,27 +154,27 @@ func (c *Client) fetchChecksum(ctx context.Context, url, pkgAsset string) ([]byt
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ryotunes upgrade: download %s: GitHub returned %s", filepath.Base(url), resp.Status)
+		return nil, fmt.Errorf("%s upgrade: download %s: GitHub returned %s", c.app.Name, filepath.Base(url), resp.Status)
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxShaBytes))
 	if err != nil {
-		return nil, fmt.Errorf("ryotunes upgrade: read checksum: %w", err)
+		return nil, fmt.Errorf("%s upgrade: read checksum: %w", c.app.Name, err)
 	}
 
 	fields := strings.Fields(string(b))
 	if len(fields) == 0 {
-		return nil, fmt.Errorf("ryotunes upgrade: empty checksum file for %s", pkgAsset)
+		return nil, fmt.Errorf("%s upgrade: empty checksum file for %s", c.app.Name, pkgAsset)
 	}
 	if len(fields) >= 2 {
 		// `sha256sum file` records the name it hashed; a '*' marks binary mode.
 		named := strings.TrimPrefix(fields[1], "*")
 		if filepath.Base(named) != pkgAsset {
-			return nil, fmt.Errorf("ryotunes upgrade: checksum names %q, not %q", filepath.Base(named), pkgAsset)
+			return nil, fmt.Errorf("%s upgrade: checksum names %q, not %q", c.app.Name, filepath.Base(named), pkgAsset)
 		}
 	}
 	sum, err := hex.DecodeString(strings.ToLower(fields[0]))
 	if err != nil || len(sum) != sha256.Size {
-		return nil, fmt.Errorf("ryotunes upgrade: malformed sha256 %q for %s", fields[0], pkgAsset)
+		return nil, fmt.Errorf("%s upgrade: malformed sha256 %q for %s", c.app.Name, fields[0], pkgAsset)
 	}
 	return sum, nil
 }

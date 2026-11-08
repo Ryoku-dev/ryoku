@@ -1,4 +1,4 @@
-package ryotunesrelease
+package apprelease
 
 import (
 	"context"
@@ -130,6 +130,7 @@ type recorder struct {
 func newClient(t *testing.T, srv *httptest.Server, f *fixture, installed string, meta pkgMeta, installErr error, rec *recorder) *Client {
 	t.Helper()
 	return &Client{
+		app:              Ryotunes,
 		Repo:             f.repo,
 		APIBase:          srv.URL,
 		DownloadBase:     srv.URL,
@@ -140,9 +141,10 @@ func newClient(t *testing.T, srv *httptest.Server, f *fixture, installed string,
 		installedVersion: func(string) string { return installed },
 		inspect: func(context.Context, string) (pkgMeta, error) {
 			if meta.Name == "" {
+				rest := strings.TrimSuffix(strings.TrimPrefix(f.pkgAsset, Ryotunes.Name+"-"), "-"+wantArch+".pkg.tar.zst")
 				meta = pkgMeta{
-					Name:    pkgName,
-					Version: wantEpoch + ":" + strings.TrimSuffix(strings.TrimPrefix(f.pkgAsset, "ryotunes-"), "-"+wantArch+".pkg.tar.zst"),
+					Name:    Ryotunes.Name,
+					Version: Ryotunes.Epoch + ":" + rest,
 					Arch:    wantArch,
 				}
 			}
@@ -350,8 +352,8 @@ func TestUpgradeChecksumMismatch(t *testing.T) {
 func TestUpgradeWrongPackageIdentity(t *testing.T) {
 	cases := map[string]pkgMeta{
 		"wrong name":    {Name: "notryotunes", Version: "1:2.5.0-1", Arch: wantArch},
-		"wrong arch":    {Name: pkgName, Version: "1:2.5.0-1", Arch: "aarch64"},
-		"wrong version": {Name: pkgName, Version: "1:9.9.9-1", Arch: wantArch},
+		"wrong arch":    {Name: Ryotunes.Name, Version: "1:2.5.0-1", Arch: "aarch64"},
+		"wrong version": {Name: Ryotunes.Name, Version: "1:9.9.9-1", Arch: wantArch},
 	}
 	for name, meta := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -555,6 +557,43 @@ func TestVerifyStagedDigest(t *testing.T) {
 	}
 }
 
+func TestAppReleaseContracts(t *testing.T) {
+	for _, test := range []struct {
+		app     App
+		tag     string
+		asset   string
+		version string
+	}{
+		{Ryotunes, "v1.0.5", "ryotunes-1.0.5-1-x86_64.pkg.tar.zst", "1:1.0.5-1"},
+		{Ryoport, "v1.2.3", "ryoport-1.2.3-1-x86_64.pkg.tar.zst", "1.2.3-1"},
+	} {
+		name, version, err := resolveAsset(test.app, test.tag, []asset{{Name: test.asset}})
+		if err != nil {
+			t.Fatalf("%s: %v", test.app.Name, err)
+		}
+		if name != test.asset || version != test.version {
+			t.Fatalf("%s resolved (%q, %q), want (%q, %q)", test.app.Name, name, version, test.asset, test.version)
+		}
+		if test.app.Repo == "" || test.app.Binary == "" {
+			t.Fatalf("%s has incomplete release configuration: %+v", test.app.Name, test.app)
+		}
+	}
+}
+
+func TestRyoportRejectsReleaseContractDrift(t *testing.T) {
+	for _, test := range []struct {
+		tag, asset string
+	}{
+		{"v2.0.0", "ryoport-2.0.0-1-x86_64.pkg.tar.zst"},
+		{"v1.2.10", "ryoport-1.2.10-1-x86_64.pkg.tar.zst"},
+		{"v1.2.3", "ryoport-1.2.3-2-x86_64.pkg.tar.zst"},
+	} {
+		if _, _, err := resolveAsset(Ryoport, test.tag, []asset{{Name: test.asset}}); err == nil {
+			t.Fatalf("accepted Ryoport release %s / %s", test.tag, test.asset)
+		}
+	}
+}
+
 func TestPackageOperationsAreUnavailableWithoutPacman(t *testing.T) {
 	for _, manager := range []string{"dnf", "xbps"} {
 		t.Run(manager, func(t *testing.T) {
@@ -562,9 +601,12 @@ func TestPackageOperationsAreUnavailableWithoutPacman(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 			for name, operation := range map[string]func(context.Context) (Status, error){
-				"check":   Check,
-				"upgrade": Upgrade,
-				"ensure":  Ensure,
+				"ryotunes check":   Ryotunes.Check,
+				"ryotunes upgrade": Ryotunes.Upgrade,
+				"ryotunes ensure":  Ryotunes.Ensure,
+				"ryoport check":    Ryoport.Check,
+				"ryoport upgrade":  Ryoport.Upgrade,
+				"ryoport ensure":   Ryoport.Ensure,
 			} {
 				t.Run(name, func(t *testing.T) {
 					status, err := operation(ctx)

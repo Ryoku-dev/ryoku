@@ -16,6 +16,8 @@ PRODUCTION=${RYOKU_XBPS_PRODUCTION:-0}
 SOURCE_ARCHIVE=${RYOKU_XBPS_SOURCE_ARCHIVE:-}
 RYOTUNES_VERSION=${RYOKU_RYOTUNES_VERSION:-}
 RYOTUNES_SHA256=${RYOKU_RYOTUNES_SHA256:-}
+RYOPORT_VERSION=${RYOKU_RYOPORT_VERSION:-}
+RYOPORT_SHA256=${RYOKU_RYOPORT_SHA256:-}
 VP=$WORK/void-packages
 HOSTDIR=$WORK/hostdir
 ARCH_DIR=$OUT/$ARCH
@@ -218,20 +220,29 @@ for pkg in "${all_packages[@]}"; do
 	fi
 done
 
-# container-runner.sh resolves Ryotunes' latest release; xbps-src then fetches
-# that release and verifies it against the release's own checksum.
-if [[ -n ${template_for[ryotunes]:-} ]]; then
-	[[ $RYOTUNES_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $RYOTUNES_SHA256 =~ ^[0-9a-f]{64}$ ]] \
-		|| die "RYOKU_RYOTUNES_VERSION and RYOKU_RYOTUNES_SHA256 must name a Ryotunes release"
-	stamped=$VP/srcpkgs/ryotunes/template
-	awk -v version="$RYOTUNES_VERSION" -v checksum="$RYOTUNES_SHA256" '
+# container-runner.sh resolves standalone releases; xbps-src fetches each
+# source archive and verifies it against that release's checksum.
+stamp_standalone_release() {
+	local package=$1 label=$2 version=$3 checksum=$4 version_pattern=$5 stamped
+	[[ -n ${template_for[$package]:-} ]] || return 0
+	[[ $version =~ $version_pattern && $checksum =~ ^[0-9a-f]{64}$ ]] \
+		|| die "release metadata for $package is invalid"
+	stamped=$VP/srcpkgs/$package/template
+	awk -v version="$version" -v checksum="$checksum" '
 		!version_done && /^version=/ { print "version=" version; version_done=1; next }
 		!checksum_done && /^checksum=/ { print "checksum=" checksum; checksum_done=1; next }
 		{ print }
 	' "$stamped" > "$stamped.tmp"
 	mv "$stamped.tmp" "$stamped"
-	log "Building Ryotunes $RYOTUNES_VERSION, its latest release"
-fi
+	log "Building $label $version, its latest release"
+}
+
+stamp_standalone_release \
+	ryotunes Ryotunes "$RYOTUNES_VERSION" "$RYOTUNES_SHA256" \
+	'^[0-9]+\.[0-9]+\.[0-9]+$'
+stamp_standalone_release \
+	ryoport Ryoport "$RYOPORT_VERSION" "$RYOPORT_SHA256" \
+	'^1\.[0-9]+\.[0-9]$'
 
 {
 	printf '%s\n' 'XBPS_BUILD_ENVIRONMENT=ryoku-repository' 'XBPS_CHROOT_CMD=uchroot'

@@ -286,7 +286,7 @@ func Update(args []string) (err error) {
 		}
 		rashinReindex()
 		prowlRefresh()
-		upgradeRyotunes()
+		upgradeIndependentApps()
 		progress.at("doctor")
 		offerSnapperHelpers()
 		runFreshDoctor(true)
@@ -1132,7 +1132,7 @@ func updateStage2(pre string, withSystem bool) (err error) {
 	powerCutoverLock = nil
 	rashinReindex()
 	prowlRefresh()
-	upgradeRyotunes()
+	upgradeIndependentApps()
 
 	progress.at("doctor")
 	offerSnapperHelpers()
@@ -2249,7 +2249,7 @@ func buildStatus() statusReport {
 	// box ends up looking updated while its kernel never moves.
 	r.Packages = systemPackageUpdates()
 	r.SystemPending = len(r.Packages)
-	addRyotunesUpdate(&r)
+	addIndependentAppUpdates(&r)
 	return r
 }
 

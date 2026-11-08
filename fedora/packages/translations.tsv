@@ -221,6 +221,7 @@ ryoku-palette-bridge	ryoku-palette-bridge	desktop	Ryoku-owned RPM.
 ryoku-rashin	ryoku-rashin	desktop	Ryoku-owned RPM.
 ryoku-shell	ryoku-shell	desktop	Ryoku-owned RPM.
 ryomanager	ryomanager	optional	Ryoku-owned RPM.
+ryoport	ryoport	optional	Ryoku-owned RPM.
 ryotunes	ryotunes	optional	Ryoku-owned RPM.
 scrcpy	scrcpy	optional	Provided by a restricted COPR.
 sdbus-cpp	sdbus-cpp	hyprland	

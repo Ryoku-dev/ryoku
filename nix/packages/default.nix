@@ -6,6 +6,7 @@
   imgbordersSrc,
   ryomanagerSrc,
   ryotunesSrc,
+  ryoportPackage,
   skwdPaper,
   version,
 }:
@@ -78,10 +79,6 @@ let
 
   ryomotion = import ./ryoku-ryomotion.nix {
     inherit pkgs;
-  };
-
-  ryovmHelpers = import ./ryoku-ryovm-helpers.nix {
-    inherit pkgs src;
   };
 
   livewall = import ./ryoku-livewall.nix {
@@ -278,7 +275,7 @@ let
       prowlAgent
       ryostore
       ryomotion
-      ryovmHelpers
+      ryoportPackage
       livewall
       ryogami
       skwdPaper
@@ -297,6 +294,8 @@ in
 {
   niri = ryokuNiri;
 
+  ryoport = ryoportPackage;
+
   inherit
     shell
     cli
@@ -306,7 +305,6 @@ in
     prowlAgent
     ryostore
     ryomotion
-    ryovmHelpers
     livewall
     ryogami
     skwdPaper

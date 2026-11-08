@@ -1,4 +1,4 @@
-package ryotunesrelease
+package apprelease
 
 import (
 	"context"
@@ -30,20 +30,10 @@ const (
 	maxCacheBytes   = 4 << 10          // the on-disk cache is a few short fields
 )
 
-// defaultRepo is the canonical Ryotunes source. It is intentionally not
-// environment-overridable: the repo slug is part of the download-and-install
-// URL, so a knob for it would be a knob for aiming a root install at arbitrary
-// release bytes. Tests set Client.Repo on the struct instead.
-const defaultRepo = "ryoku-dev/ryotunes"
-
-// Client resolves and installs Ryotunes releases. The package-level Check and
-// Upgrade run it wired to the real system (pacman, sudo, GitHub); its fields are
-// exported (or injected) so a test can drive the whole flow against an
-// httptest.Server and stubbed pacman without ever touching the machine. The
-// download origin is a plain field, never an environment override, so production
-// can only ever pull from GitHub -- there is no env knob that would let a caller
-// aim a root install at an arbitrary URL.
+// Client resolves and installs one app's releases. Its exported transport
+// fields and injected system dependencies keep the full path testable.
 type Client struct {
+	app          App
 	Repo         string       // owner/name on GitHub
 	APIBase      string       // GitHub API root
 	DownloadBase string       // release-asset download host (github.com)
@@ -71,19 +61,22 @@ type pkgMeta struct {
 }
 
 // defaultClient wires a Client to the real system.
-func defaultClient() *Client {
+func defaultClient(app App) *Client {
 	return &Client{
-		Repo:             defaultRepo,
+		app:              app,
+		Repo:             app.Repo,
 		APIBase:          apiBase(),
 		DownloadBase:     "https://github.com",
 		HTTP:             defaultHTTPClient(),
 		now:              time.Now,
-		cacheDir:         filepath.Join(sys.StateDir(), "ryotunes-release"),
+		cacheDir:         filepath.Join(sys.StateDir(), app.Name+"-release"),
 		checkTTL:         checkCacheTTL,
 		installedVersion: defaultInstalledVersion,
 		inspect:          defaultInspect,
-		install:          defaultInstall,
-		vercmp:           defaultVercmp,
+		install: func(ctx context.Context, path string, digest []byte) error {
+			return defaultInstall(ctx, app.Name, path, digest)
+		},
+		vercmp: defaultVercmp,
 	}
 }
 
@@ -106,11 +99,8 @@ func defaultHTTPClient() *http.Client {
 	return &http.Client{CheckRedirect: trustedRedirect(isTrustedGitHubHost)}
 }
 
-// trustedGitHubHosts is the concrete, closed set of hosts a Ryotunes release
-// download may touch: the API and web host, and the two object stores GitHub
-// redirects release-asset downloads to. It is deliberately not a wildcard over
-// *.githubusercontent.com (which also serves user content like avatars and raw
-// gists); only the release-asset CDNs belong here.
+// trustedGitHubHosts is the concrete, closed set of hosts a release download
+// may traverse.
 var trustedGitHubHosts = map[string]bool{
 	"github.com":                           true,
 	"api.github.com":                       true,
@@ -143,9 +133,8 @@ func trustedRedirect(allow func(host string) bool) func(*http.Request, []*http.R
 	}
 }
 
-// defaultInstalledVersion returns the installed Ryotunes version (pkgver-pkgrel),
-// or "" when the package is not installed. `pacman -Q ryotunes` prints
-// "ryotunes <version>".
+// defaultInstalledVersion returns a package's installed version or an empty
+// string when it is absent.
 func defaultInstalledVersion(pkg string) string {
 	out, err := exec.Command("pacman", "-Q", pkg).Output()
 	if err != nil {
@@ -211,10 +200,10 @@ func parsePkgInfo(out string) pkgMeta {
 // It removes the root-owned directory on every path, drops the sudo wrapper when
 // already root, and never interpolates a shell or a helper script: only fixed
 // arguments and the two file paths are passed.
-func defaultInstall(ctx context.Context, path string, digest []byte) error {
+func defaultInstall(ctx context.Context, appName, path string, digest []byte) error {
 	root := os.Geteuid() == 0
 
-	out, err := privOut(ctx, root, "mktemp", "-d", "/var/tmp/ryotunes-release.XXXXXXXXXX")
+	out, err := privOut(ctx, root, "mktemp", "-d", "/var/tmp/"+appName+"-release.XXXXXXXXXX")
 	if err != nil {
 		return fmt.Errorf("root staging dir: %w", err)
 	}

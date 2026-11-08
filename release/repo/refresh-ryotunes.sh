@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Refresh only the independently released Ryotunes package in a mutable channel.
-# Never rebuild packages or change frozen releases/<tag>/ snapshots.
+# Refresh one independently released app in a mutable pacman channel.
 set -euo pipefail
 umask 077
 
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-: "${R2_BUCKET:?}" "${GPG_PRIVATE_KEY:?}" "${RYOKU_CHANNEL:?}"
+: "${R2_BUCKET:?}" "${GPG_PRIVATE_KEY:?}" "${RYOKU_CHANNEL:?}" "${RYOKU_APP:?}"
+case "$RYOKU_APP" in
+  ryotunes) display=Ryotunes ;;
+  ryoport) display=Ryoport ;;
+  *) echo "Unsupported independent app: $RYOKU_APP" >&2; exit 1 ;;
+esac
 case "$RYOKU_CHANNEL" in
   stable) remote="Ryoku:$R2_BUCKET/x86_64" ;;
   testing) remote="Ryoku:$R2_BUCKET/channels/testing/x86_64" ;;
@@ -20,8 +24,6 @@ printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
 unset GPG_PRIVATE_KEY
 "$root/bin/ryoku-r2-config"
 
-# Read and authenticate the current database before using its version or changing it.
-# A missing channel is an error: only the normal full publisher can create one.
 rclone copyto "$remote/ryoku.db" "$work/repo/ryoku.db.tar.gz"
 rclone copyto "$remote/ryoku.db.sig" "$work/repo/ryoku.db.tar.gz.sig"
 gpg --batch --verify "$work/repo/ryoku.db.tar.gz.sig" "$work/repo/ryoku.db.tar.gz"
@@ -29,29 +31,26 @@ bsdtar -xf "$work/repo/ryoku.db.tar.gz" -C "$work/db"
 installed=''
 for desc in "$work/db"/*/desc; do
   name=$(awk '/^%NAME%$/{getline;print;exit}' "$desc")
-  if [[ "$name" == ryotunes ]]; then
+  if [[ "$name" == "$RYOKU_APP" ]]; then
     installed=$(awk '/^%VERSION%$/{getline;print;exit}' "$desc")
     break
   fi
 done
 
-latest=$(RYOKU_IMPORT_RESOLVE_ONLY=1 bash "$root/release/repo/import-ryotunes.sh")
+latest=$(RYOKU_IMPORT_RESOLVE_ONLY=1 RYOKU_APP="$RYOKU_APP" bash "$root/release/repo/import-ryotunes.sh")
 if [[ -n "$installed" ]] && (( $(vercmp "$installed" "$latest") >= 0 )); then
-  echo "$RYOKU_CHANNEL already serves Ryotunes $installed; no package download or publish needed."
+  echo "$RYOKU_CHANNEL already serves $display $installed; no package download or publish needed."
   exit 0
 fi
 
-# Shared with the full publisher: the downloaded artifact remains byte-for-byte official.
-package=$(bash "$root/release/repo/import-ryotunes.sh" "$work/package")
+package=$(RYOKU_APP="$RYOKU_APP" bash "$root/release/repo/import-ryotunes.sh" "$work/package")
 [[ -f "$package" ]] || { echo 'Importer did not return a package file' >&2; exit 1; }
 version=$(bsdtar -xOf "$package" .PKGINFO | awk -F ' = ' '$1=="pkgver" {print $2;exit}')
-# The release may advance between discovery and import. Never regress a channel.
 if [[ -n "$installed" ]] && (( $(vercmp "$version" "$installed") <= 0 )); then
   echo "Refusing to replace $installed with $version" >&2
   exit 1
 fi
 
-# Keep the full files database too; otherwise repo-add would lose other packages' file lists.
 rclone copyto "$remote/ryoku.files" "$work/repo/ryoku.files.tar.gz"
 rclone copyto "$remote/ryoku.files.sig" "$work/repo/ryoku.files.tar.gz.sig"
 gpg --batch --verify "$work/repo/ryoku.files.tar.gz.sig" "$work/repo/ryoku.files.tar.gz"
@@ -60,8 +59,6 @@ repo-add --sign "$work/repo/ryoku.db.tar.gz" "$package"
 gpg --batch --verify "$work/repo/ryoku.db.tar.gz.sig" "$work/repo/ryoku.db.tar.gz"
 gpg --batch --verify "$work/repo/ryoku.files.tar.gz.sig" "$work/repo/ryoku.files.tar.gz"
 
-# Publish packages/signatures first, then database aliases and canonical archives together.
-# Keep superseded package bytes for in-flight clients; the full publisher handles pruning.
 filename=$(basename -- "$package")
 rclone copyto "$package" "$remote/$filename"
 rclone copyto "$package.sig" "$remote/$filename.sig"
@@ -78,4 +75,4 @@ rclone copyto "$remote/ryoku.db" "$work/published.db"
 rclone copyto "$remote/ryoku.db.sig" "$work/published.db.sig"
 cmp -- "$work/repo/ryoku.db.tar.gz" "$work/published.db"
 gpg --batch --verify "$work/published.db.sig" "$work/published.db"
-echo "Published official Ryotunes $version to $RYOKU_CHANNEL; frozen releases and all other packages are unchanged."
+echo "Published official $display $version to $RYOKU_CHANNEL; frozen releases and all other packages are unchanged."

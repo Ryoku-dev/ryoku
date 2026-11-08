@@ -122,6 +122,7 @@ Suggests:       nautilus-python
 Suggests:       dolphin
 Suggests:       thunar
 Suggests:       ryotunes
+Suggests:       ryoport
 Suggests:       ryomanager
 Suggests:       ryoku-rashin
 Suggests:       waifu2x-ncnn-vulkan
@@ -138,22 +139,12 @@ Suggests:       qemu-kvm
 Suggests:       libvirt
 Suggests:       edk2-ovmf
 Suggests:       swtpm
-Suggests:       quickemu
-Suggests:       libisoburn
-Suggests:       spice-gtk
-Suggests:       spice-gtk-tools
-Suggests:       picocom
-Suggests:       telnet
-Suggests:       freerdp
-Suggests:       tigervnc
 Suggests:       asusctl
 Suggests:       ryoku-extras
 
 Provides:       ryostore
-Provides:       ryovm
 Provides:       ryoku-ui = %{version}-%{release}
 Obsoletes:      ryostore < 0.2
-Obsoletes:      ryovm < 0.2
 Obsoletes:      ryoku-ui < 0.2
 
 %description

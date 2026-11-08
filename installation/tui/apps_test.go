@@ -507,7 +507,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 		t.Fatal("deselections must emit a drop list")
 	}
 	set := asSet(csv)
-	for _, want := range []string{"docker", "flatpak", "firefox", "zen-browser-bin", "fish", "blesh", "nautilus", "nautilus-python", "ryoku-rashin"} {
+	for _, want := range []string{"docker", "flatpak", "ryoport", "firefox", "zen-browser-bin", "fish", "blesh", "nautilus", "nautilus-python", "ryoku-rashin"} {
 		if !set[want] {
 			t.Errorf("drop list %q missing %s", csv, want)
 		}
@@ -520,8 +520,8 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	if !envHas(env, "RYOKU_FILE_MANAGER=dolphin") || !envHas(env, "RYOKU_RASHIN=0") {
 		t.Errorf("updated file-manager/Rashin choices missing from %v", env)
 	}
-	if hidden, ok := envValue(env, "RYOKU_HIDE_APPS"); !ok || hidden != "ryovm.desktop" {
-		t.Errorf("hidden apps = %q (ok=%v), want ryovm.desktop", hidden, ok)
+	if hidden, ok := envValue(env, "RYOKU_HIDE_APPS"); ok {
+		t.Errorf("deselected package emitted hidden apps %q", hidden)
 	}
 }
 

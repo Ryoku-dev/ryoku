@@ -102,7 +102,7 @@ mapfile -t target_packages < <(
 target_packages+=(
 	base-system linux linux-headers dracut limine
 	void-repo-nonfree void-repo-multilib void-repo-multilib-nonfree
-	dolphin Thunar ryotunes ryomanager
+	dolphin Thunar ryoport ryotunes ryomanager
 )
 mapfile -t target_packages < <(printf '%s\n' "${target_packages[@]}" | LC_ALL=C sort -u)
 

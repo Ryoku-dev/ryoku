@@ -1,4 +1,4 @@
-package ryotunesrelease
+package apprelease
 
 import (
 	"context"
@@ -40,43 +40,46 @@ type ghRelease struct {
 	Assets     []asset `json:"assets"`
 }
 
-// tagRe is the tag shape Ryotunes publishes: vX.Y.Z. Anything else (a moving
-// dev tag, a malformed name) is not a stable release and is refused, so a bad
-// tag never reaches URL construction.
-var tagRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+var (
+	tagRe        = regexp.MustCompile(`^v[0-9]+\.[0-9]+\.[0-9]+$`)
+	ryoportTagRe = regexp.MustCompile(`^v1\.[0-9]+\.[0-9]$`)
+	pkgRelRe     = regexp.MustCompile(`^[1-9][0-9]*$`)
+)
 
-// pkgRelRe is a valid, positive pkgrel: a plain integer with no leading zero.
-// Ryotunes pins pkgrel to 1 and only ever bumps it (2, 3, ...) for a rebuild, so
-// a decimal, zero, empty, or otherwise non-integer pkgrel is not something this
-// channel publishes and is refused before it can reach a filename or URL.
-var pkgRelRe = regexp.MustCompile(`^[1-9][0-9]*$`)
+func validTag(app App, tag string) bool {
+	if app.Name == Ryoport.Name {
+		return ryoportTagRe.MatchString(tag)
+	}
+	return tagRe.MatchString(tag)
+}
+
+func validPkgrel(app App, pkgrel string) bool {
+	return pkgRelRe.MatchString(pkgrel) && (app.Name != Ryoport.Name || pkgrel == "1")
+}
 
 // pkgVer is the pacman pkgver a validated vX.Y.Z tag stands for (the tag with its
 // leading "v" dropped). Callers must have matched tagRe first.
 func pkgVer(tag string) string { return strings.TrimPrefix(tag, "v") }
 
-// pkgAssetName is the one legal package-asset filename for a release: every
-// component is fixed -- the "ryotunes-" prefix, the tag's own X.Y.Z pkgver, an
-// integer pkgrel, the x86_64 arch and the .pkg.tar.zst suffix. Because the name
-// is rebuilt from these pieces, nothing else (a slash, backslash, "..", a query
-// or fragment, an unrelated version) can ever appear in the string that feeds
-// URL and path construction.
-func pkgAssetName(pkgver, pkgrel string) string {
-	return "ryotunes-" + pkgver + "-" + pkgrel + "-" + wantArch + ".pkg.tar.zst"
+func pkgAssetName(app App, pkgver, pkgrel string) string {
+	return app.Name + "-" + pkgver + "-" + pkgrel + "-" + wantArch + ".pkg.tar.zst"
 }
 
-// resolveAsset picks the single package asset a validated tag legitimately
-// carries. A candidate name must be exactly ryotunes-<tag X.Y.Z>-<pkgrel>-x86_64.pkg.tar.zst
-// for a positive integer pkgrel; anything else (a mismatched version, a bad
-// pkgrel, a traversal or separator smuggled into the name) is ignored. It
-// returns the (epochless) asset name and the pacman version, which carries the
-// fixed epoch the package is published under (wantEpoch:pkgver-pkgrel), and
-// refuses a
-// release that offers none, or more than one, such asset -- ambiguity is treated
-// as untrustworthy rather than "pick one".
-func resolveAsset(tag string, assets []asset) (name, version string, err error) {
+func packageVersion(app App, pkgver, pkgrel string) string {
+	version := pkgver + "-" + pkgrel
+	if app.Epoch != "" {
+		return app.Epoch + ":" + version
+	}
+	return version
+}
+
+// resolveAsset picks the single package asset matching the app and release tag.
+func resolveAsset(app App, tag string, assets []asset) (name, version string, err error) {
+	if !validTag(app, tag) {
+		return "", "", fmt.Errorf("%s release tag %q does not match its stable tag contract", app.Name, tag)
+	}
 	pv := pkgVer(tag)
-	prefix := "ryotunes-" + pv + "-"
+	prefix := app.Name + "-" + pv + "-"
 	suffix := "-" + wantArch + ".pkg.tar.zst"
 	var gotName, gotRel string
 	for _, a := range assets {
@@ -85,45 +88,45 @@ func resolveAsset(tag string, assets []asset) (name, version string, err error) 
 			continue
 		}
 		rel, ok := strings.CutSuffix(rest, suffix)
-		if !ok || !pkgRelRe.MatchString(rel) {
+		if !ok || !validPkgrel(app, rel) {
 			continue
 		}
 		if gotName != "" {
-			return "", "", fmt.Errorf("ryotunes release %s offers more than one %s package asset", tag, wantArch)
+			return "", "", fmt.Errorf("%s release %s offers more than one %s package asset", app.Name, tag, wantArch)
 		}
 		gotName, gotRel = a.Name, rel
 	}
 	if gotName == "" {
-		return "", "", fmt.Errorf("ryotunes release %s has no %s package asset for version %s", tag, wantArch, pv)
+		return "", "", fmt.Errorf("%s release %s has no %s package asset for version %s", app.Name, tag, wantArch, pv)
 	}
-	return gotName, wantEpoch + ":" + pv + "-" + gotRel, nil
+	return gotName, packageVersion(app, pv, gotRel), nil
 }
 
 // validRelInfo reports whether rel is internally consistent under the strict
 // naming rules, so a cache entry -- which lives on disk and could have been
 // tampered with -- is re-checked exactly like a freshly fetched release before
 // it is ever trusted to build a download URL.
-func validRelInfo(rel relInfo) bool {
-	if !tagRe.MatchString(rel.Tag) {
+func validRelInfo(app App, rel relInfo) bool {
+	if !validTag(app, rel.Tag) {
 		return false
 	}
 	pv := pkgVer(rel.Tag)
-	rel_, ok := strings.CutPrefix(rel.Version, wantEpoch+":"+pv+"-")
-	if !ok || !pkgRelRe.MatchString(rel_) {
+	versionPrefix := pv + "-"
+	if app.Epoch != "" {
+		versionPrefix = app.Epoch + ":" + versionPrefix
+	}
+	rel_, ok := strings.CutPrefix(rel.Version, versionPrefix)
+	if !ok || !validPkgrel(app, rel_) {
 		return false
 	}
-	if rel.PkgAsset != pkgAssetName(pv, rel_) {
+	if rel.PkgAsset != pkgAssetName(app, pv, rel_) {
 		return false
 	}
 	return rel.ShaAsset == rel.PkgAsset+".sha256"
 }
 
-// latestRelease resolves the newest published stable Ryotunes release. When
-// fresh is false it serves a cached lookup within checkCacheTTL and, if the
-// network fails, falls back to the last cached result (so a doctor run offline
-// still reports the last-known latest). When fresh is true it always hits the
-// network and never falls back to a stale cache: an install decision is made
-// only against what GitHub serves right now.
+// latestRelease resolves the newest stable app release, using the one-hour
+// check cache unless fresh is requested.
 func (c *Client) latestRelease(ctx context.Context, fresh bool) (relInfo, error) {
 	cachePath := filepath.Join(c.cacheDir, "latest.json")
 
@@ -173,30 +176,41 @@ func (c *Client) readCache(path string, freshOnly bool) (relInfo, bool) {
 		return relInfo{}, false
 	}
 	var rel relInfo
-	if json.Unmarshal(b, &rel) != nil || !validRelInfo(rel) {
+	if json.Unmarshal(b, &rel) != nil || !validRelInfo(c.app, rel) {
 		return relInfo{}, false
 	}
 	return rel, true
 }
 
-// writeCache persists rel for the next Check. Best-effort: a cache we cannot
-// write only costs a future lookup, it never fails the current one.
+// writeCache atomically persists rel for the next check. Failure only costs a
+// future lookup.
 func (c *Client) writeCache(path string, rel relInfo) {
 	b, err := json.Marshal(rel)
+	if err != nil || os.MkdirAll(filepath.Dir(path), 0o755) != nil {
+		return
+	}
+	file, err := os.CreateTemp(filepath.Dir(path), ".latest-*.json")
 	if err != nil {
 		return
 	}
-	if os.MkdirAll(filepath.Dir(path), 0o755) != nil {
+	tmp := file.Name()
+	defer os.Remove(tmp)
+	if file.Chmod(0o644) != nil {
+		_ = file.Close()
 		return
 	}
-	_ = os.WriteFile(path, b, 0o644)
+	if _, err := file.Write(b); err != nil {
+		_ = file.Close()
+		return
+	}
+	if file.Sync() != nil || file.Close() != nil {
+		_ = file.Close()
+		return
+	}
+	_ = os.Rename(tmp, path)
 }
 
-// fetchLatest asks the GitHub API for the newest release and turns it into a
-// relInfo, validating the tag shape and locating the x86_64 package asset and
-// its checksum sidecar. A draft or prerelease is refused (releases/latest should
-// never return one, but the check is cheap and closes the gap if the endpoint is
-// ever stubbed).
+// fetchLatest asks the GitHub API for the newest stable app release.
 func (c *Client) fetchLatest(ctx context.Context) (relInfo, error) {
 	ctx, cancel := context.WithTimeout(ctx, metadataTimeout)
 	defer cancel()
@@ -217,33 +231,31 @@ func (c *Client) fetchLatest(ctx context.Context) (relInfo, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return relInfo{}, fmt.Errorf("ryotunes release lookup: GitHub returned %s", resp.Status)
+		return relInfo{}, fmt.Errorf("%s release lookup: GitHub returned %s", c.app.Name, resp.Status)
 	}
 
 	var gr ghRelease
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxMetaBytes)).Decode(&gr); err != nil {
-		return relInfo{}, fmt.Errorf("ryotunes release lookup: %w", err)
+		return relInfo{}, fmt.Errorf("%s release lookup: %w", c.app.Name, err)
 	}
 	if gr.Draft || gr.Prerelease {
-		return relInfo{}, fmt.Errorf("ryotunes release %q is a draft/prerelease, not a stable build", gr.TagName)
+		return relInfo{}, fmt.Errorf("%s release %q is a draft/prerelease, not a stable build", c.app.Name, gr.TagName)
 	}
-	if !tagRe.MatchString(gr.TagName) {
-		return relInfo{}, fmt.Errorf("ryotunes release tag %q is not a vX.Y.Z stable tag", gr.TagName)
+	if !validTag(c.app, gr.TagName) {
+		return relInfo{}, fmt.Errorf("%s release tag %q does not match its stable tag contract", c.app.Name, gr.TagName)
 	}
 
-	name, ver, err := resolveAsset(gr.TagName, gr.Assets)
+	name, ver, err := resolveAsset(c.app, gr.TagName, gr.Assets)
 	if err != nil {
 		return relInfo{}, err
 	}
 	sha := name + ".sha256"
 	if !hasAsset(gr.Assets, sha) {
-		return relInfo{}, fmt.Errorf("ryotunes release %s is missing the checksum asset %s", gr.TagName, sha)
+		return relInfo{}, fmt.Errorf("%s release %s is missing the checksum asset %s", c.app.Name, gr.TagName, sha)
 	}
 	rel := relInfo{Tag: gr.TagName, Version: ver, PkgAsset: name, ShaAsset: sha}
-	if !validRelInfo(rel) {
-		// resolveAsset already enforces the rules; this is a belt-and-braces guard
-		// so nothing inconsistent can ever leave this function.
-		return relInfo{}, fmt.Errorf("ryotunes release %s produced an inconsistent asset set", gr.TagName)
+	if !validRelInfo(c.app, rel) {
+		return relInfo{}, fmt.Errorf("%s release %s produced an inconsistent asset set", c.app.Name, gr.TagName)
 	}
 	return rel, nil
 }

@@ -23,8 +23,8 @@ that the repository names, so dnf picks up a rotated key on the next update.
 
 Ryoku's repository carries the Fedora-compatible Arch desktop set, including a
 Ryoku-built Quickshell 0.3 or newer, GPU Screen Recorder, GlazePKG, the Hyprland
-plugins, skwd-paper, Ryotunes, fonts, cursors, controller support, and optional
-apps. Package-restricted COPR repositories provide only the Hyprland stack,
+plugins, skwd-paper, Ryotunes, Ryoport, fonts, cursors, controller support, and
+optional apps. Package-restricted COPR repositories provide only the Hyprland stack,
 starship, lazygit, and yazi packages Fedora 44 and 45 lack. The package
 translation maps the desktop's power-profile dependency to `ppd-service`, so
 Fedora's tuned-ppd and power-profiles-daemon providers both work and the

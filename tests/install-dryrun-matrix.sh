@@ -190,12 +190,11 @@ out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
 grep -qF 'not one of the shipped login shells' <<<"$out" \
   || fail "the login-shell gate did not explain the allowed values"
 
-# File manager, hidden launcher, and optional Rashin decisions share the drop
-# ledger with the existing browser and login-shell choices.
+# File manager and optional Rashin decisions share the drop ledger with the
+# existing browser and login-shell choices.
 out="$(RYOKU_DRYRUN=1 RYOKU_REPO="$root" RYOKU_DISK=/dev/vda \
   RYOKU_PASSWORD_HASH='$6$fake$hash' RYOKU_DISK_STRATEGY=whole \
-  RYOKU_FILE_MANAGER=dolphin RYOKU_RASHIN=0 \
-  RYOKU_HIDE_APPS=ryovm.desktop,ryotunes.desktop \
+  RYOKU_FILE_MANAGER=dolphin RYOKU_RASHIN=0 RYOKU_HIDE_APPS=ryotunes.desktop \
   bash "$root/installation/backend/ryoku-install" 2>&1)" \
   || fail "file-manager/app-choice dry run exited nonzero: $out"
 grep -qF 'DRYRUN: set dolphin as the default file manager (inode/directory + desktop.apps.files)' <<<"$out" \
@@ -203,8 +202,8 @@ grep -qF 'DRYRUN: set dolphin as the default file manager (inode/directory + des
 grep -qF 'ryomanager dolphin' <<<"$out" \
   || fail "dolphin and the default apps were not in the desktop transaction"
 seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
-[[ $seed_intent == *" hidden-apps=ryovm.desktop,ryotunes.desktop "* ]] \
-  || fail "the delegated account seed missed hidden launcher ids: $seed_intent"
+[[ $seed_intent == *" hidden-apps=ryotunes.desktop "* ]] \
+  || fail "the delegated account seed missed the hidden launcher id: $seed_intent"
 [[ $seed_intent == *" rashin=0 "* ]] \
   || fail "RYOKU_RASHIN=0 did not disable the delegated Rashin marker: $seed_intent"
 ledger="${seed_intent##* provisioned-ledger=}"
@@ -329,14 +328,14 @@ grep -qxF '        | linux' <<<"$out" \
 grep -qF '        | /Arch Linux (fallback)' <<<"$out" \
   && fail "missing CachyOS component row still added the layer fallback entry"
 
-# Void applies the same file-manager, apps, hidden-launcher and Rashin contract
-# and ignores the CachyOS-only switch.
+# Void applies the same file-manager, app, and Rashin contract and ignores the
+# CachyOS-only switch.
 void_out=$tmp/void.out
 install_dryrun_run void "$void_out" \
   RYOKU_DISK_STRATEGY=whole RYOKU_FIRMWARE_MODE=uefi \
   RYOKU_COMPOSITOR=niri RYOKU_COMPOSITOR_CONFIG_DIR=niri \
   RYOKU_COMPOSITOR_GPU_PIN=gpu.kdl RYOKU_FILE_MANAGER=thunar \
-  RYOKU_RASHIN=0 RYOKU_CACHYOS_LAYER=1 RYOKU_HIDE_APPS=ryovm.desktop \
+  RYOKU_RASHIN=0 RYOKU_CACHYOS_LAYER=1 \
   || fail "Void install-choice dry run exited nonzero: $(<"$void_out")"
 out=$(<"$void_out")
 grep -qF 'CachyOS layer is not available on Void' <<<"$out" \
@@ -346,8 +345,6 @@ grep -qF 'DRYRUN: set thunar as the default file manager (inode/directory + desk
 grep -qF 'ryotunes' <<<"$out" && grep -qF 'ryomanager' <<<"$out" && grep -qF 'Thunar' <<<"$out" \
   || fail "Void desktop transaction missed ryotunes, ryomanager, or Thunar"
 seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
-[[ $seed_intent == *" hidden-apps=ryovm.desktop "* ]] \
-  || fail "Void did not delegate the hidden Ryoport launcher: $seed_intent"
 [[ $seed_intent == *" rashin=0 "* ]] \
   || fail "Void RYOKU_RASHIN=0 did not disable the delegated Rashin marker: $seed_intent"
 transactions=$(grep -F 'xbps-install -r /mnt' <<<"$out")

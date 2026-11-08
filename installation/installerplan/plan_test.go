@@ -373,7 +373,7 @@ func TestComponentDropAndHideRules(t *testing.T) {
 	selected["ryomanager"] = false
 	selected["rashin"] = false
 	drop := arch.DropComponentPackages(selected)
-	for _, want := range []string{"ryomanager", "ryoku-rashin"} {
+	for _, want := range []string{"ryoport", "ryomanager", "ryoku-rashin"} {
 		if !contains(drop, want) {
 			t.Errorf("drop packages %v missing %s", drop, want)
 		}
@@ -383,8 +383,8 @@ func TestComponentDropAndHideRules(t *testing.T) {
 			t.Errorf("default-off package %s appears in drops %v", absent, drop)
 		}
 	}
-	if got := strings.Join(arch.HiddenDesktopIDs(selected), ","); got != "ryovm.desktop" {
-		t.Fatalf("hidden desktop ids = %q, want ryovm.desktop", got)
+	if got := strings.Join(arch.HiddenDesktopIDs(selected), ","); got != "" {
+		t.Fatalf("hidden desktop ids = %q, want none", got)
 	}
 
 	for _, edition := range []string{"void", "fedora"} {

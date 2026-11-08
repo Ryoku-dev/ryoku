@@ -34,9 +34,14 @@
       url = "github:Ryoku-dev/ryotunes/ade86b744651b908f3946b6769853e5084a59ce1";
       flake = false;
     };
+
+    ryoport = {
+      url = "github:Ryoku-dev/ryoport";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, hyprglassSrc, bibataMaterialSrc, imgbordersSrc, ryomanagerSrc, skwdWall, ryotunesSrc, ... }:
+  outputs = { self, nixpkgs, hyprglassSrc, bibataMaterialSrc, imgbordersSrc, ryomanagerSrc, skwdWall, ryotunesSrc, ryoport, ... }:
     let
       system = "x86_64-linux";
 
@@ -80,6 +85,7 @@
 
       ryoku = import ./nix/packages {
         inherit pkgs version hyprglassSrc bibataMaterialSrc imgbordersSrc ryomanagerSrc ryotunesSrc skwdPaper;
+        ryoportPackage = ryoport.packages.${system}.default;
         src = ryokuSource;
       };
     in
@@ -97,6 +103,7 @@
         ryoku-wm-niri = ryoku.wmNiri;
         ryoku-ryostore = ryoku.ryostore;
         ryoku-ryogami = ryoku.ryogami;
+        ryoport = ryoku.ryoport;
         default = ryoku.bundle;
       };
     };

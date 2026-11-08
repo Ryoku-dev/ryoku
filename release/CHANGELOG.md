@@ -1,6 +1,10 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Ryoport is its own package now.** Arch and CachyOS import the official
+  `ryoku-dev/ryoport` release into stable and testing beside Ryotunes. The
+  desktop package no longer carries Ryoport or its VM and console dependencies,
+  and fresh installs can leave the app out cleanly.
 - **`ryoku-blobs` ships the `Ryoku.Bus` module and `ryoku-desktop` ships
   Ryoku.Ui compiled.** The bus client is C++ now, and Ryoku.Ui is a
   qmlcachegen-built plugin instead of plain QML files, on Arch, Fedora, Void

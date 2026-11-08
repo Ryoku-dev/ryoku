@@ -1,0 +1,32 @@
+# Template file for 'ryoport'
+pkgname=ryoport
+version=1.0.0
+revision=1
+archs="x86_64"
+hostmakedepends="go pkg-config"
+makedepends="wayland-devel libxkbcommon-devel libX11-devel libXcursor-devel
+ libXfixes-devel libglvnd-devel Vulkan-Headers"
+depends="openssh quickemu qemu spice-gtk xorriso cdrtools picocom inetutils-telnet
+ freerdp tigervnc libsecret xdg-utils hicolor-icon-theme"
+short_desc="Fleet dashboard for virtual machines, servers, and consoles"
+maintainer="Ryoku <releases@ryoku.dev>"
+license="GPL-3.0-or-later"
+homepage="https://github.com/Ryoku-dev/ryoport"
+distfiles="${homepage}/releases/download/v${version}/ryoport-${version}.tar.gz"
+checksum=UNSTAMPED
+nocross=yes
+provides="ryovm-${version}_${revision}"
+conflicts="ryovm>=0"
+replaces="ryovm>=0"
+
+# The repository build stamps version and checksum with Ryoport's latest release.
+# An unstamped template intentionally fails source verification.
+do_build() {
+	mkdir -p build
+	CGO_ENABLED=1 go build -mod=vendor -trimpath -ldflags='-s -w' \
+		-o build/ryoport ./cmd/ryoport
+}
+
+do_install() {
+	make install SKIP_BUILD=1 DESTDIR="$DESTDIR" PREFIX=/usr
+}

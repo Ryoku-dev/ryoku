@@ -1,6 +1,6 @@
 id	label	group	group_label	packages	desktop_ids	default	step	needs_network	editions	lock_editions	lock_reason	detail
 ryotunes	Ryotunes	ryoku-apps	Ryoku apps	ryotunes	-	on	apps	false	*	-	-	music player
-ryoport	Ryoport	ryoku-apps	Ryoku apps	-	ryovm.desktop	on	apps	false	*	-	-	VMs, SSH and serial consoles in one dashboard
+ryoport	Ryoport	ryoku-apps	Ryoku apps	ryoport	-	on	apps	false	*	-	-	VMs, SSH and serial consoles in one dashboard
 ryomanager	RyoManager	ryoku-apps	Ryoku apps	ryomanager	-	on	apps	false	*	-	-	system monitor and task manager
 terminal	Kitty	required	System (required)	kitty	-	on	apps	false	*	*	the Ryoku terminal role: the launcher, Settings, and open in terminal use it	-
 editor	Neovim	required	System (required)	neovim	-	on	apps	false	*	*	the Ryoku editor role: the launcher opens kitty -e nvim	-

@@ -460,7 +460,7 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T)
 				t.Fatal(err)
 			}
 			set := packageSet(packages)
-			for _, pkg := range []string{"dolphin", "ryotunes", "ryomanager", "ryoku-rashin", "mpv", "mpv-mpris"} {
+			for _, pkg := range []string{"dolphin", "ryotunes", "ryoport", "ryomanager", "ryoku-rashin", "mpv", "mpv-mpris"} {
 				if !set[pkg] {
 					t.Errorf("selected package %s is missing from %v", pkg, packages)
 				}

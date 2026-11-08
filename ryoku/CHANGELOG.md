@@ -1,6 +1,10 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Ryoport now updates as an independent app.** `ryoku update` follows its
+  signed release package without reinstalling a removed copy or downgrading a
+  newer build. Doctor adopts existing installs and remembers the old installer
+  opt-out before removing its retired `ryovm.desktop` override.
 
 ### Fixed
 - **English no longer parses a catalog of itself.** `en.json` maps every

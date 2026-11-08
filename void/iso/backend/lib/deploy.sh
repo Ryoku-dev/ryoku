@@ -12,7 +12,7 @@ void_desktop_install() {
   mapfile -t packages < <(void_resolve "${args[@]}")
   packages+=(ryoku-keyring ryoku-desktop "ryoku-desktop-$RYOKU_COMPOSITOR")
   local source target package
-  local -a sources=(ryotunes ryomanager) file_sources=()
+  local -a sources=(ryoport ryotunes ryomanager) file_sources=()
   local file_key="file-manager:$RYOKU_FILE_MANAGER"
   IFS=, read -ra file_sources <<<"${RYOKU_CHOICE_PACKAGES[$file_key]}"
   sources+=("${file_sources[@]}")

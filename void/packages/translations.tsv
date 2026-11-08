@@ -225,6 +225,7 @@ ryoku-palette-bridge	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-rashin	@repo	desktop	Ryoku-owned package built from the checkout.
 ryoku-shell	@repo	desktop	Ryoku-owned package built from the checkout.
 ryomanager	@repo	optional	Ryoku-owned package built from the checkout.
+ryoport	ryoport	optional	repo=ryoku
 ryotunes	ryotunes	optional	repo=ryoku
 scrcpy	scrcpy	optional	
 sdbus-cpp	-	hyprland	Hyprland is not packaged on Void.
