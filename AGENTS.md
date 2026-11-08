@@ -116,11 +116,11 @@ there; the CLI needs no server and is the first choice.
 
 Auto-generated from the Prowl index, refreshed on each `overview`/`init`. Prefer retrieving from Prowl (and reading the cited files) over grepping or relying on training memory; this is the current shape of the repo.
 
-- size: 6773 files, 539735 symbols, 31135 edges (resolved 15835, external deps 8793, unresolved 6507)
-- languages: qml:2775 go:2149 bash:616 javascript:317 json:271 markdown:149 cpp:123 python:100
-- subsystems: ryoku/shell(2484,qml) · ryoku/hub(80,qml) · ryoku/shell(75,cpp) · ryoku/apps(58,qml) · ryoku/ui(56,qml) · ryoku/rashin(25,typescript) · tests/ui(22,qml) · ryoku/shell(20,css)
-- entrypoints: ryoku/shell/quickshell/inir/modules/background/Background.qml · ryoku/shell/quickshell/shell/shell.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/AndroidMediaWidget.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/media/MusicPopup.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/ConcentricClockWidget.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/syspanel/SystemPanel.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/CircularMediaWidget.qml · (+742 more)
-- central files (most depended-on): ryoku/shell/quickshell/shell/modules/bar/barstyles/python/quickactions/actions/Timer.qml · ryoku/ui/Singletons/Tokens.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/Config.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/system/I18n.qml · ryoku/shell/quickshell/shell/modules/bar/barstyles/python/singletons/theme/ThemeBackend.qml
+- size: 5657 files, 477535 symbols, 25152 edges (resolved 10549, external deps 9602, unresolved 5001)
+- languages: go:2286 qml:1891 bash:459 javascript:265 cpp:151 markdown:145 json:114 python:84
+- subsystems: ryoku/shell(1587,qml) · ryoku/hub(88,qml) · ryoku/shell(75,cpp) · ryoku/ui(62,qml) · ryoku/apps(61,qml) · ryoku/shell(28,cpp) · ryoku/rashin(25,typescript) · ryoku/shell(19,css)
+- entrypoints: ryoku/shell/quickshell/shell/ShellBody.qml · ryoku/hub/quickshell/pages/InputPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/AndroidMediaWidget.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/clock/ConcentricClockWidget.qml · ryoku/hub/quickshell/pages/AddonsPage.qml · ryoku/hub/quickshell/pages/LauncherPage.qml · ryoku/shell/quickshell/stage/modules/ii/background/widgets/media/CircularMediaWidget.qml · ryoku/shell/quickshell/shell/modules/dock/ii/settings/DockLivePreviewConfig.qml · (+576 more)
+- central files (most depended-on): ryoku/ui/Singletons/ShellSettings.qml · ryoku/ui/Singletons/Tokens.qml · ryoku/lockscreen/qylock/themes/clockwork/orbital/i18n/I18n.qml · ryoku/shell/quickshell/stage/modules/common/Config.qml · ryoku/shell/quickshell/stage/modules/common/Appearance.qml
 - read these guides first: README.md · AGENTS.md · CONTRIBUTING.md · docs/development.md · docs/structure.md
 
 Depth on demand: `prowl find|def|outline|references <name>`, `search <text>`, `context search "<question>"`, `sketch <ui>`.
