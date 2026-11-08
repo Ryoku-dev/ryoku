@@ -1,6 +1,20 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Search and the music clock run natively.** The launcher, the Kairos
+  launcher and clipboard search rank through `FuzzyRanker` in the new
+  `Ryoku.Text` module, result for result the same as `fuzzy.js` (kept for
+  store items). Music's 60 ms JavaScript ticker and lyric scan became
+  `PlaybackClock`, which sleeps while nothing shows it and only re-anchors when
+  the player drifts, and the Orpheus motion clock's timer sleeps while the
+  analyser drives it (`plugin/fuzzyranker.cpp`, `plugin/playbackclock.cpp`).
+- **Translations load into a native table.** `I18n.tr()` reads two
+  `TextCatalog` objects instead of parsed JavaScript maps, with the same
+  fallback order and live reload (`ui/Singletons/I18n.qml`).
+- **Resident lists stop rebuilding on unrelated frames.** Network's VPN lists
+  rebuild only when VPN data changes, and the Orpheus tray and the ii dock's
+  clipboard views use keyed `BusListModel` rows; the public `Network`,
+  `Tray.items` and `Clipboard.entries` stay as they were.
 - **The overview backdrop holds its wallpaper only while it can be seen.**
   The window stays mapped, but the decoded image loads when the overview opens
   or a workspace switch happens and is dropped 20 s later, about 45 MB back at

@@ -36,6 +36,7 @@ import "schema/PerformancePage.js" as PerformanceSchema
 import "schema/UpdatesPage.js" as UpdatesSchema
 import "ReloadCoverModel.js" as ReloadCoverModel
 import Ryoku.FrameBars
+import Ryoku.Text
 
 // Ryoku Settings, assembled. The rail owns navigation and global search; the
 // head, cells and tabs are drawn once by SchemaPage from a page's schema; the
@@ -364,115 +365,17 @@ Rectangle {
         "animation": "animations motion", "motion": "animations", "gpu": "graphics", "graphics": "gpu",
         "voice": "dictation", "speech": "dictation voice", "microphone": "dictation", "mic": "dictation"
     })
-    // a query word expands to itself plus its synonyms, so a term is satisfied by
-    // any one of them (and never dilutes multi-word coverage).
-    function expandQuery(q) {
-        var words = q.split(/\s+/), groups = [];
-        for (var i = 0; i < words.length; i++) {
-            var w = words[i];
-            if (!w) continue;
-            var g = [w], syn = synonyms[w];
-            if (syn) { var ps = syn.split(/\s+/); for (var j = 0; j < ps.length; j++) if (ps[j]) g.push(ps[j]); }
-            groups.push(g);
+    HubSearchIndex {
+        id: hubSearch
+        Component.onCompleted: {
+            setSynonyms(hub.synonyms);
+            setEntries(hub.searchIndex);
         }
-        return groups;
     }
-    // bounded Levenshtein: returns the distance if <= max, else -1, with an
-    // early length-diff reject and a per-row floor so it stays cheap in the
-    // per-keystroke loop.
-    function editDistance(a, b, max) {
-        var la = a.length, lb = b.length, j;
-        if (Math.abs(la - lb) > max) return -1;
-        var prev = [], cur = [];
-        for (j = 0; j <= lb; j++) prev[j] = j;
-        for (var i = 1; i <= la; i++) {
-            cur[0] = i;
-            var rowMin = i;
-            for (j = 1; j <= lb; j++) {
-                var cost = a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1;
-                var v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
-                cur[j] = v;
-                if (v < rowMin) rowMin = v;
-            }
-            if (rowMin > max) return -1;
-            var tmp = prev; prev = cur; cur = tmp;
-        }
-        return prev[lb] <= max ? prev[lb] : -1;
-    }
-    function wordScore(w, text) {
-        var tws = text.split(/[^a-z0-9]+/);
-        var best = 0;
-        for (var i = 0; i < tws.length; i++) {
-            var tw = tws[i];
-            if (tw === "") continue;
-            var idx = tw.indexOf(w);
-            if (idx === 0) { if (best < 1200) best = 1200; continue; }
-            if (idx > 0) { var ss = 1000 - Math.min(idx, 50); if (ss > best) best = ss; continue; }
-            if (w.length <= tw.length) {
-                var ti = 0, sc = 0, streak = 0, ok = true;
-                for (var ci = 0; ci < w.length; ci++) {
-                    var f = tw.indexOf(w.charAt(ci), ti);
-                    if (f < 0) { ok = false; break; }
-                    streak = (f === ti) ? streak + 1 : 0;
-                    sc += 2 + streak * 3;
-                    ti = f + 1;
-                }
-                if (ok && sc > best) best = sc;
-            }
-        }
-        // typo tolerance: a near-miss still matches, weaker than a clean hit, so
-        // "trasparency" or "keybnd" still reach their setting. gated on nothing
-        // cleaner matching and bounded, so it stays cheap per keystroke.
-        if (best < 600 && w.length >= 4) {
-            for (var t = 0; t < tws.length; t++) {
-                var tw2 = tws[t];
-                if (tw2.length < 3) continue;
-                var d = editDistance(w, tw2, w.length >= 7 ? 2 : 1);
-                if (d >= 0) { var es = 640 - d * 140; if (es > best) best = es; }
-            }
-        }
-        return best;
-    }
-    // Tolerant multi-word scoring over expanded groups: each term scores its best
-    // synonym (a synonym counts a touch less than the typed word), summed and
-    // scaled by how much of the query landed, so one out-of-vocab word never
-    // blanks the rail and a synonym or typo still finds the page.
-    function searchScore(groups, text) {
-        var total = 0, matched = 0, n = 0;
-        for (var gi = 0; gi < groups.length; gi++) {
-            n++;
-            var g = groups[gi], best = 0;
-            for (var wi = 0; wi < g.length; wi++) {
-                var s = wordScore(g[wi], text);
-                if (wi > 0) s *= 0.85;
-                if (s > best) best = s;
-            }
-            if (best > 0) { total += best; matched++; }
-        }
-        if (matched === 0 || n === 0) return 0;
-        return total * (matched / n);
-    }
-    readonly property var searchResults: {
-        var q = query.toLowerCase().trim();
-        if (q === "") return [];
-        var groups = expandQuery(q);
-        var scored = [];
-        for (var i = 0; i < searchIndex.length; i++) {
-            var e = searchIndex[i];
-            var full = (e.label + " " + e.desc + " " + e.sectionName + " " + e.group + " " + e.tab + " " + e.kw).toLowerCase();
-            var s = searchScore(groups, full);
-            if (s <= 0) continue;
-            s += 2 * searchScore(groups, e.label.toLowerCase());
-            var kwHit = searchScore(groups, (e.sectionName + " " + e.tab + " " + e.kw).toLowerCase());
-            s += kwHit;
-            if (e.isPage) s += 300 + 3 * kwHit;
-            scored.push({ e: e, s: s });
-        }
-        scored.sort(function (a, b) { return b.s - a.s; });
-        var out = [];
-        for (var j = 0; j < Math.min(scored.length, 60); j++) out.push(scored[j].e);
-        return out;
-    }
+    onSearchIndexChanged: if (hubSearch) hubSearch.setEntries(hub.searchIndex)
+    readonly property var searchResults: hubSearch.revision >= 0
+        ? hubSearch.query(hub.query, 60)
+        : []
 
     // Layout class per section, kept as sets so the chrome is derived from the
     // section and never from the mid-load item: that is what stops the rail,

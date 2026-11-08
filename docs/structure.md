@@ -115,8 +115,9 @@ truth for the live desktop.
   host carries desktop placements, and `kit/` is the `Ryoku.PluginKit` QML module
   a plugin imports for the signature look; see `docs/plugins.md`)),
   `plugin/` (`Ryoku.Blobs`, the C++/QML SDF metaball module the frame renders
-  with, `Ryoku.Spatial3D`, the Stage depth mesh, and `Ryoku.Bus`, the native
-  daemon bus client with its keyed list models; `build.sh` builds them, and
+  with, `Ryoku.Spatial3D`, the Stage depth mesh, `Ryoku.Bus`, the native
+  daemon bus client with its keyed list models, and `Ryoku.Text`, the
+  translation catalog and search ranking; `build.sh` builds them, and
   they ship prebuilt), `matugen/` (palette
   templates rendered on every wallpaper change),
   `qt6ct/`

@@ -13,3 +13,17 @@ foreach(suite busframer buspatch buslistdiff busqueue busclient busvalue buslist
     add_test(NAME ${suite} COMMAND tst_${suite})
     set_tests_properties(${suite} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LANG=C.UTF-8")
 endforeach()
+
+foreach(suite textcatalog fuzzyranker hubsearch)
+    add_executable(tst_${suite} tst_${suite}.cpp)
+    target_include_directories(tst_${suite} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+    target_link_libraries(tst_${suite} PRIVATE ryoku-text Qt6::Test Qt6::Qml)
+    add_test(NAME ${suite} COMMAND tst_${suite})
+    set_tests_properties(${suite} PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LANG=C.UTF-8")
+endforeach()
+
+add_executable(tst_playbackclock tst_playbackclock.cpp)
+target_include_directories(tst_playbackclock PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
+target_link_libraries(tst_playbackclock PRIVATE ryoku-blobs Qt6::Test Qt6::Qml Qt6::Quick)
+add_test(NAME playbackclock COMMAND tst_playbackclock)
+set_tests_properties(playbackclock PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LANG=C.UTF-8")

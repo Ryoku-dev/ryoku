@@ -3,7 +3,7 @@ import Quickshell
 import shell.services
 import Ryoku.Ui.Singletons
 import "../../Singletons"
-import "../../../../../utils/fuzzy.js" as Fuzzy
+import Ryoku.Text
 import "appactions.js" as AppActions
 import ".."
 
@@ -104,7 +104,7 @@ Provider {
     }
 
     function query(text) {
-        var ranked = Fuzzy.rank(apps.entries, text, Frecency.usage);
+        var ranked = FuzzyRanker.rank(apps.entries, text, Frecency.usage);
         var rows = [];
         for (var i = 0; i < ranked.length; i++)
             rows.push(rowFor(ranked[i]));

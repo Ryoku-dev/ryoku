@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Settings search scores natively.** The Hub's search box ranks through
+  `HubSearchIndex` in `Ryoku.Text` with the same scores and the same order as
+  the JavaScript it replaced (`Hub.qml`).
 - **Opening a Hub page reaches a running Hub with one call.** The Hub keeps
   one bus connection to the daemon, serves its navigation over it, and a cold
   start waits for the Hub to register instead of probing it with a `qs` client

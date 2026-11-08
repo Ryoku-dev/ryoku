@@ -2,6 +2,8 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Ryoku.Bus
+import Ryoku.Ui.Singletons
 import shell.services
 import "../kit" as K
 import "../settings" as S
@@ -11,11 +13,10 @@ Item {
 
     required property var scene
     required property string lane
-    property bool present: Tray.items.length > 0
+    property bool present: trayRows.count > 0
 
     readonly property int limit: S.Prefs.trayLimit
-    readonly property var shownItems: Tray.items.slice(0, limit)
-    readonly property bool hasOverflow: Tray.items.length > limit
+    readonly property bool hasOverflow: trayRows.count > limit
 
     implicitWidth: present ? iconRow.implicitWidth + K.Style.hitPad * 2 : 0
     implicitHeight: K.Style.barH
@@ -62,6 +63,15 @@ Item {
         });
     }
 
+    BusListModel {
+        id: trayRows
+        topic: Bus.connected ? "tray" : ""
+        path: "items"
+        key: "service"
+        roles: ["service", "id", "title", "status", "category", "iconName", "iconPath",
+            "tooltip", "itemIsMenu", "menu"]
+    }
+
     Row {
         id: iconRow
 
@@ -69,13 +79,16 @@ Item {
         spacing: 8 * K.Style.scale
 
         Repeater {
-            model: root.shownItems
+            model: trayRows
 
             delegate: Item {
                 id: trayItem
 
                 required property var modelData
 
+                required property int index
+
+                visible: index < root.limit
                 width: K.Style.barIcon
                 height: K.Style.barH
                 scale: itemPress.pressScale

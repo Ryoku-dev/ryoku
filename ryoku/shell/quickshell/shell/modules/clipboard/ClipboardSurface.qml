@@ -8,7 +8,7 @@ import shell.services
 import Ryoku.Bus
 import Ryoku.Ui.Singletons
 import "../../components"
-import "../../utils/fuzzy.js" as Fuzzy
+import Ryoku.Text
 import "../../services/lib/screens.js" as Screens
 
 /**
@@ -97,7 +97,7 @@ Scope {
         for (let i = 0; i < items.length; i++) {
             const e = items[i];
             const text = e.kind === "text" ? String(e.preview || "") : String(e.mime || "");
-            const score = Fuzzy.score({ name: text, keywords: [String(e.mime || ""), String(e.kind || "")] }, q);
+            const score = FuzzyRanker.score({ name: text, keywords: [String(e.mime || ""), String(e.kind || "")] }, q);
             if (score < 99)
                 hits.push({ entry: e, score: score, at: i });
         }

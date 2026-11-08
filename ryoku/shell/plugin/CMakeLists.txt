@@ -1,13 +1,13 @@
 # Ryoku.Blobs: the SDF metaball plugin behind the screen frame (see
 # docs/frame.md). Ryoku.Spatial3D: the depth-displaced wallpaper mesh behind the
-# Stage scene (docs/stage.md). Ryoku.Bus: the ryoku-shell daemon bus client.
+# Stage scene (docs/stage.md). Ryoku.Bus is the ryoku-shell daemon bus client,
+# and Ryoku.Text handles native text processing.
 # All are standard Qt6 QML modules: qt_add_qml_module
 # + AUTOMOC + qmltyperegistrar register the QML_ELEMENT types, and qt_add_shaders
 # bakes the metaball shaders into the Blobs module as :/shaders/*.qsb.
 #
-# They produce dynamically loadable modules under <build>/qml/Ryoku/{Blobs,Spatial3D,Bus}
-# that Quickshell picks up from QML2_IMPORT_PATH. build.sh wraps the configure/build
-# and copies the modules onto a QML import path; they ship prebuilt (the target
+# They produce dynamically loadable modules under <build>/qml/Ryoku.
+# build.sh copies the modules onto a QML import path; they ship prebuilt (the target
 # has no build toolchain).
 cmake_minimum_required(VERSION 3.28)
 
@@ -42,6 +42,7 @@ qt_add_qml_module(ryoku-blobs
         systemmonitor.cpp systemmonitor.hpp
         systemgraph.cpp systemgraph.hpp
         thinkingorb.cpp thinkingorb.hpp
+        playbackclock.cpp playbackclock.hpp
 )
 
 # QQuickItems use scene-graph materials, CameraFeed uses Multimedia, and
@@ -98,6 +99,24 @@ target_link_libraries(ryoku-bus PUBLIC Qt6::Qml Qt6::Network)
 set_target_properties(ryoku-bus ryoku-busplugin PROPERTIES
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml/Ryoku/Bus")
 set_target_properties(ryoku-busplugin PROPERTIES
+    INSTALL_RPATH "$ORIGIN"
+    BUILD_WITH_INSTALL_RPATH ON)
+
+qt_add_qml_module(ryoku-text
+    URI Ryoku.Text
+    VERSION 1.0
+    OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml/Ryoku/Text"
+    SOURCES
+        textcatalog.cpp textcatalog.hpp
+        fuzzyranker.cpp fuzzyranker.hpp
+        hubsearch.cpp hubsearch.hpp
+)
+
+target_link_libraries(ryoku-text PUBLIC Qt6::Core Qt6::Qml)
+
+set_target_properties(ryoku-text ryoku-textplugin PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/qml/Ryoku/Text")
+set_target_properties(ryoku-textplugin PROPERTIES
     INSTALL_RPATH "$ORIGIN"
     BUILD_WITH_INSTALL_RPATH ON)
 

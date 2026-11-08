@@ -39,22 +39,49 @@ Singleton {
     readonly property string dnsProvider: root.dns.provider || "dhcp"
     readonly property var dnsServers: Array.isArray(root.dns.servers) ? root.dns.servers : []
 
+    // Wi-Fi scan frames carry the full topic. Keep the VPN views stable unless
+    // their own arrays changed.
+    property string _wireguardSignature: "[]"
+    property string _vpnSignature: "[]"
+    property var _activeWg: []
+    property var _vpnTunnels: []
+
     // The VPN indicator is an active WireGuard tunnel (contract 06 sec 3
     // appends " (+WG)"; RailVpn shows only while a tunnel is up).
-    readonly property var activeWg: root.wgTunnels.filter(t => t && t.active)
+    readonly property var activeWg: root._activeWg
     readonly property bool vpnActive: root.activeWg.length > 0
     readonly property string vpnName: root.activeWg.length > 0 ? (root.activeWg[0].name || "") : ""
 
     // Every saved tunnel a VPN switch drives, VPN profiles then WireGuard, in
     // one shape: { uuid, name, service, active, connecting, ip4 }.
-    readonly property var vpnTunnels: root.vpnProfiles.concat(root.wgTunnels.map(tunnel => ({
-        uuid: tunnel.uuid,
-        name: tunnel.name || "",
-        service: "wireguard",
-        active: tunnel.active === true,
-        connecting: false,
-        ip4: ""
-    })))
+    readonly property var vpnTunnels: root._vpnTunnels
+
+    function updateVpnState(wireguard, vpn) {
+        const wireguardSignature = JSON.stringify(wireguard);
+        const vpnSignature = JSON.stringify(vpn);
+        const wireguardChanged = wireguardSignature !== root._wireguardSignature;
+        const vpnChanged = vpnSignature !== root._vpnSignature;
+
+        if (wireguardChanged) {
+            root._wireguardSignature = wireguardSignature;
+            root.wgTunnels = wireguard;
+            root._activeWg = wireguard.filter(tunnel => tunnel && tunnel.active);
+        }
+        if (vpnChanged) {
+            root._vpnSignature = vpnSignature;
+            root.vpnProfiles = vpn;
+        }
+        if (wireguardChanged || vpnChanged) {
+            root._vpnTunnels = root.vpnProfiles.concat(root.wgTunnels.map(tunnel => ({
+                uuid: tunnel.uuid,
+                name: tunnel.name || "",
+                service: "wireguard",
+                active: tunnel.active === true,
+                connecting: false,
+                ip4: ""
+            })));
+        }
+    }
 
     // vpnPolling ownership is retained for the rail/menu lifecycle (RailVpn and
     // MenuNetwork claim it on reveal); the topic streams regardless of who
@@ -110,8 +137,9 @@ Singleton {
         if (f.wired) root.wired = f.wired;
         if (f.connection) root.connection = f.connection;
         root.accessPoints = Array.isArray(f.accessPoints) ? f.accessPoints : [];
-        root.wgTunnels = Array.isArray(f.wireguard) ? f.wireguard : [];
-        root.vpnProfiles = Array.isArray(f.vpn) ? f.vpn : [];
+        root.updateVpnState(
+            Array.isArray(f.wireguard) ? f.wireguard : [],
+            Array.isArray(f.vpn) ? f.vpn : []);
         if (f.dns) root.dns = f.dns;
     }
 

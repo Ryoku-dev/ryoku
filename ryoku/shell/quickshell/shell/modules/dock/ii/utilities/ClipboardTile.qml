@@ -1,5 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
+import Ryoku.Bus
+import Ryoku.Ui.Singletons
 import shell.services
 import stage.modules.common.widgets
 import stage.services
@@ -15,9 +17,12 @@ import ".."
 UtilityTile {
     id: tile
 
-    readonly property var entries: Clipboard.entries || []
-    readonly property var starred: tile.entries.filter(entry => entry && entry.starred === true)
-    readonly property var latest: tile.entries.length > 0 ? tile.entries[0] : null
+    readonly property string feed: Bus.connected ? "clipboard" : ""
+    readonly property var entryRoles: ["id", "kind", "mime", "size", "preview", "thumb",
+        "thumbW", "thumbH", "w", "h", "starred"]
+    readonly property int entryCount: historyRows.count + starredRows.count
+    readonly property int starredCount: starredRows.count
+    readonly property var latest: Clipboard.entries.length > 0 ? Clipboard.entries[0] : null
 
     function textOf(entry) {
         return String(entry?.preview ?? "").trim();
@@ -74,15 +79,34 @@ UtilityTile {
         }
     }
 
+    BusListModel {
+        id: historyRows
+        topic: tile.feed
+        path: "entries"
+        key: "id"
+        roles: tile.entryRoles
+        filterRole: "starred"
+        filterValue: false
+    }
+    BusListModel {
+        id: starredRows
+        topic: tile.feed
+        path: "entries"
+        key: "id"
+        roles: tile.entryRoles
+        filterRole: "starred"
+        filterValue: true
+    }
+
     surfaceColor: ClockStyle.colSurfaceHigh
     contentColor: ClockStyle.colOnSurface
 
     tooltipText: tile.latest !== null
         ? Translation.tr("Clipboard · %1").arg(tile.labelOf(tile.latest).substring(0, 60))
         : Translation.tr("Clipboard")
-    panelSubtitle: tile.starred.length > 0
-        ? Translation.tr("%1 starred · %2 in history").arg(tile.starred.length).arg(tile.entries.length)
-        : Translation.tr("%1 in history").arg(tile.entries.length)
+    panelSubtitle: tile.starredCount > 0
+        ? Translation.tr("%1 starred · %2 in history").arg(tile.starredCount).arg(tile.entryCount)
+        : Translation.tr("%1 in history").arg(tile.entryCount)
     panelWidth: 380
 
     TileBadge {
@@ -131,7 +155,7 @@ UtilityTile {
             TileCaption {
                 Layout.fillWidth: true
                 text: (tile.latest !== null ? tile.kindName(tile.latest) : Translation.tr("Clipboard"))
-                    + (tile.starred.length > 0 ? " · " + Translation.tr("%1 starred").arg(tile.starred.length) : "")
+                    + (tile.starredCount > 0 ? " · " + Translation.tr("%1 starred").arg(tile.starredCount) : "")
                 color: tile.captionColor
                 font.pixelSize: tile.captionSize
             }

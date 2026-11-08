@@ -3,7 +3,7 @@ import Quickshell
 import Ryoku.Ui.Singletons as Ui
 import "../../shared/Singletons"
 import "metrics.js" as MainMetrics
-import "../../../../utils/fuzzy.js" as Fuzzy
+import Ryoku.Text
 import "../../shared/lib/results.js" as Results
 
 // The result list: ranked rows from the dispatcher. A row is a mono icon, a
@@ -87,7 +87,7 @@ ListView {
 
         readonly property var entry: list.results[index]
         readonly property bool selected: index === list.selectedIndex
-        readonly property var spans: entry ? Fuzzy.highlight(entry.title, list.query) : []
+        readonly property var spans: entry ? FuzzyRanker.highlight(entry.title, list.query) : []
         readonly property string typeLabel: entry && entry.type ? entry.type : ""
         // first row of each type group draws a small section header + hairline, so
         // results are visually grouped (apps, files, packages...) instead of one
@@ -226,7 +226,7 @@ ListView {
     }
 
     // Wrap the matched spans in the accent color for the title's StyledText. Spans
-    // come from Fuzzy.highlight (subsequence positions over the title).
+    // come from FuzzyRanker.highlight (subsequence positions over the title).
     function markup(title, spans) {
         if (!spans || spans.length === 0)
             return list.escapeHtml(title);

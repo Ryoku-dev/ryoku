@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# build the Ryoku.Blobs, Ryoku.Spatial3D and Ryoku.Bus QML plugins, install
-# the modules onto a QML import path.
+# build the Ryoku.Blobs, Ryoku.Spatial3D, Ryoku.Bus and Ryoku.Text QML plugins,
+# then install the modules onto a QML import path.
 #
 #   build.sh <qml-import-dir>
 #
 # drops <qml-import-dir>/Ryoku/Blobs/{libryoku-blobs.so, qmldir, *.qsb, ...},
-# <qml-import-dir>/Ryoku/Spatial3D/{libryoku-spatial3d.so, qmldir, ...} and
-# <qml-import-dir>/Ryoku/Bus/{libryoku-bus.so, qmldir, ...}.
+# <qml-import-dir>/Ryoku/Spatial3D/{libryoku-spatial3d.so, qmldir, ...},
+# <qml-import-dir>/Ryoku/Bus/{libryoku-bus.so, qmldir, ...} and
+# <qml-import-dir>/Ryoku/Text/{libryoku-text.so, qmldir, ...}.
 # Quickshell picks them up once that dir is on QML2_IMPORT_PATH (ryoku-shell does
 # that for the surfaces it supervises). target has no build toolchain, so this
 # runs on the dev box (deploy.sh) and the ISO build host (iso/build.sh), never
@@ -32,7 +33,7 @@ cmake --build "$build"
 # self-contained modules under <build>/qml/Ryoku. nuke any prior copy first so a
 # renamed / removed file doesn't linger on the import path.
 mkdir -p "$dest/Ryoku"
-for module in Blobs Spatial3D Bus; do
+for module in Blobs Spatial3D Bus Text; do
   rm -rf "$dest/Ryoku/$module"
   cp -a "$build/qml/Ryoku/$module" "$dest/Ryoku/$module"
   rm -f "$dest/Ryoku/$module"/*.qrc

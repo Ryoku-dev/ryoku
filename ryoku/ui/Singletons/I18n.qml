@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Ryoku.Text
 import "buspath.js" as BusPath
 
 // The one translation lookup, shared by every Ryoku surface (Hub, shell, apps,
@@ -107,8 +108,6 @@ Singleton {
         return out;
     }
 
-    property var map: ({})       // shipped translations
-    property var genMap: ({})    // user/AI-generated, layered on top
 
     // Where the shipped catalog lives, most specific first: an explicit
     // override (tests, a CI run), a dev checkout's `ryoku/i18n/install.sh`
@@ -170,28 +169,15 @@ Singleton {
     // the active language's string map; path rebinds when `lang` changes.
     // en.json maps every string to itself, and parsing it cost ~20 MB in every
     // QML process, so English skips the file and tr() hands keys back as-is.
-    FileView {
-        id: tf
+    TextCatalog {
+        id: shipped
         path: i18n.lang === "en" ? "" : i18n._trPath(i18n.lang)
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onPathChanged: if (path === "") i18n.map = ({})
-        onLoaded: i18n._loadMap()
-        onFileChanged: { reload(); i18n._loadMap(); }
-        onLoadFailed: i18n.map = ({})
     }
 
     // the user/AI-generated overlay for the active language; empty when absent.
-    FileView {
-        id: gen
+    TextCatalog {
+        id: generated
         path: i18n._genPath(i18n.lang)
-        blockLoading: true
-        watchChanges: true
-        printErrors: false
-        onLoaded: i18n._loadGen()
-        onFileChanged: { reload(); i18n._loadGen(); }
-        onLoadFailed: i18n.genMap = ({})
     }
 
     Component.onCompleted: { i18n._loadLangs(); i18n._loadCfg(); }
@@ -208,33 +194,19 @@ Singleton {
         const v = ShellSettings.get("language", "auto");
         i18n.configLang = typeof v === "string" && v ? v : "auto";
     }
-    function _loadMap() {
-        try {
-            var t = tf.text();
-            i18n.map = t ? (JSON.parse(t) || {}) : ({});
-        } catch (e) {
-            i18n.map = ({});
-        }
-    }
-    function _loadGen() {
-        try {
-            var t = gen.text();
-            i18n.genMap = t ? (JSON.parse(t) || {}) : ({});
-        } catch (e) {
-            i18n.genMap = ({});
-        }
-    }
 
     // the lookup. English key in, translated (or the key) out. A user/AI-generated
     // string wins over the shipped one, which wins over the English key.
     function tr(s) {
+        void (shipped.revision + generated.revision);
         if (s === undefined || s === null || s === "")
             return s;
         var k = "" + s;
-        var g = i18n.genMap[k];
-        if (g !== undefined && g !== "")
-            return g;
-        var v = i18n.map[k];
-        return v === undefined ? s : v;
+        if (generated.contains(k)) {
+            var g = generated.value(k);
+            if (g !== "")
+                return g;
+        }
+        return shipped.contains(k) ? shipped.value(k) : s;
     }
 }

@@ -1,6 +1,7 @@
 pragma Singleton
 import QtQuick
 import Quickshell
+import Ryoku.Blobs
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 import "../utils/menupoll.js" as MenuPoll
@@ -11,11 +12,9 @@ import "../utils/menupoll.js" as MenuPoll
 // owns the LRCLIB and cover-art fetches, and subscribes to the frame it streams
 // back, so no surface here makes an HTTP request.
 //
-// `hold` is owner-refcounted like AudioBars: the position poll and the line
-// tracker run only while a visible surface claims them, so a hidden lyric sheet
-// costs nothing. MPRIS never pushes position, hence the poll; between polls the
-// clock is interpolated, so the highlight moves at 60fps rather than in 250ms
-// steps.
+// `hold` is owner-refcounted like AudioBars: the native clock and position poll
+// run only while a visible surface claims them. MPRIS never pushes position, so
+// the clock interpolates between its correction polls.
 Singleton {
     id: root
 
@@ -67,26 +66,30 @@ Singleton {
     }
 
     // ── the playback clock ───────────────────────────────────────────────────
-    // `anchor` is the last position MPRIS reported and `anchorMs` when it
-    // arrived, so `elapsed` reads as a continuous time while playing.
-    property real anchor: 0
+    property alias anchor: playbackClock.anchorPosition
     property real anchorMs: 0
-    property real elapsed: 0
+    property real elapsed: playbackClock.elapsed
     readonly property var player: Media.player
     readonly property bool playing: Media.playing
     readonly property real length: root.player && root.player.length > 0 ? root.player.length : 0
     readonly property real position: root.elapsed
     readonly property real duration: root.length
 
+    PlaybackClock {
+        id: playbackClock
+        running: root.ticking
+        interval: 60
+        rate: 1.0
+        length: root.length
+        lineTimes: root.synced ? root.lines.map(line => Number(line.t)) : []
+    }
+
     function reanchor(pos) {
-        root.anchor = Math.max(0, pos);
+        playbackClock.reanchor(pos);
         root.anchorMs = Date.now();
-        root.elapsed = root.anchor;
     }
     function estimate() {
-        if (!root.playing)
-            return root.anchor;
-        return root.anchor + (Date.now() - root.anchorMs) / 1000;
+        return playbackClock.elapsed;
     }
     // Seeking from a surface: move the player and re-anchor at once, so the rail
     // and the lyric line jump with the pointer instead of after the next poll.
@@ -103,14 +106,13 @@ Singleton {
 
     onPlayingChanged: root.reanchor(root.estimate())
 
-    // MPRIS reports position only when asked. Four polls a second keep the
-    // anchor honest (a seek elsewhere, a stream stall) while the frame ticker
-    // below carries the motion.
+    // MPRIS reports position only when asked. The native clock carries motion
+    // between polls; a poll only moves its anchor when the player has drifted.
     readonly property bool ticking: root.held && root.playing && !Presence.dark
     function refresh() {
         root.player.positionChanged();
         const reported = root.player.position;
-        if (Math.abs(reported - root.estimate()) > 0.35 || reported === 0)
+        if (Math.abs(reported - playbackClock.elapsed) > 0.35)
             root.reanchor(reported);
     }
     Timer {
@@ -119,39 +121,15 @@ Singleton {
         running: root.ticking && root.player !== null
         onTriggered: root.refresh()
     }
-    Timer {
-        interval: 60
-        repeat: true
-        running: root.ticking
-        onTriggered: root.elapsed = root.estimate()
-    }
-    Connections {
-        target: Presence
-        function onDarkChanged() {
-            if (Presence.dark || !root.held || !root.playing)
-                return;
-            if (root.player)
-                root.refresh();
-            root.elapsed = root.estimate();
-        }
+    onTickingChanged: {
+        if (root.ticking && root.player)
+            root.refresh();
     }
 
     // ── the current lyric line ───────────────────────────────────────────────
     // -1 until the first timestamp is reached, which is how a sheet knows to
     // show its intro rather than highlighting the opening line early.
-    readonly property int index: {
-        if (!root.synced)
-            return -1;
-        const t = root.elapsed;
-        let found = -1;
-        for (let i = 0; i < root.lines.length; i++) {
-            if (root.lines[i].t <= t)
-                found = i;
-            else
-                break;
-        }
-        return found;
-    }
+    readonly property int index: root.synced ? playbackClock.lineIndex : -1
 
     // ── the track pushed to the daemon ───────────────────────────────────────
     // Every shell surface pushes the same pick and MPRIS repeats metadata on

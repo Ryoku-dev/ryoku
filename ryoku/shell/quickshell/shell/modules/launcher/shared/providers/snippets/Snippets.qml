@@ -3,7 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Ryoku.Ui.Singletons
 import "../../Singletons"
-import "../../../../../utils/fuzzy.js" as Fuzzy
+import Ryoku.Text
 import "../../lib/providerids.js" as ProviderIds
 import "placeholders.js" as Placeholders
 import ".."
@@ -106,7 +106,7 @@ Provider {
         var rows = [];
         var q = text.toLowerCase();
         for (var i = 0; i < snippets.snippetList.length; i++)
-            if (Fuzzy.score(snippets.matchable(snippets.snippetList[i]), q) < 99)
+            if (FuzzyRanker.score(snippets.matchable(snippets.snippetList[i]), q) < 99)
                 rows.push(snippets.snippetRow(snippets.snippetList[i]));
         for (var j = 0; j < snippets.quicklinkList.length; j++) {
             var link = snippets.quicklinkList[j];
@@ -118,7 +118,7 @@ Provider {
                 rows.push(snippets.quicklinkRow(link, text.slice(kw.length + 1).trim()));
                 continue;
             }
-            if (Fuzzy.score(snippets.matchable(link), q) < 99)
+            if (FuzzyRanker.score(snippets.matchable(link), q) < 99)
                 rows.push(snippets.quicklinkRow(link, text));
         }
         return ProviderIds.dedupeRows(rows);

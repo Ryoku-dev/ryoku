@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import Ryoku.Bus
 import Ryoku.Ui.Singletons
 import shell.services
 import stage.modules.common.widgets
@@ -16,11 +17,31 @@ ColumnLayout {
 
     property var host: null
     readonly property var tile: panel.host?.tile ?? null
-    readonly property var pinned: (Clipboard.entries || []).filter(entry => entry && entry.starred === true)
-    readonly property var history: (Clipboard.entries || []).filter(entry => entry && entry.starred !== true).slice(0, 8)
+    readonly property string feed: Bus.connected ? "clipboard" : ""
+    readonly property var entryRoles: ["id", "kind", "mime", "size", "preview", "thumb",
+        "thumbW", "thumbH", "w", "h", "starred"]
     property var copiedEntryId: null
 
     spacing: 3
+
+    BusListModel {
+        id: pinnedRows
+        topic: panel.feed
+        path: "entries"
+        key: "id"
+        roles: panel.entryRoles
+        filterRole: "starred"
+        filterValue: true
+    }
+    BusListModel {
+        id: historyRows
+        topic: panel.feed
+        path: "entries"
+        key: "id"
+        roles: panel.entryRoles
+        filterRole: "starred"
+        filterValue: false
+    }
 
     Timer {
         id: copiedTimer
@@ -112,14 +133,14 @@ ColumnLayout {
 
     StyledText {
         Layout.leftMargin: 4
-        visible: panel.pinned.length > 0
+        visible: pinnedRows.count > 0
         text: Translation.tr("Pinned")
         color: ClockStyle.colOnSurfaceVariant
         font.pixelSize: Appearance.font.pixelSize.smallest
         font.weight: Font.Bold
     }
     Repeater {
-        model: panel.pinned
+        model: pinnedRows
         delegate: EntryRow {
             required property var modelData
             required property int index
@@ -130,24 +151,33 @@ ColumnLayout {
 
     StyledText {
         Layout.leftMargin: 4
-        Layout.topMargin: panel.pinned.length > 0 ? 6 : 0
+        Layout.topMargin: pinnedRows.count > 0 ? 6 : 0
         text: Translation.tr("Recent")
         color: ClockStyle.colOnSurfaceVariant
         font.pixelSize: Appearance.font.pixelSize.smallest
         font.weight: Font.Bold
     }
-    Repeater {
-        model: panel.history
+    ListView {
+        id: historyList
+        Layout.fillWidth: true
+        readonly property int shownCount: Math.min(8, historyRows.count)
+        implicitHeight: shownCount > 0 ? shownCount * 52 + (shownCount - 1) * spacing : 0
+        model: historyRows
+        spacing: panel.spacing
+        interactive: false
+        clip: true
+        reuseItems: true
         delegate: EntryRow {
             required property var modelData
             required property int index
+            width: ListView.view.width
             entry: modelData
             first: index === 0
         }
     }
     Rectangle {
         Layout.fillWidth: true
-        visible: panel.pinned.length === 0 && panel.history.length === 0
+        visible: pinnedRows.count === 0 && historyRows.count === 0
         implicitHeight: 64
         radius: ClockStyle.radiusLarge
         color: ClockStyle.colField

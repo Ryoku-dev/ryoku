@@ -2,7 +2,7 @@ import QtQuick
 import Quickshell
 import Ryoku.Ui.Singletons
 import "../../Singletons"
-import "../../../../../utils/fuzzy.js" as Fuzzy
+import Ryoku.Text
 import ".."
 import shell.services as Svc
 
@@ -129,7 +129,7 @@ Provider {
         var q = (text || "").trim().toLowerCase();
         var rows = [];
         for (var i = 0; i < list.length; i++)
-            if (q.length === 0 || Fuzzy.score({ name: list[i].title, keywords: list[i].keywords }, q) < 99)
+            if (q.length === 0 || FuzzyRanker.score({ name: list[i].title, keywords: list[i].keywords }, q) < 99)
                 rows.push(windows.rowFor(list[i]));
         return rows;
     }

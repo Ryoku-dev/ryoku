@@ -12,6 +12,7 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import shell.services as Ryoku
 import Ryoku.Ui.Singletons
+import Ryoku.Text
 import "../IslandMetrics.js" as Island
 import "../components" as Bar
 
@@ -81,24 +82,9 @@ Scope {
         settleDelay.restart();
     }
 
-    readonly property var catalogue: {
-        const all = DesktopEntries.applications.values
-            .filter(a => root.showHidden || !a.noDisplay);
-        all.sort((a, b) => (a.name || "").toLowerCase()
-            .localeCompare((b.name || "").toLowerCase()));
-        return all;
-    }
-    readonly property var rows: {
-        const all = root.catalogue;
-        const q = root.query.trim().toLowerCase();
-        if (q.length === 0)
-            return all.slice();
-        return all.filter(a => (a.name || "").toLowerCase().includes(q)).sort((a, b) => {
-            const an = (a.name || "").toLowerCase(), bn = (b.name || "").toLowerCase();
-            const ap = an.startsWith(q) ? 0 : 1, bp = bn.startsWith(q) ? 0 : 1;
-            return ap !== bp ? ap - bp : an.localeCompare(bn);
-        });
-    }
+    readonly property var catalogue: DesktopEntries.applications.values
+        .filter(a => root.showHidden || !a.noDisplay)
+    readonly property var rows: FuzzyRanker.prefixRank(root.catalogue, root.query, "name")
 
     function step(d) {
         if (root.rows.length === 0)
