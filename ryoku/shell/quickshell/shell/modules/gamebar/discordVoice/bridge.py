@@ -32,7 +32,7 @@ HANDSHAKE, FRAME, CLOSE, PING, PONG = range(5)
 
 
 def emit(kind: str, **fields: Any) -> None:
-    print(json.dumps({"type": kind, **fields}, separators=(",", ":")), flush=True)
+    print(json.dumps({"type": kind, **fields}, separators=(",", ":"), ensure_ascii=True), flush=True)
 
 
 class VoiceBridge:
@@ -125,7 +125,11 @@ class VoiceBridge:
                 reader, writer = await asyncio.open_unix_connection(path)
                 self.reader, self.writer, self.rpc_path = reader, writer, path
                 await self.send_frame({"v": 1, "client_id": APP_ID}, HANDSHAKE)
-                opcode, ready = await self.receive(reader)
+                try:
+                    opcode, ready = await asyncio.wait_for(
+                        self.receive(reader), AUTHORIZE_TIMEOUT)
+                except asyncio.TimeoutError as error:
+                    raise ConnectionError("the RPC handshake timed out") from error
                 if opcode == CLOSE or ready.get("evt") != "READY":
                     raise ConnectionError("the client rejected the RPC handshake")
                 emit("backend", backend="discord")

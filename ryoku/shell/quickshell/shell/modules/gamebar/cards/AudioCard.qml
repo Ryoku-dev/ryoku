@@ -67,12 +67,19 @@ GameBarCard {
             font.pixelSize: GameBarLook.smallie * card.s
         }
 
-        Repeater {
-            model: card.streams.slice(0, 3)
+        ListView {
+            id: apps
+            width: parent.width
+            height: Math.min(contentHeight, 3 * 46 * card.s)
+            clip: true
+            spacing: 4 * card.s
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
+            model: card.streams
 
             delegate: AudioAppRow {
                 required property var modelData
-                width: parent.width
+                width: apps.width
                 s: card.s
                 stream: modelData
                 open: true

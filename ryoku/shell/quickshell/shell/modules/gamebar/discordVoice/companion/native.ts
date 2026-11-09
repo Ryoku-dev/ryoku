@@ -59,14 +59,16 @@ function ensure() {
     });
 
     candidate.on("error", () => {
-        reset();
+        if (socket === candidate)
+            reset();
         candidate.destroy();
     });
 
     candidate.on("close", () => {
-        reset();
-        if (socket === candidate)
+        if (socket === candidate) {
+            reset();
             socket = undefined;
+        }
     });
 }
 

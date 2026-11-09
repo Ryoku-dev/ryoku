@@ -131,6 +131,7 @@ PanelWindow {
 
     property bool suppressed: false
     property bool sawSelecting: false
+    property bool hidingForRecording: false
 
     // A pinned card outlives the strip: the strip leaves, the cards stay. During
     // a full close the strip is held for the fade-out and then reset.
@@ -383,6 +384,7 @@ PanelWindow {
 
     onActiveChanged: {
         if (win.active) {
+            exitTimer.stop();
             win.live = true;
             win.shownCards = win.cards;
         } else {
@@ -393,6 +395,7 @@ PanelWindow {
     onWantedChanged: {
         if (!win.wanted)
             return;
+        exitTimer.stop();
         win.live = true;
         if (win.shownCards.length === 0)
             win.shownCards = win.cards;
@@ -665,6 +668,8 @@ PanelWindow {
     function shoot(mode) {
         if (Capture.selecting !== "")
             return;
+        restoreDelay.stop();
+        recordStartFallback.stop();
         win.sawSelecting = false;
         win.suppressed = true;
         Capture.shoot(mode);
@@ -673,9 +678,19 @@ PanelWindow {
     }
 
     function startRecording() {
+        restoreDelay.stop();
+        win.hidingForRecording = true;
         win.suppressed = true;
         Recorder.startAfter(Recorder.recordArgs(), 1);
-        win.restoreAfter(1900);
+        recordStartFallback.restart();
+    }
+
+    function endRecordingSuppression() {
+        if (!win.hidingForRecording)
+            return;
+        win.hidingForRecording = false;
+        recordStartFallback.stop();
+        win.restoreAfter(900);
     }
 
     function restoreAfter(ms) {
@@ -702,9 +717,38 @@ PanelWindow {
         }
     }
 
+    // A running capture would otherwise record the bar: hold suppression until
+    // Recorder reports the capture ended. The fallback covers a countdown that
+    // was cancelled or a recorder that never came up.
+    Connections {
+        target: Recorder
+        function onAnyActiveChanged() {
+            if (!win.hidingForRecording)
+                return;
+            if (Recorder.anyActive) {
+                recordStartFallback.stop();
+                return;
+            }
+            win.endRecordingSuppression();
+        }
+    }
+
+    Timer {
+        id: recordStartFallback
+        interval: 4000
+        onTriggered: {
+            if (win.hidingForRecording && !Recorder.anyActive && !Recorder.countingDown)
+                win.endRecordingSuppression();
+        }
+    }
+
     Timer {
         id: restoreDelay
-        onTriggered: win.suppressed = false
+        onTriggered: {
+            if (win.hidingForRecording && Recorder.anyActive)
+                return;
+            win.suppressed = false;
+        }
     }
 
     Component {

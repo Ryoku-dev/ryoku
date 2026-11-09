@@ -37,14 +37,16 @@ before a capture so it is never in its own screenshot or recording.
   an in-game frame counter, so the card never claims one.
 - **Resources** has a tab each for CPU, GPU and memory: the current reading in
   large numerals, the total it is out of, and a short graph.
-- **Tasks** lists the five busiest processes by average CPU with their memory,
-  and ends one through a two-step End. Desktop processes are protected, so the
-  list cannot offer to kill the compositor or the shell it floats above.
+- **Tasks** lists the five busiest of your processes by average CPU with their
+  memory, and ends one through a two-step End. Desktop processes are protected,
+  so the list cannot offer to kill the compositor or the shell it floats above.
+  Other users' processes are never listed.
 - **Media** follows the one now-playing pick the whole shell shares, with art,
   title, artist and transport.
 - **Voice** shows the Discord call (see below).
 - **Audio** carries the same output and application faders as the audio menu.
-  A level set here is the level PipeWire holds everywhere.
+  A level set here is the level PipeWire holds everywhere. The app list scrolls
+  when more than three apps are playing.
 - **Gallery** shows the newest screenshots and recordings as the files
   themselves, with a switch between the two lists and a button to open the
   current folder.

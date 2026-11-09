@@ -15,16 +15,17 @@ function near(actual, expected, msg) {
 }
 
 const sample = [
-    "    1 systemd                2    3442 16524",
-    " 4242 firefox            2400     120 812340",
-    " 5150 Web Content       1200      60 340012",
-    " 6001 kitty                50     300  51200",
+    "root       1 systemd                2    3442 16524",
+    "dodo    4242 firefox            2400     120 812340",
+    "dodo    5150 Web Content        1200      60 340012",
+    "dodo    6001 kitty                50     300  51200",
     ""
 ].join("\n");
 
 const rows = parse(sample);
 eq(rows.length, 4, "parses every row");
 eq(rows[0].pid, 1, "reads pid");
+eq(rows[0].user, "root", "reads the owner");
 eq(rows[0].name, "systemd", "reads a plain name");
 eq(rows[2].name, "Web Content", "keeps spaces in comm");
 eq(rows[2].memMiB, 332.04296875, "rss kB becomes MiB");
@@ -33,7 +34,9 @@ near(rows[3].cpu, 16.666666666666668, "short lived process still gets a rate");
 eq(isProtected("niri"), true, "compositor is protected");
 eq(isProtected("ryoku-shell"), true, "shell is protected");
 eq(isProtected("firefox"), false, "an app is not protected");
-eq(top(sample, 2).map((r) => r.name), ["firefox", "Web Content"], "top sorts by cpu then memory");
+eq(top(sample, 2, "dodo").map((r) => r.name), ["firefox", "Web Content"], "top sorts by cpu then memory");
+eq(top(sample, 5, "dodo").length, 3, "top keeps only the current user");
+eq(top(sample, 5, "root").map((r) => r.name), ["systemd"], "top can select the owner");
 eq(parse("").length, 0, "empty input parses to nothing");
 eq(parse("garbage\n\n").length, 0, "junk lines are skipped");
 

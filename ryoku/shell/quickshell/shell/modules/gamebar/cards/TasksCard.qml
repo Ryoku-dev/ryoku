@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import Quickshell
 import Quickshell.Io
 import ".."
 import Ryoku.Ui.Singletons
@@ -14,6 +15,7 @@ GameBarCard {
     id: card
 
     property var rows: []
+    readonly property string user: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
     title: I18n.tr("Tasks")
 
@@ -33,9 +35,9 @@ GameBarCard {
 
     Process {
         id: ps
-        command: ["ps", "-eo", "pid=,comm=,cputimes=,etimes=,rss="]
+        command: ["ps", "-eo", "user=,pid=,comm=,cputimes=,etimes=,rss="]
         stdout: StdioCollector {
-            onStreamFinished: card.rows = Tasks.top(text, 5)
+            onStreamFinished: card.rows = Tasks.top(text, 5, card.user)
         }
     }
 

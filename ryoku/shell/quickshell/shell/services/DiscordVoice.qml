@@ -82,7 +82,7 @@ Singleton {
         if (!user || !user.id || !user.avatar)
             return "";
         return "https://cdn.discordapp.com/avatars/" + user.id + "/" + user.avatar
-            + ".png?size=" + (size || 96);
+            + ".png?size=" + (size || 128);
     }
 
     function send(message) {

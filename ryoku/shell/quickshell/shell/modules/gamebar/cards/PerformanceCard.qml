@@ -29,14 +29,30 @@ GameBarCard {
         return out ? out.width + " x " + out.height : "n/a";
     }
 
+    function readMode() {
+        card.displayMode = "";
+        if (modeRead.running)
+            modeRead.running = false;
+        modeRestart.restart();
+    }
+
     Component.onCompleted: {
         Sysinfo.setActive(card, true);
         StatsFeed.setActive(card, true);
-        modeRead.running = true;
+        card.readMode();
     }
+    onMonitorNameChanged: card.readMode()
     Component.onDestruction: {
         Sysinfo.setActive(card, false);
         StatsFeed.setActive(card, false);
+    }
+
+    // restarting the process in the same tick may coalesce into no new run, so
+    // let the property settle first.
+    Timer {
+        id: modeRestart
+        interval: 1
+        onTriggered: if (!modeRead.running) modeRead.running = true
     }
 
     // The watch frames carry no mode, so the full state read is the one place
