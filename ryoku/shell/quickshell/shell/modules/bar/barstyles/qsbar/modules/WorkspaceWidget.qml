@@ -28,12 +28,19 @@ Item {
         root.isolateMonitors, wsWidget.screenName, Wm.focusedOutput)
 
     readonly property bool dynamicModel: Wm.workspaceModel === "dynamic"
+    readonly property var listActiveWorkspace: root.workspaceMode === "active"
+        ? (root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace) : null
+    readonly property string extraWs: {
+        if (root.workspaceMode === "active" || wsWidget.dynamicModel) return ""
+        var focused = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+        return WorkspaceIsolation.extraWorkspace(focused, root.workspaceMode)
+    }
 
     // A dynamic model follows the live workspace list with no invented slots; a
     // fixed model shows a stable numbered row plus the focused-beyond-range one.
     readonly property var workspaceList: WorkspaceIsolation.workspaceList(
         Wm.workspaces, root.workspaceMode, wsWidget.dynamicModel, wsWidget.screenName,
-        root.isolateMonitors, root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace)
+        root.isolateMonitors, wsWidget.listActiveWorkspace, wsWidget.extraWs)
 
     // ── PACMAN style state: pacman rests on the focused cell, pellet glyphs
     //    mark occupied cells, dimmed dots the empty ones. On a focus change a

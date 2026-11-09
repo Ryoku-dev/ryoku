@@ -5,9 +5,9 @@ import vm from "node:vm";
 const source = await readFile(new URL("./WorkspaceIsolation.js", import.meta.url), "utf8");
 const module = { exports: {} };
 vm.runInNewContext(source.replace(/^\.pragma library\s*/, "") +
-    "\nmodule.exports = { activeWorkspace, workspaceList, hasMonitorFocus, markerOpacity };",
+    "\nmodule.exports = { activeWorkspace, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity };",
     { module, Number, Object });
-const { activeWorkspace, workspaceList, hasMonitorFocus, markerOpacity } = module.exports;
+const { activeWorkspace, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity } = module.exports;
 
 const workspaces = [
     { name: "1", output: "eDP-1", active: true, special: false },
@@ -23,10 +23,15 @@ assert.equal(activeWorkspace(workspaces, "DP-1", true, workspaces[0]), workspace
 assert.equal(activeWorkspace(workspaces, "eDP-1", false, workspaces[2]), workspaces[2],
     "disabling isolation keeps the globally focused workspace");
 
-assert.deepEqual(Array.from(workspaceList(workspaces, "5", false, "eDP-1", true, workspaces[0])),
+assert.deepEqual(Array.from(workspaceList(workspaces, "5", false, "eDP-1", true, null, "")),
     ["1", "3", "4", "5"], "fixed mode filters assigned workspaces and keeps uncreated slots");
-assert.deepEqual(Array.from(workspaceList(workspaces, "5", false, "DP-1", true, workspaces[2])),
+assert.deepEqual(Array.from(workspaceList(workspaces, "5", false, "DP-1", true, null, "12")),
     ["2", "3", "4", "5", "12"], "fixed mode includes the local active workspace beyond its range");
+assert.equal(extraWorkspace({ name: "1" }, "5"), "");
+assert.equal(extraWorkspace({ name: "3" }, "5"), "",
+    "in-range focus changes keep the extra workspace binding unchanged");
+assert.equal(extraWorkspace({ name: "12" }, "5"), "12",
+    "fixed mode adds a workspace beyond its numbered range");
 
 let focusedOutput = "DP-1";
 assert.equal(markerOpacity(hasMonitorFocus(true, "eDP-1", focusedOutput)), 0.72,

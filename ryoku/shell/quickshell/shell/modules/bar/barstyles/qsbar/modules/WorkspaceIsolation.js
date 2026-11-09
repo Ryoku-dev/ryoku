@@ -10,7 +10,7 @@ function activeWorkspace(workspaces, screenName, isolateMonitors, focusedWorkspa
     return null
 }
 
-function workspaceList(workspaces, mode, dynamicModel, screenName, isolateMonitors, active) {
+function workspaceList(workspaces, mode, dynamicModel, screenName, isolateMonitors, active, extraWorkspace) {
     if (dynamicModel) {
         var live = []
         for (var i = 0; i < workspaces.length; i++) {
@@ -47,11 +47,14 @@ function workspaceList(workspaces, mode, dynamicModel, screenName, isolateMonito
             continue
         fixed.push(name)
     }
-    if (active) {
-        var activeNumber = Number(active.name)
-        if (activeNumber > count) fixed.push(active.name)
-    }
+    if (extraWorkspace) fixed.push(extraWorkspace)
     return fixed
+}
+
+function extraWorkspace(focused, mode) {
+    var count = mode === "5" ? 5 : 10
+    var number = focused ? Number(focused.name) : 0
+    return number > count ? focused.name : ""
 }
 
 function hasMonitorFocus(isolateMonitors, screenName, focusedOutput) {
