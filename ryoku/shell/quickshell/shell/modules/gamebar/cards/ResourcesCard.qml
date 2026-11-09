@@ -20,7 +20,7 @@ GameBarCard {
 
     property var gpuHistory: []
     property var memHistory: []
-    readonly property int tabIndex: GameBarStore.resourceTab
+    readonly property int tabIndex: Math.max(0, Math.min(2, GameBarStore.resourceTab))
 
     readonly property var tabs: [
         { label: I18n.tr("CPU"), icon: "cpu" },
