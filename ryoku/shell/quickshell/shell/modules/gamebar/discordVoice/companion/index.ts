@@ -42,7 +42,7 @@ function participant(userId: string, state: any, guildId?: string) {
     };
 }
 
-function activeSpeakers(channelId: string) {
+function activeSpeakers(channelId: string | null | undefined) {
     const ids = new Set<string>();
     if (channelId) {
         for (const peer of ChannelRTCStore.getSpeakingParticipants(channelId) || []) {
