@@ -132,6 +132,8 @@ Singleton {
     }
 
     function start(manual) {
+        // A queued restart would start a second bridge after this one exits.
+        restartTimer.stop();
         if (bridge.running)
             return;
         if (manual) {
@@ -206,6 +208,8 @@ Singleton {
         case "unavailable":
             root.status = "unavailable";
             root.errorMessage = message.message || "";
+            root.channel = null;
+            root.updateParticipants([]);
             root.armReconnect();
             break;
         case "companion_error":
