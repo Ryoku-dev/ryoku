@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Qt.labs.folderlistmodel
+import qs.Commons
 import shell.services
 import ".."
 import "../../../components"
@@ -76,14 +77,14 @@ GameBarCard {
 
     FolderListModel {
         id: shotFiles
-        folder: "file://" + card.shotsDir
+        folder: Util.fileUrl(card.shotsDir)
         showDirs: false
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
     }
 
     FolderListModel {
         id: clipFiles
-        folder: "file://" + card.clipsDir
+        folder: Util.fileUrl(card.clipsDir)
         showDirs: false
         nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.mov"]
     }

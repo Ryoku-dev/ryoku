@@ -92,10 +92,13 @@ function applyCommand(line: string) {
         const command = JSON.parse(line);
         if (command.type !== "command")
             return;
-        const current = snapshot();
-        if (typeof command.mute === "boolean" && command.mute !== current.mute)
+        // Toggling only changes the self state, so a server mute or deaf must
+        // not make the bridge think the matching toggle already happened.
+        const me = UserStore.getCurrentUser();
+        const own = me ? VoiceStateStore.getVoiceStateForUser(me.id) : null;
+        if (typeof command.mute === "boolean" && command.mute !== Boolean(own?.selfMute))
             Audio.toggleSelfMute();
-        if (typeof command.deaf === "boolean" && command.deaf !== current.deaf)
+        if (typeof command.deaf === "boolean" && command.deaf !== Boolean(own?.selfDeaf))
             Audio.toggleSelfDeaf();
     } catch {
         // A malformed command is not worth tearing the socket down for.

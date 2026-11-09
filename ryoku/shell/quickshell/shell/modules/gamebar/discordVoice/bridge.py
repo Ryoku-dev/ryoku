@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import signal
 import stat
 import struct
 import sys
@@ -27,6 +28,8 @@ AUTHORIZE_TIMEOUT = 12.0
 COMPANION_WRITE_TIMEOUT = 2.0
 COMPANION_LIMIT = 512 * 1024
 COMPANION_NAME = "ryoku-discord-voice.sock"
+VOICE_EVENTS = ("VOICE_STATE_CREATE", "VOICE_STATE_UPDATE", "VOICE_STATE_DELETE",
+                "SPEAKING_START", "SPEAKING_STOP")
 
 HANDSHAKE, FRAME, CLOSE, PING, PONG = range(5)
 
@@ -46,6 +49,7 @@ class VoiceBridge:
         self.rejected: set[str] = set()
         self.users: dict[str, dict[str, Any]] = {}
         self.channel: dict[str, Any] | None = None
+        self.subscribed_channel = ""
         self.muted = False
         self.deafened = False
 
@@ -105,6 +109,27 @@ class VoiceBridge:
         if channel_id:
             payload["args"] = {"channel_id": channel_id}
         await self.send_frame(payload)
+
+    async def unsubscribe_channel(self) -> None:
+        channel_id = self.subscribed_channel
+        self.subscribed_channel = ""
+        if not channel_id:
+            return
+        for event in VOICE_EVENTS:
+            nonce = self.next_nonce()
+            self.pending[nonce] = "UNSUB_" + event
+            await self.send_frame({
+                "cmd": "UNSUBSCRIBE", "evt": event, "nonce": nonce,
+                "args": {"channel_id": channel_id},
+            })
+
+    async def subscribe_channel(self, channel_id: str) -> None:
+        if self.subscribed_channel == channel_id:
+            return
+        await self.unsubscribe_channel()
+        for event in VOICE_EVENTS:
+            await self.subscribe(event, channel_id)
+        self.subscribed_channel = channel_id
 
     @staticmethod
     def candidates() -> list[str]:
@@ -251,6 +276,7 @@ class VoiceBridge:
         self.reader = None
         self.writer = None
         self.rpc_path = ""
+        self.subscribed_channel = ""
 
     async def receive(self, reader: asyncio.StreamReader | None = None) -> tuple[int, dict[str, Any]]:
         source = reader or self.reader
@@ -269,7 +295,9 @@ class VoiceBridge:
     async def authorize(self) -> None:
         if self.companion_active:
             return
-        if not await self.connect():
+        # connect() also succeeds when the companion took over while the RPC
+        # candidate was opening; nothing native is left to authorize then.
+        if not await self.connect() or self.companion_active:
             return
         emit("authorizing")
         nonce = self.next_nonce()
@@ -327,6 +355,10 @@ class VoiceBridge:
         except (OSError, asyncio.IncompleteReadError, ValueError):
             pass
         if self.writer is writer:
+            for task in self.auth_tasks.values():
+                task.cancel()
+            self.auth_tasks.clear()
+            self.pending.clear()
             self.close_native()
             self.users.clear()
             self.channel = None
@@ -342,6 +374,9 @@ class VoiceBridge:
             if command == "AUTHENTICATE":
                 self.clear_token()
                 emit("auth_required")
+            elif command.startswith("UNSUB_"):
+                # A best-effort cleanup of a channel we already left.
+                return
             else:
                 emit("error", message=(payload.get("data") or {}).get("message", "Discord RPC error"))
             return
@@ -391,11 +426,14 @@ class VoiceBridge:
         }
 
     async def select_channel(self, data: dict[str, Any] | None) -> None:
-        self.users.clear()
         if not data or not data.get("id"):
+            await self.unsubscribe_channel()
+            self.users.clear()
             self.channel = None
             emit("voice_channel", channel=None, users=[])
             return
+        await self.subscribe_channel(data["id"])
+        self.users.clear()
         # A refresh can repeat only the channel id. Keep the name and guild that
         # this same channel already reported instead of degrading the label.
         previous = self.channel or {}
@@ -411,9 +449,6 @@ class VoiceBridge:
             if user["id"]:
                 self.users[user["id"]] = user
         emit("voice_channel", channel=self.channel, users=list(self.users.values()))
-        for event in ("VOICE_STATE_CREATE", "VOICE_STATE_UPDATE", "VOICE_STATE_DELETE",
-                      "SPEAKING_START", "SPEAKING_STOP"):
-            await self.subscribe(event, self.channel["id"])
         await self.command("GET_VOICE_SETTINGS")
 
     async def dispatch(self, event: str, data: dict[str, Any]) -> None:
@@ -480,12 +515,24 @@ class VoiceBridge:
 
 async def main() -> None:
     bridge = VoiceBridge()
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    if task is not None:
+        loop.add_signal_handler(signal.SIGTERM, task.cancel)
     await bridge.start_companion_server()
     emit("ready")
+    interrupted = False
     try:
         await bridge.input_loop()
+    except asyncio.CancelledError:
+        interrupted = True
     finally:
         await bridge.shutdown()
+        loop.remove_signal_handler(signal.SIGTERM)
+    if interrupted:
+        # The stdin read sits in an executor thread that stays blocked while the
+        # parent keeps the pipe open. The socket is already unlinked, so leave.
+        os._exit(0)
 
 
 if __name__ == "__main__":
