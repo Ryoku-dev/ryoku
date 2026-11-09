@@ -169,17 +169,26 @@ class VoiceBridge:
             except (OSError, ConnectionError, asyncio.IncompleteReadError, ValueError):
                 self.close_native()
 
-        emit("unavailable", message="Discord is not running")
-        return False
-
-    async def start_companion_server(self) -> None:
-        if self.companion_path is None:
+async def start_companion_server(self) -> None:
+    if self.companion_path is None:
+        return
+    try:
+        current = self.companion_path.lstat()
+        if not stat.S_ISSOCK(current.st_mode) or current.st_uid != os.getuid():
+            emit("companion_error", message="Refusing an unsafe Ryoku voice socket path")
             return
         try:
-            current = self.companion_path.lstat()
-            if not stat.S_ISSOCK(current.st_mode) or current.st_uid != os.getuid():
-                emit("companion_error", message="Refusing an unsafe Ryoku voice socket path")
-                return
+            _, existing = await asyncio.open_unix_connection(self.companion_path)
+        except (ConnectionRefusedError, FileNotFoundError):
+            pass
+        else:
+            existing.close()
+            await existing.wait_closed()
+            emit("companion_error", message="A Ryoku voice bridge is already running")
+            return
+        self.companion_path.unlink(missing_ok=True)
+    except FileNotFoundError:
+        pass
             self.companion_path.unlink()
         except FileNotFoundError:
             pass
