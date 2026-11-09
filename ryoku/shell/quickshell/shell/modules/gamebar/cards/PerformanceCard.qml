@@ -55,10 +55,11 @@ GameBarCard {
     // A game can switch resolution or refresh while the card stays up. Watch
     // frames carry no mode, so re-read the full state now and then; the read
     // takes a few milliseconds. Skip it while the surface is unmapped (a shot or
-    // a recording) or the session is dark, and in the Power Saver tier, where a
-    // pinned card is not worth waking anything for.
+    // a recording) or the session is dark. Power Saver only rests a card left
+    // pinned behind a closed bar: an open bar is being looked at.
+    readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
-        && !Presence.dark && !Perf.saver
+        && !Presence.dark && !card.saverIdle
     onPollingChanged: card.syncFeed()
 
     Timer {
