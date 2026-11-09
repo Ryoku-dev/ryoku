@@ -31,14 +31,16 @@ command -v git >/dev/null || die "git is required"
 command -v node >/dev/null || die "node is required"
 command -v npm >/dev/null || die "npm is required"
 
-export PATH="$HOME/.local/bin:$PATH"
+PNPM_PREFIX="$HOME/.local"
+export PATH="$PNPM_PREFIX/bin:$PATH"
 if ! command -v pnpm >/dev/null; then
     if command -v corepack >/dev/null; then
         say "enabling pnpm through corepack"
         corepack enable pnpm
     else
         say "installing pnpm into the user prefix"
-        npm install --global --prefix "$HOME/.local" pnpm@10
+        npm install --global --prefix "$PNPM_PREFIX" pnpm@10
+        hash -r
     fi
 fi
 command -v pnpm >/dev/null || die "pnpm could not be installed"

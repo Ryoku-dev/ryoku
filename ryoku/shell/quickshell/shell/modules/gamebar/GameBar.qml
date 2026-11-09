@@ -692,7 +692,9 @@ PanelWindow {
         if (Capture.selecting !== "")
             return;
         restoreDelay.stop();
-        recordStartFallback.stop();
+        // The recording watcher keeps running: a shot taken during the countdown
+        // must still end the cycle when that countdown is cancelled. It stops
+        // itself as soon as the recorder is actually active.
         win.sawSelecting = false;
         win.suppressed = true;
         Capture.shoot(mode);
@@ -810,11 +812,10 @@ PanelWindow {
 
     Timer {
         id: restoreDelay
-        onTriggered: {
-            if (win.recordingCycle && Recorder.anyActive)
-                return;
-            win.suppressed = false;
-        }
+        // A shot hides the surface briefly. Put it back the way the recording
+        // cycle had it: hidden while the recording hold is up, visible when the
+        // shortcut reopened the bar during the take.
+        onTriggered: win.suppressed = win.hidingForRecording
     }
 
     Component {

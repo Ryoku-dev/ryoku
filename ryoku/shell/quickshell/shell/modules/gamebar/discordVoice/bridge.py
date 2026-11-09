@@ -491,6 +491,10 @@ class VoiceBridge:
                 message = json.loads(line)
                 command = message.get("cmd")
                 if command == "connect":
+                    # An explicit reconnect deserves a fresh look: Discord may
+                    # have restarted at the same socket after an earlier
+                    # authorization timeout.
+                    self.rejected.clear()
                     await self.connect()
                 elif command == "authorize":
                     await self.authorize()
