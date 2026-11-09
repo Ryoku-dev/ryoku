@@ -51,12 +51,14 @@ SSH servers, and serial, Telnet, RDP, and VNC consoles.
 %autosetup
 
 %build
+mkdir -p build
 CGO_ENABLED=1 \
-  go build -mod=vendor -trimpath -ldflags='-s -w' \
-    -o ryoport ./cmd/ryoport
+  GOFLAGS='-mod=vendor -modcacherw -buildmode=pie' \
+  go build -trimpath -ldflags='-s -w' \
+    -o build/ryoport ./cmd/ryoport
 
 %install
-make install DESTDIR=%{buildroot} PREFIX=%{_prefix}
+make install SKIP_BUILD=1 DESTDIR=%{buildroot} PREFIX=%{_prefix}
 
 %files
 %{_bindir}/ryoport

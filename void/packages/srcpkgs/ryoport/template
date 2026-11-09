@@ -23,7 +23,7 @@ replaces="ryovm>=0"
 # An unstamped template intentionally fails source verification.
 do_build() {
 	mkdir -p build
-	CGO_ENABLED=1 go build -mod=vendor -trimpath -ldflags='-s -w' \
+	GOFLAGS="-buildmode=pie" CGO_ENABLED=1 go build -mod=vendor -trimpath -ldflags='-s -w' \
 		-o build/ryoport ./cmd/ryoport
 }
 
