@@ -191,8 +191,8 @@ Item {
         if (isNaN(n))
             return;
         if (r.ctl === "step") {
-            var lo = (r.from === undefined) ? 0 : Number(r.from);
-            var hi = (r.to === undefined) ? 100 : Number(r.to);
+            var lo = (r.lo === undefined) ? 0 : Number(r.lo);
+            var hi = (r.hi === undefined) ? 100 : Number(r.hi);
             sheet.edited(r.key, Math.max(lo, Math.min(hi, Math.round(n))));
             return;
         }

@@ -14,6 +14,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Hub step rows now clamp to the schema's `lo` and `hi` values instead of
+  unrelated `from` and `to` keys, so a step control stays inside its stated
+  range.
 - A QML object that sets the same property or handler twice can no longer be
   committed or pass QML Lint. qmllint never flagged it, yet the file refuses to
   load, and one such slip in the audio service kept the desktop from starting.
@@ -106,6 +109,15 @@ for finer detail.
   mutable channels current without changing frozen distro snapshots.
 
 ### Added
+- **Game Bar.** `Super+Shift+G` raises a passive overlay over the focused
+  monitor: a strip of eight widgets and draggable cards for capture,
+  performance, resources, tasks, media, audio, gallery and Discord voice. Cards
+  snap to edges, centre lines and each other with a guide grid, the layout
+  survives a restart, and a pinned Voice card shrinks to a content-sized
+  overlay that shows the call without taking pointer or keyboard focus. Voice
+  reads the official Discord client over native RPC, or Vesktop and Equibop
+  through a bundled Vencord companion. Every setting lives in Ryoku Hub ->
+  Desktop -> Game Bar.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar
