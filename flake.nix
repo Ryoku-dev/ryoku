@@ -36,7 +36,7 @@
     };
 
     ryoport = {
-      url = "github:Ryoku-dev/ryoport";
+      url = "github:Ryoku-dev/ryoport/v1.0.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };

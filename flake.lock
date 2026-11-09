@@ -90,6 +90,7 @@
         "imgbordersSrc": "imgbordersSrc",
         "nixpkgs": "nixpkgs",
         "ryomanagerSrc": "ryomanagerSrc",
+        "ryoport": "ryoport",
         "ryotunesSrc": "ryotunesSrc",
         "skwdWall": "skwdWall"
       }
@@ -108,6 +109,27 @@
         "owner": "aethctl",
         "repo": "ryomanager",
         "rev": "459c6714e31276f73025369e722cf4ab48eccbc3",
+        "type": "github"
+      }
+    },
+    "ryoport": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794185021,
+        "narHash": "sha256-2WBU80KCc19Wm7oBULnQu7WZYlbMftKf5yCzpf5XzLA=",
+        "owner": "Ryoku-dev",
+        "repo": "ryoport",
+        "rev": "ebaa31ff7fd60831e03bf8747c361f1faee4bc32",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Ryoku-dev",
+        "ref": "v1.0.0",
+        "repo": "ryoport",
         "type": "github"
       }
     },
