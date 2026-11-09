@@ -43,18 +43,13 @@ PanelWindow {
                     continue
                 res.push(vs[i])
             }
-            if (root.isolateMonitors) {
-                res.sort(function(x, y) { return Number(x.name) - Number(y.name) })
-            }
+            res.sort(function(x, y) { return Number(x.name) - Number(y.name) })
             return res
         }
         readonly property var wsIds: {
-            var a = []
             var vs = card.filteredWorkspaces
+            var a = []
             for (var i = 0; i < vs.length; i++) a.push(vs[i].name)
-            if (!root.isolateMonitors) {
-                a.sort(function(x, y) { return Number(x) - Number(y) })
-            }
             return a
         }
         width: 240
