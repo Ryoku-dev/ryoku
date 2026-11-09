@@ -120,10 +120,10 @@
       },
       "locked": {
         "lastModified": 1794185021,
-        "narHash": "sha256-2WBU80KCc19Wm7oBULnQu7WZYlbMftKf5yCzpf5XzLA=",
+        "narHash": "sha256-tvI9Axqd/H8lkOzG7z5EkbBEagvyjkv2GX1IEjjrux8=",
         "owner": "Ryoku-dev",
         "repo": "ryoport",
-        "rev": "ebaa31ff7fd60831e03bf8747c361f1faee4bc32",
+        "rev": "3faac2be70c31a9760b6625dc78af4a12cf1368d",
         "type": "github"
       },
       "original": {
