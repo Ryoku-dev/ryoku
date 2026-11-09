@@ -169,6 +169,9 @@ class VoiceBridge:
             except (OSError, ConnectionError, asyncio.IncompleteReadError, ValueError):
                 self.close_native()
 
+        emit("unavailable", message="Discord is not running")
+        return False
+
     async def start_companion_server(self) -> None:
         if self.companion_path is None:
             return
