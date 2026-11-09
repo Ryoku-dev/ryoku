@@ -110,6 +110,12 @@ Singleton {
 
     function issueConnect() {
         root.errorMessage = "";
+        // A bridge that is not running already connects on its own and emits
+        // ready; queueing a connect here would ask it a second time.
+        if (!bridge.running) {
+            root.start(true);
+            return;
+        }
         root.send({ cmd: "connect" });
     }
 
@@ -164,6 +170,9 @@ Singleton {
         root.backend = "";
         root.errorMessage = "";
         root.pendingMessages = [];
+        root.restartAttempts = 0;
+        root.muted = false;
+        root.deafened = false;
         root.channel = null;
         root.updateParticipants([]);
     }
