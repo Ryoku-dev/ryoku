@@ -2,6 +2,7 @@ import Ryoku.Ui.Singletons
 import QtQuick
 import QtQuick.Shapes
 import shell.services
+import "WorkspaceIsolation.js" as WorkspaceIsolation
 
 Item {
     id: wsWidget
@@ -19,79 +20,20 @@ Item {
 
     // Per-monitor active workspace: when isolateMonitors is active, this monitor's
     // active workspace takes precedence over the globally focused one.
-    readonly property var monitorActiveWs: {
-        if (!root.isolateMonitors || !wsWidget.screenName) return Wm.focusedWorkspace
-        var ws = Wm.workspaces
-        for (var i = 0; i < ws.length; i++) {
-            if (!ws[i].special && ws[i].active && ws[i].output === wsWidget.screenName)
-                return ws[i]
-        }
-        return null
-    }
+    readonly property var monitorActiveWs: WorkspaceIsolation.activeWorkspace(
+        Wm.workspaces, wsWidget.screenName, root.isolateMonitors, Wm.focusedWorkspace)
 
     // Indicates whether this monitor holds the keyboard/window input focus.
-    readonly property bool hasMonitorFocus: !root.isolateMonitors
-        || wsWidget.screenName === ""
-        || Wm.focusedOutput === ""
-        || Wm.focusedOutput === wsWidget.screenName
+    readonly property bool hasMonitorFocus: WorkspaceIsolation.hasMonitorFocus(
+        root.isolateMonitors, wsWidget.screenName, Wm.focusedOutput)
 
-    // The focused workspace name only when it is a real workspace beyond the
-    // persist range, else "". Renotifies on value change only, so switching
-    // between in-range workspaces keeps the model stable and the delegate
-    // Behaviors animating.
     readonly property bool dynamicModel: Wm.workspaceModel === "dynamic"
-    readonly property string extraWs: {
-        if (root.workspaceMode === "active" || wsWidget.dynamicModel) return ""
-        var n = root.workspaceMode === "5" ? 5 : 10
-        var f = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
-        var num = f ? Number(f.name) : 0
-        return (num > n) ? f.name : ""
-    }
 
     // A dynamic model follows the live workspace list with no invented slots; a
     // fixed model shows a stable numbered row plus the focused-beyond-range one.
-    readonly property var workspaceList: {
-        if (wsWidget.dynamicModel) {
-            var live = []
-            var lw = Wm.workspaces
-            for (var k = 0; k < lw.length; k++) {
-                if (lw[k].special) continue
-                if (root.isolateMonitors && wsWidget.screenName && lw[k].output && lw[k].output !== wsWidget.screenName)
-                    continue
-                live.push(lw[k].name)
-            }
-            return live
-        }
-        if (root.workspaceMode === "active") {
-            var ids = {}
-            var ws = Wm.workspaces
-            for (var i = 0; i < ws.length; i++) {
-                if (ws[i].special) continue
-                if (root.isolateMonitors && wsWidget.screenName && ws[i].output && ws[i].output !== wsWidget.screenName)
-                    continue
-                ids[ws[i].name] = true
-            }
-            var act = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
-            if (act && !act.special) {
-                if (!root.isolateMonitors || !wsWidget.screenName || !act.output || act.output === wsWidget.screenName)
-                    ids[act.name] = true
-            }
-            return Object.keys(ids).sort(function(a, b) { return Number(a) - Number(b) })
-        }
-        var n = root.workspaceMode === "5" ? 5 : 10
-        var list = []
-        for (var j = 1; j <= n; j++) {
-            var wName = String(j)
-            if (root.isolateMonitors && wsWidget.screenName) {
-                var existing = Wm.workspaceByName(wName)
-                if (existing && existing.output && existing.output !== wsWidget.screenName)
-                    continue
-            }
-            list.push(wName)
-        }
-        if (extraWs !== "") list.push(extraWs)
-        return list
-    }
+    readonly property var workspaceList: WorkspaceIsolation.workspaceList(
+        Wm.workspaces, root.workspaceMode, wsWidget.dynamicModel, wsWidget.screenName,
+        root.isolateMonitors, root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace)
 
     // ── PACMAN style state: pacman rests on the focused cell, pellet glyphs
     //    mark occupied cells, dimmed dots the empty ones. On a focus change a
@@ -271,7 +213,7 @@ Item {
                 Item {
                     id: wsCellVisual
                     anchors.fill: parent
-                    opacity: wsCell.isFocused && !wsWidget.hasMonitorFocus ? 0.72 : 1.0
+                    opacity: wsCell.isFocused ? WorkspaceIsolation.markerOpacity(wsWidget.hasMonitorFocus) : 1.0
                     Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     // ── DEFAULT style: glow + dot ──
@@ -482,7 +424,7 @@ Item {
         anchors.fill: parent
         z: 0
         visible: root.workspaceStyle === "rings" && targetIndex >= 0
-        opacity: !wsWidget.hasMonitorFocus ? 0.72 : 1.0
+        opacity: WorkspaceIsolation.markerOpacity(wsWidget.hasMonitorFocus)
         Behavior on opacity { NumberAnimation { duration: 150 } }
 
         readonly property int targetIndex: {
