@@ -208,14 +208,12 @@ GameBarCard {
                 visible: card.voice.participantCount > 0
 
                 Repeater {
-                    model: card.voice.participantModel
+                    model: Math.min(card.avatarLimit, card.voice.participantCount)
 
                     delegate: ParticipantAvatar {
                         required property int index
-                        required property var modelData
-                        participant: modelData
+                        participant: (card.voice.participantRevision, card.voice.participantAt(index))
                         s: card.s
-                        visible: index < card.avatarLimit
                         dimOthers: card.dimOthers
                         dimOpacity: card.dimOpacity
                     }
@@ -431,14 +429,12 @@ GameBarCard {
             visible: card.voice.participantCount > 0
 
             Repeater {
-                model: card.voice.participantModel
+                model: Math.min(card.avatarLimit, card.voice.participantCount)
 
                 delegate: ParticipantAvatar {
                     required property int index
-                    required property var modelData
-                    participant: modelData
+                    participant: (card.voice.participantRevision, card.voice.participantAt(index))
                     width: card.miniCell
-                    visible: index < card.avatarLimit
                     s: card.s
                     avatarSize: card.miniAvatarSize
                     showName: card.miniNames
