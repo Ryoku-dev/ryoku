@@ -199,12 +199,11 @@ PanelWindow {
             win.width - size.w
         ];
         const ys = [
-const ys = [
-    0,
-    Math.round((win.height - size.h) / 2),
-    win.topPad + win.stripH + win.gap,
-    win.height - size.h
-];
+            0,
+            Math.round((win.height - size.h) / 2),
+            win.topPad + win.stripH + win.gap,
+            win.height - size.h
+        ];
 
         for (let i = 0; i < win.shownCards.length; i++) {
             const other = win.shownCards[i];
