@@ -34,11 +34,22 @@ PanelWindow {
     Rectangle {
         id: card
         property int navIndex: -1
+        readonly property var filteredWorkspaces: {
+            var res = []
+            var vs = Wm.workspaces
+            for (var i = 0; i < vs.length; i++) {
+                if (vs[i].special) continue
+                if (root.isolateMonitors && root.activePopupScreenName && vs[i].output && vs[i].output !== root.activePopupScreenName)
+                    continue
+                res.push(vs[i])
+            }
+            res.sort(function(x, y) { return Number(x.name) - Number(y.name) })
+            return res
+        }
         readonly property var wsIds: {
             var a = []
-            var vs = Wm.workspaces
-            for (var i = 0; i < vs.length; i++) if (!vs[i].special) a.push(vs[i].name)
-            a.sort(function(x, y) { return Number(x) - Number(y) })
+            var vs = card.filteredWorkspaces
+            for (var i = 0; i < vs.length; i++) a.push(vs[i].name)
             return a
         }
         width: 240
@@ -102,12 +113,20 @@ PanelWindow {
                 width: parent.width
                 spacing: 4
                 Repeater {
-                    model: Wm.workspaces
+                    model: card.filteredWorkspaces
 
                     delegate: Rectangle {
                         required property var modelData
-                        visible: !modelData.special
-                        readonly property bool isActive: Wm.focusedWorkspace && Wm.focusedWorkspace.name === modelData.name
+                        readonly property bool isActive: {
+                            if (root.isolateMonitors && root.activePopupScreenName) {
+                                var ws = Wm.workspaces
+                                for (var i = 0; i < ws.length; i++) {
+                                    if (!ws[i].special && ws[i].active && ws[i].output === root.activePopupScreenName)
+                                        return ws[i].name === modelData.name
+                                }
+                            }
+                            return Wm.focusedWorkspace && Wm.focusedWorkspace.name === modelData.name
+                        }
                         readonly property bool navOn: card.navIndex >= 0 && card.navIndex < card.wsIds.length && card.wsIds[card.navIndex] === modelData.name
                         width: col.width
                         height: 30; radius: root.panelButtonRadius
