@@ -25,7 +25,9 @@ the next press of the shortcut brings back the same arrangement.
 To the right of the widget buttons, the grid button toggles snapping, then come
 the clock and, on a machine with a battery, its charge. The strip is the only
 part of the overlay that takes focus while the bar is open, and it hides itself
-before a capture so it is never in its own screenshot or recording.
+before a capture so it is never in its own screenshot or recording. A recording
+holds the bar away until it stops; press the shortcut again to bring it back
+and use the Capture card's Stop button.
 
 ## Widgets
 

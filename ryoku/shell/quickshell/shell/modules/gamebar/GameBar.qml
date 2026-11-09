@@ -132,6 +132,7 @@ PanelWindow {
     property bool suppressed: false
     property bool sawSelecting: false
     property bool hidingForRecording: false
+    property bool reopenAfterRecording: false
 
     // A pinned card outlives the strip: the strip leaves, the cards stay. During
     // a full close the strip is held for the fade-out and then reset.
@@ -679,6 +680,10 @@ PanelWindow {
 
     function startRecording() {
         restoreDelay.stop();
+        recordStartFallback.stop();
+        win.reopenAfterRecording = GameBarStore.open;
+        if (GameBarStore.open)
+            GameBarStore.closeBar();
         win.hidingForRecording = true;
         win.suppressed = true;
         Recorder.startAfter(Recorder.recordArgs(), 1);
@@ -690,7 +695,22 @@ PanelWindow {
             return;
         win.hidingForRecording = false;
         recordStartFallback.stop();
+        if (win.reopenAfterRecording && !GameBarStore.open)
+            GameBarStore.openBar(GameBarStore.monitor);
+        win.reopenAfterRecording = false;
         win.restoreAfter(900);
+    }
+
+    // The shortcut must still reach the Capture card while a recording runs:
+    // opening the bar is an explicit choice to show it in the capture.
+    function releaseRecordingHold() {
+        if (!win.hidingForRecording)
+            return;
+        win.hidingForRecording = false;
+        win.reopenAfterRecording = false;
+        recordStartFallback.stop();
+        restoreDelay.stop();
+        win.suppressed = false;
     }
 
     function restoreAfter(ms) {
@@ -717,9 +737,19 @@ PanelWindow {
         }
     }
 
+    // Opening the bar during a recording is an explicit request for the Capture
+    // card, so let go of the hold instead of keeping the surface unreachable.
+    Connections {
+        target: GameBarStore
+        function onOpenChanged() {
+            if (GameBarStore.open)
+                win.releaseRecordingHold();
+        }
+    }
+
     // A running capture would otherwise record the bar: hold suppression until
-    // Recorder reports the capture ended. The fallback covers a countdown that
-    // was cancelled or a recorder that never came up.
+    // Recorder reports the capture ended. The fallback keeps checking so a
+    // cancelled countdown cannot leave the bar hidden.
     Connections {
         target: Recorder
         function onAnyActiveChanged() {
@@ -735,9 +765,14 @@ PanelWindow {
 
     Timer {
         id: recordStartFallback
-        interval: 4000
+        interval: 1500
+        repeat: true
         onTriggered: {
-            if (win.hidingForRecording && !Recorder.anyActive && !Recorder.countingDown)
+            if (!win.hidingForRecording || Recorder.anyActive) {
+                stop();
+                return;
+            }
+            if (!Recorder.countingDown)
                 win.endRecordingSuppression();
         }
     }
