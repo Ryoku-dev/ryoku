@@ -95,45 +95,6 @@ GameBarCard {
         }
     }
 
-    component VoiceToggle: Item {
-        id: toggle
-        property string glyph: ""
-        property bool on: false
-        property real diameter: 34 * card.s
-        signal clicked()
-
-        width: toggle.diameter
-        height: toggle.diameter
-
-        Rectangle {
-            anchors.fill: parent
-            radius: height / 2
-            color: toggle.on ? GameBarLook.toggled
-                : (togglePointer.containsMouse ? GameBarLook.hover : GameBarLook.raised)
-
-            Behavior on color {
-                ColorAnimation { duration: 120 }
-            }
-        }
-
-        GlyphIcon {
-            anchors.centerIn: parent
-            width: toggle.diameter * 0.5
-            height: toggle.diameter * 0.5
-            name: toggle.glyph
-            color: toggle.on ? GameBarLook.toggledInk : GameBarLook.fg
-            stroke: 1.8
-        }
-
-        MouseArea {
-            id: togglePointer
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: toggle.clicked()
-        }
-    }
-
     Item {
         anchors.fill: parent
         visible: !card.minimal
@@ -304,13 +265,15 @@ GameBarCard {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6 * card.s
 
-                VoiceToggle {
+                GameBarVoiceToggle {
+                    s: card.s
                     glyph: card.voice.muted ? "mic-off" : "mic"
                     on: card.voice.muted
                     onClicked: card.voice.setMuted(!card.voice.muted)
                 }
 
-                VoiceToggle {
+                GameBarVoiceToggle {
+                    s: card.s
                     glyph: card.voice.deafened ? "headphones-off" : "headphones"
                     on: card.voice.deafened
                     onClicked: card.voice.setDeafened(!card.voice.deafened)
@@ -375,14 +338,14 @@ GameBarCard {
                 visible: active
                 width: active ? implicitWidth : 0
 
-                VoiceToggle {
+                GameBarVoiceToggle {
                     diameter: 40 * card.s
                     glyph: card.voice.muted ? "mic-off" : "mic"
                     on: card.voice.muted
                     onClicked: card.voice.setMuted(!card.voice.muted)
                 }
 
-                VoiceToggle {
+                GameBarVoiceToggle {
                     diameter: 40 * card.s
                     glyph: card.voice.deafened ? "headphones-off" : "headphones"
                     on: card.voice.deafened

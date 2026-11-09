@@ -37,9 +37,13 @@ GameBarCard {
         modeRestart.restart();
     }
 
+    function syncFeed() {
+        Sysinfo.setActive(card, card.polling);
+        StatsFeed.setActive(card, card.polling);
+    }
+
     Component.onCompleted: {
-        Sysinfo.setActive(card, true);
-        StatsFeed.setActive(card, true);
+        card.syncFeed();
         card.readMode(true);
     }
     onMonitorNameChanged: card.readMode(true)
@@ -55,6 +59,7 @@ GameBarCard {
     // pinned card is not worth waking anything for.
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
         && !Presence.dark && !Perf.saver
+    onPollingChanged: card.syncFeed()
 
     Timer {
         interval: 10000

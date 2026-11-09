@@ -15,7 +15,11 @@ const PROTECTED = [
     "polkitd", "swaybg", "mpvpaper", "prowl", "gpu-screen-rec"
 ];
 
-function parse(text) {
+// `started` is the process start as an absolute epoch second, derived from the
+// scan time and etimes. A pid alone does not identify a process: Linux reuses
+// pids, so a row must carry this to stay armed against the same process.
+function parse(text, scannedAtMs) {
+    const scannedAt = typeof scannedAtMs === "number" ? scannedAtMs : Date.now();
     const out = [];
     const rows = String(text || "").split("\n");
     for (let i = 0; i < rows.length; i++) {
@@ -40,7 +44,8 @@ function parse(text) {
             user: user,
             cpu: cpu,
             memMiB: (rssKb || 0) / 1024,
-            secs: secs || 0
+            secs: secs || 0,
+            started: Math.round((scannedAt - (secs || 0) * 1000) / 1000)
         });
     }
     return out;
@@ -51,8 +56,8 @@ function isProtected(name) {
     return PROTECTED.indexOf(key) !== -1;
 }
 
-function top(text, count, user) {
-    let rows = parse(text);
+function top(text, count, user, scannedAtMs) {
+    let rows = parse(text, scannedAtMs);
     if (user)
         rows = rows.filter(row => row.user === user);
     rows.sort((a, b) => b.cpu - a.cpu || b.memMiB - a.memMiB);

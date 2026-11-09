@@ -17,18 +17,22 @@ Item {
     property var task: null
     property bool protectedName: false
 
-    signal endRequested(int pid)
+    signal endRequested(int pid, int started)
 
     property bool confirming: false
     property int confirmingPid: 0
+    property int confirmingStart: 0
 
     implicitHeight: 32 * root.s
     implicitWidth: 276 * root.s
 
+    // A pid can be reused once its process exits; the start time disarms the
+    // button unless the same process is still the one being confirmed.
     onTaskChanged: {
         if (!root.confirming)
             return;
-        if (!root.task || root.task.pid !== root.confirmingPid)
+        if (!root.task || root.task.pid !== root.confirmingPid
+            || Math.abs((root.task.started || 0) - root.confirmingStart) > 2)
             root.confirming = false;
     }
 
@@ -91,6 +95,7 @@ Item {
             label: I18n.tr("End")
             onClicked: {
                 root.confirmingPid = root.task ? root.task.pid : 0;
+                root.confirmingStart = root.task ? root.task.started || 0 : 0;
                 root.confirming = true;
             }
         }
@@ -102,10 +107,11 @@ Item {
             label: I18n.tr("Stop")
             danger: true
             onClicked: {
-                if (root.task)
-                    root.endRequested(root.task.pid);
+                if (root.confirmingPid > 0)
+                    root.endRequested(root.confirmingPid, root.confirmingStart);
                 root.confirming = false;
                 root.confirmingPid = 0;
+                root.confirmingStart = 0;
             }
         }
 
@@ -118,6 +124,7 @@ Item {
             onClicked: {
                 root.confirming = false;
                 root.confirmingPid = 0;
+                root.confirmingStart = 0;
             }
         }
     }
