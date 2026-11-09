@@ -29,8 +29,9 @@ GameBarCard {
         return out ? out.width + " x " + out.height : "n/a";
     }
 
-    function readMode() {
-        card.displayMode = "";
+    function readMode(clear) {
+        if (clear)
+            card.displayMode = "";
         if (modeRead.running)
             modeRead.running = false;
         modeRestart.restart();
@@ -39,12 +40,22 @@ GameBarCard {
     Component.onCompleted: {
         Sysinfo.setActive(card, true);
         StatsFeed.setActive(card, true);
-        card.readMode();
+        card.readMode(true);
     }
-    onMonitorNameChanged: card.readMode()
+    onMonitorNameChanged: card.readMode(true)
     Component.onDestruction: {
         Sysinfo.setActive(card, false);
         StatsFeed.setActive(card, false);
+    }
+
+    // A game can switch resolution or refresh while the card stays up. Watch
+    // frames carry no mode, so re-read the full state now and then; the read
+    // takes a few milliseconds and only runs while this card is loaded.
+    Timer {
+        interval: 10000
+        repeat: true
+        running: true
+        onTriggered: card.readMode(false)
     }
 
     // restarting the process in the same tick may coalesce into no new run, so
@@ -56,7 +67,8 @@ GameBarCard {
     }
 
     // The watch frames carry no mode, so the full state read is the one place
-    // the current mode is reported. One read per open, not a poll.
+    // the current mode is reported. The Timer above refreshes it while the card
+    // is up, so a mode switch by the game does not leave a stale reading.
     Process {
         id: modeRead
         command: ["ryoku", "wm", "state"]

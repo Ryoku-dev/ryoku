@@ -263,17 +263,20 @@ PanelWindow {
             return win.defaultPosFor(id, win.sizeFor(id));
         const full = win.fullSizeFor(id);
         const compact = win.sizeFor(id);
-        const rightEdge = saved.x + full.w;
-        const bottomEdge = saved.y + full.h;
+        // A saved spot can belong to a monitor that is gone or resized; clamp
+        // the full frame it was placed on before anchoring the compact panel.
+        const frame = win.clampTo(full, saved.x, saved.y);
+        const rightEdge = frame.x + full.w;
+        const bottomEdge = frame.y + full.h;
         const reach = 120 * win.us;
         const right = win.width - rightEdge <= reach;
-        const left = saved.x <= reach;
+        const left = frame.x <= reach;
         const bottom = win.height - bottomEdge <= reach;
-        const top = saved.y <= reach;
+        const top = frame.y <= reach;
         const x = right ? rightEdge - compact.w
-            : (left ? saved.x : saved.x + (full.w - compact.w) / 2);
+            : (left ? frame.x : frame.x + (full.w - compact.w) / 2);
         const y = bottom ? bottomEdge - compact.h
-            : (top ? saved.y : saved.y + (full.h - compact.h) / 2);
+            : (top ? frame.y : frame.y + (full.h - compact.h) / 2);
         return win.clampPos(id, x, y);
     }
 

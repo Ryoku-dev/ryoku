@@ -32,6 +32,8 @@ GameBarCard {
         : card.tabIndex === 1 ? (card.mon.gpuAvailable ? card.mon.gpuPercent / 100 : 0)
         : card.mon.memoryPercent / 100
 
+    readonly property bool unavailable: card.tabIndex === 1 && !card.mon.gpuAvailable
+
     readonly property var history: card.tabIndex === 0 ? card.mon.cpuHistory
         : card.tabIndex === 1 ? card.gpuHistory : card.memHistory
 
@@ -88,14 +90,17 @@ GameBarCard {
                 spacing: 2 * card.s
 
                 Text {
-                    text: Math.round(card.fraction * 100) + "%"
+                    text: card.unavailable ? "n/a"
+                        : Math.round(card.fraction * 100) + "%"
                     color: GameBarLook.fg
                     font.family: GameBarLook.face
                     font.pixelSize: GameBarLook.huge * card.s
                 }
 
                 Text {
-                    text: I18n.tr("of %1").arg(card.total)
+                    text: card.unavailable
+                        ? I18n.tr("GPU reading unavailable")
+                        : I18n.tr("of %1").arg(card.total)
                     color: GameBarLook.subtext
                     font.family: GameBarLook.face
                     font.pixelSize: GameBarLook.smallie * card.s
