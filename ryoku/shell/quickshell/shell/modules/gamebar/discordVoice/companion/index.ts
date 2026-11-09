@@ -96,10 +96,13 @@ function applyCommand(line: string) {
         // not make the bridge think the matching toggle already happened.
         const me = UserStore.getCurrentUser();
         const own = me ? VoiceStateStore.getVoiceStateForUser(me.id) : null;
-        if (typeof command.mute === "boolean" && command.mute !== Boolean(own?.selfMute))
-            Audio.toggleSelfMute();
+        // Deafening also mutes, so apply it first and re-read the self state;
+        // otherwise the automatic mute is toggled a second time.
         if (typeof command.deaf === "boolean" && command.deaf !== Boolean(own?.selfDeaf))
             Audio.toggleSelfDeaf();
+        const updated = me ? VoiceStateStore.getVoiceStateForUser(me.id) : null;
+        if (typeof command.mute === "boolean" && command.mute !== Boolean(updated?.selfMute))
+            Audio.toggleSelfMute();
     } catch {
         // A malformed command is not worth tearing the socket down for.
     }
