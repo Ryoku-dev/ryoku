@@ -25,6 +25,7 @@ APP_ID = "207646673902501888"  # Discord StreamKit, the public voice RPC client
 SCOPES = ("rpc", "rpc.voice.read", "rpc.voice.write")
 TOKEN_ENDPOINT = "https://streamkit.discord.com/overlay/token"
 AUTHORIZE_TIMEOUT = 12.0
+HANDSHAKE_TIMEOUT = 2.0
 NATIVE_WRITE_TIMEOUT = 2.0
 COMPANION_WRITE_TIMEOUT = 2.0
 COMPANION_LIMIT = 512 * 1024
@@ -155,7 +156,7 @@ class VoiceBridge:
             try:
                 try:
                     reader, writer = await asyncio.wait_for(
-                        asyncio.open_unix_connection(path), AUTHORIZE_TIMEOUT)
+                        asyncio.open_unix_connection(path), HANDSHAKE_TIMEOUT)
                 except asyncio.TimeoutError as error:
                     raise ConnectionError("the RPC socket did not connect") from error
                 self.reader, self.writer, self.rpc_path = reader, writer, path
@@ -163,7 +164,7 @@ class VoiceBridge:
                     raise ConnectionError("the RPC socket stopped reading")
                 try:
                     opcode, ready = await asyncio.wait_for(
-                        self.receive(reader), AUTHORIZE_TIMEOUT)
+                        self.receive(reader), HANDSHAKE_TIMEOUT)
                 except asyncio.TimeoutError as error:
                     raise ConnectionError("the RPC handshake timed out") from error
                 if opcode == CLOSE or ready.get("evt") != "READY":
@@ -173,7 +174,8 @@ class VoiceBridge:
                 asyncio.create_task(self.native_loop(reader, writer))
                 token = self.token()
                 if token:
-                    await self.authenticate(token)
+                    if not await self.authenticate(token):
+                        raise ConnectionError("the RPC socket stopped reading")
                 else:
                     emit("auth_required")
                 return True
@@ -307,10 +309,11 @@ class VoiceBridge:
         body = await source.readexactly(length)
         return opcode, json.loads(body.decode())
 
-    async def authenticate(self, token: str) -> None:
+    async def authenticate(self, token: str) -> bool:
         nonce = self.next_nonce()
         self.pending[nonce] = "AUTHENTICATE"
-        await self.send_frame({"cmd": "AUTHENTICATE", "args": {"access_token": token}, "nonce": nonce})
+        return await self.send_frame(
+            {"cmd": "AUTHENTICATE", "args": {"access_token": token}, "nonce": nonce})
 
     async def authorize(self) -> None:
         if self.companion_active:
@@ -428,7 +431,8 @@ class VoiceBridge:
                 if self.companion_active or writer is None or self.writer is not writer:
                     return
                 self.save_token(token)
-                await self.authenticate(token)
+                if not await self.authenticate(token):
+                    emit("error", message="The Discord RPC socket stopped reading")
             except Exception:
                 emit("error", message="Discord token exchange failed")
         elif command == "AUTHENTICATE":
