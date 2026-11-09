@@ -25,6 +25,7 @@ APP_ID = "207646673902501888"  # Discord StreamKit, the public voice RPC client
 SCOPES = ("rpc", "rpc.voice.read", "rpc.voice.write")
 TOKEN_ENDPOINT = "https://streamkit.discord.com/overlay/token"
 AUTHORIZE_TIMEOUT = 12.0
+NATIVE_WRITE_TIMEOUT = 2.0
 COMPANION_WRITE_TIMEOUT = 2.0
 COMPANION_LIMIT = 512 * 1024
 COMPANION_NAME = "ryoku-discord-voice.sock"
@@ -87,12 +88,17 @@ class VoiceBridge:
         self.nonce += 1
         return str(self.nonce)
 
-    async def send_frame(self, payload: dict[str, Any], opcode: int = FRAME) -> None:
+    async def send_frame(self, payload: dict[str, Any], opcode: int = FRAME) -> bool:
         if not self.writer or self.writer.is_closing():
-            return
+            return False
         body = json.dumps(payload).encode()
         self.writer.write(struct.pack("<II", opcode, len(body)) + body)
-        await self.writer.drain()
+        try:
+            await asyncio.wait_for(self.writer.drain(), NATIVE_WRITE_TIMEOUT)
+        except (asyncio.TimeoutError, OSError):
+            self.close_native()
+            return False
+        return True
 
     async def command(self, name: str, args: dict[str, Any] | None = None) -> None:
         nonce = self.next_nonce()
@@ -147,9 +153,14 @@ class VoiceBridge:
             if path in self.rejected or not os.path.exists(path):
                 continue
             try:
-                reader, writer = await asyncio.open_unix_connection(path)
+                try:
+                    reader, writer = await asyncio.wait_for(
+                        asyncio.open_unix_connection(path), AUTHORIZE_TIMEOUT)
+                except asyncio.TimeoutError as error:
+                    raise ConnectionError("the RPC socket did not connect") from error
                 self.reader, self.writer, self.rpc_path = reader, writer, path
-                await self.send_frame({"v": 1, "client_id": APP_ID}, HANDSHAKE)
+                if not await self.send_frame({"v": 1, "client_id": APP_ID}, HANDSHAKE):
+                    raise ConnectionError("the RPC socket stopped reading")
                 try:
                     opcode, ready = await asyncio.wait_for(
                         self.receive(reader), AUTHORIZE_TIMEOUT)
@@ -311,9 +322,13 @@ class VoiceBridge:
         emit("authorizing")
         nonce = self.next_nonce()
         self.pending[nonce] = "AUTHORIZE"
-        await self.send_frame({"cmd": "AUTHORIZE", "args": {
+        sent = await self.send_frame({"cmd": "AUTHORIZE", "args": {
             "client_id": APP_ID, "scopes": list(SCOPES), "prompt": "none"
         }, "nonce": nonce})
+        if not sent:
+            self.pending.pop(nonce, None)
+            emit("error", message="The Discord RPC socket stopped reading")
+            return
         self.auth_tasks[nonce] = asyncio.create_task(self.authorize_timeout(nonce, self.rpc_path))
 
     def clear_auth_task(self, nonce: str) -> None:
