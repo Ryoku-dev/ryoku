@@ -64,9 +64,66 @@ rest threshold of 0.001.
 | A wheel notch glides 120 dp over 140 ms | discrete wheel input moved the view |
 | Trackpad deltas follow the fingers at the screen's scale | continuous input stays direct |
 
-Nothing else moves. Panes do not slide in, lists do not stagger, icons do not
-spin and no idle element pulses. Removal feedback is a Placard and its
-draining blade; the resource simply leaves the layout.
+Outside a media window's playback motion below, nothing else moves. Panes do
+not slide in, lists do not stagger, icons do not spin and no idle element
+pulses. Removal feedback is a Placard and its draining blade; the resource
+simply leaves the layout.
+
+## Playback
+
+A media window answers playback with motion of its own. Each still answers a
+cause and stops.
+
+| Motion | Meaning | Duration |
+|---|---|---|
+| Play and pause swap, the incoming icon growing from .85 | playback started or stopped | notch 200 |
+| The liked mark fills from its centre | the track was kept | notch 200 |
+| Art crossfades while title and artists rise 8 into place | the track changed | navigate 200 |
+| Progress shows its blade handle under the pointer | the pointer can seek here | hover in 160 |
+| A card's play plate rises 4 into view | this card plays from here | hover in 160 |
+| The source switcher's plate glides | the source changed | select 240 |
+| The accent and the window tint retint together across play, progress, marks, fields and stones | a new cover, source or palette | field 320 |
+| A new cover is revealed behind a 45 degree cut sweeping from its top-left corner | the track changed | navigate 200 in small art, field 320 in large |
+| The side panel's width unfolds | the panel opened | unfold 200 |
+| The sidebar's width folds to its rail, labels clipping and fading | the listener wants the room | unfold 200 |
+| Every pane re-cuts its corners | the corner setting changed | select 240 |
+| The active lyric line grows from its resting size while the last one settles back | the song reached this line | spring, field 320 |
+| The word being sung fills behind a 45 degree cut and lifts 2 | this word is being sung | continuous while it fills |
+| The played part of the progress is a travelling zigzag that flattens on pause | music is playing | field 320, then continuous |
+| The visualizer moves with the music in headers, the now playing view and Home's card, kicking on the beat | this is what you hear | springs, every frame |
+| One visualizer style crossfades into the next | the listener changed the style | field 320 |
+
+Three things move while nothing is touched, and only while music plays: the
+wave progress, visible visualizers and the word being sung in visible lyrics.
+They are the music, not decoration, so they run at up to 60 frames a second
+(30 for the word fill). They stop the moment playback pauses, the window hides
+them or motion is reduced, and the window then asks for no frames.
+
+**The wave.** Android's wavy progress, chiselled: a triangle wave with sharp
+vertices, never a sine. Draw it as one filled polygon by shifting the zigzag's
+points up and down by half the thickness times `√(1 + slope²)`, which keeps the
+perpendicular thickness and mitres every vertex. Cut it vertically at the
+played position. The unplayed part is a flat bar a small gap after it. Pausing
+or dragging eases the amplitude to zero, so the bar is flat and exact.
+
+**The visualizer.** Blades are vertical, square at the bottom with the
+top-right corner cut at 45 degrees; each follows its band with a spring that
+rises fast and falls slowly, the way a needle does, and a flat peak cap holds
+above it for a moment before it falls. A curve is one line through the same
+springs with the area under it filled faintly, its ends square. A waveform is
+triggered at a rising zero crossing so a steady tone stands still. The stereo
+field plots left against right turned 45 degrees, so mono stands upright,
+inside a diamond. Levels are shaped so quiet bands sink and loud ones stand
+out, loud blades paint brighter, and a beat detector on the bass kicks every
+style taller and brighter for a moment. Each drawing is a handful of paths,
+one paint each. Visualizers sit in their own lane, never under text, and
+flatten or fall to nothing when the music pauses.
+
+**Sung words.** The word being sung fills with the accent from its left edge
+behind a 45 degree cut that follows the clock, and lifts a little; sung words
+stay lit, unsung ones wait in a quieter ink. Real word timing is used when the
+lyrics carry it; otherwise the line's timing is shared across its words by
+length, never stretched across an instrumental gap.
 
 ## Overlay motion
 
@@ -118,4 +175,7 @@ and indeterminate progress only while live.
 
 **Gio.** Use the shared Tween and Spring contracts. Emit an invalidation only
 while a value is moving. Use the latched Click wrapper for every clickable
-component.
+component. Gio does not report whether a scroll came from a wheel or a
+trackpad, so apply every delta at once at the screen's scale; never guess a
+wheel from the size of a delta, because a trackpad stream can send the same
+value and would then trail the fingers.

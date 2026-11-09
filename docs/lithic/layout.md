@@ -194,3 +194,78 @@ uses, as a template:
 On battery every interval doubles. Jobs report their own progress whatever
 is on screen, and a job's progress shows on its row, in its work pane and in
 Activity at once.
+
+## The player window
+
+A media app is not a list and detail window. Its window is built around what
+plays, so it has its own archetype. Ryotunes is the reference.
+
+| Part | Expanded | Medium | Compact |
+|---|---|---|---|
+| top bar | 56 on ground: mark, back and forward, the one search field, source switcher, window controls | same, the mark alone over the rail | mark; search opens across the bar; the switcher becomes one menu |
+| navigation | 240 sidebar: destinations, then the user's collections; folds to the 72 rail and back from a toggle beside Back and remembers it | 72 rail with collection covers; the toggle opens the 240 sidebar as a sheet | 56 bottom bar |
+| content | `stone2`, top corners cut by the pane cut (16 by default), inset 34 | inset 21 | full width, inset 13 |
+| side panel | queue, lyrics and session tabs, 340 wide, docked while the content keeps 520 | docked or a sheet | a sheet, opened only by the user |
+| player bar | 88, `stone1`, top corners cut 16, under every pane | same | a 64 player over the bottom bar |
+
+The player window keeps its sidebar longer than the list and detail window:
+it is expanded from 1100 dp, medium from 760, and measures in effective dp, the
+window's size divided by the screen scale and the app's zoom.
+
+Panes stand 8 apart on the ground. Crossing into compact closes a docked
+panel instead of letting it cover the page.
+
+The player bar has three zones. What plays sits on the left: art, title,
+artists and the actions that belong to the track. Transport sits in the
+centre, its plaques 13 apart, over the progress with a time at each end. Where
+it plays and how it sounds sits on the right: panel toggles, volume and sound.
+Each zone is a flex with a fixed share, so one never pushes into another.
+
+Play is the consequential action of a media window. The player bar's play and
+pause is its standing gold action. A page may spend one more gold on the action
+that plays it, such as Play on an album. Radio, download and navigation never
+take gold.
+
+Search has one entry point, the top bar field. A page may still narrow its own
+list with a filter; that is not search.
+
+The music may carry its own colour. A player can point the gold roles at a
+colour sampled from the playing cover, kept to the cover's hue at a fixed
+lightness per mode and re-toned to 4.5:1 on `stone2` for text and marks, as
+`goldInk` is. Play, progress, the liked mark, the playing track, the sung words
+and the field behind page titles then wear one colour, so nothing on screen
+disagrees with what plays. A grey cover, or none, falls back to the palette's
+own gold. A source, such as a streaming service, keeps its brand colour as
+identity in the switcher only, never as state; it never replaces a mineral or
+the bone selection.
+
+The cover may tint the whole window, the way the Ryoku palette takes the
+wallpaper: ground, stones, veins, inks and bone are re-hued toward the cover's
+dominant colour in OKLCH, each keeping its own lightness so every contrast
+pair holds, with a small chroma that grows with how colourful the cover is.
+Minerals never change, so state reads the same on any cover, and a black and
+white cover leaves the palette alone. The listener can turn the tint off.
+
+The pane cut may be the listener's: square, the default 16, deeper, or the
+desktop's own window corners. Every pane re-cuts in place when it changes.
+
+The now playing view replaces the panes between the two bars: the art in the
+left 42 percent, lyrics or the queue on the right, all on the accent field.
+The art itself plays and pauses. Home may open with a now playing card inside
+its greeting field while something is loaded: the art, the track, progress,
+the transport and an instrument slot for the visualizer.
+
+A mini player is a landscape strip: the art as tall as the window, flush with
+its edges, and one column of title, artists, progress and transport beside it.
+It falls back to a portrait card only when the window is made tall.
+
+While music plays, the visualizer rises from the bottom edge of the field: a
+lane 32 high inside a page header's 40 bottom padding (18 in 24 when compact),
+and an 88 band along the bottom of the now playing view (56 when narrow). Lanes
+sit below the text, so no word ever lies on a blade. Its style is the
+listener's: blades, a curve over the spectrum, the waveform, or the stereo
+field inside a diamond (a half diamond in a lane, and blades in a header lane
+too short for it).
+
+Anchor overlays to the window, not to the slot that opened them: a popover
+from the player bar opens above it and stays inside the window.
