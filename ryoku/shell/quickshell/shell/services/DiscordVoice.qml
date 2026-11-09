@@ -19,6 +19,9 @@ Singleton {
     property var channel: null
     readonly property alias participantModel: participantsModel
     readonly property int participantCount: participantsModel.count
+    // Bumped whenever the model changes, so a delegate reading one row through
+    // get() refreshes: get() alone does not establish a binding dependency.
+    property int participantRevision: 0
     property bool muted: false
     property bool deafened: false
 
@@ -76,6 +79,12 @@ Singleton {
             else
                 participantsModel.append({ participant: user });
         }
+        root.participantRevision++;
+    }
+
+    function participantAt(index) {
+        const entry = participantsModel.get(index);
+        return entry ? entry.participant : null;
     }
 
     function avatarUrl(user, size) {
