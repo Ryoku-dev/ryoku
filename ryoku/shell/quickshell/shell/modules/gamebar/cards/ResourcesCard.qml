@@ -58,9 +58,15 @@ GameBarCard {
         StatsFeed.setActive(card, false);
     }
 
+    // The graphs only need history while someone can see them: a shot or a
+    // recording unmaps the overlay, and the session can be dark or in the Power
+    // Saver tier. Stop copying samples then, like the other polling cards.
+    readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
+        && !Presence.dark && !Perf.saver
+
     Timer {
         interval: 1500
-        running: true
+        running: card.polling
         repeat: true
         onTriggered: {
             card.gpuHistory = card.push(card.gpuHistory, card.mon.gpuPercent / 100);
