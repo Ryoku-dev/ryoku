@@ -49,9 +49,9 @@ and use the Capture card's Stop button.
 - **Audio** carries the same output and application faders as the audio menu.
   A level set here is the level PipeWire holds everywhere. The app list scrolls
   when more than three apps are playing.
-- **Gallery** shows the newest screenshots and recordings as the files
-  themselves, with a switch between the two lists and a button to open the
-  current folder.
+- **Gallery** shows the newest screenshots as their own thumbnails and
+  recordings as titled play tiles, with a switch between the two lists and a
+  button to open the current folder.
 
 ## Placement
 
