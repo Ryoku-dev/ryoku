@@ -70,7 +70,7 @@ class VoiceBridge:
         try:
             os.chmod(self.token_file, 0o600)
             return str(json.loads(self.token_file.read_text())["access_token"])
-        except (OSError, KeyError, ValueError):
+        except (OSError, KeyError, TypeError, ValueError):
             return ""
 
     def save_token(self, token: str) -> None:
