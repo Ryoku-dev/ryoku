@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithic web lists</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    body { min-width: 320px; }
+    .page { width: min(1440px, 100%); min-height: 900px; margin: 0 auto; padding: var(--lithic-space-s5); }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
+    .page-head h1, .page-head p { margin: 0; }
+    .page-head p { max-width: 620px; color: var(--lithic-fg2); }
+    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .section { margin-top: var(--lithic-space-s5); }
+    .section > h2 { margin: 0 0 var(--lithic-space-s3); }
+    .showcase-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--lithic-size-list-medium)), 1fr)); gap: var(--lithic-space-s3); }
+    .specimen { min-width: 0; display: grid; align-content: start; gap: var(--lithic-space-s3); padding: var(--lithic-space-s3); background: var(--lithic-stone1); }
+    .specimen > .state-label:first-child { color: var(--lithic-fg3); }
+    .state-label { font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family); }
+    .tablet-stack { display: grid; gap: var(--lithic-size-row-list-gap); }
+    .selected-sample { background: var(--lithic-sel); }
+    .row-list-demo { --l-row-list-height: var(--lithic-size-list-expanded); }
+    .pane-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 0; background: var(--lithic-ground); }
+    .pane-demo { min-height: calc(var(--lithic-space-s6) * 3); padding: var(--lithic-space-s4); }
+    .pane-demo h3, .pane-demo p { margin: 0; }
+    .pane-demo p { margin-top: var(--lithic-space-s2); color: var(--lithic-fg2); }
+    .field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--lithic-size-picker-width-min)), 1fr)); gap: var(--lithic-space-s2); }
+    .field-sample { min-height: var(--lithic-size-tablet-height); display: grid; align-content: center; gap: var(--lithic-space-s1); padding: var(--lithic-space-s3); }
+    .field-sample span:last-child { color: var(--l-tone-ink, var(--lithic-fg2)); }
+    .header-demo { overflow: hidden; }
+    .slab-demo { max-width: var(--lithic-size-draft-form-max); }
+    .demo-form { display: grid; gap: var(--lithic-space-s3); }
+    .demo-form .l-field, .demo-form .l-text-field { width: 100%; }
+    .trait-row, .progress-grid { display: flex; align-items: center; flex-wrap: wrap; gap: var(--lithic-space-s4); }
+    .claim-sample { display: grid; gap: var(--lithic-space-s2); min-width: var(--lithic-size-picker-width-min); }
+    .progress-sample { display: grid; gap: var(--lithic-space-s2); min-width: min(100%, var(--lithic-size-list-medium)); flex: 1; }
+    .working-sample { display: flex; align-items: center; gap: var(--lithic-space-s3); }
+    .becoming-sample { display: grid; gap: var(--lithic-space-s2); }
+    .becoming-sample .l-becoming-name { font: var(--lithic-type-title-weight) var(--lithic-type-title-size)/var(--lithic-type-title-line) var(--lithic-type-title-family); }
+    @media (max-width: 900px) { .page-head { align-items: start; flex-direction: column; } .pane-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <a class="back l-type-label" href="index.html">Gallery</a>
+        <h1 class="l-type-name">Lists, containers, state and progress</h1>
+      </div>
+      <p class="l-type-body">Fleet rows, resource composition and live job state built from the shared Lithic roles.</p>
+    </header>
+
+    <section class="section" aria-labelledby="tablet-heading">
+      <h2 class="l-type-section" id="tablet-heading">Tablet</h2>
+      <div class="showcase-grid">
+        <div class="specimen">
+          <span class="state-label">Idle</span>
+          <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="idle" data-value="ubuntu-24.04">
+            <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">prowl · 192.0.2.24</span></span>
+            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">No process</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Start</button></span></span>
+          </article>
+        </div>
+        <div class="specimen">
+          <span class="state-label">Hover preview</span>
+          <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-l-state="hover" data-value="alpine-instant">
+            <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span>
+            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span>
+          </article>
+        </div>
+        <div class="specimen">
+          <span class="state-label">Pressed preview</span>
+          <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="attention" data-l-state="pressed" data-value="scratch-arch">
+            <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">ally · Disposable</span></span>
+            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span><span class="l-tablet__proof">Key changed</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Review</button></span></span>
+          </article>
+        </div>
+        <div class="specimen">
+          <span class="state-label">Selected</span>
+          <div class="selected-sample">
+            <article class="l-tablet l-notch" role="option" aria-selected="true" data-tone="alive" data-value="fedora-43">
+              <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span>
+              <span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">mika-server · Sealed</span></span>
+              <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Console</button></span></span>
+            </article>
+          </div>
+        </div>
+        <div class="specimen">
+          <span class="state-label">Becoming, compact</span>
+          <article class="l-tablet l-notch" role="option" aria-selected="false" data-density="compact" data-tone="becoming" data-value="windows-11">
+            <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span>
+            <span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">ally · 198.51.100.31</span></span>
+            <span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Creating 62%</span><span class="l-tablet__proof">8.1 GiB / 13 GiB</span></span><span class="l-tablet__action"><button class="l-plaque l-danger-line l-small" type="button">Cancel</button></span></span>
+            <span class="l-tablet__progress l-blade" style="--l-fraction:0.62" aria-hidden="true"></span>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="row-list-heading">
+      <h2 class="l-type-section" id="row-list-heading">RowList</h2>
+      <div class="specimen">
+        <span class="state-label">Keyboard focus preview with gliding selection slab and cut scroll thumb</span>
+        <div class="l-row-list row-list-demo" tabindex="0" aria-label="Fleet machines" data-l-state="focus">
+          <div class="l-row-list__items">
+            <section class="l-group">
+              <header class="l-group-header">
+                <h3 class="l-group-header__title">Needs you</h3><span class="l-group-header__count">1</span>
+                <button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="fleet-needs" aria-label="Collapse Needs you"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+              </header>
+              <div class="l-group__rows" id="fleet-needs">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="attention" data-value="scratch-arch">
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span><span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">ally · Disposable</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span><span class="l-tablet__proof">Key changed</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Review</button></span></span>
+                </article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header">
+                <h3 class="l-group-header__title">Pinned</h3><span class="l-group-header__count">2</span>
+                <button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="fleet-pinned" aria-label="Collapse Pinned"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+              </header>
+              <div class="l-group__rows" id="fleet-pinned">
+                <article class="l-tablet l-notch" role="option" aria-selected="true" data-tone="alive" data-value="ubuntu-24.04">
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts l-literal">ally · 192.0.2.24</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span>
+                </article>
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="paused" data-value="kolibrios-latest-en_US">
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">pause</span></span><span class="l-tablet__copy"><span class="l-tablet__title">kolibrios-latest-en_US</span><span class="l-tablet__facts">localhost · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Paused</span><span class="l-tablet__proof">3 min</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Resume</button></span></span>
+                </article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header">
+                <h3 class="l-group-header__title">Running</h3><span class="l-group-header__count">1</span>
+                <button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="fleet-running" aria-label="Collapse Running"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+              </header>
+              <div class="l-group__rows" id="fleet-running">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-value="alpine-instant">
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span>
+                </article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header">
+                <h3 class="l-group-header__title">Becoming</h3><span class="l-group-header__count">1</span>
+                <button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="fleet-becoming" aria-label="Collapse Becoming"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+              </header>
+              <div class="l-group__rows" id="fleet-becoming">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="becoming" data-value="windows-11">
+                  <span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span><span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">mika-server · 198.51.100.31</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Creating 62%</span><span class="l-tablet__proof">Installing image</span></span><span class="l-tablet__action"><button class="l-plaque l-danger-line l-small" type="button">Cancel</button></span></span><span class="l-tablet__progress l-blade" style="--l-fraction:0.62" aria-hidden="true"></span>
+                </article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header">
+                <h3 class="l-group-header__title">Stopped</h3><span class="l-group-header__count">2</span>
+                <button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="fleet-stopped" aria-label="Collapse Stopped"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+              </header>
+              <div class="l-group__rows" id="fleet-stopped">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="idle" data-value="fedora-43"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">prowl · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">2 hours</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Start</button></span></span></article>
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="failed" data-value="alpine-instant"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">error</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Failed</span><span class="l-tablet__proof">Exit 1</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Inspect</button></span></span></article>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="group-header-heading">
+      <h2 class="l-type-section" id="group-header-heading">GroupHeader</h2>
+      <div class="showcase-grid">
+        <div class="specimen l-group"><span class="state-label">Expanded</span><header class="l-group-header"><h3 class="l-group-header__title">Running</h3><span class="l-group-header__count">1</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="group-running" aria-label="Collapse Running"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header><div class="l-group__rows" id="group-running"><article class="l-tablet" role="option" aria-selected="false" data-tone="alive"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts">ally</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span></span></article></div></div>
+        <div class="specimen l-group"><span class="state-label">Collapsed</span><header class="l-group-header"><h3 class="l-group-header__title">Stopped</h3><span class="l-group-header__count">1</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="false" aria-controls="group-stopped" aria-label="Expand Stopped"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header><div class="l-group__rows" id="group-stopped"><article class="l-tablet" role="option" aria-selected="false" data-tone="idle"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">prowl</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">2 hours</span></span></span></article></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="skeleton-heading">
+      <h2 class="l-type-section" id="skeleton-heading">Skeleton</h2>
+      <div class="showcase-grid">
+        <div class="specimen"><span class="state-label">Static</span><div class="l-skeleton" aria-busy="false" aria-label="Fleet rows ready"><span class="l-skeleton__row"><span class="l-skeleton__bar"></span><span class="l-skeleton__bar"></span></span><span class="l-skeleton__row"><span class="l-skeleton__bar"></span><span class="l-skeleton__bar"></span></span></div></div>
+        <div class="specimen"><span class="state-label">Active loading</span><div class="l-skeleton" aria-busy="true" aria-label="Loading fleet rows"><span class="l-skeleton__row"><span class="l-skeleton__bar"></span><span class="l-skeleton__bar"></span></span><span class="l-skeleton__row"><span class="l-skeleton__bar"></span><span class="l-skeleton__bar"></span></span></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="empty-heading">
+      <h2 class="l-type-section" id="empty-heading">Empty</h2>
+      <div class="specimen">
+        <div class="l-empty"><span class="l-empty__frame l-cut"><span class="l-glyph" aria-hidden="true">dns</span></span><h3 class="l-empty__title">No machines on prowl</h3><p class="l-empty__body">Create a machine or connect another server to put this fleet to work.</p><div class="l-empty__actions"><button class="l-plaque l-gold" type="button">Create machine</button><button class="l-plaque l-line" type="button">Connect server</button></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="pane-heading">
+      <h2 class="l-type-section" id="pane-heading">Pane</h2>
+      <div class="pane-grid">
+        <section class="l-pane l-cut pane-demo"><h3 class="l-type-title">List pane</h3><p class="l-type-body">Pinned and running machines on ally.</p></section>
+        <section class="l-pane l-work-pane l-cut pane-demo"><h3 class="l-type-title">Work pane</h3><p class="l-type-body">ubuntu-24.04 details and console activity.</p></section>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="mineral-field-heading">
+      <h2 class="l-type-section" id="mineral-field-heading">MineralField</h2>
+      <div class="field-grid">
+        <div class="l-mineral-field field-sample" data-tone="idle"><strong class="l-type-label">Idle</strong><span class="l-type-caption">stone3</span></div>
+        <div class="l-mineral-field field-sample" data-tone="alive"><strong class="l-type-label">Alive</strong><span class="l-type-caption">ubuntu-24.04</span></div>
+        <div class="l-mineral-field field-sample" data-tone="becoming"><strong class="l-type-label">Becoming</strong><span class="l-type-caption">windows-11</span></div>
+        <div class="l-mineral-field field-sample" data-tone="attention"><strong class="l-type-label">Attention</strong><span class="l-type-caption">scratch-arch</span></div>
+        <div class="l-mineral-field field-sample" data-tone="paused"><strong class="l-type-label">Paused</strong><span class="l-type-caption">kolibrios-latest-en_US</span></div>
+        <div class="l-mineral-field field-sample" data-tone="failed"><strong class="l-type-label">Failed</strong><span class="l-type-caption">alpine-instant</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="header-heading">
+      <h2 class="l-type-section" id="header-heading">Header</h2>
+      <div class="specimen header-demo">
+        <header class="l-header l-mineral-field" data-tone="becoming">
+          <div class="l-header__identity"><span class="l-header__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span><h3 class="l-header__name"><span class="l-becoming-name" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" data-tone="becoming">windows-11</span></h3></div>
+          <p class="l-header__proof">Creating 62% · 8.1 GiB of 13 GiB</p>
+          <p class="l-header__note">mika-server at root@203.0.113.70:2222</p>
+          <div class="l-marks"><span class="l-marks__mark l-disposable">Disposable</span><span class="l-marks__mark">Instant</span><span class="l-marks__mark">Sealed</span></div>
+          <div class="l-header__acts"><span class="l-split-plaque"><button class="l-plaque l-gold" type="button">Open console</button><button class="l-icon-plaque l-gold" type="button" data-l-split-more aria-expanded="false" aria-label="More console actions"><span class="l-glyph" aria-hidden="true">expand_more</span></button></span><button class="l-plaque l-line" type="button">Pause</button><button class="l-icon-plaque l-quiet" type="button" aria-label="More machine actions"><span class="l-glyph" aria-hidden="true">more_horiz</span></button></div>
+          <div class="l-header__below"><div class="l-blade l-blade-progress" role="progressbar" aria-label="Creating machine" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" style="--l-fraction:0.62"></div></div>
+        </header>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="slab-heading">
+      <h2 class="l-type-section" id="slab-heading">Slab</h2>
+      <div class="l-slab l-cut slab-demo"><p class="l-type-body">Connection settings for ally stay together on one quiet plane.</p></div>
+    </section>
+
+    <section class="section" aria-labelledby="section-heading">
+      <h2 class="l-type-section" id="section-heading">Section</h2>
+      <div class="l-slab l-cut slab-demo"><section class="l-section"><h3 class="l-section__title">Connection</h3><p class="l-type-body">Reach ally as ops@192.0.2.18.</p></section><section class="l-section"><h3 class="l-section__title">Console</h3><p class="l-type-body">Route the serial console through /dev/ttyUSB0.</p></section></div>
+    </section>
+
+    <section class="section" aria-labelledby="facts-heading">
+      <h2 class="l-type-section" id="facts-heading">Facts</h2>
+      <div class="l-slab l-cut slab-demo"><dl class="l-facts l-type-body"><div class="l-facts__row"><dt>Server</dt><dd>ally</dd></div><div class="l-facts__row"><dt>Address</dt><dd class="l-literal">ops@192.0.2.18</dd></div><div class="l-facts__row"><dt>Console</dt><dd class="l-literal">/dev/ttyUSB0</dd></div><div class="l-facts__row"><dt>Last error</dt><dd>-</dd></div></dl></div>
+    </section>
+
+    <section class="section" aria-labelledby="aside-heading">
+      <h2 class="l-type-section" id="aside-heading">Aside</h2>
+      <aside class="l-aside l-cut"><h3 class="l-aside__title">New server</h3><dl class="l-facts l-type-body"><div class="l-facts__row"><dt>Name</dt><dd>mika-server</dd></div><div class="l-facts__row"><dt>User</dt><dd class="l-literal">root</dd></div></dl><pre class="l-aside__preview l-cut">root@203.0.113.70:2222</pre></aside>
+    </section>
+
+    <section class="section" aria-labelledby="draft-columns-heading">
+      <h2 class="l-type-section" id="draft-columns-heading">DraftColumns</h2>
+      <div class="l-draft-columns">
+        <form class="l-draft-columns__form l-slab l-cut demo-form">
+          <label class="l-field"><span class="l-field-label">Server name</span><span class="l-field-control l-cut"><input class="l-text-field" value="mika-server"></span></label>
+          <label class="l-field"><span class="l-field-label">Host address</span><span class="l-field-control l-cut"><input class="l-text-field" value="203.0.113.70"></span></label>
+          <label class="l-field"><span class="l-field-label">SSH port</span><span class="l-field-control l-cut"><input class="l-text-field" value="2222" inputmode="numeric"></span></label>
+          <button class="l-plaque l-gold" type="button">Save server</button>
+        </form>
+        <aside class="l-aside l-cut"><h3 class="l-aside__title">Server connection</h3><dl class="l-facts l-type-body"><div class="l-facts__row"><dt>Name</dt><dd>mika-server</dd></div><div class="l-facts__row"><dt>Address</dt><dd class="l-literal">root@203.0.113.70:2222</dd></div></dl><pre class="l-aside__preview l-cut">ssh -p 2222 root@203.0.113.70</pre></aside>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="claim-heading">
+      <h2 class="l-type-section" id="claim-heading">Claim</h2>
+      <div class="trait-row">
+        <div class="claim-sample"><span class="state-label">Idle</span><span class="l-claim" data-tone="idle"><span class="l-flake" data-tone="idle" aria-hidden="true"></span>Stopped</span></div>
+        <div class="claim-sample"><span class="state-label">Alive</span><span class="l-claim" data-tone="alive"><span class="l-flake" data-tone="alive" aria-hidden="true"></span>Running</span></div>
+        <div class="claim-sample"><span class="state-label">Becoming</span><span class="l-claim" data-tone="becoming"><span class="l-flake" data-tone="becoming" style="--l-fraction:0.62" aria-hidden="true"></span>Creating 62%</span></div>
+        <div class="claim-sample"><span class="state-label">Attention</span><span class="l-claim" data-tone="attention"><span class="l-flake" data-tone="attention" aria-hidden="true"></span>Needs you</span></div>
+        <div class="claim-sample"><span class="state-label">Paused</span><span class="l-claim" data-tone="paused"><span class="l-flake" data-tone="paused" aria-hidden="true"></span>Paused</span></div>
+        <div class="claim-sample"><span class="state-label">Failed</span><span class="l-claim" data-tone="failed"><span class="l-flake" data-tone="failed" aria-hidden="true"></span>Failed</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="marks-heading">
+      <h2 class="l-type-section" id="marks-heading">Marks</h2>
+      <div class="specimen"><span class="state-label">Ordered resource traits</span><div class="l-marks"><span class="l-marks__mark l-disposable">Disposable</span><span class="l-marks__mark">Instant</span><span class="l-marks__mark">Sealed</span></div></div>
+    </section>
+
+    <section class="section" aria-labelledby="sentence-heading">
+      <h2 class="l-type-section" id="sentence-heading">Sentence</h2>
+      <div class="specimen"><p class="l-sentence">Connect <span class="l-attention">scratch-arch</span> through <span class="l-literal">root@203.0.113.70:2222</span> and open <span class="l-literal">/dev/ttyUSB0</span></p></div>
+    </section>
+
+    <section class="section" aria-labelledby="blade-meter-heading">
+      <h2 class="l-type-section" id="blade-meter-heading">BladeMeter</h2>
+      <div class="progress-grid">
+        <div class="progress-sample"><span class="state-label">Quiet, 62 percent memory</span><div class="l-blade l-blade-meter" role="meter" aria-label="Memory use" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" style="--l-fraction:0.62"></div></div>
+        <div class="progress-sample"><span class="state-label">Attention, 94 percent disk</span><div class="l-blade l-blade-meter" role="meter" aria-label="Disk use" aria-valuemin="0" aria-valuemax="100" aria-valuenow="94" data-tone="attention" style="--l-fraction:0.94"></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="blade-progress-heading">
+      <h2 class="l-type-section" id="blade-progress-heading">BladeProgress</h2>
+      <div class="progress-grid">
+        <div class="progress-sample"><span class="state-label">Determinate active, 62 percent</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" style="--l-fraction:0.62"></div></div>
+        <div class="progress-sample"><span class="state-label">Indeterminate active sweep</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Checking mika-server" aria-busy="true" data-indeterminate="true"></div></div>
+        <div class="progress-sample"><span class="state-label">Inactive, 100 percent</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="ubuntu-24.04 ready" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" style="--l-fraction:1"></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="working-heading">
+      <h2 class="l-type-section" id="working-heading">Working</h2>
+      <div class="showcase-grid">
+        <div class="specimen"><span class="state-label">Inactive</span><div class="working-sample"><span class="l-working" role="status" aria-label="Idle" aria-busy="false"></span><span class="l-type-body">No job running</span></div></div>
+        <div class="specimen"><span class="state-label">Active</span><div class="working-sample"><span class="l-working" role="status" aria-label="Checking prowl" aria-busy="true"></span><span class="l-type-body">Checking prowl</span></div></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="becoming-name-heading">
+      <h2 class="l-type-section" id="becoming-name-heading">BecomingName</h2>
+      <div class="showcase-grid">
+        <div class="specimen becoming-sample"><span class="state-label">Active, 62 percent</span><span class="l-becoming-name" role="progressbar" aria-label="Creating windows-11" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" data-tone="becoming">windows-11</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Installing image" aria-valuemin="0" aria-valuemax="100" aria-valuenow="62" aria-busy="true" style="--l-fraction:0.62"></div><code class="l-type-mono-sm">Installing image on mika-server</code></div>
+        <div class="specimen becoming-sample"><span class="state-label">Complete</span><span class="l-becoming-name" role="progressbar" aria-label="fedora-43 complete" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" data-tone="alive">fedora-43</span><div class="l-blade l-blade-progress" role="progressbar" aria-label="Machine ready" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-busy="false" style="--l-fraction:1"></div><code class="l-type-mono-sm">Machine ready on prowl</code></div>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+
+    await Lithic.init(document);
+    const query = new URLSearchParams(location.search);
+    const back = document.querySelector('.back');
+    back.search = query.toString();
+  </script>
+</body>
+</html>

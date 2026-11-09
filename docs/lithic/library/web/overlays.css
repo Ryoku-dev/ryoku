@@ -1,0 +1,854 @@
+.l-popover,
+.l-menu,
+.l-tooltip {
+  margin: 0;
+  inset: auto;
+  color: var(--lithic-fg);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.l-popover {
+  --l-cut: var(--lithic-cut-overlay);
+  --l-fill: var(--lithic-stone4);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  position: fixed;
+  z-index: 1000;
+  transform: translateY(calc(-1 * var(--lithic-size-popover-enter-travel)));
+  transition:
+    opacity var(--lithic-motion-menu-out) var(--lithic-motion-curve),
+    transform var(--lithic-motion-menu-out) var(--lithic-motion-curve);
+}
+
+.l-popover:popover-open,
+.l-popover[data-l-open],
+.l-popover[data-l-static-open] {
+  display: block;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-duration: var(--lithic-motion-menu-in);
+}
+
+.l-menu:is([data-l-open], [data-l-static-open]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.l-popover[data-l-side="above"] {
+  transform: translateY(var(--lithic-size-popover-enter-travel));
+}
+
+.l-popover[data-l-side="above"]:is(:popover-open, [data-l-open], [data-l-static-open]) {
+  transform: translateY(0);
+}
+
+.l-popover[data-l-closing] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(-1 * var(--lithic-size-popover-exit-travel)));
+  transition-duration: var(--lithic-motion-menu-out);
+}
+
+.l-popover[data-l-closing][data-l-side="above"] {
+  transform: translateY(var(--lithic-size-popover-exit-travel));
+}
+
+@supports (position-area: bottom) and (position-anchor: --lithic-anchor) {
+  .l-popover[data-l-native-anchor] {
+    position: fixed;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-block, flip-inline;
+    margin-block-start: var(--lithic-size-popover-anchor-gap);
+  }
+
+  .l-popover[data-l-native-anchor][data-l-prefer="above"] {
+    position-area: top span-right;
+    margin-block: 0 var(--lithic-size-popover-anchor-gap);
+  }
+
+  .l-tooltip[data-l-native-anchor] {
+    position: fixed;
+    position-area: top center;
+    position-try-fallbacks: flip-block, flip-inline;
+    margin-block-end: var(--lithic-size-tooltip-anchor-gap);
+  }
+}
+
+.l-menu {
+  --l-cut: var(--lithic-cut-menu);
+  --l-fill: var(--lithic-stone4);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  width: max-content;
+  min-width: min(var(--lithic-size-menu-width-min), calc(100vw - var(--lithic-space-s4)));
+  max-width: min(var(--lithic-size-menu-width-max), calc(100vw - var(--lithic-space-s4)));
+  padding-block: var(--lithic-size-menu-padding-vertical);
+}
+
+.l-menu-item {
+  width: 100%;
+  min-height: var(--lithic-size-menu-item);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lithic-size-menu-icon-gap);
+  padding-inline: var(--lithic-size-menu-inset);
+  border: 0;
+  background: transparent;
+  color: var(--lithic-fg);
+  text-align: start;
+  cursor: pointer;
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-menu-item:hover,
+.l-menu-item:focus-visible,
+.l-menu-item[data-l-state="hover"],
+.l-menu-item[data-l-state="focus"] {
+  background: var(--lithic-stone3);
+  outline: none;
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+.l-menu-item:active,
+.l-menu-item[data-l-state="pressed"] {
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-stone3));
+}
+
+.l-menu-item > .l-glyph {
+  width: var(--lithic-size-menu-icon);
+  height: var(--lithic-size-menu-icon);
+  font-size: var(--lithic-size-menu-icon);
+}
+
+.l-menu-item-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.l-menu-shortcut {
+  margin-inline-start: var(--lithic-size-menu-shortcut-gap);
+  color: var(--lithic-fg3);
+  white-space: nowrap;
+  font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family);
+}
+
+.l-menu-item.l-danger {
+  color: var(--lithic-jasper);
+}
+
+.l-menu-item:is(:disabled, [aria-disabled="true"]) {
+  color: var(--lithic-fg3);
+  cursor: default;
+  pointer-events: none;
+}
+
+.l-menu-divider {
+  height: var(--lithic-size-hairline);
+  margin: var(--lithic-size-menu-padding-vertical) var(--lithic-size-menu-divider-inset);
+  border: 0;
+  background: var(--lithic-vein);
+}
+
+.l-picker {
+  --l-cut: var(--lithic-cut-mid);
+  --l-fill: var(--lithic-stone3);
+  min-width: var(--lithic-size-picker-width-min);
+  min-height: var(--lithic-size-picker-height);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label arrow" "value arrow";
+  align-items: center;
+  column-gap: var(--lithic-size-picker-arrow-gap);
+  padding-inline: var(--lithic-size-picker-inset);
+  color: var(--lithic-fg);
+  text-align: start;
+  cursor: pointer;
+}
+
+.l-picker:hover,
+.l-picker[data-l-state="hover"] {
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-stone3));
+}
+
+.l-picker:is(:active, [data-l-state="pressed"]):not(:disabled):not([aria-disabled="true"]) {
+  --l-cut-depth: var(--lithic-size-control-press-cut-grow);
+  transform: translateY(var(--lithic-size-control-press-sink));
+}
+
+.l-picker-label {
+  grid-area: label;
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-picker-value {
+  grid-area: value;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--lithic-type-body-weight) var(--lithic-type-body-size)/var(--lithic-type-body-line) var(--lithic-type-body-family);
+}
+
+.l-picker > .l-glyph {
+  grid-area: arrow;
+  width: var(--lithic-size-picker-arrow);
+  height: var(--lithic-size-picker-arrow);
+  color: var(--lithic-fg2);
+  font-size: var(--lithic-size-picker-arrow);
+}
+
+.l-picker[aria-expanded="true"] > .l-glyph {
+  transform: rotate(180deg);
+}
+
+.l-dialog {
+  --l-cut: var(--lithic-cut-large);
+  --l-fill: var(--lithic-stone4);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  width: min(var(--l-dialog-width, var(--lithic-size-dialog-width)), calc(100vw - 2 * var(--lithic-size-dialog-margin)));
+  max-height: calc(100vh - 2 * var(--lithic-size-dialog-margin));
+  margin: auto;
+  padding: var(--lithic-size-dialog-padding);
+  border: 0;
+  overflow: auto;
+  color: var(--lithic-fg);
+  opacity: 0;
+  transform: translateY(var(--lithic-size-dialog-enter-travel));
+  transition:
+    opacity var(--lithic-motion-dialog-out) var(--lithic-motion-curve),
+    transform var(--lithic-motion-dialog-out) var(--lithic-motion-curve);
+}
+
+.l-dialog[open],
+.l-dialog[data-l-static-open] {
+  opacity: 1;
+  transform: translateY(0);
+  transition-duration: var(--lithic-motion-dialog-in);
+}
+
+.l-dialog[data-l-closing] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(var(--lithic-size-dialog-exit-travel));
+  transition-duration: var(--lithic-motion-dialog-out);
+}
+
+.l-dialog::backdrop {
+  background: var(--lithic-scrim);
+}
+
+.l-dialog-title {
+  margin: 0 0 var(--lithic-size-dialog-title-gap);
+  font: var(--lithic-type-sentence-weight) var(--lithic-type-sentence-size)/var(--lithic-type-sentence-line) var(--lithic-type-sentence-family);
+}
+
+.l-dialog-body {
+  color: var(--lithic-fg2);
+  font: var(--lithic-type-body-weight) var(--lithic-type-body-size)/var(--lithic-type-body-line) var(--lithic-type-body-family);
+}
+
+.l-dialog-body > :first-child {
+  margin-block-start: 0;
+}
+
+.l-dialog-body > :last-child {
+  margin-block-end: 0;
+}
+
+.l-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--lithic-size-dialog-action-gap);
+  margin-block-start: var(--lithic-size-dialog-actions-gap);
+}
+
+.l-confirm .l-confirm-field {
+  margin-block-start: var(--lithic-size-dialog-confirm-field-gap);
+}
+
+.l-tooltip {
+  --l-cut: var(--lithic-cut-tooltip);
+  --l-fill: var(--lithic-stone4);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  position: fixed;
+  z-index: 1100;
+  max-width: min(var(--lithic-size-tooltip-width-max), calc(100vw - var(--lithic-space-s4)));
+  padding: var(--lithic-size-tooltip-padding-vertical) var(--lithic-size-tooltip-padding-horizontal);
+  color: var(--lithic-fg);
+  transform: translateY(var(--lithic-size-tooltip-travel));
+  transition:
+    opacity var(--lithic-motion-tooltip-in) var(--lithic-motion-curve),
+    transform var(--lithic-motion-tooltip-in) var(--lithic-motion-curve);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-tooltip[data-l-open],
+.l-tooltip[data-l-static-open] {
+  display: block;
+  opacity: 1;
+  pointer-events: none;
+  transform: translateY(0);
+}
+
+.l-placard-stack {
+  position: fixed;
+  z-index: 1200;
+  inset-inline: var(--lithic-space-s4);
+  bottom: var(--lithic-size-placard-bottom);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: var(--lithic-size-placard-stack-gap);
+  pointer-events: none;
+}
+
+.l-placard {
+  --l-cut: var(--lithic-cut-placard);
+  --l-fill: var(--lithic-sel);
+  --l-stroke: var(--lithic-vein);
+  --l-stroke-width: var(--lithic-size-hairline);
+  position: relative;
+  width: min(100%, var(--lithic-size-placard-width-max));
+  min-height: var(--lithic-size-placard-height);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--lithic-size-placard-trailing-inset);
+  padding-inline: var(--lithic-size-placard-inset) var(--lithic-size-placard-trailing-inset);
+  color: var(--lithic-on-sel);
+  pointer-events: auto;
+  opacity: 0;
+  transform: translateY(var(--lithic-size-placard-rise));
+  transition:
+    opacity var(--lithic-motion-placard-in) var(--lithic-motion-curve),
+    transform var(--lithic-motion-placard-in) var(--lithic-motion-curve);
+}
+
+.l-placard[data-l-open],
+.l-placard[data-l-static-open] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.l-placard-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+}
+
+.l-placard-action {
+  --l-cut: var(--lithic-cut-small);
+  --l-fill: var(--lithic-on-sel);
+  min-height: var(--lithic-size-placard-action-height);
+  padding-inline: var(--lithic-size-placard-action-inset);
+  border: 0;
+  color: var(--lithic-sel);
+  cursor: pointer;
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+}
+
+.l-placard-action:is(:hover, [data-l-state="hover"], [data-l-state="focus"]) {
+  --l-fill: color-mix(in srgb, var(--lithic-on-sel), white calc(var(--lithic-alpha-hover-fill) * 100%));
+}
+
+.l-placard-action:is(:active, [data-l-state="pressed"]) {
+  --l-cut-depth: var(--lithic-size-control-press-cut-grow);
+  transform: translateY(var(--lithic-size-control-press-sink));
+}
+
+.l-placard-blade {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 0;
+  width: calc(var(--l-fraction, 1) * 100%);
+  height: var(--lithic-size-placard-blade);
+  background: var(--lithic-on-sel);
+  transform-origin: left;
+}
+
+.l-placard[data-l-draining] .l-placard-blade {
+  animation: l-placard-drain var(--lithic-motion-placard-life) linear forwards;
+}
+
+@keyframes l-placard-drain {
+  from { width: 100%; }
+  to { width: 0; }
+}
+
+.l-rail {
+  position: relative;
+  width: var(--lithic-size-rail-expanded);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--lithic-size-rail-home-top) 0 var(--lithic-size-rail-item-bottom-inset);
+  background: var(--lithic-stone1);
+  color: var(--lithic-fg2);
+}
+
+.l-rail > :not(.l-rail-selection) {
+  position: relative;
+  z-index: 1;
+}
+
+.l-rail-selection {
+  --l-cut: var(--lithic-cut-mid);
+  --l-fill: var(--lithic-sel);
+  position: absolute;
+  display: block;
+  inset: 0 auto auto 0;
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    width var(--lithic-motion-select) var(--lithic-motion-curve),
+    height var(--lithic-motion-select) var(--lithic-motion-curve),
+    transform var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+.l-rail-home,
+.l-rail-destination {
+  --l-cut: var(--lithic-cut-mid);
+  --l-fill: transparent;
+  width: var(--lithic-size-rail-destination-expanded);
+  min-height: var(--lithic-size-rail-destination-expanded);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--lithic-size-rail-item-label-gap);
+  padding: 0;
+  color: var(--lithic-fg2);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.l-rail-home {
+  width: var(--lithic-size-rail-home-expanded);
+  min-height: var(--lithic-size-rail-home-expanded);
+}
+
+.l-rail-destination:hover,
+.l-rail-home:hover,
+.l-rail-destination[data-l-state="hover"],
+.l-rail-home[data-l-state="hover"],
+.l-rail-destination[data-l-state="focus"],
+.l-rail-home[data-l-state="focus"] {
+  --l-fill: var(--lithic-stone3);
+}
+
+.l-rail-destination[aria-current="page"] {
+  --l-fill: var(--lithic-sel);
+  color: var(--lithic-on-sel);
+}
+
+.l-rail[data-l-selection-ready] .l-rail-destination[aria-current="page"] {
+  --l-fill: transparent;
+}
+
+.l-rail-destination:is(:active, [data-l-state="pressed"]),
+.l-rail-home:is(:active, [data-l-state="pressed"]) {
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-stone3));
+}
+
+.l-rail-destination > .l-glyph {
+  width: var(--lithic-size-rail-destination-icon);
+  height: var(--lithic-size-rail-destination-icon);
+  font-size: var(--lithic-size-rail-destination-icon);
+}
+
+.l-rail-label {
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-rail-destination[aria-current="page"] .l-rail-label {
+  color: var(--lithic-on-sel);
+}
+
+.l-new-plaque .l-rail-label {
+  color: var(--lithic-on-gold);
+}
+
+.l-rail-primary {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: var(--lithic-size-rail-tile-gap);
+  margin-block-start: calc(var(--lithic-size-rail-start-expanded) - var(--lithic-size-rail-home-expanded) - var(--lithic-size-rail-home-top));
+}
+
+.l-rail-primary > .l-new-plaque {
+  margin-block-end: calc(var(--lithic-size-rail-destination-expanded) - var(--lithic-size-new-plaque-height));
+}
+
+.l-rail-settings {
+  margin-block-start: auto;
+}
+
+.l-brand-mark {
+  --l-brand-cut: calc(var(--lithic-size-brand-cut-ratio) * 100%);
+  width: var(--lithic-size-brand-mark);
+  height: var(--lithic-size-brand-mark);
+  display: grid;
+  place-items: center;
+  background: var(--lithic-sel);
+  clip-path: polygon(
+    var(--l-brand-cut) 0,
+    calc(100% - var(--l-brand-cut)) 0,
+    100% var(--l-brand-cut),
+    100% calc(100% - var(--l-brand-cut)),
+    calc(100% - var(--l-brand-cut)) 100%,
+    var(--l-brand-cut) 100%,
+    0 calc(100% - var(--l-brand-cut)),
+    0 var(--l-brand-cut)
+  );
+}
+
+.l-brand-mark svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.l-brand-mark-octagon {
+  fill: none;
+  stroke: var(--lithic-on-sel);
+  stroke-width: var(--lithic-size-brand-outline);
+  vector-effect: non-scaling-stroke;
+}
+
+.l-brand-mark-point {
+  fill: var(--lithic-on-sel);
+}
+
+.l-brand-mark-pointer {
+  fill: var(--lithic-jasper);
+}
+
+.l-new-plaque {
+  --l-cut: var(--lithic-cut-mid);
+  --l-fill: var(--lithic-gold);
+  width: var(--lithic-size-new-plaque-width);
+  min-height: var(--lithic-size-new-plaque-height);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--lithic-size-new-plaque-label-gap);
+  padding: 0;
+  color: var(--lithic-on-gold);
+  cursor: pointer;
+}
+
+.l-new-plaque:is(:hover, [data-l-state="hover"], [data-l-state="focus"]) {
+  --l-fill: color-mix(in srgb, var(--lithic-gold), white calc(var(--lithic-alpha-hover-fill) * 100%));
+}
+
+.l-new-plaque:is(:active, [data-l-state="pressed"]) {
+  --l-cut-depth: var(--lithic-size-control-press-cut-grow);
+  transform: translateY(var(--lithic-size-control-press-sink));
+}
+
+.l-new-plaque > .l-glyph {
+  width: var(--lithic-size-new-plaque-icon);
+  height: var(--lithic-size-new-plaque-icon);
+  font-size: var(--lithic-size-new-plaque-icon);
+}
+
+.l-new-plaque .l-new-close,
+.l-new-plaque[aria-expanded="true"] .l-new-add {
+  display: none;
+}
+
+.l-new-plaque[aria-expanded="true"] .l-new-close {
+  display: inline-flex;
+}
+
+.l-section-index {
+  position: sticky;
+  top: var(--lithic-size-settings-inset-vertical);
+  width: var(--lithic-size-section-index-width);
+  display: grid;
+  align-content: start;
+  gap: var(--lithic-size-section-index-row-gap);
+}
+
+.l-section-index a,
+.l-section-index button {
+  --l-cut: var(--lithic-cut-mid);
+  --l-fill: transparent;
+  min-height: var(--lithic-size-section-index-row);
+  display: flex;
+  align-items: center;
+  padding-inline: var(--lithic-size-section-index-inset);
+  border: 0;
+  color: var(--lithic-fg2);
+  text-decoration: none;
+  cursor: pointer;
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+}
+
+.l-section-index a:hover,
+.l-section-index button:hover,
+.l-section-index :is(a, button)[data-l-state="hover"],
+.l-section-index :is(a, button)[data-l-state="focus"] {
+  --l-fill: var(--lithic-stone3);
+}
+
+.l-section-index :is(a, button)[aria-current="true"] {
+  --l-fill: var(--lithic-sel);
+  color: var(--lithic-on-sel);
+}
+
+.l-section-index :is(a, button):is(:active, [data-l-state="pressed"]) {
+  --l-fill: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-stone3));
+}
+
+.l-section-index[data-l-size-class="medium"],
+.l-app-frame[data-l-size-class="medium"] .l-section-index {
+  position: static;
+  width: 100%;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
+}
+
+.l-section-index[data-l-size-class="medium"] :is(a, button),
+.l-app-frame[data-l-size-class="medium"] .l-section-index :is(a, button) {
+  min-height: var(--lithic-size-filter-height);
+  justify-content: center;
+}
+
+.l-section-index[data-l-size-class="compact"],
+.l-app-frame[data-l-size-class="compact"] .l-section-index {
+  display: none;
+}
+
+.l-engraved-chart {
+  color: var(--lithic-fg);
+}
+
+.l-engraved-chart svg,
+svg.l-engraved-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.l-engraved-chart-hatch {
+  fill: none;
+  stroke: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hatch) * 100%), transparent);
+  stroke-width: var(--lithic-size-chart-hatch-line);
+  vector-effect: non-scaling-stroke;
+}
+
+.l-engraved-chart-field {
+  fill: url(#lithic-chart-hatch);
+}
+
+.l-engraved-chart-line {
+  fill: none;
+  stroke: var(--lithic-fg);
+  stroke-width: var(--lithic-size-chart-line);
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+
+.l-engraved-chart-baseline,
+.l-engraved-chart-tick {
+  stroke: var(--lithic-vein);
+  stroke-width: var(--lithic-size-chart-baseline);
+  vector-effect: non-scaling-stroke;
+}
+
+.l-engraved-chart-label {
+  fill: var(--lithic-fg3);
+  font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family);
+}
+
+.l-engraved-chart-empty {
+  min-height: var(--lithic-space-s6);
+  display: grid;
+  place-items: center;
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-app-frame {
+  width: 100%;
+  min-width: min(100%, var(--lithic-size-window-min-width));
+  min-height: min(100vh, var(--lithic-size-window-min-height));
+  display: grid;
+  grid-template-columns: var(--lithic-size-rail-expanded) var(--lithic-size-list-expanded) minmax(0, 1fr);
+  gap: var(--lithic-size-pane-gap);
+  padding-block-start: var(--lithic-size-pane-top);
+  padding-inline-end: var(--lithic-size-pane-right-web);
+  overflow: hidden;
+  background: var(--lithic-ground);
+  color: var(--lithic-fg);
+  container-type: inline-size;
+}
+
+.l-app-frame[data-l-no-list] {
+  grid-template-columns: var(--lithic-size-rail-expanded) minmax(0, 1fr);
+}
+
+.l-app-frame-window-controls {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  min-height: var(--lithic-size-pane-decor-strip);
+  display: flex;
+  align-items: center;
+  gap: var(--lithic-space-s1);
+}
+
+.l-app-frame-pane {
+  --l-cut: var(--lithic-cut-large);
+  --l-cut-br: 0px;
+  --l-cut-bl: 0px;
+  min-width: 0;
+  min-height: 100%;
+  overflow: auto;
+}
+
+.l-app-frame .l-app-frame-list {
+  --l-fill: var(--lithic-stone1);
+  padding: var(--lithic-size-list-inset);
+}
+
+.l-app-frame .l-app-frame-work {
+  --l-fill: var(--lithic-stone2);
+  padding: var(--lithic-size-work-content-inset);
+}
+
+.l-app-frame[data-l-size-class="medium"] {
+  grid-template-columns: var(--lithic-size-rail-medium) var(--lithic-size-list-medium) minmax(0, 1fr);
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-rail {
+  width: var(--lithic-size-rail-medium);
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-rail-destination {
+  width: var(--lithic-size-rail-destination-medium);
+  min-height: var(--lithic-size-rail-destination-medium);
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-rail-home {
+  width: var(--lithic-size-rail-home-medium);
+  min-height: var(--lithic-size-rail-home-medium);
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-rail-label {
+  display: none;
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-rail-primary {
+  margin-block-start: calc(var(--lithic-size-rail-start-medium) - var(--lithic-size-rail-home-medium) - var(--lithic-size-rail-home-top));
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-new-plaque {
+  width: var(--lithic-size-new-plaque-width-compact);
+  min-height: var(--lithic-size-new-plaque-height-compact);
+}
+
+.l-app-frame[data-l-size-class="medium"] .l-rail-primary > .l-new-plaque {
+  margin-block-end: calc(var(--lithic-size-rail-destination-medium) - var(--lithic-size-new-plaque-height-compact));
+}
+
+.l-app-frame[data-l-size-class="medium"][data-l-no-list] {
+  grid-template-columns: var(--lithic-size-rail-medium) minmax(0, 1fr);
+}
+
+.l-app-frame[data-l-size-class="compact"] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) var(--lithic-size-rail-bottom-height);
+  padding-inline-end: 0;
+  padding-block-end: 0;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-app-frame-list {
+  display: none;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-app-frame-work {
+  grid-row: 1;
+  margin-block-end: var(--lithic-size-pane-gap);
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-rail {
+  grid-row: 2;
+  width: 100%;
+  min-height: var(--lithic-size-rail-bottom-height);
+  display: grid;
+  grid-template-columns: repeat(var(--lithic-size-rail-bottom-columns), minmax(0, 1fr));
+  padding: 0;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-rail-primary {
+  display: contents;
+  margin: 0;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-rail-primary > .l-new-plaque {
+  margin: 0;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-rail-home,
+.l-app-frame[data-l-size-class="compact"] .l-rail-destination,
+.l-app-frame[data-l-size-class="compact"] .l-new-plaque {
+  width: 100%;
+  min-height: var(--lithic-size-rail-destination-compact);
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-rail-home { grid-column: 1; }
+.l-app-frame[data-l-size-class="compact"] .l-rail-primary > :nth-child(1) { grid-column: 2; }
+.l-app-frame[data-l-size-class="compact"] .l-new-plaque { grid-column: 3; grid-row: 1; }
+.l-app-frame[data-l-size-class="compact"] .l-rail-primary > :nth-child(3) { grid-column: 4; }
+.l-app-frame[data-l-size-class="compact"] .l-rail-settings { grid-column: 5; grid-row: 1; margin: 0; }
+
+.l-app-frame[data-l-size-class="compact"] .l-rail-label {
+  display: block;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-brand-mark {
+  width: var(--lithic-size-brand-mark-compact);
+  height: var(--lithic-size-brand-mark-compact);
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-new-plaque {
+  --l-cut: var(--lithic-cut-small);
+  max-width: var(--lithic-size-new-plaque-width-compact);
+  min-height: var(--lithic-size-new-plaque-height-compact);
+  justify-self: center;
+  align-self: center;
+}
+
+.l-app-frame[data-l-size-class="compact"] .l-new-plaque > .l-glyph {
+  width: var(--lithic-size-new-plaque-icon-compact);
+  height: var(--lithic-size-new-plaque-icon-compact);
+  font-size: var(--lithic-size-new-plaque-icon-compact);
+}
+
+[data-l-reduce] .l-placard[data-l-draining] .l-placard-blade {
+  animation: none;
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .l-placard[data-l-draining] .l-placard-blade {
+    animation: none;
+    width: 100%;
+  }
+}

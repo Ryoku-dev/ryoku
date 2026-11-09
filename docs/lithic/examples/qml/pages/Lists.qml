@@ -1,0 +1,697 @@
+import QtQuick
+import Lithic
+
+Item {
+    id: root
+
+    implicitHeight: content.implicitHeight + LithicTokens.space.s5 * 2
+
+    component HostMark: CutRect {
+        fill: Lithic.stone3
+        cut: LithicTokens.cut.small
+
+        Glyph {
+            anchors.centerIn: parent
+            name: "dns"
+            size: LithicTokens.size.iconPlaqueIcon
+            ink: Lithic.fg2
+        }
+    }
+
+    component Showcase: Column {
+        required property string title
+        default property alias specimens: specimenFlow.data
+        width: parent.width
+        spacing: LithicTokens.space.s4
+
+        Label {
+            text: parent.title
+            typeRole: "section"
+        }
+
+        Flow {
+            id: specimenFlow
+            width: parent.width
+            height: childrenRect.height
+            spacing: LithicTokens.space.s4
+        }
+    }
+
+    component State: Column {
+        property string stateName: ""
+        property real specimenWidth: LithicTokens.size.listMedium
+        property real specimenHeight: LithicTokens.size.tabletHeight
+        default property alias specimen: specimenHost.data
+        width: specimenWidth
+        spacing: LithicTokens.space.s2
+
+        Item {
+            id: specimenHost
+            width: parent.width
+            height: parent.specimenHeight
+        }
+
+        Label {
+            width: parent.width
+            text: parent.stateName
+            typeRole: "caption"
+            inkRole: "fg2"
+            horizontalAlignment: Text.AlignHCenter
+        }
+    }
+
+    Column {
+        id: content
+        x: LithicTokens.space.s5
+        y: LithicTokens.space.s5
+        width: root.width - LithicTokens.space.s5 * 2
+        spacing: LithicTokens.space.s6
+
+        Column {
+            width: parent.width
+            spacing: LithicTokens.space.s2
+
+            Label {
+                text: "Lists, containers and progress"
+                typeRole: "name"
+            }
+            Label {
+                width: parent.width
+                text: "Resource rows, grouped facts, draft structure and job state for the Ryoport fleet."
+                typeRole: "body"
+                inkRole: "fg2"
+            }
+        }
+
+        Showcase {
+            title: "Tablet"
+
+            State {
+                stateName: "Idle"
+                Tablet {
+                    anchors.fill: parent
+                    title: "ubuntu-24.04"
+                    facts: "ally · ops@192.0.2.18"
+                    claim: "Stopped"
+                    proof: "8 vCPU"
+                    mark: Component { HostMark {} }
+                }
+            }
+            State {
+                stateName: "Hovered action"
+                Tablet {
+                    anchors.fill: parent
+                    title: "fedora-43"
+                    facts: "prowl · 192.0.2.43"
+                    claim: "Alive"
+                    proof: "24 ms"
+                    tone: "alive"
+                    actionText: "Connect"
+                    actionKind: "gold"
+                    actionGlyph: "lan"
+                    previewState: "hover"
+                    mark: Component { HostMark {} }
+                }
+            }
+            State {
+                stateName: "Pressed"
+                Tablet {
+                    anchors.fill: parent
+                    title: "windows-11"
+                    facts: "mika-server · 203.0.113.70:2222"
+                    claim: "Paused"
+                    proof: "RDP"
+                    tone: "paused"
+                    previewState: "pressed"
+                    mark: Component { HostMark {} }
+                }
+            }
+            State {
+                stateName: "Keyboard focus"
+                Tablet {
+                    anchors.fill: parent
+                    title: "alpine-instant"
+                    facts: "localhost · ops@127.0.0.1"
+                    claim: "Instant"
+                    proof: "SSH"
+                    previewState: "focus"
+                    mark: Component { HostMark {} }
+                }
+            }
+            State {
+                stateName: "Selected"
+                Tablet {
+                    anchors.fill: parent
+                    title: "scratch-arch"
+                    facts: "console · /dev/ttyUSB0"
+                    claim: "Attention"
+                    proof: "Serial"
+                    tone: "attention"
+                    selected: true
+                    mark: Component { HostMark {} }
+                }
+            }
+            State {
+                stateName: "Becoming"
+                Tablet {
+                    anchors.fill: parent
+                    title: "kolibrios-latest-en_US"
+                    facts: "Transfer · 198.51.100.27"
+                    claim: "Becoming"
+                    proof: "68%"
+                    tone: "becoming"
+                    progress: 0.68
+                    mark: Component { HostMark {} }
+                }
+            }
+            State {
+                stateName: "Compact disabled"
+                specimenHeight: LithicTokens.size.tabletHeightCompact
+                Tablet {
+                    anchors.fill: parent
+                    title: "fedora-43"
+                    facts: "Connection unavailable"
+                    claim: "Stopped"
+                    compact: true
+                    enabled: false
+                    mark: Component { HostMark {} }
+                }
+            }
+        }
+
+        Showcase {
+            title: "RowList"
+
+            Item {
+                width: LithicTokens.size.listMedium
+                height: LithicTokens.size.tabletHeight * 3
+                    + LithicTokens.size.rowListGap * 2
+
+                RowList {
+                    anchors.fill: parent
+                    currentIndex: 1
+                    model: [
+                        { title: "ubuntu-24.04", facts: "ally · 192.0.2.18", tone: "alive" },
+                        { title: "fedora-43", facts: "prowl · 192.0.2.43", tone: "becoming" },
+                        { title: "windows-11", facts: "mika-server · 203.0.113.70", tone: "paused" }
+                    ]
+                    delegate: Tablet {
+                        required property var modelData
+                        required property int index
+                        width: ListView.view.width
+                        title: modelData.title
+                        facts: modelData.facts
+                        tone: modelData.tone
+                        claim: modelData.tone === "alive" ? "Alive"
+                            : modelData.tone === "becoming" ? "Becoming" : "Paused"
+                        proof: index === 1 ? "42%" : "24 ms"
+                        progress: index === 1 ? 0.42 : 0
+                        selected: ListView.isCurrentItem
+                        pane: Lithic.stone1
+                        mark: Component { HostMark {} }
+                        onClicked: ListView.view.currentIndex = index
+                    }
+                }
+
+                Label {
+                    anchors.top: parent.bottom
+                    anchors.topMargin: LithicTokens.space.s2
+                    width: parent.width
+                    text: "Selected row with keyboard and scroll behavior"
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+        }
+
+        Showcase {
+            title: "GroupHeader"
+
+            State {
+                stateName: "Needs you"
+                specimenHeight: LithicTokens.size.factsRowHeight
+                GroupHeader { anchors.fill: parent; title: "Needs you"; count: 2 }
+            }
+            State {
+                stateName: "Pinned"
+                specimenHeight: LithicTokens.size.factsRowHeight
+                GroupHeader { anchors.fill: parent; title: "Pinned"; count: 3 }
+            }
+            State {
+                stateName: "Running"
+                specimenHeight: LithicTokens.size.factsRowHeight
+                GroupHeader { anchors.fill: parent; title: "Running"; count: 4 }
+            }
+            State {
+                stateName: "Becoming"
+                specimenHeight: LithicTokens.size.factsRowHeight
+                GroupHeader { anchors.fill: parent; title: "Becoming"; count: 1 }
+            }
+            State {
+                stateName: "Stopped"
+                specimenHeight: LithicTokens.size.factsRowHeight
+                GroupHeader { anchors.fill: parent; title: "Stopped"; count: 6 }
+            }
+        }
+
+        Showcase {
+            title: "Skeleton"
+
+            State {
+                stateName: "Resting"
+                Skeleton { anchors.fill: parent }
+            }
+            State {
+                stateName: "Active"
+                Skeleton { anchors.fill: parent; active: true }
+            }
+            State {
+                stateName: "Compact"
+                specimenHeight: LithicTokens.size.tabletHeightCompact
+                Skeleton { anchors.fill: parent; compact: true }
+            }
+        }
+
+        Showcase {
+            title: "Empty"
+
+            Item {
+                width: LithicTokens.size.draftFormMax
+                height: emptyState.implicitHeight
+
+                Empty {
+                    id: emptyState
+                    width: parent.width
+                    glyph: "link_off"
+                    title: "No saved sessions"
+                    body: "Connect to a fleet host, then save the session for quick access here."
+                    actions: [
+                        { text: "Connect", kind: "gold", glyph: "lan" },
+                        { text: "Import", kind: "line", glyph: "download" }
+                    ]
+                }
+            }
+        }
+
+        Showcase {
+            title: "Pane"
+
+            State {
+                stateName: "Rail pane"
+                specimenHeight: LithicTokens.size.paneDecorStrip * 3
+                Pane {
+                    anchors.fill: parent
+                    kind: "rail"
+                    inset: LithicTokens.space.s3
+                    Label { text: "Fleet navigation"; typeRole: "title" }
+                }
+            }
+            State {
+                stateName: "List pane"
+                specimenHeight: LithicTokens.size.paneDecorStrip * 3
+                Pane {
+                    anchors.fill: parent
+                    kind: "list"
+                    inset: LithicTokens.space.s3
+                    Label { text: "Saved sessions"; typeRole: "title" }
+                }
+            }
+            State {
+                stateName: "Work pane"
+                specimenHeight: LithicTokens.size.paneDecorStrip * 3
+                Pane {
+                    anchors.fill: parent
+                    kind: "work"
+                    inset: LithicTokens.space.s3
+                    Label { text: "Host details"; typeRole: "title" }
+                }
+            }
+        }
+
+        Showcase {
+            title: "MineralField"
+
+            Repeater {
+                model: ["idle", "alive", "becoming", "attention", "paused", "failed"]
+                delegate: State {
+                    required property string modelData
+                    stateName: modelData.charAt(0).toUpperCase() + modelData.slice(1)
+                    specimenWidth: LithicTokens.size.listMedium
+                    specimenHeight: LithicTokens.size.paneDecorStrip * 2
+
+                    MineralField {
+                        anchors.fill: parent
+                        tone: modelData
+                        Label {
+                            anchors.centerIn: parent
+                            text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
+                            typeRole: "label"
+                        }
+                    }
+                }
+            }
+        }
+
+        Showcase {
+            title: "Header"
+
+            MineralField {
+                width: LithicTokens.size.settingsMediumMax
+                height: fleetHeader.implicitHeight
+                tone: "alive"
+
+                Header {
+                    id: fleetHeader
+                    width: parent.width
+                    name: "ubuntu-24.04"
+                    proof: "Connected to ally as ops at 192.0.2.18"
+                    note: "Last checked a moment ago"
+                    traits: ["Sealed", "Disposable", "Instant"]
+                    mark: Component { HostMark {} }
+                    actions: [
+                        { text: "Open", kind: "gold", glyph: "terminal" },
+                        { text: "Transfer", kind: "line", glyph: "swap_horiz" },
+                        { text: "More", kind: "quiet", glyph: "more_horiz" }
+                    ]
+                    below: Component {
+                        Sentence {
+                            spans: [
+                                { text: "Session route " },
+                                { text: "203.0.113.24:7443", mono: true }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+
+        Showcase {
+            title: "Slab"
+
+            State {
+                stateName: "Quiet group"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: LithicTokens.size.paneDecorStrip * 4
+                Slab {
+                    anchors.fill: parent
+                    Label {
+                        anchors.centerIn: parent
+                        text: "Connection preferences"
+                        typeRole: "title"
+                    }
+                }
+            }
+        }
+
+        Showcase {
+            title: "Section"
+
+            Section {
+                width: LithicTokens.size.draftFormMax
+                title: "Transfer destination"
+
+                Slab {
+                    width: parent.width
+                    implicitHeight: LithicTokens.size.paneDecorStrip * 2
+                    Label {
+                        anchors.centerIn: parent
+                        text: "prowl · 192.0.2.43:/srv/releases"
+                        typeRole: "mono"
+                    }
+                }
+            }
+        }
+
+        Showcase {
+            title: "Facts"
+
+            Facts {
+                width: LithicTokens.size.draftFormMax
+                facts: [
+                    { label: "Host", value: "ally" },
+                    { label: "Address", value: "192.0.2.18", literal: true },
+                    { label: "Session", value: "ops" },
+                    { label: "Console", value: "/dev/ttyUSB0", literal: true },
+                    { label: "Last transfer", value: "" }
+                ]
+            }
+        }
+
+        Showcase {
+            title: "Aside"
+
+            Aside {
+                width: LithicTokens.size.draftAsideMax
+                title: "New saved session"
+                facts: [
+                    { label: "Host", value: "mika-server" },
+                    { label: "User", value: "root" },
+                    { label: "Port", value: "2222", literal: true }
+                ]
+                preview: "ssh -p 2222 root@203.0.113.70"
+            }
+        }
+
+        Showcase {
+            title: "DraftColumns"
+
+            Column {
+                spacing: LithicTokens.space.s2
+
+                DraftColumns {
+                    width: root.width - LithicTokens.space.s5 * 2
+                    form: Component {
+                        Slab {
+                            implicitHeight: LithicTokens.size.paneDecorStrip * 4
+                            Label {
+                                anchors.centerIn: parent
+                                text: "Wide connection form"
+                                typeRole: "title"
+                            }
+                        }
+                    }
+                    aside: Component {
+                        Aside {
+                            title: "Saved session"
+                            facts: [{ label: "Address", value: "198.51.100.28", literal: true }]
+                            preview: "ssh ops@198.51.100.28"
+                        }
+                    }
+                }
+
+                Label {
+                    text: "Wide columns"
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                }
+            }
+
+            Column {
+                width: LithicTokens.size.settingsMediumMax
+                spacing: LithicTokens.space.s2
+
+                DraftColumns {
+                    width: parent.width
+                    form: Component {
+                        Slab {
+                            implicitHeight: LithicTokens.size.paneDecorStrip * 3
+                            Label {
+                                anchors.centerIn: parent
+                                text: "Narrow transfer form"
+                                typeRole: "title"
+                            }
+                        }
+                    }
+                    aside: Component {
+                        Aside {
+                            title: "Transfer"
+                            preview: "scp image.raw prowl:/srv/images/"
+                        }
+                    }
+                }
+
+                Label {
+                    text: "Stacked columns"
+                    typeRole: "caption"
+                    inkRole: "fg2"
+                }
+            }
+        }
+
+        Showcase {
+            title: "Claim"
+
+            Repeater {
+                model: ["idle", "alive", "becoming", "attention", "paused", "failed"]
+                delegate: State {
+                    required property string modelData
+                    stateName: modelData.charAt(0).toUpperCase() + modelData.slice(1)
+                    specimenWidth: LithicTokens.size.factsLabelWidth
+                    specimenHeight: LithicTokens.size.plaqueHeight
+                    Claim {
+                        anchors.centerIn: parent
+                        tone: modelData
+                        progress: modelData === "becoming" ? 0.62 : modelData === "idle" ? 0 : 1
+                    }
+                }
+            }
+        }
+
+        Showcase {
+            title: "Marks"
+
+            State {
+                stateName: "Ordered traits"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: LithicTokens.size.plaqueHeight
+                Marks {
+                    anchors.centerIn: parent
+                    traits: ["Sealed", "Disposable", "Instant"]
+                }
+            }
+            State {
+                stateName: "Trailing marks dropped"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.plaqueHeight
+                Marks {
+                    anchors.centerIn: parent
+                    maximumWidth: LithicTokens.size.factsLabelWidth
+                    traits: ["Disposable", "Instant", "Sealed", "Ephemeral"]
+                }
+            }
+        }
+
+        Showcase {
+            title: "Sentence"
+
+            State {
+                stateName: "Literal data"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: LithicTokens.size.plaqueHeight
+                Sentence {
+                    anchors.centerIn: parent
+                    spans: [
+                        { text: "Connected to " },
+                        { text: "192.0.2.43", mono: true },
+                        { text: " as ops" }
+                    ]
+                }
+            }
+            State {
+                stateName: "Attention name"
+                specimenWidth: LithicTokens.size.draftFormMax
+                specimenHeight: LithicTokens.size.plaqueHeight
+                Sentence {
+                    anchors.centerIn: parent
+                    spans: [
+                        { text: "Transfer to " },
+                        { text: "scratch-arch", attention: true },
+                        { text: " needs confirmation" }
+                    ]
+                }
+            }
+        }
+
+        Showcase {
+            title: "BladeMeter"
+
+            State {
+                stateName: "Quiet 42 percent"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.plaqueHeight
+                BladeMeter {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    value: 0.42
+                }
+            }
+            State {
+                stateName: "Attention 94 percent"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.plaqueHeight
+                BladeMeter {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    value: 0.94
+                }
+            }
+        }
+
+        Showcase {
+            title: "BladeProgress"
+
+            State {
+                stateName: "Determinate"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.plaqueHeight
+                BladeProgress {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    value: 0.68
+                }
+            }
+            State {
+                stateName: "Active with edge marker"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.plaqueHeight
+                BladeProgress {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    value: 0.42
+                    active: true
+                }
+            }
+            State {
+                stateName: "Indeterminate"
+                specimenWidth: LithicTokens.size.listMedium
+                specimenHeight: LithicTokens.size.plaqueHeight
+                BladeProgress {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    active: true
+                    indeterminate: true
+                }
+            }
+        }
+
+        Showcase {
+            title: "Working"
+
+            State {
+                stateName: "Resting"
+                specimenWidth: LithicTokens.size.factsLabelWidth
+                specimenHeight: LithicTokens.size.plaqueHeight
+                Working { anchors.centerIn: parent }
+            }
+            State {
+                stateName: "Active"
+                specimenWidth: LithicTokens.size.factsLabelWidth
+                specimenHeight: LithicTokens.size.plaqueHeight
+                Working { anchors.centerIn: parent; active: true }
+            }
+        }
+
+        Showcase {
+            title: "BecomingName"
+
+            BecomingName {
+                width: LithicTokens.size.draftFormMax
+                name: "kolibrios-latest-en_US"
+                stage: "Writing image"
+                progress: 0.68
+                active: true
+                lines: [
+                    "transfer 198.51.100.27:7443",
+                    "chunk 348 of 512",
+                    "verified 2.7 GiB"
+                ]
+            }
+        }
+    }
+}

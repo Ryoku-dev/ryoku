@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New server draft</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    html, body { margin: 0; }
+    .sheet { width: 1440px; height: 900px; overflow: hidden; }
+    .sheet .l-app-frame { height: 900px; min-height: 900px; }
+    .draft-page { display: grid; align-content: start; gap: var(--lithic-space-s4); }
+    .draft-page > header h1, .draft-page > header p { margin: 0; }
+    .draft-form { display: grid; gap: var(--lithic-space-s4); }
+    .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lithic-space-s3); }
+    .field-grid .l-field, .field-grid .l-text-field { width: 100%; }
+    .optional-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lithic-space-s3); margin-top: var(--lithic-space-s3); }
+    .draft-actions { display: flex; gap: var(--lithic-space-s2); }
+    .l-disclosure-content > .l-section { margin-block-start: var(--lithic-space-s3); }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <div class="l-app-frame" data-l-no-list data-l-size-class="expanded">
+      <nav class="l-rail" aria-label="Ryoport navigation">
+        <a class="l-rail-home l-cut" href="now.html" aria-label="Now"><span class="l-brand-mark" aria-hidden="true"></span></a>
+        <div class="l-rail-primary"><a class="l-rail-destination l-cut" href="fleet.html"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-rail-label">Fleet</span></a><button class="l-new-plaque l-cut" type="button" aria-label="New" aria-expanded="true"><span class="l-glyph l-new-close" aria-hidden="true">close</span><span class="l-rail-label">New</span></button><a class="l-rail-destination l-cut" href="becoming.html"><span class="l-glyph" aria-hidden="true">history</span><span class="l-rail-label">Activity</span></a></div>
+        <a class="l-rail-destination l-rail-settings l-cut" href="settings.html"><span class="l-glyph" aria-hidden="true">tune</span><span class="l-rail-label">Settings</span></a>
+      </nav>
+      <section class="l-app-frame-pane l-app-frame-work l-cut draft-page" aria-labelledby="draft-title">
+        <header><h1 class="l-type-name" id="draft-title">New server</h1><p class="l-type-body">Connect a host that can run and manage machines.</p></header>
+        <div class="l-draft-columns">
+          <form class="l-draft-columns__form draft-form">
+            <section class="l-section"><h2 class="l-section__title">Identity</h2><div class="l-slab l-cut"><div class="field-grid"><label class="l-field"><span class="l-field-label">Server name</span><span class="l-field-control l-cut"><input class="l-text-field" value="mika-server"></span><span class="l-field-help">Use a unique fleet name.</span></label><label class="l-field"><span class="l-field-label">Host address</span><span class="l-field-control l-cut"><input class="l-text-field" value="203.0.113.70"></span><span class="l-field-help">Use a host name or documentation address.</span></label></div></div></section>
+            <section class="l-section"><h2 class="l-section__title">Connection</h2><div class="l-slab l-cut"><div class="field-grid"><label class="l-field"><span class="l-field-label">SSH user</span><span class="l-field-control l-cut"><input class="l-text-field" value="root"></span></label><label class="l-field"><span class="l-field-label">SSH port</span><span class="l-field-control l-cut"><input class="l-text-field" value="2222" inputmode="numeric"></span></label></div></div></section>
+            <div class="l-disclosure" data-l-open><button class="l-plaque l-on" type="button" data-l-disclosure-trigger aria-expanded="true" aria-controls="draft-optional">Hide optional settings</button><div class="l-disclosure-content" id="draft-optional"><section class="l-section"><h2 class="l-section__title">Optional settings</h2><div class="l-slab l-cut"><div class="optional-fields"><button class="l-toggle" type="button" role="switch" aria-checked="true">Connect automatically</button><button class="l-picker l-cut" type="button" aria-expanded="false"><span class="l-picker-label">Authentication</span><span class="l-picker-value">SSH key</span><span class="l-glyph" aria-hidden="true">expand_more</span></button></div></div></section></div></div>
+            <div class="draft-actions"><button class="l-plaque l-gold" type="button">Save server</button><button class="l-plaque l-quiet" type="button">Cancel</button></div>
+          </form>
+          <aside class="l-aside l-cut"><h2 class="l-aside__title">Server being created</h2><dl class="l-facts"><div class="l-facts__row"><dt>Name</dt><dd>mika-server</dd></div><div class="l-facts__row"><dt>Address</dt><dd class="l-literal">root@203.0.113.70:2222</dd></div><div class="l-facts__row"><dt>Authentication</dt><dd>SSH key</dd></div><div class="l-facts__row"><dt>Connect</dt><dd>Automatically</dd></div></dl><pre class="l-aside__preview l-cut">ssh -p 2222 root@203.0.113.70</pre></aside>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+    Lithic.init();
+  </script>
+</body>
+</html>

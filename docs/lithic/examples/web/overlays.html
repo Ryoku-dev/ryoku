@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithic web overlays</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    body { min-width: 320px; }
+    .page { width: min(1440px, 100%); min-height: 900px; margin: 0 auto; padding: var(--lithic-space-s5); }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
+    .page-head h1, .page-head p { margin: 0; }
+    .page-head p { max-width: 620px; color: var(--lithic-fg2); }
+    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .section { margin-top: var(--lithic-space-s5); }
+    .section > h2 { margin: 0 0 var(--lithic-space-s3); }
+    .component-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lithic-space-s4); }
+    .component-frame { --l-fill: var(--lithic-stone1); min-width: 0; min-height: calc(var(--lithic-space-s6) * 4); padding: var(--lithic-space-s4); display: grid; align-content: start; gap: var(--lithic-space-s3); overflow: hidden; }
+    .component-frame > header { display: flex; align-items: baseline; justify-content: space-between; gap: var(--lithic-space-s3); }
+    .component-frame h3, .component-frame p { margin: 0; }
+    .component-frame > header span { color: var(--lithic-fg3); }
+    .preview-stage { position: relative; min-height: calc(var(--lithic-space-s6) * 3); display: grid; place-items: center; padding: var(--lithic-space-s4); background: var(--lithic-stone2); overflow: hidden; }
+    .preview-stage.tall { min-height: calc(var(--lithic-space-s6) * 6); }
+    .preview-stage .l-popover[data-l-static-open], .preview-stage .l-tooltip[data-l-static-open] { position: relative; inset: auto; opacity: 1; transform: none; }
+    .preview-stage .l-dialog[data-l-static-open] { position: relative; inset: auto; margin: 0; max-height: none; }
+    .preview-stage .l-placard-stack { position: relative; inset: auto; width: 100%; }
+    .anchor-row { display: flex; align-items: start; justify-content: center; flex-wrap: wrap; gap: var(--lithic-space-s3); }
+    .popover-demo { padding: var(--lithic-space-s3); min-width: var(--lithic-size-menu-width-min); }
+    .picker-stack { display: grid; gap: var(--lithic-space-s2); justify-items: stretch; }
+    .rail-stage { min-height: var(--lithic-size-window-min-height); display: flex; align-items: stretch; justify-content: center; background: var(--lithic-ground); }
+    .rail-stage .l-rail { min-height: var(--lithic-size-window-min-height); }
+    .brand-row { display: flex; align-items: center; gap: var(--lithic-space-s5); }
+    .brand-sample { display: grid; justify-items: center; gap: var(--lithic-space-s2); color: var(--lithic-fg3); }
+    .index-demo { display: grid; grid-template-columns: var(--lithic-size-section-index-width) minmax(0, 1fr); gap: var(--lithic-size-section-index-gap); width: 100%; align-items: start; }
+    .index-content { display: grid; gap: var(--lithic-space-s3); }
+    .index-slab { --l-fill: var(--lithic-stone1); min-height: var(--lithic-size-section-index-row); padding: var(--lithic-space-s3); }
+    .medium-index { width: 100%; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .medium-index a { min-height: var(--lithic-size-filter-height); justify-content: center; }
+    .chart-wrap { width: 100%; padding: var(--lithic-space-s4); }
+    .chart-title { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--lithic-space-s3); }
+    .chart-title span { color: var(--lithic-fg3); }
+    .app-preview { height: var(--lithic-size-window-min-height); }
+    .app-preview .l-app-frame { height: 100%; min-height: 0; }
+    .app-preview .l-rail { min-height: 100%; }
+    .app-preview h4, .app-preview p { margin: 0; }
+    .fleet-list { display: grid; gap: var(--lithic-space-s2); margin-top: var(--lithic-space-s4); }
+    .fleet-entry { --l-fill: var(--lithic-stone2); padding: var(--lithic-space-s3); display: grid; gap: var(--lithic-space-s1); }
+    .fleet-entry span { color: var(--lithic-fg3); }
+    .work-copy { display: grid; align-content: start; gap: var(--lithic-space-s3); }
+    .work-copy .l-type-mono-sm { color: var(--lithic-fg3); }
+    @media (max-width: 900px) { .component-grid { grid-template-columns: 1fr; } .page-head { align-items: start; flex-direction: column; } .index-demo { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <a class="back l-type-label" href="index.html">Gallery</a>
+        <h1 class="l-type-name">Overlays, navigation and frame</h1>
+      </div>
+      <p class="l-type-body">Open overlay states, fleet navigation, engraved data and responsive window composition.</p>
+    </header>
+
+    <section class="section" aria-labelledby="overlays-heading">
+      <h2 class="l-type-section" id="overlays-heading">Open overlays</h2>
+      <div class="component-grid">
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Popover</h3><span class="l-type-caption">Open</span></header>
+          <div class="preview-stage">
+            <div class="anchor-row">
+              <button class="l-plaque l-quiet" type="button" aria-expanded="true" data-l-popover="fleet-popover">Server details</button>
+              <div class="l-popover l-cut popover-demo" id="fleet-popover" data-l-static-open>
+                <strong class="l-type-label">mika-server</strong>
+                <p class="l-type-caption">root@203.0.113.70:2222</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Menu</h3><span class="l-type-caption">Open</span></header>
+          <div class="preview-stage tall">
+            <div class="l-popover l-menu l-cut" id="fleet-menu" role="menu" data-l-static-open>
+              <button class="l-menu-item" type="button" role="menuitem"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-menu-item-label">Open ally</span><span class="l-menu-shortcut">Ctrl 1</span></button>
+              <button class="l-menu-item" type="button" role="menuitem"><span class="l-glyph" aria-hidden="true">terminal</span><span class="l-menu-item-label">Open console router</span></button>
+              <hr class="l-menu-divider" role="separator">
+              <button class="l-menu-item l-danger" type="button" role="menuitem"><span class="l-glyph" aria-hidden="true">delete</span><span class="l-menu-item-label">Remove scratch-arch</span></button>
+              <button class="l-menu-item" type="button" role="menuitem" aria-disabled="true"><span class="l-glyph" aria-hidden="true">stop</span><span class="l-menu-item-label">Stop windows-11</span></button>
+            </div>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Picker</h3><span class="l-type-caption">Open</span></header>
+          <div class="preview-stage tall">
+            <div class="picker-stack">
+              <button class="l-picker l-cut" type="button" aria-expanded="true" data-l-popover="picker-menu">
+                <span class="l-picker-label">Machine image</span>
+                <span class="l-picker-value">fedora-43</span>
+                <span class="l-glyph" aria-hidden="true">expand_more</span>
+              </button>
+              <div class="l-popover l-menu l-cut" id="picker-menu" role="listbox" data-l-static-open>
+                <button class="l-menu-item" type="button" role="option" data-value="ubuntu-24.04" aria-selected="false"><span class="l-menu-item-label">ubuntu-24.04</span></button>
+                <button class="l-menu-item" type="button" role="option" data-value="fedora-43" aria-selected="true"><span class="l-menu-item-label">fedora-43</span></button>
+                <button class="l-menu-item" type="button" role="option" data-value="alpine-instant" aria-selected="false"><span class="l-menu-item-label">alpine-instant</span></button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Dialog</h3><span class="l-type-caption">Open</span></header>
+          <div class="preview-stage tall">
+            <dialog class="l-dialog l-cut" open data-l-static-open aria-labelledby="dialog-title">
+              <h4 class="l-dialog-title" id="dialog-title">Create a system</h4>
+              <div class="l-dialog-body"><p>Start fedora-43 on ally at 198.51.100.24.</p></div>
+              <div class="l-dialog-actions">
+                <button class="l-plaque l-quiet" type="button">Cancel</button>
+                <button class="l-plaque l-gold" type="button">Create system</button>
+              </div>
+            </dialog>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Confirm</h3><span class="l-type-caption">Typed name</span></header>
+          <div class="preview-stage tall">
+            <dialog class="l-dialog l-confirm l-cut" open data-l-static-open data-l-confirm-name="mika-server" aria-labelledby="confirm-title">
+              <h4 class="l-dialog-title" id="confirm-title">Remove mika-server</h4>
+              <div class="l-dialog-body"><p>This removes the server connection. Type mika-server to continue.</p></div>
+              <div class="l-confirm-field">
+                <span class="l-field-control l-cut">
+                  <input class="l-text-field" data-l-confirm-input value="mika-server" aria-label="Resource name">
+                </span>
+              </div>
+              <div class="l-dialog-actions">
+                <button class="l-plaque l-quiet" type="button">Cancel</button>
+                <button class="l-plaque l-danger" type="button" data-l-confirm-action>Remove server</button>
+              </div>
+            </dialog>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Tooltip</h3><span class="l-type-caption">Open</span></header>
+          <div class="preview-stage">
+            <div class="anchor-row">
+              <button class="l-icon-plaque l-quiet" type="button" aria-label="Refresh fleet" data-l-tooltip="refresh-tooltip"><span class="l-glyph" aria-hidden="true">refresh</span></button>
+              <div class="l-tooltip l-cut" id="refresh-tooltip" role="tooltip" data-l-static-open>Refresh fleet now</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Placard</h3><span class="l-type-caption">Open stack</span></header>
+          <div class="preview-stage tall">
+            <div class="l-placard-stack">
+              <div class="l-placard l-cut" data-l-static-open>
+                <span class="l-placard-message">alpine-instant was stopped</span>
+                <button class="l-placard-action l-cut" type="button">Undo</button>
+                <span class="l-placard-blade" style="--l-fraction:.72" aria-hidden="true"></span>
+              </div>
+              <div class="l-placard l-cut" data-l-static-open>
+                <span class="l-placard-message">Console router connected on /dev/ttyUSB0</span>
+                <span class="l-placard-blade" style="--l-fraction:.38" aria-hidden="true"></span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="navigation-heading">
+      <h2 class="l-type-section" id="navigation-heading">Navigation</h2>
+      <div class="component-grid">
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">Rail</h3><span class="l-type-caption">Expanded</span></header>
+          <div class="rail-stage">
+            <nav class="l-rail" aria-label="Fleet navigation">
+              <a class="l-rail-home l-cut" href="#" aria-label="Home">
+                <span class="l-brand-mark" aria-hidden="true"></span>
+              </a>
+              <div class="l-rail-primary">
+                <a class="l-rail-destination l-cut" href="#" aria-current="page"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-rail-label">Fleet</span></a>
+                <button class="l-new-plaque l-cut" type="button" aria-label="New" aria-expanded="false"><span class="l-glyph l-new-add" aria-hidden="true">add</span><span class="l-glyph l-new-close" aria-hidden="true">close</span><span class="l-rail-label">New</span></button>
+                <a class="l-rail-destination l-cut" href="#"><span class="l-glyph" aria-hidden="true">history</span><span class="l-rail-label">Activity</span></a>
+              </div>
+              <a class="l-rail-destination l-rail-settings l-cut l-notch" href="#"><span class="l-glyph" aria-hidden="true">tune</span><span class="l-rail-label">Settings</span></a>
+            </nav>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">BrandMark and NewPlaque</h3><span class="l-type-caption">Home and consequential action</span></header>
+          <div class="preview-stage">
+            <div class="brand-row">
+              <div class="brand-sample">
+                <span class="l-brand-mark" aria-label="Home" role="img"></span>
+                <span class="l-type-caption">BrandMark</span>
+              </div>
+              <div class="brand-sample">
+                <button class="l-new-plaque l-cut" type="button" aria-label="New"><span class="l-glyph" aria-hidden="true">add</span></button>
+                <span class="l-type-caption">NewPlaque</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">SectionIndex</h3><span class="l-type-caption">Expanded and medium</span></header>
+          <div class="preview-stage tall">
+            <div class="index-demo">
+              <nav class="l-section-index" aria-label="Settings sections">
+                <a class="l-cut" href="#settings-general" aria-current="true">General</a>
+                <a class="l-cut" href="#settings-network" aria-current="false">Network</a>
+                <a class="l-cut" href="#settings-storage" aria-current="false">Storage</a>
+              </nav>
+              <div class="index-content">
+                <div class="index-slab l-cut" id="settings-general"><strong class="l-type-row">General</strong></div>
+                <div class="index-slab l-cut" id="settings-network"><strong class="l-type-row">Network</strong></div>
+                <div class="index-slab l-cut" id="settings-storage"><strong class="l-type-row">Storage</strong></div>
+              </div>
+            </div>
+            <nav class="l-section-index medium-index" data-l-size-class="medium" aria-label="Settings section chips">
+              <a class="l-cut" href="#settings-general" aria-current="true">General</a>
+              <a class="l-cut" href="#settings-network" aria-current="false">Network</a>
+              <a class="l-cut" href="#settings-storage" aria-current="false">Storage</a>
+            </nav>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="data-heading">
+      <h2 class="l-type-section" id="data-heading">Data and frame</h2>
+      <div class="component-grid">
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">EngravedChart</h3><span class="l-type-caption">CPU on ally</span></header>
+          <div class="chart-wrap">
+            <div class="chart-title"><strong class="l-type-row">Host CPU</strong><span class="l-type-mono-sm">44%</span></div>
+            <figure class="l-engraved-chart" aria-label="Ally CPU use over fifteen minutes">
+              <svg viewBox="0 0 600 180" role="img">
+                <defs>
+                  <pattern id="lithic-chart-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <path class="l-engraved-chart-hatch" d="M0 0 V6"></path>
+                  </pattern>
+                  <clipPath id="chart-field"><path d="M0 112 L60 104 L120 116 L180 90 L240 96 L300 62 L360 76 L420 50 L480 68 L540 42 L600 54 L600 132 L0 132 Z"></path></clipPath>
+                </defs>
+                <rect class="l-engraved-chart-field" x="0" y="0" width="600" height="132" clip-path="url(#chart-field)"></rect>
+                <line class="l-engraved-chart-baseline" x1="0" y1="132" x2="600" y2="132"></line>
+                <polyline class="l-engraved-chart-line" points="0,112 60,104 120,116 180,90 240,96 300,62 360,76 420,50 480,68 540,42 600,54"></polyline>
+                <line class="l-engraved-chart-tick" x1="0" y1="132" x2="0" y2="136"></line>
+                <line class="l-engraved-chart-tick" x1="300" y1="132" x2="300" y2="136"></line>
+                <line class="l-engraved-chart-tick" x1="600" y1="132" x2="600" y2="136"></line>
+                <text class="l-engraved-chart-label" x="0" y="160">15 min</text>
+                <text class="l-engraved-chart-label" x="300" y="160" text-anchor="middle">7 min</text>
+                <text class="l-engraved-chart-label" x="600" y="160" text-anchor="end">Now</text>
+              </svg>
+            </figure>
+          </div>
+          <div class="l-engraved-chart-empty">Collecting history for kolibrios-latest-en_US</div>
+        </article>
+
+        <article class="component-frame l-cut">
+          <header><h3 class="l-type-title">AppFrame</h3><span class="l-type-caption">Compact</span></header>
+          <div class="app-preview">
+            <div class="l-app-frame" data-l-preview-size="compact">
+              <nav class="l-rail" aria-label="Compact fleet navigation">
+                <a class="l-rail-home l-cut" href="#" aria-label="Home">
+                  <span class="l-brand-mark" aria-hidden="true"></span>
+                  <span class="l-rail-label">Home</span>
+                </a>
+                <div class="l-rail-primary">
+                  <a class="l-rail-destination l-cut" href="#" aria-current="page"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-rail-label">Fleet</span></a>
+                  <button class="l-new-plaque l-cut" type="button" aria-label="New"><span class="l-glyph" aria-hidden="true">add</span><span class="l-rail-label">New</span></button>
+                  <a class="l-rail-destination l-cut" href="#"><span class="l-glyph" aria-hidden="true">history</span><span class="l-rail-label">Activity</span></a>
+                </div>
+                <a class="l-rail-destination l-rail-settings l-cut" href="#"><span class="l-glyph" aria-hidden="true">tune</span><span class="l-rail-label">Settings</span></a>
+              </nav>
+              <aside class="l-app-frame-pane l-app-frame-list l-cut">
+                <h4 class="l-type-section">Fleet</h4>
+                <div class="fleet-list">
+                  <div class="fleet-entry l-cut"><strong class="l-type-row">ally</strong><span class="l-type-mono-sm">ops@192.0.2.18</span></div>
+                  <div class="fleet-entry l-cut"><strong class="l-type-row">prowl</strong><span class="l-type-mono-sm">ops@198.51.100.12</span></div>
+                </div>
+              </aside>
+              <section class="l-app-frame-pane l-app-frame-work l-cut work-copy">
+                <h4 class="l-type-section">mika-server</h4>
+                <p class="l-type-body">Running ubuntu-24.04.</p>
+                <span class="l-type-mono-sm">root@203.0.113.70:2222</span>
+              </section>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+    await Lithic.init(document);
+    const query = new URLSearchParams(location.search);
+    const back = document.querySelector('.back');
+    back.search = query.toString();
+  </script>
+</body>
+</html>

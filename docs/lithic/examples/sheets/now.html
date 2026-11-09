@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Now</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    html, body { margin: 0; }
+    .sheet { width: 1440px; height: 900px; overflow: hidden; }
+    .sheet .l-app-frame { height: 900px; min-height: 900px; }
+    .board { width: min(100%, var(--lithic-size-board-max)); margin-inline: auto; display: grid; align-content: start; gap: var(--lithic-space-s5); }
+    .board-head p { margin: 0; }
+    .board-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--lithic-space-s5); align-items: start; }
+    .board-column { display: grid; gap: var(--lithic-space-s5); }
+    .attention-line, .job-head, .meter-head { display: flex; justify-content: space-between; align-items: center; gap: var(--lithic-space-s3); }
+    .job, .meter { display: grid; gap: var(--lithic-space-s2); }
+    .job + .job, .meter + .meter { margin-top: var(--lithic-space-s4); }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <div class="l-app-frame" data-l-no-list data-l-size-class="expanded">
+      <nav class="l-rail" aria-label="Ryoport navigation">
+        <a class="l-rail-home l-cut" href="now.html" aria-current="page" aria-label="Now"><span class="l-brand-mark" aria-hidden="true"></span></a>
+        <div class="l-rail-primary"><a class="l-rail-destination l-cut" href="fleet.html"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-rail-label">Fleet</span></a><button class="l-new-plaque l-cut" type="button" aria-label="New"><span class="l-glyph" aria-hidden="true">add</span><span class="l-rail-label">New</span></button><a class="l-rail-destination l-cut" href="becoming.html"><span class="l-glyph" aria-hidden="true">history</span><span class="l-rail-label">Activity</span></a></div>
+        <a class="l-rail-destination l-rail-settings l-cut" href="settings.html"><span class="l-glyph" aria-hidden="true">tune</span><span class="l-rail-label">Settings</span></a>
+      </nav>
+      <section class="l-app-frame-pane l-app-frame-work l-cut" aria-labelledby="now-title">
+        <div class="board">
+          <header class="board-head"><h1 class="l-type-name" id="now-title">Now</h1><p class="l-sentence">Three machines are running. <span class="l-attention">scratch-arch needs you.</span></p><p class="l-type-proof">ally, prowl and mika-server answered the latest check.</p></header>
+          <div class="board-grid">
+            <div class="board-column">
+              <section class="l-section"><h2 class="l-section__title">Needs you</h2><div class="l-slab l-cut"><div class="attention-line"><span class="l-claim" data-tone="attention"><span class="l-flake" data-tone="attention" aria-hidden="true"></span>scratch-arch has a new host key</span><button class="l-plaque l-gold" type="button">Accept new key</button></div><p class="l-type-body">The saved identity for ally changed after scratch-arch was rebuilt.</p></div></section>
+              <section class="l-section"><h2 class="l-section__title">Running jobs</h2><div class="l-slab l-cut"><div class="job"><div class="job-head"><strong class="l-type-row">Creating fedora-43</strong><span class="l-type-mono-sm">64%</span></div><div class="l-blade l-blade-progress" role="progressbar" aria-label="Creating fedora-43" aria-valuemin="0" aria-valuemax="100" aria-valuenow="64" aria-busy="true" style="--l-fraction:.64"></div><span class="l-type-caption">Installing the image on prowl</span></div><div class="job"><div class="job-head"><strong class="l-type-row">Checking windows-11</strong><span class="l-type-mono-sm">Running</span></div><div class="l-blade l-blade-progress" role="progressbar" aria-label="Checking windows-11" aria-busy="true" data-indeterminate="true"></div><span class="l-type-caption">Waiting for a response from mika-server</span></div></div></section>
+            </div>
+            <div class="board-column">
+              <section class="l-section"><h2 class="l-section__title">This host</h2><div class="l-slab l-cut"><div class="meter"><div class="meter-head"><span class="l-type-label">CPU</span><span class="l-type-mono-sm">18%</span></div><div class="l-blade l-blade-meter" role="meter" aria-label="Host CPU use" aria-valuemin="0" aria-valuemax="100" aria-valuenow="18" style="--l-fraction:.18"></div></div><div class="meter"><div class="meter-head"><span class="l-type-label">Memory</span><span class="l-type-mono-sm">41%</span></div><div class="l-blade l-blade-meter" role="meter" aria-label="Host memory use" aria-valuemin="0" aria-valuemax="100" aria-valuenow="41" style="--l-fraction:.41"></div></div><div class="meter"><div class="meter-head"><span class="l-type-label">Free VM disk</span><span class="l-type-mono-sm">68%</span></div><div class="l-blade l-blade-meter" role="meter" aria-label="Free virtual machine disk" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68" style="--l-fraction:.68"></div></div></div></section>
+              <section class="l-section"><h2 class="l-section__title">Recent activity</h2><div class="l-slab l-cut"><dl class="l-facts"><div class="l-facts__row"><dt>alpine-instant</dt><dd>Started on ally</dd></div><div class="l-facts__row"><dt>windows-11</dt><dd>Checked on mika-server</dd></div><div class="l-facts__row"><dt>kolibrios-latest-en_US</dt><dd>Stopped on prowl</dd></div></dl></div></section>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+    Lithic.init();
+  </script>
+</body>
+</html>

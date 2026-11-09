@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithic web foundation</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    body { min-width: 320px; }
+    .page { width: min(1440px, 100%); min-height: 900px; margin: 0 auto; padding: var(--lithic-space-s5); }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
+    .page-head h1, .page-head p { margin: 0; }
+    .page-head p { max-width: 620px; color: var(--lithic-fg2); }
+    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .section { margin-top: var(--lithic-space-s5); }
+    .section > h2 { margin: 0 0 var(--lithic-space-s3); }
+    .role-group + .role-group { margin-top: var(--lithic-space-s3); }
+    .role-group h3 { margin: 0 0 var(--lithic-space-s2); color: var(--lithic-fg3); }
+    .role-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--lithic-space-s2); }
+    .role { --l-fill: var(--sample); min-height: 82px; padding: var(--lithic-space-s3); display: flex; align-items: end; color: var(--sample-ink, var(--lithic-fg)); }
+    .role[data-dark-ink="true"] { --sample-ink: var(--lithic-on-sel); }
+    .type-ramp { display: grid; gap: var(--lithic-space-s3); }
+    .type-line { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: var(--lithic-space-s3); align-items: baseline; }
+    .type-line > span:first-child { color: var(--lithic-fg3); }
+    .type-line > span:last-child { overflow-wrap: anywhere; }
+    .sample-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lithic-space-s3); }
+    .sample-card { --l-fill: var(--lithic-stone2); min-height: 116px; padding: var(--lithic-space-s3); display: grid; align-content: space-between; gap: var(--lithic-space-s3); }
+    .sample-card > span:last-child { color: var(--lithic-fg3); }
+    .cut-scale { display: flex; align-items: end; flex-wrap: wrap; gap: var(--lithic-space-s3); }
+    .cut-token { --l-fill: var(--lithic-stone2); width: 120px; height: 72px; padding: var(--lithic-space-s2); display: flex; align-items: end; }
+    .space-run { display: flex; align-items: end; gap: var(--lithic-space-s3); min-height: 110px; }
+    .space-token { display: grid; gap: var(--lithic-space-s2); justify-items: center; color: var(--lithic-fg3); }
+    .space-mark { width: var(--space); height: var(--space); min-width: 2px; min-height: 2px; background: var(--lithic-fg2); }
+    .notch-demo { height: 80px; padding: var(--lithic-space-s3); background: var(--lithic-stone2); }
+    .blade-list { display: grid; gap: var(--lithic-space-s3); }
+    .blade-row { display: grid; grid-template-columns: 70px minmax(0, 1fr); gap: var(--lithic-space-s3); align-items: center; }
+    .flake-list { display: flex; flex-wrap: wrap; gap: var(--lithic-space-s4); }
+    .flake-item { display: inline-flex; align-items: center; gap: var(--lithic-space-s2); color: var(--l-tone-ink, var(--lithic-fg2)); }
+    .hatch-demo { height: 120px; border: var(--lithic-size-hairline) solid var(--lithic-vein); }
+    .focus-list { display: flex; flex-wrap: wrap; gap: var(--lithic-space-s4); padding: var(--lithic-space-s2); }
+    .focus-sample { display: grid; gap: var(--lithic-space-s2); color: var(--lithic-fg3); }
+    .focus-wrap { display: inline-grid; }
+    .focus-button { --l-fill: var(--lithic-stone2); min-width: 160px; min-height: 44px; padding: 0 var(--lithic-space-s3); color: var(--lithic-fg); cursor: pointer; }
+    .glyph-list { display: flex; flex-wrap: wrap; gap: var(--lithic-space-s4); }
+    .glyph-sample { display: grid; justify-items: center; gap: var(--lithic-space-s2); color: var(--lithic-fg2); }
+    .glyph-sample .l-glyph { font-size: 28px; color: var(--lithic-fg); }
+    .motion-strip { --l-fill: var(--lithic-stone2); padding: var(--lithic-space-s3); display: flex; align-items: center; justify-content: space-between; gap: var(--lithic-space-s3); }
+    @media (max-width: 900px) { .role-grid, .sample-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .page-head { align-items: start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <a class="back l-type-label" href="index.html">Gallery</a>
+        <h1 class="l-type-name">Foundation</h1>
+      </div>
+      <p class="l-type-body">Palette roles, type, spacing, cuts and state geometry shared by every Lithic web component.</p>
+    </header>
+
+    <section class="section" aria-labelledby="roles-heading">
+      <h2 class="l-type-section" id="roles-heading">Roles</h2>
+      <div class="role-group">
+        <h3 class="l-type-group">Planes</h3>
+        <div class="role-grid">
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">ground</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone1); --l-cut:var(--lithic-cut-small)">stone1</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone2); --l-cut:var(--lithic-cut-small)">stone2</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone3); --l-cut:var(--lithic-cut-small)">stone3</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-stone4); --l-cut:var(--lithic-cut-small)">stone4</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-vein); --l-cut:var(--lithic-cut-small)">vein</div>
+        </div>
+      </div>
+      <div class="role-group">
+        <h3 class="l-type-group">Ink</h3>
+        <div class="role-grid">
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-fg); --sample-ink:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">fg</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-fg2); --sample-ink:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">fg2</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-fg3); --sample-ink:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">fg3</div>
+        </div>
+      </div>
+      <div class="role-group">
+        <h3 class="l-type-group">Selection</h3>
+        <div class="role-grid">
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-sel); --sample-ink:var(--lithic-on-sel); --l-cut:var(--lithic-cut-small)">sel</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-on-sel); --sample-ink:var(--lithic-sel); --l-cut:var(--lithic-cut-small)">onSel</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-on-sel2); --sample-ink:var(--lithic-sel); --l-cut:var(--lithic-cut-small)">onSel2</div>
+        </div>
+      </div>
+      <div class="role-group">
+        <h3 class="l-type-group">Action</h3>
+        <div class="role-grid">
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-gold); --sample-ink:var(--lithic-on-gold); --l-cut:var(--lithic-cut-small)">gold</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-on-gold); --sample-ink:var(--lithic-gold); --l-cut:var(--lithic-cut-small)">onGold</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-gold-ink); --sample-ink:var(--lithic-stone2); --l-cut:var(--lithic-cut-small)">goldInk</div>
+        </div>
+      </div>
+      <div class="role-group">
+        <h3 class="l-type-group">Minerals</h3>
+        <div class="role-grid">
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-jade); --sample-ink:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">jade</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-lapis); --sample-ink:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">lapis</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-amber); --sample-ink:var(--lithic-ground); --l-cut:var(--lithic-cut-small)">amber</div>
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-jasper); --sample-ink:var(--lithic-jasper-ink); --l-cut:var(--lithic-cut-small)">jasper</div>
+        </div>
+      </div>
+      <div class="role-group">
+        <h3 class="l-type-group">Overlay</h3>
+        <div class="role-grid">
+          <div class="role l-cut l-type-label" style="--sample:var(--lithic-scrim); --l-cut:var(--lithic-cut-small)">scrim</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="type-heading">
+      <h2 class="l-type-section" id="type-heading">Type</h2>
+      <div class="type-ramp">
+        <div class="type-line"><span class="l-type-mono-sm">Name</span><span class="l-type-name">Alpine instant</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Sentence</span><span class="l-type-sentence">Ready to connect</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Section</span><span class="l-type-section">Connection</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Title</span><span class="l-type-title">Server details</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Row</span><span class="l-type-row">mika-server</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Body</span><span class="l-type-body">The host is available and waiting for a session.</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Proof</span><span class="l-type-proof">root@203.0.113.70:2222</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Label</span><span class="l-type-label">Connect automatically</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Caption</span><span class="l-type-caption">Last checked two minutes ago</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Group</span><span class="l-type-group">Available servers</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Mono</span><span class="l-type-mono">/dev/ttyUSB0</span></div>
+        <div class="type-line"><span class="l-type-mono-sm">Mono small</span><span class="l-type-mono-sm">192.0.2.18</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="cut-scale-heading">
+      <h2 class="l-type-section" id="cut-scale-heading">Cut scale</h2>
+      <div class="cut-scale">
+        <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-token)">Token</div>
+        <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-small)">Small</div>
+        <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-mid)">Mid</div>
+        <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-large)">Large</div>
+        <div class="cut-token l-cut l-type-caption" style="--l-cut:var(--lithic-cut-notch)">Notch</div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="space-heading">
+      <h2 class="l-type-section" id="space-heading">Space</h2>
+      <div class="space-run">
+        <div class="space-token l-type-mono-sm"><span class="space-mark" style="--space:var(--lithic-space-s1)"></span><span>s1</span></div>
+        <div class="space-token l-type-mono-sm"><span class="space-mark" style="--space:var(--lithic-space-s2)"></span><span>s2</span></div>
+        <div class="space-token l-type-mono-sm"><span class="space-mark" style="--space:var(--lithic-space-s3)"></span><span>s3</span></div>
+        <div class="space-token l-type-mono-sm"><span class="space-mark" style="--space:var(--lithic-space-s4)"></span><span>s4</span></div>
+        <div class="space-token l-type-mono-sm"><span class="space-mark" style="--space:var(--lithic-space-s5)"></span><span>s5</span></div>
+        <div class="space-token l-type-mono-sm"><span class="space-mark" style="--space:var(--lithic-space-s6)"></span><span>s6</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="cut-heading">
+      <h2 class="l-type-section" id="cut-heading">CutRect</h2>
+      <div class="sample-grid">
+        <div class="sample-card l-cut"><span class="l-type-title">Filled</span><span class="l-type-caption">Four equal corners</span></div>
+        <div class="sample-card l-cut" style="--l-stroke:var(--lithic-fg3); --l-stroke-width:var(--lithic-size-hairline)"><span class="l-type-title">Inside stroke</span><span class="l-type-caption">One dp, cut corrected</span></div>
+        <div class="sample-card l-cut" style="--l-cut-tl:var(--lithic-cut-large); --l-cut-tr:0px; --l-cut-br:0px; --l-cut-bl:0px"><span class="l-type-title">Top-left</span><span class="l-type-caption">Independent corner</span></div>
+        <div class="sample-card l-cut" style="--l-cut-tl:0px; --l-cut-tr:var(--lithic-cut-large); --l-cut-br:0px; --l-cut-bl:0px"><span class="l-type-title">Top-right</span><span class="l-type-caption">Independent corner</span></div>
+        <div class="sample-card l-cut" style="--l-cut-tl:0px; --l-cut-tr:0px; --l-cut-br:var(--lithic-cut-large); --l-cut-bl:0px"><span class="l-type-title">Bottom-right</span><span class="l-type-caption">Independent corner</span></div>
+        <div class="sample-card l-cut" style="--l-cut-tl:0px; --l-cut-tr:0px; --l-cut-br:0px; --l-cut-bl:var(--lithic-cut-large)"><span class="l-type-title">Bottom-left</span><span class="l-type-caption">Independent corner</span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="notch-heading">
+      <h2 class="l-type-section" id="notch-heading">Notch</h2>
+      <div class="notch-demo l-notch l-type-body" data-tone="attention" style="--l-notch-color:var(--l-tone-color)">Attention notch</div>
+    </section>
+
+    <section class="section" aria-labelledby="blade-heading">
+      <h2 class="l-type-section" id="blade-heading">Blade</h2>
+      <div class="blade-list">
+        <div class="blade-row"><span class="l-type-label">25%</span><span class="l-blade" style="--l-fraction:.25"></span></div>
+        <div class="blade-row"><span class="l-type-label">50%</span><span class="l-blade" data-tone="becoming" style="--l-fraction:.5"></span></div>
+        <div class="blade-row"><span class="l-type-label">75%</span><span class="l-blade" data-tone="alive" style="--l-fraction:.75"></span></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="flake-heading">
+      <h2 class="l-type-section" id="flake-heading">Flake</h2>
+      <div class="flake-list">
+        <span class="flake-item l-type-label" data-tone="idle"><span class="l-flake" data-tone="idle"></span>Idle</span>
+        <span class="flake-item l-type-label" data-tone="alive"><span class="l-flake" data-tone="alive"></span>Alive</span>
+        <span class="flake-item l-type-label" data-tone="becoming"><span class="l-flake" data-tone="becoming" style="--l-fraction:.4"></span>Becoming 40%</span>
+        <span class="flake-item l-type-label" data-tone="attention"><span class="l-flake" data-tone="attention"></span>Attention</span>
+        <span class="flake-item l-type-label" data-tone="paused"><span class="l-flake" data-tone="paused"></span>Paused</span>
+        <span class="flake-item l-type-label" data-tone="failed"><span class="l-flake" data-tone="failed"></span>Failed</span>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="hatch-heading">
+      <h2 class="l-type-section" id="hatch-heading">Hatch</h2>
+      <div class="hatch-demo l-hatch" aria-label="Forty-five degree engraving"></div>
+    </section>
+
+    <section class="section" aria-labelledby="focus-heading">
+      <h2 class="l-type-section" id="focus-heading">FocusRing</h2>
+      <div class="focus-list">
+        <label class="focus-sample l-type-caption"><span class="focus-wrap l-focus-ring"><button class="focus-button l-cut l-type-label" type="button">Click this</button></span><span>Pointer focus</span></label>
+        <label class="focus-sample l-type-caption"><span class="focus-wrap l-focus-ring" data-l-state="focus"><button class="focus-button l-cut l-type-label" type="button">Tab to this</button></span><span>Keyboard focus</span></label>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="glyph-heading">
+      <h2 class="l-type-section" id="glyph-heading">Glyph</h2>
+      <div class="glyph-list">
+        <span class="glyph-sample l-type-caption"><span class="l-glyph" aria-hidden="true">home</span><span>Home</span></span>
+        <span class="glyph-sample l-type-caption"><span class="l-glyph" aria-hidden="true">add</span><span>Add</span></span>
+        <span class="glyph-sample l-type-caption"><span class="l-glyph" aria-hidden="true">search</span><span>Search</span></span>
+        <span class="glyph-sample l-type-caption"><span class="l-glyph" aria-hidden="true">settings</span><span>Settings</span></span>
+        <span class="glyph-sample l-type-caption"><span class="l-glyph" aria-hidden="true">warning</span><span>Warning</span></span>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="motion-heading">
+      <h2 class="l-type-section" id="motion-heading">Motion</h2>
+      <div class="motion-strip l-cut">
+        <span><strong class="l-type-title">At rest</strong><br><span class="l-type-caption">No timer and no changing frame</span></span>
+        <button class="focus-button l-cut l-recipe-hover l-recipe-press l-type-label" type="button">Press recipe</button>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+    import {inkOn} from '../../library/web/palette.js';
+
+    const roles = await Lithic.init(document);
+    document.querySelectorAll('.role').forEach(swatch => {
+      const fill = roles[swatch.textContent.trim()];
+      if (!fill) return;
+      swatch.style.setProperty('--sample', fill);
+      swatch.style.setProperty('--sample-ink', inkOn(fill));
+    });
+    const query = new URLSearchParams(location.search);
+    const back = document.querySelector('.back');
+    back.search = query.toString();
+  </script>
+</body>
+</html>

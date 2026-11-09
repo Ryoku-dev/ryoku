@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithic web controls</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    body { min-width: 320px; }
+    .page { width: min(1440px, 100%); min-height: 900px; margin: 0 auto; padding: var(--lithic-space-s5); }
+    .page-head { display: flex; align-items: end; justify-content: space-between; gap: var(--lithic-space-s4); margin-bottom: var(--lithic-space-s5); }
+    .page-head h1, .page-head p { margin: 0; }
+    .page-head p { max-width: 620px; color: var(--lithic-fg2); }
+    .back { color: var(--lithic-gold-ink); text-decoration: none; }
+    .section { margin-top: var(--lithic-space-s5); }
+    .section > h2 { margin: 0 0 var(--lithic-space-s3); }
+    .specimen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--lithic-size-search-width) + var(--lithic-space-s4))), 1fr)); gap: var(--lithic-space-s3); }
+    .specimen { min-height: calc(var(--lithic-space-s6) * 2); display: grid; align-content: space-between; gap: var(--lithic-space-s3); padding: var(--lithic-space-s3); background: var(--lithic-stone1); }
+    .specimen > .l-type-caption:first-child { color: var(--lithic-fg3); }
+    .control-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--lithic-space-s3); }
+    .field-row { display: flex; align-items: start; flex-wrap: wrap; gap: var(--lithic-space-s4); }
+    .wide { grid-column: 1 / -1; }
+    .wide .l-tabs { width: min(100%, calc(var(--lithic-size-search-width) * 2)); }
+    .wide .l-tab { flex: 1; }
+    .tab-panel, .disclosure-copy { max-width: 65ch; margin-top: var(--lithic-space-s3); color: var(--lithic-fg2); }
+    .value-line { display: inline-flex; align-items: center; gap: var(--lithic-space-s2); color: var(--lithic-fg2); }
+    .notched { --l-notch-color: var(--lithic-amber); }
+    .l-field.mono .l-text-field { font-family: var(--lithic-font-mono); }
+    .visually-hidden { position: absolute; width: var(--lithic-size-hairline); height: var(--lithic-size-hairline); padding: 0; margin: calc(-1 * var(--lithic-size-hairline)); overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-head">
+      <div>
+        <a class="back l-type-label" href="index.html">Gallery</a>
+        <h1 class="l-type-name">Controls</h1>
+      </div>
+      <p class="l-type-body">Cut actions, fields and selectors shown with the Ryoport fleet. Preview states are static; the controls beside them remain interactive.</p>
+    </header>
+
+    <section class="section" aria-labelledby="plaque-heading">
+      <h2 class="l-type-section" id="plaque-heading">Plaque</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><span class="l-type-caption">Gold, consequential</span><button class="l-plaque l-gold" type="button"><span class="l-glyph" aria-hidden="true">link</span>Connect to ally</button></div>
+        <div class="specimen"><span class="l-type-caption">Line</span><button class="l-plaque l-line" type="button">Check prowl</button></div>
+        <div class="specimen"><span class="l-type-caption">Quiet</span><button class="l-plaque l-quiet" type="button">View localhost</button></div>
+        <div class="specimen"><span class="l-type-caption">On</span><button class="l-plaque l-on" type="button" aria-pressed="true">Pinned mika-server</button></div>
+        <div class="specimen"><span class="l-type-caption">Danger</span><button class="l-plaque l-danger" type="button">Stop scratch-arch</button></div>
+        <div class="specimen"><span class="l-type-caption">Danger line</span><button class="l-plaque l-danger-line" type="button">Forget fedora-43</button></div>
+        <div class="specimen"><span class="l-type-caption">Small</span><button class="l-plaque l-quiet l-small" type="button">Details</button></div>
+        <div class="specimen"><span class="l-type-caption">Hover preview</span><button class="l-plaque l-line" type="button" data-l-state="hover">Check again</button></div>
+        <div class="specimen"><span class="l-type-caption">Pressed preview</span><button class="l-plaque l-quiet" type="button" data-l-state="pressed">Open console</button></div>
+        <div class="specimen"><span class="l-type-caption">Keyboard focus preview</span><span class="l-focus-ring" data-l-state="focus"><button class="l-plaque l-quiet" type="button">Copy address</button></span></div>
+        <div class="specimen"><span class="l-type-caption">Busy</span><button class="l-plaque l-line" type="button" aria-busy="true"><span class="l-working" aria-hidden="true" aria-busy="true"><span class="l-working__flake" aria-hidden="true"></span><span class="l-working__flake" aria-hidden="true"></span><span class="l-working__flake" aria-hidden="true"></span></span>Checking alpine-instant</button></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><button class="l-plaque l-quiet" type="button" disabled>Console unavailable</button></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="split-heading">
+      <h2 class="l-type-section" id="split-heading">SplitPlaque</h2>
+      <div class="specimen-grid">
+        <div class="specimen">
+          <span class="l-type-caption">Closed menu</span>
+          <div class="l-split-plaque">
+            <button class="l-plaque l-line" type="button">Start ubuntu-24.04</button>
+            <button class="l-icon-plaque l-line" type="button" data-l-split-more aria-expanded="false" aria-label="More start options"><span class="l-glyph" aria-hidden="true">expand_more</span></button>
+          </div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">Open menu</span>
+          <div class="l-split-plaque">
+            <button class="l-plaque l-on" type="button">Connected to ally</button>
+            <button class="l-icon-plaque l-on" type="button" data-l-split-more aria-expanded="true" aria-label="Close connection options"><span class="l-glyph" aria-hidden="true">expand_less</span></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="icon-heading">
+      <h2 class="l-type-section" id="icon-heading">IconPlaque</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><span class="l-type-caption">Normal quiet</span><button class="l-icon-plaque l-quiet" type="button" aria-label="Copy ally address"><span class="l-glyph" aria-hidden="true">content_copy</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Small line</span><button class="l-icon-plaque l-line l-small" type="button" aria-label="Refresh prowl"><span class="l-glyph" aria-hidden="true">refresh</span></button></div>
+        <div class="specimen"><span class="l-type-caption">Attention notch</span><button class="l-icon-plaque l-quiet notched" type="button" aria-label="Review pending change"><span class="l-icon-plaque-notch" aria-hidden="true"></span><span class="l-glyph" aria-hidden="true">terminal</span></button></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="field-heading">
+      <h2 class="l-type-section" id="field-heading">TextField</h2>
+      <div class="field-row">
+        <label class="l-field"><span class="l-field-label">Machine name</span><span class="l-field-control l-cut"><input class="l-text-field" value="ubuntu-24.04"></span><span class="l-field-help">Use a unique fleet name.</span></label>
+        <label class="l-field mono"><span class="l-field-label">Host address</span><span class="l-field-control l-cut"><input class="l-text-field" value="root@203.0.113.70:2222"></span><span class="l-field-help">SSH user, host and optional port.</span></label>
+        <label class="l-field" data-error><span class="l-field-label">Server address</span><span class="l-field-control l-cut"><input class="l-text-field" value="203.0.113.999" aria-invalid="true" aria-describedby="field-error"></span><span class="l-field-help" id="field-error">Enter a valid host address.</span></label>
+        <label class="l-field"><span class="l-field-label">Connection label</span><span class="l-field-control l-cut"><input class="l-text-field" value="mika-server" data-l-state="focus"></span><span class="l-field-help">Keyboard focus preview.</span></label>
+        <form class="l-field" method="dialog"><input class="visually-hidden" type="text" value="ops" autocomplete="username" aria-label="Username"><label class="l-field-label" for="secret-field">Private key password</label><span class="l-field-control l-cut"><input class="l-text-field" id="secret-field" type="password" value="stonepass" autocomplete="current-password"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-reveal aria-pressed="false" aria-label="Show value"><span class="l-glyph" aria-hidden="true">visibility</span></button></span><span class="l-field-help">Reveal keeps focus in this field.</span></form>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="search-heading">
+      <h2 class="l-type-section" id="search-heading">Search</h2>
+      <div class="specimen-grid">
+        <div class="specimen">
+          <span class="l-type-caption">Empty with shortcut hint</span>
+          <div class="l-search l-cut"><span class="l-glyph" aria-hidden="true">search</span><span class="l-type-caption" data-l-search-hint>Ctrl K</span><input class="l-text-field" type="search" placeholder="Search fleet" aria-label="Search fleet"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-search-clear aria-label="Clear search" hidden><span class="l-glyph" aria-hidden="true">close</span></button></div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">Filled with clear action</span>
+          <div class="l-search l-cut"><span class="l-glyph" aria-hidden="true">search</span><input class="l-text-field" type="search" value="alpine" aria-label="Search fleet"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-search-clear aria-label="Clear search"><span class="l-glyph" aria-hidden="true">close</span></button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="toggle-heading">
+      <h2 class="l-type-section" id="toggle-heading">Toggle</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><span class="l-type-caption">Off</span><button class="l-toggle" type="button" role="switch" aria-checked="false">Connect automatically</button></div>
+        <div class="specimen"><span class="l-type-caption">On</span><button class="l-toggle" type="button" role="switch" aria-checked="true">Pin mika-server</button></div>
+        <div class="specimen"><span class="l-type-caption">Hover preview</span><button class="l-toggle" type="button" role="switch" aria-checked="false" data-l-state="hover">Wake on launch</button></div>
+        <div class="specimen"><span class="l-type-caption">Disabled</span><button class="l-toggle" type="button" role="switch" aria-checked="false" disabled>Serial reconnect</button></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="slider-heading">
+      <h2 class="l-type-section" id="slider-heading">Slider</h2>
+      <div class="specimen-grid">
+        <div class="specimen"><span class="l-type-caption">20 percent</span><label class="value-line"><span>Console scale</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" value="20" aria-label="Console scale"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>20</output></label></div>
+        <div class="specimen"><span class="l-type-caption">65 percent</span><label class="value-line"><span>Fleet volume</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" value="65" aria-label="Fleet volume"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>65</output></label></div>
+        <div class="specimen"><span class="l-type-caption">Keyboard focus preview</span><label class="value-line"><span>Polling limit</span><span class="l-slider-field"><input class="l-slider" type="range" min="0" max="100" value="80" aria-label="Polling limit" data-l-state="focus"><span class="l-slider-rail"><span class="l-slider-fill"></span><span class="l-slider-handle"></span></span></span><output data-l-slider-value>80</output></label></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="stepper-heading">
+      <h2 class="l-type-section" id="stepper-heading">Stepper</h2>
+      <div class="specimen-grid">
+        <div class="specimen">
+          <span class="l-type-caption">Between bounds</span>
+          <div class="l-stepper" role="group" aria-label="Retry count" data-value="3" data-min="1" data-max="8" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Decrease retry count"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Retry count">3</output><span class="l-stepper-unit">tries</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="Increase retry count"><span class="l-glyph" aria-hidden="true">add</span></button></div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">At minimum</span>
+          <div class="l-stepper" role="group" aria-label="Serial ports" data-value="1" data-min="1" data-max="4" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Decrease serial ports"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Serial port count">1</output><span class="l-stepper-unit">port</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="Increase serial ports"><span class="l-glyph" aria-hidden="true">add</span></button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="filters-heading">
+      <h2 class="l-type-section" id="filters-heading">Filters</h2>
+      <div class="specimen wide">
+        <span class="l-type-caption">Selected slab with counts</span>
+        <div class="l-filters" role="group" aria-label="Fleet state filter">
+          <span class="l-filter-slab" aria-hidden="true"></span>
+          <button class="l-filter" type="button" aria-pressed="true" data-value="all">All <span class="l-filter-count">6</span></button>
+          <button class="l-filter" type="button" aria-pressed="false" data-value="running" tabindex="-1">Running <span class="l-filter-count">2</span></button>
+          <button class="l-filter" type="button" aria-pressed="false" data-value="stopped" tabindex="-1">Stopped <span class="l-filter-count">3</span></button>
+          <button class="l-filter" type="button" aria-pressed="false" data-value="needs-you" tabindex="-1">Needs you <span class="l-filter-count">1</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="tabs-heading">
+      <h2 class="l-type-section" id="tabs-heading">Tabs</h2>
+      <div class="specimen wide">
+        <span class="l-type-caption">Current blade and arrow navigation</span>
+        <div class="l-tabs" role="tablist" aria-label="Machine details">
+          <span class="l-tabs-blade" aria-hidden="true"></span>
+          <button class="l-tab" type="button" role="tab" aria-selected="true" aria-controls="tab-overview" id="overview-tab">Overview</button>
+          <button class="l-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-console" id="console-tab" tabindex="-1">Console</button>
+          <button class="l-tab" type="button" role="tab" aria-selected="false" aria-controls="tab-network" id="network-tab" tabindex="-1">Network</button>
+        </div>
+        <div class="tab-panel l-type-body" id="tab-overview" role="tabpanel" aria-labelledby="overview-tab">alpine-instant is alive at 192.0.2.24.</div>
+        <div class="tab-panel l-type-body" id="tab-console" role="tabpanel" aria-labelledby="console-tab" hidden>Console router is available on /dev/ttyUSB0.</div>
+        <div class="tab-panel l-type-body" id="tab-network" role="tabpanel" aria-labelledby="network-tab" hidden>mika-server listens at root@203.0.113.70:2222.</div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="disclosure-heading">
+      <h2 class="l-type-section" id="disclosure-heading">Disclosure</h2>
+      <div class="specimen-grid">
+        <div class="specimen">
+          <span class="l-type-caption">Closed</span>
+          <div class="l-disclosure"><button class="l-plaque l-quiet" type="button" data-l-disclosure-trigger aria-expanded="false" aria-controls="disclosure-closed">Show connection proof</button><div class="l-disclosure-content" id="disclosure-closed"><p class="disclosure-copy l-type-body">ally is reachable as ops@192.0.2.18.</p></div></div>
+        </div>
+        <div class="specimen">
+          <span class="l-type-caption">Open</span>
+          <div class="l-disclosure"><button class="l-plaque l-on" type="button" data-l-disclosure-trigger aria-expanded="true" aria-controls="disclosure-open">Hide connection proof</button><div class="l-disclosure-content" id="disclosure-open"><p class="disclosure-copy l-type-body">mika-server accepted root@203.0.113.70:2222 and the host key matches.</p></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+
+    await Lithic.init(document);
+    const query = new URLSearchParams(location.search);
+    const back = document.querySelector('.back');
+    back.search = query.toString();
+  </script>
+</body>
+</html>

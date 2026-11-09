@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithic web gallery</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    body { min-width: 320px; }
+    .gallery { width: min(1440px, 100%); min-height: 900px; margin: 0 auto; padding: var(--lithic-space-s5); }
+    .gallery-head { max-width: 720px; margin-bottom: var(--lithic-space-s5); }
+    .gallery-head h1, .gallery-head p { margin: 0; }
+    .gallery-head p { margin-top: var(--lithic-space-s2); color: var(--lithic-fg2); }
+    .pages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lithic-space-s3); }
+    .page-link { --l-fill: var(--lithic-stone2); --l-stroke: var(--lithic-vein); --l-stroke-width: 1px; min-height: 180px; padding: var(--lithic-space-s4); color: var(--lithic-fg); text-decoration: none; }
+    .page-link strong, .page-link span { display: block; }
+    .page-link span { margin-top: var(--lithic-space-s2); color: var(--lithic-fg2); }
+    .page-link[aria-current="page"] { --l-fill: var(--lithic-sel); color: var(--lithic-on-sel); }
+    .page-link[aria-current="page"] span { color: var(--lithic-on-sel2); }
+    .gallery-note { margin-top: var(--lithic-space-s5); color: var(--lithic-fg3); }
+    @media (max-width: 900px) { .pages { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body>
+  <main class="gallery">
+    <header class="gallery-head">
+      <h1 class="l-type-name">Lithic web gallery</h1>
+      <p class="l-type-body">Foundations and reusable browser components, rendered from the same Ryoku palette roles as every other Lithic stack.</p>
+    </header>
+    <nav class="pages" aria-label="Gallery pages">
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="foundation.html" aria-current="page">
+        <strong class="l-type-section">Foundation</strong>
+        <span class="l-type-body">Roles, type, cuts, state marks and motion.</span>
+      </a>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="controls.html">
+        <strong class="l-type-section">Controls</strong>
+        <span class="l-type-body">Actions, fields, filters and selection controls.</span>
+      </a>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="lists.html">
+        <strong class="l-type-section">Lists</strong>
+        <span class="l-type-body">Rows, panes, state, facts and progress.</span>
+      </a>
+      <a class="page-link l-cut l-recipe-hover l-recipe-press l-focus-ring" href="overlays.html">
+        <strong class="l-type-section">Overlays</strong>
+        <span class="l-type-body">Menus, dialogs, navigation and app frames.</span>
+      </a>
+    </nav>
+    <p class="gallery-note l-type-caption" id="palette-note">Signature palette</p>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+
+    await Lithic.init(document);
+    const query = new URLSearchParams(location.search);
+    document.querySelector('#palette-note').textContent = query.has('palette') ? 'Palette from the requested URL' : 'Signature palette';
+    document.querySelectorAll('.page-link').forEach(link => {
+      link.search = query.toString();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    html, body { margin: 0; }
+    .sheet { width: 1440px; height: 900px; overflow: hidden; }
+    .sheet .l-app-frame { height: 900px; min-height: 900px; }
+    .settings-page { width: min(100%, var(--lithic-size-settings-expanded-max)); margin-inline: auto; display: grid; grid-template-columns: var(--lithic-size-section-index-width) minmax(0, 1fr); gap: var(--lithic-size-section-index-gap); align-items: start; }
+    .settings-column { display: grid; gap: var(--lithic-space-s5); }
+    .settings-column > h1 { margin: 0; }
+    .setting-group { display: grid; gap: var(--lithic-space-s3); }
+    .setting-row { min-height: var(--lithic-size-section-index-row); display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, var(--lithic-size-settings-control-max)); gap: var(--lithic-space-s4); align-items: center; }
+    .setting-copy { display: grid; gap: var(--lithic-space-s1); }
+    .setting-control { justify-self: end; }
+    .setting-control.l-field, .setting-control .l-text-field { width: 100%; }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <div class="l-app-frame" data-l-no-list data-l-size-class="expanded">
+      <nav class="l-rail" aria-label="Ryoport navigation">
+        <a class="l-rail-home l-cut" href="now.html" aria-label="Now"><span class="l-brand-mark" aria-hidden="true"></span></a>
+        <div class="l-rail-primary"><a class="l-rail-destination l-cut" href="fleet.html"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-rail-label">Fleet</span></a><button class="l-new-plaque l-cut" type="button" aria-label="New"><span class="l-glyph" aria-hidden="true">add</span><span class="l-rail-label">New</span></button><a class="l-rail-destination l-cut" href="becoming.html"><span class="l-glyph" aria-hidden="true">history</span><span class="l-rail-label">Activity</span></a></div>
+        <a class="l-rail-destination l-rail-settings l-cut" href="settings.html" aria-current="page"><span class="l-glyph" aria-hidden="true">tune</span><span class="l-rail-label">Settings</span></a>
+      </nav>
+      <section class="l-app-frame-pane l-app-frame-work l-cut" aria-labelledby="settings-title">
+        <div class="settings-page">
+          <nav class="l-section-index" aria-label="Settings sections"><a class="l-cut" href="#general" aria-current="true">General</a><a class="l-cut" href="#connections" aria-current="false">Connections</a><a class="l-cut" href="#machines" aria-current="false">Machines</a></nav>
+          <div class="settings-column">
+            <h1 class="l-type-name" id="settings-title">Settings</h1>
+            <section class="l-section" id="general"><h2 class="l-section__title">General</h2><div class="l-slab l-cut setting-group"><div class="setting-row"><span class="setting-copy"><strong class="l-type-row">Check on launch</strong><span class="l-type-caption">Refresh server and machine state when Ryoport opens.</span></span><button class="l-toggle setting-control" type="button" role="switch" aria-checked="true" aria-label="Check on launch"></button></div><div class="setting-row"><span class="setting-copy"><strong class="l-type-row">Default page</strong><span class="l-type-caption">Choose the first page shown after launch.</span></span><button class="l-picker l-cut setting-control" type="button" aria-expanded="false"><span class="l-picker-label">Default page</span><span class="l-picker-value">Now</span><span class="l-glyph" aria-hidden="true">expand_more</span></button></div></div></section>
+            <section class="l-section" id="connections"><h2 class="l-section__title">Connections</h2><div class="l-slab l-cut setting-group"><div class="setting-row"><span class="setting-copy"><strong class="l-type-row">Connection name</strong><span class="l-type-caption">Name the primary server connection.</span></span><label class="l-field setting-control"><span class="l-field-control l-cut"><input class="l-text-field" value="ally" aria-label="Connection name"></span></label></div><div class="setting-row"><span class="setting-copy"><strong class="l-type-row">Retry attempts</strong><span class="l-type-caption">Stop after this many failed connection attempts.</span></span><div class="l-stepper setting-control" role="group" aria-label="Retry attempts" data-value="3" data-min="1" data-max="8" data-step="1"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="decrement" aria-label="Decrease retry attempts"><span class="l-glyph" aria-hidden="true">remove</span></button><span class="l-stepper-reading"><output class="l-stepper-value" role="spinbutton" tabindex="0" aria-label="Retry attempts">3</output><span class="l-stepper-unit">tries</span></span><button class="l-icon-plaque l-quiet l-small" type="button" data-l-stepper="increment" aria-label="Increase retry attempts"><span class="l-glyph" aria-hidden="true">add</span></button></div></div></div></section>
+            <section class="l-section" id="machines"><h2 class="l-section__title">Machines</h2><div class="l-slab l-cut setting-group"><div class="setting-row"><span class="setting-copy"><strong class="l-type-row">Start pinned machines</strong><span class="l-type-caption">Start pinned machines after their server connects.</span></span><button class="l-toggle setting-control" type="button" role="switch" aria-checked="false" aria-label="Start pinned machines"></button></div><div class="setting-row"><span class="setting-copy"><strong class="l-type-row">Default image</strong><span class="l-type-caption">Preselect this image in new machine drafts.</span></span><button class="l-picker l-cut setting-control" type="button" aria-expanded="false"><span class="l-picker-label">Default image</span><span class="l-picker-value">fedora-43</span><span class="l-glyph" aria-hidden="true">expand_more</span></button></div></div></section>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+    if (!new URLSearchParams(location.search).has('mode')) Lithic.setMode('light');
+    Lithic.init();
+  </script>
+</body>
+</html>

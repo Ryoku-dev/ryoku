@@ -1,0 +1,729 @@
+:is(.l-plaque, .l-icon-plaque) {
+  --l-cut-depth: 0px;
+  --l-cut: var(--lithic-cut-mid);
+  --l-cut-tl: var(--l-cut);
+  --l-cut-tr: var(--l-cut);
+  --l-cut-br: var(--l-cut);
+  --l-cut-bl: var(--l-cut);
+  --l-actual-tl: calc(var(--l-cut-tl) + var(--l-cut-depth));
+  --l-actual-tr: calc(var(--l-cut-tr) + var(--l-cut-depth));
+  --l-actual-br: calc(var(--l-cut-br) + var(--l-cut-depth));
+  --l-actual-bl: calc(var(--l-cut-bl) + var(--l-cut-depth));
+  --l-fill: transparent;
+  --l-active-fill: var(--l-fill);
+  --l-stroke: var(--lithic-vein);
+  --l-ink: var(--lithic-fg2);
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: max-content;
+  max-width: 100%;
+  gap: var(--lithic-size-plaque-gap);
+  min-height: var(--lithic-size-plaque-height);
+  padding: 0 var(--lithic-size-plaque-inset);
+  border: 0;
+  background: transparent;
+  color: var(--l-ink);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  cursor: pointer;
+  transition: color var(--lithic-motion-hover-out) var(--lithic-motion-curve), transform var(--lithic-motion-press) var(--lithic-motion-curve), --l-cut-depth var(--lithic-motion-press) var(--lithic-motion-curve);
+}
+
+:is(.l-plaque, .l-icon-plaque)::before,
+:is(.l-plaque, .l-icon-plaque)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+:is(.l-plaque, .l-icon-plaque)::before {
+  z-index: -2;
+  background: var(--l-active-fill);
+  clip-path: polygon(
+    var(--l-actual-tl) 0,
+    calc(100% - var(--l-actual-tr)) 0,
+    100% var(--l-actual-tr),
+    100% calc(100% - var(--l-actual-br)),
+    calc(100% - var(--l-actual-br)) 100%,
+    var(--l-actual-bl) 100%,
+    0 calc(100% - var(--l-actual-bl)),
+    0 var(--l-actual-tl)
+  );
+  transition: background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+:is(.l-plaque, .l-icon-plaque)::after {
+  z-index: -1;
+  background: var(--l-stroke);
+  clip-path: polygon(evenodd,
+    var(--l-actual-tl) 0,
+    calc(100% - var(--l-actual-tr)) 0,
+    100% var(--l-actual-tr),
+    100% calc(100% - var(--l-actual-br)),
+    calc(100% - var(--l-actual-br)) 100%,
+    var(--l-actual-bl) 100%,
+    0 calc(100% - var(--l-actual-bl)),
+    0 var(--l-actual-tl),
+    calc(var(--lithic-size-hairline) + max(0px, calc(var(--l-actual-tl) - var(--lithic-size-hairline) * 0.585786))) var(--lithic-size-hairline),
+    var(--lithic-size-hairline) calc(var(--lithic-size-hairline) + max(0px, calc(var(--l-actual-tl) - var(--lithic-size-hairline) * 0.585786))),
+    var(--lithic-size-hairline) calc(100% - var(--lithic-size-hairline) - max(0px, calc(var(--l-actual-bl) - var(--lithic-size-hairline) * 0.585786))),
+    calc(var(--lithic-size-hairline) + max(0px, calc(var(--l-actual-bl) - var(--lithic-size-hairline) * 0.585786))) calc(100% - var(--lithic-size-hairline)),
+    calc(100% - var(--lithic-size-hairline) - max(0px, calc(var(--l-actual-br) - var(--lithic-size-hairline) * 0.585786))) calc(100% - var(--lithic-size-hairline)),
+    calc(100% - var(--lithic-size-hairline)) calc(100% - var(--lithic-size-hairline) - max(0px, calc(var(--l-actual-br) - var(--lithic-size-hairline) * 0.585786))),
+    calc(100% - var(--lithic-size-hairline)) calc(var(--lithic-size-hairline) + max(0px, calc(var(--l-actual-tr) - var(--lithic-size-hairline) * 0.585786))),
+    calc(100% - var(--lithic-size-hairline) - max(0px, calc(var(--l-actual-tr) - var(--lithic-size-hairline) * 0.585786))) var(--lithic-size-hairline)
+  );
+}
+
+:is(.l-plaque, .l-icon-plaque):is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+:is(.l-plaque, .l-icon-plaque):is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"])::before {
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+:is(.l-plaque, .l-icon-plaque):is(:active, [data-l-state="pressed"]):not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+  --l-cut-depth: var(--lithic-size-control-press-cut-grow);
+  transform: translateY(var(--lithic-size-control-press-sink));
+}
+
+:is(.l-plaque, .l-icon-plaque):is(:disabled, [aria-disabled="true"]) {
+  opacity: var(--lithic-alpha-disabled);
+  cursor: default;
+  pointer-events: none;
+}
+
+:is(.l-plaque, .l-icon-plaque)[aria-busy="true"] {
+  cursor: progress;
+}
+
+:is(.l-plaque, .l-icon-plaque).l-gold {
+  --l-fill: var(--lithic-gold);
+  --l-active-fill: var(--l-fill);
+  --l-stroke: transparent;
+  --l-ink: var(--lithic-on-gold);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-line {
+  --l-stroke: var(--lithic-gold-ink);
+  --l-ink: var(--lithic-gold-ink);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-quiet {
+  --l-stroke: var(--lithic-vein);
+  --l-ink: var(--lithic-fg2);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-on {
+  --l-fill: var(--lithic-sel);
+  --l-active-fill: var(--l-fill);
+  --l-stroke: transparent;
+  --l-ink: var(--lithic-on-sel);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-danger {
+  --l-fill: var(--lithic-jasper);
+  --l-active-fill: var(--l-fill);
+  --l-stroke: transparent;
+  --l-ink: var(--lithic-jasper-ink);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-danger-line {
+  --l-stroke: var(--lithic-jasper);
+  --l-ink: var(--lithic-jasper);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-gold:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]),
+:is(.l-plaque, .l-icon-plaque).l-on:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]),
+:is(.l-plaque, .l-icon-plaque).l-danger:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
+  --l-active-fill: color-mix(in srgb, var(--l-fill), white calc(var(--lithic-alpha-hover-fill) * 100%));
+}
+
+:is(.l-plaque, .l-icon-plaque):is(.l-line, .l-quiet, .l-danger-line):is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"]) {
+  --l-active-fill: color-mix(in srgb, var(--l-ink) calc(var(--lithic-alpha-hover-ink) * 100%), transparent);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-small {
+  --l-cut: var(--lithic-cut-small);
+  min-height: var(--lithic-size-plaque-height-small);
+  padding-inline: var(--lithic-size-plaque-inset-small);
+  gap: var(--lithic-size-plaque-gap-small);
+}
+
+:is(.l-plaque, .l-icon-plaque) > .l-glyph {
+  font-size: var(--lithic-size-plaque-icon);
+}
+
+:is(.l-plaque, .l-icon-plaque).l-small > .l-glyph {
+  font-size: var(--lithic-size-plaque-icon-small);
+}
+
+:is(.l-plaque, .l-icon-plaque) > .l-working {
+  --l-working-size: var(--lithic-size-plaque-icon);
+  flex: 0 0 auto;
+}
+
+:is(.l-plaque, .l-icon-plaque).l-small > .l-working {
+  --l-working-size: var(--lithic-size-plaque-icon-small);
+}
+
+.l-focus-ring:has(> :is(.l-plaque, .l-icon-plaque)) {
+  --l-cut: var(--lithic-cut-mid);
+  display: inline-grid;
+  width: max-content;
+  max-width: 100%;
+}
+
+.l-focus-ring:has(> :is(.l-plaque, .l-icon-plaque).l-small) {
+  --l-cut: var(--lithic-cut-small);
+}
+
+.l-split-plaque {
+  display: inline-flex;
+  gap: var(--lithic-size-split-plaque-gap);
+  width: max-content;
+  max-width: 100%;
+}
+
+.l-split-plaque > :is(.l-plaque, .l-focus-ring):first-child,
+.l-split-plaque > .l-focus-ring:first-child > .l-plaque {
+  --l-cut-tr: 0px;
+  --l-cut-br: 0px;
+}
+
+.l-split-plaque > :is(.l-plaque, .l-icon-plaque, .l-focus-ring):last-child,
+.l-split-plaque > .l-focus-ring:last-child > :is(.l-plaque, .l-icon-plaque) {
+  --l-cut-tl: 0px;
+  --l-cut-bl: 0px;
+}
+
+.l-split-plaque > :is(.l-icon-plaque, .l-plaque):last-child {
+  width: var(--lithic-size-split-plaque-more-width);
+  padding-inline: 0;
+}
+
+.l-icon-plaque {
+  --l-cut: var(--lithic-cut-small);
+  width: var(--lithic-size-icon-plaque);
+  min-width: var(--lithic-size-icon-plaque);
+  height: var(--lithic-size-icon-plaque);
+  min-height: var(--lithic-size-icon-plaque);
+  padding: 0;
+}
+
+.l-icon-plaque > .l-glyph {
+  font-size: var(--lithic-size-icon-plaque-icon);
+}
+
+.l-icon-plaque-notch {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: var(--lithic-cut-notch);
+  height: var(--lithic-cut-notch);
+  z-index: 1;
+  background: var(--l-notch-color, var(--lithic-vein));
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  pointer-events: none;
+}
+
+.l-icon-plaque.l-small {
+  width: var(--lithic-size-icon-plaque-small);
+  min-width: var(--lithic-size-icon-plaque-small);
+  height: var(--lithic-size-icon-plaque-small);
+  min-height: var(--lithic-size-icon-plaque-small);
+  padding: 0;
+}
+
+.l-icon-plaque.l-small > .l-glyph {
+  font-size: var(--lithic-size-icon-plaque-icon-small);
+}
+
+.l-field {
+  display: inline-grid;
+  gap: var(--lithic-size-text-field-label-gap);
+  width: var(--lithic-size-text-field-default-width);
+}
+
+.l-field-label,
+.l-field-help {
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-field-help {
+  margin-top: calc(var(--lithic-size-text-field-help-gap) - var(--lithic-size-text-field-label-gap));
+}
+
+.l-field-control {
+  position: relative;
+  display: block;
+}
+
+:is(.l-field-control, .l-search).l-cut {
+  --l-fill: var(--lithic-stone3);
+  --l-stroke: transparent;
+  --l-stroke-width: var(--lithic-size-text-field-stroke);
+  --l-cut: var(--lithic-cut-mid);
+}
+
+:is(.l-field-control, .l-search).l-cut::before {
+  transition: background-color var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
+.l-text-field {
+  width: var(--lithic-size-text-field-default-width);
+  height: var(--lithic-size-text-field-height);
+  padding-inline: var(--lithic-size-text-field-inset);
+  border: 0;
+  background: var(--lithic-stone3);
+  color: var(--lithic-fg);
+  caret-color: var(--lithic-fg);
+  clip-path: polygon(
+    var(--lithic-cut-mid) 0,
+    calc(100% - var(--lithic-cut-mid)) 0,
+    100% var(--lithic-cut-mid),
+    100% calc(100% - var(--lithic-cut-mid)),
+    calc(100% - var(--lithic-cut-mid)) 100%,
+    var(--lithic-cut-mid) 100%,
+    0 calc(100% - var(--lithic-cut-mid)),
+    0 var(--lithic-cut-mid)
+  );
+  font: var(--lithic-type-body-weight) var(--lithic-type-body-size)/var(--lithic-type-body-line) var(--lithic-type-body-family);
+  outline: none;
+  transition: color var(--lithic-motion-field) var(--lithic-motion-curve);
+}
+
+.l-field .l-text-field {
+  width: 100%;
+}
+
+.l-text-field::placeholder {
+  color: var(--lithic-fg3);
+  opacity: 1;
+}
+
+.l-field-control.l-cut .l-text-field,
+.l-search.l-cut .l-text-field {
+  background: transparent;
+  clip-path: none;
+}
+
+:is(.l-field-control, .l-search).l-cut:has(.l-text-field:is(:focus-visible, [data-l-state="focus"])) {
+  --l-stroke: var(--lithic-fg2);
+}
+
+:is(.l-field-control, .l-search).l-cut:has(.l-text-field:is(:focus-visible, [data-l-state="focus"]))::before {
+  transition-duration: var(--lithic-motion-focus-in);
+}
+
+.l-field:is([data-error], :has(.l-text-field[aria-invalid="true"])) .l-field-control.l-cut {
+  --l-stroke: var(--lithic-jasper);
+}
+
+.l-field:is([data-error], :has(.l-text-field[aria-invalid="true"])) .l-field-help {
+  color: var(--lithic-jasper);
+}
+
+.l-field-control:has([data-l-reveal]) .l-text-field {
+  padding-inline-end: calc(var(--lithic-size-text-field-secret-action) + var(--lithic-size-text-field-secret-inset) + var(--lithic-size-text-field-inset));
+}
+
+.l-field-control > [data-l-reveal] {
+  position: absolute;
+  inset-block-start: calc((var(--lithic-size-text-field-height) - var(--lithic-size-text-field-secret-action)) / 2);
+  inset-inline-end: var(--lithic-size-text-field-secret-inset);
+}
+
+.l-search {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: var(--lithic-size-search-width);
+}
+
+.l-search > .l-glyph:first-child {
+  position: absolute;
+  inset-inline-start: var(--lithic-size-search-icon-inset);
+  z-index: 1;
+  color: var(--lithic-fg3);
+  font-size: var(--lithic-size-search-icon);
+  pointer-events: none;
+}
+
+.l-search .l-text-field {
+  width: 100%;
+  height: var(--lithic-size-search-height);
+  padding-inline-start: var(--lithic-size-search-leading);
+  padding-inline-end: calc(var(--lithic-size-search-clear) + var(--lithic-size-search-clear-inset) + var(--lithic-size-text-field-inset));
+}
+
+.l-search [data-l-search-clear] {
+  position: absolute;
+  inset-inline-end: var(--lithic-size-search-clear-inset);
+  inset-block-start: calc((var(--lithic-size-search-height) - var(--lithic-size-search-clear)) / 2);
+}
+
+.l-search [data-l-search-hint] {
+  position: absolute;
+  inset-inline-end: var(--lithic-size-search-icon-inset);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  color: var(--lithic-fg3);
+  pointer-events: none;
+}
+
+.l-search[data-l-has-value] [data-l-search-hint],
+.l-search [data-l-search-clear][hidden] {
+  display: none;
+}
+
+.l-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--lithic-size-plaque-height-small);
+  padding: 0 0 0 calc(var(--lithic-size-toggle-width) + var(--lithic-size-toggle-label-gap));
+  border: 0;
+  background: transparent;
+  color: var(--lithic-fg);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  cursor: pointer;
+}
+
+.l-toggle::before,
+.l-toggle::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
+.l-toggle::before {
+  top: calc((100% - var(--lithic-size-toggle-height)) / 2);
+  width: var(--lithic-size-toggle-width);
+  height: var(--lithic-size-toggle-height);
+  background: var(--lithic-stone4);
+  clip-path: polygon(
+    var(--lithic-cut-toggle-track) 0,
+    calc(100% - var(--lithic-cut-toggle-track)) 0,
+    100% var(--lithic-cut-toggle-track),
+    100% calc(100% - var(--lithic-cut-toggle-track)),
+    calc(100% - var(--lithic-cut-toggle-track)) 100%,
+    var(--lithic-cut-toggle-track) 100%,
+    0 calc(100% - var(--lithic-cut-toggle-track)),
+    0 var(--lithic-cut-toggle-track)
+  );
+  box-shadow: inset 0 0 0 var(--lithic-size-hairline) var(--lithic-vein);
+  transition: background-color var(--lithic-motion-field) var(--lithic-motion-curve);
+}
+
+.l-toggle::after {
+  top: calc((100% - var(--lithic-size-toggle-knob)) / 2);
+  width: var(--lithic-size-toggle-knob);
+  height: var(--lithic-size-toggle-knob);
+  margin-inline-start: var(--lithic-size-toggle-inset);
+  background: var(--lithic-fg2);
+  clip-path: polygon(
+    var(--lithic-cut-toggle-knob) 0,
+    calc(100% - var(--lithic-cut-toggle-knob)) 0,
+    100% var(--lithic-cut-toggle-knob),
+    100% calc(100% - var(--lithic-cut-toggle-knob)),
+    calc(100% - var(--lithic-cut-toggle-knob)) 100%,
+    var(--lithic-cut-toggle-knob) 100%,
+    0 calc(100% - var(--lithic-cut-toggle-knob)),
+    0 var(--lithic-cut-toggle-knob)
+  );
+  transition: background-color var(--lithic-motion-field) var(--lithic-motion-curve), transform var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+.l-toggle[aria-checked="true"]::before {
+  background: var(--lithic-sel);
+  box-shadow: none;
+}
+
+.l-toggle[aria-checked="true"]::after {
+  background: var(--lithic-on-sel);
+  transform: translateX(calc(var(--lithic-size-toggle-width) - var(--lithic-size-toggle-knob) - var(--lithic-size-toggle-inset) * 2));
+}
+
+.l-toggle:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"])::before {
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-stone4));
+}
+
+.l-toggle[aria-checked="true"]:is(:hover, [data-l-state="hover"]):not(:disabled):not([aria-disabled="true"])::before {
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-sel));
+}
+
+.l-toggle:is(:disabled, [aria-disabled="true"]) {
+  opacity: var(--lithic-alpha-disabled);
+  pointer-events: none;
+}
+
+[data-l-keyboard] .l-toggle:focus-visible,
+.l-toggle[data-l-state="focus"] {
+  outline: var(--lithic-size-focus-ring-width) solid var(--lithic-fg2);
+  outline-offset: var(--lithic-size-focus-ring-gap);
+}
+
+.l-slider-field {
+  --l-value: 0;
+  position: relative;
+  display: inline-grid;
+  align-items: center;
+  width: var(--lithic-size-slider-width);
+  height: var(--lithic-size-slider-height);
+}
+
+.l-slider {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.l-slider-rail {
+  position: relative;
+  display: block;
+  height: var(--lithic-size-slider-track);
+  background: var(--lithic-stone3);
+}
+
+.l-slider-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--l-value) * 100%);
+  background: var(--lithic-fg2);
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--lithic-size-slider-track)) 100%, 0 100%);
+}
+
+.l-slider-handle {
+  --l-slider-handle-cut: calc(var(--lithic-size-slider-handle-width) / 2);
+  --l-slider-focus-cut: calc(var(--l-slider-handle-cut) + min(var(--l-slider-handle-cut), var(--lithic-size-focus-cut-grow)));
+  position: absolute;
+  top: calc((var(--lithic-size-slider-track) - var(--lithic-size-slider-handle-height)) / 2);
+  left: calc(var(--l-value) * (100% - var(--lithic-size-slider-handle-width)));
+  width: var(--lithic-size-slider-handle-width);
+  height: var(--lithic-size-slider-handle-height);
+  transition: left var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+.l-slider-handle::after,
+.l-slider-handle::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.l-slider-handle::after {
+  inset: 0;
+  background: var(--lithic-sel);
+  clip-path: polygon(
+    var(--l-slider-handle-cut) 0,
+    calc(100% - var(--l-slider-handle-cut)) 0,
+    100% var(--l-slider-handle-cut),
+    100% calc(100% - var(--l-slider-handle-cut)),
+    calc(100% - var(--l-slider-handle-cut)) 100%,
+    var(--l-slider-handle-cut) 100%,
+    0 calc(100% - var(--l-slider-handle-cut)),
+    0 var(--l-slider-handle-cut)
+  );
+}
+
+.l-slider-handle::before {
+  inset: calc(-1 * (var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap)));
+  opacity: 0;
+  background: var(--lithic-fg2);
+  clip-path: polygon(evenodd,
+    calc(var(--l-slider-focus-cut) + var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap)) 0,
+    calc(100% - var(--l-slider-focus-cut) - var(--lithic-size-focus-ring-width) - var(--lithic-size-focus-ring-gap)) 0,
+    100% calc(var(--l-slider-focus-cut) + var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap)),
+    100% calc(100% - var(--l-slider-focus-cut) - var(--lithic-size-focus-ring-width) - var(--lithic-size-focus-ring-gap)),
+    calc(100% - var(--l-slider-focus-cut) - var(--lithic-size-focus-ring-width) - var(--lithic-size-focus-ring-gap)) 100%,
+    calc(var(--l-slider-focus-cut) + var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap)) 100%,
+    0 calc(100% - var(--l-slider-focus-cut) - var(--lithic-size-focus-ring-width) - var(--lithic-size-focus-ring-gap)),
+    0 calc(var(--l-slider-focus-cut) + var(--lithic-size-focus-ring-width) + var(--lithic-size-focus-ring-gap)),
+    calc(var(--lithic-size-focus-ring-width) + var(--l-slider-handle-cut) + var(--lithic-size-focus-ring-gap)) var(--lithic-size-focus-ring-width),
+    var(--lithic-size-focus-ring-width) calc(var(--lithic-size-focus-ring-width) + var(--l-slider-handle-cut) + var(--lithic-size-focus-ring-gap)),
+    var(--lithic-size-focus-ring-width) calc(100% - var(--lithic-size-focus-ring-width) - var(--l-slider-handle-cut) - var(--lithic-size-focus-ring-gap)),
+    calc(var(--lithic-size-focus-ring-width) + var(--l-slider-handle-cut) + var(--lithic-size-focus-ring-gap)) calc(100% - var(--lithic-size-focus-ring-width)),
+    calc(100% - var(--lithic-size-focus-ring-width) - var(--l-slider-handle-cut) - var(--lithic-size-focus-ring-gap)) calc(100% - var(--lithic-size-focus-ring-width)),
+    calc(100% - var(--lithic-size-focus-ring-width)) calc(100% - var(--lithic-size-focus-ring-width) - var(--l-slider-handle-cut) - var(--lithic-size-focus-ring-gap)),
+    calc(100% - var(--lithic-size-focus-ring-width)) calc(var(--lithic-size-focus-ring-width) + var(--l-slider-handle-cut) + var(--lithic-size-focus-ring-gap)),
+    calc(100% - var(--lithic-size-focus-ring-width) - var(--l-slider-handle-cut) - var(--lithic-size-focus-ring-gap)) var(--lithic-size-focus-ring-width)
+  );
+  transition: opacity var(--lithic-motion-focus-out) var(--lithic-motion-curve);
+}
+
+.l-slider:focus-visible + .l-slider-rail .l-slider-handle::before,
+.l-slider[data-l-state="focus"] + .l-slider-rail .l-slider-handle::before {
+  opacity: 1;
+  transition-duration: var(--lithic-motion-focus-in);
+}
+
+.l-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lithic-size-stepper-gap);
+}
+
+.l-stepper-reading {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: var(--lithic-space-s6);
+  justify-content: center;
+}
+
+.l-stepper-value {
+  color: var(--lithic-fg);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+}
+
+.l-stepper-unit {
+  margin-inline-start: var(--lithic-size-stepper-unit-gap);
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-caption-weight) var(--lithic-type-caption-size)/var(--lithic-type-caption-line) var(--lithic-type-caption-family);
+}
+
+.l-filters,
+.l-tabs {
+  position: relative;
+  display: inline-flex;
+}
+
+.l-filters {
+  gap: var(--lithic-size-filter-gap);
+}
+
+.l-filter-slab,
+.l-tabs-blade {
+  position: absolute;
+  left: var(--l-active-x, 0px);
+  width: var(--l-active-width, 0px);
+  pointer-events: none;
+  transition: left var(--lithic-motion-select) var(--lithic-motion-curve), width var(--lithic-motion-select) var(--lithic-motion-curve);
+}
+
+.l-filter-slab {
+  inset-block: 0;
+  z-index: 0;
+  background: var(--lithic-sel);
+  clip-path: polygon(
+    var(--lithic-cut-small) 0,
+    calc(100% - var(--lithic-cut-small)) 0,
+    100% var(--lithic-cut-small),
+    100% calc(100% - var(--lithic-cut-small)),
+    calc(100% - var(--lithic-cut-small)) 100%,
+    var(--lithic-cut-small) 100%,
+    0 calc(100% - var(--lithic-cut-small)),
+    0 var(--lithic-cut-small)
+  );
+}
+
+.l-filter {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lithic-size-filter-count-gap);
+  height: var(--lithic-size-filter-height);
+  padding-inline: var(--lithic-size-filter-inset);
+  border: var(--lithic-size-hairline) solid var(--lithic-vein);
+  background: transparent;
+  color: var(--lithic-fg2);
+  clip-path: polygon(
+    var(--lithic-cut-small) 0,
+    calc(100% - var(--lithic-cut-small)) 0,
+    100% var(--lithic-cut-small),
+    100% calc(100% - var(--lithic-cut-small)),
+    calc(100% - var(--lithic-cut-small)) 100%,
+    var(--lithic-cut-small) 100%,
+    0 calc(100% - var(--lithic-cut-small)),
+    0 var(--lithic-cut-small)
+  );
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  cursor: pointer;
+  transition: color var(--lithic-motion-select) var(--lithic-motion-curve), background-color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-filter:is(:hover, [data-l-state="hover"]):not([aria-pressed="true"]) {
+  background: color-mix(in srgb, var(--lithic-fg2) calc(var(--lithic-alpha-hover-ink) * 100%), transparent);
+}
+
+.l-filter[aria-pressed="true"] {
+  border-color: transparent;
+  color: var(--lithic-on-sel);
+}
+
+.l-filter-count {
+  font: var(--lithic-type-mono-sm-weight) var(--lithic-type-mono-sm-size)/var(--lithic-type-mono-sm-line) var(--lithic-type-mono-sm-family);
+}
+
+.l-tabs {
+  min-height: var(--lithic-size-tabs-height);
+  border-bottom: var(--lithic-size-tabs-baseline) solid var(--lithic-vein);
+}
+
+.l-tab {
+  min-height: var(--lithic-size-tabs-height);
+  padding-inline: calc(var(--lithic-size-tabs-label-extra) / 2);
+  border: 0;
+  background: transparent;
+  color: var(--lithic-fg3);
+  font: var(--lithic-type-label-weight) var(--lithic-type-label-size)/var(--lithic-type-label-line) var(--lithic-type-label-family);
+  cursor: pointer;
+  transition: color var(--lithic-motion-hover-out) var(--lithic-motion-curve);
+}
+
+.l-tab:is(:hover, [data-l-state="hover"]):not([aria-selected="true"]) {
+  color: var(--lithic-fg2);
+  transition-duration: var(--lithic-motion-hover-in);
+}
+
+.l-tab[aria-selected="true"] {
+  color: var(--lithic-fg);
+}
+
+.l-tabs-blade {
+  bottom: calc(-1 * var(--lithic-size-tabs-baseline));
+  height: var(--lithic-size-tabs-blade);
+  background: var(--lithic-fg);
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--lithic-size-tabs-blade)) 100%, 0 100%);
+}
+
+.l-disclosure {
+  display: grid;
+  gap: var(--lithic-space-s2);
+}
+
+.l-disclosure-content {
+  height: var(--l-disclosure-height, 0px);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transition: height var(--lithic-motion-unfold) var(--lithic-motion-curve), opacity var(--lithic-motion-unfold) var(--lithic-motion-curve), visibility 0s linear var(--lithic-motion-unfold);
+}
+
+.l-disclosure[data-l-open] > .l-disclosure-content {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .l-slider-handle,
+  .l-filter-slab,
+  .l-tabs-blade,
+  .l-disclosure-content,
+  .l-toggle::before,
+  .l-toggle::after {
+    transition-duration: 0s;
+  }
+}

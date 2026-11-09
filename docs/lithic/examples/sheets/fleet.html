@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fleet</title>
+  <link rel="stylesheet" href="../../library/web/lithic.css">
+  <style>
+    html, body { margin: 0; }
+    .sheet { width: 1440px; height: 900px; overflow: hidden; }
+    .sheet .l-app-frame { height: 900px; min-height: 900px; }
+    .list-head { display: grid; gap: var(--lithic-space-s3); margin-bottom: var(--lithic-space-s3); }
+    .list-head h1, .list-head p { margin: 0; }
+    .list-tools { display: grid; gap: var(--lithic-space-s2); }
+    .list-tools .l-search { width: 100%; }
+    .fleet-list { --l-row-list-height: 670px; }
+    .work-stack { display: grid; align-content: start; gap: var(--lithic-space-s4); }
+    .overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lithic-space-s4); }
+    .overview > .l-section + .l-section { margin-block-start: 0; }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <div class="l-app-frame" data-l-size-class="expanded">
+      <nav class="l-rail" aria-label="Ryoport navigation">
+        <a class="l-rail-home l-cut" href="now.html" aria-label="Now"><span class="l-brand-mark" aria-hidden="true"></span></a>
+        <div class="l-rail-primary">
+          <a class="l-rail-destination l-cut" href="fleet.html" aria-current="page"><span class="l-glyph" aria-hidden="true">dns</span><span class="l-rail-label">Fleet</span></a>
+          <button class="l-new-plaque l-cut" type="button" aria-label="New"><span class="l-glyph" aria-hidden="true">add</span><span class="l-rail-label">New</span></button>
+          <a class="l-rail-destination l-cut" href="becoming.html"><span class="l-glyph" aria-hidden="true">history</span><span class="l-rail-label">Activity</span></a>
+        </div>
+        <a class="l-rail-destination l-rail-settings l-cut" href="settings.html"><span class="l-glyph" aria-hidden="true">tune</span><span class="l-rail-label">Settings</span></a>
+      </nav>
+
+      <aside class="l-app-frame-pane l-app-frame-list l-cut" aria-label="Fleet resources">
+        <header class="list-head">
+          <div><h1 class="l-type-section">Fleet</h1><p class="l-type-body">Three running. <span class="l-attention">scratch-arch needs you.</span></p></div>
+          <div class="list-tools">
+            <div class="l-search l-cut"><span class="l-glyph" aria-hidden="true">search</span><span class="l-type-caption" data-l-search-hint>/</span><input class="l-text-field" type="search" placeholder="Search fleet" aria-label="Search fleet"><button class="l-icon-plaque l-quiet l-small" type="button" data-l-search-clear aria-label="Clear search" hidden><span class="l-glyph" aria-hidden="true">close</span></button></div>
+            <div class="l-filters" role="group" aria-label="Fleet filter">
+              <span class="l-filter-slab" aria-hidden="true"></span>
+              <button class="l-filter" type="button" aria-pressed="true" data-value="all">All <span class="l-filter-count">9</span></button>
+              <button class="l-filter" type="button" aria-pressed="false" data-value="machines" tabindex="-1">Machines <span class="l-filter-count">6</span></button>
+              <button class="l-filter" type="button" aria-pressed="false" data-value="servers" tabindex="-1">Servers <span class="l-filter-count">3</span></button>
+              <button class="l-filter" type="button" aria-pressed="false" data-value="consoles" tabindex="-1">Consoles <span class="l-filter-count">1</span></button>
+            </div>
+          </div>
+        </header>
+
+        <div class="l-row-list fleet-list" tabindex="0" aria-label="Fleet resources">
+          <div class="l-row-list__items">
+            <section class="l-group">
+              <header class="l-group-header"><h2 class="l-group-header__title">Needs you</h2><span class="l-group-header__count">1</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="needs-rows" aria-label="Collapse Needs you"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header>
+              <div class="l-group__rows" id="needs-rows">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="attention" data-value="scratch-arch"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">warning</span></span><span class="l-tablet__copy"><span class="l-tablet__title">scratch-arch</span><span class="l-tablet__facts">ally · Disposable</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Needs you</span><span class="l-tablet__proof">Key changed</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Review</button></span></span></article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header"><h2 class="l-group-header__title">Pinned</h2><span class="l-group-header__count">1</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="pinned-rows" aria-label="Collapse Pinned"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header>
+              <div class="l-group__rows" id="pinned-rows">
+                <article class="l-tablet l-notch" role="option" aria-selected="true" data-tone="alive" data-value="ubuntu-24.04"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">ubuntu-24.04</span><span class="l-tablet__facts">ally · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span></article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header"><h2 class="l-group-header__title">Running</h2><span class="l-group-header__count">3</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="running-rows" aria-label="Collapse Running"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header>
+              <div class="l-group__rows" id="running-rows">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-value="alpine-instant"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">memory</span></span><span class="l-tablet__copy"><span class="l-tablet__title">alpine-instant</span><span class="l-tablet__facts">ally · Instant</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">12 min</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span></article>
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="alive" data-value="windows-11"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">desktop_windows</span></span><span class="l-tablet__copy"><span class="l-tablet__title">windows-11</span><span class="l-tablet__facts">mika-server · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Running</span><span class="l-tablet__proof">Healthy</span></span><span class="l-tablet__action"><button class="l-plaque l-quiet l-small" type="button">Open</button></span></span></article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header"><h2 class="l-group-header__title">Becoming</h2><span class="l-group-header__count">1</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="becoming-rows" aria-label="Collapse Becoming"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header>
+              <div class="l-group__rows" id="becoming-rows">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="becoming" data-value="fedora-43"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">dns</span></span><span class="l-tablet__copy"><span class="l-tablet__title">fedora-43</span><span class="l-tablet__facts">prowl · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Creating 64%</span><span class="l-tablet__proof">Installing image</span></span><span class="l-tablet__action"><button class="l-plaque l-danger-line l-small" type="button">Cancel</button></span></span><span class="l-tablet__progress l-blade" style="--l-fraction:.64" aria-hidden="true"></span></article>
+              </div>
+            </section>
+            <section class="l-group">
+              <header class="l-group-header"><h2 class="l-group-header__title">Stopped</h2><span class="l-group-header__count">1</span><button class="l-icon-plaque l-quiet l-small l-group-header__toggle" type="button" aria-expanded="true" aria-controls="stopped-rows" aria-label="Collapse Stopped"><span class="l-glyph" aria-hidden="true">expand_more</span></button></header>
+              <div class="l-group__rows" id="stopped-rows">
+                <article class="l-tablet l-notch" role="option" aria-selected="false" data-tone="idle" data-value="kolibrios-latest-en_US"><span class="l-tablet__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><span class="l-tablet__copy"><span class="l-tablet__title">kolibrios-latest-en_US</span><span class="l-tablet__facts">prowl · Sealed</span></span><span class="l-tablet__trailing"><span class="l-tablet__summary"><span class="l-tablet__claim">Stopped</span><span class="l-tablet__proof">2 hours</span></span><span class="l-tablet__action"><button class="l-plaque l-line l-small" type="button">Start</button></span></span></article>
+              </div>
+            </section>
+          </div>
+        </div>
+      </aside>
+
+      <section class="l-app-frame-pane l-app-frame-work l-cut work-stack" aria-label="ubuntu-24.04 details">
+        <header class="l-header l-mineral-field" data-tone="alive">
+          <div class="l-header__identity"><span class="l-header__mark"><span class="l-glyph" aria-hidden="true">computer</span></span><h1 class="l-header__name">ubuntu-24.04</h1></div>
+          <p class="l-header__proof">Running · Healthy</p>
+          <p class="l-header__note">ally at ops@192.0.2.18</p>
+          <div class="l-marks"><span class="l-marks__mark">Sealed</span><span class="l-marks__mark">Pinned</span></div>
+          <div class="l-header__acts"><button class="l-plaque l-line" type="button">Open console</button><button class="l-plaque l-danger-line" type="button">Stop machine</button><button class="l-icon-plaque l-quiet" type="button" aria-label="More machine actions"><span class="l-glyph" aria-hidden="true">more_horiz</span></button></div>
+        </header>
+        <div class="l-tabs" role="tablist" aria-label="Machine details">
+          <span class="l-tabs-blade" aria-hidden="true"></span>
+          <button class="l-tab" type="button" role="tab" aria-selected="true" aria-controls="fleet-overview" id="fleet-overview-tab">Overview</button>
+          <button class="l-tab" type="button" role="tab" aria-selected="false" aria-controls="fleet-console" id="fleet-console-tab" tabindex="-1">Console</button>
+          <button class="l-tab" type="button" role="tab" aria-selected="false" aria-controls="fleet-network" id="fleet-network-tab" tabindex="-1">Network</button>
+          <button class="l-tab" type="button" role="tab" aria-selected="false" aria-controls="fleet-storage" id="fleet-storage-tab" tabindex="-1">Storage</button>
+        </div>
+        <div class="overview" id="fleet-overview" role="tabpanel" aria-labelledby="fleet-overview-tab">
+          <section class="l-section"><h2 class="l-section__title">Machine</h2><div class="l-slab l-cut"><dl class="l-facts"><div class="l-facts__row"><dt>Server</dt><dd>ally</dd></div><div class="l-facts__row"><dt>Image</dt><dd>ubuntu-24.04</dd></div><div class="l-facts__row"><dt>Address</dt><dd class="l-literal">ops@192.0.2.18</dd></div><div class="l-facts__row"><dt>Uptime</dt><dd>4 hours</dd></div></dl></div></section>
+          <section class="l-section"><h2 class="l-section__title">Readings</h2><div class="l-slab l-cut"><dl class="l-facts"><div class="l-facts__row"><dt>CPU</dt><dd>18%</dd></div><div class="l-facts__row"><dt>Memory</dt><dd>3.2 GiB of 8 GiB</dd></div><div class="l-facts__row"><dt>Disk</dt><dd>19 GiB free</dd></div><div class="l-facts__row"><dt>State</dt><dd><span class="l-claim" data-tone="alive"><span class="l-flake" data-tone="alive" aria-hidden="true"></span>Running</span></dd></div></dl></div></section>
+        </div>
+        <div id="fleet-console" role="tabpanel" aria-labelledby="fleet-console-tab" hidden></div>
+        <div id="fleet-network" role="tabpanel" aria-labelledby="fleet-network-tab" hidden></div>
+        <div id="fleet-storage" role="tabpanel" aria-labelledby="fleet-storage-tab" hidden></div>
+      </section>
+    </div>
+  </main>
+  <script type="module">
+    import Lithic from '../../library/web/lithic.js';
+    Lithic.init();
+  </script>
+</body>
+</html>
