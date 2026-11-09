@@ -26,7 +26,7 @@ Item {
             if (!ws[i].special && ws[i].active && ws[i].output === wsWidget.screenName)
                 return ws[i]
         }
-        return Wm.focusedWorkspace
+        return null
     }
 
     // Indicates whether this monitor holds the keyboard/window input focus.
