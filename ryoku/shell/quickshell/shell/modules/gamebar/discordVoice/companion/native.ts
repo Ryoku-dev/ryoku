@@ -88,6 +88,7 @@ export function disconnect(_: IpcMainInvokeEvent) {
     socket?.destroy();
     socket = undefined;
     reset();
+    queue.length = 0;
     for (const waiter of waiters.splice(0))
         waiter("");
 }

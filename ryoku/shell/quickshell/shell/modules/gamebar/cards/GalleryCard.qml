@@ -4,12 +4,13 @@ import QtQuick
 import Qt.labs.folderlistmodel
 import shell.services
 import ".."
+import "../../../components"
 import Ryoku.Ui.Singletons
 import "../look"
 
-// Gallery: the newest screenshots, live from the folder the capture path
-// writes, plus one press to open either capture folder. Thumbnails are the
-// files themselves, so there is no separate index to fall out of date.
+// Gallery: the newest screenshots and recordings, live from the folders the
+// capture path writes, plus one press to open the current folder. Thumbnails
+// are the files themselves, so there is no separate index to fall out of date.
 GameBarCard {
     id: card
 
@@ -18,7 +19,9 @@ GameBarCard {
     readonly property string shotsDir: Capture.shotsDir
     readonly property string clipsDir: Paths.recordingsDir
 
-    function newest(model, count) {
+    property string mode: "shots"
+
+    function newest(model, count, kind) {
         const all = [];
         for (let i = 0; i < model.count; i++) {
             const url = model.get(i, "fileUrl");
@@ -30,6 +33,8 @@ GameBarCard {
             all.push({
                 url: "" + url,
                 path: "" + model.get(i, "filePath"),
+                name: "" + model.get(i, "fileName"),
+                kind: kind,
                 t: when
             });
         }
@@ -37,13 +42,23 @@ GameBarCard {
         return all.slice(0, count);
     }
 
-    readonly property var shots: card.newest(shotFiles, 6)
+    readonly property var shots: card.newest(shotFiles, 6, "shot")
+    readonly property var clips: card.newest(clipFiles, 6, "clip")
+    readonly property var items: card.mode === "clips" ? card.clips : card.shots
+    readonly property string folder: card.mode === "clips" ? card.clipsDir : card.shotsDir
 
     FolderListModel {
         id: shotFiles
         folder: "file://" + card.shotsDir
         showDirs: false
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+    }
+
+    FolderListModel {
+        id: clipFiles
+        folder: "file://" + card.clipsDir
+        showDirs: false
+        nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.mov"]
     }
 
     Column {
@@ -57,8 +72,10 @@ GameBarCard {
             Text {
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: card.shots.length === 1
-                    ? I18n.tr("1 recent shot") : card.shots.length + " " + I18n.tr("recent shots")
+                text: card.items.length === 1
+                    ? (card.mode === "clips" ? I18n.tr("1 recent clip") : I18n.tr("1 recent shot"))
+                    : card.items.length + " " + (card.mode === "clips"
+                        ? I18n.tr("recent clips") : I18n.tr("recent shots"))
                 color: GameBarLook.subtext
                 font.family: GameBarLook.face
                 font.pixelSize: GameBarLook.smallie * card.s
@@ -70,7 +87,7 @@ GameBarCard {
                 s: card.s
                 compact: true
                 label: I18n.tr("Folder")
-                onClicked: Spawn.run(["xdg-open", card.shotsDir])
+                onClicked: Spawn.run(["xdg-open", card.folder])
             }
         }
 
@@ -81,7 +98,7 @@ GameBarCard {
             spacing: 6 * card.s
 
             Repeater {
-                model: card.shots
+                model: card.items
 
                 delegate: Item {
                     id: thumb
@@ -98,10 +115,35 @@ GameBarCard {
 
                         Image {
                             anchors.fill: parent
-                            source: thumb.modelData.url
+                            source: thumb.modelData.kind === "shot" ? thumb.modelData.url : ""
+                            visible: thumb.modelData.kind === "shot"
                             asynchronous: true
                             fillMode: Image.PreserveAspectCrop
                         }
+
+                        GlyphIcon {
+                            anchors.centerIn: parent
+                            anchors.verticalCenterOffset: -5 * card.s
+                            width: 24 * card.s
+                            height: 24 * card.s
+                            visible: thumb.modelData.kind === "clip"
+                            name: "play"
+                            color: GameBarLook.fg
+                        }
+
+                        Text {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            anchors.margins: 4 * card.s
+                            visible: thumb.modelData.kind === "clip"
+                            text: thumb.modelData.name
+                            color: GameBarLook.fg
+                            font.family: GameBarLook.face
+                            font.pixelSize: GameBarLook.smallest * card.s
+                            elide: Text.ElideMiddle
+                        }
+
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: true
@@ -114,9 +156,10 @@ GameBarCard {
         }
 
         Text {
-            visible: card.shots.length === 0
+            visible: card.items.length === 0
             width: parent.width
-            text: I18n.tr("No screenshots yet")
+            text: card.mode === "clips"
+                ? I18n.tr("No recordings yet") : I18n.tr("No screenshots yet")
             color: GameBarLook.subtext
             horizontalAlignment: Text.AlignHCenter
             font.family: GameBarLook.face
@@ -129,13 +172,15 @@ GameBarCard {
 
             GameBarTextButton {
                 s: card.s
+                primary: card.mode === "shots"
                 label: I18n.tr("Screenshots")
-                onClicked: Spawn.run(["xdg-open", card.shotsDir])
+                onClicked: card.mode = "shots"
             }
             GameBarTextButton {
                 s: card.s
+                primary: card.mode === "clips"
                 label: I18n.tr("Recordings")
-                onClicked: Spawn.run(["xdg-open", card.clipsDir])
+                onClicked: card.mode = "clips"
             }
         }
     }

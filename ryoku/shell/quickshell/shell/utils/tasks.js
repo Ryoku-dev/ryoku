@@ -1,10 +1,8 @@
 // ps rows for the Game Bar tasks card. The command is
 // `ps -eo pid=,comm=,cputimes=,etimes=,rss=`: comm may contain spaces, so the
 // numeric columns are peeled off both ends and whatever remains is the name.
-// cputimes counts clock ticks of CPU time over the process lifetime, which is
-// the average load, not an instantaneous sample: good enough for a short list.
-
-const CLK_TCK = 100;
+// cputimes is CPU time in seconds over the process lifetime, which is the
+// average load, not an instantaneous sample: good enough for a short list.
 
 const PROTECTED = [
     "systemd", "systemd-logind", "logind", "dbus-daemon", "dbus-broker",
@@ -27,11 +25,11 @@ function parse(text) {
         const pid = parseInt(parts[0], 10);
         const rssKb = parseInt(parts[parts.length - 1], 10);
         const secs = parseInt(parts[parts.length - 2], 10);
-        const ticks = parseInt(parts[parts.length - 3], 10);
+        const cpuSecs = parseInt(parts[parts.length - 3], 10);
         const name = parts.slice(1, parts.length - 3).join(" ");
         if (!(pid > 0) || name.length === 0)
             continue;
-        const cpu = Math.max(0, (ticks / CLK_TCK) / Math.max(1, secs) * 100);
+        const cpu = Math.max(0, cpuSecs / Math.max(1, secs) * 100);
         out.push({
             pid: pid,
             name: name,

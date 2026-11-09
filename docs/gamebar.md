@@ -46,7 +46,8 @@ before a capture so it is never in its own screenshot or recording.
 - **Audio** carries the same output and application faders as the audio menu.
   A level set here is the level PipeWire holds everywhere.
 - **Gallery** shows the newest screenshots and recordings as the files
-  themselves, plus a button to open either capture folder.
+  themselves, with a switch between the two lists and a button to open the
+  current folder.
 
 ## Placement
 

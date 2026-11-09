@@ -212,6 +212,8 @@ GameBarCard {
 
                     delegate: ParticipantAvatar {
                         required property int index
+                        required property var modelData
+                        participant: modelData
                         s: card.s
                         visible: index < card.avatarLimit
                         dimOthers: card.dimOthers
@@ -430,6 +432,8 @@ GameBarCard {
 
                 delegate: ParticipantAvatar {
                     required property int index
+                    required property var modelData
+                    participant: modelData
                     width: card.miniCell
                     visible: index < card.avatarLimit
                     s: card.s

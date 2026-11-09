@@ -400,7 +400,8 @@ PanelWindow {
     onCardsChanged: if (win.active) win.shownCards = win.cards
     Component.onCompleted: {
         win.live = win.active;
-        win.shownCards = win.cards;
+        if (win.active)
+            win.shownCards = win.cards;
         if (!win.cfg.enabled)
             GameBarStore.closeBar();
     }
@@ -503,7 +504,7 @@ PanelWindow {
 
     Timer {
         id: exitTimer
-        interval: 240
+        interval: Math.max(1, win.fadeMs)
         onTriggered: {
             if (win.wanted) {
                 win.live = true;
@@ -611,7 +612,7 @@ PanelWindow {
             Loader {
                 id: cardLoader
                 anchors.fill: parent
-                active: slot.on
+                active: slot.on && win.live
                 sourceComponent: win.componentFor(slot.cardId)
             }
         }
@@ -667,10 +668,8 @@ PanelWindow {
         win.sawSelecting = false;
         win.suppressed = true;
         Capture.shoot(mode);
-        if (mode === "all")
+        if (mode === "all" || Capture.selecting === "")
             win.restoreAfter(Capture.delay * 1000 + 800);
-        else
-            restorePoll.restart();
     }
 
     function startRecording() {
@@ -684,18 +683,21 @@ PanelWindow {
         restoreDelay.restart();
     }
 
-    Timer {
-        id: restorePoll
-        interval: 150
-        repeat: true
-        onTriggered: {
+    // Follow the selection overlay itself instead of polling for it: a fast
+    // click can open and close the overlay between two timer ticks, and a
+    // selection that never reaches the source must not leave the bar hidden.
+    Connections {
+        target: Capture
+        function onSelectingChanged() {
+            if (!win.suppressed)
+                return;
             if (Capture.selecting !== "") {
                 win.sawSelecting = true;
                 return;
             }
             if (!win.sawSelecting)
                 return;
-            restorePoll.stop();
+            win.sawSelecting = false;
             win.restoreAfter(Capture.delay * 1000 + 700);
         }
     }
