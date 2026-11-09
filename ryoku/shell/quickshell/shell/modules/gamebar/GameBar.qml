@@ -7,6 +7,7 @@ import shell.services
 import Ryoku.Ui.Singletons
 import "look"
 import "cards"
+import "recording.js" as Recording
 import "discordVoice/layout.js" as VoiceLayout
 
 // One passive overlay per output, above a fullscreen game. Only the strip and
@@ -689,11 +690,12 @@ PanelWindow {
     function startRecording() {
         restoreDelay.stop();
         recordStartFallback.stop();
-        win.reopenAfterRecording = GameBarStore.open;
+        const plan = Recording.begin(GameBarStore.open);
+        win.reopenAfterRecording = plan.reopen;
         win.recordingCycle = true;
         win.hidingForRecording = true;
         win.suppressed = true;
-        if (GameBarStore.open)
+        if (plan.closeBar)
             GameBarStore.closeBar();
         Recorder.startAfter(Recorder.recordArgs(), 1);
         recordStartFallback.restart();
@@ -702,17 +704,17 @@ PanelWindow {
     function endRecordingSuppression() {
         if (!win.recordingCycle)
             return;
-        win.recordingCycle = false;
-        win.hidingForRecording = false;
+        const plan = Recording.finish(win.recordingCycle, win.reopenAfterRecording,
+            GameBarStore.open);
+        win.recordingCycle = plan.cycle;
+        win.hidingForRecording = plan.hold;
         recordStartFallback.stop();
         // Restore the pre-recording state, even when the bar was reopened while
         // the recording ran.
-        if (win.reopenAfterRecording) {
-            if (!GameBarStore.open)
-                GameBarStore.openBar(GameBarStore.monitor);
-        } else if (GameBarStore.open) {
+        if (plan.openBar)
+            GameBarStore.openBar(GameBarStore.monitor);
+        else if (plan.closeBar)
             GameBarStore.closeBar();
-        }
         win.reopenAfterRecording = false;
         win.restoreAfter(900);
     }
@@ -722,7 +724,7 @@ PanelWindow {
     // hold is released; the fallback keeps watching so a cancelled countdown
     // still ends the cycle.
     function releaseRecordingHold() {
-        if (!win.hidingForRecording)
+        if (!Recording.release(win.hidingForRecording, win.recordingCycle))
             return;
         win.hidingForRecording = false;
         restoreDelay.stop();
