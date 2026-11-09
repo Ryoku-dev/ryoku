@@ -41,12 +41,19 @@ function ensure() {
     candidate.setEncoding("utf8");
 
     candidate.on("connect", () => {
+        // A connect can land after disconnect() or a reconnect replaced this
+        // socket; it must not clear the new socket's connecting flag or send
+        // state through the old one.
+        if (socket !== candidate)
+            return;
         connecting = false;
         if (latest)
             candidate.write(latest);
     });
 
     candidate.on("data", (chunk: string) => {
+        if (socket !== candidate)
+            return;
         incoming += chunk;
         let newline = incoming.indexOf("\n");
         while (newline >= 0) {
