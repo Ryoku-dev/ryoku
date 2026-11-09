@@ -161,6 +161,8 @@ GameBarCard {
                         Image {
                             anchors.fill: parent
                             source: thumb.modelData.kind === "shot" ? thumb.modelData.url : ""
+                            sourceSize.width: Math.ceil(thumb.width)
+                            sourceSize.height: Math.ceil(thumb.height)
                             visible: thumb.modelData.kind === "shot"
                             asynchronous: true
                             fillMode: Image.PreserveAspectCrop
