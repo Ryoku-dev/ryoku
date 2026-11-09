@@ -31,7 +31,7 @@ func reconcileUpdateChannel(checkOnly bool) recResult {
 	head, _ := sys.RunOut("git", "-C", repo, "symbolic-ref", "--short", "--quiet", "HEAD")
 	head = strings.TrimSpace(head)
 	if head == ch {
-		return okRes(i18n.T("updates come from the source checkout on %q; `ryoku track %s` moves this box onto packages"), ch, sys.TrackName(ch))
+		return okRes(i18n.T("updates come from the source checkout on %q; `ryoku track stable` moves this box onto packages"), ch)
 	}
 	if checkOnly {
 		return wouldRes(i18n.T("the update checkout %s is on %q but the tracked channel is %q; `ryoku update` measures against the wrong branch"), repo, head, ch).
@@ -39,15 +39,28 @@ func reconcileUpdateChannel(checkOnly bool) recResult {
 	}
 	if dirty, _ := sys.RunOut("git", "-C", repo, "status", "--porcelain", "--untracked-files=no"); strings.TrimSpace(dirty) != "" {
 		return warnRes(i18n.T("%s is on %q, not the tracked channel %q, and has uncommitted changes, so its branch was left as-is"), repo, head, ch).
-			withFix(i18n.T("commit or stash in %s, then run `ryoku track %s`"), repo, sys.TrackName(ch))
+			withFix(i18n.T("commit or stash in %s, then run `ryoku doctor`"), repo)
 	}
 	_, _ = sys.RunOut("git", "-C", repo, "fetch", "origin", ch)
 	if _, err := sys.RunOut("git", "-C", repo, "checkout", ch); err != nil {
 		return warnRes(i18n.T("could not switch %s onto the tracked channel %q: %v"), repo, ch, err).
-			withFix("ryoku track %s", sys.TrackName(ch))
+			withFix("%s", retrackCommand(ch))
 	}
 	_, _ = sys.RunOut("git", "-C", repo, "reset", "--hard", "origin/"+ch)
 	return fixedRes(i18n.T("switched the update checkout onto the tracked channel %q; run `ryoku update` to redeploy"), ch)
+}
+
+// retrackCommand rebuilds a checkout on the branch it tracks when that branch
+// has a `ryoku track` name. Any other branch has none, so a checkout that
+// cannot follow it moves onto stable packages instead.
+func retrackCommand(ch string) string {
+	switch ch {
+	case "unstable-dev":
+		return "ryoku track unstable"
+	case "main":
+		return "ryoku track stable --source"
+	}
+	return "ryoku track stable"
 }
 
 // reconcileRepoPointer unsticks a box whose update-checkout record broke: it

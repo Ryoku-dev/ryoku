@@ -12,7 +12,7 @@ set -euo pipefail
 
 CHANNEL="${1:-unstable-dev}"
 case "$CHANNEL" in
-  main | unstable-dev) ;;
+  main | unstable-dev | hyperion) ;;
   -h | --help)
     sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
     echo "usage: ryoku track unstable | ryoku track stable --source"
@@ -25,11 +25,11 @@ REPO="$HOME/ryoku-arch"
 REPO_URL="${RYOKU_TRACK_URL:-https://github.com/ryoku-dev/ryoku.git}"
 say() { printf '\n==> %s\n' "$*"; }
 
-if [[ $CHANNEL == unstable-dev ]]; then
-  say "Switching this box to unstable-dev, the bleeding edge rebuilt from source. Use at your own risk."
-else
-  say "Switching this box to main, the stable channel, tracked from source."
-fi
+case "$CHANNEL" in
+  unstable-dev) say "Switching this box to unstable-dev, the bleeding edge rebuilt from source. Use at your own risk." ;;
+  main) say "Switching this box to main, the stable channel, tracked from source." ;;
+  *) say "Switching this box to $CHANNEL, rebuilt from source. It is still in development; use at your own risk." ;;
+esac
 
 host_pkgmgr() {
   if command -v ryoku-host >/dev/null 2>&1; then
