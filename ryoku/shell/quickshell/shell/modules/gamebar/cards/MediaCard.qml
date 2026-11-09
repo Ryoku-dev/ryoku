@@ -21,40 +21,6 @@ GameBarCard {
     readonly property string artist: card.player
         ? Theme.joinArtists(card.player.trackArtists, card.player.trackArtist) : ""
 
-    component Transport: Item {
-        id: button
-        property string glyph: ""
-        property bool available: true
-
-        width: 40 * card.s
-        height: 40 * card.s
-        opacity: button.available ? 1 : 0.35
-
-        signal tapped()
-
-        Rectangle {
-            anchors.fill: parent
-            radius: height / 2
-            color: transportHover.containsMouse ? GameBarLook.hover : "transparent"
-        }
-        GlyphIcon {
-            anchors.centerIn: parent
-            width: 18 * card.s
-            height: 18 * card.s
-            name: button.glyph
-            color: GameBarLook.fg
-            stroke: 1.7
-        }
-        MouseArea {
-            id: transportHover
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: button.available
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.tapped()
-        }
-    }
-
     Column {
         width: parent.width
         spacing: 12 * card.s
@@ -120,17 +86,20 @@ GameBarCard {
             anchors.horizontalCenter: parent.horizontalCenter
             spacing: 8 * card.s
 
-            Transport {
+            GameBarTransport {
+                s: card.s
                 glyph: "prev"
                 available: card.present && card.player.canGoPrevious
                 onTapped: if (card.player) card.player.previous()
             }
-            Transport {
+            GameBarTransport {
+                s: card.s
                 glyph: Media.playing ? "pause" : "play"
                 available: card.present
                 onTapped: Media.toggle()
             }
-            Transport {
+            GameBarTransport {
+                s: card.s
                 glyph: "next"
                 available: card.present && card.player.canGoNext
                 onTapped: if (card.player) card.player.next()

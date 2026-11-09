@@ -40,6 +40,10 @@ eq(top(sample, 5, "root").map((r) => r.name), ["systemd"], "top can select the o
 eq(parse("").length, 0, "empty input parses to nothing");
 eq(parse("garbage\n\n").length, 0, "junk lines are skipped");
 
+const scanMs = 1700000000000;
+eq(parse(sample, scanMs)[1].started, 1700000000 - 120, "start is the scan time minus elapsed seconds");
+eq(top(sample, 1, "dodo", scanMs)[0].started, 1700000000 - 120, "top forwards the scan time");
+
 if (failed > 0) {
     console.log(failed + " failure(s)");
     process.exit(1);

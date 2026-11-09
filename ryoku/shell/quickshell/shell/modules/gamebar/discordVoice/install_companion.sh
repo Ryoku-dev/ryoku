@@ -36,14 +36,15 @@ export PATH="$PNPM_PREFIX/bin:$PATH"
 if ! command -v pnpm >/dev/null; then
     if command -v corepack >/dev/null; then
         say "enabling pnpm through corepack"
-        corepack enable pnpm
+        corepack enable --install-directory "$PNPM_PREFIX/bin" pnpm
     else
         say "installing pnpm into the user prefix"
         npm install --global --prefix "$PNPM_PREFIX" pnpm@10
-        hash -r
     fi
+    hash -r
 fi
-command -v pnpm >/dev/null || die "pnpm could not be installed"
+PNPM="$(command -v pnpm || true)"
+[[ -n "$PNPM" ]] || die "pnpm could not be installed"
 
 client_repo() {
     case "$1" in
@@ -115,7 +116,7 @@ install_client() {
     cp -r "$PLUGIN" "$dir/src/userplugins/$PLUGIN_NAME"
 
     say "building $client (this takes a few minutes the first time)"
-    (cd "$dir" && pnpm install --frozen-lockfile && pnpm build)
+    (cd "$dir" && "$PNPM" install --frozen-lockfile && "$PNPM" build)
     cp "$dir/package.json" "$dir/dist/package.json"
 
     if [[ ! -f "$state" ]]; then
@@ -130,8 +131,13 @@ import json
 import sys
 
 path, key, dist = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path, "r", encoding="utf-8") as handle:
-    state = json.load(handle)
+try:
+    with open(path, "r", encoding="utf-8") as handle:
+        state = json.load(handle)
+except (OSError, ValueError) as error:
+    raise SystemExit(f"error: cannot read {path}: {error}; fix it and run this again")
+if not isinstance(state, dict):
+    raise SystemExit(f"error: {path} is not a JSON object; fix it and run this again")
 state[key] = dist
 with open(path, "w", encoding="utf-8") as handle:
     json.dump(state, handle, indent=4)

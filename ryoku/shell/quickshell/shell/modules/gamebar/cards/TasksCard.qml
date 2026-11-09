@@ -16,6 +16,8 @@ GameBarCard {
     id: card
 
     property var rows: []
+    property int pendingPid: 0
+    property int pendingStart: 0
     readonly property string user: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
     title: I18n.tr("Tasks")
@@ -45,7 +47,30 @@ GameBarCard {
         id: ps
         command: ["ps", "-eo", "user:64=,pid=,comm=,cputimes=,etimes=,rss="]
         stdout: StdioCollector {
-            onStreamFinished: card.rows = Tasks.top(text, 5, card.user)
+            onStreamFinished: card.rows = Tasks.top(text, 5, card.user, Date.now())
+        }
+    }
+
+    // The list refreshes every two seconds, so a pid can already belong to a
+    // new process by the time Stop is clicked. Re-read its elapsed time and
+    // signal only when that still points at the row the user confirmed.
+    Process {
+        id: verifier
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const pid = card.pendingPid;
+                const started = card.pendingStart;
+                card.pendingPid = 0;
+                card.pendingStart = 0;
+                const secs = parseInt(text.trim(), 10);
+                if (!(pid > 0) || !(secs >= 0))
+                    return;
+                if (Math.abs((Date.now() / 1000 - secs) - started) > 2)
+                    return;
+                killer.command = ["kill", "-TERM", String(pid)];
+                killer.running = true;
+                settle.restart();
+            }
         }
     }
 
@@ -94,10 +119,13 @@ GameBarCard {
                 width: parent.width
                 task: modelData
                 protectedName: Tasks.isProtected(modelData.name)
-                onEndRequested: pid => {
-                    killer.command = ["kill", "-TERM", String(pid)];
-                    killer.running = true;
-                    settle.restart();
+                onEndRequested: (pid, started) => {
+                    if (pid <= 0)
+                        return;
+                    card.pendingPid = pid;
+                    card.pendingStart = started;
+                    verifier.command = ["ps", "-o", "etimes=", "-p", String(pid)];
+                    verifier.running = true;
                 }
             }
         }
