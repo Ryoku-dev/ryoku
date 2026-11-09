@@ -23,25 +23,37 @@ GameBarCard {
 
     property string mode: "shots"
 
+    function stamp(model, row) {
+        const value = model.get(row, "fileModified");
+        return value ? (typeof value.getTime === "function"
+            ? value.getTime() : Date.parse(value) || 0) : 0;
+    }
+
+    // Both folder models sort newest first, so read only the rows the card
+    // draws instead of scanning and sorting a whole capture folder on every
+    // change. The direction check keeps this correct if a Qt release flips the
+    // meaning of sortReversed.
     function newest(model, count, kind) {
-        const all = [];
-        for (let i = 0; i < model.count; i++) {
-            const url = model.get(i, "fileUrl");
+        const total = model.count;
+        if (total === 0)
+            return [];
+        const fromEnd = total > 1 && stamp(model, total - 1) > stamp(model, 0);
+        const take = Math.min(count, total);
+        const out = [];
+        for (let i = 0; i < take; i++) {
+            const row = fromEnd ? total - 1 - i : i;
+            const url = model.get(row, "fileUrl");
             if (!url)
                 continue;
-            const stamp = model.get(i, "fileModified");
-            const when = stamp ? (typeof stamp.getTime === "function"
-                ? stamp.getTime() : Date.parse(stamp) || 0) : 0;
-            all.push({
+            out.push({
                 url: "" + url,
-                path: "" + model.get(i, "filePath"),
-                name: "" + model.get(i, "fileName"),
+                path: "" + model.get(row, "filePath"),
+                name: "" + model.get(row, "fileName"),
                 kind: kind,
-                t: when
+                t: stamp(model, row)
             });
         }
-        all.sort((a, b) => b.t - a.t);
-        return all.slice(0, count);
+        return out;
     }
 
     // FolderListModel can replace a file without changing the row count, so a
@@ -81,6 +93,8 @@ GameBarCard {
         folder: Util.fileUrl(card.shotsDir)
         showDirs: false
         nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+        sortField: FolderListModel.Time
+        sortReversed: false
     }
 
     FolderListModel {
@@ -88,6 +102,8 @@ GameBarCard {
         folder: Util.fileUrl(card.clipsDir)
         showDirs: false
         nameFilters: ["*.mp4", "*.mkv", "*.webm", "*.mov"]
+        sortField: FolderListModel.Time
+        sortReversed: false
     }
 
     Column {
