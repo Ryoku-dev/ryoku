@@ -91,6 +91,7 @@ GameBarCard {
 
                 Text {
                     text: card.unavailable ? "n/a"
+                        : card.tabIndex === 2 ? Math.round(card.mon.memoryUsedGiB * 10) / 10 + " GiB"
                         : Math.round(card.fraction * 100) + "%"
                     color: GameBarLook.fg
                     font.family: GameBarLook.face

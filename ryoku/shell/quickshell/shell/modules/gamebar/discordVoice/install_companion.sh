@@ -96,7 +96,14 @@ install_client() {
 
     say "$client mod source: $dir"
     if [[ -d "$dir/.git" ]]; then
-        git -C "$dir" pull --ff-only
+        local origin current dirty
+        origin="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+        [[ "$origin" == "$repo" ]] || die "$dir tracks ${origin:-no remote}, not $repo; move it aside and run this again"
+        current="$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        [[ "$current" == "main" ]] || die "$dir is on ${current:-an unknown branch}, not main; check it out and run this again"
+        dirty="$(git -C "$dir" status --porcelain --untracked-files=no)"
+        [[ -z "$dirty" ]] || die "$dir has local changes; revert them and run this again"
+        git -C "$dir" pull --ff-only || die "could not update $dir; check the network and run this again"
     else
         mkdir -p "$(dirname "$dir")"
         git clone --depth 1 "$repo" "$dir"

@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import shell.services
 import ".."
 import Ryoku.Ui.Singletons
 import "../look"
@@ -26,10 +27,17 @@ GameBarCard {
 
     Component.onCompleted: card.refresh()
 
+    // A pinned card keeps the surface mapped while the strip is closed, but a
+    // shot or a recording unmaps it and the session can be dark. Do not scan
+    // processes the user cannot see, and skip the Power Saver tier too.
+    readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
+        && !Presence.dark && !Perf.saver
+
     Timer {
         interval: 2000
         repeat: true
-        running: true
+        running: card.polling
+        onRunningChanged: if (running) card.refresh()
         onTriggered: card.refresh()
     }
 

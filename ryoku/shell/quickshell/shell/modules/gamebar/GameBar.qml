@@ -200,6 +200,7 @@ PanelWindow {
         ];
         const ys = [
             0,
+            Math.round((win.height - size.h) / 2),
             win.topPad + win.stripH + win.gap,
             win.height - size.h
         ];
