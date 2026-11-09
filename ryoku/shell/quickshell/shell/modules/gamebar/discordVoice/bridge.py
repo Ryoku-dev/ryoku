@@ -230,11 +230,7 @@ async def start_companion_server(self) -> None:
                 self.companion = None
                 if self.companion_active:
                     self.companion_active = False
-                    self.companion_digest = ""
-                    self.channel = None
-                    self.users.clear()
-                    emit("disconnected", reason="The Vesktop companion stopped")
-                    await self.connect()
+"participantCount": len(self.participants),
             writer.close()
             try:
                 await asyncio.wait_for(writer.wait_closed(), COMPANION_WRITE_TIMEOUT)
