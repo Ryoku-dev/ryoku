@@ -392,14 +392,19 @@ class VoiceBridge:
 
     async def select_channel(self, data: dict[str, Any] | None) -> None:
         self.users.clear()
-        if not data:
+        if not data or not data.get("id"):
             self.channel = None
             emit("voice_channel", channel=None, users=[])
             return
+        # A refresh can repeat only the channel id. Keep the name and guild that
+        # this same channel already reported instead of degrading the label.
+        previous = self.channel or {}
+        same = previous.get("id") == data["id"]
         self.channel = {
-            "id": data.get("id", ""),
-            "name": data.get("name", "Voice channel"),
-            "guild_id": data.get("guild_id", ""),
+            "id": data["id"],
+            "name": data.get("name") or (previous.get("name") if same else "")
+                or "Voice channel",
+            "guild_id": data.get("guild_id") or (previous.get("guild_id") if same else ""),
         }
         for state in data.get("voice_states", []):
             user = self.voice_user(state)

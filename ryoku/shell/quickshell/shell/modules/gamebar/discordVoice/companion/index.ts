@@ -26,6 +26,7 @@ let heartbeat: ReturnType<typeof setInterval> | undefined;
 let running = false;
 let busy = false;
 let again = false;
+let commandGeneration = 0;
 
 function participant(userId: string, state: any, guildId?: string) {
     const user = UserStore.getUser(userId);
@@ -102,10 +103,15 @@ function applyCommand(line: string) {
 }
 
 async function commandLoop() {
-    while (running) {
+    const generation = ++commandGeneration;
+    // Only the loop from the newest start keeps consuming. A loop that was
+    // still awaiting when the plugin restarted applies the one command it was
+    // handed, then yields so two consumers never run side by side.
+    while (running && generation === commandGeneration) {
         const line = await Native.nextCommand();
-        if (running)
-            applyCommand(line);
+        if (!running)
+            return;
+        applyCommand(line);
     }
 }
 

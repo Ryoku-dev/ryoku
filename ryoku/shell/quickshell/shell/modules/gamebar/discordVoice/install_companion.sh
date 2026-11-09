@@ -21,6 +21,11 @@ fi
 say() { printf '  %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
+case "$CLIENT" in
+    auto|vesktop|equibop) ;;
+    *) die "unsupported client: $CLIENT (use auto, vesktop or equibop)" ;;
+esac
+
 [[ -d "$PLUGIN" ]] || die "companion source is missing at $PLUGIN"
 command -v git >/dev/null || die "git is required"
 command -v node >/dev/null || die "node is required"
@@ -130,9 +135,17 @@ PY
 
 clients=()
 if [[ "$CLIENT" == "auto" ]]; then
-    [[ -d "$CONFIG_HOME/vesktop" ]] && clients+=("vesktop")
-    [[ -d "$CONFIG_HOME/equibop" ]] && clients+=("equibop")
-    [[ ${#clients[@]} -gt 0 ]] || die "no supported client config found; pass --client"
+    if client_running vesktop; then
+        clients=("vesktop")
+    elif client_running equibop; then
+        clients=("equibop")
+    elif [[ -d "$CONFIG_HOME/vesktop" ]]; then
+        clients=("vesktop")
+    elif [[ -d "$CONFIG_HOME/equibop" ]]; then
+        clients=("equibop")
+    else
+        die "no supported client config found; pass --client"
+    fi
 else
     clients=("$CLIENT")
 fi

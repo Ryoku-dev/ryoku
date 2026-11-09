@@ -42,12 +42,33 @@ GameBarCard {
         return all.slice(0, count);
     }
 
+    // FolderListModel can replace a file without changing the row count, so a
+    // count binding alone can stay stale. Bump a revision on every model signal
+    // and let both lists read it as their dependency.
+    property int revision: 0
+
+    Connections {
+        target: shotFiles
+        function onDataChanged() { card.revision++ }
+        function onRowsInserted() { card.revision++ }
+        function onRowsRemoved() { card.revision++ }
+        function onModelReset() { card.revision++ }
+    }
+
+    Connections {
+        target: clipFiles
+        function onDataChanged() { card.revision++ }
+        function onRowsInserted() { card.revision++ }
+        function onRowsRemoved() { card.revision++ }
+        function onModelReset() { card.revision++ }
+    }
+
     readonly property var shots: {
-        shotFiles.count;
+        card.revision;
         return card.newest(shotFiles, 6, "shot");
     }
     readonly property var clips: {
-        clipFiles.count;
+        card.revision;
         return card.newest(clipFiles, 6, "clip");
     }
     readonly property var items: card.mode === "clips" ? card.clips : card.shots
