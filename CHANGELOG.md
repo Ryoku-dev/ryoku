@@ -5,6 +5,15 @@ for finer detail.
 
 ## Unreleased
 
+### Added
+- QS Bar adds per-monitor workspace isolation (`isolateMonitors`), allowing
+  multi-monitor setups to show only the workspaces assigned to each screen on its
+  respective bar. The inactive screen dims its active workspace indicator to 72%
+  opacity to convey keyboard focus, and the right-click WorkspacePanel popup also
+  filters by screen. Accessible via `shell.json` (`qsbar.isolateMonitors`),
+  `ryoku-shell bar set workspaces isolateMonitors on/off`, and QS Bar Settings >
+  Identity > Workspaces (#767).
+
 ### Removed
 - The mango compositor is gone: its provider, config tree, packages,
   installer choice, deploy steps, tests and docs. Ryoku ships Hyprland and
