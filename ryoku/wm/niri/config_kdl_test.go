@@ -410,16 +410,45 @@ func TestWelcomeBuiltinWindowRule(t *testing.T) {
 	}
 }
 
-func TestRyoportBuiltinWindowRule(t *testing.T) {
+func TestRyoportAndRyotunesBuiltinWindowRules(t *testing.T) {
 	out := string(genSettings(defaultStore()))
-	want := "window-rule {\n" +
-		"    match app-id=\"^dev\\\\.ryoku\\\\.ryoport$\"\n" +
-		"    open-floating true\n" +
-		"    default-column-width { fixed 1180; }\n" +
-		"    default-window-height { fixed 760; }\n" +
-		"}\n"
-	if !strings.Contains(out, want) {
-		t.Errorf("Ryoport must open as a centred 1180x760 floating window\n%s", out)
+	tests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "Ryoport",
+			want: "window-rule {\n" +
+				"    match app-id=\"^dev\\\\.ryoku\\\\.ryoport$\"\n" +
+				"    open-floating true\n" +
+				"    default-column-width { fixed 1180; }\n" +
+				"    default-window-height { fixed 760; }\n" +
+				"}\n",
+		},
+		{
+			name: "Ryotunes",
+			want: "window-rule {\n" +
+				"    match app-id=\"^ryotunes$\"\n" +
+				"    open-floating true\n" +
+				"    default-column-width { fixed 1280; }\n" +
+				"    default-window-height { fixed 800; }\n" +
+				"}\n",
+		},
+		{
+			name: "Ryotunes Mini",
+			want: "window-rule {\n" +
+				"    match app-id=\"^ryotunes$\" title=\"^Ryotunes Mini$\"\n" +
+				"    default-column-width { fixed 520; }\n" +
+				"    default-window-height { fixed 176; }\n" +
+				"}\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !strings.Contains(out, tt.want) {
+				t.Errorf("%s builtin window rule missing\n%s", tt.name, out)
+			}
+		})
 	}
 }
 

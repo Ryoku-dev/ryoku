@@ -7,6 +7,9 @@
   opt-out before removing its retired `ryovm.desktop` override.
 
 ### Fixed
+- **Ryotunes floats on niri as it does on Hyprland.** It opens at 1280 by 800
+  and its mini player at 520 by 176 instead of tiling
+  (`wm/niri/config_rules.go`).
 - **English no longer parses a catalog of itself.** `en.json` maps every
   string to itself, and every QML process (shell, Hub, Ryogami picker,
   RyoStore) spent about 20 MB holding it; English now skips the file and
