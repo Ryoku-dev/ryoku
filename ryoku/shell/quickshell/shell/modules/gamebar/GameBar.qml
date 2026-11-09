@@ -343,10 +343,14 @@ PanelWindow {
             return;
         GameBarStore.resize(id, win.liveW / win.us, win.liveH / win.us);
         win.resizeCard = "";
-        const p = win.positionFor(id);
-        const clamped = win.clampPos(id, p.x, p.y);
-        if (clamped.x !== p.x || clamped.y !== p.y)
-            GameBarStore.place(id, clamped.x, clamped.y);
+        // positionFor() clamps, so compare the clamped spot with the stored one
+        // to persist the nudge a larger card needs at a screen edge.
+        const saved = GameBarStore.positionFor(id);
+        if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
+            const clamped = win.clampPos(id, saved.x, saved.y);
+            if (clamped.x !== saved.x || clamped.y !== saved.y)
+                GameBarStore.place(id, clamped.x, clamped.y);
+        }
     }
 
     // A pinned card is a picture once the bar closes: no mask rect, so the
@@ -682,10 +686,10 @@ PanelWindow {
         restoreDelay.stop();
         recordStartFallback.stop();
         win.reopenAfterRecording = GameBarStore.open;
-        if (GameBarStore.open)
-            GameBarStore.closeBar();
         win.hidingForRecording = true;
         win.suppressed = true;
+        if (GameBarStore.open)
+            GameBarStore.closeBar();
         Recorder.startAfter(Recorder.recordArgs(), 1);
         recordStartFallback.restart();
     }
