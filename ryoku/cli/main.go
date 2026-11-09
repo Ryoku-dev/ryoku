@@ -56,7 +56,7 @@ func main() {
 	case "update":
 		err = updater.Update(os.Args[2:])
 	case "materialize":
-		err = updater.Materialize()
+		err = updater.MaterializeCommand()
 	case "reset":
 		err = updater.Reset(os.Args[2:])
 	case "owner":

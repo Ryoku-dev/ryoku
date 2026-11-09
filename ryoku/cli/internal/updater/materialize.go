@@ -237,6 +237,21 @@ func applyGenerated(configHome string) {
 	}
 }
 
+// MaterializeCommand is `ryoku materialize`. A package upgrade's power cutover
+// runs it for every user, and on a box that builds from a checkout the
+// installed package's base can be another line entirely: laying it would swap
+// the deployed shell for the package's until the next deploy. Such a box takes
+// its config from `ryoku update` alone; an explicit RYOKU_CONFIG_BASE still wins.
+func MaterializeCommand() error {
+	if os.Getenv("RYOKU_CONFIG_BASE") == "" {
+		if repo := sys.ResolveRepo(); repo != "" {
+			fmt.Printf(i18n.T("this box runs its desktop from the checkout at %s; `ryoku update` lays its config, so the package's base was left alone\n"), repo)
+			return nil
+		}
+	}
+	return Materialize()
+}
+
 // Materialize lays the Ryoku-owned base configs into the user's ~/.config,
 // declaratively: every file the package ships under baseConfigDir() is
 // copied over (clobbering the previous Ryoku copy), files we shipped before

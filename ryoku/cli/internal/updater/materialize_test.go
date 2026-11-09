@@ -88,6 +88,37 @@ func TestMaterializePreservesGeneratedAndUserFiles(t *testing.T) {
 	wantFile(t, filepath.Join(dest, "kitty/current-theme.conf"), "3a5f8a")
 }
 
+// Every package upgrade runs `ryoku materialize` for each user. A box that
+// builds from a checkout runs that checkout's shell, and the installed
+// package's base is another line: laying it swapped the deployed QML for the
+// package's until the next update. Only an explicit base may touch such a box.
+func TestMaterializeCommandLeavesCheckoutConfig(t *testing.T) {
+	work := t.TempDir()
+	mustGit(t, "", "init", "-q", work)
+	t.Setenv("RYOKU_REPO", work)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	dest := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dest)
+	t.Setenv("RYOKU_CONFIG_BASE", "")
+	writeFile(t, filepath.Join(dest, "quickshell/shell/shell.qml"), "deployed\n")
+	if err := MaterializeCommand(); err != nil {
+		t.Fatalf("materialize on a checkout box: %v", err)
+	}
+	wantFile(t, filepath.Join(dest, "quickshell/shell/shell.qml"), "deployed\n")
+	if sys.Exists(filepath.Join(dest, "ryoku")) {
+		t.Fatal("materialize laid the package base over a checkout box")
+	}
+
+	base := t.TempDir()
+	t.Setenv("RYOKU_CONFIG_BASE", base)
+	writeFile(t, filepath.Join(base, "quickshell/shell/shell.qml"), "explicit base\n")
+	if err := MaterializeCommand(); err != nil {
+		t.Fatalf("materialize from an explicit base: %v", err)
+	}
+	wantFile(t, filepath.Join(dest, "quickshell/shell/shell.qml"), "explicit base\n")
+}
+
 // A user who symlinks a seed slot (hypr/user.lua, keyboard.lua, ...) at its live
 // path into a dotfiles repo owns it. materialize must leave the symlink alone --
 // even when the link dangles because the repo is not mounted yet at this point
