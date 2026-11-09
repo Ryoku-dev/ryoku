@@ -20,16 +20,22 @@ Item {
     signal endRequested(int pid)
 
     property bool confirming: false
+    property int confirmingPid: 0
 
     implicitHeight: 32 * root.s
     implicitWidth: 276 * root.s
 
-    onTaskChanged: confirming = false
+    onTaskChanged: {
+        if (!root.confirming)
+            return;
+        if (!root.task || root.task.pid !== root.confirmingPid)
+            root.confirming = false;
+    }
 
     Text {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.max(0, actions.x - 12 * root.s)
+        width: Math.max(0, cpu.x - 12 * root.s)
         text: root.task ? root.task.name : ""
         color: GameBarLook.fg
         font.family: GameBarLook.face
@@ -83,7 +89,10 @@ Item {
             s: root.s
             compact: true
             label: I18n.tr("End")
-            onClicked: root.confirming = true
+            onClicked: {
+                root.confirmingPid = root.task ? root.task.pid : 0;
+                root.confirming = true;
+            }
         }
 
         GameBarTextButton {
@@ -96,6 +105,7 @@ Item {
                 if (root.task)
                     root.endRequested(root.task.pid);
                 root.confirming = false;
+                root.confirmingPid = 0;
             }
         }
 
@@ -105,7 +115,10 @@ Item {
             compact: true
             quiet: true
             label: I18n.tr("No")
-            onClicked: root.confirming = false
+            onClicked: {
+                root.confirming = false;
+                root.confirmingPid = 0;
+            }
         }
     }
 }

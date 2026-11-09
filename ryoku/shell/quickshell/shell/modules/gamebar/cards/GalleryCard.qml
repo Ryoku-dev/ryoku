@@ -42,8 +42,14 @@ GameBarCard {
         return all.slice(0, count);
     }
 
-    readonly property var shots: card.newest(shotFiles, 6, "shot")
-    readonly property var clips: card.newest(clipFiles, 6, "clip")
+    readonly property var shots: {
+        shotFiles.count;
+        return card.newest(shotFiles, 6, "shot");
+    }
+    readonly property var clips: {
+        clipFiles.count;
+        return card.newest(clipFiles, 6, "clip");
+    }
     readonly property var items: card.mode === "clips" ? card.clips : card.shots
     readonly property string folder: card.mode === "clips" ? card.clipsDir : card.shotsDir
 
