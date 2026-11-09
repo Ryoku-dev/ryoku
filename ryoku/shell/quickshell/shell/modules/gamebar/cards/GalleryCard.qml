@@ -10,8 +10,9 @@ import Ryoku.Ui.Singletons
 import "../look"
 
 // Gallery: the newest screenshots and recordings, live from the folders the
-// capture path writes, plus one press to open the current folder. Thumbnails
-// are the files themselves, so there is no separate index to fall out of date.
+// capture path writes, plus one press to open the current folder. A shot is its
+// own thumbnail; a recording is a play tile with its name, so there is no
+// separate index to fall out of date.
 GameBarCard {
     id: card
 

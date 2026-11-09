@@ -38,7 +38,7 @@ if ! command -v pnpm >/dev/null; then
         corepack enable pnpm
     else
         say "installing pnpm into the user prefix"
-        npm install --global pnpm@10
+        npm install --global --prefix "$HOME/.local" pnpm@10
     fi
 fi
 command -v pnpm >/dev/null || die "pnpm could not be installed"

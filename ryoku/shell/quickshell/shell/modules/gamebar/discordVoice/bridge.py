@@ -393,8 +393,13 @@ class VoiceBridge:
             if not code:
                 emit("error", message="Discord authorization was not completed")
                 return
+            # The exchange yields to the event loop, where the companion can
+            # take the backend over. A stale result must not replace it.
+            writer = self.writer
             try:
                 token = await asyncio.to_thread(self.exchange, code)
+                if self.companion_active or writer is None or self.writer is not writer:
+                    return
                 self.save_token(token)
                 await self.authenticate(token)
             except Exception:
@@ -433,11 +438,13 @@ class VoiceBridge:
             emit("voice_channel", channel=None, users=[])
             return
         await self.subscribe_channel(data["id"])
-        self.users.clear()
-        # A refresh can repeat only the channel id. Keep the name and guild that
-        # this same channel already reported instead of degrading the label.
+        # A refresh can repeat only the channel id. Keep the name, guild and
+        # participants this same channel already reported instead of clearing
+        # them for a response that carries no voice_states at all.
         previous = self.channel or {}
         same = previous.get("id") == data["id"]
+        if not same or "voice_states" in data:
+            self.users.clear()
         self.channel = {
             "id": data["id"],
             "name": data.get("name") or (previous.get("name") if same else "")

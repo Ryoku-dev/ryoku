@@ -249,6 +249,9 @@ GameBarCard {
 
                 GameBarTextButton {
                     anchors.horizontalCenter: parent.horizontalCenter
+                    // A healthy authenticated bridge is not a reconnect case:
+                    // the only next step is to join a channel in Discord.
+                    visible: card.voice.status !== "authenticated"
                     s: card.s
                     compact: true
                     primary: card.voice.status === "auth_required" || card.voice.status === "authorizing"
