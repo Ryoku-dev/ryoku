@@ -2260,8 +2260,10 @@ func baseStatus() statusReport {
 	if r, ok := channelStatus(); ok {
 		// a checkout has no release, but it runs a named line (CODENAME)
 		r.ReleaseName = ReleaseName()
-		if check, ok := readCheckedPointer(); ok {
-			r.ChannelCheck = &check
+		if gatedChannel(r.Channel) {
+			if check, ok := readCheckedPointer(); ok {
+				r.ChannelCheck = &check
+			}
 		}
 		return r
 	}
@@ -2276,8 +2278,10 @@ func baseStatus() statusReport {
 	}
 	r := packagedStatus(installed, latest)
 	if checkout {
-		if check, ok := readCheckedPointer(); ok {
-			r.ChannelCheck = &check
+		if gatedChannel(ryokuChannel()) {
+			if check, ok := readCheckedPointer(); ok {
+				r.ChannelCheck = &check
+			}
 		}
 		return r
 	}

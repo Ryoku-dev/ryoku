@@ -157,7 +157,7 @@ func channelUpdate() error {
 	progress.detailf(i18n.T("Fetching origin/%s"), ch)
 	gitFetch(repo, ch)
 
-	gated := ch == "unstable-dev" && !updateForce
+	gated := gatedChannel(ch) && !updateForce
 	var pointer checkedPointer
 	pointerOK := false
 	if gated {
@@ -212,11 +212,15 @@ func channelUpdate() error {
 	return nil
 }
 
+// gatedChannel reports whether a source branch waits for the testing gate. Only
+// unstable-dev pushes are checked; every other branch follows its tip.
+func gatedChannel(ch string) bool { return ch == "unstable-dev" }
+
 // resolveChannelTarget chooses a local git target without changing the checkout.
-// Only unstable-dev is gate-backed; stable source tracking follows its tip.
+// Only unstable-dev is gate-backed; every other branch follows its tip.
 func resolveChannelTarget(repo, ch string, p checkedPointer, pointerOK, force bool) (target string, note string) {
 	tip := "refs/remotes/origin/" + ch
-	if force || ch != "unstable-dev" {
+	if force || !gatedChannel(ch) {
 		return tip, ""
 	}
 	if !pointerOK {

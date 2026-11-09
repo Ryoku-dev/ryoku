@@ -207,6 +207,37 @@ func TestChannelStatus(t *testing.T) {
 	}
 }
 
+// The testing gate checks unstable-dev pushes only. A checkout on any other
+// branch follows its tip, so status, and the Hub reading it, must not say that
+// branch waits on checks it never gets.
+func TestStatusReportsTheGateOnlyOnUnstableDev(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"commit":"abc1234","state":"checking","run":"https://example.test/run/1","at":"2026-11-09T00:00:00Z"}`)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("RYOKU_RELEASE_BASE", server.URL)
+
+	root := t.TempDir()
+	origin := filepath.Join(root, "origin.git")
+	work := filepath.Join(root, "work")
+	mustGit(t, "", "init", "--bare", "-b", "main", origin)
+	mustGit(t, "", "clone", origin, work)
+	commitPush(t, work, "README", "one\n", "first commit", "main")
+	for _, branch := range []string{"unstable-dev", "hyperion"} {
+		mustGit(t, work, "push", "origin", "main:"+branch)
+	}
+	t.Setenv("RYOKU_REPO", work)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+
+	for ch, wantGate := range map[string]bool{"unstable-dev": true, "main": false, "hyperion": false} {
+		t.Setenv("RYOKU_CHANNEL", ch)
+		if got := baseStatus().ChannelCheck != nil; got != wantGate {
+			t.Errorf("%s: gate reported = %v, want %v", ch, got, wantGate)
+		}
+	}
+}
+
 func TestChannelStatusNoCheckout(t *testing.T) {
 	t.Setenv("RYOKU_REPO", "")
 	t.Setenv("XDG_STATE_HOME", t.TempDir()) // no recorded repo here
