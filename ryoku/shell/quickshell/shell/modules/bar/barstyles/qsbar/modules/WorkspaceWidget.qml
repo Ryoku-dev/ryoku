@@ -6,6 +6,7 @@ import shell.services
 Item {
     id: wsWidget
     required property var root
+    property string screenName: ""
 
     // Workspace cells intentionally stay dense without a local surface. A widget
     // border needs its own breathing room, though: make that padding part of the
@@ -16,6 +17,24 @@ Item {
     implicitHeight: 28
     readonly property color contentColor: root.widgetContentColor("G2", root.seal)
 
+    // Per-monitor active workspace: when isolateMonitors is active, this monitor's
+    // active workspace takes precedence over the globally focused one.
+    readonly property var monitorActiveWs: {
+        if (!root.isolateMonitors || !wsWidget.screenName) return Wm.focusedWorkspace
+        var ws = Wm.workspaces
+        for (var i = 0; i < ws.length; i++) {
+            if (!ws[i].special && ws[i].active && ws[i].output === wsWidget.screenName)
+                return ws[i]
+        }
+        return Wm.focusedWorkspace
+    }
+
+    // Indicates whether this monitor holds the keyboard/window input focus.
+    readonly property bool hasMonitorFocus: !root.isolateMonitors
+        || wsWidget.screenName === ""
+        || Wm.focusedOutput === ""
+        || Wm.focusedOutput === wsWidget.screenName
+
     // The focused workspace name only when it is a real workspace beyond the
     // persist range, else "". Renotifies on value change only, so switching
     // between in-range workspaces keeps the model stable and the delegate
@@ -24,7 +43,7 @@ Item {
     readonly property string extraWs: {
         if (root.workspaceMode === "active" || wsWidget.dynamicModel) return ""
         var n = root.workspaceMode === "5" ? 5 : 10
-        var f = Wm.focusedWorkspace
+        var f = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
         var num = f ? Number(f.name) : 0
         return (num > n) ? f.name : ""
     }
@@ -35,18 +54,41 @@ Item {
         if (wsWidget.dynamicModel) {
             var live = []
             var lw = Wm.workspaces
-            for (var k = 0; k < lw.length; k++) if (!lw[k].special) live.push(lw[k].name)
+            for (var k = 0; k < lw.length; k++) {
+                if (lw[k].special) continue
+                if (root.isolateMonitors && wsWidget.screenName && lw[k].output && lw[k].output !== wsWidget.screenName)
+                    continue
+                live.push(lw[k].name)
+            }
             return live
         }
         if (root.workspaceMode === "active") {
             var ids = {}
             var ws = Wm.workspaces
-            for (var i = 0; i < ws.length; i++) if (!ws[i].special) ids[ws[i].name] = true
-            if (Wm.focusedWorkspace && !Wm.focusedWorkspace.special) ids[Wm.focusedWorkspace.name] = true
+            for (var i = 0; i < ws.length; i++) {
+                if (ws[i].special) continue
+                if (root.isolateMonitors && wsWidget.screenName && ws[i].output && ws[i].output !== wsWidget.screenName)
+                    continue
+                ids[ws[i].name] = true
+            }
+            var act = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+            if (act && !act.special) {
+                if (!root.isolateMonitors || !wsWidget.screenName || !act.output || act.output === wsWidget.screenName)
+                    ids[act.name] = true
+            }
             return Object.keys(ids).sort(function(a, b) { return Number(a) - Number(b) })
         }
         var n = root.workspaceMode === "5" ? 5 : 10
-        var list = []; for (var j = 1; j <= n; j++) list.push(String(j))
+        var list = []
+        for (var j = 1; j <= n; j++) {
+            var wName = String(j)
+            if (root.isolateMonitors && wsWidget.screenName) {
+                var existing = Wm.workspaceByName(wName)
+                if (existing && existing.output && existing.output !== wsWidget.screenName)
+                    continue
+            }
+            list.push(wName)
+        }
         if (extraWs !== "") list.push(extraWs)
         return list
     }
@@ -55,8 +97,10 @@ Item {
     //    mark occupied cells, dimmed dots the empty ones. On a focus change a
     //    runner pacman travels from the old cell to the new one, chomping as it
     //    goes; the destination pellet is eaten (fades/shrinks) as it arrives. ──
-    readonly property string focusedWorkspaceKey: Wm.focusedWorkspace
-        && !Wm.focusedWorkspace.special ? Wm.focusedWorkspace.name : ""
+    readonly property string focusedWorkspaceKey: {
+        var fw = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+        return fw && !fw.special ? fw.name : ""
+    }
 
     property string pacmanLastFocusedWorkspaceKey: ""
     property string pacmanTargetWorkspaceKey: ""
@@ -199,8 +243,10 @@ Item {
                 // default-only `dot`, invisible in numbers/magic)
                 Behavior on scale { NumberAnimation { duration: 120 } }
 
-                readonly property bool isFocused: Wm.focusedWorkspace !== null
-                                               && Wm.focusedWorkspace.name === wsKey
+                readonly property bool isFocused: {
+                    var act = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
+                    return act !== null && act.name === wsKey
+                }
 
                 readonly property bool isOccupied: {
                     var w = Wm.workspaceByName(wsKey)
@@ -222,7 +268,13 @@ Item {
                     NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
                 }
 
-                // ── DEFAULT style: glow + dot ──
+                Item {
+                    id: wsCellVisual
+                    anchors.fill: parent
+                    opacity: wsCell.isFocused && !wsWidget.hasMonitorFocus ? 0.72 : 1.0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                    // ── DEFAULT style: glow + dot ──
                 // glow - alle states, nur opacity variiert
                 Rectangle {
                     visible: root.workspaceStyle === "default"
@@ -405,6 +457,7 @@ Item {
                     emptyColor: wsWidget.contentColor
                     hoverColor: wsWidget.contentColor
                 }
+                }
 
                 MouseArea {
                     id: wsMa
@@ -429,9 +482,11 @@ Item {
         anchors.fill: parent
         z: 0
         visible: root.workspaceStyle === "rings" && targetIndex >= 0
+        opacity: !wsWidget.hasMonitorFocus ? 0.72 : 1.0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
 
         readonly property int targetIndex: {
-            var focused = Wm.focusedWorkspace
+            var focused = root.isolateMonitors ? wsWidget.monitorActiveWs : Wm.focusedWorkspace
             if (!focused || focused.special) return -1
             return wsWidget.workspaceList.indexOf(focused.name)
         }
@@ -500,6 +555,8 @@ Item {
     Item {
         id: pacmanRunner
         visible: wsWidget.pacmanTraveling && root.workspaceStyle === "pacman"
+        opacity: !wsWidget.hasMonitorFocus ? 0.72 : 1.0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
         z: 4
         x: wsWidget.pacmanTravelX - width / 2
         y: Math.round((parent.height - height) / 2)
