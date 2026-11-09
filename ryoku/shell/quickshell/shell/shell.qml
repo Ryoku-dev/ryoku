@@ -33,6 +33,7 @@ import "modules/osd"
 import "modules/notifications"
 import "modules/capture"
 import "modules/ask"
+import "modules/gamebar"
 import "modules/confirm"
 import Ryoku.Ui.Singletons
 import stage.modules.common as StageIsland
@@ -266,6 +267,12 @@ ShellRoot {
                 dockLaneEdge: dockLoader.item ? dockLoader.item.edge : ""
                 dockLaneSize: dockLoader.item ? dockLoader.item.bandSize : 0
                 dockLaneCenter: dockLoader.item ? dockLoader.item.bandCenter : 0
+            }
+
+            // The Game Bar: a passive Overlay surface per output. The store
+            // decides whether this monitor is the one showing it.
+            GameBar {
+                modelData: perScreen.modelData
             }
 
             LazyLoader {
@@ -623,6 +630,10 @@ ShellRoot {
             if (st)
                 st.clipboardOpen = !st.clipboardOpen;
             break;
+        case "gamebar":
+            if (Config.gamebar.enabled)
+                GameBarStore.toggleBar(Wm.focusedOutput);
+            break;
         case "settings":
             Spawn.run(["ryoku-shell", "hub", "open"]);
             break;
@@ -654,6 +665,7 @@ ShellRoot {
             switch (id) {
             case "launcher":
             case "clipboard":
+            case "gamebar":
             case "settings":
             case "cheatsheet":
                 if (!Config.styleOwns(id))
@@ -891,7 +903,7 @@ ShellRoot {
         // its focused-output cache is cold.
         function openSurface(mon: string, id: string): void {
             // these keys are Ryoku's under every style, so they skip the bus styles listen on, same as the Hyprland shortcuts
-            if (id === "launcher" || id === "clipboard" || id === "settings") {
+            if (id === "launcher" || id === "clipboard" || id === "settings" || id === "gamebar") {
                 root.toggleSurface(id);
                 return;
             }
@@ -1108,6 +1120,11 @@ ShellRoot {
         name: "clipboard"
         description: I18n.tr("Open the clipboard history on the active monitor")
         onPressed: ShellState.requestSurfaceActive("clipboard", undefined)
+    }
+    CustomShortcut {
+        name: "gamebar"
+        description: I18n.tr("Toggle the Game Bar on the active monitor")
+        onPressed: root.toggleSurface("gamebar")
     }
     CustomShortcut {
         name: "ask"

@@ -20,7 +20,8 @@ Start with the guide that matches the job:
   [kernels and CachyOS gaming](kernels.md).
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
   rules](ui-ux.md), [bar styles](barstyles.md), [sidebars](sidebars.md),
-  [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
+  [Game Bar](gamebar.md), [launcher](launcher.md), [frame](frame.md),
+  [Stage Editor](stage.md),
   [Ryogami](ryogami.md), [RyoStore](store.md), [profiles](profile.md),
   [theming](theming.md), [performance](performance.md), [power](power.md) and
   [plugins](plugins.md).
@@ -89,6 +90,7 @@ truth for the live desktop.
   `sidebarCard` plugin host (see `docs/sidebars.md`); `dock` the app dock on the
   edge opposite the bar (its own surface, shared by every bar style), `launcher`,
   `overview` (`Super+Tab`),
+  `gamebar` the in-game overlay with its widget cards (see `docs/gamebar.md`),
   `wallpaper`, `visualizer` (a click-through spectrum layer that renders through
   the shared `Ryoku.Ui` spectrum field, keeping only its per-frame band math in
   its own `Motion.qml`), `osd`, `notifications`, `capture`, `confirm`, and
