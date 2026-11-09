@@ -903,7 +903,12 @@ ShellRoot {
         // its focused-output cache is cold.
         function openSurface(mon: string, id: string): void {
             // these keys are Ryoku's under every style, so they skip the bus styles listen on, same as the Hyprland shortcuts
-            if (id === "launcher" || id === "clipboard" || id === "settings" || id === "gamebar") {
+            if (id === "gamebar") {
+                if (Config.gamebar.enabled)
+                    GameBarStore.toggleBar(mon);
+                return;
+            }
+            if (id === "launcher" || id === "clipboard" || id === "settings") {
                 root.toggleSurface(id);
                 return;
             }

@@ -1,7 +1,9 @@
 // ps rows for the Game Bar tasks card. The command is
-// `ps -eo user=,pid=,comm=,cputimes=,etimes=,rss=`: user is the one leading
-// token, comm may contain spaces, so the numeric columns are peeled off both
-// ends and whatever remains is the name. cputimes is CPU time in seconds over
+// `ps -eo user:64=,pid=,comm=,cputimes=,etimes=,rss=`: user is the one leading
+// token, and its column is widened because the default user= truncates a long
+// name and appends `+`, which would silently drop those rows from the current
+// user's filter. comm may contain spaces, so the numeric columns are peeled off
+// both ends and whatever remains is the name. cputimes is CPU time in seconds over
 // the process lifetime, which is the average load, not an instantaneous
 // sample: good enough for a short list.
 
