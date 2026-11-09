@@ -169,27 +169,24 @@ class VoiceBridge:
             except (OSError, ConnectionError, asyncio.IncompleteReadError, ValueError):
                 self.close_native()
 
-async def start_companion_server(self) -> None:
-    if self.companion_path is None:
-        return
-    try:
-        current = self.companion_path.lstat()
-        if not stat.S_ISSOCK(current.st_mode) or current.st_uid != os.getuid():
-            emit("companion_error", message="Refusing an unsafe Ryoku voice socket path")
+    async def start_companion_server(self) -> None:
+        if self.companion_path is None:
             return
         try:
-            _, existing = await asyncio.open_unix_connection(self.companion_path)
-        except (ConnectionRefusedError, FileNotFoundError):
-            pass
-        else:
-            existing.close()
-            await existing.wait_closed()
-            emit("companion_error", message="A Ryoku voice bridge is already running")
-            return
-        self.companion_path.unlink(missing_ok=True)
-    except FileNotFoundError:
-        pass
-            self.companion_path.unlink()
+            current = self.companion_path.lstat()
+            if not stat.S_ISSOCK(current.st_mode) or current.st_uid != os.getuid():
+                emit("companion_error", message="Refusing an unsafe Ryoku voice socket path")
+                return
+            try:
+                _, existing = await asyncio.open_unix_connection(self.companion_path)
+            except (ConnectionRefusedError, FileNotFoundError):
+                pass
+            else:
+                existing.close()
+                await existing.wait_closed()
+                emit("companion_error", message="A Ryoku voice bridge is already running")
+                return
+            self.companion_path.unlink(missing_ok=True)
         except FileNotFoundError:
             pass
 
@@ -230,7 +227,11 @@ async def start_companion_server(self) -> None:
                 self.companion = None
                 if self.companion_active:
                     self.companion_active = False
-"participantCount": len(self.participants),
+                    self.companion_digest = ""
+                    self.channel = None
+                    self.users.clear()
+                    emit("disconnected", reason="The Vesktop companion stopped")
+                    await self.connect()
             writer.close()
             try:
                 await asyncio.wait_for(writer.wait_closed(), COMPANION_WRITE_TIMEOUT)
@@ -382,6 +383,9 @@ async def start_companion_server(self) -> None:
             elif command.startswith("UNSUB_"):
                 # A best-effort cleanup of a channel we already left.
                 return
+            elif command == "GET_VOICE_SETTINGS":
+                # The controls keep their last known state when the read fails.
+                return
             else:
                 emit("error", message=(payload.get("data") or {}).get("message", "Discord RPC error"))
             return
@@ -414,6 +418,7 @@ async def start_companion_server(self) -> None:
             await self.subscribe("VOICE_CHANNEL_SELECT")
             await self.subscribe("VOICE_SETTINGS_UPDATE")
             await self.command("GET_SELECTED_VOICE_CHANNEL")
+            await self.command("GET_VOICE_SETTINGS")
         elif command == "GET_SELECTED_VOICE_CHANNEL":
             await self.select_channel(data if data and data.get("id") else None)
         elif command in ("GET_VOICE_SETTINGS", "SET_VOICE_SETTINGS"):

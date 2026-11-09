@@ -40,14 +40,14 @@ Singleton {
         root.opened = open.concat([id]);
     }
 
-function setPinned(id, on) {
-    if (on === root.isPinned(id))
-        return;
-    if (!on && root.open && root.opened.indexOf(id) === -1)
-        root.opened = root.opened.concat([id]);
-    root.pinned = on ? root.pinned.concat([id])
-        : root.pinned.filter(x => x !== id);
-}
+    function setPinned(id, on) {
+        if (on === root.isPinned(id))
+            return;
+        if (!on && root.open && root.opened.indexOf(id) === -1)
+            root.opened = root.opened.concat([id]);
+        root.pinned = on ? root.pinned.concat([id])
+            : root.pinned.filter(x => x !== id);
+    }
 
     function togglePinned(id) {
         root.setPinned(id, !root.isPinned(id));

@@ -49,10 +49,12 @@ GameBarCard {
         return next;
     }
 
-    Component.onCompleted: {
-        Sysinfo.setActive(card, true);
-        StatsFeed.setActive(card, true);
+    function syncFeed() {
+        Sysinfo.setActive(card, card.polling);
+        StatsFeed.setActive(card, card.polling);
     }
+
+    Component.onCompleted: card.syncFeed()
     Component.onDestruction: {
         Sysinfo.setActive(card, false);
         StatsFeed.setActive(card, false);
@@ -60,9 +62,11 @@ GameBarCard {
 
     // The graphs only need history while someone can see them: a shot or a
     // recording unmaps the overlay, and the session can be dark or in the Power
-    // Saver tier. Stop copying samples then, like the other polling cards.
+    // Saver tier. Stop copying samples then, like the other polling cards, and
+    // release the samplers themselves so a pinned card does not keep them alive.
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
         && !Presence.dark && !Perf.saver
+    onPollingChanged: card.syncFeed()
 
     Timer {
         interval: 1500

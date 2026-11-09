@@ -108,13 +108,13 @@ Singleton {
         return Math.min(30000, 1000 * Math.pow(2, Math.max(0, attempt - 1)));
     }
 
-function armReconnect() {
-    if (!root.wanted)
-        return;
-    root.reconnectAttempts++;
-    reconnectTimer.interval = root.backoffDelay(root.reconnectAttempts);
-    reconnectTimer.restart();
-}
+    function armReconnect() {
+        if (!root.wanted)
+            return;
+        root.reconnectAttempts++;
+        reconnectTimer.interval = root.backoffDelay(root.reconnectAttempts);
+        reconnectTimer.restart();
+    }
 
     function disarmReconnect() {
         reconnectTimer.stop();
