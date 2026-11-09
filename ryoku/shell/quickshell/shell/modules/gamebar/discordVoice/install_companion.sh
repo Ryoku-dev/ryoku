@@ -139,6 +139,10 @@ fi
 
 status=0
 for client in "${clients[@]}"; do
-    install_client "$client" || status=1
+    if (set -e; install_client "$client"); then
+        :
+    else
+        status=1
+    fi
 done
 exit "$status"

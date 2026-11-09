@@ -180,6 +180,8 @@ class VoiceBridge:
                     message = json.loads(line)
                 except (ValueError, TypeError):
                     continue
+                if not isinstance(message, dict):
+                    continue
                 state = message.get("state") if message.get("type") == "state" else None
                 if isinstance(state, dict):
                     self.companion_state(state)
