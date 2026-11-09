@@ -1,78 +1,94 @@
 # UI and UX
 
-The desktop is **paper and ink**: a monochrome printed instrument. Warm bone ink
-on pure-black paper, hairline rules instead of shadows, and inversion (a surface
-flipping to a bone plate) as the only emphasis. There is no colour in
-app chrome; the accent is reserved for the frame, the 力 seal, and art, which
-manufactures its own red sun. Fraunces sets the display, Space Grotesk carries
-the language, SpaceMono carries the data, Noto Sans CJK JP carries the seals.
+The desktop is **Lithic**: cut stone, not molded plastic. Flat stone planes
+set a step apart, every corner cut at 45 degrees or left square, bone for where
+you are, gold for what you can do, and a small set of minerals that mean a state
+only when they sit beside a word. Space Grotesk carries everything a person
+reads, Space Mono carries data, and motion answers a cause and then stops.
 
-![The Ryoku desktop](media/desktop.webp)
-
-*The desktop: the bar at the top edge, the dock at the bottom, a clock widget on
-the wallpaper, and nothing else asking for attention.*
+Lithic has no colours of its own. Every colour on the desktop is a role, and the
+roles are filled from the palette the theme daemon already publishes, so the
+Hub, the apps, the shell surfaces and Ryoport all retint together from the
+wallpaper or a named theme. That rule is older than Lithic and it is the reason
+Lithic could replace the old look without a second palette.
 
 The one place the look is defined is `ryoku/ui/Singletons/Tokens.qml`: every
-surface reads its colour, type, geometry, and motion from there, and nothing
-hardcodes a value. This doc is how that language is applied across the QML
-desktop: the tokens, the type, the geometry, the shared primitives, the pages,
-the surfaces, and the motion. The UI is Quickshell (QML) in
+surface reads its colour, type, geometry and motion from there, and nothing
+hardcodes a value. This doc is how the language is applied across the QML
+desktop: the roles, the type, the cuts, the shared primitives, the pages, the
+surfaces and the motion. The UI is Quickshell (QML) in
 `ryoku/shell/quickshell/` (plus Ryoku Settings in `ryoku/hub/quickshell/` and the
 apps in `ryoku/apps/`), driven by the `ryoku-shell` daemon.
 
+The design language itself is specified in [docs/lithic/](lithic/README.md):
+the principles, the palette recipe, the component catalogue, layout, motion,
+copy, the review checklist, the design sheets and verified web, QML and Go
+starting kits. Ryoport (`ryoku-dev/ryoport`) is its reference implementation.
+This page is how that language applies to the Ryoku desktop; when a detail is
+not here, `docs/lithic/` is where to look next.
+
+![Lithic on one sheet](lithic/media/sheet-board.png)
+
+*The language on one sheet, rendered from this machine's wallpaper palette:
+the principles, the cut grammar, the stones, the type ramp and the motion.*
+
 ## Design language
 
-Bone on black, one contrast-solved ink ramp, no colour in the content. Restraint
-is the point: flat surfaces, hairline depth, generous spacing. A surface earns
-its place; if it does not, remove it.
+Cut, not molded. Nine rules, and everything below is one of them applied.
 
-- **Pure-black paper, warm bone ink.** The paper is a flat `#000000`: nothing is
-  laid over it, because a texture behind a settings sheet is decoration a reader
-  has to see past. The ink is a warm bone in four contrast-solved tiers, never pure white:
-  `#cdc4ba` (12:1, values and titles), `#b0a9a0` (9:1, nav and body), `#958f87`
-  (6.6:1, descriptions), `#7a756e` (4.6:1, tags and struck defaults). Nothing
-  sits below 4.5:1, so any text is legible at any tier. Those four are the
-  *signature defaults*; a theme may replace them, and the ramp's shape is what
-  the design guarantees, not the exact hex.
-- **Emphasis is inversion, not colour.** App content (the Hub, ryowalls,
-  Ryoport, ryostore) carries no accent at all. To stress a surface it flips to a bone
-  plate with dark ink: the selected nav item, the connected network, the active
-  tab. There is no second value. Even a destructive confirm is a bone plate and
-  an unambiguous word, not a red one. The bone stock is the Material
-  inverse-surface pair (`Tokens.bone` / `Tokens.inkOnBone`), so the plate and its
-  ink keep their contrast on a light theme as well as a dark one.
-- **The accent lives on the frame, not the content.** The shell frame carries the
-  accent, and `Scheme.primary` is where it comes from. The content never competes
-  with it.
-- **Colour is data, and the red sun is brand.** The only colour inside a surface
-  is data doing its job: a palette swatch being its own colour, a signal bar, or
-  art manufacturing its own sun. Two tokens stay fixed on any wallpaper:
-  `Theme.brand` (`#e2342a`, the vermillion the 力 seal is drawn in, which never
-  themes, and that is the point) and `Tokens.alert` (the same red, so a badge
-  always reads as an alert). Everything else is derived. Use the seal as a mark
-  (the masthead, an eyebrow lead), not as decoration.
-- **Depth is a hairline, not a shadow.** Surfaces are flat with a `1px` bone
-  hairline; a shadow appears only where something genuinely floats over
-  something else (a popout, a drawer, a dock island). The Hub and apps are print
-  and do not cast.
-- **The print texture rides the chrome, never the content.** The poster
-  ornaments are real, but they belong on the always-present furniture, not
-  behind the thing being read: `Reg` sits behind a nav rail (QS Bar Settings'),
-  and `Marginalia` + `Barcode` dress a surface that has a dead margin for them.
-  A settings plate gets flat paper. `Grain` is for art surfaces only. A texture
-  under a control is decoration the reader has to see past, so it is a bug.
-- **Latin names the thing, kanji seals it.** Every nav item, section eyebrow and
-  poster plate pairs a Latin word with its real Japanese gloss: 画面 Displays,
-  接続 Connections, 入力 Input, 矢印 Cursor, 演算 Machine, 外観 Appearance,
-  卓上 Desktop, 部品 Widgets, 動き Animations, 施錠 Lockscreen, 起動 App
-  Launcher. Two scripts sitting together is the texture. Every gloss is the real
-  word, never decoration.
+1. **Cut, not molded.** Corners are cut at 45 degrees or square, never rounded.
+   The cut follows the scale of the thing: 16 on panes and dialogs, 12 for a
+   row's state notch, 7 on buttons and fields, 6 on small controls, 4 on a
+   toggle track, 3 on tokens. Only content (a logo, a chart, the VRAM ring) may
+   curve. The outer window rounding is the compositor's and the user's knob;
+   inside our surfaces nothing rounds.
+2. **Flat planes.** Every surface is one flat tone. Depth is the order of tones:
+   ground, stone 1, stone 2, stone 3, stone 4, then bone. No gradient, glow,
+   blur, inner shadow or inset well. An overlay is a solid scrim and a slab one
+   tone up with a 1 px vein hairline. The frame's own shadow over the wallpaper
+   is a different thing and lives in `docs/frame.md`.
+3. **Bone is where you are.** The selected row, the current rail destination,
+   the current filter, the on half of a toggle: all are selection slabs in the
+   `sel` role with `onSel` ink. Nothing else uses it.
+4. **Gold is what you can do.** The `gold` role fills consequential actions
+   only (Save, Connect, Start, Install, Sign in). Secondary actions are a gold
+   hairline and gold ink. Navigation and view controls are stone. Gold never
+   decorates and never shows status. On a Ryoku desktop the gold is the
+   palette's `primary`, so it is whatever the wallpaper made it.
+5. **Stones are states, beside their word.** Jade is alive, lapis is becoming,
+   amber needs you, jasper failed, idle is a vein outline. A state is three
+   things at once: its mineral, a shape (a notch, a flake, a mineral field) and
+   a plain word. Colour never carries state alone, and a dot is never a state.
+6. **The blade marks progress and place.** A bar whose leading edge is cut at
+   45 degrees: the active tab's underline, a job's progress, a meter.
+7. **Engraved data.** Charts are a fine foreground line over a 45 degree hatch,
+   labels in Space Mono, no coloured area fills.
+8. **One family, set monumentally.** One line per view gets the `name` size.
+   Everything else is at working size, sentence case, never all caps.
+9. **Motion answers a cause and stops.** One curve, a short table of durations,
+   no frame drawn when nothing changed. Reduced motion makes every transition
+   instant.
 
-## Tokens: never hardcode a value
+The words Lithic uses for its parts, so code, comments and reviews mean the
+same thing: a **plaque** is a button, a **tablet** is a row, the **notch** is
+the cut corner that carries a row's state, a **flake** is the standalone state
+token, a **mineral field** is the tinted header of the selected thing, a
+**blade** is a cut progress or selection bar, a **slab** is a stone 1 container,
+a **claim** is a state word and its **proof** is the fact behind it, and
+**chisel** is the one easing curve.
 
-Every surface reads its look from `Ryoku.Ui`. One module, imported by the shell's
-configs, the Hub and the apps. `import Ryoku.Ui.Singletons` and read `Tokens`;
-never write a hex, a font name, a radius or a duration in a component.
+Two things stay Ryoku's whatever the palette does. The **力 seal** is the brand
+mark, drawn in its own fixed vermillion, and it is used as a mark (the Hub's
+masthead, the welcome window, the lockscreen family), never as decoration or
+state. And the three meaning minerals, jade, lapis and amber, never follow the
+wallpaper, so "alive" reads the same on every rice; jasper does follow the
+palette's `error`, so destructive controls agree with the rest of the desktop.
+
+## Roles: never hardcode a value
+
+Every surface reads its look from `Ryoku.Ui`. One module, imported by the
+shell's configs, the Hub and the apps. `import Ryoku.Ui.Singletons` and read
+`Tokens`; never write a hex, a font name, a cut or a duration in a component.
 
     import Ryoku.Ui
     import Ryoku.Ui.Singletons
@@ -94,25 +110,47 @@ than painting black. The three files are read as raw text and watched, because
 the `on*` Material role names defeat `JsonAdapter`'s signal-handler grammar and a
 removed `themePalette` key only reads as absent from raw text.
 
-|Token|Material role|Signature default|What it is|
-|---|---|---|---|
-|`paper`|`surface`|`#000000`|the sheet|
-|`paperLift`|`surfaceContainerLow`|`#0a0a0a`|a surface lifted off the sheet|
-|`ink`|`onSurface`|`#cdc4ba`|values and titles, 12:1|
-|`inkDim`|`onSurfaceVariant`|`#b0a9a0`|nav and body, 9:1|
-|`inkMuted`|`outline`|`#958f87`|descriptions, 6.6:1|
-|`inkFaint`|`outlineVariant`|`#7a756e`|tags and struck defaults, 4.6:1|
-|`bone`|`inverseSurface`|`#cdc4ba`|the inverted plate|
-|`inkOnBone`|`inverseOnSurface`|`#000000`|ink on that plate|
-|`sun`|`primary`|`#e2342a`|the accent|
-|`alert`|fixed|`#e2342a`|never derived: an alert is an alert|
+Dark or light is the palette's `surface` luma (`(0.299 R + 0.587 G + 0.114 B)
+/ 255 <= 0.5` is dark) unless the user forced a mode in the app. The surface
+ramp maps one way in dark and the other way in light, so the panes always stand
+up from the ground:
 
-Hairlines and tints are ink-derived, so they follow whatever the ink resolved to:
-`line` (26% ink), `lineSoft` (13%), `lineStrong` (42%), and the interaction tints
-`tint5` (surface hover), `tint10` (control hover), `tint16` (pressed). The
-recording keycaps are the one fixed stock (`keycapDark` `#17171a`, `keycapLight`
-`#f4f2ed` and their inks), because a keycap in a screen recording is media, not
-chrome, and must not shift with the wallpaper.
+|Token|Dark palette role|Light palette role|What it is|
+|---|---|---|---|
+|`ground`|`surfaceContainerLowest`|`surfaceContainerHighest`|behind the panes|
+|`stone1`|`surface`|`surfaceContainerHigh`|the rail, the list pane, slabs|
+|`stone2`|`surfaceContainerLow`|`surfaceContainerLowest`|the work pane, row tablets|
+|`stone3`|`surfaceContainer`|`surfaceContainer`|hover, fields, tracks|
+|`stone4`|`surfaceContainerHigh`|`surfaceContainerLowest`|menus, dialogs, tooltips|
+|`vein`|`surfaceContainerHighest`|`outlineVariant`|hairlines, quiet outlines, idle flakes|
+|`fg`|`onSurface`|`onSurface`|strong type|
+|`fg2`|`onSurfaceVariant`|`onSurfaceVariant`|body and quiet type|
+|`fg3`|`outline`|`outline`|faint type, facts, captions|
+|`sel`|`secondaryContainer`|`secondaryContainer`|bone, the selection slab|
+|`onSel`|`onSecondaryContainer`|`onSecondaryContainer`|ink on a selection|
+|`onSel2`|derived|derived|`onSel` mixed 45 percent toward `sel`, quiet ink on a selection|
+|`gold`|`primary`|`primary`|the action fill|
+|`onGold`|`onPrimary`|`onPrimary`|ink on the action fill|
+|`goldInk`|derived|derived|`primary` pushed along HSL lightness until it reads 4.5:1 on `stone2`|
+|`jasper`|`error`|`error`|failed, unreachable, destructive|
+|`jade`, `lapis`, `amber`|fixed|fixed|alive, becoming, needs you|
+|`scrim`|`scrim` at 0.62|`scrim` at 0.45|behind a dialog|
+
+When the user forces dark or light in an app, the neutrals stay the signature
+set for that mode and only the accents (`gold`, `sel`, `jasper`) come from the
+palette, so a forced light app stays readable on a dark wallpaper. The
+signature neutrals are a graphite in dark and a warm marble in light; they are
+the fallback for a box with no palette and for forced modes, and the only hex
+values allowed in a surface besides the three minerals and the seal.
+
+Derived tones are computed, never picked: a mineral field is `stone2` with 17
+percent jade or 15 percent of any other mineral mixed in (idle is `stone3`);
+hover on a filled plaque mixes 10 percent white in, on a transparent plaque
+lays the ink at 10 percent, and on a tablet, menu row or rail tile steps one
+plane up; a press adds `fg` at 6 to 8 percent; disabled is the whole control at
+38 percent; the focus ring is `fg2`, 2 px, 2 px outside the cut. The hairline
+and tint tokens that did this for the old look (`line`, `lineSoft`,
+`lineStrong`, `tint5`, `tint10`, `tint16`) map onto `vein` and those recipes.
 
 ### The shell resolves the same palette through `Scheme`
 
@@ -127,7 +165,7 @@ palette of their own:
 |`shell/services/Theme.qml`, `desktop/`, `overview/`, `plugins/kit/`|`Scheme`|
 |`launcher/shared/`|`Scheme` and `Tokens`|
 |`ryoshot/`, `ryopin/`, `welcome/`|`Tokens`|
-|`wallpaper/`, `wallpaper/switcher/`|the default paper only, for letterbox margins|
+|`wallpaper/`, `wallpaper/switcher/`|the default ground only, for letterbox margins|
 
 Two files are genuinely their own thing and should stay that way: an item's own
 `Theme.qml` (QS Bar's, in the catalogue repo, is that bar style's entire
@@ -180,25 +218,24 @@ Rashin's console (`ryoku/rashin/web`, a Svelte app served on `127.0.0.1:3600`
 and hosted by the `rashin-app` window) is HTML, so it cannot import `Tokens`,
 but it follows them. `GET /api/theme` resolves the same Material roles through
 the same chain (a named scheme, then the wallpaper while Match wallpaper is on,
-then the signature default), and `src/app.css` maps them onto its variables
-under the `Tokens` names:
-`--paper`, `--ink`, `--bone`, `--sun`, `--alert`, the hairlines and tints. The
-type is the same four families, bundled as subset woff2. The Hub's Rashin page
-reads `Tokens` like any other page. There is no brand takeover left: if the
-dashboard needs a value, it takes it from the palette, never a hex of its own.
+then the signature default), and `src/app.css` maps them onto custom properties
+under the `Tokens` names, `--ground` through `--scrim`, with the cuts as
+`clip-path` polygons and the chisel curve as `--chisel`. The type is the same
+two families, bundled as subset woff2. The Hub's Rashin page reads `Tokens` like
+any other page. If the dashboard needs a value, it takes it from the palette,
+never a hex of its own. `docs/lithic/examples/web` is the stylesheet to start
+from.
 
 ### What follows the wallpaper, and what does not
 
-The old text here described a `Palette.accent` clamp and a `shade()` tone-map in
-QML. Neither exists any more, and what replaced them is simpler to reason about:
-the daemon runs matugen over the wallpaper and publishes a full Material role set
-to `~/.cache/ryoku/colors.json`, along with the wallpaper's own luminance. Material's
-tone system already answers "what reads on this panel", so the shell stopped
-doing that arithmetic itself.
+The daemon runs matugen over the wallpaper and publishes a full Material role set
+to `~/.cache/ryoku/colors.json`, along with the wallpaper's own luminance.
+Material's tone system already answers "what reads on this panel", so the shell
+does not do that arithmetic itself.
 
-- **The whole role set follows the wallpaper, not just the accent.** Paper, ink,
-  bone and accent all resolve through the chain above, so the near-black canvas
-  is derived. A named theme in `shell.json` pins it instead.
+- **The whole role set follows the wallpaper, not just the accent.** Ground,
+  stones, vein, type, bone and gold all resolve through the chain above. A
+  named theme in `shell.json` pins them instead.
 - **`Ink` answers the question a role cannot.** A Material role knows what reads
   on a *panel*; it knows nothing about a surface floating on the wallpaper (the
   desktop clock, the spectrum, a widget with its backing set to none). Handed
@@ -208,176 +245,237 @@ doing that arithmetic itself.
   `Ink.accentOver()` pick a tone off matugen's own ramps against the published
   wallpaper luminance. Both work in CIE L*, where a tone distance is a contrast
   budget: 40 apart clears 3:1, 50 apart clears 4.5:1. Text gets the full 0..100
-  range, because near-black and near-white are exactly what text wants; an accent
-  is held between 30 and 88, because outside that every hue reads as black or
-  white and a mid-tone wallpaper would otherwise turn the spectrum into bars of
-  soot.
-- **The 力 seal is never derived.** `Theme.brand` is a fixed vermillion, and
-  `Tokens.alert` is the same red. A sun is a sun on any wallpaper.
-- **Rashin wears a sibling seal, not the 力.** Its mark (`assets/brand/rashin-mark.svg`)
-  is the same tile carrying 十, the cross that ends 針 (needle) and is also the
-  compass card at its four cardinals; the north-south stroke is the needle,
-  with north painted in the brand vermillion and the pivot left as tile. One
-  geometry, three cuts: the colour master (app icon, lockup), a one-colour
-  evenodd master, and a small cut without the pivot for 16 to 32 px (the
-  console favicon and the Ask bar's header). On black paper the tile
-  disappears and only the needle shows; that is the intended reversed form.
-  The lockup (`rashin-lockup.svg`) sets Rashin in Space Grotesk Medium with
-  the 羅針 gloss at a shared baseline; below 48 px tall use the mark alone.
-- **App content carries no accent at all.** The Hub, ryowalls, Ryoport and
-  ryostore are paper and ink. Emphasis is inversion: a surface flips to bone and its ink
-  flips to dark. The frame carries the accent; the content does not compete with
-  it.
+  range; an accent is held between 30 and 88, because outside that every hue
+  reads as black or white and a mid-tone wallpaper would otherwise turn the
+  spectrum into bars of soot. `goldInk` is the same idea applied once, in HSL,
+  for gold type on the work pane.
+- **The minerals are never derived.** Jade, lapis and amber are fixed in
+  `Tokens` for dark and for light stone, and a theme cannot override them.
+- **The 力 seal is never derived.** `Theme.brand` is a fixed vermillion. A seal
+  is a seal on any wallpaper. Rashin wears a sibling seal, not the 力: its mark
+  (`assets/brand/rashin-mark.svg`) is the same tile carrying 十, the cross that
+  ends 針 (needle) and is also the compass card at its four cardinals; the
+  north-south stroke is the needle, with north painted in the brand vermillion
+  and the pivot left as tile. One geometry, three cuts: the colour master (app
+  icon, lockup), a one-colour evenodd master, and a small cut without the pivot
+  for 16 to 32 px (the console favicon and the Ask bar's header). The lockup
+  (`rashin-lockup.svg`) sets Rashin in Space Grotesk Medium with the 羅針 gloss
+  at a shared baseline; below 48 px tall use the mark alone.
 - **QS Bar is the one surface that wears the whole palette.** It retints every
   slot from the wallpaper's seven colour slots (`color01..color07`, mapped onto
   the ANSI roles), not just the accent, so it reads in full colour like a
   terminal theme. It is a deliberate exception, and it is a store bar style, not
-  part of Ryoku; the shipped Orpheus and Kairos subshells, the Hub, the apps,
-  the frame, and the monochrome Sumi bar hold the line above. See
-  `docs/subshells.md`.
+  part of Ryoku; the shipped subshells, the Hub, the apps, the frame and the
+  monochrome Sumi bar hold the line above. See `docs/subshells.md`.
 
-So the rice wins inside an envelope the brand enforces. Write that down rather
+So the rice wins inside an envelope the design enforces. Write that down rather
 than the reverse: the envelope is the design.
 
 ## Type
 
-Self-hosted, no CDN. Four families, one role each:
+Self-hosted, no CDN. Two families and one seal face, one role each:
 
 |Role|Family|Token|
 |---|---|---|
-|Editorial headlines|**Fraunces**|`Tokens.display`|
-|UI, body, labels, numerals|**Space Grotesk**|`Tokens.ui` (a user's configured UI font overrides it)|
-|Tabular data only|**SpaceMono Nerd Font**|`Tokens.mono`|
-|Kanji seals (力, 接続, 断)|**Noto Sans CJK JP**|`Tokens.jp`|
+|Everything a person reads: names, sentences, labels, prose, buttons|**Space Grotesk**|`Tokens.ui` (a user's configured UI font overrides it)|
+|Literal data only: addresses, ports, paths, ids, counts, chart ticks|**Space Mono**|`Tokens.mono`|
+|The 力 and 十 seals, and nothing else|**Noto Sans CJK JP**|`Tokens.jp`|
 
-One size ramp, eight steps, and a step is a role rather than a number to pick:
-`fTitle` 32 (the page title, Fraunces), `fHero` 34 (a headline readout), `fValue`
-26 (a cell's value), `fRow` 15 (a row name), `fBody` 14, `fSmall` 13
-(descriptions), `fMicro` 11 (tracked labels), `fTiny` 9 (corner tags, struck
-defaults).
+One scale, twelve steps, and a step is a role rather than a number to pick (sp,
+size / line):
 
-Mono labels are uppercase with wide tracking (`Tokens.trackLabel` 1.4,
-`Tokens.trackMark` 2.2); that spacing is the technical, poster feel. Keep it.
+|Token|Size|Weight|For|
+|---|---|---|---|
+|`fName`|52 / 56|Bold|the selected thing's name, the one monument in a view|
+|`fSentence`|34 / 40|Bold|a summary sentence; the name when the pane is under 640 wide|
+|`fSection`|21 / 28|Bold|page titles, large section heads|
+|`fTitle`|15 / 20|Medium|section titles inside a pane|
+|`fRow`|15 / 20|Medium|row names|
+|`fBody`|14 / 20|Regular|prose, form content|
+|`fProof`|15 / 21|Regular|the sentence under a name|
+|`fLabel`|13 / 16|Medium|plaques, tabs, filters, controls|
+|`fCaption`|12 / 16|Regular|facts, descriptions, secondary lines|
+|`fGroup`|12 / 16|Medium|list group headers|
+|`fMono`|12 / 16|Regular, Space Mono|data|
+|`fMonoSm`|11 / 15|Regular, Space Mono|proofs, counts, chart ticks|
 
-Mono is not the UI face. It carries what is literally valid in a config file:
-keys, ranges, defaults, paths, ids. Everything a human reads as language is
-Space Grotesk, numerals included. Setting the whole UI in mono makes it read as
-a terminal instead of a printed instrument, which is a different product.
+Sentence case everywhere, no tracking, no all caps, not even for group headers
+or eyebrows. Mono is not the UI face: it carries what is literally valid in a
+config file (keys, ranges, defaults, paths, ids) and nothing a human reads as
+language, numerals in prose included. Setting a surface in mono makes it a
+terminal, and setting a label in caps makes it a poster; Lithic is neither.
 
-## Geometry
+## Shape: the cut scale
 
-- **A hair of rounding.** `Tokens.radius` is `6`. Cards, rows, inputs, chips and
-  menus take it. Only true circles stay round: status dots, toggle knobs,
-  badges, the VRAM ring. The outer Hyprland window rounding is the user's own
-  knob; inside our surfaces we stay close to square.
-- **Hairline borders.** `1px` (`Tokens.border`) at `Tokens.line`. Depth is a
-  hairline, not a glow.
-- **One spacing scale.** `s1` 4, `s2` 8, `s3` 12, `s4` 16, `s5` 24, `s6` 32,
-  `s7` 48. Nothing between them.
-- **Fixed furniture.** A settings row is `rowH` 48 tall, a cell `cellH` 104, a
-  control `ctlH` 26, a nav rail `railW` 268. A page never invents these. A framed
-  page fills the window beside the rail, and the sheet puts its groups in as many
-  card columns as the measure holds (three on a page-wide window), each card
-  capped at `cardMax`.
+A cut is a 45 degree chamfer measured along one edge, and the eight-point
+outline of a rectangle with cut `c` on every corner is
+`(x0+c, y0) (x1-c, y0) (x1, y0+c) (x1, y1-c) (x1-c, y1) (x0+c, y1) (x0, y1-c)
+(x0, y0+c)`. Each corner may take its own cut; a pane cuts only its two top
+corners.
 
-## A page uses the window it was given
+|Token|dp|Applied to|
+|---|---|---|
+|`cutToken`|3|flakes, small tokens, tooltips|
+|`cutToggle`|4|the toggle track (its knob cuts 2)|
+|`cutSmall`|6|small plaques (32 high), filter chips, icon plaques, compact rail tiles|
+|`cutMid`|7|plaques (40 high), fields, pickers, slabs, rail tiles|
+|`cutNotch`|12|a tablet's state corner, the rail's update marker|
+|`cutLarge`|16|panes (top corners only), dialogs|
+|menus and placards|8|overlays one tone up, with a hairline|
+
+A press deepens a control's cut by 4 and sinks its content by 1. Hairlines are
+`Tokens.border` 1 px in `vein`, drawn wholly inside the outline; a stroked cut
+shrinks its inner path's cut by `width × (2 − √2)` so the stroke stays even
+around the chamfer. The other cut shapes are the **notch** (a right triangle
+filling a corner), the **blade** (a bar whose trailing top corner is cut by its
+own height), the **flake** (a parallelogram 1.4 × 0.7 of its size with 45
+degree short sides: vein outline idle, mineral fill active, part filled while
+becoming) and the **octagon**, the only other polygon, for the empty state's
+icon frame and the latency rings of a map. Status dots, pills and rounded
+toggle knobs are the old look and do not come back.
+
+Fixed furniture: a tablet is `rowH` 56 (48 in compact density), a plaque
+`ctlH` 40 (32 small), a field `fieldH` 44, a rail `railW` 88 at expanded width
+and 72 at medium. A page never invents these.
+
+## Space
+
+The spacing run is `s1` 4, `s2` 8, `s3` 13, `s4` 21, `s5` 34, `s6` 55. Nothing
+between them. Tablets sit 4 apart; plaques in an act row 8; a mark and its copy
+13; a slab's inset and the gap under a header's proof 21; a dialog's padding
+34; major regions of a full page 55. The work pane keeps 36 at its sides
+(`contentInset`), which is the one value outside the run, because it is the
+pane's margin and not a gap between things.
+
+## Layout
+
+Panes stand on the ground: every pane starts 10 below the window's top edge,
+sits 8 from its neighbours with ground showing between, cuts its two top
+corners at `cutLarge` and stays square at the bottom. The rail and the list
+pane are `stone1`; the work pane is `stone2`. Structure changes at a size-class
+boundary and a wide layout is never squeezed:
+
+|Class|Window width|Rail|List pane|Work pane|
+|---|---|---|---|---|
+|expanded|1280 and up|88, 64 tiles with labels|384|the rest|
+|medium|760 to 1279|72, 56 tiles, icons only|320|the rest|
+|compact|under 760|none, a 64 bottom bar|full width|replaces the list, with Back|
+
+A full page (a settings page) drops the list and takes the remaining width: at
+expanded width a `min(available, 994)` column with a sticky 200 section index
+34 to its left, at medium a `min(available, 760)` column with a row of filter
+chips above it, at compact the full width under a plain title; 34 above and
+below, 36 at the sides.
+
+### A page uses the window it was given
 
 The Hub opens page-wide, and a page that refuses the width it was given is the
 bug this section exists to prevent.
 
 - **The body takes the width it is given.** A page's scroll or body region never
   caps itself (no `Math.min(parent.width, Tokens.contentMax)` on the body). The
-  grid caps itself through its cards instead. Only *prose* keeps a reading cap: a
+  column above caps itself as a column; only *prose* keeps a reading cap: a
   paragraph, a help line, a release note, a blurb.
-- **The head sits on the body's grid.** An eyebrow, title and blurb start at the
+- **The head sits on the body's grid.** A title and its proof start at the
   body's left inset and span its width, so a page's title aligns with its first
-  card column rather than floating in the middle of the window.
+  slab rather than floating in the middle of the window.
 - **Content anchors to the top, always.** No block is centred by height, and no
   page spreads spare room into its rows: a block whose place depends on its height
-  visibly hops as cards measure in ("flickers when I switch to it"), and the same
-  first card then sits at two different heights on two pages. One place, always
+  visibly hops as slabs measure in ("flickers when I switch to it"), and the same
+  first slab then sits at two different heights on two pages. One place, always
   the top, is what lets a reader build a map of the page. A sparse page is honest
-  empty paper below the cards; the answer to thinness is a merge, not padding.
+  empty stone below the slabs; the answer to thinness is a merge, not padding.
 - **A page that fits does not scroll, and a page that overflows does.** Every
   scroller carries a `ScrollRail` and declares `WheelScroll { }` inside it, because
   a plain `Flickable` does not answer the wheel on this stack (see Motion below).
-  A scroller with nothing to scroll clamps and stays put.
+  A scroller with nothing to scroll clamps and stays put. The rail's thumb is a
+  3 wide `vein` blade.
 
-## Motion and input
+### Motion and input
 
 - **Every scroller answers the wheel.** `WheelScroll` (declared inside the
   `Flickable`/`ListView`, beside its `ScrollRail`) scrolls it one notch per 120
-  units of `angleDelta`, clamped to its bounds. A handler only receives events over
-  its own parent, so it cannot live in the rail: a handler inside a `Flickable` is
-  reparented to that flickable's `contentItem`, which is why the component walks up
-  to the item that owns `contentHeight`. A control that wants the wheel for itself
-  keeps it, since an inner handler accepts the event first.
-- **A page swap does not reflow.** The two loaders crossfade the incoming page, and
-  the page's own first layout is synchronous, so nothing moves after the fade
-  starts. Length-dependent placement and post-load measurement timers are what make
-  a page jump; there are none.
+  units of `angleDelta`, clamped to its bounds, and a notch glides over 140 ms. A
+  handler only receives events over its own parent, so it cannot live in the
+  rail: a handler inside a `Flickable` is reparented to that flickable's
+  `contentItem`, which is why the component walks up to the item that owns
+  `contentHeight`. A control that wants the wheel for itself keeps it, since an
+  inner handler accepts the event first.
+- **A page swap does not reflow.** The incoming page fades in with an 8 px rise
+  over `Tokens.notch`, and the page's own first layout is synchronous, so nothing
+  moves after the fade starts. Length-dependent placement and post-load
+  measurement timers are what make a page jump; there are none.
+- **Escape closes the topmost thing and nothing else:** an open menu or
+  popover, then the palette, then a draft, then the open detail. A click outside
+  a popover or dialog closes it and is swallowed, and while it animates shut it
+  blocks pointer input underneath so a dismissing click cannot land on a
+  control. Only one popover is open at a time.
 
-## Disclosure, not walls
+### Disclosure, not walls
 
 - **A page leads with what a user came for.** A rarely-touched cluster folds
   (`SettingCard.expanded: false`) and its header says what it hides
-  (`SettingCard.summary`: "4 SWITCHES"), because a folded card with no trace of
+  (`SettingCard.summary`: "4 switches"), because a folded slab with no trace of
   its contents reads as an empty one.
-- **A deep knob is `adv: true`**, hidden behind the rail's Advanced switch and
+- **A deep knob is `adv: true`**, hidden behind the rail's Advanced toggle and
   still reachable from search. Nothing is ever buried beyond a search.
 - **A toggle is only for a true binary.** A choice among modes is a `Seg`, a
   family of related on/offs is a `Multi`, a number is a `Step` or a `Slid`, and
   `Spans.controlFor` already decides this from the value's kind. Reaching for a
-  switch because the key is a `bool` is how a page becomes a wall of switches.
-- **A control that cannot work is never offered.** An affordance beside an empty
+  toggle because the key is a `bool` is how a page becomes a wall of toggles.
+- **A control that cannot work is never offered.** A plaque beside an empty
   list is armed only when the list has something to act on (`Btn.armed`), and a
   row the active compositor cannot back is dropped, not shown dead.
+- **Forms are drafts in the work pane, dialogs are for what cannot be undone.**
+  A dialog is a `stone4` slab cut 16 on a scrim with a line plaque to cancel and
+  a danger plaque to confirm; it may ask for the thing's name to be typed.
 - **Copy is measured, not guessed.** A row's description is one line and 60
-  characters at a three-column card; a page blurb is 70. A description that only
+  characters at a three-column sheet; a page blurb is 70. A description that only
   restates its label is deleted. These caps are enforced by reading the live
   page, not by counting characters in a file.
-- **No shadows in app surfaces.** The Hub and the apps are print: a flat
-  instrument sheet does not cast. The brutalist offset shadow is retired; an
-  overlay separates with `Tokens.paperLift` and a `lineStrong` border instead.
-  The frame's own drop shadow over the wallpaper is a different thing and is
-  outside this doc.
+- **Nothing casts.** The Hub and the apps are cut stone: an overlay separates
+  with `stone4` and a `vein` hairline, never a shadow. The frame's own drop
+  shadow over the wallpaper is a different thing and is outside this doc.
 
 ## The idioms: shared primitives
 
-They live in `Ryoku.Ui`, and `ryoku/ui/qmldir` exports 41 components plus three
-maths libs. Reuse them; do not re-roll a bespoke header, control or divider in
-each surface. That is how eleven Themes happened.
+They live in `Ryoku.Ui`, and `ryoku/ui/qmldir` is the one list of them. Reuse
+them; do not re-roll a bespoke header, control or divider in each surface. That
+is how eleven Themes happened.
 
 |Group|Idiom|
 |---|---|
-|Foundation|`Btn` (a button), `IconBtn` (a square utility button), `Field` (a text input), `ScrollRail` (a flickable's thumb)|
-|A setting|`Cell` (label, value, unit, struck default, description, control) or `SettingRow` (the compact row), grouped by `SettingCard` or `Section` (spans come from `Spans`, never by hand)|
+|Cut primitives|`CutRect` (a fill or inside stroke with independent corner cuts), `Notch`, `Blade`, `Flake` (the state token, with its `Claim` word)|
+|Foundation|`Btn` (a plaque: gold, line, quiet, on, danger, danger line; small; the press chip), `IconBtn` (a square plaque, may carry a notch), `Field` (a 44 `stone3` input with the focus stroke and error state), `Search` (a field with the leading icon and a clear plaque), `ScrollRail` (a flickable's blade thumb)|
+|A setting|`Cell` (label, value, unit, struck default, description, control) or `SettingRow` (the compact row), grouped by `SettingCard` (a `stone1` slab) or `Section` (spans come from `Spans`, never by hand)|
 |A page body|`CardColumns` (a page's blocks laid into balanced columns, a `fullWidth: true` child taking a band across them)|
-|The eight controls|`Sw` `Step` `Slid` `Seg` `Chips` `Multi` `PickBar`+`Picker` `Gallery`. A numeric readout (a stepper's number, a slider's percentage) is typed into on click or Enter: a knob is right for a nudge, typing is right for an exact value, and the typed number is clamped into the row's own range. `Sw` shows two signals for one state: the track tints and the knob fills as it goes on.|
-|Save state|`ActionBar` (Save / Revert / Reset, and the dirty readout)|
+|The eight controls|`Sw` (the 40 × 22 cut toggle, bone when on) `Step` `Slid` (a `stone3` track with an `fg2` blade and a cut `sel` handle) `Seg` `Chips` (filter chips, bone when selected) `Multi` `PickBar`+`Picker` `Gallery`. A numeric readout (a stepper's number, a slider's percentage) is typed into on click or Enter: a knob is right for a nudge, typing is right for an exact value, and the typed number is clamped into the row's own range.|
+|Lists|`Tablet` (the resource row with its notch, claim and proof, hover action and progress blade), `RowList` (rows 4 apart with the moving bone slab), `GroupHeader`|
+|Save state|`ActionBar` (Save in gold, Revert and Reset as line and quiet plaques, and the dirty readout)|
 |Live preview|`Preview` (the block a live preview sits in), `SpectrumField` (the audio field, shared with the desktop)|
-|Modals|`AppPicker` (a filterable app or command list), `PickFile` (a file or folder chooser)|
-|Navigation|`Tabs` (bone-invert plates, the `//` lead)|
-|Art texture|`Grain` (a film tooth over art, never over chrome: the recording thumbnail, the launcher preview)|
-|Poster ornament|`Reg` (registration backdrop), `Ticks` (corner ticks), `Barcode`, `Empty` (the empty-state plate), `Motif` (the line ornament inside `Empty`), `Marginalia` + `Pixel` (a running-head strip and its 1-bit dingbats), `Watermark` (a blurred background kanji behind the content)|
-|Image tools|`HeroCrop` (cover plus a draggable 0..1 focal point), `DitherImage` (an image baked to 1-bit through the Bayer shader)|
+|Modals and overlays|`Dialog` and `Confirm`, `Menu` in a `Popover`, `Placard` (the bottom notice with Undo that drains over five seconds), `Tooltip`, `AppPicker` (a filterable app or command list), `PickFile` (a file or folder chooser)|
+|Navigation|`Tabs` (labels over a vein baseline with the moving blade), `Rail` (the destinations with the travelling bone tile)|
+|Data|`EngravedChart` (a line over a hatch), `Facts` (a label and value table), `Empty` (the octagon-framed empty state), `Skeleton`, `Working` (three flakes filling in turn)|
+|Image tools|`HeroCrop` (cover plus a draggable 0..1 focal point)|
 |Keyboard|`KeyboardMap` (a live diagram lighting the layout legends and remapped keys), `KeypressStack` -> `KeyChord` -> `Keycap` (the recording's keypress overlay)|
 
-Two of those look unused and are not: `Motif` is drawn only by `Empty`, and
-`KeyChord`/`Keycap` only by `KeypressStack`. They are composition, not museum
-pieces. The distinction matters, because the old table here listed `Eyebrow`,
-`SunDisc`, `RegMark` and `BrutalPanel`, which really were used zero times: the
-brutalist card the tokens described was built and never adopted, and the pages
-hand-rolled a hairline `Rectangle` instead. A documented primitive nobody reaches
-for is not a design system, it is a museum. If a new idiom is worth having, put
-it in `Ryoku.Ui` and use it somewhere in the same change.
+Two of those look unused and are not: `Claim` is drawn only by `Flake`'s
+callers, and `KeyChord`/`Keycap` only by `KeypressStack`. They are composition,
+not museum pieces. The old table here listed `Eyebrow`, `SunDisc`, `RegMark`
+and `BrutalPanel`, which really were used zero times, and the poster ornaments
+(`Reg`, `Ticks`, `Barcode`, `Marginalia`, `Pixel`, `Watermark`, `Motif`,
+`Grain`, `DitherImage`) go with the paper-and-ink look they dressed. A
+documented primitive nobody reaches for is not a design system, it is a museum.
+If a new idiom is worth having, put it in `Ryoku.Ui` and use it somewhere in the
+same change.
 
-Under `ryoku/ui/lib/` sit the four maths files, each with a `.test.mjs` beside
-it, because they are the arithmetic a component cannot eyeball: `spectrum.js`
+Under `ryoku/ui/lib/` sit the maths files, each with a `.test.mjs` beside it,
+because they are the arithmetic a component cannot eyeball: `spectrum.js`
 (band resampling), `place.js` (the box's tilt and rotation maths, used by
-`SpectrumField` so previews and the live look cannot drift),
-`keypress.js` (the keypress stack), and `hero.js` (image framing, imported by
-relative path rather than exported, since only `HeroCrop` needs it).
+`SpectrumField` so previews and the live look cannot drift), `keypress.js` (the
+keypress stack), `hero.js` (image framing, imported by relative path rather
+than exported, since only `HeroCrop` needs it) and `cut.js` (the chamfer points
+and the inside-stroke inset, shared by `CutRect` and the shaders).
 
 **Choosing a control is not a taste decision.** `Spans.controlFor(kind, options)`
 picks it from the value's kind and its option count: `bool` is a `Sw`, `int` a
@@ -388,17 +486,10 @@ options, 21 have 3, 9 have 4 to 6, one has 7, the font catalogue has 25, and
 `islandModules` is a true set. Five or more options is never a segmented; nine or
 more is never inline. `Spans.of()` then returns the column span and `Spans.pack()`
 bento-fills rows of twelve columns, so a sheet never ends on a ragged right edge.
-Subshells and bar styles are a `Gallery`, because no label distinguishes "engraved bracket
-cells" from "three islands with concave dips".
+Subshells and bar styles are a `Gallery`, because no label distinguishes "engraved
+bracket cells" from "three islands with concave dips".
 
 ## A page is its surfaces
-
-![A Hub page](media/hub-page.webp)
-
-*The page anatomy: rail with masthead, search, numbered groups and kanji seals;
-eyebrow, Fraunces title and description; sections of hairline-bordered rows; the
-action bar holding the dirty state. The `+` marks are `Reg`, the registration
-backdrop.*
 
 A settings page is not a list of settings. The Hub carries 540 settings across 33
 pages (`grep -ho '"key":' ryoku/hub/quickshell/schema/*.js | wc -l`), and
@@ -418,7 +509,7 @@ So a schema is half a page. Port in this order:
    console is not a setting and does not go in a `Cell`.
 3. Let the rows flow around them.
 4. Check all four: every surface present, every key present, the adapter still
-   writing (`tests/ui/wire-probe.sh`), nothing below 4.6:1.
+   writing (`tests/ui/wire-probe.sh`), nothing below 4.5:1.
 
 The `ActionBar` goes in first. A page that previews live and cannot save does
 not look broken; it looks fine and then eats the edit on the way out.
@@ -427,75 +518,60 @@ not look broken; it looks fine and then eats the edit on the way out.
 
 `Hub.qml` owns the frame, so a page only writes its content:
 
-- **The rail.** A masthead (力 seal, `RYOKU`, `SETTINGS`),
-  a search field, then eight groups. A group header is its zero-padded index and
-  name in tracked mono (`01 OVERVIEW`, `02 DEVICES`, `03 LOOK`, `04 COMPOSITOR`,
-  `05 DESKTOP`, `06 KEYS & APPS`, `07 SYSTEM`, `08 EXTEND`, and a nameless ninth
-  holding Credits). A section can fold into another page rather than keeping a
-  row of its own (Cursor lives inside Input) and an old link to it still lands
-  right, because `canonicalSection` maps the retired key. Selection is typography, never a coloured bar: the live section takes
-  a bone plate and a `//` lead, and the group header steps up the ink ramp from
-  faint to dim as a quiet "you are here". Every item carries its kanji seal on
-  the right.
+- **The rail.** The 力 seal as the Home mark at the top, the search field, then
+  the groups as destinations. A group header is its name in `fGroup`, sentence
+  case, and the current page is a bone tile (`sel`, cut `cutMid`) that travels
+  to its new place over `Tokens.select`; hover steps a tile to `stone3`. A
+  section can fold into another page rather than keeping a row of its own
+  (Cursor lives inside Input) and an old link to it still lands right, because
+  `canonicalSection` maps the retired key. The only marker a tile may carry is
+  an amber notch, and only Updates carries it, when the channel sits behind
+  origin.
 - **The Advanced gate.** Sections marked `adv` are hidden from the rail until
-  the rail-foot `Advanced` switch is on, and a group whose every item is `adv`
+  the rail-foot `Advanced` toggle is on, and a group whose every item is `adv`
   folds away entirely rather than leaving a bare header. Search still reaches
   them, and the open section always counts as visible, so turning Advanced off
   never strands you on a page the rail no longer lists.
-- **The rail foot.** The `Advanced` switch, under a hairline. Nothing else: the
-  barcode plate and edition chip that used to sit here were poster ornament, and
-  the rail is navigation.
-- **The page head.** A `力 <GROUP>` eyebrow, the title in Fraunces at `fTitle`,
-  and a one-sentence description.
-- **The corner chips.** `FILES` and `UPDATES` ride the strip beside every page
-  head. They take the page's own right inset (`Tokens.s6`, so they line up with
-  the last card rather than floating inside it), a control-sized box (`30` tall,
-  `S4` of padding, `fSmall` label), and a page that draws its own top-right
-  control (`Profile`'s `EDIT`) sits below them rather than stacking under
-  `UPDATES`. `UPDATES` wears a `Tokens.alert` dot when the channel sits behind
-  origin. Both are opaque, so they never collide with a page's head.
-- **The tab bar is one fixed layout, on every page.** Every plate reserves the
-  `//` lead as a slot and only INKS it when active, and one padding applies to
-  every page, so selecting a tab never widens that plate or shoves its neighbours
-  sideways. A tab-switch is a fade of the card set, not a reflow: nothing
-  travels, and opacity cannot move a card.
+- **The rail foot.** The `Advanced` toggle, under a hairline. Nothing else.
+- **The page head.** The title in `fSection` and a one-sentence description in
+  `fBody`, `fg2`. A page about one selected thing (a profile, a device, a
+  machine) gets the mineral field header instead: the mark at 44, the name in
+  `fName`, its proof, and the act row with one gold plaque.
+- **The corner plaques.** `Files` and `Updates` ride the strip beside every page
+  head as small quiet plaques. They take the page's own right inset so they line
+  up with the last slab rather than floating inside it, and a page that draws
+  its own top-right control (`Profile`'s `Edit`) sits below them.
+- **The tab strip is one fixed layout, on every page.** Labels sit in a 44 strip
+  over a vein baseline, each as wide as its label plus 24, and the 3 px blade
+  under the active one slides over `Tokens.select`; selecting a tab never widens
+  a label or shoves its neighbours. A tab switch is a fade of the slab set, not
+  a reflow: nothing travels, and opacity cannot move a slab.
 - **The grid's geometry comes from the page width, never from the open tab.**
   `SettingsSheet.gridColumns` is the page's capacity while `columns` is only how
   many columns the open tab's groups are bucketed into. Deriving geometry from
-  the tab made a one-group tab (Window Manager's `BORDERS`) shrink the sheet and
+  the tab made a one-group tab (Window Manager's Borders) shrink the sheet and
   drag the head and tab row sideways with it, so the whole page read as shuffling
   when the reader switched. `CardColumns` keeps its column split until the SET of
   visible blocks changes, so a drawer that unfolds changes only its own column.
-- **The action bar.** Bottom, on framed pages: the dirty readout (`SAVED · LIVE
-  ON YOUR DESKTOP`), its own marginalia, then `RESET TO DEFAULTS` / `REVERT` /
-  `SAVE`.
+- **The action bar.** Bottom, on framed pages: the dirty readout ("Saved, live
+  on your desktop") in `fCaption`, then `Reset to defaults` and `Revert` as a
+  quiet and a line plaque, and `Save` in gold. It is the one gold plaque on a
+  settings page.
 - **The page measure.** A framed page takes the width beside the rail: a wider
   window buys more columns, never a longer row and never a wider void. The sheet
-  lays its groups into as many card columns as the measure holds
-  `SettingsSheet.gridColumns`), each card capped at `cardW`, bucketed shortest
-  column first from an estimate that counts each card's own header as well as its
+  lays its groups into as many slab columns as the measure holds
+  (`SettingsSheet.gridColumns`), each slab capped at `cardW`, bucketed shortest
+  column first from an estimate that counts each slab's own header as well as its
   rows, so the columns end as level as the groups allow. Prose keeps its own
   reading cap.
-- **A list of values is rows, wherever it lives.** The same rhythm as the settings
-  cards: card insets (`S4`), one row height, a hairline between rows, label in
-  `ink` over its note in `inkMuted`. A hand-built page that draws its own plate
-  with tighter spacing is the drift this rule exists to stop (Import's
-  bring-over list, Updates' package and commit rows, Displays' saved profiles).
-- **Nothing floats.** There is no registration backdrop and no poster layer: the
-  sheet is paper with a hairline grid of cards, and the ornament that survives
-  (`Reg` behind a rail, `Ticks` on a framed specimen, `Marginalia`, `Barcode`,
-  `Watermark`) is used where a surface has a genuine dead margin for it, never
-  behind a control.
-
-## The retired poster layer
-
-The Hub used to wear a second skin: a `hubDecor` switch in the rail traded a
-"calm" sheet for a "rich" one with register crosshairs, a film-grain plate, a
-barcode rail foot, an oversized `fTitle` and chapter plates (`Decor`, `Placard`,
-`DitherField`) filling dead grid cells with art. Calm was the default and the
-right answer, so the switch, the components and every one of their call sites are
-gone: a settings page is one voice now. `Grain` stays for art surfaces, and
-`Ryodecors.dir` art still feeds the profile hero and its editor.
+- **A list of values is tablets, wherever it lives.** The same rhythm as the
+  settings slabs: `s4` insets, one row height, 4 between rows, label in `fg`
+  over its note in `fg3`, the state as a notch and a claim. A hand-built page
+  that draws its own plate with tighter spacing is the drift this rule exists to
+  stop (Import's bring-over list, Updates' package and commit rows, Displays'
+  saved profiles).
+- **Nothing floats.** There is no registration backdrop, no poster layer, no
+  ornament. The sheet is stone with slabs on it.
 
 ## The surfaces
 
@@ -506,17 +582,16 @@ and per-monitor visibility from `ShellState`.
 
 ### Always on screen
 
-- **frame** the rounded screen border and the popouts that melt into it; the
+- **frame** the screen border and the popouts that grow out of it; the
   desktop's signature surface. See `docs/frame.md`.
 - **bar** the desktop's edge instrument, drawn by the active subshell or bar
   style that `barStyle` names. Ryoku ships two subshells: **Orpheus**, the
-  liquid top bar and the fallback, and **Kairos**, the clock island the default
-  rice wears. Everything else
-  installs from RyoStore: **QS Bar** is a full-colour top bar retinted from the
-  wallpaper's seven palette slots, **Sumi** is the monochrome frame-bar system
-  built on Ryoku's frame-bar kit (`docs/bar.md`), and **Obi** and **Nacre** have
-  Hub editors (`ITEM WIDGETS`, `NACRE LAYOUT`) that show while they are
-  selected. The `Shells` singleton resolves the id from
+  top bar and the fallback, and **Kairos**, the clock island the default rice
+  wears. Everything else installs from RyoStore: **QS Bar** is a full-colour top
+  bar retinted from the wallpaper's seven palette slots, **Sumi** is the
+  monochrome frame-bar system built on Ryoku's frame-bar kit (`docs/bar.md`),
+  and **Obi** and **Nacre** have Hub editors (Item widgets, Nacre layout) that
+  show while they are selected. The `Shells` singleton resolves the id from
   `~/.local/state/ryoku/store/shells.json`; see `docs/subshells.md`. Items built
   on the kit grow the same popout cards from `shell/modules/bar/popouts/`:
   clicking a status widget (network, Bluetooth, battery, audio, system monitor,
@@ -526,7 +601,7 @@ and per-monitor visibility from `ShellState`.
   `ryoku/shell/quickshell/shell/modules/sidebar/`; see `docs/sidebars.md`.
 - **dock** a per-monitor shell surface that is independent of the selected
   subshell or bar style. `UniversalDockHost.qml` loads exactly one design:
-  Ryoku's paper islands, a dock an installed item provides (Python's flowing
+  Ryoku's stone islands, a dock an installed item provides (Python's flowing
   dock, Shima's notched capsule), a store dock, or none. They all consume
   the same running-window model and canonical desktop-entry pins from the
   top-level `dock` object in `shell.json`, so changing designs keeps app order
@@ -563,9 +638,9 @@ and per-monitor visibility from `ShellState`.
   reveal shader for transitions: 22 presets the daemon draws from at random on
   each switch, from the crossfades, directional sweeps and circle irises to a
   coordinate-warping family ported from ii that distorts the two frames rather
-  than sweep a mask -- block, noise, wave, shatter, glitch, scanline, stripe,
-  melt and peel. Its Theme holds exactly one token, the paper colour shown in the
-  letterbox margins of a Contain fit.
+  than sweep a mask: block, noise, wave, shatter, glitch, scanline, stripe,
+  melt and peel. Its Theme holds exactly one token, the ground colour shown in
+  the letterbox margins of a Contain fit.
 - **desktop widgets** the clock, calendar, music, all-in-one, system stats,
   weather, notes and any enabled third-party widgets, hosted by one bottom-layer
   surface. Weather reads the shell's own forecast daemon and shows either a
@@ -575,14 +650,14 @@ and per-monitor visibility from `ShellState`.
   keyboard only while it has focus. Each sits on auto (the wallpaper's calmest,
   most tonally even region, re-followed on every wallpaper change), a compass
   zone, or free pixels. In the Stage Editor, a widget's frame appears on hover
-  or selection with four corner handles, a size badge, and Settings and Remove.
+  or selection with four corner grips, a size badge, and Settings and Remove.
   Moves snap to the grid, the card centre, and other widgets' edges and centres;
   Alt keeps a move free. Resize previews stay local, snap to 5% unless Shift is
-  held, and commit once on release. Double-clicking a handle resets to 100%.
+  held, and commit once on release. Double-clicking a grip resets to 100%.
   Double-clicking the widget or choosing Settings opens its named drawer page
   with quick size, lock, depth, and remove controls above its full inspector.
   The desktop's own right-click menu has Wallpaper and Search in its quick row.
-  Its single accent row, Edit desktop, opens the Stage Editor on that monitor;
+  Its one gold row, Edit desktop, opens the Stage Editor on that monitor;
   Settings and Reload shell remain below it.
 - **the desktop spectrum** the audio visualiser, described in full below.
 
@@ -603,6 +678,10 @@ and per-monitor visibility from `ShellState`.
 |**voice**|`Super+grave`|speech to text with a live mic wave|
 |**Ryoku Settings**|`Super+,`|the Hub|
 
+A summoned surface is a `stone4` slab with a vein hairline over a scrim where
+it is modal, and a cut pane where it is not. It takes focus so Escape reaches
+it first, and it leaves over `Tokens.hover`.
+
 ### Kit
 
 Kit keeps five tools behind one search field:
@@ -614,51 +693,46 @@ Kit keeps five tools behind one search field:
 - **Dev tools** holds the quick tools useful during a session.
 - **Typing test** provides focused practice and history.
 
-![The launcher at rest](media/launcher.webp)
-
-*The launcher at zero query: the hero plate, the greeting and clock, the weather,
-the search rule, and the mode buttons. Everything else appears only once you
-type.*
-
 - **launcher** three variants ship, chosen by `LauncherConfig.variant` against
   `launcher/catalog.json`: **Hero** (the default, a full image header with mode
-  buttons), **Main** (a compact palette with a centred rest card) and
+  plaques), **Main** (a compact palette with a centred rest card) and
   **OkShell** (an applications-only list, the fallback). At zero query the rest
-  card is the clock, the greeting, the weather, and the hero art with a solar
-  arc; typing switches it to results. The mode buttons narrow the field to ALL,
-  IMG, FILE or REC. Twelve providers sit behind one search box, most with a
-  prefix: apps, open windows and snippets by default, then `/` actions, `=` the
-  calculator, `?` web search with bangs, `>` packages, `@` radio, `/file`
-  `/folder` `/image` `/video` the file finder, MPRIS transport, scripts, recent
-  files, and `\` which streams an answer from the Rashin agent. See
-  `docs/launcher.md`.
-- **overview** launcher-style: the compositor blurs the desktop and a filmstrip
-  shows the current desktop's workspaces as scaled mini-desktops with live window
+  card is the clock, the greeting, the weather, and the hero art; typing
+  switches it to results, tablets with the moving bone slab. The mode plaques
+  narrow the field to All, Images, Files or Recent, and the current one is
+  bone. Twelve providers sit behind one search box, most with a prefix: apps,
+  open windows and snippets by default, then `/` actions, `=` the calculator,
+  `?` web search with bangs, `>` packages, `@` radio, `/file` `/folder`
+  `/image` `/video` the file finder, MPRIS transport, scripts, recent files,
+  and `\` which streams an answer from the Rashin agent. See `docs/launcher.md`.
+- **overview** the compositor blurs the desktop and a filmstrip shows the
+  current desktop's workspaces as scaled mini-desktops with live window
   previews. Drag windows between workspaces or up onto the top desktop strip,
   cycle spaces (scroll or Tab) and desktops (Alt+Tab). A "desktop" is a block of
   ten workspace ids, so each desktop keeps its own 01..10; the same grouping
-  drives the desktop-relative `Super+N` binds (`hyprland/modules/workspaces.lua`). The
-  gesture legend sits along the bottom margin as marginalia, not as buttons.
-- **Controls** is a compact top-left panel. Vitals is a native mini system
-  monitor with per-core load, temperatures, memory, GPU, network and disk.
-  Connections summarizes Wi-Fi, Bluetooth, Ethernet and VPN. Levels keeps fine
-  volume and brightness controls with inline per-application audio and
+  drives the desktop-relative `Super+N` binds (`hyprland/modules/workspaces.lua`).
+  The gesture legend sits along the bottom margin in `fCaption`, not as buttons.
+- **Controls** is a compact top-left pane. Vitals is a native mini system
+  monitor with per-core load, temperatures, memory, GPU, network and disk as
+  blade meters and engraved charts. Connections summarizes Wi-Fi, Bluetooth,
+  Ethernet and VPN as tablets with their claim and proof. Levels keeps fine
+  volume and brightness sliders with inline per-application audio and
   per-display brightness drawers. Its bottom bar combines hold-to-activate
-  session actions, quick toggles, Extensions, and a gear popup.
+  session actions, quick toggles, Extensions, and a gear popover.
 - **ryoshot capture bar** is the single entry point for screenshots and screen
   recording. Its settings popover owns the 0/1/3/5/10-second delay,
   clipboard/file/both saving, editor handoff, desktop and microphone audio,
   key-press and webcam overlays, the screenshots folder, and the link to Hub >
   Recording. Controls does not duplicate any of these capture options.
-- **Ask** is a Raycast-style Rashin bar for quick streaming answers, full chat,
-  tools and web search. `\`, `?` and `/` select Ask, Web and Tools; Tab cycles
-  modes. A pinned chat bubble can be dragged, edge-snapped and dismissed, with
-  its position stored under `ask.bubble`. See `docs/sidebars.md`.
+- **Ask** is a Rashin bar for quick streaming answers, full chat, tools and web
+  search. `\`, `?` and `/` select Ask, Web and Tools; Tab cycles modes. A pinned
+  chat bubble can be dragged, edge-snapped and dismissed, with its position
+  stored under `ask.bubble`. See `docs/sidebars.md`.
 - **wallpaper and theme menu** a carousel of the wallpaper library (four layouts:
   strips, grid, drift, hearthstone) with the current wall large and named, a
-  colour-filter strip, a live tab for animated walls, and a bottom-centre frame
-  blob holding the mode (Walls or Themes), the layout, the filter and the
-  position count.
+  colour-filter strip, a live tab for animated walls, and a bottom-centre pane
+  holding the mode (Walls or Themes), the layout, the filter and the position
+  count.
 - **ryoshot** screenshot capture, annotation and pinning. Drag a region, click a
   window, or press Space to switch the hover target to a whole monitor; the
   captured region keeps eight grips afterwards, so it can be recropped without
@@ -676,20 +750,20 @@ type.*
 
 ### Grown, not summoned
 
-- **notifications** toasts in a top corner, left or right by config, 16px off it,
-  driven over D-Bus. Each card glides in from off the edge it is anchored to and
-  leaves the same way, and its siblings slide down to close the gap. This card is
-  the shipped `ryoku` notification design; other installed designs can be worn
-  from Settings -> Overlays.
-- **OSD** one pill, bottom centre, for volume, mic or brightness, raised by the
-  media and brightness keys and hidden on a timer. It spans the desktop hole so
-  the compositor clamps it inside the frame, which is why it needs no reserve
-  arithmetic of its own. The pill is the shipped `ryoku` OSD design; other
-  installed designs can be worn from Settings -> Overlays.
+- **notifications** placards in a top corner, left or right by config, 16px off
+  it, driven over D-Bus. Each card glides in from off the edge it is anchored to
+  and leaves the same way, and its siblings slide down to close the gap. This
+  card is the shipped `ryoku` notification design; other installed designs can
+  be worn from Settings -> Overlays.
+- **OSD** one cut slab, bottom centre, for volume, mic or brightness, raised by
+  the media and brightness keys and hidden on a timer; the level is a blade. It
+  spans the desktop hole so the compositor clamps it inside the frame, which is
+  why it needs no reserve arithmetic of its own. It is the shipped `ryoku` OSD
+  design; other installed designs can be worn from Settings -> Overlays.
 - **capture overlays** the region selector, the camera permission prompt, and the
   keypress overlay a recording draws so a demo shows its own keys.
 - **confirm** the session dialog for shutdown, reboot and logout, drawn on the
-  monitor that raised it.
+  monitor that raised it: a `stone4` slab on a scrim, the act in a danger plaque.
 - **the keyring prompt** the GNOME keyring password prompt, grown from the bar
   edge as a popout rather than gcr's centred dialog. The `ryoku-shell` daemon acts
   as the keyring system prompter and drives it; `KeyringSurface.qml` renders it.
@@ -703,14 +777,14 @@ type.*
 - **the apps** standalone Ryoku apps read the same tokens and carry no theme of
   their own: **ryostore** is the catalogue for rices, lockscreens, plugins, bar
   styles, fastfetch presets and bundles; **Ryoport** is the optional fleet
-  dashboard package for virtual machines, SSH servers and remote consoles. See
-  `docs/store.md`.
+  dashboard package for virtual machines, SSH servers and remote consoles, and
+  Lithic's reference implementation. See `docs/store.md`.
 - **welcome** the first-run guided tour, shown once on the first login: a
-  floating window (`qs -c welcome`) over generated threshold art that walks a new
-  user through the core keybinds, names each surface and how to summon it, and
-  offers a few live quick settings (wallpaper, Bar Studio, frame and window
-  roundness). The Hyprland autostart launches it once, gated on a
-  `~/.local/state/ryoku/welcome-seen` flag.
+  floating window (`qs -c welcome`) that walks a new user through the core
+  keybinds, names each surface and how to summon it, and offers a few live quick
+  settings (wallpaper, Bar Studio, frame and window roundness). The Hyprland
+  autostart launches it once, gated on a `~/.local/state/ryoku/welcome-seen`
+  flag.
 - **the lockscreen** `Super+L` runs `ryoku-shell lock`, which renders the active
   qylock theme (`ryoku/lockscreen/qylock/`, vendored, and exempt from our hooks
   for that reason) over a Wayland session-lock surface. The SDDM greeter uses the
@@ -739,18 +813,19 @@ in as uniforms and `ryoku/ui/shaders/spectrum.frag` returns the whole shape in a
 single draw call, with glow, reflection and peak caps done inside that pass
 rather than as offscreen effects. Both the desktop and the Hub preview render
 through the same `Ryoku.Ui.SpectrumField`, so the preview is the exact geometry
-the wallpaper draws and the two cannot drift; only the ramp differs, since app
-content carries no accent.
+the wallpaper draws and the two cannot drift. The spectrum is art on the
+wallpaper, not chrome, which is why it may glow and curve where a surface may
+not.
 
 There are twelve looks: eight that grow from an edge of their box, three that
 are polar, and one that is not a box at all. `aura` is an edge field, drawn by
 `ryoku/ui/AuraField` and `shaders/aura.frag` instead of the spectrum shader:
 twelve eased sectors (folded and followed in `lib/aura.js`) flow along chosen
 screen edges as one organic current, a rail, an open frame or a joined
-perimeter. It owns four small vocabularies -- material (silk, aurora, contour,
+perimeter. It owns four small vocabularies, material (silk, aurora, contour,
 liquid), movement (flow, ribbon, cells, filament), effect (clean, shimmer,
 echo, prism, bloom, caustic, afterglow) and colour mode (flow, spectrum, pulse,
-static) -- plus reach, span, taper and corner blending, and it paints a
+static), plus reach, span, taper and corner blending, and it paints a
 wallpaper-lit triad unless all three stops are pinned. Its motion twin is
 `AuraMotion`, which runs the same adaptive idle/halve rules as `Motion`.
 
@@ -821,10 +896,9 @@ height, across, down, and turn, with Centre, Square, Full width, Top, Middle,
 and Bottom actions. Done leaves the editor; Escape first closes the open panel
 and clears the selection.
 
-The Stage island maps its paper, ink, spacing, and Space Grotesk, Fraunces, and
-mono type through `modules/common/Appearance.qml` to Ryoku.Ui tokens. A look is
-tuned where it is visible, on the live wallpaper, rather than in a detached
-placement surface.
+The Stage island maps its stones, type, spacing and cuts through
+`modules/common/Appearance.qml` to Ryoku.Ui tokens. A look is tuned where it is
+visible, on the live wallpaper, rather than in a detached placement surface.
 
 The catalogue uses the desktop menu's rows (`MenuRow`, `MenuSlider`,
 `MenuChip`, `MenuInkPicker`) and the shared `Gallery` painter (`VizStyles`), so
@@ -898,34 +972,37 @@ offscreen buffer.
 
 ## Motion
 
-Motion is smooth, short, and purposeful. It exists to explain a state change, not
-to decorate. There are two token sets, and which one you reach for depends on
-which process you are in.
+Knapping: one curve, a short table of durations, no bounce, nothing moving at
+rest. The curve is **chisel**, `cubic-bezier(.2, 0, 0, 1)`, handed to
+`easing.bezierCurve` as `[0.2, 0, 0, 1, 1, 1]` beside `Easing.BezierSpline`. It
+is the only curve for chrome; the frame's physical give and the spectrum keep
+their own (below).
 
-- **`Tokens` carries the app set**, the four durations a printed instrument needs:
-  `snap` (90ms) hover, press and a state flip, `move` (170ms) a selector
-  travelling, `swap` (210ms) content exchanging, `flap` (110ms) a value changing,
-  with `ease` (`OutCubic`) and `easeSnap` (`OutQuad`). The Hub and the apps use
-  nothing else. A settings sheet that animates for half a second feels like it is
-  thinking; it should feel like paper.
+- **`Tokens` carries the app set**, and a name says what the motion means:
+  `press` (90 ms, the cut chips 4 deeper and the plaque sinks 1), `hover`
+  (160 ms in, 100 out: a plane steps up a tone, a tablet's claim gives way to
+  its action), `select` (240 ms: the bone slab moves, the tab blade slides, the
+  toggle knob travels), `field` (320 ms: a mineral field changes stone), `notch`
+  (200 ms: a state is cut into a corner, a disclosure opens, a page fades in),
+  `overlay` (300 ms in, 160 out: a dialog, placard or tooltip), `break` (420 ms:
+  a deleted slab breaks along a diagonal), with `popover` 160 in and 100 out and
+  the `placard` life of 5 s. The Hub and the apps use nothing else, and a
+  motion not in that list does not happen: icons do not spin, panes do not slide
+  in from the side, lists do not stagger, nothing pulses.
 - **`Motion` carries the shell set** (`shell/services/Motion.qml`), because a
   surface that grows out of an edge is a different problem from a row changing
-  value. Reach for its named tokens rather than inventing values: `barReveal`
-  (250ms), `menuSlide` (250ms), `sidebarEnter` (400ms) and `sidebarExit` (200ms),
-  `push` (420ms, `OutQuint`), `notifIn` (420ms) and `notifOut` (340ms),
-  `crossfade` and `wallpaperFade` (200ms), `rowReveal` (200ms), `thumbHover`
-  (150ms), plus the general `fast` (140ms), `hover` (100ms), `standard` (300ms),
-  `morph` (420ms), `spatial` (500ms, a spring with overshoot, for a popout
-  opening) and `effects` (200ms). A curve is a `cubic-bezier` control-point array
-  handed to `easing.bezierCurve` beside a bezier `easing.type`; the shared
-  expressive family keeps indicator, popout and frame-bar reveal motion coherent.
+  value. Its named tokens, `barReveal`, `menuSlide`, `sidebarEnter` and
+  `sidebarExit`, `push`, `notifIn` and `notifOut`, `crossfade` and
+  `wallpaperFade`, `rowReveal`, `thumbHover`, and the general `fast`, `hover`,
+  `standard`, `morph` and `effects`, ride the chisel curve; `spatial` keeps its
+  spring for the frame's popouts, which are the one place overshoot is physical
+  rather than scripted. Reach for a named token rather than inventing a value.
 - **The Controls surface moves in small, local steps.** `SidebarState` scales
-  `Tokens.swap` for opening and `Tokens.move` for closing; `quick`, `standard`,
-  and `calm` apply multipliers of 0.6, 1, and 1.5. The panel fades in and settles
-  a short distance from its screen edge. Detail pages crossfade; selected rows
-  use a quiet bone plate. Hover, focus, and save states ease between colours or
-  opacity. Both `Motion.reduce` and `Tokens.reduceMotion` remove every surface
-  and chrome animation.
+  `Tokens.overlay` for opening and `Tokens.hover` for closing; `quick`,
+  `standard`, and `calm` apply multipliers of 0.6, 1, and 1.5. The pane fades in
+  and settles a short distance from its screen edge. Detail pages crossfade;
+  selected rows use the bone slab. Both `Motion.reduce` and
+  `Tokens.reduceMotion` remove every surface and chrome animation.
 - **Every shell token is already scaled.** Each one is defined as `dur(ms)`,
   which multiplies by `Perf.motionSpeed` (the user's tempo, `motionSpeed` in
   `performance.json`) and collapses to zero under reduce-motion, so the whole
@@ -938,31 +1015,45 @@ which process you are in.
   2x2 deformation of `min(speed * deformScale, 0.35)`, and solves an underdamped
   spring toward it in sub-8ms steps. The defaults are `stiffness` 200, `damping`
   16, `deformScale` 0.0005, and it snaps to rest below 0.004 deviation. That is
-  the liquid feel when a popout grows. See `docs/frame.md`.
+  the feel when a popout grows. See `docs/frame.md`.
 - **Drive transitions from state where the shape of the change is a state**
   (`states` + `transitions`, as the popout reveal and the notification list do).
   Most motion is a single property settling, and a `Behavior on` is the honest
   expression of that; the codebase is overwhelmingly `Behavior on` and that is
   correct. What is never correct is an imperative timer stepping a value.
-- **Respect inhibition and performance.** No animation should fight the
-  compositor or repaint when idle. Gate live work (a `MultiEffect`, a poll, a
-  scanner) on the surface being open or visible; a hidden or resting surface costs
-  nothing, and idle blobs snap to rest.
+- **Nothing is drawn at rest.** A `Behavior` costs nothing once it settles, and
+  that is the point; the two loops Lithic allows (the indeterminate blade and
+  the three-flake `Working` indicator) run only while their job is live and
+  freeze under reduce-motion. Gate live work (a `MultiEffect`, a poll, a
+  scanner) on the surface being open or visible; a hidden or resting surface
+  costs nothing, and idle blobs snap to rest. With the pointer still and no job
+  running, the process's frame counter must not advance.
 
 ### Building or replicating an animation
 
-1. Read the closest existing component first; `FrameRail`, the power surface, and
-   the service surfaces under `quickshell/shell/` show the project's durations,
-   curves, and structure. Reuse the tokens.
-2. Break the target motion into property transitions (size, position, opacity)
-   and the easing between them, and reproduce each with a `Behavior` or a named
-   animation on a token. If the frame itself should give, let a `BlobRect` carry
-   it rather than animating geometry by hand.
+1. Read the closest existing component first; `Btn`, `Tablet`, `Tabs` and the
+   service surfaces under `quickshell/shell/` show the project's durations,
+   curve, and structure. Reuse the tokens.
+2. Break the target motion into property transitions (size, position, opacity,
+   the cut) and reproduce each with a `Behavior` on a token. If the frame itself
+   should give, let a `BlobRect` carry it rather than animating geometry by hand.
 3. Prototype live: run the shell from the checkout with `ryoku/shell/dev-run.sh`
    (it launches via `qs -p` with hot-reload), so QML edits show as you save. Tune
    timing against the running surface.
 4. Keep it in its own component file. Wire any state it needs through
    `ryoku-shell`, not ad hoc logic in the view.
+
+## Copy
+
+Sentence case, plain verbs, the same word through a whole flow: a plaque that
+says Start produces "Starting" and then "Running". A state always comes with
+its proof ("Online, 23 ms"; "Needs you, sign-in failed 2 min ago"). Errors say
+what happened and what to do. Empty states offer the next step ("No machines
+yet. Make one from the catalogue or import an ISO"). Numbers under ten are
+words in sentences and digits in proofs. No exclamation marks, no emoji in
+chrome, no all caps. The claim words by mineral: jade is Online, Running,
+Ready; lapis is Starting, Creating 62%, Downloading; amber is Needs you,
+Paused; jasper is Unreachable, Failed; idle is Stopped, Off.
 
 ## Art
 
@@ -970,15 +1061,17 @@ Every decorative image in the desktop is baked at dev time and committed, becaus
 the running target has no generation dependency. The full contract, the tools and
 how each shipped specimen was made is `bin/art/README.md`. In short:
 
-- **One ink.** Every decor is reduced to Ryoku bone (`#e8d8c9`) on a transparent
-  ground, so it composites on any surface and the whole set reads as one set.
+- **One ink.** Every decor is reduced to one ink on a transparent ground, so it
+  composites on any stone and the whole set reads as one set; the ink is tinted
+  to `fg` at draw time, so art follows the palette like everything else.
 - **Two treatments, chosen by what the source is, not by taste.** `ryodither`
   lays an ordered Bayer stipple, which is right for photographs, sculpture and
   motion loops, where the eye reads tone through grain; it is the set's default.
-  `ryoduo` maps tone straight onto bone through the alpha with no stipple, which
-  is right for fine line art (a patent drawing, an engraving, a blueprint) that a
-  dither would break into noise. If a dithered bake looks noisy, bake it smooth;
-  if a smooth bake looks flat, dither it.
+  `ryoduo` maps tone straight onto the ink through the alpha with no stipple,
+  which is right for fine line art (a patent drawing, an engraving, a blueprint)
+  that a dither would break into noise. If a dithered bake looks noisy, bake it
+  smooth; if a smooth bake looks flat, dither it. Engraving is the Lithic
+  treatment; where both would do, prefer it.
 - **The loops are drawn, not filmed.** `ryowave`, `ryorender`, `ryobounce`,
   `ryocompass` and `ryoneedle` each draw a deterministic grayscale source (the
   dictation wave, a turning 3D object, a bouncing ball on gravity easing, the
@@ -992,9 +1085,46 @@ how each shipped specimen was made is `bin/art/README.md`. In short:
 
 Figurative art that is not decor (the launcher hero, the welcome backdrop, the
 profile portrait) follows the same rule: generated at dev time, background
-flood-filled to the canvas colour so it blends seamlessly, and committed as a
-static asset. One desktop constraint: Quickshell's Qt build has no webp plugin,
-so shell and Hub art ships as **PNG**, not webp.
+flood-filled to the canvas colour so it blends, and committed as a static
+asset. Art is the one place a curve, a glow or a gradient may appear; it is
+content, and the chrome around it stays cut. One desktop constraint:
+Quickshell's Qt build has no webp plugin, so shell and Hub art ships as **PNG**,
+not webp.
+
+## From paper and ink to Lithic
+
+Ryoku v1 was paper and ink: bone type on pure black, Fraunces display, kanji
+glosses beside every label, tracked uppercase mono labels, a 6 px radius,
+inversion as the only emphasis, a fixed red for alerts, and a poster ornament
+layer. Lithic keeps what was right about it (flat planes, hairline depth, the
+palette chain, measured copy, disclosure over walls) and changes the rest:
+
+|Was|Is|
+|---|---|
+|`paper`, `paperLift`, `ink`, `inkDim`, `inkMuted`, `inkFaint`, `bone`, `inkOnBone`, `sun`, `alert`|`ground`, `stone1..4`, `vein`, `fg`, `fg2`, `fg3`, `sel`, `onSel`, `onSel2`, `gold`, `onGold`, `goldInk`, `jasper`, `jade`, `lapis`, `amber`, `scrim`|
+|emphasis by inversion only, no accent in content|bone for place, gold for the one consequential action, minerals with words for state|
+|`alert` fixed red|`jasper` from the palette's `error`, `amber` fixed for needs-you, the amber notch as the one badge|
+|Fraunces display, `fTitle` 32, `fHero` 34, `fValue` 26|Space Grotesk Bold at `fName` 52, `fSentence` 34, `fSection` 21|
+|tracked uppercase mono labels, kanji glosses on nav and eyebrows|sentence case Space Grotesk; the 力 seal stays as the brand mark only|
+|`radius` 6, round dots, round knobs|the cut scale 3 / 4 / 6 / 7 / 12 / 16, flakes, a cut knob|
+|spacing 4 8 12 16 24 32 48|4 8 13 21 34 55|
+|`rowH` 48, `ctlH` 26, `railW` 268|`rowH` 56 (48 compact), `ctlH` 40 (32 small), `fieldH` 44, `railW` 88 / 72|
+|`snap` 90, `move` 170, `swap` 210, `flap` 110, `OutCubic`|`press` 90, `hover` 160, `select` 240, `field` 320, `notch` 200, `overlay` 300, `break` 420, one chisel curve|
+|`Reg`, `Ticks`, `Barcode`, `Marginalia`, `Watermark`, `Grain` over chrome|gone; stone with slabs on it|
+|a `//` lead on the active tab, bone plate tabs|a blade under the active tab|
+|status dots|a notch on a tablet, a flake beside a word|
+
+Two things are deliberately not decided here. The frame keeps its rounded
+liquid border and `docs/frame.md` keeps describing it; whether a v2 frame cuts
+its corners is a frame decision, not a chrome one. And the spectrum stays art
+on the wallpaper with its glows and curves, because it is content, not chrome.
+
+Until a surface has moved, it still wears the old look and `Tokens` still
+exposes the old names beside the new ones; a surface is Lithic when it reads
+only the roles in this doc and passes the checklist in
+`docs/lithic/checklist.md` in a dark and a light palette. Move a surface whole,
+in one change, and remove the old names from `Tokens` when the last reader is
+gone.
 
 ## Research
 

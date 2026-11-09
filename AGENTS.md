@@ -15,6 +15,8 @@ New here? Read these in order, then keep them open while you work:
   compositor it has never met.
 - `docs/conventions.md` how code and configuration are written here.
 - `docs/ui-ux.md` the desktop's look and motion, and how to build or replicate it.
+- `docs/lithic/` the Lithic design language itself: roles from the palette, cuts,
+  type, components, motion, and the kits for building it in any stack.
 - `docs/development.md` the workflow: deploy, test, the commit gates, and research.
 - `docs/updates.md` how a change reaches a running machine, and the delivery contract.
 

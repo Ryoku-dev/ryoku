@@ -19,7 +19,7 @@ Start with the guide that matches the job:
   `ryoku` command](cli.md), [configuration import](config-import.md) and
   [kernels and CachyOS gaming](kernels.md).
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
-  rules](ui-ux.md), [subshells and bar styles](subshells.md), [frame bars](bar.md), [sidebars](sidebars.md),
+  rules](ui-ux.md), [the Lithic design language](lithic/README.md), [subshells and bar styles](subshells.md), [frame bars](bar.md), [sidebars](sidebars.md),
   [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
   [Ryogami](ryogami.md), [RyoStore](store.md), [installable
   profiles](profiles.md), [the Profile plate](profile.md), [theming](theming.md),

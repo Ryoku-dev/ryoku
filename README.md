@@ -48,9 +48,9 @@ all from one repository.
 
 Ryoku means power, and the name is the point. The desktop is one continuous
 surface: the bar, the panels, the launcher, the lockscreen and the session
-controls move as a single thing, paper and ink, warm bone type on pure black,
-with the frame retinting live from your wallpaper. Click a widget on the bar and
-its controls grow out of the rail; let go and they melt back. It is built from
+controls move as a single thing, cut stone in the colours of your wallpaper,
+with the frame retinting live from it. Click a widget on the bar and its
+controls grow out of the rail; let go and they melt back. It is built from
 small independent surfaces, so it grows with what you actually use: seven bar
 styles, desktop widgets, a store for more, and a plugin host.
 
