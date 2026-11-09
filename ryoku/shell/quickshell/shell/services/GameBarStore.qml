@@ -13,24 +13,33 @@ Singleton {
     readonly property var order: ["capture", "performance", "resources", "tasks", "media", "voice", "audio", "gallery"]
     readonly property string defaultCard: "performance"
 
+    // The state file is the shell's own, but it survives edits and older
+    // versions: a value of the wrong shape must read as empty instead of
+    // breaking every card binding that touches it.
+    function asList(value) {
+        return Array.isArray(value) ? value : [];
+    }
+
     // The strip shows the remembered set; closing it leaves only pinned cards.
     readonly property var visibleCards: {
         const out = [];
+        const pinned = root.asList(root.pinned);
+        const opened = root.open ? root.asList(root.opened) : [];
         for (let i = 0; i < root.order.length; i++) {
             const id = root.order[i];
-            if (root.pinned.indexOf(id) !== -1 || (root.open && root.opened.indexOf(id) !== -1))
+            if (pinned.indexOf(id) !== -1 || opened.indexOf(id) !== -1)
                 out.push(id);
         }
         return out;
     }
 
     function isPinned(id) {
-        return root.pinned.indexOf(id) !== -1;
+        return root.asList(root.pinned).indexOf(id) !== -1;
     }
 
     function toggleCard(id) {
-        const open = root.opened.slice();
-        const pinned = root.pinned.slice();
+        const open = root.asList(root.opened).slice();
+        const pinned = root.asList(root.pinned).slice();
         const listed = open.indexOf(id) !== -1 || pinned.indexOf(id) !== -1;
         if (listed) {
             root.opened = open.filter(x => x !== id);
@@ -43,10 +52,12 @@ Singleton {
     function setPinned(id, on) {
         if (on === root.isPinned(id))
             return;
-        if (!on && root.open && root.opened.indexOf(id) === -1)
-            root.opened = root.opened.concat([id]);
-        root.pinned = on ? root.pinned.concat([id])
-            : root.pinned.filter(x => x !== id);
+        const opened = root.asList(root.opened);
+        const pinned = root.asList(root.pinned);
+        if (!on && root.open && opened.indexOf(id) === -1)
+            root.opened = opened.concat([id]);
+        root.pinned = on ? pinned.concat([id])
+            : pinned.filter(x => x !== id);
     }
 
     function togglePinned(id) {
@@ -54,12 +65,12 @@ Singleton {
     }
 
     function closeCard(id) {
-        root.opened = root.opened.filter(x => x !== id);
-        root.pinned = root.pinned.filter(x => x !== id);
+        root.opened = root.asList(root.opened).filter(x => x !== id);
+        root.pinned = root.asList(root.pinned).filter(x => x !== id);
     }
 
     function positionFor(id) {
-        const list = root.layout || [];
+        const list = root.asList(root.layout);
         for (let i = 0; i < list.length; i++) {
             if (list[i] && list[i].id === id)
                 return list[i];
@@ -68,13 +79,13 @@ Singleton {
     }
 
     function place(id, x, y) {
-        const next = (root.layout || []).filter(e => e && e.id !== id);
+        const next = root.asList(root.layout).filter(e => e && e.id !== id);
         next.push({ id: id, x: Math.round(x), y: Math.round(y) });
         root.layout = next;
     }
 
     function sizeFor(id) {
-        const list = root.sizes || [];
+        const list = root.asList(root.sizes);
         for (let i = 0; i < list.length; i++) {
             if (list[i] && list[i].id === id)
                 return list[i];
@@ -83,7 +94,7 @@ Singleton {
     }
 
     function resize(id, w, h) {
-        const next = (root.sizes || []).filter(e => e && e.id !== id);
+        const next = root.asList(root.sizes).filter(e => e && e.id !== id);
         next.push({ id: id, w: Math.round(w), h: Math.round(h) });
         root.sizes = next;
     }
@@ -144,9 +155,11 @@ Singleton {
         const text = file.text();
         if (text && text.indexOf("\"cards\"") !== -1)
             return;
-        if (root.opened.length > 0)
+        const opened = root.asList(root.opened);
+        if (opened.length > 0)
             return;
-        root.opened = root.pinned.length > 0 ? root.pinned.slice() : [root.defaultCard];
+        const pinned = root.asList(root.pinned);
+        root.opened = pinned.length > 0 ? pinned.slice() : [root.defaultCard];
         file.writeAdapter();
     }
 }
