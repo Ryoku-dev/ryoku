@@ -39,6 +39,8 @@ GameBarCard {
                 Image {
                     anchors.fill: parent
                     source: card.art
+                    sourceSize.width: Math.ceil(104 * card.s)
+                    sourceSize.height: Math.ceil(104 * card.s)
                     asynchronous: true
                     fillMode: Image.PreserveAspectCrop
                     visible: card.art.length > 0
