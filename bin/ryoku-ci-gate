@@ -16,8 +16,6 @@ advisory_workflows=(
   "Release Notes"
   "Release Announcement"
   "Unstable Version Bump"
-  "Project Auto Add"
-  "Project Triage"
   "Project Roadmap Export"
   "AI Slop Scan"
   "CodeQL"
