@@ -10,6 +10,10 @@ function activeWorkspace(workspaces, screenName, isolateMonitors, focusedWorkspa
     return null
 }
 
+function needsWorkspaceData(mode, dynamicModel, isolateMonitors) {
+    return dynamicModel || mode === "active" || isolateMonitors
+}
+
 function workspaceList(workspaces, mode, dynamicModel, screenName, isolateMonitors, active, extraWorkspace) {
     if (dynamicModel) {
         var live = []

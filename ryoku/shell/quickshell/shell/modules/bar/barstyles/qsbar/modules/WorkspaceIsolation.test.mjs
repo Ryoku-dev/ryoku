@@ -5,9 +5,9 @@ import vm from "node:vm";
 const source = await readFile(new URL("./WorkspaceIsolation.js", import.meta.url), "utf8");
 const module = { exports: {} };
 vm.runInNewContext(source.replace(/^\.pragma library\s*/, "") +
-    "\nmodule.exports = { activeWorkspace, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity };",
+    "\nmodule.exports = { activeWorkspace, needsWorkspaceData, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity };",
     { module, Number, Object });
-const { activeWorkspace, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity } = module.exports;
+const { activeWorkspace, needsWorkspaceData, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity } = module.exports;
 
 const workspaces = [
     { name: "1", output: "eDP-1", active: true, special: false },
@@ -22,6 +22,15 @@ assert.equal(activeWorkspace(workspaces, "DP-1", true, workspaces[0]), workspace
     "the other output selects its own active workspace");
 assert.equal(activeWorkspace(workspaces, "eDP-1", false, workspaces[2]), workspaces[2],
     "disabling isolation keeps the globally focused workspace");
+
+assert.equal(needsWorkspaceData("5", false, false), false,
+    "fixed mode without isolation does not track live workspace data");
+assert.equal(needsWorkspaceData("5", false, true), true,
+    "fixed mode needs live workspace data to filter monitor assignments");
+assert.equal(needsWorkspaceData("active", false, false), true,
+    "active mode needs live workspace data");
+assert.equal(needsWorkspaceData("5", true, false), true,
+    "dynamic mode needs live workspace data");
 
 assert.deepEqual(Array.from(workspaceList(workspaces, "5", false, "eDP-1", true, null, "")),
     ["1", "3", "4", "5"], "fixed mode filters assigned workspaces and keeps uncreated slots");
