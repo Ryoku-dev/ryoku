@@ -17,7 +17,7 @@ GameBarCard {
 
     property var rows: []
     property int pendingPid: 0
-    property int pendingStart: 0
+    property real pendingStart: 0
     readonly property string user: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
     title: I18n.tr("Tasks")
@@ -31,9 +31,11 @@ GameBarCard {
 
     // A pinned card keeps the surface mapped while the strip is closed, but a
     // shot or a recording unmaps it and the session can be dark. Do not scan
-    // processes the user cannot see, and skip the Power Saver tier too.
+    // processes the user cannot see. Power Saver rests only a card left pinned
+    // behind a closed bar; an open bar is being looked at.
+    readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
-        && !Presence.dark && !Perf.saver
+        && !Presence.dark && !card.saverIdle
 
     Timer {
         interval: 2000
@@ -120,7 +122,7 @@ GameBarCard {
                 task: modelData
                 protectedName: Tasks.isProtected(modelData.name)
                 onEndRequested: (pid, started) => {
-                    if (pid <= 0)
+                    if (pid <= 0 || verifier.running)
                         return;
                     card.pendingPid = pid;
                     card.pendingStart = started;
