@@ -131,7 +131,11 @@ PanelWindow {
 
     property bool suppressed: false
     property bool sawSelecting: false
+    // The visibility hold and the recording lifecycle are separate: reopening
+    // the bar during a recording releases only the hold, so the end of the
+    // recording can still restore the state it had before it started.
     property bool hidingForRecording: false
+    property bool recordingCycle: false
     property bool reopenAfterRecording: false
 
     // A pinned card outlives the strip: the strip leaves, the cards stay. During
@@ -686,6 +690,7 @@ PanelWindow {
         restoreDelay.stop();
         recordStartFallback.stop();
         win.reopenAfterRecording = GameBarStore.open;
+        win.recordingCycle = true;
         win.hidingForRecording = true;
         win.suppressed = true;
         if (GameBarStore.open)
@@ -695,24 +700,31 @@ PanelWindow {
     }
 
     function endRecordingSuppression() {
-        if (!win.hidingForRecording)
+        if (!win.recordingCycle)
             return;
+        win.recordingCycle = false;
         win.hidingForRecording = false;
         recordStartFallback.stop();
-        if (win.reopenAfterRecording && !GameBarStore.open)
-            GameBarStore.openBar(GameBarStore.monitor);
+        // Restore the pre-recording state, even when the bar was reopened while
+        // the recording ran.
+        if (win.reopenAfterRecording) {
+            if (!GameBarStore.open)
+                GameBarStore.openBar(GameBarStore.monitor);
+        } else if (GameBarStore.open) {
+            GameBarStore.closeBar();
+        }
         win.reopenAfterRecording = false;
         win.restoreAfter(900);
     }
 
     // The shortcut must still reach the Capture card while a recording runs:
-    // opening the bar is an explicit choice to show it in the capture.
+    // opening the bar is an explicit choice to show it in the capture. Only the
+    // hold is released; the fallback keeps watching so a cancelled countdown
+    // still ends the cycle.
     function releaseRecordingHold() {
         if (!win.hidingForRecording)
             return;
         win.hidingForRecording = false;
-        win.reopenAfterRecording = false;
-        recordStartFallback.stop();
         restoreDelay.stop();
         win.suppressed = false;
     }
@@ -757,7 +769,7 @@ PanelWindow {
     Connections {
         target: Recorder
         function onAnyActiveChanged() {
-            if (!win.hidingForRecording)
+            if (!win.recordingCycle)
                 return;
             if (Recorder.anyActive) {
                 recordStartFallback.stop();
@@ -772,7 +784,7 @@ PanelWindow {
         interval: 1500
         repeat: true
         onTriggered: {
-            if (!win.hidingForRecording || Recorder.anyActive) {
+            if (!win.recordingCycle || Recorder.anyActive) {
                 stop();
                 return;
             }
@@ -784,7 +796,7 @@ PanelWindow {
     Timer {
         id: restoreDelay
         onTriggered: {
-            if (win.hidingForRecording && Recorder.anyActive)
+            if (win.recordingCycle && Recorder.anyActive)
                 return;
             win.suppressed = false;
         }
