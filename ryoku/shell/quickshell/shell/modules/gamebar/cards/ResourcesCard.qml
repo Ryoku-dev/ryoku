@@ -61,11 +61,13 @@ GameBarCard {
     }
 
     // The graphs only need history while someone can see them: a shot or a
-    // recording unmaps the overlay, and the session can be dark or in the Power
-    // Saver tier. Stop copying samples then, like the other polling cards, and
-    // release the samplers themselves so a pinned card does not keep them alive.
+    // recording unmaps the overlay, and the session can be dark. Power Saver
+    // rests only a card left pinned behind a closed bar, like the other polling
+    // cards; an open bar is being looked at. Release the samplers when idle so a
+    // pinned card does not keep them alive.
+    readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
-        && !Presence.dark && !Perf.saver
+        && !Presence.dark && !card.saverIdle
     onPollingChanged: card.syncFeed()
 
     Timer {

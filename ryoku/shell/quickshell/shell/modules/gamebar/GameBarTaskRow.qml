@@ -17,11 +17,11 @@ Item {
     property var task: null
     property bool protectedName: false
 
-    signal endRequested(int pid, int started)
+    signal endRequested(int pid, real started)
 
     property bool confirming: false
     property int confirmingPid: 0
-    property int confirmingStart: 0
+    property real confirmingStart: 0
 
     implicitHeight: 32 * root.s
     implicitWidth: 276 * root.s
