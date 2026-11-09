@@ -230,6 +230,7 @@ optdepends=(
   'dolphin: file manager the installer can pick instead of Nautilus'
   'thunar: file manager the installer can pick instead of Nautilus'
   'ryotunes: the Ryoku music app the now-playing widget follows'
+  'ryoport: Ryoport, the fleet dashboard behind Super+Shift+V'
   'ryomanager: RyoManager, the system monitor and task manager'
   'waifu2x-ncnn-vulkan: AI upscale for ryoshot Beautify HD and ryowalls Enhance'
   'pavucontrol: GUI mixer behind the bar Open audio button'
