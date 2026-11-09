@@ -34,8 +34,18 @@ PanelWindow {
     ]
 
     readonly property var cards: GameBarStore.visibleCards
-    readonly property bool mine: GameBarStore.monitor.length > 0
-        ? GameBarStore.monitor === win.mon : Wm.focusedOutput === win.mon
+    // A saved monitor that is no longer connected (unplugged, or gone before a
+    // restart) must not hide pinned cards: follow the focused output instead.
+    // While the output list is still empty at startup, trust the saved name so
+    // the cards do not flash on the wrong screen before it loads.
+    readonly property bool mine: {
+        const saved = GameBarStore.monitor;
+        if (saved.length === 0)
+            return Wm.focusedOutput === win.mon;
+        if (Wm.outputs.length === 0 || Wm.outputByName(saved) !== null)
+            return saved === win.mon;
+        return Wm.focusedOutput === win.mon;
+    }
     readonly property bool active: win.cfg.enabled && win.mine
         && (GameBarStore.open || GameBarStore.pinned.length > 0)
 

@@ -35,7 +35,7 @@ GameBarCard {
 
     Process {
         id: ps
-        command: ["ps", "-eo", "user=,pid=,comm=,cputimes=,etimes=,rss="]
+        command: ["ps", "-eo", "user:64=,pid=,comm=,cputimes=,etimes=,rss="]
         stdout: StdioCollector {
             onStreamFinished: card.rows = Tasks.top(text, 5, card.user)
         }

@@ -22,7 +22,7 @@ Item {
         font.family: GameBarLook.face
         font.pixelSize: GameBarLook.smallie * root.s
         elide: Text.ElideRight
-        width: Math.min(implicitWidth, root.width * 0.58)
+        width: Math.min(implicitWidth, root.width * 0.45)
     }
 
     Text {
