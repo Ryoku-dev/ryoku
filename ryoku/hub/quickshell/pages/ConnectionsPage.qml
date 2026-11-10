@@ -531,6 +531,13 @@ Item {
         property string attemptBand: ""
         property bool attemptWasKnown: false
         property bool attemptAutoOff: false
+        // a password join runs through the daemon, which removes a profile its
+        // own failed join created; the page's cleanup would also delete the
+        // saved profiles a join that never ran left in place
+        property bool attemptViaDaemon: false
+        // the passphrase, held only while a daemon join runs, for the nmcli
+        // fallback when the daemon does not answer
+        property string fallbackPw: ""
 
         property string authFailedSsid: ""
         property string forgetArmed: ""
@@ -702,9 +709,11 @@ Item {
         // Password through stdin: /proc/<pid>/cmdline is world-readable for the
         // whole attempt, so it MUST NOT be in argv, and never through `nmcli
         // connection edit`, which keeps every line it reads in
-        // ~/.cache/nmcli-history. connProc closes stdin after the password, so
-        // a rejected one ends nmcli's --ask prompt at once. Any saved profile of
-        // that name is replaced, and a failed join cleans up like a first join.
+        // ~/.cache/nmcli-history. The join goes through the shell daemon, which
+        // owns Wi-Fi joins: with no secret agent a rejected password fails as
+        // soon as NetworkManager drops it, where `nmcli --ask` waited out its
+        // 90-second timeout. The SSID's saved profiles are replaced once the
+        // daemon answers, and a failed join cleans up like a first join.
         function connectWithPassword(ssid, pw) {
             if (connProc.running || !pw.length)
                 return;
@@ -713,11 +722,24 @@ Item {
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
             wifi.attemptWasKnown = false;
+            wifi.attemptViaDaemon = true;
             wifi.attemptAutoOff = wifi.knownProfiles[ssid] === true && wifi.autoconnectMap[ssid] === false;
             wifi.pendingPw = pw;
+            wifi.fallbackPw = pw;
+            connProc.command = ["ryoku-hub", "wifi", "connect", ssid];
+            connProc.stdinEnabled = true;
+            connProc.running = true;
+        }
+
+        // the join without the daemon, as the page ran it before: it works, but
+        // a rejected password waits out nmcli's 90-second --ask timeout
+        function joinWithNmcli() {
+            wifi.attemptViaDaemon = false;
+            wifi.pendingPw = wifi.fallbackPw;
+            wifi.fallbackPw = "";
             connProc.command = ["sh", "-c",
                 'nmcli connection delete id "$1" </dev/null >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"',
-                "sh", ssid];
+                "sh", wifi.attemptSsid];
             connProc.stdinEnabled = true;
             connProc.running = true;
         }
@@ -733,6 +755,7 @@ Item {
             wifi.attemptSsid = ssid;
             wifi.attemptBand = "";
             wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptViaDaemon = false;
             wifi.attemptAutoOff = false;
             wifi.pendingPw = "";
             connProc.command = wifi.attemptWasKnown
@@ -753,6 +776,7 @@ Item {
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
             wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptViaDaemon = false;
             wifi.attemptAutoOff = false;
             wifi.pendingPw = "";
             connProc.command = ["nmcli", "dev", "wifi", "connect", ssid];
@@ -876,6 +900,13 @@ Item {
                 stdinEnabled = false;
             }
             onExited: function(exitCode) {
+                // ryoku-hub exits 3 when the daemon never answered: nothing was
+                // deleted or sent, so the join falls back to nmcli
+                if (wifi.attemptViaDaemon && exitCode === 3 && wifi.fallbackPw.length) {
+                    Qt.callLater(wifi.joinWithNmcli);
+                    return;
+                }
+                wifi.fallbackPw = "";
                 wifi.connecting = false;
                 if (exitCode === 0) {
                     wifi.expandedSsid = "";
@@ -900,7 +931,7 @@ Item {
                     if (wifi.attemptWasKnown) {
                         if (wifi.isSecured(wifi.attemptSsid) && /secret|supplicant|password/i.test(connErr.text))
                             wifi.savedJoinRejected(wifi.attemptSsid);
-                    } else if (wifi.attemptSsid.length) {
+                    } else if (wifi.attemptSsid.length && !wifi.attemptViaDaemon) {
                         cleanupProc.command = ["nmcli", "connection", "delete", "id", wifi.attemptSsid];
                         cleanupProc.running = true;
                     }
