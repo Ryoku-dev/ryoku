@@ -9,6 +9,9 @@
 - **Zed and Ryotunes get real dark and light wallpaper themes.** Both looks now
   carry their own colours, and the Ryotunes matugen skin opens in the mode the
   desktop is using.
+- **QS Bar's GPU widget stays on NVIDIA cards that report a decimal
+  temperature.** Newer drivers print readings like `42.67`, which the telemetry
+  check refused, so the widget vanished; decimals are accepted now (#769).
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
