@@ -252,7 +252,10 @@ class VoiceBridge:
                 try:
                     line = await reader.readline()
                 except ValueError:
-                    continue
+                    # An oversized line leaves its remainder in the buffer, so
+                    # continuing would raise on the same data forever. Drop the
+                    # connection; the plugin reconnects on its next publish.
+                    break
                 if not line:
                     break
                 try:
