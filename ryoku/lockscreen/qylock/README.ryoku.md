@@ -49,4 +49,30 @@ The in-session shim diverges from upstream in three places:
    Orbital skin does, and draws its hint and USE PASSWORD / USE SECURITY KEY
    button from that state, handing the PIN over without its unlock wind-up.
 
+## Optional authentication retry
+
+The in-session lock can restart a password PAM conversation that is waiting
+after an optional authentication method falls through. This is disabled by
+default. To enable it, create `$XDG_CONFIG_HOME/qylock/auth-retry`, or
+`~/.config/qylock/auth-retry` when `XDG_CONFIG_HOME` is unset, with exactly:
+
+    on
+
+Remove the file or give it any other content to disable the feature. Missing,
+non-regular, and unreadable files also disable it. Changes apply to the next
+lock.
+
+When enabled, an empty Return, keypad Enter, settled pointer motion, or a
+background click can abort one waiting password conversation and start one
+replacement after a cooldown. A nonempty typed, pending, or submitted password
+always wins, including a hidden password after focus moves. Account, session,
+power, password-field, and other theme controls keep their native input.
+
+The retry remains inhibited while a security-key conversation or explicit key
+mode owns input. It never responds to the key conversation, submits a PIN, or
+moves password text between channels. PAM remains the only source of
+authentication success. The common input layer is exercised with the shipped
+skin and its generic control rules; it is not a compatibility promise for every
+third-party qylock theme.
+
 Everything else is upstream verbatim.

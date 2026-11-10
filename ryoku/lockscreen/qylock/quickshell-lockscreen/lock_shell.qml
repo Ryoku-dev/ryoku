@@ -374,23 +374,24 @@ ShellRoot {
                         // don't leak through to the desktop underneath.
                         PinchHandler { target: null }
                         WheelHandler { target: null }
-                        MouseArea {
+                        AuthRetryInput {
+                            id: authRetryInput
                             anchors.fill: parent
-                            acceptedButtons: Qt.AllButtons
-                            hoverEnabled: true
-                            onWheel: (wheel) => { wheel.accepted = true }
-                        }
+                            retryTarget: sddmShim
+                            passwordScope: themeSurface.item
+                            retryAllowed: sddmShim.authRetryInputAllowed
 
-                        Loader {
-                            id: themeSurface
-                            anchors.fill: parent
-                            focus: true
-                            sourceComponent: themeComponent
-                            onLoaded: lockSurface.focusTheme()
-                        }
-                        Loader {
-                            anchors.fill: parent
-                            sourceComponent: fpOverlayComponent
+                            Loader {
+                                id: themeSurface
+                                anchors.fill: parent
+                                focus: true
+                                sourceComponent: themeComponent
+                                onLoaded: lockSurface.focusTheme()
+                            }
+                            Loader {
+                                anchors.fill: parent
+                                sourceComponent: fpOverlayComponent
+                            }
                         }
                     }
                 }

@@ -73,6 +73,12 @@ Item {
     // the stack itself cannot run, so nothing typed can fix it. Doubles to a
     // 30s cap and drops back once the stack reaches a prompt again.
     property int pwBackoffMs: 1000
+    readonly property string authRetryPath: (Quickshell.env("XDG_CONFIG_HOME") ||
+        (Quickshell.env("HOME") + "/.config")) + "/qylock/auth-retry"
+    property bool authRetryEnabled: authRetryConfig.enabled
+    readonly property bool authRetryInputAllowed: authRetryEnabled && armWhenReady &&
+        loginSessionActive && !unlocked && !(pamKey.active || keyState !== "off" ||
+        (keyEnabled && !keyPasswordMode))
 
     // ── security key state ──────────────────────────────────────────────────
     readonly property string keyConfigDir: (Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config")) + "/qylock/pam"
@@ -81,6 +87,24 @@ Item {
     property bool keyPasswordMode: false     // the user, a miss, or a timeout chose the password
     property string keyState: "off"          // off | pin | verifying | touch
     property real keyArmTs: 0                // ms epoch the key conversation started
+
+    AuthRetryConfig {
+        id: authRetryConfig
+        path: shim.authRetryPath
+    }
+
+    AuthRetryController {
+        id: authRetryController
+        conversation: pamPw
+        restartConversation: shim.restartPasswordForAuthRetry
+        enabled: shim.authRetryEnabled
+        armed: shim.armWhenReady
+        foreground: shim.loginSessionActive
+        unlocking: shim.unlocked
+        passwordSubmitted: shim.fpTyped
+        keyInputOwned: pamKey.active || shim.keyState !== "off" ||
+            (shim.keyEnabled && !shim.keyPasswordMode)
+    }
 
     // arm the moment the lock secures; probes alone race and lose it.
     onArmWhenReadyChanged: {
@@ -348,6 +372,8 @@ Item {
                 shim.sddm.loginFailed();
                 return;
             }
+            if (password === "" && shim.requestAuthRetry())
+                return;
             if (password === "" && shim.keyEnabled)
                 return;
             pamPw.user = user;
@@ -721,6 +747,18 @@ Item {
         pwRetryTimer.restart();
     }
 
+    function requestAuthRetry() {
+        return authRetryController.request();
+    }
+
+    function restartPasswordForAuthRetry() {
+        if (!shim.armWhenReady || !shim.loginSessionActive || shim.unlocked ||
+                pamPw.active || pwRetryTimer.running)
+            return false;
+        shim.startPw();
+        return pamPw.active;
+    }
+
     Timer {
         id: pwRetryTimer
         interval: shim.pwBackoffMs
@@ -831,6 +869,7 @@ Item {
         fpProbeTimer.stop();
         rearmTimer.stop();
         pwRetryTimer.stop();
+        authRetryController.cancel();
         keyHotplugDelay.stop();
         keyRearmTimer.stop();
         shim.keyTyped = false;
