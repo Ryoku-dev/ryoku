@@ -308,7 +308,10 @@ class VoiceBridge:
         header = await source.readexactly(8)
         opcode, length = struct.unpack("<II", header)
         body = await source.readexactly(length)
-        return opcode, json.loads(body.decode())
+        payload = json.loads(body.decode())
+        if not isinstance(payload, dict):
+            raise ValueError("RPC frame is not an object")
+        return opcode, payload
 
     async def authenticate(self, token: str) -> bool:
         nonce = self.next_nonce()
