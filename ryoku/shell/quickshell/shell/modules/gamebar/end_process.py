@@ -12,7 +12,7 @@ import os
 import signal
 import sys
 
-WINDOW = 2.0
+WINDOW = 0.5 / os.sysconf("SC_CLK_TCK")
 
 
 def start_time(pid: int) -> float:

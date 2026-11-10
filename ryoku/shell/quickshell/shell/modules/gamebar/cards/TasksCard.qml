@@ -21,8 +21,8 @@ GameBarCard {
     title: I18n.tr("Tasks")
 
     function refresh() {
-        if (!ps.running)
-            ps.running = true;
+        if (!scan.running)
+            scan.running = true;
     }
 
     Component.onCompleted: card.refresh()
@@ -44,8 +44,8 @@ GameBarCard {
     }
 
     Process {
-        id: ps
-        command: ["ps", "-eo", "user:64=,pid=,comm=,cputimes=,etimes=,rss="]
+        id: scan
+        command: ["python3", Quickshell.shellPath("modules/gamebar/list_tasks.py")]
         stdout: StdioCollector {
             onStreamFinished: card.rows = Tasks.top(text, 5, card.user, Date.now())
         }
