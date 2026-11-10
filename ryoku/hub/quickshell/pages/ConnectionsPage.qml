@@ -673,9 +673,7 @@ Item {
                     wifi.connectBand(ssid);
                     return;
                 }
-                if (typeof net.connect === "function")
-                    net.connect();
-                wifi.refresh();
+                wifi.connectSaved(ssid);
                 return;
             }
             wifi.connectFailed = false;
@@ -716,6 +714,27 @@ Item {
                     + 'exec nmcli connection up id "$1"',
                     "sh", ssid, km]
                 : ["sh", "-c", 'nmcli connection delete id "$1" >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"', "sh", ssid];
+            connProc.stdinEnabled = true;
+            connProc.running = true;
+        }
+
+        // A saved or open network joins through nmcli like every other join, so
+        // its failure comes back as connProc's exit code. Quickshell's
+        // per-network connectionFailed is not always emitted for a rejected
+        // stored secret, and a saved network that failed that way just sat
+        // there. Without an agent, a wrong secret fails at once.
+        function connectSaved(ssid) {
+            if (connProc.running)
+                return;
+            wifi.connecting = true;
+            wifi.connectFailed = false;
+            wifi.attemptSsid = ssid;
+            wifi.attemptBand = "";
+            wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.pendingPw = "";
+            connProc.command = wifi.attemptWasKnown
+                ? ["nmcli", "connection", "up", "id", ssid]
+                : ["nmcli", "dev", "wifi", "connect", ssid];
             connProc.stdinEnabled = true;
             connProc.running = true;
         }
@@ -1142,16 +1161,6 @@ Item {
                             Connections {
                                 target: wifi
                                 function onPwEpochChanged() { if (netItem.expanded) netItem.syncPwField(); }
-                            }
-                            // a saved network clicked with its stored secret
-                            // fails here, not through connProc
-                            Connections {
-                                target: netItem.modelData || null
-                                ignoreUnknownSignals: true
-                                function onConnectionFailed(reason) {
-                                    if (netItem.known && netItem.secured && reason !== ConnectionFailReason.WifiNetworkLost)
-                                        wifi.promptAgain(netItem.ssid);
-                                }
                             }
                             Component.onCompleted: if (expanded) Qt.callLater(syncPwField)
 

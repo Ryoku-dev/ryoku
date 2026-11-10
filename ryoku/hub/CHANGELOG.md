@@ -3,6 +3,11 @@
 ## Unreleased
 
 ### Fixed
+- **Clicking a saved Wi-Fi network notices when its password is rejected.** The
+  page relied on Quickshell's per-network failure signal, which is not always
+  emitted, so a stale saved password sometimes failed with nothing shown. A
+  saved network now joins through `nmcli connection up` like every other join,
+  and a failure reopens the password row (`pages/ConnectionsPage.qml`).
 - **A wrong Wi-Fi password fails in about a second in Connections.** Joining
   with `nmcli --ask` made nmcli NetworkManager's secret agent, so a rejected
   passphrase made NetworkManager ask nmcli for another and wait until nmcli's
