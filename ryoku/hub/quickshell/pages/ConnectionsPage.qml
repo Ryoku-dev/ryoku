@@ -515,6 +515,16 @@ Item {
             return sec !== undefined && sec !== "" && sec !== "--";
         }
 
+        // a saved secured network that failed: reopen its password row
+        function promptAgain(ssid) {
+            wifi.connectFailed = true;
+            wifi.pwDraft = "";
+            wifi.pwEpoch++;
+            wifi.expandedSsid = ssid;
+        }
+        // bumped after a failed attempt so an open field empties instead of
+        // keeping the rejected text for the next try to be typed onto
+        property int pwEpoch: 0
         function forget(ssid) {
             if (!ssid.length || forgetProc.running)
                 return;
@@ -659,9 +669,15 @@ Item {
             wifi.connectFailed = false;
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
-            wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            // `dev wifi connect` reuses a saved profile and its old secret, so
+            // a saved one is dropped first; the join then cleans up after itself
+            // on failure like any first join
+            var wasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptWasKnown = false;
             wifi.pendingPw = pw;
-            connProc.command = ["nmcli", "--ask", "dev", "wifi", "connect", ssid];
+            connProc.command = wasKnown
+                ? ["sh", "-c", 'nmcli connection delete id "$1" >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"', "sh", ssid]
+                : ["nmcli", "--ask", "dev", "wifi", "connect", ssid];
             connProc.running = true;
         }
 
@@ -800,6 +816,10 @@ Item {
                     wifi.refresh();
                 } else {
                     wifi.connectFailed = true;
+                    wifi.pwDraft = "";
+                    wifi.pwEpoch++;
+                    if (wifi.attemptWasKnown && wifi.attemptSsid.length && wifi.isSecured(wifi.attemptSsid))
+                        wifi.promptAgain(wifi.attemptSsid);
                     if (!wifi.attemptWasKnown && wifi.attemptSsid.length) {
                         cleanupProc.command = ["nmcli", "connection", "delete", "id", wifi.attemptSsid];
                         cleanupProc.running = true;
@@ -1054,6 +1074,20 @@ Item {
                             }
 
                             onExpandedChanged: if (expanded) Qt.callLater(syncPwField)
+                            Connections {
+                                target: wifi
+                                function onPwEpochChanged() { if (netItem.expanded) netItem.syncPwField(); }
+                            }
+                            // a saved network clicked with its stored secret
+                            // fails here, not through connProc
+                            Connections {
+                                target: netItem.modelData || null
+                                ignoreUnknownSignals: true
+                                function onConnectionFailed(reason) {
+                                    if (netItem.known && netItem.secured && reason !== ConnectionFailReason.WifiNetworkLost)
+                                        wifi.promptAgain(netItem.ssid);
+                                }
+                            }
                             Component.onCompleted: if (expanded) Qt.callLater(syncPwField)
 
                             // the row. connected = the ON member of the exclusive
@@ -1334,7 +1368,9 @@ Item {
                                     anchors.left: parent.left
                                     anchors.leftMargin: Tokens.s4
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: I18n.tr("Connection failed")
+                                    text: netItem.known
+                                        ? I18n.tr("Wrong password, or a different network with the same name?")
+                                        : I18n.tr("Connection failed")
                                 }
                             }
                         }

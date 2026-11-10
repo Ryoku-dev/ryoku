@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  Clicking a saved network whose stored password was wrong (changed on the
+  router, or another network with the same name) failed on every click with no
+  password row. The row now reopens with "Wrong password, or a different
+  network with the same name?", the new password replaces the old profile, and
+  the field empties after a failed attempt (`pages/ConnectionsPage.qml`, #776).
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
