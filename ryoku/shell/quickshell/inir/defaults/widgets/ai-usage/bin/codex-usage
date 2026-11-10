@@ -8,7 +8,7 @@ recorded session rollout. Codex can expose multiple independent limit buckets,
 so the cache stores bucket/window metadata instead of assuming Claude's fixed
 5h/7d model.
 """
-import fcntl, hashlib, json, math, os, select, shutil, subprocess, sys, tempfile, time
+import fcntl, hashlib, json, math, os, select, shutil, signal, subprocess, sys, tempfile, time
 import urllib.request
 import runpy
 from datetime import datetime, timedelta, timezone
@@ -19,6 +19,9 @@ rolling_period = runpy.run_path(str(Path(__file__).resolve().with_name("rolling-
 CODEX_HOME = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
 CACHE_FILE = Path(os.environ.get("CODEX_USAGE_CACHE_FILE") or (Path.home() / ".cache" / "ai-usage" / "codex-usage.json"))
 ACTIVITY_FILE = Path(os.environ.get("CODEX_USAGE_ACTIVITY_FILE") or (Path.home() / ".cache" / "ai-usage" / "codex-usage-activity.json"))
+RPC_FILE = CACHE_FILE.with_name(CACHE_FILE.stem + "-rpc.json")
+# each read starts a Codex app-server that talks to the account backend
+RPC_COOLDOWN_SECS = 120
 ACTIVITY_SCHEMA_VERSION = 5
 ACCOUNTING_VERSION = 2
 # Old cumulative identities are retired even when an inherited snapshot adds no usage.
@@ -150,7 +153,7 @@ def fetch_rpc() -> dict | None:
         proc = subprocess.Popen(
             [codex, "-s", "read-only", "-a", "never", "app-server", "--listen", "stdio://"],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, env=ENV)
+            stderr=subprocess.DEVNULL, text=True, env=ENV, start_new_session=True)
     except Exception:
         sys.stderr.write("app-server spawn failed\n")
         return None
@@ -184,15 +187,15 @@ def fetch_rpc() -> dict | None:
             sys.stderr.write("rpc error: account/rateLimits/read\n")
             return None
     finally:
-        try:
-            proc.terminate()
-            proc.wait(timeout=1)
-        except Exception:
+        for sig in (signal.SIGTERM, signal.SIGKILL):
             try:
-                proc.kill()
+                os.killpg(proc.pid, sig)
                 proc.wait(timeout=1)
+                break
+            except ProcessLookupError:
+                break
             except Exception:
-                pass
+                continue
         for stream in (proc.stdin, proc.stdout):
             if stream is not None:
                 try:
@@ -212,6 +215,30 @@ def fetch_rpc() -> dict | None:
         "plan": limits.get("planType") or account.get("planType") or account.get("type") or "",
         "source": "rpc",
     }
+
+
+def cached_rpc() -> tuple[dict | None, bool]:
+    try:
+        saved = json.loads(RPC_FILE.read_text())
+        age = now_epoch() - float(saved["checked_at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None, False
+    if not 0 <= age < RPC_COOLDOWN_SECS:
+        return None, False
+    data = saved.get("data")
+    return (data if isinstance(data, dict) else None), True
+
+
+def throttled_rpc() -> dict | None:
+    data, fresh = cached_rpc()
+    if fresh:
+        return data
+    data = fetch_rpc()
+    try:
+        atomic_write_json(RPC_FILE, {"checked_at": now_epoch(), "data": data})
+    except OSError:
+        pass
+    return data
 
 
 # -- fallback: newest canonical general-Codex snapshot from session rollouts --
@@ -1411,7 +1438,7 @@ def estimate_spending(messages: list[dict]) -> dict:
 
 
 def main():
-    data = fetch_env() or fetch_rpc() or fetch_rollout()
+    data = fetch_env() or throttled_rpc() or fetch_rollout()
     messages, sessions = history_records()
     if not data and not messages:
         # keep the last numbers on screen, marked stale
