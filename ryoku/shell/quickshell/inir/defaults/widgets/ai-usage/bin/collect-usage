@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Refresh the widget's private caches with the collectors shipped beside it.
+set -u
+umask 077
+
+if (( $# > 1 )); then
+    printf 'usage: collect-usage [opencode-collector | --claude-only]\n' >&2
+    exit 2
+fi
+
+bin_dir="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cache_dir="$HOME/.cache/ai-usage"
+# A visible Claude page needs short lifecycle refreshes. Keep those local to
+# Claude so they never start Codex RPC or the OpenCode collector every 5s.
+if [[ ${1:-} == --claude-only ]]; then
+    mkdir -p -- "$cache_dir"
+    exec "$bin_dir/claude-usage" --cache "$cache_dir/claude-usage.json"
+fi
+opencode_collector="${1:-$bin_dir/opencode-usage}"
+opencode_data="${OPENCODE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/opencode}"
+codex_data="${CODEX_HOME:-$HOME/.codex}"
+PATH="${PATH:-}:$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.local/share/mise/shims:$HOME/.opencode/bin"
+export PATH
+mkdir -p -- "$cache_dir"
+
+result=0
+if [[ -n ${1:-} ]] || command -v opencode >/dev/null 2>&1 \
+        || [[ -d "$opencode_data/storage" || -f "$opencode_data/opencode.db" ]]; then
+    "$opencode_collector" --cache "$cache_dir/opencode-usage.json" || result=$?
+fi
+
+if command -v codex >/dev/null 2>&1 || [[ -d "$codex_data" ]]; then
+    CODEX_USAGE_CACHE_FILE="$cache_dir/codex-usage.json" \
+    CODEX_USAGE_ACTIVITY_FILE="$cache_dir/codex-usage-activity.json" \
+        "$bin_dir/codex-usage" || result=$?
+fi
+
+claude_data="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+if [[ -d "$claude_data/projects" ]]; then
+    "$bin_dir/claude-usage" --cache "$cache_dir/claude-usage.json" || result=$?
+fi
+
+exit "$result"
