@@ -73,8 +73,8 @@ Item {
             id: photo
             anchors.fill: parent
             source: DiscordVoice.avatarUrl(root.participant, 128)
-            sourceSize.width: Math.ceil(root.avatarSize)
-            sourceSize.height: Math.ceil(root.avatarSize)
+            sourceSize.width: Math.ceil(root.avatarSize * Screen.devicePixelRatio)
+            sourceSize.height: Math.ceil(root.avatarSize * Screen.devicePixelRatio)
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
             cache: true
