@@ -15,6 +15,9 @@
 - **Picking a lock screen marks it Active as soon as it is switched (#777).**
   It no longer spins on Applying while the sign-in screen waits for your
   password; a note says what is still pending, and a refused prompt shows why.
+- **Switch layouts says what Super+Space costs.** Picking it now notes that it
+  takes over the Space key, so Persian ZWNJ on Shift+Space and AltGr+Space stop
+  working, and that Alt+Shift keeps them (#781).
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
