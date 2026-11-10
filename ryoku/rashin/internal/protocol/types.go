@@ -48,6 +48,28 @@ type GatewayStatus struct {
 	Keyless int `json:"keyless"`
 }
 
+// APIInfo is the state of the local API: the loopback address other programs
+// send OpenAI-style chat completions to. It answers only while the daemon
+// runs. Error says why it is on and not listening, as when the port is taken.
+type APIInfo struct {
+	Enabled   bool   `json:"enabled"`
+	Listening bool   `json:"listening"`
+	URL       string `json:"url"`
+	Port      int    `json:"port"`
+	Error     string `json:"error,omitempty"`
+}
+
+// APIKeyParams asks for the local API's key. Rotate replaces it first, which
+// cuts off every program that holds the old one.
+type APIKeyParams struct {
+	Rotate bool `json:"rotate,omitempty"`
+}
+
+// APIKey is the key other programs present to the local API.
+type APIKey struct {
+	Key string `json:"key"`
+}
+
 // Status is the daemon's state at a glance.
 type Status struct {
 	Version   string        `json:"version"`
@@ -58,6 +80,7 @@ type Status struct {
 	Clients   int           `json:"clients"`
 	Sessions  SessionCounts `json:"sessions"`
 	Gateway   GatewayStatus `json:"gateway"`
+	API       APIInfo       `json:"api"`
 	Harnesses int           `json:"harnesses"`
 	Indexes   int           `json:"indexes"`
 }
@@ -641,6 +664,16 @@ type IndexSettings struct {
 	Semantic bool `json:"semantic"`
 }
 
+// APISettings configures the local API. It is off until asked for. While it
+// is on and listening, the daemon does not exit at idle.
+type APISettings struct {
+	Enabled bool `json:"enabled"`
+	Port    int  `json:"port"`
+}
+
+// DefaultAPIPort is where the local API listens unless the setting says otherwise.
+const DefaultAPIPort = 3600
+
 // Settings is rashin.json. Enabled is changed only by rashin on and off.
 type Settings struct {
 	Enabled bool           `json:"enabled"`
@@ -648,6 +681,7 @@ type Settings struct {
 	Agent   AgentSettings  `json:"agent"`
 	Daemon  DaemonSettings `json:"daemon"`
 	Index   IndexSettings  `json:"index"`
+	API     APISettings    `json:"api"`
 }
 
 // SettingsSetParams carries a JSON merge patch (RFC 7396) over Settings.

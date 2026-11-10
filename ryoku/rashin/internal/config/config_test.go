@@ -128,3 +128,40 @@ func TestValidateAcceptsQualifiedNestedModelID(t *testing.T) {
 		t.Fatalf("model = %q", settings.Ask.Model)
 	}
 }
+
+func TestLocalAPIIsOffUntilAskedFor(t *testing.T) {
+	isolateConfig(t)
+	settings, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settings.API.Enabled || settings.API.Port != protocol.DefaultAPIPort {
+		t.Fatalf("a machine that never changed a setting has api = %#v", settings.API)
+	}
+}
+
+func TestAPISettingsSurviveASave(t *testing.T) {
+	isolateConfig(t)
+	next, err := Merge(Defaults(), json.RawMessage(`{"api":{"enabled":true,"port":4100}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(next); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.API.Enabled || loaded.API.Port != 4100 {
+		t.Fatalf("api after a save and a load = %#v", loaded.API)
+	}
+}
+
+func TestAPIPortBelowWhatAUserCanBindIsRefused(t *testing.T) {
+	for _, patch := range []string{`{"api":{"port":80}}`, `{"api":{"port":70000}}`} {
+		if _, err := Merge(Defaults(), json.RawMessage(patch)); err == nil {
+			t.Fatalf("patch %s was accepted", patch)
+		}
+	}
+}

@@ -24,6 +24,7 @@ var (
 	bucketCooldowns = []byte("cooldowns")
 	bucketUsage     = []byte("usage")
 	bucketStats     = []byte("stats")
+	bucketAPI       = []byte("api")
 )
 
 type keyRecord struct {
@@ -87,7 +88,7 @@ func openStore(stateDir string) (*store, error) {
 	}
 	s := &store{db: db, aead: aead}
 	if err := db.Update(func(tx *bbolt.Tx) error {
-		for _, name := range [][]byte{bucketKeys, bucketProviders, bucketCooldowns, bucketUsage, bucketStats} {
+		for _, name := range [][]byte{bucketKeys, bucketProviders, bucketCooldowns, bucketUsage, bucketStats, bucketAPI} {
 			if _, err := tx.CreateBucketIfNotExists(name); err != nil {
 				return err
 			}

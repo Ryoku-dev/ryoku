@@ -34,6 +34,9 @@ type Gateway struct {
 	close    sync.Once
 	changeMu sync.RWMutex
 	onChange func()
+
+	apiMu  sync.Mutex
+	apiKey string
 }
 
 // Open opens the gateway database and embedded free-provider catalogue.

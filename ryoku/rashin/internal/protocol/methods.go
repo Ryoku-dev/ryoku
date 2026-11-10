@@ -37,6 +37,8 @@ const (
 	MProvidersEnable    = "providers.enable"
 	MModelsList         = "models.list"
 	MGatewayUsage       = "gateway.usage"
+	MGatewayAPI         = "gateway.api"
+	MGatewayAPIKey      = "gateway.api_key"
 
 	MHarnessesList = "harnesses.list"
 
@@ -136,6 +138,7 @@ const (
 	EvtTasksChanged     = "tasks.changed"     // TasksResult (one project's tasks)
 	EvtGitChanged       = "git.changed"       // GitChanged, watchers of the project
 	EvtReviewChanged    = "review.changed"    // ReviewResult
+	EvtAPIChanged       = "api.changed"       // APIInfo
 )
 
 // Method is one entry of the registry: its name, the Go types of its params and
@@ -186,6 +189,8 @@ var Methods = []Method{
 	m(MProvidersEnable, EnableProviderParams{}, ProviderInfo{}, "Turn a provider on or off for routing."),
 	m(MModelsList, ModelsParams{}, ModelsResult{}, "Free chat models and routes."),
 	m(MGatewayUsage, UsageParams{}, GatewayUsage{}, "Requests and tokens per day, provider and model."),
+	m(MGatewayAPI, Empty{}, APIInfo{}, "The local API: whether it is on, where it listens."),
+	m(MGatewayAPIKey, APIKeyParams{}, APIKey{}, "The key other programs present to the local API; rotate replaces it."),
 
 	m(MHarnessesList, HarnessesListParams{}, HarnessesResult{}, "External harnesses and whether they are installed."),
 

@@ -66,6 +66,27 @@ type chatRequest struct {
 	Temperature   *float64          `json:"temperature,omitempty"`
 	Stream        bool              `json:"stream"`
 	StreamOptions wireStreamOptions `json:"stream_options"`
+	// Extra are a caller's own parameters, sent as they came.
+	Extra map[string]json.RawMessage `json:"-"`
+}
+
+// MarshalJSON adds Extra beside the fields the gateway sets itself, which win.
+func (r chatRequest) MarshalJSON() ([]byte, error) {
+	type plain chatRequest
+	body, err := json.Marshal(plain(r))
+	if err != nil || len(r.Extra) == 0 {
+		return body, err
+	}
+	fields := make(map[string]json.RawMessage, len(r.Extra)+8)
+	if err := json.Unmarshal(body, &fields); err != nil {
+		return nil, err
+	}
+	for name, value := range r.Extra {
+		if _, set := fields[name]; !set {
+			fields[name] = value
+		}
+	}
+	return json.Marshal(fields)
 }
 
 type routeCandidate struct {
@@ -112,7 +133,10 @@ func (g *Gateway) Stream(ctx context.Context, request llm.Request) (llm.Stream, 
 }
 
 func renderRequest(request llm.Request) (chatRequest, error) {
-	wire := chatRequest{Model: request.Model, MaxTokens: request.MaxTokens, Temperature: request.Temperature, Stream: true, StreamOptions: wireStreamOptions{IncludeUsage: true}}
+	wire := chatRequest{
+		Model: request.Model, MaxTokens: request.MaxTokens, Temperature: request.Temperature,
+		Stream: true, StreamOptions: wireStreamOptions{IncludeUsage: true}, Extra: request.Extra,
+	}
 	for _, message := range request.Messages {
 		m := wireMessage{Role: string(message.Role), ToolCallID: message.ToolCallID, Name: message.Name}
 		switch message.Role {
@@ -152,7 +176,8 @@ func renderRequest(request llm.Request) (chatRequest, error) {
 		}
 		wire.Tools = append(wire.Tools, wireTool{Type: "function", Function: wireFunction{Name: tool.Name, Description: tool.Description, Parameters: parameters}})
 	}
-	if len(wire.Tools) > 0 {
+	// a caller that says how tools are chosen is passed on as is
+	if _, chosen := request.Extra["tool_choice"]; len(wire.Tools) > 0 && !chosen {
 		wire.ToolChoice = "auto"
 	}
 	return wire, nil
@@ -572,6 +597,14 @@ func (s *routedStream) Final() llm.Final {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.final
+}
+
+// answering names the model the answer comes from. It is settled once the
+// first piece is out: the router does not change models after that.
+func (s *routedStream) answering() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.candidate.provider.ID + "/" + s.candidate.model.ID
 }
 
 func (s *routedStream) Close() error {

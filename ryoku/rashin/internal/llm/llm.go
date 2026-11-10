@@ -62,6 +62,9 @@ type Request struct {
 	Tools       []Tool
 	Temperature *float64
 	MaxTokens   int
+	// Extra are further OpenAI chat parameters a caller of the local API set
+	// (top_p, stop, tool_choice and the like), passed upstream as they came.
+	Extra map[string]json.RawMessage
 }
 
 // Delta is one streamed increment. Tool calls arrive complete, once each, when

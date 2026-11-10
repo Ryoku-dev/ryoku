@@ -449,6 +449,15 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return d.deps.Gateway.Models(ctx, p.Provider)
+	case protocol.MGatewayAPI:
+		return d.apiInfo(), nil
+	case protocol.MGatewayAPIKey:
+		p, err := unmarshal[protocol.APIKeyParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		key, err := d.deps.Gateway.APIKey(ctx, p.Rotate)
+		return protocol.APIKey{Key: key}, err
 	case protocol.MGatewayUsage:
 		p, err := unmarshal[protocol.UsageParams](raw)
 		if err != nil {
@@ -577,6 +586,7 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 		d.settings = next
 		d.mu.Unlock()
 		d.Broadcast(protocol.EvtSettingsChanged, next)
+		d.applyAPI()
 		d.stateChanged()
 		return next, nil
 	case protocol.MUIOpen:
@@ -766,7 +776,11 @@ func (d *Daemon) status(ctx context.Context) protocol.Status {
 	clients := len(d.clients)
 	settings := d.settings
 	d.mu.RUnlock()
-	status := protocol.Status{Version: d.deps.Version, Enabled: settings.Enabled, Running: true, PID: os.Getpid(), UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(), Gateway: d.deps.Gateway.Status(ctx)}
+	status := protocol.Status{
+		Version: d.deps.Version, Enabled: settings.Enabled, Running: true, PID: os.Getpid(),
+		UptimeSec: int64(time.Since(d.started).Seconds()), Clients: clients, Sessions: d.manager.counts(),
+		Gateway: d.deps.Gateway.Status(ctx), API: d.apiInfo(),
+	}
 	if list, err := d.deps.Harnesses.List(ctx, false); err == nil {
 		for _, h := range list {
 			if h.Installed {

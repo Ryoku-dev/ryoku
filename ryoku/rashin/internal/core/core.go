@@ -6,6 +6,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 
 	"ryoku-rashin/internal/llm"
 	"ryoku-rashin/internal/protocol"
@@ -112,6 +113,10 @@ type Gateway interface {
 	Models(ctx context.Context, provider string) (protocol.ModelsResult, error)
 	Usage(ctx context.Context, days int) (protocol.GatewayUsage, error)
 	Status(ctx context.Context) protocol.GatewayStatus
+	// API serves the router to other programs in OpenAI's shape, behind the
+	// key APIKey returns (and replaces on rotate).
+	API() http.Handler
+	APIKey(ctx context.Context, rotate bool) (string, error)
 	// ImportProwl copies keys for catalogue providers out of Prowl's state
 	// directory. It is safe to call again: duplicates are skipped.
 	ImportProwl(ctx context.Context, prowlDir string) (ImportReport, error)

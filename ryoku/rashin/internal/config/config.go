@@ -32,6 +32,7 @@ func Defaults() protocol.Settings {
 		},
 		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
 		Index:  protocol.IndexSettings{System: true, Semantic: true},
+		API:    protocol.APISettings{Port: protocol.DefaultAPIPort},
 	}
 }
 
@@ -42,7 +43,7 @@ var legacyKeys = []string{
 }
 
 // known are the version 2 keys this package owns.
-var known = []string{"version", "enabled", "ask", "agent", "daemon", "index"}
+var known = []string{"version", "enabled", "ask", "agent", "daemon", "index", "api"}
 
 // Validate normalises s in place: unknown enums fall back to the defaults and
 // numbers are clamped to sane ranges.
@@ -74,7 +75,13 @@ func Validate(s *protocol.Settings) {
 	s.Agent.Instances = instances
 	s.Agent.IdleStopMinutes = clamp(s.Agent.IdleStopMinutes, 1, 24*60, d.Agent.IdleStopMinutes)
 	s.Daemon.IdleExitMinutes = clamp(s.Daemon.IdleExitMinutes, 1, 24*60, d.Daemon.IdleExitMinutes)
+	if !validPort(s.API.Port) {
+		s.API.Port = d.API.Port
+	}
 }
+
+// below 1024 a user's daemon cannot listen
+func validPort(port int) bool { return port >= 1024 && port <= 65535 }
 
 func validModel(model string) bool {
 	if model == protocol.RouteAuto || model == protocol.RouteFast || model == protocol.RouteSmart {
@@ -137,6 +144,7 @@ func fromRaw(raw map[string]json.RawMessage) protocol.Settings {
 	decodeInto(raw["agent"], &s.Agent)
 	decodeInto(raw["daemon"], &s.Daemon)
 	decodeInto(raw["index"], &s.Index)
+	decodeInto(raw["api"], &s.API)
 	Validate(&s)
 	return s
 }
@@ -214,6 +222,7 @@ func saveUnlocked(s protocol.Settings) error {
 		"agent":   s.Agent,
 		"daemon":  s.Daemon,
 		"index":   s.Index,
+		"api":     s.API,
 	} {
 		if err := set(k, v); err != nil {
 			return err
@@ -378,6 +387,9 @@ func validatePatch(s protocol.Settings) error {
 			return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.Tf("Agent instance id %s is duplicated.", id))
 		}
 		seen[id] = struct{}{}
+	}
+	if !validPort(s.API.Port) {
+		return protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("The API port must be between 1024 and 65535."))
 	}
 	return nil
 }

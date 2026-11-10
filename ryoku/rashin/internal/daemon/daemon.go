@@ -48,6 +48,7 @@ type Daemon struct {
 	stopOnce   sync.Once
 	idle       *time.Timer
 	logger     *daemonLogger
+	api        apiServer
 }
 
 func New(deps Deps) *Daemon {
@@ -106,6 +107,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 	d.lock = lock
 	d.mu.Unlock()
 	go func() { <-ctx.Done(); d.Shutdown() }()
+	d.applyAPI()
 	d.stateChanged()
 	for {
 		nc, acceptErr := listener.Accept()
@@ -280,6 +282,7 @@ func (d *Daemon) Shutdown() {
 			clients = append(clients, c)
 		}
 		d.mu.Unlock()
+		d.closeAPI()
 		for _, c := range clients {
 			c.close()
 		}
@@ -359,18 +362,18 @@ func (d *Daemon) stateChanged() {
 
 func (d *Daemon) onIdleDeadline() {
 	d.manager.idleStop(time.Now())
-	d.mu.RLock()
-	connections := len(d.clients)
-	d.mu.RUnlock()
-	idle := connections == 0 && !d.manager.busy() && (d.deps.Indexer == nil || !d.deps.Indexer.Busy()) && (d.deps.Work == nil || !d.deps.Work.Busy())
-	if idle {
-		if d.deps.Indexer != nil {
-			d.deps.Indexer.Release()
-		}
-		d.Shutdown()
+	if !d.Idle() {
+		d.stateChanged()
 		return
 	}
-	d.stateChanged()
+	if d.deps.Indexer != nil {
+		d.deps.Indexer.Release()
+	}
+	// other programs hold the address of the local API, so a daemon that serves it stays up at rest
+	if d.api.listening() {
+		return
+	}
+	d.Shutdown()
 }
 
 // Idle reports the exit predicate for tests and lifecycle diagnostics.

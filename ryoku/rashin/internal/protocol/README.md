@@ -48,6 +48,8 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `providers.enable` | `EnableProviderParams` | `ProviderInfo` |
 | `models.list` | `ModelsParams` | `ModelsResult` |
 | `gateway.usage` | `UsageParams` | `GatewayUsage` |
+| `gateway.api` | | `APIInfo` |
+| `gateway.api_key` | `APIKeyParams` (rotate) | `APIKey` |
 | `harnesses.list` | `HarnessesListParams` | `HarnessesResult` |
 | `index.list` | | `IndexesResult` |
 | `index.add` | `IndexAddParams` | `IndexInfo` |
@@ -77,6 +79,7 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `sessions.changed` | `SessionsChanged` | subscribers |
 | `settings.changed` | `Settings` | subscribers |
 | `providers.changed` | `ProvidersResult` | subscribers |
+| `api.changed` | `APIInfo` | subscribers |
 | `harnesses.changed` | `HarnessesResult` | subscribers |
 | `index.progress` | `IndexProgress` | subscribers |
 | `index.changed` | `IndexInfo` | subscribers |
