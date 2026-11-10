@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A wrong Wi-Fi password fails in seconds, not 30.** The shell daemon waited
+  on the activation's State, but NetworkManager removes a failed activation
+  from the bus at once, so the read failed and the join sat out its whole
+  30-second timeout. A vanished activation now counts as failed
+  (`ipc/network.go`).
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
