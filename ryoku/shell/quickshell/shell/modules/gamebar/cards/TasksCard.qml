@@ -16,8 +16,6 @@ GameBarCard {
     id: card
 
     property var rows: []
-    property int pendingPid: 0
-    property real pendingStart: 0
     readonly property string user: Quickshell.env("USER") || Quickshell.env("LOGNAME") || ""
 
     title: I18n.tr("Tasks")
@@ -54,30 +52,15 @@ GameBarCard {
     }
 
     // The list refreshes every two seconds, so a pid can already belong to a
-    // new process by the time Stop is clicked. Re-read its elapsed time and
-    // signal only when that still points at the row the user confirmed.
+    // new process by the time Stop is clicked. The helper opens a pidfd before
+    // it checks the start time, so the signal cannot reach a process that took
+    // the pid after the row was confirmed.
     Process {
-        id: verifier
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const pid = card.pendingPid;
-                const started = card.pendingStart;
-                card.pendingPid = 0;
-                card.pendingStart = 0;
-                const secs = parseInt(text.trim(), 10);
-                if (!(pid > 0) || !(secs >= 0))
-                    return;
-                if (Math.abs((Date.now() / 1000 - secs) - started) > 2)
-                    return;
-                killer.command = ["kill", "-TERM", String(pid)];
-                killer.running = true;
+        id: ender
+        onExited: (code, status) => {
+            if (code === 0)
                 settle.restart();
-            }
         }
-    }
-
-    Process {
-        id: killer
     }
 
     Timer {
@@ -122,12 +105,12 @@ GameBarCard {
                 task: modelData
                 protectedName: Tasks.isProtected(modelData.name)
                 onEndRequested: (pid, started) => {
-                    if (pid <= 0 || verifier.running)
+                    if (pid <= 0 || ender.running)
                         return;
-                    card.pendingPid = pid;
-                    card.pendingStart = started;
-                    verifier.command = ["ps", "-o", "etimes=", "-p", String(pid)];
-                    verifier.running = true;
+                    ender.command = ["python3",
+                        Quickshell.shellPath("modules/gamebar/end_process.py"),
+                        String(pid), String(started)];
+                    ender.running = true;
                 }
             }
         }
