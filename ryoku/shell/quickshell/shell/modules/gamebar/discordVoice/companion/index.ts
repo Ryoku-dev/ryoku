@@ -153,8 +153,9 @@ export default definePlugin({
     },
 
     async start() {
-        // A quick restart must not leave the previous loop waiting on the same
-        // socket: let its disconnect settle before a new loop starts reading.
+        // Native.disconnect() resolves every pending nextCommand with an empty
+        // line (see native.ts), so the previous loop settles before this one
+        // starts reading the socket.
         await Native.disconnect();
         running = true;
         void commandLoop();
