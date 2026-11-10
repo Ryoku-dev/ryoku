@@ -272,11 +272,15 @@ ShellRoot {
             // nothing of the Game Bar exists while it is closed with no pins
             LazyLoader {
                 id: gameBarLoader
+                // the bar reports its own hold through this flag, reading item.holding here looped
+                property bool held: false
                 activeAsync: (Config.gamebar.enabled
                         && (GameBarStore.open || GameBarStore.asList(GameBarStore.pinned).length > 0))
-                    || (gameBarLoader.item ? gameBarLoader.item.holding : false)
+                    || held
                 GameBar {
                     modelData: perScreen.modelData
+                    onHoldingChanged: gameBarLoader.held = holding
+                    Component.onCompleted: gameBarLoader.held = holding
                 }
             }
 
