@@ -24,6 +24,28 @@
 - **Saved Wi-Fi networks can be forgotten, and a rejected saved password asks
   for a new one.** Connections shows Forget on saved rows, and a saved network
   whose stored password fails reopens the password field with a same-name hint.
+- **Clicking a saved Wi-Fi network notices when its password is rejected.** The
+  page relied on Quickshell's per-network failure signal, which is not always
+  emitted, so a stale saved password sometimes failed with nothing shown. A
+  saved network now joins through `nmcli connection up` like every other join,
+  and a failure reopens the password row (`pages/ConnectionsPage.qml`).
+- **A wrong Wi-Fi password fails in about a second in Connections.** Joining
+  with `nmcli --ask` made nmcli NetworkManager's secret agent, so a rejected
+  passphrase made NetworkManager ask nmcli for another and wait until nmcli's
+  90-second timeout. A WPA-Personal join now writes the passphrase into the
+  profile through stdin and activates it with no agent; the passphrase still
+  never appears in a process's arguments (`pages/ConnectionsPage.qml`).
+- **Connections notices networks saved or forgotten elsewhere.** The saved
+  list was read when the page opened and after its own actions, so a network
+  forgotten from the bar still showed as saved until the page was reopened. It
+  is now re-read when the network list changes and after a scan
+  (`pages/ConnectionsPage.qml`).
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  Clicking a saved network whose stored password was wrong (changed on the
+  router, or another network with the same name) failed on every click with no
+  password row. The row now reopens with "Wrong password, or a different
+  network with the same name?", the new password replaces the old profile, and
+  the field empties after a failed attempt (`pages/ConnectionsPage.qml`, #776).
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
@@ -107,6 +129,16 @@
 - **Credits names the Game Bar's sources.** The ii-p3drovfx row now covers the
   Discord Voice widget it is based on, and end-4's illogical-impulse is credited
   for the overlay design (`quickshell/pages/CreditsPage.qml`, `../../NOTICE`).
+- **Connections can show each Wi-Fi network's access points.** A Details toggle
+  next to Scan adds a line under every row with each band's BSSID, marking the
+  one you are connected to, so two networks sharing a name can be told apart.
+  It is off by default (`pages/ConnectionsPage.qml`, #776).
+- **Connections lists saved Wi-Fi networks first.** Saved networks in range,
+  the connected one on top, sit under a Saved heading above Other networks
+  (`pages/ConnectionsPage.qml`).
+- **Saved Wi-Fi networks can be forgotten in Connections.** A saved row now has
+  Forget next to Auto-reconnect, armed by a first press, which deletes the
+  profile (`pages/ConnectionsPage.qml`, #776).
 - **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
   card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
   (`quickshell/pages/BarStudioPage.qml`).

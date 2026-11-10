@@ -66,6 +66,49 @@
 - **A fresh desktop no longer says its Stage config file is broken.** The first
   start wrote a valid `stage-editor.json` but then read an empty copy of it,
   showed the warning, saved a backup and stopped saving settings.
+- **QS Bar's Wi-Fi panel makes Forget easy to reach.** A network's drawer, where
+  Forget lives, opened only from a small dimmed › at the row's edge. The toggle
+  now has full contrast and a hover well, right-clicking a row opens the drawer,
+  and the password prompt of a saved network has its own Forget.
+- **QS Bar's Wi-Fi panel asks again when a saved password fails.** A saved
+  network whose secret was wrong failed silently on every tap. It now reopens
+  the password prompt ("Wrong password, or a different network with the same
+  name?"), a new passphrase replaces the stale profile, and a failed or timed-out
+  attempt empties the field (`barstyles/qsbar/panels/`).
+- **A dual-band Wi-Fi network shows once in the bar.** The list had a row per
+  network and band, so the same name could appear twice. It now has one row per
+  name, the strongest signal standing for it, and a join leaves the band to
+  NetworkManager, which roams between them.
+- **The bar's Wi-Fi list puts saved networks first.** Saved networks in range
+  sit under a Saved heading above Other networks. A network being joined for
+  the first time stays in its place until the join settles, even though
+  NetworkManager saves its profile as the attempt starts.
+- **Saved Wi-Fi networks can be forgotten from the bar.** A saved row has a ⋯
+  button that opens Forget network, and the connected network's card has one
+  too, armed by a first press because forgetting it also disconnects. Before,
+  the only way to drop a saved network was `nmcli connection delete`.
+- **A saved Wi-Fi network asks for its password again when it stops working.**
+  The bar only showed a password field for unsaved networks, so a saved one
+  whose password changed, or another network with the same name, failed on
+  every tap with no way to type a new password. A failed join of a saved
+  secured network now reopens the field with "Wrong password, or a different
+  network with the same name?", and the new password replaces the stored one.
+- **The bar's Wi-Fi rows keep their password field through network updates.**
+  The list is rebuilt on every network frame, which threw away a row's field,
+  its pending join and its error; a retry after a wrong password could also
+  type onto the rejected text. Row state now lives in the popout, keyed by
+  SSID, and the field empties after every attempt
+  (`quickshell/shell/modules/bar/popouts/NetworkPopout.qml`).
+- **A wrong password no longer saves the Wi-Fi network.** NetworkManager keeps
+  the profile a first join creates even when the passphrase is rejected, so the
+  network read as saved and every later tap retried the bad secret without
+  asking again. A first join that fails now deletes that profile; a timeout
+  keeps it, since that join may still be coming up (`ipc/network.go`).
+- **A wrong Wi-Fi password fails in seconds, not 30.** The shell daemon waited
+  on the activation's State, but NetworkManager removes a failed activation
+  from the bus at once, so the read failed and the join sat out its whole
+  30-second timeout. A vanished activation now counts as failed
+  (`ipc/network.go`).
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

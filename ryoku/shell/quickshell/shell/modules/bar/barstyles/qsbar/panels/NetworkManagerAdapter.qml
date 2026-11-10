@@ -116,6 +116,10 @@ Item {
 
     // Only WPA-Personal passphrase types can be joined via network.connectWithPsk(psk).
     // Everything else must go through the full NetworkManager settings flow.
+    function isOutOfRange(reason) {
+        return reason === ConnectionFailReason.WifiNetworkLost
+    }
+
     function supportsInlinePsk(sec) {
         return sec === "psk"
     }
@@ -271,12 +275,42 @@ Item {
         profileAction.running = true
     }
 
+    // a known network keeps its saved secret, so a new passphrase replaces the
+    // profile: forget it, then join once NM reports it gone
+    property var pskRetryNetwork: null
+    property string pskRetryValue: ""
+    property int pskRetryTicks: 0
     function connectWithPsk(network, psk) {
         if (!network || psk === "")
             return
 
+        if (network.known) {
+            pskRetryNetwork = network
+            pskRetryValue = psk
+            pskRetryTicks = 0
+            network.forget()
+            pskRetryTimer.restart()
+            return
+        }
         network.connectWithPsk(psk)
         refreshAfterAction.restart()
+    }
+    Timer {
+        id: pskRetryTimer
+        interval: 150
+        repeat: true
+        onTriggered: {
+            var net = adapter.pskRetryNetwork
+            adapter.pskRetryTicks++
+            if (!net || (net.known && adapter.pskRetryTicks < 20))
+                return
+            stop()
+            var psk = adapter.pskRetryValue
+            adapter.pskRetryNetwork = null
+            adapter.pskRetryValue = ""
+            net.connectWithPsk(psk)
+            refreshAfterAction.restart()
+        }
     }
 
     function refresh() {
