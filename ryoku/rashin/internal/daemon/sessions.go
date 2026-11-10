@@ -580,7 +580,9 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		i.Turns = turn
 		i.State = protocol.StateWorking
 		i.Error = ""
-		if i.Kind == protocol.KindAsk && i.Title == "" {
+		// A harness may send a better title later; until it does, a session is
+		// named after what it was first asked, or every row reads the same.
+		if i.Title == "" {
 			i.Title = questionTitle(p.Text)
 		}
 		i.Alive = alive

@@ -1278,3 +1278,37 @@ func TestFirstAskQuestionSetsSingleLineTitle(t *testing.T) {
 		t.Fatalf("title = %q, want %q", got, want)
 	}
 }
+
+func TestAnAgentSessionIsNamedAfterWhatItWasFirstAskedUntilItsHarnessNamesIt(t *testing.T) {
+	isolateDaemon(t)
+	runner := &fakeRunner{alive: true, prompt: func(_ context.Context, _ core.PromptInput, sink core.Sink) (core.TurnResult, error) {
+		return core.TurnResult{Stop: protocol.StopEnd}, nil
+	}}
+	settings := func() protocol.Settings {
+		return protocol.Settings{Agent: protocol.AgentSettings{Approvals: protocol.ApprovalsReadOnly}}
+	}
+	manager := newSessionManager(nil, &fakeHarnesses{runner: runner}, nil, settings, func(string, any) {}, func() {}, func(string, ...any) {})
+	info, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: info.ID, Text: "Fix the build on Void"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	session, _ := manager.get(info.ID)
+	if title := session.log.Info().Title; title != "Fix the build on Void" {
+		t.Fatalf("an agent session nobody named is called %q after its first prompt", title)
+	}
+
+	named, err := manager.create(protocol.SessionNewParams{Kind: protocol.KindAgent, Title: "Void port"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: named.ID, Text: "Fix the build on Void"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	session, _ = manager.get(named.ID)
+	if title := session.log.Info().Title; title != "Void port" {
+		t.Fatalf("a session that had a name was renamed to %q by its first prompt", title)
+	}
+}
