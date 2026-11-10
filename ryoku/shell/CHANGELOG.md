@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Brightness no longer pins the shell daemon at 100% CPU after resume.** A
+  driver that re-registers its backlight across suspend (nvidia) left the OSD
+  watcher polling the removed sysfs node, which fails every read and wakes
+  poll(2) at once, forever. The watcher now reopens the device after it goes
+  away, backing off while it is missing (`ipc/osd.go`).
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

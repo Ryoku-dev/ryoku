@@ -2,11 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -147,21 +150,59 @@ func (o *osdState) publish(value float64) {
 	o.topic.publish(frame)
 }
 
-// watchBacklight blocks in poll(2) on the backlight's actual_brightness sysfs
-// attribute, which the kernel wakes with POLLPRI on every brightness change
-// (media keys, the brightness verb, or anything else). Each wake recomputes the
-// fraction, bumps the sequence, and republishes. The first read is the current
-// value and does NOT bump the sequence, so a fresh subscriber never flashes the
-// OSD at startup. Reading the attribute after each poll re-arms the notify.
+// Backoff for reopening a backlight node that went away: a dGPU driver
+// (nvidia) unregisters and re-registers its backlight across suspend, so the
+// node comes back within a second or two of resume.
+const (
+	backlightRetryMin = time.Second
+	backlightRetryMax = 30 * time.Second
+)
+
+// watchBacklight keeps a watcher on the primary backlight for the life of the
+// daemon. The saved level is restored once, at startup, and only when the
+// device was readable then. A device unreadable at startup is retried like one
+// that went away. When the watched node disappears (the driver re-registered
+// the device on resume) the watcher re-resolves the device and reopens it,
+// backing off while it is missing, rather than polling a dead fd that reports
+// POLLERR forever.
 func (o *osdState) watchBacklight(dev string) {
 	maxb, ok := readSysInt(filepath.Join(dev, "max_brightness"))
 	if !ok || maxb <= 0 {
-		return
+		dev = ""
+	} else {
+		restoreBacklight(dev, maxb)
 	}
-	restoreBacklight(dev, maxb)
+	delay := backlightRetryMin
+	for {
+		if o.watchBacklightNode(dev, maxb) {
+			delay = backlightRetryMin
+		}
+		time.Sleep(delay)
+		delay = min(delay*2, backlightRetryMax)
+		if dev = backlightDevice(); dev == "" {
+			continue
+		}
+		if maxb, ok = readSysInt(filepath.Join(dev, "max_brightness")); !ok || maxb <= 0 {
+			dev = ""
+		}
+	}
+}
+
+// watchBacklightNode blocks in poll(2) on the backlight's actual_brightness
+// sysfs attribute, which the kernel wakes with POLLPRI on every brightness
+// change (media keys, the brightness verb, or anything else). Each wake
+// recomputes the fraction, bumps the sequence, and republishes. The first read
+// is the current value and does NOT bump the sequence, so neither a fresh
+// subscriber nor a reopen after resume flashes the OSD. Reading the attribute after each poll
+// re-arms the notify. It returns once the node is gone (open or read fails),
+// reporting whether it ever read the node.
+func (o *osdState) watchBacklightNode(dev string, maxb int) bool {
+	if dev == "" {
+		return false
+	}
 	fd, err := unix.Open(filepath.Join(dev, "actual_brightness"), unix.O_RDONLY, 0)
 	if err != nil {
-		return
+		return false
 	}
 	defer unix.Close(fd)
 
@@ -176,9 +217,13 @@ func (o *osdState) watchBacklight(dev string) {
 			saveObservedBacklight(raw)
 		}
 	}
-	if _, ok := readActual(fd, buf); ok {
-		publish()
+	// An unparsable first value still re-armed the notify, so keep the fd.
+	if _, err := readActual(fd, buf); err != nil && err != errBacklightValue {
+		return false
 	}
+	// A reopen publishes too: the level may have moved while the node was
+	// gone, and an unchanged frame is dropped by the topic anyway.
+	publish()
 	for {
 		fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLPRI | unix.POLLERR}}
 		n, err := unix.Poll(fds, -1)
@@ -186,14 +231,20 @@ func (o *osdState) watchBacklight(dev string) {
 			if err == unix.EINTR {
 				continue
 			}
-			return
+			return true
 		}
 		if n == 0 {
 			continue
 		}
-		// Reading actual_brightness re-arms the POLLPRI notify.
-		if _, ok := readActual(fd, buf); !ok {
-			continue
+		// Reading actual_brightness re-arms the POLLPRI notify. A failed read
+		// leaves the condition pending, so poll would return at once forever:
+		// the node is dead (ENODEV after the driver re-registered it), and
+		// the caller reopens it.
+		if _, err := readActual(fd, buf); err != nil {
+			if err == errBacklightValue {
+				continue
+			}
+			return true
 		}
 		o.seq++
 		publish()
@@ -215,16 +266,24 @@ func readBrightnessFraction(dev string, maxb int) (float64, int, bool) {
 	return float64(raw) / float64(maxb), raw, true
 }
 
+// errBacklightValue marks a read that succeeded but held no integer: the
+// notify is re-armed, so the watcher keeps polling the same fd.
+var errBacklightValue = errors.New("backlight: unparsable level")
+
 // readActual reads the backlight level via pread at offset 0, which both fetches
-// the value and clears the pending poll condition on the sysfs file.
-func readActual(fd int, buf []byte) (int, bool) {
+// the value and clears the pending poll condition on the sysfs file. A failed or
+// empty read means the node is gone.
+func readActual(fd int, buf []byte) (int, error) {
 	n, err := unix.Pread(fd, buf, 0)
-	if err != nil || n <= 0 {
-		return 0, false
+	if err != nil {
+		return 0, err
+	}
+	if n <= 0 {
+		return 0, io.ErrUnexpectedEOF
 	}
 	v, err := strconv.Atoi(strings.TrimSpace(string(buf[:n])))
 	if err != nil {
-		return 0, false
+		return 0, errBacklightValue
 	}
-	return v, true
+	return v, nil
 }
