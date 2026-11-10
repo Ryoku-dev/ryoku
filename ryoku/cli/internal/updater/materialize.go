@@ -464,6 +464,7 @@ func Materialize() error {
 		}
 	}
 	applyGenerated(dest)
+	seedAccount()
 	return nil
 }
 

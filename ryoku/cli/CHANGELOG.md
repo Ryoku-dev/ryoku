@@ -10,6 +10,9 @@
 - **`ryoku update` and doctor follow only the Ryotunes 1.x line.** They pick the
   newest stable `v1.Y.Z` release instead of GitHub's latest, so a Ryotunes 2
   release never installs here; with no 1.x release the installed build stays.
+- **A second account on a shared machine gets the same desktop as the first.**
+  Its first login and `ryoku doctor` lay the brand art, decor art and npm prefix
+  the installer gave the first account; a brand-new account starts on the default rice.
 - **Doctor recognizes the shell's own visualizer and file watchers.** Memory
   checks no longer report those helpers as user apps left inside the desktop
   service (`internal/doctor/memory.go`).

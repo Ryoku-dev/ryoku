@@ -350,7 +350,7 @@ func reconcilers() []reconciler {
 		{i18n.T("ryotunes"), reconcileRyotunes},
 		{i18n.T("fastfetch OS line"), reconcileFastfetchOSLine},
 		{i18n.T("brand mark image"), reconcileBrandLogo},
-		{i18n.T("decor art"), reconcileRyodecors},
+		{i18n.T("this account's Ryoku files"), reconcileAccountSeed},
 		{i18n.T("Hyprland config integrity"), reconcileHyprlandConfig},
 		{i18n.T("niri config integrity"), reconcileNiriConfig},
 		{i18n.T("window manager plugin builds"), reconcileWmPlugins},
@@ -3849,64 +3849,6 @@ func reconcileBrandLogo(checkOnly bool) recResult {
 		return failRes(i18n.T("could not replace %s: %v"), path, err)
 	}
 	return fixedRes(i18n.T("cleared the broken brand image (%s); the mark falls back to the text seal"), img)
-}
-
-// ---- reconciler: decor art (<Pictures>/ryodecors) ----------------------------
-
-// ryodecorsSource is where the shipped decor art set lives: the repo checkout on
-// a dev box (ryoku deploy records it), else /usr/share/ryoku/ryodecors from the
-// ryoku-desktop package. "" when neither is present (a box on a pre-fix package,
-// cured by pulling the update first).
-func ryodecorsSource() string {
-	if repo := sys.ResolveRepo(); repo != "" {
-		if p := filepath.Join(repo, "ryoku", "assets", "ryodecors"); sys.Exists(p) {
-			return p
-		}
-	}
-	if p := "/usr/share/ryoku/ryodecors"; sys.Exists(p) {
-		return p
-	}
-	return ""
-}
-
-// reconcileRyodecors keeps the shipped decor art present in <Pictures>/ryodecors
-// (~/Pictures, or the localized XDG folder such as ~/Imágenes), the folder the Decor and Placard components render from (beside Wallpapers and
-// livewalls). The installer seeds it on a fresh install; this delivers it -- and
-// any art a later release adds -- to a box that updated before it shipped, or one
-// where a file went missing. Missing-only: a file the user swapped or added is
-// left alone, and nothing is pruned (it is a user-owned Pictures folder).
-func reconcileRyodecors(checkOnly bool) recResult {
-	src := ryodecorsSource()
-	if src == "" {
-		return okRes(i18n.T("no decor art source yet (ships with the desktop package)"))
-	}
-	entries, err := os.ReadDir(src)
-	if err != nil {
-		return okRes(i18n.T("decor art source unreadable (%v)"), err)
-	}
-	dst := filepath.Join(sys.PicturesDir(), "ryodecors")
-	var missing []string
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		if !sys.Exists(filepath.Join(dst, e.Name())) {
-			missing = append(missing, e.Name())
-		}
-	}
-	if len(missing) == 0 {
-		return okRes(i18n.T("decor art present in %s"), dst)
-	}
-	if checkOnly {
-		return wouldRes(i18n.T("%d decor art file(s) missing from %s"), len(missing), dst).
-			withFix("ryoku doctor")
-	}
-	for _, name := range missing {
-		if err := sys.CopyFile(filepath.Join(src, name), filepath.Join(dst, name)); err != nil {
-			return failRes(i18n.T("could not seed decor art %s: %v"), name, err).withFix("ryoku doctor")
-		}
-	}
-	return fixedRes(i18n.T("seeded %d decor art file(s) into %s"), len(missing), dst)
 }
 
 // ---- reconciler: follow-mouse default ---------------------------------------

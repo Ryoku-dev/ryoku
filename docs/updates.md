@@ -334,6 +334,14 @@ contain only the edition's skeleton files: the session wrapper runs
 user-owned. Installer-created extra accounts and accounts added later in Ryoku
 Hub therefore take the same first-login path on every edition and compositor.
 
+Beyond `~/.config`, materialize gives the account what the installer seeds for
+the first one: the brand art (`~/.local/share/ryoku/assets/brand`), the decor art
+(`ryodecors/` in the Pictures folder) and `~/.npmrc`, missing files only, from
+`/usr/share/ryoku` (the checkout on a dev box). An account whose shell has never
+run (no `~/.config/ryoku/shell.json`) also gets the default rice queued for its
+first login. `ryoku doctor` runs the same check. The wallpaper library is not
+packaged, so only the installing account receives `Pictures/Wallpapers`.
+
 ## user_edits: your edits, kept apart
 
 Ryoku-owned config and user edits live in separate trees, so an update refreshes
