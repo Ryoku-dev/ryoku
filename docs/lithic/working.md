@@ -5,7 +5,7 @@ Use this page for a new surface, a redesign or a migration. The same sequence ap
 ## Workflow
 
 1. **Say who uses it, how often and for how long.** A shell control seen every minute needs a different density from a setup flow used once.
-2. **Pick the archetype.** Choose the list and detail window, Now board, draft with aside, settings page, dialog flow, player window or compact class in [layout.md](layout.md).
+2. **Pick the archetype.** Choose the list and detail window, Now board, draft with aside, settings page, dialog flow, player window, conversation window or compact class in [layout.md](layout.md).
 3. **List the states.** Give each state a tone, one plain word and a proof. A colour without a word is not a state.
 4. **Find the one consequential action.** Give only that action a gold plaque. Keep following actions as line plaques and rare actions in an overflow menu.
 5. **Compose from the map.** Use [map.md](map.md) to choose components before writing custom presentation.

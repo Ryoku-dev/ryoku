@@ -64,8 +64,8 @@ rest threshold of 0.001.
 | A wheel notch glides 120 dp over 140 ms | discrete wheel input moved the view |
 | Trackpad deltas follow the fingers at the screen's scale | continuous input stays direct |
 
-Outside a media window's playback motion below, nothing else moves. Panes do
-not slide in, lists do not stagger, icons do not spin and no idle element
+Outside the playback and conversation motion below, nothing else moves. Panes
+do not slide in, lists do not stagger, icons do not spin and no idle element
 pulses. Removal feedback is a Placard and its draining blade; the resource
 simply leaves the layout.
 
@@ -124,6 +124,33 @@ behind a 45 degree cut that follows the clock, and lifts a little; sung words
 stay lit, unsung ones wait in a quieter ink. Real word timing is used when the
 lyrics carry it; otherwise the line's timing is shared across its words by
 length, never stretched across an instrumental gap.
+
+## Conversation
+
+A conversation window answers the turn with motion of its own. Each still
+answers a cause and stops.
+
+| Motion | Meaning | Duration |
+|---|---|---|
+| A sent question rises 8 into place while it fades in | the message was sent | navigate 200 |
+| Send and Stop swap, the incoming icon growing from .85 | a turn started or ended | notch 200 |
+| The composer travels from the centre of a new conversation to the foot of the column | the conversation began | select 240 |
+| A search field travels from the centre of its pane to the top, its results fading in under it | the first search ran | select 240 |
+| The Working flakes run beside the step being worked on | an answer is being made | working 900, while it lasts |
+| A line of work unfolds to its detail | more is available | unfold 200 |
+| A permission field rises 8 into the column | the turn needs the reader | navigate 200 |
+| An answered permission folds to the line that records it | the reader answered | unfold 200 |
+| The return to end plaque fades in and out | newer content is below | hover in 160, hover out 100 |
+| A new row unfolds in the sidebar list | a conversation started | unfold 200 |
+| The sidebar's width folds to its rail, labels clipping and fading | the reader wants the room | unfold 200 |
+| The side panel's width unfolds | the panel opened | unfold 200 |
+| The header's vein fades in | the column scrolled beneath it | hover in 160 |
+
+Text that streams in is content, not motion. It is set as it arrives, never
+letter by letter on a timer and never faded in word by word, and nothing
+already set moves. The composer takes a new line at once, because typing must
+never wait. The flakes are the only thing that moves while an answer is being
+made, and they stop with it.
 
 ## Overlay motion
 
