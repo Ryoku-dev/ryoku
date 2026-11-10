@@ -355,7 +355,8 @@ in `~/.config/ryoku/keyring.json`, converges the keyring files over D-Bus, and
 escalates the root PAM edit through `pkexec` (`--convert` rekeys an encrypted
 keyring, reading passwords on stdin; `--reset` backs the files up and starts
 fresh). The Hub's Lockscreen page drives all of this; `ryoku doctor` watches for
-drift. `$RYOKU_PAM_FILE` overrides the PAM path for tests.
+drift and drops the duplicate keyring lines older installs added beside SDDM's
+stock ones. `$RYOKU_PAM_FILE` overrides the PAM path for tests.
 
 ## Developer-only commands
 
