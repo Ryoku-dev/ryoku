@@ -102,11 +102,18 @@ Item {
                 best[key] = ap;
         }
         const out = [];
-        for (const k in best)
-            out.push(best[k]);
+        for (const k in best) {
+            const ap = best[k];
+            // NetworkManager saves a profile as a first join starts; until the
+            // join settles the row stays unsaved, so it neither moves lists nor
+            // loses its password field
+            out.push(root.joining[ap.ssid] ? Object.assign({}, ap, { saved: false }) : ap);
+        }
         out.sort((x, y) => (y.strength || 0) - (x.strength || 0));
         return out;
     }
+    readonly property var savedNets: root.availableNets.filter(n => !!n.saved)
+    readonly property var otherNets: root.availableNets.filter(n => !n.saved)
 
     // SSIDs seen on more than one band in the scan: a row shows its band chip
     // only for these, so single-band networks read exactly as before. Counted
@@ -168,6 +175,7 @@ Item {
     // its field, its pending reply and its error.
     property var rowState: ({})
     property var pendingJoins: ({})
+    property var joining: ({})
     readonly property var pwDrafts: ({})
     property string focusSsid: ""
     property bool heroOpen: false
@@ -189,8 +197,18 @@ Item {
         if (open)
             root.focusSsid = ssid;
     }
+    function setJoining(ssid, on) {
+        const m = Object.assign({}, root.joining);
+        if (on)
+            m[ssid] = true;
+        else
+            delete m[ssid];
+        root.joining = m;
+    }
     function join(ap, pw) {
         root.setSt(ap.ssid, { connecting: true, error: false });
+        if (!ap.saved)
+            root.setJoining(ap.ssid, true);
         const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
         root.pendingJoins[id] = { ssid: ap.ssid, wasSaved: !!ap.saved };
     }
@@ -206,6 +224,7 @@ Item {
             if (!j)
                 return;
             delete root.pendingJoins[id];
+            root.setJoining(j.ssid, false);
             root.pwDrafts[j.ssid] = "";
             // pwEpoch tells the row to empty its field, so a failed password is
             // never left for the next attempt to be typed onto
@@ -651,11 +670,34 @@ Item {
             }
         }
 
-        // available networks.
+        // saved networks in range, then the rest
+        Text {
+            width: parent.width
+            visible: root.wifiOn && root.savedNets.length > 0
+            text: I18n.tr("SAVED")
+            color: root.inkDim
+            font.family: Theme.mono
+            font.pixelSize: 8.5 * root.s
+            font.letterSpacing: 1.5
+        }
+        Column {
+            width: parent.width
+            spacing: 5 * root.s
+            visible: root.wifiOn && root.savedNets.length > 0
+            Repeater {
+                model: root.savedNets
+                delegate: ApRow {
+                    required property var modelData
+                    ap: modelData
+                }
+            }
+        }
         Text {
             width: parent.width
             visible: root.wifiOn
-            text: root.scanning ? I18n.tr("NETWORKS · SCANNING") : I18n.tr("NETWORKS")
+            text: root.savedNets.length > 0
+                ? (root.scanning ? I18n.tr("OTHER NETWORKS · SCANNING") : I18n.tr("OTHER NETWORKS"))
+                : (root.scanning ? I18n.tr("NETWORKS · SCANNING") : I18n.tr("NETWORKS"))
             color: root.inkDim
             font.family: Theme.mono
             font.pixelSize: 8.5 * root.s
@@ -666,7 +708,7 @@ Item {
             spacing: 5 * root.s
             visible: root.wifiOn
             Repeater {
-                model: root.availableNets
+                model: root.otherNets
                 delegate: ApRow {
                     required property var modelData
                     ap: modelData

@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The bar's Wi-Fi list puts saved networks first.** Saved networks in range
+  sit under a Saved heading above Other networks. A network being joined for
+  the first time stays in its place until the join settles, even though
+  NetworkManager saves its profile as the attempt starts.
 - **Saved Wi-Fi networks can be forgotten from the bar.** A saved row has a ⋯
   button that opens Forget network, and the connected network's card has one
   too, armed by a first press because forgetting it also disconnects. Before,
