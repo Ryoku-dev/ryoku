@@ -84,7 +84,7 @@ client_running() {
 
 install_client() {
     local client="$1"
-    local repo dir state key
+    local repo dir state key backup
 
     repo="$(client_repo "$client")"
     dir="$(client_dir "$client")"
@@ -126,7 +126,13 @@ install_client() {
     fi
 
     say "pointing $client at the custom build"
-    [[ -f "$state.pre-ryoku-voice" ]] || cp "$state" "$state.pre-ryoku-voice"
+    # The first run keeps the pre-Ryoku config; a later run keeps the state it
+    # is about to replace, so a change made since the first install survives.
+    backup="$state.pre-ryoku-voice"
+    if [[ -f "$backup" ]]; then
+        backup="$backup.$(date +%Y%m%d-%H%M%S)"
+    fi
+    cp "$state" "$backup"
     python3 - "$state" "$key" "$dir/dist" <<'PY'
 import json
 import sys
