@@ -21,6 +21,7 @@ GameBarCard {
 
     readonly property var mon: Sysinfo.monitor
     readonly property int hz: Units.hz(card.displayMode)
+    readonly property string tempUnit: Units.tempUnit(Config.weatherUnit, Qt.locale().name)
     readonly property string resolution: {
         const base = card.displayMode.split("@")[0];
         if (base.length > 0)
@@ -131,8 +132,8 @@ GameBarCard {
             s: card.s
             width: parent.width
             label: I18n.tr("Temperature")
-            value: card.mon.gpuTempAvailable ? Math.round(card.mon.gpuTemp) + " C"
-                : (card.mon.cpuTempAvailable ? Math.round(card.mon.cpuTemp) + " C" : "n/a")
+            value: card.mon.gpuTempAvailable ? Units.temp(card.mon.gpuTemp, card.tempUnit)
+                : (card.mon.cpuTempAvailable ? Units.temp(card.mon.cpuTemp, card.tempUnit) : "n/a")
         }
 
         GameBarMeter {

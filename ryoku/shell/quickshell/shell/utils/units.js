@@ -1,6 +1,7 @@
-// Compact readouts for the Game Bar cards: bytes, rates, storage, uptime.
-// Decimal for network rates (what a link is sold in) and binary for memory
-// (what the kernel reports), so the numbers stay honest to their source.
+// Compact readouts for the Game Bar cards: bytes, rates, storage, uptime,
+// refresh and temperature. Decimal for network rates (what a link is sold in)
+// and binary for memory (what the kernel reports), so the numbers stay honest
+// to their source.
 
 function bytes(v) {
     const n = Number(v) || 0;
@@ -40,5 +41,23 @@ function hz(mode) {
     return m ? Math.round(parseFloat(m[1])) : 0;
 }
 
+// A machine reading arrives in Celsius; the shell stores the user's choice in
+// weatherUnit, where "auto" follows the locale. The three Fahrenheit-holdout
+// locales are the ones the weather daemon resolves for the same setting.
+function tempUnit(configured, locale) {
+    if (configured === "celsius" || configured === "fahrenheit")
+        return configured;
+    return /(^|[_.@-])(US|LR|MM)([_.@-]|$)/.test(String(locale || ""))
+        ? "fahrenheit" : "celsius";
+}
+
+function temp(celsius, unit) {
+    const c = Number(celsius);
+    if (!isFinite(c)) return "n/a";
+    return unit === "fahrenheit"
+        ? Math.round(c * 9 / 5 + 32) + " F"
+        : Math.round(c) + " C";
+}
+
 if (typeof module !== "undefined" && module.exports)
-    module.exports = { bytes, rate, gib, pct, uptime, hz };
+    module.exports = { bytes, rate, gib, pct, uptime, hz, tempUnit, temp };

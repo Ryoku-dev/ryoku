@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
-const { bytes, rate, gib, pct, uptime, hz } = require("./units.js");
+const { bytes, rate, gib, pct, uptime, hz, tempUnit, temp } = require("./units.js");
 
 let failed = 0;
 function eq(actual, expected, msg) {
@@ -25,6 +25,15 @@ eq(uptime(2 * 86400 + 5 * 3600), "2d 5h", "days and hours");
 eq(hz("1920x1080@200.000"), 200, "refresh rate out of a mode string");
 eq(hz("2560x1440@59.951"), 60, "rounds a fractional refresh");
 eq(hz(""), 0, "no mode, no rate");
+eq(tempUnit("celsius", "en_US.UTF-8"), "celsius", "an explicit unit wins over the locale");
+eq(tempUnit("fahrenheit", "de_DE.UTF-8"), "fahrenheit", "an explicit Fahrenheit wins too");
+eq(tempUnit("auto", "en_US.UTF-8"), "fahrenheit", "auto follows a US locale");
+eq(tempUnit("auto", "de_DE.UTF-8"), "celsius", "auto follows a metric locale");
+eq(tempUnit("auto", ""), "celsius", "no locale falls back to Celsius");
+eq(temp(21.6, "celsius"), "22 C", "a Celsius reading rounds to the degree");
+eq(temp(21.6, "fahrenheit"), "71 F", "a Fahrenheit reading converts and rounds");
+eq(temp(0, "fahrenheit"), "32 F", "freezing in Fahrenheit");
+eq(temp(NaN, "celsius"), "n/a", "a missing reading is not a temperature");
 
 if (failed > 0) {
     console.log(failed + " failure(s)");
