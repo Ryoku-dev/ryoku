@@ -134,6 +134,7 @@ GameBarCard {
 
                 Text {
                     width: parent.width
+                    textFormat: Text.PlainText
                     text: card.headline
                     color: GameBarLook.fg
                     font.family: GameBarLook.face
@@ -241,6 +242,7 @@ GameBarCard {
                 Text {
                     width: parent.width
                     visible: card.voice.installerBusy || card.voice.installerState === "failed"
+                    textFormat: Text.PlainText
                     text: card.voice.installerBusy ? card.voice.installerLine
                         : I18n.tr("The companion install did not finish")
                     color: GameBarLook.subtext
@@ -363,6 +365,7 @@ GameBarCard {
 
                 Text {
                     width: parent.width
+                    textFormat: Text.PlainText
                     text: card.headline
                     color: GameBarLook.fg
                     font.family: GameBarLook.face

@@ -133,6 +133,7 @@ Item {
         anchors.topMargin: 2 * root.s
         width: root.width
         visible: root.showName
+        textFormat: Text.PlainText
         text: root.displayName
         color: GameBarLook.onLayer
         font.family: GameBarLook.face

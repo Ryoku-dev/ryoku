@@ -187,6 +187,7 @@ GameBarCard {
                             anchors.bottom: parent.bottom
                             anchors.margins: 4 * card.s
                             visible: thumb.modelData.kind === "clip"
+                            textFormat: Text.PlainText
                             text: thumb.modelData.name
                             color: GameBarLook.fg
                             font.family: GameBarLook.face

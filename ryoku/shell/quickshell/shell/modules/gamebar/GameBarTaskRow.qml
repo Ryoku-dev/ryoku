@@ -41,6 +41,7 @@ Item {
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, cpu.x - 12 * root.s)
+        textFormat: Text.PlainText
         text: root.task ? root.task.name : ""
         color: GameBarLook.fg
         font.family: GameBarLook.face

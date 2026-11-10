@@ -63,6 +63,7 @@ GameBarCard {
 
                 Text {
                     width: parent.width
+                    textFormat: Text.PlainText
                     text: card.present ? card.player.trackTitle : I18n.tr("Nothing playing")
                     color: GameBarLook.fg
                     font.family: GameBarLook.face
@@ -73,6 +74,7 @@ GameBarCard {
                 }
                 Text {
                     width: parent.width
+                    textFormat: Text.PlainText
                     text: card.present
                         ? (card.artist.length > 0 ? card.artist : I18n.tr("Unknown artist"))
                         : I18n.tr("Start a track in any player")
