@@ -33,9 +33,12 @@ func windowDesktop(ctx context.Context, posts *postQueue) env.Desktop {
 				}
 			}()
 		},
-		Launch: func(name string, args []string, done func(error)) {
+		Launch: func(request desktop.LaunchRequest, done func(error)) {
+			if hidden := request.Hidden; hidden != nil {
+				request.Hidden = func() { posts.Post(hidden) }
+			}
 			go func() {
-				err := desktop.Launch(name, args)
+				err := desktop.Launch(ctx, request)
 				if done != nil {
 					posts.Post(func() { done(err) })
 				}

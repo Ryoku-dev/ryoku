@@ -369,7 +369,7 @@ func (o *overviewState) handleActs(gtx layout.Context, e *env.Env, page *pageSta
 		e.OpenTerminal(worktree.Path)
 	}
 	if row.folder.Clicked(gtx) {
-		e.Open(worktree.Path)
+		e.OpenFolder(worktree.Path)
 	}
 	if row.more.Clicked(gtx) {
 		o.openWorktreeMenu(gtx, e, page, worktree, row)

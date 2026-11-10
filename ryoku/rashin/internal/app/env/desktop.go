@@ -13,7 +13,7 @@ type Desktop struct {
 	// done is not called when the clipboard holds no image
 	ClipboardImage func(done func(path string))
 	// done may be nil
-	Launch func(name string, args []string, done func(error))
+	Launch func(request desktop.LaunchRequest, done func(error))
 }
 
 // chosen is not called when the reader backs out, unavailable when there is no chooser so the caller can offer a typed path

@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"image"
 	"net/url"
 	"strings"
 
@@ -32,6 +33,9 @@ type ChooseRequest struct {
 	Start string
 }
 
+// the chooser has no window of ours to stand over, so it gets a place the way a launched program does
+var chooserFront = image.Pt(920, 640)
+
 // a chooser the reader backed out of returns no paths and no error
 func Choose(ctx context.Context, request ChooseRequest) ([]string, error) {
 	conn, err := dbus.ConnectSessionBus(dbus.WithContext(ctx))
@@ -39,10 +43,11 @@ func Choose(ctx context.Context, request ChooseRequest) ([]string, error) {
 		return nil, ErrNoChooser
 	}
 	defer conn.Close()
-	return choose(ctx, conn, request)
+	return choose(ctx, conn, request, seenWindows(ctx))
 }
 
-func choose(ctx context.Context, conn *dbus.Conn, request ChooseRequest) ([]string, error) {
+// seen is nil when the chooser's window is left where the desktop puts it
+func choose(ctx context.Context, conn *dbus.Conn, request ChooseRequest, seen *windows) ([]string, error) {
 	token, err := requestToken()
 	if err != nil {
 		return nil, err
@@ -73,6 +78,9 @@ func choose(ctx context.Context, conn *dbus.Conn, request ChooseRequest) ([]stri
 			return nil, ctx.Err()
 		}
 		return nil, ErrNoChooser
+	}
+	if seen != nil {
+		go seen.front(ctx, chooserFront)
 	}
 	for {
 		select {

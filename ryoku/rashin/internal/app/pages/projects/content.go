@@ -50,7 +50,7 @@ func (p *pageState) layoutHeader(gtx layout.Context, e *env.Env, info protocol.P
 		if index == 0 {
 			e.OpenTerminal(info.Root)
 		} else {
-			e.Open(info.Root)
+			e.OpenFolder(info.Root)
 		}
 	}
 	if item, ok := p.header.MenuClicked(); ok {

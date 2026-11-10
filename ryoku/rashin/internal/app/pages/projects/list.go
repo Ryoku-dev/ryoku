@@ -132,7 +132,7 @@ func (p *pageState) openProjectMenu(e *env.Env, project string, anchor image.Rec
 			e.NavigateWork(project, TabOverview, "")
 			p.overview.openNew(e, p, info)
 		case 1:
-			e.Open(info.Root)
+			e.OpenFolder(info.Root)
 		case 2:
 			p.settings.open(info)
 		case 4:
@@ -158,7 +158,7 @@ func (p *pageState) openWorktreeMenu(e *env.Env, project, worktree string, ancho
 		case 2:
 			e.OpenTerminal(worktree)
 		case 3:
-			e.Open(worktree)
+			e.OpenFolder(worktree)
 		}
 	})
 }

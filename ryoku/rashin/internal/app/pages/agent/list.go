@@ -74,7 +74,7 @@ func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
 		case 1:
 			e.OpenTerminal(sessionFolder(info))
 		case 2:
-			e.Open(sessionFolder(info))
+			e.OpenFolder(sessionFolder(info))
 		case 4:
 			stopSession(e, id)
 		case 5:

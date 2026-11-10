@@ -27,6 +27,12 @@ const quietBus = `<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Conf
 </busconfig>
 `
 
+// The tests never ask the desktop they run on where its windows are.
+func TestMain(m *testing.M) {
+	seamCommand = "ryoku-is-not-asked-in-tests"
+	os.Exit(m.Run())
+}
+
 // privateBus starts that bus and points this test at it, so the services it
 // fakes are the only ones there.
 func privateBus(t *testing.T) *dbus.Conn {

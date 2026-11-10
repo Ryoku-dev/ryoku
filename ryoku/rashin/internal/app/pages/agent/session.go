@@ -80,7 +80,7 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 		case actionTerminal:
 			e.OpenTerminal(folder)
 		case actionFolder:
-			e.Open(folder)
+			e.OpenFolder(folder)
 		}
 	}
 	if _, ok := p.header.LinkClicked(); ok && info.Project != "" {

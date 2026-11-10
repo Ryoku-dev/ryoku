@@ -39,6 +39,8 @@ type stage struct {
 
 	// programs the app asked the desktop to start; none is started
 	launched []string
+	// whether each of those was to arrive in front of a floating Rashin
+	fronted []bool
 	// chooser answers the system file chooser; the machine has none while it is nil
 	chooser func(desktop.ChooseRequest) []string
 	// moving is a stage with motion on: flakes over a working session never stop, so it cannot wait for stillness
@@ -77,8 +79,9 @@ func openStage(t *testing.T, size image.Point, moving bool) *stage {
 	s := &stage{t: t, runtime: r, size: size, now: storyboardEpoch, moving: moving}
 	s.shell = newShell(r, Options{Preferences: state.AppPreferences{}.Normalize()})
 	s.shell.desktop = env.Desktop{
-		Launch: func(name string, args []string, done func(error)) {
-			s.launched = append(s.launched, strings.Join(append([]string{name}, args...), " "))
+		Launch: func(request desktop.LaunchRequest, done func(error)) {
+			s.launched = append(s.launched, strings.Join(append([]string{request.Name}, request.Args...), " "))
+			s.fronted = append(s.fronted, request.Front != (image.Point{}))
 			if done != nil {
 				done(nil)
 			}

@@ -86,6 +86,13 @@
   (`rashin/internal/app/chat/scroll.go`).
 - **Settings scrolls from anywhere in its pane.** The wheel only moved it
   with the pointer over the middle column.
+- **What Rashin opens comes up in front of it.** With the window floating, a
+  terminal, a folder, a file or the file chooser opened underneath it, took
+  the keyboard and could not be seen, so Open a terminal here looked dead. The
+  new window is now placed in front (`rashin/internal/app/desktop/front.go`).
+- **Open the folder opens the file manager.** It asked the desktop what opens
+  a folder, which can be a terminal. It now uses the file manager chosen for
+  Ryoku (`rashin/internal/app/env/launch.go`).
 - **Ask runs the everyday read commands itself.** `head -20`, `tail -5`,
   `2>/dev/null`, `2>&1` and a bare `~` were taken for changes, so a question
   like which file is largest ended in a command for you to run, marked

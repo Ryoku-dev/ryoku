@@ -145,7 +145,7 @@ func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
 			case 0:
 				refresh(e, id)
 			case 1:
-				e.Open(info.Root)
+				e.OpenFolder(info.Root)
 			case 3:
 				p.remove.open(info)
 			}
@@ -219,7 +219,7 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.IndexI
 	}
 	if item, ok := p.header.MenuClicked(); ok {
 		if item == 0 {
-			e.Open(info.Root)
+			e.OpenFolder(info.Root)
 		} else {
 			p.remove.open(info)
 		}

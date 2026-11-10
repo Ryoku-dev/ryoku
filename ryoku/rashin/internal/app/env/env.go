@@ -149,7 +149,9 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 			e.Call(protocol.MSessionPermission, protocol.PermissionParams{ID: id, Request: action.Request, Option: action.Option}, new(protocol.Empty), nil)
 		case chat.ActCopy:
 			gtx.Execute(clipboard.WriteCmd{Type: "text/plain", Data: io.NopCloser(strings.NewReader(action.Value))})
-		case chat.ActOpenPath, chat.ActOpenURL:
+		case chat.ActOpenPath:
+			e.OpenPath(action.Value)
+		case chat.ActOpenURL:
 			e.Open(action.Value)
 		case chat.ActRunCommand:
 			e.RunInTerminal(action.Value)
