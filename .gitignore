@@ -12,14 +12,14 @@
 /ryoku/wm/wayfire/ryoku-wm-wayfire
 /ryoku/wm/wayfire/wayfire
 /ryoku/hub/backend/ryoku-hub
-/ryoku/rashin/backend/ryoku-rashin
+/ryoku/rashin/rashin
+/ryoku/rashin/rashind
+/ryoku/rashin/rashin-app
 /ryoku/cli/ryoku
 /ryoku/cli/ryoku-cli
 /ryoku/cli/ryoku-host
 /ryoku/apps/ryostore/backend/ryostore
 /ryoku/palette-bridge/ryoku-palette-bridge
-/ryoku/rashin/app/build/
-/ryoku/rashin/web/node_modules/
 /ryoku/shell/plugin/build/
 /ryoku/shell/sidebarfx/build/
 /ryoku/shell/ryogami/picker/build/

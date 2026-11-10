@@ -1,0 +1,179 @@
+[
+  {
+    "id": "ovh",
+    "name": "OVHcloud AI Endpoints",
+    "tier": "permanent-free",
+    "baseURL": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
+    "auth": "none",
+    "keyless": true,
+    "signup": "https://www.ovhcloud.com/en/public-cloud/ai-endpoints/catalog/",
+    "note": "Anonymous chat completed on 2026-11-10 with Meta-Llama-3_3-70B-Instruct and a function tool.",
+    "models": [
+      {"id":"meta-llama-3_3-70b-instruct","name":"Llama 3.3 70B Instruct","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":86,"speedRank":72},
+      {"id":"qwen3.5-397b-a17b","name":"Qwen 3.5 397B A17B","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":58},
+      {"id":"qwen3.6-27b","name":"Qwen 3.6 27B","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":83,"speedRank":82}
+    ]
+  },
+  {
+    "id": "kilo",
+    "name": "Kilo Gateway",
+    "tier": "permanent-free",
+    "baseURL": "https://api.kilo.ai/api/gateway/v1",
+    "auth": "none",
+    "keyless": true,
+    "signup": "https://app.kilo.ai/profile",
+    "note": "Anonymous chat probe on 2026-11-10 reached Kilo, but nvidia/nemotron-3-super-120b-a12b:free returned model_not_found.",
+    "models": [
+      {"id":"nvidia/nemotron-3-ultra-550b-a55b:free","name":"Nemotron 3 Ultra 550B","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":96,"speedRank":46},
+      {"id":"stepfun/step-3.7-flash:free","name":"Step 3.7 Flash","context":262000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":86}
+    ]
+  },
+  {
+    "id":"groq","name":"Groq","tier":"permanent-free","baseURL":"https://api.groq.com/openai/v1","auth":"bearer","signup":"https://console.groq.com/keys","keyHint":"gsk_...","models":[
+      {"id":"moonshotai/kimi-k2-instruct","name":"Kimi K2 Instruct","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":89,"speedRank":98},
+      {"id":"llama-3.3-70b-versatile","name":"Llama 3.3 70B Versatile","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":85,"speedRank":96}
+    ]
+  },
+  {
+    "id":"cerebras","name":"Cerebras","tier":"permanent-free","baseURL":"https://api.cerebras.ai/v1","auth":"bearer","signup":"https://cloud.cerebras.ai/","models":[
+      {"id":"llama3.1-70b","name":"Llama 3.1 70B","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":82,"speedRank":99},
+      {"id":"zai-glm-4.7","name":"GLM 4.7","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":89,"speedRank":92}
+    ]
+  },
+  {
+    "id":"nvidia","name":"NVIDIA NIM","tier":"permanent-free","baseURL":"https://integrate.api.nvidia.com/v1","auth":"bearer","signup":"https://build.nvidia.com/settings/api-keys","models":[
+      {"id":"z-ai/glm-5.2","name":"GLM 5.2","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":98,"speedRank":61},
+      {"id":"z-ai/glm-5.1","name":"GLM 5.1","context":202000,"tools":true,"reasoning":true,"vision":false,"qualityRank":95,"speedRank":65}
+    ]
+  },
+  {
+    "id":"openrouter","name":"OpenRouter","tier":"renewable-credits","baseURL":"https://openrouter.ai/api/v1","auth":"bearer","signup":"https://openrouter.ai/settings/keys","extraHeaders":{"HTTP-Referer":"https://ryoku.dev","X-Title":"Rashin"},"note":"Only model ids with the :free suffix are routed.","models":[
+      {"id":"nvidia/nemotron-3.5-lightning:free","name":"Nemotron 3.5 Lightning","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":92,"speedRank":91},
+      {"id":"nex-agi/nex-n2.5-pro:free","name":"Nex N2.5 Pro","context":262144,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":70},
+      {"id":"liquid/lfm-2.5-2.6b:free","name":"LFM 2.5 2.6B","context":65536,"tools":true,"reasoning":false,"vision":false,"qualityRank":58,"speedRank":96}
+    ]
+  },
+  {
+    "id":"mistral","name":"Mistral AI","tier":"permanent-free","baseURL":"https://api.mistral.ai/v1","auth":"bearer","signup":"https://console.mistral.ai/api-keys","models":[
+      {"id":"mistral-medium-3-5-128b","name":"Mistral Medium 3.5","context":256000,"tools":true,"reasoning":false,"vision":false,"qualityRank":90,"speedRank":75},
+      {"id":"open-mistral-7b","name":"Mistral 7B","context":32000,"tools":true,"reasoning":false,"vision":false,"qualityRank":65,"speedRank":91}
+    ]
+  },
+  {
+    "id":"google","name":"Google Gemini","tier":"permanent-free","baseURL":"https://generativelanguage.googleapis.com/v1beta/openai","auth":"bearer","signup":"https://aistudio.google.com/app/apikey","models":[
+      {"id":"gemini-3.6-flash","name":"Gemini 3.6 Flash","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":94,"speedRank":90},
+      {"id":"gemini-3.5-flash","name":"Gemini 3.5 Flash","context":1000000,"tools":true,"reasoning":true,"vision":true,"qualityRank":91,"speedRank":92}
+    ]
+  },
+  {
+    "id":"github","name":"GitHub Models","tier":"permanent-free","baseURL":"https://models.github.ai/inference","auth":"bearer","signup":"https://github.com/marketplace/models","keyHint":"GitHub personal access token","models":[
+      {"id":"openai/gpt-4.1-mini","name":"GPT-4.1 Mini","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":88,"speedRank":85}
+    ]
+  },
+  {
+    "id":"cloudflare","name":"Cloudflare Workers AI","tier":"permanent-free","baseURL":"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run","auth":"cloudflare","signup":"https://dash.cloudflare.com/profile/api-tokens","keyHint":"account_id:token","models":[
+      {"id":"@cf/meta/llama-3.3-70b-instruct-fp8-fast","name":"Llama 3.3 70B Fast","context":24000,"tools":true,"reasoning":false,"vision":false,"qualityRank":84,"speedRank":90},
+      {"id":"@cf/mistral/mistral-7b-instruct-v0.1","name":"Mistral 7B","context":32000,"tools":false,"reasoning":false,"vision":false,"qualityRank":61,"speedRank":92}
+    ]
+  },
+  {
+    "id":"sambanova","name":"SambaNova","tier":"permanent-free","baseURL":"https://api.sambanova.ai/v1","auth":"bearer","signup":"https://cloud.sambanova.ai/apis","models":[
+      {"id":"deepseek-v3-2-preview","name":"DeepSeek V3.2 Preview","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":92,"speedRank":88},
+      {"id":"minimax-m2-7","name":"MiniMax M2.7","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":84}
+    ]
+  },
+  {
+    "id":"llm7","name":"LLM7.io","tier":"permanent-free","baseURL":"https://api.llm7.io/v1","auth":"bearer","signup":"https://token.llm7.io","models":[
+      {"id":"gpt-oss-20b","name":"GPT OSS 20B","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":78,"speedRank":82},
+      {"id":"mistral-Nemo-Instruct-2407","name":"Mistral Nemo Instruct","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":73,"speedRank":84}
+    ]
+  },
+  {
+    "id":"ollama","name":"Ollama Cloud","tier":"permanent-free","baseURL":"https://ollama.com/v1","auth":"bearer","signup":"https://ollama.com/settings/keys","models":[
+      {"id":"gpt-oss:20b","name":"GPT OSS 20B","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":78,"speedRank":82},
+      {"id":"glm-5.3-flash","name":"GLM 5.3 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":88}
+    ]
+  },
+  {
+    "id":"opencode","name":"OpenCode Zen","tier":"permanent-free","baseURL":"https://opencode.ai/zen/v1","auth":"bearer","signup":"https://opencode.ai/auth","models":[
+      {"id":"deepseek-v4-flash-free","name":"DeepSeek V4 Flash","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":91},
+      {"id":"mimo-v2.5-free","name":"MiMo V2.5","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":86}
+    ]
+  },
+  {
+    "id":"huggingface","name":"Hugging Face Router","tier":"permanent-free","baseURL":"https://router.huggingface.co/v1","auth":"bearer","signup":"https://huggingface.co/settings/tokens","models":[
+      {"id":"meta-llama-3-1-8b-instruct","name":"Llama 3.1 8B Instruct","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":72,"speedRank":88},
+      {"id":"google/gemma-3-4b-it","name":"Gemma 3 4B","context":131000,"tools":false,"reasoning":false,"vision":true,"qualityRank":70,"speedRank":91}
+    ]
+  },
+  {
+    "id":"chutes","name":"Chutes.ai","tier":"permanent-free","baseURL":"https://llm.chutes.ai/v1","auth":"bearer","signup":"https://chutes.ai/","models":[
+      {"id":"deepseek-ai/DeepSeek-R1","name":"DeepSeek R1","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":55},
+      {"id":"meta-llama/Meta-Llama-3.1-70B-Instruct","name":"Llama 3.1 70B Instruct","context":131000,"tools":true,"reasoning":false,"vision":false,"qualityRank":82,"speedRank":72}
+    ]
+  },
+  {
+    "id":"zhipu","name":"Z AI","tier":"permanent-free","baseURL":"https://open.bigmodel.cn/api/paas/v4","auth":"bearer","signup":"https://open.bigmodel.cn/usercenter/apikeys","models":[
+      {"id":"glm-4.7-flash","name":"GLM 4.7 Flash","context":200000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":91},
+      {"id":"glm-4-6v-flash","name":"GLM 4.6V Flash","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":84,"speedRank":88}
+    ]
+  },
+  {
+    "id":"siliconflow","name":"SiliconFlow","tier":"permanent-free","baseURL":"https://api.siliconflow.com/v1","auth":"bearer","signup":"https://cloud.siliconflow.cn/account/ak","models":[
+      {"id":"deepseek-ai/DeepSeek-R1-Distill-Qwen-7B","name":"DeepSeek R1 Distill Qwen 7B","context":131000,"tools":false,"reasoning":true,"vision":false,"qualityRank":70,"speedRank":82}
+    ]
+  },
+  {
+    "id":"modelscope","name":"ModelScope","tier":"permanent-free","baseURL":"https://api-inference.modelscope.cn/v1","auth":"bearer","signup":"https://modelscope.cn/my/myaccesstoken","models":[
+      {"id":"MiniMax/MiniMax-M2.5","name":"MiniMax M2.5","context":204000,"tools":true,"reasoning":true,"vision":false,"qualityRank":91,"speedRank":76},
+      {"id":"qwen-qwen3-5-35b-a3b","name":"Qwen 3.5 35B A3B","context":256000,"tools":true,"reasoning":true,"vision":false,"qualityRank":86,"speedRank":83}
+    ]
+  },
+  {
+    "id":"pollinations","name":"Pollinations","tier":"permanent-free","baseURL":"https://gen.pollinations.ai/v1","auth":"bearer","signup":"https://pollinations.ai/","models":[
+      {"id":"openai","name":"Pollinations OpenAI route","context":128000,"tools":true,"reasoning":false,"vision":true,"qualityRank":80,"speedRank":78}
+    ]
+  },
+  {
+    "id":"aion","name":"Aion Labs","tier":"permanent-free","baseURL":"https://api.aionlabs.ai/v1","auth":"bearer","signup":"https://www.aionlabs.ai/app/api-keys/","models":[
+      {"id":"aion-labs-aion-2-0","name":"Aion 2.0","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":76,"speedRank":78}
+    ]
+  },
+  {
+    "id":"agnes","name":"Agnes AI","tier":"permanent-free","baseURL":"https://apihub.agnes-ai.com/v1","auth":"bearer","signup":"https://platform.agnes-ai.com/settings/apiKeys","models":[
+      {"id":"agnes-2.0-flash","name":"Agnes 2.0 Flash","context":256000,"tools":true,"reasoning":true,"vision":false,"qualityRank":83,"speedRank":89}
+    ]
+  },
+  {
+    "id":"alibaba","name":"Alibaba Cloud Model Studio","tier":"permanent-free","baseURL":"https://dashscope-intl.aliyuncs.com/compatible-mode/v1","auth":"bearer","signup":"https://bailian.console.alibabacloud.com/?apiKey=1","models":[
+      {"id":"qwen3-plus","name":"Qwen 3 Plus","context":1000000,"tools":true,"reasoning":true,"vision":false,"qualityRank":90,"speedRank":80}
+    ]
+  },
+  {
+    "id":"xai","name":"xAI","tier":"renewable-credits","baseURL":"https://api.x.ai/v1","auth":"bearer","signup":"https://console.x.ai","models":[
+      {"id":"grok-3-mini","name":"Grok 3 Mini","context":131000,"tools":true,"reasoning":true,"vision":false,"qualityRank":88,"speedRank":86}
+    ]
+  },
+  {
+    "id":"deepseek","name":"DeepSeek","tier":"renewable-credits","baseURL":"https://api.deepseek.com/v1","auth":"bearer","signup":"https://platform.deepseek.com/api_keys","models":[
+      {"id":"deepseek-chat-v3-2","name":"DeepSeek Chat V3.2","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":92,"speedRank":79},
+      {"id":"deepseek-reasoner-r1","name":"DeepSeek Reasoner R1","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":93,"speedRank":58}
+    ]
+  },
+  {
+    "id":"cohere","name":"Cohere","tier":"permanent-free","baseURL":"https://api.cohere.ai/compatibility/v1","auth":"bearer","signup":"https://dashboard.cohere.com/api-keys","note":"Cohere's OpenAI compatibility endpoint rejects some optional JSON Schema keywords.","models":[
+      {"id":"command-a-218b","name":"Command A+ 218B","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":89,"speedRank":79},
+      {"id":"command-r","name":"Command R+","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":84,"speedRank":83}
+    ]
+  },
+  {
+    "id":"nscale","name":"Nscale","tier":"permanent-free","baseURL":"https://inference.api.nscale.com/v1","auth":"bearer","signup":"https://console.nscale.com/","models":[
+      {"id":"llama-3-3-70b-instruct","name":"Llama 3.3 70B Instruct","context":128000,"tools":true,"reasoning":false,"vision":false,"qualityRank":84,"speedRank":78}
+    ]
+  },
+  {
+    "id":"nebius","name":"Nebius","tier":"renewable-credits","baseURL":"https://api.studio.nebius.com/v1","auth":"bearer","signup":"https://studio.nebius.com/settings/api-keys","models":[
+      {"id":"qwen3-235b-a22b","name":"Qwen 3 235B A22B","context":128000,"tools":true,"reasoning":true,"vision":false,"qualityRank":89,"speedRank":70}
+    ]
+  }
+]

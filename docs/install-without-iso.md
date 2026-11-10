@@ -82,8 +82,9 @@ curl -fsSL https://raw.githubusercontent.com/Ryoku-dev/ryoku/main/ryoku-shell-in
 ```
 
 Review the plan in the terminal UI. Void offers niri only. Choose the browser,
-login shell, file manager, Rashin and optional apps, then start the install.
-The run can be resumed if it is interrupted.
+login shell, file manager, optional apps and whether to install Rashin. Rashin
+defaults to No and stays off until you turn it on. The run can be resumed if it
+is interrupted.
 
 Ryoku is niri-only on Void because Ryoku's Hyprland build needs GCC 15 while
 Void currently ships GCC 14. Wayfire also stays out because Void ships 0.10 and

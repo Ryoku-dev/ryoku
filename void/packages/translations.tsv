@@ -178,7 +178,6 @@ playerctl	playerctl	desktop
 plymouth	plymouth	system	
 polkit	polkit	desktop	
 power-profiles-daemon	power-profiles-daemon	desktop	
-prowl	prowl	desktop	repo=ryoku
 python	python3	desktop,dev	
 python-dbus	python3-dbus	optional	
 python-gobject	python3-gobject	optional	

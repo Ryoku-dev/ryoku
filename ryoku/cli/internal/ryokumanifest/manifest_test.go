@@ -60,3 +60,14 @@ func TestForCachyOSKeepsAnOlderManifestUnchanged(t *testing.T) {
 		t.Errorf("a manifest without cachyosReplaces changed: %+v", got)
 	}
 }
+
+func TestRashinIsOptInNotDeliverOnce(t *testing.T) {
+	if !IsOptIn("ryoku-rashin") {
+		t.Fatal("ryoku-rashin is not in the opt-in package set")
+	}
+	for _, name := range AppNames() {
+		if name == "ryoku-rashin" {
+			t.Fatal("ryoku-rashin remains in the deliver-once app set")
+		}
+	}
+}

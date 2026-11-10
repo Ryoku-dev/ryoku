@@ -210,12 +210,12 @@ repo-qualified (`ryoku/<name>`); XBPS targets use their native names and `-f`
 for an explicit channel downgrade; DNF targets the exact EVR served by the
 selected repository.
 
-After the desktop is back, the update refreshes Rashin's knowledge when it is
-enabled: `ryoku-rashin index` regenerates the vault and reindexes the config
-mirror with Prowl. Arch, CachyOS, and Void receive Prowl as its own signed
-package; Fedora carries it inside `ryoku-rashin`. A dev box whose Prowl binary
-is not managed by the native package manager runs `prowl update` instead. Both
-refreshes are best effort and never fail the desktop update.
+After the desktop is back, the update refreshes the Ryoku vault
+(`ryoku vault refresh`, see [vault.md](vault.md)) whether Rashin is installed
+or not. Rashin needs no refresh step of its own: its index refreshes by content
+hash before the next query, so the vault and config changes reach it the next
+time someone asks. The refresh is best effort and never fails the desktop
+update.
 
 ### Filtered DNS
 
@@ -430,8 +430,8 @@ release retired is reported, never uninstalled. A name another installed
 package provides (rustup for rust, tuned-ppd for power-profiles-daemon) counts
 as present, so the box's own choice is never overwritten, and the opt-in names
 (`ryokumanifest.OptIn`: hardware packages, the Limine hook and snapshot sync,
-and prowl, which only ever arrives as ryoku-rashin's dependency)
-belong to their gated reconcilers and are never converged. On a CachyOS box
+and the palette bridge) belong to their gated reconcilers and are never
+converged. On a CachyOS box
 (os-release `ID=cachyos`) the manifest is read without the names its layer
 replaces (`cachyosReplaces`, from `system/packages/cachyos.replaces`: the stock
 `linux` kernel and `yay-bin`), so a box converted in place, which has no ledger

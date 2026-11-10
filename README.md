@@ -54,6 +54,11 @@ controls grow out of the rail; let go and they melt back. It is built from
 small independent surfaces, so it grows with what you actually use: seven bar
 styles, desktop widgets, a store for more, and a plugin host.
 
+Rashin is the optional AI layer: Ask answers read-only questions about the
+machine through free models, Agent connects external coding harnesses, and
+Index searches projects and system code. It is off by default and uses no
+process, socket, timer or watcher until you turn it on.
+
 Underneath, Ryoku is a distribution, not a config dump. The desktop, the
 installer and the system definition live in this repository, every machine is
 built from it, and a live machine is only ever a deployment target. It is a

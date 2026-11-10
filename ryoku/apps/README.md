@@ -40,9 +40,9 @@ These are full applications, not `~/.config` seeds. A Quickshell app ships its
 `quickshell/` tree as `qs -c <name>`; a compiled app builds from a
 `CMakeLists.txt` to `/usr/bin/<name>`.
 
-The Rashin companion window (`rashin-app`) is not here: it lives in
-`ryoku/rashin/app/` and ships with `ryoku-rashin`, so a box without Rashin has
-no Rashin window either.
+The Rashin app (`rashin-app`) is not here: it builds from
+`ryoku/rashin/cmd/rashin-app` and ships with `ryoku-rashin`, so a box without
+Rashin has no Rashin window either.
 
 The music app lives in [Ryotunes](https://github.com/ryoku-dev/ryotunes), with a
 native Quickshell client and libmpv daemon. `release/repo/import-ryotunes.sh`

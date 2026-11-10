@@ -1,0 +1,128 @@
+# gioui.org v0.10.3
+## explicit; go 1.24.0
+gioui.org/app
+gioui.org/app/internal/ibus
+gioui.org/app/internal/windows
+gioui.org/app/internal/xkb
+gioui.org/f32
+gioui.org/font
+gioui.org/font/gofont
+gioui.org/font/opentype
+gioui.org/gesture
+gioui.org/gpu
+gioui.org/gpu/headless
+gioui.org/gpu/internal/d3d11
+gioui.org/gpu/internal/driver
+gioui.org/gpu/internal/metal
+gioui.org/gpu/internal/opengl
+gioui.org/gpu/internal/vulkan
+gioui.org/internal/byteslice
+gioui.org/internal/cocoainit
+gioui.org/internal/d3d11
+gioui.org/internal/debug
+gioui.org/internal/egl
+gioui.org/internal/f32
+gioui.org/internal/f32color
+gioui.org/internal/fling
+gioui.org/internal/gl
+gioui.org/internal/ops
+gioui.org/internal/scene
+gioui.org/internal/stroke
+gioui.org/internal/vk
+gioui.org/io/clipboard
+gioui.org/io/event
+gioui.org/io/input
+gioui.org/io/key
+gioui.org/io/pointer
+gioui.org/io/semantic
+gioui.org/io/system
+gioui.org/io/transfer
+gioui.org/layout
+gioui.org/op
+gioui.org/op/clip
+gioui.org/op/paint
+gioui.org/text
+gioui.org/unit
+gioui.org/widget
+gioui.org/widget/material
+# gioui.org/shader v1.0.9
+## explicit; go 1.16
+gioui.org/shader
+gioui.org/shader/gio
+# github.com/go-text/typesetting v0.3.5
+## explicit; go 1.19
+github.com/go-text/typesetting/bidi
+github.com/go-text/typesetting/di
+github.com/go-text/typesetting/font
+github.com/go-text/typesetting/font/cff
+github.com/go-text/typesetting/font/cff/interpreter
+github.com/go-text/typesetting/font/opentype
+github.com/go-text/typesetting/font/opentype/tables
+github.com/go-text/typesetting/fontscan
+github.com/go-text/typesetting/harfbuzz
+github.com/go-text/typesetting/internal/unicodedata
+github.com/go-text/typesetting/language
+github.com/go-text/typesetting/segmenter
+github.com/go-text/typesetting/shaping
+# github.com/godbus/dbus/v5 v5.2.2
+## explicit; go 1.20
+github.com/godbus/dbus/v5
+# github.com/ryoku-dev/ryoku/docs/lithic/library/go v0.0.0 => ../../docs/lithic/library/go
+## explicit; go 1.26
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/theme
+github.com/ryoku-dev/ryoku/docs/lithic/library/go/tokens
+# go.etcd.io/bbolt v1.4.3
+## explicit; go 1.23
+go.etcd.io/bbolt
+go.etcd.io/bbolt/errors
+go.etcd.io/bbolt/internal/common
+go.etcd.io/bbolt/internal/freelist
+# golang.org/x/exp/shiny v0.0.0-20250408133849-7e4ce0ab07d0
+## explicit; go 1.23.0
+golang.org/x/exp/shiny/iconvg
+golang.org/x/exp/shiny/iconvg/internal/gradient
+golang.org/x/exp/shiny/materialdesign/icons
+# golang.org/x/image v0.26.0
+## explicit; go 1.23.0
+golang.org/x/image/ccitt
+golang.org/x/image/font/gofont/gobold
+golang.org/x/image/font/gofont/gobolditalic
+golang.org/x/image/font/gofont/goitalic
+golang.org/x/image/font/gofont/gomedium
+golang.org/x/image/font/gofont/gomediumitalic
+golang.org/x/image/font/gofont/gomono
+golang.org/x/image/font/gofont/gomonobold
+golang.org/x/image/font/gofont/gomonobolditalic
+golang.org/x/image/font/gofont/gomonoitalic
+golang.org/x/image/font/gofont/goregular
+golang.org/x/image/font/gofont/gosmallcaps
+golang.org/x/image/font/gofont/gosmallcapsitalic
+golang.org/x/image/math/f32
+golang.org/x/image/math/f64
+golang.org/x/image/math/fixed
+golang.org/x/image/tiff
+golang.org/x/image/tiff/lzw
+golang.org/x/image/vector
+# golang.org/x/net v0.48.0
+## explicit; go 1.24.0
+golang.org/x/net/idna
+# golang.org/x/sys v0.47.0
+## explicit; go 1.25.0
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+golang.org/x/sys/windows/registry
+# golang.org/x/text v0.32.0
+## explicit; go 1.24.0
+golang.org/x/text/runes
+golang.org/x/text/secure/bidirule
+golang.org/x/text/transform
+golang.org/x/text/unicode/bidi
+golang.org/x/text/unicode/norm
+# ryoku-i18n v0.0.0 => ../i18n
+## explicit; go 1.23
+ryoku-i18n
+# github.com/ryoku-dev/ryoku/docs/lithic/library/go => ../../docs/lithic/library/go
+# ryoku-i18n => ../i18n

@@ -1,6 +1,12 @@
 # Changelog: ryoku/
 
 ## Unreleased
+- **Rashin is rebuilt as Ryoku's optional AI system.** Its free-model router,
+  read-only Ask agent, external coding harnesses, project and system Index,
+  command line and Lithic app now share one socket-activated daemon.
+- **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the
+  Prowl gateway, web dashboard, Hermes setup, terminal recipes or command
+  learning.
 - **Ryoport now updates as an independent app.** `ryoku update` follows its
   signed release package without reinstalling a removed copy or downgrading a
   newer build. Doctor adopts existing installs and remembers the old installer

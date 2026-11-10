@@ -1,0 +1,72 @@
+#!/bin/sh
+set -eu
+
+packaged=0
+if [ "${1:-}" = "--packaged" ]; then
+  packaged=1
+  shift
+fi
+root=${1:?repository root required}
+out=${2:?output path required}
+
+mkdir -p "$(dirname "$out")"
+
+count_files() {
+  find -H "$root/$1" \
+    -type d \( -name .git -o -name node_modules -o -name .worktrees -o -name local -o -name vendor \) -prune -o \
+    -type f -print 2>/dev/null | wc -l | tr -d ' '
+}
+
+layout_row() {
+  path=$1
+  purpose=$2
+  if [ "$packaged" -eq 1 ]; then
+    printf '| `%s/` | - | %s |\n' "$path" "$purpose"
+    return 0
+  fi
+  [ -d "$root/$path" ] || return 0
+  printf '| `%s/` | %s | %s |\n' "$path" "$(count_files "$path")" "$purpose"
+}
+
+entry_row() {
+  concern=$1
+  shown=$2
+  check=$3
+  [ "$packaged" -eq 1 ] || [ -e "$root/$check" ] || return 0
+  printf '| %s | `%s` |\n' "$concern" "$shown"
+}
+
+{
+  if [ "$packaged" -eq 0 ] && command -v git >/dev/null 2>&1 && git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    commit=$(git -C "$root" rev-parse --short HEAD 2>/dev/null || true)
+    branch=$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    committed=$(git -C "$root" log -1 --format=%cs 2>/dev/null || true)
+    if [ -n "$commit" ]; then
+      printf '## Checkout\n\n- Commit: %s (%s)\n' "$commit" "$branch"
+      [ -z "$committed" ] || printf '%s\n' "- Committed: $committed"
+      printf '\n'
+    fi
+  fi
+
+  printf '## Layout\n\n| Path | Files | Purpose |\n|---|---|---|\n'
+  layout_row ryoku 'desktop, apps, shell, settings, Rashin and the vault'
+  layout_row system 'boot, hardware policy, package sets and services'
+  layout_row installation 'installer and ISO'
+  layout_row release 'packages, repositories and signing'
+  layout_row docs 'architecture and operating guides'
+  layout_row bin 'repository tooling'
+  layout_row tests 'standalone integration checks'
+  layout_row .githooks 'commit and push gates'
+  layout_row ryoku-shell-installer 'installer for an existing system'
+
+  printf '\n## Key entry points\n\n| Concern | Path |\n|---|---|\n'
+  entry_row 'Desktop config' 'ryoku/hyprland/ and ryoku/niri/' 'ryoku/hyprland'
+  entry_row 'Window-manager seam' 'ryoku/wm/' 'ryoku/wm'
+  entry_row 'Shell daemon' 'ryoku/shell/ipc/' 'ryoku/shell/ipc'
+  entry_row 'Shell UI' 'ryoku/shell/quickshell/' 'ryoku/shell/quickshell'
+  entry_row 'Ryoku Settings' 'ryoku/hub/' 'ryoku/hub'
+  entry_row 'User CLI and vault' 'ryoku/cli/' 'ryoku/cli'
+  entry_row 'Rashin' 'ryoku/rashin/' 'ryoku/rashin'
+  entry_row 'Installer' 'installation/' 'installation'
+  entry_row 'Packages' 'release/packages/' 'release/packages'
+} >"$out"

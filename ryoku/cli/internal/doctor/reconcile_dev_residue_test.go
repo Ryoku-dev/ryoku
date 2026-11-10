@@ -40,7 +40,7 @@ func residueFixture(t *testing.T) residueLayout {
 
 var packagedNames = func(name string) bool {
 	switch name {
-	case "ryoku-shell", "ryoku-qylock-activate", "ryoku-rashin", "ryoku-palette-bridge", "ryogami":
+	case "ryoku-shell", "ryoku-qylock-activate", "rashind", "rashin", "rashin-app", "ryoku-palette-bridge", "ryogami":
 		return true
 	}
 	return false
@@ -78,34 +78,44 @@ func TestDevUnitsForkAndLiveCopyReturnToTheShippedUnit(t *testing.T) {
 	}
 }
 
-// Whole units written by deploy shadow the packaged units even when their
-// resolved binaries live outside ~/.local/bin.
+// Whole units written by deploy shadow packaged units. Retired Rashin 1 and
+// Prowl units are removed even though no package provides a replacement.
 func TestDevUnitsHomeUnitYieldsToPackagedUnit(t *testing.T) {
 	cases := []struct {
 		name, unit, homeExec, packagedExec string
 		enabled                            bool
 	}{
 		{
-			name:         "rashin stays enabled",
-			unit:         "ryoku-rashin.service",
-			homeExec:     "/home/dev/bin/ryoku-rashin serve --if-enabled",
-			packagedExec: "/usr/bin/ryoku-rashin serve --if-enabled",
+			name:         "rashind stays enabled",
+			unit:         "rashind.service",
+			homeExec:     "/home/dev/bin/rashind",
+			packagedExec: "/usr/bin/rashind",
 			enabled:      true,
 		},
 		{
-			name:         "prowl shadow is removed",
-			unit:         "ryoku-prowl.service",
-			homeExec:     "/home/dev/bin/prowl gateway serve --port 8788",
-			packagedExec: "/usr/bin/prowl gateway serve --port 8788",
+			name:     "Rashin 1 unit is removed",
+			unit:     legacyRashinUnit,
+			homeExec: "/home/dev/bin/ryoku-rashin serve --if-enabled",
+		},
+		{
+			name:     "Prowl unit is removed",
+			unit:     legacyProwlUnit,
+			homeExec: "/home/dev/bin/prowl gateway serve --port 8788",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			l := residueFixture(t)
+			if c.unit == rashindService {
+				c.homeExec = filepath.Join(l.localBin, "rashind")
+			}
 			home := filepath.Join(l.userUnits(), c.unit)
 			writeFile(t, home, "[Service]\nExecStart="+c.homeExec+"\n")
-			pkg := filepath.Join(l.usrUnits, c.unit)
-			writeFile(t, pkg, "[Service]\nExecStart="+c.packagedExec+"\n")
+			var pkg string
+			if c.packagedExec != "" {
+				pkg = filepath.Join(l.usrUnits, c.unit)
+				writeFile(t, pkg, "[Service]\nExecStart="+c.packagedExec+"\n")
+			}
 
 			var link string
 			if c.enabled {

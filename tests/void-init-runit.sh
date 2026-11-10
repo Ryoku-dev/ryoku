@@ -4,9 +4,9 @@
 # container (ghcr.io/void-linux/void-glibc), against stub binaries, and asserts
 # the behaviors the static half (tests/void-init.sh) cannot: oneshot parking
 # and re-run, restart-on-crash vs park-on-clean, transient user supervision,
-# the ExecStop down sentinel, BindsTo down-propagation, the timer loop,
-# failed-wait parking, user-service precedence, live envdir publication,
-# ordered session startup, and envdir rendering.
+# the ExecStop down sentinel, the timer loop, failed-wait parking, user-service
+# precedence, live envdir publication, ordered session startup, and envdir
+# rendering.
 #
 # This is the empirical basis for the runit semantics the translations rely on
 # (a finish exit code does not gate restarts; only an sv down request parks,
@@ -65,7 +65,7 @@ EOF
 	chmod +x "$WORK/bin/$1"
 }
 for b in ryoku-shell ryoku-qylock-activate ryoku-power-cutover ryoku-hub ryogami \
-	ryoku-idle ryoku-clamshell pipewire bluetoothctl ryoku-rashin prowl \
+	ryoku-idle ryoku-clamshell pipewire bluetoothctl \
 	ryoku-palette-bridge ryoku \
 	claude-usage codex-usage opencode-usage nmcli \
 	dbus-update-activation-environment ryoku-reload-cover ryoku-host; do
@@ -86,17 +86,6 @@ case $(cat "$WORK/ctl/ryoku-shell" 2>/dev/null || echo run) in
 	*)     exec sleep 300 ;;
 esac
 EOF
-cat > "$WORK/bin/prowl" <<'EOF'
-#!/bin/sh
-echo "prowl $*" >> "$LOG"
-[ "$2" = down ] && exit 0
-case $(cat "$WORK/ctl/prowl" 2>/dev/null || echo run) in
-	exit0) exit 0 ;;
-	crash) exit 9 ;;
-	*)     exec sleep 300 ;;
-esac
-EOF
-chmod +x "$WORK/bin/ryoku-shell" "$WORK/bin/prowl"
 
 cat > "$WORK/bin/ryoku-host" <<'EOF'
 #!/bin/sh
@@ -177,8 +166,6 @@ install_svc /repo/void/init/user/ryoku-shell ryoku-shell
 install_svc /repo/void/init/user/ryoku-bootstrap ryoku-bootstrap
 install_svc /repo/void/init/user/ryoku-idle ryoku-idle park
 install_svc /repo/void/init/user/ryoku-eq ryoku-eq
-install_svc /repo/void/init/user/ryoku-rashin ryoku-rashin park
-install_svc /repo/void/init/user/ryoku-prowl ryoku-prowl park
 install_svc /repo/void/init/user/ryoku-ai-usage ryoku-ai-usage
 install_svc /repo/void/init/user/ryoku-bluetooth-reset ryoku-bluetooth-reset
 install_svc /repo/void/init/system/ryoku-var-state ryoku-var-state
@@ -237,6 +224,11 @@ wait_count_ge() { # pattern n [timeout-quarters]
 	return 1
 }
 
+#### Rashin has no runit service and must not start with the session roster.
+[ ! -e "$WORK/svc/rashind" ] || fail "rashind was added to the runit roster"
+[ "$(count 'rashind')" -eq 0 ] || fail "rashind started at session start"
+pass "Rashin stays at zero processes until a client starts it"
+
 #### 1. failed-wait parking: eq (missing config file) and bluetooth-reset
 ####    (no session D-Bus) park instead of crash-looping.
 wait_stat ryoku-eq down || fail "ryoku-eq did not park when its ConditionPathExists file is absent"
@@ -294,21 +286,8 @@ sleep 3
 [ "$(stat_of ryoku-idle)" = down ] || fail "ryoku-idle restarted after a clean exit"
 pass "Restart=on-failure parks on clean exit and stays parked"
 
-#### 7. rashin leaves prowl down until it needs it, and takes it down with it (BindsTo).
-echo run > "$WORK/ctl/ryoku-rashin"; echo run > "$WORK/ctl/prowl"
-sv up "$WORK/svc/ryoku-rashin"
-wait_count_ge 'ryoku-rashin serve' 1 || fail "rashin never started"
-sleep 2
-[ "$(stat_of ryoku-prowl)" = down ] || fail "prowl came up with rashin before anything needed it"
-sv up "$WORK/svc/ryoku-prowl"
-wait_stat ryoku-prowl run || fail "prowl did not come up on demand"
-wait_count_ge 'prowl gateway serve --port 8788' 1 || fail "prowl never served"
-[ "$(count 'prowl gateway down --port 8788')" -ge 1 ] || fail "prowl ExecStartPre (gateway down) did not run"
-sv down "$WORK/svc/ryoku-rashin"
-wait_stat ryoku-prowl down || fail "prowl did not go down when rashin stopped (BindsTo)"
-pass "prowl stays down until asked for and goes down with rashin"
 
-#### 8. timer translations fire their work on schedule.
+#### 7. timer translations fire their work on schedule.
 wait_count_ge 'claude-usage' 1 || fail "ai-usage loop never ran claude-usage"
 wait_count_ge 'snapper-cleanup' 1 || fail "snapper-cleanup loop never ran"
 sleep 3
@@ -316,7 +295,7 @@ sleep 3
 [ "$(count 'snapper-cleanup')" -ge 2 ] || fail "snapper-cleanup loop did not repeat on its period"
 pass "timer translations loop on their schedules"
 
-#### 9. wait-for predicates (env, file, !-inverse).
+#### 8. wait-for predicates (env, file, !-inverse).
 . /repo/void/init/lib/wait-for
 export RYOKU_WAIT_BUDGET_SCALE=1
 FOO=bar; export FOO
@@ -330,8 +309,8 @@ rm -f "$WORK/afile"
 wait_file "!$WORK/afile" 2 || fail "wait_file ! did not match an absent file"
 pass "wait-for predicates behave"
 
-#### 10. a user service wins over a same-named system service whose status is
-####     unreadable to the Turnstile service user.
+#### 9. a user service wins over a same-named system service whose status is
+####    unreadable to the Turnstile service user.
 # The container leaves this as a dangling symlink until its system runit boots.
 [ ! -L /var/service ] || rm -f /var/service
 mkdir -p "$WORK/collision-svc/dbus" "$WORK/collision-svc/waiter" \
@@ -367,7 +346,7 @@ kill "$CRSD" 2>/dev/null || true
 CRSD=
 pass "user service dependency wins over an unreadable same-named system service"
 
-#### 11. wait_env watches Turnstile's envdir and reloads it before exec.
+#### 10. wait_env watches Turnstile's envdir and reloads it before exec.
 echo run > "$WORK/ctl/ryoku-idle"
 mkdir -p "$WORK/envsvc/ryoku-idle" "$WORK/delayed-env"
 cp /repo/void/init/user/ryoku-idle/run "$WORK/envsvc/ryoku-idle/run"
@@ -392,7 +371,7 @@ kill "$ERSD" 2>/dev/null || true
 ERSD=
 pass "env-gated service observes a late Turnstile value before exec"
 
-#### 12. a down-marked service stays parked until session-start publishes the
+#### 11. a down-marked service stays parked until session-start publishes the
 ####     compositor environment and delegates the roster to the lifecycle owner.
 mkdir -p "$WORK/session-lib" "$WORK/session-svc/ryoku-idle" "$WORK/session-env"
 cp /repo/void/init/lib/wait-for "$WORK/session-lib/wait-for"
@@ -471,7 +450,7 @@ sv down "$WORK/session-svc/ryoku-idle"
 kill "$SRSD" 2>/dev/null || true
 SRSD=
 pass "session-start publishes env and starts the down-marked roster"
-#### 13. first-login provisioning adds a down-marked roster service after the
+#### 12. first-login provisioning adds a down-marked roster service after the
 ####     user's runsvdir already exists; session-start waits for supervision.
 mkdir -p "$WORK/fresh-svc" "$WORK/fresh-env"
 env -u WAYLAND_DISPLAY \
@@ -500,7 +479,7 @@ kill "$SRSD" 2>/dev/null || true
 SRSD=
 pass "first login provisions and starts the full session roster"
 
-#### 14. xdg-dirs renders Turnstile envdir files with no trailing newline.
+#### 13. xdg-dirs renders Turnstile envdir files with no trailing newline.
 mkdir -p "$WORK/xdgbin"
 cat > "$WORK/xdgbin/xdg-user-dir" <<'EOF'
 #!/bin/sh
@@ -516,7 +495,7 @@ lastbyte=$(od -An -tx1 "$out/XDG_PICTURES_DIR" | tr -d ' \n' | tail -c2)
 [ "$lastbyte" = 0a ] && fail "xdg-dirs wrote a trailing newline (envdir values must not have one)"
 pass "xdg-dirs renders Turnstile envdir files"
 
-#### 15. ryoku-host transients run beneath runsv with captured launch state.
+#### 14. ryoku-host transients run beneath runsv with captured launch state.
 mkdir -p "$WORK/caller-cwd"
 cat > "$WORK/bin/transient-probe" <<'EOF'
 #!/bin/sh
@@ -564,7 +543,7 @@ kill -0 "$probe_child" 2>/dev/null &&
 	fail "supervised transient child survived stop"
 pass "ryoku-host transient is supervised, stateful, and fully removed"
 
-#### 16. manifest upgrade convergence: N starts its declared services; N+1
+#### 15. manifest upgrade convergence: N starts its declared services; N+1
 ####     adds one service in each scope without another activation roster.
 UP=$WORK/manifest-upgrade
 mkdir -p "$UP/user" /etc/sv/manifest-system-n /etc/sv/manifest-system-n1 \

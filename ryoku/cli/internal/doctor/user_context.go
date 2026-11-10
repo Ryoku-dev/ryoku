@@ -25,6 +25,13 @@ func doctorAccount() (*user.User, error) {
 	return doctorCurrentUser()
 }
 
+func doctorUser() string {
+	if name := os.Getenv("USER"); name != "" {
+		return name
+	}
+	return os.Getenv("LOGNAME")
+}
+
 // configureDoctorUser keeps read-only sudo runs pointed at the desktop account.
 // A repairing doctor must run as that account so files it creates remain owned
 // by the user; individual system repairs ask for sudo themselves.

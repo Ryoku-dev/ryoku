@@ -212,19 +212,17 @@ reaches outside `Singletons/` by relative path: in the compiled form each module
 is its own resource tree, and a directory import into the other one finds
 nothing until that module's plugin happens to be loaded.
 
-### The web dashboard is a Ryoku surface too
+### Gio apps are Ryoku surfaces too
 
-Rashin's console (`ryoku/rashin/web`, a Svelte app served on `127.0.0.1:3600`
-and hosted by the `rashin-app` window) is HTML, so it cannot import `Tokens`,
-but it follows them. `GET /api/theme` resolves the same Material roles through
-the same chain (a named scheme, then the wallpaper while Match wallpaper is on,
-then the signature default), and `src/app.css` maps them onto custom properties
-under the `Tokens` names, `--ground` through `--scrim`, with the cuts as
-`clip-path` polygons and the chisel curve as `--chisel`. The type is the same
-two families, bundled as subset woff2. The Hub's Rashin page reads `Tokens` like
-any other page. If the dashboard needs a value, it takes it from the palette,
-never a hex of its own. `docs/lithic/examples/web` is the stylesheet to start
-from.
+Rashin's app (`ryoku/rashin/cmd/rashin-app`) draws with Gio and the Lithic Go
+library (`docs/lithic/library/go`), the same stack as Ryotunes, so it cannot
+import `Tokens` either, but it follows them. The library's `palette` package
+resolves the same Material roles through the same chain (a named scheme in
+`shell.json`, then `~/.cache/ryoku/colors.json` while Match wallpaper is on,
+then the signature default) and its `kit` draws the cuts, the type and the
+motion from the Lithic rules. The Hub's Rashin page reads `Tokens` like any
+other page. If the app needs a value, it takes it from a role, never a hex of
+its own.
 
 ### What follows the wallpaper, and what does not
 

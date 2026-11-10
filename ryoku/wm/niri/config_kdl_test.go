@@ -426,6 +426,19 @@ func TestRyoportAndRyotunesBuiltinWindowRules(t *testing.T) {
 	}
 }
 
+func TestRashinBuiltinWindowRuleUsesStableAppID(t *testing.T) {
+	out := string(genSettings(defaultStore()))
+	want := "window-rule {\n" +
+		"    match app-id=\"^dev\\\\.ryoku\\\\.rashin$\"\n" +
+		"    open-floating true\n" +
+		"    default-column-width { fixed 1280; }\n" +
+		"    default-window-height { fixed 820; }\n" +
+		"}\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("Rashin builtin window rule must use its stable app id\n%s", out)
+	}
+}
+
 func TestPhoneToolsBuiltinWindowRule(t *testing.T) {
 	out := string(genSettings(defaultStore()))
 	want := "window-rule {\n" +

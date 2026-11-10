@@ -367,11 +367,8 @@ func reconcilers() []reconciler {
 		{i18n.T("desktop loads"), reconcileShellLoad},
 		{i18n.T("ryoku shell daemon"), reconcileShellDaemon},
 		{i18n.T("duplicate desktop instances"), reconcileShellInstances},
-		{i18n.T("rashin agent daemon"), reconcileRashinDaemon},
-		{i18n.T("hermes agent"), reconcileHermesAgent},
-		{i18n.T("AI usage collector timer"), reconcileAiUsageTimer},
-		{i18n.T("prowl for rashin"), reconcileProwl},
-		{i18n.T("Prowl gateway for rashin"), reconcileProwlGateway},
+		{i18n.T("Ryoku vault"), reconcileVault},
+		{i18n.T("Rashin"), reconcileRashinDaemon},
 		{i18n.T("recordings directory"), reconcileRecordingsDir},
 		{i18n.T("memory pressure"), reconcileMemoryHealth},
 		{i18n.T("failed services"), reconcileFailedUnits},
@@ -554,7 +551,7 @@ func Run(args []string) error {
 		}
 		fmt.Fprintf(os.Stderr, "\n  %s %s\n", sys.Brand("➜"), sys.Bold(fmt.Sprintf(i18n.T("found %d %s"), warns+fails, noun)))
 		if rashinOn() {
-			fmt.Fprintf(os.Stderr, "    %s  %s\n", sys.Brand("ryoku-rashin fix doctor"), sys.Dim(i18n.T("let Rashin's agent investigate and fix these")))
+			fmt.Fprintf(os.Stderr, "    %s  %s\n", sys.Brand("rashin fix doctor"), sys.Dim(i18n.T("let Rashin's agent investigate and fix these")))
 		}
 		fmt.Fprintf(os.Stderr, "    %s  %s\n", sys.Brand("ryoku doctor --explain"), sys.Dim(i18n.T("AI diagnosis and a suggested fix")))
 		if path != "" {

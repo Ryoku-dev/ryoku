@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Changed
+- `fish/`, `bash/`, `zsh/`: **Rashin can put proposed commands on the prompt
+  without running them.** The hooks pass the last command and status to
+  `rashin ask --buffer`, keep Alt+R transmute and stay inert when Rashin is not
+  installed.
 - `ryostore/`: **`ryostore settings` opens Ryoku Settings through the daemon.**
   Routes go to `ryoku-shell hub open <section>` (and `ryoku-shell ipc call` for
   the dock editor) instead of starting `qs` clients with a retry loop, and a
@@ -317,6 +321,10 @@
   that lands while the picker is open shows up on user boxes too.
 
 ### Removed
+- `fish/`, `bash/`, `zsh/`: **The Rashin 1 terminal reporters are gone.**
+  Shells no longer send command-learning events or maintain terminal recipes.
+- `rashin-app/`: **The old GTK/WebKit companion and web dashboard are gone.**
+  The new Gio Lithic app ships from `ryoku/rashin/cmd/rashin-app/`.
 - `rashin-app/`: **The Rashin window moved out of the desktop apps.** It now
   lives in `ryoku/rashin/app/` and ships with `ryoku-rashin`.
 - `ryotunes/`: **The Chromium app-window wrapper is gone; Ryotunes is now a real

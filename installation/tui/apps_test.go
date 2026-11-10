@@ -53,7 +53,7 @@ func TestProductStepsExistInOrder(t *testing.T) {
 	}
 	m := newModel()
 	if m.picks["browser"] != "firefox" || m.picks["login-shell"] != "fish" ||
-		m.picks["file-manager"] != "nautilus" || m.picks["rashin"] != "1" || m.picks["gaming"] != "0" {
+		m.picks["file-manager"] != "nautilus" || m.picks["rashin"] != "0" || m.picks["gaming"] != "0" {
 		t.Fatalf("product defaults = %#v", m.picks)
 	}
 }
@@ -261,8 +261,8 @@ func TestRashinIsAChoiceOnEveryEdition(t *testing.T) {
 	for _, variant := range []string{"plain", variantCachyOS, variantVoid} {
 		plan := installerChoicesForVariant(variant)
 		rashin, ok := plan.Component("rashin")
-		if !ok || !rashin.Available || rashin.Locked || !rashin.Component.DefaultOn {
-			t.Fatalf("%s Rashin component = %+v, found %v", variant, rashin, ok)
+		if !ok || !rashin.Available || rashin.Locked || rashin.Component.DefaultOn {
+			t.Fatalf("%s Rashin component = %+v, want available default-off choice", variant, rashin)
 		}
 		selected := plan.DefaultComponents()
 		selected["rashin"] = false
@@ -276,13 +276,14 @@ func TestRashinAndArchGamingStepBehaviour(t *testing.T) {
 	flow := stepsForVariant("plain")
 	rashin := model{
 		variant: "plain", flow: flow, idx: flowIndex(flow, "rashin"),
-		state: "wizard", picks: map[string]string{"rashin": "1", "gaming": "0"},
+		state: "wizard", picks: map[string]string{"rashin": "0", "gaming": "0"},
 		netOnline: true, cpuV3: true,
 	}
 	rashin.loadStep()
-	if !rashin.yes {
-		t.Fatal("Rashin does not default to Yes")
+	if rashin.yes {
+		t.Fatal("Rashin did not default to No")
 	}
+	rashin.yes = true
 	next, _ := rashin.onKey("enter")
 	rashin = next.(model)
 	if rashin.picks["rashin"] != "1" || rashin.cur().key != "gaming" {
@@ -419,7 +420,7 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	env := m.installEnv()
 	for _, want := range []string{
 		"RYOKU_BROWSER=firefox", "RYOKU_LOGIN_SHELL=fish",
-		"RYOKU_FILE_MANAGER=nautilus", "RYOKU_RASHIN=1",
+		"RYOKU_FILE_MANAGER=nautilus", "RYOKU_RASHIN=0",
 		"RYOKU_CACHYOS_LAYER=0",
 	} {
 		if !envHas(env, want) {
@@ -435,20 +436,34 @@ func TestInstallEnvCarriesProductChoicesAndDrops(t *testing.T) {
 	}
 	defaultSet := asSet(drops)
 	for _, want := range []string{
-		"chromium", "zen-browser-bin", "zsh", "blesh", "dolphin", "thunar",
+		"chromium", "zen-browser-bin", "zsh", "blesh", "dolphin", "thunar", "ryoku-rashin",
 	} {
 		if !defaultSet[want] {
 			t.Errorf("default drop list %q missing %s", drops, want)
 		}
 	}
 	for _, absent := range []string{
-		"firefox", "fish", "nautilus", "nautilus-python", "ryoku-rashin",
+		"firefox", "fish", "nautilus", "nautilus-python",
 		"linux-cachyos", "cachyos-settings", "cachyos-gaming-meta", "steam",
 	} {
 		if defaultSet[absent] {
 			t.Errorf("default drop list %q contains package %s", drops, absent)
 		}
 	}
+
+	m.picks["rashin"] = "1"
+	env = m.installEnv()
+	if !envHas(env, "RYOKU_RASHIN=1") {
+		t.Errorf("selected Rashin did not reach the environment: %v", env)
+	}
+	selectedDrops, ok := envValue(env, "RYOKU_DROP_PACKAGES")
+	if !ok {
+		t.Fatal("selected Rashin environment has no drop list")
+	}
+	if asSet(selectedDrops)["ryoku-rashin"] {
+		t.Errorf("selected Rashin remains in drop list %q", selectedDrops)
+	}
+	m.picks["rashin"] = "0"
 
 	m.picks["gaming"] = "1"
 	if env = m.installEnv(); !envHas(env, "RYOKU_CACHYOS_LAYER=1") {

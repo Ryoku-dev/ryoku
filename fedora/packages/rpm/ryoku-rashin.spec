@@ -1,7 +1,7 @@
 Name:           ryoku-rashin
 Version:        0.1
 Release:        1%{?dist}
-Summary:        ryoku-rashin desktop component
+Summary:        Ryoku Rashin AI system
 License:        GPL-3.0-or-later
 URL:            https://ryoku.dev
 Source0:        ryoku-%{version}.tar.gz
@@ -9,25 +9,24 @@ Source0:        ryoku-%{version}.tar.gz
 BuildRequires:  bash
 BuildRequires:  coreutils
 BuildRequires:  findutils
+BuildRequires:  gcc
 BuildRequires:  golang >= 1.26.4
-BuildRequires:  gtk3-devel
-BuildRequires:  webkit2gtk4.1-devel
-BuildRequires:  cmake
-BuildRequires:  ninja-build
-BuildRequires:  gcc-c++
+BuildRequires:  pkgconf-pkg-config
+BuildRequires:  wayland-devel
+BuildRequires:  libxkbcommon-devel
+BuildRequires:  mesa-libEGL-devel
+BuildRequires:  vulkan-headers
 Requires:       ryoku-desktop = %{version}-%{release}
-Requires(post): ryoku = %{version}-%{release}
-Requires:       uv
-Requires:       nodejs24
-Requires:       gcc
-Requires:       prowl
-Requires:       gtk3
-Requires:       webkit2gtk4.1
-Requires:       python3
-Suggests:       sqlite
+Requires:       libwayland-client
+Requires:       libwayland-cursor
+Requires:       libwayland-egl
+Requires:       libxkbcommon
+Requires:       mesa-libEGL
+Requires:       vulkan-loader
+Requires:       hicolor-icon-theme
 
 %description
-ryoku-rashin, built from the shared Ryoku source and package payload recipe.
+Rashin provides Ryoku's optional AI daemon, command line and Gio application.
 
 %prep
 %setup -q -n ryoku-%{version}
@@ -43,11 +42,10 @@ find %{buildroot} -type f -o -type l | sed 's|^%{buildroot}||' > rpm-files
 %files -f rpm-files
 
 %post
-if [ -x /usr/bin/ryoku-host ]; then
-  RYOKU_HOST_INIT=systemd /usr/bin/ryoku-host svc reconcile --system >/dev/null 2>&1 || :
-fi
+systemctl --global disable ryoku-ai-usage.timer >/dev/null 2>&1 || :
+rm -f /etc/systemd/user/default.target.wants/ryoku-rashin.service
 
 %postun
 if [ "$1" -eq 0 ]; then
-  systemctl --global disable ryoku-rashin.service ryoku-ai-usage.timer >/dev/null 2>&1 || :
+  systemctl --global disable rashind.socket rashind.service ryoku-ai-usage.timer >/dev/null 2>&1 || :
 fi

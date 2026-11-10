@@ -126,45 +126,25 @@ Recording**.
 
 ## Ask
 
-Ask is a compact Rashin surface with four modes:
+Ask is a compact client for the optional Rashin daemon. Its QML is created only
+when Alt+Space opens the bar, connects to Rashin's local socket, and is released
+after the bar closes. If Rashin is off or absent, the bar does not start a
+daemon or leave a watcher running.
 
-- **Ask** gives quick read-only answers. It shares `rashin-asks.jsonl` history
-  with the launcher's `\` ask, the console Ask sheet, and the `rashin` command,
-  but nothing enters the Agent conversation unless you hand it off.
-- **Agent** opens the persistent machine-aware conversation. The pinned bubble
-  is another view of this session.
-- **Tools** handles downloads, compression, package installation, recent work,
-  and active jobs.
-- **Web** searches with the existing engines, bangs, and instant answers.
+- **Ask** sends one-shot, read-only questions to Rashin's free-model router.
+  Answers stream into the bar with copy, file, folder, link and proposed-command
+  actions. Recent asks come from daemon-owned sessions, so history survives the
+  bar and app closing.
+- **Agent** shows the most recent external-harness session, or starts one with
+  the harness you choose. Permissions, prompts and model choices belong to that
+  harness. **Open in Rashin** moves the same session into the app.
+- **Tools** and **Web** remain shell features. They work whether Rashin is on or
+  not.
 
-The header names the mode, and Ask carries a route pill under the field. Its
-route drawer lists **Agent model** first and then available Prowl routes. The
-Agent model drawer is separate. One saved model pick per harness applies in
-every Rashin surface and to new, loaded, or respawned sessions; the drawer says
-**Saved model unavailable** if that harness does not currently offer the pick.
-Ask history lists asks, while Agent history lists Agent sessions.
-
-An answered ask offers **Continue with the agent**. This adds a **From Ask**
-card with the question and answer, switches to Agent, and lets the next message
-continue from it. While Ask is working, or when a read-only answer says the
-Agent is needed, **Move to the agent** runs the original question as an Agent
-turn. The Ask result explains what the Agent would do.
-
-Buttons press under the pointer, mode changes crossfade, transcript items enter
-in order, and the live marker and orb report work in progress. The field beam
-runs only with an active request. When an Agent turn finishes or waits for
-approval while the bar, bubble, and Rashin window are hidden, a desktop
-notification opens the bar back in Agent mode.
-
-Type `\` for Ask, `?` for Web, or `/` for Tools. Tab cycles modes. Up, Down,
-Left, and Right move through actions; Enter submits or activates the selected
-action; Ctrl+N starts a new Agent session. `Ctrl+Shift+H` and `Ctrl+Shift+M`
-toggle the current mode's history and model drawers.
-
-Pin bubble creates a draggable 56-pixel Agent orb on the desktop. It snaps to
-the nearest horizontal edge, stays clear of the bar, expands to a compact Agent
-view on click, and closes when dragged onto the bottom dismiss target. Its
-enabled state and position persist in `shell.json` under `ask.bubble`.
+**Move to Agent** keeps the original question and opens an Agent session for
+work that needs changes. The Rashin app is another client of the same daemon:
+its Ask, Agent and Index pages see the same sessions and index state rather than
+holding a separate transcript.
 
 ## Commands
 

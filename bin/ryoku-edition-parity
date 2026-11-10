@@ -47,6 +47,20 @@ for path in "${pkgbuilds[@]}"; do
 	add_pkgbuild_names "$path"
 done
 
+
+rashin_payload="$root/release/packages/ryoku-rashin/payload.sh"
+for artifact in rashind rashin rashin-app rashind.socket rashind.service \
+	dev.ryoku.rashin.desktop NOTICE; do
+	grep -Fq "$artifact" "$rashin_payload" \
+		|| fail "ryoku-rashin payload is missing $artifact"
+done
+for retired in \
+	"$root/release/packages/prowl/PKGBUILD" \
+	"$root/fedora/packages/rpm/prowl.spec" \
+	"$root/void/packages/srcpkgs/prowl/template" \
+	"$root/nix/packages/prowl-agent.nix"; do
+	[[ ! -e $retired ]] || fail "retired Prowl package remains: ${retired#"$root"/}"
+done
 dependency_pkgbuilds=("$root"/release/packages/ryoku-desktop*/PKGBUILD)
 for name in ryoku-shell ryogami ryoku-rashin ryoku-hub ryoku; do
 	path="$root/release/packages/$name/PKGBUILD"

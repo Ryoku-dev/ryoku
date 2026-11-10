@@ -1,660 +1,727 @@
 # Ryoku Rashin
 
-Rashin (羅針, "compass needle") is Ryoku's optional agent OS: a machine-generated
-knowledge vault, a local daemon, and frontends for installed agent harnesses.
-The Agent can run Hermes, Codex through `codex-acp`, Claude Code through
-`claude-code-acp` or `claude-agent-acp`, omp, opencode, or Gemini CLI. Prowl is
-an external model gateway, code index, and skill source that plugs into those
-harnesses without owning their model choices.
-Everything is local, off by default, and enabled from Ryoku Settings under
-Advanced.
+Rashin (羅針, "compass needle") is Ryoku's optional AI system. It is one Go
+daemon with three clients:
 
-## What it is, and is not
+- **Ask**: questions about this machine, or plain chat, answered by free models
+  through Rashin's built-in model router. Ask reads the machine; it never
+  changes it. It proposes commands for you to run, or hands the work to an
+  Agent.
+- **Agent**: an external coding harness you already use (Hermes, Claude Code,
+  Codex, OpenCode, Gemini CLI, omp and more) driven over the Agent Client
+  Protocol, with Rashin owning the sessions, files, terminals and approvals.
+- **Index**: project and system indexing with semantic search (the potion code
+  embedding model), also served as the `rashin` command line.
 
-It is:
+The machine map every agent reads is the **Ryoku vault**, owned by Ryoku core
+and independent of Rashin. `ryoku vault refresh` maintains it even when Rashin
+is off or absent: see [vault.md](vault.md).
 
-- **Optional.** On every edition `ryoku-rashin` is installed by default but is
-  not a desktop dependency. The switch on Ryoku Hub's Rashin page owns it: off
-  stops the agent and removes the package, on installs it again and starts it
-  with the desktop. Every AI piece goes with the package (the agent, the Rashin
-  window, the bar's AI usage collectors) and so do its shortcuts: the Ask bar
-  (Alt+Space) and the Rashin window (Super+Alt+Space) are catalogue binds that
-  need `ryoku-rashin`, so the compositor registers no chord for them while it
-  is absent and Kit's Keys tab lists them as not installed. Kit opens with
-  Super+K and puts Keys, Commands, Phone, Dev tools, and Typing test behind one
-  search field. Answering No to the installer's Rashin question or removing the
-  package with the system's package manager reach the same state; the doctor
-  delivers it once and never puts it back. Answering Yes leaves a first-login
-  note that opens the Hermes setup once the machine is online.
-- **Local.** The daemon binds `127.0.0.1` only. WebSocket upgrades verify the
-  Origin host is localhost. Mutating routes reject cross-origin browser calls
-  and simple requests that could skip a CORS preflight. No auth is needed
-  because the surface is single-user and local.
-- **Off by default.** Nothing runs, indexes, or wires until you flip the gate.
+This page is the contract the implementation follows. The wire reference is
+`ryoku/rashin/internal/protocol/README.md`.
 
-It is not:
+## The rules
 
-- **An MCP server.** Markdown files are the interface every agent already
-  speaks. MCP is a possible v2.
-- **Remote.** No listener leaves the loopback interface.
-- **A bundled LLM.** Hermes brings its own provider; you pick one during setup.
+1. **Opt in, zero at rest.** Rashin draws nothing until you turn it on: no
+   process, no socket, no timer, no watcher, no QML object, no probe at login.
+   Turning it off returns to exactly that state.
+2. **The daemon owns the work.** Agent processes, terminals, files, sessions
+   and model calls belong to `rashind`. Clients only render and send input, so
+   quitting the app never loses a session.
+3. **Idle means gone.** An idle daemon exits; an idle agent process stops.
+   Sessions live on disk and resume on the next prompt.
+4. **Ask reads, Agent acts.** Ask has read-only tools. Anything that changes the
+   machine is a proposed command the user runs, or a handoff to an Agent.
+5. **One owner per fact.** The daemon is the only writer of Rashin state. The
+   vault is Ryoku's. Harnesses keep their own model choices.
 
-## The vault
+## Pieces
 
-The vault is the knowledge base every agent reads and writes, at
-`~/.local/share/ryoku/rashin/` (respects `XDG_DATA_HOME`).
+| Piece | Binary or file | Stack | Job |
+|---|---|---|---|
+| Daemon | `rashind` | Go, no cgo | Gateway, Ask, Agent adapters, sessions, index |
+| Command line | `rashin` | Go, no cgo | Lifecycle, ask from a terminal, index queries, any method |
+| App | `rashin-app` | Go + Gio, Lithic | Ask, Agent, Index, Settings |
+| Bar | Alt+Space | Quickshell QML | Quick Ask and Agent turns, Stash tools, Web search |
+| Hub page | Ryoku Settings > Rashin | Quickshell QML | On/off switch, status, open the app |
+| Usage collectors | `ryoku-ai-usage` and friends | sh | Coding-agent usage for the bar's usage pill |
 
-| Path | What it holds |
+Source layout, one module (`ryoku/rashin/go.mod`, module `ryoku-rashin`):
+
+```
+ryoku/rashin/
+  cmd/rashind/          daemon entry
+  cmd/rashin/           command line (one file per command group)
+  cmd/rashin-app/       Gio app entry
+  internal/protocol/    wire types, method and event registry
+  internal/paths/       every path Rashin reads or writes
+  internal/config/      rashin.json: schema, defaults, v1 migration
+  internal/llm/         chat-completion types shared by gateway and Ask
+  internal/core/        interfaces between the daemon and its subsystems
+  internal/client/      socket client, daemon start, used by CLI and app
+  internal/daemon/      server, dispatch, lifecycle, session manager
+  internal/session/     event log store
+  internal/gateway/     built-in free-model router
+  internal/ask/         native Ask runner, tools, command safety
+  internal/harness/     ACP adapters for external harnesses
+  internal/index/       index engine, embedding model, queries
+  internal/app/         Gio client (shell, state, pages, chat widgets, demo)
+  systemd/              rashind.socket, rashind.service
+  usage/                coding-agent usage collectors
+```
+
+The bar lives with the shell (`ryoku/shell/quickshell/shell/modules/ask/`), the
+Hub page with the Hub (`ryoku/hub/quickshell/pages/RashinPage.qml`).
+
+## Lifecycle
+
+### States
+
+| State | What exists | Alt+Space | Super+Alt+Space |
+|---|---|---|---|
+| Not installed | nothing | unbound | unbound |
+| Off | package files only | bar opens and says Rashin is off | app opens and says Rashin is off |
+| On, idle | socket unit (systemd) | bar | app |
+| On, working | `rashind` plus any agent process | bar | app |
+
+The Hub switch owns the package: **on** installs `ryoku-rashin` when absent,
+then runs `rashin on`; **off** runs `rashin off`, then removes the package. The
+installer's Rashin question is opt in (default no); yes installs the package and
+turns Rashin on at first login.
+
+### Starting the daemon
+
+- **systemd** (Arch, CachyOS, Fedora): `rashind.socket` listens on
+  `%t/rashin/rashin.sock` (`SocketMode=0600`, `DirectoryMode=0700`) and
+  activates `rashind.service`. The service has no `[Install]` section.
+- **runit and anything else** (Void): no service. A client that finds no
+  socket while Rashin is on starts `rashind` itself, detached (`setsid`, its
+  own process group, stdio to the daemon log), then waits up to 3 s for the
+  socket. `internal/client` implements this once for every Go client; the bar
+  calls `rashin ensure` when it opens, and the Hub only reads
+  `rashin status --json`, so opening the Hub never starts the daemon.
+- The daemon takes `$XDG_RUNTIME_DIR/rashin/rashind.lock` (flock) so two
+  starts cannot race. With `LISTEN_FDS` it serves the inherited socket;
+  otherwise it binds the path itself (removing a stale socket only while it
+  holds the lock).
+- A daemon started while Rashin is off exits 0 at once.
+
+### Stopping
+
+- **Idle exit:** the daemon exits after `daemon.idleExitMinutes` (default 5)
+  when no client is connected, no turn is running, no agent process is alive and
+  no index job is running. The check is event driven (re-armed on state
+  changes), never a poll.
+- **Agent idle stop:** an agent process stops after `agent.idleStopMinutes`
+  (default 10) without a turn, even while the app shows it. The next prompt
+  starts it again and resumes the session (`session/load` when the harness
+  supports it).
+- **Shutdown** (`shutdown` method, `rashin off`, SIGTERM): cancel running turns
+  (each ends with `turn_end` stop `cancelled`), stop agent processes, flush
+  logs, close stores, remove the socket when the daemon bound it, exit 0.
+
+### Commands
+
+| Command | Does |
 |---|---|
-| `AGENTS.md` | The entry contract, read natively by codex, opencode, and omp |
-| `CLAUDE.md` | A symlink to `AGENTS.md` for Claude Code |
-| `system.md` | Generated: hardware, kernel, drivers, displays |
-| `desktop.md` | Generated: the Ryoku map (configs, owners, reload commands) |
-| `packages.md` | Generated: package sets, versions, update state |
-| `ryoku-repo.md` | Generated: the Ryoku source tree map, pre-indexed and shipped |
-| `user.md` | Generated: where this user's config diverges from the shipped baseline |
-| `habits.md` | Generated: this user's directories, tool stack, and shell rhythms (feeds both ask lanes) |
-| `ownership.md` | Generated: who owns each config path and where a change belongs |
-| `logs.md` | Generated: where the logs live and the one command that gathers them |
-| `memory/` | Agent-writable; Hermes `MEMORY.md` and `USER.md` live here |
-| `journal/` | Agent-writable dated notes, one file per day |
+| `rashin on` | writes `enabled: true`; systemd: enables and starts `rashind.socket` and `ryoku-ai-usage.timer` through `ryoku-host svc --user enable --now`; runit: enables the `ryoku-ai-usage` service |
+| `rashin off` | writes `enabled: false`; asks a running daemon to `shutdown`; disables and stops the socket, service and usage timer (runit: stops the usage service and kills a daemon left running through the lock holder's pid) |
+| `rashin status [--json]` | enabled, running, version, counts; never starts the daemon |
+| `rashin ensure` | exit 0 once the daemon answers `hello`; exit 3 when off; exit 1 on failure |
+| `rashin migrate` | idempotent upgrade from Rashin 1 and Prowl (below) |
 
-**Fence markers.** Every generated file is fenced between
-`<!-- rashin:generated:begin -->` and `<!-- rashin:generated:end -->`. A reindex
-rewrites only the content inside the fence; anything a user or agent adds outside
-it survives. `AGENTS.md` is written from a template only when absent, then owned
-by the user and agents.
+`ryoku doctor` converges the units to `enabled`: on means the socket and timer
+are enabled, off means both disabled and no daemon running. It also runs
+`rashin migrate` and removes the Rashin 1 and Prowl units.
 
-**Write rules for agents.**
+### Zero at rest, checked
 
-- Generated files (`system.md`, `desktop.md`, `packages.md`, `ryoku-repo.md`,
-  `user.md`, `habits.md`, `ownership.md`, `logs.md`) are read-only. Do not edit
-  inside the fence; a reindex overwrites it.
-- Read `desktop.md` before searching the filesystem or guessing paths. It names
-  where every config lives, which binary owns it, and how to reload it.
-- Changes listed in `user.md` are the user's own choices; never revert them to
-  shipped defaults without being asked.
-- Write durable notes to `memory/` and dated notes to `journal/YYYY-MM-DD.md`.
-- Before editing any file, run `ryoku owner <path>`; it says who writes the file
-  and where the change belongs. `ownership.md` is those rules for the whole box.
-  Never edit a path it calls `ryoku`, `generated`, or `store`.
-- When something breaks, run `ryoku-rashin logs <app>` first and read `logs.md`;
-  gather before you change anything.
+With Rashin off or absent, all of these hold, and the live proof checks each:
 
-Reindex triggers: daemon start, `ryoku-rashin index`, a 6h timer, the
-dashboard's reindex button, and `ryoku update` (both channels reindex after
-configs land, so agents see the new system immediately). The user layer also
-reindexes on its own: the daemon fingerprints the live `~/.config` every two
-minutes and rewrites `user.md` when it drifts.
+- `systemctl --user is-enabled rashind.socket ryoku-ai-usage.timer` reports
+  disabled or not found; no `rashind`, `rashin-app` or agent process exists;
+  `$XDG_RUNTIME_DIR/rashin/rashin.sock` does not exist.
+- The shell starts no Rashin process at login: no singleton probes Rashin; the
+  bar's QML is created only when Alt+Space opens it, and the Off state needs no
+  process to render.
+- No file watcher, timer or socket belongs to Rashin.
 
-## The pre-indexed source map
+## Paths
 
-`ryoku-repo.md` maps the monorepo that produced the system: layout with file
-counts, key entry points, and the docs list. The installed target has no
-checkout, so the map ships as a snapshot:
+Every path comes from `internal/paths`; nothing else spells one.
 
-- **Packaged:** the `ryoku-rashin` PKGBUILD runs `ryoku-rashin repo-index` over
-  the exact release tree and installs the result to
-  `/usr/share/ryoku/rashin/ryoku-repo.md`. A system update replaces the
-  snapshot with the new release's, and the post-update reindex folds it in.
-- **Dev checkout:** `ryoku/shell/deploy.sh` writes the same snapshot to
-  `~/.local/state/ryoku/rashin-repo.md` on every deploy.
-- **Live regeneration:** with `RYOKU_RASHIN_REPO` pointing at a checkout,
-  reindex regenerates the map from the tree instead of copying a snapshot.
+| Path | Holds |
+|---|---|
+| `$XDG_CONFIG_HOME/ryoku/rashin.json` | settings (below) |
+| `$XDG_STATE_HOME/ryoku/rashin/sessions/<id>/` | `meta.json`, `events.jsonl` |
+| `$XDG_STATE_HOME/ryoku/rashin/gateway.db` | keys, usage, cooldowns (bbolt) |
+| `$XDG_STATE_HOME/ryoku/rashin/master.key` | 32 random bytes, mode 0600 |
+| `$XDG_STATE_HOME/ryoku/rashin/indexes.json` | index registry |
+| `$XDG_STATE_HOME/ryoku/rashin/harness-capabilities.json` | what each harness binary answered at initialize, keyed by path and mtime |
+| `$XDG_STATE_HOME/ryoku/rashin/rashind.log` | warnings and errors, rotated at 1 MiB |
+| `$XDG_STATE_HOME/ryoku/rashin/projects.json` | projects, their settings, Rashin-made worktrees, tasks, review comments |
+| `$XDG_STATE_HOME/ryoku/rashin/activity/<project>.jsonl` | a project's action ledger |
+| `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` | worktrees Rashin creates (default) |
+| `$XDG_CACHE_HOME/ryoku/rashin/index/<id>/index.db` | one index (bbolt) |
+| `$XDG_RUNTIME_DIR/rashin/rashin.sock` | the socket |
+| `$XDG_RUNTIME_DIR/rashin/rashind.lock` | daemon lock |
+| `$XDG_RUNTIME_DIR/rashin/config.lock` | serialises writes of `rashin.json` |
+| `$XDG_RUNTIME_DIR/rashin/app.lock` | app single instance |
 
-## The user-owned changes layer
+The directories are created 0700. Tests and sandboxes move all of them with the
+XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 
-`user.md` diffs the shipped base config (`/usr/share/ryoku/config`, the tree
-`ryoku materialize` lays down) against the live `~/.config` by content hash,
-and lists three classes: dedicated user-override files (`hypr/user.lua`,
-`kitty/user.conf`, `fish/user.fish`, `hypr/monitors_user.lua`), shipped files
-the user edited in place, and shipped files the user removed. Agents treat
-everything listed there as the user's own choices, distinct from Ryoku
-defaults. On a dev checkout without the base tree, the layer degrades to a
-note saying the diff is unavailable.
+## Settings
 
-## Ownership and logs
-
-Two generated docs and one command make the wired agents Linux- and Ryoku-aware
-when they act, not just when they read.
-
-`ownership.md` is the machine's ownership map: the rules in plain words, the
-overlay path and its current forks, the user-override files and what each is for,
-the generated files, the tool stores and their writers, the seeds, and the
-Ryoku-owned trees as a compact table. Its body is `ryoku owner --map`; a single
-path is classified by `ryoku owner <path> [--json]` (see `docs/cli.md`), which
-names the class, the writer, and the path a change should edit instead. Until the
-CLI carries the verb, the doc falls back to the rules in prose.
-
-`logs.md` records where the logs live on this box, discovered at index time: the
-Ryoku user units and their journal commands, the running Quickshell instances
-and their `qs log` lines, the compositor's journal and runtime log (resolved
-through the window-manager seam, never a hardcoded compositor), ryogami's log
-files, the doctor report and update log, `/var/log/pacman.log`, and coredumps.
-
-`ryoku-rashin logs <target>` (also `rashin logs <target>`) gathers all of it for
-one target into a bounded markdown bundle, each section headed by the exact
-command or file it came from. `<target>` is a component alias (`shell`,
-`wallpaper`, `hub`, `idle`, `audio`, `portals`, `updates`, `compositor`,
-`rashin`) or any program name; for a program it pulls the matching units, the
-journal by `_COMM=`, coredumps, OOM kills, the app's own `*.log` files, and its
-package's recent pacman transactions. Every probe is read-only, short-timeout,
-and never needs root; `--since` (default 6h) and `--lines` (default 60) size the
-window.
-
-The `AGENTS.md` contract carries these as two rules every wired agent reads:
-before you edit a file, run `ryoku owner <path>` and edit where it points, never
-a `ryoku`, `generated`, or `store` path; when something breaks, run
-`ryoku-rashin logs <app>` first, read `logs.md`, check the doctor report and
-recent package changes, prefer a reversible fix, and record what you did in
-`journal/YYYY-MM-DD.md`. The `ryoku` skill's `troubleshoot.md` is the full
-playbook.
-
-## The ryoku skill
-
-Rashin ships an agent skill, `ryoku`, so any agent finds the desktop's safety
-rules and command catalogue the way it finds a hub- or agent-grown skill, not
-only through the vault pointer block. It lives in the repo at
-`ryoku/rashin/skills/ryoku/` (`SKILL.md`, `gui.md`, `bar.md`, `plugins.md`,
-`feature.md`, `troubleshoot.md`); the package
-installs it to `/usr/share/ryoku/skills/ryoku`, and a dev deploy resolves the
-checkout copy through the repo pointer.
-
-`SKILL.md` covers when to use it, the vault-first rule, the safety split (lead
-with `ryoku owner <path>`, never edit a shipped file; a user override goes to
-`~/.config/ryoku/user_edits` or a
-command), the command catalogue (`ryoku`, `ryoku-shell`, `ryoku-hub`,
-`ryogami`, `ryoku-rashin`), the decision framework, and worked examples.
-`bar.md` is the guide to subshells, bar styles and the dock; `plugins.md` is the plugin contract and
-the `ryoku plugin` CLI; `feature.md` is the ladder for a feature the desktop
-does not have: `ryostore catalog` first, then the machine's own catalogues,
-and only then a new plugin; `troubleshoot.md` is the break/fix playbook (gather
-logs with `ryoku-rashin logs`, diagnose, fix through the owning command, verify,
-roll back). The vault's `AGENTS.md` and `desktop.md` point at the same ladder,
-so an agent that only reads the vault still climbs it.
-
-`ryoku-rashin wire` symlinks the skill dir into every agent's skills directory:
-`~/.agents/skills/ryoku`, `~/.claude/skills/ryoku`, `~/.codex/skills/ryoku`,
-`~/.omp/agent/skills/ryoku`, `~/.hermes/skills/ryoku`, and each
-`~/.hermes/profiles/*/skills/ryoku`. `~/.agents` and `~/.hermes` are created;
-the rest are wired only when the agent's home already exists. `unwire` removes
-only the symlinks that point at the skill dir, and `status --json` reports a
-`skillWired` flag per agent. The skill dir resolves in one order:
-`RYOKU_RASHIN_SKILLS`, then `/usr/share/ryoku/skills`, then
-`<repo>/ryoku/rashin/skills` via `~/.local/state/ryoku/repo`. The doctor's
-rashin reconciler re-runs `wire` whenever a link is missing, so an update keeps
-the skill in place.
-
-## The daemon: `ryoku-rashin`
-
-One Go program (module `ryoku-rashin`), stdlib plus one dependency
-(`github.com/coder/websocket`) for the chat and vitals sockets. It follows
-`ryoku-shell` conventions: atomic writes, `RYOKU_*` env overrides, single
-instance via a flock. The gate and port live in `~/.config/ryoku/rashin.json`
-(respects `XDG_CONFIG_HOME`):
+`rashin.json` (version 2). Unknown keys are kept on write.
 
 ```json
-{ "enabled": false, "port": 3600 }
+{
+  "version": 2,
+  "enabled": true,
+  "ask":    {"model": "auto", "habits": true},
+  "agent":  {"harness": "", "approvals": "read-only", "idleStopMinutes": 10},
+  "daemon": {"idleExitMinutes": 5},
+  "index":  {"system": true, "semantic": true}
+}
 ```
 
-Subcommands:
+- `ask.model`: `auto`, `auto:fast`, `auto:smart`, or `<provider>/<model>`.
+- `ask.habits`: include a short summary of the user's shell habits (tools,
+  frequent commands, secrets filtered) in Ask prompts.
+- `agent.harness`: default harness id for new Agent sessions; empty picks the
+  first installed one in the table order below.
+- `agent.approvals`: `read-only` (reads run, writes ask), `ask` (everything
+  asks), `auto` (nothing asks).
+- `agent.instances`: custom harnesses, each an id, a name, an ACP command and
+  extra environment variables (a second account, another config folder).
+- `index.system`: maintain the system index; `index.semantic`: compute vectors.
 
-| Command | Job |
+Clients change settings only through `settings.set`; the daemon writes the file
+atomically and broadcasts `settings.changed`.
+
+## Protocol
+
+Unix stream socket, newline-delimited compact JSON, one object per line, lines
+up to 16 MiB.
+
+```
+request   {"id": 7, "method": "session.prompt", "params": {...}}
+response  {"id": 7, "result": {...}}  or  {"id": 7, "error": {"code": "...", "message": "..."}}
+event     {"event": "session.event", "data": {...}}
+```
+
+The first request on every connection is `hello` (`client`: `app`, `bar`,
+`cli`, `hub`). Error codes: `bad_request`, `not_found`, `unavailable`,
+`conflict`, `disabled`, `unsupported`, `internal`. `internal/protocol` holds
+every method with its params and result types and every event; `rashin call
+<method> [json]` and `rashin events` reach any of them.
+
+Method groups: `hello status subscribe shutdown`, `session.*` (list, new,
+attach, detach, prompt, cancel, permission, set_model, set_mode, rename,
+delete, stop, handoff, queue, unqueue, steer, fork, read, revert_turn), `ask`
+(new session, attach, prompt in one call), `providers.*`, `models.list`,
+`gateway.usage`, `harnesses.*`, `index.*`, `settings.get|set`, `ui.open`, and
+Work: `projects.*`, `worktrees.*`, `git.*`, `review.*`, `tasks.*`,
+`activity.list`.
+
+`subscribe` returns a snapshot (status, recent sessions, settings, providers,
+harnesses, indexes, projects, tasks) and from then on the connection receives
+the global events: `sessions.changed`, `session.info`, `settings.changed`,
+`providers.changed`, `harnesses.changed`, `index.progress`, `index.changed`,
+`projects.changed`, `worktrees.changed`, `tasks.changed`, `review.changed`,
+`ui.focus` (app clients only), `notice`. `session.attach` adds `session.event`
+for that session; `projects.watch` adds `git.changed` for a project.
+
+## Sessions
+
+A session is either `ask` or `agent`. Its log is `events.jsonl`: one
+`SessionEvent{seq, ts, kind, data}` per line, `seq` strictly increasing from 1.
+`meta.json` holds `SessionInfo` plus private runner state (the harness's own
+session id for resume). Both are written by the daemon only.
+
+### Event kinds
+
+| Kind | Data |
 |---|---|
-| `serve [--if-enabled]` | HTTP and WebSocket on `127.0.0.1:3600`, embedded dashboard. `--if-enabled` exits 0 immediately when the gate is off (the autostart path) |
-| `index` | Regenerate all vault maps: `system.md`, `desktop.md`, `packages.md`, `ryoku-repo.md`, `user.md`, `habits.md`, `ownership.md`, `logs.md` |
-| `logs <target> [--since <dur>] [--lines <n>]` | Gather everything relevant to `<target>` (a component alias or a program name) when it broke: units, journal, coredumps, OOM kills, the app's own logs, and its package history, in one bounded bundle. Read-only, no root; always exits 0. Also `rashin logs <target>` |
-| `fix doctor [finding]` / `fix tip <id>` / `fix app <name> [what happened]` | Fix with AI from anywhere: opens your agent harness with the problem as its first message, in this terminal when run from one, in a new terminal window otherwise (see "Fix with AI" below). Also `rashin fix doctor`; `rashin fix the wifi` stays a plain ask |
-| `repo-index <root> [out]` | Build the Ryoku source map from a checkout; used by the PKGBUILD and `deploy.sh` |
-| `ask <question>` | One-shot read-only ask, built for the launcher's `\` prefix: POSTs to `/api/ask` and pipes streamed `@working`/`@answer` markers to stdout. `ask --recent` prints the separate Ask history as JSON; `ask --cancel` stops the running ask without touching the Agent. See "Ask, Agent, and Chat" below |
-| `terminal [--lane ryoku\|chat]` | Resume the current Agent or Chat session in the harness's own terminal UI when that harness supports it |
-| `setup` | One-click actuator: install Hermes, connect it through Prowl, wire, enable |
-| `wire [agent]` | Apply vault pointers to all detected agents, or one named agent |
-| `unwire [agent]` | Remove vault pointers, keeping the file |
-| `status [--json]` | Report Rashin, Prowl, vault, Hermes, and wiring state |
-| `enable [--at-boot]` / `disable` | Start or stop Rashin and its Prowl gateway. With systemd, `enable` starts `ryoku-rashin.service`, which wants the bound Prowl unit; `--at-boot` adds user lingering. Without systemd the daemon manages both detached processes |
+| `user` | text, images (paths), terminal context, handoff |
+| `text` | message id, delta: visible answer text |
+| `thought` | message id, delta: reasoning text |
+| `tool` | call id, title, kind, status, input, output, diff, terminal, locations; later events for the same call id overwrite the fields they carry |
+| `permission` | request id, call id, title, kind, options |
+| `permission_resolved` | request id, chosen option or `cancelled` |
+| `plan` | entries with content, status, priority |
+| `terminal` | terminal id, command, output delta, exit code, done |
+| `turn_start` | turn number |
+| `turn_end` | turn number, stop reason, token usage |
+| `error` | message, code |
+| `model` | current model, options |
+| `mode` | current mode, options |
+| `commands` | slash commands the harness offers |
+| `answer` | Ask only, before `turn_end`: actions, command plan, `needsAgent` and reason, `via` (provider/model) |
+| `title` | new title |
 
-Rashin runs as `ryoku-rashin.service`, a systemd user unit installed under
-`/usr/lib/systemd/user` by the package and under `~/.config/systemd/user` by
-`deploy.sh`. Prowl has a separate `ryoku-prowl.service` with no install target
-and listens on port 8788 unless `RYOKU_PROWL_PORT` overrides it. Both ship off.
-Starting or enabling Rashin starts Prowl; stopping Rashin stops
-Prowl too. The `enabled` gate in `rashin.json` remains the source of truth, and
-the detached fallback starts and stops both processes when no systemd user
-manager is available.
+Rules:
 
-The dashboard serves on `http://127.0.0.1:3600`. Its localhost API includes
-status, vitals, system inventory, theme, wallpaper, vault, memory, skills,
-harnesses, doctor, fixes, quick-lane settings, and the two chat WebSockets.
-`GET /api/status` reports both Rashin and Prowl. For GET, POST, PUT, PATCH, and
-DELETE, `/api/prowl/{rest...}` proxies these authenticated gateway groups:
-`keys`, `providers`, `profiles`, `fallback`, `models`, `usage`, `logs`,
-`logins`, `signin`, `settings`, `health`, `catalog`, `free-tier`, `cache`,
-`update`, `projects`, `setup`, and `code`. It never exposes `/v1` to the
-browser. Code requests use Rashin's source mirror by default. The earlier
-`/api/prowl`, `/api/prowl/search`, `/api/code/*`, and `/api/providers` routes
-are retired. Vitals come from `/proc` and `statfs`, with GPU data from
-`nvidia-smi` when present.
+- `text`, `thought` and `terminal` deltas are coalesced in the daemon to at most
+  one event per 50 ms per message or terminal, and each emitted event is the
+  persisted one, so live and replayed streams are identical.
+- `session.attach {id, since}` replays every event with `seq > since`, then
+  streams. A reconnecting client passes the last seq it applied.
+- Every open permission is answered exactly once: by the user, by policy, or
+  with `cancelled` when the turn is cancelled or the agent stops.
+- Ask sessions keep the newest 200; Agent sessions stay until deleted.
+- `SessionInfo.state`: `idle`, `working`, `waiting` (open permission),
+  `stopped` (agent process not running), `failed`.
 
-## Ask, Agent, and Chat
+Ids are `<kind>-<yyyymmdd>-<hhmmss>-<4 hex>`, which sort by creation.
 
-Rashin keeps quick questions, machine work, and plain harness chat separate:
+## Gateway
 
-| Mode | Surfaces | State and purpose |
+The built-in router replaces Prowl. It serves Ask only, in process; it opens no
+port.
+
+- **Catalogue** (`internal/gateway/catalog.json`, embedded): curated
+  OpenAI-compatible providers with free or renewable tiers. Each entry has an
+  id, name, base URL, auth (`bearer`, `none`, `cloudflare` account plus token),
+  `keyless`, signup URL, extra headers, and its free chat models (id, name,
+  context, tools, reasoning, vision, quality rank, speed rank). Derived from
+  Prowl's MIT catalogue (attributed in `ryoku/rashin/NOTICE`). Non-chat models
+  (speech, transcription, guard, embedding, image) are never listed.
+- **Keys**: one record per key in `gateway.db`, the secret sealed with
+  AES-256-GCM under `master.key`. Health is honest: `healthy` only after a real
+  completion through that key, `error` only after the provider rejects the key
+  (401, or 403 with an invalid-key message), `unknown` otherwise. A model list
+  that answers proves nothing.
+- **Availability**: a model is available when its provider is enabled, has a
+  key that is not `error` (or is keyless), and neither the model, key nor
+  provider is cooling down.
+- **Routes**: `auto` orders available models by quality rank then recent
+  success; `auto:fast` by measured time to first token, then speed rank;
+  `auto:smart` by quality rank only; `<provider>/<model>` pins one model and
+  fails over to `auto` only when the user's request did not pin it. A request
+  with tools only considers models with tool support.
+- **Failover**: at most 6 attempts and 45 s before the first streamed byte,
+  then the error is final. Classification: invalid key → mark the key `error`,
+  try the next key or provider; 429 → cool the model and key down for
+  Retry-After or 60 s, or until UTC midnight when the message names a daily
+  quota; 402 or exhausted credit → provider cooldown 24 h; 404 or 410 model
+  missing → model cooldown 24 h; 413 or context too long → next model with a
+  larger context; 5xx, timeout or transport error → provider cooldown 2 min.
+  Once a byte is streamed there is no failover: the stream ends with an error.
+- **Usage**: per day, per provider and model: requests, successes, failures,
+  tokens (exact when the provider reports them, otherwise estimated and marked).
+- **Zero setup**: keyless providers work with no key, so Ask answers on a fresh
+  machine when one of them is up. When nothing is available Ask says so and
+  names the next step (add a free key in Rashin > Settings > Providers).
+
+## Ask
+
+The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
+
+- **Prompt**: Ryoku identity, the vault contract and `desktop.md` map from the
+  Ryoku vault (trimmed to budget), the user's habits when enabled, the terminal
+  context when the ask came from a terminal, and the rules: answer GUI first
+  (name the Hub page, shell picker or bar style setting before any command),
+  cite vault wiki pages by name, plain sentence-case prose, no em dashes.
+- **Tools** (all read-only, at most 8 rounds per turn):
+  `system_query` (a shell command that the command classifier rates
+  read-only; anything else is refused with "propose it instead"),
+  `read_file` (bounded, refuses secrets: keys, tokens, credential stores,
+  `~/.ssh`, browser profiles), `list_dir`, `search_system` (the system index),
+  `search_code` (a project index), `read_wiki` (a vault wiki page),
+  `fetch_url` (GET over http(s), text only, 200 KiB, public addresses only),
+  `doctor` (`ryoku doctor --json`, cached 2 min), and `propose` (a command plan
+  for the user: commands with a why and a tier).
+- **Command classifier**: tiers `read`, `write`, `system` (root or package
+  manager), `danger` (destructive or irreversible). Wrappers, pipes, segments,
+  redirects, substitutions and `find -exec` are classified by their worst part;
+  `sudo`, `doas`, `pkexec`, `su`, `run0` are never read-only.
+- **Answer**: the streamed text, then one `answer` event with actions extracted
+  from the final text (paths to files and folders that exist, URLs, colours,
+  commands) and the plan when `propose` ran. When the work needs changes the
+  model ends with `NEEDS_AGENT: <reason>`; the runner strips it and sets
+  `needsAgent`.
+- **Follow-ups**: an Ask session keeps its conversation; earlier turns are
+  replayed into the prompt within a token budget.
+- **Handoff**: `session.handoff` opens an Agent session (default harness unless
+  named) whose first user event carries the question, the answer and the
+  reason; with `run` it prompts at once.
+
+### In a terminal
+
+`rashin <question>` (or `rashin ask <question>`) asks with origin `terminal`
+and the terminal context (cwd, last command and its exit status from the shell
+hooks' `RASHIN_LAST_CMD` and `RASHIN_LAST_STATUS`). Prose streams to stderr;
+the plan follows. `--buffer` prints only the plan's commands on stdout (one per
+line) for the shell hooks to place on the prompt; nothing runs until the user
+presses Enter. `-c` continues the last terminal session, `--resume` lists recent
+asks, `--last` prints the last answer again. Fish, Bash and Zsh hooks
+(`ryoku/apps/*/rashin.*`) wrap the command and bind Alt+R to turn the current
+command line into a proposed command; they do nothing while `rashin` is absent.
+
+## Agent
+
+The harness runner (`internal/harness`) speaks ACP version 1 over the agent's
+stdio. The daemon spawns the agent in the session's working directory (chosen
+when the session is created, default the home directory).
+
+| Id | Harness | Command |
 |---|---|---|
-| **Ask** | Alt+Space Ask, the launcher's `\` prefix, the console's Ask sheet, and the `rashin` terminal command | Fast, read-only answers with their own history in `$XDG_STATE_HOME/ryoku/rashin-asks.jsonl` |
-| **Agent** | Alt+Space Agent, the pinned bubble, and the console's Agent sheet | The persistent machine-aware session, with the vault, `ryoku` skill, wiki, code index, tools, and approvals |
-| **Chat** | The console's Chat sheet | A plain conversation with the selected harness, without the machine map or Needle identity |
-
-The Agent and Chat each have their own hub, harness process, transcript, and
-session history. Agent runs in the vault. Chat runs in
-`$XDG_STATE_HOME/ryoku/rashin-chat`. An ask never enters either transcript.
-Nothing it reads or answers appears in the Agent conversation unless the user
-hands it off.
-
-### How Ask answers
-
-The Ask route picker is separate from the Agent model picker. Its first choice
-is **Agent model**, which uses the selected harness and model. Prowl routes
-follow when Prowl is connected and routable:
-
-1. A Prowl route starts with the authenticated `/v1/chat/completions` fast lane.
-   Its bounded loop has read-only tools for machine facts, files, the Prowl code
-   index, and URL reads.
-2. The Agent model route skips that fast lane. A Prowl answer that needs broader
-   inspection, or a route that is unavailable, also takes this path.
-3. Rashin opens a fresh private harness session for that one ask. The session is
-   strictly read-only and never presents an approval. A denied mutation or a
-   request that needs work returns `needsAgent` with a short explanation of what
-   the Agent would do.
-4. The answer is appended to `rashin-asks.jsonl`, with the route or harness and
-   model that answered it. It is not broadcast to the Agent or Chat.
-
-`GET /api/quick` reports **Agent model** first, then the available Prowl routes.
-`POST /api/quick` changes only the Ask route. Ask works without Prowl. Cancel
-stops only the in-flight ask, including its private read-only session.
-
-### Hand an ask to the Agent
-
-An answered ask offers **Continue with the agent**. It adds the question and
-answer to the Agent transcript as a compact **From Ask** card, switches to
-Agent, and focuses the field. The next Agent message continues from that card.
-The hand-off itself does not run another turn.
-
-While Ask is still working, or when the answer says it needs the Agent, the
-action becomes **Move to the agent**. It cancels the ask, adds the **From Ask**
-card, and immediately runs the original question as an Agent turn. The
-`needsAgent` explanation says what that turn is expected to do.
-
-### Action chips
-
-The `@answer` payload carries verified actions found in the answer:
-
-| Kind | Detected as | Chip does |
-|---|---|---|
-| `file` | a path that exists and is a file | opens it in `nvim` in a kitty window |
-| `dir` | a path that exists and is a directory | opens it in the file manager |
-| `url` | an `http(s)` link | opens it in the browser |
-| `cmd` | a backtick span whose first word is on `PATH` | copies the command |
-| `color` | a hex color, shown with a live swatch | copies the hex |
-
-The answer also offers Copy, the appropriate Agent hand-off, Open Rashin, and
-Pin bubble. Nonexistent paths and non-runnable command spans are dropped.
-
-### Model choices
-
-Rashin stores one explicit model pick per harness. A pick made in the bar,
-console, or any other Rashin surface applies to that harness everywhere:
-Agent, Chat, every new or loaded session, respawns, and private Ask sessions.
-The current pick is shown in every surface. If the harness no longer offers it,
-Rashin keeps the preference, leaves the live session on its current model, and
-shows **Saved model unavailable**.
-
-Prowl's Active set remains one option when it has been added to the harness. It
-does not replace the harness's other models. The Ask route picker is a different
-choice: it selects Agent model or a Prowl route without changing the harness
-model.
-
-The Agent supports Hermes, Codex through `codex-acp`, Claude Code through
-`claude-code-acp` or `claude-agent-acp`, omp, opencode, and Gemini CLI. **Open
-in terminal** runs `ryoku-rashin terminal` and resumes the current Agent session
-in the harness's own TUI when that harness supports resume. Hermes, omp, Claude
-Code, and Codex currently do.
-
-### The bar's drawers and notifications
-
-The header names the current mode: `RASHIN // ASK`, `AGENT`, `TOOLS`, or `WEB`.
-Ask carries a route pill under the field, then shows the answer's actual route
-after it finishes. Ask history lists recent asks; Agent history lists Agent
-sessions. The model drawer lists Ask routes in Ask mode and harness models in
-Agent mode. `Ctrl+Shift+H` and `Ctrl+Shift+M` open the two drawers.
-
-Buttons give press feedback, mode changes crossfade, transcript items enter in
-order, and the live marker and orb report active work without making the bar
-jump. The pinned Agent bubble stays clear of the bar. When an Agent turn ends
-or needs approval while no Rashin surface is visible, Rashin sends a desktop
-notification. Activating it opens the bar in Agent mode.
-
-### `\resume`
-
-Typing `\resume` lists recent asks from `rashin-asks.jsonl`, newest first.
-Picking one recalls its stored answer and chips without a model call. The Ask
-bar, launcher, console Ask sheet, and `rashin --resume` read the same Ask
-history.
-
-## The Rashin app
-
-The quick bar is one surface; the companion window is another. `rashin-app`
-(`ryoku/rashin/app/`, shipped by `ryoku-rashin`) is a small GTK3 + WebKitGTK
-window that hosts the Rashin console the daemon serves. It opens like a normal
-window from Super+Alt+Space, the launcher, `rashin-app`, or Open Rashin, and is
-single-instance. It shows a dark boot page until `/api/ping` answers, then
-loads `http://127.0.0.1:3600/#/agent`.
-
-The host is a client of the daemon, never a second brain. The console is one
-Svelte app (`ryoku/rashin/web/`) that a browser sees on the same port. Links to
-other origins open in the default browser, notifications are granted, and the
-window remembers its size. Its icon is Rashin's seal from
-`ryoku/assets/brand/rashin-mark.svg`; the console favicon and bar header use
-the same family.
-
-| Sheet | What it holds |
-|---|---|
-| Agent | The persistent machine-agent workspace: sessions, transcript, thinking folds, tool rows, diffs, approvals, composer, images, model, usage, tools, commands, and Open in terminal |
-| Ask | A read-only question field, streaming answer and route, recent Ask history, Ask route picker, cancel, and the Continue or Move to the agent hand-off |
-| Chat | The same workspace shape on the plain Chat lane, without machine context |
-| Wiki | The shipped guides for someone new to Ryoku, rendered with deep links |
-| Overview | Wallpaper, clock, live vitals, code index summary, health, and vault state |
-| System | Services, timers, cron, containers, sockets, processes, filesystems, Doctor, and deterministic tips |
-| Vault | The grouped tree, rendered documents, deep links, and reindex |
-| Memory | Provider tiles, vault graph, activity, and Hermes session history |
-| Skills | One tab per harness, grouped and counted |
-| Prowl | Prowl gateway, provider, route, activity, index, harness, and toolkit controls |
-| About | What Rashin is, live system facts, and shortcuts |
-
-Agent and Chat project their own `/ws/chat` streams through the shared reducer
-used by the bar. Ask uses `/api/ask` and its separate history. A turn started in
-one Agent surface is live in the other Agent surfaces, but Ask never appears
-there without a hand-off. Console-only state covers layout details such as pane
-collapse, drafts, and the last vault file. The console wears the desktop's live
-palette from `GET /api/theme` and retints while open.
-
-## In the terminal
-
-The launcher's `\` ask has a sibling on the command line: the `rashin`
-command. `rashin take me to the fastfetch config` answers from the same
-read-only Ask system and can put a proposed command on the fish prompt.
-`rashin scan Documents for pngs and move them to Pictures` returns a validated
-one-liner informed by `habits.md`. Rashin does not run that proposal itself;
-the command buffer is the confirmation and each command carries a
-read/write/system/danger tier.
-
-Terminal asks share the daemon, vault, model route, and `rashin-asks.jsonl`
-history with the bar, launcher, and console Ask sheet. They do not share the
-Agent transcript. `rashin -c` carries the previous terminal exchange into a
-new read-only ask, and `rashin --resume` recalls a stored result. Repeated asks
-can become `rr-<name>` shell recipes. Full behavior is in
-`docs/rashin-terminal.md`.
-
-## The dashboard
-
-The same console, in a browser: `http://127.0.0.1:3600` serves the Svelte app
-built from `ryoku/rashin/web/` (Svelte 5, bits-ui for every headless control,
-the Libraries.dev effects for the Needle's face, the thinking orbs and the
-composer's beam). The build output is committed under
-`ryoku/rashin/backend/web/dist` and `go:embed`-ed, so `go build` alone ships
-it and no node runs on an installed box; the fonts ship as subset woff2 inside
-the bundle; nothing is fetched from a CDN. The dashboard is a Ryoku surface,
-not a product with its own costume: it speaks the Hub's paper and ink
-(`docs/ui-ux.md`) and wears the desktop's live palette. `GET /api/theme`
-resolves the Material roles the way `Tokens.qml` does (a named scheme, then
-the wallpaper, then the signature default), and the page retints within 15
-seconds of a wallpaper or scheme change. Emphasis is inversion (a bone plate
-for the active sheet, file, or segment), colour is data, and the 力 seal stays
-vermillion. Fraunces sets titles, Space Grotesk the language and numerals,
-Space Mono the tracked labels and paths, Noto Sans CJK JP the kanji gloss
-beside every sheet name.
-
-Navigation is three floating islands, like QS Bar's islands form: the seal, the
-sheets, and the daemon/hermes/prowl lamps with a clock. The Overview opens on
-the wallpaper that is on screen right now (`GET /api/wallpaper` serves the file
-`~/.local/state/ryoku-wallpaper` names; a live wallpaper plays muted while the
-sheet is visible), with the desktop clock's numerals and a sysmon readout over
-it. Motion is small and purposeful (a sheet eases in, the numerals rise once,
-bars sweep) and yields to the OS reduced-motion setting and to
-`theme.motion.reduce` in `shell.json`.
-
-| Panel | Content |
-|---|---|
-| Overview | The live wallpaper with the clock, host, kernel, uptime, and a CPU/memory/disk/GPU sysmon readout; a health band when Ryoku's health check found something a person must decide, with Fix with AI; then the code intelligence card led by measured token savings from the Prowl index and the system summary card |
-| System | The machine as a home server: services (running/stopped/user), timers (firing and dormant), cron/anacron/at, docker containers, listening sockets with reach, top processes, filesystems, the Doctor tab (`ryoku doctor --json`, read-only: every finding that needs attention, advisory notes folded away), and deterministic tips. Commands copy to your clipboard; Fix with AI on a tip or finding hands it to the agent. The sheet itself never runs anything |
-| Vault | Grouped tree (maps, memory, journal; the agent-facing source mirror collapsed), rendered markdown, reindex button, generated-file badges |
-| Memory | Provider tiles (builtin or external, with Obsidian vault detection), the 2D force graph of the vault's notes and their references with a data-driven legend, a 26-week activity heatmap, and the Hermes session history read from `~/.hermes/state.db` |
-| Skills | One tab per installed harness: Hermes skills grouped by category with origin counts (bundled, hub, agent-grown) and the enabled toolbelt grouped into families; every other harness lists the skills it carries, grouped by origin when long |
-| Prowl | A left rail for Overview, Providers, Routing, Activity, Projects, Harnesses, and Toolkit. Providers holds keys and sign-ins; Routing holds Prowl sets and Ask routes; Harnesses adds Prowl to detected CLIs and controls whether each defaults to Prowl auto |
-| About | What Rashin is, the system manifest with live facts, quick start, a command crib (`hermes -h`, `prowl overview`), and the privacy note |
-
-### Conversation workspaces
-
-The console's Agent and Chat sheets are live views of their own harness
-sessions. Thinking streams while the harness works and then folds; each tool
-call is one row with its output or diff; approvals stay on the row that asked.
-The searchable model picker changes the harness-wide saved pick, so Agent,
-Chat, loaded sessions, respawns, and private Ask sessions converge on the same
-choice. The Ask sheet has no approvals because every ask is strictly
-read-only.
-
-### Fix with AI
-
-Wherever Ryoku already knows something is wrong, one button hands it to the
-agent: every tip on the System sheet, every finding on the Doctor tab (and "Fix
-all" for the lot), the Overview's health band, the Hub's Updates page after an
-update whose health check found issues, and `ryoku doctor` itself, which offers
-`ryoku-rashin fix doctor` when Rashin is on. From a terminal,
-`rashin fix app firefox it crashes when I open a PDF` does the same for any app.
-
-A fix opens in the user's own agent harness, in a real terminal, not in a chat
-panel: the harness's own interface already streams its thinking, shows each
-command and its output, asks its own approvals, and switches models. The harness
-is the one `fix.agent` names in `~/.config/ryoku/rashin.json`, else the chat
-agent picked in Rashin, when it can open a repair (Hermes, Oh My Pi, Claude
-Code, or Codex), otherwise the first of those installed. For Codex, `fix.model`
-and `fix.effort` set the model and reasoning effort of that session only, for
-example `"fix": {"agent": "codex", "model": "gpt-6.1-sol", "effort": "low"}`;
-Codex's own config stays as it is. Run without a terminal (the Updates page
-button), `ryoku-rashin fix` opens the terminal at once and answers with the
-harness it will start; the health check and any error then show in that
-terminal, which stays open on a failure. It starts in the vault,
-so the machine map is its working directory, with the Needle persona as extra
-system prompt (Hermes and Codex, which take none, get it at the top of the message) and
-the problem as its first message: a one-line `Fix with AI: <problem>` and a brief
-that names the problem, the commands most relevant to it, and how to work:
-gather the evidence with `ryoku-rashin logs`, check `ryoku owner` before editing
-any file, explain the cause, ask before anything destructive or anything that
-needs sudo, verify, say how to undo it, and write the findings to the vault
-journal. Hermes cannot start interactively with a first message, so its fix runs
-the brief as one query and then resumes that session in the same terminal.
-
-`ryoku-rashin fix` resolves the problem against what the machine reports right
-now (the tip by id from the live scan, the findings from the doctor scan). Run
-from a terminal, the harness takes over that terminal; spawned from the Hub or
-the shell, it opens the terminal chosen in Default Apps (`ryoku-app terminal`).
-The dashboard's buttons go through `POST /api/fix`, which opens that terminal
-the same way. The window runs as its own transient user unit
-(`ryoku-fix-*.service`), so restarting the daemon never closes a repair, and a
-harness that exits with an error leaves its message on screen until Enter.
-
-## Prowl ships with Rashin
-
-Rashin is the app people open. Prowl is an external tool that plugs into
-harnesses as a model gateway, code index, and skill source. Ryoku ships it as
-the `prowl` package and `/usr/bin/prowl`. The two stay separate processes so
-Prowl keeps its own gateway and index engine, while Rashin hosts its lifecycle
-and control surface.
-
-Both processes ship off, and Prowl starts only when something needs it: a quick
-ask, the console's Prowl pages, or an agent that reaches its model through
-Prowl. Rashin brings up `ryoku-prowl.service` (the runit service on Void) on
-port 8788 for that and stops it once nothing has used it for 15 minutes, no
-agent routed through it is running and no client holds a connection. **Keep
-Prowl running** on the Hub's Rashin page (`ryoku-rashin prowl keep on`) keeps
-it up for other apps that use the gateway directly. Stopping Rashin stops it.
-
-The chat agent works the same way. It starts when a chat surface opens and
-leaves two minutes after the last one closes and its turn ends, so an idle
-desktop carries only the small Rashin daemon. The next open loads the same
-session back.
-
-The `ryoku-rashin` package depends on `prowl`, so `pacman -Syu` updates them
-together. The Prowl binary is stamped as pacman-managed and will not overwrite
-itself. A source-installed binary on a development box may still use
-`prowl update`.
-
-Prowl keeps its existing state directories at
-`$XDG_DATA_HOME/prowl-agent/gateway/` and
-`$XDG_STATE_HOME/prowl-agent/registry.json`. The old name remains only there
-because Prowl owns those durable paths and their migration; Ryoku never renames
-them.
-
-## Prowl integration
-
-The console's **Prowl** section is the full control surface. Its Overview,
-Providers, Routing, Activity, Projects, Harnesses, and Toolkit pages manage
-provider keys and sign-ins, routing sets, request history, code indexes,
-harness connections, and portable skills.
-
-**Connect** adds Prowl's `auto` model and toolkit to a harness without changing
-that harness's default. **Default to Prowl auto** is a separate switch for the
-user who wants Prowl to become that harness's default. Disconnect removes the
-integration. The model picker still lists the harness's own models alongside
-one Prowl Active set choice.
-
-Background wiring never makes that choice for the user. `ryoku-rashin wire`,
-`ryoku update`, deploy, doctor, and daemon startup refresh credentials only for
-harnesses the user already connected. They do not connect another harness,
-change a default, replace the saved model pick, or restart the Agent. Choosing
-which harness backs Rashin also does not connect it to Prowl.
-
-The Ask route picker is independent. It offers Agent model first and available
-Prowl routes after it. Changing an Ask route does not change the harness
-default or its saved model.
-
-Rashin proxies the gateway's management API under `/api/prowl/`, adding the
-machine-local token itself. The browser never receives that token and cannot
-proxy `/v1`. Code requests default to Rashin's source mirror, while the Projects
-page can register and reindex other trees.
-
-Prowl parses code with tree-sitter and stores its lexical index in SQLite FTS5.
-Prose uses Porter stemming. Semantic search uses minishlab's
-`potion-code-16M` static embedding model, compiled into the binary with no
-runtime download, and stores vectors in sqlite-vec. Reciprocal-rank fusion
-combines the FTS and vector rankings. An optional local Ollama model is used
-only by `--smart` for query rewriting and reranking, never for embeddings.
-
-## The source mirror
-
-On a packaged box there is no source checkout for prowl to index, so the
-prowl MCP server and `search_code` would otherwise answer only on a
-maintainer's machine. Every reindex closes that gap: Rashin mirrors the live
-config (`~/.config/quickshell`, `~/.config/hypr`, and
-`~/.config/ryoku/*.json`) into
-`~/.local/share/ryoku/rashin/source/` (with rsync when available, else a Go
-copy that skips symlinks and files over 2 MB), writes a short `README.md`
-marking it read-only, and runs `prowl init` there under a 120 s budget. The
-mirror carries Prowl's index and is read-only; edits there are overwritten and
-never reach the desktop.
-
-`prowlRepo()` prefers a dev checkout that carries a `.prowl` index (the
-deploy-recorded checkout, honouring `RYOKU_RASHIN_REPO` and
-`~/.local/state/ryoku/repo`), and falls back to the mirror when it carries one,
-so the code index answers everywhere while a dev checkout still wins on a
-maintainer's machine. The whole step is best effort and bounded: a missing
-prowl or a copy error degrades it and never fails the reindex.
-
-## One-click setup
-
-The `setup` verb runs in a floating kitty (the Extras pattern), streaming
-progress as JSON to `$XDG_RUNTIME_DIR/ryoku-rashin/setup.json`, which the Hub
-page watches live. The flow:
-
-1. **Preflight:** check `curl`, a Python toolchain (`uv` or `python3`), network
-   reachability, and disk space; detect an existing Hermes. `uv` and `nodejs`
-   ship as `ryoku-rashin` dependencies, so a stock box needs no downloaded
-   build toolchain.
-2. **Install Hermes** via its official installer under `$HOME` when absent.
-   Setup never runs with sudo.
-3. **Connect:** add Prowl's `auto` model and toolkit to Hermes. Setup makes it
-   the default only when Hermes has no model configured yet. Once
-   `hermes acp --check` passes, setup skips Hermes's interactive provider step.
-4. **Wire:** ensure the vault, reindex, point Hermes's workspace at the vault so
-   `MEMORY.md` and sessions live there, and write the vault `AGENTS.md` pointers.
-5. **Global pointers:** append a marker-fenced block to each detected agent's
-   global instructions file (see below).
-6. **Enable** Rashin and its Prowl gateway, then open the console.
-
-### Two Hermes safety rules
-
-Hermes is the resident agent, and setup treats an existing install as sacred.
-
-1. **Never clobber an existing Hermes.** If Hermes is already installed and
-   configured, setup skips install and onboarding entirely and only wires. Your
-   provider and model choices are untouched. Wiring uses the supported interface,
-   never a raw edit of `~/.hermes/config.yaml`.
-2. **Wiring is re-checked on serve start; drift shows in status.** Hermes's own
-   onboarding can rewrite its config, so wiring runs after `hermes setup`
-   finishes, and `ryoku-rashin serve` re-checks the wiring on start and re-applies
-   it if it was lost. `status` reports drift so the Hub and dashboard can offer a
-   re-wire action.
-
-## Agent pointers
-
-Wiring appends one marker-fenced block to each detected agent's global
-instructions, telling it the vault exists and to read it first. The block is
-idempotent (wire replaces an existing block or appends a fresh one) and reversible
-(unwire removes the block and leaves the file):
-
-```markdown
-<!-- ryoku-rashin:begin -->
-## Ryoku Rashin system vault
-
-This machine runs Ryoku (Arch Linux, Hyprland desktop). A maintained map of the
-system lives at `~/.local/share/ryoku/rashin/`. Before exploring the machine or
-guessing paths, read `AGENTS.md` there: it says where every config lives, which
-binary owns it, and how to reload it. Write durable notes to `memory/` and
-dated notes to `journal/YYYY-MM-DD.md`.
-<!-- ryoku-rashin:end -->
+| `claude` | Claude Code | `claude-code-acp`, else `claude-agent-acp` |
+| `codex` | Codex | `codex-acp` |
+| `opencode` | OpenCode | `opencode acp` |
+| `gemini` | Gemini CLI | `gemini --experimental-acp` |
+| `qwen` | Qwen Code | `qwen --experimental-acp` |
+| `hermes` | Hermes | `hermes acp` |
+| `omp` | Oh My Pi | `omp acp` |
+| `goose` | Goose | `goose acp` |
+
+A harness is installed when its command resolves on `PATH` (Hermes also from
+`~/.hermes/bin` and `~/.local/bin`). Its version comes from `--version` with a
+2 s timeout, cached per binary mtime.
+
+Client capabilities Rashin offers: `fs.readTextFile`, `fs.writeTextFile`,
+`terminal`. Rashin reads and writes files for the agent (recording each write as
+a `tool` event diff), and runs its terminals (pipes, output capped at 1 MiB per
+terminal, killed on release or session stop).
+
+- **Approvals** follow `agent.approvals`. Under `read-only`, tool calls of kind
+  `read`, `search`, `fetch` and `think` are allowed at once; the rest ask.
+- **Permissions** arrive as `permission` events; a client answers with
+  `session.permission`. A request that arrives before its tool call carries the
+  tool call and is shown at once.
+- **Models and modes**: legacy `models` and `configOptions` (category `model`)
+  are both read; choosing one uses `session/set_config_option` when the harness
+  exposes the option, else `session/set_model`. Modes use `session/set_mode`.
+- **Resume**: the harness's session id is kept in `meta.json`. A stopped
+  session restarts its agent on the next prompt with `session/load` when the
+  agent advertised `loadSession`, otherwise with a new session and a `notice`.
+- The harness keeps its own model and provider configuration; Rashin never
+  edits a harness's files.
+
+## Index
+
+The index engine (`internal/index`) is pure Go.
+
+- **Profiles**: `system` (id `system`) and projects (id from the root path).
+  The system profile covers the Ryoku vault, `$XDG_CONFIG_HOME` (minus caches,
+  backups, browser and chat-app profiles, keyrings, credential files,
+  databases and files over 512 KiB), `/usr/share/ryoku` and `/etc/ryoku`; a
+  config file identical to its shipped copy is indexed once. A project is any
+  directory added with `rashin index add` or registered as a Work project, and
+  the index commands of the command line register the git root of the current
+  directory on first use. `/`, the home directory and its ancestors are never
+  an index root, and roots are absolute.
+- **Walk**: `.gitignore` at every level, extra ignores, symlinks that escape
+  the root are skipped, binary files are skipped. Projects also skip vendored
+  and generated trees (`vendor/`, `node_modules/`, build outputs, virtual
+  environments), minified bundles, source maps, lock files, structured data
+  over 256 KiB and any file over 1 MiB.
+- **Extraction**: Go through `go/parser`; Python, JavaScript, TypeScript, Rust,
+  C and C++, Lua, Bash and Fish, QML, KDL, Markdown, JSON, YAML, TOML, INI and
+  CSS through line-oriented extractors (definitions, their spans, signatures,
+  doc comments, imports). Chunks are 40-line windows of at most 8 KiB that keep
+  a symbol of up to 80 lines whole.
+- **Redaction**: secrets (key patterns, private key blocks, `password`/`token`
+  style assignments in every common syntax, credentials in URLs) are replaced
+  before anything is stored, and again on the source text `peek`, `def` and
+  `references` return.
+- **Storage**: one bbolt file per index: files (path, hash, size, mtime,
+  language), symbols, chunks, an inverted index for BM25, int8 vectors and the
+  counts `list` reports. Refresh is incremental by content hash and runs before
+  a query when files changed; vectors of unchanged chunks are kept. Each index
+  refreshes on its own: listing, status, removal and queries on other indexes
+  never wait for it, and removing an index cancels its refresh.
+- **Embeddings**: `minishlab/potion-code-16M` (MIT), int8-quantized (256
+  dimensions, 61,826 tokens), embedded in `rashind` with its pure-Go WordPiece
+  tokenizer and loaded on first semantic use. Vectors are computed in the
+  background after the lexical refresh, in bounded batches.
+- **Search**: BM25 over chunks and cosine over vectors, fused with reciprocal
+  rank (k 60); lexical only when vectors are off or not yet computed. Ask
+  searches with `existing` set: only registered indexes, never waiting for a
+  refresh (one starts in the background), so a question never builds an index.
+- **Queries**: `search`, `find` (exact, prefix, camel/snake parts, fuzzy),
+  `def` (body up to 200 lines), `outline`, `references` (whole-word call sites),
+  `peek` (up to 200 lines), `overview` (counts, languages, entry points,
+  largest files and most imported files), `impact` (files that import a path,
+  transitively, from Go, Python, JavaScript/TypeScript, C/C++, QML, Lua and
+  shell `source` edges), `wip` and `changed` (git state against the index).
+
+Command line: `rashin index add|remove|list|refresh|status`, `rashin search`,
+`find`, `def`, `outline`, `references`, `peek`, `overview`, `impact`, `wip`,
+`changed`, each with `--index <id>` and `--format human|json|toon` (human on a
+terminal, TOON when piped). The daemon runs the engine; the command line is a
+client, so it says Rashin is off when it is.
+
+## Work
+
+Everyday Rashin is Ask. Work is what Rashin becomes when it is pointed at code:
+projects, Git worktrees, a commit graph, review, checkpoints and tasks, owned by
+the daemon so several agents run in parallel without touching each other's
+files. The ideas come from Orca (repository, worktree and agent model, agent
+board, decision gates, setup hooks, diff comments sent to the agent, cleanup
+with reasons), T3 Code (lazy sessions, per-turn checkpoints, queue and steer,
+harness instances, capability-driven UI), omp (agent hub, plan mode, fork from
+here), Paperclip (tasks separate from sessions, board, dependencies, ledger,
+work products) and GitKraken, GitLens and lazygit (lane graph, a WIP row per
+worktree, worktree badges, details panel). Nothing in Work runs until a project
+is opened, and nothing runs at rest.
+
+### Model
+
+```
+project -> worktree -> session -> turn (with a checkpoint)
+project -> task -> worktree + sessions
 ```
 
-Wire targets, one per detected agent:
+- A **project** is a registered folder, usually a Git repository; its id is the
+  index id of its root, and registering it registers that index. Projects and
+  their settings live in `$XDG_STATE_HOME/ryoku/rashin/projects.json`.
+- A **worktree** is a real `git worktree`; its absolute path is its identity.
+  Git stays the source of truth for what exists. Rashin records the worktrees it
+  creates (owned), with base ref and base commit, parent worktree (sidebar
+  nesting only), task, setup state and last activity. Rashin-made worktrees
+  live under `$XDG_DATA_HOME/ryoku/worktrees/<project>/<name>` (a project
+  setting) on branch `<prefix><name>` (prefix `rashin/`).
+- A **session** may bind to a project and a worktree (Agent sessions only).
+- A **task** is a durable work item separate from the sessions that work on it:
+  title, goal, board column, dependencies, decision gates, its worktree and
+  sessions, and its products (branch, commits, files and lines changed).
 
-| Agent | File |
-|---|---|
-| Claude Code | `~/.claude/CLAUDE.md` |
-| Codex CLI | `~/.codex/AGENTS.md` |
-| opencode | `~/.config/opencode/AGENTS.md` |
-| Oh My Pi | `~/.omp/agent/AGENTS.md` |
-| Hermes | `~/.hermes/memories/MEMORY.md` |
+### Worktrees
 
-Blocks are additive and only touch agents that are already present; Rashin never
-creates an agent's own directory (except opencode's `~/.config/opencode`).
+- Create from the project base ref (`origin/HEAD` when it resolves, else the
+  main worktree's branch), a branch, a commit or a remote branch: new branch,
+  existing branch or detached, optionally locked with a reason (atomic
+  `--lock`). Never forced: a branch checked out elsewhere names that worktree
+  and offers to open it.
+- After creation the project's listed gitignored files (`copyIgnored`, such as
+  `.env`) are copied from the main worktree, then setup runs when asked: the
+  project's setup command (typed by the user, so trusted) or a repository script
+  `.rashin/setup` only after the user trusted that exact content (its sha256 is
+  kept in the project settings). Output is kept; states none, running, done,
+  failed, untrusted.
+- Status: porcelain v2 (branch, upstream, ahead and behind, staged, modified,
+  untracked, conflicted, operation in progress) plus ahead, behind, added and
+  removed lines against the worktree's base.
+- Removal is two steps. The preview lists dirty and untracked files, unpushed
+  commits, unmerged state, lock and running sessions; removal needs force
+  exactly when the preview says so; deleting the branch is a separate choice
+  (`-d`, `-D` only when asked). The main worktree is never removed. Lock,
+  unlock, move, repair, prune (dry run first).
+- Cleanup policy per project, off by default: remove Rashin-made worktrees whose
+  branch merged into the base some days ago, or that sat inactive for some
+  days, protecting uncommitted changes (or any local file), never one with a
+  running session; every kept or removed worktree comes with its reason. It runs
+  on demand, or when the daemon is awake for that project anyway.
+- Ports: listening sockets of processes whose working directory is inside the
+  worktree, read from /proc when asked, with a localhost URL.
+- The app opens the user's terminal (`ryoku-app terminal`) or file manager in a
+  worktree; no terminal emulator lives in the app.
 
-## Testing from a terminal
+### Graph
 
-The vault is plain markdown, so any agent that reads `AGENTS.md` sees the same
-map. To confirm the wiring end to end:
+- `git.log` pages the whole repository newest first in topological order with
+  full history. The first page carries the refs (branches, remotes, tags, every
+  worktree's HEAD) and one WIP row per worktree with uncommitted changes or an
+  agent session. Scopes: every ref, one branch, one worktree; search by message,
+  author or hash.
+- The app lays lanes out incrementally (`internal/gitgraph`): a lane waits for a
+  parent, the leftmost incoming lane continues, first parents run straight,
+  extra parents (octopus merges too) branch out, colours are deterministic, and
+  rows already drawn never change when more history loads. More than 24 lanes
+  collapse behind a marker that expands.
+- Decorations: branch, remote and tag labels, HEAD, a worktree badge on every
+  checked-out branch (Open worktree replaces checkout there), and a WIP row
+  above each worktree's HEAD with its counts and the agent's state.
+- Interaction: selecting a row fills the details panel (message, author,
+  parents, refs, files, diff); up, down and page keys, `/` to search, a ref
+  finder, the scope filter. Row actions: create a worktree here, create a branch
+  here, check out in a worktree, merge into a worktree, cherry-pick, revert,
+  rebase a worktree onto it, copy the hash, compare with a worktree. Every
+  mutation shows what it affects first. A conflict leaves the worktree in the
+  operation with Abort, Continue and Resolve with agent.
 
-```sh
-cd ~/.local/share/ryoku/rashin
-hermes
-```
+### Review
 
-Ask it something about the machine ("what GPU is in here and how do I switch
-graphics modes?"). A wired Hermes reads `AGENTS.md`, follows it to `desktop.md`,
-and answers from the vault instead of probing. Then write a note:
+- A worktree's changes: staged, unstaged and untracked files, and the branch
+  against its base, with hunks and line numbers. Stage, unstage, discard (with a
+  confirmation), commit with a message, push (force with lease only when asked),
+  fetch, pull (fast-forward only).
+- Comments pin to a diff line (file, line, side); resolve or delete them. Send
+  review to agent batches every unresolved comment into one prompt for the
+  worktree's session.
+- Every action that changes Git or the worktrees is written to the project's
+  ledger (`activity.list`): time, actor (you, Rashin, or a session), action,
+  target and result.
 
-```sh
-echo '- tried the vault, it works' >> journal/$(date +%F).md
-```
+### Checkpoints
 
-Reopen the console's Vault sheet and the new journal entry is there. The vault
-is shared knowledge even though Ask, Agent, and Chat keep separate histories.
+Before every Agent turn in a Git worktree the daemon snapshots the worktree's
+files (tracked and untracked, ignored excluded) into the hidden ref
+`refs/rashin/checkpoints/<session>/<turn>`, without touching the index, HEAD or
+the branch. The app shows each turn's own changes (its checkpoint against the
+next one, or against the current files) and offers Revert files to before this
+turn, refused while another session runs in the same worktree. The conversation
+stays: a harness cannot rewind its own context. Deleting a session deletes its
+checkpoint refs.
+
+### Sessions in Work
+
+- A new Agent session picks a project, then the project folder, an existing
+  worktree or a new one (name, base, branch), then a harness (built in or a
+  custom instance from Settings). Move to Agent from Ask asks the same.
+- Queue and steer: while a turn runs, Send queues the message for when it ends
+  (queued messages sit above the composer and can be removed); Steer
+  (Ctrl+Enter) cancels the turn and sends at once.
+- Fork from here copies a session up to an event into a new session; an Agent
+  fork starts its harness fresh with the copied transcript as context.
+- A session is unread when a turn ended and nobody looked; its activity line
+  names the tool it is running.
+
+### Tasks
+
+- Board columns: backlog, ready (dependencies done), working, needs you (an
+  open permission or gate), review (a turn ended with changes), done, blocked.
+  The daemon moves a task between working, needs you and review as its session
+  changes; the user moves it anywhere else and marks it done.
+- Starting a task creates a worktree from the base, named from the title, and an
+  Agent session in it prompted with the goal; tasks run in parallel, each in its
+  own worktree. A task with unfinished dependencies is blocked.
+- A decision gate is a question with options on a task. While it is open the
+  task needs you; resolving it records the answer and sends it to the task's
+  session.
+- Plan asks the free-model router to split a goal into drafts with
+  dependencies; nothing is created until the user picks drafts.
+- Products: branch, commits ahead of the base, files and lines changed,
+  refreshed after each turn.
+
+### Agents
+
+The Agents view is the hub across projects: Needs you (open permissions and
+gates, failed turns, conflicts), Working (with the activity line), Done
+(unread) and Idle. Each card names the harness, model, project, worktree and
+branch and opens the session. Stop all ends every running turn.
+
+## The app
+
+`rashin-app` is a Gio client drawn with the Lithic library
+(`docs/lithic/library/go`), built the way Ryotunes 2 is: a connection and
+reducer store over the protocol, a shell that owns windows and overlays, pages,
+and a demo daemon for headless renders.
+
+- **Window**: title `Rashin`, app id `dev.ryoku.rashin`, 1280x820 by default,
+  size persisted; compositor rules float it. One instance (`app.lock`): a
+  second launch sends `ui.open` to the daemon and exits; the running app
+  switches to the session it names.
+- **Layout**: rail (Ask, Agents, Projects, Index, Settings) with Ask as home
+  and a Needs you count on Agents; then a list pane and the work pane, with a
+  details pane on wide windows. Expanded at 1280 dp and above, medium from
+  760 dp (rail plus one pane with a list toggle), compact below (bottom bar,
+  one pane).
+- **Projects**: the project list (add a folder), then a project with tabs
+  Overview (worktrees as cards with status, setup, ports and sessions; New
+  worktree; Clean up), Graph, Changes, Tasks and Activity.
+- **Agent sessions** carry a header with project, worktree, branch, harness,
+  model and mode, and Open folder, Open terminal and Stop.
+- **Ask**: sessions newest first with their origin, transcript, composer, model
+  choice (Auto, Fast, Smart, or a free model), answer actions (copy, open file,
+  folder or link, run the plan in a terminal), Move to Agent.
+- **Agents**: the hub board and every Agent session; New session asks for a
+  project and worktree (or a plain folder) and a harness. Transcript with tool
+  calls, diffs, terminal output and the plan; permission prompts (Allow once,
+  Always allow, Deny); model and mode choice; queue and steer; each turn's
+  changes with Revert files; fork from here; Stop.
+- **Index**: indexes with their state, add folder, refresh, remove, and a
+  search field whose results open the file.
+- **Settings**: Providers (catalogue, keyless marks, add, test and remove keys,
+  sign-up links), Ask (model, habits), Agent (default harness, approvals, idle
+  stop, custom harness instances), Projects (worktree folder, branch prefix,
+  setup, files copied into new worktrees, cleanup policy), Index (system index,
+  semantic vectors), About (version, on/off).
+- **Palette**: Ctrl+K lists every action. Escape closes the topmost overlay.
+- **Off or unreachable**: one plate saying so with the next step; no retry
+  loop faster than the client's 2 s reconnect.
+- `rashin-app --demo [--png out.png --size WxH --mode dark|light --route ...]`
+  renders against an in-process demo daemon.
+
+Chat widgets the Lithic library does not have (multi-line composer, Markdown,
+code blocks, tool cards, diffs, terminal output, transcript scrolling) live in
+`internal/app/chat`, built from Lithic roles, tokens and kit parts.
+
+## The bar
+
+Alt+Space opens the bar (`ryoku/shell/quickshell/shell/modules/ask/`). Its QML
+is created when it opens and released 15 s after it closes. It talks to the
+daemon over the socket (Quickshell `Socket`, newline-delimited JSON), connecting
+when it opens and closing when it is released; when the socket is missing it
+runs `rashin ensure` once and retries.
+
+- **Ask**: one-shot asks with streamed text, answer actions, recent asks,
+  cancel, Move to Agent.
+- **Agent**: the most recent Agent session (or a new one), prompts,
+  permissions, model choice, Open in Rashin.
+- **Tools** (Stash) and **Web** are shell features and work whether Rashin is
+  on or not.
+- **Open in Rashin** runs `rashin open --session <id>`, which asks a running app
+  to switch (`ui.open`) and raises it, or launches it. `rashin open --project
+  <id or path> --view graph|changes|tasks|activity|overview [--worktree
+  <path>]` opens a project the same way.
+
+## Packaging and delivery
+
+`ryoku-rashin` ships `rashind`, `rashin`, `rashin-app`, the units, the usage
+collectors and their timer, the desktop entry and icon, and the notices. It
+depends on `ryoku-desktop`; no harness is a dependency. The Ryoku vault, its
+wiki and the `ryoku` skill ship with Ryoku core.
+
+Every edition builds it from the committed `vendor/` tree (`-mod=vendor`):
+PKGBUILD and `payload.sh` (Arch, CachyOS, Void), the RPM spec (Fedora), the
+template (Void), the Nix package. The app needs Wayland, xkbcommon, EGL and
+Vulkan headers at build time (`release/repo/build-toolchain.packages`).
+
+Service manifest rows: `rashind` (`rashind.socket`, user, on-demand) and the
+usage timer (user, on-demand); `rashin on|off` owns them.
+
+### From Rashin 1 and Prowl
+
+`ryoku vault migrate` separately moves the Rashin 1 vault into Ryoku core. It
+merges user and agent notes without overwriting conflicts and is run by the
+doctor and update refresh whether Rashin is installed or not.
+
+`rashin migrate` runs from `ryoku doctor` (once per installed package version)
+and from `deploy.sh`, and does each step once:
+
+1. Settings: `enabled` stays true only when it was true and not `optedOut`;
+   `chatAgent` becomes `agent.harness`; `approvals` becomes `agent.approvals`;
+   the rest is dropped.
+2. Provider keys: when Prowl's state exists
+   (`$XDG_DATA_HOME/prowl-agent/gateway/gateway.db` and `master.key`) and
+   `sqlite3` is installed, keys for providers in Rashin's catalogue are decrypted
+   and stored in Rashin's key store. Subscription logins are not imported.
+3. Ask history: `$XDG_STATE_HOME/ryoku/rashin-asks.jsonl` becomes Ask sessions
+   with origin `import`.
+4. Old state: `rashin-chat/`, `rashin-ask/`, the old lock and pid files and the
+   Rashin 1 and Prowl user units are removed. Vault migration remains the Ryoku
+   CLI's job (see [vault.md](vault.md)).
+
+Ryoku no longer ships Prowl or a gateway unit. `ryoku-rashin` stops depending on
+the `prowl` package but never replaces or removes it: a box that uses Prowl as
+its own tool keeps it (an orphaned dependency the user may remove). A harness
+that was routed through Prowl keeps its own configuration; `rashin migrate`
+reports any harness config that still points at the old gateway address so the
+user can repoint it.
+
+## Testing
+
+- Unit tests per package, isolated by the XDG variables; no test touches the
+  user's real socket, config or keys.
+- Fakes: an OpenAI-compatible SSE server for the gateway, a scripted ACP agent
+  for the harness runner, a small repository fixture for the index, and the
+  demo daemon for the app.
+- Sandbox: run `rashind` with all XDG variables under `/dev/shm/<run>/` and
+  drive it with `rashin call` and `rashin events`.
+- Live proof: Ask with a free provider, an Agent turn with an installed harness,
+  the bar, the app, the index commands, and the zero-at-rest checks above in
+  both the off and the absent states.

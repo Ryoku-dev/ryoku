@@ -332,18 +332,28 @@ Scope {
                     tool: perScreen.st ? perScreen.st.askTool : ""
                     onRequestClose: if (perScreen.st) perScreen.st.askOpen = false
                     onModeChangeRequested: mode => ShellState.setAskMode(perScreen.modelData, mode)
+                    onBubblePinned: (question, answer) => {
+                        askBubbleLoader.pinnedQuestion = question;
+                        askBubbleLoader.pinnedAnswer = answer;
+                        Config.patchAskBubble("screen", String(perScreen.modelData.name));
+                        Config.patchAskBubble("enabled", true);
+                    }
                 }
             }
             Timer { id: askHold; interval: 15000 }
 
             LazyLoader {
                 id: askBubbleLoader
-                activeAsync: Config.askBubble.enabled
+                property string pinnedQuestion: ""
+                property string pinnedAnswer: ""
+                activeAsync: pinnedAnswer.length > 0 && Config.askBubble.enabled
                     && Config.askBubble.screen === perScreen.modelData.name
                 AskBubble {
                     screen: perScreen.modelData
                     enabled: true
                     suppressed: perScreen.st ? perScreen.st.askOpen : false
+                    question: askBubbleLoader.pinnedQuestion
+                    answer: askBubbleLoader.pinnedAnswer
                 }
             }
 

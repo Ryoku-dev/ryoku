@@ -54,10 +54,9 @@ def exercise(shell: str) -> None:
             body = "printf ':\\n'\n" if name in ("starship", "zoxide", "mise", "fzf") else "exit 0\n"
             write_stub(bindir / name, body)
         write_stub(
-            bindir / "ryoku-rashin",
+            bindir / "rashin",
             "case \" $* \" in\n"
-            "  *\" term --buffer \"*) printf \"touch '%s/ran'\\n\" \"$HOME\" ;;\n"
-            "  *\" term --report \"*) printf '%s\\n' \"$*\" >>\"$HOME/report\" ;;\n"
+            "  *\" ask --buffer -- \"*) printf \"touch '%s/ran'\\n\" \"$HOME\" ;;\n"
             "esac\n",
         )
 
@@ -90,12 +89,6 @@ def exercise(shell: str) -> None:
             if not (home / "ran").exists():
                 raise AssertionError(f"{shell} Alt+R did not replace the buffer")
             read_until(fd, b"PTY> ")
-            report = home / "report"
-            end = time.time() + 3
-            while time.time() < end and not report.exists():
-                time.sleep(0.1)
-            if not report.exists() or "term --report" not in report.read_text():
-                raise AssertionError(f"{shell} did not report the executed proposal")
             os.write(fd, b"exit\r")
             os.waitpid(pid, 0)
         finally:

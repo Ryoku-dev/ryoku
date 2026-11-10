@@ -94,10 +94,12 @@ locked behind a text editor.
   `ryoku-shell-installer/` converts an existing supported system, which is
   the only Fedora path. Fedora keeps GRUB, with a Ryoku snapshots submenu.
   Atomic and other rpm-ostree editions are refused.
-- **Rashin** (`ryoku/rashin/`, optional and off by default) is the agent OS: a
-  machine-generated knowledge vault, a local daemon with a web dashboard, and a
-  one-click Hermes setup, so any coding agent starts with an exact map of the
-  machine. Enabled from Ryoku Settings under Advanced. See `docs/rashin.md`.
+- **Rashin** (`ryoku/rashin/`, optional and off by default) is Ryoku's AI
+  system. Ask answers read-only system questions through free models, Agent
+  connects the coding harnesses you already use, and Index searches project and
+  system code. One daemon owns sessions and the index; the Gio app and
+  Alt+Space bar are socket clients. Enable it from Ryoku Settings. See
+  `docs/rashin.md`.
 
 ## Working on it
 

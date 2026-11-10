@@ -292,7 +292,7 @@ func (e ownerEnv) classify(arg string) ownership {
 
 // Owner classifies config paths for an agent or a user: `ryoku owner <path>...`
 // prints one block per path, `--json` prints the machine-readable array, and
-// `--map` prints the whole-machine ownership summary the Rashin vault carries.
+// `--map` prints the whole-machine ownership summary the Ryoku vault carries.
 func Owner(args []string) error {
 	jsonOut, mapOut := false, false
 	var paths []string
@@ -369,11 +369,9 @@ func ownerUsage() {
 		"  --map    print a markdown ownership summary for this machine\n"))
 }
 
-// ownershipMap renders the whole-machine ownership summary for the Rashin vault:
-// the rule in plain words, then the overlay, the user-override files, the
-// generated files, the tool stores, the seeds, and the Ryoku-owned trees as a
-// compact table. Grounded in this box's manifest, seam and overlay, so a coding
-// agent reading it in the vault sees where THIS machine's edits belong.
+// ownershipMap renders the whole-machine ownership summary for the Ryoku vault.
+// It is grounded in this box's manifest, seam and overlay so every agent reads
+// where changes on this machine belong.
 func (e ownerEnv) ownershipMap() string {
 	var b strings.Builder
 	b.WriteString(i18n.T("## Where a config change belongs\n\n"))

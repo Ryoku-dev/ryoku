@@ -121,7 +121,7 @@ var builtinWindowRules = []builtinRule{
 	// Floating windows open centred. Their own screen-fit maximums clamp these
 	// designed sizes before niri places them on smaller outputs.
 	{class: "", title: "^Welcome to Ryoku$", props: []string{"open-floating true", "default-column-width { fixed 1180; }", "default-window-height { fixed 760; }"}},
-	{class: "", title: "^Rashin$", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
+	{class: "^dev\\.ryoku\\.rashin$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
 	{class: "", title: "^ryoku-phone-.*$", props: []string{"open-floating true", "default-column-width { fixed 520; }", "default-window-height { fixed 860; }"}},
 	{class: "^dev\\.ryoku\\.ryoport$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1180; }", "default-window-height { fixed 760; }"}},
 	// ryoport's GUI console clients (RDP, VNC): FreeRDP is asked to carry the

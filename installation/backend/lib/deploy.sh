@@ -134,7 +134,7 @@ ryoku_newer_repo_targets() {
 ryoku_deploy_packages() {
   local -a pkgs=(ryoku-keyring ryoku-desktop "ryoku-desktop-$RYOKU_COMPOSITOR")
   local package
-  # These apps are fresh-install defaults but remain independently removable.
+  # Fresh-install apps remain independently removable. Rashin is opt in.
   for package in ryoku-rashin ryotunes ryoport ryomanager; do
     ryoku_drop_pkg "$package" || pkgs+=("$package")
   done
@@ -354,13 +354,13 @@ ryoku_deploy_seed() {
     zsh) shell=/usr/bin/zsh ;;
     bash) shell=/usr/bin/bash ;;
   esac
-  [[ ${RYOKU_RASHIN:-1} == 1 ]] && args+=(--rashin)
+  [[ ${RYOKU_RASHIN:-0} == 1 ]] && args+=(--rashin)
   if [[ -n ${RYOKU_HIDE_APPS:-} ]]; then
     local -a hidden=()
     IFS=, read -ra hidden <<<"$RYOKU_HIDE_APPS"
     for id in "${hidden[@]}"; do args+=(--hide-app "$id"); done
   fi
-  ryoku_narrate_seed_self "$user" default "${RYOKU_RASHIN:-1}" \
+  ryoku_narrate_seed_self "$user" default "${RYOKU_RASHIN:-0}" \
     "${RYOKU_HIDE_APPS:-}" "${RYOKU_DROP_PACKAGES:-}" "$shell" systemd \
     "${RYOKU_LOCALE:-C.UTF-8}"
   if [[ ! -x /mnt/usr/bin/ryoku-host && -z ${RYOKU_DRYRUN:-} ]]; then

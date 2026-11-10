@@ -1,0 +1,11 @@
+[Unit]
+Description=Rashin socket
+
+[Socket]
+ListenStream=%t/rashin/rashin.sock
+SocketMode=0600
+DirectoryMode=0700
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

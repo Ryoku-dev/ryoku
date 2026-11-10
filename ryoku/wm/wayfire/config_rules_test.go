@@ -15,7 +15,7 @@ func TestBuiltinWindowRulesCoverRyokuFloats(t *testing.T) {
 		"spotify_upper", "nautilus", "hub", "rashin", "phone_tools",
 		"update", "ryostore_title", "ryoport", "ryoport_ssh", "ryoport_spicy",
 		"ryoport_console", "ryoport_vnc_lower", "ryoport_vnc_upper",
-		"ryostore_app", "rashin_setup", "looking_glass", "qemu_lower",
+		"ryostore_app", "looking_glass", "qemu_lower",
 		"qemu_upper", "welcome", "ryotunes", "ryotunes_qml",
 		"chromium_sharebar",
 	}
@@ -45,7 +45,7 @@ func TestBuiltinWindowRulesCoverRyokuFloats(t *testing.T) {
 	}{
 		"hub":                         {`title is "Ryoku Settings"`, pageFit},
 		"nautilus":                    {`app_id is "org.gnome.Nautilus"`, largeGeometry},
-		"rashin":                      {`title is "Rashin"`, largeGeometry},
+		"rashin":                      {`app_id is "dev.ryoku.rashin"`, largeGeometry},
 		"phone_tools":                 {`title contains "ryoku-phone-"`, phoneGeometry},
 		"update":                      {`app_id is "dev.ryoku.update"`, largeGeometry},
 		"ryoport":                     {`app_id is "dev.ryoku.ryoport"`, largeGeometry},
@@ -53,7 +53,6 @@ func TestBuiltinWindowRulesCoverRyokuFloats(t *testing.T) {
 		"ryostore_app":                {`app_id is "ryostore"`, mediumGeometry},
 		"picture_in_picture":          {`title contains "Picture-in-Picture"`, ""},
 		"picture_in_picture_chromium": {`title contains "Picture in picture"`, ""},
-		"rashin_setup":                {`app_id is "ryoku-rashin-setup"`, mediumGeometry},
 		"welcome":                     {`title is "Welcome to Ryoku"`, largeGeometry},
 		"ryotunes_qml":                {`app_id is "org.quickshell" & title is "Ryotunes"`, ""},
 		"chromium_sharebar":           {`app_id is "" & title contains "is sharing"`, "assign_workspace 4 1"},

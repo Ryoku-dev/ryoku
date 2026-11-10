@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Fail when a vendored copy of the window-manager seam drifts from ryoku/wm.
-# The cli, hub, rashin, shell/ipc and ryogami vendor the seam so each builds
-# standalone; a stale copy silently runs older detection and capability rules
-# than the providers beside it. Only the files a copy carries are checked -- a
-# consumer vendors the seam files it uses, never the tests.
+# Check every source copy that must stay byte-identical to its owner.
+# Go's vendor command omits tests and module metadata, so compare only files
+# present in each copy.
 #
 #   ryoku-dev-verify-wm-vendor           run the check (exit 1 on drift)
 #   ryoku-dev-verify-wm-vendor --quiet   same, only print drift
@@ -32,5 +30,25 @@ for dir in "${dirs[@]}"; do
   done
 done
 
-(( status == 0 )) && say "wm-vendor: every vendored seam copy matches $seam"
+check_vendor_tree() {
+  local source=$1 vendor=$2 label=$3 file rel
+  if [[ ! -d $vendor ]]; then
+    printf 'vendor: %s copy is missing at %s\n' "$label" "$vendor"
+    status=1
+    return
+  fi
+  while IFS= read -r -d '' file; do
+    rel=${file#"$vendor"/}
+    if [[ ! -f $source/$rel ]] || ! cmp -s "$file" "$source/$rel"; then
+      printf 'vendor: %s copy %s differs from %s/%s\n' "$label" "$file" "$source" "$rel"
+      status=1
+    fi
+  done < <(find "$vendor" -type f -print0)
+}
+
+check_vendor_tree ryoku/i18n ryoku/rashin/vendor/ryoku-i18n ryoku-i18n
+check_vendor_tree docs/lithic/library/go \
+  ryoku/rashin/vendor/github.com/ryoku-dev/ryoku/docs/lithic/library/go lithic-go
+
+(( status == 0 )) && say "vendor: window-manager seams, ryoku-i18n and Lithic Go copies match their sources"
 exit "$status"

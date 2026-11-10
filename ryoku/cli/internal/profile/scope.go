@@ -103,7 +103,7 @@ func Essentials() []string {
 	return []string{
 		"compress-video.desktop", "install-app.desktop", "kitty.desktop", "nemo.desktop",
 		"org.gnome.Nautilus.desktop", "org.kde.dolphin.desktop", "pcmanfm.desktop", "pcmanfm-qt.desktop",
-		"rashin-app.desktop", "ryogami.desktop", "ryoku-hub.desktop", "ryoku-nvim.desktop",
+		"dev.ryoku.rashin.desktop", "ryogami.desktop", "ryoku-hub.desktop", "ryoku-nvim.desktop",
 		"ryomanager.desktop", "ryostore.desktop", "dev.ryoku.ryoport.desktop", "thunar.desktop",
 	}
 }

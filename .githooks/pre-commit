@@ -15,12 +15,13 @@ fail() {
 	exit 1
 }
 
-# The em-dash check skips the vendored qylock tree and ryoku/i18n/catalog. The
-# catalog is generated: its keys are the English source strings verbatim
-# (including em-dashes vendored sources still carry), and a key that differs from
-# its source no longer matches at lookup. sync.py already strips em-dashes from
-# every translation.
-exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/'
+# The em-dash check skips the vendored qylock tree, ryoku/i18n/catalog and the
+# embedded potion model. The catalog is generated: its keys are the English
+# source strings verbatim (including em-dashes vendored sources still carry),
+# and a key that differs from its source no longer matches at lookup. sync.py
+# already strips em-dashes from every translation. The model's tokenizer.json
+# is a third-party vocabulary, and the em-dash is one of its tokens.
+exempt='^ryoku/lockscreen/qylock/|^ryoku/i18n/catalog/|^ryoku/rashin/internal/index/embed/model/'
 text='\.(md|txt|sh|bash|yml|yaml|toml|json|jsonc|conf|lua|tpl|fish|desktop|rules)$|(^|/)(README|NOTICE|LICENSE)$'
 
 mapfile -t staged < <(git diff --cached --name-only --diff-filter=ACM)

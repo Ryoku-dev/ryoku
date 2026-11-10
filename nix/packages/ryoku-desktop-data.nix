@@ -77,6 +77,14 @@ pkgs.stdenv.mkDerivation {
 
     install -m0644       ryoku/i18n/catalog/*.json       "$out/share/ryoku/i18n/"
 
+    mkdir -p \
+      "$out/share/ryoku/vault/wiki" \
+      "$out/share/ryoku/vault/skills/ryoku"
+    cp -a ryoku/vault/wiki/. "$out/share/ryoku/vault/wiki/"
+    cp -a ryoku/vault/skills/ryoku/. "$out/share/ryoku/vault/skills/ryoku/"
+    ryoku/vault/repo-index --packaged "$PWD" \
+      "$out/share/ryoku/vault/ryoku-repo.md"
+
     # ── Main Quickshell shell ──────────────────────────────────
 
     mkdir -p "$cfg/quickshell"
@@ -285,17 +293,6 @@ pkgs.stdenv.mkDerivation {
       ryoku/apps/fastfetch/ryoku-fastfetch \
       "$out/bin/ryoku-fastfetch"
 
-    for helper in \
-      ryoku/rashin/usage/claude-usage \
-      ryoku/rashin/usage/codex-usage \
-      ryoku/rashin/usage/opencode-usage
-    do
-      install -Dm755 \
-        "$helper" \
-        "$out/bin/$(basename "$helper")"
-      substituteInPlace "$out/bin/$(basename "$helper")" \
-        --replace-fail '#!/usr/bin/env python3' '#!${pkgs.python3}/bin/python3'
-    done
 
     # ── Ryotunes ───────────────────────────────────────────────
     #

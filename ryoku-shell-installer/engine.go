@@ -1930,6 +1930,7 @@ func selectedInstallPackages(p *plan) []string {
 			continue
 		}
 		if component.Group == "ryoku-apps" || component.ID == "radio" ||
+			component.Group == devToolchainGroup ||
 			component.Step == installerplan.ComponentRashin ||
 			(component.Step == installerplan.StepGaming && !component.NeedsNetwork) {
 			packages = append(packages, component.Packages...)
@@ -3213,8 +3214,8 @@ func (e *engine) reconcileHiddenDesktopEntries() error {
 }
 
 func (e *engine) syncRashinMarker() error {
-	path := filepath.Join(e.f.homeDir, ".local/state/ryoku/rashin-setup-pending")
-	want := e.p.componentOn("rashin") && !hermesInstalled(e.f.homeDir)
+	path := filepath.Join(e.f.homeDir, ".local/state/ryoku/rashin-on-pending")
+	want := e.p.componentOn("rashin")
 	if e.dry {
 		action := i18n.T("remove")
 		if want {
@@ -3232,24 +3233,7 @@ func (e *engine) syncRashinMarker() error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, nil, 0o644)
-}
-
-// hermesInstalled mirrors Rashin's FindHermes: an existing box that already
-// has the agent gets no first-login setup window.
-func hermesInstalled(home string) bool {
-	if _, err := exec.LookPath("hermes"); err == nil {
-		return true
-	}
-	for _, candidate := range []string{
-		filepath.Join(home, ".hermes", "bin", "hermes"),
-		filepath.Join(home, ".local", "bin", "hermes"),
-	} {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	return false
+	return os.WriteFile(path, []byte("pending\n"), 0o644)
 }
 
 func (e *engine) writeDefaultRiceMarker() error {

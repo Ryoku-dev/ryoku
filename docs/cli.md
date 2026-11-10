@@ -314,7 +314,8 @@ verbs include:
   limits; other filesystems report storage limits as unsupported.
 - `users provision <name> [--rice <slug>] [--rashin] [--hide-app <id>]...
   [--skip-welcome]` is the root-side account provisioner. It validates the
-  managed account, then uses `runuser` to enter that account.
+  managed account, then uses `runuser` to enter that account. `--rashin` leaves
+  a first-login marker that runs `rashin on` once.
 - `users seed-self [--rice <slug>] [--rashin] [--hide-app <id>]...
   [--skip-welcome]` is the account-side half. It copies the shipped desktop,
   application and session config with the account's ownership; root does not
@@ -405,8 +406,8 @@ A path can be absolute, `~/...`, or relative to `~/.config`.
 Each path prints its class (`overlay`, `forked`, `generated`, `store`, `seed`,
 `user-override`, `ryoku`, `user`, `package`, `unmanaged`), who writes it, and the
 file to edit instead, if any. `--json` prints the same as an array for a tool to
-read; `--map` prints a markdown ownership summary of the whole machine, which is
-what the Rashin vault carries so every wired agent knows the rules.
+read; `--map` prints the whole-machine ownership summary carried by the
+Ryoku vault so every agent knows the rules.
 
 ```
 $ ryoku owner ~/.config/kitty/kitty.conf
@@ -547,10 +548,10 @@ into the desktop (see `docs/plugins.md`). Ryostore stays the curated front;
   placement so the shell stops loading it. `ryoku plugin remove weather-card`
 - `ryoku plugin list [--json]` lists installed plugins merged with their
   placement; each row carries a `source` of `store` (a receipt-owned install) or
-  `dev` (a `RYOSTORE_PLUGINS_DIR` override, which shadows the store). `--json` is
-  the data seam for agents and Rashin. `ryoku plugin list --json`
-- `ryoku plugin validate <dir>` runs the same manifest checks against a local
-  tree without installing it, for plugin authors. `ryoku plugin validate .`
+  `dev` (a `RYOSTORE_PLUGINS_DIR` override, which shadows the store). `--json`
+  is the data seam for agents. `ryoku plugin list --json`
+- `ryoku plugin validate <dir>` checks a local plugin tree without installing
+  it, for plugin authors. `ryoku plugin validate .`
 
 ## Subshells, bar styles and the dock
 

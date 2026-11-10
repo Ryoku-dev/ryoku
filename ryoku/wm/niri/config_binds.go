@@ -163,7 +163,7 @@ func shippedBinds() map[string]niriBind {
 		// Shell
 		"shell.launcher":          {action: spawnArgs("ryoku-shell", "launcher")},
 		"shell.ask":               {action: spawnArgs("ryoku-shell", "ask")},
-		"shell.rashin":            {action: spawnSh("ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app")},
+		"shell.rashin":            {action: spawnArgs("ryoku-summon", "--app-id", "dev.ryoku.rashin", "rashin-app")},
 		"shell.cheatsheet":        {action: spawnArgs("ryoku-shell", "cheatsheet")},
 		"shell.lock":              {action: spawnArgs("ryoku-shell", "lock")},
 		"shell.quicksettings":     {action: spawnArgs("ryoku-shell", "quicksettings"), ignoreInhibitor: true},

@@ -32,17 +32,17 @@ meson
 gradle
 libusb
 
-# Qt: Blobs plays video, so qt6-multimedia joins the QML plugin's own modules,
-# and Ryoku.Spatial3D builds the Stage depth mesh against Qt Quick 3D.
-# The Ryogami picker also compiles against the Vulkan headers to list GPUs.
+# Qt plugins need the Vulkan headers, and Gio needs mesa's EGL headers.
+# wayland and libxkbcommon below provide the rest of the Gio build headers.
 qt6-base
 qt6-declarative
 qt6-shadertools
 qt6-multimedia
 qt6-quick3d
 vulkan-headers
+mesa
 
-# rashin-app: pkg-config discovers the GTK3 and WebKit2GTK 4.1 host libraries.
+# ryoku-desktop and ryomanager still build their GTK3/WebKit hosts.
 gtk3
 webkit2gtk-4.1
 pkgconf

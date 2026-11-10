@@ -208,8 +208,8 @@ var catalogue = []CatalogBind{
 
 	// Shell
 	{ID: "shell.launcher", Category: "Shell", Label: "App launcher", Chord: "SUPER + Space", Kind: BindShell},
-	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "AI chat bar", Chord: "ALT + Space", Kind: BindShell, Needs: "ryoku-rashin"},
-	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The AI companion app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app"},
+	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "Ask Rashin about this machine", Chord: "ALT + Space", Kind: BindShell, Needs: "rashind"},
+	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The Rashin app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app"},
 	{ID: "shell.cheatsheet", Category: "Shell", Label: "Kit", Hint: "Press again to close", Chord: "SUPER + K", Kind: BindShell},
 	{ID: "shell.lock", Category: "Shell", Label: "Lock the screen", Chord: "SUPER + L", Kind: BindShell},
 	{ID: "shell.quicksettings", Category: "Shell", Label: "Quick settings", Hint: "Power, logout, restart, shutdown, wifi", Chord: "SUPER + Escape", Kind: BindShell},

@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- **Rashin has one honest master switch.** Its Settings page reads the new
+  daemon status without starting it, shows Ask, Agent and Index readiness, and
+  owns package installation and removal; Updates now sends Fix with AI through
+  the `rashin` command (`pages/RashinPage.qml`, `backend/rashin.go`).
 - **Settings search scores natively.** The Hub's search box ranks through
   `HubSearchIndex` in `Ryoku.Text` with the same scores and the same order as
   the JavaScript it replaced (`Hub.qml`).

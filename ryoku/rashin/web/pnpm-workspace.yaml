@@ -1,4 +1,0 @@
-# pnpm settings live here (pnpm 10+ reads neither package.json "pnpm" nor .npmrc).
-# esbuild installs its native binary through a build script; nothing else runs one.
-allowBuilds:
-  esbuild: true

@@ -56,6 +56,16 @@ package() {
   install -Dm644 "$_repo/system/services/manifest.tsv" \
     "$pkgdir/usr/share/ryoku/services.tsv"
 
+  install -d \
+    "$pkgdir/usr/share/ryoku/vault/wiki" \
+    "$pkgdir/usr/share/ryoku/vault/skills/ryoku"
+  cp -a "$_repo/ryoku/vault/wiki/." \
+    "$pkgdir/usr/share/ryoku/vault/wiki/"
+  cp -a "$_repo/ryoku/vault/skills/ryoku/." \
+    "$pkgdir/usr/share/ryoku/vault/skills/ryoku/"
+  "$_repo/ryoku/vault/repo-index" --packaged "$_repo" \
+    "$pkgdir/usr/share/ryoku/vault/ryoku-repo.md"
+
   # /etc/ryoku-release: the named state this build is. build-repo.sh exports
   # RYOKU_RELEASE (a release tag on stable, the dev version on testing, a
   # local-* marker for a hand build) and RYOKU_CHANNEL; `ryoku version`,

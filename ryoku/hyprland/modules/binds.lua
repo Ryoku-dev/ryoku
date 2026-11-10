@@ -107,7 +107,7 @@ hl.bind(K(mod .. " + J"),         hl.dsp.exec_cmd("ryotunes"))                  
 -- Shell surfaces and tools
 hl.bind(K(mod .. " + Space"),     hl.dsp.global("ryoku:launcher"))                 -- open the app launcher
 hl.bind(K("ALT + Space"),         hl.dsp.global("ryoku:ask"))                      -- ask Rashin
-hl.bind(K(mod .. " + ALT + Space"), hl.dsp.exec_cmd("ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app")) -- Rashin app: the AI companion window (a second press focuses it)
+hl.bind(K(mod .. " + ALT + Space"), hl.dsp.exec_cmd("ryoku-summon --app-id dev.ryoku.rashin rashin-app")) -- Rashin app; a second press focuses it
 hl.bind(K(mod .. " + K"),         hl.dsp.exec_cmd("ryoku-shell cheatsheet"))          -- Kit, or the bar style's own cheatsheet
 hl.bind(K(mod .. " + L"),         hl.dsp.exec_cmd("ryoku-shell lock"))             -- lock the screen
 hl.bind(K(mod .. " + Escape"),    hl.dsp.global("ryoku:quicksettings"), { dont_inhibit = true }) -- quick settings: power, logout, restart, shutdown, wifi

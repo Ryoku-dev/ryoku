@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Rashin
+Comment=Ask about this machine and work with coding agents
+Exec=rashin-app
+Icon=dev.ryoku.rashin
+Categories=Utility;
+Terminal=false
+StartupWMClass=dev.ryoku.rashin

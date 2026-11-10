@@ -51,7 +51,7 @@ QML running against a stale plugin.
 | `ryoku-shell` | The Quickshell desktop: bar, pill, launcher, overview, wallpaper, visualizer, ryoshot capture, and the lock screen |
 | `ryoku-hub` | Ryoku Settings, the control center (Appearance, Animations, Displays, Connections, GPU, Keybinds, and the rest) |
 | `ryoku` | The `ryoku` CLI: `update`, `doctor`, `materialize`, rollback, snapshots |
-| `ryoku-rashin` | Rashin, the AI agent: the system-map vault, Ask, the Rashin window and the bar's AI usage pill. Installed by default but optional: untick it in the installer's Apps & tools, or remove it later, and Ryoku does not put it back |
+| `ryoku-rashin` | Optional Rashin package: read-only Ask on free models, external coding harnesses in Agent, project and system Index, the Lithic app and the bar client. It is opt in, removable, and uses zero resources while off or absent |
 | `ryoku-blobs` | The shared `Ryoku.Blobs`, `Ryoku.Spatial3D`, `Ryoku.Bus` and `Ryoku.Text` QML plugins |
 | `gpk` | GlazePKG, the RyokuArch package manager |
 | `ryogami` | The wallpaper daemon the shell drives: static, live, and shader transitions |

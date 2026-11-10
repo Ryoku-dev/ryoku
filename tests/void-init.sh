@@ -78,8 +78,17 @@ while IFS=$'\t' read -r id scope activation systemd_unit runit_service disable_r
 	fi
 done < "$SERVICE_MANIFEST"
 
+grep -qxF $'rashind\tuser\ton-demand\trashind.socket\t-\tpreserve' "$SERVICE_MANIFEST" \
+	|| fail "rashind must stay socket-activated and on demand"
+grep -qxF $'ryoku-ai-usage\tuser\ton-demand\tryoku-ai-usage.timer\tryoku-ai-usage\tpreserve' "$SERVICE_MANIFEST" \
+	|| fail "Rashin usage collection must stay on demand"
+[[ ! -d $INIT/user/ryoku-rashin && ! -d $INIT/user/ryoku-prowl ]] \
+	|| fail "Void must not supervise Rashin or Prowl at session start"
+
 while IFS= read -r unit; do
 	name=${unit##*/}
+	# Socket activation owns the service as one lifecycle row.
+	[[ $name == rashind.service ]] && continue
 	[[ $(grep -cxF "$name" <(cut -f4 "$SERVICE_MANIFEST")) == 1 ]] \
 		|| fail "payload systemd unit needs exactly one service activation row: ${unit#"$ROOT/"}"
 done < <(find \
@@ -256,8 +265,6 @@ check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-clamshell.service" "$INIT/use
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-eq.service" "$INIT/user/ryoku-eq"
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-bt-agent.service" "$INIT/user/ryoku-bt-agent"
 check_parity "$ROOT/ryoku/shell/systemd/user/ryoku-bootstrap.service" "$INIT/user/ryoku-bootstrap"
-check_parity "$ROOT/ryoku/rashin/systemd/ryoku-rashin.service" "$INIT/user/ryoku-rashin"
-check_parity "$ROOT/ryoku/rashin/systemd/ryoku-prowl.service" "$INIT/user/ryoku-prowl"
 check_parity "$ROOT/ryoku/palette-bridge/packaging/systemd/ryoku-palette-bridge.service" "$INIT/user/ryoku-palette-bridge"
 check_parity "$ROOT/system/hardware/bluetooth/ryoku-bluetooth-reset.service" "$INIT/user/ryoku-bluetooth-reset"
 # the loop runs the collector guard, which launches only the installed tools'

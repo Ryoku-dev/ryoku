@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"ryoku-cli/internal/host"
 	"ryoku-cli/internal/sys"
+	"ryoku-cli/internal/vault"
 	i18n "ryoku-i18n"
 	wm "ryoku-wm"
 	"strings"
@@ -284,8 +285,7 @@ func Update(args []string) (err error) {
 			progress.fail(err)
 			return err
 		}
-		rashinReindex()
-		prowlRefresh()
+		vaultRefresh()
 		upgradeIndependentApps()
 		progress.at("doctor")
 		offerSnapperHelpers()
@@ -1130,8 +1130,7 @@ func updateStage2(pre string, withSystem bool) (err error) {
 	dropAbort("sleep-guard")
 	_ = powerCutoverLock.Close()
 	powerCutoverLock = nil
-	rashinReindex()
-	prowlRefresh()
+	vaultRefresh()
 	upgradeIndependentApps()
 
 	progress.at("doctor")
@@ -1485,81 +1484,13 @@ func reloadLogindLidPolicy() error {
 	return nil
 }
 
-// rashinReindex refreshes the agent-OS vault after an update so agents see
-// the new system immediately. Best effort: rashin is optional and a failed
-// index never blocks an update.
-func rashinReindex() {
-	if !sys.Has("ryoku-rashin") {
-		return
+// vaultRefresh updates Ryoku's machine map after either update path. A vault
+// problem is reported but never blocks the package or checkout update.
+func vaultRefresh() {
+	progress.detailf(i18n.T("Refreshing the Ryoku vault"))
+	if err := vault.Refresh(); err != nil {
+		fmt.Fprintf(os.Stderr, i18n.T("warning: Ryoku vault refresh failed: %v\n"), err)
 	}
-	progress.detailf(i18n.T("Reindexing the Rashin vault"))
-	if err := sys.Run(pkgBin("ryoku-rashin"), "index"); err != nil {
-		fmt.Fprintf(os.Stderr, i18n.T("warning: rashin reindex failed: %v\n"), err)
-	}
-	// Re-wire every agent after the index: the shipped ryoku skill and Prowl's
-	// skills may have moved or grown with this update, and wire is idempotent.
-	if err := sys.Run(pkgBin("ryoku-rashin"), "wire"); err != nil {
-		fmt.Fprintf(os.Stderr, i18n.T("warning: rashin wire failed: %v\n"), err)
-	}
-}
-
-// prowlManagedLine names the package manager that owns prowl. The line used to
-// say "pacman" on every distribution, which is wrong on the two that are not
-// Arch: the ownership lookup behind it already asks whichever manager the host
-// runs.
-func prowlManagedLine(manager host.PackageManager) string {
-	if manager == "" {
-		return i18n.T("prowl comes from a package; refreshed with the system packages")
-	}
-	return fmt.Sprintf(i18n.T("prowl is managed by %s; refreshed with the system packages"), manager)
-}
-
-// prowlRefresh keeps a dev box's prowl current after an update. A packaged box
-// already got it with the rest of the system packages, so this runs
-// `<bin> update` only when the binary is on PATH but not owned by a package (a
-// dev or manual install). Best effort, one line either way.
-func prowlRefresh() {
-	path, err := exec.LookPath("prowl")
-	if err != nil {
-		return
-	}
-	switch prowlDecide(true, prowlPackageOwned(path)) {
-	case prowlManaged:
-		manager, _ := host.Default().PackageManager()
-		progress.detailf("%s", prowlManagedLine(manager))
-	case prowlSelfUpdate:
-		progress.detailf(i18n.T("Updating prowl"))
-		if err := sys.Run(path, "update"); err != nil {
-			fmt.Fprintf(os.Stderr, i18n.T("warning: prowl update failed: %v\n"), err)
-		}
-	}
-}
-
-// prowlPackageOwned reports whether path belongs to an installed package.
-func prowlPackageOwned(path string) bool {
-	_, err := host.Default().PackageOwner(path)
-	return err == nil
-}
-
-// prowlAction is what an update should do about prowl.
-type prowlAction int
-
-const (
-	prowlNoop       prowlAction = iota // not installed; nothing to do
-	prowlManaged                       // pacman-owned; the system upgrade covered it
-	prowlSelfUpdate                    // dev install; run `<bin> update`
-)
-
-// prowlDecide is the pure update decision, split out so it is unit-testable
-// without a live PATH or pacman.
-func prowlDecide(onPath, pacmanOwned bool) prowlAction {
-	if !onPath {
-		return prowlNoop
-	}
-	if pacmanOwned {
-		return prowlManaged
-	}
-	return prowlSelfUpdate
 }
 
 // clearStalePacmanLock mirrors doctor's reconcilePacmanLock right before the

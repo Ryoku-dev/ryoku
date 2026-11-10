@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **Rashin now sleeps until its bar opens.** Ask and Agent connect directly to
+  the Rashin socket only inside the lazy Alt+Space surface, the launcher's
+  backslash Ask creates the same client only when used, and pinned answers stay
+  readable without a background connection (`quickshell/shell/modules/ask/`,
+  `quickshell/shell/modules/launcher/shared/AskPanel.qml`).
 - **Power Saver now trims laptop display power on battery.** The daemon lowers
   keyboard and screen backlights and asks built-in panels for about 60 Hz, then
   restores values the user did not change. The new `output.refresh` WM action

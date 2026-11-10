@@ -168,6 +168,10 @@ truth for the live desktop.
   `internal/host` selects systemd or runit and pacman, XBPS, or DNF, so scripts,
   daemons, QML, and other Go modules do not grow host checks. Per-command
   reference, user- vs developer-facing, is in `docs/cli.md`.
+- `vault/` the Ryoku-core machine map, read-only wiki, and `ryoku` agent skill.
+  The CLI refreshes the live copy at `~/.local/share/ryoku/vault/`, wires its
+  pointer into installed harnesses, and keeps user-owned memory and journal
+  files outside generated fences. See `docs/vault.md`.
 - `hub/` Ryoku Settings, the central control-center GUI (`Super + ,`): `backend/`
   (`ryoku-hub`, the Go data plane that reads the keybind legend from the live
   Hyprland config, generates the `settings.lua` overlay (in `user_edits`) from JSON, and
@@ -180,22 +184,13 @@ truth for the live desktop.
   rules, autostart, environment, the shell, and the desktop widgets). The product is "Ryoku Settings"; the binary and
   config keep the internal `hub` name. Deployed to `~/.config/quickshell/hub`;
   built by the shell's `deploy.sh`.
-- `rashin/` Ryoku Rashin, the optional agent OS (off by default): `backend/`
-  (`ryoku-rashin`, one Go program that maintains the markdown knowledge vault at
-  `~/.local/share/ryoku/rashin/`, serves the embedded dashboard on
-  `127.0.0.1:3600`, and bridges the Hermes agent over ACP), `web/` (the Rashin
-  console: one Svelte 5 + bits-ui app that is the companion window's UI and the
-  dashboard, built with Vite into `backend/web/dist`, which is committed and
-  embedded so no node runs on an installed box), and the `rashin`
-  terminal command (the same binary under a second name: natural language to a
-  ready-to-run command plan on the fish prompt, with a `conf.d/rashin.fish`
-  weave), `skills/ryoku/` (the agent skill `ryoku-rashin wire` links into every
-  harness: the GUI map, the bar, plugins, the window-manager seam, building the
-  Ryoku way, the feature ladder, break/fix), and `wiki/` (the plain-language
-  guides for someone new, mirrored into the vault as `wiki/` and rendered by
-  the console). The Hub's `RashinPage.qml` is the control surface (enable,
-  one-click Hermes setup, open dashboard); built by the shell's `deploy.sh`.
-  See `docs/rashin.md` and `docs/rashin-terminal.md`.
+- `rashin/` the optional Rashin system in one Go module: `cmd/rashind/` is the
+  daemon, `cmd/rashin/` the command line, and `cmd/rashin-app/` the Gio Lithic
+  app. `internal/` holds the socket protocol, session event log, free-model
+  router, read-only Ask agent, ACP harness adapters and potion-backed code
+  index. `systemd/` ships socket activation and `usage/` the coding-agent usage
+  collectors. The Hub owns the opt-in switch and the shell's Alt+Space bar is a
+  thin socket client. See `docs/rashin.md` and `docs/rashin-terminal.md`.
 - `assets/` `brand/` the 力 logo and icons and Rashin's seal (`rashin-mark*.svg`,
   `rashin-lockup.svg`; the app icon and the console favicon link to them),
   `wallpapers/` the shipped wallpaper set (installs to `Wallpapers/` under the

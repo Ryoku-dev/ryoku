@@ -131,7 +131,7 @@ hl.window_rule({
 
 hl.window_rule({
     name   = "float-rashin-app",
-    match  = { title = "^(Rashin)$" },
+    match  = { class = "^(dev\\.ryoku\\.rashin)$" },
     float  = true,
     size   = fit(1280, 820),
     center = true,
@@ -213,13 +213,6 @@ hl.window_rule({
     center = true,
 })
 
-hl.window_rule({
-    name   = "float-ryoku-rashin-setup",
-    match  = { class = "ryoku-rashin-setup" },
-    float  = true,
-    size   = fit(900, 600),
-    center = true,
-})
 
 hl.window_rule({
     name   = "float-looking-glass",

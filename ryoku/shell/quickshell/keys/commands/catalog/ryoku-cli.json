@@ -2414,37 +2414,9 @@
     {
       "id": "ryoku.ryoku-shell.ask",
       "group": "ryoku-shell",
-      "title": "Open quick chat",
+      "title": "Open Rashin Ask",
       "command": "ryoku-shell ask",
-      "description": "Opens the Rashin quick-chat surface.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.ask.chat",
-      "group": "ryoku-shell",
-      "title": "Open the chat page",
-      "command": "ryoku-shell ask chat",
-      "description": "Opens Rashin directly on its chat page.",
-      "tool": "ryoku-shell",
-      "level": "advanced",
-      "compositors": [
-        "hyprland",
-        "niri",
-        "wayfire"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-shell.ask.tools",
-      "group": "ryoku-shell",
-      "title": "Open AI quick tools",
-      "command": "ryoku-shell ask tools",
-      "description": "Opens Rashin's quick-tools page.",
+      "description": "Opens Rashin Ask in the Alt+Space bar.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -2458,7 +2430,7 @@
       "group": "ryoku-shell",
       "title": "Open the compression tool",
       "command": "ryoku-shell compress",
-      "description": "Opens the quick compression tool inside the AI tools surface.",
+      "description": "Opens the quick compression surface.",
       "tool": "ryoku-shell",
       "level": "advanced",
       "compositors": [
@@ -6495,773 +6467,275 @@
       "level": "internal"
     },
     {
-      "id": "ryoku.ryoku-rashin.serve",
-      "group": "ryoku-internal",
-      "title": "Run the Rashin daemon",
-      "command": "ryoku-rashin serve",
-      "description": "Runs Rashin and brings up its Prowl service on the local machine.",
-      "tool": "ryoku-rashin",
-      "level": "internal",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.serve.if-enabled",
-      "group": "ryoku-internal",
-      "title": "Run Rashin when enabled",
-      "command": "ryoku-rashin serve --if-enabled",
-      "description": "Starts Rashin only when the user has not opted out.",
-      "tool": "ryoku-rashin",
-      "level": "internal",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.index",
-      "group": "ryoku-rashin",
-      "title": "Rebuild Rashin vault maps",
-      "command": "ryoku-rashin index",
-      "description": "Regenerates maps for system, desktop, package, repository, user, and habit knowledge.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.repo-index",
-      "group": "ryoku-rashin",
-      "title": "Index a source checkout",
-      "command": "ryoku-rashin repo-index <root>",
-      "description": "Builds Rashin's source map for a repository checkout.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
       "id": "ryoku.ryoku-rashin.ask",
       "group": "ryoku-rashin",
-      "title": "Ask a quick question",
-      "command": "ryoku-rashin ask <question>",
-      "description": "Sends one question through the shared Rashin session and prints the answer.",
-      "tool": "ryoku-rashin",
-      "level": "basic",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.chat.follow",
-      "group": "ryoku-internal",
-      "title": "Follow Rashin chat events",
-      "command": "ryoku-rashin chat --follow",
-      "description": "Bridges live chat events and requests over standard input and output.",
-      "tool": "ryoku-rashin",
-      "level": "internal",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.chat.encode-image",
-      "group": "ryoku-internal",
-      "title": "Encode a chat image",
-      "command": "ryoku-rashin chat --encode-image <path>",
-      "description": "Resizes and encodes an image for the Rashin chat bridge.",
-      "tool": "ryoku-rashin",
-      "level": "internal",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term",
-      "group": "ryoku-rashin",
-      "title": "Ask from the terminal",
-      "command": "ryoku-rashin term <question>",
-      "description": "Prints a terminal answer and a ready-to-run command plan.",
-      "tool": "ryoku-rashin",
-      "level": "basic",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.continue",
-      "group": "ryoku-rashin",
-      "title": "Continue the last terminal ask",
-      "command": "ryoku-rashin term --continue <question>",
-      "description": "Continues the most recent terminal conversation.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.resume",
-      "group": "ryoku-rashin",
-      "title": "Resume a terminal conversation",
-      "command": "ryoku-rashin term resume",
-      "description": "Resumes a saved terminal conversation.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.last",
-      "group": "ryoku-rashin",
-      "title": "Show the last terminal answer",
-      "command": "ryoku-rashin term last",
-      "description": "Prints the most recent saved terminal answer.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.recipes",
-      "group": "ryoku-rashin",
-      "title": "List saved command recipes",
-      "command": "ryoku-rashin term recipes",
-      "description": "Lists reusable command recipes saved by the terminal assistant.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.recipe",
-      "group": "ryoku-rashin",
-      "title": "Run a command recipe",
-      "command": "ryoku-rashin term recipe <name>",
-      "description": "Loads the named saved command recipe.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.run",
-      "group": "ryoku-rashin",
-      "title": "Run the proposed command",
-      "command": "ryoku-rashin term --run <question>",
-      "description": "Asks for a command plan and offers to run it. Review the command before approving.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.copy",
-      "group": "ryoku-rashin",
-      "title": "Copy the proposed command",
-      "command": "ryoku-rashin term --copy <question>",
-      "description": "Asks for a command plan and copies the proposed command.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.setup",
-      "group": "ryoku-rashin",
-      "title": "Set up Rashin and Hermes",
-      "command": "ryoku-rashin setup",
-      "description": "Installs, onboards, and wires Hermes for Rashin.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ],
-      "privileged": true
-    },
-    {
-      "id": "ryoku.ryoku-rashin.wire",
-      "group": "ryoku-rashin",
-      "title": "Wire agent knowledge",
-      "command": "ryoku-rashin wire",
-      "description": "Applies Rashin vault pointers to all detected agents or one named agent.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.unwire",
-      "group": "ryoku-rashin",
-      "title": "Remove agent knowledge wiring",
-      "command": "ryoku-rashin unwire",
-      "description": "Removes Rashin vault pointers from all agents or one named agent.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ],
-      "danger": true
-    },
-    {
-      "id": "ryoku.ryoku-rashin.status",
-      "group": "ryoku-rashin",
-      "title": "Check Rashin health",
-      "command": "ryoku-rashin status",
-      "description": "Reports Rashin, Prowl, vault, Hermes, and agent wiring state.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.status.json",
-      "group": "ryoku-rashin",
-      "title": "Read Rashin health as JSON",
-      "command": "ryoku-rashin status --json",
-      "description": "Prints Rashin and Prowl health as JSON.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.enable",
-      "group": "ryoku-rashin",
-      "title": "Enable Rashin",
-      "command": "ryoku-rashin enable",
-      "description": "Starts Rashin and Prowl now and at future logins.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.enable.at-boot",
-      "group": "ryoku-rashin",
-      "title": "Enable Rashin at boot",
-      "command": "ryoku-rashin enable --at-boot",
-      "description": "Enables Rashin and user lingering so it starts with the machine.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ],
-      "privileged": true
-    },
-    {
-      "id": "ryoku.ryoku-rashin.disable",
-      "group": "ryoku-rashin",
-      "title": "Disable Rashin",
-      "command": "ryoku-rashin disable",
-      "description": "Stops Rashin and Prowl and turns off autostart.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.ensure",
-      "group": "ryoku-rashin",
-      "title": "Ensure Rashin is running",
-      "command": "ryoku-rashin ensure",
-      "description": "Starts Rashin and Prowl unless the user explicitly opted out.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.backend",
-      "group": "ryoku-rashin",
-      "title": "Show the fast-lane backend",
-      "command": "ryoku-rashin backend",
-      "description": "Prints the provider and model used for quick assistant requests.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.backend.set",
-      "group": "ryoku-rashin",
-      "title": "Set the fast-lane backend",
-      "command": "ryoku-rashin backend <provider:model>",
-      "description": "Changes the provider and model used for quick assistant requests.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.paths",
-      "group": "ryoku-rashin",
-      "title": "Show Rashin data paths",
-      "command": "ryoku-rashin paths",
-      "description": "Shows every skill, vault, and Prowl path.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.paths.json",
-      "group": "ryoku-rashin",
-      "title": "Read Rashin paths as JSON",
-      "command": "ryoku-rashin paths --json",
-      "description": "Prints Rashin's skill, vault, and Prowl paths as JSON.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.paths.snippet",
-      "group": "ryoku-rashin",
-      "title": "Print agent wiring snippets",
-      "command": "ryoku-rashin paths --snippet",
-      "description": "Prints paste-ready knowledge-path snippets for agents.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.agent",
-      "group": "ryoku-rashin",
-      "title": "List Rashin agents",
-      "command": "ryoku-rashin agent",
-      "description": "Lists available agents and their chat backends.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.agent.use",
-      "group": "ryoku-rashin",
-      "title": "Choose the chat agent",
-      "command": "ryoku-rashin agent use <id>",
-      "description": "Selects which configured agent drives Rashin chat.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.logs",
-      "group": "ryoku-rashin",
-      "title": "Collect Rashin logs",
-      "command": "ryoku-rashin logs <target>",
-      "description": "Collects bounded logs relevant to a broken Rashin target.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.fix.doctor",
-      "group": "ryoku-rashin",
-      "title": "Open AI-assisted repair",
-      "command": "ryoku-rashin fix doctor",
-      "description": "Opens an agent terminal with Ryoku doctor findings.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.fix.tip",
-      "group": "ryoku-rashin",
-      "title": "Open help for a diagnostic tip",
-      "command": "ryoku-rashin fix tip <id>",
-      "description": "Opens an agent terminal focused on the named diagnostic tip.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.ryoku-rashin.fix.app",
-      "group": "ryoku-rashin",
-      "title": "Open help for a broken app",
-      "command": "ryoku-rashin fix app <name>",
-      "description": "Opens an agent terminal focused on a named application problem.",
-      "tool": "ryoku-rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.rashin.ask",
-      "group": "ryoku-rashin",
       "title": "Ask Rashin in the terminal",
-      "command": "rashin <question>",
-      "description": "Treats plain words as a terminal question and returns an answer plus a command plan.",
+      "command": "rashin ask <question>",
+      "description": "Asks a read-only question about this machine or starts a plain chat.",
       "tool": "rashin",
-      "level": "basic",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "basic"
+    },
+    {
+      "id": "ryoku.ryoku-rashin.term.buffer",
+      "group": "ryoku-rashin",
+      "title": "Put a proposed command on the prompt",
+      "command": "rashin ask --buffer -- <question>",
+      "description": "Prints only proposed commands so a shell hook can place them on the prompt for review.",
+      "tool": "rashin",
+      "level": "advanced"
     },
     {
       "id": "ryoku.rashin.continue",
       "group": "ryoku-rashin",
-      "title": "Continue the terminal conversation",
-      "command": "rashin --continue <question>",
-      "description": "Continues the most recent terminal conversation with another question.",
+      "title": "Continue the last terminal ask",
+      "command": "rashin ask -c <question>",
+      "description": "Continues the most recent terminal Ask session.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.resume",
+      "id": "ryoku.rashin.last",
       "group": "ryoku-rashin",
-      "title": "Resume a saved conversation",
-      "command": "rashin --resume",
-      "description": "Resumes the most recent saved terminal conversation.",
+      "title": "Show the last terminal answer",
+      "command": "rashin ask --last",
+      "description": "Prints the most recent terminal answer again.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.recipes",
+      "id": "ryoku.ryoku-rashin.status",
       "group": "ryoku-rashin",
-      "title": "List command recipes",
-      "command": "rashin recipes",
-      "description": "Lists reusable command recipes from terminal asks.",
-      "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
-    },
-    {
-      "id": "ryoku.rashin.status",
-      "group": "ryoku-rashin",
-      "title": "Check Rashin health",
+      "title": "Check Rashin status",
       "command": "rashin status",
-      "description": "Routes the recognized status word to Rashin's health report.",
+      "description": "Reports whether Rashin is enabled and running without starting it.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "basic"
     },
     {
-      "id": "ryoku.rashin.enable",
+      "id": "ryoku.ryoku-rashin.status.json",
       "group": "ryoku-rashin",
-      "title": "Enable Rashin",
-      "command": "rashin enable",
-      "description": "Routes the recognized enable word to the daemon lifecycle command.",
+      "title": "Read Rashin status as JSON",
+      "command": "rashin status --json",
+      "description": "Prints Rashin status and session counts as JSON without starting it.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.disable",
+      "id": "ryoku.ryoku-rashin.enable",
       "group": "ryoku-rashin",
-      "title": "Disable Rashin",
-      "command": "rashin disable",
-      "description": "Routes the recognized disable word to the daemon lifecycle command.",
+      "title": "Turn Rashin on",
+      "command": "rashin on",
+      "description": "Enables Rashin's socket and usage collector.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "basic"
     },
     {
-      "id": "ryoku.rashin.ensure",
+      "id": "ryoku.ryoku-rashin.disable",
       "group": "ryoku-rashin",
-      "title": "Ensure Rashin is running",
+      "title": "Turn Rashin off",
+      "command": "rashin off",
+      "description": "Stops Rashin and returns it to zero resource use.",
+      "tool": "rashin",
+      "level": "basic"
+    },
+    {
+      "id": "ryoku.ryoku-rashin.ensure",
+      "group": "ryoku-internal",
+      "title": "Start Rashin when enabled",
       "command": "rashin ensure",
-      "description": "Routes the recognized ensure word to the daemon lifecycle command.",
+      "description": "Starts the daemon only when Rashin is enabled and waits for it to answer.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "internal"
     },
     {
-      "id": "ryoku.rashin.backend",
-      "group": "ryoku-rashin",
-      "title": "Choose the Rashin backend",
-      "command": "rashin backend",
-      "description": "Shows or changes the fast-lane assistant backend.",
+      "id": "ryoku.ryoku-rashin.migrate",
+      "group": "ryoku-internal",
+      "title": "Migrate an older Rashin install",
+      "command": "rashin migrate",
+      "description": "Idempotently imports supported old settings and history and removes retired state.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "internal"
     },
     {
-      "id": "ryoku.rashin.paths",
+      "id": "ryoku.ryoku-rashin.call",
       "group": "ryoku-rashin",
-      "title": "Show Rashin data paths",
-      "command": "rashin paths",
-      "description": "Shows the skill, vault, and Prowl paths Rashin uses.",
+      "title": "Call a Rashin protocol method",
+      "command": "rashin call <method> [json]",
+      "description": "Calls any daemon protocol method with optional JSON parameters.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.agent",
+      "id": "ryoku.ryoku-rashin.events",
       "group": "ryoku-rashin",
-      "title": "Choose the Rashin agent",
-      "command": "rashin agent",
-      "description": "Lists or selects the agent that drives chat.",
+      "title": "Watch Rashin events",
+      "command": "rashin events",
+      "description": "Streams daemon events for inspection.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.setup",
+      "id": "ryoku.ryoku-rashin.open",
       "group": "ryoku-rashin",
-      "title": "Set up Rashin",
-      "command": "rashin setup",
-      "description": "Runs Rashin's Hermes onboarding and wiring flow.",
+      "title": "Open a session in the Rashin app",
+      "command": "rashin open --session <id>",
+      "description": "Raises the app and opens the selected session.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ],
-      "privileged": true
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.index",
+      "id": "ryoku.ryoku-rashin.index.add",
       "group": "ryoku-rashin",
-      "title": "Rebuild Rashin vault maps",
-      "command": "rashin index",
-      "description": "Regenerates Rashin's vault knowledge maps.",
+      "title": "Add a project index",
+      "command": "rashin index add <path>",
+      "description": "Registers a project directory for text and semantic search.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "advanced"
     },
     {
-      "id": "ryoku.rashin.logs",
+      "id": "ryoku.ryoku-rashin.index.remove",
       "group": "ryoku-rashin",
-      "title": "Collect Rashin logs",
-      "command": "rashin logs <target>",
-      "description": "Routes a well-formed logs request to the diagnostic collector.",
+      "title": "Remove a project index",
+      "command": "rashin index remove <id>",
+      "description": "Removes a project from the Rashin index registry.",
       "tool": "rashin",
       "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "danger": true
     },
     {
-      "id": "ryoku.rashin.fix",
+      "id": "ryoku.ryoku-rashin.index.list",
       "group": "ryoku-rashin",
-      "title": "Open AI-assisted repair",
-      "command": "rashin fix <kind>",
-      "description": "Routes a recognized repair kind to an agent-assisted terminal.",
+      "title": "List Rashin indexes",
+      "command": "rashin index list",
+      "description": "Lists registered project and system indexes.",
       "tool": "rashin",
-      "level": "advanced",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "basic"
+    },
+    {
+      "id": "ryoku.ryoku-rashin.index",
+      "group": "ryoku-rashin",
+      "title": "Refresh a Rashin index",
+      "command": "rashin index refresh [id]",
+      "description": "Refreshes one index or every registered index.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.ryoku-rashin.index.status",
+      "group": "ryoku-rashin",
+      "title": "Show index status",
+      "command": "rashin index status [id]",
+      "description": "Shows index progress, file counts and freshness.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.search",
+      "group": "ryoku-rashin",
+      "title": "Search indexed code",
+      "command": "rashin search <question>",
+      "description": "Searches the current project by meaning.",
+      "tool": "rashin",
+      "level": "basic"
+    },
+    {
+      "id": "ryoku.rashin.find",
+      "group": "ryoku-rashin",
+      "title": "Find a symbol",
+      "command": "rashin find <name>",
+      "description": "Finds an indexed symbol by name.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.def",
+      "group": "ryoku-rashin",
+      "title": "Read a symbol definition",
+      "command": "rashin def <name-or-id>",
+      "description": "Prints the indexed definition of one symbol.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.outline",
+      "group": "ryoku-rashin",
+      "title": "Outline a source file",
+      "command": "rashin outline <path>",
+      "description": "Lists the symbols in one indexed file.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.references",
+      "group": "ryoku-rashin",
+      "title": "Find symbol references",
+      "command": "rashin references <name-or-id>",
+      "description": "Lists indexed references to a symbol.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.peek",
+      "group": "ryoku-rashin",
+      "title": "Read a source range",
+      "command": "rashin peek <file:start-end>",
+      "description": "Prints a bounded range from an indexed source file.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.overview",
+      "group": "ryoku-rashin",
+      "title": "Map a project",
+      "command": "rashin overview",
+      "description": "Summarises the current indexed project.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.impact",
+      "group": "ryoku-rashin",
+      "title": "Show change impact",
+      "command": "rashin impact <path>",
+      "description": "Shows indexed dependants of a file.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.wip",
+      "group": "ryoku-rashin",
+      "title": "Inspect project work in progress",
+      "command": "rashin wip",
+      "description": "Summarises current project changes and their impact.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.rashin.changed",
+      "group": "ryoku-rashin",
+      "title": "Inspect changed files",
+      "command": "rashin changed",
+      "description": "Maps changed files to the indexed code they affect.",
+      "tool": "rashin",
+      "level": "advanced"
+    },
+    {
+      "id": "ryoku.ryoku-rashin.fix.doctor",
+      "group": "ryoku-rashin",
+      "title": "Ask an agent to fix doctor findings",
+      "command": "rashin fix doctor",
+      "description": "Opens an Agent session with the current Ryoku doctor findings.",
+      "tool": "rashin",
+      "level": "advanced"
     },
     {
       "id": "ryoku.rashin-app.open",
       "group": "ryoku-rashin",
       "title": "Open the Rashin app",
       "command": "rashin-app",
-      "description": "Starts Rashin when needed and opens its desktop chat window.",
+      "description": "Opens the Ask, Agent and Index app without losing daemon-owned sessions.",
       "tool": "rashin-app",
-      "level": "basic",
-      "editions": [
-        "arch",
-        "cachyos",
-        "fedora",
-        "void"
-      ]
+      "level": "basic"
     },
     {
       "id": "ryoku.ryoku-wm-hyprland.caps",
@@ -8963,105 +8437,6 @@
       "level": "internal"
     },
     {
-      "id": "ryoku.ryoku-rashin.repo-index.output",
-      "group": "ryoku-rashin",
-      "title": "Build a repository index file",
-      "command": "ryoku-rashin repo-index <root> <output>",
-      "description": "Builds a small-model repository index and writes it to the selected file.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.ryoku-rashin.wire.agent",
-      "group": "ryoku-rashin",
-      "title": "Connect one agent to Rashin",
-      "command": "ryoku-rashin wire <agent>",
-      "description": "Updates one supported coding agent to use Rashin's shared Prowl vault.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.ryoku-rashin.unwire.agent",
-      "group": "ryoku-rashin",
-      "title": "Disconnect one agent from Rashin",
-      "command": "ryoku-rashin unwire <agent>",
-      "description": "Removes Rashin's vault connection from one supported coding agent.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.ryoku-rashin.logs.since",
-      "group": "ryoku-rashin",
-      "title": "Read recent Rashin logs",
-      "command": "ryoku-rashin logs <target> --since <duration>",
-      "description": "Shows logs for the selected Rashin service from the requested recent duration.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.ryoku-rashin.logs.lines",
-      "group": "ryoku-rashin",
-      "title": "Read a limited Rashin log",
-      "command": "ryoku-rashin logs <target> --lines <count>",
-      "description": "Shows the requested number of lines from a Rashin service log.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.backend.set",
-      "group": "ryoku-rashin",
-      "title": "Choose an AI backend",
-      "command": "rashin backend <provider-model>",
-      "description": "Selects the provider and model used by terminal questions.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.paths.json",
-      "group": "ryoku-rashin",
-      "title": "Read Rashin paths as JSON",
-      "command": "rashin paths --json",
-      "description": "Prints Rashin data, configuration, and runtime paths as JSON.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.paths.snippet",
-      "group": "ryoku-rashin",
-      "title": "Print Rashin shell setup",
-      "command": "rashin paths --snippet",
-      "description": "Prints a shell snippet that exports Rashin's paths.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.agent.use",
-      "group": "ryoku-rashin",
-      "title": "Choose a Rashin agent",
-      "command": "rashin agent use <id>",
-      "description": "Chooses the saved Rashin agent used for terminal work.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.logs.since",
-      "group": "ryoku-rashin",
-      "title": "Read recent Rashin logs",
-      "command": "rashin logs <target> --since <duration>",
-      "description": "Shows logs for the selected Rashin service from the requested recent duration.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.logs.lines",
-      "group": "ryoku-rashin",
-      "title": "Read a limited Rashin log",
-      "command": "rashin logs <target> --lines <count>",
-      "description": "Shows the requested number of lines from a Rashin service log.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
       "id": "ryoku.ryoku-wm-hyprland.plugins.rebuild.stale",
       "group": "ryoku-internal",
       "title": "Rebuild stale Hyprland plugins",
@@ -9554,87 +8929,6 @@
       ]
     },
     {
-      "id": "ryoku.ryoku-rashin.term.buffer",
-      "group": "ryoku-rashin",
-      "title": "Use terminal scrollback in a question",
-      "command": "ryoku-rashin term --buffer <question>",
-      "description": "Includes the current terminal scrollback with the question.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.plain",
-      "group": "ryoku-rashin",
-      "title": "Ask without coloured output",
-      "command": "ryoku-rashin term --plain <question>",
-      "description": "Prints the terminal answer without colour or styled status lines.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.buffer",
-      "group": "ryoku-rashin",
-      "title": "Use terminal scrollback in a question",
-      "command": "rashin --buffer <question>",
-      "description": "Includes the current terminal scrollback with the question.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.plain",
-      "group": "ryoku-rashin",
-      "title": "Ask without coloured output",
-      "command": "rashin --plain <question>",
-      "description": "Prints the terminal answer without colour or styled status lines.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.last",
-      "group": "ryoku-rashin",
-      "title": "Show the last terminal answer",
-      "command": "rashin --last",
-      "description": "Prints the most recent terminal answer and command plan.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.run",
-      "group": "ryoku-rashin",
-      "title": "Run a proposed terminal command",
-      "command": "rashin --run <question>",
-      "description": "Asks for a command plan and runs the approved command after confirmation.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.copy",
-      "group": "ryoku-rashin",
-      "title": "Copy a proposed terminal command",
-      "command": "rashin --copy <question>",
-      "description": "Asks for a command plan and copies the resulting command.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.recipe",
-      "group": "ryoku-rashin",
-      "title": "Use a command recipe",
-      "command": "rashin recipe <name>",
-      "description": "Runs the selected reusable terminal-question recipe.",
-      "tool": "rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.ryoku-rashin.term.report",
-      "group": "ryoku-internal",
-      "title": "Report a terminal command result",
-      "command": "ryoku-rashin term --report <proposed> <ran> <status>",
-      "description": "Sends shell-hook feedback about a proposed and executed command to Rashin.",
-      "tool": "ryoku-rashin",
-      "level": "internal"
-    },
-    {
       "id": "ryoku.ryoku-host.svc.env.all",
       "group": "ryoku-internal",
       "title": "Read the complete service environment",
@@ -9930,24 +9224,6 @@
       "tool": "ryoku-host",
       "level": "internal",
       "privileged": true
-    },
-    {
-      "id": "ryoku.ryoku-rashin.fix.app.detail",
-      "group": "ryoku-rashin",
-      "title": "Repair an app from a report",
-      "command": "ryoku-rashin fix app <name> <problem>",
-      "description": "Starts an agent-assisted repair with the reported application problem.",
-      "tool": "ryoku-rashin",
-      "level": "advanced"
-    },
-    {
-      "id": "ryoku.rashin.fix.target",
-      "group": "ryoku-rashin",
-      "title": "Repair a selected problem",
-      "command": "rashin fix <kind> <target>",
-      "description": "Routes the selected repair kind and target to an agent-assisted terminal.",
-      "tool": "rashin",
-      "level": "advanced"
     }
   ]
 }

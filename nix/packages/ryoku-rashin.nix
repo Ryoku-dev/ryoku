@@ -1,39 +1,32 @@
 {
   pkgs,
   src,
-  desktopData,
 }:
 
 let
   repoSrc = src;
-
-  runtimePath = pkgs.lib.makeBinPath [
-    pkgs.bash
-    pkgs.coreutils
-    pkgs.curl
-    pkgs.findutils
-    pkgs.gawk
-    pkgs.gnugrep
-    pkgs.gnused
-    pkgs.iproute2
-    pkgs.jq
-    pkgs.nix
-    pkgs.pciutils
-    pkgs.procps
-    pkgs.systemd
-    pkgs.util-linux
-    pkgs.which
-  ];
 in
-pkgs.stdenv.mkDerivation {
+pkgs.buildGoModule {
   pname = "ryoku-rashin";
   version = "unstable";
 
-  src = repoSrc + "/ryoku/rashin/backend";
+  src = repoSrc + "/ryoku/rashin";
+  vendorHash = null;
 
   nativeBuildInputs = [
-    pkgs.go
-    pkgs.makeWrapper
+    pkgs.pkg-config
+    pkgs.python3
+  ];
+
+  buildInputs = [
+    pkgs.wayland
+    pkgs.libxkbcommon
+    pkgs.libGL
+    pkgs.vulkan-headers
+  ];
+
+  tags = [
+    "nox11"
   ];
 
   buildPhase = ''
@@ -42,18 +35,16 @@ pkgs.stdenv.mkDerivation {
     export HOME="$TMPDIR"
     export GOCACHE="$TMPDIR/go-cache"
     export GOTOOLCHAIN=local
-    export CGO_ENABLED=0
 
-    go build \
-      -mod=vendor \
-      -trimpath \
-      -o ryoku-rashin \
-      .
-
-    ./ryoku-rashin \
-      repo-index \
-      "${repoSrc}" \
-      "$TMPDIR/ryoku-repo.md"
+    CGO_ENABLED=0 go build -mod=vendor -trimpath \
+      -ldflags "-s -w -X main.version=$version" \
+      -o rashind ./cmd/rashind
+    CGO_ENABLED=0 go build -mod=vendor -trimpath \
+      -ldflags "-s -w -X main.version=$version" \
+      -o rashin ./cmd/rashin
+    CGO_ENABLED=1 go build -mod=vendor -trimpath -tags nox11 \
+      -ldflags "-s -w -X main.version=$version" \
+      -o rashin-app ./cmd/rashin-app
 
     runHook postBuild
   '';
@@ -61,47 +52,41 @@ pkgs.stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
 
-    mkdir -p \
-      "$out/bin" \
-      "$out/libexec" \
-      "$out/share/ryoku/rashin/wiki" \
-      "$out/share/ryoku/skills"
-
-    install -Dm755 \
-      ryoku-rashin \
-      "$out/libexec/ryoku-rashin"
-
+    for binary in rashind rashin rashin-app; do
+      install -Dm755 "$binary" "$out/bin/$binary"
+    done
+    for collector in ryoku-ai-usage claude-usage codex-usage opencode-usage; do
+      install -Dm755 "usage/$collector" "$out/bin/$collector"
+    done
+    for unit in rashind.socket rashind.service ryoku-ai-usage.service ryoku-ai-usage.timer; do
+      install -Dm644 "systemd/$unit" "$out/lib/systemd/user/$unit"
+    done
+    substituteInPlace "$out/lib/systemd/user/rashind.service" \
+      --replace-fail "/usr/bin/rashind" "$out/bin/rashind"
+    substituteInPlace "$out/lib/systemd/user/ryoku-ai-usage.service" \
+      --replace-fail "/usr/bin/ryoku-ai-usage" "$out/bin/ryoku-ai-usage"
+    for collector in claude-usage codex-usage opencode-usage; do
+      patchShebangs "$out/bin/$collector"
+    done
     install -Dm644 \
-      "$TMPDIR/ryoku-repo.md" \
-      "$out/share/ryoku/rashin/ryoku-repo.md"
-
-    cp -a \
-      "${repoSrc}/ryoku/rashin/skills/." \
-      "$out/share/ryoku/skills/"
-
-    cp -a \
-      "${repoSrc}/ryoku/rashin/wiki/." \
-      "$out/share/ryoku/rashin/wiki/"
-
-    makeWrapper \
-      "$out/libexec/ryoku-rashin" \
-      "$out/bin/ryoku-rashin" \
-      --set RYOKU_PACKAGE_BACKEND nix \
-      --set RYOKU_RASHIN_NIXOS 1 \
-      --set RYOKU_CONFIG_BASE "${desktopData}/share/ryoku/config" \
-      --set RYOKU_RASHIN_SHIPPED "$out/share/ryoku/rashin/ryoku-repo.md" \
-      --set RYOKU_RASHIN_WIKI "$out/share/ryoku/rashin/wiki" \
-      --prefix PATH : "${runtimePath}"
-
-    ln -s ryoku-rashin "$out/bin/rashin"
+      "${repoSrc}/release/packages/ryoku-rashin/dev.ryoku.rashin.desktop" \
+      "$out/share/applications/dev.ryoku.rashin.desktop"
+    install -Dm644 \
+      "${repoSrc}/ryoku/assets/brand/rashin-mark.svg" \
+      "$out/share/icons/hicolor/scalable/apps/dev.ryoku.rashin.svg"
+    install -Dm644 "${repoSrc}/LICENSE" \
+      "$out/share/licenses/ryoku-rashin/LICENSE"
+    install -Dm644 NOTICE \
+      "$out/share/licenses/ryoku-rashin/NOTICE"
 
     runHook postInstall
   '';
 
   meta = {
-    description = "Ryoku Rashin local agent OS daemon and dashboard";
-    homepage = "https://github.com/Ryoku-dev/ryoku-arch";
+    description = "Ryoku Rashin AI system";
+    homepage = "https://github.com/Ryoku-dev/ryoku";
     license = pkgs.lib.licenses.gpl3Plus;
+    mainProgram = "rashin-app";
     platforms = [ "x86_64-linux" ];
   };
 }

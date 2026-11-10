@@ -158,7 +158,7 @@ never by an edit to the routing.
 | packages | `install`/`remove`/`search` | GPK across every package manager |
 | mpris | (default, media words) | now-playing + transport for any player |
 | script | per-script keyword | run rofi-script / dmenu scripts |
-| rashin ask | `\` | one terse question to the Rashin agent (hermes): a pulsing strip names what it is doing (tool, thinking, writing), then the answer renders as selectable text over action chips. The daemon detects entities in the answer and each becomes a chip: real files open in nvim, folders in the file manager, URLs in the browser, shell commands and hex colors (with a live swatch) copy to the clipboard, plus COPY for the whole answer and CONTINUE IN DASHBOARD. Chips walk with the arrow keys and fire with ENTER; typing re-asks. Needs Rashin enabled; see `rashin.md` |
+| rashin ask | `\` | ask Rashin a read-only question about this machine through its free-model router. The answer renders as selectable text with actions for files, folders, URLs and proposed commands. Work that needs changes can move to an Agent session in the Rashin app. Needs Rashin on; see `rashin.md` |
 
 Ranking and protocol logic live as testable JavaScript in `shared/lib/` and each
 provider's folder (`fuzzy.js`, `dispatch.js`, `rofiscript.js`, `wave.js`,

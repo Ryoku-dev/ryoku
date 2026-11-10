@@ -78,6 +78,7 @@ func TestReadBasePackagesSkipsBootChain(t *testing.T) {
 func TestVoidPackagePlanMatchesResolver(t *testing.T) {
 	root := filepath.Clean("..")
 	p := &plan{browser: "chromium", shell: "zsh", compositor: "niri", devtools: true}
+	p.setComponent("rashin", true)
 	f := &facts{distro: voidLinux, hasNvidia: true}
 	e := &engine{f: f, p: p, payload: root}
 
@@ -453,6 +454,7 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T)
 				distro = newFedoraLinux()
 			}
 			p := defaultPlanForEdition(&facts{distro: distro}, edition)
+			p.setComponent("rashin", true)
 			p.fileManager = "dolphin"
 			e := &engine{f: &facts{distro: distro}, p: p, payload: root}
 			packages, err := e.readEditionPackages(editionName)
@@ -471,5 +473,29 @@ func TestEditionPackagePlansIncludeSelectedFileManagerAppsAndRadio(t *testing.T)
 				}
 			}
 		})
+	}
+}
+
+func TestRashinSelectionWritesFirstLoginMarker(t *testing.T) {
+	home := t.TempDir()
+	selected := true
+	e := &engine{
+		f: &facts{homeDir: home},
+		p: &plan{components: map[string]*bool{"rashin": &selected}},
+	}
+	if err := e.syncRashinMarker(); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(home, ".local/state/ryoku/rashin-on-pending")
+	if body, err := os.ReadFile(marker); err != nil || string(body) != "pending\n" {
+		t.Fatalf("marker = %q, %v", body, err)
+	}
+
+	selected = false
+	if err := e.syncRashinMarker(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("marker survived deselection: %v", err)
 	}
 }

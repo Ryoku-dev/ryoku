@@ -14,10 +14,10 @@ repo. Packages publish only from `main` release tags, never from `unstable-dev`.
 - `ryoku-hub` -- the Hub backend (Go), to `/usr/bin/ryoku-hub`.
 - `ryoku` -- the control CLI (update / rollback / snapshots / materialize / ...),
   to `/usr/bin/ryoku`.
-- `prowl` -- the pinned model gateway and code-intelligence engine behind
-  Rashin, built from source into `/usr/bin/prowl`.
-- `ryoku-rashin` -- the local assistant daemon and console backend. It ships
-  Prowl's user unit and starts the gateway only when Rashin runs.
+- `ryoku-rashin` -- the optional Rashin system. It ships the `rashind` daemon,
+  pure-Go `rashin` command line, Gio `rashin-app`, built-in free-model router
+  and code index, user socket units, usage collectors, launcher and notices.
+  Prowl is no longer a separate Ryoku package.
 - `ryoku-blobs` -- the `Ryoku.Blobs` QML plugin, to
   `/usr/lib/qt6/qml/Ryoku/Blobs`.
 - `skwd-paper-bin` -- the pinned upstream skwd-paper scene renderer (Wallpaper
@@ -56,8 +56,7 @@ source tree is never modified, and `makepkg --clean` removes `$srcdir` and
 
 The `gpk`, `skwd-paper-bin`, `hyprland-preview-share-picker`, and
 `ryoku-keyring` PKGBUILDs fetch pinned upstream artifacts or source instead of
-building from the checkout. `prowl` is also pinned upstream, but builds its
-selected commit from source.
+building from the checkout.
 
 ## Shared package payloads
 
@@ -77,10 +76,10 @@ Void, and Fedora wrappers, and compares normalized path, mode, and SHA-256
 manifests. Its single allow-list covers only init, boot, package-manager, and
 other edition adapters named in the test.
 
-makedepends across the set include `go` (the Ryoku Go tools and Prowl),
-`cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), and `rust` +
-`git` (hyprland-preview-share-picker, asusctl), on top of the assumed
-`base-devel`. `ryoku-hub` and Prowl need network access at build time.
+makedepends across the set include `go` (the Ryoku Go tools and Rashin),
+`cmake ninja qt6-shadertools qt6-declarative` (ryoku-blobs), Gio's Wayland,
+xkbcommon, EGL and Vulkan headers, and `rust` + `git`
+(hyprland-preview-share-picker, asusctl), on top of the assumed `base-devel`.
 
 ## Configs and materialize
 

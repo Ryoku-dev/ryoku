@@ -4,10 +4,10 @@ name: Go unit tests
 # CLI (update / doctor / materialize, the no-migrations delivery spine), the
 # shell IPC daemon, the window-manager seam (ryoku/wm, vendored into every Go
 # consumer), the standalone shell installer, and the store, Hub, and Rashin
-# backends. The build step alone is load-bearing: these ship as prebuilt
+# modules. The build step alone is load-bearing: these ship as prebuilt
 # binaries or compile during ISO and package builds, and an IPC compile break
 # once reached unstable-dev unseen because nothing built the package in CI.
-# The store, Hub, and Rashin backends carry tests that nothing else runs.
+# Rashin's one module includes its daemon, command line and Gio application.
 # unstable-dev is in the push triggers for the same reason: that is the branch
 # integration happens on.
 
@@ -21,7 +21,7 @@ on:
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
-      - 'ryoku/rashin/backend/**'
+      - 'ryoku/rashin/**'
       - '.github/workflows/go-unit-tests.yml'
   push:
     branches:
@@ -35,7 +35,7 @@ on:
       - 'installation/installerplan/**'
       - 'ryoku/apps/ryostore/backend/**'
       - 'ryoku/hub/backend/**'
-      - 'ryoku/rashin/backend/**'
+      - 'ryoku/rashin/**'
       - '.github/workflows/go-unit-tests.yml'
   workflow_dispatch:
 
@@ -198,22 +198,28 @@ jobs:
           go vet ./...
           go test ./...
 
-  rashin-backend:
-    name: rashin backend
+  rashin:
+    name: Rashin module
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install Gio build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwayland-dev libxkbcommon-dev libegl1-mesa-dev libvulkan-dev pkg-config
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: ryoku/rashin/backend/go.mod
+          go-version-file: ryoku/rashin/go.mod
 
       - name: Build, vet, and test
         shell: bash
-        working-directory: ryoku/rashin/backend
+        working-directory: ryoku/rashin
         run: |
-          go build ./...
-          go vet ./...
-          go test ./...
+          env -u WAYLAND_DISPLAY go build -tags nox11 ./...
+          env -u WAYLAND_DISPLAY go vet -tags nox11 ./...
+          env -u WAYLAND_DISPLAY go test -tags nox11 ./...

@@ -1,6 +1,9 @@
 # Changelog: installation/
 
 ## Unreleased
+- **Rashin is opt in.** The installer describes its Ask, Agent and Index
+  features, defaults the choice to No, and leaves a first-login marker that
+  runs `rashin on` once only when selected.
 - **Time zone choices are checked before installation starts.** The picker
   searches the system Region/City list and accepts fixed offsets such as
   `UTC-3` as `Etc/GMT+3`, explaining tzdata's reversed Etc/GMT signs instead of

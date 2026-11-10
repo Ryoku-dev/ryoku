@@ -1,0 +1,278 @@
+package ask
+
+import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"sync"
+	"time"
+
+	"ryoku-rashin/internal/llm"
+	"ryoku-rashin/internal/paths"
+	"ryoku-rashin/internal/protocol"
+)
+
+const (
+	historyBudgetBytes = 12 * 1024 * 4
+	vaultBudgetBytes   = 28 * 1024
+	habitsTTL          = 10 * time.Minute
+)
+
+const askIdentity = `You are the Needle, Rashin's resident read-only system agent on a Ryoku Linux desktop. The edition and compositor are named in desktop.md and by ryoku wm status. Detect them and never assume.
+
+This is Ask. You may inspect this machine with the supplied read-only tools, but you never change it. If the request needs a machine change or broader agent work, explain what is known and end with exactly NEEDS_AGENT: <one-line reason>. Use propose for commands the user should run themselves. When terminal context says buffer is true, always call propose and put every command in that plan.
+
+Answer desktop how-to questions GUI first. Name the exact Ryoku Hub page, shell picker, or active bar style setting before any command. Cite matching vault wiki pages by page name when they help. Write direct, plain sentence-case prose with no preamble, no follow-up question, and no em dash. Prefer the current vault and live tools over guesses.`
+
+func (f *Factory) systemPrompt(settings protocol.Settings, terminal *protocol.TerminalContext) string {
+	var b strings.Builder
+	b.WriteString(askIdentity)
+	b.WriteString("\n\n# Ryoku vault\n\n")
+	b.WriteString(vaultContext(vaultBudgetBytes))
+	if settings.Ask.Habits {
+		b.WriteString("\n\n# User habits\n\n")
+		b.WriteString(f.habits.summary())
+	}
+	if terminal != nil {
+		b.WriteString("\n\n# Terminal context\n\n")
+		if terminal.Cwd != "" {
+			fmt.Fprintf(&b, "- cwd: %s\n", terminal.Cwd)
+		}
+		if terminal.Shell != "" {
+			fmt.Fprintf(&b, "- shell: %s\n", terminal.Shell)
+		}
+		if terminal.LastCommand != "" {
+			fmt.Fprintf(&b, "- last command: %s\n", terminal.LastCommand)
+		}
+		if terminal.LastStatus != nil {
+			fmt.Fprintf(&b, "- last exit status: %d\n", *terminal.LastStatus)
+		}
+		fmt.Fprintf(&b, "- buffer plan requested: %t\n", terminal.Buffer)
+	}
+	return b.String()
+}
+
+func vaultContext(budget int) string {
+	root := paths.VaultDir()
+	if _, err := os.Stat(root); err != nil {
+		root = paths.LegacyVaultDir()
+	}
+	remaining := budget
+	var b strings.Builder
+	for _, name := range []string{"AGENTS.md", "desktop.md"} {
+		if remaining <= 0 {
+			break
+		}
+		body, err := readAtMost(filepath.Join(root, name), remaining)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(&b, "## %s\n%s\n\n", name, strings.TrimSpace(body))
+		remaining -= len(body)
+	}
+	if b.Len() == 0 {
+		b.WriteString("The Ryoku vault is not available yet. Use read-only tools for live facts.\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func readAtMost(path string, limit int) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
+	if err != nil {
+		return "", err
+	}
+	if len(body) > limit {
+		return string(body[:limit]) + "\n[trimmed]", nil
+	}
+	return string(body), nil
+}
+
+type habitCache struct {
+	mu      sync.Mutex
+	at      time.Time
+	content string
+}
+
+func (c *habitCache) summary() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.content != "" && time.Since(c.at) < habitsTTL {
+		return c.content
+	}
+	c.content = collectHabits()
+	c.at = time.Now()
+	return c.content
+}
+
+var secretHistory = regexp.MustCompile(`(?i)(password|passwd|secret|token|api[_-]?key|bearer[ =]|authorization|private[_-]?key)`)
+
+func collectHabits() string {
+	var b strings.Builder
+	shell := filepath.Base(os.Getenv("SHELL"))
+	if shell == "." || shell == "" {
+		shell = "unknown"
+	}
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		editor = "not set"
+	}
+	fmt.Fprintf(&b, "- shell: %s\n- editor: %s\n", shell, editor)
+	var tools []string
+	for _, name := range []string{"eza", "zoxide", "fd", "rg", "bat", "btop"} {
+		if _, err := exec.LookPath(name); err == nil {
+			tools = append(tools, name)
+		}
+	}
+	if len(tools) > 0 {
+		fmt.Fprintf(&b, "- installed modern tools: %s\n", strings.Join(tools, ", "))
+	}
+	commands := topHistoryCommands(15)
+	if len(commands) > 0 {
+		fmt.Fprintf(&b, "- frequent commands: %s\n", strings.Join(commands, ", "))
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func topHistoryCommands(limit int) []string {
+	home := paths.Home()
+	files := []struct {
+		path string
+		kind string
+	}{
+		{filepath.Join(home, ".local", "share", "fish", "fish_history"), "fish"},
+		{filepath.Join(home, ".bash_history"), "line"},
+		{filepath.Join(home, ".zsh_history"), "zsh"},
+	}
+	counts := make(map[string]int)
+	for _, source := range files {
+		for _, line := range historyTail(source.path, 256*1024) {
+			line = strings.TrimSpace(line)
+			switch source.kind {
+			case "fish":
+				if !strings.HasPrefix(line, "- cmd:") {
+					continue
+				}
+				line = strings.TrimSpace(strings.TrimPrefix(line, "- cmd:"))
+			case "zsh":
+				if strings.HasPrefix(line, ": ") {
+					if i := strings.Index(line, ";"); i >= 0 {
+						line = line[i+1:]
+					}
+				}
+			}
+			if secretHistory.MatchString(line) {
+				continue
+			}
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
+				continue
+			}
+			name := filepath.Base(fields[0])
+			if name == "sudo" || name == "doas" || name == "run0" {
+				if len(fields) < 2 {
+					continue
+				}
+				name = filepath.Base(fields[1])
+			}
+			counts[name]++
+		}
+	}
+	type count struct {
+		name string
+		n    int
+	}
+	ordered := make([]count, 0, len(counts))
+	for name, n := range counts {
+		ordered = append(ordered, count{name: name, n: n})
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].n == ordered[j].n {
+			return ordered[i].name < ordered[j].name
+		}
+		return ordered[i].n > ordered[j].n
+	})
+	if len(ordered) > limit {
+		ordered = ordered[:limit]
+	}
+	out := make([]string, len(ordered))
+	for i, item := range ordered {
+		out[i] = fmt.Sprintf("%s (%d)", item.name, item.n)
+	}
+	return out
+}
+
+func historyTail(path string, limit int64) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	if stat, err := file.Stat(); err == nil && stat.Size() > limit {
+		_, _ = file.Seek(stat.Size()-limit, io.SeekStart)
+	}
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 4096), 256*1024)
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines
+}
+
+func historyMessages(events []protocol.SessionEvent, budget int) []llm.Message {
+	var messages []llm.Message
+	assistantByID := make(map[string]int)
+	for _, event := range events {
+		switch event.Kind {
+		case protocol.EvUser:
+			var data protocol.UserData
+			if jsonUnmarshal(event.Data, &data) == nil && strings.TrimSpace(data.Text) != "" {
+				messages = append(messages, llm.Message{Role: llm.RoleUser, Content: data.Text})
+			}
+		case protocol.EvText:
+			var data protocol.TextData
+			if jsonUnmarshal(event.Data, &data) != nil || data.Delta == "" {
+				continue
+			}
+			if i, ok := assistantByID[data.Message]; ok {
+				messages[i].Content += data.Delta
+				continue
+			}
+			assistantByID[data.Message] = len(messages)
+			messages = append(messages, llm.Message{Role: llm.RoleAssistant, Content: data.Delta})
+		}
+	}
+	used := 0
+	start := len(messages)
+	for i := len(messages) - 1; i >= 0; i-- {
+		size := len(messages[i].Content)
+		if used+size > budget && start < len(messages) {
+			break
+		}
+		used += size
+		start = i
+	}
+	return messages[start:]
+}
+
+func jsonUnmarshal(data []byte, value any) error {
+	if len(data) == 0 {
+		return io.ErrUnexpectedEOF
+	}
+	return json.Unmarshal(data, value)
+}

@@ -120,8 +120,8 @@ build_pkg() {
 # the mirror already serves is not built at all: its served bytes are copied
 # in and re-signed. this is what makes a release a promotion of the testing
 # build (same commit, same names, same bytes) instead of a rebuild, and spares
-# a pinned external (ryotunes, prowl) its compile on every
-# push. shipping a change to a fixed-version package means bumping pkgrel.
+# pinned externals like ryotunes from compiling on every push, a change to a
+# fixed-version package still needs a pkgrel bump
 MIRROR=${RYOKU_REPO_MIRROR:-https://repo.ryoku.dev/stable/$REPO_ARCH}
 
 # from the mirror URL on a dev box, or from a directory when CI pre-fetched

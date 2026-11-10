@@ -1,0 +1,10 @@
+[Unit]
+Description=Rashin daemon
+Requires=rashind.socket
+After=rashind.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/rashind
+KillMode=control-group
+Restart=no

@@ -95,7 +95,8 @@ QML_ROOT = os.path.join(REPO, "ryoku")
 SCHEMA_DIR = os.path.join(REPO, "ryoku", "hub", "quickshell", "schema")
 GO_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/tui", "ryoku-shell-installer", "ryoku/cli",
-             "ryoku/shell/ipc", "ryoku/hub/backend", "ryoku/apps/ryostore/backend")]
+             "ryoku/shell/ipc", "ryoku/hub/backend", "ryoku/apps/ryostore/backend",
+             "ryoku/rashin")]
 SH_ROOTS = [os.path.join(REPO, p) for p in
             ("installation/backend", "ryoku-shell-installer")]
 

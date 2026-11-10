@@ -558,12 +558,9 @@ func stepsForVariant(variant string) []step {
 		{key: "file-manager", title: i18n.T("File manager"), kind: kSelect, items: fileManagersForVariant(variant), numbered: true,
 			desc: []string{i18n.T("Choose the app that opens folders and files.")}},
 		{key: "rashin", title: i18n.T("Rashin"), kind: kConfirm, desc: []string{
-			i18n.T("Rashin is Ryoku's AI agent: Ask on Alt+Space,"),
-			i18n.T("the Rashin window and the bar's AI usage."),
-			i18n.T("It runs the Hermes agent, which installs at your"),
-			i18n.T("first login when you are online."),
-			i18n.T("Turn it off later on the Rashin page"),
-			i18n.T("of Ryoku Settings."),
+			i18n.T("Optional AI for asking about your system"),
+			i18n.T("and running coding agents."),
+			i18n.T("It stays off until you turn it on."),
 		}},
 		{key: "apps", title: i18n.T("Apps & tools"), kind: kApps,
 			desc: []string{i18n.T("Space toggles · every app Ryoku ships, keep or remove."), i18n.T("Required rows back a desktop feature and cannot be removed.")}},
@@ -1086,7 +1083,7 @@ func newModel() model {
 	m.picks["browser"] = installerplan.FreshDefault(installerplan.Browser)
 	m.picks["login-shell"] = installerplan.FreshDefault(installerplan.LoginShell)
 	m.picks["file-manager"] = installerplan.FreshDefault(installerplan.FileManager)
-	m.picks["rashin"] = "1"
+	m.picks["rashin"] = "0"
 	m.picks["gaming"] = "0"
 	m.netOnline = probeNetworkOnline()
 	if variant == "plain" {
@@ -1214,7 +1211,7 @@ func (m *model) loadStep() {
 		m.inputErr, m.encStage, m.pass1, m.encErr = "", 0, "", ""
 		m.wipeStage, m.eraseInput = 0, ""
 		if s.key == "rashin" {
-			m.yes = def(m.picks["rashin"], "1") == "1"
+			m.yes = def(m.picks["rashin"], "0") == "1"
 		}
 		if s.key == "gaming" {
 			reason := m.gamingUnavailableReason()
@@ -3580,9 +3577,9 @@ func (m model) reviewBody(w int) string {
 	if m.hwBIOS {
 		firmware = i18n.T("Legacy BIOS")
 	}
-	rashin := i18n.T("Yes")
-	if def(m.picks["rashin"], "1") != "1" {
-		rashin = i18n.T("No")
+	rashin := i18n.T("No")
+	if def(m.picks["rashin"], "0") == "1" {
+		rashin = i18n.T("Yes")
 	}
 	lines := []string{
 		bold(cBrand, i18n.T("Review, then confirm to install")), "",

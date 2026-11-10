@@ -7,7 +7,6 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import Ryoku.Ui.Singletons
 import shell.services
-import "../../services" as Services
 
 Scope {
     id: root
@@ -19,6 +18,7 @@ Scope {
 
     signal requestClose()
     signal modeChangeRequested(string mode)
+    signal bubblePinned(string question, string answer)
 
     readonly property real s: Tokens.uiScaleFor(screen ? screen.name : "")
     readonly property var clearances: SidebarState.railClearances(screen)
@@ -38,12 +38,8 @@ Scope {
 
     Behavior on reveal {
         enabled: root.motionAllowed
-        NumberAnimation {
-            duration: Tokens.swap
-            easing.type: Tokens.ease
-        }
+        NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease }
     }
-
 
     function switchMode(next) {
         if (["ask", "chat", "tools", "web"].indexOf(next) < 0 || mode === next)
@@ -60,14 +56,8 @@ Scope {
         }
     }
 
-    Services.AskSession {
-        id: session
-        question: surface.query
-    }
+    RashinClient { id: rashin }
 
-    // One full-screen surface holds the bar and the click-away area: a second
-    // exclusive surface for the scrim leaves the keyboard with whichever one the
-    // compositor mapped last, and Hyprland and niri disagree about which.
     PanelWindow {
         id: panel
         screen: root.screen
@@ -106,9 +96,8 @@ Scope {
             scale: 0.96 + root.reveal * 0.04
             transformOrigin: Item.Top
             Keys.onEscapePressed: root.requestClose()
-            onFocusChanged: if (focus) Qt.callLater(() => focusSurface.forceActiveFocus())
+            onFocusChanged: if (focus) Qt.callLater(function() { focusSurface.forceActiveFocus(); })
 
-            // Presses on the bar stay on the bar; only the paper around it dismisses.
             MouseArea {
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
@@ -129,13 +118,14 @@ Scope {
                 anchors.fill: parent
                 s: root.s
                 screen: root.screen
-                session: session
+                client: rashin
                 active: root.active
                 mode: root.mode
                 tool: root.tool
                 maximumHeight: root.maximumHeight
                 onRequestClose: root.requestClose()
                 onModeRequested: next => root.switchMode(next)
+                onBubblePinned: (question, answer) => root.bubblePinned(question, answer)
             }
         }
     }

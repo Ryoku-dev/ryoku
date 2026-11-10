@@ -134,11 +134,11 @@ seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail
 [[ -n $seed_intent ]] || fail "the delegated account seed was not narrated"
 [[ $seed_intent == *" rice=default "* ]] \
   || fail "the delegated account seed did not request the default rice: $seed_intent"
-[[ $seed_intent == *" rashin=1 "* ]] \
-  || fail "the delegated account seed did not request the first-login Rashin marker: $seed_intent"
+[[ $seed_intent == *" rashin=0 "* ]] \
+  || fail "the delegated account seed did not leave Rashin off by default: $seed_intent"
 grep -qF 'DRYRUN: set nautilus as the default file manager (inode/directory + desktop.apps.files)' <<<"$out" \
   || fail "the empty file-manager choice did not default to nautilus"
-grep -qF 'ryoku-rashin ryotunes ryomanager nautilus nautilus-python' <<<"$out" \
+grep -qF 'ryotunes ryomanager nautilus nautilus-python' <<<"$out" \
   || fail "fresh-install app and file-manager packages were not in the desktop transaction"
 base_n=$(pcount "$out")
 [[ -n $base_n ]] || fail "no pacstrap package count in the default dry run"
@@ -353,19 +353,19 @@ grep -qw 'ryoku-rashin' <<<"$transactions" \
 ledger="${seed_intent##* provisioned-ledger=}"
 [[ " ${ledger//,/ } " == *" ryoku-rashin "* ]] || fail "Void Rashin-off ledger is missing ryoku-rashin: $seed_intent"
 
-# Void's desktop package does not pull Rashin in; the installer names it.
+# Void installs Rashin only when explicitly selected.
 install_dryrun_run void "$void_out" \
   RYOKU_DISK_STRATEGY=whole RYOKU_FIRMWARE_MODE=uefi \
   RYOKU_COMPOSITOR=niri RYOKU_COMPOSITOR_CONFIG_DIR=niri \
-  RYOKU_COMPOSITOR_GPU_PIN=gpu.kdl \
-  || fail "Void default dry run exited nonzero: $(<"$void_out")"
+  RYOKU_COMPOSITOR_GPU_PIN=gpu.kdl RYOKU_RASHIN=1 \
+  || fail "Void Rashin-on dry run exited nonzero: $(<"$void_out")"
 out=$(<"$void_out")
 transactions=$(grep -F 'xbps-install -r /mnt' <<<"$out")
 grep -qw 'ryoku-rashin' <<<"$transactions" \
-  || fail "Void did not install ryoku-rashin by default"
+  || fail "Void did not install explicitly selected ryoku-rashin"
 seed_intent="$(grep -F 'DRYRUN: users seed-self account=ryoku ' <<<"$out" | tail -n1)"
 [[ $seed_intent == *" rice=default "* && $seed_intent == *" rashin=1 "* ]] \
-  || fail "Void did not delegate the default rice and Rashin first-login marker: $seed_intent"
+  || fail "Void did not delegate the selected Rashin first-login marker: $seed_intent"
 
 echo "install-dryrun-matrix: browser/shell/app-choice checks passed"
 echo "install-dryrun-matrix: all checks passed"

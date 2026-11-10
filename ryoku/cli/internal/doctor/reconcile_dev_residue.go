@@ -23,12 +23,10 @@ import (
 // (git channel) IS the dev loop: left alone.
 //
 // The binaries are only half of it. Every user unit the deploy pointed at
-// ~/.local/bin (a drop-in today, a rewritten copy or a user_edits fork of one
-// from older deploys, plus rashin and Prowl's whole home units) still shadows
-// the packaged service. Clearing the binaries alone leaves the shell unit
-// failing at its first ExecStartPre and the desktop comes up with no shell
-// after the next login. Those units go back to the packaged ones in the same
-// pass.
+// ~/.local/bin still shadows the packaged service. Clearing the binaries alone
+// leaves the shell unit failing at its first ExecStartPre and the desktop comes
+// up with no shell after the next login. Retired Rashin 1 and Prowl units are
+// removed in the same pass.
 
 var (
 	devPackageInstalled = func(name string) bool {
@@ -89,16 +87,9 @@ func reconcileDevResidue(checkOnly bool) recResult {
 	if qml := filepath.Join(sys.Home(), ".local", "lib", "qt6", "qml", "Ryoku"); sys.Exists(qml) {
 		residue = append(residue, qml)
 	}
-	// every ~/.local/bin entry that shadows a Ryoku-packaged /usr/bin binary.
-	// deploy.sh installs a wide, release-dependent set (shell, livewall, CLI,
-	// hub, rashin, hardware helpers, app bins), so pacman is the manifest: a
-	// home copy of anything a ryoku package ships is residue. A fixed name
-	// list here once missed ryoku-livewall and the helpers, leaving a stale
-	// player and tools shadowing every later update. Anything the packages
-	// never shipped (a user's own script) has no ryoku-owned /usr/bin twin
-	// and is left alone; a wrapper deliberately named after a packaged ryoku
-	// tool is treated as residue too -- doctor owns converging the packaged
-	// toolchain, and an intercepted tool is exactly the drift it heals.
+	// Every ~/.local/bin entry that shadows a Ryoku-packaged /usr/bin binary.
+	// deploy.sh installs a wide, release-dependent set, so the package database
+	// is the manifest. Anything the packages never shipped is left alone.
 	entries, _ := os.ReadDir(l.localBin)
 	for _, e := range entries {
 		if twin(e.Name()) {
@@ -229,11 +220,13 @@ func (l residueLayout) planDevUnits(twin func(string) bool) []unitHeal {
 	live, _ := os.ReadDir(l.userUnits())
 	for _, e := range live {
 		p := filepath.Join(l.userUnits(), e.Name())
-		wholeHomeUnit := e.Name() == "ryoku-rashin.service" || e.Name() == "ryoku-prowl.service"
-		if planned[p] || !e.Type().IsRegular() || (!wholeHomeUnit && !l.execsDevBin(p, twin)) {
+		legacyUnit := e.Name() == legacyRashinUnit || e.Name() == legacyProwlUnit
+		if planned[p] || !e.Type().IsRegular() || (!legacyUnit && !l.execsDevBin(p, twin)) {
 			continue
 		}
-		if base := filepath.Join(l.baseDir, "systemd", "user", e.Name()); sys.Exists(base) {
+		if legacyUnit {
+			add(unitHeal{path: p})
+		} else if base := filepath.Join(l.baseDir, "systemd", "user", e.Name()); sys.Exists(base) {
 			add(unitHeal{path: p, relay: base})
 		} else if pkg := filepath.Join(l.usrUnits, e.Name()); sys.Exists(pkg) {
 			add(unitHeal{path: p, wants: pkg})

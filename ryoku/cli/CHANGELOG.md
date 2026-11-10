@@ -1,6 +1,16 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **The Ryoku vault now works without Rashin.** `ryoku vault` refreshes the
+  machine map, migrates Rashin 1 notes and wires installed coding harnesses.
+- **Doctor follows Rashin's opt-in setting without turning it on.** It enables
+  `rashind.socket` and the coding-agent usage timer only while Rashin is
+  enabled, disables both while off, migrates each installed version once and
+  removes the retired Rashin 1 and Prowl user units.
+- **`--rashin` provisions an opt-in account once.** Account setup leaves a
+  first-login marker that runs `rashin on` instead of wiring the old daemon.
+- **Prowl and Hermes setup repair paths are removed.** Their doctor
+  reconcilers, gateway units and terminal setup hints no longer ship.
 - **Doctor keeps the QML disk cache bounded.** `ryoku doctor` removes cache
   files under `~/.cache/quickshell/qmlcache` that have not been used for 30
   days; Qt recompiles any it needs (`internal/doctor/reconcile_qmlcache.go`).

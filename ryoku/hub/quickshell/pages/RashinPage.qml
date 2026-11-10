@@ -7,508 +7,125 @@ import Quickshell.Io
 import Ryoku.Ui
 import Ryoku.Ui.Singletons
 
-// Rashin (DESIGN.md section 11, ADVANCED). The optional, fully local agent OS
-// (羅針, the system needle). This page is the Hub's welcome to Rashin, in the
-// Hub's own paper and ink, the same language the web dashboard at
-// 127.0.0.1:3600 now speaks. It
-// leads with the samurai hero banner and the live model Hermes runs on, lays
-// out what Rashin does (the vault, memory, skills, agents, chat, code), shows
-// how to use it, and keeps the master switch, one-click Hermes setup and the
-// dashboard link. Live state comes from `ryoku-rashin status --json`; setup
-// progress is mirrored from the daemon's setup.json. Everything stays on the
-// machine; Rashin is off until you switch it on.
 Item {
     id: pg
 
     property var hub
     readonly property bool fullBleed: true
+    readonly property real bodyW: Math.min(width - Tokens.s5 * 2, 1080)
 
-    // centered body column; the hero and every section share this measure.
-    readonly property real bodyW: Math.min(pg.width - Tokens.s5 * 2, 1080)
-
-    // ── status snapshot (page readouts, not stored config) ───────────────────
-    property bool installed: true
-    property bool daemonEnabled: false
+    property bool installed: false
+    property bool rashinEnabled: false
     property bool running: false
-    property bool serviceBusy: false
-    property string busyLabel: ""
-    property string serviceError: ""
-    // the port the daemon reports, not a literal: a user who changed it in
-    // ~/.config/ryoku/rashin.json still gets a link that resolves.
-    property int port: 3600
-    property bool prowlInstalled: false
-    property bool prowlRunning: false
-    property int prowlPort: 8788
-    property string prowlUrl: ""
-    property string prowlError: ""
-    property bool prowlKeep: false
-    property bool vaultExists: false
-    property int vaultFiles: 0
-    property bool hermesInstalled: false
-    property string hermesVersion: ""
-    property bool hermesConfigured: false
-    property int agentsPresent: 0
-    property int agentsWired: 0
-    // manifest: the full agent surface (paths + agents + chat backends), from
-    // `ryoku-rashin paths --json`. Drives the Agents and Connect sections.
-    property var agentList: []
-    property var chatBackends: []
-    property string skillPath: ""
-    property string prowlPath: ""
-    property var vaultItems: []
+    property bool busy: false
+    property string errorText: ""
+    property string askRoute: "auto"
+    property int providerCount: 0
+    property string defaultHarness: ""
+    property int harnessCount: 0
+    property int indexCount: 0
 
-    readonly property string wiredSummary: pg.agentsPresent > 0
-        ? I18n.tr("%1 / %2 wired").arg(pg.agentsWired).arg(pg.agentsPresent)
-        : I18n.tr("none yet")
+    Component.onCompleted: refresh()
 
-    // live Hermes setup progress, mirrored from the daemon's setup.json.
-    property string setupPhase: ""
-    property string setupDetail: ""
-    property bool setupOk: true
+    function refresh() {
+        statusProc.running = true;
+    }
 
-    Component.onCompleted: pg.refresh()
-    function refresh() { packageProc.running = true; statusProc.running = true; manifestProc.running = true; }
+    function setEnabled(value) {
+        if (busy)
+            return;
+        busy = true;
+        errorText = "";
+        rashinEnabled = value;
+        switchProc.command = ["ryoku-hub", "rashin", value ? "on" : "off"];
+        switchProc.running = true;
+    }
 
-    Process {
-        id: packageProc
-        command: ["ryoku-hub", "rashin", "status"]
-        stderr: StdioCollector {}
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var o = JSON.parse(this.text);
-                    pg.installed = o.installed === true;
-                } catch (e) {}
-            }
-        }
+    function applyStatus(status) {
+        installed = true;
+        rashinEnabled = status.enabled === true;
+        running = status.running === true;
+        providerCount = status.gateway && typeof status.gateway.providers === "number" ? status.gateway.providers : 0;
+        harnessCount = typeof status.harnesses === "number" ? status.harnesses : 0;
+        indexCount = typeof status.indexes === "number" ? status.indexes : 0;
+        const settings = status.settings || ({});
+        askRoute = settings.ask && settings.ask.model ? String(settings.ask.model) : "auto";
+        defaultHarness = settings.agent && settings.agent.harness ? String(settings.agent.harness) : "";
+    }
+
+    function routeName() {
+        if (askRoute === "auto") return I18n.tr("Auto");
+        if (askRoute === "auto:fast") return I18n.tr("Fast");
+        if (askRoute === "auto:smart") return I18n.tr("Smart");
+        return askRoute;
     }
 
     Process {
         id: statusProc
-        // sh-wrapped so a missing ryoku-rashin still closes stdout and fires
-        // onStreamFinished; empty or unparseable output reads as stopped. Whether
-        // the package is there comes from packageProc.
-        command: ["sh", "-c", "ryoku-rashin status --json"]
+        command: ["/bin/sh", "-c", "exec rashin status --json"]
+        environment: Spawn.env
         stderr: StdioCollector {}
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    var o = JSON.parse(this.text);
-                    pg.daemonEnabled = o.enabled === true;
-                    pg.running = o.running === true;
-                    if (typeof o.port === "number" && o.port > 0)
-                        pg.port = o.port;
-                    var p = o.prowl || ({});
-                    pg.prowlInstalled = p.installed === true;
-                    pg.prowlKeep = p.keepRunning === true;
-                    pg.prowlRunning = p.running === true;
-                    if (typeof p.port === "number" && p.port > 0)
-                        pg.prowlPort = p.port;
-                    pg.prowlUrl = p.url || "";
-                    pg.prowlError = p.error || "";
-                    var v = o.vault || ({});
-                    pg.vaultExists = v.exists === true;
-                    pg.vaultFiles = (typeof v.files === "number") ? v.files : 0;
-                    var h = o.hermes || ({});
-                    pg.hermesInstalled = h.installed === true;
-                    pg.hermesVersion = h.version || "";
-                    pg.hermesConfigured = h.configured === true;
-                    var ags = o.agents || [];
-                    var present = 0, wired = 0;
-                    for (var i = 0; i < ags.length; i++) {
-                        if (ags[i].present) {
-                            present++;
-                            if (ags[i].wired)
-                                wired++;
-                        }
-                    }
-                    pg.agentsPresent = present;
-                    pg.agentsWired = wired;
-                    return;
-                } catch (e) {
-                    // empty output (binary missing) or malformed JSON.
+                    pg.applyStatus(JSON.parse(this.text));
+                } catch (error) {
+                    pg.installed = false;
+                    pg.rashinEnabled = false;
+                    pg.running = false;
+                    pg.providerCount = 0;
+                    pg.harnessCount = 0;
+                    pg.indexCount = 0;
                 }
-                pg.daemonEnabled = false;
-                pg.running = false;
-                pg.prowlInstalled = false;
-                pg.prowlRunning = false;
-                pg.prowlUrl = "";
-                pg.prowlError = "";
             }
         }
     }
 
-    // The switch owns the package as well as the agent: on installs
-    // ryoku-rashin when it is absent and starts the agent with the desktop,
-    // off stops it and removes the package where the host allows. The backend
-    // then re-authors the compositor config, so the Ask and Rashin window
-    // chords leave and return with the package. pkexec asks for the password
-    // through the polkit agent, the way every privileged Hub action does.
     Process {
         id: switchProc
+        environment: Spawn.env
         stderr: StdioCollector { id: switchError }
         onExited: code => {
-            pg.serviceBusy = false;
+            pg.busy = false;
             if (code !== 0)
-                pg.serviceError = switchError.text.trim().split("\n").pop()
-                    || I18n.tr("Rashin could not change its state.");
-            pg.refresh();
-        }
-    }
-    // The switch is the agent: on starts it with the desktop, installing the
-    // package first when it is absent; off stops it and removes the package.
-    // It moves at once; refresh() settles it on what actually happened once the
-    // verb returns.
-    function setEnabled(on) {
-        if (pg.serviceBusy)
-            return;
-        pg.busyLabel = on
-            ? (pg.installed ? I18n.tr("Starting\u2026") : I18n.tr("Installing ryoku-rashin\u2026"))
-            : I18n.tr("Stopping and removing ryoku-rashin\u2026");
-        pg.serviceBusy = true;
-        pg.serviceError = "";
-        pg.daemonEnabled = on;
-        if (on)
-            pg.installed = true;
-        switchProc.command = ["ryoku-hub", "rashin", on ? "on" : "off"];
-        switchProc.running = true;
-    }
-
-    FileView {
-        id: setupFile
-        path: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/ryoku-rashin/setup.json"
-        watchChanges: true
-        printErrors: false
-        onLoaded: pg.applySetup(setupFile.text())
-        onFileChanged: setupFile.reload()
-        onLoadFailed: {}
-    }
-    function applySetup(t) {
-        try {
-            var o = JSON.parse(t);
-            pg.setupPhase = o.phase || "";
-            pg.setupDetail = o.detail || "";
-            pg.setupOk = o.ok !== false;
-            if (pg.setupPhase === "done")
-                pg.refresh();
-        } catch (e) {}
-    }
-    function runSetup() {
-        Spawn.runApp(["kitty", "--class", "ryoku-rashin-setup", "-e", "ryoku-rashin", "setup"], { label: "kitty" });
-    }
-    // Open the dashboard the daemon actually serves. Two things used to send a
-    // user to a browser error they read as a 404: the port was hardcoded here
-    // while the daemon reads it from its own config, and the button opened the
-    // URL even with nothing listening. Take the port from `status --json` and
-    // start the daemon first when it is down; `ryoku-rashin serve` returns once
-    // the socket is up, so the browser never races it.
-    function openDashboard() {
-        var url = "http://127.0.0.1:" + pg.port;
-        if (pg.running) {
-            Spawn.runApp(["xdg-open", url], { label: "browser" });
-            return;
-        }
-        openProc.command = ["sh", "-c",
-            "ryoku-rashin serve --if-enabled >/dev/null 2>&1 & "
-            + "for i in 1 2 3 4 5 6 7 8 9 10; do "
-            + "ryoku-rashin status --json 2>/dev/null | grep -q '\"running\":true' && exit 0; sleep 0.3; done; exit 1"];
-        openProc.running = true;
-    }
-    Process {
-        id: openProc
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode === 0)
-                Spawn.runApp(["xdg-open", "http://127.0.0.1:" + pg.port], { label: "browser" });
+                pg.errorText = switchError.text.trim().split("\n").pop() || I18n.tr("Rashin could not change its state.");
             pg.refresh();
         }
     }
 
-    // the agent surface, refreshed with status. Best effort: a missing binary
-    // leaves the sections empty rather than erroring.
-    Process {
-        id: manifestProc
-        command: ["sh", "-c", "ryoku-rashin paths --json"]
-        stderr: StdioCollector {}
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    var m = JSON.parse(this.text);
-                    pg.skillPath = (m.skill && m.skill.path) || "";
-                    pg.prowlPath = (m.prowl && m.prowl.path) || "";
-                    pg.vaultItems = m.vault || [];
-                    pg.agentList = m.agents || [];
-                    pg.chatBackends = m.chatBackends || [];
-                } catch (e) {}
-            }
-        }
-    }
-    Process { id: wireProc; onExited: pg.refresh() }
-    Process { id: prowlKeepProc; onExited: pg.refresh() }
-    function setProwlKeep(on) {
-        pg.prowlKeep = on;
-        prowlKeepProc.command = ["ryoku-rashin", "prowl", "keep", on ? "on" : "off"];
-        prowlKeepProc.running = true;
-    }
-    Process { id: chatProc; onExited: pg.refresh() }
-    // Wiring adds the Ryoku and Prowl skills to an agent (or every present
-    // one); useChatAgent picks who answers in the Alt+Space bar.
-    function wireAgent(id) { wireProc.command = ["ryoku-rashin", "wire", id]; wireProc.running = true; }
-    function wireAll() { wireProc.command = ["ryoku-rashin", "wire"]; wireProc.running = true; }
-    function useChatAgent(id) { chatProc.command = ["ryoku-rashin", "agent", "use", id]; chatProc.running = true; }
-    // Copy the paste snippet for an agent Rashin does not wire directly.
-    function copySnippet() { Quickshell.execDetached(["sh", "-c", "ryoku-rashin paths --snippet | wl-copy"]); }
-    // Whether an agent can answer the Alt+Space bar's Agent mode.
-    function agentCanChat(id) {
-        for (var i = 0; i < pg.chatBackends.length; i++)
-            if (pg.chatBackends[i].id === id)
-                return pg.chatBackends[i].available === true;
-        return false;
-    }
 
-    // ── reusable poster parts ────────────────────────────────────────────────
-
-    // a stamped-ink status chip: hairline box, tracked mono caps, tinted.
-    component Stamp: Rectangle {
-        id: stamp
-        property string label: ""
-        property color tint: Tokens.inkDim
-        implicitWidth: stampT.implicitWidth + 18
-        implicitHeight: 22
-        color: "transparent"
-        border.width: 1
-        border.color: Qt.rgba(stamp.tint.r, stamp.tint.g, stamp.tint.b, 0.55)
-        Text {
-            id: stampT
-            anchors.centerIn: parent
-            text: I18n.tr(stamp.label)
-            color: stamp.tint
-            font.family: Tokens.mono
-            font.pixelSize: 9
-            font.letterSpacing: 2
-        }
-    }
-
-    // a section header: kanji + tracked caps title + hairline leader.
-    component Head: Item {
-        id: hd
-        property string kanji: ""
+    component SummaryCard: Rectangle {
+        id: card
         property string title: ""
-        width: parent ? parent.width : 0
-        height: 20
-        Row {
-            id: hdRow
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Tokens.s2
-            Text {
-                text: UiPreferences.text(hd.kanji, ""); color: Tokens.alert; font.family: Tokens.jp
-                font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                text: hd.title; color: Tokens.ink; font.family: Tokens.mono
-                font.pixelSize: 11; font.letterSpacing: 3; font.weight: Font.Medium
-                anchors.verticalCenter: parent.verticalCenter
-            }
-        }
-        Rectangle {
-            anchors.left: hdRow.right; anchors.leftMargin: Tokens.s3
-            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-            height: 1; color: Tokens.line
-        }
-    }
-
-    // a function card: an ink tab, index + kanji, name, one-liner, and an
-    // optional live stat.
-    component FnCard: Rectangle {
-        id: fc
-        property string index: ""
-        property string kanji: ""
-        property string name: ""
-        property string desc: ""
-        property string stat: ""
-        height: 128
+        property string value: ""
+        property string detail: ""
+        height: 150
         color: Tokens.paperLift
         border.width: 1
         border.color: Tokens.line
-
-        Rectangle { x: 0; y: 0; width: 34; height: 3; color: Tokens.ink }
-
+        Rectangle { anchors.left: parent.left; anchors.top: parent.top; width: 38; height: 3; color: Tokens.ink }
         Column {
-            anchors { left: parent.left; right: parent.right; top: parent.top; margins: 16 }
-            spacing: 7
-            Row {
-                spacing: Tokens.s2
-                Text {
-                    text: fc.index; color: Tokens.ink; font.family: Tokens.display
-                    font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter
-                }
-                Text {
-                    text: UiPreferences.text(fc.kanji, ""); color: Tokens.inkDim; font.family: Tokens.jp
-                    font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-            Text {
-                text: fc.name; color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 21
-            }
-            Text {
-                width: parent.width
-                text: I18n.tr(fc.desc); color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12
-                wrapMode: Text.WordWrap; lineHeight: 1.25
-            }
-        }
-        Text {
-            visible: fc.stat !== ""
-            anchors { right: parent.right; top: parent.top; margins: 16 }
-            text: fc.stat; color: Tokens.ink; font.family: Tokens.mono; font.pixelSize: 11
-        }
-    }
-
-    // an example row: a mono command in red, then what it does.
-    component TryRow: Row {
-        id: tr
-        property string cmd: ""
-        property string note: ""
-        width: parent ? parent.width : 0
-        spacing: Tokens.s3
-        Text {
-            width: Math.round(tr.width * 0.34)
-            text: tr.cmd; color: Tokens.ink; font.family: Tokens.mono; font.pixelSize: 13
-            elide: Text.ElideRight
-        }
-        Text {
-            width: tr.width - Math.round(tr.width * 0.34) - tr.spacing
-            text: tr.note; color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 13
-            wrapMode: Text.WordWrap
-        }
-    }
-
-    // a poster button: filled ink primary, hairline ghost otherwise.
-    component PosterBtn: Item {
-        id: bt
-        property string label: ""
-        property bool primary: false
-        property bool on: true
-        signal act()
-        implicitWidth: btT.implicitWidth + Tokens.s5 * 2
-        implicitHeight: 42
-        opacity: bt.on ? 1 : 0.4
-        Rectangle {
-            anchors.fill: parent
-            color: bt.primary ? Tokens.ink : "transparent"
-            border.width: 1
-            border.color: bt.primary ? Tokens.ink : Tokens.line
-        }
-        Text {
-            id: btT
-            anchors.centerIn: parent
-            text: I18n.tr(bt.label); color: bt.primary ? Tokens.paper : Tokens.ink
-            font.family: Tokens.mono; font.pixelSize: 11; font.letterSpacing: 2; font.weight: Font.Medium
-        }
-        MouseArea {
-            anchors.fill: parent; enabled: bt.on
-            cursorShape: Qt.PointingHandCursor
-            onClicked: bt.act()
-        }
-    }
-
-    // one detected coding agent: name, wiring state, skill/chat stamps, and a
-    // one-click WIRE (inject the pointer + skill + prowl).
-    component AgentRow: Rectangle {
-        id: ar
-        property var agent: ({})
-        property bool canChat: false
-        width: parent ? parent.width : 0
-        height: 56
-        color: Tokens.paperLift
-        border.width: 1
-        border.color: (ar.agent.present && ar.agent.wired) ? Qt.rgba(Tokens.ink.r, Tokens.ink.g, Tokens.ink.b, 0.3) : Tokens.line
-        opacity: ar.agent.present ? 1 : 0.5
-
-        Column {
-            anchors { left: parent.left; leftMargin: 16; right: arActions.left; rightMargin: 12; verticalCenter: parent.verticalCenter }
-            spacing: 3
-            Text {
-                width: parent.width
-                text: ar.agent.name || ar.agent.id || ""
-                color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 16; elide: Text.ElideRight
-            }
-            Text {
-                width: parent.width
-                text: !ar.agent.present ? I18n.tr("not installed")
-                    : (ar.agent.wired ? I18n.tr("wired to the vault") : I18n.tr("present \u00b7 not wired yet"))
-                color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 11; elide: Text.ElideRight
-            }
-        }
-        Row {
-            id: arActions
-            anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: Tokens.s4
             spacing: Tokens.s2
-            Stamp { visible: ar.agent.skillWired === true; label: "SKILL"; tint: Tokens.ink; anchors.verticalCenter: parent.verticalCenter }
-            Stamp { visible: ar.canChat; label: "CHAT"; tint: Tokens.inkDim; anchors.verticalCenter: parent.verticalCenter }
-            Rectangle {
-                visible: ar.agent.present === true
-                anchors.verticalCenter: parent.verticalCenter
-                width: wbT.implicitWidth + Tokens.s4 * 2
-                height: 30
-                color: ar.agent.wired ? "transparent" : Tokens.ink
-                border.width: 1
-                border.color: ar.agent.wired ? Tokens.line : Tokens.ink
-                Text {
-                    id: wbT
-                    anchors.centerIn: parent
-                    text: ar.agent.wired ? I18n.tr("RE-WIRE") : I18n.tr("WIRE")
-                    color: ar.agent.wired ? Tokens.ink : Tokens.paper
-                    font.family: Tokens.mono; font.pixelSize: 10; font.letterSpacing: 2; font.weight: Font.Medium
-                }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: pg.wireAgent(ar.agent.id) }
-            }
+            Text { text: card.title; color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 22 }
+            Text { width: parent.width; text: card.value; color: Tokens.ink; font.family: Tokens.mono; font.pixelSize: 12; elide: Text.ElideMiddle }
+            Text { width: parent.width; text: card.detail; color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 11; wrapMode: Text.WordWrap }
         }
     }
 
-    // one manifest path: label + who owns it (generated/yours/read-only) + the
-    // resolved location (dim when absent).
-    component PathRow: Row {
-        id: pr
-        property string label: ""
-        property string path: ""
-        property string owner: ""
-        property bool ok: true
-        readonly property int labelW: Math.round(pr.width * 0.22)
-        readonly property int ownerW: 76
-        width: parent ? parent.width : 0
-        spacing: Tokens.s3
-        Text {
-            width: pr.labelW
-            text: pr.label; color: pr.ok ? Tokens.ink : Tokens.inkDim
-            font.family: Tokens.mono; font.pixelSize: 12; elide: Text.ElideRight
-        }
-        Text {
-            width: pr.ownerW
-            text: pr.owner
-            color: pr.owner === "yours" ? Tokens.ink : Tokens.inkDim
-            font.family: Tokens.mono; font.pixelSize: 10; font.letterSpacing: 1
-            anchors.verticalCenter: parent.verticalCenter
-        }
-        Text {
-            width: pr.width - pr.labelW - pr.ownerW - pr.spacing * 2
-            text: pr.path === "" ? I18n.tr("not installed") : pr.path
-            color: pr.ok ? Tokens.ink : Tokens.inkDim
-            font.family: Tokens.mono; font.pixelSize: 12; elide: Text.ElideLeft
-        }
-    }
-
-    // ── the page: paper and ink, one scrolling column ────────────────────
     Rectangle { anchors.fill: parent; color: Tokens.paper }
 
     Flickable {
-        id: flick
         anchors.fill: parent
         contentWidth: width
-        contentHeight: body.height + Tokens.s6 * 2
+        contentHeight: body.implicitHeight + Tokens.s6 * 2
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         ScrollBar.vertical: ScrollRail { policy: ScrollBar.AsNeeded }
-        WheelScroll { }
+        WheelScroll {}
 
         Column {
             id: body
@@ -517,380 +134,129 @@ Item {
             width: pg.bodyW
             spacing: Tokens.s6
 
-            // ── HERO: the samurai banner, title + live state overlaid ────────
-            Item {
+            Row {
                 width: parent.width
-                height: Math.round(Math.min(width / 2.357, 320))
-                clip: true
-
-                Image {
-                    id: heroImg
-                    anchors.fill: parent
-                    source: Ryodecors.dir + "rashin-hero.png"
-                    fillMode: Image.PreserveAspectCrop
-                    verticalAlignment: Image.AlignVCenter
-                    asynchronous: true
-                    cache: true
-                }
-                // procedural fallback if the banner is missing.
-                Rectangle {
-                    anchors.fill: parent
-                    visible: heroImg.status !== Image.Ready
-                    color: Tokens.paperLift
-                }
-                Rectangle { anchors.fill: parent; color: "transparent"; border.width: 1; border.color: Tokens.line }
-
-                // bottom scrim so the cap stays legible over the art.
-                Rectangle {
-                    anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-                    height: parent.height * 0.7
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: "transparent" }
-                        GradientStop { position: 1.0; color: Qt.rgba(Tokens.paper.r, Tokens.paper.g, Tokens.paper.b, 0.92) }
-                    }
-                }
-
-                // title cap, bottom-left.
+                spacing: Tokens.s4
                 Column {
-                    anchors { left: parent.left; bottom: parent.bottom; leftMargin: Tokens.s5; bottomMargin: Tokens.s4 }
-                    spacing: 3
+                    width: parent.width - master.width - parent.spacing
+                    spacing: Tokens.s2
+                    Text { text: I18n.tr("Rashin"); color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 38 }
                     Text {
-                        text: I18n.tr("RYOKU RASHIN"); color: Tokens.ink; font.family: Tokens.display
-                        font.pixelSize: Math.round(Math.min(pg.bodyW * 0.05, 40))
-                    }
-                    Row {
-                        spacing: Tokens.s2
-                        Text {
-                            text: "羅針"; color: Tokens.alert; font.family: Tokens.jp; font.pixelSize: 13
-                            visible: UiPreferences.showJapaneseGloss
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            text: I18n.tr("THE SYSTEM NEEDLE"); color: Tokens.inkDim; font.family: Tokens.mono
-                            font.pixelSize: 10; font.letterSpacing: 3
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
+                        width: parent.width
+                        text: I18n.tr("Ask with free models, hand work to your coding harness, and search your system and projects.")
+                        color: Tokens.inkDim
+                        font.family: Tokens.mono
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
                     }
                 }
-
-                // live state stamp, top-right.
-                Stamp {
-                    anchors { right: parent.right; top: parent.top; rightMargin: Tokens.s4; topMargin: Tokens.s4 }
-                    label: !pg.installed ? I18n.tr("NOT INSTALLED")
-                        : (pg.running ? I18n.tr("RUNNING") : (pg.daemonEnabled ? I18n.tr("STARTING") : I18n.tr("OFF")))
-                    tint: pg.running ? Tokens.ink : (pg.installed ? Tokens.inkDim : Tokens.alert)
+                Rectangle {
+                    id: master
+                    width: 310
+                    height: 88
+                    color: Tokens.paperLift
+                    border.width: 1
+                    border.color: pg.rashinEnabled ? Tokens.ink : Tokens.line
+                    Column {
+                        anchors.left: parent.left
+                        anchors.right: masterSwitch.left
+                        anchors.leftMargin: Tokens.s4
+                        anchors.rightMargin: Tokens.s3
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Tokens.s1
+                        Text { text: I18n.tr("Rashin"); color: Tokens.ink; font.family: Tokens.display; font.pixelSize: 17 }
+                        Text {
+                            width: parent.width
+                            text: pg.busy ? I18n.tr("Changing state")
+                                : !pg.installed ? I18n.tr("Not installed")
+                                : pg.running ? I18n.tr("Running")
+                                : pg.rashinEnabled ? I18n.tr("On, idle") : I18n.tr("Off")
+                            color: Tokens.inkDim
+                            font.family: Tokens.mono
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
+                    }
+                    Sw {
+                        id: masterSwitch
+                        anchors.right: parent.right
+                        anchors.rightMargin: Tokens.s4
+                        anchors.verticalCenter: parent.verticalCenter
+                        enabled: !pg.busy
+                        on: pg.rashinEnabled
+                        onToggled: value => pg.setEnabled(value)
+                    }
                 }
             }
 
-            // ── tagline ──────────────────────────────────────────────────────
+            Rectangle {
+                width: parent.width
+                implicitHeight: zeroText.implicitHeight + Tokens.s4 * 2
+                color: Tokens.tint5
+                border.width: 1
+                border.color: Tokens.lineSoft
+                Text {
+                    id: zeroText
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: Tokens.s4
+                    text: I18n.tr("Rashin is optional. While it is off, no daemon, socket, timer, watcher, model, or index process runs.")
+                    color: Tokens.inkDim
+                    font.family: Tokens.mono
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+            }
+
             Text {
                 width: parent.width
-                text: I18n.tr("The optional local agent OS. Your agent keeps a living map of this machine - hardware, packages, every config beside the binary that owns it - so your coding agents read the terrain instead of rediscovering it. Nothing ever leaves the box.")
-                color: Tokens.ink; font.family: Tokens.mono; font.pixelSize: 14
-                wrapMode: Text.WordWrap; lineHeight: 1.5
+                visible: pg.errorText.length > 0
+                text: pg.errorText
+                color: Tokens.alert
+                font.family: Tokens.mono
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
             }
 
-            // ── MASTER SWITCH + PROWL: the two-process product state ─────────
+            Grid {
+                width: parent.width
+                columns: width >= 840 ? 3 : 1
+                columnSpacing: Tokens.s4
+                rowSpacing: Tokens.s4
+                readonly property real cardWidth: (width - columnSpacing * (columns - 1)) / columns
+                SummaryCard {
+                    width: parent.cardWidth
+                    title: I18n.tr("Ask")
+                    value: I18n.tr("Route: %1").arg(pg.routeName())
+                    detail: I18n.tr("%1 free provider(s) available").arg(pg.providerCount)
+                }
+                SummaryCard {
+                    width: parent.cardWidth
+                    title: I18n.tr("Agent")
+                    value: pg.defaultHarness.length > 0 ? pg.defaultHarness : I18n.tr("First installed harness")
+                    detail: I18n.tr("%1 installed harness(es)").arg(pg.harnessCount)
+                }
+                SummaryCard {
+                    width: parent.cardWidth
+                    title: I18n.tr("Index")
+                    value: I18n.tr("System and project search")
+                    detail: I18n.tr("%1 index(es)").arg(pg.indexCount)
+                }
+            }
+
             Row {
-                width: parent.width
-                spacing: Tokens.s4
-                readonly property bool wide: pg.bodyW >= 640
-                property real colW: wide ? (width - Tokens.s4) / 2 : width
-
-                // service switch
-                Rectangle {
-                    width: parent.colW
-                    height: 96
-                    color: Tokens.paperLift
-                    border.width: 1
-                    border.color: pg.daemonEnabled ? Qt.rgba(Tokens.ink.r, Tokens.ink.g, Tokens.ink.b, 0.35) : Tokens.line
-
-                    Column {
-                        anchors { left: parent.left; right: sw.left; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 14 }
-                        spacing: 6
-                        Row {
-                            spacing: Tokens.s2
-                            Text { visible: UiPreferences.showJapaneseGloss; text: "羅針"; color: Tokens.ink; font.family: Tokens.jp; font.pixelSize: 15; anchors.verticalCenter: parent.verticalCenter }
-                            Text {
-                                text: I18n.tr("RASHIN"); color: Tokens.ink; font.family: Tokens.display
-                                font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-                        Text {
-                            width: parent.width
-                            text: pg.serviceError !== "" ? pg.serviceError
-                                : pg.serviceBusy ? pg.busyLabel
-                                : !pg.installed ? I18n.tr("Not installed \u00b7 switch on to install it, with its Ask shortcut")
-                                : pg.running ? I18n.tr("Running \u00b7 127.0.0.1:%1 \u00b7 off removes it and its Ask shortcut").arg(pg.port)
-                                : pg.daemonEnabled ? I18n.tr("Enabled \u00b7 starting\u2026")
-                                : I18n.tr("Off \u00b7 switch on to start it with the desktop")
-                            color: pg.serviceError !== "" ? Tokens.alert : Tokens.inkDim
-                            font.family: Tokens.mono; font.pixelSize: 11; elide: Text.ElideRight
-                        }
-                    }
-                    Sw {
-                        id: sw
-                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                        enabled: !pg.serviceBusy
-                        on: pg.installed && pg.daemonEnabled
-                        onToggled: (c) => pg.setEnabled(c)
-                    }
-                }
-
-                // Prowl is an external gateway and code index that Rashin hosts.
-                // It plugs into any harness.
-                Rectangle {
-                    width: parent.colW
-                    height: 96
-                    color: Tokens.paperLift
-                    border.width: 1
-                    border.color: pg.prowlRunning ? Qt.rgba(Tokens.ink.r, Tokens.ink.g, Tokens.ink.b, 0.35) : Tokens.line
-                    Rectangle { x: 0; y: 0; width: 34; height: 3; color: pg.prowlRunning ? Tokens.ink : (pg.prowlKeep ? Tokens.alert : Tokens.line) }
-
-                    Column {
-                        anchors { left: parent.left; right: prowlSw.left; verticalCenter: parent.verticalCenter; leftMargin: 18; rightMargin: 14 }
-                        spacing: 6
-                        Row {
-                            spacing: Tokens.s2
-                            Text { visible: UiPreferences.showJapaneseGloss; text: "徘徊"; color: Tokens.alert; font.family: Tokens.jp; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
-                            Text {
-                                text: I18n.tr("PROWL GATEWAY"); color: Tokens.ink; font.family: Tokens.display
-                                font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-                        Text {
-                            width: parent.width
-                            text: !pg.prowlInstalled ? I18n.tr("Not installed")
-                                : pg.prowlRunning ? I18n.tr("Running · %1").arg(pg.prowlUrl || ("127.0.0.1:" + pg.prowlPort))
-                                : I18n.tr("Off · starts when Rashin needs it")
-                            color: pg.prowlRunning ? Tokens.ink : Tokens.inkDim
-                            font.family: Tokens.mono; font.pixelSize: 11; elide: Text.ElideRight
-                        }
-                        Text {
-                            width: parent.width
-                            text: pg.prowlError ? pg.prowlError
-                                : pg.prowlKeep ? I18n.tr("Kept running for other apps that use it")
-                                : I18n.tr("Stops after 15 minutes unused · switch on to keep it running")
-                            color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 10; elide: Text.ElideRight
-                        }
-                    }
-                    Sw {
-                        id: prowlSw
-                        anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
-                        enabled: pg.prowlInstalled
-                        on: pg.prowlKeep
-                        onToggled: (c) => pg.setProwlKeep(c)
-                    }
-                }
-            }
-
-            // ── FUNCTIONS: the numbered poster index of what Rashin does ──────
-            Column {
-                width: parent.width
-                spacing: Tokens.s4
-                Head { kanji: "\u6a5f\u80fd"; title: I18n.tr("FUNCTIONS") }
-
-                Grid {
-                    id: fnGrid
-                    width: parent.width
-                    columns: pg.bodyW >= 860 ? 3 : (pg.bodyW >= 560 ? 2 : 1)
-                    columnSpacing: Tokens.s4
-                    rowSpacing: Tokens.s4
-                    readonly property real cellW: (width - columnSpacing * (columns - 1)) / columns
-
-                    FnCard {
-                        width: fnGrid.cellW; index: "01"; kanji: "\u66f8\u5eab"; name: I18n.tr("VAULT")
-                        desc: I18n.tr("The living map your agents read, beside each binary.")
-                        stat: pg.vaultExists ? I18n.tr("%1 files").arg(pg.vaultFiles) : ""
-                    }
-                    FnCard {
-                        width: fnGrid.cellW; index: "02"; kanji: "\u8a18\u61b6"; name: I18n.tr("MEMORY")
-                        desc: I18n.tr("What your agent remembers, carried across every session.")
-                    }
-                    FnCard {
-                        width: fnGrid.cellW; index: "03"; kanji: "\u6280"; name: I18n.tr("SKILLS")
-                        desc: I18n.tr("Toolsets your agent wields: search, files, the web.")
-                    }
-                    FnCard {
-                        width: fnGrid.cellW; index: "04"; kanji: "\u4e94\u4eba\u8846"; name: I18n.tr("AGENTS")
-                        desc: I18n.tr("Your coding agents, wired to one shared map of the machine.")
-                        stat: pg.agentsPresent > 0 ? pg.wiredSummary : ""
-                    }
-                    FnCard {
-                        width: fnGrid.cellW; index: "05"; kanji: "\u5bfe\u8a71"; name: I18n.tr("CHAT")
-                        desc: I18n.tr("Talk to your agent in the dashboard or a terminal.")
-                    }
-                    FnCard {
-                        width: fnGrid.cellW; index: "06"; kanji: "\u7f85\u91dd"; name: I18n.tr("CODE")
-                        desc: I18n.tr("Code intelligence: cited answers over your repos.")
-                    }
-                }
-            }
-
-            // ── YOUR AGENTS: one-click wire any coding CLI to the vault ───────
-            Column {
-                width: parent.width
-                spacing: Tokens.s4
-                Head { kanji: "\u4e94\u4eba\u8846"; title: I18n.tr("YOUR AGENTS") }
-                Text {
-                    width: parent.width
-                    text: I18n.tr("Connect any coding agent to the same living map of this machine. One click adds the Ryoku and Prowl skills. It never changes the agent's own model; making Prowl auto the default is a separate switch.")
-                    color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12; wrapMode: Text.WordWrap; lineHeight: 1.4
-                }
-                Column {
-                    width: parent.width
-                    spacing: Tokens.s2
-                    Repeater {
-                        model: pg.agentList
-                        delegate: AgentRow {
-                            required property var modelData
-                            width: parent.width
-                            agent: modelData
-                            canChat: pg.agentCanChat(modelData.id)
-                        }
-                    }
-                }
-                PosterBtn { label: I18n.tr("WIRE ALL PRESENT"); on: pg.installed; onAct: pg.wireAll() }
-            }
-
-            // ── POINT ANY AGENT: the paths, and a paste snippet for the rest ──
-            Column {
-                width: parent.width
-                spacing: Tokens.s4
-                Head { kanji: "\u9023\u643a"; title: I18n.tr("POINT ANY AGENT") }
-                Text {
-                    width: parent.width
-                    text: I18n.tr("On an agent Rashin doesn't wire for you? Point it at these yourself, or copy the ready-made instructions and paste them into its config.")
-                    color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12; wrapMode: Text.WordWrap; lineHeight: 1.4
-                }
-                Column {
-                    width: parent.width
-                    spacing: Tokens.s2
-                    PathRow { label: I18n.tr("skill"); path: pg.skillPath; owner: I18n.tr("read-only"); ok: pg.skillPath !== "" }
-                    PathRow { label: I18n.tr("prowl"); path: pg.prowlPath; owner: I18n.tr("tool"); ok: pg.prowlPath !== "" }
-                    Repeater {
-                        model: pg.vaultItems
-                        delegate: PathRow {
-                            required property var modelData
-                            width: parent.width
-                            label: modelData.label
-                            path: modelData.path
-                            owner: modelData.owner
-                            ok: modelData.exists === true
-                        }
-                    }
-                }
-                PosterBtn { label: I18n.tr("COPY AGENT SNIPPET"); primary: true; on: pg.installed; onAct: pg.copySnippet() }
-            }
-
-            // ── CHAT AGENT: who answers in the Alt+Space bar (Hermes recommended) ──
-            Column {
-                width: parent.width
                 spacing: Tokens.s3
-                Head { kanji: "\u5bfe\u8a71"; title: I18n.tr("CHAT BACKEND") }
-                Text {
-                    width: parent.width
-                    text: I18n.tr("Which agent answers the Alt+Space bar's Agent mode. Hermes is recommended; others need their own ACP adapter installed.")
-                    color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12; wrapMode: Text.WordWrap; lineHeight: 1.4
+                Btn {
+                    text: I18n.tr("Open Rashin")
+                    primary: true
+                    armed: pg.installed
+                    onAct: Spawn.runApp(["rashin", "open"], { label: "rashin" })
                 }
-                Flow {
-                    width: parent.width
-                    spacing: Tokens.s2
-                    Repeater {
-                        model: pg.chatBackends
-                        delegate: Rectangle {
-                            id: cb
-                            required property var modelData
-                            readonly property bool sel: cb.modelData.active === true
-                            height: 34
-                            width: cbT.implicitWidth + Tokens.s4 * 2
-                            color: cb.sel ? Tokens.ink : "transparent"
-                            opacity: cb.modelData.available ? 1 : 0.45
-                            border.width: 1
-                            border.color: cb.sel ? Tokens.ink : Tokens.line
-                            Text {
-                                id: cbT
-                                anchors.centerIn: parent
-                                text: (cb.modelData.name || cb.modelData.id) + (cb.modelData.recommended ? "  \u2605" : "")
-                                color: cb.sel ? Tokens.paper : (cb.modelData.available ? Tokens.ink : Tokens.inkDim)
-                                font.family: Tokens.mono; font.pixelSize: 11; font.letterSpacing: 1
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                enabled: cb.modelData.available === true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: pg.useChatAgent(cb.modelData.id)
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── TRY: example uses ────────────────────────────────────────────
-            Column {
-                width: parent.width
-                spacing: Tokens.s3
-                Head { kanji: "\u4f8b"; title: I18n.tr("TRY") }
-                TryRow { cmd: "hermes"; note: I18n.tr("chat in the vault, from any terminal") }
-                TryRow { cmd: "hermes gateway"; note: I18n.tr("connect Telegram / Discord / WhatsApp / Slack") }
-                TryRow { cmd: "hermes model"; note: I18n.tr("switch the default model") }
-                TryRow { cmd: "hermes tools"; note: I18n.tr("enable toolsets") }
-                TryRow { cmd: "prowl overview"; note: I18n.tr("code intelligence on any repo") }
-            }
-
-            // ── SET UP + DASHBOARD: the controls ─────────────────────────────
-            Column {
-                width: parent.width
-                spacing: Tokens.s4
-                Head { kanji: "\u8d77\u52d5"; title: I18n.tr("GET STARTED") }
-
-                Text {
-                    width: parent.width
-                    text: pg.hermesInstalled && pg.hermesVersion !== ""
-                        ? I18n.tr("Hermes v%1 is installed. Ryoku leaves it untouched; update it through its own installer or checkout, then re-run setup to refresh the vault wiring.").arg(pg.hermesVersion)
-                        : I18n.tr("Set up Hermes once: it installs the agent if you don't have it, wires it to the vault, and points your other coding agents at the same map. An existing Hermes install is left untouched.")
-                    color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 12; wrapMode: Text.WordWrap; lineHeight: 1.4
-                }
-
-                Row {
-                    width: parent.width
-                    spacing: Tokens.s3
-                    PosterBtn {
-                        label: pg.hermesConfigured ? I18n.tr("RE-RUN HERMES SETUP") : I18n.tr("SET UP HERMES AGENT")
-                        primary: !pg.hermesConfigured
-                        on: pg.installed
-                        onAct: pg.runSetup()
-                    }
-                    PosterBtn {
-                        label: I18n.tr("OPEN DASHBOARD")
-                        primary: pg.hermesConfigured
-                        on: pg.installed
-                        onAct: pg.openDashboard()
-                    }
-                }
-
-                // live setup console, mirrored from setup.json. a failed phase
-                // brightens to ink rather than shouting in red.
-                Text {
-                    width: parent.width
-                    visible: pg.setupPhase !== ""
-                    text: "\u2192 " + pg.setupPhase + (pg.setupDetail !== "" ? ": " + pg.setupDetail : "")
-                    color: pg.setupOk ? Tokens.inkDim : Tokens.ink
-                    font.family: Tokens.mono; font.pixelSize: 11; wrapMode: Text.WordWrap
-                }
-            }
-
-            // ── privacy footer ───────────────────────────────────────────────
-            Item { width: parent.width; height: Tokens.s2 }
-            Row {
-                width: parent.width
-                spacing: Tokens.s3
-                Rectangle { width: 8; height: 8; radius: 4; color: Tokens.alert; anchors.verticalCenter: parent.verticalCenter }
-                Text {
-                    width: parent.width - Tokens.s3 - 8
-                    text: I18n.tr("Everything runs on this machine. The daemon binds 127.0.0.1 only - nothing you do here leaves the box.")
-                    color: Tokens.inkDim; font.family: Tokens.mono; font.pixelSize: 11; wrapMode: Text.WordWrap
-                    anchors.verticalCenter: parent.verticalCenter
+                Btn {
+                    text: I18n.tr("Open settings")
+                    armed: pg.installed
+                    onAct: Spawn.runApp(["rashin", "open", "--tab", "settings"], { label: "rashin" })
                 }
             }
         }

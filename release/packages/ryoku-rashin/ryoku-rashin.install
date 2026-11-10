@@ -1,17 +1,17 @@
 # shellcheck shell=bash
-_reconcile_services() {
-  command -v ryoku-host >/dev/null 2>&1 || return 0
-  RYOKU_HOST_INIT=systemd ryoku-host svc reconcile --system >/dev/null 2>&1 || true
+_remove_legacy_global_units() {
+  systemctl --global disable ryoku-ai-usage.timer >/dev/null 2>&1 || true
+  rm -f /etc/systemd/user/default.target.wants/ryoku-rashin.service
 }
 
 post_install() {
-  _reconcile_services
+  _remove_legacy_global_units
 }
 
 post_upgrade() {
-  _reconcile_services
+  _remove_legacy_global_units
 }
 
 post_remove() {
-  systemctl --global disable ryoku-rashin.service ryoku-ai-usage.timer >/dev/null 2>&1 || true
+  systemctl --global disable rashind.socket rashind.service ryoku-ai-usage.timer >/dev/null 2>&1 || true
 }

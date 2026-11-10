@@ -215,7 +215,7 @@ Item {
     // stdout with empty output, which parses as off. Mirrors RashinPage.
     Process {
         id: rashinProbe
-        command: ["sh", "-c", "ryoku-rashin status --json"]
+        command: ["/bin/sh", "-c", "exec rashin status --json"]
         stderr: StdioCollector {}
         stdout: StdioCollector {
             onStreamFinished: {
@@ -248,7 +248,7 @@ Item {
         reportProbe.running = true;
     }
 
-    // hand the fixing to Rashin: with no TTY here `ryoku-rashin fix doctor` opens
+    // Hand the fixing to Rashin: with no TTY here, `rashin fix doctor` opens
     // a terminal at once (in its own unit, outside the Settings process tree)
     // that runs the health check and then the agent. Its answer or its error
     // replaces the row's line, so a press is never silent.
@@ -264,16 +264,16 @@ Item {
 
     Process {
         id: fixProc
-        command: ["/bin/sh", "-c", 'exec ryoku-rashin "$@"', "sh", "fix", "doctor"]
+        command: ["/bin/sh", "-c", "exec rashin fix doctor"]
         environment: Spawn.env
         stdout: StdioCollector { id: fixOut }
         stderr: StdioCollector { id: fixErr }
         onExited: code => {
             const out = fixOut.text.trim().split("\n").pop();
-            const err = fixErr.text.trim().replace(/^ryoku-rashin: /, "");
+            const err = fixErr.text.trim().replace(/^rashin: /, "");
             pg.fixState = code === 0 ? "opened" : "failed";
             pg.fixMsg = code === 0 ? (out || I18n.tr("Opened Fix with AI in a terminal."))
-                : (err || I18n.tr("Fix with AI could not start. Run `ryoku-rashin fix doctor` in a terminal to see why."));
+                : (err || I18n.tr("Fix with AI could not start. Run rashin fix doctor in a terminal to see why."));
         }
     }
 

@@ -45,9 +45,9 @@ prepare_prebuilt() {
       fake_binary "$dir/ryoku-livewall"
       ;;
     ryoku-rashin)
-      fake_binary "$dir/ryoku-rashin"
+      fake_binary "$dir/rashind"
+      fake_binary "$dir/rashin"
       fake_binary "$dir/rashin-app"
-      printf '# fixture repository index\n' > "$dir/ryoku-repo.md"
       ;;
     ryoku-palette-bridge)
       fake_binary "$dir/ryoku-palette-bridge"
@@ -82,13 +82,19 @@ prepare_prebuilt() {
       fake_binary "$dir/ryoku-wm-hyprland"
       ;;
     ryoku-blobs)
-      mkdir -p "$dir/qml/Ryoku/Blobs" "$dir/qml/Ryoku/Spatial3D" "$dir/qml/Ryoku/Bus"
+      mkdir -p \
+        "$dir/qml/Ryoku/Blobs" \
+        "$dir/qml/Ryoku/Spatial3D" \
+        "$dir/qml/Ryoku/Bus" \
+        "$dir/qml/Ryoku/Text"
       printf 'module Ryoku.Blobs\n' > "$dir/qml/Ryoku/Blobs/qmldir"
       fake_binary "$dir/qml/Ryoku/Blobs/libryoku-blobs.so"
       printf 'module Ryoku.Spatial3D\n' > "$dir/qml/Ryoku/Spatial3D/qmldir"
       fake_binary "$dir/qml/Ryoku/Spatial3D/libryoku-spatial3d.so"
       printf 'module Ryoku.Bus\n' > "$dir/qml/Ryoku/Bus/qmldir"
       fake_binary "$dir/qml/Ryoku/Bus/libryoku-bus.so"
+      printf 'module Ryoku.Text\n' > "$dir/qml/Ryoku/Text/qmldir"
+      fake_binary "$dir/qml/Ryoku/Text/libryoku-text.so"
       ;;
     ryogami)
       fake_binary "$dir/ryogami"
@@ -165,7 +171,7 @@ stage_arch() {
 make_source_view() {
   local view=$1 entry
   mkdir -p "$view"
-  for entry in CODENAME release ryoku system void fedora; do
+  for entry in CODENAME LICENSE release ryoku system void fedora; do
     ln -s "$root/$entry" "$view/$entry"
   done
 }
@@ -210,7 +216,7 @@ stage_void() {
 
 fedora_root="$work/fedora-root"
 mkdir -p "$fedora_root/fedora/packages/rpm" "$fedora_root/fedora/packages"
-for entry in CODENAME release ryoku system void; do
+for entry in CODENAME LICENSE release ryoku system void; do
   ln -s "$root/$entry" "$fedora_root/$entry"
 done
 ln -s "$root/fedora/system" "$fedora_root/fedora/system"
@@ -393,6 +399,29 @@ for pkg in "${packages[@]}"; do
       || fail "ryoku-desktop Void package must not ship the systemd Secret Service override"
     [[ ! -e $work/staged/$pkg-void/usr/lib/environment.d/98-ryoku-dbus.conf ]] \
       || fail "ryoku-desktop Void package must not ship the systemd D-Bus data path"
+  fi
+
+  if [[ $pkg == ryoku-rashin ]]; then
+    for edition in arch void fedora fedora-spec; do
+      for binary in rashind rashin rashin-app; do
+        [[ -x $work/staged/$pkg-$edition/usr/bin/$binary ]] \
+          || fail "ryoku-rashin $edition package is missing $binary"
+      done
+      [[ -f $work/staged/$pkg-$edition/usr/share/applications/dev.ryoku.rashin.desktop ]] \
+        || fail "ryoku-rashin $edition package is missing its desktop entry"
+      [[ -f $work/staged/$pkg-$edition/usr/share/icons/hicolor/scalable/apps/dev.ryoku.rashin.svg ]] \
+        || fail "ryoku-rashin $edition package is missing its icon"
+    done
+    for edition in arch fedora fedora-spec; do
+      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/rashind.socket ]] \
+        || fail "ryoku-rashin $edition package is missing rashind.socket"
+      [[ -f $work/staged/$pkg-$edition/usr/lib/systemd/user/rashind.service ]] \
+        || fail "ryoku-rashin $edition package is missing rashind.service"
+    done
+    [[ ! -e $work/staged/$pkg-void/usr/lib/ryoku/runit/user/ryoku-rashin ]] \
+      || fail "ryoku-rashin Void package must not ship a Rashin runit service"
+    ! grep -qF 'cmake' "$root/release/packages/ryoku-rashin/payload.sh" \
+      || fail "ryoku-rashin payload still builds the retired CMake app"
   fi
 
   jobs=()

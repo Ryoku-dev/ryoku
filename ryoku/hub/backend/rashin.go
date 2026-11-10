@@ -11,20 +11,28 @@ import (
 	"strings"
 )
 
-// ryoku-hub rashin is the Rashin page's master switch. Rashin is an optional
-// app on every edition, so the switch owns the package as well as the agent:
-// `on` installs ryoku-rashin when it is absent and starts the agent with the
-// desktop; `off` stops the agent and removes the package. Either way the
-// compositor config is re-authored afterwards, which is what takes the Ask and
-// Rashin window chords away with the package and gives them back with it, and
-// the choice is written to the provisioning ledger so the doctor never delivers
-// Rashin a second time.
-
-const rashinPackage = "ryoku-rashin"
+const (
+	rashinPackage = "ryoku-rashin"
+	rashinCommand = "rashin"
+)
 
 type rashinStatus struct {
 	Installed bool `json:"installed"`
 }
+
+var (
+	lookPathRashin = exec.LookPath
+	runRashinCLI   = func(args ...string) ([]byte, error) {
+		return exec.Command(rashinCommand, args...).CombinedOutput()
+	}
+	installRashinPackage = func() error {
+		return privileged("pkg", "install", rashinPackage)
+	}
+	removeRashinPackage = func() error {
+		return privileged("pkg", "remove", rashinPackage)
+	}
+	applyRashinDesktop = applyDesktop
+)
 
 func runRashin(args []string) error {
 	if len(args) == 0 {
@@ -47,13 +55,10 @@ func runRashin(args []string) error {
 }
 
 func rashinInstalled() bool {
-	_, err := exec.LookPath(rashinPackage)
+	_, err := lookPathRashin(rashinCommand)
 	return err == nil
 }
 
-// privileged runs a ryoku-host verb as root through pkexec, so the polkit agent
-// asks for the password the way every other privileged Hub action does. Its
-// output goes to stderr: stdout is the page's JSON channel.
 func privileged(args ...string) error {
 	cmd := exec.Command("pkexec", append([]string{"ryoku-host"}, args...)...)
 	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
@@ -69,49 +74,46 @@ func privileged(args ...string) error {
 
 func rashinOn() error {
 	if !rashinInstalled() {
-		if err := privileged("pkg", "install", rashinPackage); err != nil {
+		if err := installRashinPackage(); err != nil {
 			return err
 		}
 		if !rashinInstalled() {
-			return fmt.Errorf("%s did not land", rashinPackage)
+			return fmt.Errorf("%s was installed, but the rashin command is unavailable", rashinPackage)
 		}
 	}
 	if err := recordProvisioned(rashinPackage); err != nil {
 		return err
 	}
-	if out, err := exec.Command(rashinPackage, "enable").CombinedOutput(); err != nil {
-		return fmt.Errorf("%s enable: %s", rashinPackage, strings.TrimSpace(string(out)))
+	if out, err := runRashinCLI("on"); err != nil {
+		return fmt.Errorf("rashin could not turn on: %s", commandError(out, err))
 	}
-	return applyDesktop()
+	return applyRashinDesktop()
 }
 
-// rashinOff stops the agent, then removes the package. A stop that fails (a
-// wedged daemon that will not exit) is reported, not obeyed: the user asked for
-// Rashin gone, the config already records it off, and leaving the package
-// behind because one process hung would make the switch lie about what is
-// installed.
 func rashinOff() error {
 	var stopErr error
 	if rashinInstalled() {
-		if out, err := exec.Command(rashinPackage, "disable").CombinedOutput(); err != nil {
-			stopErr = fmt.Errorf("the running agent did not stop (%s); it ends with the session", strings.TrimSpace(string(out)))
+		if out, err := runRashinCLI("off"); err != nil {
+			stopErr = fmt.Errorf("rashin could not stop cleanly: %s", commandError(out, err))
 		}
-		if err := privileged("pkg", "remove", rashinPackage); err != nil {
+		if err := removeRashinPackage(); err != nil {
 			return err
 		}
 	}
-	if err := recordProvisioned(rashinPackage); err != nil {
-		return err
-	}
-	if err := applyDesktop(); err != nil {
+	if err := applyRashinDesktop(); err != nil {
 		return err
 	}
 	return stopErr
 }
 
-// recordProvisioned appends a package name to the doctor's deliver-once ledger
-// (one name per line), so a package that is absent afterwards reads as the
-// user's removal and is never reinstalled by a later update.
+func commandError(out []byte, err error) string {
+	message := strings.TrimSpace(string(out))
+	if message != "" {
+		return message
+	}
+	return err.Error()
+}
+
 func recordProvisioned(pkg string) error {
 	path := filepath.Join(stateHome(), "ryoku", "provisioned")
 	if f, err := os.Open(path); err == nil {

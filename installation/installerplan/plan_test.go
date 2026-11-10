@@ -193,6 +193,10 @@ func TestBashResolverReadsTheSameManifest(t *testing.T) {
 				t.Fatalf("bash resolver: %v\n%s", err, output)
 			}
 			drop := append(DropPackages("firefox", "fish"), DropPackagesFor(FileManager, "nautilus")...)
+			if rashin, ok := plan.Component("rashin"); ok &&
+				!componentSelected(rashin, plan.DefaultComponents()) {
+				drop = append(drop, rashin.Component.Packages...)
+			}
 			want := "browser=firefox\nshell=fish\nfiles=nautilus\ndrops=" + strings.Join(drop, ",") + "\n" +
 				"browsers=" + strings.Join(plan.AvailableIDs(Browser), ",") + ",\n" +
 				"shells=" + strings.Join(plan.AvailableIDs(LoginShell), ",") + ",\n" +
@@ -287,8 +291,8 @@ func TestComponentAvailabilityByEdition(t *testing.T) {
 				t.Errorf("gaming component = %+v, want id=%q network=%v", gaming, test.gamingID, test.needsNetwork)
 			}
 			rashin, ok := plan.Component("rashin")
-			if !ok || !rashin.Available || rashin.Locked || !rashin.Component.DefaultOn {
-				t.Errorf("rashin availability = %+v, want an available, unlocked, default-on choice", rashin)
+			if !ok || !rashin.Available || rashin.Locked || rashin.Component.DefaultOn {
+				t.Errorf("rashin availability = %+v, want an available, unlocked, default-off choice", rashin)
 			}
 			terminal, ok := plan.Component("terminal")
 			if !ok || !terminal.Available || !terminal.Locked ||

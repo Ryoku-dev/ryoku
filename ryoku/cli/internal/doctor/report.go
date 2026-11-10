@@ -85,7 +85,7 @@ var diagnosticServices = []diagnosticService{
 	{"--user", "ryotunesd.socket"},
 	{"--user", "ryoku-shell.service"},
 	{"--user", "ryogami.service"},
-	{"--user", "ryoku-rashin.service"},
+	{"--user", "rashind.socket"},
 }
 
 // Whether a service is running, as far as this report is allowed to look.

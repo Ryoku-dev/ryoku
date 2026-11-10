@@ -1,211 +1,149 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtQuick.Controls
 import Quickshell
-import Ryoku.Ui
 import Ryoku.Ui.Singletons
-import shell.services
-import "../../services" as Services
 
 Item {
     id: root
 
     required property real s
-    required property Services.AskSession session
+    required property RashinSession session
     property bool active: false
     property int selectedChip: 0
     property string flash: ""
-    property int chipEpoch: 0
-    readonly property bool motionAllowed: active && !Tokens.reduceMotion && !Motion.reduce
+    readonly property var sessionData: session.state
     readonly property var chips: {
         if (session.busy)
             return [
-                { kind: "chat", value: "", label: I18n.tr("Move to the agent") },
-                { kind: "app", value: "", label: I18n.tr("Open Rashin") },
-                { kind: "cancel", value: "", label: I18n.tr("Cancel") }
+                { kind: "agent", label: I18n.tr("Move to Agent"), value: "" },
+                { kind: "cancel", label: I18n.tr("Cancel"), value: "" }
             ];
-        if (session.phase !== "done")
+        if (sessionData.phase !== "done" && sessionData.phase !== "cancelled")
             return [];
-        const values = [];
-        if (session.needsAgent)
-            values.push({ kind: "chat", value: "", label: I18n.tr("Move to the agent") });
-        values.push({ kind: "copy", value: session.answerText, label: I18n.tr("Copy") });
-        for (let i = 0; i < session.answerActions.length; i++)
-            values.push(session.answerActions[i]);
-        if (!session.needsAgent)
-            values.push({ kind: "chat", value: "", label: I18n.tr("Continue with the agent") });
-        values.push({ kind: "app", value: "", label: I18n.tr("Open Rashin") });
-        values.push({ kind: "pin", value: "", label: I18n.tr("Pin bubble") });
-        return values;
+        const rows = [];
+        if (sessionData.needsAgent)
+            rows.push({ kind: "agent", label: I18n.tr("Move to Agent"), value: "" });
+        if (String(sessionData.answer || "").length > 0)
+            rows.push({ kind: "copy", label: I18n.tr("Copy"), value: sessionData.answer });
+        const actions = sessionData.actions || [];
+        for (var i = 0; i < actions.length; i++)
+            rows.push(actions[i]);
+        if (!sessionData.needsAgent)
+            rows.push({ kind: "agent", label: I18n.tr("Continue with Agent"), value: "" });
+        rows.push({ kind: "open", label: I18n.tr("Open in Rashin"), value: "" });
+        rows.push({ kind: "pin", label: I18n.tr("Pin bubble"), value: "" });
+        return rows;
     }
 
-    signal switchToChat()
-    signal openApp()
-    signal recentLoaded(string question)
-    signal pinBubbleRequested()
+    signal handoffRequested()
+    signal pinRequested(string question, string answer)
 
     implicitHeight: content.implicitHeight
 
+    function statusLabel(value) {
+        const status = String(value || "running").toLowerCase();
+        if (status === "done" || status === "completed")
+            return I18n.tr("Done");
+        if (status === "failed" || status === "error")
+            return I18n.tr("Failed");
+        if (status === "cancelled" || status === "canceled")
+            return I18n.tr("Cancelled");
+        if (status === "waiting" || status === "pending")
+            return I18n.tr("Waiting");
+        return I18n.tr("Running");
+    }
+
     function move(delta) {
-        if (session.recentOpen) {
-            recentList.currentIndex = Math.max(0, Math.min(recentList.count - 1, recentList.currentIndex + delta));
-            return;
-        }
         selectedChip = Math.max(0, Math.min(chips.length - 1, selectedChip + delta));
     }
 
     function activate() {
-        if (session.recentOpen) {
-            if (recentList.currentIndex >= 0 && session.recent[recentList.currentIndex]) {
-                const entry = session.recent[recentList.currentIndex];
-                session.loadRecent(entry);
-                root.recentLoaded(session.askedQuestion);
-            }
-            return;
-        }
         if (chips[selectedChip])
             fire(chips[selectedChip]);
     }
 
     function fire(chip) {
         const kind = String(chip.kind || "");
+        const value = String(chip.value || "");
         if (kind === "copy" || kind === "cmd" || kind === "color") {
-            Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", String(chip.value || "")]);
-            flash = kind + "\u0000" + String(chip.value || "");
+            Quickshell.execDetached(["sh", "-c", "printf '%s' \"$1\" | wl-copy", "_", value]);
+            flash = kind + "\u0000" + value;
             flashTimer.restart();
-            return;
-        }
-        if (kind === "file")
-            Spawn.runApp(["kitty", "-e", "nvim", String(chip.value || "")], { label: "kitty" });
-        else if (kind === "dir" || kind === "url")
-            Spawn.runApp(["xdg-open", String(chip.value || "")], { label: kind });
-        else if (kind === "chat") {
-            const run = session.busy || session.needsAgent;
-            Needle.handoff(
-                run ? "" : session.answerId,
-                session.askedQuestion,
-                run ? "" : session.answerText,
-                run
-            );
-            root.switchToChat();
-        }
-        else if (kind === "app")
-            root.openApp();
-        else if (kind === "pin")
-            root.pinBubbleRequested();
-        else if (kind === "cancel")
+        } else if (kind === "file") {
+            Spawn.runApp(["kitty", "-e", "nvim", value], { label: "kitty" });
+        } else if (kind === "dir" || kind === "url") {
+            Spawn.runApp(["xdg-open", value], { label: kind });
+        } else if (kind === "agent") {
+            handoffRequested();
+        } else if (kind === "open") {
+            Quickshell.execDetached(["rashin", "open", "--session", root.session.id]);
+        } else if (kind === "pin") {
+            pinRequested(String(sessionData.question || ""), String(sessionData.answer || ""));
+        } else if (kind === "cancel") {
             session.cancel();
+        }
     }
 
     function caption(chip) {
-        if (flash === String(chip.kind) + "\u0000" + String(chip.value || ""))
-            return I18n.tr("COPIED");
-        if (chip.kind === "file") return "nvim " + chip.label;
-        if (chip.kind === "dir") return I18n.tr("Open %1").arg(chip.label);
-        if (chip.kind === "cmd") return "$ " + chip.label;
-        return chip.label;
+        if (flash === String(chip.kind || "") + "\u0000" + String(chip.value || ""))
+            return I18n.tr("Copied");
+        if (chip.kind === "file")
+            return "nvim " + String(chip.label || chip.value || "");
+        if (chip.kind === "dir")
+            return I18n.tr("Open %1").arg(chip.label || chip.value || "");
+        if (chip.kind === "cmd")
+            return "$ " + String(chip.label || chip.value || "");
+        return String(chip.label || "");
     }
 
     Timer {
         id: flashTimer
-        interval: Motion.spatial * 3
+        interval: 1200
         onTriggered: root.flash = ""
     }
 
-
-    Connections {
-        target: root.session
-        function onAnswered() {
-            root.selectedChip = 0;
-            root.chipEpoch++;
-        }
-    }
     Column {
         id: content
         width: parent.width
         spacing: Tokens.s3 * root.s
 
         Text {
-            id: workingLabel
             visible: root.session.busy
-            text: root.session.working
+            text: root.sessionData.tools.length > 0 ? I18n.tr("Working with %1").arg(root.sessionData.tools[root.sessionData.tools.length - 1].title || I18n.tr("tools")) : I18n.tr("Thinking")
             color: Tokens.inkDim
             font.family: Tokens.ui
             font.pixelSize: Tokens.fSmall * root.s
-            SequentialAnimation on opacity {
-                running: root.motionAllowed && root.session.busy
-                loops: Animation.Infinite
-                NumberAnimation { from: 1; to: 0.7; duration: Tokens.dur(900); easing.type: Easing.InOutSine }
-                NumberAnimation { from: 0.7; to: 1; duration: Tokens.dur(900); easing.type: Easing.InOutSine }
-                onStopped: workingLabel.opacity = 1
-            }
         }
 
-        Text {
-            visible: root.session.recentOpen && root.session.recent.length === 0
-            text: I18n.tr("No recent asks")
-            color: Tokens.inkMuted
-            font.family: Tokens.ui
-            font.pixelSize: Tokens.fSmall * root.s
-        }
-
-        ListView {
-            id: recentList
-            width: parent.width
-            visible: root.session.recentOpen
-            height: visible ? Math.min(contentHeight, 260 * root.s) : 0
-            clip: true
-            model: root.session.recent
-            currentIndex: count > 0 ? 0 : -1
-            spacing: Tokens.s1 * root.s
-            boundsBehavior: Flickable.StopAtBounds
-            delegate: Rectangle {
-                id: recentRow
+        Repeater {
+            model: root.sessionData.tools || []
+            delegate: Row {
                 required property var modelData
-                required property int index
-                width: ListView.view ? ListView.view.width : 0
-                height: 52 * root.s
-                radius: Tokens.radius * root.s
-                color: recentRow.index === recentList.currentIndex ? Tokens.bone : recentHover.hovered ? Tokens.tint10 : "transparent"
-                Column {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.margins: Tokens.s3 * root.s
-                    Text {
-                        width: parent.width
-                        text: String(recentRow.modelData.q || "")
-                        color: recentRow.index === recentList.currentIndex ? Tokens.inkOnBone : Tokens.ink
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fSmall * root.s
-                        elide: Text.ElideRight
-                    }
-                    Text {
-                        width: parent.width
-                        text: String(recentRow.modelData.a || "").replace(/\n/g, " ")
-                        color: recentRow.index === recentList.currentIndex ? Tokens.inkOnBone : Tokens.inkMuted
-                        font.family: Tokens.ui
-                        font.pixelSize: Tokens.fTiny * root.s
-                        elide: Text.ElideRight
-                    }
+                width: content.width
+                spacing: Tokens.s2 * root.s
+                Text {
+                    text: root.statusLabel(modelData.status)
+                    color: Tokens.inkMuted
+                    font.family: Tokens.mono
+                    font.pixelSize: Tokens.fTiny * root.s
                 }
-                HoverHandler { cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) recentList.currentIndex = recentRow.index }
-                TapHandler {
-                    onTapped: {
-                        recentList.currentIndex = recentRow.index;
-                        root.activate();
-                    }
+                Text {
+                    width: parent.width - 90 * root.s
+                    text: String(modelData.title || modelData.toolKind || I18n.tr("Tool"))
+                    color: Tokens.inkDim
+                    font.family: Tokens.ui
+                    font.pixelSize: Tokens.fSmall * root.s
+                    elide: Text.ElideRight
                 }
             }
         }
 
         TextEdit {
-            id: answerText
-            readonly property bool shown: root.session.phase === "done" && !root.session.recentOpen
             width: parent.width
-            visible: opacity > 0.001
-            text: root.session.answerText
+            visible: text.length > 0
+            text: String(root.sessionData.answer || "").replace(/([^\n])\n(?!\n)/g, "$1  \n")
+            textFormat: TextEdit.MarkdownText
             color: Tokens.inkDim
             font.family: Tokens.ui
             font.pixelSize: Tokens.fBody * root.s
@@ -214,25 +152,13 @@ Item {
             selectByMouse: true
             selectionColor: Tokens.bone
             selectedTextColor: Tokens.inkOnBone
-            opacity: shown ? 1 : 0
-            transform: Translate {
-                y: answerText.shown ? 0 : Tokens.s2 * root.s
-                Behavior on y {
-                    enabled: root.motionAllowed
-                    NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease }
-                }
-            }
-            Behavior on opacity {
-                enabled: root.motionAllowed
-                NumberAnimation { duration: Tokens.swap; easing.type: Tokens.ease }
-            }
+            onLinkActivated: url => Spawn.runApp(["xdg-open", url], { label: "browser" })
         }
 
         Text {
             width: parent.width
-            visible: root.session.needsAgent && root.session.needsAgentReason.length > 0
-                && !root.session.recentOpen
-            text: root.session.needsAgentReason
+            visible: root.sessionData.needsAgent && String(root.sessionData.needsAgentReason || "").length > 0
+            text: String(root.sessionData.needsAgentReason || "")
             color: Tokens.inkMuted
             font.family: Tokens.ui
             font.pixelSize: Tokens.fSmall * root.s
@@ -240,52 +166,18 @@ Item {
             wrapMode: Text.WordWrap
         }
 
-        Row {
-            visible: root.session.phase === "done" && root.session.answerImages.length > 0
-            spacing: Tokens.s2 * root.s
-            Repeater {
-                model: root.session.answerImages
-                delegate: Rectangle {
-                    id: imageFrame
-                    required property string modelData
-                    width: 92 * root.s
-                    height: width
-                    radius: Tokens.radius * root.s
-                    color: Tokens.tint5
-                    border.width: Tokens.border
-                    border.color: Tokens.lineSoft
-                    clip: true
-                    Image { anchors.fill: parent; source: "file://" + imageFrame.modelData; fillMode: Image.PreserveAspectCrop; asynchronous: true }
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: Spawn.runApp(["xdg-open", imageFrame.modelData], { label: "image" }) }
-                }
-            }
-        }
-
-        Row {
+        Text {
             width: parent.width
-            visible: root.session.phase === "failed"
-            spacing: Tokens.s2 * root.s
-            Rectangle {
-                width: 6 * root.s
-                height: width
-                radius: width / 2
-                color: Tokens.alert
-                anchors.verticalCenter: parent.verticalCenter
-            }
-            Text {
-                width: content.width - 6 * root.s - parent.spacing
-                text: root.session.errorText
-                color: Tokens.inkDim
-                font.family: Tokens.ui
-                font.pixelSize: Tokens.fSmall * root.s
-                wrapMode: Text.WordWrap
-            }
+            visible: String(root.sessionData.error || "").length > 0
+            text: String(root.sessionData.error || "")
+            color: Tokens.inkDim
+            font.family: Tokens.ui
+            font.pixelSize: Tokens.fSmall * root.s
+            wrapMode: Text.WordWrap
         }
 
         Flow {
             width: parent.width
-            visible: root.chips.length > 0 && !root.session.recentOpen
             spacing: Tokens.s2 * root.s
             Repeater {
                 model: root.chips
@@ -293,64 +185,20 @@ Item {
                     id: chip
                     required property var modelData
                     required property int index
-                    property real revealProgress: root.motionAllowed ? 0 : 1
-                    property int revealEpoch: root.chipEpoch
                     readonly property bool current: index === root.selectedChip
-                    width: chipContent.implicitWidth + Tokens.s4 * root.s
+                    width: chipText.implicitWidth + Tokens.s4 * root.s
                     height: Tokens.ctlH * root.s
                     radius: Tokens.radius * root.s
-                    color: chipTap.pressed ? Tokens.tint16
-                        : current ? Tokens.bone
-                        : chipHover.hovered ? Tokens.tint10 : "transparent"
+                    color: current ? Tokens.bone : chipTap.pressed ? Tokens.tint16 : chipHover.hovered ? Tokens.tint10 : Tokens.tint5
                     border.width: Tokens.border
-                    border.color: current ? Tokens.bone : Tokens.line
-                    opacity: revealProgress
-                    scale: chipTap.pressed && root.motionAllowed ? 0.94
-                        : chipHover.hovered && root.motionAllowed ? 1.025 : 1
-                    transform: Translate { y: (1 - chip.revealProgress) * Tokens.s2 * root.s }
-                    function restartReveal() {
-                        reveal.stop();
-                        revealProgress = root.motionAllowed ? 0 : 1;
-                        if (root.motionAllowed)
-                            reveal.restart();
-                    }
-                    onRevealEpochChanged: restartReveal()
-                    Component.onCompleted: restartReveal()
-                    Behavior on scale {
-                        enabled: root.motionAllowed
-                        NumberAnimation { duration: Tokens.snap; easing.type: Tokens.easeSnap }
-                    }
-                    SequentialAnimation {
-                        id: reveal
-                        PauseAnimation { duration: Math.min(chip.index * 60, 240) }
-                        NumberAnimation {
-                            target: chip
-                            property: "revealProgress"
-                            to: 1
-                            duration: Tokens.move
-                            easing.type: Tokens.ease
-                        }
-                    }
-                    Row {
-                        id: chipContent
+                    border.color: current ? Tokens.bone : Tokens.lineStrong
+                    Text {
+                        id: chipText
                         anchors.centerIn: parent
-                        spacing: Tokens.s2 * root.s
-                        Rectangle {
-                            visible: String(chip.modelData.kind || "") === "color"
-                            width: 10 * root.s
-                            height: width
-                            radius: Tokens.radius * root.s
-                            color: visible ? String(chip.modelData.value || Tokens.ink) : Tokens.ink
-                            border.width: Tokens.border
-                            border.color: chip.current ? Tokens.inkOnBone : Tokens.lineStrong
-                        }
-                        Text {
-                            id: chipLabel
-                            text: root.caption(chip.modelData)
-                            color: chip.current ? Tokens.inkOnBone : Tokens.inkDim
-                            font.family: Tokens.ui
-                            font.pixelSize: Tokens.fSmall * root.s
-                        }
+                        text: root.caption(chip.modelData)
+                        color: chip.current ? Tokens.inkOnBone : Tokens.ink
+                        font.family: Tokens.ui
+                        font.pixelSize: Tokens.fSmall * root.s
                     }
                     HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) root.selectedChip = chip.index }
                     TapHandler { id: chipTap; onTapped: root.fire(chip.modelData) }

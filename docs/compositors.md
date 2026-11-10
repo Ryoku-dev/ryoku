@@ -360,11 +360,11 @@ rebinds applied, unbinds removed, and one winner per chord. There is no seeded
 bind block to subtract from.
 `desktop.keybindDisabled` names a shipped chord the user switched off: Hyprland
 never registers it, while niri and Wayfire release it before rebinds resolve.
-A catalogue bind can also name the program it launches (`Needs`, the Ask bar
-and the Rashin window need `ryoku-rashin`): while that program is not on PATH
-every provider treats the bind the same way, no chord registered and the legend
-row saying what is missing, so removing an optional app takes its shortcut with
-it instead of leaving a key that opens an empty surface. The config is authored
+A catalogue bind can also name the program it launches (`Needs`). Ask needs
+`rashind`; the Rashin app needs `rashin-app`. While that program is not on PATH,
+every provider registers no chord and keeps a legend row that names what is
+missing, so removing an optional app does not leave a dead shortcut. The config
+is authored
 at apply time, so the Hub re-applies after it installs or removes such an app.
 
 Two seeds are compositor-specific in practice. `ryoku-gpu` keeps its policy in

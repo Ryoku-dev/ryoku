@@ -8,14 +8,9 @@ import (
 	"ryoku-cli/internal/sys"
 )
 
-// rashinOn reports whether Rashin, Ryoku's optional local agent OS, is switched
-// on for this box: ~/.config/ryoku/rashin.json parses with "enabled": true and
-// the ryoku-rashin binary resolves on PATH. Both are required, since the config
-// gate is meaningless without the daemon that `ryoku-rashin fix doctor` drives.
-// It decides whether doctor offers the "let Rashin fix these" line beside the
-// existing --explain hint.
+// rashinOn decides whether doctor offers the optional Rashin fix command.
 func rashinOn() bool {
-	if !sys.Has("ryoku-rashin") {
+	if !sys.Has("rashin") {
 		return false
 	}
 	b, err := os.ReadFile(filepath.Join(sys.ConfigHome(), "ryoku", "rashin.json"))

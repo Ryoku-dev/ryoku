@@ -256,10 +256,10 @@ func (a *App) seedSelf(options ProvisionOptions) error {
 		return err
 	}
 	if options.Rashin {
-		if err := writeHomeFile(home, filepath.Join(state, "rashin-setup-pending"), []byte("pending\n"), 0o644); err != nil {
+		if err := writeHomeFile(home, filepath.Join(state, "rashin-on-pending"), []byte("pending\n"), 0o644); err != nil {
 			return err
 		}
-	} else if err := removeHomeFile(home, filepath.Join(state, "rashin-setup-pending")); err != nil {
+	} else if err := removeHomeFile(home, filepath.Join(state, "rashin-on-pending")); err != nil {
 		return err
 	}
 	if options.SkipWelcome {
@@ -276,11 +276,6 @@ func (a *App) seedSelf(options ProvisionOptions) error {
 	}
 	if err := seedLauncherOverrides(home, applicationsRoot, ids); err != nil {
 		return err
-	}
-	if options.Rashin && a.cfg.Runner.LookPath("ryoku-rashin") {
-		if result := a.cfg.Runner.Run(Command{Name: "ryoku-rashin", Args: []string{"wire"}, Stdout: io.Discard, Stderr: a.cfg.Stderr}); result.Code != 0 {
-			return fmt.Errorf(i18n.T("Wire Rashin: ryoku-rashin exited with status %d."), result.Code)
-		}
 	}
 	qylockInstaller := filepath.Join(shareRoot, "lockscreen", "install-qylock")
 	if regularFile(qylockInstaller) {

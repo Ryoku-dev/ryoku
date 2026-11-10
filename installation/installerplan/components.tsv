@@ -28,7 +28,7 @@ go	Go toolchain	developer	Developer toolchains	go	-	on	apps	false	*	-	-	-
 node	Node.js + npm	developer	Developer toolchains	nodejs,npm	-	on	apps	false	*	-	-	-
 pytools	Python pip + pipx	developer	Developer toolchains	python-pip,python-pipx	-	on	apps	false	*	-	-	-
 mise	mise	developer	Developer toolchains	mise	-	on	apps	false	*	-	-	language and version manager
-rashin	Rashin	rashin	Rashin	ryoku-rashin	-	on	rashin	false	*	-	-	Ryoku's AI agent
+rashin	Rashin	rashin	Rashin	ryoku-rashin	-	off	rashin	false	*	-	-	optional AI for asking about your system and running coding agents; off until you turn it on
 cachyos-layer	Gaming with CachyOS	gaming	Gaming	linux-cachyos,linux-cachyos-headers,cachyos-settings,scx-scheds,cachyos-gaming-meta,steam	-	off	gaming	true	arch	-	-	CachyOS kernel, tuning, sched-ext, Steam and CachyOS gaming packages
 cachyos-gaming	Gaming	gaming	Gaming	steam,cachyos-gaming-meta	-	off	gaming	false	cachyos	-	-	Steam and CachyOS gaming packages
 void-gaming	Gaming	gaming	Gaming	steam,lib32-mesa,lib32-vulkan-icd-loader,lib32-gcc-libs,lib32-libglvnd,lib32-libdrm,lib32-libva	-	off	gaming	false	void	-	-	Steam with 32-bit graphics support

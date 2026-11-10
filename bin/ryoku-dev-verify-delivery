@@ -120,6 +120,22 @@ else
 	say "delivery: every QML module the desktop imports is shipped or a ryoku-desktop dependency"
 fi
 
+# Edition adapters can agree on an incomplete payload, so pin its full set here.
+rashin_payload=release/packages/ryoku-rashin/payload.sh
+for artifact in rashind rashin rashin-app rashind.socket rashind.service \
+  ryoku-ai-usage.timer dev.ryoku.rashin.desktop rashin-mark.svg LICENSE NOTICE; do
+  if ! grep -Fq "$artifact" "$rashin_payload"; then
+    echo "delivery: ryoku-rashin payload does not ship $artifact" >&2
+    fail=1
+  fi
+done
+if grep -Eq 'ryoku-rashin\.service|ryoku-prowl\.service|/usr/bin/prowl|rashin/app/CMakeLists' "$rashin_payload"; then
+  echo "delivery: ryoku-rashin payload still carries a retired Rashin 1 or Prowl artifact" >&2
+  fail=1
+else
+  say "delivery: ryoku-rashin ships its three binaries, socket units, usage timer, launcher and notices"
+fi
+
 # 2. publish lag. the [ryoku] repo publishes on push to main; unstable-dev work
 # only reaches users once main fast-forwards. report the gap so it is never
 # silent. best-effort: no network / no refs = skip, never a hard failure.

@@ -58,7 +58,7 @@ empty workspace:
 UI (`qs`), the shell daemon, its helpers (cava, pw-record), the window-manager
 provider, the wallpaper daemon, the compositor, session daemons and Ryoku's
 system units. Optional features are reported apart: phone integration,
-dictation, Rashin and Prowl, Cobalt.
+dictation, Rashin, Cobalt.
 
 ## Results
 
@@ -309,9 +309,9 @@ In the order to take them:
    (`docs/roadmap.md`, phase 1) is the next step.
 
 Optional features carry their own cost and are off unless chosen: phone
-integration (the KDE Connect monitor), dictation, Rashin and Prowl, Cobalt. QS
-Bar stays the heaviest style: its ambient stream keeps it near 11% of a core
-and a quarter of the GPU at idle on Performance.
+integration (the KDE Connect monitor), dictation, Rashin (nothing at all while
+it is off), Cobalt. QS Bar stays the heaviest style: its ambient stream keeps
+it near 11% of a core and a quarter of the GPU at idle on Performance.
 
 ## Measuring it yourself
 

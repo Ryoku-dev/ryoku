@@ -1,0 +1,8 @@
+#!/bin/sh
+
+case "$ACTION" in
+	post)
+		systemctl --global disable ryoku-ai-usage.timer >/dev/null 2>&1 || true
+		rm -f /etc/systemd/user/default.target.wants/ryoku-rashin.service
+		;;
+esac

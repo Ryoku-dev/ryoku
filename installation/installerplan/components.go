@@ -240,9 +240,10 @@ func (p EditionPlan) DropComponentPackages(selected map[string]bool) []string {
 	var packages []string
 	for _, availability := range p.components {
 		component := availability.Component
-		// Offline gaming bundles are baked into their edition images even though
-		// the question defaults to No. The network-only Arch bundle is not.
-		dropWhenOff := component.DefaultOn || (component.Step == StepGaming && !component.NeedsNetwork)
+		// Offline optional bundles are baked into images and named by the fresh
+		// install transaction, so an off choice must remove them explicitly.
+		dropWhenOff := component.DefaultOn || component.Step == ComponentRashin ||
+			(component.Step == StepGaming && !component.NeedsNetwork)
 		if !availability.Available || !dropWhenOff || componentSelected(availability, selected) {
 			continue
 		}

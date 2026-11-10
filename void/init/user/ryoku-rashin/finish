@@ -1,7 +1,0 @@
-#!/bin/sh
-# Keep Prowl's lifecycle bound to Rashin.
-exec 2>&1
-_here=$(dirname "$0")
-sv down "$_here/../ryoku-prowl" >/dev/null 2>&1 || true
-[ "$1" -eq 0 ] && [ "${2:-0}" -eq 0 ] && exec sv down .
-exit 0

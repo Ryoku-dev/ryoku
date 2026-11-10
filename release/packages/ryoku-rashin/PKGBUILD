@@ -1,38 +1,24 @@
 # Maintainer: Ryoku <releases@ryoku.dev>
 #
-# Ryoku Rashin: the local agent OS daemon (Go), its companion window and the
-# collectors behind the bar's AI usage pill. The daemon maintains a markdown
-# knowledge vault, serves the embedded web dashboard on 127.0.0.1, and bridges
-# ACP agent harnesses. Ryoku installs it by default, but it is an optional
-# app: removing the package removes every AI piece and nothing else breaks.
-#
-# Built from the in-repo source at ryoku/rashin/backend; no tarball is fetched.
-# go build reads the committed vendor/ tree (-mod=vendor), so the signed-repo CI
-# builds with no network regardless of whatever GOFLAGS makepkg picked up.
+# The vendor tree keeps repository builds offline.
 pkgname=ryoku-rashin
 install=ryoku-rashin.install
 pkgver=${RYOKU_PKGVER:-0.1.0}
 pkgrel=1
-pkgdesc="Ryoku Rashin: local agent OS daemon and dashboard"
+pkgdesc="Ryoku Rashin AI system"
 arch=('x86_64')
 url="https://ryoku.dev"
 license=('GPL-3.0-or-later')
-# Hermes itself is per-user opt-in (installed by the one-click setup, never
-# packaged), but its prerequisites ARE shipped so the install never has to
-# bootstrap a toolchain over the network and never dies with a cryptic
-# "uv lock missing": uv is the Python project/venv manager the Hermes installer
-# and runtime use; gcc backs uv's occasional native dependency builds (the
-# installer's own build-tools helper is apt-only, useless on Arch); nodejs backs
-# its npm/npx tooling. kitty and xdg-open ship with the desktop.
-# Prowl is an external model gateway and code index that Rashin hosts; the
-# package dependency keeps the tool and console on the same update path. gtk3
-# and webkit2gtk-4.1 host the companion window; python runs the AI usage
-# collectors. The desktop only optdepends on Rashin, so the pin runs this way:
-# Rashin never runs against another release's shell (a partial upgrade fails
-# loudly instead of skewing).
-depends=("ryoku-desktop=$pkgver" 'uv' 'nodejs' 'gcc' 'prowl' 'gtk3' 'webkit2gtk-4.1' 'python')
-optdepends=('sqlite: sqlite3 database introspection for the rashin agent')
-makedepends=('go' 'cmake' 'ninja')
+# Keep Rashin on the same update as its desktop integration.
+depends=(
+  "ryoku-desktop=$pkgver"
+  'wayland'
+  'libxkbcommon'
+  'mesa'
+  'libglvnd'
+  'vulkan-icd-loader'
+)
+makedepends=('go' 'pkgconf' 'vulkan-headers')
 source=()
 
 _repo="$startdir/../../.."

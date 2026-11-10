@@ -82,7 +82,7 @@ func TestUsersSeedSelfWritesExpectedTreeAndIsIdempotent(t *testing.T) {
 		".local/share/ryoku", ".local/share/ryoku/assets", ".local/share/ryoku/assets/brand",
 		".local/share/ryoku/assets/brand/logo.svg", ".local/state", ".local/state/ryoku",
 		".local/state/ryoku/default-rice-pending", ".local/state/ryoku/launcher-overrides",
-		".local/state/ryoku/provisioned", ".local/state/ryoku/rashin-setup-pending",
+		".local/state/ryoku/provisioned", ".local/state/ryoku/rashin-on-pending",
 		".local/state/ryoku/welcome-seen", ".npmrc", "Desktop", "Documents", "Downloads", "Music",
 		"Pictures", "Pictures/ryodecors", "Pictures/ryodecors/decor.png", "Public", "Templates", "Videos", "Videos/Recordings",
 	}
@@ -93,7 +93,7 @@ func TestUsersSeedSelfWritesExpectedTreeAndIsIdempotent(t *testing.T) {
 	}
 	for path, want := range map[string]string{
 		".local/state/ryoku/default-rice-pending": "hacker\n",
-		".local/state/ryoku/rashin-setup-pending": "pending\n",
+		".local/state/ryoku/rashin-on-pending":    "pending\n",
 		".local/state/ryoku/welcome-seen":         "19",
 		".local/state/ryoku/provisioned":          "pkg-one\npkg-two\n",
 		".local/state/ryoku/launcher-overrides":   "hidden.desktop\nnvim.desktop\n",

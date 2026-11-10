@@ -40,7 +40,7 @@ var pieceLabels = map[string]string{
 	"livewall":     i18n.T("ryogami-live, the video wallpaper engine"),
 	"ryogami":      i18n.T("ryogami, the wallpaper daemon"),
 	"hub":          i18n.T("ryoku-hub, the settings backend"),
-	"rashin":       i18n.T("ryoku-rashin, the agent daemon"),
+	"rashin":       i18n.T("rashind, the optional AI daemon"),
 	"cli":          i18n.T("the ryoku command"),
 	"blobs":        i18n.T("Ryoku.Blobs, the frame renderer"),
 	"picker":       i18n.T("Ryoku.Ryogami, the wallpaper picker"),

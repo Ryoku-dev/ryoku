@@ -64,7 +64,7 @@ BASE_GROUPS = [
 # Root-owned services the base system ships; everything else outside the user's
 # own processes is the machine's business, not the desktop's.
 SYSTEM_UNITS = ("limine-snapper-sync.service",)
-OPTIN_GROUPS = ["dictation", "phone", "rashin", "prowl", "cobalt", "hub"]
+OPTIN_GROUPS = ["dictation", "phone", "rashind", "rashin-app", "rashin-agent", "cobalt", "hub"]
 PLATFORM = {
     "pipewire", "wireplumber", "pipewire-pulse", "xdg-desktop-portal",
     "xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk", "xdg-document-portal",
@@ -201,7 +201,7 @@ def classify(procs):
             seen += 1
         return False
 
-    rashin = {pid for pid, p in procs.items() if p["unit"] == "ryoku-rashin.service"}
+    rashind = {pid for pid, p in procs.items() if p["comm"] == "rashind"}
     # a lab or a session without systemd runs these outside their units
     daemons = {pid for pid, p in procs.items() if p["comm"] == "ryoku-shell" and " daemon" in p["cmd"] + " "}
     ryogamis = {pid for pid, p in procs.items() if p["comm"] == "ryogami" and p["cmd"].split(" ")[1:2] == ["daemon"]}
@@ -219,10 +219,12 @@ def classify(procs):
             g = "visualizer-capture"
         elif "/modules/phone/" in cmd or comm in ("adb", "kdeconnectd", "scrcpy") or unit.startswith("app-org.kde.kdeconnect"):
             g = "phone"
-        elif unit == "ryoku-rashin.service" or under(pid, rashin) or "ryoku-rashin" in cmd.split(" ")[0]:
-            g = "rashin"
-        elif unit == "ryoku-prowl.service":
-            g = "prowl"
+        elif pid not in rashind and under(pid, rashind):
+            g = "rashin-agent"
+        elif pid in rashind or unit == "rashind.service":
+            g = "rashind"
+        elif comm == "rashin-app" or cmd.split(" ")[0].endswith("/rashin-app"):
+            g = "rashin-app"
         elif unit == "ryoku-shell.service" or under(pid, daemons):
             if comm in ("qs", "quickshell"):
                 g = "hub" if " -c hub" in cmd else "shell-ui" if " -c shell" in cmd or cmd.endswith("shell") else "shell-helpers"

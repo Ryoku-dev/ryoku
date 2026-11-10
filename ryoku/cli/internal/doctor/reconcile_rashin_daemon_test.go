@@ -1,285 +1,229 @@
 package doctor
 
 import (
-	"fmt"
-	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"ryoku-cli/internal/host"
 )
 
-func TestRashinDaemonActions(t *testing.T) {
-	cases := []struct {
-		name                   string
-		state                  rashinUnitState
-		wantLinger, wantFailed bool
-	}{
-		{"disabled does nothing", rashinUnitState{enabled: false, linger: false, failed: true}, false, false},
-		{"enabled no linger enables boot-start", rashinUnitState{enabled: true, linger: false, failed: false}, true, false},
-		{"enabled wedged clears failed", rashinUnitState{enabled: true, linger: true, failed: true}, false, true},
-		{"enabled off and wedged does both", rashinUnitState{enabled: true, linger: false, failed: true}, true, true},
-		{"enabled and converged does nothing", rashinUnitState{enabled: true, linger: true, failed: false}, false, false},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			gotLinger, gotFailed := rashinDaemonActions(c.state)
-			if gotLinger != c.wantLinger || gotFailed != c.wantFailed {
-				t.Fatalf("rashinDaemonActions(%+v) = (linger=%v, failed=%v), want (linger=%v, failed=%v)",
-					c.state, gotLinger, gotFailed, c.wantLinger, c.wantFailed)
-			}
-		})
-	}
-}
-
-// rashinOptedOut gates the default-on convergence: a box that ran
-// `ryoku-rashin disable` (optedOut in the config) must be left off. A wrong key
-// or loose parse would silently re-enable the AI a user turned off.
-func TestRashinOptedOut(t *testing.T) {
-	cfg := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", cfg)
-	if err := os.MkdirAll(filepath.Join(cfg, "ryoku"), 0o755); err != nil {
+func TestReadRashinEnabledRequiresExplicitTrue(t *testing.T) {
+	config := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	path := filepath.Join(config, "ryoku", "rashin.json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(cfg, "ryoku", "rashin.json")
-	cases := []struct {
+	for _, test := range []struct {
 		name string
 		body string
 		want bool
 	}{
-		{"absent config is not opted out", "", false},
-		{"opted out", `{"enabled":false,"optedOut":true}`, true},
-		{"enabled is not opted out", `{"enabled":true}`, false},
-		{"absent key is not opted out", `{"enabled":false,"port":3600}`, false},
-		{"garbage is not opted out", `not json`, false},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
+		{name: "missing", want: false},
+		{name: "enabled", body: `{"enabled":true}`, want: true},
+		{name: "disabled", body: `{"enabled":false}`, want: false},
+		{name: "old opt out", body: `{"enabled":true,"optedOut":true}`, want: true},
+		{name: "invalid", body: `not json`, want: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
 			_ = os.Remove(path)
-			if c.body != "" {
-				if err := os.WriteFile(path, []byte(c.body), 0o644); err != nil {
+			if test.body != "" {
+				if err := os.WriteFile(path, []byte(test.body), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
-			if got := rashinOptedOut(); got != c.want {
-				t.Fatalf("rashinOptedOut() = %v, want %v", got, c.want)
+			if got := readRashinEnabled(); got != test.want {
+				t.Fatalf("readRashinEnabled() = %v, want %v", got, test.want)
 			}
 		})
 	}
 }
 
-// prowlNeeded is the pure core of reconcileProwl: only an enabled rashin box
-// that lacks the binary should be told to install it.
-func TestProwlNeeded(t *testing.T) {
-	cases := []struct {
-		name                   string
-		enabled, present, want bool
-	}{
-		{"disabled needs nothing", false, false, false},
-		{"disabled with prowl needs nothing", false, true, false},
-		{"enabled with prowl is fine", true, true, false},
-		{"enabled without prowl needs install", true, false, true},
+func TestRashinManagedUnitsFollowInitSystem(t *testing.T) {
+	systemd := rashinManagedUnits(host.Systemd)
+	if len(systemd) != 2 || systemd[0] != rashindSocket || systemd[1] != aiUsageTimer {
+		t.Fatalf("systemd units = %v", systemd)
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			if got := prowlNeeded(c.enabled, c.present); got != c.want {
-				t.Fatalf("prowlNeeded(enabled=%v, present=%v) = %v, want %v", c.enabled, c.present, got, c.want)
-			}
-		})
+	runit := rashinManagedUnits(host.Runit)
+	if len(runit) != 1 || runit[0] != aiUsageRunit {
+		t.Fatalf("runit units = %v", runit)
 	}
 }
 
-func TestProwlGatewayNeeded(t *testing.T) {
-	for _, enabled := range []bool{false, true} {
-		for _, active := range []bool{false, true} {
-			for _, installed := range []bool{false, true} {
-				for _, answering := range []bool{false, true} {
-					name := fmt.Sprintf("enabled=%v/active=%v/installed=%v/answering=%v",
-						enabled, active, installed, answering)
-					t.Run(name, func(t *testing.T) {
-						state := rashinUnitState{enabled: enabled, active: active}
-						want := enabled && active && installed && !answering
-						if got := prowlGatewayNeeded(state, installed, answering); got != want {
-							t.Fatalf("prowlGatewayNeeded(%+v, installed=%v, answering=%v) = %v, want %v",
-								state, installed, answering, got, want)
-						}
-					})
-				}
-			}
-		}
-	}
-}
-
-func TestRashinSkillLinksMissing(t *testing.T) {
-	h := t.TempDir()
-	t.Setenv("HOME", h)
-	t.Setenv("RYOKU_REPO", "")
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(h, ".config"))
-	t.Setenv("XDG_STATE_HOME", filepath.Join(h, ".local", "state"))
-	t.Setenv("RYOKU_CHANNEL", "")
-	t.Setenv("RYOKU_WM", "hyprland")
-	oldPackaged := packagedSkillRoot
-	packagedSkillRoot = filepath.Join(t.TempDir(), "absent") // a packaged box ships the tree
-	t.Cleanup(func() { packagedSkillRoot = oldPackaged })
-
-	// No skill installed: nothing to wire, so never "missing".
-	skills := t.TempDir()
-	t.Setenv("RYOKU_RASHIN_SKILLS", skills)
-	if rashinSkillLinksMissing() {
-		t.Fatal("no skill source: should not report links missing")
-	}
-
-	// Install the skill under the override; the links are absent -> missing.
-	ryoku := filepath.Join(skills, "ryoku")
-	if err := os.MkdirAll(ryoku, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(ryoku, "SKILL.md"), []byte("# ryoku\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if !rashinSkillLinksMissing() {
-		t.Fatal("skill installed but links absent: should report missing")
-	}
-
-	// Create the always-created links pointing at the source -> not missing.
-	for _, d := range []string{".agents", ".hermes"} {
-		linkDir := filepath.Join(h, d, "skills")
-		if err := os.MkdirAll(linkDir, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Symlink(ryoku, filepath.Join(linkDir, "ryoku")); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if rashinSkillLinksMissing() {
-		t.Fatal("links present: should not report missing")
-	}
-}
-
-func TestRashinDaemonRunitRepairSettles(t *testing.T) {
-	bin := t.TempDir()
-	if err := os.WriteFile(filepath.Join(bin, "ryoku-rashin"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", bin)
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), ".config"))
-	t.Setenv("RYOKU_RASHIN_SKILLS", filepath.Join(t.TempDir(), "absent"))
-
-	t.Setenv("RYOKU_REPO", "")
-	t.Setenv("RYOKU_CHANNEL", "")
-	t.Setenv("RYOKU_WM", "niri")
-	oldInit, oldService, oldPackaged := rashinInit, rashinService, packagedSkillRoot
-	t.Cleanup(func() {
-		rashinInit, rashinService, packagedSkillRoot = oldInit, oldService, oldPackaged
-	})
-	rashinInit = func() (host.InitSystem, error) { return host.Runit, nil }
-	packagedSkillRoot = filepath.Join(t.TempDir(), "absent")
-
-	enabled, active := false, false
-	var calls [][]string
+func TestRashinUnitsMatchEnabledSetting(t *testing.T) {
+	old := rashinService
+	t.Cleanup(func() { rashinService = old })
+	enabled := map[string]bool{rashindSocket: true, aiUsageTimer: true}
 	rashinService = func(args []string) int {
-		calls = append(calls, append([]string(nil), args...))
-		switch args[1] {
-		case "is-enabled":
-			if enabled {
-				return host.ExitOK
-			}
-			return host.ExitFalse
-		case "is-active":
-			if active {
-				return host.ExitOK
-			}
-			return host.ExitFalse
-		case "enable":
-			enabled, active = true, true
-		case "start":
-			active = true
+		if enabled[args[len(args)-1]] {
+			return host.ExitOK
 		}
+		return host.ExitFalse
+	}
+	if !rashinUnitsMatch(true, host.Systemd) {
+		t.Fatal("enabled units did not match enabled settings")
+	}
+	if rashinUnitsMatch(false, host.Systemd) {
+		t.Fatal("enabled units matched disabled settings")
+	}
+	enabled[aiUsageTimer] = false
+	if rashinUnitsMatch(true, host.Systemd) {
+		t.Fatal("partially enabled units matched enabled settings")
+	}
+	enabled[rashindSocket] = false
+	if !rashinUnitsMatch(false, host.Systemd) {
+		t.Fatal("disabled units did not match disabled settings")
+	}
+}
+
+func TestRemoveLegacyRashinUnitsSkipsMissingUnits(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	old := rashinService
+	t.Cleanup(func() { rashinService = old })
+	disableCalls := 0
+	rashinService = func(args []string) int {
+		switch args[1] {
+		case "is-active":
+			return host.ExitAbsent
+		case "disable":
+			disableCalls++
+			return host.ExitFailure
+		default:
+			t.Fatalf("unexpected service call: %v", args)
+			return host.ExitFailure
+		}
+	}
+	if err := removeLegacyRashinUnits(host.Systemd); err != nil {
+		t.Fatalf("missing legacy units caused an error: %v", err)
+	}
+	if disableCalls != 0 {
+		t.Fatalf("disable called %d times for missing units", disableCalls)
+	}
+}
+
+func TestRemoveLegacyRashinUnitsStopsAndRemovesRunitServices(t *testing.T) {
+	config := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	root := filepath.Join(config, "service")
+	for _, service := range []string{"ryoku-rashin", "ryoku-prowl"} {
+		if err := os.MkdirAll(filepath.Join(root, service), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := rashinService
+	t.Cleanup(func() { rashinService = old })
+	var stopped []string
+	rashinService = func(args []string) int {
+		if len(args) != 3 || args[1] != "stop" {
+			t.Fatalf("unexpected service call: %v", args)
+		}
+		if _, err := os.Stat(filepath.Join(root, args[2])); err != nil {
+			t.Fatalf("%s was removed before it was stopped: %v", args[2], err)
+		}
+		stopped = append(stopped, args[2])
 		return host.ExitOK
 	}
-
-	if r := reconcileRashinDaemon(false); r.status != recFixed {
-		t.Fatalf("repair = %s %q, want fixed", r.status.label(), r.detail)
-	}
-	if !enabled || !active {
-		t.Fatalf("runit service state = enabled %v active %v, want both true; calls=%v", enabled, active, calls)
-	}
-	if r := reconcileRashinDaemon(false); r.status != recOK {
-		t.Fatalf("second run = %s %q, want settled ok", r.status.label(), r.detail)
-	}
-}
-
-func TestAiUsageCollectorUsesRunitServiceAndSettles(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), ".config"))
-
-	oldInit, oldService := rashinInit, rashinService
-	t.Cleanup(func() { rashinInit, rashinService = oldInit, oldService })
-	rashinInit = func() (host.InitSystem, error) { return host.Runit, nil }
-
-	enabled := false
-	var enabledUnit string
-	rashinService = func(args []string) int {
-		switch args[1] {
-		case "is-enabled":
-			if enabled {
-				return host.ExitOK
-			}
-			return host.ExitFalse
-		case "enable":
-			enabled = true
-			enabledUnit = args[len(args)-1]
-			return host.ExitOK
-		default:
-			return host.ExitOK
-		}
-	}
-
-	if r := reconcileAiUsageTimer(false); r.status != recFixed {
-		t.Fatalf("repair = %s %q, want fixed", r.status.label(), r.detail)
-	}
-	if enabledUnit != aiUsageService {
-		t.Fatalf("enabled %q, want runit service %q", enabledUnit, aiUsageService)
-	}
-	if r := reconcileAiUsageTimer(false); r.status != recOK {
-		t.Fatalf("second run = %s %q, want settled ok", r.status.label(), r.detail)
-	}
-}
-
-// A gateway systemd already calls started but that listens a moment later
-// counts as restored, not failed; one that never answers still fails.
-func TestAwaitProwlGatewayWaitsForALateStart(t *testing.T) {
-	var probes atomic.Int32
-	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/ping" || probes.Add(1) < 3 {
-			http.Error(w, "starting", http.StatusServiceUnavailable)
-			return
-		}
-		fmt.Fprint(w, `{"status":"ok"}`)
-	}))
-	defer gateway.Close()
-	addr, err := url.Parse(gateway.URL)
-	if err != nil {
+	if err := removeLegacyRashinUnits(host.Runit); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("RYOKU_PROWL_PORT", addr.Port())
-	old := prowlGatewaySettle
-	t.Cleanup(func() { prowlGatewaySettle = old })
+	if len(stopped) != 2 || stopped[0] != "ryoku-rashin" || stopped[1] != "ryoku-prowl" {
+		t.Fatalf("stopped services = %v", stopped)
+	}
+	for _, service := range stopped {
+		if _, err := os.Stat(filepath.Join(root, service)); !os.IsNotExist(err) {
+			t.Fatalf("%s remains after cleanup: %v", service, err)
+		}
+	}
+}
 
-	prowlGatewaySettle = 5 * time.Second
-	if !awaitProwlGateway() {
-		t.Fatalf("a gateway answering on probe 3 was reported down after %d probes", probes.Load())
+func TestReconcileAbsentRashinStopsServicesAndRemovesLinks(t *testing.T) {
+	config := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("PATH", t.TempDir())
+	root := filepath.Join(config, "systemd", "user")
+	socketLink := filepath.Join(root, "sockets.target.wants", rashindSocket)
+	timerLink := filepath.Join(root, "timers.target.wants", aiUsageTimer)
+	for _, link := range []string{socketLink, timerLink} {
+		if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join("/usr/lib/systemd/user", filepath.Base(link)), link); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	probes.Store(-1000)
-	prowlGatewaySettle = 300 * time.Millisecond
-	if awaitProwlGateway() {
-		t.Fatal("a gateway that never answers was reported up")
+	oldInit, oldService := rashinInit, rashinService
+	oldRunning, oldStop, oldCommand := rashindRunning, stopRashind, rashinCommand
+	t.Cleanup(func() {
+		rashinInit, rashinService = oldInit, oldService
+		rashindRunning, stopRashind, rashinCommand = oldRunning, oldStop, oldCommand
+	})
+	rashinInit = func() (host.InitSystem, error) { return host.Systemd, nil }
+	active := true
+	attempted := map[string]map[string]bool{"stop": {}, "disable": {}}
+	rashinService = func(args []string) int {
+		verb := args[1]
+		unit := ""
+		if len(args) > 2 {
+			unit = args[len(args)-1]
+		}
+		switch verb {
+		case "is-active":
+			if unit == rashindService && active {
+				return host.ExitOK
+			}
+			if unit == legacyRashinUnit || unit == legacyProwlUnit {
+				return host.ExitAbsent
+			}
+			return host.ExitFalse
+		case "is-enabled":
+			return host.ExitFalse
+		case "stop":
+			attempted[verb][unit] = true
+			if unit == rashindService {
+				active = false
+				return host.ExitOK
+			}
+			return host.ExitAbsent
+		case "disable":
+			attempted[verb][unit] = true
+			if unit == rashindService {
+				return host.ExitOK
+			}
+			return host.ExitFailure
+		case "daemon-reload":
+			return host.ExitOK
+		default:
+			t.Fatalf("unexpected service call: %v", args)
+			return host.ExitFailure
+		}
+	}
+	running := true
+	rashindRunning = func() bool { return running }
+	stopRashind = func() error {
+		running = false
+		return nil
+	}
+	rashinCommand = func(args ...string) error {
+		t.Fatalf("absent-package cleanup ran rashin: %v", args)
+		return nil
+	}
+
+	if result := reconcileRashinDaemon(false); result.status != recFixed {
+		t.Fatalf("cleanup result = %+v", result)
+	}
+	for _, unit := range []string{rashindSocket, rashindService, aiUsageTimer} {
+		if !attempted["stop"][unit] || !attempted["disable"][unit] {
+			t.Fatalf("%s was not stopped and disabled: %v", unit, attempted)
+		}
+	}
+	for _, link := range []string{socketLink, timerLink} {
+		if _, err := os.Lstat(link); !os.IsNotExist(err) {
+			t.Fatalf("dangling link remains at %s: %v", link, err)
+		}
+	}
+	if result := reconcileRashinDaemon(false); result.status != recOK {
+		t.Fatalf("second cleanup result = %+v", result)
 	}
 }

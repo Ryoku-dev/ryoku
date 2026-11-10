@@ -54,14 +54,16 @@ piece_note() {
 # because a cold cache compiles it too, and that first build is the one that
 # needs an honest bar; a warm build names only what changed and ends early,
 # and the console fills from last time's duration instead.
-build_go() { # build_go <dir> <output> [package]
+build_go() { # build_go <dir> <output> [package] [build flags...]
   local dir=$1 out=$2 pkg=${3:-.} total
+  if (( $# >= 3 )); then shift 3; else shift "$#"; fi
+  local -a build_flags=("$@")
   if [[ -z ${RYOKU_UPDATE_PROGRESS:-} ]]; then
-    (cd "$dir" && go build -o "$out" "$pkg")
+    (cd "$dir" && go build "${build_flags[@]}" -o "$out" "$pkg")
     return
   fi
-  total=$(cd "$dir" && go list -deps "$pkg" 2>/dev/null | wc -l || true)
-  (cd "$dir" && go build -v -o "$out" "$pkg" 2>&1 |
+  total=$(cd "$dir" && go list -deps "${build_flags[@]}" "$pkg" 2>/dev/null | wc -l || true)
+  (cd "$dir" && go build -v "${build_flags[@]}" -o "$out" "$pkg" 2>&1 |
     awk -v t="${total:-0}" '/^[^ :]+$/ { n++; printf "[%d/%d] %s\n", n, t, $0; next } { print }')
 }
 
@@ -698,40 +700,62 @@ build_go "$here/../hub/backend" ryoku-hub
 piece_end
 install -m755 "$here/../hub/backend/ryoku-hub" "$bindir/ryoku-hub"
 say "installed $bindir/ryoku-hub"
-# Build the Ryoku Rashin backend (the optional agent OS daemon; a separate Go
-# binary that serves the dashboard and bridges the Hermes agent over ACP).
-piece rashin "ryoku-rashin, the agent daemon"
-build_go "$here/../rashin/backend" ryoku-rashin
+# Build beside the destination so a failed build keeps the working copy.
+piece rashin "Rashin, the optional AI system"
+rashin_module="$here/../rashin"
+rashin_version=${RYOKU_PKGVER:-dev}
+rashin_build_install() {
+  local name=$1 tmp="$bindir/.$1.new.$$"
+  local -a flags=(-mod=vendor -trimpath -ldflags "-s -w -X main.version=$rashin_version")
+  rm -f "$tmp"
+  if [[ $name == rashin-app ]]; then
+    CGO_ENABLED=1 build_go "$rashin_module" "$tmp" "./cmd/$name" \
+      "${flags[@]}" -tags nox11 || { rm -f "$tmp"; return 1; }
+  else
+    CGO_ENABLED=0 build_go "$rashin_module" "$tmp" "./cmd/$name" \
+      "${flags[@]}" || { rm -f "$tmp"; return 1; }
+  fi
+  chmod 755 "$tmp"
+  mv -f "$tmp" "$bindir/$name"
+}
+
+if [ -d /run/systemd/system ]; then
+  systemctl --user disable --now ryoku-rashin.service ryoku-prowl.service >/dev/null 2>&1 || true
+  if command -v sudo >/dev/null 2>&1; then
+    sudo systemctl --global disable \
+      ryoku-rashin.service ryoku-prowl.service ryoku-ai-usage.timer \
+      >/dev/null 2>&1 || true
+  fi
+fi
+rm -f "$cfg/systemd/user/ryoku-rashin.service" "$cfg/systemd/user/ryoku-prowl.service"
+rm -f "$bindir/ryoku-rashin"
+if [[ -L $bindir/rashin && $(readlink "$bindir/rashin") == ryoku-rashin ]]; then
+  rm -f "$bindir/rashin"
+fi
+for binary in rashind rashin rashin-app; do
+  rashin_build_install "$binary"
+done
 piece_end
-install -m755 "$here/../rashin/backend/ryoku-rashin" "$bindir/ryoku-rashin"
-# `rashin` is the terminal-lane command: the same binary under a second name
-# (busybox pattern), argv0 routes a bare argument to the terminal ask.
-ln -sf ryoku-rashin "$bindir/rashin"
-say "installed $bindir/ryoku-rashin (and the rashin command)"
-# Pre-index the checkout for the Rashin vault: dev-machine equivalent of the
-# snapshot the package ships to /usr/share/ryoku/rashin.
-"$bindir/ryoku-rashin" repo-index "$here/../.." \
-  "${XDG_STATE_HOME:-$HOME/.local/state}/ryoku/rashin-repo.md"
-say "indexed ryoku repo for rashin"
-# Rashin's user units point at the binaries available in this checkout. The
-# runit translations resolve the same path through RYOKU_BIN_DIR.
+say "installed $bindir/rashind, $bindir/rashin and $bindir/rashin-app"
+
+install -Dm644 "$repo_root/release/packages/ryoku-rashin/dev.ryoku.rashin.desktop" \
+  "$datadir/applications/dev.ryoku.rashin.desktop"
+install -Dm644 "$here/../assets/brand/rashin-mark.svg" \
+  "$datadir/icons/hicolor/scalable/apps/dev.ryoku.rashin.svg"
+
 if [ -d /run/systemd/system ]; then
   mkdir -p "$cfg/systemd/user"
-  sed "s|^ExecStart=.*|ExecStart=$bindir/ryoku-rashin serve --if-enabled|" \
-    "$here/../rashin/systemd/ryoku-rashin.service" > "$cfg/systemd/user/ryoku-rashin.service"
-  say "installed rashin systemd user unit"
-  prowl_bin=$(command -v prowl 2>/dev/null || true)
-  if [[ -n $prowl_bin ]]; then
-    sed "s|/usr/bin/prowl|$prowl_bin|g" \
-      "$here/../rashin/systemd/ryoku-prowl.service" > "$cfg/systemd/user/ryoku-prowl.service"
-    say "installed prowl systemd user unit"
-  else
-    say "skipped prowl systemd user unit: prowl is not installed"
-  fi
+  install -Dm644 "$rashin_module/systemd/rashind.socket" \
+    "$cfg/systemd/user/rashind.socket"
+  unit_tmp="$cfg/systemd/user/.rashind.service.new.$$"
+  sed "s|/usr/bin/rashind|$bindir/rashind|g" \
+    "$rashin_module/systemd/rashind.service" > "$unit_tmp"
+  chmod 644 "$unit_tmp"
+  mv -f "$unit_tmp" "$cfg/systemd/user/rashind.service"
   systemctl --user daemon-reload 2>/dev/null || true
 fi
-# Rashin is on by default: bring it up at boot now unless the user opted out.
-"$bindir/ryoku-rashin" ensure 2>/dev/null || true
+"$bindir/rashin" migrate \
+  || say "rashin migrate failed: run $bindir/rashin migrate to retry"
 piece cli "the ryoku command"
 build_go "$here/../cli" ryoku
 build_go "$here/../cli" ryoku-host ./cmd/ryoku-host
@@ -758,6 +782,8 @@ for s in "$here/../rashin/usage"/ryoku-ai-usage \
   install -m755 "$s" "$bindir/${s##*/}"
 done
 say "installed the AI-usage guard and collectors to $bindir"
+"$bindir/ryoku" vault refresh \
+  || say "vault refresh failed: run $bindir/ryoku vault refresh to retry"
 say "installed Ryoku CLI and hardware helpers"
 
 # Privileged network helpers + their polkit rules. A packaged install ships these
@@ -930,16 +956,6 @@ printf '%s\n' "$repo_root" > "$state_dir/repo"
 git -C "$repo_root" rev-parse HEAD > "$state_dir/deployed" 2>/dev/null || rm -f "$state_dir/deployed"
 say "recorded update-channel checkout -> $state_dir/repo"
 
-# The `ryoku` agent skill resolves through the repo pointer just recorded:
-# `ryoku-rashin wire` looks at RYOKU_RASHIN_SKILLS, then /usr/share/ryoku/skills
-# (absent on a checkout), then <repo>/ryoku/rashin/skills via ~/.local/state/
-# ryoku/repo, so it finds THIS checkout's skill dir with no separate symlink.
-# Refresh the links now, but only when a Rashin vault already exists (the user
-# opted in); never wire agents for a box that left Rashin off.
-if [[ -d "$datadir/ryoku/rashin" && -x "$bindir/ryoku-rashin" ]]; then
-  "$bindir/ryoku-rashin" wire >/dev/null 2>&1 || true
-  say "refreshed rashin agent wiring (ryoku skill + vault pointers)"
-fi
 
 # Build the Ryoku.Blobs QML plugin (the frame's blob renderer) and install the
 # module onto the user's QML import path. ryoku-shell points QML2_IMPORT_PATH
@@ -1046,8 +1062,6 @@ for appdir in "$here"/../apps/*/; do
     compile_app "$appdir" "$appname"
   fi
 done
-# The Rashin companion window ships with ryoku-rashin, not with ryoku/apps.
-compile_app "$here/../rashin/app/" rashin-app
 
 piece modules "shell and Hub modules"
 # Install the Ryoku.Ui QML module: the design system every surface imports --
@@ -1127,12 +1141,6 @@ for appdir in "$here"/../apps/*/; do
   install -Dm644 "$icon" "$appshare/icons/hicolor/scalable/apps/$appname.svg"
   say "installed app $appname"
 done
-if command -v cmake >/dev/null 2>&1; then
-  install -m755 "$here/../rashin/app/build/rashin-app" "$bindir/rashin-app"
-fi
-install -Dm644 "$here/../rashin/app/rashin-app.desktop" "$appshare/applications/rashin-app.desktop"
-install -Dm644 "$here/../rashin/app/logo.svg" "$appshare/icons/hicolor/scalable/apps/rashin-app.svg"
-say "installed app rashin-app"
 
 # Ryoku Hub (hub/): the surface is deployed above; ship a launcher entry so it
 # shows in the app launcher search too, next to the Super+comma keybind.
@@ -1499,7 +1507,6 @@ if [ -d /run/systemd/system ]; then
   # install deploy does not start it early; the restart relaunches the resident
   # picker too.
   systemctl --user try-restart ryogami.service 2>/dev/null || true
-  systemctl --user enable --now ryoku-ai-usage.timer 2>/dev/null || true
   # the BlueZ pairing agent (#308): the unit rides the materialized config dir;
   # start it now so a converted dev box pairs BLE HID without a relogin.
   systemctl --user enable --now ryoku-bt-agent.service 2>/dev/null || true
@@ -1507,6 +1514,11 @@ else
   # Older deploys pinned the account's home here. The daemon now derives the
   # picker entry from the session's XDG data home on every start.
   rm -f "$runit_env_root/RYOGAMI_SHELL_QML"
+fi
+rashin_config="${XDG_CONFIG_HOME:-$HOME/.config}/ryoku/rashin.json"
+if [[ -f $rashin_config ]] && jq -e '.enabled == true' "$rashin_config" >/dev/null 2>&1; then
+  "$bindir/rashin" on \
+    || say "rashin on failed: run $bindir/rashin on to retry"
 fi
 # pip (PEP 668 --user): Ryoku-owned, so a dev box tracks it the way the package
 # materializes it for an installed one.

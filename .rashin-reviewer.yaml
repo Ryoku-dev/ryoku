@@ -28,5 +28,7 @@ rules:
       - "**/fonts/**"
       - "ryoku-shell-installer/ryoku-shell-install"
       - "release/packages/*/*.bundle"
+      # Embedded potion-code-16M model weights, MIT licensed.
+      - "ryoku/rashin/internal/index/embed/model/**"
     # The R2 retention Worker logs through console.log; wrangler tail reads it.
     debug-leftover: ["release/r2-retention/**"]

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -44,5 +46,80 @@ func TestRecordProvisionedCreatesTheLedger(t *testing.T) {
 	}
 	if string(got) != "ryoku-rashin\n" {
 		t.Fatalf("ledger = %q", got)
+	}
+}
+
+func TestRashinOnInstallsRecordsAndEnables(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	oldLook, oldRun := lookPathRashin, runRashinCLI
+	oldInstall, oldApply := installRashinPackage, applyRashinDesktop
+	t.Cleanup(func() {
+		lookPathRashin, runRashinCLI = oldLook, oldRun
+		installRashinPackage, applyRashinDesktop = oldInstall, oldApply
+	})
+
+	installed := false
+	called := []string{}
+	lookPathRashin = func(name string) (string, error) {
+		if installed {
+			return "/usr/bin/rashin", nil
+		}
+		return "", errors.New("not found")
+	}
+	installRashinPackage = func() error {
+		called = append(called, "install")
+		installed = true
+		return nil
+	}
+	runRashinCLI = func(args ...string) ([]byte, error) {
+		called = append(called, strings.Join(args, " "))
+		return nil, nil
+	}
+	applyRashinDesktop = func() error {
+		called = append(called, "desktop")
+		return nil
+	}
+
+	if err := rashinOn(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(called, ",") != "install,on,desktop" {
+		t.Fatalf("calls = %v", called)
+	}
+	if _, err := os.Stat(filepath.Join(stateHome(), "ryoku", "provisioned")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRashinOffRemovesPackageAfterStopFailure(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	oldLook, oldRun := lookPathRashin, runRashinCLI
+	oldRemove, oldApply := removeRashinPackage, applyRashinDesktop
+	t.Cleanup(func() {
+		lookPathRashin, runRashinCLI = oldLook, oldRun
+		removeRashinPackage, applyRashinDesktop = oldRemove, oldApply
+	})
+
+	called := []string{}
+	lookPathRashin = func(name string) (string, error) { return "/usr/bin/rashin", nil }
+	runRashinCLI = func(args ...string) ([]byte, error) {
+		called = append(called, strings.Join(args, " "))
+		return []byte("daemon did not answer"), errors.New("exit 1")
+	}
+	removeRashinPackage = func() error {
+		called = append(called, "remove")
+		return nil
+	}
+	applyRashinDesktop = func() error {
+		called = append(called, "desktop")
+		return nil
+	}
+
+	err := rashinOff()
+	if err == nil || !strings.Contains(err.Error(), "daemon did not answer") {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Join(called, ",") != "off,remove,desktop" {
+		t.Fatalf("calls = %v", called)
 	}
 }

@@ -24,21 +24,24 @@ func withoutProgram(t *testing.T, name string) {
 // for it does not resurrect it, the legend row keeps its place and names the
 // program, and the window bind, whose program is present, stays bound.
 func TestAbsentProgramDropsItsBind(t *testing.T) {
-	withoutProgram(t, "ryoku-rashin")
+	withoutProgram(t, "rashind")
 	s := loadStore("")
 	s.KeybindRebinds = map[string]string{"ALT + Space": "SUPER + CTRL + SHIFT + F12"}
 	kdl, report := genBinds(s)
 	for _, chord := range []string{"Alt+Space", "Super+Ctrl+Shift+F12"} {
 		if strings.Contains(kdl, "\n    "+chord+" {") {
-			t.Fatalf("%s is bound without ryoku-rashin:\n%s", chord, kdl)
+			t.Fatalf("%s is bound without rashind:\n%s", chord, kdl)
 		}
 	}
 	if !strings.Contains(kdl, "\n    Super+Alt+Space {") {
 		t.Fatalf("the Rashin window bind went missing although rashin-app is present:\n%s", kdl)
 	}
+	if !strings.Contains(kdl, `spawn "ryoku-summon" "--app-id" "dev.ryoku.rashin" "rashin-app";`) {
+		t.Fatalf("the Rashin window bind does not use its stable app id:\n%s", kdl)
+	}
 	reported := false
 	for _, u := range report {
-		if strings.Contains(u.Key, "ALT + Space") && u.Reason == "ryoku-rashin is not installed." {
+		if strings.Contains(u.Key, "ALT + Space") && u.Reason == "rashind is not installed." {
 			reported = true
 		}
 	}
@@ -47,7 +50,7 @@ func TestAbsentProgramDropsItsBind(t *testing.T) {
 	}
 	for _, r := range bindRows(s) {
 		if r.ID == "shell.ask" {
-			if r.Unhonored != "ryoku-rashin is not installed." {
+			if r.Unhonored != "rashind is not installed." {
 				t.Fatalf("shell.ask row reason = %q", r.Unhonored)
 			}
 			return
@@ -59,6 +62,6 @@ func TestAbsentProgramDropsItsBind(t *testing.T) {
 func TestPresentProgramKeepsAsk(t *testing.T) {
 	kdl, _ := genBinds(loadStore(""))
 	if !strings.Contains(kdl, "\n    Alt+Space {") {
-		t.Fatalf("Ask is unbound with ryoku-rashin present:\n%s", kdl)
+		t.Fatalf("Ask is unbound with rashind present:\n%s", kdl)
 	}
 }

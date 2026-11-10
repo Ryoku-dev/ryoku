@@ -1,6 +1,10 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **Rashin now ships as one opt-in package on every edition.** It builds the
+  daemon, command line and Gio app from vendor, and the built-in router and
+  index take over from the retired Prowl service. The `prowl` package is no
+  longer a dependency but stays installed for anyone who uses it on its own.
 - **Ryoport is its own package now.** Arch and CachyOS import the official
   `ryoku-dev/ryoport` release into stable and testing beside Ryotunes. The
   desktop package no longer carries Ryoport or its VM and console dependencies,
@@ -92,7 +96,7 @@
 - **Fedora RPM dependencies are a delivery gate.** `tests/fedora-packages.sh`
   checks every spec's Requires against its Arch package's translated
   dependencies, mirroring the Void check. It found and fixed missing runtime
-  libraries in dualsensectl, prowl, skwd-paper, and the Hyprland share picker.
+  libraries in dualsensectl, skwd-paper, and the Hyprland share picker.
 - **The R2 bucket keeps the last ten of everything.** A scheduled Cloudflare
   Worker (`r2-retention/`) keeps ten stable releases and ten unstable builds
   per edition and Fedora release, plus ten ISOs for each image-producing
@@ -107,11 +111,6 @@
   PKGBUILDs install the shared payload with systemd wiring, while Void templates
   install it with runit wiring. The new Void pipeline builds, signs, and indexes
   those templates as an XBPS repository.
-- **`prowl` ships from [ryoku] and replaces `prowl-agent`.** Built from a pinned
-  neur0map/prowl commit with the potion-code-16M embedding model compiled in,
-  and stamped pacman-managed so `prowl update` defers to `ryoku update`.
-  `replaces` and `conflicts` move existing boxes over on `pacman -Syu`.
-  `ryoku-rashin` depends on it and ships `ryoku-prowl.service`.
 - **wayfire is the third window-manager provider.** Registered with its caps
   manifest (state, watch, act, outputs, binds, session and environment verbs,
   plus the schema rows), composing `wayfire.ini` from the shipped baseline on
@@ -255,13 +254,6 @@
   the next line and the build died on a half-read profile name, failing the
   whole XBPS publish. `ryoku-keysounds-import` now runs ffmpeg with `-nostdin`
   (`ryoku/keysounds/ryoku-keysounds-import`).
-- **Updates past the prowl switch no longer fail on prowl-agent.** prowl
-  conflicted with the prowl-agent it replaces, and `ryoku update` moves the
-  Ryoku set with an explicit `pacman -S`, which never applies a replacement, so
-  every update that pulled prowl in through ryoku-rashin stopped at "conflicting
-  dependencies" on a box that still had prowl-agent. The two share no files;
-  prowl now only replaces it, so the update installs prowl beside the old agent
-  and a `pacman -Syu` still swaps them (`release/packages/prowl`).
 - **[ryoku] serves the current Limine tools.** limine-mkinitcpio-hook 1.40.0
   and limine-snapper-sync 1.32.1 replace 1.37.1 and 1.31.0, the versions
   CachyOS ships, so a CachyOS box no longer sees an older copy in [ryoku] and
@@ -441,7 +433,7 @@
   of after a wasted compile. A release is now a promotion of the testing build
   (same commit, same names, same bytes; only ryoku-desktop, which carries the
   channel marker, is rebuilt) and a testing push no longer recompiles a pinned
-  external (ryotunes, ryomotion, prowl-agent). The first tag publish spent 40
+  external (ryotunes and ryomotion). The first tag publish spent 40
   minutes hung inside ryotunes' upstream `cargo test` (an mpv integration
   test) and hit the job timeout; that `check()` is gone from the PKGBUILD too:
   the package build proves the binary builds, upstream CI owns its tests.

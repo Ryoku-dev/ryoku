@@ -167,7 +167,7 @@ _ryoku_remove_drop() {
 
 ryoku_choice_validate_env() {
   local id
-  case ${RYOKU_RASHIN:-1} in
+  case ${RYOKU_RASHIN:-0} in
     0|1) ;;
     *) die "RYOKU_RASHIN must be 0 or 1 (got '%s')" "${RYOKU_RASHIN}" ;;
   esac
@@ -192,7 +192,7 @@ ryoku_choice_apply_fresh() {
   : "${RYOKU_BROWSER:=${RYOKU_CHOICE_POLICY[browser:fresh]}}"
   : "${RYOKU_LOGIN_SHELL:=${RYOKU_CHOICE_POLICY[login-shell:fresh]}}"
   : "${RYOKU_FILE_MANAGER:=${RYOKU_CHOICE_POLICY[file-manager:fresh]}}"
-  : "${RYOKU_RASHIN:=1}"
+  : "${RYOKU_RASHIN:=0}"
   : "${RYOKU_HIDE_APPS:=}"
   : "${RYOKU_CACHYOS_LAYER:=0}"
   ryoku_choice_validate browser "$RYOKU_BROWSER"

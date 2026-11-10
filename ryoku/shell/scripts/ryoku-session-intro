@@ -109,28 +109,22 @@ consume_profile_welcome() {
 	) &
 }
 
-consume_rashin_setup() {
-	local marker="$state/rashin-setup-pending"
+consume_rashin_on() {
+	local marker="$state/rashin-on-pending"
 	[[ -e $marker ]] || return 0
-	if ! command -v ryoku-rashin >/dev/null 2>&1; then
-		log_intro "Rashin setup is pending but ryoku-rashin is not installed; keeping the marker"
+	if ! command -v rashin >/dev/null 2>&1; then
+		log_intro "Rashin activation is pending but rashin is not installed; keeping the marker"
 		return 1
 	fi
-	if ! command -v nmcli >/dev/null 2>&1 ||
-		[[ $(LC_ALL=C nmcli -t -f CONNECTIVITY general 2>/dev/null) != full ]]; then
-		log_intro "Rashin setup is waiting for an internet connection; keeping the marker"
-		return 1
-	fi
-	if ! flock -n "${XDG_RUNTIME_DIR:-/tmp}/ryoku-rashin-first-login.lock" \
-		kitty --detach --class ryoku-rashin-setup -e ryoku-rashin setup; then
-		log_intro "could not open Rashin Hermes setup; keeping the marker"
+	if ! flock -n "${XDG_RUNTIME_DIR:-/tmp}/rashin-first-login.lock" rashin on; then
+		log_intro "could not turn Rashin on; keeping the marker"
 		return 1
 	fi
 	if ! rm -f -- "$marker"; then
-		log_intro "Rashin Hermes setup opened but its marker could not be removed"
+		log_intro "Rashin is on but its first-login marker could not be removed"
 		return 1
 	fi
-	log_intro "opened Rashin Hermes setup for the first login"
+	log_intro "turned Rashin on for the first login"
 }
 
 case "${1:-}" in
@@ -147,7 +141,7 @@ welcome)
 			env "${qml_env[@]}" qs -c welcome &&
 			mkdir -p "$state" && printf '%s' "$welcome_version" >"$state/welcome-seen"
 	fi
-	consume_rashin_setup || true
+	consume_rashin_on || true
 	;;
 keys-hint)
 	[[ -e $state/keys-hint-seen ]] && exit 0
