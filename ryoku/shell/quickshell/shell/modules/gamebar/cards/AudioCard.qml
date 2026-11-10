@@ -18,6 +18,13 @@ GameBarCard {
     readonly property var sourceAudio: Audio.source && Audio.source.audio ? Audio.source.audio : null
     readonly property var streams: Audio.streams ? Audio.streams.filter(Audio.alive) : []
 
+    // Peak monitors are audio work, so run them only while the card is on
+    // screen. Power Saver rests a card left pinned behind a closed bar; an open
+    // bar is being looked at.
+    readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
+    readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
+        && !Presence.dark && !card.saverIdle
+
     Column {
         width: parent.width
         spacing: 8 * card.s
@@ -33,7 +40,7 @@ GameBarCard {
                 ? (card.sinkAudio.muted ? I18n.tr("off") : Math.round(card.sinkAudio.volume * 100) + "%")
                 : "n/a"
             peakNode: Audio.sink
-            peakEnabled: !!Audio.sink
+            peakEnabled: card.polling && !!Audio.sink
             onMoved: v => { if (card.sinkAudio) card.sinkAudio.volume = v; }
             onIconTapped: { if (card.sinkAudio) card.sinkAudio.muted = !card.sinkAudio.muted; }
         }
@@ -49,7 +56,7 @@ GameBarCard {
                 ? (card.sourceAudio.muted ? I18n.tr("off") : Math.round(card.sourceAudio.volume * 100) + "%")
                 : "n/a"
             peakNode: Audio.source
-            peakEnabled: !!Audio.source
+            peakEnabled: card.polling && !!Audio.source
             onMoved: v => { if (card.sourceAudio) card.sourceAudio.volume = v; }
             onIconTapped: { if (card.sourceAudio) card.sourceAudio.muted = !card.sourceAudio.muted; }
         }
@@ -82,7 +89,7 @@ GameBarCard {
                 width: apps.width
                 s: card.s
                 stream: modelData
-                open: true
+                open: card.polling
             }
         }
 
