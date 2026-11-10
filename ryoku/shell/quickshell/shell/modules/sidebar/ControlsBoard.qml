@@ -164,6 +164,7 @@ Item {
         id: wifiPage
         Cards.SystemWifiPage {
             s: root.s
+            card: root.card
             active: root.active && root.currentPage === "wifi"
             onBackRequested: root.showPage("controls")
         }

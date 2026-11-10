@@ -11,6 +11,7 @@ Item {
 
     required property real s
     required property bool active
+    property Item card: null
     signal backRequested()
 
     property bool scanning: false
@@ -516,7 +517,7 @@ Item {
 
         QQC.Popup {
             id: joinPopup
-            parent: QQC.Overlay.overlay
+            parent: root.card ?? QQC.Overlay.overlay
             visible: root.active && (root.pendingAp !== null || root.hiddenForm)
             width: Math.min(520 * root.s, parent ? parent.width - Tokens.s5 * root.s * 2 : root.width)
             implicitHeight: joinForm.implicitHeight + padding * 2
@@ -524,6 +525,8 @@ Item {
             y: parent ? Math.max(Tokens.s4 * root.s, (parent.height - height) / 2) : 0
             padding: Tokens.s4 * root.s
             modal: true
+            // the overlay spans the panel's whole column, so its dim would shade past the card
+            dim: false
             focus: true
             closePolicy: root.busy ? QQC.Popup.NoAutoClose : QQC.Popup.CloseOnEscape | QQC.Popup.CloseOnPressOutside
             onOpened: Qt.callLater(() => root.hiddenForm ? hiddenSsidField.forceActiveFocus() : passwordField.forceActiveFocus())
