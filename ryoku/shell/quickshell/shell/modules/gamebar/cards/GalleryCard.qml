@@ -29,15 +29,18 @@ GameBarCard {
             ? value.getTime() : Date.parse(value) || 0) : 0;
     }
 
-    // Both folder models sort newest first, so read only the rows the card
-    // draws instead of scanning and sorting a whole capture folder on every
-    // change. The direction check keeps this correct if a Qt release flips the
-    // meaning of sortReversed.
+    // Both folder models sort by modification time, so read only the rows the
+    // card draws instead of scanning and sorting a whole capture folder on
+    // every change. Inferred from the timestamps so a Qt release changing what
+    // sortReversed means cannot flip the order; when both ends share a stamp,
+    // the configured direction is the only signal left.
     function newest(model, count, kind) {
         const total = model.count;
         if (total === 0)
             return [];
-        const fromEnd = total > 1 && stamp(model, total - 1) > stamp(model, 0);
+        const first = stamp(model, 0);
+        const last = stamp(model, total - 1);
+        const fromEnd = total > 1 && (first === last ? model.sortReversed : last > first);
         const take = Math.min(count, total);
         const out = [];
         for (let i = 0; i < take; i++) {
