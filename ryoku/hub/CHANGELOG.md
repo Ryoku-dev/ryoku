@@ -24,6 +24,9 @@
 - **Hub-created users now receive a complete desktop.** Account creation runs
   the shared user-side provisioner, so config, session services, the selected
   rice and first-login state belong to the new user instead of root.
+- **Picking a lock screen marks it Active as soon as it is switched (#777).**
+  It no longer spins on Applying while the sign-in screen waits for your
+  password; a note says what is still pending, and a refused prompt shows why.
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
