@@ -74,6 +74,7 @@ func TestRyoportUsesNativeRepositoryOutsidePacman(t *testing.T) {
 		ryoportEnsure = oldEnsure
 	})
 	isolateProvisioned(t)
+	stubAppOwner(t, "")
 	t.Setenv("HOME", t.TempDir())
 	bin := t.TempDir()
 	log := filepath.Join(bin, "sudo.log")
@@ -144,6 +145,7 @@ func TestRyoportLegacyHiddenEntryRecordsRemoval(t *testing.T) {
 		ryoportEnsure = oldEnsure
 	})
 	isolateProvisioned(t)
+	stubAppOwner(t, "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local/share"))
@@ -183,6 +185,7 @@ func TestRyoportLegacyNoDisplayEntryRecordsRemoval(t *testing.T) {
 		ryoportEnsure = oldEnsure
 	})
 	isolateProvisioned(t)
+	stubAppOwner(t, "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local/share"))
@@ -226,6 +229,7 @@ func TestRyoportLegacyEntryWithoutHideKeyIsNotRemoval(t *testing.T) {
 		ryoportEnsure = oldEnsure
 	})
 	isolateProvisioned(t)
+	stubAppOwner(t, "")
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(home, ".local/share"))
@@ -264,6 +268,7 @@ func TestRyoportMissingManagedPackageUsesReleaseLane(t *testing.T) {
 		ryoportEnsure = oldEnsure
 	})
 	isolateProvisioned(t)
+	stubAppOwner(t, "")
 	t.Setenv("HOME", t.TempDir())
 	doctorPackageManager = func() (host.PackageManager, error) { return host.Pacman, nil }
 	doctorPackageInstalled = func(name string) bool { return name == "ryoku-desktop" }
@@ -279,5 +284,115 @@ func TestRyoportMissingManagedPackageUsesReleaseLane(t *testing.T) {
 	}
 	if !provisioned()["ryoport"] {
 		t.Fatal("installed Ryoport was not recorded in the provisioned ledger")
+	}
+}
+
+func stubAppOwner(t *testing.T, owner string) {
+	t.Helper()
+	old := appPackageOwner
+	t.Cleanup(func() { appPackageOwner = old })
+	appPackageOwner = func(string) (string, error) {
+		if owner == "" {
+			return "", fmt.Errorf("no package owns it")
+		}
+		return owner, nil
+	}
+}
+
+// A box on a newer checkout that still carries the v1 ryoku-desktop package has
+// Ryoport inside that package. Doctor leaves it there with a note instead of
+// failing every update on pacman's file conflict.
+func TestRyoportHeldByLegacyDesktopIsANote(t *testing.T) {
+	for _, test := range []struct {
+		manager   host.PackageManager
+		checkOnly bool
+	}{
+		{host.Pacman, false},
+		{host.Pacman, true},
+		{host.DNF, false},
+		{host.XBPS, false},
+	} {
+		t.Run(fmt.Sprintf("%s check-only=%v", test.manager, test.checkOnly), func(t *testing.T) {
+			oldManager := doctorPackageManager
+			oldInstalled := doctorPackageInstalled
+			oldEnsure := ryoportEnsure
+			t.Cleanup(func() {
+				doctorPackageManager = oldManager
+				doctorPackageInstalled = oldInstalled
+				ryoportEnsure = oldEnsure
+			})
+			isolateProvisioned(t)
+			stubAppOwner(t, "ryoku-desktop")
+			t.Setenv("HOME", t.TempDir())
+			bin := t.TempDir()
+			if err := os.WriteFile(filepath.Join(bin, "sudo"), []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+			doctorPackageManager = func() (host.PackageManager, error) { return test.manager, nil }
+			doctorPackageInstalled = func(name string) bool { return name == "ryoku-desktop" }
+			ryoportEnsure = func(context.Context) (apprelease.Status, error) {
+				t.Fatal("doctor installed Ryoport over files ryoku-desktop owns")
+				return apprelease.Status{}, nil
+			}
+
+			result := reconcileRyoport(test.checkOnly)
+			if result.status != recNote {
+				t.Fatalf("status = %s, detail = %q", result.status.label(), result.detail)
+			}
+			if !strings.Contains(result.detail, "ryoku-desktop") {
+				t.Fatalf("note does not name the package that ships Ryoport: %q", result.detail)
+			}
+		})
+	}
+}
+
+func TestRyoportReleaseHeldByLegacyDesktopIsANote(t *testing.T) {
+	oldManager := doctorPackageManager
+	oldInstalled := doctorPackageInstalled
+	oldEnsure := ryoportEnsure
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorPackageInstalled = oldInstalled
+		ryoportEnsure = oldEnsure
+	})
+	isolateProvisioned(t)
+	stubAppOwner(t, "")
+	t.Setenv("HOME", t.TempDir())
+	doctorPackageManager = func() (host.PackageManager, error) { return host.Pacman, nil }
+	doctorPackageInstalled = func(name string) bool { return name == "ryoku-desktop" }
+	ryoportEnsure = func(context.Context) (apprelease.Status, error) {
+		return apprelease.Status{}, fmt.Errorf("ryoport install: %w",
+			&apprelease.HeldError{App: "ryoport", Owner: "ryoku-desktop", Paths: []string{"/usr/bin/ryovm"}})
+	}
+
+	if result := reconcileRyoport(false); result.status != recNote {
+		t.Fatalf("status = %s, detail = %q", result.status.label(), result.detail)
+	}
+	if provisioned()["ryoport"] {
+		t.Fatal("a skipped install was recorded as provisioned")
+	}
+}
+
+func TestRyoportForeignOwnerStillFails(t *testing.T) {
+	oldManager := doctorPackageManager
+	oldInstalled := doctorPackageInstalled
+	oldEnsure := ryoportEnsure
+	t.Cleanup(func() {
+		doctorPackageManager = oldManager
+		doctorPackageInstalled = oldInstalled
+		ryoportEnsure = oldEnsure
+	})
+	isolateProvisioned(t)
+	stubAppOwner(t, "ryovm-git")
+	t.Setenv("HOME", t.TempDir())
+	doctorPackageManager = func() (host.PackageManager, error) { return host.Pacman, nil }
+	doctorPackageInstalled = func(name string) bool { return name == "ryoku-desktop" }
+	ryoportEnsure = func(context.Context) (apprelease.Status, error) {
+		return apprelease.Status{}, fmt.Errorf("ryoport install: files owned by other packages: /usr/bin/ryoport (ryovm-git)")
+	}
+
+	if result := reconcileRyoport(false); result.status != recFailed {
+		t.Fatalf("status = %s, detail = %q", result.status.label(), result.detail)
 	}
 }

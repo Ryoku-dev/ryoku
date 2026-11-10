@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -155,6 +156,10 @@ func newClient(t *testing.T, srv *httptest.Server, f *fixture, installed string,
 			return installErr
 		},
 		vercmp: cmpVer,
+		listFiles: func(context.Context, string) ([]string, error) {
+			return []string{"/usr/", "/usr/bin/", Ryotunes.Binary}, nil
+		},
+		fileOwners: func(string) []string { return nil },
 	}
 }
 
@@ -516,6 +521,102 @@ func TestEnsure(t *testing.T) {
 			t.Fatalf("Ensure: installer ran %d time(s) for a current box", n)
 		}
 	})
+}
+
+func ryoportClient(t *testing.T, installed string, owners map[string][]string, installErr error, rec *recorder) (*Client, func()) {
+	t.Helper()
+	f := &fixture{
+		repo:     "ryoku-dev/ryoport",
+		tag:      "v1.0.0",
+		pkgAsset: "ryoport-1.0.0-1-x86_64.pkg.tar.zst",
+		pkgBytes: []byte("fake ryoport package payload"),
+	}
+	srv := f.server()
+	c := newClient(t, srv, f, installed, pkgMeta{Name: "ryoport", Version: "1.0.0-1", Arch: wantArch}, installErr, rec)
+	c.app = Ryoport
+	c.listFiles = func(context.Context, string) ([]string, error) {
+		return []string{"/usr/", "/usr/bin/", "/usr/bin/ryoport", "/usr/bin/ryossh", "/usr/bin/ryovm"}, nil
+	}
+	c.fileOwners = func(path string) []string { return owners[path] }
+	return c, srv.Close
+}
+
+// A box running a newer checkout over the v1 ryoku-desktop package still has
+// Ryoport's files in that package; installing over them would leave two owners.
+func TestEnsureHeldByLegacyDesktopPackage(t *testing.T) {
+	var rec recorder
+	c, done := ryoportClient(t, "", map[string][]string{
+		"/usr/bin/ryoport": {"ryoku-desktop"},
+		"/usr/bin/ryossh":  {"ryoku-desktop"},
+		"/usr/bin/ryovm":   {"ryoku-desktop"},
+	}, nil, &rec)
+	defer done()
+
+	_, err := c.Ensure(context.Background())
+	var held *HeldError
+	if !errors.As(err, &held) {
+		t.Fatalf("Ensure error = %v, want a HeldError", err)
+	}
+	if held.Owner != "ryoku-desktop" || len(held.Paths) != 3 {
+		t.Fatalf("HeldError = %+v", held)
+	}
+	if n := atomic.LoadInt32(&rec.installs); n != 0 {
+		t.Fatalf("installer ran %d time(s) over files ryoku-desktop owns", n)
+	}
+}
+
+func TestEnsureRefusesFilesOwnedByAnotherPackage(t *testing.T) {
+	var rec recorder
+	c, done := ryoportClient(t, "", map[string][]string{
+		"/usr/bin/ryoport": {"ryoku-desktop"},
+		"/usr/bin/ryovm":   {"ryovm-git"},
+	}, nil, &rec)
+	defer done()
+
+	_, err := c.Ensure(context.Background())
+	var held *HeldError
+	if err == nil || errors.As(err, &held) {
+		t.Fatalf("Ensure error = %v, want a plain refusal", err)
+	}
+	if !strings.Contains(err.Error(), "/usr/bin/ryovm (ryovm-git)") {
+		t.Fatalf("refusal does not name the conflicting file and owner: %v", err)
+	}
+	if n := atomic.LoadInt32(&rec.installs); n != 0 {
+		t.Fatalf("installer ran %d time(s) over another package's file", n)
+	}
+}
+
+func TestEnsureInstallsOverItsOwnFiles(t *testing.T) {
+	var rec recorder
+	c, done := ryoportClient(t, "0.9.0-1", map[string][]string{
+		"/usr/bin/ryoport": {"ryoport"},
+		"/usr/bin/ryovm":   {"ryoport"},
+	}, nil, &rec)
+	defer done()
+
+	if _, err := c.Ensure(context.Background()); err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	if n := atomic.LoadInt32(&rec.installs); n != 1 {
+		t.Fatalf("installer ran %d time(s), want 1", n)
+	}
+}
+
+func TestInstallErrorsNameTheOperation(t *testing.T) {
+	for _, test := range []struct {
+		installed, want string
+	}{
+		{"", "ryoport install: "},
+		{"0.9.0-1", "ryoport upgrade: "},
+	} {
+		var rec recorder
+		c, done := ryoportClient(t, test.installed, nil, errors.New("exit status 1"), &rec)
+		_, err := c.Ensure(context.Background())
+		done()
+		if err == nil || !strings.HasPrefix(err.Error(), test.want) {
+			t.Fatalf("installed %q: error = %v, want prefix %q", test.installed, err, test.want)
+		}
+	}
 }
 
 // isTrustedGitHubHost admits only the concrete GitHub hosts a release download

@@ -16,6 +16,9 @@ type App struct {
 	Repo        string
 	Epoch       string
 	Binary      string
+	// LegacyOwner is the package that shipped the app's files before the app
+	// had a package of its own.
+	LegacyOwner string
 }
 
 var (
@@ -25,7 +28,7 @@ var (
 	}
 	Ryoport = App{
 		Name: "ryoport", DisplayName: "Ryoport", Repo: "ryoku-dev/ryoport",
-		Binary: "/usr/bin/ryoport",
+		Binary: "/usr/bin/ryoport", LegacyOwner: "ryoku-desktop",
 	}
 )
 
@@ -45,10 +48,12 @@ const (
 func (a App) validate() error {
 	switch {
 	case a.Name == "ryotunes" && a.DisplayName == "Ryotunes" &&
-		a.Repo == "ryoku-dev/ryotunes" && a.Epoch == "1" && a.Binary == "/usr/bin/ryotunes":
+		a.Repo == "ryoku-dev/ryotunes" && a.Epoch == "1" && a.Binary == "/usr/bin/ryotunes" &&
+		a.LegacyOwner == "":
 		return nil
 	case a.Name == "ryoport" && a.DisplayName == "Ryoport" &&
-		a.Repo == "ryoku-dev/ryoport" && a.Epoch == "" && a.Binary == "/usr/bin/ryoport":
+		a.Repo == "ryoku-dev/ryoport" && a.Epoch == "" && a.Binary == "/usr/bin/ryoport" &&
+		a.LegacyOwner == "ryoku-desktop":
 		return nil
 	default:
 		return fmt.Errorf("unsupported app release configuration for %q", a.Name)
@@ -122,7 +127,7 @@ func (c *Client) Upgrade(ctx context.Context) (Status, error) {
 	if !newer {
 		return Status{Installed: installed, Latest: rel.Version}, nil
 	}
-	if err := c.installRelease(ctx, rel, false); err != nil {
+	if err := c.installRelease(ctx, rel, installed, false); err != nil {
 		return Status{Installed: installed, Latest: rel.Version, Available: true}, err
 	}
 	return Status{Installed: rel.Version, Latest: rel.Version, Updated: true}, nil
@@ -144,7 +149,7 @@ func (c *Client) Ensure(ctx context.Context) (Status, error) {
 			return Status{Installed: installed, Latest: rel.Version}, nil
 		}
 	}
-	if err := c.installRelease(ctx, rel, true); err != nil {
+	if err := c.installRelease(ctx, rel, installed, true); err != nil {
 		return Status{Installed: installed, Latest: rel.Version, Available: true}, err
 	}
 	return Status{Installed: rel.Version, Latest: rel.Version, Updated: true}, nil

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -138,7 +139,8 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 	}
 	managedDesktop := sys.ResolveRepo() != "" || doctorPackageInstalled("ryoku-desktop")
 	removed := removedByUser(spec.app.Name) || legacyRemoved
-	missing := managedDesktop && !installed && !removed
+	held := !installed && heldByLegacyOwner(spec.app)
+	missing := managedDesktop && !installed && !removed && !held
 	if missing {
 		problems = append(problems, i18n.Tf("the %s package is not installed", spec.app.Name))
 		fixes = append(fixes, installFix)
@@ -150,6 +152,9 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 	}
 
 	if len(problems) == 0 {
+		if held {
+			return heldNote(spec.app)
+		}
 		if sys.Exists(spec.app.Binary) {
 			if owner, err := appPackageOwner(spec.app.Binary); err != nil || owner != spec.app.Name {
 				return warnRes(i18n.T("%s is not owned by the %s package"), spec.app.Binary, spec.app.Name).
@@ -180,6 +185,10 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 		} else {
 			err = sys.Sudo("ryoku-host", "pkg", "install", spec.app.Name)
 		}
+		var heldErr *apprelease.HeldError
+		if errors.As(err, &heldErr) {
+			return heldNote(spec.app)
+		}
 		if err != nil {
 			return failRes(i18n.T("could not install %s: %v"), spec.app.Name, err).withFix(installFix)
 		}
@@ -193,6 +202,21 @@ func reconcileIndependentApp(spec appReconcileSpec, checkOnly bool) recResult {
 		}
 	}
 	return fixedRes(i18n.T("%s opens the packaged app (%s)"), spec.app.Name, strings.Join(problems, "; "))
+}
+
+// heldByLegacyOwner reports an app whose binary still belongs to the older
+// package that shipped it, the v1 ryoku-desktop on a box running a newer checkout.
+func heldByLegacyOwner(app apprelease.App) bool {
+	if app.LegacyOwner == "" {
+		return false
+	}
+	owner, err := appPackageOwner(app.Binary)
+	return err == nil && owner == app.LegacyOwner
+}
+
+func heldNote(app apprelease.App) recResult {
+	return noteRes(i18n.T("%s still comes from the %s package here; the %s package installs once %s stops shipping %s"),
+		app.DisplayName, app.LegacyOwner, app.Name, app.LegacyOwner, app.Binary)
 }
 
 func reinstallAppAdvice(manager host.PackageManager, app apprelease.App) string {

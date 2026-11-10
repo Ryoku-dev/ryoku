@@ -49,6 +49,8 @@ type Client struct {
 	inspect          func(ctx context.Context, path string) (pkgMeta, error)     // pacman -Qip
 	install          func(ctx context.Context, path string, digest []byte) error // root-safe pacman -U
 	vercmp           func(a, b string) (int, error)                              // vercmp
+	listFiles        func(ctx context.Context, path string) ([]string, error)    // pacman -Qlpq
+	fileOwners       func(path string) []string                                  // pacman -Qoq
 }
 
 // pkgMeta is the identity a package file claims, read from its own pacman
@@ -76,7 +78,9 @@ func defaultClient(app App) *Client {
 		install: func(ctx context.Context, path string, digest []byte) error {
 			return defaultInstall(ctx, app.Name, path, digest)
 		},
-		vercmp: defaultVercmp,
+		vercmp:     defaultVercmp,
+		listFiles:  defaultListFiles,
+		fileOwners: defaultFileOwners,
 	}
 }
 
@@ -158,6 +162,32 @@ func defaultInspect(ctx context.Context, path string) (pkgMeta, error) {
 		return pkgMeta{}, fmt.Errorf("pacman -Qip %s: %w", filepath.Base(path), err)
 	}
 	return parsePkgInfo(string(out)), nil
+}
+
+// defaultListFiles lists the paths a package file carries, directories with a
+// trailing slash.
+func defaultListFiles(ctx context.Context, path string) ([]string, error) {
+	out, err := exec.CommandContext(ctx, "pacman", "-Qlpq", path).Output()
+	if err != nil {
+		return nil, fmt.Errorf("pacman -Qlpq %s: %w", filepath.Base(path), err)
+	}
+	var files []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if line != "" {
+			files = append(files, line)
+		}
+	}
+	return files, nil
+}
+
+// defaultFileOwners names every installed package that owns path, none when
+// the path is absent or unowned.
+func defaultFileOwners(path string) []string {
+	out, err := exec.Command("pacman", "-Qoq", "--", path).Output()
+	if err != nil {
+		return nil
+	}
+	return strings.Fields(string(out))
 }
 
 // parsePkgInfo pulls Name, Version and Architecture out of `pacman -Qip` output,

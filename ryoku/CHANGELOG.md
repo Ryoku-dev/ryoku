@@ -153,6 +153,10 @@
   on Stop until the pointer moved (`rashin/internal/app/chat/composer.go`).
 - **Opening an agent session by its id opens it in Agents.** `rashin-app
   --session <id>` and `rashin open --session <id>` showed it as an empty ask.
+- **Doctor no longer fails every update over Ryoport's files.** When the
+  installed `ryoku-desktop` still ships Ryoport, doctor leaves it with a note
+  instead of a refused `pacman -U`, and a first install now says install
+  (`cli/internal/apprelease/install.go`).
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri
   and Hyprland alike, and its mini player always floats, so the desktop no
   longer forces a floating rule on it (`wm/niri/config_rules.go`,

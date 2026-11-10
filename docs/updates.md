@@ -156,6 +156,10 @@ On Arch and CachyOS:
 - The release client trusts only each app's `ryoku-dev` release path. Ryotunes
   retains its epoch-1 package identity; Ryoport uses `ryoport <version>-1`
   without an epoch.
+- No app install takes a file another package owns. Where an older
+  `ryoku-desktop` still ships Ryoport's commands (a box on a newer checkout
+  keeps its v1 package), doctor notes that and leaves Ryoport there; the
+  package installs once `ryoku-desktop` no longer ships them.
 - The scheduled refresh imports both official packages byte for byte, signs
   them with the Ryoku release key, and updates stable and testing without
   rebuilding the desktop or changing frozen release snapshots.
