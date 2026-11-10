@@ -39,6 +39,8 @@ type Placement struct {
 	MinWidth unit.Dp
 	Passive  bool
 	Return   any
+	// a slab and hairline around content that brings none, a menu frames itself
+	Frame bool
 }
 
 type overlayEntry struct {
@@ -247,7 +249,8 @@ func (overlays *Overlays) Layout(gtx layout.Context, th *Theme) {
 			if entry.tip {
 				overlays.lastTipClosed = gtx.Now.UnixNano()
 			}
-			if entry.tag == top {
+			// the last menu to leave hands the keyboard back; one that closes under another leaves it there
+			if !hasTop {
 				if target := entry.focusReturn(); target != nil {
 					gtx.Execute(key.FocusCmd{Tag: target})
 				}
@@ -312,10 +315,14 @@ func (overlays *Overlays) layoutEntry(
 	measure := gtx
 	measure.Constraints.Min = image.Point{}
 	measure.Constraints.Max = image.Pt(max(0, overlays.window.X-32), max(0, overlays.window.Y-32))
-	inset := layout.UniformInset(8)
-	if entry.tip {
+	framed := entry.tip || entry.placement.Frame
+	inset := layout.Inset{}
+	switch {
+	case entry.tip:
 		measure.Constraints.Max.X = min(measure.Constraints.Max.X, gtx.Dp(320))
 		inset = layout.Inset{Top: 6, Right: 8, Bottom: 6, Left: 8}
+	case framed:
+		inset = layout.UniformInset(8)
 	}
 	if entry.placement.Width > 0 {
 		width := min(measure.Constraints.Max.X, gtx.Dp(entry.placement.Width))
@@ -350,12 +357,14 @@ func (overlays *Overlays) layoutEntry(
 	opacity := paint.PushOpacity(gtx.Ops, progress)
 	bounds := image.Rectangle{Max: dimensions.Size}
 	entry.rect = image.Rectangle{Min: position, Max: position.Add(dimensions.Size)}
-	cut := th.Cut.Menu
-	if entry.tip {
-		cut = th.Cut.Tooltip
+	if framed {
+		cut := th.Cut.Menu
+		if entry.tip {
+			cut = th.Cut.Tooltip
+		}
+		kit.FillCut(gtx.Ops, bounds, gtx.Dp(cut), th.R.Stone4)
+		kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(cut), max(1, gtx.Dp(1)), th.R.Vein)
 	}
-	kit.FillCut(gtx.Ops, bounds, gtx.Dp(cut), th.R.Stone4)
-	kit.StrokeCut(gtx.Ops, bounds, gtx.Dp(cut), max(1, gtx.Dp(1)), th.R.Vein)
 	call.Add(gtx.Ops)
 	opacity.Pop()
 	offset.Pop()

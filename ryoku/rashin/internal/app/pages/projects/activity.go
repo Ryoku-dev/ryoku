@@ -60,7 +60,7 @@ func (a *activityState) layout(gtx layout.Context, e *env.Env, page *pageState) 
 	if gtx.Constraints.Max.X < gtx.Dp(820) {
 		columns = activityColumns{time: gtx.Dp(92), actor: gtx.Dp(112), action: gtx.Dp(168), result: gtx.Dp(80)}
 	}
-	names := activityNames{snapshot: e.Snapshot(), project: page.project, home: paths.Home()}
+	names := activityNames{snapshot: e.Snapshot(), project: page.project}
 	return layout.Inset{Left: th.Sp.S4, Right: th.Sp.S3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -134,7 +134,6 @@ func activityCell(th *look.Theme, now time.Time, names activityNames, item proto
 type activityNames struct {
 	snapshot appstate.Snapshot
 	project  string
-	home     string
 }
 
 func (names activityNames) actor(actor string) string {
@@ -167,7 +166,7 @@ func (names activityNames) target(item protocol.Activity) (name string, literal 
 			return project.Name, false
 		}
 	}
-	return shortPath(target, names.home), true
+	return paths.Short(target), true
 }
 
 // an action the app doesn't know yet keeps its own name

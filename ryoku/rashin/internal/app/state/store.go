@@ -243,6 +243,8 @@ func (s *Store) Apply(event protocol.Event) error {
 		}
 	case protocol.EvtSettingsChanged:
 		err = json.Unmarshal(event.Data, &s.settings)
+	case protocol.EvtAPIChanged:
+		err = json.Unmarshal(event.Data, &s.status.API)
 	case protocol.EvtProvidersChanged:
 		var result protocol.ProvidersResult
 		if err = json.Unmarshal(event.Data, &result); err == nil {

@@ -36,6 +36,8 @@ type Page struct {
 
 	// the session we were told to open, until the session list has heard of it
 	opening string
+	// what was typed in a session and not sent, kept while another one is open
+	drafts map[string]chat.Draft
 
 	// daemon connection the worktrees were last read on
 	loadedEpoch int
@@ -45,12 +47,16 @@ func New() *Page { return &Page{} }
 
 func (p *Page) Select(e *env.Env, id string) {
 	if id == "" {
+		p.keepDraft("")
 		p.selected, p.opening = "", ""
+		p.board.focus(e)
 		return
 	}
+	p.composer.Focus()
 	if p.selected == id {
 		return
 	}
+	p.keepDraft(id)
 	p.selected, p.opening = id, id
 	e.Attach(id, func(err error) {
 		if err != nil {
@@ -64,6 +70,25 @@ func (p *Page) Select(e *env.Env, id string) {
 		// opening a session counts as reading it
 		e.Call(protocol.MSessionRead, protocol.SessionRef{ID: id}, new(protocol.Empty), nil)
 	})
+}
+
+func (p *Page) FocusHome() any {
+	if p.selected == "" {
+		return p.board.composer.FocusTag()
+	}
+	return p.composer.FocusTag()
+}
+
+// the board has its own composer, so only sessions trade drafts here
+func (p *Page) keepDraft(next string) {
+	if p.drafts == nil {
+		p.drafts = make(map[string]chat.Draft)
+	}
+	if p.selected != "" {
+		p.drafts[p.selected] = p.composer.Draft()
+	}
+	p.composer.SetDraft(p.drafts[next])
+	delete(p.drafts, next)
 }
 
 func (p *Page) New(e *env.Env) {

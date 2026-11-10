@@ -2,7 +2,6 @@ package agent
 
 import (
 	"path/filepath"
-	"sort"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/palette"
 	"ryoku-i18n"
@@ -183,22 +182,6 @@ func sessionMatter(snapshot state.Snapshot, info protocol.SessionInfo) string {
 		}
 	}
 	return info.Preview
-}
-
-func installedHarnesses(snapshot state.Snapshot) []protocol.HarnessInfo {
-	result := make([]protocol.HarnessInfo, 0, len(snapshot.Harnesses))
-	for _, harness := range snapshot.Harnesses {
-		if harness.Installed {
-			result = append(result, harness)
-		}
-	}
-	sort.SliceStable(result, func(i, j int) bool {
-		if result[i].Default != result[j].Default {
-			return result[i].Default
-		}
-		return result[i].Name < result[j].Name
-	})
-	return result
 }
 
 func choiceOptions(choice protocol.ChoiceData, fallback string) (labels, ids []string, selected int) {

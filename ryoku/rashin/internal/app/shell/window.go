@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"context"
 	"image"
 	"sync"
 	"time"
@@ -81,6 +82,8 @@ type uiShell struct {
 	listTab string
 
 	preferences  state.AppPreferences
+	desktop      env.Desktop
+	attention    *attention
 	windowAction func(system.Action)
 	maximized    bool
 	decorated    bool
@@ -125,7 +128,11 @@ func newShell(r *runtime, options Options) *uiShell {
 }
 
 func (r *runtime) runWindow(options Options) error {
-	shell := newShell(r, options)
+	shell := newShell(r, resume(options))
+	work, done := context.WithCancel(context.Background())
+	defer done()
+	shell.desktop = windowDesktop(work, &shell.posts)
+	shell.attention = r.watchAttention(work, shell)
 	anim.SetReduce(shell.preferences.ReduceMotion)
 	window := new(gioapp.Window)
 	creation := []gioapp.Option{
@@ -160,6 +167,7 @@ func (r *runtime) runWindow(options Options) error {
 		case gioapp.ConfigEvent:
 			shell.decorated = event.Config.Decorated
 			shell.maximized = event.Config.Mode == gioapp.Maximized
+			shell.attention.focused.Store(event.Config.Focused)
 			// the compositor may ignore options sent before the first configure so they go out once more after it
 			if !reissued {
 				reissued = true
@@ -194,17 +202,21 @@ func (s *uiShell) persistedPreferences(preferences state.AppPreferences) state.A
 	preferences.SidebarFolded = s.preferences.SidebarFolded
 	preferences.SidePanelOpen = s.preferences.SidePanelOpen
 	preferences.ReduceMotion = s.preferences.ReduceMotion
+	preferences.MuteNotices = s.preferences.MuteNotices
+	preferences.Last = lastPlace(s.router.Current())
 	return preferences
 }
 
 func (s *uiShell) environment() *env.Env {
 	return &env.Env{
 		Theme: s.runtime.Theme(), Store: s.runtime.store, Client: s.runtime.client, Overlays: &s.overlay,
-		Navigate: s.navigate, NavigateWork: s.navigateWork, Post: s.posts.Post,
+		Navigate: s.navigate, NavigateWork: s.navigateWork, OpenSettings: s.openSettings, Post: s.posts.Post,
 		Class: s.class, PanelOpen: s.preferences.SidePanelOpen, TogglePanel: s.togglePanel,
 		Notify: func(text string) { s.placards.Push(s.now, text, "") },
 		Zoom:   s.preferences.ZoomPercent, SetZoom: s.setZoom,
 		ReduceMotion: s.preferences.ReduceMotion, SetReduceMotion: s.setReduceMotion,
+		Notices: !s.preferences.MuteNotices, SetNotices: s.setNotices,
+		Desktop: s.desktop,
 	}
 }
 
@@ -232,6 +244,10 @@ func (s *uiShell) navigateWork(project, view, worktree string) {
 		Tab: protocol.TabProjects, Project: project, ProjectView: normalizeProjectView(view),
 		Worktree: worktree,
 	})
+}
+
+func (s *uiShell) openSettings(section string) {
+	s.router.Push(Place{Tab: protocol.TabSettings, SettingsSection: section})
 }
 
 func (s *uiShell) openDestination(tab string) {
@@ -328,6 +344,14 @@ func (s *uiShell) changeZoom(delta int) {
 
 func (s *uiShell) setZoom(percent int) {
 	s.preferences.ZoomPercent = min(state.MaxZoom, max(state.MinZoom, percent))
+	s.runtime.hub.Invalidate()
+}
+
+func (s *uiShell) setNotices(on bool) {
+	s.preferences.MuteNotices = !on
+	if s.attention != nil {
+		s.attention.muted.Store(!on)
+	}
 	s.runtime.hub.Invalidate()
 }
 

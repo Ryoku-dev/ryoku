@@ -177,19 +177,6 @@ func splitList(value string) []string {
 	return result
 }
 
-func openFolder(path string) { env.Spawn("xdg-open", path) }
-
-func openTerminal(path string) {
-	env.Spawn("ryoku-app", "terminal", "--", "sh", "-c", `cd "$1" && exec "${SHELL:-/bin/sh}"`, "sh", path)
-}
-
-func shortPath(path, home string) string {
-	if home != "" && strings.HasPrefix(path, home+"/") {
-		return "~" + path[len(home):]
-	}
-	return path
-}
-
 func shortHash(hash string) string {
 	if len(hash) > 8 {
 		return hash[:8]
@@ -214,7 +201,7 @@ func (p *pageState) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimension
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			p.add.start.Kind, p.add.start.Label = kit.PlaqueGold, i18n.T("Add project")
 			if p.add.start.Clicked(gtx) {
-				p.add.open()
+				p.add.ask(e)
 			}
 			empty := kit.Empty{
 				Icon: look.Icon.Projects, Title: i18n.T("No projects yet"),

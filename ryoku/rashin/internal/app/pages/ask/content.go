@@ -133,7 +133,7 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 	offset := op.Offset(image.Pt(composer.Min.X, composer.Max.Y+gtx.Dp(13))).Push(gtx.Ops)
 	row := gtx
 	row.Constraints = layout.Constraints{Max: image.Pt(composer.Dx(), gtx.Constraints.Max.Y)}
-	look.Flow{Gap: 8, LineGap: 8}.Layout(row, len(texts), func(gtx layout.Context, index int) layout.Dimensions {
+	tries := look.Flow{Gap: 8, LineGap: 8}.Layout(row, len(texts), func(gtx layout.Context, index int) layout.Dimensions {
 		plaque := &p.suggestions[index]
 		plaque.Kind, plaque.Small, plaque.Label = kit.PlaqueQuiet, true, texts[index]
 		if plaque.Clicked(gtx) {
@@ -142,6 +142,9 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 		}
 		return plaque.Layout(gtx, th.Theme)
 	})
+	offset.Pop()
+	offset = op.Offset(image.Pt(composer.Min.X, composer.Max.Y+gtx.Dp(13)+tries.Size.Y+gtx.Dp(21))).Push(gtx.Ops)
+	p.ready.layout(row, e)
 	offset.Pop()
 }
 
@@ -156,15 +159,17 @@ func suggestionTexts() [4]string {
 
 func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Attached, open bool, width int) layout.Dimensions {
 	options := chat.ComposerOptions{Placeholder: i18n.T("Ask anything about this machine"), CanAttach: true}
+	e.ComposerDesktop(&p.composer, &options)
 	current := p.draftRoute
 	if open {
 		info := attached.Info
 		options.Placeholder = i18n.T("Ask a follow-up")
 		options.Busy, options.Queue = attached.Model.Busy(), info.Queue
+		options.History = attached.Model.Prompts
 		current = info.Model
 	}
 	labels, ids, selected := p.routeOptions(current)
-	p.route.Form, p.route.Label = look.SelectQuiet, i18n.T("Model")
+	p.route.Form, p.route.Label, p.route.Return = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag()
 	options.Controls = []layout.Widget{func(gtx layout.Context) layout.Dimensions {
 		return p.route.Layout(gtx, e.Theme, e.Overlays, labels, selected)
 	}}
@@ -201,6 +206,10 @@ func (p *Page) handleActions(gtx layout.Context, e *env.Env, actions []chat.Acti
 			continue
 		}
 		common = append(common, action)
+	}
+	// copying or retrying is not a reason to click the field again before the next question
+	if len(common) > 0 {
+		p.composer.Focus()
 	}
 	env.HandleChatActions(gtx, e, p.selected, common)
 }

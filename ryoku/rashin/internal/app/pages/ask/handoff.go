@@ -20,27 +20,19 @@ type handoffDialog struct {
 	move     kit.Plaque
 	cancel   kit.Plaque
 
-	project, worktree, harness                look.Select
-	projectIndex, worktreeIndex, harnessIndex int
-	folder, name, base, branch                kit.TextField
+	project, worktree, harness  look.Select
+	projectIndex, worktreeIndex int
+	pick                        env.HarnessPick
+	folder                      env.PathField
+	name, base, branch          kit.TextField
 }
 
 func (d *handoffDialog) open(e *env.Env, id, text string) {
 	d.id, d.text, d.dialog.Open = id, text, true
-	d.projectIndex, d.worktreeIndex, d.harnessIndex = 0, 0, 0
+	d.projectIndex, d.worktreeIndex = 0, 0
 	for _, project := range e.Snapshot().Projects {
 		e.LoadWorktrees(project.ID, nil)
 	}
-}
-
-func installed(harnesses []protocol.HarnessInfo) []protocol.HarnessInfo {
-	available := make([]protocol.HarnessInfo, 0, len(harnesses))
-	for _, harness := range harnesses {
-		if harness.Installed {
-			available = append(available, harness)
-		}
-	}
-	return available
 }
 
 func (d *handoffDialog) layout(gtx layout.Context, e *env.Env) {
@@ -48,9 +40,8 @@ func (d *handoffDialog) layout(gtx layout.Context, e *env.Env) {
 		return
 	}
 	snapshot := e.Snapshot()
-	harnesses := installed(snapshot.Harnesses)
+	harnesses := env.InstalledHarnesses(snapshot)
 	d.projectIndex = min(d.projectIndex, len(snapshot.Projects))
-	d.harnessIndex = min(d.harnessIndex, max(0, len(harnesses)-1))
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.move.Kind, d.move.Label = kit.PlaqueGold, i18n.T("Move to Agent")
 	if d.cancel.Clicked(gtx) {
@@ -77,9 +68,10 @@ func (d *handoffDialog) layout(gtx layout.Context, e *env.Env) {
 }
 
 func (d *handoffDialog) submit(e *env.Env, projects []protocol.ProjectInfo, harnesses []protocol.HarnessInfo) {
-	params := protocol.HandoffParams{ID: d.id, Harness: harnesses[d.harnessIndex].ID, Run: true, Text: d.text}
+	harness := harnesses[d.pick.Index(e.Snapshot(), harnesses)].ID
+	params := protocol.HandoffParams{ID: d.id, Harness: harness, Run: true, Text: d.text}
 	if d.projectIndex == 0 {
-		params.Cwd = strings.TrimSpace(d.folder.Text())
+		params.Cwd = d.folder.Path()
 	} else {
 		project := projects[d.projectIndex-1]
 		params.Project = project.ID
@@ -148,8 +140,8 @@ func (d *handoffDialog) body(
 		if d.folder.Text() == "" {
 			d.folder.SetText(paths.Home())
 		}
-		d.folder.Mono = true
-		children = append(children, text(&d.folder, i18n.T("Folder"), paths.Home()), gap)
+		d.folder.Title, d.folder.Label, d.folder.Placeholder = i18n.T("Where the agent works"), i18n.T("Folder"), paths.Home()
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.folder.Layout(gtx, e) }), gap)
 	} else {
 		project := projects[d.projectIndex-1]
 		worktreeLabels := []string{i18n.T("Project folder"), i18n.T("New worktree")}
@@ -169,9 +161,9 @@ func (d *handoffDialog) body(
 			)
 		}
 	}
-	children = append(children, field(&d.harness, i18n.T("Harness"), harnessLabels, d.harnessIndex))
+	children = append(children, field(&d.harness, i18n.T("Harness"), harnessLabels, d.pick.Index(e.Snapshot(), harnesses)))
 	if index, changed := d.harness.Changed(); changed {
-		d.harnessIndex = index
+		d.pick.Use(e, harnesses, index)
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }

@@ -19,6 +19,14 @@ func Home() string {
 	return h
 }
 
+// Short writes a path under the home directory with a leading tilde.
+func Short(path string) string {
+	if home := Home(); home != "" && strings.HasPrefix(path, home+"/") {
+		return "~" + path[len(home):]
+	}
+	return path
+}
+
 func xdg(env, fallback string) string {
 	if v := os.Getenv(env); v != "" && filepath.IsAbs(v) {
 		return v
@@ -107,6 +115,9 @@ func ConfigLock() string { return filepath.Join(RuntimeDir(), "config.lock") }
 
 // AppState holds the app's window size and view state.
 func AppState() string { return filepath.Join(StateHome(), "ryoku", "rashin-app.json") }
+
+// PastedDir holds images pasted into a composer until the session ends.
+func PastedDir() string { return filepath.Join(RuntimeDir(), "pasted") }
 
 // SystemConfig is Ryoku's system-wide configuration directory.
 func SystemConfig() string { return "/etc/ryoku" }

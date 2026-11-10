@@ -56,6 +56,8 @@ type changesState struct {
 	discard                  kit.Confirm
 	discardFiles             []string
 	force                    kit.Confirm
+	// the remote action that is running; they talk to a network, so the plaque shows it
+	remote string
 }
 
 type changeRow struct {
@@ -531,6 +533,7 @@ func (c *changesState) layoutCommit(gtx layout.Context, e *env.Env) layout.Dimen
 	c.fetch.Kind, c.fetch.Small, c.fetch.Label = kit.PlaqueQuiet, true, i18n.T("Fetch")
 	c.pull.Kind, c.pull.Small, c.pull.Label = kit.PlaqueQuiet, true, i18n.T("Pull")
 	c.push.Kind, c.push.Small, c.push.Label = kit.PlaqueQuiet, true, i18n.T("Push")
+	c.fetch.Busy, c.pull.Busy, c.push.Busy = c.remote == protocol.MGitFetch, c.remote == protocol.MGitPull, c.remote == protocol.MGitPush
 	c.review.Kind, c.review.Small, c.review.Label = kit.PlaqueLine, true, i18n.T("Send comments to the agent")
 	staged := len(c.groupFiles(changeStaged)) > 0 || c.amend.Value
 	ready := staged && strings.TrimSpace(c.message.Text()) != ""
@@ -540,7 +543,11 @@ func (c *changesState) layoutCommit(gtx layout.Context, e *env.Env) layout.Dimen
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(th.Sp.S3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions { return c.message.Layout(gtx, th.Theme) }),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return look.PaneField(gtx, th, gtx.Focused(&c.message.Editor), func(gtx layout.Context) layout.Dimensions {
+							return c.message.Layout(gtx, th.Theme)
+						})
+					}),
 					layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -599,10 +606,10 @@ func (c *changesState) handleActions(gtx layout.Context, e *env.Env, page *pageS
 		}
 	}
 	if c.fetch.Clicked(gtx) {
-		e.Call(protocol.MGitFetch, protocol.ProjectRef{Project: page.project}, new(protocol.GitOpResult), reload)
+		c.runRemote(e, page, protocol.MGitFetch, protocol.ProjectRef{Project: page.project}, i18n.T("Fetched."))
 	}
 	if c.pull.Clicked(gtx) {
-		e.Call(protocol.MGitPull, worktree, new(protocol.GitOpResult), reload)
+		c.runRemote(e, page, protocol.MGitPull, worktree, i18n.T("Pulled."))
 	}
 	if c.review.Clicked(gtx) {
 		var info protocol.SessionInfo
@@ -680,7 +687,7 @@ func (c *changesState) handleDiffActions(e *env.Env, page *pageState, actions []
 		case diffview.ActDiscard:
 			c.askDiscard([]string{action.Path})
 		case diffview.ActOpen:
-			env.Spawn("xdg-open", filepath.Join(page.worktree, action.Path))
+			e.Open(filepath.Join(page.worktree, action.Path))
 		}
 	}
 }
@@ -698,9 +705,19 @@ func (c *changesState) gitPaths(e *env.Env, page *pageState, method string, file
 
 func (c *changesState) pushNow(e *env.Env, page *pageState, force bool) {
 	params := protocol.GitPushParams{Path: page.worktree, SetUpstream: c.status.Status.Upstream == "", ForceWithLease: force}
-	e.Call(protocol.MGitPush, params, new(protocol.GitOpResult), func(err error) {
+	c.runRemote(e, page, protocol.MGitPush, params, i18n.T("Pushed."))
+}
+
+// one at a time: a second press while the first still talks to the remote is ignored
+func (c *changesState) runRemote(e *env.Env, page *pageState, method string, params any, done string) {
+	if c.remote != "" {
+		return
+	}
+	c.remote = method
+	e.Call(method, params, new(protocol.GitOpResult), func(err error) {
+		c.remote = ""
 		if err == nil {
-			e.Notify(i18n.T("Pushed."))
+			e.Notify(done)
 		}
 		page.fail(err)
 		c.loadedPath = ""

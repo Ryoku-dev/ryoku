@@ -112,6 +112,8 @@ type sideItem struct {
 type SideList struct {
 	Scroller Scroller
 	Preview  kit.State
+	// said in the list's place while it has no rows, so an empty sidebar tells what will stand there
+	Empty string
 
 	states map[string]*sideRowState
 	seen   map[string]bool
@@ -142,6 +144,11 @@ func (list *SideList) Layout(
 	selected string,
 ) ListDimensions {
 	list.flatten(gtx, th, groups)
+	if len(list.items) == 0 && list.Empty != "" {
+		list.drawn = true
+		inset := layout.Inset{Top: 8, Right: SideInset, Left: SideInset}
+		return ListDimensions{Dimensions: inset.Layout(gtx, Paragraph(th, th.T.Caption, th.R.Fg3, list.Empty))}
+	}
 	list.handleKeys(gtx)
 	focused := gtx.Focused(&list.keys)
 	list.Scroller.Preview = list.Preview

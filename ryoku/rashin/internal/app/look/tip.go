@@ -64,9 +64,10 @@ func (tip *Tip) Layout(
 		}
 	}
 	dimensions := child(gtx)
-	semantic.DescriptionOp(text).Add(gtx.Ops)
 	pass := pointer.PassOp{}.Push(gtx.Ops)
 	area := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
+	// inside the area, or the words describe whatever pane the control stands in
+	semantic.DescriptionOp(text).Add(gtx.Ops)
 	event.Op(gtx.Ops, &tip.tag)
 	area.Pop()
 	pass.Pop()

@@ -34,7 +34,7 @@ func (p *pageState) layoutProject(gtx layout.Context, e *env.Env) layout.Dimensi
 func (p *pageState) layoutHeader(gtx layout.Context, e *env.Env, info protocol.ProjectInfo) layout.Dimensions {
 	content := look.PaneHeaderContent{
 		Title:   info.Name,
-		Facts:   []look.HeaderFact{{Text: shortPath(info.Root, paths.Home()), Kind: look.FactToken}},
+		Facts:   []look.HeaderFact{{Text: paths.Short(info.Root), Kind: look.FactToken}},
 		Actions: []look.HeaderAction{{Icon: look.Icon.Terminal, Description: i18n.T("Open a terminal here")}, {Icon: look.Icon.Folder, Description: i18n.T("Open the folder")}},
 		Menu: []kit.MenuItem{
 			{Icon: look.Icon.Settings, Label: i18n.T("Project settings")},
@@ -48,9 +48,9 @@ func (p *pageState) layoutHeader(gtx layout.Context, e *env.Env, info protocol.P
 	dimensions := p.header.Layout(gtx, e.Theme, e.Overlays, content)
 	if index, ok := p.header.ActionClicked(); ok {
 		if index == 0 {
-			openTerminal(info.Root)
+			e.OpenTerminal(info.Root)
 		} else {
-			openFolder(info.Root)
+			e.Open(info.Root)
 		}
 	}
 	if item, ok := p.header.MenuClicked(); ok {

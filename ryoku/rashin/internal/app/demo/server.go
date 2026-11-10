@@ -77,6 +77,9 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		if frame.Method == protocol.MSessionPrompt && response.Error == nil {
 			go s.playTurn(ctx, out, frame.Params)
 		}
+		if response.Error == nil {
+			s.announce(out, frame.Method)
+		}
 	}
 }
 
@@ -279,6 +282,20 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		}
 		s.syncCustomHarnesses()
 		return s.data.snapshot.Settings, nil
+	case protocol.MGatewayUsage:
+		day := Epoch.Format("2006-01-02")
+		return protocol.GatewayUsage{Days: 7, Rows: []protocol.UsageRow{
+			{Day: day, Provider: "openrouter", Model: "free-router", Requests: 41, OK: 38, Failed: 3, InputTokens: 61200, OutputTokens: 18400},
+			{Day: day, Provider: "puter", Model: "gpt-oss-120b", Requests: 12, OK: 12, InputTokens: 9800, OutputTokens: 4100, Estimated: true},
+		}}, nil
+	case protocol.MGatewayAPI:
+		return s.data.snapshot.Status.API, nil
+	case protocol.MGatewayAPIKey:
+		var params protocol.APIKeyParams
+		if err := decode(raw, &params); err != nil {
+			return nil, err
+		}
+		return s.apiKey(params.Rotate), nil
 	case protocol.MProvidersEnable:
 		var params protocol.EnableProviderParams
 		if err := decode(raw, &params); err != nil {

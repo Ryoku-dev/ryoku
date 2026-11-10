@@ -2,7 +2,6 @@ package chat
 
 import (
 	"image"
-	"path/filepath"
 	"strings"
 
 	"gioui.org/io/key"
@@ -44,12 +43,13 @@ type composerState struct {
 
 	attachField kit.TextField
 	attachOpen  bool
+	attachFocus bool
 	images      []string
 	remove      map[string]*look.IconAction
 	unqueue     map[string]*look.IconAction
 
-	dropTag    struct{}
-	dropActive bool
+	recall recallState
+	slash  slashState
 
 	submitted *Submission
 	actions   []Action
@@ -95,8 +95,12 @@ func (state *composerState) layout(gtx layout.Context, th *theme.Theme, options 
 		gtx.Execute(key.FocusCmd{Tag: &state.editor})
 		state.wantFocus = false
 	}
+	// the first to ask for a key gets it, so these go before the editor
+	state.processSlash(gtx, options)
+	state.processRecall(gtx, options)
+	state.processPaste(gtx, options)
 	state.processEditorEvents(gtx, options)
-	state.processDropEvents(gtx)
+	state.processAttach(gtx, options)
 	state.processControls(gtx, options)
 
 	if options.Disabled {
@@ -144,14 +148,11 @@ func (state *composerState) layoutField(gtx layout.Context, th *theme.Theme, opt
 	cut := gtx.Dp(th.Cut.Mid)
 	kit.FillCut(gtx.Ops, bounds, cut, th.R.Stone3)
 	focused := gtx.Focused(&state.editor) && gtx.Source.Enabled()
-	if focus := look.Transition(gtx, &state.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut); focus > 0 {
-		kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), palette.WithAlpha(th.R.Fg2, focus))
-	}
+	focus := look.Transition(gtx, &state.focus, focused, th.Motion.FocusIn, th.Motion.FocusOut)
+	// one tone above the pane is not an edge on a wallpaper palette, so the field keeps a hairline at rest
+	kit.StrokeCut(gtx.Ops, bounds, cut, max(1, gtx.Dp(1)), palette.Mix(th.R.Vein, th.R.Fg2, focus))
 	content.Add(gtx.Ops)
-	state.registerDropTarget(gtx, bounds.Max)
-	if state.dropActive || options.DropActive {
-		state.layoutDropTarget(gtx, th, bounds.Max)
-	}
+	state.layoutSlash(gtx, th, options, width)
 	return layout.Dimensions{Size: bounds.Max}
 }
 
@@ -313,44 +314,6 @@ func (state *composerState) layoutChip(
 	return layout.Dimensions{Size: image.Pt(dimensions.Size.X, height)}
 }
 
-func (state *composerState) layoutAttachments(gtx layout.Context, th *theme.Theme) layout.Dimensions {
-	removed := -1
-	dimensions := look.Flow{Gap: 4, LineGap: 4}.Layout(gtx, len(state.images), func(gtx layout.Context, index int) layout.Dimensions {
-		path := state.images[index]
-		remove := state.remove[path]
-		if remove == nil {
-			remove = &look.IconAction{Icon: look.Icon.Close, Description: i18n.T("Remove attachment")}
-			state.remove[path] = remove
-		}
-		if remove.Clicked(gtx) {
-			removed = index
-		}
-		return state.layoutChip(gtx, th, "", attachmentName(path), remove, true)
-	})
-	if removed >= 0 {
-		delete(state.remove, state.images[removed])
-		state.images = append(state.images[:removed], state.images[removed+1:]...)
-	}
-	return dimensions
-}
-
-func attachmentName(path string) string {
-	if name := filepath.Base(path); name != "" && name != "." {
-		return name
-	}
-	return path
-}
-
-func (state *composerState) layoutAttachField(gtx layout.Context, th *theme.Theme) layout.Dimensions {
-	state.attachField.Placeholder = i18n.T("Path to an image or a file")
-	state.add.Label = i18n.T("Attach")
-	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return state.attachField.Layout(gtx, th) }),
-		layout.Rigid(layout.Spacer{Width: th.Sp.S2}.Layout),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return state.add.Layout(gtx, th) }),
-	)
-}
-
 func (state *composerState) processEditorEvents(gtx layout.Context, options ComposerOptions) {
 	if options.Disabled {
 		return
@@ -395,44 +358,21 @@ func (state *composerState) processControls(gtx layout.Context, options Composer
 	if state.steer.Clicked(gtx) && enabled {
 		state.submit(state.editor.Text(), true)
 	}
-	if state.attach.Clicked(gtx) && enabled && options.CanAttach {
-		state.attachOpen = !state.attachOpen
-		if state.attachOpen {
-			state.attachField.Focus(gtx)
-		}
-	}
-	if !state.attachOpen || !enabled {
-		return
-	}
-	attach := state.add.Clicked(gtx)
-	for {
-		raw, ok := state.attachField.Editor.Update(gtx)
-		if !ok {
-			break
-		}
-		if _, ok := raw.(widget.SubmitEvent); ok {
-			attach = true
-		}
-	}
-	if attach {
-		state.addAttachment(state.attachField.Text())
-		state.attachField.SetText("")
-		state.attachOpen = false
-		state.wantFocus = true
-	}
 }
 
-func (state *composerState) addAttachment(path string) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return
-	}
-	for _, existing := range state.images {
-		if existing == path {
-			return
-		}
-	}
-	state.images = append(state.images, path)
+func (state *composerState) setText(text string) {
+	state.editor.SetText(text)
+	end := state.editor.Len()
+	state.editor.SetCaret(end, end)
+}
+
+func (state *composerState) setDraft(draft Draft) {
+	state.setText(draft.Text)
+	state.images = append(state.images[:0], draft.Attachments...)
+	clear(state.remove)
+	state.attachOpen = false
+	state.recall = recallState{}
+	state.slash = slashState{}
 }
 
 func (state *composerState) submit(text string, steer bool) {
@@ -440,9 +380,7 @@ func (state *composerState) submit(text string, steer bool) {
 		return
 	}
 	state.submitted = &Submission{Text: text, Images: append([]string(nil), state.images...), Steer: steer}
-	state.editor.SetText("")
-	state.images = state.images[:0]
-	clear(state.remove)
+	state.setDraft(Draft{})
 }
 
 func (state *composerState) submittedValue() (Submission, bool) {

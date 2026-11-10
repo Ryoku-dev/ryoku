@@ -42,6 +42,8 @@ type fixtures struct {
 	ports     map[string]protocol.PortsResult
 	setups    map[string]protocol.SetupResult
 	activity  map[string]protocol.ActivityResult
+	// how often the demo's API key was replaced
+	apiKeys int
 }
 
 // the moment the demo data is told from, a headless render starts its clock here so pictures don't depend on the time
@@ -210,6 +212,7 @@ func makeFixtures() fixtures {
 		},
 		Daemon: protocol.DaemonSettings{IdleExitMinutes: 5},
 		Index:  protocol.IndexSettings{System: true, Semantic: true},
+		API:    protocol.APISettings{Enabled: true, Port: protocol.DefaultAPIPort},
 	}
 	provider := protocol.ProviderInfo{
 		ID:         "openrouter",
@@ -472,6 +475,7 @@ func makeFixtures() fixtures {
 				Clients:   1,
 				Sessions:  protocol.SessionCounts{Ask: 1, Agent: 5, Working: 2, Alive: 2},
 				Gateway:   protocol.GatewayStatus{Providers: 2, Models: 9, Keyless: 1},
+				API:       demoAPI(settings.API),
 				Harnesses: 3,
 				Indexes:   2,
 			},

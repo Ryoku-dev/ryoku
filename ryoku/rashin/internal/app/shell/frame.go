@@ -3,8 +3,8 @@ package shell
 import (
 	"image"
 	"image/color"
-	"os/exec"
 
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -94,6 +94,10 @@ func (s *uiShell) layoutFrame(gtx layout.Context, e *env.Env) {
 	modal := false
 	for _, tab := range []string{protocol.TabAsk, protocol.TabAgent, protocol.TabProjects, protocol.TabIndex, protocol.TabSettings} {
 		modal = s.page(tab).Overlay(gtx, e) || modal
+	}
+	// a dialog that closed leaves the keyboard nowhere, so it goes back to where the page is typed into
+	if home := s.focusHome(); s.router.Modal && !modal && home != nil {
+		gtx.Execute(key.FocusCmd{Tag: home})
 	}
 	s.router.Modal = modal
 }
@@ -205,10 +209,7 @@ func (s *uiShell) layoutNotReady(gtx layout.Context, e *env.Env) {
 	margin, top := gtx.Dp(look.Margin), gtx.Dp(look.TopBar)
 	connection := e.Snapshot().Connection
 	if s.turnOn.Clicked(gtx) {
-		go func() {
-			_ = exec.Command("rashin", "on").Run()
-			s.runtime.client.Reconnect()
-		}()
+		e.Rashin(func(error) { s.runtime.client.Reconnect() }, "on")
 	}
 	if s.retry.Clicked(gtx) {
 		s.runtime.client.Reconnect()

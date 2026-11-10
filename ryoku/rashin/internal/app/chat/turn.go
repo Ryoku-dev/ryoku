@@ -148,7 +148,16 @@ func questionText(model *modelState, index int) string {
 }
 
 func turnUsage(turn *turnState) string {
-	parts := make([]string, 0, 3)
+	parts := make([]string, 0, 4)
+	// half an answer reads like a whole one unless the line under it says it is not
+	if turn.end != nil {
+		switch turn.end.Stop {
+		case protocol.StopCancelled:
+			parts = append(parts, i18n.T("Stopped"))
+		case protocol.StopMaxTokens:
+			parts = append(parts, i18n.T("Cut off at the length limit"))
+		}
+	}
 	if turn.answer != nil && turn.answer.Via != "" {
 		parts = append(parts, turn.answer.Via)
 	}

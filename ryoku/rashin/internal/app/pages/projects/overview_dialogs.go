@@ -177,7 +177,7 @@ func (d *createWorktree) submit(e *env.Env, page *pageState, name string) {
 type moveWorktree struct {
 	path       string
 	dialog     kit.Dialog
-	field      kit.TextField
+	field      env.PathField
 	do, cancel kit.Plaque
 }
 
@@ -193,8 +193,8 @@ func (d *moveWorktree) layout(gtx layout.Context, e *env.Env, page *pageState) {
 	th := e.Theme
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.do.Kind, d.do.Label = kit.PlaqueGold, i18n.T("Move")
-	d.field.Label, d.field.Mono = i18n.T("New folder"), true
-	to := strings.TrimSpace(d.field.Text())
+	d.field.Title, d.field.Label = i18n.T("Move this worktree"), i18n.T("New folder")
+	to := d.field.Path()
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
@@ -211,7 +211,7 @@ func (d *moveWorktree) layout(gtx layout.Context, e *env.Env, page *pageState) {
 		d.dialog.Dismiss(gtx)
 	}
 	d.dialog.Layout(gtx, th.Theme, i18n.T("Move this worktree"),
-		func(gtx layout.Context) layout.Dimensions { return d.field.Layout(gtx, th.Theme) },
+		func(gtx layout.Context) layout.Dimensions { return d.field.Layout(gtx, e) },
 		func(gtx layout.Context) layout.Dimensions { return d.cancel.Layout(gtx, th.Theme) },
 		func(gtx layout.Context) layout.Dimensions { return d.do.Layout(gtx, th.Theme) },
 	)

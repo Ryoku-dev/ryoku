@@ -23,9 +23,10 @@ const (
 
 // the board's composer and the full dialog share one, so a choice made in either is the choice in both
 type placement struct {
-	project, worktree, harness                look.Select
-	projectIndex, worktreeIndex, harnessIndex int
-	primed                                    bool
+	project, worktree, harness  look.Select
+	projectIndex, worktreeIndex int
+	pick                        env.HarnessPick
+	primed                      bool
 }
 
 func (place *placement) prime(e *env.Env) {
@@ -33,20 +34,13 @@ func (place *placement) prime(e *env.Env) {
 		return
 	}
 	place.primed = true
-	snapshot := e.Snapshot()
-	for index, harness := range installedHarnesses(snapshot) {
-		if harness.ID == snapshot.Settings.Agent.Harness {
-			place.harnessIndex = index
-		}
-	}
-	for _, project := range snapshot.Projects {
+	for _, project := range e.Snapshot().Projects {
 		e.LoadWorktrees(project.ID, nil)
 	}
 }
 
 func (place *placement) clamp(snapshot state.Snapshot) {
 	place.projectIndex = min(place.projectIndex, len(snapshot.Projects))
-	place.harnessIndex = min(place.harnessIndex, max(0, len(installedHarnesses(snapshot))-1))
 	if place.projectIndex > 0 {
 		worktrees := snapshot.Worktrees[snapshot.Projects[place.projectIndex-1].ID]
 		place.worktreeIndex = min(place.worktreeIndex, worktreeFirst+len(worktrees)-1)
@@ -74,8 +68,7 @@ func (place *placement) worktreeLabels(snapshot state.Snapshot) []string {
 	return labels
 }
 
-func (place *placement) harnessLabels(snapshot state.Snapshot) []string {
-	harnesses := installedHarnesses(snapshot)
+func harnessLabels(harnesses []protocol.HarnessInfo) []string {
 	if len(harnesses) == 0 {
 		return []string{i18n.T("No harness installed")}
 	}
@@ -86,13 +79,14 @@ func (place *placement) harnessLabels(snapshot state.Snapshot) []string {
 	return labels
 }
 
-func (place *placement) controls(e *env.Env) []layout.Widget {
+// home is the composer's text: a choice made in its row gives the keyboard back to it
+func (place *placement) controls(e *env.Env, home any) []layout.Widget {
 	snapshot := e.Snapshot()
 	place.prime(e)
 	place.clamp(snapshot)
 	th := e.Theme
 	quiet := func(selection *look.Select, label string) {
-		selection.Form, selection.Label = look.SelectQuiet, label
+		selection.Form, selection.Label, selection.Return = look.SelectQuiet, label, home
 	}
 	quiet(&place.project, i18n.T("Project"))
 	quiet(&place.worktree, i18n.T("Worktree"))
@@ -106,14 +100,15 @@ func (place *placement) controls(e *env.Env) []layout.Widget {
 			return place.worktree.Layout(gtx, th, e.Overlays, place.worktreeLabels(snapshot), place.worktreeIndex)
 		})
 	}
+	harnesses := env.InstalledHarnesses(snapshot)
 	controls = append(controls, func(gtx layout.Context) layout.Dimensions {
-		return place.harness.Layout(gtx, th, e.Overlays, place.harnessLabels(snapshot), place.harnessIndex)
+		return place.harness.Layout(gtx, th, e.Overlays, harnessLabels(harnesses), place.pick.Index(snapshot, harnesses))
 	})
-	place.update()
+	place.update(e, harnesses)
 	return controls
 }
 
-func (place *placement) update() {
+func (place *placement) update(e *env.Env, harnesses []protocol.HarnessInfo) {
 	if index, changed := place.project.Changed(); changed {
 		place.projectIndex, place.worktreeIndex = index, worktreeRoot
 	}
@@ -121,7 +116,7 @@ func (place *placement) update() {
 		place.worktreeIndex = index
 	}
 	if index, changed := place.harness.Changed(); changed {
-		place.harnessIndex = index
+		place.pick.Use(e, harnesses, index)
 	}
 }
 
@@ -130,12 +125,13 @@ type details struct {
 }
 
 func (place *placement) params(snapshot state.Snapshot, more details) (protocol.SessionNewParams, bool) {
-	harnesses := installedHarnesses(snapshot)
+	harnesses := env.InstalledHarnesses(snapshot)
 	if len(harnesses) == 0 {
 		return protocol.SessionNewParams{}, false
 	}
 	place.clamp(snapshot)
-	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Harness: harnesses[place.harnessIndex].ID, Origin: protocol.OriginApp}
+	harness := harnesses[place.pick.Index(snapshot, harnesses)].ID
+	params := protocol.SessionNewParams{Kind: protocol.KindAgent, Harness: harness, Origin: protocol.OriginApp}
 	if place.projectIndex == 0 {
 		params.Cwd = strings.TrimSpace(more.folder)
 		if params.Cwd == "" {

@@ -63,7 +63,7 @@ var searchModes = [...]string{protocol.SearchHybrid, protocol.SearchLexical, pro
 
 func New() *Page { return &Page{open: -1} }
 
-func (p *Page) New(*env.Env) { p.add.open() }
+func (p *Page) New(e *env.Env) { p.add.ask(e, p) }
 
 func (p *Page) NewLabel() string { return i18n.T("Add folder") }
 
@@ -104,6 +104,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		}
 		rows = append(rows, row)
 	}
+	p.list.Empty = i18n.T("Folders Rashin has read are listed here.")
 	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, []look.SideGroup{{Title: i18n.T("Indexes"), Rows: rows}}, selected.ID)
 	for _, event := range p.list.Events() {
 		switch event.Kind {
@@ -144,7 +145,7 @@ func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
 			case 0:
 				refresh(e, id)
 			case 1:
-				env.Spawn("xdg-open", info.Root)
+				e.Open(info.Root)
 			case 3:
 				p.remove.open(info)
 			}
@@ -184,7 +185,7 @@ func (p *Page) layoutEmpty(gtx layout.Context, e *env.Env) layout.Dimensions {
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			p.start.Kind, p.start.Label = kit.PlaqueGold, i18n.T("Add folder")
 			if p.start.Clicked(gtx) {
-				p.add.open()
+				p.add.ask(e, p)
 			}
 			return kit.Empty{
 				Icon: look.Icon.Index, Title: i18n.T("Nothing is indexed yet"),
@@ -218,7 +219,7 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.IndexI
 	}
 	if item, ok := p.header.MenuClicked(); ok {
 		if item == 0 {
-			env.Spawn("xdg-open", info.Root)
+			e.Open(info.Root)
 		} else {
 			p.remove.open(info)
 		}
@@ -229,7 +230,7 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.IndexI
 func indexFacts(now time.Time, info protocol.IndexInfo) []look.HeaderFact {
 	facts := make([]look.HeaderFact, 0, 4)
 	if info.Root != "" {
-		facts = append(facts, look.HeaderFact{Text: shortPath(info.Root), Kind: look.FactToken})
+		facts = append(facts, look.HeaderFact{Text: paths.Short(info.Root), Kind: look.FactToken})
 	}
 	facts = append(facts, look.HeaderFact{Text: i18n.Tf("%s files", grouped(info.Files))})
 	if info.Symbols > 0 {
@@ -338,7 +339,9 @@ func (p *Page) layoutSearch(gtx layout.Context, e *env.Env, info protocol.IndexI
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return p.search.Layout(gtx, th.Theme)
+			return look.PaneField(gtx, th, gtx.Focused(&p.search.Editor), func(gtx layout.Context) layout.Dimensions {
+				return p.search.Layout(gtx, th.Theme)
+			})
 		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -405,7 +408,7 @@ func (p *Page) layoutHit(gtx layout.Context, e *env.Env, info protocol.IndexInfo
 	}
 	row.file.Kind, row.file.Small, row.file.Icon, row.file.Label = kit.PlaqueLine, true, look.Icon.OpenInNew, i18n.T("Open file")
 	if row.file.Clicked(gtx) {
-		env.Spawn("xdg-open", filepath.Join(info.Root, hit.Path))
+		e.Open(filepath.Join(info.Root, hit.Path))
 	}
 	height := gtx.Dp(look.SideRowTall)
 	head := func(gtx layout.Context) layout.Dimensions {
@@ -494,13 +497,6 @@ func (p *Page) runSearch(e *env.Env) {
 	})
 }
 
-func shortPath(path string) string {
-	if home := paths.Home(); home != "" && strings.HasPrefix(path, home+"/") {
-		return "~" + path[len(home):]
-	}
-	return path
-}
-
 func grouped(value int) string {
 	text := fmt.Sprint(value)
 	for index := len(text) - 3; index > 0; index -= 3 {
@@ -523,16 +519,34 @@ func ago(now, when time.Time) string {
 	}
 }
 
+// addDialog is the typed way to index a folder, for when no chooser answers
 type addDialog struct {
 	shown       bool
 	dialog      kit.Dialog
-	path        kit.TextField
+	path        env.PathField
 	add, cancel kit.Plaque
+}
+
+// ask goes straight to the system chooser: picking a folder indexes it
+func (d *addDialog) ask(e *env.Env, page *Page) {
+	e.ChooseFolder(i18n.T("Index a folder"), paths.Home(), func(path string) { d.submit(e, page, path) }, d.open)
 }
 
 func (d *addDialog) open() {
 	d.shown, d.dialog.Open = true, true
 	d.path.Editor.Submit = true
+}
+
+func (d *addDialog) submit(e *env.Env, page *Page, folder string) {
+	var info protocol.IndexInfo
+	e.Call(protocol.MIndexAdd, protocol.IndexAddParams{Path: folder}, &info, func(err error) {
+		if err != nil {
+			e.Notify(err.Error())
+			return
+		}
+		d.path.SetText("")
+		page.selected = info.ID
+	})
 }
 
 func (d *addDialog) layout(gtx layout.Context, e *env.Env, page *Page) {
@@ -550,28 +564,21 @@ func (d *addDialog) layout(gtx layout.Context, e *env.Env, page *Page) {
 			submitted = true
 		}
 	}
-	d.path.Label, d.path.Placeholder, d.path.Mono = i18n.T("Folder"), paths.Home()+"/Work/project", true
+	d.path.Title = i18n.T("Index a folder")
+	d.path.Label, d.path.Placeholder = i18n.T("Folder"), paths.Home()+"/Work/project"
 	d.path.Help = i18n.T("Its files are read on this machine. Nothing leaves it.")
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.add.Kind, d.add.Label = kit.PlaqueGold, i18n.T("Add folder")
-	folder := strings.TrimSpace(d.path.Text())
+	folder := d.path.Path()
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
 	if (d.add.Clicked(gtx) || submitted) && folder != "" {
-		var info protocol.IndexInfo
-		e.Call(protocol.MIndexAdd, protocol.IndexAddParams{Path: folder}, &info, func(err error) {
-			if err != nil {
-				e.Notify(err.Error())
-				return
-			}
-			d.path.SetText("")
-			page.selected = info.ID
-		})
+		d.submit(e, page, folder)
 		d.dialog.Dismiss(gtx)
 	}
 	d.dialog.Layout(gtx, th.Theme, i18n.T("Index a folder"),
-		func(gtx layout.Context) layout.Dimensions { return d.path.Layout(gtx, th.Theme) },
+		func(gtx layout.Context) layout.Dimensions { return d.path.Layout(gtx, e) },
 		func(gtx layout.Context) layout.Dimensions { return d.cancel.Layout(gtx, th.Theme) },
 		func(gtx layout.Context) layout.Dimensions { return d.add.Layout(gtx, th.Theme) },
 	)

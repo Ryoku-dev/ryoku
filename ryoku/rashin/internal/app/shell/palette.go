@@ -70,8 +70,19 @@ func (s *uiShell) closePalette(gtx layout.Context) {
 	s.topBar.searchShown = false
 	s.palette.search.SetText("")
 	s.overlay.Close(&s.palette)
-	gtx.Execute(key.FocusCmd{})
+	// a press somewhere else already moved the keyboard there, only a field that still holds it gives it back
+	if gtx.Focused(&s.palette.search.Editor) {
+		gtx.Execute(key.FocusCmd{Tag: s.focusHome()})
+	}
 	gtx.Execute(op.InvalidateCmd{})
+}
+
+// nil when the page shown has no place the keyboard belongs
+func (s *uiShell) focusHome() any {
+	if homed, ok := s.page(s.router.Tab).(env.Homed); ok {
+		return homed.FocusHome()
+	}
+	return nil
 }
 
 func (s *uiShell) openPalette(gtx layout.Context, e *env.Env) {
@@ -92,7 +103,7 @@ func (s *uiShell) openPalette(gtx layout.Context, e *env.Env) {
 	}
 	anchor := s.topBar.searchAnchor
 	s.overlay.Open(&s.palette, anchor, look.Placement{
-		Prefer: look.Below, Align: look.Start, Gap: 4, Width: gtx.Metric.PxToDp(anchor.Dx()), Passive: true,
+		Prefer: look.Below, Align: look.Start, Gap: 4, Width: gtx.Metric.PxToDp(anchor.Dx()), Passive: true, Frame: true,
 	}, content)
 }
 
@@ -176,11 +187,18 @@ func (s *uiShell) commands(e *env.Env) []paletteAction {
 		action(look.Icon.Add, i18n.T("New agent session"), command, func() { s.openDestination(protocol.TabAgent); s.agent.New(e) }),
 		action(look.Icon.Add, i18n.T("Add project"), command, func() { s.openDestination(protocol.TabProjects); s.projects.New(e) }),
 		action(look.Icon.Settings, i18n.T("Open Settings"), "Ctrl ,", func() { s.openDestination(protocol.TabSettings) }),
+		action(look.Icon.Key, i18n.T("Providers and keys"), command, func() { s.openSettings("providers") }),
+		action(look.Icon.Link, i18n.T("Local API address and key"), command, func() { s.openSettings("api") }),
+		action(look.Icon.Steps, i18n.T("Keyboard shortcuts"), command, func() { s.openSettings("keys") }),
 		action(look.Icon.SidebarToggle, i18n.T("Fold or open the sidebar"), "Ctrl B", s.toggleSidebar),
 		action(look.Icon.Search, i18n.T("Search the index"), command, func() { s.openDestination(protocol.TabIndex) }),
 		action(look.Icon.Add, i18n.T("Zoom in"), "Ctrl +", func() { s.changeZoom(10) }),
 		action(look.Icon.Undo, i18n.T("Reset zoom"), "Ctrl 0", func() { s.changeZoom(0) }),
-		action(look.Icon.Close, i18n.T("Turn Rashin off"), command, func() { env.Spawn("rashin", "off") }),
+		// it stops every agent, so it goes through the same question as the switch in Settings
+		action(look.Icon.Close, i18n.T("Turn Rashin off"), command, func() {
+			s.openSettings("rashin")
+			s.settings.AskTurnOff()
+		}),
 	}
 }
 

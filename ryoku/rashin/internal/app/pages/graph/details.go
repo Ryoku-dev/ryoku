@@ -208,7 +208,7 @@ func (v *viewState) layoutWIPDetails(gtx layout.Context, e *env.Env) layout.Dime
 	if v.status.Branch != "" {
 		facts = append(facts, look.FactRow{Label: i18n.T("Branch"), Widget: look.TokenChip(th, v.status.Branch)})
 	}
-	facts = append(facts, look.FactRow{Label: i18n.T("Folder"), Value: shortPath(path), Mono: true})
+	facts = append(facts, look.FactRow{Label: i18n.T("Folder"), Value: paths.Short(path), Mono: true})
 	if agent != "" {
 		facts = append(facts, look.FactRow{Label: i18n.T("Agent"), Widget: kit.Claim(th.Theme, agentTone(agent), agentLabel(agent))})
 	}
@@ -324,11 +324,4 @@ func (v *viewState) commitColor(hash string) int {
 		}
 	}
 	return 0
-}
-
-func shortPath(path string) string {
-	if home := paths.Home(); home != "" && strings.HasPrefix(path, home+"/") {
-		return "~" + path[len(home):]
-	}
-	return path
 }

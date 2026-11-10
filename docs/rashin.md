@@ -29,7 +29,9 @@ This page is the contract the implementation follows. The wire reference is
    and model calls belong to `rashind`. Clients only render and send input, so
    quitting the app never loses a session.
 3. **Idle means gone.** An idle daemon exits; an idle agent process stops.
-   Sessions live on disk and resume on the next prompt.
+   Sessions live on disk and resume on the next prompt. One exception is asked
+   for by name: a daemon that serves the local API stays up, because other
+   programs hold its address.
 4. **Ask reads, Agent acts.** Ask has read-only tools. Anything that changes the
    machine is a proposed command the user runs, or a handoff to an Agent.
 5. **One owner per fact.** The daemon is the only writer of Rashin state. The
@@ -65,7 +67,7 @@ ryoku/rashin/
   internal/ask/         native Ask runner, tools, command safety
   internal/harness/     ACP adapters for external harnesses
   internal/index/       index engine, embedding model, queries
-  internal/app/         Gio client (shell, state, pages, chat widgets, demo)
+  internal/app/         Gio client (shell, state, pages, chat widgets, desktop, demo)
   systemd/              rashind.socket, rashind.service
   usage/                coding-agent usage collectors
 ```
@@ -111,7 +113,8 @@ turns Rashin on at first login.
 - **Idle exit:** the daemon exits after `daemon.idleExitMinutes` (default 5)
   when no client is connected, no turn is running, no agent process is alive and
   no index job is running. The check is event driven (re-armed on state
-  changes), never a poll.
+  changes), never a poll. A daemon that serves the local API (see Gateway)
+  drops its loaded indexes at that point and stays up.
 - **Agent idle stop:** an agent process stops after `agent.idleStopMinutes`
   (default 10) without a turn, even while the app shows it. The next prompt
   starts it again and resumes the session (`session/load` when the harness
@@ -154,7 +157,7 @@ Every path comes from `internal/paths`; nothing else spells one.
 |---|---|
 | `$XDG_CONFIG_HOME/ryoku/rashin.json` | settings (below) |
 | `$XDG_STATE_HOME/ryoku/rashin/sessions/<id>/` | `meta.json`, `events.jsonl` |
-| `$XDG_STATE_HOME/ryoku/rashin/gateway.db` | keys, usage, cooldowns (bbolt) |
+| `$XDG_STATE_HOME/ryoku/rashin/gateway.db` | provider keys, the local API key, usage, cooldowns (bbolt) |
 | `$XDG_STATE_HOME/ryoku/rashin/master.key` | 32 random bytes, mode 0600 |
 | `$XDG_STATE_HOME/ryoku/rashin/indexes.json` | index registry |
 | `$XDG_STATE_HOME/ryoku/rashin/harness-capabilities.json` | what each harness binary answered at initialize, keyed by path and mtime |
@@ -182,7 +185,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
   "ask":    {"model": "auto", "habits": true},
   "agent":  {"harness": "", "approvals": "read-only", "idleStopMinutes": 10},
   "daemon": {"idleExitMinutes": 5},
-  "index":  {"system": true, "semantic": true}
+  "index":  {"system": true, "semantic": true},
+  "api":    {"enabled": false, "port": 3600}
 }
 ```
 
@@ -196,6 +200,8 @@ XDG variables; `RASHIN_SOCKET` overrides the socket for a client.
 - `agent.instances`: custom harnesses, each an id, a name, an ACP command and
   extra environment variables (a second account, another config folder).
 - `index.system`: maintain the system index; `index.semantic`: compute vectors.
+- `api.enabled`: serve the local API (see Gateway); `api.port`: where, 1024 to
+  65535.
 
 Clients change settings only through `settings.set`; the daemon writes the file
 atomically and broadcasts `settings.changed`.
@@ -221,14 +227,16 @@ Method groups: `hello status subscribe shutdown`, `session.*` (list, new,
 attach, detach, prompt, cancel, permission, set_model, set_mode, rename,
 delete, stop, handoff, queue, unqueue, steer, fork, read, revert_turn), `ask`
 (new session, attach, prompt in one call), `providers.*`, `models.list`,
-`gateway.usage`, `harnesses.*`, `index.*`, `settings.get|set`, `ui.open`, and
+`gateway.usage|api|api_key`, `harnesses.*`, `index.*`, `settings.get|set`,
+`ui.open`, and
 Work: `projects.*`, `worktrees.*`, `git.*`, `review.*`, `tasks.*`,
 `activity.list`.
 
 `subscribe` returns a snapshot (status, recent sessions, settings, providers,
 harnesses, indexes, projects, tasks) and from then on the connection receives
 the global events: `sessions.changed`, `session.info`, `settings.changed`,
-`providers.changed`, `harnesses.changed`, `index.progress`, `index.changed`,
+`providers.changed`, `api.changed`, `harnesses.changed`, `index.progress`,
+`index.changed`,
 `projects.changed`, `worktrees.changed`, `tasks.changed`, `review.changed`,
 `ui.focus` (app clients only), `notice`. `session.attach` adds `session.event`
 for that session; `projects.watch` adds `git.changed` for a project.
@@ -271,6 +279,8 @@ Rules:
 - Every open permission is answered exactly once: by the user, by policy, or
   with `cancelled` when the turn is cancelled or the agent stops.
 - Ask sessions keep the newest 200; Agent sessions stay until deleted.
+- A session nobody named takes its first prompt as its title, on one line of
+  at most 60 characters. A title the harness sends later replaces it.
 - `SessionInfo.state`: `idle`, `working`, `waiting` (open permission),
   `stopped` (agent process not running), `failed`.
 
@@ -278,8 +288,9 @@ Ids are `<kind>-<yyyymmdd>-<hhmmss>-<4 hex>`, which sort by creation.
 
 ## Gateway
 
-The built-in router replaces Prowl. It serves Ask only, in process; it opens no
-port.
+The built-in router replaces Prowl. It runs inside the daemon and serves Ask.
+Other programs reach it only through the local API below, which is off until
+asked for; without it the router opens no port.
 
 - **Catalogue** (`internal/gateway/catalog.json`, embedded): curated
   OpenAI-compatible providers with free or renewable tiers. Each entry has an
@@ -314,6 +325,49 @@ port.
 - **Zero setup**: keyless providers work with no key, so Ask answers on a fresh
   machine when one of them is up. When nothing is available Ask says so and
   names the next step (add a free key in Rashin > Settings > Providers).
+
+### Local API
+
+With `api.enabled` the daemon listens on `127.0.0.1` and `[::1]` at `api.port`
+(3600) and serves the router in the shape of OpenAI's API, so any program that
+takes a base URL and a key uses the same providers, keys, failover and usage
+counts as Ask. `internal/gateway/api.go` is the surface, `internal/daemon/api.go`
+the listener.
+
+- `GET /v1/models`: the three routes, then every model that can answer now.
+- `POST /v1/chat/completions`, streamed as server-sent events or whole.
+  Messages with the roles `system`, `developer`, `user`, `assistant` and
+  `tool`; text parts and inline base64 image parts; function tools and tool
+  calls; `temperature` and `max_tokens`. `top_p`, `stop`, `seed`, the two
+  penalties, `response_format`, `tool_choice`, `parallel_tool_calls` and
+  `reasoning_effort` are passed on as sent, and every other field is dropped,
+  because free providers reject fields they do not know. Reasoning comes back
+  as `reasoning_content`.
+- **Model**: a route or `<provider>/<model>`. A named model is that model or
+  an error, never another in its place. No model, or an `auto:` name the
+  router does not have (Prowl had more), is `auto`.
+- **Key**: `rashin-` and 48 hex digits, made on first use and sealed in
+  `gateway.db` like a provider key. Every request carries it as
+  `Authorization: Bearer` or `X-Api-Key`; it is compared in constant time.
+  `gateway.api_key` with `rotate` replaces it. Loopback is not a boundary:
+  every account and every web page on the machine can reach the port. So no
+  route answers without the key, the `Host` header has to name localhost or a
+  loopback address (a page that points its own name at 127.0.0.1 still sends
+  that name), and no CORS header is ever sent.
+- **Refused**: an image named by a web address, so a caller cannot make the
+  daemon fetch for it; more than one choice (`n`); a body over 32 MiB.
+- **Errors** have OpenAI's shape. Before the first byte they are ordinary HTTP
+  errors (400 for the request, 401 for the key, 502 when the provider fails,
+  503 when nothing can answer); after it the stream ends with an error frame.
+- **Lifetime**: the address answers while the daemon runs, and a daemon that
+  serves it does not exit at idle. Nothing starts the daemon at login, so after
+  a login the address answers from the first use of Rashin. When the port is
+  taken the API stays down, `gateway.api` says why, and the daemon exits at
+  idle as usual.
+
+`rashin api` prints the state and the address; `rashin api on [--port n]` and
+`rashin api off` switch it; `rashin api key [--rotate]` prints the key. The app
+has the same under Settings > Local API.
 
 ## Ask
 
@@ -625,19 +679,32 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   files. Expanded from 1100 dp, medium from 760 (rail, the sidebar as a
   sheet), compact below (bottom bar for the destinations, the list as a
   sheet).
-- **Ask** is home and opens on a new conversation: one sentence, the composer
-  and things to try; no session exists until the first message is sent, and
-  sending it moves the composer to the foot of the column. Its list groups
-  asks by day. An open ask shows the transcript in the reading column with the
-  composer at its foot, the route choice (Auto, Fast, Smart or one free
-  model), answer actions and Move to Agent.
+- **Ask** is home and opens on a new conversation: one sentence, the composer,
+  things to try and one line that says which providers can answer now; no
+  session exists until the first message is sent, and sending it moves the
+  composer to the foot of the column. Its list groups asks by day. An open ask
+  shows the transcript in the reading column with the composer at its foot,
+  the route choice (Auto, Fast, Smart or one free model), answer actions and
+  Move to Agent. An answer that was stopped or cut off says so under it.
 - **Agents** opens on its Now board: what needs you in one sentence, a
   composer that starts a session in a project and worktree with a harness, then
-  the sessions that need you, are working or finished recently. Its list groups
-  sessions by Needs you, Working, Done and Idle. A session shows its project,
-  worktree, branch and harness in the header, the transcript (work as single
-  lines that unfold, permission requests, plans, diffs), queue and steer, each
-  turn's changes with Revert files, fork from here, and the Changes side panel.
+  the sessions that need you, are working or finished recently. A board with no
+  session lists the projects a session can work in and the way to add one;
+  with no harness installed it lists the harnesses Rashin knows, each with its
+  install page, in place of the composer. The harness picked for a session
+  becomes `agent.harness`, so the board, the dialogs and Settings always agree.
+  Its list groups sessions by Needs you, Working, Done and Idle. A session
+  shows its project, worktree, branch and harness in the header, the transcript
+  (work as single lines that unfold, permission requests, plans, diffs), queue
+  and steer, each turn's changes with Revert files, fork from here, and the
+  Changes side panel.
+- **The composer** is the same on every page (`internal/app/chat`): attach
+  opens the system file chooser and falls back to a path field, Ctrl V also
+  attaches an image the clipboard holds, Up and Down in an empty field walk
+  the prompts sent in that conversation, `/` lists the commands the harness
+  offers, and what is typed and not sent stays with its conversation. It has
+  the keyboard when its page opens and gets it back when a menu in its row,
+  the search field or a dialog closes.
 - **Projects** lists projects with their worktrees in the sidebar and opens
   on the project last shown. A project has the tabs Overview (worktrees with
   their status, setup, ports, sessions and actions), Graph (the commit graph
@@ -648,9 +715,23 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   search, a choice between words, meaning or both, and results that unfold to
   their lines.
 - **Settings** is a full page with a section index: Rashin (on and off,
-  version, the log), Providers (each unfolds to its keys), Ask, Agents (the
-  default harness, approvals, the idle stop, your own harnesses), Index and
-  Appearance (zoom, reduce motion). Project settings live with the project.
+  version, the log), Providers (each unfolds to its keys and says what it
+  answered this week), Local API (the switch, the address, the key, the port),
+  Ask, Agents (the default harness, approvals, notices, the idle stop, the
+  harnesses found and how to install the rest, your own harnesses), Index,
+  Appearance (zoom, reduce motion) and Keyboard (every shortcut). Project
+  settings live with the project.
+- **The desktop** is reached through `internal/app/desktop` only: the file
+  chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
+  notices (`org.freedesktop.Notifications`) and starting other programs
+  (`xdg-open`, the terminal, `rashin on|off`). The frame hands these to pages
+  as `env.Desktop`; a render without a window has none, so it opens nothing.
+- **Notices**: while the window is not in front, a desktop notification says
+  when an agent starts needing you, fails or finishes; pressing it opens the
+  session. It follows the store and not the frames, and what already stood so
+  when the app started is not announced. The switch is in Settings > Agents.
+- **Reopening**: the window comes back to the agent session or project view
+  it had open when it closed. A question is not kept; Ask opens on a new one.
 - **Search**: the top bar field (Ctrl+K) finds sessions, projects, worktrees
   and commands; its results open under it at its width.
 - **Keys**: Ctrl+N new, Ctrl+B the sidebar, Ctrl+\ the side panel, Ctrl+1 to 4
@@ -665,6 +746,13 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   --zoom N]` renders against an in-process demo daemon; with `--script` and
   `--shots` it plays a motion story and returns its frames side by side. The
   stories live in `internal/app/shell/testdata/motion`.
+- **Driven like a person** (`internal/app/shell/stage_test.go`): the tests run
+  the whole app against the demo daemon with a real input router and no
+  window, find controls by the name a screen reader would say, and press and
+  type. One of them walks every page in each window class and asks, for each
+  control, what a press on it would be delivered to; a control that is drawn
+  under something that keeps its presses fails it. A new control gets a name
+  (`look.Named` where its label is drawn elsewhere) and a test that presses it.
 
 Widgets the Lithic library does not have live in the app, built from Lithic
 roles, tokens and kit parts: the frame's own parts in `internal/app/look`
@@ -740,8 +828,10 @@ user can repoint it.
 - Unit tests per package, isolated by the XDG variables; no test touches the
   user's real socket, config or keys.
 - Fakes: an OpenAI-compatible SSE server for the gateway, a scripted ACP agent
-  for the harness runner, a small repository fixture for the index, and the
-  demo daemon for the app.
+  for the harness runner, a small repository fixture for the index, the demo
+  daemon for the app, and a private session bus that knows no service files
+  for the app's file chooser and notices, so a test can never open the real
+  chooser on the desktop it runs on.
 - Sandbox: run `rashind` with all XDG variables under `/dev/shm/<run>/` and
   drive it with `rashin call` and `rashin events`.
 - Live proof: Ask with a free provider, an Agent turn with an installed harness,

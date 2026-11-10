@@ -23,6 +23,19 @@ type AppPreferences struct {
 	SidebarFolded bool `json:"sidebarFolded,omitempty"`
 	SidePanelOpen bool `json:"sidePanelOpen,omitempty"`
 	ReduceMotion  bool `json:"reduceMotion,omitempty"`
+	// notices are on until asked off, so the absent key means on
+	MuteNotices bool `json:"muteNotices,omitempty"`
+	// where the window stood when it closed
+	Last LastPlace `json:"last,omitzero"`
+}
+
+// the work the window had open when it closed
+type LastPlace struct {
+	Tab      string `json:"tab,omitempty"`
+	Session  string `json:"session,omitempty"`
+	Project  string `json:"project,omitempty"`
+	View     string `json:"view,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
 }
 
 func (p AppPreferences) Normalize() AppPreferences {

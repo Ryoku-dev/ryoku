@@ -218,7 +218,7 @@ func taskFactRows(th *look.Theme, task protocol.TaskInfo, tasks []protocol.TaskI
 		)
 	}
 	if task.Worktree != "" {
-		folder := look.ElidePath(shortPath(task.Worktree, paths.Home()), 48)
+		folder := look.ElidePath(paths.Short(task.Worktree), 48)
 		rows = append(rows, look.FactRow{Label: i18n.T("Worktree"), Value: folder, Mono: true})
 	}
 	for _, gate := range task.Gates {

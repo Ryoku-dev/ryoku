@@ -24,6 +24,14 @@ type Page interface {
 	Overlay(gtx layout.Context, e *Env) bool
 }
 
+// Homed is a page with a place the keyboard belongs when nothing else holds
+// it, which for a conversation is its composer. The frame returns focus there
+// when the search field or a dialog closes.
+type Homed interface {
+	// FocusHome is that place as a focus target, or nil when it has none now.
+	FocusHome() any
+}
+
 // Paneled is a page that can show work beside its content.
 type Paneled interface {
 	// HasPanel reports whether what the page shows now has a side panel.

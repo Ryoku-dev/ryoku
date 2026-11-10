@@ -317,11 +317,9 @@ func drawMorphIcon(
 	return dimensions
 }
 
+// drawn even at nothing: without its handlers in the frame a page loses the keyboard it asked for while it arrives
 func drawFadedOffset(ops *op.Ops, call op.CallOp, alpha float32, offset image.Point) {
-	if alpha <= 0 {
-		return
-	}
-	opacity := paint.PushOpacity(ops, min(alpha, 1))
+	opacity := paint.PushOpacity(ops, min(max(alpha, 0), 1))
 	move := op.Offset(offset).Push(ops)
 	call.Add(ops)
 	move.Pop()

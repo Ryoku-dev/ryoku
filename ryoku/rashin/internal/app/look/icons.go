@@ -14,7 +14,7 @@ var Icon struct {
 	Copy, Retry, Delete, Rename, OpenInNew, Terminal, Folder, Branch *widget.Icon
 	Diff, Graph, Tasks, Activity, Lock, Unlock, Check                *widget.Icon
 	Error, Warning, Fork, Undo, ArrowDown, Key, Link, Play, Filter   *widget.Icon
-	Thought, Steps, File, Remove                                     *widget.Icon
+	Thought, Steps, File, Remove, FolderOpen, Blank, Show, Hide      *widget.Icon
 }
 
 func init() {
@@ -66,4 +66,8 @@ func init() {
 	Icon.Steps = kit.Icon(mdicons.EditorFormatListBulleted)
 	Icon.File = kit.Icon(mdicons.ActionDescription)
 	Icon.Remove = kit.Icon(mdicons.ContentRemove)
+	Icon.FolderOpen = kit.Icon(mdicons.FileFolderOpen)
+	Icon.Blank = glyph(box(12, 12, 12, 12))
+	Icon.Show = kit.Icon(mdicons.ActionVisibility)
+	Icon.Hide = kit.Icon(mdicons.ActionVisibilityOff)
 }

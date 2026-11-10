@@ -32,6 +32,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 	for index, title := range titles {
 		groups = append(groups, look.SideGroup{Title: title, Rows: rows[index]})
 	}
+	p.list.Empty = i18n.T("What you ask is kept here, newest first.")
 	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, groups, p.selected)
 	for _, event := range p.list.Events() {
 		switch event.Kind {

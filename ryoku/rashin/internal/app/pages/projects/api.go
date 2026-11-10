@@ -62,7 +62,7 @@ func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
 }
 
 // New asks for a folder to add as a project.
-func (p *Page) New(*env.Env) { p.state.add.open() }
+func (p *Page) New(e *env.Env) { p.state.add.ask(e) }
 
 // NewLabel names the New action.
 func (p *Page) NewLabel() string { return i18n.T("Add project") }

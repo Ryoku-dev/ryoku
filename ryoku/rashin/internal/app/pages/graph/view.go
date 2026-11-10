@@ -55,7 +55,9 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 			v.focusSearch = false
 			v.search.Focus(gtx)
 		}
-		dimensions := v.search.Layout(gtx, th.Theme)
+		dimensions := look.PaneField(gtx, th, gtx.Focused(&v.search.Editor), func(gtx layout.Context) layout.Dimensions {
+			return v.search.Layout(gtx, th.Theme)
+		})
 		for {
 			raw, ok := v.search.Update(gtx)
 			if !ok {
@@ -70,7 +72,9 @@ func (v *viewState) layoutControls(gtx layout.Context, e *env.Env) layout.Dimens
 	}
 	finder := func(gtx layout.Context) layout.Dimensions {
 		v.finder.Placeholder, v.finder.Hint = i18n.T("Go to a branch"), "Enter"
-		dimensions := v.finder.Layout(gtx, th.Theme)
+		dimensions := look.PaneField(gtx, th, gtx.Focused(&v.finder.Editor), func(gtx layout.Context) layout.Dimensions {
+			return v.finder.Layout(gtx, th.Theme)
+		})
 		for {
 			raw, ok := v.finder.Update(gtx)
 			if !ok {

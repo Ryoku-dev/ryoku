@@ -161,6 +161,22 @@ func (m *Model) Commands() []protocol.Command {
 	return append([]protocol.Command(nil), m.state.commands.Commands...)
 }
 
+// Prompts returns what the reader sent in this conversation, oldest first.
+func (m *Model) Prompts() []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.state == nil {
+		return nil
+	}
+	var prompts []string
+	for index := range m.state.rows {
+		if row := &m.state.rows[index]; row.kind == rowUser && row.user.Text != "" {
+			prompts = append(prompts, row.user.Text)
+		}
+	}
+	return prompts
+}
+
 func cloneSessionInfo(info protocol.SessionInfo) protocol.SessionInfo {
 	info.Queue = append([]protocol.QueuedPrompt(nil), info.Queue...)
 	return info
@@ -212,9 +228,18 @@ type ComposerOptions struct {
 	CanAttach bool
 	// Disabled greys the composer (Rashin off or no session).
 	Disabled bool
-	// DropActive shows the field's image drop target. Pages can set this while
-	// their platform drop bridge is active; native URI drops are also handled.
-	DropActive bool
+	// Attach is called when the attach control is pressed, to ask the system
+	// for files. Without it the composer opens its own path field.
+	Attach func()
+	// PasteImage is called on a paste, so the page can attach an image the
+	// clipboard holds. The editor itself only pastes text.
+	PasteImage func()
+	// History returns the prompts already sent here, oldest first. Up in an
+	// empty composer walks back through them. It is only called on that key.
+	History func() []string
+	// Commands returns the slash commands the harness offers. Typing a slash
+	// lists them above the field. It is only called while a command is typed.
+	Commands func() []protocol.Command
 }
 
 // Submission is what the user sent. Steer cancels the running turn and sends
@@ -251,13 +276,31 @@ func (c *Composer) StopClicked() bool { return c.ensureState().takeStop() }
 // Focus asks for keyboard focus on the next frame.
 func (c *Composer) Focus() { c.ensureState().wantFocus = true }
 
+// FocusTag is the composer's text as a focus target, for whatever hands the
+// keyboard back to it: a menu that closed, a dialog, the search field.
+func (c *Composer) FocusTag() any { return &c.ensureState().editor }
+
 // SetText replaces the composer's text (used to prefill a follow-up).
-func (c *Composer) SetText(text string) { c.ensureState().editor.SetText(text) }
+func (c *Composer) SetText(text string) { c.ensureState().setText(text) }
 
 // AddAttachment adds an image or file path to the composer.
 func (c *Composer) AddAttachment(path string) { c.ensureState().addAttachment(path) }
 
-// Attachments returns a copy of the paths currently held by the composer.
-func (c *Composer) Attachments() []string {
-	return append([]string(nil), c.ensureState().images...)
+// ShowAttachField opens the path field, for when no system chooser answers.
+func (c *Composer) ShowAttachField() { c.ensureState().showAttachField() }
+
+// Draft is what a composer holds before it is sent.
+type Draft struct {
+	Text        string
+	Attachments []string
 }
+
+// Draft returns what the composer holds now.
+func (c *Composer) Draft() Draft {
+	state := c.ensureState()
+	return Draft{Text: state.editor.Text(), Attachments: append([]string(nil), state.images...)}
+}
+
+// SetDraft replaces what the composer holds, as when another conversation
+// opens with the draft it was left with.
+func (c *Composer) SetDraft(draft Draft) { c.ensureState().setDraft(draft) }

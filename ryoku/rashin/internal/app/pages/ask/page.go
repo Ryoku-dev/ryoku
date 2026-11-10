@@ -24,6 +24,8 @@ type Page struct {
 	starting bool
 	// route picked before a session exists
 	draftRoute string
+	// what was typed in a conversation and not sent, kept while another one is open
+	drafts map[string]chat.Draft
 
 	list        look.SideList
 	rowMenu     kit.Menu
@@ -34,6 +36,7 @@ type Page struct {
 	rise        look.Rise
 	travel      anim.Tween
 	suggestions [4]kit.Plaque
+	ready       readiness
 
 	models protocol.ModelsResult
 	loaded bool
@@ -46,20 +49,31 @@ type Page struct {
 func New() *Page { return &Page{} }
 
 func (p *Page) Select(e *env.Env, id string) {
-	if id == "" {
-		p.selected, p.starting = "", false
-		p.composer.Focus()
-		return
-	}
+	p.composer.Focus()
 	if p.selected == id {
 		return
 	}
+	p.keepDraft(id)
 	p.selected, p.starting = id, false
+	if id == "" {
+		return
+	}
 	e.Attach(id, func(err error) {
 		if err != nil {
 			e.Notify(err.Error())
 		}
 	})
+}
+
+func (p *Page) FocusHome() any { return p.composer.FocusTag() }
+
+func (p *Page) keepDraft(next string) {
+	if p.drafts == nil {
+		p.drafts = make(map[string]chat.Draft)
+	}
+	p.drafts[p.selected] = p.composer.Draft()
+	p.composer.SetDraft(p.drafts[next])
+	delete(p.drafts, next)
 }
 
 func (p *Page) New(e *env.Env) {

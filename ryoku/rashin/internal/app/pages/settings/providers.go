@@ -43,7 +43,8 @@ func (p *Page) providerRow(id string) *providerRow {
 
 func (p *Page) layoutProviders(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
-	providers := orderedProviders(e.Snapshot().Providers)
+	p.usage.load(e)
+	providers := p.standingOrder(e.Snapshot().Providers)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(kit.Text(th.Theme, th.T.Section, th.R.Fg, i18n.T("Providers"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
@@ -74,7 +75,11 @@ func (p *Page) layoutProvider(gtx layout.Context, e *env.Env, provider protocol.
 		}
 	}
 	word, tone := providerState(provider)
-	head := foldHead{Title: provider.Name, Detail: providerMeta(provider), Trail: kit.Claim(th.Theme, tone, word)}
+	detail := providerMeta(provider)
+	if used := p.usage.words(provider.ID); used != "" {
+		detail += ", " + used
+	}
+	head := foldHead{Title: provider.Name, Detail: detail, Trail: kit.Claim(th.Theme, tone, word)}
 	return row.fold.layout(gtx, th, p.open == provider.ID, head, func(gtx layout.Context) layout.Dimensions {
 		return row.layoutDetail(gtx, e, provider)
 	})
@@ -93,7 +98,11 @@ func (row *providerRow) layoutDetail(gtx layout.Context, e *env.Env, provider pr
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Flexed(1, kit.Text(th.Theme, th.T.Body, th.R.Fg, i18n.T("Use this provider"))),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return row.enabled.Layout(gtx, th.Theme) }),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return namedSwitch(gtx, th, i18n.Tf("Use %s", provider.Name), &row.enabled, func(on bool) {
+					call(e, protocol.MProvidersEnable, protocol.EnableProviderParams{Provider: provider.ID, Enabled: on})
+				})
+			}),
 		)
 	}))
 	for _, key := range provider.Keys {
@@ -183,9 +192,6 @@ func (row *providerRow) update(gtx layout.Context, e *env.Env, provider protocol
 	row.add.Kind, row.add.Label = kit.PlaqueLine, i18n.T("Add key")
 	row.test.Kind, row.test.Small, row.test.Label = kit.PlaqueLine, true, i18n.T("Test")
 	row.signup.Kind, row.signup.Small, row.signup.Label, row.signup.Icon = kit.PlaqueQuiet, true, i18n.T("Get a key"), look.Icon.OpenInNew
-	if row.enabled.Changed() {
-		call(e, protocol.MProvidersEnable, protocol.EnableProviderParams{Provider: provider.ID, Enabled: row.enabled.Value})
-	}
 	submitted := false
 	for {
 		event, ok := row.key.Editor.Update(gtx)
@@ -224,7 +230,7 @@ func (row *providerRow) update(gtx layout.Context, e *env.Env, provider protocol
 		})
 	}
 	if row.signup.Clicked(gtx) && provider.Signup != "" {
-		env.Spawn("xdg-open", provider.Signup)
+		e.Open(provider.Signup)
 	}
 }
 
@@ -234,6 +240,31 @@ func call(e *env.Env, method string, params any) {
 			e.Notify(err.Error())
 		}
 	})
+}
+
+// held from when Settings opens: sorted live, a row leaves from under the pointer when its switch flips
+func (p *Page) standingOrder(providers []protocol.ProviderInfo) []protocol.ProviderInfo {
+	known := make(map[string]protocol.ProviderInfo, len(providers))
+	for _, provider := range providers {
+		known[provider.ID] = provider
+	}
+	held := len(p.providerOrder) == len(providers)
+	for _, id := range p.providerOrder {
+		if _, ok := known[id]; !ok {
+			held = false
+		}
+	}
+	if !held {
+		p.providerOrder = p.providerOrder[:0]
+		for _, provider := range orderedProviders(providers) {
+			p.providerOrder = append(p.providerOrder, provider.ID)
+		}
+	}
+	ordered := make([]protocol.ProviderInfo, len(p.providerOrder))
+	for index, id := range p.providerOrder {
+		ordered[index] = known[id]
+	}
+	return ordered
 }
 
 func orderedProviders(providers []protocol.ProviderInfo) []protocol.ProviderInfo {
@@ -272,7 +303,8 @@ func providerState(provider protocol.ProviderInfo) (string, palette.Tone) {
 	case provider.CooldownUntil != nil && provider.CooldownUntil.After(time.Now()):
 		return i18n.T("Resting"), palette.Paused
 	case !provider.Configured:
-		return i18n.T("Needs a key"), palette.Attention
+		// a provider nobody set up is not a problem to solve, so it does not take the colour of one
+		return i18n.T("Needs a key"), palette.Idle
 	default:
 		return i18n.T("Not answering"), palette.Failed
 	}

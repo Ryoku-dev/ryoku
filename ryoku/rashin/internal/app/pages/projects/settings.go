@@ -18,12 +18,13 @@ type settingsDialog struct {
 	dialog  kit.Dialog
 	scroll  look.Scroller
 
-	base, root, prefix, setup, copyIgnored kit.TextField
-	auto                                   kit.Toggle
-	mergeDays, inactiveDays                kit.Stepper
-	protect                                look.Select
-	protectSelected                        int
-	save, cancel                           kit.Plaque
+	base, prefix, setup, copyIgnored kit.TextField
+	root                             env.PathField
+	auto                             kit.Toggle
+	mergeDays, inactiveDays          kit.Stepper
+	protect                          look.Select
+	protectSelected                  int
+	save, cancel                     kit.Plaque
 }
 
 func (d *settingsDialog) open(info protocol.ProjectInfo) {
@@ -87,7 +88,11 @@ func (d *settingsDialog) rows(e *env.Env) []layout.Widget {
 	protect := []string{i18n.T("Uncommitted changes"), i18n.T("Any file Git does not track")}
 	return []layout.Widget{
 		field(&d.base, i18n.T("Base"), i18n.T("New worktrees start from this ref."), true),
-		field(&d.root, i18n.T("Worktree folder"), i18n.T("Where new worktrees are made."), true),
+		func(gtx layout.Context) layout.Dimensions {
+			d.root.Title, d.root.Label = i18n.T("Worktree folder"), i18n.T("Worktree folder")
+			d.root.Help = i18n.T("Where new worktrees are made.")
+			return d.root.Layout(gtx, e)
+		},
 		field(&d.prefix, i18n.T("Branch prefix"), i18n.T("Put before a new worktree's name to make its branch."), true),
 		field(&d.setup, i18n.T("Setup command"), i18n.T("Run in a new worktree before an agent starts."), true),
 		field(&d.copyIgnored, i18n.T("Files copied into new worktrees"), i18n.T("Ignored files a worktree needs, separated by commas."), true),
@@ -119,7 +124,7 @@ func (d *settingsDialog) submit(e *env.Env, page *pageState) {
 		protect = protocol.ProtectAny
 	}
 	patch := protocol.ProjectSettings{
-		BaseRef: d.base.Text(), WorktreeRoot: d.root.Text(), BranchPrefix: d.prefix.Text(),
+		BaseRef: d.base.Text(), WorktreeRoot: d.root.Path(), BranchPrefix: d.prefix.Text(),
 		Setup: d.setup.Text(), CopyIgnored: splitList(d.copyIgnored.Text()),
 		Cleanup: protocol.CleanupPolicy{
 			Auto: d.auto.Value, AfterMergeDays: d.mergeDays.Value, InactiveDays: d.inactiveDays.Value, Protect: protect,

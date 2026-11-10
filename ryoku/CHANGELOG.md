@@ -7,6 +7,22 @@
 - **Rashin's app has a new layout.** A sidebar that folds to a rail, one
   reading column for questions and answers, and every page in the same frame
   with one search field (`rashin/internal/app`).
+- **Rashin can serve its providers to other programs.** Settings > Local API
+  or `rashin api on` gives an address and a key in the shape of OpenAI's API,
+  so an editor or another agent uses the same free models, keys and failover.
+  It listens on this machine only, answers nothing without the key, and
+  keeps the daemon running while it is on (`rashin/internal/gateway/api.go`,
+  `rashin/internal/daemon/api.go`).
+- **Rashin's app works with the desktop around it.** Attach, Add project and
+  Add folder open the system file chooser, Ctrl V attaches an image from the
+  clipboard, and a desktop notification says when an agent asks, fails or
+  finishes while the window is not in front (`rashin/internal/app/desktop`).
+- **The composer does more with the keyboard.** Up brings back what you sent,
+  `/` lists the harness's commands, each conversation keeps its unsent text,
+  and Settings > Keyboard lists every shortcut (`rashin/internal/app/chat`).
+- **An empty Rashin page says what to do next.** A new ask shows which
+  providers can answer, the Agents board lists where a session can work or how
+  to install a harness, and an empty sidebar list says what it will hold.
 - **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the
   Prowl gateway, web dashboard, Hermes setup, terminal recipes or command
   learning.
@@ -16,6 +32,20 @@
   opt-out before removing its retired `ryovm.desktop` override.
 
 ### Fixed
+- **Rashin's composer takes the pointer and the keyboard.** An invisible drop
+  area covered it, so no click reached the text, attach, the model or the
+  harness. Typing also went nowhere after a menu, the search field or a
+  dialog closed, and after a shortcut changed the page
+  (`rashin/internal/app/chat`, `rashin/internal/app/look/overlays.go`).
+- **Rashin's switches change what they name.** "Use this provider" sent back
+  the value it already had, and the provider list no longer reorders under the
+  pointer while a row is open (`rashin/internal/app/pages/settings`).
+- **The harness picked for a session is the one Settings shows.** The Agents
+  board, the new session dialog and Move to Agent now all set the default
+  (`rashin/internal/app/env/harness.go`).
+- **Fields in Rashin can be seen before they are pressed.** The composer and
+  the search fields on the work pane keep a hairline at rest; a wallpaper
+  palette does not show one tone step as an edge (`docs/lithic/palette.md`).
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri
   and Hyprland alike, and its mini player always floats, so the desktop no
   longer forces a floating rule on it (`wm/niri/config_rules.go`,

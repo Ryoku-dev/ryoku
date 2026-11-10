@@ -33,6 +33,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 		}
 		groups = append(groups, look.SideGroup{Title: at.label(), Count: len(rows), Rows: rows})
 	}
+	p.list.Empty = i18n.T("Sessions you start are kept here, sorted by what they need from you.")
 	dimensions := p.list.Layout(gtx, e.Theme, e.Overlays, groups, p.selected)
 	for _, event := range p.list.Events() {
 		switch event.Kind {
@@ -71,9 +72,9 @@ func (p *Page) openRowMenu(e *env.Env, id string, anchor image.Rectangle) {
 		case 0:
 			p.list.Rename(id)
 		case 1:
-			openTerminal(sessionFolder(info))
+			e.OpenTerminal(sessionFolder(info))
 		case 2:
-			openFolder(sessionFolder(info))
+			e.Open(sessionFolder(info))
 		case 4:
 			stopSession(e, id)
 		case 5:
@@ -103,17 +104,5 @@ func report(e *env.Env) func(error) {
 		if err != nil {
 			e.Notify(err.Error())
 		}
-	}
-}
-
-func openFolder(path string) {
-	if path != "" {
-		env.Spawn("xdg-open", path)
-	}
-}
-
-func openTerminal(path string) {
-	if path != "" {
-		env.Spawn("ryoku-app", "terminal", "--", "sh", "-c", `cd "$1" && exec "${SHELL:-/bin/sh}"`, "sh", path)
 	}
 }

@@ -27,6 +27,8 @@ type Select struct {
 	Form    SelectForm
 	Icon    *widget.Icon
 	Preview kit.State
+	// takes the keyboard when the menu closes: nil is the select itself, one in a composer hands it to the text
+	Return any
 
 	click   kit.Click
 	menu    kit.Menu
@@ -105,7 +107,8 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 	tag := &selection.click.Clickable
 	items := make([]kit.MenuItem, len(options))
 	for index, option := range options {
-		items[index] = kit.MenuItem{Label: option}
+		// every row gets the column so the names line up under the checked one
+		items[index] = kit.MenuItem{Label: option, Icon: Icon.Blank}
 		if index == selected {
 			items[index].Icon = Icon.Check
 		}
@@ -121,6 +124,9 @@ func (selection *Select) open(gtx layout.Context, th *Theme, overlays *Overlays,
 		return dimensions
 	}
 	placement := Placement{Return: tag}
+	if selection.Return != nil {
+		placement.Return = selection.Return
+	}
 	if selection.Form == SelectField {
 		placement.MinWidth = unit.Dp(float32(selection.size.X) / gtx.Metric.PxPerDp)
 	}

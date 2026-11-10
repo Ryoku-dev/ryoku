@@ -78,9 +78,9 @@ func (p *Page) layoutHeader(gtx layout.Context, e *env.Env, info protocol.Sessio
 		case actionChanges:
 			e.TogglePanel()
 		case actionTerminal:
-			openTerminal(folder)
+			e.OpenTerminal(folder)
 		case actionFolder:
-			openFolder(folder)
+			e.Open(folder)
 		}
 	}
 	if _, ok := p.header.LinkClicked(); ok && info.Project != "" {
@@ -144,10 +144,11 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	busy := attached.Model.Busy()
 	modelLabels, modelIDs, selectedModel := choiceOptions(attached.Model.ModelChoice(), info.Model)
 	modeLabels, modeIDs, selectedMode := choiceOptions(attached.Model.ModeChoice(), info.Mode)
-	p.model.Form, p.model.Label = look.SelectQuiet, i18n.T("Model")
-	p.mode.Form, p.mode.Label = look.SelectQuiet, i18n.T("Mode")
+	p.model.Form, p.model.Label, p.model.Return = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag()
+	p.mode.Form, p.mode.Label, p.mode.Return = look.SelectQuiet, i18n.T("Mode"), p.composer.FocusTag()
 	options := chat.ComposerOptions{
 		Placeholder: i18n.T("Tell the agent what to do"), Busy: busy, Queue: info.Queue, CanAttach: true,
+		History: attached.Model.Prompts, Commands: attached.Model.Commands,
 		Controls: []layout.Widget{
 			func(gtx layout.Context) layout.Dimensions {
 				return p.model.Layout(gtx, e.Theme, e.Overlays, modelLabels, selectedModel)
@@ -157,6 +158,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 			},
 		},
 	}
+	e.ComposerDesktop(&p.composer, &options)
 	if index, changed := p.model.Changed(); changed && index < len(modelIDs) {
 		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: info.ID, Model: modelIDs[index]}, new(protocol.Empty), report(e))
 	}
@@ -198,6 +200,10 @@ func (p *Page) handleActions(gtx layout.Context, e *env.Env, info protocol.Sessi
 		default:
 			common = append(common, action)
 		}
+	}
+	// answering a request or copying is not a reason to click the field again before the next message
+	if len(common) > 0 {
+		p.composer.Focus()
 	}
 	env.HandleChatActions(gtx, e, info.ID, common)
 }

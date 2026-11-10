@@ -43,6 +43,7 @@ func (p *Page) List(gtx layout.Context, e *env.Env) look.ListDimensions {
 			rows = append(rows, worktreeRow(e.Theme, snapshot, worktree))
 		}
 	}
+	state.list.Empty = i18n.T("Projects you add are listed here with their worktrees.")
 	dimensions := state.list.Layout(gtx, e.Theme, e.Overlays, []look.SideGroup{{Rows: rows}}, state.selectedRow(e))
 	for _, event := range state.list.Events() {
 		project, worktree, isWorktree := splitRowID(event.ID)
@@ -88,6 +89,10 @@ func splitRowID(id string) (project, worktree string, isWorktree bool) {
 
 func worktreeRow(th *look.Theme, snapshot appstate.Snapshot, worktree protocol.WorktreeInfo) look.SideRow {
 	row := look.SideRow{ID: worktreeRowID(worktree.Project, worktree.Path), Title: worktree.Name, Depth: 1, Menu: true}
+	// under its project the main worktree would repeat the project's name, so it is called what it is
+	if worktree.Main {
+		row.Title = i18n.T("Project folder")
+	}
 	for _, id := range worktree.Sessions {
 		switch snapshot.Sessions[id].State {
 		case protocol.StateWorking:
@@ -127,7 +132,7 @@ func (p *pageState) openProjectMenu(e *env.Env, project string, anchor image.Rec
 			e.NavigateWork(project, TabOverview, "")
 			p.overview.openNew(e, p, info)
 		case 1:
-			openFolder(info.Root)
+			e.Open(info.Root)
 		case 2:
 			p.settings.open(info)
 		case 4:
@@ -151,9 +156,9 @@ func (p *pageState) openWorktreeMenu(e *env.Env, project, worktree string, ancho
 		case 1:
 			e.NavigateWork(project, TabChanges, worktree)
 		case 2:
-			openTerminal(worktree)
+			e.OpenTerminal(worktree)
 		case 3:
-			openFolder(worktree)
+			e.Open(worktree)
 		}
 	})
 }
@@ -170,17 +175,35 @@ func (p *pageState) openListMenu(e *env.Env, anchor image.Rectangle, items []kit
 	})
 }
 
+// addDialog is the typed way to add a project, for when no chooser answers
 type addDialog struct {
 	shown       bool
 	dialog      kit.Dialog
-	path        kit.TextField
+	path        env.PathField
 	add, cancel kit.Plaque
 	start       kit.Plaque
+}
+
+// ask goes straight to the system chooser: picking a folder adds it
+func (d *addDialog) ask(e *env.Env) {
+	e.ChooseFolder(i18n.T("Add a project"), paths.Home(), func(path string) { d.submit(e, path) }, d.open)
 }
 
 func (d *addDialog) open() {
 	d.shown, d.dialog.Open = true, true
 	d.path.Editor.Submit = true
+}
+
+func (d *addDialog) submit(e *env.Env, folder string) {
+	var added protocol.ProjectInfo
+	e.Call(protocol.MProjectsAdd, protocol.ProjectAddParams{Path: folder}, &added, func(err error) {
+		if err != nil {
+			e.Notify(err.Error())
+			return
+		}
+		d.path.SetText("")
+		e.NavigateWork(added.ID, TabOverview, "")
+	})
 }
 
 func (d *addDialog) layout(gtx layout.Context, e *env.Env) {
@@ -198,29 +221,22 @@ func (d *addDialog) layout(gtx layout.Context, e *env.Env) {
 			submitted = true
 		}
 	}
-	d.path.Label, d.path.Placeholder, d.path.Mono = i18n.T("Folder"), paths.Home()+"/Work/project", true
+	d.path.Title = i18n.T("Add a project")
+	d.path.Label, d.path.Placeholder = i18n.T("Folder"), paths.Home()+"/Work/project"
 	d.path.Help = i18n.T("A folder with a Git repository gets worktrees, review and its history.")
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.add.Kind, d.add.Label = kit.PlaqueGold, i18n.T("Add project")
-	folder := strings.TrimSpace(d.path.Text())
+	folder := d.path.Path()
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
 	if (d.add.Clicked(gtx) || submitted) && folder != "" {
-		var added protocol.ProjectInfo
-		e.Call(protocol.MProjectsAdd, protocol.ProjectAddParams{Path: folder}, &added, func(err error) {
-			if err != nil {
-				e.Notify(err.Error())
-				return
-			}
-			d.path.SetText("")
-			e.NavigateWork(added.ID, TabOverview, "")
-		})
+		d.submit(e, folder)
 		d.dialog.Dismiss(gtx)
 	}
 	d.dialog.Layout(gtx, th.Theme, i18n.T("Add a project"),
 		func(gtx layout.Context) layout.Dimensions {
-			dimensions := d.path.Layout(gtx, th.Theme)
+			dimensions := d.path.Layout(gtx, e)
 			if d.dialog.Open && !gtx.Focused(&d.path.Editor) && d.path.Editor.Len() == 0 {
 				d.path.Focus(gtx)
 			}

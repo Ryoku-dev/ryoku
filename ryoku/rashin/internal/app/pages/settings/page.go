@@ -19,10 +19,12 @@ import (
 const (
 	sectionRashin = iota
 	sectionProviders
+	sectionAPI
 	sectionAsk
 	sectionAgents
 	sectionIndex
 	sectionAppearance
+	sectionKeys
 	sectionCount
 )
 
@@ -42,6 +44,10 @@ type Page struct {
 
 	providers map[string]*providerRow
 	open      string
+	// provider ids in the order they were sorted into when Settings opened
+	providerOrder []string
+	usage         usage
+	api           apiPanel
 
 	models      protocol.ModelsResult
 	modelsReady bool
@@ -51,6 +57,8 @@ type Page struct {
 	harness   look.Select
 	approvals look.Select
 	idle      kit.Stepper
+	notices   kit.Toggle
+	install   env.HarnessInstall
 	instances map[string]*instanceEditor
 	fresh     instanceEditor
 	// id of the unfolded harness, or newInstance
@@ -69,14 +77,19 @@ func New() *Page {
 
 // a name it doesn't know leaves the page where it is
 func (p *Page) OpenSection(name string) {
+	p.providerOrder, p.usage.asked = nil, false
 	sections := map[string]int{
-		"rashin": sectionRashin, "about": sectionRashin, "providers": sectionProviders, "ask": sectionAsk,
+		"rashin": sectionRashin, "about": sectionRashin, "providers": sectionProviders, "api": sectionAPI, "ask": sectionAsk,
 		"agent": sectionAgents, "agents": sectionAgents, "index": sectionIndex, "appearance": sectionAppearance,
+		"keys": sectionKeys, "keyboard": sectionKeys,
 	}
 	if section, ok := sections[name]; ok {
 		p.jump(section)
 	}
 }
+
+// the question that stands before turning Rashin off
+func (p *Page) AskTurnOff() { p.offOpen, p.off.Dialog.Open, p.off.Danger = true, true, true }
 
 func (p *Page) jump(section int) {
 	p.current, p.jumped = section, true
@@ -92,12 +105,15 @@ func (p *Page) New(*env.Env) {}
 func (p *Page) NewLabel() string { return "" }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
+	if p.api.overlay(gtx, e) {
+		return true
+	}
 	if !p.offOpen {
 		return false
 	}
 	body := i18n.T("Its daemon stops, every agent stops with it, and nothing runs until you turn it on again. Your sessions and settings stay.")
 	if p.off.Layout(gtx, e.Theme.Theme, i18n.T("Turn Rashin off?"), body, i18n.T("Turn off"), "") {
-		env.Spawn("rashin", "off")
+		e.Rashin(nil, "off")
 	}
 	if p.off.Closed() {
 		p.offOpen = false
@@ -106,7 +122,7 @@ func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {
 }
 
 func sectionLabels() []string {
-	return []string{i18n.T("Rashin"), i18n.T("Providers"), i18n.T("Ask"), i18n.T("Agents"), i18n.T("Index"), i18n.T("Appearance")}
+	return []string{i18n.T("Rashin"), i18n.T("Providers"), i18n.T("Local API"), i18n.T("Ask"), i18n.T("Agents"), i18n.T("Index"), i18n.T("Appearance"), i18n.T("Keyboard")}
 }
 
 func (p *Page) Content(gtx layout.Context, e *env.Env) layout.Dimensions {
@@ -187,14 +203,18 @@ func (p *Page) layoutSections(gtx layout.Context, e *env.Env) layout.Dimensions 
 				return p.layoutRashin(gtx, e)
 			case sectionProviders:
 				return p.layoutProviders(gtx, e)
+			case sectionAPI:
+				return p.layoutAPI(gtx, e)
 			case sectionAsk:
 				return p.layoutAsk(gtx, e)
 			case sectionAgents:
 				return p.layoutAgents(gtx, e)
 			case sectionIndex:
 				return p.layoutIndex(gtx, e)
-			default:
+			case sectionAppearance:
 				return p.layoutAppearance(gtx, e)
+			default:
+				return p.layoutKeys(gtx, e)
 			}
 		})
 	})

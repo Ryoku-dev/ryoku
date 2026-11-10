@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -31,6 +30,8 @@ type Env struct {
 	Overlays     *look.Overlays
 	Navigate     Navigate
 	NavigateWork WorkNavigate
+	// OpenSettings shows one section of Settings, named as in its index.
+	OpenSettings func(section string)
 	Post         func(func())
 	Class        look.Class
 	// PanelOpen says whether the side panel is shown; TogglePanel flips it.
@@ -44,6 +45,10 @@ type Env struct {
 	SetZoom         func(percent int)
 	ReduceMotion    bool
 	SetReduceMotion func(bool)
+	// Notices says whether the desktop is told when an agent needs the reader.
+	Notices    bool
+	SetNotices func(bool)
+	Desktop    Desktop
 }
 
 func (e *Env) Snapshot() state.Snapshot { return e.Store.Snapshot() }
@@ -145,9 +150,9 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 		case chat.ActCopy:
 			gtx.Execute(clipboard.WriteCmd{Type: "text/plain", Data: io.NopCloser(strings.NewReader(action.Value))})
 		case chat.ActOpenPath, chat.ActOpenURL:
-			spawn("xdg-open", action.Value)
+			e.Open(action.Value)
 		case chat.ActRunCommand:
-			spawn("ryoku-app", "terminal", "--", "sh", "-c", action.Value+`; exec "$SHELL"`)
+			e.RunInTerminal(action.Value)
 		case chat.ActHandoff:
 			var info protocol.SessionInfo
 			e.Call(protocol.MSessionHandoff, protocol.HandoffParams{ID: id, Run: true, Text: action.Value}, &info, func(err error) {
@@ -189,16 +194,4 @@ func (e *Env) Submit(id string, busy bool, submission chat.Submission) {
 		method = protocol.MSessionSteer
 	}
 	e.Call(method, protocol.PromptParams{ID: id, Text: submission.Text, Images: images}, new(protocol.PromptResult), report)
-}
-
-func Spawn(name string, args ...string) { spawn(name, args...) }
-
-func spawn(name string, args ...string) {
-	go func() {
-		command := exec.Command(name, args...)
-		_ = command.Start()
-		if command.Process != nil {
-			_ = command.Process.Release()
-		}
-	}()
 }

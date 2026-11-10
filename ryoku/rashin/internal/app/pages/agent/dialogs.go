@@ -20,7 +20,8 @@ type createDialog struct {
 	dialog       kit.Dialog
 	start        kit.Plaque
 	cancel       kit.Plaque
-	folder, name kit.TextField
+	folder       env.PathField
+	name         kit.TextField
 	base, branch kit.TextField
 }
 
@@ -39,14 +40,14 @@ func (d *createDialog) layout(gtx layout.Context, e *env.Env) {
 	th := e.Theme
 	snapshot := e.Snapshot()
 	d.place.clamp(snapshot)
-	ready := len(installedHarnesses(snapshot)) > 0
+	ready := len(env.InstalledHarnesses(snapshot)) > 0
 	d.cancel.Kind, d.cancel.Label = kit.PlaqueQuiet, i18n.T("Cancel")
 	d.start.Kind, d.start.Label = kit.PlaqueGold, i18n.T("Start session")
 	if d.cancel.Clicked(gtx) {
 		d.dialog.Dismiss(gtx)
 	}
 	if d.start.Clicked(gtx) && ready {
-		more := details{folder: d.folder.Text(), name: d.name.Text(), base: d.base.Text(), branch: d.branch.Text()}
+		more := details{folder: d.folder.Path(), name: d.name.Text(), base: d.base.Text(), branch: d.branch.Text()}
 		if params, ok := d.place.params(snapshot, more); ok {
 			var info protocol.SessionInfo
 			e.Call(protocol.MSessionNew, params, &info, func(err error) {
@@ -79,7 +80,7 @@ func (d *createDialog) body(gtx layout.Context, e *env.Env) layout.Dimensions {
 	snapshot := e.Snapshot()
 	place := d.place
 	field := func(selection *look.Select, label string, options []string, selected int) layout.FlexChild {
-		selection.Form, selection.Label, selection.Icon = look.SelectField, label, nil
+		selection.Form, selection.Label, selection.Icon, selection.Return = look.SelectField, label, nil, nil
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Constraints.Max.X
 			return selection.Layout(gtx, th, e.Overlays, options, selected)
@@ -92,8 +93,8 @@ func (d *createDialog) body(gtx layout.Context, e *env.Env) layout.Dimensions {
 	gap := layout.Rigid(layout.Spacer{Height: th.Sp.S3}.Layout)
 	children := []layout.FlexChild{field(&place.project, i18n.T("Project"), place.projectLabels(snapshot), place.projectIndex), gap}
 	if place.projectIndex == 0 {
-		d.folder.Mono = true
-		children = append(children, text(&d.folder, i18n.T("Folder"), paths.Home()), gap)
+		d.folder.Title, d.folder.Label, d.folder.Placeholder = i18n.T("Where the agent works"), i18n.T("Folder"), paths.Home()
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions { return d.folder.Layout(gtx, e) }), gap)
 	} else {
 		project := snapshot.Projects[place.projectIndex-1]
 		children = append(children, field(&place.worktree, i18n.T("Worktree"), place.worktreeLabels(snapshot), place.worktreeIndex), gap)
@@ -106,12 +107,13 @@ func (d *createDialog) body(gtx layout.Context, e *env.Env) layout.Dimensions {
 			)
 		}
 	}
+	harnesses := env.InstalledHarnesses(snapshot)
 	children = append(children,
-		field(&place.harness, i18n.T("Harness"), place.harnessLabels(snapshot), place.harnessIndex),
+		field(&place.harness, i18n.T("Harness"), harnessLabels(harnesses), place.pick.Index(snapshot, harnesses)),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
-		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, approvalsNote(snapshot, len(installedHarnesses(snapshot)) == 0))),
+		layout.Rigid(look.Paragraph(th, th.T.Caption, th.R.Fg3, approvalsNote(snapshot, len(harnesses) == 0))),
 	)
-	place.update()
+	place.update(e, harnesses)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 

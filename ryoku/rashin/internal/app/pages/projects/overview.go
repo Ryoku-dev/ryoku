@@ -152,7 +152,8 @@ func (o *overviewState) layoutList(
 
 func (o *overviewState) layoutTools(gtx layout.Context, e *env.Env, page *pageState) layout.Dimensions {
 	th := e.Theme
-	o.fresh.Kind, o.fresh.Small, o.fresh.Icon, o.fresh.Label = kit.PlaqueGold, true, look.Icon.Add, i18n.T("New worktree")
+	// the pane's one gold action is starting a session in the worktree that is shown
+	o.fresh.Kind, o.fresh.Small, o.fresh.Icon, o.fresh.Label = kit.PlaqueLine, true, look.Icon.Add, i18n.T("New worktree")
 	if o.fresh.Clicked(gtx) {
 		info, _ := page.projectInfo(e)
 		o.openNew(e, page, info)
@@ -365,10 +366,10 @@ func (o *overviewState) handleActs(gtx layout.Context, e *env.Env, page *pageSta
 		e.NavigateWork(page.project, TabChanges, worktree.Path)
 	}
 	if row.terminal.Clicked(gtx) {
-		openTerminal(worktree.Path)
+		e.OpenTerminal(worktree.Path)
 	}
 	if row.folder.Clicked(gtx) {
-		openFolder(worktree.Path)
+		e.Open(worktree.Path)
 	}
 	if row.more.Clicked(gtx) {
 		o.openWorktreeMenu(gtx, e, page, worktree, row)
@@ -450,7 +451,7 @@ func worktreeFacts(th *look.Theme, worktree protocol.WorktreeInfo) []look.FactRo
 	}
 	rows = append(rows,
 		look.FactRow{Label: i18n.T("Head"), Value: shortHash(worktree.Head), Mono: true},
-		look.FactRow{Label: i18n.T("Folder"), Value: shortPath(worktree.Path, paths.Home()), Mono: true},
+		look.FactRow{Label: i18n.T("Folder"), Value: paths.Short(worktree.Path), Mono: true},
 	)
 	return rows
 }
@@ -558,7 +559,7 @@ func (o *overviewState) layoutPorts(gtx layout.Context, e *env.Env, row *worktre
 				plaque.Kind, plaque.Small, plaque.Icon = kit.PlaqueQuiet, true, look.Icon.OpenInNew
 				plaque.Label = fmt.Sprintf("%d  %s", port.Port, port.Command)
 				if plaque.Clicked(gtx) {
-					env.Spawn("xdg-open", port.URL)
+					e.Open(port.URL)
 				}
 				return plaque.Layout(gtx, th.Theme)
 			})

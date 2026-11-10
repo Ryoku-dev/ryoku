@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"image/color"
 	"strings"
 
 	"gioui.org/layout"
@@ -21,11 +20,11 @@ func (p *Page) layoutRashin(gtx layout.Context, e *env.Env) layout.Dimensions {
 	status := e.Snapshot().Status
 	p.turnOff.Kind, p.turnOff.Small, p.turnOff.Label = kit.PlaqueQuiet, true, i18n.T("Turn off")
 	if p.turnOff.Clicked(gtx) {
-		p.offOpen, p.off.Dialog.Open, p.off.Danger = true, true, true
+		p.AskTurnOff()
 	}
 	p.log.Kind, p.log.Small, p.log.Label = kit.PlaqueQuiet, true, i18n.T("Open log")
 	if p.log.Clicked(gtx) {
-		env.Spawn("xdg-open", paths.DaemonLog())
+		e.Open(paths.DaemonLog())
 	}
 	version := status.Version
 	if version == "" {
@@ -39,7 +38,7 @@ func (p *Page) layoutRashin(gtx layout.Context, e *env.Env) layout.Dimensions {
 		},
 		{
 			Title:   i18n.Tf("Version %s", version),
-			Detail:  i18n.Tf("The daemon writes what it does to %s.", shortHome(paths.DaemonLog())),
+			Detail:  i18n.Tf("The daemon writes what it does to %s.", paths.Short(paths.DaemonLog())),
 			Control: func(gtx layout.Context) layout.Dimensions { return p.log.Layout(gtx, th.Theme) },
 		},
 	})
@@ -67,11 +66,9 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 			Title:  i18n.T("Learn from the shell"),
 			Detail: i18n.T("Ask reads the commands you run often, so its answers fit how you work. They stay on this machine."),
 			Control: func(gtx layout.Context) layout.Dimensions {
-				dimensions := p.habits.Layout(gtx, th.Theme)
-				if p.habits.Changed() {
-					set(e, "ask", map[string]any{"habits": p.habits.Value})
-				}
-				return dimensions
+				return namedSwitch(gtx, th, i18n.T("Learn from the shell"), &p.habits, func(on bool) {
+					set(e, "ask", map[string]any{"habits": on})
+				})
 			},
 		},
 	})
@@ -123,10 +120,11 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 		}
 	}
 	p.idle.Value, p.idle.Min, p.idle.Max, p.idle.Step, p.idle.Unit = settings.IdleStopMinutes, 1, 120, 1, i18n.T("min")
+	p.notices.Value = e.Notices
 	rows := []look.Setting{
 		{
 			Title:  i18n.T("New sessions run"),
-			Detail: i18n.T("The harness a session uses unless you pick another when you start it."),
+			Detail: i18n.T("The harness a new session starts with. Picking another when you start one changes it here too."),
 			Control: func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Dp(260)
 				dimensions := p.harness.Layout(gtx, th, e.Overlays, harnessLabels, selectedHarness)
@@ -146,6 +144,13 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 					set(e, "agent", map[string]any{"approvals": approvalIDs[index]})
 				}
 				return dimensions
+			},
+		},
+		{
+			Title:  i18n.T("Tell me when an agent needs me"),
+			Detail: i18n.T("A desktop notification when one asks, fails or finishes while Rashin is not the window in front."),
+			Control: func(gtx layout.Context) layout.Dimensions {
+				return namedSwitch(gtx, th, i18n.T("Tell me when an agent needs me"), &p.notices, e.SetNotices)
 			},
 		},
 		{
@@ -171,18 +176,24 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 
 func (p *Page) layoutHarnesses(gtx layout.Context, e *env.Env, snapshot state.Snapshot) layout.Dimensions {
 	th := e.Theme
+	// what can run stands above what still has to be installed
 	rows := make([]look.Setting, 0, len(snapshot.Harnesses))
 	for _, harness := range snapshot.Harnesses {
-		if harness.Custom {
-			continue
+		if harness.Installed && !harness.Custom {
+			rows = append(rows, look.Setting{
+				Title: harness.Name, Detail: harnessDetail(harness),
+				Control: kit.Text(th.Theme, th.T.Label, th.R.Fg2, i18n.T("Installed")),
+			})
 		}
-		rows = append(rows, look.Setting{
-			Title: harness.Name, Detail: harnessDetail(harness),
-			Control: kit.Text(th.Theme, th.T.Label, harnessInk(th, harness), harnessWord(harness)),
-		})
 	}
+	rows = append(rows, p.install.Rows(gtx, e, snapshot)...)
 	children := []layout.FlexChild{
-		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Harnesses"))),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("Harnesses"))),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return p.install.Again(gtx, e) }),
+			)
+		}),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return look.SettingsSlab(gtx, th, rows) }),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
@@ -198,27 +209,7 @@ func (p *Page) layoutHarnesses(gtx layout.Context, e *env.Env, snapshot state.Sn
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-func harnessWord(harness protocol.HarnessInfo) string {
-	if harness.Installed {
-		return i18n.T("Installed")
-	}
-	return i18n.T("Not installed")
-}
-
-func harnessInk(th *look.Theme, harness protocol.HarnessInfo) color.NRGBA {
-	if harness.Installed {
-		return th.R.Fg2
-	}
-	return th.R.Fg3
-}
-
 func harnessDetail(harness protocol.HarnessInfo) string {
-	if !harness.Installed {
-		if harness.Install != "" {
-			return i18n.Tf("Install it with %s", harness.Install)
-		}
-		return i18n.T("Its command is not on this machine.")
-	}
 	parts := make([]string, 0, 7)
 	if harness.Version != "" {
 		parts = append(parts, harness.Version)
@@ -246,22 +237,18 @@ func (p *Page) layoutIndex(gtx layout.Context, e *env.Env) layout.Dimensions {
 			Title:  i18n.T("Read this system"),
 			Detail: i18n.T("Ask answers from your configuration, the manuals and Ryoku's documentation instead of from memory."),
 			Control: func(gtx layout.Context) layout.Dimensions {
-				dimensions := p.system.Layout(gtx, th.Theme)
-				if p.system.Changed() {
-					set(e, "index", map[string]any{"system": p.system.Value})
-				}
-				return dimensions
+				return namedSwitch(gtx, th, i18n.T("Read this system"), &p.system, func(on bool) {
+					set(e, "index", map[string]any{"system": on})
+				})
 			},
 		},
 		{
 			Title:  i18n.T("Search by meaning"),
 			Detail: i18n.T("Finds code and text that mean what you asked, not only what you typed. It takes more disk and a provider that makes embeddings."),
 			Control: func(gtx layout.Context) layout.Dimensions {
-				dimensions := p.semantic.Layout(gtx, th.Theme)
-				if p.semantic.Changed() {
-					set(e, "index", map[string]any{"semantic": p.semantic.Value})
-				}
-				return dimensions
+				return namedSwitch(gtx, th, i18n.T("Search by meaning"), &p.semantic, func(on bool) {
+					set(e, "index", map[string]any{"semantic": on})
+				})
 			},
 		},
 	})
@@ -287,11 +274,7 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 			Title:  i18n.T("Reduce motion"),
 			Detail: i18n.T("Everything changes at once instead of moving."),
 			Control: func(gtx layout.Context) layout.Dimensions {
-				dimensions := p.motion.Layout(gtx, th.Theme)
-				if p.motion.Changed() {
-					e.SetReduceMotion(p.motion.Value)
-				}
-				return dimensions
+				return namedSwitch(gtx, th, i18n.T("Reduce motion"), &p.motion, e.SetReduceMotion)
 			},
 		},
 		{
@@ -301,9 +284,11 @@ func (p *Page) layoutAppearance(gtx layout.Context, e *env.Env) layout.Dimension
 	})
 }
 
-func shortHome(path string) string {
-	if home := paths.Home(); home != "" && strings.HasPrefix(path, home+"/") {
-		return "~" + path[len(home):]
+// read right after it is drawn: by the next frame the setting has overwritten the flip
+func namedSwitch(gtx layout.Context, th *look.Theme, name string, toggle *kit.Toggle, flipped func(on bool)) layout.Dimensions {
+	dimensions := look.Named(gtx, name, func(gtx layout.Context) layout.Dimensions { return toggle.Layout(gtx, th.Theme) })
+	if toggle.Changed() && flipped != nil {
+		flipped(toggle.Value)
 	}
-	return path
+	return dimensions
 }
