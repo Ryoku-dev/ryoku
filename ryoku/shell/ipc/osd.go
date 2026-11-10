@@ -162,10 +162,11 @@ const (
 // daemon. The saved level is restored once, at startup, and only when the
 // device was readable then. A device unreadable at startup is retried like one
 // that went away. When the watched node disappears (the driver re-registered
-// the device on resume) the watcher re-resolves the device and reopens it,
-// backing off while it is missing, rather than polling a dead fd that reports
-// POLLERR forever.
+// the device on resume) the watcher reopens the same device, backing off while
+// it is missing, rather than polling a dead fd that reports POLLERR forever.
+// It re-resolves the primary backlight only once the backoff is at its cap.
 func (o *osdState) watchBacklight(dev string) {
+	want := dev
 	maxb, ok := readSysInt(filepath.Join(dev, "max_brightness"))
 	if !ok || maxb <= 0 {
 		dev = ""
@@ -179,7 +180,12 @@ func (o *osdState) watchBacklight(dev string) {
 		}
 		time.Sleep(delay)
 		delay = min(delay*2, backlightRetryMax)
-		if dev = backlightDevice(); dev == "" {
+		// while the device is still re-registering, the selector falls back to
+		// another backlight (a phantom on hybrid laptops) that never goes away
+		if want == "" || delay == backlightRetryMax {
+			want = backlightDevice()
+		}
+		if dev = want; dev == "" {
 			continue
 		}
 		if maxb, ok = readSysInt(filepath.Join(dev, "max_brightness")); !ok || maxb <= 0 {
