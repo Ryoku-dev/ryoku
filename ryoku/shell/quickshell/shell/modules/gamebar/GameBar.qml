@@ -500,10 +500,12 @@ PanelWindow {
         }
         // A dragged or resized card must not let the pointer fall through to
         // the bar, the dock or the game, so the surface takes the whole screen.
+        // It lets go with the bar: closing or suppressing mid-drag must not
+        // leave the game without a pointer.
         Region {
             x: 0; y: 0
-            width: (win.dragCard !== "" || win.resizeCard !== "") ? win.width : 0
-            height: (win.dragCard !== "" || win.resizeCard !== "") ? win.height : 0
+            width: win.takingInput && (win.dragCard !== "" || win.resizeCard !== "") ? win.width : 0
+            height: win.takingInput && (win.dragCard !== "" || win.resizeCard !== "") ? win.height : 0
             intersection: Intersection.Combine
         }
     }
