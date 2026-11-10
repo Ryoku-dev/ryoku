@@ -5,7 +5,8 @@ contributors (https://github.com/ilyamiro/serpantinum). It is a modified
 version: the QML surfaces are ported near-verbatim, while the data plane runs
 through Ryoku's window-manager seam, settings daemon, palette and services.
 
-This port tracks Serpantinum at commit 3619689, release 2.3.1. It includes the
+This port tracks Serpantinum at commit 3619689, release 2.3.1, plus the media
+module's hide-when-idle option from commit b4e470a. It includes the
 upstream bars, faces, media surfaces, guide and standalone settings window,
 launcher, clipboard presentation, policy prompt presentation, quick actions,
 wellbeing views and widget-face library. Ryoku supplies the application

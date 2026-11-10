@@ -31,6 +31,9 @@
 - **Album art no longer risks crashing the shell.** Covers in the bar, popouts,
   sidebar, launcher, dock and desktop music widget now come from the cover the
   shell daemon saves to disk, never from a web address loaded inside the shell.
+- **Python's media and visualizer modules can hide while nothing plays.** Both
+  cards in the Python guide gain a "Hide when nothing is playing" switch, and
+  "Fit to the track" shrinks the media title area to the song, up to its width.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

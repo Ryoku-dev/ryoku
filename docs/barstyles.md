@@ -894,6 +894,14 @@ converters, launcher web search, notes, app-limit views, widget undo and redo,
 shared media watchers and the 2.3.1 media, lyrics and blue-light fixes.
 Existing `python.*` settings remain valid.
 
+The media module carries Serpantinum's later **Hide when nothing is playing**
+option (`python.bar.mediaHideWhenIdle`, upstream `b4e470a`). Ryoku adds two
+more under the same guide cards: **Fit to the track** (`mediaFitWidth`) sizes
+the title area to the longer of the title and second line, capped at the
+module's width, and the visualizer's **Hide when nothing is playing**
+(`visHideWhenIdle`) removes it from the bar and stops its audio feed while no
+player is active. All three default off.
+
 Python draws its own Serpantinum launcher, clipboard and settings surfaces.
 The launcher reads Ryoku's application catalogue and routes web, calculator
 and converter results without starting Serpantinum services. The clipboard

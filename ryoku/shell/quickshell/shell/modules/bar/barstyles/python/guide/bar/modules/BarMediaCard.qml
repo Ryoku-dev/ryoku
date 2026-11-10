@@ -15,6 +15,7 @@ BarModuleCard {
         BarPreviewWidget {
             property string mediaInfoMode: tab.mediaInfoMode
             property int mediaWidth: tab.mediaWidth
+            property bool mediaFitWidth: tab.mediaFitWidth
             property bool mediaShowIcon: tab.mediaShowIcon
             property bool mediaShowControls: tab.mediaShowControls
         }
@@ -87,6 +88,31 @@ BarModuleCard {
             }
             onDragFinished: {
                 card.tab.setMediaWidth(card.tab.mediaWidth);
+            }
+        }
+    }
+
+    SettingsRow {
+        rootObj: card.rootObj
+        settingId: "bar_media_fit_width"
+        searchKeywords: "media song track size width fit auto adaptive shrink title artist"
+        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+        icon: "󰩨"
+        title: I18n.t("guide.bar.media.fit_width.title", "Fit to the track")
+        description: I18n.t("guide.bar.media.fit_width.desc", "Size the title area to the longer of the title and second line, up to the width above")
+        visible: !card.tab.isSideBar
+        searchable: !card.tab.isSideBar
+        hiddenByConfig: card.tab.isSideBar
+
+        Toggle {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            checked: card.tab.mediaFitWidth
+            accentColor: ThemeBackend.mauve
+            baseColor: ThemeBackend.surface1
+            handleColor: ThemeBackend.crust
+            handleOffColor: ThemeBackend.text
+            onToggled: function(c) {
+                card.tab.setMediaFitWidth(c);
             }
         }
     }

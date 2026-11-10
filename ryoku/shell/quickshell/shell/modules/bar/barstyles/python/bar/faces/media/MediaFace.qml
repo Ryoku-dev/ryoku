@@ -59,6 +59,7 @@ Item {
     readonly property string infoMode: readValue("mediaInfoMode", "mediaInfoMode", "duration")
     readonly property real configuredWidth: Number(readValue("mediaWidth", "mediaWidth", 120))
     readonly property bool showControls: readBool("mediaShowControls", "mediaShowControls")
+    readonly property bool fitWidth: Boolean(readValue("mediaFitWidth", "mediaFitWidth", false))
     readonly property bool hideWhenIdle: Boolean(readValue("mediaHideWhenIdle", "mediaHideWhenIdle", false))
     readonly property bool idleHidden: hideWhenIdle && !isPreview && !isMediaActive
     readonly property bool isFaceVisible: !idleHidden
@@ -112,7 +113,38 @@ Item {
 
     function sc(v) { return barWindow ? barWindow.cs(v) : v; }
 
-    property real colWidth: barWindow ? barWindow.cs(configuredWidth - (isCompact ? 4 : 0)) : (configuredWidth - (isCompact ? 4 : 0))
+    readonly property real maxColWidth: sc(configuredWidth - (isCompact ? 4 : 0))
+    property real colWidth: fitWidth
+        ? Math.min(maxColWidth, Math.max(sc(40), Math.ceil(Math.max(titleMetrics.advanceWidth, infoMetrics.advanceWidth))))
+        : maxColWidth
+
+    readonly property string titleText: isPreview ? I18n.t("guide.bar.media.preview.title", "Song title") : (isMediaActive ? (player ? player.trackTitle : "") : I18n.t("music.nothing_playing"))
+    readonly property string infoText: infoMode === "author"
+        ? (isPreview ? I18n.t("guide.bar.media.preview.author", "Song author") : (isMediaActive && player ? (player.trackArtist || "") : ""))
+        : (isPreview ? "01:24 / 03:42" : (isMediaActive && player ? (formatTime(MprisController.livePosition) + " / " + formatTime(player.length)) : ""))
+
+    TextMetrics {
+        id: titleMetrics
+        font.family: ThemeBackend.fontFamily
+        font.weight: Font.Black
+        font.pixelSize: root.sc(root.isCompact ? 11 : 12)
+        text: root.fitWidth ? root.titleText : ""
+    }
+
+    TextMetrics {
+        id: infoMetrics
+        font.family: ThemeBackend.fontFamily
+        font.weight: Font.Black
+        font.pixelSize: root.sc(root.isCompact ? 9 : 10)
+        // measure the duration line at its full length so the pill does not twitch every second
+        text: {
+            if (!root.fitWidth || !root.isMediaActive) return "";
+            if (root.infoMode === "author" || root.isPreview) return root.infoText;
+            let full = root.formatTime(root.player ? root.player.length : 0);
+            return full + " / " + full;
+        }
+    }
+
     property real innerSpacing: barWindow ? barWindow.cs(isCompact ? 6 : 8) : (isCompact ? 6 : 8)
     property real btnSpacing: barWindow ? barWindow.cs(isCompact ? 3 : 4) : (isCompact ? 3 : 4)
     property real sidePadding: barWindow ? barWindow.cs(isCompact ? 6 : 8) : (isCompact ? 6 : 8)
@@ -265,7 +297,7 @@ Item {
 
                                 MarqueeText {
                                     width: parent.width
-                                    text: root.isPreview ? I18n.t("guide.bar.media.preview.title", "Song title") : (isMediaActive ? (player ? player.trackTitle : "") : I18n.t("music.nothing_playing"))
+                                    text: root.titleText
                                     color: ThemeBackend.text
                                     font.family: ThemeBackend.fontFamily
                                     font.weight: Font.Black
@@ -276,9 +308,7 @@ Item {
                                 }
 
                                 Text {
-                                    text: root.infoMode === "author"
-                                        ? (root.isPreview ? I18n.t("guide.bar.media.preview.author", "Song author") : (isMediaActive && player ? (player.trackArtist || "") : ""))
-                                        : (root.isPreview ? "01:24 / 03:42" : (isMediaActive && player ? (root.formatTime(MprisController.livePosition) + " / " + root.formatTime(player.length)) : ""))
+                                    text: root.infoText
                                     font.family: ThemeBackend.fontFamily
                                     font.weight: Font.Black
                                     font.pixelSize: barWindow ? barWindow.cs(root.isCompact ? 9 : 10) : (root.isCompact ? 9 : 10)

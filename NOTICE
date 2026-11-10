@@ -51,7 +51,8 @@ released under the GNU General Public License version 3 with additional section
 ryoku/shell/quickshell/inir/.
 
 The Python bar style (ryoku/shell/quickshell/shell/modules/bar/barstyles/python/)
-is based on Serpantinum at commit 3619689 (release 2.3.1) by ilyamiro and
+is based on Serpantinum at commit 3619689 (release 2.3.1), plus the media
+module's hide-when-idle option from commit b4e470a, by ilyamiro and
 contributors (https://github.com/ilyamiro/serpantinum). It is a modified
 version: Ryoku renamed it, gave it its own mark, runs its data plane through
 Ryoku's neutral window-manager seam and services, and uses Ryoku's application

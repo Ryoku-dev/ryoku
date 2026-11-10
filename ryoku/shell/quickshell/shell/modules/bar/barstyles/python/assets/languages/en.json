@@ -460,6 +460,10 @@
         "continuous": {
           "title": "Continuous wave",
           "desc": "Render a smooth fluid wave instead of discrete bars"
+        },
+        "hide_when_idle": {
+          "title": "Hide when nothing is playing",
+          "desc": "Hide the visualizer from the bar while no media is active"
         }
       },
       "sysmon": {
@@ -596,6 +600,10 @@
         "width": {
           "title": "Width",
           "desc": "Width of the song title area"
+        },
+        "fit_width": {
+          "title": "Fit to the track",
+          "desc": "Size the title area to the longer of the title and second line, up to the width above"
         },
         "show_icon": {
           "title": "Show icon",

@@ -152,4 +152,26 @@ BarModuleCard {
             }
         }
     }
+
+    SettingsRow {
+        rootObj: card.rootObj
+        settingId: "bar_vis_hide_when_idle"
+        searchKeywords: "visualizer cava hide idle nothing playing empty stopped auto"
+        baseColor: Qt.alpha(ThemeBackend.surface1, 0.35)
+        icon: "󰝛"
+        title: I18n.t("guide.bar.vis.hide_when_idle.title", "Hide when nothing is playing")
+        description: I18n.t("guide.bar.vis.hide_when_idle.desc", "Hide the visualizer from the bar while no media is active")
+
+        Toggle {
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            checked: card.tab.visHideWhenIdle
+            accentColor: ThemeBackend.mauve
+            baseColor: ThemeBackend.surface1
+            handleColor: ThemeBackend.crust
+            handleOffColor: ThemeBackend.text
+            onToggled: function(c) {
+                card.tab.setVisHideWhenIdle(c);
+            }
+        }
+    }
 }
