@@ -700,19 +700,11 @@ Item {
         }
 
         // Password through stdin: /proc/<pid>/cmdline is world-readable for the
-        // whole attempt, so it MUST NOT be in argv. A WPA-Personal join writes
-        // the passphrase into a fresh profile (nmcli connection edit reads it
-        // from stdin) and activates it with no secret agent, so a wrong one
-        // fails at once; `nmcli --ask` made nmcli the agent, and NetworkManager
-        // waited on it for a new secret until nmcli's 90-second timeout. Any
-        // saved profile of that name is replaced, and a failed join cleans up
-        // after itself like any first join.
-        function keyMgmtFor(ssid) {
-            var sec = wifi.securityMap[ssid] || "";
-            if (/802\.1X/.test(sec))
-                return "";
-            return (/WPA3/.test(sec) && !/WPA1|WPA2/.test(sec)) ? "sae" : "wpa-psk";
-        }
+        // whole attempt, so it MUST NOT be in argv, and never through `nmcli
+        // connection edit`, which keeps every line it reads in
+        // ~/.cache/nmcli-history. connProc closes stdin after the password, so
+        // a rejected one ends nmcli's --ask prompt at once. Any saved profile of
+        // that name is replaced, and a failed join cleans up like a first join.
         function connectWithPassword(ssid, pw) {
             if (connProc.running || !pw.length)
                 return;
@@ -723,16 +715,9 @@ Item {
             wifi.attemptWasKnown = false;
             wifi.attemptAutoOff = wifi.knownProfiles[ssid] === true && wifi.autoconnectMap[ssid] === false;
             wifi.pendingPw = pw;
-            var km = wifi.keyMgmtFor(ssid);
-            connProc.command = km.length
-                ? ["sh", "-c",
-                    'IFS= read -r pw || exit 1; '
-                    + 'nmcli connection delete id "$1" >/dev/null 2>&1; '
-                    + 'nmcli connection add type wifi con-name "$1" ssid "$1" wifi-sec.key-mgmt "$2" >/dev/null || exit 1; '
-                    + 'printf "set wifi-sec.psk %s\\nsave\\nquit\\n" "$pw" | nmcli connection edit id "$1" >/dev/null || exit 1; '
-                    + 'exec nmcli connection up id "$1"',
-                    "sh", ssid, km]
-                : ["sh", "-c", 'nmcli connection delete id "$1" >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"', "sh", ssid];
+            connProc.command = ["sh", "-c",
+                'nmcli connection delete id "$1" </dev/null >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"',
+                "sh", ssid];
             connProc.stdinEnabled = true;
             connProc.running = true;
         }
