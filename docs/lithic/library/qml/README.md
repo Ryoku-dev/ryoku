@@ -120,7 +120,7 @@ Each token candidate list is checked against `Qt.fontFamilies()` in order. The f
 |---|---|
 | `hoverFill(fill, t)` | Filled-control hover mix. Omit `t` for the complete state. |
 | `hoverInk(ink, t)` | Transparent-control hover ink. |
-| `hoverPlane(plane, t)` | Plane hover transition toward `stone3`. |
+| `hoverPlane(plane, t)` | Plane hover transition toward `stone3`; `stone4` instead mixes in `fg` at the hover-plane alpha. |
 | `pressRow(fill, t)` | Row and menu press tint. |
 | `pressCutGrow` | Extra cut depth while a control is pressed. |
 | `pressSink` | Content offset while a control is pressed. |
@@ -130,7 +130,7 @@ Each token candidate list is checked against `Qt.fontFamilies()` in order. The f
 | `focusGap` | Space outside the control before the focus ring. |
 | `focusCut(controlCut)` | Focus-ring cut for a control cut. |
 
-A filled control should bind its normal and hovered fill through `hoverFill`, add `pressCutGrow` to every cut while pressed, and offset content by `pressSink`. A transparent control uses `hoverInk`. Rows use `hoverPlane` on hover and `pressRow` while pressed. Apply `disabledOpacity` to the whole control.
+A filled control should bind its normal and hovered fill through `hoverFill`, add `pressCutGrow` to every cut while pressed, and offset content by `pressSink`. A transparent control uses `hoverInk`. Rows use `hoverPlane` on hover and `pressRow` while pressed. `hoverPlane` keeps the plane-up recipe below `stone4`; on `stone4` it mixes in `fg` because no plane sits above it. Apply `disabledOpacity` to the whole control.
 
 Interactive phase 2 controls build on `QtQuick.Templates`. They use the template's `visualFocus` to distinguish keyboard focus from pointer focus:
 

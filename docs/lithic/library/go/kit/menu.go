@@ -113,8 +113,8 @@ func (m *Menu) Layout(gtx layout.Context, th *theme.Theme, items []MenuItem) lay
 					hover := hoverValue(gtx, th, &m.hover[index], hovered && !item.Disabled)
 					press := transitionValue(gtx, &m.press[index], pressed && !item.Disabled, th.Motion.Press, th.Motion.Press)
 					if hover > 0 || press > 0 {
-						fill := palette.Mix(th.R.Stone4, th.R.Stone3, hover)
-						fill = palette.Mix(fill, th.R.Fg, tokens.AlphaPressRow*press)
+						amount := max(tokens.AlphaHoverPlane*hover, tokens.AlphaPressRow*press)
+						fill := palette.Mix(th.R.Stone4, th.R.Fg, amount)
 						FillCut(gtx.Ops, image.Rect(0, 0, gtx.Constraints.Max.X, height), 0, fill)
 					}
 					semantic.Button.Add(gtx.Ops)

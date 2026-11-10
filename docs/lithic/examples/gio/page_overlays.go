@@ -69,7 +69,7 @@ func newOverlaysPage() *overlaysPage {
 	page.menuAnchor = kit.Plaque{Kind: kit.PlaqueQuiet, Label: "Machine actions"}
 	page.menuItems = []kit.MenuItem{
 		{Icon: page.fleetIcon, Label: "Open ubuntu-24.04", Shortcut: "Enter"},
-		{Icon: page.activityIcon, Label: "View activity", Shortcut: "Ctrl A"},
+		{Icon: page.activityIcon, Label: "View activity", Shortcut: "Ctrl A", Preview: kit.StateHover},
 		{Divider: true},
 		{Label: "Stop scratch-arch", Danger: true},
 		{Label: "GPU passthrough unavailable", Disabled: true},

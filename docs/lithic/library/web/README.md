@@ -166,7 +166,7 @@ The inner stroke cut is corrected by `cut - width * (2 - sqrt(2))`. Fill and str
 
 Recipes are opt-in composition classes:
 
-- `l-recipe-hover` mixes a filled `--l-hover-fill` toward white. Set `data-l-hover="transparent"` and `--l-hover-ink` for transparent controls, or `data-l-hover="plane"` and `--l-hover-plane` for a plane step.
+- `l-recipe-hover` mixes a filled `--l-hover-fill` toward white. Set `data-l-hover="transparent"` and `--l-hover-ink` for transparent controls, or `data-l-hover="plane"` and `--l-hover-plane` for a plane step. A row on `stone4` instead mixes in `fg` at `--lithic-alpha-hover-plane` because no plane sits above it.
 - `l-recipe-press` deepens every cut by the token press amount and sinks content by the token distance. Set `data-l-press="row"` for the row recipe; `--l-row-fill` is its base.
 - `l-recipe-focus` supplies focus transition timing to a composed focus surface. The visible ring comes from `l-focus-ring`.
 - `l-recipe-disabled` applies token opacity and blocks pointer input for native `:disabled`, `aria-disabled="true"`, or `data-disabled="true"`.

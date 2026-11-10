@@ -134,7 +134,8 @@ Derived tones are computed, never picked:
 | mineral field | `mix(stone2, mineral, 0.17)` for jade, `0.15` for lapis, amber, jasper; idle field is `stone3` |
 | hover on a filled plaque | `mix(fill, white, 0.10)` |
 | hover on a transparent plaque | ink at alpha `0.10` |
-| hover on a tablet, menu row, rail tile | step one plane up (`stone2` to `stone3`, `stone4` to `stone3`, `stone1` to `stone3`) |
+| hover on a tablet or rail tile below `stone4` | step one plane up (`stone2` to `stone3`, `stone1` to `stone3`) |
+| hover on a row on `stone4` | `mix(stone4, fg, 0.06)`; nothing is above `stone4`, so it must not step down |
 | press on a tablet or menu row | add `fg` at alpha `0.08` |
 | disabled | the whole control at opacity `0.5` |
 | focus ring | a 2 dp `fg2` stroke, 2 dp outside the control's cut, cut enlarged by 2 dp |

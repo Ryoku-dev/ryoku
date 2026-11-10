@@ -129,7 +129,8 @@ Compute these from the roles above; never pick them.
 | `stone(tone)` the state's ink | jade, lapis, amber (also for paused), jasper; idle is `vein` |
 | hover on a filled plaque | `mix(fill, white, 0.10)` |
 | hover on a transparent plaque | ink at alpha 0.10 |
-| hover on a tablet / menu row / rail tile | one plane up: `stone2 → stone3`, `stone4 → stone3`, `stone1 → stone3` |
+| hover on a tablet or rail tile below `stone4` | one plane up: `stone2 → stone3`, `stone1 → stone3` |
+| hover on a row on `stone4` | `mix(stone4, fg, 0.06)`; nothing is above `stone4`, so it must not step down |
 | hover on field controls | add `fg` at alpha 0.06 |
 | press on a tablet / menu row | add `fg` at alpha 0.08 |
 | selected tablet pressed | `onSel` at alpha 0.08 |

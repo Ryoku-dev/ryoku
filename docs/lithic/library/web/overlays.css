@@ -108,14 +108,14 @@
 .l-menu-item:focus-visible,
 .l-menu-item[data-l-state="hover"],
 .l-menu-item[data-l-state="focus"] {
-  background: var(--lithic-stone3);
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-hover-plane) * 100%), var(--lithic-stone4));
   outline: none;
   transition-duration: var(--lithic-motion-hover-in);
 }
 
 .l-menu-item:active,
 .l-menu-item[data-l-state="pressed"] {
-  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-stone3));
+  background: color-mix(in srgb, var(--lithic-fg) calc(var(--lithic-alpha-press-row) * 100%), var(--lithic-stone4));
 }
 
 .l-menu-item > .l-glyph {

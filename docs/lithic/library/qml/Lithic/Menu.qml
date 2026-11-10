@@ -105,9 +105,9 @@ T.Control {
                     CutRect {
                         anchors.fill: parent
                         fill: menuItem.down || menuItem.forcedPress
-                              ? Lithic.pressRow(Lithic.stone3, 1)
+                              ? Lithic.pressRow(Lithic.stone4, 1)
                               : menuItem.hovered || menuItem.forcedHover
-                                ? Lithic.stone3 : "transparent"
+                                ? Lithic.hoverPlane(Lithic.stone4, 1) : "transparent"
                         cut: 0
                         ChiselColorBehavior on fill {
                             duration: menuItem.hovered || menuItem.forcedHover

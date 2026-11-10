@@ -187,6 +187,8 @@ QtObject {
 
     function hoverPlane(plane, progress) {
         var t = progress === undefined ? 1 : Math.max(0, Math.min(1, progress));
+        if (Qt.colorEqual(plane, stone4))
+            return mix(plane, fg, LithicTokens.alpha.hoverPlane * t);
         return mix(plane, stone3, t);
     }
 

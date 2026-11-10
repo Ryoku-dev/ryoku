@@ -385,9 +385,10 @@ Library: QML Lithic.Popover, web .l-popover, Go kit.Popover, terminal -
 
 A menu is `stone4`, cut 8, 220 to 360 wide, with 6 vertical padding. Items
 are 40 high with 16 inset, a 20 icon, 12 gap, `label` text, and shortcut 13
-after in `fg3`. Hover fades to `stone3`; press dips by adding `fg` at alpha
-0.08. Danger ink is `jasper`; disabled ink `fg3`. Dividers are 1 dp `vein`
-with 8 inset. Reference: `ui/kit/menu.go`.
+after in `fg3`. Hover mixes `fg` into `stone4` at alpha 0.06 because nothing
+is above the top plane; it never steps down to `stone3`. Press mixes `fg` into
+`stone4` at alpha 0.08. Danger ink is `jasper`; disabled ink `fg3`. Dividers
+are 1 dp `vein` with 8 inset. Reference: `ui/kit/menu.go`.
 
 Library: QML Lithic.Menu, web .l-menu, Go kit.Menu, terminal term.RenderMenu
 

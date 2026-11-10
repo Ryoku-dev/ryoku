@@ -23,6 +23,8 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
 - [ ] Every state shows a mineral, a shape (notch, flake, field) and a word.
       No lone dots, no colour-only state.
 - [ ] Disabled controls use alpha 0.5 and do not hover.
+- [ ] Rows on `stone4` hover with `fg` at alpha 0.06 and press at 0.08.
+      They never step down to `stone3`; lower planes keep the plane-up recipe.
 
 ## Shape
 
