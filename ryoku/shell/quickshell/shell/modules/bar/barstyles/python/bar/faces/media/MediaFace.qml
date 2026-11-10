@@ -59,6 +59,9 @@ Item {
     readonly property string infoMode: readValue("mediaInfoMode", "mediaInfoMode", "duration")
     readonly property real configuredWidth: Number(readValue("mediaWidth", "mediaWidth", 120))
     readonly property bool showControls: readBool("mediaShowControls", "mediaShowControls")
+    readonly property bool hideWhenIdle: Boolean(readValue("mediaHideWhenIdle", "mediaHideWhenIdle", false))
+    readonly property bool idleHidden: hideWhenIdle && !isPreview && !isMediaActive
+    readonly property bool isFaceVisible: !idleHidden
     readonly property bool showIcon: isVertical ? (readBool("mediaShowIcon", "mediaShowIcon") || !showControls) : readBool("mediaShowIcon", "mediaShowIcon")
 
     property var player: MprisController.activePlayer
@@ -124,6 +127,7 @@ Item {
 
     property real targetLength: {
         if (module && !module.moduleActive) return 0;
+        if (idleHidden) return 0;
         if (isVertical) return baseHeight;
         let iconW = 0;
         if (showIcon) {
