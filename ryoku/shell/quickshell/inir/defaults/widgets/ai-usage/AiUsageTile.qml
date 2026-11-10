@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
 
-// AI usage desktop tile — the quiet wallpaper face of the same module data.
+// AI usage desktop tile: the quiet wallpaper face of the same module data.
 // The bar face lives in IrisCompact.qml; both read UsageModel.
 import QtQuick
 import inir
@@ -64,10 +64,10 @@ AbstractBackgroundWidget {
         }
 
         StyledText {
-            text: !usage.has ? "—"
+            text: !usage.has ? "-"
                 : usage.hasPlan && usage.windows.length > 0
                     ? usage.windows[0].pct + "% · " + usage.windows[0].label
-                    : usage.kmg(usage.today) + " tokens today"
+                    : Translation.tr("%1 tokens today").arg(usage.kmg(usage.today))
             font {
                 pixelSize: Math.round(Appearance.font.pixelSize.large * root.scaleFactor)
                 family: Appearance.font.family.numbers

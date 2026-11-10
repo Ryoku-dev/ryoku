@@ -32,7 +32,7 @@ AiUsageGlassCard {
                 id: emptyTitle
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
-                text: "AI usage · " + page.toolLabel
+                text: Translation.tr("AI usage · %1").arg(page.toolLabel)
                 font.pixelSize: Math.round(12 * IrisStyle.density)
                 font.weight: IrisStyle.weight(Font.DemiBold)
             }
@@ -49,8 +49,8 @@ AiUsageGlassCard {
             width: parent.width
             role: IrisText.Meta
             color: IrisStyle.muted
-            text: "No " + page.tool + " usage yet. Run " + page.tool
-                + ", then tap ↻ — the collector writes ~/.cache/ai-usage/" + page.tool + "-usage.json."
+            text: Translation.tr("No %1 usage yet. Run %2, then tap refresh. The collector writes %3.")
+                .arg(page.toolLabel).arg(page.tool).arg("~/.cache/ai-usage/" + page.tool + "-usage.json")
             wrapMode: Text.WordWrap
         }
     }

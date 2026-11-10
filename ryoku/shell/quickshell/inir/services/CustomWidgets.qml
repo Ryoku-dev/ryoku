@@ -20,9 +20,9 @@ Singleton {
         const seen = new Set();
         return root.widgets.concat(root.shippedWidgets.filter(widget => widget.irisBuiltin))
             .filter(widget => {
-                if (seen.has(widget.id)) return false;
+                if (!String(widget.irisQmlPath || "").length || seen.has(widget.id)) return false;
                 seen.add(widget.id);
-                return String(widget.irisQmlPath || "").length > 0;
+                return true;
             });
     }
     readonly property bool ready: _scanDone

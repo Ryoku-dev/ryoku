@@ -12,9 +12,10 @@ moved across versions, so try each in turn:
 
 The 2.x message store is the accurate history: every assistant message and
 compaction call carries its own timestamp, so a session that spans days lands
-on the days it ran. Session aggregates still true up each session's totals when
-the message store misses a row (a retried or pruned request); that difference
-is spread across the session's own messages in proportion to their tokens.
+on the days it ran. Session aggregates true up a session only when its recorded
+creation time falls within the loaded horizon. A positive residual for a
+retried or pruned request is assigned to the newest loaded message; a lifetime
+residual from an older or undated session is not assigned to a recent day.
 Before this, one aggregate per session keyed by time_updated dumped a whole
 multi-day session, and any bulk migration that touched old sessions, onto the
 day of that touch.
@@ -360,17 +361,18 @@ def load_session_v2_aggregates(cutoff_ms: int, skip_session_ids: set | None = No
     try:
         with con:
             try:
+                created = "time_created" if "time_created" in _table_columns(con, "session_v2") else "0"
                 rows = con.execute(
                     "select id, model, tokens_input, tokens_output, "
                     "tokens_reasoning, tokens_cache_read, tokens_cache_write, "
-                    "cost, time_updated "
+                    f"cost, time_updated, {created} "
                     "from session_v2 where time_updated >= ? "
                     "order by time_updated asc",
                     (cutoff_ms,),
                 ).fetchall()
             except sqlite3.Error:
                 return []
-        for sid, model_raw, inp, output, reasoning, cr, cw, cost, tu in rows:
+        for sid, model_raw, inp, output, reasoning, cr, cw, cost, tu, tc in rows:
             if str(sid or "") in skip_session_ids:
                 continue
             try:
@@ -399,6 +401,7 @@ def load_session_v2_aggregates(cutoff_ms: int, skip_session_ids: set | None = No
                 "total_with_cache_read": total + cr,
                 "cost": as_float(cost),
                 "time": as_int(tu),
+                "_history_complete": 0 < as_int(tc) and as_int(tc) >= cutoff_ms,
             })
     except sqlite3.Error:
         return []
@@ -466,9 +469,11 @@ def load_messages(horizon_s: float = WINDOW_HORIZON_S) -> list[dict]:
     for agg in aggs:
         sid = str(agg.get("session_id") or "")
         rows = by_session.get(sid) if per_message_v2 else None
-        if rows:
+        # A lifetime residual cannot be dated when the session predates the
+        # loaded message horizon, or when its creation time is unknown.
+        if rows and agg.get("_history_complete", False):
             balance_session(rows, agg)
-        elif sid not in covered:
+        elif not rows and sid not in covered:
             msgs.append(agg)
     msgs.sort(key=lambda m: m["time"])
     return msgs

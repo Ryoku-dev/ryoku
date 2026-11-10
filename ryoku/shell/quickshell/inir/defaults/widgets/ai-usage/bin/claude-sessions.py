@@ -128,7 +128,43 @@ def _process_state(metadata, proc_root):
     return "alive" if str(started) == fields[19] else "dead"
 
 
-def collect_sessions(config, now_ms=None, proc_root=Path("/proc")):
+class TranscriptState:
+    def __init__(self, now_ms):
+        self.now_ms = now_ms
+        self.sessions = {}
+        self.transitions = {}
+        self.titles = {}
+
+    def session(self, sid):
+        return self.sessions.setdefault(sid, {"id": sid, "title": "Claude session", "directory": "",
+            "started": 0, "updated": 0, "running": False,
+            "activityState": "unknown", "activityEvidence": "no_lifecycle"})
+
+    def observe(self, event, path, index):
+        if not isinstance(event, dict) or event.get("isSidechain"):
+            return
+        sid = str(event.get("sessionId") or Path(path).stem)
+        session = self.session(sid)
+        stamp = _epoch_ms(event.get("timestamp"))
+        if stamp and stamp <= self.now_ms + 60000:
+            session["started"] = min(session["started"] or stamp, stamp)
+            session["updated"] = max(session["updated"], stamp)
+            if event.get("cwd"):
+                session["directory"] = str(event["cwd"])
+            transition = _transition(event)
+            if transition:
+                # Timestamp first makes copied/older transcript files
+                # unable to resurrect a completed turn.
+                order = (stamp, index, str(path))
+                if order >= self.transitions.get(sid, ((0, 0, ""), None))[0]:
+                    self.transitions[sid] = (order, transition)
+        if event.get("type") == "custom-title":
+            title = _text(event.get("customTitle"))
+            if title:
+                self.titles[sid] = title
+
+
+def collect_sessions(config, now_ms=None, proc_root=Path("/proc"), transcript_state=None):
     """Return session metadata keyed by ID, suitable for merging with usage.
 
     ``running`` requires a registered, verified live Claude process and either
@@ -141,47 +177,22 @@ def collect_sessions(config, now_ms=None, proc_root=Path("/proc")):
     """
     config, proc_root = Path(config), Path(proc_root)
     now_ms = int(time.time() * 1000) if now_ms is None else now_ms
-    sessions = {}
-    transitions = {}
-    titles = {}
-
-    def get_session(sid):
-        return sessions.setdefault(sid, {"id": sid, "title": "Claude session", "directory": "",
-            "started": 0, "updated": 0, "running": False,
-            "activityState": "unknown", "activityEvidence": "no_lifecycle"})
-
-    for path in sorted((config / "projects").rglob("*.jsonl")):
-        try:
-            handle = path.open(errors="replace")
-        except OSError:
-            continue
-        with handle:
-            for index, line in enumerate(handle):
-                try:
-                    event = json.loads(line)
-                except ValueError:
-                    continue  # Claude may still be writing the final JSON line.
-                if not isinstance(event, dict) or event.get("isSidechain"):
-                    continue
-                sid = str(event.get("sessionId") or path.stem)
-                session = get_session(sid)
-                stamp = _epoch_ms(event.get("timestamp"))
-                if stamp and stamp <= now_ms + 60000:
-                    session["started"] = min(session["started"] or stamp, stamp)
-                    session["updated"] = max(session["updated"], stamp)
-                    if event.get("cwd"):
-                        session["directory"] = str(event["cwd"])
-                    transition = _transition(event)
-                    if transition:
-                        # Timestamp first makes copied/older transcript files
-                        # unable to resurrect a completed turn.
-                        order = (stamp, index, str(path))
-                        if order >= transitions.get(sid, ((0, 0, ""), None))[0]:
-                            transitions[sid] = (order, transition)
-                if event.get("type") == "custom-title":
-                    title = _text(event.get("customTitle"))
-                    if title:
-                        titles[sid] = title
+    state = transcript_state if transcript_state is not None else TranscriptState(now_ms)
+    if transcript_state is None:
+        for path in sorted((config / "projects").rglob("*.jsonl")):
+            try:
+                handle = path.open(errors="replace")
+            except OSError:
+                continue
+            with handle:
+                for index, line in enumerate(handle):
+                    try:
+                        event = json.loads(line)
+                    except ValueError:
+                        continue  # Claude may still be writing the final JSON line.
+                    state.observe(event, path, index)
+    sessions, transitions, titles = state.sessions, state.transitions, state.titles
+    get_session = state.session
 
     metadata_by_session = {}
     for path in sorted((config / "sessions").glob("*.json")):

@@ -108,8 +108,9 @@ for finer detail.
 ### Added
 - Shima includes an optional AI usage dashboard for OpenCode, Codex and Claude,
   with token history, sessions, models, account limits, reset times and local
-  API value. Bundled collectors keep its data in private widget caches. Enable
-  it in Island settings under Desktop page > Your modules.
+  API value. Bundled collectors refresh private caches every 15 seconds after
+  the module first loads, including while closed, and refresh when opened.
+  Enable it in Island settings under Desktop page > Your modules.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar

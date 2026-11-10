@@ -21,6 +21,7 @@ Start with the guide that matches the job:
 - **Understand the desktop:** [what Ryoku is](ryoku.md), [UI and motion
   rules](ui-ux.md), [bar styles](barstyles.md), [sidebars](sidebars.md),
   [launcher](launcher.md), [frame](frame.md), [Stage Editor](stage.md),
+  [AI usage dashboard](ai-usage.md),
   [Ryogami](ryogami.md), [RyoStore](store.md), [profiles](profile.md),
   [theming](theming.md), [performance](performance.md), [power](power.md) and
   [plugins](plugins.md).
@@ -115,6 +116,9 @@ truth for the live desktop.
   prompter; see `ipc/prompter.go` and `ipc/secretexchange.go`), and serves the
   control socket). `deploy.sh` and `dev-*.sh` are the live
   dev-loop tools.
+  The bundled Shima AI usage dashboard lives under
+  `quickshell/inir/defaults/widgets/ai-usage/`, with its own collectors,
+  private-cache model and background refresh worker. See [AI usage](ai-usage.md).
 - `ui/` `Ryoku.Ui`, the shared QML module the shell, the Hub and the apps all
   import for one look: the design tokens (`Singletons/Tokens.qml`), the shared
   primitives, and the wallpaper palette. It also hosts the desktop spectrum

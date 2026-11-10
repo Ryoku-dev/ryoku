@@ -7,6 +7,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "refresh" as Background
 
 Item {
     id: root
@@ -122,32 +123,38 @@ Item {
         return latest
     }
     // "18 min. ago", and nothing at all before the first message.
-    function relative(ms: double): string {
+    function relative(ms: double, translate: var): string {
         root.tick
         if (!(ms > 0)) return ""
+        const tr = typeof translate === "function" ? translate : value => value
         const mins = Math.max(0, Math.round((Date.now() - ms) / 60000))
-        if (mins < 2) return "just now"
-        if (mins < 60) return mins + " min. ago"
+        if (mins < 2) return tr("just now")
+        if (mins < 60) return tr("%1 min. ago").replace("%1", String(mins))
         const h = Math.floor(mins / 60)
-        if (h < 24) return h + (h === 1 ? " hr. ago" : " hrs. ago")
+        if (h < 24) return tr(h === 1 ? "%1 hr. ago" : "%1 hrs. ago").replace("%1", String(h))
         const d = Math.floor(h / 24)
-        return d + (d === 1 ? " day ago" : " days ago")
+        return tr(d === 1 ? "%1 day ago" : "%1 days ago").replace("%1", String(d))
     }
 
-    function resetAt(ts: double): string {
+    function resetAt(ts: double, translate: var): string {
         root.tick
         if (!(ts > 0) || !Number.isFinite(ts)) return ""
         const deadline = new Date(ts * 1000)
         if (!Number.isFinite(deadline.getTime())) return ""
         const label = Qt.formatDateTime(deadline, "d MMM, h:mm AP t")
-        return (ts <= Date.now() / 1000 ? "reset was " : "resets ") + label
+        const tr = typeof translate === "function" ? translate : value => value
+        return tr(ts <= Date.now() / 1000 ? "reset was %1" : "resets %1").replace("%1", label)
     }
 
     Component.onCompleted: {
+        root.collectionReady = Background.UsageRefresh.collectionReady
         cacheFile.reload()
         root.refresh()
     }
-    onVisibleChanged: if (root.visible) root.refresh()
+    onVisibleChanged: if (root.visible) {
+        cacheFile.reload()
+        root.refresh()
+    }
     onToolChanged: {
         // Keep the current numbers visible while the other cache loads. A
         // switch whose cache is missing or unreadable ends in empty(), either
@@ -194,22 +201,10 @@ Item {
         return String(value)
     }
 
-    // Resolve beside this component so installed custom copies and bundled
-    // modules always invoke their own collectors, including paths with spaces.
-    readonly property string collectorPath: decodeURIComponent(
-        String(Qt.resolvedUrl("bin/collect-usage")).replace(/^file:\/\//, ""))
-    readonly property var collectorCommand: {
-        if (root.tool === "claude") return [root.collectorPath, "--claude-only"]
-        const custom = String(Quickshell.env("RYOKU_AI_USAGE_COLLECTOR") || "")
-        return custom.length > 0 ? [root.collectorPath, custom] : [root.collectorPath]
-    }
-
     function refresh(): void {
-        if (root.refreshing || collector.running) return
-        root.refreshing = true
+        Background.UsageRefresh.refresh()
+        root.refreshing = Background.UsageRefresh.refreshing
         staleTimer.restart()
-        collector.running = false
-        collector.running = true
     }
 
     function parse(text: string, modifiedAt: double): void {
@@ -345,23 +340,19 @@ Item {
     Timer {
         interval: 6000
         repeat: true
-        running: root._missing
+        running: root._missing && root.visible
         onTriggered: cacheFile.reload()
     }
 
-    Process {
-        id: collector
-        command: root.collectorCommand
-        onExited: (exitCode, exitStatus) => {
+    Connections {
+        target: Background.UsageRefresh
+        function onCollected(exitCode: int): void {
             if (exitCode === 0) root.collectionReady = true
-            if (exitCode === 75 && root.visible) retryTimer.restart()
             _pendingReloadTimer.restart()
         }
-    }
-    Timer {
-        id: retryTimer
-        interval: 2000
-        onTriggered: if (root.visible) root.refresh()
+        function onRefreshingChanged(): void {
+            root.refreshing = Background.UsageRefresh.refreshing
+        }
     }
     Timer {
         id: _pendingReloadTimer
@@ -401,16 +392,6 @@ Item {
         triggeredOnStart: true
         running: root.has
         onTriggered: root.tick++
-    }
-    // Claude's local lifecycle can change during a short turn. Its own launcher
-    // path refreshes every five seconds without polling the other agents.
-    // Other tools retain the minute interval.
-    Timer {
-        interval: root.tool === "claude" ? 5000 : 60000
-        repeat: true
-        triggeredOnStart: true
-        running: root.visible
-        onTriggered: root.refresh()
     }
     Connections {
         target: cacheFile

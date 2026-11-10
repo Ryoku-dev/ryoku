@@ -40,7 +40,7 @@ Item {
                 anchors.right: spendPeriod.left
                 anchors.rightMargin: Math.round(6 * IrisStyle.density)
                 anchors.verticalCenter: parent.verticalCenter
-                text: "API Value"
+                text: Translation.tr("API Value")
                 elide: Text.ElideRight
                 maximumLineCount: 1
                 font.pixelSize: Math.round(12 * IrisStyle.density)
@@ -53,7 +53,7 @@ Item {
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: "This month" + (body.page.planAgent
+                text: Translation.tr("This month") + (body.page.planAgent
                     && (body.page.monthly.partial || body.page.monthly.stale) ? "*" : "")
             }
             MouseArea {
@@ -80,7 +80,7 @@ Item {
                 IrisText {
                     id: spendMetric
                     role: IrisText.Metric
-                    text: body.page.monthly.available === false ? "—"
+                    text: body.page.monthly.available === false ? "-"
                         : body.page.money(body.page.monthly.current)
                     width: Math.min(implicitWidth,
                         Math.max(0, spendRow.width - spendMonth.implicitWidth - spendRow.spacing))

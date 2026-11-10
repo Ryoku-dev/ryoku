@@ -104,8 +104,8 @@ AiUsageGlassCard {
     function spanLabel(days: int): string {
         if (days <= 0) return ""
         if (days >= 7 && days % 7 === 0)
-            return (days / 7) + (days === 7 ? " week" : " weeks")
-        return days + (days === 1 ? " day" : " days")
+            return (days === 7 ? Translation.tr("%1 week") : Translation.tr("%1 weeks")).arg(days / 7)
+        return (days === 1 ? Translation.tr("%1 day") : Translation.tr("%1 days")).arg(days)
     }
 
     // The card's headline is the whole history, not just the mapped weeks.
@@ -131,7 +131,7 @@ AiUsageGlassCard {
         spacing: page.step * 2
 
         AiUsageFoldHeader {
-            title: "Activity"
+            title: Translation.tr("Activity")
             expanded: card.expanded
             onToggled: card.expanded = !card.expanded
             // The run of active days, with its own explanation on hover.
@@ -183,7 +183,7 @@ AiUsageGlassCard {
                         role: IrisText.Meta
                         color: IrisStyle.muted
                         font.pixelSize: Math.round(10 * IrisStyle.density)
-                        text: card.streak + "-day streak"
+                        text: Translation.tr("%1-day streak").arg(card.streak)
                     }
                 }
             }
@@ -249,7 +249,7 @@ AiUsageGlassCard {
                     role: IrisText.Eyebrow
                     color: IrisStyle.muted
                     font.pixelSize: Math.round(10 * IrisStyle.density)
-                    text: "all time"
+                    text: Translation.tr("all time")
                 }
                 Item {
                     id: activeRow
@@ -265,7 +265,7 @@ AiUsageGlassCard {
                         role: IrisText.Eyebrow
                         color: IrisStyle.muted
                         font.pixelSize: Math.round(10 * IrisStyle.density)
-                        text: "Active days"
+                        text: Translation.tr("Active days")
                     }
                     IrisText {
                         id: activeValue
@@ -289,7 +289,7 @@ AiUsageGlassCard {
                         role: IrisText.Eyebrow
                         color: IrisStyle.muted
                         font.pixelSize: Math.round(10 * IrisStyle.density)
-                        text: "Busiest day"
+                        text: Translation.tr("Busiest day")
                     }
                     IrisText {
                         id: busiestValue
@@ -300,7 +300,7 @@ AiUsageGlassCard {
                         text: card.map.busiest && card.map.busiest.value > 0
                             ? page.dayLabel(card.map.busiest.date) + " · "
                                 + usage.kmg(card.map.busiest.value)
-                            : "—"
+                            : "-"
                     }
                 }
             }

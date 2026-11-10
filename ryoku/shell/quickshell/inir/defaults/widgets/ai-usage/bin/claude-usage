@@ -14,6 +14,8 @@ def collect(config, cache):
     shared = runpy.run_path(str(Path(__file__).resolve().with_name("codex-usage")))
     helpers = {name: runpy.run_path(str(Path(__file__).resolve().with_name("claude-" + name + ".py")))
                for name in ("quota", "sessions", "spending")}
+    now = shared["now_epoch"]()
+    transcript_state = helpers["sessions"]["TranscriptState"](int(now * 1000))
     requests = {}
     sessions = {}
     files = list((config / "projects").rglob("*.jsonl"))
@@ -24,12 +26,13 @@ def collect(config, cache):
         except OSError:
             continue
         with handle:
-            for line in handle:
+            for index, line in enumerate(handle):
                 try:
                     event = json.loads(line)
                 except ValueError:
                     malformed += 1
                     continue
+                transcript_state.observe(event, path, index)
                 if not isinstance(event, dict) or event.get("type") != "assistant":
                     continue
                 message = event.get("message")
@@ -135,8 +138,8 @@ def collect(config, cache):
         models.add(row["model"])
         efforts.add(row["effort"])
     messages.sort(key=lambda r: r["time"])
-    now = shared["now_epoch"]()
-    lifecycle = helpers["sessions"]["collect_sessions"](config, now_ms=int(now * 1000))
+    lifecycle = helpers["sessions"]["collect_sessions"](
+        config, now_ms=int(now * 1000), transcript_state=transcript_state)
     for sid, metadata in lifecycle.items():
         session = sessions.setdefault(sid, {"id": sid, "tokens": 0, "cost": 0.0})
         session.update(metadata)

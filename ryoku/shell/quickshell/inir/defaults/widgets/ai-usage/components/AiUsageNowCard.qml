@@ -77,6 +77,7 @@ AiUsageGlassCard {
                     // 1.6 s cycle. A constant loop keeps the speed honest.
                     SequentialAnimation {
                         running: true
+                        paused: !liveDot.visible || !liveDot.live
                         loops: Animation.Infinite
                         NumberAnimation {
                             target: liveDot
@@ -98,7 +99,7 @@ AiUsageGlassCard {
                 }
                 IrisText {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "Sessions"
+                    text: Translation.tr("Sessions")
                     font.pixelSize: Math.round(12 * IrisStyle.density)
                     font.weight: IrisStyle.weight(Font.DemiBold)
                 }
@@ -110,7 +111,7 @@ AiUsageGlassCard {
                 role: IrisText.Meta
                 color: IrisStyle.muted
                 font.pixelSize: Math.round(10 * IrisStyle.density)
-                text: usage.relative(usage.lastActivityMs)
+                text: usage.relative(usage.lastActivityMs, page.translateTime)
             }
         }
 
@@ -139,8 +140,8 @@ AiUsageGlassCard {
                         font.pixelSize: Math.round(9 * IrisStyle.density)
                         elide: Text.ElideRight
                         maximumLineCount: 1
-                        text: page.elapsedLabel(modelData?.started ?? 0) + " · "
-                            + usage.kmg(Number(modelData?.tokens ?? 0)) + " tokens"
+                        text: Translation.tr("%1 · %2 tokens").arg(page.elapsedLabel(modelData?.started ?? 0))
+                            .arg(usage.kmg(Number(modelData?.tokens ?? 0)))
                     }
                 }
             }
@@ -153,7 +154,7 @@ AiUsageGlassCard {
                 text: page.activeTool === "claude" && usage.sessions.some(
                     session => session?.activityState === "unknown"
                         && session?.activityEvidence !== "no_lifecycle")
-                    ? "session status unavailable" : "no session running"
+                    ? Translation.tr("session status unavailable") : Translation.tr("no session running")
             }
         }
     }

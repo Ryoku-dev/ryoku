@@ -25,19 +25,19 @@ AiUsageGlassCard {
         if (buckets.length === 0) return ""
         if (chart.hovered >= 0 && chart.hovered < buckets.length) {
             const bucket = buckets[chart.hovered]
-            return page.bucketLabel(bucket) + " · " + usage.kmg(bucket.tokens) + " tokens"
+            return Translation.tr("%1 · %2 tokens").arg(page.bucketLabel(bucket)).arg(usage.kmg(bucket.tokens))
         }
         const first = buckets.length > 0 ? page.bucketLabel(buckets[0]) : ""
         const last = buckets.length > 0 ? page.bucketLabel(buckets[buckets.length - 1]) : ""
         const range = first === last ? first : first + " – " + last
         if (page.trend.unit === "hours") {
-            return range + " · " + usage.kmg(page.trend.total) + " tokens · peak "
-                + usage.kmg(page.trend.peak) + "/h"
+            return Translation.tr("%1 · %2 tokens · peak %3/h")
+                .arg(range).arg(usage.kmg(page.trend.total)).arg(usage.kmg(page.trend.peak))
         }
         const window = !page.hourly && page.periodDays === 0 && buckets.length === 45
-            ? " · last 45 days" : ""
-        return range + " · " + usage.kmg(page.trend.total)
-            + " tokens · peak " + usage.kmg(page.trend.peak) + window
+            ? " · " + Translation.tr("last 45 days") : ""
+        return Translation.tr("%1 · %2 tokens · peak %3")
+            .arg(range).arg(usage.kmg(page.trend.total)).arg(usage.kmg(page.trend.peak)) + window
     }
 
     Column {
@@ -48,7 +48,7 @@ AiUsageGlassCard {
         spacing: page.step * 2
 
         AiUsageFoldHeader {
-            title: "Trend"
+            title: Translation.tr("Trend")
             expanded: card.expanded
             onToggled: card.expanded = !card.expanded
             // A control at every width: collapsed it opens the card, expanded

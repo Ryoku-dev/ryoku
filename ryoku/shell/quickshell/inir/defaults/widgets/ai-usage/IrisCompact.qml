@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
 
-// AI usage — the Shima Island's AI page, laid out like Vorssaint's Dynamic
+// AI usage: the Shima Island's AI page, laid out like Vorssaint's Dynamic
 // Island page: a grid of small cards.
 //
 //   [ Limits | Now ]  ← Limits only when the cache reports a real plan
@@ -60,6 +60,19 @@ Item {
         return String(root.agentOptions[0]?.value ?? "opencode")
     }
     readonly property string toolLabel: root.labels[root.activeTool] ?? root.activeTool
+    readonly property var timeLabels: ({
+        "just now": Translation.tr("just now"),
+        "%1 min. ago": Translation.tr("%1 min. ago"),
+        "%1 hr. ago": Translation.tr("%1 hr. ago"),
+        "%1 hrs. ago": Translation.tr("%1 hrs. ago"),
+        "%1 day ago": Translation.tr("%1 day ago"),
+        "%1 days ago": Translation.tr("%1 days ago"),
+        "reset was %1": Translation.tr("reset was %1"),
+        "resets %1": Translation.tr("resets %1")
+    })
+    function translateTime(value: string): string {
+        return root.timeLabels[value] ?? value
+    }
     property bool _fallbackWritten: false
 
     // The Island's Desktop page body is iris.bar.pageWidth minus its 20px
@@ -73,11 +86,11 @@ Item {
         Number(CustomWidgets.getConfigValue("ai-usage", "topModels", 3))))
 
     readonly property var periodOptions: [
-        { value: "today", label: "Today" },
-        { value: "24h", label: "Last 24 hours" },
-        { value: "7", label: "Last 7 days" },
-        { value: "30", label: "Last 30 days" },
-        { value: "all", label: "All time" }
+        { value: "today", label: Translation.tr("Today") },
+        { value: "24h", label: Translation.tr("Last 24 hours") },
+        { value: "7", label: Translation.tr("Last 7 days") },
+        { value: "30", label: Translation.tr("Last 30 days") },
+        { value: "all", label: Translation.tr("All time") }
     ]
     readonly property string periodKey: {
         const stored = String(CustomWidgets.getConfigValue("ai-usage", "period", "30"))
@@ -87,7 +100,7 @@ Item {
     readonly property int periodDays: root.periodKey === "all" ? 0 : Number(root.periodKey)
     readonly property string periodLabel: {
         const option = root.periodOptions.find(entry => entry.value === root.periodKey)
-        return option ? option.label : "Last 30 days"
+        return option ? option.label : Translation.tr("Last 30 days")
     }
 
     readonly property int pad: Math.round(10 * IrisStyle.density)
@@ -131,17 +144,17 @@ Item {
         return ({ current: total, label: root.monthLabel(key) })
     }
     readonly property string spendHelp: {
-        if (root.activeTool === "opencode") return "This month's recorded usage cost."
+        if (root.activeTool === "opencode") return Translation.tr("This month's recorded usage cost.")
         const estimate = usageModel.spending
-        let text = "Estimated cost at published API rates.\nNot a bill or wallet balance."
+        let text = Translation.tr("Estimated cost at published API rates.\nNot a bill or wallet balance.")
         if (usageModel.plan.toLowerCase() === "plus")
-            text += "\nYour Plus usage is covered by your plan."
+            text += "\n" + Translation.tr("Your Plus usage is covered by your plan.")
         if (root.activeTool === "claude")
-            text += "\nLocal Claude Code history only. Shared-account use on other devices is not included."
-        if (root.monthly.partial) text += "\nSome usage lacks rates or complete pricing data."
-        if (estimate?.price_date) text += "\nLatest saved prices: " + estimate.price_date + "."
-        if (root.monthly.stale) text += "\nPrice refresh pending; saved rates are in use."
-        if (!root.monthly.available) text += "\nNo priced usage is available yet."
+            text += "\n" + Translation.tr("Local Claude Code history only. Shared-account use on other devices is not included.")
+        if (root.monthly.partial) text += "\n" + Translation.tr("Some usage lacks rates or complete pricing data.")
+        if (estimate?.price_date) text += "\n" + Translation.tr("Latest saved prices: %1.").arg(estimate.price_date)
+        if (root.monthly.stale) text += "\n" + Translation.tr("Price refresh pending; saved rates are in use.")
+        if (!root.monthly.available) text += "\n" + Translation.tr("No priced usage is available yet.")
         return text
     }
     readonly property bool hasCostHistory: usageModel.days.some(day => Number(day?.cost ?? 0) > 0)
@@ -314,7 +327,7 @@ Item {
         if (String(model.cacheWriteLabel ?? "0") !== "0") parts.push("CW " + model.cacheWriteLabel)
         let text = parts.join("  ")
         if (model.cacheRate !== undefined && model.cacheRate !== null)
-            text += " · " + Math.round(Number(model.cacheRate) * 100) + "% cached"
+            text += " · " + Translation.tr("%1% cached").arg(Math.round(Number(model.cacheRate) * 100))
         return text
     }
 
@@ -404,7 +417,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 role: IrisText.Eyebrow
                 color: IrisStyle.muted
-                text: "AI USAGE"
+                text: Translation.tr("AI USAGE")
             }
         }
 

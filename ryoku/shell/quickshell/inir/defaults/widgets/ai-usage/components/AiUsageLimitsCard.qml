@@ -82,7 +82,7 @@ AiUsageGlassCard {
                         role: IrisText.Meta
                         color: IrisStyle.muted
                         font.pixelSize: Math.round(10 * IrisStyle.density)
-                        text: "tokens today"
+                        text: Translation.tr("tokens today")
                         elide: Text.ElideRight
                         maximumLineCount: 1
                     }
@@ -91,7 +91,7 @@ AiUsageGlassCard {
                         role: IrisText.Meta
                         color: IrisStyle.muted
                         font.pixelSize: Math.round(10 * IrisStyle.density)
-                        text: "(incl. cached)"
+                        text: Translation.tr("(incl. cached)")
                         elide: Text.ElideRight
                         maximumLineCount: 1
                     }
@@ -108,8 +108,8 @@ AiUsageGlassCard {
                 caption: modelData.caption
                 share: modelData.pct + "% used"
                 proportion: modelData.pct / 100
-                resetLabel: modelData.resetTs > 0 ? card.usage.resetAt(modelData.resetTs)
-                    : page.activeTool === "claude" ? "reset time unavailable" : ""
+                resetLabel: modelData.resetTs > 0 ? card.usage.resetAt(modelData.resetTs, page.translateTime)
+                    : page.activeTool === "claude" ? Translation.tr("reset time unavailable") : ""
             }
         }
 
@@ -121,9 +121,9 @@ AiUsageGlassCard {
             color: IrisStyle.muted
             font.pixelSize: Math.round(9 * IrisStyle.density)
             wrapMode: Text.Wrap
-            text: card.displayedWindows.length === 0 ? "Usage limits unavailable"
-                : (usage.quota?.stale === true ? "Last known · " : "Account · ")
-                    + usage.relative(Number(usage.quota?.observed_at ?? 0) * 1000)
+            text: card.displayedWindows.length === 0 ? Translation.tr("Usage limits unavailable")
+                : (usage.quota?.stale === true ? Translation.tr("Last known · %1") : Translation.tr("Account · %1"))
+                    .arg(usage.relative(Number(usage.quota?.observed_at ?? 0) * 1000, page.translateTime))
             MouseArea {
                 id: quotaHelp
                 anchors.fill: parent
@@ -131,12 +131,12 @@ AiUsageGlassCard {
                 acceptedButtons: Qt.NoButton
                 StyledToolTip {
                     extraVisibleCondition: quotaHelp.containsMouse
-                    text: String(card.usage.quota?.message ?? "Account usage unavailable")
-                        + "\nDesktop and CLI subscription logins are supported."
-                        + "\nLimits include use on other devices."
-                        + "\nReset times use your local time zone."
+                    text: (Translation.tr(String(card.usage.quota?.message ?? "")) || Translation.tr("Account usage unavailable"))
+                        + "\n" + Translation.tr("Desktop and CLI subscription logins are supported.")
+                        + "\n" + Translation.tr("Limits include use on other devices.")
+                        + "\n" + Translation.tr("Reset times use your local time zone.")
                         + (card.usage.quota?.stale === true
-                            ? "\nSaved usage may be out of date." : "")
+                            ? "\n" + Translation.tr("Saved usage may be out of date.") : "")
                 }
             }
         }
