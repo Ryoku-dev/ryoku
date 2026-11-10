@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell.Io
+import shell.services
 import "../../components"
 import Ryoku.Ui.Singletons
 import "look"
