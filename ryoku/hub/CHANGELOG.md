@@ -18,6 +18,9 @@
 - **Switch layouts says what Super+Space costs.** Picking it now notes that it
   takes over the Space key, so Persian ZWNJ on Shift+Space and AltGr+Space stop
   working, and that Alt+Shift keeps them (#781).
+- **Saved Wi-Fi networks can be forgotten, and a rejected saved password asks
+  for a new one.** Connections shows Forget on saved rows, and a saved network
+  whose stored password fails reopens the password field with a same-name hint.
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows

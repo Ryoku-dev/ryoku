@@ -507,6 +507,13 @@ Item {
         property string attemptSsid: ""
         property string attemptBand: ""
         property bool attemptWasKnown: false
+        property bool attemptAutoOff: false
+
+        property string authFailedSsid: ""
+        // held here so a failure still lands after a rescan rebuilds the row
+        property var pendingNet: null
+        property string forgetArmed: ""
+        property bool forgetBusy: false
 
         readonly property real colMax: 720
 
@@ -628,12 +635,16 @@ Item {
             var secKnown = wifi.securityMap[ssid] !== undefined;
             if (wifi.knownProfiles[ssid] === true || (secKnown && !wifi.isSecured(ssid))) {
                 wifi.expandedSsid = "";
+                wifi.connectFailed = false;
+                wifi.authFailedSsid = "";
                 if (wifi.pickedBand(ssid).length) {
                     wifi.connectBand(ssid);
                     return;
                 }
-                if (typeof net.connect === "function")
+                if (typeof net.connect === "function") {
+                    wifi.pendingNet = net;
                     net.connect();
+                }
                 wifi.refresh();
                 return;
             }
@@ -642,18 +653,57 @@ Item {
             wifi.expandedSsid = ssid;
         }
 
-        // `nmcli --ask`, password through stdin. /proc/<pid>/cmdline is world-
-        // readable for the whole attempt, so it MUST NOT be in argv.
-        function connectWithPassword(ssid, pw) {
-            if (connProc.running || !pw.length)
+        // WifiNetworkLost is an AP out of range, not a password problem
+        function isAuthFailure(reason) {
+            return reason === ConnectionFailReason.NoSecrets
+                || reason === ConnectionFailReason.WifiClientDisconnected
+                || reason === ConnectionFailReason.WifiClientFailed
+                || reason === ConnectionFailReason.WifiAuthTimeout;
+        }
+
+        function savedJoinRejected(ssid) {
+            if (!ssid.length)
                 return;
+            wifi.connectFailed = true;
+            wifi.authFailedSsid = ssid;
+            wifi.pwDraft = "";
+            wifi.expandedSsid = ssid;
+        }
+
+        function requestForget(ssid) {
+            if (wifi.forgetBusy || !ssid.length)
+                return;
+            if (wifi.forgetArmed !== ssid) {
+                wifi.forgetArmed = ssid;
+                forgetReset.restart();
+                return;
+            }
+            forgetReset.stop();
+            wifi.forgetBusy = true;
+            forgetProc.command = ["nmcli", "connection", "delete", "id", ssid];
+            forgetProc.running = true;
+        }
+
+        // `nmcli --ask`, password through stdin. /proc/<pid>/cmdline is world-
+        // readable for the whole attempt, so it MUST NOT be in argv. a saved
+        // profile goes first: iwd keeps one per SSID and would retry the old secret.
+        function connectWithPassword(ssid, pw) {
+            if (connProc.running || replaceProc.running || !pw.length)
+                return;
+            var replacing = wifi.knownProfiles[ssid] === true;
             wifi.connecting = true;
             wifi.connectFailed = false;
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
-            wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptWasKnown = false;
+            wifi.attemptAutoOff = replacing && wifi.autoconnectMap[ssid] === false;
             wifi.pendingPw = pw;
             connProc.command = ["nmcli", "--ask", "dev", "wifi", "connect", ssid];
+            if (replacing) {
+                replaceProc.command = ["nmcli", "connection", "delete", "id", ssid];
+                replaceProc.running = true;
+                return;
+            }
             connProc.running = true;
         }
 
@@ -661,13 +711,14 @@ Item {
         // after the join (nmcli's connect target takes no settings), never to
         // one AP's BSSID, so the client still roams across the band.
         function connectBand(ssid) {
-            if (connProc.running)
+            if (connProc.running || replaceProc.running)
                 return;
             wifi.connecting = true;
             wifi.connectFailed = false;
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
             wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
+            wifi.attemptAutoOff = false;
             wifi.pendingPw = "";
             connProc.command = ["nmcli", "dev", "wifi", "connect", ssid];
             connProc.running = true;
@@ -772,7 +823,7 @@ Item {
             id: connProc
             stdinEnabled: true
             stdout: StdioCollector {}
-            stderr: StdioCollector {}
+            stderr: StdioCollector { id: connErr }
             onStarted: {
                 write(wifi.pendingPw + "\n");
                 wifi.pendingPw = "";
@@ -783,20 +834,71 @@ Item {
                     wifi.expandedSsid = "";
                     wifi.pwDraft = "";
                     wifi.connectFailed = false;
-                    if (wifi.attemptBand.length && wifi.attemptSsid.length) {
-                        bandProc.command = ["nmcli", "connection", "modify", wifi.attemptSsid,
-                            "802-11-wireless.band", wifi.attemptBand];
+                    wifi.authFailedSsid = "";
+                    var mods = [];
+                    if (wifi.attemptBand.length)
+                        mods.push("802-11-wireless.band", wifi.attemptBand);
+                    if (wifi.attemptAutoOff)
+                        mods.push("connection.autoconnect", "no");
+                    if (mods.length && wifi.attemptSsid.length) {
+                        bandProc.command = ["nmcli", "connection", "modify", wifi.attemptSsid].concat(mods);
                         bandProc.running = true;
                         return;
                     }
                     wifi.refresh();
                 } else {
                     wifi.connectFailed = true;
-                    if (!wifi.attemptWasKnown && wifi.attemptSsid.length) {
+                    if (wifi.attemptWasKnown) {
+                        if (/secret|supplicant|password/i.test(connErr.text))
+                            wifi.savedJoinRejected(wifi.attemptSsid);
+                    } else if (wifi.attemptSsid.length) {
                         cleanupProc.command = ["nmcli", "connection", "delete", "id", wifi.attemptSsid];
                         cleanupProc.running = true;
                     }
                 }
+            }
+        }
+
+        Process {
+            id: replaceProc
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
+            onExited: connProc.running = true
+        }
+
+        Process {
+            id: forgetProc
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
+            onExited: {
+                if (wifi.expandedSsid === wifi.forgetArmed)
+                    wifi.expandedSsid = "";
+                if (wifi.authFailedSsid === wifi.forgetArmed)
+                    wifi.authFailedSsid = "";
+                wifi.forgetArmed = "";
+                wifi.forgetBusy = false;
+                wifi.refresh();
+            }
+        }
+
+        Timer {
+            id: forgetReset
+            interval: 3000
+            onTriggered: wifi.forgetArmed = ""
+        }
+
+        Connections {
+            target: wifi.pendingNet
+            ignoreUnknownSignals: true
+            function onConnectionFailed(reason) {
+                var ssid = wifi.pendingNet ? (wifi.pendingNet.name || "") : "";
+                wifi.pendingNet = null;
+                if (wifi.isAuthFailure(reason))
+                    wifi.savedJoinRejected(ssid);
+            }
+            function onConnectedChanged() {
+                if (wifi.pendingNet && wifi.pendingNet.connected)
+                    wifi.pendingNet = null;
             }
         }
 
@@ -809,10 +911,10 @@ Item {
             onExited: wifi.refresh()
         }
 
-        // lock the just-joined profile to the picked band. nmcli's `dev wifi
-        // connect` takes no settings, so the band rides on the profile after
-        // the join; the profile name equals the SSID (nmcli names it after the
-        // SSID), the same keying the autoconnect toggle uses.
+        // carry the picked band (and an auto-reconnect the user had off) onto
+        // the just-joined profile. nmcli's `dev wifi connect` takes no
+        // settings, so they ride on the profile after the join; the profile
+        // name equals the SSID, the same keying the autoconnect toggle uses.
         Process {
             id: bandProc
             stdout: StdioCollector {}
@@ -1199,9 +1301,20 @@ Item {
                                         onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
                                     }
                                 }
+
+                                Btn {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Tokens.s4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    compact: true
+                                    text: wifi.forgetArmed === netItem.ssid ? I18n.tr("Confirm \u00b7 Forget") : I18n.tr("Forget")
+                                    primary: wifi.forgetArmed === netItem.ssid
+                                    armed: !wifi.forgetBusy
+                                    onAct: wifi.requestForget(netItem.ssid)
+                                }
                             }
 
-                            // password row. secured + unknown only.
+                            // password row. secured + unknown, or saved with a rejected secret.
                             Item {
                                 width: parent.width
                                 height: netItem.expanded ? 44 : 0
@@ -1244,7 +1357,7 @@ Item {
                                         Text {
                                             anchors.fill: parent
                                             visible: pwField.text === ""
-                                            text: I18n.tr("Password")
+                                            text: netItem.known ? I18n.tr("New password") : I18n.tr("Password")
                                             color: Tokens.inkMuted
                                             font: pwField.font
                                             verticalAlignment: Text.AlignVCenter
@@ -1292,11 +1405,28 @@ Item {
                                 visible: height > 0.5
                                 Behavior on height { NumberAnimation { duration: Tokens.move; easing.type: Tokens.ease } }
 
-                                ErrChip {
+                                Row {
                                     anchors.left: parent.left
                                     anchors.leftMargin: Tokens.s4
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: I18n.tr("Connection failed")
+                                    spacing: Tokens.s3
+
+                                    ErrChip {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: wifi.authFailedSsid === netItem.ssid
+                                            ? I18n.tr("Wrong password, or a different network with the same name?")
+                                            : I18n.tr("Connection failed")
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        visible: netItem.known && wifi.authFailedSsid === netItem.ssid
+                                        text: I18n.tr("A new password replaces the saved one.")
+                                        color: Tokens.inkMuted
+                                        font.family: Tokens.ui
+                                        font.pixelSize: Tokens.fMicro
+                                        font.weight: Font.Medium
+                                    }
                                 }
                             }
                         }
