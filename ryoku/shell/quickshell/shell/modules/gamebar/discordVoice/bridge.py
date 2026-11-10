@@ -540,6 +540,8 @@ class VoiceBridge:
                 return
             try:
                 message = json.loads(line)
+                if not isinstance(message, dict):
+                    raise ValueError("bridge command is not an object")
                 command = message.get("cmd")
                 if command == "connect":
                     # An explicit reconnect deserves a fresh look: Discord may
