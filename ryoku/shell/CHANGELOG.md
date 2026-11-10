@@ -134,6 +134,30 @@
   OSD, polkit prompts, the dock, desktop widgets and the window close follow
   the active item, and `ryoku-shell bar` is replaced by QS Bar's own `qsbar` IPC
   target while QS Bar is active.
+- **The battery list widget's percentages read cleanly at any charge.** Below a
+  full charge the dark text meant for the fill was drawn over the whole row, so
+  the numbers on the empty part looked smudged; it now stops at the fill edge (#791).
+- **Brightness no longer pins the shell daemon at 100% CPU after resume.** A
+  driver that re-registers its backlight across suspend (nvidia) left the OSD
+  watcher polling the removed sysfs node, which fails every read and wakes
+  poll(2) at once, forever. The watcher now reopens the device after it goes
+  away, backing off while it is missing (`ipc/osd.go`).
+- **Zed and Ryotunes get real dark and light wallpaper themes.** Both looks now
+  carry their own colours, and the Ryotunes matugen skin opens in the mode the
+  desktop is using.
+- **QS Bar's GPU widget stays on NVIDIA cards that report a decimal
+  temperature.** Newer drivers print readings like `42.67`, which the telemetry
+  check refused, so the widget vanished; decimals are accepted now (#769).
+- **A plain `sudo pacman -Syu` no longer stops on the keyring files.** A deploy
+  on a box with the Ryoku package left the D-Bus drop-in and Secret Service
+  override unowned, so the next upgrade refused them; deploy now leaves both to
+  the package and clears the copies an earlier deploy left.
+- **Agent chats are named after your question, and you can rename them.** Rashin
+  marks its first-turn note so Hermes no longer titles every chat "Needle
+  assistant"; the pencil on a history row renames that chat in place.
+- **A wallpaper that fails to load once is tried again.** A still that could not
+  be read on the first attempt left that screen on the plain background until a
+  reload; the desktop now loads it again a few times before giving up.
 - **Plugin settings changed from a desktop tile's menu are saved.** Chips,
   sliders and switches in the right-click menu now reach the plugin, number
   settings get a stepper there, and clicking blank space in a menu keeps it open.
