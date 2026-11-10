@@ -356,6 +356,8 @@ func lockSkinTags(slug string) []string {
 	return nil
 }
 
+const lockSessionApplied = "session-applied"
+
 func setLockSkin(slug string) error {
 	dir := qylockThemesDir()
 	if !fileExists(filepath.Join(dir, slug, "Main.qml")) {
@@ -368,6 +370,8 @@ func setLockSkin(slug string) error {
 	if err := setLockSkinIn(dir, qylockThemePref(), slug); err != nil {
 		return err
 	}
+	// the Hub marks the skin active on this line, while the admin prompt waits
+	fmt.Println(lockSessionApplied)
 	if err := escalateGreeter(slug, clockFormat24h()); err != nil {
 		return fmt.Errorf("lock skin set for this session; the sign-in screen keeps its old one: %w", err)
 	}

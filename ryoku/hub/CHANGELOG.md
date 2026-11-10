@@ -12,6 +12,9 @@
 - **A number typed into a Hub stepper keeps the row's real range.** Values
   such as a niri strut of 200 or a workspace shadow drop of -10 were cut to
   0..100; they now clamp to the limits the stepper buttons already use.
+- **Picking a lock screen marks it Active as soon as it is switched (#777).**
+  It no longer spins on Applying while the sign-in screen waits for your
+  password; a note says what is still pending, and a refused prompt shows why.
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
