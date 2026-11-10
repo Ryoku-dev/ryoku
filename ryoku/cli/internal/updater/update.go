@@ -755,6 +755,10 @@ const RyokuOverwriteGlob = "/usr/bin/ryoku-*," +
 	"/etc/boot/hooks/post.d/*ryoku*," +
 	"/etc/modules-load.d/*ryoku*," +
 	"/usr/lib/udev/rules.d/*ryoku*.rules," +
+	"/usr/lib/environment.d/*ryoku*," +
+	"/usr/share/ryoku/xdg/dbus-1/services/*," +
+	"/usr/share/ryoku/brand/*," +
+	"/usr/share/ryoku/npmrc," +
 	"/usr/local/share/applications/mimeapps.list"
 
 // systemUpgradeArgs is the user's lane, run only by `ryoku update --system`:
