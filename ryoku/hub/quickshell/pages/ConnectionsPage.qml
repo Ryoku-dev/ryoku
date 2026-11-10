@@ -515,6 +515,14 @@ Item {
             return sec !== undefined && sec !== "" && sec !== "--";
         }
 
+        function forget(ssid) {
+            if (!ssid.length || forgetProc.running)
+                return;
+            if (wifi.expandedSsid === ssid)
+                wifi.expandedSsid = "";
+            forgetProc.command = ["nmcli", "connection", "delete", "id", ssid];
+            forgetProc.running = true;
+        }
         function refresh() {
             secProc.running = true;
             profProc.running = true;
@@ -806,6 +814,12 @@ Item {
         // known and silently fails forever.
         Process {
             id: cleanupProc
+            onExited: wifi.refresh()
+        }
+        Process {
+            id: forgetProc
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
             onExited: wifi.refresh()
         }
 
@@ -1197,6 +1211,30 @@ Item {
                                         primary: autoRow.on
                                         armed: !wifi.autoBusy
                                         onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
+                                    }
+
+                                    // armed by a first press, disarms by itself
+                                    Btn {
+                                        id: forgetBtn
+                                        property bool confirming: false
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        compact: true
+                                        text: confirming ? I18n.tr("Really forget?") : I18n.tr("Forget")
+                                        primary: confirming
+                                        onAct: {
+                                            if (confirming) {
+                                                confirming = false;
+                                                wifi.forget(netItem.ssid);
+                                            } else {
+                                                confirming = true;
+                                                forgetDisarm.restart();
+                                            }
+                                        }
+                                        Timer {
+                                            id: forgetDisarm
+                                            interval: 3000
+                                            onTriggered: forgetBtn.confirming = false
+                                        }
                                     }
                                 }
                             }

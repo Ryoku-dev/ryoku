@@ -83,6 +83,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Saved Wi-Fi networks can be forgotten in Connections.** A saved row now has
+  Forget next to Auto-reconnect, armed by a first press, which deletes the
+  profile (`pages/ConnectionsPage.qml`, #776).
 - **Bar Studio opens Orpheus settings.** With Orpheus as the bar, an ORPHEUS
   card offers OPEN ORPHEUS SETTINGS, as the QS BAR card does for QS Bar
   (`quickshell/pages/BarStudioPage.qml`).
