@@ -109,6 +109,12 @@ type Stream interface {
 	Close() error
 }
 
+// NoRoute is the error for a request that nothing in use can take. Its text
+// already says why and what to do, so a caller shows it as it is.
+type NoRoute struct{ Reason string }
+
+func (e *NoRoute) Error() string { return e.Reason }
+
 // Client starts chat completions.
 type Client interface {
 	Stream(ctx context.Context, req Request) (Stream, error)

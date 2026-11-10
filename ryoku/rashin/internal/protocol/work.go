@@ -716,8 +716,9 @@ type GitChanged struct {
 
 // QueueParams queues a follow-up prompt sent when the running turn ends.
 type QueueParams struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
+	ID     string       `json:"id"`
+	Text   string       `json:"text"`
+	Images []Attachment `json:"images,omitempty"`
 }
 
 // UnqueueParams removes a queued prompt.
@@ -728,8 +729,9 @@ type UnqueueParams struct {
 
 // QueuedPrompt is a follow-up waiting for the running turn to end.
 type QueuedPrompt struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
+	ID     string       `json:"id"`
+	Text   string       `json:"text"`
+	Images []Attachment `json:"images,omitempty"`
 }
 
 // ForkParams copies a session's log up to Seq into a new session.

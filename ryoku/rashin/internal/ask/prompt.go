@@ -236,12 +236,14 @@ func historyTail(path string, limit int64) []string {
 
 func historyMessages(events []protocol.SessionEvent, budget int) []llm.Message {
 	var messages []llm.Message
+	asked := make(map[int]protocol.UserData)
 	assistantByID := make(map[string]int)
 	for _, event := range events {
 		switch event.Kind {
 		case protocol.EvUser:
 			var data protocol.UserData
-			if jsonUnmarshal(event.Data, &data) == nil && strings.TrimSpace(data.Text) != "" {
+			if jsonUnmarshal(event.Data, &data) == nil && (strings.TrimSpace(data.Text) != "" || len(data.Images) > 0) {
+				asked[len(messages)] = data
 				messages = append(messages, llm.Message{Role: llm.RoleUser, Content: data.Text})
 			}
 		case protocol.EvText:
@@ -266,6 +268,13 @@ func historyMessages(events []protocol.SessionEvent, budget int) []llm.Message {
 		}
 		used += size
 		start = i
+	}
+	// newest first, so what was just talked about is what still fits
+	imageRoom, textRoom := historyImageBytes, historyTextBytes
+	for i := len(messages) - 1; i >= start; i-- {
+		if data, ok := asked[i]; ok && len(data.Images) > 0 {
+			messages[i] = earlierMessage(data, &imageRoom, &textRoom)
+		}
 	}
 	return messages[start:]
 }

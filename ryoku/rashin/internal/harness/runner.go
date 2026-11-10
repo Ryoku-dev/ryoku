@@ -7,14 +7,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
 	"ryoku-i18n"
+	"ryoku-rashin/internal/attachment"
 	"ryoku-rashin/internal/core"
 	"ryoku-rashin/internal/protocol"
 )
@@ -144,20 +146,12 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	if in.Text != "" {
 		blocks = append(blocks, map[string]any{"type": "text", "text": in.Text})
 	}
-	if images {
-		for _, attachment := range in.Images {
-			data, err := os.ReadFile(attachment.Path)
-			if err != nil {
-				return core.TurnResult{}, fmt.Errorf("%s %w", i18n.T("Could not read the prompt image. Check that the file still exists."), err)
-			}
-			mime := attachment.Mime
-			if mime == "" {
-				mime = imageMIME(attachment.Path)
-			}
-			blocks = append(blocks, map[string]any{
-				"type": "image", "data": base64.StdEncoding.EncodeToString(data), "mimeType": mime,
-			})
+	for _, attached := range in.Images {
+		block, err := attachedBlock(attached, images)
+		if err != nil {
+			return core.TurnResult{}, err
 		}
+		blocks = append(blocks, block)
 	}
 	type promptReply struct {
 		result json.RawMessage
@@ -684,17 +678,36 @@ func (r *runner) resolveAllPermissions(outcome, by string) {
 	}
 }
 
-func imageMIME(path string) string {
-	switch strings.ToLower(path[strings.LastIndex(path, ".")+1:]) {
-	case "jpg", "jpeg":
-		return "image/jpeg"
-	case "webp":
-		return "image/webp"
-	case "gif":
-		return "image/gif"
-	default:
-		return "image/png"
+// attachedBlock is one attachment as a prompt block. A picture goes as image
+// data to an agent that takes pictures. Anything else, and a picture for an
+// agent that takes none or one too large to send whole, goes as a link to
+// the file, which every agent takes and opens with its own tools.
+func attachedBlock(attached protocol.Attachment, images bool) (map[string]any, error) {
+	unreadable := func(err error) error {
+		return fmt.Errorf("%s %w", i18n.Tf("Could not read the attachment %s. Check that the file still exists.", attached.Path), err)
 	}
+	if images {
+		image, ok, err := attachment.ReadImage(attached.Path)
+		switch {
+		case errors.Is(err, attachment.ErrTooLarge):
+		case err != nil:
+			return nil, unreadable(err)
+		case ok:
+			return map[string]any{"type": "image", "data": base64.StdEncoding.EncodeToString(image.Data), "mimeType": image.Mime}, nil
+		}
+	}
+	absolute, err := filepath.Abs(attached.Path)
+	if err == nil {
+		_, err = os.Stat(absolute)
+	}
+	if err != nil {
+		return nil, unreadable(err)
+	}
+	link := map[string]any{"type": "resource_link", "uri": (&url.URL{Scheme: "file", Path: absolute}).String(), "name": filepath.Base(absolute)}
+	if attached.Mime != "" {
+		link["mimeType"] = attached.Mime
+	}
+	return link, nil
 }
 
 func cloneUsage(usage *protocol.TokenUsage) *protocol.TokenUsage {

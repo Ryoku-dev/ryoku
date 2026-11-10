@@ -71,9 +71,13 @@ func (r *runner) Prompt(ctx context.Context, in core.PromptInput, sink core.Sink
 	if model == "" {
 		model = protocol.RouteAuto
 	}
+	asked, err := userMessage(in.Text, in.Images)
+	if err != nil {
+		return core.TurnResult{Stop: protocol.StopError}, err
+	}
 	messages := []llm.Message{{Role: llm.RoleSystem, Content: r.factory.systemPrompt(settings, in.Terminal)}}
 	messages = append(messages, historyMessages(in.History, historyBudgetBytes)...)
-	messages = append(messages, llm.Message{Role: llm.RoleUser, Content: in.Text})
+	messages = append(messages, asked)
 
 	var usage protocol.TokenUsage
 	var last llm.Final
@@ -214,6 +218,11 @@ func (r *runner) Stop() error            { return nil }
 func (r *runner) State() json.RawMessage { return nil }
 
 func modelError(err error) error {
+	// the router has already said why nothing could take this and what to do
+	var refused *llm.NoRoute
+	if errors.As(err, &refused) {
+		return protocol.Errorf(protocol.CodeUnavailable, "%s", refused.Reason)
+	}
 	return protocol.Errorf(protocol.CodeUnavailable, "%s", i18n.Tf("Ask could not start a free model response: %v. Add a free key in Rashin > Settings > Providers.", err))
 }
 

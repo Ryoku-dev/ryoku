@@ -49,7 +49,7 @@ func (d *Daemon) handoff(ctx context.Context, p protocol.HandoffParams) (protoco
 	if source.log.Info().Kind != protocol.KindAsk {
 		return protocol.SessionInfo{}, protocol.Errorf(protocol.CodeBadRequest, "%s", i18n.T("Only an Ask session can be handed off."))
 	}
-	question, answer, reason, err := d.manager.lastExchange(p.ID)
+	last, err := d.manager.lastExchange(p.ID)
 	if err != nil {
 		return protocol.SessionInfo{}, err
 	}
@@ -73,17 +73,18 @@ func (d *Daemon) handoff(ctx context.Context, p protocol.HandoffParams) (protoco
 	_ = target.log.Update(func(i *protocol.SessionInfo) { i.Parent = p.ID }, runnerState(target.runner))
 	d.manager.emitInfoLocked(target)
 	target.mu.Unlock()
-	handoff := &protocol.Handoff{From: p.ID, Title: source.log.Info().Title, Question: question, Answer: answer, Reason: reason}
+	handoff := &protocol.Handoff{From: p.ID, Title: source.log.Info().Title, Question: last.question, Answer: last.answer, Reason: last.reason}
 	text := strings.TrimSpace(p.Text)
 	if text == "" {
-		text = question
+		text = last.question
 	}
+	// The agent is handed what the question was about as well as the question.
 	if p.Run {
-		if _, _, err := d.manager.prompt(ctx, protocol.PromptParams{ID: info.ID, Text: text}, handoff); err != nil {
+		if _, _, err := d.manager.prompt(ctx, protocol.PromptParams{ID: info.ID, Text: text, Images: last.attached}, handoff); err != nil {
 			return protocol.SessionInfo{}, err
 		}
 	} else {
-		if err := target.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: text, Handoff: handoff}); err != nil {
+		if err := target.coalescer.Emit(protocol.EvUser, protocol.UserData{Text: text, Images: last.attached, Handoff: handoff}); err != nil {
 			return protocol.SessionInfo{}, err
 		}
 	}

@@ -3,12 +3,15 @@ package harness
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -113,6 +116,62 @@ func TestPromptTranslatesACPUpdates(t *testing.T) {
 	second := texts[1].data.(protocol.TextData)
 	if first.Message != second.Message {
 		t.Fatalf("contiguous text chunks changed message id: %q != %q", first.Message, second.Message)
+	}
+}
+
+// handed is the prompt as the agent received it
+func handed(t *testing.T, mode string, attachments ...protocol.Attachment) []map[string]any {
+	t.Helper()
+	r, sink := helperRunner(t, mode, protocol.ApprovalsAsk, nil)
+	if _, err := r.Prompt(context.Background(), core.PromptInput{Text: "What went wrong?", Images: attachments}, sink); err != nil {
+		t.Fatal(err)
+	}
+	var blocks []map[string]any
+	echoed := sink.waitKind(t, protocol.EvText, 1)[0].data.(protocol.TextData).Delta
+	if err := json.Unmarshal([]byte(echoed), &blocks); err != nil {
+		t.Fatalf("the agent echoed %q: %v", echoed, err)
+	}
+	return blocks
+}
+
+// The composer attaches any file. Every one used to be sent as a picture,
+// and none at all to an agent that takes no pictures.
+func TestAnAgentIsHandedPicturesAsPicturesAndFilesAsLinks(t *testing.T) {
+	folder := t.TempDir()
+	picture, log := filepath.Join(folder, "screenshot"), filepath.Join(folder, "build log.txt")
+	png := append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...)
+	if err := os.WriteFile(picture, png, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(log, []byte("error: linker failed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	attachments := []protocol.Attachment{{Path: picture}, {Path: log}}
+	link := map[string]any{"type": "resource_link", "uri": (&url.URL{Scheme: "file", Path: log}).String(), "name": "build log.txt"}
+
+	blocks := handed(t, "echo", attachments...)
+	if len(blocks) != 3 || blocks[0]["text"] != "What went wrong?" {
+		t.Fatalf("the agent was handed %v", blocks)
+	}
+	if blocks[1]["type"] != "image" || blocks[1]["mimeType"] != "image/png" || blocks[1]["data"] != base64.StdEncoding.EncodeToString(png) {
+		t.Fatalf("the picture went as %v", blocks[1])
+	}
+	if !reflect.DeepEqual(blocks[2], link) {
+		t.Fatalf("the log went as %v, want %v", blocks[2], link)
+	}
+
+	blocks = handed(t, "echo-no-pictures", attachments...)
+	if len(blocks) != 3 || blocks[1]["type"] != "resource_link" || blocks[1]["name"] != "screenshot" || !reflect.DeepEqual(blocks[2], link) {
+		t.Fatalf("an agent that takes no pictures was handed %v", blocks)
+	}
+}
+
+func TestAnAttachmentThatIsGoneStopsThePrompt(t *testing.T) {
+	r, sink := helperRunner(t, "echo", protocol.ApprovalsAsk, nil)
+	gone := filepath.Join(t.TempDir(), "gone.txt")
+	_, err := r.Prompt(context.Background(), core.PromptInput{Text: "Look", Images: []protocol.Attachment{{Path: gone}}}, sink)
+	if err == nil || !strings.Contains(err.Error(), gone) {
+		t.Fatalf("a prompt with a missing attachment went on: %v", err)
 	}
 }
 
@@ -336,7 +395,7 @@ func runFakeAgent(mode string) {
 		switch message.Method {
 		case "initialize":
 			load := mode == "resume-load" || mode == "capabilities" || mode == "load-replay" || mode == "generation"
-			promptCapabilities := map[string]bool{"image": true}
+			promptCapabilities := map[string]bool{"image": mode != "echo-no-pictures"}
 			if mode == "capabilities" {
 				promptCapabilities["audio"] = true
 				promptCapabilities["embeddedContext"] = true
@@ -381,6 +440,13 @@ func runFakeAgent(mode string) {
 			prompts++
 			promptID = append(json.RawMessage(nil), message.ID...)
 			switch mode {
+			case "echo", "echo-no-pictures":
+				var params struct {
+					Prompt json.RawMessage `json:"prompt"`
+				}
+				_ = json.Unmarshal(message.Params, &params)
+				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": string(params.Prompt)}})
+				writePromptResult(write, promptID, "end_turn")
 			case "updates":
 				fakeUpdates(write)
 				writePromptResult(write, promptID, "end_turn")

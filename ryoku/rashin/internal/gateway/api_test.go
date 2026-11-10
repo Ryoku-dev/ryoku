@@ -323,17 +323,25 @@ func TestAPIRefusesWhatItCannotPassOn(t *testing.T) {
 	}
 }
 
-func TestAPIPassesAnInlineImageOn(t *testing.T) {
-	up, bodies := answering(t, "up", `{"choices":[{"delta":{"content":"a cat"},"finish_reason":"stop"}]}`, `[DONE]`)
-	_, api := newAPIHarness(t, up)
-	response, body := api.chat(`{"messages": [{"role": "user", "content": [
+func TestAPIPassesAnInlineImageOnToAModelThatReadsPictures(t *testing.T) {
+	const picture = `{"messages": [{"role": "user", "content": [
 		{"type": "text", "text": "what is this"},
 		{"type": "image_url", "image_url": {"url": "data:image/png;base64,aGVsbG8="}}
-	]}]}`)
+	]}]}`
+	up, bodies := answering(t, "up", `{"choices":[{"delta":{"content":"a cat"},"finish_reason":"stop"}]}`, `[DONE]`)
+	up.Models[0].Vision = true
+	_, api := newAPIHarness(t, up)
+	response, body := api.chat(picture)
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("status %d: %s", response.StatusCode, body)
 	}
 	if !strings.Contains((*bodies)[0], "data:image/png;base64,aGVsbG8=") {
 		t.Fatalf("the image did not reach the provider: %s", (*bodies)[0])
+	}
+
+	blind, unseen := answering(t, "blind", `{"choices":[{"delta":{"content":"a guess"},"finish_reason":"stop"}]}`, `[DONE]`)
+	_, api = newAPIHarness(t, blind)
+	if response, body := api.chat(picture); response.StatusCode != http.StatusServiceUnavailable || len(*unseen) != 0 {
+		t.Fatalf("with no model that reads pictures the API answered %d %s after %d upstream calls", response.StatusCode, body, len(*unseen))
 	}
 }

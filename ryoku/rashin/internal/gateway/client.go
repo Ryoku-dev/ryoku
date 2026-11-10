@@ -126,8 +126,11 @@ func (g *Gateway) Stream(ctx context.Context, request llm.Request) (llm.Stream, 
 	if err != nil {
 		return nil, err
 	}
+	if len(candidates) == 0 && hasImages(request) {
+		return nil, &llm.NoRoute{Reason: g.noPictureModel()}
+	}
 	if len(candidates) == 0 {
-		return nil, errors.New(i18n.T("No free model is available. Add a free key in Rashin > Settings > Providers"))
+		return nil, &llm.NoRoute{Reason: i18n.T("No free model is available. Add a free key in Rashin > Settings > Providers.")}
 	}
 	return &routedStream{gateway: g, ctx: ctx, request: wire, candidates: candidates, started: g.now()}, nil
 }
@@ -183,10 +186,41 @@ func renderRequest(request llm.Request) (chatRequest, error) {
 	return wire, nil
 }
 
+// hasImages reports a request that only a model with vision can answer.
+func hasImages(request llm.Request) bool {
+	for _, message := range request.Messages {
+		if len(message.Images) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// noPictureModel says that nothing in use reads pictures, and names the
+// catalogue's providers that would.
+func (g *Gateway) noPictureModel() string {
+	var names []string
+	for i := range g.catalog.Providers {
+		for _, m := range g.catalog.Providers[i].Models {
+			if m.Vision {
+				names = append(names, g.catalog.Providers[i].Name)
+				break
+			}
+		}
+	}
+	if len(names) == 0 {
+		return i18n.T("None of the providers reads pictures.")
+	}
+	return i18n.Tf("None of the providers in use reads pictures. These can, with a key added in Rashin > Settings > Providers: %s.", strings.Join(names, ", "))
+}
+
 func (g *Gateway) candidates(request llm.Request) ([]routeCandidate, error) {
 	modelRoute := strings.TrimSpace(request.Model)
 	pinned := modelRoute != "" && modelRoute != protocol.RouteAuto && modelRoute != protocol.RouteFast && modelRoute != protocol.RouteSmart
 	strictPinned := pinned && request.Strict
+	// A model without vision answers a picture it never saw, or refuses the
+	// whole request, so one is only ever sent to a model that can read it.
+	pictures := hasImages(request)
 	var candidates []routeCandidate
 	for i := range g.catalog.Providers {
 		p := &g.catalog.Providers[i]
@@ -215,6 +249,12 @@ func (g *Gateway) candidates(request llm.Request) ([]routeCandidate, error) {
 			if strictPinned && modelRoute != p.ID+"/"+m.ID {
 				continue
 			}
+			if pictures && !m.Vision {
+				if strictPinned {
+					return nil, &llm.NoRoute{Reason: i18n.Tf("%s cannot read pictures. Choose Auto, or a model that can.", m.Name)}
+				}
+				continue
+			}
 			if _, cooling, err := g.store.cooldown(modelScope(p.ID, m.ID), g.now()); err != nil {
 				return nil, err
 			} else if cooling {
@@ -230,7 +270,7 @@ func (g *Gateway) candidates(request llm.Request) ([]routeCandidate, error) {
 		}
 	}
 	if strictPinned && len(candidates) == 0 {
-		return nil, fmt.Errorf(i18n.T("Pinned model is not available: %s"), modelRoute)
+		return nil, &llm.NoRoute{Reason: i18n.Tf("The model you chose is not available now: %s. Choose Auto, or wait for it.", modelRoute)}
 	}
 	sortCandidates(candidates, modelRoute)
 	if pinned && !request.Strict {

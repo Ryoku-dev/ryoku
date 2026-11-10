@@ -581,9 +581,13 @@ func (m *sessionManager) startPrompt(ctx context.Context, s *managedSession, p p
 		i.State = protocol.StateWorking
 		i.Error = ""
 		// A harness may send a better title later; until it does, a session is
-		// named after what it was first asked, or every row reads the same.
+		// named after what it was first asked, or every row reads the same. A
+		// prompt that is only an attachment is named after that.
 		if i.Title == "" {
 			i.Title = questionTitle(p.Text)
+		}
+		if i.Title == "" && len(p.Images) > 0 {
+			i.Title = questionTitle(filepath.Base(p.Images[0].Path))
 		}
 		i.Alive = alive
 	}, state)
@@ -698,7 +702,7 @@ func (m *sessionManager) runTurn(ctx context.Context, s *managedSession, runner 
 	info = s.log.Info()
 	s.mu.Unlock()
 	if queued != nil {
-		if _, _, promptErr := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: queued.Text}, nil, true); promptErr != nil && m.warn != nil {
+		if _, _, promptErr := m.startPrompt(context.Background(), s, protocol.PromptParams{ID: info.ID, Text: queued.Text, Images: queued.Images}, nil, true); promptErr != nil && m.warn != nil {
 			m.warn("queued prompt session %s: %v", info.ID, promptErr)
 		}
 	}
@@ -753,7 +757,7 @@ func (m *sessionManager) queue(ctx context.Context, p protocol.QueueParams) (pro
 	s.mu.Lock()
 	if !s.running {
 		s.mu.Unlock()
-		if _, _, err := m.prompt(ctx, protocol.PromptParams{ID: p.ID, Text: p.Text}, nil); err != nil {
+		if _, _, err := m.prompt(ctx, protocol.PromptParams{ID: p.ID, Text: p.Text, Images: p.Images}, nil); err != nil {
 			return protocol.SessionInfo{}, err
 		}
 		return s.log.Info(), nil
@@ -763,7 +767,7 @@ func (m *sessionManager) queue(ctx context.Context, p protocol.QueueParams) (pro
 		s.mu.Unlock()
 		return protocol.SessionInfo{}, err
 	}
-	queued := protocol.QueuedPrompt{ID: "queue-" + hex.EncodeToString(random[:]), Text: p.Text}
+	queued := protocol.QueuedPrompt{ID: "queue-" + hex.EncodeToString(random[:]), Text: p.Text, Images: p.Images}
 	if err := s.log.Update(func(i *protocol.SessionInfo) { i.Queue = append(i.Queue, queued) }, nil); err != nil {
 		s.mu.Unlock()
 		return protocol.SessionInfo{}, err
@@ -1311,38 +1315,43 @@ func (m *sessionManager) idleStop(now time.Time) {
 	}
 }
 
-func (m *sessionManager) lastExchange(id string) (string, string, string, error) {
+// exchange is the last question of a session with what was attached to it,
+// and what it was answered.
+type exchange struct {
+	question, answer, reason string
+	attached                 []protocol.Attachment
+}
+
+func (m *sessionManager) lastExchange(id string) (exchange, error) {
 	s, err := m.get(id)
 	if err != nil {
-		return "", "", "", err
+		return exchange{}, err
 	}
 	events, err := s.log.Since(0)
 	if err != nil {
-		return "", "", "", err
+		return exchange{}, err
 	}
-	var question, answer, reason string
+	var last exchange
 	for _, ev := range events {
 		switch ev.Kind {
 		case protocol.EvUser:
 			var d protocol.UserData
 			if json.Unmarshal(ev.Data, &d) == nil {
-				question = d.Text
-				answer = ""
-				reason = ""
+				last = exchange{question: d.Text, attached: d.Images}
 			}
 		case protocol.EvText:
 			var d protocol.TextData
 			if json.Unmarshal(ev.Data, &d) == nil {
-				answer += d.Delta
+				last.answer += d.Delta
 			}
 		case protocol.EvAnswer:
 			var d protocol.AnswerData
 			if json.Unmarshal(ev.Data, &d) == nil {
-				reason = d.Reason
+				last.reason = d.Reason
 			}
 		}
 	}
-	return question, answer, reason, nil
+	return last, nil
 }
 
 func (m *sessionManager) latestAsk(origin string) string {

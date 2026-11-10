@@ -455,6 +455,49 @@ func TestQueueSendsNextPromptAndUnqueueRemovesOne(t *testing.T) {
 	}
 }
 
+// A follow-up written while a turn runs waits in the queue. What was attached
+// to it used to be dropped on the way in, so it was sent as words about
+// nothing.
+func TestAQueuedPromptIsSentWithWhatWasAttachedToIt(t *testing.T) {
+	started, release := make(chan struct{}), make(chan struct{})
+	next := make(chan core.PromptInput, 1)
+	var first sync.Once
+	runner := &fakeRunner{prompt: func(_ context.Context, in core.PromptInput, _ core.Sink) (core.TurnResult, error) {
+		waited := false
+		first.Do(func() {
+			waited = true
+			close(started)
+			<-release
+		})
+		if !waited {
+			next <- in
+		}
+		return core.TurnResult{Stop: protocol.StopEnd}, nil
+	}}
+	manager, info := testManager(t, runner)
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: info.ID, Text: "first"}, nil); err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	attached := []protocol.Attachment{{Path: "/home/reader/build.log"}}
+	queued, err := manager.queue(context.Background(), protocol.QueueParams{ID: info.ID, Text: "and this", Images: attached})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(queued.Queue) != 1 || len(queued.Queue[0].Images) != 1 {
+		t.Fatalf("the queue shows %#v", queued.Queue)
+	}
+	close(release)
+	select {
+	case in := <-next:
+		if in.Text != "and this" || len(in.Images) != 1 || in.Images[0].Path != attached[0].Path {
+			t.Fatalf("the queued prompt was sent as %q with %v", in.Text, in.Images)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("queued prompt was not sent")
+	}
+}
+
 func TestSteerCancelsThenPrompts(t *testing.T) {
 	started := make(chan struct{})
 	next := make(chan string, 1)
@@ -1310,5 +1353,35 @@ func TestAnAgentSessionIsNamedAfterWhatItWasFirstAskedUntilItsHarnessNamesIt(t *
 	session, _ = manager.get(named.ID)
 	if title := session.log.Info().Title; title != "Void port" {
 		t.Fatalf("a session that had a name was renamed to %q by its first prompt", title)
+	}
+}
+
+// Moving a question to an agent hands over the question and its answer. What
+// the question was about has to go with them.
+func TestTheLastExchangeKeepsWhatTheQuestionCarried(t *testing.T) {
+	manager, info := testManager(t, &fakeRunner{prompt: func(_ context.Context, _ core.PromptInput, sink core.Sink) (core.TurnResult, error) {
+		sink.Emit(protocol.EvText, protocol.TextData{Message: "m", Delta: "A build error."})
+		return core.TurnResult{Stop: protocol.StopEnd}, nil
+	}})
+	attached := []protocol.Attachment{{Path: "/home/reader/shot.png"}}
+	if _, _, err := manager.prompt(context.Background(), protocol.PromptParams{ID: info.ID, Text: "What is this?", Images: attached}, nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		last, err := manager.lastExchange(info.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if last.answer != "" {
+			if last.question != "What is this?" || len(last.attached) != 1 || last.attached[0].Path != attached[0].Path {
+				t.Fatalf("the last exchange is %+v", last)
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("the answer never arrived: %+v", last)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
