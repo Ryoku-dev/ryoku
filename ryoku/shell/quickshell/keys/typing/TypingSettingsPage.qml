@@ -82,6 +82,7 @@ Item {
                     Seg {
                         width: 150
                         options: ["standard", "extended"]
+                        labels: ({ standard: I18n.tr("standard"), extended: I18n.tr("extended") })
                         current: settings.store.wordlistSize
                         onChose: key => settings.store.wordlistSize = key
                     }
@@ -93,6 +94,7 @@ Item {
                     Seg {
                         width: 190
                         options: ["time", "words", "zen"]
+                        labels: ({ time: I18n.tr("time"), words: I18n.tr("words"), zen: I18n.tr("zen") })
                         current: settings.store.mode
                         onChose: key => settings.store.mode = key
                     }
@@ -161,6 +163,7 @@ Item {
                     Seg {
                         width: parent.width
                         options: ["line", "block", "underline", "off"]
+                        labels: ({ line: I18n.tr("line"), block: I18n.tr("block"), underline: I18n.tr("underline"), off: I18n.tr("off") })
                         current: settings.store.caretStyle
                         onChose: key => settings.store.caretStyle = key
                     }

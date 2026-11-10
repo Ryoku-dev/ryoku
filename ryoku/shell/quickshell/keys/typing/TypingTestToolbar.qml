@@ -65,12 +65,16 @@ Flow {
     }
 
     Repeater {
-        model: ["time", "words", "zen"]
+        model: [
+            { mode: "time", label: I18n.tr("time") },
+            { mode: "words", label: I18n.tr("words") },
+            { mode: "zen", label: I18n.tr("zen") }
+        ]
         delegate: ToggleChip {
-            required property string modelData
-            label: modelData
-            selected: toolbar.store.mode === modelData
-            onChosen: { toolbar.store.mode = modelData; toolbar.refocus(); }
+            required property var modelData
+            label: modelData.label
+            selected: toolbar.store.mode === modelData.mode
+            onChosen: { toolbar.store.mode = modelData.mode; toolbar.refocus(); }
         }
     }
 
