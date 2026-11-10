@@ -33,7 +33,7 @@ Item {
         if (!root.confirming)
             return;
         if (!root.task || root.task.pid !== root.confirmingPid
-            || Math.abs((root.task.started || 0) - root.confirmingStart) > 2)
+            || (root.task.started || 0) !== root.confirmingStart)
             root.confirming = false;
     }
 
