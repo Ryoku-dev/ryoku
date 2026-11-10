@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- **Identical RAM sticks are separate lighting devices.** SMBus devices report
+  no serial, so every matching stick shared one entry and Hand back restored
+  only the first. Each stick is now keyed by its adapter and address (the
+  `/dev/i2c-N` number is ignored, since it moves between boots), the old shared
+  entry is copied to every stick on the next scan, and identical sticks list in
+  a stable order (`backend/lighting.go`).
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
