@@ -1247,18 +1247,21 @@ Item {
                                 id: autoRow
                                 readonly property bool on: wifi.autoconnectMap[netItem.ssid] !== false
                                 width: parent.width
-                                height: netItem.known ? 30 : 0
+                                height: netItem.known ? 36 : 0
                                 clip: true
                                 visible: height > 0.5
 
+                                // the setting lines up under the network name,
+                                // Forget under the signal readout on the right
                                 Row {
                                     anchors.left: parent.left
-                                    anchors.leftMargin: Tokens.s4
+                                    anchors.leftMargin: bars.x + bars.width + Tokens.s3
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: Tokens.s2
 
                                     Text {
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        height: autoBtn.height
+                                        verticalAlignment: Text.AlignVCenter
                                         text: I18n.tr("Auto-reconnect")
                                         color: Tokens.inkMuted
                                         font.family: Tokens.ui
@@ -1267,36 +1270,38 @@ Item {
                                     }
 
                                     Btn {
-                                        anchors.verticalCenter: parent.verticalCenter
+                                        id: autoBtn
                                         compact: true
                                         text: autoRow.on ? I18n.tr("On") : I18n.tr("Off")
                                         primary: autoRow.on
                                         armed: !wifi.autoBusy
                                         onAct: wifi.setAutoconnect(netItem.ssid, !autoRow.on)
                                     }
+                                }
 
-                                    // armed by a first press, disarms by itself
-                                    Btn {
-                                        id: forgetBtn
-                                        property bool confirming: false
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        compact: true
-                                        text: confirming ? I18n.tr("Really forget?") : I18n.tr("Forget")
-                                        primary: confirming
-                                        onAct: {
-                                            if (confirming) {
-                                                confirming = false;
-                                                wifi.forget(netItem.ssid);
-                                            } else {
-                                                confirming = true;
-                                                forgetDisarm.restart();
-                                            }
+                                // armed by a first press, disarms by itself
+                                Btn {
+                                    id: forgetBtn
+                                    property bool confirming: false
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Tokens.s4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    compact: true
+                                    text: confirming ? I18n.tr("Really forget?") : I18n.tr("Forget")
+                                    primary: confirming
+                                    onAct: {
+                                        if (confirming) {
+                                            confirming = false;
+                                            wifi.forget(netItem.ssid);
+                                        } else {
+                                            confirming = true;
+                                            forgetDisarm.restart();
                                         }
-                                        Timer {
-                                            id: forgetDisarm
-                                            interval: 3000
-                                            onTriggered: forgetBtn.confirming = false
-                                        }
+                                    }
+                                    Timer {
+                                        id: forgetDisarm
+                                        interval: 3000
+                                        onTriggered: forgetBtn.confirming = false
                                     }
                                 }
                             }
