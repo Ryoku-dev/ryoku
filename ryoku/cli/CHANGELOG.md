@@ -1,6 +1,9 @@
 # Ryoku CLI Changelog
 
 ## Unreleased
+- **Reboots after an update no longer stop at the Limine menu.** Limine 12.9.5
+  moved its remembered-entry EFI variable to a new vendor GUID; doctor and the
+  boot guard now clear it under both GUIDs.
 - **Updates adopt the keyring's D-Bus files left behind by a deploy.** The
   update overwrite list and the doctor's stray cleanup now cover
   `/usr/lib/environment.d` and the Secret Service override.

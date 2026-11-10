@@ -156,19 +156,23 @@ func setupBootGuardPaths(t *testing.T) string {
 	setupBootDecisionSeams(t)
 	dir := t.TempDir()
 	oldPending, oldBootOK, oldNotice := pendingFile, bootOKDir, noticeFile
-	oldConf, oldMarker, oldEFI, oldUID := limineConf, restoreMarker, limineLastBootedEntry, effectiveUID
+	oldConf, oldMarker, oldEFI, oldUID := limineConf, restoreMarker, limineEFIVars, effectiveUID
 	pendingFile = filepath.Join(dir, "update-pending.json")
 	bootOKDir = filepath.Join(dir, "boot")
 	noticeFile = filepath.Join(bootOKDir, "notice.json")
 	limineConf = filepath.Join(dir, "limine.conf")
 	restoreMarker = filepath.Join(dir, "limine-snapper-restore.lock")
-	limineLastBootedEntry = filepath.Join(dir, "LimineLastBootedEntry")
+	limineEFIVars = dir
 	effectiveUID = func() int { return 0 }
 	t.Cleanup(func() {
 		pendingFile, bootOKDir, noticeFile = oldPending, oldBootOK, oldNotice
-		limineConf, restoreMarker, limineLastBootedEntry, effectiveUID = oldConf, oldMarker, oldEFI, oldUID
+		limineConf, restoreMarker, limineEFIVars, effectiveUID = oldConf, oldMarker, oldEFI, oldUID
 	})
 	return dir
+}
+
+func rememberedLimineEntry() string {
+	return filepath.Join(limineEFIVars, "LimineLastBootedEntry-03884334-1756-4978-9c8c-86fb8998b4ea")
 }
 
 func TestBootGuardInterruptedBootThenGoodBootNeverReverts(t *testing.T) {
@@ -308,7 +312,7 @@ func TestPointBootMenuAtSnapshotWritesFullPathAndClearsEFIEntry(t *testing.T) {
 	if err := os.WriteFile(limineConf, []byte(limineFixture), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(limineLastBootedEntry, []byte("Ryoku Linux/linux"), 0o644); err != nil {
+	if err := os.WriteFile(rememberedLimineEntry(), []byte("Ryoku Linux/linux"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	p := pendingUpdate{From: "v1.0.0", To: "v1.1.0", Snapshot: "570"}
@@ -322,7 +326,7 @@ func TestPointBootMenuAtSnapshotWritesFullPathAndClearsEFIEntry(t *testing.T) {
 	if !strings.Contains(string(raw), "default_entry: Ryoku Linux/Snapshots/2026-09-03 14:07:46/linux") {
 		t.Fatalf("default was not rewritten to the full path:\n%s", raw)
 	}
-	if _, err := os.Stat(limineLastBootedEntry); !os.IsNotExist(err) {
+	if _, err := os.Stat(rememberedLimineEntry()); !os.IsNotExist(err) {
 		t.Fatalf("remembered EFI entry survived: %v", err)
 	}
 }
@@ -354,7 +358,7 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 			if err := os.WriteFile(restoreMarker, []byte("restored\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(limineLastBootedEntry, []byte("snapshot"), 0o644); err != nil {
+			if err := os.WriteFile(rememberedLimineEntry(), []byte("snapshot"), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			if err := BootGuard([]string{"--restored"}); err != nil {
@@ -367,7 +371,7 @@ func TestBootGuardRestoredResetsFirstKernelForBothMenus(t *testing.T) {
 			if !strings.Contains(string(raw), "default_entry: "+test.entry+"\n") {
 				t.Fatalf("restored default =\n%s", raw)
 			}
-			if _, err := os.Stat(limineLastBootedEntry); !os.IsNotExist(err) {
+			if _, err := os.Stat(rememberedLimineEntry()); !os.IsNotExist(err) {
 				t.Fatalf("remembered EFI entry survived restore handling: %v", err)
 			}
 		})

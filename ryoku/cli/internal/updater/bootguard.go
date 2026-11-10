@@ -33,12 +33,12 @@ import (
 // The guard's on-disk state. Vars, not consts, so a test can point them at a
 // temp dir instead of /var/lib, /boot, and efivarfs.
 var (
-	pendingFile           = "/var/lib/ryoku/update-pending.json"
-	bootOKDir             = "/var/lib/ryoku/boot"
-	noticeFile            = "/var/lib/ryoku/boot/notice.json"
-	limineConf            = "/boot/limine.conf"
-	restoreMarker         = "/run/lock/limine-snapper-restore.lock"
-	limineLastBootedEntry = limineefi.LastBootedEntryPath
+	pendingFile   = "/var/lib/ryoku/update-pending.json"
+	bootOKDir     = "/var/lib/ryoku/boot"
+	noticeFile    = "/var/lib/ryoku/boot/notice.json"
+	limineConf    = "/boot/limine.conf"
+	restoreMarker = "/run/lock/limine-snapper-restore.lock"
+	limineEFIVars = limineefi.EFIVarsDir
 )
 
 var effectiveUID = os.Geteuid
@@ -391,7 +391,7 @@ func setLimineDefault(raw []byte, entry string) error {
 }
 
 func clearLimineLastBootedEntry() error {
-	return limineefi.ClearLastBootedEntry(limineLastBootedEntry)
+	return limineefi.ClearLastBootedEntry(limineEFIVars)
 }
 
 // snapshotEntryPath follows the generated menu hierarchy so nested snapshot
