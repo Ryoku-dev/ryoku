@@ -34,7 +34,10 @@ GameBarCard {
             card.displayMode = "";
         if (modeRead.running)
             modeRead.running = false;
-        modeRestart.restart();
+        // Clearing a stale mode is cheap; the read itself waits until the card
+        // is actually watched, where the polling timer starts it.
+        if (card.polling)
+            modeRestart.restart();
     }
 
     function syncFeed() {

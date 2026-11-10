@@ -21,7 +21,7 @@ GameBarCard {
     title: I18n.tr("Tasks")
 
     function refresh() {
-        if (!scan.running)
+        if (card.polling && !scan.running)
             scan.running = true;
     }
 
