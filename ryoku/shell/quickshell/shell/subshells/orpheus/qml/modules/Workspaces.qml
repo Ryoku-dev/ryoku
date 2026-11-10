@@ -18,7 +18,7 @@ Item {
     BusListModel {
         id: rowModel
         key: "key"
-        roles: ["key", "label", "index", "active", "occupied", "urgent", "apps", "windowCount"]
+        roles: ["key", "label", "number", "active", "occupied", "urgent", "apps", "windowCount"]
         rows: root.rows
     }
     property string appliedSignature: ""
@@ -134,7 +134,7 @@ Item {
             shown.push({
                 key: key,
                 label: String(workspace.name || key),
-                index: Number.isFinite(rank) && rank > 0 ? rank : index + 1,
+                number: Number.isFinite(rank) && rank > 0 ? rank : index + 1,
                 active: workspace.active === true,
                 occupied: occupied,
                 urgent: workspace.urgent === true,
@@ -143,8 +143,8 @@ Item {
             });
         }
         shown.sort((left, right) => {
-            const leftIndex = Number(left.index);
-            const rightIndex = Number(right.index);
+            const leftIndex = Number(left.number);
+            const rightIndex = Number(right.number);
             if (!Number.isFinite(leftIndex) || !Number.isFinite(rightIndex))
                 return 0;
             return leftIndex - rightIndex;
@@ -174,10 +174,10 @@ Item {
         const filled = [];
         for (let number = 1; number <= end; ++number) {
             const row = byNumber[number];
-            filled.push(row ? Object.assign({}, row, { index: number }) : {
+            filled.push(row ? Object.assign({}, row, { number: number }) : {
                 key: String(number),
                 label: String(number),
-                index: number,
+                number: number,
                 active: false,
                 occupied: false,
                 urgent: false,
@@ -202,6 +202,10 @@ Item {
         square: S.Prefs.form === "square"
         rows: root.rows
         model: rowModel
+        // the lane slot (Loader, then Slot) clips this module while its width springs
+        shownLeft: root.parent ? -root.parent.x - strip.x : -Infinity
+        shownRight: root.parent && root.parent.parent
+            ? shownLeft + root.parent.parent.width : Infinity
         onActivated: key => Wm.focusWorkspace(key)
         onOverviewRequested: Wm.toggleOverview()
         onScrolled: steps => Wm.cycleWorkspace(steps > 0 ? -1 : 1)

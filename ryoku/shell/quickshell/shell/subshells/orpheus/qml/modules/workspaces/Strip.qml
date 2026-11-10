@@ -16,6 +16,9 @@ Item {
     property bool interactive: true
     property real unit: K.Style.barH
     property bool square: false
+    // the part of the strip a host shows; the pill stays inside it
+    property real shownLeft: -Infinity
+    property real shownRight: Infinity
 
     signal activated(var key)
     signal scrolled(int steps)
@@ -23,7 +26,7 @@ Item {
 
     readonly property real previewScale: unit / Math.max(1, K.Style.barH)
     readonly property real u: K.Style.scale * previewScale
-    readonly property real pitch: 24 * u
+    readonly property real pitch: 26 * u
     readonly property real smoothing: square ? 3 : 8
 
     // Square marks keep a small corner; liquid marks are full pills.
@@ -42,11 +45,15 @@ Item {
         }
         return -1;
     }
-    readonly property real activeBaseWidth: mode === "dashes" ? 22 * u : 26 * u
+    readonly property real activeBaseWidth: mode === "dashes" ? 22 * u : 24 * u
     readonly property real activeHeight: mode === "dashes" ? 3 * u : 18 * u
     readonly property real activeX: Math.min(leftEdge, rightEdge) * pitch
         + (pitch - activeBaseWidth) / 2
     readonly property real activeWidth: Math.abs(rightEdge - leftEdge) * pitch + activeBaseWidth
+    readonly property real shownActiveX: Math.max(shownLeft,
+        Math.min(activeX, shownRight - activeBaseWidth))
+    readonly property real shownActiveWidth: Math.max(activeBaseWidth,
+        Math.min(activeX + activeWidth, shownRight) - shownActiveX)
 
     property real leftEdge: 0
     property real rightEdge: 0
@@ -58,7 +65,7 @@ Item {
     height: implicitHeight
 
     function numberFor(data, fallback) {
-        const parsed = Number(data && data.index);
+        const parsed = Number(data && data.number);
         return isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback + 1;
     }
 
@@ -246,9 +253,9 @@ Item {
         z: 1
         visible: root.activeIndex >= 0
         group: activeGroup
-        x: root.activeX
+        x: root.shownActiveX
         y: (root.height - implicitHeight) / 2
-        implicitWidth: root.activeWidth
+        implicitWidth: root.shownActiveWidth
         implicitHeight: root.activeHeight
         opacity: 1
         topLeftRadius: root.cornerFor(implicitHeight)
