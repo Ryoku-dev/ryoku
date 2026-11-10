@@ -108,17 +108,17 @@ install_client() {
         git -C "$dir" pull --ff-only || die "could not update $dir; check the network and run this again"
     else
         mkdir -p "$(dirname "$dir")"
-        git clone --depth 1 "$repo" "$dir"
+        git clone --depth 1 "$repo" "$dir" || return 1
     fi
 
     say "copying the $PLUGIN_NAME user plugin"
     mkdir -p "$dir/src/userplugins"
     rm -rf "$dir/src/userplugins/$PLUGIN_NAME"
-    cp -r "$PLUGIN" "$dir/src/userplugins/$PLUGIN_NAME"
+    cp -r "$PLUGIN" "$dir/src/userplugins/$PLUGIN_NAME" || return 1
 
     say "building $client (this takes a few minutes the first time)"
-    (cd "$dir" && "$PNPM" install --frozen-lockfile && "$PNPM" build)
-    cp "$dir/package.json" "$dir/dist/package.json"
+    (cd "$dir" && "$PNPM" install --frozen-lockfile && "$PNPM" build) || return 1
+    cp "$dir/package.json" "$dir/dist/package.json" || return 1
 
     if [[ ! -f "$state" ]]; then
         say "no $state found; set the custom mod location to $dir/dist by hand"
@@ -133,7 +133,7 @@ install_client() {
         backup="$backup.$(date +%Y%m%d-%H%M%S)"
     fi
     cp "$state" "$backup"
-    python3 - "$state" "$key" "$dir/dist" <<'PY'
+    python3 - "$state" "$key" "$dir/dist" <<'PY' || return 1
 import json
 import sys
 
