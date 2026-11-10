@@ -19,6 +19,9 @@
 - **Agent chats are named after your question, and you can rename them.** Rashin
   marks its first-turn note so Hermes no longer titles every chat "Needle
   assistant"; the pencil on a history row renames that chat in place.
+- **A wallpaper that fails to load once is tried again.** A still that could not
+  be read on the first attempt left that screen on the plain background until a
+  reload; the desktop now loads it again a few times before giving up.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

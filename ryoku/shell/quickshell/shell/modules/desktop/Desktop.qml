@@ -894,7 +894,7 @@ Scope {
         Image {
             id: glassBackdrop
             anchors.fill: parent
-            source: desktopContent.glassWanted ? root.wallpaperUrl : ""
+            source: desktopContent.glassWanted && backdrop.decoded ? root.wallpaperUrl : ""
             cache: false
             asynchronous: true
             smooth: true
