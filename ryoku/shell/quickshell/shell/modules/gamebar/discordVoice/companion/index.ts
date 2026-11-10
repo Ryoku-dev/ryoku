@@ -115,7 +115,7 @@ async function commandLoop() {
     // handed, then yields so two consumers never run side by side.
     while (running && generation === commandGeneration) {
         const line = await Native.nextCommand();
-        if (!running)
+        if (!running || generation !== commandGeneration)
             return;
         applyCommand(line);
     }
@@ -152,7 +152,10 @@ export default definePlugin({
         STOP_SPEAKING() { void publish(); }
     },
 
-    start() {
+    async start() {
+        // A quick restart must not leave the previous loop waiting on the same
+        // socket: let its disconnect settle before a new loop starts reading.
+        await Native.disconnect();
         running = true;
         void commandLoop();
         void publish();
