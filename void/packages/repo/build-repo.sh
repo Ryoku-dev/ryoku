@@ -218,7 +218,7 @@ for pkg in "${all_packages[@]}"; do
 	fi
 done
 
-# container-runner.sh resolves Ryotunes' latest release; xbps-src then fetches
+# container-runner.sh resolves Ryotunes' newest 1.x release; xbps-src then fetches
 # that release and verifies it against the release's own checksum.
 if [[ -n ${template_for[ryotunes]:-} ]]; then
 	[[ $RYOTUNES_VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && $RYOTUNES_SHA256 =~ ^[0-9a-f]{64}$ ]] \
@@ -230,7 +230,7 @@ if [[ -n ${template_for[ryotunes]:-} ]]; then
 		{ print }
 	' "$stamped" > "$stamped.tmp"
 	mv "$stamped.tmp" "$stamped"
-	log "Building Ryotunes $RYOTUNES_VERSION, its latest release"
+	log "Building Ryotunes $RYOTUNES_VERSION, its newest 1.x release"
 fi
 
 {
