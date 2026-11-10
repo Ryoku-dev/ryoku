@@ -60,6 +60,9 @@
 - **Notification toasts stop feeding their own layout.** The popup list no longer sizes
   itself from its cards or re-lays out on every resize, and the countdown frame no longer
   repaints a canvas each frame. Image toasts hold their thumbnail's room while it loads.
+- **Orpheus workspace marks keep one slot each.** The active pill now fits inside
+  its own slot and stays a whole capsule while the strip grows, and the strip's
+  rows no longer carry a field that list models mistake for the row position.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.

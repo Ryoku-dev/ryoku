@@ -15,11 +15,11 @@ Item {
     property var args: ({})
 
     readonly property var workspaceSample: [
-        { key: "1", label: "1", index: 1, active: false, occupied: true, windowCount: 1, apps: ["org.gnome.Nautilus"] },
-        { key: "2", label: "2", index: 2, active: true, occupied: true, windowCount: 2, apps: ["firefox", "kitty"] },
-        { key: "3", label: "3", index: 3, active: false, occupied: false, windowCount: 0, apps: [] },
-        { key: "4", label: "4", index: 4, active: false, occupied: true, windowCount: 1, apps: ["kitty"] },
-        { key: "5", label: "5", index: 5, active: false, occupied: false, windowCount: 0, apps: [] }
+        { key: "1", label: "1", number: 1, active: false, occupied: true, windowCount: 1, apps: ["org.gnome.Nautilus"] },
+        { key: "2", label: "2", number: 2, active: true, occupied: true, windowCount: 2, apps: ["firefox", "kitty"] },
+        { key: "3", label: "3", number: 3, active: false, occupied: false, windowCount: 0, apps: [] },
+        { key: "4", label: "4", number: 4, active: false, occupied: true, windowCount: 1, apps: ["kitty"] },
+        { key: "5", label: "5", number: 5, active: false, occupied: false, windowCount: 0, apps: [] }
     ]
     readonly property var workspaceStyles: [
         { value: "dots", label: "Dots" },
