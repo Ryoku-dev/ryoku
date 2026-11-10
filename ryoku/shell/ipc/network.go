@@ -751,7 +751,15 @@ func (n *networkState) wifiConnect(ssid, password, bssid string, hidden bool) er
 	if err := n.obj(nmPath).Call(nmIface+".AddAndActivateConnection", 0, settings, dbus.ObjectPath(wifiDev), specific).Store(&newConn, &newActive); err != nil {
 		return err
 	}
-	return n.waitForActivation(newActive)
+	err := n.waitForActivation(newActive)
+	if errors.Is(err, errActivationFailed) {
+		// NetworkManager keeps the profile it just created even when the
+		// passphrase is wrong, so the network would read as saved and every
+		// later join would retry the bad secret without asking for a new one.
+		// A timeout keeps it: that join may still be coming up.
+		_ = n.obj(newConn).Call(nmSettConnIface+".Delete", 0).Err
+	}
+	return err
 }
 
 var errActivationFailed = errors.New("could not connect (check the password)")

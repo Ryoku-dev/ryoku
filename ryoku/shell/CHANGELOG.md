@@ -1,6 +1,11 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A wrong password no longer saves the Wi-Fi network.** NetworkManager keeps
+  the profile a first join creates even when the passphrase is rejected, so the
+  network read as saved and every later tap retried the bad secret without
+  asking again. A first join that fails now deletes that profile; a timeout
+  keeps it, since that join may still be coming up (`ipc/network.go`).
 - **A wrong Wi-Fi password fails in seconds, not 30.** The shell daemon waited
   on the activation's State, but NetworkManager removes a failed activation
   from the bus at once, so the read failed and the join sat out its whole
