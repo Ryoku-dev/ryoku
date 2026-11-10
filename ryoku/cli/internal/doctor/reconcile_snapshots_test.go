@@ -201,3 +201,17 @@ func TestSnapshotCleanupReconcilersAreNeutralWhenUnsupported(t *testing.T) {
 		})
 	}
 }
+
+// A second account running doctor must join the snapshot readers, not replace
+// the first account.
+func TestAllowUsersWith(t *testing.T) {
+	for _, c := range []struct{ current, user, want string }{
+		{"", "nero", "nero"},
+		{"nero", "alice", "nero alice"},
+		{"nero  alice", "alice", "nero alice"},
+	} {
+		if got := allowUsersWith(c.current, c.user); got != c.want {
+			t.Errorf("allowUsersWith(%q, %q) = %q, want %q", c.current, c.user, got, c.want)
+		}
+	}
+}

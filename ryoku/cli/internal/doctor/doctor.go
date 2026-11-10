@@ -901,15 +901,35 @@ func reconcileSnapperAccess(checkOnly bool) recResult {
 		return wouldRes(i18n.T("`ryoku status` cannot count snapshots without a cached sudo credential, so it can read as \"0\" on a machine that has them")).
 			withFix(i18n.T("grant %s read access (snapper ALLOW_USERS + SYNC_ACL)"), user)
 	}
+	// ALLOW_USERS is a list; writing only this user locks every other account out
+	contents := snapperRootConfigContents()
+	if contents == "" && sys.Sudo("-v") == nil {
+		contents = snapperRootConfigContents()
+	}
+	if contents == "" {
+		return failRes(i18n.T("could not read the snapper root config, so %s was not added beside the accounts it already allows"), user).
+			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=\"<accounts already listed> %s\" SYNC_ACL=yes"), user)
+	}
+	allow := allowUsersWith(configValue(contents, "ALLOW_USERS"), user)
 	if err := sys.Run("sudo", "snapper", "-c", "root", "set-config",
-		"ALLOW_USERS="+user, "SYNC_ACL=yes"); err != nil {
+		"ALLOW_USERS="+allow, "SYNC_ACL=yes"); err != nil {
 		return failRes(i18n.T("granting %s snapshot read access: %v"), user, err).
-			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=%s SYNC_ACL=yes"), user)
+			withFix(i18n.T("sudo snapper -c root set-config ALLOW_USERS=\"%s\" SYNC_ACL=yes"), allow)
 	}
 	if !snapperReadableUnprivileged() {
 		return warnRes(i18n.T("granted %s snapshot access, but an unprivileged read still fails; the ACL sync may land on the next snapshot"), user)
 	}
 	return fixedRes(i18n.T("granted %s read access to snapshots (ALLOW_USERS, SYNC_ACL); `ryoku status` counts them without sudo now"), user)
+}
+
+func allowUsersWith(current, user string) string {
+	users := strings.Fields(current)
+	for _, u := range users {
+		if u == user {
+			return strings.Join(users, " ")
+		}
+	}
+	return strings.Join(append(users, user), " ")
 }
 
 // snapperReadableUnprivileged reports whether the current user can list the root
