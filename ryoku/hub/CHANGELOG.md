@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **Shift plus a number key records in the shortcut recorder (#788).** The
+  number row is read by key position, so Super+Shift+1 records as itself
+  instead of being ignored, on any keyboard layout.
 - **Identical RAM sticks are separate lighting devices.** SMBus devices report
   no serial, so every matching stick shared one entry and Hand back restored
   only the first. Each stick is now keyed by its adapter and address (the
