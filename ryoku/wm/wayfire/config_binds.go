@@ -301,6 +301,7 @@ func shippedBinds() map[string]wayfireBind {
 		"shell.ask":               {key: "shell_ask", cmd: "ryoku-shell ask"},
 		"shell.rashin":            {key: "shell_rashin", cmd: "ryoku-summon Rashin flock -n -o /tmp/rashin-app.lock rashin-app"},
 		"shell.cheatsheet":        {key: "shell_cheatsheet", cmd: "ryoku-shell cheatsheet"},
+		"shell.gamebar":           {key: "shell_gamebar", cmd: "ryoku-shell gamebar"},
 		"shell.lock":              {key: "shell_lock", cmd: "ryoku-shell lock"},
 		"shell.quicksettings":     {key: "shell_quicksettings", cmd: "ryoku-shell quicksettings"},
 		"shell.wallpaper":         {key: "shell_wallpaper", cmd: "ryogami wallpaper ui"},

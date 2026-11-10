@@ -210,6 +210,7 @@ var catalogue = []CatalogBind{
 	{ID: "shell.ask", Category: "Shell", Label: "Ask Rashin", Hint: "AI chat bar", Chord: "ALT + Space", Kind: BindShell, Needs: "ryoku-rashin"},
 	{ID: "shell.rashin", Category: "Shell", Label: "Rashin", Hint: "The AI companion app; a second press focuses it", Chord: "SUPER + ALT + Space", Kind: BindShell, Needs: "rashin-app"},
 	{ID: "shell.cheatsheet", Category: "Shell", Label: "Kit", Hint: "Press again to close", Chord: "SUPER + K", Kind: BindShell},
+	{ID: "shell.gamebar", Category: "Shell", Label: "Game Bar", Hint: "Capture, performance and tasks over a fullscreen game", Chord: "SUPER + SHIFT + G", Kind: BindShell},
 	{ID: "shell.lock", Category: "Shell", Label: "Lock the screen", Chord: "SUPER + L", Kind: BindShell},
 	{ID: "shell.quicksettings", Category: "Shell", Label: "Quick settings", Hint: "Power, logout, restart, shutdown, wifi", Chord: "SUPER + Escape", Kind: BindShell},
 	{ID: "shell.wallpaper", Category: "Shell", Label: "Wallpaper picker", Chord: "SUPER + W", Kind: BindShell},

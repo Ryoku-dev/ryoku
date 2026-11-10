@@ -124,6 +124,15 @@ for finer detail.
   API value. Bundled collectors refresh private caches every 15 seconds while
   the dashboard is on screen and stop when it is closed.
   Enable it in Island settings under Desktop page > Your modules.
+- **Game Bar.** `Super+Shift+G` raises a passive overlay over the focused
+  monitor: a strip of eight widgets and draggable cards for capture,
+  performance, resources, tasks, media, audio, gallery and Discord voice. Cards
+  snap to edges, centre lines and each other with a guide grid, the layout
+  survives a restart, and a pinned Voice card shrinks to a content-sized
+  overlay that shows the call without taking pointer or keyboard focus. Voice
+  reads the official Discord client over native RPC, or Vesktop and Equibop
+  through a bundled Vencord companion. Every setting lives in Ryoku Hub ->
+  Desktop -> Game Bar.
 - **Community docks.** RyoStore gains a Docks section: anyone can submit a dock
   as a folder to the ryostore catalogue, users install it there and pick it in
   Edit desktop -> Dock, and it becomes the dock on every monitor and every bar
