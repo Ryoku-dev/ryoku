@@ -379,7 +379,7 @@ PanelWindow {
         // card rects stay at zero and the mask never changes between moves.
         if (win.dragCard !== "" || !win.shown(id))
             return { x: 0, y: 0, w: 0, h: 0 };
-        if (!win.stripUp)
+        if (!win.takingInput)
             return { x: 0, y: 0, w: 0, h: 0 };
         const p = win.positionFor(id);
         const size = win.sizeFor(id);
@@ -434,6 +434,10 @@ PanelWindow {
     }
 
     readonly property bool wanted: win.active && !win.suppressed
+    // Input follows the open state, not the fade: a closing bar hands the
+    // pointer back at once while the strip may still be fading out. A pinned
+    // card left after close takes nothing.
+    readonly property bool takingInput: win.wanted && GameBarStore.open
 
     screen: modelData
     visible: win.live && !win.suppressed
@@ -450,8 +454,8 @@ PanelWindow {
     mask: Region {
         Region {
             x: strip.x; y: strip.y
-            width: win.stripUp ? strip.width : 0
-            height: win.stripUp ? strip.height : 0
+            width: win.takingInput ? strip.width : 0
+            height: win.takingInput ? strip.height : 0
             intersection: Intersection.Combine
         }
         Region {
