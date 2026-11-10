@@ -14,6 +14,9 @@ for finer detail.
   user is no longer in a mango session.
 
 ### Fixed
+- Hub step rows now clamp to the schema's `lo` and `hi` values instead of
+  unrelated `from` and `to` keys, so a step control stays inside its stated
+  range.
 - A QML object that sets the same property or handler twice can no longer be
   committed or pass QML Lint. qmllint never flagged it, yet the file refuses to
   load, and one such slip in the audio service kept the desktop from starting.
