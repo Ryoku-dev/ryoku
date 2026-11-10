@@ -182,7 +182,7 @@ Item {
         if (!ap.saved)
             root.setJoining(ap.ssid, true);
         const id = Network.connectWifi(ap.ssid, pw, "");
-        root.pendingJoins[id] = { ssid: ap.ssid, wasSaved: !!ap.saved };
+        root.pendingJoins[id] = { ssid: ap.ssid };
     }
     function forget(ssid) {
         root.setSt(ssid, { expanded: false, reprompt: false, error: false, connecting: false });
@@ -204,9 +204,11 @@ Item {
             if (ok) {
                 root.setSt(j.ssid, { connecting: false, expanded: false, error: false, reprompt: false, pwEpoch: epoch });
             } else {
-                // a saved network's stored password failed: ask for it again
+                // ask for the password again, also when the network reads as
+                // saved: a stored secret failed, or a failed first join left
+                // its profile behind
                 root.setSt(j.ssid, { connecting: false, expanded: true, error: true,
-                    reprompt: j.wasSaved || !!root.st(j.ssid).reprompt, pwEpoch: epoch });
+                    reprompt: true, pwEpoch: epoch });
                 root.focusSsid = j.ssid;
             }
         }
