@@ -464,12 +464,21 @@ Item {
         readonly property var wifiDev: devices.find(function(d) { return d && d.type === DeviceType.Wifi }) || null
         readonly property bool wifiOn: (typeof Networking !== "undefined" && Networking) ? Networking.wifiEnabled : false
         readonly property var nets: (wifiDev && wifiDev.networks) ? wifiDev.networks.values : []
+        // saved networks in range lead (the connected one first), then the
+        // rest, each by signal; the list heads each group
+        function isSaved(n) { return !!n && (n.connected === true || wifi.knownProfiles[n.name] === true); }
         readonly property var netsSorted: nets
             .slice()
             .filter(function(n) { return n && n.name && n.name.length > 0; })
             .sort(function(a, b) {
+                if ((a.connected === true) !== (b.connected === true))
+                    return a.connected === true ? -1 : 1;
+                var sa = wifi.isSaved(a), sb = wifi.isSaved(b);
+                if (sa !== sb)
+                    return sa ? -1 : 1;
                 return ((b ? b.signalStrength : 0) || 0) - ((a ? a.signalStrength : 0) || 0);
             })
+        readonly property int savedCount: netsSorted.filter(function(n) { return wifi.isSaved(n); }).length
 
         property var securityMap: ({})
         property var knownProfiles: ({})
@@ -1057,6 +1066,7 @@ Item {
                         delegate: Column {
                             id: netItem
                             required property var modelData
+                            required property int index
 
                             readonly property string ssid: (modelData && modelData.name) ? modelData.name : ""
                             readonly property bool isActive: modelData ? modelData.connected === true : false
@@ -1092,6 +1102,21 @@ Item {
                                 }
                             }
                             Component.onCompleted: if (expanded) Qt.callLater(syncPwField)
+
+                            Text {
+                                readonly property bool firstSaved: netItem.index === 0 && wifi.savedCount > 0
+                                readonly property bool firstOther: netItem.index === wifi.savedCount
+                                visible: firstSaved || firstOther
+                                width: parent.width
+                                topPadding: firstOther && wifi.savedCount > 0 ? Tokens.s4 : 0
+                                bottomPadding: Tokens.s1
+                                text: firstSaved ? I18n.tr("SAVED") : (wifi.savedCount > 0 ? I18n.tr("OTHER NETWORKS") : I18n.tr("NETWORKS"))
+                                color: Tokens.inkMuted
+                                font.family: Tokens.ui
+                                font.pixelSize: Tokens.fMicro
+                                font.weight: Font.Medium
+                                font.letterSpacing: Tokens.trackLabel
+                            }
 
                             // the row. connected = the ON member of the exclusive
                             // Wi-Fi set, so it inverts to bone (DESIGN section 1).

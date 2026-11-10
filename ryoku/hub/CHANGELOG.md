@@ -94,6 +94,9 @@
   `../shell/matugen/config.toml`).
 
 ### Added
+- **Connections lists saved Wi-Fi networks first.** Saved networks in range,
+  the connected one on top, sit under a Saved heading above Other networks
+  (`pages/ConnectionsPage.qml`).
 - **Saved Wi-Fi networks can be forgotten in Connections.** A saved row now has
   Forget next to Auto-reconnect, armed by a first press, which deletes the
   profile (`pages/ConnectionsPage.qml`, #776).
