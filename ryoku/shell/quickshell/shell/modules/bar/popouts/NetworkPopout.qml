@@ -163,40 +163,86 @@ Item {
 
     PopoutCard { anchors.fill: parent }
 
+    // Row state is kept here, keyed by SSID: the list is rebuilt from a fresh
+    // array on every network frame, which destroyed a row mid-join along with
+    // its field, its pending reply and its error.
+    property var rowState: ({})
+    property var pendingJoins: ({})
+    readonly property var pwDrafts: ({})
+    property string focusSsid: ""
+
+    function st(ssid) { return root.rowState[ssid] || ({}); }
+    function setSt(ssid, patch) {
+        const m = Object.assign({}, root.rowState);
+        m[ssid] = Object.assign({}, m[ssid] || ({}), patch);
+        root.rowState = m;
+    }
+    function toggleExpanded(ssid) {
+        const open = !root.st(ssid).expanded;
+        root.setSt(ssid, { expanded: open });
+        if (open)
+            root.focusSsid = ssid;
+    }
+    function join(ap, pw) {
+        root.setSt(ap.ssid, { connecting: true, error: false });
+        const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
+        root.pendingJoins[id] = { ssid: ap.ssid };
+    }
+    Connections {
+        target: Network
+        function onReplied(id, ok, error) {
+            const j = root.pendingJoins[id];
+            if (!j)
+                return;
+            delete root.pendingJoins[id];
+            root.pwDrafts[j.ssid] = "";
+            // pwEpoch tells the row to empty its field, so a failed password is
+            // never left for the next attempt to be typed onto
+            const epoch = (root.st(j.ssid).pwEpoch || 0) + 1;
+            if (ok) {
+                root.setSt(j.ssid, { connecting: false, expanded: false, error: false, pwEpoch: epoch });
+            } else {
+                root.setSt(j.ssid, { connecting: false, error: true, pwEpoch: epoch });
+                root.focusSsid = j.ssid;
+            }
+        }
+    }
+
     // an available-network row: signal + SSID (+ lock), tap to join or, when a
     // password is needed, expand an inline field.
     component ApRow: Column {
         id: apr
         required property var ap
-        property bool expanded: false
-        property bool connecting: false
-        property bool errorShown: false
-        property int pendingId: -1
+        readonly property var rs: root.st(apr.ap.ssid)
+        readonly property bool expanded: !!apr.rs.expanded
+        readonly property bool connecting: !!apr.rs.connecting
+        readonly property bool errorShown: !!apr.rs.error
         readonly property bool sec: root.secured(apr.ap)
         readonly property bool needsPw: apr.sec && !apr.ap.saved
+        property int seenEpoch: 0
 
         width: parent ? parent.width : 0
         spacing: 4 * root.s
 
         function doConnect() {
-            apr.errorShown = false;
-            apr.connecting = true;
-            apr.pendingId = Network.connectWifi(apr.ap.ssid, apr.needsPw ? pwField.text : "", apr.ap.bssid);
+            root.join(apr.ap, apr.needsPw ? pwField.text : "");
         }
-        Connections {
-            target: Network
-            function onReplied(id, ok, error) {
-                if (id !== apr.pendingId)
-                    return;
-                apr.connecting = false;
-                apr.pendingId = -1;
-                if (ok) {
-                    apr.expanded = false;
-                    pwField.text = "";
-                } else {
-                    apr.errorShown = true;
-                    pwField.text = "";
-                }
+        function focusField() {
+            if (apr.expanded && apr.needsPw && root.focusSsid === apr.ap.ssid)
+                pwField.forceActiveFocus();
+        }
+        Component.onCompleted: {
+            apr.seenEpoch = apr.rs.pwEpoch || 0;
+            pwField.text = root.pwDrafts[apr.ap.ssid] || "";
+            apr.focusField();
+        }
+        onExpandedChanged: apr.focusField()
+        onRsChanged: {
+            const e = apr.rs.pwEpoch || 0;
+            if (e !== apr.seenEpoch) {
+                apr.seenEpoch = e;
+                pwField.text = "";
+                apr.focusField();
             }
         }
 
@@ -272,13 +318,10 @@ Item {
                 id: apTap
                 anchors.fill: parent
                 onClicked: {
-                    if (apr.needsPw) {
-                        apr.expanded = !apr.expanded;
-                        if (apr.expanded)
-                            pwField.forceActiveFocus();
-                    } else {
+                    if (apr.needsPw)
+                        root.toggleExpanded(apr.ap.ssid);
+                    else
                         apr.doConnect();
-                    }
                 }
             }
         }
@@ -308,6 +351,7 @@ Item {
                     font.pixelSize: 11 * root.s
                     echoMode: eye.show ? TextInput.Normal : TextInput.Password
                     clip: true
+                    onTextEdited: root.pwDrafts[apr.ap.ssid] = text
                     onAccepted: apr.doConnect()
                     Text {
                         anchors.fill: parent

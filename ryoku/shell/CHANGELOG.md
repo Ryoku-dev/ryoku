@@ -1,6 +1,12 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **The bar's Wi-Fi rows keep their password field through network updates.**
+  The list is rebuilt on every network frame, which threw away a row's field,
+  its pending join and its error; a retry after a wrong password could also
+  type onto the rejected text. Row state now lives in the popout, keyed by
+  SSID, and the field empties after every attempt
+  (`quickshell/shell/modules/bar/popouts/NetworkPopout.qml`).
 - **A wrong password no longer saves the Wi-Fi network.** NetworkManager keeps
   the profile a first join creates even when the passphrase is rejected, so the
   network read as saved and every later tap retried the bad secret without
