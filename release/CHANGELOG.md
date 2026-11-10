@@ -1,6 +1,9 @@
 # Release / Packaging Changelog
 
 ## Unreleased
+- **The Fedora Hyprland desktop installs after a Hyprland COPR update.**
+  `ryoku-desktop-hyprland` only recommends the plugin RPMs locked to one
+  Hyprland build; the share picker drops that lock, and `hyprland-devel` is allowed.
 - **The compositor isolation check runs in CI and passes again.** The pinned
   Shima patches carry upstream code, so the check skips them, and the delivery
   workflow now runs it on every push instead of only in local hooks.
