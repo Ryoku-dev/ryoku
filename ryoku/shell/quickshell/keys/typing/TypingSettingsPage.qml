@@ -58,13 +58,13 @@ Item {
             SettingCard {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                title: qsTr("TEST")
+                title: I18n.tr("TEST")
                 kana: "試験"
                 collapsible: false
 
                 SettingRow {
-                    label: qsTr("Language")
-                    desc: qsTr("Bundled word source; no network requests.")
+                    label: I18n.tr("Language")
+                    desc: I18n.tr("Bundled word source; no network requests.")
                     block: true
                     Chips {
                         width: parent.width
@@ -76,8 +76,8 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Word list")
-                    desc: qsTr("Standard is curated; extended adds broader vocabulary.")
+                    label: I18n.tr("Word list")
+                    desc: I18n.tr("Standard is curated; extended adds broader vocabulary.")
                     controlWidth: 150
                     Seg {
                         width: 150
@@ -88,7 +88,7 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Default mode")
+                    label: I18n.tr("Default mode")
                     controlWidth: 190
                     Seg {
                         width: 190
@@ -99,14 +99,14 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Guided zen")
-                    desc: qsTr("Keep generated words but remove the finish line.")
+                    label: I18n.tr("Guided zen")
+                    desc: I18n.tr("Keep generated words but remove the finish line.")
                     controlWidth: 54
                     Sw { on: settings.store.zenGuided; onToggled: value => settings.store.zenGuided = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Time target")
+                    label: I18n.tr("Time target")
                     value: String(settings.store.timeLimit)
                     unit: "s"
                     controlWidth: 58
@@ -114,20 +114,20 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Word target")
+                    label: I18n.tr("Word target")
                     value: String(settings.store.wordLimit)
                     controlWidth: 58
                     Step { value: settings.store.wordLimit; from: 10; to: 200; stepBy: 10; onModified: value => settings.store.wordLimit = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Punctuation")
+                    label: I18n.tr("Punctuation")
                     controlWidth: 54
                     Sw { on: settings.store.punctuation; onToggled: value => settings.store.punctuation = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Numbers")
+                    label: I18n.tr("Numbers")
                     controlWidth: 54
                     Sw { on: settings.store.numbers; onToggled: value => settings.store.numbers = value }
                 }
@@ -136,12 +136,12 @@ Item {
             SettingCard {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                title: qsTr("TYPE")
+                title: I18n.tr("TYPE")
                 kana: "入力"
                 collapsible: false
 
                 SettingRow {
-                    label: qsTr("Text size")
+                    label: I18n.tr("Text size")
                     value: String(settings.store.fontSize)
                     unit: "px"
                     controlWidth: 58
@@ -149,14 +149,14 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Visible lines")
+                    label: I18n.tr("Visible lines")
                     value: String(settings.store.visibleLines)
                     controlWidth: 58
                     Step { value: settings.store.visibleLines; from: 2; to: 6; onModified: value => settings.store.visibleLines = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Caret")
+                    label: I18n.tr("Caret")
                     block: true
                     Seg {
                         width: parent.width
@@ -167,47 +167,47 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Smooth caret")
+                    label: I18n.tr("Smooth caret")
                     controlWidth: 54
                     Sw { on: settings.store.smoothCaret; onToggled: value => settings.store.smoothCaret = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Current word focus")
-                    desc: qsTr("Dim words outside the active one.")
+                    label: I18n.tr("Current word focus")
+                    desc: I18n.tr("Dim words outside the active one.")
                     controlWidth: 54
                     Sw { on: settings.store.highlightCurrentWord; onToggled: value => settings.store.highlightCurrentWord = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Blind mode")
-                    desc: qsTr("Do not reveal errors while typing.")
+                    label: I18n.tr("Blind mode")
+                    desc: I18n.tr("Do not reveal errors while typing.")
                     controlWidth: 54
                     Sw { on: settings.store.blindMode; onToggled: value => settings.store.blindMode = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Live WPM")
+                    label: I18n.tr("Live WPM")
                     controlWidth: 54
                     Sw { on: settings.store.showLiveWpm; onToggled: value => settings.store.showLiveWpm = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Live accuracy")
+                    label: I18n.tr("Live accuracy")
                     controlWidth: 54
                     Sw { on: settings.store.showLiveAccuracy; onToggled: value => settings.store.showLiveAccuracy = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Quick restart")
-                    desc: qsTr("Tab restarts the current test.")
+                    label: I18n.tr("Quick restart")
+                    desc: I18n.tr("Tab restarts the current test.")
                     controlWidth: 54
                     Sw { on: settings.store.quickRestart; onToggled: value => settings.store.quickRestart = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Finish on final word")
-                    desc: qsTr("No trailing space is required.")
+                    label: I18n.tr("Finish on final word")
+                    desc: I18n.tr("No trailing space is required.")
                     controlWidth: 54
                     Sw { on: settings.store.finishOnLastWord; onToggled: value => settings.store.finishOnLastWord = value }
                 }
@@ -216,18 +216,18 @@ Item {
             SettingCard {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                title: qsTr("KEYBOARD")
+                title: I18n.tr("KEYBOARD")
                 kana: "指"
                 collapsible: false
 
                 SettingRow {
-                    label: qsTr("Preview")
+                    label: I18n.tr("Preview")
                     controlWidth: 54
                     Sw { on: settings.store.keyboardEnabled; onToggled: value => settings.store.keyboardEnabled = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Layout")
+                    label: I18n.tr("Layout")
                     block: true
                     Chips {
                         width: parent.width
@@ -238,22 +238,22 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Next key")
-                    desc: qsTr("Mark the expected key as you type.")
+                    label: I18n.tr("Next key")
+                    desc: I18n.tr("Mark the expected key as you type.")
                     controlWidth: 54
                     Sw { on: settings.store.highlightNextKey; onToggled: value => settings.store.highlightNextKey = value }
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("Finger guide")
-                    desc: qsTr("Shade each key by its recommended finger; click a key to adjust it.")
+                    label: I18n.tr("Finger guide")
+                    desc: I18n.tr("Shade each key by its recommended finger; click a key to adjust it.")
                     controlWidth: 54
                     Sw { on: settings.store.fingerGuide; onToggled: value => settings.store.fingerGuide = value }
                 }
                 SettingRow {
                     visible: settings.store.keyboardEnabled
                     divider: true
-                    label: qsTr("Guide preview")
+                    label: I18n.tr("Guide preview")
                     block: true
                     footH: keyboard.implicitHeight
                     TypingKeyboardPreview {
@@ -269,20 +269,20 @@ Item {
             SettingCard {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
-                title: qsTr("SOUND & DATA")
+                title: I18n.tr("SOUND & DATA")
                 kana: "記録"
                 collapsible: false
 
                 SettingRow {
-                    label: qsTr("Key sounds")
-                    desc: qsTr("Local Monkeytype samples; nothing is streamed.")
+                    label: I18n.tr("Key sounds")
+                    desc: I18n.tr("Local Monkeytype samples; nothing is streamed.")
                     controlWidth: 54
                     Sw { on: settings.store.soundsEnabled; onToggled: value => settings.store.soundsEnabled = value }
                 }
                 SettingRow {
                     divider: true
                     enabled: settings.store.soundsEnabled
-                    label: qsTr("Key sound")
+                    label: I18n.tr("Key sound")
                     block: true
                     Chips {
                         width: parent.width
@@ -295,14 +295,14 @@ Item {
                 SettingRow {
                     divider: true
                     enabled: settings.store.soundsEnabled
-                    label: qsTr("Error sound")
+                    label: I18n.tr("Error sound")
                     controlWidth: 54
                     Sw { on: settings.store.errorSound; onToggled: value => settings.store.errorSound = value }
                 }
                 SettingRow {
                     divider: true
                     enabled: settings.store.soundsEnabled && settings.store.errorSound
-                    label: qsTr("Error tone")
+                    label: I18n.tr("Error tone")
                     block: true
                     Chips {
                         width: parent.width
@@ -315,7 +315,7 @@ Item {
                 SettingRow {
                     divider: true
                     enabled: settings.store.soundsEnabled
-                    label: qsTr("Volume")
+                    label: I18n.tr("Volume")
                     value: String(settings.store.soundVolume)
                     unit: "%"
                     block: true
@@ -323,15 +323,15 @@ Item {
                 }
                 SettingRow {
                     divider: true
-                    label: qsTr("History")
-                    desc: qsTr("Store aggregate scores locally, never typed text.")
+                    label: I18n.tr("History")
+                    desc: I18n.tr("Store aggregate scores locally, never typed text.")
                     controlWidth: 54
                     Sw { on: settings.store.historyEnabled; onToggled: value => settings.store.historyEnabled = value }
                 }
                 SettingRow {
                     divider: true
                     enabled: settings.store.historyEnabled
-                    label: qsTr("History limit")
+                    label: I18n.tr("History limit")
                     value: String(settings.store.maxEntries)
                     controlWidth: 58
                     Step { value: settings.store.maxEntries; from: 10; to: 500; stepBy: 10; onModified: value => settings.store.maxEntries = value }

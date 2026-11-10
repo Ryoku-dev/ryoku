@@ -48,11 +48,11 @@ Item {
         Row {
             id: sessionActions
             readonly property var allActions: [
-                { id: "lock", action: "lock", glyph: "lock", label: I18n.tr("Lock") },
-                { id: "sleep", action: "suspend", glyph: "dark_mode", label: I18n.tr("Sleep") },
-                { id: "logout", action: "logout", glyph: "logout", label: I18n.tr("Log out") },
-                { id: "restart", action: "reboot", glyph: "restart_alt", label: I18n.tr("Restart") },
-                { id: "powerOff", action: "shutdown", glyph: "power_settings_new", label: I18n.tr("Power off") }
+                { id: "lock", action: "lock", glyph: "lock", label: I18n.tr("Lock"), tip: I18n.tr("Hold to lock") },
+                { id: "sleep", action: "suspend", glyph: "dark_mode", label: I18n.tr("Sleep"), tip: I18n.tr("Hold to sleep") },
+                { id: "logout", action: "logout", glyph: "logout", label: I18n.tr("Log out"), tip: I18n.tr("Hold to log out") },
+                { id: "restart", action: "reboot", glyph: "restart_alt", label: I18n.tr("Restart"), tip: I18n.tr("Hold to restart") },
+                { id: "powerOff", action: "shutdown", glyph: "power_settings_new", label: I18n.tr("Power off"), tip: I18n.tr("Hold to power off") }
             ]
             readonly property var actions: allActions.filter(entry => root.elementVisible(entry.id))
             readonly property int actionCount: actions.length
@@ -84,6 +84,7 @@ Item {
                     s: root.s
                     glyph: modelData.glyph
                     text: modelData.label
+                    tip: modelData.tip
                     subtle: true
                     labelled: sessionActions.labelled
                     onHeld: root.session(modelData.action)

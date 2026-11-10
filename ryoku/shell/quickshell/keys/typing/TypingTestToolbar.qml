@@ -54,12 +54,12 @@ Flow {
     }
 
     ToggleChip {
-        label: qsTr("punctuation")
+        label: I18n.tr("punctuation")
         selected: toolbar.store.punctuation
         onChosen: { toolbar.store.punctuation = !toolbar.store.punctuation; toolbar.refocus(); }
     }
     ToggleChip {
-        label: qsTr("numbers")
+        label: I18n.tr("numbers")
         selected: toolbar.store.numbers
         onChosen: { toolbar.store.numbers = !toolbar.store.numbers; toolbar.refocus(); }
     }
@@ -92,7 +92,7 @@ Flow {
 
     ToggleChip {
         visible: toolbar.store.mode === "zen"
-        label: qsTr("guided")
+        label: I18n.tr("guided")
         selected: toolbar.store.zenGuided
         onChosen: { toolbar.store.zenGuided = !toolbar.store.zenGuided; toolbar.refocus(); }
     }

@@ -12,10 +12,10 @@ Item {
     property bool current: false
     readonly property int matches: -1
     readonly property var rail: [
-        { id: "test", label: qsTr("Test"), count: -1 },
-        { id: "history", label: qsTr("History"), count: -1 },
-        { id: "stats", label: qsTr("Stats"), count: -1 },
-        { id: "settings", label: qsTr("Settings"), count: -1 }
+        { id: "test", label: I18n.tr("Test"), count: -1 },
+        { id: "history", label: I18n.tr("History"), count: -1 },
+        { id: "stats", label: I18n.tr("Stats"), count: -1 },
+        { id: "settings", label: I18n.tr("Settings"), count: -1 }
     ]
     property string railCurrent: "test"
     property bool loadedOnce: false
@@ -52,7 +52,7 @@ Item {
             spacing: Tokens.s2
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("PREPARING TEST")
+                text: I18n.tr("PREPARING TEST")
                 color: Tokens.inkDim
                 font.family: Tokens.mono
                 font.pixelSize: Tokens.fMicro
@@ -60,7 +60,7 @@ Item {
             }
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: qsTr("Loading words and keyboard")
+                text: I18n.tr("Loading words and keyboard")
                 color: Tokens.inkMuted
                 font.family: Tokens.ui
                 font.pixelSize: Tokens.fSmall
