@@ -66,10 +66,7 @@ Item {
     Component.onCompleted: Music.hold(root, root.wanted)
     Component.onDestruction: Music.hold(root, false)
 
-    // The cover the daemon resolved wins; the player's own art URL covers the
-    // moment before that lands (and a local file it already extracted).
-    readonly property string artSource: Music.hasArt ? Music.artUrl
-        : (root.player && root.player.trackArtUrl ? root.player.trackArtUrl : "")
+    readonly property string artSource: Music.coverFor(root.player)
 
     ColorQuantizer {
         id: quant

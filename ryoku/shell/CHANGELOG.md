@@ -28,6 +28,9 @@
 - **Library desktop widgets keep the size you give them.** The resource cards,
   clocks and the rest of the added widget library no longer snap back to 100%
   after a corner drag or a change in the Size control.
+- **Album art no longer risks crashing the shell.** Covers in the bar, popouts,
+  sidebar, launcher, dock and desktop music widget now come from the cover the
+  shell daemon saves to disk, never from a web address loaded inside the shell.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
