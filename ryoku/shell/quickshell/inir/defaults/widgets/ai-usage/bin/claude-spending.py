@@ -182,6 +182,7 @@ def estimate_spending(messages, *, state_dir=None, now=None):
                     event[name] = max(old[name], event[name])
             event["date"] = min(old["date"], event["date"])
             event["split_known"] = old["split_known"] and event["split_known"] \
+                and all(_count(event[name]) for name in SPLITS) \
                 and sum(event[name] for name in SPLITS) == event["cache_write"]
             event["extra_tools"] |= old["extra_tools"]
             if any(old[name] != event[name] for name in

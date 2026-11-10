@@ -26,12 +26,15 @@ import glob
 import json
 import math
 import os
+import runpy
 import sqlite3
 import sys
 import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+
+rolling_period = runpy.run_path(str(Path(__file__).resolve().with_name("rolling-history.py")))["rolling_period"]
 
 VERSION = "2.2.0"
 
@@ -906,8 +909,7 @@ def _run() -> None:
         "_sessions": load_sessions(),
         "_periods": {
             "today": period_stats(msgs_all, start_of_day(0)),
-            "24h": period_stats(msgs_all,
-                                hour_start_ms(int(now * 1000)) - 23 * 3600 * 1000),
+            "24h": rolling_period(msgs_all, int(now * 1000), period_stats),
             "7": period_stats(msgs_all, start_of_day(6)),
             "30": period_stats(msgs_all, start_of_day(29)),
             "all": period_stats(msgs_all, 0),

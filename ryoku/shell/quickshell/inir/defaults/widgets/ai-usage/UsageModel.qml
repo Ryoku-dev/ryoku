@@ -20,7 +20,7 @@ Item {
     property bool switching: false
     signal collected
 
-    // ── parsed state ──
+    // -- parsed state --
     property bool has: false
     property bool fresh: false
     property int pct5h: 0
@@ -390,7 +390,7 @@ Item {
         interval: 30000
         repeat: true
         triggeredOnStart: true
-        running: root.has
+        running: root.has && root.visible
         onTriggered: root.tick++
     }
     Connections {

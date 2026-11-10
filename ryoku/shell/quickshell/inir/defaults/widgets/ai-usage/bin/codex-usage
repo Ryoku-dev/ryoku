@@ -14,6 +14,8 @@ import runpy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+rolling_period = runpy.run_path(str(Path(__file__).resolve().with_name("rolling-history.py")))["rolling_period"]
+
 CODEX_HOME = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
 CACHE_FILE = Path(os.environ.get("CODEX_USAGE_CACHE_FILE") or (Path.home() / ".cache" / "ai-usage" / "codex-usage.json"))
 ACTIVITY_FILE = Path(os.environ.get("CODEX_USAGE_ACTIVITY_FILE") or (Path.home() / ".cache" / "ai-usage" / "codex-usage-activity.json"))
@@ -99,7 +101,7 @@ def fetch_env() -> dict | None:
     }
 
 
-# ── authoritative live limits via the Codex app-server JSON-RPC ──
+# -- authoritative live limits via the Codex app-server JSON-RPC --
 def rpc_request(proc, request_id, method, params=None, timeout=8):
     proc.stdin.write(json.dumps({"id": request_id, "method": method,
                                  "params": params or {}}) + "\n")
@@ -212,7 +214,7 @@ def fetch_rpc() -> dict | None:
     }
 
 
-# ── fallback: newest canonical general-Codex snapshot from session rollouts ──
+# -- fallback: newest canonical general-Codex snapshot from session rollouts --
 def fetch_rollout() -> dict | None:
     roots = [CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"]
     best = None
@@ -266,7 +268,7 @@ def fetch_rollout() -> dict | None:
     }
 
 
-# ── light "today" token estimate from today's rollouts (per-call deltas) ──
+# -- light "today" token estimate from today's rollouts (per-call deltas) --
 def iso_epoch(s: str) -> float:
     try:
         if s.endswith("Z"):
@@ -1146,14 +1148,14 @@ def history_period(messages: list[dict], since_ms: int, limit: int = 8) -> dict:
 
 
 def period_starts(now: float | None = None) -> dict[str, int]:
-    moment = datetime.fromtimestamp(now_epoch() if now is None else now)
+    instant = now_epoch() if now is None else now
+    moment = datetime.fromtimestamp(instant)
     today = moment.date()
-    hour = int(moment.replace(minute=0, second=0, microsecond=0).timestamp() * 1000)
     # Build local calendar midnights before converting to epoch milliseconds;
     # subtracting 24-hour durations shifts boundaries across DST changes.
     midnight = lambda days: int(datetime.combine(today - timedelta(days=days),
                                                 datetime.min.time()).timestamp() * 1000)
-    return {"today": midnight(0), "24h": hour - 23 * 3600000,
+    return {"today": midnight(0), "24h": int(instant * 1000) - 24 * 3600000,
             "7": midnight(6), "30": midnight(29), "all": 0}
 
 
@@ -1441,6 +1443,10 @@ def main():
     days = merge_published("_days", history_days(messages), previous)
     hours = merge_published("_hours", history_hours(messages), previous)
     newest = messages[-1] if messages else {}
+    now = now_epoch()
+    periods = {key: history_period(messages, since)
+               for key, since in period_starts(now).items() if key != "24h"}
+    periods["24h"] = rolling_period(messages, int(now * 1000), history_period)
 
     out = {
         "schemaVersion":  3,
@@ -1466,8 +1472,7 @@ def main():
         "_hours":         hours,
         "_sessions":      history_sessions(sessions),
         "_windows":      windows,
-        "_periods": {key: history_period(messages, since)
-                     for key, since in period_starts().items()},
+        "_periods": periods,
         "_model": model_label(str(newest.get("model_id") or ""),
                               str(newest.get("provider_id") or "")),
         "status": "rejected" if reached_type or max_util >= 1.0

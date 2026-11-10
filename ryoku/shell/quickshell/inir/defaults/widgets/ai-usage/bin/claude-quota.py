@@ -279,10 +279,19 @@ def _fetch_oauth(token):
     return json.loads(raw)
 
 
-def _previous_oauth(previous, fingerprint, now):
+def _oauth_probe(previous, fingerprint=None):
     if not isinstance(previous, dict):
         return None
-    previous = previous.get("_quota_oauth_probe", previous)
+    for candidate in (previous.get("_quota_oauth_probe"), previous):
+        meta = candidate.get("_quota") if isinstance(candidate, dict) else None
+        if isinstance(meta, dict) and meta.get("source") == "oauth" and (
+                fingerprint is None or meta.get("credential_fingerprint") == fingerprint):
+            return candidate
+    return None
+
+
+def _previous_oauth(previous, fingerprint, now):
+    previous = _oauth_probe(previous, fingerprint)
     if not isinstance(previous, dict):
         return None
     meta = previous.get("_quota")
@@ -399,9 +408,13 @@ def collect_quota(config, *, desktop=None, now=None, allow_network=True, previou
         live = oauth_quota(config, now, previous)
         if live["_windows"]:
             return live
+        # Missing credentials must not erase a prior, account-bound cooldown.
+        probe = live if live["_quota"].get("source") == "oauth" else _oauth_probe(previous)
         if not cached["_quota"]["available"]:
+            if probe is not None and probe is not live:
+                live["_quota_oauth_probe"] = probe
             return live
         # Keep OAuth cooldown state even when the older Desktop capture is the
         # visible result. No raw credential or account identifier is retained.
-        cached["_quota_oauth_probe"] = live
+        cached["_quota_oauth_probe"] = probe or live
     return cached

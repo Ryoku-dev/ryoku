@@ -28,11 +28,11 @@ Item {
     property string irisSlot: ""
     property var targetScreen
 
-    // ── config (written by Shima Settings; read null-guarded here) ──
+    // -- config (written by Shima Settings; read null-guarded here) --
     readonly property string tool: CustomWidgets.getConfigValue("ai-usage", "tool", "opencode")
     readonly property var labels: ({ opencode: "OpenCode", claude: "Claude", codex: "Codex" })
 
-    // ── agents this machine actually uses ──
+    // -- agents this machine actually uses --
     // A usage cache exists only after that agent ran here, so the menu offers
     // just the agents with a cache. The stored tool stays valid: if its cache
     // disappears the page falls back to the first agent that still has one
@@ -206,7 +206,7 @@ Item {
         root.reconcileAgent()
     }
 
-    // ── trend buckets: hourly for Today / 24 hours, daily for the rest ──
+    // -- trend buckets: hourly for Today / 24 hours, daily for the rest --
     readonly property var trend: {
         if (root.hourly) {
             const allHours = usageModel.hours
@@ -239,10 +239,12 @@ Item {
                 return ({ buckets: hourBuckets, total: hourTotal, peak: hourPeak,
                          span: 24, unit: "hours" })
             }
-            const list = allHours.slice(Math.max(0, allHours.length - 24))
+            const rolling = usageModel.period("24h")?.hours
+            const list = Array.isArray(rolling) && rolling.length === 24
+                ? rolling : allHours.slice(Math.max(0, allHours.length - 24))
             for (const hour of list) {
                 const tokens = root.historyWeight(hour)
-                hourBuckets.push({ start: Number(hour?.start ?? 0), tokens: tokens })
+                hourBuckets.push({ start: Number(hour?.start ?? 0), end: Number(hour?.end ?? 0), tokens: tokens })
                 hourTotal += tokens
                 hourPeak = Math.max(hourPeak, tokens)
             }
@@ -296,12 +298,13 @@ Item {
         if (isNaN(parsed.getTime())) return ""
         return Qt.formatDate(parsed, "d MMM")
     }
-    function bucketLabel(bucket: var): string {
+    function bucketLabel(bucket: var, useEnd: bool): string {
         if (root.trend.unit === "hours") {
             if (Number.isInteger(bucket?.clockHour))
                 return String(bucket.clockHour).padStart(2, "0") + ":00"
-            const moment = new Date(Number(bucket?.start ?? 0))
-            return isNaN(moment.getTime()) ? "" : Qt.formatTime(moment, "HH:mm")
+            const moment = new Date(Number(useEnd && bucket?.end ? bucket.end : bucket?.start ?? 0))
+            if (isNaN(moment.getTime())) return ""
+            return bucket?.end > 0 ? Qt.formatDateTime(moment, "d MMM, HH:mm") : Qt.formatTime(moment, "HH:mm")
         }
         return root.dayLabel(String(bucket?.date ?? ""))
     }

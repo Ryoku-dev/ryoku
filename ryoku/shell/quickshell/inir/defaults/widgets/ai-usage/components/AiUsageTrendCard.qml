@@ -28,8 +28,8 @@ AiUsageGlassCard {
             return Translation.tr("%1 · %2 tokens").arg(page.bucketLabel(bucket)).arg(usage.kmg(bucket.tokens))
         }
         const first = buckets.length > 0 ? page.bucketLabel(buckets[0]) : ""
-        const last = buckets.length > 0 ? page.bucketLabel(buckets[buckets.length - 1]) : ""
-        const range = first === last ? first : first + " – " + last
+        const last = buckets.length > 0 ? page.bucketLabel(buckets[buckets.length - 1], true) : ""
+        const range = first === last ? first : first + " - " + last
         if (page.trend.unit === "hours") {
             return Translation.tr("%1 · %2 tokens · peak %3/h")
                 .arg(range).arg(usage.kmg(page.trend.total)).arg(usage.kmg(page.trend.peak))

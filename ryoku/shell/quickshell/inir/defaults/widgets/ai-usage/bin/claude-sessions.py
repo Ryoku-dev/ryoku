@@ -214,7 +214,7 @@ def collect_sessions(config, now_ms=None, proc_root=Path("/proc"), transcript_st
         transition = transitions.get(sid, ((0, 0, ""), ("unknown", "no_lifecycle")))
         lifecycle_time = transition[0][0]
         lifecycle, evidence = transition[1]
-        session.update(activityState=lifecycle, activityEvidence=evidence)
+        session.update(running=False, activityState=lifecycle, activityEvidence=evidence)
         metadata = metadata_by_session.get(sid, (0, {}))[1]
         process = _process_state(metadata, proc_root) if metadata else "unknown"
         session["processState"] = process

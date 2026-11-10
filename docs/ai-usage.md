@@ -16,6 +16,10 @@ offers Today, Last 24 hours, Last 7 days, Last 30 days and All time. The All tim
 trend uses a fixed 45-day window; the activity card also shows lifetime totals
 from the available local history.
 
+Last 24 hours is an exact trailing duration. Its model totals and 24 chart bins
+use the same records and boundaries, with the full start/end dates in the chart
+caption. Today keeps local calendar-hour bins.
+
 Settings control card width, the number of top models and the default period.
 The same module provides a compact desktop tile. Existing user-installed copies
 take precedence over the built-in copy when they provide an Island entry.

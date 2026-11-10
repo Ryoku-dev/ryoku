@@ -175,6 +175,9 @@ def collect(config, cache):
         for key in ("activityState", "activityEvidence", "processState"):
             if key in sessions[row["id"]]:
                 row[key] = sessions[row["id"]][key]
+    periods = {key: shared["history_period"](messages, since)
+               for key, since in shared["period_starts"](now).items() if key != "24h"}
+    periods["24h"] = shared["rolling_period"](messages, int(now * 1000), shared["history_period"])
     out = {"schemaVersion": 3, "_source": "claude-native", "_preview": True,
         **quota, "_spending": spending,
         "_today_tokens": sum(r["total_with_cache_read"] for r in messages if r["time"] >= start),
@@ -182,8 +185,7 @@ def collect(config, cache):
         "_days": days, "_hours": shared["history_hours"](messages),
         "_recent_days": [{"date": r["date"], "tokens": r["tokens"]+r["cacheRead"]} for r in days[-7:]],
         "_sessions": session_rows,
-        "_periods": {key: shared["history_period"](messages, since)
-                     for key, since in shared["period_starts"](now).items()},
+        "_periods": periods,
         "_model": messages[-1]["model_id"] if messages else "",
         "_diagnostics": {"files": len(files), "requests": len(requests), "models": sorted(models),
             "efforts": sorted(efforts), "malformed_lines": malformed, "unidentified_rows": unidentified,
