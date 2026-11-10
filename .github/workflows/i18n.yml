@@ -30,7 +30,7 @@ jobs:
   translate:
     name: Regenerate translations
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 330
     steps:
       - name: Checkout
         uses: actions/checkout@v4
