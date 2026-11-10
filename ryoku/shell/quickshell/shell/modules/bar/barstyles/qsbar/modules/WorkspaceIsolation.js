@@ -10,6 +10,19 @@ function activeWorkspace(workspaces, screenName, isolateMonitors, focusedWorkspa
     return null
 }
 
+// some compositors number workspaces per output, so a name alone can match
+// another screen's workspace
+function workspaceOn(workspaces, name, screenName, isolateMonitors) {
+    var isolated = isolateMonitors && screenName
+    for (var i = 0; i < workspaces.length; i++) {
+        var workspace = workspaces[i]
+        if (workspace.special || workspace.name !== name) continue
+        if (!isolated || !workspace.output || workspace.output === screenName)
+            return workspace
+    }
+    return null
+}
+
 function needsWorkspaceData(mode, dynamicModel, isolateMonitors) {
     return dynamicModel || mode === "active" || isolateMonitors
 }

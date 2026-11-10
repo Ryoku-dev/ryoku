@@ -2343,7 +2343,6 @@ Item {
     // ── workspace display style (orthogonal to mode; persisted) ──
     // "rings" is the stable cache token for the user-facing Frame style.
     property string workspaceStyle: "default"   // default, numbers, magic, kanji, rings, aurora
-// Workspace monitor isolation (persisted)
     property bool isolateMonitors: false
     // The marker styles this variant offers (continuous V2 adds Kanji, Frame,
     // Aurora; "rings" is the persisted cache token for the Frame style).

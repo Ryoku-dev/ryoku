@@ -5,9 +5,9 @@ import vm from "node:vm";
 const source = await readFile(new URL("./WorkspaceIsolation.js", import.meta.url), "utf8");
 const module = { exports: {} };
 vm.runInNewContext(source.replace(/^\.pragma library\s*/, "") +
-    "\nmodule.exports = { activeWorkspace, needsWorkspaceData, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity };",
+    "\nmodule.exports = { activeWorkspace, workspaceOn, needsWorkspaceData, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity };",
     { module, Number, Object });
-const { activeWorkspace, needsWorkspaceData, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity } = module.exports;
+const { activeWorkspace, workspaceOn, needsWorkspaceData, workspaceList, extraWorkspace, hasMonitorFocus, markerOpacity } = module.exports;
 
 const workspaces = [
     { name: "1", output: "eDP-1", active: true, special: false },
@@ -48,3 +48,23 @@ assert.equal(markerOpacity(hasMonitorFocus(true, "eDP-1", focusedOutput)), 0.72,
 focusedOutput = "eDP-1";
 assert.equal(markerOpacity(hasMonitorFocus(true, "eDP-1", focusedOutput)), 1.0,
     "the active marker brightens when focus moves to its output");
+
+// per-output numbering: both screens have a "1" and a "2", told apart only by id
+const perOutput = [
+    { id: "3", name: "1", output: "DP-1", active: false, occupied: true, special: false },
+    { id: "4", name: "2", output: "DP-1", active: true, occupied: false, special: false },
+    { id: "1", name: "1", output: "HDMI-A-1", active: true, occupied: false, special: false },
+    { id: "2", name: "2", output: "HDMI-A-1", active: false, occupied: true, special: false }
+];
+assert.deepEqual(Array.from(workspaceList(perOutput, "active", true, "HDMI-A-1", true, null, "")),
+    ["1", "2"], "a dynamic row lists only its own screen's workspaces");
+assert.equal(workspaceOn(perOutput, "2", "HDMI-A-1", true).id, "2",
+    "a cell resolves to the workspace on its own screen");
+assert.equal(workspaceOn(perOutput, "2", "DP-1", true).id, "4",
+    "the same name on the other screen resolves to that screen's workspace");
+assert.equal(workspaceOn(perOutput, "2", "HDMI-A-1", false).id, "4",
+    "without isolation a name keeps resolving to its first match");
+assert.equal(workspaceOn(perOutput, "3", "HDMI-A-1", true), null,
+    "an uncreated slot has no workspace to resolve");
+assert.equal(activeWorkspace(perOutput, "HDMI-A-1", true, perOutput[1]).id, "1",
+    "each screen marks its own shown workspace even when names repeat");

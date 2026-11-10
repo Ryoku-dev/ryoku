@@ -189,6 +189,8 @@ Item {
                 id: wsCell
                 required property var modelData
                 readonly property string wsKey: String(modelData)
+                readonly property var workspace: WorkspaceIsolation.workspaceOn(
+                    Wm.workspaces, wsKey, wsWidget.screenName, root.isolateMonitors)
 
                 // hover feedback works in every style (the old code scaled the
                 // default-only `dot`, invisible in numbers/magic)
@@ -199,10 +201,7 @@ Item {
                     return act !== null && act.name === wsKey
                 }
 
-                readonly property bool isOccupied: {
-                    var w = Wm.workspaceByName(wsKey)
-                    return !!w && w.occupied && !isFocused
-                }
+                readonly property bool isOccupied: !!workspace && workspace.occupied && !isFocused
 
                 readonly property bool isEmpty: !isFocused && !isOccupied
 
@@ -415,7 +414,7 @@ Item {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
-                    onClicked: root.gotoWorkspace(wsKey)
+                    onClicked: root.gotoWorkspace(wsCell.workspace ? wsCell.workspace.id : wsKey)
                     onEntered: wsCell.scale = root.workspaceStyle === "rings" ? 1.0
                         : root.workspaceStyle === "pacman" ? 1.0
                         : root.workspaceStyle === "aurora" ? 1.04 : 1.15
