@@ -47,7 +47,7 @@ def main() -> int:
             return 1
         try:
             signal.pidfd_send_signal(pidfd, signal.SIGTERM)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             return 1
     finally:
         os.close(pidfd)
