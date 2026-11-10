@@ -9,6 +9,9 @@
   `/dev/i2c-N` number is ignored, since it moves between boots), the old shared
   entry is copied to every stick on the next scan, and identical sticks list in
   a stable order (`backend/lighting.go`).
+- **A number typed into a Hub stepper keeps the row's real range.** Values
+  such as a niri strut of 200 or a workspace shadow drop of -10 were cut to
+  0..100; they now clamp to the limits the stepper buttons already use.
 - Shortcut names, hints, categories and "not on" reasons follow the interface
   language in Keybinds and in Kit. The shortcut catalogue now enters the
   translation catalog, and the Keybinds page translates what it shows
