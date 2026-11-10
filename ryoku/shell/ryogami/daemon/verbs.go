@@ -55,7 +55,7 @@ func (d *daemon) wallpaperVerb(line string) string {
 			}
 			return "ok"
 		}
-		if err := d.applyWallpaper(typeOf(path), path, "set", outputs, nil, nil); err != nil {
+		if err := d.applyWallpaper(typeOf(path), path, "set", d.setTargets(screen), nil, nil); err != nil {
 			return "err wallpaper: " + err.Error()
 		}
 		return "ok"
@@ -331,4 +331,21 @@ func (d *daemon) perOutputWallpapers() map[string]string {
 		shows[name] = path
 	}
 	return shows
+}
+
+// "*" is the explicit broadcast for callers that mean every display
+func (d *daemon) setTargets(screen string) []string {
+	switch {
+	case screen == "*":
+		return nil
+	case screen != "":
+		return []string{screen}
+	}
+	if !d.settingBool("general.applyOnPickerMonitor") || len(connectedOutputNames()) < 2 {
+		return nil
+	}
+	if focused := focusedOutputName(); focused != "" {
+		return []string{focused}
+	}
+	return nil
 }

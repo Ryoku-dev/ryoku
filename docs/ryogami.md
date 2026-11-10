@@ -15,6 +15,10 @@ both stay on the picker's monitor.
 Random rotation keeps per-display choices: once a display has its own
 wallpaper, each display gets its own pick on every tick.
 
+`ryogami wallpaper set PATH` without `--screen` follows the picker monitor
+setting: on a desk with more than one display it sets the focused display
+only. `--screen '*'` always sets every display.
+
 The effective wallpaper on each display is resolved in this order:
 
 1. the active workspace assignment;

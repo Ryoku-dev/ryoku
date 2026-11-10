@@ -92,3 +92,49 @@ func TestRandomRotationStaysSharedWithoutPerOutputState(t *testing.T) {
 		t.Fatalf("a shared desk must keep rotating as one: %v", after)
 	}
 }
+
+// #786: a bare wallpaper set wiped per-output picks with the setting on
+func TestWallpaperSetWithoutScreenFollowsPickerMonitorSetting(t *testing.T) {
+	cases := []struct {
+		name    string
+		general string
+		screen  string
+		want    func(left, right, chosen string) map[string]string
+	}{
+		{"focused output", `,"applyOnPickerMonitor":true`, "", func(left, _, chosen string) map[string]string {
+			return map[string]string{"DP-1": left, "DP-2": chosen}
+		}},
+		{"explicit broadcast", `,"applyOnPickerMonitor":true`, "--screen * ", func(_, _, chosen string) map[string]string {
+			return map[string]string{"*": chosen}
+		}},
+		{"setting off", "", "", func(_, _, chosen string) map[string]string {
+			return map[string]string{"*": chosen}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			twoOutputDesk(t, tc.general)
+			d := previewTestDaemon(t)
+			left := previewTestStill(t, d, "left.png")
+			right := previewTestStill(t, d, "right.png")
+			chosen := previewTestStill(t, d, "chosen.png")
+			for output, path := range map[string]string{"DP-1": left, "DP-2": right} {
+				if err := d.applyWallpaper("static", path, "set", []string{output}, nil, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if reply := d.dispatchVerb("wallpaper set " + tc.screen + chosen); reply != "ok" {
+				t.Fatalf("reply = %q", reply)
+			}
+			got, want := storedOutputs(t, d), tc.want(left, right, chosen)
+			if len(got) != len(want) {
+				t.Fatalf("outputs.json = %v, want %v", got, want)
+			}
+			for k, v := range want {
+				if got[k] != v {
+					t.Fatalf("outputs.json = %v, want %v", got, want)
+				}
+			}
+		})
+	}
+}

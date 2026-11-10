@@ -40,6 +40,8 @@
 - **Random auto-rotate gives every monitor its own pick.** Once a monitor has
   its own wallpaper, rotation changes each monitor separately instead of
   putting one wallpaper everywhere and forgetting the per-monitor choices.
+- **`ryogami wallpaper set` without `--screen` follows the picker monitor setting.**
+  With it on it sets the focused monitor only; `--screen '*'` sets every monitor.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
