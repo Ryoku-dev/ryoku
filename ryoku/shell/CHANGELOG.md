@@ -6,6 +6,9 @@
   watcher polling the removed sysfs node, which fails every read and wakes
   poll(2) at once, forever. The watcher now reopens the device after it goes
   away, backing off while it is missing (`ipc/osd.go`).
+- **Zed and Ryotunes get real dark and light wallpaper themes.** Both looks now
+  carry their own colours, and the Ryotunes matugen skin opens in the mode the
+  desktop is using.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
