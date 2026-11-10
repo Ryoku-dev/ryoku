@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	gioui.org v0.10.3
+	github.com/go-text/typesetting v0.3.5
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/ryoku-dev/ryoku/docs/lithic/library/go v0.0.0
 	go.etcd.io/bbolt v1.4.3
@@ -15,7 +16,6 @@ require (
 
 require (
 	gioui.org/shader v1.0.9 // indirect
-	github.com/go-text/typesetting v0.3.5 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 )

@@ -158,6 +158,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 			},
 		},
 	}
+	options.Answer = p.view.Asking(attached.Model)
 	e.ComposerDesktop(&p.composer, &options)
 	if index, changed := p.model.Changed(); changed && index < len(modelIDs) {
 		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: info.ID, Model: modelIDs[index]}, new(protocol.Empty), report(e))
@@ -173,7 +174,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	if p.composer.StopClicked() {
 		e.Call(protocol.MSessionCancel, protocol.SessionRef{ID: info.ID}, new(protocol.Empty), report(e))
 	}
-	env.HandleChatActions(gtx, e, info.ID, p.composer.Actions())
+	env.HandleChatActions(gtx, e, info.ID, env.Answered(gtx, &p.view, attached.Model, p.composer.Actions()))
 	return dimensions
 }
 
@@ -197,6 +198,8 @@ func (p *Page) handleActions(gtx layout.Context, e *env.Env, info protocol.Sessi
 			}
 		case chat.ActRevertTurn:
 			p.revert.open(info.ID, action.Turn)
+		case chat.ActQuote:
+			p.composer.Quote(action.Value)
 		default:
 			common = append(common, action)
 		}

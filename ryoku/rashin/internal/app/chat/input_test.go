@@ -319,3 +319,56 @@ func TestEscapeShutsTheCommandList(t *testing.T) {
 		t.Fatalf("after Escape, Enter sent %#v, %v; want the text as typed", submission, sent)
 	}
 }
+
+// The composer has the keyboard while an agent waits for an answer, so it is
+// the composer that has to tell an answer from a message. Only an empty one
+// can: words mean the reader is writing, and Enter sends them.
+func TestEnterAndEscapeAnswerOnlyFromAnEmptyComposer(t *testing.T) {
+	both := ComposerOptions{Busy: true, Answer: AnswerKeys{Allow: true, Refuse: true}}
+	kinds := func(composer *Composer) []ActionKind {
+		var kinds []ActionKind
+		for _, action := range composer.Actions() {
+			kinds = append(kinds, action.Kind)
+		}
+		return kinds
+	}
+	enter, escape := key.Event{Name: key.NameReturn, State: key.Press}, key.Event{Name: key.NameEscape, State: key.Press}
+
+	composer, _, sent := pressInComposer(t, both, "", enter)
+	if raised := kinds(composer); sent || len(raised) != 1 || raised[0] != ActAllow {
+		t.Fatalf("Enter in an empty composer raised %v, sent %v", raised, sent)
+	}
+	composer, _, _ = pressInComposer(t, both, "", escape)
+	if raised := kinds(composer); len(raised) != 1 || raised[0] != ActRefuse {
+		t.Fatalf("Escape in an empty composer raised %v", raised)
+	}
+	composer, submission, sent := pressInComposer(t, both, "no, use the other file", enter)
+	if raised := kinds(composer); !sent || submission.Text != "no, use the other file" || len(raised) != 0 {
+		t.Fatalf("Enter with words sent %v %q and raised %v", sent, submission.Text, raised)
+	}
+	composer, _, _ = pressInComposer(t, both, "no, use the other file", escape)
+	if raised := kinds(composer); len(raised) != 0 || composer.state.editor.Text() == "" {
+		t.Fatalf("Escape with words raised %v and left %q", raised, composer.state.editor.Text())
+	}
+	composer, _, _ = pressInComposer(t, both, "", key.Event{Name: key.NameReturn, Modifiers: key.ModShift, State: key.Press})
+	if raised := kinds(composer); len(raised) != 0 {
+		t.Fatalf("Shift+Enter raised %v", raised)
+	}
+	composer, _, _ = pressInComposer(t, ComposerOptions{Busy: true}, "", enter)
+	if raised := kinds(composer); len(raised) != 0 {
+		t.Fatalf("Enter with no request waiting raised %v", raised)
+	}
+}
+
+func TestQuotingKeepsWhatIsAlreadyWrittenAndLeavesRoomToAnswer(t *testing.T) {
+	var composer Composer
+	composer.Quote("rashin api on\nprints the address")
+	if text := composer.state.editor.Text(); text != "> rashin api on\n> prints the address\n\n" {
+		t.Fatalf("a quotation went into an empty field as %q", text)
+	}
+	composer.SetText("About the port:")
+	composer.Quote("  the port is 3600  ")
+	if text := composer.state.editor.Text(); text != "About the port:\n\n> the port is 3600\n\n" {
+		t.Fatalf("a quotation went under a draft as %q", text)
+	}
+}

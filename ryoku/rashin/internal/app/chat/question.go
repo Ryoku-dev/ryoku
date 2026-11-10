@@ -150,19 +150,26 @@ func (state *viewState) openMessageMenu(th *look.Theme, seq int64, text string, 
 		return
 	}
 	items := []kit.MenuItem{{Icon: look.Icon.Copy, Label: i18n.T("Copy")}}
+	actions := []Action{{Kind: ActCopy, Value: text}}
+	// with words marked, those are what a copy most likely means
+	if marked := state.markedText(); marked != "" {
+		items = []kit.MenuItem{
+			{Icon: look.Icon.Copy, Label: i18n.T("Copy selection")},
+			{Icon: look.Icon.Quote, Label: i18n.T("Quote in the reply")},
+			{Icon: look.Icon.Copy, Label: i18n.T("Copy all of it")},
+		}
+		actions = []Action{{Kind: ActCopy, Value: marked}, {Kind: ActQuote, Value: marked}, {Kind: ActCopy, Value: text}}
+	}
 	if canFork {
 		items = append(items, kit.MenuItem{Icon: look.Icon.Fork, Label: i18n.T("Fork from here")})
+		actions = append(actions, Action{Kind: ActFork, Seq: seq})
 	}
 	tag := &state.menu
 	state.overlays.OpenAt(tag, state.overlays.Pointer(), func(gtx layout.Context) layout.Dimensions {
 		dimensions := state.menu.Layout(gtx, th.Theme, items)
 		if item, ok := state.menu.Clicked(gtx); ok {
 			state.overlays.Close(tag)
-			if item == 0 {
-				state.act(Action{Kind: ActCopy, Value: text})
-			} else {
-				state.act(Action{Kind: ActFork, Seq: seq})
-			}
+			state.act(actions[item])
 		}
 		return dimensions
 	})

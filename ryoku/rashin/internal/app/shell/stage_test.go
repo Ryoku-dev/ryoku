@@ -152,22 +152,41 @@ func (s *stage) open(route string) {
 	s.settle()
 }
 
+// every event carries the stage's time, which is what tells a second press
+// on the same spot from a new one
 func (s *stage) queue(events ...pointer.Event) {
 	for _, event := range events {
-		event.Source, event.PointerID = pointer.Mouse, 1
+		event.Source, event.PointerID, event.Time = pointer.Mouse, 1, s.now.Sub(storyboardEpoch)
 		s.router.Queue(event)
 		s.frame()
 	}
 }
 
-// a press and its release land in their own frames, as they do from a hand
+// a press and its release land in their own frames, as they do from a hand,
+// and a hand takes a moment to get there
 func (s *stage) clickAt(at image.Point) {
 	s.t.Helper()
+	s.now = s.now.Add(300 * time.Millisecond)
 	position := f32.Pt(float32(at.X), float32(at.Y))
 	s.queue(
 		pointer.Event{Kind: pointer.Move, Position: position},
 		pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: position},
 		pointer.Event{Kind: pointer.Release, Position: position},
+	)
+	s.settle()
+}
+
+// drag presses at from and lets go at to, with the pointer seen on the way
+func (s *stage) drag(from, to image.Point) {
+	s.t.Helper()
+	s.now = s.now.Add(300 * time.Millisecond)
+	start, end := f32.Pt(float32(from.X), float32(from.Y)), f32.Pt(float32(to.X), float32(to.Y))
+	s.queue(
+		pointer.Event{Kind: pointer.Move, Position: start},
+		pointer.Event{Kind: pointer.Press, Buttons: pointer.ButtonPrimary, Position: start},
+		pointer.Event{Kind: pointer.Move, Buttons: pointer.ButtonPrimary, Position: start.Add(end).Mul(.5)},
+		pointer.Event{Kind: pointer.Move, Buttons: pointer.ButtonPrimary, Position: end},
+		pointer.Event{Kind: pointer.Release, Position: end},
 	)
 	s.settle()
 }

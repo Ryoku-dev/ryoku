@@ -166,6 +166,7 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 		options.Placeholder = i18n.T("Ask a follow-up")
 		options.Busy, options.Queue = attached.Model.Busy(), info.Queue
 		options.History = attached.Model.Prompts
+		options.Answer = p.view.Asking(attached.Model)
 		current = info.Model
 	}
 	labels, ids, selected := p.routeOptions(current)
@@ -194,18 +195,25 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	if p.composer.StopClicked() && p.selected != "" {
 		e.Call(protocol.MSessionCancel, protocol.SessionRef{ID: p.selected}, new(protocol.Empty), nil)
 	}
-	env.HandleChatActions(gtx, e, p.selected, p.composer.Actions())
+	actions := p.composer.Actions()
+	if open {
+		actions = env.Answered(gtx, &p.view, attached.Model, actions)
+	}
+	env.HandleChatActions(gtx, e, p.selected, actions)
 	return dimensions
 }
 
 func (p *Page) handleActions(gtx layout.Context, e *env.Env, actions []chat.Action) {
 	var common []chat.Action
 	for _, action := range actions {
-		if action.Kind == chat.ActHandoff {
+		switch action.Kind {
+		case chat.ActHandoff:
 			p.handoff.open(e, p.selected, action.Value)
-			continue
+		case chat.ActQuote:
+			p.composer.Quote(action.Value)
+		default:
+			common = append(common, action)
 		}
-		common = append(common, action)
 	}
 	// copying or retrying is not a reason to click the field again before the next question
 	if len(common) > 0 {

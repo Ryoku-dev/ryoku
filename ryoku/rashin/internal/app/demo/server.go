@@ -77,6 +77,9 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		if frame.Method == protocol.MSessionPrompt && response.Error == nil {
 			go s.playTurn(ctx, out, frame.Params)
 		}
+		if frame.Method == protocol.MSessionPermission && response.Error == nil {
+			s.resolvePermission(out, frame.Params)
+		}
 		if response.Error == nil {
 			s.announce(out, frame.Method)
 		}

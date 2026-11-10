@@ -100,8 +100,7 @@ func (state *viewState) layoutTurnActions(gtx layout.Context, th *look.Theme, bl
 	actions := []turnAction{{look.Icon.Copy, i18n.T("Copy answer"), Action{Kind: ActCopy, Value: answerText(block.model, block.index)}}}
 	switch {
 	case block.info.Kind != protocol.KindAgent:
-		retry := Action{Kind: ActRetry, Turn: number, Value: questionText(block.model, block.index)}
-		actions = append(actions, turnAction{look.Icon.Retry, i18n.T("Ask again"), retry})
+		actions = append(actions, turnAction{look.Icon.Retry, i18n.T("Ask again"), retryAction(block.model, block.index, number)})
 	case block.info.Checkpoints:
 		actions = append(actions,
 			turnAction{look.Icon.Diff, i18n.T("See what this turn changed"), Action{Kind: ActTurnChanges, Turn: number}},
@@ -138,13 +137,19 @@ func answerText(model *modelState, index int) string {
 	return strings.Join(parts, "\n\n")
 }
 
-func questionText(model *modelState, index int) string {
+// asking again without what was attached would ask about nothing
+func retryAction(model *modelState, index, turn int) Action {
+	action := Action{Kind: ActRetry, Turn: turn}
 	for at := min(index, len(model.rows)-1); at >= 0; at-- {
-		if model.rows[at].kind == rowUser {
-			return model.rows[at].user.Text
+		if row := model.rows[at]; row.kind == rowUser {
+			action.Value = row.user.Text
+			for _, attached := range row.user.Images {
+				action.Attached = append(action.Attached, attached.Path)
+			}
+			break
 		}
 	}
-	return ""
+	return action
 }
 
 func turnUsage(turn *turnState) string {

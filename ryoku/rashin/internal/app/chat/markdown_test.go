@@ -1,6 +1,9 @@
 package chat
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestParseMarkdownNestedLists(t *testing.T) {
 	blocks := parseMarkdown("1. First\n  - Child\n    1. Grandchild\n2. Second")
@@ -42,22 +45,28 @@ func TestParseMarkdownTable(t *testing.T) {
 	}
 }
 
-func TestParseInlineStylesAndLink(t *testing.T) {
-	spans := parseInline("Plain *soft* **strong** `code` [Ryoku](https://ryoku.dev)")
-	var emphasis, strong, code, link bool
-	for _, span := range spans {
-		switch span.kind {
-		case inlineEmphasis:
-			emphasis = span.text == "soft"
-		case inlineStrong:
-			strong = span.text == "strong"
-		case inlineCode:
-			code = span.text == "code"
-		case inlineLink:
-			link = span.text == "Ryoku" && span.url == "https://ryoku.dev"
-		}
+func TestARuleStandsBetweenParagraphs(t *testing.T) {
+	blocks := parseMarkdown("Above\n\n---\n\nBelow\n* * *\nLast")
+	kinds := make([]markdownKind, len(blocks))
+	for index, block := range blocks {
+		kinds[index] = block.kind
 	}
-	if !emphasis || !strong || !code || !link {
-		t.Fatalf("inline spans = %#v", spans)
+	want := []markdownKind{markdownParagraph, markdownRule, markdownParagraph, markdownRule, markdownParagraph}
+	if !slices.Equal(kinds, want) {
+		t.Fatalf("blocks = %#v, want paragraphs with rules between", blocks)
+	}
+}
+
+func TestAParagraphKeepsTheBreaksItAsksFor(t *testing.T) {
+	blocks := parseMarkdown("Soft\nwrapped\nHard  \nbroken\\\nagain")
+	if len(blocks) != 1 || blocks[0].text != "Soft wrapped Hard\nbroken\nagain" {
+		t.Fatalf("paragraph = %#v", blocks)
+	}
+}
+
+func TestQuotedLinesRunOnAndABareMarkStartsTheNextParagraph(t *testing.T) {
+	blocks := parseMarkdown("> first line\n> goes on\n>\n> second")
+	if len(blocks) != 1 || blocks[0].kind != markdownQuote || blocks[0].text != "first line goes on\n\nsecond" {
+		t.Fatalf("quote = %#v", blocks)
 	}
 }

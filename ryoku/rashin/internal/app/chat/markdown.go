@@ -15,6 +15,7 @@ const (
 	markdownQuote
 	markdownCode
 	markdownTable
+	markdownRule
 )
 
 type markdownBlock struct {
@@ -32,22 +33,6 @@ type markdownListItem struct {
 	ordered bool
 	number  int
 	text    string
-}
-
-type inlineKind uint8
-
-const (
-	inlinePlain inlineKind = iota
-	inlineEmphasis
-	inlineStrong
-	inlineCode
-	inlineLink
-)
-
-type inlineSpan struct {
-	kind inlineKind
-	text string
-	url  string
 }
 
 func parseMarkdown(source string) []markdownBlock {
@@ -78,6 +63,11 @@ func parseMarkdown(source string) []markdownBlock {
 			index++
 			continue
 		}
+		if isMarkdownRule(trimmed) {
+			blocks = append(blocks, markdownBlock{kind: markdownRule})
+			index++
+			continue
+		}
 		if index+1 < len(lines) && isTableSeparator(lines[index+1]) && strings.Contains(line, "|") {
 			header := tableCells(line)
 			index += 2
@@ -103,26 +93,45 @@ func parseMarkdown(source string) []markdownBlock {
 			continue
 		}
 		if strings.HasPrefix(trimmed, ">") {
-			quoted := make([]string, 0)
+			// lines run on as one paragraph, a bare > starts the next
+			var quoted strings.Builder
+			gap := ""
 			for index < len(lines) {
 				part := strings.TrimLeftFunc(lines[index], unicode.IsSpace)
 				if !strings.HasPrefix(part, ">") {
 					break
 				}
-				quoted = append(quoted, strings.TrimSpace(strings.TrimPrefix(part, ">")))
 				index++
+				part = strings.TrimSpace(strings.TrimPrefix(part, ">"))
+				if part == "" {
+					if quoted.Len() > 0 {
+						gap = "\n\n"
+					}
+					continue
+				}
+				quoted.WriteString(gap)
+				quoted.WriteString(part)
+				gap = " "
 			}
-			blocks = append(blocks, markdownBlock{kind: markdownQuote, text: strings.Join(quoted, "\n")})
+			blocks = append(blocks, markdownBlock{kind: markdownQuote, text: quoted.String()})
 			continue
 		}
 
-		paragraph := []string{strings.TrimSpace(line)}
-		index++
-		for index < len(lines) && strings.TrimSpace(lines[index]) != "" && !startsMarkdownBlock(lines, index) {
-			paragraph = append(paragraph, strings.TrimSpace(lines[index]))
+		var paragraph strings.Builder
+		for {
+			text, breaks := paragraphLine(lines[index])
+			paragraph.WriteString(text)
 			index++
+			if index >= len(lines) || strings.TrimSpace(lines[index]) == "" || startsMarkdownBlock(lines, index) {
+				break
+			}
+			if breaks {
+				paragraph.WriteByte('\n')
+			} else {
+				paragraph.WriteByte(' ')
+			}
 		}
-		blocks = append(blocks, markdownBlock{kind: markdownParagraph, text: strings.Join(paragraph, " ")})
+		blocks = append(blocks, markdownBlock{kind: markdownParagraph, text: paragraph.String()})
 	}
 	return blocks
 }
@@ -133,6 +142,9 @@ func startsMarkdownBlock(lines []string, index int) bool {
 		return true
 	}
 	if level, _ := markdownHeadingLine(line); level > 0 {
+		return true
+	}
+	if isMarkdownRule(line) {
 		return true
 	}
 	if _, _, _, _, ok := markdownListLine(lines[index]); ok {
@@ -150,6 +162,24 @@ func markdownHeadingLine(line string) (int, string) {
 		return 0, ""
 	}
 	return level, strings.TrimSpace(line[level:])
+}
+
+// a line of three or more of the same mark and nothing else
+func isMarkdownRule(line string) bool {
+	marks := strings.ReplaceAll(strings.TrimSpace(line), " ", "")
+	if len(marks) < 3 || strings.IndexByte("-*_", marks[0]) < 0 {
+		return false
+	}
+	return strings.Trim(marks, marks[:1]) == ""
+}
+
+// two spaces or a backslash at the end of a line ask for the break to be kept
+func paragraphLine(line string) (text string, breaks bool) {
+	text = strings.TrimSpace(line)
+	if strings.HasSuffix(text, "\\") {
+		return strings.TrimSpace(strings.TrimSuffix(text, "\\")), true
+	}
+	return text, strings.HasSuffix(line, "  ")
 }
 
 func markdownListLine(line string) (depth int, ordered bool, number int, text string, ok bool) {
@@ -204,59 +234,4 @@ func tableCells(line string) []string {
 		cells[index] = strings.TrimSpace(part)
 	}
 	return cells
-}
-
-func parseInline(source string) []inlineSpan {
-	spans := make([]inlineSpan, 0, 4)
-	for len(source) > 0 {
-		switch {
-		case source[0] == '`':
-			if end := strings.IndexByte(source[1:], '`'); end >= 0 {
-				spans = append(spans, inlineSpan{kind: inlineCode, text: source[1 : end+1]})
-				source = source[end+2:]
-				continue
-			}
-		case strings.HasPrefix(source, "**"):
-			if end := strings.Index(source[2:], "**"); end >= 0 {
-				spans = append(spans, inlineSpan{kind: inlineStrong, text: source[2 : end+2]})
-				source = source[end+4:]
-				continue
-			}
-		case source[0] == '*' || source[0] == '_':
-			marker := source[0]
-			if end := strings.IndexByte(source[1:], marker); end >= 0 {
-				spans = append(spans, inlineSpan{kind: inlineEmphasis, text: source[1 : end+1]})
-				source = source[end+2:]
-				continue
-			}
-		case source[0] == '[':
-			closeLabel := strings.Index(source, "](")
-			if closeLabel > 0 {
-				closeURL := strings.IndexByte(source[closeLabel+2:], ')')
-				if closeURL >= 0 {
-					urlEnd := closeLabel + 2 + closeURL
-					spans = append(spans, inlineSpan{kind: inlineLink, text: source[1:closeLabel], url: source[closeLabel+2 : urlEnd]})
-					source = source[urlEnd+1:]
-					continue
-				}
-			}
-		}
-		next := nextInlineMarker(source)
-		if next == 0 {
-			next = 1
-		}
-		spans = append(spans, inlineSpan{kind: inlinePlain, text: source[:next]})
-		source = source[next:]
-	}
-	return spans
-}
-
-func nextInlineMarker(source string) int {
-	next := len(source)
-	for _, marker := range []byte{'`', '*', '_', '['} {
-		if index := strings.IndexByte(source, marker); index >= 0 && index < next {
-			next = index
-		}
-	}
-	return next
 }

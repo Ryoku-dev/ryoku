@@ -2,8 +2,8 @@ package chat
 
 import (
 	"image"
+	"time"
 
-	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 
@@ -18,6 +18,9 @@ import (
 type permissionVisual struct {
 	field  look.Unfold
 	record look.Unfold
+	// when the request was first drawn, and the last frame it was drawn in
+	seen  time.Time
+	drawn int
 }
 
 func (state *viewState) layoutPermission(gtx layout.Context, th *look.Theme, permission *permissionState) layout.Dimensions {
@@ -31,6 +34,10 @@ func (state *viewState) layoutPermission(gtx layout.Context, th *look.Theme, per
 		state.permissions[request] = visual
 	}
 	open := permission.resolved == nil
+	if visual.seen.IsZero() {
+		visual.seen = gtx.Now
+	}
+	visual.drawn = state.frame
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return visual.field.Layout(gtx, th, open, func(gtx layout.Context) layout.Dimensions {
@@ -120,44 +127,61 @@ func permissionOutcome(permission *permissionState) string {
 	return i18n.T("Allowed")
 }
 
-// enter gives the narrowest consent, escape refuses
-func (state *viewState) handlePermissionKeys(gtx layout.Context, model *modelState) {
-	var open *permissionState
+// how long a request has to have been on screen before a key can answer it
+const answerAfter = 500 * time.Millisecond
+
+// the oldest request still open, if it was drawn in the last frame
+func (state *viewState) asked(model *modelState) (*permissionState, *permissionVisual) {
+	if model == nil {
+		return nil, nil
+	}
 	for _, request := range model.permissionOrder {
-		if candidate := model.permissions[request]; candidate != nil && candidate.resolved == nil {
-			open = candidate
-			break
+		open := model.permissions[request]
+		if open == nil || open.resolved != nil {
+			continue
 		}
-	}
-	if open == nil {
-		return
-	}
-	answer := func(name key.Name, kinds ...string) {
-		for {
-			raw, ok := gtx.Event(key.Filter{Name: name})
-			if !ok {
-				return
-			}
-			pressed, ok := raw.(key.Event)
-			if !ok || pressed.State != key.Press || pressed.Modifiers != 0 {
-				continue
-			}
-			for _, kind := range kinds {
-				if option := permissionOption(open.data, kind); option != "" {
-					state.act(Action{Kind: ActPermission, Request: open.data.Request, Option: option})
-					break
-				}
-			}
+		if visual := state.permissions[request]; visual != nil && visual.drawn == state.frame-1 {
+			return open, visual
 		}
+		return nil, nil
 	}
-	answer(key.NameReturn, protocol.OptAllowOnce)
-	answer(key.NameEscape, protocol.OptRejectOnce, protocol.OptRejectAlways)
+	return nil, nil
 }
 
-func permissionOption(data protocol.PermissionData, kind string) string {
-	for _, option := range data.Options {
-		if option.Kind == kind {
-			return option.ID
+func (state *viewState) asking(model *modelState) AnswerKeys {
+	open, _ := state.asked(model)
+	if open == nil {
+		return AnswerKeys{}
+	}
+	return AnswerKeys{
+		Allow:  permissionOption(open.data, protocol.OptAllowOnce) != "",
+		Refuse: permissionOption(open.data, protocol.OptRejectOnce, protocol.OptRejectAlways) != "",
+	}
+}
+
+// enter gives the narrowest consent, escape refuses
+func (state *viewState) answer(model *modelState, kind ActionKind, now time.Time) (Action, bool) {
+	open, visual := state.asked(model)
+	if open == nil || now.Sub(visual.seen) < answerAfter {
+		return Action{}, false
+	}
+	option := ""
+	switch kind {
+	case ActAllow:
+		option = permissionOption(open.data, protocol.OptAllowOnce)
+	case ActRefuse:
+		option = permissionOption(open.data, protocol.OptRejectOnce, protocol.OptRejectAlways)
+	}
+	return Action{Kind: ActPermission, Request: open.data.Request, Option: option}, option != ""
+}
+
+// the first of kinds the request offers
+func permissionOption(data protocol.PermissionData, kinds ...string) string {
+	for _, kind := range kinds {
+		for _, option := range data.Options {
+			if option.Kind == kind {
+				return option.ID
+			}
 		}
 	}
 	return ""

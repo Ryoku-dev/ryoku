@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gioui.org/f32"
-	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 
 	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/anim"
@@ -18,6 +17,8 @@ type conversation struct {
 	frame *chatFrame
 	model *Model
 	view  View
+	// when the pointer last did something, which is what tells a second press from a new one
+	clock time.Duration
 }
 
 func newConversation(size image.Point) *conversation {
@@ -84,6 +85,28 @@ func TestShortTranscriptStandsAtTheTop(t *testing.T) {
 	}
 }
 
+// The room a transcript has can be small for a moment, as while the composer
+// travels down the page when a question opens. A transcript that then fits
+// used to hang from the end of its room with a gap above it.
+func TestATranscriptThatFitsAgainGoesBackToTheTop(t *testing.T) {
+	c := newConversation(image.Pt(480, 120))
+	c.fill(t, 3)
+	c.layout()
+	c.layout()
+	c.frame.size = image.Pt(480, 900)
+	c.layout()
+	c.layout()
+	top := c.frame.size.Y
+	for _, node := range c.frame.router.AppendSemantics(nil) {
+		if node.Desc.Label == "A transcript row with enough text to occupy space." {
+			top = min(top, node.Desc.Bounds.Min.Y)
+		}
+	}
+	if top > 60 {
+		t.Fatalf("with room for all of it the transcript starts %d down the page", top)
+	}
+}
+
 func TestScrolledUpTranscriptStaysPutUntilAskedBack(t *testing.T) {
 	c := newConversation(image.Pt(480, 180))
 	c.fill(t, 24)
@@ -120,23 +143,30 @@ func TestPermissionOptionPressAnswersTheRequest(t *testing.T) {
 	assertPermissionAction(t, c.view.Actions(), "request-1", "always")
 }
 
-func TestPermissionKeysAllowOnceAndDeny(t *testing.T) {
+// A key can consent for the reader, so it only counts for a request that is
+// on screen and has been long enough to read.
+func TestAKeyAnswersARequestOnlyOnceItCouldBeRead(t *testing.T) {
 	c := newConversation(image.Pt(760, 420))
+	if keys := c.view.Asking(c.model); keys != (AnswerKeys{}) {
+		t.Fatalf("a transcript with no request takes answer keys: %+v", keys)
+	}
 	c.model.Apply(testEvent(t, 1, protocol.EvPermission, permissionRequest("request-keys")))
+	if keys := c.view.Asking(c.model); keys != (AnswerKeys{}) {
+		t.Fatalf("a request that was never drawn takes answer keys: %+v", keys)
+	}
 	c.layout()
-	press := func(modifiers key.Modifiers, name key.Name) []Action {
-		c.frame.router.Queue(key.Event{Name: name, Modifiers: modifiers, State: key.Press})
-		c.layout()
-		return c.view.Actions()
+	if keys := c.view.Asking(c.model); !keys.Allow || !keys.Refuse {
+		t.Fatalf("a request on screen takes %+v", keys)
 	}
-	// enter with a modifier is the composer's, a new line or steering
-	for _, modifiers := range []key.Modifiers{key.ModShift, key.ModCtrl} {
-		if actions := press(modifiers, key.NameReturn); len(actions) != 0 {
-			t.Fatalf("Enter with %v answered a request: %#v", modifiers, actions)
-		}
+	if answer, ok := c.view.Answer(c.model, ActAllow, c.frame.now); ok {
+		t.Fatalf("a key pressed as the request appeared answered it: %#v", answer)
 	}
-	assertPermissionAction(t, press(0, key.NameReturn), "request-keys", "once")
-	assertPermissionAction(t, press(0, key.NameEscape), "request-keys", "deny")
+	c.frame.now = c.frame.now.Add(answerAfter)
+	c.layout()
+	allow, _ := c.view.Answer(c.model, ActAllow, c.frame.now)
+	assertPermissionAction(t, []Action{allow}, "request-keys", "once")
+	refuse, _ := c.view.Answer(c.model, ActRefuse, c.frame.now)
+	assertPermissionAction(t, []Action{refuse}, "request-keys", "deny")
 }
 
 func TestAnsweredPermissionStaysAsARecord(t *testing.T) {
@@ -146,15 +176,26 @@ func TestAnsweredPermissionStaysAsARecord(t *testing.T) {
 	c.model.Apply(testEvent(t, 2, protocol.EvPermissionResolved, protocol.PermissionResolvedData{
 		Request: "request-fold", Option: "once", Outcome: "selected", By: "user",
 	}))
+	c.frame.now = c.frame.now.Add(answerAfter)
 	c.layout()
 	visible := c.view.state.visible
 	if len(visible) != 1 || c.model.state.rows[visible[0]].kind != rowPermission {
 		t.Fatalf("an answered request left the transcript: visible rows %v", visible)
 	}
-	c.frame.router.Queue(key.Event{Name: key.NameReturn, State: key.Press})
-	c.layout()
-	if actions := c.view.Actions(); len(actions) != 0 {
-		t.Fatalf("Enter answered a request that was already answered: %#v", actions)
+	if answer, ok := c.view.Answer(c.model, ActAllow, c.frame.now); ok {
+		t.Fatalf("a key answered a request that was already answered: %#v", answer)
+	}
+}
+
+// Asking again without what was attached would ask about nothing.
+func TestAskingAgainTakesWhatWasAttached(t *testing.T) {
+	c := newConversation(image.Pt(760, 420))
+	asked := protocol.UserData{Text: "What is this?", Images: []protocol.Attachment{{Path: "/home/reader/shot.png"}, {Path: "/home/reader/build.log"}}}
+	c.model.Apply(testEvent(t, 1, protocol.EvUser, asked))
+	c.model.Apply(testEvent(t, 2, protocol.EvText, protocol.TextData{Message: "m", Delta: "A terminal."}))
+	again := retryAction(c.model.state, len(c.model.state.rows)-1, 1)
+	if again.Kind != ActRetry || again.Value != asked.Text || len(again.Attached) != 2 || again.Attached[1] != "/home/reader/build.log" {
+		t.Fatalf("asking again raised %#v", again)
 	}
 }
 

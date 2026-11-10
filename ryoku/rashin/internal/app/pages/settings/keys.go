@@ -41,6 +41,15 @@ func writingKeys() []keyRow {
 	}
 }
 
+func readingKeys() []keyRow {
+	return []keyRow{
+		{i18n.T("Allow once what an agent asks, from an empty field"), [][]string{{"Enter"}}},
+		{i18n.T("Refuse what an agent asks, from an empty field"), [][]string{{"Esc"}}},
+		{i18n.T("Copy the words you marked"), [][]string{{"Ctrl", "C"}}},
+		{i18n.T("Let go of the words you marked"), [][]string{{"Esc"}}},
+	}
+}
+
 func (p *Page) layoutKeys(gtx layout.Context, e *env.Env) layout.Dimensions {
 	th := e.Theme
 	slab := func(rows []keyRow) layout.Widget {
@@ -58,6 +67,10 @@ func (p *Page) layoutKeys(gtx layout.Context, e *env.Env) layout.Dimensions {
 		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("While writing"))),
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(slab(writingKeys())),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S4}.Layout),
+		layout.Rigid(kit.Text(th.Theme, th.T.Title, th.R.Fg, i18n.T("In a conversation"))),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(slab(readingKeys())),
 	)
 }
 

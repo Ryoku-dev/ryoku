@@ -6,8 +6,12 @@ import (
 	"strconv"
 	"strings"
 
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
+	"gioui.org/io/semantic"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -49,8 +53,17 @@ type viewState struct {
 	rises       map[string]*look.Rise
 	turns       map[int]*turnVisual
 	codes       map[string]*codeVisual
-	spaces      map[spaceKey]int
+	inlines     map[string]*inlineState
+	tables      map[string]*tableState
 	menu        kit.Menu
+
+	// inline paragraphs set this frame and the one before, and the frame's number
+	shown, wasShown []*inlineState
+	frame           int
+	marked          marked
+	// the tag presses in the transcript are watched under, and the frames left in which a press that just ended still counts
+	presses  struct{}
+	settling int
 }
 
 type iconControl struct {
@@ -83,7 +96,8 @@ func (state *viewState) ensure() {
 	state.rises = make(map[string]*look.Rise)
 	state.turns = make(map[int]*turnVisual)
 	state.codes = make(map[string]*codeVisual)
-	state.spaces = make(map[spaceKey]int)
+	state.inlines = make(map[string]*inlineState)
+	state.tables = make(map[string]*tableState)
 }
 
 func (state *viewState) takeActions() []Action {
@@ -103,7 +117,8 @@ func (state *viewState) layout(
 	if model == nil {
 		model = &modelState{}
 	}
-	state.handlePermissionKeys(gtx, model)
+	state.releaseMarked(gtx)
+	state.watchPresses(gtx)
 	state.buildVisible(model)
 	state.updateTurnHover(gtx)
 	busy := model.activeTurn != nil
@@ -131,6 +146,12 @@ func (state *viewState) layout(
 		state.follow = state.scroller.AtEnd()
 		state.scroller.SetFollow(state.follow)
 	}
+	pass := pointer.PassOp{}.Push(gtx.Ops)
+	area := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
+	event.Op(gtx.Ops, &state.presses)
+	area.Pop()
+	pass.Pop()
+	state.dropUnseenSets()
 	state.layoutThumb(gtx, th, dimensions.Size)
 	state.layoutJump(gtx, th, dimensions.Size)
 	state.drawn = true
@@ -354,8 +375,21 @@ func (state *viewState) selectable(
 		state.selectables[key] = selectable
 	}
 	selectable.SetText(value)
+	changed := selectable.Update(gtx)
+	marking := selectable.SelectionLen() != 0
+	state.hold(gtx, key, selectable, changed, marking, selectable.Focused(), selectable.SelectedText, selectable.ClearSelection)
+	// a press that marked nothing has no use for the keyboard it took
+	if state.settling > 0 && !marking && selectable.Focused() {
+		state.settling = 0
+		state.act(Action{Kind: ActRelease})
+	}
 	selection := colorMaterial(gtx.Ops, palette.WithAlpha(th.R.Sel, .6))
-	return selectable.Layout(gtx, th.Shaper, style.Face, style.Size, colorMaterial(gtx.Ops, ink), selection)
+	dimensions := selectable.Layout(gtx, th.Shaper, style.Face, style.Size, colorMaterial(gtx.Ops, ink), selection)
+	// selectable text does not say what it reads, a label does
+	area := clip.Rect(image.Rectangle{Max: dimensions.Size}).Push(gtx.Ops)
+	semantic.LabelOp(value).Add(gtx.Ops)
+	area.Pop()
+	return dimensions
 }
 
 func colorMaterial(ops *op.Ops, ink color.NRGBA) op.CallOp {

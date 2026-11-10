@@ -9,8 +9,10 @@
 package chat
 
 import (
-	"gioui.org/layout"
 	"sync"
+	"time"
+
+	"gioui.org/layout"
 
 	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/protocol"
@@ -42,18 +44,31 @@ const (
 	ActRevertTurn
 	// ActFork forks the session at event Seq.
 	ActFork
-	// ActRetry asks again what the reader asked in Turn; Value is that question.
+	// ActRetry asks again what the reader asked in Turn; Value is that
+	// question and Attached the files that went with it.
 	ActRetry
+	// ActRelease says the transcript is done with the keyboard, which it
+	// takes while text in it is marked, so the composer can have it back.
+	ActRelease
+	// ActQuote puts Value, words the reader marked in the transcript, into
+	// the composer as a quotation to write under.
+	ActQuote
+	// ActAllow allows the request on screen once and ActRefuse refuses it.
+	// The composer raises them for Enter and Escape pressed with nothing
+	// typed; View.Answer turns one into the ActPermission that says so.
+	ActAllow
+	ActRefuse
 )
 
 // Action is one user request raised by the view.
 type Action struct {
-	Kind    ActionKind
-	Request string
-	Option  string
-	Value   string
-	Seq     int64
-	Turn    int
+	Kind     ActionKind
+	Request  string
+	Option   string
+	Value    string
+	Attached []string
+	Seq      int64
+	Turn     int
 }
 
 // Model is the transcript of one session.
@@ -207,6 +222,28 @@ func (v *View) Layout(gtx layout.Context, th *look.Theme, overlays *look.Overlay
 // Actions returns and clears the actions recorded since the last call.
 func (v *View) Actions() []Action { return v.ensureState().takeActions() }
 
+// AnswerKeys says which keys answer the request on screen from a composer
+// with nothing typed in it.
+type AnswerKeys struct{ Allow, Refuse bool }
+
+// Asking reports which keys can answer the oldest request still open. It is
+// none while that request is not on screen: nobody consents to what they
+// cannot see.
+func (v *View) Asking(m *Model) AnswerKeys {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return v.ensureState().asking(m.state)
+}
+
+// Answer turns ActAllow or ActRefuse into the answer to the request on
+// screen. It gives none for a request drawn less than half a second ago,
+// since the key was pressed before anyone could have read it.
+func (v *View) Answer(m *Model, kind ActionKind, now time.Time) (Action, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return v.ensureState().answer(m.state, kind, now)
+}
+
 // Scrolled reports whether the transcript has moved beneath its top edge, so
 // the header above it can draw its vein.
 func (v *View) Scrolled() bool {
@@ -228,6 +265,10 @@ type ComposerOptions struct {
 	CanAttach bool
 	// Disabled greys the composer (Rashin off or no session).
 	Disabled bool
+	// Answer is the keys that answer a request waiting in the transcript.
+	// With nothing typed, Enter and Escape raise ActAllow and ActRefuse, and
+	// the composer says so where it otherwise says what Enter sends.
+	Answer AnswerKeys
 	// Attach is called when the attach control is pressed, to ask the system
 	// for files. Without it the composer opens its own path field.
 	Attach func()
@@ -282,6 +323,10 @@ func (c *Composer) FocusTag() any { return &c.ensureState().editor }
 
 // SetText replaces the composer's text (used to prefill a follow-up).
 func (c *Composer) SetText(text string) { c.ensureState().setText(text) }
+
+// Quote adds text to the draft as a Markdown quotation, with the caret on
+// the line after it, and takes the keyboard.
+func (c *Composer) Quote(text string) { c.ensureState().quote(text) }
 
 // AddAttachment adds an image or file path to the composer.
 func (c *Composer) AddAttachment(path string) { c.ensureState().addAttachment(path) }

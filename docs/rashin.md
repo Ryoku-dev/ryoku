@@ -252,7 +252,7 @@ session id for resume). Both are written by the daemon only.
 
 | Kind | Data |
 |---|---|
-| `user` | text, images (paths), terminal context, handoff |
+| `user` | text, attached files (`images`: paths, of any kind), terminal context, handoff |
 | `text` | message id, delta: visible answer text |
 | `thought` | message id, delta: reasoning text |
 | `tool` | call id, title, kind, status, input, output, diff, terminal, locations; later events for the same call id overwrite the fields they carry |
@@ -280,7 +280,12 @@ Rules:
   with `cancelled` when the turn is cancelled or the agent stops.
 - Ask sessions keep the newest 200; Agent sessions stay until deleted.
 - A session nobody named takes its first prompt as its title, on one line of
-  at most 60 characters. A title the harness sends later replaces it.
+  at most 60 characters, or the name of its first attachment when it has no
+  words. A title the harness sends later replaces it.
+- A prompt carries the files attached to it in `images`, whatever they are.
+  The field keeps its name from when it only held pictures. Each runner hands
+  them to its model the way that model can take them (see Ask and Agent), and
+  a prompt that waits in the queue keeps its own.
 - `SessionInfo.state`: `idle`, `working`, `waiting` (open permission),
   `stopped` (agent process not running), `failed`.
 
@@ -311,7 +316,11 @@ asked for; without it the router opens no port.
   success; `auto:fast` by measured time to first token, then speed rank;
   `auto:smart` by quality rank only; `<provider>/<model>` pins one model and
   fails over to `auto` only when the user's request did not pin it. A request
-  with tools only considers models with tool support.
+  with tools only considers models with tool support, and a request with a
+  picture only models with `vision`: one without it answers about a picture
+  it never saw, or refuses the whole request. When that leaves nothing, the
+  error names the providers that would do (`llm.NoRoute`, which callers show
+  as it is, since it already says what to do).
 - **Failover**: at most 6 attempts and 45 s before the first streamed byte,
   then the error is final. Classification: invalid key → mark the key `error`,
   try the next key or provider; 429 → cool the model and key down for
@@ -337,8 +346,9 @@ the listener.
 - `GET /v1/models`: the three routes, then every model that can answer now.
 - `POST /v1/chat/completions`, streamed as server-sent events or whole.
   Messages with the roles `system`, `developer`, `user`, `assistant` and
-  `tool`; text parts and inline base64 image parts; function tools and tool
-  calls; `temperature` and `max_tokens`. `top_p`, `stop`, `seed`, the two
+  `tool`; text parts and inline base64 image parts (which send the request
+  to a model with vision, or get 503 when none is in use); function tools and
+  tool calls; `temperature` and `max_tokens`. `top_p`, `stop`, `seed`, the two
   penalties, `response_format`, `tool_choice`, `parallel_tool_calls` and
   `reasoning_effort` are passed on as sent, and every other field is dropped,
   because free providers reject fields they do not know. Reasoning comes back
@@ -396,11 +406,21 @@ The Ask runner (`internal/ask`) is Rashin's own agent loop on the gateway.
   commands) and the plan when `propose` ran. When the work needs changes the
   model ends with `NEEDS_AGENT: <reason>`; the runner strips it and sets
   `needsAgent`.
+- **Attachments** (`internal/ask/attach.go`, `internal/attachment`): what a
+  file is comes from its first bytes, never its name. A picture (PNG, JPEG,
+  GIF, WebP, up to 8 MB) rides on the message, which routes the turn to a
+  model with vision. A text file is written into the message, up to 24 KB,
+  with a line that says how much of it that is: attaching a file is the reader
+  showing it to the model, so it does not wait for `read_file`, which may
+  refuse the path. Anything else is named. An attachment that cannot be read
+  stops the turn with the reason.
 - **Follow-ups**: an Ask session keeps its conversation; earlier turns are
-  replayed into the prompt within a token budget.
+  replayed into the prompt within a token budget. Their attachments go again
+  newest first, within 16 MB of pictures and 48 KB of text; one that is gone,
+  or that there is no room for, is said in its place.
 - **Handoff**: `session.handoff` opens an Agent session (default harness unless
-  named) whose first user event carries the question, the answer and the
-  reason; with `run` it prompts at once.
+  named) whose first user event carries the question, what was attached to
+  it, the answer and the reason; with `run` it prompts at once.
 
 ### In a terminal
 
@@ -440,6 +460,10 @@ Client capabilities Rashin offers: `fs.readTextFile`, `fs.writeTextFile`,
 a `tool` event diff), and runs its terminals (pipes, output capped at 1 MiB per
 terminal, killed on release or session stop).
 
+- **Attachments**: a picture goes as an ACP `image` block to an agent that
+  advertised `promptCapabilities.image`. Every other file, and a picture for
+  an agent that takes none or one over 8 MB, goes as a `resource_link` to the
+  file, which every agent takes and opens with its own tools.
 - **Approvals** follow `agent.approvals`. Under `read-only`, tool calls of kind
   `read`, `search`, `fetch` and `think` are allowed at once; the rest ask.
 - **Permissions** arrive as `permission` events; a client answers with
@@ -626,9 +650,10 @@ checkpoint refs.
 - A new Agent session picks a project, then the project folder, an existing
   worktree or a new one (name, base, branch), then a harness (built in or a
   custom instance from Settings). Move to Agent from Ask asks the same.
-- Queue and steer: while a turn runs, Send queues the message for when it ends
-  (queued messages sit above the composer and can be removed); Steer
-  (Ctrl+Enter) cancels the turn and sends at once.
+- Queue and steer: while a turn runs, Send queues the message, with what is
+  attached to it, for when the turn ends (queued messages sit above the
+  composer and can be removed); Steer (Ctrl+Enter) cancels the turn and sends
+  at once.
 - Fork from here copies a session up to an event into a new session; an Agent
   fork starts its harness fresh with the copied transcript as context.
 - A session is unread when a turn ended and nobody looked; its activity line
@@ -699,12 +724,36 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   and steer, each turn's changes with Revert files, fork from here, and the
   Changes side panel.
 - **The composer** is the same on every page (`internal/app/chat`): attach
-  opens the system file chooser and falls back to a path field, Ctrl V also
-  attaches an image the clipboard holds, Up and Down in an empty field walk
-  the prompts sent in that conversation, `/` lists the commands the harness
-  offers, and what is typed and not sent stays with its conversation. It has
-  the keyboard when its page opens and gets it back when a menu in its row,
-  the search field or a dialog closes.
+  opens the system file chooser for files of any kind and falls back to a
+  path field, Ctrl V also attaches an image the clipboard holds, Up and Down
+  in an empty field walk the prompts sent in that conversation, `/` lists the
+  commands the harness offers, and what is typed and not sent stays with its
+  conversation. Asking again sends the question with what was attached to it.
+  It has the keyboard when its page opens and gets it back when a menu in its
+  row, the search field or a dialog closes.
+- **A waiting request** is answered with its plaques, or from the composer:
+  with nothing typed, Enter allows once and Escape refuses, and the composer's
+  hint says so. Words in the field are a message, so Enter sends them and
+  Escape does nothing. A key never answers a request that is not on screen or
+  was drawn less than half a second ago (`chat.View.Asking` and `Answer`).
+- **Answer text** (`internal/app/chat/inline*.go`): inline Markdown is parsed
+  to spans (strong, emphasis, code, links, a web address written out) and set
+  on lines by the app, one piece per unbreakable stretch, with the shaper used
+  only to measure and draw. `*` marks emphasis wherever it touches a word and
+  `_` only at a word's edge, so `XDG_RUNTIME_DIR` and `snake_case` keep their
+  underscores. Lines break where Unicode allows and after any blank; a word
+  longer than a line breaks inside itself and code that fits on a line stays
+  whole. A table gives narrow columns their width and wraps the wide ones.
+  Nothing an answer says is cut to an ellipsis. A paragraph that reads right
+  to left is set as plain text, since spans set one at a time would come out
+  in the wrong order. Only what is on screen keeps its set lines.
+- **Marked text**: every paragraph, question and block of code can be marked
+  with the pointer and copied with Ctrl C or from the message menu, which
+  also quotes it into the reply (`chat.ActQuote`). A second
+  press takes a word, read the way a terminal reads one so a path comes whole,
+  or all of a piece of code. One stretch is marked at a time and only while
+  the transcript holds the keyboard; Escape, or a press that marks nothing,
+  gives the keyboard back to the composer (`chat.ActRelease`).
 - **Projects** lists projects with their worktrees in the sidebar and opens
   on the project last shown. A project has the tabs Overview (worktrees with
   their status, setup, ports, sessions and actions), Graph (the commit graph
@@ -714,13 +763,19 @@ conversation window (`docs/lithic/layout.md`); that page owns every number.
   field that travels from the centre of the pane to its top with the first
   search, a choice between words, meaning or both, and results that unfold to
   their lines.
+- **Opening a session**: the replay that opens a transcript and the events
+  the session streams afterwards reach the store on different goroutines, so
+  the store holds a session's live events from `Open` until its replay has
+  been applied (`state.Store.Open`, `ApplyAttach`, `Opened`). Without that a
+  replay from zero that landed late wiped the question just asked.
 - **Settings** is a full page with a section index: Rashin (on and off,
   version, the log), Providers (each unfolds to its keys and says what it
   answered this week), Local API (the switch, the address, the key, the port),
   Ask, Agents (the default harness, approvals, notices, the idle stop, the
   harnesses found and how to install the rest, your own harnesses), Index,
-  Appearance (zoom, reduce motion) and Keyboard (every shortcut). Project
-  settings live with the project.
+  Appearance (zoom, reduce motion) and Keyboard (every shortcut). Its list
+  runs to the pane's edge, so the wheel moves it from beside the column too.
+  Project settings live with the project.
 - **The desktop** is reached through `internal/app/desktop` only: the file
   chooser (XDG portal `FileChooser`), the clipboard's image (`wl-paste`),
   notices (`org.freedesktop.Notifications`) and starting other programs

@@ -98,6 +98,7 @@ func (state *composerState) layout(gtx layout.Context, th *theme.Theme, options 
 	// the first to ask for a key gets it, so these go before the editor
 	state.processSlash(gtx, options)
 	state.processRecall(gtx, options)
+	state.processAnswer(gtx, options)
 	state.processPaste(gtx, options)
 	state.processEditorEvents(gtx, options)
 	state.processAttach(gtx, options)
@@ -211,6 +212,8 @@ func (state *composerState) layoutHint(gtx layout.Context, th *theme.Theme, opti
 	size := image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Min.Y)
 	hint := ""
 	switch {
+	case gtx.Focused(&state.editor) && !state.hasContent() && options.Answer != (AnswerKeys{}):
+		hint = answerHint(options.Answer)
 	case options.Busy && state.hasContent():
 		hint = i18n.T("Enter queues, Ctrl Enter steers")
 	case gtx.Focused(&state.editor) && state.editor.Len() == 0 && !options.Busy:
@@ -263,10 +266,26 @@ func (state *composerState) layoutQueue(gtx layout.Context, th *theme.Theme, que
 			state.actions = append(state.actions, Action{Kind: ActUnqueue, Value: prompt.ID})
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return state.layoutChip(gtx, th, i18n.T("Queued"), prompt.Text, remove, false)
+			return state.layoutChip(gtx, th, i18n.T("Queued"), queuedLabel(prompt), remove, false)
 		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// what waits is named by its words, with what is attached to them, or by the attachments alone
+func queuedLabel(prompt protocol.QueuedPrompt) string {
+	names := make([]string, len(prompt.Images))
+	for index, attached := range prompt.Images {
+		names[index] = attachmentName(attached.Path)
+	}
+	switch text := strings.TrimSpace(prompt.Text); {
+	case len(names) == 0:
+		return text
+	case text == "":
+		return strings.Join(names, ", ")
+	default:
+		return text + " · " + strings.Join(names, ", ")
+	}
 }
 
 func (state *composerState) layoutChip(
@@ -312,6 +331,41 @@ func (state *composerState) layoutChip(
 	kit.FillCut(gtx.Ops, image.Rect(0, 0, dimensions.Size.X, height), gtx.Dp(th.Cut.Small), th.R.Stone1)
 	call.Add(gtx.Ops)
 	return layout.Dimensions{Size: image.Pt(dimensions.Size.X, height)}
+}
+
+// with nothing typed these answer the waiting request, and are taken before the editor swallows Enter
+func (state *composerState) processAnswer(gtx layout.Context, options ComposerOptions) {
+	if options.Disabled || state.hasContent() {
+		return
+	}
+	answer := func(name key.Name, kind ActionKind) {
+		for {
+			raw, ok := gtx.Event(key.Filter{Focus: &state.editor, Name: name})
+			if !ok {
+				return
+			}
+			if pressed, ok := raw.(key.Event); ok && pressed.State == key.Press {
+				state.actions = append(state.actions, Action{Kind: kind})
+			}
+		}
+	}
+	if options.Answer.Allow {
+		answer(key.NameReturn, ActAllow)
+	}
+	if options.Answer.Refuse {
+		answer(key.NameEscape, ActRefuse)
+	}
+}
+
+func answerHint(keys AnswerKeys) string {
+	switch {
+	case keys.Allow && keys.Refuse:
+		return i18n.T("Enter allows once, Esc refuses")
+	case keys.Allow:
+		return i18n.T("Enter allows once")
+	default:
+		return i18n.T("Esc refuses")
+	}
 }
 
 func (state *composerState) processEditorEvents(gtx layout.Context, options ComposerOptions) {
@@ -364,6 +418,20 @@ func (state *composerState) setText(text string) {
 	state.editor.SetText(text)
 	end := state.editor.Len()
 	state.editor.SetCaret(end, end)
+}
+
+// what is already written stays above the quotation, so quoting twice builds one reply
+func (state *composerState) quote(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	draft := strings.TrimRight(state.editor.Text(), "\n")
+	if draft != "" {
+		draft += "\n\n"
+	}
+	state.setText(draft + "> " + strings.ReplaceAll(text, "\n", "\n> ") + "\n\n")
+	state.wantFocus = true
 }
 
 func (state *composerState) setDraft(draft Draft) {

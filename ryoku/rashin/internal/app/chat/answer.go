@@ -222,7 +222,7 @@ func (state *viewState) layoutError(gtx layout.Context, th *look.Theme, block bl
 		if turn != nil {
 			number = turn.number
 		}
-		state.act(Action{Kind: ActRetry, Turn: number, Value: questionText(block.model, block.index)})
+		state.act(retryAction(block.model, block.index, number))
 	}
 	gtx.Constraints.Min = image.Point{}
 	gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(560))

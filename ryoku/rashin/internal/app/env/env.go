@@ -164,8 +164,8 @@ func HandleChatActions(gtx layout.Context, e *Env, id string, actions []chat.Act
 		case chat.ActCancel:
 			e.Call(protocol.MSessionCancel, protocol.SessionRef{ID: id}, new(protocol.Empty), nil)
 		case chat.ActRetry:
-			if action.Value != "" {
-				e.Submit(id, false, chat.Submission{Text: action.Value})
+			if action.Value != "" || len(action.Attached) > 0 {
+				e.Submit(id, false, chat.Submission{Text: action.Value, Images: action.Attached})
 			}
 		case chat.ActUnqueue:
 			e.Call(protocol.MSessionUnqueue, protocol.UnqueueParams{ID: id, Queue: action.Value}, new(protocol.SessionInfo), nil)
@@ -181,13 +181,13 @@ func (e *Env) Submit(id string, busy bool, submission chat.Submission) {
 			e.Notify(err.Error())
 		}
 	}
-	if busy && !submission.Steer {
-		e.Call(protocol.MSessionQueue, protocol.QueueParams{ID: id, Text: submission.Text}, new(protocol.SessionInfo), report)
-		return
-	}
 	images := make([]protocol.Attachment, len(submission.Images))
 	for index, path := range submission.Images {
 		images[index] = protocol.Attachment{Path: path}
+	}
+	if busy && !submission.Steer {
+		e.Call(protocol.MSessionQueue, protocol.QueueParams{ID: id, Text: submission.Text, Images: images}, new(protocol.SessionInfo), report)
+		return
 	}
 	method := protocol.MSessionPrompt
 	if submission.Steer {

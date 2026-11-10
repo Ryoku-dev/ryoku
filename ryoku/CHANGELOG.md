@@ -23,6 +23,19 @@
 - **An empty Rashin page says what to do next.** A new ask shows which
   providers can answer, the Agents board lists where a session can work or how
   to install a harness, and an empty sidebar list says what it will hold.
+- **Rashin takes any file you attach.** Ask sends a picture to a model that
+  reads pictures and says which providers have one when none is in use, and
+  writes a text file into the question. An agent gets pictures as pictures and
+  every other file as a link it opens itself. A follow-up that waits in the
+  queue keeps its attachments, and so does asking again
+  (`rashin/internal/attachment`, `rashin/internal/ask/attach.go`).
+- **Text in a Rashin answer can be marked and copied.** Any paragraph,
+  question or block of code, with the pointer. A second press takes a word, a
+  whole path or a whole command, and the message menu copies the marked words
+  or quotes them in the reply (`rashin/internal/app/chat/inline_select.go`).
+- **A waiting agent can be answered from the keyboard.** With nothing typed,
+  Enter allows once and Escape refuses, and the composer says so. Words in the
+  field are still a message (`rashin/internal/app/chat/permission.go`).
 - **Prowl and the Rashin 1 lanes are removed.** Rashin no longer carries the
   Prowl gateway, web dashboard, Hermes setup, terminal recipes or command
   learning.
@@ -46,6 +59,24 @@
 - **Fields in Rashin can be seen before they are pressed.** The composer and
   the search fields on the work pane keep a hairline at rest; a wallpaper
   palette does not show one tone step as an edge (`docs/lithic/palette.md`).
+- **Rashin's answers show names and paths as written.** `XDG_RUNTIME_DIR`,
+  `snake_case` and `*.go` lost their marks to italics. Long addresses, long
+  commands, text without spaces and table cells were cut at one line; they
+  wrap now. Emphasis shows on a font with no italic, an address written out
+  is a link, and a long answer no longer drops frames
+  (`rashin/internal/app/chat/inline.go`, `inline_layout.go`).
+- **A question no longer vanishes from its own transcript.** The first events
+  of a new session could be wiped when its replay arrived after them
+  (`rashin/internal/app/state/store.go`).
+- **Escape no longer refuses an agent's request by accident.** It did so
+  whatever it was pressed for, with words in the composer included.
+- **Agent sessions are named after what you asked.** Every one whose harness
+  sent no title read New session (`rashin/internal/daemon/sessions.go`).
+- **A short conversation stands at the top of its pane.** Opened from the
+  home page it hung from the bottom with a gap above it
+  (`rashin/internal/app/chat/scroll.go`).
+- **Settings scrolls from anywhere in its pane.** The wheel only moved it
+  with the pointer over the middle column.
 - **Ryotunes picks floating or tiled itself.** Its own setting decides on niri
   and Hyprland alike, and its mini player always floats, so the desktop no
   longer forces a floating rule on it (`wm/niri/config_rules.go`,

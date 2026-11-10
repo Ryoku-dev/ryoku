@@ -86,22 +86,31 @@ func (scroller *transcriptScroller) Layout(gtx layout.Context, count int, elemen
 
 	source := gtx.Source
 	listGTX := gtx.Disabled()
+	length := 0
 	list := func() (layout.Dimensions, op.CallOp) {
+		length = 0
 		record := op.Record(gtx.Ops)
 		dimensions := scroller.List.Layout(listGTX, count, func(child layout.Context, index int) layout.Dimensions {
 			child.Source = source
-			return element(child, index)
+			dimensions := element(child, index)
+			length += dimensions.Size.Y
+			return dimensions
 		})
 		return dimensions, record.Stop()
 	}
 	dimensions, call := list()
+	switch whole := scroller.Position.First == 0 && scroller.Position.Count == count; {
 	// a short transcript stays at the top, so the first frame that overflows is laid out twice and I never show it from the top
-	if !scroller.overflowKnown && count > 0 && (scroller.Position.Count < count || scroller.Position.BeforeEnd) {
+	case !scroller.overflowKnown && count > 0 && (scroller.Position.Count < count || scroller.Position.BeforeEnd):
 		scroller.overflowKnown = true
 		if scroller.follow {
 			scroller.ScrollToEnd, scroller.Position.BeforeEnd = true, false
 			dimensions, call = list()
 		}
+	// its room can be small for a moment, as while the composer travels down the page; once all of it fits again it goes back to the top rather than hang from the end
+	case scroller.overflowKnown && whole && length <= gtx.Constraints.Max.Y:
+		scroller.overflowKnown, scroller.ScrollToEnd, scroller.Position = false, false, layout.Position{}
+		dimensions, call = list()
 	}
 	call.Add(gtx.Ops)
 
