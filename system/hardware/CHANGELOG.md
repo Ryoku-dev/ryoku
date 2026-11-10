@@ -27,6 +27,9 @@
   try, so `ryoku-bluetooth-reset.service` failed at every session start for the
   default saved choice. Powering on now retries the window the off path already
   waited out. Covered by `tests/bluetooth-power-persist.sh`.
+- `bluetooth/ryoku-bluetooth-power`: **a slow controller no longer fails the
+  login reset.** Power on and off now wait up to 15 seconds for the controller
+  to register and accept, and a refused power on counts once BlueZ reports it on.
 - `gpu/ryoku-gpu`: **hybrid laptops no longer pin a renderer that does not own
   the internal panel.** Default and Performance avoid Aquamarine's blank
   login/DPMS path; doctor clears old managed pins. Covered by
