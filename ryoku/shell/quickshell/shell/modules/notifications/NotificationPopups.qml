@@ -75,8 +75,11 @@ PanelWindow {
     margins.bottom: inset + margin
 
     implicitWidth: 400 * win.us
-    // ListView can keep a delegate's first measurement after its card grows.
-    implicitHeight: Math.max(1, list.measuredHeight, exitFloor)
+    // ListView skips relayout for a card that grows mid-arrival; follow the painted cards too
+    readonly property real paintedHeight: cards.count === 0 ? 0
+        : position === "BottomRight" ? list.height - list.contentItem.y - list.contentItem.childrenRect.y
+        : list.contentItem.y + list.contentItem.childrenRect.y + list.contentItem.childrenRect.height
+    implicitHeight: Math.max(1, list.contentHeight, paintedHeight, exitFloor)
     // Height held for a leaving card, released once its exit has finished. This
     // must outlast the whole dismiss: the flicked card slides out over notifOut,
     // then the cards below wait that long and rise over durFastSpatial. Releasing
@@ -164,12 +167,12 @@ PanelWindow {
 
     ListView {
         id: list
-        readonly property real measuredHeight: Math.max(contentHeight,
-            contentItem.childrenRect.y + contentItem.childrenRect.height)
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.top: parent.top
-        height: measuredHeight
+        anchors.top: win.position === "BottomRight" ? undefined : parent.top
+        anchors.bottom: win.position === "BottomRight" ? parent.bottom : undefined
+        // never the content's height: that fed every card back into the layout
+        height: win.modelData ? win.modelData.height : 0
         spacing: 14 * win.us
         interactive: false
         model: cards
@@ -228,22 +231,14 @@ PanelWindow {
                 && Designs.notificationReady
                 && win.notificationUrl !== ""
                 && win.notificationUrl !== win.failedNotificationUrl
-            // ListView keeps its first delegate measurement unless a later
-            // Loader height is pushed through the delegate and force-laid out.
-            property real shippedHeight: 0
-            function syncShippedHeight() {
-                const item = shippedLoader.item;
-                popupDelegate.shippedHeight = item
-                    ? Math.max(item.implicitHeight, item.targetImplicitHeight)
-                    : 0;
-            }
+            readonly property real shippedHeight: shippedLoader.item
+                ? Math.max(shippedLoader.item.implicitHeight, shippedLoader.item.targetImplicitHeight)
+                : 0
 
             width: ListView.view ? ListView.view.width : implicitWidth
             implicitHeight: storeLoader.visible && storeLoader.item
                 ? storeLoader.item.implicitHeight
                 : popupDelegate.shippedHeight
-            height: implicitHeight
-            onHeightChanged: if (ListView.view) ListView.view.forceLayout()
             transformOrigin: win.position === "Left" ? Item.TopLeft
                 : win.position === "Center" ? Item.Top
                 : win.position === "BottomRight" ? Item.BottomRight : Item.TopRight
@@ -255,7 +250,6 @@ PanelWindow {
                 height: popupDelegate.shippedHeight
                 active: !popupDelegate.storeRuns || storeLoader.status === Loader.Error
                 visible: active
-                onItemChanged: popupDelegate.syncShippedHeight()
                 sourceComponent: Component {
                     NotificationCard {
                         width: popupDelegate.width
@@ -272,11 +266,6 @@ PanelWindow {
                         // The popup has no menu to close, so it ignores actionInvoked.
                     }
                 }
-            }
-            Connections {
-                target: shippedLoader.item
-                function onImplicitHeightChanged() { popupDelegate.syncShippedHeight(); }
-                function onTargetImplicitHeightChanged() { popupDelegate.syncShippedHeight(); }
             }
 
             Loader {

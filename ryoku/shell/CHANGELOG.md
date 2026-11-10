@@ -57,6 +57,9 @@
 - **The Nomarchy monitor panel drives only a real backlight too.** Its brightness
   slider no longer reads or writes a keyboard LED on a desktop, and on a laptop it
   sets the same panel backlight the brightness keys do.
+- **Notification toasts stop feeding their own layout.** The popup list no longer sizes
+  itself from its cards or re-lays out on every resize, and the countdown frame no longer
+  repaints a canvas each frame. Image toasts hold their thumbnail's room while it loads.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
