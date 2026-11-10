@@ -46,6 +46,10 @@
   With no backlight to find, brightness control fell back to whatever device it
   found first, often a keyboard LED, and offered it as a display. Controls and the
   bar brightness widgets now show only real backlights and external monitors.
+- **Opening Controls no longer makes the whole screen hitch.** With an external
+  monitor on DDC/CI, the panel read its brightness the moment it opened, and that
+  read stalled every display for a fraction of a second. It now reads a quarter
+  second after the panel appears, so the external brightness slider fills in a moment later.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
