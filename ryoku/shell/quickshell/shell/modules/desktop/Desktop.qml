@@ -571,6 +571,7 @@ Scope {
             redo: () => p.enqueue(cmd)
         });
     }
+    property var _settingsQueue: []
     function _runSettingsQueue() {
         if (settingsProc.running)
             return;

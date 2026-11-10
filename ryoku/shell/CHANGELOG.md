@@ -22,6 +22,9 @@
 - **A wallpaper that fails to load once is tried again.** A still that could not
   be read on the first attempt left that screen on the plain background until a
   reload; the desktop now loads it again a few times before giving up.
+- **Plugin settings changed from a desktop tile's menu are saved.** Chips,
+  sliders and switches in the right-click menu now reach the plugin, number
+  settings get a stepper there, and clicking blank space in a menu keeps it open.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
