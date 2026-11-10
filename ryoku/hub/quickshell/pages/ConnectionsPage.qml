@@ -669,8 +669,20 @@ Item {
             wifi.expandedSsid = ssid;
         }
 
-        // `nmcli --ask`, password through stdin. /proc/<pid>/cmdline is world-
-        // readable for the whole attempt, so it MUST NOT be in argv.
+        // Password through stdin: /proc/<pid>/cmdline is world-readable for the
+        // whole attempt, so it MUST NOT be in argv. A WPA-Personal join writes
+        // the passphrase into a fresh profile (nmcli connection edit reads it
+        // from stdin) and activates it with no secret agent, so a wrong one
+        // fails at once; `nmcli --ask` made nmcli the agent, and NetworkManager
+        // waited on it for a new secret until nmcli's 90-second timeout. Any
+        // saved profile of that name is replaced, and a failed join cleans up
+        // after itself like any first join.
+        function keyMgmtFor(ssid) {
+            var sec = wifi.securityMap[ssid] || "";
+            if (/802\.1X/.test(sec))
+                return "";
+            return (/WPA3/.test(sec) && !/WPA1|WPA2/.test(sec)) ? "sae" : "wpa-psk";
+        }
         function connectWithPassword(ssid, pw) {
             if (connProc.running || !pw.length)
                 return;
@@ -678,15 +690,19 @@ Item {
             wifi.connectFailed = false;
             wifi.attemptSsid = ssid;
             wifi.attemptBand = wifi.pickedBand(ssid);
-            // `dev wifi connect` reuses a saved profile and its old secret, so
-            // a saved one is dropped first; the join then cleans up after itself
-            // on failure like any first join
-            var wasKnown = wifi.knownProfiles[ssid] === true;
             wifi.attemptWasKnown = false;
             wifi.pendingPw = pw;
-            connProc.command = wasKnown
-                ? ["sh", "-c", 'nmcli connection delete id "$1" >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"', "sh", ssid]
-                : ["nmcli", "--ask", "dev", "wifi", "connect", ssid];
+            var km = wifi.keyMgmtFor(ssid);
+            connProc.command = km.length
+                ? ["sh", "-c",
+                    'IFS= read -r pw || exit 1; '
+                    + 'nmcli connection delete id "$1" >/dev/null 2>&1; '
+                    + 'nmcli connection add type wifi con-name "$1" ssid "$1" wifi-sec.key-mgmt "$2" >/dev/null || exit 1; '
+                    + 'printf "set wifi-sec.psk %s\\nsave\\nquit\\n" "$pw" | nmcli connection edit id "$1" >/dev/null || exit 1; '
+                    + 'exec nmcli connection up id "$1"',
+                    "sh", ssid, km]
+                : ["sh", "-c", 'nmcli connection delete id "$1" >/dev/null 2>&1; exec nmcli --ask dev wifi connect "$1"', "sh", ssid];
+            connProc.stdinEnabled = true;
             connProc.running = true;
         }
 
@@ -703,6 +719,7 @@ Item {
             wifi.attemptWasKnown = wifi.knownProfiles[ssid] === true;
             wifi.pendingPw = "";
             connProc.command = ["nmcli", "dev", "wifi", "connect", ssid];
+            connProc.stdinEnabled = true;
             connProc.running = true;
         }
 
@@ -807,9 +824,13 @@ Item {
             stdinEnabled: true
             stdout: StdioCollector {}
             stderr: StdioCollector {}
+            // stdin closes after the password: on a wrong one NetworkManager asks
+            // nmcli's --ask agent for another, and with stdin left open nmcli
+            // waited there for its 90-second timeout instead of failing
             onStarted: {
                 write(wifi.pendingPw + "\n");
                 wifi.pendingPw = "";
+                stdinEnabled = false;
             }
             onExited: function(exitCode) {
                 wifi.connecting = false;

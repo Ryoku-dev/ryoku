@@ -3,6 +3,12 @@
 ## Unreleased
 
 ### Fixed
+- **A wrong Wi-Fi password fails in about a second in Connections.** Joining
+  with `nmcli --ask` made nmcli NetworkManager's secret agent, so a rejected
+  passphrase made NetworkManager ask nmcli for another and wait until nmcli's
+  90-second timeout. A WPA-Personal join now writes the passphrase into the
+  profile through stdin and activates it with no agent; the passphrase still
+  never appears in a process's arguments (`pages/ConnectionsPage.qml`).
 - **Connections notices networks saved or forgotten elsewhere.** The saved
   list was read when the page opened and after its own actions, so a network
   forgotten from the bar still showed as saved until the page was reopened. It
