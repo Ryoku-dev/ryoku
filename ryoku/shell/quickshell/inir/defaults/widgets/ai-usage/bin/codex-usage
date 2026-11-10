@@ -1,0 +1,1502 @@
+#!/usr/bin/env python3
+"""
+OpenAI Codex quota for the Quickshell bar widget.
+
+Reads the authoritative rate limits the Codex CLI exposes via its local
+app-server JSON-RPC (account/rateLimits/read), falling back to the newest
+recorded session rollout. Codex can expose multiple independent limit buckets,
+so the cache stores bucket/window metadata instead of assuming Claude's fixed
+5h/7d model.
+"""
+import fcntl, hashlib, json, math, os, select, shutil, subprocess, sys, tempfile, time
+import urllib.request
+import runpy
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+rolling_period = runpy.run_path(str(Path(__file__).resolve().with_name("rolling-history.py")))["rolling_period"]
+
+CODEX_HOME = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
+CACHE_FILE = Path(os.environ.get("CODEX_USAGE_CACHE_FILE") or (Path.home() / ".cache" / "ai-usage" / "codex-usage.json"))
+ACTIVITY_FILE = Path(os.environ.get("CODEX_USAGE_ACTIVITY_FILE") or (Path.home() / ".cache" / "ai-usage" / "codex-usage-activity.json"))
+ACTIVITY_SCHEMA_VERSION = 5
+ACCOUNTING_VERSION = 2
+# Old cumulative identities are retired even when an inherited snapshot adds no usage.
+_RETIRED_USAGE_IDS: set[str] = set()
+_RECONSTRUCTED_DATES: set[str] = set()
+RESET_PLAUSIBILITY_SLOP_SECS = 600
+EVENT_CLOCK_SKEW_SECS = 120
+PRICE_URL = "https://models.dev/api.json"
+SPENDING_DIR = Path(os.environ.get("CODEX_USAGE_STATE_DIR") or
+                    (Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state") / "ai-usage"))
+
+
+def now_epoch() -> float:
+    try:
+        return float(os.environ.get("CODEX_USAGE_NOW") or time.time())
+    except Exception:
+        return time.time()
+
+
+def atomic_write_json(path: Path, obj: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = None
+    try:
+        # mkstemp permissions stay private even when the caller has umask 022.
+        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent,
+                                         prefix=f".{path.name}.", delete=False) as handle:
+            tmp = Path(handle.name)
+            json.dump(obj, handle, separators=(",", ":"))
+            handle.write("\n")
+        os.replace(tmp, path)
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+
+
+def runtime_env() -> dict:
+    home = str(Path.home())
+    parts = [os.environ.get("PATH", ""), f"{home}/.local/bin",
+             f"{home}/.npm-global/bin", f"{home}/.local/share/mise/shims"]
+    env = os.environ.copy()
+    env["PATH"] = os.pathsep.join(p for p in parts if p)
+    return env
+
+
+ENV = runtime_env()
+
+
+def find_codex() -> str | None:
+    return shutil.which("codex", path=ENV.get("PATH"))
+
+
+def fetch_env() -> dict | None:
+    raw = os.environ.get("CODEX_USAGE_RATE_LIMITS_JSON")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception as e:
+        sys.stderr.write(f"env rate limit JSON failed: {e}\n")
+        return None
+    if "rateLimits" in data or "rateLimitsByLimitId" in data:
+        return {
+            "rateLimits": data.get("rateLimits") or {},
+            "rateLimitsByLimitId": data.get("rateLimitsByLimitId"),
+            "plan": data.get("plan_type") or data.get("planType") or data.get("plan") or "",
+            "source": data.get("source") or "fixture",
+        }
+    snapshot = {
+        "limitId": data.get("limitId") or "codex",
+        "limitName": data.get("limitName"),
+        "planType": data.get("plan_type") or data.get("planType") or data.get("plan") or "",
+        "primary": data.get("primary") or {},
+        "secondary": data.get("secondary") or {},
+    }
+    return {
+        "rateLimits": snapshot,
+        "rateLimitsByLimitId": None,
+        "plan": snapshot.get("planType") or "",
+        "source": data.get("source") or "fixture",
+    }
+
+
+# -- authoritative live limits via the Codex app-server JSON-RPC --
+def rpc_request(proc, request_id, method, params=None, timeout=8):
+    proc.stdin.write(json.dumps({"id": request_id, "method": method,
+                                 "params": params or {}}) + "\n")
+    proc.stdin.flush()
+    deadline = time.monotonic() + timeout
+    pending = getattr(proc, "_usage_rpc_pending", b"")
+    try:
+        while time.monotonic() < deadline:
+            if b"\n" not in pending:
+                ready, _, _ = select.select([proc.stdout], [], [],
+                                            min(0.25, max(0, deadline - time.monotonic())))
+                if not ready:
+                    continue
+                chunk = os.read(proc.stdout.fileno(), 65536)
+                if not chunk:
+                    break
+                pending += chunk
+            line, separator, remainder = pending.partition(b"\n")
+            if len(line) > 1024 * 1024:
+                raise RuntimeError("RPC response exceeds size limit")
+            if not separator:
+                continue
+            pending = remainder
+            try:
+                msg = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if not isinstance(msg, dict) or msg.get("id") != request_id:
+                continue
+            if "error" in msg:
+                # Error bodies belong to the provider and may contain secrets.
+                raise RuntimeError(f"{method} failed")
+            return msg
+    finally:
+        proc._usage_rpc_pending = pending
+    raise TimeoutError(method)
+
+
+def fetch_rpc() -> dict | None:
+    if os.environ.get("CODEX_USAGE_DISABLE_RPC") == "1":
+        return None
+    codex = find_codex()
+    if not codex:
+        return None
+    try:
+        proc = subprocess.Popen(
+            [codex, "-s", "read-only", "-a", "never", "app-server", "--listen", "stdio://"],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, env=ENV)
+    except Exception:
+        sys.stderr.write("app-server spawn failed\n")
+        return None
+    try:
+        try:
+            rpc_request(proc, 1, "initialize",
+                        {"clientInfo": {"name": "codex-usage", "version": "1"}}, timeout=15)
+            proc.stdin.write(json.dumps({"method": "initialized", "params": {}}) + "\n")
+            proc.stdin.flush()
+        except Exception:
+            sys.stderr.write("rpc error: initialize\n")
+            return None
+        # The account call only supplies a plan fallback; the rate limits carry
+        # planType themselves. A slow or unauthenticated account read must not
+        # cost the live percentages.
+        account = {}
+        try:
+            account = (rpc_request(proc, 2, "account/read", timeout=6)
+                       .get("result") or {}).get("account") or {}
+        except Exception:
+            pass
+        if str(account.get("type") or "").lower() in ("apikey", "amazonbedrock"):
+            # These accounts have no ChatGPT plan windows. An explicit empty
+            # result prevents historical ChatGPT rollouts becoming live quotas.
+            return {"rateLimits": {}, "rateLimitsByLimitId": None,
+                    "plan": "", "source": "rpc"}
+        try:
+            rate_limits_result = (rpc_request(proc, 3, "account/rateLimits/read", timeout=10)
+                                  .get("result") or {})
+        except Exception:
+            sys.stderr.write("rpc error: account/rateLimits/read\n")
+            return None
+    finally:
+        try:
+            proc.terminate()
+            proc.wait(timeout=1)
+        except Exception:
+            try:
+                proc.kill()
+                proc.wait(timeout=1)
+            except Exception:
+                pass
+        for stream in (proc.stdin, proc.stdout):
+            if stream is not None:
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+
+    limits = rate_limits_result.get("rateLimits") or {}
+    by_limit = rate_limits_result.get("rateLimitsByLimitId")
+    primary = limits.get("primary") or {}
+    secondary = limits.get("secondary") or {}
+    if primary.get("usedPercent") is None and secondary.get("usedPercent") is None and not by_limit:
+        return None
+    return {
+        "rateLimits": limits,
+        "rateLimitsByLimitId": by_limit,
+        "plan": limits.get("planType") or account.get("planType") or account.get("type") or "",
+        "source": "rpc",
+    }
+
+
+# -- fallback: newest canonical general-Codex snapshot from session rollouts --
+def fetch_rollout() -> dict | None:
+    roots = [CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"]
+    best = None
+    best_ts = 0.0
+
+    for root in roots:
+        if not root.exists():
+            continue
+        for path in root.rglob("*.jsonl"):
+            try:
+                with path.open(errors="replace") as fh:
+                    for raw in fh:
+                        if '"rate_limits"' not in raw:
+                            continue
+                        try:
+                            ev = json.loads(raw)
+                        except Exception:
+                            continue
+                        rl = (ev.get("payload") or {}).get("rate_limits")
+                        if not isinstance(rl, dict) or rl.get("limit_id") != "codex":
+                            continue
+                        ts = iso_epoch(str(ev.get("timestamp") or ""))
+                        if ts >= best_ts:
+                            best = rl
+                            best_ts = ts
+            except OSError:
+                continue
+
+    if not best:
+        return None
+
+    def conv(window):
+        if not isinstance(window, dict):
+            return {}
+        return {"usedPercent": window.get("used_percent"),
+                "windowDurationMins": window.get("window_minutes"),
+                "resetsAt": window.get("resets_at")}
+
+    snapshot = {
+        "limitId": best.get("limit_id") or best.get("limitId") or "codex",
+        "limitName": best.get("limit_name") or best.get("limitName"),
+        "planType": best.get("plan_type") or best.get("planType") or "",
+        "primary": conv(best.get("primary")),
+        "secondary": conv(best.get("secondary")),
+    }
+    return {
+        "rateLimits": snapshot,
+        "rateLimitsByLimitId": best.get("rate_limits_by_limit_id") or best.get("rateLimitsByLimitId"),
+        "plan": snapshot.get("planType") or "",
+        "source": "rollout",
+    }
+
+
+# -- light "today" token estimate from today's rollouts (per-call deltas) --
+def iso_epoch(s: str) -> float:
+    try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s).timestamp()
+    except Exception:
+        return 0.0
+
+
+def reset_epoch(window) -> int:
+    try:
+        return int(window.get("resetsAt") or 0)
+    except Exception:
+        return 0
+
+
+def as_float(v, default=0.0) -> float:
+    try:
+        return float(v)
+    except Exception:
+        return default
+
+
+def as_int(v, default=0) -> int:
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
+def window_label(minutes: int) -> str:
+    if minutes == 300:
+        return "5h"
+    if minutes == 10080:
+        return "Weekly"
+    if minutes > 0 and minutes % 1440 == 0:
+        return f"{minutes // 1440}d"
+    if minutes > 0 and minutes % 60 == 0:
+        return f"{minutes // 60}h"
+    return f"{minutes}m" if minutes > 0 else "window"
+
+
+def window_field(window: dict, camel: str, snake: str):
+    if not isinstance(window, dict):
+        return None
+    return window.get(camel) if window.get(camel) is not None else window.get(snake)
+
+
+def normalize_window(kind: str, window: dict) -> dict | None:
+    if not isinstance(window, dict) or not window:
+        return None
+    used = window_field(window, "usedPercent", "used_percent")
+    minutes = as_int(window_field(window, "windowDurationMins", "window_minutes"))
+    reset = as_int(window_field(window, "resetsAt", "resets_at"))
+    if used is None or minutes <= 0:
+        return None
+    util = max(0.0, min(1.0, as_float(used) / 100.0))
+    return {
+        "kind": kind,
+        "minutes": minutes,
+        "label": window_label(minutes),
+        "utilization": round(util, 6),
+        "reset": reset,
+    }
+
+
+def normalize_windows(snapshot: dict) -> list[dict]:
+    windows = []
+    primary = normalize_window("primary", snapshot.get("primary") or {})
+    secondary = normalize_window("secondary", snapshot.get("secondary") or {})
+    if primary:
+        windows.append(primary)
+    if secondary:
+        windows.append(secondary)
+    return windows
+
+
+def sort_windows(windows: list[dict]) -> list[dict]:
+    order = {300: 0, 10080: 1}
+    return sorted(windows, key=lambda w: (order.get(as_int(w.get("minutes")), 99),
+                                          as_int(w.get("minutes"))))
+
+
+def snapshot_id(snapshot: dict, fallback: str = "") -> str:
+    if not isinstance(snapshot, dict):
+        return fallback
+    return str(snapshot.get("limitId") or snapshot.get("limit_id") or fallback or "")
+
+
+def snapshot_name(snapshot: dict, bucket_id: str, is_general: bool) -> str:
+    if not isinstance(snapshot, dict):
+        return "Codex" if is_general else bucket_id
+    name = snapshot.get("limitName") or snapshot.get("limit_name")
+    if name:
+        return str(name)
+    if is_general or bucket_id == "codex":
+        return "Codex"
+    return bucket_id
+
+
+def normalize_bucket(bucket_id: str, snapshot: dict, is_general: bool = False) -> dict | None:
+    if not isinstance(snapshot, dict):
+        return None
+    bid = snapshot_id(snapshot, bucket_id)
+    if not bid:
+        bid = "codex" if is_general else bucket_id
+    windows = normalize_windows(snapshot)
+    if not windows:
+        return None
+    bucket = {
+        "id": bid,
+        "label": snapshot_name(snapshot, bid, is_general),
+        "isGeneral": bool(is_general or bid == "codex"),
+        "windows": windows,
+    }
+    plan = snapshot.get("planType") or snapshot.get("plan_type")
+    if plan:
+        bucket["plan"] = str(plan)
+    reached_type = snapshot.get("rateLimitReachedType") or snapshot.get("rate_limit_reached_type")
+    if reached_type:
+        bucket["rateLimitReachedType"] = str(reached_type)
+    return bucket
+
+
+def normalize_buckets(data: dict) -> list[dict]:
+    general = data.get("rateLimits") if isinstance(data.get("rateLimits"), dict) else {}
+    by_id = data.get("rateLimitsByLimitId")
+    buckets = []
+    seen = set()
+
+    if isinstance(by_id, dict) and by_id:
+        keys = []
+        if "codex" in by_id:
+            keys.append("codex")
+        keys.extend(k for k in by_id.keys() if k != "codex")
+        for key in keys:
+            snap = by_id.get(key) or {}
+            bucket = normalize_bucket(str(key), snap, str(key) == "codex")
+            if bucket and bucket["id"] not in seen:
+                buckets.append(bucket)
+                seen.add(bucket["id"])
+
+    if "codex" not in seen and general:
+        general_id = snapshot_id(general, "codex")
+        bucket = normalize_bucket(general_id, general, general_id == "codex")
+        if bucket and bucket["id"] not in seen:
+            buckets.insert(0, bucket)
+            seen.add(bucket["id"])
+
+    if not buckets and (data.get("primary") or data.get("secondary")):
+        fallback_id = snapshot_id(data, "codex")
+        bucket = normalize_bucket(fallback_id, data, fallback_id == "codex")
+        if bucket:
+            buckets.append(bucket)
+
+    return buckets
+
+
+def general_bucket(buckets: list[dict]) -> dict:
+    for bucket in buckets:
+        if bucket.get("isGeneral") or bucket.get("id") == "codex":
+            return bucket
+    return {}
+
+
+def valid_session_rate_limit_window(rate_limits: dict, window: dict, minutes: int,
+                                    timestamp: str, now: float) -> bool:
+    if not isinstance(rate_limits, dict) or rate_limits.get("limit_id") != "codex":
+        return False
+    if not isinstance(window, dict) or window.get("used_percent") is None:
+        return False
+    reset = as_int(window.get("resets_at"))
+    if reset <= now:
+        return False
+    event_ts = iso_epoch(timestamp)
+    if event_ts <= 0 or reset <= event_ts:
+        return False
+    if event_ts > now + EVENT_CLOCK_SKEW_SECS:
+        return False
+    max_delta = minutes * 60 + RESET_PLAUSIBILITY_SLOP_SECS
+    return reset - event_ts <= max_delta
+
+
+def session_rate_limit_candidates(rate_limits: dict, timestamp: str, now: float) -> list[dict]:
+    candidates = []
+    for key, legacy_minutes in (("primary", 300), ("secondary", 10080)):
+        window = dict(rate_limits.get(key) or {})
+        minutes = as_int(window.get("window_minutes") or legacy_minutes)
+        if minutes <= 0:
+            continue
+        if not valid_session_rate_limit_window(rate_limits, window, minutes, timestamp, now):
+            continue
+        window.setdefault("window_minutes", minutes)
+        candidate = normalize_window(key, window)
+        if not candidate:
+            continue
+        candidate["source"] = "session"
+        candidate["_timestamp"] = timestamp
+        candidate["_eventEpoch"] = iso_epoch(timestamp)
+        candidates.append(candidate)
+    return candidates
+
+
+def supplement_missing_general_windows_from_sessions(buckets: list[dict],
+                                                     session_windows: dict[int, dict]) -> None:
+    """Fill missing general Codex windows from validated session snapshots.
+
+    The live app-server RPC remains authoritative. Session logs are historical
+    snapshots, so this only supplements missing windows from canonical,
+    non-expired, reset-plausible `limit_id == codex` events.
+    """
+    general = general_bucket(buckets)
+    if not general:
+        return
+    existing = {as_int(w.get("minutes")) for w in general.get("windows") or []}
+    wanted = {300, 10080} - existing
+    if not wanted:
+        general["windows"] = sort_windows(general.get("windows") or [])
+        return
+    if not session_windows:
+        general["windows"] = sort_windows(general.get("windows") or [])
+        return
+    merged = list(general.get("windows") or [])
+    for minutes in sorted(wanted):
+        if minutes not in session_windows:
+            continue
+        window = dict(session_windows[minutes])
+        window.pop("_timestamp", None)
+        window.pop("_eventEpoch", None)
+        merged.append(window)
+    general["windows"] = sort_windows(merged)
+
+
+def quota_window(bucket: dict) -> tuple[float, str, str]:
+    max_util = 0.0
+    bucket_label = str(bucket.get("label") or bucket.get("id") or "Codex") if bucket else ""
+    window_label_value = ""
+    for window in bucket.get("windows") or []:
+        util = as_float(window.get("utilization"))
+        if util > max_util:
+            max_util = util
+            window_label_value = str(window.get("label") or "window")
+    return max_util, bucket_label, window_label_value
+
+
+def token_total(info: dict) -> int | None:
+    if not isinstance(info, dict):
+        return None
+    for key in ("total_token_usage", "totalTokenUsage", "token_usage", "tokenUsage"):
+        total = info.get(key)
+        if isinstance(total, dict) and total.get("total_tokens") is not None:
+            return as_int(total.get("total_tokens"))
+    return None
+
+
+def token_last(info: dict) -> int:
+    if not isinstance(info, dict):
+        return 0
+    for key in ("last_token_usage", "lastTokenUsage"):
+        last = info.get(key)
+        if isinstance(last, dict) and last.get("total_tokens") is not None:
+            return as_int(last.get("total_tokens"))
+    return 0
+
+
+def local_day_start_epoch(now: float) -> float:
+    local_now = datetime.fromtimestamp(now).astimezone()
+    start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start.timestamp()
+
+
+def token_event_key(session_id: str, event: dict) -> str:
+    # A rollout may move or be copied. Its event identity must survive a path
+    # change while keeping separate sessions and genuine counter resets apart.
+    info = (event.get("payload") or {}).get("info") or {}
+    usage = info.get("total_token_usage") or info
+    identity = [session_id, event.get("timestamp"), usage]
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+
+
+def load_activity_state() -> dict:
+    try:
+        state = json.loads(ACTIVITY_FILE.read_text())
+        if isinstance(state, dict) and state.get("schemaVersion") == ACTIVITY_SCHEMA_VERSION:
+            return state
+    except Exception:
+        pass
+    return {"schemaVersion": ACTIVITY_SCHEMA_VERSION, "files": {}, "events": [], "rateLimitEvents": [], "dailyTokens": {}}
+
+
+def scan_activity(messages=None) -> tuple[int, int, dict[int, dict], list[dict]]:
+    """Publish canonical request activity and incrementally read quota snapshots.
+
+    Request history owns token accounting. The incremental pass below reads
+    validated quota windows, which remain separate from local token activity.
+    """
+    if messages is None:
+        messages, _ = history_records()
+    roots = [CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"]
+    now = now_epoch()
+    day_start = local_day_start_epoch(now)
+    keep_after = min(now - 3600, day_start) - 60
+    state = load_activity_state()
+    files = state.get("files") if isinstance(state.get("files"), dict) else {}
+    events = state.get("events") if isinstance(state.get("events"), list) else []
+    rate_limit_events = state.get("rateLimitEvents") if isinstance(state.get("rateLimitEvents"), list) else []
+    daily = state.get("dailyTokens") if isinstance(state.get("dailyTokens"), dict) else {}
+    # Match the retained daily history, so replaying yesterday's file cannot
+    # add its tokens again after its rolling-hour events have been pruned.
+    seen_cutoff = day_start - 8 * 86400
+    seen = {key: stamp for key, stamp in (state.get("seenTokenEvents") or {}).items()
+            if as_float(stamp) >= seen_cutoff}
+    initial_rate_limit_scan = not files and not rate_limit_events
+
+    pruned_events = []
+    for item in events:
+        try:
+            ts, tok = float(item[0]), int(item[1])
+        except Exception:
+            continue
+        if ts >= keep_after and tok > 0:
+            pruned_events.append([ts, tok])
+    events = pruned_events
+
+    pruned_rate_limits = []
+    for item in rate_limit_events:
+        try:
+            minutes = as_int(item.get("minutes"))
+            reset = as_int(item.get("reset"))
+            event_epoch = as_float(item.get("eventEpoch"))
+            if minutes <= 0 or reset <= now or event_epoch <= 0:
+                continue
+            if event_epoch > now + EVENT_CLOCK_SKEW_SECS:
+                continue
+            if reset <= event_epoch:
+                continue
+            if reset - event_epoch > minutes * 60 + RESET_PLAUSIBILITY_SLOP_SECS:
+                continue
+            pruned_rate_limits.append(item)
+        except Exception:
+            continue
+    rate_limit_events = pruned_rate_limits
+
+    def compact_rate_limit_events(items: list[dict]) -> list[dict]:
+        latest: dict[int, dict] = {}
+        for item in items:
+            minutes = as_int(item.get("minutes"))
+            if minutes <= 0:
+                continue
+            current = latest.get(minutes)
+            if current is None or str(item.get("timestamp") or "") >= str(current.get("timestamp") or ""):
+                latest[minutes] = item
+        return [latest[minutes] for minutes in sorted(latest.keys())]
+
+    rate_limit_events = compact_rate_limit_events(rate_limit_events)
+
+    def upsert_rate_limit_event(item: dict) -> None:
+        minutes = as_int(item.get("minutes"))
+        if minutes <= 0:
+            return
+        replacement = None
+        kept = []
+        for existing in rate_limit_events:
+            if as_int(existing.get("minutes")) != minutes:
+                kept.append(existing)
+                continue
+            if replacement is None or str(existing.get("timestamp") or "") > str(replacement.get("timestamp") or ""):
+                replacement = existing
+        if replacement is None or str(item.get("timestamp") or "") >= str(replacement.get("timestamp") or ""):
+            replacement = item
+        if replacement is not None:
+            kept.append(replacement)
+        rate_limit_events[:] = kept
+
+    for root in roots:
+        if not root.exists():
+            continue
+        for p in root.rglob("*.jsonl"):
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            if st.st_mtime < keep_after and str(p) not in files and not initial_rate_limit_scan:
+                continue
+            key = str(p)
+            meta = files.get(key) if isinstance(files.get(key), dict) else {}
+            pos = as_int(meta.get("pos")) if st.st_size >= as_int(meta.get("pos")) else 0
+            last_total = as_int(meta.get("last_total")) if pos > 0 else 0
+            session_id = str(meta.get("sessionId") or p.stem)
+            if pos == st.st_size and as_float(meta.get("mtime")) == st.st_mtime:
+                continue
+            try:
+                with p.open(errors="replace") as fh:
+                    fh.seek(pos)
+                    for raw in fh:
+                        if '"token_count"' not in raw and '"session_meta"' not in raw:
+                            continue
+                        try:
+                            ev = json.loads(raw)
+                        except Exception:
+                            continue
+                        payload = ev.get("payload") or {}
+                        if ev.get("type") == "session_meta":
+                            session_id = str(payload.get("id") or payload.get("session_id") or session_id)
+                            continue
+                        if payload.get("type") != "token_count":
+                            continue
+                        ts = iso_epoch(str(ev.get("timestamp") or ""))
+                        if ts <= 0:
+                            continue
+                        rate_limits = payload.get("rate_limits") or {}
+                        for candidate in session_rate_limit_candidates(
+                                rate_limits, str(ev.get("timestamp") or ""), now):
+                            upsert_rate_limit_event({
+                                "minutes": candidate["minutes"],
+                                "kind": candidate["kind"],
+                                "label": candidate["label"],
+                                "utilization": candidate["utilization"],
+                                "reset": candidate["reset"],
+                                "source": "session",
+                                "timestamp": candidate["_timestamp"],
+                                "eventEpoch": candidate["_eventEpoch"],
+                            })
+                        # Retain the source checkpoint for diagnostics, not as
+                        # a second token-accounting implementation.
+                        last_total = token_total(payload.get("info") or {}) or last_total
+                    pos = fh.tell()
+            except OSError:
+                continue
+            files[key] = {"pos": pos, "mtime": st.st_mtime, "size": st.st_size,
+                          "last_total": last_total, "sessionId": session_id}
+
+    # One canonical request ledger drives both history and activity. Rebuilding
+    # these buckets also corrects counters written by the previous parser.
+    events = [[row["time"] / 1000, row["total_with_cache_read"]] for row in messages
+              if row["time"] / 1000 >= keep_after]
+    daily = {}
+    for row in messages:
+        day = datetime.fromtimestamp(row["time"] / 1000).astimezone().strftime("%Y-%m-%d")
+        daily[day] = daily.get(day, 0) + row["total_with_cache_read"]
+
+    recent = today = 0
+    today_date = datetime.fromtimestamp(now).astimezone().date()
+    for ts, tok in events:
+        if ts >= now - 3600:
+            recent += int(tok)
+        if datetime.fromtimestamp(ts).astimezone().date() == today_date:
+            today += int(tok)
+
+    today_local = datetime.fromtimestamp(now).astimezone().date()
+    cutoff = (today_local - timedelta(days=8)).strftime("%Y-%m-%d")
+    daily = {d: int(t) for d, t in daily.items() if str(d) >= cutoff}
+    recent_days_list = []
+    for i in range(6, -1, -1):
+        key = (today_local - timedelta(days=i)).strftime("%Y-%m-%d")
+        recent_days_list.append({"date": key, "tokens": int(daily.get(key, 0))})
+
+    best_windows: dict[int, dict] = {}
+    for item in rate_limit_events:
+        minutes = as_int(item.get("minutes"))
+        if minutes <= 0:
+            continue
+        current = best_windows.get(minutes)
+        if current is None or str(item.get("timestamp") or "") > str(current.get("_timestamp") or ""):
+            best_windows[minutes] = {
+                "kind": str(item.get("kind") or ""),
+                "minutes": minutes,
+                "label": str(item.get("label") or window_label(minutes)),
+                "utilization": as_float(item.get("utilization")),
+                "reset": as_int(item.get("reset")),
+                "source": "session",
+                "_timestamp": str(item.get("timestamp") or ""),
+                "_eventEpoch": as_float(item.get("eventEpoch")),
+            }
+
+    state = {
+        "schemaVersion": ACTIVITY_SCHEMA_VERSION,
+        "files": files,
+        "events": events,
+        "rateLimitEvents": rate_limit_events,
+        "dailyTokens": daily,
+        "seenTokenEvents": seen,
+        "usageRecords": {row["event_id"]: row for row in messages},
+    }
+    try:
+        atomic_write_json(ACTIVITY_FILE, state)
+    except Exception as e:
+        sys.stderr.write(f"activity cache write failed: {e}\n")
+    return recent, today, best_windows, recent_days_list
+
+
+HISTORY_DAYS = 95
+
+
+def fmt_tokens(value) -> str:
+    value = as_int(value)
+    if value >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if value >= 1000:
+        return f"{value / 1000:.1f}K"
+    return str(value)
+
+
+def model_label(model_id: str, provider_id: str) -> str:
+    if provider_id and model_id:
+        return f"{model_id} ({provider_id})"
+    return model_id or provider_id or "unknown"
+
+
+def usage_components(value: dict) -> dict | None:
+    """Validate native component counts; reasoning and caches are subsets."""
+    if not isinstance(value, dict):
+        return None
+    fields = ("input_tokens", "cached_input_tokens", "cache_write_input_tokens",
+              "output_tokens", "reasoning_output_tokens")
+    result = {}
+    for key in fields:
+        count = value.get(key, 0)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            return None
+        result[key] = count
+    if "input_tokens" not in value or "output_tokens" not in value:
+        return None
+    if result["cached_input_tokens"] + result["cache_write_input_tokens"] > result["input_tokens"] \
+            or result["reasoning_output_tokens"] > result["output_tokens"]:
+        return None
+    return result
+
+
+def usage_signature(usage: dict) -> tuple:
+    return tuple(usage[key] for key in ("input_tokens", "cached_input_tokens",
+                 "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens"))
+
+
+def usage_record(identity: str, session_id: str, model: str, provider: str,
+                 tier: str, stamp: float, usage: dict) -> dict:
+    cached = usage["cached_input_tokens"]
+    written = usage["cache_write_input_tokens"]
+    output = usage["output_tokens"]
+    reasoning = usage["reasoning_output_tokens"]
+    inp = usage["input_tokens"] - cached - written
+    total = inp + written + output
+    return {
+        "event_id": identity, "session_id": session_id, "model_id": model,
+        "provider_id": provider, "service_tier": tier, "time": int(stamp * 1000),
+        "input": inp, "output": output - reasoning, "reasoning": reasoning,
+        "cache_read": cached, "cache_write": written, "total": total,
+        "total_with_cache_read": total + cached, "cost": 0.0,
+        "pricing_input": inp, "pricing_write": written, "pricing_output": output,
+    }
+
+
+def history_records() -> tuple[list[dict], dict]:
+    """Use response identities once, reconciling cumulative mirrors and legacy pages.
+
+    Retained identified records survive archive moves and temporary truncation.
+    Historical counters are never inferred from prompt text or terminal output.
+    """
+    global _RETIRED_USAGE_IDS, _RECONSTRUCTED_DATES
+    _RETIRED_USAGE_IDS = set()
+    _RECONSTRUCTED_DATES = set()
+    now = now_epoch()
+    cutoff = now - HISTORY_DAYS * 86400
+    retained = load_activity_state().get("usageRecords") or {}
+    records = {key: dict(row) for key, row in retained.items()
+               if isinstance(row, dict) and as_int(row.get("time")) >= cutoff * 1000}
+    sessions = {}
+    pages = []
+    for root in (CODEX_HOME / "sessions", CODEX_HOME / "archived_sessions"):
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.jsonl")):
+            try:
+                if path.stat().st_mtime < cutoff:
+                    continue
+                rows = []
+                found_title = False
+                with path.open(errors="replace") as handle:
+                    for raw in handle:
+                        if not any(tag in raw for tag in ('"session_meta"', '"turn_context"',
+                                '"thread_settings_applied"', '"event_msg"', '"token_usage_record"',
+                                *(() if found_title else ('"response_item"',)))):
+                            continue
+                        try:
+                            event = json.loads(raw)
+                            if isinstance(event, dict) and isinstance(event.get("payload"), dict):
+                                payload = event["payload"]
+                                if event.get("type") == "response_item":
+                                    if payload.get("type") != "message" or payload.get("role") != "user" or found_title:
+                                        continue
+                                    text = " ".join(str(part.get("text") or "") for part in payload.get("content", [])
+                                                    if isinstance(part, dict) and part.get("type") == "input_text").strip()
+                                    if not text or text.startswith(("# AGENTS.md instructions", "<INSTRUCTIONS>")):
+                                        continue
+                                    found_title = True
+                                if event.get("type") == "event_msg" and payload.get("type") not in (
+                                        "token_count", "thread_settings_applied", "task_started", "task_complete",
+                                        "turn_aborted", "error"):
+                                    continue
+                                rows.append(event)
+                        except ValueError:
+                            continue
+            except OSError:
+                continue
+            metadata = next((e["payload"] for e in rows if e.get("type") == "session_meta"), {})
+            sid = str(metadata.get("session_id") or metadata.get("id") or path.stem)
+            page_id = path.stem.rsplit("_", 1)[-1]
+            if "_" not in path.stem:
+                page_id = str(metadata.get("id") or sid)
+            pages.append((path, sid, page_id, metadata, rows))
+
+    # A legacy page without last_token_usage can still resolve its fork point
+    # from the parent's bounded history. Native requests need no such baseline.
+    def inherited_usage(metadata):
+        base = metadata.get("history_base") or {}
+        parent = str(base.get("thread_id") or metadata.get("forked_from_id") or "")
+        boundary = as_int(base.get("end_ordinal_exclusive"))
+        found = None
+        candidates = [page for page in pages if page[3] is not metadata
+                      and parent in (page[1], page[2])]
+        exact = [page for page in candidates if page[2] == parent]
+        candidates = sorted(exact or candidates, key=lambda page: bool(page[3].get("history_base")))[:1]
+        for _, sid, page_id, _, rows in candidates:
+            for event in rows:
+                if boundary and as_int(event.get("ordinal")) >= boundary:
+                    continue
+                payload = event["payload"]
+                if event.get("type") == "event_msg" and payload.get("type") == "token_count":
+                    value = usage_components((payload.get("info") or {}).get("total_token_usage"))
+                    if value is not None:
+                        found = value
+        return found
+
+    for path, sid, _, metadata, events in pages:
+        title = ""
+        cwd = str(metadata.get("cwd") or "")
+        model = ""
+        provider = str(metadata.get("model_provider") or "")
+        provider = "" if provider == "openai" else provider
+        tier = "standard"
+        started = updated = lifecycle_ts = 0.0
+        lifecycle_running = None
+        current_turn = ""
+        previous = None
+        continuation = bool(metadata.get("history_base") or metadata.get("forked_from_id"))
+        ownership_start = metadata.get("subagent_history_start_ordinal")
+        native = []
+        legacy = []
+        for event in events:
+            kind = event.get("type")
+            payload = event["payload"]
+            stamp = iso_epoch(str(event.get("timestamp") or ""))
+            updated = max(updated, stamp)
+            if kind == "session_meta":
+                started = iso_epoch(str(payload.get("timestamp") or "")) or stamp
+            if kind == "thread_settings_applied" or (kind == "event_msg"
+                    and payload.get("type") == "thread_settings_applied"):
+                settings = payload.get("thread_settings") or {}
+                model = str(settings.get("model") or model)
+                provider = str(settings.get("model_provider_id") or provider)
+                provider = "" if provider == "openai" else provider
+                tier = str(settings.get("service_tier") or "standard")
+            if kind == "turn_context":
+                model = str(payload.get("model") or model)
+                tier = str(payload.get("service_tier") or tier)
+                current_turn = str(payload.get("turn_id") or current_turn)
+            if kind == "event_msg" and payload.get("type") == "task_started":
+                current_turn = str(payload.get("turn_id") or current_turn)
+            if kind == "event_msg" and payload.get("type") in (
+                    "task_started", "task_complete", "turn_aborted", "error") and stamp >= lifecycle_ts:
+                lifecycle_ts = stamp
+                lifecycle_running = payload["type"] == "task_started"
+            if kind == "response_item" and payload.get("type") == "message" \
+                    and payload.get("role") == "user" and not title:
+                text = next((str(part.get("text") or "") for part in payload.get("content", [])
+                             if isinstance(part, dict) and part.get("type") == "input_text"), "")
+                text = " ".join(text.split())
+                if text and not text.startswith(("# AGENTS.md instructions", "<INSTRUCTIONS>")):
+                    title = text[:72]
+            inherited = ownership_start is not None and as_int(event.get("ordinal")) < as_int(ownership_start)
+            if kind == "token_usage_record":
+                usage = usage_components(payload.get("usage"))
+                response_id = str(payload.get("response_id") or "")
+                owner = str(payload.get("session_id") or payload.get("thread_id") or sid)
+                if not inherited and owner == sid and usage is not None and response_id and stamp:
+                    _RECONSTRUCTED_DATES.add(datetime.fromtimestamp(stamp).astimezone().strftime("%Y-%m-%d"))
+                    identity = "request:" + hashlib.sha256(json.dumps([sid, response_id]).encode()).hexdigest()
+                    row = usage_record(identity, sid, model, provider, tier, stamp, usage)
+                    snapshot = usage_components(payload.get("thread_token_usage"))
+                    row["thread_snapshot"] = list(usage_signature(snapshot)) if snapshot is not None else None
+                    row["turn_id"] = str(payload.get("turn_id") or current_turn)
+                    native.append((identity, stamp, usage,
+                                   snapshot, row))
+            if kind != "event_msg" or payload.get("type") != "token_count":
+                continue
+            identity = token_event_key(sid, event)
+            _RETIRED_USAGE_IDS.add(identity)
+            if stamp:
+                _RECONSTRUCTED_DATES.add(datetime.fromtimestamp(stamp).astimezone().strftime("%Y-%m-%d"))
+            records.pop(identity, None)
+            info = payload.get("info") or {}
+            cumulative = usage_components(info.get("total_token_usage"))
+            last = usage_components(info.get("last_token_usage"))
+            if cumulative is None:
+                delta = last
+            elif previous is None and continuation:
+                if last is not None:
+                    delta = last
+                else:
+                    baseline = inherited_usage(metadata)
+                    delta = ({k: max(0, cumulative[k] - baseline[k]) for k in cumulative}
+                             if baseline is not None else None)
+            else:
+                before = previous or {key: 0 for key in cumulative}
+                delta = {key: cumulative[key] - before[key] if cumulative[key] >= before[key]
+                         else cumulative[key] for key in cumulative}
+            previous = cumulative or previous
+            if inherited or not stamp or delta is None or not (delta["input_tokens"] + delta["output_tokens"]):
+                continue
+            if usage_components(delta) is None:
+                continue
+            legacy.append((identity, stamp, delta, last, cumulative, model, provider, tier, current_turn))
+
+        matched = set()
+        for identity, stamp, delta, last, cumulative, model_id, provider_id, service_tier, turn_id in legacy:
+            mirror = None
+            for index, (_, native_stamp, usage, thread_total, _) in enumerate(native):
+                if index in matched:
+                    continue
+                native_turn = native[index][4].get("turn_id")
+                if turn_id and native_turn and turn_id != native_turn:
+                    continue
+                same_last = usage_signature(last or delta) == usage_signature(usage)
+                same_snapshot = cumulative is not None and thread_total is not None \
+                    and usage_signature(cumulative) == usage_signature(thread_total)
+                # A matching thread snapshot is stronger than wall-clock
+                # proximity: real mirrors can be delayed by a minute or more.
+                if same_snapshot or (same_last and abs(stamp - native_stamp) <= 30):
+                    mirror = index
+                    break
+            if mirror is not None:
+                matched.add(mirror)
+                continue
+            records[identity] = usage_record(identity, sid, model_id, provider_id,
+                                             service_tier, stamp, delta)
+            records[identity]["thread_snapshot"] = list(usage_signature(cumulative)) if cumulative is not None else None
+            records[identity]["turn_id"] = turn_id
+        for identity, _, _, _, row in native:
+            records[identity] = row
+        session = sessions.setdefault(sid, {
+            "id": sid, "title": "", "directory": "", "started": 0, "updated": 0,
+            "tokens": 0, "cost": 0.0, "running": False,
+            "_lifecycle_ts": 0, "_running_state": None})
+        if title and not session["title"]:
+            session["title"] = title
+        if cwd:
+            session["directory"] = cwd
+        if started > 0:
+            session["started"] = min(session["started"], started) if session["started"] else started
+        session["updated"] = max(session["updated"], updated)
+        if lifecycle_ts >= session["_lifecycle_ts"] and lifecycle_running is not None:
+            session["_lifecycle_ts"] = lifecycle_ts
+            session["_running_state"] = lifecycle_running
+
+    # Active/archive or paginated files can split a native request from its
+    # cumulative mirror. Persist the strong snapshot alias across refreshes.
+    snapshots = {}
+    for identity, row in records.items():
+        if identity.startswith("request:") and row.get("thread_snapshot") is not None:
+            key = (row["session_id"], tuple(row["thread_snapshot"]))
+            snapshots.setdefault(key, []).append(row.get("turn_id", ""))
+    for identity, row in list(records.items()):
+        if identity.startswith("request:") or row.get("thread_snapshot") is None:
+            continue
+        key = (row["session_id"], tuple(row["thread_snapshot"]))
+        if any(not turn or not row.get("turn_id") or turn == row["turn_id"] for turn in snapshots.get(key, [])):
+            records.pop(identity)
+            _RETIRED_USAGE_IDS.add(identity)
+    messages = sorted(records.values(), key=lambda row: (row["time"], row["event_id"]))
+    for message in messages:
+        session = sessions.get(message["session_id"])
+        if session is not None:
+            session["tokens"] += message["total"]
+    for session in sessions.values():
+        if not session["title"]:
+            session["title"] = str(session["directory"]).rstrip("/").rsplit("/", 1)[-1] or "Codex session"
+        state = session.pop("_running_state")
+        session.pop("_lifecycle_ts")
+        session["running"] = session["updated"] > 0 and now - session["updated"] < (1800 if state is not None else 600) \
+            and (state is None or bool(state))
+    return messages, sessions
+
+
+def history_sessions(sessions: dict, limit: int = 10) -> list[dict]:
+    rows = sorted(sessions.values(), key=lambda row: (bool(row.get("running")), row["updated"]), reverse=True)
+    rows = rows[:max(limit, sum(bool(row.get("running")) for row in rows))]
+    return [{
+        "id": row["id"],
+        "title": row["title"],
+        "directory": row["directory"],
+        "started": int(row["started"] * 1000) if row["started"] < 10**11 else int(row["started"]),
+        "updated": int(row["updated"] * 1000) if row["updated"] < 10**11 else int(row["updated"]),
+        "tokens": int(row["tokens"]),
+        "cost": round(float(row["cost"]), 4),
+        "running": bool(row["running"]),
+    } for row in rows]
+
+
+def history_period(messages: list[dict], since_ms: int, limit: int = 8) -> dict:
+    by_model: dict = {}
+    tokens = cache_read = with_cache = 0
+    cost = 0.0
+    sessions: set = set()
+    for message in messages:
+        if message["time"] < since_ms:
+            continue
+        key = (message["provider_id"], message["model_id"])
+        row = by_model.setdefault(key, {
+            "name": model_label(message["model_id"], message["provider_id"]),
+            "total": 0, "input": 0, "output": 0, "reasoning": 0,
+            "cache_read": 0, "cache_write": 0, "cost": 0.0,
+            "last_seen": 0, "sessions": set(),
+        })
+        row["total"] += message["total"]
+        row["input"] += message["input"]
+        row["output"] += message["output"]
+        row["reasoning"] += message["reasoning"]
+        row["cache_read"] += message["cache_read"]
+        row["cache_write"] += message["cache_write"]
+        row["cost"] += float(message["cost"])
+        row["last_seen"] = max(row["last_seen"], message["time"])
+        if message["session_id"]:
+            row["sessions"].add(message["session_id"])
+            sessions.add(message["session_id"])
+        tokens += message["total"]
+        cache_read += message["cache_read"]
+        with_cache += message["total_with_cache_read"]
+        cost += float(message["cost"])
+
+    def weight(row):
+        return row["total"] + row["cache_read"]
+
+    ranked = sorted(by_model.values(), key=weight, reverse=True)[:limit]
+    peak = max((weight(row) for row in ranked), default=0)
+    models = []
+    for row in ranked:
+        total = int(row["total"])
+        cache_total = total + int(row["cache_read"])
+        models.append({
+            "name": row["name"],
+            "total": total,
+            "totalLabel": fmt_tokens(total),
+            "totalWithCacheRead": cache_total,
+            "totalWithCacheReadLabel": fmt_tokens(cache_total),
+            "inputLabel": fmt_tokens(int(row["input"])),
+            "outputLabel": fmt_tokens(int(row["output"])),
+            "reasoningLabel": fmt_tokens(int(row["reasoning"])),
+            "cacheReadLabel": fmt_tokens(int(row["cache_read"])),
+            "cacheWriteLabel": fmt_tokens(int(row["cache_write"])),
+            "cacheRate": round(row["cache_read"] / cache_total, 4) if cache_total else 0.0,
+            "cost": round(float(row["cost"]), 4),
+            "costLabel": f"${row['cost']:.2f}" if row["cost"] > 0.0001 else "",
+            "sessions": len(row["sessions"]),
+            "lastSeen": int(row["last_seen"]),
+            "pct": int(round(cache_total * 100 / peak)) if peak else 0,
+        })
+    return {
+        "tokens": int(tokens),
+        "tokensLabel": fmt_tokens(int(tokens)),
+        "cacheRate": round(cache_read / with_cache, 4) if with_cache else 0.0,
+        "cost": round(cost, 4),
+        "costLabel": f"${cost:.2f}" if cost > 0.0005 else "",
+        "sessions": len(sessions),
+        "models": models,
+        "modelCount": len(by_model),
+    }
+
+
+def period_starts(now: float | None = None) -> dict[str, int]:
+    instant = now_epoch() if now is None else now
+    moment = datetime.fromtimestamp(instant)
+    today = moment.date()
+    # Build local calendar midnights before converting to epoch milliseconds;
+    # subtracting 24-hour durations shifts boundaries across DST changes.
+    midnight = lambda days: int(datetime.combine(today - timedelta(days=days),
+                                                datetime.min.time()).timestamp() * 1000)
+    return {"today": midnight(0), "24h": int(instant * 1000) - 24 * 3600000,
+            "7": midnight(6), "30": midnight(29), "all": 0}
+
+
+def history_days(messages: list[dict]) -> list[dict]:
+    if not messages:
+        return []
+    today = datetime.fromtimestamp(now_epoch()).astimezone().date()
+    first = datetime.fromtimestamp(messages[0]["time"] / 1000).astimezone().date()
+    span = max(1, min((today - first).days + 1, HISTORY_DAYS))
+    start = today - timedelta(days=span - 1)
+    start_ms = int(datetime.combine(start, datetime.min.time()).astimezone().timestamp() * 1000)
+    by_day: dict[str, dict] = {}
+    for message in messages:
+        if message["time"] < start_ms:
+            continue
+        key = datetime.fromtimestamp(message["time"] / 1000).astimezone().strftime("%Y-%m-%d")
+        bucket = by_day.setdefault(key, {"tokens": 0, "cacheRead": 0, "cost": 0.0})
+        bucket["tokens"] += message["total"]
+        bucket["cacheRead"] += message["cache_read"]
+        bucket["cost"] += float(message["cost"])
+    return [{
+        "date": (today - timedelta(days=i)).strftime("%Y-%m-%d"),
+        "tokens": int(by_day.get((today - timedelta(days=i)).strftime("%Y-%m-%d"), {}).get("tokens", 0)),
+        "cacheRead": int(by_day.get((today - timedelta(days=i)).strftime("%Y-%m-%d"), {}).get("cacheRead", 0)),
+        "cost": round(float(by_day.get((today - timedelta(days=i)).strftime("%Y-%m-%d"), {}).get("cost", 0.0)), 6),
+    } for i in range(span - 1, -1, -1)]
+
+
+def history_hours(messages: list[dict], hours: int = 48) -> list[dict]:
+    # Buckets are local clock hours: the widget builds its 24 slots from local
+    # midnight, so UTC-aligned keys never meet the chart in a half-hour zone.
+    now_local = datetime.fromtimestamp(now_epoch()).astimezone().replace(
+        minute=0, second=0, microsecond=0)
+    current = int(now_local.timestamp())
+    by_hour: dict[int, dict] = {}
+    for message in messages:
+        moment = datetime.fromtimestamp(message["time"] / 1000).astimezone().replace(
+            minute=0, second=0, microsecond=0)
+        bucket = int(moment.timestamp())
+        if bucket < current - (hours - 1) * 3600:
+            continue
+        row = by_hour.setdefault(bucket, {"tokens": 0, "cacheRead": 0})
+        row["tokens"] += message["total"]
+        row["cacheRead"] += message["cache_read"]
+    return [{
+        "start": int((current - offset * 3600) * 1000),
+        "tokens": int(by_hour.get(int(current - offset * 3600), {}).get("tokens", 0)),
+        "cacheRead": int(by_hour.get(int(current - offset * 3600), {}).get("cacheRead", 0)),
+    } for offset in range(hours - 1, -1, -1)]
+
+
+def merge_published(key: str, fresh: list[dict], previous: dict) -> list[dict]:
+    """Keep published buckets monotonic: a day or hour never loses tokens."""
+    if not isinstance(previous, dict):
+        return fresh
+    old_rows = previous.get(key)
+    if not isinstance(old_rows, list):
+        return fresh
+    field = "date" if key == "_days" else "start"
+    if key == "_hours":
+        # Caches written before the milliseconds switch keep second keys; the
+        # widget normalises them, but the cache itself must not carry ghosts.
+        migrated = []
+        for old in old_rows:
+            row = dict(old)
+            start = as_int(row.get("start"))
+            if 0 < start < 10 ** 11:
+                row["start"] = start * 1000
+            if as_int(row.get("start")) > 0:
+                migrated.append(row)
+        old_rows = migrated
+    merged = {str(row.get(field)): dict(row) for row in fresh}
+    covered = {datetime.fromtimestamp(row["time"] / 1000).astimezone().strftime("%Y-%m-%d")
+               for row in (load_activity_state().get("usageRecords") or {}).values()} | _RECONSTRUCTED_DATES
+    for old in old_rows:
+        slot = str(old.get(field) or "")
+        if not slot:
+            continue
+        current = merged.get(slot)
+        if current is None:
+            merged[slot] = dict(old)
+            continue
+        day = slot if key == "_days" else datetime.fromtimestamp(as_int(current.get(field)) / 1000).astimezone().strftime("%Y-%m-%d")
+        if day in covered:
+            continue
+        current["tokens"] = max(as_int(current.get("tokens")), as_int(old.get("tokens")))
+        current["cacheRead"] = max(as_int(current.get("cacheRead")), as_int(old.get("cacheRead")))
+        current["cost"] = max(as_float(current.get("cost")), as_float(old.get("cost")))
+    if key == "_hours":
+        return sorted(merged.values(), key=lambda row: as_int(row.get(field)))
+    return sorted(merged.values(), key=lambda row: str(row.get(field)))
+
+
+def published_codes() -> dict:
+    try:
+        return json.loads(CACHE_FILE.read_text())
+    except Exception:
+        return {}
+
+
+PRICING = runpy.run_path(str(Path(__file__).resolve().with_name("model-pricing.py")))
+_PRICE_SNAPSHOT = {}
+
+
+def normalize_prices(catalog: dict) -> dict:
+    return PRICING["normalize_catalog"](catalog, "openai")
+
+
+def fetch_prices(required=()) -> dict | None:
+    global _PRICE_SNAPSHOT
+    fixture = os.environ.get("CODEX_USAGE_PRICES_JSON")
+    if fixture is not None:
+        try:
+            _PRICE_SNAPSHOT = {}
+            return normalize_prices(json.loads(fixture)) or None
+        except (ValueError, TypeError):
+            return None
+    if os.environ.get("CODEX_USAGE_DISABLE_PRICES") == "1":
+        return None
+    _PRICE_SNAPSHOT = PRICING["load_prices"]("openai", state_dir=SPENDING_DIR, now=now_epoch(), required=required)
+    return _PRICE_SNAPSHOT["models"] or None
+
+
+def spending_ledger(month: str) -> dict | None:
+    path = SPENDING_DIR / f"spending-{month}.json"
+    try:
+        value = json.loads(path.read_text())
+        if value.get("schemaVersion") == 1 and value.get("month") == month \
+                and isinstance(value.get("days"), dict) and isinstance(value.get("events"), dict):
+            return value
+    except FileNotFoundError:
+        return {"schemaVersion": 1, "month": month, "currency": "USD", "days": {}, "events": {}}
+    except Exception:
+        pass
+    # Never overwrite an unreadable historical price ledger.
+    return None
+
+
+def price_event(event: dict, prices: dict) -> float | None:
+    if event.get("provider") not in ("", "openai"):
+        return None
+    rate = PRICING["resolve_rate"](prices, event["model"], event["context_input"], event.get("service_tier", "standard"))
+    if not isinstance(rate, dict):
+        return None
+    total = 0.0
+    for key in ("input", "output", "cache_read", "cache_write"):
+        count = event[key]
+        value = rate.get(key)
+        if count and (value is None or not math.isfinite(value) or value < 0):
+            return None
+        total += count * (value or 0) / 1_000_000
+    return round(total, 10)
+
+
+def estimate_spending(messages: list[dict]) -> dict:
+    now = now_epoch()
+    today = datetime.fromtimestamp(now).astimezone().strftime("%Y-%m-%d")
+    month = today[:7]
+    summary = {"kind": "api-equivalent", "month": month, "currency": "USD", "amount": None,
+               "partial": True, "priced_tokens": 0, "unpriced_tokens": 0,
+               "priced_days": [], "unpriced_days": [], "stale_prices": False}
+    grouped = {}
+    for message in messages:
+        day = datetime.fromtimestamp(message["time"] / 1000).astimezone().strftime("%Y-%m-%d")
+        grouped.setdefault(day[:7], []).append((day, message))
+    grouped.setdefault(month, [])
+    SPENDING_DIR.mkdir(parents=True, mode=0o700, exist_ok=True)
+    for key, rows in sorted(grouped.items()):
+        ledger = spending_ledger(key)
+        if ledger is None:
+            continue
+        days, events = ledger["days"], ledger["events"]
+        ledger_path = SPENDING_DIR / f"spending-{key}.json"
+        if ledger.get("accountingVersion") != ACCOUNTING_VERSION and ledger_path.exists():
+            backup = SPENDING_DIR / f"spending-{key}.before-request-accounting.json"
+            if not backup.exists():
+                atomic_write_json(backup, ledger)
+        # Replace only identities reconstructed from available source files.
+        # Unavailable historical records and all dated price snapshots survive.
+        for identity in _RETIRED_USAGE_IDS:
+            events.pop(identity, None)
+        ledger["accountingVersion"] = ACCOUNTING_VERSION
+        if key == month:
+            snapshot = days.setdefault(today, {})
+            missing = any(PRICING["resolve_rate"](snapshot.get("prices", {}), message["model_id"],
+                          message["input"] + message["cache_read"] + message["cache_write"],
+                          message["service_tier"]) is None for day, message in rows if day == today)
+            if (not snapshot.get("prices") or snapshot.get("stale_prices") or missing
+                    or now - snapshot.get("fetched_at", 0) >= 86400) \
+                    and now - snapshot.get("last_attempt", 0) >= 900:
+                snapshot["last_attempt"] = now
+                prices = fetch_prices(required=[(message["model_id"],
+                    message["input"] + message["cache_read"] + message["cache_write"], message["service_tier"])
+                    for day, message in rows if day == today])
+                if prices:
+                    snapshot.update(prices=PRICING["merge_models"](snapshot.get("prices", {}), prices, preserve=not snapshot.get("stale_prices", False)),
+                                    price_date=_PRICE_SNAPSHOT.get("price_date", today), fetched_at=now,
+                                    source=_PRICE_SNAPSHOT.get("source", PRICE_URL),
+                                    stale_prices=_PRICE_SNAPSHOT.get("stale", False))
+                elif not snapshot.get("prices"):
+                    candidates = [value for date, value in days.items()
+                                  if date < today and value.get("prices")]
+                    if not candidates:
+                        previous_month = (datetime.fromtimestamp(now).astimezone().date()
+                                          .replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+                        previous = spending_ledger(previous_month)
+                        candidates = [value for value in (previous or {}).get("days", {}).values()
+                                      if value.get("prices")]
+                    if candidates:
+                        old = max(candidates, key=lambda row: row.get("fetched_at", 0))
+                        snapshot.update(prices=old["prices"], price_date=old["price_date"],
+                                        fetched_at=old["fetched_at"], source=PRICE_URL, stale_prices=True)
+        for day, message in rows:
+            events[message["event_id"]] = {
+                "date": day, "model": message["model_id"], "provider": message["provider_id"],
+                "input": message["pricing_input"], "output": message.get("pricing_output", message["output"] + message["reasoning"]),
+                "cache_read": message["cache_read"], "cache_write": message["pricing_write"],
+                "context_input": message["input"] + message["cache_read"] + message["cache_write"],
+                "service_tier": message["service_tier"]}
+            days.setdefault(day, {})
+        for day in days:
+            days[day].update(cost=0.0, priced_tokens=0, unpriced_tokens=0, models={})
+        for event in events.values():
+            day = days[event["date"]]
+            price = price_event(event, day.get("prices", {}))
+            tokens = sum(event[name] for name in ("input", "output", "cache_read", "cache_write"))
+            model = day["models"].setdefault(event["model"], {
+                "input": 0, "output": 0, "cache_read": 0, "cache_write": 0, "cost": 0.0})
+            for name in ("input", "output", "cache_read", "cache_write"):
+                model[name] += event[name]
+            if price is None:
+                day["unpriced_tokens"] += tokens
+            else:
+                day["priced_tokens"] += tokens
+                day["cost"] += price
+                model["cost"] += price
+        for day in days.values():
+            day["cost"] = round(day["cost"], 8)
+            day["partial"] = day["unpriced_tokens"] > 0
+        ledger["updated_at"] = now
+        atomic_write_json(SPENDING_DIR / f"spending-{key}.json", ledger)
+        if key == month:
+            priced = [date for date, value in days.items() if value["priced_tokens"] > 0]
+            missing = [date for date, value in days.items() if value["unpriced_tokens"] > 0]
+            summary.update(
+                amount=round(sum(value["cost"] for value in days.values()), 6) if priced else None,
+                partial=bool(missing), priced_tokens=sum(value["priced_tokens"] for value in days.values()),
+                unpriced_tokens=sum(value["unpriced_tokens"] for value in days.values()),
+                priced_days=sorted(priced), unpriced_days=sorted(missing),
+                stale_prices=any(value.get("stale_prices", False) for value in days.values()),
+                price_date=days.get(today, {}).get("price_date", ""))
+    return summary
+
+
+def main():
+    data = fetch_env() or fetch_rpc() or fetch_rollout()
+    messages, sessions = history_records()
+    if not data and not messages:
+        # keep the last numbers on screen, marked stale
+        if CACHE_FILE.exists():
+            try:
+                cur = json.loads(CACHE_FILE.read_text())
+                cur["_source"] = "stale"
+                atomic_write_json(CACHE_FILE, cur)
+            except Exception:
+                pass
+        return
+
+    data = data or {"source": "local", "plan": ""}
+
+    buckets = normalize_buckets(data)
+    recent_tok, today_tok, session_windows, recent_days_list = scan_activity(messages)
+    # Honour the selected snapshot as a whole. Filling its absent windows from
+    # other session snapshots can restore quotas from a previous plan.
+    general = general_bucket(buckets)
+    windows = general.get("windows") or []
+    max_util, quota_bucket, quota_window_label = quota_window(general)
+    reached_type = str(general.get("rateLimitReachedType") or "")
+
+    try:
+        spending = estimate_spending(messages)
+    except Exception:
+        spending = {"kind": "api-equivalent", "amount": None, "partial": True}
+    previous = published_codes()
+    days = merge_published("_days", history_days(messages), previous)
+    hours = merge_published("_hours", history_hours(messages), previous)
+    newest = messages[-1] if messages else {}
+    now = now_epoch()
+    periods = {key: history_period(messages, since)
+               for key, since in period_starts(now).items() if key != "24h"}
+    periods["24h"] = rolling_period(messages, int(now * 1000), history_period)
+
+    out = {
+        "schemaVersion":  3,
+        "_accountingVersion": ACCOUNTING_VERSION,
+        "buckets":        buckets,
+        "windows":        windows,
+        "5h-utilization": "",
+        "5h-reset":       "",
+        "7d-utilization": "",
+        "7d-reset":       "",
+        "updated_at":     datetime.now().strftime("%H:%M:%S"),
+        "_source":        data["source"],
+        "_plan":          str(general.get("plan") or data.get("plan") or ""),
+        "_quota_bucket":  quota_bucket,
+        "_quota_window":  quota_window_label,
+        "_limit_reached_type": reached_type,
+        "_rate_per_hour": recent_tok,
+        "_rate_label":    "Local activity (1h, incl. cached)",
+        "_today_tokens":  today_tok,
+        "_recent_days":   recent_days_list,
+        "_days":          days,
+        "_spending":      spending,
+        "_hours":         hours,
+        "_sessions":      history_sessions(sessions),
+        "_windows":      windows,
+        "_periods": periods,
+        "_model": model_label(str(newest.get("model_id") or ""),
+                              str(newest.get("provider_id") or "")),
+        "status": "rejected" if reached_type or max_util >= 1.0
+                  else "allowed_warning" if max_util >= 0.9
+                  else "allowed",
+    }
+    for window in windows:
+        if window["minutes"] == 300:
+            out["5h-utilization"] = f"{window['utilization']:.4f}"
+            out["5h-reset"] = str(window["reset"])
+        elif window["minutes"] == 10080:
+            out["7d-utilization"] = f"{window['utilization']:.4f}"
+            out["7d-reset"] = str(window["reset"])
+    atomic_write_json(CACHE_FILE, out)
+
+
+if __name__ == "__main__":
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    lock_fd = os.open(str(CACHE_FILE) + ".lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            sys.exit(75)
+        main()
+    finally:
+        os.close(lock_fd)
