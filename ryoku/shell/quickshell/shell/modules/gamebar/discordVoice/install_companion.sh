@@ -36,6 +36,7 @@ export PATH="$PNPM_PREFIX/bin:$PATH"
 if ! command -v pnpm >/dev/null; then
     if command -v corepack >/dev/null; then
         say "enabling pnpm through corepack"
+        mkdir -p "$PNPM_PREFIX/bin"
         corepack enable --install-directory "$PNPM_PREFIX/bin" pnpm
     else
         say "installing pnpm into the user prefix"
