@@ -49,6 +49,14 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 	settings := e.Snapshot().Settings.Ask
 	labels, ids, selected := p.routeOptions(settings.Model)
 	p.habits.Value = settings.Habits
+	mayIDs := [...]string{protocol.ApprovalsReadOnly, protocol.ApprovalsAsk, protocol.ApprovalsAuto}
+	mayLabels := []string{i18n.T("Never"), i18n.T("After asking you"), i18n.T("Without asking (YOLO)")}
+	selectedMay := 0
+	for index, id := range mayIDs {
+		if id == settings.Approvals {
+			selectedMay = index
+		}
+	}
 	return look.SettingsSection(gtx, th, i18n.T("Ask"), []look.Setting{
 		{
 			Title:  i18n.T("Answers come from"),
@@ -58,6 +66,18 @@ func (p *Page) layoutAsk(gtx layout.Context, e *env.Env) layout.Dimensions {
 				dimensions := p.route.Layout(gtx, th, e.Overlays, labels, selected)
 				if index, changed := p.route.Changed(); changed && index < len(ids) {
 					set(e, "ask", map[string]any{"model": ids[index]})
+				}
+				return dimensions
+			},
+		},
+		{
+			Title:  i18n.T("Ask changes this machine"),
+			Detail: i18n.T("What a new ask in this app starts with: it only proposes commands, runs them once you allow each, or runs them by itself. Asks from the bar and the terminal never change anything."),
+			Control: func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Dp(260)
+				dimensions := p.askMay.Layout(gtx, th, e.Overlays, mayLabels, selectedMay)
+				if index, changed := p.askMay.Changed(); changed && index < len(mayIDs) {
+					set(e, "ask", map[string]any{"approvals": mayIDs[index]})
 				}
 				return dimensions
 			},
@@ -112,7 +132,7 @@ func (p *Page) layoutAgents(gtx layout.Context, e *env.Env) layout.Dimensions {
 		harnessLabels, harnessIDs = []string{i18n.T("None installed")}, []string{""}
 	}
 	approvalIDs := [...]string{protocol.ApprovalsReadOnly, protocol.ApprovalsAsk, protocol.ApprovalsAuto}
-	approvalLabels := []string{i18n.T("Before it changes anything"), i18n.T("Before every action"), i18n.T("Never")}
+	approvalLabels := []string{i18n.T("Before it changes anything"), i18n.T("Before every action"), i18n.T("Never (YOLO)")}
 	selectedApproval := 0
 	for index, id := range approvalIDs {
 		if id == settings.Approvals {
@@ -225,7 +245,14 @@ func harnessDetail(harness protocol.HarnessInfo) string {
 		add(len(capabilities.Modes) > 0, i18n.T("has modes"))
 		add(capabilities.Images, i18n.T("reads images"))
 	}
-	return strings.Join(parts, ", ")
+	detail := strings.Join(parts, ", ")
+	if facts := env.HarnessFacts(harness); len(facts) > 0 {
+		if detail != "" {
+			detail += ". "
+		}
+		detail += env.FactsSentence(facts)
+	}
+	return detail
 }
 
 func (p *Page) layoutIndex(gtx layout.Context, e *env.Env) layout.Dimensions {

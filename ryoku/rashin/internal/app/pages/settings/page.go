@@ -57,6 +57,7 @@ type Page struct {
 
 	harness   look.Select
 	approvals look.Select
+	askMay    look.Select
 	idle      kit.Stepper
 	notices   kit.Toggle
 	install   env.HarnessInstall

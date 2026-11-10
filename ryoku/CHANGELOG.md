@@ -36,6 +36,20 @@
 - **A waiting agent can be answered from the keyboard.** With nothing typed,
   Enter allows once and Escape refuses, and the composer says so. Words in the
   field are still a message (`rashin/internal/app/chat/permission.go`).
+- **Ask can be allowed to change things.** A conversation in the app is Read
+  only, Ask first or YOLO, picked in its composer. Ask first shows each command
+  or file change and waits for you; YOLO runs them and still stops at a
+  destructive command. A changed file keeps its earlier version, and asks from
+  the bar and the terminal stay read only (`rashin/internal/ask/act.go`).
+- **Agents ask as much as you choose, from the composer.** Ask before changes,
+  ask every time or YOLO, on the Agents board and in every session, and the
+  same choice in Settings (`rashin/internal/app/env/approvals.go`).
+- **A session shows what its harness will really use.** Its model, mode and
+  every option the harness offers, such as how hard to think, are there when
+  the session opens, not after the first prompt. A long model list is searched
+  by typing, and the Agents board and Settings show the harness's own setup,
+  for omp the model behind each role (`rashin/internal/harness/setup.go`,
+  `rashin/internal/app/look/picker.go`).
 - **Every Rashin request knows where it runs.** Ask is told what Rashin is and
   how it is reached, and an agent hears before its first prompt that it runs
   on Ryoku, where the vault is, and that its folder has a built-in code search

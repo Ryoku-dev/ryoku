@@ -183,23 +183,3 @@ func sessionMatter(snapshot state.Snapshot, info protocol.SessionInfo) string {
 	}
 	return info.Preview
 }
-
-func choiceOptions(choice protocol.ChoiceData, fallback string) (labels, ids []string, selected int) {
-	current := choice.Current
-	if current == "" {
-		current = fallback
-	}
-	if len(choice.Options) == 0 {
-		if current == "" {
-			return []string{i18n.T("Default")}, []string{""}, 0
-		}
-		return []string{current}, []string{current}, 0
-	}
-	for index, option := range choice.Options {
-		labels, ids = append(labels, option.Name), append(ids, option.ID)
-		if option.ID == current {
-			selected = index
-		}
-	}
-	return labels, ids, selected
-}

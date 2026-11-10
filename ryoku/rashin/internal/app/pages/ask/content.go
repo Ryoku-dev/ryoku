@@ -126,8 +126,13 @@ func (p *Page) layoutHome(gtx layout.Context, e *env.Env, composer image.Rectang
 	sentenceTop := proofTop - gtx.Dp(8) - sentence
 	look.Place(gtx, image.Rect(composer.Min.X, sentenceTop, composer.Max.X, sentenceTop+sentence),
 		kit.Text(th.Theme, th.T.Sentence, th.R.Fg, i18n.T("Ask about this machine")))
+	may := p.approvals.Value("", e.Snapshot().Settings.Ask.Approvals)
+	ink := th.R.Fg2
+	if may == protocol.ApprovalsAuto {
+		ink = th.R.Amber
+	}
 	look.Place(gtx, image.Rect(composer.Min.X, proofTop, composer.Max.X, proofTop+proof),
-		kit.Text(th.Theme, th.T.Proof, th.R.Fg2, i18n.T("Rashin reads your system to answer. It never changes it.")))
+		kit.Text(th.Theme, th.T.Proof, ink, env.ApprovalsNote(env.AskApprovals, may)))
 
 	texts := suggestionTexts()
 	offset := op.Offset(image.Pt(composer.Min.X, composer.Max.Y+gtx.Dp(13))).Push(gtx.Ops)
@@ -161,19 +166,36 @@ func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Att
 	options := chat.ComposerOptions{Placeholder: i18n.T("Ask anything about this machine"), CanAttach: true}
 	e.ComposerDesktop(&p.composer, &options)
 	current := p.draftRoute
+	// with no conversation open the choice is what the next one starts with
+	may := e.Snapshot().Settings.Ask.Approvals
 	if open {
 		info := attached.Info
 		options.Placeholder = i18n.T("Ask a follow-up")
 		options.Busy, options.Queue = attached.Model.Busy(), info.Queue
 		options.History = attached.Model.Prompts
 		options.Answer = p.view.Asking(attached.Model)
-		current = info.Model
+		current, may = info.Model, info.Mode
 	}
-	labels, ids, selected := p.routeOptions(current)
+	routes, ids, selected := p.routeOptions(current)
 	p.route.Form, p.route.Label, p.route.Return = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag()
-	options.Controls = []layout.Widget{func(gtx layout.Context) layout.Dimensions {
-		return p.route.Layout(gtx, e.Theme, e.Overlays, labels, selected)
-	}}
+	options.Controls = []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return p.route.LayoutOptions(gtx, e.Theme, e.Overlays, routes, selected)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return p.approvals.Layout(gtx, e, env.AskApprovals, p.selected, may, p.composer.FocusTag())
+		},
+	}
+	if value, changed := p.approvals.Changed(); changed {
+		if open {
+			e.Call(protocol.MSessionSetMode, protocol.SetModeParams{ID: p.selected, Mode: value}, new(protocol.Empty), func(err error) {
+				if err != nil {
+					e.Notify(err.Error())
+				}
+			})
+		}
+		e.SetApprovals(env.AskApprovals, value)
+	}
 	if index, changed := p.route.Changed(); changed && index >= 0 && index < len(ids) {
 		if open {
 			params := protocol.SetModelParams{ID: p.selected, Model: ids[index]}

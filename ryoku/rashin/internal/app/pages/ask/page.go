@@ -33,6 +33,7 @@ type Page struct {
 	view        chat.View
 	composer    chat.Composer
 	route       look.Select
+	approvals   env.Approvals
 	rise        look.Rise
 	travel      anim.Tween
 	suggestions [4]kit.Plaque
@@ -40,6 +41,9 @@ type Page struct {
 
 	models protocol.ModelsResult
 	loaded bool
+	// the route select's rows, built once when the models arrive
+	routes   []look.SelectOption
+	routeIDs []string
 
 	rename  renameDialog
 	remove  removeDialog
@@ -86,7 +90,10 @@ func (p *Page) NewLabel() string { return i18n.T("New ask") }
 func (p *Page) start(e *env.Env, submission chat.Submission) {
 	p.starting = true
 	var info protocol.SessionInfo
-	params := protocol.SessionNewParams{Kind: protocol.KindAsk, Origin: protocol.OriginApp, Model: p.draftRoute}
+	params := protocol.SessionNewParams{
+		Kind: protocol.KindAsk, Origin: protocol.OriginApp, Model: p.draftRoute,
+		Mode: p.approvals.Value("", e.Snapshot().Settings.Ask.Approvals),
+	}
 	e.Call(protocol.MSessionNew, params, &info, func(err error) {
 		if err != nil {
 			p.starting = false
@@ -109,30 +116,38 @@ func (p *Page) loadModels(e *env.Env) {
 	e.Call(protocol.MModelsList, protocol.ModelsParams{}, &p.models, func(err error) {
 		if err != nil {
 			p.loaded = false
+			return
 		}
+		p.routes, p.routeIDs = routeList(p.models)
 	})
 }
 
-func (p *Page) routeOptions(current string) (labels, ids []string, selected int) {
-	for _, route := range p.models.Routes {
-		labels, ids = append(labels, route.Name), append(ids, route.ID)
+// the routes first, then every model a provider in use offers, named with where it comes from
+func routeList(models protocol.ModelsResult) (options []look.SelectOption, ids []string) {
+	for _, route := range models.Routes {
+		options, ids = append(options, look.SelectOption{Label: route.Name, Detail: route.Description}), append(ids, route.ID)
 	}
-	models := append([]protocol.ModelInfo(nil), p.models.Models...)
-	sort.SliceStable(models, func(i, j int) bool { return models[i].Provider+models[i].Name < models[j].Provider+models[j].Name })
-	for _, model := range models {
+	offered := append([]protocol.ModelInfo(nil), models.Models...)
+	sort.SliceStable(offered, func(i, j int) bool { return offered[i].Provider+offered[i].Name < offered[j].Provider+offered[j].Name })
+	for _, model := range offered {
 		if model.Available {
-			labels, ids = append(labels, model.Name), append(ids, model.Provider+"/"+model.ID)
+			id := model.Provider + "/" + model.ID
+			options, ids = append(options, look.SelectOption{Label: model.Name, Detail: id}), append(ids, id)
 		}
 	}
-	if len(labels) == 0 {
-		return []string{i18n.T("Auto")}, []string{protocol.RouteAuto}, 0
+	return options, ids
+}
+
+func (p *Page) routeOptions(current string) (options []look.SelectOption, ids []string, selected int) {
+	if len(p.routes) == 0 {
+		return []look.SelectOption{{Label: i18n.T("Auto")}}, []string{protocol.RouteAuto}, 0
 	}
-	for index, id := range ids {
+	for index, id := range p.routeIDs {
 		if id == current {
 			selected = index
 		}
 	}
-	return labels, ids, selected
+	return p.routes, p.routeIDs, selected
 }
 
 func (p *Page) Overlay(gtx layout.Context, e *env.Env) bool {

@@ -80,6 +80,12 @@ func (s *server) serve(ctx context.Context, connection net.Conn) {
 		if frame.Method == protocol.MSessionPermission && response.Error == nil {
 			s.resolvePermission(out, frame.Params)
 		}
+		if frame.Method == protocol.MSessionStart && response.Error == nil {
+			s.wake(out, frame.Params)
+		}
+		if response.Error == nil {
+			s.chose(out, frame.Method, frame.Params)
+		}
 		if response.Error == nil {
 			s.announce(out, frame.Method)
 		}
@@ -145,8 +151,11 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 		info := s.newSession(params.Kind, params.Harness, params.Cwd, params.Project, params.Worktree, params.Branch, params.Task, "")
 		if params.Title != "" {
 			info.Title = params.Title
-			s.replaceSession(info)
 		}
+		if params.Kind == protocol.KindAsk {
+			info.Mode = params.Mode
+		}
+		s.replaceSession(info)
 		return info, nil
 	case protocol.MSessionHandoff:
 		var params protocol.HandoffParams
@@ -215,6 +224,8 @@ func (s *server) call(method string, raw json.RawMessage) (any, error) {
 			info.Mode = params.Mode
 			s.replaceSession(info)
 		}
+		return protocol.Empty{}, nil
+	case protocol.MSessionSetOption, protocol.MSessionStart:
 		return protocol.Empty{}, nil
 	case protocol.MSessionQueue:
 		var params protocol.QueueParams

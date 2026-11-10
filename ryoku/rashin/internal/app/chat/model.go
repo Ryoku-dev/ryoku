@@ -74,7 +74,10 @@ type modelState struct {
 
 	model    protocol.ChoiceData
 	mode     protocol.ChoiceData
+	options  protocol.OptionsData
 	commands protocol.CommandsData
+	// counts changes to the three above, so a composer rebuilds its lists only then
+	choices uint64
 }
 
 func newModelState() *modelState {
@@ -171,10 +174,19 @@ func (state *modelState) apply(model *Model, event protocol.SessionEvent) {
 	case protocol.EvModel:
 		if decodeEvent(event, &state.model) {
 			model.info.Model = state.model.Current
+			state.choices++
 		}
 	case protocol.EvMode:
 		if decodeEvent(event, &state.mode) {
 			model.info.Mode = state.mode.Current
+			state.choices++
+		}
+	case protocol.EvOptions:
+		// a fresh value each time: decoding into the old one would keep an option the harness dropped
+		var options protocol.OptionsData
+		if decodeEvent(event, &options) {
+			state.options = options
+			state.choices++
 		}
 	case protocol.EvCommands:
 		decodeEvent(event, &state.commands)

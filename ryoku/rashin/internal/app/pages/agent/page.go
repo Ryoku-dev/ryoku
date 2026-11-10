@@ -25,8 +25,7 @@ type Page struct {
 	board    board
 	view     chat.View
 	composer chat.Composer
-	model    look.Select
-	mode     look.Select
+	controls harnessControls
 	panel    changesPanel
 
 	create createDialog
@@ -48,6 +47,7 @@ func New() *Page { return &Page{} }
 func (p *Page) Select(e *env.Env, id string) {
 	if id == "" {
 		p.keepDraft("")
+		p.controls.leave(e, p.selected)
 		p.selected, p.opening = "", ""
 		p.board.focus(e)
 		return
@@ -57,6 +57,7 @@ func (p *Page) Select(e *env.Env, id string) {
 		return
 	}
 	p.keepDraft(id)
+	p.controls.leave(e, p.selected)
 	p.selected, p.opening = id, id
 	e.Attach(id, func(err error) {
 		if err != nil {

@@ -187,8 +187,16 @@ func (state *composerState) layoutControls(gtx layout.Context, th *theme.Theme, 
 			return state.attach.Layout(gtx, &state.look, th.R.Fg2)
 		}))
 	}
-	for _, control := range options.Controls {
-		children = append(children, layout.Rigid(control))
+	if len(options.Controls) > 0 {
+		// Send and the queue plaques are laid out after these, so their room is held back here
+		reserve := gtx.Dp(48)
+		if options.Busy && state.hasContent() {
+			reserve = gtx.Dp(180)
+		}
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.X = max(0, gtx.Constraints.Max.X-reserve)
+			return shareRow(gtx, options.Controls)
+		}))
 	}
 	children = append(children, layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 		return state.layoutHint(gtx, th, options)
@@ -204,6 +212,52 @@ func (state *composerState) layoutControls(gtx layout.Context, th *theme.Theme, 
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return state.layoutSendStop(gtx, th, options.Busy)
 		}))
+	}
+	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
+}
+
+// in a row too narrow for every control the widest give way first, each cutting its own label
+func shareRow(gtx layout.Context, controls []layout.Widget) layout.Dimensions {
+	widths := make([]int, len(controls))
+	total := 0
+	measure := gtx.Disabled()
+	measure.Constraints.Min = image.Point{}
+	for index, control := range controls {
+		record := op.Record(gtx.Ops)
+		widths[index] = control(measure).Size.X
+		record.Stop()
+		total += widths[index]
+	}
+	for limit := gtx.Constraints.Max.X; total > limit; {
+		// the widest, how many are that wide, and the next width down
+		widest, below, count := 0, 0, 0
+		for _, width := range widths {
+			widest = max(widest, width)
+		}
+		for _, width := range widths {
+			if width == widest {
+				count++
+			} else {
+				below = max(below, width)
+			}
+		}
+		step := min(widest-below, (total-limit+count-1)/count)
+		if step <= 0 {
+			break
+		}
+		for index, width := range widths {
+			if width == widest {
+				widths[index] -= step
+				total -= step
+			}
+		}
+	}
+	children := make([]layout.FlexChild, len(controls))
+	for index, control := range controls {
+		children[index] = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Max.X = widths[index]
+			return control(gtx)
+		})
 	}
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }

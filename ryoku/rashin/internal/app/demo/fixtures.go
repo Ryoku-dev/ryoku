@@ -495,6 +495,7 @@ func makeFixtures() fixtures {
 						Context:     true,
 						Models:      true,
 						Modes:       []protocol.Choice{{ID: "default", Name: i18n.T("Default")}, {ID: "plan", Name: i18n.T("Plan")}},
+						Started:     []protocol.HarnessFact{{Label: i18n.T("Model"), Value: "gpt-5.6-sol"}, {Label: i18n.T("Thinking"), Value: i18n.T("High")}},
 					},
 				},
 				{
@@ -503,6 +504,10 @@ func makeFixtures() fixtures {
 					Installed:    true,
 					Version:      "2.1.3",
 					Capabilities: &protocol.HarnessCapabilities{LoadSession: true, Images: true, Models: true},
+					Setup: []protocol.HarnessFact{
+						{Label: i18n.T("Model"), Value: "anthropic/claude-opus-5-5"},
+						{Label: i18n.Tf("%s model", "smol"), Value: "anthropic/claude-haiku-5"},
+					},
 				},
 				{
 					ID:        "custom-review",
@@ -1012,7 +1017,36 @@ func agentEvents(info protocol.SessionInfo, permission bool) []protocol.SessionE
 			},
 		}))
 	}
-	return events
+	// last, so every seq above stays what the tests and the stories know it as
+	return append(events, event(int64(len(events)+1), protocol.EvOptions, protocol.OptionsData{Options: demoOptions("auto")}))
+}
+
+// what a demo harness offers beside its model and mode
+func demoOptions(thinking string) []protocol.SessionOption {
+	return []protocol.SessionOption{{
+		ID: "thinking", Name: i18n.T("Thinking"), Category: "thought_level", Current: thinking,
+		Choices: []protocol.Choice{
+			{ID: "off", Name: i18n.T("Off")}, {ID: "auto", Name: i18n.T("Auto"), Description: i18n.T("Decides for each prompt")},
+			{ID: "high", Name: i18n.T("High")},
+		},
+	}}
+}
+
+// more models than fit a menu, as a real harness has, so the list has to be searched
+func demoModels() []protocol.Choice {
+	names := []string{"Opus", "Sonnet", "Haiku", "Sol", "Luna", "Terra", "Flash", "Pro", "Ultra", "Mini", "Nano", "Max"}
+	models := make([]protocol.Choice, len(names))
+	for index, name := range names {
+		provider := "anthropic"
+		if index >= 3 {
+			provider = "openai"
+		}
+		if index >= 6 {
+			provider = "google"
+		}
+		models[index] = protocol.Choice{ID: provider + "/" + strings.ToLower(name), Name: name}
+	}
+	return models
 }
 func event(seq int64, kind string, data any) protocol.SessionEvent {
 	raw, _ := json.Marshal(data)

@@ -142,30 +142,16 @@ func (p *Page) layoutConversation(gtx layout.Context, e *env.Env, attached state
 func (p *Page) layoutComposer(gtx layout.Context, e *env.Env, attached state.Attached, width int) layout.Dimensions {
 	info := attached.Info
 	busy := attached.Model.Busy()
-	modelLabels, modelIDs, selectedModel := choiceOptions(attached.Model.ModelChoice(), info.Model)
-	modeLabels, modeIDs, selectedMode := choiceOptions(attached.Model.ModeChoice(), info.Mode)
-	p.model.Form, p.model.Label, p.model.Return = look.SelectQuiet, i18n.T("Model"), p.composer.FocusTag()
-	p.mode.Form, p.mode.Label, p.mode.Return = look.SelectQuiet, i18n.T("Mode"), p.composer.FocusTag()
+	p.controls.sync(attached)
+	p.controls.wake(e, info)
 	options := chat.ComposerOptions{
 		Placeholder: i18n.T("Tell the agent what to do"), Busy: busy, Queue: info.Queue, CanAttach: true,
 		History: attached.Model.Prompts, Commands: attached.Model.Commands,
-		Controls: []layout.Widget{
-			func(gtx layout.Context) layout.Dimensions {
-				return p.model.Layout(gtx, e.Theme, e.Overlays, modelLabels, selectedModel)
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return p.mode.Layout(gtx, e.Theme, e.Overlays, modeLabels, selectedMode)
-			},
-		},
+		Controls: p.controls.widgets(e, e.Snapshot(), info, p.composer.FocusTag()),
 	}
 	options.Answer = p.view.Asking(attached.Model)
 	e.ComposerDesktop(&p.composer, &options)
-	if index, changed := p.model.Changed(); changed && index < len(modelIDs) {
-		e.Call(protocol.MSessionSetModel, protocol.SetModelParams{ID: info.ID, Model: modelIDs[index]}, new(protocol.Empty), report(e))
-	}
-	if index, changed := p.mode.Changed(); changed && index < len(modeIDs) {
-		e.Call(protocol.MSessionSetMode, protocol.SetModeParams{ID: info.ID, Mode: modeIDs[index]}, new(protocol.Empty), report(e))
-	}
+	p.controls.update(e, info.ID)
 	gtx.Constraints = layout.Constraints{Min: image.Pt(width, 0), Max: image.Pt(width, gtx.Constraints.Max.Y)}
 	dimensions := p.composer.Layout(gtx, e.Theme, options)
 	if submission, ok := p.composer.Submitted(); ok {

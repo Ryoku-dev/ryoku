@@ -302,14 +302,28 @@ func (state *viewState) layoutToolDiff(gtx layout.Context, th *look.Theme, tool 
 		state.diffs[key] = view
 	}
 	gtx.Constraints.Min = image.Point{}
-	gtx.Constraints.Max.Y = gtx.Dp(320)
-	result := protocol.DiffResult{Files: []protocol.FileDiff{diffview.FromTexts(tool.Diff.Path, tool.Diff.Old, tool.Diff.New)}}
-	record := op.Record(gtx.Ops)
-	dimensions := view.Layout(gtx, th, result, diffview.Options{Overlays: state.overlays, FoldOver: 80, Headless: true})
-	call := record.Stop()
-	kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone1)
-	call.Add(gtx.Ops)
-	return dimensions
+	shown := func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Max.Y = gtx.Dp(320)
+		result := protocol.DiffResult{Files: []protocol.FileDiff{diffview.FromTexts(tool.Diff.Path, tool.Diff.Old, tool.Diff.New)}}
+		record := op.Record(gtx.Ops)
+		dimensions := view.Layout(gtx, th, result, diffview.Options{Overlays: state.overlays, FoldOver: 80, Headless: true})
+		call := record.Stop()
+		kit.FillCut(gtx.Ops, image.Rectangle{Max: dimensions.Size}, gtx.Dp(th.Cut.Mid), th.R.Stone1)
+		call.Add(gtx.Ops)
+		return dimensions
+	}
+	output := strings.TrimSpace(tool.Output)
+	if output == "" {
+		return shown(gtx)
+	}
+	// what the tool said about the change, such as where the earlier version was kept
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(shown),
+		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return state.selectable(gtx, th, key+":said", th.T.Caption, th.R.Fg3, output)
+		}),
+	)
 }
 
 func (state *viewState) layoutTerminal(gtx layout.Context, th *look.Theme, terminal *terminalState, key string) layout.Dimensions {

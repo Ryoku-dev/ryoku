@@ -22,14 +22,15 @@ import (
 const recentLimit = 5
 
 type board struct {
-	header   look.PaneHeader
-	scroll   look.Scroller
-	composer chat.Composer
-	place    placement
-	more     kit.Plaque
-	starting bool
-	tablets  map[string]*boardTablet
-	first    boardStart
+	header    look.PaneHeader
+	scroll    look.Scroller
+	composer  chat.Composer
+	place     placement
+	approvals env.Approvals
+	more      kit.Plaque
+	starting  bool
+	tablets   map[string]*boardTablet
+	first     boardStart
 }
 
 type boardTablet struct {
@@ -187,13 +188,26 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 	if b.more.Clicked(gtx) {
 		page.create.open(e, &b.place)
 	}
+	home := b.composer.FocusTag()
+	may := b.approvals.Value("", snapshot.Settings.Agent.Approvals)
 	options := chat.ComposerOptions{
-		Placeholder: i18n.T("Tell an agent what to do"), CanAttach: true,
-		Controls: b.place.controls(e, b.composer.FocusTag()), Disabled: b.starting,
+		Placeholder: i18n.T("Tell an agent what to do"), CanAttach: true, Disabled: b.starting,
+		Controls: append(b.place.controls(e, home), func(gtx layout.Context) layout.Dimensions {
+			return b.approvals.Layout(gtx, e, env.AgentApprovals, "", snapshot.Settings.Agent.Approvals, home)
+		}),
+	}
+	if value, changed := b.approvals.Changed(); changed {
+		e.SetApprovals(env.AgentApprovals, value)
 	}
 	e.ComposerDesktop(&b.composer, &options)
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	harnesses := env.InstalledHarnesses(snapshot)
+	picked := harnesses[b.place.pick.Index(snapshot, harnesses)]
+	note := th.R.Fg3
+	if may == protocol.ApprovalsAuto {
+		note = th.R.Amber
+	}
+	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dimensions := b.composer.Layout(gtx, th, options)
 			if submission, ok := b.composer.Submitted(); ok {
@@ -204,12 +218,20 @@ func (b *board) layoutComposer(gtx layout.Context, e *env.Env, page *Page, snaps
 		layout.Rigid(layout.Spacer{Height: th.Sp.S2}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, th.R.Fg3, approvalsNote(snapshot, false))),
+				layout.Flexed(1, kit.Text(th.Theme, th.T.Caption, note, env.ApprovalsNote(env.AgentApprovals, may))),
 				layout.Rigid(layout.Spacer{Width: th.Sp.S3}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions { return b.more.Layout(gtx, th.Theme) }),
 			)
 		}),
-	)
+	}
+	// what the picked harness will run with, from its own settings, so the choice is made knowing it
+	if facts := env.HarnessFacts(picked); len(facts) > 0 {
+		children = append(children,
+			layout.Rigid(layout.Spacer{Height: th.Sp.S1}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return env.LayoutFacts(gtx, th, facts) }),
+		)
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 func (b *board) start(e *env.Env, snapshot state.Snapshot, submission chat.Submission) {
@@ -318,14 +340,7 @@ func approvalsNote(snapshot state.Snapshot, noHarness bool) string {
 	if noHarness {
 		return i18n.T("No harness is installed, so nothing can start yet.")
 	}
-	switch snapshot.Settings.Agent.Approvals {
-	case protocol.ApprovalsAuto:
-		return i18n.T("It may act without asking.")
-	case protocol.ApprovalsAsk:
-		return i18n.T("It asks before every action.")
-	default:
-		return i18n.T("It asks before it changes anything.")
-	}
+	return env.ApprovalsNote(env.AgentApprovals, snapshot.Settings.Agent.Approvals)
 }
 
 func countWord(count int) string {

@@ -2,10 +2,47 @@ package env
 
 import (
 	"sort"
+	"strings"
 
+	"gioui.org/layout"
+
+	"github.com/ryoku-dev/ryoku/docs/lithic/library/go/kit"
+
+	"ryoku-rashin/internal/app/look"
 	"ryoku-rashin/internal/app/state"
 	"ryoku-rashin/internal/protocol"
 )
+
+// what a harness will run with: its own settings where Rashin can read them, else what it came up with last time
+func HarnessFacts(harness protocol.HarnessInfo) []protocol.HarnessFact {
+	if len(harness.Setup) > 0 {
+		return harness.Setup
+	}
+	if harness.Capabilities != nil {
+		return harness.Capabilities.Started
+	}
+	return nil
+}
+
+func FactsSentence(facts []protocol.HarnessFact) string {
+	parts := make([]string, len(facts))
+	for index, fact := range facts {
+		parts[index] = fact.Label + " " + fact.Value
+	}
+	return strings.Join(parts, ", ")
+}
+
+// each fact as a quiet label and its value in mono, wrapping when the row is full
+func LayoutFacts(gtx layout.Context, th *look.Theme, facts []protocol.HarnessFact) layout.Dimensions {
+	return look.Flow{Gap: 13, LineGap: 4}.Layout(gtx, len(facts), func(gtx layout.Context, index int) layout.Dimensions {
+		fact := facts[index]
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Baseline}.Layout(gtx,
+			layout.Rigid(kit.RawText(th.Theme, th.T.Caption, th.R.Fg3, fact.Label)),
+			layout.Rigid(layout.Spacer{Width: 5}.Layout),
+			layout.Rigid(kit.RawText(th.Theme, th.T.MonoSm, th.R.Fg2, fact.Value)),
+		)
+	})
+}
 
 // the one new sessions start with comes first
 func InstalledHarnesses(snapshot state.Snapshot) []protocol.HarnessInfo {

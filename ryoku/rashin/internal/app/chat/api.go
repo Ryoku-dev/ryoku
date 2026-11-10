@@ -166,6 +166,28 @@ func (m *Model) ModeChoice() protocol.ChoiceData {
 	return cloneChoiceData(m.state.mode)
 }
 
+// Options returns what the harness offers beside its model and mode. The
+// slice is the model's own: read it, do not change it.
+func (m *Model) Options() []protocol.SessionOption {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.state == nil {
+		return nil
+	}
+	return m.state.options.Options
+}
+
+// ChoiceRevision changes whenever the model, mode or options did, so a caller
+// can keep what it built from them until then.
+func (m *Model) ChoiceRevision() uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.state == nil {
+		return 0
+	}
+	return m.state.choices
+}
+
 // Commands returns the latest slash commands offered by the harness.
 func (m *Model) Commands() []protocol.Command {
 	m.mu.RLock()
