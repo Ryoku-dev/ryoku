@@ -69,10 +69,11 @@ class VoiceBridge:
     def token(self) -> str:
         try:
             os.chmod(self.token_file, 0o600)
-            token = json.loads(self.token_file.read_text())["access_token"]
-            return token if isinstance(token, str) else ""
-        except (OSError, KeyError, TypeError, ValueError):
+            data = json.loads(self.token_file.read_text())
+        except (OSError, ValueError):
             return ""
+        token = data.get("access_token") if isinstance(data, dict) else None
+        return token if isinstance(token, str) else ""
 
     def save_token(self, token: str) -> None:
         self.token_file.parent.mkdir(parents=True, exist_ok=True)
