@@ -3,6 +3,8 @@
 ## Unreleased
 
 ### Fixed
+- **New installs wire the login keyring once.** The SDDM setup counts the stock
+  `-auth`/`-session` keyring lines, so it no longer adds a second copy on Arch.
 - **A picked skin stays on the Fedora sign-in screen.** `sddm-theme-ryoku` owned
   the skin files in `/usr/share/sddm/themes/ryoku`, so each package update put
   Orbital back while the Hub still named the pick. The package now owns only the
