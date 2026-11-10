@@ -574,7 +574,7 @@ PanelWindow {
         readonly property color line: Qt.rgba(GameBarLook.accent.r, GameBarLook.accent.g, GameBarLook.accent.b, win.cfg.gridAlpha)
 
         Repeater {
-            model: grid.visible ? Math.ceil(win.width / win.gridLine) + 1 : 0
+            model: grid.visible && win.gridLine > 0 ? Math.ceil(win.width / win.gridLine) + 1 : 0
 
             delegate: Rectangle {
                 required property int index
@@ -586,7 +586,7 @@ PanelWindow {
         }
 
         Repeater {
-            model: grid.visible ? Math.ceil(win.height / win.gridLine) + 1 : 0
+            model: grid.visible && win.gridLine > 0 ? Math.ceil(win.height / win.gridLine) + 1 : 0
 
             delegate: Rectangle {
                 required property int index
