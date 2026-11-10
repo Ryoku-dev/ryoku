@@ -164,7 +164,7 @@ Use the same cutover in each stack. Inventory the surface, choose an archetype, 
 
 | Stack | Inventory | Attach roles and tokens | Replace | Remove | Check |
 |---|---|---|---|---|---|
-| Web | Existing classes, inline styles, ARIA state, overlays and layout breakpoints. | Load `lithic.css`, call `Lithic.init()` and let it set `--lithic-*` roles. | Move markup to `l-*` components and native ARIA state, then adopt the matching archetype. | Inline colour and geometry values, rounded cards, shadow or blur layers, duplicated interaction scripts. | Keyboard, focus, Escape, pointer dismissal, follow, dark, light and reduced motion in Firefox and Chromium. |
+| Web | Existing classes, inline styles, ARIA state, overlays and layout breakpoints. | Load `lithic.css`, call `Lithic.init()` and let it set `--lithic-*` roles. | Move markup to `l-*` components and native ARIA state, then adopt the matching archetype. | Inline colour and geometry values, rounded cards, shadow layers, blur on controls or type, duplicated interaction scripts. | Keyboard, focus, Escape, pointer dismissal, follow, dark, light and reduced motion in Firefox and Chromium. |
 | Gio | Theme colours, widget state, click ownership, layout dimensions and frame invalidation. | Resolve `palette`, create one `theme.Theme`, and pass it through every `kit` layout. | Keep `kit` values in the owning view and compose the archetype from their `Layout` methods. | Local paint recipes, copied cuts, duplicated click handling and idle invalidation. | Keyboard and pointer paths, compact and expanded layouts, palette modes, reduced motion and zero frames at rest. |
 | Terminal | Local Lip Gloss styles, width rules, focus order, commands and status strings. | Create one `term.Theme` with `term.NewTheme(mode)` and pass it to each render function or model. | Use the terminal subset in [map.md](map.md#component-index), preserving claim, proof and action order. | Literal terminal colours, decorative borders that replace meaning, independent spacing scales and colour-only state. | Narrow and 120-column widths, keyboard order, both glyph sets, ANSI output in dark and light terminals, and readable state without colour. |
 
@@ -245,7 +245,7 @@ Serve `docs/lithic` with the web command above, then open a source from the [she
 
 - The surface matches one archetype and changes structure at its documented size class.
 - Every plane uses a role and every dimension comes from a token.
-- Corners are square or cut. There are no rounded cards, shadows, gradients, glows, blur, inset wells or status dots.
+- Corners are square or cut. There are no rounded cards, shadows, gradients, glows, inset wells or status dots. Any blur is a faint hint under a picture or on a scrim, and the type over it reads as it does on the bare plane ([design.md](design.md#blur-where-it-fits)).
 - Only one task action is gold. Navigation and state do not spend gold.
 - Every state has a mineral shape, a word and nearby proof.
 - Hover, press and keyboard focus follow the shared recipes. Pointer focus does not leave a keyboard ring.

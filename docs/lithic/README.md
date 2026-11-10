@@ -134,7 +134,9 @@ The [sheet index](examples/sheets/README.md) links every source sheet.
 
 - Use palette roles, never colour values in a surface.
 - Cut corners at 45 degrees or leave them square. Do not round them.
-- Do not add shadows, gradients, glows, blur, inset wells or status dots.
+- Do not add shadows, gradients, glows, inset wells or status dots. Blur can
+  be used where it fits and looks good, as a faint hint under a picture or on a
+  scrim ([design.md](design.md#blur-where-it-fits)).
 - Reserve gold for the one consequential action in a task.
 - Show state with a mineral shape and a word, never colour alone.
 - Take dimensions, type and motion from the tokens.

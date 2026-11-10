@@ -34,8 +34,11 @@ and in a light Ryoku palette and go down the list. Every "no" is a defect.
 - [ ] Panes cut only their top corners; tablets are square apart from the
       notch.
 - [ ] Hairlines are 1 dp and sit inside the outline.
-- [ ] No shadow, gradient, glow, blur or inset well. Overlays are one tone up
-      with a hairline on a solid scrim.
+- [ ] No shadow, gradient, glow or inset well. Overlays are one tone up with a
+      hairline on the scrim.
+- [ ] Any blur is a hint where it fits: under a picture or on a scrim, its
+      lightness near the plane's, clipped to the cut, still at rest, and never
+      on a control, type or a state.
 - [ ] Charts are a fine line over a 45 degree hatch; no coloured area fills.
 
 ## Type

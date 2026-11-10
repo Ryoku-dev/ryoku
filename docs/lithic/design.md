@@ -35,8 +35,9 @@ Read this page first. The companion pages go deeper on one subject each:
 
 2. **Flat planes.** Every surface is one flat tone. Depth is only the order of
    tones: ground, stone 1, stone 2, stone 3, stone 4, then bone. No gradients,
-   glow, blur, inner shadows, inset wells or drop shadows. Overlays are a solid
-   scrim and a slab one tone up with a hairline.
+   glow, inner shadows, inset wells or drop shadows. Overlays are a scrim and
+   a solid slab one tone up with a hairline. Blur can be used where it fits
+   and looks good, as a hint on a plane (see Blur, where it fits).
 
 3. **Bone is where you are.** The selected row, the current rail destination,
    the current filter, the on half of a toggle: all are selection slabs in the
@@ -139,6 +140,35 @@ Derived tones are computed, never picked:
 | press on a tablet or menu row | add `fg` at alpha `0.08` |
 | disabled | the whole control at opacity `0.5` |
 | focus ring | a 2 dp `fg2` stroke, 2 dp outside the control's cut, cut enlarged by 2 dp |
+
+### Blur, where it fits
+
+Blur can be used where it fits and looks good. It fits on a plane whose
+subject is a picture, such as the art of a now playing view, an album or a
+profile, where the plane takes a soft echo of what it shows, and on a scrim,
+which may blur what it covers. It is a hint laid on a role, never a surface of
+its own:
+
+| Derived | Recipe |
+|---|---|
+| picture backdrop | the picture blurred until no shape survives; each colour keeps its hue, with its OKLCH lightness held within 0.05 of the plane's and its chroma at most 0.08; drawn at 0.35 over the plane's role, inside its cut |
+| frosted scrim | what the scrim covers, captured once when the overlay opens and blurred, under the usual scrim |
+
+- Type, hairlines and states over a backdrop keep the contrast they have on
+  the bare role. That is why its lightness stays near the plane's.
+- Nothing about it moves at rest. A backdrop changes only with its picture,
+  crossfading over the field duration on the one curve.
+- Never blur a control, type or a state, and never use blur in place of a tone
+  step. Slabs, menus, dialogs and tooltips stay solid. Shadows, glows and
+  gradients stay out.
+
+Each stack makes it the cheap way. QML uses `MultiEffect` (`blurEnabled`,
+`blurMax` 64) over a downscaled `ShaderEffectSource`, set `live: false` once it
+settles. The web uses a small image scaled up, or `filter: blur()` on a layer
+behind the content, and `backdrop-filter` only for a scrim over still content.
+Gio has no blur op: blur a small downsample (24 px is plenty) once, off the
+frame goroutine, and draw it scaled with linear filtering, as Ryotunes 2 does
+in `internal/client/ui/look/backdrop.go`. The terminal has none.
 
 ## 4. Type
 
@@ -337,6 +367,8 @@ Do:
 - Pair every state colour with a word and a notch or flake.
 - Use the cut scale and the spacing run as given.
 - Stop animating and stop requesting frames as soon as a transition settles.
+- Keep any blur a hint: under a picture or on a scrim, near the plane's
+  lightness, still at rest.
 - Keep drafts in the work pane. Use dialogs for protected decisions and for
   the selected catalogue system.
 - Let Escape close the topmost thing first.
@@ -344,7 +376,8 @@ Do:
 Don't:
 
 - Round a corner or draw a pill.
-- Add a shadow, gradient, glow, blur or inset well.
+- Add a shadow, gradient, glow or inset well.
+- Blur a control, type or a state, or use blur in place of a tone step.
 - Use gold for status, decoration or navigation; use bone for anything but the current place.
 - Use Space Mono for prose or labels.
 - Show state with a dot or with colour alone.
