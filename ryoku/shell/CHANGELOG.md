@@ -63,6 +63,9 @@
 - **Orpheus workspace marks keep one slot each.** The active pill now fits inside
   its own slot and stays a whole capsule while the strip grows, and the strip's
   rows no longer carry a field that list models mistake for the row position.
+- **A fresh desktop no longer says its Stage config file is broken.** The first
+  start wrote a valid `stage-editor.json` but then read an empty copy of it,
+  showed the warning, saved a backup and stopped saving settings.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
