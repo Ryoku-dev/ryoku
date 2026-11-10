@@ -122,8 +122,8 @@ GameBarCard {
                 anchors.verticalCenter: parent.verticalCenter
                 text: card.items.length === 1
                     ? (card.mode === "clips" ? I18n.tr("1 recent clip") : I18n.tr("1 recent shot"))
-                    : card.items.length + " " + (card.mode === "clips"
-                        ? I18n.tr("recent clips") : I18n.tr("recent shots"))
+                    : (card.mode === "clips"
+                        ? I18n.tr("%1 recent clips") : I18n.tr("%1 recent shots")).arg(card.items.length)
                 color: GameBarLook.subtext
                 font.family: GameBarLook.face
                 font.pixelSize: GameBarLook.smallie * card.s
