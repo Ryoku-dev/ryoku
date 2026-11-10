@@ -76,30 +76,23 @@ Item {
     readonly property bool anyLink: root.wifiOn || root.wiredUp
     property bool scanning: false
 
-    // available networks: one row per SSID+band, the strongest AP kept and the
-    // list sorted by signal descending. keying by SSID alone dropped a dual-band
-    // SSID's 5 GHz BSS; only the connected band row is filtered, so a link on
-    // 2.4 GHz still leaves the same SSID's 5 GHz row pickable.
+    // available networks: one row per SSID, however many bands or access
+    // points broadcast it, the strongest standing for the row. Joins leave the
+    // access point to NetworkManager so it can roam across bands; the joined
+    // SSID is the header card, not a row.
     readonly property var availableNets: {
         const aps = Network.accessPoints;
-        let activeBand = "";
-        for (let a = 0; a < aps.length; a++) {
-            if (aps[a] && aps[a].active) {
-                activeBand = aps[a].band || "";
-                break;
-            }
-        }
         const best = ({});
         for (let i = 0; i < aps.length; i++) {
             const ap = aps[i];
-            if (!ap || !ap.ssid)
+            if (!ap || !ap.ssid || ap.ssid === root.activeSsid)
                 continue;
-            if (ap.ssid === root.activeSsid && (activeBand === "" || (ap.band || "") === activeBand))
-                continue;
-            const key = ap.ssid + "\u0000" + (ap.band || "");
-            const prev = best[key];
+            const prev = best[ap.ssid];
+            const saved = !!ap.saved || (!!prev && !!prev.saved);
             if (!prev || (ap.strength || 0) > (prev.strength || 0))
-                best[key] = ap;
+                best[ap.ssid] = Object.assign({}, ap, { saved: saved });
+            else if (saved && !prev.saved)
+                best[ap.ssid] = Object.assign({}, prev, { saved: true });
         }
         const out = [];
         for (const k in best) {
@@ -115,27 +108,6 @@ Item {
     readonly property var savedNets: root.availableNets.filter(n => !!n.saved)
     readonly property var otherNets: root.availableNets.filter(n => !n.saved)
 
-    // SSIDs seen on more than one band in the scan: a row shows its band chip
-    // only for these, so single-band networks read exactly as before. Counted
-    // over every scanned AP, not the rendered list, so the 5 GHz row of the
-    // SSID you are already on (whose 2.4 GHz row is filtered out) stays chipped.
-    readonly property var multiBandSsids: {
-        const bands = ({});
-        const aps = Network.accessPoints;
-        for (let i = 0; i < aps.length; i++) {
-            const ap = aps[i];
-            if (!ap || !ap.ssid || !ap.band)
-                continue;
-            if (!bands[ap.ssid])
-                bands[ap.ssid] = ({});
-            bands[ap.ssid][ap.band] = true;
-        }
-        const multi = ({});
-        for (const s in bands)
-            if (Object.keys(bands[s]).length > 1)
-                multi[s] = true;
-        return multi;
-    }
     onAvailableNetsChanged: if (root.availableNets.length > 0) root.scanning = false
 
     function secured(ap) { return ap && ap.security && ap.security !== "None"; }
@@ -209,7 +181,7 @@ Item {
         root.setSt(ap.ssid, { connecting: true, error: false });
         if (!ap.saved)
             root.setJoining(ap.ssid, true);
-        const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
+        const id = Network.connectWifi(ap.ssid, pw, "");
         root.pendingJoins[id] = { ssid: ap.ssid, wasSaved: !!ap.saved };
     }
     function forget(ssid) {
@@ -321,14 +293,6 @@ Item {
                 anchors.rightMargin: (apr.ap.saved ? 30 : 8) * root.s
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 5 * root.s
-                Text {
-                    visible: (apr.ap.band || "") !== "" && !!root.multiBandSsids[apr.ap.ssid]
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: apr.ap.band || ""
-                    color: root.inkDim
-                    font.family: Theme.mono
-                    font.pixelSize: 9.5 * root.s
-                }
                 GlyphIcon {
                     visible: apr.sec
                     anchors.verticalCenter: parent.verticalCenter

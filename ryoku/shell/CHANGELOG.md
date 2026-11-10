@@ -1,6 +1,10 @@
 # Changelog: ryoku/shell/
 
 ## Unreleased
+- **A dual-band Wi-Fi network shows once in the bar.** The list had a row per
+  network and band, so the same name could appear twice. It now has one row per
+  name, the strongest signal standing for it, and a join leaves the band to
+  NetworkManager, which roams between them.
 - **The bar's Wi-Fi list puts saved networks first.** Saved networks in range
   sit under a Saved heading above Other networks. A network being joined for
   the first time stays in its place until the join settles, even though
