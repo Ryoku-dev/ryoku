@@ -266,16 +266,9 @@ hl.window_rule({
     immediate    = true,
 })
 
--- Ryotunes, the music app ([ryoku] package, ryoku-dev/ryotunes). Float it like
--- the other music players (Spotify above); the app sizes and centres its own
--- floating window. The Tauri app maps with class "ryotunes"; the native
--- Quickshell client (ryotunes-qml) maps with Quickshell's class and the title
--- "Ryotunes" (its mini player is "Ryotunes Mini", which stays tiled).
-hl.window_rule({
-    name  = "float-ryotunes",
-    match = { class = "^ryotunes$" },
-    float = true,
-})
+-- The legacy Quickshell Ryotunes client maps with Quickshell's class and the
+-- title "Ryotunes", so it still needs its compositor floating rule. The Go app
+-- chooses floating or tiled itself.
 hl.window_rule({
     name  = "float-ryotunes-qml",
     match = { class = "^org\\.quickshell$", title = "^Ryotunes$" },

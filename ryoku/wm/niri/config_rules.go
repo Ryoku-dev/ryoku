@@ -124,9 +124,6 @@ var builtinWindowRules = []builtinRule{
 	{class: "", title: "^Rashin$", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 820; }"}},
 	{class: "", title: "^ryoku-phone-.*$", props: []string{"open-floating true", "default-column-width { fixed 520; }", "default-window-height { fixed 860; }"}},
 	{class: "^dev\\.ryoku\\.ryoport$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1180; }", "default-window-height { fixed 760; }"}},
-	// the mini keeps floating from the app rule and only changes its size
-	{class: "^ryotunes$", title: "", props: []string{"open-floating true", "default-column-width { fixed 1280; }", "default-window-height { fixed 800; }"}},
-	{class: "^ryotunes$", title: "^Ryotunes Mini$", props: []string{"default-column-width { fixed 520; }", "default-window-height { fixed 176; }"}},
 	// ryoport's GUI console clients (RDP, VNC): FreeRDP is asked to carry the
 	// class below via /wm-class, and xwayland-satellite folds the X11 class
 	// into the Wayland app-id, so the patterns match anywhere. Serial and

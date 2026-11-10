@@ -412,43 +412,17 @@ func TestWelcomeBuiltinWindowRule(t *testing.T) {
 
 func TestRyoportAndRyotunesBuiltinWindowRules(t *testing.T) {
 	out := string(genSettings(defaultStore()))
-	tests := []struct {
-		name string
-		want string
-	}{
-		{
-			name: "Ryoport",
-			want: "window-rule {\n" +
-				"    match app-id=\"^dev\\\\.ryoku\\\\.ryoport$\"\n" +
-				"    open-floating true\n" +
-				"    default-column-width { fixed 1180; }\n" +
-				"    default-window-height { fixed 760; }\n" +
-				"}\n",
-		},
-		{
-			name: "Ryotunes",
-			want: "window-rule {\n" +
-				"    match app-id=\"^ryotunes$\"\n" +
-				"    open-floating true\n" +
-				"    default-column-width { fixed 1280; }\n" +
-				"    default-window-height { fixed 800; }\n" +
-				"}\n",
-		},
-		{
-			name: "Ryotunes Mini",
-			want: "window-rule {\n" +
-				"    match app-id=\"^ryotunes$\" title=\"^Ryotunes Mini$\"\n" +
-				"    default-column-width { fixed 520; }\n" +
-				"    default-window-height { fixed 176; }\n" +
-				"}\n",
-		},
+	ryoport := "window-rule {\n" +
+		"    match app-id=\"^dev\\\\.ryoku\\\\.ryoport$\"\n" +
+		"    open-floating true\n" +
+		"    default-column-width { fixed 1180; }\n" +
+		"    default-window-height { fixed 760; }\n" +
+		"}\n"
+	if !strings.Contains(out, ryoport) {
+		t.Errorf("Ryoport builtin window rule missing\n%s", out)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if !strings.Contains(out, tt.want) {
-				t.Errorf("%s builtin window rule missing\n%s", tt.name, out)
-			}
-		})
+	if strings.Contains(out, "ryotunes") {
+		t.Errorf("Ryotunes must choose its own floating or tiled mode\n%s", out)
 	}
 }
 
