@@ -4,7 +4,7 @@ import QtQuick
 import "../../components"
 import "look"
 
-// end-4's TitlebarButton: a 30px circle holding a 20px glyph, filled with the
+// A 30px circle holding a 20px glyph, filled with the
 // secondary container while its state is on, a layer wash under the pointer.
 // No red hover: the overlay's close button is an ordinary button.
 Item {

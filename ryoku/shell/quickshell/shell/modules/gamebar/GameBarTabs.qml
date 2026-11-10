@@ -4,7 +4,7 @@ import QtQuick
 import "../../components"
 import "look"
 
-// end-4's SecondaryTabBar: a 42px row of icon and label tabs over a 1px bottom
+// A 42px row of icon and label tabs over a 1px bottom
 // border, with a 3px primary indicator tucked under the active one.
 Item {
     id: root

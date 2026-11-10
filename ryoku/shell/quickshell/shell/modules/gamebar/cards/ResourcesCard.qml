@@ -7,7 +7,7 @@ import ".."
 import Ryoku.Ui.Singletons
 import "../look"
 
-// Resources, cut like end-4's overlay widget: a tab per resource, the reading
+// Resources: a tab per resource, the reading
 // in huge numerals over "of %1", and the graph on the secondary container
 // filling the rest. The sampler has no history for GPU and memory, so the card
 // keeps its own short window for the two tabs it has to draw itself.

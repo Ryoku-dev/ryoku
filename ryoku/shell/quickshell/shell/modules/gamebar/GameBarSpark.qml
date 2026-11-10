@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Shapes
 import "look"
 
-// end-4's Graph: a 2px line filled to half opacity underneath, newest sample
+// A sparkline: a 2px line filled to half opacity underneath, newest sample
 // at the right edge. Values are fractions, so a percentage history fills from
 // the floor instead of stretching to its own peak.
 Item {

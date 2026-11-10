@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "look"
 
-// end-4's WButton at overlay size: a 12px radius, 40px tall, one raised fill,
+// A text button at overlay size: a 12px radius, 40px tall, one raised fill,
 // a layer wash under the pointer. The primary and danger forms take the accent
 // and error roles whole.
 Item {

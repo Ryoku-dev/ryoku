@@ -3,7 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "look"
 
-// end-4's StyledText pair: a subtext label on the left, the value in the body
+// A label and value pair: a subtext label on the left, the value in the body
 // size on the right.
 Item {
     id: root

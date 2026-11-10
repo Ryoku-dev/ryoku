@@ -3,7 +3,7 @@ pragma Singleton
 import QtQuick
 import shell.services
 
-// The Game Bar follows end-4's overlay on Ryoku's rounding, type scale and
+// The Game Bar overlay follows Ryoku's rounding, type scale and
 // matugen roles, so it tracks the wallpaper instead of a fixed palette.
 QtObject {
     id: root

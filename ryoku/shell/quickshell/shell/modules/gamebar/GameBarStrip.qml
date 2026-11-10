@@ -6,7 +6,7 @@ import shell.services
 import "../../components"
 import "look"
 
-// end-4's OverlayTaskbar: widget buttons, a separator, the clock and the
+// The overlay taskbar: widget buttons, a separator, the clock and the
 // battery. A button shows its widget, a second press hides it.
 Rectangle {
     id: root
