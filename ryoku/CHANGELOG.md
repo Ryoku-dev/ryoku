@@ -7,6 +7,9 @@
   keeps the `// ryoku:` header comments from `config.jsonc`, so it is now
   cached as `fastfetch-effective.jsonc`; fastfetch rejects comments in a
   `.json` file and every terminal opened with a parse error (#746).
+- **Rebuilding a Hyprland plugin after an update compiles it fresh.** Leftover
+  objects no longer produce a copy for the old Hyprland that Hyprland refuses.
+  Such a copy now counts as stale, so the doctor rebuilds it (`wm/hyprland`).
 - Fix with AI can use Codex with a repair-specific model and reasoning effort.
   Terminal launches now precede the health scan so progress and errors stay visible.
 - **Fix with AI keeps user unit overrides working for every account.** The
