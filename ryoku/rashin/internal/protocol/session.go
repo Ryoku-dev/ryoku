@@ -102,6 +102,7 @@ const (
 	EvError              = "error"
 	EvModel              = "model"
 	EvMode               = "mode"
+	EvOptions            = "options"
 	EvCommands           = "commands"
 	EvAnswer             = "answer"
 	EvTitle              = "title"
@@ -295,6 +296,22 @@ type Choice struct {
 type ChoiceData struct {
 	Current string   `json:"current"`
 	Options []Choice `json:"options,omitempty"`
+}
+
+// SessionOption is one setting a harness offers beside its model and mode,
+// such as how hard to think. Category is the harness's own word for it.
+type SessionOption struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Category string   `json:"category,omitempty"`
+	Current  string   `json:"current"`
+	Choices  []Choice `json:"choices,omitempty"`
+}
+
+// OptionsData is the data of an options event: every option the harness
+// offers now.
+type OptionsData struct {
+	Options []SessionOption `json:"options"`
 }
 
 // Command is a slash command a harness offers.

@@ -3,6 +3,7 @@ package harness
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -323,45 +324,86 @@ func (r *runner) applySessionState(session sessionResult) {
 		for _, model := range session.Models.Available {
 			models = append(models, protocol.Choice{ID: model.ModelID, Name: model.Name, Description: model.Description})
 		}
-		r.mu.Lock()
-		r.models, r.model = models, session.Models.Current
-		r.mu.Unlock()
-		r.emit(protocol.EvModel, protocol.ChoiceData{Current: session.Models.Current, Options: models})
-		r.updateInfo(func(info *protocol.SessionInfo) { info.Model = session.Models.Current })
+		r.setModels("", models, session.Models.Current)
 	}
 	if session.Modes != nil {
 		modes := make([]protocol.Choice, 0, len(session.Modes.Available))
 		for _, mode := range session.Modes.Available {
 			modes = append(modes, protocol.Choice{ID: mode.ID, Name: mode.Name, Description: mode.Description})
 		}
-		r.mu.Lock()
-		r.modes, r.mode = modes, session.Modes.Current
-		r.mu.Unlock()
-		r.emit(protocol.EvMode, protocol.ChoiceData{Current: session.Modes.Current, Options: modes})
-		r.updateInfo(func(info *protocol.SessionInfo) { info.Mode = session.Modes.Current })
+		r.setModes("", modes, session.Modes.Current)
 	}
 	r.applyConfigOptions(session.ConfigOptions)
 }
 
+// applyConfigOptions takes the agent's whole option list, which it sends at
+// the start and again whenever one changes. The model and the mode keep their
+// own events; every other select becomes a session option. A mode the agent
+// also listed the older way is the same choice twice, so the list's copy is
+// left out.
 func (r *runner) applyConfigOptions(options []configOption) {
+	others := make([]protocol.SessionOption, 0, len(options))
 	for _, option := range options {
-		if option.Category != "model" || option.Type != "select" {
+		if option.Type != "select" || option.ID == "" {
 			continue
 		}
-		models := make([]protocol.Choice, 0, len(option.Options))
-		for _, model := range option.Options {
-			description := model.Description
-			if description == model.Value {
+		choices := make([]protocol.Choice, 0, len(option.Options))
+		for _, choice := range option.Options {
+			description := choice.Description
+			if description == choice.Value {
 				description = ""
 			}
-			models = append(models, protocol.Choice{ID: model.Value, Name: model.Name, Description: description})
+			choices = append(choices, protocol.Choice{ID: choice.Value, Name: choice.Name, Description: description})
 		}
-		r.mu.Lock()
-		r.modelOption, r.models, r.model = option.ID, models, option.CurrentValue
-		r.mu.Unlock()
-		r.emit(protocol.EvModel, protocol.ChoiceData{Current: option.CurrentValue, Options: models})
-		r.updateInfo(func(info *protocol.SessionInfo) { info.Model = option.CurrentValue })
-		return
+		current := string(option.CurrentValue)
+		switch option.Category {
+		case "model":
+			r.setModels(option.ID, choices, current)
+		case "mode":
+			r.mu.Lock()
+			listed := r.modeOption == "" && len(r.modes) != 0
+			r.mu.Unlock()
+			if !listed {
+				r.setModes(option.ID, choices, current)
+			}
+		default:
+			name := option.Name
+			if name == "" {
+				name = option.ID
+			}
+			others = append(others, protocol.SessionOption{ID: option.ID, Name: name, Category: option.Category, Current: current, Choices: choices})
+		}
+	}
+	r.mu.Lock()
+	changed := !reflect.DeepEqual(r.options, others)
+	r.options = others
+	r.mu.Unlock()
+	if changed {
+		r.emit(protocol.EvOptions, protocol.OptionsData{Options: others})
+	}
+}
+
+// setModels records the agent's models and says so once: an agent repeats its
+// whole option list on every change, and a model list runs to hundreds.
+func (r *runner) setModels(option string, models []protocol.Choice, current string) {
+	r.mu.Lock()
+	changed := r.model != current || !reflect.DeepEqual(r.models, models)
+	r.modelOption, r.models, r.model = option, models, current
+	r.mu.Unlock()
+	if changed {
+		r.emit(protocol.EvModel, protocol.ChoiceData{Current: current, Options: models})
+		r.updateInfo(func(info *protocol.SessionInfo) { info.Model = current })
+	}
+}
+
+func (r *runner) setModes(option string, modes []protocol.Choice, current string) {
+	r.mu.Lock()
+	changed := r.mode != current || !reflect.DeepEqual(r.modes, modes)
+	r.modeOption, r.modes, r.mode = option, modes, current
+	r.mu.Unlock()
+	if changed {
+		r.emit(protocol.EvMode, protocol.ChoiceData{Current: current, Options: modes})
+		r.updateInfo(func(info *protocol.SessionInfo) { info.Mode = current })
 	}
 }
 

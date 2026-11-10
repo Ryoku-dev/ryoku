@@ -72,8 +72,10 @@ type runner struct {
 	loading       bool
 	promptImage   bool
 	modelOption   string
+	modeOption    string
 	models        []protocol.Choice
 	modes         []protocol.Choice
+	options       []protocol.SessionOption
 	model         string
 	mode          string
 	usage         *protocol.TokenUsage
@@ -288,11 +290,15 @@ func (r *runner) SetModel(ctx context.Context, model string, sink core.Sink) err
 		}
 	}
 	r.mu.Lock()
+	// the agent's own answer may have said so already
+	settled := r.model == model
 	r.model = model
 	choices := append([]protocol.Choice(nil), r.models...)
 	r.mu.Unlock()
-	r.emit(protocol.EvModel, protocol.ChoiceData{Current: model, Options: choices})
-	r.updateInfo(func(info *protocol.SessionInfo) { info.Model = model })
+	if !settled {
+		r.emit(protocol.EvModel, protocol.ChoiceData{Current: model, Options: choices})
+		r.updateInfo(func(info *protocol.SessionInfo) { info.Model = model })
+	}
 	return nil
 }
 
@@ -301,8 +307,11 @@ func (r *runner) SetMode(ctx context.Context, mode string, sink core.Sink) error
 		return err
 	}
 	r.mu.Lock()
-	sessionID := r.sessionID
+	sessionID, option := r.sessionID, r.modeOption
 	r.mu.Unlock()
+	if option != "" {
+		return r.setConfigOption(ctx, sessionID, option, mode)
+	}
 	if _, err := r.conn.request(ctx, "session/set_mode", map[string]any{"sessionId": sessionID, "modeId": mode}); err != nil {
 		return r.withAgentError(err)
 	}
@@ -313,6 +322,89 @@ func (r *runner) SetMode(ctx context.Context, mode string, sink core.Sink) error
 	r.emit(protocol.EvMode, protocol.ChoiceData{Current: mode, Options: choices})
 	r.updateInfo(func(info *protocol.SessionInfo) { info.Mode = mode })
 	return nil
+}
+
+func (r *runner) SetOption(ctx context.Context, option, value string, sink core.Sink) error {
+	if err := r.ensureStarted(ctx, sink); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	sessionID := r.sessionID
+	known := false
+	for _, offered := range r.options {
+		if offered.ID == option {
+			known = true
+			break
+		}
+	}
+	r.mu.Unlock()
+	if !known {
+		return errors.New(i18n.T("The agent does not offer this option. Pick one from the list."))
+	}
+	return r.setConfigOption(ctx, sessionID, option, value)
+}
+
+// setConfigOption sets one option and takes the agent's answer, its whole
+// list again, as the new state. An agent that answers with nothing is taken
+// at its word that the value stuck.
+func (r *runner) setConfigOption(ctx context.Context, sessionID, option, value string) error {
+	result, err := r.conn.request(ctx, "session/set_config_option", map[string]any{"sessionId": sessionID, "configId": option, "value": value})
+	if err != nil {
+		return r.withAgentError(err)
+	}
+	var response struct {
+		ConfigOptions []configOption `json:"configOptions"`
+	}
+	if json.Unmarshal(result, &response) == nil && len(response.ConfigOptions) != 0 {
+		r.applyConfigOptions(response.ConfigOptions)
+		return nil
+	}
+	r.mu.Lock()
+	if option == r.modeOption {
+		modes := append([]protocol.Choice(nil), r.modes...)
+		r.mode = value
+		r.mu.Unlock()
+		r.emit(protocol.EvMode, protocol.ChoiceData{Current: value, Options: modes})
+		r.updateInfo(func(info *protocol.SessionInfo) { info.Mode = value })
+		return nil
+	}
+	options := make([]protocol.SessionOption, len(r.options))
+	copy(options, r.options)
+	for index := range options {
+		if options[index].ID == option {
+			options[index].Current = value
+		}
+	}
+	r.options = options
+	r.mu.Unlock()
+	r.emit(protocol.EvOptions, protocol.OptionsData{Options: options})
+	return nil
+}
+
+func (r *runner) Start(ctx context.Context, sink core.Sink) error {
+	return r.ensureStarted(ctx, sink)
+}
+
+// startedLocked names the model and each option value the agent came up with.
+func (r *runner) startedLocked() []protocol.HarnessFact {
+	named := func(choices []protocol.Choice, id string) string {
+		for _, choice := range choices {
+			if choice.ID == id && choice.Name != "" {
+				return choice.Name
+			}
+		}
+		return id
+	}
+	facts := make([]protocol.HarnessFact, 0, len(r.options)+1)
+	if r.model != "" {
+		facts = append(facts, protocol.HarnessFact{Label: i18n.T("Model"), Value: named(r.models, r.model)})
+	}
+	for _, option := range r.options {
+		if option.Current != "" {
+			facts = append(facts, protocol.HarnessFact{Label: option.Name, Value: named(option.Choices, option.Current)})
+		}
+	}
+	return facts
 }
 
 func (r *runner) Alive() bool {
@@ -531,6 +623,7 @@ func (r *runner) initialize(ctx context.Context) error {
 		Context:     initialized.AgentCapabilities.PromptCapabilities.EmbeddedContext,
 		Modes:       append([]protocol.Choice(nil), r.modes...),
 		Models:      session.Models != nil || r.modelOption != "",
+		Started:     r.startedLocked(),
 	}
 	report := r.reportCapabilities
 	r.mu.Unlock()

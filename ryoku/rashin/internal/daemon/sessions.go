@@ -1083,6 +1083,53 @@ func (m *sessionManager) setMode(ctx context.Context, p protocol.SetModeParams) 
 	return nil
 }
 
+func (m *sessionManager) setOption(ctx context.Context, p protocol.SetOptionParams) error {
+	s, err := m.get(p.ID)
+	if err != nil {
+		return err
+	}
+	r, err := m.ensureRunner(ctx, s)
+	if err != nil {
+		return err
+	}
+	if err := r.SetOption(ctx, p.Option, p.Value, &runnerSink{manager: m, session: s}); err != nil {
+		return err
+	}
+	m.touch(s, r)
+	return nil
+}
+
+// start brings an agent session's process up before its first prompt, so the
+// model and options it will use are on screen while the user still decides
+// what to ask. The idle stop takes it down again if nothing follows.
+func (m *sessionManager) start(ctx context.Context, id string) error {
+	s, err := m.get(id)
+	if err != nil {
+		return err
+	}
+	r, err := m.ensureRunner(ctx, s)
+	if err != nil {
+		return err
+	}
+	if err := r.Start(ctx, &runnerSink{manager: m, session: s}); err != nil {
+		return err
+	}
+	m.touch(s, r)
+	return nil
+}
+
+// touch records that the session's runner was just used outside a turn.
+func (m *sessionManager) touch(s *managedSession, r core.Runner) {
+	state := r.State()
+	alive := r.Alive()
+	s.mu.Lock()
+	s.lastActivity = time.Now()
+	_ = s.log.Update(func(i *protocol.SessionInfo) { i.Alive = alive }, state)
+	m.emitInfoLocked(s)
+	s.mu.Unlock()
+	m.changed()
+}
+
 func (m *sessionManager) rename(p protocol.RenameParams) (protocol.SessionInfo, error) {
 	s, err := m.get(p.ID)
 	if err != nil {

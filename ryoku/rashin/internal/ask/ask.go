@@ -289,6 +289,12 @@ func (r *runner) SetMode(_ context.Context, mode string, sink core.Sink) error {
 	return nil
 }
 
+func (r *runner) SetOption(_ context.Context, _, _ string, _ core.Sink) error {
+	return protocol.Errorf(protocol.CodeUnsupported, "%s", i18n.T("Ask has no options beside its model and what it may do."))
+}
+
+func (r *runner) Start(_ context.Context, _ core.Sink) error { return nil }
+
 func (r *runner) Alive() bool            { return false }
 func (r *runner) Stop() error            { return nil }
 func (r *runner) State() json.RawMessage { return nil }

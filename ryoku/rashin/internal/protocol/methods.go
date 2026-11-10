@@ -18,6 +18,8 @@ const (
 	MSessionPermission = "session.permission"
 	MSessionSetModel   = "session.set_model"
 	MSessionSetMode    = "session.set_mode"
+	MSessionSetOption  = "session.set_option"
+	MSessionStart      = "session.start"
 	MSessionRename     = "session.rename"
 	MSessionDelete     = "session.delete"
 	MSessionStop       = "session.stop"
@@ -170,6 +172,8 @@ var Methods = []Method{
 	m(MSessionPermission, PermissionParams{}, Empty{}, "Answer a permission request."),
 	m(MSessionSetModel, SetModelParams{}, Empty{}, "Pick the session's model."),
 	m(MSessionSetMode, SetModeParams{}, Empty{}, "Pick the session's mode: a harness mode, or what Ask may do."),
+	m(MSessionSetOption, SetOptionParams{}, Empty{}, "Set one option the session's harness offers."),
+	m(MSessionStart, SessionRef{}, Empty{}, "Start the session's agent process without a prompt, so it reports its model and options."),
 	m(MSessionRename, RenameParams{}, SessionInfo{}, "Rename a session."),
 	m(MSessionDelete, SessionRef{}, Empty{}, "Delete a session and its log."),
 	m(MSessionStop, SessionRef{}, Empty{}, "Stop the session's agent process; the session stays resumable."),

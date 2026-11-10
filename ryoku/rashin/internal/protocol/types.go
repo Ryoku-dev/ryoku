@@ -189,6 +189,13 @@ type SetModeParams struct {
 	Mode string `json:"mode"`
 }
 
+// SetOptionParams sets one option an agent session's harness offers.
+type SetOptionParams struct {
+	ID     string `json:"id"`
+	Option string `json:"option"`
+	Value  string `json:"value"`
+}
+
 // RenameParams renames a session.
 type RenameParams struct {
 	ID    string `json:"id"`
@@ -374,6 +381,15 @@ type HarnessInfo struct {
 	// Capabilities are learned from the agent's initialize answer the first
 	// time it runs, and kept per binary.
 	Capabilities *HarnessCapabilities `json:"capabilities,omitempty"`
+	// Setup is what the harness's own settings say it will use, read from
+	// its files and never written.
+	Setup []HarnessFact `json:"setup,omitempty"`
+}
+
+// HarnessFact is one line of a harness's own setup: a label and its value.
+type HarnessFact struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
 }
 
 // HarnessCapabilities is what an agent advertised at initialize.
@@ -384,6 +400,9 @@ type HarnessCapabilities struct {
 	Context     bool     `json:"context,omitempty"`
 	Modes       []Choice `json:"modes,omitempty"`
 	Models      bool     `json:"models,omitempty"`
+	// Started is the model and the option values the agent came up with the
+	// last time it ran.
+	Started []HarnessFact `json:"started,omitempty"`
 }
 
 // HarnessInstance is a user-defined harness: any ACP agent command with its own

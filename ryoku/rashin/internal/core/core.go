@@ -58,6 +58,11 @@ type Runner interface {
 	Permission(request, option string) error
 	SetModel(ctx context.Context, model string, sink Sink) error
 	SetMode(ctx context.Context, mode string, sink Sink) error
+	// SetOption sets one option a harness offers beside its model and mode.
+	SetOption(ctx context.Context, option, value string, sink Sink) error
+	// Start brings the session's process up without a prompt, so it reports
+	// its model, modes and options. A runner with no process does nothing.
+	Start(ctx context.Context, sink Sink) error
 	// Alive reports whether an external process runs for this session.
 	Alive() bool
 	// Stop ends the external process; the session stays resumable.

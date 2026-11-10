@@ -81,6 +81,32 @@ func (s *testSink) waitKind(t *testing.T, kind string, count int) []recordedEven
 	}
 }
 
+func lastOf[T any](t *testing.T, sink *testSink, kind string) T {
+	t.Helper()
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	for index := len(sink.events) - 1; index >= 0; index-- {
+		if sink.events[index].kind == kind {
+			return sink.events[index].data.(T)
+		}
+	}
+	t.Fatalf("no %s event was reported", kind)
+	var zero T
+	return zero
+}
+
+func countOf(sink *testSink, kind string) int {
+	sink.mu.Lock()
+	defer sink.mu.Unlock()
+	count := 0
+	for _, event := range sink.events {
+		if event.kind == kind {
+			count++
+		}
+	}
+	return count
+}
+
 func helperRunner(t *testing.T, mode string, approvals string, resume json.RawMessage) (*runner, *testSink) {
 	t.Helper()
 	t.Setenv("RASHIN_ACP_TEST_MODE", mode)
@@ -385,6 +411,7 @@ func runFakeAgent(mode string) {
 	var promptID json.RawMessage
 	permissionResponses := 0
 	prompts := 0
+	chosen := map[string]string{"mode": "default", "model": "big", "thinking": "auto"}
 	terminalID := ""
 	terminalBase := 0
 	for scanner.Scan() {
@@ -425,6 +452,9 @@ func runFakeAgent(mode string) {
 				writeUpdate(write, map[string]any{"sessionUpdate": "current_model_update", "currentModelId": "smart"})
 			}
 			result := map[string]any{"sessionId": "fake-session"}
+			if strings.HasPrefix(mode, "options") {
+				result["configOptions"] = fakeConfigOptions(chosen)
+			}
 			if mode == "capabilities" {
 				result["models"] = map[string]any{
 					"availableModels": []map[string]string{{"modelId": "smart", "name": "Smart"}},
@@ -538,6 +568,18 @@ func runFakeAgent(mode string) {
 				writeUpdate(write, map[string]any{"sessionUpdate": "agent_message_chunk", "content": map[string]string{"type": "text", "text": "restarted"}})
 				writePromptResult(write, promptID, "end_turn")
 			}
+		case "session/set_config_option":
+			var params struct {
+				ConfigID string `json:"configId"`
+				Value    string `json:"value"`
+			}
+			_ = json.Unmarshal(message.Params, &params)
+			chosen[params.ConfigID] = params.Value
+			result := map[string]any{}
+			if mode != "options-silent" {
+				result["configOptions"] = fakeConfigOptions(chosen)
+			}
+			write(map[string]any{"jsonrpc": "2.0", "id": rawID(message.ID), "result": result})
 		case "session/cancel":
 			if mode == "cancel" && permissionResponses == 2 {
 				writePromptResult(write, promptID, "cancelled")

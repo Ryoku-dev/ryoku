@@ -73,6 +73,7 @@ func (r *Registry) List(ctx context.Context, refresh bool) ([]protocol.HarnessIn
 			info.Command = append([]string{path}, argv[1:]...)
 			info.Version = r.version(ctx, path, refresh)
 			info.Capabilities = r.capabilitiesFor(path)
+			info.Setup = setupOf(def.id)
 		}
 		out = append(out, info)
 	}

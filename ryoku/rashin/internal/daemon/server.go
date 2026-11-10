@@ -334,6 +334,18 @@ func (d *Daemon) dispatch(ctx context.Context, c *connection, method string, raw
 			return nil, err
 		}
 		return protocol.Empty{}, d.manager.setMode(ctx, p)
+	case protocol.MSessionSetOption:
+		p, err := unmarshal[protocol.SetOptionParams](raw)
+		if err != nil {
+			return nil, err
+		}
+		return protocol.Empty{}, d.manager.setOption(ctx, p)
+	case protocol.MSessionStart:
+		p, err := unmarshal[protocol.SessionRef](raw)
+		if err != nil {
+			return nil, err
+		}
+		return protocol.Empty{}, d.manager.start(ctx, p.ID)
 	case protocol.MSessionRename:
 		p, err := unmarshal[protocol.RenameParams](raw)
 		if err != nil {

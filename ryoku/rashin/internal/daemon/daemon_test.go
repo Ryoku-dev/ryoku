@@ -181,7 +181,16 @@ func (f *fakeRunner) Permission(request, option string) error {
 }
 func (f *fakeRunner) SetModel(context.Context, string, core.Sink) error { return nil }
 func (f *fakeRunner) SetMode(context.Context, string, core.Sink) error  { return nil }
-func (f *fakeRunner) Alive() bool                                       { f.mu.Lock(); defer f.mu.Unlock(); return f.alive }
+func (f *fakeRunner) SetOption(context.Context, string, string, core.Sink) error {
+	return nil
+}
+func (f *fakeRunner) Start(context.Context, core.Sink) error {
+	f.mu.Lock()
+	f.alive = true
+	f.mu.Unlock()
+	return nil
+}
+func (f *fakeRunner) Alive() bool { f.mu.Lock(); defer f.mu.Unlock(); return f.alive }
 func (f *fakeRunner) Stop() error {
 	f.mu.Lock()
 	stop := f.stop

@@ -265,13 +265,52 @@ type modeState struct {
 }
 
 type configOption struct {
-	ID           string `json:"id"`
-	Category     string `json:"category"`
-	Type         string `json:"type"`
-	CurrentValue string `json:"currentValue"`
-	Options      []struct {
-		Value       string `json:"value"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-	} `json:"options"`
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Category     string        `json:"category"`
+	Type         string        `json:"type"`
+	CurrentValue configValue   `json:"currentValue"`
+	Options      configChoices `json:"options"`
+}
+
+type configChoice struct {
+	Value       string `json:"value"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// configChoices reads an option's choices whether the agent lists them flat
+// or under named groups.
+type configChoices []configChoice
+
+func (c *configChoices) UnmarshalJSON(raw []byte) error {
+	var entries []struct {
+		configChoice
+		Grouped []configChoice `json:"options"`
+	}
+	if err := json.Unmarshal(raw, &entries); err != nil {
+		return err
+	}
+	choices := make(configChoices, 0, len(entries))
+	for _, entry := range entries {
+		if len(entry.Grouped) != 0 {
+			choices = append(choices, entry.Grouped...)
+			continue
+		}
+		choices = append(choices, entry.configChoice)
+	}
+	*c = choices
+	return nil
+}
+
+// configValue is an option's current value. Only a select has one Rashin can
+// show, so a value of another shape reads as empty instead of failing the list.
+type configValue string
+
+func (v *configValue) UnmarshalJSON(raw []byte) error {
+	var text string
+	if json.Unmarshal(raw, &text) == nil {
+		*v = configValue(text)
+	}
+	return nil
 }

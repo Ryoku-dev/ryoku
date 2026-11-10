@@ -35,7 +35,9 @@ event     {"event": "session.event", "data": {"session": "ask-...", "seq": 4, "t
 | `session.cancel` | `SessionRef` | |
 | `session.permission` | `PermissionParams` | |
 | `session.set_model` | `SetModelParams` | |
-| `session.set_mode` | `SetModeParams` | |
+| `session.set_mode` | `SetModeParams` (a harness mode, or for Ask an approvals value) | |
+| `session.set_option` | `SetOptionParams` | |
+| `session.start` | `SessionRef` (bring the agent up with no prompt) | |
 | `session.rename` | `RenameParams` | `SessionInfo` |
 | `session.delete` | `SessionRef` | |
 | `session.stop` | `SessionRef` | |
@@ -108,6 +110,7 @@ The connection receives live `session.event`s only after the last page.
 | `turn_end` | `TurnEndData` |
 | `error` | `ErrorData` |
 | `model`, `mode` | `ChoiceData` |
+| `options` | `OptionsData` (replaces the options) |
 | `commands` | `CommandsData` |
 | `answer` | `AnswerData` |
 | `title` | `TitleData` |

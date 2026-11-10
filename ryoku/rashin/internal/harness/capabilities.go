@@ -107,5 +107,6 @@ func writeCapabilitiesCache(cache capabilityFile) error {
 
 func cloneCapabilities(capabilities protocol.HarnessCapabilities) protocol.HarnessCapabilities {
 	capabilities.Modes = append([]protocol.Choice(nil), capabilities.Modes...)
+	capabilities.Started = append([]protocol.HarnessFact(nil), capabilities.Started...)
 	return capabilities
 }
