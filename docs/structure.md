@@ -118,7 +118,8 @@ truth for the live desktop.
   dev-loop tools.
   The bundled Shima AI usage dashboard lives under
   `quickshell/inir/defaults/widgets/ai-usage/`, with its own collectors,
-  private-cache model and background refresh worker. See [AI usage](ai-usage.md).
+  private-cache model and a refresh worker that polls only while a card is on
+  screen. See [AI usage](ai-usage.md).
 - `ui/` `Ryoku.Ui`, the shared QML module the shell, the Hub and the apps all
   import for one look: the design tokens (`Singletons/Tokens.qml`), the shared
   primitives, and the wallpaper palette. It also hosts the desktop spectrum
