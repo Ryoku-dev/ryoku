@@ -63,7 +63,11 @@ GameBarCard {
     readonly property bool saverIdle: Perf.saver && card.pinned && !GameBarStore.open
     readonly property bool polling: (!card.host || (card.host.live && !card.host.suppressed))
         && !Presence.dark && !card.saverIdle
-    onPollingChanged: card.syncFeed()
+    onPollingChanged: {
+        card.syncFeed();
+        if (!card.polling)
+            modeRestart.stop();
+    }
 
     Timer {
         interval: 10000
@@ -78,7 +82,7 @@ GameBarCard {
     Timer {
         id: modeRestart
         interval: 1
-        onTriggered: if (!modeRead.running) modeRead.running = true
+        onTriggered: if (card.polling && !modeRead.running) modeRead.running = true
     }
 
     // The watch frames carry no mode, so the full state read is the one place
