@@ -54,6 +54,9 @@
   Brightness or Volume drawer grew the panel, but clicks on the newly grown part
   still counted as clicks outside it. The whole drawer now takes clicks, and the
   settings popup stays inside the panel when it is centred.
+- **The Nomarchy monitor panel drives only a real backlight too.** Its brightness
+  slider no longer reads or writes a keyboard LED on a desktop, and on a laptop it
+  sets the same panel backlight the brightness keys do.
 - **Windows reach the Shima dock again.** Under the Shima bar style the frame and
   the dock both reserved the dock's band, which left a dock-tall gap between
   windows and the dock. The frame's reservation is now the only one there.
