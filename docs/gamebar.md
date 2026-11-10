@@ -121,6 +121,13 @@ The installer needs `git`, `node` and `npm`; when `pnpm` is absent it enables
 it through corepack or installs it into the user prefix. The first build takes a
 few minutes. Running the installer again pulls the source and rebuilds.
 
+The build tracks the upstream `main` branch at the moment it runs, and once the
+client points at it the client no longer updates Vencord or Equicord by itself:
+run the installer again to pick up upstream fixes. To go back to the client's
+own build, quit it, restore `state.json.pre-ryoku-voice` over `state.json` (or
+delete the `vencordDir` / `equicordDir` key), and remove
+`~/.local/share/ryoku/discord-voice/`.
+
 The bridge process runs only while the Voice widget is on screen, including
 when it is pinned and the bar is closed. Hiding Voice stops the bridge; no
 Discord socket is held when the widget is not in use.

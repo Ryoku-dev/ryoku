@@ -135,7 +135,9 @@ install_client() {
     cp "$state" "$backup"
     python3 - "$state" "$key" "$dir/dist" <<'PY' || return 1
 import json
+import os
 import sys
+import tempfile
 
 path, key, dist = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
@@ -146,9 +148,16 @@ except (OSError, ValueError) as error:
 if not isinstance(state, dict):
     raise SystemExit(f"error: {path} is not a JSON object; fix it and run this again")
 state[key] = dist
-with open(path, "w", encoding="utf-8") as handle:
-    json.dump(state, handle, indent=4)
-    handle.write("\n")
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".state.json.")
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(state, handle, indent=4)
+        handle.write("\n")
+    os.chmod(tmp, os.stat(path).st_mode & 0o777)
+    os.replace(tmp, path)
+except BaseException:
+    os.unlink(tmp)
+    raise
 PY
 
     say "done; start $client and RyokuDiscordVoice is enabled by default"
