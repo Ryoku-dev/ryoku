@@ -76,23 +76,30 @@ Item {
     readonly property bool anyLink: root.wifiOn || root.wiredUp
     property bool scanning: false
 
-    // available networks: one row per SSID, however many bands or access
-    // points broadcast it, the strongest standing for the row. Joins leave the
-    // access point to NetworkManager so it can roam across bands; the joined
-    // SSID is the header card, not a row.
+    // available networks: one row per SSID+band, the strongest AP kept and the
+    // list sorted by signal descending. keying by SSID alone dropped a dual-band
+    // SSID's 5 GHz BSS; only the connected band row is filtered, so a link on
+    // 2.4 GHz still leaves the same SSID's 5 GHz row pickable.
     readonly property var availableNets: {
         const aps = Network.accessPoints;
+        let activeBand = "";
+        for (let a = 0; a < aps.length; a++) {
+            if (aps[a] && aps[a].active) {
+                activeBand = aps[a].band || "";
+                break;
+            }
+        }
         const best = ({});
         for (let i = 0; i < aps.length; i++) {
             const ap = aps[i];
-            if (!ap || !ap.ssid || ap.ssid === root.activeSsid)
+            if (!ap || !ap.ssid)
                 continue;
-            const prev = best[ap.ssid];
-            const saved = !!ap.saved || (!!prev && !!prev.saved);
+            if (ap.ssid === root.activeSsid && (activeBand === "" || (ap.band || "") === activeBand))
+                continue;
+            const key = ap.ssid + "\u0000" + (ap.band || "");
+            const prev = best[key];
             if (!prev || (ap.strength || 0) > (prev.strength || 0))
-                best[ap.ssid] = Object.assign({}, ap, { saved: saved });
-            else if (saved && !prev.saved)
-                best[ap.ssid] = Object.assign({}, prev, { saved: true });
+                best[key] = ap;
         }
         const out = [];
         for (const k in best) {
@@ -108,6 +115,27 @@ Item {
     readonly property var savedNets: root.availableNets.filter(n => !!n.saved)
     readonly property var otherNets: root.availableNets.filter(n => !n.saved)
 
+    // SSIDs seen on more than one band in the scan: a row shows its band chip
+    // only for these, so single-band networks read exactly as before. Counted
+    // over every scanned AP, not the rendered list, so the 5 GHz row of the
+    // SSID you are already on (whose 2.4 GHz row is filtered out) stays chipped.
+    readonly property var multiBandSsids: {
+        const bands = ({});
+        const aps = Network.accessPoints;
+        for (let i = 0; i < aps.length; i++) {
+            const ap = aps[i];
+            if (!ap || !ap.ssid || !ap.band)
+                continue;
+            if (!bands[ap.ssid])
+                bands[ap.ssid] = ({});
+            bands[ap.ssid][ap.band] = true;
+        }
+        const multi = ({});
+        for (const s in bands)
+            if (Object.keys(bands[s]).length > 1)
+                multi[s] = true;
+        return multi;
+    }
     onAvailableNetsChanged: if (root.availableNets.length > 0) root.scanning = false
 
     function secured(ap) { return ap && ap.security && ap.security !== "None"; }
@@ -142,14 +170,14 @@ Item {
 
     PopoutCard { anchors.fill: parent }
 
-    // Row state is kept here, keyed by SSID: the list is rebuilt from a fresh
-    // array on every network frame, which destroyed a row mid-join along with
-    // its field, its pending reply and its error.
+    // Row state is kept here, keyed by SSID and band (one row each): the list
+    // is rebuilt from a fresh array on every network frame, which destroyed a
+    // row mid-join along with its field, its pending reply and its error.
     property var rowState: ({})
     property var pendingJoins: ({})
     property var joining: ({})
     readonly property var pwDrafts: ({})
-    property string focusSsid: ""
+    property string focusKey: ""
     property bool heroOpen: false
     property bool heroConfirm: false
     onActiveSsidChanged: {
@@ -157,17 +185,18 @@ Item {
         root.heroConfirm = false;
     }
 
-    function st(ssid) { return root.rowState[ssid] || ({}); }
-    function setSt(ssid, patch) {
+    function rowKey(ap) { return ap.ssid + "\u0000" + (ap.band || ""); }
+    function st(key) { return root.rowState[key] || ({}); }
+    function setSt(key, patch) {
         const m = Object.assign({}, root.rowState);
-        m[ssid] = Object.assign({}, m[ssid] || ({}), patch);
+        m[key] = Object.assign({}, m[key] || ({}), patch);
         root.rowState = m;
     }
-    function toggleExpanded(ssid) {
-        const open = !root.st(ssid).expanded;
-        root.setSt(ssid, { expanded: open });
+    function toggleExpanded(key) {
+        const open = !root.st(key).expanded;
+        root.setSt(key, { expanded: open });
         if (open)
-            root.focusSsid = ssid;
+            root.focusKey = key;
     }
     function setJoining(ssid, on) {
         const m = Object.assign({}, root.joining);
@@ -178,15 +207,22 @@ Item {
         root.joining = m;
     }
     function join(ap, pw) {
-        root.setSt(ap.ssid, { connecting: true, error: false });
+        const key = root.rowKey(ap);
+        root.setSt(key, { connecting: true, error: false });
         if (!ap.saved)
             root.setJoining(ap.ssid, true);
-        const id = Network.connectWifi(ap.ssid, pw, "");
-        root.pendingJoins[id] = { ssid: ap.ssid };
+        const id = Network.connectWifi(ap.ssid, pw, ap.bssid);
+        root.pendingJoins[id] = { ssid: ap.ssid, key: key };
     }
     function forget(ssid) {
-        root.setSt(ssid, { expanded: false, reprompt: false, error: false, connecting: false });
-        root.pwDrafts[ssid] = "";
+        const m = Object.assign({}, root.rowState);
+        for (const k in m) {
+            if (k.split("\u0000")[0] !== ssid)
+                continue;
+            m[k] = Object.assign({}, m[k], { expanded: false, reprompt: false, error: false, connecting: false });
+            root.pwDrafts[k] = "";
+        }
+        root.rowState = m;
         Network.forgetWifi(ssid);
     }
     Connections {
@@ -197,19 +233,19 @@ Item {
                 return;
             delete root.pendingJoins[id];
             root.setJoining(j.ssid, false);
-            root.pwDrafts[j.ssid] = "";
+            root.pwDrafts[j.key] = "";
             // pwEpoch tells the row to empty its field, so a failed password is
             // never left for the next attempt to be typed onto
-            const epoch = (root.st(j.ssid).pwEpoch || 0) + 1;
+            const epoch = (root.st(j.key).pwEpoch || 0) + 1;
             if (ok) {
-                root.setSt(j.ssid, { connecting: false, expanded: false, error: false, reprompt: false, pwEpoch: epoch });
+                root.setSt(j.key, { connecting: false, expanded: false, error: false, reprompt: false, pwEpoch: epoch });
             } else {
                 // ask for the password again, also when the network reads as
                 // saved: a stored secret failed, or a failed first join left
                 // its profile behind
-                root.setSt(j.ssid, { connecting: false, expanded: true, error: true,
+                root.setSt(j.key, { connecting: false, expanded: true, error: true,
                     reprompt: true, pwEpoch: epoch });
-                root.focusSsid = j.ssid;
+                root.focusKey = j.key;
             }
         }
     }
@@ -219,7 +255,8 @@ Item {
     component ApRow: Column {
         id: apr
         required property var ap
-        readonly property var rs: root.st(apr.ap.ssid)
+        readonly property string key: root.rowKey(apr.ap)
+        readonly property var rs: root.st(apr.key)
         readonly property bool expanded: !!apr.rs.expanded
         readonly property bool connecting: !!apr.rs.connecting
         readonly property bool errorShown: !!apr.rs.error
@@ -235,12 +272,12 @@ Item {
             root.join(apr.ap, apr.needsPw ? pwField.text : "");
         }
         function focusField() {
-            if (apr.expanded && apr.needsPw && root.focusSsid === apr.ap.ssid)
+            if (apr.expanded && apr.needsPw && root.focusKey === apr.key)
                 pwField.forceActiveFocus();
         }
         Component.onCompleted: {
             apr.seenEpoch = apr.rs.pwEpoch || 0;
-            pwField.text = root.pwDrafts[apr.ap.ssid] || "";
+            pwField.text = root.pwDrafts[apr.key] || "";
             apr.focusField();
         }
         onExpandedChanged: apr.focusField()
@@ -295,6 +332,14 @@ Item {
                 anchors.rightMargin: (apr.ap.saved ? 30 : 8) * root.s
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 5 * root.s
+                Text {
+                    visible: (apr.ap.band || "") !== "" && !!root.multiBandSsids[apr.ap.ssid]
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: apr.ap.band || ""
+                    color: root.inkDim
+                    font.family: Theme.mono
+                    font.pixelSize: 9.5 * root.s
+                }
                 GlyphIcon {
                     visible: apr.sec
                     anchors.verticalCenter: parent.verticalCenter
@@ -318,7 +363,7 @@ Item {
                 anchors.fill: parent
                 onClicked: {
                     if (apr.needsPw)
-                        root.toggleExpanded(apr.ap.ssid);
+                        root.toggleExpanded(apr.key);
                     else
                         apr.doConnect();
                 }
@@ -346,7 +391,7 @@ Item {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: root.toggleExpanded(apr.ap.ssid)
+                    onClicked: root.toggleExpanded(apr.key)
                 }
             }
         }
@@ -378,7 +423,7 @@ Item {
                     font.pixelSize: 11 * root.s
                     echoMode: eye.show ? TextInput.Normal : TextInput.Password
                     clip: true
-                    onTextEdited: root.pwDrafts[apr.ap.ssid] = text
+                    onTextEdited: root.pwDrafts[apr.key] = text
                     onAccepted: apr.doConnect()
                     Text {
                         anchors.fill: parent

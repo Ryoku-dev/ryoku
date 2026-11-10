@@ -75,10 +75,6 @@
   the password prompt ("Wrong password, or a different network with the same
   name?"), a new passphrase replaces the stale profile, and a failed or timed-out
   attempt empties the field (`barstyles/qsbar/panels/`).
-- **A dual-band Wi-Fi network shows once in the bar.** The list had a row per
-  network and band, so the same name could appear twice. It now has one row per
-  name, the strongest signal standing for it, and a join leaves the band to
-  NetworkManager, which roams between them.
 - **The bar's Wi-Fi list puts saved networks first.** Saved networks in range
   sit under a Saved heading above Other networks. A network being joined for
   the first time stays in its place until the join settles, even though
@@ -97,7 +93,7 @@
   The list is rebuilt on every network frame, which threw away a row's field,
   its pending join and its error; a retry after a wrong password could also
   type onto the rejected text. Row state now lives in the popout, keyed by
-  SSID, and the field empties after every attempt
+  network and band, and the field empties after every attempt
   (`quickshell/shell/modules/bar/popouts/NetworkPopout.qml`).
 - **A wrong password no longer saves the Wi-Fi network.** NetworkManager keeps
   the profile a first join creates even when the passphrase is rejected, so the
