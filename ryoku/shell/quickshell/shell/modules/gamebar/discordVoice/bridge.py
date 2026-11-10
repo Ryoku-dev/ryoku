@@ -97,13 +97,14 @@ class VoiceBridge:
         if not writer or writer.is_closing():
             return False
         body = json.dumps(payload).encode()
-        writer.write(struct.pack("<II", opcode, len(body)) + body)
         try:
+            writer.write(struct.pack("<II", opcode, len(body)) + body)
             await asyncio.wait_for(writer.drain(), NATIVE_WRITE_TIMEOUT)
         except (asyncio.TimeoutError, OSError):
-            # The drain yields: a companion can take over or a reconnect can
-            # replace the socket meanwhile. Close the writer that failed, and
-            # clear the bridge's state only when it is still the current one.
+            # The write and the drain both touch a socket another task can
+            # close: a companion can take over or a reconnect can replace it
+            # meanwhile. Close the writer that failed, and clear the bridge's
+            # state only when it is still the current one.
             writer.close()
             if self.writer is writer:
                 self.close_native()
